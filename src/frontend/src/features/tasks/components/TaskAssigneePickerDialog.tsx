@@ -1,10 +1,9 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
 import { DirectoryMultiPicker } from '@/features/contacts'
 import { Button } from '@/primitives'
-import { css } from '@/styled-system/css'
 
 import type { ApiTaskUser } from '../api/ApiTask'
 
@@ -76,13 +75,12 @@ export const TaskAssigneePickerDialog = ({
       maxHeight="72vh"
       initialFocusRef={searchRef}
     >
-      <div className={headerCss}>
-        <div>
-          <h2 className={titleCss}>{t('assignees.select')}</h2>
-          <p className={hintCss}>{t('assignees.limit')}</p>
-        </div>
-        <ModalCloseButton onClose={onClose} label={t('followers.cancel')} />
-      </div>
+      <ModalHeader
+        title={t('assignees.select')}
+        subtitle={t('assignees.limit')}
+        onClose={onClose}
+        closeLabel={t('followers.cancel')}
+      />
       <DirectoryMultiPicker
         includeSelf
         selected={selected}
@@ -98,7 +96,7 @@ export const TaskAssigneePickerDialog = ({
           loadMore: t('followers.loadMore'),
         }}
       />
-      <div className={footerCss}>
+      <ModalFooter>
         <Button variant="secondary" size="action" onPress={onClose}>
           {t('followers.cancel')}
         </Button>
@@ -111,26 +109,7 @@ export const TaskAssigneePickerDialog = ({
         >
           {t('followers.confirm')}
         </Button>
-      </div>
+      </ModalFooter>
     </Modal>
   )
 }
-
-const headerCss = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
-const titleCss = css({ margin: 0, fontSize: '1rem', fontWeight: 'bold' })
-const hintCss = css({ margin: 0, fontSize: '0.75rem', color: 'greyscale.600' })
-const footerCss = css({
-  display: 'flex',
-  justifyContent: 'flex-end',
-  gap: '0.5rem',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderTop: '1px solid token(colors.greyscale.200)',
-})

@@ -1,10 +1,9 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
 import { DirectoryMultiPicker } from '@/features/contacts'
 import { Button } from '@/primitives'
-import { css } from '@/styled-system/css'
 
 import type { ApiTaskUser } from '../api/ApiTask'
 
@@ -76,10 +75,11 @@ export const TaskFollowerPickerDialog = ({
       maxHeight="72vh"
       initialFocusRef={searchRef}
     >
-      <div className={headerCss}>
-        <h2 className={titleCss}>{t('followers.select')}</h2>
-        <ModalCloseButton onClose={onClose} label={t('followers.cancel')} />
-      </div>
+      <ModalHeader
+        title={t('followers.select')}
+        onClose={onClose}
+        closeLabel={t('followers.cancel')}
+      />
 
       <DirectoryMultiPicker
         includeSelf
@@ -98,7 +98,7 @@ export const TaskFollowerPickerDialog = ({
         }}
       />
 
-      <div className={footerCss}>
+      <ModalFooter>
         <Button variant="secondary" size="action" onPress={onClose}>
           {t('followers.cancel')}
         </Button>
@@ -110,32 +110,7 @@ export const TaskFollowerPickerDialog = ({
         >
           {t('followers.confirm')}
         </Button>
-      </div>
+      </ModalFooter>
     </Modal>
   )
 }
-
-const headerCss = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
-
-const titleCss = css({
-  margin: 0,
-  fontSize: '1rem',
-  fontWeight: 'bold',
-  color: 'greyscale.900',
-})
-
-const footerCss = css({
-  display: 'flex',
-  justifyContent: 'flex-end',
-  gap: '0.5rem',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-  borderTop: '1px solid token(colors.greyscale.200)',
-})

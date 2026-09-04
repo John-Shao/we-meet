@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal, ModalHeader } from '@/components/Modal'
+import { Modal, ModalBody, ModalHeader } from '@/components/Modal'
 
 /** One line of a merged chat-record (合并转发的聊天记录). */
 export interface MergedItem {
@@ -59,24 +59,19 @@ export const MergedRecordDialog = ({ record, onClose }: Props) => {
         onClose={onClose}
         closeLabel={t('group.cancel')}
       />
-      <div
-        className={css({
-          overflowY: 'auto',
-          flex: 1,
-          minHeight: '8rem',
-          padding: '0.5rem 0',
-        })}
-      >
-        {record.items.map((it, idx) => (
-          <div key={idx} className={rowCls} data-testid="merged-line">
-            <div className={metaCls}>
-              <span className={senderCls}>{it.sender}</span>
-              <span className={tsCls}>{fmtTs(it.ts, i18n.language)}</span>
+      <ModalBody padding="none" minHeight="8rem">
+        <div className={recordListCls}>
+          {record.items.map((it, idx) => (
+            <div key={idx} className={rowCls} data-testid="merged-line">
+              <div className={metaCls}>
+                <span className={senderCls}>{it.sender}</span>
+                <span className={tsCls}>{fmtTs(it.ts, i18n.language)}</span>
+              </div>
+              <div className={textCls}>{it.text}</div>
             </div>
-            <div className={textCls}>{it.text}</div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </ModalBody>
     </Modal>
   )
 }
@@ -85,6 +80,8 @@ const rowCls = css({
   paddingX: '1rem',
   paddingY: '0.5rem',
 })
+
+const recordListCls = css({ paddingY: 'sm' })
 
 const metaCls = css({
   display: 'flex',

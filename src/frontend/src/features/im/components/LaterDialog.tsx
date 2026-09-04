@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
-import { Modal } from '@/components/Modal'
+import { Modal, ModalBody, ModalHeader } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
 
 import { listLater, type LaterItem } from '../api/listLater'
@@ -68,49 +68,13 @@ export const LaterDialog = ({ onOpenConversation, onClose }: Props) => {
 
   return (
     <Modal onClose={onClose} ariaLabel={t('later.title')} maxWidth="440px">
-      <div
-        className={css({
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0.875rem 1rem 0.5rem',
-        })}
-      >
-        <h2
-          className={css({
-            margin: 0,
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-          })}
-        >
-          {t('later.title')}
-        </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('group.cancel')}
-          className={css({
-            border: 'none',
-            background: 'none',
-            fontSize: '1.25rem',
-            cursor: 'pointer',
-            color: 'greyscale.500',
-            _hover: { color: 'greyscale.900' },
-          })}
-        >
-          ×
-        </button>
-      </div>
+      <ModalHeader
+        title={t('later.title')}
+        onClose={onClose}
+        closeLabel={t('group.cancel')}
+      />
 
-      <div
-        className={css({
-          overflowY: 'auto',
-          flex: 1,
-          minHeight: '8rem',
-          maxHeight: '60vh',
-        })}
-      >
+      <ModalBody padding="none" minHeight="8rem" maxHeight="60vh">
         {isLoading ? (
           <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
             {t('list.loading')}
@@ -205,7 +169,7 @@ export const LaterDialog = ({ onOpenConversation, onClose }: Props) => {
             </div>
           ))
         )}
-      </div>
+      </ModalBody>
     </Modal>
   )
 }

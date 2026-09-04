@@ -1,4 +1,10 @@
-import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
+import {
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import { RiCloseLine } from '@remixicon/react'
 
 import { IconButton } from '@/primitives/IconButton'
@@ -180,6 +186,7 @@ export const ModalCloseButton = ({
 
 export interface ModalHeaderProps {
   title: ReactNode
+  subtitle?: ReactNode
   onClose: () => void
   closeLabel: string
   className?: string
@@ -193,13 +200,17 @@ export interface ModalHeaderProps {
  */
 export const ModalHeader = ({
   title,
+  subtitle,
   onClose,
   closeLabel,
   className,
   titleClassName,
 }: ModalHeaderProps) => (
   <div className={cx(modalHeaderCss, className)}>
-    <h2 className={cx(modalHeaderTitleCss, titleClassName)}>{title}</h2>
+    <div className={modalHeaderTextCss}>
+      <h2 className={cx(modalHeaderTitleCss, titleClassName)}>{title}</h2>
+      {subtitle ? <p className={modalHeaderSubtitleCss}>{subtitle}</p> : null}
+    </div>
     <ModalCloseButton onClose={onClose} label={closeLabel} />
   </div>
 )
@@ -216,8 +227,6 @@ const modalHeaderCss = css({
 })
 
 const modalHeaderTitleCss = css({
-  flex: 1,
-  minWidth: 0,
   margin: 0,
   color: 'text.primary',
   textStyle: 'titleMedium',
@@ -226,9 +235,25 @@ const modalHeaderTitleCss = css({
   whiteSpace: 'nowrap',
 })
 
+const modalHeaderTextCss = css({
+  flex: 1,
+  minWidth: 0,
+})
+
+const modalHeaderSubtitleCss = css({
+  margin: 0,
+  color: 'text.secondary',
+  textStyle: 'bodySmall',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+
 export interface ModalBodyProps {
   children: ReactNode
   padding?: 'none' | 'default'
+  minHeight?: CSSProperties['minHeight']
+  maxHeight?: CSSProperties['maxHeight']
   className?: string
 }
 
@@ -239,10 +264,13 @@ export interface ModalBodyProps {
 export const ModalBody = ({
   children,
   padding = 'default',
+  minHeight,
+  maxHeight,
   className,
 }: ModalBodyProps) => (
   <div
     data-padding={padding}
+    style={{ minHeight, maxHeight }}
     className={cx(modalBodyRecipe({ padding }), className)}
   >
     {children}

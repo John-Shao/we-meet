@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { MemberAvatar, useDirectoryMemberSearch } from '@/features/contacts'
 import {
@@ -202,9 +202,7 @@ export const ForwardDialog = ({
             </InteractiveListRow>
           )}
 
-          <div
-            className={css({ overflowY: 'auto', flex: 1, minHeight: '8rem' })}
-          >
+          <ModalBody padding="none" minHeight="8rem">
             {filtered.length === 0 && directoryHits.length === 0 ? (
               <StateHint loading={isLoading}>
                 {isLoading ? t('forward.loading') : t('forward.empty')}
@@ -273,7 +271,7 @@ export const ForwardDialog = ({
                 })}
               </>
             )}
-          </div>
+          </ModalBody>
 
           <ModalFooter>
             {resolveFailed && (

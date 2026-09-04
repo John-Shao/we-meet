@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { RiFileTextLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
-import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
+import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import { Button, Input, SelectableListRow } from '@/primitives'
 
 import { fetchMyDocuments, type MyDocumentHit } from '../api/fetchMyDocuments'
@@ -73,7 +73,7 @@ export const DocPickerDialog = ({ onConfirm, onClose }: Props) => {
         />
       </div>
 
-      <div className={css({ overflowY: 'auto', flex: 1, minHeight: '8rem' })}>
+      <ModalBody padding="none" minHeight="8rem">
         {isError ? (
           <p className={css({ padding: '1rem', color: 'greyscale.500' })}>
             {t('docPicker.error')}
@@ -103,7 +103,7 @@ export const DocPickerDialog = ({ onConfirm, onClose }: Props) => {
             )
           })
         )}
-      </div>
+      </ModalBody>
 
       <ModalFooter alignment="space-between">
         <span className={selectedCountCls}>

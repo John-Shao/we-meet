@@ -101,10 +101,16 @@ describe('ModalHeader', () => {
   it('renders a semantic title and delegates the labelled close action', () => {
     const onClose = vi.fn()
     render(
-      <ModalHeader title="选择联系人" closeLabel="关闭" onClose={onClose} />
+      <ModalHeader
+        title="选择联系人"
+        subtitle="最多选择 10 人"
+        closeLabel="关闭"
+        onClose={onClose}
+      />
     )
 
     expect(screen.getByRole('heading', { name: '选择联系人' })).toBeVisible()
+    expect(screen.getByText('最多选择 10 人')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: '关闭' }))
     expect(onClose).toHaveBeenCalledOnce()
   })
@@ -131,7 +137,15 @@ describe('ModalBody', () => {
       'default'
     )
 
-    rerender(<ModalBody padding="none">列表内容</ModalBody>)
+    rerender(
+      <ModalBody padding="none" minHeight="8rem" maxHeight="60vh">
+        列表内容
+      </ModalBody>
+    )
     expect(screen.getByText('列表内容')).toHaveAttribute('data-padding', 'none')
+    expect(screen.getByText('列表内容')).toHaveStyle({
+      minHeight: '8rem',
+      maxHeight: '60vh',
+    })
   })
 })

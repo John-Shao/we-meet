@@ -64,9 +64,11 @@ Android 的主按钮高度保留 52dp，这是平台触控密度映射，不要�
 - 菜单表面统一使用 `surface.default / border.default / radius.control / elevation.overlay`，因此自动适配明暗主题；
 - 普通菜单项使用 `tone="neutral"`，删除、取消订阅等危险动作使用 `tone="danger"`；
 - 菜单打开后聚焦首个可用动作，并支持方向键、Home / End 与 Escape；锚点定位和视口防溢出仍由具体场景负责；
-- 单行 Dialog 标题栏统一使用 `ModalHeader`，由组件提供 `titleMedium` 字体、语义分隔线、文本截断和标准关闭动作；带副标题或返回按钮的复杂标题栏才保留场景化组合；
+- Dialog 标题栏统一使用 `ModalHeader`，由组件提供 `titleMedium` 字体、可选 `bodySmall` 副标题、语义分隔线、文本截断和标准关闭动作；带返回按钮或多组操作的复杂标题栏才保留场景化组合；
 - Dialog 底部操作栏统一使用 `ModalFooter`：普通表单默认右对齐，人员选择等需要展示计数或状态时使用 `space-between`；组件统一提供语义分隔线和标准间距；
 - Dialog 内容区统一使用 `ModalBody`：普通表单使用标准内边距，贴边列表显式设置 `padding="none"`；组件统一正文语义、滚动行为和 flex 收缩规则；
+- 列表型 Dialog 可通过 `ModalBody.minHeight / maxHeight` 保留必要视口；`DirectoryMultiPicker` 等已经完整承担内容区布局的组合组件可直接占据 body slot，不再套一层滚动容器；
+- 新建日程、日程详情、全局搜索、全量设置等包含多级导航或场景化工具栏的复杂 Dialog 不强行拆成通用三段式，但仍需使用语义色、共享关闭动作和标准尺寸；
 - 自定义 Dialog 标题栏的关闭动作仍必须使用 `ModalCloseButton`，不能使用无 hover、focus-visible 状态的裸 `×` 按钮。
 
 ### 可交互列表行与选择行

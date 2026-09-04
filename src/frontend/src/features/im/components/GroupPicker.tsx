@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { css, cx } from '@/styled-system/css'
-import { Button } from '@/primitives'
-import { Modal } from '@/components/Modal'
+import { css } from '@/styled-system/css'
+import { Button, Input } from '@/primitives'
+import { Modal, ModalFooter, ModalHeader } from '@/components/Modal'
 import { useUser } from '@/features/auth'
 import { DirectoryMultiPicker } from '@/features/contacts'
 
@@ -55,42 +55,11 @@ export const GroupPicker = ({ onCreate, onClose, initialMembers }: Props) => {
       maxHeight="72vh"
       initialFocusRef={searchRef}
     >
-      <div
-        className={css({
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingX: '1rem',
-          paddingY: '0.75rem',
-          borderBottom: '1px solid token(colors.greyscale.200)',
-        })}
-      >
-        <h2
-          className={css({
-            margin: 0,
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-          })}
-        >
-          {t('group.title')}
-        </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t('group.cancel')}
-          className={css({
-            border: 'none',
-            background: 'transparent',
-            fontSize: '1.25rem',
-            lineHeight: 1,
-            cursor: 'pointer',
-            color: 'greyscale.600',
-          })}
-        >
-          ×
-        </button>
-      </div>
+      <ModalHeader
+        title={t('group.title')}
+        onClose={onClose}
+        closeLabel={t('group.cancel')}
+      />
 
       {/* 左搜索勾选 + 右已选 —— 与日历「批量添加参与者」共用同一块面板。 */}
       <DirectoryMultiPicker
@@ -113,23 +82,14 @@ export const GroupPicker = ({ onCreate, onClose, initialMembers }: Props) => {
         testIdPrefix="group-picker-item-"
       />
 
-      <div
-        className={css({
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          paddingX: '1rem',
-          paddingY: '0.75rem',
-          borderTop: '1px solid token(colors.greyscale.200)',
-        })}
-      >
-        <input
+      <ModalFooter>
+        <Input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={t('group.namePlaceholder')}
           data-testid="group-picker-name"
-          className={cx(inputCls, css({ flex: 1, minWidth: 0 }))}
+          className={css({ flex: 1, minWidth: 0 })}
         />
         <Button
           variant="primary"
@@ -141,16 +101,7 @@ export const GroupPicker = ({ onCreate, onClose, initialMembers }: Props) => {
         >
           {t('group.create')}
         </Button>
-      </div>
+      </ModalFooter>
     </Modal>
   )
 }
-
-const inputCls = css({
-  width: '100%',
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  fontSize: '0.875rem',
-})

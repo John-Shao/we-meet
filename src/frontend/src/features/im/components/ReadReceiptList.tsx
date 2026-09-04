@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
-import { Modal, ModalHeader } from '@/components/Modal'
+import { Modal, ModalBody, ModalHeader } from '@/components/Modal'
 import { SegmentedControl } from '@/primitives'
 
 import { Avatar } from './Avatar'
@@ -59,7 +59,7 @@ export const ReadReceiptList = ({ read, unread, onClose }: Props) => {
         className={tabsCls}
       />
 
-      <div className={css({ overflowY: 'auto', flex: 1, minHeight: '8rem' })}>
+      <ModalBody padding="none" minHeight="8rem">
         {list.length === 0 ? (
           <p
             className={css({
@@ -82,7 +82,7 @@ export const ReadReceiptList = ({ read, unread, onClose }: Props) => {
             </div>
           ))
         )}
-      </div>
+      </ModalBody>
     </Modal>
   )
 }
