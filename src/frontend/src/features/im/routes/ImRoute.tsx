@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams, useLocation } from 'wouter'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { RiChatNewLine, RiGroupLine, RiTimeLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
@@ -9,6 +10,7 @@ import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
+import { IconButton } from '@/primitives'
 
 import { ContactPicker, fetchContactPrefs } from '@/features/contacts'
 import type { DirectoryMember } from '@/features/contacts'
@@ -752,104 +754,63 @@ const ImAuthenticated = () => {
               >
                 {t('list.title')}
               </h2>
-              <div className={css({ display: 'flex', gap: '0.375rem' })}>
-                <button
-                  type="button"
-                  onClick={() => setLaterOpen(true)}
-                  title={t('later.title')}
-                  aria-label={t('later.title')}
+              <div
+                className={css({
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.125rem',
+                })}
+              >
+                <IconButton
+                  label={t('later.title')}
+                  size="icon28"
+                  onPress={() => setLaterOpen(true)}
                   data-testid="im-later"
-                  className={css({
-                    position: 'relative',
-                    border: '1px solid token(colors.greyscale.300)',
-                    borderRadius: '999px',
-                    backgroundColor: 'greyscale.000',
-                    width: '1.75rem',
-                    height: '1.75rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.875rem',
-                    lineHeight: 1,
-                    cursor: 'pointer',
-                    color: 'greyscale.700',
-                    _hover: { backgroundColor: 'greyscale.100' },
-                  })}
+                  className={css({ position: 'relative' })}
                 >
-                  🕐
+                  <RiTimeLine size={17} aria-hidden="true" />
                   {laterItems.length > 0 && (
                     <span
                       data-testid="im-later-badge"
                       className={css({
                         position: 'absolute',
-                        top: '-0.375rem',
-                        right: '-0.375rem',
-                        minWidth: '1rem',
-                        height: '1rem',
-                        paddingX: '0.25rem',
+                        top: '-0.25rem',
+                        right: '-0.25rem',
+                        minWidth: '0.875rem',
+                        height: '0.875rem',
+                        paddingX: '0.1875rem',
                         borderRadius: '999px',
                         backgroundColor: 'danger.500',
                         color: 'greyscale.000',
                         fontSize: '0.625rem',
-                        lineHeight: '1rem',
+                        lineHeight: '0.875rem',
                         textAlign: 'center',
+                        boxShadow: '0 0 0 2px token(colors.greyscale.50)',
                       })}
                     >
                       {laterItems.length > 99 ? '99+' : laterItems.length}
                     </span>
                   )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
+                </IconButton>
+                <IconButton
+                  label={t('group.button')}
+                  size="icon28"
+                  onPress={() => {
                     setGroupSeed([])
                     setGroupPickerOpen(true)
                   }}
-                  title={t('group.button')}
-                  aria-label={t('group.button')}
                   data-testid="im-new-group"
-                  className={css({
-                    border: '1px solid token(colors.greyscale.300)',
-                    borderRadius: '999px',
-                    backgroundColor: 'greyscale.000',
-                    width: '1.75rem',
-                    height: '1.75rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.875rem',
-                    lineHeight: 1,
-                    cursor: 'pointer',
-                    color: 'greyscale.700',
-                    _hover: { backgroundColor: 'greyscale.100' },
-                  })}
                 >
-                  👥
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPickerOpen(true)}
-                  title={t('list.newDirect.button')}
-                  aria-label={t('list.newDirect.button')}
+                  <RiGroupLine size={17} aria-hidden="true" />
+                </IconButton>
+                <IconButton
+                  label={t('list.newDirect.button')}
+                  size="icon28"
+                  onPress={() => setPickerOpen(true)}
                   data-testid="im-new-direct"
-                  className={css({
-                    border: '1px solid token(colors.greyscale.300)',
-                    borderRadius: '999px',
-                    backgroundColor: 'greyscale.000',
-                    width: '1.75rem',
-                    height: '1.75rem',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '1.125rem',
-                    lineHeight: 1,
-                    cursor: 'pointer',
-                    color: 'greyscale.700',
-                    _hover: { backgroundColor: 'greyscale.100' },
-                  })}
                 >
-                  +
-                </button>
+                  <RiChatNewLine size={17} aria-hidden="true" />
+                </IconButton>
               </div>
             </div>
             {/* P8:当日有未结束日程时的「日程提醒」入口(对标飞书:列表
