@@ -4,9 +4,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { RiAddLine, RiDeleteBinLine } from '@remixicon/react'
 
 import { Dialog } from '@/primitives/Dialog'
-import { Button, Input } from '@/primitives'
+import { Button, Input, Switch } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { StateHint } from '@/components/StateHint'
 
 import {
   type AdminMeetingRoomFacility,
@@ -111,48 +112,57 @@ export const FacilityDictionaryDialog = ({
 
         <div className={listCls}>
           {facilities.length === 0 && (
-            <p className={hintCls}>{t('meetingRooms.noFacilities')}</p>
+            <StateHint className={emptyStateCls}>
+              {t('meetingRooms.noFacilities')}
+            </StateHint>
           )}
-          {facilities.map((facility) => (
-            <div key={facility.id} className={rowCls}>
-              <Input
-                value={editing[facility.id] ?? facility.name}
-                aria-label={t('meetingRooms.facilityName')}
-                onChange={(e) =>
-                  setEditing((prev) => ({
-                    ...prev,
-                    [facility.id]: e.target.value,
-                  }))
-                }
-                onBlur={() => rename(facility)}
-              />
-              <span className={codeCls}>{facility.code || '—'}</span>
-              <label className={switchCls}>
-                <input
-                  type="checkbox"
-                  checked={facility.is_active}
+          {facilities.map((facility) => {
+            const deleting =
+              deleteMut.isPending && deleteMut.variables === facility.id
+            return (
+              <div key={facility.id} className={rowCls}>
+                <Input
+                  value={editing[facility.id] ?? facility.name}
+                  aria-label={t('meetingRooms.facilityName')}
+                  disabled={deleting}
                   onChange={(e) =>
+                    setEditing((prev) => ({
+                      ...prev,
+                      [facility.id]: e.target.value,
+                    }))
+                  }
+                  onBlur={() => rename(facility)}
+                />
+                <span className={codeCls}>{facility.code || '—'}</span>
+                <Switch
+                  isSelected={facility.is_active}
+                  isDisabled={deleting}
+                  className={statusSwitchCls}
+                  onChange={(isSelected) =>
                     updateMut.mutate({
                       id: facility.id,
-                      input: { is_active: e.target.checked },
+                      input: { is_active: isSelected },
                     })
                   }
-                />
-                {facility.is_active
-                  ? t('meetingRooms.statusActive')
-                  : t('meetingRooms.retired')}
-              </label>
-              <Button
-                variant="quaternaryDanger"
-                size="icon28"
-                aria-label={t('actions.delete')}
-                tooltip={t('actions.delete')}
-                onPress={() => void remove(facility)}
-              >
-                <RiDeleteBinLine size={16} />
-              </Button>
-            </div>
-          ))}
+                >
+                  {facility.is_active
+                    ? t('meetingRooms.statusActive')
+                    : t('meetingRooms.retired')}
+                </Switch>
+                <Button
+                  variant="quaternaryDanger"
+                  size="icon28"
+                  aria-label={t('actions.delete')}
+                  tooltip={t('actions.delete')}
+                  loading={deleting}
+                  isDisabled={deleting}
+                  onPress={() => void remove(facility)}
+                >
+                  <RiDeleteBinLine size={16} />
+                </Button>
+              </div>
+            )
+          })}
         </div>
 
         <form
@@ -182,6 +192,7 @@ export const FacilityDictionaryDialog = ({
             size="sm"
             icon={<RiAddLine size={16} />}
             isDisabled={!newName.trim() || createMut.isPending}
+            loading={createMut.isPending}
           >
             {t('meetingRooms.addFacility')}
           </Button>
@@ -208,6 +219,7 @@ const listCls = css({
   overflowY: 'auto',
   marginBottom: '0.75rem',
 })
+const emptyStateCls = css({ padding: 'md' })
 const rowCls = css({
   display: 'grid',
   gridTemplateColumns: '1fr 6rem 6rem 2rem',
@@ -222,13 +234,10 @@ const codeCls = css({
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 })
-const switchCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.375rem',
+const statusSwitchCls = css({
+  gap: 'xs',
   fontSize: '0.75rem',
-  color: 'greyscale.700',
-  cursor: 'pointer',
+  color: 'text.secondary',
 })
 const addRowCls = css({
   display: 'grid',

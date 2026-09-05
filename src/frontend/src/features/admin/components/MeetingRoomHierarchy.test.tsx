@@ -69,5 +69,11 @@ describe('fixed meeting-room hierarchy controls', () => {
       screen.getByLabelText('meetingRooms.roomNameOptional')
     ).not.toBeRequired()
     expect(screen.getByLabelText('meetingRooms.floor')).toBeRequired()
+    expect(
+      screen.getByRole('switch', { name: 'meetingRooms.statusActive' })
+    ).toBeChecked()
+    expect(screen.getByLabelText('meetingRooms.remark').tagName).toBe(
+      'TEXTAREA'
+    )
   })
 })

@@ -4,8 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/primitives/Dialog'
 import { Button, Input } from '@/primitives'
-import { selectChrome } from '@/primitives/selectChrome'
-import { css, cx } from '@/styled-system/css'
+import { css } from '@/styled-system/css'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 
 import {
@@ -104,7 +103,6 @@ export const HierarchyNodeDialog = ({
           {node && node.depth > 0 ? (
             <SelectCompat
               id="mr-node-parent"
-              className={cx(selectChrome, selectCls)}
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
               required
@@ -146,7 +144,6 @@ export const HierarchyNodeDialog = ({
             </label>
             <SelectCompat
               id="mr-node-tz"
-              className={cx(selectChrome, selectCls)}
               value={timezone}
               onChange={(e) => setTimezone(e.target.value)}
               required
@@ -197,18 +194,6 @@ const readOnlyCls = css({
   backgroundColor: 'greyscale.100',
   color: 'greyscale.700',
   fontSize: '0.875rem',
-})
-// 同 MeetingRoomDialog:补齐边框/圆角,appearance:none 会把浏览器自带边框一起
-// 去掉,原先是个白底无框的 21px 下拉。高度由 selectChrome 统一给;左内边距用
-// paddingLeft 而非 paddingX,避免与 selectChrome 的箭头留位撞同属性。
-const selectCls = css({
-  width: '100%',
-  fontSize: '0.875rem',
-  paddingLeft: '0.5',
-  border: '1px solid',
-  borderColor: 'control.border',
-  color: 'control.text',
-  borderRadius: 4,
 })
 const footerCls = css({
   display: 'flex',

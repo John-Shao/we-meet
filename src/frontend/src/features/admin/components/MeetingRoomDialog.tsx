@@ -3,9 +3,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/primitives/Dialog'
-import { Button, Input } from '@/primitives'
-import { selectChrome } from '@/primitives/selectChrome'
-import { css, cx } from '@/styled-system/css'
+import { Button, Input, Switch, TextArea } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
+import { css } from '@/styled-system/css'
 import { pathLabelOf } from '@/features/meeting-rooms/utils/roomHierarchy'
 import { roomIdentifier } from '@/features/meeting-rooms/utils/roomLabel'
 
@@ -185,7 +185,6 @@ export const MeetingRoomDialog = ({
           {room ? (
             <SelectCompat
               id="mr-room-node"
-              className={cx(selectChrome, selectCls)}
               value={nodeId}
               onChange={(e) => setNodeId(e.target.value)}
               required
@@ -232,14 +231,14 @@ export const MeetingRoomDialog = ({
 
         <div className={fieldCls}>
           <span className={labelCls}>{t('meetingRooms.colStatus')}</span>
-          <label className={checkRowCls}>
-            <input
-              type="checkbox"
-              checked={active}
-              onChange={(e) => setActive(e.target.checked)}
-            />
+          <Switch
+            isSelected={active}
+            isDisabled={submitting}
+            onChange={setActive}
+            className={statusSwitchCls}
+          >
             {t('meetingRooms.statusActive')}
-          </label>
+          </Switch>
         </div>
 
         {!active && (
@@ -261,19 +260,23 @@ export const MeetingRoomDialog = ({
           <label className={labelCls} htmlFor="mr-room-remark">
             {t('meetingRooms.remark')}
           </label>
-          <textarea
+          <TextArea
             id="mr-room-remark"
             aria-label={t('meetingRooms.remark')}
             rows={2}
-            className={textareaCls}
+            className={remarkInputCls}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
 
-        {offerableFacilities.length > 0 && (
-          <div className={fieldCls}>
-            <span className={labelCls}>{t('meetingRooms.facilities')}</span>
+        <div className={fieldCls}>
+          <span className={labelCls}>{t('meetingRooms.facilities')}</span>
+          {offerableFacilities.length === 0 ? (
+            <StateHint className={compactStateCls}>
+              {t('meetingRooms.noFacilities')}
+            </StateHint>
+          ) : (
             <div className={chipRowCls}>
               {offerableFacilities.map((facility) => {
                 const on = facilityIds.includes(facility.id)
@@ -292,8 +295,8 @@ export const MeetingRoomDialog = ({
                 )
               })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className={footerCls}>
           <Button variant="secondary" size="sm" onPress={onClose}>
@@ -333,37 +336,16 @@ const readOnlyCls = css({
   color: 'greyscale.700',
   fontSize: '0.875rem',
 })
-// 与同框的 Input 基元同款外观(边框/圆角/左内边距/文字色)。原先只有 width +
-// fontSize —— appearance:none 把浏览器自带的边框也一并去掉了,于是白底无框的
-// 21px 下拉贴在 32px 的 Input 底下,基本看不见是个控件。
-// 高度不在这里给,由 selectChrome 统一钉 control.md;左内边距**必须写
-// paddingLeft** 不能写 paddingX,否则与 selectChrome 的箭头留位撞同属性。
-const selectCls = css({
-  width: '100%',
-  fontSize: '0.875rem',
-  paddingLeft: '0.5',
-  border: '1px solid',
-  borderColor: 'control.border',
-  color: 'control.text',
-  borderRadius: 4,
-})
 const previewCls = css({ fontSize: '0.6875rem', color: 'greyscale.400' })
-const textareaCls = css({
-  width: '100%',
-  padding: '0.375rem 0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '4px',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.875rem',
-  resize: 'vertical',
+const remarkInputCls = css({ resize: 'vertical' })
+const statusSwitchCls = css({
+  textStyle: 'bodyMedium',
+  color: 'text.primary',
 })
-const checkRowCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.375rem',
-  fontSize: '0.875rem',
-  color: 'greyscale.800',
+const compactStateCls = css({
+  alignItems: 'flex-start',
+  padding: 'sm',
+  textAlign: 'left',
 })
 const chipRowCls = css({ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' })
 const chipBase = {

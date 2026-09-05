@@ -762,6 +762,27 @@ const standardizedFeedbackConsumers = [
       '<Checkbox',
     ],
   ],
+  [
+    '../src/features/admin/components/MeetingRoomDialog.tsx',
+    [
+      "import { Button, Input, Switch, TextArea } from '@/primitives'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<Switch',
+      '<TextArea',
+      '<StateHint',
+    ],
+  ],
+  [
+    '../src/features/admin/components/FacilityDictionaryDialog.tsx',
+    [
+      "import { Button, Input, Switch } from '@/primitives'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<Switch',
+      '<StateHint',
+      'loading={createMut.isPending}',
+      'loading={deleting}',
+    ],
+  ],
 ]
 
 for (const [path, requiredStates] of standardizedFeedbackConsumers) {
