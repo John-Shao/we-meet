@@ -590,6 +590,34 @@ for (const [path, requiredStates] of componentStateRequirements) {
 
 const standardizedFeedbackConsumers = [
   [
+    '../src/features/approval/components/SubmitApprovalDialog.tsx',
+    [
+      "import { Button, Input, TextArea } from '@/primitives'",
+      "import { Dialog } from '@/primitives/Dialog'",
+      "import { SelectCompat } from '@/primitives/SelectCompat'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<SelectCompat',
+      '<Input',
+      '<TextArea',
+      'state="error"',
+      'onPress={() => void refetch()}',
+      'loading={submitting}',
+    ],
+  ],
+  [
+    '../src/features/approval/routes/ApprovalRoute.tsx',
+    [
+      "import { Button, Input } from '@/primitives'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<StateHint state="loading">',
+      'state="error"',
+      'onPress={() => void refetchTemplates()}',
+      'onPress={() => void activeQ.refetch()}',
+      '<Input',
+      'loading={activeQ.isFetchingNextPage}',
+    ],
+  ],
+  [
     '../src/features/meetings/routes/MeetingDetail.tsx',
     [
       "import { StateHint } from '@/components/StateHint'",

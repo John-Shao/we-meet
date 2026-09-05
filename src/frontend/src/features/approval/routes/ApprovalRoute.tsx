@@ -12,12 +12,13 @@ import {
   RiFileList3Line,
 } from '@remixicon/react'
 
-import { Button } from '@/primitives'
+import { Button, Input } from '@/primitives'
 import { css, cx } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { RequireAuth } from '@/components/RequireAuth'
+import { StateHint } from '@/components/StateHint'
 import { Screen } from '@/layout/Screen'
 
 import {
@@ -107,6 +108,7 @@ export const ApprovalRoute = () => (
 
 const ApprovalAuthenticated = () => {
   const { t, i18n } = useTranslation('approval')
+  const { t: tAdmin } = useTranslation('admin')
   const qc = useQueryClient()
   const { confirm: askConfirm, alert: showAlert } = useConfirm()
   const [view, setView] = useState<ApprovalView>('pending')
@@ -145,7 +147,12 @@ const ApprovalAuthenticated = () => {
   const loadingPending = pendingQ.isLoading
   const loadingMine = mineQ.isLoading
 
-  const { data: templates = [], isLoading: loadingTemplates } = useQuery({
+  const {
+    data: templates = [],
+    isLoading: loadingTemplates,
+    isError: templatesError,
+    refetch: refetchTemplates,
+  } = useQuery({
     queryKey: ['approval', 'templates'],
     queryFn: fetchApprovalTemplates,
     staleTime: 60_000,
@@ -275,9 +282,24 @@ const ApprovalAuthenticated = () => {
           <>
             <h2 className={contentTitle}>{t('tab.create')}</h2>
             {loadingTemplates ? (
-              <Hint>{t('page.loading')}</Hint>
+              <StateHint state="loading">{t('page.loading')}</StateHint>
+            ) : templatesError ? (
+              <StateHint
+                state="error"
+                action={
+                  <Button
+                    variant="secondary"
+                    size="dense"
+                    onPress={() => void refetchTemplates()}
+                  >
+                    {tAdmin('feedback.retry')}
+                  </Button>
+                }
+              >
+                {tAdmin('feedback.loadFailed')}
+              </StateHint>
             ) : templates.length === 0 ? (
-              <Hint>{t('form.noTemplates')}</Hint>
+              <StateHint>{t('form.noTemplates')}</StateHint>
             ) : (
               <div
                 className={css({
@@ -311,9 +333,24 @@ const ApprovalAuthenticated = () => {
               })}
             >
               {loadingList ? (
-                <Hint>{t('page.loading')}</Hint>
+                <StateHint state="loading">{t('page.loading')}</StateHint>
+              ) : activeQ.isError ? (
+                <StateHint
+                  state="error"
+                  action={
+                    <Button
+                      variant="secondary"
+                      size="dense"
+                      onPress={() => void activeQ.refetch()}
+                    >
+                      {tAdmin('feedback.retry')}
+                    </Button>
+                  }
+                >
+                  {tAdmin('feedback.loadFailed')}
+                </StateHint>
               ) : list.length === 0 ? (
-                <Hint>{t('section.empty')}</Hint>
+                <StateHint>{t('section.empty')}</StateHint>
               ) : (
                 <>
                   {list.map((inst) => (
@@ -333,6 +370,7 @@ const ApprovalAuthenticated = () => {
                       size="dense"
                       onPress={() => void activeQ.fetchNextPage()}
                       isDisabled={activeQ.isFetchingNextPage}
+                      loading={activeQ.isFetchingNextPage}
                       data-testid="approval-load-more"
                       className={css({
                         alignSelf: 'center',
@@ -517,14 +555,6 @@ const TemplateCard = ({
       )}
     </span>
   </button>
-)
-
-const Hint = ({ children }: { children: React.ReactNode }) => (
-  <p
-    className={css({ color: 'greyscale.500', fontSize: '0.875rem', margin: 0 })}
-  >
-    {children}
-  </p>
 )
 
 const chainRow = (active: boolean) =>
@@ -731,19 +761,13 @@ const InstanceCard = ({
       {/* actions */}
       {mode === 'pending' && inst.status === 'pending' && (
         <div className={css({ marginTop: '0.75rem' })}>
-          <input
+          <Input
             type="text"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             placeholder={t('act.commentPlaceholder')}
-            className={css({
-              width: '100%',
-              border: '1px solid token(colors.greyscale.300)',
-              borderRadius: '0.5rem',
-              padding: '0.375rem 0.5rem',
-              fontSize: '0.8125rem',
-              marginBottom: '0.5rem',
-            })}
+            aria-label={t('act.commentPlaceholder')}
+            className={commentInputCss}
           />
           <div className={css({ display: 'flex', gap: '0.5rem' })}>
             <Button
@@ -802,3 +826,5 @@ const InstanceCard = ({
     </div>
   )
 }
+
+const commentInputCss = css({ marginBottom: 'sm' })
