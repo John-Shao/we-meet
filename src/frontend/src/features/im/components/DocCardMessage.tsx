@@ -6,7 +6,7 @@ import { css } from '@/styled-system/css'
 import { SenderLabel } from './SenderLabel'
 
 import { Avatar } from './Avatar'
-import { chatCardSize } from './chatCardSize'
+import { chatCardColumn, chatCardSize } from './chatCardSize'
 import { parseDocCard } from './docCard'
 
 /**
@@ -144,14 +144,7 @@ export const DocCardMessage = ({
           <Avatar name={name} src={senderAvatarUrl} size="2rem" />
         </button>
       )}
-      <div
-        className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          maxWidth: '70%',
-          alignItems: isOwn ? 'flex-end' : 'flex-start',
-        })}
-      >
+      <div className={chatCardColumn({ own: isOwn })}>
         {!isOwn && showSender && <SenderLabel name={name} bot={senderBot} />}
         {cardEl}
       </div>

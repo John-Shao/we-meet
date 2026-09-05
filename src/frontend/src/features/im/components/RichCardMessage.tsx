@@ -170,7 +170,7 @@ const bodyCls = css({
 
 const fieldsCls = css({
   display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
+  gridTemplateColumns: { base: '1fr', xs: '1fr 1fr' },
   gap: '0.5rem 0.75rem',
 })
 
@@ -207,6 +207,10 @@ const resultCls = css({
 })
 
 const buttonBaseCls = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minHeight: { base: '2.75rem', md: 'auto' },
   paddingX: '0.75rem',
   paddingY: '0.375rem',
   borderWidth: '1px',

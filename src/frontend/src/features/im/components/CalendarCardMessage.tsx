@@ -5,7 +5,7 @@ import { css } from '@/styled-system/css'
 
 import { Avatar } from './Avatar'
 import { parseCalendarCard } from './calendarCard'
-import { chatCardSize } from './chatCardSize'
+import { chatCardColumn, chatCardSize } from './chatCardSize'
 import { SenderLabel } from './SenderLabel'
 
 export const CalendarCardMessage = ({
@@ -74,14 +74,7 @@ export const CalendarCardMessage = ({
           <Avatar name={senderName} src={senderAvatarUrl} size="2rem" />
         </button>
       )}
-      <div
-        className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          maxWidth: '70%',
-          alignItems: isOwn ? 'flex-end' : 'flex-start',
-        })}
-      >
+      <div className={chatCardColumn({ own: isOwn })}>
         {!isOwn && showSender && (
           <SenderLabel name={senderName} bot={senderBot} />
         )}

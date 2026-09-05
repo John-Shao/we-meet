@@ -7,7 +7,7 @@ import { SenderLabel } from './SenderLabel'
 import { navigateTo } from '@/navigation/navigateTo'
 
 import { Avatar } from './Avatar'
-import { chatCardSize } from './chatCardSize'
+import { chatCardColumn, chatCardSize } from './chatCardSize'
 import { parseMeetingCard } from './meetingCard'
 
 /**
@@ -143,14 +143,7 @@ export const MeetingCardMessage = ({
           <Avatar name={name} src={senderAvatarUrl} size="2rem" />
         </button>
       )}
-      <div
-        className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          maxWidth: '70%',
-          alignItems: isOwn ? 'flex-end' : 'flex-start',
-        })}
-      >
+      <div className={chatCardColumn({ own: isOwn })}>
         {!isOwn && showSender && <SenderLabel name={name} bot={senderBot} />}
         {cardEl}
       </div>

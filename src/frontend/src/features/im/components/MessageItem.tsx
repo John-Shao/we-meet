@@ -20,6 +20,7 @@ import type { CardState } from '../api/cardStates'
 import { Avatar } from './Avatar'
 import { DocCardMessage } from './DocCardMessage'
 import { CalendarCardMessage } from './CalendarCardMessage'
+import { chatCardColumn } from './chatCardSize'
 import { EventCardMessage } from './EventCardMessage'
 import { MeetingCardMessage } from './MeetingCardMessage'
 import { IM_SYSTEM_UID } from './eventCard'
@@ -680,12 +681,16 @@ export const MessageItem = ({
           />
         )}
         <div
-          className={css({
-            display: 'flex',
-            flexDirection: 'column',
-            maxWidth: '70%',
-            alignItems: isOwn ? 'flex-end' : 'flex-start',
-          })}
+          className={
+            isRichCard
+              ? chatCardColumn({ own: isOwn })
+              : css({
+                  display: 'flex',
+                  flexDirection: 'column',
+                  maxWidth: '70%',
+                  alignItems: isOwn ? 'flex-end' : 'flex-start',
+                })
+          }
         >
           {!isOwn && showSender && <SenderLabel name={name} bot={senderBot} />}
           <div
@@ -705,6 +710,7 @@ export const MessageItem = ({
                 isOwn && !isRichCard ? 'action.selected.text' : 'text.primary',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
+              width: isRichCard ? { base: '100%', md: 'auto' } : undefined,
               maxWidth: '100%',
             })}
           >
