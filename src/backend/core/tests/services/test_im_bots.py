@@ -74,16 +74,38 @@ def test_a_cached_uid_costs_no_round_trip(bot, client):
 def test_builtin_avatar_is_rendered_lazily_and_backfilled(client):
     assistant = im_bots.get_builtin(im_bots.BOT_TASK_ASSISTANT)
     assert assistant.avatar_key == ""
+    expected_key = "bot/builtin/task-assistant-v2.png"
 
     with mock.patch(
         "core.services.im_bots.utils.render_bot_avatar_swatch",
-        return_value="bot/task-assistant.png",
+        return_value=expected_key,
     ) as render:
         assert im_bots.resolve_bot_uid(client, assistant) == BOT_UID
 
     assistant.refresh_from_db()
-    assert assistant.avatar_key == "bot/task-assistant.png"
-    render.assert_called_once_with(color="#7C3AED", label="任务助手")
+    assert assistant.avatar_key == expected_key
+    render.assert_called_once_with(
+        color="#7C3AED",
+        label="任务助手",
+        glyph="task",
+        object_key=expected_key,
+    )
+
+
+def test_an_old_builtin_avatar_is_replaced_without_a_migration(client):
+    assistant = im_bots.get_builtin(im_bots.BOT_MEETING_ASSISTANT)
+    assistant.avatar_key = "bot/old-generic-swatch.png"
+    assistant.save(update_fields=["avatar_key"])
+    expected_key = "bot/builtin/meeting-assistant-v2.png"
+
+    with mock.patch(
+        "core.services.im_bots.utils.render_bot_avatar_swatch",
+        return_value=expected_key,
+    ):
+        assert im_bots.ensure_builtin_avatar(assistant) == expected_key
+
+    assistant.refresh_from_db()
+    assert assistant.avatar_key == expected_key
 
 
 def test_builtin_avatar_failure_does_not_block_cached_uid(client):
@@ -355,6 +377,25 @@ def test_the_swatch_is_drawn_without_a_font():
         assert (255, 255, 255) in colors, "the robot mark did not render"
 
     assert drawn[0] != drawn[1], "different palette colours produced the same image"
+
+
+def test_builtin_assistant_glyphs_are_visually_distinct():
+    """Each built-in should communicate its job, not just wear another colour."""
+    from PIL import Image, ImageDraw  # pylint: disable=import-outside-toplevel
+
+    from core import utils  # pylint: disable=import-outside-toplevel
+
+    rendered = set()
+    for glyph in ("meeting", "calendar", "approval", "task"):
+        image = Image.new("RGB", (64, 64), "#3370FF")
+        utils._draw_bot_glyph(  # noqa: SLF001
+            ImageDraw.Draw(image), 64, "#3370FF", glyph
+        )
+        colors = {color for _, color in image.getcolors(maxcolors=1 << 16)}
+        assert (255, 255, 255) in colors, f"{glyph} mark did not render"
+        rendered.add(image.tobytes())
+
+    assert len(rendered) == 4
 
 
 def test_the_s3_client_disables_request_checksums():

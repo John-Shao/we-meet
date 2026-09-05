@@ -697,8 +697,8 @@ def generate_bot_avatar_upload_url(*, content_type: str, size: int) -> dict:
     }
 
 
-def _draw_bot_glyph(draw, size: int, background: str) -> None:
-    """Draw a robot mark on a ``size``×``size`` canvas — vector, no font.
+def _draw_bot_glyph(draw, size: int, background: str, glyph: str = "robot") -> None:
+    """Draw a bot mark on a ``size``×``size`` canvas — vector, no font.
 
     Deliberately not the bot's initial. Pillow's bundled font has no CJK
     glyphs, so 「测试机器人」 rendered as a notdef box — and two different
@@ -707,8 +707,9 @@ def _draw_bot_glyph(draw, size: int, background: str) -> None:
     a mark carries the same meaning in every language and matches what 飞书
     shows for a bot with no picture.
 
-    ``background`` is the swatch colour: the eyes are punched back out in it so
-    the head reads as one solid shape rather than three.
+    Built-in assistants use a role-specific mark; custom bots retain the
+    generic robot. ``background`` is also used to punch negative space into
+    the white mark, keeping the result legible at small chat-avatar sizes.
     """
     unit = size / 32.0  # a 32×32 design grid, scaled to whatever we render at
     white = "#FFFFFF"
@@ -718,6 +719,93 @@ def _draw_bot_glyph(draw, size: int, background: str) -> None:
             ((cx - rx) * unit, (cy - ry) * unit, (cx + rx) * unit, (cy + ry) * unit),
             fill=fill,
         )
+
+    def line(points, *, fill, width=2.0):
+        draw.line(
+            [(x * unit, y * unit) for x, y in points],
+            fill=fill,
+            width=max(1, round(width * unit)),
+            joint="curve",
+        )
+
+    if glyph == "meeting":
+        # Video camera: immediately distinct from a person or a generic bot.
+        draw.rounded_rectangle(
+            (5.5 * unit, 9.5 * unit, 21.0 * unit, 23.5 * unit),
+            radius=3.2 * unit,
+            fill=white,
+        )
+        draw.polygon(
+            (
+                (20.0 * unit, 14.0 * unit),
+                (27.0 * unit, 10.8 * unit),
+                (27.0 * unit, 22.2 * unit),
+                (20.0 * unit, 19.0 * unit),
+            ),
+            fill=white,
+        )
+        return
+
+    if glyph == "calendar":
+        # Calendar page with a checked date.
+        draw.rounded_rectangle(
+            (6.5 * unit, 7.5 * unit, 25.5 * unit, 25.5 * unit),
+            radius=3.2 * unit,
+            fill=white,
+        )
+        draw.rectangle(
+            (9.2 * unit, 13.0 * unit, 22.8 * unit, 22.8 * unit), fill=background
+        )
+        for x in (11.5, 20.5):
+            line(((x, 6.0), (x, 10.5)), fill=background, width=2.2)
+        line(((11.8, 18.0), (14.8, 21.0), (20.8, 15.0)), fill=white, width=2.3)
+        return
+
+    if glyph == "approval":
+        # A shield makes approval/security notifications recognizable at a
+        # glance; the cut-out check remains crisp down to 24 px.
+        draw.polygon(
+            (
+                (16.0 * unit, 5.5 * unit),
+                (25.0 * unit, 9.0 * unit),
+                (24.0 * unit, 18.5 * unit),
+                (21.0 * unit, 23.0 * unit),
+                (16.0 * unit, 26.5 * unit),
+                (11.0 * unit, 23.0 * unit),
+                (8.0 * unit, 18.5 * unit),
+                (7.0 * unit, 9.0 * unit),
+            ),
+            fill=white,
+        )
+        line(
+            ((11.8, 16.0), (15.0, 19.2), (21.0, 13.2)),
+            fill=background,
+            width=2.5,
+        )
+        return
+
+    if glyph == "task":
+        # Clipboard/checklist for assignments and progress notifications.
+        draw.rounded_rectangle(
+            (7.0 * unit, 7.5 * unit, 25.0 * unit, 25.5 * unit),
+            radius=3.2 * unit,
+            fill=white,
+        )
+        draw.rounded_rectangle(
+            (9.8 * unit, 11.5 * unit, 22.2 * unit, 22.8 * unit),
+            radius=1.2 * unit,
+            fill=background,
+        )
+        draw.rounded_rectangle(
+            (12.5 * unit, 5.5 * unit, 19.5 * unit, 10.0 * unit),
+            radius=1.8 * unit,
+            fill=white,
+        )
+        line(((11.8, 16.8), (13.5, 18.5), (16.2, 15.5)), fill=white, width=1.8)
+        line(((17.8, 17.0), (20.2, 17.0)), fill=white, width=1.7)
+        line(((11.8, 21.0), (13.5, 21.0)), fill=white, width=1.7)
+        line(((17.0, 21.0), (20.2, 21.0)), fill=white, width=1.7)
+        return
 
     # antenna
     draw.rectangle((15.2 * unit, 6.5 * unit, 16.8 * unit, 10.0 * unit), fill=white)
@@ -739,7 +827,13 @@ def _draw_bot_glyph(draw, size: int, background: str) -> None:
     )
 
 
-def render_bot_avatar_swatch(*, color: str, label: str = "") -> str:
+def render_bot_avatar_swatch(
+    *,
+    color: str,
+    label: str = "",
+    glyph: str = "robot",
+    object_key: str = "",
+) -> str:
     """Render a bot avatar (palette colour + robot mark) and return its key.
 
     Why the server draws this rather than each client: a bot's colour is a
@@ -748,7 +842,10 @@ def render_bot_avatar_swatch(*, color: str, label: str = "") -> str:
     notification, which renders no UI at all, could never have one. Producing a
     real image means all three just read ``avatar_url``.
 
-    ``label`` is accepted and ignored; see :func:`_draw_bot_glyph`.
+    ``label`` remains accepted for API compatibility. ``glyph`` selects one of
+    the built-in semantic marks and falls back to the generic robot. Built-ins
+    may provide a versioned ``object_key`` so a new design refreshes without a
+    deployment-time storage call; custom bots retain random object keys.
 
     Returns "" on any failure: a bot without a picture still works (clients fall
     back to the palette colour), so this must never block creating one. The
@@ -762,12 +859,12 @@ def render_bot_avatar_swatch(*, color: str, label: str = "") -> str:
 
         size = BOT_AVATAR_SWATCH_PX
         image = Image.new("RGB", (size, size), color)
-        _draw_bot_glyph(ImageDraw.Draw(image), size, color)
+        _draw_bot_glyph(ImageDraw.Draw(image), size, color, glyph)
 
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
 
-        object_key = f"{BOT_AVATAR_PREFIX}{uuid4().hex[:16]}.png"
+        object_key = object_key or f"{BOT_AVATAR_PREFIX}{uuid4().hex[:16]}.png"
         _profile_s3_client().put_object(
             Bucket=get_profile_kind_bucket("avatar"),
             Key=object_key,

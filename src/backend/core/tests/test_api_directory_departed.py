@@ -7,6 +7,8 @@ Two bugs offboarding would otherwise expose on day one:
     link that historical messages point at.
 """
 
+from unittest import mock
+
 import pytest
 from rest_framework.test import APIClient
 
@@ -280,17 +282,19 @@ def test_resolve_names_a_builtin_assistant_for_everyone():
     assistant = models.ImBot.objects.get(slug="meeting-assistant")
     models.ImBot.objects.filter(pk=assistant.pk).update(im_uid="uid-meeting-assistant")
 
-    body = (
-        _client(me)
-        .post(
-            "/api/v1.0/im/users/resolve/",
-            {"im_uids": ["uid-meeting-assistant"]},
-            format="json",
+    with mock.patch("core.api.im.im_bots.ensure_builtin_avatar") as ensure_avatar:
+        body = (
+            _client(me)
+            .post(
+                "/api/v1.0/im/users/resolve/",
+                {"im_uids": ["uid-meeting-assistant"]},
+                format="json",
+            )
+            .json()
         )
-        .json()
-    )
     assert body["uid-meeting-assistant"]["full_name"] == "会议助手"
     assert body["uid-meeting-assistant"]["is_bot"] is True
+    ensure_avatar.assert_called_once()
 
 
 def test_resolve_skips_a_deactivated_bot():

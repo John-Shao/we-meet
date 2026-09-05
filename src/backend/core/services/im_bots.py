@@ -42,6 +42,24 @@ BOT_CALENDAR_ASSISTANT = "calendar-assistant"
 BOT_APPROVAL_ASSISTANT = "approval-assistant"
 BOT_TASK_ASSISTANT = "task-assistant"
 
+# Built-ins share the same rendering pipeline as custom bots but use a mark
+# that communicates their job before the adjacent name has even been read.
+BUILTIN_BOT_GLYPHS = {
+    BOT_MEETING_ASSISTANT: "meeting",
+    BOT_CALENDAR_ASSISTANT: "calendar",
+    BOT_APPROVAL_ASSISTANT: "approval",
+    BOT_TASK_ASSISTANT: "task",
+}
+
+# Bump when the built-in artwork changes. The versioned deterministic key lets
+# every request tell whether it still references an older generated swatch.
+BUILTIN_AVATAR_VERSION = 2
+
+
+def builtin_avatar_object_key(slug: str) -> str:
+    """Stable storage key for one version of a built-in assistant avatar."""
+    return f"{utils.BOT_AVATAR_PREFIX}builtin/{slug}-v{BUILTIN_AVATAR_VERSION}.png"
+
 # Short TTL: the token is thrown away, we only want the uid + lazy registration.
 _MINT_TTL_SECONDS = 60
 
@@ -108,23 +126,25 @@ def ensure_builtin_avatar(bot) -> str:
     same robot swatch as assistants created through the management API.
     """
 
-    if bot.kind != models.ImBotKindChoices.BUILTIN or bot.avatar_key:
+    if bot.kind != models.ImBotKindChoices.BUILTIN:
         return bot.avatar_key or ""
+
+    expected_key = builtin_avatar_object_key(bot.slug)
+    if bot.avatar_key == expected_key:
+        return bot.avatar_key
 
     rendered = utils.render_bot_avatar_swatch(
         color=palette_color(bot.avatar_color_index),
         label=bot.name,
+        glyph=BUILTIN_BOT_GLYPHS.get(bot.slug, "robot"),
+        object_key=expected_key,
     )
     if not rendered:
-        return ""
+        # Keep serving the previous avatar if storage is temporarily down.
+        return bot.avatar_key or ""
 
-    updated = models.ImBot.objects.filter(pk=bot.pk, avatar_key="").update(
-        avatar_key=rendered
-    )
-    if updated:
-        bot.avatar_key = rendered
-    else:
-        bot.refresh_from_db(fields=["avatar_key"])
+    models.ImBot.objects.filter(pk=bot.pk).update(avatar_key=rendered)
+    bot.avatar_key = rendered
     return bot.avatar_key or ""
 
 
