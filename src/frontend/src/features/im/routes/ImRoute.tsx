@@ -726,13 +726,16 @@ const ImAuthenticated = () => {
               width: '100%',
               height: '100%',
               borderRight: '1px solid token(colors.greyscale.200)',
-              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
               backgroundColor: 'greyscale.50',
             })}
           >
             <div
               className={css({
                 display: 'flex',
+                flexShrink: 0,
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 paddingX: '1rem',
@@ -850,38 +853,46 @@ const ImAuthenticated = () => {
               </div>
             </div>
             {/* P8:当日有未结束日程时的「日程提醒」入口(对标飞书:列表
-                首项,在 aside 滚动容器内随列表一起滚动,非固定置顶)。 */}
-            <ReminderEntry
-              active={reminderOpen}
-              onOpen={() => {
-                setReminderOpen(true)
-                setSelectedCID(null)
-              }}
-            />
-            <ConversationList
-              conversations={conversations}
-              selectedCID={reminderOpen ? null : selectedCID}
-              onSelect={(cid) => {
-                setReminderOpen(false)
-                setSelectedCID(cid)
-              }}
-              loading={convLoading}
-              nameOf={nameOf}
-              avatarOf={avatarOf}
-              membersOf={membersOf}
-              onDelete={handleDelete}
-              onLeave={handleLeave}
-              onTogglePinned={(c) =>
-                void handleConversationSetting(c, { pinned: !c.pinned })
-              }
-              onToggleMuted={(c) =>
-                void handleConversationSetting(c, { muted: !c.muted })
-              }
-              mentionedCids={mentionedCids}
-              starredCids={starredCids}
-              specialAlertCids={specialAlertCids}
-              previewOf={previewOf}
-            />
+                首项,在列表滚动区域内随会话一起滚动,非固定置顶)。 */}
+            <div
+              className={css({
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+              })}
+            >
+              <ReminderEntry
+                active={reminderOpen}
+                onOpen={() => {
+                  setReminderOpen(true)
+                  setSelectedCID(null)
+                }}
+              />
+              <ConversationList
+                conversations={conversations}
+                selectedCID={reminderOpen ? null : selectedCID}
+                onSelect={(cid) => {
+                  setReminderOpen(false)
+                  setSelectedCID(cid)
+                }}
+                loading={convLoading}
+                nameOf={nameOf}
+                avatarOf={avatarOf}
+                membersOf={membersOf}
+                onDelete={handleDelete}
+                onLeave={handleLeave}
+                onTogglePinned={(c) =>
+                  void handleConversationSetting(c, { pinned: !c.pinned })
+                }
+                onToggleMuted={(c) =>
+                  void handleConversationSetting(c, { muted: !c.muted })
+                }
+                mentionedCids={mentionedCids}
+                starredCids={starredCids}
+                specialAlertCids={specialAlertCids}
+                previewOf={previewOf}
+              />
+            </div>
           </aside>
         </ResizablePanel>
         <main
