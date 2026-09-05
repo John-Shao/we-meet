@@ -3,10 +3,10 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { css, cx } from '@/styled-system/css'
-import { Button } from '@/primitives'
-import { selectChrome } from '@/primitives/selectChrome'
+import { css } from '@/styled-system/css'
+import { Button, Input } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { StateHint } from '@/components/StateHint'
 
 import {
   type AdminMember,
@@ -62,19 +62,34 @@ export const MemberEditPanel = ({ member, departments, onClose }: Props) => {
   }, [member])
 
   const enabled = member !== null
-  const { data: employeeTypes = [] } = useQuery({
+  const {
+    data: employeeTypes = [],
+    isFetching: employeeTypesFetching,
+    isError: employeeTypesError,
+    refetch: refetchEmployeeTypes,
+  } = useQuery({
     queryKey: ['admin', 'dict', 'employee_type'],
     queryFn: () => fetchDictItems('employee_type'),
     staleTime: 5 * 60_000,
     enabled,
   })
-  const { data: jobLevels = [] } = useQuery({
+  const {
+    data: jobLevels = [],
+    isFetching: jobLevelsFetching,
+    isError: jobLevelsError,
+    refetch: refetchJobLevels,
+  } = useQuery({
     queryKey: ['admin', 'dict', 'job_level'],
     queryFn: () => fetchDictItems('job_level'),
     staleTime: 5 * 60_000,
     enabled,
   })
-  const { data: jobSequences = [] } = useQuery({
+  const {
+    data: jobSequences = [],
+    isFetching: jobSequencesFetching,
+    isError: jobSequencesError,
+    refetch: refetchJobSequences,
+  } = useQuery({
     queryKey: ['admin', 'dict', 'job_sequence'],
     queryFn: () => fetchDictItems('job_sequence'),
     staleTime: 5 * 60_000,
@@ -83,7 +98,12 @@ export const MemberEditPanel = ({ member, departments, onClose }: Props) => {
   // Candidate managers: active members only. One page is enough for the picker
   // in an org small enough to be administered by hand; larger orgs get search
   // in a later milestone.
-  const { data: candidates } = useQuery({
+  const {
+    data: candidates,
+    isFetching: candidatesFetching,
+    isError: candidatesError,
+    refetch: refetchCandidates,
+  } = useQuery({
     queryKey: ['admin', 'members', 'manager-candidates'],
     queryFn: () => fetchAdminMembers({ status: 'active' }),
     staleTime: 60_000,
@@ -112,6 +132,24 @@ export const MemberEditPanel = ({ member, departments, onClose }: Props) => {
   const managerOptions = (candidates?.results ?? []).filter(
     (m) => m.id !== member.id
   )
+  const lookupsLoading =
+    (employeeTypesFetching && employeeTypes.length === 0) ||
+    (jobLevelsFetching && jobLevels.length === 0) ||
+    (jobSequencesFetching && jobSequences.length === 0) ||
+    (candidatesFetching && !candidates)
+  const lookupsError =
+    (employeeTypesError && employeeTypes.length === 0) ||
+    (jobLevelsError && jobLevels.length === 0) ||
+    (jobSequencesError && jobSequences.length === 0) ||
+    (candidatesError && !candidates)
+  const refetchLookups = () => {
+    void Promise.all([
+      refetchEmployeeTypes(),
+      refetchJobLevels(),
+      refetchJobSequences(),
+      refetchCandidates(),
+    ])
+  }
 
   return (
     <>
@@ -132,6 +170,27 @@ export const MemberEditPanel = ({ member, departments, onClose }: Props) => {
         </header>
 
         <div className={bodyCls}>
+          {lookupsLoading ? (
+            <StateHint className={lookupStateCls} state="loading">
+              {t('dashboard.loading')}
+            </StateHint>
+          ) : lookupsError ? (
+            <StateHint
+              className={lookupStateCls}
+              state="error"
+              action={
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  onPress={refetchLookups}
+                >
+                  {t('feedback.retry')}
+                </Button>
+              }
+            >
+              {t('feedback.loadFailed')}
+            </StateHint>
+          ) : null}
           <Section title={t('members.sectionBasic')}>
             {/* Identity comes from the IdP — editable here would be a second truth. */}
             <ReadOnlyRow label={t('members.colMember')} value={displayName} />
@@ -263,6 +322,7 @@ export const MemberEditPanel = ({ member, departments, onClose }: Props) => {
             variant="primary"
             size="sm"
             isDisabled={save.isPending}
+            loading={save.isPending}
             onPress={() => save.mutate(form)}
           >
             {t('actions.save')}
@@ -322,11 +382,11 @@ const TextRow = ({
   type?: string
 }) => (
   <Row label={label}>
-    <input
+    <Input
       type={type}
+      aria-label={label}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={inputCls}
     />
   </Row>
 )
@@ -347,8 +407,8 @@ const SelectRow = ({
   <Row label={label} hint={hint}>
     <SelectCompat
       value={value}
+      aria-label={label}
       onChange={(e) => onChange(e.target.value)}
-      className={cx(inputCls, selectChrome)}
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>
@@ -393,6 +453,12 @@ const titleCls = css({
 })
 const subtitleCls = css({ fontSize: '0.8125rem', color: 'greyscale.500' })
 const bodyCls = css({ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' })
+const lookupStateCls = css({
+  alignItems: 'flex-start',
+  padding: 'sm',
+  marginBottom: 'md',
+  textAlign: 'left',
+})
 const footerCls = css({
   flexShrink: 0,
   display: 'flex',
@@ -423,14 +489,4 @@ const labelCls = css({
   flexDirection: 'column',
 })
 const hintCls = css({ fontSize: '0.6875rem', color: 'greyscale.400' })
-const inputCls = css({
-  width: '100%',
-  height: 'control.md',
-  paddingX: '0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '6px',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.875rem',
-})
 const readOnlyCls = css({ fontSize: '0.875rem', color: 'greyscale.800' })

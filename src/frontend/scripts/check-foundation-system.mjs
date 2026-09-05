@@ -754,6 +754,40 @@ const standardizedFeedbackConsumers = [
     ],
   ],
   [
+    '../src/features/admin/components/AddMemberDialog.tsx',
+    [
+      "import { Button, Input } from '@/primitives'",
+      '<Input',
+      '<SelectCompat',
+      'loading={submitting}',
+    ],
+  ],
+  [
+    '../src/features/admin/components/MemberEditPanel.tsx',
+    [
+      "import { Button, Input } from '@/primitives'",
+      "import { StateHint } from '@/components/StateHint'",
+      'state="error"',
+      'onPress={refetchLookups}',
+      '<Input',
+      'loading={save.isPending}',
+    ],
+  ],
+  [
+    '../src/features/admin/components/OffboardDialog.tsx',
+    [
+      "import { Button, Input } from '@/primitives'",
+      "import { Dialog } from '@/primitives/Dialog'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<Dialog',
+      'state="error"',
+      'onPress={() => void refetchOwned()}',
+      'onPress={() => void refetchCandidates()}',
+      '<Input',
+      'loading={submitting}',
+    ],
+  ],
+  [
     '../src/features/admin/components/DepartedPanel.tsx',
     [
       "import { Button, Input } from '@/primitives'",

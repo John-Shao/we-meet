@@ -4,8 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/primitives/Dialog'
 import { Button, Input } from '@/primitives'
-import { css, cx } from '@/styled-system/css'
-import { selectChrome } from '@/primitives/selectChrome'
+import { css } from '@/styled-system/css'
 
 import { ORG_ROLES } from '../api/adminMembers'
 import type { CreateInvitationInput } from '../api/adminInvitations'
@@ -141,8 +140,8 @@ export const AddMemberDialog = ({
           <span>{t('invite.department')}</span>
           <SelectCompat
             value={department}
+            aria-label={t('invite.department')}
             onChange={(e) => setDepartment(e.target.value)}
-            className={selectCss}
           >
             <option value="">{t('members.orgLevel')}</option>
             {departments.map((d) => (
@@ -156,8 +155,8 @@ export const AddMemberDialog = ({
           <span>{t('invite.role')}</span>
           <SelectCompat
             value={orgRole}
+            aria-label={t('invite.role')}
             onChange={(e) => setOrgRole(e.target.value)}
-            className={selectCss}
           >
             {ORG_ROLES.map((r) => (
               <option key={r} value={r}>
@@ -211,15 +210,3 @@ const fieldLabel = css({
   fontSize: '0.875rem',
   color: 'greyscale.700',
 })
-const selectCss = cx(
-  css({
-    width: '100%',
-    padding: '0.375rem 0.5rem',
-    border: '1px solid token(colors.control.border)',
-    borderRadius: '4px',
-    backgroundColor: 'greyscale.000',
-    color: 'default.text',
-    fontSize: '0.875rem',
-  }),
-  selectChrome
-)

@@ -3,9 +3,10 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
-import { css, cx } from '@/styled-system/css'
-import { Button } from '@/primitives'
-import { selectChrome } from '@/primitives/selectChrome'
+import { css } from '@/styled-system/css'
+import { Button, Input } from '@/primitives'
+import { Dialog } from '@/primitives/Dialog'
+import { StateHint } from '@/components/StateHint'
 
 import {
   type AdminMember,
@@ -38,12 +39,22 @@ export const OffboardDialog = ({
   const [reason, setReason] = useState('')
   const [successor, setSuccessor] = useState('')
 
-  const { data: owned, isLoading } = useQuery({
+  const {
+    data: owned,
+    isLoading,
+    isError: ownedError,
+    refetch: refetchOwned,
+  } = useQuery({
     queryKey: ['admin', 'owned-resources', member?.id],
     queryFn: () => fetchOwnedResources(member!.id),
     enabled: member !== null,
   })
-  const { data: candidates } = useQuery({
+  const {
+    data: candidates,
+    isFetching: candidatesFetching,
+    isError: candidatesError,
+    refetch: refetchCandidates,
+  } = useQuery({
     queryKey: ['admin', 'members', 'manager-candidates'],
     queryFn: () => fetchAdminMembers({ status: 'active' }),
     staleTime: 60_000,
@@ -60,19 +71,37 @@ export const OffboardDialog = ({
   )
 
   return (
-    <>
-      <div className={scrimCls} onClick={onClose} aria-hidden />
-      <div
-        className={dialogCls}
-        role="dialog"
-        aria-label={t('members.offboardTitle', { name })}
-      >
-        <h2 className={titleCls}>{t('members.offboardTitle', { name })}</h2>
-
+    <Dialog
+      isOpen={member !== null}
+      type="flex"
+      title={t('members.offboardTitle', { name })}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <div className={contentCls}>
         <p className={explainCls}>{t('members.offboardExplain')}</p>
 
         {isLoading ? (
-          <p className={mutedCls}>{t('members.loadingResources')}</p>
+          <StateHint className={inventoryStateCls} state="loading">
+            {t('members.loadingResources')}
+          </StateHint>
+        ) : ownedError && !owned ? (
+          <StateHint
+            className={inventoryStateCls}
+            state="error"
+            action={
+              <Button
+                variant="secondary"
+                size="dense"
+                onPress={() => void refetchOwned()}
+              >
+                {t('feedback.retry')}
+              </Button>
+            }
+          >
+            {t('feedback.loadFailed')}
+          </StateHint>
         ) : (
           owned && (
             <ul className={inventoryCls}>
@@ -109,30 +138,52 @@ export const OffboardDialog = ({
         {/* Only asked when it actually applies — the backend refuses without
             either a successor or an explicit opt-out. */}
         {headsDepartments && (
-          <label className={fieldCls}>
+          <div className={fieldCls}>
             <span className={labelCls}>{t('members.transferHeadTo')}</span>
-            <SelectCompat
-              value={successor}
-              onChange={(e) => setSuccessor(e.target.value)}
-              className={cx(inputCls, selectChrome)}
-            >
-              <option value="">{t('members.leaveHeadless')}</option>
-              {successorOptions.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.full_name || m.email || m.id}
-                </option>
-              ))}
-            </SelectCompat>
-          </label>
+            {candidatesFetching && !candidates ? (
+              <StateHint className={fieldStateCls} state="loading">
+                {t('dashboard.loading')}
+              </StateHint>
+            ) : candidatesError && !candidates ? (
+              <StateHint
+                className={fieldStateCls}
+                state="error"
+                action={
+                  <Button
+                    variant="secondary"
+                    size="dense"
+                    onPress={() => void refetchCandidates()}
+                  >
+                    {t('feedback.retry')}
+                  </Button>
+                }
+              >
+                {t('feedback.loadFailed')}
+              </StateHint>
+            ) : (
+              <SelectCompat
+                value={successor}
+                aria-label={t('members.transferHeadTo')}
+                onChange={(e) => setSuccessor(e.target.value)}
+              >
+                <option value="">{t('members.leaveHeadless')}</option>
+                {successorOptions.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.full_name || m.email || m.id}
+                  </option>
+                ))}
+              </SelectCompat>
+            )}
+          </div>
         )}
 
         <label className={fieldCls}>
           <span className={labelCls}>{t('members.leaveReason')}</span>
-          <input
+          <Input
             value={reason}
+            aria-label={t('members.leaveReason')}
             onChange={(e) => setReason(e.target.value)}
             maxLength={64}
-            className={inputCls}
           />
         </label>
 
@@ -144,6 +195,7 @@ export const OffboardDialog = ({
             variant="danger"
             size="sm"
             isDisabled={submitting}
+            loading={submitting}
             onPress={() =>
               onSubmit({
                 reason,
@@ -158,40 +210,17 @@ export const OffboardDialog = ({
           </Button>
         </div>
       </div>
-    </>
+    </Dialog>
   )
 }
 
-const scrimCls = css({
-  position: 'fixed',
-  inset: 0,
-  backgroundColor: 'rgba(0,0,0,0.32)',
-  zIndex: 'modal',
-})
-const dialogCls = css({
-  position: 'fixed',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  width: 'min(460px, calc(100vw - 2rem))',
-  padding: '1.25rem',
-  borderRadius: '8px',
-  backgroundColor: 'greyscale.000',
-  zIndex: 'modal',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-})
-const titleCls = css({
-  fontSize: '1rem',
-  fontWeight: 'bold',
-  color: 'greyscale.900',
-  marginBottom: '0.5rem',
-})
+const contentCls = css({ width: 'min(26rem, calc(100vw - 6rem))' })
 const explainCls = css({
   fontSize: '0.8125rem',
   color: 'greyscale.600',
   marginBottom: '0.75rem',
 })
-const mutedCls = css({ fontSize: '0.8125rem', color: 'greyscale.500' })
+const inventoryStateCls = css({ padding: 'md', marginBottom: 'sm' })
 const inventoryCls = css({
   listStyle: 'disc',
   paddingLeft: '1.25rem',
@@ -211,15 +240,10 @@ const labelCls = css({
   color: 'greyscale.600',
   marginBottom: '0.25rem',
 })
-const inputCls = css({
-  width: '100%',
-  height: 'control.md',
-  paddingX: '0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '6px',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.875rem',
+const fieldStateCls = css({
+  alignItems: 'flex-start',
+  padding: 'sm',
+  textAlign: 'left',
 })
 const actionsCls = css({
   display: 'flex',

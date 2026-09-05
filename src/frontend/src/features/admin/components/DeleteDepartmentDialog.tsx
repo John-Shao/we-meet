@@ -4,8 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/primitives/Dialog'
 import { Button } from '@/primitives'
-import { css, cx } from '@/styled-system/css'
-import { selectChrome } from '@/primitives/selectChrome'
+import { css } from '@/styled-system/css'
 
 import type { AdminDepartment } from '../api/adminDepartments'
 
@@ -71,19 +70,8 @@ export const DeleteDepartmentDialog = ({
         </span>
         <SelectCompat
           value={reassignTo}
+          aria-label={t('org.reassignLabel')}
           onChange={(e) => setReassignTo(e.target.value)}
-          className={cx(
-            selectChrome,
-            css({
-              width: '100%',
-              padding: '0.375rem 0.5rem',
-              border: '1px solid token(colors.control.border)',
-              borderRadius: '4px',
-              backgroundColor: 'greyscale.000',
-              color: 'default.text',
-              fontSize: '0.875rem',
-            })
-          )}
         >
           <option value="">{t('org.reassignToOrg')}</option>
           {candidates.map((d) => (

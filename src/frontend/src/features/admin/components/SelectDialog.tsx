@@ -4,8 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/primitives/Dialog'
 import { Button } from '@/primitives'
-import { css, cx } from '@/styled-system/css'
-import { selectChrome } from '@/primitives/selectChrome'
+import { css } from '@/styled-system/css'
 
 export interface SelectOption {
   value: string
@@ -70,19 +69,8 @@ export const SelectDialog = ({
         )}
         <SelectCompat
           value={value}
+          aria-label={label ?? title}
           onChange={(e) => setValue(e.target.value)}
-          className={cx(
-            selectChrome,
-            css({
-              width: '100%',
-              padding: '0.375rem 0.5rem',
-              border: '1px solid token(colors.control.border)',
-              borderRadius: '4px',
-              backgroundColor: 'greyscale.000',
-              color: 'default.text',
-              fontSize: '0.875rem',
-            })
-          )}
         >
           {options.map((o) => (
             <option key={o.value} value={o.value}>
