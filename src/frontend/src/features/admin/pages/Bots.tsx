@@ -9,8 +9,7 @@ import {
 } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
-import { Button } from '@/primitives'
-import { selectChrome } from '@/primitives/selectChrome'
+import { Button, Input } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { StateHint } from '@/components/StateHint'
 import { botColorAt } from '@/components/bot/botPalette'
@@ -49,7 +48,12 @@ export const AdminBots = () => {
   const [credentialFor, setCredentialFor] = useState<AdminBot | null>(null)
 
   const params = { kind, active, q, page }
-  const { data, isFetching } = useQuery({
+  const {
+    data,
+    isFetching,
+    isError,
+    refetch: refetchBots,
+  } = useQuery({
     queryKey: ['admin', 'bots', params],
     queryFn: () => fetchAdminBots(params),
     placeholderData: keepPreviousData,
@@ -130,11 +134,12 @@ export const AdminBots = () => {
             alignItems: 'center',
           })}
         >
-          <input
+          <Input
             value={q}
+            aria-label={t('bots.searchPlaceholder')}
             placeholder={t('bots.searchPlaceholder')}
             onChange={(e) => resetPageThen(() => setQ(e.target.value))}
-            className={filterControl}
+            className={searchInputCls}
             data-testid="admin-bots-search"
           />
           <SelectCompat
@@ -142,7 +147,6 @@ export const AdminBots = () => {
             onChange={(e) =>
               resetPageThen(() => setKind(e.target.value as typeof kind))
             }
-            className={`${filterControl} ${selectChrome}`}
           >
             {/* 缺省只列自定义机器人 —— 内置助手是(助手 × 会话)的积。 */}
             <option value="">{t('bots.filterCustom')}</option>
@@ -154,7 +158,6 @@ export const AdminBots = () => {
             onChange={(e) =>
               resetPageThen(() => setActive(e.target.value as typeof active))
             }
-            className={`${filterControl} ${selectChrome}`}
           >
             <option value="">{t('bots.filterAllStates')}</option>
             <option value="1">{t('bots.filterActive')}</option>
@@ -166,6 +169,21 @@ export const AdminBots = () => {
       <div className={css({ flex: 1, overflowY: 'auto' })}>
         {isFetching && bots.length === 0 ? (
           <StateHint state="loading">{t('bots.loading')}</StateHint>
+        ) : isError && bots.length === 0 ? (
+          <StateHint
+            state="error"
+            action={
+              <Button
+                variant="secondary"
+                size="dense"
+                onPress={() => void refetchBots()}
+              >
+                {t('feedback.retry')}
+              </Button>
+            }
+          >
+            {t('feedback.loadFailed')}
+          </StateHint>
         ) : bots.length === 0 ? (
           <StateHint>{t('bots.empty')}</StateHint>
         ) : (
@@ -244,7 +262,7 @@ export const AdminBots = () => {
                     {has('org.bot.secret.read') && bot.kind === 'custom' && (
                       <Button
                         variant="tertiary"
-                        size="sm"
+                        size="dense"
                         onPress={() => setCredentialFor(bot)}
                       >
                         {t('bots.viewCredential')}
@@ -253,8 +271,11 @@ export const AdminBots = () => {
                     {has('org.bot.write') && (
                       <Button
                         variant="tertiary"
-                        size="sm"
-                        isDisabled={toggle.isPending}
+                        size="dense"
+                        loading={
+                          toggle.isPending &&
+                          toggle.variables?.bot.id === bot.id
+                        }
                         onPress={() => void onToggle(bot)}
                       >
                         {bot.is_active ? t('bots.disable') : t('bots.enable')}
@@ -282,16 +303,16 @@ export const AdminBots = () => {
       >
         <Button
           variant="secondary"
-          size="sm"
-          isDisabled={!data?.previous}
+          size="dense"
+          isDisabled={!data?.previous || isFetching}
           onPress={() => setPage((p) => Math.max(1, p - 1))}
         >
           {t('bots.prev')}
         </Button>
         <Button
           variant="secondary"
-          size="sm"
-          isDisabled={!data?.next}
+          size="dense"
+          isDisabled={!data?.next || isFetching}
           onPress={() => setPage((p) => p + 1)}
         >
           {t('bots.next')}
@@ -309,13 +330,7 @@ export const AdminBots = () => {
   )
 }
 
-const filterControl = css({
-  padding: '0.375rem 0.5rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '4px',
-  fontSize: '0.875rem',
-  backgroundColor: 'greyscale.000',
-})
+const searchInputCls = css({ width: '15rem', maxWidth: '100%' })
 const tableCls = css({
   width: '100%',
   borderCollapse: 'collapse',

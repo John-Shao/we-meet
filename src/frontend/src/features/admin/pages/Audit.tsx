@@ -3,10 +3,9 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 
-import { css, cx } from '@/styled-system/css'
-import { Button } from '@/primitives'
+import { css } from '@/styled-system/css'
+import { Button, Input } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
-import { selectChrome } from '@/primitives/selectChrome'
 
 import {
   type AuditActionOption,
@@ -55,7 +54,12 @@ export const AdminAudit = () => {
     page,
   }
 
-  const { data, isFetching } = useQuery({
+  const {
+    data,
+    isFetching,
+    isError,
+    refetch: refetchLogs,
+  } = useQuery({
     queryKey: ['admin', 'audit', params],
     queryFn: () => fetchAuditLogs(params),
     placeholderData: keepPreviousData,
@@ -63,7 +67,11 @@ export const AdminAudit = () => {
   })
 
   // 动作目录是枚举的投影,一个会话里不会变 —— 拉一次就够。
-  const { data: actionOptions = [] } = useQuery({
+  const {
+    data: actionOptions = [],
+    isError: actionOptionsError,
+    refetch: refetchActionOptions,
+  } = useQuery({
     queryKey: ['admin', 'audit-actions'],
     queryFn: fetchAuditActions,
     staleTime: Infinity,
@@ -122,7 +130,6 @@ export const AdminAudit = () => {
           <SelectCompat
             value={action}
             onChange={(e) => resetPageThen(() => setAction(e.target.value))}
-            className={cx(filterControl, selectChrome)}
           >
             <option value="">{t('audit.filterAllActions')}</option>
             {actionGroups.map(([group, options]) => (
@@ -140,28 +147,60 @@ export const AdminAudit = () => {
           </SelectCompat>
           <label className={dateLabel}>
             {t('audit.dateFrom')}
-            <input
+            <Input
               type="date"
               value={from}
               onChange={(e) => resetPageThen(() => setFrom(e.target.value))}
-              className={filterControl}
+              className={dateInputCls}
             />
           </label>
           <label className={dateLabel}>
             {t('audit.dateTo')}
-            <input
+            <Input
               type="date"
               value={to}
               onChange={(e) => resetPageThen(() => setTo(e.target.value))}
-              className={filterControl}
+              className={dateInputCls}
             />
           </label>
         </div>
+        {actionOptionsError && actionOptions.length === 0 ? (
+          <StateHint
+            className={catalogueErrorCls}
+            state="error"
+            action={
+              <Button
+                variant="secondary"
+                size="dense"
+                onPress={() => void refetchActionOptions()}
+              >
+                {t('feedback.retry')}
+              </Button>
+            }
+          >
+            {t('feedback.loadFailed')}
+          </StateHint>
+        ) : null}
       </div>
 
       <div className={css({ flex: 1, overflowY: 'auto' })}>
         {isFetching && logs.length === 0 ? (
           <StateHint state="loading">{t('audit.loading')}</StateHint>
+        ) : isError && logs.length === 0 ? (
+          <StateHint
+            state="error"
+            action={
+              <Button
+                variant="secondary"
+                size="dense"
+                onPress={() => void refetchLogs()}
+              >
+                {t('feedback.retry')}
+              </Button>
+            }
+          >
+            {t('feedback.loadFailed')}
+          </StateHint>
         ) : logs.length === 0 ? (
           <StateHint>{t('audit.noLogs')}</StateHint>
         ) : (
@@ -241,7 +280,7 @@ export const AdminAudit = () => {
         <Button
           variant="secondary"
           size="dense"
-          isDisabled={!data?.previous}
+          isDisabled={!data?.previous || isFetching}
           onPress={() => setPage((p) => Math.max(1, p - 1))}
         >
           {t('audit.prev')}
@@ -249,7 +288,7 @@ export const AdminAudit = () => {
         <Button
           variant="secondary"
           size="dense"
-          isDisabled={!data?.next}
+          isDisabled={!data?.next || isFetching}
           onPress={() => setPage((p) => p + 1)}
         >
           {t('audit.next')}
@@ -266,22 +305,17 @@ const td = css({
   color: 'greyscale.800',
   verticalAlign: 'top',
 })
-// 筛选行里的下拉与两个日期输入共用。高度钉在 control.md 与 selectChrome 同档,
-// 并去掉上下内边距 —— 留着会把内容盒挤到装不下 21px 的行盒(font: inherit 让
-// 行高继承成 1.5),文字被上下切掉,详见 primitives/selectChrome 的注释。
-const filterControl = css({
-  height: 'control.md',
-  paddingX: '0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '4px',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.875rem',
-})
+const dateInputCls = css({ width: '10rem' })
 const dateLabel = css({
   display: 'inline-flex',
   alignItems: 'center',
   gap: '0.375rem',
   fontSize: '0.8125rem',
   color: 'greyscale.600',
+})
+const catalogueErrorCls = css({
+  alignItems: 'flex-start',
+  paddingX: 0,
+  paddingY: 'md',
+  textAlign: 'left',
 })

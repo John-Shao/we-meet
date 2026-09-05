@@ -694,6 +694,27 @@ const standardizedFeedbackConsumers = [
       '<IconButton',
     ],
   ],
+  [
+    '../src/features/admin/pages/Bots.tsx',
+    [
+      "import { Button, Input } from '@/primitives'",
+      '<StateHint state="loading">',
+      'state="error"',
+      'onPress={() => void refetchBots()}',
+      '<Input',
+    ],
+  ],
+  [
+    '../src/features/admin/pages/Audit.tsx',
+    [
+      "import { Button, Input } from '@/primitives'",
+      '<StateHint state="loading">',
+      'state="error"',
+      'onPress={() => void refetchLogs()}',
+      'onPress={() => void refetchActionOptions()}',
+      '<Input',
+    ],
+  ],
 ]
 
 for (const [path, requiredStates] of standardizedFeedbackConsumers) {
