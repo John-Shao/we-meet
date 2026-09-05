@@ -1,20 +1,9 @@
 import { css } from '@/styled-system/css'
 
-// Deterministic palette so the same name keeps one colour wherever it renders.
-const AVATAR_COLORS = [
-  '#2563eb',
-  '#7c3aed',
-  '#db2777',
-  '#ea580c',
-  '#16a34a',
-  '#0891b2',
-]
+import { avatarFallbackColor } from '@/utils/avatar'
 
-const tintFor = (s: string): string => {
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return AVATAR_COLORS[h % AVATAR_COLORS.length]
-}
+// Deterministic palette so the same name keeps one colour wherever it renders.
+const tintFor = avatarFallbackColor
 
 const initial = (s: string): string => (s.trim()[0] || '?').toUpperCase()
 

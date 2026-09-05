@@ -1,20 +1,10 @@
 import { css } from '@/styled-system/css'
 
+import { avatarFallbackColor } from '@/utils/avatar'
+
 // Same deterministic palette as the single Avatar so a member keeps one colour
 // whether shown alone or as a tile in a group mosaic.
-const AVATAR_COLORS = [
-  '#2563eb',
-  '#7c3aed',
-  '#db2777',
-  '#ea580c',
-  '#16a34a',
-  '#0891b2',
-]
-const tintFor = (s: string): string => {
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return AVATAR_COLORS[h % AVATAR_COLORS.length]
-}
+const tintFor = avatarFallbackColor
 const initialOf = (s: string): string => (s.trim()[0] || '?').toUpperCase()
 
 export interface GroupAvatarMember {

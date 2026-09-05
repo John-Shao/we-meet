@@ -1,22 +1,11 @@
 import { css } from '@/styled-system/css'
 
+import { avatarFallbackColor } from '@/utils/avatar'
+
 // Deterministic palette so the same name always keeps one colour across the
 // conversation list, message stream and group roster.
-const AVATAR_COLORS = [
-  '#2563eb',
-  '#7c3aed',
-  '#db2777',
-  '#ea580c',
-  '#16a34a',
-  '#0891b2',
-]
-
 /** Deterministic tint from a string (same name → same colour). */
-const tintFor = (s: string): string => {
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return AVATAR_COLORS[h % AVATAR_COLORS.length]
-}
+const tintFor = avatarFallbackColor
 
 /** First non-space character, upper-cased; falls back to "?". */
 const initial = (s: string): string => (s.trim()[0] || '?').toUpperCase()
