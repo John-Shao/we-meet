@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { RiAddLine, RiDeleteBinLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
-import { Button } from '@/primitives'
+import { Button, IconButton } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { PageState } from '@/components/PageState'
 import { ResizablePanel } from '@/components/ResizablePanel'
@@ -232,6 +233,10 @@ export const AdminRoles = () => {
                   <Button
                     variant="tertiaryText"
                     size="dense"
+                    loading={
+                      deleteRoleMut.isPending &&
+                      deleteRoleMut.variables === selected.id
+                    }
                     onPress={() => void removeRole(selected)}
                   >
                     {t('actions.delete')}
@@ -264,18 +269,19 @@ export const AdminRoles = () => {
                       {t(`roles.group.${group}`, { defaultValue: group })}
                     </div>
                     {entries.map((entry) => (
-                      <label key={entry.code} className={checkRowCls}>
-                        <input
-                          type="checkbox"
-                          checked={selected.permissions.includes(entry.code)}
-                          disabled={!canWrite || permissionMut.isPending}
-                          onChange={() =>
-                            togglePermission(selected, entry.code)
-                          }
-                        />
-                        <span className={checkLabelCls}>{entry.label}</span>
-                        <code className={codeCls}>{entry.code}</code>
-                      </label>
+                      <Checkbox
+                        key={entry.code}
+                        size="sm"
+                        className={permissionCheckboxCls}
+                        isSelected={selected.permissions.includes(entry.code)}
+                        isDisabled={!canWrite || permissionMut.isPending}
+                        onChange={() => togglePermission(selected, entry.code)}
+                      >
+                        <span className={permissionContentCls}>
+                          <span className={checkLabelCls}>{entry.label}</span>
+                          <code className={codeCls}>{entry.code}</code>
+                        </span>
+                      </Checkbox>
                     ))}
                   </div>
                 ))
@@ -318,15 +324,17 @@ export const AdminRoles = () => {
                           : a.departments.map((d) => d.name).join('、')}
                       </span>
                       {canWrite && (
-                        <button
-                          type="button"
-                          title={t('roles.unassign')}
-                          aria-label={t('roles.unassign')}
-                          onClick={() => unassignMut.mutate(a.id)}
-                          className={removeBtnCls}
+                        <IconButton
+                          label={t('roles.unassign')}
+                          variant="quaternaryDanger"
+                          loading={
+                            unassignMut.isPending &&
+                            unassignMut.variables === a.id
+                          }
+                          onPress={() => unassignMut.mutate(a.id)}
                         >
                           <RiDeleteBinLine size={15} />
-                        </button>
+                        </IconButton>
                       )}
                     </li>
                   ))}
@@ -458,13 +466,15 @@ const groupTitleCls = css({
   color: 'greyscale.500',
   marginBottom: '0.25rem',
 })
-const checkRowCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
+const permissionCheckboxCls = css({
   paddingY: '0.25rem',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
+  textStyle: 'bodySmall',
+  color: 'text.primary',
+})
+const permissionContentCls = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 'sm',
 })
 const checkLabelCls = css({ color: 'greyscale.900' })
 const codeCls = css({
@@ -488,11 +498,4 @@ const scopeCls = css({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-})
-const removeBtnCls = css({
-  border: 'none',
-  background: 'transparent',
-  cursor: 'pointer',
-  color: 'greyscale.500',
-  _hover: { color: 'danger.subtle-text' },
 })

@@ -652,6 +652,8 @@ const standardizedFeedbackConsumers = [
   [
     '../src/features/admin/pages/Roles.tsx',
     [
+      "import { Button, IconButton } from '@/primitives'",
+      "import { Checkbox } from '@/primitives/Checkbox'",
       "import { PageState } from '@/components/PageState'",
       "import { StateHint } from '@/components/StateHint'",
       '<StateHint state="loading">',
@@ -660,6 +662,32 @@ const standardizedFeedbackConsumers = [
       'onPress={() => void refetchRoles()}',
       'onPress={() => void refetchCatalogue()}',
       'onPress={() => void refetchAssignments()}',
+      '<Checkbox',
+      '<IconButton',
+    ],
+  ],
+  [
+    '../src/features/admin/components/RoleCreateDialog.tsx',
+    [
+      "import { Button, Input } from '@/primitives'",
+      "import { Checkbox } from '@/primitives/Checkbox'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<Input',
+      '<Checkbox',
+      '<StateHint',
+      'loading={createMut.isPending}',
+    ],
+  ],
+  [
+    '../src/features/admin/components/RoleAssignDialog.tsx',
+    [
+      "import { Checkbox } from '@/primitives/Checkbox'",
+      "import { StateHint } from '@/components/StateHint'",
+      'state="error"',
+      'onPress={() => void refetchMembers()}',
+      'onPress={() => void refetchDepartments()}',
+      '<Checkbox',
+      'loading={assignMut.isPending}',
     ],
   ],
   [

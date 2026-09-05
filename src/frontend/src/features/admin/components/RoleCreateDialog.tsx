@@ -3,9 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { useMutation } from '@tanstack/react-query'
 
 import { Dialog } from '@/primitives/Dialog'
-import { Button } from '@/primitives'
+import { Button, Input } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { css } from '@/styled-system/css'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { StateHint } from '@/components/StateHint'
 
 import { type PermissionEntry, createAdminRole } from '../api/adminRoles'
 import { describeApiError } from '../api/errors'
@@ -74,22 +76,26 @@ export const RoleCreateDialog = ({
           {/* eslint-disable jsx-a11y/no-autofocus -- 新建角色的第一步就是填名称。
               RAC 的 useDialog 默认只把焦点放在对话框容器上,必须由子元素 autoFocus
               覆盖 —— 机制由 TextPromptDialog.test.tsx 钉住。 */}
-          <input
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputCls}
-          />
+          <span className={controlCls}>
+            <Input
+              autoFocus
+              aria-label={t('roles.nameLabel')}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </span>
           {/* eslint-enable jsx-a11y/no-autofocus */}
         </label>
         <label className={fieldCls}>
           <span className={labelCls}>{t('roles.codeLabel')}</span>
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value.toLowerCase())}
-            placeholder="recruiting"
-            className={inputCls}
-          />
+          <span className={controlCls}>
+            <Input
+              aria-label={t('roles.codeLabel')}
+              value={code}
+              onChange={(e) => setCode(e.target.value.toLowerCase())}
+              placeholder="recruiting"
+            />
+          </span>
         </label>
         {/* 只在真写了东西之后才提示,免得刚打开就一片红。 */}
         {code.length > 0 && !codeValid && (
@@ -99,19 +105,28 @@ export const RoleCreateDialog = ({
 
         <div className={sectionCls}>{t('roles.permissions')}</div>
         <div className={listCls}>
-          {grantable.map((entry) => (
-            <label key={entry.code} className={checkRowCls}>
-              <input
-                type="checkbox"
-                checked={picked.has(entry.code)}
+          {grantable.length === 0 ? (
+            <StateHint className={compactStateCls}>
+              {t('roles.noPermissions')}
+            </StateHint>
+          ) : (
+            grantable.map((entry) => (
+              <Checkbox
+                key={entry.code}
+                size="sm"
+                className={permissionCheckboxCls}
+                isSelected={picked.has(entry.code)}
                 onChange={() => toggle(entry.code)}
-              />
-              <span className={css({ color: 'greyscale.900' })}>
-                {entry.label}
-              </span>
-              <code className={codeCls}>{entry.code}</code>
-            </label>
-          ))}
+              >
+                <span className={permissionContentCls}>
+                  <span className={css({ color: 'text.primary' })}>
+                    {entry.label}
+                  </span>
+                  <code className={codeCls}>{entry.code}</code>
+                </span>
+              </Checkbox>
+            ))
+          )}
         </div>
 
         <div className={footerCls}>
@@ -122,6 +137,7 @@ export const RoleCreateDialog = ({
             variant="primary"
             size="sm"
             isDisabled={!canSubmit}
+            loading={createMut.isPending}
             onPress={() => createMut.mutate()}
           >
             {t('actions.create')}
@@ -144,17 +160,9 @@ const labelCls = css({
   fontSize: '0.8125rem',
   color: 'greyscale.600',
 })
-// 与 admin 其它弹窗的单行输入同档(MemberEditPanel / OffboardDialog 已是
-// control.md);钉高必须同时去掉上下内边距,见 primitives/selectChrome 的注释。
-const inputCls = css({
+const controlCls = css({
   flex: 1,
-  height: 'control.md',
-  paddingX: '0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '6px',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.875rem',
+  minWidth: 0,
 })
 const errorCls = css({
   marginLeft: '5.75rem',
@@ -180,13 +188,15 @@ const listCls = css({
   borderRadius: '6px',
   padding: '0.5rem',
 })
-const checkRowCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
+const permissionCheckboxCls = css({
   paddingY: '0.25rem',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
+  textStyle: 'bodySmall',
+  color: 'text.primary',
+})
+const permissionContentCls = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 'sm',
 })
 const codeCls = css({
   fontFamily: 'monospace',
@@ -199,3 +209,4 @@ const footerCls = css({
   gap: '0.5rem',
   marginTop: '0.75rem',
 })
+const compactStateCls = css({ padding: 'md' })

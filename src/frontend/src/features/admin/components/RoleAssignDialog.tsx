@@ -5,9 +5,10 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { Dialog } from '@/primitives/Dialog'
 import { Button } from '@/primitives'
-import { css, cx } from '@/styled-system/css'
-import { selectChrome } from '@/primitives/selectChrome'
+import { Checkbox } from '@/primitives/Checkbox'
+import { css } from '@/styled-system/css'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { StateHint } from '@/components/StateHint'
 
 import { type AdminRole, createRoleAssignment } from '../api/adminRoles'
 import { fetchAdminDepartments } from '../api/adminDepartments'
@@ -44,13 +45,23 @@ export const RoleAssignDialog = ({ role, onDone, onClose }: Props) => {
     }
   }, [role])
 
-  const { data: memberPage } = useQuery({
+  const {
+    data: memberPage,
+    isFetching: membersFetching,
+    isError: membersError,
+    refetch: refetchMembers,
+  } = useQuery({
     queryKey: ['admin', 'members', { forRoleAssign: true }],
     queryFn: () => fetchAdminMembers({ status: 'active' }),
     enabled: role !== null,
     staleTime: 60_000,
   })
-  const { data: departments = [] } = useQuery({
+  const {
+    data: departments = [],
+    isFetching: departmentsFetching,
+    isError: departmentsError,
+    refetch: refetchDepartments,
+  } = useQuery({
     queryKey: ['admin', 'departments'],
     queryFn: fetchAdminDepartments,
     enabled: role !== null,
@@ -95,56 +106,113 @@ export const RoleAssignDialog = ({ role, onDone, onClose }: Props) => {
       title={t('roles.assignTitle', { name: role?.name ?? '' })}
     >
       <div className={css({ width: 'min(32rem, calc(100vw - 6rem))' })}>
-        <label className={fieldCls}>
+        <div className={fieldCls}>
           <span className={labelCls}>{t('roles.member')}</span>
-          <SelectCompat
-            value={membership}
-            onChange={(e) => setMembership(e.target.value)}
-            className={selectCls}
-          >
-            <option value="">{t('roles.pickMember')}</option>
-            {members.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.full_name || m.short_name || m.email}
-              </option>
-            ))}
-          </SelectCompat>
-        </label>
+          <span className={controlCls}>
+            {membersFetching && members.length === 0 ? (
+              <StateHint className={fieldStateCls} state="loading">
+                {t('dashboard.loading')}
+              </StateHint>
+            ) : membersError && members.length === 0 ? (
+              <StateHint
+                className={fieldStateCls}
+                state="error"
+                action={
+                  <Button
+                    variant="secondary"
+                    size="dense"
+                    onPress={() => void refetchMembers()}
+                  >
+                    {t('feedback.retry')}
+                  </Button>
+                }
+              >
+                {t('feedback.loadFailed')}
+              </StateHint>
+            ) : members.length === 0 ? (
+              <StateHint className={fieldStateCls}>
+                {t('roles.noMembers')}
+              </StateHint>
+            ) : (
+              <SelectCompat
+                value={membership}
+                aria-label={t('roles.member')}
+                onChange={(e) => setMembership(e.target.value)}
+              >
+                <option value="">{t('roles.pickMember')}</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.full_name || m.short_name || m.email}
+                  </option>
+                ))}
+              </SelectCompat>
+            )}
+          </span>
+        </div>
 
-        <label className={fieldCls}>
+        <div className={fieldCls}>
           <span className={labelCls}>{t('roles.scope')}</span>
-          <SelectCompat
-            value={scopeType}
-            onChange={(e) =>
-              setScopeType(e.target.value as 'all' | 'departments')
-            }
-            className={selectCls}
-          >
-            <option value="all">{t('roles.scopeAll')}</option>
-            <option value="departments">{t('roles.scopeDepartments')}</option>
-          </SelectCompat>
-        </label>
+          <span className={controlCls}>
+            <SelectCompat
+              value={scopeType}
+              aria-label={t('roles.scope')}
+              onChange={(e) =>
+                setScopeType(e.target.value as 'all' | 'departments')
+              }
+            >
+              <option value="all">{t('roles.scopeAll')}</option>
+              <option value="departments">{t('roles.scopeDepartments')}</option>
+            </SelectCompat>
+          </span>
+        </div>
 
         {scopeType === 'departments' && (
           <>
             {/* 范围按**子树**生效,勾一个父部门就覆盖它下面所有层级。 */}
             <p className={hintCls}>{t('roles.scopeSubtreeHint')}</p>
             <div className={listCls}>
-              {departments.map((d) => (
-                <label key={d.id} className={checkRowCls}>
-                  <input
-                    type="checkbox"
-                    checked={departmentIds.has(d.id)}
+              {departmentsFetching && departments.length === 0 ? (
+                <StateHint className={listStateCls} state="loading">
+                  {t('dashboard.loading')}
+                </StateHint>
+              ) : departmentsError && departments.length === 0 ? (
+                <StateHint
+                  className={listStateCls}
+                  state="error"
+                  action={
+                    <Button
+                      variant="secondary"
+                      size="dense"
+                      onPress={() => void refetchDepartments()}
+                    >
+                      {t('feedback.retry')}
+                    </Button>
+                  }
+                >
+                  {t('feedback.loadFailed')}
+                </StateHint>
+              ) : departments.length === 0 ? (
+                <StateHint className={listStateCls}>
+                  {t('roles.noDepartments')}
+                </StateHint>
+              ) : (
+                departments.map((d) => (
+                  <Checkbox
+                    key={d.id}
+                    size="sm"
+                    className={departmentCheckboxCls}
+                    isSelected={departmentIds.has(d.id)}
                     onChange={() => toggleDepartment(d.id)}
-                  />
-                  <span
-                    style={{ paddingLeft: `${d.depth * 0.875}rem` }}
-                    className={css({ color: 'greyscale.900' })}
                   >
-                    {d.name}
-                  </span>
-                </label>
-              ))}
+                    <span
+                      style={{ paddingLeft: `${d.depth * 0.875}rem` }}
+                      className={css({ color: 'text.primary' })}
+                    >
+                      {d.name}
+                    </span>
+                  </Checkbox>
+                ))
+              )}
             </div>
           </>
         )}
@@ -157,6 +225,7 @@ export const RoleAssignDialog = ({ role, onDone, onClose }: Props) => {
             variant="primary"
             size="sm"
             isDisabled={!canSubmit}
+            loading={assignMut.isPending}
             onPress={() => assignMut.mutate()}
           >
             {t('roles.assign')}
@@ -179,20 +248,12 @@ const labelCls = css({
   fontSize: '0.8125rem',
   color: 'greyscale.600',
 })
-const selectCls = cx(
-  css({
-    flex: 1,
-    // 弹性子项默认 min-width:auto —— 姓名长的成员会把下拉撑出行外,再溢出白框。
-    minWidth: 0,
-    padding: '0.375rem 0.5rem',
-    border: '1px solid token(colors.control.border)',
-    borderRadius: '6px',
-    backgroundColor: 'greyscale.000',
-    color: 'default.text',
-    fontSize: '0.875rem',
-  }),
-  selectChrome
-)
+const controlCls = css({ flex: 1, minWidth: 0 })
+const fieldStateCls = css({
+  alignItems: 'flex-start',
+  padding: 'sm',
+  textAlign: 'left',
+})
 const hintCls = css({
   marginLeft: '5.25rem',
   marginBottom: '0.25rem',
@@ -206,14 +267,12 @@ const listCls = css({
   borderRadius: '6px',
   padding: '0.5rem',
 })
-const checkRowCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
+const departmentCheckboxCls = css({
   paddingY: '0.25rem',
-  fontSize: '0.8125rem',
-  cursor: 'pointer',
+  textStyle: 'bodySmall',
+  color: 'text.primary',
 })
+const listStateCls = css({ padding: 'md' })
 const footerCls = css({
   display: 'flex',
   justifyContent: 'flex-end',
