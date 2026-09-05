@@ -4,10 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { RiArrowLeftLine } from '@remixicon/react'
 
-import { css, cx } from '@/styled-system/css'
-import { Button, Input } from '@/primitives'
-import { selectChrome } from '@/primitives/selectChrome'
+import { css } from '@/styled-system/css'
+import { Button, Input, TextArea } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { StateHint } from '@/components/StateHint'
 import { pathLabelOf } from '@/features/meeting-rooms/utils/roomHierarchy'
 import { roomIdentifier } from '@/features/meeting-rooms/utils/roomLabel'
 
@@ -97,11 +98,17 @@ export const MeetingRoomDetail = ({
     data: room,
     isLoading,
     error,
+    refetch: refetchRoom,
   } = useQuery({
     queryKey: ['admin', 'meetingRoom', roomId],
     queryFn: () => fetchAdminMeetingRoom(roomId),
   })
-  const { data: departments = [] } = useQuery({
+  const {
+    data: departments = [],
+    isFetching: departmentsFetching,
+    isError: departmentsError,
+    refetch: refetchDepartments,
+  } = useQuery({
     queryKey: ['admin', 'departments'],
     queryFn: fetchAdminDepartments,
     staleTime: 5 * 60_000,
@@ -169,16 +176,32 @@ export const MeetingRoomDetail = ({
     setActive(current)
   }
 
-  if (isLoading) return <p className={hintCls}>{t('meetingRooms.loading')}</p>
-  if (error || !room || !draft)
+  if (isLoading)
+    return <StateHint state="loading">{t('meetingRooms.loading')}</StateHint>
+  if (error || !room)
     return (
-      <div>
+      <div className={detailStateCls}>
         <Button variant="secondary" size="sm" onPress={onBack}>
           {t('actions.back')}
         </Button>
-        <p className={hintCls}>{describeApiError(error)}</p>
+        <StateHint
+          state="error"
+          action={
+            <Button
+              variant="secondary"
+              size="dense"
+              onPress={() => void refetchRoom()}
+            >
+              {t('feedback.retry')}
+            </Button>
+          }
+        >
+          {error ? describeApiError(error) : t('feedback.loadFailed')}
+        </StateHint>
       </div>
     )
+  if (!draft)
+    return <StateHint state="loading">{t('meetingRooms.loading')}</StateHint>
 
   const submit = () => {
     if (!draft.code.trim() || !draft.floor.trim()) return
@@ -266,7 +289,6 @@ export const MeetingRoomDetail = ({
               <SelectCompat
                 value={draft.node}
                 aria-label={t('meetingRooms.parentLevel')}
-                className={cx(selectChrome, selectCls)}
                 onChange={(e) => set('node', e.target.value)}
               >
                 {buildingNodes.map((n) => (
@@ -293,11 +315,11 @@ export const MeetingRoomDetail = ({
               </span>
             </Row>
             <Row label={t('meetingRooms.remark')}>
-              <textarea
+              <TextArea
                 value={draft.description}
                 aria-label={t('meetingRooms.remark')}
                 rows={3}
-                className={textareaCls}
+                className={descriptionInputCls}
                 onChange={(e) => set('description', e.target.value)}
               />
             </Row>
@@ -311,7 +333,6 @@ export const MeetingRoomDetail = ({
               <SelectCompat
                 value={draft.is_active ? '1' : '0'}
                 aria-label={t('meetingRooms.colStatus')}
-                className={cx(selectChrome, selectCls)}
                 onChange={(e) => set('is_active', e.target.value === '1')}
               >
                 <option value="1">{t('meetingRooms.statusActive')}</option>
@@ -337,7 +358,9 @@ export const MeetingRoomDetail = ({
             innerRef={(el) => (sectionRefs.current.facilities = el)}
           >
             {offerableFacilities.length === 0 ? (
-              <p className={hintCls}>{t('meetingRooms.noFacilities')}</p>
+              <StateHint className={compactStateCls}>
+                {t('meetingRooms.noFacilities')}
+              </StateHint>
             ) : (
               <div className={chipRowCls}>
                 {offerableFacilities.map((facility) => {
@@ -370,7 +393,6 @@ export const MeetingRoomDetail = ({
               <SelectCompat
                 value={draft.booking_scope}
                 aria-label={t('meetingRooms.bookingScope')}
-                className={cx(selectChrome, selectCls)}
                 onChange={(e) =>
                   set('booking_scope', e.target.value as BookingScope)
                 }
@@ -384,29 +406,52 @@ export const MeetingRoomDetail = ({
             {draft.booking_scope === 'departments' && (
               <Row label={t('meetingRooms.bookableDepartments')}>
                 <div className={deptBoxCls}>
-                  {departments.length === 0 ? (
-                    <span className={hintCls}>
+                  {departmentsFetching && departments.length === 0 ? (
+                    <StateHint className={compactStateCls} state="loading">
+                      {t('meetingRooms.loading')}
+                    </StateHint>
+                  ) : departmentsError && departments.length === 0 ? (
+                    <StateHint
+                      className={compactStateCls}
+                      state="error"
+                      action={
+                        <Button
+                          variant="secondary"
+                          size="dense"
+                          onPress={() => void refetchDepartments()}
+                        >
+                          {t('feedback.retry')}
+                        </Button>
+                      }
+                    >
+                      {t('feedback.loadFailed')}
+                    </StateHint>
+                  ) : departments.length === 0 ? (
+                    <StateHint className={compactStateCls}>
                       {t('meetingRooms.noDepartments')}
-                    </span>
+                    </StateHint>
                   ) : (
                     departments.map((d) => (
-                      <label key={d.id} className={deptRowCls}>
-                        <input
-                          type="checkbox"
-                          checked={draft.bookable_department_ids.includes(d.id)}
-                          onChange={(e) =>
-                            set(
-                              'bookable_department_ids',
-                              e.target.checked
-                                ? [...draft.bookable_department_ids, d.id]
-                                : draft.bookable_department_ids.filter(
-                                    (id) => id !== d.id
-                                  )
-                            )
-                          }
-                        />
+                      <Checkbox
+                        key={d.id}
+                        size="sm"
+                        className={deptCheckboxCls}
+                        isSelected={draft.bookable_department_ids.includes(
+                          d.id
+                        )}
+                        onChange={(isSelected) =>
+                          set(
+                            'bookable_department_ids',
+                            isSelected
+                              ? [...draft.bookable_department_ids, d.id]
+                              : draft.bookable_department_ids.filter(
+                                  (id) => id !== d.id
+                                )
+                          )
+                        }
+                      >
                         {d.name}
-                      </label>
+                      </Checkbox>
                     ))
                   )}
                 </div>
@@ -505,6 +550,12 @@ const wrapCls = css({
   height: '100%',
   minHeight: 0,
 })
+const detailStateCls = css({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: 'sm',
+})
 const headerCls = css({
   flexShrink: 0,
   display: 'flex',
@@ -584,49 +635,32 @@ const labelCls = css({
   paddingTop: '0.375rem',
 })
 const hintSmallCls = css({ fontSize: '0.6875rem', color: 'greyscale.400' })
-const hintCls = css({ color: 'greyscale.500', fontSize: '0.875rem' })
 const readOnlyCls = css({
   fontSize: '0.875rem',
   color: 'greyscale.800',
   display: 'inline-block',
   paddingTop: '0.375rem',
 })
-// 与同框 Input 基元同款外观。高度由 selectChrome 钉住 control.md;左内边距必须
-// 写 paddingLeft,写 paddingX 会与 selectChrome 的箭头留位撞同属性。
-const selectCls = css({
-  width: '100%',
-  fontSize: '0.875rem',
-  paddingLeft: '0.5',
-  border: '1px solid',
-  borderColor: 'control.border',
-  color: 'control.text',
-  borderRadius: 4,
-})
-const textareaCls = css({
-  width: '100%',
-  padding: '0.375rem 0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '4px',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.875rem',
-  resize: 'vertical',
-})
+const descriptionInputCls = css({ resize: 'vertical' })
 const deptBoxCls = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'xs',
   maxHeight: '11rem',
   overflowY: 'auto',
   border: '1px solid token(colors.greyscale.200)',
   borderRadius: '4px',
   padding: '0.375rem',
 })
-const deptRowCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.375rem',
-  fontSize: '0.875rem',
-  color: 'greyscale.800',
+const deptCheckboxCls = css({
   paddingY: '0.125rem',
-  cursor: 'pointer',
+  textStyle: 'bodyMedium',
+  color: 'text.primary',
+})
+const compactStateCls = css({
+  alignItems: 'flex-start',
+  padding: 'sm',
+  textAlign: 'left',
 })
 const chipRowCls = css({ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' })
 const chipBase = {

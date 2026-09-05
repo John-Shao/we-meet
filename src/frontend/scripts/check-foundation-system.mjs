@@ -748,6 +748,20 @@ const standardizedFeedbackConsumers = [
       '<Input',
     ],
   ],
+  [
+    '../src/features/admin/components/MeetingRoomDetail.tsx',
+    [
+      "import { Button, Input, TextArea } from '@/primitives'",
+      "import { Checkbox } from '@/primitives/Checkbox'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<StateHint state="loading">',
+      'state="error"',
+      'onPress={() => void refetchRoom()}',
+      'onPress={() => void refetchDepartments()}',
+      '<TextArea',
+      '<Checkbox',
+    ],
+  ],
 ]
 
 for (const [path, requiredStates] of standardizedFeedbackConsumers) {
