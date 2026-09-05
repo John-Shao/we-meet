@@ -487,14 +487,20 @@ class CalendarViewSet(viewsets.GenericViewSet):
             == models.CalendarAccessChoices.NONE
         ):
             raise exceptions.PermissionDenied()
+        updates = {}
+        if "enabled" in request.data:
+            updates["enabled"] = serializers.BooleanField().run_validation(
+                request.data.get("enabled")
+            )
+        if "color" in request.data:
+            updates["color"] = str(request.data.get("color") or DEFAULT_COLORS[0])[:16]
         row, _ = models.CalendarSubscription.objects.update_or_create(
             calendar=calendar,
             subscriber=request.user,
-            defaults={
-                "enabled": serializers.BooleanField().run_validation(
-                    request.data.get("enabled", True)
-                ),
-                "color": str(request.data.get("color") or DEFAULT_COLORS[0])[:16],
+            defaults=updates,
+            create_defaults={
+                "enabled": updates.get("enabled", True),
+                "color": updates.get("color", DEFAULT_COLORS[0]),
             },
         )
         calendar.viewer_subscription_cache = row

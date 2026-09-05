@@ -71,6 +71,44 @@ def test_shared_calendar_writer_can_create_event_and_private_event_is_redacted()
 
 
 @pytest.mark.django_db
+def test_subscription_update_preserves_omitted_display_settings():
+    organization = factories.OrganizationFactory()
+    owner, subscriber = factories.UserFactory.create_batch(2)
+    member(organization, owner)
+    member(organization, subscriber)
+    calendar = models.Calendar.objects.create(
+        organization=organization,
+        owner=owner,
+        kind=models.CalendarKindChoices.SHARED,
+        name="Launch",
+        organization_default_access=models.CalendarAccessChoices.DETAILS,
+    )
+    subscription = models.CalendarSubscription.objects.create(
+        calendar=calendar,
+        subscriber=subscriber,
+        enabled=True,
+        color="#f54a45",
+    )
+    endpoint = f"/api/v1.0/calendars/{calendar.id}/subscription/"
+
+    hidden = api(subscriber).put(endpoint, {"enabled": False}, format="json")
+
+    assert hidden.status_code == 200, hidden.content
+    subscription.refresh_from_db()
+    assert subscription.enabled is False
+    assert subscription.color == "#f54a45"
+    assert hidden.json()["color"] == "#f54a45"
+
+    recolored = api(subscriber).put(endpoint, {"color": "#34c724"}, format="json")
+
+    assert recolored.status_code == 200, recolored.content
+    subscription.refresh_from_db()
+    assert subscription.enabled is False
+    assert subscription.color == "#34c724"
+    assert recolored.json()["enabled"] is False
+
+
+@pytest.mark.django_db
 def test_primary_calendar_rejects_delegated_writer():
     organization = factories.OrganizationFactory()
     owner, colleague = factories.UserFactory.create_batch(2)
