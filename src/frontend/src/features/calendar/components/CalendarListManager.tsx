@@ -8,6 +8,7 @@ import { useConfig } from '@/api/useConfig'
 import { Modal, ModalCloseButton } from '@/components/Modal'
 import { roomBuildingIdentifier } from '@/features/meeting-rooms'
 import { ActionMenuItem, ActionMenuSurface, IconButton } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { css } from '@/styled-system/css'
 
 import {
@@ -121,15 +122,13 @@ export const CalendarListManager = ({
       ) : (
         rows.map((calendar) => (
           <div key={calendar.id} className={calendarRowCls}>
-            <input
-              type="checkbox"
-              checked={calendar.enabled}
+            <Checkbox
+              size="sm"
+              isSelected={calendar.enabled}
               aria-label={t('sidebar.toggleCalendar', {
                 calendar: calendarDisplayName(calendar),
               })}
-              onChange={(event) =>
-                void update(calendar, { enabled: event.target.checked })
-              }
+              onChange={(enabled) => void update(calendar, { enabled })}
             />
             <CalendarColorPicker
               value={calendar.color}
@@ -354,7 +353,7 @@ const menuPopupCls = css({
   minWidth: '9rem',
 })
 const mutedCls = css({ color: 'greyscale.400', fontSize: '0.75rem' })
-const errorCls = css({ color: '#dc2626', fontSize: '0.75rem' })
+const errorCls = css({ color: 'status.danger', fontSize: '0.75rem' })
 const colorDialogHeaderCls = css({
   display: 'flex',
   alignItems: 'center',

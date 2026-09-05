@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/primitives'
+import { Button, Input, TextArea } from '@/primitives'
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
@@ -28,7 +28,7 @@ import {
   useCalendarSettings,
 } from '../hooks/useCalendarSettings'
 import { AttendeePicker } from './AttendeePicker'
-import { fieldCls, inputCls, labelCls } from './formStyles'
+import { fieldCls, labelCls } from './formStyles'
 import {
   addCivilDays,
   dateOnlyToLocalDate,
@@ -443,7 +443,7 @@ export const CreateEventDialog = ({
               }))}
             />
           )}
-          <input
+          <Input
             ref={titleRef}
             type="text"
             value={title}
@@ -451,17 +451,16 @@ export const CreateEventDialog = ({
             onChange={(e) => setTitle(e.target.value)}
             placeholder={t('form.titlePlaceholder')}
             data-testid="event-title"
-            className={inputCls}
           />
 
-          <textarea
+          <TextArea
             value={description}
             maxLength={2000}
             onChange={(e) => setDescription(e.target.value)}
             placeholder={t('form.descriptionPlaceholder')}
             rows={3}
             data-testid="event-description"
-            className={textareaCls}
+            className={eventTextAreaCls}
           />
 
           <div
@@ -473,7 +472,7 @@ export const CreateEventDialog = ({
           >
             <label className={fieldCls}>
               <span className={labelCls}>{t('form.start')}</span>
-              <input
+              <Input
                 type={allDay ? 'date' : 'datetime-local'}
                 value={allDay ? dateOnly(start) : start}
                 onChange={(e) => {
@@ -481,12 +480,11 @@ export const CreateEventDialog = ({
                   setStart(allDay ? (v ? `${v}T00:00` : '') : v)
                 }}
                 data-testid="event-start"
-                className={inputCls}
               />
             </label>
             <label className={fieldCls}>
               <span className={labelCls}>{t('form.end')}</span>
-              <input
+              <Input
                 type={allDay ? 'date' : 'datetime-local'}
                 value={allDay ? dateOnly(end) : end}
                 onChange={(e) => {
@@ -494,7 +492,6 @@ export const CreateEventDialog = ({
                   setEnd(allDay ? (v ? `${v}T00:00` : '') : v)
                 }}
                 data-testid="event-end"
-                className={inputCls}
               />
             </label>
           </div>
@@ -592,12 +589,11 @@ export const CreateEventDialog = ({
                   })}
                 >
                   {t('form.repeatUntil')}
-                  <input
+                  <Input
                     type="date"
                     value={repeatUntil}
                     onChange={(e) => setRepeatUntil(e.target.value)}
                     data-testid="event-repeat-until"
-                    className={inputCls}
                   />
                 </label>
               )}
@@ -702,6 +698,7 @@ export const CreateEventDialog = ({
           variant="primary"
           size="action"
           isDisabled={!canCreate}
+          loading={busy}
           onPress={submit}
           data-testid="event-create"
         >
@@ -746,14 +743,7 @@ const timezoneMenuCls = css({
   maxHeight: '20rem',
   overflowY: 'auto',
 })
-const textareaCls = css({
-  width: '100%',
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  fontSize: '0.875rem',
-  fontFamily: 'inherit',
+const eventTextAreaCls = css({
   resize: 'vertical',
   minHeight: '3.5rem',
 })

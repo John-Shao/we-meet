@@ -9,6 +9,7 @@ import {
   type DirectoryMember,
 } from '@/features/contacts'
 import { Button } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { css } from '@/styled-system/css'
 
 import type { CalendarEvent } from '../api/ApiCalendar'
@@ -102,14 +103,14 @@ export const TransferEventDialog = ({
           </span>
         </button>
 
-        <label className={checkboxCls}>
-          <input
-            type="checkbox"
-            checked={keepOriginal}
-            onChange={(e) => setKeepOriginal(e.target.checked)}
-          />
-          <span>{t('transfer.keepOriginal')}</span>
-        </label>
+        <Checkbox
+          size="sm"
+          className={checkboxCls}
+          isSelected={keepOriginal}
+          onChange={setKeepOriginal}
+        >
+          {t('transfer.keepOriginal')}
+        </Checkbox>
         {error && (
           <p className={errorCls} role="alert">
             {t('transfer.error', { message: error })}
@@ -125,6 +126,7 @@ export const TransferEventDialog = ({
           variant="primary"
           size="action"
           isDisabled={submitting}
+          loading={submitting}
           onPress={() => void submit()}
           data-testid="transfer-event-confirm"
         >
@@ -142,13 +144,9 @@ const labelCls = css({
 })
 
 const checkboxCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
   margin: '0.75rem 1rem',
   fontSize: '0.875rem',
   color: 'greyscale.800',
-  cursor: 'pointer',
 })
 
 const targetCls = css({
@@ -198,5 +196,5 @@ const targetArrowCls = css({
 const errorCls = css({
   margin: '0 1rem 0.75rem',
   fontSize: '0.8125rem',
-  color: 'red.600',
+  color: 'status.danger',
 })

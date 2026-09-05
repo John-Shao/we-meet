@@ -590,6 +590,44 @@ for (const [path, requiredStates] of componentStateRequirements) {
 
 const standardizedFeedbackConsumers = [
   [
+    '../src/features/calendar/components/CreateEventDialog.tsx',
+    [
+      "import { Button, Input, TextArea } from '@/primitives'",
+      '<Input',
+      '<TextArea',
+      'loading={busy}',
+    ],
+  ],
+  [
+    '../src/features/calendar/components/CalendarManagementDialogs.tsx',
+    [
+      "import { Button, Input, TextArea } from '@/primitives'",
+      "import { Radio } from '@/primitives/Radio'",
+      '<Input',
+      '<TextArea',
+      '<RadioGroup',
+      '<Radio',
+      'loading={busy}',
+    ],
+  ],
+  [
+    '../src/features/calendar/components/TransferEventDialog.tsx',
+    [
+      "import { Checkbox } from '@/primitives/Checkbox'",
+      '<Checkbox',
+      'loading={submitting}',
+      "color: 'status.danger'",
+    ],
+  ],
+  [
+    '../src/features/calendar/components/CalendarListManager.tsx',
+    [
+      "import { Checkbox } from '@/primitives/Checkbox'",
+      '<Checkbox',
+      "color: 'status.danger'",
+    ],
+  ],
+  [
     '../src/features/approval/components/SubmitApprovalDialog.tsx',
     [
       "import { Button, Input, TextArea } from '@/primitives'",

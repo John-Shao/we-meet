@@ -97,6 +97,18 @@ const renderManager = (calendars: UnifiedCalendar[] = [managedCalendar]) => {
 }
 
 describe('CalendarListManager menu', () => {
+  it('toggles calendar visibility through the shared checkbox', async () => {
+    calendarApi.setCalendarSubscription.mockResolvedValue(undefined)
+    renderManager()
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Work$/ }))
+
+    expect(calendarApi.setCalendarSubscription).toHaveBeenCalledWith(
+      managedCalendar.id,
+      { enabled: false }
+    )
+  })
+
   it('prefixes a meeting-room calendar with its building name', async () => {
     const roomCalendar: UnifiedCalendar = {
       ...managedCalendar,

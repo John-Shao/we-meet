@@ -97,4 +97,31 @@ describe('TransferEventDialog', () => {
 
     expect(screen.getByTestId('single-contact-picker')).toBeInTheDocument()
   })
+
+  it('can transfer without keeping the original event', async () => {
+    const transferred = { ...event, organizer: { id: 'new-organizer' } }
+    mocks.transferCalendarEvent.mockResolvedValue(transferred)
+
+    render(
+      <TransferEventDialog
+        event={event}
+        onClose={vi.fn()}
+        onTransferred={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('single-contact-picker'))
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'transfer.keepOriginal' })
+    )
+    fireEvent.click(screen.getByTestId('transfer-event-confirm'))
+
+    await waitFor(() =>
+      expect(mocks.transferCalendarEvent).toHaveBeenCalledWith(
+        'event-1',
+        'new-organizer',
+        false
+      )
+    )
+  })
 })

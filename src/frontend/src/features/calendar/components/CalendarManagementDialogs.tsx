@@ -3,6 +3,7 @@ import { type ReactNode, type RefObject, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { QRCodeSVG } from 'qrcode.react'
+import { RadioGroup } from 'react-aria-components'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
@@ -10,9 +11,9 @@ import { MemberAvatar } from '@/features/contacts'
 import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
 import { MeetingRoomSummary } from '@/features/meeting-rooms'
 import { useInlineEditFocus } from '@/hooks/useInlineEditFocus'
-import { Button } from '@/primitives'
-import { selectChrome } from '@/primitives/selectChrome'
-import { css, cx } from '@/styled-system/css'
+import { Button, Input, TextArea } from '@/primitives'
+import { Radio } from '@/primitives/Radio'
+import { css } from '@/styled-system/css'
 
 import {
   addCalendarMember,
@@ -32,11 +33,7 @@ import {
   type UnifiedCalendar,
 } from '../api/calendars'
 import { CALENDAR_COLOR_PALETTE } from '../utils/calendarColors'
-import {
-  fieldCls,
-  inputCls as eventInputCls,
-  labelCls as eventLabelCls,
-} from './formStyles'
+import { fieldCls, labelCls as eventLabelCls } from './formStyles'
 import { BulkAttendeeDialog } from './BulkAttendeeDialog'
 import { CalendarColorPicker } from './CalendarColorPicker'
 
@@ -242,6 +239,7 @@ export const AddCalendarDialog = ({
               variant="primary"
               size="action"
               isDisabled={busy || !name.trim()}
+              loading={busy}
               onPress={() => void create()}
             >
               {t('manage.save')}
@@ -269,12 +267,12 @@ export const AddCalendarDialog = ({
       </div>
       {mode === 'subscribe' && (
         <div className={stackCls}>
-          <input
+          <Input
             ref={searchRef}
-            className={eventInputCls}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t('manage.searchPlaceholder')}
+            aria-label={t('manage.searchPlaceholder')}
           />
           <div className={tabsCls}>
             {(
@@ -363,17 +361,16 @@ export const AddCalendarDialog = ({
         <div className={stackCls}>
           <label className={fieldCls}>
             <span className={eventLabelCls}>{t('manage.name')}</span>
-            <input
+            <Input
               ref={nameRef}
-              className={eventInputCls}
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </label>
           <label className={fieldCls}>
             <span className={eventLabelCls}>{t('manage.description')}</span>
-            <textarea
-              className={textareaCls}
+            <TextArea
+              className={calendarTextAreaCls}
               value={description}
               maxLength={400}
               onChange={(e) => setDescription(e.target.value)}
@@ -392,7 +389,6 @@ export const AddCalendarDialog = ({
               {t('manage.organizationDefaultAccess')}
             </span>
             <SelectCompat
-              className={cx(eventInputCls, selectChrome)}
               value={defaultAccess}
               onChange={(e) =>
                 setDefaultAccess(e.target.value as typeof defaultAccess)
@@ -508,7 +504,6 @@ const RoleSelect = ({
   const { t } = useTranslation('calendar')
   return (
     <SelectCompat
-      className={cx(eventInputCls, selectChrome)}
       value={value}
       disabled={readOnly}
       onChange={(event) =>
@@ -600,6 +595,7 @@ export const CalendarSettingsDialog = ({
               variant="primary"
               size="action"
               isDisabled={busy || !name.trim()}
+              loading={busy}
               onPress={() => void saveSettings()}
             >
               {t('manage.save')}
@@ -610,9 +606,8 @@ export const CalendarSettingsDialog = ({
         <div className={stackCls}>
           <label className={fieldCls}>
             <span className={eventLabelCls}>{t('manage.name')}</span>
-            <input
+            <Input
               ref={nameRef}
-              className={cx(eventInputCls, disabledControlCls)}
               disabled={calendar.kind === 'primary'}
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -623,8 +618,8 @@ export const CalendarSettingsDialog = ({
           </label>
           <label className={fieldCls}>
             <span className={eventLabelCls}>{t('manage.description')}</span>
-            <textarea
-              className={textareaCls}
+            <TextArea
+              className={calendarTextAreaCls}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
@@ -642,7 +637,6 @@ export const CalendarSettingsDialog = ({
               {t('manage.organizationDefaultAccess')}
             </span>
             <SelectCompat
-              className={cx(eventInputCls, selectChrome)}
               value={defaultAccess}
               onChange={(e) =>
                 setDefaultAccess(e.target.value as typeof defaultAccess)
@@ -829,7 +823,7 @@ export const CalendarShareDialog = ({
           <>
             <label className={fieldCls}>
               <span className={eventLabelCls}>{t('manage.shareLink')}</span>
-              <input className={eventInputCls} readOnly value={data.url} />
+              <Input readOnly value={data.url} />
             </label>
             <div className={buttonRowCls}>
               <Button
@@ -931,6 +925,7 @@ export const CalendarExportDialog = ({
             variant="primary"
             size="action"
             isDisabled={busy || (range === 'custom' && (!start || !end))}
+            loading={busy}
             onPress={submitExport}
           >
             {t('manage.confirm')}
@@ -939,14 +934,14 @@ export const CalendarExportDialog = ({
       }
     >
       <div className={stackCls}>
-        <div className={rangeListCls}>
+        <RadioGroup
+          aria-label={t('manage.exportTitle')}
+          value={range}
+          onChange={(value) => setRange(value as typeof range)}
+          className={rangeListCls}
+        >
           {(['today', 'week', 'month', 'custom'] as const).map((value) => (
-            <label key={value} className={radioCls}>
-              <input
-                type="radio"
-                checked={range === value}
-                onChange={() => setRange(value)}
-              />
+            <Radio key={value} value={value} className={radioCls}>
               {
                 {
                   today: t('manage.exportToday'),
@@ -955,25 +950,23 @@ export const CalendarExportDialog = ({
                   custom: t('manage.exportCustom'),
                 }[value]
               }
-            </label>
+            </Radio>
           ))}
-        </div>
+        </RadioGroup>
         {range === 'custom' && (
           <div className={dateRangeCls}>
             <label className={fieldCls}>
               <span className={eventLabelCls}>{t('manage.startDate')}</span>
-              <input
+              <Input
                 type="date"
-                className={eventInputCls}
                 value={start}
                 onChange={(e) => setStart(e.target.value)}
               />
             </label>
             <label className={fieldCls}>
               <span className={eventLabelCls}>{t('manage.endDate')}</span>
-              <input
+              <Input
                 type="date"
-                className={eventInputCls}
                 value={end}
                 onChange={(e) => setEnd(e.target.value)}
               />
@@ -1023,23 +1016,9 @@ const activeTabCls = css({
   cursor: 'pointer',
 })
 // 聚焦描边由 styles/index.css 的「统一焦点描边」统一给出,这里不要再写 _focus。
-const textareaCls = css({
-  width: '100%',
+const calendarTextAreaCls = css({
   minHeight: '3.5rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  paddingX: '0.75rem',
-  paddingY: '0.5rem',
-  fontSize: '0.875rem',
-  fontFamily: 'inherit',
   resize: 'vertical',
-})
-const disabledControlCls = css({
-  _disabled: {
-    backgroundColor: 'greyscale.100',
-    color: 'greyscale.500',
-    cursor: 'not-allowed',
-  },
 })
 const rowCls = css({
   display: 'flex',

@@ -1,4 +1,11 @@
-import { type ReactNode, useId, useState } from 'react'
+import {
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+  useEffect,
+  useId,
+  useState,
+} from 'react'
 import {
   type CheckboxProps as RACCheckboxProps,
   Checkbox as RACCheckbox,
@@ -97,6 +104,26 @@ export const StyledCheckbox = styled(RACCheckbox, {
 export type CheckboxProps = StyledVariantProps<typeof StyledCheckbox> &
   RACCheckboxProps & { description?: ReactNode }
 
+const CheckboxContent = ({
+  isInvalid,
+  isSelected,
+  validate,
+  setError,
+  children,
+}: {
+  isInvalid: boolean
+  isSelected: boolean
+  validate: CheckboxProps['validate']
+  setError: Dispatch<SetStateAction<ReactNode | null>>
+  children: ReactNode
+}) => {
+  useEffect(() => {
+    setError(isInvalid && validate ? validate(isSelected) : null)
+  }, [isInvalid, isSelected, setError, validate])
+
+  return children
+}
+
 /**
  * RAC Checkbox wrapper that adds support for description/error messages
  *
@@ -145,30 +172,32 @@ export const Checkbox = ({
       >
         <StyledCheckbox {...props}>
           {(renderProps) => {
-            if (renderProps.isInvalid && !!props.validate) {
-              setError(props.validate(renderProps.isSelected))
-            } else {
-              setError(null)
-            }
             return (
-              <>
-                <div className="mt-Checkbox-checkbox">
-                  <svg
-                    width={18}
-                    height={18}
-                    viewBox="0 0 18 18"
-                    aria-hidden="true"
-                    preserveAspectRatio="xMinYMin meet"
-                  >
-                    <polyline points="1 9 7 14 15 4" />
-                  </svg>
-                </div>
-                <div>
-                  {typeof children === 'function'
-                    ? children(renderProps)
-                    : children}
-                </div>
-              </>
+              <CheckboxContent
+                isInvalid={renderProps.isInvalid}
+                isSelected={renderProps.isSelected}
+                validate={props.validate}
+                setError={setError}
+              >
+                <>
+                  <div className="mt-Checkbox-checkbox">
+                    <svg
+                      width={18}
+                      height={18}
+                      viewBox="0 0 18 18"
+                      aria-hidden="true"
+                      preserveAspectRatio="xMinYMin meet"
+                    >
+                      <polyline points="1 9 7 14 15 4" />
+                    </svg>
+                  </div>
+                  <div>
+                    {typeof children === 'function'
+                      ? children(renderProps)
+                      : children}
+                  </div>
+                </>
+              </CheckboxContent>
             )
           }}
         </StyledCheckbox>
