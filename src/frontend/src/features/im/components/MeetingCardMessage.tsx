@@ -7,6 +7,7 @@ import { SenderLabel } from './SenderLabel'
 import { navigateTo } from '@/navigation/navigateTo'
 
 import { Avatar } from './Avatar'
+import { chatCardSize } from './chatCardSize'
 import { parseMeetingCard } from './meetingCard'
 
 /**
@@ -54,13 +55,11 @@ export const MeetingCardMessage = ({
         type="button"
         onClick={() => navigateTo('room', card.slug)}
         data-testid="im-msg-meeting-card"
-        className={css({
+        className={`${chatCardSize({ size: 'standard' })} ${css({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'stretch',
           gap: '0.35rem',
-          minWidth: '240px',
-          maxWidth: '320px',
           textAlign: 'left',
           // 卡片内的标题/副标题走会翻转的 greyscale.900/700,底色必须一起翻,
           // 否则深色下是浅灰字压固定浅蓝底 —— 整张卡读不出来。
@@ -71,7 +70,7 @@ export const MeetingCardMessage = ({
           paddingY: '0.625rem',
           cursor: 'pointer',
           _hover: { backgroundColor: 'brand.100' },
-        })}
+        })}`}
       >
         <span
           className={css({

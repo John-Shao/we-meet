@@ -6,6 +6,7 @@ import { css } from '@/styled-system/css'
 import { SenderLabel } from './SenderLabel'
 
 import { Avatar } from './Avatar'
+import { chatCardSize } from './chatCardSize'
 import { parseDocCard } from './docCard'
 
 /**
@@ -54,13 +55,11 @@ export const DocCardMessage = ({
         onClick={() =>
           clickable && onOpen?.({ doc_id: card.doc_id, url: card.url })
         }
-        className={css({
+        className={`${chatCardSize({ size: 'compact' })} ${css({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'stretch',
           gap: '0.25rem',
-          minWidth: '240px',
-          maxWidth: '320px',
           textAlign: 'left',
           backgroundColor: 'greyscale.000',
           border: '1px solid token(colors.greyscale.200)',
@@ -70,7 +69,7 @@ export const DocCardMessage = ({
           cursor: 'pointer',
           _disabled: { cursor: 'default' },
           _hover: { backgroundColor: 'greyscale.50' },
-        })}
+        })}`}
       >
         <span
           className={css({

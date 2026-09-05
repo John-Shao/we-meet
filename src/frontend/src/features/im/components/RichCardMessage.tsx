@@ -9,6 +9,7 @@ import { MemberAvatar } from '@/features/contacts'
 import { css } from '@/styled-system/css'
 
 import type { CardState } from '../api/cardStates'
+import { chatCardSize } from './chatCardSize'
 import {
   actionsBlockKey,
   parseRichCard,
@@ -143,8 +144,6 @@ const TaskFollowCardButton = ({ button }: { button: CardButton }) => {
 const shellCls = css({
   display: 'flex',
   flexDirection: 'column',
-  minWidth: '15rem',
-  maxWidth: '22rem',
   border: '1px solid token(colors.greyscale.200)',
   borderRadius: '0.5rem',
   overflow: 'hidden',
@@ -288,7 +287,10 @@ export const RichCardMessage = ({
   if (!body) return <>{raw}</>
 
   return (
-    <div className={shellCls} data-testid="rich-card">
+    <div
+      className={`${chatCardSize({ size: 'standard' })} ${shellCls}`}
+      data-testid="rich-card"
+    >
       {body.header && (
         <div className={`${headerBaseCls} ${HEADER_CLS[body.header.theme]}`}>
           {body.header.title}

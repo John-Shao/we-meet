@@ -5,6 +5,7 @@ import { css } from '@/styled-system/css'
 
 import { Avatar } from './Avatar'
 import { parseCalendarCard } from './calendarCard'
+import { chatCardSize } from './chatCardSize'
 import { SenderLabel } from './SenderLabel'
 
 export const CalendarCardMessage = ({
@@ -31,7 +32,7 @@ export const CalendarCardMessage = ({
   const content = card ? (
     <button
       type="button"
-      className={cardCls}
+      className={`${chatCardSize({ size: 'standard' })} ${cardCls}`}
       onClick={() => window.location.assign(card.subscribe_url)}
     >
       <span className={headingCls}>
@@ -101,8 +102,6 @@ export const CalendarCardMessage = ({
 }
 
 const cardCls = css({
-  minWidth: '240px',
-  maxWidth: '320px',
   display: 'flex',
   flexDirection: 'column',
   gap: '0.35rem',

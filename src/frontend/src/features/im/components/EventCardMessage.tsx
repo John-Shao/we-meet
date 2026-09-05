@@ -6,6 +6,7 @@ import { css } from '@/styled-system/css'
 import { SenderLabel } from './SenderLabel'
 
 import { Avatar } from './Avatar'
+import { chatCardSize } from './chatCardSize'
 import { parseEventCard, type EventCardBody } from './eventCard'
 
 /**
@@ -163,13 +164,11 @@ export const EventCardMessage = ({
         type="button"
         disabled={!clickable}
         onClick={() => onOpen?.(card.event_id)}
-        className={css({
+        className={`${chatCardSize({ size: 'standard' })} ${css({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'stretch',
           gap: '0.25rem',
-          minWidth: '240px',
-          maxWidth: '320px',
           textAlign: 'left',
           backgroundColor: 'greyscale.000',
           border: '1px solid token(colors.greyscale.200)',
@@ -179,7 +178,7 @@ export const EventCardMessage = ({
           cursor: 'pointer',
           _disabled: { cursor: 'default' },
           _hover: { backgroundColor: 'greyscale.50' },
-        })}
+        })}`}
         style={inactive ? { opacity: 0.65 } : undefined}
       >
         <span
