@@ -82,10 +82,14 @@ export const CalendarColorPalette = ({
 const triggerBase = {
   flexShrink: 0,
   padding: 0,
-  border: '2px solid token(colors.greyscale.000)',
+  border: '2px solid token(colors.surface.default)',
   borderRadius: 'full',
-  outline: '1px solid token(colors.greyscale.300)',
+  outline: '1px solid token(colors.border.default)',
   cursor: 'pointer',
+  transition:
+    'transform token(durations.fast) token(easings.standard), outline-color token(durations.fast) token(easings.standard)',
+  '&[data-hovered]': { transform: 'scale(1.08)' },
+  '&[data-pressed]': { transform: 'scale(0.96)' },
   // 焦点环用 focusRing token(随主题翻转),与全站统一 —— 见 styles/index.css
   // 的「统一焦点描边」②。静止态那条 1px 灰 outline 是装饰边,不是焦点态。
   _focusVisible: {
@@ -96,46 +100,48 @@ const triggerBase = {
 
 const triggerCls = css({
   ...triggerBase,
-  width: '2rem',
-  height: '2rem',
+  width: 'controlHeight.compact',
+  height: 'controlHeight.compact',
 })
 
 const compactTriggerCls = css({
   ...triggerBase,
-  width: '1rem',
-  height: '1rem',
+  width: 'icon.small',
+  height: 'icon.small',
 })
 
 const pickerCls = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.625rem',
+  gap: 'md',
 })
 
 const titleCls = css({
-  color: 'greyscale.900',
-  fontSize: '0.875rem',
-  fontWeight: 'semibold',
+  color: 'text.primary',
+  textStyle: 'titleSmall',
 })
 
 const paletteCls = css({
   display: 'grid',
-  gridTemplateColumns: 'repeat(6, 2.25rem)',
-  gap: '0.5rem',
+  gridTemplateColumns: 'repeat(6, token(sizes.controlHeight.default))',
+  gap: 'sm',
 })
 
 const swatchCls = css({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  width: '2.25rem',
-  height: '2.25rem',
+  width: 'controlHeight.default',
+  height: 'controlHeight.default',
   padding: 0,
   border: 0,
   borderRadius: 'full',
   color: 'white',
   cursor: 'pointer',
+  transition:
+    'transform token(durations.fast) token(easings.standard), outline-color token(durations.fast) token(easings.standard)',
   _hover: { transform: 'scale(1.08)' },
+  _active: { transform: 'scale(0.96)' },
   // 与全站统一的焦点环(见 styles/index.css 的「统一焦点描边」②)。原先写死
   // greyscale.900,想的是「中性色在任何色板上都读得出」—— 但 2px offset 的环
   // 落在色板**外面**的面上,底色是面板而不是色块,蓝环一样清楚;而且那行其实

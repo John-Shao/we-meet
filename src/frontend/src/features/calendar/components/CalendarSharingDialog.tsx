@@ -1,13 +1,13 @@
-import { SelectCompat } from '@/primitives/SelectCompat'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
-import { Button } from '@/primitives'
-import { selectChrome } from '@/primitives/selectChrome'
-import { css, cx } from '@/styled-system/css'
+import { StateHint } from '@/components/StateHint'
+import { Button, SegmentedControl } from '@/primitives'
+import { Select } from '@/primitives/Select'
+import { css } from '@/styled-system/css'
 import { DirectoryMultiPicker } from '@/features/contacts/components/DirectoryMultiPicker'
 
 import {
@@ -21,7 +21,7 @@ import {
   updatePersonalCalendar,
   type CalendarPermission,
 } from '../api/personalCalendars'
-import { inputCls, labelCls } from './formStyles'
+import { labelCls } from './formStyles'
 
 interface Props {
   onClose: () => void
@@ -37,6 +37,7 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
   )
   const [selected, setSelected] = useState<Map<string, string>>(new Map())
   const [busy, setBusy] = useState(false)
+  const [applying, setApplying] = useState(false)
   const [error, setError] = useState('')
   const { data: mine } = useQuery({
     queryKey: ['calendar', 'personal', 'mine'],
@@ -71,6 +72,7 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
   const apply = async () => {
     if (selected.size === 0) return
     setBusy(true)
+    setApplying(true)
     setError('')
     try {
       if (mode === 'share') {
@@ -87,6 +89,7 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
     } catch (reason) {
       setError(apiErrorMessage(reason))
     } finally {
+      setApplying(false)
       setBusy(false)
     }
   }
@@ -137,47 +140,51 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
             <label className={labelCls} htmlFor="calendar-default-access">
               {t('sharing.organizationDefault')}
             </label>
-            <SelectCompat
+            <Select
               id="calendar-default-access"
-              value={mine?.organization_default_access ?? 'free_busy'}
-              onChange={(event) =>
-                void changeDefault(event.target.value as CalendarPermission)
+              aria-label={t('sharing.organizationDefault')}
+              selectedKey={mine?.organization_default_access ?? 'free_busy'}
+              onSelectionChange={(key) =>
+                void changeDefault(String(key) as CalendarPermission)
               }
-              disabled={!mine || busy}
-              className={cx(inputCls, selectChrome)}
-            >
-              <option value="none">{t('sharing.none')}</option>
-              <option value="free_busy">{t('sharing.freeBusy')}</option>
-              <option value="details">{t('sharing.details')}</option>
-            </SelectCompat>
+              isDisabled={!mine || busy}
+              className={accessSelectCls}
+              items={[
+                { value: 'none', label: t('sharing.none') },
+                { value: 'free_busy', label: t('sharing.freeBusy') },
+                { value: 'details', label: t('sharing.details') },
+              ]}
+            />
           </div>
 
           <div className={tabsCls}>
-            {(['share', 'subscribe'] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => {
-                  setMode(value)
-                  setSelected(new Map())
-                  setError('')
-                }}
-                className={mode === value ? activeTabCls : tabCls}
-              >
-                {t(`sharing.${value}`)}
-              </button>
-            ))}
+            <SegmentedControl
+              value={mode}
+              ariaLabel={t('sharing.title')}
+              density="compact"
+              items={([
+                { id: 'share', label: t('sharing.share') },
+                { id: 'subscribe', label: t('sharing.subscribe') },
+              ] as const)}
+              onChange={(value) => {
+                setMode(value)
+                setSelected(new Map())
+                setError('')
+              }}
+            />
             {mode === 'share' && (
-              <SelectCompat
-                value={permission}
-                onChange={(event) =>
-                  setPermission(event.target.value as 'free_busy' | 'details')
+              <Select
+                aria-label={`${t('sharing.share')}: ${t('sharing.details')}`}
+                selectedKey={permission}
+                onSelectionChange={(key) =>
+                  setPermission(String(key) as 'free_busy' | 'details')
                 }
-                className={cx(inputCls, selectChrome)}
-              >
-                <option value="free_busy">{t('sharing.freeBusy')}</option>
-                <option value="details">{t('sharing.details')}</option>
-              </SelectCompat>
+                className={permissionSelectCls}
+                items={[
+                  { value: 'free_busy', label: t('sharing.freeBusy') },
+                  { value: 'details', label: t('sharing.details') },
+                ]}
+              />
             )}
           </div>
 
@@ -196,7 +203,7 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
               }}
             />
           </div>
-          {error && <p className={errorCls}>{error}</p>}
+          {error && <StateHint state="error">{error}</StateHint>}
 
           <section className={summaryCls}>
             <h3 className={summaryTitleCls}>{t('sharing.sharedWith')}</h3>
@@ -214,16 +221,16 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
                       `sharing.${grant.permission === 'details' ? 'details' : 'freeBusy'}`
                     )}
                   </span>
-                  <button
-                    type="button"
-                    className={removeCls}
-                    disabled={busy}
-                    onClick={() =>
+                  <Button
+                    variant="secondaryText"
+                    size="dense"
+                    isDisabled={busy}
+                    onPress={() =>
                       void remove(() => deleteCalendarGrant(grant.id))
                     }
                   >
                     {t('sharing.remove')}
-                  </button>
+                  </Button>
                 </div>
               ))
             )}
@@ -242,16 +249,16 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
                       `sharing.${subscription.permission === 'details' ? 'details' : 'freeBusy'}`
                     )}
                   </span>
-                  <button
-                    type="button"
-                    className={removeCls}
-                    disabled={busy}
-                    onClick={() =>
+                  <Button
+                    variant="secondaryText"
+                    size="dense"
+                    isDisabled={busy}
+                    onPress={() =>
                       void remove(() => unsubscribeCalendar(subscription.id))
                     }
                   >
                     {t('sharing.unsubscribe')}
-                  </button>
+                  </Button>
                 </div>
               ))
             )}
@@ -267,6 +274,7 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
           size="action"
           onPress={() => void apply()}
           isDisabled={busy || selected.size === 0}
+          loading={applying}
         >
           {t(
             mode === 'share' ? 'sharing.shareAction' : 'sharing.subscribeAction'
@@ -278,63 +286,49 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
 }
 
 const bodyStackCls = css({
-  padding: '1rem',
+  padding: 'lg',
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.875rem',
+  gap: 'lg',
 })
 const defaultRowCls = css({
   display: 'grid',
   gridTemplateColumns: '1fr 220px',
   alignItems: 'center',
-  gap: '1rem',
+  gap: 'lg',
 })
-const tabsCls = css({ display: 'flex', alignItems: 'center', gap: '0.5rem' })
-const tabCls = css({
-  border: 'none',
-  background: 'transparent',
-  padding: '0.5rem 0.75rem',
-  color: 'greyscale.600',
-  cursor: 'pointer',
+const tabsCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 'sm',
+  flexWrap: 'wrap',
 })
-const activeTabCls = css({
-  border: 'none',
-  borderBottom: '2px solid token(colors.primary.500)',
-  background: 'transparent',
-  padding: '0.5rem 0.75rem',
-  color: 'primary.500',
-  cursor: 'pointer',
-  _disabled: { color: 'greyscale.400', cursor: 'not-allowed' },
-})
+const accessSelectCls = css({ width: '220px' })
+const permissionSelectCls = css({ width: '180px' })
 const pickerCls = css({
   height: '260px',
-  border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '0.5rem',
+  border: '1px solid token(colors.border.subtle)',
+  borderRadius: 'panel',
   overflow: 'hidden',
 })
-const errorCls = css({ margin: 0, color: 'red.600', fontSize: '0.8125rem' })
 const summaryCls = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.375rem',
+  gap: 'xs',
 })
 const summaryTitleCls = css({
-  margin: '0.375rem 0 0',
-  fontSize: '0.875rem',
-  fontWeight: 600,
+  margin: 'xs 0 0',
+  textStyle: 'titleSmall',
+  color: 'text.primary',
 })
 const summaryRowCls = css({
   display: 'grid',
   gridTemplateColumns: '1fr auto auto',
-  gap: '0.75rem',
+  gap: 'md',
   alignItems: 'center',
-  paddingY: '0.25rem',
-  fontSize: '0.8125rem',
+  paddingY: 'xs',
+  textStyle: 'bodySmall',
+  color: 'text.primary',
 })
-const mutedCls = css({ color: 'greyscale.500', fontSize: '0.75rem' })
-const removeCls = css({
-  border: 'none',
-  background: 'transparent',
-  color: 'primary.500',
-  cursor: 'pointer',
-})
+const mutedCls = css({ color: 'text.secondary', textStyle: 'bodySmall' })

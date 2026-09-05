@@ -628,6 +628,39 @@ const standardizedFeedbackConsumers = [
     ],
   ],
   [
+    '../src/features/calendar/components/CalendarSharingDialog.tsx',
+    [
+      "import { Button, SegmentedControl } from '@/primitives'",
+      "import { Select } from '@/primitives/Select'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<SegmentedControl',
+      '<Select',
+      '<StateHint state="error">',
+      'loading={applying}',
+    ],
+  ],
+  [
+    '../src/features/calendar/components/AttendeePicker.tsx',
+    [
+      "import { IconButton } from '@/primitives'",
+      "import { Select } from '@/primitives/Select'",
+      '<IconButton',
+      '<Select',
+      "backgroundColor: 'surface.canvas'",
+      "color: 'status.danger'",
+    ],
+  ],
+  [
+    '../src/features/calendar/components/CalendarColorPicker.tsx',
+    [
+      "border: '2px solid token(colors.surface.default)'",
+      "outline: '1px solid token(colors.border.default)'",
+      "width: 'controlHeight.default'",
+      "textStyle: 'titleSmall'",
+      'token(durations.fast)',
+    ],
+  ],
+  [
     '../src/features/approval/components/SubmitApprovalDialog.tsx',
     [
       "import { Button, Input, TextArea } from '@/primitives'",

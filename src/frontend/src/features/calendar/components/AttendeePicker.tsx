@@ -1,8 +1,10 @@
-import { SelectCompat } from '@/primitives/SelectCompat'
+import { RiCloseLine } from '@remixicon/react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
+import { IconButton } from '@/primitives'
+import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 import { MemberAvatar } from '@/features/contacts'
 
@@ -215,26 +217,27 @@ export const AttendeePicker = ({
                     {busy ? t('freebusy.busy') : t('freebusy.free')}
                   </span>
                 )}
-                <SelectCompat
-                  value={roles.get(id) ?? 'required'}
-                  onChange={(e) =>
-                    onRoleChange(id, e.target.value as AttendeeRole)
+                <Select
+                  selectedKey={roles.get(id) ?? 'required'}
+                  onSelectionChange={(key) =>
+                    onRoleChange(id, String(key) as AttendeeRole)
                   }
                   aria-label={t('form.attendeeRole', { name: label })}
                   data-testid={`attendee-role-${id}`}
                   className={roleSelectCls}
+                  items={[
+                    { value: 'required', label: t('form.required') },
+                    { value: 'optional', label: t('form.optional') },
+                  ]}
+                />
+                <IconButton
+                  label={t('form.removeAttendee', { name: label })}
+                  size="icon24"
+                  variant="quaternaryDanger"
+                  onPress={() => onToggle(id, label)}
                 >
-                  <option value="required">{t('form.required')}</option>
-                  <option value="optional">{t('form.optional')}</option>
-                </SelectCompat>
-                <button
-                  type="button"
-                  onClick={() => onToggle(id, label)}
-                  aria-label={t('form.removeAttendee', { name: label })}
-                  className={pickedRemoveCls}
-                >
-                  ×
-                </button>
+                  <RiCloseLine aria-hidden="true" size={16} />
+                </IconButton>
               </li>
             )
           })}
@@ -293,80 +296,64 @@ const pickedListCls = css({
 const pickedRowBase = {
   display: 'flex',
   alignItems: 'center',
-  gap: '0.5rem',
-  paddingX: '0.5rem',
-  paddingY: '0.25rem',
-  borderRadius: '0.375rem',
+  gap: 'sm',
+  paddingX: 'sm',
+  paddingY: 'xs',
+  borderRadius: 'control',
 } as const
 
 // 忙/闲两个完整类整体切换,不 cx 叠加同属性(panda-cx-atomic-order-trap)。
 const pickedRowCls = css({
   ...pickedRowBase,
-  backgroundColor: 'greyscale.50',
+  backgroundColor: 'surface.canvas',
 })
 const pickedRowBusyCls = css({
   ...pickedRowBase,
-  backgroundColor: 'danger.50',
+  backgroundColor: 'status.danger.container',
 })
 
 const pickedNameBase = {
   flex: 1,
   minWidth: 0,
-  fontSize: '0.875rem',
+  textStyle: 'bodyMedium',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 } as const
 
-const pickedNameCls = css({ ...pickedNameBase, color: 'greyscale.800' })
-const pickedNameBusyCls = css({ ...pickedNameBase, color: 'danger.600' })
+const pickedNameCls = css({ ...pickedNameBase, color: 'text.primary' })
+const pickedNameBusyCls = css({
+  ...pickedNameBase,
+  color: 'status.danger.container-text',
+})
 
 const statusBase = {
   flexShrink: 0,
-  paddingX: '0.25rem',
-  fontSize: '0.6875rem',
+  paddingX: 'xs',
+  textStyle: 'labelSmall',
 } as const
 
-const statusBusyCls = css({ ...statusBase, color: 'danger.600' })
-const statusFreeCls = css({ ...statusBase, color: 'greyscale.500' })
+const statusBusyCls = css({
+  ...statusBase,
+  color: 'status.danger.container-text',
+})
+const statusFreeCls = css({ ...statusBase, color: 'text.secondary' })
 
 const roleSelectCls = css({
   flexShrink: 0,
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.375rem',
-  backgroundColor: 'greyscale.000',
-  paddingX: '0.375rem',
-  paddingY: '0.125rem',
-  fontSize: '0.75rem',
-  color: 'greyscale.700',
-  '& option': {
-    backgroundColor: 'greyscale.000',
-    color: 'greyscale.900',
-  },
+  width: '7rem',
 })
 
 const organizerRoleCls = css({
   flexShrink: 0,
-  paddingX: '0.375rem',
-  paddingY: '0.125rem',
-  fontSize: '0.75rem',
-  color: 'greyscale.700',
-})
-
-const pickedRemoveCls = css({
-  flexShrink: 0,
-  border: 'none',
-  background: 'transparent',
-  cursor: 'pointer',
-  paddingX: '0.25rem',
-  fontSize: '1rem',
-  lineHeight: 1,
-  color: 'greyscale.500',
-  _hover: { color: 'danger.600' },
+  paddingX: 'sm',
+  paddingY: 'xs',
+  textStyle: 'labelMedium',
+  color: 'text.secondary',
 })
 
 const selfBusyCls = css({
-  margin: '0.375rem 0 0',
-  fontSize: '0.75rem',
-  color: 'danger.600',
+  margin: 'xs 0 0',
+  textStyle: 'bodySmall',
+  color: 'status.danger',
 })

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { AttendeePicker } from './AttendeePicker'
@@ -20,17 +21,19 @@ vi.mock('@/features/contacts', () => ({
   DirectoryMultiPicker: () => null,
 }))
 
-const renderPicker = () => {
+const renderPicker = ({
+  onRoleChange = vi.fn(),
+}: { onRoleChange?: ReturnType<typeof vi.fn> } = {}) => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <AttendeePicker
         selected={new Map([['attendee-1', 'Alice']])}
         onToggle={vi.fn()}
         roles={new Map([['attendee-1', 'required' as const]])}
-        onRoleChange={vi.fn()}
+        onRoleChange={onRoleChange}
         selfId="organizer-1"
         organizer={{
           id: 'organizer-1',
@@ -40,6 +43,8 @@ const renderPicker = () => {
       />
     </QueryClientProvider>
   )
+
+  return { ...view, onRoleChange }
 }
 
 describe('AttendeePicker organizer', () => {
@@ -56,5 +61,17 @@ describe('AttendeePicker organizer', () => {
     expect(
       screen.getByRole('button', { name: 'remove Alice' })
     ).toBeInTheDocument()
+  })
+
+  it('changes attendee roles through the shared select', async () => {
+    const user = userEvent.setup()
+    const { onRoleChange } = renderPicker()
+
+    await user.click(
+      screen.getByRole('button', { name: /form\.attendeeRole/ })
+    )
+    await user.click(await screen.findByRole('option', { name: 'form.optional' }))
+
+    expect(onRoleChange).toHaveBeenCalledWith('attendee-1', 'optional')
   })
 })
