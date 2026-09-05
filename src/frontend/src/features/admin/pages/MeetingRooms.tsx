@@ -17,12 +17,12 @@ import {
 import { Menu as RACMenu, MenuItem } from 'react-aria-components'
 import Table, { type ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 
-import { css, cx } from '@/styled-system/css'
-import { Button } from '@/primitives'
+import { css } from '@/styled-system/css'
+import { Button, Input } from '@/primitives'
 import { Menu } from '@/primitives/Menu'
-import { selectChrome } from '@/primitives/selectChrome'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { StateHint } from '@/components/StateHint'
 import { roomIdentifier } from '@/features/meeting-rooms/utils/roomLabel'
 
 import {
@@ -102,12 +102,21 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
   const [capacityMin, setCapacityMin] = useState('')
   const [facilityFilter, setFacilityFilter] = useState<string[]>([])
 
-  const { data: nodes = [] } = useQuery({
+  const {
+    data: nodes = [],
+    isFetching: nodesFetching,
+    isError: nodesError,
+    refetch: refetchNodes,
+  } = useQuery({
     queryKey: NODES_KEY,
     queryFn: fetchAdminRoomNodes,
     staleTime: 30_000,
   })
-  const { data: facilities = [] } = useQuery({
+  const {
+    data: facilities = [],
+    isError: facilitiesError,
+    refetch: refetchFacilities,
+  } = useQuery({
     queryKey: FACILITIES_KEY,
     queryFn: fetchAdminFacilities,
     staleTime: 5 * 60_000,
@@ -121,7 +130,12 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
     capacity_min: capacityMin ? Number(capacityMin) : null,
     page,
   }
-  const { data: rooms, isFetching: roomsFetching } = useQuery({
+  const {
+    data: rooms,
+    isFetching: roomsFetching,
+    isError: roomsError,
+    refetch: refetchRooms,
+  } = useQuery({
     queryKey: [...ROOMS_KEY, filters],
     queryFn: () => fetchAdminMeetingRooms(filters),
     staleTime: 30_000,
@@ -410,18 +424,32 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
         >
           <aside className={asideCls}>
             <div className={treeSearchCls}>
-              <input
+              <Input
                 value={treeQuery}
                 onChange={(e) => setTreeQuery(e.target.value)}
                 placeholder={t('meetingRooms.searchLevels')}
                 aria-label={t('meetingRooms.searchLevels')}
-                className={treeSearchInputCls}
               />
             </div>
-            {nodes.length === 0 ? (
-              <p className={css({ padding: '0.75rem', ...hintStyle })}>
-                {t('meetingRooms.emptyFixedHierarchy')}
-              </p>
+            {nodesFetching && nodes.length === 0 ? (
+              <StateHint state="loading">{t('meetingRooms.loading')}</StateHint>
+            ) : nodesError && nodes.length === 0 ? (
+              <StateHint
+                state="error"
+                action={
+                  <Button
+                    size="dense"
+                    variant="secondary"
+                    onPress={() => void refetchNodes()}
+                  >
+                    {t('feedback.retry')}
+                  </Button>
+                }
+              >
+                {t('feedback.loadFailed')}
+              </StateHint>
+            ) : nodes.length === 0 ? (
+              <StateHint>{t('meetingRooms.emptyFixedHierarchy')}</StateHint>
             ) : (
               <MeetingRoomNodeTree
                 nodes={nodes}
@@ -439,6 +467,23 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
         </ResizablePanel>
 
         <main className={mainCls}>
+          {facilitiesError && facilities.length === 0 ? (
+            <StateHint
+              className={inlineFeedbackCls}
+              state="error"
+              action={
+                <Button
+                  size="dense"
+                  variant="secondary"
+                  onPress={() => void refetchFacilities()}
+                >
+                  {t('feedback.retry')}
+                </Button>
+              }
+            >
+              {t('feedback.loadFailed')}
+            </StateHint>
+          ) : null}
           {roomId ? (
             <MeetingRoomDetail
               roomId={roomId}
@@ -466,7 +511,6 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
                   value={status}
                   onChange={(e) => resetPage(setStatus)(e.target.value)}
                   aria-label={t('meetingRooms.colStatus')}
-                  className={filterSelectCls}
                 >
                   <option value="">{t('meetingRooms.filterAllStatus')}</option>
                   <option value="1">{t('meetingRooms.statusActive')}</option>
@@ -476,7 +520,6 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
                   value={capacityMin}
                   onChange={(e) => resetPage(setCapacityMin)(e.target.value)}
                   aria-label={t('meetingRooms.capacity')}
-                  className={filterSelectCls}
                 >
                   <option value="">
                     {t('meetingRooms.filterAnyCapacity')}
@@ -495,12 +538,12 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
                     setPage(1)
                   }}
                 >
-                  <input
+                  <Input
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     placeholder={t('meetingRooms.searchPlaceholder')}
                     aria-label={t('meetingRooms.searchPlaceholder')}
-                    className={searchInputCls}
+                    className={roomSearchInputCls}
                   />
                   <Button
                     type="submit"
@@ -535,21 +578,38 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
                 </div>
               )}
 
-              <Table
-                columns={columns}
-                dataSource={rooms?.results ?? []}
-                rowKey="id"
-                size="middle"
-                loading={roomsFetching && !rooms}
-                empty={t('meetingRooms.emptyRooms')}
-                pagination={{
-                  currentPage: page,
-                  pageSize: ROOMS_PAGE_SIZE,
-                  total: rooms?.count ?? 0,
-                  onPageChange: setPage,
-                  showTotal: false,
-                }}
-              />
+              {roomsError && !rooms ? (
+                <StateHint
+                  state="error"
+                  action={
+                    <Button
+                      size="dense"
+                      variant="secondary"
+                      onPress={() => void refetchRooms()}
+                    >
+                      {t('feedback.retry')}
+                    </Button>
+                  }
+                >
+                  {t('feedback.loadFailed')}
+                </StateHint>
+              ) : (
+                <Table
+                  columns={columns}
+                  dataSource={rooms?.results ?? []}
+                  rowKey="id"
+                  size="middle"
+                  loading={roomsFetching && !rooms}
+                  empty={t('meetingRooms.emptyRooms')}
+                  pagination={{
+                    currentPage: page,
+                    pageSize: ROOMS_PAGE_SIZE,
+                    total: rooms?.count ?? 0,
+                    onPageChange: setPage,
+                    showTotal: false,
+                  }}
+                />
+              )}
             </>
           )}
         </main>
@@ -623,23 +683,17 @@ const treeSearchCls = css({
   padding: '0.5rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
-// 高度与同页的筛选下拉(filterSelectCls → selectChrome)对齐到 control.md;
-// 钉高就得去掉上下内边距,否则文字被切,见 primitives/selectChrome 的注释。
-const treeSearchInputCls = css({
-  width: '100%',
-  height: 'control.md',
-  paddingX: '0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '4px',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.8125rem',
-})
 const mainCls = css({
   flex: 1,
   minWidth: 0,
   overflowY: 'auto',
   padding: '1.25rem',
+})
+const inlineFeedbackCls = css({
+  alignItems: 'flex-start',
+  padding: 'sm',
+  marginBottom: 'sm',
+  textAlign: 'left',
 })
 const hintStyle = { color: 'greyscale.500', fontSize: '0.875rem' } as const
 const summaryCls = css({
@@ -661,31 +715,13 @@ const toolbarCls = css({
   flexWrap: 'wrap',
   marginBottom: '0.625rem',
 })
-const filterSelectCls = cx(
-  css({
-    padding: '0.375rem 0.5rem',
-    border: '1px solid token(colors.control.border)',
-    borderRadius: '4px',
-    backgroundColor: 'greyscale.000',
-    color: 'default.text',
-    fontSize: '0.875rem',
-  }),
-  selectChrome
-)
 const searchFormCls = css({
   display: 'flex',
   alignItems: 'center',
   gap: '0.375rem',
 })
-const searchInputCls = css({
+const roomSearchInputCls = css({
   width: '14rem',
-  height: 'control.md',
-  paddingX: '0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '4px',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.875rem',
 })
 const facilityFilterCls = css({
   display: 'flex',

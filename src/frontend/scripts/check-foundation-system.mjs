@@ -735,6 +735,19 @@ const standardizedFeedbackConsumers = [
       '<Input',
     ],
   ],
+  [
+    '../src/features/admin/pages/MeetingRooms.tsx',
+    [
+      "import { Button, Input } from '@/primitives'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<StateHint state="loading">',
+      'state="error"',
+      'onPress={() => void refetchNodes()}',
+      'onPress={() => void refetchFacilities()}',
+      'onPress={() => void refetchRooms()}',
+      '<Input',
+    ],
+  ],
 ]
 
 for (const [path, requiredStates] of standardizedFeedbackConsumers) {
