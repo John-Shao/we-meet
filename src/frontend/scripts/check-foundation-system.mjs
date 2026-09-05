@@ -715,6 +715,26 @@ const standardizedFeedbackConsumers = [
       '<Input',
     ],
   ],
+  [
+    '../src/features/admin/pages/Members.tsx',
+    [
+      "import { Button, Input } from '@/primitives'",
+      "import { StateHint } from '@/components/StateHint'",
+      'state="error"',
+      'onPress={() => void refetchMembers()}',
+      '<Input',
+    ],
+  ],
+  [
+    '../src/features/admin/components/DepartedPanel.tsx',
+    [
+      "import { Button, Input } from '@/primitives'",
+      "import { StateHint } from '@/components/StateHint'",
+      'state="error"',
+      'onPress={() => void refetchDeparted()}',
+      '<Input',
+    ],
+  ],
 ]
 
 for (const [path, requiredStates] of standardizedFeedbackConsumers) {

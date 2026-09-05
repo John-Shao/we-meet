@@ -7,11 +7,11 @@ import { Menu as RACMenu, MenuItem } from 'react-aria-components'
 import { RiMoreFill, RiSearchLine, RiUserAddLine } from '@remixicon/react'
 import Table, { type ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 
-import { css, cx } from '@/styled-system/css'
-import { selectChrome } from '@/primitives/selectChrome'
+import { css } from '@/styled-system/css'
 import { Menu } from '@/primitives/Menu'
-import { Button } from '@/primitives'
+import { Button, Input } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { StateHint } from '@/components/StateHint'
 
 import {
   type AdminMember,
@@ -84,7 +84,12 @@ export const AdminMembers = () => {
     page,
   }
 
-  const { data, isFetching } = useQuery({
+  const {
+    data,
+    isFetching,
+    isError,
+    refetch: refetchMembers,
+  } = useQuery({
     queryKey: [...MEMBERS_KEY, filters],
     queryFn: () => fetchAdminMembers(filters),
     placeholderData: keepPreviousData,
@@ -435,7 +440,6 @@ export const AdminMembers = () => {
                 setStatus(e.target.value)
                 setPage(1)
               }}
-              className={filterSelect}
             >
               <option value="">{t('members.filterAllStatus')}</option>
               {MEMBER_STATUSES.map((s) => (
@@ -450,7 +454,6 @@ export const AdminMembers = () => {
                 setDepartment(e.target.value)
                 setPage(1)
               }}
-              className={filterSelect}
             >
               <option value="">{t('members.filterAllDepartments')}</option>
               {departments.map((d) => (
@@ -465,7 +468,6 @@ export const AdminMembers = () => {
                 setEmployeeType(e.target.value)
                 setPage(1)
               }}
-              className={filterSelect}
             >
               <option value="">{t('members.filterAllEmployeeTypes')}</option>
               {employeeTypes.map((d) => (
@@ -485,22 +487,12 @@ export const AdminMembers = () => {
                 gap: '0.375rem',
               })}
             >
-              <input
+              <Input
                 value={searchInput}
+                aria-label={t('members.searchPlaceholder')}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder={t('members.searchPlaceholder')}
-                className={css({
-                  width: '14rem',
-                  // 与同排的筛选下拉(filterSelect)一样钉 control.md;钉高必须
-                  // 同时去掉上下内边距,见 primitives/selectChrome 的注释。
-                  height: 'control.md',
-                  paddingX: '0.5rem',
-                  border: '1px solid token(colors.control.border)',
-                  borderRadius: '4px',
-                  backgroundColor: 'greyscale.000',
-                  color: 'default.text',
-                  fontSize: '0.875rem',
-                })}
+                className={searchInputCls}
               />
               <Button
                 type="submit"
@@ -571,6 +563,21 @@ export const AdminMembers = () => {
           <InvitationsPanel />
         ) : view === 'departed' ? (
           <DepartedPanel />
+        ) : isError && members.length === 0 ? (
+          <StateHint
+            state="error"
+            action={
+              <Button
+                variant="secondary"
+                size="dense"
+                onPress={() => void refetchMembers()}
+              >
+                {t('feedback.retry')}
+              </Button>
+            }
+          >
+            {t('feedback.loadFailed')}
+          </StateHint>
         ) : (
           /* Semi Table 试点(见 vite.config.ts 顶部说明):替掉原来的手搓
              <table> + 手写 prev/next 页脚。分页、加载态、空态都由组件自带,
@@ -766,17 +773,7 @@ const memberEmailCls = css({
   fontSize: '0.75rem',
   color: 'greyscale.500',
 })
-const filterSelect = cx(
-  css({
-    padding: '0.375rem 0.5rem',
-    border: '1px solid token(colors.control.border)',
-    borderRadius: '4px',
-    backgroundColor: 'greyscale.000',
-    color: 'default.text',
-    fontSize: '0.875rem',
-  }),
-  selectChrome
-)
+const searchInputCls = css({ width: '14rem', maxWidth: '100%' })
 const tab = (active: boolean) =>
   css({
     display: 'inline-flex',

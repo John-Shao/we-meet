@@ -9,8 +9,9 @@ import {
 import Table, { type ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 
 import { css } from '@/styled-system/css'
-import { Button } from '@/primitives'
+import { Button, Input } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { StateHint } from '@/components/StateHint'
 
 import {
   type AdminMember,
@@ -39,7 +40,12 @@ export const DepartedPanel = () => {
   const [after, setAfter] = useState('')
   const [before, setBefore] = useState('')
 
-  const { data, isFetching } = useQuery({
+  const {
+    data,
+    isFetching,
+    isError,
+    refetch: refetchDeparted,
+  } = useQuery({
     queryKey: ['admin', 'members', 'left', { page, after, before }],
     queryFn: () =>
       fetchAdminMembers({
@@ -117,7 +123,8 @@ export const DepartedPanel = () => {
           <Button
             variant="secondary"
             size="dense"
-            isDisabled={rehireMut.isPending}
+            loading={rehireMut.isPending && rehireMut.variables === m.id}
+            isDisabled={purgeMut.isPending}
             onPress={async () => {
               const ok = await confirm({
                 message: t('members.rehireConfirm', { name: displayName(m) }),
@@ -130,7 +137,8 @@ export const DepartedPanel = () => {
           <Button
             variant="secondaryText"
             size="dense"
-            isDisabled={purgeMut.isPending}
+            loading={purgeMut.isPending && purgeMut.variables === m.id}
+            isDisabled={rehireMut.isPending}
             onPress={async () => {
               const ok = await confirm({
                 message: t('members.purgeConfirm', { name: displayName(m) }),
@@ -151,7 +159,7 @@ export const DepartedPanel = () => {
       <div className={filtersCls}>
         <label className={filterLabelCls}>
           {t('members.leftAfter')}
-          <input
+          <Input
             type="date"
             value={after}
             onChange={(e) => {
@@ -163,7 +171,7 @@ export const DepartedPanel = () => {
         </label>
         <label className={filterLabelCls}>
           {t('members.leftBefore')}
-          <input
+          <Input
             type="date"
             value={before}
             onChange={(e) => {
@@ -175,22 +183,40 @@ export const DepartedPanel = () => {
         </label>
       </div>
 
-      <Table<AdminMember>
-        columns={columns}
-        dataSource={rows}
-        rowKey="id"
-        loading={isFetching && rows.length === 0}
-        size="middle"
-        empty={t('members.noDeparted')}
-        pagination={{
-          currentPage: page,
-          pageSize: PAGE_SIZE,
-          total: data?.count ?? 0,
-          onPageChange: setPage,
-          showTotal: false,
-          formatPageText: () => t('members.total', { count: data?.count ?? 0 }),
-        }}
-      />
+      {isError && rows.length === 0 ? (
+        <StateHint
+          state="error"
+          action={
+            <Button
+              variant="secondary"
+              size="dense"
+              onPress={() => void refetchDeparted()}
+            >
+              {t('feedback.retry')}
+            </Button>
+          }
+        >
+          {t('feedback.loadFailed')}
+        </StateHint>
+      ) : (
+        <Table<AdminMember>
+          columns={columns}
+          dataSource={rows}
+          rowKey="id"
+          loading={isFetching && rows.length === 0}
+          size="middle"
+          empty={t('members.noDeparted')}
+          pagination={{
+            currentPage: page,
+            pageSize: PAGE_SIZE,
+            total: data?.count ?? 0,
+            onPageChange: setPage,
+            showTotal: false,
+            formatPageText: () =>
+              t('members.total', { count: data?.count ?? 0 }),
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -220,11 +246,5 @@ const filterLabelCls = css({
   color: 'greyscale.600',
 })
 const dateCls = css({
-  height: 'control.sm',
-  paddingX: '0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '6px',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.8125rem',
+  width: '10rem',
 })
