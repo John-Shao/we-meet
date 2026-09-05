@@ -7,17 +7,17 @@ import { useTranslation } from 'react-i18next'
 
 const ToggleHeader = styled(ToggleButton, {
   base: {
-    minHeight: '40px', //fixme hardcoded value
-    paddingRight: '.5rem',
+    minHeight: 'controlHeight.default',
+    paddingRight: 'sm',
     cursor: 'pointer',
     display: 'flex',
     justifyContent: 'space-between',
     width: '100%',
     alignItems: 'center',
     transition: 'background token(durations.slow)',
-    borderTopRadius: '7px',
+    borderTopRadius: 'control',
     '&[data-hovered]': {
-      backgroundColor: 'greyscale.50',
+      backgroundColor: 'surface.canvas',
     },
   },
 })
@@ -25,24 +25,23 @@ const ToggleHeader = styled(ToggleButton, {
 const Container = styled('div', {
   base: {
     border: '1px solid',
-    borderColor: 'greyscale.250',
-    borderRadius: '8px',
-    margin: '0 .625rem',
+    borderColor: 'border.subtle',
+    borderRadius: 'control',
+    marginX: 'md',
   },
 })
 
 const ListContainer = styled(VStack, {
   base: {
     borderTop: '1px solid',
-    borderTopColor: 'greyscale.250',
+    borderTopColor: 'border.subtle',
     alignItems: 'start',
-    overflowY: 'scroll',
     overflowX: 'hidden',
     minHeight: 0,
     flexGrow: 1,
     display: 'flex',
-    paddingY: '0.5rem',
-    paddingX: '1rem',
+    paddingY: 'sm',
+    paddingX: 'lg',
     gap: 0,
   },
 })
@@ -72,19 +71,19 @@ export function ParticipantsCollapsableList<T>({
         aria-label={label}
         onPress={() => setIsOpen(!isOpen)}
         style={{
-          borderRadius: !isOpen ? '7px' : undefined,
+          borderRadius: !isOpen ? 'var(--radii-control)' : undefined,
         }}
       >
         <HStack
           justify="space-between"
           className={css({
-            margin: '0 1.25rem',
+            marginX: 'lg',
             width: '100%',
           })}
         >
           <div
             className={css({
-              fontSize: '1rem',
+              textStyle: 'bodyLarge',
             })}
           >
             {heading}
@@ -93,6 +92,7 @@ export function ParticipantsCollapsableList<T>({
         </HStack>
         <RiArrowUpSLine
           size={32}
+          aria-hidden="true"
           style={{
             transform: isOpen ? 'rotate(-180deg)' : undefined,
             transition: 'transform var(--durations-slow)',

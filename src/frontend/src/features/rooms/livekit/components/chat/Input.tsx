@@ -1,4 +1,4 @@
-import { Button, TextArea } from '@/primitives'
+import { IconButton, TextArea } from '@/primitives'
 import { HStack } from '@/styled-system/jsx'
 import { RiSendPlane2Fill } from '@remixicon/react'
 import { useState, useEffect, RefObject } from 'react'
@@ -71,10 +71,11 @@ export const ChatInput = ({
   return (
     <HStack
       className={css({
-        margin: '0.75rem 0 1.5rem',
-        padding: '0.5rem',
-        backgroundColor: 'gray.100',
-        borderRadius: 4,
+        marginTop: 'md',
+        marginBottom: 'xl',
+        padding: 'sm',
+        backgroundColor: 'surface.canvas',
+        borderRadius: 'control',
       })}
     >
       <TextArea
@@ -94,9 +95,6 @@ export const ChatInput = ({
           border: 'none',
           resize: 'none',
           height: 'auto',
-          minHeight: `34px`,
-          lineHeight: 1.25,
-          padding: '7px 10px',
           overflowY: 'hidden',
         }}
         placeholderStyle={'strong'}
@@ -104,17 +102,15 @@ export const ChatInput = ({
         maxLength={2000}
         aria-label={t('textArea.label')}
       />
-      <Button
-        square
-        invisible
+      <IconButton
+        label={t('button.label')}
         variant="tertiaryText"
-        size="sm"
+        size="icon32"
         onPress={handleSubmit}
         isDisabled={isDisabled}
-        aria-label={t('button.label')}
       >
-        <RiSendPlane2Fill />
-      </Button>
+        <RiSendPlane2Fill aria-hidden="true" />
+      </IconButton>
     </HStack>
   )
 }

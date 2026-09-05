@@ -27,8 +27,7 @@ export const Info = () => {
   return (
     <Div
       display="flex"
-      overflowY="scroll"
-      padding="0 1.5rem"
+      paddingX="xl"
       flexGrow={1}
       flexDirection="column"
       alignItems="start"
@@ -45,7 +44,7 @@ export const Info = () => {
         </Text>
         <div
           className={css({
-            gap: '0.15rem',
+            gap: 'xxs',
             display: 'flex',
             flexDirection: 'column',
           })}
@@ -72,26 +71,16 @@ export const Info = () => {
           aria-label={t('roomInformation.button.ariaLabel')}
           onPress={copyRoomToClipboard}
           data-attr="copy-info-sidepannel"
-          style={{
-            marginLeft: '-8px',
-          }}
+          className={css({ marginLeft: '-sm' })}
         >
           {isCopied ? (
             <>
-              <RiCheckLine
-                size={24}
-                style={{ marginRight: '6px' }}
-                aria-hidden="true"
-              />
+              <RiCheckLine size={24} aria-hidden="true" />
               {t('roomInformation.button.copied')}
             </>
           ) : (
             <>
-              <RiFileCopyLine
-                size={24}
-                style={{ marginRight: '6px' }}
-                aria-hidden="true"
-              />
+              <RiFileCopyLine size={24} aria-hidden="true" />
               {t('roomInformation.button.copy')}
             </>
           )}

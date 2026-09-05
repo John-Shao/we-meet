@@ -8,9 +8,9 @@ import { HStack, VStack } from '@/styled-system/jsx'
 
 const Divider = ({ label }: { label: string }) => (
   <HStack gap="1rem" alignItems="center" width="100%" marginY="1rem">
-    <div className={css({ flex: 1, height: '1px', bg: 'neutral.200' })} />
+    <div className={css({ flex: 1, height: '1px', bg: 'border.subtle' })} />
     <Text variant="xsNote">{label}</Text>
-    <div className={css({ flex: 1, height: '1px', bg: 'neutral.200' })} />
+    <div className={css({ flex: 1, height: '1px', bg: 'border.subtle' })} />
   </HStack>
 )
 
@@ -39,8 +39,7 @@ export const NoAccessView = ({
   return (
     <Div
       display="flex"
-      overflowY="scroll"
-      padding="0 1.5rem"
+      paddingX="xl"
       flexGrow={1}
       flexDirection="column"
       alignItems="center"

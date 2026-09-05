@@ -13,7 +13,7 @@ export const PinBadge = ({ participant }: { participant: Participant }) => {
       className={css({
         height: '18px',
         width: '18px',
-        borderRadius: '100%',
+        borderRadius: 'pill',
         background: 'white',
         display: 'flex',
         justifyContent: 'center',

@@ -44,9 +44,10 @@ const isSupported = BackgroundProcessorFactory.isSupported()
 
 const Information = styled('div', {
   base: {
-    backgroundColor: 'orange.50',
-    borderRadius: '4px',
-    padding: '0.75rem 0.75rem',
+    backgroundColor: 'status.warning.container',
+    color: 'status.warning.container-text',
+    borderRadius: 'control',
+    padding: 'md',
     alignItems: 'start',
   },
 })
@@ -549,7 +550,7 @@ export const EffectsConfiguration = ({
           aspectRatio: 16 / 9,
           position: 'relative',
           overflow: 'hidden',
-          borderRadius: '8px',
+          borderRadius: 'control',
         })}
       >
         {videoTrack && !videoTrack.isMuted ? (
@@ -560,7 +561,7 @@ export const EffectsConfiguration = ({
             style={{
               transform: 'rotateY(180deg)',
               [layout === 'vertical' ? 'height' : 'minHeight']: '175px',
-              borderRadius: '8px',
+              borderRadius: 'var(--radii-control)',
             }}
           />
         ) : (
@@ -590,8 +591,8 @@ export const EffectsConfiguration = ({
           <div
             className={css({
               position: 'absolute',
-              right: '8px',
-              bottom: '8px',
+              right: 'sm',
+              bottom: 'sm',
             })}
           >
             <Loader />

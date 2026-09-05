@@ -44,8 +44,7 @@ export const Admin = () => {
   return (
     <Div
       display="flex"
-      overflowY="scroll"
-      padding="0 1.5rem"
+      paddingX="xl"
       flexGrow={1}
       flexDirection="column"
       alignItems="start"
@@ -71,7 +70,7 @@ export const Admin = () => {
             border: 'none',
             height: '1px',
             width: '100%',
-            background: 'greyscale.250',
+            backgroundColor: 'border.subtle',
           })}
         />
         <H
@@ -158,7 +157,7 @@ export const Admin = () => {
             border: 'none',
             height: '1px',
             width: '100%',
-            background: 'greyscale.250',
+            backgroundColor: 'border.subtle',
           })}
         />
         <H

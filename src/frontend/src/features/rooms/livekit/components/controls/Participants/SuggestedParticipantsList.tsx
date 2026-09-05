@@ -2,7 +2,7 @@ import { useSnapshot } from 'valtio'
 import { useTranslation } from 'react-i18next'
 import { RiCloseLine, RiPhoneLine } from '@remixicon/react'
 
-import { Button } from '@/primitives'
+import { Button, IconButton } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { MemberAvatar } from '@/features/contacts'
 import {
@@ -69,9 +69,10 @@ export const SuggestedParticipantsList = ({
     return (
       <p
         className={css({
-          padding: '1rem 1.5rem',
-          fontSize: '0.8125rem',
-          color: 'greyscale.500',
+          paddingY: 'lg',
+          paddingX: 'xl',
+          textStyle: 'bodySmall',
+          color: 'text.secondary',
         })}
       >
         {t('suggestedEmpty')}
@@ -100,8 +101,9 @@ export const SuggestedParticipantsList = ({
             className={css({
               display: 'flex',
               alignItems: 'center',
-              gap: '0.625rem',
-              padding: '0.5rem 1.5rem',
+              gap: 'sm',
+              paddingY: 'sm',
+              paddingX: 'xl',
               opacity: remoteRinging ? 0.55 : 1,
             })}
           >
@@ -116,8 +118,8 @@ export const SuggestedParticipantsList = ({
             >
               <span
                 className={css({
-                  fontSize: '0.875rem',
-                  color: 'greyscale.900',
+                  textStyle: 'bodyMedium',
+                  color: 'text.primary',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -126,7 +128,10 @@ export const SuggestedParticipantsList = ({
                 {label}
               </span>
               <span
-                className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}
+                className={css({
+                  textStyle: 'bodySmall',
+                  color: 'text.secondary',
+                })}
               >
                 {[person.title, person.department?.name]
                   .filter(Boolean)
@@ -138,35 +143,30 @@ export const SuggestedParticipantsList = ({
                 className={css({
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.25rem',
-                  fontSize: '0.75rem',
-                  color: 'primary.500',
+                  gap: 'xs',
+                  textStyle: 'bodySmall',
+                  color: 'text.link',
                 })}
               >
                 {invite.state === 'ringing'
                   ? tIm('call.invite.stateRinging')
                   : tIm('call.invite.stateInviting')}
-                <button
-                  type="button"
-                  onClick={() => cancelMeetInvite(invite.callId)}
-                  aria-label={t('cancelCall')}
+                <IconButton
+                  label={t('cancelCall')}
+                  size="icon24"
+                  variant="quaternaryDanger"
+                  onPress={() => cancelMeetInvite(invite.callId)}
                   data-testid={`suggested-cancel-${person.id}`}
-                  className={css({
-                    display: 'inline-flex',
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'greyscale.500',
-                    cursor: 'pointer',
-                    padding: '0.125rem',
-                    _hover: { color: 'greyscale.800' },
-                  })}
                 >
-                  <RiCloseLine size={16} />
-                </button>
+                  <RiCloseLine size={16} aria-hidden="true" />
+                </IconButton>
               </span>
             ) : remoteRinging ? (
               <span
-                className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}
+                className={css({
+                  textStyle: 'bodySmall',
+                  color: 'text.secondary',
+                })}
               >
                 {tIm('call.invite.stateRinging')}
               </span>
@@ -175,14 +175,14 @@ export const SuggestedParticipantsList = ({
                 className={css({
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.375rem',
+                  gap: 'xs',
                 })}
               >
                 {mineEnded && invite && (
                   <span
                     className={css({
-                      fontSize: '0.75rem',
-                      color: 'greyscale.500',
+                      textStyle: 'bodySmall',
+                      color: 'text.secondary',
                     })}
                   >
                     {inviteStateText(tIm, invite)}

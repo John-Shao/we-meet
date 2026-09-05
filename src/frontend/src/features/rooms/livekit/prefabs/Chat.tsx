@@ -128,7 +128,7 @@ export function Chat({ ...props }: ChatProps) {
   return (
     <Div
       display={'flex'}
-      padding={'0 1.5rem'}
+      paddingX="xl"
       flexGrow={1}
       flexDirection={'column'}
       minHeight={0}
@@ -137,20 +137,15 @@ export function Chat({ ...props }: ChatProps) {
       <Text
         variant="sm"
         className={css({
-          padding: '0.75rem',
-          backgroundColor: 'greyscale.50',
-          borderRadius: 4,
-          marginBottom: '0.75rem',
+          padding: 'md',
+          backgroundColor: 'surface.canvas',
+          borderRadius: 'control',
+          marginBottom: 'md',
         })}
       >
         {t('disclaimer')}
       </Text>
-      <Div
-        flexGrow={1}
-        flexDirection={'column'}
-        minHeight={0}
-        overflowY="scroll"
-      >
+      <Div flexGrow={1} flexDirection={'column'} minHeight={0} overflowY="auto">
         <ul
           className="lk-list lk-chat-messages"
           ref={ulRef}

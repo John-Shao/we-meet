@@ -140,8 +140,7 @@ export const ScreenRecordingSidePanel = () => {
   return (
     <Div
       display="flex"
-      overflowY="scroll"
-      padding="0 1.5rem"
+      paddingX="xl"
       flexGrow={1}
       flexDirection="column"
       alignItems="center"

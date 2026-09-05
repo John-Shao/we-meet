@@ -48,7 +48,7 @@ export const ChatEntry: (
           <Text bold={true} variant="sm">
             {entry.from?.name ?? entry.from?.identity}
           </Text>
-          <Text variant="sm" className={css({ color: 'gray.700' })}>
+          <Text variant="sm" className={css({ color: 'text.secondary' })}>
             {time.toLocaleTimeString(locale, { timeStyle: 'short' })}
           </Text>
         </span>
@@ -59,7 +59,7 @@ export const ChatEntry: (
         className={css({
           whiteSpace: 'pre-wrap',
           '& .lk-chat-link': {
-            color: 'blue',
+            color: 'text.link',
             textDecoration: 'underline',
           },
         })}

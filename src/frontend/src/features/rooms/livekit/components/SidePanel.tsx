@@ -2,7 +2,7 @@ import { layoutStore } from '@/stores/layout'
 import { css } from '@/styled-system/css'
 import { Heading } from 'react-aria-components'
 import { text } from '@/primitives/Text'
-import { Button, Div } from '@/primitives'
+import { IconButton } from '@/primitives'
 import { RiArrowLeftLine, RiCloseLine } from '@remixicon/react'
 import { useTranslation } from 'react-i18next'
 import { ParticipantsList } from './controls/Participants/ParticipantsList'
@@ -46,10 +46,10 @@ const StyledSidePanel = ({
     className={css({
       borderWidth: '1px',
       borderStyle: 'solid',
-      borderColor: 'box.border',
-      backgroundColor: 'box.bg',
-      color: 'box.text',
-      borderRadius: 8,
+      borderColor: 'border.default',
+      backgroundColor: 'surface.default',
+      color: 'text.primary',
+      borderRadius: 'panel',
       flex: 1,
       position: 'absolute',
       overflow: 'hidden',
@@ -63,6 +63,7 @@ const StyledSidePanel = ({
       right: 0,
       top: 0,
       width: 'var(--sizes-room-side-panel)',
+      maxWidth: 'calc(100vw - var(--sizes-room-side-panel-margin))',
       transition: '.5s token(easings.standard) 5ms',
     })}
     style={{
@@ -76,56 +77,48 @@ const StyledSidePanel = ({
     aria-hidden={isClosed}
     aria-label={ariaLabel}
   >
-    <HStack alignItems="center">
+    <HStack
+      alignItems="center"
+      className={sidePanelHeaderCls}
+      style={{ display: isClosed ? 'none' : undefined }}
+    >
       {isSubmenu && (
-        <Button
-          variant="secondaryText"
-          size="sm"
-          square
-          className={css({ marginRight: '0.5rem', marginLeft: '1rem' })}
-          aria-label={backButtonLabel}
-          onPress={onBack}
-        >
+        <IconButton label={backButtonLabel} size="icon32" onPress={onBack}>
           <RiArrowLeftLine size={20} aria-hidden="true" />
-        </Button>
+        </IconButton>
       )}
       <Heading
         slot="title"
         level={1}
-        className={text({ variant: 'h2' })}
-        style={{
-          paddingLeft: isSubmenu ? 0 : '1.5rem',
-          paddingTop: '1rem',
-          display: isClosed ? 'none' : 'flex',
-          justifyContent: 'start',
-          alignItems: 'center',
-        }}
+        className={`${text({ variant: 'h2' })} ${sidePanelTitleCls}`}
       >
         {title}
       </Heading>
+      <IconButton label={closeButtonTooltip} size="icon32" onPress={onClose}>
+        <RiCloseLine size={20} aria-hidden="true" />
+      </IconButton>
     </HStack>
-    <Div
-      position="absolute"
-      top="5"
-      right="5"
-      style={{
-        display: isClosed ? 'none' : undefined,
-      }}
-    >
-      <Button
-        invisible
-        variant="tertiaryText"
-        size="xs"
-        onPress={onClose}
-        aria-label={closeButtonTooltip}
-        tooltip={closeButtonTooltip}
-      >
-        <RiCloseLine />
-      </Button>
-    </Div>
     {children}
   </aside>
 )
+
+const sidePanelHeaderCls = css({
+  width: 'full',
+  flexShrink: 0,
+  gap: 'sm',
+  paddingX: 'lg',
+  paddingY: 'md',
+})
+
+const sidePanelTitleCls = css({
+  display: 'flex',
+  flex: 1,
+  minWidth: 0,
+  margin: 0,
+  paddingTop: '0!',
+  justifyContent: 'start',
+  alignItems: 'center',
+})
 
 type PanelProps = {
   isOpen: boolean
@@ -136,10 +129,12 @@ type PanelProps = {
 const Panel = ({ isOpen, keepAlive = false, children }: PanelProps) => (
   <div
     style={{
-      display: isOpen ? 'inherit' : 'none',
+      display: isOpen ? 'flex' : 'none',
       flexDirection: 'column',
-      overflow: 'hidden',
+      overflowY: 'auto',
+      overflowX: 'hidden',
       flexGrow: 1,
+      minHeight: 0,
     }}
   >
     {keepAlive || isOpen ? children : null}

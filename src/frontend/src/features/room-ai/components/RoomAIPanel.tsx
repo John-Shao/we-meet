@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
-import { Button, Text } from '@/primitives'
+import { Button, Text, TextArea } from '@/primitives'
 import { css } from '@/styled-system/css'
 
 import { useRoomAI, RoomAIMessage } from '../hooks/useRoomAI'
@@ -13,7 +13,8 @@ const containerStyle = css({
   flexDirection: 'column',
   flexGrow: 1,
   overflow: 'hidden',
-  padding: '0 1rem 1rem',
+  paddingX: 'lg',
+  paddingBottom: 'lg',
 })
 
 const messagesStyle = css({
@@ -21,32 +22,33 @@ const messagesStyle = css({
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.5rem',
-  paddingTop: '0.75rem',
-  paddingBottom: '0.5rem',
+  gap: 'sm',
+  paddingTop: 'md',
+  paddingBottom: 'sm',
 })
 
 const bubbleBase = css({
   maxWidth: '90%',
-  padding: '0.5rem 0.75rem',
-  borderRadius: '12px',
-  fontSize: '0.875rem',
+  paddingY: 'sm',
+  paddingX: 'md',
+  borderRadius: 'card',
+  textStyle: 'bodyMedium',
   lineHeight: 1.45,
   wordBreak: 'break-word',
 })
 
 const userBubble = css({
   alignSelf: 'flex-end',
-  backgroundColor: 'primary.100',
-  color: 'primary.900',
+  backgroundColor: 'action.selected.bg',
+  color: 'action.selected.text',
 })
 
 const assistantBubble = css({
   alignSelf: 'flex-start',
-  backgroundColor: 'box.bg',
+  backgroundColor: 'surface.default',
   border: '1px solid',
-  borderColor: 'box.border',
-  color: 'box.text',
+  borderColor: 'border.default',
+  color: 'text.primary',
 })
 
 const markdownStyle = css({
@@ -55,53 +57,50 @@ const markdownStyle = css({
   '& ul, & ol': { margin: '0.25rem 0 0.25rem 1.25rem', padding: 0 },
   '& li': { marginBottom: '0.15rem' },
   '& code': {
-    backgroundColor: 'box.border',
+    backgroundColor: 'surface.canvas',
     padding: '0 0.25rem',
-    borderRadius: '3px',
+    borderRadius: 'extraSmall',
     fontSize: '0.85em',
   },
   '& strong': { fontWeight: 600 },
 })
 
 const hintStyle = css({
-  fontSize: '0.8125rem',
-  color: 'gray.600',
+  textStyle: 'bodySmall',
+  color: 'text.secondary',
   textAlign: 'center',
-  padding: '2rem 1rem',
+  paddingY: '2xl',
+  paddingX: 'lg',
 })
 
 const errorStyle = css({
-  fontSize: '0.8125rem',
-  color: 'red.600',
-  margin: '0.5rem 0',
+  textStyle: 'bodySmall',
+  color: 'status.danger',
+  marginY: 'sm',
 })
 
 const composerStyle = css({
   display: 'flex',
-  gap: '0.5rem',
+  gap: 'sm',
   alignItems: 'flex-end',
   borderTop: '1px solid',
-  borderColor: 'box.border',
-  paddingTop: '0.75rem',
+  borderColor: 'border.default',
+  paddingTop: 'md',
 })
 
 const textareaStyle = css({
   flexGrow: 1,
-  minHeight: '2.5rem',
+  minHeight: 'controlHeight.default',
   maxHeight: '8rem',
-  padding: '0.5rem',
-  borderRadius: '6px',
-  border: '1px solid',
-  borderColor: 'box.border',
-  fontSize: '0.875rem',
-  fontFamily: 'inherit',
+  padding: 'sm',
+  borderRadius: 'field',
   resize: 'none',
 })
 
 const cursorStyle = css({
   display: 'inline-block',
   width: '0.5em',
-  marginLeft: '2px',
+  marginLeft: 'xxs',
   animation: 'blink 1s steps(2) infinite',
 })
 
@@ -171,7 +170,7 @@ export const RoomAIPanel = () => {
       )}
 
       <div className={composerStyle}>
-        <textarea
+        <TextArea
           aria-label={t('inputAriaLabel')}
           className={textareaStyle}
           placeholder={t('placeholder')}

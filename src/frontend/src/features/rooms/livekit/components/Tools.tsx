@@ -33,14 +33,16 @@ const ToolButton = ({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'start',
-        paddingY: '0.5rem',
-        paddingX: '0.75rem 1.5rem',
-        borderRadius: '30px',
+        gap: 'md',
+        paddingY: 'sm',
+        paddingX: 'md',
+        borderRadius: 'control',
         width: 'full',
-        backgroundColor: 'gray.50',
+        backgroundColor: 'surface.canvas',
+        color: 'text.primary',
         textAlign: 'start',
         '&[data-hovered]': {
-          backgroundColor: 'primary.50',
+          backgroundColor: 'action.selected.bg',
           cursor: 'pointer',
         },
       })}
@@ -48,16 +50,15 @@ const ToolButton = ({
     >
       <div
         className={css({
-          height: '40px',
-          minWidth: '40px',
-          borderRadius: '25px',
-          marginRight: '0.75rem',
+          height: 'controlHeight.default',
+          minWidth: 'controlHeight.default',
+          borderRadius: 'pill',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           position: 'relative',
-          background: 'primary.800',
-          color: 'white',
+          backgroundColor: 'action.primary.bg',
+          color: 'action.primary.text',
         })}
       >
         {icon}
@@ -135,21 +136,20 @@ export const Tools = () => {
   return (
     <Div
       display="flex"
-      overflowY="scroll"
-      padding="0 0.75rem"
+      paddingX="md"
       flexGrow={1}
       flexDirection="column"
       alignItems="start"
-      gap={0.5}
+      gap="sm"
     >
       <Text
         variant="note"
         wrap="balance"
         className={css({
           textStyle: 'sm',
-          paddingX: '0.75rem',
-          paddingTop: '0.25rem',
-          marginBottom: '1rem',
+          paddingX: 'md',
+          paddingTop: 'xs',
+          marginBottom: 'lg',
         })}
       >
         {t('body')}{' '}

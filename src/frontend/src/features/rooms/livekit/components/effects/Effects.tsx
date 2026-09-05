@@ -14,8 +14,7 @@ export const Effects = () => {
   return (
     <div
       className={css({
-        padding: '0 1.5rem',
-        overflowY: 'scroll',
+        paddingX: 'xl',
       })}
     >
       <EffectsConfiguration

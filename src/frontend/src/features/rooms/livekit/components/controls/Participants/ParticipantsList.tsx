@@ -5,7 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useSnapshot } from 'valtio'
 import { RiUserAddLine } from '@remixicon/react'
 
-import { Button, Div, H } from '@/primitives'
+import { Button, Div, H, Input } from '@/primitives'
+import { Tab, TabList, TabPanel, Tabs } from '@/primitives/Tabs'
 import { useTranslation } from 'react-i18next'
 import { useUser } from '@/features/auth'
 import { useRoomData } from '../../../hooks/useRoomData'
@@ -125,32 +126,17 @@ export const ParticipantsList = () => {
     ? waitingParticipants.filter((p) => matchesName(p.username))
     : waitingParticipants
 
-  const tabCls = (active: boolean) =>
-    css({
-      flex: 1,
-      paddingY: '0.4375rem',
-      border: 'none',
-      borderBottom: active
-        ? '2px solid token(colors.primary.500)'
-        : '2px solid transparent',
-      backgroundColor: 'transparent',
-      color: active ? 'primary.600' : 'greyscale.600',
-      fontSize: '0.8125rem',
-      fontWeight: active ? 'bold' : 'normal',
-      cursor: 'pointer',
-    })
-
   // TODO - extract inline styling in a centralized styling file, and avoid magic numbers
   return (
-    <Div overflowY="scroll">
+    <Div>
       <H
         lvl={2}
         className={css({
-          fontSize: '0.875rem',
+          textStyle: 'labelLarge',
           fontWeight: 'bold',
-          color: 'greyscale.600',
-          padding: '0 1.5rem',
-          marginBottom: '0.83em',
+          color: 'text.secondary',
+          paddingX: 'xl',
+          marginBottom: 'md',
         })}
       >
         {t('subheading').toUpperCase()}
@@ -160,24 +146,21 @@ export const ParticipantsList = () => {
         className={css({
           display: 'flex',
           alignItems: 'center',
-          gap: '0.5rem',
-          margin: '0 1.5rem 0.625rem',
+          gap: 'sm',
+          marginX: 'xl',
+          marginBottom: 'sm',
         })}
       >
-        <input
+        <Input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('searchOrCall')}
+          aria-label={t('searchOrCall')}
           data-testid="participants-search"
           className={css({
             flex: 1,
             minWidth: 0,
-            paddingX: '0.625rem',
-            paddingY: '0.375rem',
-            border: '1px solid token(colors.greyscale.300)',
-            borderRadius: '0.5rem',
-            fontSize: '0.8125rem',
           })}
         />
         {roomSlug && (
@@ -194,30 +177,6 @@ export const ParticipantsList = () => {
       </div>
       {/* P5: 全部 / 建议参会 tabs — counts live-update (suggested excludes
           present people, so someone joining moves across immediately). */}
-      <div
-        className={css({
-          display: 'flex',
-          margin: '0 1.5rem 0.75rem',
-          borderBottom: '1px solid token(colors.greyscale.200)',
-        })}
-      >
-        <button
-          type="button"
-          onClick={() => setTab('all')}
-          data-testid="participants-tab-all"
-          className={tabCls(tab === 'all')}
-        >
-          {t('tabAll', { count: participants.length })}
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('suggested')}
-          data-testid="participants-tab-suggested"
-          className={tabCls(tab === 'suggested')}
-        >
-          {t('tabSuggested', { count: suggested.length })}
-        </button>
-      </div>
       {inviteOpen && roomSlug && (
         <UnifiedInvitePanel
           roomSlug={roomSlug}
@@ -227,19 +186,29 @@ export const ParticipantsList = () => {
           onClose={() => setInviteOpen(false)}
         />
       )}
-      {tab === 'suggested' ? (
-        roomSlug && (
-          <SuggestedParticipantsList
-            suggestions={filteredSuggested}
-            roomSlug={roomSlug}
-            inviterName={user?.full_name ?? ''}
-            remoteRingingUserIds={remoteRingingUserIds}
-          />
-        )
-      ) : (
-        <>
+      <Tabs
+        selectedKey={tab}
+        onSelectionChange={(key) => setTab(key as 'all' | 'suggested')}
+      >
+        <TabList className={participantTabListCls}>
+          <Tab
+            id="all"
+            className={participantTabCls}
+            data-testid="participants-tab-all"
+          >
+            {t('tabAll', { count: participants.length })}
+          </Tab>
+          <Tab
+            id="suggested"
+            className={participantTabCls}
+            data-testid="participants-tab-suggested"
+          >
+            {t('tabSuggested', { count: suggested.length })}
+          </Tab>
+        </TabList>
+        <TabPanel id="all" className={participantTabPanelCls}>
           {filteredWaiting?.length > 0 && (
-            <Div marginBottom=".9375rem">
+            <Div marginBottom="lg">
               <ParticipantsCollapsableList<WaitingParticipant>
                 heading={t('waiting.title')}
                 participants={filteredWaiting}
@@ -255,7 +224,7 @@ export const ParticipantsList = () => {
             </Div>
           )}
           {filteredRaised.length > 0 && (
-            <Div marginBottom=".9375rem">
+            <Div marginBottom="lg">
               <ParticipantsCollapsableList<Participant>
                 heading={t('raisedHands')}
                 participants={filteredRaised}
@@ -282,8 +251,35 @@ export const ParticipantsList = () => {
               <MuteEveryoneButton participants={sortedRemoteParticipants} />
             }
           />
-        </>
-      )}
+        </TabPanel>
+        <TabPanel id="suggested" className={participantTabPanelCls}>
+          {roomSlug && (
+            <SuggestedParticipantsList
+              suggestions={filteredSuggested}
+              roomSlug={roomSlug}
+              inviterName={user?.full_name ?? ''}
+              remoteRingingUserIds={remoteRingingUserIds}
+            />
+          )}
+        </TabPanel>
+      </Tabs>
     </Div>
   )
 }
+
+const participantTabListCls = css({
+  marginX: 'xl',
+  marginBottom: 'md',
+})
+
+const participantTabCls = css({
+  flex: 1,
+  minHeight: 'controlHeight.compact',
+  paddingY: 'xs',
+  textStyle: 'labelMedium',
+})
+
+const participantTabPanelCls = css({
+  marginTop: '0!',
+  padding: '0!',
+})
