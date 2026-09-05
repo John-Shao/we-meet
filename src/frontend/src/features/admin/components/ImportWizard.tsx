@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { useMutation } from '@tanstack/react-query'
 
 import { Dialog } from '@/primitives/Dialog'
-import { Button } from '@/primitives'
+import { Button, LinkButton } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
+import { StateHint } from '@/components/StateHint'
 import { css } from '@/styled-system/css'
 import { useConfirm } from '@/components/ConfirmProvider'
 
@@ -38,6 +40,7 @@ export const ImportWizard = ({ isOpen, onDone, onClose }: Props) => {
   const fileRef = useRef<HTMLInputElement>(null)
   const [job, setJob] = useState<ImportJob | null>(null)
   const [createMissing, setCreateMissing] = useState(false)
+  const [fileName, setFileName] = useState('')
 
   const onError = (e: unknown) => showAlert({ message: describeApiError(e) })
 
@@ -59,7 +62,22 @@ export const ImportWizard = ({ isOpen, onDone, onClose }: Props) => {
   const close = () => {
     setJob(null)
     setCreateMissing(false)
+    setFileName('')
+    if (fileRef.current) fileRef.current.value = ''
     onClose()
+  }
+
+  const chooseAnother = () => {
+    setJob(null)
+    setFileName('')
+    if (fileRef.current) fileRef.current.value = ''
+    requestAnimationFrame(() => fileRef.current?.click())
+  }
+
+  const openFilePicker = () => {
+    if (!fileRef.current) return
+    fileRef.current.value = ''
+    fileRef.current.click()
   }
 
   const stats = job ? summary(job) : null
@@ -85,53 +103,74 @@ export const ImportWizard = ({ isOpen, onDone, onClose }: Props) => {
             <p className={noteCls}>{t('import.invitationNote')}</p>
 
             <div className={rowCls}>
-              <a
+              <LinkButton
                 href={IMPORT_TEMPLATE_PATH}
                 download
-                className={linkCls}
+                variant="secondary"
+                size="sm"
                 data-testid="import-template-link"
               >
                 {t('import.downloadTemplate')}
-              </a>
+              </LinkButton>
             </div>
 
-            <label className={checkRowCls}>
-              <input
-                type="checkbox"
-                checked={createMissing}
-                onChange={(e) => setCreateMissing(e.target.checked)}
-              />
-              <span>{t('import.createMissingDepartments')}</span>
-            </label>
+            <Checkbox
+              size="sm"
+              className={checkRowCls}
+              isSelected={createMissing}
+              onChange={setCreateMissing}
+            >
+              {t('import.createMissingDepartments')}
+            </Checkbox>
 
             <input
               ref={fileRef}
               type="file"
               accept=".csv,text/csv"
+              aria-hidden="true"
+              tabIndex={-1}
               data-testid="import-file-input"
               onChange={(e) => {
                 const file = e.target.files?.[0]
-                if (file) uploadMut.mutate(file)
+                if (file) {
+                  setFileName(file.name)
+                  uploadMut.mutate(file)
+                }
               }}
-              className={css({ marginTop: '0.75rem' })}
+              className={fileInputCls}
             />
-            {uploadMut.isPending && (
-              <p className={noteCls}>{t('import.checking')}</p>
-            )}
+            <div className={fileRowCls}>
+              <Button
+                variant="secondary"
+                size="sm"
+                isDisabled={uploadMut.isPending}
+                loading={uploadMut.isPending}
+                onPress={openFilePicker}
+              >
+                {t('import.button')}
+              </Button>
+              {fileName ? (
+                <span className={fileNameCls}>{fileName}</span>
+              ) : null}
+            </div>
+            {uploadMut.isPending ? (
+              <StateHint className={compactStateCls} state="loading">
+                {t('import.checking')}
+              </StateHint>
+            ) : null}
           </>
         ) : job.status === 'failed' ? (
-          <>
-            <p className={errorCls}>{job.error}</p>
-            <div className={footerCls}>
-              <Button
-                variant="tertiaryText"
-                size="sm"
-                onPress={() => setJob(null)}
-              >
+          <StateHint
+            className={compactStateCls}
+            state="error"
+            action={
+              <Button variant="secondary" size="sm" onPress={chooseAnother}>
                 {t('import.chooseAnother')}
               </Button>
-            </div>
-          </>
+            }
+          >
+            {job.error}
+          </StateHint>
         ) : (
           <>
             <div className={statsCls}>
@@ -182,7 +221,7 @@ export const ImportWizard = ({ isOpen, onDone, onClose }: Props) => {
                 <Button
                   variant="tertiaryText"
                   size="sm"
-                  onPress={() => setJob(null)}
+                  onPress={chooseAnother}
                 >
                   {t('import.chooseAnother')}
                 </Button>
@@ -190,6 +229,7 @@ export const ImportWizard = ({ isOpen, onDone, onClose }: Props) => {
                   variant="primary"
                   size="sm"
                   isDisabled={applyMut.isPending || stats!.total === 0}
+                  loading={applyMut.isPending}
                   onPress={() => applyMut.mutate()}
                 >
                   {t('import.confirm', {
@@ -247,27 +287,40 @@ const Stat = ({
   </div>
 )
 
-const leadCls = css({ fontSize: '0.875rem', color: 'greyscale.800' })
+const leadCls = css({ textStyle: 'bodyMedium', color: 'text.primary' })
 const noteCls = css({
   marginTop: '0.5rem',
-  fontSize: '0.75rem',
-  color: 'greyscale.500',
+  textStyle: 'bodySmall',
+  color: 'text.secondary',
 })
-const errorCls = css({ fontSize: '0.875rem', color: 'danger.subtle-text' })
 const rowCls = css({ marginTop: '0.75rem' })
-const linkCls = css({
-  fontSize: '0.8125rem',
-  color: 'primary.500',
-  textDecoration: 'underline',
+const fileInputCls = css({
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  clipPath: 'inset(50%)',
 })
 const checkRowCls = css({
+  marginTop: '0.75rem',
+  textStyle: 'bodySmall',
+  color: 'text.primary',
+})
+const fileRowCls = css({
   display: 'flex',
   alignItems: 'center',
-  gap: '0.5rem',
-  marginTop: '0.75rem',
-  fontSize: '0.8125rem',
-  color: 'greyscale.800',
-  cursor: 'pointer',
+  gap: 'md',
+  marginTop: 'md',
+})
+const fileNameCls = css({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  textStyle: 'bodySmall',
+  color: 'text.secondary',
 })
 const statsCls = css({
   display: 'flex',
@@ -291,15 +344,15 @@ const listCls = css({
   marginTop: '0.75rem',
   maxHeight: '18rem',
   overflowY: 'auto',
-  border: '1px solid token(colors.greyscale.200)',
-  borderRadius: '6px',
+  border: '1px solid token(colors.border.default)',
+  borderRadius: 'field',
 })
 const issueRowCls = css({
   display: 'flex',
   gap: '0.625rem',
   paddingX: '0.75rem',
   paddingY: '0.5rem',
-  borderBottom: '1px solid token(colors.greyscale.100)',
+  borderBottom: '1px solid token(colors.border.subtle)',
   fontSize: '0.8125rem',
 })
 const lineCls = css({
@@ -327,6 +380,7 @@ const footerCls = css({
 })
 const doneCls = css({
   flex: 1,
-  fontSize: '0.8125rem',
-  color: 'greyscale.600',
+  textStyle: 'bodySmall',
+  color: 'text.secondary',
 })
+const compactStateCls = css({ padding: 'md' })

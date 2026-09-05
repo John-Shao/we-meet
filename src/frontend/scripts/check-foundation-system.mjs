@@ -788,6 +788,40 @@ const standardizedFeedbackConsumers = [
     ],
   ],
   [
+    '../src/features/admin/components/InviteLinkDialog.tsx',
+    [
+      "import { Button, Input } from '@/primitives'",
+      "import { Checkbox } from '@/primitives/Checkbox'",
+      '<SelectCompat',
+      '<Checkbox',
+      'loading={submitting}',
+    ],
+  ],
+  [
+    '../src/features/admin/components/ImportWizard.tsx',
+    [
+      "import { Button, LinkButton } from '@/primitives'",
+      "import { Checkbox } from '@/primitives/Checkbox'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<Checkbox',
+      'state="loading"',
+      'state="error"',
+      'loading={applyMut.isPending}',
+    ],
+  ],
+  [
+    '../src/features/admin/components/BotCredentialDialog.tsx',
+    [
+      "import { Button, IconButton } from '@/primitives'",
+      "import { Dialog } from '@/primitives/Dialog'",
+      "import { StateHint } from '@/components/StateHint'",
+      '<IconButton',
+      'state="loading"',
+      'state="error"',
+      'onPress={() => void refetch()}',
+    ],
+  ],
+  [
     '../src/features/admin/components/DepartedPanel.tsx',
     [
       "import { Button, Input } from '@/primitives'",

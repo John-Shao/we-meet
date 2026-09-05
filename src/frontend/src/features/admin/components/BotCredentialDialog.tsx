@@ -9,8 +9,9 @@ import {
 } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
-import { Button } from '@/primitives'
-import { Modal, ModalCloseButton } from '@/components/Modal'
+import { Button, IconButton } from '@/primitives'
+import { Dialog } from '@/primitives/Dialog'
+import { StateHint } from '@/components/StateHint'
 import { useCopy } from '@/hooks/useCopy'
 
 import { fetchAdminBotCredential } from '../api/adminBots'
@@ -45,7 +46,7 @@ export const BotCredentialDialog = ({
   const qc = useQueryClient()
 
   const queryKey = ['admin', 'bot-credential', botId]
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch } = useQuery({
     queryKey,
     queryFn: () => fetchAdminBotCredential(botId),
     staleTime: Infinity,
@@ -60,37 +61,35 @@ export const BotCredentialDialog = ({
   }
 
   return (
-    <Modal
-      onClose={close}
-      ariaLabel={t('bots.credential.title', { name: botName })}
+    <Dialog
+      isOpen
+      type="flex"
+      title={t('bots.credential.title', { name: botName })}
+      onOpenChange={(open) => {
+        if (!open) close()
+      }}
     >
-      <div
-        className={css({
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          paddingX: '1.25rem',
-          paddingY: '0.875rem',
-          borderBottom: '1px solid token(colors.greyscale.200)',
-        })}
-      >
-        <span
-          className={css({
-            flex: 1,
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-          })}
-        >
-          {t('bots.credential.title', { name: botName })}
-        </span>
-        <ModalCloseButton onClose={close} label={t('bots.credential.close')} />
-      </div>
-
-      <div className={css({ padding: '1.25rem' })}>
+      <div className={contentCls}>
         {isPending ? (
-          <p className={hintCls}>{t('bots.credential.loading')}</p>
+          <StateHint className={stateCls} state="loading">
+            {t('bots.credential.loading')}
+          </StateHint>
         ) : isError ? (
-          <p className={hintCls}>{t('bots.credential.failed')}</p>
+          <StateHint
+            className={stateCls}
+            state="error"
+            action={
+              <Button
+                variant="secondary"
+                size="dense"
+                onPress={() => void refetch()}
+              >
+                {t('feedback.retry')}
+              </Button>
+            }
+          >
+            {t('bots.credential.failed')}
+          </StateHint>
         ) : (
           <>
             <div className={labelCls}>{t('bots.credential.webhook')}</div>
@@ -128,36 +127,36 @@ export const BotCredentialDialog = ({
                     ? data.signing_secret
                     : '••••••••••••'}
                 </code>
-                <button
-                  type="button"
-                  onClick={() => setRevealed((v) => !v)}
-                  aria-label={t(
+                <IconButton
+                  label={t(
                     revealed ? 'bots.credential.hide' : 'bots.credential.show'
                   )}
-                  className={iconBtnCls}
+                  size="icon28"
+                  className={credentialIconCls}
+                  onPress={() => setRevealed((v) => !v)}
                 >
                   {revealed ? (
-                    <RiEyeOffLine size={16} />
+                    <RiEyeOffLine size={16} aria-hidden="true" />
                   ) : (
-                    <RiEyeLine size={16} />
+                    <RiEyeLine size={16} aria-hidden="true" />
                   )}
-                </button>
-                <button
-                  type="button"
-                  disabled={!data.signing_secret}
-                  onClick={() =>
+                </IconButton>
+                <IconButton
+                  label={t('bots.credential.copy')}
+                  size="icon28"
+                  className={credentialIconCls}
+                  isDisabled={!data.signing_secret}
+                  onPress={() =>
                     data.signing_secret &&
                     void copy('secret', data.signing_secret)
                   }
-                  aria-label={t('bots.credential.copy')}
-                  className={iconBtnCls}
                 >
                   {copied === 'secret' ? (
-                    <RiCheckLine size={16} />
+                    <RiCheckLine size={16} aria-hidden="true" />
                   ) : (
-                    <RiFileCopyLine size={16} />
+                    <RiFileCopyLine size={16} aria-hidden="true" />
                   )}
-                </button>
+                </IconButton>
               </div>
               {!data.sign_verify_enabled && (
                 <p className={hintCls}>{t('bots.credential.signOff')}</p>
@@ -168,9 +167,12 @@ export const BotCredentialDialog = ({
           </>
         )}
       </div>
-    </Modal>
+    </Dialog>
   )
 }
+
+const contentCls = css({ width: 'min(28rem, calc(100vw - 6rem))' })
+const stateCls = css({ padding: 'lg' })
 
 const labelCls = css({
   fontSize: '0.8125rem',
@@ -183,9 +185,9 @@ const boxCls = css({
   minWidth: 0,
   wordBreak: 'break-all',
   padding: '0.5rem',
-  borderRadius: '0.375rem',
-  backgroundColor: 'greyscale.50',
-  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: 'field',
+  backgroundColor: 'surface.canvas',
+  border: '1px solid token(colors.border.default)',
   fontFamily: 'mono',
   fontSize: '0.75rem',
   color: 'greyscale.800',
@@ -199,13 +201,4 @@ const hintCls = css({
   lineHeight: 1.5,
 })
 
-const iconBtnCls = css({
-  flexShrink: 0,
-  border: 'none',
-  background: 'transparent',
-  padding: '0.125rem',
-  cursor: 'pointer',
-  color: 'greyscale.600',
-  marginBottom: '0.5rem',
-  _hover: { color: 'primary.500' },
-})
+const credentialIconCls = css({ marginBottom: 'sm' })

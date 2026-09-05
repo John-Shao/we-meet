@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/primitives/Dialog'
 import { Button, Input } from '@/primitives'
-import { css, cx } from '@/styled-system/css'
-import { selectChrome } from '@/primitives/selectChrome'
+import { Checkbox } from '@/primitives/Checkbox'
+import { css } from '@/styled-system/css'
 
 import { ORG_ROLES } from '../api/adminMembers'
 import {
@@ -85,15 +85,15 @@ export const InviteLinkDialog = ({
           display: 'flex',
           flexDirection: 'column',
           gap: '0.875rem',
-          minWidth: '22rem',
+          width: 'min(22rem, calc(100vw - 6rem))',
         })}
       >
         <label className={fieldLabel}>
           <span>{t('invites.configDepartment')}</span>
           <SelectCompat
             value={department}
+            aria-label={t('invites.configDepartment')}
             onChange={(e) => setDepartment(e.target.value)}
-            className={selectCss}
           >
             <option value="">{t('members.orgLevel')}</option>
             {departments.map((d) => (
@@ -108,8 +108,8 @@ export const InviteLinkDialog = ({
           <span>{t('invite.role')}</span>
           <SelectCompat
             value={orgRole}
+            aria-label={t('invite.role')}
             onChange={(e) => setOrgRole(e.target.value)}
-            className={selectCss}
           >
             {ORG_ROLES.map((r) => (
               <option key={r} value={r}>
@@ -123,8 +123,8 @@ export const InviteLinkDialog = ({
           <span>{t('invites.configExpiry')}</span>
           <SelectCompat
             value={expiresInDays}
+            aria-label={t('invites.configExpiry')}
             onChange={(e) => setExpiresInDays(Number(e.target.value))}
-            className={selectCss}
           >
             {EXPIRY_PRESETS.map((d) => (
               <option key={d} value={d}>
@@ -140,24 +140,25 @@ export const InviteLinkDialog = ({
             type="number"
             min={1}
             value={maxUses}
+            aria-label={t('invites.configUsesLabel')}
             onChange={(e) => setMaxUses(e.target.value)}
             placeholder={t('invites.usesPlaceholder')}
           />
           {maxUsesInvalid && (
-            <span className={css({ fontSize: '0.75rem', color: 'danger.600' })}>
+            <span className={validationErrorCls} role="alert">
               {t('invites.usesInvalid')}
             </span>
           )}
         </label>
 
-        <label className={checkboxRow}>
-          <input
-            type="checkbox"
-            checked={requireApproval}
-            onChange={(e) => setRequireApproval(e.target.checked)}
-          />
-          <span>{t('invites.requireApproval')}</span>
-        </label>
+        <Checkbox
+          size="sm"
+          className={checkboxRow}
+          isSelected={requireApproval}
+          onChange={setRequireApproval}
+        >
+          {t('invites.requireApproval')}
+        </Checkbox>
         {!requireApproval && (
           <p className={warnCls}>{t('invites.noApprovalWarning')}</p>
         )}
@@ -191,33 +192,22 @@ const fieldLabel = css({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.375rem',
-  fontSize: '0.875rem',
-  color: 'greyscale.700',
+  textStyle: 'bodyMedium',
+  color: 'text.secondary',
 })
 const checkboxRow = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
-  fontSize: '0.875rem',
-  color: 'greyscale.700',
+  textStyle: 'bodyMedium',
+  color: 'text.secondary',
+})
+const validationErrorCls = css({
+  textStyle: 'bodySmall',
+  color: 'status.danger',
 })
 const warnCls = css({
-  fontSize: '0.75rem',
-  color: 'danger.subtle-text',
+  textStyle: 'bodySmall',
+  color: 'status.danger',
   backgroundColor: 'danger.subtle',
-  borderRadius: '6px',
-  padding: '0.5rem 0.625rem',
+  borderRadius: 'field',
+  padding: 'sm md',
   margin: 0,
 })
-const selectCss = cx(
-  css({
-    width: '100%',
-    padding: '0.375rem 0.5rem',
-    border: '1px solid token(colors.control.border)',
-    borderRadius: '4px',
-    backgroundColor: 'greyscale.000',
-    color: 'default.text',
-    fontSize: '0.875rem',
-  }),
-  selectChrome
-)
