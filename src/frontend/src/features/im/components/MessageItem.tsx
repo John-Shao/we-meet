@@ -340,6 +340,10 @@ export const MessageItem = ({
   const isVoice = message.content_type === 'voice'
   const isQuote = message.content_type === 'quote'
   const isMerged = message.content_type === 'merged'
+  // Rich cards already provide their own surface, border and corner radius.
+  // Do not wrap them in the ordinary message bubble as that creates a heavy
+  // double frame around assistant and shared-task cards.
+  const isRichCard = message.content_type === 'rich-card'
   const name = senderName || message.sender_uid
   // System messages (member joined/left, rename) render centered + muted, no bubble.
   if (message.content_type === 'system') {
@@ -688,15 +692,17 @@ export const MessageItem = ({
             title={new Date(message.ts).toLocaleString()}
             data-testid="im-msg-bubble"
             className={css({
-              paddingX: isImage ? '0' : '0.75rem',
-              paddingY: isImage ? '0' : '0.5rem',
-              borderRadius: '0.75rem',
-              backgroundColor: isImage
-                ? 'transparent'
-                : isOwn
-                  ? 'action.selected.bg'
-                  : 'surface.muted',
-              color: isOwn ? 'action.selected.text' : 'text.primary',
+              paddingX: isImage || isRichCard ? '0' : '0.75rem',
+              paddingY: isImage || isRichCard ? '0' : '0.5rem',
+              borderRadius: isRichCard ? '0' : '0.75rem',
+              backgroundColor:
+                isImage || isRichCard
+                  ? 'transparent'
+                  : isOwn
+                    ? 'action.selected.bg'
+                    : 'surface.muted',
+              color:
+                isOwn && !isRichCard ? 'action.selected.text' : 'text.primary',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               maxWidth: '100%',

@@ -30,6 +30,31 @@ describe('MessageItem appearance', () => {
     )
   })
 
+  it('does not add a second bubble surface around a rich card', () => {
+    render(
+      <MessageItem
+        message={message({
+          content_type: 'rich-card',
+          body: JSON.stringify({
+            version: 1,
+            header: { title: '任务已完成', theme: 'success' },
+            blocks: [
+              { type: 'text', spans: [{ tag: 'text', text: '培训计划' }] },
+            ],
+          }),
+        })}
+        isOwn={false}
+        senderName="任务助手"
+      />
+    )
+
+    const bubble = screen.getByTestId('im-msg-bubble')
+    expect(bubble).toHaveClass(css({ backgroundColor: 'transparent' }))
+    expect(bubble).toHaveClass(css({ paddingX: '0' }))
+    expect(bubble).toHaveClass(css({ paddingY: '0' }))
+    expect(screen.getByTestId('rich-card')).toBeInTheDocument()
+  })
+
   it.each([
     { isOwn: false, name: 'W008', avatar: '/peer-avatar.png' },
     { isOwn: true, name: 'W009', avatar: '/self-avatar.png' },
