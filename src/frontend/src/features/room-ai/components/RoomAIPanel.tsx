@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, KeyboardEvent } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
-import { Button, Text, TextArea } from '@/primitives'
+import { Text } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { RoomMessageComposer } from '@/features/rooms/components/RoomMessageComposer'
 
 import { useRoomAI, RoomAIMessage } from '../hooks/useRoomAI'
 
@@ -13,8 +14,7 @@ const containerStyle = css({
   flexDirection: 'column',
   flexGrow: 1,
   overflow: 'hidden',
-  paddingX: 'lg',
-  paddingBottom: 'lg',
+  paddingX: 'xl',
 })
 
 const messagesStyle = css({
@@ -79,24 +79,6 @@ const errorStyle = css({
   marginY: 'sm',
 })
 
-const composerStyle = css({
-  display: 'flex',
-  gap: 'sm',
-  alignItems: 'flex-end',
-  borderTop: '1px solid',
-  borderColor: 'border.default',
-  paddingTop: 'md',
-})
-
-const textareaStyle = css({
-  flexGrow: 1,
-  minHeight: 'controlHeight.default',
-  maxHeight: '8rem',
-  padding: 'sm',
-  borderRadius: 'field',
-  resize: 'none',
-})
-
 const cursorStyle = css({
   display: 'inline-block',
   width: '0.5em',
@@ -128,8 +110,8 @@ const MessageBubble = ({ message }: { message: RoomAIMessage }) => {
 export const RoomAIPanel = () => {
   const { t } = useTranslation('room-ai')
   const { messages, ask, isAsking, error, isReady } = useRoomAI()
-  const [draft, setDraft] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // Auto-scroll to bottom when a new message lands.
   useEffect(() => {
@@ -137,18 +119,10 @@ export const RoomAIPanel = () => {
     if (el) el.scrollTop = el.scrollHeight
   }, [messages.length, isAsking])
 
-  const submit = () => {
+  const submit = (draft: string) => {
     const text = draft.trim()
     if (!text || isAsking) return
-    setDraft('')
     void ask(text)
-  }
-
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      submit()
-    }
   }
 
   return (
@@ -169,27 +143,19 @@ export const RoomAIPanel = () => {
         </Text>
       )}
 
-      <div className={composerStyle}>
-        <TextArea
-          aria-label={t('inputAriaLabel')}
-          className={textareaStyle}
-          placeholder={t('placeholder')}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={onKeyDown}
-          maxLength={500}
-          disabled={!isReady || isAsking}
-          data-attr="room-ai-input"
-        />
-        <Button
-          variant="primary"
-          onPress={submit}
-          isDisabled={!isReady || isAsking || !draft.trim()}
-          data-attr="room-ai-send"
-        >
-          {isAsking ? t('sending') : t('send')}
-        </Button>
-      </div>
+      <RoomMessageComposer
+        inputRef={inputRef}
+        onSubmit={submit}
+        placeholder={t('placeholder')}
+        inputLabel={t('inputAriaLabel')}
+        sendLabel={t('send')}
+        sendingLabel={t('sending')}
+        isSending={isAsking}
+        disabled={!isReady || isAsking}
+        maxLength={500}
+        inputDataAttr="room-ai-input"
+        sendDataAttr="room-ai-send"
+      />
     </div>
   )
 }
