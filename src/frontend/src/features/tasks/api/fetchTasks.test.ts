@@ -7,6 +7,7 @@ import type { ApiTask } from './ApiTask'
 
 import {
   buildTasksUrl,
+  fetchCreateTaskParentCandidates,
   getNextTaskActivityPageParam,
   getNextTasksPageParam,
   usePatchTask,
@@ -79,6 +80,55 @@ describe('getNextTaskActivityPageParam', () => {
     expect(
       getNextTaskActivityPageParam({ ...page, next: null })
     ).toBeUndefined()
+  })
+})
+
+describe('fetchCreateTaskParentCandidates', () => {
+  it('collects pages and exposes only editable tasks in title order', async () => {
+    fetchApiMock
+      .mockResolvedValueOnce({
+        count: 3,
+        previous: null,
+        next: 'https://meet.test/api/v1.0/tasks/?page=2',
+        results: [
+          {
+            id: 'readonly',
+            title: 'Ignored',
+            can_edit: false,
+            depth: 0,
+            ancestor_path: [],
+          },
+          {
+            id: 'parent-b',
+            title: 'Beta',
+            can_edit: true,
+            depth: 1,
+            ancestor_path: [],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        count: 3,
+        previous: 'https://meet.test/api/v1.0/tasks/',
+        next: null,
+        results: [
+          {
+            id: 'parent-a',
+            title: 'Alpha',
+            can_edit: true,
+            depth: 0,
+            ancestor_path: [],
+          },
+        ],
+      })
+
+    await expect(fetchCreateTaskParentCandidates()).resolves.toEqual([
+      { id: 'parent-a', title: 'Alpha', depth: 0, ancestor_path: [] },
+      { id: 'parent-b', title: 'Beta', depth: 1, ancestor_path: [] },
+    ])
+    expect(fetchApiMock).toHaveBeenNthCalledWith(2, '/tasks/?page=2', {
+      signal: undefined,
+    })
   })
 })
 

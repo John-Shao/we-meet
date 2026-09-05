@@ -5,6 +5,7 @@ import {
   RiCloseLine,
   RiFileTextLine,
   RiFlagLine,
+  RiGitMergeLine,
   RiListCheck3,
   RiNotification3Line,
   RiRepeatLine,
@@ -21,12 +22,13 @@ import type {
   ApiTask,
   ApiTaskGroup,
   ApiTaskList,
+  ApiTaskParentCandidate,
   ApiTaskUser,
   TaskPriority,
   TaskRecurrenceFrequency,
   TaskReminderMinutes,
 } from '../api/ApiTask'
-import { useCreateTask } from '../api/fetchTasks'
+import { useCreateTask, useCreateTaskParentCandidates } from '../api/fetchTasks'
 import { taskAssignees } from '../taskUi'
 import { TaskAssigneePickerDialog } from './TaskAssigneePickerDialog'
 import { TaskFollowerPickerDialog } from './TaskFollowerPickerDialog'
@@ -73,6 +75,7 @@ export const TaskForm = ({
   const [groupId, setGroupId] = useState(
     parentTask?.group?.id || defaultGroupId || ''
   )
+  const [parentId, setParentId] = useState(parentTask?.id || '')
   const [startDate, setStartDate] = useState(parentTask?.start_date || '')
   const [dueDate, setDueDate] = useState(parentTask?.due_date || '')
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<
@@ -92,6 +95,10 @@ export const TaskForm = ({
   const [pickerOpen, setPickerOpen] = useState(false)
   const [followerPickerOpen, setFollowerPickerOpen] = useState(false)
   const createMutation = useCreateTask()
+  const {
+    data: loadedParentCandidates = [],
+    isLoading: parentCandidatesLoading,
+  } = useCreateTaskParentCandidates()
   const today = dateInputValue(new Date())
   const tomorrowDate = new Date()
   tomorrowDate.setDate(tomorrowDate.getDate() + 1)
@@ -112,6 +119,10 @@ export const TaskForm = ({
   const reminderEnabled =
     reminderEnabledOverride ??
     Boolean(currentUser && assignees.some(({ id }) => id === currentUser.id))
+  const parentCandidates = mergeParentCandidates(
+    loadedParentCandidates,
+    parentTask
+  )
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -134,8 +145,8 @@ export const TaskForm = ({
         group_id: groupId || null,
         start_date: startDate || null,
         due_date: dueDate || null,
-        parent_id: parentTask?.id,
-        ...(recurrenceFrequency
+        parent_id: parentId || null,
+        ...(recurrenceFrequency && !parentId
           ? {
               recurrence: {
                 frequency: recurrenceFrequency,
@@ -314,6 +325,31 @@ export const TaskForm = ({
           )}
 
           <div className={createPropertyRowCss}>
+            <RiGitMergeLine size={19} aria-hidden="true" />
+            <div className={createSelectCss}>
+              <Select
+                label={<span className="sr-only">{t('subtasks.parent')}</span>}
+                aria-label={t('subtasks.parent')}
+                items={[
+                  { value: '', label: t('subtasks.noParent') },
+                  ...parentCandidates.map((candidate) => ({
+                    value: candidate.id,
+                    label:
+                      `${'—'.repeat(candidate.depth)} ${candidate.title}`.trim(),
+                  })),
+                ]}
+                selectedKey={parentId}
+                isDisabled={parentCandidatesLoading}
+                onSelectionChange={(key) => {
+                  const nextParentId = String(key)
+                  setParentId(nextParentId)
+                  if (nextParentId) setRecurrenceFrequency('')
+                }}
+              />
+            </div>
+          </div>
+
+          <div className={createPropertyRowCss}>
             <RiCalendarLine size={19} aria-hidden="true" />
             <div className={dateControlsCss}>
               <button
@@ -366,7 +402,7 @@ export const TaskForm = ({
             </div>
           </div>
 
-          {!parentTask && (
+          {!parentId && (
             <div className={createPropertyRowCss} data-align-start>
               <RiRepeatLine size={19} aria-hidden="true" />
               <div className={recurrenceControlsCss}>
@@ -538,6 +574,24 @@ const dateInputValue = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
     date.getDate()
   ).padStart(2, '0')}`
+
+const mergeParentCandidates = (
+  candidates: ApiTaskParentCandidate[],
+  parentTask?: ApiTask
+) => {
+  const merged = new Map(
+    candidates.map((candidate) => [candidate.id, candidate])
+  )
+  if (parentTask && !merged.has(parentTask.id)) {
+    merged.set(parentTask.id, {
+      id: parentTask.id,
+      title: parentTask.title,
+      depth: parentTask.depth,
+      ancestor_path: parentTask.ancestor_path,
+    })
+  }
+  return [...merged.values()]
+}
 
 const createFormCss = css({
   flex: 1,

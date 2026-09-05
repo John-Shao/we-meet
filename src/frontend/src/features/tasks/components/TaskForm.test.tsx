@@ -6,8 +6,9 @@ import zhTasks from '@/locales/zh/tasks.json'
 import type { ApiTask, ApiTaskList } from '../api/ApiTask'
 import { TaskForm } from './TaskForm'
 
-const { createTask } = vi.hoisted(() => ({
+const { createTask, parentCandidatesQuery } = vi.hoisted(() => ({
   createTask: vi.fn(),
+  parentCandidatesQuery: vi.fn(),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -20,6 +21,7 @@ vi.mock('../api/fetchTasks', () => ({
     error: null,
     isPending: false,
   }),
+  useCreateTaskParentCandidates: parentCandidatesQuery,
 }))
 
 vi.mock('@/features/auth', () => ({
@@ -36,6 +38,8 @@ vi.mock('@/features/auth', () => ({
 describe('TaskForm create mode', () => {
   beforeEach(() => {
     createTask.mockReset()
+    parentCandidatesQuery.mockReset()
+    parentCandidatesQuery.mockReturnValue({ data: [] })
   })
 
   it('uses the compact create labels and supports quick due dates', () => {
@@ -103,6 +107,45 @@ describe('TaskForm create mode', () => {
         })
       )
     )
+  })
+
+  it('creates a task under a selected parent', async () => {
+    parentCandidatesQuery.mockReturnValue({
+      data: [
+        {
+          id: 'parent-1',
+          title: 'Release plan',
+          depth: 1,
+          ancestor_path: [],
+        },
+      ],
+    })
+    createTask.mockResolvedValue({ id: 'child-task' })
+    render(<TaskForm taskLists={[]} onCancel={vi.fn()} onSaved={vi.fn()} />)
+
+    fireEvent.click(screen.getByLabelText('subtasks.parent'))
+    fireEvent.click(
+      await screen.findByRole('option', { name: '— Release plan' })
+    )
+    fireEvent.change(
+      screen.getByPlaceholderText('form.createTitlePlaceholder'),
+      { target: { value: 'Prepare release notes' } }
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'workspace.createSubmit' })
+    )
+
+    await waitFor(() =>
+      expect(createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Prepare release notes',
+          parent_id: 'parent-1',
+        })
+      )
+    )
+    expect(
+      screen.queryByRole('combobox', { name: 'recurrence.label' })
+    ).not.toBeInTheDocument()
   })
 
   it('uses the expected Chinese create action labels', () => {

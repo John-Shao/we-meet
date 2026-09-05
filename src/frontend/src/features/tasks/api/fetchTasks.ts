@@ -235,6 +235,55 @@ export const useTaskParentCandidates = (taskId?: string, sharedVia?: string) =>
     enabled: Boolean(taskId),
   })
 
+export const fetchCreateTaskParentCandidates = async (signal?: AbortSignal) => {
+  const tasks = new Map<string, ApiTask>()
+  let pageUrl: string | undefined
+  let pageCount = 0
+  let editableTaskCount = 0
+
+  do {
+    const page = await fetchTasks(
+      'all',
+      'all',
+      'all',
+      'all',
+      'all',
+      'all',
+      '',
+      pageUrl,
+      signal
+    )
+    page.results.forEach((task) => {
+      if (!tasks.has(task.id) && task.can_edit) editableTaskCount += 1
+      tasks.set(task.id, task)
+    })
+    pageUrl = page.next ?? undefined
+    pageCount += 1
+  } while (
+    pageUrl &&
+    pageCount < 10 &&
+    tasks.size < 500 &&
+    editableTaskCount < 20
+  )
+
+  return [...tasks.values()]
+    .filter((task) => task.can_edit)
+    .map<ApiTaskParentCandidate>((task) => ({
+      id: task.id,
+      title: task.title,
+      depth: task.depth,
+      ancestor_path: task.ancestor_path,
+    }))
+    .sort((left, right) => left.title.localeCompare(right.title))
+    .slice(0, 20)
+}
+
+export const useCreateTaskParentCandidates = () =>
+  useQuery<ApiTaskParentCandidate[], ApiError>({
+    queryKey: ['tasks', 'create-parent-candidates'],
+    queryFn: ({ signal }) => fetchCreateTaskParentCandidates(signal),
+  })
+
 const fetchConversationTasks = (cid: string) =>
   fetchApi<ApiTask[]>(`tasks/conversation/?cid=${encodeURIComponent(cid)}`)
 
