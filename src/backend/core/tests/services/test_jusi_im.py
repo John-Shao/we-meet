@@ -57,6 +57,31 @@ def test_get_members_classifies_nonmember_or_missing_conversation(
         client.get_members("source-cid", "user-token")
 
 
+def test_list_conversation_ids_uses_member_token_and_filters_bad_rows(monkeypatch):
+    captured = {}
+
+    def fake_get(url, headers, timeout):  # pylint: disable=unused-argument
+        captured["url"] = url
+        captured["authorization"] = headers["Authorization"]
+        response = mock.Mock(status_code=200)
+        response.json.return_value = [
+            {"cid": "group-1"},
+            {"cid": "direct-1"},
+            {"not_a_cid": "ignored"},
+            "ignored",
+        ]
+        return response
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    client = JusiImAdminClient(api_url=API_URL, admin_hmac_secret=SECRET)
+
+    assert client.list_conversation_ids("user-token") == {"group-1", "direct-1"}
+    assert captured == {
+        "url": f"{API_URL}/v1/conversations",
+        "authorization": "Bearer user-token",
+    }
+
+
 def test_issue_token_signs_method_path_ts_body(monkeypatch):
     captured = {}
 

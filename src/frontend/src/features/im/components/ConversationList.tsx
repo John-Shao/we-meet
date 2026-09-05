@@ -16,7 +16,7 @@ interface Props {
   loading?: boolean
   /** Resolve a conversation's display label (group name / direct peer name). */
   nameOf: (c: ConversationSummary) => string
-  /** Resolve a conversation's avatar URL (direct peer); undefined → tinted initial. */
+  /** Resolve a direct peer or custom group avatar URL. */
   avatarOf?: (c: ConversationSummary) => string | undefined
   /** Resolve a group's member tiles for the mosaic avatar; undefined → fall back. */
   membersOf?: (c: ConversationSummary) => GroupAvatarMember[] | undefined
@@ -206,8 +206,13 @@ export const ConversationList = ({
                 })}
                 data-testid={`conv-item-${c.cid}`}
               >
-                {groupTiles && groupTiles.length > 0 ? (
-                  <GroupAvatar members={groupTiles} size="2.5rem" />
+                {c.type === 'group' &&
+                (avatarOf?.(c) || (groupTiles && groupTiles.length > 0)) ? (
+                  <GroupAvatar
+                    members={groupTiles ?? []}
+                    customSrc={avatarOf?.(c)}
+                    size="2.5rem"
+                  />
                 ) : (
                   <Avatar name={nameOf(c)} src={avatarOf?.(c)} size="2.5rem" />
                 )}

@@ -318,6 +318,39 @@ class JusiImAdminClient:
             raise JusiImBadResponseError(f"members: unexpected shape: {data}")
         return data
 
+    def list_conversation_ids(self, user_token: str) -> set[str]:
+        """Return the cids visible to a member token in one REST request."""
+        url = f"{self._api_url}/v1/conversations"
+        try:
+            response = requests.get(
+                url,
+                headers={"Authorization": f"Bearer {user_token}"},
+                timeout=self._timeout,
+            )
+        except requests.RequestException as exc:
+            logger.exception("jusi-im REST unreachable: %s", url)
+            raise JusiImUnreachableError(str(exc)) from exc
+        if response.status_code >= 500:
+            raise JusiImUnreachableError(
+                f"jusi-im returned {response.status_code} from {url}"
+            )
+        if response.status_code >= 400:
+            raise JusiImBadResponseError(
+                f"jusi-im returned {response.status_code} from conversations: "
+                f"{response.text[:200]}"
+            )
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise JusiImBadResponseError("conversations response was not JSON") from exc
+        if not isinstance(data, list):
+            raise JusiImBadResponseError(f"conversations: unexpected shape: {data}")
+        return {
+            str(item.get("cid"))
+            for item in data
+            if isinstance(item, dict) and item.get("cid")
+        }
+
     def _parse_members_response(
         self, op: str, data: dict[str, Any]
     ) -> JusiImAddMembersResponse:

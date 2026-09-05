@@ -15,6 +15,7 @@ import { updateGroupMeta } from '../api/updateGroupMeta'
 import { resolveImUsers } from '../api/resolveImUsers'
 import { useGroupRoster } from '../hooks/useGroupRoster'
 import { GroupAvatar } from './GroupAvatar'
+import { GroupAvatarUploadDialog } from './GroupAvatarUploadDialog'
 import { GroupMembersPage } from './GroupMembersPage'
 import { PanelFrame } from './PanelFrame'
 import { SettingRow, SwitchRow } from './SettingRows'
@@ -26,6 +27,8 @@ interface Props {
   client: Client
   conversation: ConversationSummary
   currentUserUID: string
+  /** Short-lived URL for the optional custom avatar. */
+  avatarUrl?: string
   /** Opens the add-members dialog (＋ next to the member count). */
   onAddMembers: () => void
   /** Called after the caller leaves the group (clears the open conversation). */
@@ -65,6 +68,7 @@ export const GroupInfoPanel = ({
   client,
   conversation,
   currentUserUID,
+  avatarUrl,
   onAddMembers,
   onLeft,
   onOpenCalendar,
@@ -84,6 +88,7 @@ export const GroupInfoPanel = ({
   const muteAtAll = !!conversation.mute_at_all
 
   const [busy, setBusy] = useState(false)
+  const [avatarOpen, setAvatarOpen] = useState(false)
   const displayName = conversation.name || t('convName.groupFallback')
 
   // Sub-pages are local state, matching how the rest of the app switches
@@ -329,7 +334,35 @@ export const GroupInfoPanel = ({
           borderBottom: '1px solid token(colors.greyscale.100)',
         })}
       >
-        <GroupAvatar members={avatarTiles} size="2.75rem" />
+        {isOwner ? (
+          <button
+            type="button"
+            onClick={() => setAvatarOpen(true)}
+            aria-label={t('manage.avatar.change')}
+            title={t('manage.avatar.change')}
+            data-testid="group-avatar-change"
+            className={css({
+              display: 'inline-flex',
+              padding: 0,
+              border: 'none',
+              borderRadius: '0.55rem',
+              backgroundColor: 'transparent',
+              cursor: 'pointer',
+            })}
+          >
+            <GroupAvatar
+              members={avatarTiles}
+              customSrc={avatarUrl}
+              size="2.75rem"
+            />
+          </button>
+        ) : (
+          <GroupAvatar
+            members={avatarTiles}
+            customSrc={avatarUrl}
+            size="2.75rem"
+          />
+        )}
         {nameEdit.editing ? (
           <div className={css({ display: 'flex', flex: 1, gap: '0.5rem' })}>
             <InlineEditField
@@ -385,6 +418,17 @@ export const GroupInfoPanel = ({
           </div>
         )}
       </div>
+
+      {avatarOpen && (
+        <GroupAvatarUploadDialog
+          cid={cid}
+          currentUrl={avatarUrl}
+          onClose={() => setAvatarOpen(false)}
+          onChanged={() =>
+            void qc.invalidateQueries({ queryKey: ['im', 'group-avatars'] })
+          }
+        />
+      )}
 
       {/* Group announcement (stored in the shared description field). */}
       <div className={sectionCls}>

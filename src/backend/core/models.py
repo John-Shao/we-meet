@@ -6011,6 +6011,11 @@ class ImConversation(BaseModel):
         blank=True,
     )
     name = models.CharField(_("group name"), max_length=120, blank=True, default="")
+    # Stable object key in the private avatar bucket.  The API turns it into a
+    # short-lived signed URL; clients must never persist that URL itself.
+    avatar_key = models.CharField(
+        _("group avatar object key"), max_length=500, blank=True, default=""
+    )
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,

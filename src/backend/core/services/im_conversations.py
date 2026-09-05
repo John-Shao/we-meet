@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import logging
 
+from django.db import transaction
+
 from core import models
 
 logger = logging.getLogger(__name__)
@@ -56,3 +58,25 @@ def project(
             models.ImConversation.objects.filter(pk=row.pk).update(**updates)
     except Exception:  # pragma: no cover - 记账不能拖垮建群/改名
         logger.warning("im_conversations: projection failed cid=%s", cid, exc_info=True)
+
+
+def set_avatar(cid: str, avatar_key: str, *, organization=None, created_by=None):
+    """Persist a group's custom avatar and return ``(row, previous_key)``.
+
+    Unlike :func:`project`, this is the primary write for a user-visible
+    setting, so database errors deliberately propagate to the API caller.
+    Organization/creator retain the projection's write-once ownership rules.
+    An empty key means "use the generated member mosaic".
+    """
+    with transaction.atomic():
+        row = models.ImConversation.objects.select_for_update().filter(cid=cid).first()
+        if row is None:
+            row = models.ImConversation(cid=cid)
+        previous_key = row.avatar_key
+        row.avatar_key = (avatar_key or "").strip()[:500]
+        if organization is not None and row.organization_id is None:
+            row.organization = organization
+        if created_by is not None and row.created_by_id is None:
+            row.created_by = created_by
+        row.save()
+    return row, previous_key

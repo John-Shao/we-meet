@@ -144,6 +144,17 @@
     "settings": "Paramètres",
     "membersTitle": "Membres",
     "members": "Membres",
+    "avatar": {
+      "title": "Définir l’image du groupe",
+      "change": "Modifier l’image du groupe",
+      "choose": "Choisir une image",
+      "hint": "JPG, PNG ou WebP ; l’image sera recadrée au centre",
+      "remove": "Rétablir l’image par défaut",
+      "cancel": "Annuler",
+      "save": "Enregistrer",
+      "uploading": "Téléversement…",
+      "error": "Échec du téléversement : {{message}}"
+    },
     "description": "Annonce du groupe",
     "descriptionPlaceholder": "Ajouter une annonce (facultatif)",
     "descriptionEmpty": "Aucune annonce",

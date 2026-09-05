@@ -227,7 +227,11 @@ export const ForwardDialog = ({
                       divider
                     >
                       {c.isGroup ? (
-                        <GroupAvatar members={c.members ?? []} size="2rem" />
+                        <GroupAvatar
+                          members={c.members ?? []}
+                          customSrc={c.avatarUrl}
+                          size="2rem"
+                        />
                       ) : (
                         <MemberAvatar
                           name={c.name}

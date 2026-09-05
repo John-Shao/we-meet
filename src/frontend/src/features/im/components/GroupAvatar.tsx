@@ -17,6 +17,8 @@ export interface GroupAvatarMember {
 interface Props {
   /** Group members; only the first 9 are tiled (WeChat/Feishu style). */
   members: GroupAvatarMember[]
+  /** Owner-selected group avatar. When set it replaces the generated mosaic. */
+  customSrc?: string | null
   /** Diameter as any CSS length (default 2.5rem). */
   size?: string
 }
@@ -34,7 +36,7 @@ interface PlacedTile {
  * non-full top row is centred (matching WeChat's layout). Each tile shows the
  * member's uploaded image, else a tinted single-initial fallback.
  */
-export const GroupAvatar = ({ members, size = '2.5rem' }: Props) => {
+export const GroupAvatar = ({ members, customSrc, size = '2.5rem' }: Props) => {
   const tiles = members.slice(0, 9)
   const n = tiles.length
 
@@ -73,56 +75,64 @@ export const GroupAvatar = ({ members, size = '2.5rem' }: Props) => {
       })}
       style={{ width: size, height: size, borderRadius: `calc(${size} * 0.2)` }}
     >
-      {placed.map((p, i) => (
-        <span
-          key={i}
-          className={css({
-            position: 'absolute',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-          })}
-          style={{
-            left: `${p.left}%`,
-            top: `${p.top}%`,
-            width: `${p.side}%`,
-            height: `${p.side}%`,
-          }}
-        >
-          {p.member.src ? (
-            <img
-              src={p.member.src}
-              alt=""
-              className={css({
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-              })}
-            />
-          ) : (
-            <span
-              className={css({
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontWeight: 'bold',
-                lineHeight: 1,
-              })}
-              style={{
-                backgroundColor: tintFor(p.member.name),
-                // Glyph ≈ half the tile; tile side = size * (p.side/100).
-                fontSize: `calc(${size} * ${(p.side / 100) * 0.5})`,
-              }}
-            >
-              {initialOf(p.member.name)}
-            </span>
-          )}
-        </span>
-      ))}
+      {customSrc && (
+        <img
+          src={customSrc}
+          alt=""
+          className={css({ width: '100%', height: '100%', objectFit: 'cover' })}
+        />
+      )}
+      {!customSrc &&
+        placed.map((p, i) => (
+          <span
+            key={i}
+            className={css({
+              position: 'absolute',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+            })}
+            style={{
+              left: `${p.left}%`,
+              top: `${p.top}%`,
+              width: `${p.side}%`,
+              height: `${p.side}%`,
+            }}
+          >
+            {p.member.src ? (
+              <img
+                src={p.member.src}
+                alt=""
+                className={css({
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                })}
+              />
+            ) : (
+              <span
+                className={css({
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  lineHeight: 1,
+                })}
+                style={{
+                  backgroundColor: tintFor(p.member.name),
+                  // Glyph ≈ half the tile; tile side = size * (p.side/100).
+                  fontSize: `calc(${size} * ${(p.side / 100) * 0.5})`,
+                }}
+              >
+                {initialOf(p.member.name)}
+              </span>
+            )}
+          </span>
+        ))}
     </span>
   )
 }

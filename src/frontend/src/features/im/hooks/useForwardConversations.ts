@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { ConversationSummary } from '@jusi/light-im-sdk'
 
 import { resolveImUsers } from '../api/resolveImUsers'
+import { resolveGroupAvatars } from '../api/groupAvatar'
 import { fetchImToken } from '../api/fetchImToken'
 import type { ForwardConv } from '../components/ForwardDialog'
 import { useConversations } from './useConversations'
@@ -60,6 +61,16 @@ export const useForwardConversations = () => {
     staleTime: 60_000,
   })
 
+  const groupCids = conversations
+    .filter((c) => c.type === 'group')
+    .map((c) => c.cid)
+  const { data: groupAvatars = {} } = useQuery({
+    queryKey: ['im', 'group-avatars', groupCids],
+    queryFn: () => resolveGroupAvatars(groupCids),
+    enabled: groupCids.length > 0,
+    staleTime: 50 * 60 * 1000,
+  })
+
   const nameOf = (c: ConversationSummary): string => {
     if (c.type === 'group') {
       return c.name && c.name.trim() ? c.name : t('convName.groupFallback')
@@ -68,7 +79,7 @@ export const useForwardConversations = () => {
     return (peer && peerNames[peer]?.full_name) || t('convName.directFallback')
   }
   const avatarOf = (c: ConversationSummary): string | undefined => {
-    if (c.type === 'group') return undefined
+    if (c.type === 'group') return groupAvatars[c.cid] || undefined
     const peer = c.members.find((u) => u !== currentUserUID)
     return (peer && peerNames[peer]?.avatar_url) || undefined
   }

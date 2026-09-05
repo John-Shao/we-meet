@@ -7,7 +7,7 @@ from unittest import mock
 import pytest
 from rest_framework.test import APIClient
 
-from .. import models
+from .. import models, utils
 from ..factories import UserFactory
 from ..services.jusi_im import (
     JusiImBadResponseError,
@@ -226,6 +226,9 @@ def test_im_conversations_direct_requires_a_peer(mock_admin_client):
 
 UPLOAD_URL = "/api/v1.0/im/images/upload-url/"
 RESOLVE_URL = "/api/v1.0/im/images/resolve/"
+GROUP_AVATAR_UPLOAD_URL = "/api/v1.0/im/conversations/avatar-upload-url/"
+GROUP_AVATAR_UPDATE_URL = "/api/v1.0/im/conversations/avatar/"
+GROUP_AVATAR_RESOLVE_URL = "/api/v1.0/im/conversations/avatars/resolve/"
 
 
 def test_chat_image_upload_url_anonymous():
@@ -280,6 +283,122 @@ def test_chat_image_upload_url_happy_path():
     assert r.json() == payload
     assert gen.call_args.kwargs["content_type"] == "image/jpeg"
     assert gen.call_args.kwargs["size"] == 1000
+
+
+def _group_owner(mock_admin_client, user):
+    mock_admin_client.issue_token.return_value = JusiImTokenResponse(
+        uid="owner-uid", token="member-token", expires_at=1
+    )
+    mock_admin_client.get_members.return_value = [{"uid": "owner-uid", "role": "owner"}]
+
+
+def test_group_avatar_upload_url_is_owner_only(mock_admin_client):
+    user = UserFactory()
+    mock_admin_client.issue_token.return_value = JusiImTokenResponse(
+        uid="member-uid", token="member-token", expires_at=1
+    )
+    mock_admin_client.get_members.return_value = [
+        {"uid": "member-uid", "role": "member"}
+    ]
+    client = APIClient()
+    client.force_login(user)
+    response = client.post(
+        GROUP_AVATAR_UPLOAD_URL,
+        {"cid": "group-1", "content_type": "image/jpeg", "size": 1000},
+        format="json",
+    )
+    assert response.status_code == 403
+
+
+def test_group_avatar_upload_and_confirm(mock_admin_client):
+    user = UserFactory()
+    _group_owner(mock_admin_client, user)
+    client = APIClient()
+    client.force_login(user)
+    payload = {
+        "upload_url": "https://oss/put",
+        "object_key": "group/namespace/0123456789abcdef.jpg",
+        "expires_in": 300,
+        "headers": {"Content-Type": "image/jpeg"},
+    }
+    with mock.patch(
+        "core.utils.generate_group_avatar_upload_url", return_value=payload
+    ) as generate:
+        response = client.post(
+            GROUP_AVATAR_UPLOAD_URL,
+            {"cid": "group-1", "content_type": "image/jpeg", "size": 1000},
+            format="json",
+        )
+    assert response.status_code == 200, response.content
+    assert response.json() == payload
+    generate.assert_called_once_with(
+        cid="group-1", content_type="image/jpeg", size=1000
+    )
+
+    real_key = utils.build_group_avatar_object_key("group-1", "image/jpeg")
+    with (
+        mock.patch(
+            "core.utils.generate_profile_image_get_url", return_value="https://oss/get"
+        ),
+        mock.patch("core.utils.head_profile_object", return_value=(1000, "image/jpeg")),
+    ):
+        response = client.patch(
+            GROUP_AVATAR_UPDATE_URL,
+            {"cid": "group-1", "object_key": real_key},
+            format="json",
+        )
+    assert response.status_code == 200, response.content
+    assert response.json() == {"cid": "group-1", "avatar_url": "https://oss/get"}
+    assert models.ImConversation.objects.get(cid="group-1").avatar_key == real_key
+
+
+def test_group_avatar_rejects_key_from_another_group(mock_admin_client):
+    user = UserFactory()
+    _group_owner(mock_admin_client, user)
+    client = APIClient()
+    client.force_login(user)
+    key = utils.build_group_avatar_object_key("other-group", "image/png")
+    response = client.patch(
+        GROUP_AVATAR_UPDATE_URL,
+        {"cid": "group-1", "object_key": key},
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+def test_group_avatar_resolve_and_remove(mock_admin_client):
+    user = UserFactory()
+    _group_owner(mock_admin_client, user)
+    key = utils.build_group_avatar_object_key("group-1", "image/webp")
+    models.ImConversation.objects.create(cid="group-1", avatar_key=key)
+    mock_admin_client.list_conversation_ids.return_value = {"group-1"}
+    client = APIClient()
+    client.force_login(user)
+    with mock.patch(
+        "core.utils.generate_profile_image_get_url", return_value="https://oss/get"
+    ):
+        response = client.post(
+            GROUP_AVATAR_RESOLVE_URL, {"cids": ["group-1"]}, format="json"
+        )
+    assert response.status_code == 200, response.content
+    assert response.json() == {"group-1": "https://oss/get"}
+
+    mock_admin_client.list_conversation_ids.return_value = set()
+    response = client.post(
+        GROUP_AVATAR_RESOLVE_URL, {"cids": ["group-1"]}, format="json"
+    )
+    assert response.status_code == 200, response.content
+    assert response.json() == {}
+
+    with mock.patch("core.utils.delete_profile_object") as delete:
+        response = client.patch(
+            GROUP_AVATAR_UPDATE_URL,
+            {"cid": "group-1", "object_key": ""},
+            format="json",
+        )
+    assert response.status_code == 200, response.content
+    assert models.ImConversation.objects.get(cid="group-1").avatar_key == ""
+    delete.assert_called_once_with("avatar", key)
 
 
 def test_resolve_images_only_signs_known_prefixes():

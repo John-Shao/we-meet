@@ -42,6 +42,12 @@ vi.mock('../api/announceLeave', () => ({
   announceLeave: vi.fn(async () => {}),
 }))
 
+vi.mock('./GroupAvatarUploadDialog', () => ({
+  GroupAvatarUploadDialog: ({ cid }: { cid: string }) => (
+    <span data-testid="group-avatar-dialog">{cid}</span>
+  ),
+}))
+
 const mount = async () => {
   const client = {
     listMembers: async () => [
@@ -87,6 +93,16 @@ const mount = async () => {
 }
 
 describe('群面板的无按钮行内编辑', () => {
+  it('lets the owner open the custom group avatar dialog', async () => {
+    await mount()
+
+    fireEvent.click(screen.getByTestId('group-avatar-change'))
+
+    expect(screen.getByTestId('group-avatar-dialog')).toHaveTextContent(
+      'c-test'
+    )
+  })
+
   it('群名:点铅笔只有输入框(无按钮),Enter 保存', async () => {
     await mount()
 

@@ -53,6 +53,27 @@ const mount = (conversations: ConversationSummary[]) => {
 }
 
 describe('ConversationList context menu', () => {
+  it('prefers a custom group avatar over the generated member mosaic', () => {
+    render(
+      <ConversationList
+        conversations={[group]}
+        selectedCID={null}
+        onSelect={() => {}}
+        nameOf={() => 'Team'}
+        avatarOf={() => '/group-avatar.jpg'}
+        membersOf={() => [{ name: 'Alice', src: '/alice.jpg' }]}
+        onDelete={() => {}}
+        onLeave={() => {}}
+        onTogglePinned={() => {}}
+        onToggleMuted={() => {}}
+      />
+    )
+
+    const row = screen.getByTestId('conv-item-group-1')
+    expect(row.querySelector('img')).toHaveAttribute('src', '/group-avatar.jpg')
+    expect(row.querySelectorAll('img')).toHaveLength(1)
+  })
+
   it('replaces the delete shortcut with direct-conversation actions', () => {
     const handlers = mount([direct])
 

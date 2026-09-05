@@ -144,6 +144,17 @@
     "settings": "Instellingen",
     "membersTitle": "Leden",
     "members": "Leden",
+    "avatar": {
+      "title": "Groepsafbeelding instellen",
+      "change": "Groepsafbeelding wijzigen",
+      "choose": "Afbeelding kiezen",
+      "hint": "JPG, PNG of WebP; de afbeelding wordt gecentreerd bijgesneden",
+      "remove": "Standaard herstellen",
+      "cancel": "Annuleren",
+      "save": "Opslaan",
+      "uploading": "Uploaden…",
+      "error": "Upload mislukt: {{message}}"
+    },
     "description": "Groepsaankondiging",
     "descriptionPlaceholder": "Voeg een groepsaankondiging toe (optioneel)",
     "descriptionEmpty": "Nog geen aankondiging",

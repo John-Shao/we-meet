@@ -610,6 +610,60 @@ def generate_profile_image_get_url(kind: str, object_key: str) -> str:
 
 BOT_AVATAR_PREFIX = "bot/"
 
+# Custom group avatars share the private avatar bucket with user/bot avatars,
+# but use a distinct, cid-derived namespace.  Hashing the cid avoids allowing a
+# remotely supplied id to introduce path separators into an object key.
+GROUP_AVATAR_PREFIX = "group/"
+
+
+def _group_avatar_namespace(cid: str) -> str:
+    return hashlib.sha256(cid.encode("utf-8")).hexdigest()[:24]
+
+
+def build_group_avatar_object_key(cid: str, content_type: str) -> str:
+    """Build ``group/<cid-hash>/<uuid>.<ext>`` in the avatar bucket."""
+    extension = ALLOWED_PROFILE_IMAGE_MIME_TYPES[content_type]
+    return f"{GROUP_AVATAR_PREFIX}{_group_avatar_namespace(cid)}/{uuid4().hex[:16]}.{extension}"
+
+
+def is_group_avatar_object_key(cid: str, object_key: str) -> bool:
+    """Whether *object_key* was issued for this exact conversation."""
+    prefix = f"{GROUP_AVATAR_PREFIX}{_group_avatar_namespace(cid)}/"
+    if not object_key.startswith(prefix):
+        return False
+    filename = object_key[len(prefix) :]
+    stem, dot, extension = filename.partition(".")
+    return (
+        dot == "."
+        and len(stem) == 16
+        and all(ch in "0123456789abcdef" for ch in stem)
+        and extension in set(ALLOWED_PROFILE_IMAGE_MIME_TYPES.values())
+    )
+
+
+def generate_group_avatar_upload_url(*, cid: str, content_type: str, size: int) -> dict:
+    """Presigned PUT for a custom group avatar (caller validates inputs)."""
+    bucket = get_profile_kind_bucket("avatar")
+    object_key = build_group_avatar_object_key(cid, content_type)
+    upload_url = _profile_s3_client().generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": bucket,
+            "Key": object_key,
+            "ContentType": content_type,
+            "ContentLength": size,
+        },
+        ExpiresIn=PROFILE_UPLOAD_URL_TTL_SECONDS,
+        HttpMethod="PUT",
+    )
+    return {
+        "upload_url": upload_url,
+        "object_key": object_key,
+        "expires_in": PROFILE_UPLOAD_URL_TTL_SECONDS,
+        "headers": {"Content-Type": content_type},
+    }
+
+
 #: Rendered swatch size. Matches what the clients ask for at 2x on a 128pt row.
 BOT_AVATAR_SWATCH_PX = 256
 

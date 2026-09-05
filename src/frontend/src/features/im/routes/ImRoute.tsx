@@ -23,6 +23,7 @@ import type {
 import { createDirectConversationByUserId } from '../api/createDirectConversation'
 import { createGroupConversation } from '../api/createGroupConversation'
 import { resolveImUsers } from '../api/resolveImUsers'
+import { resolveGroupAvatars } from '../api/groupAvatar'
 import { fetchImToken } from '../api/fetchImToken'
 import { readLocalDrafts } from '../api/inputSync'
 import { richTextPreview } from '../components/richText'
@@ -182,6 +183,12 @@ const ImAuthenticated = () => {
   const selfName = user?.full_name || ''
   useEffect(() => {
     const off = client.onMessage((m) => {
+      if (
+        m.content_type === 'system' &&
+        (m.body.endsWith('修改了群头像') || m.body.endsWith('移除了群头像'))
+      ) {
+        void qc.invalidateQueries({ queryKey: ['im', 'group-avatars'] })
+      }
       if (m.sender_uid === currentUserUID || m.cid === selectedCID) return
       const flags = muteFlagsRef.current.get(m.cid)
       if (flags?.muted) return // 消息免打扰:完全不亮
@@ -280,6 +287,16 @@ const ImAuthenticated = () => {
     staleTime: 60_000,
   })
 
+  const groupCids = conversations
+    .filter((c) => c.type === 'group')
+    .map((c) => c.cid)
+  const { data: groupAvatars = {} } = useQuery({
+    queryKey: ['im', 'group-avatars', groupCids],
+    queryFn: () => resolveGroupAvatars(groupCids),
+    enabled: groupCids.length > 0,
+    staleTime: 50 * 60 * 1000,
+  })
+
   // 逐联系人标记(私聊名字后跟 ⭐ / 🔔)。flag 存的是 we-meet user id,而会话只有
   // IM uid —— 用 peerNames 里已解析出的 `id` 做桥,不额外发请求。
   const { data: contactPrefs = [] } = useQuery({
@@ -326,9 +343,9 @@ const ImAuthenticated = () => {
     return (peer && peerNames[peer]?.full_name) || t('convName.directFallback')
   }
 
-  // direct 会话头像:对端上传的头像(presigned);群聊无单一头像 → 留空走色块。
+  // Direct uses the peer profile; group uses its optional custom avatar.
   const avatarOf = (c: ConversationSummary): string | undefined => {
-    if (c.type === 'group') return undefined
+    if (c.type === 'group') return groupAvatars[c.cid] || undefined
     const peer = c.members.find((u) => u !== currentUserUID)
     return (peer && peerNames[peer]?.avatar_url) || undefined
   }
@@ -937,6 +954,7 @@ const ImAuthenticated = () => {
                         client={client}
                         conversation={selectedConv}
                         currentUserUID={currentUserUID}
+                        avatarUrl={groupAvatars[selectedConv.cid]}
                         onAddMembers={() => setAddOpen(true)}
                         onLeft={() => {
                           setRightPanel(null)

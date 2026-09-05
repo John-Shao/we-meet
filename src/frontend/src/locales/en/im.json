@@ -144,6 +144,17 @@
     "settings": "Settings",
     "membersTitle": "Members",
     "members": "Members",
+    "avatar": {
+      "title": "Set group avatar",
+      "change": "Change group avatar",
+      "choose": "Choose image",
+      "hint": "JPG, PNG or WebP; the image will be center-cropped",
+      "remove": "Restore default",
+      "cancel": "Cancel",
+      "save": "Save",
+      "uploading": "Uploading…",
+      "error": "Upload failed: {{message}}"
+    },
     "description": "Group announcement",
     "descriptionPlaceholder": "Add a group announcement (optional)",
     "descriptionEmpty": "No announcement yet",

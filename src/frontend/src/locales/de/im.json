@@ -144,6 +144,17 @@
     "settings": "Einstellungen",
     "membersTitle": "Mitglieder",
     "members": "Mitglieder",
+    "avatar": {
+      "title": "Gruppenbild festlegen",
+      "change": "Gruppenbild ändern",
+      "choose": "Bild auswählen",
+      "hint": "JPG, PNG oder WebP; das Bild wird mittig zugeschnitten",
+      "remove": "Standard wiederherstellen",
+      "cancel": "Abbrechen",
+      "save": "Speichern",
+      "uploading": "Wird hochgeladen…",
+      "error": "Upload fehlgeschlagen: {{message}}"
+    },
     "description": "Gruppenankündigung",
     "descriptionPlaceholder": "Gruppenankündigung hinzufügen (optional)",
     "descriptionEmpty": "Noch keine Gruppenankündigung",

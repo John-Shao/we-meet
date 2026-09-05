@@ -31,7 +31,7 @@ from rest_framework.response import Response
 
 from core import models, utils
 from core.api.directory import get_caller_organization
-from core.services import im_conversations
+from core.services import im_bots, im_conversations
 from core.services.jusi_im import (
     JusiImAdminClient,
     JusiImBadResponseError,
@@ -216,6 +216,11 @@ class ImViewSet(viewsets.ViewSet):
             else:
                 bots = bots.filter(organization__isnull=True)
             for bot in bots:
+                # A release may invalidate a built-in's generated avatar. Make
+                # the replacement visible as soon as an existing conversation
+                # resolves its sender, without waiting for the assistant's next
+                # notification.
+                im_bots.ensure_builtin_avatar(bot)
                 out[bot.im_uid] = {
                     "id": str(bot.id),
                     "full_name": bot.name,
@@ -304,6 +309,133 @@ class ImViewSet(viewsets.ViewSet):
             user=request.user, content_type=content_type, size=size
         )
         return Response(payload, status=status.HTTP_200_OK)
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="conversations/avatar-upload-url",
+    )
+    def group_avatar_upload_url(self, request):
+        """Issue an owner-only presigned PUT for a custom group avatar."""
+        data = request.data or {}
+        cid = str(data.get("cid") or "").strip()
+        content_type = data.get("content_type")
+        size = data.get("size")
+        if not cid:
+            raise ValidationError({"cid": "cid is required"})
+        if content_type not in utils.ALLOWED_PROFILE_IMAGE_MIME_TYPES:
+            raise ValidationError({"content_type": "must be one of jpeg/png/webp"})
+        if not isinstance(size, int) or size <= 0:
+            raise ValidationError({"size": "positive integer byte size required"})
+        if size > utils.MAX_PROFILE_IMAGE_SIZE:
+            raise ValidationError({"size": f"max {utils.MAX_PROFILE_IMAGE_SIZE} bytes"})
+
+        client = self._make_client()
+        me = self._issue(client, self._external_id(request.user))
+        self._require_role(client, cid, me, owner_only=True)
+        payload = utils.generate_group_avatar_upload_url(
+            cid=cid, content_type=content_type, size=size
+        )
+        return Response(payload, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["patch"], url_path="conversations/avatar")
+    def group_avatar_update(self, request):
+        """Confirm or remove a group's custom avatar. Owner-only.
+
+        The empty object key restores the generated member mosaic. Non-empty
+        keys must belong to the exact cid namespace minted by the upload step.
+        """
+        data = request.data or {}
+        cid = str(data.get("cid") or "").strip()
+        object_key = str(data.get("object_key") or "").strip()
+        if not cid:
+            raise ValidationError({"cid": "cid is required"})
+        if object_key and not utils.is_group_avatar_object_key(cid, object_key):
+            raise ValidationError({"object_key": "unexpected object key"})
+
+        if object_key:
+            head = utils.head_profile_object("avatar", object_key)
+            if head is None:
+                raise ValidationError({"object_key": "object not found in storage"})
+            size, content_type = head
+            if size > utils.MAX_PROFILE_IMAGE_SIZE:
+                raise ValidationError({"object_key": "uploaded object is too large"})
+            if (
+                content_type
+                and content_type not in utils.ALLOWED_PROFILE_IMAGE_MIME_TYPES
+            ):
+                raise ValidationError({"object_key": "unsupported image type"})
+
+        client = self._make_client()
+        me = self._issue(client, self._external_id(request.user))
+        self._require_role(client, cid, me, owner_only=True)
+        row, previous_key = im_conversations.set_avatar(
+            cid,
+            object_key,
+            organization=get_caller_organization(request.user),
+            created_by=request.user,
+        )
+        if previous_key and previous_key != object_key:
+            utils.delete_profile_object("avatar", previous_key)
+        self._post_system_message(
+            client,
+            cid,
+            f"{self._display_name(request.user)}"
+            + ("修改了群头像" if object_key else "移除了群头像"),
+        )
+        return Response(
+            {
+                "cid": cid,
+                "avatar_url": utils.generate_profile_image_get_url(
+                    "avatar", row.avatar_key
+                ),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="conversations/avatars/resolve",
+    )
+    def group_avatars_resolve(self, request):
+        """Resolve group cids to short-lived avatar URLs.
+
+        The caller's member token is used to fetch its visible conversations in
+        one jusi request; requested cids are intersected with that set before
+        any URL is signed. Stored keys are server-issued and never accepted
+        from this read path.
+        """
+        raw = (request.data or {}).get("cids")
+        if not isinstance(raw, list):
+            raise ValidationError({"cids": "list of cids required"})
+        cids: list[str] = []
+        seen: set[str] = set()
+        for value in raw:
+            cid = str(value or "").strip()
+            if cid and cid not in seen:
+                seen.add(cid)
+                cids.append(cid)
+            if len(cids) >= 200:
+                break
+        client = self._make_client()
+        me = self._issue(client, self._external_id(request.user))
+        try:
+            visible_cids = client.list_conversation_ids(me.token)
+        except JusiImUnreachableError as exc:
+            raise JusiImUnreachableHTTPError(detail=str(exc)) from exc
+        except JusiImBadResponseError as exc:
+            raise JusiImInvalidResponseHTTPError(detail=str(exc)) from exc
+        rows = models.ImConversation.objects.filter(
+            cid__in=[cid for cid in cids if cid in visible_cids]
+        ).exclude(avatar_key="")
+        return Response(
+            {
+                row.cid: utils.generate_profile_image_get_url("avatar", row.avatar_key)
+                for row in rows
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=["post"], url_path="files/upload-url")
     def chat_file_upload_url(self, request):
