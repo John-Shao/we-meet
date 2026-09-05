@@ -22,6 +22,14 @@
             "hex": "#f6f6f6"
           }
         },
+        "100": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [0.933333, 0.933333, 0.933333],
+            "alpha": 1,
+            "hex": "#eeeeee"
+          }
+        },
         "150": {
           "$value": {
             "colorSpace": "srgb",
@@ -358,6 +366,7 @@
         "surface": {
           "canvas": { "$value": "{color.palette.neutral.50}" },
           "default": { "$value": "{color.palette.neutral.0}" },
+          "muted": { "$value": "{color.palette.neutral.100}" },
           "raised": { "$value": "{color.palette.neutral.0}" }
         },
         "text": {
@@ -415,6 +424,7 @@
         "surface": {
           "canvas": { "$value": "{color.palette.neutral.canvas-dark}" },
           "default": { "$value": "{color.palette.neutral.950}" },
+          "muted": { "$value": "{color.palette.neutral.900}" },
           "raised": { "$value": "{color.palette.neutral.900}" }
         },
         "text": {

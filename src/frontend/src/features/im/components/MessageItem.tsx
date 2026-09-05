@@ -105,6 +105,32 @@ interface Props {
   onAvatarClick?: () => void
 }
 
+const MessageAvatar = ({
+  name,
+  src,
+  onClick,
+}: {
+  name: string
+  src?: string
+  onClick?: () => void
+}) => (
+  <button
+    type="button"
+    disabled={!onClick}
+    aria-label={name}
+    onClick={onClick}
+    className={css({
+      cursor: onClick ? 'pointer' : 'default',
+      flexShrink: 0,
+      padding: 0,
+      border: 0,
+      background: 'transparent',
+    })}
+  >
+    <Avatar name={name} src={src} size="2rem" />
+  </button>
+)
+
 /** Voice message bubble: play/pause + duration; width scales with length. */
 const VoiceBubble = ({
   url,
@@ -314,6 +340,7 @@ export const MessageItem = ({
   const isVoice = message.content_type === 'voice'
   const isQuote = message.content_type === 'quote'
   const isMerged = message.content_type === 'merged'
+  const name = senderName || message.sender_uid
   // System messages (member joined/left, rename) render centered + muted, no bubble.
   if (message.content_type === 'system') {
     return (
@@ -433,7 +460,7 @@ export const MessageItem = ({
   }
 
   // P1 一对一通话 call-log (body = {"media","result","duration"?}) →
-  // bubble-less phone row, mirroring the Android bubble.
+  // compact phone row using the same sender avatar/alignment as messages.
   //
   // Perspective-aware wording: the call-log's SENDER is always the caller, so
   // isOwn means "I placed this call". The same declined record must read
@@ -481,39 +508,63 @@ export const MessageItem = ({
       <div
         className={css({
           display: 'flex',
+          alignItems: 'flex-start',
+          gap: '0.5rem',
           justifyContent: isOwn ? 'flex-end' : 'flex-start',
           paddingX: '1rem',
           paddingY: '0.375rem',
         })}
         data-testid="im-msg-calllog"
       >
-        <span
+        {!isOwn && (
+          <MessageAvatar
+            name={name}
+            src={senderAvatarUrl}
+            onClick={onAvatarClick}
+          />
+        )}
+        <div
           className={css({
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.375rem',
-            fontSize: '0.875rem',
-            color: 'greyscale.700',
-            backgroundColor: 'greyscale.100',
-            borderRadius: '0.75rem',
-            paddingX: '0.75rem',
-            paddingY: '0.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            maxWidth: '70%',
+            alignItems: isOwn ? 'flex-end' : 'flex-start',
           })}
         >
-          {media === 'video' ? (
-            <RiVidiconLine size={16} />
-          ) : (
-            <RiPhoneLine size={16} />
-          )}
-          {t(media === 'video' ? 'call.log.video' : 'call.log.voice')}
-          {' · '}
-          {resultText}
-        </span>
+          {!isOwn && showSender && <SenderLabel name={name} bot={senderBot} />}
+          <span
+            className={css({
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.375rem',
+              fontSize: '0.875rem',
+              color: 'greyscale.700',
+              backgroundColor: 'surface.muted',
+              borderRadius: '0.75rem',
+              paddingX: '0.75rem',
+              paddingY: '0.5rem',
+            })}
+          >
+            {media === 'video' ? (
+              <RiVidiconLine size={16} />
+            ) : (
+              <RiPhoneLine size={16} />
+            )}
+            {t(media === 'video' ? 'call.log.video' : 'call.log.voice')}
+            {' · '}
+            {resultText}
+          </span>
+        </div>
+        {isOwn && (
+          <MessageAvatar
+            name={name}
+            src={senderAvatarUrl}
+            onClick={onAvatarClick}
+          />
+        )}
       </div>
     )
   }
-
-  const name = senderName || message.sender_uid
 
   // Recalled message → centered muted placeholder (the tombstone itself is
   // filtered out upstream; this is the ORIGINAL message rendered as recalled).
@@ -618,21 +669,11 @@ export const MessageItem = ({
         {/* 接收消息(一对一 + 群聊):左侧对方头像(对齐企业微信/微信;
           发送人名字仅群聊显示,见下方 showSender 分支) */}
         {!isOwn && (
-          <button
-            type="button"
-            disabled={!onAvatarClick}
-            aria-label={name}
+          <MessageAvatar
+            name={name}
+            src={senderAvatarUrl}
             onClick={onAvatarClick}
-            className={css({
-              cursor: onAvatarClick ? 'pointer' : 'default',
-              flexShrink: 0,
-              padding: 0,
-              border: 0,
-              background: 'transparent',
-            })}
-          >
-            <Avatar name={name} src={senderAvatarUrl} size="2rem" />
-          </button>
+          />
         )}
         <div
           className={css({
@@ -645,6 +686,7 @@ export const MessageItem = ({
           {!isOwn && showSender && <SenderLabel name={name} bot={senderBot} />}
           <div
             title={new Date(message.ts).toLocaleString()}
+            data-testid="im-msg-bubble"
             className={css({
               paddingX: isImage ? '0' : '0.75rem',
               paddingY: isImage ? '0' : '0.5rem',
@@ -653,7 +695,7 @@ export const MessageItem = ({
                 ? 'transparent'
                 : isOwn
                   ? 'action.selected.bg'
-                  : 'surface.default',
+                  : 'surface.muted',
               color: isOwn ? 'action.selected.text' : 'text.primary',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
@@ -973,21 +1015,11 @@ export const MessageItem = ({
         </div>
         {/* 自己发的消息(一对一 + 群聊):右侧自己头像,不显示名字 */}
         {isOwn && (
-          <button
-            type="button"
-            disabled={!onAvatarClick}
-            aria-label={name}
+          <MessageAvatar
+            name={name}
+            src={senderAvatarUrl}
             onClick={onAvatarClick}
-            className={css({
-              cursor: onAvatarClick ? 'pointer' : 'default',
-              flexShrink: 0,
-              padding: 0,
-              border: 0,
-              background: 'transparent',
-            })}
-          >
-            <Avatar name={name} src={senderAvatarUrl} size="2rem" />
-          </button>
+          />
         )}
       </div>
     )

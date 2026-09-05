@@ -646,6 +646,7 @@ const config: Config = {
         surface: {
           canvas: { value: { base: '#F6F6F6', _dark: '#111418' } },
           default: { value: { base: '#FFFFFF', _dark: '#1A1C1E' } },
+          muted: { value: { base: '#EEEEEE', _dark: '#242424' } },
           raised: { value: { base: '#FFFFFF', _dark: '#242424' } },
         },
         text: {

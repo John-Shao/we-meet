@@ -147,7 +147,11 @@ function contrastRatio(foreground, background) {
 const pairs = []
 for (const mode of ['light', 'dark']) {
   const semantic = `color.semantic.${mode}`
-  for (const surface of ['surface.default', 'surface.canvas']) {
+  for (const surface of [
+    'surface.default',
+    'surface.canvas',
+    'surface.muted',
+  ]) {
     pairs.push(
       [`${semantic}.text.primary`, `${semantic}.${surface}`, 4.5],
       [`${semantic}.text.secondary`, `${semantic}.${surface}`, 4.5],
