@@ -1,6 +1,6 @@
 import { cva } from '@/styled-system/css'
 
-export type ChatCardSize = 'compact' | 'standard' | 'wide'
+export type ChatCardSize = 'standard' | 'wide'
 
 /**
  * Shared width tiers for cards rendered in the message stream.
@@ -15,7 +15,6 @@ export const chatCardSize = cva({
   },
   variants: {
     size: {
-      compact: { width: '15rem' },
       standard: { width: '20rem' },
       wide: { width: '36rem' },
     },

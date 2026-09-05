@@ -190,6 +190,20 @@ describe('parseRichCard 的降级', () => {
     })
     expect(parseRichCard(raw)!.header!.theme).toBe('neutral')
   })
+
+  it('只接受设计系统中的卡片宽度，旧消息和未知值兜底 standard', () => {
+    const raw = (size?: string) =>
+      JSON.stringify({
+        v: 1,
+        ...(size ? { size } : {}),
+        blocks: [{ type: 'divider' }],
+      })
+
+    expect(parseRichCard(raw('wide'))!.size).toBe('wide')
+    expect(parseRichCard(raw('compact'))!.size).toBe('standard')
+    expect(parseRichCard(raw())!.size).toBe('standard')
+    expect(parseRichCard(raw('oversized'))!.size).toBe('standard')
+  })
 })
 
 describe('投影', () => {
@@ -245,6 +259,25 @@ describe('投影', () => {
 })
 
 describe('stripActions', () => {
+  it('转发副本保留非默认卡片宽度', () => {
+    const raw = JSON.stringify({
+      v: 1,
+      size: 'wide',
+      header: { title: '会议纪要', theme: 'info' },
+      blocks: [
+        { type: 'text', spans: [{ tag: 'text', text: '结论' }] },
+        {
+          type: 'actions',
+          buttons: [
+            { id: 'view', text: '查看', style: 'primary', action: 'callback' },
+          ],
+        },
+      ],
+    })
+
+    expect(parseRichCard(stripActions(raw))!.size).toBe('wide')
+  })
+
   it('转发副本剥掉按钮,连同按钮上面那条已经什么都不分隔的线', () => {
     // 服务端对转发副本返回 404 是真正的兜底,这里是不让用户看到一排点不动
     // 的按钮。金标准卡片是「text / fields / divider / actions」—— 飞书的卡

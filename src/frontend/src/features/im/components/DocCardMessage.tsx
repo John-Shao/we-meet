@@ -55,7 +55,7 @@ export const DocCardMessage = ({
         onClick={() =>
           clickable && onOpen?.({ doc_id: card.doc_id, url: card.url })
         }
-        className={`${chatCardSize({ size: 'compact' })} ${css({
+        className={`${chatCardSize({ size: 'standard' })} ${css({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'stretch',

@@ -98,6 +98,7 @@ def test_source_conversation_is_preferred_and_session_push_is_idempotent(
     card = json.loads(post_as.call_args.args[3])
     assert post_as.call_args.kwargs["content_type"] == "rich-card"
     assert card["header"] == {"title": "会议纪要", "theme": "info"}
+    assert card["size"] == "wide"
     assert card["plain"].startswith(f"{room.name}会议纪要")
     actions = [block for block in card["blocks"] if block["type"] == "actions"]
     assert actions == [

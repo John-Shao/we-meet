@@ -70,6 +70,11 @@ CARD_BLOCK_ACTIONS = "actions"
 #: 写 "danger" 让每端取自己主题里**已经保证过深浅对比度**的那个 token。
 CARD_THEMES = ("info", "success", "warning", "danger", "neutral")
 
+#: rich-card width tiers. The field is optional on the wire; clients render
+#: legacy cards as ``standard``. Mobile clients may collapse both tiers to the
+#: available message width.
+CARD_SIZES = ("standard", "wide")
+
 #: 一个 actions 块的解析语义:``once`` = 同意/驳回这类互斥选择,第一个人点完
 #: 就定局;``each`` = 重跑这类,谁都能点、不 resolve、也不广播。
 CARD_RESOLVE_ONCE = "once"
@@ -276,6 +281,7 @@ def build_rich_card(
     blocks: list[dict[str, Any]],
     header: dict[str, Any] | None = None,
     plain: str = "",
+    size: str | None = None,
 ) -> dict[str, Any]:
     """块级卡片(协议 v1)—— 飞书 ``msg_type=interactive`` 规范化后的形态。
 
@@ -317,6 +323,10 @@ def build_rich_card(
     if plain:
         card["plain"] = plain
     card["v"] = 1
+    if size is not None:
+        if size not in CARD_SIZES:
+            raise ValueError(f"Unsupported rich-card size: {size}")
+        card["size"] = size
     card["blocks"] = blocks
     if header:
         card["header"] = header

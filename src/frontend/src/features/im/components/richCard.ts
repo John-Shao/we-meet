@@ -1,4 +1,5 @@
 import { isWebUrl, rawPlain, squeezePreview } from './richText'
+import type { ChatCardSize } from './chatCardSize'
 
 /**
  * `rich-card` 协议 v1(`content_type: 'rich-card'`)—— 与后端 / Android 一致。
@@ -61,6 +62,7 @@ export type CardBlock =
 
 export interface RichCardBody {
   v: number
+  size: ChatCardSize
   header?: { title: string; theme: CardTheme }
   blocks: CardBlock[]
   /** 派生投影,只给预览/搜索/@我 检测用 —— **不要渲染它**。 */
@@ -218,6 +220,7 @@ export const parseRichCard = (raw: string): RichCardBody | null => {
   if (!blocks.length && !header) return null
   return {
     v: typeof o.v === 'number' ? o.v : 1,
+    size: o.size === 'wide' ? 'wide' : 'standard',
     header,
     blocks,
     plain: typeof o.plain === 'string' ? o.plain : undefined,
@@ -283,6 +286,7 @@ export const stripActions = (raw: string): string => {
     blocks.pop()
   }
   const next: Record<string, unknown> = { v: body.v, blocks }
+  if (body.size !== 'standard') next.size = body.size
   if (body.header) next.header = body.header
   if (body.plain) next.plain = body.plain
   return JSON.stringify(next)

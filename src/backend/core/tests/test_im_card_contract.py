@@ -600,6 +600,16 @@ def test_rich_card_always_carries_a_version():
     assert card["v"] == 1
 
 
+def test_rich_card_size_is_optional_and_validated():
+    standard = im_cards.build_rich_card(blocks=[{"type": "divider"}])
+    wide = im_cards.build_rich_card(blocks=[{"type": "divider"}], size="wide")
+
+    assert "size" not in standard
+    assert wide["size"] == "wide"
+    with pytest.raises(ValueError, match="Unsupported rich-card size"):
+        im_cards.build_rich_card(blocks=[{"type": "divider"}], size="oversized")
+
+
 def test_rich_card_content_types_are_kebab_case():
     assert im_cards.RICH_CARD == "rich-card"
     assert im_cards.CARD_STATE == "card-state"

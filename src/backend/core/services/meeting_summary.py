@@ -514,6 +514,7 @@ class MeetingSummaryService:
                 header={"title": "会议纪要", "theme": "info"},
                 blocks=blocks,
                 plain=plain,
+                size="wide",
             ),
             ensure_ascii=False,
         )

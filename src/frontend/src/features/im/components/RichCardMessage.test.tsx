@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { RichCardMessage } from './RichCardMessage'
+import { chatCardSize } from './chatCardSize'
 
 const { followMutate, state, unfollowMutate } = vi.hoisted(() => ({
   followMutate: vi.fn(),
@@ -96,5 +97,15 @@ describe('RichCardMessage task follow action', () => {
     fireEvent.click(screen.getByRole('button', { name: '关注' }))
 
     expect(followMutate).toHaveBeenCalledWith({ taskId, sharedVia: cid })
+  })
+
+  it('renders a wide card when requested by the payload', () => {
+    const wideRaw = JSON.stringify({ ...JSON.parse(raw), size: 'wide' })
+
+    render(<RichCardMessage raw={wideRaw} />)
+
+    expect(screen.getByTestId('rich-card').className).toContain(
+      chatCardSize({ size: 'wide' })
+    )
   })
 })

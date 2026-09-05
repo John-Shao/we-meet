@@ -288,7 +288,7 @@ export const RichCardMessage = ({
 
   return (
     <div
-      className={`${chatCardSize({ size: 'standard' })} ${shellCls}`}
+      className={`${chatCardSize({ size: body.size })} ${shellCls}`}
       data-testid="rich-card"
     >
       {body.header && (
