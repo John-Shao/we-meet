@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from django.utils import timezone
 
 import pytest
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIClient
 
 from core.factories import (
@@ -31,6 +32,7 @@ from core.models import (
     TaskImDelivery,
     TaskList,
     TaskListAccess,
+    TaskMessageSource,
     TaskPreference,
     TaskReminderPreference,
 )
@@ -263,6 +265,83 @@ def test_user_creates_personal_task_assigned_to_self():
     assert activity.actor == user
     assert activity.event == TaskActivity.Event.CREATED
     assert TaskImDelivery.objects.count() == 0
+
+
+@mock.patch(
+    "core.api.tasks._require_conversation_membership",
+    side_effect=lambda _user, cid: cid,
+)
+def test_user_creates_task_from_message_with_description_and_source(_membership):
+    user = UserFactory()
+    cid = "product-planning"
+
+    response = _client(user).post(
+        TASKS_URL,
+        {
+            "title": "Review the launch risks",
+            "description": "Please review the API changes before Friday.",
+            "source_message": {
+                "cid": cid,
+                "mid": "8031",
+                "seq": 41,
+                "sender_uid": str(uuid4()),
+                "sent_at": 1788571200000,
+                "content_type": "text",
+                "snapshot": "Please review the API changes before Friday.",
+            },
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["title"] == "Review the launch risks"
+    assert payload["description"] == "Please review the API changes before Friday."
+    assert payload["assignees"][0]["id"] == str(user.id)
+    assert payload["source_message"] == {
+        "cid": cid,
+        "mid": "8031",
+        "seq": 41,
+        "sender_uid": mock.ANY,
+        "sent_at": 1788571200000,
+        "content_type": "text",
+        "snapshot": "Please review the API changes before Friday.",
+    }
+    task = Task.objects.get(pk=payload["id"])
+    assert TaskMessageSource.objects.filter(task=task, cid=cid, mid="8031").exists()
+    assert TaskConversationShare.objects.filter(
+        task=task,
+        cid=cid,
+        shared_by=user,
+    ).exists()
+
+
+@mock.patch(
+    "core.api.tasks._require_conversation_membership",
+    side_effect=PermissionDenied("not a member"),
+)
+def test_message_task_is_not_created_when_membership_check_fails(_membership):
+    user = UserFactory()
+
+    response = _client(user).post(
+        TASKS_URL,
+        {
+            "title": "Must not persist",
+            "source_message": {
+                "cid": "private-thread",
+                "mid": "1",
+                "seq": 1,
+                "sender_uid": str(user.id),
+                "sent_at": 1788571200000,
+                "content_type": "text",
+                "snapshot": "Secret",
+            },
+        },
+        format="json",
+    )
+
+    assert response.status_code == 403
+    assert not Task.objects.filter(title="Must not persist").exists()
 
 
 def test_user_sets_personal_reminder_while_creating_task():

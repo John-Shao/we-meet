@@ -1228,6 +1228,15 @@ export const TaskDetailPanel = ({
             />
           )}
 
+          {task.source_message && (
+            <Link
+              href={`/im?cid=${encodeURIComponent(task.source_message.cid)}&seq=${task.source_message.seq}`}
+              className={sourceLinkCss}
+            >
+              {t('sourceMessage')}
+            </Link>
+          )}
+
           {task.source_room_id && (
             <Link
               href={`/meetings/${task.source_room_id}`}

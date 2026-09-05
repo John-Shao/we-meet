@@ -43,6 +43,7 @@
     "forward": "转发",
     "multiSelect": "多选",
     "markLater": "稍后处理",
+    "convertToTask": "转为任务",
     "pin": "置顶消息",
     "unpin": "取消置顶"
   },
@@ -58,6 +59,20 @@
     "done": "完成",
     "remove": "移除",
     "error": "操作失败:{{message}}"
+  },
+  "messageTask": {
+    "title": "从消息创建任务",
+    "taskTitle": "任务标题",
+    "titlePlaceholder": "输入要完成的事项",
+    "description": "任务描述",
+    "source": "来源消息",
+    "assignee": "负责人",
+    "dueDate": "截止日期",
+    "shareHint": "创建后会将任务卡片发送到当前会话。",
+    "create": "创建",
+    "cancel": "取消",
+    "createFailed": "任务创建失败，请检查后重试。",
+    "cardSendFailed": "任务已创建，但卡片发送失败。可在本会话任务中查看。"
   },
   "select": {
     "count": "已选 {{count}} 项",

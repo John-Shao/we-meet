@@ -17,6 +17,7 @@
   },
   "meeting": "Réunion",
   "sourceMeeting": "Réunion source : {{name}}",
+  "sourceMessage": "Voir le message source",
   "workspace": {
     "navigation": "Vues des tâches",
     "taskViews": "Vues des tâches",

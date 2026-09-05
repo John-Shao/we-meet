@@ -61,6 +61,10 @@ import {
 import { GroupVoiceCallPicker } from '../call/GroupVoiceCallPicker'
 import { navigateTo } from '@/navigation/navigateTo'
 import { IconButton } from '@/primitives'
+import { buildTaskCardBody } from '@/features/tasks/components/taskCard'
+
+import { MessageTaskDialog } from '../components/MessageTaskDialog'
+import { messageTaskDescription } from '../components/messageTask'
 
 // Recall is allowed only on your own messages within this window (WeChat: 2 min).
 const RECALL_WINDOW_MS = 2 * 60 * 1000
@@ -206,6 +210,7 @@ export const ChatPane = ({
   locate,
 }: Props) => {
   const { t, i18n } = useTranslation('im')
+  const { t: tTasks } = useTranslation('tasks')
   const { user } = useUser()
   // P1 通话: re-render the header buttons' disabled state on call transitions.
   const callSnap = useSnapshot(callStore)
@@ -898,6 +903,7 @@ export const ChatPane = ({
     y: number
     message: Message
   } | null>(null)
+  const [taskMessage, setTaskMessage] = useState<Message | null>(null)
 
   // 稍后处理:落库 + 失效 later 查询让入口 badge / 列表即时刷新。幂等 —
   // 重复标记服务端 get_or_create 吸收,已完成条目会被重新打开。
@@ -957,6 +963,13 @@ export const ChatPane = ({
       label: t('actions.markLater'),
       onSelect: () => void handleMarkLater(m),
     })
+    if (messageTaskDescription(m)) {
+      items.push({
+        key: 'convertToTask',
+        label: t('actions.convertToTask'),
+        onSelect: () => setTaskMessage(m),
+      })
+    }
     // Pin(P17,会话共享):按当前状态切换文案;权限由服务端裁决。
     const pinned = pinnedMids.has(m.mid)
     items.push({
@@ -1689,6 +1702,24 @@ export const ChatPane = ({
         <DocPickerDialog
           onConfirm={(docs) => void onConfirmDocPicker(docs)}
           onClose={() => setShowDocPicker(false)}
+        />
+      )}
+      {taskMessage && (
+        <MessageTaskDialog
+          message={taskMessage}
+          onClose={() => setTaskMessage(null)}
+          onCreated={(task) => {
+            const sourceCid = taskMessage.cid
+            void client
+              .sendText(
+                sourceCid,
+                buildTaskCardBody(task, sourceCid, tTasks, i18n.language),
+                { contentType: 'rich-card' }
+              )
+              .catch(() =>
+                showAlert({ message: t('messageTask.cardSendFailed') })
+              )
+          }}
         />
       )}
     </div>

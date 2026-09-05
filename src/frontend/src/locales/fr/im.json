@@ -43,6 +43,7 @@
     "forward": "Transférer",
     "multiSelect": "Sélectionner",
     "markLater": "À traiter plus tard",
+    "convertToTask": "Convertir en tâche",
     "pin": "Épingler le message",
     "unpin": "Désépingler"
   },
@@ -58,6 +59,20 @@
     "done": "Terminé",
     "remove": "Retirer",
     "error": "Échec de l'action : {{message}}"
+  },
+  "messageTask": {
+    "title": "Créer une tâche depuis le message",
+    "taskTitle": "Titre de la tâche",
+    "titlePlaceholder": "Saisir le résultat attendu",
+    "description": "Description de la tâche",
+    "source": "Message source",
+    "assignee": "Responsable",
+    "dueDate": "Date d’échéance",
+    "shareHint": "Une carte de tâche sera envoyée dans cette conversation après sa création.",
+    "create": "Créer",
+    "cancel": "Annuler",
+    "createFailed": "La tâche n’a pas pu être créée. Réessayez.",
+    "cardSendFailed": "La tâche a été créée, mais sa carte n’a pas pu être envoyée. Elle reste disponible dans les tâches de cette conversation."
   },
   "select": {
     "count": "{{count}} sélectionné(s)",

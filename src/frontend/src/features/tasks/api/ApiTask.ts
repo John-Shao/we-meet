@@ -176,6 +176,7 @@ export interface ApiTask {
   source_action_item_id: string | null
   source_room_id: string | null
   source_room_name: string | null
+  source_message?: ApiTaskMessageSource | null
   can_edit: boolean
   can_update_status: boolean
   can_delete: boolean
@@ -187,6 +188,16 @@ export interface ApiTask {
   time_state: TaskTimeState | null
   created_at: string
   updated_at: string
+}
+
+export interface ApiTaskMessageSource {
+  cid: string
+  mid: string
+  seq: number
+  sender_uid: string
+  sent_at: number
+  content_type: 'text' | 'rich-text' | 'quote'
+  snapshot: string
 }
 
 export interface ApiTaskRecurrence {
@@ -375,6 +386,15 @@ export interface CreateTaskPayload {
   parent_id?: string | null
   recurrence?: TaskRecurrencePayload
   reminder?: PatchTaskReminderPreferencePayload
+  source_message?: {
+    cid: string
+    mid: string
+    seq: number
+    sender_uid: string
+    sent_at: number
+    content_type: 'text' | 'rich-text' | 'quote'
+    snapshot: string
+  }
 }
 
 export interface PatchTaskPayload {

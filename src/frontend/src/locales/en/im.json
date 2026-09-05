@@ -43,6 +43,7 @@
     "forward": "Forward",
     "multiSelect": "Select",
     "markLater": "Mark for later",
+    "convertToTask": "Convert to task",
     "pin": "Pin message",
     "unpin": "Unpin"
   },
@@ -58,6 +59,20 @@
     "done": "Done",
     "remove": "Remove",
     "error": "Action failed: {{message}}"
+  },
+  "messageTask": {
+    "title": "Create task from message",
+    "taskTitle": "Task title",
+    "titlePlaceholder": "Describe the outcome",
+    "description": "Task description",
+    "source": "Source message",
+    "assignee": "Assignee",
+    "dueDate": "Due date",
+    "shareHint": "A task card will be sent to this conversation after creation.",
+    "create": "Create",
+    "cancel": "Cancel",
+    "createFailed": "The task could not be created. Check the details and try again.",
+    "cardSendFailed": "The task was created, but its card could not be sent. You can find it in this conversation's tasks."
   },
   "select": {
     "count": "{{count}} selected",

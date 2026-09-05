@@ -43,6 +43,7 @@
     "forward": "Weiterleiten",
     "multiSelect": "Auswählen",
     "markLater": "Für später merken",
+    "convertToTask": "In Aufgabe umwandeln",
     "pin": "Nachricht anheften",
     "unpin": "Lösen"
   },
@@ -58,6 +59,20 @@
     "done": "Erledigt",
     "remove": "Entfernen",
     "error": "Aktion fehlgeschlagen: {{message}}"
+  },
+  "messageTask": {
+    "title": "Aufgabe aus Nachricht erstellen",
+    "taskTitle": "Aufgabentitel",
+    "titlePlaceholder": "Gewünschtes Ergebnis eingeben",
+    "description": "Aufgabenbeschreibung",
+    "source": "Quellnachricht",
+    "assignee": "Verantwortlich",
+    "dueDate": "Fälligkeitsdatum",
+    "shareHint": "Nach dem Erstellen wird eine Aufgabenkarte in diesen Chat gesendet.",
+    "create": "Erstellen",
+    "cancel": "Abbrechen",
+    "createFailed": "Die Aufgabe konnte nicht erstellt werden. Bitte erneut versuchen.",
+    "cardSendFailed": "Die Aufgabe wurde erstellt, aber die Karte konnte nicht gesendet werden. Sie ist unter den Aufgaben dieses Chats verfügbar."
   },
   "select": {
     "count": "{{count}} ausgewählt",

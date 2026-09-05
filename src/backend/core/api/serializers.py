@@ -900,6 +900,23 @@ class TaskGroupSummarySerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class TaskMessageSourceSerializer(serializers.ModelSerializer):
+    """Read-only provenance for a task created from an IM message."""
+
+    class Meta:
+        model = models.TaskMessageSource
+        fields = [
+            "cid",
+            "mid",
+            "seq",
+            "sender_uid",
+            "sent_at",
+            "content_type",
+            "snapshot",
+        ]
+        read_only_fields = fields
+
+
 class TaskSerializer(serializers.ModelSerializer):
     """Serialize a durable task for the task center and meeting detail."""
 
@@ -927,6 +944,9 @@ class TaskSerializer(serializers.ModelSerializer):
     descendant_progress = serializers.SerializerMethodField()
     can_create_subtasks = serializers.SerializerMethodField()
     recurrence = serializers.SerializerMethodField()
+    source_message = TaskMessageSourceSerializer(
+        source="message_source", read_only=True, allow_null=True
+    )
 
     def _request_user(self):
         request = self.context.get("request")
@@ -1141,6 +1161,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "source_action_item_id",
             "source_room_id",
             "source_room_name",
+            "source_message",
             "can_edit",
             "can_update_status",
             "can_delete",

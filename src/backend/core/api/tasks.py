@@ -708,6 +708,7 @@ class TaskCreateSerializer(
     )
     recurrence = serializers.JSONField(required=False, write_only=True)
     reminder = TaskReminderPreferenceSerializer(required=False, write_only=True)
+    source_message = serializers.DictField(required=False, write_only=True)
 
     def validate_parent_id(self, parent):
         if parent is None:
@@ -754,7 +755,24 @@ class TaskCreateSerializer(
             raise serializers.ValidationError(
                 {"due_date": "Due date cannot be earlier than start date."}
             )
+        source_message = attrs.get("source_message")
+        if source_message is not None:
+            source_serializer = TaskMessageSourceInputSerializer(data=source_message)
+            source_serializer.is_valid(raise_exception=True)
+            attrs["source_message"] = source_serializer.validated_data
         return attrs
+
+
+class TaskMessageSourceInputSerializer(serializers.Serializer):
+    """Client snapshot for a supported message converted into a task."""
+
+    cid = serializers.CharField(max_length=64, trim_whitespace=True)
+    mid = serializers.CharField(max_length=32, trim_whitespace=True)
+    seq = serializers.IntegerField(min_value=0)
+    sender_uid = serializers.CharField(max_length=128, trim_whitespace=True)
+    sent_at = serializers.IntegerField(min_value=0)
+    content_type = serializers.ChoiceField(choices=["text", "rich-text", "quote"])
+    snapshot = serializers.CharField(max_length=5000, trim_whitespace=True)
 
 
 class TaskRecurrenceInputSerializer(serializers.Serializer):
@@ -1447,6 +1465,7 @@ class TaskViewSet(
                 "creator",
                 "assignee",
                 "recurrence_rule",
+                "message_source",
                 "parent",
                 "task_list",
                 "group",
@@ -1642,6 +1661,7 @@ class TaskViewSet(
             .select_related(
                 "creator",
                 "assignee",
+                "message_source",
                 "task_list",
                 "group",
                 *_task_parent_select_fields(),
@@ -1687,6 +1707,13 @@ class TaskViewSet(
         parent = validated_data.pop("parent", None)
         recurrence = validated_data.pop("recurrence", None)
         reminder = validated_data.pop("reminder", None)
+        source_message = validated_data.pop("source_message", None)
+        source_cid = None
+        if source_message is not None:
+            source_cid = _require_conversation_membership(
+                request.user, source_message["cid"]
+            )
+            source_message["cid"] = source_cid
         organization = get_caller_organization(request.user)
         with transaction.atomic():
             lock_task_hierarchy_scopes(
@@ -1715,6 +1742,19 @@ class TaskViewSet(
             )
             set_task_assignees(task, assignees)
             task.followers.set(followers)
+            if source_message is not None:
+                source = models.TaskMessageSource.objects.create(
+                    task=task,
+                    **source_message,
+                )
+                # Avoid an extra reverse OneToOne lookup in the response
+                # serializer for the just-created task.
+                task.message_source = source
+                models.TaskConversationShare.objects.create(
+                    task=task,
+                    cid=source_cid,
+                    shared_by=request.user,
+                )
             if reminder is not None:
                 models.TaskReminderPreference.objects.create(
                     task=task,
@@ -1771,6 +1811,7 @@ class TaskViewSet(
                     "creator",
                     "assignee",
                     "recurrence_rule",
+                    "message_source",
                     "parent",
                     "task_list",
                     "group",

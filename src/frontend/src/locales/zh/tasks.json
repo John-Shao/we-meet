@@ -17,6 +17,7 @@
   },
   "meeting": "会议",
   "sourceMeeting": "来源会议：{{name}}",
+  "sourceMessage": "查看来源消息",
   "workspace": {
     "navigation": "任务视图",
     "taskViews": "任务视图",

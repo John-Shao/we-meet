@@ -43,6 +43,7 @@
     "forward": "Doorsturen",
     "multiSelect": "Selecteren",
     "markLater": "Voor later bewaren",
+    "convertToTask": "Omzetten in taak",
     "pin": "Bericht vastzetten",
     "unpin": "Losmaken"
   },
@@ -58,6 +59,20 @@
     "done": "Klaar",
     "remove": "Verwijderen",
     "error": "Actie mislukt: {{message}}"
+  },
+  "messageTask": {
+    "title": "Taak maken van bericht",
+    "taskTitle": "Taaktitel",
+    "titlePlaceholder": "Beschrijf het gewenste resultaat",
+    "description": "Taakbeschrijving",
+    "source": "Bronbericht",
+    "assignee": "Verantwoordelijke",
+    "dueDate": "Vervaldatum",
+    "shareHint": "Na het maken wordt een taakkaart naar dit gesprek gestuurd.",
+    "create": "Maken",
+    "cancel": "Annuleren",
+    "createFailed": "De taak kon niet worden gemaakt. Probeer het opnieuw.",
+    "cardSendFailed": "De taak is gemaakt, maar de kaart kon niet worden verzonden. De taak staat bij de taken van dit gesprek."
   },
   "select": {
     "count": "{{count}} geselecteerd",

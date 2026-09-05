@@ -17,6 +17,7 @@
   },
   "meeting": "Vergadering",
   "sourceMeeting": "Bronvergadering: {{name}}",
+  "sourceMessage": "Bronbericht bekijken",
   "workspace": {
     "navigation": "Taakweergaven",
     "taskViews": "Taakweergaven",

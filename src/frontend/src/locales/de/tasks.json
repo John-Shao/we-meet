@@ -17,6 +17,7 @@
   },
   "meeting": "Meeting",
   "sourceMeeting": "Quell-Meeting: {{name}}",
+  "sourceMessage": "Quellnachricht anzeigen",
   "workspace": {
     "navigation": "Aufgabenansichten",
     "taskViews": "Aufgabenansichten",

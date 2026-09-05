@@ -2775,6 +2775,43 @@ class TaskReminderPreference(BaseModel):
         return f"TaskReminderPreference({self.task_id}, {self.user_id})"
 
 
+class TaskMessageSource(BaseModel):
+    """The IM message that supplied context for a task.
+
+    The editable task description and this immutable-at-creation snapshot are
+    intentionally separate.  Editing the description must not erase the jump
+    target or silently rewrite what the creator originally converted.
+    """
+
+    task = models.OneToOneField(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="message_source",
+        verbose_name=_("task"),
+    )
+    cid = models.CharField(_("conversation id"), max_length=64, db_index=True)
+    mid = models.CharField(_("message id"), max_length=32)
+    seq = models.BigIntegerField(_("message seq"))
+    sender_uid = models.CharField(_("sender user id"), max_length=128)
+    sent_at = models.BigIntegerField(
+        _("message sent at"), help_text=_("Unix timestamp in milliseconds.")
+    )
+    content_type = models.CharField(_("content type"), max_length=32)
+    snapshot = models.TextField(_("message snapshot"), max_length=5000)
+
+    class Meta:
+        db_table = "meet_task_message_source"
+        ordering = ("-created_at",)
+        verbose_name = _("task message source")
+        verbose_name_plural = _("task message sources")
+        indexes = [
+            models.Index(fields=["cid", "mid"], name="task_msg_source_cid_mid_idx")
+        ]
+
+    def __str__(self) -> str:
+        return f"TaskMessageSource({self.task_id}, {self.cid}#{self.mid})"
+
+
 class TaskConversationShare(BaseModel):
     """Read-only task visibility anchored to an IM conversation.
 
