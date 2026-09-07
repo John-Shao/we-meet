@@ -32,6 +32,7 @@ from rest_framework.response import Response
 from core import models, utils
 from core.api.directory import get_caller_organization
 from core.services import im_bots, im_conversations
+from core.services.docs_client import DocsClient, DocsServiceError
 from core.services.jusi_im import (
     JusiImAdminClient,
     JusiImBadResponseError,
@@ -955,17 +956,25 @@ class ImViewSet(viewsets.ViewSet):
         return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["post"], url_path="grant-doc-access")
-    def grant_doc_access(self, request):
-        """分享云文档到聊天:给会话成员精准授文档**只读**权限。
+    def grant_doc_access(self, request):  # noqa: PLR0912 - per-recipient failures and legacy acknowledgements
+        """Grant access to current chat members, independently of card delivery.
 
-        Body ``{doc_id, cids: [...]}``。对每个会话以调用者身份拉 roster
-        (jusi 只对成员返回 roster → 天然校验调用者确在会话内;非成员/不可达的
-        cid 跳过,不连累其余),收集成员 uid → we-meet User →(sub, email)→
-        调 Docs s2s 精准授权(在 Docs 建 reader access / 未登录过按 email 建
-        invitation)。**best-effort**:Docs/jusi 未配置或失败一律 granted=0,绝不
-        阻断分享本身(卡片由客户端经 IM SDK 独立发送,与本调用解耦)。跨组织成员
-        照授(不做 org 过滤)——群可跨组织,与「能给会话发消息即可授其只读」一致。
+        Explicit reader/editor requests forward the session actor to Docs for
+        management authorization and return role/complete acknowledgements.
+        Rosters are fetched as the caller; failed or unresolved recipients mark
+        completion false. Requests without role retain the legacy read-only API.
         """
+        explicit_role = "role" in request.data
+        role = request.data.get("role", "reader")
+        if role not in ("reader", "editor"):
+            raise ValidationError({"role": "Expected reader or editor"})
+
+        def result(granted=0, complete=False):
+            body = {"granted": granted}
+            if explicit_role:
+                body.update(role=role, complete=complete)
+            return Response(body)
+
         doc_id = str(request.data.get("doc_id") or "").strip()
         cids = request.data.get("cids")
         if not doc_id or not isinstance(cids, list) or not cids:
@@ -975,9 +984,7 @@ class ImViewSet(viewsets.ViewSet):
         api_url = docs_cfg.get("api_url") or ""
         token = docs_cfg.get("server_to_server_token") or ""
         if not api_url or not token:
-            return Response({"granted": 0})
-
-        from core.services.docs_client import DocsClient, DocsServiceError
+            return result()
 
         docs_client = DocsClient(
             api_url=str(api_url),
@@ -993,16 +1000,18 @@ class ImViewSet(viewsets.ViewSet):
             )
         except DocsServiceError as exc:
             logger.warning("grant-doc-access visibility check failed: %s", exc)
-            return Response({"granted": 0})
+            return result()
         if not can_share:
             raise PermissionDenied("You do not have access to this document.")
 
         client = self._make_client()
         me = self._issue(client, self._external_id(request.user))
         member_uids: set[str] = set()
+        complete = True
         for raw_cid in cids:
             cid = str(raw_cid or "").strip()
             if not cid:
+                complete = False
                 continue
             try:
                 roster = self._require_role(client, cid, me, owner_only=False)
@@ -1012,13 +1021,14 @@ class ImViewSet(viewsets.ViewSet):
                 JusiImInvalidResponseHTTPError,
             ):
                 # 调用者不是该会话成员 / jusi 抖动 → 跳过此 cid。
+                complete = False
                 continue
             for member in roster:
                 uid = str(member.get("uid") or "")
                 if uid and uid != me.uid:
                     member_uids.add(uid)
         if not member_uids:
-            return Response({"granted": 0})
+            return result(complete=complete)
 
         # 不做组织过滤:群可跨组织,授权面 = 会话全体成员本身。
         users = models.User.objects.filter(im_uid__in=member_uids, is_device=False)
@@ -1027,17 +1037,71 @@ class ImViewSet(viewsets.ViewSet):
             for u in users
             if u.sub
         ]
+        complete = complete and len(payload) == len(member_uids)
         if not payload:
-            return Response({"granted": 0})
+            return result()
 
         try:
-            granted = docs_client.grant_access_for_users(doc_id=doc_id, users=payload)
+            options = (
+                {"role": role, "actor_sub": str(request.user.sub or "")}
+                if explicit_role
+                else {}
+            )
+            granted = docs_client.grant_access_for_users(
+                doc_id=doc_id, users=payload, **options
+            )
         except DocsServiceError as exc:
             logger.warning("grant-doc-access degraded: %s", exc)
-            return Response({"granted": 0})
-        return Response({"granted": granted})
+            return result()
+        return result(granted, complete)
 
     # ---- shared helpers (P9) ----
+
+    @action(detail=False, methods=["post"], url_path="doc-chat-access")
+    def doc_chat_access(self, request):
+        """Current members only; identity and roster never come from client input."""
+        doc_id, cid = (
+            str(request.data.get(k) or "").strip() for k in ("doc_id", "cid")
+        )
+        role = request.data.get("role")
+        if (
+            not doc_id
+            or not cid
+            or ("role" in request.data and role not in ("reader", "editor"))
+        ):
+            raise ValidationError(
+                "doc_id, cid and optional reader/editor role required"
+            )
+        cfg = getattr(settings, "DOCS_CONFIGURATION", None) or {}
+        if not cfg.get("api_url") or not cfg.get("server_to_server_token"):
+            raise APIException("Document service unavailable")
+        client = self._make_client()
+        me = self._issue(client, self._external_id(request.user))
+        roster = self._require_role(client, cid, me, owner_only=False)
+        options = {}
+        if not any(str(member.get("uid") or "") == me.uid for member in roster):
+            raise PermissionDenied("Not a member of this conversation")
+        if role is not None:
+            uids = {str(m.get("uid") or "") for m in roster} - {"", me.uid}
+            users = list(models.User.objects.filter(im_uid__in=uids, is_device=False))
+            payload = [
+                {"sub": str(u.sub), "email": str(u.email or "")} for u in users if u.sub
+            ]
+            if len(payload) != len(uids):
+                raise APIException("Some conversation members could not be resolved")
+            options = {"role": role, "users": payload}
+        docs_client = DocsClient(
+            str(cfg["api_url"]),
+            str(cfg["server_to_server_token"]),
+            timeout_seconds=float(cfg.get("request_timeout_seconds") or 5),
+        )
+        try:
+            result = docs_client.chat_access(
+                doc_id=doc_id, cid=cid, actor_sub=str(request.user.sub or ""), **options
+            )
+        except DocsServiceError as exc:
+            raise APIException("Document access could not be confirmed") from exc
+        return Response(result)
 
     def _make_client(self) -> JusiImAdminClient:
         """Build a JusiImAdminClient from settings or raise 502 if unconfigured."""

@@ -280,25 +280,34 @@ class DocsClient:
     GRANT_ACCESS_PATH = "/api/v1.0/documents/grant-access-for-users/"
 
     def grant_access_for_users(
-        self, *, doc_id: str, users: list[dict[str, str]]
+        self,
+        *,
+        doc_id: str,
+        users: list[dict[str, str]],
+        role: str | None = None,
+        actor_sub: str = "",
     ) -> int:
-        """精准授权:给一批用户(会话成员)对文档授只读(分享云文档到聊天)。
+        """Grant chat recipients access, preserving higher existing roles.
 
-        ``users`` = ``[{"sub", "email"}]``——Docs 侧按 sub 命中授
-        DocumentAccess(reader),未命中按 email 建 Invitation(reader)。返回实际
-        新增授权数(已有更高角色的幂等跳过)。best-effort:调用方(分享流程)
-        捕获 DocsServiceError 降级,不阻断发卡片本身。
+        Explicit reader/editor grants require the authenticated actor and a
+        matching completion acknowledgement. Omitted roles retain the legacy
+        read-only contract. Returns the number of created or upgraded grants.
         """
         if not doc_id:
             raise ValueError("doc_id is required")
         if not users:
             return 0
 
+        payload = {"doc_id": doc_id, "users": users}
+        if role is not None:
+            if role not in ("reader", "editor") or not actor_sub:
+                raise ValueError("An acting user and reader/editor role are required")
+            payload.update(role=role, actor_sub=actor_sub)
         url = self._api_url + self.GRANT_ACCESS_PATH
         try:
             response = requests.post(
                 url,
-                json={"doc_id": doc_id, "users": users},
+                json=payload,
                 headers={"Authorization": f"Bearer {self._token}"},
                 timeout=self._timeout,
             )
@@ -319,10 +328,40 @@ class DocsClient:
             data = response.json()
         except ValueError as exc:
             raise DocsBadResponseError("response was not JSON") from exc
+        if role is not None and (
+            not isinstance(data, dict)
+            or data.get("role") != role
+            or data.get("complete") is not True
+        ):
+            raise DocsBadResponseError("Docs did not confirm the requested access role")
         granted = data.get("granted") if isinstance(data, dict) else None
         return int(granted) if isinstance(granted, int) else 0
 
     SESSION_TICKET_PATH = "/api/v1.0/users/session-ticket/"
+
+    def chat_access(self, *, doc_id, cid, actor_sub, role=None, users=None):
+        """Read or replace one conversation grant; require the scoped protocol."""
+        payload = {"doc_id": doc_id, "cid": cid, "actor_sub": actor_sub}
+        if role is not None:
+            payload.update(role=role, users=users or [])
+        try:
+            response = requests.post(
+                self._api_url + "/api/v1.0/documents/chat-access/",
+                json=payload,
+                headers={"Authorization": f"Bearer {self._token}"},
+                timeout=self._timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+        except (requests.RequestException, ValueError) as exc:
+            raise DocsBadResponseError("Chat access request failed") from exc
+        if not isinstance(data, dict) or data.get("scoped") is not True:
+            raise DocsBadResponseError("Docs does not support scoped chat grants")
+        if role is not None and (
+            data.get("role") != role or data.get("complete") is not True
+        ):
+            raise DocsBadResponseError("Docs did not confirm chat access")
+        return data
 
     def create_session_ticket(
         self,

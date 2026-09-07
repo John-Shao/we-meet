@@ -528,6 +528,64 @@ def test_grant_doc_access_anonymous():
     )
 
 
+@pytest.mark.parametrize("role", ["reader", "editor"])
+def test_grant_doc_access_passes_role_and_trusted_actor(
+    mock_admin_client, settings, role
+):
+    settings.DOCS_CONFIGURATION = {
+        "api_url": "https://docs.example.com",
+        "server_to_server_token": "tok",
+    }
+    sharer = UserFactory(sub="real-actor")
+    recipient = UserFactory(im_uid="recipient")
+    mock_admin_client.issue_token.return_value = JusiImTokenResponse(
+        uid="sharer", token="jwt", expires_at=1
+    )
+    mock_admin_client.get_members.return_value = [
+        {"uid": "sharer", "role": "owner"},
+        {"uid": "recipient", "role": "member"},
+    ]
+    client = APIClient()
+    client.force_login(sharer)
+    with (
+        mock.patch(
+            "core.services.docs_client.DocsClient.user_can_access_document",
+            return_value=True,
+        ),
+        mock.patch(
+            "core.services.docs_client.DocsClient.grant_access_for_users",
+            return_value=1,
+        ) as grant,
+    ):
+        response = client.post(
+            GRANT_DOC_ACCESS,
+            {"doc_id": "doc", "cids": ["chat"], "role": role, "actor_sub": "forged"},
+            format="json",
+        )
+    assert response.json() == {"granted": 1, "role": role, "complete": True}
+    assert grant.call_args.kwargs["actor_sub"] == sharer.sub
+    assert grant.call_args.kwargs["role"] == role
+    assert grant.call_args.kwargs["users"][0]["sub"] == recipient.sub
+
+
+def test_explicit_grant_reports_failure_instead_of_success(mock_admin_client, settings):
+    settings.DOCS_CONFIGURATION = {}
+    client = APIClient()
+    client.force_login(UserFactory())
+    response = client.post(
+        GRANT_DOC_ACCESS,
+        {"doc_id": "doc", "cids": ["chat"], "role": "editor"},
+        format="json",
+    )
+    assert response.json() == {"granted": 0, "role": "editor", "complete": False}
+    response = client.post(
+        GRANT_DOC_ACCESS,
+        {"doc_id": "doc", "cids": ["chat"], "role": "owner"},
+        format="json",
+    )
+    assert response.status_code == 400
+
+
 def test_grant_doc_access_resolves_members_and_grants(mock_admin_client, settings):
     """会话成员(排除分享者自己)→ sub/email → 调 Docs 精准授权。"""
     settings.DOCS_CONFIGURATION = {
