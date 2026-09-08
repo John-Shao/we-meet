@@ -31,6 +31,7 @@
     "retrySend": "重新发送未确认的卡片",
     "done": "完成",
     "invite": "邀请成员",
+    "documentTitle": "（{{title}}）",
     "loading": "加载中…",
     "loadError": "无法加载文档成员。",
     "retry": "重试",

@@ -264,7 +264,7 @@ const leftCls = css({
   flexDirection: 'column',
   flex: 1,
   minWidth: 0,
-  borderRight: '1px solid token(colors.greyscale.200)',
+  borderRight: '1px solid token(colors.border.subtle)',
 })
 
 const rightCls = css({

@@ -20,6 +20,7 @@ export function DocMemberInviteDialog({
   onChanged: () => void
 }) {
   const { t } = useTranslation('docs')
+  const documentTitle = title ? t('sharing.documentTitle', { title }) : ''
   const [selected, setSelected] = useState(new Map<string, string>())
   const [role, setRole] = useState<MemberRole>('reader')
   const [busy, setBusy] = useState(false)
@@ -72,25 +73,41 @@ export function DocMemberInviteDialog({
   return (
     <Modal
       onClose={close}
-      ariaLabel={t('sharing.invite')}
+      ariaLabel={[t('sharing.invite'), documentTitle].filter(Boolean).join(' ')}
       maxWidth="640px"
       maxHeight="80vh"
     >
       <ModalHeader
-        title={t('sharing.invite')}
+        title={
+          <>
+            <span className={css({ flexShrink: 0 })}>
+              {t('sharing.invite')}
+            </span>
+            {documentTitle && (
+              <span
+                title={title}
+                className={css({
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  textStyle: 'bodyMedium',
+                  color: 'text.secondary',
+                })}
+              >
+                {documentTitle}
+              </span>
+            )}
+          </>
+        }
+        titleClassName={css({
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'xs',
+        })}
         onClose={close}
         closeLabel={t('sharing.close')}
       />
-      <p
-        className={css({
-          paddingX: 'lg',
-          marginY: 'sm',
-          textStyle: 'bodyMedium',
-          color: 'text.secondary',
-        })}
-      >
-        {title}
-      </p>
       {roster.isPending ? (
         <ModalBody>{t('sharing.loading')}</ModalBody>
       ) : roster.isError ? (

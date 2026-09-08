@@ -31,6 +31,7 @@
     "retrySend": "Resend unconfirmed cards",
     "done": "Done",
     "invite": "Invite members",
+    "documentTitle": "({{title}})",
     "loading": "Loading…",
     "loadError": "Could not load document members.",
     "retry": "Retry",
