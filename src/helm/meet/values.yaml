@@ -281,6 +281,13 @@ backend:
         python manage.py createsuperuser --email $DJANGO_SUPERUSER_EMAIL --password $DJANGO_SUPERUSER_PASSWORD
     restartPolicy: Never
 
+  ## @param backend.docsProfileSync.enabled Reconcile existing Docs users from the Meet directory
+  ## @param backend.docsProfileSync.schedule Cron schedule for profile reconciliation
+  ## @param backend.docsProfileSync.command Override the synchronization command
+  docsProfileSync:
+    enabled: false
+    schedule: "* * * * *"
+    command: ["python", "manage.py", "sync_docs_profiles"]
   ## @param backend.reminders.enabled Deploy the calendar/task reminder CronJob
   ## @param backend.reminders.schedule Cron schedule for the reminder scan
   ## @param backend.reminders.command Override the reminder command
