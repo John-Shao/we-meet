@@ -75,11 +75,21 @@ export function DocShareToChatDialog({
     if (!running.current) onClose()
   }
   const controls = (
-    <div className={css({ padding: '0.75rem 1rem' })}>
+    <div
+      className={css({
+        flexShrink: 0,
+        padding: '0.75rem 1rem',
+        textStyle: 'bodyMedium',
+      })}
+    >
       {doc.canManage ? (
         <Select
           aria-label={t('sharing.role')}
-          label={t('sharing.chatRole')}
+          label={
+            <span className={css({ display: 'block', marginBottom: 'xs' })}>
+              {t('sharing.chatRole')}
+            </span>
+          }
           selectedKey={role}
           onSelectionChange={(key) => setRole(key as ShareRole)}
           items={['reader', 'editor'].map((value) => ({

@@ -319,6 +319,7 @@ const secondaryContentCls = css({
 })
 
 const previewCls = css({
+  flexShrink: 0,
   margin: '0.75rem 1rem 0',
   paddingX: '0.75rem',
   paddingY: '0.5rem',
@@ -326,6 +327,7 @@ const previewCls = css({
   backgroundColor: 'greyscale.100',
   color: 'greyscale.700',
   fontSize: '0.8125rem',
+  lineHeight: 1.5,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
