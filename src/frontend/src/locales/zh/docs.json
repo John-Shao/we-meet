@@ -20,6 +20,7 @@
     "groupError": "创建群聊失败，请重试。",
     "result": "分享结果",
     "close": "关闭",
+    "cancel": "取消",
     "newConversation": "所选会话",
     "sendUnconfirmed": "未能确认卡片是否发送成功",
     "accessFailed": "卡片已发送，授权未全部完成",

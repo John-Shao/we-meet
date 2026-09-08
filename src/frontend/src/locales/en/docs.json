@@ -20,6 +20,7 @@
     "groupError": "Could not create the group. Please retry.",
     "result": "Sharing results",
     "close": "Close",
+    "cancel": "Cancel",
     "newConversation": "Selected conversation",
     "sendUnconfirmed": "Sending could not be confirmed",
     "accessFailed": "Card sent; access not fully granted",

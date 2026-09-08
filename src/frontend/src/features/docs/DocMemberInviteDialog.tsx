@@ -183,11 +183,17 @@ export function DocMemberInviteDialog({
         )}
       </div>
       <ModalFooter>
-        <Button variant="secondaryText" onPress={close} isDisabled={busy}>
-          {t('sharing.close')}
+        <Button
+          variant="secondary"
+          size="action"
+          onPress={close}
+          isDisabled={busy}
+        >
+          {t('sharing.cancel')}
         </Button>
         <Button
           variant="primary"
+          size="action"
           onPress={() => void submit()}
           loading={busy}
           isDisabled={busy || !selected.size || !roster.data || roster.isError}
