@@ -83,8 +83,9 @@ export function DocMemberInviteDialog({
       />
       <p
         className={css({
-          paddingX: '1rem',
-          marginY: '0.5rem',
+          paddingX: 'lg',
+          marginY: 'sm',
+          textStyle: 'bodyMedium',
           color: 'text.secondary',
         })}
       >
@@ -123,13 +124,23 @@ export function DocMemberInviteDialog({
       )}
       <div
         className={css({
-          padding: '1rem',
+          padding: 'lg',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'xs',
+          textStyle: 'bodyMedium',
           borderTop: '1px solid token(colors.border.default)',
         })}
       >
         <Select
           aria-label={t('sharing.role')}
-          label={t('sharing.role')}
+          label={
+            <span
+              className={css({ display: 'block', textStyle: 'labelLarge' })}
+            >
+              {t('sharing.role')}
+            </span>
+          }
           selectedKey={role}
           isDisabled={busy}
           onSelectionChange={(key) => setRole(key as MemberRole)}
@@ -138,7 +149,14 @@ export function DocMemberInviteDialog({
             label: t(`sharing.${value}`),
           }))}
         />
-        <p>{t('sharing.inviteHelp')}</p>
+        <p
+          className={css({
+            textStyle: 'bodySmall',
+            color: 'text.secondary',
+          })}
+        >
+          {t('sharing.inviteHelp')}
+        </p>
         {result && (
           <p role="status">
             {result.failed

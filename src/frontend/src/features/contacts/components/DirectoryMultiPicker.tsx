@@ -134,7 +134,7 @@ export const DirectoryMultiPicker = ({
   return (
     <div className={bodyCls}>
       <div className={leftCls}>
-        <div className={css({ padding: '0.75rem 1rem' })}>
+        <div className={css({ paddingY: 'md', paddingX: 'lg' })}>
           <Input
             ref={searchRef}
             type="search"
@@ -272,13 +272,16 @@ const rightCls = css({
   display: 'flex',
   flexDirection: 'column',
   minWidth: 0,
-  backgroundColor: 'surface.canvas',
+  paddingTop: 'md',
 })
 
 const rightTitleCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  minHeight: 'controlHeight.compact',
   flexShrink: 0,
   paddingX: 'md',
-  paddingY: 'sm',
+  paddingY: 'xs',
   borderBottom: '1px solid token(colors.border.subtle)',
   textStyle: 'labelMedium',
   fontWeight: 'medium',
