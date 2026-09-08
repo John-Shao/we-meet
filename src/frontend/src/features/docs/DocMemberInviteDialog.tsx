@@ -175,7 +175,7 @@ export function DocMemberInviteDialog({
           loading={busy}
           isDisabled={busy || !selected.size || !roster.data || roster.isError}
         >
-          {t('sharing.confirmCount', { count: selected.size })}
+          {t('sharing.confirm')}
         </Button>
       </ModalFooter>
     </Modal>

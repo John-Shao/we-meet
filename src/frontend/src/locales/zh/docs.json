@@ -41,6 +41,6 @@
     "inviteHelp": "确认后为所选用户授权，保留已有权限。",
     "inviteSuccess": "已完成 {{count}} 位用户的授权。",
     "inviteResult": "已完成 {{done}} 人，失败 {{failed}} 人。失败用户保留在已选列表中，可重试。",
-    "confirmCount": "确定（{{count}}）"
+    "confirm": "确定"
   }
 }

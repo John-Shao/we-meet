@@ -102,7 +102,7 @@ it('uses directory IDs, excludes members, retains failed users, and retries only
   fireEvent.change(screen.getByRole('combobox'), {
     target: { value: 'editor' },
   })
-  fireEvent.click(screen.getByRole('button', { name: 'sharing.confirmCount' }))
+  fireEvent.click(screen.getByRole('button', { name: 'sharing.confirm' }))
   await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1))
   expect(mocks.add).toHaveBeenNthCalledWith(1, 'doc', ['a', 'b'], 'editor')
   expect(screen.getByRole('button', { name: 'b' })).toHaveAttribute(
@@ -113,7 +113,7 @@ it('uses directory IDs, excludes members, retains failed users, and retries only
     'aria-pressed',
     'false'
   )
-  fireEvent.click(screen.getByRole('button', { name: 'sharing.confirmCount' }))
+  fireEvent.click(screen.getByRole('button', { name: 'sharing.confirm' }))
   await waitFor(() =>
     expect(mocks.add).toHaveBeenNthCalledWith(2, 'doc', ['b'], 'editor')
   )

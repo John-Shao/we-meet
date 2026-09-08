@@ -41,6 +41,6 @@
     "inviteHelp": "Grant access directly to selected users. Existing permissions are preserved.",
     "inviteSuccess": "Access confirmed for {{count}} users.",
     "inviteResult": "Completed: {{done}}; failed: {{failed}}. Failed users remain selected for retry.",
-    "confirmCount": "Confirm ({{count}})"
+    "confirm": "Confirm"
   }
 }
