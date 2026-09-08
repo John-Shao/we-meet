@@ -47,6 +47,7 @@ from core.api.directory import (
     StarredContactViewSet,
     UserGroupDirectoryViewSet,
 )
+from core.api.docs_members import DocsMemberAccessView
 from core.api.docs_session import DocsSessionView
 from core.api.im import ImViewSet
 from core.api.im_bots import ImBotViewSet
@@ -356,6 +357,11 @@ urlpatterns = [
                     "docs/session/",
                     DocsSessionView.as_view(),
                     name="docs_session",
+                ),
+                path(
+                    "docs/member-access/",
+                    DocsMemberAccessView.as_view(),
+                    name="docs_member_access",
                 ),
             ]
         ),

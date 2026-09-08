@@ -786,7 +786,7 @@ class MeetingSummaryService:
         recipients = [
             {"sub": str(user.sub or ""), "email": str(user.email or "")}
             for user in self._participant_users(summary)
-            if user.sub or user.email
+            if user.sub
         ]
         if not recipients:
             return

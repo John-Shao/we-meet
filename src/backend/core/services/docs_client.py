@@ -99,8 +99,8 @@ class DocsClient:
         ``content`` is markdown — Docs converts it server-side to its internal
         format. Returns the created document id.
         """
-        if not sub and not email:
-            raise ValueError("sub or email is required to identify the owner")
+        if not sub:
+            raise ValueError("sub is required to identify the owner")
         if not title:
             raise ValueError("title is required")
 
@@ -159,8 +159,8 @@ class DocsClient:
         intro: str = "",
     ) -> DocsCreateResponse:
         """Create a native Docs document whose first-class content is a table."""
-        if not sub and not email:
-            raise ValueError("sub or email is required")
+        if not sub:
+            raise ValueError("sub is required")
         if not title or not columns:
             raise ValueError("title and columns are required")
         url = self._api_url + self.CREATE_TABLE_FOR_OWNER_PATH
@@ -423,6 +423,47 @@ class DocsClient:
         return ticket
 
     LIST_FOR_USER_PATH = "/api/v1.0/documents/list-for-user/"
+
+    def member_access(self, *, doc_id, actor_sub, **options):
+        """Require an explicit identity protocol; old services must fail closed."""
+        try:
+            response = requests.post(
+                self._api_url + "/api/v1.0/documents/member-access/",
+                json={"doc_id": doc_id, "actor_sub": actor_sub, **options},
+                headers={"Authorization": f"Bearer {self._token}"},
+                timeout=self._timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+        except (requests.RequestException, ValueError) as exc:
+            raise DocsBadResponseError("Member access request failed") from exc
+        if not isinstance(data, dict):
+            raise DocsBadResponseError("Invalid member access response")
+        if "role" not in options:
+            if not isinstance(data.get("member_subs"), list) or not all(
+                isinstance(sub, str) for sub in data["member_subs"]
+            ):
+                raise DocsBadResponseError("Missing member identities")
+        elif (
+            data.get("identity") != "sub"
+            or data.get("role") != options["role"]
+            or not isinstance(data.get("results"), list)
+            or any(
+                not isinstance(row, dict)
+                or not isinstance(row.get("sub"), str)
+                or row.get("status") not in ("added", "existing", "failed")
+                for row in data["results"]
+            )
+        ):
+            raise DocsBadResponseError("Unconfirmed member grant")
+        if "role" in options:
+            expected = {entry["sub"] for entry in options["users"]}
+            received = [entry["sub"] for entry in data["results"]]
+            if set(received) != expected or len(received) != len(expected):
+                raise DocsBadResponseError(
+                    "Incomplete or duplicated member acknowledgement"
+                )
+        return data
 
     def list_for_user(self, *, sub: str, query: str = "") -> list[DocsSearchHit]:
         """列出用户可见的文档(分享云文档到聊天入口,选择器"我的文档"列表)。
