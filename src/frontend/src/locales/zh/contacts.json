@@ -10,7 +10,9 @@
     "loading": "正在加载…",
     "cancel": "取消",
     "loadMore": "加载更多",
-    "remove": "移除"
+    "remove": "移除",
+    "loadError": "无法加载通讯录，请重试。",
+    "retry": "重试"
   },
   "page": {
     "authRequired": "请先登录后再查看通讯录。",

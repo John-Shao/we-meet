@@ -48,6 +48,8 @@ interface Props {
   secondaryTab?: { label: string; content: ReactNode }
   primaryTabLabel?: string
   title?: string
+  footerContent?: ReactNode
+  maxWidth?: string
   onClose: () => void
 }
 
@@ -69,6 +71,8 @@ export const ForwardDialog = ({
   secondaryTab,
   primaryTabLabel,
   title,
+  footerContent,
+  maxWidth = '420px',
   onClose,
 }: Props) => {
   const { t } = useTranslation('im')
@@ -146,7 +150,7 @@ export const ForwardDialog = ({
       onClose={onClose}
       ariaLabel={title || t('forward.title')}
       initialFocusRef={searchRef}
-      maxWidth="420px"
+      maxWidth={maxWidth}
     >
       <ModalHeader
         title={title || t('forward.title')}
@@ -277,6 +281,7 @@ export const ForwardDialog = ({
             )}
           </ModalBody>
 
+          {footerContent}
           <ModalFooter>
             {resolveFailed && (
               <span className={errorCls} role="alert">

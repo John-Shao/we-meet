@@ -10,7 +10,9 @@
     "loading": "Loading…",
     "cancel": "Cancel",
     "loadMore": "Load more",
-    "remove": "Remove"
+    "remove": "Remove",
+    "loadError": "Could not load the directory. Please retry.",
+    "retry": "Retry"
   },
   "page": {
     "authRequired": "Please sign in to view the directory.",

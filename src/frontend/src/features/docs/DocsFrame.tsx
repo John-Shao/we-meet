@@ -8,9 +8,9 @@ import { Button } from '@/primitives'
 import { Screen } from '@/layout/Screen'
 import { resolveTheme, themeStore } from '@/stores/theme'
 import { authUrl } from '@/features/auth'
-import { buildDocCardBody } from '@/features/im/components/docCard'
-import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
-import { grantDocAccess } from '@/features/im/api/grantDocAccess'
+import { DocShareToChatDialog } from './DocShareToChatDialog'
+import { DocMemberInviteDialog } from './DocMemberInviteDialog'
+import { parseShareRequest } from './shareRequest'
 import { openGlobalSearch } from '@/layout/globalSearchBus'
 import { fetchDocsSessionUrl } from './api/docsSession'
 
@@ -22,7 +22,13 @@ const HOST_PROTOCOL = 1
  * 譬如只有宣告了 `global-search`,它才会隐藏自己的搜索按钮改把 Ctrl+K 转发过来。
  * 改动需与 we-meet-docs `hooks/useEmbedShell.tsx` 的消费侧同步。
  */
-const HOST_FEATURES = ['global-search', 'shell-nav', 'route-sync'] as const
+const HOST_FEATURES = [
+  'global-search',
+  'shell-nav',
+  'route-sync',
+  'docs-sharing-v2',
+  'docs-member-picker',
+] as const
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -43,7 +49,6 @@ const UUID_RE =
  */
 export const DocsRoute = () => {
   const { t, i18n } = useTranslation('docs')
-  const { t: tIm } = useTranslation('im')
   const { docId } = useParams<{ docId?: string }>()
   const { data: config } = useConfig()
   const docsUrl = config?.docs?.url
@@ -58,6 +63,12 @@ export const DocsRoute = () => {
     docId: string
     title: string
     url: string
+    role?: 'reader' | 'editor'
+    canManage?: boolean
+  } | null>(null)
+  const [inviteDoc, setInviteDoc] = useState<{
+    docId: string
+    title: string
   } | null>(null)
   // src 只用首帧主题:?theme= 让 docs embedderTheme 首屏即对色(免闪);运行时切换走
   // 下方 postMessage,不改 src 以免 iframe 整页重载。
@@ -166,7 +177,11 @@ export const DocsRoute = () => {
   useEffect(() => {
     if (!docsBase || !docsOrigin) return
     const onMsg = (e: MessageEvent) => {
-      if (e.origin !== docsOrigin) return
+      if (
+        e.origin !== docsOrigin ||
+        e.source !== iframeRef.current?.contentWindow
+      )
+        return
       if ((e.data as { type?: string } | null)?.type === 'wemeet-theme-ready') {
         setStalled(false)
         window.clearTimeout(timer)
@@ -276,24 +291,21 @@ export const DocsRoute = () => {
   // origin 等于 docs 域(主题同步是纯展示,坏了也无所谓;这个不行)。
   useEffect(() => {
     if (!docsOrigin) return
-    const onMsg = (e: MessageEvent) => {
-      if (e.origin !== docsOrigin) return
-      const data = e.data as {
-        type?: string
-        docId?: string
-        title?: string
-        url?: string
-      } | null
-      if (data?.type !== 'wemeet-share-doc' || !data.docId || !data.url) return
-      setShareDoc({
-        docId: data.docId,
-        title: data.title || '',
-        url: data.url,
-      })
+    const onMsg = (event: MessageEvent) => {
+      if (shareDoc || inviteDoc) return
+      const request = parseShareRequest(
+        event,
+        docsOrigin,
+        iframeRef.current?.contentWindow ?? null
+      )
+      if (!request) return
+      if (request.type === 'wemeet-invite-doc-members')
+        setInviteDoc((prev) => prev || request)
+      else setShareDoc((prev) => prev || request)
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
-  }, [docsOrigin])
+  }, [docsOrigin, shareDoc, inviteDoc])
 
   return (
     <Screen header footer={false}>
@@ -328,31 +340,28 @@ export const DocsRoute = () => {
         </div>
       )}
       {shareDoc && (
-        <ShareToChatDialog
-          body={buildDocCardBody({
-            id: shareDoc.docId,
-            title: shareDoc.title,
-            url: shareDoc.url,
-          })}
-          contentType="doc-card"
-          previewText={shareDoc.title || tIm('preview.doc')}
-          errorMessage={tIm('docPicker.sendError')}
-          // 分享即精准授权:给收到卡片的会话成员授只读(best-effort)。
-          // 新建群转发时这里拿到的就是刚建出来的群 cid,同样授权。
-          //
-          // 授权是在 docs **之外**发生的,docs 的成员列表缓存无从知晓 —— 授完
-          // 回发一条消息让分享弹窗刷新,否则用户回到「分享文档」框,「与 N 位
-          // 用户分享」还是分享前的旧值。
-          onSent={(cids) => {
-            void grantDocAccess(shareDoc.docId, cids).then((granted) => {
-              if (!granted || !docsOrigin) return
-              iframeRef.current?.contentWindow?.postMessage(
-                { type: 'wemeet-doc-access-updated', docId: shareDoc.docId },
-                docsOrigin
-              )
-            })
-          }}
+        <DocShareToChatDialog
+          doc={shareDoc}
           onClose={() => setShareDoc(null)}
+          onChanged={() =>
+            iframeRef.current?.contentWindow?.postMessage(
+              { type: 'wemeet-doc-access-updated', docId: shareDoc.docId },
+              docsOrigin
+            )
+          }
+        />
+      )}
+      {inviteDoc && (
+        <DocMemberInviteDialog
+          docId={inviteDoc.docId}
+          title={inviteDoc.title}
+          onClose={() => setInviteDoc(null)}
+          onChanged={() =>
+            iframeRef.current?.contentWindow?.postMessage(
+              { type: 'wemeet-doc-access-updated', docId: inviteDoc.docId },
+              docsOrigin
+            )
+          }
         />
       )}
     </Screen>

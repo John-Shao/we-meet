@@ -72,6 +72,8 @@ export const DirectoryMultiPicker = ({
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isError,
+    refetch,
   } = useDirectoryMemberSearch({ includeSelf })
   const { data: externalContacts = [], isFetching: isFetchingExternal } =
     useQuery({
@@ -152,9 +154,17 @@ export const DirectoryMultiPicker = ({
               disabled
             />
           )}
+          {isError && (
+            <StateHint state="error">
+              <p>{t('picker.loadError')}</p>
+              <button type="button" onClick={() => void refetch()}>
+                {t('picker.retry')}
+              </button>
+            </StateHint>
+          )}
           {(isFetching || isFetchingExternal) && empty ? (
             <StateHint state="loading">{labels.loading}</StateHint>
-          ) : empty ? (
+          ) : empty && !isError ? (
             <StateHint>{labels.empty}</StateHint>
           ) : (
             options.map((m) => {

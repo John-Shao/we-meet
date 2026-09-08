@@ -31,16 +31,23 @@ export const useDirectoryMemberSearch = ({
     return () => clearTimeout(id)
   }, [query, debounceMs])
 
-  const { data, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useInfiniteQuery({
-      queryKey: ['directory', 'members', 'infinite', debouncedQuery],
-      queryFn: ({ pageParam }) =>
-        fetchDirectoryMembersPage(debouncedQuery, pageParam),
-      initialPageParam: undefined as string | undefined,
-      getNextPageParam: (lastPage) => lastPage.next ?? undefined,
-      staleTime: 30_000,
-      placeholderData: keepPreviousData,
-    })
+  const {
+    data,
+    isFetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isError,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: ['directory', 'members', 'infinite', debouncedQuery],
+    queryFn: ({ pageParam }) =>
+      fetchDirectoryMembersPage(debouncedQuery, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.next ?? undefined,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  })
 
   const selectable = useMemo(
     () =>
@@ -58,5 +65,7 @@ export const useDirectoryMemberSearch = ({
     fetchNextPage,
     hasNextPage: hasNextPage ?? false,
     isFetchingNextPage,
+    isError,
+    refetch,
   }
 }
