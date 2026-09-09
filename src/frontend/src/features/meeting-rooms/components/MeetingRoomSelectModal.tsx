@@ -17,9 +17,9 @@ import {
   fetchMeetingRooms,
 } from '../api/fetchMeetingRooms'
 import { availableIdSet } from '../utils/roomAvailability'
-import { compactRoomPathLabel } from '../utils/roomHierarchy'
 import { roomIdentifier } from '../utils/roomLabel'
 import { MeetingRoomFilters } from './MeetingRoomFilters'
+import { MeetingRoomSummary } from './MeetingRoomSummary'
 
 type Tab = 'available' | 'all'
 
@@ -265,13 +265,14 @@ export const MeetingRoomSelectModal = ({
                           : rowCls
                     }
                   >
-                    <span className={nameCls}>{roomIdentifier(room)}</span>
-                    <span className={metaCls}>
-                      {compactRoomPathLabel(room.path_label)}
-                      {room.capacity > 0 &&
-                        ` · ${t('unit.people', { count: room.capacity })}`}
-                      {busy && ` · ${t('picker.unavailable')}`}
-                    </span>
+                    <MeetingRoomSummary
+                      room={room}
+                      primaryClassName={nameCls}
+                      secondaryClassName={metaCls}
+                    />
+                    {busy && (
+                      <span className={metaCls}>{t('picker.unavailable')}</span>
+                    )}
                   </button>
                 )
               })
