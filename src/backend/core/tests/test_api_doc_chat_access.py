@@ -33,7 +33,7 @@ def setup(settings):
         yield client, actor, member, im.return_value
 
 
-@pytest.mark.parametrize("role", [None, "reader", "editor"])
+@pytest.mark.parametrize("role", [None, "reader", "commenter", "editor"])
 def test_read_or_update_uses_real_actor_and_members(setup, role):
     client, actor, member, _ = setup
     body = {
@@ -51,6 +51,7 @@ def test_read_or_update_uses_real_actor_and_members(setup, role):
         assert client.post(URL, body, format="json").status_code == 200
     assert grant.call_args.kwargs["actor_sub"] == actor.sub
     if role:
+        assert grant.call_args.kwargs["role"] == role
         assert grant.call_args.kwargs["users"] == [
             {"sub": member.sub, "email": member.email}
         ]

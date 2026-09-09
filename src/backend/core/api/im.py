@@ -1067,10 +1067,10 @@ class ImViewSet(viewsets.ViewSet):
         if (
             not doc_id
             or not cid
-            or ("role" in request.data and role not in ("reader", "editor"))
+            or ("role" in request.data and role not in ("reader", "commenter", "editor"))
         ):
             raise ValidationError(
-                "doc_id, cid and optional reader/editor role required"
+                "doc_id, cid and optional reader/commenter/editor role required"
             )
         cfg = getattr(settings, "DOCS_CONFIGURATION", None) or {}
         if not cfg.get("api_url") or not cfg.get("server_to_server_token"):
