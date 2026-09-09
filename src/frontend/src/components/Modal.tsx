@@ -6,6 +6,7 @@ import {
   type RefObject,
 } from 'react'
 import { RiCloseLine } from '@remixicon/react'
+import { createPortal } from 'react-dom'
 
 import { IconButton } from '@/primitives/IconButton'
 import { css, cva, cx } from '@/styled-system/css'
@@ -44,7 +45,17 @@ const trapFocus = (e: KeyboardEvent, container: HTMLElement | null) => {
  * 每一层都会收到同一个事件 —— 不分层的话在内层按 Esc 会把外层一起关掉
  * (例:新建日程里开「批量添加」,一个 Esc 连表单都没了)。只让栈顶响应。
  */
-const modalStack: symbol[] = []
+const modalStack: { token: symbol; layer: HTMLDivElement }[] = []
+let previousBodyOverflow = ''
+
+const updateModalLayers = () => {
+  modalStack.forEach(({ layer }, index) => {
+    const inactive = index !== modalStack.length - 1
+    layer.inert = inactive
+    if (inactive) layer.setAttribute('aria-hidden', 'true')
+    else layer.removeAttribute('aria-hidden')
+  })
+}
 
 interface Props {
   onClose: () => void
@@ -76,6 +87,7 @@ export const Modal = ({
   maxHeight = '80vh',
   children,
 }: Props) => {
+  const layerRef = useRef<HTMLDivElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   // Hold the latest onClose so the keydown effect can run once (deps [])
   // without re-subscribing every time the parent passes a fresh callback.
@@ -84,6 +96,12 @@ export const Modal = ({
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null
+    const token = Symbol('modal')
+    if (modalStack.length === 0) {
+      previousBodyOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+    }
+    modalStack.push({ token, layer: layerRef.current! })
     initialFocusRef?.current?.focus()
     // 兜底要**校验后再兜**,不能只看 initialFocusRef 是否为空:调用方指过来的字段
     // 可能是 disabled 的(例:日历设置里主日历的名称框跟随账号名,恒 disabled),对
@@ -93,11 +111,10 @@ export const Modal = ({
     if (!dialogRef.current?.contains(document.activeElement)) {
       dialogRef.current?.focus()
     }
-    const token = Symbol('modal')
-    modalStack.push(token)
+    updateModalLayers()
     const onKey = (e: KeyboardEvent) => {
       // 嵌套时只有最上层那个响应键盘(见 modalStack 注释)。
-      if (modalStack[modalStack.length - 1] !== token) return
+      if (modalStack[modalStack.length - 1]?.token !== token) return
       if (e.key === 'Escape') {
         onCloseRef.current()
         return
@@ -107,15 +124,24 @@ export const Modal = ({
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('keydown', onKey)
-      const i = modalStack.indexOf(token)
+      const i = modalStack.findIndex((entry) => entry.token === token)
       if (i !== -1) modalStack.splice(i, 1)
-      previouslyFocused?.focus?.()
+      updateModalLayers()
+      if (modalStack.length === 0) {
+        document.body.style.overflow = previousBodyOverflow
+      }
+      if (previouslyFocused?.isConnected) {
+        previouslyFocused.focus?.({ preventScroll: true })
+      }
     }
   }, [initialFocusRef])
 
-  return (
+  // Keep layers as DOM siblings: a child must escape the parent's scrolling
+  // container and remain interactive when that parent is marked inert.
+  return createPortal(
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
     <div
+      ref={layerRef}
       onClick={(e) => {
         if (e.target === e.currentTarget) onCloseRef.current()
       }}
@@ -157,7 +183,8 @@ export const Modal = ({
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -282,6 +309,7 @@ const modalBodyRecipe = cva({
     flex: 1,
     minHeight: 0,
     overflowY: 'auto',
+    overscrollBehavior: 'contain',
     color: 'text.primary',
     textStyle: 'bodyMedium',
   },

@@ -673,6 +673,7 @@ export const CreateEventDialog = ({
             start={validTimedStart}
             end={validTimedEnd}
             allDay={allDay}
+            timezone={eventTimezone}
             attendeeCount={selected.size + 1}
             excludeEventId={editEvent?.id}
             onConflictChange={setRoomConflicted}

@@ -39,7 +39,6 @@
     "label": "Salle de réunion",
     "add": "Ajouter une salle",
     "change": "Changer",
-    "collapse": "Réduire",
     "clear": "Retirer la salle",
     "none": "Aucune salle réservée",
     "tabAvailable": "Disponibles",
@@ -48,7 +47,12 @@
     "capacityHint": "{{count}} participants — choisissez une salle adaptée",
     "emptyAvailable": "Aucune salle libre sur ce créneau. Changez d'horaire ou de filtres.",
     "unavailable": "Occupée sur ce créneau",
-    "allDayUnsupported": "Les événements sur la journée ne peuvent pas réserver de salle"
+    "allDayUnsupported": "Les événements sur la journée ne peuvent pas réserver de salle",
+    "title": "Choisir une salle de réunion",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "selected": "Sélection : {{name}}",
+    "selectHint": "Choisissez une salle de réunion"
   },
   "conflict": {
     "inline": "{{name}} est déjà réservée sur le nouvel horaire",

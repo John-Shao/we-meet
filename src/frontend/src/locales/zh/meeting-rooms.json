@@ -39,7 +39,6 @@
     "label": "会议室",
     "add": "添加会议室",
     "change": "更换",
-    "collapse": "收起",
     "clear": "取消预订",
     "none": "未预订会议室",
     "tabAvailable": "可用会议室",
@@ -48,7 +47,12 @@
     "capacityHint": "当前 {{count}} 人参会,建议选容量不小于此的会议室",
     "emptyAvailable": "该时段暂无可用会议室,试试调整时间或筛选条件",
     "unavailable": "该时段已被占用",
-    "allDayUnsupported": "全天日程暂不支持预订会议室"
+    "allDayUnsupported": "全天日程暂不支持预订会议室",
+    "title": "选择会议室",
+    "cancel": "取消",
+    "confirm": "确定",
+    "selected": "已选：{{name}}",
+    "selectHint": "请选择一间会议室"
   },
   "conflict": {
     "inline": "「{{name}}」在新时段已被占用",

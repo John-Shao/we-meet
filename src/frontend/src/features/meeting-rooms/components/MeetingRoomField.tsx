@@ -10,7 +10,7 @@ import type { MeetingRoomBrief } from '../api/ApiMeetingRoom'
 import { fetchMeetingRoomAvailability } from '../api/fetchMeetingRooms'
 import { selectionConflicts } from '../utils/roomAvailability'
 import { roomIdentifier, roomScheduleLabel } from '../utils/roomLabel'
-import { MeetingRoomPickerInline } from './MeetingRoomPickerInline'
+import { MeetingRoomSelectModal } from './MeetingRoomSelectModal'
 
 /**
  * The 「添加会议室」 block in the event form (P9).
@@ -28,6 +28,7 @@ export const MeetingRoomField = ({
   onChange,
   start,
   end,
+  timezone,
   allDay,
   attendeeCount,
   excludeEventId,
@@ -37,6 +38,7 @@ export const MeetingRoomField = ({
   onChange: (room: MeetingRoomBrief | null) => void
   start: Date | null
   end: Date | null
+  timezone?: string
   allDay: boolean
   attendeeCount: number
   excludeEventId?: string
@@ -96,14 +98,11 @@ export const MeetingRoomField = ({
           <button
             type="button"
             className={linkBtnCls}
-            onClick={() => setOpen((prev) => !prev)}
+            onClick={() => setOpen(true)}
+            aria-haspopup="dialog"
             data-testid="mr-picker-toggle"
           >
-            {open
-              ? t('picker.collapse')
-              : value
-                ? t('picker.change')
-                : t('picker.add')}
+            {value ? t('picker.change') : t('picker.add')}
           </button>
         )}
       </div>
@@ -128,7 +127,7 @@ export const MeetingRoomField = ({
           </button>
         </div>
       ) : (
-        !open && <div className={mutedCls}>{t('picker.none')}</div>
+        <div className={mutedCls}>{t('picker.none')}</div>
       )}
 
       {conflicted && value && (
@@ -152,18 +151,19 @@ export const MeetingRoomField = ({
       )}
 
       {open && canQuery && (
-        <div className={css({ marginTop: '0.5rem' })}>
-          <MeetingRoomPickerInline
-            start={start}
-            end={end}
-            attendeeCount={attendeeCount}
-            excludeEventId={excludeEventId}
-            onPick={(room) => {
-              onChange(room)
-              setOpen(false)
-            }}
-          />
-        </div>
+        <MeetingRoomSelectModal
+          value={value}
+          start={start}
+          end={end}
+          timezone={timezone}
+          attendeeCount={attendeeCount}
+          excludeEventId={excludeEventId}
+          onClose={() => setOpen(false)}
+          onConfirm={(room) => {
+            onChange(room)
+            setOpen(false)
+          }}
+        />
       )}
     </div>
   )

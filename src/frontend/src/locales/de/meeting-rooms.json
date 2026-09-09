@@ -39,7 +39,6 @@
     "label": "Besprechungsraum",
     "add": "Raum hinzufügen",
     "change": "Ändern",
-    "collapse": "Einklappen",
     "clear": "Raum entfernen",
     "none": "Kein Raum gebucht",
     "tabAvailable": "Verfügbar",
@@ -48,7 +47,12 @@
     "capacityHint": "{{count}} Teilnehmende — passenden Raum wählen",
     "emptyAvailable": "Für diesen Zeitraum ist kein Raum frei. Andere Zeit oder Filter versuchen.",
     "unavailable": "In diesem Zeitraum belegt",
-    "allDayUnsupported": "Ganztägige Termine können noch keinen Raum buchen"
+    "allDayUnsupported": "Ganztägige Termine können noch keinen Raum buchen",
+    "title": "Besprechungsraum auswählen",
+    "cancel": "Abbrechen",
+    "confirm": "Bestätigen",
+    "selected": "Ausgewählt: {{name}}",
+    "selectHint": "Wählen Sie einen Besprechungsraum"
   },
   "conflict": {
     "inline": "{{name}} ist zur neuen Zeit bereits belegt",

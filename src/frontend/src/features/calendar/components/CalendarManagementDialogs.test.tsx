@@ -134,7 +134,7 @@ describe('AddCalendarDialog calendar discovery', () => {
       defaultOptions: { queries: { retry: false } },
     })
 
-    const { container } = render(
+    const { baseElement } = render(
       <QueryClientProvider client={client}>
         <AddCalendarDialog onClose={vi.fn()} onChanged={vi.fn()} />
       </QueryClientProvider>
@@ -153,7 +153,7 @@ describe('AddCalendarDialog calendar discovery', () => {
       await screen.findByRole('button', { name: '确认选择共享人' })
     )
     expect(screen.getByText('Alice')).toBeVisible()
-    expect(container.querySelector('img')).toHaveAttribute(
+    expect(baseElement.querySelector('img')).toHaveAttribute(
       'src',
       '/media/avatars/alice.jpg'
     )
@@ -197,7 +197,7 @@ describe('AddCalendarDialog calendar discovery', () => {
       capabilities: { ...roomCalendar.capabilities, can_manage: true },
     }
 
-    const { container } = render(
+    const { baseElement } = render(
       <QueryClientProvider client={client}>
         <CalendarSettingsDialog
           calendar={manageableCalendar}
@@ -208,7 +208,7 @@ describe('AddCalendarDialog calendar discovery', () => {
     )
 
     expect(await screen.findByText('Ting')).toBeVisible()
-    expect(container.querySelector('img')).toHaveAttribute(
+    expect(baseElement.querySelector('img')).toHaveAttribute(
       'src',
       '/media/avatars/ting.jpg'
     )
@@ -237,7 +237,7 @@ describe('AddCalendarDialog calendar discovery', () => {
       defaultOptions: { queries: { retry: false } },
     })
 
-    const { container } = render(
+    const { baseElement } = render(
       <QueryClientProvider client={client}>
         <AddCalendarDialog onClose={vi.fn()} onChanged={vi.fn()} />
       </QueryClientProvider>
@@ -245,7 +245,7 @@ describe('AddCalendarDialog calendar discovery', () => {
 
     expect(await screen.findByText('Ting')).toBeVisible()
     expect(screen.getByText('Designer · Product')).toBeVisible()
-    expect(container.querySelector('img')).toHaveAttribute(
+    expect(baseElement.querySelector('img')).toHaveAttribute(
       'src',
       '/media/avatars/ting.jpg'
     )

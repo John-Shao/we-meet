@@ -39,7 +39,6 @@
     "label": "Meeting room",
     "add": "Add a room",
     "change": "Change",
-    "collapse": "Collapse",
     "clear": "Remove room",
     "none": "No room booked",
     "tabAvailable": "Available",
@@ -48,7 +47,12 @@
     "capacityHint": "{{count}} attending — pick a room that fits",
     "emptyAvailable": "No room is free for this slot. Try another time or loosen the filters.",
     "unavailable": "Booked for this slot",
-    "allDayUnsupported": "All-day events cannot book a room yet"
+    "allDayUnsupported": "All-day events cannot book a room yet",
+    "title": "Select a meeting room",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "selected": "Selected: {{name}}",
+    "selectHint": "Select a meeting room"
   },
   "conflict": {
     "inline": "{{name}} is already booked for the new time",

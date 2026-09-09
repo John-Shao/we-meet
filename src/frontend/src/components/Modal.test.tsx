@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 
 import { Modal, ModalBody, ModalFooter, ModalHeader } from './Modal'
 
@@ -94,6 +94,60 @@ describe('Modal 的焦点契约', () => {
 
     // 兜到弹窗内最后一个可聚焦元素,而不是弹窗背后的页面。
     expect(screen.getByRole('button', { name: '保存' })).toHaveFocus()
+  })
+})
+
+describe('nested modals', () => {
+  it('isolates the top layer, traps Tab, restores focus without scrolling, and keeps the body locked until both close', () => {
+    const onParentClose = vi.fn()
+    const Nested = () => {
+      const [childOpen, setChildOpen] = useState(false)
+      return (
+        <Modal ariaLabel="Parent" onClose={onParentClose}>
+          <button onClick={() => setChildOpen(true)}>Choose room</button>
+          {childOpen && (
+            <Modal ariaLabel="Child" onClose={() => setChildOpen(false)}>
+              <button>First</button>
+              <button>Last</button>
+            </Modal>
+          )}
+        </Modal>
+      )
+    }
+    document.body.style.overflow = 'auto'
+    const { unmount } = render(<Nested />)
+    const parent = screen.getByRole('dialog', { name: 'Parent' })
+    const trigger = screen.getByRole('button', { name: 'Choose room' })
+    trigger.focus()
+    fireEvent.click(trigger)
+    const child = screen.getByRole('dialog', { name: 'Child' })
+    expect(child.parentElement?.parentElement).toBe(document.body)
+    expect(parent.parentElement?.inert).toBe(true)
+    expect(parent.parentElement).toHaveAttribute('aria-hidden', 'true')
+    expect(document.body.style.overflow).toBe('hidden')
+    const first = within(child).getByRole('button', { name: 'First' })
+    const last = within(child).getByRole('button', { name: 'Last' })
+    last.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(first).toHaveFocus()
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+    expect(last).toHaveFocus()
+    const focus = vi.spyOn(trigger, 'focus')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onParentClose).not.toHaveBeenCalled()
+    expect(
+      screen.queryByRole('dialog', { name: 'Child' })
+    ).not.toBeInTheDocument()
+    expect(parent.parentElement?.inert).toBe(false)
+    expect(parent.parentElement).not.toHaveAttribute('aria-hidden')
+    expect(trigger).toHaveFocus()
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+    expect(document.body.style.overflow).toBe('hidden')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onParentClose).toHaveBeenCalledOnce()
+    unmount()
+    expect(document.body.style.overflow).toBe('auto')
+    document.body.style.overflow = ''
   })
 })
 

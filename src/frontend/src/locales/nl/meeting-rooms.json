@@ -39,7 +39,6 @@
     "label": "Vergaderruimte",
     "add": "Ruimte toevoegen",
     "change": "Wijzigen",
-    "collapse": "Inklappen",
     "clear": "Ruimte verwijderen",
     "none": "Geen ruimte gereserveerd",
     "tabAvailable": "Beschikbaar",
@@ -48,7 +47,12 @@
     "capacityHint": "{{count}} deelnemers — kies een passende ruimte",
     "emptyAvailable": "Geen ruimte vrij op dit moment. Kies een ander tijdstip of pas de filters aan.",
     "unavailable": "Bezet op dit tijdstip",
-    "allDayUnsupported": "Hele-dag-afspraken kunnen nog geen ruimte reserveren"
+    "allDayUnsupported": "Hele-dag-afspraken kunnen nog geen ruimte reserveren",
+    "title": "Vergaderruimte kiezen",
+    "cancel": "Annuleren",
+    "confirm": "Bevestigen",
+    "selected": "Geselecteerd: {{name}}",
+    "selectHint": "Kies een vergaderruimte"
   },
   "conflict": {
     "inline": "{{name}} is al gereserveerd op de nieuwe tijd",
