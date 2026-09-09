@@ -10,7 +10,6 @@ import {
   fetchMeetingRoomNodes,
 } from '../api/fetchMeetingRooms'
 import { flattenTree } from '../utils/roomHierarchy'
-import { MeetingRoomLevelFilters } from './MeetingRoomLevelFilters'
 
 /** Capacity buckets offered in the dropdown ("至少 N 人"). */
 const CAPACITY_STEPS = [2, 4, 6, 10, 20, 50]
@@ -26,7 +25,7 @@ export const MeetingRoomFilters = ({
 }: {
   value: RoomFilters
   onChange: (next: RoomFilters) => void
-  /** Inline in the event form: drop the search box, the picker has its own. */
+  /** The selection modal provides its own search box and hides reset. */
   compact?: boolean
 }) => {
   const { t } = useTranslation('meeting-rooms')
@@ -65,30 +64,22 @@ export const MeetingRoomFilters = ({
         />
       )}
 
-      {compact ? (
-        <Select
-          className={selectCls}
-          selectedKey={value.node ?? ''}
-          onSelectionChange={(key) =>
-            onChange({ ...value, node: String(key) || null })
-          }
-          aria-label={t('filters.level')}
-          data-testid="mr-filter-level"
-          items={[
-            { value: '', label: t('filters.levelAll') },
-            ...flattenTree(nodes).map(({ node, indent }) => ({
-              value: node.id,
-              label: `${indent}${node.name}`,
-            })),
-          ]}
-        />
-      ) : (
-        <MeetingRoomLevelFilters
-          nodes={nodes}
-          selectedNodeId={value.node}
-          onChange={(node) => onChange({ ...value, node })}
-        />
-      )}
+      <Select
+        className={selectCls}
+        selectedKey={value.node ?? ''}
+        onSelectionChange={(key) =>
+          onChange({ ...value, node: String(key) || null })
+        }
+        aria-label={t('filters.level')}
+        data-testid="mr-filter-level"
+        items={[
+          { value: '', label: t('filters.levelAll') },
+          ...flattenTree(nodes).map(({ node, indent }) => ({
+            value: node.id,
+            label: `${indent}${node.name}`,
+          })),
+        ]}
+      />
 
       <Select
         className={selectCls}
