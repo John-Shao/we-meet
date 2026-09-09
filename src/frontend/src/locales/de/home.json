@@ -1,6 +1,8 @@
 {
   "createMeeting": "Meeting erstellen",
   "quickMeeting": "Schnellmeeting",
+  "aiRecording": "KI-Aufnahme",
+  "aiRecordingComingSoon": "KI-Aufnahme — demnächst verfügbar",
   "heading": "Einfache und sichere Videokonferenzen",
   "intro": "Kommuniziere und arbeite mühelos, ohne deine digitale Souveränität zu gefährden",
   "joinInputError": "Verwende einen Meeting-Link oder -Code. Beispiele:",

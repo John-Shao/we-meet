@@ -1,6 +1,8 @@
 {
   "createMeeting": "Maak een vergadering",
   "quickMeeting": "Snelle vergadering",
+  "aiRecording": "AI-opname",
+  "aiRecordingComingSoon": "AI-opname — binnenkort beschikbaar",
   "heading": "Eenvoudige en veilige videoconferenties",
   "intro": "Communiceer en werk gemakkelijk, zonder uw soevereiniteit in gevaar te brengen",
   "joinInputError": "Gebruik een vergaderlink of code. Voorbeelden:",

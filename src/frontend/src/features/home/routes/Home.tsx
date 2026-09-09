@@ -5,6 +5,7 @@ import {
   RiCalendarLine,
   RiAddCircleLine,
   RiSettings3Line,
+  RiMicLine,
 } from '@remixicon/react'
 import { Button } from '@/primitives'
 import { styled } from '@/styled-system/jsx'
@@ -311,6 +312,17 @@ export const Home = () => {
                     </Button>
                     <JoinMeetingDialog />
                   </DialogTrigger>
+                  <Button
+                    variant="secondary"
+                    data-attr="ai-recording"
+                    isDisabled
+                    aria-description={t('aiRecordingComingSoon')}
+                  >
+                    <RiMicLine size={18} />
+                    <span title={t('aiRecordingComingSoon')}>
+                      {t('aiRecording')}
+                    </span>
+                  </Button>
                 </div>
               </aside>
             </ResizablePanel>

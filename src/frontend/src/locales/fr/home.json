@@ -1,6 +1,8 @@
 {
   "createMeeting": "Créer une réunion",
   "quickMeeting": "Réunion rapide",
+  "aiRecording": "Enregistrement IA",
+  "aiRecordingComingSoon": "Enregistrement IA — bientôt disponible",
   "heading": "Visioconférences simples et sécurisées",
   "intro": "Communiquez et travaillez en toute simplicité, sans compromis sur votre souveraineté",
   "joinInputError": "Saisissez un lien ou un code de réunion. Exemples :",
