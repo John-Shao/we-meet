@@ -24,6 +24,12 @@ export const useMeetingRoom = (roomId: string | undefined) =>
     queryKey: ['meeting-room', roomId],
     queryFn: () => fetchRoom(roomId!),
     enabled: !!roomId,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
+    // Keep an open detail view in sync when the host ends the meeting elsewhere.
+    refetchInterval: (query) => (query.state.data?.closed_at ? false : 15_000),
   })
 
 const fetchSummary = (roomId: string) =>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RiCloseLine,
@@ -18,6 +18,7 @@ import { navigateTo } from '@/navigation/navigateTo'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useDeleteRoom } from '@/features/rooms/api/deleteRoom'
 import { MeetingShareDialog } from './MeetingShareDialog'
+import { useMeetingRoom } from '../api/fetchMeeting'
 
 /** 8/9/6 位会议号按组分隔(与 App 端 formatSlug 同口径)。 */
 const formatSlugDigits = (slug: string): string => {
@@ -63,10 +64,38 @@ export const MeetingDetailPanel = ({
   onClose: () => void
 }) => {
   const { t, i18n } = useTranslation('meetings')
+  const { t: tRoom } = useTranslation('rooms', { keyPrefix: 'join' })
   const { confirm: askConfirm } = useConfirm()
   const { mutate: deleteRoom } = useDeleteRoom()
   const [copied, setCopied] = useState<'id' | 'link' | null>(null)
   const [sharing, setSharing] = useState(false)
+  const [joining, setJoining] = useState(false)
+  const meetingRoom = useMeetingRoom(selection.id)
+  const isClosed = !!meetingRoom.data?.closed_at
+  const canJoin = !!meetingRoom.data?.slug && !isClosed && !meetingRoom.isError
+  const activeSelection = useRef<string | null>(selection.id)
+
+  useEffect(() => {
+    activeSelection.current = selection.id
+    setJoining(false)
+    return () => {
+      activeSelection.current = null
+    }
+  }, [selection.id])
+
+  const handleJoin = async () => {
+    if (!canJoin || joining) return
+    setJoining(true)
+    try {
+      const latest = await meetingRoom.refetch()
+      if (activeSelection.current !== selection.id) return
+      if (!latest.isError && latest.data?.slug && !latest.data.closed_at) {
+        navigateTo('room', latest.data.slug)
+      }
+    } finally {
+      if (activeSelection.current === selection.id) setJoining(false)
+    }
+  }
 
   // 切换选中项时清掉「已复制」瞬时态。
   useEffect(() => setCopied(null), [selection.id])
@@ -254,7 +283,9 @@ export const MeetingDetailPanel = ({
           {selection.slug && (
             <button
               type="button"
-              onClick={() => navigateTo('room', selection.slug as string)}
+              onClick={() => void handleJoin()}
+              disabled={!canJoin || joining}
+              aria-busy={joining || meetingRoom.isLoading}
               data-testid="meeting-detail-enter"
               className={css({
                 display: 'inline-flex',
@@ -271,11 +302,34 @@ export const MeetingDetailPanel = ({
                 fontWeight: 'medium',
                 cursor: 'pointer',
                 _hover: { backgroundColor: 'primary.600' },
+                _disabled: {
+                  backgroundColor: 'greyscale.200',
+                  color: 'greyscale.500',
+                  cursor: 'not-allowed',
+                  _hover: { backgroundColor: 'greyscale.200' },
+                },
               })}
             >
               <RiVidiconLine size={16} />
-              {t('home.enterMeeting')}
+              {isClosed
+                ? tRoom('ended.title')
+                : joining || meetingRoom.isLoading
+                  ? t('loading')
+                  : t('home.enterMeeting')}
             </button>
+          )}
+          {meetingRoom.isError && (
+            <div role="alert">
+              {t('error.loadFailed')}
+              <Button
+                variant="tertiary"
+                onPress={() => {
+                  void meetingRoom.refetch()
+                }}
+              >
+                {t('error.retry')}
+              </Button>
+            </div>
           )}
           {selection.kind === 'recent' && (
             <button

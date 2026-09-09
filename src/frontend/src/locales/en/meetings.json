@@ -82,7 +82,8 @@
   "error": {
     "title": "Unable to load",
     "body": "Failed to load the meeting detail. Please try again later.",
-    "loadFailed": "Failed to load"
+    "loadFailed": "Failed to load",
+    "retry": "Retry"
   },
   "home": {
     "recentTitle": "Past meetings",

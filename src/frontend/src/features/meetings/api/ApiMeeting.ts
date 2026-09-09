@@ -110,7 +110,7 @@ export interface ApiRoomDetail {
   name: string
   slug: string | null
   created_at: string
-  closed_at: string
+  closed_at: string | null
   owner: string | null
   accesses?: ApiRoomAccess[]
 }

@@ -82,7 +82,8 @@
   "error": {
     "title": "Laden fehlgeschlagen",
     "body": "Die Besprechungsdetails konnten nicht geladen werden. Bitte später erneut versuchen.",
-    "loadFailed": "Laden fehlgeschlagen"
+    "loadFailed": "Laden fehlgeschlagen",
+    "retry": "Erneut versuchen"
   },
   "home": {
     "recentTitle": "Vergangene Besprechungen",

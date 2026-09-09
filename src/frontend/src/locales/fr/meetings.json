@@ -82,7 +82,8 @@
   "error": {
     "title": "Chargement impossible",
     "body": "Le chargement des détails de la réunion a échoué. Veuillez réessayer plus tard.",
-    "loadFailed": "Échec du chargement"
+    "loadFailed": "Échec du chargement",
+    "retry": "Réessayer"
   },
   "home": {
     "recentTitle": "Réunions passées",

@@ -82,7 +82,8 @@
   "error": {
     "title": "Kan niet laden",
     "body": "Het laden van het vergaderdetail is mislukt. Probeer het later opnieuw.",
-    "loadFailed": "Laden mislukt"
+    "loadFailed": "Laden mislukt",
+    "retry": "Opnieuw proberen"
   },
   "home": {
     "recentTitle": "Eerdere vergaderingen",

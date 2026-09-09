@@ -82,7 +82,8 @@
   "error": {
     "title": "无法加载",
     "body": "加载会议详情失败，请稍后再试",
-    "loadFailed": "加载失败"
+    "loadFailed": "加载失败",
+    "retry": "重试"
   },
   "home": {
     "recentTitle": "历史会议",
