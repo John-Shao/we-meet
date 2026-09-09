@@ -145,6 +145,13 @@ export const MeetingRoomSelectModal = ({
   )
   const canConfirm =
     !!selected && selectedAvailable && !checkingSelection && !selectionError
+  const selectedLabel = selected
+    ? t('picker.selected', {
+        name: [selected.node?.name?.trim(), roomIdentifier(selected)]
+          .filter(Boolean)
+          .join(' - '),
+      })
+    : t('picker.selectHint')
   const formatter = new Intl.DateTimeFormat(
     i18n.resolvedLanguage || i18n.language,
     {
@@ -282,10 +289,8 @@ export const MeetingRoomSelectModal = ({
       </ModalBody>
       <ModalFooter className={footerCls}>
         <div className={selectionCls} aria-live="polite">
-          <span>
-            {selected
-              ? t('picker.selected', { name: roomIdentifier(selected) })
-              : t('picker.selectHint')}
+          <span className={selectedLabelCls} title={selectedLabel}>
+            {selectedLabel}
           </span>
           {selected &&
             !checkingSelection &&
@@ -401,12 +406,18 @@ const actionsCls = css({
 })
 const selectionCls = css({
   flex: '1 1 12rem',
+  minWidth: 0,
   display: 'flex',
   flexDirection: 'column',
   gap: '0.25rem',
   fontSize: '0.8125rem',
   color: 'text.secondary',
   overflowWrap: 'anywhere',
+})
+const selectedLabelCls = css({
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 })
 const errorCls = css({ color: 'danger.600' })
 const nameCls = css({ fontSize: '0.875rem', color: 'greyscale.900' })
