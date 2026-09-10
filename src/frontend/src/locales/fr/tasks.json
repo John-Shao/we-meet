@@ -384,7 +384,7 @@
     "delete": "Supprimer la tâche",
     "deleteTitle": "Supprimer la tâche",
     "deleteDescription": "Supprimer « {{title}} » ? Cette action est irréversible.",
-    "deleteSubtreeDescription": "Supprimer « {{title}} » et ses {{count}} sous-tâches ? L’arborescence entière sera supprimée définitivement.",
+    "deleteWithSubtasksDescription": "Supprimer « {{title}} » ? Ses sous-tâches seront conservées et deviendront des tâches indépendantes.",
     "completeWithOpenSubtasksTitle": "Terminer la tâche ?",
     "completeWithOpenSubtasksDescription": "{{count}} sous-tâches ne sont pas terminées. Terminer cette tâche ne modifiera pas leur statut.",
     "completeAnyway": "Terminer quand même"

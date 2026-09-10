@@ -12,6 +12,7 @@ from rest_framework.test import APIClient
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
 from core.models import (
     Task,
+    TaskActivity,
     TaskConversationShare,
     TaskGroup,
     TaskImDelivery,
@@ -300,13 +301,13 @@ def test_subtask_collaborator_reads_the_complete_parent_chain():
     }
 
 
-def test_hidden_descendant_does_not_leak_subtree_impact_or_delete_count():
+def test_hidden_descendant_still_guards_move_but_not_deletion():
     parent_owner = UserFactory()
     child_owner = UserFactory()
     parent = Task.objects.create(
         title="Visible parent", creator=parent_owner, assignee=parent_owner
     )
-    Task.objects.create(
+    child = Task.objects.create(
         title="Hidden child",
         creator=child_owner,
         assignee=child_owner,
@@ -317,32 +318,80 @@ def test_hidden_descendant_does_not_leak_subtree_impact_or_delete_count():
     impact = client.get(f"{TASKS_URL}{parent.id}/subtree-impact/")
     deleted = client.delete(f"{TASKS_URL}{parent.id}/")
 
+    # Moving a tree still needs the whole tree in view: the confirmation count
+    # would otherwise understate what the move carries along.
     assert impact.status_code == 403
-    assert deleted.status_code == 403
-    assert "expected" not in str(deleted.json())
+    # Deletion no longer touches the descendant, so it is not blocked by one the
+    # caller cannot see, and it never leaks the hidden node count.
+    assert deleted.status_code == 204
+    child.refresh_from_db()
+    assert child.parent_id is None
+    assert Task.objects.filter(pk=child.pk).exists()
 
 
-def test_subtree_impact_and_delete_cover_the_complete_tree():
+def test_deleting_a_parent_promotes_its_subtasks_instead_of_the_tree():
     user = UserFactory()
     client = _client(user)
     root = _create(client, "Root").json()
     child = _create(client, "Child", root["id"]).json()
-    _create(client, "Leaf", child["id"])
+    leaf = _create(client, "Leaf", child["id"]).json()
 
     impact = client.get(f"{TASKS_URL}{root['id']}/subtree-impact/")
-    rejected = client.delete(f"{TASKS_URL}{root['id']}/")
-    deleted = client.delete(f"{TASKS_URL}{root['id']}/?confirm_subtree_node_count=3")
+    deleted = client.delete(f"{TASKS_URL}{root['id']}/")
 
+    # The impact endpoint keeps reporting the complete tree: it is what a move
+    # confirmation needs.
     assert impact.status_code == 200
     assert impact.json()["node_count"] == 3
     assert impact.json()["descendant_count"] == 2
-    assert rejected.status_code == 400
-    assert (
-        rejected.json()["confirm_subtree_node_count"]["code"]
-        == "task_subtree_confirmation_required"
-    )
+
     assert deleted.status_code == 204
-    assert Task.objects.count() == 0
+    assert not Task.objects.filter(pk=root["id"]).exists()
+    promoted = Task.objects.get(pk=child["id"])
+    assert promoted.parent_id is None
+    # Only one level is unbound: the promoted task keeps everything below it.
+    assert str(Task.objects.get(pk=leaf["id"]).parent_id) == child["id"]
+    assert Task.objects.count() == 2
+    assert client.get(f"{TASKS_URL}{child['id']}/").status_code == 200
+    assert client.get(f"{TASKS_URL}{leaf['id']}/").status_code == 200
+
+
+def test_promoted_subtask_records_the_hierarchy_change():
+    user = UserFactory()
+    client = _client(user)
+    root = _create(client, "Root").json()
+    child = _create(client, "Child", root["id"]).json()
+
+    assert client.delete(f"{TASKS_URL}{root['id']}/").status_code == 204
+
+    activity = TaskActivity.objects.filter(
+        task_id=child["id"],
+        event=TaskActivity.Event.HIERARCHY_CHANGED,
+    ).get()
+    assert activity.changes["parent"]["from"]["id"] == root["id"]
+    assert activity.changes["parent"]["to"] is None
+
+
+def test_deleting_a_parent_preserves_promoted_subtask_positions():
+    user = UserFactory()
+    client = _client(user)
+    root = _create(client, "Root").json()
+    first = client.post(
+        TASKS_URL,
+        {"title": "First", "parent_id": root["id"], "position": 0},
+        format="json",
+    ).json()
+    second = client.post(
+        TASKS_URL,
+        {"title": "Second", "parent_id": root["id"], "position": 1},
+        format="json",
+    ).json()
+
+    assert client.delete(f"{TASKS_URL}{root['id']}/").status_code == 204
+
+    # Promotion keeps the sibling order the two tasks already had.
+    assert Task.objects.get(pk=first["id"]).position == 0
+    assert Task.objects.get(pk=second["id"]).position == 1
 
 
 def test_statistics_explicitly_support_roots_or_all_descendants():

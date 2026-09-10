@@ -52,16 +52,7 @@ const deleteCreatedTask = async (context: BrowserContext) => {
   for (const id of [...cleanupTaskIds].reverse()) {
     const taskUrl =
       taskApiOrigin + '/api/v1.0/tasks/' + encodeURIComponent(id) + '/'
-    const impactResponse = await context.request.get(
-      taskUrl + 'subtree-impact/'
-    )
-    const impact = impactResponse.ok()
-      ? ((await impactResponse.json()) as { node_count: number })
-      : undefined
-    const deleteUrl = impact
-      ? taskUrl + '?confirm_subtree_node_count=' + impact.node_count
-      : taskUrl
-    const response = await context.request.delete(deleteUrl, {
+    const response = await context.request.delete(taskUrl, {
       headers: csrfCookie ? { 'X-CSRFToken': csrfCookie.value } : undefined,
     })
     if (response.status() !== 204 && response.status() !== 404) {
@@ -416,7 +407,7 @@ test('close the bounded recursive hierarchy through depth, movement, and deletio
   await details.getByRole('button', { name: '更多操作' }).click()
   await page.getByRole('menuitem', { name: '删除任务' }).click()
   const deleteDialog = page.getByRole('dialog', { name: '删除任务' })
-  await expect(deleteDialog).toContainText('5 个子任务')
+  await expect(deleteDialog).toContainText('子任务会保留并成为独立任务')
   const deleteResponse = page.waitForResponse(
     (response) =>
       response.request().method() === 'DELETE' &&
@@ -428,6 +419,15 @@ test('close the bounded recursive hierarchy through depth, movement, and deletio
   await expect(
     page.getByRole('row', { name: '打开任务：' + targetTitle })
   ).not.toBeVisible()
+
+  // Deleting a parent unbinds its subtasks instead of deleting the tree.
+  const promotedResponse = await context.request.get(
+    taskApiOrigin + '/api/v1.0/tasks/' + encodeURIComponent(child.id) + '/'
+  )
+  expect(promotedResponse.ok()).toBeTruthy()
+  expect(
+    ((await promotedResponse.json()) as { parent_id: string | null }).parent_id
+  ).toBeNull()
 
   expect(child.id).not.toBe(root.id)
 })

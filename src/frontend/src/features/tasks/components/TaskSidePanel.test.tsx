@@ -1216,7 +1216,6 @@ describe('TaskDetailPanel', () => {
     await waitFor(() =>
       expect(deleteMutateAsync).toHaveBeenCalledWith({
         taskId: task.id,
-        confirmSubtreeNodeCount: 1,
       })
     )
     expect(onClose).toHaveBeenCalledOnce()

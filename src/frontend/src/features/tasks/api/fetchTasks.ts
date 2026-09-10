@@ -1088,20 +1088,12 @@ export const useRemoveTaskFollower = () => {
 
 export type DeleteTaskTarget = {
   taskId: string
-  confirmSubtreeNodeCount?: number
 }
 
-const deleteTask = ({ taskId, confirmSubtreeNodeCount }: DeleteTaskTarget) =>
-  fetchApi<void>(
-    `tasks/${encodeURIComponent(taskId)}/${
-      confirmSubtreeNodeCount
-        ? `?confirm_subtree_node_count=${confirmSubtreeNodeCount}`
-        : ''
-    }`,
-    {
-      method: 'DELETE',
-    }
-  )
+const deleteTask = ({ taskId }: DeleteTaskTarget) =>
+  fetchApi<void>(`tasks/${encodeURIComponent(taskId)}/`, {
+    method: 'DELETE',
+  })
 
 export const useDeleteTask = () => {
   const queryClient = useQueryClient()

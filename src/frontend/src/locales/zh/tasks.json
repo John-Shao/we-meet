@@ -423,7 +423,7 @@
     "delete": "删除任务",
     "deleteTitle": "删除任务",
     "deleteDescription": "确定删除“{{title}}”吗？此操作无法撤销。",
-    "deleteSubtreeDescription": "确定删除“{{title}}”及其 {{count}} 个子任务吗？整棵子树将被永久删除，且无法撤销。",
+    "deleteWithSubtasksDescription": "确定删除“{{title}}”吗？它的子任务会保留并成为独立任务。",
     "completeWithOpenSubtasksTitle": "完成任务？",
     "completeWithOpenSubtasksDescription": "仍有 {{count}} 个未完成子任务。完成当前任务不会改变这些子任务的状态。",
     "completeAnyway": "仍然完成"

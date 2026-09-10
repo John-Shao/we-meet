@@ -174,16 +174,7 @@ export const deleteTaskVisualFixture = async (
   ]
   for (const taskId of taskIds) {
     const taskUrl = `${fixture.apiOrigin}/api/v1.0/tasks/${encodeURIComponent(taskId)}/`
-    const impactResponse = await request.get(`${taskUrl}subtree-impact/`)
-    const impact = impactResponse.ok()
-      ? ((await impactResponse.json()) as { node_count: number })
-      : undefined
-    const deleteResponse = await request.delete(
-      impact
-        ? `${taskUrl}?confirm_subtree_node_count=${impact.node_count}`
-        : taskUrl,
-      { headers }
-    )
+    const deleteResponse = await request.delete(taskUrl, { headers })
     if (deleteResponse.status() !== 204 && deleteResponse.status() !== 404) {
       throw new Error(
         `Task cleanup failed with HTTP ${deleteResponse.status()}`

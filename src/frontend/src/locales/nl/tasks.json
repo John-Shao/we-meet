@@ -388,7 +388,7 @@
     "delete": "Taak verwijderen",
     "deleteTitle": "Taak verwijderen",
     "deleteDescription": "‘{{title}}’ verwijderen? Dit kan niet ongedaan worden gemaakt.",
-    "deleteSubtreeDescription": "‘{{title}}’ en {{count}} subtaken verwijderen? De volledige substructuur wordt permanent verwijderd.",
+    "deleteWithSubtasksDescription": "‘{{title}}’ verwijderen? De subtaken blijven behouden en worden zelfstandige taken.",
     "completeWithOpenSubtasksTitle": "Taak voltooien?",
     "completeWithOpenSubtasksDescription": "{{count}} subtaken zijn nog niet voltooid. Het voltooien van deze taak verandert hun status niet.",
     "completeAnyway": "Toch voltooien"

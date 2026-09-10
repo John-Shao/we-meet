@@ -382,21 +382,15 @@ export const TaskDetailPanel = ({
     const accepted = await confirm({
       title: t('actions.deleteTitle'),
       message:
-        subtreeImpact && subtreeImpact.descendant_count > 0
-          ? t('actions.deleteSubtreeDescription', {
-              title: task.title,
-              count: subtreeImpact.descendant_count,
-            })
+        task.descendant_progress.total > 0
+          ? t('actions.deleteWithSubtasksDescription', { title: task.title })
           : t('actions.deleteDescription', { title: task.title }),
       confirmLabel: t('actions.delete'),
       danger: true,
     })
     if (!accepted) return
     try {
-      await deleteMutation.mutateAsync({
-        taskId: task.id,
-        confirmSubtreeNodeCount: subtreeImpact?.node_count,
-      })
+      await deleteMutation.mutateAsync({ taskId: task.id })
       onClose()
     } catch {
       // Keep the panel open so the mutation error remains visible.

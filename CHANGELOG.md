@@ -33,6 +33,7 @@ and this project adheres to
 - ✨(frontend) sharpen task hierarchy UX with compact panel-aware columns, explicit status feedback, keyboard tree controls, and unfinished-subtask completion warnings
 - 🔒️(backend) enforce full parent-chain visibility for task collaboration and notifications
 - 🔒️(backend) let a subtask collaborator read the complete parent chain as a read-only grant, gated by `TASK_UPWARD_VISIBILITY`
+- ♻️(fullstack) delete a task by unbinding its direct subtasks instead of deleting the whole tree
 - 📝(docs) add a prioritized task module gap analysis and incremental roadmap
 - 📝(docs) align task module documentation with the current implementation
 - ♻️(fullstack) simplify source serialization

@@ -218,6 +218,32 @@ def _task_recurrence_validation_error(exc):
     )
 
 
+def _unbind_direct_subtasks(*, task, actor) -> None:
+    """Detach one task's direct subtasks so they outlive its deletion.
+
+    Only one level is unbound: every promoted task keeps its own subtree, its
+    collaborators and its history, and ``position`` is left untouched so the
+    promoted tasks keep their previous sibling order.  Each promotion is
+    recorded on the promoted task, because the parent link disappearing is a
+    user-visible hierarchy change that must stay auditable.
+    """
+
+    children = list(
+        models.Task.objects.select_for_update(of=("self",))
+        .filter(parent=task)
+        .select_related("task_list", "group")
+        .order_by("position", "created_at")
+    )
+    for child in children:
+        # The parent row is already locked and loaded; reuse it instead of
+        # re-reading it once per child while building the history snapshot.
+        child._state.fields_cache["parent"] = task  # noqa: SLF001
+        before = snapshot_task(child)
+        child.parent = None
+        child.save(update_fields=["parent", "updated_at"])
+        record_task_changes(task=child, actor=actor, before=before)
+
+
 def _delete_tasks_with_attachments(queryset, *, actor):
     """Delete tasks while applying the normal persisted-file cleanup lifecycle."""
 
@@ -2021,6 +2047,16 @@ class TaskViewSet(
         return Response(TaskSerializer(visible_task, context={"request": request}).data)
 
     def destroy(self, request, *args, **kwargs):
+        """Delete one task and promote its direct subtasks to root tasks.
+
+        Removal never cascades into the tree.  A subtask is a task in its own
+        right with its own collaborators, so the parent link is cleared instead
+        of the subtree being destroyed, and the promoted tasks keep everything
+        below them.  Only the named task needs delete permission: unbinding is
+        not destructive, which also removes the old rule that an invisible
+        descendant could block a deletion its owner was not allowed to see.
+        """
+
         visible_task = self.get_object()
         with transaction.atomic():
             lock_task_hierarchy_scopes(visible_task.organization_id)
@@ -2029,55 +2065,21 @@ class TaskViewSet(
                 .select_related("task_list")
                 .get(pk=visible_task.pk)
             )
-            subtree = task_subtree(task, for_update=True)
-            if any(
-                node.creator_id != request.user.id
-                and not _can_edit_task_list(node.task_list, request.user)
-                for node in subtree
+            if task.creator_id != request.user.id and not _can_edit_task_list(
+                task.task_list, request.user
             ):
-                raise PermissionDenied(
-                    "You must be able to delete every task in the subtree."
-                )
-            if len(subtree) > 1:
-                try:
-                    confirmed_count = int(
-                        request.query_params.get("confirm_subtree_node_count", "")
-                    )
-                except ValueError:
-                    confirmed_count = 0
-                if confirmed_count != len(subtree):
-                    raise serializers.ValidationError(
-                        {
-                            "confirm_subtree_node_count": {
-                                "code": "task_subtree_confirmation_required",
-                                "detail": (
-                                    "Confirm the current subtree node count before "
-                                    "deleting a parent task."
-                                ),
-                                "expected": len(subtree),
-                            }
-                        }
-                    )
-            action_item_ids = [
-                node.source_action_item_id
-                for node in subtree
-                if node.source_action_item_id is not None
-            ]
-            if action_item_ids:
-                models.ActionItem.objects.filter(pk__in=action_item_ids).update(
+                raise PermissionDenied("Only task editors can delete this task.")
+            _unbind_direct_subtasks(task=task, actor=request.user)
+            if task.source_action_item_id is not None:
+                models.ActionItem.objects.filter(pk=task.source_action_item_id).update(
                     task_id=None
                 )
-            recurrence_rule_ids = {
-                node.recurrence_rule_id
-                for node in subtree
-                if node.recurrence_rule_id is not None
-            }
-            if recurrence_rule_ids:
+            if task.recurrence_rule_id is not None:
                 models.TaskRecurrenceRule.objects.filter(
-                    pk__in=recurrence_rule_ids
+                    pk=task.recurrence_rule_id
                 ).update(is_active=False, next_occurrence_date=None, last_error="")
             _delete_tasks_with_attachments(
-                models.Task.objects.filter(pk__in=[node.pk for node in subtree]),
+                models.Task.objects.filter(pk=task.pk),
                 actor=request.user,
             )
         return Response(status=status.HTTP_204_NO_CONTENT)

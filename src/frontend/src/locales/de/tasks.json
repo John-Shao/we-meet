@@ -384,7 +384,7 @@
     "delete": "Aufgabe löschen",
     "deleteTitle": "Aufgabe löschen",
     "deleteDescription": "„{{title}}“ löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-    "deleteSubtreeDescription": "„{{title}}“ und {{count}} Unteraufgaben löschen? Der gesamte Teilbaum wird dauerhaft gelöscht.",
+    "deleteWithSubtasksDescription": "„{{title}}“ löschen? Die Unteraufgaben bleiben erhalten und werden eigenständige Aufgaben.",
     "completeWithOpenSubtasksTitle": "Aufgabe abschließen?",
     "completeWithOpenSubtasksDescription": "{{count}} Unteraufgaben sind noch offen. Das Abschließen dieser Aufgabe ändert ihren Status nicht.",
     "completeAnyway": "Trotzdem abschließen"

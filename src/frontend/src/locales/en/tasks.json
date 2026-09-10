@@ -423,7 +423,7 @@
     "delete": "Delete task",
     "deleteTitle": "Delete task",
     "deleteDescription": "Delete “{{title}}”? This action cannot be undone.",
-    "deleteSubtreeDescription": "Delete “{{title}}” and its {{count}} subtasks? The complete subtree will be permanently deleted.",
+    "deleteWithSubtasksDescription": "Delete “{{title}}”? Its subtasks will be kept and become independent tasks.",
     "completeWithOpenSubtasksTitle": "Complete task?",
     "completeWithOpenSubtasksDescription": "{{count}} subtasks are still incomplete. Completing this task will not change their status.",
     "completeAnyway": "Complete anyway"
