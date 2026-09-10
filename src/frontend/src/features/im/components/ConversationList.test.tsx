@@ -129,3 +129,29 @@ describe('ConversationList context menu', () => {
     expect(handlers.onLeave).toHaveBeenCalledWith(group)
   })
 })
+
+describe('ConversationList timestamp', () => {
+  // 一周前的消息走「具体日期」档(与消息列表分隔条同口径),不再显示 1/15。
+  // 用固定年份,断言与「今天」无关。
+  const oldTimestamp = new Date(2020, 0, 15, 10, 5).getTime()
+
+  it('renders an older preview as a localized date, not M/D', () => {
+    render(
+      <ConversationList
+        conversations={[direct]}
+        selectedCID={null}
+        onSelect={() => {}}
+        nameOf={() => 'John'}
+        previewOf={() => ({ text: 'hi', ts: oldTimestamp })}
+        onDelete={() => {}}
+        onLeave={() => {}}
+        onTogglePinned={() => {}}
+        onToggleMuted={() => {}}
+      />
+    )
+
+    const row = screen.getByTestId('conv-item-direct-1')
+    expect(row).toHaveTextContent('Jan 15, 2020')
+    expect(row).not.toHaveTextContent('1/15')
+  })
+})

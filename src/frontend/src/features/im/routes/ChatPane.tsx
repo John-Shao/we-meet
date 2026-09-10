@@ -65,6 +65,7 @@ import { buildTaskCardBody } from '@/features/tasks/components/taskCard'
 
 import { MessageTaskDialog } from '../components/MessageTaskDialog'
 import { messageTaskDescription } from '../components/messageTask'
+import { imDividerTimeLabel } from '../components/imTimeLabels'
 
 // Recall is allowed only on your own messages within this window (WeChat: 2 min).
 const RECALL_WINDOW_MS = 2 * 60 * 1000
@@ -80,29 +81,6 @@ const CONTROL_TYPES = new Set(['recall', 'reaction', 'card-state'])
 
 // 时间分隔条(飞书/微信式):相邻消息间隔超过该阈值时,在消息流中插一条居中时间。
 const TIME_DIVIDER_GAP_MS = 5 * 60 * 1000
-
-// 分隔条文案:今天→HH:MM、昨天→「昨天 HH:MM」、跨天→「M月D日 HH:MM」(本地化),
-// 跨年再带年份。镜像 ConversationList 的 fmtTime 思路,但始终带具体时分。
-const fmtDivider = (ts: number, locale: string, yesterday: string): string => {
-  const d = new Date(ts)
-  const now = new Date()
-  const startOfDay = (x: Date) =>
-    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
-  const dayDiff = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000)
-  const time = `${String(d.getHours()).padStart(2, '0')}:${String(
-    d.getMinutes()
-  ).padStart(2, '0')}`
-  if (dayDiff <= 0) return time
-  if (dayDiff === 1) return `${yesterday} ${time}`
-  const sameYear = d.getFullYear() === now.getFullYear()
-  const datePart = d.toLocaleDateString(
-    locale,
-    sameYear
-      ? { month: 'short', day: 'numeric' }
-      : { year: 'numeric', month: 'short', day: 'numeric' }
-  )
-  return `${datePart} ${time}`
-}
 
 const TimeDivider = ({ label }: { label: string }) => (
   <div
@@ -1432,8 +1410,9 @@ export const ChatPane = ({
                 return (
                   <Fragment key={m.mid}>
                     {showDivider && (
+                      // 分档与格式规则和会话列表右上角共用,见 imTimeLabels.ts。
                       <TimeDivider
-                        label={fmtDivider(
+                        label={imDividerTimeLabel(
                           m.ts,
                           i18n.language,
                           t('time.yesterday')

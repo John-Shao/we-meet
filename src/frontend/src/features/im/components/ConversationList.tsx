@@ -8,6 +8,7 @@ import { StateHint } from '@/components/StateHint'
 import { Avatar } from './Avatar'
 import { GroupAvatar, type GroupAvatarMember } from './GroupAvatar'
 import { MessageContextMenu, type ContextMenuItem } from './MessageContextMenu'
+import { imConversationTimeLabel } from './imTimeLabels'
 
 interface Props {
   conversations: ConversationSummary[]
@@ -46,24 +47,6 @@ interface Props {
    * to preview (empty / fully-cleared conversation).
    */
   previewOf?: (c: ConversationSummary) => { text: string; ts: number } | null
-}
-
-// Short, list-style timestamp: today → HH:MM, yesterday → 昨天, this week →
-// localized weekday, older → M/D. `now`-relative; day boundaries by calendar day.
-const fmtTime = (ts: number, locale: string, yesterday: string): string => {
-  const d = new Date(ts)
-  const now = new Date()
-  const startOfDay = (x: Date) =>
-    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
-  const dayDiff = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000)
-  if (dayDiff <= 0) {
-    const hh = String(d.getHours()).padStart(2, '0')
-    const mm = String(d.getMinutes()).padStart(2, '0')
-    return `${hh}:${mm}`
-  }
-  if (dayDiff === 1) return yesterday
-  if (dayDiff < 7) return d.toLocaleDateString(locale, { weekday: 'short' })
-  return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
 export const ConversationList = ({
@@ -316,7 +299,7 @@ export const ConversationList = ({
                           color: 'greyscale.500',
                         })}
                       >
-                        {fmtTime(
+                        {imConversationTimeLabel(
                           preview.ts,
                           i18n.language,
                           t('time.yesterday')
