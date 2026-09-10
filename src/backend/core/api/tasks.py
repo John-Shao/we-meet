@@ -67,7 +67,7 @@ from core.services.task_hierarchy import (
     prepare_task_hierarchy_data,
     prepare_task_hierarchy_visibility,
     task_subtree,
-    validate_parent_visibility_for_collaborators,
+    validate_conversation_ancestor_chain,
     validate_subtree_parent_visibility,
     validate_task_parent_change,
     visible_task_ancestor_path,
@@ -1442,16 +1442,7 @@ class TaskViewSet(
             if shared_via:
                 _require_conversation_membership(user, shared_via)
         queryset = (
-            models.Task.objects.filter(
-                Q(creator=user)
-                | Q(assignees=user)
-                | Q(assignee=user)
-                | Q(followers=user)
-                | Q(task_list__accesses__user=user)
-                | Q(conversation_shares__cid=shared_via)
-            )
-            .distinct()
-            .annotate(
+            models.Task.objects.annotate(
                 _can_edit_task_list=Exists(
                     models.TaskListAccess.objects.filter(
                         task_list_id=OuterRef("task_list_id"),
@@ -1475,6 +1466,7 @@ class TaskViewSet(
             .prefetch_related("assignees", "followers")
         )
         queryset = filter_visible_task_hierarchy(queryset, user, shared_via=shared_via)
+        queryset = queryset.distinct()
         queryset = annotate_assignee_local_date(queryset, user=user)
         search_query = ""
         if self.action == "list":
@@ -1618,7 +1610,7 @@ class TaskViewSet(
             for cid in serializer.validated_data["conversation_ids"]
         ]
         try:
-            validate_parent_visibility_for_collaborators(
+            validate_conversation_ancestor_chain(
                 parent=task.parent,
                 conversation_ids=cids,
             )
@@ -1721,11 +1713,6 @@ class TaskViewSet(
                 getattr(parent, "organization_id", None),
             )
             try:
-                validate_parent_visibility_for_collaborators(
-                    parent=parent,
-                    users=[request.user, *assignees, *followers],
-                    task_list=validated_data.get("task_list"),
-                )
                 validate_task_parent_change(
                     task=None,
                     parent=parent,
@@ -1879,25 +1866,6 @@ class TaskViewSet(
                             )
                         }
                     )
-            prospective_parent = serializer.validated_data.get("parent", task.parent)
-            prospective_assignees = serializer.validated_data.get("assignees")
-            legacy_assignee = serializer.validated_data.get("assignee")
-            if prospective_assignees is not None or legacy_assignee is not None:
-                try:
-                    validate_parent_visibility_for_collaborators(
-                        parent=prospective_parent,
-                        users=prospective_assignees or [legacy_assignee],
-                    )
-                except TaskHierarchyError as exc:
-                    raise _task_hierarchy_validation_error(exc) from exc
-            if "task_list" in serializer.validated_data:
-                try:
-                    validate_parent_visibility_for_collaborators(
-                        parent=prospective_parent,
-                        task_list=serializer.validated_data["task_list"],
-                    )
-                except TaskHierarchyError as exc:
-                    raise _task_hierarchy_validation_error(exc) from exc
             if "parent" in serializer.validated_data:
                 moved_nodes = task_subtree(task, for_update=True)
                 if any(

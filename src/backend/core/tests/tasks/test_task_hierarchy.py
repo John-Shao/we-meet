@@ -256,7 +256,7 @@ def test_move_parent_preserves_subtree_and_records_hierarchy_activity():
     }
 
 
-def test_hidden_ancestor_hides_child_from_detail_and_search():
+def test_subtask_collaborator_reads_the_complete_parent_chain():
     parent_owner = UserFactory()
     child_owner = UserFactory()
     parent = Task.objects.create(
@@ -271,14 +271,33 @@ def test_hidden_ancestor_hides_child_from_detail_and_search():
     child.assignees.add(child_owner)
     client = _client(child_owner)
 
-    assert client.get(f"{TASKS_URL}{child.id}/").status_code == 404
+    detail = client.get(f"{TASKS_URL}{child.id}/")
+    parent_detail = client.get(f"{TASKS_URL}{parent.id}/")
     results = client.get(
         TASKS_URL,
         {"scope": "all", "status": "all", "q": "Visible child"},
     )
+    ancestors = client.get(
+        TASKS_URL,
+        {"scope": "all", "status": "all"},
+    )
+
+    assert detail.status_code == 200
+    assert [node["title"] for node in detail.json()["ancestor_path"]] == [
+        "Secret parent",
+        "Visible child",
+    ]
+    assert parent_detail.status_code == 200
+    # Reading upwards never grants writing: the parent stays read-only.
+    assert parent_detail.json()["can_edit"] is False
+    assert parent_detail.json()["can_update_status"] is False
+    assert parent_detail.json()["can_delete"] is False
     assert results.status_code == 200
-    assert results.json()["count"] == 0
-    assert results.json()["results"] == []
+    assert [item["id"] for item in results.json()["results"]] == [str(child.id)]
+    assert {item["id"] for item in ancestors.json()["results"]} == {
+        str(parent.id),
+        str(child.id),
+    }
 
 
 def test_hidden_descendant_does_not_leak_subtree_impact_or_delete_count():
@@ -481,7 +500,7 @@ def test_complete_parent_chain_is_visible_to_every_collaborator_role(
     assert statistics.json()["summary"]["total"] == 2
 
 
-def test_hidden_parent_chain_is_excluded_from_filters_statistics_and_notifications():
+def test_subtask_assignee_lists_and_is_notified_through_the_parent_chain():
     parent_owner = UserFactory()
     child_owner = UserFactory()
     parent = Task.objects.create(
@@ -507,9 +526,10 @@ def test_hidden_parent_chain_is_excluded_from_filters_statistics_and_notificatio
     )
     record_task_assignment(task=child, event=TaskImDelivery.Event.ASSIGNED)
 
-    assert filtered.json()["results"] == []
-    assert statistics.json()["summary"]["total"] == 0
-    assert not TaskImDelivery.objects.filter(
+    assert [item["id"] for item in filtered.json()["results"]] == [str(child.id)]
+    # The ancestor stays out of the default "assigned" scope.
+    assert statistics.json()["summary"]["total"] == 1
+    assert TaskImDelivery.objects.filter(
         task=child,
         recipient=child_owner,
     ).exists()
@@ -646,3 +666,154 @@ def test_concurrent_mutual_moves_leave_one_valid_acyclic_tree():
     first_parent = Task.objects.get(pk=first["id"]).parent_id
     second_parent = Task.objects.get(pk=second["id"]).parent_id
     assert (first_parent is None) != (second_parent is None)
+
+
+def _assignee_with_parent(parent_owner):
+    """Build a subtask owner who has no direct relationship to the parent."""
+
+    subtask_owner = UserFactory()
+    parent = Task.objects.create(
+        title="Parent",
+        creator=parent_owner,
+        assignee=parent_owner,
+    )
+    child = Task.objects.create(
+        title="Child",
+        creator=parent_owner,
+        assignee=subtask_owner,
+        parent=parent,
+    )
+    child.assignees.add(subtask_owner)
+    return parent, child, subtask_owner
+
+
+def test_upward_visibility_reaches_every_ancestor_but_not_siblings():
+    parent_owner = UserFactory()
+    root = Task.objects.create(
+        title="Root", creator=parent_owner, assignee=parent_owner
+    )
+    middle = Task.objects.create(
+        title="Middle", creator=parent_owner, assignee=parent_owner, parent=root
+    )
+    leaf = Task.objects.create(
+        title="Leaf",
+        creator=parent_owner,
+        assignee=parent_owner,
+        parent=middle,
+    )
+    sibling = Task.objects.create(
+        title="Sibling",
+        creator=parent_owner,
+        assignee=parent_owner,
+        parent=middle,
+    )
+    reader = UserFactory()
+    leaf.assignees.add(reader)
+    client = _client(reader)
+
+    detail = client.get(f"{TASKS_URL}{leaf.id}/")
+
+    assert detail.status_code == 200
+    assert [node["title"] for node in detail.json()["ancestor_path"]] == [
+        "Root",
+        "Middle",
+        "Leaf",
+    ]
+    assert client.get(f"{TASKS_URL}{middle.id}/").status_code == 200
+    assert client.get(f"{TASKS_URL}{root.id}/").status_code == 200
+    # Reading upwards is one-directional: siblings are not part of the chain.
+    assert client.get(f"{TASKS_URL}{sibling.id}/").status_code == 404
+
+
+def test_upward_visibility_is_read_only_for_the_ancestors():
+    parent_owner = UserFactory()
+    parent, _child, subtask_owner = _assignee_with_parent(parent_owner)
+    client = _client(subtask_owner)
+
+    assert client.get(f"{TASKS_URL}{parent.id}/").status_code == 200
+    assert client.patch(
+        f"{TASKS_URL}{parent.id}/", {"title": "Hijacked"}, format="json"
+    ).status_code == 403
+    assert client.delete(f"{TASKS_URL}{parent.id}/").status_code == 403
+    assert client.post(
+        f"{TASKS_URL}{parent.id}/comments/", {"content": "Hi"}, format="json"
+    ).status_code == 403
+    assert client.post(
+        f"{TASKS_URL}{parent.id}/followers/",
+        {"follower_ids": [str(subtask_owner.id)]},
+        format="json",
+    ).status_code == 403
+    assert Task.objects.get(pk=parent.id).title == "Parent"
+
+
+def test_creator_can_assign_a_subtask_without_parent_access():
+    organization = OrganizationFactory()
+    owner = UserFactory()
+    colleague = UserFactory()
+    for user in (owner, colleague):
+        MembershipFactory(organization=organization, user=user, is_primary=True)
+    parent = Task.objects.create(
+        title="Private parent", creator=owner, assignee=owner, organization=organization
+    )
+
+    created = _client(owner).post(
+        TASKS_URL,
+        {
+            "title": "Delegated child",
+            "parent_id": str(parent.id),
+            "assignee_ids": [str(colleague.id)],
+        },
+        format="json",
+    )
+
+    assert created.status_code == 201
+    colleague_client = _client(colleague)
+    assert colleague_client.get(f"{TASKS_URL}{parent.id}/").status_code == 200
+    assert colleague_client.get(f"{TASKS_URL}{parent.id}/").json()["can_edit"] is False
+
+
+@override_settings(TASK_UPWARD_VISIBILITY=False)
+def test_upward_visibility_can_be_disabled_at_deploy_time():
+    parent_owner = UserFactory()
+    parent, child, subtask_owner = _assignee_with_parent(parent_owner)
+    client = _client(subtask_owner)
+
+    listing = client.get(
+        TASKS_URL, {"scope": "assigned", "status": "all", "time": "all"}
+    )
+    statistics = client.get(
+        f"{TASKS_URL}statistics/", {"scope": "assigned", "status": "all"}
+    )
+
+    assert client.get(f"{TASKS_URL}{child.id}/").status_code == 404
+    assert client.get(f"{TASKS_URL}{parent.id}/").status_code == 404
+    assert listing.json()["results"] == []
+    assert statistics.json()["summary"]["total"] == 0
+
+
+@patch(
+    "core.api.tasks._require_conversation_membership",
+    side_effect=lambda _user, cid: cid,
+)
+def test_conversation_share_does_not_grant_upward_visibility(_membership):
+    owner = UserFactory()
+    viewer = UserFactory()
+    parent = Task.objects.create(title="Parent", creator=owner, assignee=owner)
+    child = Task.objects.create(
+        title="Child", creator=owner, assignee=owner, parent=parent
+    )
+    # Written directly to reach the state the API refuses to create: the child
+    # is shared into a conversation that never received the parent chain.
+    TaskConversationShare.objects.create(
+        task=child,
+        cid="leak-chat",
+        shared_by=owner,
+    )
+    client = _client(viewer)
+
+    assert client.get(
+        f"{TASKS_URL}{child.id}/?shared_via=leak-chat"
+    ).status_code == 404
+    assert client.get(
+        f"{TASKS_URL}{parent.id}/?shared_via=leak-chat"
+    ).status_code == 404

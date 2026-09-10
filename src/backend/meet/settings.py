@@ -187,6 +187,14 @@ class Base(Configuration):
     TASK_MAX_TREE_NODES = values.PositiveIntegerValue(
         500, environ_name="TASK_MAX_TREE_NODES", environ_prefix=None
     )
+    # Reading upwards from a subtask is a deliberate, read-only grant: whoever
+    # collaborates on a task also reads the chain above it.  Keeping it in
+    # settings gives deployments a kill switch without a schema change, because
+    # the grant widens who can read a parent title, description, comments and
+    # attachments.
+    TASK_UPWARD_VISIBILITY = values.BooleanValue(
+        True, environ_name="TASK_UPWARD_VISIBILITY", environ_prefix=None
+    )
     AWS_S3_SIGNATURE_VERSION = values.Value(
         "s3v4",
         environ_name="AWS_S3_SIGNATURE_VERSION",

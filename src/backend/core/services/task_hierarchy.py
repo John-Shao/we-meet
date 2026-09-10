@@ -231,6 +231,12 @@ def validate_task_parent_change(*, task, parent, organization):
         )
 
 
+def task_upward_visibility_enabled() -> bool:
+    """Report whether a subtask collaborator may read the tasks above them."""
+
+    return bool(settings.TASK_UPWARD_VISIBILITY)
+
+
 def task_is_directly_visible(task, user, *, shared_via=""):
     """Apply the existing direct-collaborator visibility rules to one task."""
 
@@ -239,11 +245,29 @@ def task_is_directly_visible(task, user, *, shared_via=""):
     cached = getattr(task, "_hierarchy_direct_visible", None)
     if cached is not None:
         return bool(cached)
+    return task.pk in directly_visible_task_ids(
+        [task.pk], user, shared_via=shared_via
+    )
+
+
+def task_is_visible(task, user, *, shared_via=""):
+    """Apply the readable-task rules to one task, including ancestors.
+
+    Reading upwards is a purely additive, read-only grant.  Every capability
+    field keeps consulting the direct collaborator rules, so a parent reached
+    this way still reports ``can_edit: false`` and cannot be written through.
+    """
+
+    if user is None or not user.is_authenticated:
+        return False
+    cached = getattr(task, "_hierarchy_visible", None)
+    if cached is not None:
+        return bool(cached)
     return task.pk in visible_task_ids([task.pk], user, shared_via=shared_via)
 
 
-def visible_task_ids(task_ids, user, *, shared_via=""):
-    """Return directly visible IDs for an arbitrary bounded task set."""
+def directly_visible_task_ids(task_ids, user, *, shared_via=""):
+    """Return IDs the user collaborates on or reads through a share."""
 
     if user is None or not user.is_authenticated:
         return set()
@@ -256,21 +280,96 @@ def visible_task_ids(task_ids, user, *, shared_via=""):
     )
 
 
-def _direct_task_visibility_filter(user, *, shared_via=""):
-    visibility = (
+def visible_task_ids(task_ids, user, *, shared_via=""):
+    """Return readable IDs for an arbitrary bounded task set.
+
+    Readability includes the ancestors of the caller's own tasks, so a caller
+    never receives a subtask without the parent chain it hangs from.
+    """
+
+    if user is None or not user.is_authenticated:
+        return set()
+    queryset = apply_task_visibility(
+        models.Task.objects.filter(pk__in=task_ids),
+        user,
+        shared_via=shared_via,
+    )
+    return set(queryset.values_list("pk", flat=True))
+
+
+def _collaborator_task_visibility_filter(user):
+    """Direct visibility granted by collaborating on the task itself."""
+
+    return (
         Q(creator=user)
         | Q(assignees=user)
         | Q(assignee=user)
         | Q(followers=user)
         | Q(task_list__accesses__user=user)
     )
+
+
+def _direct_task_visibility_filter(user, *, shared_via=""):
+    visibility = _collaborator_task_visibility_filter(user)
     if shared_via:
         visibility |= Q(conversation_shares__cid=shared_via)
     return visibility
 
 
+def _ancestor_task_visibility_annotations(user):
+    """Annotate whether a task sits above a task the caller collaborates on.
+
+    Every hop is an indexed ``parent_id`` lookup bounded by the configured
+    depth, so the grant can never walk an unbounded or cyclic chain at query
+    time.  Conversation sharing is excluded on purpose: a card shared into a
+    conversation must not reveal a parent chain that the conversation never
+    received.
+    """
+
+    if not task_upward_visibility_enabled():
+        return {}
+    annotations = {}
+    relation_path = "parent"
+    collaborator_visibility = _collaborator_task_visibility_filter(user)
+    for depth in range(1, get_task_hierarchy_limits().max_depth + 1):
+        annotations[f"_hierarchy_ancestor_of_own_task_{depth}"] = Exists(
+            models.Task.objects.filter(
+                **{f"{relation_path}__pk": OuterRef("pk")}
+            ).filter(collaborator_visibility)
+        )
+        relation_path = f"{relation_path}__parent"
+    return annotations
+
+
+def apply_task_visibility(queryset, user, *, shared_via=""):
+    """Keep the tasks the caller may read, directly or from below."""
+
+    if user is None or not user.is_authenticated:
+        return queryset.none()
+    annotations = _ancestor_task_visibility_annotations(user)
+    visibility = _direct_task_visibility_filter(user, shared_via=shared_via)
+    for annotation in annotations:
+        visibility |= Q(**{annotation: True})
+    return queryset.annotate(**annotations).filter(visibility)
+
+
 def filter_visible_task_hierarchy(queryset, user, *, shared_via=""):
-    """Require direct visibility of every ancestor using bounded subqueries."""
+    """Narrow ``queryset`` to the tasks the caller may read.
+
+    Collaboration is upward-closed, so a readable task always renders with a
+    readable parent chain.  A conversation share deliberately is not, and neither
+    is a deployment that switched the upward grant off, so those two cases still
+    walk the ancestor chain explicitly.
+    """
+
+    queryset = apply_task_visibility(queryset, user, shared_via=shared_via)
+    if shared_via or not task_upward_visibility_enabled():
+        return _filter_visible_ancestor_chain(queryset, user, shared_via=shared_via)
+    return queryset
+
+
+def _filter_visible_ancestor_chain(queryset, user, *, shared_via):
+    """Require a directly readable ancestor chain for every returned task."""
 
     if user is None or not user.is_authenticated:
         return queryset.none()
@@ -296,7 +395,7 @@ def filter_visible_task_hierarchy(queryset, user, *, shared_via=""):
 
 
 def prepare_task_hierarchy_visibility(tasks, user, *, shared_via=""):
-    """Hydrate direct visibility for task paths using one permission query."""
+    """Hydrate direct and readable visibility for task paths in one batch."""
 
     supplied = {task.pk: task for task in tasks}
     for task in tasks:
@@ -305,9 +404,11 @@ def prepare_task_hierarchy_visibility(tasks, user, *, shared_via=""):
             task._state.fields_cache["parent"] = parent  # noqa: SLF001
     chains = {task.pk: task_ancestor_chain(task) for task in tasks}
     nodes = {node.pk: node for chain in chains.values() for node in chain}
-    visible_ids = visible_task_ids(nodes, user, shared_via=shared_via)
+    directly_visible = directly_visible_task_ids(nodes, user, shared_via=shared_via)
+    readable = visible_task_ids(nodes, user, shared_via=shared_via)
     for node_id, node in nodes.items():
-        node._hierarchy_direct_visible = node_id in visible_ids  # noqa: SLF001
+        node._hierarchy_direct_visible = node_id in directly_visible  # noqa: SLF001
+        node._hierarchy_visible = node_id in readable  # noqa: SLF001
     return chains
 
 
@@ -347,9 +448,13 @@ def prepare_task_hierarchy_data(tasks, user, *, shared_via=""):
                 "Task trees exceed the configured safety limit.",
             )
 
-    directly_visible = visible_task_ids(all_nodes, user, shared_via=shared_via)
+    directly_visible = directly_visible_task_ids(
+        all_nodes, user, shared_via=shared_via
+    )
+    readable = visible_task_ids(all_nodes, user, shared_via=shared_via)
     for node_id, node in all_nodes.items():
         node._hierarchy_direct_visible = node_id in directly_visible  # noqa: SLF001
+        node._hierarchy_visible = node_id in readable  # noqa: SLF001
 
     result = {}
     for task in tasks:
@@ -359,7 +464,7 @@ def prepare_task_hierarchy_data(tasks, user, *, shared_via=""):
                 {"id": str(node.pk), "title": node.title, "depth": depth}
                 for depth, node in enumerate(chain)
             ]
-            if all(task_is_directly_visible(node, user) for node in chain)
+            if all(task_is_visible(node, user, shared_via=shared_via) for node in chain)
             else None
         )
         root_depth = len(chain) - 1
@@ -408,7 +513,7 @@ def visible_task_ancestor_path(task, user, *, shared_via=""):
 
     chain = task_ancestor_chain(task)
     if not all(
-        task_is_directly_visible(node, user, shared_via=shared_via) for node in chain
+        task_is_visible(node, user, shared_via=shared_via) for node in chain
     ):
         return None
     return [
@@ -417,29 +522,22 @@ def visible_task_ancestor_path(task, user, *, shared_via=""):
     ]
 
 
-def validate_parent_visibility_for_collaborators(
-    *, parent, users=(), task_list=None, conversation_ids=()
-):
-    """Reject a placement that would give collaborators a hidden parent chain."""
+def validate_conversation_ancestor_chain(*, parent, conversation_ids):
+    """Reject a placement that would leak a parent chain into a conversation.
+
+    Task collaborators are no longer checked here: because readability travels
+    upwards, anyone who collaborates on a task already reads the chain above it.
+    Conversation members are a different audience, so a shared card still needs
+    every ancestor to be shared into the same conversation.
+    """
 
     if parent is None:
         return
-    user_ids = {user.pk for user in users if user is not None}
-    if task_list is not None:
-        user_ids.update(task_list.accesses.values_list("user_id", flat=True))
-        user_ids.add(task_list.creator_id)
-    hidden_user_exists = any(
-        visible_task_ancestor_path(parent, user) is None
-        for user in models.User.objects.filter(pk__in=user_ids)
-    )
-    if hidden_user_exists:
-        raise TaskHierarchyError(
-            "task_parent_chain_invisible",
-            "Every task collaborator must be able to view the complete parent chain.",
-        )
-
+    conversation_ids = set(conversation_ids)
+    if not conversation_ids:
+        return
     ancestor_ids = [node.pk for node in task_ancestor_chain(parent)]
-    for conversation_id in set(conversation_ids):
+    for conversation_id in conversation_ids:
         shared_ancestor_ids = set(
             models.TaskConversationShare.objects.filter(
                 task_id__in=ancestor_ids,
@@ -454,17 +552,12 @@ def validate_parent_visibility_for_collaborators(
 
 
 def validate_subtree_parent_visibility(*, subtree, parent):
-    """Apply parent-chain visibility rules to every collaborator in a moved tree."""
+    """Keep every conversation in a moved tree able to render the new chain."""
 
     if parent is None:
         return
     for node in subtree:
-        users = [node.creator, node.assignee]
-        users.extend(node.assignees.all())
-        users.extend(node.followers.all())
-        validate_parent_visibility_for_collaborators(
+        validate_conversation_ancestor_chain(
             parent=parent,
-            users=users,
-            task_list=node.task_list,
             conversation_ids=node.conversation_shares.values_list("cid", flat=True),
         )
