@@ -32,7 +32,6 @@
     "newDept": "Nouveau service",
     "newDeptPrompt": "Nom du nouveau service (créé sous celui sélectionné) :",
     "newDeptError": "Échec de la création du service : {{message}}",
-    "searchPlaceholder": "Rechercher par nom, pinyin ou e-mail…",
     "loading": "Chargement…",
     "empty": "Aucun membre",
     "message": "Message",

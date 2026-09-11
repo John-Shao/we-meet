@@ -14,7 +14,7 @@ import {
  * Returns the full page envelope so callers can follow `next`; a large
  * department would otherwise stop at 100 people with no indication.
  *
- * `options` 只作用于第一页:翻页走服务端给的 `next`,那里面已经带着 ordering/initial。
+ * `options` 只作用于第一页:翻页走服务端给的 `next`,那里面已经带着 ordering/department。
  */
 export const fetchDepartmentMembersPage = (
   departmentId: string,

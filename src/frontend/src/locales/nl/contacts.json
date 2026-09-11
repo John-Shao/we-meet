@@ -32,7 +32,6 @@
     "newDept": "Nieuwe afdeling",
     "newDeptPrompt": "Naam van de nieuwe afdeling (aangemaakt onder de geselecteerde):",
     "newDeptError": "Aanmaken van afdeling mislukt: {{message}}",
-    "searchPlaceholder": "Zoeken op naam, pinyin of e-mail…",
     "loading": "Laden…",
     "empty": "Geen leden",
     "message": "Bericht",
