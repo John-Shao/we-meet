@@ -316,17 +316,61 @@ def test_hidden_descendant_still_guards_move_but_not_deletion():
     client = _client(parent_owner)
 
     impact = client.get(f"{TASKS_URL}{parent.id}/subtree-impact/")
+    # Moving a tree still needs every carried node in view and editable, which
+    # the write path enforces; the impact read only reports the part the caller
+    # can see, so it never leaks the hidden node count.
+    moved = client.patch(
+        f"{TASKS_URL}{parent.id}/",
+        {"parent_id": None, "confirm_subtree_node_count": 2},
+        format="json",
+    )
     deleted = client.delete(f"{TASKS_URL}{parent.id}/")
 
-    # Moving a tree still needs the whole tree in view: the confirmation count
-    # would otherwise understate what the move carries along.
-    assert impact.status_code == 403
+    assert impact.status_code == 200
+    assert impact.json()["node_count"] == 1
+    assert impact.json()["descendant_count"] == 0
+    assert moved.status_code == 403
     # Deletion no longer touches the descendant, so it is not blocked by one the
     # caller cannot see, and it never leaks the hidden node count.
     assert deleted.status_code == 204
     child.refresh_from_db()
     assert child.parent_id is None
     assert Task.objects.filter(pk=child.pk).exists()
+
+
+def test_subtask_collaborator_reads_parent_detail_with_partial_subtree_impact():
+    """A readable parent must not fail the detail screen over a hidden sibling.
+
+    The mobile detail screen fetches ``subtree-impact`` in parallel with the
+    task itself; a 403 for a sibling the caller must not see used to abort the
+    whole detail load.  The impact is reported over the visible part instead.
+    """
+
+    parent_owner = UserFactory()
+    reader = UserFactory()
+    parent = Task.objects.create(
+        title="Parent", creator=parent_owner, assignee=parent_owner
+    )
+    own_child = Task.objects.create(
+        title="My child", creator=parent_owner, assignee=reader, parent=parent
+    )
+    own_child.assignees.add(reader)
+    Task.objects.create(
+        title="Hidden sibling",
+        creator=parent_owner,
+        assignee=parent_owner,
+        parent=parent,
+    )
+    client = _client(reader)
+
+    detail = client.get(f"{TASKS_URL}{parent.id}/")
+    impact = client.get(f"{TASKS_URL}{parent.id}/subtree-impact/")
+
+    assert detail.status_code == 200
+    assert impact.status_code == 200
+    # Only the parent and the reader's own child are visible to the reader.
+    assert impact.json()["node_count"] == 2
+    assert impact.json()["descendant_count"] == 1
 
 
 def test_deleting_a_parent_promotes_its_subtasks_instead_of_the_tree():

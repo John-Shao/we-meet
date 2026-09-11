@@ -34,6 +34,7 @@ and this project adheres to
 - 🔒️(backend) enforce full parent-chain visibility for task collaboration and notifications
 - 🔒️(backend) let a subtask collaborator read the complete parent chain as a read-only grant, gated by `TASK_UPWARD_VISIBILITY`
 - ♻️(fullstack) delete a task by unbinding its direct subtasks instead of deleting the whole tree
+- 🩹(backend) keep task detail loading when a sibling subtask stays hidden
 - 📝(docs) add a prioritized task module gap analysis and incremental roadmap
 - 📝(docs) align task module documentation with the current implementation
 - ♻️(fullstack) simplify source serialization

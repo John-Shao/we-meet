@@ -2086,24 +2086,36 @@ class TaskViewSet(
 
     @action(detail=True, methods=["get"], url_path="subtree-impact")
     def subtree_impact(self, request, *args, **kwargs):  # pylint: disable=unused-argument
+        """Report the subtree impact the caller is allowed to know about.
+
+        Moving a task still requires editing and seeing every node it carries,
+        which ``update`` enforces on the write path, so a viewer who can read
+        the task but not a sibling only receives the impact of the part they
+        can see.  This keeps the detail screen (which fetches this endpoint in
+        parallel) working without leaking the hidden node count.
+        """
+
         task = self.get_object()
         subtree = task_subtree(task)
         shared_via = (request.query_params.get("shared_via") or "").strip()
         chains = prepare_task_hierarchy_visibility(
             subtree, request.user, shared_via=shared_via
         )
-        if any(
-            visible_task_ancestor_path(node, request.user, shared_via=shared_via)
-            is None
+        visible_nodes = [
+            node
             for node in subtree
-        ):
-            raise PermissionDenied("The complete task subtree must be visible.")
+            if visible_task_ancestor_path(node, request.user, shared_via=shared_via)
+            is not None
+        ]
         return Response(
             {
                 "task_id": str(task.pk),
-                "node_count": len(subtree),
-                "descendant_count": len(subtree) - 1,
-                "maximum_depth": max(len(chain) - 1 for chain in chains.values()),
+                "node_count": len(visible_nodes),
+                "descendant_count": len(visible_nodes) - 1,
+                "maximum_depth": max(
+                    (len(chains[node.pk]) - 1 for node in visible_nodes),
+                    default=0,
+                ),
             }
         )
 
