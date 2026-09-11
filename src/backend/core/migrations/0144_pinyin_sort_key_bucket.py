@@ -25,6 +25,17 @@
 排序算法在迁移里照旧是**冻结副本**(理由同 ``0143`` —— 迁移不该 import 会变的 app
 代码)。注意 ``0143`` 里那份副本**故意保持原样**:它代表历史上的一次回填,不能跟着
 新规则改;对齐测试盯的是**本文件**与 ``core/services/pinyin.py``。
+
+两个运维注意点(都不是功能问题,但发布时会遇到):
+
+1. 本迁移没有 ``atomic = False``,Django 把全部操作包在一个事务里,``AlterField`` 在
+   ``meet_user`` 上拿到的 ACCESS EXCLUSIVE 一直持有到 commit —— 回填(``bulk_update``
+   500/批)就在这个窗口里跑。「分批」只减少往返,不缩短持锁;几千行时是亚秒级,上万行
+   应改成 ``atomic = False`` + 逐批 ``transaction.atomic()`` + ``AddIndexConcurrently``。
+2. 桶类前缀是编进**已存**派生列的,而 migrate 是 Helm 的 pre-upgrade hook:跑完到旧
+   Pod 全部退场之间,旧镜像仍会写出**没有前缀**的 ``full_name_pinyin``。那种行在新排序
+   (``ORDER BY full_name_pinyin, full_name``)下数字前缀排在字母前,于是会排到名册
+   第一行。迁移已标记为已应用,不会再修它们 —— ``manage.py rebuild_pinyin_keys``。
 """
 
 import unicodedata

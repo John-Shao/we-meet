@@ -141,7 +141,19 @@ class Migration(migrations.Migration):
                 verbose_name="search key",
             ),
         ),
-        # 表不大(用户量级)且回填本来就要全表扫一遍,所以一次做完 —— 分批是为了
-        # 不把长事务压在用户表上(与 0143 同一个理由)。
+        # 表不大(用户量级)且回填本来就要全表扫一遍,所以一次做完。
+        #
+        # **注意「分批」在这里换不到锁上的好处**:本迁移没有 ``atomic = False``,
+        # Django 会把整段包成一个事务,而上面那步 ``AddField`` 已经在 ``meet_user``
+        # 上拿走了 ACCESS EXCLUSIVE(它与 ACCESS SHARE 冲突,所以回填期间对这张表
+        # **读也会阻塞**),锁一直持有到 commit。``bulk_update`` 每 500 行一批只减少
+        # 往返次数,不缩短持锁时间。组织只有几千行时整段是亚秒级,可以接受;真要长到
+        # 上万行,正确做法是 ``atomic = False`` + 逐批 ``transaction.atomic()``
+        # (+ ``AddIndexConcurrently``),并挑一个单独的窗口跑。
+        #
+        # 另外:migrate 是 Helm 的 pre-upgrade hook,跑完到旧 Pod 全部退场之间,旧镜像
+        # 仍在写这张表,而它**不认识** ``search_key``(留空串)、写出的
+        # ``full_name_pinyin`` 也没有桶类前缀。这些行迁移已经修不到了 ——
+        # ``manage.py rebuild_pinyin_keys`` 就是为这个窗口准备的(见该命令的 docstring)。
         migrations.RunPython(backfill_search_keys, migrations.RunPython.noop),
     ]
