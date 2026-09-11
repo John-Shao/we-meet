@@ -86,6 +86,47 @@ def test_api_directory_members_search_by_query():
     assert ids == {str(alice.id)}
 
 
+def test_api_directory_members_department_include_subtree():
+    """``?department=`` widens to the subtree only when ``include_subtree=true``.
+
+    ``departments/{id}/members/`` has always returned the subtree, so browsing a
+    department and searching inside it must not disagree about who is in it.
+    """
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory()
+    _membership(org, me)
+    parent = models.Department.objects.create(organization=org, name="Parent")
+    child = models.Department.objects.create(
+        organization=org, name="Child", parent=parent
+    )
+    sibling = models.Department.objects.create(organization=org, name="Sibling")
+    direct = factories.UserFactory(full_name="Direct One")
+    _membership(org, direct, department=parent)
+    nested = factories.UserFactory(full_name="Nested One")
+    _membership(org, nested, department=child)
+    outsider = factories.UserFactory(full_name="Outsider One")
+    _membership(org, outsider, department=sibling)
+
+    client = APIClient()
+    client.force_login(me)
+    flat = client.get(f"/api/v1.0/directory/members/?department={parent.id}")
+    subtree = client.get(
+        f"/api/v1.0/directory/members/?department={parent.id}&include_subtree=true"
+    )
+
+    assert flat.status_code == 200
+    assert subtree.status_code == 200
+    # No param keeps the original direct-members-only behaviour.
+    assert {m["id"] for m in flat.json()["results"]} == {str(direct.id)}
+    # include_subtree=true matches browsing the same department: the descendant
+    # comes in, the sibling department's member does not (``path`` is
+    # separator-terminated, so the prefix cannot bleed into ``Sibling``).
+    assert {m["id"] for m in subtree.json()["results"]} == {
+        str(direct.id),
+        str(nested.id),
+    }
+
+
 def test_api_directory_member_retrieve_by_user_id_flags_self():
     """Retrieve a member card by we-meet user id; is_self marks the caller."""
     org = factories.OrganizationFactory()

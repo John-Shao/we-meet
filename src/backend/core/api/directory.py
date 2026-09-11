@@ -380,7 +380,29 @@ class DirectoryMemberViewSet(
         )
         department = self.request.query_params.get("department")
         if department:
-            queryset = queryset.filter(department_id=department)
+            # ``?include_subtree=true`` widens this to the department's whole
+            # subtree, matching ``departments/{id}/members/`` above. The two must
+            # agree: browsing 产品部 shows its sub-departments' people, so searching
+            # inside 产品部 that silently omitted them reads as "search is broken"
+            # rather than "the filter is narrower".
+            #
+            # Absent (or false) keeps the original direct-members-only filter, so
+            # this is backward compatible for every existing caller — the web
+            # client's ``fetchDirectoryMembersPage`` never sends ``department``
+            # at all.
+            if self.request.query_params.get("include_subtree") == "true":
+                node = models.Department.objects.filter(
+                    organization=organization, id=department
+                ).first()
+                # ``path`` is separator-terminated (``f"{parent.path}{id.hex}/"``),
+                # so this prefix cannot bleed into a sibling like ``abc/defg/``.
+                queryset = (
+                    queryset.filter(department__path__startswith=node.path)
+                    if node
+                    else queryset.none()
+                )
+            else:
+                queryset = queryset.filter(department_id=department)
         query = self.request.query_params.get("q", "").strip()
         if query:
             queryset = queryset.filter(
