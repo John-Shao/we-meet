@@ -331,6 +331,39 @@ describe('ContactsRoute', () => {
     expect(screen.getByTestId('contacts-member-s2')).toBeInTheDocument()
   })
 
+  it('切部门立刻清掉筛选词:不会先按上一个部门的词查一次', async () => {
+    const user = userEvent.setup()
+    renderRoute('/contacts?dept=sales')
+    await screen.findByTestId('contacts-member-u1')
+
+    const filter = screen.getByTestId('contacts-member-filter')
+    await user.type(filter, '张')
+    // 先确认筛选本身是走服务端的(否则下面那条断言会因为「一个 q 都没发」而假通过)。
+    await waitFor(() =>
+      expect(
+        mocks.fetchApi.mock.calls.some((call) => String(call[0]).includes('q='))
+      ).toBe(true)
+    )
+
+    mocks.fetchApi.mockClear()
+    await user.click(screen.getByTestId('contacts-dept-hr'))
+
+    // 输入框在同一批更新里就空了 …
+    await waitFor(() => expect(filter).toHaveValue(''))
+    // … 而且**没有**任何请求同时带着新部门和那个旧词。以前会有一个:防抖里压着「张」,
+    // 而「立刻采用新值」那次 reset 晚了一个 commit(取值发生在 effect 里,查询 key 却
+    // 是在渲染里算的),于是新部门先按 q=张 查一次 —— 慢网络下先亮一句「没有匹配的
+    // 成员」,250ms 后才回到正常列表;每次切部门/切视图都多一次往返。
+    expect(
+      mocks.fetchApi.mock.calls.some((call) => {
+        const url = String(call[0])
+        return url.includes('department=hr') && url.includes('q=')
+      })
+    ).toBe(false)
+    // 新部门的名单照常出来(人事部只有王五)。
+    expect(await screen.findByTestId('contacts-member-u3')).toBeInTheDocument()
+  })
+
   it('筛选词发给服务端(全册范围),无命中给专门的文案', async () => {
     const user = userEvent.setup()
     renderRoute('/contacts')

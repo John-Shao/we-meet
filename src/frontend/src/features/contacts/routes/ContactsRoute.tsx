@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -86,6 +87,15 @@ const NAV_COLLAPSED_KEY = 'we-meet:contacts-nav-collapsed'
 /** 成员行高(px):36px 头像 + 上下各 0.625rem 内边距 + 1px 分隔线。
  *  窗口化靠这个数算位置,量出来的和实际不符滚动就会漂 —— 行样式改了要一起改。 */
 const MEMBER_ROW_HEIGHT = 57
+
+/**
+ * 滚动条槽位的兜底宽度(px),用在**还没量到**的那一帧(以及 jsdom 这种没有布局的
+ * 环境)。真机上这个值由 `useScrollbarGutter`(见下)实测后写进 `--contacts-gutter`。
+ *
+ * 10 是 Windows 上 Chromium 的 `scrollbar-width: thin` 宽度 —— 也就是这套对齐最初
+ * 被量出来的环境。它只是首帧的猜测,别再把它当成契约。
+ */
+const SCROLLBAR_GUTTER_FALLBACK = 10
 
 /**
  * 部门级「发起群聊」的规模上限。建群会把所有人拉进一个会话,几百人的群不是
@@ -177,12 +187,33 @@ const ContactsAuthenticated = () => {
       { replace }
     )
 
-  const selectView = (next: Exclude<ContactsView, null>) =>
+  /**
+   * 换上下文(视图 / 部门)时**在同一批更新里**把筛选框清空。
+   *
+   * 为什么必须在这里清、而不是只靠下面那个 effect:筛选词是**防抖后**才发给服务端的
+   * (`useDebouncedValue` 的 `resetKey` 就是「上下文换了」),而两个 effect 的执行顺序
+   * 是**声明顺序** —— 那个 effect 里的 `setMemberFilter('')` 只是排了一次重渲染,
+   * 防抖 hook 的那次 effect 拿到的仍是**旧闭包里的旧词**,于是「立刻采用新值」变成
+   * 空操作,新部门会先按上一个上下文的词查一次(慢网络下先亮一句「没有匹配的成员」,
+   * 250ms 后才回到正常列表),每次切部门/切视图还多一次请求。
+   *
+   * 放在事件处理器里则和 `patchParams` 落在同一批状态更新:重渲染那一帧 `value` 已经
+   * 是 `''`,`resetKey` 同时变化 → 防抖 hook 立刻采用,不发那次多余的请求。
+   */
+  const clearFilter = () => setMemberFilter('')
+
+  const selectView = (next: Exclude<ContactsView, null>) => {
+    clearFilter()
     patchParams({ view: next, dept: null, member: null })
-  const selectAll = () => patchParams({ view: null, dept: null, member: null })
+  }
+  const selectAll = () => {
+    clearFilter()
+    patchParams({ view: null, dept: null, member: null })
+  }
   // 每个选择动作都顺手把浮层详情「重新打开」:窄屏下用户可能刚把它关掉,再点
   // 一次同一个部门也该再看到那张卡。
   const selectDept = (id: string) => {
+    clearFilter()
     setDetailDismissed(false)
     patchParams({ view: null, dept: id, member: null })
   }
@@ -195,7 +226,10 @@ const ContactsAuthenticated = () => {
     patchParams({ group: cid }, { replace: true })
   }
 
-  // 换视图/换部门时清掉列表筛选:上一处筛的「张」带到新列表里只会显示「无匹配」。
+  // 兜底:上面几个入口已经把筛选清掉了(见 clearFilter),但视图/部门也可能**不经过
+  // 它们**就变了 —— 浏览器前进/后退、深链进来、以及 `?dept=` 指向一个已删除的部门时
+  // 回落到「内部联系人」(effectiveDeptId 变化)。那几种情况必须在这里补一刀:上一处
+  // 筛的「张」带到新列表里只会显示「无匹配」。
   useEffect(() => {
     setMemberFilter('')
   }, [view, selectedDeptId])
@@ -273,12 +307,24 @@ const ContactsAuthenticated = () => {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isPlaceholderData,
   } = useInfiniteQuery({
+    // 键里的 `q` 就是 queryFn 的那个筛选词:目录分支用它,星标分支根本不读它,而两条
+    // 分支由同一个键里的 `view` 区分 —— 键是完整的,规则只是看不穿下面那个三元表达式。
+    // (eslint 只认紧邻的下一行,所以这行必须贴在 `queryKey` 前面。)
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: [
       'directory',
       'members',
       'page',
-      { dept: effectiveDeptId, view, q: debouncedFilter },
+      {
+        dept: effectiveDeptId,
+        view,
+        // 星标名单是**另一个端点**(/directory/starred/,不支持 ?q=),它的筛选完全在
+        // 客户端做(见 visibleMembers)。把 `q` 放进 key 只会让每个防抖后的词都变成一次
+        // 新查询:整份星标名单重拉一遍 + 多一条缓存 —— 而结果与上一个词完全相同。
+        q: view === 'starred' ? '' : debouncedFilter,
+      },
     ],
     queryFn: ({ pageParam }) =>
       view === 'starred'
@@ -320,6 +366,12 @@ const ContactsAuthenticated = () => {
    * 条件必须把 `q` 也算进去:它会让 `count` 变成「筛出来的人」,当成全组织人数写进
    * 左栏就是错的。用 state 而不是 ref:ref 要等下一次渲染才可见,冷启动时那一格会
    * 先空一拍。
+   *
+   * 还要挡住**占位数据**:`keepPreviousData` 会在新 key 的第一页到达之前,把**上一个
+   * key 的整份数据**当作 `data` 返回,所以 `totalMembers` 那一刻是「上一个上下文的人数」
+   * 而不是当前这个查询的。少了这一条,从部门视图点回「内部联系人」(该 key 还没有缓存,
+   * 比如深链进站)会把**那个部门的人数**当成全组织人数写进左栏,直到真实响应回来才纠正。
+   * (列表标题上的那个「共 N 人」故意不挡:它旁边的行也还是上一份,两者一致反而不跳。)
    */
   const [knownAllMembers, setKnownAllMembers] = useState<number | null>(null)
   useEffect(() => {
@@ -327,11 +379,12 @@ const ContactsAuthenticated = () => {
       view === null &&
       !effectiveDeptId &&
       !debouncedFilter &&
+      !isPlaceholderData &&
       typeof totalMembers === 'number'
     ) {
       setKnownAllMembers(totalMembers)
     }
-  }, [view, effectiveDeptId, debouncedFilter, totalMembers])
+  }, [view, effectiveDeptId, debouncedFilter, isPlaceholderData, totalMembers])
 
   const selectedDept = useMemo(
     () => departments.find((d) => d.id === effectiveDeptId) ?? null,
@@ -644,6 +697,37 @@ const ContactsAuthenticated = () => {
   /** 悬浮字母头:视口顶部那一行属于哪个字母。 */
   const anchorInitial = visibleMembers[virtual.anchorIndex]?.initial ?? null
 
+  /**
+   * 滚动条**槽位**实测宽度(px),给中栏那三处对齐用。
+   *
+   * 为什么量而不是写死 10px:槽位宽度是**平台给**的,不是我们定的。`scrollbar-gutter:
+   * stable` 在经典滚动条(Windows/Linux)上留出滚动条本身的宽度,在 macOS / Android 的
+   * overlay 滚动条上**一点不留**;而全局那条 `scrollbar-width: thin` 让实际宽度由 UA
+   * 决定(Chrome ≥121 在设了标准属性后不再看 `::-webkit-scrollbar` 的 width,所以
+   * `width: 10px` 那条规则在它眼里是无效的 —— 量到的 10px 只是 Windows 上 thin 恰好是
+   * 10)。写死的话,表头、行尾动作与行的右缘只在「量过的那台机器」上对齐。
+   *
+   * 量法:`offsetWidth - clientWidth` 正好是槽位(+ 边框,而这里没有边框),overlay
+   * 环境下是 0。结果作为 CSS 变量 `--contacts-gutter` 挂在 `<main>` 上(变量向下继承,
+   * 表头与列表都是它的后代),三处各自 `calc()` 引用它,兜底值 10px 用于首帧与 jsdom。
+   */
+  const [gutter, setGutter] = useState(SCROLLBAR_GUTTER_FALLBACK)
+  const gutterNode = virtual.scrollElement
+  useLayoutEffect(() => {
+    if (!gutterNode) return
+    const measure = () => {
+      // clientWidth === 0 = 还没有布局(首帧)或环境根本没有布局(jsdom):那种时候量到的
+      // 0 是「量不出来」而不是「没有槽位」,保留兜底值(测试里因此看到的一直是 10px)。
+      if (gutterNode.clientWidth === 0) return
+      setGutter(Math.max(0, gutterNode.offsetWidth - gutterNode.clientWidth))
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(gutterNode)
+    return () => observer.disconnect()
+  }, [gutterNode])
+
   // 列表内容换了(换部门 / 换视图 / 换筛选词)就回到顶部:否则滚动位置留在半山腰,
   // 新列表一上来就是中间那几行 —— 而那几行跟上一份结果没有任何关系。
   const { scrollToTop } = virtual
@@ -765,6 +849,9 @@ const ContactsAuthenticated = () => {
           flexDirection: 'column',
           overflow: 'hidden',
         })}
+        // 实测到的滚动条槽宽,供表头 / 行尾动作 / 行的右缘三处对齐共用(变量向下继承,
+        // 它们都是这里面的后代)。见 useScrollbarGutter 那段注释。
+        style={{ '--contacts-gutter': `${gutter}px` } as CSSProperties}
       >
         {view === 'groups' ? (
           <MyGroupsPanel selectedCid={groupParam} onSelect={selectGroup} />
@@ -1059,9 +1146,10 @@ const ContactsAuthenticated = () => {
 /**
  * 表头(标题 / 筛选框 / 「添加」)。
  *
- * 右侧内边距比左侧多一条滚动条槽(全局细滚动条宽 10px,见 styles/index.css):
- * 名单在滚动容器里,行的右缘已经被槽位占了 10px —— 表头不补这 10px,「筛选成员」
- * 的右缘就会比行尾的「发消息」靠外 10px,看着就是两列没对齐。
+ * 右侧内边距比左侧多一条滚动条槽:名单在滚动容器里,行的右缘被槽位占掉了 —— 表头不
+ * 补这一条,「筛选成员」的右缘就会比行尾的「发消息」靠外,看着就是两列没对齐。
+ * 槽宽不写死:`--contacts-gutter` 是实测值(见 useScrollbarGutter),10px 只是还没
+ * 量到时的兜底。
  */
 const listHeaderCls = css({
   display: 'flex',
@@ -1069,7 +1157,7 @@ const listHeaderCls = css({
   justifyContent: 'space-between',
   gap: '0.75rem',
   paddingLeft: '1rem',
-  paddingRight: 'calc(1rem + 10px)',
+  paddingRight: `calc(1rem + var(--contacts-gutter, ${SCROLLBAR_GUTTER_FALLBACK}px))`,
   paddingY: '0.625rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
@@ -1164,21 +1252,24 @@ const listCls = css({
   marginTop: 0,
   marginBottom: 0,
   marginLeft: 0,
-  // 右侧 -10px:名单住在滚动容器里,而那 10px 的滚动条槽位是容器**内**的一条白边
+  // 右侧 -槽宽:名单住在滚动容器里,而那条滚动条槽位是容器**内**的一条白边
   // (scrollbar-gutter: stable)。行若只铺到内容盒右缘,每行的分隔线就会在离右边那条
-  // 竖线 10px 的地方齐齐断掉 —— 表头的 border-bottom 却是顶着竖线的,两相对比像名单
-  // 少画了一截。把 ul 的右外边距压成 -10px,行正好铺到容器的 padding 盒右缘,也就是
-  // 第三栏的左边界线。行尾动作另补回这 10px(见 rowActionCls),「发消息」不跟着右移。
+  // 竖线一个槽宽的地方齐齐断掉 —— 表头的 border-bottom 却是顶着竖线的,两相对比像名单
+  // 少画了一截。把 ul 的右外边距压成负的槽宽,行正好铺到容器的 padding 盒右缘,也就是
+  // 第三栏的左边界线。行尾动作另补回同样多(见 rowActionCls),「发消息」不跟着右移。
+  //
+  // 用**实测的槽宽**而不是写死 10px:overlay 滚动条(macOS/Android)下这条边距应当是 0
+  // —— 那时容器里根本没有槽位,负边距会把行推到第三栏边界线外面去。
+  //
   // 曾经这里有一条 maxWidth: 60rem「别让行在超宽屏上无限拉长」。它的问题比它解决的
   // 多:中栏一旦宽过 60rem,行(连同行尾的「发消息」)就比上面的表头窄一截,按钮与
   // 「筛选成员」输入框的右缘对不齐 —— 96px 的空档比「名字离按钮远一点」显眼得多。
   // 名字与按钮的距离由行本身的网格管(1fr + 行尾动作槽),不需要再来一道宽度上限。
-  marginRight: '-10px',
+  marginRight: `calc(-1 * var(--contacts-gutter, ${SCROLLBAR_GUTTER_FALLBACK}px))`,
   padding: 0,
 })
 
-/** 列表本体 = 可滚动的名单 + 右侧索引条。索引条是 flex 兄弟而不是浮层,
- *  不会盖住行尾的按钮,也不用为它留内边距。 */
+/** 列表本体 = 可滚动的名单(索引条已去掉,所以这里只剩一个孩子)。 */
 const listBodyCls = css({
   flex: 1,
   minHeight: 0,
@@ -1191,9 +1282,9 @@ const scrollerCls = css({
   minWidth: 0,
   overflowY: 'auto',
   // 滚动条槽位恒定保留:名单从「不满一屏」涨到「要滚」时行宽不该跳一下。
-  // (也让下面表头的右内边距能按同一个槽宽对齐 —— 见 listHeaderCls。)
+  // (也让表头的右内边距能按同一个槽宽对齐 —— 见 listHeaderCls。)
   scrollbarGutter: 'stable',
-  // 上面 ul 故意右溢 10px 去够那条竖线(见 listCls):不压住横轴,溢出的那点就会
+  // 上面 ul 故意右溢一个槽宽去够那条竖线(见 listCls):不压住横轴,溢出的那点就会
   // 换来一条横向滚动条。溢出的宽度正好等于槽位,不会有内容被切掉。
   overflowX: 'hidden',
 })
@@ -1296,9 +1387,9 @@ const rowActionCls = css({
   alignItems: 'center',
   justifyContent: 'flex-end',
   minWidth: '6rem',
-  // 1rem + 槽位 10px:行现在铺到了槽位里(见 listCls),右内边距不补上这 10px,
-  // 「发消息」就会跟着右移 10px,与表头的「筛选成员」错位(它按 1rem + 10px 内缩)。
-  paddingRight: 'calc(1rem + 10px)',
+  // 1rem + 槽宽:行现在铺到了槽位里(见 listCls),右内边距不补回来,「发消息」就会
+  // 跟着右移,与表头的「筛选成员」错位(它按同一个 1rem + 槽宽内缩)。
+  paddingRight: `calc(1rem + var(--contacts-gutter, ${SCROLLBAR_GUTTER_FALLBACK}px))`,
   opacity: 0,
   pointerEvents: 'none',
   transition: 'opacity 120ms ease',
