@@ -46,9 +46,6 @@
     "recent": "Zuletzt",
     "hideNav": "Navigation einklappen",
     "showNav": "Navigation ausklappen",
-    "alphabetAria": "Nach Anfangsbuchstabe springen",
-    "alphabetLetter": "Zu Namen mit {{letter}} springen",
-    "alphabetClearLetter": "Startpunkt {{letter}} aufheben und alle anzeigen",
     "otherInitial": "Sonstige (Ziffern oder Symbole)",
     "selfTag": "(Sie)",
     "loadMore": "Mehr laden"

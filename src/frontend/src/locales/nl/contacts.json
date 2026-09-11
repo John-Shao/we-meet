@@ -46,9 +46,6 @@
     "recent": "Recent",
     "hideNav": "Navigatie invouwen",
     "showNav": "Navigatie uitvouwen",
-    "alphabetAria": "Op beginletter springen",
-    "alphabetLetter": "Naar namen die met {{letter}} beginnen",
-    "alphabetClearLetter": "Startpunt {{letter}} wissen en alles tonen",
     "otherInitial": "Overig (cijfers of symbolen)",
     "selfTag": "(jij)",
     "loadMore": "Meer laden"

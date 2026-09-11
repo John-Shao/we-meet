@@ -46,9 +46,6 @@
     "recent": "Récents",
     "hideNav": "Réduire la navigation",
     "showNav": "Développer la navigation",
-    "alphabetAria": "Aller à une lettre",
-    "alphabetLetter": "Aller aux noms commençant par {{letter}}",
-    "alphabetClearLetter": "Retirer le point de départ {{letter}} et tout afficher",
     "otherInitial": "Autres (chiffres ou symboles)",
     "selfTag": "(vous)",
     "loadMore": "Charger plus"

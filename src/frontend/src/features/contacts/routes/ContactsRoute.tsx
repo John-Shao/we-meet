@@ -33,7 +33,6 @@ import {
   type ContactsSidebarCounts,
 } from '../components/ContactsSidebar'
 import { ContactsDetailPlaceholder } from '../components/ContactsDetailPlaceholder'
-import { ContactsAlphabetIndex } from '../components/ContactsAlphabetIndex'
 import { DepartmentDetailPanel } from '../components/DepartmentDetailPanel'
 import { GroupDetailPanel } from '../components/GroupDetailPanel'
 import { MemberDetailPanel } from '../components/MemberDetailPanel'
@@ -49,7 +48,6 @@ import {
 import { useMyGroups } from '../hooks/useMyGroups'
 import { fetchDepartments } from '../api/fetchDepartments'
 import {
-  fetchDirectoryAlphabet,
   fetchDirectoryMembersPage,
 } from '../api/fetchDirectoryMembers'
 import { fetchDirectoryMember } from '../api/fetchDirectoryMember'
@@ -90,9 +88,6 @@ const isViewParam = (v: string | null): v is (typeof VIEW_PARAMS)[number] =>
 const NARROW_DETAIL_QUERY = '(max-width: 1280px)'
 
 const NAV_COLLAPSED_KEY = 'we-meet:contacts-nav-collapsed'
-
-/** 索引条只认 A–Z 与 '#'(服务端的「分不出首字母」那一桶)。 */
-const VALID_INITIALS = new Set([...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), '#'])
 
 /** 成员行高(px):36px 头像 + 上下各 0.625rem 内边距 + 1px 分隔线。
  *  窗口化靠这个数算位置,量出来的和实际不符滚动就会漂 —— 行样式改了要一起改。 */
@@ -164,9 +159,6 @@ const ContactsAuthenticated = () => {
   const selectedDeptId = view === null ? searchParams.get('dept') : null
   const memberParam = searchParams.get('member')
   const groupParam = searchParams.get('group')
-  // A–Z 索引条的起点字母。只认 A–Z 和 '#' 那一桶 —— 脏参数当没传。
-  const rawFromInitial = (searchParams.get('from_initial') ?? '').toUpperCase()
-  const fromInitial = VALID_INITIALS.has(rawFromInitial) ? rawFromInitial : null
 
   /**
    * 改 URL 查询串。`replace` 决定要不要留一条历史:
@@ -192,15 +184,13 @@ const ContactsAuthenticated = () => {
     )
 
   const selectView = (next: Exclude<ContactsView, null>) =>
-    patchParams({ view: next, dept: null, member: null, from_initial: null })
-  const selectAll = () =>
-    patchParams({ view: null, dept: null, member: null, from_initial: null })
+    patchParams({ view: next, dept: null, member: null })
+  const selectAll = () => patchParams({ view: null, dept: null, member: null })
   // 每个选择动作都顺手把浮层详情「重新打开」:窄屏下用户可能刚把它关掉,再点
   // 一次同一个部门也该再看到那张卡。
   const selectDept = (id: string) => {
     setDetailDismissed(false)
-    // 换部门清掉起点字母:在新部门的名单里停在「从 L 开始」只会让人以为前面没人。
-    patchParams({ view: null, dept: id, member: null, from_initial: null })
+    patchParams({ view: null, dept: id, member: null })
   }
   const selectMember = (id: string | null) => {
     setDetailDismissed(false)
@@ -211,25 +201,10 @@ const ContactsAuthenticated = () => {
     patchParams({ group: cid }, { replace: true })
   }
 
-  /**
-   * 点索引条的字母:从它开始;再点同一个 = 取消起点(回到整册)。
-   *
-   * 用 replace 而不是 push:连点几个字母不该在历史里留下七八条,后退键得按七八次
-   * 才出得去通讯录。起点变化也不清掉 dept —— 那是「在看哪个部门」,与起点正交。
-   */
-  const selectFromInitial = (letter: string) => {
-    setMemberFilter('')
-    patchParams(
-      { from_initial: fromInitial === letter ? null : letter },
-      { replace: true }
-    )
-  }
-
-  // 换视图/换部门/换起点时清掉列表筛选:上一处筛的「张」带到新列表里只会显示
-  //「无匹配」。
+  // 换视图/换部门时清掉列表筛选:上一处筛的「张」带到新列表里只会显示「无匹配」。
   useEffect(() => {
     setMemberFilter('')
-  }, [view, selectedDeptId, fromInitial])
+  }, [view, selectedDeptId])
 
   const { data: departments = [] } = useQuery({
     queryKey: ['directory', 'departments'],
@@ -247,26 +222,29 @@ const ContactsAuthenticated = () => {
   // 部门/全部成员按**拼音**排(?ordering=pinyin):汉字没有可用的编码序,上千人的
   // 名册按编码排等于乱序。星标名单是服务端另一个端点(不支持拼音序),保持原样。
   //
-  // 注意排序与索引条是两个决定:排序对所有界面语言都发,索引条只在简体中文下画 ——
-  // 详见 pinyinIndexEnabled。
+  // 注意排序与字母头是两个决定:排序对所有界面语言都发,字母头只在简体中文下画 ——
+  // 详见 letterHeadersEnabled。
   const pinyinOrder = view === null
   /**
-   * 拼音首字母**索引**只在界面语言是简体中文时才出现。
+   * 悬浮字母头只在界面语言是简体中文时才出现。
    *
-   * 理由:按拼音分桶是给中文名册用的读法。界面是英文/法文/荷兰文的组织里,一列
-   * A–Z 加一个「其他(数字或符号)」桶既不解释得了名册,也占着右边缘。这一类用户
+   * 理由:按拼音分桶是给中文名册用的读法。界面是英文/法文/荷兰文的组织里,一串
+   * A–Z 小节加一个「其他(数字或符号)」桶既不解释得了名册,又占着视线。这一类用户
    * 本来也不按拼音找中文名 —— 他们有筛选和 Ctrl+K 全局搜索。
+   *
+   * (曾经的右侧 A–Z 索引条已经去掉:一个 27 行的小竖条在手机和窄窗口里都显得突兀,
+   * 而它换来的是「跳到一个字母」这一步 —— 名册本来就有服务端筛选可用了。)
    *
    * 用 startsWith 而不是等值比较:i18next 的 supportedLngs 只有 'zh',浏览器给的
    * 'zh-CN'/'zh-TW' 都会落到这份简体资源上,但语言代码可能仍带地区后缀
    * (全站既有的中文判断也都是这么写的,见 CalendarGrid / AgendaListView)。
    *
    * 取 resolvedLanguage(实际渲染用的那份资源)优先,而不是检测到的原始代码:
-   * 初始化是异步的,首帧 language 可能还是空的 —— 那时不该先画一条索引条再抽掉;
-   * 而回落成中文界面的情况(不支持的语言)看到的本来就是中文,索引条与界面一致。
+   * 初始化是异步的,首帧 language 可能还是空的 —— 那时不该先画一个字母头再抽掉;
+   * 而回落成中文界面的情况(不支持的语言)看到的本来就是中文,字母头与界面一致。
    */
   const activeLanguage = i18n.resolvedLanguage ?? i18n.language
-  const pinyinIndexEnabled = activeLanguage?.startsWith('zh') ?? false
+  const letterHeadersEnabled = activeLanguage?.startsWith('zh') ?? false
 
   /**
    * 筛选词交给**服务端**(防抖 250ms,和选人器同一档)。
@@ -278,7 +256,7 @@ const ContactsAuthenticated = () => {
   const debouncedFilter = useDebouncedValue(
     memberFilter.trim(),
     250,
-    `${view}|${selectedDeptId}|${fromInitial}`
+    `${view}|${selectedDeptId}`
   )
 
   /**
@@ -306,7 +284,7 @@ const ContactsAuthenticated = () => {
       'directory',
       'members',
       'page',
-      { dept: effectiveDeptId, view, fromInitial, q: debouncedFilter },
+      { dept: effectiveDeptId, view, q: debouncedFilter },
     ],
     queryFn: ({ pageParam }) =>
       view === 'starred'
@@ -318,8 +296,7 @@ const ContactsAuthenticated = () => {
           }))
         : fetchDirectoryMembersPage(debouncedFilter, pageParam, {
             pinyin: true,
-            fromInitial,
-            // 部门视图也走目录端点:它同时支持 ?department=、?q= 与新排序参数,
+            // 部门视图也走目录端点:它同时支持 ?department= 与 ?q=,
             // 而 departments/{id}/members/ 不接受搜索词。顺带让两个视图用**同一套**
             // 成员规则(目录端点是「每人一张卡,按主部门」)—— 否则部门视图会出现
             // 「卡片上写的部门不是这个部门」的人。
@@ -341,40 +318,26 @@ const ContactsAuthenticated = () => {
   /** 服务端报的总数(不是已加载条数)—— 标题上写「共 N 人」得是这个。 */
   const totalMembers = memberPages?.pages[0]?.count ?? null
 
-  // A–Z 索引条的字母表(每个字母各有多少人)。与列表同一套过滤(部门),所以点进
-  // 某个部门后字母表跟着变;服务端不支持拼音序的视图(星标/群组/外部)就不请求。
-  const { data: alphabet = [] } = useQuery({
-    queryKey: ['directory', 'alphabet', { dept: effectiveDeptId }],
-    queryFn: () => fetchDirectoryAlphabet({ department: effectiveDeptId }),
-    staleTime: 60_000,
-    enabled: pinyinIndexEnabled && pinyinOrder,
-  })
-  // 字母表还没到(或后端还没上这个接口)就不画索引条:一条全是灰字母的竖条比没有
-  // 更糟 —— 用户会以为整个名册都没有首字母。
-  const showAlphabet = pinyinIndexEnabled && pinyinOrder && alphabet.length > 0
-
   /**
    * 「全部成员」这一行的人数。只有在**当前查询正好是「全部成员、无筛选」**时才知道
    * 确切值,其余情况沿用最后一次已知的数字 —— 每次点部门都让这行数字消失,比留一个
    * 略旧的数字更晃眼。
    *
-   * 条件必须把 `fromInitial` / `q` 也算进去:它们会让 `count` 变成「L 起步的人」或
-   * 「筛出来的人」,当成全组织人数写进左栏就是错的(一个分享出去的 `?from_initial=L`
-   * 链接会让左栏写「全部成员 12」)。用 state 而不是 ref:ref 要等下一次渲染才可见,
-   * 冷启动时那一格会先空一拍。
+   * 条件必须把 `q` 也算进去:它会让 `count` 变成「筛出来的人」,当成全组织人数写进
+   * 左栏就是错的。用 state 而不是 ref:ref 要等下一次渲染才可见,冷启动时那一格会
+   * 先空一拍。
    */
   const [knownAllMembers, setKnownAllMembers] = useState<number | null>(null)
   useEffect(() => {
     if (
       view === null &&
       !effectiveDeptId &&
-      !fromInitial &&
       !debouncedFilter &&
       typeof totalMembers === 'number'
     ) {
       setKnownAllMembers(totalMembers)
     }
-  }, [view, effectiveDeptId, fromInitial, debouncedFilter, totalMembers])
+  }, [view, effectiveDeptId, debouncedFilter, totalMembers])
 
   const selectedDept = useMemo(
     () => departments.find((d) => d.id === effectiveDeptId) ?? null,
@@ -685,13 +648,12 @@ const ContactsAuthenticated = () => {
   /** 悬浮字母头:视口顶部那一行属于哪个字母。 */
   const anchorInitial = visibleMembers[virtual.anchorIndex]?.initial ?? null
 
-  // 列表内容换了(换部门 / 换起点字母 / 换视图 / 换筛选词)就回到顶部:否则滚动位置
-  // 留在半山腰,新列表一上来就是中间那几行 —— 而「从 L 起」的那几行跟上一份结果
-  // 没有任何关系。
+  // 列表内容换了(换部门 / 换视图 / 换筛选词)就回到顶部:否则滚动位置留在半山腰,
+  // 新列表一上来就是中间那几行 —— 而那几行跟上一份结果没有任何关系。
   const { scrollToTop } = virtual
   useEffect(() => {
     scrollToTop()
-  }, [view, effectiveDeptId, fromInitial, debouncedFilter, scrollToTop])
+  }, [view, effectiveDeptId, debouncedFilter, scrollToTop])
 
   // 滚到近底自动拉下一页(按钮保留做兜底:老浏览器 / 自动化测试里没有
   // IntersectionObserver,那时仍然可以手点)。
@@ -869,8 +831,9 @@ const ContactsAuthenticated = () => {
                 data-testid="contacts-list-scroller"
               >
                 {/* 悬浮字母头:滚动中始终知道自己看到哪个字母了(sticky,不占列表流,
-                   所以行高还是定值,窗口化的算术不会被它打乱)。 */}
-                {showAlphabet && anchorInitial && (
+                    所以行高还是定值,窗口化的算术不会被它打乱)。
+                    字母来自服务端下发的 `initial`(拼音序是服务端排的),前端不自己算。 */}
+                {letterHeadersEnabled && pinyinOrder && anchorInitial && (
                   <div
                     className={letterChipCls}
                     data-testid="contacts-letter-chip"
@@ -1056,14 +1019,6 @@ const ContactsAuthenticated = () => {
                   </div>
                 )}
               </div>
-              {/* A–Z 索引条:只在按拼音排的视图(部门 / 全部成员)出现。 */}
-              {showAlphabet && (
-                <ContactsAlphabetIndex
-                  letters={alphabet}
-                  active={fromInitial}
-                  onPick={selectFromInitial}
-                />
-              )}
             </div>
           </>
         )}

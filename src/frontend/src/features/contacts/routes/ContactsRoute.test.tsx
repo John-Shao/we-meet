@@ -110,12 +110,6 @@ let allMembers = [
 ]
 
 /** 字母表(每个字母各有多少人)—— 与 allMembers 的 initial 一致。 */
-let alphabet = [
-  { letter: 'L', count: 1 },
-  { letter: 'W', count: 1 },
-  { letter: 'Z', count: 1 },
-]
-
 const page = (results: DirectoryMember[]) => ({
   count: results.length,
   next: null,
@@ -143,10 +137,10 @@ const nextPageUrl = (params: URLSearchParams, pageNumber: number) => {
 }
 
 /**
- * 假的 /directory/members/ 端点:真的按 department / q / from_initial 过滤,并且
- * 真的分页(count / next / results 是 DRF 的形状)。
+ * 假的 /directory/members/ 端点:真的按 department / q 过滤,并且真的分页
+ * (count / next / results 是 DRF 的形状)。
  *
- * 过滤必须**在这里**做:筛选与分页现在都是服务端的事,前端只负责把参数发出去 ——
+ * 过滤必须**在这里**做:筛选与分页都是服务端的事,前端只负责把参数发出去 ——
  * mock 若不分青红皂白回同一份数据,「服务端按全册筛」与「只筛已加载的那一页」两种
  * 实现都能让测试通过,那就等于没测。
  */
@@ -154,14 +148,13 @@ const directoryMembersPage = (path: string) => {
   const params = new URL(path, 'http://test.local').searchParams
   const department = params.get('department')
   const q = (params.get('q') ?? '').trim().toLowerCase()
-  const fromInitial = params.get('from_initial')
   const pageNumber = Number(params.get('page') ?? 1)
   // 服务端每页上限 100(见 meet/settings.py 的 Pagination);这里照请求值办。
   const pageSize = singlePageMembers
     ? allMembers.length || 1
     : Number(params.get('page_size') ?? 20)
 
-  let list = allMembers.filter((m) => {
+  const list = allMembers.filter((m) => {
     if (department && m.department?.id !== department) return false
     if (!q) return true
     return [
@@ -172,10 +165,6 @@ const directoryMembersPage = (path: string) => {
       m.department?.name,
     ].some((field) => field?.toLowerCase().includes(q))
   })
-  // 服务端比的是拼音键:字母起点 = 「键 ≥ 起点」,'#' 是单独那一桶。
-  if (fromInitial === '#') list = list.filter((m) => m.initial === '#')
-  else if (fromInitial)
-    list = list.filter((m) => (m.initial ?? '') >= fromInitial)
 
   const start = (pageNumber - 1) * pageSize
   return {
@@ -209,10 +198,6 @@ mocks.fetchApi.mockImplementation((path: string) => {
   }
   if (path.startsWith('/directory/departments/')) {
     return Promise.resolve(departments)
-  }
-  // 字母表要在列表之前判:两者都以 /directory/members/ 开头。
-  if (path.startsWith('/directory/members/alphabet/')) {
-    return Promise.resolve({ letters: alphabet })
   }
   if (path.startsWith('/directory/members/')) {
     if (membersError) return Promise.reject(membersError)
@@ -413,17 +398,9 @@ describe('ContactsRoute', () => {
     expect(await screen.findByTestId('contacts-member-u1')).toBeInTheDocument()
   })
 
-  it('索引/筛选让 count 变成「筛出来的人」时,左栏「全部成员」不跟着变小', async () => {
-    // ?from_initial=L 的列表 count 是「L 起步的人」,当成全组织人数写进左栏就是错的
-    // (一个转发出去的链接会让左栏写「全部成员 12」)。
-    const { unmount } = renderRoute('/contacts?from_initial=L')
-    await screen.findByTestId('contacts-member-u2')
-    expect(screen.getByTestId('contacts-all-entry')).toHaveTextContent(
-      /^page\.allMembers$/
-    )
-    unmount()
-
-    // 筛选同理:数字保留最后一次「全部成员、无筛选」时的值,而不是当前筛选结果数。
+  it('筛选让 count 变成「筛出来的人」时,左栏「全部成员」不跟着变小', async () => {
+    // 筛选后的 count 是「命中的人数」,当成全组织人数写进左栏就是错的 —— 数字该保留
+    // 最后一次「全部成员、无筛选」时的值。
     const user = userEvent.setup()
     renderRoute('/contacts')
     await waitFor(() =>
@@ -645,63 +622,39 @@ describe('ContactsRoute', () => {
     expect(String(listCall?.[0])).toContain('department=sales')
   })
 
-  it('A–Z 索引条:字母来自服务端,点一个字母把起点写进 URL,再点一次取消', async () => {
+  it('不再有右侧 A–Z 索引条(它已被去掉,不留半截)', async () => {
     const user = userEvent.setup()
     renderRoute('/contacts')
     await screen.findByTestId('contacts-member-u1')
 
-    // 有人的字母可点,没人的字母禁用(而不是点了以后看到一片空白)。
-    expect(screen.getByTestId('contacts-alphabet-L')).toBeEnabled()
-    expect(screen.getByTestId('contacts-alphabet-A')).toBeDisabled()
-
-    await user.click(screen.getByTestId('contacts-alphabet-L'))
-    await waitFor(() => expect(currentUrl()).toBe('/contacts?from_initial=L'))
-    // 起点要真的发给服务端(前端不做拼音,筛不了)。
-    await waitFor(() =>
-      expect(
-        mocks.fetchApi.mock.calls.some(
-          (call) =>
-            String(call[0]).startsWith('/directory/members/') &&
-            String(call[0]).includes('from_initial=L')
-        )
-      ).toBe(true)
-    )
-
-    // 再点同一个字母 = 取消起点,回到整册。
-    await user.click(screen.getByTestId('contacts-alphabet-L'))
-    await waitFor(() => expect(currentUrl()).toBe('/contacts'))
-  })
-
-  it('索引条只在按拼音排的视图出现(星标 / 群组没有)', async () => {
-    const { unmount } = renderRoute('/contacts?view=starred')
-    await waitFor(() =>
-      expect(screen.getByTestId('contacts-list-title')).toHaveTextContent(
-        'starred.title'
-      )
-    )
+    // 索引条连同它的入口一起删了:点字母跳转这条路没有了。留着断言是为了防止
+    // 「以为删干净了其实还挂着一个空壳」——一个不响应用户的竖条比没有更糟。
     expect(screen.queryByTestId('contacts-alphabet-L')).toBeNull()
-    unmount()
+    expect(screen.queryByTestId('contacts-alphabet-A')).toBeNull()
 
-    renderRoute('/contacts?view=groups')
-    await waitFor(() =>
-      expect(screen.queryByTestId('contacts-alphabet-L')).toBeNull()
-    )
-  })
-
-  it('界面语言不是简体中文:不画索引条与字母头,也不请求字母表', async () => {
-    mocks.language = 'en'
-    renderRoute('/contacts?dept=sales')
-    await screen.findByTestId('contacts-member-u1')
-
-    expect(screen.queryByTestId('contacts-alphabet-L')).toBeNull()
-    expect(screen.queryByTestId('contacts-letter-chip')).toBeNull()
+    // 也不该再有字母表请求(那一趟往返只为索引条而发)。
     expect(
       mocks.fetchApi.mock.calls.some((call) =>
         String(call[0]).includes('/alphabet/')
       )
     ).toBe(false)
-    // 但**排序**照样按拼音发:汉字没有可用的编码序,中文名册对英文界面用户也一样。
-    // (索引条是「怎么读这份名册」,排序是「名册本身长什么样」—— 两件事。)
+
+    // 列表本身照旧:拼音序 + 就地筛选都还在。
+    await user.type(screen.getByTestId('contacts-member-filter'), '李')
+    await waitFor(() =>
+      expect(screen.queryByTestId('contacts-member-u1')).toBeNull()
+    )
+    expect(screen.getByTestId('contacts-member-u2')).toBeInTheDocument()
+  })
+
+  it('界面语言不是简体中文:不画字母头,但排序照样按拼音发', async () => {
+    mocks.language = 'en'
+    renderRoute('/contacts?dept=sales')
+    await screen.findByTestId('contacts-member-u1')
+
+    expect(screen.queryByTestId('contacts-letter-chip')).toBeNull()
+    // **排序**与语言无关:汉字没有可用的编码序,中文名册对英文界面用户也一样。
+    // (字母头是「怎么读这份名册」,排序是「名册本身长什么样」—— 两件事。)
     expect(
       String(
         mocks.fetchApi.mock.calls.find((call) =>
@@ -711,12 +664,11 @@ describe('ContactsRoute', () => {
     ).toContain('ordering=pinyin')
   })
 
-  it('简体中文的变体(zh-CN)也认:浏览器给的带地区后缀的语言照样开索引', async () => {
+  it('简体中文的变体(zh-CN)也认:浏览器给的带地区后缀的语言照样画字母头', async () => {
     mocks.language = 'zh-CN'
     renderRoute('/contacts?dept=sales')
     await screen.findByTestId('contacts-member-u1')
 
-    expect(screen.getByTestId('contacts-alphabet-L')).toBeEnabled()
     expect(screen.getByTestId('contacts-letter-chip')).toBeInTheDocument()
   })
 
@@ -731,12 +683,27 @@ describe('ContactsRoute', () => {
     expect(rows[0]).toHaveAttribute('data-testid', 'contacts-member-u2')
   })
 
+  it('星标 / 群组视图没有字母头(那里不按拼音排)', async () => {
+    const { unmount } = renderRoute('/contacts?view=starred')
+    await waitFor(() =>
+      expect(screen.getByTestId('contacts-list-title')).toHaveTextContent(
+        'starred.title'
+      )
+    )
+    expect(screen.queryByTestId('contacts-letter-chip')).toBeNull()
+    unmount()
+
+    renderRoute('/contacts?view=groups')
+    await waitFor(() =>
+      expect(screen.queryByTestId('contacts-letter-chip')).toBeNull()
+    )
+  })
+
   it('上千人只渲染一屏:整表高度撑开,但 DOM 里没有上千行', async () => {
     // 1000 人的名册一次给完(单页 mock):窗口化算的是已加载的行数。
     allMembers = Array.from({ length: 1000 }, (_, i) =>
       member(`u${i}`, `Member${i}`, '工程师', '销售部')
     )
-    alphabet = [{ letter: 'M', count: 1000 }]
     singlePageMembers = true
     try {
       renderRoute('/contacts')
@@ -754,11 +721,6 @@ describe('ContactsRoute', () => {
         member('u2', '李四'),
         member('u3', '王五', '招聘专员', '人事部'),
         member('u1', '张三', '销售总监'),
-      ]
-      alphabet = [
-        { letter: 'L', count: 1 },
-        { letter: 'W', count: 1 },
-        { letter: 'Z', count: 1 },
       ]
     }
   })

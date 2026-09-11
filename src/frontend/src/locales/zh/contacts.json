@@ -45,9 +45,6 @@
     "recent": "最近访问",
     "hideNav": "收起导航",
     "showNav": "展开导航",
-    "alphabetAria": "按首字母跳转",
-    "alphabetLetter": "跳到「{{letter}}」开头",
-    "alphabetClearLetter": "取消「{{letter}}」起点，显示全部",
     "otherInitial": "其他（数字或符号）",
     "selfTag": "(我)",
     "loadMore": "加载更多"

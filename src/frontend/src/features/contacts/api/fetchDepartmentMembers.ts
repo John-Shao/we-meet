@@ -28,7 +28,6 @@ export const fetchDepartmentMembersPage = (
   const qs = buildQuery([
     ['include_subtree', includeSubtree ? 'true' : null],
     ['ordering', options.pinyin ? 'pinyin' : null],
-    ['from_initial', options.fromInitial ?? null],
   ])
   return fetchApi<Paginated<DirectoryMember>>(
     `/directory/departments/${departmentId}/members/${qs}`

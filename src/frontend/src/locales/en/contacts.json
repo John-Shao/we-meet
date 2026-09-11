@@ -46,9 +46,6 @@
     "recent": "Recent",
     "hideNav": "Collapse navigation",
     "showNav": "Expand navigation",
-    "alphabetAria": "Jump by first letter",
-    "alphabetLetter": "Jump to names starting with {{letter}}",
-    "alphabetClearLetter": "Clear the {{letter}} starting point and show everyone",
     "otherInitial": "Others (digits or symbols)",
     "selfTag": "(you)",
     "loadMore": "Load more"
