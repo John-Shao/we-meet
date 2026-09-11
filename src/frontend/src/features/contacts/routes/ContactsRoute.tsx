@@ -1320,7 +1320,12 @@ const memberRowCls = css({
     backgroundColor: 'greyscale.50',
     '& [data-row-action]': { opacity: 1, pointerEvents: 'auto' },
   },
-  _focusWithin: {
+  // 键盘焦点也现身 —— 但必须是 `:focus-visible` 而不是 `:focus-within`:行内的「选择」
+  // 按钮是 `<button>`,鼠标点一下就会拿到焦点,`:focus-within` 于是把那一行的「发消息」
+  // 一直留在屏幕上;此时鼠标移到别的行,又亮出第二颗 —— 一屏两颗常显按钮正是那个 bug。
+  // 鼠标点击不会匹配 `:focus-visible`(文字输入框例外,这里没有),Tab 进来才匹配,
+  // 键盘可达性不受影响。同一手法见 TaskWorkspaceNavigation 的行尾动作。
+  '&:has(:focus-visible)': {
     '& [data-row-action]': { opacity: 1, pointerEvents: 'auto' },
   },
 })

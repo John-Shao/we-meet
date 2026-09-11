@@ -245,7 +245,9 @@ const rowCls = css({
     backgroundColor: 'greyscale.50',
     '& [data-row-action]': { opacity: 1, pointerEvents: 'auto' },
   },
-  _focusWithin: {
+  // 同通讯录成员行:用 `:focus-visible` 而非 `:focus-within`,否则鼠标点过的那一行会
+  // 一直留着「打开」,再悬停别的行就成了两颗同时常显。
+  '&:has(:focus-visible)': {
     '& [data-row-action]': { opacity: 1, pointerEvents: 'auto' },
   },
 })
