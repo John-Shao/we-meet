@@ -630,6 +630,12 @@ GET  /admin/stats/activity/?days=30 · /admin/stats/ai-usage/ · GET/PUT /admin/
 - **部门详情页**（终于用上零使用的 `Department.head`）：Web 新建 `features/contacts/components/DepartmentDetailPanel.tsx`（右栏"选了部门但没选人"时渲染）；Android 新建 `ui/contacts/DepartmentDetailScreen.kt`。含负责人 / 人数 / 「进入部门群」（`im_cid` 为空则不渲染）
 - **汇报链** `org-chain`：`chain` 硬上限 6 层 + visited set 防环；`reports` 截断 20 + `reports_count`。**未填 manager 时兜底取所在部门的 `head`**（若 head 是本人则取父部门 head）——否则上线后 99% 的人是空的，等于没做；响应带 `manager_source: "explicit"|"department_head"` 让 UI 区分显示（兜底来源显示"部门负责人"而非"直属上级"，避免误导）。**不做组织架构树状可视化大图**（桌面端是玩具，移动端没法看，投产比极差）
 - **A-Z / 拼音索引**：Web 右侧悬浮条 + sticky header；Android `AlphabetRail` + `LazyColumn.stickyHeader`
+  —— **已交付（2026-09）**：Web 见 `src/frontend/src/features/contacts/`（索引条 + 悬浮字母头，仅简体中文界面）与
+  `core/services/pinyin.py`（拼音排序键，迁移 `0143`/`0144`）；Android 见 `we-meet-android` 的
+  `ui/contacts/{ContactSections,ContactsAlphabetRail}.kt`（索引条 + sticky 字母头 + 服务端 `?from_initial=` 起点，
+  同样只在界面语言为简体中文时出现）。**落地与计划的两处偏差**：字母表端点是 `GET /directory/members/alphabet/`
+  而非计划里的 `letters/`；「部门详情页」在 Android 上是部门列表里的一行信息 + 发起群聊，不做独立页面（移动端
+  单栏下多一个页面等于多一次跳转，而负责人/人数是扫一眼就够的信息）。
 - **「我的群组」**：零后端改动（过滤 `listConversations()` 的 `type === 'group'`）。⚠️ Android 必须处理"`ImSession` 未连接"态，**不能显示空列表**（空列表会被理解成"我没有群"）
 - **修 F6 分页 bug**：`fetchDirectoryMembers.ts` / `fetchDepartmentMembers.ts` 返回完整 `Paginated<>`；`ContactsRoute.tsx` 与 `useDirectoryMemberSearch` 改 `useInfiniteQuery` + `IntersectionObserver` 哨兵；两个 picker 加"加载更多"
 - **离职成员**：通讯录自动消失（F9 已正确）；历史消息显示「张三（已离职）」+ 头像置灰（F7 修复后）
