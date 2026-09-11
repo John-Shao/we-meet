@@ -211,15 +211,15 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         _("full name initial"),
         help_text=_(
             "A–Z initial of `full name` (derived on save); '#' for names whose "
-            "initial cannot be derived (digits, symbols, empty). Buckets the "
-            "directory's alphabet index."
+            "initial cannot be derived (digits, symbols, empty). Clients use it "
+            "for the sticky letter header in the directory list."
         ),
         max_length=1,
         blank=True,
         default=OTHER_INITIAL,
-        # 不加索引:实测(5000 人名册)字母表那条 GROUP BY 走的是 HashAggregate,
-        # `?from_initial=#` 也是 pkey 扫描上的 Filter —— 两条路都用不到它,留着只是
-        # 每次保存用户多维护两个索引(这个 1 字符列还只有 ~28 个不同值)。
+        # 不加索引:现在它只被每张卡片的 `initial` 字段读(分组头),按主键取单行,
+        # 用不到索引。而且它只有 ~28 个不同值,留索引只是每次保存用户多维护两个
+        # (1 字符列,Postgres 还会再建一条 varchar_pattern_ops 的)。
     )
     # 通讯录**搜索**用的派生列(全拼 + 首字母缩写,见 services/pinyin.py 的
     # pinyin_search_key)。同样是 save() 维护 + 存下来:查询是子串匹配

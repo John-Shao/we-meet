@@ -645,8 +645,9 @@ GET  /admin/stats/activity/?days=30 · /admin/stats/ai-usage/ · GET/PUT /admin/
   `ui/contacts/ContactSections.kt`（sticky 字母头，同样只在界面语言为简体中文时出现）。
   ⚠️ **计划的「A–Z 竖条」被否决并撤掉了**（两端，同日）：一列 27 行的小竖条挤在名单右边缘，换来的只有
   「跳到某个字母」，而滚动（名册已按拼音排好）与搜索已经覆盖这一步。`?from_initial=` 与
-  `GET /directory/members/alphabet/` 因此暂时**没有调用方**（后端保留，测试与文档都在）。
-  另两处落地偏差：字母表端点是 `alphabet/` 而非计划里的 `letters/`；「部门详情页」在 Android 上是
+  `GET /directory/members/alphabet/` 随后**连同死接口一起删了**（后端 `apply_member_list_params` 只剩
+  `ordering`，`alphabet` action 整个移除）。
+  另两处落地偏差：字母表端点是 `alphabet/` 而非计划里的 `letters/`（现已删除）；「部门详情页」在 Android 上是
   部门列表里的一行信息 + 发起群聊，不做独立页面（移动端单栏下多一个页面等于多一次跳转，而负责人/
   人数是扫一眼就够的信息）。
 - **「我的群组」**：零后端改动（过滤 `listConversations()` 的 `type === 'group'`）。⚠️ Android 必须处理"`ImSession` 未连接"态，**不能显示空列表**（空列表会被理解成"我没有群"）
