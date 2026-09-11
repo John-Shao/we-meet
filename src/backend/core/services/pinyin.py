@@ -3,7 +3,7 @@
 为什么需要:汉字的编码序不是拼音序,而「全部成员」动辄上千人 —— 列表既无法按
 拼音排,也没法按首字母分桶。这些派生值在 ``User.save()`` 里重算(见 ``models.User``),
 列表按 ``full_name_pinyin`` 排序、按 ``full_name_initial`` 分桶,搜索走
-``full_name_search_key``(全拼 + 首字母缩写)。
+``search_key``(全拼 + 首字母缩写)。
 
     >>> pinyin_sort_key("张三")
     '0zhangsan'
@@ -128,7 +128,7 @@ def pinyin_initial(name: str | None) -> str:
     return first.upper() if "a" <= first <= "z" else OTHER_INITIAL
 
 
-#: ``User.full_name_search_key`` 的字段宽度。两份词(全拼 + 缩写)拼起来仍然很短,
+#: ``User.search_key`` 的字段宽度。两份词(全拼 + 缩写)拼起来仍然很短,
 #: 但姓名本身可以到 100 字,所以还是要有个上限。
 MAX_SEARCH_KEY_LENGTH = 255
 
@@ -181,7 +181,7 @@ def pinyin_search_key(
 
 
 def fold_search_query(text: str | None) -> str:
-    """把用户输入的搜索词规范成与 ``full_name_search_key`` 同一套写法。
+    """把用户输入的搜索词规范成与 ``search_key`` 同一套写法。
 
     **不做拼音转换**:用户输入的是要匹配的**子串**,不是姓名。把 ``夜`` 转成 ``ye``
     只会让「输入汉字」这条本来就有效的路径变成另一条更绕的路径(而且会带来
