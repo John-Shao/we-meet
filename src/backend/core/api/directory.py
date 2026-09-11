@@ -452,14 +452,24 @@ class DirectoryMemberViewSet(
             # 它单独用 `contains` 而不是 `icontains`:键已经全部小写且折过音标,
             # 查询词也按同一套折叠(fold_search_query)—— 于是这里就是一条普通的
             # `LIKE '%ye%'`,而不是 `UPPER(col) LIKE …`(后者没法用列上的索引)。
-            queryset = queryset.filter(
+            search_filters = (
                 Q(user__full_name__icontains=query)
                 | Q(user__short_name__icontains=query)
                 | Q(user__email__icontains=query)
                 | Q(title__icontains=query)
                 | Q(department__name__icontains=query)
-                | Q(user__search_key__contains=pinyin.fold_search_query(query))
             )
+            # 折叠后为空时**不能**把这一支加进 OR:``search_key__contains=""`` 在
+            # Postgres 上是 ``LIKE '%%'``,一支恒真会让整个筛选变成「不过滤」——
+            # 把「查无此人」说成「全公司都在」,与用户看到的东西正好相反。而外层的
+            # ``if query:`` 看的是**未折叠**的词,拦不住:`_fold_latin` 会删掉 NFD
+            # 组合音标,所以整个查询词就是一个组合音标(如 U+0301,粘贴自分解文本)
+            # 时,strip() 之后仍非空。折叠为空就只按原文匹配其余几列,于是一个字母
+            # 都对不上的词正常地查不到人。
+            folded = pinyin.fold_search_query(query)
+            if folded:
+                search_filters |= Q(user__search_key__contains=folded)
+            queryset = queryset.filter(search_filters)
         return apply_member_list_params(queryset, self.request)
 
     def get_serializer_context(self):

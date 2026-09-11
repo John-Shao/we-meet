@@ -236,6 +236,23 @@ def test_fold_search_query(raw, expected):
     assert pinyin.fold_search_query(raw) == expected
 
 
+def test_fold_search_query_can_collapse_a_non_empty_term_to_nothing():
+    """**非空**的查询词也可能折成空串 —— 调用方必须自己拦住这一支。
+
+    组合音标(NFD 拆出来的那半个字,如 U+0301)会被 `_fold_latin` 整个删掉,于是
+    「输入非空、折叠后为空」。``search_key__contains=""`` 在 SQL 里是 ``LIKE '%%'``
+    (恒真),所以把这一支无条件 OR 进查询,就等于把筛选变成不过滤 —— 见
+    ``core/api/directory.py`` 里那道 ``if folded:`` 与
+    ``test_api_directory_search_pinyin.py`` 的同名用例。
+    """
+    assert "\u0301".strip() != ""
+    assert pinyin.fold_search_query("\u0301") == ""
+    # 阿拉伯语的单元音符号同理(也是 NFD 组合类)。
+    assert pinyin.fold_search_query("\u064e") == ""
+    # 反面:只要有一个「真的字符」,折叠结果就不为空。
+    assert pinyin.fold_search_query("\u0301a") == "a"
+
+
 def test_pinyin_search_key_is_bounded():
     """超长姓名别把字段撑爆(max_length=255)。"""
     assert len(pinyin.pinyin_search_key("张" * 400)) == pinyin.MAX_SEARCH_KEY_LENGTH

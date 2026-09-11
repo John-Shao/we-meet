@@ -131,6 +131,26 @@ def test_search_short_name_pinyin():
 
 
 
+def test_search_term_that_folds_to_nothing_matches_nobody():
+    """一个折叠后为空的查询词不能把整个名册列出来。
+
+    U+0301 是孤立的 NFD 组合音标(粘贴分解文本时最容易出现):`q` 非空,所以服务端
+    会进筛选分支,但 `fold_search_query` 会把它折成空串。若照旧无条件 OR 进
+    `search_key__contains`,那就是一条 `LIKE '%%'` —— OR 里一支恒真,筛选等于没有,
+    用户会看到「全公司」而不是「没这个人」。
+    """
+    client, _ = _org_with_members(
+        **{"夜来香": "yelaixiang@acme.com", "张三": "zhangsan@acme.com"}
+    )
+
+    # 用 params 传,免得手工拼一个非法/被转义的百分号序列。
+    response = client.get("/api/v1.0/directory/members/", {"q": "\u0301"})
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 0
+    assert response.json()["results"] == []
+
+
 def test_search_is_scoped_to_the_caller_organization():
     """别因为拼音搜索就把别的组织的人漏出来。"""
     org = factories.OrganizationFactory()
