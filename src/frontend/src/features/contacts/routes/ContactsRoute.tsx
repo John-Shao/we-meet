@@ -832,15 +832,14 @@ const ContactsAuthenticated = () => {
               >
                 {/* 悬浮字母头:滚动中始终知道自己看到哪个字母了(sticky,不占列表流,
                     所以行高还是定值,窗口化的算术不会被它打乱)。
-                    字母来自服务端下发的 `initial`(拼音序是服务端排的),前端不自己算。 */}
+                    字母来自服务端下发的 `initial`(拼音序是服务端排的),前端不自己算。
+                    '#' 桶直接显示井号本身 —— 它是一段(数字/符号/空名字),不是「其他」。 */}
                 {letterHeadersEnabled && pinyinOrder && anchorInitial && (
                   <div
                     className={letterChipCls}
                     data-testid="contacts-letter-chip"
                   >
-                    {anchorInitial === '#'
-                      ? t('page.otherInitial')
-                      : anchorInitial}
+                    {anchorInitial}
                   </div>
                 )}
                 {/* 加载失败要说「加载失败」并给一条重试的路。以前这里没有 error
