@@ -130,8 +130,8 @@
     "startGroupChat": "Gruppe starten",
     "startGroupChatConfirm": "Eine Gruppe mit den {{members}} Mitgliedern von „{{name}}“ starten?",
     "startGroupChatEmpty": "Diese Abteilung hat noch keine direkten Mitglieder",
-    "startGroupChatError": "Gruppe konnte nicht erstellt werden: {{message}}"
-    "startGroupChatTooMany": "Diese Abteilung hat {{count}} Personen und liegt über der Grenze von {{limit}} Personen für einen Klick. Erstellen Sie die Gruppe stattdessen im Chat und wählen Sie die Mitglieder aus.",
+    "startGroupChatError": "Gruppe konnte nicht erstellt werden: {{message}}",
+    "startGroupChatTooMany": "Diese Abteilung hat {{count}} Personen und liegt über der Grenze von {{limit}} Personen für einen Klick. Erstellen Sie die Gruppe stattdessen im Chat und wählen Sie die Mitglieder aus."
   },
   "tree": {
     "expand": "Expand",
