@@ -1,0 +1,55 @@
+name: Release guard
+
+# 发布分支的护栏。
+#
+# deploy/aliyun/release-meet.sh 从 aliyun-dev 取 commit、打 tag 再构建镜像,但
+# meet.yml 的 push 触发**只写了 main** —— 也就是说发布路径在 CI 里是完全盲的。
+# 一批语言包就是带着 JSON 语法错误一路走到镜像构建才被发现,而当时的单元测试
+# 全绿:vitest 不会 import 你没用到的那个语言包,`vite build` 会。
+#
+# 这里**刻意只跑「这份 commit 能不能产出部署产物」**,而不是把整条 meet.yml 挂到
+# 发布分支上:那条流水线里有一批存量失败(lint-changelog 有 15 条超长行、lint-back
+# 的 ruff/pylint 也非全绿),推上去第一天就是一片红,只会让人学会忽略 CI。
+# 等那些存量清掉,再把 aliyun-dev 加进 meet.yml 的 push.branches 也不迟。
+on:
+  push:
+    branches:
+      - aliyun-dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-artifact:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 语言包是手改的(还会被 Crowdin 整份覆盖),一个逗号就能让 vite build 挂掉。
+      # 单独一步是为了让红叉直接指出原因;`npm test` 里也会再跑一次(50ms 的事)。
+      - name: Check that every JSON under src/ parses
+        run: npm run check:json
+
+      - name: Run frontend unit tests
+        run: npm test
+
+      # 真正的产物门,也是这条护栏存在的理由:`tsc -b && vite build`。
+      # 单元测试**不做类型检查**,所以「测试全绿、镜像构建不出来」是真实存在的一类
+      # 失败 —— 前端镜像就曾因此完全构建不出来。
+      - name: Build the frontend bundle
+        run: npm run build
