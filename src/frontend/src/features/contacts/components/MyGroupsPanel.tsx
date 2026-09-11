@@ -6,7 +6,6 @@ import { css, cx } from '@/styled-system/css'
 import { Button, SearchBox } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
 import { GroupAvatar } from '@/features/im/components/GroupAvatar'
-import { imConversationTimeLabel } from '@/features/im/components/imTimeLabels'
 
 import { resolveGroupName } from '../groups'
 import { useMyGroups } from '../hooks/useMyGroups'
@@ -27,11 +26,14 @@ interface Props {
  * 这一版补齐了与消息页的口径差:
  *   - 群头像带 customSrc(以前会话列表用群主设的头像、通讯录用九宫格拼图,同一个
  *     群在两处长得不一样);
- *   - 补最后活跃时间与未读红点(与会话列表同一套分档与配色);
+ *   - 补未读红点(与会话列表同一套分档与配色);
  *   - 没名字的群不再一律叫「未命名群聊」,而是用成员名拼「张三、李四等 3 人」。
+ *
+ * 行里**不显示最后活跃时间**:这里是「我加入了哪些群」的名册,不是收件箱,时间既
+ * 帮不上找人、又让每一行多一列窄字,所以只留群名 / 成员数 / 未读。
  */
 export const MyGroupsPanel = ({ selectedCid, onSelect }: Props) => {
-  const { t, i18n } = useTranslation(['contacts', 'im'])
+  const { t } = useTranslation('contacts')
   const [, navigate] = useLocation()
   const { groups, memberInfo, groupAvatars, selfUid, isLoading } = useMyGroups()
   const [query, setQuery] = useState('')
@@ -144,15 +146,6 @@ export const MyGroupsPanel = ({ selectedCid, onSelect }: Props) => {
                     <span className={textColCls}>
                       <span className={line1Cls}>
                         <span className={nameCls}>{label}</span>
-                        {!!c.last_message_ts && (
-                          <span className={timeCls}>
-                            {imConversationTimeLabel(
-                              c.last_message_ts,
-                              i18n.language,
-                              t('im:time.yesterday')
-                            )}
-                          </span>
-                        )}
                       </span>
                       <span className={line2Cls}>
                         <span className={metaCls}>
@@ -291,11 +284,6 @@ const nameCls = css({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-})
-const timeCls = css({
-  flexShrink: 0,
-  fontSize: '0.6875rem',
-  color: 'greyscale.500',
 })
 const metaCls = css({
   flex: 1,
