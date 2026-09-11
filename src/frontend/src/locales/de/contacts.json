@@ -28,7 +28,7 @@
     "count_one": "{{count}} Mitglied",
     "count_other": "{{count}} Mitglieder",
     "departments": "Abteilungen",
-    "orgMembers": "Kontakte der Organisation",
+    "orgMembers": "Interne Kontakte",
     "newDept": "Neue Abteilung",
     "newDeptPrompt": "Name der neuen Abteilung (wird unter der ausgewählten erstellt):",
     "newDeptError": "Abteilung konnte nicht erstellt werden: {{message}}",

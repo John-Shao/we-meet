@@ -28,7 +28,7 @@
     "count_one": "{{count}} member",
     "count_other": "{{count}} members",
     "departments": "Departments",
-    "orgMembers": "Organization contacts",
+    "orgMembers": "Internal contacts",
     "newDept": "New department",
     "newDeptPrompt": "Name of the new department (created under the selected one):",
     "newDeptError": "Failed to create department: {{message}}",

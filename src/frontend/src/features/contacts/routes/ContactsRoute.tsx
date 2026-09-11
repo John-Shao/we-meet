@@ -597,7 +597,7 @@ const ContactsAuthenticated = () => {
   const listTitle =
     view === 'starred'
       ? t('starred.title')
-      : // 组织根的名字与 App 一致:「组织内联系人」而不是「全部成员」—— 同一个东西
+      : // 组织根的名字与 App 一致:「内部联系人」而不是「全部成员」—— 同一个东西
         // 在两端叫同一个名(App 的通讯录首页入口就是这个)。
         (selectedDept?.name ?? t('page.orgMembers'))
   // 部门视图下部门名是重复信息(整列都是同一个部门),换成面包屑更有用。
