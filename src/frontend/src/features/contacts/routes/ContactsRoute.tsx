@@ -1071,12 +1071,20 @@ const ContactsAuthenticated = () => {
   )
 }
 
+/**
+ * 表头(标题 / 筛选框 / 「添加」)。
+ *
+ * 右侧内边距比左侧多一条滚动条槽(全局细滚动条宽 10px,见 styles/index.css):
+ * 名单在滚动容器里,行的右缘已经被槽位占了 10px —— 表头不补这 10px,「筛选成员」
+ * 的右缘就会比行尾的「发消息」靠外 10px,看着就是两列没对齐。
+ */
 const listHeaderCls = css({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '0.75rem',
-  paddingX: '1rem',
+  paddingLeft: '1rem',
+  paddingRight: 'calc(1rem + 10px)',
   paddingY: '0.625rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
@@ -1190,8 +1198,10 @@ const listCls = css({
   listStyle: 'none',
   margin: 0,
   padding: 0,
-  // 超宽屏上不给行宽无限拉长:名字与行尾按钮之间不留几百像素的空档。
-  maxWidth: '60rem',
+  // 曾经这里有一条 maxWidth: 60rem「别让行在超宽屏上无限拉长」。它的问题比它解决的
+  // 多:中栏一旦宽过 60rem,行(连同行尾的「发消息」)就比上面的表头窄一截,按钮与
+  // 「筛选成员」输入框的右缘对不齐 —— 96px 的空档比「名字离按钮远一点」显眼得多。
+  // 名字与按钮的距离由行本身的网格管(1fr + 行尾动作槽),不需要再来一道宽度上限。
 })
 
 /** 列表本体 = 可滚动的名单 + 右侧索引条。索引条是 flex 兄弟而不是浮层,
@@ -1207,6 +1217,9 @@ const scrollerCls = css({
   flex: 1,
   minWidth: 0,
   overflowY: 'auto',
+  // 滚动条槽位恒定保留:名单从「不满一屏」涨到「要滚」时行宽不该跳一下。
+  // (也让下面表头的右内边距能按同一个槽宽对齐 —— 见 listHeaderCls。)
+  scrollbarGutter: 'stable',
 })
 /** 整表高度的占位框:窗口里的那几行绝对定位到它的顶部再 translateY。 */
 const spacerCls = css({ position: 'relative' })

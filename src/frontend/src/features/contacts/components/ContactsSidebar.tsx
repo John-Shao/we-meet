@@ -150,7 +150,25 @@ export const ContactsSidebar = ({
           testId="contacts-external-entry"
         />
 
-        {/* 最近访问:筛选部门时藏起来 —— 那会儿用户是在树里找别的部门。 */}
+        <h3 className={sectionCls}>{t('page.sectionOrg')}</h3>
+        <SidebarEntry
+          icon={<RiTeamLine size={16} />}
+          label={t('page.orgMembers')}
+          count={counts.members}
+          active={view === null && selectedDeptId === null}
+          onClick={onSelectAll}
+          testId="contacts-all-entry"
+        />
+        <DepartmentTree
+          departments={departments}
+          selectedId={selectedDeptId}
+          onSelect={onSelectDept}
+          filter={deptFilter}
+        />
+
+        {/* 最近访问放在**组织架构之后**:它是「回头去某个部门」的快捷方式,读者先要
+            看到整棵树、再看到自己最近走过的那几个,顺序才对得上(先地图后足迹)。
+            筛选部门时藏起来 —— 那会儿用户是在树里找别的部门。 */}
         {recent.length > 0 && !deptFilter.trim() && (
           <>
             <h3 className={sectionCls}>{t('page.recent')}</h3>
@@ -169,22 +187,6 @@ export const ContactsSidebar = ({
             ))}
           </>
         )}
-
-        <h3 className={sectionCls}>{t('page.sectionOrg')}</h3>
-        <SidebarEntry
-          icon={<RiTeamLine size={16} />}
-          label={t('page.orgMembers')}
-          count={counts.members}
-          active={view === null && selectedDeptId === null}
-          onClick={onSelectAll}
-          testId="contacts-all-entry"
-        />
-        <DepartmentTree
-          departments={departments}
-          selectedId={selectedDeptId}
-          onSelect={onSelectDept}
-          filter={deptFilter}
-        />
       </nav>
     </aside>
   )

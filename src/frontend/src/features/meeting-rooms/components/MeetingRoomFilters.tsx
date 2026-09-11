@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { RiSearchLine } from '@remixicon/react'
 
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
