@@ -131,6 +131,7 @@
     "startGroupChatConfirm": "Een groep starten met de {{members}} leden van '{{name}}'?",
     "startGroupChatEmpty": "Deze afdeling heeft nog geen directe leden",
     "startGroupChatError": "Groep aanmaken mislukt: {{message}}"
+    "startGroupChatTooMany": "Deze afdeling heeft {{count}} personen, meer dan de limiet van {{limit}} personen voor één klik. Maak de groep aan vanuit de chat en kies daar de leden.",
   },
   "tree": {
     "expand": "Expand",

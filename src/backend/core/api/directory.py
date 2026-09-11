@@ -17,7 +17,7 @@ import uuid
 from typing import Optional
 
 from django.db import IntegrityError, transaction
-from django.db.models import Case, Count, IntegerField, Q, Value, When
+from django.db.models import Count, Q
 from django.http import Http404
 from django.utils import timezone
 
@@ -180,12 +180,20 @@ def apply_member_list_params(queryset, request, *, apply_from_initial=True):
     raw = (request.query_params.get("from_initial") or "").strip().upper()
     start_at = raw if raw in VALID_INITIALS else None
     if apply_from_initial and start_at is not None:
+        # 起点比较的是**排序键**,所以要带上字母桶的前缀('0l')——键本身以桶类开头
+        # (见 services/pinyin.py 的 LETTER_KEY_PREFIX),不带前缀的 'l' 会把整个
+        # 字母桶都判成「小于起点」。
         queryset = (
             # 空串按 '#' 一桶算:迁移已把所有老行补齐,但万一有绕过 save() 的写入,
             # 「计数算进 # 、点 # 却查不到」比多写一个 in 更糟。
+            # 这里按 full_name_initial 过滤(而不是按排序键的 '1' 前缀):桶的语义
+            # 定义在 initial 上,前缀只是排序手法,两者分开才不会互相牵住。
             queryset.filter(user__full_name_initial__in=["", pinyin.OTHER_INITIAL])
             if start_at == pinyin.OTHER_INITIAL
-            else queryset.filter(user__full_name_pinyin__gte=start_at.lower())
+            else queryset.filter(
+                user__full_name_pinyin__gte=pinyin.LETTER_KEY_PREFIX
+                + start_at.lower()
+            )
         )
     wants_pinyin = (
         start_at is not None
@@ -193,18 +201,13 @@ def apply_member_list_params(queryset, request, *, apply_from_initial=True):
     )
     if not wants_pinyin:
         return queryset.order_by("user__full_name")
-    # 「分不出首字母」那一桶永远排最后:索引条上它就在 A–Z 之后,列表顺序不能跟
-    # 索引说的不一样。同一拼音的两个人(张三/章三)再按姓名兜底,保证翻页之间稳定。
-    return queryset.annotate(
-        _initial_other=Case(
-            When(
-                user__full_name_initial__in=["", pinyin.OTHER_INITIAL],
-                then=Value(1),
-            ),
-            default=Value(0),
-            output_field=IntegerField(),
-        )
-    ).order_by("_initial_other", "user__full_name_pinyin", "user__full_name")
+    # 排序键自己带「桶类」前缀(字母桶 '0'、# 桶 '1'),所以这里不需要 CASE 表达式 ——
+    # 一旦 ORDER BY 首列是表达式,full_name_pinyin 上的索引用不上,整个组织要先
+    # 物化再排序(5000 人、热缓存实测:3.6 ms 且计划里是一个 5000 行的 Sort;
+    # 只按键排则 0.11 ms、Limit → Index Scan)。
+    # 第二列 full_name 是为了翻页稳定:只按拼音排时同音重名的行在不同页之间顺序
+    # 不定,会出现重复或漏人。Meta.indexes 里的复合索引正好覆盖这两列。
+    return queryset.order_by("user__full_name_pinyin", "user__full_name")
 
 
 class DirectoryMemberSerializer(serializers.Serializer):
@@ -447,10 +450,12 @@ class DirectoryMemberViewSet(
             # inside 产品部 that silently omitted them reads as "search is broken"
             # rather than "the filter is narrower".
             #
-            # Absent (or false) keeps the original direct-members-only filter, so
-            # this is backward compatible for every existing caller — the web
-            # client's ``fetchDirectoryMembersPage`` never sends ``department``
-            # at all.
+            # Absent (or false) keeps the original direct-members-only filter. The
+            # web client's department view sends ``department`` without
+            # ``include_subtree``, matching what it did through
+            # ``departments/{id}/members/`` — one click shows exactly that
+            # department's own people, and its sub-departments are separate rows
+            # in the tree.
             if self.request.query_params.get("include_subtree") == "true":
                 node = models.Department.objects.filter(
                     organization=organization, id=department
@@ -466,8 +471,16 @@ class DirectoryMemberViewSet(
                 queryset = queryset.filter(department_id=department)
         query = self.request.query_params.get("q", "").strip()
         if query:
+            # 名字之外还要匹配职位与部门:通讯录列表头的「筛选成员」框现在把词发给
+            # 服务端(前端不再只过滤已加载的那一页),而用户在这个框里输入「销售总监」
+            # 或者在「全部成员」里输入「人事部」都是常见动作 —— 只匹配姓名/邮箱会把
+            # 这些查询变成「查无此人」,那比原来的客户端过滤更糟。
             queryset = queryset.filter(
-                Q(user__full_name__icontains=query) | Q(user__email__icontains=query)
+                Q(user__full_name__icontains=query)
+                | Q(user__short_name__icontains=query)
+                | Q(user__email__icontains=query)
+                | Q(title__icontains=query)
+                | Q(department__name__icontains=query)
             )
         return apply_member_list_params(
             queryset, self.request, apply_from_initial=apply_from_initial

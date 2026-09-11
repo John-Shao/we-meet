@@ -183,16 +183,24 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
     )
     # 通讯录 A–Z 索引用的派生列(由 full_name 算出,见 save())。存下来而不是每次
     # 查询现算:列表要按它排序、分页、分桶计数,现算就没法走索引,上千人一页也白搭。
+    #
+    # 索引不是 db_index=True,而在 Meta.indexes 里显式给一条**复合**索引:
+    #   - 目录的排序是 ORDER BY full_name_pinyin, full_name(第二列是为了翻页稳定),
+    #     (pinyin, full_name) 正好对上它,规划器可以直接沿索引取前 20 行;
+    #   - db_index=True 在文本列上会额外建一条 varchar_pattern_ops 索引(给 LIKE 用),
+    #     而我们从不 LIKE 这一列,那是纯写成本。
     full_name_pinyin = models.CharField(
         _("full name pinyin"),
         help_text=_(
-            "Lowercased pinyin of `full name`, derived on save. Directory lists "
-            "order by it so Chinese names sort in pinyin order, not code-point order."
+            "Sort key derived from `full name` on save: a bucket-class digit "
+            "prefix ('0' for A–Z, '1' for the '#' bucket) followed by the "
+            "lowercased, ASCII-folded pinyin. Directory lists order by it so "
+            "Chinese names sort in pinyin order, not code-point order, and the "
+            "bucket whose initial cannot be derived sorts last."
         ),
         max_length=255,
         blank=True,
         default="",
-        db_index=True,
     )
     full_name_initial = models.CharField(
         _("full name initial"),
@@ -204,7 +212,9 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         max_length=1,
         blank=True,
         default=OTHER_INITIAL,
-        db_index=True,
+        # 不加索引:实测(5000 人名册)字母表那条 GROUP BY 走的是 HashAggregate,
+        # `?from_initial=#` 也是 pkey 扫描上的 Filter —— 两条路都用不到它,留着只是
+        # 每次保存用户多维护两个索引(这个 1 字符列还只有 ~28 个不同值)。
     )
     phone = models.CharField(
         _("phone"),
@@ -296,6 +306,16 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         ordering = ("-created_at",)
         verbose_name = _("user")
         verbose_name_plural = _("users")
+        indexes = [
+            # 通讯录目录的排序索引:ORDER BY full_name_pinyin, full_name(第二列
+            # 是为了翻页稳定 —— 只按拼音排时同音重名的行在不同页之间顺序不定,
+            # 会出现重复/漏人)。复合索引让规划器沿索引取前 20 行,而不是把整个
+            # 组织物化再排序。
+            models.Index(
+                fields=["full_name_pinyin", "full_name"],
+                name="meet_user_pinyin_name_idx",
+            ),
+        ]
 
     def __str__(self):
         return self.email or self.admin_email or str(self.id)

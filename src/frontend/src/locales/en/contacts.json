@@ -131,6 +131,7 @@
     "startGroupChatConfirm": "Start a group chat with the {{members}} members of “{{name}}”?",
     "startGroupChatEmpty": "This department has no direct members yet",
     "startGroupChatError": "Could not create the group chat: {{message}}"
+    "startGroupChatTooMany": "This department has {{count}} people, above the {{limit}}-person limit for one click. Start the group from the chat page and pick members instead.",
   },
   "tree": {
     "expand": "Expand",

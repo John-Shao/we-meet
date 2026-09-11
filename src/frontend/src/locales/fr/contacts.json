@@ -131,6 +131,7 @@
     "startGroupChatConfirm": "Créer un groupe avec les {{members}} membres de « {{name}} » ?",
     "startGroupChatEmpty": "Ce service n'a pas encore de membres directs",
     "startGroupChatError": "Échec de la création du groupe : {{message}}"
+    "startGroupChatTooMany": "Ce service compte {{count}} personnes, au-delà de la limite de {{limit}} personnes pour un seul clic. Créez le groupe depuis la messagerie en choisissant les membres.",
   },
   "tree": {
     "expand": "Expand",

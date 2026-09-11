@@ -65,6 +65,10 @@ const dept = (
   member_count: memberCount,
 })
 
+/** 部门名 → id。成员的 department.id 必须与部门树对得上:列表现在由**服务端**按
+ *  department 过滤,id 写错的话「人事部的人」会被算进销售部,而测试还以为在测别的。 */
+const DEPT_IDS: Record<string, string> = { 销售部: 'sales', 人事部: 'hr' }
+
 const member = (
   id: string,
   fullName: string,
@@ -80,7 +84,7 @@ const member = (
   avatar_url: '',
   title,
   org_role: 'member',
-  department: { id: 'sales', name: deptName },
+  department: { id: DEPT_IDS[deptName] ?? 'sales', name: deptName },
   // 服务端按拼音算的首字母(见 core/services/pinyin.py)。测试里就按名字给死值,
   // 免得在断言里复制一遍拼音实现。
   initial: INITIALS[fullName] ?? (fullName[0] ?? '#').toUpperCase(),
@@ -119,7 +123,82 @@ const page = (results: DirectoryMember[]) => ({
   results,
 })
 
+/** 让某个用例把成员端点打成失败(验列表的失败态与重试)。 */
+let membersError: Error | null = null
+
+/** 星标名单(另一个端点,不支持 ?q= —— 它的筛选是客户端做的)。 */
+let starredMembers: DirectoryMember[] = []
+
+/**
+ * 有的用例要把整册一次给完(验「上千人只渲染一屏」):窗口化算的是**已加载**的
+ * 行数,分页一开,一页就只剩 20 行,那个用例的 1000 行前提就不成立了。
+ */
+let singlePageMembers = false
+
+/** DRF 的 next 是绝对地址;`toApiPath` 认这种带 search 的 URL。 */
+const nextPageUrl = (params: URLSearchParams, pageNumber: number) => {
+  const next = new URLSearchParams(params)
+  next.set('page', String(pageNumber))
+  return `http://test.local/api/v1.0/directory/members/?${next.toString()}`
+}
+
+/**
+ * 假的 /directory/members/ 端点:真的按 department / q / from_initial 过滤,并且
+ * 真的分页(count / next / results 是 DRF 的形状)。
+ *
+ * 过滤必须**在这里**做:筛选与分页现在都是服务端的事,前端只负责把参数发出去 ——
+ * mock 若不分青红皂白回同一份数据,「服务端按全册筛」与「只筛已加载的那一页」两种
+ * 实现都能让测试通过,那就等于没测。
+ */
+const directoryMembersPage = (path: string) => {
+  const params = new URL(path, 'http://test.local').searchParams
+  const department = params.get('department')
+  const q = (params.get('q') ?? '').trim().toLowerCase()
+  const fromInitial = params.get('from_initial')
+  const pageNumber = Number(params.get('page') ?? 1)
+  // 服务端每页上限 100(见 meet/settings.py 的 Pagination);这里照请求值办。
+  const pageSize = singlePageMembers
+    ? allMembers.length || 1
+    : Number(params.get('page_size') ?? 20)
+
+  let list = allMembers.filter((m) => {
+    if (department && m.department?.id !== department) return false
+    if (!q) return true
+    return [
+      m.full_name,
+      m.short_name,
+      m.email,
+      m.title,
+      m.department?.name,
+    ].some((field) => field?.toLowerCase().includes(q))
+  })
+  // 服务端比的是拼音键:字母起点 = 「键 ≥ 起点」,'#' 是单独那一桶。
+  if (fromInitial === '#') list = list.filter((m) => m.initial === '#')
+  else if (fromInitial)
+    list = list.filter((m) => (m.initial ?? '') >= fromInitial)
+
+  const start = (pageNumber - 1) * pageSize
+  return {
+    count: list.length,
+    next:
+      start + pageSize < list.length ? nextPageUrl(params, pageNumber + 1) : null,
+    previous: null,
+    results: list.slice(start, start + pageSize),
+  }
+}
+
 mocks.fetchApi.mockImplementation((path: string) => {
+  // 建群:回一个真的 cid。回 null 会让调用点抛在 result.cid 上,变成一句
+  // 「创建群聊失败」—— 那不是这个用例要测的东西,而且会污染后面的 alert 计数。
+  if (path === '/im/conversations/group/') {
+    return Promise.resolve({
+      cid: 'c-new',
+      type: 'group',
+      owner_uid: 'self',
+      members: [],
+      self_uid: 'self',
+    })
+  }
   const deptMembersMatch = /^\/directory\/departments\/([^/]+)\/members\//.exec(
     path
   )
@@ -135,9 +214,12 @@ mocks.fetchApi.mockImplementation((path: string) => {
   if (path.startsWith('/directory/members/alphabet/')) {
     return Promise.resolve({ letters: alphabet })
   }
-  if (path.startsWith('/directory/members/'))
-    return Promise.resolve(page(allMembers))
-  if (path.startsWith('/directory/starred/')) return Promise.resolve([])
+  if (path.startsWith('/directory/members/')) {
+    if (membersError) return Promise.reject(membersError)
+    return Promise.resolve(directoryMembersPage(path))
+  }
+  if (path.startsWith('/directory/starred/'))
+    return Promise.resolve(starredMembers)
   if (path.startsWith('/directory/contact-prefs/')) return Promise.resolve([])
   if (path.startsWith('/directory/external-contacts/'))
     return Promise.resolve([])
@@ -183,6 +265,9 @@ beforeEach(() => {
   mocks.fetchApi.mockClear()
   mocks.t.mockClear()
   mocks.language = 'zh'
+  membersError = null
+  singlePageMembers = false
+  starredMembers = []
   setNarrow(false)
 })
 
@@ -246,13 +331,37 @@ describe('ContactsRoute', () => {
     ).toBeInTheDocument()
   })
 
-  it('就地筛选只过滤已加载的成员,无命中给专门的文案', async () => {
+  it('星标名单的筛选仍然管用(那个端点不支持 ?q=,只有它是客户端过滤)', async () => {
+    starredMembers = [member('s1', '李四'), member('s2', '张三', '销售总监')]
+    const user = userEvent.setup()
+    renderRoute('/contacts?view=starred')
+    await screen.findByTestId('contacts-member-s1')
+    expect(screen.getByTestId('contacts-member-s2')).toBeInTheDocument()
+
+    await user.type(screen.getByTestId('contacts-member-filter'), '销售总监')
+    await waitFor(() =>
+      expect(screen.queryByTestId('contacts-member-s1')).toBeNull()
+    )
+    // 职位也要能命中 —— 与目录端点的 q 同一套字段。
+    expect(screen.getByTestId('contacts-member-s2')).toBeInTheDocument()
+  })
+
+  it('筛选词发给服务端(全册范围),无命中给专门的文案', async () => {
     const user = userEvent.setup()
     renderRoute('/contacts')
     await screen.findByTestId('contacts-member-u1')
 
     const filter = screen.getByTestId('contacts-member-filter')
     await user.type(filter, '李')
+    // 防抖 250ms 之后词要真的进请求 —— 只在已加载的那 20 条里找,等于「公司里
+    // 没这个人」,而那是个假话。
+    await waitFor(() =>
+      expect(
+        mocks.fetchApi.mock.calls.some((call) =>
+          String(call[0]).includes('q=%E6%9D%8E')
+        )
+      ).toBe(true)
+    )
     await waitFor(() =>
       expect(screen.queryByTestId('contacts-member-u1')).toBeNull()
     )
@@ -261,6 +370,74 @@ describe('ContactsRoute', () => {
     await user.clear(filter)
     await user.type(filter, '查无此人')
     expect(await screen.findByText('page.noMatch')).toBeInTheDocument()
+  })
+
+  it('筛选到 0 条:只说「没有匹配的成员」,不挂一个「加载更多」自相矛盾', async () => {
+    // 名册本身是分页的(25 人 → 第一页 20 条 + next),所以「加载更多」本来是
+    // 在的 —— 空的筛选结果必须把它收掉,否则用户会一直点一个什么也不会发生的
+    // 按钮,而那句「没有匹配的成员」看起来就像还没加载完。
+    allMembers = Array.from({ length: 25 }, (_, i) =>
+      member(`u${i}`, `Member${i}`, '工程师')
+    )
+    const user = userEvent.setup()
+    try {
+      renderRoute('/contacts')
+      await screen.findByTestId('contacts-member-u0')
+      expect(screen.getByTestId('contacts-load-more')).toBeInTheDocument()
+
+      await user.type(screen.getByTestId('contacts-member-filter'), '查无此人')
+      expect(await screen.findByText('page.noMatch')).toBeInTheDocument()
+      expect(screen.queryByTestId('contacts-load-more')).toBeNull()
+    } finally {
+      allMembers = [
+        member('u2', '李四'),
+        member('u3', '王五', '招聘专员', '人事部'),
+        member('u1', '张三', '销售总监'),
+      ]
+    }
+  })
+
+  it('列表加载失败:说「加载失败」并给一条重试的路,而不是「暂无成员」', async () => {
+    membersError = new Error('boom')
+    const user = userEvent.setup()
+    renderRoute('/contacts')
+
+    // 「暂无成员」会把一次网络/权限故障说成「公司里没有人」。
+    expect(await screen.findByTestId('contacts-retry')).toBeInTheDocument()
+    expect(screen.getByText('picker.loadError')).toBeInTheDocument()
+    expect(screen.queryByText('page.empty')).toBeNull()
+
+    // 重试要真的再请求一次,而不是把错误藏起来。
+    membersError = null
+    await user.click(screen.getByTestId('contacts-retry'))
+    expect(await screen.findByTestId('contacts-member-u1')).toBeInTheDocument()
+  })
+
+  it('索引/筛选让 count 变成「筛出来的人」时,左栏「全部成员」不跟着变小', async () => {
+    // ?from_initial=L 的列表 count 是「L 起步的人」,当成全组织人数写进左栏就是错的
+    // (一个转发出去的链接会让左栏写「全部成员 12」)。
+    const { unmount } = renderRoute('/contacts?from_initial=L')
+    await screen.findByTestId('contacts-member-u2')
+    expect(screen.getByTestId('contacts-all-entry')).toHaveTextContent(
+      /^page\.allMembers$/
+    )
+    unmount()
+
+    // 筛选同理:数字保留最后一次「全部成员、无筛选」时的值,而不是当前筛选结果数。
+    const user = userEvent.setup()
+    renderRoute('/contacts')
+    await waitFor(() =>
+      expect(screen.getByTestId('contacts-all-entry')).toHaveTextContent(
+        'page.allMembers3'
+      )
+    )
+    await user.type(screen.getByTestId('contacts-member-filter'), '李')
+    await waitFor(() =>
+      expect(screen.getByTestId('contacts-member-u2')).toBeInTheDocument()
+    )
+    expect(screen.getByTestId('contacts-all-entry')).toHaveTextContent(
+      'page.allMembers3'
+    )
   })
 
   it('部门视图里不重复写部门名(整列都是同一个部门)', async () => {
@@ -303,10 +480,14 @@ describe('ContactsRoute', () => {
     renderRoute('/contacts?dept=sales')
     await screen.findByTestId('contacts-member-u1')
 
-    // 窄屏下不再有 300px 的常驻第三栏(它会把名单挤没)。
-    expect(screen.queryByTestId('contacts-dept-detail')).toBeNull()
+    // 窄屏下部门卡不再占一栏:它盖在名单上(浮层),名单本身还在后面。
+    expect(screen.getByTestId('contacts-detail-overlay')).toContainElement(
+      screen.getByTestId('contacts-department-detail')
+    )
+    // 常驻第三栏(空态占位那一块)不在 DOM 里 —— 它会把名单挤没。
+    expect(screen.queryByTestId('contacts-detail-placeholder')).toBeNull()
 
-    // 点成员 → 浮层盖上来(走 portal,挂在 body 上),名单还在后面。
+    // 点成员 → 浮层换成成员卡(走 portal,挂在 body 上),名单还在后面。
     await user.click(screen.getByTestId('contacts-member-u2'))
     expect(await screen.findByTestId('member-detail')).toBeInTheDocument()
     const back = screen.getByTestId('contacts-detail-back')
@@ -322,6 +503,14 @@ describe('ContactsRoute', () => {
     // 再点一次同一个人要能重新打开(不是「关过就再也不出现」)。
     await user.click(screen.getByTestId('contacts-member-u2'))
     expect(await screen.findByTestId('member-detail')).toBeInTheDocument()
+  })
+
+  it('宽屏:右栏是常驻第三栏(不是浮层)', async () => {
+    renderRoute('/contacts?dept=sales')
+    await screen.findByTestId('contacts-member-u1')
+
+    expect(screen.getByTestId('contacts-department-detail')).toBeInTheDocument()
+    expect(screen.queryByTestId('contacts-detail-overlay')).toBeNull()
   })
 
   it('部门级「发起群聊」:先确认,再按部门成员建群', async () => {
@@ -353,6 +542,85 @@ describe('ContactsRoute', () => {
     expect([...body.member_user_ids].sort()).toEqual(['u1', 'u2'])
   })
 
+  it('部门级「发起群聊」要翻完整个部门,不能只拉第一页', async () => {
+    // 150 人的部门:以前只取第一页(全局每页 20 条),群里只有 20 个人,而确认框
+    // 上写的也是 20 —— 少掉的人没有任何提示。
+    allMembers = Array.from({ length: 150 }, (_, i) =>
+      member(`u${i}`, `Member${i}`, '工程师')
+    )
+    const user = userEvent.setup()
+    try {
+      renderRoute('/contacts?dept=sales')
+      await user.click(await screen.findByTestId('contacts-dept-group-chat'))
+
+      await waitFor(() => expect(mocks.confirm).toHaveBeenCalledTimes(1))
+      expect(mocks.t).toHaveBeenCalledWith('department.startGroupChatConfirm', {
+        name: '销售部',
+        members: 150,
+      })
+      // 每页要满(服务端上限 100),并且真的翻了第二页。
+      expect(
+        mocks.fetchApi.mock.calls.some((call) =>
+          String(call[0]).includes('page_size=100')
+        )
+      ).toBe(true)
+      expect(
+        mocks.fetchApi.mock.calls.some((call) =>
+          String(call[0]).includes('page=2')
+        )
+      ).toBe(true)
+
+      await waitFor(() =>
+        expect(mocks.fetchApi).toHaveBeenCalledWith(
+          '/im/conversations/group/',
+          expect.objectContaining({ method: 'POST' })
+        )
+      )
+      const body = JSON.parse(
+        mocks.fetchApi.mock.calls.find(
+          (call) => call[0] === '/im/conversations/group/'
+        )?.[1].body ?? '{}'
+      )
+      expect(body.member_user_ids).toHaveLength(150)
+    } finally {
+      allMembers = [
+        member('u2', '李四'),
+        member('u3', '王五', '招聘专员', '人事部'),
+        member('u1', '张三', '销售总监'),
+      ]
+    }
+  })
+
+  it('部门超过上限:明说拉不了,不建一个半拉的群', async () => {
+    allMembers = Array.from(
+      { length: 301 },
+      (_, i) => member(`u${i}`, `Member${i}`, '工程师')
+    )
+    const user = userEvent.setup()
+    try {
+      renderRoute('/contacts?dept=sales')
+      await user.click(await screen.findByTestId('contacts-dept-group-chat'))
+
+      await waitFor(() => expect(mocks.alert).toHaveBeenCalledTimes(1))
+      expect(mocks.t).toHaveBeenCalledWith('department.startGroupChatTooMany', {
+        count: 301,
+        limit: 300,
+      })
+      // 一个都不该建:部分拉人比拒绝更糟(用户以为全都在群里)。
+      expect(
+        mocks.fetchApi.mock.calls.some(
+          (call) => call[0] === '/im/conversations/group/'
+        )
+      ).toBe(false)
+    } finally {
+      allMembers = [
+        member('u2', '李四'),
+        member('u3', '王五', '招聘专员', '人事部'),
+        member('u1', '张三', '销售总监'),
+      ]
+    }
+  })
+
   it('空部门不给「发起群聊」按钮(点了必然是一句没有成员)', async () => {
     renderRoute('/contacts?dept=hr')
     // 人事部 member_count = 0:右栏照常显示,但没有那个按钮。
@@ -364,14 +632,17 @@ describe('ContactsRoute', () => {
     expect(screen.queryByTestId('contacts-dept-group-chat')).toBeNull()
   })
 
-  it('列表按拼音排:请求带上 ordering=pinyin', async () => {
+  it('列表按拼音排:请求带上 ordering=pinyin(部门也走目录端点)', async () => {
     renderRoute('/contacts?dept=sales')
     await screen.findByTestId('contacts-member-u1')
 
     const listCall = mocks.fetchApi.mock.calls.find((call) =>
-      String(call[0]).startsWith('/directory/departments/sales/members/')
+      String(call[0]).startsWith('/directory/members/')
     )
     expect(String(listCall?.[0])).toContain('ordering=pinyin')
+    // 部门视图与「全部成员」同一个端点:它同时支持 q 与拼音序,而
+    // departments/{id}/members/ 不接受搜索词。
+    expect(String(listCall?.[0])).toContain('department=sales')
   })
 
   it('A–Z 索引条:字母来自服务端,点一个字母把起点写进 URL,再点一次取消', async () => {
@@ -434,7 +705,7 @@ describe('ContactsRoute', () => {
     expect(
       String(
         mocks.fetchApi.mock.calls.find((call) =>
-          String(call[0]).startsWith('/directory/departments/sales/members/')
+          String(call[0]).startsWith('/directory/members/')
         )?.[0]
       )
     ).toContain('ordering=pinyin')
@@ -461,11 +732,12 @@ describe('ContactsRoute', () => {
   })
 
   it('上千人只渲染一屏:整表高度撑开,但 DOM 里没有上千行', async () => {
-    // 1000 人的名册(每页 100,这里直接给一页就能验窗口化)。
+    // 1000 人的名册一次给完(单页 mock):窗口化算的是已加载的行数。
     allMembers = Array.from({ length: 1000 }, (_, i) =>
       member(`u${i}`, `Member${i}`, '工程师', '销售部')
     )
     alphabet = [{ letter: 'M', count: 1000 }]
+    singlePageMembers = true
     try {
       renderRoute('/contacts')
       await screen.findByTestId('contacts-member-u0')

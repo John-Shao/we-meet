@@ -36,6 +36,7 @@ Currently, no cloud providers are listed for deploying La Suite Meet.
 - [阿里云日常发布 Runbook(改代码后上线)](./aliyun-release-runbook-cn.md) —— build+push → 何时需 helm upgrade / rollout / migrate 的判断表,含实例
 - [三方日历同步删除部署步骤](../extensions/三方日历同步删除_部署步骤.md) —— `0098` 破坏性迁移的备份、专用发布顺序、Schema 验收和联合回滚
 - [通讯录拼音索引部署步骤](../extensions/通讯录拼音索引_部署步骤.md) —— 新依赖 `pypinyin`（镜像构建时 `uv sync --locked` 装，**不加**到 deploy 脚本）+ `0143` 回填存量用户拼音列 + 全员列表顺序变化的风险说明
+- [通讯录排序键修正部署步骤](../extensions/通讯录排序键修正_部署步骤.md) —— 后续增量：`0144` 把「`#` 桶排最后」编进排序键（`en_US.utf8` 忽略标点，`~` 前缀无效）、重算存量键、换复合索引；含「迁移窗口漂移行」的检查与收敛命令
 - [京东云迁移 Runbook(meet 迁云 + 旧机改 Docs)](./jdcloud-migration-runbook-cn.md) —— 把 aliyun.md §十四 + docs-server.md 合成的连贯执行清单,含备案接入 / PG 迁移 / DNS 切换 / 回滚预案
 - [本地开发(Windows + 国内,Tilt/kind)](./local-dev-tilt-windows-cn.md)
 - [IM 跨仓发布「三波曲」](./im-release-three-waves-cn.md) —— 改动同时涉及 jusi-light-im(IM 后端)+ `@jusi/light-im-sdk` + we-meet 时的协调发布流程(① jusi → ② SDK → ③ we-meet),含 lockfile integrity / `tsc -b` / 镜像缓存等踩坑清单

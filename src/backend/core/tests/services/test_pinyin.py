@@ -14,23 +14,55 @@ from core.services import pinyin
 @pytest.mark.parametrize(
     "name,expected",
     [
-        ("张三", "zhangsan"),
-        ("李四", "lisi"),
-        ("欧阳修", "ouyangxiu"),
-        ("John Doe", "johndoe"),
-        ("ALICE", "alice"),
-        ("王Alice", "wangalice"),
+        ("张三", "0zhangsan"),
+        ("李四", "0lisi"),
+        ("欧阳修", "0ouyangxiu"),
+        ("John Doe", "0johndoe"),
+        ("ALICE", "0alice"),
+        ("王Alice", "0wangalice"),
         # 名字里的空格不参与比较:"张 三"和"张三"要排在同一个位置。
-        ("张 三", "zhangsan"),
-        ("张\u3000三", "zhangsan"),
-        ("  李四  ", "lisi"),
-        # 认不出的字符原样保留 —— 丢掉会让它们全挤成一个空键,排序退化成随机。
-        ("1001", "1001"),
-        ("🙂", "🙂"),
+        ("张 三", "0zhangsan"),
+        ("张\u3000三", "0zhangsan"),
+        ("  李四  ", "0lisi"),
+        # 认不出的字符原样保留,但整桶换 '1' 前缀 —— 前缀让「# 排最后」成为**数据**
+        # 的一部分,查询侧因此不必写 CASE 表达式,索引才用得上(见 OTHER_KEY_PREFIX)。
+        ("1001", "11001"),
+        ("🙂", "1🙂"),
+        ("Иван", "1иван"),
+        ("", "1"),
     ],
 )
 def test_pinyin_sort_key(name, expected):
     assert pinyin.pinyin_sort_key(name) == expected
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["张三", "John", "Émile", "1001", "🙂", "", "   ", "Иван", "たなか", None],
+)
+def test_sort_key_prefix_matches_the_hash_bucket(name):
+    """不变式:键带 ``1`` 前缀 ⇔ 首字母是 ``#``。
+
+    两条规则分开实现的(前缀管排序、initial 管分桶)。它们一旦不一致,列表里会出现
+    「排在 Z 之后但计数算进 E」这种对不上的行 —— 而那种错肉眼极难发现。
+    """
+    key = pinyin.pinyin_sort_key(name)
+    in_hash_bucket = pinyin.pinyin_initial(name) == pinyin.OTHER_INITIAL
+    assert key.startswith(pinyin.OTHER_KEY_PREFIX) is in_hash_bucket
+    assert key.startswith(pinyin.LETTER_KEY_PREFIX) is (not in_hash_bucket)
+
+
+def test_hash_bucket_sorts_last_by_key_alone():
+    """去掉 CASE 之后,「# 桶最后」必须只靠键序就成立。
+
+    这条曾经救过一次:最初用 ``~`` 当「排最后」的前缀,而 ``en_US.utf8`` collation
+    在主级别忽略标点(``'~1001' < 'abao'`` 为真),`#` 桶反而排到了最前面。数字前缀
+    没有这个问题 —— 但真正拦住它的是 DatabaseTest 里那条按真实 collation 排序的断言。
+    """
+    names = ["张三", "1001", "李四", "", "🙂"]
+    ordered = sorted(names, key=pinyin.pinyin_sort_key)
+    # 字母桶在前(按拼音),# 桶整桶在后;空名字的键就是 '1',所以排在桶内最前。
+    assert ordered == ["李四", "张三", "", "1001", "🙂"]
 
 
 @pytest.mark.parametrize(
@@ -70,10 +102,10 @@ def test_pinyin_initial(name, expected):
 
 def test_pinyin_sort_key_folds_accents_to_ascii():
     """排序键折成 ASCII:带音标的名字要排在同一个字母里,而不是「Z 之后、# 之前」。"""
-    assert pinyin.pinyin_sort_key("Émile") == "emile"
-    assert pinyin.pinyin_sort_key("Öztürk") == "ozturk"
-    assert pinyin.pinyin_sort_key("Ørsted") == "orsted"
-    assert pinyin.pinyin_sort_key("Łukasz") == "lukasz"
+    assert pinyin.pinyin_sort_key("Émile") == "0emile"
+    assert pinyin.pinyin_sort_key("Öztürk") == "0ozturk"
+    assert pinyin.pinyin_sort_key("Ørsted") == "0orsted"
+    assert pinyin.pinyin_sort_key("Łukasz") == "0lukasz"
 
     names = ["Zoe", "Émile", "Adam"]
     assert sorted(names, key=pinyin.pinyin_sort_key) == ["Adam", "Émile", "Zoe"]
@@ -94,8 +126,11 @@ def test_migration_copy_matches_service():
 
     不一致的后果肉眼看不出来:迁移回填出来的顺序和新用户保存后的顺序会不一样,
     索引条与列表就错位了。导入用 importlib —— 模块名以数字开头,写不了 import 语句。
+
+    盯的是**最新**那份副本(0144)。``0143`` 里那份**故意保持旧规则**:它代表历史上
+    的一次回填,已经跑过的迁移不能跟着新算法改 —— 改它等于声称当时写进去的是别的值。
     """
-    frozen = importlib.import_module("core.migrations.0143_user_name_pinyin")
+    frozen = importlib.import_module("core.migrations.0144_pinyin_sort_key_bucket")
     for name in [
         "张三",
         "李四",
@@ -106,6 +141,7 @@ def test_migration_copy_matches_service():
         "Łukasz",
         "1001",
         "🙂",
+        "Иван",
         "",
         None,
         "  ",
@@ -117,8 +153,10 @@ def test_migration_copy_matches_service():
 
 
 def test_pinyin_sort_key_is_bounded():
-    """超长名字截断,别撑爆字段(max_length=255)。"""
+    """超长名字截断,别撑爆字段(max_length=255)—— 带了桶类前缀也一样。"""
     assert len(pinyin.pinyin_sort_key("张" * 400)) == pinyin.MAX_SORT_KEY_LENGTH
+    assert len(pinyin.pinyin_sort_key("1" * 400)) == pinyin.MAX_SORT_KEY_LENGTH
+    assert pinyin.pinyin_sort_key("1" * 400).startswith(pinyin.OTHER_KEY_PREFIX)
 
 
 def test_pinyin_order_differs_from_codepoint_order():
@@ -130,8 +168,8 @@ def test_pinyin_order_differs_from_codepoint_order():
     names = ["张三", "李四", "王五"]
     assert names == sorted(names)  # 编码序
     assert [pinyin.pinyin_sort_key(n) for n in names] == [
-        "zhangsan",
-        "lisi",
-        "wangwu",
+        "0zhangsan",
+        "0lisi",
+        "0wangwu",
     ]
     assert sorted(names, key=pinyin.pinyin_sort_key) == ["李四", "王五", "张三"]

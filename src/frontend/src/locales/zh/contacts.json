@@ -129,6 +129,7 @@
     "startGroupChatConfirm": "用「{{name}}」的 {{members}} 名成员创建一个群聊？",
     "startGroupChatEmpty": "这个部门还没有直属成员",
     "startGroupChatError": "创建群聊失败：{{message}}"
+    "startGroupChatTooMany": "这个部门有 {{count}} 人，超过一次拉群的 {{limit}} 人上限。请在会话页新建群聊并挑选成员。",
   },
   "tree": {
     "expand": "展开",

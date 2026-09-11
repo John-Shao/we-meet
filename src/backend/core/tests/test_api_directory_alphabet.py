@@ -48,15 +48,19 @@ def _names(response):
 
 
 def test_model_save_keeps_pinyin_columns_in_sync():
-    """名字变了,派生列跟着变 —— 没有这一步,排序和索引会各说各话。"""
+    """名字变了,派生列跟着变 —— 没有这一步,排序和索引会各说各话。
+
+    键的格式写死在这里(而不是拿 ``pinyin_sort_key()`` 跟自己比):它是**存储约定**,
+    前端/迁移/索引都依赖它,变了就该有一条测试红。
+    """
     user = factories.UserFactory(full_name="张三")
-    assert user.full_name_pinyin == "zhangsan"
+    assert user.full_name_pinyin == "0zhangsan"
     assert user.full_name_initial == "Z"
 
     user.full_name = "李四"
     user.save()
     user.refresh_from_db()
-    assert user.full_name_pinyin == "lisi"
+    assert user.full_name_pinyin == "0lisi"
     assert user.full_name_initial == "L"
 
 
@@ -71,8 +75,25 @@ def test_model_save_with_update_fields_still_writes_pinyin():
     user.save(update_fields=["full_name"])
 
     user.refresh_from_db()
-    assert user.full_name_pinyin == "wangwu"
+    assert user.full_name_pinyin == "0wangwu"
     assert user.full_name_initial == "W"
+
+
+def test_model_save_prefixes_the_hash_bucket_key():
+    """数字/符号名字落库时带 '1' 桶类前缀:桶序是**数据**,不是查询时的表达式。
+
+    前缀在改名时要跟着变回 '0' —— 否则一个从「1001」改成「张三」的用户会永远留在
+    名册最后面。
+    """
+    user = factories.UserFactory(full_name="1001")
+    assert user.full_name_pinyin == "11001"
+    assert user.full_name_initial == pinyin.OTHER_INITIAL
+
+    user.full_name = "张三"
+    user.save()
+    user.refresh_from_db()
+    assert user.full_name_pinyin == "0zhangsan"
+    assert user.full_name_initial == "Z"
 
 
 def test_api_directory_members_default_order_is_untouched():

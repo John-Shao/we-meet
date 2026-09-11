@@ -26,7 +26,7 @@ export const toApiPath = (absoluteUrl: string): string => {
  * "the list was truncated".
  */
 
-/** 通讯录列表的可选参数(A–Z 索引用的),都要服务端支持(见 directory.py)。 */
+/** 通讯录列表的可选参数(排序 / 索引起点 / 部门),都要服务端支持(见 directory.py)。 */
 export interface DirectoryListOptions {
   /** 按拼音排序;不传就是服务端的姓名编码序(既有调用点行为不变)。 */
   pinyin?: boolean
@@ -35,6 +35,20 @@ export interface DirectoryListOptions {
    * 「拼音键 ≥ 起点」而不是「首字母 == 起点」,所以从这里还能一路往下滚到 Z。
    */
   fromInitial?: string | null
+  /**
+   * 只看某个部门(及其子树由服务端规则决定)。传 null/不传 = 整册。
+   *
+   * 部门视图也走这个端点,而不是 `departments/{id}/members/`:后者不接受 `q`,
+   * 于是「进了部门再筛选」只能靠客户端过滤已加载的那一页;而且它返回的是成员关系
+   * 而不是「按主部门归一化后的卡片」,列表上会出现写着别的部门的人。
+   */
+  department?: string | null
+  /**
+   * 每页要多少条(服务端上限 100)。列表本身用默认值(20)就够了 —— 滚动会续;
+   * 只有「一次要拿全某个部门」这种调用点才值得要满页,少发几次请求。
+   * 翻页时不必再传:服务端给的 `next` 里带着它。
+   */
+  pageSize?: number
 }
 
 /** 拼查询串。只带非空键,值一律 encodeURIComponent(与既有写法一致)。 */
@@ -60,6 +74,8 @@ export const fetchDirectoryMembersPage = (
     ['q', query?.trim()],
     ['ordering', options.pinyin ? 'pinyin' : null],
     ['from_initial', options.fromInitial ?? null],
+    ['department', options.department ?? null],
+    ['page_size', options.pageSize ? String(options.pageSize) : null],
   ])
   return fetchApi<Paginated<DirectoryMember>>(`/directory/members/${qs}`)
 }

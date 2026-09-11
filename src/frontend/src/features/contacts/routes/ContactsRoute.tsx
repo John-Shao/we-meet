@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useQuery,
   useQueryClient,
@@ -23,6 +24,7 @@ import { ResizablePanel } from '@/components/ResizablePanel'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 import { useMediaQuery } from '@/features/rooms/livekit/hooks/useMediaQuery'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { useVirtualRows } from '@/hooks/useVirtualRows'
 
 import {
@@ -45,7 +47,6 @@ import {
   writeRecentDepartments,
 } from '../recentDepartments'
 import { useMyGroups } from '../hooks/useMyGroups'
-import { fetchDepartmentMembersPage } from '../api/fetchDepartmentMembers'
 import { fetchDepartments } from '../api/fetchDepartments'
 import {
   fetchDirectoryAlphabet,
@@ -96,6 +97,30 @@ const VALID_INITIALS = new Set([...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), '#'])
 /** 成员行高(px):36px 头像 + 上下各 0.625rem 内边距 + 1px 分隔线。
  *  窗口化靠这个数算位置,量出来的和实际不符滚动就会漂 —— 行样式改了要一起改。 */
 const MEMBER_ROW_HEIGHT = 57
+
+/**
+ * 部门级「发起群聊」的规模上限。建群会把所有人拉进一个会话,几百人的群不是
+ * 「顺手点一下」该产生的东西 —— 超过就明确告诉用户拉不了,而不是悄悄拉一半。
+ */
+const GROUP_CHAT_MEMBER_CAP = 300
+/** 拉部门成员时的每页条数 —— 服务端上限 100(见 meet/settings.py 的 Pagination)。 */
+const GROUP_CHAT_PAGE_SIZE = 100
+
+/**
+ * 客户端筛选(只给星标名单用,见中栏那段注释):与目录端点的 `?q=` **同一套字段**
+ * —— 姓名 / 简称 / 邮箱 / 职位 / 部门名。两边字段不一致的话,同一个词在「全部成员」
+ * 里查得到、在「星标」里查不到,而这种差异用户只会读成「搜索坏了」。
+ */
+const matchesQuery = (member: DirectoryMember, query: string): boolean => {
+  const needle = query.toLowerCase()
+  return [
+    member.full_name,
+    member.short_name,
+    member.email,
+    member.title,
+    member.department?.name,
+  ].some((field) => field?.toLowerCase().includes(needle))
+}
 
 const ContactsAuthenticated = () => {
   const { t, i18n } = useTranslation('contacts')
@@ -230,7 +255,7 @@ const ContactsAuthenticated = () => {
    *
    * 理由:按拼音分桶是给中文名册用的读法。界面是英文/法文/荷兰文的组织里,一列
    * A–Z 加一个「其他(数字或符号)」桶既不解释得了名册,也占着右边缘。这一类用户
-   * 本来也不按拼音找中文名 —— 他们有就地筛选和 Ctrl+K 全局搜索。
+   * 本来也不按拼音找中文名 —— 他们有筛选和 Ctrl+K 全局搜索。
    *
    * 用 startsWith 而不是等值比较:i18next 的 supportedLngs 只有 'zh',浏览器给的
    * 'zh-CN'/'zh-TW' 都会落到这份简体资源上,但语言代码可能仍带地区后缀
@@ -242,9 +267,37 @@ const ContactsAuthenticated = () => {
    */
   const activeLanguage = i18n.resolvedLanguage ?? i18n.language
   const pinyinIndexEnabled = activeLanguage?.startsWith('zh') ?? false
+
+  /**
+   * 筛选词交给**服务端**(防抖 250ms,和选人器同一档)。
+   *
+   * 之前是客户端过滤「已加载的这几页」:第一页只有 20 条,于是「在 800 人的名册里
+   * 找同事」实际只搜了 20 个人 —— 找不到是必然的,而用户会以为公司里没这个人。
+   * 走服务端之后筛选覆盖全册,分页/计数/字母表也都在同一个集合上说话。
+   */
+  const debouncedFilter = useDebouncedValue(
+    memberFilter.trim(),
+    250,
+    `${view}|${selectedDeptId}|${fromInitial}`
+  )
+
+  /**
+   * 链接里的部门可能是**已经删掉的**:`?dept=<旧 id>` 的旧书签/转发链接会让列表
+   * 查一个不存在的部门(404 → 空列表),而标题又回落到「全部成员」,看起来就像
+   * 「这个部门没人了」。部门表加载完之后,认不出的 id 一律当没选部门 —— 标题、
+   * 列表、左栏高亮于是都指向同一个事实。
+   */
+  const deptIsKnown =
+    !selectedDeptId ||
+    departments.length === 0 ||
+    departments.some((dept) => dept.id === selectedDeptId)
+  const effectiveDeptId = deptIsKnown ? selectedDeptId : null
+
   const {
     data: memberPages,
     isFetching,
+    isError,
+    refetch,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -253,7 +306,7 @@ const ContactsAuthenticated = () => {
       'directory',
       'members',
       'page',
-      { dept: selectedDeptId, view, fromInitial },
+      { dept: effectiveDeptId, view, fromInitial, q: debouncedFilter },
     ],
     queryFn: ({ pageParam }) =>
       view === 'starred'
@@ -263,18 +316,21 @@ const ContactsAuthenticated = () => {
             previous: null,
             results,
           }))
-        : selectedDeptId
-          ? fetchDepartmentMembersPage(selectedDeptId, false, pageParam, {
-              pinyin: true,
-              fromInitial,
-            })
-          : fetchDirectoryMembersPage(undefined, pageParam, {
-              pinyin: true,
-              fromInitial,
-            }),
+        : fetchDirectoryMembersPage(debouncedFilter, pageParam, {
+            pinyin: true,
+            fromInitial,
+            // 部门视图也走目录端点:它同时支持 ?department=、?q= 与新排序参数,
+            // 而 departments/{id}/members/ 不接受搜索词。顺带让两个视图用**同一套**
+            // 成员规则(目录端点是「每人一张卡,按主部门」)—— 否则部门视图会出现
+            // 「卡片上写的部门不是这个部门」的人。
+            department: effectiveDeptId,
+          }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.next ?? undefined,
     staleTime: 30_000,
+    // 换筛选词 / 换部门时不把上一份结果丢掉:新的一页没到之前先留着旧列表,
+    // 否则每敲一个字名单都会闪成一句「正在加载」。
+    placeholderData: keepPreviousData,
     // 「我的群组」/「外部联系人」视图里根本不渲染成员名单,别白拉一整册人。
     enabled: view !== 'groups' && view !== 'external',
   })
@@ -288,8 +344,8 @@ const ContactsAuthenticated = () => {
   // A–Z 索引条的字母表(每个字母各有多少人)。与列表同一套过滤(部门),所以点进
   // 某个部门后字母表跟着变;服务端不支持拼音序的视图(星标/群组/外部)就不请求。
   const { data: alphabet = [] } = useQuery({
-    queryKey: ['directory', 'alphabet', { dept: selectedDeptId }],
-    queryFn: () => fetchDirectoryAlphabet({ department: selectedDeptId }),
+    queryKey: ['directory', 'alphabet', { dept: effectiveDeptId }],
+    queryFn: () => fetchDirectoryAlphabet({ department: effectiveDeptId }),
     staleTime: 60_000,
     enabled: pinyinIndexEnabled && pinyinOrder,
   })
@@ -297,18 +353,32 @@ const ContactsAuthenticated = () => {
   // 更糟 —— 用户会以为整个名册都没有首字母。
   const showAlphabet = pinyinIndexEnabled && pinyinOrder && alphabet.length > 0
 
-  // 「全部成员」这一行的人数:只有站在那个视图上时才知道确切值,离开后沿用最后
-  // 一次已知的数字 —— 每次点部门都让这行数字消失,比留一个略旧的数字更晃眼。
-  const allMembersRef = useRef<number | null>(null)
+  /**
+   * 「全部成员」这一行的人数。只有在**当前查询正好是「全部成员、无筛选」**时才知道
+   * 确切值,其余情况沿用最后一次已知的数字 —— 每次点部门都让这行数字消失,比留一个
+   * 略旧的数字更晃眼。
+   *
+   * 条件必须把 `fromInitial` / `q` 也算进去:它们会让 `count` 变成「L 起步的人」或
+   * 「筛出来的人」,当成全组织人数写进左栏就是错的(一个分享出去的 `?from_initial=L`
+   * 链接会让左栏写「全部成员 12」)。用 state 而不是 ref:ref 要等下一次渲染才可见,
+   * 冷启动时那一格会先空一拍。
+   */
+  const [knownAllMembers, setKnownAllMembers] = useState<number | null>(null)
   useEffect(() => {
-    if (view === null && !selectedDeptId && typeof totalMembers === 'number') {
-      allMembersRef.current = totalMembers
+    if (
+      view === null &&
+      !effectiveDeptId &&
+      !fromInitial &&
+      !debouncedFilter &&
+      typeof totalMembers === 'number'
+    ) {
+      setKnownAllMembers(totalMembers)
     }
-  }, [view, selectedDeptId, totalMembers])
+  }, [view, effectiveDeptId, fromInitial, debouncedFilter, totalMembers])
 
   const selectedDept = useMemo(
-    () => departments.find((d) => d.id === selectedDeptId) ?? null,
-    [departments, selectedDeptId]
+    () => departments.find((d) => d.id === effectiveDeptId) ?? null,
+    [departments, effectiveDeptId]
   )
   // 祖先链从扁平列表里按 parent 上溯 —— 部门树本来就整棵返回,不必再请求一次。
   const deptAncestors = useMemo(() => {
@@ -401,7 +471,7 @@ const ContactsAuthenticated = () => {
     groupUnread: myGroups.unreadTotal,
     external: externalContacts.length,
     externalPending,
-    members: allMembersRef.current,
+    members: knownAllMembers,
   }
 
   const selectedGroup = useMemo(
@@ -484,16 +554,42 @@ const ContactsAuthenticated = () => {
    * 三点克制:①建群会通知到每个人,所以先弹确认框,把「拉几个人进哪个群」说清楚;
    * ②只取直属成员(不含子部门),子部门整棵树拉进来很容易变成几十人的大群,那是
    * 另一个决定;③不在通讯录里做群管理,建完直接落到会话里。
+   *
+   * 成员必须**翻完**:以前只取了第一页(全局每页 20 条),一个 60 人的部门建出来的
+   * 群里只有 20 个人 —— 确认框上写的也是 20,少掉的人没有任何提示,事后几乎无法
+   * 发现(群里少一个人,谁也不会去数)。现在先看服务端的 count:超过上限就明说拉不了
+   * (几百人的群不该由一个按钮替用户决定),否则按每页 100 翻到底再建。
    */
   const handleStartGroupChat = async (dept: (typeof departments)[number]) => {
     const name = dept.name
     try {
       setStartingGroupChat(true)
-      const pageData = await fetchDepartmentMembersPage(dept.id, false)
+      const firstPage = await fetchDirectoryMembersPage(undefined, undefined, {
+        department: dept.id,
+        pageSize: GROUP_CHAT_PAGE_SIZE,
+      })
+      if (firstPage.count > GROUP_CHAT_MEMBER_CAP) {
+        void showAlert({
+          message: t('department.startGroupChatTooMany', {
+            count: firstPage.count,
+            limit: GROUP_CHAT_MEMBER_CAP,
+          }),
+        })
+        return
+      }
       // 建群人由服务端加进去,这里只传其他人。
-      const memberIds = pageData.results
+      const memberIds = firstPage.results
         .filter((m) => !m.is_self)
         .map((m) => m.id)
+      let next = firstPage.next
+      while (next) {
+        // 翻页交给服务端给的 next:它已经带着 department 与 page_size,不必再拼一遍。
+        const page = await fetchDirectoryMembersPage(undefined, next)
+        next = page.next
+        memberIds.push(
+          ...page.results.filter((m) => !m.is_self).map((m) => m.id)
+        )
+      }
       if (memberIds.length === 0) {
         void showAlert({ message: t('department.startGroupChatEmpty') })
         return
@@ -520,15 +616,20 @@ const ContactsAuthenticated = () => {
   }
 
   // ── 中栏成员列表 ────────────────────────────────────────────────────────
-  const filterQuery = memberFilter.trim().toLowerCase()
-  const visibleMembers = useMemo(() => {
-    if (!filterQuery) return members
-    return members.filter((m) =>
-      [m.full_name, m.short_name, m.email, m.title, m.department?.name].some(
-        (field) => field?.toLowerCase().includes(filterQuery)
-      )
-    )
-  }, [members, filterQuery])
+  // 过滤主要在服务端做(见上文的 debouncedFilter):部门与「全部成员」两个视图的
+  // `members` 已经是服务端筛完的结果,这里不再叠一层 —— 两份过滤叠加时,「筛出来的
+  // 0 条」既可能是真的没人,也可能是这一页里没有,两种说法在界面上分不出来。
+  //
+  // 唯一的例外是**星标名单**:它走的是另一个端点(`/directory/starred/`),不支持
+  // `?q=`,而且那是一份短名单(本来就整份取回)。让这个视图的筛选框变成打字没反应,
+  // 是比「多一层客户端过滤」更糟的回归,所以只有它保留客户端过滤。
+  const visibleMembers = useMemo(
+    () =>
+      view === 'starred' && debouncedFilter
+        ? members.filter((m) => matchesQuery(m, debouncedFilter))
+        : members,
+    [view, members, debouncedFilter]
+  )
 
   const listTitle =
     view === 'starred'
@@ -584,12 +685,13 @@ const ContactsAuthenticated = () => {
   /** 悬浮字母头:视口顶部那一行属于哪个字母。 */
   const anchorInitial = visibleMembers[virtual.anchorIndex]?.initial ?? null
 
-  // 列表内容换了(换部门 / 换起点字母 / 换视图)就回到顶部:否则滚动位置留在半山腰,
-  // 新列表一上来就是中间那几行。
+  // 列表内容换了(换部门 / 换起点字母 / 换视图 / 换筛选词)就回到顶部:否则滚动位置
+  // 留在半山腰,新列表一上来就是中间那几行 —— 而「从 L 起」的那几行跟上一份结果
+  // 没有任何关系。
   const { scrollToTop } = virtual
   useEffect(() => {
     scrollToTop()
-  }, [view, selectedDeptId, fromInitial, scrollToTop])
+  }, [view, effectiveDeptId, fromInitial, debouncedFilter, scrollToTop])
 
   // 滚到近底自动拉下一页(按钮保留做兜底:老浏览器 / 自动化测试里没有
   // IntersectionObserver,那时仍然可以手点)。
@@ -686,7 +788,7 @@ const ContactsAuthenticated = () => {
         >
           <ContactsSidebar
             view={view}
-            selectedDeptId={selectedDeptId}
+            selectedDeptId={effectiveDeptId}
             departments={departments}
             recent={recentDepts}
             counts={counts}
@@ -778,11 +880,34 @@ const ContactsAuthenticated = () => {
                       : anchorInitial}
                   </div>
                 )}
-                {isFetching && members.length === 0 ? (
+                {/* 加载失败要说「加载失败」并给一条重试的路。以前这里没有 error
+                    分支:请求挂了就落到下面的空态,显示「暂无成员」—— 把一次网络/权限
+                    故障说成「公司里没有人」,用户会去找管理员而不是刷新一次。
+                    (keepPreviousData 会让失败时仍留着上一份结果,所以判的是 isError
+                    而不是「列表为空」:那份旧名单与当前筛选词已经对不上了。) */}
+                {isError ? (
+                  <StateHint
+                    state="error"
+                    action={
+                      <Button
+                        variant="secondary"
+                        size="dense"
+                        onPress={() => void refetch()}
+                        data-testid="contacts-retry"
+                      >
+                        {t('picker.retry')}
+                      </Button>
+                    }
+                  >
+                    {t('picker.loadError')}
+                  </StateHint>
+                ) : isFetching && visibleMembers.length === 0 ? (
                   <StateHint state="loading">{t('page.loading')}</StateHint>
                 ) : visibleMembers.length === 0 ? (
                   <StateHint>
-                    {filterQuery && members.length > 0
+                    {/* 筛出来是空的,与「这个部门本来就没人」是两句不同的话:
+                        前者要告诉用户「换个词试试」,后者才是「这里没人」。 */}
+                    {debouncedFilter
                       ? t('page.noMatch')
                       : view === 'starred'
                         ? t('starred.empty')
@@ -809,7 +934,7 @@ const ContactsAuthenticated = () => {
                         const selected = selectedMember?.id === member.id
                         // 部门视图里每行都写一遍「开发部」是零信息,只留职位。
                         const meta = (
-                          selectedDeptId
+                          effectiveDeptId
                             ? [member.title]
                             : [member.title, member.department?.name]
                         )
@@ -909,10 +1034,13 @@ const ContactsAuthenticated = () => {
                     </ul>
                   </div>
                 )}
-                {/* 只有真的还有下一页时才出现 —— 之前列表在第 100 人处静默截断,页面
-                上没有任何迹象说明「还没完」。现在滚到近底自动续,按钮是兜底。
+                {/* 只有真的还有下一页**且这一屏已经有内容**时才出现。之前列表在第
+                100 人处静默截断,页面上没有任何迹象说明「还没完」;现在滚到近底自动
+                续,按钮是兜底(老浏览器 / 没有 IntersectionObserver 的环境)。
+                「列表非空」这个条件不是多余的:空态里挂一个「加载更多」,点它就等于
+                把「没结果」和「还没加载」两件事混在一起 —— 用户会一直点下去。
                 放在整表高度之后 = 真的在底部,不会一进页面就误触发。 */}
-                {hasNextPage && (
+                {hasNextPage && visibleMembers.length > 0 && (
                   <div ref={sentinelRef} className={loadMoreCls}>
                     <Button
                       variant="tertiaryText"
@@ -951,7 +1079,7 @@ const ContactsAuthenticated = () => {
           // 自己的宽度(否则一排名字会被挤到只剩一个头像),关掉浮层就回到名单。
           // 与任务的「接管式详情」同一手法,只是这里盖住的是通讯录而不是整页。
           createPortal(
-            <div className={takeoverCls}>
+            <div className={takeoverCls} data-testid="contacts-detail-overlay">
               <div className={takeoverHeaderCls}>
                 <Button
                   variant="secondaryText"

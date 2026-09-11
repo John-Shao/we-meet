@@ -67,6 +67,35 @@ def test_api_directory_members_excludes_device_accounts():
     assert str(bot.id) not in ids
 
 
+def test_api_directory_members_search_matches_title_and_department():
+    """?q= matches 职位与部门名,不只是姓名/邮箱。
+
+    通讯录列表头的「筛选成员」框现在把词发给服务端(前端只筛已加载那一页的写法
+    已删掉),而「销售总监」「人事部」都是用户会在这个框里输入的东西 —— 只匹配
+    姓名/邮箱会把这类查询变成一句「查无此人」。
+    """
+    org = factories.OrganizationFactory()
+    me = factories.UserFactory(full_name="Caller Self", email="caller@acme.com")
+    _membership(org, me)
+    sales = models.Department.objects.create(organization=org, name="销售部")
+    hr = models.Department.objects.create(organization=org, name="人事部")
+    director = factories.UserFactory(full_name="Alice Anderson", email="alice@acme.com")
+    _membership(org, director, department=sales, title="销售总监")
+    recruiter = factories.UserFactory(full_name="Bob Brown", email="bob@acme.com")
+    _membership(org, recruiter, department=hr, title="招聘专员")
+
+    client = APIClient()
+    client.force_login(me)
+
+    by_title = client.get("/api/v1.0/directory/members/?q=销售总监")
+    by_department = client.get("/api/v1.0/directory/members/?q=人事部")
+    assert by_title.status_code == 200
+    # 职位命中;部门名命中的是人事部那一位,而不是销售部的人。
+    assert {m["id"] for m in by_title.json()["results"]} == {str(director.id)}
+    assert by_department.status_code == 200
+    assert {m["id"] for m in by_department.json()["results"]} == {str(recruiter.id)}
+
+
 def test_api_directory_members_search_by_query():
     """?q= filters on name and email."""
     org = factories.OrganizationFactory()
