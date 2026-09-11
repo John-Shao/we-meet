@@ -1,10 +1,9 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
-import { RiSearchLine } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
-import { Button } from '@/primitives'
+import { Button, SearchBox } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
 import { GroupAvatar } from '@/features/im/components/GroupAvatar'
 import { imConversationTimeLabel } from '@/features/im/components/imTimeLabels'
@@ -95,18 +94,13 @@ export const MyGroupsPanel = ({ selectedCid, onSelect }: Props) => {
             {t('groups.total', { count: groups.length })}
           </p>
         </div>
-        <label className={searchWrapCls}>
-          <RiSearchLine size={14} aria-hidden className={searchIconCls} />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('groups.searchPlaceholder')}
-            aria-label={t('groups.searchPlaceholder')}
-            data-testid="contacts-groups-search"
-            className={searchInputCls}
-          />
-        </label>
+        <SearchBox
+          value={query}
+          onChange={setQuery}
+          placeholder={t('groups.searchPlaceholder')}
+          testId="contacts-groups-search"
+          className={searchBoxCls}
+        />
       </header>
 
       <div className={css({ overflowY: 'auto', flex: 1 })}>
@@ -229,31 +223,11 @@ const subtitleCls = css({
   fontSize: '0.75rem',
   color: 'greyscale.500',
 })
-const searchWrapCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.375rem',
+/** 只给宽度:长相由统一搜索框 SearchBox 负责。 */
+const searchBoxCls = css({
   width: '14rem',
   maxWidth: '50%',
   flexShrink: 0,
-  paddingX: '0.5rem',
-  paddingY: '0.3125rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '6px',
-  backgroundColor: 'greyscale.000',
-  // 里层 input 无边框无 outline,聚焦提示落在这一圈上。
-  _focusWithin: { borderColor: 'border.focus' },
-})
-const searchIconCls = css({ flexShrink: 0, color: 'greyscale.500' })
-const searchInputCls = css({
-  flex: 1,
-  minWidth: 0,
-  border: 'none',
-  outline: 'none',
-  background: 'transparent',
-  color: 'default.text',
-  fontSize: '0.8125rem',
-  padding: 0,
 })
 const listCls = css({
   listStyle: 'none',

@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
-import { IconButton, Input, SelectableListRow } from '@/primitives'
+import { IconButton, SearchBox, SelectableListRow } from '@/primitives'
 
 import { useDirectoryMemberSearch } from '../hooks/useDirectoryMemberSearch'
 import { fetchExternalContacts } from '../api/externalContacts'
@@ -135,13 +135,12 @@ export const DirectoryMultiPicker = ({
     <div className={bodyCls}>
       <div className={leftCls}>
         <div className={css({ paddingY: 'md', paddingX: 'lg' })}>
-          <Input
-            ref={searchRef}
-            type="search"
+          <SearchBox
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
             placeholder={labels.searchPlaceholder}
-            data-testid={searchTestId}
+            testId={searchTestId}
+            inputRef={searchRef}
           />
         </div>
         <div className={css({ overflowY: 'auto', flex: 1 })}>

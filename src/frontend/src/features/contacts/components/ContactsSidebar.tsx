@@ -4,7 +4,6 @@ import {
   RiArrowLeftDoubleLine,
   RiGroupLine,
   RiHistoryLine,
-  RiSearchLine,
   RiStarFill,
   RiStarLine,
   RiTeamLine,
@@ -12,6 +11,7 @@ import {
 } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
+import { SearchBox } from '@/primitives'
 
 import type { DirectoryDepartment } from '../api/ApiDirectory'
 import { DepartmentTree } from './DepartmentTree'
@@ -102,18 +102,13 @@ export const ContactsSidebar = ({
       </div>
 
       {/* 部门筛选:几十个部门时按名字定位,不必手翻整棵树。 */}
-      <label className={filterWrapCls}>
-        <RiSearchLine size={14} aria-hidden className={filterIconCls} />
-        <input
-          type="search"
-          value={deptFilter}
-          onChange={(e) => setDeptFilter(e.target.value)}
-          placeholder={t('page.filterDepartments')}
-          aria-label={t('page.filterDepartments')}
-          data-testid="contacts-dept-filter"
-          className={filterInputCls}
-        />
-      </label>
+      <SearchBox
+        value={deptFilter}
+        onChange={setDeptFilter}
+        placeholder={t('page.filterDepartments')}
+        testId="contacts-dept-filter"
+        className={filterBoxCls}
+      />
 
       <nav>
         <h3 className={sectionCls}>{t('page.sectionFrequent')}</h3>
@@ -276,31 +271,12 @@ const collapseBtnCls = css({
   _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.800' },
 })
 
-const filterWrapCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.375rem',
+/**
+ * 只给外边距:框的长相与宽度都由 SearchBox 那个统一搜索框负责(撑满侧栏)。
+ */
+const filterBoxCls = css({
   marginX: '0.75rem',
   marginBottom: '0.5rem',
-  paddingX: '0.5rem',
-  paddingY: '0.3125rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '6px',
-  backgroundColor: 'greyscale.000',
-  // 里层 input 没有自己的边框/描边(outline: none),聚焦提示必须落在这一圈上,
-  // 否则键盘用户完全看不出焦点在哪。
-  _focusWithin: { borderColor: 'border.focus' },
-})
-const filterIconCls = css({ flexShrink: 0, color: 'greyscale.500' })
-const filterInputCls = css({
-  flex: 1,
-  minWidth: 0,
-  border: 'none',
-  outline: 'none',
-  background: 'transparent',
-  color: 'default.text',
-  fontSize: '0.8125rem',
-  padding: 0,
 })
 
 const sectionCls = css({

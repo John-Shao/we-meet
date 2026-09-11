@@ -33,6 +33,7 @@ export { MenuList } from './MenuList'
 export { P } from './P'
 export { Popover } from './Popover'
 export { ScreenReaderAnnouncer } from './ScreenReaderAnnouncer'
+export { SearchBox } from './SearchBox'
 export {
   Skeleton,
   SkeletonRegion,

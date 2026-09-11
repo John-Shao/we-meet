@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
 import { Modal, ModalBody, ModalHeader } from '@/components/Modal'
-import { Input, InteractiveListRow } from '@/primitives'
+import { InteractiveListRow, SearchBox } from '@/primitives'
 
 import { useDirectoryMemberSearch } from '../hooks/useDirectoryMemberSearch'
 import type { DirectoryMember } from '../api/ApiDirectory'
@@ -57,13 +57,12 @@ export const ContactPicker = ({
       />
 
       <div className={css({ padding: '0.75rem 1rem' })}>
-        <Input
-          ref={inputRef}
-          type="search"
+        <SearchBox
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
           placeholder={searchPlaceholder || t('picker.searchPlaceholder')}
-          data-testid="contact-picker-search"
+          testId="contact-picker-search"
+          inputRef={inputRef}
         />
       </div>
 

@@ -8,14 +8,10 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { useLocation, useSearchParams } from 'wouter'
-import {
-  RiArrowLeftLine,
-  RiLayoutLeftLine,
-  RiSearchLine,
-} from '@remixicon/react'
+import { RiArrowLeftLine, RiLayoutLeftLine } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
-import { Button } from '@/primitives'
+import { Button, SearchBox } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
 import { createGroupConversation } from '@/features/im/api/createGroupConversation'
@@ -47,9 +43,7 @@ import {
 } from '../recentDepartments'
 import { useMyGroups } from '../hooks/useMyGroups'
 import { fetchDepartments } from '../api/fetchDepartments'
-import {
-  fetchDirectoryMembersPage,
-} from '../api/fetchDirectoryMembers'
+import { fetchDirectoryMembersPage } from '../api/fetchDirectoryMembers'
 import { fetchDirectoryMember } from '../api/fetchDirectoryMember'
 import { fetchStarredContacts } from '../api/fetchStarredContacts'
 import { fetchContactPrefs, setContactPref } from '../api/setContactPref'
@@ -793,22 +787,13 @@ const ContactsAuthenticated = () => {
                 )}
               </div>
               <div className={headerActionsCls}>
-                <label className={searchWrapCls}>
-                  <RiSearchLine
-                    size={14}
-                    aria-hidden
-                    className={searchIconCls}
-                  />
-                  <input
-                    type="search"
-                    value={memberFilter}
-                    onChange={(e) => setMemberFilter(e.target.value)}
-                    placeholder={t('page.filterMembers')}
-                    aria-label={t('page.filterMembers')}
-                    data-testid="contacts-member-filter"
-                    className={searchInputCls}
-                  />
-                </label>
+                <SearchBox
+                  value={memberFilter}
+                  onChange={setMemberFilter}
+                  placeholder={t('page.filterMembers')}
+                  testId="contacts-member-filter"
+                  className={searchBoxCls}
+                />
                 {view === 'starred' && (
                   // dense 而非 sm:sm 不带字号,会吃到浏览器默认 16px,比同页的
                   //「发消息」大一号 —— 正是 buttonRecipe 里 dense 那档点名要收口的
@@ -1169,30 +1154,10 @@ const headerActionsCls = css({
   gap: '0.5rem',
   flexShrink: 0,
 })
-const searchWrapCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.375rem',
+/** 表头那颗筛选框只出宽度 —— 长相由统一搜索框 SearchBox 负责。 */
+const searchBoxCls = css({
   width: '14rem',
   maxWidth: '40vw',
-  paddingX: '0.5rem',
-  paddingY: '0.3125rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '6px',
-  backgroundColor: 'greyscale.000',
-  // 里层 input 无边框无 outline,聚焦提示落在这一圈上。
-  _focusWithin: { borderColor: 'border.focus' },
-})
-const searchIconCls = css({ flexShrink: 0, color: 'greyscale.500' })
-const searchInputCls = css({
-  flex: 1,
-  minWidth: 0,
-  border: 'none',
-  outline: 'none',
-  background: 'transparent',
-  color: 'default.text',
-  fontSize: '0.8125rem',
-  padding: 0,
 })
 const listCls = css({
   listStyle: 'none',
