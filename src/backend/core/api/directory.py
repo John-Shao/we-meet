@@ -12,11 +12,12 @@ one, even though MVP runs a single organization.
 """
 
 import logging
+import string
 import uuid
 from typing import Optional
 
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db.models import Case, Count, IntegerField, Q, Value, When
 from django.http import Http404
 from django.utils import timezone
 
@@ -30,6 +31,7 @@ from core.api import permissions
 from core.api.serializers import UserLightSerializer
 from core.api.validation import parse_boolean
 from core.api.viewsets import Pagination
+from core.services import pinyin
 from core.services.phone_reveal import send_phone_viewed_notice
 
 logger = logging.getLogger(__name__)
@@ -158,6 +160,53 @@ def mask_phone(phone: str) -> str:
     return f"{p[:3]}****{p[-4:]}"
 
 
+#: ``?from_initial=`` 只接受 A–Z 和「分不出首字母」那一桶;别的一律忽略(而不是拿去
+#: 过滤一个不存在的起点、静默返回空列表)。
+VALID_INITIALS = frozenset(string.ascii_uppercase) | {pinyin.OTHER_INITIAL}
+
+
+def apply_member_list_params(queryset, request, *, apply_from_initial=True):
+    """通讯录列表的两个查询参数(排序 + A–Z 起点)。
+
+    - ``?ordering=pinyin``:按拼音排序。默认仍是 ``user__full_name``(编码序),
+      所有既有调用点(Android 客户端、选人器)行为不变。
+    - ``?from_initial=L``:从 L 开始。客户端点索引条时用。这里是「拼音键 ≥ L」而
+      不是「首字母 == L」—— 点完 L 还能一路往下滚到 Z,而不是卡在只有 L 的一页。
+      ``#`` 是「数字/符号/空名字」那一桶,它本来就排在最后,所以起点就是它自己。
+
+    ``from_initial`` 隐含拼音序:给了起点却按编码序排,列表里就会出现「L 在 K 前面」
+    这种谁都不想看到的结果。
+    """
+    raw = (request.query_params.get("from_initial") or "").strip().upper()
+    start_at = raw if raw in VALID_INITIALS else None
+    if apply_from_initial and start_at is not None:
+        queryset = (
+            # 空串按 '#' 一桶算:迁移已把所有老行补齐,但万一有绕过 save() 的写入,
+            # 「计数算进 # 、点 # 却查不到」比多写一个 in 更糟。
+            queryset.filter(user__full_name_initial__in=["", pinyin.OTHER_INITIAL])
+            if start_at == pinyin.OTHER_INITIAL
+            else queryset.filter(user__full_name_pinyin__gte=start_at.lower())
+        )
+    wants_pinyin = (
+        start_at is not None
+        or (request.query_params.get("ordering") or "").strip() == "pinyin"
+    )
+    if not wants_pinyin:
+        return queryset.order_by("user__full_name")
+    # 「分不出首字母」那一桶永远排最后:索引条上它就在 A–Z 之后,列表顺序不能跟
+    # 索引说的不一样。同一拼音的两个人(张三/章三)再按姓名兜底,保证翻页之间稳定。
+    return queryset.annotate(
+        _initial_other=Case(
+            When(
+                user__full_name_initial__in=["", pinyin.OTHER_INITIAL],
+                then=Value(1),
+            ),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+    ).order_by("_initial_other", "user__full_name_pinyin", "user__full_name")
+
+
 class DirectoryMemberSerializer(serializers.Serializer):
     """Serialize a Membership row as a person-card for the directory / picker.
 
@@ -173,6 +222,10 @@ class DirectoryMemberSerializer(serializers.Serializer):
     sub = serializers.CharField(source="user.sub", read_only=True)
     full_name = serializers.CharField(source="user.full_name", read_only=True)
     short_name = serializers.CharField(source="user.short_name", read_only=True)
+    # A–Z 桶(见 core/services/pinyin.py)。客户端拿它画索引条与粘性字母头 ——
+    # 前端不重算拼音,否则「服务端按拼音排序、客户端按自己算的字母分组」会有对不齐
+    # 的那一天(改个名字、换一次 pypinyin 版本)。
+    initial = serializers.CharField(source="user.full_name_initial", read_only=True)
     email = serializers.EmailField(source="user.email", read_only=True)
     avatar_url = serializers.SerializerMethodField()
     title = serializers.CharField(read_only=True)
@@ -338,6 +391,9 @@ class DepartmentViewSet(
         else:
             memberships = memberships.filter(department=department)
 
+        # 部门也能按拼音排 / 按首字母跳:一个几百人的部门和大目录是同一个问题。
+        memberships = apply_member_list_params(memberships, request)
+
         paginator = Pagination()
         page = paginator.paginate_queryset(memberships, request, view=self)
         serializer = DirectoryMemberSerializer(
@@ -363,6 +419,11 @@ class DirectoryMemberViewSet(
     lookup_field = "user_id"
 
     def get_queryset(self):
+        return self._member_queryset(apply_from_initial=True)
+
+    def _member_queryset(self, *, apply_from_initial: bool):
+        """成员查询集。``apply_from_initial=False`` 给 alphabet 用(它问的是「每个
+        字母各有多少人」,再叠一个起点过滤就只剩一个字母了)。"""
         organization = get_caller_organization(self.request.user)
         if organization is None:
             return models.Membership.objects.none()
@@ -408,7 +469,42 @@ class DirectoryMemberViewSet(
             queryset = queryset.filter(
                 Q(user__full_name__icontains=query) | Q(user__email__icontains=query)
             )
-        return queryset
+        return apply_member_list_params(
+            queryset, self.request, apply_from_initial=apply_from_initial
+        )
+
+    @action(detail=False, methods=["get"], url_path="alphabet")
+    def alphabet(self, request):
+        """每个首字母有多少人 —— 通讯录右侧 A–Z 索引条靠它决定哪些字母可点。
+
+        与列表同一套过滤(部门 / 子树 / 搜索词),但**忽略 `from_initial`**:这里问的
+        就是「每个字母各有多少人」,叠一个起点只会返回半个字母表。
+        """
+        rows = (
+            self._member_queryset(apply_from_initial=False)
+            # 先清掉默认排序:ORDER BY 会跟着进 GROUP BY,把分组打碎成「每行一组」,
+            # 每个字母就会返回一堆 count=1 的重复行(而不是一个字母一行)。
+            .order_by()
+            .values("user__full_name_initial")
+            .annotate(count=Count("id"))
+        )
+        letters = [
+            {
+                # 老数据(加列之前建的、且再没保存过的用户)可能是空串 → 归到 '#'。
+                "letter": row["user__full_name_initial"] or pinyin.OTHER_INITIAL,
+                "count": row["count"],
+            }
+            for row in rows
+        ]
+        # '#' 排在 A–Z 之后。数据库的默认序会把它排到最前面(ASCII 35 < 'A'),
+        # 而「分不出首字母」那一桶放在开头最没用。
+        letters.sort(
+            key=lambda item: (
+                item["letter"] == pinyin.OTHER_INITIAL,
+                item["letter"],
+            )
+        )
+        return Response({"letters": letters})
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -479,6 +575,10 @@ class DirectoryMemberViewSet(
             "org_role": snapshot.get("org_role", membership.org_role),
             "is_self": user.id == self.request.user.id,
             "left": True,
+            # 与在世成员同一张卡的形状:客户端按 initial 分组/画字母头,少了这个字段
+            # 墓碑卡就会是「结构一样的卡少一个键」。人走了,拼音键还是从名字算的,
+            # 不受影响(而且 User.save() 会一直维护它)。
+            "initial": user.full_name_initial or pinyin.OTHER_INITIAL,
         }
 
     @action(detail=True, methods=["post"], url_path="reveal-phone")

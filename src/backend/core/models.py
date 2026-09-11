@@ -36,6 +36,10 @@ from timezone_field import TimeZoneField
 from . import fields, utils
 from .recording.enums import FileExtension
 
+# 只 import 这一个叶子模块:services/__init__ 是空的,而 services.pinyin 不碰
+# models,所以没有循环导入风险。别在这里 import 别的 services 子模块。
+from .services.pinyin import OTHER_INITIAL, pinyin_initial, pinyin_sort_key
+
 logger = getLogger(__name__)
 
 
@@ -177,6 +181,31 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
     short_name = models.CharField(
         _("short name"), max_length=100, null=True, blank=True
     )
+    # 通讯录 A–Z 索引用的派生列(由 full_name 算出,见 save())。存下来而不是每次
+    # 查询现算:列表要按它排序、分页、分桶计数,现算就没法走索引,上千人一页也白搭。
+    full_name_pinyin = models.CharField(
+        _("full name pinyin"),
+        help_text=_(
+            "Lowercased pinyin of `full name`, derived on save. Directory lists "
+            "order by it so Chinese names sort in pinyin order, not code-point order."
+        ),
+        max_length=255,
+        blank=True,
+        default="",
+        db_index=True,
+    )
+    full_name_initial = models.CharField(
+        _("full name initial"),
+        help_text=_(
+            "A–Z initial of `full name` (derived on save); '#' for names whose "
+            "initial cannot be derived (digits, symbols, empty). Buckets the "
+            "directory's alphabet index."
+        ),
+        max_length=1,
+        blank=True,
+        default=OTHER_INITIAL,
+        db_index=True,
+    )
     phone = models.CharField(
         _("phone"),
         help_text=_(
@@ -270,6 +299,27 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
 
     def __str__(self):
         return self.email or self.admin_email or str(self.id)
+
+    def save(self, *args, **kwargs):
+        """重算姓名派生列,再走 BaseModel 的 full_clean + save。
+
+        放在 ``super()`` 之前是必须的 —— ``full_clean`` 会校验这两个字段,而
+        ``update_fields`` 只带原始字段的调用点(如 viewsets 改昵称)必须把它俩
+        一起带上,否则算出来的值不会被写库 —— 那会留下一个「名字变了、排序键还是
+        旧的」的用户,而且要等到下次有人改这个用户才会被发现。
+
+        每次 save 都重算是刻意的:名字很短,pypinyin 一次调用是微秒级,而读一次库
+        比它贵得多;而且没有信号可以让所有写入口都覆盖到(本项目按约定不用信号)。
+        """
+        self.full_name_pinyin = pinyin_sort_key(self.full_name)
+        self.full_name_initial = pinyin_initial(self.full_name)
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            kwargs["update_fields"] = set(update_fields) | {
+                "full_name_pinyin",
+                "full_name_initial",
+            }
+        super().save(*args, **kwargs)
 
     def email_user(self, subject, message, from_email=None, **kwargs):
         """Email this user."""

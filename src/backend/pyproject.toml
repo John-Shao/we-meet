@@ -84,6 +84,10 @@ dependencies = [
     # heavy deps. Fused with the vector leg via RRF in hybrid_retrieval.py.
     "jieba==0.42.1",
     "rank-bm25==0.2.2",
+    # 通讯录 A–Z 索引:中文姓名没有拼音序,「全部成员」上千人时只能靠首字母定位。
+    # User.full_name_pinyin / full_name_initial 由 core/services/pinyin.py 计算,
+    # 列表按它排序、按首字母分桶。纯 Python,无 C 扩展(同 jieba)。
+    "pypinyin==0.55.0",
 ]
 
 [project.urls]

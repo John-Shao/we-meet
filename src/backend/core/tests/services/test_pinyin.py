@@ -1,0 +1,137 @@
+"""通讯录 A–Z 索引的拼音基础:排序键与首字母。
+
+这两个函数是「列表怎么排」和「点字母跳到哪」的唯一真相,所以边界要钉死:
+空名字、数字、英文、混排、全角空格,以及——「分不出首字母」必须统一进 ``#``。
+"""
+
+import importlib
+
+import pytest
+
+from core.services import pinyin
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("张三", "zhangsan"),
+        ("李四", "lisi"),
+        ("欧阳修", "ouyangxiu"),
+        ("John Doe", "johndoe"),
+        ("ALICE", "alice"),
+        ("王Alice", "wangalice"),
+        # 名字里的空格不参与比较:"张 三"和"张三"要排在同一个位置。
+        ("张 三", "zhangsan"),
+        ("张\u3000三", "zhangsan"),
+        ("  李四  ", "lisi"),
+        # 认不出的字符原样保留 —— 丢掉会让它们全挤成一个空键,排序退化成随机。
+        ("1001", "1001"),
+        ("🙂", "🙂"),
+    ],
+)
+def test_pinyin_sort_key(name, expected):
+    assert pinyin.pinyin_sort_key(name) == expected
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("张三", "Z"),
+        ("李四", "L"),
+        ("欧阳修", "O"),
+        ("阿宝", "A"),
+        ("John", "J"),
+        ("alice", "A"),
+        # 带音标的拉丁名:Émile 属于 E,不是「其他」。产品支持 fr/de/nl,这不是边角。
+        ("Émile", "E"),
+        ("Öztürk", "O"),
+        ("Åberg", "A"),
+        ("Çelik", "C"),
+        ("Ñuñez", "N"),
+        ("Ørsted", "O"),  # NFD 拆不开,靠显式映射
+        ("Łukasz", "L"),  # 同上
+        ("José", "J"),
+        ("1001", pinyin.OTHER_INITIAL),
+        ("🙂", pinyin.OTHER_INITIAL),
+        # 非拉丁、非汉字的文字没有首字母可谈(索引条上没有它们的字母):
+        # 统一进 '#' 桶,而不是按码点散落在 A–Z 中间。
+        ("Иван", pinyin.OTHER_INITIAL),
+        ("たなか", pinyin.OTHER_INITIAL),
+        ("김철수", pinyin.OTHER_INITIAL),
+        ("Γιώργος", pinyin.OTHER_INITIAL),
+        ("", pinyin.OTHER_INITIAL),
+        (None, pinyin.OTHER_INITIAL),
+        ("   ", pinyin.OTHER_INITIAL),
+    ],
+)
+def test_pinyin_initial(name, expected):
+    assert pinyin.pinyin_initial(name) == expected
+
+
+def test_pinyin_sort_key_folds_accents_to_ascii():
+    """排序键折成 ASCII:带音标的名字要排在同一个字母里,而不是「Z 之后、# 之前」。"""
+    assert pinyin.pinyin_sort_key("Émile") == "emile"
+    assert pinyin.pinyin_sort_key("Öztürk") == "ozturk"
+    assert pinyin.pinyin_sort_key("Ørsted") == "orsted"
+    assert pinyin.pinyin_sort_key("Łukasz") == "lukasz"
+
+    names = ["Zoe", "Émile", "Adam"]
+    assert sorted(names, key=pinyin.pinyin_sort_key) == ["Adam", "Émile", "Zoe"]
+
+
+def test_pinyin_never_raises_on_hostile_input():
+    """它跑在 User.save() 里 —— 任何输入抛异常都等于「用户存不进去」。
+
+    这里钉的是最脏的几种:emoji、只有空白、超长、控制字符、代理对。
+    """
+    for name in ["🙂", "  ", "X" * 500, "\x00\x01", "\ud83d\ude00", "·"]:
+        assert isinstance(pinyin.pinyin_sort_key(name), str)
+        assert isinstance(pinyin.pinyin_initial(name), str)
+
+
+def test_migration_copy_matches_service():
+    """迁移里那份冻结副本必须与 service 逐字同效。
+
+    不一致的后果肉眼看不出来:迁移回填出来的顺序和新用户保存后的顺序会不一样,
+    索引条与列表就错位了。导入用 importlib —— 模块名以数字开头,写不了 import 语句。
+    """
+    frozen = importlib.import_module("core.migrations.0143_user_name_pinyin")
+    for name in [
+        "张三",
+        "李四",
+        "欧阳修",
+        "John Doe",
+        "Émile",
+        "Ørsted",
+        "Łukasz",
+        "1001",
+        "🙂",
+        "",
+        None,
+        "  ",
+        "张 三",
+        "X" * 400,
+    ]:
+        assert frozen._sort_key(name) == pinyin.pinyin_sort_key(name), name
+        assert frozen._initial(name) == pinyin.pinyin_initial(name), name
+
+
+def test_pinyin_sort_key_is_bounded():
+    """超长名字截断,别撑爆字段(max_length=255)。"""
+    assert len(pinyin.pinyin_sort_key("张" * 400)) == pinyin.MAX_SORT_KEY_LENGTH
+
+
+def test_pinyin_order_differs_from_codepoint_order():
+    """这条是整个功能的前提:汉字的编码序不是拼音序。
+
+    张(U+5F20) < 李(U+674E) < 王(U+738B),而拼音是 li < wang < zhang ——
+    两种排法必须不同,否则这一整套后端改动没有意义。
+    """
+    names = ["张三", "李四", "王五"]
+    assert names == sorted(names)  # 编码序
+    assert [pinyin.pinyin_sort_key(n) for n in names] == [
+        "zhangsan",
+        "lisi",
+        "wangwu",
+    ]
+    assert sorted(names, key=pinyin.pinyin_sort_key) == ["李四", "王五", "张三"]
