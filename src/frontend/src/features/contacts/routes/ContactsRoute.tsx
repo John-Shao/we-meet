@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
   useInfiniteQuery,
@@ -6,36 +7,69 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { useLocation, useSearchParams } from 'wouter'
+import {
+  RiArrowLeftLine,
+  RiLayoutLeftLine,
+  RiSearchLine,
+} from '@remixicon/react'
 
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
+import { createGroupConversation } from '@/features/im/api/createGroupConversation'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
+import { useMediaQuery } from '@/features/rooms/livekit/hooks/useMediaQuery'
+import { useVirtualRows } from '@/hooks/useVirtualRows'
 
-import { DepartmentTree } from '../components/DepartmentTree'
+import {
+  ContactsSidebar,
+  type ContactsView,
+  type ContactsSidebarCounts,
+} from '../components/ContactsSidebar'
+import { ContactsDetailPlaceholder } from '../components/ContactsDetailPlaceholder'
+import { ContactsAlphabetIndex } from '../components/ContactsAlphabetIndex'
 import { DepartmentDetailPanel } from '../components/DepartmentDetailPanel'
+import { GroupDetailPanel } from '../components/GroupDetailPanel'
 import { MemberDetailPanel } from '../components/MemberDetailPanel'
 import { MyGroupsPanel } from '../components/MyGroupsPanel'
 import { StarredAddDialog } from '../components/StarredAddDialog'
 import { ExternalContactsPanel } from '../components/ExternalContactsPanel'
+import { resolveGroupName } from '../groups'
+import {
+  readRecentDepartments,
+  rememberDepartment,
+  writeRecentDepartments,
+} from '../recentDepartments'
+import { useMyGroups } from '../hooks/useMyGroups'
 import { fetchDepartmentMembersPage } from '../api/fetchDepartmentMembers'
 import { fetchDepartments } from '../api/fetchDepartments'
-import { fetchDirectoryMembersPage } from '../api/fetchDirectoryMembers'
+import {
+  fetchDirectoryAlphabet,
+  fetchDirectoryMembersPage,
+} from '../api/fetchDirectoryMembers'
 import { fetchDirectoryMember } from '../api/fetchDirectoryMember'
 import { fetchStarredContacts } from '../api/fetchStarredContacts'
 import { fetchContactPrefs, setContactPref } from '../api/setContactPref'
-import type { DirectoryMember } from '../api/ApiDirectory'
-import type { ExternalContact } from '../api/ApiDirectory'
+import {
+  fetchExternalContactRequests,
+  fetchExternalContacts,
+} from '../api/externalContacts'
+import type { DirectoryMember, ExternalContact } from '../api/ApiDirectory'
 
 /**
  * `/contacts` — org directory: browse the department tree (left) and the members
  * of the selected department or a name/email search (right). "Message" starts a
  * direct IM conversation. Organization administration (creating / deleting
  * departments, moving members) lives in the management console, not here.
+ *
+ * 选择状态(view / dept / member / group)全部由 URL 承载:`/contacts?view=groups`、
+ * `/contacts?dept=<id>`、`/contacts?member=<id>`、`/contacts?group=<cid>`。这样刷新、
+ * 浏览器后退、分享链接、从消息页点「通讯录」回来都落在同一个位置 —— 之前这些
+ * 状态只在 useState 里,刷新一次就回到「全部成员」。
  */
 export const ContactsRoute = () => (
   <RequireAuth>
@@ -45,62 +79,132 @@ export const ContactsRoute = () => (
   </RequireAuth>
 )
 
+const VIEW_PARAMS = ['starred', 'groups', 'external'] as const
+const isViewParam = (v: string | null): v is (typeof VIEW_PARAMS)[number] =>
+  !!v && (VIEW_PARAMS as readonly string[]).includes(v)
+
+/** 窄屏阈值:三栏加起来(导航 245 + 部门 260 + 名单 ≥420 + 详情 300)放不下时
+ * 右栏改浮层。与任务的「接管式详情」同一手法(那边是 1439px,这里三栏更宽,
+ * 取 xl 断点 1280px)。 */
+const NARROW_DETAIL_QUERY = '(max-width: 1280px)'
+
+const NAV_COLLAPSED_KEY = 'we-meet:contacts-nav-collapsed'
+
+/** 索引条只认 A–Z 与 '#'(服务端的「分不出首字母」那一桶)。 */
+const VALID_INITIALS = new Set([...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), '#'])
+
+/** 成员行高(px):36px 头像 + 上下各 0.625rem 内边距 + 1px 分隔线。
+ *  窗口化靠这个数算位置,量出来的和实际不符滚动就会漂 —— 行样式改了要一起改。 */
+const MEMBER_ROW_HEIGHT = 57
+
 const ContactsAuthenticated = () => {
-  const { t } = useTranslation('contacts')
+  const { t, i18n } = useTranslation('contacts')
   const [, navigate] = useLocation()
   const qc = useQueryClient()
-  const { alert: showAlert } = useConfirm()
-  // 左栏四态:'starred'(星标联系人)/ 'groups'(我的群组)/ null(全部成员)/ 部门 id。
-  const [view, setView] = useState<'starred' | 'groups' | 'external' | null>(
-    null
-  )
-  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null)
-  const [selectedMember, setSelectedMember] = useState<DirectoryMember | null>(
-    null
-  )
+  const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const [addingStarred, setAddingStarred] = useState(false)
-
-  const selectDept = (id: string | null) => {
-    setView(null)
-    setSelectedDeptId(id)
-    setSelectedMember(null)
-  }
-
-  const selectStarred = () => {
-    setView('starred')
-    setSelectedDeptId(null)
-    setSelectedMember(null)
-  }
-
-  const selectGroups = () => {
-    setView('groups')
-    setSelectedDeptId(null)
-    setSelectedMember(null)
-  }
-
-  const selectExternal = () => {
-    setView('external')
-    setSelectedDeptId(null)
-    setSelectedMember(null)
-  }
-
-  // 深链 `/contacts?member=<userId>`(如从 IM 消息头像点击跳转):按 id 拉该成员
-  // 并打开详情卡。用 ref 记录已应用的 id,关闭后不再自动重开。
-  const [searchParams] = useSearchParams()
-  const memberIdParam = searchParams.get('member')
-  const { data: linkedMember } = useQuery({
-    queryKey: ['directory', 'member', memberIdParam],
-    queryFn: () => fetchDirectoryMember(memberIdParam!),
-    enabled: !!memberIdParam,
-    staleTime: 30_000,
-  })
-  const appliedMemberIdRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (linkedMember && appliedMemberIdRef.current !== linkedMember.id) {
-      appliedMemberIdRef.current = linkedMember.id
-      setSelectedMember(linkedMember)
+  const [memberFilter, setMemberFilter] = useState('')
+  // 窄屏下右栏是浮层;用户按「返回」把它关掉后,列表要能露出来(而 URL 里的
+  // dept/member 选择不变 —— 它表达的是「在看哪儿」,不是「浮层开着」)。
+  const [detailDismissed, setDetailDismissed] = useState(false)
+  const [startingGroupChat, setStartingGroupChat] = useState(false)
+  const [recentIds, setRecentIds] = useState<string[]>(() =>
+    readRecentDepartments()
+  )
+  const [navCollapsed, setNavCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(NAV_COLLAPSED_KEY) === '1'
+    } catch {
+      return false
     }
-  }, [linkedMember])
+  })
+  const narrowDetail = useMediaQuery(NARROW_DETAIL_QUERY)
+
+  const toggleNav = () => {
+    setNavCollapsed((prev) => {
+      try {
+        localStorage.setItem(NAV_COLLAPSED_KEY, prev ? '0' : '1')
+      } catch {
+        // 隐私模式:这次会话里仍然能收起/展开,只是不记住。
+      }
+      return !prev
+    })
+  }
+
+  // ── URL 即状态 ──────────────────────────────────────────────────────────
+  const [searchParams, setSearchParams] = useSearchParams()
+  const rawView = searchParams.get('view')
+  const view: ContactsView = isViewParam(rawView) ? rawView : null
+  // 视图入口与部门是互斥的:选了「我的群组」就不再有「当前部门」。
+  const selectedDeptId = view === null ? searchParams.get('dept') : null
+  const memberParam = searchParams.get('member')
+  const groupParam = searchParams.get('group')
+  // A–Z 索引条的起点字母。只认 A–Z 和 '#' 那一桶 —— 脏参数当没传。
+  const rawFromInitial = (searchParams.get('from_initial') ?? '').toUpperCase()
+  const fromInitial = VALID_INITIALS.has(rawFromInitial) ? rawFromInitial : null
+
+  /**
+   * 改 URL 查询串。`replace` 决定要不要留一条历史:
+   *   - 换视图 / 换部门 = 一次真实的「跳转」,留历史 → 后退能回到上一个部门(像
+   *     翻文件夹一样);
+   *   - 选中/取消一个人或一个群 = 页内状态,用 replace 顶掉当前条目 → 否则点十个
+   *     人就在历史里堆十条,后退键要按十次才出得去。
+   */
+  const patchParams = (
+    patch: Record<string, string | null>,
+    { replace = false }: { replace?: boolean } = {}
+  ) =>
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        for (const [key, value] of Object.entries(patch)) {
+          if (value === null) next.delete(key)
+          else next.set(key, value)
+        }
+        return next
+      },
+      { replace }
+    )
+
+  const selectView = (next: Exclude<ContactsView, null>) =>
+    patchParams({ view: next, dept: null, member: null, from_initial: null })
+  const selectAll = () =>
+    patchParams({ view: null, dept: null, member: null, from_initial: null })
+  // 每个选择动作都顺手把浮层详情「重新打开」:窄屏下用户可能刚把它关掉,再点
+  // 一次同一个部门也该再看到那张卡。
+  const selectDept = (id: string) => {
+    setDetailDismissed(false)
+    // 换部门清掉起点字母:在新部门的名单里停在「从 L 开始」只会让人以为前面没人。
+    patchParams({ view: null, dept: id, member: null, from_initial: null })
+  }
+  const selectMember = (id: string | null) => {
+    setDetailDismissed(false)
+    patchParams({ member: id }, { replace: true })
+  }
+  const selectGroup = (cid: string) => {
+    setDetailDismissed(false)
+    patchParams({ group: cid }, { replace: true })
+  }
+
+  /**
+   * 点索引条的字母:从它开始;再点同一个 = 取消起点(回到整册)。
+   *
+   * 用 replace 而不是 push:连点几个字母不该在历史里留下七八条,后退键得按七八次
+   * 才出得去通讯录。起点变化也不清掉 dept —— 那是「在看哪个部门」,与起点正交。
+   */
+  const selectFromInitial = (letter: string) => {
+    setMemberFilter('')
+    patchParams(
+      { from_initial: fromInitial === letter ? null : letter },
+      { replace: true }
+    )
+  }
+
+  // 换视图/换部门/换起点时清掉列表筛选:上一处筛的「张」带到新列表里只会显示
+  //「无匹配」。
+  useEffect(() => {
+    setMemberFilter('')
+  }, [view, selectedDeptId, fromInitial])
 
   const { data: departments = [] } = useQuery({
     queryKey: ['directory', 'departments'],
@@ -109,10 +213,35 @@ const ContactsAuthenticated = () => {
   })
 
   // 通讯录只负责「浏览」组织:选部门列其直属成员,全部成员列整册。
-  // 按姓名找人统一走顶栏全局搜索(飞书式单一搜索入口),这里不设搜索框。
+  // 按姓名找人统一走顶栏全局搜索(飞书式单一搜索入口),列表头另给一个**就地**筛选:
+  // 只过滤已加载的这几页,不发请求,用于「这一屏里找那个人」。
   //
   // 分页而不是只取第一页:一个上百人的部门原来会在第 100 人处静默截断,页面上
   // 没有任何迹象表明列表还没完。星标名单不分页(它本来就短)。
+  //
+  // 部门/全部成员按**拼音**排(?ordering=pinyin):汉字没有可用的编码序,上千人的
+  // 名册按编码排等于乱序。星标名单是服务端另一个端点(不支持拼音序),保持原样。
+  //
+  // 注意排序与索引条是两个决定:排序对所有界面语言都发,索引条只在简体中文下画 ——
+  // 详见 pinyinIndexEnabled。
+  const pinyinOrder = view === null
+  /**
+   * 拼音首字母**索引**只在界面语言是简体中文时才出现。
+   *
+   * 理由:按拼音分桶是给中文名册用的读法。界面是英文/法文/荷兰文的组织里,一列
+   * A–Z 加一个「其他(数字或符号)」桶既不解释得了名册,也占着右边缘。这一类用户
+   * 本来也不按拼音找中文名 —— 他们有就地筛选和 Ctrl+K 全局搜索。
+   *
+   * 用 startsWith 而不是等值比较:i18next 的 supportedLngs 只有 'zh',浏览器给的
+   * 'zh-CN'/'zh-TW' 都会落到这份简体资源上,但语言代码可能仍带地区后缀
+   * (全站既有的中文判断也都是这么写的,见 CalendarGrid / AgendaListView)。
+   *
+   * 取 resolvedLanguage(实际渲染用的那份资源)优先,而不是检测到的原始代码:
+   * 初始化是异步的,首帧 language 可能还是空的 —— 那时不该先画一条索引条再抽掉;
+   * 而回落成中文界面的情况(不支持的语言)看到的本来就是中文,索引条与界面一致。
+   */
+  const activeLanguage = i18n.resolvedLanguage ?? i18n.language
+  const pinyinIndexEnabled = activeLanguage?.startsWith('zh') ?? false
   const {
     data: memberPages,
     isFetching,
@@ -120,7 +249,12 @@ const ContactsAuthenticated = () => {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['directory', 'members', 'page', { dept: selectedDeptId, view }],
+    queryKey: [
+      'directory',
+      'members',
+      'page',
+      { dept: selectedDeptId, view, fromInitial },
+    ],
     queryFn: ({ pageParam }) =>
       view === 'starred'
         ? fetchStarredContacts().then((results) => ({
@@ -130,18 +264,47 @@ const ContactsAuthenticated = () => {
             results,
           }))
         : selectedDeptId
-          ? fetchDepartmentMembersPage(selectedDeptId, false, pageParam)
-          : fetchDirectoryMembersPage(undefined, pageParam),
+          ? fetchDepartmentMembersPage(selectedDeptId, false, pageParam, {
+              pinyin: true,
+              fromInitial,
+            })
+          : fetchDirectoryMembersPage(undefined, pageParam, {
+              pinyin: true,
+              fromInitial,
+            }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.next ?? undefined,
     staleTime: 30_000,
-    // 「我的群组」视图里根本不渲染成员名单,别白拉一整册人。
+    // 「我的群组」/「外部联系人」视图里根本不渲染成员名单,别白拉一整册人。
     enabled: view !== 'groups' && view !== 'external',
   })
   const members = useMemo(
     () => (memberPages?.pages ?? []).flatMap((page) => page.results),
     [memberPages]
   )
+  /** 服务端报的总数(不是已加载条数)—— 标题上写「共 N 人」得是这个。 */
+  const totalMembers = memberPages?.pages[0]?.count ?? null
+
+  // A–Z 索引条的字母表(每个字母各有多少人)。与列表同一套过滤(部门),所以点进
+  // 某个部门后字母表跟着变;服务端不支持拼音序的视图(星标/群组/外部)就不请求。
+  const { data: alphabet = [] } = useQuery({
+    queryKey: ['directory', 'alphabet', { dept: selectedDeptId }],
+    queryFn: () => fetchDirectoryAlphabet({ department: selectedDeptId }),
+    staleTime: 60_000,
+    enabled: pinyinIndexEnabled && pinyinOrder,
+  })
+  // 字母表还没到(或后端还没上这个接口)就不画索引条:一条全是灰字母的竖条比没有
+  // 更糟 —— 用户会以为整个名册都没有首字母。
+  const showAlphabet = pinyinIndexEnabled && pinyinOrder && alphabet.length > 0
+
+  // 「全部成员」这一行的人数:只有站在那个视图上时才知道确切值,离开后沿用最后
+  // 一次已知的数字 —— 每次点部门都让这行数字消失,比留一个略旧的数字更晃眼。
+  const allMembersRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (view === null && !selectedDeptId && typeof totalMembers === 'number') {
+      allMembersRef.current = totalMembers
+    }
+  }, [view, selectedDeptId, totalMembers])
 
   const selectedDept = useMemo(
     () => departments.find((d) => d.id === selectedDeptId) ?? null,
@@ -160,6 +323,40 @@ const ContactsAuthenticated = () => {
     }
     return chain
   }, [departments, selectedDept])
+
+  // 记住看过的部门(左栏「最近访问」)。id 落 localStorage,名字/人数仍从部门树
+  // 那份数据里取 —— 部门被删掉后会自动消失,不需要清理逻辑。
+  useEffect(() => {
+    if (!selectedDeptId) return
+    setRecentIds((prev) => {
+      const next = rememberDepartment(selectedDeptId, prev)
+      // 没变化就返回原引用,免得白白触发一次重渲染。
+      if (next.length === prev.length && next[0] === prev[0]) return prev
+      writeRecentDepartments(next)
+      return next
+    })
+  }, [selectedDeptId])
+
+  const recentDepts = useMemo(() => {
+    if (recentIds.length === 0) return []
+    const byId = new Map(departments.map((d) => [d.id, d]))
+    return recentIds
+      .map((id) => byId.get(id))
+      .filter((dept): dept is (typeof departments)[number] => !!dept)
+  }, [recentIds, departments])
+
+  // 成员选择同样由 URL 承载(?member=<id>,如从 IM 消息头像点击跳转)。列表里
+  // 有这个人就用列表对象(带部门/职位),没有(比如部门负责人)就单拉一份。
+  const { data: linkedMember } = useQuery({
+    queryKey: ['directory', 'member', memberParam],
+    queryFn: () => fetchDirectoryMember(memberParam!),
+    enabled: !!memberParam,
+    staleTime: 30_000,
+  })
+  const selectedMember = useMemo(() => {
+    if (!memberParam) return null
+    return members.find((m) => m.id === memberParam) ?? linkedMember ?? null
+  }, [memberParam, members, linkedMember])
 
   // 星标名单单独拉一份:一是「添加」对话框要排掉已星标的人,二是任何列表/详情
   // 里的星标状态都从这一份派生,切换视图不会看到两种说法。
@@ -180,6 +377,57 @@ const ContactsAuthenticated = () => {
   const alertIds = new Set(
     prefs.filter((p) => p.special_alert).map((p) => p.user_id)
   )
+
+  // 左栏的群组与外部联系人计数:与各自的视图面板共用 queryKey,所以只是读缓存。
+  const myGroups = useMyGroups()
+  const { data: externalContacts = [] } = useQuery({
+    queryKey: ['directory', 'external-contacts'],
+    queryFn: fetchExternalContacts,
+    staleTime: 30_000,
+  })
+  const { data: externalRequests = [] } = useQuery({
+    queryKey: ['directory', 'external-contact-requests'],
+    queryFn: fetchExternalContactRequests,
+    staleTime: 10_000,
+  })
+  /** 只有「别人发给我、等我处理」的申请才配红标;我发出去等对方接受的不算。 */
+  const externalPending = externalRequests.filter(
+    (c) => c.direction === 'incoming'
+  ).length
+
+  const counts: ContactsSidebarCounts = {
+    starred: starred.length,
+    groups: myGroups.groups.length,
+    groupUnread: myGroups.unreadTotal,
+    external: externalContacts.length,
+    externalPending,
+    members: allMembersRef.current,
+  }
+
+  const selectedGroup = useMemo(
+    () =>
+      view === 'groups' && groupParam
+        ? (myGroups.groups.find((c) => c.cid === groupParam) ?? null)
+        : null,
+    [view, groupParam, myGroups.groups]
+  )
+  const selectedGroupLabel = useMemo(() => {
+    if (!selectedGroup) return ''
+    const resolved = resolveGroupName(selectedGroup, myGroups.memberInfo, {
+      selfUid: myGroups.selfUid,
+      separator: t('groups.nameSeparator'),
+    })
+    return resolved.kind === 'named'
+      ? resolved.name
+      : resolved.kind === 'derived'
+        ? t('groups.unnamedFromMembers', {
+            names: resolved.names,
+            count: resolved.count,
+          })
+        : t('groups.unnamed')
+    // t() 随语言变化,但语言切换会整棵重渲染 —— 不必进依赖。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGroup, myGroups.memberInfo, myGroups.selfUid])
 
   /**
    * 拨一个 flag。只传自己在改的那个键 —— 服务端不动没传的键,所以打星标绝不会
@@ -230,6 +478,181 @@ const ContactsAuthenticated = () => {
     }
   }
 
+  /**
+   * 部门级「发起群聊」:把该部门的直属成员拉进一个新群。
+   *
+   * 三点克制:①建群会通知到每个人,所以先弹确认框,把「拉几个人进哪个群」说清楚;
+   * ②只取直属成员(不含子部门),子部门整棵树拉进来很容易变成几十人的大群,那是
+   * 另一个决定;③不在通讯录里做群管理,建完直接落到会话里。
+   */
+  const handleStartGroupChat = async (dept: (typeof departments)[number]) => {
+    const name = dept.name
+    try {
+      setStartingGroupChat(true)
+      const pageData = await fetchDepartmentMembersPage(dept.id, false)
+      // 建群人由服务端加进去,这里只传其他人。
+      const memberIds = pageData.results
+        .filter((m) => !m.is_self)
+        .map((m) => m.id)
+      if (memberIds.length === 0) {
+        void showAlert({ message: t('department.startGroupChatEmpty') })
+        return
+      }
+      const ok = await askConfirm({
+        message: t('department.startGroupChatConfirm', {
+          name,
+          members: memberIds.length,
+        }),
+      })
+      if (!ok) return
+      const result = await createGroupConversation(memberIds, name)
+      await qc.invalidateQueries({ queryKey: ['im', 'conversations'] })
+      navigate(`/im?cid=${encodeURIComponent(result.cid)}`)
+    } catch (e) {
+      void showAlert({
+        message: t('department.startGroupChatError', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      })
+    } finally {
+      setStartingGroupChat(false)
+    }
+  }
+
+  // ── 中栏成员列表 ────────────────────────────────────────────────────────
+  const filterQuery = memberFilter.trim().toLowerCase()
+  const visibleMembers = useMemo(() => {
+    if (!filterQuery) return members
+    return members.filter((m) =>
+      [m.full_name, m.short_name, m.email, m.title, m.department?.name].some(
+        (field) => field?.toLowerCase().includes(filterQuery)
+      )
+    )
+  }, [members, filterQuery])
+
+  const listTitle =
+    view === 'starred'
+      ? t('starred.title')
+      : (selectedDept?.name ?? t('page.allMembers'))
+  // 部门视图下部门名是重复信息(整列都是同一个部门),换成面包屑更有用。
+  const listSubtitle = [
+    deptAncestors.length > 0
+      ? deptAncestors.map((a) => a.name).join(' / ')
+      : null,
+    typeof totalMembers === 'number'
+      ? t('page.count', { count: totalMembers })
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  // 窗口化:上千人的名册只把可见的那二十来行放进 DOM(见 useVirtualRows)。
+  //
+  // 行高先按常量估,渲染后用**实测值**纠正:行高写得再死也会被字体、字号、
+  // 未来的内边距改动带偏,MEMBER_ROW_HEIGHT 只是第一帧的猜测。差 1px,一千行就偏
+  // 1000px(实测过一次:字体一回退,行就从 57 变成 64)。
+  const [rowHeight, setRowHeight] = useState(MEMBER_ROW_HEIGHT)
+  const listRef = useRef<HTMLUListElement | null>(null)
+  const virtual = useVirtualRows({
+    count: visibleMembers.length,
+    rowHeight,
+  })
+  const windowMembers = visibleMembers.slice(
+    virtual.startIndex,
+    virtual.endIndex
+  )
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list) return
+    const measure = () => {
+      const rendered = list.children.length
+      if (rendered === 0) return
+      const measured = list.getBoundingClientRect().height / rendered
+      // 容差 0.5px:亚像素会有零头,不让它每帧都触发一次重算。
+      if (measured > 0 && Math.abs(measured - rowHeight) > 0.5) {
+        setRowHeight(measured)
+      }
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    // 也要盯着列表本身:字体换掉(web font 加载完成)会让行变高,而那时窗口长度
+    // 一个都没变 —— 只靠依赖数组会漏掉这一次。
+    const observer = new ResizeObserver(measure)
+    observer.observe(list)
+    return () => observer.disconnect()
+  }, [rowHeight, windowMembers.length])
+  /** 悬浮字母头:视口顶部那一行属于哪个字母。 */
+  const anchorInitial = visibleMembers[virtual.anchorIndex]?.initial ?? null
+
+  // 列表内容换了(换部门 / 换起点字母 / 换视图)就回到顶部:否则滚动位置留在半山腰,
+  // 新列表一上来就是中间那几行。
+  const { scrollToTop } = virtual
+  useEffect(() => {
+    scrollToTop()
+  }, [view, selectedDeptId, fromInitial, scrollToTop])
+
+  // 滚到近底自动拉下一页(按钮保留做兜底:老浏览器 / 自动化测试里没有
+  // IntersectionObserver,那时仍然可以手点)。
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  const { scrollElement } = virtual
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel || !scrollElement || !hasNextPage || isFetchingNextPage)
+      return
+    if (typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) void fetchNextPage()
+      },
+      { root: scrollElement, rootMargin: '200px' }
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, scrollElement])
+
+  /** 右栏内容(桌面 = 第三栏,窄屏 = 浮层,见下)。都不选中时为 null —— 那时
+   * 桌面显示空态提示,窄屏干脆不占地方。 */
+  const detailPanel = selectedMember ? (
+    <MemberDetailPanel
+      member={selectedMember}
+      starred={starredIds.has(selectedMember.id)}
+      onToggleStarred={(next) =>
+        void toggleContactPref(selectedMember, { is_starred: next })
+      }
+      specialAlert={alertIds.has(selectedMember.id)}
+      onToggleSpecialAlert={(next) =>
+        void toggleContactPref(selectedMember, { special_alert: next })
+      }
+      onMessage={handleMessage}
+      onClose={() => selectMember(null)}
+    />
+  ) : selectedGroup ? (
+    <GroupDetailPanel
+      group={selectedGroup}
+      label={selectedGroupLabel}
+      memberInfo={myGroups.memberInfo}
+      avatarSrc={myGroups.groupAvatars[selectedGroup.cid]}
+      onEnter={() =>
+        navigate(`/im?cid=${encodeURIComponent(selectedGroup.cid)}`)
+      }
+    />
+  ) : selectedDept ? (
+    <DepartmentDetailPanel
+      department={selectedDept}
+      ancestors={deptAncestors}
+      // 部门负责人可能不在当前列表里(没分页到 / 属于子部门),交给 ?member=
+      // 深链那条查询去取。
+      onOpenHead={(userId) => selectMember(userId)}
+      // 空部门不给按钮:点了必然是一句「没有成员」,不如不给。
+      onStartGroupChat={
+        selectedDept.member_count > 0
+          ? () => void handleStartGroupChat(selectedDept)
+          : undefined
+      }
+      startingGroupChat={startingGroupChat}
+    />
+  ) : null
+
   return (
     <div
       className={css({
@@ -239,76 +662,41 @@ const ContactsAuthenticated = () => {
         overflow: 'hidden',
       })}
     >
-      <ResizablePanel
-        storageKey="we-meet:contacts-dept-width"
-        defaultWidth={260}
-        min={220}
-        max={460}
-      >
-        <aside
-          className={css({
-            width: '100%',
-            height: '100%',
-            borderRight: '1px solid token(colors.greyscale.200)',
-            overflowY: 'auto',
-            backgroundColor: 'greyscale.50',
-          })}
+      {navCollapsed ? (
+        // 收起态:只留一条 36px 窄条,把 260px 还给名单。按钮放在这里而不是中栏
+        // 的页头里 —— 群组/外部联系人视图没有同一个页头,放那儿就找不到了。
+        <div className={navStripCls}>
+          <button
+            type="button"
+            onClick={toggleNav}
+            aria-label={t('page.showNav')}
+            title={t('page.showNav')}
+            data-testid="contacts-nav-expand"
+            className={navStripBtnCls}
+          >
+            <RiLayoutLeftLine size={16} />
+          </button>
+        </div>
+      ) : (
+        <ResizablePanel
+          storageKey="we-meet:contacts-dept-width"
+          defaultWidth={260}
+          min={220}
+          max={460}
         >
-          <div className={css({ paddingX: '1rem', paddingY: '0.75rem' })}>
-            <h2
-              className={css({
-                margin: 0,
-                fontSize: '1rem',
-                fontWeight: 'bold',
-                color: 'greyscale.900',
-              })}
-            >
-              {t('page.departments')}
-            </h2>
-          </div>
-          <div>
-            {/* 星标联系人:与部门并列的一个入口(对标飞书通讯录的独立分组)。 */}
-            <button
-              type="button"
-              onClick={selectStarred}
-              data-testid="contacts-starred-entry"
-              className={deptButton(view === 'starred')}
-            >
-              ⭐ {t('starred.title')}
-            </button>
-            {/* 我的群组:零后端 —— 群清单就是 IM 会话列表里 type==='group' 的
-              那部分,复用会话列表已有的查询缓存。 */}
-            <button
-              type="button"
-              onClick={selectGroups}
-              data-testid="contacts-groups-entry"
-              className={deptButton(view === 'groups')}
-            >
-              👥 {t('groups.title')}
-            </button>
-            <button
-              type="button"
-              onClick={selectExternal}
-              data-testid="contacts-external-entry"
-              className={deptButton(view === 'external')}
-            >
-              ◇ {t('external.title')}
-            </button>
-            <button
-              type="button"
-              onClick={() => selectDept(null)}
-              className={deptButton(view === null && selectedDeptId === null)}
-            >
-              {t('page.allMembers')}
-            </button>
-            <DepartmentTree
-              departments={departments}
-              selectedId={selectedDeptId}
-              onSelect={selectDept}
-            />
-          </div>
-        </aside>
-      </ResizablePanel>
+          <ContactsSidebar
+            view={view}
+            selectedDeptId={selectedDeptId}
+            departments={departments}
+            recent={recentDepts}
+            counts={counts}
+            onSelectView={selectView}
+            onSelectAll={selectAll}
+            onSelectDept={selectDept}
+            onCollapse={toggleNav}
+          />
+        </ResizablePanel>
+      )}
 
       <main
         className={css({
@@ -319,286 +707,267 @@ const ContactsAuthenticated = () => {
         })}
       >
         {view === 'groups' ? (
-          <MyGroupsPanel />
+          <MyGroupsPanel selectedCid={groupParam} onSelect={selectGroup} />
         ) : view === 'external' ? (
           <ExternalContactsPanel onMessage={handleExternalMessage} />
         ) : (
           <>
-            {view === 'starred' && (
-              <div
-                className={css({
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  paddingX: '1rem',
-                  paddingY: '0.625rem',
-                  borderBottom: '1px solid token(colors.greyscale.200)',
-                })}
-              >
-                <h2
-                  className={css({
-                    margin: 0,
-                    fontSize: '0.9375rem',
-                    fontWeight: 'bold',
-                    color: 'greyscale.900',
-                  })}
-                >
-                  {t('starred.title')}
+            <header className={listHeaderCls}>
+              <div className={css({ minWidth: 0 })}>
+                <h2 className={listTitleCls} data-testid="contacts-list-title">
+                  {listTitle}
                 </h2>
-                {/* dense 而非 sm:sm 不带字号,会吃到浏览器默认 16px,比同页的
-                「发消息」大一号 —— 正是 buttonRecipe 里 dense 那档点名要收口的
-                「通讯录『添加』vs『发消息』」不一致。 */}
-                <Button
-                  variant="secondary"
-                  size="dense"
-                  onPress={() => setAddingStarred(true)}
-                  data-testid="contacts-starred-add"
-                >
-                  {t('starred.add')}
-                </Button>
-              </div>
-            )}
-            <div className={css({ overflowY: 'auto', flex: 1 })}>
-              {isFetching && members.length === 0 ? (
-                <StateHint state="loading">{t('page.loading')}</StateHint>
-              ) : members.length === 0 ? (
-                <StateHint>
-                  {view === 'starred' ? t('starred.empty') : t('page.empty')}
-                </StateHint>
-              ) : (
-                <ul
-                  className={css({ listStyle: 'none', margin: 0, padding: 0 })}
-                >
-                  {members.map((member) => {
-                    const label =
-                      member.full_name ||
-                      member.short_name ||
-                      member.email ||
-                      ''
-                    const selected = selectedMember?.id === member.id
-                    return (
-                      <li
-                        key={member.id}
-                        className={css({
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          borderBottom: '1px solid token(colors.greyscale.100)',
-                          // 选中用会翻转的 greyscale.100(避免浅蓝底配翻转后的浅字看不见)。
-                          backgroundColor: selected
-                            ? 'greyscale.100'
-                            : 'transparent',
-                          _hover: { backgroundColor: 'greyscale.50' },
-                        })}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setSelectedMember(member)}
-                          data-testid={`contacts-member-${member.id}`}
-                          className={css({
-                            flex: 1,
-                            minWidth: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.625rem',
-                            border: 'none',
-                            background: 'transparent',
-                            cursor: 'pointer',
-                            textAlign: 'left',
-                            paddingX: '1rem',
-                            paddingY: '0.625rem',
-                          })}
-                        >
-                          {member.avatar_url ? (
-                            <img
-                              src={member.avatar_url}
-                              alt={label}
-                              className={css({
-                                flexShrink: 0,
-                                width: '36px',
-                                height: '36px',
-                                borderRadius: '8px',
-                                objectFit: 'cover',
-                              })}
-                            />
-                          ) : (
-                            <span
-                              className={css({
-                                flexShrink: 0,
-                                width: '36px',
-                                height: '36px',
-                                borderRadius: '8px',
-                                backgroundColor: 'primary.500',
-                                color: 'white',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '0.875rem',
-                              })}
-                            >
-                              {(label || '?').slice(0, 1).toUpperCase()}
-                            </span>
-                          )}
-                          <span
-                            className={css({
-                              minWidth: 0,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.125rem',
-                            })}
-                          >
-                            <span
-                              className={css({
-                                fontWeight: 'medium',
-                                color: 'greyscale.900',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              })}
-                            >
-                              {label}
-                              {/* 星标标记(对标飞书:名字后跟一颗 ⭐)。 */}
-                              {starredIds.has(member.id) && (
-                                <span
-                                  aria-label={t('starred.title')}
-                                  title={t('starred.title')}
-                                >
-                                  {' '}
-                                  ⭐
-                                </span>
-                              )}
-                              {member.is_self && (
-                                <span
-                                  className={css({ color: 'greyscale.400' })}
-                                >
-                                  {' '}
-                                  {t('page.selfTag')}
-                                </span>
-                              )}
-                            </span>
-                            <span
-                              className={css({
-                                fontSize: '0.75rem',
-                                color: 'greyscale.500',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              })}
-                            >
-                              {[member.title, member.department?.name]
-                                .filter(Boolean)
-                                .join(' · ')}
-                            </span>
-                          </span>
-                        </button>
-                        {view === 'starred' && (
-                          <span
-                            className={css({
-                              flexShrink: 0,
-                              display: 'flex',
-                              alignItems: 'center',
-                              marginRight: '0.5rem',
-                            })}
-                          >
-                            {/* 与其它分组行尾的「发消息」同档(dense):它俩占同一个
-                            列位,尺寸必须一致,否则切分组时行高会跳。 */}
-                            <Button
-                              variant="secondaryText"
-                              size="dense"
-                              onPress={() =>
-                                void toggleContactPref(member, {
-                                  is_starred: false,
-                                })
-                              }
-                              data-testid={`contacts-unstar-${member.id}`}
-                            >
-                              {t('starred.remove')}
-                            </Button>
-                          </span>
-                        )}
-                        {/* 星标名单里不放「发消息」:那一行已经有「取消星标」,再并一个
-                        按钮既挤又抢焦点,而点整行就能开详情卡、卡里就有发消息。 */}
-                        {view !== 'starred' && !member.is_self && (
-                          <span
-                            className={css({
-                              flexShrink: 0,
-                              display: 'flex',
-                              alignItems: 'center',
-                              marginRight: '1rem',
-                            })}
-                          >
-                            <Button
-                              variant="secondary"
-                              size="dense"
-                              onPress={() => handleMessage(member)}
-                              data-testid={`contacts-message-${member.id}`}
-                            >
-                              {t('page.message')}
-                            </Button>
-                          </span>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-              {/* 只有真的还有下一页时才出现 —— 之前列表在第 100 人处静默截断,页面
-              上没有任何迹象说明「还没完」。 */}
-              {hasNextPage && (
-                <div
-                  className={css({
-                    display: 'flex',
-                    justifyContent: 'center',
-                    padding: '0.75rem',
-                  })}
-                >
-                  <Button
-                    variant="tertiaryText"
-                    size="sm"
-                    onPress={() => void fetchNextPage()}
-                    isDisabled={isFetchingNextPage}
-                    data-testid="contacts-load-more"
+                {listSubtitle && (
+                  <p
+                    className={listSubtitleCls}
+                    data-testid="contacts-list-subtitle"
                   >
-                    {isFetchingNextPage
-                      ? t('page.loading')
-                      : t('page.loadMore')}
+                    {listSubtitle}
+                  </p>
+                )}
+              </div>
+              <div className={headerActionsCls}>
+                <label className={searchWrapCls}>
+                  <RiSearchLine
+                    size={14}
+                    aria-hidden
+                    className={searchIconCls}
+                  />
+                  <input
+                    type="search"
+                    value={memberFilter}
+                    onChange={(e) => setMemberFilter(e.target.value)}
+                    placeholder={t('page.filterMembers')}
+                    aria-label={t('page.filterMembers')}
+                    data-testid="contacts-member-filter"
+                    className={searchInputCls}
+                  />
+                </label>
+                {view === 'starred' && (
+                  // dense 而非 sm:sm 不带字号,会吃到浏览器默认 16px,比同页的
+                  //「发消息」大一号 —— 正是 buttonRecipe 里 dense 那档点名要收口的
+                  //「通讯录『添加』vs『发消息』」不一致。
+                  <Button
+                    variant="secondary"
+                    size="dense"
+                    onPress={() => setAddingStarred(true)}
+                    data-testid="contacts-starred-add"
+                  >
+                    {t('starred.add')}
                   </Button>
-                </div>
+                )}
+              </div>
+            </header>
+
+            <div className={listBodyCls}>
+              <div
+                className={scrollerCls}
+                ref={virtual.scrollRef}
+                onScroll={virtual.onScroll}
+                data-testid="contacts-list-scroller"
+              >
+                {/* 悬浮字母头:滚动中始终知道自己看到哪个字母了(sticky,不占列表流,
+                   所以行高还是定值,窗口化的算术不会被它打乱)。 */}
+                {showAlphabet && anchorInitial && (
+                  <div
+                    className={letterChipCls}
+                    data-testid="contacts-letter-chip"
+                  >
+                    {anchorInitial === '#'
+                      ? t('page.otherInitial')
+                      : anchorInitial}
+                  </div>
+                )}
+                {isFetching && members.length === 0 ? (
+                  <StateHint state="loading">{t('page.loading')}</StateHint>
+                ) : visibleMembers.length === 0 ? (
+                  <StateHint>
+                    {filterQuery && members.length > 0
+                      ? t('page.noMatch')
+                      : view === 'starred'
+                        ? t('starred.empty')
+                        : t('page.empty')}
+                  </StateHint>
+                ) : (
+                  // 整表高度撑着滚动条,里面只放当前窗口那几行(translateY 到正确位置)。
+                  <div
+                    className={spacerCls}
+                    style={{ height: virtual.totalHeight }}
+                  >
+                    <ul
+                      className={listCls}
+                      ref={listRef}
+                      style={{ transform: `translateY(${virtual.offsetY}px)` }}
+                      data-testid="contacts-member-list"
+                    >
+                      {windowMembers.map((member) => {
+                        const label =
+                          member.full_name ||
+                          member.short_name ||
+                          member.email ||
+                          ''
+                        const selected = selectedMember?.id === member.id
+                        // 部门视图里每行都写一遍「开发部」是零信息,只留职位。
+                        const meta = (
+                          selectedDeptId
+                            ? [member.title]
+                            : [member.title, member.department?.name]
+                        )
+                          .filter(Boolean)
+                          .join(' · ')
+                        return (
+                          <li
+                            key={member.id}
+                            className={cx(
+                              memberRowCls,
+                              css({
+                                backgroundColor: selected
+                                  ? 'greyscale.100'
+                                  : 'transparent',
+                              })
+                            )}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => selectMember(member.id)}
+                              data-testid={`contacts-member-${member.id}`}
+                              className={memberMainCls}
+                            >
+                              {member.avatar_url ? (
+                                <img
+                                  src={member.avatar_url}
+                                  alt={label}
+                                  className={avatarCls}
+                                />
+                              ) : (
+                                <span className={avatarFallbackCls}>
+                                  {(label || '?').slice(0, 1).toUpperCase()}
+                                </span>
+                              )}
+                              <span className={memberTextCls}>
+                                <span className={memberNameCls}>
+                                  {label}
+                                  {/* 星标标记(对标飞书:名字后跟一颗 ⭐)。 */}
+                                  {starredIds.has(member.id) && (
+                                    <span
+                                      aria-label={t('starred.title')}
+                                      title={t('starred.title')}
+                                    >
+                                      {' '}
+                                      ⭐
+                                    </span>
+                                  )}
+                                  {member.is_self && (
+                                    <span
+                                      className={css({
+                                        color: 'greyscale.400',
+                                      })}
+                                    >
+                                      {' '}
+                                      {t('page.selfTag')}
+                                    </span>
+                                  )}
+                                </span>
+                                {meta && (
+                                  <span className={memberMetaCls}>{meta}</span>
+                                )}
+                              </span>
+                            </button>
+                            {/* 行尾动作:hover / 键盘聚焦才出现(触屏常显)。以前每个
+                        成员行都挂一颗常显的「发消息」,一屏十几颗同重量按钮既是
+                        噪声、又把名字和按钮拉开几百像素。 */}
+                            {view === 'starred' ? (
+                              <span data-row-action className={rowActionCls}>
+                                <Button
+                                  variant="secondaryText"
+                                  size="dense"
+                                  onPress={() =>
+                                    void toggleContactPref(member, {
+                                      is_starred: false,
+                                    })
+                                  }
+                                  data-testid={`contacts-unstar-${member.id}`}
+                                >
+                                  {t('starred.remove')}
+                                </Button>
+                              </span>
+                            ) : !member.is_self ? (
+                              <span data-row-action className={rowActionCls}>
+                                <Button
+                                  variant="secondary"
+                                  size="dense"
+                                  onPress={() => handleMessage(member)}
+                                  data-testid={`contacts-message-${member.id}`}
+                                >
+                                  {t('page.message')}
+                                </Button>
+                              </span>
+                            ) : null}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )}
+                {/* 只有真的还有下一页时才出现 —— 之前列表在第 100 人处静默截断,页面
+                上没有任何迹象说明「还没完」。现在滚到近底自动续,按钮是兜底。
+                放在整表高度之后 = 真的在底部,不会一进页面就误触发。 */}
+                {hasNextPage && (
+                  <div ref={sentinelRef} className={loadMoreCls}>
+                    <Button
+                      variant="tertiaryText"
+                      size="sm"
+                      onPress={() => void fetchNextPage()}
+                      isDisabled={isFetchingNextPage}
+                      data-testid="contacts-load-more"
+                    >
+                      {isFetchingNextPage
+                        ? t('page.loading')
+                        : t('page.loadMore')}
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {/* A–Z 索引条:只在按拼音排的视图(部门 / 全部成员)出现。 */}
+              {showAlphabet && (
+                <ContactsAlphabetIndex
+                  letters={alphabet}
+                  active={fromInitial}
+                  onPick={selectFromInitial}
+                />
               )}
             </div>
           </>
         )}
       </main>
 
-      {/* 右栏三态:选了人 → 成员卡;只选了部门 → 部门卡(终于用上 head);
-          都没选 → 不渲染。 */}
-      {view !== 'external' && !selectedMember && selectedDept && (
-        <DepartmentDetailPanel
-          department={selectedDept}
-          ancestors={deptAncestors}
-          onOpenHead={(userId) => {
-            const inList = members.find((m) => m.id === userId)
-            if (inList) setSelectedMember(inList)
-            else void fetchDirectoryMember(userId).then(setSelectedMember)
-          }}
-        />
-      )}
-
-      {selectedMember && (
-        <MemberDetailPanel
-          member={selectedMember}
-          starred={starredIds.has(selectedMember.id)}
-          onToggleStarred={(next) =>
-            void toggleContactPref(selectedMember, { is_starred: next })
-          }
-          specialAlert={alertIds.has(selectedMember.id)}
-          onToggleSpecialAlert={(next) =>
-            void toggleContactPref(selectedMember, { special_alert: next })
-          }
-          onMessage={handleMessage}
-          onClose={() => setSelectedMember(null)}
-        />
-      )}
+      {/* 右栏:桌面宽度下恒定占位(以前没选中就整块不渲染,中栏宽度会随选择跳
+          一次);窄屏下改成浮层(见 detailPanel 的注释)。
+          优先级:成员卡 > 群资料卡 > 部门卡 > 空态提示。 */}
+      {narrowDetail
+        ? !detailDismissed &&
+          detailPanel &&
+          // 窄屏(≤1280px):三栏放不下,右栏改成盖在名单上的浮层 —— 名单保住
+          // 自己的宽度(否则一排名字会被挤到只剩一个头像),关掉浮层就回到名单。
+          // 与任务的「接管式详情」同一手法,只是这里盖住的是通讯录而不是整页。
+          createPortal(
+            <div className={takeoverCls}>
+              <div className={takeoverHeaderCls}>
+                <Button
+                  variant="secondaryText"
+                  size="dense"
+                  onPress={() => setDetailDismissed(true)}
+                  data-testid="contacts-detail-back"
+                >
+                  <RiArrowLeftLine size={16} aria-hidden />
+                  {t('detail.back')}
+                </Button>
+              </div>
+              <div className={takeoverBodyCls}>{detailPanel}</div>
+            </div>,
+            document.body
+          )
+        : (detailPanel ?? <ContactsDetailPlaceholder view={view} />)}
 
       {addingStarred && (
         <StarredAddDialog
@@ -618,26 +987,250 @@ const ContactsAuthenticated = () => {
   )
 }
 
-const deptButton = (active: boolean) =>
-  css({
-    display: 'block',
-    flex: 1,
-    minWidth: 0,
-    paddingX: '0.75rem',
-    paddingY: '0.5rem',
-    border: 'none',
-    borderBottom: '1px solid token(colors.greyscale.100)',
-    textAlign: 'left',
-    fontSize: '0.875rem',
-    cursor: 'pointer',
-    // 选中态走 selected.*(自带深浅两套);非选中用会翻转的 greyscale.800。
-    color: active ? 'selected.text' : 'greyscale.800',
-    fontWeight: active ? '600' : undefined,
-    backgroundColor: active ? 'selected.bg' : 'transparent',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    // hover 也要分选中/未选中:原先无条件盖 greyscale.100,鼠标一碰选中行
-    // 底色就退回中性灰,配 selected.text 的蓝字对比度掉下来(同 AdminShell 那个坑)。
-    _hover: { backgroundColor: active ? 'selected.bg' : 'greyscale.100' },
-  })
+const listHeaderCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '0.75rem',
+  paddingX: '1rem',
+  paddingY: '0.625rem',
+  borderBottom: '1px solid token(colors.greyscale.200)',
+})
+
+/** 左栏收起后的窄条:恒定留在最左侧,所以「展开」在任何视图下都能找到。 */
+const navStripCls = css({
+  flexShrink: 0,
+  width: '36px',
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  paddingTop: '0.75rem',
+  borderRight: '1px solid token(colors.greyscale.200)',
+  backgroundColor: 'greyscale.50',
+})
+const navStripBtnCls = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '1.75rem',
+  height: '1.75rem',
+  border: 'none',
+  borderRadius: '6px',
+  background: 'transparent',
+  color: 'greyscale.500',
+  cursor: 'pointer',
+  _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.800' },
+})
+
+/** 窄屏的右栏浮层:盖住内容区,自带一条返回栏。 */
+const takeoverCls = css({
+  position: 'fixed',
+  inset: 0,
+  zIndex: 'takeover',
+  display: 'flex',
+  flexDirection: 'column',
+  backgroundColor: 'greyscale.50',
+})
+const takeoverHeaderCls = css({
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  paddingX: '0.5rem',
+  paddingY: '0.375rem',
+  backgroundColor: 'greyscale.000',
+  borderBottom: '1px solid token(colors.greyscale.200)',
+})
+const takeoverBodyCls = css({
+  flex: 1,
+  minHeight: 0,
+  display: 'flex',
+  justifyContent: 'center',
+  // 面板本身写死了 300px(桌面第三栏的宽度),浮层里让它铺满并居中。
+  '& > aside': {
+    width: '100%',
+    maxWidth: '960px',
+    backgroundColor: 'greyscale.000',
+    boxShadow: '0 0 0 1px token(colors.greyscale.200)',
+  },
+})
+const listTitleCls = css({
+  margin: 0,
+  fontSize: '0.9375rem',
+  fontWeight: 'bold',
+  color: 'greyscale.900',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+})
+const listSubtitleCls = css({
+  margin: '0.125rem 0 0',
+  fontSize: '0.75rem',
+  color: 'greyscale.500',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+const headerActionsCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  flexShrink: 0,
+})
+const searchWrapCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.375rem',
+  width: '14rem',
+  maxWidth: '40vw',
+  paddingX: '0.5rem',
+  paddingY: '0.3125rem',
+  border: '1px solid token(colors.control.border)',
+  borderRadius: '6px',
+  backgroundColor: 'greyscale.000',
+  // 里层 input 无边框无 outline,聚焦提示落在这一圈上。
+  _focusWithin: { borderColor: 'border.focus' },
+})
+const searchIconCls = css({ flexShrink: 0, color: 'greyscale.500' })
+const searchInputCls = css({
+  flex: 1,
+  minWidth: 0,
+  border: 'none',
+  outline: 'none',
+  background: 'transparent',
+  color: 'default.text',
+  fontSize: '0.8125rem',
+  padding: 0,
+})
+const listCls = css({
+  listStyle: 'none',
+  margin: 0,
+  padding: 0,
+  // 超宽屏上不给行宽无限拉长:名字与行尾按钮之间不留几百像素的空档。
+  maxWidth: '60rem',
+})
+
+/** 列表本体 = 可滚动的名单 + 右侧索引条。索引条是 flex 兄弟而不是浮层,
+ *  不会盖住行尾的按钮,也不用为它留内边距。 */
+const listBodyCls = css({
+  flex: 1,
+  minHeight: 0,
+  display: 'flex',
+  alignItems: 'stretch',
+})
+const scrollerCls = css({
+  position: 'relative',
+  flex: 1,
+  minWidth: 0,
+  overflowY: 'auto',
+})
+/** 整表高度的占位框:窗口里的那几行绝对定位到它的顶部再 translateY。 */
+const spacerCls = css({ position: 'relative' })
+/** 悬浮字母头:滚动中始终知道自己看到哪个字母了。 */
+const letterChipCls = css({
+  position: 'sticky',
+  top: 0,
+  zIndex: 1,
+  display: 'inline-flex',
+  alignItems: 'center',
+  height: '1.25rem',
+  paddingX: '0.5rem',
+  marginLeft: '0.5rem',
+  borderRadius: '0 0 6px 6px',
+  backgroundColor: 'greyscale.100',
+  color: 'greyscale.600',
+  fontSize: '0.6875rem',
+  fontWeight: '600',
+  pointerEvents: 'none',
+})
+const memberRowCls = css({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
+  alignItems: 'center',
+  // 定高 = MEMBER_ROW_HEIGHT:36px 头像 + 上下各 10px 内边距 + 1px 分隔线。
+  // box-sizing 是 border-box,所以这个高度**含**那 1px 边框 —— 少算 1px,一千行就
+  // 会累计偏 1000px(窗口化的位置全靠这个数)。改这里要同步改常量。
+  height: '57px',
+  borderBottom: '1px solid token(colors.greyscale.100)',
+  _hover: {
+    backgroundColor: 'greyscale.50',
+    '& [data-row-action]': { opacity: 1, pointerEvents: 'auto' },
+  },
+  _focusWithin: {
+    '& [data-row-action]': { opacity: 1, pointerEvents: 'auto' },
+  },
+})
+const memberMainCls = css({
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.625rem',
+  border: 'none',
+  background: 'transparent',
+  cursor: 'pointer',
+  textAlign: 'left',
+  paddingX: '1rem',
+  paddingY: '0.625rem',
+})
+const avatarCls = css({
+  flexShrink: 0,
+  width: '36px',
+  height: '36px',
+  borderRadius: '8px',
+  objectFit: 'cover',
+})
+const avatarFallbackCls = css({
+  flexShrink: 0,
+  width: '36px',
+  height: '36px',
+  borderRadius: '8px',
+  backgroundColor: 'primary.500',
+  color: 'white',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '0.875rem',
+})
+const memberTextCls = css({
+  minWidth: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  // 不设 gap:两行行高(20+16)要正好等于头像的 36px,行高才是定值。
+  gap: 0,
+})
+const memberNameCls = css({
+  fontSize: '0.875rem',
+  // 行高必须写死:窗口化要求行高固定,而「正常行高」是跟着字体走的(fallback 字体
+  // 一换就变)。20 + 16 = 36 = 头像高度,行盒于是正好 36px。
+  lineHeight: '20px',
+  fontWeight: 'medium',
+  color: 'greyscale.900',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+const memberMetaCls = css({
+  fontSize: '0.75rem',
+  lineHeight: '16px',
+  color: 'greyscale.500',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+/** 行尾动作槽:hover / 聚焦才现身,但**始终占位** —— 否则悬停时整行内容会横向位移。 */
+const rowActionCls = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  minWidth: '6rem',
+  paddingRight: '1rem',
+  opacity: 0,
+  pointerEvents: 'none',
+  transition: 'opacity 120ms ease',
+  '@media (hover: none)': { opacity: 1, pointerEvents: 'auto' },
+})
+const loadMoreCls = css({
+  display: 'flex',
+  justifyContent: 'center',
+  padding: '0.75rem',
+})

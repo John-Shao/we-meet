@@ -10,10 +10,23 @@
     "loading": "Chargement…",
     "cancel": "Annuler",
     "loadMore": "Charger plus",
+    "loadError": "Impossible de charger l'annuaire. Veuillez réessayer.",
+    "retry": "Réessayer",
     "remove": "Retirer"
   },
   "page": {
     "authRequired": "Veuillez vous connecter pour consulter l'annuaire.",
+    "title": "Contacts",
+    "sectionFrequent": "Frequent",
+    "sectionOrg": "Organization",
+    "filterDepartments": "Filtrer les services",
+    "filterMembers": "Filtrer les membres",
+    "noMatch": "Aucun membre correspondant",
+    "noDeptMatch": "Aucun service correspondant",
+    "unreadBadge": "{{count}} non lus",
+    "count": "{{count}} membres",
+    "count_one": "{{count}} membre",
+    "count_other": "{{count}} membres",
     "departments": "Services",
     "allMembers": "Tous les membres",
     "newDept": "Nouveau service",
@@ -30,6 +43,13 @@
     "deleteDept": "Supprimer le service",
     "deleteDeptConfirm": "Supprimer le service « {{name}} » ? Ses membres passeront en « aucun service ».",
     "deleteDeptError": "Échec de la suppression du service : {{message}}",
+    "recent": "Récents",
+    "hideNav": "Réduire la navigation",
+    "showNav": "Développer la navigation",
+    "alphabetAria": "Aller à une lettre",
+    "alphabetLetter": "Aller aux noms commençant par {{letter}}",
+    "alphabetClearLetter": "Retirer le point de départ {{letter}} et tout afficher",
+    "otherInitial": "Autres (chiffres ou symboles)",
     "selfTag": "(vous)",
     "loadMore": "Charger plus"
   },
@@ -38,16 +58,28 @@
     "department": "Service",
     "title": "Poste",
     "close": "Fermer",
-    "none": "—"
+    "none": "—",
+    "emptyTitle": "Pick a department or member",
+    "back": "Retour",
+    "emptyHint": "See member cards and department heads, and start a chat right away."
   },
   "groups": {
     "title": "Mes groupes",
+    "total": "{{count}} groupes",
+    "total_one": "{{count}} groupe",
+    "total_other": "{{count}} groupes",
     "unnamed": "Groupe sans nom",
+    "unnamedFromMembers": "{{names}} ({{count}} members)",
+    "nameSeparator": ", ",
     "memberCount": "{{count}} membre",
     "memberCount_other": "{{count}} membres",
     "searchPlaceholder": "Rechercher des groupes",
     "empty": "Vous n'avez encore rejoint aucun groupe",
-    "noMatch": "Aucun groupe correspondant"
+    "noMatch": "Aucun groupe correspondant",
+    "open": "Open chat",
+    "info": "Group info",
+    "members": "Members",
+    "selectHint": "Pick a group to see its info or open the chat"
   },
   "external": {
     "title": "External contacts",
@@ -64,6 +96,7 @@
     "accept": "Accept",
     "decline": "Decline",
     "pending": "Waiting for acceptance",
+    "pendingBadge": "{{count}} pending requests",
     "cancelRequest": "Cancel",
     "sendRequest": "Send request",
     "alreadyContact": "Already a contact",
@@ -93,6 +126,14 @@
     "people": "{{count}} personnes",
     "head": "Responsable",
     "noHead": "Non défini",
-    "code": "ID du service"
+    "code": "ID du service",
+    "startGroupChat": "Créer un groupe",
+    "startGroupChatConfirm": "Créer un groupe avec les {{members}} membres de « {{name}} » ?",
+    "startGroupChatEmpty": "Ce service n'a pas encore de membres directs",
+    "startGroupChatError": "Échec de la création du groupe : {{message}}"
+  },
+  "tree": {
+    "expand": "Expand",
+    "collapse": "Collapse"
   }
 }

@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next'
+import { RiChatNewLine } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
+import { Button } from '@/primitives'
 
 import type { DirectoryDepartment } from '../api/ApiDirectory'
 import { MemberAvatar } from './MemberAvatar'
@@ -11,6 +13,12 @@ interface Props {
   ancestors: DirectoryDepartment[]
   /** Opens the head's member card in the same right-hand column. */
   onOpenHead?: (userId: string) => void
+  /**
+   * 用这个部门的人建一个群。只在有直属成员时给 —— 空部门没什么可拉的。
+   * 真正的建群动作在路由里(它还要弹确认框、跳会话)。
+   */
+  onStartGroupChat?: () => void
+  startingGroupChat?: boolean
 }
 
 /**
@@ -24,6 +32,8 @@ export const DepartmentDetailPanel = ({
   department,
   ancestors,
   onOpenHead,
+  onStartGroupChat,
+  startingGroupChat,
 }: Props) => {
   const { t } = useTranslation('contacts')
   const head = department.head
@@ -77,9 +87,32 @@ export const DepartmentDetailPanel = ({
           </div>
         )}
       </dl>
+
+      {/* 部门级动作:把这一整个部门拉进一个群。部门是组织里现成的「一伙人」,
+          比在选人器里一个个点快得多 —— 但要先问一句,建群会通知到每个人。 */}
+      {onStartGroupChat && (
+        <div className={actionsCls}>
+          <Button
+            variant="secondary"
+            onPress={onStartGroupChat}
+            loading={startingGroupChat}
+            data-testid="contacts-dept-group-chat"
+            className={css({ width: '100%' })}
+          >
+            <RiChatNewLine size={16} aria-hidden />
+            {t('department.startGroupChat')}
+          </Button>
+        </div>
+      )}
     </aside>
   )
 }
+
+const actionsCls = css({
+  marginTop: '1.25rem',
+  paddingTop: '1rem',
+  borderTop: '1px solid token(colors.greyscale.100)',
+})
 
 const panelCls = css({
   width: '300px',

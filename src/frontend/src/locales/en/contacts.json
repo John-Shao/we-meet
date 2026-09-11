@@ -16,6 +16,17 @@
   },
   "page": {
     "authRequired": "Please sign in to view the directory.",
+    "title": "Contacts",
+    "sectionFrequent": "Frequent",
+    "sectionOrg": "Organization",
+    "filterDepartments": "Filter departments",
+    "filterMembers": "Filter members",
+    "noMatch": "No matching members",
+    "noDeptMatch": "No matching departments",
+    "unreadBadge": "{{count}} unread",
+    "count": "{{count}} members",
+    "count_one": "{{count}} member",
+    "count_other": "{{count}} members",
     "departments": "Departments",
     "allMembers": "All members",
     "newDept": "New department",
@@ -32,6 +43,13 @@
     "deleteDept": "Delete department",
     "deleteDeptConfirm": "Delete department '{{name}}'? Its members will become 'no department'.",
     "deleteDeptError": "Failed to delete department: {{message}}",
+    "recent": "Recent",
+    "hideNav": "Collapse navigation",
+    "showNav": "Expand navigation",
+    "alphabetAria": "Jump by first letter",
+    "alphabetLetter": "Jump to names starting with {{letter}}",
+    "alphabetClearLetter": "Clear the {{letter}} starting point and show everyone",
+    "otherInitial": "Others (digits or symbols)",
     "selfTag": "(you)",
     "loadMore": "Load more"
   },
@@ -40,16 +58,28 @@
     "department": "Department",
     "title": "Title",
     "close": "Close",
-    "none": "—"
+    "none": "—",
+    "emptyTitle": "Pick a department or member",
+    "back": "Back",
+    "emptyHint": "See member cards and department heads, and start a chat right away."
   },
   "groups": {
     "title": "My groups",
+    "total": "{{count}} groups",
+    "total_one": "{{count}} group",
+    "total_other": "{{count}} groups",
     "unnamed": "Unnamed group",
+    "unnamedFromMembers": "{{names}} ({{count}} members)",
+    "nameSeparator": ", ",
     "memberCount": "{{count}} member",
     "memberCount_other": "{{count}} members",
     "searchPlaceholder": "Search group names",
     "empty": "You have not joined any group yet",
-    "noMatch": "No matching groups"
+    "noMatch": "No matching groups",
+    "open": "Open chat",
+    "info": "Group info",
+    "members": "Members",
+    "selectHint": "Pick a group to see its info or open the chat"
   },
   "external": {
     "title": "External contacts",
@@ -66,6 +96,7 @@
     "accept": "Accept",
     "decline": "Decline",
     "pending": "Waiting for acceptance",
+    "pendingBadge": "{{count}} pending requests",
     "cancelRequest": "Cancel",
     "sendRequest": "Send request",
     "alreadyContact": "Already a contact",
@@ -95,6 +126,14 @@
     "people": "{{count}}",
     "head": "Head",
     "noHead": "Not set",
-    "code": "Department ID"
+    "code": "Department ID",
+    "startGroupChat": "Start a group chat",
+    "startGroupChatConfirm": "Start a group chat with the {{members}} members of “{{name}}”?",
+    "startGroupChatEmpty": "This department has no direct members yet",
+    "startGroupChatError": "Could not create the group chat: {{message}}"
+  },
+  "tree": {
+    "expand": "Expand",
+    "collapse": "Collapse"
   }
 }

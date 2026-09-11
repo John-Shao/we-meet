@@ -10,10 +10,23 @@
     "loading": "Wird geladen…",
     "cancel": "Abbrechen",
     "loadMore": "Mehr laden",
+    "loadError": "Das Verzeichnis konnte nicht geladen werden. Bitte erneut versuchen.",
+    "retry": "Erneut versuchen",
     "remove": "Entfernen"
   },
   "page": {
     "authRequired": "Bitte melden Sie sich an, um das Verzeichnis anzuzeigen.",
+    "title": "Kontakte",
+    "sectionFrequent": "Frequent",
+    "sectionOrg": "Organization",
+    "filterDepartments": "Abteilungen filtern",
+    "filterMembers": "Mitglieder filtern",
+    "noMatch": "Keine passenden Mitglieder",
+    "noDeptMatch": "Keine passenden Abteilungen",
+    "unreadBadge": "{{count}} ungelesen",
+    "count": "{{count}} Mitglieder",
+    "count_one": "{{count}} Mitglied",
+    "count_other": "{{count}} Mitglieder",
     "departments": "Abteilungen",
     "allMembers": "Alle Mitglieder",
     "newDept": "Neue Abteilung",
@@ -30,6 +43,13 @@
     "deleteDept": "Abteilung löschen",
     "deleteDeptConfirm": "Abteilung „{{name}}“ löschen? Ihre Mitglieder werden „keine Abteilung“.",
     "deleteDeptError": "Abteilung konnte nicht gelöscht werden: {{message}}",
+    "recent": "Zuletzt",
+    "hideNav": "Navigation einklappen",
+    "showNav": "Navigation ausklappen",
+    "alphabetAria": "Nach Anfangsbuchstabe springen",
+    "alphabetLetter": "Zu Namen mit {{letter}} springen",
+    "alphabetClearLetter": "Startpunkt {{letter}} aufheben und alle anzeigen",
+    "otherInitial": "Sonstige (Ziffern oder Symbole)",
     "selfTag": "(Sie)",
     "loadMore": "Mehr laden"
   },
@@ -38,16 +58,28 @@
     "department": "Abteilung",
     "title": "Position",
     "close": "Schließen",
-    "none": "—"
+    "none": "—",
+    "emptyTitle": "Pick a department or member",
+    "back": "Zurück",
+    "emptyHint": "See member cards and department heads, and start a chat right away."
   },
   "groups": {
     "title": "Meine Gruppen",
+    "total": "{{count}} Gruppen",
+    "total_one": "{{count}} Gruppe",
+    "total_other": "{{count}} Gruppen",
     "unnamed": "Unbenannte Gruppe",
+    "unnamedFromMembers": "{{names}} ({{count}} members)",
+    "nameSeparator": ", ",
     "memberCount": "{{count}} Mitglied",
     "memberCount_other": "{{count}} Mitglieder",
     "searchPlaceholder": "Gruppen suchen",
     "empty": "Noch keiner Gruppe beigetreten",
-    "noMatch": "Keine passenden Gruppen"
+    "noMatch": "Keine passenden Gruppen",
+    "open": "Open chat",
+    "info": "Group info",
+    "members": "Members",
+    "selectHint": "Pick a group to see its info or open the chat"
   },
   "external": {
     "title": "External contacts",
@@ -64,6 +96,7 @@
     "accept": "Accept",
     "decline": "Decline",
     "pending": "Waiting for acceptance",
+    "pendingBadge": "{{count}} pending requests",
     "cancelRequest": "Cancel",
     "sendRequest": "Send request",
     "alreadyContact": "Already a contact",
@@ -93,6 +126,14 @@
     "people": "{{count}} Personen",
     "head": "Leitung",
     "noHead": "Nicht festgelegt",
-    "code": "Abteilungs-ID"
+    "code": "Abteilungs-ID",
+    "startGroupChat": "Gruppe starten",
+    "startGroupChatConfirm": "Eine Gruppe mit den {{members}} Mitgliedern von „{{name}}“ starten?",
+    "startGroupChatEmpty": "Diese Abteilung hat noch keine direkten Mitglieder",
+    "startGroupChatError": "Gruppe konnte nicht erstellt werden: {{message}}"
+  },
+  "tree": {
+    "expand": "Expand",
+    "collapse": "Collapse"
   }
 }

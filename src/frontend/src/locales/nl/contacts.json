@@ -10,10 +10,23 @@
     "loading": "Laden…",
     "cancel": "Annuleren",
     "loadMore": "Meer laden",
+    "loadError": "Kan de contactenlijst niet laden. Probeer het opnieuw.",
+    "retry": "Opnieuw",
     "remove": "Verwijderen"
   },
   "page": {
     "authRequired": "Log in om de contactenlijst te bekijken.",
+    "title": "Contacten",
+    "sectionFrequent": "Frequent",
+    "sectionOrg": "Organization",
+    "filterDepartments": "Afdelingen filteren",
+    "filterMembers": "Leden filteren",
+    "noMatch": "Geen overeenkomende leden",
+    "noDeptMatch": "Geen overeenkomende afdelingen",
+    "unreadBadge": "{{count}} ongelezen",
+    "count": "{{count}} leden",
+    "count_one": "{{count}} lid",
+    "count_other": "{{count}} leden",
     "departments": "Afdelingen",
     "allMembers": "Alle leden",
     "newDept": "Nieuwe afdeling",
@@ -30,6 +43,13 @@
     "deleteDept": "Afdeling verwijderen",
     "deleteDeptConfirm": "Afdeling '{{name}}' verwijderen? De leden worden 'geen afdeling'.",
     "deleteDeptError": "Verwijderen van afdeling mislukt: {{message}}",
+    "recent": "Recent",
+    "hideNav": "Navigatie invouwen",
+    "showNav": "Navigatie uitvouwen",
+    "alphabetAria": "Op beginletter springen",
+    "alphabetLetter": "Naar namen die met {{letter}} beginnen",
+    "alphabetClearLetter": "Startpunt {{letter}} wissen en alles tonen",
+    "otherInitial": "Overig (cijfers of symbolen)",
     "selfTag": "(jij)",
     "loadMore": "Meer laden"
   },
@@ -38,16 +58,28 @@
     "department": "Afdeling",
     "title": "Functie",
     "close": "Sluiten",
-    "none": "—"
+    "none": "—",
+    "emptyTitle": "Pick a department or member",
+    "back": "Terug",
+    "emptyHint": "See member cards and department heads, and start a chat right away."
   },
   "groups": {
     "title": "Mijn groepen",
+    "total": "{{count}} groepen",
+    "total_one": "{{count}} groep",
+    "total_other": "{{count}} groepen",
     "unnamed": "Naamloze groep",
+    "unnamedFromMembers": "{{names}} ({{count}} members)",
+    "nameSeparator": ", ",
     "memberCount": "{{count}} lid",
     "memberCount_other": "{{count}} leden",
     "searchPlaceholder": "Zoek op groepsnaam",
     "empty": "U bent nog geen groep lid geworden",
-    "noMatch": "Geen overeenkomende groepen"
+    "noMatch": "Geen overeenkomende groepen",
+    "open": "Open chat",
+    "info": "Group info",
+    "members": "Members",
+    "selectHint": "Pick a group to see its info or open the chat"
   },
   "external": {
     "title": "External contacts",
@@ -64,6 +96,7 @@
     "accept": "Accept",
     "decline": "Decline",
     "pending": "Waiting for acceptance",
+    "pendingBadge": "{{count}} pending requests",
     "cancelRequest": "Cancel",
     "sendRequest": "Send request",
     "alreadyContact": "Already a contact",
@@ -93,6 +126,14 @@
     "people": "{{count}} personen",
     "head": "Hoofd",
     "noHead": "Niet ingesteld",
-    "code": "Afdeling-ID"
+    "code": "Afdeling-ID",
+    "startGroupChat": "Groep starten",
+    "startGroupChatConfirm": "Een groep starten met de {{members}} leden van '{{name}}'?",
+    "startGroupChatEmpty": "Deze afdeling heeft nog geen directe leden",
+    "startGroupChatError": "Groep aanmaken mislukt: {{message}}"
+  },
+  "tree": {
+    "expand": "Expand",
+    "collapse": "Collapse"
   }
 }

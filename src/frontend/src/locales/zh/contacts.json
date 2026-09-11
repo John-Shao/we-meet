@@ -16,6 +16,16 @@
   },
   "page": {
     "authRequired": "请先登录后再查看通讯录。",
+    "title": "通讯录",
+    "sectionFrequent": "常用",
+    "sectionOrg": "组织架构",
+    "filterDepartments": "筛选部门",
+    "filterMembers": "筛选成员",
+    "noMatch": "没有匹配的成员",
+    "noDeptMatch": "没有匹配的部门",
+    "unreadBadge": "{{count}} 条未读",
+    "count": "{{count}} 人",
+    "count_other": "{{count}} 人",
     "departments": "部门",
     "allMembers": "全部成员",
     "newDept": "新建部门",
@@ -32,6 +42,13 @@
     "deleteDept": "删除部门",
     "deleteDeptConfirm": "确定删除部门「{{name}}」？该部门下的成员将变为「无部门」。",
     "deleteDeptError": "删除部门失败：{{message}}",
+    "recent": "最近访问",
+    "hideNav": "收起导航",
+    "showNav": "展开导航",
+    "alphabetAria": "按首字母跳转",
+    "alphabetLetter": "跳到「{{letter}}」开头",
+    "alphabetClearLetter": "取消「{{letter}}」起点，显示全部",
+    "otherInitial": "其他（数字或符号）",
     "selfTag": "(我)",
     "loadMore": "加载更多"
   },
@@ -40,16 +57,27 @@
     "department": "部门",
     "title": "职位",
     "close": "关闭",
-    "none": "—"
+    "none": "—",
+    "emptyTitle": "选择左侧的部门或成员",
+    "back": "返回",
+    "emptyHint": "查看成员名片与部门负责人，并直接发起会话。"
   },
   "groups": {
     "title": "我的群组",
+    "total": "共 {{count}} 个群聊",
+    "total_other": "共 {{count}} 个群聊",
     "unnamed": "未命名群聊",
+    "unnamedFromMembers": "{{names}}等 {{count}} 人",
+    "nameSeparator": "、",
     "memberCount": "{{count}} 名成员",
     "memberCount_other": "{{count}} 名成员",
     "searchPlaceholder": "搜索群名称",
     "empty": "你还没有加入任何群聊",
-    "noMatch": "没有匹配的群聊"
+    "noMatch": "没有匹配的群聊",
+    "open": "进入会话",
+    "info": "群资料",
+    "members": "群成员",
+    "selectHint": "选择左侧的群聊，查看群资料或进入会话"
   },
   "external": {
     "title": "外部联系人",
@@ -66,6 +94,7 @@
     "accept": "接受",
     "decline": "拒绝",
     "pending": "等待对方接受",
+    "pendingBadge": "{{count}} 条待处理申请",
     "cancelRequest": "撤回",
     "sendRequest": "发送申请",
     "alreadyContact": "已是外部联系人",
@@ -95,6 +124,14 @@
     "people": "{{count}} 人",
     "head": "负责人",
     "noHead": "未指定",
-    "code": "部门 ID"
+    "code": "部门 ID",
+    "startGroupChat": "发起群聊",
+    "startGroupChatConfirm": "用「{{name}}」的 {{members}} 名成员创建一个群聊？",
+    "startGroupChatEmpty": "这个部门还没有直属成员",
+    "startGroupChatError": "创建群聊失败：{{message}}"
+  },
+  "tree": {
+    "expand": "展开",
+    "collapse": "收起"
   }
 }

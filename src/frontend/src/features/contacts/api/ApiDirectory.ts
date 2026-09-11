@@ -25,6 +25,12 @@ export interface DirectoryMember {
   title: string
   org_role: string
   department: DirectoryDepartmentRef | null
+  /**
+   * A–Z 索引里这个人属于哪一桶(服务端按拼音算的,见 core/services/pinyin.py)。
+   * `#` = 数字/符号/空名字那一桶。前端不自己重算拼音 —— 否则「服务端按拼音排、
+   * 前端按自己算的字母分组」迟早会错位(改过名字、换过 pypinyin 版本之后)。
+   */
+  initial: string
   is_self: boolean
   /**
    * 调用方是否把这个人设成了星标联系人(每张成员卡片都带,免二次请求)。
