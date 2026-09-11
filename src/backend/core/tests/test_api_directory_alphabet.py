@@ -53,30 +53,33 @@ def test_model_save_keeps_pinyin_columns_in_sync():
     键的格式写死在这里(而不是拿 ``pinyin_sort_key()`` 跟自己比):它是**存储约定**,
     前端/迁移/索引都依赖它,变了就该有一条测试红。
     """
-    user = factories.UserFactory(full_name="张三")
+    user = factories.UserFactory(full_name="张三", short_name="")
     assert user.full_name_pinyin == "0zhangsan"
     assert user.full_name_initial == "Z"
+    assert user.search_key == "zhangsan zs"
 
     user.full_name = "李四"
     user.save()
     user.refresh_from_db()
     assert user.full_name_pinyin == "0lisi"
     assert user.full_name_initial == "L"
+    assert user.search_key == "lisi ls"
 
 
 def test_model_save_with_update_fields_still_writes_pinyin():
     """``save(update_fields=["full_name"])`` 也要把派生列带上。
 
     改昵称的接口正是这么写的(viewsets 里的 profile 更新)—— 漏掉的话会留下一个
-    「名字变了、排序键还是旧的」的用户,而且要到下次有人改这个用户才被发现。
+    「名字变了、排序键/搜索键还是旧的」的用户,而且要到下次有人改这个用户才被发现。
     """
-    user = factories.UserFactory(full_name="张三")
+    user = factories.UserFactory(full_name="张三", short_name="")
     user.full_name = "王五"
     user.save(update_fields=["full_name"])
 
     user.refresh_from_db()
     assert user.full_name_pinyin == "0wangwu"
     assert user.full_name_initial == "W"
+    assert user.search_key == "wangwu ww"
 
 
 def test_model_save_prefixes_the_hash_bucket_key():

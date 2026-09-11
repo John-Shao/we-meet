@@ -5,7 +5,7 @@
   },
   "picker": {
     "title": "Choisir un contact",
-    "searchPlaceholder": "Rechercher par nom ou e-mail…",
+    "searchPlaceholder": "Rechercher par nom, pinyin ou e-mail…",
     "empty": "Aucun contact trouvé",
     "loading": "Chargement…",
     "cancel": "Annuler",
@@ -32,7 +32,7 @@
     "newDept": "Nouveau service",
     "newDeptPrompt": "Nom du nouveau service (créé sous celui sélectionné) :",
     "newDeptError": "Échec de la création du service : {{message}}",
-    "searchPlaceholder": "Rechercher par nom ou e-mail…",
+    "searchPlaceholder": "Rechercher par nom, pinyin ou e-mail…",
     "loading": "Chargement…",
     "empty": "Aucun membre",
     "message": "Message",

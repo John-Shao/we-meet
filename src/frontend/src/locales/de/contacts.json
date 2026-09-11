@@ -5,7 +5,7 @@
   },
   "picker": {
     "title": "Kontakt auswählen",
-    "searchPlaceholder": "Nach Name oder E-Mail suchen…",
+    "searchPlaceholder": "Nach Name, Pinyin oder E-Mail suchen…",
     "empty": "Keine Kontakte gefunden",
     "loading": "Wird geladen…",
     "cancel": "Abbrechen",
@@ -32,7 +32,7 @@
     "newDept": "Neue Abteilung",
     "newDeptPrompt": "Name der neuen Abteilung (wird unter der ausgewählten erstellt):",
     "newDeptError": "Abteilung konnte nicht erstellt werden: {{message}}",
-    "searchPlaceholder": "Nach Name oder E-Mail suchen…",
+    "searchPlaceholder": "Nach Name, Pinyin oder E-Mail suchen…",
     "loading": "Wird geladen…",
     "empty": "Keine Mitglieder",
     "message": "Nachricht",

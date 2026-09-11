@@ -127,8 +127,9 @@ def test_migration_copy_matches_service():
     不一致的后果肉眼看不出来:迁移回填出来的顺序和新用户保存后的顺序会不一样,
     索引条与列表就错位了。导入用 importlib —— 模块名以数字开头,写不了 import 语句。
 
-    盯的是**最新**那份副本(0144)。``0143`` 里那份**故意保持旧规则**:它代表历史上
-    的一次回填,已经跑过的迁移不能跟着新算法改 —— 改它等于声称当时写进去的是别的值。
+    盯的是**最新**的那两份副本(0144 的排序键、0145 的搜索键)。``0143`` 里那份
+    **故意保持旧规则**:它代表历史上的一次回填,已经跑过的迁移不能跟着新算法改 ——
+    改它等于声称当时写进去的是别的值。
     """
     frozen = importlib.import_module("core.migrations.0144_pinyin_sort_key_bucket")
     for name in [
@@ -150,6 +151,98 @@ def test_migration_copy_matches_service():
     ]:
         assert frozen._sort_key(name) == pinyin.pinyin_sort_key(name), name
         assert frozen._initial(name) == pinyin.pinyin_initial(name), name
+
+    search_frozen = importlib.import_module("core.migrations.0145_user_search_key")
+    for name, short_name in [
+        ("夜来香", None),
+        ("张三", "三儿"),
+        ("张三", ""),
+        ("欧阳修", None),
+        ("Yelena Smith", None),
+        ("John Doe", "JD"),
+        ("王Alice", None),
+        ("Öztürk", None),
+        ("Émile", None),
+        ("1001", None),
+        ("🙂", None),
+        ("", None),
+        (None, None),
+        ("  ", "  "),
+        ("张 三", None),
+        ("X" * 400, None),
+    ]:
+        assert search_frozen._search_key(name, short_name) == pinyin.pinyin_search_key(
+            name, short_name
+        ), f"{name!r} / {short_name!r}"
+
+
+def test_pinyin_search_key_packs_full_pinyin_and_initials():
+    """词袋 = 全拼 + 首字母缩写(简称的同两样),空格分开。
+
+    这两样分别对应两种输法:输入 ``ye`` 靠 ``yelaixiang``、输入 ``ylx`` 靠 ``ylx``。
+    用户不用知道这个区别,但**两个词都得在**。
+    """
+    assert pinyin.pinyin_search_key("夜来香") == "yelaixiang ylx"
+    assert pinyin.pinyin_search_key("张三") == "zhangsan zs"
+    assert pinyin.pinyin_search_key("欧阳修") == "ouyangxiu oyx"
+    # 拉丁名:全拼是「去掉空格的整串」,缩写是每个词的首字母。
+    assert pinyin.pinyin_search_key("Yelena Smith") == "yelenasmith ys"
+    assert pinyin.pinyin_search_key("John Doe") == "johndoe jd"
+    # 混合姓名:汉字与拉丁词各取各的首字母。
+    assert pinyin.pinyin_search_key("王Alice") == "wangalice wa"
+    # 简称也进袋(很多人用简称当常用称呼),但重复的词只留一份。
+    assert pinyin.pinyin_search_key("张三", "三儿") == "zhangsan zs saner se"
+    assert pinyin.pinyin_search_key("张三", "张三") == "zhangsan zs"
+    # 音标折叠:输入 ozturk 也能命中 Öztürk。
+    assert "ozturk" in pinyin.pinyin_search_key("Öztürk")
+    assert pinyin.pinyin_search_key("") == ""
+    assert pinyin.pinyin_search_key(None) == ""
+    assert pinyin.pinyin_search_key("  ") == ""
+
+
+def test_pinyin_search_key_covers_the_users_case():
+    """用户诉求原话:输入 ``ye``,把「夜来香」搜出来。
+
+    这条测试就是那句话的可执行版本 —— 键里必须**包含** ``ye``(前缀命中),
+    而不只是「包含 ye 开头的某个词」。
+    """
+    key = pinyin.pinyin_search_key("夜来香")
+    assert "ye" in key
+    assert "ylx" in key
+    assert "yelaixiang" in key
+    assert "lai" in key
+    # 反面:不相干的输入不该命中(否则搜索会看起来「什么都搜得到」)。
+    assert "xy" not in key
+    assert "san" not in key
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("Ye", "ye"),
+        ("  Ye Lai  ", "yelai"),
+        ("Yè", "ye"),
+        ("ÖZTÜRK", "ozturk"),
+        ("ylx", "ylx"),
+        # 汉字原样保留:它交给 full_name__icontains,不在这里转拼音。
+        ("夜", "夜"),
+        ("", ""),
+        (None, ""),
+        ("   ", ""),
+    ],
+)
+def test_fold_search_query(raw, expected):
+    """查询词与键用同一套折叠:小写 + 折音标 + 去空白。"""
+    assert pinyin.fold_search_query(raw) == expected
+
+
+def test_pinyin_search_key_is_bounded():
+    """超长姓名别把字段撑爆(max_length=255)。"""
+    assert len(pinyin.pinyin_search_key("张" * 400)) == pinyin.MAX_SEARCH_KEY_LENGTH
+    assert (
+        len(pinyin.pinyin_search_key("X" * 400, "Y" * 400))
+        == pinyin.MAX_SEARCH_KEY_LENGTH
+    )
 
 
 def test_pinyin_sort_key_is_bounded():

@@ -38,7 +38,12 @@ from .recording.enums import FileExtension
 
 # 只 import 这一个叶子模块:services/__init__ 是空的,而 services.pinyin 不碰
 # models,所以没有循环导入风险。别在这里 import 别的 services 子模块。
-from .services.pinyin import OTHER_INITIAL, pinyin_initial, pinyin_sort_key
+from .services.pinyin import (
+    OTHER_INITIAL,
+    pinyin_initial,
+    pinyin_search_key,
+    pinyin_sort_key,
+)
 
 logger = getLogger(__name__)
 
@@ -216,6 +221,28 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         # `?from_initial=#` 也是 pkey 扫描上的 Filter —— 两条路都用不到它,留着只是
         # 每次保存用户多维护两个索引(这个 1 字符列还只有 ~28 个不同值)。
     )
+    # 通讯录**搜索**用的派生列(全拼 + 首字母缩写,见 services/pinyin.py 的
+    # pinyin_search_key)。同样是 save() 维护 + 存下来:查询是子串匹配
+    # (`LIKE '%ye%'`),现算就意味着每一行都跑一次 pypinyin。
+    #
+    # 字段名里没有 full_name 前缀:它同时收了简称的拼音(见 pinyin_search_key)。
+    search_key = models.CharField(
+        _("search key"),
+        help_text=_(
+            "Search bag derived on save from `full name` and `short name`: the "
+            "lowercased, ASCII-folded pinyin plus the pinyin initials, e.g. "
+            "'yelaixiang ylx' for 夜来香. Lets the directory match `q=ye` or "
+            "`q=ylx` as well as the Chinese characters themselves."
+        ),
+        max_length=255,
+        blank=True,
+        default="",
+        # 不加索引:搜索本身是一个跨 5 个列的 OR(姓名 / 简称 / 邮箱 / 职位 / 部门名),
+        # 单列索引对 OR 帮不上忙;而 icontains 在 Postgres 上会写成
+        # `UPPER(col) LIKE …`,列上的普通索引/trigram 索引都用不到(要表达式索引)。
+        # 实测(迁移 0145 的说明):5000 人名册上加了这一支之后仍是 ~11 ms,与老查询
+        # 同一量级 —— 它加在一条本来就全表过滤的 OR 上。
+    )
     phone = models.CharField(
         _("phone"),
         help_text=_(
@@ -323,21 +350,24 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
     def save(self, *args, **kwargs):
         """重算姓名派生列,再走 BaseModel 的 full_clean + save。
 
-        放在 ``super()`` 之前是必须的 —— ``full_clean`` 会校验这两个字段,而
-        ``update_fields`` 只带原始字段的调用点(如 viewsets 改昵称)必须把它俩
-        一起带上,否则算出来的值不会被写库 —— 那会留下一个「名字变了、排序键还是
-        旧的」的用户,而且要等到下次有人改这个用户才会被发现。
+        放在 ``super()`` 之前是必须的 —— ``full_clean`` 会校验这些字段,而
+        ``update_fields`` 只带原始字段的调用点(如 viewsets 改昵称)必须把它们
+        一起带上,否则算出来的值不会被写库 —— 那会留下一个「名字变了、排序键/搜索键
+        还是旧的」的用户,而且要等到下次有人改这个用户才会被发现。
 
         每次 save 都重算是刻意的:名字很短,pypinyin 一次调用是微秒级,而读一次库
         比它贵得多;而且没有信号可以让所有写入口都覆盖到(本项目按约定不用信号)。
         """
         self.full_name_pinyin = pinyin_sort_key(self.full_name)
         self.full_name_initial = pinyin_initial(self.full_name)
+        # 搜索键同时看简称 —— 有人用简称当常用称呼(见 pinyin_search_key)。
+        self.search_key = pinyin_search_key(self.full_name, self.short_name)
         update_fields = kwargs.get("update_fields")
         if update_fields is not None:
             kwargs["update_fields"] = set(update_fields) | {
                 "full_name_pinyin",
                 "full_name_initial",
+                "search_key",
             }
         super().save(*args, **kwargs)
 

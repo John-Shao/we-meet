@@ -5,7 +5,7 @@
   },
   "picker": {
     "title": "Pick a contact",
-    "searchPlaceholder": "Search by name or email…",
+    "searchPlaceholder": "Search by name, pinyin or email…",
     "empty": "No contacts found",
     "loading": "Loading…",
     "cancel": "Cancel",
@@ -32,7 +32,7 @@
     "newDept": "New department",
     "newDeptPrompt": "Name of the new department (created under the selected one):",
     "newDeptError": "Failed to create department: {{message}}",
-    "searchPlaceholder": "Search by name or email…",
+    "searchPlaceholder": "Search by name, pinyin or email…",
     "loading": "Loading…",
     "empty": "No members",
     "message": "Message",

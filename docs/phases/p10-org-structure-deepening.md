@@ -479,6 +479,16 @@ meta 形状：`{"name": …, "kind": "department", "dept_id": …, "org_id": …
 
 ### 4.3 `core/services/directory_index.py`（新，M3）
 
+> **已交付（2026-09，缩水版）**：见 `core/services/pinyin.py` 的 `pinyin_search_key` +
+> `User.search_key`（迁移 `0145`）。与计划的偏差：①键放在 **`User`** 而不是
+> `Membership`（本次只收姓名/简称的拼音,不含职位/工号 —— 那两样仍走各自的
+> `icontains` OR,见 directory.py）；②**没有索引**（实测 5000 人名册 ~11 ms,与老查询
+> 同量级,理由写进了 `0145` 的 docstring）；③没有 `directory_index.py` 与回填命令 ——
+> 回填直接在迁移里 `bulk_update`。`q=ye` / `q=ylx` / `q=夜` 现在都能命中「夜来香」。
+> 工号/职务的拼音仍**未做**（见部署文档「未交付项」）。
+
+原计划（下文是当时的设想,以代码为准）：
+
 写时物化 `Membership.search_key`（全小写词袋：`张三 zhangsan zs zhang@corp.com E1042 高级工程师`）+ `sort_letter`（`Z` / `#`），配 `GinIndex(opclasses=["gin_trgm_ops"])`。查询侧 `Q(search_key__icontains=q.lower()) | Q(department__name__icontains=q)` —— 拼音全拼、首字母缩写、工号、职务一次全中。
 
 - 唯一新依赖 `pypinyin`（纯 Python，无 C 扩展，~1.5MB），**只在写路径执行**

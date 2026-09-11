@@ -475,12 +475,19 @@ class DirectoryMemberViewSet(
             # 服务端(前端不再只过滤已加载的那一页),而用户在这个框里输入「销售总监」
             # 或者在「全部成员」里输入「人事部」都是常见动作 —— 只匹配姓名/邮箱会把
             # 这些查询变成「查无此人」,那比原来的客户端过滤更糟。
+            #
+            # 拼音搜索(用户输入 `ye` 想找「夜来香」)走 `search_key`:那一列是
+            # save() 里物化的词袋(全拼 + 首字母缩写),见 services/pinyin.py。
+            # 它单独用 `contains` 而不是 `icontains`:键已经全部小写且折过音标,
+            # 查询词也按同一套折叠(fold_search_query)—— 于是这里就是一条普通的
+            # `LIKE '%ye%'`,而不是 `UPPER(col) LIKE …`(后者没法用列上的索引)。
             queryset = queryset.filter(
                 Q(user__full_name__icontains=query)
                 | Q(user__short_name__icontains=query)
                 | Q(user__email__icontains=query)
                 | Q(title__icontains=query)
                 | Q(department__name__icontains=query)
+                | Q(user__search_key__contains=pinyin.fold_search_query(query))
             )
         return apply_member_list_params(
             queryset, self.request, apply_from_initial=apply_from_initial

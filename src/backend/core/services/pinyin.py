@@ -1,9 +1,9 @@
-"""中文姓名的拼音排序键与首字母 —— 通讯录 A–Z 索引的地基。
+"""中文姓名的拼音排序键、首字母与搜索键 —— 通讯录的地基。
 
 为什么需要:汉字的编码序不是拼音序,而「全部成员」动辄上千人 —— 列表既无法按
-拼音排,也没法按首字母跳转。这两个派生值在 ``User.save()`` 里重算(见
-``models.User``),列表按 ``full_name_pinyin`` 排序、按 ``full_name_initial``
-分桶,首字母计数走 ``DirectoryMemberViewSet.alphabet``。
+拼音排,也没法按首字母分桶。这些派生值在 ``User.save()`` 里重算(见 ``models.User``),
+列表按 ``full_name_pinyin`` 排序、按 ``full_name_initial`` 分桶,搜索走
+``full_name_search_key``(全拼 + 首字母缩写)。
 
     >>> pinyin_sort_key("张三")
     '0zhangsan'
@@ -15,6 +15,12 @@
     'Z'
     >>> pinyin_initial("1001")
     '#'
+    >>> pinyin_search_key("夜来香")
+    'yelaixiang ylx'
+    >>> pinyin_search_key("Yelena Smith")
+    'yelenasmith ys'
+    >>> fold_search_query("  Ye Lai ")
+    'yelai'
 
 非中文按原样参与排序(英文名照字母序),数字/符号/空名字统一进 ``#`` 一桶 ——
 那一桶的键以 ``1`` 开头,于是在名册里永远排在最后,而不是因为 ASCII 比 'A' 小
@@ -120,3 +126,71 @@ def pinyin_initial(name: str | None) -> str:
         return OTHER_INITIAL
     first = folded[0]
     return first.upper() if "a" <= first <= "z" else OTHER_INITIAL
+
+
+#: ``User.full_name_search_key`` 的字段宽度。两份词(全拼 + 缩写)拼起来仍然很短,
+#: 但姓名本身可以到 100 字,所以还是要有个上限。
+MAX_SEARCH_KEY_LENGTH = 255
+
+
+def pinyin_initials(name: str | None) -> str:
+    """姓名 → 拼音首字母缩写:``夜来香`` → ``ylx``。
+
+    实现上的两个坑(都在 ``pypinyin`` 的行为里,不在调用方):
+
+    - 汉字按**字**给首字母(``['y', 'l', 'x']``),一个字的拼音只取第一个字母;
+    - 拉丁词整词原样带过(``'Yelena Smith'`` → ``['Yelena Smith']`` —— 一整块),
+      所以还要按空白再切一次、取每个词的首字母,才能得到 ``ys`` 而不是 ``Yelena``。
+
+    混合姓名也照这个规则走:``王Alice`` → ``['wang', 'Alice']`` → ``wa``。
+    """
+    cleaned = (name or "").strip()
+    if not cleaned:
+        return ""
+    syllables = lazy_pinyin(cleaned, style=Style.FIRST_LETTER, errors="default")
+    letters = []
+    for syllable in syllables:
+        for word in syllable.split():
+            if word:
+                letters.append(word[0])
+    return _fold_latin("".join(letters)).lower()
+
+
+def pinyin_search_key(
+    name: str | None, short_name: str | None = None
+) -> str:
+    """姓名 → 搜索词袋:全拼 + 首字母缩写(加上简称的同两样)。
+
+    输入 ``ye`` 能命中「夜来香」,靠的是词袋里有 ``yelaixiang``;输入 ``ylx`` 能命中,
+    靠的是另一个词 ``ylx``。两个词用空格分开(而不是拼成一串),这样「跨词边界」的
+    假命中会少一些 —— 拼成一串时 ``xy`` 也能命中 ``…xiangye…`` 这种巧合。
+
+    **存下来而不是查询时现算**:``q`` 是子串匹配(``LIKE '%…%'``),现算意味着每一行
+    都要跑一次 ``pypinyin`` —— 5000 人的组织里那是一次几百毫秒的全表函数扫描,而
+    存下来之后它只是一个普通的字符串比较。
+    """
+    tokens = [
+        _folded_key(name),
+        pinyin_initials(name),
+        _folded_key(short_name),
+        pinyin_initials(short_name),
+    ]
+    # 去重且保序:简称与全名相同时别把同一个词写两遍(短名字很常见)。
+    unique = list(dict.fromkeys(token for token in tokens if token))
+    return " ".join(unique)[:MAX_SEARCH_KEY_LENGTH]
+
+
+def fold_search_query(text: str | None) -> str:
+    """把用户输入的搜索词规范成与 ``full_name_search_key`` 同一套写法。
+
+    **不做拼音转换**:用户输入的是要匹配的**子串**,不是姓名。把 ``夜`` 转成 ``ye``
+    只会让「输入汉字」这条本来就有效的路径变成另一条更绕的路径(而且会带来
+    「搜山 → shan」这种莫名命中)。汉字查询交给 ``full_name__icontains``。
+
+    只做两件事:折音标(``Yè`` → ``ye``)、去空白(``Ye Lai`` → ``yelai``,与键里
+    「名字中间的空格不参与比较」保持一致)、转小写。
+    """
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return ""
+    return _fold_latin("".join(cleaned.split()).lower())
