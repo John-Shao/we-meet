@@ -2194,7 +2194,16 @@ const rowCss = css({
     pointerEvents: 'none',
     transition: 'opacity token(durations.fast)',
   },
-  '&:hover [data-row-action], &:focus-within [data-row-action]': {
+  // 行尾「更多」跟着 hover / 键盘焦点走。不用 `:focus-within`:鼠标点一下行
+  // (`<tr tabIndex={0}>`)就让 tr 拿到焦点,那一行的「更多」于是常显 —— 再悬停别的行
+  // 就是两颗同时亮着。`focus-visible` 只在键盘聚焦时匹配,点选不再粘住。
+  // 拆成三条(不是一条长选择器):panda 的原子类名按整条选择器生成,拼在一起会得到
+  // 一个上百字符的类名。三条各管一件事:
+  '&:hover [data-row-action]': { opacity: 1, pointerEvents: 'auto' },
+  // 焦点就在 tr 自己身上 —— `:has()` 只看后代,漏掉这条键盘 Tab 到行上就没有反馈。
+  '&:focus-visible [data-row-action]': { opacity: 1, pointerEvents: 'auto' },
+  // 焦点落在行内的行内编辑控件 / 「更多」上。
+  '&:has(:focus-visible) [data-row-action]': {
     opacity: 1,
     pointerEvents: 'auto',
   },
