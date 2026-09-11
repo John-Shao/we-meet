@@ -816,7 +816,7 @@ const desktopNavCss = css({
   gap: '0.25rem',
   padding: '1rem 0.75rem',
   borderRight: '1px solid token(colors.greyscale.200)',
-  backgroundColor: 'greyscale.000',
+  backgroundColor: 'subNavBg',
   overflowY: 'auto',
 })
 const navTitleCss = css({

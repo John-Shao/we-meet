@@ -748,7 +748,7 @@ const ImAuthenticated = () => {
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
-              backgroundColor: 'greyscale.50',
+              backgroundColor: 'subNavBg',
             })}
           >
             <div

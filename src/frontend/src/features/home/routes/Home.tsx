@@ -231,7 +231,7 @@ export const Home = () => {
                   width: '100%',
                   height: '100%',
                   borderRight: '1px solid token(colors.greyscale.200)',
-                  backgroundColor: 'greyscale.000',
+                  backgroundColor: 'subNavBg',
                   padding: '1.25rem 1rem',
                   display: 'flex',
                   flexDirection: 'column',

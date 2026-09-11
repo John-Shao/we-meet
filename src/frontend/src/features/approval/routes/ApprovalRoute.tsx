@@ -228,7 +228,7 @@ const ApprovalAuthenticated = () => {
             width: '100%',
             height: '100%',
             borderRight: '1px solid token(colors.greyscale.200)',
-            backgroundColor: 'greyscale.000',
+            backgroundColor: 'subNavBg',
             padding: '1rem 0.75rem',
             display: 'flex',
             flexDirection: 'column',

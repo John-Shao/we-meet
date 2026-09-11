@@ -245,7 +245,9 @@ const asideCls = css({
   height: '100%',
   borderRight: '1px solid token(colors.greyscale.200)',
   overflowY: 'auto',
-  backgroundColor: 'greyscale.50',
+  // 二级导航栏底色的**基准**:消息/日历/任务/视频会议/审批都对齐这一档
+  // (见 panda.config 的 subNavBg)。改这里等于改全站。
+  backgroundColor: 'subNavBg',
 })
 
 const headerCls = css({

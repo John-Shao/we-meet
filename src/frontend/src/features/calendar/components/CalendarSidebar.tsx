@@ -150,7 +150,7 @@ export const CalendarSidebar = ({
         width: '100%',
         height: '100%',
         borderRight: '1px solid token(colors.greyscale.200)',
-        backgroundColor: 'greyscale.000',
+        backgroundColor: 'subNavBg',
         padding: '1.25rem 1rem',
         display: 'flex',
         flexDirection: 'column',
@@ -287,7 +287,10 @@ const emptyUpcomingCls = css({
   gap: '0.375rem',
   padding: '0.5rem',
   borderRadius: '0.375rem',
-  backgroundColor: 'greyscale.50',
+  // 侧栏底色统一成 subNavBg(= greyscale.50)之后,这张占位卡不能再用 50 档 ——
+  // 会与底板同色,看起来像没渲染。100 档是「浮在二级导航栏上」的标准一档
+  // (通讯录侧栏的 hover 与行分隔线用的也是它)。
+  backgroundColor: 'greyscale.100',
 })
 const emptyCreateCls = css({
   border: 'none',

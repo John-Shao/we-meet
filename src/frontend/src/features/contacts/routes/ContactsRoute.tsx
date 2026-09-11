@@ -1172,7 +1172,8 @@ const navStripCls = css({
   alignItems: 'center',
   paddingTop: '0.75rem',
   borderRight: '1px solid token(colors.greyscale.200)',
-  backgroundColor: 'greyscale.50',
+  // 收起后的窄条仍是二级导航栏的一部分,底色跟着左栏走。
+  backgroundColor: 'subNavBg',
 })
 const navStripBtnCls = css({
   display: 'inline-flex',
