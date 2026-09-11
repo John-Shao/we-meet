@@ -28,7 +28,7 @@
     "count_one": "{{count}} membre",
     "count_other": "{{count}} membres",
     "departments": "Services",
-    "allMembers": "Tous les membres",
+    "orgMembers": "Contacts de l'organisation",
     "newDept": "Nouveau service",
     "newDeptPrompt": "Nom du nouveau service (créé sous celui sélectionné) :",
     "newDeptError": "Échec de la création du service : {{message}}",

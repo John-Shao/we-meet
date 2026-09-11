@@ -27,7 +27,7 @@
     "count": "{{count}} 人",
     "count_other": "{{count}} 人",
     "departments": "部门",
-    "allMembers": "全部成员",
+    "orgMembers": "组织内联系人",
     "newDept": "新建部门",
     "newDeptPrompt": "输入新部门名称（将创建在当前所选部门下）：",
     "newDeptError": "创建部门失败：{{message}}",

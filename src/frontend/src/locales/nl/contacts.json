@@ -28,7 +28,7 @@
     "count_one": "{{count}} lid",
     "count_other": "{{count}} leden",
     "departments": "Afdelingen",
-    "allMembers": "Alle leden",
+    "orgMembers": "Contacten in de organisatie",
     "newDept": "Nieuwe afdeling",
     "newDeptPrompt": "Naam van de nieuwe afdeling (aangemaakt onder de geselecteerde):",
     "newDeptError": "Aanmaken van afdeling mislukt: {{message}}",

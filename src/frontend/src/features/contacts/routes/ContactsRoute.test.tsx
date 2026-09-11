@@ -398,14 +398,14 @@ describe('ContactsRoute', () => {
     expect(await screen.findByTestId('contacts-member-u1')).toBeInTheDocument()
   })
 
-  it('筛选让 count 变成「筛出来的人」时,左栏「全部成员」不跟着变小', async () => {
+  it('筛选让 count 变成「筛出来的人」时,左栏「组织内联系人」不跟着变小', async () => {
     // 筛选后的 count 是「命中的人数」,当成全组织人数写进左栏就是错的 —— 数字该保留
     // 最后一次「全部成员、无筛选」时的值。
     const user = userEvent.setup()
     renderRoute('/contacts')
     await waitFor(() =>
       expect(screen.getByTestId('contacts-all-entry')).toHaveTextContent(
-        'page.allMembers3'
+        'page.orgMembers3'
       )
     )
     await user.type(screen.getByTestId('contacts-member-filter'), '李')
@@ -413,7 +413,7 @@ describe('ContactsRoute', () => {
       expect(screen.getByTestId('contacts-member-u2')).toBeInTheDocument()
     )
     expect(screen.getByTestId('contacts-all-entry')).toHaveTextContent(
-      'page.allMembers3'
+      'page.orgMembers3'
     )
   })
 

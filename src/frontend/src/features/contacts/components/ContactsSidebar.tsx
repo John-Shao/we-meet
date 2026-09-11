@@ -173,7 +173,7 @@ export const ContactsSidebar = ({
         <h3 className={sectionCls}>{t('page.sectionOrg')}</h3>
         <SidebarEntry
           icon={<RiTeamLine size={16} />}
-          label={t('page.allMembers')}
+          label={t('page.orgMembers')}
           count={counts.members}
           active={view === null && selectedDeptId === null}
           onClick={onSelectAll}
