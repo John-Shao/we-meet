@@ -1,4 +1,5 @@
 import { act, render, screen } from '@testing-library/react'
+import { useEffect } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useDebouncedValue } from './useDebouncedValue'
@@ -13,6 +14,16 @@ const Probe = ({
   resetKey?: unknown
 }) => {
   const debounced = useDebouncedValue(value, delayMs, resetKey)
+  return <span data-testid="out">{debounced}</span>
+}
+
+/** 每次 commit 记下观察到的值 —— 调用方的查询 key 正是这么算出来的。 */
+const observed: string[] = []
+const Observer = ({ value, resetKey }: { value: string; resetKey: unknown }) => {
+  const debounced = useDebouncedValue(value, 250, resetKey)
+  useEffect(() => {
+    observed.push(debounced)
+  })
   return <span data-testid="out">{debounced}</span>
 }
 
@@ -73,6 +84,21 @@ describe('useDebouncedValue', () => {
       vi.advanceTimersByTime(1000)
     })
     expect(out()).toBeEmptyDOMElement()
+  })
+
+  it('resetKey 换了之后,同一次 commit 上的观察者读到的也是新值', () => {
+    // 上面那条用例只证明「最终」是新值 —— 而调用方(TanStack 的观察者在自己的 effect
+    // 里读这个值算查询 key)看到的是**某一次 commit** 上的值。差别就在这一个 commit:
+    // 把 reset 放在 effect 里,那次 commit 的观察者读到的还是旧词,于是老老实实按旧词
+    // 发了请求(切部门时多一次往返,慢网络下先亮一句「没有匹配的成员」);放在渲染期,
+    // 这一次 commit 就已经是新值。
+    vi.useFakeTimers()
+    observed.length = 0
+    const { rerender } = render(<Observer value="张" resetKey="dept-a" />)
+    expect(observed).toEqual(['张'])
+
+    rerender(<Observer value="" resetKey="dept-b" />)
+    expect(observed).toEqual(['张', ''])
   })
 
   it('值没变就不重新计时(免得每次渲染都推后一次)', () => {
