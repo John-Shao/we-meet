@@ -1,6 +1,7 @@
 {
   "backToHome": "Back to homescreen",
   "cancel": "Cancel",
+  "clearSearch": "Clear search",
   "closeDialog": "Close dialog",
   "error": {
     "heading": "An error occurred while loading the page"

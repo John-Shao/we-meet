@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSnapshot } from 'valtio'
 import { RiUserAddLine } from '@remixicon/react'
 
-import { Button, Div, H, Input } from '@/primitives'
+import { Button, Div, H, SearchBox } from '@/primitives'
 import { Tab, TabList, TabPanel, Tabs } from '@/primitives/Tabs'
 import { useTranslation } from 'react-i18next'
 import { useUser } from '@/features/auth'
@@ -151,13 +151,11 @@ export const ParticipantsList = () => {
           marginBottom: 'sm',
         })}
       >
-        <Input
-          type="search"
+        <SearchBox
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
           placeholder={t('searchOrCall')}
-          aria-label={t('searchOrCall')}
-          data-testid="participants-search"
+          testId="participants-search"
           className={css({
             flex: 1,
             minWidth: 0,

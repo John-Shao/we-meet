@@ -8,17 +8,12 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import {
-  RiAddLine,
-  RiMoreFill,
-  RiSearchLine,
-  RiToolsLine,
-} from '@remixicon/react'
+import { RiAddLine, RiMoreFill, RiToolsLine } from '@remixicon/react'
 import { Menu as RACMenu, MenuItem } from 'react-aria-components'
 import Table, { type ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 
 import { css } from '@/styled-system/css'
-import { Button, Input } from '@/primitives'
+import { Button, SearchBox } from '@/primitives'
 import { Menu } from '@/primitives/Menu'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
@@ -424,11 +419,10 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
         >
           <aside className={asideCls}>
             <div className={treeSearchCls}>
-              <Input
+              <SearchBox
                 value={treeQuery}
-                onChange={(e) => setTreeQuery(e.target.value)}
+                onChange={setTreeQuery}
                 placeholder={t('meetingRooms.searchLevels')}
-                aria-label={t('meetingRooms.searchLevels')}
               />
             </div>
             {nodesFetching && nodes.length === 0 ? (
@@ -538,20 +532,16 @@ export const AdminMeetingRooms = ({ roomId }: { roomId?: string }) => {
                     setPage(1)
                   }}
                 >
-                  <Input
+                  <SearchBox
                     value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
+                    onChange={setSearchInput}
                     placeholder={t('meetingRooms.searchPlaceholder')}
-                    aria-label={t('meetingRooms.searchPlaceholder')}
                     className={roomSearchInputCls}
                   />
-                  <Button
-                    type="submit"
-                    size="sm"
-                    variant="secondary"
-                    aria-label={t('meetingRooms.search')}
-                  >
-                    <RiSearchLine size={16} />
+                  {/* 提交按钮改成带字的 secondary:放大镜已经画在框内左端,这里再放一颗
+                      就成了同一行里两颗放大镜。 */}
+                  <Button type="submit" size="sm" variant="secondary">
+                    {t('meetingRooms.search')}
                   </Button>
                 </form>
               </div>
@@ -720,6 +710,7 @@ const searchFormCls = css({
   alignItems: 'center',
   gap: '0.375rem',
 })
+/** 只给宽度:长相由统一搜索框 SearchBox 负责。 */
 const roomSearchInputCls = css({
   width: '14rem',
 })

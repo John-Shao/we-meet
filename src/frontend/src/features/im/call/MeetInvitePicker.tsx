@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
-import { Button, Input, SelectableListRow } from '@/primitives'
+import { Button, SearchBox, SelectableListRow } from '@/primitives'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
@@ -87,13 +87,12 @@ export const MeetInvitePicker = ({
         closeLabel={t('call.cancel')}
       />
       <div className={css({ padding: '0.75rem 1rem' })}>
-        <Input
-          ref={searchRef}
-          type="search"
+        <SearchBox
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
           placeholder={t('group.searchPlaceholder')}
-          data-testid="meet-invite-search"
+          testId="meet-invite-search"
+          inputRef={searchRef}
         />
       </div>
       <ModalBody padding="none">

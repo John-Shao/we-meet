@@ -11,7 +11,7 @@ import { MemberAvatar } from '@/features/contacts'
 import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
 import { MeetingRoomSummary } from '@/features/meeting-rooms'
 import { useInlineEditFocus } from '@/hooks/useInlineEditFocus'
-import { Button, Input, TextArea } from '@/primitives'
+import { Button, Input, SearchBox, TextArea } from '@/primitives'
 import { Radio } from '@/primitives/Radio'
 import { css } from '@/styled-system/css'
 
@@ -267,12 +267,11 @@ export const AddCalendarDialog = ({
       </div>
       {mode === 'subscribe' && (
         <div className={stackCls}>
-          <Input
-            ref={searchRef}
+          <SearchBox
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={setQuery}
             placeholder={t('manage.searchPlaceholder')}
-            aria-label={t('manage.searchPlaceholder')}
+            inputRef={searchRef}
           />
           <div className={tabsCls}>
             {(

@@ -1,6 +1,7 @@
 {
   "backToHome": "Zurück zur Startseite",
   "cancel": "Abbrechen",
+  "clearSearch": "Suche löschen",
   "closeDialog": "Dialogfenster schließen",
   "error": {
     "heading": "Beim Laden der Seite ist ein Fehler aufgetreten"

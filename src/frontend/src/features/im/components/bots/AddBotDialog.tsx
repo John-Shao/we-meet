@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { RiArrowRightSLine, RiRobot2Line } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
+import { SearchBox } from '@/primitives'
 import { Modal, ModalBody, ModalCloseButton } from '@/components/Modal'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { navGlyphCls } from '@/styles/controls'
@@ -11,7 +12,7 @@ import { navGlyphCls } from '@/styles/controls'
 import { createGroupBot } from '../../api/groupBots'
 import { BOT_CATALOG } from './botCatalog'
 import { CustomBotForm } from './CustomBotForm'
-import { inputCls, modalHead } from './botStyles'
+import { modalHead } from './botStyles'
 
 /**
  * 添加机器人 — a two-page dialog (pick a kind → fill the form), matching 飞书.
@@ -112,12 +113,12 @@ export const AddBotDialog = ({
 
       {page === 'catalog' ? (
         <ModalBody>
-          <input
-            ref={searchRef}
+          <SearchBox
             value={search}
+            onChange={setSearch}
             placeholder={t('bots.catalog.search')}
-            onChange={(e) => setSearch(e.target.value)}
-            className={cx(inputCls, css({ marginBottom: '1rem' }))}
+            inputRef={searchRef}
+            className={css({ marginBottom: '1rem' })}
           />
           <div
             className={css({

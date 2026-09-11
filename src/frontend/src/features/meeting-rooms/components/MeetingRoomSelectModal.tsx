@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import { Button } from '@/primitives/Button'
+import { SearchBox } from '@/primitives/SearchBox'
 import { css } from '@/styled-system/css'
-import { inputCls } from '@/features/calendar/components/formStyles'
 
 import type {
   MeetingRoom,
@@ -209,15 +209,12 @@ export const MeetingRoomSelectModal = ({
             ))}
           </div>
 
-          <input
-            ref={searchRef}
-            type="search"
-            className={inputCls}
+          <SearchBox
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
             placeholder={t('picker.searchPlaceholder')}
-            aria-label={t('picker.searchPlaceholder')}
-            data-testid="mr-picker-search"
+            testId="mr-picker-search"
+            inputRef={searchRef}
           />
 
           <MeetingRoomFilters value={filters} onChange={setFilters} compact />

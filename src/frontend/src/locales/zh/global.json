@@ -1,6 +1,7 @@
 {
   "backToHome": "返回主页",
   "cancel": "取消",
+  "clearSearch": "清空搜索",
   "closeDialog": "关闭对话框",
   "error": {
     "heading": "页面加载时发生错误"

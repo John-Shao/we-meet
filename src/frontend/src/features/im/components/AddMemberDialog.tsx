@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
-import { Button, Input, SelectableListRow } from '@/primitives'
+import { Button, SearchBox, SelectableListRow } from '@/primitives'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { fetchDirectoryMembers, MemberAvatar } from '@/features/contacts'
@@ -94,13 +94,12 @@ export const AddMemberDialog = ({ client, cid, onClose }: Props) => {
         closeLabel={t('manage.cancel')}
       />
       <div className={css({ padding: '0.75rem 1rem' })}>
-        <Input
-          ref={searchRef}
-          type="search"
+        <SearchBox
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
           placeholder={t('group.searchPlaceholder')}
-          data-testid="add-member-search"
+          testId="add-member-search"
+          inputRef={searchRef}
         />
       </div>
       <ModalBody padding="none">

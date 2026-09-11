@@ -6,7 +6,7 @@ import { RiFileTextLine } from '@remixicon/react'
 import { css } from '@/styled-system/css'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
-import { Button, Input, SelectableListRow } from '@/primitives'
+import { Button, SearchBox, SelectableListRow } from '@/primitives'
 
 import { fetchMyDocuments, type MyDocumentHit } from '../api/fetchMyDocuments'
 
@@ -64,13 +64,12 @@ export const DocPickerDialog = ({ onConfirm, onClose }: Props) => {
       />
 
       <div className={css({ padding: '0.5rem 1rem' })}>
-        <Input
-          ref={searchRef}
-          type="search"
+        <SearchBox
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
           placeholder={t('docPicker.search')}
-          data-testid="doc-picker-search"
+          testId="doc-picker-search"
+          inputRef={searchRef}
         />
       </div>
 

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { RiSearchLine } from '@remixicon/react'
 
+import { SearchBox } from '@/primitives/SearchBox'
 import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 
@@ -54,19 +54,13 @@ export const MeetingRoomFilters = ({
   return (
     <div className={rowCls}>
       {!compact && (
-        <label className={searchWrapCls}>
-          <input
-            type="search"
-            className={searchCls}
-            value={value.q ?? ''}
-            onChange={(event) => onChange({ ...value, q: event.target.value })}
-            placeholder={t('picker.searchPlaceholder')}
-            aria-label={t('picker.searchPlaceholder')}
-            data-testid="mr-filter-search"
-          />
-          {/* 放大镜画在框内右端(而不是通讯录那样在左侧),位置见 searchIconCls。 */}
-          <RiSearchLine size={14} aria-hidden className={searchIconCls} />
-        </label>
+        <SearchBox
+          value={value.q ?? ''}
+          onChange={(q) => onChange({ ...value, q })}
+          placeholder={t('picker.searchPlaceholder')}
+          testId="mr-filter-search"
+          className={searchBoxCls}
+        />
       )}
 
       <Select
@@ -164,55 +158,14 @@ const selectCls = css({
   minWidth: '8rem',
 })
 /**
- * 搜索框。
+ * 搜索框的排布:只钉最小宽度,长相由统一搜索框 SearchBox 负责。
  *
- * 刻意**不**套 selectChrome:它是给原生 `<select>` 的(自绘下拉箭头 + 右侧留位),
- * 套在 `<input type="search">` 上等于给搜索框画了个假的下拉箭头 —— 原先就是这样。
- * 高度仍钉 control.md 并清掉 paddingBlock,与同一行的下拉齐平(理由见
- * primitives/selectChrome.ts 的注释:留着 paddingY 会把文字上下切掉)。
- *
- * 右侧留出 1.75rem 是给框内那枚放大镜(见 searchIconCls)的:不留位时输入到末尾
- * 的文字会顶到图标下面。
- *
- * 不必再收 `::-webkit-search-cancel-button`(Chromium / Safari 给 `type="search"`
- * 画在框内右缘的那个原生 ✕):panda 的 preflight 已经给 `::-webkit-search-decoration,
- * ::-webkit-search-cancel-button` 写了 `-webkit-appearance: none`,右端本来就是空的,
- * 放大镜不会和它叠在一起。顺带记一笔:那个选择器写进 css() 也**不会**生效 ——
- * panda 的静态提取不认 `&::-webkit-*` 这类伪元素,整条会被静默丢掉(构建产物里
- * 查无此规则),真要收它得走 styles/index.css 那种原生 CSS。
+ * 13rem 是改前那颗原生 input 的 `minWidth` —— 这一行会换行(`flexWrap`),窄容器
+ * 下几个下拉 + 搜索框摆不下时它得有自己的宽度,不能被压成一条。同一行的两个
+ * 下拉走 selectCls 的 `minWidth: 8rem`,两者互不影响。
  */
-const searchCls = css({
+const searchBoxCls = css({
   minWidth: '13rem',
-  fontSize: '0.8125rem',
-  height: 'control.md',
-  minHeight: 'control.md',
-  paddingBlock: 0,
-  paddingLeft: '0.625rem',
-  paddingRight: '1.75rem',
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: 4,
-  backgroundColor: 'greyscale.000',
-})
-/**
- * 放大镜的落位容器:框是 input 自己画的,这里只负责让图标能绝对定位到框内右端。
- */
-const searchWrapCls = css({
-  position: 'relative',
-  display: 'inline-flex',
-  alignItems: 'center',
-})
-/**
- * 框内右端那枚放大镜。
- *
- * `pointerEvents: 'none'` 不能省:图标浮在 input 之上,否则点它、从它上面起手拖选
- * 文字都会被这层 svg 吃掉,光标也不落到输入框上。纯粹是「这是个搜索框」的视觉提示,
- * 不做按钮 —— 本页是边打边筛,没有需要点一下才发出的搜索动作。
- */
-const searchIconCls = css({
-  position: 'absolute',
-  right: '0.5rem',
-  color: 'greyscale.500',
-  pointerEvents: 'none',
 })
 const facilityRowCls = css({
   display: 'flex',

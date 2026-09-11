@@ -9,7 +9,7 @@ import {
 } from '@tanstack/react-query'
 
 import { css } from '@/styled-system/css'
-import { Button, Input } from '@/primitives'
+import { Button, SearchBox } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { StateHint } from '@/components/StateHint'
 import { botColorAt } from '@/components/bot/botPalette'
@@ -134,13 +134,12 @@ export const AdminBots = () => {
             alignItems: 'center',
           })}
         >
-          <Input
+          <SearchBox
             value={q}
-            aria-label={t('bots.searchPlaceholder')}
+            onChange={(next) => resetPageThen(() => setQ(next))}
             placeholder={t('bots.searchPlaceholder')}
-            onChange={(e) => resetPageThen(() => setQ(e.target.value))}
-            className={searchInputCls}
-            data-testid="admin-bots-search"
+            testId="admin-bots-search"
+            className={searchBoxCls}
           />
           <SelectCompat
             value={kind}
@@ -330,7 +329,8 @@ export const AdminBots = () => {
   )
 }
 
-const searchInputCls = css({ width: '15rem', maxWidth: '100%' })
+/** 只给宽度:长相由统一搜索框 SearchBox 负责。 */
+const searchBoxCls = css({ width: '15rem', maxWidth: '100%' })
 const tableCls = css({
   width: '100%',
   borderCollapse: 'collapse',

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { RiUserFollowLine } from '@remixicon/react'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 
-import { Button } from '@/primitives'
+import { Button, SearchBox } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { navGlyphCls } from '@/styles/controls'
 import { Modal } from '@/components/Modal'
@@ -1200,20 +1200,11 @@ const MemberPicker = ({
         {t('calendar.picker.title')}
       </div>
       <div className={css({ padding: '0.75rem 1rem 0' })}>
-        <input
-          ref={searchRef}
-          type="search"
+        <SearchBox
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
           placeholder={t('calendar.picker.search')}
-          className={css({
-            width: '100%',
-            paddingX: '0.75rem',
-            paddingY: '0.5rem',
-            border: '1px solid token(colors.greyscale.300)',
-            borderRadius: '0.5rem',
-            fontSize: '0.875rem',
-          })}
+          inputRef={searchRef}
         />
       </div>
       <div

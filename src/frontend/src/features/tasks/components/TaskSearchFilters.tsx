@@ -3,10 +3,10 @@ import { Button as AriaButton } from 'react-aria-components'
 import { useTranslation } from 'react-i18next'
 
 import {
-  Input,
   InteractiveList,
   InteractiveListRow,
   Popover,
+  SearchBox,
 } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useDirectoryMemberSearch } from '@/features/contacts'
@@ -155,13 +155,11 @@ const PeopleFilter = ({
         <RiArrowDownSLine size={14} aria-hidden="true" />
       </AriaButton>
       <div className={peoplePanelCls}>
-        <Input
-          type="search"
+        <SearchBox
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={setQuery}
           placeholder={t('search.taskPeoplePlaceholder')}
-          aria-label={t('search.taskPeoplePlaceholder')}
-          data-testid={`global-search-task-filter-${testId}-search`}
+          testId={`global-search-task-filter-${testId}-search`}
         />
         <InteractiveList
           className={peopleListCls}

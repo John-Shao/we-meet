@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { Client, ConversationSummary } from '@jusi/light-im-sdk'
 
 import { css } from '@/styled-system/css'
+import { SearchBox } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
 
 import { removeMember } from '../api/removeMember'
@@ -131,14 +132,11 @@ export const GroupMembersPage = ({
       </div>
       {searchableRoster && (
         <div className={css({ paddingX: '1rem', paddingBottom: '0.5rem' })}>
-          <input
-            type="search"
+          <SearchBox
             value={memberQuery}
-            onChange={(e) => setMemberQuery(e.target.value)}
+            onChange={setMemberQuery}
             placeholder={t('manage.searchMembers')}
-            aria-label={t('manage.searchMembers')}
-            data-testid="group-member-search"
-            className={memberSearchCls}
+            testId="group-member-search"
           />
         </div>
       )}
@@ -260,13 +258,3 @@ export const GroupMembersPage = ({
 
 /** 成员数超过这个值才出搜索框 —— 少于一屏的名单上顶个输入框纯属噪音。 */
 const MEMBER_SEARCH_THRESHOLD = 10
-
-const memberSearchCls = css({
-  width: '100%',
-  padding: '0.375rem 0.5rem',
-  border: '1px solid token(colors.control.border)',
-  borderRadius: '6px',
-  backgroundColor: 'greyscale.000',
-  color: 'default.text',
-  fontSize: '0.8125rem',
-})

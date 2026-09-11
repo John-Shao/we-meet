@@ -7,8 +7,8 @@ import { StateHint } from '@/components/StateHint'
 import { MemberAvatar, useDirectoryMemberSearch } from '@/features/contacts'
 import {
   Button,
-  Input,
   InteractiveListRow,
+  SearchBox,
   SegmentedControl,
   SelectableListRow,
 } from '@/primitives'
@@ -183,13 +183,12 @@ export const ForwardDialog = ({
           </div>
 
           <div className={css({ padding: '0.5rem 1rem' })}>
-            <Input
-              ref={searchRef}
-              type="search"
+            <SearchBox
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={setQuery}
               placeholder={t('forward.searchPlaceholder')}
-              data-testid="forward-search"
+              testId="forward-search"
+              inputRef={searchRef}
             />
           </div>
 

@@ -4,12 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { keepPreviousData } from '@tanstack/react-query'
 import { Menu as RACMenu, MenuItem } from 'react-aria-components'
-import { RiMoreFill, RiSearchLine, RiUserAddLine } from '@remixicon/react'
+import { RiMoreFill, RiUserAddLine } from '@remixicon/react'
 import Table, { type ColumnProps } from '@douyinfe/semi-ui/lib/es/table'
 
 import { css } from '@/styled-system/css'
 import { Menu } from '@/primitives/Menu'
-import { Button, Input } from '@/primitives'
+import { Button, SearchBox } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { StateHint } from '@/components/StateHint'
 
@@ -487,20 +487,16 @@ export const AdminMembers = () => {
                 gap: '0.375rem',
               })}
             >
-              <Input
+              <SearchBox
                 value={searchInput}
-                aria-label={t('members.searchPlaceholder')}
-                onChange={(e) => setSearchInput(e.target.value)}
+                onChange={setSearchInput}
                 placeholder={t('members.searchPlaceholder')}
-                className={searchInputCls}
+                className={searchBoxCls}
               />
-              <Button
-                type="submit"
-                variant="quaternaryText"
-                size="icon28"
-                aria-label={t('members.search')}
-              >
-                <RiSearchLine size={16} />
+              {/* 提交按钮改成带字的 secondary:放大镜已经画在框内左端,这里再放一颗
+                  就成了同一行里两颗放大镜。 */}
+              <Button type="submit" variant="secondary" size="sm">
+                {t('members.search')}
               </Button>
             </form>
           </div>
@@ -773,7 +769,8 @@ const memberEmailCls = css({
   fontSize: '0.75rem',
   color: 'greyscale.500',
 })
-const searchInputCls = css({ width: '14rem', maxWidth: '100%' })
+/** 只给宽度:长相由统一搜索框 SearchBox 负责。 */
+const searchBoxCls = css({ width: '14rem', maxWidth: '100%' })
 const tab = (active: boolean) =>
   css({
     display: 'inline-flex',

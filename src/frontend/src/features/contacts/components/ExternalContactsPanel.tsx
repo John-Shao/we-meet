@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/primitives'
+import { Button, SearchBox } from '@/primitives'
 import { Modal, ModalCloseButton } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -252,29 +252,33 @@ const AddExternalContactDialog = ({
         </div>
         <ModalCloseButton onClose={onClose} label={t('starred.cancel')} />
       </div>
-      <div className={searchCls}>
-        <input
-          ref={inputRef}
+      {/* 回车提交走表单的原生隐式提交(而不是给 SearchBox 开一个 onKeyDown 口子):
+          搜索框基元只负责长相与清空,「什么时候发请求」是页面的事。表单里那颗提交
+          按钮在空词时是 disabled 的,隐式提交因此也发不出去 —— 与原先那句
+          `if (!query.trim()) return` 同一档,不多不少。 */}
+      <form
+        className={searchCls}
+        onSubmit={(event) => {
+          event.preventDefault()
+          void search()
+        }}
+      >
+        <SearchBox
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault()
-              void search()
-            }
-          }}
+          onChange={setQuery}
           placeholder={t('external.searchPlaceholder')}
-          className={inputCls}
+          inputRef={inputRef}
+          className={css({ flex: 1, minWidth: 0 })}
         />
         <Button
+          type="submit"
           variant="primary"
           size="action"
-          onPress={() => void search()}
           isDisabled={!query.trim() || busy}
         >
           {t('external.search')}
         </Button>
-      </div>
+      </form>
       <div className={resultsCls}>
         {busy ? (
           <StateHint state="loading">{t('page.loading')}</StateHint>
@@ -366,13 +370,6 @@ const externalTagCls = css({
   fontSize: '0.6875rem',
 })
 const searchCls = css({ display: 'flex', gap: '0.5rem', padding: '1rem' })
-const inputCls = css({
-  flex: 1,
-  minWidth: 0,
-  border: '1px solid token(colors.greyscale.300)',
-  borderRadius: '0.5rem',
-  paddingX: '0.75rem',
-})
 const resultsCls = css({
   minHeight: '260px',
   maxHeight: '52vh',
