@@ -370,6 +370,11 @@ jobs:
       - name: Check Typography and Spacing contracts
         run: cd src/frontend/ && npm run check:foundations
 
+      # 语言包是手改的(还会被 Crowdin 整份覆盖),一个逗号就能让 `vite build` 挂掉,
+      # 而单测看不出来 —— 它们不会 import 你没用到的语言包。
+      - name: Check that every JSON under src/ parses
+        run: cd src/frontend/ && npm run check:json
+
   test-front:
     runs-on: ubuntu-latest
     permissions:
