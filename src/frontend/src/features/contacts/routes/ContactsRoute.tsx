@@ -1161,12 +1161,20 @@ const searchBoxCls = css({
 })
 const listCls = css({
   listStyle: 'none',
-  margin: 0,
-  padding: 0,
+  marginTop: 0,
+  marginBottom: 0,
+  marginLeft: 0,
+  // 右侧 -10px:名单住在滚动容器里,而那 10px 的滚动条槽位是容器**内**的一条白边
+  // (scrollbar-gutter: stable)。行若只铺到内容盒右缘,每行的分隔线就会在离右边那条
+  // 竖线 10px 的地方齐齐断掉 —— 表头的 border-bottom 却是顶着竖线的,两相对比像名单
+  // 少画了一截。把 ul 的右外边距压成 -10px,行正好铺到容器的 padding 盒右缘,也就是
+  // 第三栏的左边界线。行尾动作另补回这 10px(见 rowActionCls),「发消息」不跟着右移。
   // 曾经这里有一条 maxWidth: 60rem「别让行在超宽屏上无限拉长」。它的问题比它解决的
   // 多:中栏一旦宽过 60rem,行(连同行尾的「发消息」)就比上面的表头窄一截,按钮与
   // 「筛选成员」输入框的右缘对不齐 —— 96px 的空档比「名字离按钮远一点」显眼得多。
   // 名字与按钮的距离由行本身的网格管(1fr + 行尾动作槽),不需要再来一道宽度上限。
+  marginRight: '-10px',
+  padding: 0,
 })
 
 /** 列表本体 = 可滚动的名单 + 右侧索引条。索引条是 flex 兄弟而不是浮层,
@@ -1185,6 +1193,9 @@ const scrollerCls = css({
   // 滚动条槽位恒定保留:名单从「不满一屏」涨到「要滚」时行宽不该跳一下。
   // (也让下面表头的右内边距能按同一个槽宽对齐 —— 见 listHeaderCls。)
   scrollbarGutter: 'stable',
+  // 上面 ul 故意右溢 10px 去够那条竖线(见 listCls):不压住横轴,溢出的那点就会
+  // 换来一条横向滚动条。溢出的宽度正好等于槽位,不会有内容被切掉。
+  overflowX: 'hidden',
 })
 /** 整表高度的占位框:窗口里的那几行绝对定位到它的顶部再 translateY。 */
 const spacerCls = css({ position: 'relative' })
@@ -1285,7 +1296,9 @@ const rowActionCls = css({
   alignItems: 'center',
   justifyContent: 'flex-end',
   minWidth: '6rem',
-  paddingRight: '1rem',
+  // 1rem + 槽位 10px:行现在铺到了槽位里(见 listCls),右内边距不补上这 10px,
+  // 「发消息」就会跟着右移 10px,与表头的「筛选成员」错位(它按 1rem + 10px 内缩)。
+  paddingRight: 'calc(1rem + 10px)',
   opacity: 0,
   pointerEvents: 'none',
   transition: 'opacity 120ms ease',
