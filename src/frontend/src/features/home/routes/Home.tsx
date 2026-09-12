@@ -319,6 +319,22 @@ export const Home = () => {
                       {t('title', { ns: 'capture' })}
                     </Button>
                   )}
+                  {data?.meeting_records?.enabled && (
+                    <>
+                      <Button
+                        variant="secondary"
+                        onPress={() => navigateTo('meetingNotes')}
+                      >
+                        {t('library.notes', { ns: 'meetings' })}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onPress={() => navigateTo('meetingMinutes')}
+                      >
+                        {t('library.minutes', { ns: 'meetings' })}
+                      </Button>
+                    </>
+                  )}
                 </div>
               </aside>
             </ResizablePanel>

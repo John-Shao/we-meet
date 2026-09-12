@@ -1,4 +1,67 @@
 {
+  "library": {
+    "notes": "会议笔记",
+    "minutes": "智能纪要",
+    "record": "AI 录音",
+    "home": "会议首页",
+    "navigation": "会议资料导航",
+    "notesHint": "在这里找回线上会议和独立录音的文字记录与纪要。",
+    "minutesHint": "已生成纪要的记录；与会议笔记共用同一份资料。",
+    "search": "搜索标题",
+    "searchButton": "搜索",
+    "scopeLabel": "范围",
+    "sourceLabel": "来源",
+    "allSources": "全部来源",
+    "scope": {
+      "recent": "最近记录",
+      "owned": "归我所有",
+      "participated": "我参与的",
+      "shared": "与我共享"
+    },
+    "source": {
+      "meeting": "线上会议",
+      "audio_recording": "独立录音",
+      "upload": "上传文件"
+    },
+    "ongoing": "进行中",
+    "archive": "历史记录",
+    "noOngoing": "暂无进行中的记录",
+    "empty": "没有符合条件的记录",
+    "minutesReady": "已有纪要",
+    "previous": "上一页",
+    "next": "下一页",
+    "loadError": "资料暂时无法读取或访问权限已变更。",
+    "refresh": "重新读取",
+    "unavailable": "会议资料库暂未开放。",
+    "untitled": "未命名记录",
+    "back": "返回会议笔记",
+    "text": "文字记录",
+    "speakers": "发言人",
+    "info": "记录信息",
+    "contentTabs": "记录内容",
+    "noContent": "暂无可读取的内容",
+    "unknownSpeaker": "未识别发言人",
+    "speakersHint": "仅展示转写中已有的发言人标签；未识别的声音不会自动关联到成员。",
+    "legacySummary": "原有会议纪要",
+    "originalDevice": "录音尚未结束。请回到发起录音的设备和浏览器继续操作；此处仅查看已保存内容。",
+    "openRecorder": "打开本机录音页",
+    "date": "开始时间",
+    "retentionLabel": "留存方式",
+    "retention": {
+      "media": "保留音频或视频",
+      "text": "仅保留文字",
+      "unknown": "未记录"
+    },
+    "sourceMissing": "原会议来源已不可用。",
+    "captureStatus": {
+      "preparing": "准备录音",
+      "recording": "正在录音",
+      "paused": "录音已暂停",
+      "interrupted": "录音已中断",
+      "stopping": "正在结束录音",
+      "stopped": "录音已结束"
+    }
+  },
   "recordQuestion": {
     "recent": "最近 10 次提问",
     "historySource": "这次回答对应的历史原文版本",

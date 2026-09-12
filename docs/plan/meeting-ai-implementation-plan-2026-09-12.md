@@ -220,3 +220,6 @@ P3 分别立项：图文摘要/主题图、翻译视觉输入、音视频裁剪�
 
 
 Latest implementation: [Batch 34: unified library queries](meeting-ai-phase3-batch14-2026-09-13.md). D02/D03 Web workspace integration follows; overall M3 remains incomplete.
+
+
+[Batch 35: Web library and record workspace](meeting-ai-phase3-batch15-2026-09-13.md) connects D02 and standalone D03 cloud discovery. Full M3 and final review remain pending.

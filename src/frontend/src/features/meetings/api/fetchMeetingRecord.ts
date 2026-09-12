@@ -75,6 +75,8 @@ export const useMeetingRecords = (
   useQuery<MeetingRecordPage<ApiMeetingRecord>, ApiError>({
     ...privateReadOptions,
     queryKey: meetingRecordKeys.list(viewerId, filters),
+    refetchInterval: (query) =>
+      query.state.status === 'error' ? false : 15000,
     queryFn: ({ signal }) => {
       const params = new URLSearchParams()
       Object.entries(filters).forEach(([key, value]) => {

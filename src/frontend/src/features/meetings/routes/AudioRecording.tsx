@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Redirect } from 'wouter'
+import { Link, Redirect } from 'wouter'
 import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
 import { Screen } from '@/layout/Screen'
@@ -118,6 +118,12 @@ export function Recorder({
 
   return (
     <Screen>
+      <Link
+        href="/meeting/notes"
+        className={css({ padding: '0.75rem 1.5rem', color: 'primary.700' })}
+      >
+        {t('library.back', { ns: 'meetings' })}
+      </Link>
       <main
         className={css({
           width: '100%',

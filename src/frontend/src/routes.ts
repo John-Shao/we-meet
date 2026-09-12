@@ -12,6 +12,11 @@ import { CreateMeetingButton } from '@/features/sdk/routes/CreateMeetingButton'
 import { RecordingDownloadRoute } from '@/features/recording'
 import { MeetingDetailRoute } from '@/features/meetings'
 import { AudioRecording } from '@/features/meetings/routes/AudioRecording'
+import {
+  MeetingNotes,
+  MeetingMinutes,
+} from '@/features/meetings/routes/MeetingLibrary'
+import { MeetingRecordWorkspace } from '@/features/meetings/routes/MeetingRecordWorkspace'
 import { ImRoute } from '@/features/im'
 import { ContactsRoute } from '@/features/contacts'
 import { CalendarRoute, CalendarSubscribeRoute } from '@/features/calendar'
@@ -38,6 +43,9 @@ export const routes: Record<
   | 'recordingDownload'
   | 'meetingDetail'
   | 'audioRecording'
+  | 'meetingNotes'
+  | 'meetingMinutes'
+  | 'meetingRecord'
   | 'im'
   | 'contacts'
   | 'calendar'
@@ -64,6 +72,23 @@ export const routes: Record<
     name: 'audioRecording',
     path: '/meeting/recording',
     Component: AudioRecording,
+  },
+  meetingNotes: {
+    name: 'meetingNotes',
+    path: '/meeting/notes',
+    Component: MeetingNotes,
+  },
+  meetingMinutes: {
+    name: 'meetingMinutes',
+    path: '/meeting/minutes',
+    Component: MeetingMinutes,
+  },
+  meetingRecord: {
+    name: 'meetingRecord',
+    path: '/meeting/records/:recordId',
+    Component: MeetingRecordWorkspace,
+    to: (recordId: string) =>
+      `/meeting/records/${encodeURIComponent(recordId)}`,
   },
   room: {
     name: 'room',

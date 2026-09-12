@@ -96,10 +96,12 @@ export const RecordSummaryPanel = ({
   recordId,
   viewerId,
   onSourceAudio,
+  showHeading = true,
 }: {
   recordId: string
   viewerId: string
   onSourceAudio?: (milliseconds: number) => void
+  showHeading?: boolean
 }) => {
   const { t } = useTranslation('meetings')
   const detail = useMeetingRecord(viewerId, recordId, true)
@@ -202,8 +204,12 @@ export const RecordSummaryPanel = ({
   )
   return (
     <div className={stack}>
-      <H lvl={2}>{detail.data.title}</H>
-      <Text>{new Date(detail.data.origin_at).toLocaleString()}</Text>
+      {showHeading && (
+        <>
+          <H lvl={2}>{detail.data.title}</H>
+          <Text>{new Date(detail.data.origin_at).toLocaleString()}</Text>
+        </>
+      )}
       <SummaryAutomationControl recordId={recordId} viewerId={viewerId} />
       {job && (
         <div role="status">

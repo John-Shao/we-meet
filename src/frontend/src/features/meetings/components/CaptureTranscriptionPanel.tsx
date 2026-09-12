@@ -44,10 +44,12 @@ export function CaptureTranscriptionPanel({
   viewerId,
   capture,
   onSource,
+  includeSummary = true,
 }: {
   viewerId: string
   capture: ApiCaptureSession
   onSource: (milliseconds: number) => void
+  includeSummary?: boolean
 }) {
   const { t } = useTranslation('capture')
   const path = `capture-sessions/${capture.id}/transcription/`
@@ -275,7 +277,7 @@ export function CaptureTranscriptionPanel({
           </ul>
         </details>
       )}
-      {state.data.summary_available && (
+      {includeSummary && state.data.summary_available && (
         <details onToggle={(event) => setShowSummary(event.currentTarget.open)}>
           <summary>{t('asr.summary')}</summary>
           {showSummary && (

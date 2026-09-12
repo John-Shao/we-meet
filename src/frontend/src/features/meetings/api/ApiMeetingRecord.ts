@@ -11,6 +11,10 @@ export interface ApiMeetingRecord {
   retention_mode: 'media' | 'text' | 'unknown'
   revision: number
   source_available: boolean
+  is_ongoing?: boolean
+  has_summary?: boolean
+  /** Exact standalone capture, only exposed to its current owner. */
+  capture_id?: string | null
   capabilities: {
     read_summary: boolean
     read_transcript: boolean
@@ -35,6 +39,8 @@ export interface MeetingRecordFilters {
   room_id?: string
   q?: string
   cursor?: string
+  is_ongoing?: 'true' | 'false'
+  has_summary?: 'true' | 'false'
 }
 
 /** A room-only selector can return 409 when the room has been reused. */

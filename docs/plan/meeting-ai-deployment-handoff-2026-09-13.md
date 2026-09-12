@@ -60,3 +60,8 @@
 ## Batch 34 update
 
 Record list/detail now expose permission-filtered library metadata and strict `is_ongoing` / `has_summary` filters. No additional flag or migration. Backend regression: 31 passed. Web library integration follows in the next batch; previous deployment limitations remain. See [batch 34](meeting-ai-phase3-batch14-2026-09-13.md).
+
+
+## Batch 35 update
+
+Web: `/meeting/notes`, `/meeting/minutes`, `/meeting/records/:recordId`. Record flag controls access; no migration. Owners can reopen stopped cloud recordings without local capture history. Shared transcript/summary permissions remain separate; ongoing captures are read-only here. 27 frontend tests, build and native Chromium fixture flow passed; real devices, providers and deployment remain operator tests. See [batch 35](meeting-ai-phase3-batch15-2026-09-13.md).

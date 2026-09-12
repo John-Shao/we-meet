@@ -1,4 +1,67 @@
 {
+  "library": {
+    "notes": "Meeting notes",
+    "minutes": "AI minutes",
+    "record": "AI recording",
+    "home": "Meetings",
+    "navigation": "Meeting library navigation",
+    "notesHint": "Find transcripts and minutes from online meetings and independent recordings.",
+    "minutesHint": "Records with generated minutes, shared with the same meeting notes library.",
+    "search": "Search titles",
+    "searchButton": "Search",
+    "scopeLabel": "Scope",
+    "sourceLabel": "Source",
+    "allSources": "All sources",
+    "scope": {
+      "recent": "Recent records",
+      "owned": "Owned by me",
+      "participated": "I participated",
+      "shared": "Shared with me"
+    },
+    "source": {
+      "meeting": "Online meeting",
+      "audio_recording": "Audio recording",
+      "upload": "Uploaded file"
+    },
+    "ongoing": "In progress",
+    "archive": "History",
+    "noOngoing": "No ongoing records",
+    "empty": "No matching records",
+    "minutesReady": "Minutes available",
+    "previous": "Previous page",
+    "next": "Next page",
+    "loadError": "This material is unavailable or your access has changed.",
+    "refresh": "Reload",
+    "unavailable": "The meeting library is not available yet.",
+    "untitled": "Untitled record",
+    "back": "Back to meeting notes",
+    "text": "Transcript",
+    "speakers": "Speakers",
+    "info": "Record information",
+    "contentTabs": "Record contents",
+    "noContent": "No content available",
+    "unknownSpeaker": "Unknown speaker",
+    "speakersHint": "Only existing transcription labels are shown. Unidentified voices are not assigned to members.",
+    "legacySummary": "Existing meeting minutes",
+    "originalDevice": "This recording has not ended. Return to the original device and browser to control it; this page only shows saved material.",
+    "openRecorder": "Open this browser’s recorder",
+    "date": "Started at",
+    "retentionLabel": "Retention preference",
+    "retention": {
+      "media": "Keep audio or video",
+      "text": "Text only",
+      "unknown": "Not recorded"
+    },
+    "sourceMissing": "The original meeting source is unavailable.",
+    "captureStatus": {
+      "preparing": "Preparing",
+      "recording": "Recording",
+      "paused": "Paused",
+      "interrupted": "Interrupted",
+      "stopping": "Stopping",
+      "stopped": "Ended"
+    }
+  },
   "recordQuestion": {
     "recent": "Last 10 questions",
     "historySource": "Historical source used by this answer",
