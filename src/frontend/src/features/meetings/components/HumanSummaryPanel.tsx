@@ -10,6 +10,7 @@ import type {
   ApiRecordSummaryVersion,
   RecordSourceReference,
 } from '../api/ApiMeetingRecord'
+import { SummaryTaskActions } from './SummaryTaskActions'
 
 type Content = ApiRecordSummaryVersion['content']
 type Review = {
@@ -366,6 +367,15 @@ export const HumanSummaryPanel = ({
             {t('humanReview.cancel')}
           </Button>
         </>
+      )}
+      {!draft && current && current.content.action_items.length > 0 && (
+        <SummaryTaskActions
+          key={`${viewerId}:${recordId}:${current.id}`}
+          recordId={recordId}
+          viewerId={viewerId}
+          reviewId={current.id}
+          actions={current.content.action_items}
+        />
       )}
       {message && <div role="status">{t(message)}</div>}
     </section>

@@ -1506,6 +1506,38 @@ class MeetingSummaryReview(BaseModel):
         return f"MeetingSummaryReview({self.record_id}, {self.revision})"
 
 
+class MeetingSummaryTaskLink(BaseModel):
+    """Durable conversion receipt, retained even after the resulting task is deleted."""
+
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE, related_name="summary_task_links")
+    review = models.ForeignKey(MeetingSummaryReview, on_delete=models.RESTRICT)
+    action_index = models.PositiveSmallIntegerField()
+    action_hash = models.CharField(max_length=64)
+    task = models.OneToOneField("Task", on_delete=models.SET_NULL, null=True, blank=True)
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    key = models.UUIDField()
+    request_hash = models.CharField(max_length=64)
+    confirmed = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["record", "action_hash"], name="unique_record_review_action_task"),
+            models.UniqueConstraint(fields=["author", "key"], name="unique_review_action_task_intent"),
+        ]
+
+
+class MeetingSummaryTaskRequest(BaseModel):
+    """Remember each conversion intent, including requests that reuse an existing task."""
+
+    link = models.ForeignKey(MeetingSummaryTaskLink, on_delete=models.CASCADE)
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    key = models.UUIDField()
+    request_hash = models.CharField(max_length=64)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["author", "key"], name="unique_summary_task_request")]
+
+
 class MeetingSummaryChunk(BaseModel):
     """Immutable, record-scoped extraction cache; revisions are rebound on reuse."""
 

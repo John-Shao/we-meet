@@ -88,6 +88,7 @@ from core.api.online_capture import (
 )
 from core.api.meeting_translation import MeetingTranslationViewSet, TranslationAgentView
 from core.api.meeting_summary_review import SummaryReviewView
+from core.api.meeting_summary_tasks import SummaryTaskView
 from core.api.personal_calendars import (
     CalendarAccessGrantViewSet,
     CalendarPreferenceViewSet,
@@ -309,6 +310,7 @@ urlpatterns = [
                 ),
                 path("meeting-capture-status/", OnlineCaptureStatusView.as_view(), name="meeting-capture-status"),
                 path("meeting-records/<uuid:record_id>/human-summary/", SummaryReviewView.as_view(), name="human-summary"),
+                path("meeting-records/<uuid:record_id>/summary-tasks/", SummaryTaskView.as_view(), name="summary-tasks"),
                 *router.urls,
                 *oidc_urls,
                 path("directory/me/", DirectoryMeView.as_view(), name="directory_me"),
