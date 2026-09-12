@@ -232,3 +232,5 @@ Latest implementation: [Batch 34: unified library queries](meeting-ai-phase3-bat
 
 
 [Batch 38: strict Docs client](meeting-ai-phase3-batch18-2026-09-13.md) uses a dedicated idempotent route; Docs `bf2a0636` fixes mixed-version replica safety. Durable delivery workflows follow.
+
+- Batch 39: immutable export preview and durable intent; core migration 0166, 9 tests passed. Keep MEETING_SUMMARY_EXPORT_ENABLED off pending delivery worker and UI. See [batch 39](meeting-ai-phase3-batch19-2026-09-13.md).

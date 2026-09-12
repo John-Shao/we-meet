@@ -1630,6 +1630,74 @@ class MeetingSummaryReview(BaseModel):
 
 
 
+class MeetingSummaryExport(BaseModel):
+    """Frozen document payload and durable result for one selected summary version."""
+
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE, related_name="document_exports")
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    summary = models.ForeignKey(MeetingSummaryVersion, on_delete=models.RESTRICT)
+    review = models.ForeignKey(MeetingSummaryReview, on_delete=models.RESTRICT, null=True, blank=True)
+    source_kind = models.CharField(max_length=8, choices=[("ai", "AI"), ("human", "Human")])
+    source_id = models.UUIDField()
+    language = models.CharField(max_length=8, choices=[("zh", "Chinese"), ("en", "English")])
+    api_url = models.URLField(max_length=500)
+    payload = models.JSONField()
+    payload_hash = models.CharField(max_length=64)
+    status = models.CharField(max_length=16, default="queued", choices=[
+        (value, value) for value in ("queued", "running", "ready", "uncertain", "failed", "unavailable", "canceled")
+    ])
+    attempt = models.PositiveIntegerField(default=1)
+    worker_id = models.UUIDField(null=True, blank=True)
+    deadline = models.DateTimeField(null=True, blank=True)
+    dispatch_attempted_at = models.DateTimeField(null=True, blank=True)
+    document_id = models.UUIDField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+    create_started = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=["record", "requested_by", "source_kind", "source_id", "language"],
+            name="unique_summary_export_source",
+        )]
+
+    def __str__(self):
+        return f"MeetingSummaryExport({self.pk}, {self.status})"
+
+    def clean(self):
+        super().clean()
+        if self.summary_id and self.summary.record_id != self.record_id:
+            raise ValidationError("Export source belongs to another record.")
+        if self.review_id and self.review.base_summary_id != self.summary_id:
+            raise ValidationError("Export review must use the selected AI version.")
+        if (self.source_kind == "human") != bool(self.review_id):
+            raise ValidationError("Export source kind does not match the revision.")
+        if self.source_id != (self.review_id or self.summary_id):
+            raise ValidationError("Export source identity does not match.")
+        if not self._state.adding:
+            fields = ("record_id", "requested_by_id", "summary_id", "review_id", "source_kind", "source_id", "language", "api_url", "payload", "payload_hash")
+            old = type(self).objects.filter(pk=self.pk).values(*fields).first()
+            if old and any(old[field] != getattr(self, field) for field in fields):
+                raise ValidationError("Export payload and source are immutable.")
+
+
+class MeetingSummaryExportRequest(BaseModel):
+    """Stable public intent, including retries of a previous export attempt."""
+
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    key = models.UUIDField()
+    request_hash = models.CharField(max_length=64)
+    export = models.ForeignKey(MeetingSummaryExport, on_delete=models.CASCADE, related_name="requests")
+    attempt = models.PositiveIntegerField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=["requested_by", "key"], name="unique_summary_export_intent",
+        )]
+
+    def __str__(self):
+        return f"MeetingSummaryExportRequest({self.pk})"
+
+
 class MeetingSummaryTaskLink(BaseModel):
     """Durable conversion receipt, retained even after the resulting task is deleted."""
 

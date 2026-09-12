@@ -80,3 +80,5 @@ Docs `docs-dev` commit `c4a3089a` adds migration `core.0037_server_document_crea
 ## Batch 38: dedicated Docs path
 
 Require Docs `bf2a0636` (or newer), not only the initial keyed-header commit: old replicas ignore headers, so Meet uses `/create-for-owner-idempotent/` exclusively. Client tests: 28 passed; Docs receipt tests: 9 passed. New client is not yet wired into a billable/export business path. No new migration beyond Docs 0037. See [batch 38](meeting-ai-phase3-batch18-2026-09-13.md).
+
+- Batch 39: immutable export preview and durable intent; core migration 0166, 9 tests passed. Keep MEETING_SUMMARY_EXPORT_ENABLED off pending delivery worker and UI. See [batch 39](meeting-ai-phase3-batch19-2026-09-13.md).
