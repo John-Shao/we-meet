@@ -1,0 +1,363 @@
+{
+  "date": "2026-09-12",
+  "region": "cn-beijing",
+  "scope": "synthetic-only; no production application writes",
+  "audio_source": "Windows System.Speech; Huihui zh-CN and Zira en-US; mono PCM16 16kHz",
+  "reports": {
+    "live-probes.json": {
+      "fixture": "synthetic-v1",
+      "sample_segments": 4,
+      "results": {
+        "summary": {
+          "status": "PASS",
+          "model": "qwen3.8-flash",
+          "usage": {
+            "prompt_tokens": 246,
+            "total_tokens": 393,
+            "completion_tokens": 147,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 246
+            }
+          },
+          "synthetic_output": {
+            "overview": "会议决定取消原定于周五的上线计划，新的上线日期待定。同时要求整理测试清单，但负责人和截止时间均未确定。",
+            "decisions": [
+              {
+                "text": "取消原定周五的上线计划，新的上线日期待定。",
+                "source_ids": [
+                  "s3"
+                ]
+              }
+            ],
+            "action_items": [
+              {
+                "text": "整理测试清单",
+                "source_ids": [
+                  "s3"
+                ],
+                "assignee_id": null,
+                "due_at": null
+              }
+            ]
+          },
+          "scope": "minimal_schema_and_references_not_semantic_acceptance",
+          "elapsed_seconds": 4.187
+        },
+        "asr": {
+          "model": "qwen-audio-3.0-asr-flash-streaming",
+          "events": {
+            "result-generated": 17,
+            "task-finished": 1
+          },
+          "final_texts": [
+            "这是合成测试。会议决定取消周五上线，新的日期待定。请整理测试清单，负责人还没有确定。"
+          ],
+          "audio_bytes": 0,
+          "input_seconds": 11.78,
+          "usage": [
+            {
+              "duration": 11
+            },
+            {
+              "duration": 11
+            }
+          ],
+          "session_seconds": 14.407,
+          "status": "PASS",
+          "scope": "short_audio_protocol_probe_not_meeting_latency_or_quality",
+          "elapsed_seconds": 23.1
+        },
+        "translation": {
+          "model": "qwen3.5-livetranslate-flash-realtime",
+          "events": {
+            "response.created": 1,
+            "response.output_item.added": 1,
+            "conversation.item.created": 1,
+            "response.content_part.added": 1,
+            "response.audio_transcript.text": 68,
+            "response.audio.delta": 36,
+            "input_audio_buffer.committed": 1,
+            "response.audio_transcript.done": 1,
+            "response.audio.done": 1,
+            "response.content_part.done": 1,
+            "response.output_item.done": 1,
+            "response.done": 1,
+            "session.finished": 1
+          },
+          "final_texts": [
+            "This is a synthetic test. The meeting decided to cancel Friday's launch; the new date is to be determined. Please compile the test checklist, and the person in charge has not yet been assigned.  "
+          ],
+          "audio_bytes": 533760,
+          "input_seconds": 11.78,
+          "usage": [
+            {
+              "total_tokens": 405,
+              "input_tokens": 198,
+              "output_tokens": 207,
+              "input_tokens_details": {
+                "text_tokens": 114,
+                "audio_tokens": 84
+              },
+              "output_tokens_details": {
+                "text_tokens": 68,
+                "audio_tokens": 139
+              }
+            }
+          ],
+          "session_seconds": 14.207,
+          "status": "PASS",
+          "scope": "short_audio_protocol_probe_not_meeting_latency_or_quality",
+          "elapsed_seconds": 20.739
+        }
+      },
+      "configuration": {
+        "api_key_present": true,
+        "workspace_present": true,
+        "region": "cn-beijing"
+      }
+    },
+    "long-and-continuous.json": {
+      "fixture": "synthetic-long-v1",
+      "sample_segments": 505,
+      "sample_utf8_bytes": 107536,
+      "fixture_validated": true,
+      "results": {
+        "summary": {
+          "status": "PASS",
+          "model": "qwen3.8-flash",
+          "usage": {
+            "prompt_tokens": 26666,
+            "total_tokens": 26863,
+            "completion_tokens": 197,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 26666
+            }
+          },
+          "synthetic_output": {
+            "overview": "会议决定保留全部审计记录，不删除历史数据。因测试未完成，决定取消原定的周五上线计划，新上线日期待定。同时要求整理测试清单，但负责人和截止时间均未确定。",
+            "decisions": [
+              {
+                "text": "保留全部审计记录，不删除历史数据",
+                "source_ids": [
+                  "s0"
+                ]
+              },
+              {
+                "text": "取消原定周五上线计划，新的上线日期待定",
+                "source_ids": [
+                  "s3"
+                ]
+              }
+            ],
+            "action_items": [
+              {
+                "text": "整理测试清单",
+                "source_ids": [
+                  "s3"
+                ],
+                "assignee_id": null,
+                "due_at": null
+              }
+            ]
+          },
+          "scope": "minimal_schema_and_references_not_semantic_acceptance",
+          "elapsed_seconds": 10.161
+        },
+        "translation": {
+          "model": "qwen3.5-livetranslate-flash-realtime",
+          "events": {
+            "input_audio_buffer.speech_started": 3,
+            "response.created": 3,
+            "response.output_item.added": 3,
+            "conversation.item.created": 3,
+            "response.content_part.added": 3,
+            "response.audio_transcript.text": 55,
+            "input_audio_buffer.speech_stopped": 3,
+            "response.audio.delta": 38,
+            "response.audio_transcript.done": 3,
+            "response.audio.done": 3,
+            "response.content_part.done": 3,
+            "response.output_item.done": 3,
+            "response.done": 3,
+            "session.finished": 1
+          },
+          "final_texts": [
+            "This is a synthetic test.  ",
+            "The meeting decided to cancel the Friday launch; the new date is to be determined.  ",
+            "Please organize the test checklist. The person in charge hasn't been determined yet.  "
+          ],
+          "audio_bytes": 549120,
+          "input_seconds": 11.78,
+          "usage": [
+            {
+              "total_tokens": 114,
+              "input_tokens": 83,
+              "output_tokens": 31,
+              "input_tokens_details": {
+                "text_tokens": 62,
+                "audio_tokens": 21
+              },
+              "output_tokens_details": {
+                "text_tokens": 12,
+                "audio_tokens": 19
+              }
+            },
+            {
+              "total_tokens": 321,
+              "input_tokens": 196,
+              "output_tokens": 125,
+              "input_tokens_details": {
+                "text_tokens": 140,
+                "audio_tokens": 56
+              },
+              "output_tokens_details": {
+                "text_tokens": 41,
+                "audio_tokens": 84
+              }
+            },
+            {
+              "total_tokens": 516,
+              "input_tokens": 305,
+              "output_tokens": 211,
+              "input_tokens_details": {
+                "text_tokens": 214,
+                "audio_tokens": 91
+              },
+              "output_tokens_details": {
+                "text_tokens": 68,
+                "audio_tokens": 143
+              }
+            }
+          ],
+          "mode": "server_vad",
+          "target": "en",
+          "text_only": false,
+          "session_seconds": 14.205,
+          "status": "PASS",
+          "scope": "short_audio_protocol_probe_not_meeting_latency_or_quality",
+          "elapsed_seconds": 20.772
+        }
+      },
+      "configuration": {
+        "api_key_present": true,
+        "workspace_present": true,
+        "region": "cn-beijing"
+      }
+    },
+    "reverse-translation.json": {
+      "fixture": "synthetic-v1",
+      "sample_segments": 4,
+      "sample_utf8_bytes": 533,
+      "fixture_validated": true,
+      "results": {
+        "translation": {
+          "model": "qwen3.5-livetranslate-flash-realtime",
+          "events": {
+            "response.created": 1,
+            "response.output_item.added": 1,
+            "conversation.item.created": 1,
+            "response.content_part.added": 1,
+            "response.audio_transcript.text": 29,
+            "response.audio.delta": 27,
+            "input_audio_buffer.committed": 1,
+            "response.audio_transcript.done": 1,
+            "response.audio.done": 1,
+            "response.content_part.done": 1,
+            "response.output_item.done": 1,
+            "response.done": 1,
+            "session.finished": 1
+          },
+          "final_texts": [
+            "这是一项合成测试。我们决定推迟发布。请准备测试清单。负责人和截止日期尚未确定。"
+          ],
+          "audio_bytes": 372480,
+          "input_seconds": 10.775,
+          "usage": [
+            {
+              "total_tokens": 317,
+              "input_tokens": 174,
+              "output_tokens": 143,
+              "input_tokens_details": {
+                "text_tokens": 97,
+                "audio_tokens": 77
+              },
+              "output_tokens_details": {
+                "text_tokens": 46,
+                "audio_tokens": 97
+              }
+            }
+          ],
+          "mode": "manual",
+          "target": "zh",
+          "text_only": false,
+          "session_seconds": 14.367,
+          "status": "PASS",
+          "scope": "short_audio_protocol_probe_not_meeting_latency_or_quality",
+          "elapsed_seconds": 20.94
+        }
+      },
+      "configuration": {
+        "api_key_present": true,
+        "workspace_present": true,
+        "region": "cn-beijing"
+      }
+    },
+    "text-translation.json": {
+      "fixture": "synthetic-v1",
+      "sample_segments": 4,
+      "sample_utf8_bytes": 533,
+      "fixture_validated": true,
+      "results": {
+        "translation": {
+          "model": "qwen3.5-livetranslate-flash-realtime",
+          "events": {
+            "response.created": 1,
+            "response.output_item.added": 1,
+            "conversation.item.created": 1,
+            "response.content_part.added": 1,
+            "response.text.text": 72,
+            "input_audio_buffer.committed": 1,
+            "response.text.done": 1,
+            "response.content_part.done": 1,
+            "response.output_item.done": 1,
+            "response.done": 1,
+            "session.finished": 1
+          },
+          "final_texts": [
+            "This is a synthetic test. The meeting decided to cancel Friday's launch; the new date is to be determined. Please compile the test checklist. The person in charge has not yet been appointed.  "
+          ],
+          "audio_bytes": 0,
+          "input_seconds": 11.78,
+          "usage": [
+            {
+              "total_tokens": 265,
+              "input_tokens": 198,
+              "output_tokens": 67,
+              "input_tokens_details": {
+                "text_tokens": 114,
+                "audio_tokens": 84
+              },
+              "output_tokens_details": {
+                "text_tokens": 67
+              }
+            }
+          ],
+          "mode": "manual",
+          "target": "en",
+          "text_only": true,
+          "session_seconds": 13.912,
+          "status": "PASS",
+          "scope": "short_audio_protocol_probe_not_meeting_latency_or_quality",
+          "elapsed_seconds": 20.453
+        }
+      },
+      "configuration": {
+        "api_key_present": true,
+        "workspace_present": true,
+        "region": "cn-beijing"
+      }
+    }
+  }
+}
