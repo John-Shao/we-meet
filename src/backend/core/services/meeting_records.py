@@ -105,7 +105,13 @@ def visible_records(user, *, ability=None):
         }
     )
     queryset = queryset.annotate(
-        can_generate_summary=Exists(
+        can_generate_summary=(
+            Q(source_type=models.MeetingRecord.Source.AUDIO, owner=user)
+            if settings.MEETING_CAPTURE_SUMMARY_ENABLED
+            and settings.MEETING_CAPTURE_PROTOCOL_ENABLED
+            else Q(pk__isnull=True)
+        )
+        | Exists(
             models.ResourceAccess.objects.filter(
                 resource_id=OuterRef("meeting_session__room_id"),
                 user=user,
@@ -148,10 +154,9 @@ def record_capabilities(record, user):
 
 
 def can_generate_summary(record, user):
-    """Current online room managers can request generation, never read-only grantees."""
+    """Current room managers or enabled standalone owners can request generation."""
     return bool(
-        record.meeting_session_id
-        and visible_records(user, ability="read_transcript")
+        visible_records(user, ability="read_transcript")
         .filter(pk=record.pk, can_generate_summary=True)
         .exists()
     )

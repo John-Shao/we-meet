@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from core import models
 from core.services import ai_usage
+from core.services.capture_summary_source import source as capture_source
 from core.services.llm_client import LLMClient, LLMUnavailable
 from core.services.meeting_records import (
     RecordConflict,
@@ -73,7 +74,8 @@ class SummarySourceBudget(RecordConflict):
 def capture_run_id(record):
     """Freeze the latest recording window so drafts cannot survive a new start."""
     value = (
-        record.online_captures.order_by("-created_at", "-id")
+        (record.online_captures if record.meeting_session_id else record.captures)
+        .order_by("-created_at", "-id")
         .values_list("pk", flat=True)
         .first()
     )
@@ -82,6 +84,11 @@ def capture_run_id(record):
 
 def _source_ended(record):
     """A stopped recording can produce minutes while its online meeting continues."""
+    if not record.meeting_session_id:
+        return (
+            record.captures.exists()
+            and not record.captures.exclude(status="stopped").exists()
+        )
     run = record.online_captures.order_by("-created_at", "-id").first()
     return record.meeting_session.status == models.MeetingSession.Status.ENDED or bool(
         run and run.state in ("stopping", "stopped", "incomplete")
@@ -90,8 +97,11 @@ def _source_ended(record):
 
 def _source_input(record, *, require_ended=True, enforce_budget=True):
     """Read all confirmed legacy rows, never truncate or choose another session."""
+    if record.meeting_session_id is None:
+        segments, delivery = capture_source(record)
+        return _fingerprint(record, segments, delivery, enforce_budget=enforce_budget)
     session = record.meeting_session
-    if session is None or session.room.organization_id != record.organization_id:
+    if session.room.organization_id != record.organization_id:
         raise RecordConflict("Source is unavailable or changed organization.")
     if require_ended and not _source_ended(record):
         raise RecordConflict("Summary requires an ended session or stopped capture.")
@@ -121,6 +131,12 @@ def _source_input(record, *, require_ended=True, enforce_budget=True):
                 "language": row.language,
             }
         )
+    delivery = source_delivery(session, rows)
+    return _fingerprint(record, segments, delivery, enforce_budget=enforce_budget)
+
+
+def _fingerprint(record, segments, delivery, *, enforce_budget):
+    """Both source types retain the same full-input budget and snapshot hashing."""
     if not segments or not any(row["text"].strip() for row in segments):
         raise RecordConflict("No confirmed transcript is available.")
     encoded = json.dumps(segments, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -139,7 +155,6 @@ def _source_input(record, *, require_ended=True, enforce_budget=True):
             )
         except ValueError as exc:
             raise SummarySourceBudget("Source exceeds the bounded chunk plan.") from exc
-    delivery = source_delivery(session, rows)
     if delivery:
         encoded += json.dumps(delivery, sort_keys=True).encode("utf-8")
     return segments, hashlib.sha256(encoded).hexdigest(), delivery
@@ -154,6 +169,8 @@ def source_payload(record, *, require_ended=True):
 def _stage_readiness(record, segments, delivery, latest):
     """Coalesce stable text and distinguish meeting end from provider tail closure."""
     ended = _source_ended(record)
+    if not record.meeting_session_id:
+        return {"ready_stages": ["final"] if ended else [], "next_update_at": None}
     if not settings.MEETING_STAGED_SUMMARY_ENABLED:
         managed_open = capture_run_id(record) and any(
             row["state"] == "open" for row in delivery.get("streams", [])
@@ -262,7 +279,7 @@ def prepare_summary_job(record_id, *, regenerate=False, stage="final"):
             record.revision += 1
             record.save(update_fields=["revision", "updated_at"])
         for segment in segments:
-            segment["segment_revision"] = record.revision
+            segment.setdefault("segment_revision", record.revision)
         latest = models.MeetingTranscriptVersion.objects.create(
             record=record,
             revision=record.revision,
@@ -411,10 +428,16 @@ def _generate_content(job, client, attempt):
         "final": "Reconcile the entire supplied source, including later changes to earlier decisions.",
     }[stage]
     sink = ai_usage.make_sink(
+        user=models.User.objects.filter(
+            pk=job.configuration.get("requested_by")
+        ).first()
+        if job.configuration.get("requested_by")
+        else None,
         organization=job.record.organization,
         kind=models.AIUsageKindChoices.SUMMARY,
         ref_type="meeting_record",
         ref_id=str(job.record_id),
+        infer_organization=False,
     )
 
     def call(user, instruction, max_tokens, *, extraction=False):

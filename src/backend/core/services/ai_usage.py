@@ -115,7 +115,15 @@ def record_usage(  # noqa: PLR0913 -- explicit payer, source and independent usa
         return None
 
 
-def make_sink(*, user=None, organization=None, kind, ref_type="", ref_id=""):
+def make_sink(  # noqa: PLR0913 -- explicit payer and independent source identity
+    *,
+    user=None,
+    organization=None,
+    kind,
+    ref_type="",
+    ref_id="",
+    infer_organization=True,
+):
     """Build a ``usage_sink`` callback for :class:`LLMClient`.
 
     The client stays ignorant of who is asking — it just hands back the model
@@ -133,6 +141,7 @@ def make_sink(*, user=None, organization=None, kind, ref_type="", ref_id=""):
             ref_id=ref_id,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            infer_organization=infer_organization,
         )
 
     return sink

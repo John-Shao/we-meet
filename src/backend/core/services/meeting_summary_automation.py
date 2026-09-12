@@ -63,7 +63,7 @@ def _cancel_jobs(automation):
 def control_automation(record_id, user, key, payload):
     """Manager commands are optimistic and idempotent across tabs and reconnects."""
     record = models.MeetingRecord.objects.select_for_update().get(pk=record_id)
-    if not can_generate_summary(record, user):
+    if not record.meeting_session_id or not can_generate_summary(record, user):
         raise SummaryRequestDenied
     automation = models.MeetingSummaryAutomation.objects.filter(record=record).first()
     previous = models.MeetingSummaryAutomationCommand.objects.filter(

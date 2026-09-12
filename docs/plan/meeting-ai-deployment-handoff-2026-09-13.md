@@ -1,6 +1,6 @@
 # 会议 AI 当前可部署测试范围（2026-09-13）
 
-用户负责部署和实测，本文件记录开发侧现状。新开关默认关闭，尚未执行生产迁移或修改线上配置。累计第三十一批是阶段性增量，不是完整首版交付。
+用户负责部署和实测，本文件记录开发侧现状。新开关默认关闭，尚未执行生产迁移或修改线上配置。累计第三十二批是阶段性增量，不是完整首版交付。
 
 ## 本轮建议测试
 
@@ -40,6 +40,7 @@
 | 原文快照问答 | `MEETING_RECORD_QA_ENABLED`（需要记录开关和当前原文读取权限） |
 | 独立音频保存协议 | `MEETING_CAPTURE_AUDIO_ENABLED`、`MEETING_CAPTURE_PROTOCOL_ENABLED`（同时需要记录开关） |
 | 独立转写 | `MEETING_CAPTURE_ASR_ENABLED`、`QWEN_ASR_MODEL`、`QWEN_ASR_REGION`（需单独部署 capture_transcriber Worker） |
+| 独立录音最终纪要 | `MEETING_CAPTURE_SUMMARY_ENABLED`（同时要求版本化总结、请求、记录、采集协议、Celery；录音页入口继续接入） |
 
 总结为 `MEETING_SUMMARY_MODEL=qwen3.8-flash`，`MEETING_SUMMARY_BASE_URL` 按已选地区配置。翻译为 `QWEN_TRANSLATION_MODEL=qwen3.5-livetranslate-flash-realtime`，首批 `QWEN_TRANSLATION_LANGUAGES=zh,en`，`DASHSCOPE_REGION` 与 workspace 区域一致。
 
@@ -47,7 +48,7 @@
 
 ## 不应作为本轮已完成能力验收
 
-- 独立录音已连接 Web 麦克风、本地日志、WAV 保存、回放及保存后 ASR。实时独立转写／总结、独立纪要、仅文字清理仍待实现，真实端到端测试由部署后验证。当前按分片播放，切换时可能短暂缓冲。
+- 独立录音已连接 Web 麦克风、本地日志、WAV 保存、回放、保存后 ASR 和最终纪要后端。录音页纪要入口、实时独立转写／总结、仅文字清理仍待实现，真实端到端测试由部署后验证。当前按分片播放，切换时可能短暂缓冲。
 - 私人语音翻译尚不是多人／多语言频道同传，译文关联笔记和完整费用归集仍有后续工作。
 - 新版独立文档与纪要助手推送尚未接入，需先解决 Docs 远程创建的幂等／结果查询依赖；旧版文档链路不代表新版已完成。
 - 记录级 Qwen 问答已支持所选纪要原文快照及准确引用检查、私人提问恢复。当前为有界单轮，超过 250 KB 的原文明确拒绝，语义质量与长输入扩展仍待评测；不要将准确引用校验等同于答案内容全部正确。

@@ -322,8 +322,13 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             return Response(
                 {
                     **serialize_automation(current),
-                    "available": automation_enabled(),
-                    "can_control": can_generate_summary(record, request.user),
+                    "available": bool(
+                        record.meeting_session_id and automation_enabled()
+                    ),
+                    "can_control": bool(
+                        record.meeting_session_id
+                        and can_generate_summary(record, request.user)
+                    ),
                 }
             )
         key = serializers.UUIDField().run_validation(

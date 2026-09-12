@@ -77,6 +77,10 @@ def snapshot_asr_status(delivery):
         observation_status(stream.get("source_report"))
         for stream in delivery.get("streams", [])
     ]
+    statuses.extend(
+        item.get("asr_status", "unverified")
+        for item in delivery.get("capture_transcriptions", [])
+    )
     if "incomplete" in statuses:
         return "incomplete"
     if not statuses or "unverified" in statuses:
