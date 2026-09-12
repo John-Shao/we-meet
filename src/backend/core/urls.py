@@ -69,6 +69,11 @@ from core.api.keycloak_sms import (
     KeycloakOtpVerifyView,
     KeycloakSmsGatewayView,
 )
+from core.api.meeting_captures import (
+    CaptureSessionViewSet,
+    CaptureWriterGrantView,
+    IngestRecordOriginalView,
+)
 from core.api.meeting_records import MeetingRecordViewSet
 from core.api.meeting_rooms import (
     MeetingRoomFacilityViewSet,
@@ -112,6 +117,7 @@ router = DefaultRouter()
 router.register("users", viewsets.UserViewSet, basename="users")
 router.register("rooms", viewsets.RoomViewSet, basename="rooms")
 router.register("meeting-records", MeetingRecordViewSet, basename="meeting_records")
+router.register("capture-sessions", CaptureSessionViewSet, basename="capture_sessions")
 router.register("recordings", viewsets.RecordingViewSet, basename="recordings")
 router.register("files", viewsets.FileViewSet, basename="files")
 router.register(
@@ -280,6 +286,8 @@ external_router.register(
 )
 
 urlpatterns = [
+    path("api/agent/capture-writer-grants/", CaptureWriterGrantView.as_view()),
+    path("api/agent/record-transcripts/", IngestRecordOriginalView.as_view()),
     path(
         f"api/{settings.API_VERSION}/",
         include(

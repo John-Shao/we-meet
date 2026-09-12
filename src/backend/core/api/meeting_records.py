@@ -403,6 +403,60 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             RecordTranscriptSerializer(page, many=True).data
         )
 
+    @action(detail=True, methods=["get"], url_path="original-segments")
+    def original_segments(self, request, pk=None):
+        """Native standalone originals retain their own identity and source offsets."""
+        if not settings.MEETING_CAPTURE_PROTOCOL_ENABLED:
+            raise Http404
+        record = self._content_record("read_transcript")
+        rows = record.original_segments.select_related("speaker")
+        speaker_id = request.query_params.get("speaker_id")
+        if speaker_id:
+            rows = rows.filter(
+                speaker_id=serializers.UUIDField().run_validation(speaker_id)
+            )
+        pager = RecordPagination()
+        pager.ordering = ("start_ms", "id")
+        page = pager.paginate_queryset(rows, request, view=self)
+        return pager.get_paginated_response(
+            [
+                {
+                    "id": str(row.pk),
+                    "revision": row.revision,
+                    "capture_session_id": str(row.capture_session_id),
+                    "source_track_id": row.source_track_id,
+                    "source_sequence": row.source_sequence,
+                    "start_ms": row.start_ms,
+                    "end_ms": row.end_ms,
+                    "speaker_id": str(row.speaker_id),
+                    "speaker_label": row.speaker.label,
+                    "text": row.text,
+                    "language": row.language,
+                }
+                for row in page
+            ]
+        )
+
+    @action(detail=True, methods=["get"])
+    def speakers(self, request, pk=None):
+        """Speaker labels are original-text material, not summary metadata."""
+        if not settings.MEETING_CAPTURE_PROTOCOL_ENABLED:
+            raise Http404
+        record = self._content_record("read_transcript")
+        pager = RecordPagination()
+        pager.ordering = ("created_at", "id")
+        page = pager.paginate_queryset(record.speakers.all(), request, view=self)
+        return pager.get_paginated_response(
+            [
+                {
+                    "id": str(row.pk),
+                    "label": row.label,
+                    "identity_type": row.identity_type,
+                }
+                for row in page
+            ]
+        )
+
     @action(detail=True, methods=["get"])
     def summaries(self, request, pk=None):
         """Read the legacy summary as a source-scoped compatibility artifact."""

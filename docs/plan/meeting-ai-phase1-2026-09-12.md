@@ -14,6 +14,8 @@
 
 ## 本批实现
 
+第六批已完成独立采集控制、设备租约、受来源约束的原文写入、Speaker 与恢复回执，详见 [第六批执行记录](meeting-ai-phase1-batch6-2026-09-13.md)。麦克风、媒体上传、真实 ASR 和独立纪要尚待连接，M1 继续进行。下表保留首批范围，最新进度以各批记录为准。
+
 | 工作 | 本批交付 | 后续缺口 |
 | --- | --- | --- |
 | B01 统一对象 | 新增 MeetingRecord、MeetingRecordAccess、CaptureSession、MeetingMediaSegment、MeetingProcessingJob；迁移 0148 | 真实分片上传、资产映射、独立采集写接口、独立原文与纪要版本 |

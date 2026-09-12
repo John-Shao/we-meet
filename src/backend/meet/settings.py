@@ -708,7 +708,7 @@ class Base(Configuration):
     CORS_ALLOW_ALL_ORIGINS = values.BooleanValue(False)
     CORS_ALLOWED_ORIGINS = values.ListValue([])
     CORS_ALLOWED_ORIGIN_REGEXES = values.ListValue([])
-    CORS_ALLOW_HEADERS = [*default_headers, "idempotency-key"]
+    CORS_ALLOW_HEADERS = [*default_headers, "idempotency-key", "x-capture-lease"]
 
     # Sentry
     SENTRY_DSN = values.Value(None, environ_name="SENTRY_DSN")
@@ -1065,6 +1065,7 @@ class Base(Configuration):
     MEETING_VERSIONED_SUMMARY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_TRANSCRIPT_DELIVERY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_REQUESTS_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_CAPTURE_PROTOCOL_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_MODEL = values.Value("qwen3.8-flash", environ_prefix=None)
     MEETING_SUMMARY_BASE_URL = values.Value("https://dashscope.aliyuncs.com/compatible-mode/v1", environ_prefix=None)
     DASHSCOPE_API_KEY = SecretFileValue(

@@ -1116,6 +1116,9 @@ class CaptureSession(BaseModel):
     ended_at = models.DateTimeField(null=True, blank=True)
     captured_duration_ms = models.PositiveBigIntegerField(default=0)
     last_acked_sequence = models.PositiveBigIntegerField(default=0)
+    # Client-generated random lease; only its digest is persisted. Legacy rows
+    # have no lease and cannot use the new public control protocol.
+    lease_hash = models.CharField(max_length=64, blank=True)
 
     class Meta:
         db_table = "meet_capture_session"
@@ -1156,6 +1159,119 @@ class CaptureSession(BaseModel):
             or self.record.owner_id != self.created_by_id
         ):
             raise ValidationError("Capture must belong to its audio-recording owner.")
+
+
+class CaptureOperation(BaseModel):
+    """Durable control receipt; never persist a raw capture lease."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    key = models.UUIDField()
+    capture = models.ForeignKey(CaptureSession, on_delete=models.CASCADE)
+    payload = models.JSONField()
+    result = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "key"], name="unique_capture_operation"
+            )
+        ]
+
+    def __str__(self):
+        return f"CaptureOperation({self.pk})"
+
+
+class MeetingSpeaker(BaseModel):
+    """Source-scoped offline labels never imply a user account identity."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="speakers"
+    )
+    capture_session = models.ForeignKey(CaptureSession, on_delete=models.CASCADE)
+    source_track_id = models.CharField(max_length=128)
+    source_key = models.CharField(max_length=128)
+    label = models.CharField(max_length=128)
+    identity_type = models.CharField(
+        max_length=16, choices=[("diarized", "Diarized"), ("unknown", "Unknown")]
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["capture_session", "source_track_id", "source_key"],
+                name="unique_capture_track_speaker",
+            )
+        ]
+
+    def __str__(self):
+        return f"MeetingSpeaker({self.pk})"
+
+    def clean(self):
+        """Keep source identity immutable and reject cross-record attribution."""
+        super().clean()
+        if not self._state.adding or self.capture_session.record_id != self.record_id:
+            raise ValidationError(
+                "Speaker source is immutable and must match its record."
+            )
+
+
+class MeetingOriginalSegment(BaseModel):
+    """Immutable final text for independent captures, without a placeholder Room."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="original_segments"
+    )
+    capture_session = models.ForeignKey(
+        CaptureSession, on_delete=models.CASCADE, related_name="original_segments"
+    )
+    speaker = models.ForeignKey(MeetingSpeaker, on_delete=models.RESTRICT)
+    ingest_id = models.UUIDField(unique=True)
+    source_track_id = models.CharField(max_length=128)
+    source_sequence = models.PositiveIntegerField()
+    start_ms = models.PositiveBigIntegerField()
+    end_ms = models.PositiveBigIntegerField(null=True, blank=True)
+    revision = models.PositiveIntegerField(default=1)
+    text = models.TextField()
+    language = models.CharField(max_length=16, blank=True)
+    payload_hash = models.CharField(max_length=64)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["capture_session", "source_track_id", "source_sequence"],
+                name="unique_capture_track_text_sequence",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(source_sequence__gte=1),
+                name="original_sequence_positive",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(revision=1), name="original_revision_one"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(end_ms__isnull=True)
+                | models.Q(end_ms__gte=models.F("start_ms")),
+                name="original_end_after_start",
+            ),
+        ]
+
+    def __str__(self):
+        return f"MeetingOriginalSegment({self.pk})"
+
+    def clean(self):
+        """Edits require a future revision object; never rewrite ingested originals."""
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Original segments are immutable.")
+        if (
+            self.capture_session.record_id != self.record_id
+            or self.speaker.record_id != self.record_id
+            or self.speaker.capture_session_id != self.capture_session_id
+            or self.speaker.source_track_id != self.source_track_id
+        ):
+            raise ValidationError(
+                "Original text must match its capture and speaker source."
+            )
 
 
 class MeetingMediaSegment(BaseModel):
