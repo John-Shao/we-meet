@@ -1077,6 +1077,7 @@ class Base(Configuration):
     MEETING_TRANSLATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_REVIEW_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_TASKS_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_RECORD_QA_ENABLED = values.BooleanValue(False, environ_prefix=None)
     ROOM_TRANSLATION_AGENT_NAME = values.Value("", environ_prefix=None)
     MEETING_SUMMARY_MODEL = values.Value("qwen3.8-flash", environ_prefix=None)
     MEETING_SUMMARY_BASE_URL = values.Value("https://dashscope.aliyuncs.com/compatible-mode/v1", environ_prefix=None)

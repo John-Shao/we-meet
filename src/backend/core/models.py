@@ -1538,6 +1538,36 @@ class MeetingSummaryTaskRequest(BaseModel):
         constraints = [models.UniqueConstraint(fields=["author", "key"], name="unique_summary_task_request")]
 
 
+class MeetingRecordQuestion(BaseModel):
+    """One explicit question against a fixed, authorized original-text snapshot."""
+
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE, related_name="questions")
+    snapshot = models.ForeignKey(MeetingTranscriptVersion, on_delete=models.RESTRICT)
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    key = models.UUIDField()
+    request_hash = models.CharField(max_length=64)
+    question = models.CharField(max_length=2000)
+    configuration = models.JSONField()
+    status = models.CharField(max_length=16, default="running")
+    deadline = models.DateTimeField()
+    started_at = models.DateTimeField(null=True, blank=True)
+    content = models.JSONField(default=dict, blank=True)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["requested_by", "key"], name="unique_record_question_intent")]
+
+    def clean(self):
+        super().clean()
+        if self.snapshot_id and self.snapshot.record_id != self.record_id:
+            raise ValidationError("Question snapshot must belong to the same record.")
+        if not self._state.adding:
+            frozen = ("record_id", "snapshot_id", "requested_by_id", "key", "request_hash", "question", "configuration", "deadline")
+            previous = type(self).objects.filter(pk=self.pk).values(*frozen).first()
+            if previous and any(previous[field] != getattr(self, field) for field in frozen):
+                raise ValidationError("Question source and intent are immutable.")
+
+
 class MeetingSummaryChunk(BaseModel):
     """Immutable, record-scoped extraction cache; revisions are rebound on reuse."""
 

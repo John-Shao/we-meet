@@ -1,6 +1,6 @@
 # 会议 AI 当前可部署测试范围（2026-09-13）
 
-用户负责部署和实测，本文件记录开发侧现状。新开关默认关闭，尚未执行生产迁移或修改线上配置。累计第二十三批是阶段性增量，不是完整首版交付。
+用户负责部署和实测，本文件记录开发侧现状。新开关默认关闭，尚未执行生产迁移或修改线上配置。累计第二十四批是阶段性增量，不是完整首版交付。
 
 ## 本轮建议测试
 
@@ -13,7 +13,7 @@
 
 ## 迁移与运行组件
 
-备份并按原部署流程执行 `python manage.py migrate --noinput`。本轮最新迁移为 `0161_summary_task_request_receipts`；先在测试库演练现有数据到最新版本。开发侧隔离数据库已执行通过。
+备份并按原部署流程执行 `python manage.py migrate --noinput`。本轮最新迁移为 `0162_record_questions`；先在测试库演练现有数据到最新版本。开发侧隔离数据库已执行通过。
 
 后端 API、Celery Worker、Celery Beat、转写 Agent 与翻译 Agent 需要版本一致。后台 `core.tasks.summary_versions.tick_record_summaries` 负责生成调度、超时和采集／翻译恢复；不要只部署 API 而遗漏 Beat。真实 LiveKit Webhook 必须能投影准确场次与参与设备 SID。
 
@@ -34,6 +34,7 @@
 | 私人语音翻译 | `MEETING_TRANSLATION_ENABLED`、`ROOM_TRANSLATION_AGENT_NAME`、`CELERY_ENABLED` |
 | 人工修订 | `MEETING_SUMMARY_REVIEW_ENABLED` |
 | 确认行动项转任务 | `MEETING_SUMMARY_TASKS_ENABLED`（同时需要人工修订和记录开关） |
+| 原文快照问答 | `MEETING_RECORD_QA_ENABLED`（需要记录开关和当前原文读取权限） |
 
 总结为 `MEETING_SUMMARY_MODEL=qwen3.8-flash`，`MEETING_SUMMARY_BASE_URL` 按已选地区配置。翻译为 `QWEN_TRANSLATION_MODEL=qwen3.5-livetranslate-flash-realtime`，首批 `QWEN_TRANSLATION_LANGUAGES=zh,en`，`DASHSCOPE_REGION` 与 workspace 区域一致。
 
@@ -44,7 +45,7 @@
 - 独立录音目前有控制和原文协议，真实音频采集、分片续传、断点恢复、播放器和仅文字清理仍未闭环。
 - 私人语音翻译尚不是多人／多语言频道同传，译文关联笔记和完整费用归集仍有后续工作。
 - 新版独立文档与纪要助手推送尚未接入，需先解决 Docs 远程创建的幂等／结果查询依赖；旧版文档链路不代表新版已完成。
-- 当前问答修复的是旧会中入口的权限与场次隔离；完整记录级、有严格引用的 Qwen 问答仍待实施。
+- 记录级 Qwen 问答已支持所选纪要原文快照及准确引用检查、私人提问恢复。当前为有界单轮，超过 250 KB 的原文明确拒绝，语义质量与长输入扩展仍待评测；不要将准确引用校验等同于答案内容全部正确。
 - Android、新首页全部入口及跨终端状态对齐仍按总计划推进，不能以 Web 单元测试替代真机测试。
 
 反馈时提供提交号、record/session 或 run ID、操作顺序、实际与预期、发生时间及终端环境即可；不要附带密钥。开发侧收到问题后按影响排序修复、验证、自动提交与推送。

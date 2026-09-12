@@ -2,11 +2,14 @@
 
 from rest_framework.exceptions import PermissionDenied
 
+from core import models
 from core.services.meeting_records import visible_records
 
 
 def authorized_session(room, user, *, session_id=None):
     """A join token alone grants neither historical nor persisted transcript access."""
+    if not user or not models.User.objects.filter(pk=user.pk, is_active=True).exists():
+        raise PermissionDenied("Current meeting materials are unavailable.")
     rows = visible_records(user, ability="read_transcript").filter(
         meeting_session__room=room, meeting_session__status="active"
     )

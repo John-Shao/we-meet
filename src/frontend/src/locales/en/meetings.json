@@ -1,4 +1,28 @@
 {
+  "recordQuestion": {
+    "recent": "Last 10 questions",
+    "historySource": "Historical source used by this answer",
+    "title": "Ask this record",
+    "scope": "Answers use only the selected original snapshot, excluding later additions and other meetings. Questions and answers are private to you. Each new question calls the model.",
+    "source": "Original snapshot",
+    "choose": "Choose a snapshot",
+    "question": "Your question",
+    "ask": "Submit question",
+    "retry": "Check the same request",
+    "conflict": "A question is still running, or the request conflicts. Try again shortly.",
+    "denied": "Unable to ask. Check source permissions or the source size limit.",
+    "uncertain": "The result is uncertain. Check the same request without calling the model again.",
+    "unavailable": "This question or its source is unavailable.",
+    "noEvidence": "The selected source does not contain enough evidence to answer this question.",
+    "newAttempt": "This attempt produced no usable answer. Explicitly submit a new request to try again; it may incur another model charge.",
+    "status": {
+      "running": "Answering",
+      "succeeded": "Answered",
+      "failed": "Answer failed",
+      "incomplete": "Execution timed out; result uncertain",
+      "canceled": "Source access or feature availability changed; canceled"
+    }
+  },
   "summaryTasks": {
     "title": "Convert actions to tasks",
     "explanation": "Confirmation creates a separate task. Identical action text in this record reuses the existing task. Later summary edits do not change tasks.",

@@ -89,6 +89,7 @@ from core.api.online_capture import (
 from core.api.meeting_translation import MeetingTranslationViewSet, TranslationAgentView
 from core.api.meeting_summary_review import SummaryReviewView, SummaryHistoryView
 from core.api.meeting_summary_tasks import SummaryTaskView
+from core.api.meeting_record_qa import RecordQuestionView
 from core.api.personal_calendars import (
     CalendarAccessGrantViewSet,
     CalendarPreferenceViewSet,
@@ -313,6 +314,8 @@ urlpatterns = [
                 path("meeting-records/<uuid:record_id>/human-summary/history/", SummaryHistoryView.as_view(), name="human-summary-history"),
                 path("meeting-records/<uuid:record_id>/human-summary/history/<uuid:review_id>/", SummaryHistoryView.as_view(), name="human-summary-history-detail"),
                 path("meeting-records/<uuid:record_id>/summary-tasks/", SummaryTaskView.as_view(), name="summary-tasks"),
+                path("meeting-records/<uuid:record_id>/questions/", RecordQuestionView.as_view(), name="record-questions"),
+                path("meeting-records/<uuid:record_id>/questions/<uuid:question_id>/", RecordQuestionView.as_view(), name="record-question-detail"),
                 *router.urls,
                 *oidc_urls,
                 path("directory/me/", DirectoryMeView.as_view(), name="directory_me"),

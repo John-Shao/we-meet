@@ -110,6 +110,10 @@ class LLMClient:
     def model(self) -> str:
         return self._model
 
+    def close(self) -> None:
+        """Release the per-request HTTP client after a bounded one-shot operation."""
+        self._client.close()
+
     def chat(
         self,
         *,
