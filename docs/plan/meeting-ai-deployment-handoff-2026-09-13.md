@@ -75,3 +75,8 @@ Full-original search and optional `expected_revision` are now supported; stale r
 ## Batch 37: Docs prerequisite
 
 Docs `docs-dev` commit `c4a3089a` adds migration `core.0037_server_document_creation` and keyed creation/result lookup. Apply Docs migration before Meet delivery rollout. No new Meet migration in this batch. Eight new and seven legacy Docs tests pass with converter/storage/notification mocks. Meet integration and bot delivery are still pending. See [batch 37](meeting-ai-phase3-batch17-2026-09-13.md).
+
+
+## Batch 38: dedicated Docs path
+
+Require Docs `bf2a0636` (or newer), not only the initial keyed-header commit: old replicas ignore headers, so Meet uses `/create-for-owner-idempotent/` exclusively. Client tests: 28 passed; Docs receipt tests: 9 passed. New client is not yet wired into a billable/export business path. No new migration beyond Docs 0037. See [batch 38](meeting-ai-phase3-batch18-2026-09-13.md).

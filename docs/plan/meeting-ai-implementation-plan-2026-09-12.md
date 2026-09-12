@@ -229,3 +229,6 @@ Latest implementation: [Batch 34: unified library queries](meeting-ai-phase3-bat
 
 
 [Batch 37: Docs idempotency upstream](meeting-ai-phase3-batch17-2026-09-13.md), Docs `docs-dev` commit `c4a3089a`, migration 0037. Meet delivery integration follows.
+
+
+[Batch 38: strict Docs client](meeting-ai-phase3-batch18-2026-09-13.md) uses a dedicated idempotent route; Docs `bf2a0636` fixes mixed-version replica safety. Durable delivery workflows follow.
