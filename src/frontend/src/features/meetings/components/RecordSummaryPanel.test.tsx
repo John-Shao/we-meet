@@ -111,6 +111,20 @@ beforeEach(() => {
 afterEach(() => client?.clear())
 
 describe('Versioned summary requests', () => {
+  it('keeps audio coverage unverified when observed ASR tasks have finished', async () => {
+    const fallback = mocks.fetchApi.getMockImplementation()!
+    mocks.fetchApi.mockImplementation((url, options) =>
+      url.includes('summary-versions/')
+        ? {
+            results: [{ ...version, asr_status: 'finished' }],
+            next_cursor: null,
+          }
+        : fallback(url, options)
+    )
+    show()
+    expect(await screen.findByText('recordAi.asr.finished')).toBeInTheDocument()
+    expect(screen.getByText(/recordAi.coverageUnverified/)).toBeInTheDocument()
+  })
   it('submits one explicit intent despite a double click', async () => {
     let resolve: (value: unknown) => void = () => {}
     const fallback = mocks.fetchApi.getMockImplementation()!

@@ -321,6 +321,9 @@ const Version = ({
           {t(`recordAi.delivery.${version.delivery_status}`)} ·{' '}
           {t('recordAi.coverageUnverified')}
         </Text>
+        {version.asr_status && version.asr_status !== 'unverified' && (
+          <Text variant="note">{t(`recordAi.asr.${version.asr_status}`)}</Text>
+        )}
         <Text>{version.content.overview}</Text>
         {(
           ['decisions', 'chapters', 'action_items', 'open_questions'] as const

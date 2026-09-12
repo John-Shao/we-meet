@@ -28,6 +28,11 @@
     "closeSource": "Close source",
     "sourceMissing": "The cited source is unavailable.",
     "coverageUnverified": "Full audio coverage is unverified",
+    "asr": {
+      "finished": "Recognition tails received for observed audio",
+      "incomplete": "Recognition or transcript shutdown incomplete; check for missing content",
+      "no_audio_observed": "No audio input was observed"
+    },
     "delivery": {
       "complete": "All emitted text delivered",
       "incomplete": "Text delivery incomplete",

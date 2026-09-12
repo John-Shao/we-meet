@@ -1479,6 +1479,7 @@ class TranscriptDelivery(BaseModel):
         ],
     )
     final_sequence = models.PositiveIntegerField(null=True, blank=True)
+    source_report = models.JSONField(default=dict, blank=True)
 
     class Meta:
         constraints = [

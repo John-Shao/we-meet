@@ -8,6 +8,7 @@ from django.db import transaction
 from django.utils import timezone as django_timezone
 
 from core import models
+from core.services.asr_observations import observation_status, validate_observation
 from core.services.meeting_records import RecordConflict, ensure_online_record
 
 
@@ -189,23 +190,33 @@ def finish_delivery(data):
     ).first()
     if delivery is None:
         raise RecordConflict("Unknown delivery for this session.")
+    report = validate_observation(data.get("source_report", {}))
     if delivery.state != "open":
         if (delivery.state, delivery.final_sequence) != (
             data["outcome"],
             data["final_sequence"],
         ):
             raise RecordConflict("Delivery has a different terminal manifest.")
+        if delivery.source_report != report:
+            raise RecordConflict("Delivery has a different source observation.")
         return delivery
     receipts, valid = _valid_receipts(delivery)
     if receipts and receipts[-1].sequence > data["final_sequence"]:
         raise RecordConflict("Final sequence precedes received events.")
     if data["outcome"] == "complete" and (
-        not valid or len(receipts) != data["final_sequence"]
+        not valid
+        or len(receipts) != data["final_sequence"]
+        or observation_status(report) == "incomplete"
     ):
         raise RecordConflict("Delivery has missing or changed source events.")
+    if report and report["final_sentences"] < len(receipts):
+        raise RecordConflict("Received text exceeds observed final sentences.")
     delivery.state = data["outcome"]
     delivery.final_sequence = data["final_sequence"]
-    delivery.save(update_fields=["state", "final_sequence", "updated_at"])
+    delivery.source_report = report
+    delivery.save(
+        update_fields=["state", "final_sequence", "source_report", "updated_at"]
+    )
     _bump(record)
     return delivery
 
@@ -233,6 +244,11 @@ def source_delivery(session, rows):
                 "final_sequence": delivery.final_sequence,
                 "received": len(receipts),
                 "valid": valid,
+                **(
+                    {"source_report": delivery.source_report}
+                    if delivery.source_report
+                    else {}
+                ),
             }
         )
     if not streams:

@@ -128,6 +128,7 @@ class QwenASRSession:
         self.connector = connector
         self.task_id = str(uuid.uuid4())
         self.input_samples = 0
+        self.connection_started = False
         self.provider_finished = False
         self.billed_seconds = 0.0
         self._finals = {}
@@ -157,6 +158,18 @@ class QwenASRSession:
                 "payload": payload,
             }
         )
+
+    def observation(self, stream_id):
+        """Only non-content counters leave the provider adapter."""
+        return {
+            "type": "task",
+            "stream_id": stream_id,
+            "task_id": self.task_id,
+            "finished": self.provider_finished,
+            "input_samples": self.input_samples,
+            "final_sentences": len(self._finals),
+            "billed_seconds": self.billed_seconds,
+        }
 
     def _parse(self, raw):
         event = json.loads(raw)
@@ -226,6 +239,7 @@ class QwenASRSession:
                 async for chunk in iterator:
                     yield chunk
 
+            self.connection_started = True
             async with self.connector(
                 self.config.url,
                 additional_headers={"Authorization": f"Bearer {self.config.api_key}"},
@@ -281,7 +295,7 @@ class QwenASRSession:
 class QwenSTT(stt.STT):
     """LiveKit adapter retaining source timestamps outside the simplified UI event."""
 
-    def __init__(self, config, *, on_final=None, on_failure=None):
+    def __init__(self, config, *, on_final=None, on_failure=None, on_observation=None):
         """Freeze provider selection and observation callbacks per participant."""
         super().__init__(
             capabilities=stt.STTCapabilities(streaming=True, interim_results=False)
@@ -289,6 +303,7 @@ class QwenSTT(stt.STT):
         self.config = config
         self.on_final = on_final
         self.on_failure = on_failure
+        self.on_observation = on_observation
 
     async def _recognize_impl(self, buffer, **kwargs):
         """Only realtime PCM is supported by this adapter."""
@@ -311,9 +326,16 @@ class QwenSpeechStream(stt.SpeechStream):
         self._source_offset_ms = 0.0
         self._close_lock = asyncio.Lock()
         self._closed_once = False
+        self._stream_id = str(uuid.uuid4())
+        self._observe({"type": "stream_started", "model": provider.config.model})
         super().__init__(stt=provider, conn_options=options, sample_rate=SAMPLE_RATE)
 
-    def _fail(self):
+    def _observe(self, event):
+        if self.provider.on_observation:
+            self.provider.on_observation({"stream_id": self._stream_id, **event})
+
+    def _fail(self, reason="asr_stream_failed"):
+        self._observe({"type": "failure", "code": reason})
         if self.provider.on_failure:
             self.provider.on_failure()
 
@@ -324,7 +346,7 @@ class QwenSpeechStream(stt.SpeechStream):
             frame.num_channels != 1
             or self.buffered_seconds + duration > MAX_BUFFER_SECONDS
         ):
-            self._fail()
+            self._fail("asr_buffer_exceeded")
             raise APIConnectionError("Qwen ASR input format or buffer limit exceeded")
         self.timeline.append(duration * 1000)
         self.buffered_seconds += duration
@@ -375,7 +397,11 @@ class QwenSpeechStream(stt.SpeechStream):
 
         try:
             while True:
-                await self.session.run(audio(), final)
+                try:
+                    await self.session.run(audio(), final)
+                finally:
+                    if self.session.connection_started:
+                        self._observe(self.session.observation(self._stream_id))
                 self._source_offset_ms += (
                     self.session.input_samples * 1000 / SAMPLE_RATE
                 )
@@ -388,6 +414,8 @@ class QwenSpeechStream(stt.SpeechStream):
         except Exception:
             self._fail()
             raise APIConnectionError("Qwen ASR stream did not finish") from None
+        finally:
+            self._observe({"type": "stream_finished"})
 
     async def aclose(self):
         """Wait for final provider output before canceling the SDK reader."""

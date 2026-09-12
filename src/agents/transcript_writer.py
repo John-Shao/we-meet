@@ -25,6 +25,8 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
+from asr_observer import ASRObserver
+
 logger = logging.getLogger("transcript-writer")
 
 _MAX_ATTEMPTS = 3
@@ -46,6 +48,12 @@ class TranscriptWriter:
         self._sequence = 0
         self._failed = False
         self._closed = False
+        self._asr = ASRObserver()
+        self._terminal_payload = None
+
+    def observe_asr(self, event):
+        """Record provider observations separately from text delivery sequences."""
+        self._asr.observe(event)
 
     async def begin_delivery(self, room_id: str, livekit_room_sid: str) -> bool:
         """Register one run before processing events; unknown sessions fail closed."""
@@ -82,13 +90,24 @@ class TranscriptWriter:
         self._closed = True
         if self._delivery is None:
             return False
-        payload = {
-            **self._delivery,
-            "action": "finish",
-            "final_sequence": self._sequence,
-            "outcome": "incomplete" if self._failed else "complete",
-        }
-        return await self._send(payload, control=True)
+        if self._terminal_payload is None:
+            report = self._asr.manifest(pipeline_failed=self._failed)
+            incomplete = self._failed or bool(
+                report
+                and (
+                    report["errors"]
+                    or report["streams_started"] != report["streams_finished"]
+                    or report["tasks_started"] != report["tasks_finished"]
+                )
+            )
+            self._terminal_payload = {
+                **self._delivery,
+                "action": "finish",
+                "final_sequence": self._sequence,
+                "outcome": "incomplete" if incomplete else "complete",
+                **({"source_report": report} if report else {}),
+            }
+        return await self._send(self._terminal_payload, control=True)
 
     @classmethod
     def from_env(cls) -> "TranscriptWriter":

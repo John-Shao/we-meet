@@ -28,6 +28,11 @@
     "closeSource": "关闭原文",
     "sourceMissing": "这条引用的原文暂不可用。",
     "coverageUnverified": "整场音频覆盖尚未验证",
+    "asr": {
+      "finished": "已观察音频的识别尾段已收齐",
+      "incomplete": "识别或原文收尾异常，请核对缺失内容",
+      "no_audio_observed": "未观察到音频输入"
+    },
     "delivery": {
       "complete": "已输出文字全部送达",
       "incomplete": "文字送达尚不完整",

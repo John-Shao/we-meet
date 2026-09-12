@@ -307,6 +307,13 @@ class _DeliverySerializer(serializers.Serializer):
     outcome = serializers.ChoiceField(
         choices=["complete", "incomplete"], required=False
     )
+    source_report = serializers.JSONField(required=False)
+
+    def validate(self, attrs):
+        """Reports are sealed only with the final manifest, never before capture."""
+        if "source_report" in attrs and attrs["action"] != "finish":
+            raise serializers.ValidationError("Source reports require finish.")
+        return attrs
 
 
 class TranscriptDeliveryView(APIView):

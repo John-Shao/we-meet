@@ -53,7 +53,7 @@ async def _get_livekit_room_sid(room: rtc.Room) -> str:
     return room_sid or ""
 
 
-def create_stt_provider(*, on_final=None, on_failure=None):
+def create_stt_provider(*, on_final=None, on_failure=None, on_observation=None):
     """Create STT provider based on environment configuration."""
     if STT_PROVIDER == "deepgram":
         # Note: Not all Deepgram API parameters are supported by the LiveKit plugin
@@ -65,7 +65,10 @@ def create_stt_provider(*, on_final=None, on_failure=None):
         )
     elif STT_PROVIDER == "qwen":
         _stt_instance = QwenSTT(
-            QwenASRConfig.from_env(), on_final=on_final, on_failure=on_failure
+            QwenASRConfig.from_env(),
+            on_final=on_final,
+            on_failure=on_failure,
+            on_observation=on_observation,
         )
     elif STT_PROVIDER == "kyutai":
         _stt_instance = kyutai.STT(base_url=os.getenv("KYUTAI_STT_BASE_URL"))
@@ -88,9 +91,18 @@ def create_stt_provider(*, on_final=None, on_failure=None):
 class Transcriber(Agent):
     """Create a transcription agent for a specific participant."""
 
-    def __init__(self, *, participant_identity: str, on_final=None, on_failure=None):
+    def __init__(
+        self,
+        *,
+        participant_identity: str,
+        on_final=None,
+        on_failure=None,
+        on_observation=None,
+    ):
         """Init transcription agent."""
-        stt = create_stt_provider(on_final=on_final, on_failure=on_failure)
+        stt = create_stt_provider(
+            on_final=on_final, on_failure=on_failure, on_observation=on_observation
+        )
 
         super().__init__(
             instructions="not-needed",
@@ -374,6 +386,7 @@ class MultiUserTranscriber:
                 participant_identity=participant.identity,
                 on_final=_on_qwen_final,
                 on_failure=writer.mark_incomplete,
+                on_observation=writer.observe_asr,
             )
         )
         return session

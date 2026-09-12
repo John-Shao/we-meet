@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 
 from core import models
+from core.services.asr_observations import observation_status, snapshot_asr_status
 from core.services.meeting_records import (
     RecordConflict,
     filter_record_scope,
@@ -350,6 +351,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "delivery_status": version.input_snapshot.delivery.get(
                         "status", "unverified"
                     ),
+                    "asr_status": snapshot_asr_status(version.input_snapshot.delivery),
                     "model_used": version.model_used,
                     "created_at": version.created_at,
                     "input_revision": version.input_snapshot.revision,
@@ -432,6 +434,34 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "speaker_label": row.speaker.label,
                     "text": row.text,
                     "language": row.language,
+                }
+                for row in page
+            ]
+        )
+
+    @action(detail=True, methods=["get"], url_path="source-status")
+    def source_status(self, request, pk=None):
+        """Read bounded source observations without exposing transcript material."""
+        record = self._content_record("read_summary")
+        rows = (
+            models.TranscriptDelivery.objects.filter(
+                session_id=record.meeting_session_id
+            )
+            if record.meeting_session_id
+            else models.TranscriptDelivery.objects.none()
+        )
+        pager = RecordPagination()
+        pager.ordering = ("created_at", "id")
+        page = pager.paginate_queryset(rows, request, view=self)
+        return pager.get_paginated_response(
+            [
+                {
+                    "id": str(row.pk),
+                    "reported_delivery_status": row.state,
+                    "asr_status": observation_status(row.source_report),
+                    "source_report": row.source_report,
+                    "coverage_status": "unverified",
+                    "source_scope": "agent_observed_audio",
                 }
                 for row in page
             ]

@@ -7,6 +7,7 @@ from unittest import mock
 
 from livekit import rtc
 
+from asr_observer import ASRObserver
 from plugins.qwen_asr import (
     AudioTimeline,
     DirectConnect,
@@ -233,8 +234,14 @@ class QwenLiveKitTests(unittest.IsolatedAsyncioTestCase):
         socket = FakeSocket()
         protocol = QwenASRSession(config, connector=mock.Mock(return_value=socket))
         callback, failure = mock.Mock(), mock.Mock()
+        observer = ASRObserver()
         with mock.patch("plugins.qwen_asr.QwenASRSession", return_value=protocol):
-            stream = QwenSTT(config, on_final=callback, on_failure=failure).stream()
+            stream = QwenSTT(
+                config,
+                on_final=callback,
+                on_failure=failure,
+                on_observation=observer.observe,
+            ).stream()
         self.assertEqual(stream._conn_options.max_retry, 0)
         stream.push_frame(rtc.AudioFrame(b"\x00" * 9600, 48000, 1, 4800))
         await asyncio.gather(stream.aclose(), stream.aclose())
@@ -242,6 +249,10 @@ class QwenLiveKitTests(unittest.IsolatedAsyncioTestCase):
         callback.assert_called_once()
         failure.assert_not_called()
         self.assertEqual(protocol.input_samples, 1600)
+        self.assertEqual(observer.manifest()["tasks_finished"], 1)
+        self.assertEqual(observer.manifest()["streams_finished"], 1)
+        self.assertEqual(observer.manifest()["input_samples"], 1600)
+        self.assertEqual(observer.manifest()["errors"], [])
         sentence, start, end = callback.call_args.args
         self.assertAlmostEqual(
             (end - start).total_seconds(), (sentence.end_ms - sentence.start_ms) / 1000
