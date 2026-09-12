@@ -4,6 +4,7 @@ import hashlib
 import html
 import json
 import re
+from functools import partial
 from urllib.parse import urlsplit
 
 from django.conf import settings
@@ -150,6 +151,12 @@ def serialize(export):
     }
 
 
+def _dispatch(export_id):
+    from core.services.summary_export_delivery import dispatch_export  # noqa: PLC0415
+
+    return dispatch_export(export_id)
+
+
 @transaction.atomic
 def request_export(record_id, user, key, selection, expected_hash):
     """One document per selected version/owner/language; all retries reuse its key."""
@@ -168,6 +175,7 @@ def request_export(record_id, user, key, selection, expected_hash):
     if previous:
         if previous.request_hash != request_hash:
             raise RecordConflict("Export request key conflicts.")
+        transaction.on_commit(partial(_dispatch, previous.export_id), robust=True)
         return previous.export, True
     if not available():
         raise PermissionError
@@ -205,4 +213,5 @@ def request_export(record_id, user, key, selection, expected_hash):
         export=export,
         attempt=export.attempt,
     )
+    transaction.on_commit(partial(_dispatch, export.pk), robust=True)
     return export, False

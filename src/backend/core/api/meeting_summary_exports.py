@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 
 from core.services import meeting_summary_exports as service
 from core.services.meeting_records import RecordConflict, visible_records
+from core.services.summary_export_delivery import retry_export
 
 
 class ExportSelection(serializers.Serializer):
@@ -128,4 +129,57 @@ class SummaryExportPreviewView(SummaryExportView):
                 "payload_hash": service.digest(payload),
                 **selection.validated_data,
             }
+        )
+
+
+class RetrySelection(serializers.Serializer):
+    expected_attempt = serializers.IntegerField(min_value=1, max_value=20)
+    expected_hash = serializers.RegexField(r"^[a-f0-9]{64}$")
+
+    def validate(self, attrs):
+        if set(self.initial_data) - set(self.fields):
+            raise serializers.ValidationError("Unsupported retry field.")
+        return attrs
+
+
+class SummaryExportRetryView(SummaryExportView):
+    """Preview the frozen copy, then explicitly recover the same remote request."""
+
+    def get(self, request, record_id, export_id):
+        record = self.record(request, record_id)
+        if not service.can_export(record, request.user):
+            return Response(status=403)
+        export = get_object_or_404(
+            record.document_exports, pk=export_id, requested_by=request.user
+        )
+        self.record(request, record_id)
+        return Response(
+            {
+                "export": service.serialize(export),
+                "title": export.payload["title"],
+                "markdown": export.payload["content"],
+                "payload_hash": export.payload_hash,
+            }
+        )
+
+    def post(self, request, record_id, export_id):
+        self.record(request, record_id)
+        selection = RetrySelection(data=request.data)
+        selection.is_valid(raise_exception=True)
+        key = serializers.UUIDField().run_validation(
+            request.headers.get("Idempotency-Key")
+        )
+        try:
+            export, replayed = retry_export(
+                record_id, export_id, request.user, key, **selection.validated_data
+            )
+        except PermissionError:
+            return Response(status=403)
+        except (RecordConflict, IntegrityError, ModelValidationError):
+            return Response({"code": "export_conflict"}, status=409)
+        except ValueError:
+            return Response({"code": "export_configuration_changed"}, status=409)
+        self.record(request, record_id)
+        return Response(
+            {"export": service.serialize(export), "replayed": replayed}, status=202
         )

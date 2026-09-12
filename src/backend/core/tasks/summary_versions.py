@@ -5,6 +5,7 @@ from core.services.meeting_summary_automation import tick_automations
 from core.services.meeting_summary_versions import execute_summary_job
 from core.services.meeting_translation import tick_translations
 from core.services.online_capture import tick_captures
+from core.services.summary_export_delivery import tick_exports
 from core.tasks._task import task
 
 
@@ -20,4 +21,5 @@ def tick_record_summaries():
     tick_captures()
     tick_translations()
     tick_transcriptions()
+    tick_exports()
     return tick_automations()

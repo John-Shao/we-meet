@@ -96,7 +96,11 @@ from core.api.meeting_rooms import (
     MeetingRoomNodeViewSet,
     MeetingRoomViewSet,
 )
-from core.api.meeting_summary_exports import SummaryExportPreviewView, SummaryExportView
+from core.api.meeting_summary_exports import (
+    SummaryExportPreviewView,
+    SummaryExportRetryView,
+    SummaryExportView,
+)
 from core.api.meeting_summary_review import SummaryHistoryView, SummaryReviewView
 from core.api.meeting_summary_tasks import SummaryTaskView
 from core.api.meeting_translation import MeetingTranslationViewSet, TranslationAgentView
@@ -334,6 +338,7 @@ urlpatterns = [
                 path("meeting-records/<uuid:record_id>/human-summary/", SummaryReviewView.as_view(), name="human-summary"),
                 path("meeting-records/<uuid:record_id>/document-exports/", SummaryExportView.as_view(), name="summary-exports"),
                 path("meeting-records/<uuid:record_id>/document-exports/preview/", SummaryExportPreviewView.as_view(), name="summary-export-preview"),
+                path("meeting-records/<uuid:record_id>/document-exports/<uuid:export_id>/retry/", SummaryExportRetryView.as_view(), name="summary-export-retry"),
                 path("meeting-records/<uuid:record_id>/human-summary/history/", SummaryHistoryView.as_view(), name="human-summary-history"),
                 path("meeting-records/<uuid:record_id>/human-summary/history/<uuid:review_id>/", SummaryHistoryView.as_view(), name="human-summary-history-detail"),
                 path("meeting-records/<uuid:record_id>/summary-tasks/", SummaryTaskView.as_view(), name="summary-tasks"),
