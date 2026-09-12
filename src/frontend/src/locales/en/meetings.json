@@ -26,6 +26,10 @@
     "status": { "todo": "To do", "completed": "Completed" }
   },
   "humanReview": {
+    "history": "View human revision history",
+    "closeHistory": "Close revision history",
+    "historyVersion": "Human revision {{revision}}",
+    "historyReadOnly": "Historical revisions are read-only and cite their original snapshot. Return to the current revision to create tasks.",
     "title": "Human-reviewed minutes",
     "explanation": "Human revisions are preserved separately. AI regeneration cannot overwrite this draft. Saving does not create tasks.",
     "edit": "Edit human revision",

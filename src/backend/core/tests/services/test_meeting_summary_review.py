@@ -197,3 +197,35 @@ def test_concurrent_edits_cannot_overwrite_each_other():
         results = list(pool.map(lambda _: save(), range(2)))
     assert sorted(results) == ["conflict", "saved"]
     assert record.summary_reviews.count() == 1
+
+
+def test_history_is_bounded_read_only_and_record_scoped(settings):
+    user, record, _, base = fixture()
+    for revision in range(12):
+        service.save_review(
+            record.pk, user, uuid.uuid4(), payload(base, revision=revision)
+        )
+    client = client_for(user)
+    url = f"/api/v1.0/meeting-records/{record.pk}/human-summary/history/"
+    first = client.get(url).json()
+    assert [row["revision"] for row in first["results"]] == list(range(12, 2, -1))
+    assert first["next_before"] == 3
+    assert "content" not in first["results"][0]
+    second = client.get(url, {"before": 3}).json()
+    assert [row["revision"] for row in second["results"]] == [2, 1]
+    assert second["next_before"] is None
+    review_id = second["results"][1]["id"]
+    detail_url = f"{url}{review_id}/"
+    settings.MEETING_SUMMARY_REVIEW_ENABLED = False
+    detail = client.get(detail_url).json()
+    assert detail["revision"] == 1 and detail["origin"] == "human"
+    assert detail["input_snapshot_id"] == str(base.input_snapshot_id)
+    assert client.post(detail_url, {}, format="json").status_code == 405
+    assert client.get(url, {"before": "invalid"}).status_code == 400
+    _, _, _, other_record = online_note(user=user, room=record.meeting_session.room)
+    other_url = f"/api/v1.0/meeting-records/{other_record.pk}/human-summary/history/{review_id}/"
+    assert client.get(other_url).status_code == 404
+    models.ResourceAccess.objects.filter(
+        resource_id=record.meeting_session.room_id, user=user
+    ).delete()
+    assert client.get(detail_url).status_code == 404

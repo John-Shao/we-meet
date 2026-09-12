@@ -26,6 +26,10 @@
     "status": { "todo": "待完成", "completed": "已完成" }
   },
   "humanReview": {
+    "history": "查看人工修订历史",
+    "closeHistory": "收起修订历史",
+    "historyVersion": "人工修订 {{revision}}",
+    "historyReadOnly": "历史版本只读，引用对应当时的原文快照。创建任务请返回最新人工稿。",
     "title": "人工修订纪要",
     "explanation": "人工修订单独保留。AI 后续生成不会覆盖此稿；保存纪要不会自动创建任务。",
     "edit": "编辑人工稿",

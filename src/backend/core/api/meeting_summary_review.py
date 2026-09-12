@@ -72,3 +72,36 @@ class SummaryReviewView(APIView):
                 "replayed": replayed,
             }
         )
+
+
+class SummaryHistoryView(SummaryReviewView):
+    """Bounded immutable history, always rechecking the current record read grant."""
+
+    http_method_names = ["get", "head", "options"]
+
+    def get(self, request, record_id, review_id=None):
+        record = self.record(request, record_id)
+        if review_id is not None:
+            review = get_object_or_404(
+                record.summary_reviews.select_related("base_summary__input_snapshot"),
+                pk=review_id,
+            )
+            return Response(service.serialize(review))
+        rows = record.summary_reviews.all()
+        before = request.query_params.get("before")
+        if before is not None:
+            if (
+                not before.isascii()
+                or not before.isdecimal()
+                or len(before) > 10
+                or int(before) < 1
+            ):
+                return Response({"detail": "Invalid history cursor."}, status=400)
+            rows = rows.filter(revision__lt=int(before))
+        page = list(rows.values("id", "revision", "base_summary_id", "created_at")[:11])
+        return Response(
+            {
+                "results": page[:10],
+                "next_before": page[9]["revision"] if len(page) > 10 else None,
+            }
+        )

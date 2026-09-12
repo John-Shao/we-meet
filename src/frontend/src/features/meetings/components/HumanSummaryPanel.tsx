@@ -11,6 +11,7 @@ import type {
   RecordSourceReference,
 } from '../api/ApiMeetingRecord'
 import { SummaryTaskActions } from './SummaryTaskActions'
+import { HumanSummaryHistory } from './HumanSummaryHistory'
 
 type Content = ApiRecordSummaryVersion['content']
 type Review = {
@@ -375,6 +376,14 @@ export const HumanSummaryPanel = ({
           viewerId={viewerId}
           reviewId={current.id}
           actions={current.content.action_items}
+        />
+      )}
+      {!draft && current && (
+        <HumanSummaryHistory
+          recordId={recordId}
+          viewerId={viewerId}
+          currentId={current.id}
+          onSource={onSource}
         />
       )}
       {message && <div role="status">{t(message)}</div>}
