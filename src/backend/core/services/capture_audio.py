@@ -63,15 +63,17 @@ def validate_wave(data):
         raise ValueError("Invalid WAV file.") from exc
 
 
-def locked_capture(capture_id, user, lease, device):
+def locked_capture(capture_id, user, lease, device, *, finishing=False):
     """Use the same lock order and current ownership/lease gates as capture commands."""
     models.User.objects.select_for_update().get(pk=user.pk)
     capture = models.CaptureSession.objects.get(pk=capture_id)
     record = models.MeetingRecord.objects.select_for_update().get(pk=capture.record_id)
     capture.refresh_from_db()
-    authorize(record, user)
+    authorize(record, user, allow_disabled=finishing)
     check_lease(capture, lease, device)
-    if not settings.MEETING_CAPTURE_AUDIO_ENABLED or record.retention_mode != "media":
+    if (
+        not settings.MEETING_CAPTURE_AUDIO_ENABLED and not finishing
+    ) or record.retention_mode != "media":
         raise CaptureDenied
     return capture
 
@@ -211,7 +213,9 @@ def store(chunk_id, user, lease, device, audio):
 @transaction.atomic
 def seal(capture_id, user, lease, payload):
     """Finalize declared storage delivery independently of ASR or the capture state."""
-    capture = locked_capture(capture_id, user, lease, payload["device_id"])
+    capture = locked_capture(
+        capture_id, user, lease, payload["device_id"], finishing=True
+    )
     existing = getattr(capture, "audio_manifest", None)
     if existing:
         if existing.final_sequence != payload["final_sequence"]:

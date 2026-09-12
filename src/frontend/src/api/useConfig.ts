@@ -9,6 +9,7 @@ export interface ApiConfig {
   meeting_records?: {
     enabled: boolean
     summary_requests_enabled: boolean
+    capture_audio_enabled?: boolean
   }
   analytics?: {
     id: string

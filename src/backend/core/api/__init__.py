@@ -71,6 +71,11 @@ def get_frontend_configuration(request):
         "search_ai": {"enabled": settings.GLOBAL_SEARCH_AI_ENABLED},
         "meeting_records": {
             "enabled": settings.MEETING_RECORDS_ENABLED,
+            "capture_audio_enabled": bool(
+                settings.MEETING_RECORDS_ENABLED
+                and settings.MEETING_CAPTURE_PROTOCOL_ENABLED
+                and settings.MEETING_CAPTURE_AUDIO_ENABLED
+            ),
             "summary_requests_enabled": bool(
                 settings.MEETING_RECORDS_ENABLED
                 and settings.MEETING_VERSIONED_SUMMARY_ENABLED

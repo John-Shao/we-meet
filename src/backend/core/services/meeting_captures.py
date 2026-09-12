@@ -72,11 +72,11 @@ def stored_original_fingerprint(segment):
     )
 
 
-def authorize(record, user):
+def authorize(record, user, *, allow_disabled=False):
     """Re-read account and membership for each control or ingestion operation."""
     fresh = models.User.objects.get(pk=user.pk)
     if (
-        not captures_enabled()
+        (not captures_enabled() and not allow_disabled)
         or record.source_type != models.MeetingRecord.Source.AUDIO
         or record.owner_id != fresh.pk
         or not visible_records(fresh, ability="read_transcript")
@@ -206,7 +206,11 @@ def command_capture(capture_id, user, key, lease_key, data):
     capture = models.CaptureSession.objects.get(pk=capture_id)
     record = models.MeetingRecord.objects.select_for_update().get(pk=capture.record_id)
     capture.refresh_from_db()
-    authorize(record, user)
+    authorize(
+        record,
+        user,
+        allow_disabled=data["command"] in {"stop", "finalize", "interrupt"},
+    )
     check_lease(capture, lease_key, data["device_id"])
     payload = {
         "capture_id": str(capture.pk),

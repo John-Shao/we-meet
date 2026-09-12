@@ -71,7 +71,11 @@ class CaptureProtocolMixin:
     """Fail closed and prevent browser/proxy caching of leases or original text."""
 
     def initial(self, request, *args, **kwargs):
-        if not captures_enabled():
+        if not captures_enabled() and getattr(self, "action", None) not in {
+            "retrieve",
+            "commands",
+            "transcript_receipts",
+        }:
             raise Http404
         return super().initial(request, *args, **kwargs)
 
@@ -111,6 +115,10 @@ class CaptureSessionViewSet(CaptureProtocolMixin, viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        if not models.User.objects.filter(
+            pk=self.request.user.pk, is_active=True
+        ).exists():
+            return models.CaptureSession.objects.none()
         return models.CaptureSession.objects.filter(
             created_by=self.request.user,
             record_id__in=visible_records(self.request.user, ability="read_transcript")

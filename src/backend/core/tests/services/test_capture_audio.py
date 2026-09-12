@@ -206,3 +206,17 @@ def test_owner_lease_retention_and_current_account_are_required(settings):
     settings.MEETING_CAPTURE_AUDIO_ENABLED = True
     user2, body2, capture2 = recording("text")
     assert upload(user2, body2, capture2).status_code == 403
+
+
+def test_disabled_rollout_allows_existing_audio_to_finish_without_new_capture(settings):
+    user, body, capture = recording()
+    assert upload(user, body, capture).status_code == 200
+    settings.MEETING_RECORDS_ENABLED = False
+    settings.MEETING_CAPTURE_PROTOCOL_ENABLED = False
+    settings.MEETING_CAPTURE_AUDIO_ENABLED = False
+    assert client_for(user).get(f"{ROOT}{capture.pk}/").status_code == 200
+    assert command(user, body, capture, "pause").status_code == 403
+    assert upload(user, body, capture, sequence=2, start_ms=1000).status_code == 403
+    assert command(user, body, capture, "stop").status_code == 200
+    assert seal(user, body, capture, 2).data["outcome"] == "incomplete"
+    assert command(user, body, capture, "finalize").status_code == 200

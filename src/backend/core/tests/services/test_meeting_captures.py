@@ -460,7 +460,8 @@ def test_flags_validation_and_missing_auth(settings):
         == 400
     )
     settings.MEETING_CAPTURE_PROTOCOL_ENABLED = False
-    assert client.get(f"{ROOT}{capture.pk}/").status_code == 404
+    assert client.get(f"{ROOT}{capture.pk}/").status_code == 200
+    assert client.post(ROOT, body, format="json").status_code == 404
     assert grant(body, capture).status_code == 404
     assert (
         client.get(
