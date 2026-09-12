@@ -14,6 +14,7 @@ from core.services.meeting_records import (
 )
 from core.services.meeting_summary_versions import (
     prepare_summary_job,
+    requester_is_authorized,
     source_is_current,
 )
 
@@ -69,6 +70,14 @@ def request_summary(record_id, user, key, payload):
                 "Retry source has changed; generate from current text."
             )
         job = retry_job(latest.pk)
+        # An explicit user retry is a new manual attempt, just like regenerate.
+        # It must not inherit a disabled/superseded automation consent fence.
+        job.configuration = {
+            key: value
+            for key, value in job.configuration.items()
+            if key not in {"automation_id", "automation_revision"}
+        }
+        job.save(update_fields=["configuration", "updated_at"])
     else:
         # Do not let a second browser supersede an in-flight provider call.
         if (
@@ -123,7 +132,9 @@ def dispatch_summary_request(request_id):
     if request.dispatch_state != "pending":
         return False
     job = request.job
-    authorized = can_generate_summary(record, request.user)
+    authorized = can_generate_summary(record, request.user) and requester_is_authorized(
+        job
+    )
     if (
         job.status != "queued"
         or job.attempt != request.attempt

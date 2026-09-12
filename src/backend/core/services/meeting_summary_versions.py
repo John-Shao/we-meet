@@ -122,7 +122,9 @@ def _stage_readiness(record, segments, delivery, latest):
             stages.append("final")
         return {"ready_stages": stages, "next_update_at": None}
     previous = (
-        latest.input_snapshot.segments if latest and latest.input_snapshot else []
+        latest.input_snapshot.segments
+        if latest and latest.input_snapshot and latest.status != "canceled"
+        else []
     )
     old = {row["segment_id"]: row["text"] for row in previous}
     added_bytes = sum(
@@ -172,6 +174,7 @@ def prepare_summary_job(record_id, *, regenerate=False, stage="final"):
     if (
         not regenerate
         and previous
+        and previous.status != "canceled"
         and previous.configuration.get("stage", "final") == stage
         and previous.input_snapshot
         and previous.input_snapshot.fingerprint == fingerprint
@@ -185,7 +188,10 @@ def prepare_summary_job(record_id, *, regenerate=False, stage="final"):
         raise RecordConflict(
             "Wait for stable source text or source closure for this stage."
         )
-    if previous and previous.configuration.get("stage", "final") != stage:
+    if previous and (
+        previous.configuration.get("stage", "final") != stage
+        or previous.status == "canceled"
+    ):
         regenerate = True
     latest = record.transcript_versions.order_by("-revision").first()
     if (
@@ -267,6 +273,19 @@ def requester_is_authorized(job):
     if (
         job.configuration.get("stage", "final") != "final"
         and not settings.MEETING_STAGED_SUMMARY_ENABLED
+    ):
+        return False
+    automation_id = job.configuration.get("automation_id")
+    if automation_id and (
+        not settings.MEETING_SUMMARY_AUTOMATION_ENABLED
+        or not settings.MEETING_STAGED_SUMMARY_ENABLED
+        or not models.MeetingSummaryAutomation.objects.filter(
+            pk=automation_id,
+            record_id=job.record_id,
+            enabled=True,
+            revision=job.configuration.get("automation_revision"),
+            requested_by_id=job.configuration.get("requested_by"),
+        ).exists()
     ):
         return False
     user_id = job.configuration.get("requested_by")

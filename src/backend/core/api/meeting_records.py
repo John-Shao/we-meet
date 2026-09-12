@@ -17,9 +17,15 @@ from core import models
 from core.services.asr_observations import observation_status, snapshot_asr_status
 from core.services.meeting_records import (
     RecordConflict,
+    can_generate_summary,
     filter_record_scope,
     record_capabilities,
     visible_records,
+)
+from core.services.meeting_summary_automation import (
+    automation_enabled,
+    control_automation,
+    serialize_automation,
 )
 from core.services.meeting_summary_requests import (
     SummaryRequestDenied,
@@ -55,6 +61,18 @@ class SummaryRequestSerializer(serializers.Serializer):
             raise ValidationError("Job ID and attempt must be supplied together.")
         if attrs["expected_job_id"] is not None:
             attrs["expected_job_id"] = str(attrs["expected_job_id"])
+        return attrs
+
+
+class SummaryAutomationSerializer(serializers.Serializer):
+    """An explicit generation toggle, unrelated to microphone or cloud recording."""
+
+    enabled = serializers.BooleanField()
+    expected_revision = serializers.IntegerField(min_value=0)
+
+    def validate(self, attrs):
+        if set(self.initial_data) - set(self.fields):
+            raise ValidationError("Unsupported automation field.")
         return attrs
 
 
@@ -158,6 +176,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         return (
             [SummaryRequestThrottle()]
             if self.action == "summary_requests"
+            or (self.action == "summary_automation" and self.request.method == "POST")
             else super().get_throttles()
         )
 
@@ -278,6 +297,49 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 "generation_ready": "final" in readiness["ready_stages"],
                 "staged_summaries_enabled": settings.MEETING_STAGED_SUMMARY_ENABLED,
                 **readiness,
+            }
+        )
+
+    @action(detail=True, methods=["get", "post"], url_path="summary-automation")
+    def summary_automation(self, request, pk=None):
+        """Read or change automatic generation consent; stopping remains available."""
+        record = self._content_record("read_summary")
+        current = models.MeetingSummaryAutomation.objects.filter(record=record).first()
+        if request.method == "GET":
+            return Response(
+                {
+                    **serialize_automation(current),
+                    "available": automation_enabled(),
+                    "can_control": can_generate_summary(record, request.user),
+                }
+            )
+        key = serializers.UUIDField().run_validation(
+            request.headers.get("Idempotency-Key")
+        )
+        serializer = SummaryAutomationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            command, current, replay = control_automation(
+                record.pk, request.user, key, serializer.validated_data
+            )
+        except SummaryRequestDenied as exc:
+            raise PermissionDenied(
+                "Only current meeting managers can control automatic summaries."
+            ) from exc
+        except (RecordConflict, IntegrityError, ModelValidationError):
+            return Response(
+                {
+                    "code": "automation_conflict",
+                    "message": "Refresh automation before changing it.",
+                },
+                status=409,
+            )
+        return Response(
+            {
+                "command_id": str(command.pk),
+                "replayed": replay,
+                "result": command.result,
+                "current": serialize_automation(current),
             }
         )
 

@@ -20,6 +20,7 @@ import type {
   RecordSourceReference,
   SummaryStage,
 } from '../api/ApiMeetingRecord'
+import { SummaryAutomationControl } from './SummaryAutomationControl'
 
 const stack = css({ display: 'flex', flexDirection: 'column', gap: '1rem' })
 
@@ -199,6 +200,7 @@ export const RecordSummaryPanel = ({
     <div className={stack}>
       <H lvl={2}>{detail.data.title}</H>
       <Text>{new Date(detail.data.origin_at).toLocaleString()}</Text>
+      <SummaryAutomationControl recordId={recordId} viewerId={viewerId} />
       {job && (
         <div role="status">
           {t(`recordAi.status.${job.status}`)}

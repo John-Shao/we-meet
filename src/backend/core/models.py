@@ -1465,6 +1465,45 @@ class MeetingSummaryVersion(BaseModel):
             raise ValidationError("Summary input must match the job and record.")
 
 
+class MeetingSummaryAutomation(BaseModel):
+    """Explicit user consent and revision fence for automatic summary generation."""
+
+    record = models.OneToOneField(
+        MeetingRecord, on_delete=models.CASCADE, related_name="summary_automation"
+    )
+    requested_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="summary_automations"
+    )
+    enabled = models.BooleanField(default=False)
+    revision = models.PositiveIntegerField(default=1)
+    state = models.CharField(max_length=32, default="off")
+    error_code = models.CharField(max_length=64, blank=True)
+    checked_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"SummaryAutomation({self.record_id}, {self.revision})"
+
+
+class MeetingSummaryAutomationCommand(BaseModel):
+    """Replay a toggle intent without applying it again after a newer command."""
+
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    key = models.UUIDField()
+    payload = models.JSONField()
+    result = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "key"], name="unique_summary_automation_command"
+            )
+        ]
+
+    def __str__(self):
+        return f"SummaryAutomationCommand({self.pk})"
+
+
 class TranscriptDelivery(BaseModel):
     """One agent run's delivery ledger, not proof of full audio recognition."""
 

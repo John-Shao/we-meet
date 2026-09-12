@@ -65,7 +65,20 @@
     "waitForStableSource": "Waiting for more stable text or recognition tail closure before updating.",
     "nextUpdate": "Next update available no earlier than {{time}}",
     "provisional": "This draft uses text received at that time. Later speech may change the conclusions.",
-    "observedThrough": "Latest received text time: {{time}} (earlier audio coverage is not guaranteed)"
+    "observedThrough": "Latest received text time: {{time}} (earlier audio coverage is not guaranteed)",
+    "automation": {
+      "title": "Automatic summaries",
+      "description": "When enabled, the server periodically summarizes received text and generates a recap and minutes after the meeting. This uses AI quota. This switch only controls summary generation.",
+      "start": "Enable automatic summaries",
+      "stop": "Disable automatic summaries",
+      "state": {
+        "off": "Automatic summaries are off",
+        "waiting": "Waiting for more text or recognition closure",
+        "generating": "Generating automatic summary",
+        "completed": "Post-meeting minutes generated",
+        "needs_attention": "Generation needs attention. Review the status and retry manually."
+      }
+    }
   },
   "pageTitle": "Meeting detail",
   "loading": "Loading…",
