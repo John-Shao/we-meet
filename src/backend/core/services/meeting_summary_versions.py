@@ -70,13 +70,31 @@ class SummarySourceBudget(RecordConflict):
     """A source cannot be processed within the documented bounded input plan."""
 
 
+def capture_run_id(record):
+    """Freeze the latest recording window so drafts cannot survive a new start."""
+    value = (
+        record.online_captures.order_by("-created_at", "-id")
+        .values_list("pk", flat=True)
+        .first()
+    )
+    return str(value) if value else None
+
+
+def _source_ended(record):
+    """A stopped recording can produce minutes while its online meeting continues."""
+    run = record.online_captures.order_by("-created_at", "-id").first()
+    return record.meeting_session.status == models.MeetingSession.Status.ENDED or bool(
+        run and run.state in ("stopping", "stopped", "incomplete")
+    )
+
+
 def _source_input(record, *, require_ended=True, enforce_budget=True):
     """Read all confirmed legacy rows, never truncate or choose another session."""
     session = record.meeting_session
     if session is None or session.room.organization_id != record.organization_id:
         raise RecordConflict("Source is unavailable or changed organization.")
-    if require_ended and session.status != models.MeetingSession.Status.ENDED:
-        raise RecordConflict("Final summaries require an ended session.")
+    if require_ended and not _source_ended(record):
+        raise RecordConflict("Summary requires an ended session or stopped capture.")
     segments = []
     rows = list(
         models.Transcript.objects.filter(session=session, room=session.room).order_by(
@@ -135,12 +153,23 @@ def source_payload(record, *, require_ended=True):
 
 def _stage_readiness(record, segments, delivery, latest):
     """Coalesce stable text and distinguish meeting end from provider tail closure."""
-    ended = record.meeting_session.status == models.MeetingSession.Status.ENDED
+    ended = _source_ended(record)
     if not settings.MEETING_STAGED_SUMMARY_ENABLED:
-        return {"ready_stages": ["final"] if ended else [], "next_update_at": None}
+        managed_open = capture_run_id(record) and any(
+            row["state"] == "open" for row in delivery.get("streams", [])
+        )
+        return {
+            "ready_stages": ["final"] if ended and not managed_open else [],
+            "next_update_at": None,
+        }
     if ended:
         stages = []
-        if not latest or latest.configuration.get("stage", "final") != "final":
+        if (
+            not latest
+            or latest.status == "canceled"
+            or latest.configuration.get("capture_run_id") != capture_run_id(record)
+            or latest.configuration.get("stage", "final") != "final"
+        ):
             stages.append("quick")
         if not any(row["state"] == "open" for row in delivery.get("streams", [])):
             stages.append("final")
@@ -252,6 +281,7 @@ def prepare_summary_job(record_id, *, regenerate=False, stage="final"):
             "stage": stage,
             "chunking": settings.MEETING_SUMMARY_CHUNKING_ENABLED,
             "chunk_prompt_version": PROMPT_VERSION,
+            "capture_run_id": capture_run_id(record),
         }
         job.save(update_fields=["input_snapshot", "configuration", "updated_at"])
     elif job.input_snapshot_id != latest.pk:
@@ -284,6 +314,10 @@ def validate_output(raw, snapshot):
 def source_is_current(job):
     """Drafts tolerate appended text, but never changed or deleted input rows."""
     try:
+        if "capture_run_id" in job.configuration and job.configuration[
+            "capture_run_id"
+        ] != capture_run_id(job.record):
+            return False
         stage = job.configuration.get("stage", "final")
         if stage == "final":
             return source_payload(job.record)[1] == job.input_snapshot.fingerprint

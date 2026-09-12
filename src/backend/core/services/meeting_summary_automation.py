@@ -18,6 +18,7 @@ from core.services.meeting_summary_requests import (
     requests_enabled,
 )
 from core.services.meeting_summary_versions import (
+    capture_run_id,
     recover_summary_job,
     source_is_current,
     summary_readiness,
@@ -153,6 +154,13 @@ def _existing_job_state(automation, latest):
     return False
 
 
+def _has_quick_for_capture(record):
+    """Each explicitly started recording window may produce its own quick version."""
+    run_id = capture_run_id(record)
+    scope = {"job__configuration__capture_run_id": run_id} if run_id else {}
+    return record.summary_versions.filter(stage="quick", **scope).exists()
+
+
 @transaction.atomic
 def tick_automation(automation_id):  # noqa: PLR0911 -- explicit lifecycle outcomes
     """At most one new durable summary request per locked record and tick."""
@@ -197,9 +205,7 @@ def tick_automation(automation_id):  # noqa: PLR0911 -- explicit lifecycle outco
     stages = readiness["ready_stages"]
     if "realtime" in stages:
         stage = "realtime"
-    elif (
-        "quick" in stages and not record.summary_versions.filter(stage="quick").exists()
-    ):
+    elif "quick" in stages and not _has_quick_for_capture(record):
         stage = "quick"
     elif "final" in stages:
         stage = "final"

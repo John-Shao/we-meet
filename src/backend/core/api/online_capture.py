@@ -6,10 +6,12 @@ from django.shortcuts import get_object_or_404
 from rest_framework import permissions, serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
 from core import models
 from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
+from core.authentication.livekit import LiveKitTokenAuthentication
 from core.services.meeting_records import RecordConflict, visible_records
 from core.services.online_capture import (
     can_control,
@@ -52,6 +54,15 @@ class OnlineCaptureViewSet(viewsets.GenericViewSet):
     """No LiveKit join-token authentication: current user ACL controls recordings."""
 
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_throttles(self):
+        """Limit potentially billable starts without delaying an explicit stop."""
+        if (
+            self.request.method == "POST"
+            and self.request.data.get("operation") == "start"
+        ):
+            return [CaptureStartThrottle()]
+        return []
 
     @action(detail=False, methods=["get", "post"])
     def control(self, request):
@@ -134,3 +145,29 @@ class OnlineCaptureHeartbeatView(APIView):
         return Response(
             {"status": "ok", "id": str(run.delivery_id), "state": run.state}
         )
+
+
+class CaptureStartThrottle(UserRateThrottle):
+    """Each authenticated user has a separate capture-start budget."""
+
+    scope = "online_capture_starts"
+    rate = "6/min"
+
+
+class OnlineCaptureStatusView(APIView):
+    """Minimal recording notice for joining participants, including anonymous guests."""
+
+    authentication_classes = [LiveKitTokenAuthentication]
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        """A join token may read capture state only, never materials or run metadata."""
+        serializer = CaptureSourceSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        video = getattr(request.auth, "video", None)
+        if not video or not video.room_join or video.room != str(data["room_id"]):
+            return Response(status=403)
+        session = get_object_or_404(models.MeetingSession, **data, status="active")
+        run = latest_run(session)
+        return Response({"state": run.state if run else "off"})

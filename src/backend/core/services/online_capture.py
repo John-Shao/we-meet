@@ -109,6 +109,14 @@ def control_capture(session_id, user, key, payload):
             raise RecordConflict("A capture is already active.")
         delivery = models.TranscriptDelivery.objects.create(session=session)
         bump_record_source(record)
+        record.processing_jobs.filter(
+            kind="summary", status__in=["queued", "running"]
+        ).update(
+            status="canceled",
+            error_code="capture_changed",
+            retryable=False,
+            updated_at=timezone.now(),
+        )
         run = models.OnlineCaptureRun.objects.create(
             record=record, delivery=delivery, requested_by=user
         )
@@ -175,6 +183,7 @@ def require_writer(delivery, data, *, claim=False):
         if timezone.now() - run.created_at > timedelta(seconds=START_SECONDS):
             raise RecordConflict("Capture start expired.")
         run.writer_id = writer_id
+        run.error_code = ""
         run.started_at = timezone.now()
         run.heartbeat_at = run.started_at
         if run.state == "starting":
@@ -185,6 +194,7 @@ def require_writer(delivery, data, *, claim=False):
                 "started_at",
                 "heartbeat_at",
                 "state",
+                "error_code",
                 "updated_at",
             ]
         )

@@ -81,7 +81,11 @@ from core.api.meeting_rooms import (
     MeetingRoomViewSet,
 )
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
-from core.api.online_capture import OnlineCaptureHeartbeatView, OnlineCaptureViewSet
+from core.api.online_capture import (
+    OnlineCaptureHeartbeatView,
+    OnlineCaptureStatusView,
+    OnlineCaptureViewSet,
+)
 from core.api.personal_calendars import (
     CalendarAccessGrantViewSet,
     CalendarPreferenceViewSet,
@@ -300,6 +304,7 @@ urlpatterns = [
                     CalendarShareView.as_view(),
                     name="calendar_share",
                 ),
+                path("meeting-capture-status/", OnlineCaptureStatusView.as_view(), name="meeting-capture-status"),
                 *router.urls,
                 *oidc_urls,
                 path("directory/me/", DirectoryMeView.as_view(), name="directory_me"),
