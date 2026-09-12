@@ -88,3 +88,5 @@ Require Docs `bf2a0636` (or newer), not only the initial keyed-header commit: ol
 - Batch 41: document export UI for AI/current/history revisions; 26 frontend and 10 backend tests passed, native Chromium desktop/mobile recovery verified, production build passed. Deploy Docs + migrations + worker/beat before enabling export for integration testing. See [batch 41](meeting-ai-phase3-batch21-2026-09-13.md).
 
 - Batch 42: IM sibling now provides durable admin message receipts and migration 011; deploy it before the future minutes-assistant integration. Six database scenarios, three API scenarios and existing admin tests passed. See [batch 42](meeting-ai-phase3-batch22-2026-09-13.md).
+
+- Batch 43: strict signed IM delivery client, 32 tests passed. Requires IM 99c90e3 and migration 011; notification orchestration follows. See [batch 43](meeting-ai-phase3-batch23-2026-09-13.md).
