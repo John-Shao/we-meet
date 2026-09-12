@@ -1618,6 +1618,63 @@ class OnlineCaptureCommand(BaseModel):
         return f"OnlineCaptureCommand({self.pk})"
 
 
+class MeetingTranslationRun(BaseModel):
+    """A private translation generation, separate from recording and source text."""
+
+    session = models.ForeignKey(MeetingSession, on_delete=models.CASCADE)
+    requested_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    source_participation = models.ForeignKey(
+        MeetingParticipation, null=True, blank=True, on_delete=models.SET_NULL
+    )
+    organization_id_snapshot = models.UUIDField(null=True, blank=True)
+    generation = models.PositiveIntegerField()
+    configuration = models.JSONField()
+    state = models.CharField(max_length=16, default="starting")
+    worker_id = models.UUIDField(null=True, blank=True)
+    heartbeat_at = models.DateTimeField(null=True, blank=True)
+    stop_requested_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    dispatched_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+    finish_receipt = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["session", "requested_by", "generation"],
+                name="unique_translation_generation",
+            ),
+            models.UniqueConstraint(
+                fields=["session", "requested_by"],
+                condition=models.Q(state__in=["starting", "translating", "stopping"]),
+                name="unique_active_translation",
+            ),
+        ]
+
+    def __str__(self):
+        return f"MeetingTranslationRun({self.pk}, {self.state})"
+
+
+class MeetingTranslationCommand(BaseModel):
+    """User intent receipts survive retries and changes to the current generation."""
+
+    session = models.ForeignKey(MeetingSession, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    key = models.UUIDField()
+    payload = models.JSONField()
+    result = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "key"], name="unique_translation_command"
+            ),
+        ]
+
+    def __str__(self):
+        return f"MeetingTranslationCommand({self.pk})"
+
+
 class TranscriptReceipt(BaseModel):
     """Stable sequence receipt; deleting source text invalidates delivery proof."""
 

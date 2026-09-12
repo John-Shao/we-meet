@@ -86,6 +86,7 @@ from core.api.online_capture import (
     OnlineCaptureStatusView,
     OnlineCaptureViewSet,
 )
+from core.api.meeting_translation import MeetingTranslationViewSet, TranslationAgentView
 from core.api.personal_calendars import (
     CalendarAccessGrantViewSet,
     CalendarPreferenceViewSet,
@@ -124,6 +125,7 @@ router.register("rooms", viewsets.RoomViewSet, basename="rooms")
 router.register("meeting-records", MeetingRecordViewSet, basename="meeting_records")
 router.register("capture-sessions", CaptureSessionViewSet, basename="capture_sessions")
 router.register("online-captures", OnlineCaptureViewSet, basename="online_captures")
+router.register("meeting-translations", MeetingTranslationViewSet, basename="meeting_translations")
 router.register("recordings", viewsets.RecordingViewSet, basename="recordings")
 router.register("files", viewsets.FileViewSet, basename="files")
 router.register(
@@ -432,6 +434,7 @@ urlpatterns = [
         OnlineCaptureHeartbeatView.as_view(),
         name="agent-capture-heartbeat",
     ),
+    path("api/agent/translations/control/", TranslationAgentView.as_view(), name="agent-translation-control"),
     # Internal API for agent workers (multi_user_transcriber, etc.).
     # Authenticates via X-Agent-Token shared secret; NOT a public surface.
     path(
