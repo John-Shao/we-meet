@@ -92,6 +92,24 @@
       "earlier": "Earlier speech",
       "latest": "Back to latest speech",
       "unknownSpeaker": "Unknown speaker"
+    },
+    "capture": {
+      "title": "Meeting transcription",
+      "start": "Start transcription",
+      "stop": "Stop transcription",
+      "description": "Capture spoken words using speech recognition quota. Stopping ends live text capture. Cloud recording and automatic summaries are controlled separately.",
+      "unavailable": "Unable to confirm capture status. Please refresh.",
+      "refresh": "Refresh status",
+      "incompleteHint": "This capture was interrupted or its final delivery is unconfirmed. Saved text remains available.",
+      "conflict": "The operation was not applied. State may have changed or a previous capture is still active. Check the current status.",
+      "state": {
+        "off": "Transcription is off",
+        "starting": "Starting transcription…",
+        "recording": "Transcribing",
+        "stopping": "Stopping and saving the final words…",
+        "stopped": "Transcription stopped",
+        "incomplete": "Transcription interrupted"
+      }
     }
   },
   "pageTitle": "Meeting detail",

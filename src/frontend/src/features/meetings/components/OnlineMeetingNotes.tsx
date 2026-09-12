@@ -18,6 +18,7 @@ import type {
   MeetingRecordPage,
 } from '../api/ApiMeetingRecord'
 import { RecordSummaryPanel } from './RecordSummaryPanel'
+import { OnlineCaptureControl } from './OnlineCaptureControl'
 
 export const OnlineMeetingNotes = () => {
   const room = useRoomContext()
@@ -65,7 +66,21 @@ export const OnlineMeetingNotes = () => {
   )
 }
 
-export const OnlineMeetingRecord = ({
+export const OnlineMeetingRecord = (props: {
+  roomId: string
+  sid: string
+  viewerId: string
+}) => (
+  <>
+    <OnlineCaptureControl
+      key={`${props.viewerId}:${props.roomId}:${props.sid}`}
+      {...props}
+    />
+    <OnlineMeetingRecordContent {...props} />
+  </>
+)
+
+const OnlineMeetingRecordContent = ({
   roomId,
   sid,
   viewerId,

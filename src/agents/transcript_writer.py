@@ -23,6 +23,7 @@ import urllib.error
 import urllib.request
 import uuid
 from datetime import datetime
+from http import HTTPStatus
 from typing import Optional
 
 from asr_observer import ASRObserver
@@ -33,6 +34,17 @@ _MAX_ATTEMPTS = 3
 _HTTP_BAD_REQUEST = 400
 _HTTP_TOO_MANY_REQUESTS = 429
 _HTTP_SERVER_ERROR = 500
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Never forward the internal agent credential to a redirected destination."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: PLR0913, PLR0917
+        return None
+
+
+def _open(request, *, timeout):
+    return urllib.request.build_opener(_NoRedirect()).open(request, timeout=timeout)
 
 
 class TranscriptWriter:
@@ -50,19 +62,28 @@ class TranscriptWriter:
         self._closed = False
         self._asr = ASRObserver()
         self._terminal_payload = None
+        self._require_delivery = False
 
     def observe_asr(self, event):
         """Record provider observations separately from text delivery sequences."""
         self._asr.observe(event)
 
-    async def begin_delivery(self, room_id: str, livekit_room_sid: str) -> bool:
+    async def begin_delivery(
+        self, room_id: str, livekit_room_sid: str, *, delivery_id=None, writer_id=None
+    ) -> bool:
         """Register one run before processing events; unknown sessions fail closed."""
+        self._require_delivery = True
         if not self.is_configured or not livekit_room_sid or self._delivery:
+            return False
+        if (delivery_id is None) != (writer_id is None):
             return False
         payload = {
             "room_id": room_id,
             "livekit_room_sid": livekit_room_sid,
-            "delivery_id": str(uuid.uuid4()),
+            "delivery_id": str(uuid.UUID(delivery_id))
+            if delivery_id
+            else str(uuid.uuid4()),
+            **({"writer_id": str(uuid.UUID(writer_id))} if writer_id else {}),
         }
         if await self._send({**payload, "action": "begin"}, control=True):
             self._delivery = payload
@@ -71,6 +92,39 @@ class TranscriptWriter:
             "Delivery registration unavailable; source coverage remains unverified"
         )
         return False
+
+    async def capture_state(self):
+        """Poll once within three seconds; the controller bounds lease loss."""
+        if not self._delivery or not self._delivery.get("writer_id"):
+            return None
+        try:
+            return await asyncio.to_thread(self._capture_state_sync)
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
+    def _capture_state_sync(self):
+        request = urllib.request.Request(  # noqa: S310 -- operator-controlled backend
+            f"{self._base_url}/api/agent/capture-heartbeat/",
+            data=json.dumps(self._delivery).encode(),
+            method="POST",
+            headers={"Content-Type": "application/json", "X-Agent-Token": self._token},
+        )
+        with _open(request, timeout=min(self._timeout, 3)) as response:
+            ack = json.loads(response.read(4096))
+            if (
+                response.status != HTTPStatus.OK
+                or not isinstance(ack, dict)
+                or ack.get("status") != "ok"
+                or ack.get("id") != self._delivery["delivery_id"]
+            ):
+                return None
+            state = ack.get("state")
+            return (
+                state
+                if state
+                in {"starting", "recording", "stopping", "stopped", "incomplete"}
+                else None
+            )
 
     def reserve_sequence(self) -> int | None:
         """Reserve at FINAL event arrival, before translation or asynchronous writes."""
@@ -137,7 +191,7 @@ class TranscriptWriter:
         sequence: int | None = None,
     ) -> bool:
         """POST one transcript row with a stable key across transient retries."""
-        if not self.is_configured:
+        if not self.is_configured or (self._require_delivery and not self._delivery):
             logger.debug("TranscriptWriter not configured; dropping transcript")
             self.mark_incomplete()
             return False
@@ -170,6 +224,8 @@ class TranscriptWriter:
                 self.mark_incomplete()
                 return False
             payload["delivery_id"] = self._delivery["delivery_id"]
+            if self._delivery.get("writer_id"):
+                payload["writer_id"] = self._delivery["writer_id"]
             payload["sequence"] = (
                 sequence if sequence is not None else self.reserve_sequence()
             )
@@ -211,9 +267,7 @@ class TranscriptWriter:
             },
         )
         try:
-            with urllib.request.urlopen(  # noqa: S310
-                req, timeout=self._timeout
-            ) as resp:
+            with _open(req, timeout=self._timeout) as resp:
                 if resp.status >= _HTTP_BAD_REQUEST:
                     logger.warning("Transcript ingest got HTTP %s", resp.status)
                 else:

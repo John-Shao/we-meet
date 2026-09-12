@@ -92,6 +92,24 @@
       "earlier": "??????",
       "latest": "??????",
       "unknownSpeaker": "?????"
+    },
+    "capture": {
+      "title": "会议文字记录",
+      "start": "开始记录",
+      "stop": "结束记录",
+      "description": "记录会中的发言文字，会使用语音识别额度。结束记录后停止采集实时文字；云录制和自动总结分别控制。",
+      "unavailable": "暂时无法确认记录状态，请刷新。",
+      "refresh": "刷新状态",
+      "incompleteHint": "本次记录存在中断或未确认的尾段，已保存的文字仍可查看。",
+      "conflict": "操作未执行：状态可能已变化，或旧采集尚未结束。请核对当前状态。",
+      "state": {
+        "off": "尚未开启文字记录",
+        "starting": "正在启动记录…",
+        "recording": "正在记录",
+        "stopping": "正在结束，等待尾段保存…",
+        "stopped": "记录已结束",
+        "incomplete": "记录已中断"
+      }
     }
   },
   "pageTitle": "会议详情",

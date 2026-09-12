@@ -113,13 +113,13 @@ class TranscriptWriterTest(unittest.IsolatedAsyncioTestCase):
         for body in (b"<html>ok</html>", b"{}", b"[]", b'{"status":"ok","id":"bad"}'):
             with (
                 self.subTest(body=body),
-                mock.patch("urllib.request.urlopen") as urlopen,
+                mock.patch("transcript_writer._open") as urlopen,
             ):
                 response = urlopen.return_value.__enter__.return_value
                 response.status = 200
                 response.read.return_value = body
                 self.assertFalse(writer._post_sync({"text": "private text"}))
-        with mock.patch("urllib.request.urlopen") as urlopen:
+        with mock.patch("transcript_writer._open") as urlopen:
             response = urlopen.return_value.__enter__.return_value
             response.status = 201
             response.read.return_value = json.dumps(

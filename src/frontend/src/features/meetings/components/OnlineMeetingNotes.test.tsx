@@ -12,6 +12,7 @@ vi.mock('@livekit/components-react', () => ({ useRoomContext: vi.fn() }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
+vi.mock('./OnlineCaptureControl', () => ({ OnlineCaptureControl: () => null }))
 vi.mock('./RecordSummaryPanel', () => ({
   RecordSummaryPanel: ({ recordId }: { recordId: string }) => (
     <div>Summary of {recordId}</div>

@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import uuid
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -26,6 +27,7 @@ from livekit.agents import (
 )
 from livekit.plugins import deepgram, silero
 
+from online_capture import capture_metadata, watch_capture
 from plugins.qwen_asr import QwenASRConfig, QwenSTT
 from transcript_writer import TranscriptWriter
 
@@ -132,6 +134,8 @@ class MultiUserTranscriber:
         self._starting: dict[str, asyncio.Task] = {}
         self._closing = False
         self._accepting_finals = True
+        self._close_lock = asyncio.Lock()
+        self._closed = False
 
     async def _publish_translation(
         self,
@@ -172,6 +176,16 @@ class MultiUserTranscriber:
         self.ctx.room.on("participant_disconnected", self.on_participant_disconnected)
 
     async def aclose(self):
+        """Explicit stop and framework shutdown share one drain and final manifest."""
+        async with self._close_lock:
+            if self._closed:
+                return
+            try:
+                await self._drain_and_close()
+            finally:
+                self._closed = True
+
+    async def _drain_and_close(self):
         """Drain producers before writes; interrupted drains remain incomplete."""
         self._closing = True
         self.ctx.room.off("participant_connected", self.on_participant_connected)
@@ -228,6 +242,11 @@ class MultiUserTranscriber:
 
     def on_participant_connected(self, participant: rtc.RemoteParticipant):
         """Handle new participant connection by starting transcription session."""
+        if getattr(participant, "kind", None) in {
+            rtc.ParticipantKind.PARTICIPANT_KIND_AGENT,
+            rtc.ParticipantKind.PARTICIPANT_KIND_EGRESS,
+        }:
+            return
         if (
             self._closing
             or participant.identity in self._sessions
@@ -411,6 +430,11 @@ class MultiUserTranscriber:
 async def entrypoint(ctx: JobContext):
     """Initialize and run the multi-user transcriber."""
     writer = TranscriptWriter.from_env()
+    try:
+        managed = capture_metadata(ctx.job.metadata)
+    except (ValueError, TypeError, KeyError):
+        ctx.shutdown("invalid capture metadata")
+        return
     if not writer.is_configured:
         logger.warning(
             "TranscriptWriter not configured "
@@ -441,16 +465,51 @@ async def entrypoint(ctx: JobContext):
         ctx, writer, translator=translator, target_langs=TRANSLATION_TARGET_LANGS
     )
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-    if os.getenv("AGENT_TRANSCRIPT_DELIVERY_ENABLED", "false").lower() == "true":
-        await writer.begin_delivery(
-            ctx.room.name, await _get_livekit_room_sid(ctx.room)
+    sid = await _get_livekit_room_sid(ctx.room)
+    if managed and sid != managed["livekit_room_sid"]:
+        ctx.shutdown("capture session changed")
+        return
+    if (
+        managed
+        or os.getenv("AGENT_TRANSCRIPT_DELIVERY_ENABLED", "false").lower() == "true"
+    ):
+        registered = await writer.begin_delivery(
+            ctx.room.name,
+            sid,
+            **(
+                {"delivery_id": managed["delivery_id"], "writer_id": str(uuid.uuid4())}
+                if managed
+                else {}
+            ),
         )
+        if not registered:
+            ctx.shutdown("transcript registration rejected")
+            return
+    if managed:
+        state = await writer.capture_state()
+        if state != "recording":
+            if state != "stopping":
+                writer.mark_incomplete()
+            await transcriber.aclose()
+            ctx.shutdown("capture not active")
+            return
     transcriber.start()
     for participant in ctx.room.remote_participants.values():
         transcriber.on_participant_connected(participant)
 
+    watchdog = (
+        asyncio.create_task(watch_capture(writer, transcriber.aclose, ctx.shutdown))
+        if managed
+        else None
+    )
+
     async def cleanup():
-        await transcriber.aclose()
+        try:
+            await transcriber.aclose()
+        finally:
+            if watchdog:
+                watchdog.cancel()
+                await asyncio.gather(watchdog, return_exceptions=True)
 
     ctx.add_shutdown_callback(cleanup)
 
@@ -459,6 +518,11 @@ async def handle_transcriber_job_request(job_req: JobRequest) -> None:
     """Accept job if no transcriber exists in room, otherwise reject."""
     room_name = job_req.room.name
     transcriber_id = f"{TRANSCRIBER_AGENT_NAME}-{room_name}"
+    try:
+        managed = capture_metadata(job_req.job.metadata)
+    except (ValueError, TypeError, KeyError):
+        await job_req.reject()
+        return
 
     async with api.LiveKitAPI() as lkapi:
         try:
@@ -468,7 +532,10 @@ async def handle_transcriber_job_request(job_req: JobRequest) -> None:
 
             transcriber_exists = any(
                 p.kind == rtc.ParticipantKind.PARTICIPANT_KIND_AGENT
-                and p.identity == transcriber_id
+                and (
+                    p.identity == transcriber_id
+                    or (not managed and p.identity.startswith(f"{transcriber_id}-"))
+                )
                 for p in response.participants
             )
 
@@ -477,7 +544,13 @@ async def handle_transcriber_job_request(job_req: JobRequest) -> None:
                 await job_req.reject()
             else:
                 logger.info(f"Accepting job for {room_name}")
-                await job_req.accept(identity=transcriber_id)
+                # Separate identities prevent duplicate dispatch from evicting the
+                # active process before the database writer claim rejects the loser.
+                await job_req.accept(
+                    identity=f"{transcriber_id}-{job_req.id}"
+                    if managed
+                    else transcriber_id
+                )
 
         except Exception:
             logger.exception(f"Error processing job for {room_name}")
