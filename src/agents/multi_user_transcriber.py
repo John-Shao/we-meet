@@ -26,6 +26,7 @@ from livekit.agents import (
 )
 from livekit.plugins import deepgram, silero
 
+from plugins.qwen_asr import QwenASRConfig, QwenSTT
 from transcript_writer import TranscriptWriter
 
 load_dotenv()
@@ -52,7 +53,7 @@ async def _get_livekit_room_sid(room: rtc.Room) -> str:
     return room_sid or ""
 
 
-def create_stt_provider():
+def create_stt_provider(*, on_final=None, on_failure=None):
     """Create STT provider based on environment configuration."""
     if STT_PROVIDER == "deepgram":
         # Note: Not all Deepgram API parameters are supported by the LiveKit plugin
@@ -61,6 +62,10 @@ def create_stt_provider():
         _stt_instance = deepgram.STT(
             model=os.getenv("DEEPGRAM_STT_MODEL", "nova-3"),
             language=os.getenv("DEEPGRAM_STT_LANGUAGE", "multi"),
+        )
+    elif STT_PROVIDER == "qwen":
+        _stt_instance = QwenSTT(
+            QwenASRConfig.from_env(), on_final=on_final, on_failure=on_failure
         )
     elif STT_PROVIDER == "kyutai":
         _stt_instance = kyutai.STT(base_url=os.getenv("KYUTAI_STT_BASE_URL"))
@@ -83,9 +88,9 @@ def create_stt_provider():
 class Transcriber(Agent):
     """Create a transcription agent for a specific participant."""
 
-    def __init__(self, *, participant_identity: str):
+    def __init__(self, *, participant_identity: str, on_final=None, on_failure=None):
         """Init transcription agent."""
-        stt = create_stt_provider()
+        stt = create_stt_provider(on_final=on_final, on_failure=on_failure)
 
         super().__init__(
             instructions="not-needed",
@@ -280,8 +285,14 @@ class MultiUserTranscriber:
         translator = self._translator
         target_langs = self._target_langs
 
-        async def _process_final(
-            text: str, language: str, started_at: datetime, sequence
+        async def _process_final(  # noqa: PLR0913 -- explicit source time and identity
+            text: str,
+            language: str,
+            started_at: datetime,
+            sequence,
+            *,
+            ended_at=None,
+            ingest_id=None,
         ):
             translations: dict[str, str] = {}
             if translator and target_langs:
@@ -304,6 +315,8 @@ class MultiUserTranscriber:
                 text=text,
                 language=language,
                 started_at=started_at,
+                ended_at=ended_at,
+                ingest_id=ingest_id,
                 translations=translations,
                 sequence=sequence,
             )
@@ -316,6 +329,10 @@ class MultiUserTranscriber:
             )
 
         def _on_user_input_transcribed(event):
+            # Qwen persists the source-aware event directly. The SDK event is
+            # still used for live subtitles, but carries no source timestamps.
+            if STT_PROVIDER == "qwen":
+                return
             if not getattr(event, "is_final", False):
                 return
             text = getattr(event, "transcript", "") or ""
@@ -333,9 +350,30 @@ class MultiUserTranscriber:
 
         session.on("user_input_transcribed", _on_user_input_transcribed)
 
+        def _on_qwen_final(sentence, started_at, ended_at):
+            if not self._accepting_finals:
+                writer.mark_incomplete()
+                return
+            sequence = writer.reserve_sequence()
+            self._track(
+                asyncio.create_task(
+                    _process_final(
+                        sentence.text,
+                        sentence.language,
+                        started_at,
+                        sequence,
+                        ended_at=ended_at,
+                        ingest_id=sentence.ingest_id,
+                    )
+                ),
+                self._writes,
+            )
+
         await session.start(
             agent=Transcriber(
                 participant_identity=participant.identity,
+                on_final=_on_qwen_final,
+                on_failure=writer.mark_incomplete,
             )
         )
         return session

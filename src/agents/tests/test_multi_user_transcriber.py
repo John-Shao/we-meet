@@ -2,6 +2,7 @@
 
 import asyncio
 import unittest
+import uuid
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest import mock
@@ -180,6 +181,53 @@ class DeliveryShutdownTest(unittest.IsolatedAsyncioTestCase):
         payload = self.writer._post_sync.call_args.args[0]
         self.assertEqual(payload["text"], "original")
         self.assertEqual(payload["sequence"], 1)
+
+    async def test_qwen_source_event_persists_once_with_original_times(self):
+        """SDK subtitle events must not duplicate the provider's source-aware final."""
+        handlers = {}
+        session = mock.Mock()
+        session.on.side_effect = lambda name, handler: handlers.update({name: handler})
+        session.start = mock.AsyncMock()
+        room = _AsyncSidRoom("RM_session")
+        room.name = "room"
+        self.transcriber.ctx = SimpleNamespace(
+            room=room, proc=SimpleNamespace(userdata={})
+        )
+        self.transcriber._publish_translation = mock.AsyncMock()
+        started = datetime(2026, 9, 13, 0, 0, 1, tzinfo=timezone.utc)
+        ended = datetime(2026, 9, 13, 0, 0, 2, tzinfo=timezone.utc)
+        sentence = SimpleNamespace(
+            ingest_id=str(uuid.uuid4()), text="source final", language=""
+        )
+        with (
+            mock.patch("multi_user_transcriber.STT_PROVIDER", "qwen"),
+            mock.patch("multi_user_transcriber.AgentSession", return_value=session),
+            mock.patch("multi_user_transcriber.RoomIO") as room_io,
+            mock.patch("multi_user_transcriber.Transcriber") as agent,
+        ):
+            room_io.return_value.start = mock.AsyncMock()
+            await self.transcriber._start_session(
+                SimpleNamespace(identity="s", name="S", attributes={})
+            )
+            agent.call_args.kwargs["on_final"](sentence, started, ended)
+            handlers["user_input_transcribed"](
+                SimpleNamespace(is_final=True, transcript=sentence.text)
+            )
+            await asyncio.gather(*list(self.transcriber._writes))
+        writes = [
+            call.args[0]
+            for call in self.writer._post_sync.call_args_list
+            if "text" in call.args[0]
+        ]
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(writes[0]["ingest_id"], sentence.ingest_id)
+        self.assertEqual(writes[0]["started_at"], started.isoformat())
+        self.assertEqual(writes[0]["ended_at"], ended.isoformat())
+        agent.call_args.kwargs["on_failure"]()
+        await self.writer.finish_delivery()
+        self.assertEqual(
+            self.writer._post_sync.call_args.args[0]["outcome"], "incomplete"
+        )
 
 
 if __name__ == "__main__":

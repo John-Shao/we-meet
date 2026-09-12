@@ -14,7 +14,7 @@ dependencies = [
     "dashscope>=1.20.0",
     "pillow>=10.0.0",
     "numpy>=1.26.0",
-    "websockets>=12.0",
+    "websockets>=15.0",
     "volcengine-python-sdk[ark]>=5.0.21",
 ]
 

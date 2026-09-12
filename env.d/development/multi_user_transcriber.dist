@@ -7,3 +7,13 @@ ENABLE_SILERO_VAD=False
 
 KYUTAI_STT_BASE_URL=
 KYUTAI_API_KEY=
+
+# Opt-in Qwen ASR. Keep exactly one formal transcription provider per worker.
+# STT_PROVIDER=qwen
+# ENABLE_SILERO_VAD=False
+DASHSCOPE_API_KEY=
+DASHSCOPE_WORKSPACE_ID=
+QWEN_ASR_REGION=cn-beijing
+QWEN_ASR_MODEL=qwen-audio-3.0-asr-flash-streaming
+# Enable the matching backend transcript-delivery flags before opting in.
+AGENT_TRANSCRIPT_DELIVERY_ENABLED=false
