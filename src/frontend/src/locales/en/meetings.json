@@ -80,7 +80,19 @@
       }
     },
     "chunkProgress": "Extracted {{completed}} / {{total}} source chunks",
-    "sourceBudgetExceeded": "The source exceeds the current processing budget, or one utterance is too long. Source text is retained; adjust the material before generating."
+    "sourceBudgetExceeded": "The source exceeds the current processing budget, or one utterance is too long. Source text is retained; adjust the material before generating.",
+    "online": {
+      "signIn": "Sign in to view notes for this meeting",
+      "connecting": "Identifying this meeting session?",
+      "waiting": "Notes are not available for this session yet. Saved text appears automatically when you have reading access.",
+      "tabs": "Meeting note content",
+      "text": "Transcript",
+      "summary": "AI minutes",
+      "textHint": "Saved final transcripts. The latest page refreshes every 5 seconds.",
+      "earlier": "Earlier speech",
+      "latest": "Back to latest speech",
+      "unknownSpeaker": "Unknown speaker"
+    }
   },
   "pageTitle": "Meeting detail",
   "loading": "Loading…",

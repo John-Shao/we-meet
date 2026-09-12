@@ -82,6 +82,9 @@ class LegacyRecordSourceSerializer(serializers.Serializer):
     room_id = serializers.UUIDField(required=False)
     meeting_session_id = serializers.UUIDField(required=False)
     summary_id = serializers.UUIDField(required=False)
+    livekit_room_sid = serializers.RegexField(
+        r"^RM_[A-Za-z0-9_-]{1,120}$", required=False
+    )
 
     def validate(self, attrs):
         """Allow room + session for old deep links, reject ambiguous selectors."""
@@ -91,6 +94,11 @@ class LegacyRecordSourceSerializer(serializers.Serializer):
             )
         if set(self.initial_data) - set(self.fields):
             raise ValidationError("Unsupported source selector.")
+        if "livekit_room_sid" in attrs and set(attrs) != {
+            "room_id",
+            "livekit_room_sid",
+        }:
+            raise ValidationError("LiveKit SID requires an exact room ID pair.")
         return attrs
 
 
@@ -250,6 +258,10 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 rows = rows.filter(meeting_session__room_id=source["room_id"])
             if "meeting_session_id" in source:
                 rows = rows.filter(meeting_session_id=source["meeting_session_id"])
+            if "livekit_room_sid" in source:
+                rows = rows.filter(
+                    meeting_session__livekit_room_sid=source["livekit_room_sid"]
+                )
         record = rows.first()
         if record is None:
             raise Http404
@@ -466,6 +478,11 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 room_id=record.meeting_session.room_id,
             )
         pager = TranscriptPagination()
+        order = request.query_params.get("order", "oldest")
+        if order not in {"oldest", "latest"}:
+            raise ValidationError({"order": "Unsupported transcript ordering."})
+        if order == "latest":
+            pager.ordering = ("-started_at", "-id")
         page = pager.paginate_queryset(rows, request, view=self)
         return pager.get_paginated_response(
             RecordTranscriptSerializer(page, many=True).data

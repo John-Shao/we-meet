@@ -4,7 +4,7 @@ import logging
 
 from django.db import transaction
 
-from core.models import MeetingSession, Summary, Transcript
+from core.models import MeetingRecord, MeetingSession, Summary, Transcript
 from core.services.meeting_summary import MeetingSummaryService
 from core.tasks._task import task
 from core.tasks.embeddings import embed_meeting_transcripts
@@ -15,7 +15,7 @@ _HUMAN_PARTICIPANT_KINDS = ("standard", "sip")
 
 
 @task
-def generate_meeting_summary(session_id, force=False):
+def generate_meeting_summary(session_id, force=False):  # noqa: PLR0911 -- legacy and versioned routing have distinct exits
     """Generate artifacts for one meeting session.
 
     Automatic calls are idempotent and skip sessions without a transcript from
@@ -31,6 +31,16 @@ def generate_meeting_summary(session_id, force=False):
             )
 
             if not force:
+                # Once a record has explicit versioned-summary intent, disabling
+                # its automation must not silently fall back to legacy generation.
+                # Hold the record lock through any legacy call to serialize an
+                # opt-in racing the existing session-locked legacy worker.
+                record = MeetingRecord.objects.select_for_update().filter(meeting_session=session).first()
+                if record and (
+                    hasattr(record, "summary_automation")
+                    or record.processing_jobs.filter(kind="summary", input_snapshot__isnull=False).exists()
+                ):
+                    return None
                 if session.status != MeetingSession.Status.ENDED:
                     logger.info(
                         "Auto summary skipped for active session %s (room %s)",

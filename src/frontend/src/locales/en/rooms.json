@@ -338,7 +338,8 @@
       "admin": "Host settings",
       "tools": "More tools",
       "info": "Meeting information",
-      "roomAI": "Meeting AI"
+      "roomAI": "Meeting AI",
+      "meetingNotes": "Meeting notes"
     },
     "content": {
       "participants": "participants",
@@ -349,7 +350,8 @@
       "admin": "host settings",
       "tools": "more tools",
       "info": "meeting information",
-      "roomAI": "meeting AI"
+      "roomAI": "meeting AI",
+      "meetingNotes": "meeting notes"
     },
     "closeButton": "Hide {{content}}"
   },
@@ -369,6 +371,10 @@
       "screenRecording": {
         "title": "Record",
         "body": "Save meetings as video."
+      },
+      "meetingNotes": {
+        "title": "Meeting notes",
+        "body": "This session?s transcript, live summary and minutes"
       }
     }
   },

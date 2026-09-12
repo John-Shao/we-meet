@@ -12,6 +12,7 @@ import {
   ScreenRecordingSidePanel,
 } from '@/features/recording'
 import { useConfig } from '@/api/useConfig'
+import { OnlineMeetingNotes } from '@/features/meetings/components/OnlineMeetingNotes'
 
 export interface ToolsButtonProps {
   icon: ReactNode
@@ -96,8 +97,13 @@ const ToolButton = ({
 
 export const Tools = () => {
   const { data } = useConfig()
-  const { openTranscript, openScreenRecording, activeSubPanelId, isToolsOpen } =
-    useSidePanel()
+  const {
+    openTranscript,
+    openScreenRecording,
+    openMeetingNotes,
+    activeSubPanelId,
+    isToolsOpen,
+  } = useSidePanel()
   const { t } = useTranslation('rooms', { keyPrefix: 'moreTools' })
 
   // Restore focus to the element that opened the Tools panel
@@ -125,6 +131,8 @@ export const Tools = () => {
   )
 
   switch (activeSubPanelId) {
+    case SubPanelId.MEETING_NOTES:
+      return data?.meeting_records?.enabled ? <OnlineMeetingNotes /> : null
     case SubPanelId.TRANSCRIPT:
       return <TranscriptSidePanel />
     case SubPanelId.SCREEN_RECORDING:
@@ -166,6 +174,14 @@ export const Tools = () => {
           </A>
         )}
       </Text>
+      {data?.meeting_records?.enabled && (
+        <ToolButton
+          icon={<Icon type="symbols" name="auto_awesome" />}
+          title={t('tools.meetingNotes.title')}
+          description={t('tools.meetingNotes.body')}
+          onPress={openMeetingNotes}
+        />
+      )}
       {isTranscriptEnabled && (
         <ToolButton
           icon={<Icon type="symbols" name="speech_to_text" />}

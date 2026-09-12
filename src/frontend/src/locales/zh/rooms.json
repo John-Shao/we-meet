@@ -338,7 +338,8 @@
       "admin": "主持人设置",
       "tools": "更多工具",
       "info": "会议信息",
-      "roomAI": "会议 AI"
+      "roomAI": "会议 AI",
+      "meetingNotes": "????"
     },
     "content": {
       "participants": "参会者",
@@ -349,7 +350,8 @@
       "admin": "主持人设置",
       "tools": "更多工具",
       "info": "会议信息",
-      "roomAI": "会议 AI"
+      "roomAI": "会议 AI",
+      "meetingNotes": "????"
     },
     "closeButton": "隐藏 {{content}}"
   },
@@ -369,6 +371,10 @@
       "screenRecording": {
         "title": "录制",
         "body": "将会议保存为视频。"
+      },
+      "meetingNotes": {
+        "title": "????",
+        "body": "????????????????"
       }
     }
   },
