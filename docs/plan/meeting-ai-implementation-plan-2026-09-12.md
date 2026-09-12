@@ -238,3 +238,5 @@ Latest implementation: [Batch 34: unified library queries](meeting-ai-phase3-bat
 - Batch 40: fenced asynchronous Docs delivery and read-only reconciliation; 24 delivery tests plus 37 preview/client regressions passed. Celery worker + beat required; export UI follows. See [batch 40](meeting-ai-phase3-batch20-2026-09-13.md).
 
 - Batch 41: document export UI for AI/current/history revisions; 26 frontend and 10 backend tests passed, native Chromium desktop/mobile recovery verified, production build passed. Deploy Docs + migrations + worker/beat before enabling export for integration testing. See [batch 41](meeting-ai-phase3-batch21-2026-09-13.md).
+
+- Batch 42: IM sibling now provides durable admin message receipts and migration 011; deploy it before the future minutes-assistant integration. Six database scenarios, three API scenarios and existing admin tests passed. See [batch 42](meeting-ai-phase3-batch22-2026-09-13.md).
