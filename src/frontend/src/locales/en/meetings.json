@@ -1,4 +1,28 @@
 {
+  "humanReview": {
+    "title": "Human-reviewed minutes",
+    "explanation": "Human revisions are preserved separately. AI regeneration cannot overwrite this draft. Saving does not create tasks.",
+    "edit": "Edit human revision",
+    "base": "Reference AI version",
+    "choose": "Choose a version",
+    "replace": "Start another revision from the selected AI version",
+    "create": "Create human draft",
+    "overview": "Overview",
+    "owner": "Owner description (not assigned)",
+    "due": "Deadline description (unconfirmed)",
+    "remove": "Remove item",
+    "add": "Add item",
+    "uncited": "Human addition · No source linked",
+    "draftNotice": "Check the changes and citations. Discarding the draft removes your unsaved changes.",
+    "save": "Save human revision",
+    "retry": "Retry the same save",
+    "cancel": "Discard draft",
+    "saved": "Human revision saved.",
+    "conflict": "A newer human revision exists. Your draft is preserved. Copy anything you need, discard the draft, then edit the latest revision.",
+    "invalid": "Unable to save. Check content, citations or editing access. Your draft is preserved.",
+    "uncertain": "The save result is uncertain. Retry the same save to avoid duplicate revisions.",
+    "unavailable": "Human revisions are unavailable. Refresh to try again."
+  },
   "recordAi": {
     "rateLimited": "Too many requests. Wait before resending the same request.",
     "waitForSource": "Minutes can be generated after the meeting ends and a transcript is available.",

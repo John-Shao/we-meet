@@ -21,6 +21,7 @@ import type {
   SummaryStage,
 } from '../api/ApiMeetingRecord'
 import { SummaryAutomationControl } from './SummaryAutomationControl'
+import { HumanSummaryPanel } from './HumanSummaryPanel'
 
 const stack = css({ display: 'flex', flexDirection: 'column', gap: '1rem' })
 
@@ -295,6 +296,17 @@ export const RecordSummaryPanel = ({
       >
         {t('recordAi.refresh')}
       </Button>
+      <HumanSummaryPanel
+        key={`${viewerId}:${recordId}`}
+        recordId={recordId}
+        viewerId={viewerId}
+        versions={versions.data?.results ?? []}
+        onSource={
+          detail.data.capabilities.read_transcript
+            ? (snapshotId, ref) => setCitation({ snapshotId, ref })
+            : undefined
+        }
+      />
       {versions.data?.results.length === 0 && (
         <StateHint>{t('recordAi.noVersions')}</StateHint>
       )}

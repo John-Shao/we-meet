@@ -1465,6 +1465,47 @@ class MeetingSummaryVersion(BaseModel):
             raise ValidationError("Summary input must match the job and record.")
 
 
+class MeetingSummaryReview(BaseModel):
+    """Append-only human revisions; later AI jobs cannot overwrite an accepted edit."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="summary_reviews"
+    )
+    base_summary = models.ForeignKey(MeetingSummaryVersion, on_delete=models.RESTRICT)
+    previous = models.ForeignKey(
+        "self", on_delete=models.RESTRICT, null=True, blank=True
+    )
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    revision = models.PositiveIntegerField()
+    key = models.UUIDField()
+    request_hash = models.CharField(max_length=64)
+    content = models.JSONField()
+
+    class Meta:
+        ordering = ("-revision",)
+        constraints = [
+            models.UniqueConstraint(fields=["record", "revision"], name="unique_summary_review_revision"),
+            models.UniqueConstraint(fields=["author", "key"], name="unique_summary_review_intent"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Human summary revisions are immutable.")
+        if self.base_summary_id and self.base_summary.record_id != self.record_id:
+            raise ValidationError("Human review must use the same record.")
+        if not self.previous_id and self.revision != 1:
+            raise ValidationError("The first human review must have revision one.")
+        if self.previous_id and (
+            self.previous.record_id != self.record_id
+            or self.previous.revision + 1 != self.revision
+        ):
+            raise ValidationError("Human review predecessor conflicts.")
+
+    def __str__(self):
+        return f"MeetingSummaryReview({self.record_id}, {self.revision})"
+
+
 class MeetingSummaryChunk(BaseModel):
     """Immutable, record-scoped extraction cache; revisions are rebound on reuse."""
 
