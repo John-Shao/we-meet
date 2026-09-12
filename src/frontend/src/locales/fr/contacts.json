@@ -46,7 +46,12 @@
     "hideNav": "Réduire la navigation",
     "showNav": "Développer la navigation",
     "selfTag": "(vous)",
-    "loadMore": "Charger plus"
+    "loadMore": "Charger plus",
+    "resultCount": "{{count}} résultats",
+    "searchStarred": "Rechercher un contact favori",
+    "searchDepartment": "Rechercher dans ce service",
+    "clearFilter": "Effacer la recherche",
+    "opening": "Ouverture…"
   },
   "detail": {
     "email": "E-mail",
@@ -56,7 +61,12 @@
     "none": "—",
     "emptyTitle": "Pick a department or member",
     "back": "Retour",
-    "emptyHint": "See member cards and department heads, and start a chat right away."
+    "emptyHint": "See member cards and department heads, and start a chat right away.",
+    "titleLabel": "Fiche du contact",
+    "departed": "Ce membre a quitté l’organisation. Ses coordonnées professionnelles ne sont plus disponibles.",
+    "forbidden": "Vous n’avez pas accès à cette fiche.",
+    "notFound": "Ce membre n’existe plus ou est indisponible.",
+    "saving": "Enregistrement…"
   },
   "groups": {
     "title": "Mes groupes",
@@ -97,7 +107,11 @@
     "alreadyContact": "Already a contact",
     "remove": "Remove",
     "removeConfirm": "Remove external contact “{{name}}”?",
-    "error": "External contact action failed: {{message}}"
+    "error": "External contact action failed: {{message}}",
+    "requestsLoadError": "Impossible de charger les demandes de contact. Réessayez.",
+    "requestsLoading": "Chargement des demandes de contact…",
+    "noMatch": "Aucun compte trouvé. Vérifiez le numéro complet ou l’adresse e-mail.",
+    "searchError": "La recherche a échoué. Réessayez."
   },
   "starred": {
     "title": "Contacts favoris",
@@ -114,7 +128,8 @@
   },
   "specialAlert": {
     "toggle": "Alertes spéciales pour ses messages",
-    "toggleHint": "Ses messages vous notifient même pendant les heures calmes."
+    "toggleHint": "Ses messages vous notifient même pendant les heures calmes.",
+    "error": "Impossible de modifier les notifications prioritaires : {{message}}"
   },
   "department": {
     "memberCount": "Membres",
@@ -126,7 +141,8 @@
     "startGroupChatConfirm": "Créer un groupe avec les {{members}} membres de « {{name}} » ?",
     "startGroupChatEmpty": "Ce service n'a pas encore de membres directs",
     "startGroupChatError": "Échec de la création du groupe : {{message}}",
-    "startGroupChatTooMany": "Ce service compte {{count}} personnes, au-delà de la limite de {{limit}} personnes pour un seul clic. Créez le groupe depuis la messagerie en choisissant les membres."
+    "startGroupChatTooMany": "Ce service compte {{count}} personnes, au-delà de la limite de {{limit}} personnes pour un seul clic. Créez le groupe depuis la messagerie en choisissant les membres.",
+    "info": "Détails du service"
   },
   "tree": {
     "expand": "Expand",

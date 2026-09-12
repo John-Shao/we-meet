@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { RiCloseLine, RiMessage3Line } from '@remixicon/react'
 
 import { css } from '@/styled-system/css'
+import { Button } from '@/primitives'
 import { Switch } from '@/primitives/Switch'
 import type { DirectoryMember } from '../api/ApiDirectory'
 
@@ -21,6 +22,8 @@ import type { DirectoryMember } from '../api/ApiDirectory'
 interface Props {
   member: DirectoryMember
   /** 是否已星标 —— 由调用方从统一的名单派生,不读 member.is_starred 快照。 */
+  saving?: boolean
+  messaging?: boolean
   starred: boolean
   onToggleStarred: (next: boolean) => void
   /** 是否开了「他的消息特别提醒」。与 starred 独立,同样从统一名单派生。 */
@@ -32,6 +35,8 @@ interface Props {
 
 export const MemberDetailPanel = ({
   member,
+  saving = false,
+  messaging = false,
   starred,
   onToggleStarred,
   specialAlert,
@@ -149,6 +154,14 @@ export const MemberDetailPanel = ({
         )}
       </div>
 
+      {member.left && (
+        <p
+          role="status"
+          className={css({ paddingX: '1.25rem', color: 'text.secondary' })}
+        >
+          {t('detail.departed')}
+        </p>
+      )}
       {/* Info rows */}
       <dl
         className={css({
@@ -167,7 +180,7 @@ export const MemberDetailPanel = ({
         <InfoRow label={t('detail.email')} value={member.email || dash} />
       </dl>
 
-      {!member.is_self && (
+      {!member.is_self && !member.left && (
         <div
           className={css({
             marginTop: '1rem',
@@ -176,10 +189,12 @@ export const MemberDetailPanel = ({
             borderTop: '1px solid token(colors.greyscale.100)',
           })}
         >
+          {saving && <p role="status">{t('detail.saving')}</p>}
           {/* 布尔设置用开关(与 IM 会话设置同一写法):整行可点,标签作子节点。 */}
           <SwitchRow
             label={t('starred.toggle')}
             hint={t('starred.toggleHint')}
+            disabled={saving}
             isSelected={starred}
             onChange={onToggleStarred}
             testId={`member-detail-star-${member.id}`}
@@ -187,6 +202,7 @@ export const MemberDetailPanel = ({
           <SwitchRow
             label={t('specialAlert.toggle')}
             hint={t('specialAlert.toggleHint')}
+            disabled={saving}
             isSelected={specialAlert}
             onChange={onToggleSpecialAlert}
             testId={`member-detail-alert-${member.id}`}
@@ -197,9 +213,9 @@ export const MemberDetailPanel = ({
 
       {!member.is_self && (
         <div className={css({ marginTop: 'auto', padding: '1.25rem' })}>
-          <button
-            type="button"
-            onClick={() => onMessage(member)}
+          <Button
+            loading={messaging}
+            onPress={() => onMessage(member)}
             data-testid={`member-detail-message-${member.id}`}
             className={css({
               display: 'flex',
@@ -219,8 +235,8 @@ export const MemberDetailPanel = ({
             })}
           >
             <RiMessage3Line size={18} />
-            {t('page.message')}
-          </button>
+            {t(messaging ? 'page.opening' : 'page.message')}
+          </Button>
         </div>
       )}
     </aside>
@@ -259,6 +275,7 @@ const SwitchRow = ({
   onChange,
   testId,
   spaced,
+  disabled,
 }: {
   label: string
   hint: string
@@ -266,9 +283,11 @@ const SwitchRow = ({
   onChange: (next: boolean) => void
   testId: string
   spaced?: boolean
+  disabled?: boolean
 }) => (
   <div className={css({ marginTop: spaced ? '0.875rem' : 0 })}>
     <Switch
+      isDisabled={disabled}
       isSelected={isSelected}
       onChange={onChange}
       data-testid={testId}

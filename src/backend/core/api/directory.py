@@ -201,6 +201,7 @@ class DirectoryMemberSerializer(serializers.Serializer):
     # 前端不重算拼音,否则「服务端按拼音排序、客户端按自己算的字母分组」会有对不齐
     # 的那一天(改个名字、换一次 pypinyin 版本)。
     initial = serializers.CharField(source="user.full_name_initial", read_only=True)
+    search_key = serializers.CharField(source="user.search_key", read_only=True)
     email = serializers.EmailField(source="user.email", read_only=True)
     avatar_url = serializers.SerializerMethodField()
     title = serializers.CharField(read_only=True)

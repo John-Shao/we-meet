@@ -170,7 +170,9 @@ const directoryMembersPage = (path: string) => {
   return {
     count: list.length,
     next:
-      start + pageSize < list.length ? nextPageUrl(params, pageNumber + 1) : null,
+      start + pageSize < list.length
+        ? nextPageUrl(params, pageNumber + 1)
+        : null,
     previous: null,
     results: list.slice(start, start + pageSize),
   }
@@ -199,6 +201,11 @@ mocks.fetchApi.mockImplementation((path: string) => {
   if (path.startsWith('/directory/departments/')) {
     return Promise.resolve(departments)
   }
+  const memberId = /^\/directory\/members\/([^/?]+)\/$/.exec(path)?.[1]
+  if (memberId)
+    return Promise.resolve(
+      allMembers.find((member) => member.id === memberId) ?? null
+    )
   if (path.startsWith('/directory/members/')) {
     if (membersError) return Promise.reject(membersError)
     return Promise.resolve(directoryMembersPage(path))
@@ -247,6 +254,7 @@ beforeEach(() => {
   sessionStorage.clear()
   mocks.confirm.mockResolvedValue(true)
   mocks.confirm.mockClear()
+  mocks.alert.mockClear()
   mocks.fetchApi.mockClear()
   mocks.t.mockClear()
   mocks.language = 'zh'
@@ -257,6 +265,86 @@ beforeEach(() => {
 })
 
 describe('ContactsRoute', () => {
+  it('发消息在慢网下锁定一次请求,失败后恢复可操作', async () => {
+    const user = userEvent.setup()
+    const original = mocks.fetchApi.getMockImplementation()!
+    let rejectMessage!: (error: Error) => void
+    mocks.fetchApi.mockImplementation((path: string) =>
+      path === '/im/conversations/direct/'
+        ? new Promise((_, reject) => {
+            rejectMessage = reject
+          })
+        : original(path)
+    )
+    renderRoute('/contacts?dept=sales')
+    const message = await screen.findByTestId('contacts-message-u1')
+    await user.dblClick(message)
+    expect(message).toBeDisabled()
+    expect(
+      mocks.fetchApi.mock.calls.filter(
+        ([path]) => path === '/im/conversations/direct/'
+      )
+    ).toHaveLength(1)
+    rejectMessage(new Error('offline'))
+    await waitFor(() => expect(message).toBeEnabled())
+    expect(mocks.alert).toHaveBeenCalled()
+    mocks.fetchApi.mockImplementation(original)
+  })
+
+  it('星标使用服务端拼音键,结果计数与筛选一致,主操作仍为发消息', async () => {
+    const user = userEvent.setup()
+    starredMembers = [
+      { ...member('s1', '夜来香'), search_key: 'yelaixiang ylx' },
+      member('s2', '张三'),
+    ]
+    renderRoute('/contacts?view=starred')
+    await screen.findByTestId('contacts-member-s1')
+    await user.type(screen.getByTestId('contacts-member-filter'), 'ylx')
+    await waitFor(() =>
+      expect(screen.queryByTestId('contacts-member-s2')).toBeNull()
+    )
+    expect(screen.getByTestId('contacts-list-subtitle')).toHaveTextContent(
+      'page.resultCount:1'
+    )
+    expect(screen.getByTestId('contacts-message-s1')).toBeInTheDocument()
+    expect(screen.queryByTestId('contacts-unstar-s1')).toBeNull()
+  })
+
+  it('离职成员名片明确提示状态', async () => {
+    const original = mocks.fetchApi.getMockImplementation()!
+    const departed = { ...member('departed', '离职同事'), left: true }
+    mocks.fetchApi.mockImplementation((path: string) =>
+      path === '/directory/members/departed/'
+        ? Promise.resolve(departed)
+        : original(path)
+    )
+    renderRoute('/contacts?member=departed')
+    expect(await screen.findByText('detail.departed')).toBeInTheDocument()
+    expect(screen.queryByTestId('member-detail-star-departed')).toBeNull()
+    mocks.fetchApi.mockImplementation(original)
+  })
+
+  it('切换部门加载时隐藏旧名单的可操作行', async () => {
+    const user = userEvent.setup()
+    const original = mocks.fetchApi.getMockImplementation()!
+    let resolvePage!: (value: unknown) => void
+    mocks.fetchApi.mockImplementation((path: string) =>
+      path.includes('department=hr') && path.startsWith('/directory/members/')
+        ? new Promise((resolve) => {
+            resolvePage = resolve
+          })
+        : original(path)
+    )
+    renderRoute('/contacts?dept=sales')
+    await screen.findByTestId('contacts-member-u1')
+    await user.click(screen.getByTestId('contacts-dept-hr'))
+    await screen.findByText('page.loading')
+    expect(screen.queryByTestId('contacts-member-u1')).toBeNull()
+    resolvePage(page([]))
+    await screen.findByText('page.empty')
+    mocks.fetchApi.mockImplementation(original)
+  })
+
   it('?dept= 落地:标题/人数来自 URL,左栏对应行是选中态', async () => {
     renderRoute('/contacts?dept=sales')
 
@@ -383,7 +471,7 @@ describe('ContactsRoute', () => {
     await waitFor(() =>
       expect(screen.queryByTestId('contacts-member-u1')).toBeNull()
     )
-    expect(screen.getByTestId('contacts-member-u2')).toBeInTheDocument()
+    expect(await screen.findByTestId('contacts-member-u2')).toBeInTheDocument()
 
     await user.clear(filter)
     await user.type(filter, '查无此人')
@@ -442,9 +530,7 @@ describe('ContactsRoute', () => {
       )
     )
     await user.type(screen.getByTestId('contacts-member-filter'), '李')
-    await waitFor(() =>
-      expect(screen.getByTestId('contacts-member-u2')).toBeInTheDocument()
-    )
+    expect(await screen.findByTestId('contacts-member-u2')).toBeInTheDocument()
     expect(screen.getByTestId('contacts-all-entry')).toHaveTextContent(
       'page.orgMembers3'
     )
@@ -484,16 +570,20 @@ describe('ContactsRoute', () => {
     ).toEqual(['sales'])
   })
 
-  it('窄屏:右栏改成浮层,返回后浮层关掉但选择不变', async () => {
+  it('窄屏:部门先显示名单,详情按需打开,返回清除成员并恢复焦点', async () => {
     const user = userEvent.setup()
     setNarrow(true)
     renderRoute('/contacts?dept=sales')
     await screen.findByTestId('contacts-member-u1')
 
-    // 窄屏下部门卡不再占一栏:它盖在名单上(浮层),名单本身还在后面。
-    expect(screen.getByTestId('contacts-detail-overlay')).toContainElement(
+    expect(screen.queryByTestId('contacts-detail-overlay')).toBeNull()
+    await user.click(screen.getByTestId('contacts-department-info'))
+    expect(screen.getByRole('dialog')).toContainElement(
       screen.getByTestId('contacts-department-detail')
     )
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByTestId('contacts-department-info')).toHaveFocus()
     // 常驻第三栏(空态占位那一块)不在 DOM 里 —— 它会把名单挤没。
     expect(screen.queryByTestId('contacts-detail-placeholder')).toBeNull()
 
@@ -503,11 +593,12 @@ describe('ContactsRoute', () => {
     const back = screen.getByTestId('contacts-detail-back')
 
     await user.click(back)
-    // 浮层收掉,但 ?member= 还在 —— 选择表达的是「在看谁」,不随浮层开关改变。
+    // 关闭后 URL 与界面都回到名单,焦点回到来源成员。
     await waitFor(() =>
       expect(screen.queryByTestId('member-detail')).toBeNull()
     )
-    expect(currentUrl()).toBe('/contacts?dept=sales&member=u2')
+    expect(currentUrl()).toBe('/contacts?dept=sales')
+    expect(screen.getByTestId('contacts-member-u2')).toHaveFocus()
     expect(screen.getByTestId('contacts-member-u1')).toBeInTheDocument()
 
     // 再点一次同一个人要能重新打开(不是「关过就再也不出现」)。
@@ -602,9 +693,8 @@ describe('ContactsRoute', () => {
   })
 
   it('部门超过上限:明说拉不了,不建一个半拉的群', async () => {
-    allMembers = Array.from(
-      { length: 301 },
-      (_, i) => member(`u${i}`, `Member${i}`, '工程师')
+    allMembers = Array.from({ length: 301 }, (_, i) =>
+      member(`u${i}`, `Member${i}`, '工程师')
     )
     const user = userEvent.setup()
     try {
@@ -677,7 +767,7 @@ describe('ContactsRoute', () => {
     await waitFor(() =>
       expect(screen.queryByTestId('contacts-member-u1')).toBeNull()
     )
-    expect(screen.getByTestId('contacts-member-u2')).toBeInTheDocument()
+    expect(await screen.findByTestId('contacts-member-u2')).toBeInTheDocument()
   })
 
   it('界面语言不是简体中文:不画字母头,但排序照样按拼音发', async () => {

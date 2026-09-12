@@ -46,7 +46,12 @@
     "hideNav": "Navigation einklappen",
     "showNav": "Navigation ausklappen",
     "selfTag": "(Sie)",
-    "loadMore": "Mehr laden"
+    "loadMore": "Mehr laden",
+    "resultCount": "{{count}} Ergebnisse",
+    "searchStarred": "Favorisierte Kontakte suchen",
+    "searchDepartment": "In dieser Abteilung suchen",
+    "clearFilter": "Suche löschen",
+    "opening": "Wird geöffnet…"
   },
   "detail": {
     "email": "E-Mail",
@@ -56,7 +61,12 @@
     "none": "—",
     "emptyTitle": "Pick a department or member",
     "back": "Zurück",
-    "emptyHint": "See member cards and department heads, and start a chat right away."
+    "emptyHint": "See member cards and department heads, and start a chat right away.",
+    "titleLabel": "Kontaktdetails",
+    "departed": "Dieses Mitglied hat die Organisation verlassen. Geschäftliche Kontaktdaten sind nicht mehr verfügbar.",
+    "forbidden": "Sie haben keinen Zugriff auf dieses Profil.",
+    "notFound": "Dieses Mitglied existiert nicht mehr oder ist nicht verfügbar.",
+    "saving": "Wird gespeichert…"
   },
   "groups": {
     "title": "Meine Gruppen",
@@ -97,7 +107,11 @@
     "alreadyContact": "Already a contact",
     "remove": "Remove",
     "removeConfirm": "Remove external contact “{{name}}”?",
-    "error": "External contact action failed: {{message}}"
+    "error": "External contact action failed: {{message}}",
+    "requestsLoadError": "Kontaktanfragen konnten nicht geladen werden. Bitte erneut versuchen.",
+    "requestsLoading": "Kontaktanfragen werden geladen…",
+    "noMatch": "Kein Konto gefunden. Prüfen Sie die vollständige Telefonnummer oder E-Mail-Adresse.",
+    "searchError": "Suche fehlgeschlagen. Bitte erneut versuchen."
   },
   "starred": {
     "title": "Markierte Kontakte",
@@ -114,7 +128,8 @@
   },
   "specialAlert": {
     "toggle": "Sonderhinweis für seine Nachrichten",
-    "toggleHint": "Seine Nachrichten benachrichtigen dich auch in den Ruhezeiten."
+    "toggleHint": "Seine Nachrichten benachrichtigen dich auch in den Ruhezeiten.",
+    "error": "Prioritätsbenachrichtigungen konnten nicht geändert werden: {{message}}"
   },
   "department": {
     "memberCount": "Mitglieder",
@@ -126,7 +141,8 @@
     "startGroupChatConfirm": "Eine Gruppe mit den {{members}} Mitgliedern von „{{name}}“ starten?",
     "startGroupChatEmpty": "Diese Abteilung hat noch keine direkten Mitglieder",
     "startGroupChatError": "Gruppe konnte nicht erstellt werden: {{message}}",
-    "startGroupChatTooMany": "Diese Abteilung hat {{count}} Personen und liegt über der Grenze von {{limit}} Personen für einen Klick. Erstellen Sie die Gruppe stattdessen im Chat und wählen Sie die Mitglieder aus."
+    "startGroupChatTooMany": "Diese Abteilung hat {{count}} Personen und liegt über der Grenze von {{limit}} Personen für einen Klick. Erstellen Sie die Gruppe stattdessen im Chat und wählen Sie die Mitglieder aus.",
+    "info": "Abteilungsdetails"
   },
   "tree": {
     "expand": "Expand",

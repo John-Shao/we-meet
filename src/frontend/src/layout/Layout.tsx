@@ -1,4 +1,6 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
+import { useLocation } from 'wouter'
+import { useMediaQuery } from '@/features/rooms/livekit/hooks/useMediaQuery'
 import { css } from '@/styled-system/css'
 import { Header } from './Header'
 import { layoutStore } from '@/stores/layout'
@@ -36,8 +38,20 @@ export const Layout = ({ children }: { children: ReactNode }) => {
   // P6-e: collapsible primary rail (new-Feishu). The explicit user preference
   // is restored without inferring behavior from unsupported mobile widths.
   const [railCollapsed, setRailCollapsed] = useState(readInitialRailState)
+  const [location] = useLocation()
+  const smallScreen = useMediaQuery('(max-width: 767px)')
+  const compactContacts = smallScreen && location === '/contacts'
+  const [compactRailExpanded, setCompactRailExpanded] = useState(false)
+  useEffect(() => setCompactRailExpanded(false), [compactContacts])
+  const effectiveRailCollapsed = compactContacts
+    ? !compactRailExpanded
+    : railCollapsed
 
-  const toggleRail = () =>
+  const toggleRail = () => {
+    if (compactContacts) {
+      setCompactRailExpanded((value) => !value)
+      return
+    }
     setRailCollapsed((v) => {
       const next = !v
       try {
@@ -47,6 +61,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
       }
       return next
     })
+  }
 
   // P6: logged-in workspace routes get the Feishu-style left rail (column 1).
   //
@@ -75,7 +90,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
           })}
         >
           {showHeader &&
-            (railCollapsed ? (
+            (effectiveRailCollapsed ? (
               <div
                 className={css({ flexShrink: 0, height: '100%' })}
                 style={{ width: 64 }}

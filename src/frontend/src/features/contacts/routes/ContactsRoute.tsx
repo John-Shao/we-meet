@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
   keepPreviousData,
@@ -13,6 +12,8 @@ import { RiArrowLeftLine, RiLayoutLeftLine } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
 import { Button, SearchBox } from '@/primitives'
+import { Modal } from '@/components/Modal'
+import { ApiError } from '@/api/ApiError'
 import { StateHint } from '@/components/StateHint'
 import { createDirectConversationByUserId } from '@/features/im/api/createDirectConversation'
 import { createGroupConversation } from '@/features/im/api/createGroupConversation'
@@ -112,13 +113,35 @@ const GROUP_CHAT_PAGE_SIZE = 100
  */
 const matchesQuery = (member: DirectoryMember, query: string): boolean => {
   const needle = query.toLowerCase()
-  return [
-    member.full_name,
-    member.short_name,
-    member.email,
-    member.title,
-    member.department?.name,
-  ].some((field) => field?.toLowerCase().includes(needle))
+  const folded = needle
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/\s/g, '')
+    .replace(
+      /[øłđðþæœßı]/g,
+      (letter) =>
+        ({
+          ø: 'o',
+          ł: 'l',
+          đ: 'd',
+          ð: 'd',
+          þ: 't',
+          æ: 'ae',
+          œ: 'oe',
+          ß: 'ss',
+          ı: 'i',
+        })[letter] ?? letter
+    )
+  return (
+    Boolean(folded && member.search_key?.includes(folded)) ||
+    [
+      member.full_name,
+      member.short_name,
+      member.email,
+      member.title,
+      member.department?.name,
+    ].some((field) => field?.toLowerCase().includes(needle))
+  )
 }
 
 const ContactsAuthenticated = () => {
@@ -128,9 +151,20 @@ const ContactsAuthenticated = () => {
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const [addingStarred, setAddingStarred] = useState(false)
   const [memberFilter, setMemberFilter] = useState('')
-  // 窄屏下右栏是浮层;用户按「返回」把它关掉后,列表要能露出来(而 URL 里的
-  // dept/member 选择不变 —— 它表达的是「在看哪儿」,不是「浮层开着」)。
-  const [detailDismissed, setDetailDismissed] = useState(false)
+  // 部门资料按需展开;成员/群资料由 URL 承载,关闭时同步清除选择。
+  const [departmentDetailsOpen, setDepartmentDetailsOpen] = useState(false)
+  const [busyActions, setBusyActions] = useState<Set<string>>(new Set())
+  const actionLocks = useRef(new Set<string>())
+  const beginAction = (key: string) => {
+    if (actionLocks.current.has(key)) return false
+    actionLocks.current.add(key)
+    setBusyActions(new Set(actionLocks.current))
+    return true
+  }
+  const endAction = (key: string) => {
+    actionLocks.current.delete(key)
+    setBusyActions(new Set(actionLocks.current))
+  }
   const [startingGroupChat, setStartingGroupChat] = useState(false)
   const [recentIds, setRecentIds] = useState<string[]>(() =>
     readRecentDepartments()
@@ -143,6 +177,8 @@ const ContactsAuthenticated = () => {
     }
   })
   const narrowDetail = useMediaQuery(NARROW_DETAIL_QUERY)
+  const compactNav = useMediaQuery('(max-width: 767px)')
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const toggleNav = () => {
     setNavCollapsed((prev) => {
@@ -168,8 +204,7 @@ const ContactsAuthenticated = () => {
    * 改 URL 查询串。`replace` 决定要不要留一条历史:
    *   - 换视图 / 换部门 = 一次真实的「跳转」,留历史 → 后退能回到上一个部门(像
    *     翻文件夹一样);
-   *   - 选中/取消一个人或一个群 = 页内状态,用 replace 顶掉当前条目 → 否则点十个
-   *     人就在历史里堆十条,后退键要按十次才出得去。
+   *   - 桌面选人/选群用 replace;窄屏详情新增历史,浏览器后退能回到名单。
    */
   const patchParams = (
     patch: Record<string, string | null>,
@@ -200,30 +235,33 @@ const ContactsAuthenticated = () => {
    * 放在事件处理器里则和 `patchParams` 落在同一批状态更新:重渲染那一帧 `value` 已经
    * 是 `''`,`resetKey` 同时变化 → 防抖 hook 立刻采用,不发那次多余的请求。
    */
-  const clearFilter = () => setMemberFilter('')
+  const clearFilter = () => {
+    setMemberFilter('')
+    setDepartmentDetailsOpen(false)
+    setMobileNavOpen(false)
+  }
 
   const selectView = (next: Exclude<ContactsView, null>) => {
     clearFilter()
-    patchParams({ view: next, dept: null, member: null })
+    patchParams({ view: next, dept: null, member: null, group: null })
   }
   const selectAll = () => {
     clearFilter()
-    patchParams({ view: null, dept: null, member: null })
+    patchParams({ view: null, dept: null, member: null, group: null })
   }
-  // 每个选择动作都顺手把浮层详情「重新打开」:窄屏下用户可能刚把它关掉,再点
-  // 一次同一个部门也该再看到那张卡。
+  // 部门选择优先显示名单,资料通过独立入口打开。
   const selectDept = (id: string) => {
     clearFilter()
-    setDetailDismissed(false)
-    patchParams({ view: null, dept: id, member: null })
+    setDepartmentDetailsOpen(false)
+    patchParams({ view: null, dept: id, member: null, group: null })
   }
   const selectMember = (id: string | null) => {
-    setDetailDismissed(false)
-    patchParams({ member: id }, { replace: true })
+    setDepartmentDetailsOpen(false)
+    patchParams({ member: id }, { replace: !narrowDetail || !id })
   }
   const selectGroup = (cid: string) => {
-    setDetailDismissed(false)
-    patchParams({ group: cid }, { replace: true })
+    setDepartmentDetailsOpen(false)
+    patchParams({ group: cid }, { replace: !narrowDetail })
   }
 
   // 兜底:上面几个入口已经把筛选清掉了(见 clearFilter),但视图/部门也可能**不经过
@@ -232,6 +270,7 @@ const ContactsAuthenticated = () => {
   // 筛的「张」带到新列表里只会显示「无匹配」。
   useEffect(() => {
     setMemberFilter('')
+    setDepartmentDetailsOpen(false)
   }, [view, selectedDeptId])
 
   const { data: departments = [] } = useQuery({
@@ -241,8 +280,7 @@ const ContactsAuthenticated = () => {
   })
 
   // 通讯录只负责「浏览」组织:选部门列其直属成员,全部成员列整册。
-  // 按姓名找人统一走顶栏全局搜索(飞书式单一搜索入口),列表头另给一个**就地**筛选:
-  // 只过滤已加载的这几页,不发请求,用于「这一屏里找那个人」。
+  // 列表筛选覆盖当前部门的全部成员,全局搜索用于跨模块查找。
   //
   // 分页而不是只取第一页:一个上百人的部门原来会在第 100 人处静默截断,页面上
   // 没有任何迹象表明列表还没完。星标名单不分页(它本来就短)。
@@ -425,9 +463,14 @@ const ContactsAuthenticated = () => {
       .filter((dept): dept is (typeof departments)[number] => !!dept)
   }, [recentIds, departments])
 
-  // 成员选择同样由 URL 承载(?member=<id>,如从 IM 消息头像点击跳转)。列表里
-  // 有这个人就用列表对象(带部门/职位),没有(比如部门负责人)就单拉一份。
-  const { data: linkedMember } = useQuery({
+  // 优先使用详情响应(包括离职状态),加载期间可用列表卡片占位。
+  const {
+    data: linkedMember,
+    isPending: memberPending,
+    isError: memberError,
+    error: memberFailure,
+    refetch: retryMember,
+  } = useQuery({
     queryKey: ['directory', 'member', memberParam],
     queryFn: () => fetchDirectoryMember(memberParam!),
     enabled: !!memberParam,
@@ -435,7 +478,7 @@ const ContactsAuthenticated = () => {
   })
   const selectedMember = useMemo(() => {
     if (!memberParam) return null
-    return members.find((m) => m.id === memberParam) ?? linkedMember ?? null
+    return linkedMember ?? members.find((m) => m.id === memberParam) ?? null
   }, [memberParam, members, linkedMember])
 
   // 星标名单单独拉一份:一是「添加」对话框要排掉已星标的人,二是任何列表/详情
@@ -517,6 +560,8 @@ const ContactsAuthenticated = () => {
     member: DirectoryMember,
     patch: { is_starred?: boolean; special_alert?: boolean }
   ) => {
+    const key = `pref:${member.id}`
+    if (!beginAction(key)) return
     try {
       await setContactPref(member.id, patch)
       await qc.invalidateQueries({ queryKey: ['directory', 'starred'] })
@@ -524,14 +569,23 @@ const ContactsAuthenticated = () => {
       await qc.invalidateQueries({ queryKey: ['directory', 'members'] })
     } catch (e) {
       void showAlert({
-        message: t('starred.error', {
-          message: e instanceof Error ? e.message : String(e),
-        }),
+        message: t(
+          patch.special_alert === undefined
+            ? 'starred.error'
+            : 'specialAlert.error',
+          {
+            message: e instanceof Error ? e.message : String(e),
+          }
+        ),
       })
+    } finally {
+      endAction(key)
     }
   }
 
-  const handleMessage = async (member: DirectoryMember) => {
+  const handleMessage = async (member: DirectoryMember | ExternalContact) => {
+    const key = `message:${member.id}`
+    if (!beginAction(key)) return
     try {
       const result = await createDirectConversationByUserId(member.id)
       // 带上 cid,ImRoute 据此直接打开与该联系人的会话(否则落到 /im 还要再选一次)
@@ -542,19 +596,8 @@ const ContactsAuthenticated = () => {
           message: e instanceof Error ? e.message : String(e),
         }),
       })
-    }
-  }
-
-  const handleExternalMessage = async (contact: ExternalContact) => {
-    try {
-      const result = await createDirectConversationByUserId(contact.id)
-      navigate(`/im?cid=${encodeURIComponent(result.cid)}`)
-    } catch (e) {
-      void showAlert({
-        message: t('page.messageError', {
-          message: e instanceof Error ? e.message : String(e),
-        }),
-      })
+    } finally {
+      endAction(key)
     }
   }
 
@@ -653,7 +696,9 @@ const ContactsAuthenticated = () => {
       ? deptAncestors.map((a) => a.name).join(' / ')
       : null,
     typeof totalMembers === 'number'
-      ? t('page.count', { count: totalMembers })
+      ? t(debouncedFilter ? 'page.resultCount' : 'page.count', {
+          count: view === 'starred' ? visibleMembers.length : totalMembers,
+        })
       : null,
   ]
     .filter(Boolean)
@@ -756,63 +801,109 @@ const ContactsAuthenticated = () => {
 
   /** 右栏内容(桌面 = 第三栏,窄屏 = 浮层,见下)。都不选中时为 null —— 那时
    * 桌面显示空态提示,窄屏干脆不占地方。 */
-  const detailPanel = selectedMember ? (
-    <MemberDetailPanel
-      member={selectedMember}
-      starred={starredIds.has(selectedMember.id)}
-      onToggleStarred={(next) =>
-        void toggleContactPref(selectedMember, { is_starred: next })
-      }
-      specialAlert={alertIds.has(selectedMember.id)}
-      onToggleSpecialAlert={(next) =>
-        void toggleContactPref(selectedMember, { special_alert: next })
-      }
-      onMessage={handleMessage}
-      onClose={() => selectMember(null)}
+  const closeDetails = () => {
+    setDepartmentDetailsOpen(false)
+    patchParams({ member: null, group: null }, { replace: true })
+  }
+  const detailPanel =
+    memberParam && !selectedMember ? (
+      <aside className={css({ width: '300px', padding: '1rem' })}>
+        <StateHint
+          state={memberError ? 'error' : 'loading'}
+          action={
+            memberError ? (
+              <Button onPress={() => void retryMember()}>
+                {t('picker.retry')}
+              </Button>
+            ) : undefined
+          }
+        >
+          {memberError
+            ? memberFailure instanceof ApiError &&
+              memberFailure.statusCode === 403
+              ? t('detail.forbidden')
+              : memberFailure instanceof ApiError &&
+                  memberFailure.statusCode === 404
+                ? t('detail.notFound')
+                : t('picker.loadError')
+            : memberPending
+              ? t('page.loading')
+              : t('detail.notFound')}
+        </StateHint>
+      </aside>
+    ) : selectedMember ? (
+      <MemberDetailPanel
+        member={selectedMember}
+        starred={starredIds.has(selectedMember.id)}
+        onToggleStarred={(next) =>
+          void toggleContactPref(selectedMember, { is_starred: next })
+        }
+        specialAlert={alertIds.has(selectedMember.id)}
+        onToggleSpecialAlert={(next) =>
+          void toggleContactPref(selectedMember, { special_alert: next })
+        }
+        onMessage={handleMessage}
+        onClose={closeDetails}
+        saving={busyActions.has(`pref:${selectedMember.id}`)}
+        messaging={busyActions.has(`message:${selectedMember.id}`)}
+      />
+    ) : selectedGroup ? (
+      <GroupDetailPanel
+        group={selectedGroup}
+        label={selectedGroupLabel}
+        memberInfo={myGroups.memberInfo}
+        avatarSrc={myGroups.groupAvatars[selectedGroup.cid]}
+        onEnter={() =>
+          navigate(`/im?cid=${encodeURIComponent(selectedGroup.cid)}`)
+        }
+      />
+    ) : selectedDept ? (
+      <DepartmentDetailPanel
+        department={selectedDept}
+        ancestors={deptAncestors}
+        // 部门负责人可能不在当前列表里(没分页到 / 属于子部门),交给 ?member=
+        // 深链那条查询去取。
+        onOpenHead={(userId) => selectMember(userId)}
+        // 空部门不给按钮:点了必然是一句「没有成员」,不如不给。
+        onStartGroupChat={
+          selectedDept.member_count > 0
+            ? () => void handleStartGroupChat(selectedDept)
+            : undefined
+        }
+        startingGroupChat={startingGroupChat}
+      />
+    ) : null
+
+  const sidebar = (
+    <ContactsSidebar
+      view={view}
+      selectedDeptId={effectiveDeptId}
+      departments={departments}
+      recent={recentDepts}
+      counts={counts}
+      onSelectView={selectView}
+      onSelectAll={selectAll}
+      onSelectDept={selectDept}
+      onCollapse={() => (compactNav ? setMobileNavOpen(false) : toggleNav())}
     />
-  ) : selectedGroup ? (
-    <GroupDetailPanel
-      group={selectedGroup}
-      label={selectedGroupLabel}
-      memberInfo={myGroups.memberInfo}
-      avatarSrc={myGroups.groupAvatars[selectedGroup.cid]}
-      onEnter={() =>
-        navigate(`/im?cid=${encodeURIComponent(selectedGroup.cid)}`)
-      }
-    />
-  ) : selectedDept ? (
-    <DepartmentDetailPanel
-      department={selectedDept}
-      ancestors={deptAncestors}
-      // 部门负责人可能不在当前列表里(没分页到 / 属于子部门),交给 ?member=
-      // 深链那条查询去取。
-      onOpenHead={(userId) => selectMember(userId)}
-      // 空部门不给按钮:点了必然是一句「没有成员」,不如不给。
-      onStartGroupChat={
-        selectedDept.member_count > 0
-          ? () => void handleStartGroupChat(selectedDept)
-          : undefined
-      }
-      startingGroupChat={startingGroupChat}
-    />
-  ) : null
+  )
 
   return (
     <div
       className={css({
         display: 'flex',
         height: '100%',
-        minHeight: '600px',
+        minHeight: 0,
         overflow: 'hidden',
       })}
     >
-      {navCollapsed ? (
+      {navCollapsed || compactNav ? (
         // 收起态:只留一条 36px 窄条,把 260px 还给名单。按钮放在这里而不是中栏
         // 的页头里 —— 群组/外部联系人视图没有同一个页头,放那儿就找不到了。
         <div className={navStripCls}>
           <button
             type="button"
-            onClick={toggleNav}
+            onClick={() => (compactNav ? setMobileNavOpen(true) : toggleNav())}
             aria-label={t('page.showNav')}
             title={t('page.showNav')}
             data-testid="contacts-nav-expand"
@@ -828,23 +919,14 @@ const ContactsAuthenticated = () => {
           min={220}
           max={460}
         >
-          <ContactsSidebar
-            view={view}
-            selectedDeptId={effectiveDeptId}
-            departments={departments}
-            recent={recentDepts}
-            counts={counts}
-            onSelectView={selectView}
-            onSelectAll={selectAll}
-            onSelectDept={selectDept}
-            onCollapse={toggleNav}
-          />
+          {sidebar}
         </ResizablePanel>
       )}
 
       <main
         className={css({
           flex: 1,
+          minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -856,7 +938,7 @@ const ContactsAuthenticated = () => {
         {view === 'groups' ? (
           <MyGroupsPanel selectedCid={groupParam} onSelect={selectGroup} />
         ) : view === 'external' ? (
-          <ExternalContactsPanel onMessage={handleExternalMessage} />
+          <ExternalContactsPanel onMessage={handleMessage} />
         ) : (
           <>
             <header className={listHeaderCls}>
@@ -874,10 +956,26 @@ const ContactsAuthenticated = () => {
                 )}
               </div>
               <div className={headerActionsCls}>
+                {narrowDetail && selectedDept && (
+                  <Button
+                    size="dense"
+                    variant="secondaryText"
+                    onPress={() => setDepartmentDetailsOpen(true)}
+                    data-testid="contacts-department-info"
+                  >
+                    {t('department.info')}
+                  </Button>
+                )}
                 <SearchBox
                   value={memberFilter}
                   onChange={setMemberFilter}
-                  placeholder={t('page.filterMembers')}
+                  placeholder={t(
+                    view === 'starred'
+                      ? 'page.searchStarred'
+                      : selectedDept
+                        ? 'page.searchDepartment'
+                        : 'page.filterMembers'
+                  )}
                   testId="contacts-member-filter"
                   className={searchBoxCls}
                 />
@@ -937,10 +1035,19 @@ const ContactsAuthenticated = () => {
                   >
                     {t('picker.loadError')}
                   </StateHint>
-                ) : isFetching && visibleMembers.length === 0 ? (
+                ) : isFetching &&
+                  (isPlaceholderData || visibleMembers.length === 0) ? (
                   <StateHint state="loading">{t('page.loading')}</StateHint>
                 ) : visibleMembers.length === 0 ? (
-                  <StateHint>
+                  <StateHint
+                    action={
+                      debouncedFilter ? (
+                        <Button variant="secondaryText" onPress={clearFilter}>
+                          {t('page.clearFilter')}
+                        </Button>
+                      ) : undefined
+                    }
+                  >
                     {/* 筛出来是空的,与「这个部门本来就没人」是两句不同的话:
                         前者要告诉用户「换个词试试」,后者才是「这里没人」。 */}
                     {debouncedFilter
@@ -1037,26 +1144,14 @@ const ContactsAuthenticated = () => {
                             {/* 行尾动作:hover / 键盘聚焦才出现(触屏常显)。以前每个
                         成员行都挂一颗常显的「发消息」,一屏十几颗同重量按钮既是
                         噪声、又把名字和按钮拉开几百像素。 */}
-                            {view === 'starred' ? (
-                              <span data-row-action className={rowActionCls}>
-                                <Button
-                                  variant="secondaryText"
-                                  size="dense"
-                                  onPress={() =>
-                                    void toggleContactPref(member, {
-                                      is_starred: false,
-                                    })
-                                  }
-                                  data-testid={`contacts-unstar-${member.id}`}
-                                >
-                                  {t('starred.remove')}
-                                </Button>
-                              </span>
-                            ) : !member.is_self ? (
+                            {!member.is_self ? (
                               <span data-row-action className={rowActionCls}>
                                 <Button
                                   variant="secondary"
                                   size="dense"
+                                  loading={busyActions.has(
+                                    `message:${member.id}`
+                                  )}
                                   onPress={() => handleMessage(member)}
                                   data-testid={`contacts-message-${member.id}`}
                                 >
@@ -1076,21 +1171,24 @@ const ContactsAuthenticated = () => {
                 「列表非空」这个条件不是多余的:空态里挂一个「加载更多」,点它就等于
                 把「没结果」和「还没加载」两件事混在一起 —— 用户会一直点下去。
                 放在整表高度之后 = 真的在底部,不会一进页面就误触发。 */}
-                {hasNextPage && visibleMembers.length > 0 && (
-                  <div ref={sentinelRef} className={loadMoreCls}>
-                    <Button
-                      variant="tertiaryText"
-                      size="sm"
-                      onPress={() => void fetchNextPage()}
-                      isDisabled={isFetchingNextPage}
-                      data-testid="contacts-load-more"
-                    >
-                      {isFetchingNextPage
-                        ? t('page.loading')
-                        : t('page.loadMore')}
-                    </Button>
-                  </div>
-                )}
+                {!isPlaceholderData &&
+                  !isError &&
+                  hasNextPage &&
+                  visibleMembers.length > 0 && (
+                    <div ref={sentinelRef} className={loadMoreCls}>
+                      <Button
+                        variant="tertiaryText"
+                        size="sm"
+                        onPress={() => void fetchNextPage()}
+                        isDisabled={isFetchingNextPage}
+                        data-testid="contacts-load-more"
+                      >
+                        {isFetchingNextPage
+                          ? t('page.loading')
+                          : t('page.loadMore')}
+                      </Button>
+                    </div>
+                  )}
               </div>
             </div>
           </>
@@ -1101,29 +1199,49 @@ const ContactsAuthenticated = () => {
           一次);窄屏下改成浮层(见 detailPanel 的注释)。
           优先级:成员卡 > 群资料卡 > 部门卡 > 空态提示。 */}
       {narrowDetail
-        ? !detailDismissed &&
-          detailPanel &&
-          // 窄屏(≤1280px):三栏放不下,右栏改成盖在名单上的浮层 —— 名单保住
-          // 自己的宽度(否则一排名字会被挤到只剩一个头像),关掉浮层就回到名单。
-          // 与任务的「接管式详情」同一手法,只是这里盖住的是通讯录而不是整页。
-          createPortal(
-            <div className={takeoverCls} data-testid="contacts-detail-overlay">
-              <div className={takeoverHeaderCls}>
-                <Button
-                  variant="secondaryText"
-                  size="dense"
-                  onPress={() => setDetailDismissed(true)}
-                  data-testid="contacts-detail-back"
-                >
-                  <RiArrowLeftLine size={16} aria-hidden />
-                  {t('detail.back')}
-                </Button>
+        ? (memberParam || selectedGroup || departmentDetailsOpen) &&
+          detailPanel && (
+            <Modal
+              onClose={closeDetails}
+              ariaLabel={t('detail.titleLabel')}
+              maxWidth="960px"
+              maxHeight="90dvh"
+            >
+              <div
+                data-testid="contacts-detail-overlay"
+                className={css({
+                  display: 'flex',
+                  flexDirection: 'column',
+                  minHeight: 0,
+                })}
+              >
+                <div className={takeoverHeaderCls}>
+                  <Button
+                    variant="secondaryText"
+                    size="dense"
+                    onPress={closeDetails}
+                    data-testid="contacts-detail-back"
+                  >
+                    <RiArrowLeftLine size={16} aria-hidden />
+                    {t('detail.back')}
+                  </Button>
+                </div>
+                <div className={takeoverBodyCls}>{detailPanel}</div>
               </div>
-              <div className={takeoverBodyCls}>{detailPanel}</div>
-            </div>,
-            document.body
+            </Modal>
           )
         : (detailPanel ?? <ContactsDetailPlaceholder view={view} />)}
+
+      {compactNav && mobileNavOpen && (
+        <Modal
+          onClose={() => setMobileNavOpen(false)}
+          ariaLabel={t('page.title')}
+          maxWidth="460px"
+          maxHeight="90dvh"
+        >
+          {sidebar}
+        </Modal>
+      )}
 
       {addingStarred && (
         <StarredAddDialog
@@ -1156,6 +1274,7 @@ const listHeaderCls = css({
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '0.75rem',
+  flexWrap: 'wrap',
   paddingLeft: '1rem',
   paddingRight: `calc(1rem + var(--contacts-gutter, ${SCROLLBAR_GUTTER_FALLBACK}px))`,
   paddingY: '0.625rem',
@@ -1190,14 +1309,6 @@ const navStripBtnCls = css({
 })
 
 /** 窄屏的右栏浮层:盖住内容区,自带一条返回栏。 */
-const takeoverCls = css({
-  position: 'fixed',
-  inset: 0,
-  zIndex: 'takeover',
-  display: 'flex',
-  flexDirection: 'column',
-  backgroundColor: 'greyscale.50',
-})
 const takeoverHeaderCls = css({
   flexShrink: 0,
   display: 'flex',
@@ -1241,7 +1352,8 @@ const headerActionsCls = css({
   display: 'flex',
   alignItems: 'center',
   gap: '0.5rem',
-  flexShrink: 0,
+  flexWrap: 'wrap',
+  minWidth: 0,
 })
 /** 表头那颗筛选框只出宽度 —— 长相由统一搜索框 SearchBox 负责。 */
 const searchBoxCls = css({

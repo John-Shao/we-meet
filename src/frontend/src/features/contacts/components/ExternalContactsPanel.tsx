@@ -32,6 +32,8 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
   const qc = useQueryClient()
   const { confirm, alert } = useConfirm()
   const [adding, setAdding] = useState(false)
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set())
+  const locks = useRef(new Set<string>())
   const contacts = useQuery({
     queryKey: ['directory', 'external-contacts'],
     queryFn: fetchExternalContacts,
@@ -51,7 +53,10 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
       }),
     ])
   }
-  const run = async (operation: () => Promise<unknown>) => {
+  const run = async (id: string, operation: () => Promise<unknown>) => {
+    if (locks.current.has(id)) return
+    locks.current.add(id)
+    setBusyIds(new Set(locks.current))
     try {
       await operation()
       await refresh()
@@ -61,6 +66,9 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
           message: error instanceof Error ? error.message : String(error),
         }),
       })
+    } finally {
+      locks.current.delete(id)
+      setBusyIds(new Set(locks.current))
     }
   }
 
@@ -83,18 +91,37 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
         </Button>
       </header>
 
+      {requests.isError && (
+        <StateHint
+          state="error"
+          action={
+            <Button size="dense" onPress={() => void requests.refetch()}>
+              {t('picker.retry')}
+            </Button>
+          }
+        >
+          {t('external.requestsLoadError')}
+        </StateHint>
+      )}
+      {requests.isPending && (
+        <StateHint state="loading">{t('external.requestsLoading')}</StateHint>
+      )}
       {pending.length > 0 && (
         <div className={sectionCls}>
           <h3 className={sectionTitleCls}>{t('external.requests')}</h3>
           {pending.map((contact) => (
-            <ContactRow key={contact.relationship_id} contact={contact}>
+            <ContactRow
+              key={contact.relationship_id}
+              contact={contact}
+              busy={busyIds.has(contact.relationship_id!)}
+            >
               {contact.direction === 'incoming' ? (
                 <>
                   <Button
                     variant="primary"
                     size="dense"
                     onPress={() =>
-                      void run(() =>
+                      void run(contact.relationship_id!, () =>
                         acceptExternalContactRequest(contact.relationship_id!)
                       )
                     }
@@ -105,7 +132,7 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
                     variant="secondaryText"
                     size="dense"
                     onPress={() =>
-                      void run(() =>
+                      void run(contact.relationship_id!, () =>
                         declineExternalContactRequest(contact.relationship_id!)
                       )
                     }
@@ -120,7 +147,7 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
                     variant="secondaryText"
                     size="dense"
                     onPress={() =>
-                      void run(() =>
+                      void run(contact.relationship_id!, () =>
                         removeExternalContact(contact.relationship_id!)
                       )
                     }
@@ -135,18 +162,37 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
       )}
 
       <div className={sectionCls}>
+        {contacts.isError && (
+          <StateHint
+            state="error"
+            action={
+              <Button size="dense" onPress={() => void contacts.refetch()}>
+                {t('picker.retry')}
+              </Button>
+            }
+          >
+            {t('picker.loadError')}
+          </StateHint>
+        )}
         {contacts.isFetching && rows.length === 0 ? (
           <StateHint state="loading">{t('page.loading')}</StateHint>
-        ) : rows.length === 0 ? (
+        ) : rows.length === 0 && !contacts.isError ? (
           <StateHint>{t('external.empty')}</StateHint>
         ) : (
           rows.map((contact) => (
-            <ContactRow key={contact.relationship_id} contact={contact}>
+            <ContactRow
+              key={contact.relationship_id}
+              contact={contact}
+              busy={busyIds.has(contact.relationship_id!)}
+            >
               <span className={externalTagCls}>{t('external.tag')}</span>
               <Button
                 variant="secondary"
                 size="dense"
-                onPress={() => void onMessage(contact)}
+                loading={busyIds.has(contact.relationship_id!)}
+                onPress={() =>
+                  void run(contact.relationship_id!, () => onMessage(contact))
+                }
               >
                 {t('page.message')}
               </Button>
@@ -161,7 +207,7 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
                     danger: true,
                   })
                   if (ok) {
-                    void run(() =>
+                    void run(contact.relationship_id!, () =>
                       removeExternalContact(contact.relationship_id!)
                     )
                   }
@@ -190,9 +236,11 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
 const ContactRow = ({
   contact,
   children,
+  busy = false,
 }: {
   contact: ExternalContact
   children: React.ReactNode
+  busy?: boolean
 }) => (
   <div className={rowCls}>
     <MemberAvatar
@@ -204,7 +252,14 @@ const ContactRow = ({
       <strong>{displayName(contact)}</strong>
       <span>{contact.organization?.name || '—'}</span>
     </div>
-    <div className={actionsCls}>{children}</div>
+    <fieldset
+      disabled={busy}
+      aria-busy={busy}
+      className={actionsCls}
+      style={{ border: 0, padding: 0, margin: 0 }}
+    >
+      {children}
+    </fieldset>
   </div>
 )
 
@@ -221,12 +276,28 @@ const AddExternalContactDialog = ({
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ExternalContact[]>([])
   const [busy, setBusy] = useState(false)
-
-  const search = async () => {
-    if (!query.trim()) return
-    setBusy(true)
+  const [searched, setSearched] = useState(false)
+  const [searchError, setSearchError] = useState(false)
+  const [sending, setSending] = useState<string | null>(null)
+  const sendingRef = useRef(false)
+  const searchVersion = useRef(0)
+  const changeQuery = (value: string) => {
+    searchVersion.current += 1
+    setQuery(value)
+    setResults([])
+    setSearched(false)
+    setSearchError(false)
+    setBusy(false)
+  }
+  const submitContact = async (contact: ExternalContact) => {
+    if (sendingRef.current) return
+    sendingRef.current = true
+    setSending(contact.id)
     try {
-      setResults(await searchExternalAccounts(query))
+      if (contact.direction === 'incoming')
+        await acceptExternalContactRequest(contact.relationship_id!)
+      else await sendExternalContactRequest(contact.id)
+      onSent()
     } catch (error) {
       void alert({
         message: t('external.error', {
@@ -234,7 +305,24 @@ const AddExternalContactDialog = ({
         }),
       })
     } finally {
-      setBusy(false)
+      sendingRef.current = false
+      setSending(null)
+    }
+  }
+
+  const search = async () => {
+    if (!query.trim() || sendingRef.current) return
+    const version = ++searchVersion.current
+    setBusy(true)
+    setSearchError(false)
+    setSearched(true)
+    try {
+      const found = await searchExternalAccounts(query)
+      if (version === searchVersion.current) setResults(found)
+    } catch {
+      if (version === searchVersion.current) setSearchError(true)
+    } finally {
+      if (version === searchVersion.current) setBusy(false)
     }
   }
 
@@ -265,7 +353,7 @@ const AddExternalContactDialog = ({
       >
         <SearchBox
           value={query}
-          onChange={setQuery}
+          onChange={changeQuery}
           placeholder={t('external.searchPlaceholder')}
           inputRef={inputRef}
           className={css({ flex: 1, minWidth: 0 })}
@@ -274,7 +362,7 @@ const AddExternalContactDialog = ({
           type="submit"
           variant="primary"
           size="action"
-          isDisabled={!query.trim() || busy}
+          isDisabled={!query.trim() || busy || sending !== null}
         >
           {t('external.search')}
         </Button>
@@ -282,8 +370,19 @@ const AddExternalContactDialog = ({
       <div className={resultsCls}>
         {busy ? (
           <StateHint state="loading">{t('page.loading')}</StateHint>
+        ) : searchError ? (
+          <StateHint
+            state="error"
+            action={
+              <Button onPress={() => void search()}>{t('picker.retry')}</Button>
+            }
+          >
+            {t('external.searchError')}
+          </StateHint>
         ) : results.length === 0 ? (
-          <StateHint>{t('external.searchEmpty')}</StateHint>
+          <StateHint>
+            {t(searched ? 'external.noMatch' : 'external.searchEmpty')}
+          </StateHint>
         ) : (
           results.map((contact) => (
             <ContactRow key={contact.id} contact={contact}>
@@ -295,10 +394,9 @@ const AddExternalContactDialog = ({
                 <Button
                   variant="primary"
                   size="dense"
-                  onPress={async () => {
-                    await acceptExternalContactRequest(contact.relationship_id!)
-                    onSent()
-                  }}
+                  loading={sending === contact.id}
+                  isDisabled={sending !== null}
+                  onPress={() => void submitContact(contact)}
                 >
                   {t('external.accept')}
                 </Button>
@@ -308,10 +406,9 @@ const AddExternalContactDialog = ({
                 <Button
                   variant="primary"
                   size="dense"
-                  onPress={async () => {
-                    await sendExternalContactRequest(contact.id)
-                    onSent()
-                  }}
+                  loading={sending === contact.id}
+                  isDisabled={sending !== null}
+                  onPress={() => void submitContact(contact)}
                 >
                   {t('external.sendRequest')}
                 </Button>

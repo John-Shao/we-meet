@@ -31,6 +31,8 @@ export interface DirectoryMember {
    * 前端按自己算的字母分组」迟早会错位(改过名字、换过 pypinyin 版本之后)。
    */
   initial: string
+  /** Server-generated name/short-name pinyin, shared with directory search. */
+  search_key?: string
   is_self: boolean
   /**
    * 调用方是否把这个人设成了星标联系人(每张成员卡片都带,免二次请求)。

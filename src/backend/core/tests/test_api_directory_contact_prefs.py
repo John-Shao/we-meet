@@ -305,3 +305,17 @@ def test_flags_are_private_to_their_owner():
         if m["id"] == str(peer.id)
     )
     assert (card["is_starred"], card["special_alert"]) == (False, False)
+
+
+def test_starred_cards_share_directory_pinyin_search_key():
+    """The client filters starred cards using the directory's name search key."""
+    org, _me, client = _org_with_caller()
+    peer = factories.UserFactory(full_name="夜来香", short_name="小夜")
+    _membership(org, peer)
+    response = client.put(_prefs_url(peer.id), {"is_starred": True}, format="json")
+    assert response.status_code == 200
+    starred = client.get(STARRED_URL).json()[0]
+    assert starred["search_key"] == peer.search_key
+    assert "yelaixiang" in starred["search_key"]
+    assert "ylx" in starred["search_key"]
+    assert "xy" in starred["search_key"]

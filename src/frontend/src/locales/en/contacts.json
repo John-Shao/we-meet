@@ -46,7 +46,12 @@
     "hideNav": "Collapse navigation",
     "showNav": "Expand navigation",
     "selfTag": "(you)",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "resultCount": "{{count}} results",
+    "searchStarred": "Search starred contacts",
+    "searchDepartment": "Search this department",
+    "clearFilter": "Clear search",
+    "opening": "Opening…"
   },
   "detail": {
     "email": "Email",
@@ -56,7 +61,12 @@
     "none": "—",
     "emptyTitle": "Pick a department or member",
     "back": "Back",
-    "emptyHint": "See member cards and department heads, and start a chat right away."
+    "emptyHint": "See member cards and department heads, and start a chat right away.",
+    "titleLabel": "Contact details",
+    "departed": "This member has left the organization. Organization contact information is no longer available.",
+    "forbidden": "You do not have access to this profile.",
+    "notFound": "This member no longer exists or is unavailable.",
+    "saving": "Saving…"
   },
   "groups": {
     "title": "My groups",
@@ -97,7 +107,11 @@
     "alreadyContact": "Already a contact",
     "remove": "Remove",
     "removeConfirm": "Remove external contact “{{name}}”?",
-    "error": "External contact action failed: {{message}}"
+    "error": "External contact action failed: {{message}}",
+    "requestsLoadError": "Could not load contact requests. Please retry.",
+    "requestsLoading": "Loading contact requests…",
+    "noMatch": "No account found. Check the full phone number or email address.",
+    "searchError": "Search failed. Please retry."
   },
   "starred": {
     "title": "Starred contacts",
@@ -114,7 +128,8 @@
   },
   "specialAlert": {
     "toggle": "Special alerts for their messages",
-    "toggleHint": "Their messages notify you even during quiet hours."
+    "toggleHint": "Their messages notify you even during quiet hours.",
+    "error": "Could not update priority notifications: {{message}}"
   },
   "department": {
     "memberCount": "Members",
@@ -126,7 +141,8 @@
     "startGroupChatConfirm": "Start a group chat with the {{members}} members of “{{name}}”?",
     "startGroupChatEmpty": "This department has no direct members yet",
     "startGroupChatError": "Could not create the group chat: {{message}}",
-    "startGroupChatTooMany": "This department has {{count}} people, above the {{limit}}-person limit for one click. Start the group from the chat page and pick members instead."
+    "startGroupChatTooMany": "This department has {{count}} people, above the {{limit}}-person limit for one click. Start the group from the chat page and pick members instead.",
+    "info": "Department details"
   },
   "tree": {
     "expand": "Expand",

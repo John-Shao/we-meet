@@ -45,7 +45,12 @@
     "hideNav": "收起导航",
     "showNav": "展开导航",
     "selfTag": "(我)",
-    "loadMore": "加载更多"
+    "loadMore": "加载更多",
+    "resultCount": "找到 {{count}} 人",
+    "searchStarred": "搜索星标联系人",
+    "searchDepartment": "搜索本部门成员",
+    "clearFilter": "清空筛选",
+    "opening": "正在打开…"
   },
   "detail": {
     "email": "邮箱",
@@ -55,7 +60,12 @@
     "none": "—",
     "emptyTitle": "选择左侧的部门或成员",
     "back": "返回",
-    "emptyHint": "查看成员名片与部门负责人，并直接发起会话。"
+    "emptyHint": "查看成员名片与部门负责人，并直接发起会话。",
+    "titleLabel": "联系人资料",
+    "departed": "该成员已离职，组织联系方式不再提供。",
+    "forbidden": "无权查看此成员资料。",
+    "notFound": "此成员不存在或已不可用。",
+    "saving": "正在保存…"
   },
   "groups": {
     "title": "我的群组",
@@ -95,7 +105,11 @@
     "alreadyContact": "已是外部联系人",
     "remove": "删除",
     "removeConfirm": "确定删除外部联系人「{{name}}」？双方将不能再通过联系人入口发起沟通。",
-    "error": "外部联系人操作失败：{{message}}"
+    "error": "外部联系人操作失败：{{message}}",
+    "requestsLoadError": "无法加载联系人申请，请重试。",
+    "requestsLoading": "正在加载联系人申请…",
+    "noMatch": "未找到账号，请核对完整手机号或邮箱。",
+    "searchError": "查找失败，请重试。"
   },
   "starred": {
     "title": "星标联系人",
@@ -112,7 +126,8 @@
   },
   "specialAlert": {
     "toggle": "他的消息特别提醒",
-    "toggleHint": "开启后，该联系人发来消息时即使在免打扰时段也会通知你。"
+    "toggleHint": "开启后，该联系人发来消息时即使在免打扰时段也会通知你。",
+    "error": "特别提醒设置失败：{{message}}"
   },
   "department": {
     "memberCount": "成员数",
@@ -121,10 +136,11 @@
     "noHead": "未指定",
     "code": "部门 ID",
     "startGroupChat": "发起群聊",
-    "startGroupChatConfirm": "用「{{name}}」的 {{members}} 名成员创建一个群聊？",
+    "startGroupChatConfirm": "将「{{name}}」的 {{members}} 名直属成员与你一起加入新群聊？不含子部门成员。",
     "startGroupChatEmpty": "这个部门还没有直属成员",
     "startGroupChatError": "创建群聊失败：{{message}}",
-    "startGroupChatTooMany": "这个部门有 {{count}} 人，超过一次拉群的 {{limit}} 人上限。请在会话页新建群聊并挑选成员。"
+    "startGroupChatTooMany": "这个部门有 {{count}} 人，超过一次拉群的 {{limit}} 人上限。请在会话页新建群聊并挑选成员。",
+    "info": "部门资料"
   },
   "tree": {
     "expand": "展开",
