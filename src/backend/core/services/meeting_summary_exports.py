@@ -146,6 +146,12 @@ def serialize(export):
         "status": export.status,
         "attempt": export.attempt,
         "document_id": str(export.document_id) if export.document_id else None,
+        "can_open": bool(
+            export.status == "ready"
+            and export.document_id
+            and str(settings.DOCS_CONFIGURATION.get("api_url", "")).rstrip("/")
+            == export.api_url
+        ),
         "error_code": export.error_code,
         "created_at": export.created_at,
     }

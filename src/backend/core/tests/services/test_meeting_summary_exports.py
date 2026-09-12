@@ -224,3 +224,17 @@ def test_preview_change_requires_review_before_creating_a_document():
     with pytest.raises(RecordConflict):
         service.request_export(record.pk, owner, uuid.uuid4(), choice, expected)
     assert not record.document_exports.exists()
+
+
+def test_document_link_is_hidden_if_docs_origin_changes(settings):
+    owner, record, _, summary = fixture()
+    export, _ = export_request(record.pk, owner, uuid.uuid4(), selection(summary))
+    export.status = "ready"
+    export.document_id = uuid.uuid4()
+    export.save(update_fields=["status", "document_id"])
+    assert service.serialize(export)["can_open"] is True
+    settings.DOCS_CONFIGURATION = {
+        **settings.DOCS_CONFIGURATION,
+        "api_url": "https://other.invalid",
+    }
+    assert service.serialize(export)["can_open"] is False

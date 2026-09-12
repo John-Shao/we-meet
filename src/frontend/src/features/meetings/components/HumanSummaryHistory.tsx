@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { fetchApi } from '@/api/fetchApi'
 import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { SummaryExportControl } from './SummaryExportControl'
 import type {
   ApiRecordSummaryVersion,
   RecordSourceReference,
@@ -117,6 +118,12 @@ export const HumanSummaryHistory = ({
               </h4>
               <Text variant="note">{t('humanReview.historyReadOnly')}</Text>
               <Text>{value.content.overview}</Text>
+              <SummaryExportControl
+                recordId={recordId}
+                viewerId={viewerId}
+                sourceId={value.id}
+                sourceKind="human"
+              />
               {(
                 [
                   'decisions',

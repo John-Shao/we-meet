@@ -23,6 +23,7 @@ import type {
 import { SummaryAutomationControl } from './SummaryAutomationControl'
 import { HumanSummaryPanel } from './HumanSummaryPanel'
 import { RecordQuestionPanel } from './RecordQuestionPanel'
+import { SummaryExportControl } from './SummaryExportControl'
 
 const stack = css({ display: 'flex', flexDirection: 'column', gap: '1rem' })
 
@@ -332,6 +333,8 @@ export const RecordSummaryPanel = ({
         <Version
           key={version.id}
           version={version}
+          recordId={recordId}
+          viewerId={viewerId}
           onSource={
             detail.data.capabilities.read_transcript
               ? (ref) =>
@@ -385,9 +388,13 @@ export const RecordSummaryPanel = ({
 
 const Version = ({
   version,
+  recordId,
+  viewerId,
   onSource,
 }: {
   version: ApiRecordSummaryVersion
+  recordId: string
+  viewerId: string
   onSource?: (ref: RecordSourceReference) => void
 }) => {
   const { t } = useTranslation('meetings')
@@ -424,6 +431,12 @@ const Version = ({
           <Text variant="note">{t(`recordAi.asr.${version.asr_status}`)}</Text>
         )}
         <Text>{version.content.overview}</Text>
+        <SummaryExportControl
+          recordId={recordId}
+          viewerId={viewerId}
+          sourceId={version.id}
+          sourceKind="ai"
+        />
         {(
           ['decisions', 'chapters', 'action_items', 'open_questions'] as const
         ).map(

@@ -1,4 +1,32 @@
 {
+  "summaryExport": {
+    "open": "Export this version to a document",
+    "close": "Close document export",
+    "language": "Section heading language",
+    "languageHint": "The body stays in its original language and is not translated.",
+    "copyHint": "This is an independent copy. Later minutes edits will not overwrite it. It is created only for you, without automatically sharing it with participants.",
+    "preview": "Preview document content",
+    "content": "Document content",
+    "confirm": "Confirm document creation",
+    "confirmRetry": "Confirm retry of the original export",
+    "resubmit": "Check and resend the original request",
+    "pendingHint": "Your previous submission is unconfirmed. Continue the original request to avoid creating a duplicate.",
+    "openDocument": "Open document",
+    "accepted": "Submitted. You can open the document here when it is ready.",
+    "uncertain": "Submission is unconfirmed. Check and resend the original request.",
+    "conflict": "The version or processing state changed. Preview again before continuing.",
+    "unavailable": "This version cannot be read or exported right now. Refresh to try again.",
+    "storageUnavailable": "Your browser could not save the request identity. Allow local storage and try again.",
+    "status": {
+      "queued": "Document creation queued",
+      "running": "Processing document",
+      "ready": "Document created",
+      "uncertain": "Checking the document result. Refresh later or confirm retry of the original export.",
+      "failed": "Document processing failed. Preview before retrying.",
+      "unavailable": "The original document is unavailable and will not be recreated automatically.",
+      "canceled": "Document creation stopped. Check your access before retrying."
+    }
+  },
   "library": {
     "searchOriginal": "Search the full transcript",
     "clearSearch": "Clear search",
