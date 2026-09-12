@@ -10,7 +10,7 @@ from django.http import Http404
 
 from rest_framework import pagination, permissions, serializers, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 
@@ -43,6 +43,14 @@ class SummaryRequestThrottle(UserRateThrottle):
 
     scope = "meeting_summary_requests"
     rate = "6/min"
+
+
+class TranscriptSourceChanged(APIException):
+    """A reader must refresh rather than combine different source revisions."""
+
+    status_code = 409
+    default_detail = "The original source changed. Refresh before reading another page."
+    default_code = "transcript_source_changed"
 
 
 class SummaryRequestSerializer(serializers.Serializer):
@@ -541,6 +549,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 session_id=record.meeting_session_id,
                 room_id=record.meeting_session.room_id,
             )
+        rows, expected = self._filter_original_text(record, rows)
         pager = TranscriptPagination()
         order = request.query_params.get("order", "oldest")
         if order not in {"oldest", "latest"}:
@@ -548,9 +557,30 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         if order == "latest":
             pager.ordering = ("-started_at", "-id")
         page = pager.paginate_queryset(rows, request, view=self)
-        return pager.get_paginated_response(
-            RecordTranscriptSerializer(page, many=True).data
+        data = RecordTranscriptSerializer(page, many=True).data
+        self._check_original_revision(record, expected)
+        return pager.get_paginated_response(data)
+
+    def _filter_original_text(self, record, rows):
+        """Search only authorized original rows, before cursor pagination."""
+        query = self.request.query_params.get("q", "").strip()
+        if len(query) > 200:
+            raise ValidationError({"q": "Search text exceeds 200 characters."})
+        raw = self.request.query_params.get("expected_revision")
+        expected = (
+            serializers.IntegerField(min_value=1).run_validation(raw)
+            if raw is not None else None
         )
+        self._check_original_revision(record, expected)
+        return (rows.filter(text__icontains=query) if query else rows), expected
+
+    @staticmethod
+    def _check_original_revision(record, expected):
+        """Check again after serializing to catch publication during the read."""
+        if expected is not None and not models.MeetingRecord.objects.filter(
+            pk=record.pk, revision=expected
+        ).exists():
+            raise TranscriptSourceChanged()
 
     @action(detail=True, methods=["get"], url_path="original-segments")
     def original_segments(self, request, pk=None):
@@ -577,10 +607,11 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             rows = rows.filter(
                 speaker_id=serializers.UUIDField().run_validation(speaker_id)
             )
+        rows, expected = self._filter_original_text(record, rows)
         pager = RecordPagination()
         pager.ordering = ("start_ms", "id")
         page = pager.paginate_queryset(rows, request, view=self)
-        return pager.get_paginated_response(
+        response = pager.get_paginated_response(
             [
                 {
                     "id": str(row.pk),
@@ -598,6 +629,8 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 for row in page
             ]
         )
+        self._check_original_revision(record, expected)
+        return response
 
     @action(detail=True, methods=["get"], url_path="source-status")
     def source_status(self, request, pk=None):

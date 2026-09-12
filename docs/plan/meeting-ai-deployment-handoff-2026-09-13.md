@@ -65,3 +65,8 @@ Record list/detail now expose permission-filtered library metadata and strict `i
 ## Batch 35 update
 
 Web: `/meeting/notes`, `/meeting/minutes`, `/meeting/records/:recordId`. Record flag controls access; no migration. Owners can reopen stopped cloud recordings without local capture history. Shared transcript/summary permissions remain separate; ongoing captures are read-only here. 27 frontend tests, build and native Chromium fixture flow passed; real devices, providers and deployment remain operator tests. See [batch 35](meeting-ai-phase3-batch15-2026-09-13.md).
+
+
+## Batch 36 update
+
+Full-original search and optional `expected_revision` are now supported; stale reads return 409. No migrations or new flags. 42 backend tests and 15 frontend tests passed across focused runs, with native Chromium fixture search/playback. Docs repository is now located at `../we-meet-docs`; upstream idempotency remains to implement. See [batch 36](meeting-ai-phase3-batch16-2026-09-13.md).

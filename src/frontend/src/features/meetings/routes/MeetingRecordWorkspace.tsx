@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, Redirect, useParams } from 'wouter'
 import { fetchApi } from '@/api/fetchApi'
+import { ApiError } from '@/api/ApiError'
 import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
 import { Screen } from '@/layout/Screen'
@@ -27,6 +28,7 @@ import {
 import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
 import { libraryLayout } from '../components/libraryStyles'
+import { OriginalSearch } from '../components/OriginalSearch'
 
 const privateOptions = { retry: false, gcTime: 0, staleTime: 0 }
 const textStyle = css({
@@ -49,12 +51,22 @@ function OriginalRead({
 }) {
   const { t } = useTranslation('meetings')
   const [cursors, setCursors] = useState<string[]>([''])
+  const [search, setSearch] = useState('')
+  const client = useQueryClient()
   const endpoint = speakers
     ? 'speakers'
     : record.source_type === 'meeting'
       ? 'transcripts'
       : 'original-segments'
-  const path = `meeting-records/${record.id}/${endpoint}/?cursor=${encodeURIComponent(cursors.at(-1)!)}`
+  const path = `meeting-records/${record.id}/${endpoint}/?cursor=${encodeURIComponent(cursors.at(-1)!)}&q=${encodeURIComponent(search)}&expected_revision=${record.revision}`
+  const searchForm = !speakers && (
+    <OriginalSearch
+      onSearch={(query) => {
+        setSearch(query)
+        setCursors([''])
+      }}
+    />
+  )
   const query = useQuery({
     ...privateOptions,
     queryKey: ['record-library-content', viewerId, record.revision, path],
@@ -66,10 +78,40 @@ function OriginalRead({
       >(path, { signal, cache: 'no-store' }),
     refetchInterval: (q) => (q.state.error ? false : 10000),
   })
-  if (query.isError) return <p role="alert">{t('library.loadError')}</p>
-  if (!query.data) return <p role="status">{t('loading')}</p>
+  if (query.isError)
+    return (
+      <div>
+        {searchForm}
+        <p role="alert">
+          {t(
+            query.error instanceof ApiError && query.error.statusCode === 409
+              ? 'library.sourceChanged'
+              : 'library.loadError'
+          )}
+        </p>
+        <Button
+          variant="tertiary"
+          onPress={() => {
+            void client.invalidateQueries({
+              queryKey: ['meeting-records', viewerId, 'detail', record.id],
+            })
+            void query.refetch()
+          }}
+        >
+          {t('library.refresh')}
+        </Button>
+      </div>
+    )
+  if (!query.data)
+    return (
+      <div>
+        {searchForm}
+        <p role="status">{t('loading')}</p>
+      </div>
+    )
   return (
     <div>
+      {searchForm}
       {!query.data.results.length && <p>{t('library.noContent')}</p>}
       {query.data.results.map((item) => (
         <article

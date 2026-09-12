@@ -82,6 +82,11 @@ try {
     await page.screenshot({ path: 'test-results/meeting-workspace-error.png', fullPage: true })
     throw error
   }
+  await page.getByLabel('搜索整份逐字稿').fill('纪要')
+  const searched = page.waitForResponse(response => new URL(response.url()).searchParams.get('q') === '纪要')
+  await page.getByRole('button', { name: '搜索', exact: true }).click()
+  assert.equal((await searched).status(), 200)
+  await page.getByText('本周先完成录音和纪要的统一入口。', { exact: true }).waitFor()
   await page.getByRole('button', { name: '回听 0:00', exact: true }).click()
   await page.waitForFunction(() => document.querySelector('audio')?.currentTime >= 0.5)
   await page.getByRole('tab', { name: '智能纪要', exact: true }).click()

@@ -93,6 +93,50 @@ it('opens the summary workspace lazily and links citations to playback', async (
   view.unmount()
 })
 
+it('searches the published generation and resets its cursor when the query changes', async () => {
+  status.active_job_id = 'published'
+  const baseline = vi.mocked(fetchApi).getMockImplementation()!
+  vi.mocked(fetchApi).mockImplementation(async (path, options, ...rest) => {
+    if (path.includes('original-segments')) {
+      const params = new URL(path, 'https://fixture.invalid').searchParams
+      expect(params.get('transcription_job_id')).toBe('published')
+      if (params.get('q')) {
+        expect(params.get('cursor')).toBe('')
+        return {
+          results: [{ id: 'found', text: 'Search match', start_ms: 5000 }],
+          next_cursor: null,
+        }
+      }
+      if (!params.get('cursor'))
+        return {
+          results: [{ id: 'one', text: 'First page', start_ms: 0 }],
+          next_cursor: 'next-token',
+        }
+      return {
+        results: [{ id: 'two', text: 'Second page', start_ms: 1000 }],
+        next_cursor: null,
+      }
+    }
+    return baseline(path, options, ...rest)
+  })
+  show()
+  await screen.findByText('First page')
+  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  await screen.findByText('Second page')
+  fireEvent.change(screen.getByLabelText('library.searchOriginal'), {
+    target: { value: '全文' },
+  })
+  // The local button test double does not forward type; submit the form itself.
+  fireEvent.submit(
+    screen.getByLabelText('library.searchOriginal').closest('form')!
+  )
+  await screen.findByText('Search match')
+  expect(screen.queryByText('Second page')).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'previous' })
+  ).not.toBeInTheDocument()
+})
+
 it('uses the backend cursor token while keeping the published version pinned', async () => {
   status = { available: true, active_job_id: 'published', results: [] }
   const baseline = vi.mocked(fetchApi).getMockImplementation()!

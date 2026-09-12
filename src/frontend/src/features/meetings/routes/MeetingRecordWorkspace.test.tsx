@@ -188,3 +188,53 @@ it('reads old online material only through the immutable record ID', async () =>
       .mock.calls.every(([path]) => path.startsWith('meeting-records/record/'))
   ).toBe(true)
 })
+
+it('searches the complete original with a revision fence and hides stale results', async () => {
+  record.capture_id = null
+  record.source_type = 'meeting'
+  const baseline = vi.mocked(fetchApi).getMockImplementation()!
+  vi.mocked(fetchApi).mockImplementation(async (path, options, ...rest) => {
+    if (path.includes('/transcripts/')) {
+      const params = new URL(path, 'https://fixture.invalid').searchParams
+      expect(params.get('expected_revision')).toBe('1')
+      if (params.get('q') === 'updated') throw new ApiError(409, {})
+      if (params.get('q'))
+        return {
+          results: [
+            {
+              id: 'found',
+              text: 'Found on a later page',
+              started_at: '2026-09-13T00:00:00Z',
+            },
+          ],
+          next_cursor: null,
+        }
+    }
+    return baseline(path, options, ...rest)
+  })
+  show()
+  await screen.findByText('Exact online source')
+  fireEvent.change(screen.getByLabelText('library.searchOriginal'), {
+    target: { value: ' 中文 & % ' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'library.searchButton' }))
+  await screen.findByText('Found on a later page')
+  expect(screen.queryByText('Exact online source')).not.toBeInTheDocument()
+  expect(
+    vi
+      .mocked(fetchApi)
+      .mock.calls.some(
+        ([path]) =>
+          new URL(path, 'https://fixture.invalid').searchParams.get('q') ===
+          '中文 & %'
+      )
+  ).toBe(true)
+  fireEvent.change(screen.getByLabelText('library.searchOriginal'), {
+    target: { value: 'updated' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'library.searchButton' }))
+  await screen.findByText('library.sourceChanged')
+  expect(screen.queryByText('Found on a later page')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'library.clearSearch' }))
+  await screen.findByText('Exact online source')
+})

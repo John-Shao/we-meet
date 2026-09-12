@@ -1,5 +1,8 @@
 {
   "library": {
+    "searchOriginal": "Search the full transcript",
+    "clearSearch": "Clear search",
+    "sourceChanged": "The transcript has changed. Reload before continuing.",
     "notes": "Meeting notes",
     "minutes": "AI minutes",
     "record": "AI recording",

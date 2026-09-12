@@ -1,5 +1,8 @@
 {
   "library": {
+    "searchOriginal": "搜索整份逐字稿",
+    "clearSearch": "清除搜索",
+    "sourceChanged": "文字记录已更新，请重新读取后继续查看。",
     "notes": "会议笔记",
     "minutes": "智能纪要",
     "record": "AI 录音",

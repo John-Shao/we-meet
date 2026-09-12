@@ -223,3 +223,6 @@ Latest implementation: [Batch 34: unified library queries](meeting-ai-phase3-bat
 
 
 [Batch 35: Web library and record workspace](meeting-ai-phase3-batch15-2026-09-13.md) connects D02 and standalone D03 cloud discovery. Full M3 and final review remain pending.
+
+
+[Batch 36: full transcript search](meeting-ai-phase3-batch16-2026-09-13.md) adds search and revision fences. Docs source located at `../we-meet-docs`; D05 dependency implementation can proceed.

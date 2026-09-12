@@ -10,6 +10,7 @@ import type {
   ApiMeetingOriginalSegment,
 } from '../api/ApiCaptureSession'
 import { RecordSummaryPanel } from './RecordSummaryPanel'
+import { OriginalSearch } from './OriginalSearch'
 
 type Job = {
   id: string
@@ -306,8 +307,17 @@ function Originals({
 }) {
   const { t } = useTranslation('capture')
   const [cursors, setCursors] = useState<string[]>([''])
+  const [search, setSearch] = useState('')
   const cursor = cursors.at(-1)!
-  const path = `meeting-records/${capture.record_id}/original-segments/?transcription_job_id=${jobId}&cursor=${encodeURIComponent(cursor)}`
+  const path = `meeting-records/${capture.record_id}/original-segments/?transcription_job_id=${jobId}&cursor=${encodeURIComponent(cursor)}&q=${encodeURIComponent(search)}`
+  const searchForm = (
+    <OriginalSearch
+      onSearch={(query) => {
+        setSearch(query)
+        setCursors([''])
+      }}
+    />
+  )
   const query = useQuery({
     queryKey: ['capture-originals', viewerId, path],
     queryFn: ({ signal }) =>
@@ -323,15 +333,23 @@ function Originals({
   if (query.isError)
     return (
       <div>
+        {searchForm}
         <p role="alert">{t('asr.textError')}</p>
         <Button variant="secondary" onPress={() => void query.refetch()}>
           {t('asr.refresh')}
         </Button>
       </div>
     )
-  if (!query.data) return <p role="status">{t('asr.loading')}</p>
+  if (!query.data)
+    return (
+      <div>
+        {searchForm}
+        <p role="status">{t('asr.loading')}</p>
+      </div>
+    )
   return (
     <div className={style}>
+      {searchForm}
       <h3>{t('asr.originals')}</h3>
       <p>{t('asr.unknownSpeaker')}</p>
       {!query.data.results.length && <p>{t('asr.noText')}</p>}
