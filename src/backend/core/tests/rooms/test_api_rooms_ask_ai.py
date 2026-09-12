@@ -1,7 +1,6 @@
 """Test rooms API endpoint: ask-ai (Sprint 2.3, room sidebar AI)."""
 # pylint: disable=W0621
 
-import uuid
 from datetime import timedelta
 from unittest import mock
 
@@ -12,8 +11,11 @@ import pytest
 from livekit.api import AccessToken, VideoGrants
 from rest_framework.test import APIClient
 
+from core.services.llm_client import LLMUnavailable
+
 from ...factories import RoomFactory
 from ...models import Transcript
+from .room_ai_fixtures import authorized_identity
 
 pytestmark = pytest.mark.django_db
 
@@ -39,7 +41,7 @@ def livekit_token_for(mock_room_id):
                 api_secret=django_settings.LIVEKIT_CONFIGURATION["api_secret"],
             )
             .with_grants(grants)
-            .with_identity(str(uuid.uuid4()))
+            .with_identity(authorized_identity(room_id))
             .to_jwt()
         )
 
@@ -156,8 +158,6 @@ def test_ask_ai_returns_503_when_llm_misconfigured(livekit_token_for, mock_room_
     token = livekit_token_for()
     client = APIClient()
 
-    from core.services.llm_client import LLMUnavailable
-
     with mock.patch(
         "core.services.room_ai.RoomAIService.ask",
         side_effect=LLMUnavailable("missing key"),
@@ -170,4 +170,4 @@ def test_ask_ai_returns_503_when_llm_misconfigured(livekit_token_for, mock_room_
         )
 
     assert response.status_code == 503
-    assert "missing key" in response.json()["error"]
+    assert response.json()["error"] == "Meeting AI is unavailable."

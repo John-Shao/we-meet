@@ -8,7 +8,7 @@ from django.utils import timezone
 
 import pytest
 
-from core.factories import RoomFactory
+from core.factories import MeetingSessionFactory, RoomFactory
 from core.models import Transcript
 from core.services.room_ai import RoomAIService
 
@@ -19,6 +19,8 @@ def _add_transcript(room, text="今天的会议主要讲了考勤制度。"):
     started = timezone.now() - timedelta(minutes=2)
     return Transcript.objects.create(
         room=room,
+        session=room.meeting_sessions.filter(status="active").first()
+        or MeetingSessionFactory(room=room),
         speaker_identity="alice",
         speaker_name="Alice",
         text=text,
@@ -53,9 +55,7 @@ def test_meta_is_emitted_before_any_delta():
     _add_transcript(room)
     llm = _fake_llm(stream_chunks=("结论", "是 5", "点半"))
 
-    events = list(
-        RoomAIService(llm=llm).ask_stream(room=room, question="结论是什么？")
-    )
+    events = list(RoomAIService(llm=llm).ask_stream(room=room, question="结论是什么？"))
 
     assert events[0]["type"] == "meta"
     deltas_text = "".join(ev["text"] for ev in events if ev["type"] == "delta")

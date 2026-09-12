@@ -1,4 +1,5 @@
 {
+  "materialsUnavailable": "当前场次的会议资料尚不可用，或你没有资料访问权限。加入会议不会自动获得资料权限。",
   "toggle": {
     "open": "关闭会议 AI",
     "closed": "打开会议 AI（基于本场字幕）"

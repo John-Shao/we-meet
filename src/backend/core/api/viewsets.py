@@ -94,6 +94,7 @@ from core.services.tasks import (
 )
 from core.services.ai_agent import AIAgentException, AIAgentService
 from core.services.room_ai import RoomAIService
+from core.services.room_ai_access import authorized_session, guard_stream
 from core.services.personal_ai import PersonalAIService
 from core.services.embeddings import EmbeddingUnavailable
 from core.services.llm_client import LLMUnavailable
@@ -1683,8 +1684,8 @@ class RoomViewSet(
         """Answer one question about the current meeting using its transcripts.
 
         Body: ``{"question": "..."}``. The auth chain proves the caller's
-        LiveKit token was minted for this very room (``HasLiveKitRoomAccess``),
-        so only live participants reach this code path. Single-turn — no
+        LiveKit token was minted for this room. Current material access is
+        checked separately against one active session. Single-turn — no
         history persisted; the frontend manages conversation state.
         """
         room = self.get_object()
@@ -1694,16 +1695,20 @@ class RoomViewSet(
         question = serializer.validated_data["question"]
 
         try:
-            result = RoomAIService().ask(room=room, question=question)
-        except LLMUnavailable as exc:
+            session = authorized_session(room, request.user)
+            result = RoomAIService().ask(room=room, question=question, session_id=session.pk)
+            authorized_session(room, request.user, session_id=session.pk)
+        except drf_exceptions.PermissionDenied:
+            raise
+        except LLMUnavailable:
             return drf_response.Response(
-                {"error": str(exc)},
+                {"error": "Meeting AI is unavailable."},
                 status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.exception("room ai failed for room %s", room.id)
+        except Exception:  # pylint: disable=broad-except
+            logger.warning("room ai failed for room %s", room.id)
             return drf_response.Response(
-                {"error": f"Room AI failed: {exc}"},
+                {"error": "Meeting AI is unavailable."},
                 status=drf_status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
@@ -1739,8 +1744,10 @@ class RoomViewSet(
         # event rather than a synchronous 503. UX-wise that's fine: the
         # frontend treats either path as "show toast, leave assistant
         # bubble in interrupted state".
-        event_iter = RoomAIService().ask_stream(
-            room=room, question=question, history=history
+        session = authorized_session(room, request.user)
+        event_iter = guard_stream(
+            RoomAIService().ask_stream(room=room, question=question, history=history, session_id=session.pk),
+            room, request.user, session.pk,
         )
         return _sse_response(event_iter, error_label="Room AI")
 

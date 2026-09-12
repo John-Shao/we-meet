@@ -142,6 +142,25 @@ def test_duplicate_writer_and_legacy_fallback_are_fenced(settings):
     assert models.Transcript.objects.count() == 0
 
 
+def test_stop_deadline_rejects_tail_and_success_even_before_cleanup_tick(settings):
+    user, session = meeting()
+    _, run, _ = start(user, session)
+    client, identity = claim(settings, session, run)
+    stop(user, session, run)
+    models.OnlineCaptureRun.objects.filter(pk=run.pk).update(
+        stop_requested_at=timezone.now() - timedelta(seconds=121),
+        heartbeat_at=timezone.now(),
+    )
+    assert (
+        _post(client, _payload(session.room, **identity, sequence=1)).status_code == 409
+    )
+    assert finish(client, identity, 0).status_code == 409
+    assert heartbeat(client, identity).status_code == 409
+    tick_captures()
+    run.refresh_from_db()
+    assert run.state == "incomplete" and run.error_code == "capture_timeout"
+
+
 def test_exact_sid_role_and_anonymous_boundaries():
     user, session = meeting()
     outsider = UserFactory()

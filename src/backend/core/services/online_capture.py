@@ -179,6 +179,12 @@ def require_writer(delivery, data, *, claim=False):
     writer_id = data.get("writer_id")
     if not writer_id:
         raise RecordConflict("Managed capture requires its exclusive writer.")
+    if (
+        run.state in ACTIVE
+        and run.stop_requested_at
+        and run.stop_requested_at < timezone.now() - timedelta(seconds=STOP_SECONDS)
+    ):
+        raise RecordConflict("Capture stop deadline expired.")
     if claim and run.writer_id is None and run.state in ("starting", "stopping"):
         if timezone.now() - run.created_at > timedelta(seconds=START_SECONDS):
             raise RecordConflict("Capture start expired.")

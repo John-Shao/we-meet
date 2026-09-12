@@ -1,9 +1,10 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ApiError } from '@/api/ApiError'
 import { sseStream } from '@/api/sseStream'
 
 import { useRoomData } from '@/features/rooms/livekit/hooks/useRoomData'
+import { useConnectedMeetingSid } from '@/features/meetings/useConnectedMeetingSid'
 
 export type RoomAIRole = 'user' | 'assistant'
 
@@ -40,18 +41,27 @@ export const useRoomAI = () => {
   const roomData = useRoomData()
   const roomId = roomData?.livekit?.room ?? roomData?.id
   const token = roomData?.livekit?.token
+  const sid = useConnectedMeetingSid()
 
   const [messages, setMessages] = useState<RoomAIMessage[]>([])
   const [isAsking, setIsAsking] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  const isReady = !!roomId && !!token
+  const isReady = !!roomId && !!token && !!sid
 
   const ask = useCallback(
     async (rawQuestion: string) => {
       const question = rawQuestion.trim()
-      if (!question || !roomId || !token || isAsking) return
+      if (
+        !question ||
+        !roomId ||
+        !token ||
+        !sid ||
+        isAsking ||
+        abortRef.current
+      )
+        return
 
       const history = messages
         .filter((m) => !m.isStreaming && m.content)
@@ -88,6 +98,7 @@ export const useRoomAI = () => {
           headers: { Authorization: `Bearer ${token}` },
           signal: ctrl.signal,
         })) {
+          if (ctrl.signal.aborted || abortRef.current !== ctrl) return
           if (ev.type === 'delta') {
             setMessages((prev) =>
               prev.map((m) =>
@@ -111,16 +122,21 @@ export const useRoomAI = () => {
             : e instanceof Error
               ? e.message
               : String(e)
-        setError(new Error(message))
+        if (!ctrl.signal.aborted && abortRef.current === ctrl)
+          setError(e instanceof ApiError ? e : new Error(message))
       } finally {
-        abortRef.current = null
-        setIsAsking(false)
-        setMessages((prev) =>
-          prev.map((m) => (m.id === asstId ? { ...m, isStreaming: false } : m))
-        )
+        if (abortRef.current === ctrl) {
+          abortRef.current = null
+          setIsAsking(false)
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === asstId ? { ...m, isStreaming: false } : m
+            )
+          )
+        }
       }
     },
-    [messages, roomId, token, isAsking]
+    [messages, roomId, token, sid, isAsking]
   )
 
   const reset = useCallback(() => {
@@ -130,6 +146,14 @@ export const useRoomAI = () => {
     setError(null)
     setIsAsking(false)
   }, [])
+
+  useEffect(() => {
+    reset()
+    return () => {
+      abortRef.current?.abort()
+      abortRef.current = null
+    }
+  }, [roomId, token, sid, reset])
 
   return { messages, ask, reset, isAsking, error, isReady }
 }

@@ -11,7 +11,6 @@ Sprint 2.5 — the non-streaming sibling is covered by
 # pylint: disable=W0621
 
 import json
-import uuid
 from unittest import mock
 
 from django.conf import settings as django_settings
@@ -21,6 +20,7 @@ from livekit.api import AccessToken, VideoGrants
 from rest_framework.test import APIClient
 
 from ...factories import RoomFactory
+from .room_ai_fixtures import authorized_identity
 
 pytestmark = pytest.mark.django_db
 
@@ -44,7 +44,7 @@ def livekit_token_for(mock_room_id):
                 api_secret=django_settings.LIVEKIT_CONFIGURATION["api_secret"],
             )
             .with_grants(grants)
-            .with_identity(str(uuid.uuid4()))
+            .with_identity(authorized_identity(room_id))
             .to_jwt()
         )
 
@@ -54,8 +54,8 @@ def livekit_token_for(mock_room_id):
 def _parse_sse(body: bytes) -> list[dict]:
     """Decode a recorded SSE body into a list of event dicts."""
     out: list[dict] = []
-    for frame in body.decode("utf-8").split("\n\n"):
-        frame = frame.strip()
+    for raw_frame in body.decode("utf-8").split("\n\n"):
+        frame = raw_frame.strip()
         if frame.startswith("data: "):
             out.append(json.loads(frame[6:]))
     return out
@@ -97,9 +97,7 @@ def test_stream_rejects_empty_question(livekit_token_for, mock_room_id):
     assert response.status_code == 400
 
 
-def test_stream_rejects_history_with_invalid_role(
-    livekit_token_for, mock_room_id
-):
+def test_stream_rejects_history_with_invalid_role(livekit_token_for, mock_room_id):
     """Frontend can't smuggle a ``system`` history entry past the
     serializer; the service layer also defends, but failing fast at the
     serializer is preferable for UX feedback."""
@@ -117,9 +115,7 @@ def test_stream_rejects_history_with_invalid_role(
     assert response.status_code == 400
 
 
-def test_stream_happy_path_emits_meta_delta_done(
-    livekit_token_for, mock_room_id
-):
+def test_stream_happy_path_emits_meta_delta_done(livekit_token_for, mock_room_id):
     RoomFactory(id=mock_room_id)
     client = APIClient()
 
@@ -149,9 +145,7 @@ def test_stream_happy_path_emits_meta_delta_done(
     assert events == fake_events
 
 
-def test_stream_accepts_event_stream_accept_header(
-    livekit_token_for, mock_room_id
-):
+def test_stream_accepts_event_stream_accept_header(livekit_token_for, mock_room_id):
     """Regression (Sprint 2.5): the real frontend sends
     ``Accept: text/event-stream``. With only ``JSONRenderer`` configured,
     DRF content negotiation returned 406 *before* the view ran. The
@@ -175,9 +169,7 @@ def test_stream_accepts_event_stream_accept_header(
     assert response["content-type"].startswith("text/event-stream")
 
 
-def test_stream_emits_error_frame_when_service_raises(
-    livekit_token_for, mock_room_id
-):
+def test_stream_emits_error_frame_when_service_raises(livekit_token_for, mock_room_id):
     RoomFactory(id=mock_room_id)
     client = APIClient()
 
@@ -199,4 +191,5 @@ def test_stream_emits_error_frame_when_service_raises(
     events = _parse_sse(b"".join(response.streaming_content))
     assert events[0]["type"] == "meta"
     assert events[-1]["type"] == "error"
-    assert "LLM 500" in events[-1]["message"]
+    assert "Meeting AI is unavailable." in events[-1]["message"]
+    assert "LLM 500" not in events[-1]["message"]

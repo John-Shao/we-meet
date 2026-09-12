@@ -1,4 +1,5 @@
 {
+  "materialsUnavailable": "Materials for this session are unavailable, or you do not have access. Joining a meeting does not automatically grant access to its materials.",
   "toggle": {
     "open": "Close meeting AI",
     "closed": "Open meeting AI (answers from this meeting's transcript)"

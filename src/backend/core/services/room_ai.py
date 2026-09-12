@@ -16,8 +16,9 @@ Design notes:
   service truncates from the same end for the same reason).
 * Translations are intentionally ignored: Doubao Pro handles cross-lingual
   reasoning natively, and skipping translations halves the prompt bytes.
-* The endpoint enforces "must be a room participant" via LiveKit token
-  auth + ``HasLiveKitRoomAccess``; this module assumes that check passed.
+* The endpoint requires a room token AND a current transcript-material grant.
+  One active session is fixed for the request and rechecked before releasing
+  output. Unattributed rows and historical sessions are never included.
 
 See ``docs/features/room_ai_sidebar.md`` for the broader rationale.
 """
@@ -77,9 +78,9 @@ class RoomAIService:
     # Public API
     # ------------------------------------------------------------------
 
-    def ask(self, *, room: Room, question: str) -> dict:
+    def ask(self, *, room: Room, question: str, session_id=None) -> dict:
         """Run one round of QA. Caller has already validated ``question``."""
-        prep = self._prepare(room=room, question=question)
+        prep = self._prepare(room=room, question=question, session_id=session_id)
         if prep["empty_response"] is not None:
             return prep["empty_response"]
 
@@ -108,6 +109,7 @@ class RoomAIService:
         room: Room,
         question: str,
         history: Optional[list[dict]] = None,
+        session_id=None,
     ) -> Iterator[dict]:
         """Stream the same QA as :py:meth:`ask` (Sprint 2.5).
 
@@ -120,7 +122,7 @@ class RoomAIService:
         Errors propagate out — the caller (view) catches and emits the
         ``error`` event onto the SSE stream itself.
         """
-        prep = self._prepare(room=room, question=question)
+        prep = self._prepare(room=room, question=question, session_id=session_id)
         client = prep["client"]
         if prep["empty_response"] is not None:
             # Empty-state replies aren't worth a real LLM call. Synthesise
@@ -157,7 +159,7 @@ class RoomAIService:
     # Shared prep — used by both ask() and ask_stream()
     # ------------------------------------------------------------------
 
-    def _prepare(self, *, room: Room, question: str) -> dict:
+    def _prepare(self, *, room: Room, question: str, session_id=None) -> dict:
         """Build the system prompt + decide if we should short-circuit.
 
         Returns a dict with:
@@ -172,7 +174,7 @@ class RoomAIService:
             logger.warning("RoomAI unavailable for room %s: %s", room.id, exc)
             raise
 
-        transcripts = self._collect_recent(room)
+        transcripts = self._collect_recent(room, session_id=session_id)
         if not transcripts:
             return {
                 "client": client,
@@ -198,7 +200,7 @@ class RoomAIService:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _collect_recent(self, room: Room) -> list[Transcript]:
+    def _collect_recent(self, room: Room, *, session_id=None) -> list[Transcript]:
         """Pull newest-first, accumulate up to ``MAX_CONTEXT_BYTES``,
         then flip back to time order for the prompt.
 
@@ -206,8 +208,14 @@ class RoomAIService:
         meetings; a 4-hour meeting at ~150 chars/utterance is well under
         the 60 KB cap regardless.
         """
+        sessions = models.MeetingSession.objects.filter(room=room, status="active")
+        if session_id is not None:
+            sessions = sessions.filter(pk=session_id)
+        selected = list(sessions.values_list("id", flat=True)[:2])
+        if len(selected) != 1:
+            return []
         rows = (
-            Transcript.objects.filter(room=room)
+            Transcript.objects.filter(room=room, session_id=selected[0])
             .order_by("-started_at")
             .iterator()
         )

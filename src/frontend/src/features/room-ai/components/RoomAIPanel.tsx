@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { useTranslation } from 'react-i18next'
+import { ApiError } from '@/api/ApiError'
 import ReactMarkdown from 'react-markdown'
 
 import { Text } from '@/primitives'
@@ -139,7 +140,9 @@ export const RoomAIPanel = () => {
 
       {error && (
         <Text className={errorStyle}>
-          {t('error', { message: error.message || '' })}
+          {error instanceof ApiError && [403, 404].includes(error.statusCode)
+            ? t('materialsUnavailable')
+            : t('error', { message: error.message || '' })}
         </Text>
       )}
 

@@ -8,7 +8,7 @@ from django.utils import timezone
 
 import pytest
 
-from core.factories import RoomFactory
+from core.factories import MeetingSessionFactory, RoomFactory
 from core.models import Transcript
 from core.services.llm_client import LLMUnavailable
 from core.services.room_ai import RoomAIService
@@ -21,6 +21,8 @@ def _make_transcript(room, speaker, text, *, minutes_ago=0):
     started = timezone.now() - timedelta(minutes=minutes_ago)
     return Transcript.objects.create(
         room=room,
+        session=room.meeting_sessions.filter(status="active").first()
+        or MeetingSessionFactory(room=room),
         speaker_identity=f"id-{speaker}",
         speaker_name=speaker,
         text=text,

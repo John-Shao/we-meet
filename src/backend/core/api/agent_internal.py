@@ -18,6 +18,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
+from django.utils.crypto import constant_time_compare
 
 from rest_framework import exceptions, permissions, serializers, status
 from rest_framework.authentication import BaseAuthentication
@@ -64,7 +65,7 @@ class AgentTokenAuthentication(BaseAuthentication):
             return None  # no header → fall through; HasAgentToken returns 403
 
         expected = getattr(settings, "AGENT_INTERNAL_API_TOKEN", "") or ""
-        if not expected or token != expected:
+        if not expected or not constant_time_compare(token, expected):
             raise exceptions.AuthenticationFailed("Invalid agent token")
 
         return (AnonymousUser(), token)
