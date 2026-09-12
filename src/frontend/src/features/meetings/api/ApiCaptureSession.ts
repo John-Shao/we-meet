@@ -1,4 +1,4 @@
-/** Opt-in backend protocol. Microphone, upload and ASR adapters are not connected. */
+/** Opt-in standalone capture protocol; storage receipts do not imply ASR completion. */
 export type CaptureCommand =
   | 'start'
   | 'pause'
@@ -21,11 +21,12 @@ export interface ApiCaptureSession {
   revision: number
   started_at: string
   ended_at: string | null
-  media_status: 'not_connected'
-  captured_duration_ms: null
+  media_status: 'not_connected' | 'uploading' | 'saved' | 'incomplete' | 'empty'
+  captured_duration_ms: number | null
   /** Audio acknowledgement only; text receipts must not advance this value. */
   last_acked_sequence: number
-  missing_ranges: null
+  missing_ranges: Array<{ start_ms: number; end_ms: number }> | null
+  missing_sequences?: number[] | null
   coverage_status: 'unverified'
 }
 

@@ -37,6 +37,12 @@ from core.api.bot_webhook import BotWebhookView
 from core.api.calendar import CalendarEventViewSet
 from core.api.calendar_exports import CalendarExportJobViewSet
 from core.api.calendars import CalendarShareView, CalendarViewSet
+from core.api.capture_audio import (
+    CaptureAudioDownloadView,
+    CaptureAudioSealView,
+    CaptureAudioUploadView,
+    CaptureAudioView,
+)
 from core.api.directory import (
     ContactPreferenceViewSet,
     DepartmentViewSet,
@@ -74,22 +80,22 @@ from core.api.meeting_captures import (
     CaptureWriterGrantView,
     IngestRecordOriginalView,
 )
+from core.api.meeting_record_qa import RecordQuestionView
 from core.api.meeting_records import MeetingRecordViewSet
 from core.api.meeting_rooms import (
     MeetingRoomFacilityViewSet,
     MeetingRoomNodeViewSet,
     MeetingRoomViewSet,
 )
+from core.api.meeting_summary_review import SummaryHistoryView, SummaryReviewView
+from core.api.meeting_summary_tasks import SummaryTaskView
+from core.api.meeting_translation import MeetingTranslationViewSet, TranslationAgentView
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
 from core.api.online_capture import (
     OnlineCaptureHeartbeatView,
     OnlineCaptureStatusView,
     OnlineCaptureViewSet,
 )
-from core.api.meeting_translation import MeetingTranslationViewSet, TranslationAgentView
-from core.api.meeting_summary_review import SummaryReviewView, SummaryHistoryView
-from core.api.meeting_summary_tasks import SummaryTaskView
-from core.api.meeting_record_qa import RecordQuestionView
 from core.api.personal_calendars import (
     CalendarAccessGrantViewSet,
     CalendarPreferenceViewSet,
@@ -316,6 +322,10 @@ urlpatterns = [
                 path("meeting-records/<uuid:record_id>/summary-tasks/", SummaryTaskView.as_view(), name="summary-tasks"),
                 path("meeting-records/<uuid:record_id>/questions/", RecordQuestionView.as_view(), name="record-questions"),
                 path("meeting-records/<uuid:record_id>/questions/<uuid:question_id>/", RecordQuestionView.as_view(), name="record-question-detail"),
+                path("capture-sessions/<uuid:capture_id>/audio/", CaptureAudioView.as_view(), name="capture-audio"),
+                path("capture-sessions/<uuid:capture_id>/audio/upload/", CaptureAudioUploadView.as_view(), name="capture-audio-upload"),
+                path("capture-sessions/<uuid:capture_id>/audio/seal/", CaptureAudioSealView.as_view(), name="capture-audio-seal"),
+                path("capture-sessions/<uuid:capture_id>/audio/<uuid:chunk_id>/", CaptureAudioDownloadView.as_view(), name="capture-audio-download"),
                 *router.urls,
                 *oidc_urls,
                 path("directory/me/", DirectoryMeView.as_view(), name="directory_me"),

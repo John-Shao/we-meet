@@ -98,6 +98,17 @@ def check_lease(capture, lease_key, device_id):
 
 def capture_state(capture):
     """Control state is deliberately separate from verified media delivery."""
+    manifest = getattr(capture, "audio_manifest", None)
+    sequences = list(
+        capture.audio_chunks.filter(stored=True)
+        .order_by("sequence")
+        .values_list("sequence", flat=True)
+    )
+    contiguous = 0
+    for sequence in sequences:
+        if sequence != contiguous + 1:
+            break
+        contiguous = sequence
     return {
         "id": str(capture.pk),
         "record_id": str(capture.record_id),
@@ -106,10 +117,13 @@ def capture_state(capture):
         "revision": capture.revision,
         "started_at": capture.started_at.isoformat(),
         "ended_at": capture.ended_at.isoformat() if capture.ended_at else None,
-        "media_status": "not_connected",
-        "captured_duration_ms": None,
-        "last_acked_sequence": capture.last_acked_sequence,
-        "missing_ranges": None,
+        "media_status": manifest.outcome
+        if manifest
+        else ("uploading" if capture.audio_chunks.exists() else "not_connected"),
+        "captured_duration_ms": manifest.duration_ms if manifest else None,
+        "last_acked_sequence": contiguous,
+        "missing_ranges": manifest.gaps if manifest else None,
+        "missing_sequences": manifest.missing_sequences if manifest else None,
         "coverage_status": "unverified",
     }
 
@@ -221,6 +235,14 @@ def command_capture(capture_id, user, key, lease_key, data):
     target = transitions.get(data["command"], {}).get(capture.status)
     if target is None:
         raise RecordConflict("Invalid capture transition.")
+    if (
+        target == "stopped"
+        and capture.audio_chunks.exists()
+        and not hasattr(capture, "audio_manifest")
+    ):
+        raise RecordConflict(
+            "Seal the declared audio chunks before finalizing capture."
+        )
     capture.status = target
     capture.revision += 1
     if target == "stopped":

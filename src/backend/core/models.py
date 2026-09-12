@@ -1181,6 +1181,70 @@ class CaptureOperation(BaseModel):
         return f"CaptureOperation({self.pk})"
 
 
+class CaptureAudioChunk(BaseModel):
+    """Immutable upload intent and verified PCM WAV object for independent recording."""
+
+    capture = models.ForeignKey(
+        CaptureSession, on_delete=models.CASCADE, related_name="audio_chunks"
+    )
+    sequence = models.PositiveIntegerField()
+    start_ms = models.PositiveBigIntegerField()
+    duration_ms = models.PositiveIntegerField()
+    checksum = models.CharField(max_length=64)
+    byte_size = models.PositiveIntegerField()
+    object_key = models.CharField(max_length=500)
+    stored = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ("sequence",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["capture", "sequence"], name="unique_capture_audio_chunk"
+            )
+        ]
+
+
+    def __str__(self):
+        return f"CaptureAudioChunk({self.pk})"
+
+    def clean(self):
+        """Source bytes and timing cannot change after reserving an upload identity."""
+        super().clean()
+        if not self._state.adding:
+            previous = type(self).objects.get(pk=self.pk)
+            fields = (
+                "capture_id", "sequence", "start_ms", "duration_ms",
+                "checksum", "byte_size", "object_key",
+            )
+            if any(getattr(self, name) != getattr(previous, name) for name in fields):
+                raise ValidationError("Audio chunk identity is immutable.")
+            if previous.stored and not self.stored:
+                raise ValidationError("Audio receipt cannot be withdrawn.")
+
+
+class CaptureAudioManifest(BaseModel):
+    """Sealed receipt of declared chunks, never a claim of complete acoustic coverage."""
+
+    capture = models.OneToOneField(
+        CaptureSession, on_delete=models.CASCADE, related_name="audio_manifest"
+    )
+    final_sequence = models.PositiveIntegerField()
+    outcome = models.CharField(max_length=16)
+    duration_ms = models.PositiveBigIntegerField()
+    missing_sequences = models.JSONField(default=list, blank=True)
+    gaps = models.JSONField(default=list, blank=True)
+
+
+    def __str__(self):
+        return f"CaptureAudioManifest({self.pk})"
+
+    def clean(self):
+        """A sealed manifest remains an immutable historical delivery receipt."""
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Audio manifest is immutable.")
+
+
 class MeetingSpeaker(BaseModel):
     """Source-scoped offline labels never imply a user account identity."""
 
@@ -1488,6 +1552,9 @@ class MeetingSummaryReview(BaseModel):
             models.UniqueConstraint(fields=["author", "key"], name="unique_summary_review_intent"),
         ]
 
+    def __str__(self):
+        return f"MeetingSummaryReview({self.record_id}, {self.revision})"
+
     def clean(self):
         super().clean()
         if not self._state.adding:
@@ -1502,8 +1569,6 @@ class MeetingSummaryReview(BaseModel):
         ):
             raise ValidationError("Human review predecessor conflicts.")
 
-    def __str__(self):
-        return f"MeetingSummaryReview({self.record_id}, {self.revision})"
 
 
 class MeetingSummaryTaskLink(BaseModel):
@@ -1525,6 +1590,10 @@ class MeetingSummaryTaskLink(BaseModel):
             models.UniqueConstraint(fields=["author", "key"], name="unique_review_action_task_intent"),
         ]
 
+    def __str__(self):
+        return f"MeetingSummaryTaskLink({self.pk})"
+
+
 
 class MeetingSummaryTaskRequest(BaseModel):
     """Remember each conversion intent, including requests that reuse an existing task."""
@@ -1536,6 +1605,10 @@ class MeetingSummaryTaskRequest(BaseModel):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["author", "key"], name="unique_summary_task_request")]
+
+    def __str__(self):
+        return f"MeetingSummaryTaskRequest({self.pk})"
+
 
 
 class MeetingRecordQuestion(BaseModel):
@@ -1556,6 +1629,10 @@ class MeetingRecordQuestion(BaseModel):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["requested_by", "key"], name="unique_record_question_intent")]
+
+
+    def __str__(self):
+        return f"MeetingRecordQuestion({self.pk})"
 
     def clean(self):
         super().clean()
@@ -2951,6 +3028,9 @@ class Summary(BaseModel):
             models.Index(fields=["room", "-updated_at"], name="meet_sum_room_upd_idx")
         ]
 
+    def __str__(self) -> str:
+        return f"Summary({self.room_id}, {self.session_id}, {self.status})"
+
     @property
     def is_edited(self) -> bool:
         return bool(self.edited_content)
@@ -2968,8 +3048,6 @@ class Summary(BaseModel):
             and self.content_generated_at > self.edited_at
         )
 
-    def __str__(self) -> str:
-        return f"Summary({self.room_id}, {self.session_id}, {self.status})"
 
     def clean(self):
         """Reject a summary assigned to a session from another room."""
@@ -4325,14 +4403,15 @@ class MeetingConversation(BaseModel):
         verbose_name = _("Meeting conversation")
         verbose_name_plural = _("Meeting conversations")
 
+    def __str__(self) -> str:
+        room_repr = str(self.room_id) if self.room_id else "<orphan>"
+        return f"MeetingConversation room={room_repr} cid={self.cid}"
+
     @staticmethod
     def cid_for_room(room_id) -> str:
         """Deterministic cid for a room. Stable across processes / restarts."""
         return str(uuid.uuid5(uuid.NAMESPACE_OID, f"jusi-light-im:room:{room_id}"))
 
-    def __str__(self) -> str:
-        room_repr = str(self.room_id) if self.room_id else "<orphan>"
-        return f"MeetingConversation room={room_repr} cid={self.cid}"
 
 
 # ---- P3: meeting ↔ La Suite Docs document bridge ----
