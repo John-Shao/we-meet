@@ -1,14 +1,17 @@
-"""Read-only record APIs; old room endpoints remain compatible during migration."""
+"""Exact-source record reads and opt-in user-authorized summary requests."""
 
 from urllib.parse import parse_qs, urlsplit
 
 from django.conf import settings
+from django.core.exceptions import ValidationError as ModelValidationError
+from django.db import IntegrityError
 from django.http import Http404
 
 from rest_framework import pagination, permissions, serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
 
 from core import models
 from core.services.meeting_records import (
@@ -17,7 +20,38 @@ from core.services.meeting_records import (
     record_capabilities,
     visible_records,
 )
+from core.services.meeting_summary_requests import (
+    SummaryRequestDenied,
+    request_summary,
+    requests_enabled,
+    serialize_summary_job,
+)
 from core.services.meeting_summary_versions import source_payload
+
+
+class SummaryRequestThrottle(UserRateThrottle):
+    """Bound explicit, potentially billable user requests independently of reads."""
+
+    scope = "meeting_summary_requests"
+    rate = "6/min"
+
+
+class SummaryRequestSerializer(serializers.Serializer):
+    """An explicit operation against the revision/job state the user reviewed."""
+
+    operation = serializers.ChoiceField(choices=["generate", "regenerate", "retry"])
+    expected_revision = serializers.IntegerField(min_value=1)
+    expected_job_id = serializers.UUIDField(allow_null=True)
+    expected_attempt = serializers.IntegerField(min_value=1, allow_null=True)
+
+    def validate(self, attrs):
+        if set(self.initial_data) - set(self.fields):
+            raise ValidationError("Unsupported summary request field.")
+        if (attrs["expected_job_id"] is None) != (attrs["expected_attempt"] is None):
+            raise ValidationError("Job ID and attempt must be supplied together.")
+        if attrs["expected_job_id"] is not None:
+            attrs["expected_job_id"] = str(attrs["expected_job_id"])
+        return attrs
 
 
 class LegacyRecordSourceSerializer(serializers.Serializer):
@@ -115,6 +149,14 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MeetingRecordSerializer
     pagination_class = RecordPagination
 
+    def get_throttles(self):
+        """Polling does not consume the generation request allowance."""
+        return (
+            [SummaryRequestThrottle()]
+            if self.action == "summary_requests"
+            else super().get_throttles()
+        )
+
     def finalize_response(self, request, response, *args, **kwargs):
         """Meeting content must not survive revocation in an HTTP cache."""
         response = super().finalize_response(request, response, *args, **kwargs)
@@ -144,6 +186,11 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 raise ValidationError({"source_type": "Unsupported source type."})
             queryset = queryset.filter(source_type=source)
         session_id = self.request.query_params.get("meeting_session_id")
+        room_id = self.request.query_params.get("room_id")
+        if room_id:
+            queryset = queryset.filter(
+                meeting_session__room_id=serializers.UUIDField().run_validation(room_id)
+            )
         if session_id:
             field = serializers.UUIDField()
             queryset = queryset.filter(
@@ -209,6 +256,70 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         ):
             raise PermissionDenied("This material has not been shared with you.")
         return record
+
+    @action(detail=True, methods=["get"], url_path="summary-job")
+    def summary_job(self, request, pk=None):
+        """Read the latest job state for this exact record, with summary permission."""
+        record = self._content_record("read_summary")
+        job = (
+            record.processing_jobs.filter(kind="summary")
+            .order_by("-generation")
+            .first()
+        )
+        ready = bool(
+            record.meeting_session_id
+            and record.meeting_session.status == models.MeetingSession.Status.ENDED
+            and models.Transcript.objects.filter(
+                session_id=record.meeting_session_id,
+                room_id=record.meeting_session.room_id,
+            ).exists()
+        )
+        return Response(
+            {
+                "revision": record.revision,
+                "job": serialize_summary_job(job),
+                "generation_ready": ready,
+            }
+        )
+
+    @action(detail=True, methods=["post"], url_path="summary-requests")
+    def summary_requests(self, request, pk=None):
+        """Accept a durable, idempotent user intent and dispatch only after commit."""
+        if not requests_enabled():
+            raise Http404
+        record = self._content_record("read_summary")
+        key = serializers.UUIDField().run_validation(
+            request.headers.get("Idempotency-Key")
+        )
+        serializer = SummaryRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            intent, replay = request_summary(
+                record.pk, request.user, key, serializer.validated_data
+            )
+        except SummaryRequestDenied as exc:
+            raise PermissionDenied(
+                "Only current meeting owners and administrators can generate summaries."
+            ) from exc
+        except (RecordConflict, IntegrityError, ModelValidationError):
+            return Response(
+                {
+                    "code": "summary_request_conflict",
+                    "message": "Refresh the record and job before submitting a new request.",
+                },
+                status=409,
+            )
+        intent.refresh_from_db()
+        intent.job.refresh_from_db()
+        return Response(
+            {
+                "request_id": str(intent.pk),
+                "replayed": replay,
+                "dispatch_state": intent.dispatch_state,
+                "job": serialize_summary_job(intent.job),
+            },
+            status=202,
+        )
 
     @action(detail=True, methods=["get"], url_path="summary-versions")
     def summary_versions(self, request, pk=None):

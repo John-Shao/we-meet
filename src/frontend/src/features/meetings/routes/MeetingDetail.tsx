@@ -16,6 +16,8 @@ import { Select } from '@/primitives/Select'
 import { Tabs, Tab, TabList, TabPanel } from '@/primitives/Tabs'
 import { UserAware, useUser } from '@/features/auth'
 import { useInlineEditFocus } from '@/hooks/useInlineEditFocus'
+import { useConfig } from '@/api/useConfig'
+import { RoomRecordSummaries } from '../components/RecordSummaryPanel'
 
 import {
   useCreateActionItemTask,
@@ -983,7 +985,9 @@ const MeetingInfoTab = ({ roomId }: { roomId: string }) => {
 export const MeetingDetail = () => {
   const { t } = useTranslation('meetings')
   const { roomId } = useParams<{ roomId: string }>()
-  const { isLoggedIn, isLoading: isAuthLoading } = useUser()
+  const { isLoggedIn, isLoading: isAuthLoading, user } = useUser()
+  const { data: config } = useConfig()
+  const recordAiEnabled = !!config?.meeting_records?.enabled
   // 拍板 #3 章节→转写跳转:Tabs 受控,章节点击切 Tab 并带上目标时刻。
   const [tabKey, setTabKey] = useState<string>('info')
   const [transcriptJump, setTranscriptJump] = useState<string | null>(null)
@@ -1019,6 +1023,9 @@ export const MeetingDetail = () => {
               <TabList aria-label={t('tabs.label')}>
                 <Tab id="info">{t('tabs.info')}</Tab>
                 <Tab id="summary">{t('tabs.summary')}</Tab>
+                {recordAiEnabled && (
+                  <Tab id="record-ai">{t('recordAi.tab')}</Tab>
+                )}
                 <Tab id="action-items">{t('tabs.actionItems')}</Tab>
                 <Tab id="chapters">{t('tabs.chapters')}</Tab>
                 <Tab id="transcript">{t('tabs.transcript')}</Tab>
@@ -1029,6 +1036,15 @@ export const MeetingDetail = () => {
               <TabPanel id="summary" padding="md">
                 <SummaryTab roomId={roomId} />
               </TabPanel>
+              {recordAiEnabled && user && (
+                <TabPanel id="record-ai" padding="md">
+                  <RoomRecordSummaries
+                    key={`${user.id}:${roomId}`}
+                    viewerId={user.id}
+                    roomId={roomId}
+                  />
+                </TabPanel>
+              )}
               <TabPanel id="action-items" padding="md">
                 <ActionItemsTab roomId={roomId} />
               </TabPanel>

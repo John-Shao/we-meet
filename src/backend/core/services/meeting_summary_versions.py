@@ -13,7 +13,12 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from core import models
 from core.services import ai_usage
 from core.services.llm_client import LLMClient, LLMUnavailable
-from core.services.meeting_records import RecordConflict, enqueue_job, transition_job
+from core.services.meeting_records import (
+    RecordConflict,
+    can_generate_summary,
+    enqueue_job,
+    transition_job,
+)
 from core.services.transcript_delivery import source_delivery
 
 
@@ -177,7 +182,20 @@ def source_is_current(job):
         return False
 
 
-def execute_summary_job(job_id, attempt):  # noqa: PLR0911
+def requester_is_authorized(job):
+    """Public work rechecks its initiating manager before cost and publication."""
+    user_id = job.configuration.get("requested_by")
+    if not user_id:
+        return True  # Operator-created jobs keep the existing trusted CLI contract.
+    user = models.User.objects.filter(pk=user_id).first()
+    return bool(
+        settings.MEETING_SUMMARY_REQUESTS_ENABLED
+        and user
+        and can_generate_summary(job.record, user)
+    )
+
+
+def execute_summary_job(job_id, attempt):  # noqa: PLR0911, PLR0912 -- independent stale-source and access fences
     """Claim once, call the provider outside the lock, and publish atomically."""
     if (
         not settings.MEETING_VERSIONED_SUMMARY_ENABLED
@@ -200,6 +218,14 @@ def execute_summary_job(job_id, attempt):  # noqa: PLR0911
             transition_job(job.pk, attempt=attempt, target="running")
         except RecordConflict:
             return None  # Redelivery, old attempt or superseded generation.
+        if not requester_is_authorized(job):
+            transition_job(
+                job.pk,
+                attempt=attempt,
+                target="canceled",
+                error_code="permission_revoked",
+            )
+            return None
         if not source_is_current(job):
             transition_job(
                 job.pk, attempt=attempt, target="canceled", error_code="source_changed"
@@ -251,6 +277,17 @@ def execute_summary_job(job_id, attempt):  # noqa: PLR0911
         job.record = models.MeetingRecord.objects.select_for_update().get(
             pk=job.record_id
         )
+        if not requester_is_authorized(job):
+            try:
+                transition_job(
+                    job.pk,
+                    attempt=attempt,
+                    target="canceled",
+                    error_code="permission_revoked",
+                )
+            except RecordConflict:
+                pass
+            return None
         if not source_is_current(job):
             try:
                 transition_job(

@@ -6,6 +6,10 @@ import { Track } from 'livekit-client'
 import Source = Track.Source
 
 export interface ApiConfig {
+  meeting_records?: {
+    enabled: boolean
+    summary_requests_enabled: boolean
+  }
   analytics?: {
     id: string
     host: string

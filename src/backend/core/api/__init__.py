@@ -69,6 +69,15 @@ def get_frontend_configuration(request):
         # P1-4 全局搜索 AI 问答:false ⇒ 前端隐藏 AI 标签/快捷行(端点侧
         # 另有 FeatureFlag 404,双端 gate)。
         "search_ai": {"enabled": settings.GLOBAL_SEARCH_AI_ENABLED},
+        "meeting_records": {
+            "enabled": settings.MEETING_RECORDS_ENABLED,
+            "summary_requests_enabled": bool(
+                settings.MEETING_RECORDS_ENABLED
+                and settings.MEETING_VERSIONED_SUMMARY_ENABLED
+                and settings.MEETING_SUMMARY_REQUESTS_ENABLED
+                and settings.CELERY_ENABLED
+            ),
+        },
         "docs": {
             # Public La Suite Docs site URL — present only when the Docs bridge is
             # configured (DOCS_CONFIGURATION.api_url). Drives the optional "文档" nav

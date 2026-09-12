@@ -1411,6 +1411,36 @@ class TranscriptReceipt(BaseModel):
         return f"TranscriptReceipt({self.delivery_id}, {self.sequence})"
 
 
+class MeetingSummaryRequest(BaseModel):
+    """Durable user intent and dispatch receipt, scoped by caller idempotency key."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="summary_requests"
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    key = models.UUIDField()
+    payload = models.JSONField()
+    job = models.ForeignKey(
+        MeetingProcessingJob, on_delete=models.CASCADE, related_name="user_requests"
+    )
+    attempt = models.PositiveIntegerField()
+    dispatch_state = models.CharField(
+        max_length=16,
+        default="pending",
+        choices=[("pending", "Pending"), ("sent", "Sent"), ("abandoned", "Abandoned")],
+    )
+    dispatch_attempted_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "key"], name="unique_user_summary_request")
+        ]
+
+    def __str__(self):
+        return f"MeetingSummaryRequest({self.pk}, {self.dispatch_state})"
+
+
 class BaseAccessManager(models.Manager):
     """Base manager for handling resource access control."""
 

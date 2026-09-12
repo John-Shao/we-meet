@@ -1,4 +1,53 @@
 {
+  "recordAi": {
+    "rateLimited": "操作过于频繁，请稍后重新提交同一请求。",
+    "waitForSource": "会议结束且原文可用后，可以生成纪要。",
+    "tab": "AI 纪要",
+    "chooseSession": "选择要查看的会议场次",
+    "back": "返回场次列表",
+    "noRecords": "暂无可查看的会议笔记",
+    "moreSessions": "下一页场次",
+    "firstPage": "回到第一页",
+    "unavailable": "内容暂时不可用，或你已没有访问权限。",
+    "generate": "生成 AI 纪要",
+    "regenerate": "生成新版本",
+    "retry": "重试失败任务",
+    "refresh": "刷新状态",
+    "accepted": "请求已保存，可在此查看生成进度。",
+    "conflict": "会议内容或任务状态已变化，请确认最新状态后再操作。",
+    "requestDenied": "请求未被接受，请检查权限或稍后重试。",
+    "uncertain": "尚未确认请求结果，可重新提交同一请求。",
+    "resubmit": "重新提交同一请求",
+    "dispatchPending": "等待发送至处理队列",
+    "noVersions": "还没有生成 AI 纪要。",
+    "older": "更早的版本",
+    "latest": "最新版本",
+    "current": "当前版本",
+    "historical": "历史版本",
+    "source": "查看原文",
+    "closeSource": "关闭原文",
+    "sourceMissing": "这条引用的原文暂不可用。",
+    "coverageUnverified": "整场音频覆盖尚未验证",
+    "delivery": {
+      "complete": "已输出文字全部送达",
+      "incomplete": "文字送达尚不完整",
+      "unverified": "文字送达情况未验证"
+    },
+    "status": {
+      "queued": "等待生成",
+      "running": "正在生成",
+      "succeeded": "生成完成",
+      "partial": "纪要可查看，输入完整性待确认",
+      "failed": "生成失败",
+      "canceled": "本次生成已取消"
+    },
+    "sections": {
+      "decisions": "关键结论",
+      "chapters": "章节纪要",
+      "action_items": "行动建议",
+      "open_questions": "待确认问题"
+    }
+  },
   "pageTitle": "会议详情",
   "loading": "加载中…",
   "tabs": {

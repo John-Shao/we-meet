@@ -19,6 +19,7 @@ export interface ApiMeetingRecord {
     edit: boolean
     manage: boolean
     capture: boolean
+    generate_summary: boolean
   }
 }
 
@@ -31,6 +32,7 @@ export interface MeetingRecordFilters {
   scope?: 'recent' | 'owned' | 'participated' | 'shared'
   source_type?: MeetingRecordSource
   meeting_session_id?: string
+  room_id?: string
   q?: string
   cursor?: string
 }
@@ -118,4 +120,30 @@ export interface ApiRecordTranscriptVersion {
     speaker_identity: string
     language: string
   })[]
+}
+
+export interface ApiSummaryJob {
+  id: string
+  status: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed' | 'canceled'
+  attempt: number
+  generation: number
+  input_revision: number
+  retryable: boolean
+  error_code: string
+  updated_at: string
+  dispatch_pending: boolean
+}
+
+export interface SummaryRequestPayload {
+  operation: 'generate' | 'regenerate' | 'retry'
+  expected_revision: number
+  expected_job_id: string | null
+  expected_attempt: number | null
+}
+
+export interface ApiSummaryRequest {
+  request_id: string
+  replayed: boolean
+  dispatch_state: 'pending' | 'sent' | 'abandoned'
+  job: ApiSummaryJob
 }

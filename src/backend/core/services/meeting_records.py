@@ -1,5 +1,6 @@
 """Canonical record identity, conservative access, and guarded job transitions."""
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import BooleanField, Case, Exists, F, OuterRef, Q, When
 
@@ -102,6 +103,15 @@ def visible_records(user, *, ability=None):
             for name in ("read_summary", "read_transcript")
         }
     )
+    queryset = queryset.annotate(
+        can_generate_summary=Exists(
+            models.ResourceAccess.objects.filter(
+                resource_id=OuterRef("meeting_session__room_id"),
+                user=user,
+                role__in=[models.RoleChoices.OWNER, models.RoleChoices.ADMIN],
+            )
+        )
+    )
     if ability is None:
         return queryset.filter(Q(can_read_summary=True) | Q(can_read_transcript=True))
     if ability not in {"read_summary", "read_transcript"}:
@@ -110,7 +120,7 @@ def visible_records(user, *, ability=None):
 
 
 def record_capabilities(record, user):
-    """Advertise only read capabilities implemented by this first increment."""
+    """Advertise implemented reads and the opt-in generation capability."""
     # Called with a freshly authorized queryset row; no per-item ACL queries.
     scoped = (
         record
@@ -125,7 +135,25 @@ def record_capabilities(record, user):
         "edit": False,
         "manage": False,
         "capture": False,
+        "generate_summary": bool(
+            settings.CELERY_ENABLED
+            and settings.MEETING_SUMMARY_REQUESTS_ENABLED
+            and settings.MEETING_VERSIONED_SUMMARY_ENABLED
+            and scoped
+            and scoped.can_read_transcript
+            and scoped.can_generate_summary
+        ),
     }
+
+
+def can_generate_summary(record, user):
+    """Current online room managers can request generation, never read-only grantees."""
+    return bool(
+        record.meeting_session_id
+        and visible_records(user, ability="read_transcript")
+        .filter(pk=record.pk, can_generate_summary=True)
+        .exists()
+    )
 
 
 def filter_record_scope(queryset, user, scope):

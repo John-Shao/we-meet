@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
@@ -12,6 +12,9 @@ import type {
   MeetingRecordFilters,
   MeetingRecordPage,
   LegacyMeetingRecordSource,
+  ApiSummaryJob,
+  ApiSummaryRequest,
+  SummaryRequestPayload,
 } from './ApiMeetingRecord'
 
 const recordPath = (recordId: string) =>
@@ -89,6 +92,8 @@ export const useMeetingRecord = (
   useQuery<ApiMeetingRecord, ApiError>({
     ...privateReadOptions,
     queryKey: meetingRecordKeys.detail(viewerId, recordId),
+    refetchInterval: (query) =>
+      query.state.status === 'error' ? false : 10000,
     queryFn: ({ signal }) => fetchApi(recordPath(recordId!), { signal }),
     enabled: enabled && !!viewerId && !!recordId,
   })
@@ -132,6 +137,8 @@ export const useRecordSummaryVersions = (
 ) =>
   useQuery<MeetingRecordPage<ApiRecordSummaryVersion>, ApiError>({
     ...privateReadOptions,
+    refetchInterval: (query) =>
+      query.state.status === 'error' ? false : 10000,
     queryKey: [
       'meeting-records',
       viewerId,
@@ -170,3 +177,49 @@ export const useRecordTranscriptVersion = (
       ),
     enabled: enabled && !!viewerId && !!recordId && !!snapshotId,
   })
+
+export const useRecordSummaryJob = (
+  viewerId: string,
+  recordId: string,
+  enabled: boolean
+) =>
+  useQuery<
+    { revision: number; job: ApiSummaryJob | null; generation_ready: boolean },
+    ApiError
+  >({
+    ...privateReadOptions,
+    queryKey: ['meeting-records', viewerId, 'summary-job', recordId],
+    queryFn: ({ signal }) =>
+      fetchApi(`${recordPath(recordId)}summary-job/`, { signal }),
+    enabled,
+    refetchInterval: (query) =>
+      query.state.status === 'error'
+        ? false
+        : ['queued', 'running'].includes(query.state.data?.job?.status ?? '')
+          ? 3000
+          : 10000,
+  })
+
+export const useRequestRecordSummary = (viewerId: string, recordId: string) => {
+  const client = useQueryClient()
+  return useMutation<
+    ApiSummaryRequest,
+    ApiError,
+    { key: string; payload: SummaryRequestPayload }
+  >({
+    mutationFn: ({ key, payload }) =>
+      fetchApi(`${recordPath(recordId)}summary-requests/`, {
+        method: 'POST',
+        headers: { 'Idempotency-Key': key },
+        body: JSON.stringify(payload),
+      }),
+    retry: false,
+    gcTime: 0,
+    onSuccess: async () => {
+      await client.invalidateQueries({
+        queryKey: ['meeting-records', viewerId],
+      })
+    },
+  })
+}
+export type { SummaryRequestPayload }

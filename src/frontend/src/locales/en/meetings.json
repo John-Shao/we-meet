@@ -1,4 +1,53 @@
 {
+  "recordAi": {
+    "rateLimited": "Too many requests. Wait before resending the same request.",
+    "waitForSource": "Minutes can be generated after the meeting ends and a transcript is available.",
+    "tab": "AI minutes",
+    "chooseSession": "Choose a meeting session",
+    "back": "Back to sessions",
+    "noRecords": "No meeting notes available",
+    "moreSessions": "Next sessions",
+    "firstPage": "First page",
+    "unavailable": "Content is unavailable or your access has changed.",
+    "generate": "Generate AI minutes",
+    "regenerate": "Generate a new version",
+    "retry": "Retry failed job",
+    "refresh": "Refresh status",
+    "accepted": "Request saved. You can follow its progress here.",
+    "conflict": "The source or job changed. Review the latest status before trying again.",
+    "requestDenied": "Request not accepted. Check your access or try again later.",
+    "uncertain": "The request result is unknown. You can resend the same request.",
+    "resubmit": "Resend the same request",
+    "dispatchPending": "Waiting for queue delivery",
+    "noVersions": "No AI minutes have been generated yet.",
+    "older": "Older versions",
+    "latest": "Latest versions",
+    "current": "Current version",
+    "historical": "Historical version",
+    "source": "View source",
+    "closeSource": "Close source",
+    "sourceMissing": "The cited source is unavailable.",
+    "coverageUnverified": "Full audio coverage is unverified",
+    "delivery": {
+      "complete": "All emitted text delivered",
+      "incomplete": "Text delivery incomplete",
+      "unverified": "Text delivery unverified"
+    },
+    "status": {
+      "queued": "Queued",
+      "running": "Generating",
+      "succeeded": "Generated",
+      "partial": "Minutes available; input completeness unverified",
+      "failed": "Generation failed",
+      "canceled": "Generation canceled"
+    },
+    "sections": {
+      "decisions": "Decisions",
+      "chapters": "Chapters",
+      "action_items": "Suggested actions",
+      "open_questions": "Open questions"
+    }
+  },
   "pageTitle": "Meeting detail",
   "loading": "Loading…",
   "tabs": {
