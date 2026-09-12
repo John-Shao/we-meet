@@ -33,6 +33,8 @@ export interface LocalCapture {
   pendingBytes: number
   closed: boolean
   sealed: boolean
+  interrupted?: boolean
+  sealIntent?: { final_sequence: number; client_interrupted: boolean }
 }
 
 export interface LocalAudioChunk {

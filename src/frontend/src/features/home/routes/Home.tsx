@@ -160,7 +160,7 @@ const IntroText = styled('div', {
 })
 
 export const Home = () => {
-  const { t } = useTranslation(['home', 'shell'])
+  const { t } = useTranslation(['home', 'shell', 'capture'])
   const { isLoggedIn, user } = useUser()
 
   const {
@@ -311,6 +311,14 @@ export const Home = () => {
                     </Button>
                     <JoinMeetingDialog />
                   </DialogTrigger>
+                  {data?.meeting_records?.capture_audio_enabled && (
+                    <Button
+                      variant="secondary"
+                      onPress={() => navigateTo('audioRecording')}
+                    >
+                      {t('title', { ns: 'capture' })}
+                    </Button>
+                  )}
                 </div>
               </aside>
             </ResizablePanel>

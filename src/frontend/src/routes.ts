@@ -11,6 +11,7 @@ import { CreatePopup } from '@/features/sdk/routes/CreatePopup'
 import { CreateMeetingButton } from '@/features/sdk/routes/CreateMeetingButton'
 import { RecordingDownloadRoute } from '@/features/recording'
 import { MeetingDetailRoute } from '@/features/meetings'
+import { AudioRecording } from '@/features/meetings/routes/AudioRecording'
 import { ImRoute } from '@/features/im'
 import { ContactsRoute } from '@/features/contacts'
 import { CalendarRoute, CalendarSubscribeRoute } from '@/features/calendar'
@@ -36,6 +37,7 @@ export const routes: Record<
   | 'sdkCreateButton'
   | 'recordingDownload'
   | 'meetingDetail'
+  | 'audioRecording'
   | 'im'
   | 'contacts'
   | 'calendar'
@@ -57,6 +59,11 @@ export const routes: Record<
     // 视频会议主页迁到 /meeting;根路径 "/" 在 App.tsx 重定向到此。
     path: '/meeting',
     Component: HomeRoute,
+  },
+  audioRecording: {
+    name: 'audioRecording',
+    path: '/meeting/recording',
+    Component: AudioRecording,
   },
   room: {
     name: 'room',

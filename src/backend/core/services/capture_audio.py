@@ -95,6 +95,7 @@ def serialize_manifest(manifest):
     """Report declared delivery separately from unverified acoustic coverage."""
     return {
         "final_sequence": manifest.final_sequence,
+        "client_interrupted": manifest.client_interrupted,
         "outcome": manifest.outcome,
         "duration_ms": manifest.duration_ms,
         "missing_sequences": manifest.missing_sequences,
@@ -218,7 +219,10 @@ def seal(capture_id, user, lease, payload):
     )
     existing = getattr(capture, "audio_manifest", None)
     if existing:
-        if existing.final_sequence != payload["final_sequence"]:
+        if (existing.final_sequence, existing.client_interrupted) != (
+            payload["final_sequence"],
+            payload.get("client_interrupted", False),
+        ):
             raise RecordConflict("Audio manifest has a different final sequence.")
         return existing
     if capture.status != "stopping":
@@ -238,7 +242,10 @@ def seal(capture_id, user, lease, payload):
     return models.CaptureAudioManifest.objects.create(
         capture=capture,
         final_sequence=final,
-        outcome="incomplete" if missing else ("saved" if final else "empty"),
+        client_interrupted=payload.get("client_interrupted", False),
+        outcome="incomplete"
+        if missing or payload.get("client_interrupted", False)
+        else ("saved" if final else "empty"),
         duration_ms=sum(chunk.duration_ms for chunk in chunks if chunk.stored),
         missing_sequences=missing,
         gaps=gaps,

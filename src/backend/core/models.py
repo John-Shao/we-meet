@@ -1229,6 +1229,7 @@ class CaptureAudioManifest(BaseModel):
         CaptureSession, on_delete=models.CASCADE, related_name="audio_manifest"
     )
     final_sequence = models.PositiveIntegerField()
+    client_interrupted = models.BooleanField(default=False)
     outcome = models.CharField(max_length=16)
     duration_ms = models.PositiveBigIntegerField()
     missing_sequences = models.JSONField(default=list, blank=True)

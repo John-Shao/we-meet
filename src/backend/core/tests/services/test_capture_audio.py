@@ -155,6 +155,7 @@ def test_sealing_reports_missing_chunks_and_prevents_late_rewrite():
     assert response.status_code == 200, response.data
     assert response.data == {
         "final_sequence": 2,
+        "client_interrupted": False,
         "outcome": "incomplete",
         "duration_ms": 1000,
         "missing_sequences": [1],
@@ -220,3 +221,23 @@ def test_disabled_rollout_allows_existing_audio_to_finish_without_new_capture(se
     assert command(user, body, capture, "stop").status_code == 200
     assert seal(user, body, capture, 2).data["outcome"] == "incomplete"
     assert command(user, body, capture, "finalize").status_code == 200
+
+
+def test_interrupted_client_cannot_claim_complete_audio_despite_all_receipts():
+    user, body, capture = recording()
+    assert upload(user, body, capture).status_code == 200
+    assert command(user, body, capture, "stop").status_code == 200
+    response = client_for(user).post(
+        f"{ROOT}{capture.pk}/audio/seal/",
+        {
+            "device_id": body["device_id"],
+            "final_sequence": 1,
+            "client_interrupted": True,
+        },
+        format="json",
+        HTTP_X_CAPTURE_LEASE=body["lease_key"],
+    )
+    assert response.status_code == 200
+    assert response.data["outcome"] == "incomplete"
+    assert response.data["missing_sequences"] == []
+    assert seal(user, body, capture).status_code == 409

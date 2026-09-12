@@ -30,6 +30,7 @@ class SealSerializer(serializers.Serializer):
 
     device_id = serializers.CharField(max_length=128)
     final_sequence = serializers.IntegerField(min_value=0, max_value=service.MAX_CHUNKS)
+    client_interrupted = serializers.BooleanField(default=False)
 
 
 class CaptureAudioView(APIView):
@@ -42,9 +43,9 @@ class CaptureAudioView(APIView):
         return get_object_or_404(
             models.CaptureSession.objects.filter(
                 created_by=user,
-                record_id__in=visible_records(
-                    user, ability="read_transcript"
-                ).values("pk"),
+                record_id__in=visible_records(user, ability="read_transcript").values(
+                    "pk"
+                ),
             ),
             pk=capture_id,
         )
