@@ -193,12 +193,24 @@ def serialize_summary_job(job):
     """Expose progress without credentials, provider payloads or original text."""
     if job is None:
         return None
+    completed, total = (
+        job.result.get("chunks_completed"),
+        job.result.get("chunks_total"),
+    )
+    chunk_progress = (
+        {"completed": completed, "total": total}
+        if type(completed) is int
+        and type(total) is int
+        and 0 <= completed <= total <= 32
+        else None
+    )
     return {
         "id": str(job.pk),
         "status": job.status,
         "attempt": job.attempt,
         "generation": job.generation,
         "stage": job.configuration.get("stage", "final"),
+        "chunk_progress": chunk_progress,
         "input_revision": job.input_revision,
         "retryable": job.retryable,
         "error_code": job.error_code,

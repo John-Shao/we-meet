@@ -189,6 +189,11 @@ def tick_automation(automation_id):  # noqa: PLR0911 -- explicit lifecycle outco
     if _existing_job_state(automation, latest):
         return False
     readiness = summary_readiness(record)
+    if readiness.get("blocked_reason"):
+        automation.state = "needs_attention"
+        automation.error_code = readiness["blocked_reason"]
+        automation.save()
+        return False
     stages = readiness["ready_stages"]
     if "realtime" in stages:
         stage = "realtime"

@@ -78,12 +78,18 @@ class LLMClient:
         model: str,
         base_url: str = _DEFAULT_BASE_URL,
         timeout: float = 60.0,
+        max_retries: int | None = None,
     ) -> None:
         # Imported lazily so the rest of the app keeps booting even when
         # the openai package is unavailable in a partial dev setup.
         from openai import OpenAI
 
-        self._client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+        self._client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            **({"max_retries": max_retries} if max_retries is not None else {}),
+        )
         self._model = model
 
     @classmethod
@@ -113,6 +119,7 @@ class LLMClient:
         max_tokens: Optional[int] = None,
         response_format: Optional[dict] = None,
         usage_sink=None,
+        require_complete: bool = False,
     ) -> str:
         """Single-turn chat completion. Returns the assistant message text.
 
@@ -137,6 +144,10 @@ class LLMClient:
 
         resp = self._client.chat.completions.create(**kwargs)
         self._report_usage(usage_sink, resp)
+        if require_complete and (
+            not resp.choices or resp.choices[0].finish_reason != "stop"
+        ):
+            raise ValueError("The provider did not complete the requested output.")
         return (resp.choices[0].message.content or "").strip()
 
     def _report_usage(self, usage_sink, response):

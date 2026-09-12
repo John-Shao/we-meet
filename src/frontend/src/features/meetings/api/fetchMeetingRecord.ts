@@ -192,6 +192,7 @@ export const useRecordSummaryJob = (
       staged_summaries_enabled?: boolean
       ready_stages?: SummaryStage[]
       next_update_at?: string | null
+      blocked_reason?: 'source_budget_exceeded'
     },
     ApiError
   >({

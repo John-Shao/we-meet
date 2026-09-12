@@ -205,6 +205,9 @@ export const RecordSummaryPanel = ({
         <div role="status">
           {t(`recordAi.status.${job.status}`)}
           {job.dispatch_pending && ` · ${t('recordAi.dispatchPending')}`}
+          {busy &&
+            job.chunk_progress &&
+            ` · ${t('recordAi.chunkProgress', job.chunk_progress)}`}
         </div>
       )}
       {canGenerate && (
@@ -260,13 +263,18 @@ export const RecordSummaryPanel = ({
         </div>
       )}
       {message && <div role="status">{t(message)}</div>}
-      {canGenerate && (staged ? readyStages.length === 0 : !ready) && (
-        <Text>
-          {t(
-            staged ? 'recordAi.waitForStableSource' : 'recordAi.waitForSource'
-          )}
-        </Text>
+      {progress.data?.blocked_reason === 'source_budget_exceeded' && (
+        <Text>{t('recordAi.sourceBudgetExceeded')}</Text>
       )}
+      {canGenerate &&
+        !progress.data?.blocked_reason &&
+        (staged ? readyStages.length === 0 : !ready) && (
+          <Text>
+            {t(
+              staged ? 'recordAi.waitForStableSource' : 'recordAi.waitForSource'
+            )}
+          </Text>
+        )}
       {staged && progress.data?.next_update_at && (
         <Text>
           {t('recordAi.nextUpdate', {

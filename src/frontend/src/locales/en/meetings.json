@@ -78,7 +78,9 @@
         "completed": "Post-meeting minutes generated",
         "needs_attention": "Generation needs attention. Review the status and retry manually."
       }
-    }
+    },
+    "chunkProgress": "Extracted {{completed}} / {{total}} source chunks",
+    "sourceBudgetExceeded": "The source exceeds the current processing budget, or one utterance is too long. Source text is retained; adjust the material before generating."
   },
   "pageTitle": "Meeting detail",
   "loading": "Loading…",

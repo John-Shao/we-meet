@@ -1465,6 +1465,32 @@ class MeetingSummaryVersion(BaseModel):
             raise ValidationError("Summary input must match the job and record.")
 
 
+class MeetingSummaryChunk(BaseModel):
+    """Immutable, record-scoped extraction cache; revisions are rebound on reuse."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="summary_chunks"
+    )
+    cache_key = models.CharField(max_length=64)
+    source_revision = models.PositiveIntegerField()
+    content = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record", "cache_key"], name="unique_record_summary_chunk"
+            )
+        ]
+
+    def __str__(self):
+        return f"SummaryChunk({self.record_id}, {self.pk})"
+
+    def clean(self):
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Summary chunks are immutable.")
+
+
 class MeetingSummaryAutomation(BaseModel):
     """Explicit user consent and revision fence for automatic summary generation."""
 

@@ -132,6 +132,7 @@ export interface ApiRecordTranscriptVersion {
 export interface ApiSummaryJob {
   id: string
   stage?: SummaryStage
+  chunk_progress?: { completed: number; total: number } | null
   status: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed' | 'canceled'
   attempt: number
   generation: number

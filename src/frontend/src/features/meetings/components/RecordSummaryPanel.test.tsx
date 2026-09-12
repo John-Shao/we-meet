@@ -111,6 +111,28 @@ beforeEach(() => {
 afterEach(() => client?.clear())
 
 describe('Versioned summary requests', () => {
+  it('shows source-budget rejection and extraction progress from server state', async () => {
+    const fallback = mocks.fetchApi.getMockImplementation()!
+    mocks.fetchApi.mockImplementation((url, options) =>
+      url.includes('summary-job/')
+        ? {
+            revision: 1,
+            generation_ready: false,
+            blocked_reason: 'source_budget_exceeded',
+            job: {
+              id: 'job-1',
+              status: 'running',
+              attempt: 1,
+              chunk_progress: { completed: 2, total: 8 },
+            },
+          }
+        : fallback(url, options)
+    )
+    show()
+    await screen.findByText('recordAi.sourceBudgetExceeded')
+    expect(screen.getByText(/recordAi.chunkProgress/)).toBeInTheDocument()
+    expect(screen.queryByText('recordAi.waitForSource')).not.toBeInTheDocument()
+  })
   it('requests the available live stage explicitly and labels drafts with their source watermark', async () => {
     const fallback = mocks.fetchApi.getMockImplementation()!
     mocks.fetchApi.mockImplementation((url, options) => {
