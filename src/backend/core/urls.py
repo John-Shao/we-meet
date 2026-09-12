@@ -31,7 +31,7 @@ from core.api.admin_roles import (
     PermissionCatalogueView,
 )
 from core.api.admin_stats import AdminStatsOverviewView
-from core.api.agent_internal import IngestTranscriptView
+from core.api.agent_internal import IngestTranscriptView, TranscriptDeliveryView
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.bot_webhook import BotWebhookView
 from core.api.calendar import CalendarEventViewSet
@@ -414,6 +414,11 @@ urlpatterns = [
     path("api/qr-login/ready/", QrReadyView.as_view(), name="qr-login-ready"),
     # Internal API for agent workers (multi_user_transcriber, etc.).
     # Authenticates via X-Agent-Token shared secret; NOT a public surface.
+    path(
+        "api/agent/transcript-deliveries/",
+        TranscriptDeliveryView.as_view(),
+        name="agent-transcript-deliveries",
+    ),
     path(
         "api/agent/transcripts/",
         IngestTranscriptView.as_view(),

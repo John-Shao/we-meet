@@ -14,6 +14,7 @@ from core import models
 from core.services import ai_usage
 from core.services.llm_client import LLMClient, LLMUnavailable
 from core.services.meeting_records import RecordConflict, enqueue_job, transition_job
+from core.services.transcript_delivery import source_delivery
 
 
 class SourceReference(BaseModel):
@@ -52,7 +53,7 @@ class SummaryOutput(BaseModel):
     open_questions: list[SummaryPoint] = Field(max_length=100)
 
 
-def source_payload(record):
+def _source_input(record):
     """Read all confirmed legacy rows, never truncate or choose another session."""
     session = record.meeting_session
     if session is None or session.room.organization_id != record.organization_id:
@@ -60,9 +61,12 @@ def source_payload(record):
     if session.status != models.MeetingSession.Status.ENDED:
         raise RecordConflict("Final summaries require an ended session.")
     segments = []
-    for row in models.Transcript.objects.filter(
-        session=session, room=session.room
-    ).order_by("started_at", "id"):
+    rows = list(
+        models.Transcript.objects.filter(session=session, room=session.room).order_by(
+            "started_at", "id"
+        )
+    )
+    for row in rows:
         start = int((row.started_at - record.origin_at).total_seconds() * 1000)
         end = (
             int((row.ended_at - record.origin_at).total_seconds() * 1000)
@@ -88,7 +92,16 @@ def source_payload(record):
     # Conservative first increment: reject oversized inputs rather than losing the beginning.
     if len(encoded) > 250_000:
         raise RecordConflict("Source exceeds the current full-input budget.")
-    return segments, hashlib.sha256(encoded).hexdigest()
+    delivery = source_delivery(session, rows)
+    if delivery:
+        encoded += json.dumps(delivery, sort_keys=True).encode("utf-8")
+    return segments, hashlib.sha256(encoded).hexdigest(), delivery
+
+
+def source_payload(record):
+    """Return the source and fingerprint, including observed delivery state."""
+    segments, fingerprint, _ = _source_input(record)
+    return segments, fingerprint
 
 
 @transaction.atomic
@@ -100,7 +113,7 @@ def prepare_summary_job(record_id, *, regenerate=False):
     ):
         raise RecordConflict("Versioned summary processing is disabled.")
     record = models.MeetingRecord.objects.select_for_update().get(pk=record_id)
-    segments, fingerprint = source_payload(record)
+    segments, fingerprint, delivery = _source_input(record)
     latest = record.transcript_versions.order_by("-revision").first()
     if (
         latest is None
@@ -117,6 +130,7 @@ def prepare_summary_job(record_id, *, regenerate=False):
             revision=record.revision,
             fingerprint=fingerprint,
             segments=segments,
+            delivery=delivery,
         )
     job, created = enqueue_job(
         record.pk, "summary", input_revision=record.revision, regenerate=regenerate
@@ -255,7 +269,12 @@ def execute_summary_job(job_id, attempt):  # noqa: PLR0911
                 job.pk,
                 attempt=attempt,
                 target="partial",
-                result={"coverage_status": "unverified"},
+                result={
+                    "coverage_status": "unverified",
+                    "delivery_status": job.input_snapshot.delivery.get(
+                        "status", "unverified"
+                    ),
+                },
             )
         except RecordConflict:
             return None

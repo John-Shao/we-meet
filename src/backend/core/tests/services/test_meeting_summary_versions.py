@@ -98,7 +98,10 @@ def test_worker_persists_once_and_does_not_change_manual_summary(settings):
         assert client.call_args.kwargs["model"] == "qwen3.8-flash"
     version = models.MeetingSummaryVersion.objects.get(pk=version_id)
     job.refresh_from_db()
-    assert job.status == "partial" and job.result == {"coverage_status": "unverified"}
+    assert job.status == "partial" and job.result == {
+        "coverage_status": "unverified",
+        "delivery_status": "unverified",
+    }
     legacy.refresh_from_db()
     assert legacy.effective_content == "Human review"
     assert models.MeetingSummaryVersion.objects.count() == 1

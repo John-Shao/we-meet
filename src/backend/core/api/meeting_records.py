@@ -236,6 +236,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                         "coverage_status", "unverified"
                     ),
                     "content": version.content,
+                    "delivery_status": version.input_snapshot.delivery.get(
+                        "status", "unverified"
+                    ),
                     "model_used": version.model_used,
                     "created_at": version.created_at,
                     "input_revision": version.input_snapshot.revision,
@@ -269,6 +272,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 "id": str(version.pk),
                 "revision": version.revision,
                 "segments": version.segments,
+                "delivery": version.delivery,
             }
         )
 

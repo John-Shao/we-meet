@@ -80,6 +80,8 @@ export interface ApiRecordSummaryVersion {
   id: string
   stage: 'final'
   coverage_status: 'unverified'
+  /** Delivery of emitted text; does not prove complete audio recognition. */
+  delivery_status: 'complete' | 'incomplete' | 'unverified'
   input_snapshot_id: string
   input_revision: number
   is_current: boolean
@@ -100,6 +102,16 @@ export interface ApiRecordSummaryVersion {
 export interface ApiRecordTranscriptVersion {
   id: string
   revision: number
+  delivery: {
+    status?: 'complete' | 'incomplete' | 'unverified'
+    streams?: {
+      id: string
+      state: 'open' | 'complete' | 'incomplete'
+      final_sequence: number | null
+      received: number
+      valid: boolean
+    }[]
+  }
   segments: (RecordSourceReference & {
     text: string
     speaker_name: string

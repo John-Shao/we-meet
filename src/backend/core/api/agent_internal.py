@@ -26,9 +26,15 @@ from rest_framework.views import APIView
 
 from core import models
 from core.models import Room, Transcript
+from core.services.meeting_records import RecordConflict
 from core.services.meeting_sessions import (
     MeetingSessionProjectionError,
     MeetingSessionService,
+)
+from core.services.transcript_delivery import (
+    begin_delivery,
+    finish_delivery,
+    ingest_tracked,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,6 +92,8 @@ class _TranscriptIngestSerializer(  # pylint: disable=abstract-method
         max_length=64, required=False, allow_blank=True, default=""
     )
     ingest_id = serializers.UUIDField(required=False, allow_null=True)
+    delivery_id = serializers.UUIDField(required=False)
+    sequence = serializers.IntegerField(required=False, min_value=1, max_value=100000)
     speaker_identity = serializers.CharField(max_length=128)
     speaker_name = serializers.CharField(
         max_length=128, required=False, allow_blank=True, default=""
@@ -141,13 +149,41 @@ class IngestTranscriptView(APIView):
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
+    def _post_tracked(self, data):
+        """Apply the opt-in sequenced contract without changing legacy requests."""
+        if (
+            not getattr(settings, "MEETING_TRANSCRIPT_DELIVERY_ENABLED", False)
+            or not settings.MEETING_RECORDS_ENABLED
+        ):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if not all(
+            data.get(key)
+            for key in ("delivery_id", "sequence", "ingest_id", "livekit_room_sid")
+        ):
+            raise serializers.ValidationError(
+                "Tracked ingestion requires delivery, sequence, ingest ID and exact SID."
+            )
+        try:
+            transcript, created = ingest_tracked(data)
+        except (RecordConflict, IntegrityError, DjangoValidationError):
+            return Response(
+                {
+                    "detail": "Transcript delivery conflicts with its source or sequence."
+                },
+                status=409,
+            )
+        return self._response(transcript, created=created)
+
     # pylint: disable-next=too-many-branches
-    def post(self, request):
+    def post(self, request):  # noqa: PLR0911, PLR0912 -- retain legacy replay/projection paths
         """Validate and idempotently persist one session-scoped utterance."""
 
         serializer = _TranscriptIngestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+
+        if "delivery_id" in data or "sequence" in data:
+            return self._post_tracked(data)
 
         room = get_object_or_404(Room, id=data["room_id"])
         ingest_id = data.get("ingest_id")
@@ -191,9 +227,7 @@ class IngestTranscriptView(APIView):
                 room.id,
                 data.get("livekit_room_sid") or "",
             )
-            return Response(
-                {"detail": str(err)}, status=status.HTTP_409_CONFLICT
-            )
+            return Response({"detail": str(err)}, status=status.HTTP_409_CONFLICT)
 
         values = {
             "room": room,
@@ -258,3 +292,61 @@ class IngestTranscriptView(APIView):
                 ingest_id,
             )
         return self._response(transcript, created=created)
+
+
+class _DeliverySerializer(serializers.Serializer):
+    """Explicit session identity for a single agent run's delivery ledger."""
+
+    room_id = serializers.UUIDField()
+    livekit_room_sid = serializers.CharField(max_length=64)
+    delivery_id = serializers.UUIDField()
+    action = serializers.ChoiceField(choices=["begin", "finish"])
+    final_sequence = serializers.IntegerField(
+        required=False, min_value=0, max_value=100000
+    )
+    outcome = serializers.ChoiceField(
+        choices=["complete", "incomplete"], required=False
+    )
+
+
+class TranscriptDeliveryView(APIView):
+    """Trusted agent ledger control; no user-facing capture or audio-completion API."""
+
+    authentication_classes = [AgentTokenAuthentication]
+    permission_classes = [HasAgentToken]
+
+    def post(self, request):
+        """Register or seal a source without silently selecting a room's latest session."""
+        if (
+            not getattr(settings, "MEETING_TRANSCRIPT_DELIVERY_ENABLED", False)
+            or not settings.MEETING_RECORDS_ENABLED
+        ):
+            return Response(status=404)
+        serializer = _DeliverySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        if data["action"] == "finish" and not all(
+            key in data for key in ("outcome", "final_sequence")
+        ):
+            raise serializers.ValidationError(
+                "Finish requires an outcome and final sequence."
+            )
+        try:
+            delivery = (
+                begin_delivery(data)
+                if data["action"] == "begin"
+                else finish_delivery(data)
+            )
+        except (RecordConflict, IntegrityError, DjangoValidationError):
+            return Response(
+                {"detail": "Delivery conflicts with its session or manifest."},
+                status=409,
+            )
+        return Response(
+            {
+                "status": "ok",
+                "id": str(delivery.pk),
+                "state": delivery.state,
+                "final_sequence": delivery.final_sequence,
+            }
+        )

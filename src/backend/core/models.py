@@ -1286,6 +1286,7 @@ class MeetingTranscriptVersion(BaseModel):
     revision = models.PositiveIntegerField()
     fingerprint = models.CharField(max_length=64)
     segments = models.JSONField()
+    delivery = models.JSONField(default=dict, blank=True)
 
     class Meta:
         constraints = [
@@ -1344,6 +1345,70 @@ class MeetingSummaryVersion(BaseModel):
             )
         ):
             raise ValidationError("Summary input must match the job and record.")
+
+
+class TranscriptDelivery(BaseModel):
+    """One agent run's delivery ledger, not proof of full audio recognition."""
+
+    session = models.ForeignKey(
+        MeetingSession, on_delete=models.CASCADE, related_name="transcript_deliveries"
+    )
+    state = models.CharField(
+        max_length=16,
+        default="open",
+        choices=[
+            ("open", "Open"),
+            ("complete", "Complete"),
+            ("incomplete", "Incomplete"),
+        ],
+    )
+    final_sequence = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(state="open", final_sequence__isnull=True)
+                    | models.Q(
+                        state__in=["complete", "incomplete"],
+                        final_sequence__isnull=False,
+                    )
+                ),
+                name="delivery_terminal_sequence",
+            )
+        ]
+
+    def __str__(self):
+        return f"TranscriptDelivery({self.pk}, {self.state})"
+
+
+class TranscriptReceipt(BaseModel):
+    """Stable sequence receipt; deleting source text invalidates delivery proof."""
+
+    delivery = models.ForeignKey(
+        TranscriptDelivery, on_delete=models.CASCADE, related_name="receipts"
+    )
+    transcript = models.OneToOneField(
+        "Transcript",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="delivery_receipt",
+    )
+    sequence = models.PositiveIntegerField()
+    payload_hash = models.CharField(max_length=64)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["delivery", "sequence"], name="unique_delivery_sequence"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(sequence__gte=1), name="delivery_sequence_positive"
+            ),
+        ]
+
+    def __str__(self):
+        return f"TranscriptReceipt({self.delivery_id}, {self.sequence})"
 
 
 class BaseAccessManager(models.Manager):

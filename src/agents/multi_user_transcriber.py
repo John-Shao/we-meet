@@ -20,7 +20,6 @@ from livekit.agents import (
     WorkerOptions,
     WorkerPermissions,
     cli,
-    utils,
 )
 from livekit.agents import (
     room_io as lk_room_io,
@@ -112,6 +111,10 @@ class MultiUserTranscriber:
         self._target_langs = target_langs or []
         self._sessions: dict[str, AgentSession] = {}
         self._tasks: set[asyncio.Task] = set()
+        self._writes: set[asyncio.Task] = set()
+        self._starting: dict[str, asyncio.Task] = {}
+        self._closing = False
+        self._accepting_finals = True
 
     async def _publish_translation(
         self,
@@ -152,42 +155,97 @@ class MultiUserTranscriber:
         self.ctx.room.on("participant_disconnected", self.on_participant_disconnected)
 
     async def aclose(self):
-        """Close all sessions and cleanup resources."""
-        await utils.aio.cancel_and_wait(*self._tasks)
-
-        await asyncio.gather(
-            *[self._close_session(session) for session in self._sessions.values()]
-        )
-
+        """Drain producers before writes; interrupted drains remain incomplete."""
+        self._closing = True
         self.ctx.room.off("participant_connected", self.on_participant_connected)
         self.ctx.room.off("participant_disconnected", self.on_participant_disconnected)
+        try:
+            async with asyncio.timeout(45):
+                await self._drain_tasks(self._tasks)
+                results = await asyncio.gather(
+                    *[
+                        self._close_session(session)
+                        for session in self._sessions.values()
+                    ],
+                    return_exceptions=True,
+                )
+                if any(isinstance(result, BaseException) for result in results):
+                    self._writer.mark_incomplete()
+                await self._drain_tasks(self._writes)
+        except TimeoutError:
+            self._writer.mark_incomplete()
+            logger.warning("Transcription shutdown timed out; delivery is incomplete")
+        except asyncio.CancelledError:
+            self._writer.mark_incomplete()
+            raise
+        finally:
+            self._accepting_finals = False
+            pending = self._tasks | self._writes
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+            await self._writer.finish_delivery()
+
+    async def _drain_tasks(self, collection: set) -> None:
+        """Remove joined tasks explicitly; completed gather need not yield callbacks."""
+        while collection:
+            batch = list(collection)
+            results = await asyncio.gather(*batch, return_exceptions=True)
+            collection.difference_update(batch)
+            # Startup callbacks install sessions that shutdown must close.
+            await asyncio.sleep(0)
+            if any(isinstance(result, BaseException) for result in results):
+                self._writer.mark_incomplete()
+
+    def _track(self, task: asyncio.Task, collection: set) -> None:
+        """Observe all background failures, including callbacks fired during drain."""
+        collection.add(task)
+
+        def done(completed):
+            collection.discard(completed)
+            if completed.cancelled() or completed.exception() is not None:
+                self._writer.mark_incomplete()
+                logger.warning("Transcription background work did not finish")
+
+        task.add_done_callback(done)
 
     def on_participant_connected(self, participant: rtc.RemoteParticipant):
         """Handle new participant connection by starting transcription session."""
-        if participant.identity in self._sessions:
+        if (
+            self._closing
+            or participant.identity in self._sessions
+            or participant.identity in self._starting
+        ):
             return
 
         logger.info(f"starting session for {participant.identity}")
         task = asyncio.create_task(self._start_session(participant))
-        self._tasks.add(task)
+        self._starting[participant.identity] = task
+        self._track(task, self._tasks)
 
         def on_task_done(task: asyncio.Task):
             try:
-                self._sessions[participant.identity] = task.result()
+                if not task.cancelled() and task.exception() is None:
+                    self._sessions[participant.identity] = task.result()
             finally:
-                self._tasks.discard(task)
+                self._starting.pop(participant.identity, None)
 
         task.add_done_callback(on_task_done)
 
     def on_participant_disconnected(self, participant: rtc.RemoteParticipant):
         """Handle participant disconnection by closing transcription session."""
-        if (session := self._sessions.pop(participant.identity)) is None:
+        if self._closing:
             return
+        starting = self._starting.get(participant.identity)
 
-        logger.info(f"closing session for {participant.identity}")
-        task = asyncio.create_task(self._close_session(session))
-        self._tasks.add(task)
-        task.add_done_callback(lambda _: self._tasks.discard(task))
+        async def close_participant():
+            if starting:
+                await asyncio.shield(starting)
+            session = self._sessions.pop(participant.identity, None)
+            if session:
+                await self._close_session(session)
+
+        self._track(asyncio.create_task(close_participant()), self._tasks)
 
     async def _start_session(self, participant: rtc.RemoteParticipant) -> AgentSession:
         """Create and start transcription session for participant."""
@@ -207,10 +265,9 @@ class MultiUserTranscriber:
         await room_io.start()
 
         # On each FINAL transcript: (1) translate concurrently to every
-        # configured target language, (2) broadcast original+translations
-        # to the room via DataChannel for live caption display, and (3)
-        # persist the row to the backend. All failures log but never
-        # crash the transcription session.
+        # configured target language, (2) persist the original even when
+        # translation fails, and (3) broadcast via DataChannel. Every FINAL
+        # reserves a delivery sequence before this asynchronous work starts.
         room_id = self.ctx.room.name
         livekit_room_sid = await _get_livekit_room_sid(self.ctx.room)
         speaker_identity = participant.identity
@@ -223,21 +280,22 @@ class MultiUserTranscriber:
         translator = self._translator
         target_langs = self._target_langs
 
-        async def _process_final(text: str, language: str, started_at: datetime):
+        async def _process_final(
+            text: str, language: str, started_at: datetime, sequence
+        ):
             translations: dict[str, str] = {}
             if translator and target_langs:
-                translations = await translator.translate_many(
-                    text,
-                    source_lang=language,
-                    target_langs=target_langs,
-                )
-            await self._publish_translation(
-                speaker_identity=speaker_identity,
-                text=text,
-                language=language,
-                translations=translations,
-                started_at=started_at,
-            )
+                try:
+                    async with asyncio.timeout(15):
+                        translations = await translator.translate_many(
+                            text,
+                            source_lang=language,
+                            target_langs=target_langs,
+                        )
+                except Exception:
+                    logger.warning(
+                        "Translation unavailable; preserving original transcript"
+                    )
             await writer.write(
                 room_id=room_id,
                 livekit_room_sid=livekit_room_sid,
@@ -247,6 +305,14 @@ class MultiUserTranscriber:
                 language=language,
                 started_at=started_at,
                 translations=translations,
+                sequence=sequence,
+            )
+            await self._publish_translation(
+                speaker_identity=speaker_identity,
+                text=text,
+                language=language,
+                translations=translations,
+                started_at=started_at,
             )
 
         def _on_user_input_transcribed(event):
@@ -255,12 +321,15 @@ class MultiUserTranscriber:
             text = getattr(event, "transcript", "") or ""
             if not text.strip():
                 return
+            if not self._accepting_finals:
+                writer.mark_incomplete()
+                return
             language = getattr(event, "language", "") or ""
+            sequence = writer.reserve_sequence()
             task = asyncio.create_task(
-                _process_final(text, language, datetime.now(timezone.utc))
+                _process_final(text, language, datetime.now(timezone.utc), sequence)
             )
-            self._tasks.add(task)
-            task.add_done_callback(self._tasks.discard)
+            self._track(task, self._writes)
 
         session.on("user_input_transcribed", _on_user_input_transcribed)
 
@@ -274,16 +343,18 @@ class MultiUserTranscriber:
     async def _close_session(self, sess: AgentSession) -> None:
         """Close and cleanup transcription session."""
         try:
-            await sess.drain()
-        except RuntimeError as e:
-            # livekit-agents 1.4.5 races: on participant disconnect the
-            # framework auto-drains the session and a second drain() raises
-            # "AgentSession isn't running". Treated as benign; everything
-            # else still bubbles up.
-            if "isn't running" not in str(e):
-                raise
-            logger.debug("session already drained by the framework")
-        await sess.aclose()
+            try:
+                await sess.drain()
+            except RuntimeError as e:
+                # livekit-agents 1.4.5 races: on participant disconnect the
+                # framework auto-drains the session and a second drain() raises
+                # "AgentSession isn't running". Treated as benign; everything
+                # else still bubbles up.
+                if "isn't running" not in str(e):
+                    raise
+                logger.debug("session already drained by the framework")
+        finally:
+            await sess.aclose()
 
 
 async def entrypoint(ctx: JobContext):
@@ -318,9 +389,12 @@ async def entrypoint(ctx: JobContext):
     transcriber = MultiUserTranscriber(
         ctx, writer, translator=translator, target_langs=TRANSLATION_TARGET_LANGS
     )
-    transcriber.start()
-
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+    if os.getenv("AGENT_TRANSCRIPT_DELIVERY_ENABLED", "false").lower() == "true":
+        await writer.begin_delivery(
+            ctx.room.name, await _get_livekit_room_sid(ctx.room)
+        )
+    transcriber.start()
     for participant in ctx.room.remote_participants.values():
         transcriber.on_participant_connected(participant)
 
