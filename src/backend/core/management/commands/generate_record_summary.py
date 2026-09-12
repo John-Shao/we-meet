@@ -18,6 +18,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("record_id", type=UUID)
+        parser.add_argument(
+            "--stage", choices=["realtime", "quick", "final"], default="final"
+        )
         parser.add_argument("--regenerate", action="store_true")
         parser.add_argument("--retry", action="store_true")
         parser.add_argument("--recover-running", action="store_true")
@@ -27,7 +30,9 @@ class Command(BaseCommand):
             raise CommandError("Choose retry or regenerate, not both.")
         try:
             job = prepare_summary_job(
-                options["record_id"], regenerate=options["regenerate"]
+                options["record_id"],
+                regenerate=options["regenerate"],
+                stage=options["stage"],
             )
             if options["recover_running"]:
                 recover_summary_job(job.pk)

@@ -1434,7 +1434,9 @@ class MeetingSummaryVersion(BaseModel):
         MeetingTranscriptVersion, on_delete=models.RESTRICT, related_name="summaries"
     )
     stage = models.CharField(
-        max_length=16, default="final", choices=[("final", "Final")]
+        max_length=16,
+        default="final",
+        choices=[("realtime", "Realtime"), ("quick", "Quick"), ("final", "Final")],
     )
     content = models.JSONField()
     model_used = models.CharField(max_length=128)

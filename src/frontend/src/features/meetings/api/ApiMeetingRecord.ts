@@ -78,9 +78,14 @@ export interface RecordSummaryPoint {
   source_refs: RecordSourceReference[]
 }
 
+export type SummaryStage = 'realtime' | 'quick' | 'final'
+
 export interface ApiRecordSummaryVersion {
   id: string
-  stage: 'final'
+  stage: SummaryStage
+  source_observed_at?: string
+  source_segment_count?: number
+  source_through_ms?: number
   coverage_status: 'unverified'
   /** Delivery of emitted text; does not prove complete audio recognition. */
   delivery_status: 'complete' | 'incomplete' | 'unverified'
@@ -126,6 +131,7 @@ export interface ApiRecordTranscriptVersion {
 
 export interface ApiSummaryJob {
   id: string
+  stage?: SummaryStage
   status: 'queued' | 'running' | 'succeeded' | 'partial' | 'failed' | 'canceled'
   attempt: number
   generation: number
@@ -138,6 +144,7 @@ export interface ApiSummaryJob {
 
 export interface SummaryRequestPayload {
   operation: 'generate' | 'regenerate' | 'retry'
+  stage?: SummaryStage
   expected_revision: number
   expected_job_id: string | null
   expected_attempt: number | null

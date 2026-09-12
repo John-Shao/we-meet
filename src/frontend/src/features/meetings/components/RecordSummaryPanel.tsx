@@ -18,6 +18,7 @@ import {
 import type {
   ApiRecordSummaryVersion,
   RecordSourceReference,
+  SummaryStage,
 } from '../api/ApiMeetingRecord'
 
 const stack = css({ display: 'flex', flexDirection: 'column', gap: '1rem' })
@@ -122,6 +123,8 @@ export const RecordSummaryPanel = ({
   const busy = job?.status === 'queued' || job?.status === 'running'
   const canGenerate = detail.data?.capabilities.generate_summary
   const ready = progress.data?.generation_ready
+  const staged = progress.data?.staged_summaries_enabled
+  const readyStages = progress.data?.ready_stages ?? []
   const { refetch: refreshVersions } = versions
   useEffect(() => {
     if (allowed) void refreshVersions()
@@ -134,13 +137,17 @@ export const RecordSummaryPanel = ({
     refreshVersions,
   ])
 
-  const submit = async (operation: SummaryRequestPayload['operation']) => {
+  const submit = async (
+    operation: SummaryRequestPayload['operation'],
+    stage?: SummaryStage
+  ) => {
     if (inFlight.current || !progress.data) return
     inFlight.current = true
     const intent = pendingIntent ?? {
       key: crypto.randomUUID(),
       payload: {
         operation,
+        ...(stage ? { stage } : {}),
         expected_revision: progress.data.revision,
         expected_job_id: job?.id ?? null,
         expected_attempt: job?.attempt ?? null,
@@ -212,19 +219,36 @@ export const RecordSummaryPanel = ({
             </Button>
           ) : (
             <>
-              <Button
-                size="sm"
-                isDisabled={!ready || busy || mutation.isPending}
-                onPress={() => void submit(job ? 'regenerate' : 'generate')}
-              >
-                {t(job ? 'recordAi.regenerate' : 'recordAi.generate')}
-              </Button>
+              {staged ? (
+                readyStages.map((stage) => (
+                  <Button
+                    key={stage}
+                    size="sm"
+                    isDisabled={busy || mutation.isPending}
+                    onPress={() =>
+                      void submit(job ? 'regenerate' : 'generate', stage)
+                    }
+                  >
+                    {t(`recordAi.generateStage.${stage}`)}
+                  </Button>
+                ))
+              ) : (
+                <Button
+                  size="sm"
+                  isDisabled={!ready || busy || mutation.isPending}
+                  onPress={() => void submit(job ? 'regenerate' : 'generate')}
+                >
+                  {t(job ? 'recordAi.regenerate' : 'recordAi.generate')}
+                </Button>
+              )}
               {job?.retryable && !busy && (
                 <Button
                   size="sm"
                   variant="tertiary"
                   isDisabled={mutation.isPending}
-                  onPress={() => void submit('retry')}
+                  onPress={() =>
+                    void submit('retry', staged ? job.stage : undefined)
+                  }
                 >
                   {t('recordAi.retry')}
                 </Button>
@@ -234,7 +258,20 @@ export const RecordSummaryPanel = ({
         </div>
       )}
       {message && <div role="status">{t(message)}</div>}
-      {canGenerate && !ready && <Text>{t('recordAi.waitForSource')}</Text>}
+      {canGenerate && (staged ? readyStages.length === 0 : !ready) && (
+        <Text>
+          {t(
+            staged ? 'recordAi.waitForStableSource' : 'recordAi.waitForSource'
+          )}
+        </Text>
+      )}
+      {staged && progress.data?.next_update_at && (
+        <Text>
+          {t('recordAi.nextUpdate', {
+            time: new Date(progress.data.next_update_at).toLocaleTimeString(),
+          })}
+        </Text>
+      )}
       <Button
         size="sm"
         variant="tertiary"
@@ -314,9 +351,20 @@ const Version = ({
     >
       <div className={stack}>
         <H lvl={3}>
+          {version.stage && `${t(`recordAi.stage.${version.stage}`)} · `}
           {new Date(version.created_at).toLocaleString()} ·{' '}
           {t(version.is_current ? 'recordAi.current' : 'recordAi.historical')}
         </H>
+        {version.stage && version.stage !== 'final' && (
+          <Text variant="note">{t('recordAi.provisional')}</Text>
+        )}
+        {version.source_through_ms !== undefined && (
+          <Text variant="note">
+            {t('recordAi.observedThrough', {
+              time: `${Math.floor(version.source_through_ms / 60000)}:${String(Math.floor(version.source_through_ms / 1000) % 60).padStart(2, '0')}`,
+            })}
+          </Text>
+        )}
         <Text variant="note">
           {t(`recordAi.delivery.${version.delivery_status}`)} ·{' '}
           {t('recordAi.coverageUnverified')}

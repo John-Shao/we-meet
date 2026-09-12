@@ -15,6 +15,7 @@ import type {
   ApiSummaryJob,
   ApiSummaryRequest,
   SummaryRequestPayload,
+  SummaryStage,
 } from './ApiMeetingRecord'
 
 const recordPath = (recordId: string) =>
@@ -184,7 +185,14 @@ export const useRecordSummaryJob = (
   enabled: boolean
 ) =>
   useQuery<
-    { revision: number; job: ApiSummaryJob | null; generation_ready: boolean },
+    {
+      revision: number
+      job: ApiSummaryJob | null
+      generation_ready: boolean
+      staged_summaries_enabled?: boolean
+      ready_stages?: SummaryStage[]
+      next_update_at?: string | null
+    },
     ApiError
   >({
     ...privateReadOptions,

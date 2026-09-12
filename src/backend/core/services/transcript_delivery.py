@@ -77,6 +77,10 @@ def _bump(record):
         record.save(update_fields=["revision", "updated_at"])
         record.processing_jobs.filter(
             input_revision__lt=record.revision, status__in=["queued", "running"]
+        ).exclude(
+            pk__in=record.processing_jobs.filter(
+                kind="summary", configuration__stage__in=["realtime", "quick"]
+            ).values("pk")
         ).update(
             status="canceled",
             error_code="source_changed",

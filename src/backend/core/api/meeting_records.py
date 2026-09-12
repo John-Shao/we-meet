@@ -27,7 +27,7 @@ from core.services.meeting_summary_requests import (
     requests_enabled,
     serialize_summary_job,
 )
-from core.services.meeting_summary_versions import source_payload
+from core.services.meeting_summary_versions import source_payload, summary_readiness
 
 
 class SummaryRequestThrottle(UserRateThrottle):
@@ -41,6 +41,9 @@ class SummaryRequestSerializer(serializers.Serializer):
     """An explicit operation against the revision/job state the user reviewed."""
 
     operation = serializers.ChoiceField(choices=["generate", "regenerate", "retry"])
+    stage = serializers.ChoiceField(
+        choices=["realtime", "quick", "final"], required=False
+    )
     expected_revision = serializers.IntegerField(min_value=1)
     expected_job_id = serializers.UUIDField(allow_null=True)
     expected_attempt = serializers.IntegerField(min_value=1, allow_null=True)
@@ -267,19 +270,14 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             .order_by("-generation")
             .first()
         )
-        ready = bool(
-            record.meeting_session_id
-            and record.meeting_session.status == models.MeetingSession.Status.ENDED
-            and models.Transcript.objects.filter(
-                session_id=record.meeting_session_id,
-                room_id=record.meeting_session.room_id,
-            ).exists()
-        )
+        readiness = summary_readiness(record)
         return Response(
             {
                 "revision": record.revision,
                 "job": serialize_summary_job(job),
-                "generation_ready": ready,
+                "generation_ready": "final" in readiness["ready_stages"],
+                "staged_summaries_enabled": settings.MEETING_STAGED_SUMMARY_ENABLED,
+                **readiness,
             }
         )
 
@@ -327,7 +325,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         """Expose immutable AI versions without disclosing the input transcript."""
         record = self._content_record("read_summary")
         try:
-            fingerprint = source_payload(record)[1]
+            fingerprint = source_payload(record, require_ended=False)[1]
         except RecordConflict:
             fingerprint = None
         latest = (
@@ -356,6 +354,12 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "created_at": version.created_at,
                     "input_revision": version.input_snapshot.revision,
                     "input_snapshot_id": str(version.input_snapshot_id),
+                    "source_observed_at": version.input_snapshot.created_at,
+                    "source_segment_count": len(version.input_snapshot.segments),
+                    "source_through_ms": max(
+                        row["end_ms"] if row["end_ms"] is not None else row["start_ms"]
+                        for row in version.input_snapshot.segments
+                    ),
                     "is_current": bool(
                         latest
                         and latest.pk == version.job_id

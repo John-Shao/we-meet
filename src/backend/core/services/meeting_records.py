@@ -230,7 +230,13 @@ def transition_job(  # noqa: PLR0913
     if (
         latest.pk != job.pk
         or attempt != job.attempt
-        or job.input_revision != record.revision
+        or (
+            job.input_revision != record.revision
+            and not (
+                job.kind == "summary"
+                and job.configuration.get("stage") in {"realtime", "quick"}
+            )
+        )
     ):
         raise RecordConflict("Worker attempt or input has been superseded.")
     status = models.MeetingProcessingJob.Status
@@ -266,7 +272,13 @@ def retry_job(job_id):
     )
     if (
         latest.pk != job.pk
-        or job.input_revision != record.revision
+        or (
+            job.input_revision != record.revision
+            and not (
+                job.kind == "summary"
+                and job.configuration.get("stage") in {"realtime", "quick"}
+            )
+        )
         or not job.retryable
     ):
         raise RecordConflict("Job is not retryable at this revision.")

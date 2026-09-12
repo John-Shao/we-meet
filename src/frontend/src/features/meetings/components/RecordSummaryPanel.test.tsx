@@ -111,6 +111,68 @@ beforeEach(() => {
 afterEach(() => client?.clear())
 
 describe('Versioned summary requests', () => {
+  it('requests the available live stage explicitly and labels drafts with their source watermark', async () => {
+    const fallback = mocks.fetchApi.getMockImplementation()!
+    mocks.fetchApi.mockImplementation((url, options) => {
+      if (url.includes('summary-job/'))
+        return {
+          revision: 1,
+          job: null,
+          generation_ready: false,
+          staged_summaries_enabled: true,
+          ready_stages: ['realtime'],
+        }
+      if (url.includes('summary-versions/'))
+        return {
+          results: [
+            { ...version, stage: 'realtime', source_through_ms: 125000 },
+          ],
+          next_cursor: null,
+        }
+      return fallback(url, options)
+    })
+    show()
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'recordAi.generateStage.realtime',
+      })
+    )
+    await screen.findByText('recordAi.accepted')
+    const [, request] = mocks.fetchApi.mock.calls.find(
+      ([, options]) => options?.method === 'POST'
+    )!
+    expect(JSON.parse(request.body).stage).toBe('realtime')
+    expect(screen.getByText('recordAi.provisional')).toBeInTheDocument()
+    expect(screen.getByText('recordAi.observedThrough')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'recordAi.generateStage.final' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('waits for the server stable-text gate without starting a billable request', async () => {
+    const fallback = mocks.fetchApi.getMockImplementation()!
+    mocks.fetchApi.mockImplementation((url, options) =>
+      url.includes('summary-job/')
+        ? {
+            revision: 1,
+            job: null,
+            generation_ready: false,
+            staged_summaries_enabled: true,
+            ready_stages: [],
+            next_update_at: '2026-09-12T08:01:00Z',
+          }
+        : fallback(url, options)
+    )
+    show()
+    await screen.findByText('recordAi.waitForStableSource')
+    expect(screen.getByText('recordAi.nextUpdate')).toBeInTheDocument()
+    expect(
+      mocks.fetchApi.mock.calls.filter(
+        ([, options]) => options?.method === 'POST'
+      )
+    ).toHaveLength(0)
+  })
+
   it('keeps audio coverage unverified when observed ASR tasks have finished', async () => {
     const fallback = mocks.fetchApi.getMockImplementation()!
     mocks.fetchApi.mockImplementation((url, options) =>

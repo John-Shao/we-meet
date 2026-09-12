@@ -57,10 +57,12 @@ def request_summary(record_id, user, key, payload):
     ):
         raise RecordConflict("Summary job changed; refresh before requesting.")
     operation = payload["operation"]
+    stage = payload.get("stage", "final")
     if operation == "retry":
         if (
             latest is None
             or latest.input_snapshot_id is None
+            or latest.configuration.get("stage", "final") != stage
             or not source_is_current(latest)
         ):
             raise RecordConflict(
@@ -70,12 +72,18 @@ def request_summary(record_id, user, key, payload):
     else:
         # Do not let a second browser supersede an in-flight provider call.
         if (
-            operation == "regenerate"
-            and latest
+            latest
             and latest.status in {"queued", "running"}
+            and (
+                operation == "regenerate"
+                or latest.configuration.get("stage", "final") != stage
+                or latest.input_revision != record.revision
+            )
         ):
             raise RecordConflict("Wait for the current generation to finish.")
-        job = prepare_summary_job(record.pk, regenerate=operation == "regenerate")
+        job = prepare_summary_job(
+            record.pk, regenerate=operation == "regenerate", stage=stage
+        )
     # Pin the initiating user only for a newly requested, not-yet-running job.
     if (
         job.status == "queued"
@@ -119,7 +127,10 @@ def dispatch_summary_request(request_id):
     if (
         job.status != "queued"
         or job.attempt != request.attempt
-        or job.input_revision != record.revision
+        or (
+            job.input_revision != record.revision
+            and job.configuration.get("stage") not in {"realtime", "quick"}
+        )
         or not authorized
     ):
         request.dispatch_state = "abandoned"
@@ -176,6 +187,7 @@ def serialize_summary_job(job):
         "status": job.status,
         "attempt": job.attempt,
         "generation": job.generation,
+        "stage": job.configuration.get("stage", "final"),
         "input_revision": job.input_revision,
         "retryable": job.retryable,
         "error_code": job.error_code,

@@ -51,7 +51,21 @@
       "chapters": "Chapters",
       "action_items": "Suggested actions",
       "open_questions": "Open questions"
-    }
+    },
+    "stage": {
+      "realtime": "Live summary",
+      "quick": "Quick recap",
+      "final": "Post-meeting minutes"
+    },
+    "generateStage": {
+      "realtime": "Update live summary",
+      "quick": "Generate quick recap",
+      "final": "Generate minutes"
+    },
+    "waitForStableSource": "Waiting for more stable text or recognition tail closure before updating.",
+    "nextUpdate": "Next update available no earlier than {{time}}",
+    "provisional": "This draft uses text received at that time. Later speech may change the conclusions.",
+    "observedThrough": "Latest received text time: {{time}} (earlier audio coverage is not guaranteed)"
   },
   "pageTitle": "Meeting detail",
   "loading": "Loading…",
