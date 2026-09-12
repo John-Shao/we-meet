@@ -11,7 +11,29 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from core import models
-from core.services.meeting_records import record_capabilities, visible_records
+from core.services.meeting_records import (
+    filter_record_scope,
+    record_capabilities,
+    visible_records,
+)
+
+
+class LegacyRecordSourceSerializer(serializers.Serializer):
+    """Only explicit source IDs are accepted; no arbitrary URLs or slugs."""
+
+    room_id = serializers.UUIDField(required=False)
+    meeting_session_id = serializers.UUIDField(required=False)
+    summary_id = serializers.UUIDField(required=False)
+
+    def validate(self, attrs):
+        """Allow room + session for old deep links, reject ambiguous selectors."""
+        if not attrs or ("summary_id" in attrs and len(attrs) != 1):
+            raise ValidationError(
+                "Supply room_id, meeting_session_id, both, or summary_id alone."
+            )
+        if set(self.initial_data) - set(self.fields):
+            raise ValidationError("Unsupported source selector.")
+        return attrs
 
 
 class RecordPagination(pagination.CursorPagination):
@@ -110,6 +132,10 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         )
         if self.action != "list":
             return queryset
+        scope = self.request.query_params.get("scope", "recent")
+        if scope not in {"recent", "owned", "participated", "shared"}:
+            raise ValidationError({"scope": "Unsupported record scope."})
+        queryset = filter_record_scope(queryset, self.request.user, scope)
         source = self.request.query_params.get("source_type")
         if source:
             if source not in models.MeetingRecord.Source.values:
@@ -125,6 +151,52 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         if len(query) > 200:
             raise ValidationError({"q": "Search text exceeds 200 characters."})
         return queryset.filter(title__icontains=query) if query else queryset
+
+    @action(detail=False, methods=["get"])
+    def resolve(self, request):
+        """Resolve old links without creating records or choosing a latest session."""
+        selector = LegacyRecordSourceSerializer(data=request.query_params)
+        selector.is_valid(raise_exception=True)
+        source = selector.validated_data
+        rows = self.get_queryset()
+        if "summary_id" in source:
+            summary = (
+                models.Summary.objects.filter(
+                    pk=source["summary_id"],
+                    session_id__in=visible_records(
+                        request.user, ability="read_summary"
+                    ).values("meeting_session_id"),
+                )
+                .select_related("session")
+                .first()
+            )
+            if summary is None or summary.session.room_id != summary.room_id:
+                raise Http404
+            rows = rows.filter(meeting_session_id=summary.session_id)
+        else:
+            if "room_id" in source:
+                rows = rows.filter(meeting_session__room_id=source["room_id"])
+            if "meeting_session_id" in source:
+                rows = rows.filter(meeting_session_id=source["meeting_session_id"])
+        record = rows.first()
+        if record is None:
+            raise Http404
+        # Keep this exact row after checking ambiguity; never re-query "latest".
+        if (
+            set(source) == {"room_id"}
+            and models.MeetingSession.objects.filter(room_id=source["room_id"])
+            .exclude(pk=record.meeting_session_id)
+            .exists()
+        ):
+            return Response(
+                {
+                    "code": "ambiguous_source",
+                    "message": "This room has multiple sessions; select an explicit meeting session.",
+                    "retryable": False,
+                },
+                status=409,
+            )
+        return Response(self.get_serializer(record).data)
 
     def _content_record(self, ability):
         record = self.get_object()

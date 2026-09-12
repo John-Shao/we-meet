@@ -28,11 +28,18 @@ export interface MeetingRecordPage<T> {
 }
 
 export interface MeetingRecordFilters {
+  scope?: 'recent' | 'owned' | 'participated' | 'shared'
   source_type?: MeetingRecordSource
   meeting_session_id?: string
   q?: string
   cursor?: string
 }
+
+/** A room-only selector can return 409 when the room has been reused. */
+export type LegacyMeetingRecordSource =
+  | { room_id: string; meeting_session_id?: string; summary_id?: never }
+  | { meeting_session_id: string; room_id?: string; summary_id?: never }
+  | { summary_id: string; room_id?: never; meeting_session_id?: never }
 
 /** Compatibility rows retain original timestamps; no guessed media offsets. */
 export interface ApiRecordTranscript {

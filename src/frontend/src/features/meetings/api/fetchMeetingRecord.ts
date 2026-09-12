@@ -9,6 +9,7 @@ import type {
   ApiRecordTranscript,
   MeetingRecordFilters,
   MeetingRecordPage,
+  LegacyMeetingRecordSource,
 } from './ApiMeetingRecord'
 
 const recordPath = (recordId: string) =>
@@ -17,6 +18,10 @@ const recordPath = (recordId: string) =>
 // Viewer identity and immutable record ID are both required in content keys.
 // Callers must pass the authenticated viewer ID and the rollout flag.
 export const meetingRecordKeys = {
+  resolve: (
+    viewerId: string | undefined,
+    source: LegacyMeetingRecordSource | undefined
+  ) => ['meeting-records', viewerId, 'resolve', source] as const,
   list: (viewerId: string | undefined, filters: MeetingRecordFilters) =>
     ['meeting-records', viewerId, 'list', filters] as const,
   detail: (viewerId: string | undefined, recordId: string | undefined) =>
@@ -36,6 +41,25 @@ const privateReadOptions = {
   retry: false,
   refetchOnMount: 'always' as const,
 }
+
+/** Resolve once to a record ID; callers must surface 409 rather than use latest. */
+export const useResolveMeetingRecord = (
+  viewerId: string | undefined,
+  source: LegacyMeetingRecordSource | undefined,
+  enabled: boolean
+) =>
+  useQuery<ApiMeetingRecord, ApiError>({
+    ...privateReadOptions,
+    queryKey: meetingRecordKeys.resolve(viewerId, source),
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams()
+      Object.entries(source!).forEach(([key, value]) => {
+        if (value) params.set(key, value)
+      })
+      return fetchApi(`meeting-records/resolve/?${params}`, { signal })
+    },
+    enabled: enabled && !!viewerId && !!source,
+  })
 
 export const useMeetingRecords = (
   viewerId: string | undefined,

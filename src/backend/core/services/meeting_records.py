@@ -128,6 +128,42 @@ def record_capabilities(record, user):
     }
 
 
+def filter_record_scope(queryset, user, scope):
+    """Narrow already-authorized rows; participation never creates access."""
+    owned = Q(owner=user) & ~Q(source_type=models.MeetingRecord.Source.MEETING)
+    owned |= Exists(
+        models.ResourceAccess.objects.filter(
+            resource_id=OuterRef("meeting_session__room_id"),
+            user=user,
+            role=models.RoleChoices.OWNER,
+        )
+    )
+    if scope == "recent":
+        return queryset
+    if scope == "owned":
+        return queryset.filter(owned)
+    if scope == "participated":
+        return queryset.filter(
+            Exists(
+                models.MeetingParticipation.objects.filter(
+                    session_id=OuterRef("meeting_session_id"),
+                    user=user,
+                )
+            )
+        )
+    if scope == "shared":
+        return queryset.filter(
+            Exists(
+                models.MeetingRecordAccess.objects.filter(
+                    Q(read_summary=True) | Q(read_transcript=True),
+                    record_id=OuterRef("pk"),
+                    user=user,
+                )
+            )
+        ).exclude(owned)
+    raise ValueError("Unsupported record scope.")
+
+
 @transaction.atomic
 def enqueue_job(record_id, kind, *, input_revision, regenerate=False):
     """Reuse a job for duplicate requests; explicit regeneration supersedes it."""
