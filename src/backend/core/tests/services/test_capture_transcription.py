@@ -219,6 +219,16 @@ def test_retry_retains_previous_published_generation_until_success():
     assert finish(job2["id"], worker2).data["status"] == "succeeded"
     assert [row["text"] for row in originals(user, capture)] == ["Revised ASR result"]
     assert models.MeetingOriginalSegment.objects.count() == 2
+    # Source-pinned pagination stays stable after publishing a newer generation.
+    path = f"/api/v1.0/meeting-records/{capture.record_id}/original-segments/"
+    assert (
+        client_for(user).get(path, {"transcription_job_id": job["id"]}).data["results"]
+        == original
+    )
+    assert (
+        client_for(user).get(path, {"transcription_job_id": uuid.uuid4()}).status_code
+        == 404
+    )
 
 
 def test_expired_or_revoked_execution_cannot_upgrade_late_results(settings):

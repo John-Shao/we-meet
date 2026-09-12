@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -16,7 +22,11 @@ const time = (milliseconds: number) => {
 }
 
 /** Mount with viewer/capture key. Only one small, verified audio blob is retained at a time. */
-export function CaptureAudioPlayer({ captureId }: { captureId: string }) {
+export type CaptureAudioHandle = { seek: (milliseconds: number) => void }
+export const CaptureAudioPlayer = forwardRef<
+  CaptureAudioHandle,
+  { captureId: string }
+>(function CaptureAudioPlayer({ captureId }, ref) {
   const { t } = useTranslation('capture')
   const [playlist, setPlaylist] = useState<AudioPlaylist>()
   const [state, setState] = useState<
@@ -147,6 +157,9 @@ export function CaptureAudioPlayer({ captureId }: { captureId: string }) {
     clear()
     setState('ready')
   }
+  useImperativeHandle(ref, () => ({
+    seek: (milliseconds) => seek(milliseconds),
+  }))
   const endSeek = () => {
     seek(position, !!seeking.current?.playing)
     seeking.current = undefined
@@ -262,7 +275,7 @@ export function CaptureAudioPlayer({ captureId }: { captureId: string }) {
         </Button>
       )}
       {/* Custom controls above keep global source time and missing ranges visible. */}
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- Original audio has no transcript yet; do not fabricate captions. */}
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- Optional ASR text is a separate source-linked panel; some audio has no transcript. */}
       <audio
         ref={audio}
         preload="none"
@@ -302,4 +315,4 @@ export function CaptureAudioPlayer({ captureId }: { captureId: string }) {
       />
     </section>
   )
-}
+})

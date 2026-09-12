@@ -1,6 +1,10 @@
+import { createRef } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
-import { CaptureAudioPlayer } from './CaptureAudioPlayer'
+import {
+  CaptureAudioPlayer,
+  type CaptureAudioHandle,
+} from './CaptureAudioPlayer'
 import {
   audioChunk,
   audioPlaylist,
@@ -77,6 +81,18 @@ afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
   vi.clearAllMocks()
+})
+
+it('plays the source position selected from the transcript', async () => {
+  const ref = createRef<CaptureAudioHandle>()
+  const { container } = render(
+    <CaptureAudioPlayer ref={ref} captureId="capture" />
+  )
+  await screen.findByRole('button', { name: 'play' })
+  act(() => ref.current!.seek(2500))
+  await screen.findByRole('button', { name: 'pausePlayback' })
+  expect(vi.mocked(audioChunk).mock.calls[0][1].id).toBe('c')
+  expect(container.querySelector('audio')!.currentTime).toBe(0.5)
 })
 
 it('pauses at missing audio and continues only after an explicit skip', async () => {

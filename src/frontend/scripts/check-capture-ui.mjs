@@ -8,6 +8,7 @@ const browser = await chromium.launch({ headless: true,
   args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] })
 let remote
 let manifest
+let asrJob
 const chunks = new Map()
 const audioBytes = new Map()
 const intents = new Map()
@@ -62,7 +63,20 @@ try {
     if (path.endsWith('/audio/')) return reply({ results: [...chunks.values()], next_after_sequence: null,
       manifest: manifest ? { ...manifest, outcome: remote.media_status } : null })
     if (path.includes('/audio/chunk-')) return route.fulfill({ contentType: 'audio/wav', body: audioBytes.get(path.split('/audio/')[1].replace(/\/$/, '')) })
+    if (path.endsWith('/transcription/')) {
+      if (request.method() === 'POST') {
+        assert.deepEqual(request.postDataJSON(), { expected_job_id: null, allow_incomplete: false })
+        assert.ok(request.headers()['idempotency-key'])
+        asrJob ??= { id: 'published-job', generation: 1, status: 'succeeded', input_count: chunks.size, acknowledged_inputs: chunks.size, final_count: 1 }
+        return reply({ job: asrJob }, 201)
+      }
+      return reply({ available: true, active_job_id: asrJob?.id ?? null, results: asrJob ? [asrJob] : [] })
+    }
     return reply(remote)
+  })
+  await context.route('**/api/v1.0/meeting-records/**', (route) => {
+    assert.equal(new URL(route.request().url()).searchParams.get('transcription_job_id'), 'published-job')
+    return route.fulfill({ json: { results: [{ id: 'original', start_ms: 1000, text: '用于界面验证的模拟转写结果。' }], next: null } })
   })
   const page = await context.newPage()
   await page.goto(`${origin}/capture-ui-harness`)
@@ -77,7 +91,8 @@ try {
     const React = (await import('/node_modules/.vite/deps/react.js')).default
     const { createRoot } = (await import('/node_modules/.vite/deps/react-dom_client.js')).default
     const { Recorder } = await import('/src/features/meetings/routes/AudioRecording.tsx')
-    createRoot(document.getElementById('root')).render(React.createElement(Recorder, { viewerId: 'ui-test-owner', available: true }))
+    const { QueryClient, QueryClientProvider } = await import('/node_modules/.vite/deps/@tanstack_react-query.js')
+    createRoot(document.getElementById('root')).render(React.createElement(QueryClientProvider, { client: new QueryClient() }, React.createElement(Recorder, { viewerId: 'ui-test-owner', available: true })))
   })
   await mount()
   await page.getByLabel('录音名称').fill('项目评审录音')
@@ -102,5 +117,10 @@ try {
   assert.equal(await page.locator('audio').evaluate((audio) => audio.playbackRate), 1.5)
   await page.getByRole('button', { name: '暂停播放', exact: true }).click()
   assert.equal(await page.locator('audio').getAttribute('src'), null)
-  console.log('Capture UI passed: start, upload, pause/reload, recovery, seal/finalize, protected playback and speed.')
+  await page.getByRole('button', { name: '转写录音', exact: true }).click()
+  await page.getByText('用于界面验证的模拟转写结果。').waitFor()
+  await page.getByRole('button', { name: '回听 0:01', exact: true }).click()
+  await page.waitForFunction(() => document.querySelector('audio')?.currentTime >= 1)
+  await page.screenshot({ path: 'test-results/capture-transcript.png', fullPage: true })
+  console.log('Capture UI passed: record, upload, recover, save, play, transcribe intent, published text and source seek (HTTP fixtures, synthetic microphone).')
 } finally { await browser.close() }

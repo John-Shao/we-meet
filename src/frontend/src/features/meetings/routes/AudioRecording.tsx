@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Redirect } from 'wouter'
 import { useConfig } from '@/api/useConfig'
@@ -13,7 +13,11 @@ import {
 } from '../capture/controller'
 import { withCaptureLock } from '../capture/microphone'
 import { captureTransport } from '../capture/transport'
-import { CaptureAudioPlayer } from '../components/CaptureAudioPlayer'
+import {
+  CaptureAudioPlayer,
+  type CaptureAudioHandle,
+} from '../components/CaptureAudioPlayer'
+import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
 
 const duration = (milliseconds: number) => {
   const seconds = Math.floor(milliseconds / 1000)
@@ -38,6 +42,7 @@ export function Recorder({
   const [title, setTitle] = useState('')
   const [localChunks, setLocalChunks] = useState<LocalAudioChunk[]>([])
   const [localPage, setLocalPage] = useState(0)
+  const player = useRef<CaptureAudioHandle>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -255,10 +260,19 @@ export function Recorder({
           )}
         </section>
         {local?.sealed && local.remote && (
-          <CaptureAudioPlayer
-            key={`${viewerId}:${local.remote.id}`}
-            captureId={local.remote.id}
-          />
+          <>
+            <CaptureAudioPlayer
+              ref={player}
+              key={`${viewerId}:${local.remote.id}`}
+              captureId={local.remote.id}
+            />
+            <CaptureTranscriptionPanel
+              key={`asr:${viewerId}:${local.remote.id}`}
+              viewerId={viewerId}
+              capture={local.remote}
+              onSource={(milliseconds) => player.current?.seek(milliseconds)}
+            />
+          </>
         )}
         {!!local?.pendingBytes && (
           <section className={css({ marginTop: '1.5rem' })}>

@@ -496,6 +496,19 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             raise Http404
         record = self._content_record("read_transcript")
         rows = current_originals(record).select_related("speaker")
+        job_id = request.query_params.get("transcription_job_id")
+        if job_id:
+            # Pin pagination to an actually published generation, including history.
+            job = models.CaptureTranscriptionJob.objects.filter(
+                pk=serializers.UUIDField().run_validation(job_id),
+                capture__record=record,
+                status="succeeded",
+            ).first()
+            if not job:
+                raise Http404
+            rows = record.original_segments.filter(
+                transcription_job=job
+            ).select_related("speaker")
         speaker_id = request.query_params.get("speaker_id")
         if speaker_id:
             rows = rows.filter(
