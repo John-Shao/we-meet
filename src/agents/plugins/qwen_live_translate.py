@@ -377,9 +377,11 @@ class TranslationSession:
                 try:
                     await self._send("input_audio_buffer.commit")
                     self._has_audio = False
+                    return True
                 except Exception:
                     self.error_code = "translation_send_failed"
                     raise TranslationError(self.error_code) from None
+            return False
 
     async def _receive(self):
         try:

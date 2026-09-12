@@ -282,6 +282,18 @@ services:
       - ./src/agents:/app
       - /app/.venv
 
+  meeting-translation-dev:
+    profiles: ["translation"]
+    build:
+      context: ./src/agents
+      target: development
+    command: ["python", "qwen_translation_agent.py", "dev"]
+    env_file:
+      - env.d/development/meeting_translation
+    volumes:
+      - ./src/agents:/app
+      - /app/.venv
+
   redis-summary:
     image: redis
     ports:

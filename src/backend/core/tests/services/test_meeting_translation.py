@@ -113,7 +113,8 @@ def test_stopping_drains_then_switch_creates_generation():
     with pytest.raises(RecordConflict):
         start(user, session, participant, expected_run_id=str(run.pk))
     assert service.agent_control(run.pk, {**identity, "operation": "heartbeat"}) == {
-        "state": "stopping"
+        "state": "stopping",
+        "deliver_tail": True,
     }
     final = {**identity, "operation": "finish", "receipt": receipt()}
     assert service.agent_control(run.pk, final) == {"state": "stopped"}
@@ -170,7 +171,9 @@ def test_wrong_worker_session_or_generation_rejected():
     assert run.worker_id == identity["worker_id"]
 
 
-@pytest.mark.parametrize("change", ["left", "revoked", "organization", "agent", "deleted"])
+@pytest.mark.parametrize(
+    "change", ["left", "revoked", "organization", "agent", "deleted"]
+)
 def test_authorization_loss_stops_and_hides_destination(change):
     user, session, participant = fixture()
     _, run, _ = start(user, session, participant)

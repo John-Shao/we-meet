@@ -209,12 +209,15 @@ def agent_control(run_id, data):
                 ]
             )
         return {"state": run.state}
+    source_valid = _source_valid(run, session)
     if run.state in ACTIVE:
-        if not _source_valid(run, session):
+        if not source_valid:
             _request_stop(run)
         run.heartbeat_at = timezone.now()
         run.save(update_fields=["heartbeat_at", "updated_at"])
     result = {"state": run.state}
+    if run.state == "stopping" and source_valid:
+        result["deliver_tail"] = True
     if run.state == "translating":
         result.update(
             configuration=run.configuration,
