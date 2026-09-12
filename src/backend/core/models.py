@@ -1249,6 +1249,14 @@ class MeetingProcessingJob(BaseModel):
     error_code = models.CharField(max_length=64, blank=True)
     retryable = models.BooleanField(default=False)
     result = models.JSONField(default=dict, blank=True)
+    input_snapshot = models.ForeignKey(
+        "MeetingTranscriptVersion",
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True,
+        related_name="jobs",
+    )
+    configuration = models.JSONField(default=dict, blank=True)
 
     class Meta:
         db_table = "meet_meeting_processing_job"
@@ -1267,6 +1275,75 @@ class MeetingProcessingJob(BaseModel):
 
     def __str__(self):
         return f"MeetingProcessingJob({self.record_id}, {self.kind}, {self.generation})"
+
+
+class MeetingTranscriptVersion(BaseModel):
+    """Immutable, complete snapshot of the confirmed source read for a job."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="transcript_versions"
+    )
+    revision = models.PositiveIntegerField()
+    fingerprint = models.CharField(max_length=64)
+    segments = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record", "revision"], name="unique_record_transcript_revision"
+            )
+        ]
+
+    def __str__(self):
+        return f"TranscriptVersion({self.record_id}, {self.revision})"
+
+    def clean(self):
+        """Versions are append-only through model writes."""
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Transcript versions are immutable.")
+
+
+class MeetingSummaryVersion(BaseModel):
+    """Immutable AI output, separate from manually edited legacy summaries."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="summary_versions"
+    )
+    job = models.OneToOneField(
+        MeetingProcessingJob, on_delete=models.RESTRICT, related_name="summary_version"
+    )
+    input_snapshot = models.ForeignKey(
+        MeetingTranscriptVersion, on_delete=models.RESTRICT, related_name="summaries"
+    )
+    stage = models.CharField(
+        max_length=16, default="final", choices=[("final", "Final")]
+    )
+    content = models.JSONField()
+    model_used = models.CharField(max_length=128)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+
+    def __str__(self):
+        return f"SummaryVersion({self.record_id}, {self.job_id})"
+
+    def clean(self):
+        """Do not allow cross-record inputs or mutation of generated content."""
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Summary versions are immutable.")
+        if (
+            self.job_id
+            and self.input_snapshot_id
+            and (
+                self.job.record_id != self.record_id
+                or self.input_snapshot.record_id != self.record_id
+                or self.job.input_snapshot_id != self.input_snapshot_id
+                or self.job.input_revision != self.input_snapshot.revision
+            )
+        ):
+            raise ValidationError("Summary input must match the job and record.")
 
 
 class BaseAccessManager(models.Manager):

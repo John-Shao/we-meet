@@ -63,3 +63,47 @@ export interface ApiRecordSummary {
   updated_at: string
   legacy: true
 }
+
+export interface RecordSourceReference {
+  segment_id: string
+  segment_revision: number
+  start_ms: number
+  end_ms: number | null
+}
+
+export interface RecordSummaryPoint {
+  text: string
+  source_refs: RecordSourceReference[]
+}
+
+export interface ApiRecordSummaryVersion {
+  id: string
+  stage: 'final'
+  coverage_status: 'unverified'
+  input_snapshot_id: string
+  input_revision: number
+  is_current: boolean
+  model_used: string
+  created_at: string
+  content: {
+    overview: string
+    decisions: RecordSummaryPoint[]
+    chapters: RecordSummaryPoint[]
+    action_items: (RecordSummaryPoint & {
+      owner_text: string
+      due_text: string
+    })[]
+    open_questions: RecordSummaryPoint[]
+  }
+}
+
+export interface ApiRecordTranscriptVersion {
+  id: string
+  revision: number
+  segments: (RecordSourceReference & {
+    text: string
+    speaker_name: string
+    speaker_identity: string
+    language: string
+  })[]
+}

@@ -12,10 +12,12 @@ from rest_framework.response import Response
 
 from core import models
 from core.services.meeting_records import (
+    RecordConflict,
     filter_record_scope,
     record_capabilities,
     visible_records,
 )
+from core.services.meeting_summary_versions import source_payload
 
 
 class LegacyRecordSourceSerializer(serializers.Serializer):
@@ -207,6 +209,68 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         ):
             raise PermissionDenied("This material has not been shared with you.")
         return record
+
+    @action(detail=True, methods=["get"], url_path="summary-versions")
+    def summary_versions(self, request, pk=None):
+        """Expose immutable AI versions without disclosing the input transcript."""
+        record = self._content_record("read_summary")
+        try:
+            fingerprint = source_payload(record)[1]
+        except RecordConflict:
+            fingerprint = None
+        latest = (
+            record.processing_jobs.filter(kind="summary")
+            .order_by("-generation")
+            .first()
+        )
+        rows = record.summary_versions.select_related("job", "input_snapshot")
+        pager = RecordPagination()
+        pager.ordering = ("-created_at", "-id")
+        page = pager.paginate_queryset(rows, request, view=self)
+        return pager.get_paginated_response(
+            [
+                {
+                    "id": str(version.pk),
+                    "stage": version.stage,
+                    "coverage_status": version.job.result.get(
+                        "coverage_status", "unverified"
+                    ),
+                    "content": version.content,
+                    "model_used": version.model_used,
+                    "created_at": version.created_at,
+                    "input_revision": version.input_snapshot.revision,
+                    "input_snapshot_id": str(version.input_snapshot_id),
+                    "is_current": bool(
+                        latest
+                        and latest.pk == version.job_id
+                        and record.revision == version.input_snapshot.revision
+                        and fingerprint == version.input_snapshot.fingerprint
+                    ),
+                }
+                for version in page
+            ]
+        )
+
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path=r"transcript-versions/(?P<version_id>[0-9a-f-]{36})",
+    )
+    def transcript_version(self, request, pk=None, version_id=None):
+        """Historical citations read their own immutable text, with original-text ACL."""
+        record = self._content_record("read_transcript")
+        version = record.transcript_versions.filter(
+            pk=serializers.UUIDField().run_validation(version_id)
+        ).first()
+        if version is None:
+            raise Http404
+        return Response(
+            {
+                "id": str(version.pk),
+                "revision": version.revision,
+                "segments": version.segments,
+            }
+        )
 
     @action(detail=True, methods=["get"])
     def transcripts(self, request, pk=None):

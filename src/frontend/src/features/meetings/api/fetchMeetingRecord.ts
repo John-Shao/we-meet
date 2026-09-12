@@ -6,6 +6,8 @@ import { fetchApi } from '@/api/fetchApi'
 import type {
   ApiMeetingRecord,
   ApiRecordSummary,
+  ApiRecordSummaryVersion,
+  ApiRecordTranscriptVersion,
   ApiRecordTranscript,
   MeetingRecordFilters,
   MeetingRecordPage,
@@ -120,4 +122,51 @@ export const useRecordSummaries = (
     queryFn: ({ signal }) =>
       fetchApi(`${recordPath(recordId!)}summaries/`, { signal }),
     enabled: enabled && !!viewerId && !!recordId,
+  })
+
+export const useRecordSummaryVersions = (
+  viewerId: string | undefined,
+  recordId: string | undefined,
+  enabled: boolean,
+  cursor?: string
+) =>
+  useQuery<MeetingRecordPage<ApiRecordSummaryVersion>, ApiError>({
+    ...privateReadOptions,
+    queryKey: [
+      'meeting-records',
+      viewerId,
+      'summary-versions',
+      recordId,
+      cursor,
+    ],
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams(cursor ? { cursor } : {})
+      return fetchApi(`${recordPath(recordId!)}summary-versions/?${params}`, {
+        signal,
+      })
+    },
+    enabled: enabled && !!viewerId && !!recordId,
+  })
+
+export const useRecordTranscriptVersion = (
+  viewerId: string | undefined,
+  recordId: string | undefined,
+  snapshotId: string | undefined,
+  enabled: boolean
+) =>
+  useQuery<ApiRecordTranscriptVersion, ApiError>({
+    ...privateReadOptions,
+    queryKey: [
+      'meeting-records',
+      viewerId,
+      'transcript-version',
+      recordId,
+      snapshotId,
+    ],
+    queryFn: ({ signal }) =>
+      fetchApi(
+        `${recordPath(recordId!)}transcript-versions/${encodeURIComponent(snapshotId!)}/`,
+        { signal }
+      ),
+    enabled: enabled && !!viewerId && !!recordId && !!snapshotId,
   })
