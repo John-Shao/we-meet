@@ -60,7 +60,8 @@ const buildHeaders = (
 
 export const fetchApi = async <T = Record<string, unknown>>(
   url: string,
-  options?: RequestInit
+  options?: RequestInit,
+  binary?: { maxBytes: number }
 ): Promise<T> => {
   const csrfToken = getCsrfToken()
   // Bearer token from the mobile OTP login flow. The backend's
@@ -118,7 +119,9 @@ export const fetchApi = async <T = Record<string, unknown>>(
   }
 
   let result: T
-  if (response.status === 204) {
+  if (response.ok && binary) {
+    result = (await boundedBlob(response, binary.maxBytes)) as T
+  } else if (response.status === 204) {
     result = undefined as T
   } else {
     const contentType = response.headers.get('content-type') ?? ''
@@ -139,6 +142,42 @@ export const fetchApi = async <T = Record<string, unknown>>(
     throw new ApiError(response.status, result)
   }
   return result
+}
+
+/** Private audio uses the same authentication fallback, with a hard streaming byte limit. */
+export const fetchApiBlob = (
+  url: string,
+  options: RequestInit,
+  maxBytes: number
+) => fetchApi<Blob>(url, options, { maxBytes })
+
+async function boundedBlob(response: Response, maxBytes: number) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1)
+    throw new Error('invalid_download_limit')
+  if (Number(response.headers.get('Content-Length')) > maxBytes) {
+    await response.body?.cancel()
+    throw new Error('audio_download_too_large')
+  }
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('empty_audio_download')
+  const parts: ArrayBuffer[] = []
+  let length = 0
+  try {
+    for (let item = await reader.read(); !item.done; item = await reader.read()) {
+      const value = item.value
+      length += value.byteLength
+      if (length > maxBytes) throw new Error('audio_download_too_large')
+      parts.push(new Uint8Array(value).buffer)
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => undefined)
+    throw error
+  } finally {
+    reader.releaseLock()
+  }
+  return new Blob(parts, {
+    type: response.headers.get('Content-Type') || 'application/octet-stream',
+  })
 }
 
 const getCsrfToken = () => {

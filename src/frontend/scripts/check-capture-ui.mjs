@@ -9,6 +9,7 @@ const browser = await chromium.launch({ headless: true,
 let remote
 let manifest
 const chunks = new Map()
+const audioBytes = new Map()
 const intents = new Map()
 const commands = []
 try {
@@ -49,6 +50,7 @@ try {
         duration_ms: audio.readUInt32LE(40) / 32, checksum: form.get('checksum'), byte_size: audio.length, stored: true }
       if (chunks.has(sequence)) assert.deepEqual(receipt, chunks.get(sequence))
       chunks.set(sequence, receipt)
+      audioBytes.set(receipt.id, audio)
       return reply(receipt)
     }
     if (path.endsWith('/audio/seal/')) {
@@ -57,7 +59,9 @@ try {
       remote = { ...remote, media_status: manifest.client_interrupted ? 'incomplete' : 'saved' }
       return reply({ ...manifest, outcome: remote.media_status, missing_sequences: [], gaps: [], coverage_status: 'unverified' })
     }
-    if (path.endsWith('/audio/')) return reply({ results: [...chunks.values()], next_after_sequence: null })
+    if (path.endsWith('/audio/')) return reply({ results: [...chunks.values()], next_after_sequence: null,
+      manifest: manifest ? { ...manifest, outcome: remote.media_status } : null })
+    if (path.includes('/audio/chunk-')) return route.fulfill({ contentType: 'audio/wav', body: audioBytes.get(path.split('/audio/')[1].replace(/\/$/, '')) })
     return reply(remote)
   })
   const page = await context.newPage()
@@ -92,5 +96,11 @@ try {
   assert.equal(manifest.client_interrupted, false)
   assert.ok(chunks.size >= 1)
   await page.screenshot({ path: 'test-results/capture-saved.png', fullPage: true })
-  console.log('Capture UI passed: start, synthetic audio upload, pause, reload, receipt recovery, seal and finalize.')
+  await page.getByRole('button', { name: '播放', exact: true }).click()
+  await page.waitForFunction(() => document.querySelector('audio')?.currentTime > 0.1)
+  await page.getByLabel('播放速度').selectOption('1.5')
+  assert.equal(await page.locator('audio').evaluate((audio) => audio.playbackRate), 1.5)
+  await page.getByRole('button', { name: '暂停播放', exact: true }).click()
+  assert.equal(await page.locator('audio').getAttribute('src'), null)
+  console.log('Capture UI passed: start, upload, pause/reload, recovery, seal/finalize, protected playback and speed.')
 } finally { await browser.close() }

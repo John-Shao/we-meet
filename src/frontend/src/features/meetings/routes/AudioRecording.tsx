@@ -13,6 +13,7 @@ import {
 } from '../capture/controller'
 import { withCaptureLock } from '../capture/microphone'
 import { captureTransport } from '../capture/transport'
+import { CaptureAudioPlayer } from '../components/CaptureAudioPlayer'
 
 const duration = (milliseconds: number) => {
   const seconds = Math.floor(milliseconds / 1000)
@@ -253,6 +254,12 @@ export function Recorder({
             </details>
           )}
         </section>
+        {local?.sealed && local.remote && (
+          <CaptureAudioPlayer
+            key={`${viewerId}:${local.remote.id}`}
+            captureId={local.remote.id}
+          />
+        )}
         {!!local?.pendingBytes && (
           <section className={css({ marginTop: '1.5rem' })}>
             <h2>{t('localAudio')}</h2>
