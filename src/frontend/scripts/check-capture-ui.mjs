@@ -9,6 +9,8 @@ const browser = await chromium.launch({ headless: true,
 let remote
 let manifest
 let asrJob
+let summaryReady = false
+const sourceRef = { segment_id: 'original', segment_revision: 1, start_ms: 1000, end_ms: 2000 }
 const chunks = new Map()
 const audioBytes = new Map()
 const intents = new Map()
@@ -70,13 +72,35 @@ try {
         asrJob ??= { id: 'published-job', generation: 1, status: 'succeeded', input_count: chunks.size, acknowledged_inputs: chunks.size, final_count: 1 }
         return reply({ job: asrJob }, 201)
       }
-      return reply({ available: true, active_job_id: asrJob?.id ?? null, results: asrJob ? [asrJob] : [] })
+      return reply({ available: true, summary_available: true, active_job_id: asrJob?.id ?? null, results: asrJob ? [asrJob] : [] })
     }
     return reply(remote)
   })
   await context.route('**/api/v1.0/meeting-records/**', (route) => {
-    assert.equal(new URL(route.request().url()).searchParams.get('transcription_job_id'), 'published-job')
-    return route.fulfill({ json: { results: [{ id: 'original', start_ms: 1000, text: '用于界面验证的模拟转写结果。' }], next: null } })
+    const url = new URL(route.request().url())
+    const reply = (json) => route.fulfill({ json })
+    if (url.pathname.endsWith('/original-segments/')) {
+      assert.equal(url.searchParams.get('transcription_job_id'), 'published-job')
+      return reply({ results: [{ id: 'original', start_ms: 1000, text: '用于界面验证的模拟转写结果。' }], next_cursor: null })
+    }
+    if (url.pathname.endsWith('/summary-requests/')) {
+      assert.equal(route.request().postDataJSON().operation, 'generate')
+      summaryReady = true
+      return reply({ request_id: 'summary-intent', replayed: false })
+    }
+    if (url.pathname.endsWith('/summary-job/')) return reply({ revision: 2, generation_ready: true,
+      job: summaryReady ? { id: 'summary-job', status: 'succeeded', attempt: 1, stage: 'final' } : null })
+    if (url.pathname.endsWith('/summary-versions/')) return reply({ next_cursor: null, results: summaryReady ? [{
+      id: 'summary', input_snapshot_id: 'snapshot', created_at: new Date().toISOString(), is_current: true,
+      delivery_status: 'complete', asr_status: 'finished', coverage_status: 'unverified', stage: 'final',
+      content: { overview: '用于界面验证的模拟纪要。', decisions: [{ text: '模拟会议结论', source_refs: [sourceRef] }], chapters: [], action_items: [], open_questions: [] }
+    }] : [] })
+    if (url.pathname.includes('/transcript-versions/')) return reply({ id: 'snapshot', revision: 2, segments: [{ ...sourceRef, text: '模拟纪要的原文依据。' }] })
+    if (url.pathname.endsWith('/human-summary/')) return reply({ current: null, can_edit: false })
+    if (url.pathname.endsWith('/summary-automation/')) return reply({ available: false, enabled: false, can_control: false })
+    if (url.pathname.endsWith('/questions/')) return reply({ available: false, recent: [] })
+    return reply({ id: 'test-record', title: '项目评审录音', origin_at: new Date().toISOString(), revision: 2,
+      capabilities: { read_summary: true, read_transcript: true, generate_summary: true } })
   })
   const page = await context.newPage()
   await page.goto(`${origin}/capture-ui-harness`)
@@ -122,5 +146,13 @@ try {
   await page.getByRole('button', { name: '回听 0:01', exact: true }).click()
   await page.waitForFunction(() => document.querySelector('audio')?.currentTime >= 1)
   await page.screenshot({ path: 'test-results/capture-transcript.png', fullPage: true })
+  await page.getByText('智能纪要与问答', { exact: true }).click()
+  await page.getByRole('button', { name: '生成 AI 纪要', exact: true }).click()
+  await page.getByText('用于界面验证的模拟纪要。', { exact: true }).waitFor()
+  await page.getByRole('button', { name: /查看原文.*0:01/ }).click()
+  await page.getByText('模拟纪要的原文依据。').waitFor()
+  await page.getByRole('button', { name: '回听这段原音', exact: true }).click()
+  await page.waitForFunction(() => document.querySelector('audio')?.currentTime >= 1)
+  await page.screenshot({ path: 'test-results/capture-summary.png', fullPage: true })
   console.log('Capture UI passed: record, upload, recover, save, play, transcribe intent, published text and source seek (HTTP fixtures, synthetic microphone).')
 } finally { await browser.close() }

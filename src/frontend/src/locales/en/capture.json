@@ -13,9 +13,10 @@
   "playbackRate": "Playback speed",
   "reloadAudio": "Reload audio",
   "back": "Back to meetings",
-  "scope": "Record an in-person meeting or interview. Save audio first, then transcribe when available. AI notes are not yet connected to this recording page.",
+  "scope": "Record an in-person meeting or interview. After saving audio, use available transcription and meeting notes features as needed.",
   "asr": {
     "title": "Audio transcription",
+    "summary": "AI notes and questions",
     "scope": "Transcribe saved audio with AI using transcription credits. A retry creates a new version and replaces displayed text only after completion.",
     "loading": "Loading transcription status…",
     "version": "Version {{number}}",

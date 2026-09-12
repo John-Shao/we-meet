@@ -95,9 +95,11 @@ export const RoomRecordSummaries = ({
 export const RecordSummaryPanel = ({
   recordId,
   viewerId,
+  onSourceAudio,
 }: {
   recordId: string
   viewerId: string
+  onSourceAudio?: (milliseconds: number) => void
 }) => {
   const { t } = useTranslation('meetings')
   const detail = useMeetingRecord(viewerId, recordId, true)
@@ -355,6 +357,17 @@ export const RecordSummaryPanel = ({
           ) : (
             <Text>{source?.text ?? t('recordAi.sourceMissing')}</Text>
           )}
+          {onSourceAudio &&
+            source &&
+            !original.isError &&
+            !original.isFetching && (
+              <Button
+                variant="tertiary"
+                onPress={() => onSourceAudio(source.start_ms)}
+              >
+                {t('recordAi.listenSource')}
+              </Button>
+            )}
           <Button variant="tertiary" onPress={() => setCitation(undefined)}>
             {t('recordAi.closeSource')}
           </Button>

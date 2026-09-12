@@ -7,6 +7,13 @@ import type { ApiCaptureSession } from '../api/ApiCaptureSession'
 import { CaptureTranscriptionPanel } from './CaptureTranscriptionPanel'
 
 vi.mock('@/api/fetchApi', () => ({ fetchApi: vi.fn() }))
+vi.mock('./RecordSummaryPanel', () => ({
+  RecordSummaryPanel: ({
+    onSourceAudio,
+  }: {
+    onSourceAudio: (time: number) => void
+  }) => <button onClick={() => onSourceAudio(1200)}>summary-source</button>,
+}))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
@@ -28,6 +35,7 @@ vi.mock('@/primitives', () => ({
 let client: QueryClient
 let status: {
   available: boolean
+  summary_available?: boolean
   active_job_id: string | null
   results: Array<{ id: string; status: string; generation: number }>
 }
@@ -61,7 +69,7 @@ beforeEach(() => {
     if (path.includes('original-segments'))
       return {
         results: [{ id: 'text', start_ms: 2000, text: 'Confirmed original' }],
-        next: null,
+        next_cursor: null,
       }
     return status
   })
@@ -70,6 +78,50 @@ afterEach(() => {
   client.clear()
   vi.clearAllMocks()
   sessionStorage.clear()
+})
+
+it('opens the summary workspace lazily and links citations to playback', async () => {
+  status.summary_available = true
+  const view = show()
+  const toggle = await screen.findByText('asr.summary')
+  expect(screen.queryByText('summary-source')).not.toBeInTheDocument()
+  const details = toggle.closest('details')!
+  details.open = true
+  fireEvent(details, new Event('toggle'))
+  fireEvent.click(await screen.findByText('summary-source'))
+  expect(onSource).toHaveBeenCalledWith(1200)
+  view.unmount()
+})
+
+it('uses the backend cursor token while keeping the published version pinned', async () => {
+  status = { available: true, active_job_id: 'published', results: [] }
+  const baseline = vi.mocked(fetchApi).getMockImplementation()!
+  vi.mocked(fetchApi).mockImplementation(async (path, options, ...rest) => {
+    if (path.includes('original-segments'))
+      return path.includes('cursor=page-two')
+        ? {
+            results: [{ id: 'last', start_ms: 5000, text: 'Last page' }],
+            next_cursor: null,
+          }
+        : {
+            results: [{ id: 'first', start_ms: 0, text: 'First page' }],
+            next_cursor: 'page-two',
+          }
+    return baseline(path, options, ...rest)
+  })
+  show()
+  fireEvent.click(await screen.findByRole('button', { name: 'next' }))
+  await screen.findByText('Last page')
+  expect(screen.queryByText('First page')).not.toBeInTheDocument()
+  expect(
+    vi
+      .mocked(fetchApi)
+      .mock.calls.some(([path]) =>
+        path.includes('transcription_job_id=published&cursor=page-two')
+      )
+  ).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'previous' }))
+  await screen.findByText('First page')
 })
 
 it('requires incomplete audio acknowledgement before a paid intent', async () => {

@@ -55,7 +55,7 @@ let job: { id: string; status: string; attempt: number } | null
 let readError: boolean
 let withVersion: boolean
 
-function show(roomList = false) {
+function show(roomList = false, onSourceAudio?: (time: number) => void) {
   client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
@@ -64,7 +64,11 @@ function show(roomList = false) {
       {roomList ? (
         <RoomRecordSummaries viewerId="viewer-1" roomId="room-1" />
       ) : (
-        <RecordSummaryPanel viewerId="viewer-1" recordId="record-1" />
+        <RecordSummaryPanel
+          viewerId="viewer-1"
+          recordId="record-1"
+          onSourceAudio={onSourceAudio}
+        />
       )}
     </QueryClientProvider>
   )
@@ -301,11 +305,17 @@ describe('Versioned summary requests', () => {
 
   it('opens citations against their own immutable snapshot', async () => {
     withVersion = true
-    show()
+    const audio = vi.fn()
+    show(false, audio)
+    expect(screen.queryByText('recordAi.listenSource')).not.toBeInTheDocument()
     fireEvent.click(
       await screen.findByRole('button', { name: 'recordAi.source 0:00' })
     )
     await screen.findByText('Historical original text')
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'recordAi.listenSource' })
+    )
+    expect(audio).toHaveBeenCalledWith(0)
     expect(
       mocks.fetchApi.mock.calls.some(
         ([url]) =>

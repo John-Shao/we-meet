@@ -104,6 +104,7 @@
     "historical": "Historical version",
     "source": "View source",
     "closeSource": "Close source",
+    "listenSource": "Listen to source audio",
     "sourceMissing": "The cited source is unavailable.",
     "coverageUnverified": "Full audio coverage is unverified",
     "asr": {
@@ -161,7 +162,7 @@
     "sourceBudgetExceeded": "The source exceeds the current processing budget, or one utterance is too long. Source text is retained; adjust the material before generating.",
     "online": {
       "signIn": "Sign in to view notes for this meeting",
-      "connecting": "Identifying this meeting session?",
+      "connecting": "Identifying this meeting session…",
       "waiting": "Notes are not available for this session yet. Saved text appears automatically when you have reading access.",
       "tabs": "Meeting note content",
       "text": "Transcript",

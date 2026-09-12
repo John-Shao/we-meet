@@ -367,3 +367,26 @@ def test_concurrent_workers_cannot_claim_the_same_audio():
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(attempt, range(2)))
     assert sum(result is not None for result in results) == 1
+
+
+def test_published_originals_use_cursor_tokens_across_full_pages():
+    user, capture, worker, job = running()
+    for sequence in range(1, 32):
+        assert (
+            final(job["id"], worker, sequence=sequence, text=f"Original {sequence}")[
+                0
+            ].status_code
+            == 201
+        )
+    acknowledge(job, worker)
+    assert finish(job["id"], worker, count=31).data["status"] == "succeeded"
+    path = f"/api/v1.0/meeting-records/{capture.record_id}/original-segments/"
+    first = client_for(user).get(path, {"transcription_job_id": job["id"]}).data
+    assert len(first["results"]) == 30 and first["next_cursor"] and "next" not in first
+    second = (
+        client_for(user)
+        .get(path, {"transcription_job_id": job["id"], "cursor": first["next_cursor"]})
+        .data
+    )
+    assert len(second["results"]) == 1 and second["next_cursor"] is None
+    assert len({row["id"] for row in first["results"] + second["results"]}) == 31

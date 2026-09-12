@@ -175,6 +175,10 @@ def state(capture_id, user):
     ]
     return {
         "available": available(),
+        "summary_available": bool(
+            settings.MEETING_CAPTURE_SUMMARY_ENABLED
+            and settings.MEETING_VERSIONED_SUMMARY_ENABLED
+        ) or capture.record.summary_versions.exists(),
         "active_job_id": str(capture.active_transcription_id)
         if capture.active_transcription_id
         else None,

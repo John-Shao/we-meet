@@ -9,6 +9,7 @@ import type {
   ApiCaptureSession,
   ApiMeetingOriginalSegment,
 } from '../api/ApiCaptureSession'
+import { RecordSummaryPanel } from './RecordSummaryPanel'
 
 type Job = {
   id: string
@@ -20,6 +21,7 @@ type Job = {
 }
 type State = {
   available: boolean
+  summary_available?: boolean
   active_job_id: string | null
   results: Job[]
 }
@@ -54,6 +56,7 @@ export function CaptureTranscriptionPanel({
   const [ready, setReady] = useState(false)
   const [allowIncomplete, setAllowIncomplete] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showSummary, setShowSummary] = useState(false)
   const [message, setMessage] = useState('')
   const busy = useRef(false)
   const abort = useRef<AbortController>()
@@ -272,6 +275,18 @@ export function CaptureTranscriptionPanel({
           </ul>
         </details>
       )}
+      {state.data.summary_available && (
+        <details onToggle={(event) => setShowSummary(event.currentTarget.open)}>
+          <summary>{t('asr.summary')}</summary>
+          {showSummary && (
+            <RecordSummaryPanel
+              recordId={capture.record_id}
+              viewerId={viewerId}
+              onSourceAudio={onSource}
+            />
+          )}
+        </details>
+      )}
     </section>
   )
 }
@@ -294,19 +309,15 @@ function Originals({
   const query = useQuery({
     queryKey: ['capture-originals', viewerId, path],
     queryFn: ({ signal }) =>
-      fetchApi<{ results: ApiMeetingOriginalSegment[]; next: string | null }>(
-        path,
-        { signal, cache: 'no-store' }
-      ),
+      fetchApi<{
+        results: ApiMeetingOriginalSegment[]
+        next_cursor: string | null
+      }>(path, { signal, cache: 'no-store' }),
     gcTime: 0,
     retry: false,
     staleTime: 0,
   })
-  const next = query.data?.next
-    ? new URL(query.data.next, window.location.origin).searchParams.get(
-        'cursor'
-      )
-    : null
+  const next = query.data?.next_cursor
   if (query.isError)
     return (
       <div>

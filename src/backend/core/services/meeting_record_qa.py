@@ -188,6 +188,7 @@ def execute(question_id):
                 kind=models.AIUsageKindChoices.ROOM_AI,
                 ref_type="record_question",
                 ref_id=str(question.pk),
+                infer_organization=False,
             ),
         )
         content = validate_answer(raw, question.snapshot)

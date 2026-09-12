@@ -1,12 +1,14 @@
 """Standalone summaries use published ASR originals and existing snapshot contracts."""
 
+import json
 import uuid
 from unittest.mock import patch
 
 import pytest
 
 from core import models
-from core.factories import UserFactory
+from core.factories import MembershipFactory, UserFactory
+from core.services import meeting_record_qa, meeting_summary_review
 from core.services.meeting_records import RecordConflict, can_generate_summary
 from core.services.meeting_summary_versions import (
     execute_summary_job,
@@ -25,6 +27,7 @@ from core.tests.services.test_capture_transcription import (
     running,
     saved,
 )
+from core.tests.services.test_meeting_record_qa import output as question_output
 from core.tests.services.test_meeting_records import client_for
 from core.tests.services.test_meeting_summary_requests import payload, post
 from core.tests.services.test_meeting_summary_versions import output
@@ -198,3 +201,53 @@ def test_native_capture_does_not_advertise_online_staged_automation(settings):
         HTTP_IDEMPOTENCY_KEY=str(uuid.uuid4()),
     )
     assert response.status_code == 403
+
+
+def test_native_summary_supports_human_review_and_private_snapshot_questions(settings):
+    settings.MEETING_RECORD_QA_ENABLED = True
+    settings.MEETING_SUMMARY_REVIEW_ENABLED = True
+    user, capture, _ = published()
+    job = prepare_summary_job(capture.record_id)
+    with patch("core.services.meeting_summary_versions.LLMClient") as client:
+        client.return_value.chat.return_value = output(job)
+        version_id = execute_summary_job(job.pk, 1)
+    content = json.loads(output(job))
+    content["overview"] = "Human corrected overview"
+    review, _, _ = meeting_summary_review.save_review(
+        capture.record_id,
+        user,
+        uuid.uuid4(),
+        {
+            "base_summary_id": str(version_id),
+            "expected_revision": 0,
+            "replace_base": False,
+            "content": content,
+        },
+    )
+    assert review.content["overview"] == "Human corrected overview"
+    MembershipFactory(user=user, is_primary=True)
+    question, _ = meeting_record_qa.prepare(
+        capture.record_id,
+        user,
+        uuid.uuid4(),
+        {
+            "snapshot_id": str(job.input_snapshot_id),
+            "question": "What was agreed?",
+        },
+    )
+
+    def answer(**kwargs):
+        kwargs["usage_sink"](
+            model_code="qwen3.8-flash", input_tokens=10, output_tokens=5
+        )
+        return question_output(job.input_snapshot)
+
+    with patch("core.services.meeting_record_qa.LLMClient") as client:
+        client.return_value.chat.side_effect = answer
+        assert meeting_record_qa.execute(question.pk).status == "succeeded"
+    usage = models.AIUsageRecord.objects.get(ref_type="record_question")
+    assert usage.user_id == user.pk and usage.organization_id is None
+    state = client_for(user).get(
+        f"/api/v1.0/capture-sessions/{capture.pk}/transcription/"
+    )
+    assert state.data["summary_available"] is True
