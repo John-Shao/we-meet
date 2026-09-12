@@ -69,6 +69,7 @@ from core.api.keycloak_sms import (
     KeycloakOtpVerifyView,
     KeycloakSmsGatewayView,
 )
+from core.api.meeting_records import MeetingRecordViewSet
 from core.api.meeting_rooms import (
     MeetingRoomFacilityViewSet,
     MeetingRoomNodeViewSet,
@@ -110,6 +111,7 @@ from core.external_api import viewsets as external_viewsets
 router = DefaultRouter()
 router.register("users", viewsets.UserViewSet, basename="users")
 router.register("rooms", viewsets.RoomViewSet, basename="rooms")
+router.register("meeting-records", MeetingRecordViewSet, basename="meeting_records")
 router.register("recordings", viewsets.RecordingViewSet, basename="recordings")
 router.register("files", viewsets.FileViewSet, basename="files")
 router.register(

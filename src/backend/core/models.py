@@ -955,6 +955,320 @@ class MeetingParticipation(BaseModel):
             )
 
 
+class MeetingRecord(BaseModel):
+    """Durable note identity, independent of a room's lifetime."""
+
+    class Source(models.TextChoices):
+        MEETING = "meeting", _("Meeting")
+        AUDIO = "audio_recording", _("Audio recording")
+        UPLOAD = "upload", _("Upload")
+
+    class Retention(models.TextChoices):
+        MEDIA = "media", _("Keep media")
+        TEXT = "text", _("Keep text only")
+        UNKNOWN = "unknown", _("Legacy retention unknown")
+
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="meeting_records",
+    )
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_records",
+    )
+    source_type = models.CharField(max_length=20, choices=Source.choices)
+    meeting_session = models.OneToOneField(
+        MeetingSession,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="record",
+    )
+    # Retain provenance after Room/MeetingSession deletion. Never resolve this
+    # UUID to "the latest" session or silently reattach the record elsewhere.
+    source_session_id = models.UUIDField(null=True, blank=True, unique=True)
+    title = models.CharField(max_length=500, blank=True)
+    origin_at = models.DateTimeField()
+    retention_mode = models.CharField(
+        max_length=12,
+        choices=Retention.choices,
+        default=Retention.UNKNOWN,
+    )
+    revision = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "meet_meeting_record"
+        ordering = ("-origin_at", "-id")
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(source_type="meeting", source_session_id__isnull=False)
+                    | models.Q(
+                        source_type__in=["audio_recording", "upload"],
+                        source_session_id__isnull=True,
+                        meeting_session__isnull=True,
+                    )
+                ),
+                name="record_source_consistent",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(meeting_session__isnull=True)
+                | models.Q(meeting_session_id=models.F("source_session_id")),
+                name="record_session_matches_source",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(revision__gte=1), name="record_positive_revision"
+            ),
+        ]
+
+    def __str__(self):
+        return f"MeetingRecord({self.pk}, {self.source_type})"
+
+    def clean(self):
+        """Prevent reassignment and cross-organization source binding."""
+        super().clean()
+        if (
+            self._state.adding
+            and self.source_type != self.Source.MEETING
+            and not self.owner_id
+        ):
+            raise ValidationError({"owner": "Independent records need an owner."})
+        if (
+            self._state.adding
+            and self.source_type == self.Source.MEETING
+            and not self.meeting_session_id
+        ):
+            raise ValidationError(
+                {"meeting_session": "A new meeting record needs a resolved session."}
+            )
+        if self.meeting_session_id:
+            session = self.meeting_session
+            if session.room.organization_id != self.organization_id:
+                raise ValidationError(
+                    {"organization": "Record must match the source organization."}
+                )
+        if not self._state.adding:
+            original = (
+                type(self)
+                .objects.filter(pk=self.pk)
+                .values("source_type", "source_session_id", "organization_id")
+                .first()
+            )
+            if original and any(
+                original[key] != getattr(self, key) for key in original
+            ):
+                raise ValidationError("Record provenance cannot be reassigned.")
+
+
+class MeetingRecordAccess(BaseModel):
+    """Explicit read grants; attendance alone never creates a grant."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="accesses"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="meeting_record_accesses"
+    )
+    read_summary = models.BooleanField(default=False)
+    read_transcript = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "meet_meeting_record_access"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record", "user"], name="unique_record_user_access"
+            )
+        ]
+
+    def __str__(self):
+        return f"MeetingRecordAccess({self.record_id}, {self.user_id})"
+
+
+class CaptureSession(BaseModel):
+    """Independent audio capture identity; no LiveKit Room is required."""
+
+    class Status(models.TextChoices):
+        PREPARING = "preparing", _("Preparing")
+        RECORDING = "recording", _("Recording")
+        PAUSED = "paused", _("Paused")
+        INTERRUPTED = "interrupted", _("Interrupted")
+        STOPPING = "stopping", _("Stopping")
+        STOPPED = "stopped", _("Stopped")
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="captures"
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="captures"
+    )
+    device_id = models.CharField(max_length=128)
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.PREPARING
+    )
+    revision = models.PositiveIntegerField(default=1)
+    started_at = models.DateTimeField()
+    ended_at = models.DateTimeField(null=True, blank=True)
+    captured_duration_ms = models.PositiveBigIntegerField(default=0)
+    last_acked_sequence = models.PositiveBigIntegerField(default=0)
+
+    class Meta:
+        db_table = "meet_capture_session"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record"],
+                condition=~models.Q(status="stopped"),
+                name="unique_active_capture_record",
+            ),
+            models.UniqueConstraint(
+                fields=["created_by", "device_id"],
+                condition=~models.Q(status="stopped"),
+                name="unique_active_capture_device",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(revision__gte=1), name="capture_positive_revision"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(ended_at__isnull=True)
+                | models.Q(ended_at__gte=models.F("started_at")),
+                name="capture_end_after_start",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(status="stopped", ended_at__isnull=False)
+                | (~models.Q(status="stopped") & models.Q(ended_at__isnull=True)),
+                name="capture_end_matches_status",
+            ),
+        ]
+
+    def __str__(self):
+        return f"CaptureSession({self.pk}, {self.status})"
+
+    def clean(self):
+        """Only the independent recording owner may own a capture."""
+        super().clean()
+        if self.record_id and (
+            self.record.source_type != MeetingRecord.Source.AUDIO
+            or self.record.owner_id != self.created_by_id
+        ):
+            raise ValidationError("Capture must belong to its audio-recording owner.")
+
+
+class MeetingMediaSegment(BaseModel):
+    """Map an optional media asset onto a record timeline with explicit gaps."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="media_segments"
+    )
+    capture_session = models.ForeignKey(
+        CaptureSession,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="segments",
+    )
+    recording = models.OneToOneField(
+        "Recording",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="record_segment",
+    )
+    sequence = models.PositiveIntegerField()
+    record_start_ms = models.PositiveBigIntegerField()
+    duration_ms = models.PositiveBigIntegerField(null=True, blank=True)
+    checksum = models.CharField(
+        max_length=64,
+        blank=True,
+        validators=[validators.RegexValidator(r"^[a-f0-9]{64}$")],
+    )
+
+    class Meta:
+        db_table = "meet_meeting_media_segment"
+        ordering = ("record_start_ms", "sequence")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record", "sequence"], name="unique_record_media_sequence"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(sequence__gte=1), name="media_positive_sequence"
+            ),
+        ]
+
+    def __str__(self):
+        return f"MeetingMediaSegment({self.record_id}, {self.sequence})"
+
+    def clean(self):
+        """Reject a capture or legacy media asset from another record."""
+        super().clean()
+        if self.capture_session_id and self.capture_session.record_id != self.record_id:
+            raise ValidationError(
+                {"capture_session": "Capture belongs to another record."}
+            )
+        if self.recording_id and (
+            not self.record.meeting_session_id
+            or self.recording.session_id != self.record.meeting_session_id
+            or self.recording.room_id != self.record.meeting_session.room_id
+        ):
+            raise ValidationError(
+                {"recording": "Recording belongs to another meeting session."}
+            )
+
+
+class MeetingProcessingJob(BaseModel):
+    """Versioned processing state, independent of media capture and delivery."""
+
+    class Kind(models.TextChoices):
+        TRANSCRIPTION = "transcription", _("Transcription")
+        SUMMARY = "summary", _("Summary")
+        DOC = "doc", _("Document")
+        DELIVERY = "delivery", _("Delivery")
+
+    class Status(models.TextChoices):
+        QUEUED = "queued", _("Queued")
+        RUNNING = "running", _("Running")
+        SUCCEEDED = "succeeded", _("Succeeded")
+        PARTIAL = "partial", _("Partial")
+        FAILED = "failed", _("Failed")
+        CANCELED = "canceled", _("Canceled")
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="processing_jobs"
+    )
+    kind = models.CharField(max_length=16, choices=Kind.choices)
+    generation = models.PositiveIntegerField()
+    input_revision = models.PositiveIntegerField()
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.QUEUED
+    )
+    attempt = models.PositiveIntegerField(default=1)
+    error_code = models.CharField(max_length=64, blank=True)
+    retryable = models.BooleanField(default=False)
+    result = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "meet_meeting_processing_job"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record", "kind", "generation"],
+                name="unique_record_job_generation",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    generation__gte=1, input_revision__gte=1, attempt__gte=1
+                ),
+                name="job_positive_versions",
+            ),
+        ]
+
+    def __str__(self):
+        return f"MeetingProcessingJob({self.record_id}, {self.kind}, {self.generation})"
+
+
 class BaseAccessManager(models.Manager):
     """Base manager for handling resource access control."""
 

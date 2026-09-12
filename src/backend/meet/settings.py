@@ -1057,6 +1057,9 @@ class Base(Configuration):
     AI_AGENT_ENABLED = values.BooleanValue(
         False, environ_name="AI_AGENT_ENABLED", environ_prefix=None
     )
+    MEETING_RECORDS_ENABLED = values.BooleanValue(
+        False, environ_name="MEETING_RECORDS_ENABLED", environ_prefix=None
+    )
     DASHSCOPE_API_KEY = SecretFileValue(
         None, environ_name="DASHSCOPE_API_KEY", environ_prefix=None
     )
