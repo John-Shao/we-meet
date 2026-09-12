@@ -95,7 +95,7 @@ def test_latest_first_text_pages_keep_acl_and_exact_source():
     assert client.get(url, {"order": "latest"}).status_code == 404
 
 
-@pytest.mark.parametrize("intent", ["job", "enabled", "disabled"])
+@pytest.mark.parametrize("intent", ["job", "enabled", "disabled", "capture"])
 def test_versioned_intent_excludes_legacy_automatic_generation_even_when_rollout_is_off(
     intent, settings
 ):
@@ -103,7 +103,13 @@ def test_versioned_intent_excludes_legacy_automatic_generation_even_when_rollout
     MeetingParticipationFactory(
         session=session, identity=transcript.speaker_identity, kind="standard"
     )
-    if intent == "job":
+    if intent == "capture":
+        models.OnlineCaptureRun.objects.create(
+            record=record,
+            requested_by=user,
+            delivery=models.TranscriptDelivery.objects.create(session=session),
+        )
+    elif intent == "job":
         prepare_summary_job(record.pk)
     else:
         models.MeetingSummaryAutomation.objects.create(

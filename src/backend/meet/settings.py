@@ -1073,6 +1073,7 @@ class Base(Configuration):
     MEETING_SUMMARY_AUTOMATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_CHUNKING_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_PROTOCOL_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_ONLINE_CAPTURE_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_MODEL = values.Value("qwen3.8-flash", environ_prefix=None)
     MEETING_SUMMARY_BASE_URL = values.Value("https://dashscope.aliyuncs.com/compatible-mode/v1", environ_prefix=None)
     DASHSCOPE_API_KEY = SecretFileValue(

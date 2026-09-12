@@ -1566,6 +1566,58 @@ class TranscriptDelivery(BaseModel):
         return f"TranscriptDelivery({self.pk}, {self.state})"
 
 
+class OnlineCaptureRun(BaseModel):
+    """One explicitly requested online transcription run and its exclusive writer."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="online_captures"
+    )
+    delivery = models.OneToOneField(
+        TranscriptDelivery, on_delete=models.CASCADE, related_name="online_capture"
+    )
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    writer_id = models.UUIDField(null=True, blank=True)
+    state = models.CharField(max_length=16, default="starting")
+    started_at = models.DateTimeField(null=True, blank=True)
+    stop_requested_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    heartbeat_at = models.DateTimeField(null=True, blank=True)
+    dispatched_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record"],
+                condition=models.Q(state__in=["starting", "recording", "stopping"]),
+                name="unique_active_online_capture",
+            ),
+        ]
+
+    def __str__(self):
+        return f"OnlineCaptureRun({self.pk}, {self.state})"
+
+
+class OnlineCaptureCommand(BaseModel):
+    """Immutable user intent receipt, distinct from the run's current state."""
+
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    key = models.UUIDField()
+    payload = models.JSONField()
+    result = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "key"], name="unique_online_capture_command"
+            )
+        ]
+
+    def __str__(self):
+        return f"OnlineCaptureCommand({self.pk})"
+
+
 class TranscriptReceipt(BaseModel):
     """Stable sequence receipt; deleting source text invalidates delivery proof."""
 

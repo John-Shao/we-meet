@@ -38,6 +38,7 @@ def generate_meeting_summary(session_id, force=False):  # noqa: PLR0911 -- legac
                 record = MeetingRecord.objects.select_for_update().filter(meeting_session=session).first()
                 if record and (
                     hasattr(record, "summary_automation")
+                    or record.online_captures.exists()
                     or record.processing_jobs.filter(kind="summary", input_snapshot__isnull=False).exists()
                 ):
                     return None

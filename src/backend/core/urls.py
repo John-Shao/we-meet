@@ -81,6 +81,7 @@ from core.api.meeting_rooms import (
     MeetingRoomViewSet,
 )
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
+from core.api.online_capture import OnlineCaptureHeartbeatView, OnlineCaptureViewSet
 from core.api.personal_calendars import (
     CalendarAccessGrantViewSet,
     CalendarPreferenceViewSet,
@@ -118,6 +119,7 @@ router.register("users", viewsets.UserViewSet, basename="users")
 router.register("rooms", viewsets.RoomViewSet, basename="rooms")
 router.register("meeting-records", MeetingRecordViewSet, basename="meeting_records")
 router.register("capture-sessions", CaptureSessionViewSet, basename="capture_sessions")
+router.register("online-captures", OnlineCaptureViewSet, basename="online_captures")
 router.register("recordings", viewsets.RecordingViewSet, basename="recordings")
 router.register("files", viewsets.FileViewSet, basename="files")
 router.register(
@@ -420,6 +422,11 @@ urlpatterns = [
     ),
     # 极简 status 信号，供 KC 双栏登录页扫码列 AJAX 轮询（跨域 ACAO:*，仅 status）。
     path("api/qr-login/ready/", QrReadyView.as_view(), name="qr-login-ready"),
+    path(
+        "api/agent/capture-heartbeat/",
+        OnlineCaptureHeartbeatView.as_view(),
+        name="agent-capture-heartbeat",
+    ),
     # Internal API for agent workers (multi_user_transcriber, etc.).
     # Authenticates via X-Agent-Token shared secret; NOT a public surface.
     path(

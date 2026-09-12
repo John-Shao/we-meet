@@ -8,13 +8,12 @@ from django.utils import timezone
 import pytest
 
 from core import models
-from core.services.meeting_records import RecordConflict
+from core.services.meeting_records import RecordConflict, bump_record_source
 from core.services.meeting_summary_versions import (
     execute_summary_job,
     prepare_summary_job,
     summary_readiness,
 )
-from core.services.transcript_delivery import _bump
 from core.tests.services.test_meeting_records import client_for, online_note
 from core.tests.services.test_meeting_summary_requests import payload, post
 from core.tests.services.test_meeting_summary_versions import output
@@ -52,7 +51,7 @@ def append_text(session, record):
         text="Additional decisions. " * 30,
         started_at=session.started_at + timedelta(minutes=5),
     )
-    _bump(record)
+    bump_record_source(record)
     return row
 
 
@@ -155,7 +154,7 @@ def test_quick_allows_open_tail_final_waits_and_never_downgrades():
     delivery.state = "incomplete"
     delivery.final_sequence = 0
     delivery.save()
-    _bump(record)
+    bump_record_source(record)
     assert summary_readiness(record)["ready_stages"] == ["quick", "final"]
     final = prepare_summary_job(record.pk)
     assert len(final.input_snapshot.segments) == 2

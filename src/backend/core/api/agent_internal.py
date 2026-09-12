@@ -16,7 +16,7 @@ import logging
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 
 from rest_framework import exceptions, permissions, serializers, status
@@ -93,6 +93,7 @@ class _TranscriptIngestSerializer(  # pylint: disable=abstract-method
     )
     ingest_id = serializers.UUIDField(required=False, allow_null=True)
     delivery_id = serializers.UUIDField(required=False)
+    writer_id = serializers.UUIDField(required=False)
     sequence = serializers.IntegerField(required=False, min_value=1, max_value=100000)
     speaker_identity = serializers.CharField(max_length=128)
     speaker_name = serializers.CharField(
@@ -151,7 +152,9 @@ class IngestTranscriptView(APIView):
 
     def _post_tracked(self, data):
         """Apply the opt-in sequenced contract without changing legacy requests."""
-        if (
+        if not models.OnlineCaptureRun.objects.filter(
+            delivery_id=data.get("delivery_id")
+        ).exists() and (
             not getattr(settings, "MEETING_TRANSCRIPT_DELIVERY_ENABLED", False)
             or not settings.MEETING_RECORDS_ENABLED
         ):
@@ -175,6 +178,7 @@ class IngestTranscriptView(APIView):
         return self._response(transcript, created=created)
 
     # pylint: disable-next=too-many-branches
+    @transaction.atomic
     def post(self, request):  # noqa: PLR0911, PLR0912 -- retain legacy replay/projection paths
         """Validate and idempotently persist one session-scoped utterance."""
 
@@ -228,6 +232,21 @@ class IngestTranscriptView(APIView):
                 data.get("livekit_room_sid") or "",
             )
             return Response({"detail": str(err)}, status=status.HTTP_409_CONFLICT)
+
+        if session:
+            models.MeetingSession.objects.select_for_update().get(pk=session.pk)
+        managed = (
+            models.OnlineCaptureRun.objects.filter(record__meeting_session=session)
+            if session
+            else models.OnlineCaptureRun.objects.filter(
+                record__meeting_session__room=room,
+                state__in=["starting", "recording", "stopping"],
+            )
+        )
+        if data.get("writer_id") or managed.exists():
+            return Response(
+                {"detail": "Managed capture requires tracked ingestion."}, status=409
+            )
 
         values = {
             "room": room,
@@ -300,6 +319,7 @@ class _DeliverySerializer(serializers.Serializer):
     room_id = serializers.UUIDField()
     livekit_room_sid = serializers.CharField(max_length=64)
     delivery_id = serializers.UUIDField()
+    writer_id = serializers.UUIDField(required=False)
     action = serializers.ChoiceField(choices=["begin", "finish"])
     final_sequence = serializers.IntegerField(
         required=False, min_value=0, max_value=100000
@@ -324,14 +344,16 @@ class TranscriptDeliveryView(APIView):
 
     def post(self, request):
         """Register or seal a source without silently selecting a room's latest session."""
-        if (
+        serializer = _DeliverySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        if not models.OnlineCaptureRun.objects.filter(
+            delivery_id=data["delivery_id"]
+        ).exists() and (
             not getattr(settings, "MEETING_TRANSCRIPT_DELIVERY_ENABLED", False)
             or not settings.MEETING_RECORDS_ENABLED
         ):
             return Response(status=404)
-        serializer = _DeliverySerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
         if data["action"] == "finish" and not all(
             key in data for key in ("outcome", "final_sequence")
         ):

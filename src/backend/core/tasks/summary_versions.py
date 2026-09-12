@@ -2,6 +2,7 @@
 
 from core.services.meeting_summary_automation import tick_automations
 from core.services.meeting_summary_versions import execute_summary_job
+from core.services.online_capture import tick_captures
 from core.tasks._task import task
 
 
@@ -14,4 +15,5 @@ def generate_record_summary(job_id, attempt):
 @task
 def tick_record_summaries():
     """Periodic server update; the consent and feature gates are checked in service."""
+    tick_captures()
     return tick_automations()

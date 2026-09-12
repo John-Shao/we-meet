@@ -5,11 +5,15 @@ import json
 from datetime import timezone
 
 from django.db import transaction
-from django.utils import timezone as django_timezone
 
 from core import models
 from core.services.asr_observations import observation_status, validate_observation
-from core.services.meeting_records import RecordConflict, ensure_online_record
+from core.services.meeting_records import (
+    RecordConflict,
+    bump_record_source,
+    ensure_online_record,
+)
+from core.services.online_capture import acknowledge_finish, require_writer
 
 
 def payload_hash(data):
@@ -71,24 +75,6 @@ def _lock_source(data):
     return session, record
 
 
-def _bump(record):
-    if record:
-        record.revision += 1
-        record.save(update_fields=["revision", "updated_at"])
-        record.processing_jobs.filter(
-            input_revision__lt=record.revision, status__in=["queued", "running"]
-        ).exclude(
-            pk__in=record.processing_jobs.filter(
-                kind="summary", configuration__stage__in=["realtime", "quick"]
-            ).values("pk")
-        ).update(
-            status="canceled",
-            error_code="source_changed",
-            retryable=False,
-            updated_at=django_timezone.now(),
-        )
-
-
 @transaction.atomic
 def begin_delivery(data):
     """Register a run before emitting text; retries cannot rebind its UUID."""
@@ -97,13 +83,18 @@ def begin_delivery(data):
     if existing:
         if existing.session_id != session.pk:
             raise RecordConflict("Delivery belongs to another session.")
+        require_writer(existing, data, claim=True)
         return existing
+    if models.OnlineCaptureRun.objects.filter(record__meeting_session=session).exists():
+        raise RecordConflict("This session requires an explicitly reserved capture.")
+    if data.get("writer_id"):
+        raise RecordConflict("Managed capture must be reserved before registration.")
     if session.status != models.MeetingSession.Status.ACTIVE:
         raise RecordConflict("New deliveries require an active session.")
     delivery = models.TranscriptDelivery.objects.create(
         id=data["delivery_id"], session=session
     )
-    _bump(record)
+    bump_record_source(record)
     return delivery
 
 
@@ -116,6 +107,7 @@ def ingest_tracked(data):
     ).first()
     if delivery is None:
         raise RecordConflict("Register this delivery for the exact session first.")
+    require_writer(delivery, data)
     if data["started_at"] < session.started_at or (
         data.get("ended_at") and data["ended_at"] < data["started_at"]
     ):
@@ -166,7 +158,7 @@ def ingest_tracked(data):
     if record is None:
         record, _ = ensure_online_record(session)
     else:
-        _bump(record)
+        bump_record_source(record)
     return row, True
 
 
@@ -194,6 +186,7 @@ def finish_delivery(data):
     ).first()
     if delivery is None:
         raise RecordConflict("Unknown delivery for this session.")
+    require_writer(delivery, data)
     report = validate_observation(data.get("source_report", {}))
     if delivery.state != "open":
         if (delivery.state, delivery.final_sequence) != (
@@ -221,7 +214,8 @@ def finish_delivery(data):
     delivery.save(
         update_fields=["state", "final_sequence", "source_report", "updated_at"]
     )
-    _bump(record)
+    bump_record_source(record)
+    acknowledge_finish(delivery)
     return delivery
 
 

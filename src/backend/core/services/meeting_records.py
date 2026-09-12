@@ -3,6 +3,7 @@
 from django.conf import settings
 from django.db import transaction
 from django.db.models import BooleanField, Case, Exists, F, OuterRef, Q, When
+from django.utils import timezone
 
 from core import models
 
@@ -33,14 +34,14 @@ def sessions_with_materials():
 
 
 @transaction.atomic
-def ensure_online_record(session):
+def ensure_online_record(session, *, allow_empty=False):
     """Idempotently attach a record without duplicating or rewriting artifacts."""
     locked = (
         models.MeetingSession.objects.select_for_update()
         .select_related("room")
         .get(pk=session.pk)
     )
-    if not sessions_with_materials().filter(pk=locked.pk).exists():
+    if not allow_empty and not sessions_with_materials().filter(pk=locked.pk).exists():
         raise RecordConflict("A meeting without material does not have a note.")
     record, created = models.MeetingRecord.objects.get_or_create(
         source_session_id=locked.pk,
@@ -295,3 +296,22 @@ def retry_job(job_id):
         update_fields=["attempt", "status", "retryable", "error_code", "updated_at"]
     )
     return job
+
+
+def bump_record_source(record):
+    """Advance source revision while preserving append-safe staged summary jobs."""
+    if record:
+        record.revision += 1
+        record.save(update_fields=["revision", "updated_at"])
+        record.processing_jobs.filter(
+            input_revision__lt=record.revision, status__in=["queued", "running"]
+        ).exclude(
+            pk__in=record.processing_jobs.filter(
+                kind="summary", configuration__stage__in=["realtime", "quick"]
+            ).values("pk")
+        ).update(
+            status="canceled",
+            error_code="source_changed",
+            retryable=False,
+            updated_at=timezone.now(),
+        )
