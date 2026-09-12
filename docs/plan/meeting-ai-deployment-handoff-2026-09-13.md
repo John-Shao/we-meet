@@ -1,6 +1,6 @@
 # 会议 AI 当前可部署测试范围（2026-09-13）
 
-用户负责部署和实测，本文件记录开发侧现状。新开关默认关闭，尚未执行生产迁移或修改线上配置。累计第二十九批是阶段性增量，不是完整首版交付。
+用户负责部署和实测，本文件记录开发侧现状。新开关默认关闭，尚未执行生产迁移或修改线上配置。累计第三十批是阶段性增量，不是完整首版交付。
 
 ## 本轮建议测试
 
@@ -22,6 +22,8 @@
 
 私人翻译是独立 Worker：`python qwen_translation_agent.py start`。后端和 Agent 的 `ROOM_TRANSLATION_AGENT_NAME` 必须相同；现有镜像构建须包含新文件和更新的依赖锁。仓库有可选开发 compose profile，生产 Worker 需按现有运维部署方式添加，尚未替用户部署。
 
+独立录音转写使用另一个进程 `python capture_transcriber.py`，不接入 LiveKit。模型／地区必须与后端 `QWEN_ASR_MODEL`、`QWEN_ASR_REGION` 一致；共享后端内部令牌。只有开启独立转写开关并由用户创建任务后才可能调用供应商。开发 profile 为 `capture-asr`，此批 Web 控制尚未连接。
+
 ## 开关与模型
 
 | 能力 | 后端开关／配置 |
@@ -37,7 +39,7 @@
 | 确认行动项转任务 | `MEETING_SUMMARY_TASKS_ENABLED`（同时需要人工修订和记录开关） |
 | 原文快照问答 | `MEETING_RECORD_QA_ENABLED`（需要记录开关和当前原文读取权限） |
 | 独立音频保存协议 | `MEETING_CAPTURE_AUDIO_ENABLED`、`MEETING_CAPTURE_PROTOCOL_ENABLED`（同时需要记录开关） |
-| 独立转写任务协议 | `MEETING_CAPTURE_ASR_ENABLED`、`QWEN_ASR_MODEL`、`QWEN_ASR_REGION`（本批尚未连接 Worker，保持关闭） |
+| 独立转写 | `MEETING_CAPTURE_ASR_ENABLED`、`QWEN_ASR_MODEL`、`QWEN_ASR_REGION`（需单独部署 capture_transcriber Worker） |
 
 总结为 `MEETING_SUMMARY_MODEL=qwen3.8-flash`，`MEETING_SUMMARY_BASE_URL` 按已选地区配置。翻译为 `QWEN_TRANSLATION_MODEL=qwen3.5-livetranslate-flash-realtime`，首批 `QWEN_TRANSLATION_LANGUAGES=zh,en`，`DASHSCOPE_REGION` 与 workspace 区域一致。
 

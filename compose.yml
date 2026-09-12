@@ -294,6 +294,18 @@ services:
       - ./src/agents:/app
       - /app/.venv
 
+  capture-transcriber-dev:
+    profiles: ["capture-asr"]
+    build:
+      context: ./src/agents
+      target: development
+    command: ["python", "capture_transcriber.py"]
+    env_file:
+      - env.d/development/capture_transcriber
+    volumes:
+      - ./src/agents:/app
+      - /app/.venv
+
   redis-summary:
     image: redis
     ports:

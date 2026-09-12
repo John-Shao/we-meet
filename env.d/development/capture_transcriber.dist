@@ -1,0 +1,7 @@
+# Copy to capture_transcriber locally; inject actual secrets through your secret store.
+AGENT_BACKEND_API_URL=http://app-dev:8000
+AGENT_INTERNAL_API_TOKEN=
+DASHSCOPE_API_KEY=
+DASHSCOPE_WORKSPACE_ID=
+QWEN_ASR_MODEL=qwen-audio-3.0-asr-flash-streaming
+QWEN_ASR_REGION=cn-beijing

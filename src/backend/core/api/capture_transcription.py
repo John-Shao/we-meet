@@ -1,5 +1,7 @@
 """Owner ASR controls and worker-scoped input, final-text and execution receipts."""
 
+import math
+
 from django.core.exceptions import ValidationError as ModelValidationError
 from django.db import IntegrityError
 from django.http import HttpResponse
@@ -138,9 +140,15 @@ class ProviderTaskSerializer(StrictSerializer):
     task_id = serializers.UUIDField()
     finished = serializers.BooleanField()
     input_samples = serializers.IntegerField(min_value=0, max_value=691200000)
-    billed_seconds = serializers.IntegerField(
+    billed_seconds = serializers.FloatField(
         min_value=0, max_value=86400, allow_null=True
     )
+
+    def validate_billed_seconds(self, value):
+        """NaN and infinity cannot become stored usage or break terminal receipts."""
+        if value is not None and not math.isfinite(value):
+            raise serializers.ValidationError("Invalid observed duration.")
+        return value
 
 
 class FinishSerializer(StrictSerializer):

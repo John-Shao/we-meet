@@ -141,6 +141,7 @@ class QwenProtocolTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.session.provider_finished)
         self.assertEqual(self.session.input_samples, 3200)
         self.assertEqual(self.session.billed_seconds, 1)
+        self.assertTrue(self.session.billing_observed)
         self.assertTrue(self.socket.closed)
         headers = self.connector.call_args.kwargs["additional_headers"]
         self.assertEqual(headers, {"Authorization": "Bearer test-only"})
@@ -148,6 +149,16 @@ class QwenProtocolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             json.loads(self.socket.sent[-1])["header"]["action"], "finish-task"
         )
+
+    def test_unknown_zero_and_fractional_billing_are_distinct(self):
+        """Only a finite, actually observed duration may become a usage receipt."""
+        self.assertFalse(self.session.billing_observed)
+        self.session._usage({"usage": {"duration": float("nan")}})
+        self.assertFalse(self.session.billing_observed)
+        self.session._usage({"usage": {"duration": 0}})
+        self.assertTrue(self.session.billing_observed)
+        self.session._usage({"usage": {"duration": 0.75}})
+        self.assertEqual(self.session.billed_seconds, 0.75)
 
     async def test_errors_are_sanitized_and_never_report_finished(self):
         """Wrong tasks, premature close, conflicting final and timeout all fail."""

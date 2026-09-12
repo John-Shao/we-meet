@@ -310,6 +310,38 @@ def test_nested_unknown_fields_and_invalid_time_are_rejected_without_side_effect
     assert heartbeat.status_code == 200 and "inputs" not in heartbeat.data
 
 
+def test_billing_preserves_fractional_observations_and_rejects_nan():
+    _, _, worker, job = running()
+    acknowledge(job, worker)
+    payload = {
+        "worker_id": str(worker),
+        "provider_finished": True,
+        "final_sequence": 0,
+        "tasks": [
+            {
+                "task_id": str(uuid.uuid4()),
+                "finished": True,
+                "input_samples": 16000,
+                "billed_seconds": "NaN",
+            }
+        ],
+    }
+    assert agent(f"{job['id']}/finish/", payload).status_code == 400
+    payload["tasks"][0]["billed_seconds"] = 0.75
+    response = agent(f"{job['id']}/finish/", payload)
+    assert response.status_code == 200 and response.data["status"] == "succeeded"
+    assert (
+        models.CaptureTranscriptionJob.objects.get(pk=job["id"]).report["tasks"][0][
+            "billed_seconds"
+        ]
+        == 0.75
+    )
+    assert (
+        models.AIUsageRecord.objects.get(ref_type="capture_transcription").audio_seconds
+        == 1
+    )
+
+
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_workers_cannot_claim_the_same_audio():
     user, capture = saved()

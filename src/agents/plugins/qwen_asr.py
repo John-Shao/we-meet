@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+import math
 import os
 import re
 import time
@@ -131,6 +132,7 @@ class QwenASRSession:
         self.connection_started = False
         self.provider_finished = False
         self.billed_seconds = 0.0
+        self.billing_observed = False
         self._finals = {}
         self._finish_sent = False
 
@@ -211,10 +213,7 @@ class QwenASRSession:
         if len(self._finals) >= MAX_SENTENCES:
             raise QwenASRError("asr_sentence_limit")
         self._finals[number] = fingerprint
-        usage = payload.get("usage") or {}
-        duration = usage.get("duration")
-        if type(duration) in (int, float) and duration >= 0:
-            self.billed_seconds = max(self.billed_seconds, duration)
+        self._usage(payload)
         if text.strip():
             callback(
                 ASRSentence(
@@ -225,6 +224,12 @@ class QwenASRSession:
                     end_ms=end,
                 )
             )
+
+    def _usage(self, payload):
+        duration = (payload.get("usage") or {}).get("duration")
+        if type(duration) in (int, float) and math.isfinite(duration) and duration >= 0:
+            self.billing_observed = True
+            self.billed_seconds = max(self.billed_seconds, duration)
 
     async def run(self, audio, callback):
         """Drain FINAL events after finish-task; early close is always incomplete."""
@@ -277,6 +282,7 @@ class QwenASRSession:
                             if not self._finish_sent:
                                 raise QwenASRError("asr_premature_finish")
                             self.provider_finished = True
+                            self._usage(payload)
                             done.set()
                             return
                         else:
