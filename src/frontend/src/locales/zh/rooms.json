@@ -339,7 +339,8 @@
       "tools": "更多工具",
       "info": "会议信息",
       "roomAI": "会议 AI",
-      "meetingNotes": "????"
+      "meetingNotes": "会议笔记",
+      "translation": "语音翻译"
     },
     "content": {
       "participants": "参会者",
@@ -351,7 +352,8 @@
       "tools": "更多工具",
       "info": "会议信息",
       "roomAI": "会议 AI",
-      "meetingNotes": "????"
+      "meetingNotes": "会议笔记",
+      "translation": "语音翻译"
     },
     "closeButton": "隐藏 {{content}}"
   },
@@ -373,8 +375,12 @@
         "body": "将会议保存为视频。"
       },
       "meetingNotes": {
-        "title": "????",
-        "body": "????????????????"
+        "title": "会议笔记",
+        "body": "查看本场会议的文字记录和智能纪要。"
+      },
+      "translation": {
+        "title": "语音翻译",
+        "body": "翻译自己的麦克风，支持连续和按键双向交流。"
       }
     }
   },

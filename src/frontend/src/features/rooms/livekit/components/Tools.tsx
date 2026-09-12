@@ -13,6 +13,8 @@ import {
 } from '@/features/recording'
 import { useConfig } from '@/api/useConfig'
 import { OnlineMeetingNotes } from '@/features/meetings/components/OnlineMeetingNotes'
+import { PrivateTranslationPanel } from '@/features/meetings/components/PrivateTranslationPanel'
+import { usePrivateTranslation } from '@/features/meetings/translationContext'
 
 export interface ToolsButtonProps {
   icon: ReactNode
@@ -97,10 +99,12 @@ const ToolButton = ({
 
 export const Tools = () => {
   const { data } = useConfig()
+  const translation = usePrivateTranslation()
   const {
     openTranscript,
     openScreenRecording,
     openMeetingNotes,
+    openTranslation,
     activeSubPanelId,
     isToolsOpen,
   } = useSidePanel()
@@ -131,6 +135,8 @@ export const Tools = () => {
   )
 
   switch (activeSubPanelId) {
+    case SubPanelId.TRANSLATION:
+      return <PrivateTranslationPanel />
     case SubPanelId.MEETING_NOTES:
       return data?.meeting_records?.enabled ? <OnlineMeetingNotes /> : null
     case SubPanelId.TRANSCRIPT:
@@ -180,6 +186,14 @@ export const Tools = () => {
           title={t('tools.meetingNotes.title')}
           description={t('tools.meetingNotes.body')}
           onPress={openMeetingNotes}
+        />
+      )}
+      {translation?.visible && (
+        <ToolButton
+          icon={<Icon type="symbols" name="translate" />}
+          title={t('tools.translation.title')}
+          description={t('tools.translation.body')}
+          onPress={openTranslation}
         />
       )}
       {isTranscriptEnabled && (

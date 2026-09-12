@@ -28,6 +28,14 @@ MANUAL_RESPONSE_SECONDS = 30
 MANUAL_IDLE_SECONDS = 60
 
 
+async def _cancel_tasks(*tasks):
+    """Cancel owned background tasks and always retrieve their terminal errors."""
+    pending = [task for task in tasks if task is not None]
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
+
+
 class PrivateTranslation:
     """Translate one human microphone; never subscribe to agent or translated tracks."""
 
@@ -55,6 +63,7 @@ class PrivateTranslation:
         self.selected_track = None
         self._closing = asyncio.Lock()
         self._closed = False
+        self.control_reply = None
         self.usage = {"input_tokens": None, "output_tokens": None}
 
     def matches(self, participant):
@@ -198,15 +207,24 @@ class PrivateTranslation:
         self.ctx.room.on("data_received", self.on_control)
         for publication in participant.track_publications.values():
             self.on_publication(publication, participant)
-        await self.publish(
-            {
-                "type": "ready",
-                "sequence": 0,
-                "audio_track_sid": self.audio_publication.sid
-                if self.audio_publication
-                else None,
-            }
-        )
+        await self.publish_control_state()
+
+    async def publish_control_state(self):
+        """Allow a reconnecting panel to recover command sequence without restarting."""
+        try:
+            await self.publish(
+                {
+                    "type": "ready",
+                    "sequence": self.input.sequence,
+                    "direction": self.input.direction,
+                    "awaiting": self.input.awaiting is not None,
+                    "audio_track_sid": self.audio_publication.sid
+                    if self.audio_publication
+                    else None,
+                }
+            )
+        except Exception:
+            self.halt(failed=True)
 
     def on_publication(self, publication, participant):
         """Subscribe only to the claimed microphone, never screen/system audio."""
@@ -277,7 +295,10 @@ class PrivateTranslation:
                 or data.get("generation") != self.reporter.identity["generation"]
             ):
                 return
-            self.input.control(data["sequence"], data["action"], data["direction"])
+            if data.get("action") != "sync":
+                self.input.control(data["sequence"], data["action"], data["direction"])
+            if self.control_reply is None or self.control_reply.done():
+                self.control_reply = asyncio.create_task(self.publish_control_state())
         except (ValueError, KeyError, TypeError, AttributeError, TranslationError):
             self.halt(failed=True)
 
@@ -329,9 +350,7 @@ class PrivateTranslation:
             except Exception:
                 self.failed = True
             finally:
-                if self.reader:
-                    self.reader.cancel()
-                    await asyncio.gather(self.reader, return_exceptions=True)
+                await _cancel_tasks(self.reader, self.control_reply)
                 await asyncio.gather(
                     *(channel.close() for channel in self.channels.values()),
                     return_exceptions=True,

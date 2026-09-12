@@ -339,7 +339,8 @@
       "tools": "More tools",
       "info": "Meeting information",
       "roomAI": "Meeting AI",
-      "meetingNotes": "Meeting notes"
+      "meetingNotes": "Meeting notes",
+      "translation": "Voice translation"
     },
     "content": {
       "participants": "participants",
@@ -351,7 +352,8 @@
       "tools": "more tools",
       "info": "meeting information",
       "roomAI": "meeting AI",
-      "meetingNotes": "meeting notes"
+      "meetingNotes": "meeting notes",
+      "translation": "voice translation"
     },
     "closeButton": "Hide {{content}}"
   },
@@ -374,7 +376,11 @@
       },
       "meetingNotes": {
         "title": "Meeting notes",
-        "body": "This session?s transcript, live summary and minutes"
+        "body": "This session's transcript, live summary and minutes"
+      },
+      "translation": {
+        "title": "Voice translation",
+        "body": "Translate your microphone continuously or with two-way push-to-talk."
       }
     }
   },

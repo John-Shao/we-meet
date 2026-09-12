@@ -47,6 +47,9 @@ def serialize(run):
         "generation": run.generation,
         "state": run.state,
         "configuration": run.configuration,
+        "source_participant_sid": run.source_participation.livekit_participant_sid
+        if run.source_participation
+        else None,
         "error_code": run.error_code,
     }
 

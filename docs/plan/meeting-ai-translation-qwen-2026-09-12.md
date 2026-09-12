@@ -1,7 +1,7 @@
 # 会议 AI 翻译：Qwen 模型选型与复用接入方案
 
 日期：2026-09-12
-状态：**批次 16 完成协议基础，批次 17 完成服务端会话控制；真实音轨及产品接线待实现。** 详见 [翻译批次 1](meeting-ai-translation-batch1-2026-09-13.md)、[翻译批次 2](meeting-ai-translation-batch2-2026-09-13.md)。
+状态：**批次 16–19 完成协议、私人会话控制、指定音轨 Agent 与 Web 入口；多人同传、笔记关联及设备实测待完成。** 详见 [协议](meeting-ai-translation-batch1-2026-09-13.md)、[会话控制](meeting-ai-translation-batch2-2026-09-13.md)、[音轨 Agent](meeting-ai-translation-batch3-2026-09-13.md)、[Web 入口](meeting-ai-translation-batch4-2026-09-13.md)。
 关联：[会议 AI 产品规划 V2](meeting-ai-product-plan-v2-2026-09-12.md)。本文件更新 V2 原先把同传放在 P3 的安排，新增 P1-T 接入阶段。
 
 ## 1. 已确定的选型
