@@ -192,7 +192,8 @@
     "bulkOffboard": "Traiter les départs en masse",
     "bulkOffboardConfirm": "Confirmer le départ des {{count}} membre(s) sélectionné(s) ?",
     "bulkClear": "Effacer la sélection",
-    "bulkPartial": "{{done}} traité(s), {{skipped}} ignoré(s) : {{names}}"
+    "bulkPartial": "{{done}} traité(s), {{skipped}} ignoré(s) : {{names}}",
+    "ownsTaskLists": "Ce membre possède {{count}} listes. Transférez-les avant son départ, ou un administrateur pourra les reprendre dans Tâches."
   },
   "role": {
     "member": "Membre",

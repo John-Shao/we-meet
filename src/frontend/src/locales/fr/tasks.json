@@ -33,7 +33,10 @@
     "newTask": "Nouvelle tâche",
     "filters": "Filtres des tâches",
     "statusFilter": "Statut",
-    "statusOptions": { "open": "Non terminées", "all": "Tous les statuts" },
+    "statusOptions": {
+      "open": "Non terminées",
+      "all": "Tous les statuts"
+    },
     "clearFilters": "Effacer les filtres",
     "filteredResultCount": "{{count}} tâches correspondantes",
     "removeFilter": "Retirer le filtre : {{filter}}",
@@ -145,7 +148,7 @@
     "descriptionPlaceholder": "Add the list's purpose or scope",
     "taskCount": "{{count}} tâches",
     "deleteTitle": "Supprimer la liste",
-    "deleteDescription": "Supprimer définitivement « {{name}} » ? Les groupes et la configuration seront irrécupérables ; les tâches attribuées seront conservées.",
+    "deleteDescription": "Supprimer définitivement « {{name}} » ? Les tâches sont conservées hors de la liste par défaut. Les membres dont l’accès dépend uniquement de la liste perdront cet accès.",
     "deleteConfirm": "Supprimer",
     "deleteNamed": "Supprimer la liste : {{name}}",
     "error": "L’opération sur la liste a échoué. Veuillez réessayer.",
@@ -153,7 +156,7 @@
     "more": "Plus d’actions pour {{name}}",
     "share": "Partager",
     "shareTitle": "Partager {{name}}",
-    "shareHint": "Les lecteurs consultent la liste ; les éditeurs peuvent la modifier et l’archiver.",
+    "shareHint": "Les lecteurs consultent les tâches. Les éditeurs peuvent créer, modifier, terminer et déplacer des tâches, et archiver la liste. Seul le propriétaire gère les membres. Les créateurs de tâches et le propriétaire peuvent supprimer des tâches. Les rôles directs restent applicables.",
     "addCollaborator": "Ajouter un collaborateur",
     "searchCollaborator": "Rechercher des membres",
     "removeCollaborator": "Retirer {{name}}",
@@ -166,14 +169,14 @@
     "rename": "Renommer",
     "archive": "Archiver",
     "archiveTitle": "Archiver la liste",
-    "archiveDescription": "Archiver « {{name}} » ? Elle sera masquée et n’acceptera plus de nouvelles tâches.",
+    "archiveDescription": "Archiver « {{name}} » ? La liste sera masquée par défaut. Les tâches existantes restent consultables et modifiables. Aucune nouvelle tâche ou sous-tâche ne pourra être créée.",
     "archivedTitle": "Listes archivées",
     "restore": "Restaurer",
     "leave": "Retirer",
     "leaveTitle": "Retirer la liste",
-    "leaveDescription": "Quitter « {{name}} » ? Seul votre accès sera supprimé.",
+    "leaveDescription": "Quitter « {{name}} » ? Vos droits liés à la liste seront retirés. Vos droits directs de créateur, responsable ou abonné restent inchangés. Le propriétaire devra vous réinviter.",
     "delete": "Supprimer",
-    "deleteUnassigned": "Supprimer aussi les tâches non attribuées propres à cette liste",
+    "deleteUnassigned": "Supprimer aussi toutes les tâches sans responsable de cette liste",
     "actionError": "L’opération a échoué. Veuillez réessayer.",
     "color": "Couleur",
     "colors": {
@@ -184,7 +187,19 @@
       "orange": "Orange",
       "red": "Rouge",
       "purple": "Violet"
-    }
+    },
+    "deleteUnassignedWarning": "Les tâches affichées et leurs pièces jointes seront supprimées définitivement. Les suivis et liens partagés ne fonctionneront plus. Les sous-tâches hors du périmètre de suppression sont conservées sans le parent supprimé.",
+    "archiveHint": "Cette liste est archivée. Les tâches existantes restent consultables et modifiables selon vos droits. La création de tâches et de sous-tâches est désactivée.",
+    "revokeConfirm": "Modifier l’accès de {{name}} à la liste ? Ses droits indépendants en tant que créateur, responsable ou abonné d’une tâche seront conservés.",
+    "deleteImpact": "Tâches sans responsable à supprimer : {{count}} (uniquement si l’option est cochée)",
+    "previewLimit": "Seules les 100 premières tâches sont affichées. La confirmation couvre la totalité.",
+    "moveWarning": "Les membres autorisés uniquement par la liste source perdront leur accès. Les membres de la liste cible obtiendront un accès.",
+    "transfer": "Transférer la propriété",
+    "transferConfirm": "Transférer la propriété à « {{name}} » ? Vous deviendrez éditeur et perdrez la gestion des membres et la suppression de la liste. Vous pourrez quitter la liste.",
+    "recover": "Reprendre les listes sans propriétaire",
+    "recoverConfirm": "Reprendre « {{name}} » ? Aucun propriétaire actif ne reste. Cette action sera inscrite dans le journal d’audit.",
+    "recoverHint": "Seules les listes sans propriétaire actif de cette organisation sont affichées. Le contenu des tâches reste inaccessible avant la reprise.",
+    "recoverEmpty": "Aucune liste à reprendre."
   },
   "taskListGroups": {
     "title": "Groupes de listes",
@@ -275,7 +290,11 @@
     "weekly": "Chaque semaine",
     "monthly": "Chaque mois",
     "every": "Tous les",
-    "units": { "daily": "jour(s)", "weekly": "semaine(s)", "monthly": "mois" },
+    "units": {
+      "daily": "jour(s)",
+      "weekly": "semaine(s)",
+      "monthly": "mois"
+    },
     "ends": "Fin",
     "endNever": "Jamais",
     "endDate": "À une date",
@@ -389,7 +408,10 @@
     "completeWithOpenSubtasksDescription": "{{count}} sous-tâches ne sont pas terminées. Terminer cette tâche ne modifiera pas leur statut.",
     "completeAnyway": "Terminer quand même"
   },
-  "saveState": { "saving": "Enregistrement…", "saved": "Enregistré" },
+  "saveState": {
+    "saving": "Enregistrement…",
+    "saved": "Enregistré"
+  },
   "subtasks": {
     "title": "Sous-tâches",
     "parent": "Tâche parente",

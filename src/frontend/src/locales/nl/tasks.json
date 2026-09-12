@@ -33,7 +33,10 @@
     "newTask": "Nieuwe taak",
     "filters": "Taakfilters",
     "statusFilter": "Status",
-    "statusOptions": { "open": "Onvoltooid", "all": "Alle statussen" },
+    "statusOptions": {
+      "open": "Onvoltooid",
+      "all": "Alle statussen"
+    },
     "clearFilters": "Filters wissen",
     "filteredResultCount": "{{count}} overeenkomende taken",
     "removeFilter": "Filter verwijderen: {{filter}}",
@@ -145,7 +148,7 @@
     "descriptionPlaceholder": "Add the list's purpose or scope",
     "taskCount": "{{count}} taken",
     "deleteTitle": "Takenlijst verwijderen",
-    "deleteDescription": "‘{{name}}’ definitief verwijderen? Groepen en configuratie zijn niet herstelbaar; toegewezen taken blijven behouden.",
+    "deleteDescription": "“{{name}}” definitief verwijderen? Taken blijven standaard buiten de lijst bestaan. Leden met toegang uitsluitend via deze lijst verliezen hun toegang.",
     "deleteConfirm": "Verwijderen",
     "deleteNamed": "Takenlijst verwijderen: {{name}}",
     "error": "De lijstactie is mislukt. Probeer het opnieuw.",
@@ -153,7 +156,7 @@
     "more": "Meer acties voor {{name}}",
     "share": "Delen",
     "shareTitle": "{{name}} delen",
-    "shareHint": "Kijkers kunnen lezen; bewerkers kunnen taken wijzigen en de lijst archiveren.",
+    "shareHint": "Lezers kunnen taken bekijken. Bewerkers kunnen taken maken, wijzigen, voltooien en verplaatsen en lijsten archiveren. Alleen eigenaren beheren leden. Taakmakers en lijsteigenaren mogen taken verwijderen. Directe taakrollen geven aanvullende rechten.",
     "addCollaborator": "Medewerker toevoegen",
     "searchCollaborator": "Organisatieleden zoeken",
     "removeCollaborator": "{{name}} verwijderen",
@@ -166,14 +169,14 @@
     "rename": "Naam wijzigen",
     "archive": "Archiveren",
     "archiveTitle": "Takenlijst archiveren",
-    "archiveDescription": "‘{{name}}’ archiveren? De lijst wordt verborgen en accepteert geen nieuwe taken.",
+    "archiveDescription": "“{{name}}” archiveren? De lijst wordt standaard verborgen. Bestaande taken blijven leesbaar en bewerkbaar. Nieuwe taken en subtaken kunnen niet worden gemaakt.",
     "archivedTitle": "Gearchiveerde takenlijsten",
     "restore": "Herstellen",
     "leave": "Verwijderen",
     "leaveTitle": "Takenlijst verwijderen",
-    "leaveDescription": "‘{{name}}’ verlaten? Alleen uw toegang wordt verwijderd.",
+    "leaveDescription": "“{{name}}” verlaten? Je lijstrechten vervallen. Directe rechten als taakmaker, verantwoordelijke of volger blijven bestaan. De eigenaar moet je opnieuw uitnodigen.",
     "delete": "Verwijderen",
-    "deleteUnassigned": "Ook niet-toegewezen taken verwijderen die alleen bij deze lijst horen",
+    "deleteUnassigned": "Ook alle niet-toegewezen taken in deze lijst verwijderen",
     "actionError": "De bewerking is mislukt. Probeer het opnieuw.",
     "color": "Kleur",
     "colors": {
@@ -184,7 +187,19 @@
       "orange": "Oranje",
       "red": "Rood",
       "purple": "Paars"
-    }
+    },
+    "deleteUnassignedWarning": "De getoonde taken en bijlagen worden definitief verwijderd. Volgrelaties en gedeelde links vervallen. Subtaken buiten deze verwijderselectie blijven bestaan zonder de verwijderde hoofdtaak.",
+    "archiveHint": "Deze lijst is gearchiveerd. Bestaande taken blijven leesbaar en bewerkbaar volgens je rechten. Nieuwe taken en subtaken kunnen niet worden aangemaakt.",
+    "revokeConfirm": "Lijsttoegang voor {{name}} wijzigen? Onafhankelijke rechten als maker, verantwoordelijke of volger van een taak blijven bestaan.",
+    "deleteImpact": "Niet-toegewezen taken om te verwijderen: {{count}} (alleen als de optie is aangevinkt)",
+    "previewLimit": "Alleen de eerste 100 taken worden getoond. Bevestiging geldt voor het volledige aantal.",
+    "moveWarning": "Leden met toegang uitsluitend via de bronlijst verliezen toegang. Leden van de doellijst krijgen toegang.",
+    "transfer": "Eigendom overdragen",
+    "transferConfirm": "Eigendom overdragen aan “{{name}}”? Je wordt bewerker en verliest ledenbeheer en het recht de lijst te verwijderen. Je kunt de lijst wel verlaten.",
+    "recover": "Lijsten zonder eigenaar overnemen",
+    "recoverConfirm": "“{{name}}” overnemen? Er is geen actieve eigenaar meer. Deze actie wordt in het auditlog vastgelegd.",
+    "recoverHint": "Alleen lijsten in deze organisatie zonder actieve eigenaar worden getoond. Taakinhoud blijft ontoegankelijk tot de overname.",
+    "recoverEmpty": "Geen lijsten om over te nemen."
   },
   "taskListGroups": {
     "title": "Lijstgroepen",
@@ -393,7 +408,10 @@
     "completeWithOpenSubtasksDescription": "{{count}} subtaken zijn nog niet voltooid. Het voltooien van deze taak verandert hun status niet.",
     "completeAnyway": "Toch voltooien"
   },
-  "saveState": { "saving": "Opslaan…", "saved": "Opgeslagen" },
+  "saveState": {
+    "saving": "Opslaan…",
+    "saved": "Opgeslagen"
+  },
   "subtasks": {
     "title": "Subtaken",
     "parent": "Bovenliggende taak",

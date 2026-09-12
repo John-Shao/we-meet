@@ -192,7 +192,8 @@
     "bulkOffboard": "Massenhafter Austritt",
     "bulkOffboardConfirm": "Austritt für die {{count}} ausgewählten Mitglieder wirklich durchführen?",
     "bulkClear": "Auswahl aufheben",
-    "bulkPartial": "{{done}} Personen verarbeitet, {{skipped}} übersprungen: {{names}}"
+    "bulkPartial": "{{done}} Personen verarbeitet, {{skipped}} übersprungen: {{names}}",
+    "ownsTaskLists": "Dieses Mitglied besitzt {{count}} Aufgabenlisten. Vor dem Austritt übertragen oder danach durch einen Administrator in Aufgaben übernehmen lassen."
   },
   "role": {
     "member": "Mitglied",

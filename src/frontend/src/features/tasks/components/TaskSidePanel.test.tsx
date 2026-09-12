@@ -212,6 +212,7 @@ const task: ApiTask = {
   source_room_id: null,
   source_room_name: null,
   can_edit: false,
+  can_move: false,
   can_update_status: false,
   can_delete: false,
   can_comment: false,
@@ -565,6 +566,7 @@ describe('TaskDetailPanel', () => {
         fallbackTask={{
           ...task,
           can_edit: true,
+          can_move: true,
           can_manage_followers: true,
         }}
         taskLists={[]}
@@ -656,7 +658,8 @@ describe('TaskDetailPanel', () => {
   it('edits the task list and group as independent properties', async () => {
     const taskLists = [
       { id: 'list-1', name: 'Product' },
-      { id: 'list-2', name: 'Roadmap' },
+      { id: 'list-2', name: 'Roadmap', can_create_tasks: true },
+      { id: 'list-3', name: 'Read-only destination', can_create_tasks: false },
     ] as ApiTaskList[]
     const taskGroups = [
       { id: 'group-1', name: 'Delivery' },
@@ -669,6 +672,7 @@ describe('TaskDetailPanel', () => {
         fallbackTask={{
           ...task,
           can_edit: true,
+          can_move: true,
           task_list: { id: 'list-1', name: 'Product', color: 'blue' },
           group: { id: 'group-1', name: 'Delivery', sort_order: 0 },
         }}
@@ -686,7 +690,11 @@ describe('TaskDetailPanel', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'actions.edit meta.taskList' })
     )
-    fireEvent.click(await screen.findByRole('option', { name: 'Roadmap' }))
+    const destination = await screen.findByRole('option', { name: 'Roadmap' })
+    expect(
+      screen.queryByRole('option', { name: 'Read-only destination' })
+    ).not.toBeInTheDocument()
+    fireEvent.click(destination)
     await waitFor(() =>
       expect(mutateAsync).toHaveBeenLastCalledWith({
         taskId: task.id,
@@ -713,6 +721,7 @@ describe('TaskDetailPanel', () => {
         fallbackTask={{
           ...task,
           can_edit: true,
+          can_move: true,
           assignees: [
             task.assignee!,
             {
@@ -755,6 +764,7 @@ describe('TaskDetailPanel', () => {
         fallbackTask={{
           ...task,
           can_edit: true,
+          can_move: true,
           recurrence: {
             rule_id: 'rule-1',
             frequency: 'weekly',
@@ -839,6 +849,7 @@ describe('TaskDetailPanel', () => {
         fallbackTask={{
           ...task,
           can_edit: true,
+          can_move: true,
           can_update_status: true,
           can_delete: true,
         }}
@@ -967,6 +978,7 @@ describe('TaskDetailPanel', () => {
         { id: 'child-1', title: 'Backend', depth: 1 },
       ],
       can_edit: true,
+      can_move: true,
       can_update_status: true,
     }
     subtaskState.current = [child]
@@ -1109,6 +1121,7 @@ describe('TaskDetailPanel', () => {
       parent_id: task.id,
       depth: 1,
       can_edit: true,
+      can_move: true,
     }
     const second = {
       ...first,

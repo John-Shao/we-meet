@@ -8,7 +8,6 @@ import {
   RiDeleteBinLine,
   RiEditLine,
   RiFolderLine,
-  RiInboxUnarchiveLine,
   RiListCheck,
   RiLogoutBoxRLine,
   RiMoreLine,
@@ -37,6 +36,7 @@ export const TaskListNavigationRow = ({
   onArchive,
   onLeave,
   onDelete,
+  archivePending = false,
 }: {
   taskList: ApiTaskList
   active: boolean
@@ -48,11 +48,16 @@ export const TaskListNavigationRow = ({
   onArchive?: () => void
   onLeave?: () => void
   onDelete?: () => void
+  archivePending?: boolean
 }) => {
   const { t } = useTranslation('tasks')
 
   return (
-    <div className={taskListRowCss} data-active={active || undefined}>
+    <div
+      className={taskListRowCss}
+      data-active={active || undefined}
+      data-archived={taskList.is_archived || undefined}
+    >
       <button
         type="button"
         aria-current={active ? 'page' : undefined}
@@ -112,10 +117,15 @@ export const TaskListNavigationRow = ({
                 label: (
                   <span className={taskNavigationMenuItemLabelCss}>
                     <RiArchiveLine size={16} />
-                    {t('taskLists.archive')}
+                    {t(
+                      taskList.is_archived
+                        ? 'taskLists.restore'
+                        : 'taskLists.archive'
+                    )}
                   </span>
                 ),
-                isDisabled: !taskList.can_archive || !onArchive,
+                isDisabled:
+                  !taskList.can_archive || !onArchive || archivePending,
               },
               {
                 value: 'leave',
@@ -176,61 +186,6 @@ export const StandaloneTaskListNavigationRow = ({
           <span>{t('taskLists.standalone')}</span>
         </span>
       </button>
-    </div>
-  )
-}
-
-export const ArchivedTaskListNavigationRow = ({
-  taskList,
-  restoring,
-  onRestore,
-}: {
-  taskList: ApiTaskList
-  restoring: boolean
-  onRestore?: () => void
-}) => {
-  const { t } = useTranslation('tasks')
-
-  return (
-    <div className={taskListRowCss} data-archived>
-      <div className={archivedTaskListLabelCss}>
-        <RiArchiveLine size={16} aria-hidden="true" />
-        <span>{taskList.name}</span>
-      </div>
-      {taskList.can_archive && onRestore && (
-        <div
-          className={taskNavigationActionsCss({ visibility: 'conditional' })}
-          data-node-actions
-        >
-          <Menu placement="bottom">
-            <Button
-              variant="tertiary"
-              size="icon24"
-              className={taskNavigationActionButtonCss}
-              aria-label={t('taskLists.more', { name: taskList.name })}
-            >
-              <RiMoreLine size={16} />
-            </Button>
-            <MenuList
-              aria-label={t('taskLists.more', { name: taskList.name })}
-              menuClassName={taskNavigationMenuCss}
-              items={[
-                {
-                  value: 'restore',
-                  label: (
-                    <span className={taskNavigationMenuItemLabelCss}>
-                      <RiInboxUnarchiveLine size={16} />
-                      {t('taskLists.restore')}
-                    </span>
-                  ),
-                  isDisabled: restoring,
-                },
-              ]}
-              onAction={() => onRestore()}
-            />
-          </Menu>
-        </div>
-      )}
     </div>
   )
 }
@@ -399,21 +354,6 @@ const taskListRowCss = css({
   },
   '&[data-archived]': {
     color: 'greyscale.500',
-  },
-})
-
-const archivedTaskListLabelCss = css({
-  minWidth: 0,
-  flex: 1,
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.625rem',
-  padding: '0.5rem 0.25rem 0.5rem 0.625rem',
-  fontSize: '0.875rem',
-  '& span': {
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
   },
 })
 

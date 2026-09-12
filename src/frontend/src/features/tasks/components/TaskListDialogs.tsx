@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { RiAddLine, RiDeleteBinLine } from '@remixicon/react'
 
 import { Modal, ModalCloseButton } from '@/components/Modal'
+import { useConfirm } from '@/components/ConfirmProvider'
 import { StateHint } from '@/components/StateHint'
 import { useUser } from '@/features/auth'
 import {
@@ -16,6 +17,10 @@ import { css } from '@/styled-system/css'
 import type { ApiTaskList } from '../api/ApiTask'
 import {
   useDestroyTaskList,
+  useTaskListDeletionImpact,
+  useTransferTaskList,
+  useRecoverableTaskLists,
+  useTakeoverTaskList,
   useRemoveTaskListShare,
   useShareTaskList,
   useTaskListShares,
@@ -43,11 +48,15 @@ export const TaskListRenameDialog = ({
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (!name.trim()) return
-    await mutation.mutateAsync({
-      taskListId: taskList.id,
-      patch: { name: name.trim() },
-    })
-    onClose()
+    try {
+      await mutation.mutateAsync({
+        taskListId: taskList.id,
+        patch: { name: name.trim() },
+      })
+      onClose()
+    } catch {
+      // Keep the draft and display the mutation error for retry.
+    }
   }
   return (
     <Modal
@@ -89,9 +98,43 @@ export const TaskListSharingDialog = ({
     isLoading,
     error,
   } = useTaskListShares(taskList.id)
+  const { confirm } = useConfirm()
+  const transfer = useTransferTaskList()
+  const transferTo = async (user: {
+    id: string
+    full_name: string | null
+    short_name: string | null
+  }) => {
+    if (
+      !(await confirm({
+        title: t('taskLists.transfer'),
+        message: t('taskLists.transferConfirm', { name: userName(user) }),
+        confirmLabel: t('taskLists.transfer'),
+        danger: true,
+      }))
+    )
+      return
+    try {
+      await transfer.mutateAsync({ taskListId: taskList.id, userId: user.id })
+      onClose()
+    } catch {
+      /* Inline error retains the dialog. */
+    }
+  }
   const share = useShareTaskList()
   const update = useUpdateTaskListShare()
   const remove = useRemoveTaskListShare()
+  const busy =
+    share.isPending ||
+    update.isPending ||
+    remove.isPending ||
+    transfer.isPending
+  const confirmAccessChange = (user: Parameters<typeof userName>[0]) =>
+    confirm({
+      title: t('taskLists.share'),
+      message: t('taskLists.revokeConfirm', { name: userName(user) }),
+      confirmLabel: t('actions.save'),
+    })
   const addMember = async (member: DirectoryMember) => {
     try {
       await share.mutateAsync({
@@ -120,6 +163,7 @@ export const TaskListSharingDialog = ({
           <Button
             variant="secondary"
             size="action"
+            isDisabled={busy}
             onPress={() => setPickerOpen(true)}
           >
             <RiAddLine size={17} />
@@ -151,20 +195,34 @@ export const TaskListSharingDialog = ({
                     </span>
                   ) : (
                     <>
+                      <Button
+                        size="dense"
+                        variant="secondaryText"
+                        isDisabled={busy}
+                        onPress={() => void transferTo(access.user)}
+                      >
+                        {t('taskLists.transfer')}
+                      </Button>
                       <select
                         aria-label={t('taskLists.permissionFor', {
                           name: userName(access.user),
                         })}
                         className={roleSelectCss}
                         value={access.role}
-                        disabled={update.isPending}
-                        onChange={(event) =>
+                        disabled={busy}
+                        onChange={async (event) => {
+                          const role = event.target.value as 'viewer' | 'editor'
+                          if (
+                            role === 'viewer' &&
+                            !(await confirmAccessChange(access.user))
+                          )
+                            return
                           update.mutate({
                             taskListId: taskList.id,
                             userId: access.user.id,
-                            role: event.target.value as 'viewer' | 'editor',
+                            role,
                           })
-                        }
+                        }}
                       >
                         <option value="viewer">
                           {t('taskLists.roles.viewer')}
@@ -179,13 +237,14 @@ export const TaskListSharingDialog = ({
                         aria-label={t('taskLists.removeCollaborator', {
                           name: userName(access.user),
                         })}
-                        isDisabled={remove.isPending}
-                        onPress={() =>
+                        isDisabled={busy}
+                        onPress={async () => {
+                          if (!(await confirmAccessChange(access.user))) return
                           remove.mutate({
                             taskListId: taskList.id,
                             userId: access.user.id,
                           })
-                        }
+                        }}
                       >
                         <RiDeleteBinLine size={16} />
                       </Button>
@@ -195,7 +254,9 @@ export const TaskListSharingDialog = ({
               ))}
             </ul>
           )}
-          {(share.error || update.error || remove.error) && <ErrorText />}
+          {(share.error || update.error || remove.error || transfer.error) && (
+            <ErrorText />
+          )}
         </div>
       </Modal>
       {pickerOpen && (
@@ -221,11 +282,31 @@ export const TaskListDeleteDialog = ({
 }) => {
   const { t } = useTranslation('tasks')
   const [deleteUnassigned, setDeleteUnassigned] = useState(false)
+  const [confirmedToken, setConfirmedToken] = useState<string>()
+  const impact = useTaskListDeletionImpact(taskList.id)
   const mutation = useDestroyTaskList()
   const destroy = async () => {
-    if (mutation.isPending) return
-    await mutation.mutateAsync({ taskListId: taskList.id, deleteUnassigned })
-    onDeleted()
+    if (
+      mutation.isPending ||
+      (deleteUnassigned &&
+        (!impact.data ||
+          impact.isFetching ||
+          impact.isError ||
+          confirmedToken !== impact.data.token))
+    )
+      return
+    try {
+      await mutation.mutateAsync({
+        taskListId: taskList.id,
+        deleteUnassigned,
+        confirmationToken: confirmedToken,
+      })
+      onDeleted()
+    } catch {
+      setDeleteUnassigned(false)
+      setConfirmedToken(undefined)
+      void impact.refetch()
+    }
   }
   return (
     <Modal
@@ -242,19 +323,63 @@ export const TaskListDeleteDialog = ({
           <input
             type="checkbox"
             checked={deleteUnassigned}
-            onChange={(event) => setDeleteUnassigned(event.target.checked)}
+            disabled={
+              !impact.data ||
+              impact.isFetching ||
+              impact.isError ||
+              mutation.isPending ||
+              impact.data.count === 0
+            }
+            onChange={(event) => {
+              setDeleteUnassigned(event.target.checked)
+              setConfirmedToken(impact.data?.token)
+            }}
           />
           {t('taskLists.deleteUnassigned')}
         </label>
+        {impact.isLoading && (
+          <StateHint state="loading">{t('loading')}</StateHint>
+        )}
+        {impact.isError && (
+          <StateHint
+            state="error"
+            action={
+              <Button onPress={() => void impact.refetch()}>
+                {t('workspace.retry')}
+              </Button>
+            }
+          >
+            {t('error')}
+          </StateHint>
+        )}
+        {impact.data && (
+          <div aria-live="polite">
+            <p>{t('taskLists.deleteImpact', { count: impact.data.count })}</p>
+            <ul className={impactListCss}>
+              {impact.data.tasks.map((task) => (
+                <li key={task.id}>{task.title}</li>
+              ))}
+            </ul>
+            {impact.data.count > 100 && <p>{t('taskLists.previewLimit')}</p>}
+          </div>
+        )}
+        {deleteUnassigned && <p>{t('taskLists.deleteUnassignedWarning')}</p>}
         {mutation.error && <ErrorText />}
         <div className={actionsCss}>
           <Button variant="secondary" size="action" onPress={onClose}>
             {t('workspace.createCancel')}
           </Button>
           <Button
-            variant="primary"
+            variant="danger"
             size="action"
             loading={mutation.isPending}
+            isDisabled={
+              deleteUnassigned &&
+              (!impact.data ||
+                impact.isFetching ||
+                impact.isError ||
+                confirmedToken !== impact.data.token)
+            }
             onPress={() => void destroy()}
           >
             {t('taskLists.delete')}
@@ -376,3 +501,91 @@ const errorCss = css({
   color: 'danger.subtle-text',
   fontSize: '0.75rem',
 })
+
+const impactListCss = css({
+  maxHeight: '12rem',
+  overflowY: 'auto',
+  overflowWrap: 'anywhere',
+  paddingInlineStart: '1.25rem',
+  border: '1px solid token(colors.greyscale.200)',
+  borderRadius: '6px',
+  paddingBlock: '0.5rem',
+})
+
+const recoveryRowCss = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '1rem',
+  paddingBlock: '0.75rem',
+  borderBottom: '1px solid token(colors.greyscale.200)',
+  '& span': { minWidth: 0, overflowWrap: 'anywhere' },
+  '& button': { flexShrink: 0 },
+})
+
+export const TaskListRecoveryDialog = ({
+  onClose,
+}: {
+  onClose: () => void
+}) => {
+  const { t } = useTranslation('tasks')
+  const { confirm } = useConfirm()
+  const lists = useRecoverableTaskLists()
+  const takeover = useTakeoverTaskList()
+  const recover = async (list: { id: string; name: string }) => {
+    if (
+      !(await confirm({
+        title: t('taskLists.recover'),
+        message: t('taskLists.recoverConfirm', { name: list.name }),
+        confirmLabel: t('taskLists.recover'),
+        danger: true,
+      }))
+    )
+      return
+    try {
+      await takeover.mutateAsync(list.id)
+    } catch {
+      /* Keep recovery available for retry. */
+    }
+  }
+  return (
+    <Modal
+      onClose={onClose}
+      ariaLabel={t('taskLists.recover')}
+      maxWidth="560px"
+    >
+      <DialogHeader title={t('taskLists.recover')} onClose={onClose} />
+      <div className={formCss}>
+        <p>{t('taskLists.recoverHint')}</p>
+        {lists.isLoading && (
+          <StateHint state="loading">{t('loading')}</StateHint>
+        )}
+        {lists.isError && (
+          <StateHint
+            state="error"
+            action={
+              <Button onPress={() => void lists.refetch()}>
+                {t('workspace.retry')}
+              </Button>
+            }
+          >
+            {t('error')}
+          </StateHint>
+        )}
+        {takeover.error && <ErrorText />}
+        {lists.data?.length === 0 && <p>{t('taskLists.recoverEmpty')}</p>}
+        {lists.data?.map((list) => (
+          <div key={list.id} className={recoveryRowCss}>
+            <span>{list.name}</span>
+            <Button
+              isDisabled={takeover.isPending}
+              onPress={() => void recover(list)}
+            >
+              {t('taskLists.recover')}
+            </Button>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  )
+}

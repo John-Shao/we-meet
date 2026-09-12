@@ -44,7 +44,6 @@ import {
   taskNavigationMenuItemLabelCss,
 } from './TaskWorkspaceNavigationStyles'
 import {
-  ArchivedTaskListNavigationRow,
   StandaloneTaskListNavigationRow,
   TaskListGroupNavigationNode,
   TaskListNavigationRow,
@@ -247,39 +246,30 @@ export const TaskWorkspaceNavigation = ({
       setTaskGroupCreatePending(false)
     }
   }
-  const renderTaskList = (taskList: ApiTaskList) =>
-    taskList.is_archived ? (
-      <ArchivedTaskListNavigationRow
-        key={taskList.id}
-        taskList={taskList}
-        restoring={restoringArchivedTaskList}
-        onRestore={
-          onRestoreArchivedTaskList
+  const renderTaskList = (taskList: ApiTaskList) => (
+    <TaskListNavigationRow
+      key={taskList.id}
+      taskList={taskList}
+      archivePending={restoringArchivedTaskList}
+      active={state.group === 'all' && state.taskList === taskList.id}
+      onSelect={() => onTaskListChange(taskList.id)}
+      onDragStart={(event) => startListDrag(event, taskList)}
+      onDragEnd={() => setDraggedTaskListId(undefined)}
+      onShare={onShareTaskList ? () => onShareTaskList(taskList) : undefined}
+      onRename={onRenameTaskList ? () => onRenameTaskList(taskList) : undefined}
+      onArchive={
+        taskList.is_archived
+          ? onRestoreArchivedTaskList
             ? () => onRestoreArchivedTaskList(taskList)
             : undefined
-        }
-      />
-    ) : (
-      <TaskListNavigationRow
-        key={taskList.id}
-        taskList={taskList}
-        active={state.group === 'all' && state.taskList === taskList.id}
-        onSelect={() => onTaskListChange(taskList.id)}
-        onDragStart={(event) => startListDrag(event, taskList)}
-        onDragEnd={() => setDraggedTaskListId(undefined)}
-        onShare={onShareTaskList ? () => onShareTaskList(taskList) : undefined}
-        onRename={
-          onRenameTaskList ? () => onRenameTaskList(taskList) : undefined
-        }
-        onArchive={
-          onArchiveTaskList ? () => onArchiveTaskList(taskList) : undefined
-        }
-        onLeave={onLeaveTaskList ? () => onLeaveTaskList(taskList) : undefined}
-        onDelete={
-          onDeleteTaskList ? () => onDeleteTaskList(taskList) : undefined
-        }
-      />
-    )
+          : onArchiveTaskList
+            ? () => onArchiveTaskList(taskList)
+            : undefined
+      }
+      onLeave={onLeaveTaskList ? () => onLeaveTaskList(taskList) : undefined}
+      onDelete={onDeleteTaskList ? () => onDeleteTaskList(taskList) : undefined}
+    />
+  )
   return (
     <aside className={desktopNavCss} aria-label={t('workspace.navigation')}>
       <h1 className={navTitleCss}>{t('title')}</h1>

@@ -263,9 +263,10 @@ def test_task_list_sharing_enforces_viewer_and_editor_permissions():
     )
     editor_detail = colleague_client.get(f"{TASKS_URL}{task.id}/").json()
     assert editor_detail["can_update_status"] is True
-    assert editor_detail["can_delete"] is True
-    assert colleague_client.delete(f"{TASKS_URL}{task.id}/").status_code == 204
-    assert not Task.objects.filter(pk=task.pk).exists()
+    assert editor_detail["can_delete"] is False
+    assert colleague_client.delete(f"{TASKS_URL}{task.id}/").status_code == 403
+    assert Task.objects.filter(pk=task.pk).exists()
+    assert owner_client.delete(f"{TASKS_URL}{task.id}/").status_code == 204
 
 
 def test_task_list_archive_leave_and_owner_delete_keep_expected_tasks(
@@ -311,9 +312,10 @@ def test_task_list_archive_leave_and_owner_delete_keep_expected_tasks(
     )
     assert archived.status_code == 200
     assert editor_client.get(TASK_LISTS_URL).json() == []
-    assert editor_client.get(TASK_LISTS_URL, {"archived": "true"}).json()[0][
-        "is_archived"
-    ] is True
+    assert (
+        editor_client.get(TASK_LISTS_URL, {"archived": "true"}).json()[0]["is_archived"]
+        is True
+    )
     assert (
         editor_client.post(
             TASKS_URL,
@@ -336,7 +338,9 @@ def test_task_list_archive_leave_and_owner_delete_keep_expected_tasks(
         ).status_code
         == 200
     )
-    assert editor_client.post(f"{TASK_LISTS_URL}{task_list_id}/leave/").status_code == 204
+    assert (
+        editor_client.post(f"{TASK_LISTS_URL}{task_list_id}/leave/").status_code == 204
+    )
     assert editor_client.get(TASK_LISTS_URL).json() == []
 
     assert (
@@ -353,7 +357,13 @@ def test_task_list_archive_leave_and_owner_delete_keep_expected_tasks(
         django_capture_on_commit_callbacks(execute=True),
     ):
         deleted = owner_client.delete(
-            f"{TASK_LISTS_URL}{task_list_id}/?delete_unassigned=true"
+            f"{TASK_LISTS_URL}{task_list_id}/?delete_unassigned=true",
+            {
+                "confirmation_token": owner_client.get(
+                    f"{TASK_LISTS_URL}{task_list_id}/deletion-impact/"
+                ).json()["token"]
+            },
+            format="json",
         )
     assert deleted.status_code == 204
     assigned.refresh_from_db()
@@ -645,9 +655,7 @@ def test_task_groups_can_only_be_deleted_when_empty():
     can_delete = {group["id"]: group["can_delete"] for group in listed}
     assert can_delete[str(occupied.id)] is False
     assert can_delete[str(empty.id)] is True
-    assert (
-        client.delete(f"/api/v1.0/task-groups/{occupied.id}/").status_code == 400
-    )
+    assert client.delete(f"/api/v1.0/task-groups/{occupied.id}/").status_code == 400
     assert client.delete(f"/api/v1.0/task-groups/{empty.id}/").status_code == 204
 
 

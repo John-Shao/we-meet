@@ -196,7 +196,8 @@
     "bulkOffboard": "In bulk uit dienst melden",
     "bulkOffboardConfirm": "Weet je zeker dat je de {{count}} geselecteerde leden uit dienst wilt melden?",
     "bulkClear": "Selectie wissen",
-    "bulkPartial": "{{done}} verwerkt, {{skipped}} overgeslagen: {{names}}"
+    "bulkPartial": "{{done}} verwerkt, {{skipped}} overgeslagen: {{names}}",
+    "ownsTaskLists": "Dit lid bezit {{count}} takenlijsten. Draag ze eerst over of laat een beheerder ze na vertrek in Taken overnemen."
   },
   "role": {
     "member": "Lid",

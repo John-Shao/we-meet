@@ -422,6 +422,36 @@ describe('TaskWorkspaceNavigation', () => {
     expect(onRestoreArchivedTaskList).toHaveBeenCalledWith(archived)
   })
 
+  it('allows viewers to open and leave archived lists without restoring them', () => {
+    const archived = taskList('archived-viewer', 'Archived review', null, {
+      is_archived: true,
+      access_role: 'viewer',
+      can_manage: false,
+      can_share: false,
+      can_archive: false,
+      can_delete: false,
+      can_create_tasks: false,
+      can_remove: true,
+    })
+    const { onTaskListChange, onLeaveTaskList } = renderNavigation(
+      state,
+      0,
+      [archived],
+      true
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Archived review' }))
+    expect(onTaskListChange).toHaveBeenCalledWith(archived.id)
+    const row = screen
+      .getByText('Archived review')
+      .closest<HTMLElement>('[data-archived]')!
+    fireEvent.click(within(row).getByRole('button', { name: 'taskLists.more' }))
+    expect(
+      screen.getByRole('menuitem', { name: 'taskLists.restore' })
+    ).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'taskLists.leave' }))
+    expect(onLeaveTaskList).toHaveBeenCalledWith(archived)
+  })
+
   it('offers collaboration and lifecycle actions on each task list', () => {
     const {
       onShareTaskList,

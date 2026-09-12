@@ -178,6 +178,7 @@ export interface ApiTask {
   source_room_name: string | null
   source_message?: ApiTaskMessageSource | null
   can_edit: boolean
+  can_move?: boolean
   can_update_status: boolean
   can_delete: boolean
   can_comment: boolean

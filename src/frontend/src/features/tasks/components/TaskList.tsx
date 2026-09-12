@@ -469,7 +469,13 @@ export const TaskList = ({
   }, [tasks])
 
   const beginInlineEdit = (task: ApiTask, field: InlineEditableField) => {
-    if (!task.can_edit || inlinePending || patchMutation.isPending) return
+    if (
+      !task.can_edit ||
+      inlinePending ||
+      patchMutation.isPending ||
+      (field === 'taskList' && !task.can_move)
+    )
+      return
     setStatusError(false)
     setEditingCell({ taskId: task.id, field })
     if (field === 'assignee') setAssigneeEditingTask(task)
@@ -1206,7 +1212,10 @@ const DesktopTaskRow = memo(
               initialValue={task.task_list?.id || ''}
               pending={inlinePending}
               label={t('workspace.columns.taskList')}
-              taskLists={taskLists}
+              taskLists={taskLists.filter(
+                (list) =>
+                  list.can_create_tasks || list.id === task.task_list?.id
+              )}
               onSave={(taskListId) =>
                 onSaveInlineEdit(task, {
                   task_list_id: taskListId || null,
@@ -1217,6 +1226,7 @@ const DesktopTaskRow = memo(
           ) : (
             <InlineEditButton
               task={task}
+              canEdit={Boolean(task.can_move)}
               fieldLabel={t('workspace.columns.taskList')}
               select
               onEdit={() => onBeginInlineEdit(task, 'taskList')}
@@ -1251,6 +1261,7 @@ const DesktopTaskRow = memo(
 
 const InlineEditButton = ({
   task,
+  canEdit,
   fieldLabel,
   select = false,
   date = false,
@@ -1259,6 +1270,7 @@ const InlineEditButton = ({
   children,
 }: {
   task: ApiTask
+  canEdit?: boolean
   fieldLabel: string
   select?: boolean
   date?: boolean
@@ -1267,7 +1279,7 @@ const InlineEditButton = ({
   children: ReactNode
 }) => {
   const { t } = useTranslation('tasks')
-  if (!task.can_edit) {
+  if (!(canEdit ?? task.can_edit)) {
     return <div className={inlineCellReadOnlyCss}>{children}</div>
   }
   return (
@@ -1426,22 +1438,33 @@ const InlineTaskListEditor = ({
 }) => {
   const { t } = useTranslation('tasks')
   return (
-    <InlineSelectEditor
-      label={`${t('actions.edit')} ${label}`}
-      value={initialValue}
-      disabled={pending}
-      items={[
-        { value: '', label: t('taskLists.standalone') },
-        ...taskLists.map((taskList) => ({
-          value: taskList.id,
-          label: taskList.name,
-        })),
-      ]}
-      onChange={(taskListId) => {
-        onSave(taskListId)
-      }}
-      onCancel={onCancel}
-    />
+    <div>
+      <p
+        className={css({
+          fontSize: '0.75rem',
+          color: 'greyscale.600',
+          whiteSpace: 'normal',
+        })}
+      >
+        {t('taskLists.moveWarning')}
+      </p>
+      <InlineSelectEditor
+        label={`${t('actions.edit')} ${label}`}
+        value={initialValue}
+        disabled={pending}
+        items={[
+          { value: '', label: t('taskLists.standalone') },
+          ...taskLists.map((taskList) => ({
+            value: taskList.id,
+            label: taskList.name,
+          })),
+        ]}
+        onChange={(taskListId) => {
+          onSave(taskListId)
+        }}
+        onCancel={onCancel}
+      />
+    </div>
   )
 }
 

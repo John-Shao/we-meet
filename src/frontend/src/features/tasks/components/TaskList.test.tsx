@@ -106,6 +106,7 @@ const task: ApiTask = {
   source_room_id: 'meeting-1',
   source_room_name: 'Weekly sync',
   can_edit: false,
+  can_move: false,
   can_update_status: true,
   can_delete: false,
   can_comment: true,
@@ -514,7 +515,7 @@ describe('TaskList', () => {
   })
 
   it('presents non-title editable cells with their control affordance', () => {
-    const editableTask = { ...task, can_edit: true }
+    const editableTask = { ...task, can_edit: true, can_move: true }
     render(
       <TaskList tasks={[editableTask]} onOpen={vi.fn()} registerRow={vi.fn()} />
     )
@@ -539,6 +540,27 @@ describe('TaskList', () => {
         name: 'actions.edit workspace.columns.title',
       })
     ).not.toHaveAttribute('data-select')
+  })
+
+  it('keeps the source list visible without a move control for content-only editors', () => {
+    render(
+      <TaskList
+        tasks={[{ ...task, can_edit: true, can_move: false }]}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+    expect(
+      screen.getByRole('button', {
+        name: 'actions.edit workspace.columns.title',
+      })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', {
+        name: 'actions.edit workspace.columns.taskList',
+      })
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Release work')).toBeInTheDocument()
   })
 
   it('edits priority and dates from their table cells', async () => {
@@ -802,7 +824,7 @@ describe('TaskList', () => {
     const onDeleteTask = vi.fn()
     render(
       <TaskList
-        tasks={[{ ...task, can_edit: true, can_delete: true }]}
+        tasks={[{ ...task, can_edit: true, can_move: true, can_delete: true }]}
         onOpen={onOpen}
         onShare={onShare}
         onDeleteTask={onDeleteTask}
@@ -823,6 +845,7 @@ describe('TaskList', () => {
     expect(onDeleteTask).toHaveBeenCalledWith({
       ...task,
       can_edit: true,
+      can_move: true,
       can_delete: true,
     })
     expect(onShare).not.toHaveBeenCalled()
@@ -1101,6 +1124,7 @@ describe('TaskList', () => {
     const editableTask = {
       ...task,
       can_edit: true,
+      can_move: true,
       group: {
         id: 'group-1',
         name: 'Analysis',
@@ -1195,6 +1219,7 @@ describe('TaskList', () => {
       id: 'default-task',
       title: 'Default group task',
       can_edit: true,
+      can_move: true,
       group: null,
     }
     const customGroupTask = {

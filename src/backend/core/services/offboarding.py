@@ -16,6 +16,7 @@ severing the login.
 import logging
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -23,6 +24,7 @@ from rest_framework import serializers
 
 from core import models
 from core.services.audit import record_audit
+from core.services.task_permissions import annotate_task_list_owners
 
 logger = logging.getLogger(__name__)
 
@@ -93,12 +95,23 @@ def collect_owned_resources(membership) -> dict:
     ).count()
 
     return {
-        "headed_departments": [
-            {"id": str(d.id), "name": d.name} for d in headed
-        ],
+        "headed_departments": [{"id": str(d.id), "name": d.name} for d in headed],
         "direct_reports_count": reports.count(),
         "owned_rooms": owned_rooms,
         "owned_recordings": sole_owned_recordings,
+        "owned_task_lists": list(
+            annotate_task_list_owners(
+                models.TaskList.objects.filter(
+                    organization_id=membership.organization_id
+                )
+            )
+            .filter(
+                Q(accesses__user=user, accesses__role=models.TaskListAccess.Role.OWNER)
+                | Q(creator=user, _has_owner=False)
+            )
+            .distinct()
+            .values("id", "name")
+        ),
     }
 
 
@@ -151,9 +164,9 @@ def offboard_membership(
 
     new_head_user = transfer_head_to.user if transfer_head_to else None
     if headed:
-        models.Department.objects.filter(
-            id__in=[d.id for d in headed]
-        ).update(head=new_head_user)
+        models.Department.objects.filter(id__in=[d.id for d in headed]).update(
+            head=new_head_user
+        )
 
     # Detach reports so nobody keeps a leaver as their manager, which would
     # also break approval routing.

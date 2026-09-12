@@ -121,6 +121,13 @@ export const OffboardDialog = ({
                   })}
                 </li>
               )}
+              {!!owned.owned_task_lists?.length && (
+                <li>
+                  {t('members.ownsTaskLists', {
+                    count: owned.owned_task_lists.length,
+                  })}
+                </li>
+              )}
               {owned.owned_rooms > 0 && (
                 <li>{t('members.ownsRooms', { count: owned.owned_rooms })}</li>
               )}

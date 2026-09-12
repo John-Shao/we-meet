@@ -57,7 +57,10 @@
       "ascending": "{{field}}升序",
       "descending": "{{field}}降序"
     },
-    "statusOptions": { "open": "未完成", "all": "全部状态" },
+    "statusOptions": {
+      "open": "未完成",
+      "all": "全部状态"
+    },
     "clearFilters": "清除筛选",
     "filteredResultCount": "{{count}} 个匹配结果",
     "removeFilter": "移除筛选：{{filter}}",
@@ -171,7 +174,7 @@
     "descriptionPlaceholder": "补充清单的用途或适用范围",
     "taskCount": "{{count}} 个任务",
     "deleteTitle": "删除任务清单",
-    "deleteDescription": "确定永久删除“{{name}}”吗？清单分组和配置将不可恢复；有负责人的任务会保留并脱离该清单。",
+    "deleteDescription": "永久删除“{{name}}”吗？默认保留所有任务并移出该清单。仅通过清单获得访问权的成员将无法再访问这些任务。",
     "deleteConfirm": "删除",
     "deleteNamed": "删除任务清单：{{name}}",
     "error": "任务清单操作失败，请稍后重试。",
@@ -179,23 +182,27 @@
     "more": "{{name}} 的更多操作",
     "share": "分享",
     "shareTitle": "分享 {{name}}",
-    "shareHint": "可查看成员只能浏览；可编辑成员可以新增、修改、完成任务及归档清单。",
+    "shareHint": "清单查看者可浏览任务；编辑者可新增、修改、完成和移出任务、归档清单。只有所有者可管理清单成员；任务创建者和清单所有者可删除任务。任务直接角色另行叠加。",
     "addCollaborator": "添加协作者",
     "searchCollaborator": "搜索组织成员",
     "removeCollaborator": "移除 {{name}}",
     "permissionFor": "{{name}} 的权限",
-    "roles": { "viewer": "可查看", "editor": "可编辑", "owner": "所有者" },
+    "roles": {
+      "viewer": "可查看",
+      "editor": "可编辑",
+      "owner": "所有者"
+    },
     "rename": "重命名",
     "archive": "归档",
     "archiveTitle": "归档任务清单",
-    "archiveDescription": "归档“{{name}}”吗？清单将默认隐藏，且不能再新建任务。",
+    "archiveDescription": "归档“{{name}}”吗？清单默认隐藏，仍可查看和编辑已有任务；不能新建任务或子任务。",
     "archivedTitle": "已归档清单",
     "restore": "取消归档",
     "leave": "移除",
     "leaveTitle": "移除任务清单",
-    "leaveDescription": "退出“{{name}}”吗？仅你自己不再访问该清单，其他成员和数据不受影响；如需恢复，必须由清单成员重新分享。",
+    "leaveDescription": "退出“{{name}}”吗？你将失去清单成员权限，但作为任务创建者、负责人或关注人拥有的权限仍然保留。重新加入需要所有者分享。",
     "delete": "删除",
-    "deleteUnassigned": "同时删除只属于该清单、无负责人的任务",
+    "deleteUnassigned": "同时删除该清单中所有无负责人任务",
     "actionError": "操作失败，请稍后重试。",
     "color": "颜色",
     "colors": {
@@ -206,7 +213,19 @@
       "orange": "橙色",
       "red": "红色",
       "purple": "紫色"
-    }
+    },
+    "deleteUnassignedWarning": "预览中的任务将永久删除，包括附件；关注和分享链接也会失效。未列入删除范围的子任务会保留，并脱离被删除的父任务。",
+    "archiveHint": "此清单已归档。已有任务仍可按权限查看和编辑，不能新增任务或子任务。",
+    "revokeConfirm": "调整“{{name}}”的清单权限吗？其作为任务创建者、负责人或关注人拥有的独立权限仍会保留。",
+    "deleteImpact": "将删除的无负责人任务：{{count}} 个（仅勾选上方选项时生效）",
+    "previewLimit": "仅展示前 100 个任务；确认范围包括上述总数中的全部任务。",
+    "moveWarning": "移出清单后，仅通过原清单获得访问权的成员将失去访问；目标清单成员将获得访问。",
+    "transfer": "转让所有权",
+    "transferConfirm": "将所有权转让给“{{name}}”吗？你将成为编辑者，失去删除清单和管理成员的权限，但仍可退出清单。",
+    "recover": "接管无主清单",
+    "recoverConfirm": "确认接管“{{name}}”吗？该清单已没有有效所有者；你将成为所有者，此操作将记录在组织审计日志中。",
+    "recoverHint": "仅列出本组织已无有效所有者的清单。接管前不授予任务内容访问权。",
+    "recoverEmpty": "没有需要接管的清单。"
   },
   "taskListGroups": {
     "title": "清单分组",
@@ -307,7 +326,11 @@
     "weekly": "每周重复",
     "monthly": "每月重复",
     "every": "每",
-    "units": { "daily": "天", "weekly": "周", "monthly": "月" },
+    "units": {
+      "daily": "天",
+      "weekly": "周",
+      "monthly": "月"
+    },
     "ends": "结束条件",
     "endNever": "永不结束",
     "endDate": "结束日期",
@@ -428,7 +451,10 @@
     "completeWithOpenSubtasksDescription": "仍有 {{count}} 个未完成子任务。完成当前任务不会改变这些子任务的状态。",
     "completeAnyway": "仍然完成"
   },
-  "saveState": { "saving": "保存中…", "saved": "已保存" },
+  "saveState": {
+    "saving": "保存中…",
+    "saved": "已保存"
+  },
   "subtasks": {
     "title": "子任务",
     "parent": "父任务",

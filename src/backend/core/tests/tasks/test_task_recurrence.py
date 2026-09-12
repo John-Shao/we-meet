@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from django.utils import timezone
 
 import pytest
+from freezegun import freeze_time
 from rest_framework.test import APIClient
 
 from core import models
@@ -181,6 +182,7 @@ def test_retrying_same_cycle_does_not_duplicate_instance():
     assert models.Task.objects.filter(recurrence_rule=rule).count() == 2
 
 
+@freeze_time("2026-08-27T09:00:00Z")
 def test_recurring_content_edit_requires_scope_and_following_updates_template():
     _organization, user = _organization_user()
     response = _client(user).post(
@@ -192,6 +194,7 @@ def test_recurring_content_edit_requires_scope_and_following_updates_template():
         },
         format="json",
     )
+    assert response.status_code == 201, response.json()
     task_id = response.json()["id"]
 
     missing_scope = _client(user).patch(

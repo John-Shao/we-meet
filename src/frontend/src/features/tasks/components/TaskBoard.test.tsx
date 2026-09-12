@@ -54,6 +54,7 @@ const task: ApiTask = {
   source_room_id: null,
   source_room_name: null,
   can_edit: true,
+  can_move: true,
   can_update_status: true,
   can_delete: true,
   can_comment: true,

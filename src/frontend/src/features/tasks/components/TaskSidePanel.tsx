@@ -286,7 +286,12 @@ export const TaskDetailPanel = ({
   }
 
   const beginEditing = (field: EditableTaskField) => {
-    if (!task.can_edit || patchMutation.isPending) return
+    if (
+      !task.can_edit ||
+      patchMutation.isPending ||
+      (field === 'taskList' && !task.can_move)
+    )
+      return
     setEditingField(field)
     if (field === 'title') setDraftText(task.title)
     if (field === 'description') setDraftText(task.description)
@@ -1052,7 +1057,7 @@ export const TaskDetailPanel = ({
               isEditing={editingField === 'taskList'}
               alignStart={editingField === 'taskList'}
               onEdit={
-                task.can_edit ? () => beginEditing('taskList') : undefined
+                task.can_move ? () => beginEditing('taskList') : undefined
               }
             >
               {editingField === 'taskList' ? (
@@ -1061,10 +1066,16 @@ export const TaskDetailPanel = ({
                     label={t('meta.taskList')}
                     items={[
                       { value: '', label: t('taskLists.standalone') },
-                      ...taskLists.map((taskList) => ({
-                        value: taskList.id,
-                        label: taskList.name,
-                      })),
+                      ...taskLists
+                        .filter(
+                          (list) =>
+                            list.can_create_tasks ||
+                            list.id === task.task_list?.id
+                        )
+                        .map((taskList) => ({
+                          value: taskList.id,
+                          label: taskList.name,
+                        })),
                     ]}
                     value={draftTaskListId}
                     disabled={patchMutation.isPending}
@@ -1077,6 +1088,9 @@ export const TaskDetailPanel = ({
                 </div>
               ) : (
                 task.task_list?.name || t('taskLists.standalone')
+              )}
+              {editingField === 'taskList' && (
+                <p>{t('taskLists.moveWarning')}</p>
               )}
             </TaskProperty>
             <TaskProperty

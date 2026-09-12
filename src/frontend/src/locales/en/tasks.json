@@ -57,7 +57,10 @@
       "ascending": "Sort {{field}} ascending",
       "descending": "Sort {{field}} descending"
     },
-    "statusOptions": { "open": "Incomplete", "all": "All statuses" },
+    "statusOptions": {
+      "open": "Incomplete",
+      "all": "All statuses"
+    },
     "clearFilters": "Clear filters",
     "filteredResultCount": "{{count}} matching tasks",
     "removeFilter": "Remove filter: {{filter}}",
@@ -171,7 +174,7 @@
     "descriptionPlaceholder": "Add the list's purpose or scope",
     "taskCount": "{{count}} tasks",
     "deleteTitle": "Delete task list",
-    "deleteDescription": "Permanently delete \"{{name}}\"? Its groups and configuration cannot be restored; assigned tasks will remain without this list.",
+    "deleteDescription": "Permanently delete “{{name}}”? All tasks are kept outside the list by default. Members whose only access came from this list will lose access to those tasks.",
     "deleteConfirm": "Delete",
     "deleteNamed": "Delete task list: {{name}}",
     "error": "The task list operation failed. Please try again.",
@@ -179,23 +182,27 @@
     "more": "More actions for {{name}}",
     "share": "Share",
     "shareTitle": "Share {{name}}",
-    "shareHint": "Viewers can browse. Editors can add, edit, complete, and archive tasks.",
+    "shareHint": "Viewers can read tasks. Editors can create, edit, complete and move tasks, and archive lists. Only owners manage list membership. Task creators and list owners can delete tasks. Direct task roles grant additional permissions.",
     "addCollaborator": "Add collaborator",
     "searchCollaborator": "Search organization members",
     "removeCollaborator": "Remove {{name}}",
     "permissionFor": "Permission for {{name}}",
-    "roles": { "viewer": "Can view", "editor": "Can edit", "owner": "Owner" },
+    "roles": {
+      "viewer": "Can view",
+      "editor": "Can edit",
+      "owner": "Owner"
+    },
     "rename": "Rename",
     "archive": "Archive",
     "archiveTitle": "Archive task list",
-    "archiveDescription": "Archive \"{{name}}\"? It will be hidden and no new tasks can be created in it.",
+    "archiveDescription": "Archive “{{name}}”? It will be hidden by default. Existing tasks remain readable and editable, but new tasks and subtasks cannot be created.",
     "archivedTitle": "Archived task lists",
     "restore": "Restore",
     "leave": "Remove",
     "leaveTitle": "Remove task list",
-    "leaveDescription": "Leave \"{{name}}\"? Only you will lose access. To return, another member must share it with you again.",
+    "leaveDescription": "Leave “{{name}}”? List membership access will be removed. Your direct rights as a task creator, assignee or follower remain. The owner must share the list to let you rejoin.",
     "delete": "Delete",
-    "deleteUnassigned": "Also delete unassigned tasks that only belong to this list",
+    "deleteUnassigned": "Also delete all unassigned tasks in this list",
     "actionError": "The operation failed. Please try again.",
     "color": "Color",
     "colors": {
@@ -206,7 +213,19 @@
       "orange": "Orange",
       "red": "Red",
       "purple": "Purple"
-    }
+    },
+    "deleteUnassignedWarning": "Previewed tasks and attachments will be permanently deleted; follows and shared links will no longer work. Subtasks outside this deletion scope survive without the deleted parent.",
+    "archiveHint": "This list is archived. Existing tasks remain readable and editable according to your permissions. New tasks and subtasks cannot be created.",
+    "revokeConfirm": "Change list access for {{name}}? Their independent permissions as a task creator, assignee or follower will remain.",
+    "deleteImpact": "Unassigned tasks to delete: {{count}} (only when the option above is checked)",
+    "previewLimit": "Only the first 100 tasks are shown. Confirmation covers the entire count above.",
+    "moveWarning": "Members with access only through the source list will lose access. Members of the destination list will gain access.",
+    "transfer": "Transfer ownership",
+    "transferConfirm": "Transfer ownership to “{{name}}”? You will become an editor and lose list deletion and membership management rights, but can leave the list.",
+    "recover": "Recover ownerless lists",
+    "recoverConfirm": "Take ownership of “{{name}}”? It has no active owner. This action will be recorded in the organization audit log.",
+    "recoverHint": "Only lists without an active owner in this organization are shown. Task content remains inaccessible until recovery.",
+    "recoverEmpty": "No lists need recovery."
   },
   "taskListGroups": {
     "title": "List groups",
@@ -307,7 +326,11 @@
     "weekly": "Weekly",
     "monthly": "Monthly",
     "every": "Every",
-    "units": { "daily": "day(s)", "weekly": "week(s)", "monthly": "month(s)" },
+    "units": {
+      "daily": "day(s)",
+      "weekly": "week(s)",
+      "monthly": "month(s)"
+    },
     "ends": "Ends",
     "endNever": "Never",
     "endDate": "On a date",
@@ -428,7 +451,10 @@
     "completeWithOpenSubtasksDescription": "{{count}} subtasks are still incomplete. Completing this task will not change their status.",
     "completeAnyway": "Complete anyway"
   },
-  "saveState": { "saving": "Saving…", "saved": "Saved" },
+  "saveState": {
+    "saving": "Saving…",
+    "saved": "Saved"
+  },
   "subtasks": {
     "title": "Subtasks",
     "parent": "Parent task",

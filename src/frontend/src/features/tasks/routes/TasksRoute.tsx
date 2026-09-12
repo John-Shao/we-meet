@@ -45,6 +45,7 @@ import {
   useTask,
   useTaskListGroups,
   useTaskLists,
+  useRecoverableTaskLists,
   useTaskGroups,
   useTaskSettings,
   useTaskStatistics,
@@ -68,6 +69,7 @@ import { TaskListGroupRenameForm } from '../components/TaskListGroupRenameForm'
 import { TaskListManager } from '../components/TaskListManager'
 import {
   TaskListDeleteDialog,
+  TaskListRecoveryDialog,
   TaskListRenameDialog,
   TaskListSharingDialog,
 } from '../components/TaskListDialogs'
@@ -112,6 +114,8 @@ const TasksAuthenticated = () => {
   )
   const sharedVia = state.sharedVia
   const [creating, setCreating] = useState(false)
+  const [recoveringLists, setRecoveringLists] = useState(false)
+  const { data: recoverableLists = [] } = useRecoverableTaskLists()
   const [createGroupId, setCreateGroupId] = useState<string>()
   const [createParentTask, setCreateParentTask] = useState<ApiTask | null>(null)
   const [taskListManagerOpen, setTaskListManagerOpen] = useState(false)
@@ -161,7 +165,9 @@ const TasksAuthenticated = () => {
     data: archivedTaskLists = [],
     isLoading: archivedTaskListsLoading,
     error: archivedTaskListsError,
-  } = useArchivedTaskLists(showArchivedTaskLists)
+  } = useArchivedTaskLists(
+    showArchivedTaskLists || !['all', 'unassigned'].includes(state.taskList)
+  )
   const { data: standaloneTaskCountData } = useStandaloneTaskCount()
   const { data: taskSettings } = useTaskSettings()
   const { data: assignedStatistics } = useTaskStatistics(
@@ -223,7 +229,7 @@ const TasksAuthenticated = () => {
   const standaloneTaskCount = standaloneTaskCountData?.count || 0
   const selectedTask =
     tasks.find((task) => task.id === state.task) || selectedTaskDetail
-  const selectedTaskList = taskLists.find(
+  const selectedTaskList = [...taskLists, ...archivedTaskLists].find(
     (taskList) => taskList.id === state.taskList
   )
   const selectedTaskGroup = taskGroups.find(
@@ -495,7 +501,7 @@ const TasksAuthenticated = () => {
     <TaskDetailPanel
       taskId={state.task}
       fallbackTask={selectedTask}
-      taskLists={taskLists}
+      taskLists={[...taskLists, ...archivedTaskLists]}
       taskGroups={taskGroups}
       sharedVia={sharedVia}
       onCreateSubtask={(parentTask) => {
@@ -592,6 +598,9 @@ const TasksAuthenticated = () => {
           <div>
             <h1 className={headingCss}>{currentViewName}</h1>
             <p className={countCss}>{t('workspace.resultCount', { count })}</p>
+            {selectedTaskList?.is_archived && (
+              <p className={countCss}>{t('taskLists.archiveHint')}</p>
+            )}
             {groupNotice && (
               <p role="status" className={groupNoticeCss}>
                 {groupNotice}
@@ -599,6 +608,16 @@ const TasksAuthenticated = () => {
             )}
           </div>
           <div className={headerActionsCss}>
+            {recoverableLists.length > 0 && (
+              <Button
+                size="dense"
+                variant="secondaryText"
+                onPress={() => setRecoveringLists(true)}
+              >
+                {t('taskLists.recover')}
+              </Button>
+            )}
+
             <Button
               variant="tertiary"
               size="icon32"
@@ -780,7 +799,7 @@ const TasksAuthenticated = () => {
                 tasks={listTasks}
                 showOverdueMarker={taskSettings?.overdue_marker_enabled ?? true}
                 compact={panelOpen}
-                taskLists={taskLists}
+                taskLists={[...taskLists, ...archivedTaskLists]}
                 columns={effectiveTaskColumns(state)}
                 grouping={state.grouping}
                 ordering={state.ordering}
@@ -838,6 +857,9 @@ const TasksAuthenticated = () => {
             {panel}
           </ResizablePanel>
         ))}
+      {recoveringLists && (
+        <TaskListRecoveryDialog onClose={() => setRecoveringLists(false)} />
+      )}
       {creating && (
         <Modal
           ariaLabel={t('workspace.createTitle')}

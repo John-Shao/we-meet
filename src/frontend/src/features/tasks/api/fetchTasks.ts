@@ -593,12 +593,19 @@ export const useDestroyTaskList = () => {
   return useMutation<
     void,
     ApiError,
-    { taskListId: string; deleteUnassigned: boolean }
+    {
+      taskListId: string
+      deleteUnassigned: boolean
+      confirmationToken?: string
+    }
   >({
-    mutationFn: ({ taskListId, deleteUnassigned }) =>
+    mutationFn: ({ taskListId, deleteUnassigned, confirmationToken }) =>
       fetchApi<void>(
         `task-lists/${encodeURIComponent(taskListId)}/?delete_unassigned=${deleteUnassigned}`,
-        { method: 'DELETE' }
+        {
+          method: 'DELETE',
+          body: JSON.stringify({ confirmation_token: confirmationToken }),
+        }
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
@@ -1103,6 +1110,60 @@ export const useDeleteTask = () => {
       queryClient.removeQueries({ queryKey: ['tasks', 'detail', taskId] })
       void queryClient.invalidateQueries({ queryKey: ['task-lists'] })
       return queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+export const useTaskListDeletionImpact = (taskListId: string) =>
+  useQuery<
+    {
+      count: number
+      token: string
+      tasks: { id: string; title: string }[]
+    },
+    ApiError
+  >({
+    queryKey: ['task-lists', taskListId, 'deletion-impact'],
+    queryFn: () =>
+      fetchApi(`task-lists/${encodeURIComponent(taskListId)}/deletion-impact/`),
+    staleTime: 0,
+  })
+
+export const useTransferTaskList = () => {
+  const client = useQueryClient()
+  return useMutation<
+    ApiTaskList,
+    ApiError,
+    { taskListId: string; userId: string }
+  >({
+    mutationFn: ({ taskListId, userId }) =>
+      fetchApi(`task-lists/${encodeURIComponent(taskListId)}/transfer/`, {
+        method: 'POST',
+        body: JSON.stringify({ user_id: userId }),
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['task-lists'] })
+      void client.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+export const useRecoverableTaskLists = () =>
+  useQuery<{ id: string; name: string }[], ApiError>({
+    queryKey: ['task-lists', 'recoverable'],
+    queryFn: () => fetchApi('task-lists/recoverable/'),
+  })
+
+export const useTakeoverTaskList = () => {
+  const client = useQueryClient()
+  return useMutation<ApiTaskList, ApiError, string>({
+    mutationFn: (id) =>
+      fetchApi(`task-lists/${encodeURIComponent(id)}/takeover/`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['task-lists'] })
+      void client.invalidateQueries({ queryKey: ['tasks'] })
     },
   })
 }

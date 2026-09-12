@@ -5187,6 +5187,8 @@ class ApprovalDelegation(BaseModel):
 
 
 class AuditActionChoices(models.TextChoices):
+    TASK_LIST_TRANSFER = "task_list.transfer", _("Task list ownership transferred")
+    TASK_LIST_TAKEOVER = "task_list.takeover", _("Task list ownership recovered")
     """Administrative actions recorded in the console audit log."""
 
     DEPT_CREATE = "dept.create", _("Department created")

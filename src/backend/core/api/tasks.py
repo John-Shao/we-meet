@@ -1,5 +1,6 @@
 """Minimal standalone task API."""
 
+import hashlib
 import uuid
 from datetime import timedelta
 
@@ -86,6 +87,21 @@ from core.services.task_notifications import (
     record_task_status_change,
     supersede_ineligible_task_reminders,
     supersede_pending_task_reminders,
+)
+from core.services.task_permissions import (
+    annotate_task_list_owners,
+    can_delete_task,
+    can_move_task,
+    has_active_task_list_owner,
+)
+from core.services.task_permissions import (
+    can_edit_task_list as _can_edit_task_list,
+)
+from core.services.task_permissions import (
+    can_manage_task as _can_manage_task_content,
+)
+from core.services.task_permissions import (
+    task_list_role as _task_list_role,
 )
 from core.services.task_recurrence import (
     TaskRecurrenceError,
@@ -174,29 +190,6 @@ def _require_conversation_membership(user, cid):
     except JusiImBadResponseError as exc:
         raise PermissionDenied("You are not a member of this conversation.") from exc
     return cid
-
-
-def _task_list_role(task_list, user):
-    if task_list is None or user is None or not user.is_authenticated:
-        return None
-    role = (
-        models.TaskListAccess.objects.filter(task_list=task_list, user=user)
-        .values_list("role", flat=True)
-        .first()
-    )
-    if role is None and task_list.creator_id == user.id:
-        return models.TaskListAccess.Role.OWNER
-    return role
-
-
-def _can_edit_task_list(task_list, user):
-    return _task_list_role(task_list, user) in TASK_LIST_EDIT_ROLES
-
-
-def _can_manage_task_content(task, user):
-    return (
-        task.creator_id == user.id or is_task_assignee(task, user)
-    ) or _can_edit_task_list(task.task_list, user)
 
 
 def _can_comment_on_task(task, user):
@@ -518,9 +511,16 @@ def _filter_by_task_list(queryset, *, task_list_filter, user):
             models.TaskList.objects.filter(
                 id=task_list_filter,
                 organization=organization,
-                is_archived=False,
             )
-            .filter(Q(accesses__user=user) | Q(creator=user))
+            .annotate(
+                _has_owner=Exists(
+                    models.TaskListAccess.objects.filter(
+                        task_list_id=OuterRef("pk"),
+                        role=models.TaskListAccess.Role.OWNER,
+                    )
+                )
+            )
+            .filter(Q(accesses__user=user) | Q(creator=user, _has_owner=False))
             .distinct()
             .get()
         )
@@ -532,8 +532,7 @@ def _filter_by_task_list(queryset, *, task_list_filter, user):
         raise serializers.ValidationError(
             {
                 "task_list": (
-                    "Use all, unassigned, or an active task list from your "
-                    "organization."
+                    "Use all, unassigned, or a task list from your organization."
                 )
             }
         ) from exc
@@ -627,9 +626,16 @@ class TaskPlacementValidationMixin:
         )
 
     def validate_task_list_id(self, task_list):
+        user = self.context["request"].user
+        instance = getattr(self, "instance", None)
+        if instance is not None:
+            target_id = getattr(task_list, "id", None)
+            if instance.task_list_id == target_id:
+                return task_list
+            if not can_move_task(instance, user):
+                raise PermissionDenied("You cannot move tasks out of this task list.")
         if task_list is None:
             return None
-        user = self.context["request"].user
         organization = (
             self.instance.organization
             if getattr(self, "instance", None) is not None
@@ -740,6 +746,14 @@ class TaskCreateSerializer(
         if parent is None:
             return None
         request = self.context["request"]
+        if (
+            isinstance(self, TaskCreateSerializer)
+            and parent.task_list_id
+            and parent.task_list.is_archived
+        ):
+            raise serializers.ValidationError(
+                "Cannot create subtasks under an archived task list."
+            )
         if not _can_manage_task_content(parent, request.user):
             raise serializers.ValidationError(
                 "Choose a parent task you can edit.", code="task_parent_forbidden"
@@ -1114,12 +1128,25 @@ class TaskListViewSet(
             return models.TaskList.objects.none()
         queryset = (
             models.TaskList.objects.filter(organization=organization)
-            .filter(Q(accesses__user=self.request.user) | Q(creator=self.request.user))
+            .annotate(
+                _has_owner=Exists(
+                    models.TaskListAccess.objects.filter(
+                        task_list_id=OuterRef("pk"),
+                        role=models.TaskListAccess.Role.OWNER,
+                    )
+                )
+            )
+            .filter(
+                Q(accesses__user=self.request.user)
+                | Q(creator=self.request.user, _has_owner=False)
+            )
             .distinct()
         )
-        queryset = queryset.filter(
-            is_archived=self.request.query_params.get("archived") == "true"
-        ).annotate(_task_count=Count("tasks", distinct=True))
+        if self.action == "list":
+            queryset = queryset.filter(
+                is_archived=self.request.query_params.get("archived") == "true"
+            )
+        queryset = queryset.annotate(_task_count=Count("tasks", distinct=True))
         return queryset.select_related("creator", "list_group").prefetch_related(
             Prefetch(
                 "groups",
@@ -1165,24 +1192,168 @@ class TaskListViewSet(
         self._validate_unique_name(name, task_list.organization, exclude=task_list)
         serializer.save()
 
-    def destroy(self, request, *args, **kwargs):
+    def _locked_task_list(self):
+        visible = self.get_object()
+        lock_task_hierarchy_scopes(visible.organization_id)
+        return models.TaskList.objects.select_for_update().get(pk=visible.pk)
+
+    @staticmethod
+    def _unassigned_impact(task_list):
+        tasks = list(
+            task_list.tasks.filter(
+                assignees__isnull=True, assignee__isnull=True
+            ).order_by("id")
+        )
+        token = hashlib.sha256(
+            "|".join(
+                f"{task.pk}:{task.updated_at.isoformat()}" for task in tasks
+            ).encode()
+        ).hexdigest()
+        return tasks, token
+
+    @action(detail=True, methods=["get"], url_path="deletion-impact")
+    def deletion_impact(self, request, *args, **kwargs):
         task_list = self.get_object()
         self._ensure_is_owner(task_list)
-        with transaction.atomic():
-            if request.query_params.get("delete_unassigned") == "true":
-                _delete_tasks_with_attachments(
-                    task_list.tasks.filter(
-                        assignees__isnull=True, assignee__isnull=True
-                    ),
-                    actor=request.user,
+        tasks, token = self._unassigned_impact(task_list)
+        return Response(
+            {
+                "count": len(tasks),
+                "token": token,
+                "tasks": [
+                    {"id": str(task.pk), "title": task.title} for task in tasks[:100]
+                ],
+            }
+        )
+
+    @transaction.atomic
+    def destroy(self, request, *args, **kwargs):
+        task_list = self._locked_task_list()
+        self._ensure_is_owner(task_list)
+        if request.query_params.get("delete_unassigned") == "true":
+            tasks, token = self._unassigned_impact(task_list)
+            if request.data.get("confirmation_token") != token:
+                return Response(
+                    {
+                        "detail": "Review the current unassigned tasks before deleting.",
+                        "code": "task_list_impact_changed",
+                    },
+                    status=status.HTTP_409_CONFLICT,
                 )
-            task_list.delete()
+            for task in tasks:
+                _unbind_direct_subtasks(task=task, actor=request.user)
+                if task.recurrence_rule_id:
+                    models.TaskRecurrenceRule.objects.filter(
+                        pk=task.recurrence_rule_id
+                    ).update(is_active=False, next_occurrence_date=None, last_error="")
+            _delete_tasks_with_attachments(
+                models.Task.objects.filter(pk__in=[task.pk for task in tasks]),
+                actor=request.user,
+            )
+        task_list.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=True, methods=["post"])
+    @transaction.atomic
+    def transfer(self, request, *args, **kwargs):
+        task_list = self._locked_task_list()
+        self._ensure_is_owner(task_list)
+        target_id = serializers.UUIDField().run_validation(request.data.get("user_id"))
+        target = get_object_or_404(models.User, pk=target_id)
+        if target.pk == request.user.pk:
+            raise serializers.ValidationError({"user_id": "Choose another owner."})
+        if not models.Membership.objects.filter(
+            organization_id=task_list.organization_id,
+            user=target,
+            status=models.MembershipStatusChoices.ACTIVE,
+            user__is_active=True,
+            user__is_device=False,
+        ).exists():
+            raise serializers.ValidationError(
+                {"user_id": "Choose an active organization member."}
+            )
+        self._assign_owner(task_list, target, request.user, "task_list.transfer")
+        return Response(self.get_serializer(task_list).data)
+
+    @staticmethod
+    def _assign_owner(task_list, target, actor, action):
+        previous = list(
+            task_list.accesses.filter(
+                role=models.TaskListAccess.Role.OWNER
+            ).values_list("user_id", flat=True)
+        )
+        if not previous and task_list.creator_id:
+            previous = [task_list.creator_id]
+        for user_id in previous:
+            models.TaskListAccess.objects.update_or_create(
+                task_list=task_list,
+                user_id=user_id,
+                defaults={"role": models.TaskListAccess.Role.EDITOR},
+            )
+        models.TaskListAccess.objects.update_or_create(
+            task_list=task_list,
+            user=target,
+            defaults={"role": models.TaskListAccess.Role.OWNER},
+        )
+        # Ownership changes and their audit record commit together.
+        models.AuditLog.objects.create(
+            organization=task_list.organization,
+            actor=actor,
+            action=action,
+            target_type="task_list",
+            target_id=str(task_list.pk),
+            target_label=task_list.name,
+            metadata={
+                "previous_owner_ids": [str(pk) for pk in previous],
+                "owner_id": str(target.pk),
+            },
+        )
+
+    @action(detail=False, methods=["get"])
+    def recoverable(self, request, *args, **kwargs):
+        if not is_caller_org_admin(request.user):
+            return Response([])
+        lists = (
+            annotate_task_list_owners(
+                models.TaskList.objects.filter(
+                    organization=get_caller_organization(request.user)
+                )
+            )
+            .filter(
+                Q(_has_owner=True, _has_active_owner=False)
+                | Q(_has_owner=False, _has_active_creator=False)
+            )
+            .order_by("name", "id")
+        )
+        # Recovery exposes only list metadata, never its tasks.
+        return Response([{"id": str(item.pk), "name": item.name} for item in lists])
+
+    @action(detail=True, methods=["post"])
+    @transaction.atomic
+    def takeover(self, request, *args, **kwargs):
+        if not is_caller_org_admin(request.user):
+            raise PermissionDenied(
+                "Only organization administrators can recover ownership."
+            )
+        organization = get_caller_organization(request.user)
+        lock_task_hierarchy_scopes(organization.id)
+        task_list = get_object_or_404(
+            models.TaskList.objects.select_for_update(),
+            pk=kwargs.get("pk"),
+            organization=organization,
+        )
+        if has_active_task_list_owner(task_list):
+            raise PermissionDenied(
+                "An active owner must transfer this list themselves."
+            )
+        self._assign_owner(task_list, request.user, request.user, "task_list.takeover")
+        return Response(self.get_serializer(task_list).data)
+
     @action(detail=True, methods=["get", "post"])
+    @transaction.atomic
     def shares(self, request, *args, **kwargs):  # pylint: disable=unused-argument
-        task_list = self.get_object()
-        self._ensure_can_manage(task_list)
+        task_list = self._locked_task_list()
+        self._ensure_is_owner(task_list)
         if request.method == "GET":
             accesses = models.TaskListAccess.objects.filter(
                 task_list=task_list
@@ -1232,9 +1403,10 @@ class TaskListViewSet(
         methods=["patch", "delete"],
         url_path=r"shares/(?P<user_id>[^/.]+)",
     )
+    @transaction.atomic
     def share_detail(self, request, user_id=None, *args, **kwargs):
-        task_list = self.get_object()
-        self._ensure_can_manage(task_list)
+        task_list = self._locked_task_list()
+        self._ensure_is_owner(task_list)
         access = get_object_or_404(
             models.TaskListAccess.objects.select_related("user"),
             task_list=task_list,
@@ -1260,15 +1432,14 @@ class TaskListViewSet(
         )
 
     @action(detail=True, methods=["post"])
+    @transaction.atomic
     def leave(self, request, *args, **kwargs):  # pylint: disable=unused-argument
-        task_list = self.get_object()
+        task_list = self._locked_task_list()
         access = get_object_or_404(
             models.TaskListAccess, task_list=task_list, user=request.user
         )
         if access.role == models.TaskListAccess.Role.OWNER:
-            raise PermissionDenied(
-                "The task-list owner must delete the task list instead of leaving it."
-            )
+            raise PermissionDenied("Transfer ownership before leaving this task list.")
         access.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -1476,6 +1647,13 @@ class TaskViewSet(
                         role__in=TASK_LIST_EDIT_ROLES,
                     )
                 ),
+                _is_task_list_owner=Exists(
+                    models.TaskListAccess.objects.filter(
+                        task_list_id=OuterRef("task_list_id"),
+                        user=user,
+                        role=models.TaskListAccess.Role.OWNER,
+                    )
+                ),
                 _direct_subtask_count=Count("subtasks", distinct=True),
             )
             .select_related(
@@ -1672,6 +1850,13 @@ class TaskViewSet(
                         task_list_id=OuterRef("task_list_id"),
                         user=request.user,
                         role__in=TASK_LIST_EDIT_ROLES,
+                    )
+                ),
+                _is_task_list_owner=Exists(
+                    models.TaskListAccess.objects.filter(
+                        task_list_id=OuterRef("task_list_id"),
+                        user=request.user,
+                        role=models.TaskListAccess.Role.OWNER,
                     )
                 ),
                 _direct_subtask_count=Count("subtasks", distinct=True),
@@ -2065,10 +2250,10 @@ class TaskViewSet(
                 .select_related("task_list")
                 .get(pk=visible_task.pk)
             )
-            if task.creator_id != request.user.id and not _can_edit_task_list(
-                task.task_list, request.user
-            ):
-                raise PermissionDenied("Only task editors can delete this task.")
+            if not can_delete_task(task, request.user):
+                raise PermissionDenied(
+                    "Only the task creator or task-list owner can delete this task."
+                )
             _unbind_direct_subtasks(task=task, actor=request.user)
             if task.source_action_item_id is not None:
                 models.ActionItem.objects.filter(pk=task.source_action_item_id).update(

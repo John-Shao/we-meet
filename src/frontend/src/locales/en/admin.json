@@ -329,7 +329,8 @@
     "bulkOffboard": "Offboard",
     "bulkOffboardConfirm": "Offboard the {{count}} selected member(s)?",
     "bulkClear": "Clear selection",
-    "bulkPartial": "{{done}} processed, {{skipped}} skipped: {{names}}"
+    "bulkPartial": "{{done}} processed, {{skipped}} skipped: {{names}}",
+    "ownsTaskLists": "This member owns {{count}} task lists. Transfer them first, or an organization administrator can recover them in Tasks after departure."
   },
   "role": {
     "member": "Member",

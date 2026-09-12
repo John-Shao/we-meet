@@ -33,7 +33,10 @@
     "newTask": "Neue Aufgabe",
     "filters": "Aufgabenfilter",
     "statusFilter": "Status",
-    "statusOptions": { "open": "Nicht erledigt", "all": "Alle Status" },
+    "statusOptions": {
+      "open": "Nicht erledigt",
+      "all": "Alle Status"
+    },
     "clearFilters": "Filter löschen",
     "filteredResultCount": "{{count}} passende Aufgaben",
     "removeFilter": "Filter entfernen: {{filter}}",
@@ -145,7 +148,7 @@
     "descriptionPlaceholder": "Add the list's purpose or scope",
     "taskCount": "{{count}} Aufgaben",
     "deleteTitle": "Aufgabenliste löschen",
-    "deleteDescription": "„{{name}}“ endgültig löschen? Gruppen und Konfiguration können nicht wiederhergestellt werden; zugewiesene Aufgaben bleiben erhalten.",
+    "deleteDescription": "„{{name}}“ endgültig löschen? Aufgaben bleiben standardmäßig außerhalb der Liste erhalten. Mitglieder mit Zugriff nur über diese Liste verlieren ihren Zugriff.",
     "deleteConfirm": "Löschen",
     "deleteNamed": "Aufgabenliste löschen: {{name}}",
     "error": "Die Listenaktion ist fehlgeschlagen. Bitte erneut versuchen.",
@@ -153,7 +156,7 @@
     "more": "Weitere Aktionen für {{name}}",
     "share": "Teilen",
     "shareTitle": "{{name}} teilen",
-    "shareHint": "Betrachter können lesen; Bearbeiter können Aufgaben bearbeiten und die Liste archivieren.",
+    "shareHint": "Leser können Aufgaben ansehen. Bearbeiter können Aufgaben erstellen, bearbeiten, abschließen und verschieben sowie Listen archivieren. Nur Eigentümer verwalten Mitglieder. Aufgabenersteller und Listeneigentümer dürfen Aufgaben löschen. Direkte Aufgabenrollen gelten zusätzlich.",
     "addCollaborator": "Mitwirkende hinzufügen",
     "searchCollaborator": "Organisationsmitglieder suchen",
     "removeCollaborator": "{{name}} entfernen",
@@ -166,14 +169,14 @@
     "rename": "Umbenennen",
     "archive": "Archivieren",
     "archiveTitle": "Aufgabenliste archivieren",
-    "archiveDescription": "„{{name}}“ archivieren? Die Liste wird ausgeblendet und nimmt keine neuen Aufgaben an.",
+    "archiveDescription": "„{{name}}“ archivieren? Die Liste wird standardmäßig ausgeblendet. Vorhandene Aufgaben bleiben lesbar und bearbeitbar. Neue Aufgaben und Unteraufgaben können nicht erstellt werden.",
     "archivedTitle": "Archivierte Aufgabenlisten",
     "restore": "Wiederherstellen",
     "leave": "Entfernen",
     "leaveTitle": "Aufgabenliste entfernen",
-    "leaveDescription": "„{{name}}“ verlassen? Nur Ihr Zugriff wird entfernt.",
+    "leaveDescription": "„{{name}}“ verlassen? Listenrechte entfallen. Ihre direkten Rechte als Ersteller, Verantwortlicher oder Beobachter bleiben bestehen. Für den erneuten Beitritt muss der Eigentümer Sie einladen.",
     "delete": "Löschen",
-    "deleteUnassigned": "Auch nicht zugewiesene Aufgaben löschen, die nur zu dieser Liste gehören",
+    "deleteUnassigned": "Auch alle nicht zugewiesenen Aufgaben dieser Liste löschen",
     "actionError": "Der Vorgang ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
     "color": "Farbe",
     "colors": {
@@ -184,7 +187,19 @@
       "orange": "Orange",
       "red": "Rot",
       "purple": "Violett"
-    }
+    },
+    "deleteUnassignedWarning": "Die angezeigten Aufgaben und Anhänge werden endgültig gelöscht. Geteilte Links und Beobachtungen werden ungültig. Nicht zur Löschung ausgewählte Unteraufgaben bleiben ohne die gelöschte übergeordnete Aufgabe erhalten.",
+    "archiveHint": "Diese Liste ist archiviert. Vorhandene Aufgaben bleiben entsprechend Ihren Berechtigungen lesbar und bearbeitbar. Neue Aufgaben und Unteraufgaben können nicht erstellt werden.",
+    "revokeConfirm": "Listenzugriff für {{name}} ändern? Unabhängige Berechtigungen als Ersteller, Verantwortlicher oder Beobachter einer Aufgabe bleiben erhalten.",
+    "deleteImpact": "Zu löschende nicht zugewiesene Aufgaben: {{count}} (nur bei aktivierter Option)",
+    "previewLimit": "Nur die ersten 100 Aufgaben werden angezeigt. Die Bestätigung umfasst die gesamte Anzahl.",
+    "moveWarning": "Mitglieder mit Zugriff nur über die Quellliste verlieren den Zugriff. Mitglieder der Zielliste erhalten Zugriff.",
+    "transfer": "Eigentum übertragen",
+    "transferConfirm": "Eigentum an „{{name}}“ übertragen? Sie werden Bearbeiter und verlieren die Mitgliederverwaltung und das Recht, die Liste zu löschen. Sie können die Liste verlassen.",
+    "recover": "Eigentümerlose Listen übernehmen",
+    "recoverConfirm": "„{{name}}“ übernehmen? Die Liste hat keinen aktiven Eigentümer. Diese Aktion wird im Auditprotokoll aufgezeichnet.",
+    "recoverHint": "Nur Listen dieser Organisation ohne aktiven Eigentümer werden angezeigt. Aufgabeninhalte sind vor der Übernahme nicht zugänglich.",
+    "recoverEmpty": "Keine Listen zur Übernahme."
   },
   "taskListGroups": {
     "title": "Listengruppen",
@@ -275,7 +290,11 @@
     "weekly": "Wöchentlich",
     "monthly": "Monatlich",
     "every": "Alle",
-    "units": { "daily": "Tag(e)", "weekly": "Woche(n)", "monthly": "Monat(e)" },
+    "units": {
+      "daily": "Tag(e)",
+      "weekly": "Woche(n)",
+      "monthly": "Monat(e)"
+    },
     "ends": "Endet",
     "endNever": "Nie",
     "endDate": "An einem Datum",
@@ -389,7 +408,10 @@
     "completeWithOpenSubtasksDescription": "{{count}} Unteraufgaben sind noch offen. Das Abschließen dieser Aufgabe ändert ihren Status nicht.",
     "completeAnyway": "Trotzdem abschließen"
   },
-  "saveState": { "saving": "Speichern…", "saved": "Gespeichert" },
+  "saveState": {
+    "saving": "Speichern…",
+    "saved": "Gespeichert"
+  },
   "subtasks": {
     "title": "Unteraufgaben",
     "parent": "Übergeordnete Aufgabe",

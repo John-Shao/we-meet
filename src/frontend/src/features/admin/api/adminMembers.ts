@@ -144,6 +144,7 @@ export interface OwnedResources {
   direct_reports_count: number
   owned_rooms: number
   owned_recordings: number
+  owned_task_lists?: { id: string; name: string }[]
 }
 
 export const fetchOwnedResources = (id: string): Promise<OwnedResources> =>

@@ -329,7 +329,8 @@
     "bulkOffboard": "批量离职",
     "bulkOffboardConfirm": "确认为所选 {{count}} 名成员办理离职?",
     "bulkClear": "取消选择",
-    "bulkPartial": "已处理 {{done}} 人,{{skipped}} 人被跳过:{{names}}"
+    "bulkPartial": "已处理 {{done}} 人,{{skipped}} 人被跳过:{{names}}",
+    "ownsTaskLists": "该成员拥有 {{count}} 个任务清单；建议先转让所有权。离职后，组织管理员可在任务模块接管失主清单。"
   },
   "role": {
     "member": "成员",

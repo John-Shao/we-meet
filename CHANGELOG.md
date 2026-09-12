@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Added
 
+- Add audited task-list ownership transfer and recovery, including owned lists in offboarding resource checks.
+- Preview unassigned tasks before deleting a list and reject stale deletion confirmations.
 - ✨(fullstack) add timezone-aware recurring tasks with idempotent daily, weekly, and monthly materialization
 - ✅(fullstack) cover recurring-task month-end, retry, edit-scope, and failure-stop behavior
 - ✨(fullstack) add bounded recursive subtasks with secure parent chains and subtree confirmations
@@ -24,6 +26,7 @@ and this project adheres to
 
 ### Changed
 
+- Separate task editing, moving and deletion permissions; reserve list membership management for owners. Archived task lists can be opened and left directly, with consistent creation restrictions and access-change guidance.
 - ✨(frontend) replace task loading text with layout-stable list, board, detail, subtask, comment, attachment, and history skeletons
 - ✨(frontend) add unified task action feedback with bounded undo for status, assignee, and placement changes
 - ✨(frontend) use a centered takeover task detail below 1440px and preserve the split-panel workspace on wider Web viewports
