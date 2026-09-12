@@ -55,3 +55,8 @@
 - Android、新首页全部入口及跨终端状态对齐仍按总计划推进，不能以 Web 单元测试替代真机测试。
 
 反馈时提供提交号、record/session 或 run ID、操作顺序、实际与预期、发生时间及终端环境即可；不要附带密钥。开发侧收到问题后按影响排序修复、验证、自动提交与推送。
+
+
+## Batch 34 update
+
+Record list/detail now expose permission-filtered library metadata and strict `is_ongoing` / `has_summary` filters. No additional flag or migration. Backend regression: 31 passed. Web library integration follows in the next batch; previous deployment limitations remain. See [batch 34](meeting-ai-phase3-batch14-2026-09-13.md).

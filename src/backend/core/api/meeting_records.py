@@ -5,6 +5,7 @@ from urllib.parse import parse_qs, urlsplit
 from django.conf import settings
 from django.core.exceptions import ValidationError as ModelValidationError
 from django.db import IntegrityError
+from django.db.models import Case, Exists, OuterRef, Prefetch, Q, When
 from django.http import Http404
 
 from rest_framework import pagination, permissions, serializers, viewsets
@@ -121,6 +122,9 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
 
     capabilities = serializers.SerializerMethodField()
     source_available = serializers.SerializerMethodField()
+    is_ongoing = serializers.BooleanField(read_only=True)
+    has_summary = serializers.BooleanField(read_only=True)
+    capture_id = serializers.SerializerMethodField()
 
     class Meta:
         model = models.MeetingRecord
@@ -135,12 +139,22 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
             "revision",
             "source_available",
             "capabilities",
+            "is_ongoing",
+            "has_summary",
+            "capture_id",
         ]
         read_only_fields = fields
 
     def get_capabilities(self, obj):
         """Resolve current access, not the role at record creation time."""
         return record_capabilities(obj, self.context["request"].user)
+
+    def get_capture_id(self, obj):
+        """An exact owner-only read link; never expose a device lease or pick latest."""
+        captures = getattr(obj, "library_captures", [])
+        if obj.owner_id == self.context["request"].user.pk and len(captures) == 1:
+            return str(captures[0].pk)
+        return None
 
     def get_source_available(self, obj):
         """An orphaned meeting record must not link to another session."""
@@ -206,12 +220,56 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = visible_records(self.request.user).select_related(
             "meeting_session__room"
         )
+        # EXISTS preserves one row per record even with many summary versions.
+        # Restrict legacy materials to their exact room/session attribution.
+        queryset = queryset.annotate(
+            is_ongoing=Case(
+                When(
+                    Q(meeting_session__status=models.MeetingSession.Status.ACTIVE)
+                    | Exists(
+                        models.CaptureSession.objects.filter(record_id=OuterRef("pk"))
+                        .exclude(status=models.CaptureSession.Status.STOPPED)
+                    ),
+                    then=True,
+                ),
+                default=False,
+            ),
+            has_summary=Case(
+                When(
+                    Q(can_read_summary=True),
+                    then=Exists(
+                        models.MeetingSummaryVersion.objects.filter(record_id=OuterRef("pk"))
+                    )
+                    | Exists(
+                        models.Summary.objects.filter(
+                            session_id=OuterRef("meeting_session_id"),
+                            room_id=OuterRef("meeting_session__room_id"),
+                            status=models.Summary.Status.SUCCESS,
+                        )
+                    ),
+                ),
+                default=False,
+            ),
+        ).prefetch_related(
+            Prefetch(
+                "captures",
+                queryset=models.CaptureSession.objects.filter(created_by=self.request.user)
+                .only("id", "record_id"),
+                to_attr="library_captures",
+            )
+        )
         if self.action != "list":
             return queryset
         scope = self.request.query_params.get("scope", "recent")
         if scope not in {"recent", "owned", "participated", "shared"}:
             raise ValidationError({"scope": "Unsupported record scope."})
         queryset = filter_record_scope(queryset, self.request.user, scope)
+        for name in ("is_ongoing", "has_summary"):
+            value = self.request.query_params.get(name)
+            if value is not None:
+                if value not in {"true", "false"}:
+                    raise ValidationError({name: "Use true or false."})
+                queryset = queryset.filter(**{name: value == "true"})
         source = self.request.query_params.get("source_type")
         if source:
             if source not in models.MeetingRecord.Source.values:
