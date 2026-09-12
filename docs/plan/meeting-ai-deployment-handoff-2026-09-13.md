@@ -70,3 +70,8 @@ Web: `/meeting/notes`, `/meeting/minutes`, `/meeting/records/:recordId`. Record 
 ## Batch 36 update
 
 Full-original search and optional `expected_revision` are now supported; stale reads return 409. No migrations or new flags. 42 backend tests and 15 frontend tests passed across focused runs, with native Chromium fixture search/playback. Docs repository is now located at `../we-meet-docs`; upstream idempotency remains to implement. See [batch 36](meeting-ai-phase3-batch16-2026-09-13.md).
+
+
+## Batch 37: Docs prerequisite
+
+Docs `docs-dev` commit `c4a3089a` adds migration `core.0037_server_document_creation` and keyed creation/result lookup. Apply Docs migration before Meet delivery rollout. No new Meet migration in this batch. Eight new and seven legacy Docs tests pass with converter/storage/notification mocks. Meet integration and bot delivery are still pending. See [batch 37](meeting-ai-phase3-batch17-2026-09-13.md).

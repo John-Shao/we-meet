@@ -226,3 +226,6 @@ Latest implementation: [Batch 34: unified library queries](meeting-ai-phase3-bat
 
 
 [Batch 36: full transcript search](meeting-ai-phase3-batch16-2026-09-13.md) adds search and revision fences. Docs source located at `../we-meet-docs`; D05 dependency implementation can proceed.
+
+
+[Batch 37: Docs idempotency upstream](meeting-ai-phase3-batch17-2026-09-13.md), Docs `docs-dev` commit `c4a3089a`, migration 0037. Meet delivery integration follows.
