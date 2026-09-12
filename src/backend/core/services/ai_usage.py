@@ -75,7 +75,7 @@ def usage_from_response(response) -> dict:
     }
 
 
-def record_usage(
+def record_usage(  # noqa: PLR0913 -- explicit payer, source and independent usage units
     *,
     user=None,
     organization=None,
@@ -86,11 +86,14 @@ def record_usage(
     input_tokens: int = 0,
     output_tokens: int = 0,
     audio_seconds: int = 0,
+    infer_organization: bool = True,
 ):
     """Write one usage row. Never raises."""
     try:
-        if organization is None and user is not None:
-            from core.api.directory import get_caller_organization
+        if infer_organization and organization is None and user is not None:
+            from core.api.directory import (  # noqa: PLC0415 -- avoid API import cycle
+                get_caller_organization,
+            )
 
             organization = get_caller_organization(user)
         return models.AIUsageRecord.objects.create(
@@ -107,7 +110,7 @@ def record_usage(
                 model_code, input_tokens, output_tokens, audio_seconds
             ),
         )
-    except Exception:  # noqa: BLE001 — metering must not break the feature
+    except Exception:
         logger.exception("failed to record AI usage (kind=%s)", kind)
         return None
 

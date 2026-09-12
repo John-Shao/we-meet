@@ -1116,6 +1116,10 @@ class CaptureSession(BaseModel):
     ended_at = models.DateTimeField(null=True, blank=True)
     captured_duration_ms = models.PositiveBigIntegerField(default=0)
     last_acked_sequence = models.PositiveBigIntegerField(default=0)
+    active_transcription = models.ForeignKey(
+        "CaptureTranscriptionJob", on_delete=models.RESTRICT,
+        null=True, blank=True, related_name="published_captures",
+    )
     # Client-generated random lease; only its digest is persisted. Legacy rows
     # have no lease and cannot use the new public control protocol.
     lease_hash = models.CharField(max_length=64, blank=True)
@@ -1154,6 +1158,11 @@ class CaptureSession(BaseModel):
     def clean(self):
         """Only the independent recording owner may own a capture."""
         super().clean()
+        if self.active_transcription_id and (
+            self.active_transcription.capture_id != self.pk
+            or self.active_transcription.status != "succeeded"
+        ):
+            raise ValidationError("Published transcription must be a successful job of this capture.")
         if self.record_id and (
             self.record.source_type != MeetingRecord.Source.AUDIO
             or self.record.owner_id != self.created_by_id
@@ -1246,6 +1255,49 @@ class CaptureAudioManifest(BaseModel):
             raise ValidationError("Audio manifest is immutable.")
 
 
+class CaptureTranscriptionJob(BaseModel):
+    """One explicit provider attempt against a sealed, immutable audio manifest."""
+
+    capture = models.ForeignKey(CaptureSession, on_delete=models.CASCADE, related_name="transcription_jobs")
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    key = models.UUIDField()
+    request_hash = models.CharField(max_length=64)
+    generation = models.PositiveIntegerField()
+    inputs = models.JSONField()
+    configuration = models.JSONField()
+    status = models.CharField(max_length=16, default="queued")
+    worker_id = models.UUIDField(null=True, blank=True)
+    deadline = models.DateTimeField()
+    lease_until = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    acknowledged_inputs = models.PositiveIntegerField(default=0)
+    final_sequence = models.PositiveIntegerField(default=0)
+    text_bytes = models.PositiveIntegerField(default=0)
+    finish_hash = models.CharField(max_length=64, blank=True)
+    report = models.JSONField(default=dict, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["requested_by", "key"], name="unique_capture_asr_intent"),
+            models.UniqueConstraint(fields=["capture", "generation"], name="unique_capture_asr_generation"),
+            models.UniqueConstraint(fields=["capture"], condition=models.Q(status__in=["queued", "running"]), name="one_active_capture_asr"),
+            models.UniqueConstraint(fields=["worker_id"], condition=models.Q(status="running"), name="one_running_capture_asr_worker"),
+        ]
+
+    def __str__(self):
+        return f"CaptureTranscriptionJob({self.pk}, {self.status})"
+
+    def clean(self):
+        """Neither input audio nor payer/model can change after queuing a request."""
+        super().clean()
+        if not self._state.adding:
+            frozen = ("capture_id", "requested_by_id", "key", "request_hash", "generation", "inputs", "configuration")
+            previous = type(self).objects.get(pk=self.pk)
+            if any(getattr(previous, name) != getattr(self, name) for name in frozen):
+                raise ValidationError("Transcription source and intent are immutable.")
+
+
 class MeetingSpeaker(BaseModel):
     """Source-scoped offline labels never imply a user account identity."""
 
@@ -1299,6 +1351,10 @@ class MeetingOriginalSegment(BaseModel):
     text = models.TextField()
     language = models.CharField(max_length=16, blank=True)
     payload_hash = models.CharField(max_length=64)
+    transcription_job = models.ForeignKey(
+        CaptureTranscriptionJob, on_delete=models.RESTRICT,
+        null=True, blank=True, related_name="originals",
+    )
 
     class Meta:
         constraints = [
@@ -1328,6 +1384,8 @@ class MeetingOriginalSegment(BaseModel):
         super().clean()
         if not self._state.adding:
             raise ValidationError("Original segments are immutable.")
+        if self.transcription_job_id and self.transcription_job.capture_id != self.capture_session_id:
+            raise ValidationError("Original must belong to its transcription capture.")
         if (
             self.capture_session.record_id != self.record_id
             or self.speaker.record_id != self.record_id

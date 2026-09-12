@@ -29,10 +29,10 @@ from core.services.meeting_records import RecordConflict, visible_records
 class StrictSerializer(serializers.Serializer):
     """Reject fields that imply unsupported tenant, identity or media control."""
 
-    def validate(self, attrs):
-        if set(self.initial_data) - set(self.fields):
-            raise ValidationError("Unsupported capture field.")
-        return attrs
+    def to_internal_value(self, data):
+        if isinstance(data, dict) and set(data) - set(self.fields):
+            raise ValidationError({"non_field_errors": ["Unsupported capture field."]})
+        return super().to_internal_value(data)
 
 
 class CreateCaptureSerializer(StrictSerializer):

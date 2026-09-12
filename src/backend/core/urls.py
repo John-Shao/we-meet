@@ -43,6 +43,15 @@ from core.api.capture_audio import (
     CaptureAudioUploadView,
     CaptureAudioView,
 )
+from core.api.capture_transcription import (
+    CancelTranscriptionView,
+    CaptureTranscriptionView,
+    ClaimTranscriptionView,
+    ControlTranscriptionView,
+    FinishTranscriptionView,
+    IngestTranscriptionView,
+    TranscriptionInputView,
+)
 from core.api.directory import (
     ContactPreferenceViewSet,
     DepartmentViewSet,
@@ -303,6 +312,11 @@ external_router.register(
 )
 
 urlpatterns = [
+    path("api/agent/capture-transcriptions/claim/", ClaimTranscriptionView.as_view()),
+    path("api/agent/capture-transcriptions/<uuid:job_id>/control/", ControlTranscriptionView.as_view()),
+    path("api/agent/capture-transcriptions/<uuid:job_id>/audio/<int:index>/", TranscriptionInputView.as_view()),
+    path("api/agent/capture-transcriptions/<uuid:job_id>/originals/", IngestTranscriptionView.as_view()),
+    path("api/agent/capture-transcriptions/<uuid:job_id>/finish/", FinishTranscriptionView.as_view()),
     path("api/agent/capture-writer-grants/", CaptureWriterGrantView.as_view()),
     path("api/agent/record-transcripts/", IngestRecordOriginalView.as_view()),
     path(
@@ -323,6 +337,8 @@ urlpatterns = [
                 path("meeting-records/<uuid:record_id>/questions/", RecordQuestionView.as_view(), name="record-questions"),
                 path("meeting-records/<uuid:record_id>/questions/<uuid:question_id>/", RecordQuestionView.as_view(), name="record-question-detail"),
                 path("capture-sessions/<uuid:capture_id>/audio/", CaptureAudioView.as_view(), name="capture-audio"),
+                path("capture-sessions/<uuid:capture_id>/transcription/", CaptureTranscriptionView.as_view()),
+                path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/cancel/", CancelTranscriptionView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/audio/upload/", CaptureAudioUploadView.as_view(), name="capture-audio-upload"),
                 path("capture-sessions/<uuid:capture_id>/audio/seal/", CaptureAudioSealView.as_view(), name="capture-audio-seal"),
                 path("capture-sessions/<uuid:capture_id>/audio/<uuid:chunk_id>/", CaptureAudioDownloadView.as_view(), name="capture-audio-download"),

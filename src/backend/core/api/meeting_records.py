@@ -15,6 +15,7 @@ from rest_framework.throttling import UserRateThrottle
 
 from core import models
 from core.services.asr_observations import observation_status, snapshot_asr_status
+from core.services.capture_transcription import current_originals
 from core.services.meeting_records import (
     RecordConflict,
     can_generate_summary,
@@ -494,7 +495,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         if not settings.MEETING_CAPTURE_PROTOCOL_ENABLED:
             raise Http404
         record = self._content_record("read_transcript")
-        rows = record.original_segments.select_related("speaker")
+        rows = current_originals(record).select_related("speaker")
         speaker_id = request.query_params.get("speaker_id")
         if speaker_id:
             rows = rows.filter(
@@ -558,7 +559,13 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         record = self._content_record("read_transcript")
         pager = RecordPagination()
         pager.ordering = ("created_at", "id")
-        page = pager.paginate_queryset(record.speakers.all(), request, view=self)
+        page = pager.paginate_queryset(
+            record.speakers.filter(
+                pk__in=current_originals(record).values("speaker_id")
+            ),
+            request,
+            view=self,
+        )
         return pager.get_paginated_response(
             [
                 {
