@@ -295,3 +295,6 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 
 
 - Batch 66: [Android full-original search and speaker filters](meeting-ai-phase3-batch46-2026-09-13.md). Revision-fenced reads and exact online session validation; 16 JVM and 6 isolated emulator UI tests passed. No migration. Native exact-version links and capture lifecycle follow.
+
+
+- Batch 67: [Android exact-version notification links](meeting-ai-phase3-batch47-2026-09-13.md). Strict configured-origin parsing and explicit all-version navigation; 21 JVM and 7 isolated UI tests passed. Native flag also gates the App Link alias. Actual domain/login integration remains for deployment testing.
