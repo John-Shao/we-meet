@@ -46,7 +46,7 @@ export const isAutomationPayload = (
 
 /** Tab-scoped recovery only: no transcript, auto-dispatch, expiry or cross-account lookup. */
 export function useSummaryIntent<T>(
-  kind: 'summary' | 'automation',
+  kind: 'summary' | 'automation' | 'online-capture',
   viewer: string,
   record: string,
   validate: (value: unknown) => value is T

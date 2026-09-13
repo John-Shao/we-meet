@@ -374,3 +374,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 103: Android retained translation list/detail with exact archive pagination and original-material ACLs; 8 JVM + 12 isolated UI tests, Debug/token and light/dark checks passed. See [batch 83](meeting-ai-phase3-batch83-2026-09-13.md). Native write-intent recovery alignment follows.
 
 - Batch 104: Android ASR/summary/automation/review/task/question intents retain their original key/body through access loss; 21 isolated + 7 JVM tests, Debug and token checks passed. See [batch 84](meeting-ai-phase3-batch84-2026-09-13.md). Web online-capture recovery follows.
+
+- Batch 105: Web online-capture controls persist exact occurrence-bound intent and validate frozen receipts; 31 tests, TypeScript, ESLint and production build passed. See [batch 85](meeting-ai-phase3-batch85-2026-09-13.md). Text-only retention foundations and remaining first-release work follow.

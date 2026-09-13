@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ApiError } from '@/api/ApiError'
@@ -7,58 +7,87 @@ import { fetchApi } from '@/api/fetchApi'
 import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
 
-interface CaptureRun {
-  id: string
-  record_id: string
-  state: 'starting' | 'recording' | 'stopping' | 'stopped' | 'incomplete'
-  error_code: string
-}
+import {
+  CapturePayload,
+  CaptureState,
+  isCapturePayload,
+  isCaptureReceipt,
+  isCaptureSource,
+  isCaptureState,
+} from '../api/ApiOnlineCapture'
+import { SummaryIntent, useSummaryIntent } from '../hooks/useSummaryIntent'
 
-interface CaptureState {
-  available: boolean
-  can_control: boolean
-  current: CaptureRun | null
-}
-
-interface CaptureIntent {
-  key: string
-  room_id: string
-  livekit_room_sid: string
-  operation: 'start' | 'stop'
-  expected_run_id: string | null
-}
-
-export const OnlineCaptureControl = ({
-  roomId,
-  sid,
-  viewerId,
-}: {
+interface Props {
   roomId: string
   sid: string
   viewerId: string
-}) => {
+}
+export const OnlineCaptureControl = (props: Props) => (
+  <OnlineCaptureWorkspace
+    key={JSON.stringify([props.viewerId, props.roomId, props.sid])}
+    {...props}
+  />
+)
+
+const OnlineCaptureWorkspace = ({ roomId, sid, viewerId }: Props) => {
   const { t } = useTranslation('meetings')
   const client = useQueryClient()
   const path = 'online-captures/control/'
-  const queryKey = ['meeting-records', viewerId, 'online-capture', roomId, sid, path]
+  const queryKey = [
+    'meeting-records',
+    viewerId,
+    'online-capture',
+    roomId,
+    sid,
+    path,
+  ]
+  const validate = useCallback(
+    (value: unknown): value is CapturePayload =>
+      isCapturePayload(value, roomId, sid),
+    [roomId, sid]
+  )
+  const recovery = useSummaryIntent(
+    'online-capture',
+    viewerId,
+    JSON.stringify([roomId, sid]),
+    validate
+  )
+  const pending = recovery.pending
   const state = useQuery<CaptureState, ApiError>({
     queryKey,
-    queryFn: ({ signal }) =>
-      fetchApi(
+    enabled: !!viewerId && isCaptureSource(roomId, sid),
+    queryFn: async ({ signal }) => {
+      const value = await fetchApi<unknown>(
         `${path}?${new URLSearchParams({ room_id: roomId, livekit_room_sid: sid })}`,
-        { signal }
-      ),
+        {
+          signal: AbortSignal.any([signal, AbortSignal.timeout(20000)]),
+          cache: 'no-store',
+          redirect: 'error',
+        }
+      )
+      if (!isCaptureState(value)) throw new Error('invalid_capture_state')
+      return value
+    },
     staleTime: 0,
     gcTime: 0,
     retry: false,
     refetchInterval: 5000,
   })
-  const [pending, setPending] = useState<CaptureIntent>()
   const [error, setError] = useState(false)
   const busy = useRef(false)
   const mutation = useMutation({
-    mutationFn: (intent: CaptureIntent) =>
-      fetchApi(path, { method: 'POST', body: JSON.stringify(intent) }),
+    mutationFn: async (intent: SummaryIntent<CapturePayload>) => {
+      const value = await fetchApi<unknown>(path, {
+        method: 'POST',
+        body: JSON.stringify({ ...intent.payload, key: intent.key }),
+        signal: AbortSignal.timeout(20000),
+        cache: 'no-store',
+        redirect: 'error',
+      })
+      if (!isCaptureReceipt(value, intent.payload))
+        throw new Error('invalid_capture_receipt')
+      return value
+    },
     retry: false,
     gcTime: 0,
   })
@@ -70,41 +99,53 @@ export const OnlineCaptureControl = ({
   const change = async () => {
     if (
       busy.current ||
+      !recovery.ready ||
       (!pending && (!state.data?.can_control || state.isError))
     )
       return
     busy.current = true
-    const intent: CaptureIntent = pending ?? {
-      key: crypto.randomUUID(),
-      room_id: roomId,
-      livekit_room_sid: sid,
-      operation: active ? 'stop' : 'start',
-      expected_run_id: current?.id ?? null,
-    }
-    setPending(intent)
+    let intent: SummaryIntent<CapturePayload> | undefined
     setError(false)
     try {
+      intent = recovery.getOrCreate(
+        pending?.payload ?? {
+          room_id: roomId,
+          livekit_room_sid: sid,
+          operation: active ? 'stop' : 'start',
+          expected_run_id: current?.id ?? null,
+        }
+      )
       await mutation.mutateAsync(intent)
-      setPending(undefined)
+      if (!recovery.resolve(intent))
+        throw new Error('capture_receipt_storage_failed')
       await client.invalidateQueries({
         queryKey: ['meeting-records', viewerId],
       })
     } catch (err) {
       if (
         err instanceof ApiError &&
-        err.statusCode < 500 &&
-        err.statusCode !== 429
+        [400, 409, 422].includes(err.statusCode) &&
+        intent
       )
-        setPending(undefined)
+        recovery.resolve(intent)
       setError(true)
       await state.refetch()
     } finally {
       busy.current = false
     }
   }
+  if (state.isError && [401, 403, 404].includes(state.error.statusCode))
+    return null
+  if (recovery.failed)
+    return (
+      <section aria-label={t('recordAi.capture.title')}>
+        <Text>{t('recordAi.recoveryError')}</Text>
+        <Button size="sm" onPress={recovery.reload}>
+          {t('recordAi.capture.refresh')}
+        </Button>
+      </section>
+    )
   if (state.isError) {
-    if (state.error.statusCode === 404 || state.error.statusCode === 403)
-      return null
     return (
       <section aria-label={t('recordAi.capture.title')}>
         <Text>
@@ -113,7 +154,7 @@ export const OnlineCaptureControl = ({
         {pending ? (
           <Button
             size="sm"
-            isDisabled={mutation.isPending}
+            isDisabled={mutation.isPending || !recovery.ready}
             onPress={() => void change()}
           >
             {t('recordAi.resubmit')}
@@ -128,7 +169,7 @@ export const OnlineCaptureControl = ({
   }
   if (
     !state.data ||
-    (!current && (!state.data.available || !state.data.can_control))
+    (!pending && !current && (!state.data.available || !state.data.can_control))
   )
     return null
   return (
@@ -151,6 +192,7 @@ export const OnlineCaptureControl = ({
               variant="tertiary"
               isDisabled={
                 mutation.isPending ||
+                !recovery.ready ||
                 (!pending && current?.state === 'stopping')
               }
               onPress={() => void change()}

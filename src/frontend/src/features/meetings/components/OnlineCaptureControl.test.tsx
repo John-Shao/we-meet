@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/ApiError'
 import { OnlineCaptureControl } from './OnlineCaptureControl'
+import type { CaptureState, CaptureRun } from '../api/ApiOnlineCapture'
 
 const mocks = vi.hoisted(() => ({ fetchApi: vi.fn() }))
 vi.mock('@/api/fetchApi', () => ({ fetchApi: mocks.fetchApi }))
@@ -12,16 +13,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 let client: QueryClient
-let state: {
-  available: boolean
-  can_control: boolean
-  current: null | {
-    id: string
-    state: string
-    record_id: string
-    error_code: string
-  }
-}
+const room = '11111111-1111-4111-8111-111111111111'
+const run = '22222222-2222-4222-8222-222222222222'
+const record = '33333333-3333-4333-8333-333333333333'
+let state: CaptureState
 const posts = () =>
   mocks.fetchApi.mock.calls.filter(([, options]) => options?.method === 'POST')
 function show() {
@@ -30,35 +25,151 @@ function show() {
   })
   return render(
     <QueryClientProvider client={client}>
-      <OnlineCaptureControl roomId="room" sid="RM_current" viewerId="viewer" />
+      <OnlineCaptureControl roomId={room} sid="RM_current" viewerId="viewer" />
     </QueryClientProvider>
   )
 }
 beforeEach(() => {
+  vi.restoreAllMocks()
   vi.resetAllMocks()
+  sessionStorage.clear()
   state = { available: true, can_control: true, current: null }
+  const receipts = new Map<string, CaptureRun>()
   mocks.fetchApi.mockImplementation(async (_url, options) => {
     if (options?.method === 'POST') {
-      state = {
-        ...state,
-        current: {
-          id: 'run',
-          record_id: 'record',
-          error_code: '',
-          state:
-            JSON.parse(options.body).operation === 'start'
-              ? 'starting'
-              : 'stopping',
-        },
+      const body = options.body as string
+      const previous = receipts.get(body)
+      if (previous)
+        return { result: previous, current: state.current, replayed: true }
+      const result: CaptureRun = {
+        id: run,
+        record_id: record,
+        error_code: '',
+        coverage: 'unverified',
+        started_at: null,
+        ended_at: null,
+        state: JSON.parse(body).operation === 'start' ? 'starting' : 'stopping',
       }
-      return { current: state.current }
+      state = { ...state, current: result }
+      receipts.set(body, result)
+      return { result, current: result, replayed: false }
     }
     return state
   })
 })
-afterEach(() => client?.clear())
+afterEach(() => {
+  client?.clear()
+  vi.restoreAllMocks()
+})
 
 describe('Online transcription control', () => {
+  it.each([401, 403, 404, 408, 429, 503])(
+    'retains the original request after HTTP %s',
+    async (status) => {
+      const fallback = mocks.fetchApi.getMockImplementation()!
+      let reject = true
+      mocks.fetchApi.mockImplementation(async (url, options) => {
+        if (options?.method === 'POST' && reject) {
+          await fallback(url, options)
+          throw new ApiError(status, {})
+        }
+        return fallback(url, options)
+      })
+      const first = show()
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'recordAi.capture.start' })
+      )
+      await screen.findByText('recordAi.uncertain')
+      const original = posts()[0][1].body
+      first.unmount()
+      client.clear()
+      reject = false
+      show()
+      const retry = await screen.findByRole('button', {
+        name: 'recordAi.resubmit',
+      })
+      expect(posts()).toHaveLength(1)
+      fireEvent.click(retry)
+      await screen.findByRole('button', { name: 'recordAi.capture.stop' })
+      expect(posts()[1][1].body).toBe(original)
+      expect(sessionStorage.length).toBe(0)
+    }
+  )
+
+  it('treats malformed success as unknown and keeps the exact request', async () => {
+    const fallback = mocks.fetchApi.getMockImplementation()!
+    let malformed = true
+    mocks.fetchApi.mockImplementation(async (url, options) => {
+      const value = await fallback(url, options)
+      return options?.method === 'POST' && malformed
+        ? { current: state.current }
+        : value
+    })
+    show()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'recordAi.capture.start' })
+    )
+    await screen.findByText('recordAi.uncertain')
+    malformed = false
+    fireEvent.click(screen.getByRole('button', { name: 'recordAi.resubmit' }))
+    await screen.findByRole('button', { name: 'recordAi.capture.stop' })
+    expect(posts()[0][1].body).toBe(posts()[1][1].body)
+  })
+
+  it('does not dispatch if the browser cannot persist recovery metadata', async () => {
+    show()
+    const start = await screen.findByRole('button', {
+      name: 'recordAi.capture.start',
+    })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('unavailable')
+    })
+    fireEvent.click(start)
+    await screen.findByText('recordAi.recoveryError')
+    expect(posts()).toHaveLength(0)
+    expect(
+      screen.queryByRole('button', { name: 'recordAi.capture.start' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not carry pending operations into another account or occurrence', async () => {
+    const fallback = mocks.fetchApi.getMockImplementation()!
+    mocks.fetchApi.mockImplementation(async (url, options) => {
+      if (options?.method === 'POST') throw new ApiError(503, {})
+      return fallback(url, options)
+    })
+    const view = show()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'recordAi.capture.start' })
+    )
+    await screen.findByText('recordAi.uncertain')
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <OnlineCaptureControl
+          roomId={room}
+          sid="RM_other"
+          viewerId="different"
+        />
+      </QueryClientProvider>
+    )
+    await screen.findByRole('button', { name: 'recordAi.capture.start' })
+    expect(
+      screen.queryByRole('button', { name: 'recordAi.resubmit' })
+    ).not.toBeInTheDocument()
+    expect(posts()).toHaveLength(1)
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <OnlineCaptureControl
+          roomId={room}
+          sid="RM_current"
+          viewerId="viewer"
+        />
+      </QueryClientProvider>
+    )
+    await screen.findByRole('button', { name: 'recordAi.resubmit' })
+    expect(posts()).toHaveLength(1)
+  })
+
   it('starts explicitly for the exact SID and waits for acknowledgement when stopping', async () => {
     show()
     const start = await screen.findByRole('button', {
@@ -80,12 +191,12 @@ describe('Online transcription control', () => {
       JSON.parse(options.body)
     )
     expect(first).toMatchObject({
-      room_id: 'room',
+      room_id: room,
       livekit_room_sid: 'RM_current',
       operation: 'start',
       expected_run_id: null,
     })
-    expect(second).toMatchObject({ operation: 'stop', expected_run_id: 'run' })
+    expect(second).toMatchObject({ operation: 'stop', expected_run_id: run })
     expect(first.key).not.toBe(second.key)
   })
 
@@ -114,10 +225,13 @@ describe('Online transcription control', () => {
   it('keeps stop available after rollout is disabled and never restarts automatically', async () => {
     state.available = false
     state.current = {
-      id: 'run',
+      id: run,
       state: 'recording',
-      record_id: 'record',
+      record_id: record,
       error_code: '',
+      coverage: 'unverified',
+      started_at: null,
+      ended_at: null,
     }
     show()
     fireEvent.click(
@@ -131,10 +245,13 @@ describe('Online transcription control', () => {
   it('shows state to permitted readers without exposing capture controls', async () => {
     state.can_control = false
     state.current = {
-      id: 'run',
+      id: run,
       state: 'recording',
-      record_id: 'record',
+      record_id: record,
       error_code: '',
+      coverage: 'unverified',
+      started_at: null,
+      ended_at: null,
     }
     show()
     await screen.findByText('recordAi.capture.state.recording')
