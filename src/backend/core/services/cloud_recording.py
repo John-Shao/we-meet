@@ -8,6 +8,7 @@ from core.services.meeting_records import RecordConflict
 from core.services.online_capture import can_control
 
 MODE = models.RecordingModeChoices.SCREEN_RECORDING
+VIDEO_WORKER = "core.recording.worker.services.VideoCompositeEgressService"
 BUSY = ("initiated", "active", "failed_to_stop")
 PENDING = ("accepted", "running", "unknown")
 
@@ -17,7 +18,8 @@ def enabled():
     return bool(
         settings.MEETING_CLOUD_RECORDING_ENABLED
         and settings.RECORDING_ENABLE
-        and MODE in settings.RECORDING_WORKER_CLASSES
+        and settings.CELERY_ENABLED
+        and settings.RECORDING_WORKER_CLASSES.get(MODE) == VIDEO_WORKER
     )
 
 
@@ -76,7 +78,8 @@ def state(session):
         "can_stop": can_stop,
         "blocked": blocker,
         "needs_attention": bool(
-            current
+            (pending and pending.state == "unknown")
+            or current
             and (
                 current.status in ("initiated", "failed_to_stop")
                 or (current.status == "active" and not current.worker_id)
@@ -121,6 +124,8 @@ def control(session_id, user, key, payload):
             raise RecordConflict(
                 "Idempotency key has a different cloud recording intent."
             )
+        if prior.state in PENDING:
+            transaction.on_commit(lambda command_id=str(prior.pk): dispatch(command_id))
         return prior, True
     current_state = state(session)
     current = current_state["current"]
@@ -155,4 +160,18 @@ def control(session_id, user, key, payload):
         payload=payload,
         result=serialize_recording(recording),
     )
+    transaction.on_commit(lambda command_id=str(command.pk): dispatch(command_id))
     return command, False
+
+
+def dispatch(command_id):
+    """Queue delivery may repeat; the durable worker claim may execute only once."""
+    if not settings.CELERY_ENABLED:
+        return False
+    from core.tasks.cloud_recording import process_cloud_recording  # noqa: PLC0415
+
+    try:
+        process_cloud_recording.delay(str(command_id))
+        return True
+    except Exception:  # noqa: BLE001 - beat recovers the existing command without changing its key
+        return False

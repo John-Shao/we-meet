@@ -40,7 +40,12 @@ URL = "/api/v1.0/cloud-recording/control/"
 def enabled(settings):
     settings.MEETING_CLOUD_RECORDING_ENABLED = True
     settings.RECORDING_ENABLE = True
-    settings.RECORDING_WORKER_CLASSES = {"screen_recording": "unused.fixture"}
+    settings.CELERY_ENABLED = True
+    settings.RECORDING_WORKER_CLASSES = {
+        "screen_recording": "core.recording.worker.services.VideoCompositeEgressService"
+    }
+    with patch("core.services.cloud_recording.dispatch"):
+        yield
 
 
 def meeting():

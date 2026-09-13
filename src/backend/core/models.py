@@ -2602,6 +2602,8 @@ class CloudRecordingCommand(BaseModel):
     error_code = models.CharField(max_length=64, blank=True, default="")
     claimed_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    lease_id = models.UUIDField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [
@@ -2625,6 +2627,9 @@ class CloudRecordingCommand(BaseModel):
                 ),
                 name="cloud_rec_command_terminal_time",
             ),
+        ]
+        indexes = [
+            models.Index(fields=["state", "lease_until"], name="cloud_cmd_state_lease_idx"),
         ]
 
     def clean(self):
