@@ -164,3 +164,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 74: Android recording UI and account-bound notification return; 6 UI/service tests + 7 record UI regressions passed. Synthetic PCM only. See [batch 54](meeting-ai-phase3-batch54-2026-09-13.md). Native ASR/summary/playback/actions and physical-device validation remain pending.
 
 - Batch 75: Android ASR protocol + encrypted durable paid intents; 7 JVM and 4 instrumented tests passed. See [batch 55](meeting-ai-phase3-batch55-2026-09-13.md). Native ASR controls/preview follow; no real model calls.
+
+- Batch 76: Android explicit ASR controls, durable unknown-request recovery and live confirmed-text preview; 17 isolated UI tests passed. See [batch 56](meeting-ai-phase3-batch56-2026-09-13.md). Native summary controls follow; no real model calls.
