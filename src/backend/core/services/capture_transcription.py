@@ -480,7 +480,11 @@ def finish(job_id, worker_id, payload):
         and job.started_at
         and payload["provider_finished"]
         and (not live_inputs.is_live(job) or job.live_manifest is not None)
-        and len(observations) == source["runs"]
+        and (
+            source["runs"] <= len(observations) <= 50
+            if live_inputs.is_live(job)
+            else len(observations) == source["runs"]
+        )
         and all(item["finished"] for item in observations)
         and sum(item["input_samples"] for item in observations)
         == sum(chunk["duration_ms"] * 16 for chunk in source["chunks"])

@@ -165,7 +165,8 @@ def test_early_finish_cannot_publish_while_recording_is_open():
     assert capture.active_transcription_id is None
 
 
-def test_sealed_receipts_publish_exactly_one_complete_generation():
+@pytest.mark.parametrize("split_tasks", [False, True])
+def test_sealed_receipts_publish_exactly_one_complete_generation(split_tasks):
     user, body, capture, worker, job = running()
     upload(user, body, capture)
     feed = poll(job, worker).data["feed"]
@@ -182,13 +183,35 @@ def test_sealed_receipts_publish_exactly_one_complete_generation():
     command(user, body, capture, "finalize")
     assert poll(job, worker, 1).data["feed"]["closed"]
     task = uuid.uuid4()
-    assert finish(job["id"], worker, task=task).data["status"] == "succeeded"
+    receipt = {
+        "worker_id": str(worker),
+        "provider_finished": True,
+        "final_sequence": 1,
+        "tasks": [
+            {
+                "task_id": str(task),
+                "finished": True,
+                "input_samples": 8000 if split_tasks else 16000,
+                "billed_seconds": 1,
+            }
+        ],
+    }
+    if split_tasks:
+        receipt["tasks"].append(
+            {
+                "task_id": str(uuid.uuid4()),
+                "finished": True,
+                "input_samples": 8000,
+                "billed_seconds": 1,
+            }
+        )
+    assert agent(f"{job['id']}/finish/", receipt).data["status"] == "succeeded"
     capture.refresh_from_db()
     revision = capture.record.revision
     assert str(capture.active_transcription_id) == job["id"]
     assert preview(user, capture, job).data["published"]
     assert service.current_originals(capture.record).count() == 1
-    assert finish(job["id"], worker, task=task).status_code == 200
+    assert agent(f"{job['id']}/finish/", receipt).status_code == 200
     capture.record.refresh_from_db()
     assert capture.record.revision == revision
 

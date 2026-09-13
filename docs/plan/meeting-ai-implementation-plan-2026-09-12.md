@@ -278,3 +278,6 @@ Batch 58: private translation Agent delivery, Web opt-in, bidirectional archive 
 
 
 Batch 59: independent live-ASR backend, append-only input offers and owner-only confirmed-text preview completed. See [phase 3 batch 39](meeting-ai-phase3-batch39-2026-09-13.md). 43 focused/regression tests passed; migration 0173 applied only in isolated databases. Live flag defaults off; Agent/Web follow.
+
+
+Batch 60: independent live-ASR Worker completed; run python capture_live_transcriber.py separately from sealed ASR. See [phase 3 batch 40](meeting-ai-phase3-batch40-2026-09-13.md). 34 Agent and 29 backend tests passed. No migration; Web integration follows.

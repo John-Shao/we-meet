@@ -46,6 +46,8 @@ class CaptureBackend:
             raise CaptureError("backend_configuration_required")
         if parsed.query or parsed.fragment or parsed.username or parsed.password:
             raise CaptureError("invalid_backend_origin")
+        if parsed.path not in {"", "/"}:
+            raise CaptureError("invalid_backend_origin")
         self.url = base_url.rstrip("/") + "/api/agent/capture-transcriptions/"
         self.token = token
         self.worker_id = str(uuid.uuid4())
@@ -184,6 +186,7 @@ class CaptureAttempt:
         )
         if result.get("id") != self.job["id"] or result.get("status") != "running":
             raise CaptureError("execution_no_longer_running")
+        return result
 
     async def download(self, index, source):
         """Fetch only a source index from this job, never a supplied external URL."""
@@ -266,21 +269,25 @@ class CaptureAttempt:
                 raise CaptureError("provider_finish_missing")
         await self.queue.put(None)
 
+    async def process(self):
+        """Process the original sealed snapshot with no provider replay."""
+        runs = audio_runs(self.job, self.config)
+        if self.job.get("started") is not False:
+            raise CaptureError("provider_execution_already_started")
+        first = await self.download(*runs[0][0])
+        await self.control("begin")
+        duration = sum(item[1]["duration_ms"] for run in runs for item in run)
+        async with asyncio.timeout(duration / 500 + 240):
+            async with asyncio.TaskGroup() as group:
+                group.create_task(self.produce(runs, first))
+                group.create_task(self.deliver())
+                group.create_task(self.heartbeat())
+
     async def execute(self):
         """Record one frozen terminal receipt even when cancellation interrupts work."""
         success = False
         try:
-            runs = audio_runs(self.job, self.config)
-            if self.job.get("started") is not False:
-                raise CaptureError("provider_execution_already_started")
-            first = await self.download(*runs[0][0])
-            await self.control("begin")
-            duration = sum(item[1]["duration_ms"] for run in runs for item in run)
-            async with asyncio.timeout(duration / 500 + 240):
-                async with asyncio.TaskGroup() as group:
-                    group.create_task(self.produce(runs, first))
-                    group.create_task(self.deliver())
-                    group.create_task(self.heartbeat())
+            await self.process()
             success = True
         except asyncio.CancelledError:
             raise
@@ -318,7 +325,7 @@ class CaptureAttempt:
                     self.queue.get_nowait()
 
 
-async def serve():
+async def serve(*, live=False, attempt_type=CaptureAttempt):
     """A separate process polls explicitly authorized jobs; it creates none itself."""
     config = QwenASRConfig.from_env()
     backend = CaptureBackend(
@@ -334,11 +341,16 @@ async def serve():
             pass  # Linux container uses handlers; Windows Runner handles Ctrl-C.
     while True:
         response = await backend.request(
-            "claim/", {"model": config.model, "region": config.region}
+            "claim/",
+            {
+                "model": config.model,
+                "region": config.region,
+                **({"live": True} if live else {}),
+            },
         )
         job = response["job"]
         if job:
-            await CaptureAttempt(backend, config, job).execute()
+            await attempt_type(backend, config, job).execute()
         else:
             await asyncio.sleep(5)
 
