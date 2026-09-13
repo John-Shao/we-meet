@@ -10,6 +10,7 @@ import {
   pcmWave,
   SAMPLE_RATE,
 } from './pcm'
+import { textAudioExpired } from './retention'
 
 export interface AudioReceipt {
   id: string
@@ -50,6 +51,8 @@ export interface LocalAudioChunk {
 
 /** One account per database. Leases and audio never enter URLs, analytics or localStorage. */
 export class CaptureJournal {
+  private temporary = new Map<string, ArrayBuffer>()
+  private closed = false
   private constructor(private db: IDBDatabase) {}
 
   static async open(viewerId: string): Promise<CaptureJournal> {
@@ -64,14 +67,50 @@ export class CaptureJournal {
       request.onerror = () => reject(new Error('local_storage_unavailable'))
       request.onblocked = () => reject(new Error('local_storage_blocked'))
       request.onsuccess = () => {
-        request.result.onversionchange = () => request.result.close()
-        resolve(new CaptureJournal(request.result))
+        const journal = new CaptureJournal(request.result)
+        request.result.onversionchange = () => journal.close()
+        void journal.recoverTextAudio().then(
+          () => resolve(journal),
+          () => {
+            journal.close()
+            reject(new Error('local_storage_unavailable'))
+          }
+        )
       }
     })
   }
 
   close() {
+    this.closed = true
+    for (const audio of this.temporary.values()) new Uint8Array(audio).fill(0)
+    this.temporary.clear()
     this.db.close()
+  }
+
+  private async recoverTextAudio() {
+    for (const local of await this.list()) {
+      if (local.create.retention_mode === 'text' && local.pendingBytes)
+        await this.discardTextAudio(local.id)
+    }
+  }
+
+  /** Keep delivery identities, but never persist text-only source bytes in IndexedDB. */
+  async discardTextAudio(id: string): Promise<void> {
+    await this.update(id, (local) => {
+      if (local.create.retention_mode !== 'text') return local
+      for (const [key, audio] of this.temporary) {
+        if (key.startsWith(`${id}:`)) {
+          new Uint8Array(audio).fill(0)
+          this.temporary.delete(key)
+        }
+      }
+      return {
+        ...local,
+        pendingBytes: 0,
+        closed: true,
+        interrupted: local.interrupted || !!local.pendingBytes,
+      }
+    })
   }
 
   private transaction<T>(
@@ -111,7 +150,12 @@ export class CaptureJournal {
     })
   }
 
-  async create(title: string): Promise<LocalCapture> {
+  async create(
+    title: string,
+    retentionMode: 'media' | 'text' = 'media'
+  ): Promise<LocalCapture> {
+    if (!['media', 'text'].includes(retentionMode))
+      throw new Error('invalid_retention')
     const capture: LocalCapture = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
@@ -119,7 +163,7 @@ export class CaptureJournal {
       create: {
         device_id: crypto.randomUUID(),
         lease_key: crypto.randomUUID(),
-        retention_mode: 'media',
+        retention_mode: retentionMode,
         title,
       },
       nextSequence: 1,
@@ -164,47 +208,69 @@ export class CaptureJournal {
   async append(id: string, pcm: Int16Array): Promise<LocalAudioChunk> {
     const audio = pcmWave(pcm)
     const hash = await checksum(audio)
-    return this.transaction(['sessions', 'chunks'], 'readwrite', (tx, done) => {
-      const sessions = tx.objectStore('sessions')
-      const request = sessions.get(id)
-      request.onsuccess = () => {
-        const capture: LocalCapture | undefined = request.result
-        if (
-          !capture ||
-          capture.closed ||
-          capture.nextSequence > MAX_CHUNKS ||
-          capture.pendingBytes + audio.byteLength > MAX_PENDING_BYTES
-        ) {
-          tx.abort()
-          return
+    let temporary = false
+    const result = await this.transaction<LocalAudioChunk>(
+      ['sessions', 'chunks'],
+      'readwrite',
+      (tx, done) => {
+        const sessions = tx.objectStore('sessions')
+        const request = sessions.get(id)
+        request.onsuccess = () => {
+          const capture: LocalCapture | undefined = request.result
+          if (
+            !capture ||
+            capture.closed ||
+            textAudioExpired(capture) ||
+            capture.nextSequence > MAX_CHUNKS ||
+            capture.pendingBytes + audio.byteLength > MAX_PENDING_BYTES
+          ) {
+            tx.abort()
+            return
+          }
+          const chunk: LocalAudioChunk = {
+            captureId: id,
+            sequence: capture.nextSequence,
+            start_ms: capture.durationMs,
+            duration_ms: pcm.length / (SAMPLE_RATE / 1000),
+            checksum: hash,
+            byte_size: audio.byteLength,
+            audio,
+          }
+          temporary = capture.create.retention_mode === 'text'
+          tx.objectStore('chunks').add(
+            temporary ? { ...chunk, audio: undefined } : chunk
+          )
+          sessions.put({
+            ...capture,
+            nextSequence: capture.nextSequence + 1,
+            durationMs: capture.durationMs + chunk.duration_ms,
+            pendingBytes: capture.pendingBytes + chunk.byte_size,
+          })
+          done(chunk)
         }
-        const chunk: LocalAudioChunk = {
-          captureId: id,
-          sequence: capture.nextSequence,
-          start_ms: capture.durationMs,
-          duration_ms: pcm.length / (SAMPLE_RATE / 1000),
-          checksum: hash,
-          byte_size: audio.byteLength,
-          audio,
-        }
-        tx.objectStore('chunks').add(chunk)
-        sessions.put({
-          ...capture,
-          nextSequence: capture.nextSequence + 1,
-          durationMs: capture.durationMs + chunk.duration_ms,
-          pendingBytes: capture.pendingBytes + chunk.byte_size,
-        })
-        done(chunk)
       }
-    })
+    )
+    if (temporary) {
+      if (this.closed) new Uint8Array(audio).fill(0)
+      else this.temporary.set(`${id}:${result.sequence}`, audio)
+    }
+    return result
   }
 
-  chunks(id: string): Promise<LocalAudioChunk[]> {
+  async chunks(id: string): Promise<LocalAudioChunk[]> {
+    const local = (await this.list()).find((row) => row.id === id)
+    if (local && textAudioExpired(local)) await this.discardTextAudio(id)
     return this.transaction(['chunks'], 'readonly', (tx, done) => {
       const request = tx
         .objectStore('chunks')
         .getAll(IDBKeyRange.bound([id, 1], [id, MAX_CHUNKS]))
-      request.onsuccess = () => done(request.result)
+      request.onsuccess = () =>
+        done(
+          request.result.map((row: LocalAudioChunk) => ({
+            ...row,
+            audio: this.temporary.get(`${id}:${row.sequence}`) ?? row.audio,
+          }))
+        )
     })
   }
 
@@ -233,11 +299,17 @@ export class CaptureJournal {
             tx.abort()
             return
           }
-          if (chunk.audio)
+          const temporary = this.temporary.get(`${id}:${chunk.sequence}`)
+          if (chunk.audio || temporary)
             sessions.put({
               ...parent.result,
-              pendingBytes: parent.result.pendingBytes - chunk.byte_size,
+              pendingBytes: Math.max(
+                0,
+                parent.result.pendingBytes - chunk.byte_size
+              ),
             })
+          if (temporary) new Uint8Array(temporary).fill(0)
+          this.temporary.delete(`${id}:${chunk.sequence}`)
           chunks.put({ ...chunk, audio: undefined, receipt })
           done(undefined)
         }

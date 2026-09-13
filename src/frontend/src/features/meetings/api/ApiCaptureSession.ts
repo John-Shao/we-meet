@@ -28,6 +28,17 @@ export interface ApiCaptureSession {
   missing_ranges: Array<{ start_ms: number; end_ms: number }> | null
   missing_sequences?: number[] | null
   coverage_status: 'unverified'
+  audio_retention?: CaptureAudioRetention
+}
+
+export interface CaptureAudioRetention {
+  mode: 'media' | 'text'
+  temporary_until: string | null
+  retry_until: string | null
+  expired: boolean
+  cleanup_status: 'not_started' | 'pending' | 'failed' | 'complete'
+  cleanup_error: string
+  deleted_at: string | null
 }
 
 /** POST /capture-sessions/ with a stable UUID Idempotency-Key header. */
