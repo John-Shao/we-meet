@@ -2151,6 +2151,61 @@ class MeetingInterpretationCommand(BaseModel):
         return f"MeetingInterpretationCommand({self.pk})"
 
 
+class MeetingTranslationArchive(BaseModel):
+    """Explicitly retained translations with immutable record and session provenance."""
+
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE, related_name="translation_archives")
+    source_id = models.UUIDField(unique=True)
+    source_kind = models.CharField(max_length=16, choices=[("channel", "Channel"), ("private", "Private")])
+    owner = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
+    generation = models.PositiveIntegerField()
+    configuration = models.JSONField()
+    segment_count = models.PositiveIntegerField(default=0)
+    text_bytes = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=16, default="capturing")
+
+    def __str__(self):
+        return f"MeetingTranslationArchive({self.pk})"
+
+    def clean(self):
+        super().clean()
+        if not self._state.adding:
+            original = type(self).objects.get(pk=self.pk)
+            if any(getattr(self, field) != getattr(original, field) for field in ["record_id", "source_id", "source_kind", "owner_id", "generation", "configuration"]):
+                raise ValidationError("Translation archive provenance cannot change.")
+
+
+class MeetingTranslationSegment(BaseModel):
+    """An immutable confirmed provider item, never an original transcript row."""
+
+    archive = models.ForeignKey(MeetingTranslationArchive, on_delete=models.CASCADE, related_name="segments")
+    source_participation_id = models.UUIDField()
+    source_participant_sid = models.CharField(max_length=64)
+    response_id = models.CharField(max_length=128)
+    item_id = models.CharField(max_length=128)
+    direction = models.CharField(max_length=8, choices=[("forward", "Forward"), ("reverse", "Reverse")])
+    target = models.CharField(max_length=8)
+    text = models.TextField()
+    sequence = models.PositiveIntegerField()
+    payload_hash = models.CharField(max_length=64)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["archive", "source_participation_id", "direction", "response_id", "item_id"], name="unique_translation_provider_item"),
+            models.UniqueConstraint(fields=["archive", "sequence"], name="unique_translation_archive_sequence"),
+        ]
+
+    def __str__(self):
+        return f"MeetingTranslationSegment({self.pk})"
+
+    def clean(self):
+        super().clean()
+        if not self._state.adding:
+            original = type(self).objects.get(pk=self.pk)
+            if any(getattr(self, field.attname) != getattr(original, field.attname) for field in self._meta.fields if field.name not in {"updated_at"}):
+                raise ValidationError("Confirmed translation segments are immutable.")
+
+
 class TranscriptReceipt(BaseModel):
     """Stable sequence receipt; deleting source text invalidates delivery proof."""
 

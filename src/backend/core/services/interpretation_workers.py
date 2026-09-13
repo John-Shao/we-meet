@@ -14,6 +14,7 @@ from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
 from core import models, utils
 from core.services import meeting_interpretation as channels
 from core.services.meeting_records import RecordConflict
+from core.services.translation_archives import close_archive
 
 
 def _locked(channel_id):
@@ -29,6 +30,14 @@ def _end(row, state, error=""):
     row.save(update_fields=["state", "error_code", "ended_at", "updated_at"])
     row.subscriptions.filter(active=True).update(
         active=False, updated_at=timezone.now()
+    )
+    close_archive(
+        row,
+        state == "stopped"
+        and (
+            row.worker_id is None
+            or (row.finish_receipt or {}).get("archive_finished") is True
+        ),
     )
 
 

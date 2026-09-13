@@ -15,6 +15,7 @@ from core.services import meeting_interpretation as service
 from core.services.interpretation_workers import agent_control
 from core.services.meeting_records import RecordConflict
 from core.services.online_capture import can_control
+from core.services.translation_archives import enabled as archive_enabled
 
 
 class ChannelInput(CaptureSourceSerializer):
@@ -22,6 +23,7 @@ class ChannelInput(CaptureSourceSerializer):
     key = serializers.UUIDField()
     target = serializers.ChoiceField(choices=service.LANGUAGES)
     expected_channel_id = serializers.UUIDField(allow_null=True)
+    save_translations = serializers.BooleanField(required=False)
 
 
 class ListenerInput(CaptureSourceSerializer):
@@ -90,6 +92,7 @@ class InterpretationChannelsView(Base):
             {
                 "available": service.enabled() and session.status == "active",
                 "can_control": manager,
+                "archive_available": archive_enabled(),
                 "languages": service.LANGUAGES,
                 "channels": [
                     service.serialize(channel) for channel in channels if channel
@@ -152,12 +155,16 @@ class InterpretationRenewalView(Base):
         return Response(result)
 
 
+class InterpretationReceipt(TranslationReceiptSerializer):
+    archive_finished = serializers.BooleanField(required=False)
+
+
 class WorkerInput(CaptureSourceSerializer):
     channel_id = serializers.UUIDField()
     generation = serializers.IntegerField(min_value=1)
     worker_id = serializers.UUIDField()
     operation = serializers.ChoiceField(choices=["claim", "heartbeat", "finish"])
-    receipt = TranslationReceiptSerializer(required=False)
+    receipt = InterpretationReceipt(required=False)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)

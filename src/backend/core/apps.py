@@ -16,3 +16,8 @@ class CoreConfig(AppConfig):
         )
 
         connect_handlers()
+        from core.services.translation_archives import (  # noqa: PLC0415
+            connect_handlers as connect_translation_archives,
+        )
+
+        connect_translation_archives()

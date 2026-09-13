@@ -1085,6 +1085,7 @@ class Base(Configuration):
     MEETING_SUMMARY_NOTIFICATIONS_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_SHARING_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_INTERPRETATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_TRANSLATION_ARCHIVE_ENABLED = values.BooleanValue(False, environ_prefix=None)
     ROOM_INTERPRETATION_AGENT_NAME = values.Value("", environ_prefix=None)
     QWEN_ASR_MODEL = values.Value("qwen-audio-3.0-asr-flash-streaming", environ_prefix=None)
     QWEN_ASR_REGION = values.Value("cn-beijing", environ_prefix=None)

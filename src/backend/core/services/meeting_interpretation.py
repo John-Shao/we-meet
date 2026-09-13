@@ -10,6 +10,11 @@ from core import models
 from core.services.meeting_records import RecordConflict
 from core.services.meeting_translation import LANGUAGES, MODEL
 from core.services.online_capture import can_control
+from core.services.translation_archives import (
+    close_archive,
+    create_archive,
+    prepare_record,
+)
 
 ACTIVE = ("prepared", "starting", "translating", "stopping")
 LISTENER_LEASE_SECONDS = 20
@@ -57,6 +62,7 @@ def serialize(channel):
         "generation": channel.generation,
         "state": channel.state,
         "error_code": channel.error_code,
+        "archive_record_id": channel.configuration.get("archive_record_id"),
     }
 
 
@@ -132,6 +138,7 @@ def control(session_id, user, key, payload):
             or (last and last.state in ACTIVE)
         ):
             raise RecordConflict("Interpretation cannot start.")
+        record = prepare_record(session, payload.get("save_translations", False))
         last = models.MeetingInterpretationChannel.objects.create(
             session=session,
             requested_by=user,
@@ -146,9 +153,13 @@ def control(session_id, user, key, payload):
                 "scope": "meeting_channel",
                 "max_sources": MAX_SOURCES,
                 "max_listeners": MAX_LISTENERS,
+                **({"archive_record_id": str(record.pk)} if record else {}),
             },
         )
+        create_archive(last, record)
     elif payload["operation"] == "stop" and last and last.state in ACTIVE:
+        if payload.get("save_translations"):
+            raise RecordConflict("Stopping cannot change retention.")
         last.stop_requested_at = timezone.now()
         last.state = "stopping" if last.worker_id else "stopped"
         if not last.worker_id:
@@ -160,6 +171,7 @@ def control(session_id, user, key, payload):
             last.subscriptions.filter(active=True).update(
                 active=False, updated_at=timezone.now()
             )
+            close_archive(last, True)
     else:
         raise RecordConflict("No active interpretation channel to stop.")
     return _save_receipt(session, user, key, payload, serialize(last))

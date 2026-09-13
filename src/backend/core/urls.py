@@ -97,6 +97,11 @@ from core.api.meeting_interpretation import (
 )
 from core.api.meeting_record_qa import RecordQuestionView
 from core.api.meeting_records import MeetingRecordViewSet
+from core.api.translation_archives import (
+    RecordTranslationArchivesView,
+    RecordTranslationSegmentsView,
+    TranslationSegmentIngestView,
+)
 from core.api.meeting_rooms import (
     MeetingRoomFacilityViewSet,
     MeetingRoomNodeViewSet,
@@ -356,6 +361,8 @@ urlpatterns = [
                 path("meeting-interpretation/channels/", InterpretationChannelsView.as_view(), name="interpretation-channels"),
                 path("meeting-interpretation/subscription/", InterpretationSubscriptionView.as_view(), name="interpretation-subscription"),
                 path("meeting-interpretation/renew/", InterpretationRenewalView.as_view(), name="interpretation-renew"),
+                path("meeting-records/<uuid:record_id>/translation-archives/", RecordTranslationArchivesView.as_view(), name="record-translation-archives"),
+                path("meeting-records/<uuid:record_id>/translation-segments/", RecordTranslationSegmentsView.as_view(), name="record-translation-segments"),
                 path("meeting-records/<uuid:record_id>/summary-sharing/", SummarySharingView.as_view(), name="summary-sharing"),
                 path("meeting-records/<uuid:record_id>/summary-sharing/preview/", SummarySharingPreviewView.as_view(), name="summary-sharing-preview"),
                 path("meeting-records/<uuid:record_id>/summary-sharing/candidates/", SummarySharingCandidatesView.as_view(), name="summary-sharing-candidates"),
@@ -502,6 +509,7 @@ urlpatterns = [
     ),
     path("api/agent/translations/control/", TranslationAgentView.as_view(), name="agent-translation-control"),
     path("api/agent/interpretation/control/", InterpretationWorkerView.as_view(), name="agent-interpretation-control"),
+    path("api/agent/interpretation/segments/", TranslationSegmentIngestView.as_view(), name="agent-interpretation-segments"),
     # Internal API for agent workers (multi_user_transcriber, etc.).
     # Authenticates via X-Agent-Token shared secret; NOT a public surface.
     path(
