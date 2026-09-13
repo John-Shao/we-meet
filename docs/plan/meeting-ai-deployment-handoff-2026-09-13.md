@@ -180,3 +180,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 82: Android player/source seeking, lifecycle and recording exclusion; 30 isolated tests plus default Debug/token and light/dark checks passed. See [batch 62](meeting-ai-phase3-batch62-2026-09-13.md). Web receipt validation and remaining first-release work follow.
 
 - Batch 83: Web summary/automation write receipts validate before resolving durable intents; malformed 2xx remains unknown. 44 tests, TypeScript, ESLint and production build passed. See [batch 63](meeting-ai-phase3-batch63-2026-09-13.md). Native reviewed actions follow.
+
+- Batch 84: Android human-review/history and explicit task-conversion protocols with encrypted recovery; 15 JVM + 8 isolated instrumentation tests and Debug/token checks passed. See [batch 64](meeting-ai-phase3-batch64-2026-09-13.md). Native editing/confirmation UI follows.
