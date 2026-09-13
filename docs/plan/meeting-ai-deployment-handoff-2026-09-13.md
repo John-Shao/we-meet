@@ -250,3 +250,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 117: apply core migration 0176 and run Celery worker + beat (tick_cloud_recordings every 10s). New cloud starts require the built-in video worker and expire after 60s; unknown starts are never redispatched. Keep MEETING_CLOUD_RECORDING_ENABLED=false pending lifecycle/native integration. 53 fake-provider/database scenarios, drift check and task registration pass. Quarantined wrong-source media remains private under existing video storage retention. See [batch 117](meeting-ai-phase3-batch97-2026-09-13.md).
 
 - Batch 118: exact-worker cloud lifecycle events, monotonic recording state, pending-command completion and bounded occurrence-scoped notices; 132 unique isolated scenarios pass. No migration; keep rollout off pending Android integration. See [batch 118](meeting-ai-phase3-batch98-2026-09-13.md).
+
+- Batch 119: Android cloud recording protocol and encrypted exact-intent recovery (`46ecbf08`); 8 JVM + 5 isolated device tests and builds/token checks pass. Native panel follows; rollout remains off. See [batch 119](meeting-ai-phase3-batch99-2026-09-13.md).
