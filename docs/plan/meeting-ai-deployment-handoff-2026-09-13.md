@@ -158,3 +158,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 71: Android durable capture recovery coordinator; 17 isolated tests passed. See [batch 51](meeting-ai-phase3-batch51-2026-09-13.md). Foreground acquisition/UI and final review remain pending.
 
 - Batch 72: Android PCM acquisition adapter and bounded pump; 17 JVM tests passed. See [batch 52](meeting-ai-phase3-batch52-2026-09-13.md). Foreground service/UI and physical-device validation remain pending.
+
+- Batch 73: Android microphone foreground service; 4 service lifecycle + 17 recovery/storage tests passed with synthetic PCM only. WE_MEET_CAPTURE_NATIVE defaults false. See [batch 53](meeting-ai-phase3-batch53-2026-09-13.md). UI and physical-device validation remain pending.
