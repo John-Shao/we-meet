@@ -338,3 +338,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 85: Android human-summary editing/history and exact citations; 20 isolated UI regressions, Debug/token and light/dark checks passed. See [batch 65](meeting-ai-phase3-batch65-2026-09-13.md). Task confirmation/navigation follows.
 
 - Batch 86: Android reviewed-action confirmation, explicit assignees/dates and native task navigation; 19 isolated UI regressions, default Debug/token and light/dark checks passed. See [batch 66](meeting-ai-phase3-batch66-2026-09-13.md). Native Q&A/delivery follows.
+
+- Batch 87: Android private Q&A protocol with exact snapshot/receipt checks and encrypted recovery; 16 JVM + 8 isolated instrumentation tests and Debug/token checks passed. See [batch 67](meeting-ai-phase3-batch67-2026-09-13.md). Q&A UI follows.
