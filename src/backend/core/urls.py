@@ -106,6 +106,11 @@ from core.api.meeting_summary_notifications import (
     SummaryNotificationsView,
 )
 from core.api.meeting_summary_review import SummaryHistoryView, SummaryReviewView
+from core.api.meeting_summary_sharing import (
+    SummarySharingCandidatesView,
+    SummarySharingPreviewView,
+    SummarySharingView,
+)
 from core.api.meeting_summary_tasks import SummaryTaskView
 from core.api.meeting_translation import MeetingTranslationViewSet, TranslationAgentView
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
@@ -342,6 +347,9 @@ urlpatterns = [
                 path("meeting-records/<uuid:record_id>/human-summary/", SummaryReviewView.as_view(), name="human-summary"),
                 path("meeting-records/<uuid:record_id>/document-exports/", SummaryExportView.as_view(), name="summary-exports"),
                 path("meeting-records/<uuid:record_id>/summary-notifications/", SummaryNotificationsView.as_view(), name="summary-notifications"),
+                path("meeting-records/<uuid:record_id>/summary-sharing/", SummarySharingView.as_view(), name="summary-sharing"),
+                path("meeting-records/<uuid:record_id>/summary-sharing/preview/", SummarySharingPreviewView.as_view(), name="summary-sharing-preview"),
+                path("meeting-records/<uuid:record_id>/summary-sharing/candidates/", SummarySharingCandidatesView.as_view(), name="summary-sharing-candidates"),
                 path("meeting-records/<uuid:record_id>/summary-notifications/<uuid:notice_id>/retry/", SummaryNotificationRetryView.as_view(), name="summary-notification-retry"),
                 path("meeting-records/<uuid:record_id>/document-exports/preview/", SummaryExportPreviewView.as_view(), name="summary-export-preview"),
                 path("meeting-records/<uuid:record_id>/document-exports/<uuid:export_id>/retry/", SummaryExportRetryView.as_view(), name="summary-export-retry"),

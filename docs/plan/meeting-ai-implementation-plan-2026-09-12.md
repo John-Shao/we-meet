@@ -248,3 +248,5 @@ Latest implementation: [Batch 34: unified library queries](meeting-ai-phase3-bat
 - Batch 45: [private notification delivery and recovery](meeting-ai-phase3-batch25-2026-09-13.md). 35 tests passed; migration 0168 required. IM 99c90e3 + schema 011, Celery worker/beat required. Notification flag remains off pending Web status/retry and version deep links. No real messages sent.
 
 - Batch 46: [notification UI and exact-version links](meeting-ai-phase3-batch26-2026-09-13.md). 27 frontend + 6 backend tests, native Chromium desktop/mobile and production build passed. Notification stack is ready for deployment validation; flag stays off by default. Record sharing is next.
+
+- Batch 47: [summary-only sharing preview and grants](meeting-ai-phase3-batch27-2026-09-13.md). 13 tests passed; migration 0169 required. MEETING_SUMMARY_SHARING_ENABLED defaults off. Explicit record-summary grants do not send messages or grant originals/media/Docs access. Web confirmation is next.

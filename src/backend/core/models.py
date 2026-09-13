@@ -1090,6 +1090,27 @@ class MeetingRecordAccess(BaseModel):
         return f"MeetingRecordAccess({self.record_id}, {self.user_id})"
 
 
+class MeetingSummaryShareRequest(BaseModel):
+    """Durable explicit sharing receipt; replay never restores a revoked grant."""
+
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE, related_name="summary_share_requests")
+    key = models.UUIDField()
+    request_hash = models.CharField(max_length=64)
+    preview = models.JSONField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "key"], name="unique_summary_share_request")]
+
+    def __str__(self):
+        return f"MeetingSummaryShareRequest({self.pk}, {self.record_id})"
+
+    def clean(self):
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Sharing receipts are immutable.")
+
+
 class CaptureSession(BaseModel):
     """Independent audio capture identity; no LiveKit Room is required."""
 
