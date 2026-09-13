@@ -10,6 +10,9 @@ from django.db.models import F, Q
 from django.utils import timezone
 
 from core import models
+from core.services.capture_summary_source import (
+    staged_enabled as capture_staged_enabled,
+)
 from core.services.meeting_records import RecordConflict, can_generate_summary
 from core.services.meeting_summary_requests import (
     SummaryRequestDenied,
@@ -31,6 +34,17 @@ def automation_enabled():
         requests_enabled()
         and settings.MEETING_STAGED_SUMMARY_ENABLED
         and settings.MEETING_SUMMARY_AUTOMATION_ENABLED
+    )
+
+
+def supports_automation(record):
+    """Online recordings and explicitly enabled independent recordings share consent."""
+    return bool(
+        record.meeting_session_id
+        or (
+            record.source_type == models.MeetingRecord.Source.AUDIO
+            and capture_staged_enabled()
+        )
     )
 
 
@@ -63,7 +77,9 @@ def _cancel_jobs(automation):
 def control_automation(record_id, user, key, payload):
     """Manager commands are optimistic and idempotent across tabs and reconnects."""
     record = models.MeetingRecord.objects.select_for_update().get(pk=record_id)
-    if not record.meeting_session_id or not can_generate_summary(record, user):
+    if not can_generate_summary(record, user):
+        raise SummaryRequestDenied
+    if payload["enabled"] and not supports_automation(record):
         raise SummaryRequestDenied
     automation = models.MeetingSummaryAutomation.objects.filter(record=record).first()
     previous = models.MeetingSummaryAutomationCommand.objects.filter(
@@ -158,7 +174,28 @@ def _has_quick_for_capture(record):
     """Each explicitly started recording window may produce its own quick version."""
     run_id = capture_run_id(record)
     scope = {"job__configuration__capture_run_id": run_id} if run_id else {}
+    if not record.meeting_session_id:
+        capture = record.captures.first()
+        job = (
+            (
+                capture.active_transcription
+                or capture.transcription_jobs.order_by("-generation").first()
+            )
+            if capture
+            else None
+        )
+        if job:
+            scope["job__configuration__capture_transcription_id"] = str(job.pk)
     return record.summary_versions.filter(stage="quick", **scope).exists()
+
+
+def _stop_reason(record, automation):
+    """Recheck both current authorization and the source-specific rollout."""
+    if not automation.requested_by or not can_generate_summary(
+        record, automation.requested_by
+    ):
+        return "permission_revoked"
+    return "rollout_disabled" if not supports_automation(record) else ""
 
 
 @transaction.atomic
@@ -180,14 +217,13 @@ def tick_automation(automation_id):  # noqa: PLR0911 -- explicit lifecycle outco
     if not automation.enabled:
         return False
     automation.checked_at = timezone.now()
-    if not automation.requested_by or not can_generate_summary(
-        record, automation.requested_by
-    ):
+    stop_reason = _stop_reason(record, automation)
+    if stop_reason:
         _cancel_jobs(automation)
         automation.enabled = False
         automation.revision += 1
         automation.state = "needs_attention"
-        automation.error_code = "permission_revoked"
+        automation.error_code = stop_reason
         automation.save()
         return False
     latest = (

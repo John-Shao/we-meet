@@ -1,14 +1,25 @@
-"""Adapt a published standalone transcript without inventing a meeting session."""
+"""Adapt a fixed standalone ASR generation without inventing a meeting session."""
 
 from django.conf import settings
+from django.utils import timezone
 
 from core import models
-from core.services.capture_live_inputs import inputs
+from core.services.capture_live_inputs import inputs, is_live
 from core.services.meeting_captures import digest
-from core.services.meeting_records import RecordConflict
+from core.services.meeting_records import RecordConflict, can_generate_summary
 
 
-def source(record):
+def staged_enabled():
+    """Standalone drafts have their own opt-in rollout, in addition to staged AI."""
+    return bool(
+        settings.MEETING_CAPTURE_SUMMARY_ENABLED
+        and settings.MEETING_CAPTURE_PROTOCOL_ENABLED
+        and settings.MEETING_CAPTURE_STAGED_SUMMARY_ENABLED
+        and settings.MEETING_STAGED_SUMMARY_ENABLED
+    )
+
+
+def source(record, *, allow_live=False):
     """Freeze exactly one capture, its successful ASR generation and real originals."""
     if (
         not settings.MEETING_CAPTURE_SUMMARY_ENABLED
@@ -20,7 +31,29 @@ def source(record):
         raise RecordConflict("Standalone source identity is unavailable.")
     capture = captures[0]
     job = capture.active_transcription
-    if capture.status != "stopped" or not job or job.status != "succeeded":
+    published = bool(capture.status == "stopped" and job and job.status == "succeeded")
+    if not published and allow_live and staged_enabled():
+        job = (
+            capture.transcription_jobs.select_related("requested_by")
+            .order_by("-generation")
+            .first()
+        )
+        now = timezone.now()
+        if not (
+            settings.MEETING_CAPTURE_ASR_ENABLED
+            and settings.MEETING_CAPTURE_LIVE_ASR_ENABLED
+            and job
+            and is_live(job)
+            and job.status == "running"
+            and job.requested_by
+            and capture.created_by_id == job.requested_by_id
+            and can_generate_summary(record, job.requested_by)
+            and job.lease_until
+            and job.lease_until > now
+            and job.deadline > now
+        ):
+            raise RecordConflict("A current live transcription is required for drafts.")
+    elif not published:
         raise RecordConflict(
             "A stopped capture and published transcription are required."
         )
@@ -57,7 +90,9 @@ def source(record):
     source_inputs = inputs(job)
     audio_status = source_inputs["manifest"]["outcome"]
     delivery = {
-        "status": "complete" if audio_status == "saved" else "incomplete",
+        "status": ("complete" if audio_status == "saved" else "incomplete")
+        if published
+        else "open",
         "capture_transcriptions": [
             {
                 "id": str(job.pk),
@@ -67,7 +102,7 @@ def source(record):
                 "input_count": len(source_inputs["chunks"]),
                 "acknowledged_inputs": job.acknowledged_inputs,
                 "final_count": job.final_sequence,
-                "asr_status": "finished",
+                "asr_status": "finished" if published else "incomplete",
                 "coverage_status": "unverified",
             }
         ],

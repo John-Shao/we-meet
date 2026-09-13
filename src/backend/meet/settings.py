@@ -1082,6 +1082,9 @@ class Base(Configuration):
     MEETING_CAPTURE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_LIVE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_SUMMARY_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_CAPTURE_STAGED_SUMMARY_ENABLED = values.BooleanValue(
+        False, environ_prefix=None
+    )
     MEETING_SUMMARY_EXPORT_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_NOTIFICATIONS_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_SHARING_ENABLED = values.BooleanValue(False, environ_prefix=None)

@@ -13,6 +13,9 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from core import models
 from core.services import ai_usage
 from core.services.capture_summary_source import source as capture_source
+from core.services.capture_summary_source import (
+    staged_enabled as capture_staged_enabled,
+)
 from core.services.llm_client import LLMClient, LLMUnavailable
 from core.services.meeting_records import (
     RecordConflict,
@@ -88,7 +91,7 @@ def _source_ended(record):
     if not record.meeting_session_id:
         return (
             record.captures.exists()
-            and not record.captures.exclude(status="stopped").exists()
+            and not record.captures.exclude(status__in=["stopping", "stopped"]).exists()
         )
     run = record.online_captures.order_by("-created_at", "-id").first()
     return record.meeting_session.status == models.MeetingSession.Status.ENDED or bool(
@@ -99,7 +102,7 @@ def _source_ended(record):
 def _source_input(record, *, require_ended=True, enforce_budget=True):
     """Read all confirmed legacy rows, never truncate or choose another session."""
     if record.meeting_session_id is None:
-        segments, delivery = capture_source(record)
+        segments, delivery = capture_source(record, allow_live=not require_ended)
         return _fingerprint(record, segments, delivery, enforce_budget=enforce_budget)
     session = record.meeting_session
     if session.room.organization_id != record.organization_id:
@@ -170,8 +173,11 @@ def source_payload(record, *, require_ended=True):
 def _stage_readiness(record, segments, delivery, latest):
     """Coalesce stable text and distinguish meeting end from provider tail closure."""
     ended = _source_ended(record)
-    if not record.meeting_session_id:
+    if not record.meeting_session_id and not capture_staged_enabled():
         return {"ready_stages": ["final"] if ended else [], "next_update_at": None}
+    source_open = delivery.get("status") == "open" or any(
+        row["state"] == "open" for row in delivery.get("streams", [])
+    )
     if not settings.MEETING_STAGED_SUMMARY_ENABLED:
         managed_open = capture_run_id(record) and any(
             row["state"] == "open" for row in delivery.get("streams", [])
@@ -189,7 +195,7 @@ def _stage_readiness(record, segments, delivery, latest):
             or latest.configuration.get("stage", "final") != "final"
         ):
             stages.append("quick")
-        if not any(row["state"] == "open" for row in delivery.get("streams", [])):
+        if not source_open:
             stages.append("final")
         return {"ready_stages": stages, "next_update_at": None}
     previous = (
@@ -243,7 +249,7 @@ def prepare_summary_job(record_id, *, regenerate=False, stage="final"):
     ):
         raise RecordConflict("This summary stage is not enabled.")
     segments, fingerprint, delivery = _source_input(
-        record, require_ended=stage != "realtime"
+        record, require_ended=stage == "final"
     )
     previous = (
         record.processing_jobs.filter(kind="summary").order_by("-generation").first()
@@ -301,6 +307,10 @@ def prepare_summary_job(record_id, *, regenerate=False, stage="final"):
             "chunk_prompt_version": PROMPT_VERSION,
             "capture_run_id": capture_run_id(record),
         }
+        if record.meeting_session_id is None:
+            job.configuration["capture_transcription_id"] = delivery[
+                "capture_transcriptions"
+            ][0]["id"]
         job.save(update_fields=["input_snapshot", "configuration", "updated_at"])
     elif job.input_snapshot_id != latest.pk:
         raise RecordConflict(
@@ -339,9 +349,20 @@ def source_is_current(job):
         stage = job.configuration.get("stage", "final")
         if stage == "final":
             return source_payload(job.record)[1] == job.input_snapshot.fingerprint
-        current, _, _ = _source_input(
+        if job.record.meeting_session_id is None and not capture_staged_enabled():
+            return False
+        current, _, delivery = _source_input(
             job.record, require_ended=False, enforce_budget=False
         )
+        if job.record.meeting_session_id is None:
+            by_id = {row["segment_id"]: row for row in current}
+            return (
+                job.configuration.get("capture_transcription_id")
+                == delivery["capture_transcriptions"][0]["id"]
+            ) and all(
+                by_id.get(row["segment_id"]) == row
+                for row in job.input_snapshot.segments
+            )
         by_id = {row["segment_id"]: row for row in current}
         return all(
             by_id.get(row["segment_id"])

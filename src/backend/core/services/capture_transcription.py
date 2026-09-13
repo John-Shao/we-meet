@@ -12,6 +12,9 @@ from core import models
 from core.services import ai_usage
 from core.services import capture_live_inputs as live_inputs
 from core.services.capture_audio import serialize_chunk, serialize_manifest
+from core.services.capture_summary_source import (
+    staged_enabled as capture_staged_enabled,
+)
 from core.services.meeting_captures import CaptureDenied, authorize, digest
 from core.services.meeting_records import RecordConflict
 
@@ -208,6 +211,8 @@ def state(capture_id, user):
     return {
         "available": available(),
         "live_available": available() and settings.MEETING_CAPTURE_LIVE_ASR_ENABLED,
+        "staged_summary_available": capture_staged_enabled()
+        and settings.MEETING_VERSIONED_SUMMARY_ENABLED,
         "summary_available": bool(
             settings.MEETING_CAPTURE_SUMMARY_ENABLED
             and settings.MEETING_VERSIONED_SUMMARY_ENABLED
@@ -505,7 +510,11 @@ def finish(job_id, worker_id, payload):
         record = capture.record
         record.revision += 1
         record.save(update_fields=["revision", "updated_at"])
-        record.processing_jobs.filter(status__in=["queued", "running"]).update(
+        record.processing_jobs.filter(status__in=["queued", "running"]).exclude(
+            kind="summary",
+            configuration__stage__in=["realtime", "quick"],
+            configuration__capture_transcription_id=str(job.pk),
+        ).update(
             status="canceled",
             retryable=False,
             error_code="source_changed",

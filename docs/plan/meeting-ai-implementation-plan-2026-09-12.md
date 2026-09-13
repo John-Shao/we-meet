@@ -283,3 +283,5 @@ Batch 59: independent live-ASR backend, append-only input offers and owner-only 
 Batch 60: independent live-ASR Worker completed; run python capture_live_transcriber.py separately from sealed ASR. See [phase 3 batch 40](meeting-ai-phase3-batch40-2026-09-13.md). 34 Agent and 29 backend tests passed. No migration; Web integration follows.
 
 - Batch 61: [independent live transcription Web controls and confirmed preview](meeting-ai-phase3-batch41-2026-09-13.md). Explicit opt-in; 16 component tests and isolated browser regressions passed. No new migration.
+
+- Batch 62: [independent realtime, quick and final summary backend](meeting-ai-phase3-batch42-2026-09-13.md). New opt-in MEETING_CAPTURE_STAGED_SUMMARY_ENABLED; existing explicit automation consent required. No migration; isolated regressions passed.

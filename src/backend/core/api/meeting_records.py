@@ -28,6 +28,7 @@ from core.services.meeting_summary_automation import (
     automation_enabled,
     control_automation,
     serialize_automation,
+    supports_automation,
 )
 from core.services.meeting_summary_requests import (
     SummaryRequestDenied,
@@ -389,11 +390,10 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 {
                     **serialize_automation(current),
                     "available": bool(
-                        record.meeting_session_id and automation_enabled()
+                        supports_automation(record) and automation_enabled()
                     ),
                     "can_control": bool(
-                        record.meeting_session_id
-                        and can_generate_summary(record, request.user)
+                        can_generate_summary(record, request.user)
                     ),
                 }
             )
