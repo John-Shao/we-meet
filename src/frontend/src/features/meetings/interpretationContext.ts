@@ -9,6 +9,7 @@ import type {
 export interface InterpretationState {
   visible: boolean
   available: boolean
+  archiveAvailable?: boolean
   canControl: boolean
   canJoin: boolean
   channels: InterpretationChannel[]
@@ -22,7 +23,8 @@ export interface InterpretationState {
   speakerName: (sid: string) => string | undefined
   control: (
     target: InterpretationLanguage,
-    operation: 'start' | 'stop'
+    operation: 'start' | 'stop',
+    saveTranslations?: boolean
   ) => Promise<void>
   choose: (channel?: InterpretationChannel) => Promise<void>
   resubmit: () => Promise<void>

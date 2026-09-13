@@ -11,6 +11,7 @@ export interface InterpretationChannel {
     | 'stopped'
     | 'incomplete'
   error_code: string
+  archive_record_id?: string | null
 }
 export interface InterpretationSubscription {
   id: string
@@ -29,6 +30,7 @@ export interface InterpretationStatus {
   connections: { id: string; participant_sid: string }[]
   subscriptions: InterpretationSubscription[]
   listener_lease_seconds: number
+  archive_available?: boolean
 }
 export interface InterpretationEvent {
   type: 'ready' | 'target_candidate' | 'target_final'

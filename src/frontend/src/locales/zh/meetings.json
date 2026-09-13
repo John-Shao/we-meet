@@ -1,5 +1,8 @@
 {
   "interpretation": {
+    "saveTranslations": "将确认译文保存到本场会议笔记",
+    "savingTranslations": "已选择保存译文，需笔记原文权限查看",
+    "openTranslations": "查看留存译文",
     "speaker": "发言人 {{number}}",
     "title": "会议同声传译",
     "toolDescription": "选择收听语言，查看实时译文",
@@ -32,6 +35,28 @@
     "text": "实时译文",
     "final": "已确认译文",
     "preview": "翻译中"
+  },
+  "translationArchive": {
+    "title": "译文",
+    "scope": "这里保留开启频道时选择保存的确认译文，与正式逐字稿分别存放。",
+    "language": { "zh": "中文", "en": "英语" },
+    "status": {
+      "capturing": "持续保存中",
+      "complete": "已保存",
+      "incomplete": "保存不完整"
+    },
+    "version": "{{language}}同传 · 第 {{generation}} 次",
+    "count": "{{count}} 条确认译文",
+    "open": "查看{{language}}第 {{generation}} 次译文",
+    "back": "返回译文列表",
+    "loading": "正在加载译文…",
+    "empty": "暂无留存的确认译文。",
+    "error": "无法读取译文，内容可能已删除或阅读权限已变更。",
+    "refresh": "重新加载",
+    "timingHint": "下方时间为译文接收时间，不代表原声发言时间。请在文字记录中查看原文，译文暂不支持精确回听定位。",
+    "incompleteHint": "部分译文未能确认保存，以下仅展示已保存内容。",
+    "unknownSpeaker": "未识别发言人",
+    "received": "接收于 {{time}}"
   },
   "summaryExport": {
     "open": "导出此版本为文档",

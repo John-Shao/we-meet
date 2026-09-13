@@ -29,6 +29,7 @@ import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPan
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
 import { libraryLayout } from '../components/libraryStyles'
 import { OriginalSearch } from '../components/OriginalSearch'
+import { TranslationArchivePanel } from '../components/TranslationArchivePanel'
 
 const privateOptions = { retry: false, gcTime: 0, staleTime: 0 }
 const textStyle = css({
@@ -197,18 +198,24 @@ function WorkspaceContent({
   record,
   viewerId,
   summaryId,
+  translations = false,
 }: {
   record: ApiMeetingRecord
   viewerId: string
   summaryId?: string
+  translations?: boolean
 }) {
   const { t } = useTranslation('meetings')
   const [tab, setTab] = useState(
     summaryId !== undefined
       ? 'summary'
-      : record.capabilities.read_transcript
-        ? 'text'
-        : 'summary'
+      : translations &&
+          record.source_type === 'meeting' &&
+          record.capabilities.read_transcript
+        ? 'translations'
+        : record.capabilities.read_transcript
+          ? 'text'
+          : 'summary'
   )
   const player = useRef<CaptureAudioHandle>(null)
   const captureId = record.capabilities.read_transcript
@@ -239,7 +246,8 @@ function WorkspaceContent({
   const canReadText = record.capabilities.read_transcript
   const canReadSummary = record.capabilities.read_summary
   const selectedTab =
-    (tab === 'text' || tab === 'speakers') && !canReadText
+    (tab === 'text' || tab === 'speakers' || tab === 'translations') &&
+    !canReadText
       ? 'info'
       : tab === 'summary' && !canReadSummary
         ? 'info'
@@ -265,6 +273,9 @@ function WorkspaceContent({
       >
         <TabList aria-label={t('library.contentTabs')}>
           {canReadText && <Tab id="text">{t('library.text')}</Tab>}
+          {canReadText && record.source_type === 'meeting' && (
+            <Tab id="translations">{t('translationArchive.title')}</Tab>
+          )}
           {canReadSummary && <Tab id="summary">{t('library.minutes')}</Tab>}
           {canReadText && record.source_type === 'audio_recording' && (
             <Tab id="speakers">{t('library.speakers')}</Tab>
@@ -288,6 +299,15 @@ function WorkspaceContent({
                 viewerId={viewerId}
               />
             )}
+          </TabPanel>
+        )}
+        {canReadText && record.source_type === 'meeting' && (
+          <TabPanel id="translations" padding="md">
+            <TranslationArchivePanel
+              key={`${viewerId}:${record.id}`}
+              viewerId={viewerId}
+              recordId={record.id}
+            />
           </TabPanel>
         )}
         {canReadSummary && (
@@ -354,6 +374,7 @@ export function RecordWorkspace({
   // Preserve invalid/empty selectors so the API rejects them instead of opening latest.
   const summaryIds = search.getAll('summary')
   const summaryId = summaryIds.length > 1 ? '' : summaryIds[0]
+  const translations = search.get('tab') === 'translations'
   const query = useMeetingRecord(viewerId, recordId, true)
   return (
     <Screen>
@@ -384,10 +405,11 @@ export function RecordWorkspace({
               {new Date(query.data.origin_at).toLocaleString()}
             </p>
             <WorkspaceContent
-              key={`${viewerId}:${recordId}:${summaryId ?? 'all'}`}
+              key={`${viewerId}:${recordId}:${summaryId ?? 'all'}:${translations}`}
               viewerId={viewerId}
               record={query.data}
               summaryId={summaryId}
+              translations={translations}
             />
           </>
         )}

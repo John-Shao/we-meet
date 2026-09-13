@@ -84,6 +84,18 @@ def _validate_item(data):
     return len(text.encode("utf-8"))
 
 
+def _receipt(segment, channel, record_id, *, replayed):
+    return {
+        "id": str(segment.pk),
+        "sequence": segment.sequence,
+        "replayed": replayed,
+        "channel_id": str(channel.pk),
+        "generation": channel.generation,
+        "record_id": str(record_id),
+        "payload_hash": segment.payload_hash,
+    }
+
+
 @transaction.atomic
 def append_segment(channel_id, data):
     """Retry the same confirmed item without renewing any input/output permission."""
@@ -144,7 +156,7 @@ def append_segment(channel_id, data):
     if existing:
         if existing.payload_hash != digest:
             raise RecordConflict("Confirmed translation item conflicts.")
-        return {"id": str(existing.pk), "sequence": existing.sequence, "replayed": True}
+        return _receipt(existing, channel, archive.record_id, replayed=True)
     now = timezone.now()
     if (
         not enabled()
@@ -184,4 +196,4 @@ def append_segment(channel_id, data):
         archive.text_bytes + byte_count,
     )
     archive.save(update_fields=["segment_count", "text_bytes", "updated_at"])
-    return {"id": str(segment.pk), "sequence": sequence, "replayed": False}
+    return _receipt(segment, channel, archive.record_id, replayed=False)

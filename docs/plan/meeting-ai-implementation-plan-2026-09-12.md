@@ -266,3 +266,6 @@ Latest implementation: [Batch 34: unified library queries](meeting-ai-phase3-bat
 - Batch 54: [meeting interpretation Web listening](meeting-ai-phase3-batch34-2026-09-13.md). 31 frontend and 54 Agent tests, native Chromium desktop/mobile, production build passed. Dedicated Agent + migrations 0170/0171 + worker/beat required. Channel stack ready for deployment validation; flag remains off by default. Full M3/M4 and final review remain pending.
 
 - Batch 55: [confirmed translation archives](meeting-ai-phase3-batch35-2026-09-13.md). Migration 0172, 20 new and 28 regression tests passed. MEETING_TRANSLATION_ARCHIVE_ENABLED defaults off; Agent delivery and Web retention controls/reader follow. Originals and their revisions are unchanged.
+
+
+Batch 56: shared confirmed-translation delivery and opt-in archive reader completed. See [phase 3 batch 36](meeting-ai-phase3-batch36-2026-09-13.md). Agent/backend/frontend tests and browser/build checks passed; private and independent recording translation remain pending.

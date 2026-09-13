@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next'
+import { useState } from 'react'
+import { Link } from 'wouter'
 import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useInterpretation } from '../interpretationContext'
@@ -6,6 +8,7 @@ import type { InterpretationLanguage } from '../interpretationEvents'
 
 export function InterpretationPanel() {
   const state = useInterpretation()
+  const [save, setSave] = useState({ zh: false, en: false })
   const { t } = useTranslation('meetings', { keyPrefix: 'interpretation' })
   if (!state?.visible) return <Text>{t('unavailable')}</Text>
   const speakers = [...new Set(state.rows.map((row) => row.sourceSid))]
@@ -52,6 +55,37 @@ export function InterpretationPanel() {
                 {t(`language.${target}`)} ·{' '}
                 {t(`state.${channel?.state ?? 'off'}`)}
               </Text>
+              {state.canControl &&
+                state.archiveAvailable &&
+                (!channel ||
+                  ['stopped', 'incomplete'].includes(channel.state)) && (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={save[target]}
+                      disabled={state.pending || state.uncertain}
+                      onChange={(event) =>
+                        setSave((previous) => ({
+                          ...previous,
+                          [target]: event.target.checked,
+                        }))
+                      }
+                    />
+                    {t('saveTranslations')}
+                  </label>
+                )}
+              {channel?.archive_record_id && (
+                <Text variant="note">
+                  {t('savingTranslations')} ·{' '}
+                  <Link
+                    href={`/meeting/records/${channel.archive_record_id}?tab=translations`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {t('openTranslations')}
+                  </Link>
+                </Text>
+              )}
               <Button
                 size="sm"
                 variant={selected ? 'secondary' : 'tertiary'}
@@ -94,7 +128,8 @@ export function InterpretationPanel() {
                           channel.state
                         )
                         ? 'stop'
-                        : 'start'
+                        : 'start',
+                      save[target]
                     )
                   }
                 >

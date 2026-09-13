@@ -1,5 +1,8 @@
 {
   "interpretation": {
+    "saveTranslations": "Save confirmed translations to this meeting's notes",
+    "savingTranslations": "Saving selected; original-material access is required to read",
+    "openTranslations": "View saved translations",
     "speaker": "Speaker {{number}}",
     "title": "Meeting interpretation",
     "toolDescription": "Choose a listening language and follow translated speech",
@@ -32,6 +35,28 @@
     "text": "Live translation",
     "final": "Confirmed translation",
     "preview": "Translating"
+  },
+  "translationArchive": {
+    "title": "Translations",
+    "scope": "Confirmed translations are saved only when selected at channel start, separately from the original transcript.",
+    "language": { "zh": "Chinese", "en": "English" },
+    "status": {
+      "capturing": "Saving",
+      "complete": "Saved",
+      "incomplete": "Partially saved"
+    },
+    "version": "{{language}} interpretation · Run {{generation}}",
+    "count": "{{count}} confirmed translations",
+    "open": "View {{language}} translations, run {{generation}}",
+    "back": "Back to translations",
+    "loading": "Loading translations…",
+    "empty": "No confirmed translations have been saved.",
+    "error": "Translations could not be loaded. They may have been deleted or your access may have changed.",
+    "refresh": "Reload",
+    "timingHint": "Times indicate translation delivery, not original speech. Read originals in the transcript; exact playback links are unavailable for these translations.",
+    "incompleteHint": "Some translations could not be confirmed as saved. Only retained content is shown below.",
+    "unknownSpeaker": "Unknown speaker",
+    "received": "Received at {{time}}"
   },
   "summaryExport": {
     "open": "Export this version to a document",

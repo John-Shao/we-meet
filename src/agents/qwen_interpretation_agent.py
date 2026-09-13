@@ -19,6 +19,7 @@ from plugins.qwen_live_translate import (
     TranslationError,
     TranslationSession,
 )
+from translation_archive_delivery import ArchiveDelivery
 from translation_control import TranslationInput
 
 EVENT_TOPIC = "meeting.interpretation.events"
@@ -96,6 +97,8 @@ class SourceTranslation:
                     )
                 )
         elif event["type"] in {"target_candidate", "target_final"}:
+            if self.runtime.archive and event["type"] == "target_final":
+                self.runtime.archive.enqueue(self.source, event)
             await self.runtime.publish(self, event)
 
     async def read_audio(self):
@@ -220,6 +223,12 @@ class SharedInterpretation:
         self.missing_usage = set()
         self.output_limit = asyncio.Semaphore(8)
         self.last_permissions = None
+        record_id = self.lease.configuration.get("archive_record_id")
+        self.archive = (
+            ArchiveDelivery(reporter, record_id, self.lease.configuration["target"])
+            if record_id
+            else None
+        )
 
     def can_output(self):
         """No output survives lease expiry or absence of matching live listeners."""
@@ -406,6 +415,8 @@ class SharedInterpretation:
         """Poll local expiry even when an asynchronous backend heartbeat stalls."""
         self.permissions()
         self.room.on("participant_disconnected", self.disconnected)
+        if self.archive:
+            self.archive.start()
         self.watcher = asyncio.create_task(self.watch())
         try:
             while not self.stop.is_set():
@@ -424,6 +435,7 @@ class SharedInterpretation:
             if self.closed:
                 return
             self.stop.set()
+            started_at = time.monotonic()
             try:
                 results = await asyncio.wait_for(
                     asyncio.gather(
@@ -437,6 +449,11 @@ class SharedInterpretation:
             except TimeoutError:
                 self.failed = True
             finally:
+                archive_finished = None
+                if self.archive:
+                    archive_finished = await self.archive.finish(
+                        24 - (time.monotonic() - started_at)
+                    )
                 self.lease.deny()
                 self.permissions()
                 self.closed = True
@@ -451,6 +468,11 @@ class SharedInterpretation:
                         "provider_finished": self.provider_complete,
                         "consumer_finished": not self.failed,
                         **self.usage,
+                        **(
+                            {"archive_finished": archive_finished}
+                            if self.archive
+                            else {}
+                        ),
                     },
                 )
 

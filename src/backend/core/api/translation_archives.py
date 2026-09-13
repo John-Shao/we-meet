@@ -122,12 +122,19 @@ class RecordTranslationSegmentsView(NoStore):
         archive = get_object_or_404(_archives(request.user, record), pk=selector)
         pager = SegmentPagination()
         rows = pager.paginate_queryset(archive.segments.all(), request, view=self)
+        labels = dict(
+            models.MeetingParticipation.objects.filter(
+                pk__in=[row.source_participation_id for row in rows],
+                session_id=record.source_session_id,
+            ).values_list("pk", "display_name")
+        )
         result = [
             {
                 "id": str(row.pk),
                 "sequence": row.sequence,
                 "source_participation_id": str(row.source_participation_id),
                 "source_participant_sid": row.source_participant_sid,
+                "speaker_label": labels.get(row.source_participation_id, ""),
                 "direction": row.direction,
                 "target": row.target,
                 "text": row.text,
@@ -138,4 +145,10 @@ class RecordTranslationSegmentsView(NoStore):
             for row in rows
         ]
         _record(request.user, record_id)
-        return pager.get_paginated_response(result)
+        response = pager.get_paginated_response(result)
+        response.data.update(
+            archive_id=str(archive.pk),
+            archive_status=archive.status,
+            target=archive.configuration["target"],
+        )
+        return response

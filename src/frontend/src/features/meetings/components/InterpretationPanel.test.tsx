@@ -66,7 +66,7 @@ describe('Meeting interpretation controls', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'stopChannel:language.en' })
     )
-    expect(state.control).toHaveBeenCalledWith('en', 'stop')
+    expect(state.control).toHaveBeenCalledWith('en', 'stop', false)
   })
   it('keeps an uncertain request explicit and blocks new mutations', () => {
     state.uncertain = true
@@ -78,5 +78,18 @@ describe('Meeting interpretation controls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'resubmit' }))
     expect(state.resubmit).toHaveBeenCalledOnce()
     expect(screen.getByRole('status')).toHaveTextContent('uncertain')
+  })
+  it('requires a separate unchecked choice before retaining translations', () => {
+    state.canControl = true
+    state.archiveAvailable = true
+    state.channels = []
+    show()
+    const boxes = screen.getAllByRole('checkbox')
+    expect(boxes[0]).not.toBeChecked()
+    fireEvent.click(boxes[0])
+    fireEvent.click(
+      screen.getByRole('button', { name: 'startChannel:language.zh' })
+    )
+    expect(state.control).toHaveBeenCalledWith('zh', 'start', true)
   })
 })

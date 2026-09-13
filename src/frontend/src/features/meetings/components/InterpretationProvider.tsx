@@ -22,7 +22,7 @@ import { useConnectedMeetingSid } from '../useConnectedMeetingSid'
 const ROOT = 'meeting-interpretation/'
 type Intent = {
   path: 'channels/' | 'subscription/'
-  body: Record<string, string | number | null>
+  body: Record<string, string | number | boolean | null>
 }
 type Lease = {
   channel: InterpretationChannel
@@ -416,7 +416,8 @@ function InterpretationSession({
   })
   const control = async (
     target: InterpretationLanguage,
-    operation: 'start' | 'stop'
+    operation: 'start' | 'stop',
+    saveTranslations = false
   ) => {
     if (intent || busy.current || !value?.can_control) return
     const channel = value.channels.find((row) => row.target === target)
@@ -428,6 +429,9 @@ function InterpretationSession({
         target,
         operation,
         expected_channel_id: channel?.id ?? null,
+        ...(operation === 'start'
+          ? { save_translations: saveTranslations }
+          : {}),
       },
     })
   }
@@ -474,6 +478,7 @@ function InterpretationSession({
           ![401, 403, 404].includes((status.error as ApiError)?.statusCode) &&
           (value.available || value.channels.length > 0),
         available: value?.available ?? false,
+        archiveAvailable: value?.archive_available ?? false,
         canControl: !!value?.can_control && !status.isError,
         canJoin: !!connection && !status.isError,
         channels: value?.channels ?? [],
