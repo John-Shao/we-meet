@@ -252,3 +252,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 118: exact-worker cloud lifecycle events, monotonic recording state, pending-command completion and bounded occurrence-scoped notices; 132 unique isolated scenarios pass. No migration; keep rollout off pending Android integration. See [batch 118](meeting-ai-phase3-batch98-2026-09-13.md).
 
 - Batch 119: Android cloud recording protocol and encrypted exact-intent recovery (`46ecbf08`); 8 JVM + 5 isolated device tests and builds/token checks pass. Native panel follows; rollout remains off. See [batch 119](meeting-ai-phase3-batch99-2026-09-13.md).
+
+- Batch 120: Android cloud recording panel (`3759a2f5`), explicit confirmation, exact-source foreground reads and durable recovery UI; 8 isolated UI + 8 JVM tests, builds/token/visual checks pass. WE_MEET_CLOUD_RECORDING_NATIVE defaults false. Standalone translation and final review follow. See [batch 120](meeting-ai-phase3-batch100-2026-09-13.md).
