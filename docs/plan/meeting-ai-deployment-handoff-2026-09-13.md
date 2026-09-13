@@ -240,3 +240,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 112: Android memory-only text audio and durable explicit incomplete recovery (4ca9d4bf); 24 isolated device and 19 JVM tests, Debug/test and token checks passed. See [batch 92](meeting-ai-phase3-batch92-2026-09-13.md). Native service/consent/status UI follows.
 
 - Batch 113: Android `77103709` integrates text-only capture controls and expiry shutdown; no migration. Storage admission and existing flags govern exposure; native defaults remain false. 21 isolated device scenarios, builds/design-token checks and light/dark inspection pass; real device/provider/cleanup acceptance remains pending. See [batch 113](meeting-ai-phase3-batch93-2026-09-13.md).
+
+- Batch 114: new no-store GET cloud-recording/control endpoint and MEETING_CLOUD_RECORDING_ENABLED=false; no migration. Keep disabled pending command/worker/native integration. 24 backend scenarios pass; no actual Egress call. See [batch 114](meeting-ai-phase3-batch94-2026-09-13.md).

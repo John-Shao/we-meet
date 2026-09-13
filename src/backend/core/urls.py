@@ -47,13 +47,14 @@ from core.api.capture_audio import (
 from core.api.capture_transcription import (
     CancelTranscriptionView,
     CaptureTranscriptionView,
-    LiveTranscriptionPreviewView,
     ClaimTranscriptionView,
     ControlTranscriptionView,
     FinishTranscriptionView,
     IngestTranscriptionView,
+    LiveTranscriptionPreviewView,
     TranscriptionInputView,
 )
+from core.api.cloud_recording import CloudRecordingView
 from core.api.directory import (
     ContactPreferenceViewSet,
     DepartmentViewSet,
@@ -99,12 +100,6 @@ from core.api.meeting_interpretation import (
 )
 from core.api.meeting_record_qa import RecordQuestionView
 from core.api.meeting_records import MeetingRecordViewSet
-from core.api.translation_archives import (
-    PrivateTranslationSegmentIngestView,
-    RecordTranslationArchivesView,
-    RecordTranslationSegmentsView,
-    TranslationSegmentIngestView,
-)
 from core.api.meeting_rooms import (
     MeetingRoomFacilityViewSet,
     MeetingRoomNodeViewSet,
@@ -161,6 +156,12 @@ from core.api.tasks import (
     TaskListGroupViewSet,
     TaskListViewSet,
     TaskViewSet,
+)
+from core.api.translation_archives import (
+    PrivateTranslationSegmentIngestView,
+    RecordTranslationArchivesView,
+    RecordTranslationSegmentsView,
+    TranslationSegmentIngestView,
 )
 from core.external_api import viewsets as external_viewsets
 
@@ -358,6 +359,7 @@ urlpatterns = [
                     name="calendar_share",
                 ),
                 path("meeting-capture-status/", OnlineCaptureStatusView.as_view(), name="meeting-capture-status"),
+                path("cloud-recording/control/", CloudRecordingView.as_view(), name="cloud-recording-control"),
                 path("meeting-records/<uuid:record_id>/human-summary/", SummaryReviewView.as_view(), name="human-summary"),
                 path("meeting-records/<uuid:record_id>/document-exports/", SummaryExportView.as_view(), name="summary-exports"),
                 path("meeting-records/<uuid:record_id>/summary-notifications/", SummaryNotificationsView.as_view(), name="summary-notifications"),

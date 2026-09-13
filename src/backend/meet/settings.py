@@ -1078,6 +1078,7 @@ class Base(Configuration):
     MEETING_SUMMARY_CHUNKING_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_PROTOCOL_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_ONLINE_CAPTURE_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_CLOUD_RECORDING_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_TRANSLATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_REVIEW_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_TASKS_ENABLED = values.BooleanValue(False, environ_prefix=None)
