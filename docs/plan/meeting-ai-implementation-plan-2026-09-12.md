@@ -352,3 +352,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 92: Android scoped summary-sharing preview/confirmation and durable recovery; 17 JVM + 7 isolated tests and Debug/token checks passed. See [batch 72](meeting-ai-phase3-batch72-2026-09-13.md). Native sharing UI follows.
 
 - Batch 93: Android explicit summary sharing/revocation workspace, scoped selection and effective-access previews; 13 isolated UI tests, Debug/token and light/dark checks passed. See [batch 73](meeting-ai-phase3-batch73-2026-09-13.md). Native online capture/translation alignment and first-release gaps follow.
+
+- Batch 94: Android exact-occurrence online capture controls and join-token-only notices with durable recovery; 16 JVM + 7 isolated tests and Debug/token checks passed. See [batch 74](meeting-ai-phase3-batch74-2026-09-13.md). In-meeting UI follows.
