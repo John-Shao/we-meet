@@ -292,3 +292,5 @@ Web and Android d3d4d332 can drain individual translated speech turns on the sam
 - Batch 133: Android recording translation controls and bounded playback (90f6e937); 13 isolated device scenarios and enabled/default builds pass. Native archive UI and final review follow. See [batch 133](meeting-ai-phase3-batch113-2026-09-13.md).
 
 - Batch 134: Android owner-only saved recording translation archives (cbe73696); 10 isolated device scenarios, builds and light/dark inspection pass. Worker deployment wiring and final review follow. See [batch 134](meeting-ai-phase3-batch114-2026-09-13.md).
+
+- Batch 135: five optional AI Workers, exact WSS gateway ingress and partial-release image preservation; eight render/script scenarios, Helm lint, shell and Compose checks pass. See [deployment configuration](meeting-ai-worker-deployment-2026-09-13.md) and [batch 135](meeting-ai-phase3-batch115-2026-09-13.md). Final technical review follows.

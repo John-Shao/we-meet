@@ -1,0 +1,123 @@
+{{- range $key, $worker := .Values.meetingAIWorkers.workers }}
+{{- if $worker.enabled }}
+{{- $settings := $.Values.meetingAIWorkers }}
+{{- $component := printf "agent-%s" $key }}
+{{- $name := printf "%s-%s" (include "meet.fullname" $) $component }}
+{{- $secret := required "meetingAIWorkers.credentialsSecret is required for enabled AI workers" $settings.credentialsSecret }}
+{{- $env := deepCopy $worker.envVars }}
+{{- $_ := set $env "AGENT_BACKEND_API_URL" (required "meetingAIWorkers.backendUrl is required" $settings.backendUrl) }}
+{{- range $variable := list "AGENT_INTERNAL_API_TOKEN" "DASHSCOPE_API_KEY" }}
+{{- $_ := set $env $variable (dict "secretKeyRef" (dict "name" $secret "key" $variable)) }}
+{{- end }}
+{{- $_ := set $env "DASHSCOPE_WORKSPACE_ID" (dict "secretKeyRef" (dict "name" $secret "key" "DASHSCOPE_WORKSPACE_ID" "optional" true)) }}
+{{- if $worker.livekit }}
+{{- $_ := set $env "LIVEKIT_URL" (required "meetingAIWorkers.livekitUrl is required for room agents" $settings.livekitUrl) }}
+{{- range $variable := list "LIVEKIT_API_KEY" "LIVEKIT_API_SECRET" }}
+{{- $_ := set $env $variable (dict "secretKeyRef" (dict "name" $secret "key" $variable)) }}
+{{- end }}
+{{- end }}
+{{- if eq $key "capture-translation" }}
+{{- $_ := set $env "CAPTURE_TRANSLATION_GATEWAY_ENABLED" "true" }}
+{{- $_ := set $env "CAPTURE_TRANSLATION_BIND" "0.0.0.0" }}
+{{- $_ := set $env "CAPTURE_TRANSLATION_PORT" "8093" }}
+{{- $_ := set $env "CAPTURE_TRANSLATION_ORIGINS" (required "meetingAIWorkers.gateway.origins must list allowed browser origins" $settings.gateway.origins) }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list $ $component) | nindent 4 }}
+spec:
+  replicas: {{ $worker.replicas }}
+  selector:
+    matchLabels:
+      {{- include "meet.common.selectorLabels" (list $ $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "meet.common.selectorLabels" (list $ $component) | nindent 8 }}
+    spec:
+      terminationGracePeriodSeconds: 60
+      {{- if $.Values.image.credentials }}
+      imagePullSecrets:
+        - name: {{ include "meet.secret.dockerconfigjson.name" (dict "fullname" (include "meet.fullname" $) "imageCredentials" $.Values.image.credentials) }}
+      {{- end }}
+      containers:
+        - name: {{ $component }}
+          image: "{{ $settings.image.repository }}:{{ $worker.imageTag | default $settings.image.tag }}"
+          imagePullPolicy: {{ $settings.image.pullPolicy }}
+          command: {{ $worker.command | toJson }}
+          env:
+            {{- include "meet.env.transformDict" $env | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml $worker.resources | nindent 12 }}
+          {{- if eq $key "capture-translation" }}
+          ports:
+            - name: websocket
+              containerPort: 8093
+          readinessProbe:
+            tcpSocket: {port: websocket}
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: {port: websocket}
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          {{- end }}
+      {{- with $settings.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $settings.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- if eq $key "capture-translation" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace | quote }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "meet.common.selectorLabels" (list $ $component) | nindent 4 }}
+  ports:
+    - name: websocket
+      port: 8093
+      targetPort: websocket
+{{- if $settings.gateway.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace | quote }}
+  annotations:
+    {{- toYaml $settings.gateway.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ $settings.gateway.ingress.className | quote }}
+  tls:
+    - hosts: [{{ required "meetingAIWorkers.gateway.ingress.host is required" $settings.gateway.ingress.host | quote }}]
+      secretName: {{ required "meetingAIWorkers.gateway.ingress.tlsSecret is required for WSS" $settings.gateway.ingress.tlsSecret | quote }}
+  rules:
+    - host: {{ $settings.gateway.ingress.host | quote }}
+      http:
+        paths:
+          - path: /capture-translation
+            pathType: Exact
+            backend:
+              service:
+                name: {{ $name }}
+                port: {name: websocket}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

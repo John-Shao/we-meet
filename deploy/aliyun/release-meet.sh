@@ -199,6 +199,21 @@ helm_args=(
   --wait --timeout 10m
 )
 
+# Optional AI processes use the agents image family. Preserve each live tag on
+# partial releases, and leave absent workers at their explicitly configured tag.
+ai_workers=(translation interpretation capture-asr capture-live-asr capture-translation)
+for worker in "${ai_workers[@]}"; do
+  deployment="$RELEASE-agent-$worker"
+  if contains_module agents; then
+    helm_args+=(--set-string "meetingAIWorkers.workers.$worker.imageTag=$TAG")
+  else
+    deployed=$(kubectl -n "$NAMESPACE" get deployment "$deployment" --ignore-not-found -o name)
+    if [[ -n "$deployed" ]]; then
+      helm_args+=(--set-string "meetingAIWorkers.workers.$worker.imageTag=$(deployment_tag "$deployment")")
+    fi
+  fi
+done
+
 if ((DRY_RUN)); then
   echo "==> Dry run: no cluster changes will be made"
   helm "${helm_args[@]}" --dry-run --debug
@@ -224,6 +239,13 @@ if contains_module agents; then
   wait_for_deployment "$RELEASE-agent-metadata"
   wait_for_deployment "$RELEASE-agent-subtitles"
   wait_for_deployment "$RELEASE-agent-ai-assistant"
+  for worker in "${ai_workers[@]}"; do
+    deployment="$RELEASE-agent-$worker"
+    deployed=$(kubectl -n "$NAMESPACE" get deployment "$deployment" --ignore-not-found -o name)
+    if [[ -n "$deployed" ]]; then
+      wait_for_deployment "$deployment"
+    fi
+  done
 fi
 
 echo "==> Running images"

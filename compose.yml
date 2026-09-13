@@ -294,6 +294,49 @@ services:
       - ./src/agents:/app
       - /app/.venv
 
+  meeting-interpretation-dev:
+    profiles: ["interpretation"]
+    build:
+      context: ./src/agents
+      target: development
+    command: ["python", "qwen_interpretation_agent.py", "dev"]
+    env_file:
+      - env.d/development/meeting_translation
+    environment:
+      ROOM_INTERPRETATION_AGENT_NAME: meeting-interpretation
+    volumes:
+      - ./src/agents:/app
+      - /app/.venv
+
+  capture-live-transcriber-dev:
+    profiles: ["capture-live-asr"]
+    build:
+      context: ./src/agents
+      target: development
+    command: ["python", "capture_live_transcriber.py"]
+    env_file:
+      - env.d/development/capture_transcriber
+    volumes:
+      - ./src/agents:/app
+      - /app/.venv
+
+  capture-translation-dev:
+    profiles: ["capture-translation"]
+    build:
+      context: ./src/agents
+      target: development
+    command: ["python", "capture_translation_gateway.py"]
+    env_file:
+      - env.d/development/capture_translation
+    environment:
+      CAPTURE_TRANSLATION_BIND: 0.0.0.0
+      CAPTURE_TRANSLATION_PORT: "8093"
+    ports:
+      - "127.0.0.1:8093:8093"
+    volumes:
+      - ./src/agents:/app
+      - /app/.venv
+
   capture-transcriber-dev:
     profiles: ["capture-asr"]
     build:

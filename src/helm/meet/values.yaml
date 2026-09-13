@@ -1382,3 +1382,82 @@ extraManifests: []
 #        {
 #          "feature": "enabled"
 #        }
+
+# Optional first-release AI processes. Use one immutable agents image tag.
+# Credentials are referenced from an existing Secret, never inline values.
+meetingAIWorkers:
+  image:
+    repository: lasuite/meet-agents
+    tag: latest
+    pullPolicy: IfNotPresent
+  credentialsSecret: ""
+  backendUrl: ""
+  livekitUrl: ""
+  nodeSelector: {}
+  tolerations: []
+  gateway:
+    origins: ""
+    ingress:
+      enabled: false
+      className: nginx
+      host: ""
+      tlsSecret: ""
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  workers:
+    translation:
+      enabled: false
+      replicas: 1
+      imageTag: ""
+      livekit: true
+      command: [python, qwen_translation_agent.py, start]
+      envVars:
+        ROOM_TRANSLATION_AGENT_NAME: meeting-translation
+        DASHSCOPE_REGION: cn-beijing
+        QWEN_TRANSLATION_MODEL: qwen3.5-livetranslate-flash-realtime
+        QWEN_TRANSLATION_LANGUAGES: zh,en
+      resources: {}
+    interpretation:
+      enabled: false
+      replicas: 1
+      imageTag: ""
+      livekit: true
+      command: [python, qwen_interpretation_agent.py, start]
+      envVars:
+        ROOM_INTERPRETATION_AGENT_NAME: meeting-interpretation
+        DASHSCOPE_REGION: cn-beijing
+        QWEN_TRANSLATION_MODEL: qwen3.5-livetranslate-flash-realtime
+        QWEN_TRANSLATION_LANGUAGES: zh,en
+      resources: {}
+    capture-asr:
+      enabled: false
+      replicas: 1
+      imageTag: ""
+      livekit: false
+      command: [python, capture_transcriber.py]
+      envVars:
+        QWEN_ASR_MODEL: qwen-audio-3.0-asr-flash-streaming
+        QWEN_ASR_REGION: cn-beijing
+      resources: {}
+    capture-live-asr:
+      enabled: false
+      replicas: 1
+      imageTag: ""
+      livekit: false
+      command: [python, capture_live_transcriber.py]
+      envVars:
+        QWEN_ASR_MODEL: qwen-audio-3.0-asr-flash-streaming
+        QWEN_ASR_REGION: cn-beijing
+      resources: {}
+    capture-translation:
+      enabled: false
+      replicas: 1
+      imageTag: ""
+      livekit: false
+      command: [python, capture_translation_gateway.py]
+      envVars:
+        DASHSCOPE_REGION: cn-beijing
+        QWEN_TRANSLATION_MODEL: qwen3.5-livetranslate-flash-realtime
+        QWEN_TRANSLATION_LANGUAGES: zh,en
+      resources: {}
