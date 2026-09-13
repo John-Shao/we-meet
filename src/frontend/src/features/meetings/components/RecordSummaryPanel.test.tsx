@@ -55,7 +55,11 @@ let job: { id: string; status: string; attempt: number } | null
 let readError: boolean
 let withVersion: boolean
 
-function show(roomList = false, onSourceAudio?: (time: number) => void) {
+function show(
+  roomList = false,
+  onSourceAudio?: (time: number) => void,
+  duringCapture = false
+) {
   client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
@@ -68,6 +72,7 @@ function show(roomList = false, onSourceAudio?: (time: number) => void) {
           viewerId="viewer-1"
           recordId="record-1"
           onSourceAudio={onSourceAudio}
+          duringCapture={duringCapture}
         />
       )}
     </QueryClientProvider>
@@ -115,6 +120,27 @@ beforeEach(() => {
 afterEach(() => client?.clear())
 
 describe('Versioned summary requests', () => {
+  it('keeps source text available during capture without playback or post-meeting tools', async () => {
+    withVersion = true
+    const audio = vi.fn()
+    show(false, audio, true)
+    await screen.findByText('Protected minutes')
+    fireEvent.click(screen.getByRole('button', { name: /recordAi.source/ }))
+    await screen.findByText('Historical original text')
+    expect(
+      screen.queryByRole('button', { name: 'recordAi.listenSource' })
+    ).not.toBeInTheDocument()
+    const reads = mocks.fetchApi.mock.calls.map(([url]) => url as string)
+    expect(
+      reads.some((url) =>
+        /summary-notifications|summary-sharing|human-summary|questions|exports/.test(
+          url
+        )
+      )
+    ).toBe(false)
+    expect(audio).not.toHaveBeenCalled()
+    expect(reads.some((url) => url.includes('summary-automation/'))).toBe(true)
+  })
   it('shows source-budget rejection and extraction progress from server state', async () => {
     const fallback = mocks.fetchApi.getMockImplementation()!
     mocks.fetchApi.mockImplementation((url, options) =>

@@ -27,6 +27,7 @@ type State = {
   available: boolean
   live_available?: boolean
   summary_available?: boolean
+  staged_summary_available?: boolean
   active_job_id: string | null
   results: Job[]
 }
@@ -308,18 +309,30 @@ export function CaptureTranscriptionPanel({
           </ul>
         </details>
       )}
-      {includeSummary && !openCapture && state.data.summary_available && (
-        <details onToggle={(event) => setShowSummary(event.currentTarget.open)}>
-          <summary>{t('asr.summary')}</summary>
-          {showSummary && (
-            <RecordSummaryPanel
-              recordId={capture.record_id}
-              viewerId={viewerId}
-              onSourceAudio={onSource}
-            />
-          )}
-        </details>
-      )}
+      {includeSummary &&
+        (openCapture
+          ? state.data.staged_summary_available
+          : state.data.summary_available) && (
+          <details
+            onToggle={(event) => setShowSummary(event.currentTarget.open)}
+          >
+            <summary>
+              {t(openCapture ? 'asr.liveSummary' : 'asr.summary')}
+            </summary>
+            {showSummary && (
+              <>
+                {openCapture && <p>{t('asr.liveSummaryHint')}</p>}
+                <RecordSummaryPanel
+                  recordId={capture.record_id}
+                  viewerId={viewerId}
+                  onSourceAudio={openCapture ? undefined : onSource}
+                  duringCapture={openCapture}
+                  showHeading={false}
+                />
+              </>
+            )}
+          </details>
+        )}
     </section>
   )
 }

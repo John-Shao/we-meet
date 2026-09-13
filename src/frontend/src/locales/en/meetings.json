@@ -263,11 +263,13 @@
     "sourceMissing": "The cited source is unavailable.",
     "coverageUnverified": "Full audio coverage is unverified",
     "asr": {
+      "in_progress": "Recognition in progress; waiting for the remaining speech",
       "finished": "Recognition tails received for observed audio",
       "incomplete": "Recognition or transcript shutdown incomplete; check for missing content",
       "no_audio_observed": "No audio input was observed"
     },
     "delivery": {
+      "open": "Still receiving text",
       "complete": "All emitted text delivered",
       "incomplete": "Text delivery incomplete",
       "unverified": "Text delivery unverified"

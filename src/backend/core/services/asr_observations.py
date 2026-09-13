@@ -83,6 +83,8 @@ def snapshot_asr_status(delivery):
     )
     if "incomplete" in statuses:
         return "incomplete"
+    if "in_progress" in statuses:
+        return "in_progress"
     if not statuses or "unverified" in statuses:
         return "unverified"
     return "finished" if "finished" in statuses else "no_audio_observed"

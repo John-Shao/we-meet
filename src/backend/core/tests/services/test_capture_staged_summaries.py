@@ -94,7 +94,7 @@ def test_realtime_keeps_unpublished_originals_and_exact_snapshot_references():
     response = client_for(user).get(
         f"/api/v1.0/meeting-records/{capture.record_id}/summary-versions/"
     )
-    assert response.data["results"][0]["asr_status"] == "incomplete"
+    assert response.data["results"][0]["asr_status"] == "in_progress"
     assert not models.MeetingSession.objects.exists()
 
 

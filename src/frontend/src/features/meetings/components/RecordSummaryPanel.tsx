@@ -102,12 +102,14 @@ export const RecordSummaryPanel = ({
   onSourceAudio,
   showHeading = true,
   selectedVersionId,
+  duringCapture = false,
 }: {
   recordId: string
   viewerId: string
   onSourceAudio?: (milliseconds: number) => void
   showHeading?: boolean
   selectedVersionId?: string
+  duringCapture?: boolean
 }) => {
   const { t } = useTranslation('meetings')
   const detail = useMeetingRecord(viewerId, recordId, true)
@@ -246,16 +248,20 @@ export const RecordSummaryPanel = ({
           </Link>
         </div>
       )}
-      <SummaryNotificationPanel
-        recordId={recordId}
-        viewerId={viewerId}
-        summaryId={selectedVersionId}
-      />
-      <SummarySharingControl
-        recordId={recordId}
-        viewerId={viewerId}
-        online={detail.data.source_type === 'meeting'}
-      />
+      {!duringCapture && (
+        <SummaryNotificationPanel
+          recordId={recordId}
+          viewerId={viewerId}
+          summaryId={selectedVersionId}
+        />
+      )}
+      {!duringCapture && (
+        <SummarySharingControl
+          recordId={recordId}
+          viewerId={viewerId}
+          online={detail.data.source_type === 'meeting'}
+        />
+      )}
       {!pinned && (
         <SummaryAutomationControl recordId={recordId} viewerId={viewerId} />
       )}
@@ -355,7 +361,7 @@ export const RecordSummaryPanel = ({
       >
         {t('recordAi.refresh')}
       </Button>
-      {!pinned && (
+      {!pinned && !duringCapture && (
         <HumanSummaryPanel
           key={`human:${viewerId}:${recordId}`}
           recordId={recordId}
@@ -371,7 +377,7 @@ export const RecordSummaryPanel = ({
       {versions.data?.results.length === 0 && (
         <StateHint>{t('recordAi.noVersions')}</StateHint>
       )}
-      {detail.data.capabilities.read_transcript && (
+      {!duringCapture && detail.data.capabilities.read_transcript && (
         <RecordQuestionPanel
           key={`question:${viewerId}:${recordId}`}
           recordId={recordId}
@@ -386,6 +392,7 @@ export const RecordSummaryPanel = ({
           version={version}
           recordId={recordId}
           viewerId={viewerId}
+          duringCapture={duringCapture}
           onSource={
             detail.data.capabilities.read_transcript
               ? (ref) =>
@@ -417,7 +424,8 @@ export const RecordSummaryPanel = ({
           ) : (
             <Text>{source?.text ?? t('recordAi.sourceMissing')}</Text>
           )}
-          {onSourceAudio &&
+          {!duringCapture &&
+            onSourceAudio &&
             source &&
             !original.isError &&
             !original.isFetching && (
@@ -442,11 +450,13 @@ const Version = ({
   recordId,
   viewerId,
   onSource,
+  duringCapture,
 }: {
   version: ApiRecordSummaryVersion
   recordId: string
   viewerId: string
   onSource?: (ref: RecordSourceReference) => void
+  duringCapture?: boolean
 }) => {
   const { t } = useTranslation('meetings')
   return (
@@ -482,12 +492,14 @@ const Version = ({
           <Text variant="note">{t(`recordAi.asr.${version.asr_status}`)}</Text>
         )}
         <Text>{version.content.overview}</Text>
-        <SummaryExportControl
-          recordId={recordId}
-          viewerId={viewerId}
-          sourceId={version.id}
-          sourceKind="ai"
-        />
+        {!duringCapture && (
+          <SummaryExportControl
+            recordId={recordId}
+            viewerId={viewerId}
+            sourceId={version.id}
+            sourceKind="ai"
+          />
+        )}
         {(
           ['decisions', 'chapters', 'action_items', 'open_questions'] as const
         ).map(

@@ -26,6 +26,8 @@
     "refreshText": "Reload text",
     "title": "Audio transcription",
     "summary": "AI notes and questions",
+    "liveSummary": "Live summary",
+    "liveSummaryHint": "Start live transcription, then request an update or enable automatic summaries. Summaries use received text and consume AI quota. Turning them off keeps recording and transcription running. Automatic summaries produce a quick draft and full minutes after recording ends.",
     "scope": "Transcribe saved audio with AI using transcription credits. A retry creates a new version and replaces displayed text only after completion.",
     "loading": "Loading transcription status…",
     "version": "Version {{number}}",

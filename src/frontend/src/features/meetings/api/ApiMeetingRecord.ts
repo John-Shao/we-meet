@@ -94,9 +94,14 @@ export interface ApiRecordSummaryVersion {
   source_through_ms?: number
   coverage_status: 'unverified'
   /** Delivery of emitted text; does not prove complete audio recognition. */
-  delivery_status: 'complete' | 'incomplete' | 'unverified'
+  delivery_status: 'complete' | 'incomplete' | 'unverified' | 'open'
   /** Provider task closure for observed input only; never full audio coverage. */
-  asr_status?: 'finished' | 'incomplete' | 'unverified' | 'no_audio_observed'
+  asr_status?:
+    | 'finished'
+    | 'incomplete'
+    | 'unverified'
+    | 'no_audio_observed'
+    | 'in_progress'
   input_snapshot_id: string
   input_revision: number
   is_current: boolean

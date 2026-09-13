@@ -102,7 +102,7 @@ def source(record, *, allow_live=False):
                 "input_count": len(source_inputs["chunks"]),
                 "acknowledged_inputs": job.acknowledged_inputs,
                 "final_count": job.final_sequence,
-                "asr_status": "finished" if published else "incomplete",
+                "asr_status": "finished" if published else "in_progress",
                 "coverage_status": "unverified",
             }
         ],

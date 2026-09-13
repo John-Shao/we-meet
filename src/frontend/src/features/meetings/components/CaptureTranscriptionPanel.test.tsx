@@ -11,8 +11,12 @@ vi.mock('./RecordSummaryPanel', () => ({
   RecordSummaryPanel: ({
     onSourceAudio,
   }: {
-    onSourceAudio: (time: number) => void
-  }) => <button onClick={() => onSourceAudio(1200)}>summary-source</button>,
+    onSourceAudio?: (time: number) => void
+  }) => (
+    <button disabled={!onSourceAudio} onClick={() => onSourceAudio?.(1200)}>
+      summary-source
+    </button>
+  ),
 }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -37,6 +41,7 @@ let status: {
   available: boolean
   live_available?: boolean
   summary_available?: boolean
+  staged_summary_available?: boolean
   active_job_id: string | null
   results: Array<{
     id: string
@@ -99,6 +104,29 @@ it('opens the summary workspace lazily and links citations to playback', async (
   fireEvent.click(await screen.findByText('summary-source'))
   expect(onSource).toHaveBeenCalledWith(1200)
   view.unmount()
+})
+
+it('opens live summaries lazily with audio playback unavailable during recording', async () => {
+  status.live_available = true
+  status.staged_summary_available = true
+  show({ ...capture, status: 'recording', media_status: 'uploading' })
+  const toggle = await screen.findByText('asr.liveSummary')
+  expect(screen.queryByText('summary-source')).not.toBeInTheDocument()
+  const details = toggle.closest('details')!
+  details.open = true
+  fireEvent(details, new Event('toggle'))
+  expect(await screen.findByText('summary-source')).toBeDisabled()
+  expect(screen.getByText('asr.liveSummaryHint')).toBeInTheDocument()
+  expect(posts()).toHaveLength(0)
+})
+
+it('does not advertise live summaries on a backend with only final summaries', async () => {
+  status.live_available = true
+  status.summary_available = true
+  show({ ...capture, status: 'recording', media_status: 'uploading' })
+  await screen.findByRole('button', { name: 'asr.liveStart' })
+  expect(screen.queryByText('asr.liveSummary')).not.toBeInTheDocument()
+  expect(screen.queryByText('asr.summary')).not.toBeInTheDocument()
 })
 
 it('starts live ASR explicitly during recording without changing audio controls', async () => {
