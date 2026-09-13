@@ -10,6 +10,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from core import models
+from core.services import capture_retention
 from core.services.meeting_records import RecordConflict, visible_records
 
 GRANT_SALT = "meeting-capture-writer-v1"
@@ -125,6 +126,7 @@ def capture_state(capture):
         "missing_ranges": manifest.gaps if manifest else None,
         "missing_sequences": manifest.missing_sequences if manifest else None,
         "coverage_status": "unverified",
+        "audio_retention": capture_retention.state(capture),
     }
 
 
@@ -222,6 +224,8 @@ def command_capture(capture_id, user, key, lease_key, data):
         return previous, True
     if data["expected_revision"] != capture.revision:
         raise RecordConflict("Capture revision changed.")
+    if data["command"] in {"start", "resume"}:
+        capture_retention.ensure_new_audio_work(capture)
     transitions = {
         "start": {"preparing": "recording"},
         "pause": {"recording": "paused"},

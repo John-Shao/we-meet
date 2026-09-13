@@ -9,7 +9,7 @@ from django.db.models import F, Q
 from django.utils import timezone
 
 from core import models
-from core.services import ai_usage
+from core.services import ai_usage, capture_retention
 from core.services import capture_live_inputs as live_inputs
 from core.services.capture_audio import (
     ensure_audio_not_cleaning,
@@ -66,6 +66,10 @@ def _expire(job):
     if job.status not in ACTIVE:
         return job
     now = timezone.now()
+    if capture_retention.expired(job.capture):
+        job.status, job.error_code = "incomplete", "temporary_audio_expired"
+        job.save(update_fields=["status", "error_code", "updated_at"])
+        return job
     try:
         if (
             not job.requested_by_id
@@ -227,6 +231,7 @@ def state(capture_id, user):
         if capture.active_transcription_id
         else None,
         "results": [serialize(job) for job in jobs],
+        "audio_retention": capture_retention.state(capture),
     }
 
 

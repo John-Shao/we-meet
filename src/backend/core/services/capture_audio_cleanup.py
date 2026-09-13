@@ -1,14 +1,16 @@
-"""Text-only source deletion after successful ASR, with durable bounded retries."""
+"""Text-only source deletion after ASR or expiry, with durable bounded retries."""
 
 from datetime import timedelta
 from time import monotonic
 
 from django.db import transaction
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
 from storages.backends.s3 import S3Storage
 
 from core import models
+from core.services import capture_retention as retention
 from core.services.capture_audio import audio_storage
 
 
@@ -44,11 +46,23 @@ def _capture(capture_id):
 
 
 def _eligible(capture):
+    hard, retry = retention.deadlines(capture)
+    if hard is None:
+        return False
+    now = timezone.now()
+    if now >= hard:
+        # Every new source read is denied at the hard deadline. Leave one worker
+        # lease for already delivered bytes to drain before physical deletion.
+        return now >= hard + retention.WORKER_DRAIN
     return (
-        capture.record.retention_mode == "text"
-        and capture.status == "stopped"
-        and capture.active_transcription_id
-        and capture.active_transcription.status == "succeeded"
+        capture.status == "stopped"
+        and (
+            now >= retry
+            or (
+                capture.active_transcription_id
+                and capture.active_transcription.status == "succeeded"
+            )
+        )
         and not capture.transcription_jobs.filter(
             status__in=["queued", "running"]
         ).exists()
@@ -61,6 +75,12 @@ def schedule(capture_id):
     capture = _capture(capture_id)
     if not _eligible(capture):
         return None
+    if retention.expired(capture):
+        capture.transcription_jobs.filter(status__in=["queued", "running"]).update(
+            status="incomplete",
+            error_code="temporary_audio_expired",
+            updated_at=timezone.now(),
+        )
     job, _ = models.CaptureAudioCleanup.objects.get_or_create(
         capture=capture, defaults={"next_attempt_at": timezone.now()}
     )
@@ -134,12 +154,29 @@ def tick_audio_cleanup(limit=20):
     if not 1 <= limit <= 100:
         raise ValueError("Invalid cleanup batch size.")
     deadline = monotonic() + 15
+    now = timezone.now()
+    active = models.CaptureTranscriptionJob.objects.filter(
+        capture_id=OuterRef("pk"), status__in=["queued", "running"]
+    )
     candidates = list(
         models.CaptureSession.objects.filter(
             record__retention_mode="text",
-            status="stopped",
-            active_transcription__status="succeeded",
             audio_cleanup__isnull=True,
+        )
+        .alias(has_active_asr=Exists(active))
+        .filter(
+            Q(
+                started_at__lte=now
+                - retention.TEMPORARY_LIFETIME
+                - retention.WORKER_DRAIN
+            )
+            | (
+                Q(status="stopped", has_active_asr=False)
+                & (
+                    Q(active_transcription__status="succeeded")
+                    | Q(ended_at__lte=now - retention.RETRY_WINDOW)
+                )
+            )
         )
         .order_by("updated_at", "id")
         .values_list("pk", flat=True)[:limit]

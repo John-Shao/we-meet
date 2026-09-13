@@ -15,6 +15,7 @@ from botocore.config import Config
 from storages.backends.s3 import S3Storage
 
 from core import models
+from core.services import capture_retention
 from core.services.meeting_captures import CaptureDenied, authorize, check_lease
 from core.services.meeting_records import RecordConflict
 
@@ -26,6 +27,7 @@ def ensure_audio_not_cleaning(capture):
     """Call under the record lock before enrolling new audio work."""
     if models.CaptureAudioCleanup.objects.filter(capture=capture).exists():
         raise RecordConflict("Temporary audio cleanup has started.")
+    capture_retention.ensure_new_audio_work(capture)
 
 
 def audio_storage():
@@ -77,10 +79,11 @@ def locked_capture(capture_id, user, lease, device, *, finishing=False):
     capture.refresh_from_db()
     authorize(record, user, allow_disabled=finishing)
     check_lease(capture, lease, device)
-    ensure_audio_not_cleaning(capture)
-    if (
-        not settings.MEETING_CAPTURE_AUDIO_ENABLED and not finishing
-    ) or record.retention_mode != "media":
+    if not finishing:
+        ensure_audio_not_cleaning(capture)
+    if (not settings.MEETING_CAPTURE_AUDIO_ENABLED and not finishing) or (
+        record.retention_mode != "media" and not finishing
+    ):
         raise CaptureDenied
     return capture
 
@@ -188,6 +191,11 @@ def read_verified(chunk, storage=None):
         or models.CaptureAudioCleanup.objects.filter(
             capture_id=chunk.capture_id
         ).exists()
+        or capture_retention.expired(
+            models.CaptureSession.objects.select_related("record").get(
+                pk=chunk.capture_id
+            )
+        )
     ):
         raise OSError("Temporary audio is no longer available.")
     storage = storage or audio_storage()

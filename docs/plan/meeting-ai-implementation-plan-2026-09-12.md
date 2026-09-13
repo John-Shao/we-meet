@@ -378,3 +378,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 105: Web online-capture controls persist exact occurrence-bound intent and validate frozen receipts; 31 tests, TypeScript, ESLint and production build passed. See [batch 85](meeting-ai-phase3-batch85-2026-09-13.md). Text-only retention foundations and remaining first-release work follow.
 
 - Batch 106: durable text-only audio cleanup foundation with upload/ASR fencing and verified deletion; 43 unique backend tests and migration/lint checks passed. Migration 0174 and a separate cleanup worker/beat task required. See [batch 86](meeting-ai-phase3-batch86-2026-09-13.md). Failed-ASR expiry and client retention flows remain pending; text-only upload stays disabled.
+
+- Batch 107: text-only audio hard expiry, bounded ASR retry window and public cleanup status; 108 backend regressions and lint/diff checks passed. See [batch 87](meeting-ai-phase3-batch87-2026-09-13.md). No new migration; storage admission and client retention flows follow.
