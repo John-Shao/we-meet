@@ -1,6 +1,7 @@
 """Bounded LiveKit video transport with exact source/output evidence."""
 
 import asyncio
+import json
 import re
 from contextlib import suppress
 from dataclasses import dataclass
@@ -54,6 +55,25 @@ class CloudEgressClient:
     def filepath(self, recording):
         """Same private MP4 key as the existing video composite worker."""
         return f"{self.config.output_folder}/{recording.pk}.mp4"
+
+    @async_to_sync
+    async def update_notice(self, room_id, expected_sid, metadata):
+        """Merge only recording notice fields after checking the live occurrence."""
+        response = await self._call(
+            "room", "list_rooms", api.ListRoomsRequest(names=[room_id])
+        )
+        rooms = [room for room in response.rooms if room.name == room_id]
+        if len(rooms) != 1 or rooms[0].sid != expected_sid:
+            return
+        current = json.loads(rooms[0].metadata) if rooms[0].metadata else {}
+        for key in ("recording_mode", "recording_status"):
+            current.pop(key, None)
+        current.update(metadata)
+        await self._call(
+            "room",
+            "update_room_metadata",
+            api.UpdateRoomMetadataRequest(room=room_id, metadata=json.dumps(current)),
+        )
 
     async def _call(self, service, method, request):
         client = None

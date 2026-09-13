@@ -199,20 +199,28 @@ def _observe(command_id, lease_id, observed, *, reconciling=False):
         _unknown(command_id, lease_id, "worker_identity_conflict")
         return False
     _complete_observation(command, recording, observed, reconciling)
+    from core.services.cloud_recording_events import sync_notice  # noqa: PLC0415
+
+    transaction.on_commit(lambda: sync_notice(recording.pk))
     return False
 
 
-def _complete_observation(command, recording, observed, reconciling):
+def _apply_recording_status(recording, status):
+    """Provider observations may arrive after storage hooks or a terminal webhook."""
     previous_status = recording.status
-    if observed.status in {"failed", "aborted"}:
+    if status in {"failed", "aborted"}:
         if previous_status not in SAVED:
             recording.status = "aborted"
-    elif observed.status in {"ending", "complete", "limit_reached"}:
+    elif status in {"ending", "complete", "limit_reached"}:
         if previous_status not in SAVED | {"aborted"}:
             recording.status = "stopped"
-    elif observed.status == "active" and previous_status == "initiated":
+    elif status == "active" and previous_status == "initiated":
         recording.status = "active"
     recording.save(update_fields=["worker_id", "status", "updated_at"])
+
+
+def _complete_observation(command, recording, observed, reconciling):
+    _apply_recording_status(recording, observed.status)
     if observed.status in {"failed", "aborted"}:
         _terminal(command, "failed", "worker_failed")
     elif observed.status in {"ending", "complete", "limit_reached"}:

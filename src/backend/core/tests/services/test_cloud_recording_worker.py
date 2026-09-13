@@ -39,6 +39,10 @@ def environment(settings):
     with (
         patch("core.services.cloud_recording.dispatch"),
         patch(
+            "core.services.cloud_recording_events.CloudEgressClient",
+            return_value=client,
+        ),
+        patch(
             "core.services.cloud_recording_worker.CloudEgressClient",
             return_value=client,
         ),

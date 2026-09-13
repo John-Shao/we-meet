@@ -400,3 +400,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 116: bounded exact-source LiveKit video transport and original-output lookup; cloud webhook source binding is fixed. 62 unique fake-transport/database/session scenarios pass. Command executor and Android UI follow; rollout remains off. See [batch 116](meeting-ai-phase3-batch96-2026-09-13.md).
 
 - Batch 117: single-execution cloud command worker, leased outcome lookup, source quarantine/stop and bounded Celery recovery; migration 0176. 53 isolated scenarios and task registration pass. Lifecycle events and Android UI follow; standalone translation/final review remain. See [batch 117](meeting-ai-phase3-batch97-2026-09-13.md).
+
+- Batch 118: exact-worker cloud lifecycle events, monotonic recording state, pending-command completion and bounded occurrence-scoped notices; 132 unique isolated scenarios pass. No migration; keep rollout off pending Android integration. See [batch 118](meeting-ai-phase3-batch98-2026-09-13.md).

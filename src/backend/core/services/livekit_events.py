@@ -21,6 +21,7 @@ from core.recording.services.recording_events import (
     RecordingEventsService,
 )
 
+from . import cloud_recording_events
 from .lobby import LobbyService
 from .meeting_sessions import (
     MeetingSessionProjectionError,
@@ -159,6 +160,10 @@ class LiveKitEventsService:
         # pylint: disable=not-callable
         handler(data)
 
+    def _handle_egress_started(self, data):
+        """Use the same verified evidence path for an initial Egress notification."""
+        self._handle_egress_updated(data)
+
     def _handle_egress_updated(self, data):
         """Handle 'egress_updated' event."""
 
@@ -170,6 +175,8 @@ class LiveKitEventsService:
                 f"Recording with worker ID {egress_id} does not exist"
             ) from err
 
+        if self._handle_cloud_egress(recording, data):
+            return
         self._bind_recording_session_from_egress(recording, data)
 
         egress_status = data.egress_info.status
@@ -187,6 +194,8 @@ class LiveKitEventsService:
                 f"Recording with worker ID {data.egress_info.egress_id} does not exist"
             ) from err
 
+        if self._handle_cloud_egress(recording, data):
+            return
         self._bind_recording_session_from_egress(recording, data)
 
         try:
@@ -213,6 +222,15 @@ class LiveKitEventsService:
                 raise ActionFailedError(
                     f"Failed to process limit reached event for recording {recording}"
                 ) from e
+
+    @staticmethod
+    def _handle_cloud_egress(recording, data):
+        try:
+            return cloud_recording_events.apply(recording.pk, data.egress_info)
+        except cloud_recording_events.CloudRecordingEventError as exc:
+            raise ActionFailedError(
+                "Invalid cloud recording webhook evidence."
+            ) from exc
 
     def _handle_room_started(self, data):
         """Handle 'room_started' event."""
@@ -317,7 +335,7 @@ class LiveKitEventsService:
         # fail the webhook ack.
         if session is not None:
             try:
-                from core.tasks.summary import generate_meeting_summary
+                from core.tasks.summary import generate_meeting_summary  # noqa: PLC0415
 
                 generate_meeting_summary.apply_async(
                     args=[str(session.id)], countdown=30
