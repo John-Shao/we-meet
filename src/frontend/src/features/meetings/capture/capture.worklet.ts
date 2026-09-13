@@ -40,6 +40,7 @@ class CaptureProcessor extends AudioWorkletProcessor {
       if (this.failed) return
       if (data.kind === 'tap_start') this.tap.start(data.generation)
       if (data.kind === 'tap_stop') this.tap.stop(data.generation)
+      if (data.kind === 'tap_finish') this.tap.drain(data.generation)
       if (data.kind === 'tap_ack')
         this.tap.acknowledge(data.generation, data.sequence)
       if (data.kind === 'start') this.active = true

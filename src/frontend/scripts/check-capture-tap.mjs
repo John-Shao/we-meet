@@ -19,6 +19,8 @@ try {
     window.firstEnds = []
     window.second = []
     window.secondEnds = []
+    window.third = []
+    window.thirdEnds = []
     window.failed = false
     document.querySelector('button').onclick = async () => {
       window.mic = await CaptureMicrophone.open(async (pcm) => { window.originals.push(pcm.slice()) }, () => { window.failed = true })
@@ -43,17 +45,35 @@ try {
     window.oldDetach()
   })
   await page.waitForFunction(() => window.second.length >= 2 || window.failed, null, { timeout: 10000 })
+  const originalsBeforeFinish = await page.evaluate(() => {
+    window.newDetach.finish()
+    window.newDetach.finish()
+    return window.originals.length
+  })
+  await page.waitForFunction(() => window.secondEnds.length > 0 || window.failed, null, { timeout: 10000 })
+  assert.deepEqual(await page.evaluate(() => window.secondEnds), ['finished'])
+  await page.waitForFunction((count) => window.originals.length > count || window.failed, originalsBeforeFinish, { timeout: 10000 })
+  await page.evaluate(() => {
+    window.thirdDetach = window.mic.observePcm({
+      pcm: (samples) => { window.third.push(samples.slice()); return true },
+      ended: (reason) => window.thirdEnds.push(reason),
+    })
+    window.newDetach.finish()
+    window.newDetach()
+  })
+  await page.waitForFunction(() => window.third.length >= 2 || window.failed, null, { timeout: 10000 })
   const final = await page.evaluate(async () => {
     await window.mic.stop()
     window.newDetach()
     return { failed: window.failed, deviceOpens: window.deviceOpens, originalFrames: window.originals.reduce((n, pcm) => n + pcm.length, 0),
-      firstEnds: window.firstEnds, secondEnds: window.secondEnds, secondLengths: window.second.map((frame) => frame.length) }
+      firstEnds: window.firstEnds, secondEnds: window.secondEnds, thirdEnds: window.thirdEnds, secondLengths: window.second.map((frame) => frame.length) }
   })
   assert.equal(final.failed, false)
   assert.equal(final.deviceOpens, 1)
   assert.ok(final.originalFrames >= 80000)
   assert.deepEqual(final.firstEnds, ['backpressure'])
-  assert.deepEqual(final.secondEnds, ['paused'])
+  assert.deepEqual(final.secondEnds, ['finished'])
+  assert.deepEqual(final.thirdEnds, ['paused'])
   assert.ok(final.secondLengths.every((count) => count >= 16 && count <= 1600 && count % 16 === 0))
-  console.log('PCM tap browser checks passed: one microphone, sub-chunk delivery, bounded failure, erased buffers, generation replacement and pause tail.')
+  console.log('PCM tap browser checks passed: one microphone, sub-chunk delivery, bounded failure, erased buffers, generation replacement, turn drain without stopping recording, and pause tail.')
 } finally { await browser.close() }

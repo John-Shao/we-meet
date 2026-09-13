@@ -9,6 +9,43 @@ import {
 } from './tap'
 
 describe('isolated live PCM tap', () => {
+  it('flushes a speech tail and starts another turn without stopping original PCM', () => {
+    const events: TapEvent[] = []
+    const originals: Int16Array[] = []
+    const original = new PcmFramer((pcm) => originals.push(pcm))
+    const tap = new CapturePcmTap((event) => events.push(event))
+    const push = (count: number, value: number) => {
+      const input = new Float32Array(count).fill(value)
+      original.push(input)
+      tap.push(input)
+    }
+    tap.start('first')
+    push(533, 1)
+    tap.drain('first')
+    tap.drain('first')
+    expect(events.map((event) => event.kind)).toEqual(['tap_pcm', 'tap_end'])
+    expect(events[0].kind === 'tap_pcm' && events[0].pcm.length).toBe(528)
+    expect(events[1]).toEqual({
+      kind: 'tap_end',
+      generation: 'first',
+      reason: 'finished',
+    })
+    push(1000, -1)
+    tap.start('second')
+    tap.drain('first')
+    push(1600, 0.5)
+    tap.drain('second')
+    const second = events[2]
+    expect(
+      second.kind === 'tap_pcm' &&
+        second.pcm.every((sample) => sample === 16384)
+    ).toBe(true)
+    push(CHUNK_FRAMES - 3133, 0)
+    expect(originals).toHaveLength(1)
+    expect(originals[0][532]).toBe(32767)
+    expect(originals[0][533]).toBe(-32768)
+  })
+
   it('only captures the explicitly enabled interval in 100 ms copies', () => {
     const events: TapEvent[] = []
     const tap = new CapturePcmTap((event) => events.push(event))
@@ -116,6 +153,26 @@ describe('isolated live PCM tap', () => {
 })
 
 describe('main-thread PCM receiver', () => {
+  it('requests one tail drain, waits for its end and cannot drain a replacement', () => {
+    const send = vi.fn()
+    const ended = vi.fn()
+    const receiver = new CapturePcmReceiver(send)
+    const first = receiver.attach('one', { pcm: () => true, ended })
+    first.finish()
+    first.finish()
+    expect(
+      send.mock.calls.filter(([message]) => message.kind === 'tap_finish')
+    ).toEqual([[{ kind: 'tap_finish', generation: 'one' }]])
+    expect(ended).not.toHaveBeenCalled()
+    receiver.receive({ kind: 'tap_end', generation: 'one', reason: 'finished' })
+    expect(ended).toHaveBeenCalledExactlyOnceWith('finished')
+    const next = vi.fn()
+    receiver.attach('two', { pcm: () => true, ended: next })
+    first.finish()
+    first()
+    expect(next).not.toHaveBeenCalled()
+  })
+
   const frame = (generation = 'one', sequence = 1): TapEvent => ({
     kind: 'tap_pcm',
     generation,

@@ -274,3 +274,7 @@ New optional agent entrypoint capture_translation_gateway.py; default disabled, 
 ## Batch 126: retained capture translations
 
 Apply migration 0178 after 0177. Explicit save_translations also requires MEETING_TRANSLATION_ARCHIVE_ENABLED. Gateway can now retain final text with source_capture_id; capture-owner archive endpoints are separate from existing meeting archive readers. Keep rollout disabled pending Web/native integration. See [details](meeting-ai-phase3-batch106-2026-09-13.md).
+
+## Batch 127: speech-turn tails
+
+Web and Android d3d4d332 can drain individual translated speech turns on the same microphone while original recording continues. No backend/migration change. Client WS integration remains pending; keep rollout off. See [details](meeting-ai-phase3-batch107-2026-09-13.md).

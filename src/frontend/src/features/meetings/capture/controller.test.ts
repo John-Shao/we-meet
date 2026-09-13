@@ -156,7 +156,7 @@ function fixture() {
     pause: vi.fn(async () => undefined),
     stop: vi.fn(async () => undefined),
     close: vi.fn(),
-    observePcm: vi.fn(() => vi.fn()),
+    observePcm: vi.fn(() => Object.assign(vi.fn(), { finish: vi.fn() })),
   }
   const open = vi.fn(async (onPcm: typeof sink) => {
     sink = onPcm

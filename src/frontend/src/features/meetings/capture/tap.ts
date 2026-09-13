@@ -2,7 +2,7 @@ import { PcmFramer, SAMPLE_RATE } from './pcm'
 
 export const TAP_FRAMES = SAMPLE_RATE / 10
 export const TAP_PENDING_LIMIT = 4
-export type TapEnd = 'closed' | 'paused' | 'backpressure'
+export type TapEnd = 'closed' | 'paused' | 'finished' | 'backpressure'
 export type TapEvent =
   | { kind: 'tap_pcm'; generation: string; sequence: number; pcm: Int16Array }
   | { kind: 'tap_end'; generation: string; reason: TapEnd }
@@ -59,8 +59,17 @@ export class CapturePcmTap {
   }
 
   finish() {
+    this.flush('paused')
+  }
+
+  drain(generation: string) {
+    if (generation === this.generation) this.flush('finished')
+  }
+
+  private flush(reason: TapEnd) {
+    const generation = this.generation
     this.framer?.flush()
-    this.end('paused')
+    if (this.generation === generation) this.end(reason)
   }
 
   close() {
@@ -107,9 +116,24 @@ export class CapturePcmReceiver {
     } catch {
       this.close()
     }
-    return () => {
-      if (this.active?.generation === generation) this.close()
-    }
+    let draining = false
+    return Object.assign(
+      () => {
+        if (this.active?.generation === generation) this.close()
+      },
+      {
+        /** Flush this speech turn's tail without pausing the original recording. */
+        finish: () => {
+          if (this.active?.generation !== generation || draining) return
+          draining = true
+          try {
+            this.send({ kind: 'tap_finish', generation })
+          } catch {
+            this.close('backpressure')
+          }
+        },
+      }
+    )
   }
 
   receive(event: TapEvent) {
