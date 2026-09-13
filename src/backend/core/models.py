@@ -1630,6 +1630,67 @@ class MeetingSummaryReview(BaseModel):
 
 
 
+class MeetingSummaryNotificationEvent(BaseModel):
+    """Freeze completion recipient selection once, including the empty set."""
+
+    summary = models.OneToOneField(MeetingSummaryVersion, on_delete=models.CASCADE, related_name="notification_event")
+    recipient_ids = models.JSONField(default=list, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+
+    def __str__(self):
+        return f"MeetingSummaryNotificationEvent({self.summary_id})"
+
+    def clean(self):
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Completion recipient selection is immutable.")
+
+
+class MeetingSummaryNotification(BaseModel):
+    """One private completion notice per immutable AI version and recipient."""
+
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE, related_name="summary_notifications")
+    summary = models.ForeignKey(MeetingSummaryVersion, on_delete=models.RESTRICT)
+    recipient = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    recipient_sub = models.CharField(max_length=255)
+    source_metadata = models.JSONField()
+    api_url = models.URLField(max_length=500, blank=True, default="")
+    body = models.TextField(blank=True, default="")
+    body_hash = models.CharField(max_length=64, blank=True, default="")
+    status = models.CharField(max_length=16, default="queued", choices=[(s, s) for s in ("queued", "running", "delivered", "uncertain", "failed", "unavailable", "canceled")])
+    attempt = models.PositiveIntegerField(default=1)
+    worker_id = models.UUIDField(null=True, blank=True)
+    deadline = models.DateTimeField(null=True, blank=True)
+    dispatch_attempted_at = models.DateTimeField(null=True, blank=True)
+    bot_uid = models.UUIDField(null=True, blank=True)
+    conversation_id = models.UUIDField(null=True, blank=True)
+    message_id = models.PositiveBigIntegerField(null=True, blank=True)
+    send_started = models.BooleanField(default=False)
+    error_code = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["summary", "recipient"], name="unique_summary_notification_recipient")]
+
+    def __str__(self):
+        return f"MeetingSummaryNotification({self.pk}, {self.status})"
+
+    def clean(self):
+        super().clean()
+        if self.summary_id and self.summary.record_id != self.record_id:
+            raise ValidationError("Notification source belongs to another record.")
+        if bool(self.bot_uid) != bool(self.conversation_id):
+            raise ValidationError("Notification destination must be bound together.")
+        if not self._state.adding:
+            fields = ("record_id", "summary_id", "recipient_id", "recipient_sub", "source_metadata")
+            old = type(self).objects.filter(pk=self.pk).values(*fields, "bot_uid", "conversation_id", "api_url", "body", "body_hash").first()
+            if old and any(old[field] != getattr(self, field) for field in fields):
+                raise ValidationError("Notification source, recipient and card are immutable.")
+            if old and old["body"] and any(old[field] != getattr(self, field) for field in ("api_url", "body", "body_hash")):
+                raise ValidationError("Prepared notification card is immutable.")
+            if old and old["bot_uid"] and (old["bot_uid"], old["conversation_id"]) != (self.bot_uid, self.conversation_id):
+                raise ValidationError("Prepared notification destination is immutable.")
+
+
 class MeetingSummaryExport(BaseModel):
     """Frozen document payload and durable result for one selected summary version."""
 

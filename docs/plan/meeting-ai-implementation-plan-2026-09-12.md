@@ -242,3 +242,5 @@ Latest implementation: [Batch 34: unified library queries](meeting-ai-phase3-bat
 - Batch 42: IM sibling now provides durable admin message receipts and migration 011; deploy it before the future minutes-assistant integration. Six database scenarios, three API scenarios and existing admin tests passed. See [batch 42](meeting-ai-phase3-batch22-2026-09-13.md).
 
 - Batch 43: strict signed IM delivery client, 32 tests passed. Requires IM 99c90e3 and migration 011; notification orchestration follows. See [batch 43](meeting-ai-phase3-batch23-2026-09-13.md).
+
+- Batch 44: atomic final-summary completion events, frozen recipients, private notification ledger/API; migration 0167. 12 notification + 16 version + 9 capture summary checks passed. Keep MEETING_SUMMARY_NOTIFICATIONS_ENABLED off pending worker and UI. See [batch 44](meeting-ai-phase3-batch24-2026-09-13.md).

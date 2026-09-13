@@ -1,0 +1,54 @@
+"""Private completion status and visible defaults, independent from AI generation status."""
+
+from django.conf import settings
+from django.http import Http404
+from django.shortcuts import get_object_or_404
+
+from rest_framework import permissions, serializers
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from core.services import meeting_summary_notifications as service
+from core.services.meeting_records import RecordConflict, visible_records
+from core.services.meeting_summary_exports import can_export
+
+
+class SummaryNotificationsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, record_id):
+        if not settings.MEETING_RECORDS_ENABLED:
+            raise Http404
+        records = visible_records(request.user, ability="read_summary")
+        record = get_object_or_404(records, pk=record_id)
+        rows = record.summary_notifications.filter(recipient=request.user).order_by(
+            "-created_at", "-id"
+        )
+        if set(request.query_params) - {"summary_id"}:
+            raise serializers.ValidationError("Unsupported notification filter.")
+        if "summary_id" in request.query_params:
+            rows = rows.filter(
+                summary_id=serializers.UUIDField().run_validation(
+                    request.query_params["summary_id"]
+                )
+            )
+        result = {
+            "available": service.available(),
+            "strategy": "owners_and_initiators"
+            if record.meeting_session_id
+            else "owner",
+            "legacy_delivery_unchanged": True,
+            "results": [service.serialize(row) for row in rows[:10]],
+        }
+        if can_export(record, request.user):
+            try:
+                candidates = service.recipient_candidates(record, request.user.pk)
+            except RecordConflict:
+                candidates = []
+                result["policy_error"] = "recipient_selection_failed"
+            result["future_recipients"] = [
+                {"id": str(user.pk), "name": user.full_name or ""}
+                for user in candidates
+            ]
+        get_object_or_404(records, pk=record_id)
+        return Response(result, headers={"Cache-Control": "private, no-store"})

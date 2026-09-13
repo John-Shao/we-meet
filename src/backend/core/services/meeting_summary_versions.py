@@ -28,6 +28,7 @@ from core.services.meeting_summary_chunks import (
     partition,
     summarize_chunks,
 )
+from core.services.meeting_summary_notifications import record_completion
 from core.services.transcript_delivery import source_delivery
 
 
@@ -483,7 +484,7 @@ def _generate_content(job, client, attempt):
     )
 
 
-def execute_summary_job(job_id, attempt):  # noqa: PLR0911, PLR0912 -- independent stale-source and access fences
+def execute_summary_job(job_id, attempt):  # noqa: PLR0911, PLR0912, PLR0915 -- independent stale-source and access fences
     """Claim once, call the provider outside the lock, and publish atomically."""
     if (
         not settings.MEETING_VERSIONED_SUMMARY_ENABLED
@@ -612,6 +613,7 @@ def execute_summary_job(job_id, attempt):  # noqa: PLR0911, PLR0912 -- independe
             model_used=job.configuration["model"],
             stage=stage,
         )
+        record_completion(version)
         return str(version.pk)
 
 
