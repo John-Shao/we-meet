@@ -415,6 +415,8 @@
       "other": "其他"
     },
     "action": {
+      "task_list_transfer": "转让任务清单",
+      "task_list_takeover": "接管任务清单",
       "member_offboard": "办理离职",
       "member_rehire": "恢复入职",
       "member_purge": "彻底删除成员记录",

@@ -1,7 +1,5 @@
 import { ApiError } from './ApiError'
-import { apiUrl } from './apiUrl'
-import { attemptSilentRefresh } from './fetchApi'
-import { clearTokens, getAccessToken } from '@/features/auth/utils/tokenStorage'
+import { authenticatedFetch, assertAuthSession } from './fetchApi'
 
 /**
  * SSE event frame envelope.
@@ -26,15 +24,6 @@ export type SSEEvent =
   | { type: 'delta'; text: string }
   | { type: 'done' }
   | { type: 'error'; message: string }
-
-const CSRF_COOKIE = 'csrftoken='
-
-const getCsrfToken = (): string | undefined =>
-  document.cookie
-    .split(';')
-    .filter((c) => c.trim().startsWith(CSRF_COOKIE))
-    .map((c) => c.split('=')[1])
-    .pop()
 
 interface SseStreamOptions {
   /** Body to POST. Will be JSON.stringify-ed. */
@@ -66,45 +55,12 @@ export async function* sseStream(
   path: string,
   { body, headers, signal }: SseStreamOptions
 ): AsyncIterable<SSEEvent> {
-  const csrf = getCsrfToken()
-  const target = apiUrl(path)
-  // The caller (Room AI) may pass its own `Authorization` header; that wins
-  // over the session bearer and opts out of the bearer refresh dance.
-  const callerHasAuth = Object.keys(headers || {}).some(
-    (k) => k.toLowerCase() === 'authorization'
-  )
-  const initialBearer = callerHasAuth ? null : getAccessToken()
-
-  const doFetch = (bearer: string | null) =>
-    fetch(target, {
-      method: 'POST',
-      credentials: 'include',
-      signal,
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-        ...(csrf ? { 'X-CSRFToken': csrf } : {}),
-        ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
-        ...(headers || {}),
-      },
-      body: JSON.stringify(body),
-    })
-
-  let resp = await doFetch(initialBearer)
-
-  // Bearer 401 → one silent refresh + retry, same contract as `fetchApi`.
-  // If the bearer remains invalid, remove it and let an existing Django
-  // session cookie authenticate the stream instead. Without this fallback a
-  // stale mobile-login token can mask a valid browser session because DRF
-  // evaluates OIDCAuthentication before SessionAuthentication.
-  if (resp.status === 401 && initialBearer) {
-    const newAccess = await attemptSilentRefresh()
-    if (newAccess) resp = await doFetch(newAccess)
-    if (resp.status === 401) {
-      clearTokens()
-      resp = await doFetch(null)
-    }
-  }
+  const { response: resp, snapshot } = await authenticatedFetch(path, {
+    method: 'POST',
+    signal,
+    headers: { Accept: 'text/event-stream', ...headers },
+    body: JSON.stringify(body),
+  })
 
   if (!resp.ok) {
     // Try to surface a useful detail — the SSE 400/403/429 paths return
@@ -127,27 +83,34 @@ export async function* sseStream(
 
   const decoder = new TextDecoder('utf-8')
   let buf = ''
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buf += decoder.decode(value, { stream: true })
-    // SSE frame delimiter is a blank line (two consecutive newlines).
+  try {
     while (true) {
-      const idx = buf.indexOf('\n\n')
-      if (idx < 0) break
-      const frame = buf.slice(0, idx)
-      buf = buf.slice(idx + 2)
-      // Each frame may have multiple lines; we only care about ``data:``.
-      for (const line of frame.split('\n')) {
-        if (!line.startsWith('data: ')) continue
-        const raw = line.slice(6)
-        try {
-          yield JSON.parse(raw) as SSEEvent
-        } catch {
-          // Skip malformed frames silently — keepalive / future event
-          // shapes shouldn't crash the consumer.
+      const { done, value } = await reader.read()
+      assertAuthSession(snapshot)
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      // SSE frame delimiter is a blank line (two consecutive newlines).
+      while (true) {
+        const idx = buf.indexOf('\n\n')
+        if (idx < 0) break
+        const frame = buf.slice(0, idx)
+        buf = buf.slice(idx + 2)
+        // Each frame may have multiple lines; we only care about ``data:``.
+        for (const line of frame.split('\n')) {
+          if (!line.startsWith('data: ')) continue
+          const raw = line.slice(6)
+          assertAuthSession(snapshot)
+          try {
+            yield JSON.parse(raw) as SSEEvent
+          } catch {
+            // Skip malformed frames silently — keepalive / future event
+            // shapes shouldn't crash the consumer.
+          }
         }
       }
     }
+  } finally {
+    await reader.cancel().catch(() => undefined)
+    reader.releaseLock()
   }
 }

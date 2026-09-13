@@ -294,3 +294,5 @@ Web and Android d3d4d332 can drain individual translated speech turns on the sam
 - Batch 134: Android owner-only saved recording translation archives (cbe73696); 10 isolated device scenarios, builds and light/dark inspection pass. Worker deployment wiring and final review follow. See [batch 134](meeting-ai-phase3-batch114-2026-09-13.md).
 
 - Batch 135: five optional AI Workers, exact WSS gateway ingress and partial-release image preservation; eight render/script scenarios, Helm lint, shell and Compose checks pass. See [deployment configuration](meeting-ai-worker-deployment-2026-09-13.md) and [batch 135](meeting-ai-phase3-batch115-2026-09-13.md). Final technical review follows.
+
+- Batch 136: final review fixed cross-login refresh/retry races in Web and Android (76c97d32), plus buffered SSE authority checks. Focused, full-suite and build evidence: [review batch 136](meeting-ai-phase4-batch116-2026-09-13.md). Recovery review continues.

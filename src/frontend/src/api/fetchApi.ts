@@ -2,121 +2,114 @@ import { ApiError } from './ApiError'
 import { apiUrl } from './apiUrl'
 import {
   clearTokens,
-  getAccessToken,
-  getRefreshToken,
-  setTokens,
+  getAuthSnapshot,
+  sameAuthSession,
+  rotateTokens,
+  type AuthSnapshot,
 } from '@/features/auth/utils/tokenStorage'
 import { refreshTokens } from '@/features/auth/api/mobileOtp'
 
-/**
- * Single-flight cache for the refresh-token grant in [attemptSilentRefresh].
- * Concurrent 401s share one round-trip — otherwise the second one would race
- * Keycloak's refresh-token rotation (only the first wins; the rest are
- * `invalid_grant` and would force a re-login).
- */
-let inflightRefresh: Promise<string | null> | null = null
-
+// A refresh is shared only by requests from the same exact credential pair.
+let inflightRefresh: {
+  snapshot: AuthSnapshot
+  promise: Promise<string | null>
+} | null = null
 export const attemptSilentRefresh = async (): Promise<string | null> => {
-  if (inflightRefresh) return inflightRefresh
-  const refresh = getRefreshToken()
-  if (!refresh) return null
-  inflightRefresh = (async () => {
+  const snapshot = getAuthSnapshot()
+  if (!snapshot.refresh) return null
+  if (
+    inflightRefresh &&
+    JSON.stringify(inflightRefresh.snapshot) === JSON.stringify(snapshot)
+  )
+    return inflightRefresh.promise
+  const entry = { snapshot, promise: Promise.resolve<string | null>(null) }
+  entry.promise = (async () => {
     try {
-      const data = await refreshTokens(refresh)
-      setTokens({
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token ?? refresh,
-      })
-      return data.access_token
+      const data = await refreshTokens(snapshot.refresh!)
+      return rotateTokens(
+        snapshot,
+        data.access_token,
+        data.refresh_token ?? snapshot.refresh!
+      )
+        ? data.access_token
+        : null
     } catch {
-      // Either invalid_grant (refresh expired) or network failure. Either
-      // way the caller will see the 401 propagate and the user gets
-      // bounced back to the login screen. clearTokens runs at the call
-      // site once the retry also fails.
       return null
     } finally {
-      inflightRefresh = null
+      if (inflightRefresh === entry) inflightRefresh = null
     }
   })()
-  return inflightRefresh
+  inflightRefresh = entry
+  return entry.promise
+}
+
+export const assertAuthSession = (snapshot: AuthSnapshot) => {
+  if (!sameAuthSession(snapshot))
+    throw new ApiError(401, { detail: 'authentication_changed' })
 }
 
 const buildHeaders = (
-  bearerToken: string | null,
-  csrfToken: string | undefined,
-  override: HeadersInit | undefined,
-  body: BodyInit | null | undefined
-): HeadersInit => ({
-  // FormData 必须**不设** Content-Type:只有让浏览器自己写这个头,它才会带上
-  // multipart 的 boundary。手写 'application/json'(或哪怕手写 multipart)都会
-  // 让服务端解析不出任何字段 —— 表现是「文件没上传」而不是一个报错。
-  ...(!(body instanceof FormData) && {
-    'Content-Type': 'application/json',
-  }),
-  ...(!!csrfToken && { 'X-CSRFToken': csrfToken }),
-  ...(!!bearerToken && { Authorization: `Bearer ${bearerToken}` }),
-  ...override,
-})
+  bearer: string | null,
+  csrf: string | undefined,
+  options?: RequestInit
+) => {
+  const headers = new Headers()
+  if (!(options?.body instanceof FormData))
+    headers.set('Content-Type', 'application/json')
+  if (csrf) headers.set('X-CSRFToken', csrf)
+  if (bearer) headers.set('Authorization', `Bearer ${bearer}`)
+  new Headers(options?.headers).forEach((value, key) => headers.set(key, value))
+  return headers
+}
+
+/** Same-login refresh only. Cookie identity discovery is restricted to GET users/me. */
+export const authenticatedFetch = async (
+  url: string,
+  options?: RequestInit
+) => {
+  let snapshot = getAuthSnapshot()
+  const csrf = getCsrfToken()
+  const explicit = new Headers(options?.headers).has('Authorization')
+  const initial = explicit ? null : snapshot.access
+  const request = (bearer: string | null) => {
+    assertAuthSession(snapshot)
+    options?.signal?.throwIfAborted()
+    return fetch(apiUrl(url), {
+      credentials: 'include',
+      ...options,
+      headers: buildHeaders(bearer, csrf, options),
+    })
+  }
+  let response = await request(initial)
+  assertAuthSession(snapshot)
+  if (response.status === 401 && initial) {
+    const current = getAuthSnapshot()
+    const refreshed =
+      current.access !== initial ? current.access : await attemptSilentRefresh()
+    assertAuthSession(snapshot)
+    if (refreshed) response = await request(refreshed)
+    assertAuthSession(snapshot)
+    // Discovery may select the cookie identity; source-bound operations may not.
+    if (
+      response.status === 401 &&
+      (options?.method ?? 'GET').toUpperCase() === 'GET' &&
+      /^\/?users\/me\/?$/.test(url)
+    ) {
+      clearTokens()
+      snapshot = getAuthSnapshot()
+      response = await request(null)
+      assertAuthSession(snapshot)
+    }
+  }
+  return { response, snapshot }
+}
 
 export const fetchApi = async <T = Record<string, unknown>>(
   url: string,
   options?: RequestInit,
   binary?: { maxBytes: number }
 ): Promise<T> => {
-  const csrfToken = getCsrfToken()
-  // Bearer token from the mobile OTP login flow. The backend's
-  // OIDCAuthentication accepts it the same way the App does. When both a
-  // bearer token and a Django session cookie are present, the first
-  // accepting auth class wins — which means the bearer takes precedence as
-  // long as it's still valid.
-  const initialBearer = getAccessToken()
-  const target = apiUrl(url)
-
-  let response = await fetch(target, {
-    credentials: 'include',
-    ...options,
-    headers: buildHeaders(
-      initialBearer,
-      csrfToken,
-      options?.headers,
-      options?.body
-    ),
-  })
-
-  // Bearer 401 → attempt one silent refresh, retry once with the new token.
-  // If refreshing is impossible (or the refreshed token is also rejected),
-  // retry without Authorization before surfacing the 401. A browser can have
-  // both a stale mobile-login token in localStorage and a still-valid Django
-  // session cookie; DRF checks OIDCAuthentication first, so the stale bearer
-  // would otherwise mask that valid session and make the first write fail.
-  if (response.status === 401 && initialBearer) {
-    const newAccess = await attemptSilentRefresh()
-    if (newAccess) {
-      response = await fetch(target, {
-        credentials: 'include',
-        ...options,
-        headers: buildHeaders(
-          newAccess,
-          csrfToken,
-          options?.headers,
-          options?.body
-        ),
-      })
-    }
-    // If the retry is also 401, or we never had a refresh token / it failed,
-    // discard the rejected bearer and give the session cookie one chance.
-    // A 401 is returned before a protected mutation reaches application
-    // code, so retrying the same write here cannot duplicate a successful
-    // operation.
-    if (response.status === 401) {
-      clearTokens()
-      response = await fetch(target, {
-        credentials: 'include',
-        ...options,
-        headers: buildHeaders(null, csrfToken, options?.headers, options?.body),
-      })
-    }
-  }
+  const { response, snapshot } = await authenticatedFetch(url, options)
 
   let result: T
   if (response.ok && binary) {
@@ -141,6 +134,7 @@ export const fetchApi = async <T = Record<string, unknown>>(
   if (!response.ok) {
     throw new ApiError(response.status, result)
   }
+  assertAuthSession(snapshot)
   return result
 }
 
@@ -163,7 +157,11 @@ async function boundedBlob(response: Response, maxBytes: number) {
   const parts: ArrayBuffer[] = []
   let length = 0
   try {
-    for (let item = await reader.read(); !item.done; item = await reader.read()) {
+    for (
+      let item = await reader.read();
+      !item.done;
+      item = await reader.read()
+    ) {
       const value = item.value
       length += value.byteLength
       if (length > maxBytes) throw new Error('audio_download_too_large')

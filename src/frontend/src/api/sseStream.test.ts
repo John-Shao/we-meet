@@ -1,67 +1,68 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
+import { beforeEach, expect, it, vi } from 'vitest'
 import { sseStream } from './sseStream'
-
-vi.mock('@/features/auth/api/mobileOtp', () => ({
-  refreshTokens: vi.fn(),
-}))
-
-const unauthorizedResponse = (): Response =>
-  ({ status: 401, ok: false }) as Response
-
-const eventStreamResponse = (...frames: string[]): Response => {
-  const chunks = frames.map((frame) => new TextEncoder().encode(frame))
-  let index = 0
-  return {
-    status: 200,
-    ok: true,
-    body: {
-      getReader: () => ({
-        read: vi
-          .fn()
-          .mockImplementation(async () =>
-            index < chunks.length
-              ? { done: false, value: chunks[index++] }
-              : { done: true, value: undefined }
-          ),
-      }),
+import { refreshTokens } from '@/features/auth/api/mobileOtp'
+import { setTokens } from '@/features/auth/utils/tokenStorage'
+vi.mock('@/features/auth/api/mobileOtp', () => ({ refreshTokens: vi.fn() }))
+beforeEach(() => {
+  vi.restoreAllMocks()
+  vi.mocked(refreshTokens).mockReset()
+  localStorage.clear()
+})
+it('never retries a paid question with a cookie identity', async () => {
+  setTokens({ accessToken: 'old' })
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response('{}', { status: 401 }))
+  )
+  await expect(
+    sseStream('users/me/ai/ask-stream/', { body: { question: 'test' } })
+      [Symbol.asyncIterator]()
+      .next()
+  ).rejects.toMatchObject({ statusCode: 401 })
+  expect(fetch).toHaveBeenCalledTimes(1)
+})
+it('refreshes the same session once and closes the consumed stream', async () => {
+  setTokens({ accessToken: 'old', refreshToken: 'refresh' })
+  vi.mocked(refreshTokens).mockResolvedValue({ access_token: 'fresh' })
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(new Response('{}', { status: 401 }))
+    .mockResolvedValueOnce(new Response('data: {"type":"done"}\n\n'))
+  vi.stubGlobal('fetch', fetchMock)
+  const events = []
+  for await (const event of sseStream('question/', { body: {} }))
+    events.push(event)
+  expect(events).toEqual([{ type: 'done' }])
+  expect(fetchMock).toHaveBeenCalledTimes(2)
+  expect(
+    new Headers(fetchMock.mock.calls[1][1].headers).get('Authorization')
+  ).toBe('Bearer fresh')
+})
+it('stops yielding buffered private events after an account switch', async () => {
+  setTokens({ accessToken: 'old' })
+  let canceled = false
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(
+        new TextEncoder().encode(
+          'data: {"type":"delta","text":"first"}\n\ndata: {"type":"delta","text":"private"}\n\n'
+        )
+      )
     },
-  } as unknown as Response
-}
-
-describe('sseStream authentication fallback', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks()
-    localStorage.setItem('we-meet:access_token', 'expired-access-token')
+    cancel() {
+      canceled = true
+    },
   })
-
-  it('retries with the session cookie when a stored bearer is rejected', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(unauthorizedResponse())
-      .mockResolvedValueOnce(eventStreamResponse('data: {"type":"done"}\n\n'))
-    vi.stubGlobal('fetch', fetchMock)
-
-    const events = []
-    for await (const event of sseStream('users/me/ai/ask-stream/', {
-      body: { question: 'test' },
-    })) {
-      events.push(event)
-    }
-
-    expect(events).toEqual([{ type: 'done' }])
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    const firstHeaders = fetchMock.mock.calls[0][1]?.headers as Record<
-      string,
-      string
-    >
-    const fallbackHeaders = fetchMock.mock.calls[1][1]?.headers as Record<
-      string,
-      string
-    >
-    expect(firstHeaders.Authorization).toBe('Bearer expired-access-token')
-    expect(fallbackHeaders.Authorization).toBeUndefined()
-    expect(fetchMock.mock.calls[1][1]?.credentials).toBe('include')
-    expect(localStorage.getItem('we-meet:access_token')).toBeNull()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(stream))
+  )
+  const iterator = sseStream('question/', { body: {} })[Symbol.asyncIterator]()
+  expect((await iterator.next()).value).toEqual({
+    type: 'delta',
+    text: 'first',
   })
+  setTokens({ accessToken: 'different' })
+  await expect(iterator.next()).rejects.toMatchObject({ statusCode: 401 })
+  expect(canceled).toBe(true)
 })
