@@ -1,300 +1,85 @@
-# 会议 AI 当前可部署测试范围（2026-09-13）
+# 会议 AI 部署测试交接（2026-09-13）
 
-用户负责部署和实测，本文件记录开发侧现状。新开关默认关闭，尚未执行生产迁移或修改线上配置。累计第三十三批是阶段性增量，不是完整首版交付。
+首版开发及技术走查已完成，进入用户部署与测试反馈阶段。阶段 0–3 的代码、Web/Android 核心流程和部署配置已落地；阶段 4 的真实环境验收、灰度与发布尚未完成，**M3/M4 尚未验收通过**。开发侧没有执行生产迁移、启用线上能力或发送真实纪要通知。
 
-## 本轮建议测试
+本文为当前部署依据。[历史批次记录](meeting-ai-deployment-history-2026-09-13.md)保留当时状态，其中的“下一批”“尚未接入”和旧迁移号不代表当前缺口。实现范围和验证证据见[最终技术评审](meeting-ai-final-technical-review-2026-09-13.md)；具体 Helm/Compose 配置见 [AI Worker 部署说明](meeting-ai-worker-deployment-2026-09-13.md)。
 
-1. 同房间创建两场会议；开启在线文字采集，停止采集后继续开会，确认只有当前场次产生纪要。再次采集时旧生成任务不能写入新窗口。
-2. 检查实时／速记／最终纪要状态、尾段超时和人工重试；原文引用与实际听到的时间对应关系需要真实音频核验。
-3. 工具中的私人语音翻译：中英连续和按键双向、仅文本和译音、另一设备、停止及断网。按键只控制翻译输入，会议麦克风原声仍按原会议状态发送。
-4. 人工修订、AI 重生成、两窗口并发编辑、查看历史及引用；共享只读用户不能修改。
-5. 确认行动项内容／负责人／日期并创建任务；重复点击和丢响应不得重复创建。修改任务完成状态后纪要可读到新状态；删除任务后保留已转换记录。
-6. 访客、同组织无资料权限用户、仅纪要权限用户和撤权用户检查读取边界；会中问答只允许当前场次的原文资料读者，不能用加入令牌读取历史材料。
-7. 会议首页的「录音」：开始、暂停、刷新、继续、断网重试和结束；关闭采集开关后仍可结束已有录音。检查真实对象存储权限、WAV 字节、缺片清单以及账号切换后的本地隔离。开启独立 ASR 并部署对应 Worker 后，保存录音可手动转写、取消、重新转写及按文字时间点回听；缺片须明确接受，网络失败后确认同一次请求。独立纪要开关开启后可生成最终纪要、修订和按快照问答；长逐字稿需要检查多页及引用回听。
+## 1. 版本与部署顺序
 
-## 迁移与运行组件
+| 仓库 | 分支／最低相关版本 | 用途 |
+| --- | --- | --- |
+| we-meet | `aliyun-dev`，功能代码至 `9cd6d38e`，再取本交接文档所在最新提交 | API、Web、Celery、Agent、Helm |
+| we-meet-android | `main`，`76c97d32` | 原生记录、录音、翻译、纪要及账号隔离 |
+| we-meet-docs | `docs-dev`，`bf2a0636` 或兼容后续版本 | 独立文档幂等创建与结果查询 |
+| jusi-light-im | `main`，`99c90e3` 或兼容后续版本 | 通知幂等回执与结果查询 |
 
-备份并按原部署流程执行 `python manage.py migrate --noinput`。本轮最新迁移为 `0165_capture_transcription_jobs`；先在测试库演练现有数据到最新版本。开发侧隔离数据库已执行通过。
+1. 在测试环境备份并演练迁移。Meet 执行完整迁移链到 `core.0178_capture_translation_archives`；Docs 包含 `core.0037_server_document_creation`；IM 包含迁移 `011`。按各仓库既有发布流程执行，不能只套用最后一项迁移。
+2. 先部署 Docs/IM 兼容接口，再部署 Meet API、Celery Worker 和 Beat。Beat 的 `core.tasks.summary_versions.tick_record_summaries` 承担调度、超时与恢复；能力开关必须同步到相应 Celery 进程。
+3. 按能力部署线上转写 Agent、5 类可选 Worker 和需要的 LiveKit Egress；后端与 Worker 内部令牌、模型地域、Agent 名称必须一致。录音翻译额外需要 WSS 网关与 Origin 配置，详见 Worker 说明。
+4. **后端先于新版 Web。** 批次 137 后的 Web 依赖准确的 `command_receipt`；旧后端缺失回执时会保留待确认请求，不视为已完成。不要靠换请求键绕过该状态。
+5. 发布 Web 与按测试能力打包的 Android，先用内部测试账号逐项开通。新 AI 开关、5 类可选 Worker 以及 Android 新入口默认关闭；服务端开关不能代替 Android 构建开关。
 
-后端 API、Celery Worker、Celery Beat、转写 Agent 与翻译 Agent 需要版本一致。后台 `core.tasks.summary_versions.tick_record_summaries` 负责生成调度、超时和采集／翻译恢复；不要只部署 API 而遗漏 Beat。真实 LiveKit Webhook 必须能投影准确场次与参与设备 SID。
+## 2. 当前功能与入口
 
-转写 Agent 继续运行 `multi_user_transcriber.py`，`STT_PROVIDER=qwen`，`QWEN_ASR_MODEL=qwen-audio-3.0-asr-flash-streaming`；后端 `ROOM_SUBTITLE_AGENT_NAME` 必须匹配 Agent 的 `TRANSCRIBER_AGENT_NAME`。
+| 场景 | 当前可部署能力 |
+| --- | --- |
+| 会议与资料首页 | 会议笔记、智能纪要、独立 AI 录音；统一记录列表、权限筛选、搜索和准确版本深链 |
+| 在线会议 | 当前场次的文字采集、云录制控制、实时/速记/最终纪要；停止采集与结束通话分开 |
+| 独立录音 | Web 麦克风与本地恢复；Android 前台服务、分片保存、暂停/继续/结束、缺片提示和回放 |
+| 独立转写 | 会后 ASR、实时 ASR、确认原文、时间定位；实时/速记/最终纪要；显式仅文字模式及清理状态 |
+| 会后工作 | 原文快照问答、人工修订、行动项确认后转任务、任务状态、独立文档导出、纪要助手通知账本与重试、仅纪要分享与撤销 |
+| 在线翻译 | 私人双向语音翻译与连续翻译、多人同传频道和个人收听；中英两种目标语言；用户选择后保存确认译文 |
+| 录音翻译 | Web/Android 同传与双向按键模式、实时译文/译音、静音与停止、可选保存及私人译文记录 |
 
-私人翻译是独立 Worker：`python qwen_translation_agent.py start`。后端和 Agent 的 `ROOM_TRANSLATION_AGENT_NAME` 必须相同；现有镜像构建须包含新文件和更新的依赖锁。仓库有可选开发 compose profile，生产 Worker 需按现有运维部署方式添加，尚未替用户部署。
+Web 资料入口为 `/meeting/notes`、`/meeting/minutes`、`/meeting/records/:recordId`。会中工具打开当前场次笔记和翻译面板。Android 的完整记录页提供任务/文档操作；会中笔记弹层以阅读为主，需进入完整记录页使用这些后续操作。
 
-独立录音转写使用另一个进程 `python capture_transcriber.py`，不接入 LiveKit。模型／地区必须与后端 `QWEN_ASR_MODEL`、`QWEN_ASR_REGION` 一致；共享后端内部令牌。只有开启独立转写开关并由用户创建任务后才可能调用供应商。开发 profile 为 `capture-asr`，Web 控制已连接；录音中尚无实时文字。
+## 3. 配置清单
 
-## 开关与模型
-
-| 能力 | 后端开关／配置 |
+| 能力 | 后端配置（按依赖组合开启） |
 | --- | --- |
 | 统一记录 | `MEETING_RECORDS_ENABLED` |
-| 送达账本与在线文字采集 | `MEETING_TRANSCRIPT_DELIVERY_ENABLED`、`MEETING_ONLINE_CAPTURE_ENABLED`、`CELERY_ENABLED` |
-| 显式版本化生成 | `MEETING_VERSIONED_SUMMARY_ENABLED`、`MEETING_SUMMARY_REQUESTS_ENABLED` |
-| 实时／速记／最终阶段 | `MEETING_STAGED_SUMMARY_ENABLED` |
-| 用户主动开启自动总结 | `MEETING_SUMMARY_AUTOMATION_ENABLED` |
-| 有限长文本分块 | `MEETING_SUMMARY_CHUNKING_ENABLED` |
-| 私人语音翻译 | `MEETING_TRANSLATION_ENABLED`、`ROOM_TRANSLATION_AGENT_NAME`、`CELERY_ENABLED` |
-| 人工修订 | `MEETING_SUMMARY_REVIEW_ENABLED` |
-| 确认行动项转任务 | `MEETING_SUMMARY_TASKS_ENABLED`（同时需要人工修订和记录开关） |
-| 原文快照问答 | `MEETING_RECORD_QA_ENABLED`（需要记录开关和当前原文读取权限） |
-| 独立音频保存协议 | `MEETING_CAPTURE_AUDIO_ENABLED`、`MEETING_CAPTURE_PROTOCOL_ENABLED`（同时需要记录开关） |
-| 独立转写 | `MEETING_CAPTURE_ASR_ENABLED`、`QWEN_ASR_MODEL`、`QWEN_ASR_REGION`（需单独部署 capture_transcriber Worker） |
-| 独立录音最终纪要 | `MEETING_CAPTURE_SUMMARY_ENABLED`（同时要求版本化总结、请求、记录、采集协议、Celery） |
-
-总结为 `MEETING_SUMMARY_MODEL=qwen3.8-flash`，`MEETING_SUMMARY_BASE_URL` 按已选地区配置。翻译为 `QWEN_TRANSLATION_MODEL=qwen3.5-livetranslate-flash-realtime`，首批 `QWEN_TRANSLATION_LANGUAGES=zh,en`，`DASHSCOPE_REGION` 与 workspace 区域一致。
-
-供应商与 Agent 令牌通过部署密钥注入：`DASHSCOPE_API_KEY`、`DASHSCOPE_WORKSPACE_ID`、`AGENT_INTERNAL_API_TOKEN`；Agent 的 `AGENT_BACKEND_API_URL` 指向可信后端，LiveKit 连接参数按环境注入。文档和提交均不保存密钥值。`env.d/development/meeting_translation.dist` 仅为开发示例，不可直接作为生产凭据。
-
-## 不应作为本轮已完成能力验收
-
-- 独立录音已连接 Web 麦克风、本地日志、WAV 保存、回放、保存后 ASR、最终纪要及修订／问答入口。统一资料库、实时独立转写／总结、仅文字清理仍待实现，真实端到端测试由部署后验证。当前按分片播放，切换时可能短暂缓冲。
-- 私人语音翻译尚不是多人／多语言频道同传，译文关联笔记和完整费用归集仍有后续工作。
-- 新版独立文档与纪要助手推送尚未接入，需先解决 Docs 远程创建的幂等／结果查询依赖；旧版文档链路不代表新版已完成。
-- 记录级 Qwen 问答已支持所选纪要原文快照及准确引用检查、私人提问恢复。当前为有界单轮，超过 250 KB 的原文明确拒绝，语义质量与长输入扩展仍待评测；不要将准确引用校验等同于答案内容全部正确。
-- Android、新首页全部入口及跨终端状态对齐仍按总计划推进，不能以 Web 单元测试替代真机测试。
-
-反馈时提供提交号、record/session 或 run ID、操作顺序、实际与预期、发生时间及终端环境即可；不要附带密钥。开发侧收到问题后按影响排序修复、验证、自动提交与推送。
-
-
-## Batch 34 update
-
-Record list/detail now expose permission-filtered library metadata and strict `is_ongoing` / `has_summary` filters. No additional flag or migration. Backend regression: 31 passed. Web library integration follows in the next batch; previous deployment limitations remain. See [batch 34](meeting-ai-phase3-batch14-2026-09-13.md).
-
-
-## Batch 35 update
-
-Web: `/meeting/notes`, `/meeting/minutes`, `/meeting/records/:recordId`. Record flag controls access; no migration. Owners can reopen stopped cloud recordings without local capture history. Shared transcript/summary permissions remain separate; ongoing captures are read-only here. 27 frontend tests, build and native Chromium fixture flow passed; real devices, providers and deployment remain operator tests. See [batch 35](meeting-ai-phase3-batch15-2026-09-13.md).
-
-
-## Batch 36 update
-
-Full-original search and optional `expected_revision` are now supported; stale reads return 409. No migrations or new flags. 42 backend tests and 15 frontend tests passed across focused runs, with native Chromium fixture search/playback. Docs repository is now located at `../we-meet-docs`; upstream idempotency remains to implement. See [batch 36](meeting-ai-phase3-batch16-2026-09-13.md).
-
-
-## Batch 37: Docs prerequisite
-
-Docs `docs-dev` commit `c4a3089a` adds migration `core.0037_server_document_creation` and keyed creation/result lookup. Apply Docs migration before Meet delivery rollout. No new Meet migration in this batch. Eight new and seven legacy Docs tests pass with converter/storage/notification mocks. Meet integration and bot delivery are still pending. See [batch 37](meeting-ai-phase3-batch17-2026-09-13.md).
-
-
-## Batch 38: dedicated Docs path
-
-Require Docs `bf2a0636` (or newer), not only the initial keyed-header commit: old replicas ignore headers, so Meet uses `/create-for-owner-idempotent/` exclusively. Client tests: 28 passed; Docs receipt tests: 9 passed. New client is not yet wired into a billable/export business path. No new migration beyond Docs 0037. See [batch 38](meeting-ai-phase3-batch18-2026-09-13.md).
-
-- Batch 39: immutable export preview and durable intent; core migration 0166, 9 tests passed. Keep MEETING_SUMMARY_EXPORT_ENABLED off pending delivery worker and UI. See [batch 39](meeting-ai-phase3-batch19-2026-09-13.md).
-
-- Batch 40: fenced asynchronous Docs delivery and read-only reconciliation; 24 delivery tests plus 37 preview/client regressions passed. Celery worker + beat required; export UI follows. See [batch 40](meeting-ai-phase3-batch20-2026-09-13.md).
-
-- Batch 41: document export UI for AI/current/history revisions; 26 frontend and 10 backend tests passed, native Chromium desktop/mobile recovery verified, production build passed. Deploy Docs + migrations + worker/beat before enabling export for integration testing. See [batch 41](meeting-ai-phase3-batch21-2026-09-13.md).
-
-- Batch 42: IM sibling now provides durable admin message receipts and migration 011; deploy it before the future minutes-assistant integration. Six database scenarios, three API scenarios and existing admin tests passed. See [batch 42](meeting-ai-phase3-batch22-2026-09-13.md).
-
-- Batch 43: strict signed IM delivery client, 32 tests passed. Requires IM 99c90e3 and migration 011; notification orchestration follows. See [batch 43](meeting-ai-phase3-batch23-2026-09-13.md).
-
-- Batch 44: atomic final-summary completion events, frozen recipients, private notification ledger/API; migration 0167. 12 notification + 16 version + 9 capture summary checks passed. Keep MEETING_SUMMARY_NOTIFICATIONS_ENABLED off pending worker and UI. See [batch 44](meeting-ai-phase3-batch24-2026-09-13.md).
-
-- Batch 45: [private notification delivery and recovery](meeting-ai-phase3-batch25-2026-09-13.md). 35 tests passed; migration 0168 required. IM 99c90e3 + schema 011, Celery worker/beat required. Notification flag remains off pending Web status/retry and version deep links. No real messages sent.
-
-- Batch 46: [notification UI and exact-version links](meeting-ai-phase3-batch26-2026-09-13.md). 27 frontend + 6 backend tests, native Chromium desktop/mobile and production build passed. Notification stack is ready for deployment validation; flag stays off by default. Record sharing is next.
-
-- Batch 47: [summary-only sharing preview and grants](meeting-ai-phase3-batch27-2026-09-13.md). 13 tests passed; migration 0169 required. MEETING_SUMMARY_SHARING_ENABLED defaults off. Explicit record-summary grants do not send messages or grant originals/media/Docs access. Web confirmation is next.
-
-- Batch 48: [summary sharing and revocation UI](meeting-ai-phase3-batch28-2026-09-13.md). 7 new UI tests + 20 summary/notice regressions passed; native Chromium desktop/mobile and production build passed. Migration 0169 and sharing flag required. No real grants or messages. M3/M4 remain incomplete.
-
-- Batch 49: [shared interpretation channels and listener leases](meeting-ai-phase3-batch29-2026-09-13.md). 13 tests passed; migration 0170 required. MEETING_INTERPRETATION_ENABLED remains off and worker name empty. No dispatch/audio in this batch; worker lifecycle is next.
-
-- Batch 50: [shared interpretation worker lifecycle](meeting-ai-phase3-batch30-2026-09-13.md). 15 worker + 13 channel tests passed; migration 0171 required. Start/worker/stop deadlines and current recipient grants enforced. Dedicated audio Agent and Web listening remain next; interpretation flag stays off.
-
-- Batch 51: [shared interpretation Agent grants](meeting-ai-phase3-batch31-2026-09-13.md). 11 new control/lease tests + 12 private translation regressions passed. Dedicated multi-source audio runtime is next; channel flag remains off. No model calls.
-
-- Batch 52: [shared interpretation audio Agent](meeting-ai-phase3-batch32-2026-09-13.md). 53 Agent tests passed. Dedicated qwen_interpretation_agent.py start workload required; Web listening follows and channel flag stays off. No real model calls.
-
-- Batch 53: [shared interpretation Web protocol](meeting-ai-phase3-batch33-2026-09-13.md). Subscription identity and conservative remaining leases; 5 frontend and 28 backend tests passed. Web lifecycle/UI follows; channel flag stays off.
-
-- Batch 54: [meeting interpretation Web listening](meeting-ai-phase3-batch34-2026-09-13.md). 31 frontend and 54 Agent tests, native Chromium desktop/mobile, production build passed. Dedicated Agent + migrations 0170/0171 + worker/beat required. Channel stack ready for deployment validation; flag remains off by default. Full M3/M4 and final review remain pending.
-
-- Batch 55: [confirmed translation archives](meeting-ai-phase3-batch35-2026-09-13.md). Migration 0172, 20 new and 28 regression tests passed. MEETING_TRANSLATION_ARCHIVE_ENABLED defaults off; Agent delivery and Web retention controls/reader follow. Originals and their revisions are unchanged.
-
-
-Batch 56: shared confirmed-translation delivery and opt-in archive reader completed. See [phase 3 batch 36](meeting-ai-phase3-batch36-2026-09-13.md). Agent/backend/frontend tests and browser/build checks passed; private and independent recording translation remain pending.
-
-
-Batch 57: owner-only private translation archive backend and direction-scoped receipts completed. See [phase 3 batch 37](meeting-ai-phase3-batch37-2026-09-13.md). 55 backend tests passed; no migration. Disabling private translation now stops existing workers on heartbeat. Agent/Web integration follows.
-
-
-Batch 58: private translation Agent delivery, Web opt-in, bidirectional archive reader and unknown-usage handling completed. See [phase 3 batch 38](meeting-ai-phase3-batch38-2026-09-13.md). Agent 68, frontend 19 and backend 19 tests passed, with browser/build checks. Independent recording and final review remain pending.
-
-
-Batch 59: independent live-ASR backend, append-only input offers and owner-only confirmed-text preview completed. See [phase 3 batch 39](meeting-ai-phase3-batch39-2026-09-13.md). 43 focused/regression tests passed; migration 0173 applied only in isolated databases. Live flag defaults off; Agent/Web follow.
-
-
-Batch 60: independent live-ASR Worker completed; run python capture_live_transcriber.py separately from sealed ASR. See [phase 3 batch 40](meeting-ai-phase3-batch40-2026-09-13.md). 34 Agent and 29 backend tests passed. No migration; Web integration follows.
-
-- Batch 61: [independent live transcription Web controls and confirmed preview](meeting-ai-phase3-batch41-2026-09-13.md). Explicit opt-in; 16 component tests and isolated browser regressions passed. No new migration.
-
-- Batch 62: [independent realtime, quick and final summary backend](meeting-ai-phase3-batch42-2026-09-13.md). New opt-in MEETING_CAPTURE_STAGED_SUMMARY_ENABLED; existing explicit automation consent required. No migration; isolated regressions passed.
-
-- Batch 63: [live summary Web controls and end-of-recording transition](meeting-ai-phase3-batch43-2026-09-13.md). Explicit consent, exact draft citations and in-progress ASR status; 29 Web/26 backend tests plus isolated browser flows passed. No migration.
-
-- Batch 64: [Android canonical record, staged summary and citation API](meeting-ai-phase3-batch44-2026-09-13.md). Implemented in we-meet-android/main; 12 JVM tests, Debug build and design guard passed. Native screens and capture lifecycle continue next.
-
-
-- Batch 65: [Android record library and staged-summary screens](meeting-ai-phase3-batch45-2026-09-13.md). Default-off WE_MEET_RECORDS_NATIVE; Debug builds, 12 JVM tests, design guard and 5 isolated emulator UI tests passed. Native originals, notification links and capture lifecycle continue next.
-
-
-- Batch 66: [Android full-original search and speaker filters](meeting-ai-phase3-batch46-2026-09-13.md). Revision-fenced reads and exact online session validation; 16 JVM and 6 isolated emulator UI tests passed. No migration. Native exact-version links and capture lifecycle follow.
-
-
-- Batch 67: [Android exact-version notification links](meeting-ai-phase3-batch47-2026-09-13.md). Strict configured-origin parsing and explicit all-version navigation; 21 JVM and 7 isolated UI tests passed. Native flag also gates the App Link alias. Actual domain/login integration remains for deployment testing.
-
-
-- Batch 68: [private translation audio mount authorization](meeting-ai-phase3-batch48-2026-09-13.md). Exact ready track/participant/run/generation checks, bounded status freshness and late-unlock fencing; 35 frontend regressions, TypeScript, ESLint and production build passed. No migration or provider calls. Native capture and final review remain pending.
-
-
-- Batch 69: [Android independent capture and WAV protocol](meeting-ai-phase3-batch49-2026-09-13.md). Fixed operation keys, device leases and strict audio receipts; 25 JVM tests, Debug build and design guard passed. No real microphone or network operations. Durable native buffering and foreground capture follow.
-
-- Batch 70: Android encrypted capture journal; 8 isolated Keystore/SQLite tests passed. See [batch 50](meeting-ai-phase3-batch50-2026-09-13.md). Capture service/UI and final review remain pending.
-
-- Batch 71: Android durable capture recovery coordinator; 17 isolated tests passed. See [batch 51](meeting-ai-phase3-batch51-2026-09-13.md). Foreground acquisition/UI and final review remain pending.
-
-- Batch 72: Android PCM acquisition adapter and bounded pump; 17 JVM tests passed. See [batch 52](meeting-ai-phase3-batch52-2026-09-13.md). Foreground service/UI and physical-device validation remain pending.
-
-- Batch 73: Android microphone foreground service; 4 service lifecycle + 17 recovery/storage tests passed with synthetic PCM only. WE_MEET_CAPTURE_NATIVE defaults false. See [batch 53](meeting-ai-phase3-batch53-2026-09-13.md). UI and physical-device validation remain pending.
-
-- Batch 74: Android recording UI and account-bound notification return; 6 UI/service tests + 7 record UI regressions passed. Synthetic PCM only. See [batch 54](meeting-ai-phase3-batch54-2026-09-13.md). Native ASR/summary/playback/actions and physical-device validation remain pending.
-
-- Batch 75: Android ASR protocol + encrypted durable paid intents; 7 JVM and 4 instrumented tests passed. See [batch 55](meeting-ai-phase3-batch55-2026-09-13.md). Native ASR controls/preview follow; no real model calls.
-
-- Batch 76: Android explicit ASR controls, durable unknown-request recovery and live confirmed-text preview; 17 isolated UI tests passed. See [batch 56](meeting-ai-phase3-batch56-2026-09-13.md). Native summary controls follow; no real model calls.
-
-- Batch 77: Android staged-summary and automation protocol with durable paid intents; 14 JVM and 8 isolated instrumentation tests passed. See [batch 57](meeting-ai-phase3-batch57-2026-09-13.md). Native controls follow; no real model calls.
-
-- Batch 78: Android staged-summary/automation controls and exact quick-version citations; 19 isolated UI tests passed. See [batch 58](meeting-ai-phase3-batch58-2026-09-13.md). Native playback/actions and cross-client consistency follow.
-
-- Batch 79: Web summary and automation intents now survive same-tab reload, fail closed on storage errors and retain uncertain HTTP 408 outcomes. 23 tests, TypeScript, ESLint and production build passed. See [batch 59](meeting-ai-phase3-batch59-2026-09-13.md). Native playback follows.
-
-- Batch 80: Android sealed-audio playlist and bounded authenticated WAV download; 16 JVM tests, Debug build and token checks passed. See [batch 60](meeting-ai-phase3-batch60-2026-09-13.md). Native playback lifecycle/UI follows.
-
-- Batch 81: Android bounded playback engine and AudioTrack focus handling; 15 JVM and 2 isolated silent-audio SDK tests passed. See [batch 61](meeting-ai-phase3-batch61-2026-09-13.md). Native player UI/lifecycle follows.
-
-- Batch 82: Android player/source seeking, lifecycle and recording exclusion; 30 isolated tests plus default Debug/token and light/dark checks passed. See [batch 62](meeting-ai-phase3-batch62-2026-09-13.md). Web receipt validation and remaining first-release work follow.
-
-- Batch 83: Web summary/automation write receipts validate before resolving durable intents; malformed 2xx remains unknown. 44 tests, TypeScript, ESLint and production build passed. See [batch 63](meeting-ai-phase3-batch63-2026-09-13.md). Native reviewed actions follow.
-
-- Batch 84: Android human-review/history and explicit task-conversion protocols with encrypted recovery; 15 JVM + 8 isolated instrumentation tests and Debug/token checks passed. See [batch 64](meeting-ai-phase3-batch64-2026-09-13.md). Native editing/confirmation UI follows.
-
-- Batch 85: Android human-summary editing/history and exact citations; 20 isolated UI regressions, Debug/token and light/dark checks passed. See [batch 65](meeting-ai-phase3-batch65-2026-09-13.md). Task confirmation/navigation follows.
-
-- Batch 86: Android reviewed-action confirmation, explicit assignees/dates and native task navigation; 19 isolated UI regressions, default Debug/token and light/dark checks passed. See [batch 66](meeting-ai-phase3-batch66-2026-09-13.md). Native Q&A/delivery follows.
-
-- Batch 87: Android private Q&A protocol with exact snapshot/receipt checks and encrypted recovery; 16 JVM + 8 isolated instrumentation tests and Debug/token checks passed. See [batch 67](meeting-ai-phase3-batch67-2026-09-13.md). Q&A UI follows.
-
-- Batch 88: Android private Q&A workspace, explicit original selection and exact answer/citations; 13 isolated UI regressions, Debug/token and light/dark checks passed. See [batch 68](meeting-ai-phase3-batch68-2026-09-13.md). Native delivery/notification work follows.
-
-- Batch 89: Android document delivery and private notification protocols with validated receipts and durable recovery; 17 JVM + 8 isolated tests and Debug/token checks passed. See [batch 69](meeting-ai-phase3-batch69-2026-09-13.md). Native delivery UI follows.
-
-- Batch 90: Android private assistant delivery status, exact minutes links and explicit retry confirmation; 16 isolated tests, Debug/token and light/dark checks passed. See [batch 70](meeting-ai-phase3-batch70-2026-09-13.md). Document export UI follows.
-
-- Batch 91: Android reviewed document copies, frozen retries and native Docs navigation; 18 UI regressions, Debug/token and light/dark checks passed. See [batch 71](meeting-ai-phase3-batch71-2026-09-13.md). Native summary sharing follows.
-
-- Batch 92: Android scoped summary-sharing preview/confirmation and durable recovery; 17 JVM + 7 isolated tests and Debug/token checks passed. See [batch 72](meeting-ai-phase3-batch72-2026-09-13.md). Native sharing UI follows.
-
-- Batch 93: Android explicit summary sharing/revocation workspace, scoped selection and effective-access previews; 13 isolated UI tests, Debug/token and light/dark checks passed. See [batch 73](meeting-ai-phase3-batch73-2026-09-13.md). Native online capture/translation alignment and first-release gaps follow.
-
-- Batch 94: Android exact-occurrence online capture controls and join-token-only notices with durable recovery; 16 JVM + 7 isolated tests and Debug/token checks passed. See [batch 74](meeting-ai-phase3-batch74-2026-09-13.md). In-meeting UI follows.
-
-- Batch 95: Android exact-occurrence in-meeting controls and independent participant notices; 17 isolated tests, enabled/default Debug builds, token and light/dark checks passed. New WE_MEET_ONLINE_AI_NATIVE defaults off. See [batch 75](meeting-ai-phase3-batch75-2026-09-13.md). Native translation and remaining first-release gaps follow.
-
-- Batch 96: Android private translation protocol and encrypted source/consent-preserving recovery; 15 JVM + 11 isolated tests and Debug/token checks passed. See [batch 76](meeting-ai-phase3-batch76-2026-09-13.md). Native event/audio lifecycle and controls follow.
-
-- Batch 97: Android translation event validation and exact, expiring track subscriptions; 16 JVM tests, enabled/default Debug and token checks passed. See [batch 77](meeting-ai-phase3-batch77-2026-09-13.md). Native translation workspace follows; real call/device timing remains deployment testing.
-
-- Batch 98: Android connection-bound translation state, explicit sound consent and ordered manual speech; 24 JVM regressions and Debug/token checks passed. See [batch 78](meeting-ai-phase3-batch78-2026-09-13.md). Native workspace and SDK transport follow.
-
-- Batch 99: Android personal voice-translation workspace, explicit sound/retention, manual turns and lifecycle recovery; 20 isolated regressions, enabled/default Debug, token and light/dark checks passed. See [batch 79](meeting-ai-phase3-batch79-2026-09-13.md). Shared interpretation follows; native archive browsing and device timing remain pending.
-
-- Batch 100: Android shared-channel/listener/renewal protocols with separate durable intents; 17 JVM + 12 isolated tests and Debug/token checks passed. See [batch 80](meeting-ai-phase3-batch80-2026-09-13.md). Shared event/audio lifecycle and native channel UI follow.
-
-- Batch 101: Android shared interpretation events and explicit, expiring listening state; 25 JVM regressions and Debug/token checks passed. See [batch 81](meeting-ai-phase3-batch81-2026-09-13.md). Shared native SDK transport and channel/listener UI follow.
-
-- Batch 102: Android shared interpretation channel/listener workspace with foreground leases and durable recovery; 23 isolated tests, enabled/default Debug, token and light/dark checks passed. See [batch 82](meeting-ai-phase3-batch82-2026-09-13.md). Native retained-translation browsing follows.
-
-- Batch 103: Android retained translation list/detail with exact archive pagination and original-material ACLs; 8 JVM + 12 isolated UI tests, Debug/token and light/dark checks passed. See [batch 83](meeting-ai-phase3-batch83-2026-09-13.md). Native write-intent recovery alignment follows.
-
-- Batch 104: Android ASR/summary/automation/review/task/question intents retain their original key/body through access loss; 21 isolated + 7 JVM tests, Debug and token checks passed. See [batch 84](meeting-ai-phase3-batch84-2026-09-13.md). Web online-capture recovery follows.
-
-- Batch 105: Web online-capture controls persist exact occurrence-bound intent and validate frozen receipts; 31 tests, TypeScript, ESLint and production build passed. See [batch 85](meeting-ai-phase3-batch85-2026-09-13.md). Text-only retention foundations and remaining first-release work follow.
-
-- Batch 106: durable text-only audio cleanup foundation with upload/ASR fencing and verified deletion; 43 unique backend tests and migration/lint checks passed. Migration 0174 and a separate cleanup worker/beat task required. See [batch 86](meeting-ai-phase3-batch86-2026-09-13.md). Failed-ASR expiry and client retention flows remain pending; text-only upload stays disabled.
-
-- Batch 107: text-only audio hard expiry, bounded ASR retry window and public cleanup status; 108 backend regressions and lint/diff checks passed. See [batch 87](meeting-ai-phase3-batch87-2026-09-13.md). No new migration; storage admission and client retention flows follow.
-
-- Batch 108: opt-in text-only WAV/live-ASR admission with authenticated storage compatibility checks; 122 unique backend regressions and lint/diff checks passed. See [batch 88](meeting-ai-phase3-batch88-2026-09-13.md). New MEETING_CAPTURE_TEXT_ONLY_ENABLED defaults off; Web/native retention flows follow.
-
-- Batch 109: Web text-only audio memory queue and fail-closed retention metadata, with nine real-browser storage invariants and 21 unit regressions verified. See [batch 89](meeting-ai-phase3-batch89-2026-09-13.md). Recording selector, consent and controller lifecycle follow.
-
-- Batch 110: Web text-only recording consent, admission, expiry shutdown and cleanup status; 50 unit regressions, text/media browser UI flows, TypeScript/lint and production build passed. See [batch 90](meeting-ai-phase3-batch90-2026-09-13.md). Android retention and remaining first-release work follow.
-
-- Batch 111: Android text-audio admission and retention protocol (fb3c7028); 26 JVM and 9 isolated capture-recovery tests, Debug/test and token checks passed. See [batch 91](meeting-ai-phase3-batch91-2026-09-13.md). Native cache/lifecycle and UI follow.
-
-- Batch 112: Android memory-only text audio and durable explicit incomplete recovery (4ca9d4bf); 24 isolated device and 19 JVM tests, Debug/test and token checks passed. See [batch 92](meeting-ai-phase3-batch92-2026-09-13.md). Native service/consent/status UI follows.
-
-- Batch 113: Android `77103709` integrates text-only capture controls and expiry shutdown; no migration. Storage admission and existing flags govern exposure; native defaults remain false. 21 isolated device scenarios, builds/design-token checks and light/dark inspection pass; real device/provider/cleanup acceptance remains pending. See [batch 113](meeting-ai-phase3-batch93-2026-09-13.md).
-
-- Batch 114: new no-store GET cloud-recording/control endpoint and MEETING_CLOUD_RECORDING_ENABLED=false; no migration. Keep disabled pending command/worker/native integration. 24 backend scenarios pass; no actual Egress call. See [batch 114](meeting-ai-phase3-batch94-2026-09-13.md).
-
-- Batch 115: core migration 0175 adds cloud recording commands. POST currently reserves accepted commands only; keep MEETING_CLOUD_RECORDING_ENABLED=false until worker/native integration. Receipt replay and stop reservations remain available on rollback. 27 cloud tests and worker mediator regressions pass; no Egress call. See [batch 115](meeting-ai-phase3-batch95-2026-09-13.md).
-
-- Batch 116: no migration. Cloud transport validates room SID, worker ID and original MP4 path; lookup is bounded and never repeats starts. Cloud recordings reject cross-session webhook reassignment. 62 unique scenarios pass; real Egress response/cleanup behavior still needs deployment acceptance. Keep MEETING_CLOUD_RECORDING_ENABLED=false pending executor/native UI. See [batch 116](meeting-ai-phase3-batch96-2026-09-13.md).
-
-- Batch 117: apply core migration 0176 and run Celery worker + beat (tick_cloud_recordings every 10s). New cloud starts require the built-in video worker and expire after 60s; unknown starts are never redispatched. Keep MEETING_CLOUD_RECORDING_ENABLED=false pending lifecycle/native integration. 53 fake-provider/database scenarios, drift check and task registration pass. Quarantined wrong-source media remains private under existing video storage retention. See [batch 117](meeting-ai-phase3-batch97-2026-09-13.md).
-
-- Batch 118: exact-worker cloud lifecycle events, monotonic recording state, pending-command completion and bounded occurrence-scoped notices; 132 unique isolated scenarios pass. No migration; keep rollout off pending Android integration. See [batch 118](meeting-ai-phase3-batch98-2026-09-13.md).
-
-- Batch 119: Android cloud recording protocol and encrypted exact-intent recovery (`46ecbf08`); 8 JVM + 5 isolated device tests and builds/token checks pass. Native panel follows; rollout remains off. See [batch 119](meeting-ai-phase3-batch99-2026-09-13.md).
-
-- Batch 120: Android cloud recording panel (`3759a2f5`), explicit confirmation, exact-source foreground reads and durable recovery UI; 8 isolated UI + 8 JVM tests, builds/token/visual checks pass. WE_MEET_CLOUD_RECORDING_NATIVE defaults false. Standalone translation and final review follow. See [batch 120](meeting-ai-phase3-batch100-2026-09-13.md).
-
-- Batch 121: opt-in Web 100 ms PCM tap shares the recording microphone, bounds unacknowledged frames and isolates consumer failures; 24 unit tests, real Chromium tap/recording checks and production build pass. No backend/rollout change; standalone translation transport follows. See [batch 121](meeting-ai-phase3-batch101-2026-09-13.md).
-
-- Batch 122: Android same-microphone PCM tap (`d19b2fef`), bounded leases, source checks, tail draining and recording failure isolation; 18 JVM + 7 isolated service tests and builds/token checks pass. Defaults remain off; translation session/transport follows. See [batch 122](meeting-ai-phase3-batch102-2026-09-13.md).
-
-## Batch 123: independent recording translation controls
-
-Apply migration 0177 with earlier migrations. Keep MEETING_CAPTURE_TRANSLATION_ENABLED=false until gateway and client integration is complete. This batch only reserves exact capture/device generations and stores immutable receipts; it does not connect DashScope. See [details](meeting-ai-phase3-batch103-2026-09-13.md).
-
-## Batch 124: gateway authorization
-
-No additional migration. New capture ticket endpoint and private /api/agent/capture-translations/ claim/control/finish endpoints require the existing internal agent token. Tickets must never be logged or placed in URLs; keep rollout off until transport/client completion. See [details](meeting-ai-phase3-batch104-2026-09-13.md).
-
-## Batch 125: recording translation gateway
-
-New optional agent entrypoint capture_translation_gateway.py; default disabled, internal bind 127.0.0.1:8093. Requires WSS ingress /capture-translation, explicit browser origins and existing server-side provider/internal credentials. Do not log WS frames/tickets. Archive and client integration remain, so keep both rollout flags off. See [protocol and configuration](meeting-ai-phase3-batch105-2026-09-13.md).
-
-## Batch 126: retained capture translations
-
-Apply migration 0178 after 0177. Explicit save_translations also requires MEETING_TRANSLATION_ARCHIVE_ENABLED. Gateway can now retain final text with source_capture_id; capture-owner archive endpoints are separate from existing meeting archive readers. Keep rollout disabled pending Web/native integration. See [details](meeting-ai-phase3-batch106-2026-09-13.md).
-
-## Batch 127: speech-turn tails
-
-Web and Android d3d4d332 can drain individual translated speech turns on the same microphone while original recording continues. No backend/migration change. Client WS integration remains pending; keep rollout off. See [details](meeting-ai-phase3-batch107-2026-09-13.md).
-
-- Batch 128: strict Web recording translation protocol, metadata-only recovery and same-microphone WS transport; 24 Web and 61 agent scenarios plus real Chromium/build checks pass. UI, playback and native integration follow. See [batch 128](meeting-ai-phase3-batch108-2026-09-13.md).
-
-- Batch 129: Web recording translation controls and bounded output playback; 12 unit scenarios, real Chromium two-direction/one-microphone and responsive checks, TypeScript/lint/build pass. Archive UI, Android and final review follow. See [batch 129](meeting-ai-phase3-batch109-2026-09-13.md).
-
-- Batch 130: exact owner-only saved recording translation UI, bounded validated pagination and private-content lifecycle; 20 Web scenarios and TypeScript/lint/build pass. Android, deployment wiring and final review follow. See [batch 130](meeting-ai-phase3-batch110-2026-09-13.md).
-
-- Batch 131: Android strict recording translation protocol and encrypted metadata recovery (0eeb4084), plus Web immutable source revision validation; 12 JVM, 5 device and 8 Web scenarios pass. Native transport/UI and final review follow. See [batch 131](meeting-ai-phase3-batch111-2026-09-13.md).
-
-- Batch 132: Android same-microphone WS translation (211834a1), plus cross-client completion deduplication; 22 JVM and 13 Web scenarios pass, including a real loopback WebSocket. Native playback/UI and final review follow. See [batch 132](meeting-ai-phase3-batch112-2026-09-13.md).
-
-- Batch 133: Android recording translation controls and bounded playback (90f6e937); 13 isolated device scenarios and enabled/default builds pass. Native archive UI and final review follow. See [batch 133](meeting-ai-phase3-batch113-2026-09-13.md).
-
-- Batch 134: Android owner-only saved recording translation archives (cbe73696); 10 isolated device scenarios, builds and light/dark inspection pass. Worker deployment wiring and final review follow. See [batch 134](meeting-ai-phase3-batch114-2026-09-13.md).
-
-- Batch 135: five optional AI Workers, exact WSS gateway ingress and partial-release image preservation; eight render/script scenarios, Helm lint, shell and Compose checks pass. See [deployment configuration](meeting-ai-worker-deployment-2026-09-13.md) and [batch 135](meeting-ai-phase3-batch115-2026-09-13.md). Final technical review follows.
-
-- Batch 136: final review fixed cross-login refresh/retry races in Web and Android (76c97d32), plus buffered SSE authority checks. Focused, full-suite and build evidence: [review batch 136](meeting-ai-phase4-batch116-2026-09-13.md). Recovery review continues.
-
-- Batch 137: preserve uncertain commands and validate source-bound success acknowledgements; 111 backend and 104 Web scenarios pass. Deploy backend before frontend. See [review batch 137](meeting-ai-phase4-batch117-2026-09-13.md).
+| 转写送达、线上采集 | `MEETING_TRANSCRIPT_DELIVERY_ENABLED`、`MEETING_CAPTURE_PROTOCOL_ENABLED`、`MEETING_ONLINE_CAPTURE_ENABLED`、`CELERY_ENABLED` |
+| 云录制 | `MEETING_CLOUD_RECORDING_ENABLED`、既有 `RECORDING_ENABLE`、LiveKit/Egress 与私有录制存储配置 |
+| 版本化纪要 | `MEETING_VERSIONED_SUMMARY_ENABLED`、`MEETING_SUMMARY_REQUESTS_ENABLED` |
+| 三阶段／自动／长会 | `MEETING_STAGED_SUMMARY_ENABLED`、`MEETING_SUMMARY_AUTOMATION_ENABLED`、`MEETING_SUMMARY_CHUNKING_ENABLED`；自动生成仍需用户对该记录主动开启 |
+| 录音保存 | `MEETING_CAPTURE_AUDIO_ENABLED`、`MEETING_CAPTURE_PROTOCOL_ENABLED` |
+| 独立 ASR | `MEETING_CAPTURE_ASR_ENABLED`；录音中转写另需 `MEETING_CAPTURE_LIVE_ASR_ENABLED` 与独立实时 Worker |
+| 独立纪要 | `MEETING_CAPTURE_SUMMARY_ENABLED`；三阶段另需 `MEETING_CAPTURE_STAGED_SUMMARY_ENABLED` 与通用三阶段开关 |
+| 仅文字 | `MEETING_CAPTURE_TEXT_ONLY_ENABLED`；必须先验证存储版本/删除行为和后台清理，不只隐藏播放器 |
+| 修订／任务／问答 | `MEETING_SUMMARY_REVIEW_ENABLED`、`MEETING_SUMMARY_TASKS_ENABLED`、`MEETING_RECORD_QA_ENABLED` |
+| 文档／通知／分享 | `MEETING_SUMMARY_EXPORT_ENABLED`、`MEETING_SUMMARY_NOTIFICATIONS_ENABLED`、`MEETING_SUMMARY_SHARING_ENABLED`；需兼容 Docs/IM 和原有服务身份配置 |
+| 私人翻译 | `MEETING_TRANSLATION_ENABLED`、`ROOM_TRANSLATION_AGENT_NAME=meeting-translation` |
+| 同传频道 | `MEETING_INTERPRETATION_ENABLED`、`ROOM_INTERPRETATION_AGENT_NAME=meeting-interpretation` |
+| 录音翻译 | `MEETING_CAPTURE_TRANSLATION_ENABLED`、`MEETING_CAPTURE_TRANSLATION_URL=wss://<host>/capture-translation`、`MEETING_CAPTURE_TRANSLATION_REGION` |
+| 译文保存 | `MEETING_TRANSLATION_ARCHIVE_ENABLED` 加本次用户选择；不改写正式原文，不保存译音文件 |
+
+线上原文 Worker 为 `multi_user_transcriber.py`，使用 `STT_PROVIDER=qwen`；`ROOM_SUBTITLE_AGENT_NAME` 与 `TRANSCRIBER_AGENT_NAME` 对齐。其余 5 类可选 Worker 分别为 `translation`、`interpretation`、`capture-asr`、`capture-live-asr`、`capture-translation`，不是一个通用进程替代全部能力。
+
+当前模型：ASR `qwen-audio-3.0-asr-flash-streaming`；总结 `qwen3.8-flash`；翻译 `qwen3.5-livetranslate-flash-realtime`。后端 `QWEN_ASR_REGION`、Worker 地域、总结 `MEETING_SUMMARY_BASE_URL` 和授权 workspace 保持一致。只开放已实现的中英语种，不按供应商全语种宣传清单扩展入口。
+
+供应商与内部凭据通过 Secret 注入：`DASHSCOPE_API_KEY`、按需 `DASHSCOPE_WORKSPACE_ID`、`AGENT_INTERNAL_API_TOKEN`；在线 Worker 另需 LiveKit 凭据。不要把密钥放进前端、构建产物或文档。既有 Docs/IM 服务身份配置沿用部署系统，不与用户登录令牌混用。
+
+Android 构建能力为 `WE_MEET_RECORDS_NATIVE`、`WE_MEET_CAPTURE_NATIVE`、`WE_MEET_CAPTURE_TRANSLATION_NATIVE`、`WE_MEET_ONLINE_AI_NATIVE`、`WE_MEET_CLOUD_RECORDING_NATIVE`。这些新开关默认 `false`，按已部署服务组合开启；Web 从后端公开能力配置和各业务状态读取可用性。
+
+## 4. 建议验收顺序
+
+1. **迁移与权限**：旧资料回填、旧链接、同房间连续两场会议；跨租户、访客、仅纪要分享、撤权；原文、媒体、问答、文档和通知分别验证访问边界。
+2. **保存与转写**：线上采集/云录制和独立录音分别完成一条真实链路；检查麦克风拒绝、暂停、尾段、断网、缺片、退出重入、分片回放与原文时间定位。
+3. **总结与后续操作**：实时→速记→最终版、原文覆盖、专业词/重叠发言/长会质量；修订与重生成并发；行动项确认、任务同步；Docs/IM 丢响应后按同一请求恢复，核验不重复产物。
+4. **翻译**：中英两个方向、连续/按键、多人频道与个人退订；停止、断线、撤权、重连、旧事件；耳机/蓝牙、音频焦点与回灌；翻译失败不能打断原录音。
+5. **Android 与仅文字**：真实设备锁屏、后台、来电、进程被杀、磁盘不足、账号切换；确认仅文字清理进度、私有存储实际删除及是否存在历史对象版本。
+6. **容量与灰度**：模型地域/权限/额度、P50/P95 延迟、并发会议与频道、队列积压、CPU/内存、存储和费用；确认后再扩大测试租户。
+
+## 5. 已知边界与恢复
+
+- Web 录音恢复以当前浏览器/账号的本地保存为基础；清除站点数据、无痕关闭、浏览器后台调度和系统回收需要实测。Android 前台服务测试不能代替各厂商真机验证。
+- 未提交的人工编辑/提问草稿主要保留在页面内存，刷新前应保存或完成当前操作。恢复元数据不存放完整私密正文；待确认请求不可随意更换键再次提交。
+- 本地恢复标记损坏时相关操作暂停。先查原任务/文档/通知状态及日志再处理恢复数据，不能把清空缓存作为默认重试方式。
+- 原文确认送达、引用匹配及结构校验不等于整场音频无遗漏或模型语义必然正确。ASR 失败需先在转写面板恢复，自动总结可能显示等待原文。
+- 记录问答当前为有界单轮，原文上限 250,000 字节，超预算明确失败。独立录音以逐片媒体回放，切片可能有短暂缓冲。使用量缺失保持未知，不伪记为零。
+- 只读纪要分享不自动授权原文、音视频或独立 Docs；录音中的“说话人”不自动视为组织用户或通知接收人。创建任务、分享、导出和通知各有独立权限与显式动作/配置。
+- 音视频上传、说话人合并校正、评论/@、裁剪、视觉增强、硬件同步等属于阶段 5，不纳入本轮首版开发。
+
+回退先停止新增任务并结束活动录音/翻译，再缩容 Worker；保留数据、版本、幂等记录和兼容读取。不要在尚有活动 Egress 时变更录制存储位置、输出前缀或相关凭据。仅文字的实际媒体删除不可通过代码回滚恢复，须按备份与留存策略处理。
+
+反馈请提供：仓库/提交号、终端版本、发生时间、record/session/capture/run ID、操作步骤、预期与实际结果，以及脱敏错误码/日志。开发侧按影响修复、验证并自动提交推送；部署与实测由用户执行。
