@@ -5,7 +5,7 @@ import {
   RoomEvent,
   type RemoteParticipant,
 } from 'livekit-client'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
@@ -79,6 +79,22 @@ export const PrivateTranslationProvider = ({
   const [held, setHeld] = useState<TranslationDirection | null>(null)
   const [turnBusy, setTurnBusy] = useState(false)
   const [rows, setRows] = useState<TranslationRow[]>([])
+  const [audioGrant, setAudioGrant] = useState<{
+    viewer: string
+    room: string | undefined
+    sid: string | undefined
+    run: string
+    generation: number
+    participantSid: string
+    identity: string
+    trackSid: string | null
+  }>()
+  const [now, setNow] = useState(() => performance.now())
+  const [statusLease, setStatusLease] = useState({ updatedAt: 0, until: 0 })
+  const soundEpoch = useRef(0)
+  const invalidateSound = useCallback(() => {
+    soundEpoch.current++
+  }, [])
   const busy = useRef(false)
   const sequence = useRef(0)
   const sender = useRef<string>()
@@ -93,6 +109,49 @@ export const PrivateTranslationProvider = ({
   )
   const ownConnection =
     current?.source_participant_sid === room.localParticipant.sid
+  const statusFresh =
+    status.dataUpdatedAt > 0 &&
+    statusLease.updatedAt === status.dataUpdatedAt &&
+    now < statusLease.until
+  const canPlay = useCallback(
+    (participant: RemoteParticipant, trackSid: string) =>
+      !!audioGrant &&
+      !!viewerId &&
+      !!roomId &&
+      !!sid &&
+      current?.state === 'translating' &&
+      current.configuration.audio &&
+      ownConnection &&
+      ready &&
+      !muted &&
+      !status.isError &&
+      statusFresh &&
+      !!status.data?.available &&
+      audioGrant.viewer === viewerId &&
+      audioGrant.room === roomId &&
+      audioGrant.sid === sid &&
+      audioGrant.run === current.id &&
+      audioGrant.generation === current.generation &&
+      participant.isAgent &&
+      participant.identity === audioGrant.identity &&
+      !!participant.sid &&
+      participant.sid === audioGrant.participantSid &&
+      !!audioGrant.trackSid &&
+      audioGrant.trackSid === trackSid,
+    [
+      audioGrant,
+      viewerId,
+      roomId,
+      sid,
+      current,
+      ownConnection,
+      ready,
+      muted,
+      status.isError,
+      statusFresh,
+      status.data?.available,
+    ]
+  )
   const mutation = useMutation({
     mutationFn: (intent: Intent) =>
       fetchApi<{ current: TranslationRun }>(PATH, {
@@ -104,6 +163,7 @@ export const PrivateTranslationProvider = ({
   })
 
   const silence = () => {
+    invalidateSound()
     setMuted(true)
     room.remoteParticipants.forEach((participant) => {
       if (participant.isAgent && isTranslationAgent(participant.identity)) {
@@ -116,7 +176,19 @@ export const PrivateTranslationProvider = ({
   }
 
   useEffect(() => {
+    const timer = window.setInterval(() => setNow(performance.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    const received = performance.now()
+    setNow(received)
+    setStatusLease({ updatedAt: status.dataUpdatedAt, until: received + 15000 })
+  }, [status.dataUpdatedAt])
+
+  useEffect(() => {
     setRows([])
+    setAudioGrant(undefined)
     setReady(false)
     setHeld(null)
     setTurnBusy(false)
@@ -124,29 +196,26 @@ export const PrivateTranslationProvider = ({
     turnBusyRef.current = false
     sender.current = undefined
     sequence.current = 0
-  }, [current?.id, viewerId, roomId, sid])
+  }, [current?.id, current?.generation, viewerId, roomId, sid])
 
   useEffect(() => {
+    invalidateSound()
     setPendingIntent(undefined)
     setError(false)
     setMuted(true)
-  }, [viewerId, roomId, sid])
+    return invalidateSound
+  }, [viewerId, roomId, sid, invalidateSound])
 
   useEffect(() => {
     const volume = () =>
       room.remoteParticipants.forEach((participant) => {
         if (!participant.isAgent || !isTranslationAgent(participant.identity))
           return
-        const allowed =
-          current?.state === 'translating' &&
-          ownConnection &&
-          ready &&
-          !muted &&
-          !status.isError &&
-          participant.identity === sender.current
         participant.audioTrackPublications.forEach((publication) => {
           if (publication.track instanceof RemoteAudioTrack)
-            publication.track.setVolume(allowed ? 1 : 0)
+            publication.track.setVolume(
+              canPlay(participant, publication.trackSid) ? 1 : 0
+            )
         })
       })
     volume()
@@ -161,15 +230,7 @@ export const PrivateTranslationProvider = ({
           })
       })
     }
-  }, [
-    room,
-    current?.id,
-    current?.state,
-    ownConnection,
-    ready,
-    muted,
-    status.isError,
-  ])
+  }, [room, canPlay])
 
   useEffect(() => {
     if (!current || !ownConnection || !viewerId || status.isError) return
@@ -190,6 +251,16 @@ export const PrivateTranslationProvider = ({
       if (event.type === 'ready') {
         if (event.sequence! < sequence.current) return
         sequence.current = event.sequence!
+        setAudioGrant({
+          viewer: viewerId,
+          room: roomId,
+          sid,
+          run: current.id,
+          generation: current.generation,
+          participantSid: participant!.sid,
+          identity: participant!.identity,
+          trackSid: event.audio_track_sid ?? null,
+        })
         setReady(true)
         heldRef.current =
           current.configuration.mode === 'push_to_talk'
@@ -236,7 +307,7 @@ export const PrivateTranslationProvider = ({
       window.clearInterval(timer)
       room.off(RoomEvent.DataReceived, receive)
     }
-  }, [room, current, ownConnection, viewerId, status.isError])
+  }, [room, roomId, sid, current, ownConnection, viewerId, status.isError])
 
   const change = async (options?: TranslationOptions) => {
     if (busy.current || !roomId || !sid || !viewerId) return
@@ -289,6 +360,7 @@ export const PrivateTranslationProvider = ({
       !current ||
       !sender.current ||
       !ready ||
+      !statusFresh ||
       !ownConnection ||
       status.isError ||
       current.state !== 'translating' ||
@@ -342,20 +414,27 @@ export const PrivateTranslationProvider = ({
         pending: mutation.isPending,
         uncertain: !!pendingIntent,
         error: error || status.isError,
-        ready,
+        ready: ready && statusFresh,
         muted,
         held,
         turnBusy,
         rows,
         change,
         press,
+        canPlay,
         toggleSound: () => {
           if (!muted) silence()
-          else
+          else {
+            const epoch = ++soundEpoch.current
             void room
               .startAudio()
-              .then(() => setMuted(false))
-              .catch(() => setError(true))
+              .then(() => {
+                if (epoch === soundEpoch.current) setMuted(false)
+              })
+              .catch(() => {
+                if (epoch === soundEpoch.current) setError(true)
+              })
+          }
         },
       }}
     >

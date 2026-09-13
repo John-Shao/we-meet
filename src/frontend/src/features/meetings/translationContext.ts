@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import type { RemoteParticipant } from 'livekit-client'
 import type {
   TranslationDirection,
   TranslationRow,
@@ -30,6 +31,7 @@ export interface PrivateTranslationState {
   change: (options?: TranslationOptions) => Promise<void>
   toggleSound: () => void
   press: (direction: TranslationDirection, begin: boolean) => void
+  canPlay: (participant: RemoteParticipant, trackSid: string) => boolean
 }
 export const PrivateTranslationContext =
   createContext<PrivateTranslationState | null>(null)

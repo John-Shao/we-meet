@@ -24,6 +24,7 @@ export interface TranslationEvent {
   sequence?: number
   direction?: TranslationDirection | null
   awaiting?: boolean
+  audio_track_sid?: string | null
   response_id?: string
   item_id?: string
   text?: string
@@ -54,6 +55,9 @@ export function decodeTranslationEvent(
         !Number.isSafeInteger(data.sequence) ||
         data.sequence < 0 ||
         typeof data.awaiting !== 'boolean' ||
+        (data.audio_track_sid != null &&
+          (typeof data.audio_track_sid !== 'string' ||
+            !/^TR_[A-Za-z0-9_-]{1,124}$/.test(data.audio_track_sid))) ||
         (!direction && data.direction !== null)
       )
         return

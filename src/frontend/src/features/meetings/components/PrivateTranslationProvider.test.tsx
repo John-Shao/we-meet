@@ -1,6 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { RemoteAudioTrack, RoomEvent } from 'livekit-client'
+import {
+  RemoteAudioTrack,
+  RoomEvent,
+  type RemoteParticipant,
+} from 'livekit-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
 import {
@@ -13,8 +17,12 @@ import type { TranslationRun } from '../translationEvents'
 type Listener = (...args: unknown[]) => void
 interface Sender {
   identity: string
+  sid: string
   isAgent: boolean
-  audioTrackPublications: Map<string, { track: RemoteAudioTrack }>
+  audioTrackPublications: Map<
+    string,
+    { track: RemoteAudioTrack; trackSid: string }
+  >
 }
 interface RoomDouble {
   localParticipant: { sid: string; publishData: ReturnType<typeof vi.fn> }
@@ -95,7 +103,13 @@ const emit = (event: object, participant = sender) =>
       )
   })
 const ready = () =>
-  emit({ type: 'ready', sequence: 0, direction: null, awaiting: false })
+  emit({
+    type: 'ready',
+    sequence: 0,
+    direction: null,
+    awaiting: false,
+    audio_track_sid: 'TR_voice',
+  })
 const posts = () =>
   mocks.fetch.mock.calls.filter(([, options]) => options?.method === 'POST')
 beforeEach(() => {
@@ -106,8 +120,11 @@ beforeEach(() => {
   track.setVolume = vi.fn()
   sender = {
     identity: 'translation-run-job',
+    sid: 'PA_agent',
     isAgent: true,
-    audioTrackPublications: new Map([['TR_voice', { track }]]),
+    audioTrackPublications: new Map([
+      ['TR_voice', { track, trackSid: 'TR_voice' }],
+    ]),
   }
   mocks.room = {
     localParticipant: {
@@ -137,9 +154,135 @@ beforeEach(() => {
     }
   })
 })
-afterEach(() => client?.clear())
+afterEach(() => {
+  client?.clear()
+  vi.restoreAllMocks()
+})
 
 describe('Persistent private translation session', () => {
+  it('requires the exact ready audio grant, participant connection and source connection', async () => {
+    current = run()
+    show()
+    await waitFor(() => expect(latest.current?.id).toBe('run'))
+    await act(async () => {
+      latest.toggleSound()
+    })
+    const participant = sender as unknown as RemoteParticipant
+    expect(latest.canPlay(participant, 'TR_voice')).toBe(false)
+    // Older ready packets still restore controls but cannot authorize an unspecified track.
+    emit({ type: 'ready', sequence: 0, direction: null, awaiting: false })
+    expect(latest.canPlay(participant, 'TR_voice')).toBe(false)
+    ready()
+    await waitFor(() =>
+      expect(latest.canPlay(participant, 'TR_voice')).toBe(true)
+    )
+    expect(latest.canPlay(participant, 'TR_other')).toBe(false)
+    expect(
+      latest.canPlay(
+        { ...participant, sid: 'PA_other' } as RemoteParticipant,
+        'TR_voice'
+      )
+    ).toBe(false)
+    expect(
+      latest.canPlay(
+        { ...participant, isAgent: false } as RemoteParticipant,
+        'TR_voice'
+      )
+    ).toBe(false)
+    current = { ...run(), source_participant_sid: 'PA_other_device' }
+    await act(() =>
+      client.invalidateQueries({ queryKey: ['meeting-translations'] })
+    )
+    await waitFor(() =>
+      expect(latest.canPlay(participant, 'TR_voice')).toBe(false)
+    )
+  })
+
+  it('drops the grant across generation changes and status failures', async () => {
+    current = run()
+    show()
+    await waitFor(() => expect(latest.current?.id).toBe('run'))
+    await act(async () => {
+      latest.toggleSound()
+    })
+    ready()
+    const participant = sender as unknown as RemoteParticipant
+    await waitFor(() =>
+      expect(latest.canPlay(participant, 'TR_voice')).toBe(true)
+    )
+    current = { ...run(), generation: 2 }
+    await act(() =>
+      client.invalidateQueries({ queryKey: ['meeting-translations'] })
+    )
+    await waitFor(() => expect(latest.current?.generation).toBe(2))
+    expect(latest.canPlay(participant, 'TR_voice')).toBe(false)
+    emit({
+      type: 'ready',
+      generation: 2,
+      sequence: 0,
+      direction: null,
+      awaiting: false,
+      audio_track_sid: 'TR_voice',
+    })
+    await waitFor(() =>
+      expect(latest.canPlay(participant, 'TR_voice')).toBe(true)
+    )
+    mocks.fetch.mockRejectedValue(new ApiError(403, {}))
+    await act(() =>
+      client.invalidateQueries({ queryKey: ['meeting-translations'] })
+    )
+    await waitFor(() =>
+      expect(latest.canPlay(participant, 'TR_voice')).toBe(false)
+    )
+  })
+
+  it('expires cached audio permission even when the next status request hangs', async () => {
+    current = run()
+    show()
+    await waitFor(() => expect(latest.current?.id).toBe('run'))
+    await act(async () => {
+      latest.toggleSound()
+    })
+    ready()
+    const participant = sender as unknown as RemoteParticipant
+    await waitFor(() =>
+      expect(latest.canPlay(participant, 'TR_voice')).toBe(true)
+    )
+    mocks.fetch.mockImplementation(() => new Promise(() => {}))
+    vi.spyOn(performance, 'now').mockReturnValue(performance.now() + 16000)
+    await waitFor(
+      () => expect(latest.canPlay(participant, 'TR_voice')).toBe(false),
+      { timeout: 2500 }
+    )
+  })
+  it('does not unmute a stopped intent when an earlier audio-unlock promise resolves late', async () => {
+    current = run()
+    show()
+    await waitFor(() => expect(latest.current?.id).toBe('run'))
+    ready()
+    let unlock!: () => void
+    mocks.room.startAudio.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          unlock = resolve
+        })
+    )
+    act(() => latest.toggleSound())
+    const original = mocks.fetch.getMockImplementation()!
+    mocks.fetch.mockImplementation((url, options) => {
+      if (options?.method === 'POST')
+        throw new TypeError('unknown stop outcome')
+      return original(url, options)
+    })
+    await act(() => latest.change())
+    await act(async () => {
+      unlock()
+    })
+    expect(latest.muted).toBe(true)
+    expect(
+      latest.canPlay(sender as unknown as RemoteParticipant, 'TR_voice')
+    ).toBe(false)
+  })
   it('freezes the explicit archive choice in the original start intent', async () => {
     show()
     await waitFor(() => expect(latest.canStart).toBe(true))

@@ -41,6 +41,7 @@ beforeEach(() => {
     change: vi.fn(),
     press: vi.fn(),
     toggleSound: vi.fn(),
+    canPlay: vi.fn().mockReturnValue(false),
     current: {
       id: 'run',
       generation: 1,

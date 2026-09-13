@@ -34,6 +34,38 @@ const frame = (changes = {}) =>
   )
 
 describe('Private translation events', () => {
+  it('validates a ready audio track selector without granting legacy packets a track', () => {
+    const fields = {
+      type: 'ready',
+      sequence: 0,
+      awaiting: false,
+      direction: null,
+    }
+    for (const audio_track_sid of [
+      '',
+      {},
+      'http://evil',
+      'TR_' + 'a'.repeat(125),
+    ]) {
+      expect(
+        decodeTranslationEvent(
+          frame({ ...fields, audio_track_sid }),
+          sender,
+          run
+        )
+      ).toBeUndefined()
+    }
+    expect(
+      decodeTranslationEvent(
+        frame({ ...fields, audio_track_sid: 'TR_voice' }),
+        sender,
+        run
+      )?.audio_track_sid
+    ).toBe('TR_voice')
+    expect(
+      decodeTranslationEvent(frame(fields), sender, run)?.audio_track_sid
+    ).toBeUndefined()
+  })
   it('rejects another participant, run, generation or oversized payload', () => {
     expect(
       decodeTranslationEvent(frame(), { ...sender, isAgent: false }, run)

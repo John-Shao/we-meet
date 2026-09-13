@@ -3,7 +3,10 @@ import { Track } from 'livekit-client'
 import { describe, expect, it, vi } from 'vitest'
 import { MeetingRoomAudioRenderer } from './MeetingRoomAudioRenderer'
 
-const mocks = vi.hoisted(() => ({ allowed: false }))
+const mocks = vi.hoisted(() => ({ allowed: false, privateAllowed: false }))
+vi.mock('../translationContext', () => ({
+  usePrivateTranslation: () => ({ canPlay: () => mocks.privateAllowed }),
+}))
 vi.mock('../interpretationContext', () => ({
   useInterpretation: () => ({ canPlay: () => mocks.allowed }),
 }))
@@ -25,12 +28,19 @@ vi.mock('@livekit/components-react', () => ({
 describe('Meeting audio rendering', () => {
   it('preserves ordinary audio while never mounting unauthorized interpretation', () => {
     mocks.allowed = false
+    mocks.privateAllowed = false
     const view = render(<MeetingRoomAudioRenderer />)
     expect(screen.getByTestId('human')).toBeInTheDocument()
-    expect(screen.getByTestId('translation-private')).toBeInTheDocument()
+    expect(screen.queryByTestId('translation-private')).not.toBeInTheDocument()
     expect(
       screen.queryByTestId('interpretation-shared')
     ).not.toBeInTheDocument()
+    mocks.privateAllowed = true
+    view.rerender(<MeetingRoomAudioRenderer />)
+    expect(screen.getByTestId('translation-private')).toBeInTheDocument()
+    mocks.privateAllowed = false
+    view.rerender(<MeetingRoomAudioRenderer />)
+    expect(screen.queryByTestId('translation-private')).not.toBeInTheDocument()
     mocks.allowed = true
     view.rerender(<MeetingRoomAudioRenderer />)
     expect(screen.getByTestId('interpretation-shared')).toBeInTheDocument()
