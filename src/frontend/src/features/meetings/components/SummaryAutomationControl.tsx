@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { Button, Text } from '@/primitives'
+import { automationReceipt } from '../api/summaryReceipts'
 import {
   isAutomationPayload,
   useSummaryIntent,
@@ -63,15 +64,18 @@ const SummaryAutomationContent = ({
   const [error, setError] = useState(false)
   const busy = useRef(false)
   const mutation = useMutation({
-    mutationFn: (intent: NonNullable<typeof pending>) =>
-      fetchApi(path, {
-        method: 'POST',
-        headers: { 'Idempotency-Key': intent.key },
-        body: JSON.stringify(intent.payload),
-        cache: 'no-store',
-        redirect: 'error',
-        signal: AbortSignal.timeout(20000),
-      }),
+    mutationFn: async (intent: NonNullable<typeof pending>) =>
+      automationReceipt(
+        await fetchApi<unknown>(path, {
+          method: 'POST',
+          headers: { 'Idempotency-Key': intent.key },
+          body: JSON.stringify(intent.payload),
+          cache: 'no-store',
+          redirect: 'error',
+          signal: AbortSignal.timeout(20000),
+        }),
+        intent.payload
+      ),
     retry: false,
     gcTime: 0,
   })

@@ -18,6 +18,7 @@ let state: {
   state: string
   can_control: boolean
   available: boolean
+  error_code: string
 }
 const posts = () =>
   mocks.fetchApi.mock.calls.filter(([, options]) => options?.method === 'POST')
@@ -40,15 +41,27 @@ beforeEach(() => {
     state: 'off',
     can_control: true,
     available: true,
+    error_code: '',
   }
+  const receipts = new Map<string, typeof state>()
   mocks.fetchApi.mockImplementation(async (_url, options) => {
     if (options?.method === 'POST') {
-      state = {
-        ...state,
-        enabled: JSON.parse(options.body).enabled,
-        revision: state.revision + 1,
+      const key = options.headers['Idempotency-Key']
+      const replayed = receipts.has(key)
+      if (!replayed) {
+        state = {
+          ...state,
+          enabled: JSON.parse(options.body).enabled,
+          revision: state.revision + 1,
+        }
+        receipts.set(key, state)
       }
-      return { current: state }
+      return {
+        command_id: '11111111-1111-4111-8111-111111111111',
+        replayed,
+        result: receipts.get(key),
+        current: state,
+      }
     }
     return state
   })
@@ -56,6 +69,33 @@ beforeEach(() => {
 afterEach(() => client?.clear())
 
 describe('Automatic summary consent', () => {
+  it('keeps a malformed success pending and accepts the frozen receipt after a newer stop', async () => {
+    const fallback = mocks.fetchApi.getMockImplementation()!
+    let writes = 0
+    mocks.fetchApi.mockImplementation(async (url, options) => {
+      const result = await fallback(url, options)
+      if (options?.method === 'POST' && ++writes === 1)
+        return { current: state }
+      return result
+    })
+    const first = show()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'recordAi.automation.start' })
+    )
+    await screen.findByText('recordAi.uncertain')
+    first.unmount()
+    client.clear()
+    state = { ...state, enabled: false, revision: 2 }
+    show()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'recordAi.resubmit' })
+    )
+    await screen.findByRole('button', { name: 'recordAi.automation.start' })
+    expect(posts()).toHaveLength(2)
+    expect(posts()[0][1].body).toBe(posts()[1][1].body)
+    expect(posts()[0][1].headers).toEqual(posts()[1][1].headers)
+    expect(state.enabled).toBe(false)
+  })
   it('recovers an unknown enable after remount without sending on mount or toggling it off', async () => {
     const fallback = mocks.fetchApi.getMockImplementation()!
     let failed = false

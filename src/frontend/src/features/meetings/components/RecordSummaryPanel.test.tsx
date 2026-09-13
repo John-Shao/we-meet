@@ -49,6 +49,23 @@ const version = {
     open_questions: [],
   },
 }
+const acceptedJob = {
+  id: '11111111-1111-4111-8111-111111111111',
+  status: 'queued',
+  attempt: 1,
+  generation: 1,
+  input_revision: 1,
+  retryable: false,
+  error_code: '',
+  updated_at: '2026-09-13T00:00:00Z',
+  dispatch_pending: false,
+}
+const receipt = (stage = 'final') => ({
+  request_id: '22222222-2222-4222-8222-222222222222',
+  replayed: false,
+  dispatch_state: 'sent',
+  job: { ...acceptedJob, stage },
+})
 let client: QueryClient
 let currentRecord: typeof record
 let job: { id: string; status: string; attempt: number } | null
@@ -89,7 +106,7 @@ beforeEach(() => {
   mocks.fetchApi.mockImplementation(
     async (url: string, options?: RequestInit) => {
       if (options?.method === 'POST')
-        return { request_id: 'intent-1', replayed: false, job }
+        return receipt(JSON.parse(String(options.body)).stage)
       if (readError) throw new ApiError(403, {})
       if (url.includes('summary-job/'))
         return { revision: 1, job, generation_ready: true }
@@ -121,13 +138,45 @@ beforeEach(() => {
 afterEach(() => client?.clear())
 
 describe('Versioned summary requests', () => {
+  it.each([undefined, null, {}, { ...receipt(), job: null }, receipt('quick')])(
+    'retains the exact request after malformed or mismatched success %j',
+    async (invalid) => {
+      const fallback = mocks.fetchApi.getMockImplementation()!
+      let writes = 0
+      mocks.fetchApi.mockImplementation((url, options) =>
+        options?.method === 'POST' && ++writes === 1
+          ? Promise.resolve(invalid)
+          : fallback(url, options)
+      )
+      const first = show()
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'recordAi.generate' })
+      )
+      await screen.findByText('recordAi.uncertain')
+      first.unmount()
+      client.clear()
+      show()
+      const retry = await screen.findByRole('button', {
+        name: 'recordAi.resubmit',
+      })
+      expect(writes).toBe(1)
+      fireEvent.click(retry)
+      await screen.findByText('recordAi.accepted')
+      const posts = mocks.fetchApi.mock.calls.filter(
+        ([, options]) => options?.method === 'POST'
+      )
+      expect(posts).toHaveLength(2)
+      expect(posts[0][1].body).toBe(posts[1][1].body)
+      expect(posts[0][1].headers).toEqual(posts[1][1].headers)
+    }
+  )
   it('restores an uncertain request after remount instead of creating a new paid intent', async () => {
     const fallback = mocks.fetchApi.getMockImplementation()!
     let writes = 0
     mocks.fetchApi.mockImplementation((url, options) => {
       if (options?.method !== 'POST') return fallback(url, options)
       if (++writes === 1) return Promise.reject(new TypeError('lost response'))
-      return Promise.resolve({ request_id: 'intent-1', job })
+      return Promise.resolve(receipt())
     })
     const first = show()
     fireEvent.click(
@@ -302,7 +351,7 @@ describe('Versioned summary requests', () => {
       expected_attempt: null,
     })
     expect(request.headers['Idempotency-Key']).toMatch(/^[0-9a-f-]{36}$/)
-    resolve({ request_id: 'intent-1', job: null })
+    resolve(receipt())
     await screen.findByText('recordAi.accepted')
   })
 
@@ -317,7 +366,7 @@ describe('Versioned summary requests', () => {
         return Promise.reject(new TypeError('network disconnected'))
       }
       if (writes === 2) return Promise.reject(new ApiError(429, {}))
-      return Promise.resolve({ request_id: 'intent-1', job })
+      return Promise.resolve(receipt())
     })
     show()
     fireEvent.click(

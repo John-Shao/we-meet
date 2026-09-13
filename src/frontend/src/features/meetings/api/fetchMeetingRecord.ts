@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
+import { summaryReceipt } from './summaryReceipts'
 
 import type {
   ApiMeetingRecord,
@@ -226,15 +227,18 @@ export const useRequestRecordSummary = (viewerId: string, recordId: string) => {
     ApiError,
     { key: string; payload: SummaryRequestPayload }
   >({
-    mutationFn: ({ key, payload }) =>
-      fetchApi(`${recordPath(recordId)}summary-requests/`, {
-        method: 'POST',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: AbortSignal.timeout(20000),
-        headers: { 'Idempotency-Key': key },
-        body: JSON.stringify(payload),
-      }),
+    mutationFn: async ({ key, payload }) =>
+      summaryReceipt(
+        await fetchApi<unknown>(`${recordPath(recordId)}summary-requests/`, {
+          method: 'POST',
+          cache: 'no-store',
+          redirect: 'error',
+          signal: AbortSignal.timeout(20000),
+          headers: { 'Idempotency-Key': key },
+          body: JSON.stringify(payload),
+        }),
+        payload
+      ),
     retry: false,
     gcTime: 0,
     onSuccess: async () => {
