@@ -192,3 +192,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 88: Android private Q&A workspace, explicit original selection and exact answer/citations; 13 isolated UI regressions, Debug/token and light/dark checks passed. See [batch 68](meeting-ai-phase3-batch68-2026-09-13.md). Native delivery/notification work follows.
 
 - Batch 89: Android document delivery and private notification protocols with validated receipts and durable recovery; 17 JVM + 8 isolated tests and Debug/token checks passed. See [batch 69](meeting-ai-phase3-batch69-2026-09-13.md). Native delivery UI follows.
+
+- Batch 90: Android private assistant delivery status, exact minutes links and explicit retry confirmation; 16 isolated tests, Debug/token and light/dark checks passed. See [batch 70](meeting-ai-phase3-batch70-2026-09-13.md). Document export UI follows.
