@@ -172,3 +172,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 78: Android staged-summary/automation controls and exact quick-version citations; 19 isolated UI tests passed. See [batch 58](meeting-ai-phase3-batch58-2026-09-13.md). Native playback/actions and cross-client consistency follow.
 
 - Batch 79: Web summary and automation intents now survive same-tab reload, fail closed on storage errors and retain uncertain HTTP 408 outcomes. 23 tests, TypeScript, ESLint and production build passed. See [batch 59](meeting-ai-phase3-batch59-2026-09-13.md). Native playback follows.
+
+- Batch 80: Android sealed-audio playlist and bounded authenticated WAV download; 16 JVM tests, Debug build and token checks passed. See [batch 60](meeting-ai-phase3-batch60-2026-09-13.md). Native playback lifecycle/UI follows.
