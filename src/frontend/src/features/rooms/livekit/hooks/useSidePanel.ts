@@ -16,6 +16,7 @@ export enum SubPanelId {
   SCREEN_RECORDING = 'screenRecording',
   MEETING_NOTES = 'meetingNotes',
   TRANSLATION = 'translation',
+  INTERPRETATION = 'interpretation',
 }
 
 export const useSidePanel = () => {
@@ -88,6 +89,10 @@ export const useSidePanel = () => {
     layoutStore.activeSubPanelId = SubPanelId.TRANSLATION
     layoutStore.activePanelId = PanelId.TOOLS
   }
+  const openInterpretation = () => {
+    layoutStore.activeSubPanelId = SubPanelId.INTERPRETATION
+    layoutStore.activePanelId = PanelId.TOOLS
+  }
 
   return {
     activePanelId,
@@ -103,6 +108,7 @@ export const useSidePanel = () => {
     openScreenRecording,
     openMeetingNotes,
     openTranslation,
+    openInterpretation,
     isSubPanelOpen,
     isChatOpen,
     isParticipantsOpen,

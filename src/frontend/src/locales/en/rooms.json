@@ -340,7 +340,8 @@
       "info": "Meeting information",
       "roomAI": "Meeting AI",
       "meetingNotes": "Meeting notes",
-      "translation": "Voice translation"
+      "translation": "Voice translation",
+      "interpretation": "Meeting interpretation"
     },
     "content": {
       "participants": "participants",
@@ -353,7 +354,8 @@
       "info": "meeting information",
       "roomAI": "meeting AI",
       "meetingNotes": "meeting notes",
-      "translation": "voice translation"
+      "translation": "voice translation",
+      "interpretation": "meeting interpretation"
     },
     "closeButton": "Hide {{content}}"
   },

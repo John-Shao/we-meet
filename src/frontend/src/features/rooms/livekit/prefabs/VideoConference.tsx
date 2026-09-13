@@ -11,13 +11,13 @@ import {
   ConnectionStateToast,
   FocusLayoutContainer,
   LayoutContextProvider,
-  RoomAudioRenderer,
   usePinnedTracks,
   useTracks,
   useCreateLayoutContext,
   useRoomContext,
 } from '@livekit/components-react'
 import { useTranslation } from 'react-i18next'
+import { MeetingRoomAudioRenderer } from '@/features/meetings/components/MeetingRoomAudioRenderer'
 
 import { ControlBar } from './ControlBar/ControlBar'
 import { FocusLayout } from '../components/FocusLayout'
@@ -293,7 +293,7 @@ export function VideoConference({ ...props }: VideoConferenceProps) {
           <SidePanel />
         </LayoutContextProvider>
       )}
-      <RoomAudioRenderer />
+      <MeetingRoomAudioRenderer />
       <ConnectionStateToast />
       <RecordingProvider />
       <SettingsDialogProvider />

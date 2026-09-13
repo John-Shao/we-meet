@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Track } from 'livekit-client'
 import {
-  RoomAudioRenderer,
   useLocalParticipant,
   useRemoteParticipants,
   useRoomContext,
@@ -12,6 +11,7 @@ import {
   VideoTrack,
 } from '@livekit/components-react'
 import { css } from '@/styled-system/css'
+import { MeetingRoomAudioRenderer } from '@/features/meetings/components/MeetingRoomAudioRenderer'
 import {
   RiCameraOffFill,
   RiMicFill,
@@ -214,7 +214,7 @@ export const CallStage = ({
 
   return (
     <div className={stageRoot} data-testid="call-stage">
-      <RoomAudioRenderer />
+      <MeetingRoomAudioRenderer />
       {gridMode ? (
         <div className={centerCol}>
           <div className={gridWrap} data-testid="call-grid">

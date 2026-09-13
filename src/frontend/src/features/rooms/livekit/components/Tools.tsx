@@ -15,6 +15,8 @@ import { useConfig } from '@/api/useConfig'
 import { OnlineMeetingNotes } from '@/features/meetings/components/OnlineMeetingNotes'
 import { PrivateTranslationPanel } from '@/features/meetings/components/PrivateTranslationPanel'
 import { usePrivateTranslation } from '@/features/meetings/translationContext'
+import { InterpretationPanel } from '@/features/meetings/components/InterpretationPanel'
+import { useInterpretation } from '@/features/meetings/interpretationContext'
 
 export interface ToolsButtonProps {
   icon: ReactNode
@@ -100,11 +102,16 @@ const ToolButton = ({
 export const Tools = () => {
   const { data } = useConfig()
   const translation = usePrivateTranslation()
+  const interpretation = useInterpretation()
+  const { t: interpretationText } = useTranslation('meetings', {
+    keyPrefix: 'interpretation',
+  })
   const {
     openTranscript,
     openScreenRecording,
     openMeetingNotes,
     openTranslation,
+    openInterpretation,
     activeSubPanelId,
     isToolsOpen,
   } = useSidePanel()
@@ -135,6 +142,8 @@ export const Tools = () => {
   )
 
   switch (activeSubPanelId) {
+    case SubPanelId.INTERPRETATION:
+      return <InterpretationPanel />
     case SubPanelId.TRANSLATION:
       return <PrivateTranslationPanel />
     case SubPanelId.MEETING_NOTES:
@@ -186,6 +195,14 @@ export const Tools = () => {
           title={t('tools.meetingNotes.title')}
           description={t('tools.meetingNotes.body')}
           onPress={openMeetingNotes}
+        />
+      )}
+      {interpretation?.visible && (
+        <ToolButton
+          icon={<Icon type="symbols" name="headphones" />}
+          title={interpretationText('title')}
+          description={interpretationText('toolDescription')}
+          onPress={openInterpretation}
         />
       )}
       {translation?.visible && (

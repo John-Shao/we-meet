@@ -150,6 +150,33 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         await value.publish(source, {"type": "ready"})
         self.assertEqual(value.room.local_participant.publish_data.call_count, 2)
 
+    async def test_ready_periodically_recovers_a_listener_mounted_after_first_event(
+        self,
+    ):
+        """Reliable events can arrive before Web installs its event handler."""
+        value = runtime()
+        source = source_for(value)
+        source.opened = True
+        source.ready_refresh_at = 0
+        value.sources["source"] = source
+        await value.publish(source, {"type": "ready"})
+        reply = {
+            "state": "translating",
+            "lease_seconds": 15,
+            "configuration": value.lease.configuration,
+            "sources": list(value.lease.sources.values()),
+            "listeners": list(value.lease.listeners.values()),
+        }
+
+        async def heartbeat(_operation):
+            value.closed = True
+            return reply
+
+        value.reporter.command = heartbeat
+        with mock.patch("qwen_interpretation_agent.asyncio.sleep", mock.AsyncMock()):
+            await value.watch()
+        self.assertEqual(value.room.local_participant.publish_data.call_count, 2)
+
     async def test_microphones_only_and_acl_precedes_source_start(self):
         """Screen audio and agents are excluded before any provider task exists."""
         value = runtime()

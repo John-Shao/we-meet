@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import json
 import os
+import time
 
 from livekit import rtc
 from livekit.agents import AutoSubscribe, WorkerOptions, WorkerPermissions, cli
@@ -53,6 +54,7 @@ class SourceTranslation:
         self.closing = asyncio.Lock()
         self.task = None
         self.ready_listeners = set()
+        self.ready_refresh_at = 0.0
 
     def accepting(self):
         """Fence source startup and reads against current connection grants."""
@@ -385,6 +387,9 @@ class SharedInterpretation:
                 }
                 ready = []
                 for source in list(self.sources.values()):
+                    if time.monotonic() >= source.ready_refresh_at:
+                        source.ready_listeners.clear()
+                        source.ready_refresh_at = time.monotonic() + 10
                     source.ready_listeners.intersection_update(listeners)
                     if source.opened and not source.closed:
                         ready.append(self.publish(source, {"type": "ready"}))

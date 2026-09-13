@@ -1,4 +1,38 @@
 {
+  "interpretation": {
+    "speaker": "Speaker {{number}}",
+    "title": "Meeting interpretation",
+    "toolDescription": "Choose a listening language and follow translated speech",
+    "scope": "Interpretation uses each speaker's microphone. Your language choice affects only your listening; original audio keeps its current volume.",
+    "listen": "Choose a listening language",
+    "language": { "zh": "Chinese", "en": "English" },
+    "state": {
+      "off": "Not enabled",
+      "prepared": "Waiting for listeners",
+      "starting": "Connecting",
+      "translating": "Interpreting",
+      "stopping": "Ending",
+      "stopped": "Ended",
+      "incomplete": "Interrupted"
+    },
+    "join": "Listen in {{language}}",
+    "leave": "Stop listening in {{language}}",
+    "startChannel": "Enable {{language}} channel",
+    "stopChannel": "End {{language}} channel for everyone",
+    "managerHint": "Ask a meeting administrator to enable the language channel.",
+    "connecting": "Connecting translated audio. Speech will be interpreted after the connection is ready.",
+    "receiving": "Translated audio connected",
+    "mute": "Mute translated audio, keep text",
+    "unmute": "Play translated audio",
+    "resubmit": "Confirm the previous operation",
+    "uncertain": "The previous result is unconfirmed. Local listening is paused; confirm the result to continue.",
+    "error": "Interpretation connection or permission was interrupted. Select a listening language again.",
+    "unavailable": "Meeting interpretation is unavailable.",
+    "historyHint": "Only recent translations are shown; they do not replace the meeting transcript. Listening continues when this panel closes, and stops when you leave or the lease expires.",
+    "text": "Live translation",
+    "final": "Confirmed translation",
+    "preview": "Translating"
+  },
   "summaryExport": {
     "open": "Export this version to a document",
     "close": "Close document export",
@@ -443,7 +477,10 @@
     "loadError": "Sharing permissions are unavailable. Refresh the page to try again.",
     "previewError": "The preview is unavailable. Recipients or permissions may have changed; select again.",
     "previewTitle": "Review sharing scope",
-    "operation": { "grant": "Grant minutes access to these people", "revoke": "Remove direct minutes grants for these people" },
+    "operation": {
+      "grant": "Grant minutes access to these people",
+      "revoke": "Remove direct minutes grants for these people"
+    },
     "willRead": "They can read this record's minutes after confirmation.",
     "willLose": "They cannot read this record's minutes after confirmation.",
     "inherited": "They also have access through a meeting role or record ownership. Removing a direct grant does not remove that access.",
@@ -503,7 +540,15 @@
     "accepted": "Retry accepted. Waiting for the delivery result.",
     "conflict": "Notification status changed. Use the refreshed status to continue.",
     "uncertainRequest": "The request result is unconfirmed. You can continue confirming the same operation.",
-    "status": { "queued": "Waiting to send", "running": "Checking or sending", "delivered": "Sent", "uncertain": "Delivery unconfirmed", "failed": "Sending failed", "unavailable": "Original message unavailable", "canceled": "Sending canceled" }
+    "status": {
+      "queued": "Waiting to send",
+      "running": "Checking or sending",
+      "delivered": "Sent",
+      "uncertain": "Delivery unconfirmed",
+      "failed": "Sending failed",
+      "unavailable": "Original message unavailable",
+      "canceled": "Sending canceled"
+    }
   },
   "share": {
     "action": "Share meeting",

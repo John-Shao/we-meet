@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { PrivateTranslationProvider } from '@/features/meetings/components/PrivateTranslationProvider'
+import { InterpretationProvider } from '@/features/meetings/components/InterpretationProvider'
 import { useTranslation } from 'react-i18next'
 import {
   LiveKitRoom,
@@ -368,15 +369,17 @@ export const Conference = ({
           }}
         >
           <PrivateTranslationProvider>
-            <CallOrMeeting
-              callPeer={callPeer}
-              callMeet={callMeet}
-              audioOnly={audioOnly}
-              roomSlug={roomId}
-              selfName={joinUsername}
-              // queryFn's 404-fallback catch types `data` as ApiRoom | void.
-              roomData={data ?? undefined}
-            />
+            <InterpretationProvider>
+              <CallOrMeeting
+                callPeer={callPeer}
+                callMeet={callMeet}
+                audioOnly={audioOnly}
+                roomSlug={roomId}
+                selfName={joinUsername}
+                // queryFn's 404-fallback catch types `data` as ApiRoom | void.
+                roomData={data ?? undefined}
+              />
+            </InterpretationProvider>
           </PrivateTranslationProvider>
           {showInviteDialog && !isMobile && (
             <InviteDialog

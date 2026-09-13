@@ -340,7 +340,8 @@
       "info": "会议信息",
       "roomAI": "会议 AI",
       "meetingNotes": "会议笔记",
-      "translation": "语音翻译"
+      "translation": "语音翻译",
+      "interpretation": "会议同声传译"
     },
     "content": {
       "participants": "参会者",
@@ -353,7 +354,8 @@
       "info": "会议信息",
       "roomAI": "会议 AI",
       "meetingNotes": "会议笔记",
-      "translation": "语音翻译"
+      "translation": "语音翻译",
+      "interpretation": "会议同声传译"
     },
     "closeButton": "隐藏 {{content}}"
   },

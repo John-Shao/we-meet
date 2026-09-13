@@ -1,4 +1,38 @@
 {
+  "interpretation": {
+    "speaker": "发言人 {{number}}",
+    "title": "会议同声传译",
+    "toolDescription": "选择收听语言，查看实时译文",
+    "scope": "同传处理会议中各位发言人的麦克风声音。选择语言只影响你的收听，原声保持当前音量。",
+    "listen": "选择收听语言",
+    "language": { "zh": "中文", "en": "英语" },
+    "state": {
+      "off": "未开启",
+      "prepared": "等待收听者",
+      "starting": "连接中",
+      "translating": "同传中",
+      "stopping": "正在结束",
+      "stopped": "已结束",
+      "incomplete": "已中断"
+    },
+    "join": "收听{{language}}",
+    "leave": "停止收听{{language}}",
+    "startChannel": "开启{{language}}频道",
+    "stopChannel": "结束{{language}}频道（所有收听者）",
+    "managerHint": "请会议管理员开启需要的语言频道。",
+    "connecting": "正在连接译音，连接完成后的发言才会开始转译。",
+    "receiving": "已连接译音",
+    "mute": "静音译音，继续看译文",
+    "unmute": "播放译音",
+    "resubmit": "确认上次操作结果",
+    "uncertain": "上次操作的结果尚未确认，已暂停本地收听。请确认结果后继续。",
+    "error": "同传连接或授权已中断。请重新选择收听语言。",
+    "unavailable": "会议同传暂不可用。",
+    "historyHint": "这里只显示最近的译文，不替代会议逐字稿。关闭面板后仍继续收听；离开会议或租期失效后停止。",
+    "text": "实时译文",
+    "final": "已确认译文",
+    "preview": "翻译中"
+  },
   "summaryExport": {
     "open": "导出此版本为文档",
     "close": "收起文档导出",
@@ -443,7 +477,10 @@
     "loadError": "暂时无法读取分享权限，请刷新页面重试。",
     "previewError": "无法生成权限预览，接收者或权限可能已变化，请重新选择。",
     "previewTitle": "确认分享范围",
-    "operation": { "grant": "为以下人员增加纪要读取权限", "revoke": "撤销以下人员的直接纪要授权" },
+    "operation": {
+      "grant": "为以下人员增加纪要读取权限",
+      "revoke": "撤销以下人员的直接纪要授权"
+    },
     "willRead": "确认后可读取该记录的纪要。",
     "willLose": "确认后将无法读取该记录的纪要。",
     "inherited": "此人仍因会议角色或记录所有权拥有访问权；撤销直接授权不会移除这项权限。",
@@ -503,7 +540,15 @@
     "accepted": "重试请求已受理，等待交付结果。",
     "conflict": "通知状态已变化，请根据刷新后的状态操作。",
     "uncertainRequest": "尚未确认请求结果，可继续确认同一次操作。",
-    "status": { "queued": "等待发送", "running": "核对或发送中", "delivered": "已发送", "uncertain": "交付结果待确认", "failed": "发送失败", "unavailable": "原消息已不可用", "canceled": "已取消发送" }
+    "status": {
+      "queued": "等待发送",
+      "running": "核对或发送中",
+      "delivered": "已发送",
+      "uncertain": "交付结果待确认",
+      "failed": "发送失败",
+      "unavailable": "原消息已不可用",
+      "canceled": "已取消发送"
+    }
   },
   "share": {
     "action": "分享会议",
