@@ -149,3 +149,6 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 
 
 - Batch 68: [private translation audio mount authorization](meeting-ai-phase3-batch48-2026-09-13.md). Exact ready track/participant/run/generation checks, bounded status freshness and late-unlock fencing; 35 frontend regressions, TypeScript, ESLint and production build passed. No migration or provider calls. Native capture and final review remain pending.
+
+
+- Batch 69: [Android independent capture and WAV protocol](meeting-ai-phase3-batch49-2026-09-13.md). Fixed operation keys, device leases and strict audio receipts; 25 JVM tests, Debug build and design guard passed. No real microphone or network operations. Durable native buffering and foreground capture follow.
