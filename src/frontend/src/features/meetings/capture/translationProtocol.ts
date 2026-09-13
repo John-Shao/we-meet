@@ -273,6 +273,7 @@ export function isTranslationReceipt(
     current.generation >= result.generation &&
     (current.id === result.id
       ? current.generation === result.generation &&
+        current.source_revision === result.source_revision &&
         sameConfiguration(current.configuration, result.configuration)
       : current.generation > result.generation)
   )

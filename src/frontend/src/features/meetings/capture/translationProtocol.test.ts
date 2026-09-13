@@ -51,6 +51,18 @@ describe('capture translation protocol', () => {
       expect(isTranslationReceipt(value, source, intent())).toBe(false)
     }
   })
+  it('does not accept a terminal replay whose source revision changed', () => {
+    const value = receipt()
+    value.current.source.revision = 3
+    value.current.current = {
+      ...run(),
+      status: 'incomplete',
+      ended_at: new Date().toISOString(),
+      source_revision: 3,
+    }
+    value.current.can_stop = false
+    expect(isTranslationReceipt(value, source, intent())).toBe(false)
+  })
   it('requires explicit nullable CAS and strips no unexpected secret fields', () => {
     expect(isCaptureTranslationPayload(payload(), 'web')).toBe(true)
     expect(
