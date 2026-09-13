@@ -11,6 +11,7 @@ import type {
 } from '../api/ApiCaptureSession'
 import { RecordSummaryPanel } from './RecordSummaryPanel'
 import { OriginalSearch } from './OriginalSearch'
+import { LiveCaptureTranscript } from './LiveCaptureTranscript'
 
 type Job = {
   id: string
@@ -19,9 +20,12 @@ type Job = {
   input_count: number
   acknowledged_inputs: number
   final_count: number
+  mode?: 'live' | 'sealed'
+  input_closed?: boolean
 }
 type State = {
   available: boolean
+  live_available?: boolean
   summary_available?: boolean
   active_job_id: string | null
   results: Job[]
@@ -30,6 +34,7 @@ type Intent = {
   key: string
   expected_job_id: string | null
   allow_incomplete: boolean
+  live?: boolean
 }
 const active = (job?: Job) =>
   !!job && ['queued', 'running'].includes(job.status)
@@ -72,6 +77,7 @@ export function CaptureTranscriptionPanel({
         if (
           typeof value.key !== 'string' ||
           typeof value.allow_incomplete !== 'boolean' ||
+          (value.live !== undefined && typeof value.live !== 'boolean') ||
           (value.expected_job_id !== null &&
             typeof value.expected_job_id !== 'string')
         )
@@ -94,6 +100,11 @@ export function CaptureTranscriptionPanel({
     refetchInterval: (query) => (query.state.error ? false : 5000),
   })
   const latest = state.data?.results[0]
+  const openCapture = capture.status !== 'stopped'
+  const canStartLive =
+    ['recording', 'paused', 'interrupted'].includes(capture.status) &&
+    !!state.data?.live_available
+  const canCreate = openCapture ? canStartLive : !!state.data?.available
   const clearIntent = () => {
     try {
       sessionStorage.removeItem(storageKey)
@@ -105,11 +116,7 @@ export function CaptureTranscriptionPanel({
     setIntent(undefined)
   }
   const create = async () => {
-    if (
-      busy.current ||
-      !ready ||
-      (!intent && (!state.data?.available || active(latest)))
-    )
+    if (busy.current || !ready || (!intent && (!canCreate || active(latest))))
       return
     busy.current = true
     setSaving(true)
@@ -119,6 +126,7 @@ export function CaptureTranscriptionPanel({
         key: crypto.randomUUID(),
         expected_job_id: latest?.id ?? null,
         allow_incomplete: allowIncomplete,
+        ...(openCapture ? { live: true } : {}),
       }
       // Persist before any billable intent; ambiguous responses reuse this exact key.
       sessionStorage.setItem(storageKey, JSON.stringify(request))
@@ -129,6 +137,7 @@ export function CaptureTranscriptionPanel({
         body: JSON.stringify({
           expected_job_id: request.expected_job_id,
           allow_incomplete: request.allow_incomplete,
+          ...(request.live !== undefined ? { live: request.live } : {}),
         }),
         signal: AbortSignal.any([
           abort.current!.signal,
@@ -186,12 +195,16 @@ export function CaptureTranscriptionPanel({
       </section>
     )
   if (!state.data) return <p role="status">{t('asr.loading')}</p>
-  if (!state.data.available && !state.data.results.length && !intent)
+  if (
+    !(openCapture ? state.data.live_available : state.data.available) &&
+    !state.data.results.length &&
+    !intent
+  )
     return null
   return (
     <section className={style} aria-label={t('asr.title')}>
       <h2>{t('asr.title')}</h2>
-      <p>{t('asr.scope')}</p>
+      <p>{t(openCapture ? 'asr.liveScope' : 'asr.scope')}</p>
       {latest && (
         <p role="status">
           {t('asr.version', { number: latest.generation })} ·{' '}
@@ -229,14 +242,22 @@ export function CaptureTranscriptionPanel({
             isDisabled={
               !ready ||
               saving ||
-              !state.data.available ||
+              !canCreate ||
               active(latest) ||
               capture.media_status === 'empty' ||
               (capture.media_status === 'incomplete' && !allowIncomplete)
             }
             onPress={() => void create()}
           >
-            {t(latest ? 'asr.retry' : 'asr.start')}
+            {t(
+              openCapture
+                ? latest
+                  ? 'asr.liveRetry'
+                  : 'asr.liveStart'
+                : latest
+                  ? 'asr.retry'
+                  : 'asr.start'
+            )}
           </Button>
         )}
         {active(latest) && (
@@ -256,7 +277,16 @@ export function CaptureTranscriptionPanel({
           {t('asr.refresh')}
         </Button>
       </div>
-      {state.data.active_job_id && (
+      {latest?.mode === 'live' && latest.id !== state.data.active_job_id && (
+        <LiveCaptureTranscript
+          key={`${viewerId}:${latest.id}`}
+          viewerId={viewerId}
+          captureId={capture.id}
+          jobId={latest.id}
+          lastSequence={latest.final_count}
+        />
+      )}
+      {!openCapture && state.data.active_job_id && (
         <Originals
           key={`${viewerId}:${state.data.active_job_id}`}
           viewerId={viewerId}
@@ -278,7 +308,7 @@ export function CaptureTranscriptionPanel({
           </ul>
         </details>
       )}
-      {includeSummary && state.data.summary_available && (
+      {includeSummary && !openCapture && state.data.summary_available && (
         <details onToggle={(event) => setShowSummary(event.currentTarget.open)}>
           <summary>{t('asr.summary')}</summary>
           {showSummary && (

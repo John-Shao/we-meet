@@ -266,19 +266,19 @@ export function Recorder({
           )}
         </section>
         {local?.sealed && local.remote && (
-          <>
-            <CaptureAudioPlayer
-              ref={player}
-              key={`${viewerId}:${local.remote.id}`}
-              captureId={local.remote.id}
-            />
-            <CaptureTranscriptionPanel
-              key={`asr:${viewerId}:${local.remote.id}`}
-              viewerId={viewerId}
-              capture={local.remote}
-              onSource={(milliseconds) => player.current?.seek(milliseconds)}
-            />
-          </>
+          <CaptureAudioPlayer
+            ref={player}
+            key={`${viewerId}:${local.remote.id}`}
+            captureId={local.remote.id}
+          />
+        )}
+        {local?.remote && (
+          <CaptureTranscriptionPanel
+            key={`asr:${viewerId}:${local.remote.id}`}
+            viewerId={viewerId}
+            capture={local.remote}
+            onSource={(milliseconds) => player.current?.seek(milliseconds)}
+          />
         )}
         {!!local?.pendingBytes && (
           <section className={css({ marginTop: '1.5rem' })}>

@@ -103,6 +103,8 @@ try {
       capabilities: { read_summary: true, read_transcript: true, generate_summary: true } })
   })
   const page = await context.newPage()
+  const errors = []
+  page.on('pageerror', error => errors.push(error.message))
   await page.goto(`${origin}/capture-ui-harness`)
   const mount = async () => page.evaluate(async () => {
     const runtime = (await import('/@react-refresh')).default
@@ -116,7 +118,7 @@ try {
     const { createRoot } = (await import('/node_modules/.vite/deps/react-dom_client.js')).default
     const { Recorder } = await import('/src/features/meetings/routes/AudioRecording.tsx')
     const { QueryClient, QueryClientProvider } = await import('/node_modules/.vite/deps/@tanstack_react-query.js')
-    createRoot(document.getElementById('root')).render(React.createElement(QueryClientProvider, { client: new QueryClient() }, React.createElement(Recorder, { viewerId: 'ui-test-owner', available: true })))
+    createRoot(document.getElementById('root')).render(React.createElement(React.Suspense, { fallback: 'Loading…' }, React.createElement(QueryClientProvider, { client: new QueryClient() }, React.createElement(Recorder, { viewerId: 'ui-test-owner', available: true }))))
   })
   await mount()
   await page.getByLabel('录音名称').fill('项目评审录音')
@@ -154,5 +156,6 @@ try {
   await page.getByRole('button', { name: '回听这段原音', exact: true }).click()
   await page.waitForFunction(() => document.querySelector('audio')?.currentTime >= 1)
   await page.screenshot({ path: 'test-results/capture-summary.png', fullPage: true })
+  assert.deepEqual(errors, [])
   console.log('Capture UI passed: record, upload, recover, save, play, transcribe intent, published text and source seek (HTTP fixtures, synthetic microphone).')
 } finally { await browser.close() }

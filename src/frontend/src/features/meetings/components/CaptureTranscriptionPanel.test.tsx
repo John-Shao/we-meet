@@ -35,14 +35,22 @@ vi.mock('@/primitives', () => ({
 let client: QueryClient
 let status: {
   available: boolean
+  live_available?: boolean
   summary_available?: boolean
   active_job_id: string | null
-  results: Array<{ id: string; status: string; generation: number }>
+  results: Array<{
+    id: string
+    status: string
+    generation: number
+    mode?: 'live' | 'sealed'
+    final_count?: number
+  }>
 }
 const capture = {
   id: 'capture',
   record_id: 'record',
   media_status: 'saved',
+  status: 'stopped',
 } as ApiCaptureSession
 const onSource = vi.fn()
 const posts = () =>
@@ -91,6 +99,53 @@ it('opens the summary workspace lazily and links citations to playback', async (
   fireEvent.click(await screen.findByText('summary-source'))
   expect(onSource).toHaveBeenCalledWith(1200)
   view.unmount()
+})
+
+it('starts live ASR explicitly during recording without changing audio controls', async () => {
+  status.live_available = true
+  show({ ...capture, status: 'recording', media_status: 'uploading' })
+  const button = await screen.findByRole('button', { name: 'asr.liveStart' })
+  expect(posts()).toHaveLength(0)
+  fireEvent.click(button)
+  await waitFor(() => expect(posts()).toHaveLength(1))
+  expect(JSON.parse(posts()[0][1]!.body as string)).toEqual({
+    expected_job_id: null,
+    allow_incomplete: false,
+    live: true,
+  })
+  expect(posts()[0][0]).toBe('capture-sessions/capture/transcription/')
+})
+
+it('does not offer a live start when the real-time feature is unavailable', async () => {
+  show({ ...capture, status: 'recording', media_status: 'uploading' })
+  await waitFor(() =>
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  )
+  expect(
+    screen.queryByRole('button', { name: 'asr.liveStart' })
+  ).not.toBeInTheDocument()
+  expect(posts()).toHaveLength(0)
+})
+
+it('retains live mode when reconciling an uncertain intent after recording ends', async () => {
+  status.live_available = true
+  const baseline = vi.mocked(fetchApi).getMockImplementation()!
+  vi.mocked(fetchApi).mockImplementation(async (path, options, ...rest) => {
+    if (options?.method === 'POST') throw new TypeError('connection lost')
+    return baseline(path, options, ...rest)
+  })
+  const view = show({ ...capture, status: 'recording' })
+  fireEvent.click(await screen.findByRole('button', { name: 'asr.liveStart' }))
+  await screen.findByText('asr.uncertain')
+  const original = posts()[0][1]!
+  view.unmount()
+  client.clear()
+  vi.mocked(fetchApi).mockImplementation(baseline)
+  show()
+  fireEvent.click(await screen.findByRole('button', { name: 'asr.recover' }))
+  await waitFor(() => expect(posts()).toHaveLength(2))
+  expect(posts()[1][1]!.body).toEqual(original.body)
+  expect(posts()[1][1]!.headers).toEqual(original.headers)
 })
 
 it('searches the published generation and resets its cursor when the query changes', async () => {
