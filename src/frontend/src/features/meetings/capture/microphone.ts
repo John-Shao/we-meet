@@ -1,5 +1,6 @@
 import workletUrl from './capture.worklet.ts?worker&url'
 import { SAMPLE_RATE } from './pcm'
+import { CapturePcmReceiver, type CapturePcmListener } from './tap'
 
 /** The owning controller must hold the account's Web Lock for this object's lifetime. */
 export class CaptureMicrophone {
@@ -11,6 +12,7 @@ export class CaptureMicrophone {
     { resolve: () => void; reject: (error: Error) => void }
   >()
   private failure: Error | undefined
+  private tap: CapturePcmReceiver
 
   private constructor(
     private stream: MediaStream,
@@ -19,7 +21,14 @@ export class CaptureMicrophone {
     sink: (pcm: Int16Array) => Promise<void>,
     private onFailure: () => void
   ) {
+    this.tap = new CapturePcmReceiver((message) =>
+      processor.port.postMessage(message)
+    )
     processor.port.onmessage = ({ data }) => {
+      if (data.kind === 'tap_pcm' || data.kind === 'tap_end') {
+        this.tap.receive(data)
+        return
+      }
       if (data.kind === 'failed') {
         this.fail()
         return
@@ -99,6 +108,11 @@ export class CaptureMicrophone {
     this.processor.port.postMessage({ kind: 'start' })
   }
 
+  observePcm(listener: CapturePcmListener) {
+    if (this.failed || this.closing) throw new Error('microphone_closed')
+    return this.tap.attach(crypto.randomUUID(), listener)
+  }
+
   async pause() {
     if (this.failure) throw this.failure
     if (this.closing) throw new Error('microphone_closed')
@@ -129,6 +143,7 @@ export class CaptureMicrophone {
 
   close() {
     this.closing = true
+    this.tap.close()
     this.stream.getTracks().forEach((track) => track.stop())
     this.processor.disconnect()
     this.processor.port.close()

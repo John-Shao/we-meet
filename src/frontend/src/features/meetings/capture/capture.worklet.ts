@@ -1,4 +1,5 @@
 import { PcmFramer, SAMPLE_RATE } from './pcm'
+import { CapturePcmTap } from './tap'
 
 declare const sampleRate: number
 declare class AudioWorkletProcessor {
@@ -15,6 +16,12 @@ class CaptureProcessor extends AudioWorkletProcessor {
   private failed = false
   private sequence = 0
   private pending = new Set<number>()
+  private tap = new CapturePcmTap((event) => {
+    this.port.postMessage(
+      event,
+      event.kind === 'tap_pcm' ? [event.pcm.buffer] : []
+    )
+  })
   private framer = new PcmFramer((pcm) => {
     if (this.pending.size >= 2) {
       this.fail()
@@ -31,10 +38,15 @@ class CaptureProcessor extends AudioWorkletProcessor {
     this.port.onmessage = ({ data }) => {
       if (data.kind === 'ack') this.pending.delete(data.sequence)
       if (this.failed) return
+      if (data.kind === 'tap_start') this.tap.start(data.generation)
+      if (data.kind === 'tap_stop') this.tap.stop(data.generation)
+      if (data.kind === 'tap_ack')
+        this.tap.acknowledge(data.generation, data.sequence)
       if (data.kind === 'start') this.active = true
       if (data.kind === 'pause' || data.kind === 'stop') {
         this.active = false
         this.framer.flush()
+        this.tap.finish()
         this.port.postMessage({ kind: 'drained', id: data.id })
       }
     }
@@ -43,12 +55,15 @@ class CaptureProcessor extends AudioWorkletProcessor {
   private fail() {
     this.failed = true
     this.active = false
+    this.tap.close()
     this.port.postMessage({ kind: 'failed' })
   }
 
   process(inputs: Float32Array[][]) {
-    if (this.active && !this.failed && inputs[0]?.[0])
+    if (this.active && !this.failed && inputs[0]?.[0]) {
       this.framer.push(inputs[0][0])
+      this.tap.push(inputs[0][0])
+    }
     return !this.failed
   }
 }

@@ -156,6 +156,7 @@ function fixture() {
     pause: vi.fn(async () => undefined),
     stop: vi.fn(async () => undefined),
     close: vi.fn(),
+    observePcm: vi.fn(() => vi.fn()),
   }
   const open = vi.fn(async (onPcm: typeof sink) => {
     sink = onPcm
@@ -176,6 +177,18 @@ function fixture() {
 }
 
 describe('recording lifecycle and durable retries', () => {
+  it('attaches a live tap only to the active exact capture without reopening the microphone', async () => {
+    const f = fixture()
+    const listener = { pcm: vi.fn(() => true), ended: vi.fn() }
+    expect(() => f.controller.observePcm('remote', listener)).toThrow()
+    await f.controller.start('Interview')
+    expect(() => f.controller.observePcm('other', listener)).toThrow()
+    f.controller.observePcm('remote', listener)
+    expect(f.mic.observePcm).toHaveBeenCalledExactlyOnceWith(listener)
+    expect(f.open).toHaveBeenCalledOnce()
+    await f.controller.pause()
+    expect(() => f.controller.observePcm('remote', listener)).toThrow()
+  })
   it('checks text-only admission before opening the microphone or persisting an intent', async () => {
     const f = fixture()
     vi.mocked(f.transport.textAudioAvailable).mockResolvedValue(false)

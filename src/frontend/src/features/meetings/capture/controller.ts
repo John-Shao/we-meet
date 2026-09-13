@@ -4,6 +4,7 @@ import { CaptureJournal, type LocalCapture } from './journal'
 import { CaptureMicrophone } from './microphone'
 import type { CaptureTransport } from './transport'
 import { textAudioExpired } from './retention'
+import type { CapturePcmListener } from './tap'
 
 export interface CaptureViewState {
   local?: LocalCapture
@@ -18,7 +19,11 @@ export interface CaptureViewState {
     | 'textUnavailable'
 }
 
-type Microphone = Pick<CaptureMicrophone, 'start' | 'pause' | 'stop' | 'close'>
+type Microphone = Pick<
+  CaptureMicrophone,
+  'start' | 'pause' | 'stop' | 'close'
+> &
+  Partial<Pick<CaptureMicrophone, 'observePcm'>>
 type OpenMicrophone = (
   sink: (pcm: Int16Array) => Promise<void>,
   failed: () => void
@@ -46,6 +51,19 @@ export class RecordingController {
     private changed: (state: CaptureViewState) => void,
     private openMicrophone: OpenMicrophone = CaptureMicrophone.open
   ) {}
+
+  observePcm(captureId: string, listener: CapturePcmListener) {
+    if (
+      this.disposed ||
+      this.state.busy ||
+      this.state.mode !== 'recording' ||
+      this.state.local?.remote?.id !== captureId ||
+      !this.microphone?.observePcm ||
+      textAudioExpired(this.state.local)
+    )
+      throw new Error('capture_source_unavailable')
+    return this.microphone.observePcm(listener)
+  }
 
   private publish(patch: Partial<CaptureViewState> = {}) {
     this.state = { ...this.state, ...patch }

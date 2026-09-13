@@ -38,10 +38,22 @@ export async function checksum(data: ArrayBuffer) {
 
 /** Fixed memory, mono PCM frames; a short stop tail is aligned to whole milliseconds. */
 export class PcmFramer {
-  private buffer = new Int16Array(CHUNK_FRAMES)
+  private buffer: Int16Array
   private length = 0
 
-  constructor(private emit: (pcm: Int16Array) => void) {}
+  constructor(
+    private emit: (pcm: Int16Array) => void,
+    private frames = CHUNK_FRAMES
+  ) {
+    if (
+      !Number.isInteger(frames) ||
+      frames < 16 ||
+      frames > CHUNK_FRAMES ||
+      frames % 16
+    )
+      throw new Error('invalid_frame_size')
+    this.buffer = new Int16Array(frames)
+  }
 
   push(input: Float32Array) {
     for (const value of input) {
@@ -52,14 +64,21 @@ export class PcmFramer {
       this.buffer[this.length++] = Math.round(
         clamped * (clamped < 0 ? 32768 : 32767)
       )
-      if (this.length === CHUNK_FRAMES) this.flush()
+      if (this.length === this.frames) this.flush()
     }
   }
 
   flush() {
     const count = this.length - (this.length % 16)
-    if (count) this.emit(this.buffer.slice(0, count))
+    const output = count ? this.buffer.slice(0, count) : null
     this.buffer.copyWithin(0, count, this.length)
     this.length -= count
+    this.buffer.fill(0, this.length)
+    if (output) this.emit(output)
+  }
+
+  clear() {
+    this.buffer.fill(0)
+    this.length = 0
   }
 }
