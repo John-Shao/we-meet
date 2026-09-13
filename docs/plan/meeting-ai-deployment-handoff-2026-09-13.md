@@ -280,3 +280,5 @@ Apply migration 0178 after 0177. Explicit save_translations also requires MEETIN
 Web and Android d3d4d332 can drain individual translated speech turns on the same microphone while original recording continues. No backend/migration change. Client WS integration remains pending; keep rollout off. See [details](meeting-ai-phase3-batch107-2026-09-13.md).
 
 - Batch 128: strict Web recording translation protocol, metadata-only recovery and same-microphone WS transport; 24 Web and 61 agent scenarios plus real Chromium/build checks pass. UI, playback and native integration follow. See [batch 128](meeting-ai-phase3-batch108-2026-09-13.md).
+
+- Batch 129: Web recording translation controls and bounded output playback; 12 unit scenarios, real Chromium two-direction/one-microphone and responsive checks, TypeScript/lint/build pass. Archive UI, Android and final review follow. See [batch 129](meeting-ai-phase3-batch109-2026-09-13.md).

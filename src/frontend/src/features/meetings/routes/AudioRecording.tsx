@@ -19,6 +19,7 @@ import {
   type CaptureAudioHandle,
 } from '../components/CaptureAudioPlayer'
 import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
+import { CaptureTranslationPanel } from '../components/CaptureTranslationPanel'
 
 const duration = (milliseconds: number) => {
   const seconds = Math.floor(milliseconds / 1000)
@@ -325,6 +326,20 @@ export function Recorder({
             </details>
           )}
         </section>
+        {local?.remote && controller && (
+          <CaptureTranslationPanel
+            key={`translation:${viewerId}:${local.remote.id}:${local.remote.revision}`}
+            source={{
+              viewerId,
+              captureId: local.remote.id,
+              recordId: local.remote.record_id,
+              deviceId: local.create.device_id,
+              leaseKey: local.create.lease_key,
+            }}
+            revision={local.remote.revision}
+            controller={controller}
+          />
+        )}
         {local?.sealed &&
           local.remote &&
           local.create.retention_mode === 'media' && (
