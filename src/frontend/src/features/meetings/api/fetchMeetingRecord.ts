@@ -229,6 +229,9 @@ export const useRequestRecordSummary = (viewerId: string, recordId: string) => {
     mutationFn: ({ key, payload }) =>
       fetchApi(`${recordPath(recordId)}summary-requests/`, {
         method: 'POST',
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(20000),
         headers: { 'Idempotency-Key': key },
         body: JSON.stringify(payload),
       }),

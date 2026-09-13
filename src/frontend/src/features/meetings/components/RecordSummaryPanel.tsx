@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
 
@@ -27,6 +27,16 @@ import { RecordQuestionPanel } from './RecordQuestionPanel'
 import { SummaryExportControl } from './SummaryExportControl'
 import { SummaryNotificationPanel } from './SummaryNotificationPanel'
 import { SummarySharingControl } from './SummarySharingControl'
+import { isSummaryPayload, useSummaryIntent } from '../hooks/useSummaryIntent'
+
+export const RecordSummaryPanel = (
+  props: ComponentProps<typeof RecordSummaryPanelContent>
+) => (
+  <RecordSummaryPanelContent
+    key={JSON.stringify([props.viewerId, props.recordId])}
+    {...props}
+  />
+)
 
 const stack = css({ display: 'flex', flexDirection: 'column', gap: '1rem' })
 
@@ -96,7 +106,7 @@ export const RoomRecordSummaries = ({
   )
 }
 
-export const RecordSummaryPanel = ({
+const RecordSummaryPanelContent = ({
   recordId,
   viewerId,
   onSourceAudio,
@@ -125,10 +135,13 @@ export const RecordSummaryPanel = ({
     selectedVersionId
   )
   const mutation = useRequestRecordSummary(viewerId, recordId)
-  const [pendingIntent, setPendingIntent] = useState<{
-    key: string
-    payload: SummaryRequestPayload
-  }>()
+  const recovery = useSummaryIntent(
+    'summary',
+    viewerId,
+    recordId,
+    isSummaryPayload
+  )
+  const pendingIntent = recovery.pending
   const inFlight = useRef(false)
   const [message, setMessage] = useState('')
   const [citation, setCitation] = useState<{
@@ -163,30 +176,34 @@ export const RecordSummaryPanel = ({
     operation: SummaryRequestPayload['operation'],
     stage?: SummaryStage
   ) => {
-    if (inFlight.current || !progress.data) return
+    if (inFlight.current || !progress.data || !recovery.ready) return
     inFlight.current = true
-    const intent = pendingIntent ?? {
-      key: crypto.randomUUID(),
-      payload: {
+    setMessage('')
+    let intent: NonNullable<typeof pendingIntent>
+    try {
+      intent = recovery.getOrCreate({
         operation,
         ...(stage ? { stage } : {}),
         expected_revision: progress.data.revision,
         expected_job_id: job?.id ?? null,
         expected_attempt: job?.attempt ?? null,
-      },
+      })
+    } catch {
+      inFlight.current = false
+      return
     }
-    setPendingIntent(intent)
-    setMessage('')
     try {
       await mutation.mutateAsync(intent)
-      setPendingIntent(undefined)
-      setMessage('recordAi.accepted')
+      if (recovery.resolve(intent)) setMessage('recordAi.accepted')
       setCursor(undefined)
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 429) {
         setMessage('recordAi.rateLimited')
-      } else if (error instanceof ApiError && error.statusCode < 500) {
-        setPendingIntent(undefined)
+      } else if (
+        error instanceof ApiError &&
+        [400, 401, 403, 404, 409, 422].includes(error.statusCode)
+      ) {
+        recovery.resolve(intent)
         setMessage(
           error.statusCode === 409
             ? 'recordAi.conflict'
@@ -281,7 +298,7 @@ export const RecordSummaryPanel = ({
           {pendingIntent ? (
             <Button
               size="sm"
-              isDisabled={mutation.isPending}
+              isDisabled={mutation.isPending || !recovery.ready}
               onPress={() => void submit(pendingIntent.payload.operation)}
             >
               {t('recordAi.resubmit')}
@@ -293,7 +310,7 @@ export const RecordSummaryPanel = ({
                   <Button
                     key={stage}
                     size="sm"
-                    isDisabled={busy || mutation.isPending}
+                    isDisabled={busy || mutation.isPending || !recovery.ready}
                     onPress={() =>
                       void submit(job ? 'regenerate' : 'generate', stage)
                     }
@@ -304,7 +321,9 @@ export const RecordSummaryPanel = ({
               ) : (
                 <Button
                   size="sm"
-                  isDisabled={!ready || busy || mutation.isPending}
+                  isDisabled={
+                    !ready || busy || mutation.isPending || !recovery.ready
+                  }
                   onPress={() => void submit(job ? 'regenerate' : 'generate')}
                 >
                   {t(job ? 'recordAi.regenerate' : 'recordAi.generate')}
@@ -314,7 +333,7 @@ export const RecordSummaryPanel = ({
                 <Button
                   size="sm"
                   variant="tertiary"
-                  isDisabled={mutation.isPending}
+                  isDisabled={mutation.isPending || !recovery.ready}
                   onPress={() =>
                     void submit('retry', staged ? job.stage : undefined)
                   }
@@ -327,6 +346,14 @@ export const RecordSummaryPanel = ({
         </div>
       )}
       {message && <div role="status">{t(message)}</div>}
+      {!pinned && canGenerate && recovery.failed && (
+        <div role="status">
+          <Text>{t('recordAi.recoveryError')}</Text>
+          <Button size="sm" variant="tertiary" onPress={recovery.reload}>
+            {t('recordAi.refresh')}
+          </Button>
+        </div>
+      )}
       {!pinned &&
         progress.data?.blocked_reason === 'source_budget_exceeded' && (
           <Text>{t('recordAi.sourceBudgetExceeded')}</Text>

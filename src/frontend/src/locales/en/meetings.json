@@ -233,6 +233,7 @@
     "unavailable": "Human revisions are unavailable. Refresh to try again."
   },
   "recordAi": {
+    "recoveryError": "The previous request cannot be recovered. Refresh before starting another request.",
     "rateLimited": "Too many requests. Wait before resending the same request.",
     "waitForSource": "Minutes can be generated after the meeting ends and a transcript is available.",
     "tab": "AI minutes",

@@ -32,6 +32,7 @@ function show() {
   )
 }
 beforeEach(() => {
+  sessionStorage.clear()
   vi.resetAllMocks()
   state = {
     enabled: false,
@@ -55,6 +56,34 @@ beforeEach(() => {
 afterEach(() => client?.clear())
 
 describe('Automatic summary consent', () => {
+  it('recovers an unknown enable after remount without sending on mount or toggling it off', async () => {
+    const fallback = mocks.fetchApi.getMockImplementation()!
+    let failed = false
+    mocks.fetchApi.mockImplementation(async (url, options) => {
+      if (options?.method === 'POST' && !failed) {
+        failed = true
+        await fallback(url, options)
+        throw new ApiError(408, {})
+      }
+      return fallback(url, options)
+    })
+    const first = show()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'recordAi.automation.start' })
+    )
+    await screen.findByText('recordAi.uncertain')
+    first.unmount()
+    client.clear()
+    show()
+    const check = await screen.findByRole('button', {
+      name: 'recordAi.resubmit',
+    })
+    expect(posts()).toHaveLength(1)
+    fireEvent.click(check)
+    await screen.findByRole('button', { name: 'recordAi.automation.stop' })
+    expect(posts()[0][1].body).toBe(posts()[1][1].body)
+    expect(posts()[0][1].headers).toEqual(posts()[1][1].headers)
+  })
   it('does not start on mount and sends explicit revisioned consent', async () => {
     show()
     const start = await screen.findByRole('button', {

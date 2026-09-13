@@ -80,6 +80,7 @@ function show(
 }
 
 beforeEach(() => {
+  sessionStorage.clear()
   vi.resetAllMocks()
   currentRecord = structuredClone(record)
   job = null
@@ -120,6 +121,35 @@ beforeEach(() => {
 afterEach(() => client?.clear())
 
 describe('Versioned summary requests', () => {
+  it('restores an uncertain request after remount instead of creating a new paid intent', async () => {
+    const fallback = mocks.fetchApi.getMockImplementation()!
+    let writes = 0
+    mocks.fetchApi.mockImplementation((url, options) => {
+      if (options?.method !== 'POST') return fallback(url, options)
+      if (++writes === 1) return Promise.reject(new TypeError('lost response'))
+      return Promise.resolve({ request_id: 'intent-1', job })
+    })
+    const first = show()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'recordAi.generate' })
+    )
+    await screen.findByText('recordAi.uncertain')
+    first.unmount()
+    client.clear()
+    job = { id: 'already-started', status: 'queued', attempt: 1 }
+    show()
+    const check = await screen.findByRole('button', {
+      name: 'recordAi.resubmit',
+    })
+    expect(writes).toBe(1)
+    fireEvent.click(check)
+    await screen.findByText('recordAi.accepted')
+    const posts = mocks.fetchApi.mock.calls.filter(
+      ([, options]) => options?.method === 'POST'
+    )
+    expect(posts[0][1].body).toBe(posts[1][1].body)
+    expect(posts[0][1].headers).toEqual(posts[1][1].headers)
+  })
   it('keeps source text available during capture without playback or post-meeting tools', async () => {
     withVersion = true
     const audio = vi.fn()

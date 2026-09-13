@@ -233,6 +233,7 @@
     "unavailable": "暂时无法读取人工修订，请刷新后重试。"
   },
   "recordAi": {
+    "recoveryError": "暂时无法恢复之前的请求，请刷新后再发起新请求。",
     "rateLimited": "操作过于频繁，请稍后重新提交同一请求。",
     "waitForSource": "会议结束且原文可用后，可以生成纪要。",
     "tab": "AI 纪要",
