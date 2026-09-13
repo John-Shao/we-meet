@@ -270,3 +270,7 @@ No additional migration. New capture ticket endpoint and private /api/agent/capt
 ## Batch 125: recording translation gateway
 
 New optional agent entrypoint capture_translation_gateway.py; default disabled, internal bind 127.0.0.1:8093. Requires WSS ingress /capture-translation, explicit browser origins and existing server-side provider/internal credentials. Do not log WS frames/tickets. Archive and client integration remain, so keep both rollout flags off. See [protocol and configuration](meeting-ai-phase3-batch105-2026-09-13.md).
+
+## Batch 126: retained capture translations
+
+Apply migration 0178 after 0177. Explicit save_translations also requires MEETING_TRANSLATION_ARCHIVE_ENABLED. Gateway can now retain final text with source_capture_id; capture-owner archive endpoints are separate from existing meeting archive readers. Keep rollout disabled pending Web/native integration. See [details](meeting-ai-phase3-batch106-2026-09-13.md).

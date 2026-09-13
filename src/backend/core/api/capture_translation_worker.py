@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 
 from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
 from core.api.capture_audio import AudioUploadThrottle, CaptureAudioView
+from core.services import capture_translation_archive
 from core.services import capture_translation_worker as service
 from core.services.meeting_records import RecordConflict
 
@@ -72,6 +73,19 @@ class FinishSerializer(StrictSerializer):
     input_tokens = serializers.IntegerField(min_value=0, max_value=10**12)
     output_tokens = serializers.IntegerField(min_value=0, max_value=10**12)
     audio_seconds = serializers.IntegerField(min_value=0, max_value=43200)
+    segment_count = serializers.IntegerField(
+        min_value=0, max_value=20000, required=False
+    )
+
+
+class SegmentSerializer(StrictSerializer):
+    worker_id = serializers.UUIDField()
+    capture_id = serializers.UUIDField()
+    generation = serializers.IntegerField(min_value=1)
+    direction = serializers.ChoiceField(choices=["forward", "reverse"])
+    response_id = serializers.CharField(max_length=128, trim_whitespace=False)
+    item_id = serializers.CharField(max_length=128, trim_whitespace=False)
+    text = serializers.CharField(max_length=20000, trim_whitespace=False)
 
 
 class CaptureTranslationAgentView(APIView):
@@ -119,3 +133,13 @@ class CaptureTranslationFinishView(CaptureTranslationAgentView):
         serializer.is_valid(raise_exception=True)
         data = dict(serializer.validated_data)
         return Response(service.finish(run_id, data.pop("worker_id"), data))
+
+
+class CaptureTranslationSegmentView(CaptureTranslationAgentView):
+    def post(self, request, run_id):
+        serializer = SegmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        return Response(
+            capture_translation_archive.append(run_id, data.pop("worker_id"), data)
+        )

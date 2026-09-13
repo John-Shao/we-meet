@@ -2313,7 +2313,7 @@ class MeetingTranslationArchive(BaseModel):
 
     record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE, related_name="translation_archives")
     source_id = models.UUIDField(unique=True)
-    source_kind = models.CharField(max_length=16, choices=[("channel", "Channel"), ("private", "Private")])
+    source_kind = models.CharField(max_length=16, choices=[("channel", "Channel"), ("private", "Private"), ("capture", "Capture")])
     owner = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
     generation = models.PositiveIntegerField()
     configuration = models.JSONField()
@@ -2336,8 +2336,9 @@ class MeetingTranslationSegment(BaseModel):
     """An immutable confirmed provider item, never an original transcript row."""
 
     archive = models.ForeignKey(MeetingTranslationArchive, on_delete=models.CASCADE, related_name="segments")
-    source_participation_id = models.UUIDField()
-    source_participant_sid = models.CharField(max_length=64)
+    source_participation_id = models.UUIDField(null=True, blank=True)
+    source_participant_sid = models.CharField(max_length=64, blank=True)
+    source_capture_id = models.UUIDField(null=True, blank=True)
     response_id = models.CharField(max_length=128)
     item_id = models.CharField(max_length=128)
     direction = models.CharField(max_length=8, choices=[("forward", "Forward"), ("reverse", "Reverse")])
@@ -2350,6 +2351,7 @@ class MeetingTranslationSegment(BaseModel):
         constraints = [
             models.UniqueConstraint(fields=["archive", "source_participation_id", "direction", "response_id", "item_id"], name="unique_translation_provider_item"),
             models.UniqueConstraint(fields=["archive", "sequence"], name="unique_translation_archive_sequence"),
+            models.UniqueConstraint(fields=["archive", "source_capture_id", "direction", "response_id", "item_id"], condition=models.Q(source_capture_id__isnull=False), name="unique_capture_translation_item"),
         ]
 
     def __str__(self):
@@ -2357,6 +2359,11 @@ class MeetingTranslationSegment(BaseModel):
 
     def clean(self):
         super().clean()
+        if self.archive.source_kind == "capture":
+            if not self.source_capture_id or self.source_participation_id or self.source_participant_sid or str(self.source_capture_id) != self.archive.configuration.get("capture_id"):
+                raise ValidationError("Capture translation must reference its actual recording.")
+        elif self.source_capture_id or not self.source_participation_id or not self.source_participant_sid:
+            raise ValidationError("Meeting translation must reference its actual participant.")
         if not self._state.adding:
             original = type(self).objects.get(pk=self.pk)
             if any(getattr(self, field.attname) != getattr(original, field.attname) for field in self._meta.fields if field.name not in {"updated_at"}):

@@ -9,7 +9,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from core import models
-from core.services import ai_usage
+from core.services import ai_usage, capture_translation_archive
 from core.services import capture_translation as control
 from core.services.meeting_captures import check_lease, digest
 from core.services.meeting_records import RecordConflict
@@ -30,6 +30,22 @@ def _authorized(run, capture):
     control.owned(capture, run.requested_by)
     if not control.source_valid(run, capture):
         raise PermissionError
+
+
+def _retention_ready(run):
+    """Old reservations without their requested archive cannot incur new spend."""
+    if (
+        run.configuration["save_translations"]
+        and not models.MeetingTranslationArchive.objects.filter(
+            source_kind="capture",
+            source_id=run.pk,
+            record_id=run.capture.record_id,
+            owner_id=run.requested_by_id,
+            status="capturing",
+            configuration__capture_id=str(run.capture_id),
+        ).exists()
+    ):
+        raise RecordConflict("The requested translation archive is unavailable.")
 
 
 @transaction.atomic
@@ -128,6 +144,7 @@ def advance(run_id, worker_id, operation):
         raise RecordConflict("Translation lease has ended.")
     now = timezone.now()
     if operation == "begin":
+        _retention_ready(run)
         if not control.enabled() or run.status != "starting":
             raise RecordConflict("Translation cannot begin.")
         if run.begun_at:
@@ -170,6 +187,11 @@ def finish(run_id, worker_id, data):
     except PermissionError:
         valid = False
     if run.status in control.ACTIVE:
+        valid = capture_translation_archive.close(
+            run,
+            bool(valid and data["complete"] and run.begun_at),
+            data.get("segment_count", 0),
+        )
         run.status = (
             "stopped" if valid and data["complete"] and run.begun_at else "incomplete"
         )

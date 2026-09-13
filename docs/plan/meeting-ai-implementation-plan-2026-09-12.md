@@ -416,3 +416,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 124: signed capture translation tickets, one-worker claim, one-time begin, expiring heartbeats and immutable finish metering; 40 isolated scenarios pass. Gateway transport and clients follow. See [batch 124](meeting-ai-phase3-batch104-2026-09-13.md).
 
 - Batch 125: bounded standalone WS gateway, same-source PCM, bidirectional manual controls, lease-supervised startup/drain and strict backend responses; 45 agent tests pass. Archive integration and clients follow. See [batch 125](meeting-ai-phase3-batch105-2026-09-13.md).
+
+- Batch 126: retained recording translation archives with actual capture provenance, exact owner-only readers and durable gateway final delivery; migration 0178, 93 unique backend + 29 agent scenarios pass. Client integration and final review remain. See [batch 126](meeting-ai-phase3-batch106-2026-09-13.md).

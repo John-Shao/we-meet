@@ -8,7 +8,11 @@ from django.db import transaction
 from django.utils import timezone
 
 from core import models
-from core.services import capture_retention
+from core.services import (
+    capture_retention,
+    capture_translation_archive,
+    translation_archives,
+)
 from core.services.meeting_captures import (
     CaptureDenied,
     authorize,
@@ -102,6 +106,7 @@ def reconcile(capture):
             run.error_code = code
             run.ended_at = timezone.now()
             run.save()
+            capture_translation_archive.close(run, False)
     return run
 
 
@@ -123,6 +128,7 @@ def _state(capture, run):
             "status": capture.status,
         },
         "available": available,
+        "can_save_translations": translation_archives.enabled(),
         "current": serialize_run(run),
         "can_start": bool(
             available
@@ -180,6 +186,7 @@ def control(capture_id, user, lease, key, payload):
             configuration=configuration,
             deadline=timezone.now() + RESERVATION_LIFETIME,
         )
+        capture_translation_archive.create(run, capture)
     else:
         if not run or run.status not in ("starting", "translating"):
             raise RecordConflict("Translation is no longer stoppable.")
@@ -191,6 +198,8 @@ def control(capture_id, user, lease, key, payload):
             run.status = "stopping"
             run.deadline = min(run.deadline, run.stopped_at + DRAIN_LIFETIME)
         run.save()
+        if run.status == "stopped":
+            capture_translation_archive.close(run, True, 0)
     command = models.CaptureTranslationCommand.objects.create(
         user=user, key=key, capture=capture, payload=payload, result=serialize_run(run)
     )

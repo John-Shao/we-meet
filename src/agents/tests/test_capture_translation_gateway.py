@@ -194,6 +194,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                 "input_tokens": 8,
                 "output_tokens": 2,
                 "audio_seconds": 1,
+                "segment_count": 0,
             },
         )
 
@@ -249,9 +250,6 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             await connection.run()
             self.assertFalse(any(p.calls for p in connection.sessions.values()))
             self.assertFalse(socket.sent[-1]["complete"])
-        connection, _, reporter = self.connection([], config(save_translations=True))
-        await connection.run()
-        self.assertNotIn("begin", [item[0] for item in reporter.calls])
 
     async def test_authority_loss_cancels_blocked_start_and_tail(self):
         """Expired authority cannot leave a provider handshake or finish running."""

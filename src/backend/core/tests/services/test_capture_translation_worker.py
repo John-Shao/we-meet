@@ -33,9 +33,14 @@ def agent(path, data, token="isolated-agent"):
     )
 
 
-def reserve():
+def reserve(configuration=None):
     user, body, capture = recording()
-    result = send(user, body, capture, payload(capture))
+    result = send(
+        user,
+        body,
+        capture,
+        payload(capture, **({"configuration": configuration} if configuration else {})),
+    )
     assert result.status_code == 202
     run = models.CaptureTranslationRun.objects.get(
         pk=result.data["command"]["result"]["id"]
@@ -54,8 +59,8 @@ def reserve():
     return user, body, capture, run, ticket.data["ticket"]
 
 
-def claimed():
-    user, body, capture, run, ticket = reserve()
+def claimed(configuration=None):
+    user, body, capture, run, ticket = reserve(configuration)
     worker = str(uuid.uuid4())
     result = agent("claim/", {"ticket": ticket, "worker_id": worker})
     assert result.status_code == 200, result.data

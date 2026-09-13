@@ -66,6 +66,16 @@ def _private_deleted(sender, instance, **kwargs):
     close_archive(instance, False, source_kind="private")
 
 
+def _capture_deleted(sender, instance, **kwargs):
+    close_archive(instance, False, source_kind="capture")
+
+
+def _capture_segment_deleted(sender, instance, **kwargs):
+    models.MeetingTranslationArchive.objects.filter(
+        pk=instance.archive_id, source_kind="capture"
+    ).update(status="incomplete", updated_at=timezone.now())
+
+
 def connect_handlers():
     """Deleting a live source cannot leave its retained archive apparently running."""
     post_delete.connect(
@@ -77,6 +87,16 @@ def connect_handlers():
         _private_deleted,
         sender=models.MeetingTranslationRun,
         dispatch_uid="meeting_translation_archive_private_deleted",
+    )
+    post_delete.connect(
+        _capture_deleted,
+        sender=models.CaptureTranslationRun,
+        dispatch_uid="capture_translation_source_deleted",
+    )
+    post_delete.connect(
+        _capture_segment_deleted,
+        sender=models.MeetingTranslationSegment,
+        dispatch_uid="capture_translation_segment_deleted",
     )
 
 

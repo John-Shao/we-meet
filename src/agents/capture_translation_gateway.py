@@ -10,6 +10,7 @@ import time
 
 from websockets.asyncio.server import serve
 
+from capture_translation_archive import CaptureArchiveDelivery
 from capture_translation_reporter import CaptureTranslationReporter, authentication
 from plugins.qwen_live_translate import (
     TranslationConfig,
@@ -36,10 +37,13 @@ class CaptureTranslationConnection:
         *,
         config_factory=TranslationConfig.from_env,
         session_factory=TranslationSession,
+        archive_factory=CaptureArchiveDelivery,
     ):
         """Inject transports for tests without opening real microphones."""
         self.socket, self.reporter = socket, reporter
         self.config_factory, self.session_factory = config_factory, session_factory
+        self.archive_factory = archive_factory
+        self.archive = None
         self.sessions = {}
         self.send_lock = asyncio.Lock()
         self.tasks = []
@@ -75,6 +79,12 @@ class CaptureTranslationConnection:
         kind = event["type"]
         if kind in {"source_candidate", "source_link"}:
             return
+        if (
+            kind == "target_final"
+            and self.archive
+            and not self.archive.enqueue(event, direction=direction)
+        ):
+            raise TranslationError("translation_archive_failed")
         data = {key: value for key, value in event.items() if key != "type"}
         if kind == "audio":
             if not self.reporter.configuration["audio"]:
@@ -93,7 +103,7 @@ class CaptureTranslationConnection:
         """Check the frozen grant against provider configuration before IO."""
         config = self.reporter.configuration
         if config["save_translations"]:
-            raise TranslationError("translation_archive_not_configured")
+            self.archive = self.archive_factory(self.reporter)
         self.manual = config["mode"] == "push_to_talk"
         self.direction = None if self.manual else "forward"
         directions = ("forward", "reverse") if self.manual else ("forward",)
@@ -134,6 +144,8 @@ class CaptureTranslationConnection:
         """Detect upstream receiver failures even when the microphone is silent."""
         while True:
             await asyncio.sleep(0.2)
+            if self.archive and self.archive.failed:
+                raise TranslationError("translation_archive_failed")
             if any(session.error_code for session in self.sessions.values()):
                 raise TranslationError("translation_provider_failed")
 
@@ -242,6 +254,8 @@ class CaptureTranslationConnection:
             20,
         )
         await self.guarded(tail, heartbeat)
+        if self.archive and not await self.guarded(self.archive.finish(8), heartbeat):
+            return False
         return self.allowed
 
     async def run(self):
@@ -252,6 +266,8 @@ class CaptureTranslationConnection:
             self.claimed = True
             self.prepare()
             await self.reporter.command("begin")
+            if self.archive:
+                self.archive.start()
             complete = await self.stream()
         except asyncio.CancelledError:
             raise
@@ -266,6 +282,8 @@ class CaptureTranslationConnection:
                 *(session.close() for session in self.sessions.values()),
                 return_exceptions=True,
             )
+            if self.archive:
+                await self.archive.finish(0)
             await self.report_finish(complete)
 
     async def report_finish(self, complete):
@@ -279,6 +297,7 @@ class CaptureTranslationConnection:
                 "audio_seconds": min(
                     43200, (self.audio_bytes + BYTES_PER_SECOND - 1) // BYTES_PER_SECOND
                 ),
+                "segment_count": self.archive.segment_count if self.archive else 0,
             }
             try:
                 outcome = await self.reporter.command("finish", receipt=receipt)

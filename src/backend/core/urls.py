@@ -60,8 +60,10 @@ from core.api.capture_translation_worker import (
     CaptureTranslationClaimView,
     CaptureTranslationControlView,
     CaptureTranslationFinishView,
+    CaptureTranslationSegmentView,
     CaptureTranslationTicketView,
 )
+from core.api.capture_translation_archive import CaptureTranslationArchivesView, CaptureTranslationSegmentsView
 from core.api.directory import (
     ContactPreferenceViewSet,
     DepartmentViewSet,
@@ -352,6 +354,7 @@ urlpatterns = [
     path("api/agent/capture-translations/claim/", CaptureTranslationClaimView.as_view()),
     path("api/agent/capture-translations/<uuid:run_id>/control/", CaptureTranslationControlView.as_view()),
     path("api/agent/capture-translations/<uuid:run_id>/finish/", CaptureTranslationFinishView.as_view()),
+    path("api/agent/capture-translations/<uuid:run_id>/segments/", CaptureTranslationSegmentView.as_view()),
     path("api/agent/capture-transcriptions/<uuid:job_id>/control/", ControlTranscriptionView.as_view()),
     path("api/agent/capture-transcriptions/<uuid:job_id>/audio/<int:index>/", TranscriptionInputView.as_view()),
     path("api/agent/capture-transcriptions/<uuid:job_id>/originals/", IngestTranscriptionView.as_view()),
@@ -393,6 +396,8 @@ urlpatterns = [
                 path("capture-sessions/<uuid:capture_id>/audio/", CaptureAudioView.as_view(), name="capture-audio"),
                 path("capture-sessions/<uuid:capture_id>/translation/", CaptureTranslationView.as_view(), name="capture-translation"),
                 path("capture-sessions/<uuid:capture_id>/translation/ticket/", CaptureTranslationTicketView.as_view()),
+                path("capture-sessions/<uuid:capture_id>/translation/archives/", CaptureTranslationArchivesView.as_view()),
+                path("capture-sessions/<uuid:capture_id>/translation/archives/<uuid:archive_id>/", CaptureTranslationSegmentsView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/", CaptureTranscriptionView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/preview/", LiveTranscriptionPreviewView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/cancel/", CancelTranscriptionView.as_view()),
