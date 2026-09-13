@@ -27,6 +27,17 @@ vi.mock('../components/CaptureTranscriptionPanel', () => ({
     onSource: (ms: number) => void
   }) => <button onClick={() => onSource(500)}>asr-controls</button>,
 }))
+vi.mock('../components/CaptureTranslationArchives', () => ({
+  CaptureTranslationArchives: ({
+    viewerId,
+    recordId,
+    captureId,
+  }: {
+    viewerId: string
+    recordId: string
+    captureId: string
+  }) => <p>{`capture-translations:${viewerId}:${recordId}:${captureId}`}</p>,
+}))
 vi.mock('../components/RecordSummaryPanel', () => ({
   RecordSummaryPanel: ({
     onSourceAudio,
@@ -152,6 +163,9 @@ it('transcript-only shares read originals but cannot mount paid or private captu
   await screen.findByText('Shared original')
   expect(screen.queryByText('asr-controls')).not.toBeInTheDocument()
   expect(
+    screen.queryByRole('tab', { name: 'translationArchive.title' })
+  ).not.toBeInTheDocument()
+  expect(
     screen.queryByRole('tab', { name: 'library.minutes' })
   ).not.toBeInTheDocument()
   expect(
@@ -159,6 +173,16 @@ it('transcript-only shares read originals but cannot mount paid or private captu
       .mocked(fetchApi)
       .mock.calls.every(([path]) => path.startsWith('meeting-records/record/'))
   ).toBe(true)
+})
+
+it('opens saved translations through the exact owner capture', async () => {
+  show()
+  fireEvent.click(
+    await screen.findByRole('tab', { name: 'translationArchive.title' })
+  )
+  expect(
+    await screen.findByText('capture-translations:owner:record:capture')
+  ).toBeInTheDocument()
 })
 
 it('unmounts private content and the player when access is revoked', async () => {

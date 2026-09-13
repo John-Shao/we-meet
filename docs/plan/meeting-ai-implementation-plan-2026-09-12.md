@@ -424,3 +424,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 128: strict Web recording translation protocol, metadata-only recovery and same-microphone WS transport; 24 Web and 61 agent scenarios plus real Chromium/build checks pass. UI, playback and native integration follow. See [batch 128](meeting-ai-phase3-batch108-2026-09-13.md).
 
 - Batch 129: Web recording translation controls and bounded output playback; 12 unit scenarios, real Chromium two-direction/one-microphone and responsive checks, TypeScript/lint/build pass. Archive UI, Android and final review follow. See [batch 129](meeting-ai-phase3-batch109-2026-09-13.md).
+
+- Batch 130: exact owner-only saved recording translation UI, bounded validated pagination and private-content lifecycle; 20 Web scenarios and TypeScript/lint/build pass. Android, deployment wiring and final review follow. See [batch 130](meeting-ai-phase3-batch110-2026-09-13.md).

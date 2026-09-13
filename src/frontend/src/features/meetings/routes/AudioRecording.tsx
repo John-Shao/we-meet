@@ -361,6 +361,18 @@ export function Recorder({
             }
           />
         )}
+        {local?.remote && (
+          <Link
+            href={`/meeting/records/${local.remote.record_id}?tab=translations`}
+            className={css({
+              display: 'inline-block',
+              marginTop: '1rem',
+              color: 'primary.700',
+            })}
+          >
+            {t('translation.archive.title')}
+          </Link>
+        )}
         {!!local?.pendingBytes && local.create.retention_mode === 'media' && (
           <section className={css({ marginTop: '1.5rem' })}>
             <h2>{t('localAudio')}</h2>

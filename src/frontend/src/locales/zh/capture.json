@@ -139,6 +139,28 @@
     "endTurn": "结束{{language}}发言并翻译",
     "zh": "中文",
     "en": "英语",
+    "archive": {
+      "title": "已保存的录音译文",
+      "scope": "仅显示明确选择保存的译文，当前仅录音所有者可查看。译文独立于原文和智能纪要。",
+      "back": "返回译文列表",
+      "refresh": "刷新",
+      "error": "暂时无法读取译文，或你已没有访问权限。",
+      "loading": "正在读取译文…",
+      "incomplete": "本次翻译未完整保存，以下仅为已确认保存的内容。",
+      "timing": "显示的是译文接收时间，不是录音中的发言位置。",
+      "emptyText": "本页暂无已保存译文。",
+      "empty": "暂无保存的译文。开启翻译时，选择“保存译文”即可保留。",
+      "received": "接收于 {{time}}",
+      "open": "查看第 {{generation}} 次翻译 · {{date}}",
+      "count": "{{count}} 条译文",
+      "language": { "zh": "中文", "en": "英语" },
+      "mode": { "simultaneous": "同声传译", "push_to_talk": "双向语音翻译" },
+      "status": {
+        "capturing": "正在保存",
+        "complete": "已完整保存",
+        "incomplete": "保存不完整"
+      }
+    },
     "phase": {
       "connecting": "正在连接翻译…",
       "ready": "翻译已就绪",

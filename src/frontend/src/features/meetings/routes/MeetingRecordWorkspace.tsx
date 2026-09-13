@@ -30,6 +30,7 @@ import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
 import { libraryLayout } from '../components/libraryStyles'
 import { OriginalSearch } from '../components/OriginalSearch'
 import { TranslationArchivePanel } from '../components/TranslationArchivePanel'
+import { CaptureTranslationArchives } from '../components/CaptureTranslationArchives'
 
 const privateOptions = { retry: false, gcTime: 0, staleTime: 0 }
 const textStyle = css({
@@ -210,7 +211,7 @@ function WorkspaceContent({
     summaryId !== undefined
       ? 'summary'
       : translations &&
-          record.source_type === 'meeting' &&
+          (record.source_type === 'meeting' || record.capture_id) &&
           record.capabilities.read_transcript
         ? 'translations'
         : record.capabilities.read_transcript
@@ -273,7 +274,7 @@ function WorkspaceContent({
       >
         <TabList aria-label={t('library.contentTabs')}>
           {canReadText && <Tab id="text">{t('library.text')}</Tab>}
-          {canReadText && record.source_type === 'meeting' && (
+          {canReadText && (record.source_type === 'meeting' || captureId) && (
             <Tab id="translations">{t('translationArchive.title')}</Tab>
           )}
           {canReadSummary && <Tab id="summary">{t('library.minutes')}</Tab>}
@@ -310,6 +311,17 @@ function WorkspaceContent({
             />
           </TabPanel>
         )}
+        {canReadText &&
+          captureId &&
+          record.source_type === 'audio_recording' && (
+            <TabPanel id="translations" padding="md">
+              <CaptureTranslationArchives
+                viewerId={viewerId}
+                recordId={record.id}
+                captureId={captureId}
+              />
+            </TabPanel>
+          )}
         {canReadSummary && (
           <TabPanel id="summary" padding="md">
             <RecordSummaryPanel

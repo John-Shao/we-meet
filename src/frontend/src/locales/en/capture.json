@@ -139,6 +139,31 @@
     "endTurn": "Finish {{language}} speech and translate",
     "zh": "Chinese",
     "en": "English",
+    "archive": {
+      "title": "Saved recording translations",
+      "scope": "Only translations explicitly saved are shown. Currently only the recording owner can read them. Translations are separate from original transcripts and minutes.",
+      "back": "Back to translations",
+      "refresh": "Refresh",
+      "error": "Translations could not be loaded, or access is no longer available.",
+      "loading": "Loading translations…",
+      "incomplete": "This translation was not fully saved. Only confirmed saved text is shown.",
+      "timing": "Times indicate when translated text was received, not positions in the recording.",
+      "emptyText": "No saved translations on this page.",
+      "empty": "No saved translations. Select Save translated text when starting translation to retain it.",
+      "received": "Received {{time}}",
+      "open": "Open translation {{generation}} · {{date}}",
+      "count": "{{count}} translated items",
+      "language": { "zh": "Chinese", "en": "English" },
+      "mode": {
+        "simultaneous": "Simultaneous interpretation",
+        "push_to_talk": "Two-way speech translation"
+      },
+      "status": {
+        "capturing": "Saving",
+        "complete": "Fully saved",
+        "incomplete": "Partially saved"
+      }
+    },
     "phase": {
       "connecting": "Connecting translation…",
       "ready": "Translation ready",
