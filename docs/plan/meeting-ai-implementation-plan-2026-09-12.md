@@ -370,3 +370,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 101: Android shared interpretation events and explicit, expiring listening state; 25 JVM regressions and Debug/token checks passed. See [batch 81](meeting-ai-phase3-batch81-2026-09-13.md). Shared native SDK transport and channel/listener UI follow.
 
 - Batch 102: Android shared interpretation channel/listener workspace with foreground leases and durable recovery; 23 isolated tests, enabled/default Debug, token and light/dark checks passed. See [batch 82](meeting-ai-phase3-batch82-2026-09-13.md). Native retained-translation browsing follows.
+
+- Batch 103: Android retained translation list/detail with exact archive pagination and original-material ACLs; 8 JVM + 12 isolated UI tests, Debug/token and light/dark checks passed. See [batch 83](meeting-ai-phase3-batch83-2026-09-13.md). Native write-intent recovery alignment follows.
