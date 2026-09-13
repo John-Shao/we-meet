@@ -236,3 +236,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 110: Web text-only recording consent, admission, expiry shutdown and cleanup status; 50 unit regressions, text/media browser UI flows, TypeScript/lint and production build passed. See [batch 90](meeting-ai-phase3-batch90-2026-09-13.md). Android retention and remaining first-release work follow.
 
 - Batch 111: Android text-audio admission and retention protocol (fb3c7028); 26 JVM and 9 isolated capture-recovery tests, Debug/test and token checks passed. See [batch 91](meeting-ai-phase3-batch91-2026-09-13.md). Native cache/lifecycle and UI follow.
+
+- Batch 112: Android memory-only text audio and durable explicit incomplete recovery (4ca9d4bf); 24 isolated device and 19 JVM tests, Debug/test and token checks passed. See [batch 92](meeting-ai-phase3-batch92-2026-09-13.md). Native service/consent/status UI follows.
