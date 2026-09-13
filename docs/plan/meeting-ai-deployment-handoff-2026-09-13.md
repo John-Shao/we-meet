@@ -206,3 +206,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 95: Android exact-occurrence in-meeting controls and independent participant notices; 17 isolated tests, enabled/default Debug builds, token and light/dark checks passed. New WE_MEET_ONLINE_AI_NATIVE defaults off. See [batch 75](meeting-ai-phase3-batch75-2026-09-13.md). Native translation and remaining first-release gaps follow.
 
 - Batch 96: Android private translation protocol and encrypted source/consent-preserving recovery; 15 JVM + 11 isolated tests and Debug/token checks passed. See [batch 76](meeting-ai-phase3-batch76-2026-09-13.md). Native event/audio lifecycle and controls follow.
+
+- Batch 97: Android translation event validation and exact, expiring track subscriptions; 16 JVM tests, enabled/default Debug and token checks passed. See [batch 77](meeting-ai-phase3-batch77-2026-09-13.md). Native translation workspace follows; real call/device timing remains deployment testing.
