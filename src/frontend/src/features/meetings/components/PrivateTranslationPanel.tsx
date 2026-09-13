@@ -20,6 +20,7 @@ export const PrivateTranslationPanel = () => {
     target: 'en',
     mode: 'simultaneous',
     audio: true,
+    save_translations: false,
   })
   useEffect(() => {
     const release = () => {
@@ -160,6 +161,22 @@ export const PrivateTranslationPanel = () => {
             />
             {t('audio')}
           </label>
+          {state.archiveAvailable && (
+            <label>
+              <input
+                type="checkbox"
+                checked={options.save_translations ?? false}
+                disabled={state.pending || state.uncertain}
+                onChange={(event) =>
+                  setOptions({
+                    ...options,
+                    save_translations: event.target.checked,
+                  })
+                }
+              />
+              {t('saveTranslations')}
+            </label>
+          )}
         </>
       ) : (
         <Text>
@@ -168,6 +185,18 @@ export const PrivateTranslationPanel = () => {
         </Text>
       )}
       {!isMicrophoneEnabled && <Text variant="note">{t('microphone')}</Text>}
+      {current?.configuration.archive_record_id && (
+        <>
+          <Text variant="note">{t('privateArchiveHint')}</Text>
+          <a
+            href={`/meeting/records/${current.configuration.archive_record_id}?tab=translations`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t('openTranslations')}
+          </a>
+        </>
+      )}
       {active && !state.ownConnection && (
         <Text variant="note">{t('otherDevice')}</Text>
       )}

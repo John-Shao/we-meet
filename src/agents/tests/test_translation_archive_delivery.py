@@ -12,6 +12,7 @@ from unittest import mock
 from tests.test_interpretation_control import grant, metadata
 from tests.test_interpretation_runtime import runtime, source_for
 from translation_archive_delivery import ArchiveDelivery
+from translation_control import TranslationReporter
 
 
 def sink():
@@ -40,6 +41,65 @@ def event():
 
 class ArchiveTests(unittest.IsolatedAsyncioTestCase):
     """Archival failure cannot block audio or masquerade as complete storage."""
+
+    async def test_private_reverse_delivery_binds_the_run_and_reverse_language(self):
+        """Identical provider IDs in two directions still produce distinct hashes."""
+        reporter = TranslationReporter(
+            str(uuid.uuid4()),
+            {
+                "run_id": str(uuid.uuid4()),
+                "generation": 1,
+                "livekit_room_sid": "RM_test",
+            },
+            base_url="http://backend",
+            token=str(uuid.uuid4()),
+        )
+        value = ArchiveDelivery(reporter, str(uuid.uuid4()), "en", reverse_target="zh")
+        value.enqueue(grant()["sources"][0], event(), direction="reverse")
+        payload, _ = value.queue.get_nowait()
+        with mock.patch.object(value, "_send", return_value=True) as send:
+            self.assertTrue(await value.deliver(payload))
+        digest = hashlib.sha256(
+            json.dumps(
+                {**payload, "target": "zh"},
+                sort_keys=True,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        self.assertEqual(send.call_args.args[1], digest)
+        response = mock.MagicMock(status=200)
+        response.__enter__.return_value = response
+        receipt = {
+            "id": str(uuid.uuid4()),
+            "run_id": reporter.identity["run_id"],
+            "record_id": value.record_id,
+            "generation": 1,
+            "payload_hash": digest,
+            "sequence": 1,
+            "replayed": False,
+        }
+        response.read.return_value = json.dumps(receipt).encode()
+        with mock.patch(
+            "translation_archive_delivery._open", return_value=response
+        ) as opened:
+            self.assertTrue(value._send(payload, digest))
+            self.assertEqual(
+                opened.call_args.args[0].full_url,
+                "http://backend/api/agent/translations/segments/",
+            )
+            response.read.return_value = json.dumps(
+                {**receipt, "run_id": str(uuid.uuid4())}
+            ).encode()
+            self.assertFalse(value._send(payload, digest))
+
+    async def test_unconfigured_reverse_direction_marks_storage_incomplete(self):
+        """Continuous translation cannot invent a second target direction."""
+        value = sink()
+        self.assertFalse(
+            value.enqueue(grant()["sources"][0], event(), direction="reverse")
+        )
+        self.assertFalse(await value.finish(0))
 
     async def test_candidate_text_is_never_enqueued(self):
         """Preview/stash updates never become retained meeting content."""

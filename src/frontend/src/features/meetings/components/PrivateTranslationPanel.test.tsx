@@ -56,6 +56,29 @@ beforeEach(() => {
   }
 })
 describe('Private voice translation controls', () => {
+  it('saves translations only after an explicit choice', () => {
+    state.current = null
+    state.archiveAvailable = true
+    show()
+    const choice = screen.getByRole('checkbox', { name: 'saveTranslations' })
+    expect(choice).not.toBeChecked()
+    fireEvent.click(choice)
+    fireEvent.click(screen.getByRole('button', { name: 'start' }))
+    expect(state.change).toHaveBeenCalledWith(
+      expect.objectContaining({ save_translations: true })
+    )
+  })
+  it('opens the retained archive without leaving the meeting', () => {
+    state.current!.configuration.archive_record_id = 'record'
+    show()
+    const link = screen.getByRole('link', { name: 'openTranslations' })
+    expect(link).toHaveAttribute(
+      'href',
+      '/meeting/records/record?tab=translations'
+    )
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(screen.getByText('privateArchiveHint')).toBeInTheDocument()
+  })
   it('requires an explicit start and never enables the meeting microphone', () => {
     state.current = null
     mocks.microphone = false

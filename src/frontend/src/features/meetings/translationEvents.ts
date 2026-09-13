@@ -9,6 +9,7 @@ export interface TranslationRun {
     target: 'zh' | 'en'
     mode: 'simultaneous' | 'push_to_talk'
     audio: boolean
+    archive_record_id?: string
   }
 }
 export interface TranslationRow {

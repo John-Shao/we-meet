@@ -37,8 +37,10 @@
     "preview": "翻译中"
   },
   "translationArchive": {
+    "privateScope": "私人译文，仅你可见",
+    "bidirectional": "双向翻译",
     "title": "译文",
-    "scope": "这里保留开启频道时选择保存的确认译文，与正式逐字稿分别存放。",
+    "scope": "这里保留开始翻译时选择保存的确认译文，与正式逐字稿分别存放。",
     "language": { "zh": "中文", "en": "英语" },
     "status": {
       "capturing": "持续保存中",
@@ -455,6 +457,9 @@
     "close": "关闭"
   },
   "translation": {
+    "saveTranslations": "保存确认译文到会议笔记（仅自己可见）",
+    "privateArchiveHint": "已选择保存私人译文；会后仍需有笔记原文权限才能查看。",
+    "openTranslations": "查看已保存的私人译文",
     "title": "语音翻译",
     "scope": "翻译你当前的会议麦克风，译文和译音仅自己接收。不会开启录音。",
     "mode": "翻译方式",
@@ -488,7 +493,7 @@
     "uncertain": "操作结果尚未确认，请重试同一操作。",
     "error": "翻译连接或操作失败，请停止后重试。",
     "unavailable": "当前无法使用语音翻译。",
-    "historyHint": "显示本次连接最近 60 段译文，尚未保存到会议笔记。暂停收听不会停止翻译。",
+    "historyHint": "显示本次连接最近 60 段译文。只有开始时选择保存，才会保留到会议笔记。暂停收听不会停止翻译。",
     "text": "私人译文",
     "final": "译文",
     "preview": "翻译中"

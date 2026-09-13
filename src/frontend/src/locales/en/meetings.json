@@ -37,8 +37,10 @@
     "preview": "Translating"
   },
   "translationArchive": {
+    "privateScope": "Private translation, visible only to you",
+    "bidirectional": "Two-way translation",
     "title": "Translations",
-    "scope": "Confirmed translations are saved only when selected at channel start, separately from the original transcript.",
+    "scope": "Confirmed translations are saved only when selected at translation start, separately from the original transcript.",
     "language": { "zh": "Chinese", "en": "English" },
     "status": {
       "capturing": "Saving",
@@ -455,6 +457,9 @@
     "close": "Close"
   },
   "translation": {
+    "saveTranslations": "Save confirmed translations to meeting notes (only visible to me)",
+    "privateArchiveHint": "Private translation saving is selected. You still need access to the note's originals to read it later.",
+    "openTranslations": "View saved private translations",
     "title": "Voice translation",
     "scope": "Translate your current meeting microphone. Only you receive the translation. Recording stays separate.",
     "mode": "Translation mode",
@@ -488,7 +493,7 @@
     "uncertain": "The result is unconfirmed. Retry the same operation.",
     "error": "Translation connection or operation failed. Stop before trying again.",
     "unavailable": "Voice translation is unavailable.",
-    "historyHint": "Shows the last 60 segments in this connection. Translations are not saved to meeting notes yet. Pausing listening does not stop translation.",
+    "historyHint": "Shows the last 60 segments in this connection. Translations are retained in meeting notes only when saving was selected at start. Pausing listening does not stop translation.",
     "text": "Private translation",
     "final": "Translation",
     "preview": "Translating"

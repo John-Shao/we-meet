@@ -120,3 +120,6 @@ Batch 56: shared confirmed-translation delivery and opt-in archive reader comple
 
 
 Batch 57: owner-only private translation archive backend and direction-scoped receipts completed. See [phase 3 batch 37](meeting-ai-phase3-batch37-2026-09-13.md). 55 backend tests passed; no migration. Disabling private translation now stops existing workers on heartbeat. Agent/Web integration follows.
+
+
+Batch 58: private translation Agent delivery, Web opt-in, bidirectional archive reader and unknown-usage handling completed. See [phase 3 batch 38](meeting-ai-phase3-batch38-2026-09-13.md). Agent 68, frontend 19 and backend 19 tests passed, with browser/build checks. Independent recording and final review remain pending.

@@ -8,6 +8,7 @@ import time
 import urllib.request
 import uuid
 from http import HTTPStatus
+from urllib.parse import urlsplit
 
 from plugins.qwen_live_translate import TranslationError
 from transcript_writer import _open
@@ -44,12 +45,33 @@ class TranslationReporter:
 
     def __init__(self, room_id, metadata, *, base_url, token):
         """Freeze the internal endpoint, run and unique process identity."""
-        if not base_url or not token:
+        parsed = urlsplit(base_url)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.path not in {"", "/"}
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+            or not token
+        ):
             raise ValueError("Missing translation backend configuration")
+        metadata = translation_metadata(json.dumps({"translation": metadata}))
         self._endpoint = base_url.rstrip("/") + "/api/agent/translations/control/"
         self._token = token
         self.identity = {"room_id": room_id, **metadata, "worker_id": str(uuid.uuid4())}
         self._receipt = None
+
+    @property
+    def endpoint(self):
+        """Expose the validated control origin for the durable text sink."""
+        return self._endpoint
+
+    @property
+    def token(self):
+        """Use the same worker credential for confirmed text delivery."""
+        return self._token
 
     @classmethod
     def from_env(cls, room_id, metadata):

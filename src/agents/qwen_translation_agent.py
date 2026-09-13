@@ -14,6 +14,7 @@ from plugins.qwen_live_translate import (
     TranslationError,
     TranslationSession,
 )
+from translation_archive_delivery import ArchiveDelivery
 from translation_control import (
     TranslationInput,
     TranslationReporter,
@@ -65,6 +66,26 @@ class PrivateTranslation:
         self._closed = False
         self.control_reply = None
         self.usage = {"input_tokens": None, "output_tokens": None}
+        self.missing_usage = set()
+        record_id = self.options.get("archive_record_id")
+        self.archive = (
+            ArchiveDelivery(
+                reporter,
+                record_id,
+                self.options["target"],
+                reverse_target=self.options["source"]
+                if self.options["mode"] == "push_to_talk"
+                else None,
+            )
+            if record_id
+            else None
+        )
+        self.archive_source = {
+            "participation_id": grant.get("source_participation_id"),
+            "participant_sid": grant["source_participant_sid"],
+        }
+        if self.archive and not self.archive_source["participation_id"]:
+            raise TranslationError("invalid_translation_archive_source")
 
     def matches(self, participant):
         """A reconnect or another device cannot inherit the old source connection."""
@@ -104,8 +125,12 @@ class PrivateTranslation:
     async def consume(self, direction, event):
         """Keep revoked output and translated audio out of original transcription."""
         if event["type"] == "response_completed":
-            for key, count in event["usage"].items():
-                if key in self.usage:
+            for key in self.usage:
+                count = event["usage"].get(key)
+                if type(count) is not int or count < 0:
+                    self.missing_usage.add(key)
+                    self.usage[key] = None
+                elif key not in self.missing_usage:
                     self.usage[key] = (self.usage[key] or 0) + count
             if self.input:
                 self.input.response_completed(direction)
@@ -124,6 +149,8 @@ class PrivateTranslation:
                     )
                 )
         elif self.allow_text and event["type"] in {"target_candidate", "target_final"}:
+            if self.archive and event["type"] == "target_final":
+                self.archive.enqueue(self.archive_source, event, direction=direction)
             await self.publish({"direction": direction, **event})
 
     async def watch(self):
@@ -142,6 +169,8 @@ class PrivateTranslation:
     async def open(self):
         """Set server subscription ACL before publishing any private output track."""
         self.watcher = asyncio.create_task(self.watch())
+        if self.archive:
+            self.archive.start()
         participant = self.ctx.room.remote_participants.get(
             self.grant["source_identity"]
         )
@@ -331,6 +360,7 @@ class PrivateTranslation:
         async with self._closing:
             if self._closed:
                 return
+            started_at = time.monotonic()
             self.stop.set()
             if self.audio_source:
                 self.audio_source.clear_queue()
@@ -376,6 +406,11 @@ class PrivateTranslation:
                     )
                 except TimeoutError:
                     self.failed = True
+                archive_finished = None
+                if self.archive:
+                    archive_finished = await self.archive.finish(
+                        28 - (time.monotonic() - started_at)
+                    )
                 self._closed = True
                 if self.watcher:
                     self.watcher.cancel()
@@ -389,6 +424,11 @@ class PrivateTranslation:
                         "provider_finished": complete,
                         "consumer_finished": not self.failed,
                         **self.usage,
+                        **(
+                            {"archive_finished": archive_finished}
+                            if self.archive
+                            else {}
+                        ),
                     },
                 )
 

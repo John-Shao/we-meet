@@ -10,10 +10,12 @@ export interface TranslationOptions {
   target: 'zh' | 'en'
   mode: 'simultaneous' | 'push_to_talk'
   audio: boolean
+  save_translations?: boolean
 }
 export interface PrivateTranslationState {
   visible: boolean
   available: boolean
+  archiveAvailable?: boolean
   current?: TranslationRun | null
   canStart: boolean
   ownConnection: boolean

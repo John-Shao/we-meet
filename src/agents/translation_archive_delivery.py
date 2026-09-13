@@ -20,13 +20,19 @@ ATTEMPTS = 3
 class ArchiveDelivery:
     """Only stable confirmed items may retry; microphone audio is never replayed."""
 
-    def __init__(self, reporter, record_id, target):
+    def __init__(self, reporter, record_id, target, *, reverse_target=None):
         """Freeze the validated backend, record, channel and worker identity."""
         self.reporter = reporter
         self.record_id = _uuid(record_id)
         if target not in {"zh", "en"}:
             raise ValueError("Invalid archive target")
         self.target = target
+        self.targets = {"forward": target}
+        if reverse_target is not None:
+            if reverse_target not in {"zh", "en"} or reverse_target == target:
+                raise ValueError("Invalid reverse archive target")
+            self.targets["reverse"] = reverse_target
+        self.identity_key = "run_id" if "run_id" in reporter.identity else "channel_id"
         self.endpoint = reporter.endpoint.removesuffix("control/") + "segments/"
         self.queue = asyncio.Queue(maxsize=MAX_PENDING)
         self.queued_bytes = 0
@@ -38,16 +44,19 @@ class ArchiveDelivery:
         if self.task is None:
             self.task = asyncio.create_task(self.run())
 
-    def enqueue(self, source, event):
+    def enqueue(self, source, event, *, direction="forward"):
         """Never block translated audio on a slow archive service."""
         if self.failed or self.closing:
             return False
         if event.get("type") != "target_final":
             return False
+        if direction not in self.targets:
+            self.failed = True
+            return False
         payload = {
             "source_participation_id": source["participation_id"],
             "source_participant_sid": source["participant_sid"],
-            "direction": "forward",
+            "direction": direction,
             "response_id": event["response_id"],
             "item_id": event["item_id"],
             "text": event["text"],
@@ -79,7 +88,7 @@ class ArchiveDelivery:
             return False
         _uuid(result.get("id"))
         return (
-            result.get("channel_id") == self.reporter.identity["channel_id"]
+            result.get(self.identity_key) == self.reporter.identity[self.identity_key]
             and type(result.get("generation")) is int
             and result["generation"] == self.reporter.identity["generation"]
             and result.get("record_id") == self.record_id
@@ -93,7 +102,10 @@ class ArchiveDelivery:
         """Reconcile the same hash/identity after ambiguous HTTP failure only."""
         digest = hashlib.sha256(
             json.dumps(
-                {**payload, "target": self.target},
+                {
+                    **payload,
+                    "target": self.targets[payload.get("direction", "forward")],
+                },
                 sort_keys=True,
                 ensure_ascii=False,
                 separators=(",", ":"),

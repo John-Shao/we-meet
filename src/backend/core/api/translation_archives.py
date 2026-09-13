@@ -123,6 +123,8 @@ class RecordTranslationArchivesView(NoStore):
             {
                 "id": str(row.pk),
                 "source_kind": row.source_kind,
+                "mode": row.configuration.get("mode", "simultaneous"),
+                "source": row.configuration.get("source"),
                 "generation": row.generation,
                 "target": row.configuration["target"],
                 "status": row.status,
@@ -173,5 +175,8 @@ class RecordTranslationSegmentsView(NoStore):
             archive_id=str(archive.pk),
             archive_status=archive.status,
             target=archive.configuration["target"],
+            source_kind=archive.source_kind,
+            mode=archive.configuration.get("mode", "simultaneous"),
+            source=archive.configuration.get("source"),
         )
         return response

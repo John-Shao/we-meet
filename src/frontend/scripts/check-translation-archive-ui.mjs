@@ -2,6 +2,10 @@
 import assert from 'node:assert/strict'
 import { chromium } from '@playwright/test'
 const origin = process.env.CAPTURE_TEST_ORIGIN || 'http://127.0.0.1:3187'
+const privateArchive = process.env.PRIVATE_TRANSLATION_ARCHIVE === '1'
+const archiveInfo = privateArchive ? { source_kind: 'private', mode: 'push_to_talk', source: 'zh' } : { source_kind: 'channel' }
+const lastText = privateArchive ? '请将关键决策和行动项关联到原始会议记录。' : 'Please keep the decisions and action items connected to the original meeting notes.'
+const screenshotName = privateArchive ? 'private-translation-archive' : 'translation-archive'
 const browser = await chromium.launch({ headless: true })
 let denied = false
 try {
@@ -12,11 +16,11 @@ try {
     assert.ok(route.request().url().includes('/meeting-records/record/translation-'))
     if (denied) return route.fulfill({ status: 403, json: {} })
     if (route.request().url().includes('translation-archives/')) return route.fulfill({ json: {
-      results: [{ id: 'archive', target: 'en', generation: 1, status: 'incomplete', segment_count: 2, created_at: '2026-09-13T00:00:00Z' }], next_cursor: null,
+      results: [{ ...archiveInfo, id: 'archive', target: 'en', generation: 1, status: 'incomplete', segment_count: 2, created_at: '2026-09-13T00:00:00Z' }], next_cursor: null,
     } })
-    return route.fulfill({ json: { archive_id: 'archive', archive_status: 'incomplete', target: 'en', next_cursor: null, results: [
+    return route.fulfill({ json: { ...archiveInfo, archive_id: 'archive', archive_status: 'incomplete', target: 'en', next_cursor: null, results: [
       { id: 'one', sequence: 1, target: 'en', text: 'We will finish the interface review this week. The release scope will be confirmed after the test results are available.', speaker_label: '产品负责人', received_at: '2026-09-13T00:00:10Z', timing_basis: 'delivery', original_id: null },
-      { id: 'two', sequence: 2, target: 'en', text: 'Please keep the decisions and action items connected to the original meeting notes.', speaker_label: '设计负责人', received_at: '2026-09-13T00:00:20Z', timing_basis: 'delivery', original_id: null },
+      { id: 'two', sequence: 2, target: privateArchive ? 'zh' : 'en', text: lastText, speaker_label: '设计负责人', received_at: '2026-09-13T00:00:20Z', timing_basis: 'delivery', original_id: null },
     ] } })
   })
   const page = await context.newPage(), errors = []
@@ -39,14 +43,15 @@ try {
   })
   await page.getByRole('button', { name: '查看英语第 1 次译文', exact: true }).click()
   await page.getByText('部分译文未能确认保存，以下仅展示已保存内容。', { exact: true }).waitFor()
-  await page.screenshot({ path: 'test-results/translation-archive-desktop.png', fullPage: true })
+  if (privateArchive) await page.getByText('私人译文，仅你可见', { exact: true }).waitFor()
+  await page.screenshot({ path: `test-results/${screenshotName}-desktop.png`, fullPage: true })
   await page.setViewportSize({ width: 390, height: 844 })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
-  await page.screenshot({ path: 'test-results/translation-archive-mobile.png', fullPage: true })
+  await page.screenshot({ path: `test-results/${screenshotName}-mobile.png`, fullPage: true })
   denied = true
   await page.evaluate(() => window.translationArchiveClient.invalidateQueries())
   await page.getByRole('alert').waitFor()
-  assert.equal(await page.getByText('Please keep the decisions and action items connected to the original meeting notes.', { exact: true }).count(), 0)
+  assert.equal(await page.getByText(lastText, { exact: true }).count(), 0)
   assert.deepEqual(errors, [])
   console.log('Translation archive UI passed: explicit selection, partial status, delivery-time explanation, desktop/mobile and permission revocation; only intercepted GETs.')
 } finally { await browser.close() }

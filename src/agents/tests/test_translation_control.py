@@ -28,6 +28,20 @@ def metadata():
 class ReporterTests(unittest.IsolatedAsyncioTestCase):
     """Requests must retain exact identity after ambiguous transport failure."""
 
+    def test_archive_transport_uses_only_a_validated_backend_origin(self):
+        """Do not forward worker credentials to a path, userinfo or query override."""
+        for origin in (
+            "file:///tmp/backend",
+            "https://user@backend",
+            "https://backend/other",
+            "https://backend?key=value",
+            "https://backend#fragment",
+        ):
+            with self.assertRaises(ValueError):
+                TranslationReporter(
+                    "room", metadata(), base_url=origin, token=TEST_TOKEN
+                )
+
     async def test_claim_retry_identity_and_finish_receipt(self):
         """Retry the same worker rather than create another provider generation."""
         reporter = TranslationReporter(
@@ -159,6 +173,55 @@ class InputTests(unittest.IsolatedAsyncioTestCase):
 
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
     """Inspect privacy and cleanup boundaries using a mocked LiveKit room."""
+
+    async def test_private_archive_retains_only_allowed_confirmed_direction(self):
+        """Preview and revoked final text never reach durable storage."""
+        runtime, _ = self.runtime()
+        runtime.archive = SimpleNamespace(
+            enqueue=mock.Mock(return_value=False),
+            finish=mock.AsyncMock(return_value=False),
+        )
+        await runtime.consume(
+            "reverse", {"type": "target_candidate", "text": "preview"}
+        )
+        runtime.archive.enqueue.assert_not_called()
+        event = {"type": "target_final", "text": "confirmed"}
+        await runtime.consume("reverse", event)
+        runtime.archive.enqueue.assert_called_once_with(
+            runtime.archive_source, event, direction="reverse"
+        )
+        self.assertFalse(runtime.failed)
+        runtime.halt(failed=True)
+        await runtime.consume("forward", event)
+        self.assertEqual(runtime.archive.enqueue.call_count, 1)
+
+    async def test_private_archive_finish_is_independent_of_audio_success(self):
+        """The finish receipt distinguishes unavailable storage from live delivery."""
+        runtime, _ = self.runtime()
+        runtime.archive = SimpleNamespace(finish=mock.AsyncMock(return_value=False))
+        runtime.channels = {
+            "forward": SimpleNamespace(
+                finished=True, finish=mock.AsyncMock(), close=mock.AsyncMock()
+            )
+        }
+        await runtime.close()
+        receipt = runtime.reporter.command.call_args.kwargs["receipt"]
+        self.assertTrue(receipt["provider_finished"])
+        self.assertTrue(receipt["consumer_finished"])
+        self.assertFalse(receipt["archive_finished"])
+
+    async def test_missing_usage_stays_unknown_across_later_responses(self):
+        """A partial vendor count cannot be presented as a complete run total."""
+        runtime, _ = self.runtime()
+        for usage in (
+            {"input_tokens": 3, "output_tokens": 5},
+            {"input_tokens": 4},
+            {"input_tokens": 2, "output_tokens": 6},
+        ):
+            await runtime.consume(
+                "forward", {"type": "response_completed", "usage": usage}
+            )
+        self.assertEqual(runtime.usage, {"input_tokens": 9, "output_tokens": None})
 
     def runtime(self):
         """Build a claimed private connection with no provider or device access."""

@@ -27,6 +27,7 @@ import { useConnectedMeetingSid } from '../useConnectedMeetingSid'
 
 interface Status {
   available: boolean
+  archive_available?: boolean
   current: TranslationRun | null
   sources: { id: string; participant_sid: string }[]
 }
@@ -60,7 +61,7 @@ export const PrivateTranslationProvider = ({
           room_id: roomId!,
           livekit_room_sid: sid!,
         })}`,
-        { signal }
+        { signal, cache: 'no-store' }
       ),
     enabled: !!viewerId && !!roomId && !!sid,
     retry: false,
@@ -334,6 +335,7 @@ export const PrivateTranslationProvider = ({
           ![401, 403, 404].includes(status.error?.statusCode ?? 0) &&
           (status.data.available || !!current),
         available: status.data?.available ?? false,
+        archiveAvailable: status.data?.archive_available ?? false,
         current,
         ownConnection,
         canStart: !!source && !status.isError,

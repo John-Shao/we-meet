@@ -140,6 +140,21 @@ beforeEach(() => {
 afterEach(() => client?.clear())
 
 describe('Persistent private translation session', () => {
+  it('freezes the explicit archive choice in the original start intent', async () => {
+    show()
+    await waitFor(() => expect(latest.canStart).toBe(true))
+    await act(() =>
+      latest.change({ ...run().configuration, save_translations: true })
+    )
+    expect(JSON.parse(posts()[0][1].body)).toMatchObject({
+      operation: 'start',
+      save_translations: true,
+    })
+    await act(() => latest.change())
+    expect(JSON.parse(posts()[1][1].body)).not.toHaveProperty(
+      'save_translations'
+    )
+  })
   it('starts explicitly and silences audio before stop acknowledgement', async () => {
     show()
     await waitFor(() => expect(latest.canStart).toBe(true))
