@@ -135,3 +135,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 62: [independent realtime, quick and final summary backend](meeting-ai-phase3-batch42-2026-09-13.md). New opt-in MEETING_CAPTURE_STAGED_SUMMARY_ENABLED; existing explicit automation consent required. No migration; isolated regressions passed.
 
 - Batch 63: [live summary Web controls and end-of-recording transition](meeting-ai-phase3-batch43-2026-09-13.md). Explicit consent, exact draft citations and in-progress ASR status; 29 Web/26 backend tests plus isolated browser flows passed. No migration.
+
+- Batch 64: [Android canonical record, staged summary and citation API](meeting-ai-phase3-batch44-2026-09-13.md). Implemented in we-meet-android/main; 12 JVM tests, Debug build and design guard passed. Native screens and capture lifecycle continue next.
