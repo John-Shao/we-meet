@@ -1285,6 +1285,7 @@ class CaptureTranscriptionJob(BaseModel):
     request_hash = models.CharField(max_length=64)
     generation = models.PositiveIntegerField()
     inputs = models.JSONField()
+    live_manifest = models.JSONField(null=True, blank=True)
     configuration = models.JSONField()
     status = models.CharField(max_length=16, default="queued")
     worker_id = models.UUIDField(null=True, blank=True)
@@ -1315,8 +1316,34 @@ class CaptureTranscriptionJob(BaseModel):
         if not self._state.adding:
             frozen = ("capture_id", "requested_by_id", "key", "request_hash", "generation", "inputs", "configuration")
             previous = type(self).objects.get(pk=self.pk)
+            if previous.live_manifest is not None and previous.live_manifest != self.live_manifest:
+                raise ValidationError("Closed live transcription input is immutable.")
             if any(getattr(previous, name) != getattr(self, name) for name in frozen):
                 raise ValidationError("Transcription source and intent are immutable.")
+
+
+class CaptureTranscriptionInput(BaseModel):
+    """Append-only verified audio identity offered to one live ASR attempt."""
+
+    job = models.ForeignKey(CaptureTranscriptionJob, on_delete=models.CASCADE, related_name="live_inputs")
+    chunk = models.ForeignKey(CaptureAudioChunk, on_delete=models.RESTRICT)
+    index = models.PositiveIntegerField()
+    snapshot = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["job", "index"], name="unique_live_asr_input_index"),
+            models.UniqueConstraint(fields=["job", "chunk"], name="unique_live_asr_input_chunk"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.job.capture_id != self.chunk.capture_id:
+            raise ValidationError("Live ASR input belongs to another capture.")
+        if not self._state.adding:
+            previous = type(self).objects.get(pk=self.pk)
+            if any(getattr(previous, key) != getattr(self, key) for key in ("job_id", "chunk_id", "index", "snapshot")):
+                raise ValidationError("Offered live ASR input is immutable.")
 
 
 class MeetingSpeaker(BaseModel):

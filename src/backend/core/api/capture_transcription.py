@@ -46,6 +46,7 @@ class RequestSerializer(StrictSerializer):
 
     expected_job_id = serializers.UUIDField(allow_null=True)
     allow_incomplete = serializers.BooleanField(default=False)
+    live = serializers.BooleanField(required=False)
 
 
 class RequestThrottle(UserRateThrottle):
@@ -96,27 +97,51 @@ class CancelTranscriptionView(SafeErrors, CaptureAudioView):
         return Response(service.serialize(service.cancel(job.pk, request.user)))
 
 
+class LiveTranscriptionPreviewView(SafeErrors, CaptureAudioView):
+    """Never expose live drafts through the shared formal-original endpoint."""
+
+    def get(self, request, capture_id, job_id):
+        capture = self.capture(request, capture_id)
+        if (
+            set(request.query_params) - {"after_sequence"}
+            or len(request.query_params.getlist("after_sequence")) > 1
+        ):
+            return Response(status=400)
+        after = serializers.IntegerField(
+            min_value=0, max_value=service.MAX_FINALS
+        ).run_validation(request.query_params.get("after_sequence", 0))
+        return Response(service.preview(capture.pk, job_id, request.user, after))
+
+
 class ClaimSerializer(StrictSerializer):
     """A process identity can claim only compatible model/region work."""
 
     worker_id = serializers.UUIDField()
     model = serializers.CharField(max_length=128)
     region = serializers.ChoiceField(choices=["cn-beijing", "ap-southeast-1"])
+    live = serializers.BooleanField(default=False)
 
 
 class ControlSerializer(StrictSerializer):
     """Audio acknowledgements refer to a fixed 1-based input index and checksum."""
 
     worker_id = serializers.UUIDField()
-    operation = serializers.ChoiceField(choices=["begin", "heartbeat", "ack_input"])
+    operation = serializers.ChoiceField(
+        choices=["begin", "heartbeat", "ack_input", "poll_inputs"]
+    )
     index = serializers.IntegerField(min_value=1, max_value=4320, required=False)
     checksum = serializers.RegexField(r"^[a-f0-9]{64}$", required=False)
+    after_index = serializers.IntegerField(min_value=0, max_value=4320, required=False)
 
     def validate(self, attrs):
         super().validate(attrs)
-        fields = {"index", "checksum"} & set(attrs)
+        fields = {"index", "checksum", "after_index"} & set(attrs)
         if fields != (
-            {"index", "checksum"} if attrs["operation"] == "ack_input" else set()
+            {"index", "checksum"}
+            if attrs["operation"] == "ack_input"
+            else {"after_index"}
+            if attrs["operation"] == "poll_inputs"
+            else set()
         ):
             raise serializers.ValidationError("Invalid operation fields.")
         return attrs

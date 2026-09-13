@@ -275,3 +275,6 @@ Batch 57: owner-only private translation archive backend and direction-scoped re
 
 
 Batch 58: private translation Agent delivery, Web opt-in, bidirectional archive reader and unknown-usage handling completed. See [phase 3 batch 38](meeting-ai-phase3-batch38-2026-09-13.md). Agent 68, frontend 19 and backend 19 tests passed, with browser/build checks. Independent recording and final review remain pending.
+
+
+Batch 59: independent live-ASR backend, append-only input offers and owner-only confirmed-text preview completed. See [phase 3 batch 39](meeting-ai-phase3-batch39-2026-09-13.md). 43 focused/regression tests passed; migration 0173 applied only in isolated databases. Live flag defaults off; Agent/Web follow.

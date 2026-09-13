@@ -46,6 +46,7 @@ from core.api.capture_audio import (
 from core.api.capture_transcription import (
     CancelTranscriptionView,
     CaptureTranscriptionView,
+    LiveTranscriptionPreviewView,
     ClaimTranscriptionView,
     ControlTranscriptionView,
     FinishTranscriptionView,
@@ -377,6 +378,7 @@ urlpatterns = [
                 path("meeting-records/<uuid:record_id>/questions/<uuid:question_id>/", RecordQuestionView.as_view(), name="record-question-detail"),
                 path("capture-sessions/<uuid:capture_id>/audio/", CaptureAudioView.as_view(), name="capture-audio"),
                 path("capture-sessions/<uuid:capture_id>/transcription/", CaptureTranscriptionView.as_view()),
+                path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/preview/", LiveTranscriptionPreviewView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/cancel/", CancelTranscriptionView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/audio/upload/", CaptureAudioUploadView.as_view(), name="capture-audio-upload"),
                 path("capture-sessions/<uuid:capture_id>/audio/seal/", CaptureAudioSealView.as_view(), name="capture-audio-seal"),

@@ -3,6 +3,7 @@
 from django.conf import settings
 
 from core import models
+from core.services.capture_live_inputs import inputs
 from core.services.meeting_captures import digest
 from core.services.meeting_records import RecordConflict
 
@@ -53,7 +54,8 @@ def source(record):
                 "language": row.language,
             }
         )
-    audio_status = job.inputs["manifest"]["outcome"]
+    source_inputs = inputs(job)
+    audio_status = source_inputs["manifest"]["outcome"]
     delivery = {
         "status": "complete" if audio_status == "saved" else "incomplete",
         "capture_transcriptions": [
@@ -62,7 +64,7 @@ def source(record):
                 "capture_id": str(capture.pk),
                 "generation": job.generation,
                 "audio_status": audio_status,
-                "input_count": len(job.inputs["chunks"]),
+                "input_count": len(source_inputs["chunks"]),
                 "acknowledged_inputs": job.acknowledged_inputs,
                 "final_count": job.final_sequence,
                 "asr_status": "finished",

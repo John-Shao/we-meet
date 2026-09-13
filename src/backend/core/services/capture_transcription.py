@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from core import models
 from core.services import ai_usage
+from core.services import capture_live_inputs as live_inputs
 from core.services.capture_audio import serialize_chunk, serialize_manifest
 from core.services.meeting_captures import CaptureDenied, authorize, digest
 from core.services.meeting_records import RecordConflict
@@ -59,7 +60,14 @@ def _expire(job):
         return job
     now = timezone.now()
     try:
-        if not job.requested_by_id or not available():
+        if (
+            not job.requested_by_id
+            or not available()
+            or (
+                live_inputs.is_live(job)
+                and not settings.MEETING_CAPTURE_LIVE_ASR_ENABLED
+            )
+        ):
             raise CaptureDenied
         owned(job.capture, job.requested_by)
     except CaptureDenied:
@@ -76,16 +84,21 @@ def _expire(job):
 
 def serialize(job):
     """Public progress contains neither worker credentials nor unpublished text."""
+    live = live_inputs.is_live(job)
     return {
         "id": str(job.pk),
         "generation": job.generation,
         "status": job.status,
         "created_at": job.created_at.isoformat(),
         "error_code": job.error_code,
-        "input_count": len(job.inputs["chunks"]),
+        "input_count": job.live_inputs.count() if live else len(job.inputs["chunks"]),
         "acknowledged_inputs": job.acknowledged_inputs,
         "final_count": job.final_sequence,
-        "audio_status": job.inputs["manifest"]["outcome"],
+        "audio_status": (job.live_manifest or {"outcome": "uploading"})["outcome"]
+        if live
+        else job.inputs["manifest"]["outcome"],
+        "mode": "live" if live else "sealed",
+        "input_closed": not live or job.live_manifest is not None,
         "coverage_status": "unverified",
     }
 
@@ -109,9 +122,21 @@ def prepare(capture_id, user, key, payload):
     if not available():
         raise CaptureDenied
     manifest = getattr(capture, "audio_manifest", None)
-    if capture.status != "stopped" or not manifest:
+    live = payload.get("live", False)
+    if live and (
+        not settings.MEETING_CAPTURE_LIVE_ASR_ENABLED
+        or capture.status not in {"recording", "paused", "interrupted"}
+        or manifest is not None
+        or capture.record.retention_mode != "media"
+    ):
+        raise RecordConflict("Live transcription requires an open audio capture.")
+    if not live and (capture.status != "stopped" or not manifest):
         raise RecordConflict("Finish and seal audio before requesting transcription.")
-    if manifest.outcome == "incomplete" and not payload["allow_incomplete"]:
+    if (
+        not live
+        and manifest.outcome == "incomplete"
+        and not payload["allow_incomplete"]
+    ):
         raise RecordConflict(
             "Explicitly accept incomplete audio before transcribing it."
         )
@@ -129,11 +154,15 @@ def prepare(capture_id, user, key, payload):
             raise RecordConflict(
                 "Only one active transcription per requester is allowed."
             )
-    chunks = [
-        serialize_chunk(chunk)
-        for chunk in capture.audio_chunks.filter(stored=True).order_by("sequence")
-    ]
-    if not chunks:
+    chunks = (
+        []
+        if live
+        else [
+            serialize_chunk(chunk)
+            for chunk in capture.audio_chunks.filter(stored=True).order_by("sequence")
+        ]
+    )
+    if not live and not chunks:
         raise RecordConflict("No saved audio is available.")
     # Each disconnected audio run needs a separate provider task; bound this explicitly.
     runs = 1 + sum(
@@ -150,13 +179,16 @@ def prepare(capture_id, user, key, payload):
         request_hash=request_hash,
         generation=latest.generation + 1 if latest else 1,
         inputs={
-            "manifest": serialize_manifest(manifest),
+            "manifest": {"outcome": "uploading"}
+            if live
+            else serialize_manifest(manifest),
             "chunks": chunks,
             "runs": runs,
         },
         configuration={
             "model": settings.QWEN_ASR_MODEL,
             "region": settings.QWEN_ASR_REGION,
+            **({"mode": "live"} if live else {}),
         },
         deadline=timezone.now() + timedelta(minutes=5),
     )
@@ -175,14 +207,50 @@ def state(capture_id, user):
     ]
     return {
         "available": available(),
+        "live_available": available() and settings.MEETING_CAPTURE_LIVE_ASR_ENABLED,
         "summary_available": bool(
             settings.MEETING_CAPTURE_SUMMARY_ENABLED
             and settings.MEETING_VERSIONED_SUMMARY_ENABLED
-        ) or capture.record.summary_versions.exists(),
+        )
+        or capture.record.summary_versions.exists(),
         "active_job_id": str(capture.active_transcription_id)
         if capture.active_transcription_id
         else None,
         "results": [serialize(job) for job in jobs],
+    }
+
+
+@transaction.atomic
+def preview(capture_id, job_id, user, after):
+    """Owner-only live confirmed text, explicitly separate from published originals."""
+    job = _locked(job_id)
+    owned(job.capture, user)
+    if job.capture_id != capture_id or not live_inputs.is_live(job):
+        raise CaptureDenied
+    _expire(job)
+    rows = list(
+        job.originals.filter(source_sequence__gt=after).order_by("source_sequence")[:51]
+    )
+    result = [
+        {
+            "id": str(row.pk),
+            "sequence": row.source_sequence,
+            "start_ms": row.start_ms,
+            "end_ms": row.end_ms,
+            "text": row.text,
+            "language": row.language,
+        }
+        for row in rows[:50]
+    ]
+    owned(job.capture, user)
+    return {
+        "job_id": str(job.pk),
+        "status": job.status,
+        "results": result,
+        "next_after_sequence": rows[49].source_sequence if len(rows) > 50 else None,
+        "last_sequence": job.final_sequence,
+        "published": job.capture.active_transcription_id == job.pk,
+        "coverage_status": "unverified",
     }
 
 
@@ -213,7 +281,7 @@ def worker_state(job, *, include_inputs=True):
 
 
 @transaction.atomic
-def claim(worker_id, model, region):
+def claim(worker_id, model, region, live=False):
     """A worker identity is unique to one process; expired jobs are never reclaimed."""
     existing = models.CaptureTranscriptionJob.objects.filter(
         worker_id=worker_id, status="running"
@@ -221,18 +289,28 @@ def claim(worker_id, model, region):
     if existing:
         job = _expire(_locked(existing.pk))
         return worker_state(job) if job.status == "running" else None
-    if not available():
+    if not available() or (live and not settings.MEETING_CAPTURE_LIVE_ASR_ENABLED):
         return None
-    for identity in models.CaptureTranscriptionJob.objects.filter(
+    candidates = models.CaptureTranscriptionJob.objects.filter(
         status="queued", configuration__model=model, configuration__region=region
-    ).order_by("created_at", "id")[:20]:
+    )
+    candidates = (
+        candidates.filter(configuration__mode="live")
+        if live
+        else candidates.filter(
+            Q(configuration__mode__isnull=True) | ~Q(configuration__mode="live")
+        )
+    )
+    for identity in candidates.order_by("created_at", "id")[:20]:
         job = _expire(_locked(identity.pk))
         if job.status != "queued":
             continue
         duration = sum(chunk["duration_ms"] for chunk in job.inputs["chunks"])
         job.status, job.worker_id = "running", worker_id
         job.lease_until = timezone.now() + timedelta(seconds=LEASE_SECONDS)
-        job.deadline = timezone.now() + timedelta(seconds=duration / 500 + 300)
+        job.deadline = timezone.now() + timedelta(
+            seconds=43500 if live else duration / 500 + 300
+        )
         job.save(
             update_fields=[
                 "status",
@@ -261,27 +339,34 @@ def control(job_id, worker_id, operation, payload):
     """Begin is a one-shot billable gate. Lost begin responses must not trigger replay."""
     job = _locked(job_id)
     _require(job, worker_id, begun=operation != "begin")
+    feed = None
     if operation == "begin":
         if job.started_at:
             raise RecordConflict("Provider execution has already begun.")
         job.started_at = timezone.now()
     elif operation == "ack_input":
+        source = live_inputs.inputs(job)
         index = payload["index"]
         if (
-            not 1 <= index <= len(job.inputs["chunks"])
-            or job.inputs["chunks"][index - 1]["checksum"] != payload["checksum"]
+            not 1 <= index <= len(source["chunks"])
+            or source["chunks"][index - 1]["checksum"] != payload["checksum"]
         ):
             raise RecordConflict("Audio input receipt changed.")
         if index > job.acknowledged_inputs + 1:
             raise RecordConflict("Audio input acknowledgement is not contiguous.")
         job.acknowledged_inputs = max(job.acknowledged_inputs, index)
+    elif operation == "poll_inputs":
+        feed = live_inputs.poll(job, payload["after_index"])
     elif operation != "heartbeat":
         raise RecordConflict("Unknown transcription control.")
     job.lease_until = timezone.now() + timedelta(seconds=LEASE_SECONDS)
     job.save(
         update_fields=["started_at", "acknowledged_inputs", "lease_until", "updated_at"]
     )
-    return worker_state(job, include_inputs=False)
+    return {
+        **worker_state(job, include_inputs=False),
+        **({"feed": feed} if feed is not None else {}),
+    }
 
 
 @transaction.atomic
@@ -289,9 +374,10 @@ def input_chunk(job_id, worker_id, index):
     """Authorize each input identity before storage and again after download."""
     job = _locked(job_id)
     _require(job, worker_id, begun=False)
-    if not 1 <= index <= len(job.inputs["chunks"]):
+    source_inputs = live_inputs.inputs(job)
+    if not 1 <= index <= len(source_inputs["chunks"]):
         raise RecordConflict("Input index is outside the sealed manifest.")
-    source = job.inputs["chunks"][index - 1]
+    source = source_inputs["chunks"][index - 1]
     chunk = models.CaptureAudioChunk.objects.get(
         pk=source["id"], capture_id=job.capture_id, stored=True
     )
@@ -304,7 +390,7 @@ def _source_interval(job, start, end):
     """A result may span adjacent chunks, but never invent time across missing audio."""
     runs = []
     previous = None
-    for chunk in job.inputs["chunks"]:
+    for chunk in live_inputs.inputs(job)["chunks"]:
         if (
             previous
             and previous["sequence"] + 1 == chunk["sequence"]
@@ -388,15 +474,17 @@ def finish(job_id, worker_id, payload):
     if job.status == "queued":
         raise RecordConflict("Job was never claimed.")
     observations = payload["tasks"]
+    source = live_inputs.inputs(job)
     success = bool(
         job.status == "running"
         and job.started_at
         and payload["provider_finished"]
-        and len(observations) == job.inputs["runs"]
+        and (not live_inputs.is_live(job) or job.live_manifest is not None)
+        and len(observations) == source["runs"]
         and all(item["finished"] for item in observations)
         and sum(item["input_samples"] for item in observations)
-        == sum(chunk["duration_ms"] * 16 for chunk in job.inputs["chunks"])
-        and job.acknowledged_inputs == len(job.inputs["chunks"])
+        == sum(chunk["duration_ms"] * 16 for chunk in source["chunks"])
+        and job.acknowledged_inputs == len(source["chunks"])
         and payload["final_sequence"] == job.final_sequence
     )
     if job.status == "running":
