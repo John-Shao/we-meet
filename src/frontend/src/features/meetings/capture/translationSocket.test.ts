@@ -161,6 +161,30 @@ describe('recording translation socket', () => {
     f.message({ type: 'finished', complete: true, status: 'stopped' })
     expect(f.client.state.phase).toBe('stopped')
   })
+  it('does not unlock a later speech turn on duplicate completion', () => {
+    const f = fixture(true)
+    f.emptyTail()
+    f.ready()
+    const completed = {
+      type: 'response_completed',
+      direction: 'forward',
+      response_id: 'old',
+    }
+    f.client.begin('forward')
+    f.message({ type: 'ack', sequence: 1 })
+    f.client.endTurn()
+    f.message({ type: 'ack', sequence: 2 })
+    f.message(completed)
+    expect(f.client.state.phase).toBe('ready')
+    f.client.begin('forward')
+    f.message({ type: 'ack', sequence: 3 })
+    f.client.endTurn()
+    f.message({ type: 'ack', sequence: 4 })
+    f.message(completed)
+    expect(f.client.state.phase).toBe('awaiting')
+    f.message({ ...completed, response_id: 'new' })
+    expect(f.client.state.phase).toBe('ready')
+  })
   it.each(['generation', 'configuration', 'ack', 'consent'])(
     'fails closed on invalid %s',
     (kind) => {

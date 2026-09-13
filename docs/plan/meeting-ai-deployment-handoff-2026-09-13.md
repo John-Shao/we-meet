@@ -286,3 +286,5 @@ Web and Android d3d4d332 can drain individual translated speech turns on the sam
 - Batch 130: exact owner-only saved recording translation UI, bounded validated pagination and private-content lifecycle; 20 Web scenarios and TypeScript/lint/build pass. Android, deployment wiring and final review follow. See [batch 130](meeting-ai-phase3-batch110-2026-09-13.md).
 
 - Batch 131: Android strict recording translation protocol and encrypted metadata recovery (0eeb4084), plus Web immutable source revision validation; 12 JVM, 5 device and 8 Web scenarios pass. Native transport/UI and final review follow. See [batch 131](meeting-ai-phase3-batch111-2026-09-13.md).
+
+- Batch 132: Android same-microphone WS translation (211834a1), plus cross-client completion deduplication; 22 JVM and 13 Web scenarios pass, including a real loopback WebSocket. Native playback/UI and final review follow. See [batch 132](meeting-ai-phase3-batch112-2026-09-13.md).

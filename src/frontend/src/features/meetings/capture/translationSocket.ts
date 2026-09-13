@@ -66,6 +66,7 @@ export class CaptureTranslationSocket {
   private sequence = 0
   private pending = new Map<number, { audio: boolean; at: number }>()
   private finalIds = new Set<string>()
+  private completedResponses = new Set<string>()
   private afterDrain?: 'end' | 'finish'
   private endSequence?: number
   private deadline = Date.now() + 45000
@@ -212,6 +213,11 @@ export class CaptureTranslationSocket {
     if (value.type === 'response_completed') {
       if (!identity(value.response_id))
         throw new Error('invalid_translation_response')
+      const responseKey = JSON.stringify([direction, value.response_id])
+      if (this.completedResponses.has(responseKey)) return
+      if (this.completedResponses.size >= 20000)
+        throw new Error('translation_response_limit')
+      this.completedResponses.add(responseKey)
       if (
         this.state.phase === 'awaiting' &&
         this.state.direction === direction
@@ -424,6 +430,7 @@ export class CaptureTranslationSocket {
     }
     this.pending.clear()
     this.finalIds.clear()
+    this.completedResponses.clear()
     this.publish({
       phase,
       candidate: undefined,
