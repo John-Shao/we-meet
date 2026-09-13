@@ -374,6 +374,13 @@ class MeetingSessionService:
         """Bind or correct a Recording using an active session or egress SID."""
 
         artifact_at = _aware(artifact_at) or recording.created_at or timezone.now()
+        if models.CloudRecordingCommand.objects.filter(recording=recording).exists():
+            expected = recording.session
+            if expected is None or livekit_room_sid != expected.livekit_room_sid:
+                raise MeetingSessionProjectionError(
+                    "A cloud recording cannot move to another meeting occurrence"
+                )
+            return expected
         if recording.session_id is not None and not livekit_room_sid:
             return recording.session
 

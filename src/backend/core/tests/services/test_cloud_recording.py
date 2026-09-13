@@ -4,13 +4,15 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from threading import Barrier
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from django.core.exceptions import ValidationError
 from django.db import close_old_connections
 from django.utils import timezone
 
 import pytest
+from livekit import api
 from rest_framework.test import APIClient
 
 from core import models
@@ -20,8 +22,14 @@ from core.factories import (
     RoomFactory,
     UserFactory,
 )
+from core.recording.worker.factories import WorkerServiceConfig
+from core.services.cloud_egress import CloudEgressClient
 from core.services.cloud_recording import control
 from core.services.meeting_records import RecordConflict
+from core.services.meeting_sessions import (
+    MeetingSessionProjectionError,
+    MeetingSessionService,
+)
 from core.tests.services.test_meeting_records import client_for
 
 pytestmark = pytest.mark.django_db
@@ -207,6 +215,25 @@ def test_control_requires_explicit_key_and_last_observed_recording():
     assert not models.Recording.objects.exists()
 
 
+def test_cloud_egress_webhook_cannot_rebind_recording_to_another_occurrence():
+    user, session = meeting()
+    original = post(user, command_body(session)).json()["command"]
+    recording = models.Recording.objects.get(pk=original["result"]["id"])
+    service = MeetingSessionService()
+    for sid in (None, "RM_wrong"):
+        with pytest.raises(MeetingSessionProjectionError):
+            service.bind_recording(recording=recording, livekit_room_sid=sid)
+    assert (
+        service.bind_recording(
+            recording=recording, livekit_room_sid=session.livekit_room_sid
+        ).pk
+        == session.pk
+    )
+    recording.refresh_from_db()
+    assert recording.session_id == session.pk
+    assert models.MeetingSession.objects.count() == 1
+
+
 def command_body(session, *, operation="start", expected=None, key=None):
     return {
         **source(session),
@@ -214,6 +241,34 @@ def command_body(session, *, operation="start", expected=None, key=None):
         "operation": operation,
         "expected_recording_id": str(expected) if expected else None,
     }
+
+
+def test_preflight_resolves_lazy_session_before_entering_async_transport():
+    user, session = meeting()
+    original = post(user, command_body(session)).json()["command"]
+    recording = models.Recording.objects.get(pk=original["result"]["id"])
+    fake = SimpleNamespace(
+        room=SimpleNamespace(
+            list_rooms=AsyncMock(
+                return_value=api.ListRoomsResponse(
+                    rooms=[
+                        api.Room(
+                            name=str(recording.room_id), sid=session.livekit_room_sid
+                        )
+                    ]
+                )
+            )
+        ),
+        aclose=AsyncMock(),
+    )
+    client = CloudEgressClient(
+        WorkerServiceConfig("recordings", {}, {"bucket": "fixture"})
+    )
+    with patch(
+        "core.services.cloud_egress.utils.create_livekit_client", return_value=fake
+    ):
+        client.verify_source(recording)
+    fake.room.list_rooms.assert_awaited_once()
 
 
 def post(user, body):
