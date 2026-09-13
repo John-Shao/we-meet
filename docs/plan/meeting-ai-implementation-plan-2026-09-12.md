@@ -252,3 +252,5 @@ Latest implementation: [Batch 34: unified library queries](meeting-ai-phase3-bat
 - Batch 47: [summary-only sharing preview and grants](meeting-ai-phase3-batch27-2026-09-13.md). 13 tests passed; migration 0169 required. MEETING_SUMMARY_SHARING_ENABLED defaults off. Explicit record-summary grants do not send messages or grant originals/media/Docs access. Web confirmation is next.
 
 - Batch 48: [summary sharing and revocation UI](meeting-ai-phase3-batch28-2026-09-13.md). 7 new UI tests + 20 summary/notice regressions passed; native Chromium desktop/mobile and production build passed. Migration 0169 and sharing flag required. No real grants or messages. M3/M4 remain incomplete.
+
+- Batch 49: [shared interpretation channels and listener leases](meeting-ai-phase3-batch29-2026-09-13.md). 13 tests passed; migration 0170 required. MEETING_INTERPRETATION_ENABLED remains off and worker name empty. No dispatch/audio in this batch; worker lifecycle is next.

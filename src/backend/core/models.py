@@ -2080,6 +2080,76 @@ class MeetingTranslationCommand(BaseModel):
         return f"MeetingTranslationCommand({self.pk})"
 
 
+class MeetingInterpretationChannel(BaseModel):
+    """Shared target-language generation, separate from private translation runs."""
+
+    session = models.ForeignKey(MeetingSession, on_delete=models.CASCADE, related_name="interpretation_channels")
+    requested_by = models.ForeignKey(User, on_delete=models.PROTECT)
+    organization_id_snapshot = models.UUIDField(null=True, blank=True)
+    target = models.CharField(max_length=8)
+    generation = models.PositiveIntegerField()
+    configuration = models.JSONField()
+    state = models.CharField(max_length=16, default="prepared")
+    worker_id = models.UUIDField(null=True, blank=True)
+    heartbeat_at = models.DateTimeField(null=True, blank=True)
+    dispatched_at = models.DateTimeField(null=True, blank=True)
+    stop_requested_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+    finish_receipt = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["session", "target", "generation"], name="unique_interpretation_generation"),
+            models.UniqueConstraint(fields=["session", "target"], condition=models.Q(state__in=["prepared", "starting", "translating", "stopping"]), name="unique_live_interpretation_target"),
+        ]
+
+    def __str__(self):
+        return f"MeetingInterpretationChannel({self.pk}, {self.target}, {self.state})"
+
+    def clean(self):
+        super().clean()
+        if not self._state.adding:
+            original = type(self).objects.get(pk=self.pk)
+            if any(getattr(self, field) != getattr(original, field) for field in ["session_id", "requested_by_id", "organization_id_snapshot", "target", "generation", "configuration"]):
+                raise ValidationError("Interpretation channel source is immutable.")
+
+
+class MeetingInterpretationSubscription(BaseModel):
+    """A browser connection's expiring selection; reconnects cannot inherit it."""
+
+    participation = models.OneToOneField(MeetingParticipation, on_delete=models.CASCADE, related_name="interpretation_subscription")
+    channel = models.ForeignKey(MeetingInterpretationChannel, on_delete=models.CASCADE, related_name="subscriptions")
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    revision = models.PositiveIntegerField(default=1)
+    active = models.BooleanField(default=True)
+    expires_at = models.DateTimeField()
+
+    def __str__(self):
+        return f"MeetingInterpretationSubscription({self.pk}, {self.revision})"
+
+    def clean(self):
+        super().clean()
+        if self.participation.session_id != self.channel.session_id or self.participation.user_id != self.user_id:
+            raise ValidationError("Interpretation subscription connection mismatch.")
+
+
+class MeetingInterpretationCommand(BaseModel):
+    """Idempotent manager and listener commands never reapply a former choice."""
+
+    session = models.ForeignKey(MeetingSession, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    key = models.UUIDField()
+    payload = models.JSONField()
+    result = models.JSONField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "key"], name="unique_interpretation_command")]
+
+    def __str__(self):
+        return f"MeetingInterpretationCommand({self.pk})"
+
+
 class TranscriptReceipt(BaseModel):
     """Stable sequence receipt; deleting source text invalidates delivery proof."""
 

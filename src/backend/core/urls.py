@@ -89,6 +89,11 @@ from core.api.meeting_captures import (
     CaptureWriterGrantView,
     IngestRecordOriginalView,
 )
+from core.api.meeting_interpretation import (
+    InterpretationChannelsView,
+    InterpretationRenewalView,
+    InterpretationSubscriptionView,
+)
 from core.api.meeting_record_qa import RecordQuestionView
 from core.api.meeting_records import MeetingRecordViewSet
 from core.api.meeting_rooms import (
@@ -347,6 +352,9 @@ urlpatterns = [
                 path("meeting-records/<uuid:record_id>/human-summary/", SummaryReviewView.as_view(), name="human-summary"),
                 path("meeting-records/<uuid:record_id>/document-exports/", SummaryExportView.as_view(), name="summary-exports"),
                 path("meeting-records/<uuid:record_id>/summary-notifications/", SummaryNotificationsView.as_view(), name="summary-notifications"),
+                path("meeting-interpretation/channels/", InterpretationChannelsView.as_view(), name="interpretation-channels"),
+                path("meeting-interpretation/subscription/", InterpretationSubscriptionView.as_view(), name="interpretation-subscription"),
+                path("meeting-interpretation/renew/", InterpretationRenewalView.as_view(), name="interpretation-renew"),
                 path("meeting-records/<uuid:record_id>/summary-sharing/", SummarySharingView.as_view(), name="summary-sharing"),
                 path("meeting-records/<uuid:record_id>/summary-sharing/preview/", SummarySharingPreviewView.as_view(), name="summary-sharing-preview"),
                 path("meeting-records/<uuid:record_id>/summary-sharing/candidates/", SummarySharingCandidatesView.as_view(), name="summary-sharing-candidates"),
