@@ -304,3 +304,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 
 
 - Batch 69: [Android independent capture and WAV protocol](meeting-ai-phase3-batch49-2026-09-13.md). Fixed operation keys, device leases and strict audio receipts; 25 JVM tests, Debug build and design guard passed. No real microphone or network operations. Durable native buffering and foreground capture follow.
+
+- Batch 70: Android encrypted capture journal; 8 isolated Keystore/SQLite tests passed. See [batch 50](meeting-ai-phase3-batch50-2026-09-13.md). Capture service/UI and final review remain pending.
