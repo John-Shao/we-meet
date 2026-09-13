@@ -394,3 +394,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 113: Android text-only recording consent, service expiry shutdown, explicit incomplete finish and verified cleanup UI; Android `77103709`, 21 isolated device scenarios, default builds and visual checks pass. Continue native cloud recording and standalone translation. See [batch 113](meeting-ai-phase3-batch93-2026-09-13.md). M3/M4 remain incomplete.
 
 - Batch 114: exact-session, manager-only cloud-video discovery and separate rollout flag; 14 new + 10 online-capture tests pass. Read-only foundation; durable controls and native UI follow. See [batch 114](meeting-ai-phase3-batch94-2026-09-13.md). M3/M4 remain incomplete.
+
+- Batch 115: durable cloud-video start/stop reservations, immutable original receipts, stale-state fencing and concurrent-start tests; migration 0175. 27 cloud scenarios pass; worker execution/reconciliation and native UI follow. Keep rollout off. See [batch 115](meeting-ai-phase3-batch95-2026-09-13.md).

@@ -2576,6 +2576,88 @@ class Recording(BaseModel):
         return self.expired_at < timezone.now()
 
 
+class CloudRecordingCommand(BaseModel):
+    """Durable exact-session intent; unknown egress outcomes are never redispatched."""
+
+    session = models.ForeignKey(MeetingSession, on_delete=models.CASCADE)
+    recording = models.ForeignKey(
+        Recording,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cloud_commands",
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    key = models.UUIDField()
+    payload = models.JSONField()
+    result = models.JSONField()
+    state = models.CharField(
+        max_length=16,
+        choices=[
+            (value, value)
+            for value in ("accepted", "running", "succeeded", "failed", "unknown")
+        ],
+        default="accepted",
+    )
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    claimed_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "key"], name="uniq_cloud_recording_command"
+            ),
+            models.UniqueConstraint(
+                fields=["recording"],
+                condition=models.Q(state__in=["accepted", "running", "unknown"]),
+                name="uniq_pending_cloud_rec_command",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        state__in=["succeeded", "failed"], completed_at__isnull=False
+                    )
+                    | models.Q(
+                        state__in=["accepted", "running", "unknown"],
+                        completed_at__isnull=True,
+                    )
+                ),
+                name="cloud_rec_command_terminal_time",
+            ),
+        ]
+
+    def clean(self):
+        """Preserve the original receipt and prevent cross-source commands."""
+        super().clean()
+        if self.recording_id:
+            recording = Recording.objects.filter(pk=self.recording_id).first()
+            if recording and (
+                recording.session_id != self.session_id
+                or recording.mode != RecordingModeChoices.SCREEN_RECORDING
+            ):
+                raise ValidationError(
+                    "Cloud command source does not match its recording."
+                )
+        previous = type(self).objects.filter(pk=self.pk).first() if self.pk else None
+        if previous:
+            for field in (
+                "session_id",
+                "recording_id",
+                "user_id",
+                "key",
+                "payload",
+                "result",
+            ):
+                if getattr(previous, field) != getattr(self, field):
+                    raise ValidationError(
+                        "Cloud recording intent and receipt are immutable."
+                    )
+
+    def __str__(self):
+        return f"CloudRecordingCommand({self.pk})"
+
+
 class RecordingAccess(BaseAccess):
     """Relation model to give access to a recording for a user or a team with a role."""
 

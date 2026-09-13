@@ -1,8 +1,13 @@
 """Cloud-video discovery must not control AI capture or mix room occurrences."""
 
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from threading import Barrier
 from unittest.mock import patch
 
+from django.core.exceptions import ValidationError
+from django.db import close_old_connections
 from django.utils import timezone
 
 import pytest
@@ -15,6 +20,8 @@ from core.factories import (
     RoomFactory,
     UserFactory,
 )
+from core.services.cloud_recording import control
+from core.services.meeting_records import RecordConflict
 from core.tests.services.test_meeting_records import client_for
 
 pytestmark = pytest.mark.django_db
@@ -60,6 +67,7 @@ def test_empty_discovery_is_read_only_and_exact():
         "blocked": False,
         "needs_attention": False,
         "current": None,
+        "pending_operation": None,
     }
     worker.assert_not_called()
     assert not models.Recording.objects.exists()
@@ -188,12 +196,232 @@ def test_ended_room_disables_start_even_before_session_webhook():
     assert read(user, session).json()["can_start"] is False
 
 
-def test_discovery_endpoint_does_not_accept_control_before_command_implementation():
+def test_control_requires_explicit_key_and_last_observed_recording():
     user, session = meeting()
     assert (
         client_for(user)
         .post(URL, {**source(session), "operation": "start"}, format="json")
         .status_code
-        == 405
+        == 400
     )
     assert not models.Recording.objects.exists()
+
+
+def command_body(session, *, operation="start", expected=None, key=None):
+    return {
+        **source(session),
+        "key": str(key or uuid.uuid4()),
+        "operation": operation,
+        "expected_recording_id": str(expected) if expected else None,
+    }
+
+
+def post(user, body):
+    return client_for(user).post(URL, body, format="json")
+
+
+def complete_start(command):
+    """Simulate a confirmed worker outcome; the contract tests never call Egress."""
+    models.Recording.objects.filter(pk=command.recording_id).update(
+        status="active", worker_id="EG_fixture"
+    )
+    command.state = "succeeded"
+    command.completed_at = timezone.now()
+    command.save()
+
+
+def test_start_reserves_one_video_and_receipt_without_claiming_worker_success(settings):
+    user, session = meeting()
+    body = command_body(session)
+    response = post(user, body)
+    assert response.status_code == 202 and response["Cache-Control"] == "no-store"
+    receipt = response.json()["command"]
+    assert receipt["key"] == body["key"] and receipt["state"] == "accepted"
+    assert receipt["result"]["status"] == "initiated"
+    assert response.json()["current"]["can_start"] is False
+    assert response.json()["current"]["pending_operation"]["id"] == receipt["id"]
+    recording = models.Recording.objects.get()
+    assert recording.session_id == session.pk and recording.mode == "screen_recording"
+    assert recording.options == {"transcribe": False} and recording.worker_id is None
+    assert models.RecordingAccess.objects.filter(
+        recording=recording, user=user, role="owner"
+    ).exists()
+    assert not models.OnlineCaptureRun.objects.exists()
+    assert not models.TranscriptDelivery.objects.exists()
+    settings.MEETING_CLOUD_RECORDING_ENABLED = False
+    replay = post(user, body)
+    assert replay.status_code == 200 and replay.json()["replayed"]
+    assert replay.json()["command"] == receipt
+    assert (
+        models.Recording.objects.count()
+        == models.CloudRecordingCommand.objects.count()
+        == 1
+    )
+
+
+def test_same_key_different_payload_or_session_cannot_reserve_new_video():
+    user, session = meeting()
+    body = command_body(session)
+    original = post(user, body).json()["command"]
+    assert post(user, {**body, "operation": "stop"}).status_code == 409
+    assert (
+        post(
+            user, {**body, "expected_recording_id": original["result"]["id"]}
+        ).status_code
+        == 409
+    )
+    other = MeetingSessionFactory(
+        room=RoomFactory(users=[(user, models.RoleChoices.OWNER)])
+    )
+    assert post(user, {**body, **source(other)}).status_code == 409
+    assert models.Recording.objects.count() == 1
+
+
+def test_fresh_key_cannot_start_again_from_stale_observation():
+    user, session = meeting()
+    assert post(user, command_body(session)).status_code == 202
+    assert post(user, command_body(session)).status_code == 409
+    assert models.CloudRecordingCommand.objects.count() == 1
+
+
+def test_stop_requires_exact_video_and_preserves_active_state_until_worker_confirmation(
+    settings,
+):
+    user, session = meeting()
+    start_response = post(user, command_body(session)).json()
+    start = models.CloudRecordingCommand.objects.get(pk=start_response["command"]["id"])
+    complete_start(start)
+    assert (
+        post(
+            user, command_body(session, operation="stop", expected=uuid.uuid4())
+        ).status_code
+        == 409
+    )
+    settings.MEETING_CLOUD_RECORDING_ENABLED = False
+    settings.RECORDING_ENABLE = False
+    body = command_body(session, operation="stop", expected=start.recording_id)
+    response = post(user, body)
+    assert response.status_code == 202
+    assert response.json()["command"]["state"] == "accepted"
+    assert response.json()["current"]["current"]["status"] == "active"
+    assert not response.json()["current"]["can_stop"]
+    replay = post(user, body)
+    assert replay.status_code == 200 and replay.json()["replayed"]
+    assert models.CloudRecordingCommand.objects.count() == 2
+    session.refresh_from_db()
+    assert session.status == "active"
+
+
+def test_unconfirmed_start_cannot_be_replaced_with_a_stop_or_another_start():
+    user, session = meeting()
+    first = post(user, command_body(session)).json()["command"]
+    operation = models.CloudRecordingCommand.objects.get(pk=first["id"])
+    operation.state = "unknown"
+    operation.error_code = "worker_outcome_unknown"
+    operation.claimed_at = timezone.now()
+    operation.save()
+    assert (
+        post(
+            user,
+            command_body(session, operation="stop", expected=operation.recording_id),
+        ).status_code
+        == 409
+    )
+    assert (
+        post(user, command_body(session, expected=operation.recording_id)).status_code
+        == 409
+    )
+    assert read(user, session).json()["pending_operation"]["state"] == "unknown"
+
+
+def test_receipt_survives_final_recording_deletion_without_recreating_audio():
+    user, session = meeting()
+    body = command_body(session)
+    original = post(user, body).json()["command"]
+    operation = models.CloudRecordingCommand.objects.get(pk=original["id"])
+    complete_start(operation)
+    models.Recording.objects.filter(pk=operation.recording_id).update(status="saved")
+    models.Recording.objects.get(pk=operation.recording_id).delete()
+    replay = post(user, body)
+    assert replay.status_code == 200
+    assert replay.json()["command"]["result"] == original["result"]
+    assert replay.json()["current"]["current"] is None
+    assert not models.Recording.objects.exists()
+
+
+def test_revoked_manager_cannot_read_or_replay_accepted_command():
+    user, session = meeting()
+    body = command_body(session)
+    assert post(user, body).status_code == 202
+    models.ResourceAccess.objects.filter(
+        resource_id=session.room_id, user=user
+    ).delete()
+    assert post(user, body).status_code == 404
+    assert read(user, session).status_code == 404
+
+
+def test_command_identity_payload_and_original_receipt_are_immutable():
+    user, session = meeting()
+    original = post(user, command_body(session)).json()["command"]
+    operation = models.CloudRecordingCommand.objects.get(pk=original["id"])
+    operation.payload = {**operation.payload, "operation": "stop"}
+    with pytest.raises(ValidationError):
+        operation.save()
+    operation.refresh_from_db()
+    operation.result = {**operation.result, "status": "active"}
+    with pytest.raises(ValidationError):
+        operation.save()
+    assert (
+        models.CloudRecordingCommand.objects.get(pk=operation.pk).result
+        == original["result"]
+    )
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"mode": "transcript"},
+        {"options": {"transcribe": True}},
+        {"worker_id": "EG_other"},
+    ],
+)
+def test_unsupported_controls_cannot_select_transcript_or_arbitrary_worker(extra):
+    user, session = meeting()
+    assert post(user, {**command_body(session), **extra}).status_code == 400
+    assert not models.CloudRecordingCommand.objects.exists()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("same_key", [False, True])
+def test_simultaneous_start_intents_reserve_only_one_egress(same_key):
+    user, session = meeting()
+    rendezvous = Barrier(2)
+    first_key = uuid.uuid4()
+    payload = {"operation": "start", "expected_recording_id": None}
+
+    def reserve(index):
+        close_old_connections()
+        try:
+            rendezvous.wait(timeout=5)
+            result, replayed = control(
+                session.pk,
+                user,
+                first_key if same_key or index == 0 else uuid.uuid4(),
+                payload,
+            )
+            return str(result.pk), replayed
+        except RecordConflict:
+            return None
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(reserve, [0, 1]))
+    assert (
+        models.Recording.objects.count()
+        == models.CloudRecordingCommand.objects.count()
+        == 1
+    )
+    assert len([item for item in results if item is not None]) == (2 if same_key else 1)
+    if same_key:
+        assert {item[1] for item in results} == {False, True}

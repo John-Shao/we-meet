@@ -242,3 +242,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 113: Android `77103709` integrates text-only capture controls and expiry shutdown; no migration. Storage admission and existing flags govern exposure; native defaults remain false. 21 isolated device scenarios, builds/design-token checks and light/dark inspection pass; real device/provider/cleanup acceptance remains pending. See [batch 113](meeting-ai-phase3-batch93-2026-09-13.md).
 
 - Batch 114: new no-store GET cloud-recording/control endpoint and MEETING_CLOUD_RECORDING_ENABLED=false; no migration. Keep disabled pending command/worker/native integration. 24 backend scenarios pass; no actual Egress call. See [batch 114](meeting-ai-phase3-batch94-2026-09-13.md).
+
+- Batch 115: core migration 0175 adds cloud recording commands. POST currently reserves accepted commands only; keep MEETING_CLOUD_RECORDING_ENABLED=false until worker/native integration. Receipt replay and stop reservations remain available on rollback. 27 cloud tests and worker mediator regressions pass; no Egress call. See [batch 115](meeting-ai-phase3-batch95-2026-09-13.md).
