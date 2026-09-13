@@ -108,3 +108,5 @@ Require Docs `bf2a0636` (or newer), not only the initial keyed-header commit: ol
 - Batch 51: [shared interpretation Agent grants](meeting-ai-phase3-batch31-2026-09-13.md). 11 new control/lease tests + 12 private translation regressions passed. Dedicated multi-source audio runtime is next; channel flag remains off. No model calls.
 
 - Batch 52: [shared interpretation audio Agent](meeting-ai-phase3-batch32-2026-09-13.md). 53 Agent tests passed. Dedicated qwen_interpretation_agent.py start workload required; Web listening follows and channel flag stays off. No real model calls.
+
+- Batch 53: [shared interpretation Web protocol](meeting-ai-phase3-batch33-2026-09-13.md). Subscription identity and conservative remaining leases; 5 frontend and 28 backend tests passed. Web lifecycle/UI follows; channel flag stays off.

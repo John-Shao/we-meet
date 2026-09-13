@@ -63,11 +63,24 @@ def serialize(channel):
 def serialize_subscription(row):
     if row is None:
         return None
+    remaining = (
+        max(
+            0.0,
+            min(
+                LISTENER_LEASE_SECONDS,
+                (row.expires_at - timezone.now()).total_seconds(),
+            ),
+        )
+        if row.active
+        else 0.0
+    )
     return {
+        "id": str(row.pk),
         "channel_id": str(row.channel_id),
         "participation_id": str(row.participation_id),
         "revision": row.revision,
-        "active": row.active and row.expires_at > timezone.now(),
+        "active": remaining > 0,
+        "remaining_lease_seconds": remaining,
         "expires_at": row.expires_at.isoformat(),
     }
 

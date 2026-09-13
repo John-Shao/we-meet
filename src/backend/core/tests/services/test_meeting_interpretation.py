@@ -102,6 +102,11 @@ def test_actual_participant_can_listen_but_cannot_start_a_billable_channel():
     channel = start(owner, session)
     result, replay, _ = join(peer, connection, channel)
     assert result["active"] and result["revision"] == 1 and not replay
+    row = models.MeetingInterpretationSubscription.objects.get(participation=connection)
+    assert result["id"] == str(row.pk)
+    assert 0 < result["remaining_lease_seconds"] <= 20
+    row.active = False
+    assert service.serialize_subscription(row)["remaining_lease_seconds"] == 0
     channel.refresh_from_db()
     assert channel.state == "starting"
 
