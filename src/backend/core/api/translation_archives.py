@@ -55,6 +55,29 @@ class TranslationSegmentIngestView(NoStore):
         return Response(result)
 
 
+class PrivateSegmentInput(SegmentInput):
+    channel_id = None
+    run_id = serializers.UUIDField()
+    direction = serializers.ChoiceField(choices=["forward", "reverse"])
+
+
+class PrivateTranslationSegmentIngestView(NoStore):
+    authentication_classes = [AgentTokenAuthentication]
+    permission_classes = [HasAgentToken]
+
+    def post(self, request):
+        serializer = PrivateSegmentInput(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            result = append_segment(data["run_id"], data, source_kind="private")
+        except models.MeetingTranslationRun.DoesNotExist:
+            raise Http404 from None
+        except RecordConflict:
+            return Response({"code": "translation_archive_conflict"}, status=409)
+        return Response(result)
+
+
 class ArchivePagination(RecordPagination):
     ordering = ("-created_at", "-id")
 

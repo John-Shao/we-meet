@@ -13,6 +13,7 @@ from core import models
 from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
 from core.api.online_capture import CaptureSourceSerializer
 from core.services import meeting_translation as service
+from core.services import translation_archives
 from core.services.meeting_records import RecordConflict
 from core.services.online_capture import can_control
 
@@ -30,13 +31,16 @@ class TranslationControlSerializer(CaptureSourceSerializer):
         choices=["simultaneous", "push_to_talk"], required=False
     )
     audio = serializers.BooleanField(required=False)
+    save_translations = serializers.BooleanField(required=False)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
         options = {"source_participation_id", "source", "target", "mode", "audio"}
         if attrs["operation"] == "start" and not options <= set(attrs):
             raise serializers.ValidationError("Translation start requires all options.")
-        if attrs["operation"] == "stop" and options & set(attrs):
+        if attrs["operation"] == "stop" and (options | {"save_translations"}) & set(
+            attrs
+        ):
             raise serializers.ValidationError("Stop cannot change translation options.")
         return attrs
 
@@ -52,6 +56,11 @@ class MeetingTranslationViewSet(viewsets.GenericViewSet):
     """The initial rollout supports a manager's own private source connection."""
 
     permission_classes = [permissions.IsAuthenticated]
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response["Cache-Control"] = "private, no-store"
+        return response
 
     def get_throttles(self):
         if (
@@ -84,6 +93,7 @@ class MeetingTranslationViewSet(viewsets.GenericViewSet):
             return Response(
                 {
                     "available": service.enabled() and session.status == "active",
+                    "archive_available": translation_archives.enabled(),
                     "languages": service.LANGUAGES,
                     "current": service.serialize(service.latest(session, request.user)),
                     "sources": [
@@ -120,6 +130,7 @@ class TranslationReceiptSerializer(serializers.Serializer):
 
     provider_finished = serializers.BooleanField()
     consumer_finished = serializers.BooleanField()
+    archive_finished = serializers.BooleanField(required=False)
     input_tokens = serializers.IntegerField(
         min_value=0, max_value=10**12, allow_null=True
     )

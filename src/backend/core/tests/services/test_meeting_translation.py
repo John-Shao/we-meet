@@ -217,7 +217,7 @@ def test_timeout_cannot_be_renewed_or_finished_as_complete(settings):
     ) == {"state": "incomplete"}
 
 
-def test_rollout_off_blocks_start_allows_active_drain(settings):
+def test_rollout_off_blocks_start_and_stops_active_input(settings):
     user, session, participant = fixture()
     _, run, _ = start(user, session, participant)
     identity = worker(session, run)
@@ -225,7 +225,7 @@ def test_rollout_off_blocks_start_allows_active_drain(settings):
     settings.MEETING_TRANSLATION_ENABLED = False
     assert (
         service.agent_control(run.pk, {**identity, "operation": "heartbeat"})["state"]
-        == "translating"
+        == "stopping"
     )
     service.control(
         session.pk,

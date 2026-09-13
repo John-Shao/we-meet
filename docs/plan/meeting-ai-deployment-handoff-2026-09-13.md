@@ -117,3 +117,6 @@ Require Docs `bf2a0636` (or newer), not only the initial keyed-header commit: ol
 
 
 Batch 56: shared confirmed-translation delivery and opt-in archive reader completed. See [phase 3 batch 36](meeting-ai-phase3-batch36-2026-09-13.md). Agent/backend/frontend tests and browser/build checks passed; private and independent recording translation remain pending.
+
+
+Batch 57: owner-only private translation archive backend and direction-scoped receipts completed. See [phase 3 batch 37](meeting-ai-phase3-batch37-2026-09-13.md). 55 backend tests passed; no migration. Disabling private translation now stops existing workers on heartbeat. Agent/Web integration follows.

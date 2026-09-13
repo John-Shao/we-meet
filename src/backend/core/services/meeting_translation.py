@@ -12,6 +12,7 @@ from asgiref.sync import async_to_sync
 from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
 
 from core import models, utils
+from core.services import translation_archives
 from core.services.meeting_records import RecordConflict
 from core.services.online_capture import can_control
 
@@ -58,6 +59,7 @@ def _source_valid(run, session):
     source = run.source_participation
     return bool(
         session.status == "active"
+        and models.User.objects.filter(pk=run.requested_by_id, is_active=True).exists()
         and session.room.organization_id == run.organization_id_snapshot
         and can_control(session, run.requested_by)
         and source
@@ -107,6 +109,9 @@ def control(session_id, user, key, payload):
             raise RecordConflict("Unsupported translation language pair.")
         if payload["mode"] not in ("simultaneous", "push_to_talk"):
             raise RecordConflict("Unsupported translation mode.")
+        record = translation_archives.prepare_record(
+            session, payload.get("save_translations", False)
+        )
         run = models.MeetingTranslationRun.objects.create(
             session=session,
             requested_by=user,
@@ -120,8 +125,10 @@ def control(session_id, user, key, payload):
                 "audio": payload["audio"],
                 "model": MODEL,
                 "scope": "controller_only",
+                **({"archive_record_id": str(record.pk)} if record else {}),
             },
         )
+        translation_archives.create_archive(run, record, source_kind="private")
         transaction.on_commit(lambda run_id=run.pk: dispatch(run_id))
     elif payload["operation"] == "stop" and run:
         _request_stop(run)
@@ -169,6 +176,7 @@ def _expire(run):
             now,
         )
         run.save(update_fields=["state", "error_code", "ended_at", "updated_at"])
+        translation_archives.close_archive(run, False, source_kind="private")
 
 
 @transaction.atomic
@@ -211,8 +219,13 @@ def agent_control(run_id, data):
                     "updated_at",
                 ]
             )
+            translation_archives.close_archive(
+                run,
+                complete and receipt.get("archive_finished") is True,
+                source_kind="private",
+            )
         return {"state": run.state}
-    source_valid = _source_valid(run, session)
+    source_valid = enabled() and _source_valid(run, session)
     if run.state in ACTIVE:
         if not source_valid:
             _request_stop(run)
@@ -225,6 +238,7 @@ def agent_control(run_id, data):
         result.update(
             configuration=run.configuration,
             source_identity=run.source_participation.identity,
+            source_participation_id=str(run.source_participation_id),
             source_participant_sid=run.source_participation.livekit_participant_sid,
             destination_identity=run.source_participation.identity,
         )

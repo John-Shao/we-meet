@@ -98,6 +98,7 @@ from core.api.meeting_interpretation import (
 from core.api.meeting_record_qa import RecordQuestionView
 from core.api.meeting_records import MeetingRecordViewSet
 from core.api.translation_archives import (
+    PrivateTranslationSegmentIngestView,
     RecordTranslationArchivesView,
     RecordTranslationSegmentsView,
     TranslationSegmentIngestView,
@@ -510,6 +511,7 @@ urlpatterns = [
     path("api/agent/translations/control/", TranslationAgentView.as_view(), name="agent-translation-control"),
     path("api/agent/interpretation/control/", InterpretationWorkerView.as_view(), name="agent-interpretation-control"),
     path("api/agent/interpretation/segments/", TranslationSegmentIngestView.as_view(), name="agent-interpretation-segments"),
+    path("api/agent/translations/segments/", PrivateTranslationSegmentIngestView.as_view(), name="agent-translation-segments"),
     # Internal API for agent workers (multi_user_transcriber, etc.).
     # Authenticates via X-Agent-Token shared secret; NOT a public surface.
     path(
