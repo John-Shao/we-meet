@@ -1083,6 +1083,7 @@ class Base(Configuration):
     MEETING_SUMMARY_TASKS_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_RECORD_QA_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_AUDIO_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_CAPTURE_TEXT_ONLY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_LIVE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_SUMMARY_ENABLED = values.BooleanValue(False, environ_prefix=None)

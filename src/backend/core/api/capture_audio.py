@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 
 from core import models
 from core.services import capture_audio as service
+from core.services import capture_storage
 from core.services.meeting_captures import CaptureDenied
 from core.services.meeting_records import RecordConflict, visible_records
 
@@ -78,6 +79,17 @@ class AudioUploadThrottle(UserRateThrottle):
 
     scope = "capture_audio_upload"
     rate = "120/min"
+
+
+class CaptureAudioCapabilitiesView(CaptureAudioView):
+    """Explicit authenticated preflight, separate from cached application config."""
+
+    throttle_classes = [AudioUploadThrottle]
+    http_method_names = ["get", "options"]
+
+    def get(self, request):
+        get_object_or_404(models.User, pk=request.user.pk, is_active=True)
+        return Response(capture_storage.capabilities())
 
 
 class CaptureAudioUploadView(CaptureAudioView):

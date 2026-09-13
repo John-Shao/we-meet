@@ -6,16 +6,16 @@ import wave
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.core.files.storage import default_storage
 from django.db import transaction
 from django.db.models import F
 
-from boto3.s3.transfer import TransferConfig
-from botocore.config import Config
-from storages.backends.s3 import S3Storage
-
 from core import models
 from core.services import capture_retention
+from core.services.capture_storage import (
+    audio_storage,
+    text_audio_enabled,
+    text_storage_error,
+)
 from core.services.meeting_captures import CaptureDenied, authorize, check_lease
 from core.services.meeting_records import RecordConflict
 
@@ -28,25 +28,6 @@ def ensure_audio_not_cleaning(capture):
     if models.CaptureAudioCleanup.objects.filter(capture=capture).exists():
         raise RecordConflict("Temporary audio cleanup has started.")
     capture_retention.ensure_new_audio_work(capture)
-
-
-def audio_storage():
-    """Isolate small private uploads from global S3 retry and public ACL settings."""
-    if not isinstance(default_storage, S3Storage):
-        return default_storage
-    options = dict(settings.STORAGES["default"].get("OPTIONS", {}))
-    options.update(
-        client_config=default_storage.client_config.merge(
-            Config(
-                connect_timeout=3, read_timeout=10, retries={"total_max_attempts": 1}
-            )
-        ),
-        transfer_config=TransferConfig(use_threads=False, num_download_attempts=1),
-        default_acl="private",
-        object_parameters={**default_storage.object_parameters, "ACL": "private"},
-        gzip=False,
-    )
-    return default_storage.__class__(**options)
 
 
 def validate_wave(data):
@@ -81,8 +62,10 @@ def locked_capture(capture_id, user, lease, device, *, finishing=False):
     check_lease(capture, lease, device)
     if not finishing:
         ensure_audio_not_cleaning(capture)
-    if (not settings.MEETING_CAPTURE_AUDIO_ENABLED and not finishing) or (
-        record.retention_mode != "media" and not finishing
+    if not finishing and (
+        not settings.MEETING_CAPTURE_AUDIO_ENABLED
+        or (record.retention_mode == "text" and not text_audio_enabled())
+        or record.retention_mode not in {"media", "text"}
     ):
         raise CaptureDenied
     return capture
@@ -220,6 +203,8 @@ def store(chunk_id, user, lease, device, audio):
     if not chunk.stored and hasattr(capture, "audio_manifest"):
         raise RecordConflict("Sealed capture cannot accept a late chunk.")
     storage = audio_storage()
+    if capture.record.retention_mode == "text" and text_storage_error(storage):
+        raise CaptureDenied
     if not storage.exists(chunk.object_key):
         if chunk.stored:
             raise RecordConflict("Previously acknowledged audio is missing.")

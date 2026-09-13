@@ -12,26 +12,23 @@ from storages.backends.s3 import S3Storage
 from core import models
 from core.services import capture_retention as retention
 from core.services.capture_audio import audio_storage
+from core.services.capture_storage import text_storage_error
 
 
 def _delete_verified(storage, key):
     # A delete marker is not physical erasure. Versioned buckets need a separate
     # version-purge implementation before this retention mode can claim completion.
     if isinstance(storage, S3Storage):
-        versioning = storage.connection.meta.client.get_bucket_versioning(
-            Bucket=storage.bucket_name
-        )
-        if versioning.get("Status") is not None:
-            return "versioned_storage_requires_purge"
+        error = text_storage_error(storage)
+        if error:
+            return error
     storage.delete(key)
     if storage.exists(key):
         return "storage_delete_unconfirmed"
     if isinstance(storage, S3Storage):
-        versioning = storage.connection.meta.client.get_bucket_versioning(
-            Bucket=storage.bucket_name
-        )
-        if versioning.get("Status") is not None:
-            return "versioned_storage_requires_purge"
+        error = text_storage_error(storage)
+        if error:
+            return error
     return ""
 
 

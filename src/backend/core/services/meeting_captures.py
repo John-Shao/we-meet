@@ -11,6 +11,8 @@ from django.utils import timezone
 
 from core import models
 from core.services import capture_retention
+from core.services.capture_storage import capabilities as audio_capabilities
+from core.services.capture_storage import text_audio_enabled
 from core.services.meeting_records import RecordConflict, visible_records
 
 GRANT_SALT = "meeting-capture-writer-v1"
@@ -164,6 +166,9 @@ def create_capture(user, key, data):
     if previous:
         authorize(previous.capture.record, user)
         return previous, True
+    if data["retention_mode"] == "text" and text_audio_enabled():
+        if not audio_capabilities()["text_audio_available"]:
+            raise CaptureDenied
     if (
         models.CaptureSession.objects.filter(
             created_by=user, device_id=data["device_id"]

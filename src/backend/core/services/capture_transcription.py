@@ -16,6 +16,7 @@ from core.services.capture_audio import (
     serialize_chunk,
     serialize_manifest,
 )
+from core.services.capture_storage import text_audio_enabled
 from core.services.capture_summary_source import (
     staged_enabled as capture_staged_enabled,
 )
@@ -75,6 +76,9 @@ def _expire(job):
             not job.requested_by_id
             or not available()
             or (
+                job.capture.record.retention_mode == "text" and not text_audio_enabled()
+            )
+            or (
                 live_inputs.is_live(job)
                 and not settings.MEETING_CAPTURE_LIVE_ASR_ENABLED
             )
@@ -131,7 +135,9 @@ def prepare(capture_id, user, key, payload):
             raise RecordConflict("Transcription intent changed.")
         return _expire(previous), False
     ensure_audio_not_cleaning(capture)
-    if not available():
+    if not available() or (
+        capture.record.retention_mode == "text" and not text_audio_enabled()
+    ):
         raise CaptureDenied
     manifest = getattr(capture, "audio_manifest", None)
     live = payload.get("live", False)
@@ -139,7 +145,7 @@ def prepare(capture_id, user, key, payload):
         not settings.MEETING_CAPTURE_LIVE_ASR_ENABLED
         or capture.status not in {"recording", "paused", "interrupted"}
         or manifest is not None
-        or capture.record.retention_mode != "media"
+        or capture.record.retention_mode not in {"media", "text"}
     ):
         raise RecordConflict("Live transcription requires an open audio capture.")
     if not live and (capture.status != "stopped" or not manifest):
@@ -218,8 +224,11 @@ def state(capture_id, user):
         _expire(job) for job in capture.transcription_jobs.order_by("-generation")[:10]
     ]
     return {
-        "available": available(),
-        "live_available": available() and settings.MEETING_CAPTURE_LIVE_ASR_ENABLED,
+        "available": available()
+        and (capture.record.retention_mode != "text" or text_audio_enabled()),
+        "live_available": available()
+        and settings.MEETING_CAPTURE_LIVE_ASR_ENABLED
+        and (capture.record.retention_mode != "text" or text_audio_enabled()),
         "staged_summary_available": capture_staged_enabled()
         and settings.MEETING_VERSIONED_SUMMARY_ENABLED,
         "summary_available": bool(

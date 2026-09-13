@@ -38,6 +38,7 @@ from core.api.calendar import CalendarEventViewSet
 from core.api.calendar_exports import CalendarExportJobViewSet
 from core.api.calendars import CalendarShareView, CalendarViewSet
 from core.api.capture_audio import (
+    CaptureAudioCapabilitiesView,
     CaptureAudioDownloadView,
     CaptureAudioSealView,
     CaptureAudioUploadView,
@@ -376,6 +377,7 @@ urlpatterns = [
                 path("meeting-records/<uuid:record_id>/summary-tasks/", SummaryTaskView.as_view(), name="summary-tasks"),
                 path("meeting-records/<uuid:record_id>/questions/", RecordQuestionView.as_view(), name="record-questions"),
                 path("meeting-records/<uuid:record_id>/questions/<uuid:question_id>/", RecordQuestionView.as_view(), name="record-question-detail"),
+                path("capture-audio-capabilities/", CaptureAudioCapabilitiesView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/audio/", CaptureAudioView.as_view(), name="capture-audio"),
                 path("capture-sessions/<uuid:capture_id>/transcription/", CaptureTranscriptionView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/preview/", LiveTranscriptionPreviewView.as_view()),

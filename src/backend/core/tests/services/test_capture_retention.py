@@ -26,6 +26,8 @@ def enabled(settings, tmp_path):
     settings.MEETING_CAPTURE_PROTOCOL_ENABLED = True
     settings.MEETING_CAPTURE_AUDIO_ENABLED = True
     settings.MEETING_CAPTURE_ASR_ENABLED = True
+    settings.MEETING_CAPTURE_TEXT_ONLY_ENABLED = True
+    settings.CELERY_ENABLED = True
     settings.STORAGES = {
         "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"}
     }
