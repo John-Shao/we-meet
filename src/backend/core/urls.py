@@ -56,6 +56,12 @@ from core.api.capture_transcription import (
 )
 from core.api.cloud_recording import CloudRecordingView
 from core.api.capture_translation import CaptureTranslationView
+from core.api.capture_translation_worker import (
+    CaptureTranslationClaimView,
+    CaptureTranslationControlView,
+    CaptureTranslationFinishView,
+    CaptureTranslationTicketView,
+)
 from core.api.directory import (
     ContactPreferenceViewSet,
     DepartmentViewSet,
@@ -343,6 +349,9 @@ external_router.register(
 
 urlpatterns = [
     path("api/agent/capture-transcriptions/claim/", ClaimTranscriptionView.as_view()),
+    path("api/agent/capture-translations/claim/", CaptureTranslationClaimView.as_view()),
+    path("api/agent/capture-translations/<uuid:run_id>/control/", CaptureTranslationControlView.as_view()),
+    path("api/agent/capture-translations/<uuid:run_id>/finish/", CaptureTranslationFinishView.as_view()),
     path("api/agent/capture-transcriptions/<uuid:job_id>/control/", ControlTranscriptionView.as_view()),
     path("api/agent/capture-transcriptions/<uuid:job_id>/audio/<int:index>/", TranscriptionInputView.as_view()),
     path("api/agent/capture-transcriptions/<uuid:job_id>/originals/", IngestTranscriptionView.as_view()),
@@ -383,6 +392,7 @@ urlpatterns = [
                 path("capture-audio-capabilities/", CaptureAudioCapabilitiesView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/audio/", CaptureAudioView.as_view(), name="capture-audio"),
                 path("capture-sessions/<uuid:capture_id>/translation/", CaptureTranslationView.as_view(), name="capture-translation"),
+                path("capture-sessions/<uuid:capture_id>/translation/ticket/", CaptureTranslationTicketView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/", CaptureTranscriptionView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/preview/", LiveTranscriptionPreviewView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/cancel/", CancelTranscriptionView.as_view()),

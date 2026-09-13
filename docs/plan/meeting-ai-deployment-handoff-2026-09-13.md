@@ -262,3 +262,7 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 ## Batch 123: independent recording translation controls
 
 Apply migration 0177 with earlier migrations. Keep MEETING_CAPTURE_TRANSLATION_ENABLED=false until gateway and client integration is complete. This batch only reserves exact capture/device generations and stores immutable receipts; it does not connect DashScope. See [details](meeting-ai-phase3-batch103-2026-09-13.md).
+
+## Batch 124: gateway authorization
+
+No additional migration. New capture ticket endpoint and private /api/agent/capture-translations/ claim/control/finish endpoints require the existing internal agent token. Tickets must never be logged or placed in URLs; keep rollout off until transport/client completion. See [details](meeting-ai-phase3-batch104-2026-09-13.md).

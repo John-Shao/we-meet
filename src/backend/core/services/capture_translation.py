@@ -105,7 +105,7 @@ def reconcile(capture):
     return run
 
 
-def _locked_capture(capture_id):
+def locked_capture(capture_id):
     source = models.CaptureSession.objects.only("record_id").get(pk=capture_id)
     record = models.MeetingRecord.objects.select_for_update().get(pk=source.record_id)
     capture = models.CaptureSession.objects.select_for_update().get(pk=capture_id)
@@ -136,7 +136,7 @@ def _state(capture, run):
 
 @transaction.atomic
 def state(capture_id, user):
-    capture = _locked_capture(capture_id)
+    capture = locked_capture(capture_id)
     owned(capture, user)
     return _state(capture, reconcile(capture))
 
@@ -146,7 +146,7 @@ def control(capture_id, user, lease, key, payload):
     """Freeze original receipt before replying; stale identities cannot stop new runs."""
     # Serializes the user's idempotency namespace across captures, then normal record lock.
     models.User.objects.select_for_update().get(pk=user.pk)
-    capture = _locked_capture(capture_id)
+    capture = locked_capture(capture_id)
     owned(capture, user)
     check_lease(capture, lease, payload["device_id"])
     previous = models.CaptureTranslationCommand.objects.filter(
