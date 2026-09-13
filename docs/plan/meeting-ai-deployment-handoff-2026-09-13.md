@@ -256,3 +256,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 120: Android cloud recording panel (`3759a2f5`), explicit confirmation, exact-source foreground reads and durable recovery UI; 8 isolated UI + 8 JVM tests, builds/token/visual checks pass. WE_MEET_CLOUD_RECORDING_NATIVE defaults false. Standalone translation and final review follow. See [batch 120](meeting-ai-phase3-batch100-2026-09-13.md).
 
 - Batch 121: opt-in Web 100 ms PCM tap shares the recording microphone, bounds unacknowledged frames and isolates consumer failures; 24 unit tests, real Chromium tap/recording checks and production build pass. No backend/rollout change; standalone translation transport follows. See [batch 121](meeting-ai-phase3-batch101-2026-09-13.md).
+
+- Batch 122: Android same-microphone PCM tap (`d19b2fef`), bounded leases, source checks, tail draining and recording failure isolation; 18 JVM + 7 isolated service tests and builds/token checks pass. Defaults remain off; translation session/transport follows. See [batch 122](meeting-ai-phase3-batch102-2026-09-13.md).
