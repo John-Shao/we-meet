@@ -353,6 +353,13 @@ function InterpretationSession({
       await fetchApi(`${ROOT}${next.path}`, {
         method: 'POST',
         body: JSON.stringify(next.body),
+        meetingCommand: {
+          key: String(next.body.key),
+          scope: {
+            room_id: String(next.body.room_id),
+            livekit_room_sid: String(next.body.livekit_room_sid),
+          },
+        },
         signal: controller.signal,
       })
       if (!mounted.current) return
@@ -391,11 +398,7 @@ function InterpretationSession({
       }
     } catch (err) {
       if (!mounted.current) return
-      if (
-        err instanceof ApiError &&
-        err.statusCode < 500 &&
-        err.statusCode !== 429
-      ) {
+      if (err instanceof ApiError && [400, 409, 422].includes(err.statusCode)) {
         sessionStorage.removeItem(storageKey)
         setIntent(undefined)
       }

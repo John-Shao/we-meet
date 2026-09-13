@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core import models
+from core.api.meeting_command_receipt import MeetingCommandReceiptMixin
 from core.services import meeting_summary_tasks as service
 from core.services.meeting_records import RecordConflict, visible_records
 from core.services.tasks import task_organization_for_user
@@ -33,7 +34,7 @@ class ConversionSerializer(serializers.Serializer):
         return attrs
 
 
-class SummaryTaskView(APIView):
+class SummaryTaskView(MeetingCommandReceiptMixin, APIView):
     """A separate explicit action; reading or saving a summary never creates tasks."""
 
     permission_classes = [permissions.IsAuthenticated]

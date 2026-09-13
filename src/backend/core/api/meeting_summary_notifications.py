@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
+from core.api.meeting_command_receipt import MeetingCommandReceiptMixin
 from core.services import meeting_summary_notifications as service
 from core.services.meeting_records import RecordConflict, visible_records
 from core.services.meeting_summary_exports import can_export
@@ -72,7 +73,7 @@ class NotificationRetryThrottle(UserRateThrottle):
     rate = "6/min"
 
 
-class SummaryNotificationRetryView(APIView):
+class SummaryNotificationRetryView(MeetingCommandReceiptMixin, APIView):
     permission_classes = [permissions.IsAuthenticated]
     throttle_classes = [NotificationRetryThrottle]
 

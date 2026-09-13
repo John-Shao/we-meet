@@ -198,6 +198,7 @@ function Delivery({
         method: 'POST',
         signal,
         headers: { 'Idempotency-Key': request.key },
+        meetingCommand: { key: request.key, scope: { record_id: recordId } },
         body: JSON.stringify({ expected_attempt: request.expected_attempt }),
       })
       if (signal.aborted) return
@@ -207,8 +208,7 @@ function Delivery({
       if (signal.aborted) return
       if (
         error instanceof ApiError &&
-        error.statusCode < 500 &&
-        error.statusCode !== 429
+        [400, 409, 422].includes(error.statusCode)
       ) {
         clear()
         setMessage(

@@ -9,6 +9,7 @@ from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
 from core import models
+from core.api.meeting_command_receipt import MeetingCommandReceiptMixin
 from core.services import meeting_record_qa as service
 from core.services.meeting_records import RecordConflict, visible_records
 
@@ -34,7 +35,7 @@ class QuestionSerializer(serializers.Serializer):
         return attrs
 
 
-class RecordQuestionView(APIView):
+class RecordQuestionView(MeetingCommandReceiptMixin, APIView):
     """Each user can only retrieve their own questions under current source access."""
 
     permission_classes = [permissions.IsAuthenticated]

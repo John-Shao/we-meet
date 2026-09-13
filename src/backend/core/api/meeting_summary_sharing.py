@@ -11,6 +11,7 @@ from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
 from core import models
+from core.api.meeting_command_receipt import MeetingCommandReceiptMixin
 from core.api.meeting_records import RecordPagination
 from core.services import meeting_summary_sharing as service
 from core.services.meeting_records import RecordConflict, visible_records
@@ -41,7 +42,7 @@ class Confirmation(Selection):
     expected_hash = serializers.RegexField(r"^[a-f0-9]{64}$")
 
 
-class Base(APIView):
+class Base(MeetingCommandReceiptMixin, APIView):
     permission_classes = [permissions.IsAuthenticated]
     throttle_classes = [ShareThrottle]
 

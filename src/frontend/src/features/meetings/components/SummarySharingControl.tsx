@@ -196,6 +196,7 @@ function Editor({
         method: 'POST',
         signal,
         headers: { 'Idempotency-Key': request.key },
+        meetingCommand: { key: request.key, scope: { record_id: recordId } },
         body: JSON.stringify({
           user_ids: request.user_ids,
           operation: request.operation,
@@ -210,8 +211,7 @@ function Editor({
       if (signal.aborted) return
       if (
         error instanceof ApiError &&
-        error.statusCode < 500 &&
-        error.statusCode !== 429
+        [400, 409, 422].includes(error.statusCode)
       ) {
         clear()
         setMessage(

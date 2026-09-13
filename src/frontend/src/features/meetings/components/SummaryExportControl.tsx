@@ -225,6 +225,7 @@ const ExportCopy = ({
           method: 'POST',
           signal,
           headers: { 'Idempotency-Key': request.key },
+          meetingCommand: { key: request.key, scope: { record_id: recordId } },
           body: JSON.stringify(
             request.export_id
               ? {
@@ -243,8 +244,7 @@ const ExportCopy = ({
       if (signal.aborted) return
       if (
         error instanceof ApiError &&
-        error.statusCode < 500 &&
-        error.statusCode !== 429
+        [400, 409, 422].includes(error.statusCode)
       ) {
         clearIntent()
         setPreview(undefined)

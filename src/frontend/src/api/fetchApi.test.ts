@@ -196,6 +196,41 @@ describe('fetchApi authentication fallback', () => {
     expect(reader.releaseLock).toHaveBeenCalledTimes(1)
   })
 
+  it.each([
+    undefined,
+    {},
+    { command_receipt: { key: 'wrong', scope: { record_id: 'record' } } },
+    { command_receipt: { key: 'key', scope: { record_id: 'other' } } },
+  ])('keeps unacknowledged meeting responses uncertain: %j', async (body) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(200, body))
+    )
+    await expect(
+      fetchApi('meeting-records/record/', {
+        method: 'POST',
+        body: '{}',
+        meetingCommand: { key: 'key', scope: { record_id: 'record' } },
+      })
+    ).rejects.toThrow('meeting_command_receipt_unknown')
+  })
+  it('accepts only an acknowledgement of the exact meeting command and scope', async () => {
+    const body = {
+      command_receipt: { key: 'key', scope: { record_id: 'record' } },
+      accepted: true,
+    }
+    const mock = vi.fn<typeof fetch>(async () => jsonResponse(202, body))
+    vi.stubGlobal('fetch', mock)
+    await expect(
+      fetchApi('meeting-records/record/', {
+        method: 'POST',
+        body: '{}',
+        meetingCommand: { key: 'key', scope: { record_id: 'record' } },
+      })
+    ).resolves.toEqual(body)
+    expect(mock.mock.calls[0][1]).not.toHaveProperty('meetingCommand')
+  })
+
   it('returns a small binary response without JSON conversion', async () => {
     const reader = {
       read: vi

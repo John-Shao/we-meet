@@ -152,6 +152,7 @@ export function CaptureTranscriptionPanel({
       await fetchApi<{ job: Job }>(path, {
         method: 'POST',
         headers: { 'Idempotency-Key': request.key },
+        meetingCommand: { key: request.key, scope: { capture_id: capture.id } },
         body: JSON.stringify({
           expected_job_id: request.expected_job_id,
           allow_incomplete: request.allow_incomplete,

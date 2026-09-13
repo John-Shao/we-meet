@@ -156,6 +156,13 @@ export const PrivateTranslationProvider = ({
     mutationFn: (intent: Intent) =>
       fetchApi<{ current: TranslationRun }>(PATH, {
         method: 'POST',
+        meetingCommand: {
+          key: intent.key,
+          scope: {
+            room_id: intent.room_id,
+            livekit_room_sid: intent.livekit_room_sid,
+          },
+        },
         body: JSON.stringify(intent),
       }),
     retry: false,
@@ -341,11 +348,7 @@ export const PrivateTranslationProvider = ({
       )
       await status.refetch()
     } catch (err) {
-      if (
-        err instanceof ApiError &&
-        err.statusCode < 500 &&
-        err.statusCode !== 429
-      )
+      if (err instanceof ApiError && [400, 409, 422].includes(err.statusCode))
         setPendingIntent(undefined)
       setError(true)
       silence()

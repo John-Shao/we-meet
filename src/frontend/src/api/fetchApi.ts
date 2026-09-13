@@ -106,10 +106,13 @@ export const authenticatedFetch = async (
 
 export const fetchApi = async <T = Record<string, unknown>>(
   url: string,
-  options?: RequestInit,
+  options?: RequestInit & {
+    meetingCommand?: { key: string; scope: Record<string, string> }
+  },
   binary?: { maxBytes: number }
 ): Promise<T> => {
-  const { response, snapshot } = await authenticatedFetch(url, options)
+  const { meetingCommand, ...request } = options ?? {}
+  const { response, snapshot } = await authenticatedFetch(url, request)
 
   let result: T
   if (response.ok && binary) {
@@ -133,6 +136,25 @@ export const fetchApi = async <T = Record<string, unknown>>(
 
   if (!response.ok) {
     throw new ApiError(response.status, result)
+  }
+  if (meetingCommand) {
+    const ack = (
+      result as
+        | { command_receipt?: { key?: unknown; scope?: unknown } }
+        | undefined
+    )?.command_receipt
+    if (
+      !ack ||
+      ack.key !== meetingCommand.key ||
+      !ack.scope ||
+      typeof ack.scope !== 'object' ||
+      Object.keys(ack.scope).length !==
+        Object.keys(meetingCommand.scope).length ||
+      Object.entries(meetingCommand.scope).some(
+        ([key, value]) => (ack.scope as Record<string, unknown>)[key] !== value
+      )
+    )
+      throw new Error('meeting_command_receipt_unknown')
   }
   assertAuthSession(snapshot)
   return result

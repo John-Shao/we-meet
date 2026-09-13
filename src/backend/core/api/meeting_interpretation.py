@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 
 from core import models
 from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
+from core.api.meeting_command_receipt import MeetingCommandReceiptMixin
 from core.api.meeting_translation import TranslationReceiptSerializer
 from core.api.online_capture import CaptureSourceSerializer
 from core.services import meeting_interpretation as service
@@ -45,7 +46,7 @@ class StartThrottle(UserRateThrottle):
     rate = "6/min"
 
 
-class Base(APIView):
+class Base(MeetingCommandReceiptMixin, APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def parse(self, request, serializer):

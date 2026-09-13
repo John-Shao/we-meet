@@ -438,3 +438,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 135: five optional AI Workers, exact WSS gateway ingress and partial-release image preservation; eight render/script scenarios, Helm lint, shell and Compose checks pass. See [deployment configuration](meeting-ai-worker-deployment-2026-09-13.md) and [batch 135](meeting-ai-phase3-batch115-2026-09-13.md). Final technical review follows.
 
 - Batch 136: final review fixed cross-login refresh/retry races in Web and Android (76c97d32), plus buffered SSE authority checks. Focused, full-suite and build evidence: [review batch 136](meeting-ai-phase4-batch116-2026-09-13.md). Recovery review continues.
+
+- Batch 137: preserve uncertain commands and validate source-bound success acknowledgements; 111 backend and 104 Web scenarios pass. Deploy backend before frontend. See [review batch 137](meeting-ai-phase4-batch117-2026-09-13.md).

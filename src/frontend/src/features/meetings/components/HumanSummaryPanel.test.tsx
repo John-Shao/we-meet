@@ -113,27 +113,30 @@ it('keeps a draft on conflict instead of rebasing it silently', async () => {
   ).toBeEnabled()
 })
 
-it('retries an uncertain save with an identical intent and frozen draft', async () => {
-  const fallback = mocks.fetchApi.getMockImplementation()!
-  let failed = false
-  mocks.fetchApi.mockImplementation((url, options) => {
-    if (options?.method === 'POST' && !failed) {
-      failed = true
-      return Promise.reject(new TypeError('lost response'))
-    }
-    return fallback(url, options)
-  })
-  show()
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'humanReview.edit' })
-  )
-  fireEvent.click(screen.getByRole('button', { name: 'humanReview.save' }))
-  await screen.findByText('humanReview.uncertain')
-  expect(screen.getByLabelText('humanReview.overview')).toBeDisabled()
-  fireEvent.click(screen.getByRole('button', { name: 'humanReview.retry' }))
-  await screen.findByText('humanReview.saved')
-  expect(posts()[0][1].body).toBe(posts()[1][1].body)
-})
+it.each([401, 403, 404, 408, 429, 503])(
+  'retries an uncertain save with an identical intent and frozen draft after HTTP %s',
+  async (code) => {
+    const fallback = mocks.fetchApi.getMockImplementation()!
+    let failed = false
+    mocks.fetchApi.mockImplementation((url, options) => {
+      if (options?.method === 'POST' && !failed) {
+        failed = true
+        return Promise.reject(new ApiError(code, {}))
+      }
+      return fallback(url, options)
+    })
+    show()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'humanReview.edit' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'humanReview.save' }))
+    await screen.findByText('humanReview.uncertain')
+    expect(screen.getByLabelText('humanReview.overview')).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'humanReview.retry' }))
+    await screen.findByText('humanReview.saved')
+    expect(posts()[0][1].body).toBe(posts()[1][1].body)
+  }
+)
 
 it('shows saved content but no editing actions to a reader', async () => {
   mocks.fetchApi.mockResolvedValue({ current, can_edit: false })

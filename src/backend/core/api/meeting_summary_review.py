@@ -8,6 +8,7 @@ from rest_framework import permissions, serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.api.meeting_command_receipt import MeetingCommandReceiptMixin
 from core.services import meeting_summary_review as service
 from core.services.meeting_records import RecordConflict, visible_records
 
@@ -28,7 +29,7 @@ class ReviewSerializer(serializers.Serializer):
         return attrs
 
 
-class SummaryReviewView(APIView):
+class SummaryReviewView(MeetingCommandReceiptMixin, APIView):
     """Share-summary permission permits reading but never creating human revisions."""
 
     permission_classes = [permissions.IsAuthenticated]

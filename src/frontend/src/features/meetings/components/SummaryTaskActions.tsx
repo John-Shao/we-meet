@@ -86,6 +86,7 @@ export const SummaryTaskActions = ({
     try {
       const result = await fetchApi<{ created: boolean }>(path, {
         method: 'POST',
+        meetingCommand: { key: payload.key, scope: { record_id: recordId } },
         body: JSON.stringify(payload),
       })
       setIntent(undefined)
@@ -97,8 +98,7 @@ export const SummaryTaskActions = ({
     } catch (error) {
       if (
         error instanceof ApiError &&
-        error.statusCode < 500 &&
-        error.statusCode !== 429
+        [400, 409, 422].includes(error.statusCode)
       ) {
         setIntent(undefined)
         setMessage(

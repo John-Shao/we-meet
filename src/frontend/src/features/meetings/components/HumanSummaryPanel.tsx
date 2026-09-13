@@ -97,6 +97,7 @@ export const HumanSummaryPanel = ({
     try {
       const result = await fetchApi<{ current: Review }>(path, {
         method: 'POST',
+        meetingCommand: { key: payload.key, scope: { record_id: recordId } },
         body: JSON.stringify(payload),
       })
       client.setQueryData(queryKey, { ...query.data, current: result.current })
@@ -106,8 +107,7 @@ export const HumanSummaryPanel = ({
     } catch (error) {
       if (
         error instanceof ApiError &&
-        error.statusCode < 500 &&
-        error.statusCode !== 429
+        [400, 409, 422].includes(error.statusCode)
       ) {
         setIntent(undefined)
         setMessage(

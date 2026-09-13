@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
+from core.api.meeting_command_receipt import MeetingCommandReceiptMixin
 from core.services import meeting_summary_exports as service
 from core.services.meeting_records import RecordConflict, visible_records
 from core.services.summary_export_delivery import retry_export
@@ -41,7 +42,7 @@ class ExportRequest(ExportSelection):
     expected_hash = serializers.RegexField(r"^[a-f0-9]{64}$")
 
 
-class SummaryExportView(APIView):
+class SummaryExportView(MeetingCommandReceiptMixin, APIView):
     """Only the requesting owner/manager sees their own export receipts."""
 
     permission_classes = [permissions.IsAuthenticated]

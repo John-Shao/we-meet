@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 
 from core import models
 from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
+from core.api.meeting_command_receipt import MeetingCommandReceiptMixin
 from core.api.online_capture import CaptureSourceSerializer
 from core.services import meeting_translation as service
 from core.services import translation_archives
@@ -52,7 +53,7 @@ class TranslationStartThrottle(UserRateThrottle):
     rate = "6/min"
 
 
-class MeetingTranslationViewSet(viewsets.GenericViewSet):
+class MeetingTranslationViewSet(MeetingCommandReceiptMixin, viewsets.GenericViewSet):
     """The initial rollout supports a manager's own private source connection."""
 
     permission_classes = [permissions.IsAuthenticated]

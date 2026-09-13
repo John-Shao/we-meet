@@ -315,26 +315,29 @@ describe('Persistent private translation session', () => {
       operation: 'stop',
     })
   })
-  it('retries an uncertain start with the original key and payload', async () => {
-    const original = mocks.fetch.getMockImplementation()!
-    let failed = false
-    mocks.fetch.mockImplementation(async (url, options) => {
-      const result = await original(url, options)
-      if (options?.method === 'POST' && !failed) {
-        failed = true
-        throw new TypeError('lost reply')
-      }
-      return result
-    })
-    show()
-    await waitFor(() => expect(latest.canStart).toBe(true))
-    fireEvent.click(screen.getByText('change'))
-    await waitFor(() => expect(latest.error && !latest.pending).toBe(true))
-    expect(latest.uncertain).toBe(true)
-    fireEvent.click(screen.getByText('change'))
-    await waitFor(() => expect(posts()).toHaveLength(2))
-    expect(posts()[0][1].body).toEqual(posts()[1][1].body)
-  })
+  it.each([401, 403, 404, 408, 429, 503])(
+    'retries an uncertain start with the original key and payload after HTTP %s',
+    async (code) => {
+      const original = mocks.fetch.getMockImplementation()!
+      let failed = false
+      mocks.fetch.mockImplementation(async (url, options) => {
+        const result = await original(url, options)
+        if (options?.method === 'POST' && !failed) {
+          failed = true
+          throw new ApiError(code, {})
+        }
+        return result
+      })
+      show()
+      await waitFor(() => expect(latest.canStart).toBe(true))
+      fireEvent.click(screen.getByText('change'))
+      await waitFor(() => expect(latest.error && !latest.pending).toBe(true))
+      expect(latest.uncertain).toBe(true)
+      fireEvent.click(screen.getByText('change'))
+      await waitFor(() => expect(posts()).toHaveLength(2))
+      expect(posts()[0][1].body).toEqual(posts()[1][1].body)
+    }
+  )
   it('rejects stale or non-agent text and orders private manual commands', async () => {
     current = run()
     show()

@@ -16,6 +16,7 @@ from core import models
 from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
 from core.api.capture_audio import CaptureAudioView
 from core.api.meeting_captures import StrictSerializer
+from core.api.meeting_command_receipt import MeetingCommandReceiptMixin
 from core.services import capture_transcription as service
 from core.services.capture_audio import read_verified
 from core.services.meeting_captures import CaptureDenied
@@ -56,7 +57,7 @@ class RequestThrottle(UserRateThrottle):
     rate = "6/min"
 
 
-class CaptureTranscriptionView(SafeErrors, CaptureAudioView):
+class CaptureTranscriptionView(MeetingCommandReceiptMixin, SafeErrors, CaptureAudioView):
     """The audio owner alone may spend on a source transcription."""
 
     def get_throttles(self):
