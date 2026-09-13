@@ -225,6 +225,10 @@ helm "${helm_args[@]}"
 if contains_module backend; then
   wait_for_deployment "$RELEASE-backend"
   wait_for_deployment "$RELEASE-celery-backend"
+  beat=$(kubectl -n "$NAMESPACE" get deployment "$RELEASE-celery-beat" --ignore-not-found -o name)
+  if [[ -n "$beat" ]]; then
+    wait_for_deployment "$RELEASE-celery-beat"
+  fi
 fi
 if contains_module frontend; then
   wait_for_deployment "$RELEASE-frontend"

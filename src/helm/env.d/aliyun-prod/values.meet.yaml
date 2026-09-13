@@ -137,7 +137,7 @@ backend:
     MOBILE_AUTH_DEMO_OTP: "123456"
 
     # Recording — 第一阶段关闭
-    RECORDING_ENABLE: "False"
+    RECORDING_ENABLE: "True"
     RECORDING_STORAGE_EVENT_ENABLE: "False"
 
     # Summary — 启用，调本地 meet-summary service
@@ -178,6 +178,46 @@ backend:
     # synchronously in the gunicorn worker that handles the LiveKit
     # room_finished webhook.
     CELERY_ENABLED: "True"
+    # Meeting AI rollout: shared by API, celeryBackend and celeryBeat.
+    MEETING_RECORDS_ENABLED: "True"
+    MEETING_TRANSCRIPT_DELIVERY_ENABLED: "True"
+    MEETING_CAPTURE_PROTOCOL_ENABLED: "True"
+    MEETING_CAPTURE_AUDIO_ENABLED: "True"
+    MEETING_CAPTURE_ASR_ENABLED: "True"
+    MEETING_CAPTURE_LIVE_ASR_ENABLED: "True"
+    MEETING_CAPTURE_TEXT_ONLY_ENABLED: "True"
+    MEETING_ONLINE_CAPTURE_ENABLED: "True"
+    MEETING_CLOUD_RECORDING_ENABLED: "True"
+    MEETING_VERSIONED_SUMMARY_ENABLED: "True"
+    MEETING_SUMMARY_REQUESTS_ENABLED: "True"
+    MEETING_STAGED_SUMMARY_ENABLED: "True"
+    MEETING_SUMMARY_AUTOMATION_ENABLED: "True"
+    MEETING_SUMMARY_CHUNKING_ENABLED: "True"
+    MEETING_CAPTURE_SUMMARY_ENABLED: "True"
+    MEETING_CAPTURE_STAGED_SUMMARY_ENABLED: "True"
+    MEETING_SUMMARY_REVIEW_ENABLED: "True"
+    MEETING_SUMMARY_TASKS_ENABLED: "True"
+    MEETING_RECORD_QA_ENABLED: "True"
+    MEETING_SUMMARY_EXPORT_ENABLED: "True"
+    MEETING_SUMMARY_NOTIFICATIONS_ENABLED: "True"
+    MEETING_SUMMARY_SHARING_ENABLED: "True"
+    MEETING_TRANSLATION_ENABLED: "True"
+    MEETING_INTERPRETATION_ENABLED: "True"
+    MEETING_TRANSLATION_ARCHIVE_ENABLED: "True"
+    MEETING_CAPTURE_TRANSLATION_ENABLED: "True"
+    MEETING_CAPTURE_TRANSLATION_URL: "wss://meet.we-meet.online/capture-translation"
+    MEETING_CAPTURE_TRANSLATION_REGION: "cn-beijing"
+    ROOM_SUBTITLE_AGENT_NAME: "multi-user-transcriber"
+    ROOM_TRANSLATION_AGENT_NAME: "meeting-translation"
+    ROOM_INTERPRETATION_AGENT_NAME: "meeting-interpretation"
+    QWEN_ASR_MODEL: "qwen-audio-3.0-asr-flash-streaming"
+    QWEN_ASR_REGION: "cn-beijing"
+    MEETING_SUMMARY_MODEL: "qwen3.8-flash"
+    MEETING_SUMMARY_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    DASHSCOPE_API_KEY:
+      secretKeyRef:
+        name: meet-ai-credentials
+        key: DASHSCOPE_API_KEY
 
     # Calendar P0/P1/P2 have completed production rollout.  Keep the unified
     # list enabled so the secondary sidebar exposes Add/Managed/Subscribed;
@@ -464,20 +504,26 @@ celerySummaryBackend:
     - "call-webhook-queue-v2"
 
 # ---- Celery worker for the meet backend (delivery, mailing, room callbacks) ----
-celery:
+celeryBackend:
   replicas: 1
   resources:
     requests:
       cpu: 50m
       memory: 128Mi
     limits:
-      memory: 384Mi
+      memory: 1Gi
   command:
     - "celery"
     - "-A"
     - "meet.celery_app"
     - "worker"
     - "--loglevel=info"
+    - "--concurrency=2"
+    - "-Q"
+    - "meet-backend"
+
+celeryBeat:
+  enabled: true
 
 # ---- Metadata collector agent (lightweight, no STT) ----
 agentMetadata:
@@ -507,9 +553,8 @@ agentMetadata:
     - "metadata_collector.py"
     - "start"
 
-# ---- Subtitles / transcription agent (Doubao Seed-ASR) ----
-# Sprint 2.0：STT_PROVIDER 切换到 doubao，副本启用，FINAL transcripts 通过
-# AGENT_BACKEND_API_URL + AGENT_INTERNAL_API_TOKEN 回写后端 Transcript 表。
+# ---- Subtitles / transcription agent (Qwen streaming ASR) ----
+# Confirmed originals use the meeting delivery protocol and exact room occurrence.
 agentSubtitles:
   replicas: 1
   image:
@@ -521,15 +566,26 @@ agentSubtitles:
     LIVEKIT_API_KEY: meet
     # LIVEKIT_API_SECRET 来自 values.secrets.yaml
     ENABLE_SILERO_VAD: "true"
-    STT_PROVIDER: doubao
+    STT_PROVIDER: qwen
+    TRANSCRIBER_AGENT_NAME: multi-user-transcriber
+    QWEN_ASR_MODEL: qwen-audio-3.0-asr-flash-streaming
+    QWEN_ASR_REGION: cn-beijing
+    DASHSCOPE_WORKSPACE_ID:
+      secretKeyRef:
+        name: meet-ai-credentials
+        key: DASHSCOPE_WORKSPACE_ID
+        optional: true
+    DASHSCOPE_API_KEY:
+      secretKeyRef:
+        name: meet-ai-credentials
+        key: DASHSCOPE_API_KEY
     DOUBAO_ASR_MODEL: bigmodel
     # DOUBAO_ASR_APP_ID / DOUBAO_ASR_ACCESS_TOKEN 来自 values.secrets.yaml
     # K8s 内部 service DNS — meet-backend service 监听 80 端口
     AGENT_BACKEND_API_URL: http://meet-backend
     # AGENT_INTERNAL_API_TOKEN 来自 values.secrets.yaml
-    # Sprint 2.1：同传字幕。逗号分隔的 ISO 目标语言；空值禁用翻译。
-    # 译文实时通过 LiveKit DataChannel 推送给前端，并随 transcript 入库。
-    TRANSLATION_TARGET_LANGS: "zh-cn,en-us"
+    # Dedicated Qwen translation workers own translated output; keep originals separate.
+    TRANSLATION_TARGET_LANGS: ""
     DOUBAO_LLM_ENDPOINT: "ep-20260316164223-46rsh"
     # ARK_API_KEY 来自 values.secrets.yaml
   command:
@@ -577,3 +633,33 @@ agentAIAssistant:
     #   Doubao Pipeline: ARK_API_KEY, DOUBAO_ASR_APP_ID,
     #                    DOUBAO_ASR_ACCESS_TOKEN, DOUBAO_TTS_APP_ID,
     #                    DOUBAO_TTS_ACCESS_TOKEN
+
+# Meeting AI workers reuse credentials already supplied in values.secrets.yaml.
+# release-meet.sh agents pins all five processes to the selected immutable image.
+meetingAIWorkers:
+  credentialsFromExistingEnv: true
+  credentialsSecret: meet-ai-credentials
+  backendUrl: http://meet-backend
+  livekitUrl: wss://livekit.we-meet.online
+  image:
+    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents
+    tag: latest
+    pullPolicy: Always
+  gateway:
+    origins: https://meet.we-meet.online
+    ingress:
+      enabled: true
+      className: nginx
+      host: meet.we-meet.online
+      tlsSecret: meet-tls
+  workers:
+    translation:
+      enabled: true
+    interpretation:
+      enabled: true
+    capture-asr:
+      enabled: true
+    capture-live-asr:
+      enabled: true
+    capture-translation:
+      enabled: true

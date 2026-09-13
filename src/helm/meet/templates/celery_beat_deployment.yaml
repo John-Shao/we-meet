@@ -1,0 +1,35 @@
+{{- if .Values.celeryBeat.enabled }}
+{{- $component := "celery-beat" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "meet.fullname" . }}-celery-beat
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list . $component) | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "meet.common.selectorLabels" (list . $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "meet.common.selectorLabels" (list . $component) | nindent 8 }}
+    spec:
+      {{- if .Values.image.credentials }}
+      imagePullSecrets:
+        - name: {{ include "meet.secret.dockerconfigjson.name" (dict "fullname" (include "meet.fullname" .) "imageCredentials" .Values.image.credentials) }}
+      {{- end }}
+      containers:
+        - name: celery-beat
+          image: "{{ (.Values.backend.image | default dict).repository | default .Values.image.repository }}:{{ (.Values.backend.image | default dict).tag | default .Values.image.tag }}"
+          imagePullPolicy: {{ (.Values.backend.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
+          command: [celery, -A, meet.celery_app, beat, --loglevel=info, --schedule=/tmp/celerybeat-schedule]
+          env:
+            {{- include "meet.env.transformDict" (mergeOverwrite (deepCopy .Values.backend.envVars) .Values.celeryBeat.envVars) | nindent 12 }}
+          resources:
+            {{- toYaml .Values.celeryBeat.resources | nindent 12 }}
+{{- end }}

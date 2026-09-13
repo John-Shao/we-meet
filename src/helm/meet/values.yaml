@@ -1386,6 +1386,8 @@ extraManifests: []
 # Optional first-release AI processes. Use one immutable agents image tag.
 # Credentials are referenced from an existing Secret, never inline values.
 meetingAIWorkers:
+  # Opt-in reuse of existing secret-file env values; credentials never go here.
+  credentialsFromExistingEnv: false
   image:
     repository: lasuite/meet-agents
     tag: latest
@@ -1461,3 +1463,14 @@ meetingAIWorkers:
         QWEN_TRANSLATION_MODEL: qwen3.5-livetranslate-flash-realtime
         QWEN_TRANSLATION_LANGUAGES: zh,en
       resources: {}
+
+# One independent scheduler, using the same backend image and environment.
+celeryBeat:
+  enabled: false
+  envVars: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi

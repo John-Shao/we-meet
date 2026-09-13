@@ -39,6 +39,68 @@ class MeetingAIChartTest(unittest.TestCase):
         rows = render()
         self.assertFalse(any(row["metadata"]["name"] == f"meet-agent-{key}"
                              for row in rows for key in WORKERS))
+        self.assertFalse(any(row["metadata"]["name"] == "meet-celery-beat" for row in rows))
+
+    def test_beat_inherits_backend_settings_without_worker_override_leak(self):
+        rows = render("celeryBeat.enabled=true", "backend.envVars.AI_SCOPE=backend",
+                      "celeryBackend.envVars.AI_SCOPE=worker", "backend.image.tag=fixture-backend")
+        for name, expected in (("meet-backend", "backend"), ("meet-celery-beat", "backend"), ("meet-celery-backend", "worker")):
+            row = next(row for row in rows if row["kind"] == "Deployment" and row["metadata"]["name"] == name)
+            container = row["spec"]["template"]["spec"]["containers"][0]
+            env = {item["name"]: item.get("value") for item in container["env"]}
+            self.assertEqual(expected, env["AI_SCOPE"])
+            self.assertTrue(container["image"].endswith(":fixture-backend"))
+            if name == "meet-celery-beat":
+                self.assertEqual(1, row["spec"]["replicas"])
+                self.assertEqual("Recreate", row["spec"]["strategy"]["type"])
+                self.assertIn("beat", container["command"])
+
+    def test_aliyun_rollout_wires_entries_credentials_scheduler_and_workers(self):
+        command = [shutil.which("helm"), "template", "meet", str(ROOT / "src/helm/meet"),
+                   "-f", str(ROOT / "src/helm/env.d/aliyun-prod/values.meet.yaml")]
+        # Never load the operator's actual secret file in regression tests.
+        for item in ("agentAIAssistant.envVars.DASHSCOPE_API_KEY=fixture-provider",
+                     "backend.envVars.AGENT_INTERNAL_API_TOKEN=fixture-internal",
+                     "agentSubtitles.envVars.LIVEKIT_API_SECRET=fixture-livekit"):
+            command += ["--set-string", item]
+        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(0, result.returncode, result.stderr)
+        rows = [row for row in yaml.safe_load_all(result.stdout) if row]
+        deployments = {row["metadata"]["name"]: row for row in rows if row["kind"] == "Deployment"}
+        config = yaml.safe_load((ROOT / "src/helm/env.d/aliyun-prod/values.meet.yaml").read_text(encoding="utf-8"))
+        flags = [key for key in config["backend"]["envVars"] if key.startswith("MEETING_") and key.endswith("_ENABLED")]
+        self.assertTrue({"MEETING_RECORDS_ENABLED", "MEETING_CAPTURE_AUDIO_ENABLED",
+                         "MEETING_SUMMARY_REQUESTS_ENABLED", "MEETING_CAPTURE_TRANSLATION_ENABLED"}.issubset(flags))
+        for name in ("meet-backend", "meet-celery-backend", "meet-celery-beat"):
+            container = deployments[name]["spec"]["template"]["spec"]["containers"][0]
+            env = {item["name"]: item for item in container["env"]}
+            for flag in flags:
+                self.assertEqual("True", env[flag]["value"], f"{name}:{flag}")
+            self.assertEqual("qwen3.8-flash", env["MEETING_SUMMARY_MODEL"]["value"])
+            self.assertEqual("meet-ai-credentials", env["DASHSCOPE_API_KEY"]["valueFrom"]["secretKeyRef"]["name"])
+        for worker in WORKERS:
+            container = deployments[f"meet-agent-{worker}"]["spec"]["template"]["spec"]["containers"][0]
+            self.assertTrue(container["image"].startswith("jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:"))
+        subtitle = deployments["meet-agent-subtitles"]["spec"]["template"]["spec"]["containers"][0]
+        env = {item["name"]: item for item in subtitle["env"]}
+        self.assertEqual("qwen", env["STT_PROVIDER"]["value"])
+        self.assertEqual("", env["TRANSLATION_TARGET_LANGS"]["value"])
+        secret = next(row for row in rows if row["kind"] == "Secret" and row["metadata"]["name"] == "meet-ai-credentials")
+        self.assertEqual("fixture-provider", secret["stringData"]["DASHSCOPE_API_KEY"])
+        self.assertEqual("fixture-internal", secret["stringData"]["AGENT_INTERNAL_API_TOKEN"])
+        self.assertEqual("fixture-livekit", secret["stringData"]["LIVEKIT_API_SECRET"])
+        self.assertEqual("before-hook-creation", secret["metadata"]["annotations"]["helm.sh/hook-delete-policy"])
+        for row in rows:
+            if row["kind"] == "Job":
+                self.assertLess(int(secret["metadata"]["annotations"]["helm.sh/hook-weight"]),
+                                int(row["metadata"]["annotations"]["helm.sh/hook-weight"]))
+        ingress = next(row for row in rows if row["kind"] == "Ingress" and row["metadata"]["name"] == "meet-agent-capture-translation")
+        self.assertEqual("meet.we-meet.online", ingress["spec"]["rules"][0]["host"])
+        self.assertEqual("meet-tls", ingress["spec"]["tls"][0]["secretName"])
+
+    def test_managed_credentials_require_existing_secret_inputs(self):
+        self.assertIn("DASHSCOPE_API_KEY", render("meetingAIWorkers.credentialsFromExistingEnv=true",
+                                                 "meetingAIWorkers.credentialsSecret=fixture-ai", success=False))
 
     def test_enabled_workers_and_wss_are_exact_and_use_secret_references(self):
         rows = render(*self.settings,
