@@ -199,6 +199,9 @@ class CaptureTranslationConnection:
                 self.direction, self.awaiting = None, direction
                 if not await self.sessions[direction].commit():
                     self.awaiting = None
+                    await self.emit(
+                        "turn_empty", direction=direction, sequence=self.sequence
+                    )
             else:
                 raise TranslationError("invalid_translation_control")
             await self.emit("ack", sequence=self.sequence)

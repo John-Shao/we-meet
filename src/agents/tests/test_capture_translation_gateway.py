@@ -220,6 +220,23 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(connection.sessions["reverse"].config.target, "zh")
         self.assertTrue(socket.sent[-1]["complete"])
 
+    async def test_empty_manual_turn_explicitly_releases_client_waiting_state(self):
+        """An empty commit must not leave the client waiting for a provider response."""
+        connection, socket, _ = self.connection(
+            [
+                control("begin", 1, "forward"),
+                control("end", 2, "forward"),
+                control("finish", 3),
+            ],
+            config(mode="push_to_talk"),
+        )
+        await connection.run()
+        empty = [event for event in socket.sent if event["type"] == "turn_empty"]
+        self.assertEqual(len(empty), 1)
+        self.assertEqual(empty[0]["sequence"], 2)
+        self.assertEqual(empty[0]["direction"], "forward")
+        self.assertTrue(socket.sent[-1]["complete"])
+
     async def test_bad_sequences_frames_and_manual_input_fail_without_reconnect(self):
         """Reject duplicate frames, gaps, malformed PCM and unsolicited manual audio."""
         scenarios = [

@@ -420,3 +420,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 126: retained recording translation archives with actual capture provenance, exact owner-only readers and durable gateway final delivery; migration 0178, 93 unique backend + 29 agent scenarios pass. Client integration and final review remain. See [batch 126](meeting-ai-phase3-batch106-2026-09-13.md).
 
 - Batch 127: Web/native per-turn PCM draining without stopping original recording (Android d3d4d332); 26 Web, 20 JVM, 8 service scenarios plus real Chromium/build checks pass. Translation client integration follows. See [batch 127](meeting-ai-phase3-batch107-2026-09-13.md).
+
+- Batch 128: strict Web recording translation protocol, metadata-only recovery and same-microphone WS transport; 24 Web and 61 agent scenarios plus real Chromium/build checks pass. UI, playback and native integration follow. See [batch 128](meeting-ai-phase3-batch108-2026-09-13.md).
