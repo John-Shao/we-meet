@@ -208,3 +208,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 96: Android private translation protocol and encrypted source/consent-preserving recovery; 15 JVM + 11 isolated tests and Debug/token checks passed. See [batch 76](meeting-ai-phase3-batch76-2026-09-13.md). Native event/audio lifecycle and controls follow.
 
 - Batch 97: Android translation event validation and exact, expiring track subscriptions; 16 JVM tests, enabled/default Debug and token checks passed. See [batch 77](meeting-ai-phase3-batch77-2026-09-13.md). Native translation workspace follows; real call/device timing remains deployment testing.
+
+- Batch 98: Android connection-bound translation state, explicit sound consent and ordered manual speech; 24 JVM regressions and Debug/token checks passed. See [batch 78](meeting-ai-phase3-batch78-2026-09-13.md). Native workspace and SDK transport follow.
