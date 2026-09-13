@@ -102,3 +102,5 @@ Require Docs `bf2a0636` (or newer), not only the initial keyed-header commit: ol
 - Batch 48: [summary sharing and revocation UI](meeting-ai-phase3-batch28-2026-09-13.md). 7 new UI tests + 20 summary/notice regressions passed; native Chromium desktop/mobile and production build passed. Migration 0169 and sharing flag required. No real grants or messages. M3/M4 remain incomplete.
 
 - Batch 49: [shared interpretation channels and listener leases](meeting-ai-phase3-batch29-2026-09-13.md). 13 tests passed; migration 0170 required. MEETING_INTERPRETATION_ENABLED remains off and worker name empty. No dispatch/audio in this batch; worker lifecycle is next.
+
+- Batch 50: [shared interpretation worker lifecycle](meeting-ai-phase3-batch30-2026-09-13.md). 15 worker + 13 channel tests passed; migration 0171 required. Start/worker/stop deadlines and current recipient grants enforced. Dedicated audio Agent and Web listening remain next; interpretation flag stays off.

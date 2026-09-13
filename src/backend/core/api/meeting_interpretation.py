@@ -8,8 +8,11 @@ from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
 from core import models
+from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
+from core.api.meeting_translation import TranslationReceiptSerializer
 from core.api.online_capture import CaptureSourceSerializer
 from core.services import meeting_interpretation as service
+from core.services.interpretation_workers import agent_control
 from core.services.meeting_records import RecordConflict
 from core.services.online_capture import can_control
 
@@ -147,3 +150,36 @@ class InterpretationRenewalView(Base):
         except RecordConflict:
             return Response({"code": "interpretation_subscription_expired"}, status=409)
         return Response(result)
+
+
+class WorkerInput(CaptureSourceSerializer):
+    channel_id = serializers.UUIDField()
+    generation = serializers.IntegerField(min_value=1)
+    worker_id = serializers.UUIDField()
+    operation = serializers.ChoiceField(choices=["claim", "heartbeat", "finish"])
+    receipt = TranslationReceiptSerializer(required=False)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if (attrs["operation"] == "finish") != ("receipt" in attrs):
+            raise serializers.ValidationError("Only finish requires a receipt.")
+        return attrs
+
+
+class InterpretationWorkerView(Base):
+    authentication_classes = [AgentTokenAuthentication]
+    permission_classes = [HasAgentToken]
+
+    def post(self, request):
+        payload = WorkerInput(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        try:
+            result = agent_control(data["channel_id"], data)
+        except models.MeetingInterpretationChannel.DoesNotExist:
+            return Response(status=404)
+        except RecordConflict:
+            return Response({"code": "interpretation_worker_conflict"}, status=409)
+        return Response(
+            {"id": str(data["channel_id"]), "generation": data["generation"], **result}
+        )

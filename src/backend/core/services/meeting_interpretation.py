@@ -143,9 +143,10 @@ def control(session_id, user, key, payload):
         last.save(
             update_fields=["state", "stop_requested_at", "ended_at", "updated_at"]
         )
-        last.subscriptions.filter(active=True).update(
-            active=False, updated_at=timezone.now()
-        )
+        if not last.worker_id:
+            last.subscriptions.filter(active=True).update(
+                active=False, updated_at=timezone.now()
+            )
     else:
         raise RecordConflict("No active interpretation channel to stop.")
     return _save_receipt(session, user, key, payload, serialize(last))
@@ -224,7 +225,8 @@ def subscribe(session_id, user, key, payload):  # noqa: PLR0912 -- join/leave re
         # Prepared channels do not consume audio before someone explicitly listens.
         if channel.state == "prepared":
             channel.state = "starting"
-            channel.save(update_fields=["state", "updated_at"])
+            channel.start_requested_at = timezone.now()
+            channel.save(update_fields=["state", "start_requested_at", "updated_at"])
     else:
         raise RecordConflict("Unsupported listening operation.")
     return _save_receipt(session, user, key, payload, serialize_subscription(row))

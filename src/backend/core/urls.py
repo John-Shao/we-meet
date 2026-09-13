@@ -93,6 +93,7 @@ from core.api.meeting_interpretation import (
     InterpretationChannelsView,
     InterpretationRenewalView,
     InterpretationSubscriptionView,
+    InterpretationWorkerView,
 )
 from core.api.meeting_record_qa import RecordQuestionView
 from core.api.meeting_records import MeetingRecordViewSet
@@ -500,6 +501,7 @@ urlpatterns = [
         name="agent-capture-heartbeat",
     ),
     path("api/agent/translations/control/", TranslationAgentView.as_view(), name="agent-translation-control"),
+    path("api/agent/interpretation/control/", InterpretationWorkerView.as_view(), name="agent-interpretation-control"),
     # Internal API for agent workers (multi_user_transcriber, etc.).
     # Authenticates via X-Agent-Token shared secret; NOT a public surface.
     path(

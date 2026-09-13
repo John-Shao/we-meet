@@ -2091,6 +2091,7 @@ class MeetingInterpretationChannel(BaseModel):
     configuration = models.JSONField()
     state = models.CharField(max_length=16, default="prepared")
     worker_id = models.UUIDField(null=True, blank=True)
+    start_requested_at = models.DateTimeField(null=True, blank=True)
     heartbeat_at = models.DateTimeField(null=True, blank=True)
     dispatched_at = models.DateTimeField(null=True, blank=True)
     stop_requested_at = models.DateTimeField(null=True, blank=True)
