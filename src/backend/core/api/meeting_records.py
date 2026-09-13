@@ -480,9 +480,21 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             .first()
         )
         rows = record.summary_versions.select_related("job", "input_snapshot")
+        if "version_id" in request.query_params:
+            if request.query_params.get("cursor") or len(
+                request.query_params.getlist("version_id")
+            ) != 1:
+                raise ValidationError("A pinned version cannot use a cursor or multiple IDs.")
+            version_id = serializers.UUIDField().run_validation(
+                request.query_params["version_id"]
+            )
+            rows = rows.filter(pk=version_id)
+            if not rows.exists():
+                raise Http404
         pager = RecordPagination()
         pager.ordering = ("-created_at", "-id")
         page = pager.paginate_queryset(rows, request, view=self)
+        self._content_record("read_summary")
         return pager.get_paginated_response(
             [
                 {

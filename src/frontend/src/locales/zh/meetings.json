@@ -434,6 +434,39 @@
     "final": "译文",
     "preview": "翻译中"
   },
+  "summaryNotice": {
+    "title": "纪要助手通知",
+    "close": "收起通知",
+    "strategy": {
+      "owner": "最终智能纪要生成后，会议助手私信通知录音创建者。",
+      "owners_and_initiators": "最终智能纪要生成后，会议助手私信通知会议所有者、记录发起人和纪要请求人，并去重。"
+    },
+    "permissionHint": "仅通知生成时仍有纪要读取权限的人。通知不会自动分享或增加材料权限。",
+    "legacy": "已有旧版纪要继续使用原来的分发设置。",
+    "futureRecipients": "如果由你发起下一次生成，当前候选接收者：",
+    "noRecipients": "当前没有符合条件的接收者。",
+    "policyError": "暂时无法确认接收者名单。",
+    "unnamed": "未命名成员",
+    "mine": "我的最近通知",
+    "empty": "还没有发给你的通知；不会补发之前生成的纪要。",
+    "paused": "通知服务暂不可用，已有交付结果仍保留。",
+    "loadError": "暂时无法读取通知状态，请刷新重试。",
+    "openVersion": "查看这版纪要",
+    "pinned": "正在查看通知所对应的固定纪要版本。",
+    "allVersions": "返回会议记录",
+    "versionUnavailable": "这版纪要不存在或你已无权查看。",
+    "retry": "再次尝试通知我",
+    "resubmit": "确认上次重试结果",
+    "retryHint": "仅向你发送原通知，不会重新生成纪要或通知其他人。",
+    "recoveryHint": "正在核对原消息的交付结果；不会自动重复发送。",
+    "deliveryConflict": "原消息内容冲突，请联系管理员检查。",
+    "pendingHint": "上次重试结果尚未确认，将继续确认同一次操作。",
+    "storageUnavailable": "无法保存重试状态，请允许浏览器会话存储后再试。",
+    "accepted": "重试请求已受理，等待交付结果。",
+    "conflict": "通知状态已变化，请根据刷新后的状态操作。",
+    "uncertainRequest": "尚未确认请求结果，可继续确认同一次操作。",
+    "status": { "queued": "等待发送", "running": "核对或发送中", "delivered": "已发送", "uncertain": "交付结果待确认", "failed": "发送失败", "unavailable": "原消息已不可用", "canceled": "已取消发送" }
+  },
   "share": {
     "action": "分享会议",
     "sendFailed": "会议分享失败，请重试。"

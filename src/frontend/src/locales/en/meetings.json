@@ -434,6 +434,39 @@
     "final": "Translation",
     "preview": "Translating"
   },
+  "summaryNotice": {
+    "title": "Minutes assistant notifications",
+    "close": "Hide notifications",
+    "strategy": {
+      "owner": "When final AI minutes are ready, the meeting assistant privately notifies the recording creator.",
+      "owners_and_initiators": "When final AI minutes are ready, the meeting assistant privately notifies meeting owners, recording initiators and the minutes requester, without duplicates."
+    },
+    "permissionHint": "Only people who can still read the minutes at generation time are selected. Notifications do not share materials or grant access.",
+    "legacy": "Existing legacy minutes keep their original delivery settings.",
+    "futureRecipients": "Current candidates if you request the next generation:",
+    "noRecipients": "No eligible recipients right now.",
+    "policyError": "The recipient list cannot be confirmed right now.",
+    "unnamed": "Unnamed member",
+    "mine": "My recent notifications",
+    "empty": "No notifications for you yet. Previously generated minutes are not sent retroactively.",
+    "paused": "Notifications are currently unavailable. Existing delivery results are retained.",
+    "loadError": "Notification status is unavailable. Refresh to try again.",
+    "openVersion": "View these minutes",
+    "pinned": "Viewing the exact minutes version linked in this notification.",
+    "allVersions": "Back to meeting record",
+    "versionUnavailable": "This minutes version does not exist or you no longer have access.",
+    "retry": "Try notifying me again",
+    "resubmit": "Confirm previous retry result",
+    "retryHint": "Only the original notification to you is retried. Minutes are not regenerated and no one else is notified.",
+    "recoveryHint": "Checking the original message receipt without automatically sending again.",
+    "deliveryConflict": "The original message content conflicts. Contact an administrator.",
+    "pendingHint": "The previous retry is unconfirmed. Continue confirming that same operation.",
+    "storageUnavailable": "Retry state could not be saved. Allow browser session storage and try again.",
+    "accepted": "Retry accepted. Waiting for the delivery result.",
+    "conflict": "Notification status changed. Use the refreshed status to continue.",
+    "uncertainRequest": "The request result is unconfirmed. You can continue confirming the same operation.",
+    "status": { "queued": "Waiting to send", "running": "Checking or sending", "delivered": "Sent", "uncertain": "Delivery unconfirmed", "failed": "Sending failed", "unavailable": "Original message unavailable", "canceled": "Sending canceled" }
+  },
   "share": {
     "action": "Share meeting",
     "sendFailed": "Unable to share the meeting. Please try again."

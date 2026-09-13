@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Link, Redirect, useParams } from 'wouter'
+import { Link, Redirect, useParams, useSearch } from 'wouter'
 import { fetchApi } from '@/api/fetchApi'
 import { ApiError } from '@/api/ApiError'
 import { useConfig } from '@/api/useConfig'
@@ -196,13 +196,19 @@ function LegacySummary({
 function WorkspaceContent({
   record,
   viewerId,
+  summaryId,
 }: {
   record: ApiMeetingRecord
   viewerId: string
+  summaryId?: string
 }) {
   const { t } = useTranslation('meetings')
   const [tab, setTab] = useState(
-    record.capabilities.read_transcript ? 'text' : 'summary'
+    summaryId !== undefined
+      ? 'summary'
+      : record.capabilities.read_transcript
+        ? 'text'
+        : 'summary'
   )
   const player = useRef<CaptureAudioHandle>(null)
   const captureId = record.capabilities.read_transcript
@@ -288,6 +294,7 @@ function WorkspaceContent({
           <TabPanel id="summary" padding="md">
             <RecordSummaryPanel
               showHeading={false}
+              selectedVersionId={summaryId}
               key={`${viewerId}:${record.id}`}
               viewerId={viewerId}
               recordId={record.id}
@@ -302,7 +309,7 @@ function WorkspaceContent({
                   : undefined
               }
             />
-            {record.source_type === 'meeting' && (
+            {summaryId === undefined && record.source_type === 'meeting' && (
               <LegacySummary viewerId={viewerId} recordId={record.id} />
             )}
           </TabPanel>
@@ -343,6 +350,10 @@ export function RecordWorkspace({
   recordId: string
 }) {
   const { t } = useTranslation('meetings')
+  const search = new URLSearchParams(useSearch())
+  // Preserve invalid/empty selectors so the API rejects them instead of opening latest.
+  const summaryIds = search.getAll('summary')
+  const summaryId = summaryIds.length > 1 ? '' : summaryIds[0]
   const query = useMeetingRecord(viewerId, recordId, true)
   return (
     <Screen>
@@ -373,9 +384,10 @@ export function RecordWorkspace({
               {new Date(query.data.origin_at).toLocaleString()}
             </p>
             <WorkspaceContent
-              key={`${viewerId}:${recordId}`}
+              key={`${viewerId}:${recordId}:${summaryId ?? 'all'}`}
               viewerId={viewerId}
               record={query.data}
+              summaryId={summaryId}
             />
           </>
         )}

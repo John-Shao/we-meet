@@ -136,7 +136,8 @@ export const useRecordSummaryVersions = (
   viewerId: string | undefined,
   recordId: string | undefined,
   enabled: boolean,
-  cursor?: string
+  cursor?: string,
+  versionId?: string
 ) =>
   useQuery<MeetingRecordPage<ApiRecordSummaryVersion>, ApiError>({
     ...privateReadOptions,
@@ -148,9 +149,16 @@ export const useRecordSummaryVersions = (
       'summary-versions',
       recordId,
       cursor,
+      versionId,
     ],
     queryFn: ({ signal }) => {
-      const params = new URLSearchParams(cursor ? { cursor } : {})
+      const params = new URLSearchParams(
+        versionId !== undefined
+          ? { version_id: versionId }
+          : cursor
+            ? { cursor }
+            : {}
+      )
       return fetchApi(`${recordPath(recordId!)}summary-versions/?${params}`, {
         signal,
       })

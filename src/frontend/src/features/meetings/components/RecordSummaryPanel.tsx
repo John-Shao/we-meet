@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'wouter'
 
 import { ApiError } from '@/api/ApiError'
 import { StateHint } from '@/components/StateHint'
@@ -24,6 +25,7 @@ import { SummaryAutomationControl } from './SummaryAutomationControl'
 import { HumanSummaryPanel } from './HumanSummaryPanel'
 import { RecordQuestionPanel } from './RecordQuestionPanel'
 import { SummaryExportControl } from './SummaryExportControl'
+import { SummaryNotificationPanel } from './SummaryNotificationPanel'
 
 const stack = css({ display: 'flex', flexDirection: 'column', gap: '1rem' })
 
@@ -98,18 +100,27 @@ export const RecordSummaryPanel = ({
   viewerId,
   onSourceAudio,
   showHeading = true,
+  selectedVersionId,
 }: {
   recordId: string
   viewerId: string
   onSourceAudio?: (milliseconds: number) => void
   showHeading?: boolean
+  selectedVersionId?: string
 }) => {
   const { t } = useTranslation('meetings')
   const detail = useMeetingRecord(viewerId, recordId, true)
   const allowed = !!detail.data?.capabilities.read_summary && !detail.isError
   const progress = useRecordSummaryJob(viewerId, recordId, allowed)
   const [cursor, setCursor] = useState<string>()
-  const versions = useRecordSummaryVersions(viewerId, recordId, allowed, cursor)
+  const pinned = selectedVersionId !== undefined
+  const versions = useRecordSummaryVersions(
+    viewerId,
+    recordId,
+    allowed,
+    cursor,
+    selectedVersionId
+  )
   const mutation = useRequestRecordSummary(viewerId, recordId)
   const [pendingIntent, setPendingIntent] = useState<{
     key: string
@@ -189,8 +200,23 @@ export const RecordSummaryPanel = ({
     }
   }
 
-  if (detail.isError || progress.isError || versions.isError)
+  if (detail.isError || progress.isError)
     return <StateHint state="error">{t('recordAi.unavailable')}</StateHint>
+  if (versions.isError)
+    return (
+      <div className={stack}>
+        <StateHint state="error">
+          {t(
+            pinned ? 'summaryNotice.versionUnavailable' : 'recordAi.unavailable'
+          )}
+        </StateHint>
+        {pinned && (
+          <Link href={`/meeting/records/${encodeURIComponent(recordId)}`}>
+            {t('summaryNotice.allVersions')}
+          </Link>
+        )}
+      </div>
+    )
   if (!detail.data || (allowed && (!progress.data || !versions.data)))
     return <StateHint state="loading">{t('loading')}</StateHint>
   if (!allowed) return <StateHint>{t('recordAi.unavailable')}</StateHint>
@@ -211,8 +237,23 @@ export const RecordSummaryPanel = ({
           <Text>{new Date(detail.data.origin_at).toLocaleString()}</Text>
         </>
       )}
-      <SummaryAutomationControl recordId={recordId} viewerId={viewerId} />
-      {job && (
+      {pinned && (
+        <div className={stack}>
+          <Text>{t('summaryNotice.pinned')}</Text>
+          <Link href={`/meeting/records/${encodeURIComponent(recordId)}`}>
+            {t('summaryNotice.allVersions')}
+          </Link>
+        </div>
+      )}
+      <SummaryNotificationPanel
+        recordId={recordId}
+        viewerId={viewerId}
+        summaryId={selectedVersionId}
+      />
+      {!pinned && (
+        <SummaryAutomationControl recordId={recordId} viewerId={viewerId} />
+      )}
+      {!pinned && job && (
         <div role="status">
           {t(`recordAi.status.${job.status}`)}
           {job.dispatch_pending && ` · ${t('recordAi.dispatchPending')}`}
@@ -221,7 +262,7 @@ export const RecordSummaryPanel = ({
             ` · ${t('recordAi.chunkProgress', job.chunk_progress)}`}
         </div>
       )}
-      {canGenerate && (
+      {!pinned && canGenerate && (
         <div
           className={css({ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' })}
         >
@@ -274,10 +315,12 @@ export const RecordSummaryPanel = ({
         </div>
       )}
       {message && <div role="status">{t(message)}</div>}
-      {progress.data?.blocked_reason === 'source_budget_exceeded' && (
-        <Text>{t('recordAi.sourceBudgetExceeded')}</Text>
-      )}
-      {canGenerate &&
+      {!pinned &&
+        progress.data?.blocked_reason === 'source_budget_exceeded' && (
+          <Text>{t('recordAi.sourceBudgetExceeded')}</Text>
+        )}
+      {!pinned &&
+        canGenerate &&
         !progress.data?.blocked_reason &&
         (staged ? readyStages.length === 0 : !ready) && (
           <Text>
@@ -286,7 +329,7 @@ export const RecordSummaryPanel = ({
             )}
           </Text>
         )}
-      {staged && progress.data?.next_update_at && (
+      {!pinned && staged && progress.data?.next_update_at && (
         <Text>
           {t('recordAi.nextUpdate', {
             time: new Date(progress.data.next_update_at).toLocaleTimeString(),
@@ -306,17 +349,19 @@ export const RecordSummaryPanel = ({
       >
         {t('recordAi.refresh')}
       </Button>
-      <HumanSummaryPanel
-        key={`human:${viewerId}:${recordId}`}
-        recordId={recordId}
-        viewerId={viewerId}
-        versions={versions.data?.results ?? []}
-        onSource={
-          detail.data.capabilities.read_transcript
-            ? (snapshotId, ref) => setCitation({ snapshotId, ref })
-            : undefined
-        }
-      />
+      {!pinned && (
+        <HumanSummaryPanel
+          key={`human:${viewerId}:${recordId}`}
+          recordId={recordId}
+          viewerId={viewerId}
+          versions={versions.data?.results ?? []}
+          onSource={
+            detail.data.capabilities.read_transcript
+              ? (snapshotId, ref) => setCitation({ snapshotId, ref })
+              : undefined
+          }
+        />
+      )}
       {versions.data?.results.length === 0 && (
         <StateHint>{t('recordAi.noVersions')}</StateHint>
       )}
