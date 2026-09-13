@@ -328,3 +328,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 80: Android sealed-audio playlist and bounded authenticated WAV download; 16 JVM tests, Debug build and token checks passed. See [batch 60](meeting-ai-phase3-batch60-2026-09-13.md). Native playback lifecycle/UI follows.
 
 - Batch 81: Android bounded playback engine and AudioTrack focus handling; 15 JVM and 2 isolated silent-audio SDK tests passed. See [batch 61](meeting-ai-phase3-batch61-2026-09-13.md). Native player UI/lifecycle follows.
+
+- Batch 82: Android player/source seeking, lifecycle and recording exclusion; 30 isolated tests plus default Debug/token and light/dark checks passed. See [batch 62](meeting-ai-phase3-batch62-2026-09-13.md). Web receipt validation and remaining first-release work follow.
