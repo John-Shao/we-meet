@@ -3,13 +3,19 @@ import type { CaptureCommand } from '../api/ApiCaptureSession'
 import { CaptureJournal, type LocalCapture } from './journal'
 import { CaptureMicrophone } from './microphone'
 import type { CaptureTransport } from './transport'
+import { textAudioExpired } from './retention'
 
 export interface CaptureViewState {
   local?: LocalCapture
   history: LocalCapture[]
   mode: 'ready' | 'recording' | 'paused' | 'recoverable' | 'saved'
   busy: boolean
-  error?: 'operationFailed' | 'microphoneFailed' | 'uploadFailed'
+  error?:
+    | 'operationFailed'
+    | 'microphoneFailed'
+    | 'uploadFailed'
+    | 'retentionExpired'
+    | 'textUnavailable'
 }
 
 type Microphone = Pick<CaptureMicrophone, 'start' | 'pause' | 'stop' | 'close'>
@@ -28,7 +34,13 @@ export class RecordingController {
   constructor(
     private journal: Pick<
       CaptureJournal,
-      'update' | 'list' | 'create' | 'append' | 'chunks' | 'acknowledge'
+      | 'update'
+      | 'list'
+      | 'create'
+      | 'append'
+      | 'chunks'
+      | 'acknowledge'
+      | 'discardTextAudio'
     >,
     private transport: CaptureTransport,
     private changed: (state: CaptureViewState) => void,
@@ -140,9 +152,20 @@ export class RecordingController {
     await this.pendingCommand()
   }
 
-  async start(title: string) {
+  async start(title: string, retentionMode: 'media' | 'text' = 'media') {
     await this.operation(async () => {
       try {
+        const retention =
+          this.state.local && !this.state.local.sealed
+            ? this.state.local.create.retention_mode
+            : retentionMode
+        if (
+          retention === 'text' &&
+          !(await this.transport.textAudioAvailable())
+        ) {
+          this.publish({ error: 'textUnavailable' })
+          throw new Error('text_audio_unavailable')
+        }
         this.microphone = await this.openMicrophone(
           async (pcm) => {
             if (this.disposed || !this.state.local) throw new Error('disposed')
@@ -165,10 +188,12 @@ export class RecordingController {
         )
         if (this.disposed) throw new Error('disposed')
         if (!this.state.local || this.state.local.sealed) {
-          const local = await this.journal.create(title)
+          const local = await this.journal.create(title, retention)
           this.publish({ local })
         }
         await this.remote()
+        if (textAudioExpired(this.state.local!))
+          throw new Error('temporary_audio_expired')
         if (this.state.local!.remote!.status === 'recording')
           await this.command('interrupt')
         const status = this.state.local!.remote!.status
@@ -214,6 +239,11 @@ export class RecordingController {
         return
       // Snapshot one bounded batch; new live chunks trigger the next pass.
       const id = this.state.local.id
+      if (textAudioExpired(this.state.local)) {
+        await this.journal.discardTextAudio(id)
+        await this.update((local) => local)
+        throw new Error('temporary_audio_expired')
+      }
       for (const chunk of await this.journal.chunks(id)) {
         if (!chunk.audio) continue
         if (this.disposed) throw new Error('disposed')
@@ -267,15 +297,38 @@ export class RecordingController {
       if (this.state.local!.remote!.status !== 'stopped')
         await this.command('finalize')
       await this.update((local) => ({ ...local, sealed: true }))
+      if (this.state.local!.create.retention_mode === 'text')
+        await this.journal.discardTextAudio(this.state.local!.id)
       this.publish({ mode: 'saved' })
       await this.load(this.state.local!.id)
     })
   }
 
   async localAudio() {
+    if (this.state.local?.create.retention_mode === 'text') return []
     return (await this.journal.chunks(this.state.local!.id)).filter(
       (chunk) => chunk.audio
     )
+  }
+
+  async checkRetention() {
+    if (!this.state.local || !textAudioExpired(this.state.local)) return
+    if (
+      this.state.error === 'retentionExpired' &&
+      !this.microphone &&
+      !this.state.local.pendingBytes
+    )
+      return
+    await this.operation(async () => {
+      this.microphone?.close()
+      this.microphone = undefined
+      await this.journal.discardTextAudio(this.state.local!.id)
+      await this.update((local) => local)
+      this.publish({
+        mode: this.state.local!.sealed ? 'saved' : 'recoverable',
+        error: 'retentionExpired',
+      })
+    })
   }
 
   dispose() {

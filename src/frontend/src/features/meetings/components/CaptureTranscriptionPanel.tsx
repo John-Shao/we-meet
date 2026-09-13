@@ -8,7 +8,9 @@ import { css } from '@/styled-system/css'
 import type {
   ApiCaptureSession,
   ApiMeetingOriginalSegment,
+  CaptureAudioRetention,
 } from '../api/ApiCaptureSession'
+import { isAudioRetention } from '../capture/retention'
 import { RecordSummaryPanel } from './RecordSummaryPanel'
 import { OriginalSearch } from './OriginalSearch'
 import { LiveCaptureTranscript } from './LiveCaptureTranscript'
@@ -24,6 +26,7 @@ type Job = {
   input_closed?: boolean
 }
 type State = {
+  audio_retention?: CaptureAudioRetention
   available: boolean
   live_available?: boolean
   summary_available?: boolean
@@ -55,7 +58,7 @@ export function CaptureTranscriptionPanel({
 }: {
   viewerId: string
   capture: ApiCaptureSession
-  onSource: (milliseconds: number) => void
+  onSource?: (milliseconds: number) => void
   includeSummary?: boolean
 }) {
   const { t } = useTranslation('capture')
@@ -101,11 +104,21 @@ export function CaptureTranscriptionPanel({
     refetchInterval: (query) => (query.state.error ? false : 5000),
   })
   const latest = state.data?.results[0]
+  const retention = state.data?.audio_retention
+  const textMode = capture.audio_retention?.mode === 'text'
+  const retryOpen = () =>
+    !textMode ||
+    (isAudioRetention(retention) &&
+      retention.mode === 'text' &&
+      !retention.expired &&
+      retention.cleanup_status === 'not_started' &&
+      Date.now() < Date.parse(retention.retry_until!))
   const openCapture = capture.status !== 'stopped'
   const canStartLive =
     ['recording', 'paused', 'interrupted'].includes(capture.status) &&
     !!state.data?.live_available
-  const canCreate = openCapture ? canStartLive : !!state.data?.available
+  const canCreate =
+    (openCapture ? canStartLive : !!state.data?.available) && retryOpen()
   const clearIntent = () => {
     try {
       sessionStorage.removeItem(storageKey)
@@ -117,7 +130,11 @@ export function CaptureTranscriptionPanel({
     setIntent(undefined)
   }
   const create = async () => {
-    if (busy.current || !ready || (!intent && (!canCreate || active(latest))))
+    if (
+      busy.current ||
+      !ready ||
+      (!intent && (!canCreate || !retryOpen() || active(latest)))
+    )
       return
     busy.current = true
     setSaving(true)
@@ -152,8 +169,7 @@ export function CaptureTranscriptionPanel({
       if (abort.current?.signal.aborted) return
       if (
         error instanceof ApiError &&
-        error.statusCode < 500 &&
-        error.statusCode !== 429
+        [400, 409, 422].includes(error.statusCode)
       ) {
         clearIntent()
         setMessage(error.statusCode === 409 ? 'asr.conflict' : 'asr.denied')
@@ -199,12 +215,35 @@ export function CaptureTranscriptionPanel({
   if (
     !(openCapture ? state.data.live_available : state.data.available) &&
     !state.data.results.length &&
-    !intent
+    !intent &&
+    !textMode
   )
     return null
   return (
     <section className={style} aria-label={t('asr.title')}>
       <h2>{t('asr.title')}</h2>
+      {textMode && (
+        <div role="status">
+          {isAudioRetention(retention) ? (
+            <>
+              <p>{t(`retention.${retention.cleanup_status}`)}</p>
+              <p>
+                {t('retention.deadline', {
+                  time: new Date(retention.temporary_until!).toLocaleString(),
+                })}
+              </p>
+              <p>
+                {t('retention.retryUntil', {
+                  time: new Date(retention.retry_until!).toLocaleString(),
+                })}
+              </p>
+              {!retryOpen() && <p>{t('retention.retryClosed')}</p>}
+            </>
+          ) : (
+            <p>{t('retention.unavailable')}</p>
+          )}
+        </div>
+      )}
       <p>{t(openCapture ? 'asr.liveScope' : 'asr.scope')}</p>
       {latest && (
         <p role="status">
@@ -293,7 +332,7 @@ export function CaptureTranscriptionPanel({
           viewerId={viewerId}
           capture={capture}
           jobId={state.data.active_job_id}
-          onSource={onSource}
+          onSource={textMode ? undefined : onSource}
         />
       )}
       {!!state.data.results.length && (
@@ -325,7 +364,7 @@ export function CaptureTranscriptionPanel({
                 <RecordSummaryPanel
                   recordId={capture.record_id}
                   viewerId={viewerId}
-                  onSourceAudio={openCapture ? undefined : onSource}
+                  onSourceAudio={openCapture || textMode ? undefined : onSource}
                   duringCapture={openCapture}
                   showHeading={false}
                 />
@@ -346,7 +385,7 @@ function Originals({
   viewerId: string
   capture: ApiCaptureSession
   jobId: string
-  onSource: (milliseconds: number) => void
+  onSource?: (milliseconds: number) => void
 }) {
   const { t } = useTranslation('capture')
   const [cursors, setCursors] = useState<string[]>([''])
@@ -394,15 +433,17 @@ function Originals({
     <div className={style}>
       {searchForm}
       <h3>{t('asr.originals')}</h3>
-      <p>{t('asr.unknownSpeaker')}</p>
+      <p>{t(onSource ? 'asr.unknownSpeaker' : 'retention.noPlayback')}</p>
       {!query.data.results.length && <p>{t('asr.noText')}</p>}
       {query.data.results.map((row) => (
         <article key={row.id}>
-          <Button variant="tertiary" onPress={() => onSource(row.start_ms)}>
-            {t('asr.source', {
-              time: `${Math.floor(row.start_ms / 60000)}:${String(Math.floor(row.start_ms / 1000) % 60).padStart(2, '0')}`,
-            })}
-          </Button>
+          {onSource && (
+            <Button variant="tertiary" onPress={() => onSource(row.start_ms)}>
+              {t('asr.source', {
+                time: `${Math.floor(row.start_ms / 60000)}:${String(Math.floor(row.start_ms / 1000) % 60).padStart(2, '0')}`,
+              })}
+            </Button>
+          )}
           <p
             className={css({
               whiteSpace: 'pre-wrap',

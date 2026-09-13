@@ -1,4 +1,23 @@
 {
+  "backToLibrary": "Back to meeting records",
+  "textScope": "Record an in-person meeting or interview. Temporary audio supports transcription; text and generated minutes are retained.",
+  "textLeaveHint": "Leaving interrupts recording and unuploaded audio cannot be recovered. Let participants know before recording.",
+  "textSaved": "Recording ended. Check transcription and cleanup status.",
+  "textOnly": "Keep text only",
+  "textOnlyConsent": "Audio is held temporarily for transcription, without playback or download. It is cleaned up after successful transcription. Start or retry transcription within 30 minutes after ending; audio expires no later than 24 hours after starting. Unuploaded audio stays in this page's memory and cannot be recovered after leaving or reloading. Start transcription separately; it uses AI quota.",
+  "textUnavailable": "Text-only recording is unavailable. Check the service configuration and try again.",
+  "retentionExpired": "Temporary audio has expired and recording has stopped. End the recording; missing audio cannot be recovered.",
+  "retention": {
+    "not_started": "Audio is temporarily held for transcription. Cleanup has not started.",
+    "pending": "Temporary audio cleanup is in progress. Text and minutes will remain.",
+    "failed": "Temporary audio cleanup is not complete. The system will retry.",
+    "complete": "Temporary audio was deleted. Text and minutes remain.",
+    "deadline": "Audio access ends: {{time}}. Transcription cannot continue after expiry; deletion progress is shown above.",
+    "retryUntil": "Start or retry transcription by: {{time}}.",
+    "retryClosed": "New transcription attempts are unavailable. Existing request results can still be checked.",
+    "unavailable": "Audio retention status cannot be confirmed. Refresh before continuing.",
+    "noPlayback": "Only text is retained; audio playback is unavailable. Single-microphone transcription does not identify speakers."
+  },
   "title": "Audio recording",
   "playback": "Audio playback",
   "playbackHint": "Play saved chunks in order. Switching chunks may briefly buffer. Playback pauses at missing audio.",

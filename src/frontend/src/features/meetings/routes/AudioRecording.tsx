@@ -12,7 +12,8 @@ import {
   type CaptureViewState,
 } from '../capture/controller'
 import { withCaptureLock } from '../capture/microphone'
-import { captureTransport } from '../capture/transport'
+import { captureTransport, textAudioAvailable } from '../capture/transport'
+import { textAudioExpired } from '../capture/retention'
 import {
   CaptureAudioPlayer,
   type CaptureAudioHandle,
@@ -40,9 +41,32 @@ export function Recorder({
   })
   const [unavailable, setUnavailable] = useState(false)
   const [title, setTitle] = useState('')
+  const [textAvailable, setTextAvailable] = useState(false)
+  const [textOnly, setTextOnly] = useState(false)
   const [localChunks, setLocalChunks] = useState<LocalAudioChunk[]>([])
   const [localPage, setLocalPage] = useState(0)
   const player = useRef<CaptureAudioHandle>(null)
+
+  useEffect(() => {
+    const abort = new AbortController()
+    setTextAvailable(false)
+    if (available)
+      void textAudioAvailable(abort.signal)
+        .then((value) => {
+          if (!abort.signal.aborted) setTextAvailable(value)
+        })
+        .catch(() => undefined)
+    return () => abort.abort()
+  }, [viewerId, available])
+
+  useEffect(() => {
+    if (!controller) return
+    const timer = window.setInterval(
+      () => void controller.checkRetention(),
+      1000
+    )
+    return () => window.clearInterval(timer)
+  }, [controller])
 
   useEffect(() => {
     let cancelled = false
@@ -102,7 +126,8 @@ export function Recorder({
     state.mode !== 'recording' &&
     !local.sealIntent &&
     local.remote?.status !== 'stopping' &&
-    local.remote?.status !== 'stopped'
+    local.remote?.status !== 'stopped' &&
+    !textAudioExpired(local)
   const disabled = !controller || state.busy || unavailable
   const download = (chunk: LocalAudioChunk) => {
     if (!chunk.audio) return
@@ -122,7 +147,7 @@ export function Recorder({
         href="/meeting/notes"
         className={css({ padding: '0.75rem 1.5rem', color: 'primary.700' })}
       >
-        {t('library.back', { ns: 'meetings' })}
+        {t('backToLibrary')}
       </Link>
       <main
         className={css({
@@ -143,9 +168,19 @@ export function Recorder({
         >
           {t('title')}
         </h1>
-        <p>{t('scope')}</p>
+        <p>
+          {t(
+            textOnly || (working && local.create.retention_mode === 'text')
+              ? 'textScope'
+              : 'scope'
+          )}
+        </p>
         <p className={css({ color: 'greyscale.600', marginBottom: '1.5rem' })}>
-          {t('leaveHint')}
+          {t(
+            textOnly || (working && local.create.retention_mode === 'text')
+              ? 'textLeaveHint'
+              : 'leaveHint'
+          )}
         </p>
         {unavailable && <p role="alert">{t('unavailable')}</p>}
         {!available && <p role="status">{t('disabled')}</p>}
@@ -181,8 +216,29 @@ export function Recorder({
               />
             </label>
           )}
+          {!working && textAvailable && (
+            <div>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={textOnly}
+                  disabled={disabled}
+                  onChange={(event) => setTextOnly(event.target.checked)}
+                />{' '}
+                {t('textOnly')}
+              </label>
+              {textOnly && <p role="note">{t('textOnlyConsent')}</p>}
+            </div>
+          )}
+          {working && local?.create.retention_mode === 'text' && (
+            <p role="note">{t('textOnlyConsent')}</p>
+          )}
           <p role="status" aria-live="polite">
-            {t(`state.${state.mode}`)}
+            {t(
+              state.mode === 'saved' && local?.create.retention_mode === 'text'
+                ? 'textSaved'
+                : `state.${state.mode}`
+            )}
             {state.busy ? ` · ${t('busy')}` : ''}
           </p>
           {local && (
@@ -208,8 +264,12 @@ export function Recorder({
             {!working && (
               <Button
                 variant="primary"
-                isDisabled={disabled || !available}
-                onPress={() => void controller?.start(title)}
+                isDisabled={
+                  disabled || !available || (textOnly && !textAvailable)
+                }
+                onPress={() =>
+                  void controller?.start(title, textOnly ? 'text' : 'media')
+                }
               >
                 {t('start')}
               </Button>
@@ -265,22 +325,28 @@ export function Recorder({
             </details>
           )}
         </section>
-        {local?.sealed && local.remote && (
-          <CaptureAudioPlayer
-            ref={player}
-            key={`${viewerId}:${local.remote.id}`}
-            captureId={local.remote.id}
-          />
-        )}
+        {local?.sealed &&
+          local.remote &&
+          local.create.retention_mode === 'media' && (
+            <CaptureAudioPlayer
+              ref={player}
+              key={`${viewerId}:${local.remote.id}`}
+              captureId={local.remote.id}
+            />
+          )}
         {local?.remote && (
           <CaptureTranscriptionPanel
             key={`asr:${viewerId}:${local.remote.id}`}
             viewerId={viewerId}
             capture={local.remote}
-            onSource={(milliseconds) => player.current?.seek(milliseconds)}
+            onSource={
+              local.create.retention_mode === 'text'
+                ? undefined
+                : (milliseconds) => player.current?.seek(milliseconds)
+            }
           />
         )}
-        {!!local?.pendingBytes && (
+        {!!local?.pendingBytes && local.create.retention_mode === 'media' && (
           <section className={css({ marginTop: '1.5rem' })}>
             <h2>{t('localAudio')}</h2>
             <p>{t('localHint')}</p>

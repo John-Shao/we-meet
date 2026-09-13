@@ -3,7 +3,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
-import type { ApiCaptureSession } from '../api/ApiCaptureSession'
+import type {
+  ApiCaptureSession,
+  CaptureAudioRetention,
+} from '../api/ApiCaptureSession'
 import { CaptureTranscriptionPanel } from './CaptureTranscriptionPanel'
 
 vi.mock('@/api/fetchApi', () => ({ fetchApi: vi.fn() }))
@@ -38,6 +41,7 @@ vi.mock('@/primitives', () => ({
 }))
 let client: QueryClient
 let status: {
+  audio_retention?: CaptureAudioRetention
   available: boolean
   live_available?: boolean
   summary_available?: boolean
@@ -341,3 +345,78 @@ it('aborts creation on leave and retains its recovery intent', async () => {
   expect(signal.aborted).toBe(true)
   expect(sessionStorage.getItem('capture-asr:owner:capture')).not.toBeNull()
 })
+
+const retention = (): CaptureAudioRetention => ({
+  mode: 'text',
+  temporary_until: new Date(Date.now() + 3600000).toISOString(),
+  retry_until: new Date(Date.now() + 1800000).toISOString(),
+  expired: false,
+  cleanup_status: 'not_started',
+  cleanup_error: '',
+  deleted_at: null,
+})
+
+it('shows text-only cleanup separately and suppresses source playback', async () => {
+  status.audio_retention = {
+    ...retention(),
+    cleanup_status: 'failed',
+    cleanup_error: 'storage_unavailable',
+  }
+  status.active_job_id = 'published'
+  status.results = [{ id: 'published', status: 'succeeded', generation: 1 }]
+  show({ ...capture, audio_retention: retention() })
+  await screen.findByText('Confirmed original')
+  expect(screen.getByText('retention.failed')).toBeInTheDocument()
+  expect(screen.getByText('retention.noPlayback')).toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'asr.source' })
+  ).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'asr.retry' })).toBeDisabled()
+})
+
+it('fails closed when text retention metadata is missing', async () => {
+  show({ ...capture, audio_retention: retention() })
+  await screen.findByText('retention.unavailable')
+  expect(screen.getByRole('button', { name: 'asr.start' })).toBeDisabled()
+})
+
+it('keeps an uncertain request recoverable after the text retry deadline', async () => {
+  status.audio_retention = {
+    ...retention(),
+    retry_until: new Date(Date.now() - 1000).toISOString(),
+  }
+  const pending = {
+    key: 'original-key',
+    expected_job_id: null,
+    allow_incomplete: false,
+  }
+  sessionStorage.setItem('capture-asr:owner:capture', JSON.stringify(pending))
+  show({ ...capture, audio_retention: retention() })
+  fireEvent.click(await screen.findByRole('button', { name: 'asr.recover' }))
+  await waitFor(() => expect(posts()).toHaveLength(1))
+  expect(posts()[0][1]!.headers).toEqual({ 'Idempotency-Key': pending.key })
+  expect(JSON.parse(posts()[0][1]!.body as string)).toEqual({
+    expected_job_id: null,
+    allow_incomplete: false,
+  })
+})
+
+it.each([401, 403, 404, 408, 429, 503])(
+  'keeps the original ASR intent after uncertain HTTP %s',
+  async (code) => {
+    const baseline = vi.mocked(fetchApi).getMockImplementation()!
+    vi.mocked(fetchApi).mockImplementation(async (path, options, ...rest) => {
+      if (options?.method === 'POST') throw new ApiError(code, {})
+      return baseline(path, options, ...rest)
+    })
+    show()
+    fireEvent.click(await screen.findByRole('button', { name: 'asr.start' }))
+    await screen.findByText('asr.uncertain')
+    const first = posts()[0][1]!
+    fireEvent.click(screen.getByRole('button', { name: 'asr.recover' }))
+    await waitFor(() => expect(posts()).toHaveLength(2))
+    expect(posts()[1][1]!.body).toBe(first.body)
+    expect(posts()[1][1]!.headers).toEqual(first.headers)
+    expect(sessionStorage.getItem('capture-asr:owner:capture')).not.toBeNull()
+  }
+)

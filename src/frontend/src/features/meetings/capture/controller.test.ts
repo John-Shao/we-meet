@@ -12,25 +12,27 @@ function fixture() {
   const chunks: LocalAudioChunk[] = []
   const journal = {
     list: vi.fn(async () => (local ? [structuredClone(local)] : [])),
-    create: vi.fn(async (title: string) => {
-      local = {
-        id: 'local',
-        createdAt: '2026-09-13',
-        createKey: 'stable-create',
-        create: {
-          title,
-          device_id: 'device',
-          lease_key: 'lease',
-          retention_mode: 'media',
-        },
-        nextSequence: 1,
-        pendingBytes: 0,
-        durationMs: 0,
-        closed: false,
-        sealed: false,
+    create: vi.fn(
+      async (title: string, retentionMode: 'media' | 'text' = 'media') => {
+        local = {
+          id: 'local',
+          createdAt: new Date().toISOString(),
+          createKey: 'stable-create',
+          create: {
+            title,
+            device_id: 'device',
+            lease_key: 'lease',
+            retention_mode: retentionMode,
+          },
+          nextSequence: 1,
+          pendingBytes: 0,
+          durationMs: 0,
+          closed: false,
+          sealed: false,
+        }
+        return structuredClone(local)
       }
-      return structuredClone(local)
-    }),
+    ),
     update: vi.fn(
       async (_id: string, change: (value: LocalCapture) => LocalCapture) => {
         local = change(structuredClone(local!))
@@ -53,6 +55,12 @@ function fixture() {
       return chunk
     }),
     chunks: vi.fn(async () => structuredClone(chunks)),
+    discardTextAudio: vi.fn(async () => {
+      chunks.forEach((chunk) => {
+        chunk.audio = undefined
+      })
+      local = { ...local!, pendingBytes: 0, closed: true, interrupted: true }
+    }),
     acknowledge: vi.fn(async (_id, receipt) => {
       const chunk = chunks.find((row) => row.sequence === receipt.sequence)!
       if (chunk.audio) local!.pendingBytes -= chunk.byte_size
@@ -77,12 +85,25 @@ function fixture() {
   const effects: CaptureCommand[] = []
   const receipts = new Map<string, ApiCaptureSession>()
   const transport: CaptureTransport = {
-    create: vi.fn(async () => ({
-      operation_id: 'create',
-      replayed: false,
-      capture: { ...remote },
-      result: { ...remote },
-    })),
+    textAudioAvailable: vi.fn(async () => true),
+    create: vi.fn(async (local) => {
+      if (local.create.retention_mode === 'text')
+        remote.audio_retention = {
+          mode: 'text',
+          temporary_until: new Date(Date.now() + 3600000).toISOString(),
+          retry_until: new Date(Date.now() + 3600000).toISOString(),
+          expired: false,
+          cleanup_status: 'not_started',
+          cleanup_error: '',
+          deleted_at: null,
+        }
+      return {
+        operation_id: 'create',
+        replayed: false,
+        capture: { ...remote },
+        result: { ...remote },
+      }
+    }),
     read: vi.fn(async () => ({ ...remote })),
     receipts: vi.fn(async () => ({ results: [], next_after_sequence: null })),
     command: vi.fn(async (capture: LocalCapture) => {
@@ -155,6 +176,42 @@ function fixture() {
 }
 
 describe('recording lifecycle and durable retries', () => {
+  it('checks text-only admission before opening the microphone or persisting an intent', async () => {
+    const f = fixture()
+    vi.mocked(f.transport.textAudioAvailable).mockResolvedValue(false)
+    await f.controller.start('Interview', 'text')
+    expect(f.open).not.toHaveBeenCalled()
+    expect(f.journal.create).not.toHaveBeenCalled()
+    expect(f.controller.state.error).toBe('textUnavailable')
+  })
+
+  it('preserves text consent on resume and never exposes local audio downloads', async () => {
+    const f = fixture()
+    await f.controller.start('Interview', 'text')
+    expect(f.journal.create).toHaveBeenCalledWith('Interview', 'text')
+    await f.emit()
+    expect(await f.controller.localAudio()).toEqual([])
+    await f.controller.pause()
+    await f.controller.start('Changed input', 'media')
+    expect(f.transport.textAudioAvailable).toHaveBeenCalledTimes(2)
+    expect(f.local().create.retention_mode).toBe('text')
+    await f.controller.finish()
+    expect(f.journal.discardTextAudio).toHaveBeenCalled()
+    expect(f.controller.state.mode).toBe('saved')
+  })
+
+  it('stops the microphone and clears text audio when the hard deadline expires', async () => {
+    const f = fixture()
+    await f.controller.start('Interview', 'text')
+    f.controller.state.local!.remote!.audio_retention!.expired = true
+    await f.controller.checkRetention()
+    expect(f.mic.close).toHaveBeenCalled()
+    expect(f.journal.discardTextAudio).toHaveBeenCalledTimes(1)
+    expect(f.controller.state.error).toBe('retentionExpired')
+    expect(f.controller.state.mode).toBe('recoverable')
+    expect(f.local().closed).toBe(true)
+  })
+
   it('opens the microphone only on user start and seals after acknowledged upload', async () => {
     const f = fixture()
     await f.controller.load()
