@@ -1691,6 +1691,22 @@ class MeetingSummaryNotification(BaseModel):
                 raise ValidationError("Prepared notification destination is immutable.")
 
 
+class MeetingSummaryNotificationRequest(BaseModel):
+    """Public retry idempotency, keeping the original remote message request identity."""
+
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    key = models.UUIDField()
+    notice = models.ForeignKey(MeetingSummaryNotification, on_delete=models.CASCADE, related_name="retry_requests")
+    attempt = models.PositiveIntegerField()
+    request_hash = models.CharField(max_length=64)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "key"], name="unique_summary_notice_retry")]
+
+    def __str__(self):
+        return f"MeetingSummaryNotificationRequest({self.pk})"
+
+
 class MeetingSummaryExport(BaseModel):
     """Frozen document payload and durable result for one selected summary version."""
 

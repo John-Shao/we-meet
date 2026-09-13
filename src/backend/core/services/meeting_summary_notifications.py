@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from functools import partial
 from urllib.parse import urlsplit
 
 from django.conf import settings
@@ -23,6 +24,14 @@ def enabled():
 
 def body_hash(body):
     return hashlib.sha256(body.encode()).hexdigest()
+
+
+def _dispatch(pk):
+    from core.services.summary_notification_delivery import (  # noqa: PLC0415 -- avoid completion/delivery cycle
+        dispatch_notification,
+    )
+
+    return dispatch_notification(pk)
 
 
 def _origins():
@@ -184,6 +193,7 @@ def record_completion(version):
                 },
             )
         )
+        transaction.on_commit(partial(_dispatch, rows[-1].pk), robust=True)
     return rows
 
 

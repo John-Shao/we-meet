@@ -25,5 +25,6 @@ from core.tasks import member_import as _member_import
 from core.tasks import offboarding as _offboarding
 from core.tasks import summary as _summary
 from core.tasks import summary_exports as _summary_exports
+from core.tasks import summary_notifications as _summary_notifications
 from core.tasks import summary_versions as _summary_versions
 from core.tasks import task_notifications as _task_notifications

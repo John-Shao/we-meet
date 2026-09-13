@@ -20,7 +20,8 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture(autouse=True)
-def enabled(settings):
+def enabled(settings, monkeypatch):
+    monkeypatch.setattr(service, "_dispatch", lambda _: False)
     settings.MEETING_RECORDS_ENABLED = True
     settings.MEETING_VERSIONED_SUMMARY_ENABLED = True
     settings.MEETING_SUMMARY_NOTIFICATIONS_ENABLED = True
