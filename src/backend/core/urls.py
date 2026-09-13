@@ -55,6 +55,7 @@ from core.api.capture_transcription import (
     TranscriptionInputView,
 )
 from core.api.cloud_recording import CloudRecordingView
+from core.api.capture_translation import CaptureTranslationView
 from core.api.directory import (
     ContactPreferenceViewSet,
     DepartmentViewSet,
@@ -381,6 +382,7 @@ urlpatterns = [
                 path("meeting-records/<uuid:record_id>/questions/<uuid:question_id>/", RecordQuestionView.as_view(), name="record-question-detail"),
                 path("capture-audio-capabilities/", CaptureAudioCapabilitiesView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/audio/", CaptureAudioView.as_view(), name="capture-audio"),
+                path("capture-sessions/<uuid:capture_id>/translation/", CaptureTranslationView.as_view(), name="capture-translation"),
                 path("capture-sessions/<uuid:capture_id>/transcription/", CaptureTranscriptionView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/preview/", LiveTranscriptionPreviewView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/cancel/", CancelTranscriptionView.as_view()),

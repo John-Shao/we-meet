@@ -258,3 +258,7 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 121: opt-in Web 100 ms PCM tap shares the recording microphone, bounds unacknowledged frames and isolates consumer failures; 24 unit tests, real Chromium tap/recording checks and production build pass. No backend/rollout change; standalone translation transport follows. See [batch 121](meeting-ai-phase3-batch101-2026-09-13.md).
 
 - Batch 122: Android same-microphone PCM tap (`d19b2fef`), bounded leases, source checks, tail draining and recording failure isolation; 18 JVM + 7 isolated service tests and builds/token checks pass. Defaults remain off; translation session/transport follows. See [batch 122](meeting-ai-phase3-batch102-2026-09-13.md).
+
+## Batch 123: independent recording translation controls
+
+Apply migration 0177 with earlier migrations. Keep MEETING_CAPTURE_TRANSLATION_ENABLED=false until gateway and client integration is complete. This batch only reserves exact capture/device generations and stores immutable receipts; it does not connect DashScope. See [details](meeting-ai-phase3-batch103-2026-09-13.md).

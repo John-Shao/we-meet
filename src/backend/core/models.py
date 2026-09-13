@@ -1211,6 +1211,119 @@ class CaptureOperation(BaseModel):
         return f"CaptureOperation({self.pk})"
 
 
+class CaptureTranslationRun(BaseModel):
+    """One device-bound, independent recording translation attempt."""
+
+    capture = models.ForeignKey(
+        CaptureSession, on_delete=models.CASCADE, related_name="translation_runs"
+    )
+    requested_by = models.ForeignKey(User, on_delete=models.PROTECT)
+    generation = models.PositiveIntegerField()
+    source_revision = models.PositiveIntegerField()
+    source_lease_hash = models.CharField(max_length=64)
+    organization_id_snapshot = models.UUIDField(null=True, blank=True)
+    configuration = models.JSONField()
+    status = models.CharField(
+        max_length=16,
+        default="starting",
+        choices=[
+            (s, s)
+            for s in ("starting", "translating", "stopping", "stopped", "incomplete")
+        ],
+    )
+    deadline = models.DateTimeField()
+    worker_id = models.UUIDField(null=True, blank=True)
+    begun_at = models.DateTimeField(null=True, blank=True)
+    stopped_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+    finish_hash = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["capture", "generation"], name="unique_capture_translation_gen"
+            ),
+            models.UniqueConstraint(
+                fields=["capture"],
+                condition=models.Q(status__in=["starting", "translating", "stopping"]),
+                name="unique_active_capture_translation",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(generation__gte=1, source_revision__gte=1),
+                name="capture_translation_positive_gen",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    status__in=["stopped", "incomplete"], ended_at__isnull=False
+                )
+                | models.Q(
+                    status__in=["starting", "translating", "stopping"],
+                    ended_at__isnull=True,
+                ),
+                name="capture_translation_end_state",
+            ),
+        ]
+
+    def __str__(self):
+        return f"CaptureTranslationRun({self.pk}, {self.status})"
+
+    def clean(self):
+        super().clean()
+        if not self._state.adding:
+            previous = type(self).objects.get(pk=self.pk)
+            fields = (
+                "capture_id",
+                "requested_by_id",
+                "generation",
+                "source_revision",
+                "source_lease_hash",
+                "organization_id_snapshot",
+                "configuration",
+            )
+            if any(
+                getattr(self, field) != getattr(previous, field) for field in fields
+            ):
+                raise ValidationError(
+                    "Translation source and configuration are immutable."
+                )
+            if previous.worker_id and previous.worker_id != self.worker_id:
+                raise ValidationError("Translation worker cannot be replaced.")
+            if previous.begun_at and previous.begun_at != self.begun_at:
+                raise ValidationError("Translation begin fence is immutable.")
+            if previous.ended_at and (
+                previous.status != self.status or previous.ended_at != self.ended_at
+            ):
+                raise ValidationError("Terminal translation cannot restart.")
+            if previous.finish_hash and previous.finish_hash != self.finish_hash:
+                raise ValidationError("Translation finish receipt is immutable.")
+
+
+class CaptureTranslationCommand(BaseModel):
+    """Immutable start/stop result; contains neither audio nor device credentials."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    key = models.UUIDField()
+    capture = models.ForeignKey(CaptureSession, on_delete=models.CASCADE)
+    payload = models.JSONField()
+    result = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "key"], name="unique_capture_translation_cmd"
+            )
+        ]
+
+    def __str__(self):
+        return f"CaptureTranslationCommand({self.pk})"
+
+    def clean(self):
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Translation command receipts are immutable.")
+
+
 class CaptureAudioChunk(BaseModel):
     """Immutable upload intent and verified PCM WAV object for independent recording."""
 
