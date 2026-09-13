@@ -256,3 +256,5 @@ Latest implementation: [Batch 34: unified library queries](meeting-ai-phase3-bat
 - Batch 49: [shared interpretation channels and listener leases](meeting-ai-phase3-batch29-2026-09-13.md). 13 tests passed; migration 0170 required. MEETING_INTERPRETATION_ENABLED remains off and worker name empty. No dispatch/audio in this batch; worker lifecycle is next.
 
 - Batch 50: [shared interpretation worker lifecycle](meeting-ai-phase3-batch30-2026-09-13.md). 15 worker + 13 channel tests passed; migration 0171 required. Start/worker/stop deadlines and current recipient grants enforced. Dedicated audio Agent and Web listening remain next; interpretation flag stays off.
+
+- Batch 51: [shared interpretation Agent grants](meeting-ai-phase3-batch31-2026-09-13.md). 11 new control/lease tests + 12 private translation regressions passed. Dedicated multi-source audio runtime is next; channel flag remains off. No model calls.
