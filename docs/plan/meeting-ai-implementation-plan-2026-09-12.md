@@ -292,3 +292,6 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 
 
 - Batch 65: [Android record library and staged-summary screens](meeting-ai-phase3-batch45-2026-09-13.md). Default-off WE_MEET_RECORDS_NATIVE; Debug builds, 12 JVM tests, design guard and 5 isolated emulator UI tests passed. Native originals, notification links and capture lifecycle continue next.
+
+
+- Batch 66: [Android full-original search and speaker filters](meeting-ai-phase3-batch46-2026-09-13.md). Revision-fenced reads and exact online session validation; 16 JVM and 6 isolated emulator UI tests passed. No migration. Native exact-version links and capture lifecycle follow.
