@@ -184,3 +184,18 @@ it('keeps status visible while rollout is disabled but offers no new retry', asy
     screen.queryByRole('button', { name: 'summaryNotice.retry' })
   ).toBeNull()
 })
+
+it.each(['{', '{}', ''])(
+  'blocks a corrupt recovery marker without replacing it: %s',
+  async (raw) => {
+    const key = `meeting-summary-notice:owner:record:${noticeId}`
+    sessionStorage.setItem(key, raw)
+    show()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'summaryNotice.title' })
+    )
+    await screen.findByText('summaryNotice.storageUnavailable')
+    expect(posts()).toHaveLength(0)
+    expect(sessionStorage.getItem(key)).toBe(raw)
+  }
+)

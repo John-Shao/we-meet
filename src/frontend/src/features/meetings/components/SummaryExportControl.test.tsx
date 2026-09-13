@@ -292,3 +292,18 @@ it('prevents duplicate clicks while a confirmed request is in flight', async () 
   finish!()
   await screen.findByText('summaryExport.accepted')
 })
+
+it.each(['{', '{}', ''])(
+  'blocks a corrupt recovery marker without replacing it: %s',
+  async (raw) => {
+    const key = `meeting-summary-export:owner:record:ai:version:en`
+    sessionStorage.setItem(key, raw)
+    show()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'summaryExport.open' })
+    )
+    await screen.findByText('summaryExport.storageUnavailable')
+    expect(posts()).toHaveLength(0)
+    expect(sessionStorage.getItem(key)).toBe(raw)
+  }
+)

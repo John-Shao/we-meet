@@ -24,6 +24,7 @@ import {
   type TranslationRun,
 } from '../translationEvents'
 import { useConnectedMeetingSid } from '../useConnectedMeetingSid'
+import { useSummaryIntent } from '../hooks/useSummaryIntent'
 
 interface Status {
   available: boolean
@@ -40,12 +41,67 @@ interface Intent extends Partial<TranslationOptions> {
   source_participation_id?: string
 }
 const PATH = 'meeting-translations/control/'
+type Payload = Omit<Intent, 'key'>
+const identifier = (value: unknown) =>
+  typeof value === 'string' && value.length > 0 && value.length <= 128
+const validPayload = (value: unknown): value is Payload => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const row = value as Record<string, unknown>
+  if (
+    Object.keys(row).some(
+      (key) =>
+        ![
+          'room_id',
+          'livekit_room_sid',
+          'operation',
+          'expected_run_id',
+          'source_participation_id',
+          'source',
+          'target',
+          'mode',
+          'audio',
+          'save_translations',
+        ].includes(key)
+    ) ||
+    !identifier(row.room_id) ||
+    !identifier(row.livekit_room_sid) ||
+    !(row.expected_run_id === null || identifier(row.expected_run_id))
+  )
+    return false
+  if (row.operation === 'stop')
+    return identifier(row.expected_run_id) && Object.keys(row).length === 4
+  return (
+    row.operation === 'start' &&
+    identifier(row.source_participation_id) &&
+    ['zh', 'en'].includes(String(row.source)) &&
+    ['zh', 'en'].includes(String(row.target)) &&
+    row.source !== row.target &&
+    ['simultaneous', 'push_to_talk'].includes(String(row.mode)) &&
+    typeof row.audio === 'boolean' &&
+    (row.save_translations === undefined ||
+      typeof row.save_translations === 'boolean')
+  )
+}
 
 export const PrivateTranslationProvider = ({
   children,
 }: {
   children: ReactNode
 }) => {
+  const room = useRoomContext()
+  const roomId = useRoomId()
+  const sid = useConnectedMeetingSid()
+  const { user, isLoggedIn } = useUser()
+  return (
+    <PrivateTranslationSession
+      key={`${isLoggedIn ? user?.id : ''}:${roomId}:${sid}:${room.localParticipant.sid}`}
+    >
+      {children}
+    </PrivateTranslationSession>
+  )
+}
+
+const PrivateTranslationSession = ({ children }: { children: ReactNode }) => {
   const room = useRoomContext()
   const roomId = useRoomId()
   const sid = useConnectedMeetingSid()
@@ -72,7 +128,15 @@ export const PrivateTranslationProvider = ({
         ? false
         : 5000,
   })
-  const [pendingIntent, setPendingIntent] = useState<Intent>()
+  const intents = useSummaryIntent(
+    'private-translation',
+    viewerId ?? '',
+    `${roomId}:${sid}`,
+    validPayload
+  )
+  const pendingIntent: Intent | undefined = intents.pending
+    ? { ...intents.pending.payload, key: intents.pending.key }
+    : undefined
   const [error, setError] = useState(false)
   const [ready, setReady] = useState(false)
   const [muted, setMuted] = useState(true)
@@ -152,10 +216,21 @@ export const PrivateTranslationProvider = ({
       status.data?.available,
     ]
   )
+  const requests = useRef(new Set<AbortController>())
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    const pending = requests.current
+    return () => {
+      mounted.current = false
+      pending.forEach((controller) => controller.abort())
+    }
+  }, [])
   const mutation = useMutation({
-    mutationFn: (intent: Intent) =>
+    mutationFn: ({ intent, signal }: { intent: Intent; signal: AbortSignal }) =>
       fetchApi<{ current: TranslationRun }>(PATH, {
         method: 'POST',
+        signal,
         meetingCommand: {
           key: intent.key,
           scope: {
@@ -207,7 +282,6 @@ export const PrivateTranslationProvider = ({
 
   useEffect(() => {
     invalidateSound()
-    setPendingIntent(undefined)
     setError(false)
     setMuted(true)
     return invalidateSound
@@ -317,7 +391,15 @@ export const PrivateTranslationProvider = ({
   }, [room, roomId, sid, current, ownConnection, viewerId, status.isError])
 
   const change = async (options?: TranslationOptions) => {
-    if (busy.current || !roomId || !sid || !viewerId) return
+    if (
+      busy.current ||
+      !mounted.current ||
+      !roomId ||
+      !sid ||
+      !viewerId ||
+      !intents.ready
+    )
+      return
     if (
       !pendingIntent &&
       ((status.isError && !active) ||
@@ -326,34 +408,51 @@ export const PrivateTranslationProvider = ({
       return
     busy.current = true
     setError(false)
-    const intent: Intent = pendingIntent ?? {
-      key: crypto.randomUUID(),
-      room_id: roomId,
-      livekit_room_sid: sid,
-      operation: active ? 'stop' : 'start',
-      expected_run_id: current?.id ?? null,
-      ...(!active ? { ...options, source_participation_id: source!.id } : {}),
-    }
-    if (intent.operation === 'stop') silence()
-    else {
-      void room.startAudio().catch(() => setMuted(true))
-      setMuted(false)
-    }
-    setPendingIntent(intent)
+    const payload: Payload = pendingIntent
+      ? intents.pending!.payload
+      : {
+          room_id: roomId,
+          livekit_room_sid: sid,
+          operation: active ? 'stop' : 'start',
+          expected_run_id: current?.id ?? null,
+          ...(!active
+            ? { ...options, source_participation_id: source!.id }
+            : {}),
+        }
+    let retained: ReturnType<typeof intents.getOrCreate> | undefined
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 8000)
+    requests.current.add(controller)
     try {
-      const result = await mutation.mutateAsync(intent)
-      setPendingIntent(undefined)
+      retained = intents.getOrCreate(payload)
+      const intent: Intent = { ...retained.payload, key: retained.key }
+      if (intent.operation === 'stop') silence()
+      else if (!pendingIntent) {
+        void room.startAudio().catch(() => setMuted(true))
+        setMuted(false)
+      }
+      const result = await mutation.mutateAsync({
+        intent,
+        signal: controller.signal,
+      })
+      if (!mounted.current || controller.signal.aborted) return
+      if (!intents.resolve(retained))
+        throw new Error('translation_recovery_unavailable')
       client.setQueryData<Status>(queryKey, (old) =>
         old ? { ...old, current: result.current } : old
       )
       await status.refetch()
     } catch (err) {
-      if (err instanceof ApiError && [400, 409, 422].includes(err.statusCode))
-        setPendingIntent(undefined)
+      if (!mounted.current) return
+      if (err instanceof ApiError && [400, 409, 422].includes(err.statusCode)) {
+        if (retained) intents.resolve(retained)
+      }
       setError(true)
       silence()
       await status.refetch()
     } finally {
+      window.clearTimeout(timeout)
+      requests.current.delete(controller)
       busy.current = false
     }
   }
@@ -413,10 +512,10 @@ export const PrivateTranslationProvider = ({
         archiveAvailable: status.data?.archive_available ?? false,
         current,
         ownConnection,
-        canStart: !!source && !status.isError,
+        canStart: !!source && !status.isError && intents.ready,
         pending: mutation.isPending,
         uncertain: !!pendingIntent,
-        error: error || status.isError,
+        error: error || status.isError || intents.failed,
         ready: ready && statusFresh,
         muted,
         held,

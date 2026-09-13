@@ -1,3 +1,4 @@
+import { readRecovery } from '../hooks/readRecovery'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -134,7 +135,10 @@ const ExportCopy = ({
   const client = useQueryClient()
   const selection = { source_kind: sourceKind, source_id: sourceId, language }
   const storageKey = `meeting-summary-export:${viewerId}:${recordId}:${sourceKind}:${sourceId}:${language}`
-  const [intent, setIntent] = useState(() => loadIntent(storageKey))
+  const [recovery] = useState(() =>
+    readRecovery(storageKey, () => loadIntent(storageKey))
+  )
+  const [intent, setIntent] = useState(recovery.value)
   const [preview, setPreview] = useState<Preview>()
   const [previewAttempt, setPreviewAttempt] = useState<number>()
   const [previewExport, setPreviewExport] = useState<string>()
@@ -197,6 +201,7 @@ const ExportCopy = ({
     }
   }
   const submit = async () => {
+    if (recovery.blocked) return
     if (inFlight.current || (!intent && !preview)) return
     const signal = lifetime.current!.signal
     const request = intent ?? {
@@ -267,6 +272,8 @@ const ExportCopy = ({
       }
     }
   }
+  if (recovery.blocked)
+    return <Text>{t('summaryExport.storageUnavailable')}</Text>
   if (query.isError) return <Text>{t('summaryExport.unavailable')}</Text>
   if (!query.data) return <Text>{t('loading')}</Text>
   const retryable =

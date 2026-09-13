@@ -1,3 +1,4 @@
+import { readRecovery } from '../hooks/readRecovery'
 import { useRoomContext } from '@livekit/components-react'
 import { useQuery } from '@tanstack/react-query'
 import { RoomEvent, type RemoteParticipant } from 'livekit-client'
@@ -85,9 +86,10 @@ function InterpretationSession({
 }) {
   const room = useRoomContext()
   const storageKey = `meeting-interpretation-intent:${scope}`
-  const [intent, setIntent] = useState<Intent | undefined>(() =>
-    readIntent(storageKey)
+  const [recovery] = useState(() =>
+    readRecovery(storageKey, () => readIntent(storageKey))
   )
+  const [intent, setIntent] = useState(recovery.value)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(false)
   const [desired, setDesired] = useState<{
@@ -339,6 +341,7 @@ function InterpretationSession({
   }, [room, status.isError, viewer, sid, connectionSid])
 
   const post = async (next: Intent) => {
+    if (recovery.blocked) return
     if (busy.current || !mounted.current || !viewer || !roomId || !sid) return
     busy.current = true
     setPending(true)
@@ -422,7 +425,8 @@ function InterpretationSession({
     operation: 'start' | 'stop',
     saveTranslations = false
   ) => {
-    if (intent || busy.current || !value?.can_control) return
+    if (recovery.blocked || intent || busy.current || !value?.can_control)
+      return
     const channel = value.channels.find((row) => row.target === target)
     if (operation === 'start' && (!value.available || status.isError)) return
     await post({
@@ -439,7 +443,7 @@ function InterpretationSession({
     })
   }
   const choose = async (channel?: InterpretationChannel) => {
-    if (intent || busy.current || !connection) return
+    if (recovery.blocked || intent || busy.current || !connection) return
     if (
       channel &&
       (!value?.available ||
@@ -482,15 +486,16 @@ function InterpretationSession({
           (value.available || value.channels.length > 0),
         available: value?.available ?? false,
         archiveAvailable: value?.archive_available ?? false,
-        canControl: !!value?.can_control && !status.isError,
-        canJoin: !!connection && !status.isError,
+        canControl:
+          !!value?.can_control && !status.isError && !recovery.blocked,
+        canJoin: !!connection && !status.isError && !recovery.blocked,
         channels: value?.channels ?? [],
         listening: desired?.channel,
         muted,
         ready: Object.keys(tracks).length > 0,
         pending,
         uncertain: !!intent,
-        error: error || status.isError,
+        error: error || status.isError || recovery.blocked,
         rows,
         speakerName: (sourceSid) =>
           [...room.remoteParticipants.values()].find(

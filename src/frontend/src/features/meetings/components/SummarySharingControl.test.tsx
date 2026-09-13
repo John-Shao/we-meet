@@ -251,3 +251,18 @@ it('turning off sharing retains existing grants without new actions', async () =
   ).toBeNull()
   expect(mutations()).toHaveLength(0)
 })
+
+it.each(['{', '{}', ''])(
+  'blocks a corrupt recovery marker without replacing it: %s',
+  async (raw) => {
+    const key = `meeting-summary-sharing:owner:record`
+    sessionStorage.setItem(key, raw)
+    show()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'summarySharing.title' })
+    )
+    await screen.findByText('summarySharing.storageUnavailable')
+    expect(mutations()).toHaveLength(0)
+    expect(sessionStorage.getItem(key)).toBe(raw)
+  }
+)

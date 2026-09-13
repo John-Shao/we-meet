@@ -1,3 +1,4 @@
+import { readRecovery } from '../hooks/readRecovery'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -125,7 +126,10 @@ function Editor({
   })
   const [preview, setPreview] = useState<Preview>()
   const storageKey = `meeting-summary-sharing:${viewerId}:${recordId}`
-  const [intent, setIntent] = useState(() => loadIntent(storageKey))
+  const [recovery] = useState(() =>
+    readRecovery(storageKey, () => loadIntent(storageKey))
+  )
+  const [intent, setIntent] = useState(recovery.value)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const inFlight = useRef(false)
@@ -169,6 +173,7 @@ function Editor({
     }
   }
   const submit = async () => {
+    if (recovery.blocked) return
     if (inFlight.current || (!intent && !preview)) return
     const request = intent ?? {
       ...selection,
@@ -229,6 +234,8 @@ function Editor({
       }
     }
   }
+  if (recovery.blocked)
+    return <Text>{t('summarySharing.storageUnavailable')}</Text>
   if (grants.isError || (grants.data && !grants.data.can_manage))
     return <Text>{t('summarySharing.loadError')}</Text>
   if (!grants.data) return <Text>{t('loading')}</Text>

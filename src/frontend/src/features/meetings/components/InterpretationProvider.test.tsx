@@ -335,3 +335,18 @@ describe('Shared interpretation listener lifecycle', () => {
     expect(latest.canPlay(sender, 'TR_voice')).toBe(false)
   })
 })
+
+it('blocks channel and listener commands for an unreadable recovery marker', async () => {
+  const key = 'meeting-interpretation-intent:viewer:room:RM_current:PA_self'
+  sessionStorage.setItem(key, '{')
+  show()
+  await waitFor(() => expect(latest.visible).toBe(true))
+  expect(latest.error).toBe(true)
+  expect(latest.canControl).toBe(false)
+  expect(latest.canJoin).toBe(false)
+  await act(() => latest.control('en', 'start'))
+  await act(() => latest.choose(status.channels[0]))
+  expect(posts()).toHaveLength(0)
+  expect(mocks.room.startAudio).not.toHaveBeenCalled()
+  expect(sessionStorage.getItem(key)).toBe('{')
+})

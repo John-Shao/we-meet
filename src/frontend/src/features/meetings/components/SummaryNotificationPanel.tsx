@@ -1,3 +1,4 @@
+import { readRecovery } from '../hooks/readRecovery'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -162,7 +163,10 @@ function Delivery({
 }) {
   const { t } = useTranslation('meetings')
   const storageKey = `meeting-summary-notice:${viewerId}:${recordId}:${notice.id}`
-  const [intent, setIntent] = useState(() => loadIntent(storageKey))
+  const [recovery] = useState(() =>
+    readRecovery(storageKey, () => loadIntent(storageKey))
+  )
+  const [intent, setIntent] = useState(recovery.value)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const inFlight = useRef(false)
@@ -173,6 +177,7 @@ function Delivery({
     return () => controller.abort()
   }, [])
   const submit = async () => {
+    if (recovery.blocked) return
     if (inFlight.current) return
     const request = intent ?? {
       key: crypto.randomUUID(),
@@ -225,6 +230,8 @@ function Delivery({
       }
     }
   }
+  if (recovery.blocked)
+    return <Text>{t('summaryNotice.storageUnavailable')}</Text>
   const retryable =
     available &&
     ['failed', 'uncertain', 'canceled'].includes(notice.status) &&

@@ -113,6 +113,7 @@ const ready = () =>
 const posts = () =>
   mocks.fetch.mock.calls.filter(([, options]) => options?.method === 'POST')
 beforeEach(() => {
+  sessionStorage.clear()
   mocks.fetch.mockReset()
   current = null
   listeners = new Map()
@@ -394,4 +395,65 @@ describe('Persistent private translation session', () => {
     await waitFor(() => expect(posts()).toHaveLength(1))
     expect(JSON.parse(posts()[0][1].body).operation).toBe('stop')
   })
+})
+
+it('restores an unknown start without dispatching or enabling audio on remount', async () => {
+  const normal = mocks.fetch.getMockImplementation()!
+  let fail = true
+  mocks.fetch.mockImplementation(async (url, options) => {
+    const result = await normal(url, options)
+    if (options?.method === 'POST' && fail) throw new ApiError(503, {})
+    return result
+  })
+  const first = show()
+  await waitFor(() => expect(latest.canStart).toBe(true))
+  await act(() => latest.change(run().configuration))
+  await waitFor(() => expect(latest.uncertain).toBe(true))
+  const original = posts()[0][1].body
+  first.unmount()
+  client.clear()
+  mocks.room.startAudio.mockClear()
+  fail = false
+  show()
+  await waitFor(() => expect(latest.uncertain).toBe(true))
+  expect(posts()).toHaveLength(1)
+  expect(latest.muted).toBe(true)
+  await act(() => latest.change())
+  await waitFor(() => expect(latest.uncertain).toBe(false))
+  expect(posts()[1][1].body).toBe(original)
+  expect(mocks.room.startAudio).not.toHaveBeenCalled()
+  expect(latest.muted).toBe(true)
+})
+
+it('keeps an aborted request recoverable even if its response arrives after unmount', async () => {
+  const normal = mocks.fetch.getMockImplementation()!
+  let release!: (value: unknown) => void
+  mocks.fetch.mockImplementation((url, options) =>
+    options?.method === 'POST'
+      ? new Promise((resolve) => {
+          release = resolve
+        })
+      : normal(url, options)
+  )
+  const first = show()
+  await waitFor(() => expect(latest.canStart).toBe(true))
+  fireEvent.click(screen.getByRole('button', { name: 'change' }))
+  await waitFor(() => expect(posts()).toHaveLength(1))
+  const key = sessionStorage.key(0)!
+  const retained = sessionStorage.getItem(key)
+  first.unmount()
+  expect(posts()[0][1].signal.aborted).toBe(true)
+  await act(async () => release({ current: run() }))
+  expect(sessionStorage.getItem(key)).toBe(retained)
+})
+
+it('blocks a new command when its existing recovery marker is corrupt', async () => {
+  const key = `meeting-summary-intent:v1:${JSON.stringify(['private-translation', 'viewer', 'room:RM_current'])}`
+  sessionStorage.setItem(key, '{')
+  show()
+  await waitFor(() => expect(latest.error).toBe(true))
+  expect(latest.canStart).toBe(false)
+  await act(() => latest.change(run().configuration))
+  expect(posts()).toHaveLength(0)
+  expect(sessionStorage.getItem(key)).toBe('{')
 })
