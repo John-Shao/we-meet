@@ -350,3 +350,5 @@ Batch 60: independent live-ASR Worker completed; run python capture_live_transcr
 - Batch 91: Android reviewed document copies, frozen retries and native Docs navigation; 18 UI regressions, Debug/token and light/dark checks passed. See [batch 71](meeting-ai-phase3-batch71-2026-09-13.md). Native summary sharing follows.
 
 - Batch 92: Android scoped summary-sharing preview/confirmation and durable recovery; 17 JVM + 7 isolated tests and Debug/token checks passed. See [batch 72](meeting-ai-phase3-batch72-2026-09-13.md). Native sharing UI follows.
+
+- Batch 93: Android explicit summary sharing/revocation workspace, scoped selection and effective-access previews; 13 isolated UI tests, Debug/token and light/dark checks passed. See [batch 73](meeting-ai-phase3-batch73-2026-09-13.md). Native online capture/translation alignment and first-release gaps follow.
