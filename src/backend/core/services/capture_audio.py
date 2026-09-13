@@ -22,6 +22,12 @@ MAX_BYTES = 320044
 MAX_CHUNKS = 4320
 
 
+def ensure_audio_not_cleaning(capture):
+    """Call under the record lock before enrolling new audio work."""
+    if models.CaptureAudioCleanup.objects.filter(capture=capture).exists():
+        raise RecordConflict("Temporary audio cleanup has started.")
+
+
 def audio_storage():
     """Isolate small private uploads from global S3 retry and public ACL settings."""
     if not isinstance(default_storage, S3Storage):
@@ -71,6 +77,7 @@ def locked_capture(capture_id, user, lease, device, *, finishing=False):
     capture.refresh_from_db()
     authorize(record, user, allow_disabled=finishing)
     check_lease(capture, lease, device)
+    ensure_audio_not_cleaning(capture)
     if (
         not settings.MEETING_CAPTURE_AUDIO_ENABLED and not finishing
     ) or record.retention_mode != "media":
@@ -176,6 +183,13 @@ def prepare(capture_id, user, lease, payload, audio):
 
 def read_verified(chunk, storage=None):
     """Treat missing/corrupt storage as unavailable, never as a successful receipt."""
+    if (
+        chunk.audio_deleted_at
+        or models.CaptureAudioCleanup.objects.filter(
+            capture_id=chunk.capture_id
+        ).exists()
+    ):
+        raise OSError("Temporary audio is no longer available.")
     storage = storage or audio_storage()
     with storage.open(chunk.object_key, "rb") as stream:
         audio = stream.read(MAX_BYTES + 1)

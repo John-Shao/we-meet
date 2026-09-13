@@ -1,6 +1,6 @@
 """Authenticated binary WAV uploads, bounded receipts and explicit storage sealing."""
 
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 
 from rest_framework import permissions, serializers
@@ -149,6 +149,12 @@ class CaptureAudioDownloadView(CaptureAudioView):
     """Serve one verified small chunk, never a public or long-lived presigned URL."""
 
     http_method_names = ["get", "head", "options"]
+
+    def capture(self, request, capture_id):
+        capture = super().capture(request, capture_id)
+        if capture.record.retention_mode != "media":
+            raise Http404
+        return capture
 
     def get(self, request, capture_id, chunk_id):
         capture = self.capture(request, capture_id)

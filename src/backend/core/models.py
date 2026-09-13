@@ -1224,6 +1224,7 @@ class CaptureAudioChunk(BaseModel):
     byte_size = models.PositiveIntegerField()
     object_key = models.CharField(max_length=500)
     stored = models.BooleanField(default=False)
+    audio_deleted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ("sequence",)
@@ -1250,6 +1251,22 @@ class CaptureAudioChunk(BaseModel):
                 raise ValidationError("Audio chunk identity is immutable.")
             if previous.stored and not self.stored:
                 raise ValidationError("Audio receipt cannot be withdrawn.")
+            if previous.audio_deleted_at and previous.audio_deleted_at != self.audio_deleted_at:
+                raise ValidationError("Deleted audio cannot become available again.")
+
+
+class CaptureAudioCleanup(BaseModel):
+    """Durable deletion progress; upload receipts and original text remain intact."""
+
+    capture = models.OneToOneField(CaptureSession, on_delete=models.CASCADE, related_name="audio_cleanup")
+    state = models.CharField(max_length=16, default="pending", choices=[("pending", "Pending"), ("failed", "Failed"), ("complete", "Complete")])
+    attempts = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField()
+    completed_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+
+    def __str__(self):
+        return f"CaptureAudioCleanup({self.pk}, {self.state})"
 
 
 class CaptureAudioManifest(BaseModel):

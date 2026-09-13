@@ -947,6 +947,10 @@ class Base(Configuration):
         ),
     }
     CELERY_BEAT_SCHEDULE = {
+        "cleanup-capture-audio": {
+            "task": "core.tasks.capture_audio.cleanup_capture_audio",
+            "schedule": 30.0,
+        },
         "tick-record-summaries": {
             "task": "core.tasks.summary_versions.tick_record_summaries",
             "schedule": 15.0,

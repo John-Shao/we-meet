@@ -11,7 +11,11 @@ from django.utils import timezone
 from core import models
 from core.services import ai_usage
 from core.services import capture_live_inputs as live_inputs
-from core.services.capture_audio import serialize_chunk, serialize_manifest
+from core.services.capture_audio import (
+    ensure_audio_not_cleaning,
+    serialize_chunk,
+    serialize_manifest,
+)
 from core.services.capture_summary_source import (
     staged_enabled as capture_staged_enabled,
 )
@@ -122,6 +126,7 @@ def prepare(capture_id, user, key, payload):
         if previous.request_hash != request_hash or previous.capture_id != capture.pk:
             raise RecordConflict("Transcription intent changed.")
         return _expire(previous), False
+    ensure_audio_not_cleaning(capture)
     if not available():
         raise CaptureDenied
     manifest = getattr(capture, "audio_manifest", None)
