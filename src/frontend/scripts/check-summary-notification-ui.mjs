@@ -34,6 +34,7 @@ try {
       return reply({ next_cursor: null, results: [{ id: versionId, stage: 'final', created_at: record.origin_at, is_current: false, input_snapshot_id: 'snapshot', delivery_status: 'complete', content: { overview: '此通知对应的历史版本：先完成录音、逐字稿和智能纪要的统一入口。', decisions: [], chapters: [], action_items: [], open_questions: [] } }] })
     }
     if (url.pathname.endsWith('/document-exports/')) return reply({ available: false, results: [] })
+    if (url.pathname.endsWith('/summary-sharing/')) return reply({ available: false, can_manage: false, results: [], next_cursor: null })
     assert.equal(url.pathname, '/api/v1.0/meeting-records/record/')
     return reply(record)
   })

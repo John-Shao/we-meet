@@ -26,6 +26,7 @@ import { HumanSummaryPanel } from './HumanSummaryPanel'
 import { RecordQuestionPanel } from './RecordQuestionPanel'
 import { SummaryExportControl } from './SummaryExportControl'
 import { SummaryNotificationPanel } from './SummaryNotificationPanel'
+import { SummarySharingControl } from './SummarySharingControl'
 
 const stack = css({ display: 'flex', flexDirection: 'column', gap: '1rem' })
 
@@ -249,6 +250,11 @@ export const RecordSummaryPanel = ({
         recordId={recordId}
         viewerId={viewerId}
         summaryId={selectedVersionId}
+      />
+      <SummarySharingControl
+        recordId={recordId}
+        viewerId={viewerId}
+        online={detail.data.source_type === 'meeting'}
       />
       {!pinned && (
         <SummaryAutomationControl recordId={recordId} viewerId={viewerId} />
