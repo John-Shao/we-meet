@@ -1,0 +1,5 @@
+# Phase 3 batch 79 (cumulative 99): native personal translation workspace
+
+Android main `1d38d1ff` connects exact-occurrence private translation controls, reliable manual speech, translated text/captions and explicit audio grants. Start consent freezes language/mode/audio/retention. The meeting microphone is reused without automatic permission/toggle actions. Closing the panel preserves translation; backgrounding silences playback and ends held speech. Recovered unfinished turns are ended, not restarted. Unknown/pending controls block new playback/speech until reconciled.
+
+20 distinct isolated UI/coordinator regressions passed (9 final private UI tests plus 11 companion regressions), with enabled Debug/test APK, default-disabled Debug, token/diff and light/dark checks. Native online AI remains default off. The optional archive link opens the associated record; native archive browsing still follows. No migration or real provider/audio/deployment invocation. Shared interpretation is next; actual SDK cancellation timing and connected-room/device layout remain user deployment checks.
