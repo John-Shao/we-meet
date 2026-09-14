@@ -1,7 +1,7 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
 import { useQueryClient } from '@tanstack/react-query'
+import { useSnapshot } from 'valtio'
 import { DialogTrigger } from 'react-aria-components'
 import {
   RiFlashlightLine,
@@ -17,6 +17,11 @@ import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import { navigateTo } from '@/navigation/navigateTo'
 import { openSystemSettings } from '@/stores/systemSettings'
+import {
+  closeScheduleMeeting,
+  openScheduleMeeting,
+  scheduleMeetingStore,
+} from '@/stores/scheduleMeeting'
 import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
 import { usePersistentUserChoices } from '@/features/rooms/livekit/hooks/usePersistentUserChoices'
@@ -51,8 +56,22 @@ export const MeetingNavPanel = () => {
     userChoices: { username },
   } = usePersistentUserChoices()
 
-  // 预约会议 = 创建日程(与飞书一致):点击打开日历的 CreateEventDialog。
-  const [scheduling, setScheduling] = useState(false)
+  // 预约会议 = 创建日程(与飞书一致),弹窗开关走全局 store —— 见
+  // stores/scheduleMeeting.ts:路由切回 /meeting 时面板会重新挂载,
+  // 局部 useState 撑不过去。
+  const { open: scheduling } = useSnapshot(scheduleMeetingStore)
+
+  /**
+   * 预约会议:先回会议首页,再弹「新建日程」。
+   *
+   * 先回首页是因为日程建完就落在首页的预约列表里 —— 留在二级页上弹窗,
+   * 用户建完看不到它去了哪。已经在 /meeting 时不再 navigate:
+   * 同址再 push 一条只会让「后退」白按一下。
+   */
+  const handleSchedule = () => {
+    if (location !== '/meeting') navigateTo('home')
+    openScheduleMeeting()
+  }
 
   // 发起会议:后端在保存时生成 8 位 slug,前端不再自造 code。
   const handleCreate = async () => {
@@ -162,7 +181,7 @@ export const MeetingNavPanel = () => {
               size="sm"
               className={tileBtn}
               data-attr="schedule-meeting"
-              onPress={() => setScheduling(true)}
+              onPress={handleSchedule}
             >
               <RiCalendarLine size={18} />
               {t('scheduleMeeting')}
@@ -215,12 +234,10 @@ export const MeetingNavPanel = () => {
       </ResizablePanel>
       {scheduling && (
         <CreateEventDialog
-          onClose={() => setScheduling(false)}
+          onClose={closeScheduleMeeting}
           onCreated={() => {
-            setScheduling(false)
+            closeScheduleMeeting()
             // 日程创建时后端自建带 scheduled_at 的 Room → 刷新预约列表。
-            // 面板现在也挂在二级页上,那里没挂 ScheduledMeetingsList,但失效是幂等的:
-            // 等用户回到首页时该列表自会重新取。
             void qc.invalidateQueries({ queryKey: ['scheduled-meetings'] })
           }}
         />
