@@ -14,6 +14,8 @@ from capture_transcriber import (
     CaptureAttempt,
     CaptureBackend,
     CaptureError,
+    run_worker,
+    serve,
     verified_pcm,
 )
 from plugins.qwen_asr import QwenASRConfig, QwenASRSession
@@ -201,6 +203,35 @@ class CaptureWorkerTests(unittest.IsolatedAsyncioTestCase):
 class CaptureHTTPTests(unittest.IsolatedAsyncioTestCase):
     """Bounded HTTP and exact payload retries without a network server."""
 
+    async def test_missing_workspace_fails_before_claim_or_provider_request(self):
+        """Operators get an actionable startup failure without exposing the key."""
+        with mock.patch.dict(
+            "os.environ", {"DASHSCOPE_API_KEY": "private-fixture"}, clear=True
+        ):
+            with mock.patch("capture_transcriber.CaptureBackend") as backend:
+                with self.assertRaisesRegex(
+                    CaptureError, "dashscope_workspace_id_missing"
+                ):
+                    await serve()
+                backend.assert_not_called()
+
+    async def test_invalid_asr_config_is_sanitized_before_network(self):
+        """A malformed workspace never becomes an endpoint or a raw diagnostic."""
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "DASHSCOPE_API_KEY": "private-fixture",
+                "DASHSCOPE_WORKSPACE_ID": "private/invalid",
+            },
+            clear=True,
+        ):
+            with mock.patch("capture_transcriber.CaptureBackend") as backend:
+                with self.assertRaisesRegex(
+                    CaptureError, "qwen_asr_configuration_invalid"
+                ):
+                    await serve(live=True)
+                backend.assert_not_called()
+
     async def test_receipts_retry_but_begin_only_attempts_once(self):
         """Transport retries preserve a fixed payload and process identity."""
         backend = CaptureBackend("https://backend.invalid", "test-only")
@@ -241,3 +272,30 @@ class CaptureHTTPTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("test-only", request.full_url)
             self.assertEqual(request.get_header("X-agent-token"), "test-only")
             self.assertEqual(response.read.call_args.args, (2097153,))
+
+
+class CaptureStartupTests(unittest.TestCase):
+    """Both process entrypoints share safe, visible failure reasons."""
+
+    def test_modes_report_missing_workspace_and_exit_nonzero(self):
+        """No automatic restart hides configuration failures from operators."""
+        for live in (False, True):
+            with (
+                self.subTest(live=live),
+                mock.patch.dict(
+                    "os.environ", {"DASHSCOPE_API_KEY": "private-fixture"}, clear=True
+                ),
+            ):
+                with self.assertLogs("capture-transcriber", level="ERROR") as logs:
+                    self.assertEqual(1, run_worker(live=live))
+                self.assertIn("dashscope_workspace_id_missing", logs.output[0])
+                self.assertNotIn("private-fixture", logs.output[0])
+
+    def test_unknown_exception_never_logs_its_body(self):
+        """Provider, transport and arbitrary exception content remain private."""
+        for error in (RuntimeError("private-fixture"), CaptureError("private-fixture")):
+            with mock.patch("capture_transcriber.serve", side_effect=error):
+                with self.assertLogs("capture-transcriber", level="ERROR") as logs:
+                    self.assertEqual(1, run_worker())
+                self.assertIn("worker_execution_failed", logs.output[0])
+                self.assertNotIn("private-fixture", logs.output[0])

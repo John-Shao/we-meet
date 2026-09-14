@@ -15,6 +15,8 @@
 
 ## 重新发布
 
+**后续修正：** 首次配置启用遗漏了 Qwen ASR 必需的 `DASHSCOPE_WORKSPACE_ID`，导致两个录音 ASR Worker 启动退出，并阻塞整个 Helm release 的就绪等待。现已将该字段纳入发布前校验。详见 [ASR 缺少业务空间导致发布超时](meeting-ai-asr-rollout-timeout-2026-09-14.md)。此前“实际 values 渲染成功”仅验证了当时的模板，不代表 ASR 运行时配置完整。
+
 在构建机拉取 Meet 的 `aliyun-dev` 最新提交，并按既有环境运行：
 
 ```bash
@@ -29,7 +31,7 @@ bash deploy/aliyun/release-meet.sh --tag <本次构建的提交号> backend agen
 
 发布脚本会应用生产 values、运行既有数据库迁移 hook、更新 API/Celery/Beat/Agent，并等待对应 Deployment。服务端、Celery 和 Beat 使用相同能力配置。此次没有 Web 源码改动，已部署上一轮最新 Web 时无需再构建前端；部署后必须整页刷新，重新获取公开配置。
 
-现有私密 values 须包含 `agentAIAssistant.envVars.DASHSCOPE_API_KEY`、`backend.envVars.AGENT_INTERNAL_API_TOKEN`、`agentSubtitles.envVars.LIVEKIT_API_SECRET`，字幕 Agent 内部令牌与后端一致。本地已检查凭据存在及令牌一致；远端若缺少，Helm 在渲染时明确报错。不要将私密 values 或完整 Helm 调试输出上传到版本库。
+现有私密 values 须包含 `agentAIAssistant.envVars.DASHSCOPE_API_KEY`、`agentAIAssistant.envVars.DASHSCOPE_WORKSPACE_ID`、`backend.envVars.AGENT_INTERNAL_API_TOKEN`、`agentSubtitles.envVars.LIVEKIT_API_SECRET`，字幕 Agent 内部令牌与后端一致。业务空间必须与已开通的 Qwen ASR 服务及所选地域对应。远端若缺少必要字段，Helm 在渲染时明确报错。不要将私密 values 或完整 Helm 调试输出上传到版本库。
 
 Android 拉取 `main`（本次启用提交 `e1475978`），按原构建流程重新打包安装。若 `local.properties` 有同名 false，它优先于 `gradle.properties`，应移除或改为 true。仅重启已安装 App 不会改变编译时开关。
 

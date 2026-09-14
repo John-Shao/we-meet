@@ -72,6 +72,7 @@ class MeetingAIChartTest(unittest.TestCase):
                    "-f", str(ROOT / "src/helm/env.d/aliyun-prod/values.meet.yaml")]
         # Never load the operator's actual secret file in regression tests.
         for item in ("agentAIAssistant.envVars.DASHSCOPE_API_KEY=fixture-provider",
+                     "agentAIAssistant.envVars.DASHSCOPE_WORKSPACE_ID=fixture-workspace",
                      "backend.envVars.AGENT_INTERNAL_API_TOKEN=fixture-internal",
                      "agentSubtitles.envVars.LIVEKIT_API_SECRET=fixture-livekit"):
             command += ["--set-string", item]
@@ -101,6 +102,8 @@ class MeetingAIChartTest(unittest.TestCase):
         self.assertEqual("fixture-provider", secret["stringData"]["DASHSCOPE_API_KEY"])
         self.assertEqual("fixture-internal", secret["stringData"]["AGENT_INTERNAL_API_TOKEN"])
         self.assertEqual("fixture-livekit", secret["stringData"]["LIVEKIT_API_SECRET"])
+        self.assertEqual("fixture-workspace", secret["stringData"]["DASHSCOPE_WORKSPACE_ID"])
+        self.assertFalse(env["DASHSCOPE_WORKSPACE_ID"]["valueFrom"]["secretKeyRef"]["optional"])
         self.assertEqual("before-hook-creation", secret["metadata"]["annotations"]["helm.sh/hook-delete-policy"])
         for row in rows:
             if row["kind"] == "Job":
@@ -113,6 +116,26 @@ class MeetingAIChartTest(unittest.TestCase):
     def test_managed_credentials_require_existing_secret_inputs(self):
         self.assertIn("DASHSCOPE_API_KEY", render("meetingAIWorkers.credentialsFromExistingEnv=true",
                                                  "meetingAIWorkers.credentialsSecret=fixture-ai", success=False))
+
+    def test_managed_asr_requires_valid_workspace_before_any_cluster_write(self):
+        credentials = (
+            "meetingAIWorkers.backendUrl=http://backend.invalid",
+            "meetingAIWorkers.credentialsFromExistingEnv=true",
+            "meetingAIWorkers.credentialsSecret=fixture-ai",
+            "agentAIAssistant.envVars.DASHSCOPE_API_KEY=fixture-provider",
+            "backend.envVars.AGENT_INTERNAL_API_TOKEN=fixture-internal",
+            "agentSubtitles.envVars.LIVEKIT_API_KEY=fixture-key",
+            "agentSubtitles.envVars.LIVEKIT_API_SECRET=fixture-secret",
+        )
+        for enabled in ("meetingAIWorkers.workers.capture-asr.enabled=true",
+                        "meetingAIWorkers.workers.capture-live-asr.enabled=true",
+                        "agentSubtitles.envVars.STT_PROVIDER=qwen"):
+            with self.subTest(enabled=enabled):
+                self.assertIn("DASHSCOPE_WORKSPACE_ID", render(*credentials, enabled, success=False))
+                self.assertIn("DASHSCOPE_WORKSPACE_ID", render(*credentials, enabled,
+                    "agentAIAssistant.envVars.DASHSCOPE_WORKSPACE_ID=invalid/workspace", success=False))
+        # Translation-only installations do not need the ASR workspace.
+        self.assertTrue(render(*credentials))
 
     def test_enabled_workers_and_wss_are_exact_and_use_secret_references(self):
         rows = render(*self.settings,
@@ -129,6 +152,8 @@ class MeetingAIChartTest(unittest.TestCase):
             for name in ("AGENT_INTERNAL_API_TOKEN", "DASHSCOPE_API_KEY"):
                 self.assertEqual({"name": "fixture-ai", "key": name}, env[name]["valueFrom"]["secretKeyRef"])
             self.assertEqual(key in ("translation", "interpretation"), "LIVEKIT_API_SECRET" in env)
+            self.assertEqual(key not in ("capture-asr", "capture-live-asr"),
+                             env["DASHSCOPE_WORKSPACE_ID"]["valueFrom"]["secretKeyRef"]["optional"])
             if key == "capture-translation":
                 self.assertEqual("true", env["CAPTURE_TRANSLATION_GATEWAY_ENABLED"]["value"])
                 self.assertEqual("0.0.0.0", env["CAPTURE_TRANSLATION_BIND"]["value"])

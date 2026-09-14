@@ -579,7 +579,7 @@ agentSubtitles:
       secretKeyRef:
         name: meet-ai-credentials
         key: DASHSCOPE_WORKSPACE_ID
-        optional: true
+        optional: false
     DASHSCOPE_API_KEY:
       secretKeyRef:
         name: meet-ai-credentials

@@ -59,7 +59,7 @@ Web 资料入口为 `/meeting/notes`、`/meeting/minutes`、`/meeting/records/:r
 
 当前模型：ASR `qwen-audio-3.0-asr-flash-streaming`；总结 `qwen3.8-flash`；翻译 `qwen3.5-livetranslate-flash-realtime`。后端 `QWEN_ASR_REGION`、Worker 地域、总结 `MEETING_SUMMARY_BASE_URL` 和授权 workspace 保持一致。只开放已实现的中英语种，不按供应商全语种宣传清单扩展入口。
 
-供应商与内部凭据通过 Secret 注入：`DASHSCOPE_API_KEY`、按需 `DASHSCOPE_WORKSPACE_ID`、`AGENT_INTERNAL_API_TOKEN`；在线 Worker 另需 LiveKit 凭据。不要把密钥放进前端、构建产物或文档。既有 Docs/IM 服务身份配置沿用部署系统，不与用户登录令牌混用。
+供应商与内部凭据通过 Secret 注入：`DASHSCOPE_API_KEY`、`DASHSCOPE_WORKSPACE_ID`、`AGENT_INTERNAL_API_TOKEN`；其中业务空间 ID 对当前 Qwen ASR 是必填项，仅不使用 ASR 的其他 Worker 可按需配置。在线 Worker 另需 LiveKit 凭据。不要把密钥放进前端、构建产物或文档。既有 Docs/IM 服务身份配置沿用部署系统，不与用户登录令牌混用。
 
 Android 构建能力为 `WE_MEET_RECORDS_NATIVE`、`WE_MEET_CAPTURE_NATIVE`、`WE_MEET_CAPTURE_TRANSLATION_NATIVE`、`WE_MEET_ONLINE_AI_NATIVE`、`WE_MEET_CLOUD_RECORDING_NATIVE`。这些新开关默认 `false`，按已部署服务组合开启；Web 从后端公开能力配置和各业务状态读取可用性。
 

@@ -9,7 +9,8 @@
 {{- range $variable := list "AGENT_INTERNAL_API_TOKEN" "DASHSCOPE_API_KEY" }}
 {{- $_ := set $env $variable (dict "secretKeyRef" (dict "name" $secret "key" $variable)) }}
 {{- end }}
-{{- $_ := set $env "DASHSCOPE_WORKSPACE_ID" (dict "secretKeyRef" (dict "name" $secret "key" "DASHSCOPE_WORKSPACE_ID" "optional" true)) }}
+{{- $workspaceRequired := or (eq $key "capture-asr") (eq $key "capture-live-asr") }}
+{{- $_ := set $env "DASHSCOPE_WORKSPACE_ID" (dict "secretKeyRef" (dict "name" $secret "key" "DASHSCOPE_WORKSPACE_ID" "optional" (not $workspaceRequired))) }}
 {{- if $worker.livekit }}
 {{- $_ := set $env "LIVEKIT_URL" (required "meetingAIWorkers.livekitUrl is required for room agents" $settings.livekitUrl) }}
 {{- range $variable := list "LIVEKIT_API_KEY" "LIVEKIT_API_SECRET" }}

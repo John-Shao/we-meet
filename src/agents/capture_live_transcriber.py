@@ -1,7 +1,6 @@
 """Independent live ASR consumes verified uploaded PCM without a LiveKit room."""
 
 import asyncio
-import logging
 import time
 from collections import deque
 
@@ -12,7 +11,7 @@ from capture_transcriber import (
     CaptureAttempt,
     CaptureError,
     audio_runs,
-    serve,
+    run_worker,
 )
 
 PAGE_SIZE = 50
@@ -177,13 +176,4 @@ class LiveCaptureAttempt(CaptureAttempt):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    try:
-        asyncio.run(serve(live=True, attempt_type=LiveCaptureAttempt))
-    except (KeyboardInterrupt, asyncio.CancelledError):
-        pass
-    except Exception:
-        logging.getLogger("capture-transcriber").error(
-            "Live transcription worker stopped; inspect backend job status."
-        )
-        raise SystemExit(1) from None
+    raise SystemExit(run_worker(live=True, attempt_type=LiveCaptureAttempt))
