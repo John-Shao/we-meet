@@ -2,6 +2,11 @@ import { useTranslation } from 'react-i18next'
 import { usePreviewTracks } from '@livekit/components-react'
 import { css } from '@/styled-system/css'
 import { Screen } from '@/layout/Screen'
+import { MeetingNavPanel } from '@/features/meetings/components/MeetingNavPanel'
+import {
+  moduleContent,
+  moduleRow,
+} from '@/features/meetings/components/libraryStyles'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   createLocalAudioTrack,
@@ -489,312 +494,328 @@ export const Join = ({
 
   return (
     <Screen footer={false}>
-      <div
-        className={css({
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          width: '100%',
-          flexDirection: 'column',
-          flexGrow: 1,
-          gap: { base: '1rem', sm: '2rem', lg: '2rem' },
-          lg: {
-            flexDirection: 'row',
-          },
-        })}
-      >
-        <div
-          className={css({
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '100%',
-            minWidth: 0,
-            maxWidth: '764px',
-            lg: {
-              height: '540px',
-              flexGrow: 1,
-            },
-          })}
-        >
+      {/* 进会预览页也常驻「视频会议」导航列:从磁贴点进来时它不该消失。
+          这一页的版面是居中 hero,套不了 MeetingModuleShell,所以手动拼同一套
+          moduleRow/moduleContent —— 右侧保持**竖直 flex**,里面那层
+          `flexGrow: 1 + justifyContent: center` 才继续生效、hero 仍居中。 */}
+      <div className={moduleRow}>
+        <MeetingNavPanel />
+        <div className={moduleContent}>
           <div
             className={css({
-              display: 'inline-flex',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              width: '100%',
               flexDirection: 'column',
               flexGrow: 1,
-              minWidth: 0,
-              flexShrink: { base: 0, sm: 1 },
+              gap: { base: '1rem', sm: '2rem', lg: '2rem' },
+              lg: {
+                flexDirection: 'row',
+              },
             })}
           >
             <div
               className={css({
-                borderRadius: '1rem',
-                flex: '0 1',
-                minWidth: '320px',
-                margin: {
-                  base: '0.5rem',
-                  sm: '1rem',
-                  lg: '1rem 0.5rem 1rem 1rem',
-                },
-                overflow: 'hidden',
-                position: 'relative',
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                minWidth: 0,
+                maxWidth: '764px',
+                lg: {
+                  height: '540px',
+                  flexGrow: 1,
+                },
               })}
             >
               <div
                 className={css({
-                  position: 'absolute',
-                  top: 0,
-                  height: '5rem',
-                  width: '100%',
-                  backgroundImage:
-                    'linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.3) 40%, rgba(0, 0, 0, 0.1) 80%, rgba(0, 0, 0, 0) 100%)',
-                  zIndex: 1,
-                })}
-              />
-              <div
-                className={css({
-                  position: 'absolute',
-                  bottom: 0,
-                  height: '5rem',
-                  width: '100%',
-                  backgroundImage:
-                    'linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.3) 35%, rgba(0, 0, 0, 0.1) 75%, rgba(0, 0, 0, 0) 100%)',
-                  zIndex: 1,
-                })}
-              />
-              <div
-                className={css({
-                  position: 'relative',
-                  width: '100%',
-                  height: 'fit-content',
-                  aspectRatio: '16 / 9',
+                  display: 'inline-flex',
+                  flexDirection: 'column',
+                  flexGrow: 1,
+                  minWidth: 0,
+                  flexShrink: { base: 0, sm: 1 },
                 })}
               >
                 <div
                   className={css({
-                    backgroundColor: 'black',
-                    position: 'absolute',
-                    boxSizing: 'border-box',
-                    top: 0,
-                    width: '100%',
-                    height: '100%',
+                    borderRadius: '1rem',
+                    flex: '0 1',
+                    minWidth: '320px',
+                    margin: {
+                      base: '0.5rem',
+                      sm: '1rem',
+                      lg: '1rem 0.5rem 1rem 1rem',
+                    },
                     overflow: 'hidden',
+                    position: 'relative',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
                   })}
                 >
                   <div
-                    aria-label={t(
-                      `videoPreview.${videoEnabled ? 'enabled' : 'disabled'}`
-                    )}
-                    role="status"
                     className={css({
                       position: 'absolute',
                       top: 0,
+                      height: '5rem',
                       width: '100%',
+                      backgroundImage:
+                        'linear-gradient(to bottom, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.3) 40%, rgba(0, 0, 0, 0.1) 80%, rgba(0, 0, 0, 0) 100%)',
+                      zIndex: 1,
+                    })}
+                  />
+                  <div
+                    className={css({
+                      position: 'absolute',
+                      bottom: 0,
+                      height: '5rem',
+                      width: '100%',
+                      backgroundImage:
+                        'linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.3) 35%, rgba(0, 0, 0, 0.1) 75%, rgba(0, 0, 0, 0) 100%)',
+                      zIndex: 1,
+                    })}
+                  />
+                  <div
+                    className={css({
+                      position: 'relative',
+                      width: '100%',
+                      height: 'fit-content',
+                      aspectRatio: '16 / 9',
                     })}
                   >
                     <div
                       className={css({
-                        width: '100%',
-                        height: 'auto',
-                        aspectRatio: '16 / 9',
-                        overflow: 'hidden',
+                        backgroundColor: 'black',
                         position: 'absolute',
-                        top: '-2px',
-                        left: '-2px',
-                        pointerEvents: 'none',
-                        transform: 'scale(1.02)',
+                        boxSizing: 'border-box',
+                        top: 0,
+                        width: '100%',
+                        height: '100%',
+                        overflow: 'hidden',
                       })}
                     >
-                      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                      <video
-                        ref={videoEl}
-                        width="1280"
-                        height="720"
-                        style={{
-                          display:
-                            !videoEnabled || isCameraDeniedOrPrompted
-                              ? 'none'
-                              : undefined,
-                        }}
+                      <div
+                        aria-label={t(
+                          `videoPreview.${videoEnabled ? 'enabled' : 'disabled'}`
+                        )}
+                        role="status"
                         className={css({
                           position: 'absolute',
-                          transform: 'rotateY(180deg)',
-                          opacity: 0,
-                          height: '100%',
-                          transition: 'opacity 0.3s ease-in-out',
-                          objectFit: 'cover',
+                          top: 0,
+                          width: '100%',
                         })}
-                        disablePictureInPicture
-                        disableRemotePlayback
-                      />
+                      >
+                        <div
+                          className={css({
+                            width: '100%',
+                            height: 'auto',
+                            aspectRatio: '16 / 9',
+                            overflow: 'hidden',
+                            position: 'absolute',
+                            top: '-2px',
+                            left: '-2px',
+                            pointerEvents: 'none',
+                            transform: 'scale(1.02)',
+                          })}
+                        >
+                          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                          <video
+                            ref={videoEl}
+                            width="1280"
+                            height="720"
+                            style={{
+                              display:
+                                !videoEnabled || isCameraDeniedOrPrompted
+                                  ? 'none'
+                                  : undefined,
+                            }}
+                            className={css({
+                              position: 'absolute',
+                              transform: 'rotateY(180deg)',
+                              opacity: 0,
+                              height: '100%',
+                              transition: 'opacity 0.3s ease-in-out',
+                              objectFit: 'cover',
+                            })}
+                            disablePictureInPicture
+                            disableRemotePlayback
+                          />
+                        </div>
+                      </div>
+                      <div
+                        role="alert"
+                        className={css({
+                          display: 'flex',
+                          flexDirection: 'column',
+                          height: '100%',
+                          width: '100%',
+                          justifyContent: 'center',
+                          textAlign: 'center',
+                          alignItems: 'center',
+                          padding: '0.24rem',
+                          boxSizing: 'border-box',
+                          gap: '1rem',
+                        })}
+                      >
+                        <p
+                          className={css({
+                            fontWeight: '400',
+                            fontSize: {
+                              base: '1rem',
+                              sm: '1.25rem',
+                              lg: '1.5rem',
+                            },
+                            textWrap: 'balance',
+                            color: 'white',
+                          })}
+                        >
+                          {hintMessage && t(hintMessage)}
+                        </p>
+                        {isCameraDeniedOrPrompted && (
+                          <Button
+                            size="sm"
+                            variant="tertiary"
+                            onPress={() => openPermissionsDialog('videoinput')}
+                          >
+                            {t(`permissionsButton.${permissionsButtonLabel}`)}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div
-                    role="alert"
-                    className={css({
-                      display: 'flex',
-                      flexDirection: 'column',
-                      height: '100%',
-                      width: '100%',
-                      justifyContent: 'center',
-                      textAlign: 'center',
-                      alignItems: 'center',
-                      padding: '0.24rem',
-                      boxSizing: 'border-box',
-                      gap: '1rem',
-                    })}
-                  >
-                    <p
+                    <div
                       className={css({
-                        fontWeight: '400',
-                        fontSize: { base: '1rem', sm: '1.25rem', lg: '1.5rem' },
-                        textWrap: 'balance',
-                        color: 'white',
+                        position: 'absolute',
+                        bottom: '1rem',
+                        zIndex: '1',
+                        display: 'flex',
+                        gap: '1rem',
+                        justifyContent: 'center',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
                       })}
                     >
-                      {hintMessage && t(hintMessage)}
-                    </p>
-                    {isCameraDeniedOrPrompted && (
-                      <Button
-                        size="sm"
-                        variant="tertiary"
-                        onPress={() => openPermissionsDialog('videoinput')}
-                      >
-                        {t(`permissionsButton.${permissionsButtonLabel}`)}
-                      </Button>
-                    )}
+                      <ToggleDevice
+                        kind="audioinput"
+                        context="join"
+                        enabled={audioEnabled}
+                        toggle={async () => {
+                          saveAudioInputEnabled(!audioEnabled)
+                          if (audioEnabled) {
+                            await audioTrack?.mute()
+                          } else {
+                            await audioTrack?.unmute()
+                          }
+                        }}
+                      />
+                      <ToggleDevice
+                        kind="videoinput"
+                        context="join"
+                        enabled={videoEnabled}
+                        toggle={async () => {
+                          saveVideoInputEnabled(!videoEnabled)
+                          if (videoEnabled) {
+                            await videoTrack?.mute()
+                          } else {
+                            await videoTrack?.unmute()
+                          }
+                        }}
+                      />
+                    </div>
+                    <div
+                      className={css({
+                        position: 'absolute',
+                        right: '1rem',
+                        bottom: '1rem',
+                        zIndex: '1',
+                      })}
+                    >
+                      <Effects videoTrack={videoTrack} />
+                    </div>
                   </div>
                 </div>
                 <div
                   className={css({
-                    position: 'absolute',
-                    bottom: '1rem',
-                    zIndex: '1',
                     display: 'flex',
-                    gap: '1rem',
                     justifyContent: 'center',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
+                    gap: '2%',
+                    width: '80%',
+                    marginX: 'auto',
                   })}
                 >
-                  <ToggleDevice
-                    kind="audioinput"
-                    context="join"
-                    enabled={audioEnabled}
-                    toggle={async () => {
-                      saveAudioInputEnabled(!audioEnabled)
-                      if (audioEnabled) {
-                        await audioTrack?.mute()
-                      } else {
-                        await audioTrack?.unmute()
-                      }
-                    }}
-                  />
-                  <ToggleDevice
-                    kind="videoinput"
-                    context="join"
-                    enabled={videoEnabled}
-                    toggle={async () => {
-                      saveVideoInputEnabled(!videoEnabled)
-                      if (videoEnabled) {
-                        await videoTrack?.mute()
-                      } else {
-                        await videoTrack?.unmute()
-                      }
-                    }}
-                  />
-                </div>
-                <div
-                  className={css({
-                    position: 'absolute',
-                    right: '1rem',
-                    bottom: '1rem',
-                    zIndex: '1',
-                  })}
-                >
-                  <Effects videoTrack={videoTrack} />
+                  <div
+                    className={css({
+                      width: '30%',
+                    })}
+                  >
+                    <SelectDevice
+                      kind="audioinput"
+                      id={audioDeviceId}
+                      onSubmit={async (id) => {
+                        try {
+                          saveAudioInputDeviceId(id)
+                          if (audioTrack) {
+                            await audioTrack.setDeviceId({ exact: id })
+                          }
+                        } catch (err) {
+                          console.error(
+                            'Failed to switch microphone device',
+                            err
+                          )
+                        }
+                      }}
+                    />
+                  </div>
+                  {!isSafari() && (
+                    <div
+                      className={css({
+                        width: '30%',
+                      })}
+                    >
+                      <SelectDevice
+                        kind="audiooutput"
+                        id={audioOutputDeviceId}
+                        onSubmit={saveAudioOutputDeviceId}
+                      />
+                    </div>
+                  )}
+                  <div
+                    className={css({
+                      width: '30%',
+                    })}
+                  >
+                    <SelectDevice
+                      kind="videoinput"
+                      id={videoDeviceId}
+                      onSubmit={async (id) => {
+                        try {
+                          saveVideoInputDeviceId(id)
+                          if (videoTrack) {
+                            await videoTrack.setDeviceId({ exact: id })
+                          }
+                        } catch (err) {
+                          console.error('Failed to switch camera device', err)
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
             <div
               className={css({
                 display: 'flex',
-                justifyContent: 'center',
-                gap: '2%',
-                width: '80%',
-                marginX: 'auto',
+                flexDirection: 'column',
+                alignItems: 'center',
+                flex: '0 0 360px',
+                position: 'relative',
+                margin: '1rem 1rem 1rem 0.5rem',
               })}
             >
-              <div
-                className={css({
-                  width: '30%',
-                })}
-              >
-                <SelectDevice
-                  kind="audioinput"
-                  id={audioDeviceId}
-                  onSubmit={async (id) => {
-                    try {
-                      saveAudioInputDeviceId(id)
-                      if (audioTrack) {
-                        await audioTrack.setDeviceId({ exact: id })
-                      }
-                    } catch (err) {
-                      console.error('Failed to switch microphone device', err)
-                    }
-                  }}
-                />
-              </div>
-              {!isSafari() && (
-                <div
-                  className={css({
-                    width: '30%',
-                  })}
-                >
-                  <SelectDevice
-                    kind="audiooutput"
-                    id={audioOutputDeviceId}
-                    onSubmit={saveAudioOutputDeviceId}
-                  />
-                </div>
-              )}
-              <div
-                className={css({
-                  width: '30%',
-                })}
-              >
-                <SelectDevice
-                  kind="videoinput"
-                  id={videoDeviceId}
-                  onSubmit={async (id) => {
-                    try {
-                      saveVideoInputDeviceId(id)
-                      if (videoTrack) {
-                        await videoTrack.setDeviceId({ exact: id })
-                      }
-                    } catch (err) {
-                      console.error('Failed to switch camera device', err)
-                    }
-                  }}
-                />
-              </div>
+              {renderWaitingState()}
             </div>
           </div>
-        </div>
-        <div
-          className={css({
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            flex: '0 0 360px',
-            position: 'relative',
-            margin: '1rem 1rem 1rem 0.5rem',
-          })}
-        >
-          {renderWaitingState()}
         </div>
       </div>
     </Screen>

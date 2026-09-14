@@ -1,7 +1,10 @@
 import { useTranslation } from 'react-i18next'
 import { Field, Ul, H, P, Form, Dialog } from '@/primitives'
 import { navigateTo } from '@/navigation/navigateTo'
-import { isRoomValid, normalizeRoomId } from '@/features/rooms'
+import {
+  isRoomValid,
+  normalizeRoomId,
+} from '@/features/rooms/utils/isRoomValid'
 
 export const JoinMeetingDialog = () => {
   const { t } = useTranslation('home')

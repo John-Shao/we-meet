@@ -5,3 +5,5 @@ export {
   MeetingDetailPanel,
   type MeetingSelection,
 } from './components/MeetingDetailPanel'
+export { MeetingNavPanel } from './components/MeetingNavPanel'
+export { MeetingModuleShell } from './components/MeetingModuleShell'

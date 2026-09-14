@@ -3,9 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { Link, Redirect } from 'wouter'
 import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
-import { Screen } from '@/layout/Screen'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { CaptureJournal, type LocalAudioChunk } from '../capture/journal'
 import {
   RecordingController,
@@ -143,7 +143,7 @@ export function Recorder({
   }
 
   return (
-    <Screen>
+    <MeetingModuleShell>
       <Link
         href="/meeting/notes"
         className={css({ padding: '0.75rem 1.5rem', color: 'primary.700' })}
@@ -442,7 +442,7 @@ export function Recorder({
           </section>
         )}
       </main>
-    </Screen>
+    </MeetingModuleShell>
   )
 }
 

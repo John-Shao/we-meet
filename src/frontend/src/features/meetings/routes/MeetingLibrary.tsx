@@ -3,11 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { Link, Redirect } from 'wouter'
 import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
-import { Screen } from '@/layout/Screen'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useMeetingRecords } from '../api/fetchMeetingRecord'
 import { libraryLayout } from '../components/libraryStyles'
+import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import type {
   MeetingRecordFilters,
   MeetingRecordSource,
@@ -137,7 +137,7 @@ export function Library({
   }
   const filterKey = JSON.stringify([viewerId, filters])
   return (
-    <Screen>
+    <MeetingModuleShell>
       <main className={libraryLayout}>
         <nav className={row} aria-label={t('library.navigation')}>
           <Link href="/meeting">{t('library.home')}</Link>
@@ -240,7 +240,7 @@ export function Library({
           ongoing={false}
         />
       </main>
-    </Screen>
+    </MeetingModuleShell>
   )
 }
 
@@ -252,12 +252,12 @@ function LibraryRoute({ minutes = false }: { minutes?: boolean }) {
   if (!user || (!data && !isError)) return <p role="status">{t('loading')}</p>
   if (isError || !data?.meeting_records?.enabled)
     return (
-      <Screen>
+      <MeetingModuleShell>
         <main className={libraryLayout}>
           <Link href="/meeting">{t('library.home')}</Link>
           <p>{t('library.unavailable')}</p>
         </main>
-      </Screen>
+      </MeetingModuleShell>
     )
   return (
     <Library
