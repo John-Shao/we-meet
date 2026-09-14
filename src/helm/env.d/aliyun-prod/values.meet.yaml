@@ -35,6 +35,11 @@ backend:
       memory: 1Gi
 
   envVars:
+    # The 1 GiB API pod also handles PCM uploads and recording-page polling.
+    # Leave headroom for S3 clients and stagger graceful worker recycling.
+    GUNICORN_WORKERS: "2"
+    GUNICORN_MAX_REQUESTS: "500"
+    GUNICORN_MAX_REQUESTS_JITTER: "50"
     DJANGO_CONFIGURATION: Production
     DJANGO_SETTINGS_MODULE: meet.settings
     # meet-backend 是 K8s service DNS — agent worker 在集群内通过它写

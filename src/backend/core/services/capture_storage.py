@@ -1,30 +1,48 @@
 """Bounded private audio storage and text-only retention admission."""
 
+import os
+import threading
+
 from django.conf import settings
-from django.core.files.storage import FileSystemStorage, default_storage
+from django.core.files.storage import FileSystemStorage, storages
 
 from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
 from storages.backends.s3 import S3Storage
 
+_audio_cache = threading.local()
+
 
 def audio_storage():
-    """Isolate small private uploads from global S3 retry and public ACL settings."""
-    if not isinstance(default_storage, S3Storage):
-        return default_storage
+    """Reuse one private S3 client per worker thread, never one per audio chunk.
+
+    Each S3Storage creates a boto3 session and its service models on first I/O.
+    Rebuilding those graphs for uploads, playback and capability polls causes
+    large allocation churn. Keep a single isolated backend, invalidating it on
+    Django storage replacement or a process fork; never cache bucket admission.
+    """
+    source = storages["default"]
+    if not isinstance(source, S3Storage):
+        _audio_cache.entry = None
+        return source
+    cached = getattr(_audio_cache, "entry", None)
+    if cached and cached[0] == os.getpid() and cached[1] is source:
+        return cached[2]
     options = dict(settings.STORAGES["default"].get("OPTIONS", {}))
     options.update(
-        client_config=default_storage.client_config.merge(
+        client_config=source.client_config.merge(
             Config(
                 connect_timeout=3, read_timeout=10, retries={"total_max_attempts": 1}
             )
         ),
         transfer_config=TransferConfig(use_threads=False, num_download_attempts=1),
         default_acl="private",
-        object_parameters={**default_storage.object_parameters, "ACL": "private"},
+        object_parameters={**source.object_parameters, "ACL": "private"},
         gzip=False,
     )
-    return default_storage.__class__(**options)
+    storage = source.__class__(**options)
+    _audio_cache.entry = (os.getpid(), source, storage)
+    return storage
 
 
 def text_audio_enabled():

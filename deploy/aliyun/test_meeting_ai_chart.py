@@ -6,6 +6,8 @@ import shutil
 import subprocess
 import unittest
 import tempfile
+import runpy
+from unittest.mock import patch
 
 import yaml
 
@@ -34,6 +36,16 @@ class MeetingAIChartTest(unittest.TestCase):
         "meetingAIWorkers.gateway.origins=https://meet.example.invalid",
         "meetingAIWorkers.image.tag=fixture-immutable",
     )
+
+    def test_production_gunicorn_memory_controls_are_consumed_by_image(self):
+        config = yaml.safe_load((ROOT / "src/helm/env.d/aliyun-prod/values.meet.yaml").read_text(encoding="utf-8"))
+        env = {key: str(value) for key, value in config["backend"]["envVars"].items() if key.startswith("GUNICORN_")}
+        with patch.dict(os.environ, env, clear=True):
+            runtime = runpy.run_path(str(ROOT / "docker/files/usr/local/etc/gunicorn/meet.py"))
+        self.assertEqual(2, runtime["workers"])
+        self.assertEqual(500, runtime["max_requests"])
+        self.assertEqual(50, runtime["max_requests_jitter"])
+        self.assertEqual("1Gi", config["backend"]["resources"]["limits"]["memory"])
 
     def test_default_emits_no_optional_workers(self):
         rows = render()
