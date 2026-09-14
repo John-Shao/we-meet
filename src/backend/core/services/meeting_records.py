@@ -140,6 +140,12 @@ def record_capabilities(record, user):
         "play_media": False,
         "download_media": False,
         "edit": False,
+        "rename": bool(
+            scoped
+            and scoped.owner_id == user.pk
+            and scoped.source_type == models.MeetingRecord.Source.AUDIO
+            and not getattr(scoped, "is_ongoing", True)
+        ),
         "manage": False,
         "capture": False,
         "generate_summary": bool(

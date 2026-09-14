@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError as ModelValidationError
 from django.db import IntegrityError
 from django.db.models import Case, Exists, OuterRef, Prefetch, Q, When
 from django.http import Http404
+from django.utils import timezone
 
 from rest_framework import pagination, permissions, serializers, viewsets
 from rest_framework.decorators import action
@@ -72,6 +73,20 @@ class SummaryRequestSerializer(serializers.Serializer):
             raise ValidationError("Job ID and attempt must be supplied together.")
         if attrs["expected_job_id"] is not None:
             attrs["expected_job_id"] = str(attrs["expected_job_id"])
+        return attrs
+
+
+class RecordTitleSerializer(serializers.Serializer):
+    """Rename metadata without changing the immutable source revision."""
+
+    title = serializers.CharField(max_length=500, allow_blank=False)
+    expected_title = serializers.CharField(
+        max_length=500, allow_blank=True, trim_whitespace=False
+    )
+
+    def validate(self, attrs):
+        if set(self.initial_data) - set(self.fields):
+            raise ValidationError("Unsupported title field.")
         return attrs
 
 
@@ -299,6 +314,22 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         if len(query) > 200:
             raise ValidationError({"q": "Search text exceeds 200 characters."})
         return queryset.filter(title__icontains=query) if query else queryset
+
+    @action(detail=True, methods=["patch"], url_path="title")
+    def rename_title(self, request, pk=None):
+        """Only the owner can rename an ended audio recording, with a stale edit guard."""
+        record = self.get_object()
+        if not record_capabilities(record, request.user)["rename"]:
+            raise PermissionDenied("Only the owner can rename an ended recording.")
+        serializer = RecordTitleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        updated = models.MeetingRecord.objects.filter(
+            pk=record.pk, owner=request.user, title=data["expected_title"]
+        ).update(title=data["title"], updated_at=timezone.now())
+        if not updated:
+            return Response({"code": "record_title_changed"}, status=409)
+        return Response(self.get_serializer(self.get_object()).data)
 
     @action(detail=False, methods=["get"])
     def resolve(self, request):
