@@ -4,6 +4,9 @@ import {
   RiFlashlightLine,
   RiCalendarLine,
   RiAddCircleLine,
+  RiMicLine,
+  RiStickyNoteLine,
+  RiSparklingLine,
   RiSettings3Line,
 } from '@remixicon/react'
 import { Button } from '@/primitives'
@@ -159,6 +162,25 @@ const IntroText = styled('div', {
   },
 })
 
+/**
+ * 视频会议侧栏的功能磁贴:两栏网格里「图标在上、文字在下」。
+ *
+ * 只切主轴方向 —— Button 基元的 `justifyContent/alignItems: center` 在两个方向
+ * 上都把内容摆正,图标与文字的间距也直接沿用基元自己的 `gap`(0.5rem,恰好等于
+ * 存量 description 档的取值),所以这里不再补间距或字号。
+ *
+ * 尺寸走 `size="sm"` 而不是 default:default 的 `paddingX: 1rem` 两侧共吃掉 32px,
+ * 侧栏拖到最小 220px 时每格只有 89px —— 16px 的「快速会议」占 64px,加上边框正好
+ * 放不下、会折成两行。sm 的 `paddingX: 0.5rem` 让同样的四字标签在最小宽度下仍单行
+ * (89 - 16 - 2 = 71px ≥ 64px)。`minHeight` 把 sm 偏紧的纵向内边距补回磁贴的呼吸感,
+ * 且 sm 档本来不设 minHeight,不存在覆盖冲突。`textAlign` 是长标签万一折行时的兜底。
+ */
+const tileBtn = css({
+  flexDirection: 'column',
+  textAlign: 'center',
+  minHeight: '4rem',
+})
+
 export const Home = () => {
   const { t } = useTranslation(['home', 'shell', 'capture'])
   const { isLoggedIn, user } = useUser()
@@ -280,16 +302,21 @@ export const Home = () => {
                     <RiSettings3Line size={16} />
                   </button>
                 </div>
+                {/* 两栏磁贴(对标飞书视频会议导航):图标在上、文字在下。
+                    按钮数量随后端开关在 3~6 之间变化,所以用 grid 而不是写死分组,
+                    奇数个时最后一个自然占左栏、不拉伸。 */}
                 <div
                   className={css({
-                    display: 'flex',
-                    flexDirection: 'column',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                     gap: '0.625rem',
                     alignItems: 'stretch',
                   })}
                 >
                   <Button
                     variant="primary"
+                    size="sm"
+                    className={tileBtn}
                     data-attr="create-meeting"
                     onPress={handleCreate}
                   >
@@ -298,6 +325,8 @@ export const Home = () => {
                   </Button>
                   <Button
                     variant="secondary"
+                    size="sm"
+                    className={tileBtn}
                     data-attr="schedule-meeting"
                     onPress={() => setScheduling(true)}
                   >
@@ -305,7 +334,7 @@ export const Home = () => {
                     {t('scheduleMeeting')}
                   </Button>
                   <DialogTrigger>
-                    <Button variant="secondary">
+                    <Button variant="secondary" size="sm" className={tileBtn}>
                       <RiAddCircleLine size={18} />
                       {t('joinMeeting')}
                     </Button>
@@ -314,8 +343,11 @@ export const Home = () => {
                   {data?.meeting_records?.capture_audio_enabled && (
                     <Button
                       variant="secondary"
+                      size="sm"
+                      className={tileBtn}
                       onPress={() => navigateTo('audioRecording')}
                     >
+                      <RiMicLine size={18} />
                       {t('title', { ns: 'capture' })}
                     </Button>
                   )}
@@ -323,14 +355,20 @@ export const Home = () => {
                     <>
                       <Button
                         variant="secondary"
+                        size="sm"
+                        className={tileBtn}
                         onPress={() => navigateTo('meetingNotes')}
                       >
+                        <RiStickyNoteLine size={18} />
                         {t('library.notes', { ns: 'meetings' })}
                       </Button>
                       <Button
                         variant="secondary"
+                        size="sm"
+                        className={tileBtn}
                         onPress={() => navigateTo('meetingMinutes')}
                       >
+                        <RiSparklingLine size={18} />
                         {t('library.minutes', { ns: 'meetings' })}
                       </Button>
                     </>
