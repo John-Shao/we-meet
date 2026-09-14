@@ -172,13 +172,17 @@ const IntroText = styled('div', {
  * 尺寸走 `size="sm"` 而不是 default:default 的 `paddingX: 1rem` 两侧共吃掉 32px,
  * 侧栏拖到最小 220px 时每格只有 89px —— 16px 的「快速会议」占 64px,加上边框正好
  * 放不下、会折成两行。sm 的 `paddingX: 0.5rem` 让同样的四字标签在最小宽度下仍单行
- * (89 - 16 - 2 = 71px ≥ 64px)。`minHeight` 把 sm 偏紧的纵向内边距补回磁贴的呼吸感,
- * 且 sm 档本来不设 minHeight,不存在覆盖冲突。`textAlign` 是长标签万一折行时的兜底。
+ * (89 - 16 - 2 = 71px ≥ 64px)。`textAlign` 是长标签万一折行时的兜底。
+ *
+ * `minHeight` 给磁贴定高(内容只有 18 图标 + 8 间距 + 22 行高 = 48px,由它撑开):
+ * 72px 减去 48px 内容与 2px 边框,上下各留 11px,磁贴才立得住;64px 那档只剩 7px,
+ * 两行磁贴挤成一条,和参考图里成块的观感对不上。sm 档本来不设 minHeight,
+ * 不存在覆盖冲突;也不要再顺手加 paddingY —— 会和基元的 padding 抢同一批原子类。
  */
 const tileBtn = css({
   flexDirection: 'column',
   textAlign: 'center',
-  minHeight: '4rem',
+  minHeight: '4.5rem',
 })
 
 export const Home = () => {
