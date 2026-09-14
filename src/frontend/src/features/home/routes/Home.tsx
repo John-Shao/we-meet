@@ -169,6 +169,12 @@ const IntroText = styled('div', {
  * 上都把内容摆正,图标与文字的间距也直接沿用基元自己的 `gap`(0.5rem,恰好等于
  * 存量 description 档的取值),所以这里不再补间距或字号。
  *
+ * 底色走 `variant="tertiary"`(浅主题色实心),这是全站唯一一个语义正确的浅底
+ * 按钮档:`action.selected.container/on-container`。**不要**改成 `primary.subtle`
+ * 那种「浅底面三件套」—— panda 里它虽然能出同样的颜色,但 `primary.*` 属于调色板
+ * 命名,`scripts/check-color-system.mjs` 会把它判成 legacy 用法直接失败(该脚本
+ * 的正则只放行 surface/text/icon/border/action/status 这几组语义角色)。
+ *
  * 尺寸走 `size="sm"` 而不是 default:default 的 `paddingX: 1rem` 两侧共吃掉 32px,
  * 侧栏拖到最小 220px 时每格只有 89px —— 16px 的「快速会议」占 64px,加上边框正好
  * 放不下、会折成两行。sm 的 `paddingX: 0.5rem` 让同样的四字标签在最小宽度下仍单行
@@ -307,6 +313,8 @@ export const Home = () => {
                   </button>
                 </div>
                 {/* 两栏磁贴(对标飞书视频会议导航):图标在上、文字在下。
+                    六个一律走 tertiary(浅主题色实心),不再让「快速会议」独占
+                    深蓝实心 —— 参考图里主次是靠图标底色区分的,不是靠按钮深浅。
                     按钮数量随后端开关在 3~6 之间变化,所以用 grid 而不是写死分组,
                     奇数个时最后一个自然占左栏、不拉伸。 */}
                 <div
@@ -318,7 +326,7 @@ export const Home = () => {
                   })}
                 >
                   <Button
-                    variant="primary"
+                    variant="tertiary"
                     size="sm"
                     className={tileBtn}
                     data-attr="create-meeting"
@@ -328,7 +336,7 @@ export const Home = () => {
                     {t('quickMeeting')}
                   </Button>
                   <Button
-                    variant="secondary"
+                    variant="tertiary"
                     size="sm"
                     className={tileBtn}
                     data-attr="schedule-meeting"
@@ -338,7 +346,7 @@ export const Home = () => {
                     {t('scheduleMeeting')}
                   </Button>
                   <DialogTrigger>
-                    <Button variant="secondary" size="sm" className={tileBtn}>
+                    <Button variant="tertiary" size="sm" className={tileBtn}>
                       <RiAddCircleLine size={18} />
                       {t('joinMeeting')}
                     </Button>
@@ -346,7 +354,7 @@ export const Home = () => {
                   </DialogTrigger>
                   {data?.meeting_records?.capture_audio_enabled && (
                     <Button
-                      variant="secondary"
+                      variant="tertiary"
                       size="sm"
                       className={tileBtn}
                       onPress={() => navigateTo('audioRecording')}
@@ -358,7 +366,7 @@ export const Home = () => {
                   {data?.meeting_records?.enabled && (
                     <>
                       <Button
-                        variant="secondary"
+                        variant="tertiary"
                         size="sm"
                         className={tileBtn}
                         onPress={() => navigateTo('meetingNotes')}
@@ -367,7 +375,7 @@ export const Home = () => {
                         {t('library.notes', { ns: 'meetings' })}
                       </Button>
                       <Button
-                        variant="secondary"
+                        variant="tertiary"
                         size="sm"
                         className={tileBtn}
                         onPress={() => navigateTo('meetingMinutes')}
