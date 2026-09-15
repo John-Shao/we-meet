@@ -3,6 +3,7 @@ import { useLocation } from 'wouter'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSnapshot } from 'valtio'
 import {
+  RiHomeLine,
   RiFlashlightLine,
   RiCalendarLine,
   RiAddCircleLine,
@@ -153,9 +154,9 @@ export const MeetingNavPanel = () => {
             </button>
           </div>
           {/* 两栏磁贴(对标飞书视频会议导航):图标在上、文字在下。
-              六个一律走 tertiary(浅主题色实心),不再让「快速会议」独占
+              所有磁贴一律走 tertiary(浅主题色实心),不再让「快速会议」独占
               深蓝实心 —— 参考图里主次是靠图标底色区分的,不是靠按钮深浅。
-              按钮数量随后端开关在 3~6 之间变化,所以用 grid 而不是写死分组,
+              按钮数量随后端开关在 4~7 之间变化,所以用 grid 而不是写死分组,
               奇数个时最后一个自然占左栏、不拉伸。 */}
           <div
             className={css({
@@ -165,6 +166,20 @@ export const MeetingNavPanel = () => {
               alignItems: 'stretch',
             })}
           >
+            {/* 我的会议排在最前:它是本模块的入口,回到这里也就回到了默认落点。
+                标签走 shell.nav.myMeetings —— 与旁边面板标题用的 shell.nav.meeting
+                同一桶,rail 的 NAV 数组并不用它。 */}
+            <Button
+              variant="tertiary"
+              size="sm"
+              className={tileBtn}
+              data-attr="meeting-home"
+              aria-current={current('/meeting')}
+              onPress={() => navigateTo('home')}
+            >
+              <RiHomeLine size={18} />
+              {t('nav.myMeetings', { ns: 'shell' })}
+            </Button>
             <Button
               variant="tertiary"
               size="sm"

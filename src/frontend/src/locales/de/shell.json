@@ -58,6 +58,7 @@
   "cancel": "Abbrechen",
   "ok": "OK",
   "nav": {
+    "myMeetings": "Meine Meetings",
     "messages": "Nachrichten",
     "meeting": "Meetings",
     "calendar": "Kalender",

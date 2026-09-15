@@ -58,6 +58,7 @@
   "cancel": "取消",
   "ok": "知道了",
   "nav": {
+    "myMeetings": "我的会议",
     "messages": "消息",
     "meeting": "视频会议",
     "calendar": "日历",
