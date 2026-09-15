@@ -14,11 +14,10 @@ import { MoreLink } from '@/features/home/components/MoreLink'
 import {
   MeetingDetailPanel,
   MeetingNavPanel,
-  RecentMeetingsList,
   ScheduledMeetingsList,
   type MeetingSelection,
 } from '@/features/meetings'
-import { openGlobalSearch } from '@/layout/globalSearchBus'
+import { MeetingMaterialsLinks } from '@/features/meetings/components/MeetingMaterialsLinks'
 import { ReactNode, useEffect, useState } from 'react'
 
 import { css } from '@/styled-system/css'
@@ -181,7 +180,7 @@ export const Home = () => {
   const [scheduling, setScheduling] = useState(false)
   const qc = useQueryClient()
   const [redirectFailed, setRedirectFailed] = useState(false)
-  // P8(对标飞书):点预约/历史会议行 → 右侧详情面板,操作收进面板。
+  // 点击预约会议行打开详情，复用日程和会议操作。
   const [meetingDetail, setMeetingDetail] = useState<MeetingSelection | null>(
     null
   )
@@ -271,14 +270,6 @@ export const Home = () => {
                   {t('library.createError', { ns: 'meetings' })}
                 </p>
               )}
-              {isLoggedIn && data?.search_ai?.enabled !== false && (
-                <Button
-                  variant="tertiary"
-                  onPress={() => openGlobalSearch('ai', 'meetings')}
-                >
-                  {t('meetingAiSearch')}
-                </Button>
-              )}
               <ScheduledMeetingsList
                 enabled
                 showEmpty
@@ -286,16 +277,11 @@ export const Home = () => {
                 onSelect={setMeetingDetail}
                 selectedId={meetingDetail?.id}
               />
-              <RecentMeetingsList
-                enabled
-                showEmpty
-                onSelect={setMeetingDetail}
-                selectedId={meetingDetail?.id}
-              />
+              {data?.meeting_records?.enabled && <MeetingMaterialsLinks />}
             </main>
             {/* 一场会一个详情页:预约会议 = 创建日程后,有日程的走统一的
                 「日程详情」(与日历/IM 同一个组件,带参与人/RSVP/纪要);
-                无日程的(快速会议、存量裸预约、历史会议)才留会议面板。 */}
+                无日程的(快速会议、存量裸预约)才留会议面板。 */}
             {meetingDetail?.eventId ? (
               <EventDetailHost
                 eventId={meetingDetail.eventId}
@@ -400,24 +386,12 @@ export const Home = () => {
                   </DialogTrigger>
                 </div>
               )}
-              {isLoggedIn && data?.search_ai?.enabled !== false && (
-                <Button
-                  variant="tertiary"
-                  onPress={() => openGlobalSearch('ai', 'meetings')}
-                >
-                  {t('meetingAiSearch')}
-                </Button>
-              )}
               <ScheduledMeetingsList
                 enabled={!!isLoggedIn}
                 onSelect={setMeetingDetail}
                 selectedId={meetingDetail?.id}
               />
-              <RecentMeetingsList
-                enabled={!!isLoggedIn}
-                onSelect={setMeetingDetail}
-                selectedId={meetingDetail?.id}
-              />
+              {data?.meeting_records?.enabled && <MeetingMaterialsLinks />}
               <Separator />
               <MoreLink />
             </LeftColumn>

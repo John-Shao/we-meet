@@ -1,7 +1,7 @@
 {
   "skipBack": "Back 15 seconds",
   "skipForward": "Forward 15 seconds",
-  "backToLibrary": "Back to meeting records",
+  "backToLibrary": "View meeting records",
   "textScope": "Record an in-person meeting or interview. Temporary audio supports transcription; text and generated minutes are retained.",
   "textLeaveHint": "Leaving interrupts recording and unuploaded audio cannot be recovered. Let participants know before recording.",
   "textSaved": "Recording ended. Check transcription and cleanup status.",
@@ -20,7 +20,7 @@
     "unavailable": "Audio retention status cannot be confirmed. Refresh before continuing.",
     "noPlayback": "Only text is retained; audio playback is unavailable. Single-microphone transcription does not identify speakers."
   },
-  "title": "Audio recording",
+  "title": "AI recording",
   "playback": "Audio playback",
   "playbackHint": "Play saved chunks in order. Switching chunks may briefly buffer. Playback pauses at missing audio.",
   "audioLoading": "Loading audio…",
@@ -156,7 +156,10 @@
       "received": "Received {{time}}",
       "open": "Open translation {{generation}} · {{date}}",
       "count": "{{count}} translated items",
-      "language": { "zh": "Chinese", "en": "English" },
+      "language": {
+        "zh": "Chinese",
+        "en": "English"
+      },
       "mode": {
         "simultaneous": "Simultaneous interpretation",
         "push_to_talk": "Two-way speech translation"
@@ -178,5 +181,10 @@
       "incomplete": "Translation interrupted; original recording is unaffected",
       "unknown": "Disconnected; waiting to confirm the translation result"
     }
-  }
+  },
+  "savedDestination": "Recording saved. Open the record for playback, transcription and translation archives, or open smart minutes to generate, share and follow up.",
+  "openRecord": "View record",
+  "openSummary": "View smart minutes",
+  "recoverable": "Recordings to finish",
+  "recoverableHint": "Unfinished recordings and recordings with pending local audio appear here. Saved material is available in meeting records."
 }

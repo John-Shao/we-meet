@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Redirect } from 'wouter'
 import { useConfig } from '@/api/useConfig'
@@ -14,10 +14,6 @@ import {
 import { withCaptureLock } from '../capture/microphone'
 import { captureTransport, textAudioAvailable } from '../capture/transport'
 import { textAudioExpired } from '../capture/retention'
-import {
-  CaptureAudioPlayer,
-  type CaptureAudioHandle,
-} from '../components/CaptureAudioPlayer'
 import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
 import { CaptureTranslationPanel } from '../components/CaptureTranslationPanel'
 
@@ -46,7 +42,6 @@ export function Recorder({
   const [textOnly, setTextOnly] = useState(false)
   const [localChunks, setLocalChunks] = useState<LocalAudioChunk[]>([])
   const [localPage, setLocalPage] = useState(0)
-  const player = useRef<CaptureAudioHandle>(null)
 
   useEffect(() => {
     const abort = new AbortController()
@@ -122,6 +117,9 @@ export function Recorder({
 
   const local = state.local
   const working = !!local && !local.sealed
+  const recoverable = state.history
+    .map((item) => (item.id === local?.id ? local : item))
+    .filter((item) => !item.sealed || item.pendingBytes > 0)
   const canResume =
     working &&
     state.mode !== 'recording' &&
@@ -159,7 +157,6 @@ export function Recorder({
           overflowY: 'auto',
         })}
       >
-        <a href="/meeting">{t('back')}</a>
         <h1
           className={css({
             fontSize: '1.5rem',
@@ -326,7 +323,7 @@ export function Recorder({
             </details>
           )}
         </section>
-        {local?.remote && controller && (
+        {working && local?.remote && controller && (
           <CaptureTranslationPanel
             key={`translation:${viewerId}:${local.remote.id}:${local.remote.revision}`}
             source={{
@@ -340,38 +337,43 @@ export function Recorder({
             controller={controller}
           />
         )}
-        {local?.sealed &&
-          local.remote &&
-          local.create.retention_mode === 'media' && (
-            <CaptureAudioPlayer
-              ref={player}
-              key={`${viewerId}:${local.remote.id}`}
-              captureId={local.remote.id}
-            />
-          )}
-        {local?.remote && (
+        {working && local?.remote && (
           <CaptureTranscriptionPanel
             key={`asr:${viewerId}:${local.remote.id}`}
             viewerId={viewerId}
             capture={local.remote}
-            onSource={
-              local.create.retention_mode === 'text'
-                ? undefined
-                : (milliseconds) => player.current?.seek(milliseconds)
-            }
+            includeSummary={false}
           />
         )}
-        {local?.remote && (
-          <Link
-            href={`/meeting/records/${local.remote.record_id}?tab=translations`}
+        {local?.sealed && local.remote && (
+          <section
             className={css({
-              display: 'inline-block',
-              marginTop: '1rem',
-              color: 'primary.700',
+              marginTop: '1.5rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem',
             })}
           >
-            {t('translation.archive.title')}
-          </Link>
+            <h2>{local.create.title || t('untitled')}</h2>
+            <p>{t('savedDestination')}</p>
+            <div
+              className={css({
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '1rem',
+                color: 'primary.700',
+              })}
+            >
+              <Link href={`/meeting/records/${local.remote.record_id}`}>
+                {t('openRecord')}
+              </Link>
+              <Link
+                href={`/meeting/records/${local.remote.record_id}?tab=summary`}
+              >
+                {t('openSummary')}
+              </Link>
+            </div>
+          </section>
         )}
         {!!local?.pendingBytes && local.create.retention_mode === 'media' && (
           <section className={css({ marginTop: '1.5rem' })}>
@@ -421,11 +423,12 @@ export function Recorder({
             )}
           </section>
         )}
-        {!!state.history.length && (
+        {!!recoverable.length && (
           <section className={css({ marginTop: '1.5rem' })}>
-            <h2>{t('history')}</h2>
+            <h2>{t('recoverable')}</h2>
+            <p>{t('recoverableHint')}</p>
             <ul>
-              {state.history.slice(0, 20).map((item) => (
+              {recoverable.map((item) => (
                 <li key={item.id}>
                   <Button
                     variant="secondary"
