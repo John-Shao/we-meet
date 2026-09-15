@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next'
+import { DialogTrigger } from 'react-aria-components'
 import { Button } from '@/primitives'
 import { styled } from '@/styled-system/jsx'
 import { navigateTo } from '@/navigation/navigateTo'
 import { Screen } from '@/layout/Screen'
 import { useCreateRoom } from '@/features/rooms'
 import { useUser, UserAware } from '@/features/auth'
+import { JoinMeetingDialog } from '../components/JoinMeetingDialog'
 import { authUrl } from '@/features/auth'
 import { EventDetailHost, CreateEventDialog } from '@/features/calendar'
 import { IntroSlider } from '@/features/home/components/IntroSlider'
@@ -250,13 +252,12 @@ export const Home = () => {
                 >
                   {t('quickMeeting')}
                 </Button>
-                <Button
-                  variant="secondary"
-                  data-attr="join-meeting"
-                  onPress={() => navigateTo('joinMeeting')}
-                >
-                  {t('joinMeeting')}
-                </Button>
+                <DialogTrigger>
+                  <Button variant="secondary" data-attr="join-meeting">
+                    {t('joinMeeting')}
+                  </Button>
+                  <JoinMeetingDialog />
+                </DialogTrigger>
                 <Button
                   variant="secondary"
                   data-attr="schedule-meeting"
@@ -347,13 +348,12 @@ export const Home = () => {
                   {/* Logged-in users get the standard join entry — anonymous
                     join is gated below (the button doesn't render at all
                     when isLoggedIn is false). */}
-                  <Button
-                    variant="secondary"
-                    data-attr="join-meeting"
-                    onPress={() => navigateTo('joinMeeting')}
-                  >
-                    {t('joinMeeting')}
-                  </Button>
+                  <DialogTrigger>
+                    <Button variant="secondary" data-attr="join-meeting">
+                      {t('joinMeeting')}
+                    </Button>
+                    <JoinMeetingDialog />
+                  </DialogTrigger>
                   <Button
                     variant="secondary"
                     data-attr="schedule-meeting"
@@ -384,13 +384,12 @@ export const Home = () => {
                   >
                     {t('login')}
                   </Button>
-                  <Button
-                    variant="secondary"
-                    data-attr="join-meeting"
-                    onPress={() => navigateTo('joinMeeting')}
-                  >
-                    {t('joinMeeting')}
-                  </Button>
+                  <DialogTrigger>
+                    <Button variant="secondary" data-attr="join-meeting">
+                      {t('joinMeeting')}
+                    </Button>
+                    <JoinMeetingDialog />
+                  </DialogTrigger>
                 </div>
               )}
               <ScheduledMeetingsList

@@ -48,14 +48,6 @@ describe('meeting module navigation', () => {
     expect(screen.queryByText('joinMeeting')).not.toBeInTheDocument()
   })
 
-  it('keeps video navigation selected on the join page', () => {
-    state.path = '/meeting/join'
-    render(<MeetingNavPanel />)
-    expect(
-      screen.getByRole('button', { name: 'library.video' })
-    ).toHaveAttribute('aria-current', 'page')
-  })
-
   it('selects records for a record deep link', () => {
     state.path = '/meeting/records/record-id'
     render(<MeetingNavPanel />)
