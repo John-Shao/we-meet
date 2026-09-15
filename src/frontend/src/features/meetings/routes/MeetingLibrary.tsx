@@ -401,7 +401,7 @@ export function Library({
               {config?.meeting_records?.capture_audio_enabled && (
                 <Button
                   icon={<RiMicLine size={18} aria-hidden />}
-                  onPress={() => navigate('/meeting/recording')}
+                  onPress={() => navigate('/meeting/recording/capture')}
                 >
                   {t('library.startRecording')}
                 </Button>

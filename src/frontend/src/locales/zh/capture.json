@@ -186,5 +186,6 @@
   "openRecord": "查看实录",
   "openSummary": "查看智能纪要",
   "recoverable": "待处理录音",
-  "recoverableHint": "这里只显示未结束或仍有本地音频待处理的录音，已保存的资料可在会议实录中查看。"
+  "recoverableHint": "这里只显示未结束或仍有本地音频待处理的录音，已保存的资料可在会议实录中查看。",
+  "backToOverview": "返回 AI 录音"
 }

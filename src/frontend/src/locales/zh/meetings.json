@@ -671,5 +671,14 @@
     "viewRecord": "查看实录",
     "active": "进行中",
     "ended": "已结束"
+  },
+  "recordingOverview": {
+    "history": "历史录音",
+    "empty": "暂无已完成的录音",
+    "detail": "录音详情",
+    "back": "返回 AI 录音",
+    "record": "录音",
+    "keepAudio": "保留音频",
+    "textOnly": "仅保留文字"
   }
 }

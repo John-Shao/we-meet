@@ -671,5 +671,14 @@
     "viewRecord": "View record",
     "active": "In progress",
     "ended": "Ended"
+  },
+  "recordingOverview": {
+    "history": "Recording history",
+    "empty": "No completed recordings yet",
+    "detail": "Recording details",
+    "back": "Back to AI recording",
+    "record": "Record",
+    "keepAudio": "Audio retained",
+    "textOnly": "Text only"
   }
 }

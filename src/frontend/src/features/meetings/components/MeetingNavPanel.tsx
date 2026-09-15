@@ -27,6 +27,8 @@ export const MeetingNavPanel = () => {
   const current = (path: string) => {
     const selected =
       location === path ||
+      (path === '/meeting/recording' &&
+        location.startsWith('/meeting/recording/')) ||
       (path === '/meeting/notes' && location.startsWith('/meeting/records/'))
     return selected ? 'page' : undefined
   }

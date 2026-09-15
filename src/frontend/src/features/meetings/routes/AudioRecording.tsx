@@ -143,10 +143,10 @@ export function Recorder({
   return (
     <MeetingModuleShell>
       <Link
-        href="/meeting/notes"
+        href="/meeting/recording"
         className={css({ padding: '0.75rem 1.5rem', color: 'primary.700' })}
       >
-        {t('backToLibrary')}
+        {t('backToOverview')}
       </Link>
       <main
         className={css({

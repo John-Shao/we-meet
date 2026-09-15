@@ -186,5 +186,6 @@
   "openRecord": "View record",
   "openSummary": "View smart minutes",
   "recoverable": "Recordings to finish",
-  "recoverableHint": "Unfinished recordings and recordings with pending local audio appear here. Saved material is available in meeting records."
+  "recoverableHint": "Unfinished recordings and recordings with pending local audio appear here. Saved material is available in meeting records.",
+  "backToOverview": "Back to AI recording"
 }

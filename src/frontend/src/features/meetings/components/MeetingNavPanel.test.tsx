@@ -56,6 +56,20 @@ describe('meeting module navigation', () => {
     ).toHaveAttribute('aria-current', 'page')
   })
 
+  it.each([
+    '/meeting/recording/capture',
+    '/meeting/recording/history/record-1',
+  ])('keeps AI recording selected at %s', (path) => {
+    state.path = path
+    render(<MeetingNavPanel />)
+    expect(
+      screen.getByRole('button', { name: 'library.record' })
+    ).toHaveAttribute('aria-current', 'page')
+    expect(
+      screen.getByRole('button', { name: 'library.video' })
+    ).not.toHaveAttribute('aria-current')
+  })
+
   it('retains feature gates for unavailable AI sections', () => {
     state.enabled = false
     render(<MeetingNavPanel />)

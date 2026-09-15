@@ -12,6 +12,8 @@ import { CreateMeetingButton } from '@/features/sdk/routes/CreateMeetingButton'
 import { RecordingDownloadRoute } from '@/features/recording'
 import { MeetingDetailRoute } from '@/features/meetings'
 import { AudioRecording } from '@/features/meetings/routes/AudioRecording'
+import { RecordingOverview } from '@/features/meetings/routes/RecordingOverview'
+import { RecordingDetail } from '@/features/meetings/routes/RecordingDetail'
 import {
   MeetingNotes,
   MeetingMinutes,
@@ -43,6 +45,8 @@ export const routes: Record<
   | 'recordingDownload'
   | 'meetingDetail'
   | 'audioRecording'
+  | 'audioCapture'
+  | 'recordingDetail'
   | 'meetingNotes'
   | 'meetingMinutes'
   | 'meetingRecord'
@@ -71,7 +75,17 @@ export const routes: Record<
   audioRecording: {
     name: 'audioRecording',
     path: '/meeting/recording',
+    Component: RecordingOverview,
+  },
+  audioCapture: {
+    name: 'audioCapture',
+    path: '/meeting/recording/capture',
     Component: AudioRecording,
+  },
+  recordingDetail: {
+    name: 'recordingDetail',
+    path: '/meeting/recording/history/:recordId',
+    Component: RecordingDetail,
   },
   meetingNotes: {
     name: 'meetingNotes',
