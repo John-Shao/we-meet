@@ -391,7 +391,6 @@ export const Home = () => {
                 onSelect={setMeetingDetail}
                 selectedId={meetingDetail?.id}
               />
-              {data?.meeting_records?.enabled && <MeetingMaterialsLinks />}
               <Separator />
               <MoreLink />
             </LeftColumn>
