@@ -12,16 +12,24 @@
 import { useState } from 'react'
 
 import { useTranslation } from 'react-i18next'
-import { RiCalendarLine } from '@remixicon/react'
+import { RiAddLine, RiCalendarLine } from '@remixicon/react'
 
 import { PageState } from '@/components/PageState'
 import { css } from '@/styled-system/css'
-import { H, Text } from '@/primitives'
+import { Button, H, Text } from '@/primitives'
 
 import { useScheduledMeetings } from '../api/fetchMeeting'
 import type { MeetingSelection } from './MeetingDetailPanel'
 
 const COLLAPSED_COUNT = 5
+
+/** 节标题 + 右侧动作。空态与有列表两条分支共用,保证动作任何时候都在。 */
+const headerRow = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '0.75rem',
+})
 
 /** 预约时间口径(与 App 端对齐):当天 →「今天 HH:mm」;否则「M月d日
  * HH:mm」(不带年,预约都是近期未来)。 */
@@ -53,6 +61,7 @@ export const ScheduledMeetingsList = ({
   showEmpty = false,
   onSelect,
   selectedId,
+  onSchedule,
 }: {
   enabled: boolean
   /** 在会议主区常驻显示:无预约时渲染「暂无待开始的会议」空态卡(企微式);
@@ -62,10 +71,36 @@ export const ScheduledMeetingsList = ({
   onSelect: (selection: MeetingSelection) => void
   /** 当前详情面板展示的会议 id → 行高亮。 */
   selectedId?: string | null
+  /**
+   * 「预约会议」入口。原先在左侧导航列里,现收进本节标题右侧 —— 预约出来的
+   * 会议就出现在这个列表里,入口和结果同处一节比隔着一条导航列更好找。
+   * 放在标题行而不是空态卡里:空态卡在已有预约时会消失,入口不该跟着消失。
+   * 不传则不渲染(匿名落地页走自己的登录 CTA 行)。
+   */
+  onSchedule?: () => void
 }) => {
   const { t, i18n } = useTranslation('meetings')
   const { data, isLoading } = useScheduledMeetings(enabled)
   const [expanded, setExpanded] = useState(false)
+
+  const header = (title: string) => (
+    <div className={headerRow}>
+      <H lvl={3} margin={false}>
+        {title}
+      </H>
+      {onSchedule && (
+        <Button
+          variant="secondary"
+          size="sm"
+          data-attr="schedule-meeting"
+          onPress={onSchedule}
+        >
+          <RiAddLine size={16} />
+          {t('scheduleMeeting', { ns: 'home' })}
+        </Button>
+      )}
+    </div>
+  )
 
   if (!enabled) return null
   if (isLoading) return null
@@ -81,9 +116,7 @@ export const ScheduledMeetingsList = ({
           gap: '0.75rem',
         })}
       >
-        <H lvl={3} margin={false}>
-          {t('home.scheduledTitle')}
-        </H>
+        {header(t('home.scheduledTitle'))}
         <PageState
           density="compact"
           surface="card"
@@ -107,9 +140,7 @@ export const ScheduledMeetingsList = ({
         gap: '0.75rem',
       })}
     >
-      <H lvl={3} margin={false}>
-        {t('home.scheduledTitle')}
-      </H>
+      {header(t('home.scheduledTitle'))}
       <ul
         className={css({
           listStyle: 'none',

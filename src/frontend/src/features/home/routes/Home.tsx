@@ -221,6 +221,7 @@ export const Home = () => {
               <ScheduledMeetingsList
                 enabled
                 showEmpty
+                onSchedule={() => setScheduling(true)}
                 onSelect={setMeetingDetail}
                 selectedId={meetingDetail?.id}
               />

@@ -1,11 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
-import { useQueryClient } from '@tanstack/react-query'
-import { useSnapshot } from 'valtio'
 import {
   RiHomeLine,
   RiFlashlightLine,
-  RiCalendarLine,
   RiAddCircleLine,
   RiMicLine,
   RiStickyNoteLine,
@@ -17,11 +14,6 @@ import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 import { navigateTo } from '@/navigation/navigateTo'
 import { openSystemSettings } from '@/stores/systemSettings'
-import {
-  closeScheduleMeeting,
-  openScheduleMeeting,
-  scheduleMeetingStore,
-} from '@/stores/scheduleMeeting'
 import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
 import { usePersistentUserChoices } from '@/features/rooms/livekit/hooks/usePersistentUserChoices'
@@ -29,7 +21,6 @@ import { usePersistentUserChoices } from '@/features/rooms/livekit/hooks/usePers
 // 走桶会把 rooms/index(Room 路由)拉回来,和 rooms → 本面板 形成环。
 import { useCreateRoom } from '@/features/rooms/api/createRoom'
 import { ResizablePanel } from '@/components/ResizablePanel'
-import { CreateEventDialog } from '@/features/calendar'
 
 /**
  * 「视频会议」的一列功能导航:标题 + 会议设置 + 两栏磁贴。
@@ -49,28 +40,10 @@ export const MeetingNavPanel = () => {
   const { data } = useConfig()
   const { mutateAsync: createRoom } = useCreateRoom()
   const [location] = useLocation()
-  const qc = useQueryClient()
 
   const {
     userChoices: { username },
   } = usePersistentUserChoices()
-
-  // 预约会议 = 创建日程(与飞书一致),弹窗开关走全局 store —— 见
-  // stores/scheduleMeeting.ts:路由切回 /meeting 时面板会重新挂载,
-  // 局部 useState 撑不过去。
-  const { open: scheduling } = useSnapshot(scheduleMeetingStore)
-
-  /**
-   * 预约会议:先回会议首页,再弹「新建日程」。
-   *
-   * 先回首页是因为日程建完就落在首页的预约列表里 —— 留在二级页上弹窗,
-   * 用户建完看不到它去了哪。已经在 /meeting 时不再 navigate:
-   * 同址再 push 一条只会让「后退」白按一下。
-   */
-  const handleSchedule = () => {
-    if (location !== '/meeting') navigateTo('home')
-    openScheduleMeeting()
-  }
 
   // 发起会议:后端在保存时生成 8 位 slug,前端不再自造 code。
   const handleCreate = async () => {
@@ -87,9 +60,9 @@ export const MeetingNavPanel = () => {
   /**
    * 当前停留的二级页高亮为 `aria-current="page"`。
    * 只给**页面**型入口标:加入会议(点进去是 /meeting/join 那一页)、录音、会议笔记、
-   * 智能纪要都有停留态;快速会议是动作(点完就进会),没有停留态。
-   * 这里刻意只加语义、不另做视觉选中态 —— 六个磁贴统一是浅主题色实心,再叠一层
-   * 选中色需要一个新的语义角色,属于设计契约变更,没在这次改动里擅自决定。
+   * 智能纪要都有停留态;快速会议、我的会议里的预约动作都是动作(点完就跳走),
+   * 没有停留态。这里刻意只加语义、不另做视觉选中态 —— 磁贴统一是浅主题色实心,
+   * 再叠一层选中色需要一个新的语义角色,属于设计契约变更,没在这次改动里擅自决定。
    */
   const current = (path: string) => (location === path ? 'page' : undefined)
 
@@ -194,16 +167,6 @@ export const MeetingNavPanel = () => {
               variant="tertiary"
               size="sm"
               className={tileBtn}
-              data-attr="schedule-meeting"
-              onPress={handleSchedule}
-            >
-              <RiCalendarLine size={18} />
-              {t('scheduleMeeting')}
-            </Button>
-            <Button
-              variant="tertiary"
-              size="sm"
-              className={tileBtn}
               aria-current={current('/meeting/join')}
               onPress={() => navigateTo('joinMeeting')}
             >
@@ -249,16 +212,6 @@ export const MeetingNavPanel = () => {
           </div>
         </aside>
       </ResizablePanel>
-      {scheduling && (
-        <CreateEventDialog
-          onClose={closeScheduleMeeting}
-          onCreated={() => {
-            closeScheduleMeeting()
-            // 日程创建时后端自建带 scheduled_at 的 Room → 刷新预约列表。
-            void qc.invalidateQueries({ queryKey: ['scheduled-meetings'] })
-          }}
-        />
-      )}
     </>
   )
 }
