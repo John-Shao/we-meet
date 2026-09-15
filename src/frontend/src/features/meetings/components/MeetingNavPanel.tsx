@@ -17,7 +17,10 @@ import { ResizablePanel } from '@/components/ResizablePanel'
 
 /** Shared module navigation: video meetings, recording, records and minutes. */
 export const MeetingNavPanel = () => {
-  const { t } = useTranslation(['home', 'shell', 'capture', 'meetings'])
+  // 必须把 settings 一并列上:语言包是 resourcesToBackend 懒加载的,
+  // 只写 `t(key, { ns: 'settings' })` 不会触发加载,齿轮的 title/aria-label
+  // 会原地渲染成 key 字符串(systemSettings.nav.meeting)。
+  const { t } = useTranslation(['shell', 'meetings', 'settings'])
   const { data } = useConfig()
   const [location] = useLocation()
 
@@ -116,7 +119,7 @@ export const MeetingNavPanel = () => {
                 onPress={() => navigateTo('audioRecording')}
               >
                 <RiMicLine size={18} />
-                {t('title', { ns: 'capture' })}
+                {t('library.record', { ns: 'meetings' })}
               </Button>
             )}
             {data?.meeting_records?.enabled && (

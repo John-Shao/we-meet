@@ -36,7 +36,7 @@ describe('meeting module navigation', () => {
     render(<MeetingNavPanel />)
     const entries = [
       ['library.video', 'home'],
-      ['title', 'audioRecording'],
+      ['library.record', 'audioRecording'],
       ['library.notes', 'meetingNotes'],
       ['library.minutes', 'meetingMinutes'],
     ]
@@ -73,7 +73,7 @@ describe('meeting module navigation', () => {
     expect(screen.queryByText('library.notes')).not.toBeInTheDocument()
     expect(screen.queryByText('library.minutes')).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'title' })
+      screen.queryByRole('button', { name: 'library.record' })
     ).not.toBeInTheDocument()
   })
 })
