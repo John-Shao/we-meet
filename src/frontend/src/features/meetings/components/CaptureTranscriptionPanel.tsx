@@ -14,6 +14,7 @@ import { isAudioRetention } from '../capture/retention'
 import { RecordSummaryPanel } from './RecordSummaryPanel'
 import { OriginalSearch } from './OriginalSearch'
 import { LiveCaptureTranscript } from './LiveCaptureTranscript'
+import { TranscriptSegment } from './TranscriptSegment'
 
 type Job = {
   id: string
@@ -55,11 +56,13 @@ export function CaptureTranscriptionPanel({
   capture,
   onSource,
   includeSummary = true,
+  compactControls = false,
 }: {
   viewerId: string
   capture: ApiCaptureSession
   onSource?: (milliseconds: number) => void
   includeSummary?: boolean
+  compactControls?: boolean
 }) {
   const { t } = useTranslation('capture')
   const path = `capture-sessions/${capture.id}/transcription/`
@@ -69,6 +72,7 @@ export function CaptureTranscriptionPanel({
   const [allowIncomplete, setAllowIncomplete] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
+  const [showControls, setShowControls] = useState(false)
   const [message, setMessage] = useState('')
   const busy = useRef(false)
   const abort = useRef<AbortController>()
@@ -220,103 +224,121 @@ export function CaptureTranscriptionPanel({
     !textMode
   )
     return null
+  const foldControls =
+    compactControls &&
+    !!state.data.active_job_id &&
+    !active(latest) &&
+    !intent &&
+    !message &&
+    !textMode
   return (
     <section className={style} aria-label={t('asr.title')}>
-      <h2>{t('asr.title')}</h2>
-      {textMode && (
-        <div role="status">
-          {isAudioRetention(retention) ? (
-            <>
-              <p>{t(`retention.${retention.cleanup_status}`)}</p>
-              <p>
-                {t('retention.deadline', {
-                  time: new Date(retention.temporary_until!).toLocaleString(),
-                })}
-              </p>
-              <p>
-                {t('retention.retryUntil', {
-                  time: new Date(retention.retry_until!).toLocaleString(),
-                })}
-              </p>
-              {!retryOpen() && <p>{t('retention.retryClosed')}</p>}
-            </>
-          ) : (
-            <p>{t('retention.unavailable')}</p>
-          )}
-        </div>
-      )}
-      <p>{t(openCapture ? 'asr.liveScope' : 'asr.scope')}</p>
-      {latest && (
-        <p role="status">
-          {t('asr.version', { number: latest.generation })} ·{' '}
-          {t(`asr.status.${latest.status}`)}
-          {active(latest) &&
-            ` · ${t('asr.progress', { done: latest.acknowledged_inputs, total: latest.input_count })}`}
-        </p>
-      )}
-      {capture.media_status === 'incomplete' && !active(latest) && (
-        <label>
-          <input
-            type="checkbox"
-            checked={allowIncomplete}
-            disabled={saving || !!intent}
-            onChange={(event) => setAllowIncomplete(event.target.checked)}
-          />{' '}
-          {t('asr.acceptIncomplete')}
-        </label>
-      )}
-      {message && <p role="alert">{t(message)}</p>}
-      <div
-        className={css({ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' })}
-      >
-        {intent ? (
-          <Button
-            variant="secondary"
-            isDisabled={saving}
-            onPress={() => void create()}
-          >
-            {t('asr.recover')}
-          </Button>
-        ) : (
-          <Button
-            variant="primary"
-            isDisabled={
-              !ready ||
-              saving ||
-              !canCreate ||
-              active(latest) ||
-              capture.media_status === 'empty' ||
-              (capture.media_status === 'incomplete' && !allowIncomplete)
-            }
-            onPress={() => void create()}
-          >
-            {t(
-              openCapture
-                ? latest
-                  ? 'asr.liveRetry'
-                  : 'asr.liveStart'
-                : latest
-                  ? 'asr.retry'
-                  : 'asr.start'
-            )}
-          </Button>
-        )}
-        {active(latest) && (
-          <Button
-            variant="secondary"
-            isDisabled={saving}
-            onPress={() => void cancel()}
-          >
-            {t('asr.cancel')}
-          </Button>
-        )}
+      {foldControls && (
         <Button
-          variant="secondary"
-          isDisabled={saving}
-          onPress={() => void state.refetch()}
+          variant="tertiary"
+          aria-expanded={showControls}
+          onPress={() => setShowControls(!showControls)}
         >
-          {t('asr.refresh')}
+          {t('asr.controls')}
         </Button>
+      )}
+      <div hidden={foldControls && !showControls}>
+        <h2>{t('asr.title')}</h2>
+        {textMode && (
+          <div role="status">
+            {isAudioRetention(retention) ? (
+              <>
+                <p>{t(`retention.${retention.cleanup_status}`)}</p>
+                <p>
+                  {t('retention.deadline', {
+                    time: new Date(retention.temporary_until!).toLocaleString(),
+                  })}
+                </p>
+                <p>
+                  {t('retention.retryUntil', {
+                    time: new Date(retention.retry_until!).toLocaleString(),
+                  })}
+                </p>
+                {!retryOpen() && <p>{t('retention.retryClosed')}</p>}
+              </>
+            ) : (
+              <p>{t('retention.unavailable')}</p>
+            )}
+          </div>
+        )}
+        <p>{t(openCapture ? 'asr.liveScope' : 'asr.scope')}</p>
+        {latest && (
+          <p role="status">
+            {t('asr.version', { number: latest.generation })} ·{' '}
+            {t(`asr.status.${latest.status}`)}
+            {active(latest) &&
+              ` · ${t('asr.progress', { done: latest.acknowledged_inputs, total: latest.input_count })}`}
+          </p>
+        )}
+        {capture.media_status === 'incomplete' && !active(latest) && (
+          <label>
+            <input
+              type="checkbox"
+              checked={allowIncomplete}
+              disabled={saving || !!intent}
+              onChange={(event) => setAllowIncomplete(event.target.checked)}
+            />{' '}
+            {t('asr.acceptIncomplete')}
+          </label>
+        )}
+        {message && <p role="alert">{t(message)}</p>}
+        <div
+          className={css({ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' })}
+        >
+          {intent ? (
+            <Button
+              variant="secondary"
+              isDisabled={saving}
+              onPress={() => void create()}
+            >
+              {t('asr.recover')}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              isDisabled={
+                !ready ||
+                saving ||
+                !canCreate ||
+                active(latest) ||
+                capture.media_status === 'empty' ||
+                (capture.media_status === 'incomplete' && !allowIncomplete)
+              }
+              onPress={() => void create()}
+            >
+              {t(
+                openCapture
+                  ? latest
+                    ? 'asr.liveRetry'
+                    : 'asr.liveStart'
+                  : latest
+                    ? 'asr.retry'
+                    : 'asr.start'
+              )}
+            </Button>
+          )}
+          {active(latest) && (
+            <Button
+              variant="secondary"
+              isDisabled={saving}
+              onPress={() => void cancel()}
+            >
+              {t('asr.cancel')}
+            </Button>
+          )}
+          <Button
+            variant="secondary"
+            isDisabled={saving}
+            onPress={() => void state.refetch()}
+          >
+            {t('asr.refresh')}
+          </Button>
+        </div>
       </div>
       {latest?.mode === 'live' && latest.id !== state.data.active_job_id && (
         <LiveCaptureTranscript
@@ -437,23 +459,16 @@ function Originals({
       <p>{t(onSource ? 'asr.unknownSpeaker' : 'retention.noPlayback')}</p>
       {!query.data.results.length && <p>{t('asr.noText')}</p>}
       {query.data.results.map((row) => (
-        <article key={row.id}>
-          {onSource && (
-            <Button variant="tertiary" onPress={() => onSource(row.start_ms)}>
-              {t('asr.source', {
-                time: `${Math.floor(row.start_ms / 60000)}:${String(Math.floor(row.start_ms / 1000) % 60).padStart(2, '0')}`,
-              })}
-            </Button>
-          )}
-          <p
-            className={css({
-              whiteSpace: 'pre-wrap',
-              overflowWrap: 'anywhere',
-            })}
-          >
-            {row.text}
-          </p>
-        </article>
+        <TranscriptSegment
+          key={row.id}
+          speaker={row.speaker_label || t('asr.unknownSpeaker')}
+          time={`${Math.floor(row.start_ms / 60000)}:${String(Math.floor(row.start_ms / 1000) % 60).padStart(2, '0')}`}
+          onSeek={onSource ? () => onSource(row.start_ms) : undefined}
+          seekLabel={t('asr.source', {
+            time: `${Math.floor(row.start_ms / 60000)}:${String(Math.floor(row.start_ms / 1000) % 60).padStart(2, '0')}`,
+          })}
+          text={row.text}
+        />
       ))}
       <div className={css({ display: 'flex', gap: '0.75rem' })}>
         {cursors.length > 1 && (

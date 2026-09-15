@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
 import { fetchApi } from '@/api/fetchApi'
-import { Button } from '@/primitives'
+import { Button, Dialog } from '@/primitives'
+import { RiUpload2Line } from '@remixicon/react'
 import { css } from '@/styled-system/css'
 
 type UploadState = {
@@ -31,6 +32,7 @@ export function RecordingUpload({ viewerId }: { viewerId: string }) {
   const [hotwords, setHotwords] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
+  const [open, setOpen] = useState(false)
   const capabilities = useQuery({
     queryKey: ['recording-upload-capabilities', viewerId],
     queryFn: ({ signal }) =>
@@ -44,105 +46,174 @@ export function RecordingUpload({ viewerId }: { viewerId: string }) {
   if (!capabilities.data?.available) return null
   const config = capabilities.data
   return (
-    <details className={css({ marginBottom: '1.5rem' })}>
-      <summary className={css({ cursor: 'pointer', fontWeight: 600 })}>
-        {t('upload.title')}
-      </summary>
-      <form
-        className={css({
-          display: 'grid',
-          gap: '0.75rem',
-          paddingTop: '1rem',
-          maxWidth: '40rem',
-        })}
-        onSubmit={async (event) => {
-          event.preventDefault()
-          if (!file || busy) return
-          setError(false)
-          if (
-            !file.size ||
-            file.size > config.max_bytes ||
-            !config.extensions.includes(
-              file.name.split('.').pop()!.toLowerCase()
-            )
-          ) {
-            setError(true)
-            return
-          }
-          setBusy(true)
-          const body = new FormData()
-          body.set('key', key)
-          body.set('audio', file)
-          body.set('context', context)
-          body.set('hotwords', hotwords)
-          try {
-            const result = await fetchApi<UploadState>('recording-uploads/', {
-              method: 'POST',
-              body,
-            })
-            navigate(`/meeting/records/${result.record_id}?tab=text`)
-          } catch {
-            setError(true)
-          } finally {
-            setBusy(false)
-          }
-        }}
+    <>
+      <Button
+        variant="secondary"
+        icon={<RiUpload2Line size={18} aria-hidden />}
+        onPress={() => setOpen(true)}
       >
-        <p>
-          {t('upload.hint', {
-            size: Math.floor(config.max_bytes / 1024 / 1024),
+        {t('upload.open')}
+      </Button>
+      <Dialog
+        isOpen={open}
+        onOpenChange={(value) => {
+          if (!busy) setOpen(value)
+        }}
+        title={t('upload.title')}
+      >
+        <form
+          className={css({
+            display: 'grid',
+            gap: '0.75rem',
+            maxHeight: '70dvh',
+            overflowY: 'auto',
           })}
-        </p>
-        <label>
-          {t('upload.file')}
-          <input
-            className={field}
-            type="file"
-            required
-            disabled={busy}
-            accept={config.extensions
-              .map((extension) => `.${extension}`)
-              .join(',')}
-            onChange={(event) => {
-              setFile(event.target.files?.[0] ?? null)
-              setKey(crypto.randomUUID())
-            }}
-          />
-        </label>
-        <label>
-          {t('upload.context')}
-          <textarea
-            className={field}
-            maxLength={400}
-            disabled={busy}
-            value={context}
-            onChange={(event) => {
-              setContext(event.target.value)
-              setKey(crypto.randomUUID())
-            }}
-          />
-        </label>
-        <label>
-          {t('upload.hotwords')}
-          <textarea
-            className={field}
-            maxLength={4000}
-            disabled={busy}
-            value={hotwords}
-            onChange={(event) => {
-              setHotwords(event.target.value)
-              setKey(crypto.randomUUID())
-            }}
-          />
-        </label>
-        <p>{t('upload.consent')}</p>
-        <Button type="submit" isDisabled={!file || busy}>
-          {t(busy ? 'upload.uploading' : 'upload.submit')}
-        </Button>
-        {busy && <p role="status">{t('upload.keepOpen')}</p>}
-        {error && <p role="alert">{t('upload.error')}</p>}
-      </form>
-    </details>
+          onSubmit={async (event) => {
+            event.preventDefault()
+            if (!file || busy) return
+            setError(false)
+            if (
+              !file.size ||
+              file.size > config.max_bytes ||
+              !config.extensions.includes(
+                file.name.split('.').pop()!.toLowerCase()
+              )
+            ) {
+              setError(true)
+              return
+            }
+            setBusy(true)
+            const body = new FormData()
+            body.set('key', key)
+            body.set('audio', file)
+            body.set('context', context)
+            body.set('hotwords', hotwords)
+            try {
+              const result = await fetchApi<UploadState>('recording-uploads/', {
+                method: 'POST',
+                body,
+              })
+              navigate(`/meeting/records/${result.record_id}?tab=text`)
+            } catch {
+              setError(true)
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          <p>
+            {t('upload.hint', {
+              size: Math.floor(config.max_bytes / 1024 / 1024),
+            })}
+          </p>
+          <label
+            className={css({
+              padding: '1.25rem',
+              border: '1px dashed token(colors.primary.300)',
+              borderRadius: '0.75rem',
+              backgroundColor: 'primary.100',
+              position: 'relative',
+              _focusWithin: {
+                outline: '2px solid token(colors.primary.500)',
+                outlineOffset: '2px',
+              },
+            })}
+          >
+            <RiUpload2Line
+              size={28}
+              aria-hidden
+              className={css({
+                margin: '0 auto 0.75rem',
+                color: 'primary.600',
+              })}
+            />
+            <span
+              className={css({
+                display: 'block',
+                textAlign: 'center',
+                overflowWrap: 'anywhere',
+                fontWeight: 600,
+              })}
+            >
+              {file?.name || t('upload.choose')}
+            </span>
+            <input
+              className={css({
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                opacity: 0,
+                cursor: 'pointer',
+              })}
+              aria-label={t('upload.file')}
+              type="file"
+              disabled={busy}
+              accept={config.extensions
+                .map((extension) => `.${extension}`)
+                .join(',')}
+              onChange={(event) => {
+                setFile(event.target.files?.[0] ?? null)
+                setKey(crypto.randomUUID())
+              }}
+            />
+          </label>
+          <details>
+            <summary
+              className={css({
+                cursor: 'pointer',
+                padding: '0.5rem 0',
+                fontSize: '0.875rem',
+              })}
+            >
+              {t('upload.advanced')}
+            </summary>
+            <div
+              className={css({
+                display: 'grid',
+                gap: '0.75rem',
+                paddingTop: '0.5rem',
+              })}
+            >
+              <label>
+                {t('upload.context')}
+                <textarea
+                  className={field}
+                  maxLength={400}
+                  disabled={busy}
+                  value={context}
+                  onChange={(event) => {
+                    setContext(event.target.value)
+                    setKey(crypto.randomUUID())
+                  }}
+                />
+              </label>
+              <label>
+                {t('upload.hotwords')}
+                <textarea
+                  className={field}
+                  maxLength={4000}
+                  disabled={busy}
+                  value={hotwords}
+                  onChange={(event) => {
+                    setHotwords(event.target.value)
+                    setKey(crypto.randomUUID())
+                  }}
+                />
+              </label>
+            </div>
+          </details>
+          <p className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}>
+            {t('upload.consent')}
+          </p>
+          <Button type="submit" isDisabled={!file || busy}>
+            {t(busy ? 'upload.uploading' : 'upload.submit')}
+          </Button>
+          {busy && <p role="status">{t('upload.keepOpen')}</p>}
+          {error && <p role="alert">{t('upload.error')}</p>}
+        </form>
+      </Dialog>
+    </>
   )
 }
 
@@ -181,6 +252,7 @@ export function UploadedRecordingStatus({
   if (query.isError) return <p role="alert">{t('upload.stateError')}</p>
   if (!query.data) return <p role="status">{t('loading')}</p>
   const state = query.data
+  if (state.status === 'succeeded') return null
   return (
     <section className={css({ marginBottom: '1rem' })}>
       <p role="status">{t(`upload.status.${state.status}`)}</p>

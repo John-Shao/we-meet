@@ -25,8 +25,8 @@ const time = (milliseconds: number) => {
 export type CaptureAudioHandle = { seek: (milliseconds: number) => void }
 export const CaptureAudioPlayer = forwardRef<
   CaptureAudioHandle,
-  { captureId: string }
->(function CaptureAudioPlayer({ captureId }, ref) {
+  { captureId: string; compact?: boolean }
+>(function CaptureAudioPlayer({ captureId, compact = false }, ref) {
   const { t } = useTranslation('capture')
   const [playlist, setPlaylist] = useState<AudioPlaylist>()
   const [state, setState] = useState<
@@ -171,6 +171,7 @@ export const CaptureAudioPlayer = forwardRef<
   const next = chunks.findIndex((chunk) => chunk.start_ms >= position)
   return (
     <section
+      data-compact={compact}
       aria-label={t('playback')}
       className={css({
         marginTop: '1.5rem',
@@ -178,10 +179,20 @@ export const CaptureAudioPlayer = forwardRef<
         border: '1px solid',
         borderColor: 'greyscale.200',
         borderRadius: '0.75rem',
+        '&[data-compact=true]': {
+          marginTop: 0,
+          padding: '0.75rem 0',
+          border: 'none',
+          borderRadius: 0,
+        },
       })}
     >
-      <h2>{t('playback')}</h2>
-      <p>{t('playbackHint')}</p>
+      {!compact && (
+        <>
+          <h2>{t('playback')}</h2>
+          <p>{t('playbackHint')}</p>
+        </>
+      )}
       {playlist?.manifest?.outcome === 'incomplete' && (
         <p role="note">{t('incomplete')}</p>
       )}
@@ -219,8 +230,16 @@ export const CaptureAudioPlayer = forwardRef<
               gap: '0.75rem',
               marginTop: '0.75rem',
               alignItems: 'center',
+              justifyContent: 'center',
             })}
           >
+            <Button
+              variant="tertiary"
+              isDisabled={state === 'loading' || state === 'error'}
+              onPress={() => seek(Math.max(0, position - 15000))}
+            >
+              {t('skipBack')}
+            </Button>
             {state === 'playing' ? (
               <Button
                 variant="secondary"
@@ -242,6 +261,13 @@ export const CaptureAudioPlayer = forwardRef<
                 {t('play')}
               </Button>
             )}
+            <Button
+              variant="tertiary"
+              isDisabled={state === 'loading' || state === 'error'}
+              onPress={() => seek(Math.min(total - 1, position + 15000))}
+            >
+              {t('skipForward')}
+            </Button>
             {state === 'gap' && next >= 0 && (
               <Button variant="secondary" onPress={() => void play(next)}>
                 {t('skipGap')}

@@ -95,6 +95,11 @@
     }
   },
   "library": {
+    "startRecording": "Record",
+    "filters": "Filters",
+    "gridView": "Switch to grid view",
+    "listView": "Switch to list view",
+    "emptyHint": "Try another search or filter, upload a file, or start a recording.",
     "searchOriginal": "Search the full transcript",
     "clearSearch": "Clear search",
     "sourceChanged": "The transcript has changed. Reload before continuing.",
@@ -602,6 +607,9 @@
     "sendFailed": "Unable to share the meeting. Please try again."
   },
   "upload": {
+    "choose": "Choose a recording file",
+    "open": "Upload",
+    "advanced": "Improve recognition (optional)",
     "title": "Upload a recording",
     "hint": "Common audio and video formats, up to {{size}} MB and 12 hours per file.",
     "file": "Recording file",

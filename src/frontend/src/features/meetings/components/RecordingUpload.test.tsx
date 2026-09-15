@@ -30,6 +30,7 @@ it('uploads the chosen file and optional context without putting credentials in 
     })
     .mockResolvedValueOnce({ record_id: 'record', status: 'queued' })
   show(<RecordingUpload viewerId="owner" />)
+  fireEvent.click(await screen.findByRole('button', { name: 'upload.open' }))
   const file = new File(['audio'], 'record.wav', { type: 'audio/wav' })
   fireEvent.change(await screen.findByLabelText('upload.file'), {
     target: { files: [file] },
@@ -64,6 +65,7 @@ it('rejects an oversized file before sending it', async () => {
     extensions: ['wav'],
   })
   show(<RecordingUpload viewerId="owner" />)
+  fireEvent.click(await screen.findByRole('button', { name: 'upload.open' }))
   fireEvent.change(await screen.findByLabelText('upload.file'), {
     target: { files: [new File(['large'], 'record.wav')] },
   })

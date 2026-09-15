@@ -95,6 +95,11 @@
     }
   },
   "library": {
+    "startRecording": "录音",
+    "filters": "筛选",
+    "gridView": "切换为网格视图",
+    "listView": "切换为列表视图",
+    "emptyHint": "试试其他关键词或筛选条件，也可以上传文件或开始录音。",
     "searchOriginal": "搜索整份逐字稿",
     "clearSearch": "清除搜索",
     "sourceChanged": "文字记录已更新，请重新读取后继续查看。",
@@ -113,10 +118,10 @@
     "sourceLabel": "来源",
     "allSources": "全部来源",
     "scope": {
-      "recent": "最近记录",
-      "owned": "归我所有",
+      "recent": "最近",
+      "owned": "我的内容",
       "participated": "我参与的",
-      "shared": "与我共享"
+      "shared": "共享内容"
     },
     "source": {
       "meeting": "线上会议",
@@ -602,6 +607,9 @@
     "sendFailed": "会议分享失败，请重试。"
   },
   "upload": {
+    "choose": "点击选择录音文件",
+    "open": "上传",
+    "advanced": "提升识别准确度（选填）",
     "title": "上传录音转文字",
     "hint": "支持常见音视频格式，单文件最大 {{size}} MB，最长 12 小时。",
     "file": "录音文件",

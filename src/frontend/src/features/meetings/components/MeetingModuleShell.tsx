@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Screen } from '@/layout/Screen'
 import { MeetingNavPanel } from './MeetingNavPanel'
 import { moduleContent, moduleRow } from './libraryStyles'
+import { css } from '@/styled-system/css'
 
 /**
  * 「会议」二级页(录音 / 会议实录 / 智能纪要)的统一外壳:
@@ -13,10 +14,22 @@ import { moduleContent, moduleRow } from './libraryStyles'
  * 进会预览页(rooms/Join)的版面是一套居中的 hero,没法直接套这个壳,
  * 那里手动拼 moduleRow/moduleContent(见 Join.tsx),两处保持同一套伸缩规则。
  */
-export const MeetingModuleShell = ({ children }: { children: ReactNode }) => (
+export const MeetingModuleShell = ({
+  children,
+  compactNavigation = false,
+}: {
+  children: ReactNode
+  compactNavigation?: boolean
+}) => (
   <Screen>
     <div className={moduleRow}>
-      <MeetingNavPanel />
+      {compactNavigation ? (
+        <div className={css({ display: { base: 'none', md: 'flex' } })}>
+          <MeetingNavPanel />
+        </div>
+      ) : (
+        <MeetingNavPanel />
+      )}
       <div className={moduleContent}>{children}</div>
     </div>
   </Screen>

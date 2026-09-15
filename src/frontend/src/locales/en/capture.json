@@ -1,4 +1,6 @@
 {
+  "skipBack": "Back 15 seconds",
+  "skipForward": "Forward 15 seconds",
   "backToLibrary": "Back to meeting records",
   "textScope": "Record an in-person meeting or interview. Temporary audio supports transcription; text and generated minutes are retained.",
   "textLeaveHint": "Leaving interrupts recording and unuploaded audio cannot be recovered. Let participants know before recording.",
@@ -34,6 +36,7 @@
   "back": "Back to meetings",
   "scope": "Record an in-person meeting or interview. After saving audio, use available transcription and meeting records features as needed.",
   "asr": {
+    "controls": "Transcription options",
     "liveStart": "Start live transcription",
     "liveRetry": "Restart live transcription from saved audio",
     "liveScope": "AI transcribes uploaded audio progressively and uses transcription quota. Text appears after audio chunks upload. Canceling transcription does not stop recording. Restarting creates a new attempt from saved audio.",

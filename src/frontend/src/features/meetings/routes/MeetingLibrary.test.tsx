@@ -83,14 +83,56 @@ it('pins ongoing records separately and follows the exact opaque archive cursor'
   expect(await screen.findByText(archived.title)).toBeInTheDocument()
 })
 
+it('keeps upload and participation filters available and clears a submitted search', async () => {
+  show()
+  await screen.findByText(archived.title)
+  fireEvent.click(screen.getByRole('button', { name: 'library.filters' }))
+  fireEvent.change(screen.getByLabelText('library.sourceLabel'), {
+    target: { value: 'upload' },
+  })
+  fireEvent.change(
+    screen.getByLabelText('library.scopeLabel', { selector: 'select' }),
+    { target: { value: 'participated' } }
+  )
+  fireEvent.change(screen.getByLabelText('library.search'), {
+    target: { value: 'Project' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'library.searchButton' }))
+  await waitFor(() =>
+    expect(
+      vi.mocked(fetchApi).mock.calls.some(([path]) => {
+        const params = new URL(path, 'https://fixture.invalid').searchParams
+        return (
+          params.get('q') === 'Project' &&
+          params.get('scope') === 'participated' &&
+          params.get('source_type') === 'upload'
+        )
+      })
+    ).toBe(true)
+  )
+  fireEvent.change(screen.getByLabelText('library.search'), {
+    target: { value: '' },
+  })
+  await waitFor(() =>
+    expect(
+      vi
+        .mocked(fetchApi)
+        .mock.calls.filter(([path]) => path.includes('meeting-records'))
+        .slice(-2)
+        .every(
+          ([path]) =>
+            !new URL(path, 'https://fixture.invalid').searchParams.get('q')
+        )
+    ).toBe(true)
+  )
+})
+
 it('minutes uses the same record link with server-side summary and permission filters', async () => {
   show(true)
   await screen.findByText(archived.title)
   fireEvent.click(screen.getByRole('button', { name: 'library.next' }))
   await screen.findByText('Second page')
-  fireEvent.change(screen.getByLabelText('library.scopeLabel'), {
-    target: { value: 'shared' },
-  })
+  fireEvent.click(screen.getByRole('button', { name: 'library.scope.shared' }))
   await screen.findByText(archived.title)
   // 只看记录接口的请求:这一页现在还会读一次全局 config(页内那行导航要用它
   // 决定显不显示「AI 录音」),那条请求没有 has_summary 这回事。

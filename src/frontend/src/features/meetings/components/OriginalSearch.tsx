@@ -24,17 +24,24 @@ export function OriginalSearch({
         onSearch(draft.trim())
       }}
     >
-      <label className={css({ minWidth: 0, maxWidth: '100%' })}>
-        {t('library.searchOriginal')}{' '}
+      <label
+        className={css({ minWidth: 0, maxWidth: '100%', flex: '1 1 12rem' })}
+      >
         <input
+          aria-label={t('library.searchOriginal')}
+          placeholder={t('library.searchOriginal')}
           type="search"
           maxLength={200}
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            if (!event.target.value) onSearch('')
+          }}
           className={css({
-            border: '1px solid token(colors.greyscale.400)',
-            borderRadius: '0.375rem',
-            padding: '0.5rem',
+            border: '1px solid token(colors.greyscale.200)',
+            borderRadius: '0.75rem',
+            padding: '0.625rem 0.75rem',
+            width: '100%',
             maxWidth: '100%',
             backgroundColor: 'transparent',
           })}

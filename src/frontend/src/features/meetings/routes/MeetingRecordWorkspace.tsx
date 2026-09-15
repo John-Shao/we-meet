@@ -32,6 +32,8 @@ import { libraryLayout } from '../components/libraryStyles'
 import { OriginalSearch } from '../components/OriginalSearch'
 import { TranslationArchivePanel } from '../components/TranslationArchivePanel'
 import { CaptureTranslationArchives } from '../components/CaptureTranslationArchives'
+import { TranscriptSegment } from '../components/TranscriptSegment'
+import { RiArrowLeftLine, RiTimeLine } from '@remixicon/react'
 
 const privateOptions = { retry: false, gcTime: 0, staleTime: 0 }
 const textStyle = css({
@@ -116,32 +118,29 @@ function OriginalRead({
     <div>
       {searchForm}
       {!query.data.results.length && <p>{t('library.noContent')}</p>}
-      {query.data.results.map((item) => (
-        <article
-          key={item.id}
-          className={css({
-            borderBottom: '1px solid token(colors.greyscale.200)',
-            padding: '0.75rem 0',
-          })}
-        >
-          {'identity_type' in item ? (
-            <p>
-              {item.identity_type === 'unknown'
-                ? t('library.unknownSpeaker')
-                : item.label}
-            </p>
-          ) : (
-            <>
-              <p>
-                {'started_at' in item
-                  ? `${item.speaker_name || t('library.unknownSpeaker')} · ${new Date(item.started_at).toLocaleTimeString()}`
-                  : `${item.speaker_label || t('library.unknownSpeaker')} · ${time(item.start_ms)}`}
-              </p>
-              <p className={textStyle}>{item.text}</p>
-            </>
-          )}
-        </article>
-      ))}
+      {query.data.results.map((item) =>
+        'identity_type' in item ? (
+          <p key={item.id} className={textStyle}>
+            {item.identity_type === 'unknown'
+              ? t('library.unknownSpeaker')
+              : item.label}
+          </p>
+        ) : (
+          <TranscriptSegment
+            key={item.id}
+            speaker={
+              ('started_at' in item ? item.speaker_name : item.speaker_label) ||
+              t('library.unknownSpeaker')
+            }
+            time={
+              'started_at' in item
+                ? new Date(item.started_at).toLocaleTimeString()
+                : time(item.start_ms)
+            }
+            text={item.text}
+          />
+        )
+      )}
       <div
         className={css({ display: 'flex', gap: '0.75rem', marginTop: '1rem' })}
       >
@@ -262,27 +261,44 @@ function WorkspaceContent({
           <Link href="/meeting/recording">{t('library.openRecorder')}</Link>
         </div>
       )}
-      {playable && (
-        <CaptureAudioPlayer
-          key={`${viewerId}:${source.id}`}
-          ref={player}
-          captureId={source.id}
-        />
-      )}
       <Tabs
+        className={css({
+          flex: '1 1 0',
+          minHeight: 0,
+          '& [role=tablist]': {
+            overflowX: 'auto',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+            borderBottom: '1px solid token(colors.greyscale.200)',
+          },
+          '& [role=tab]': { flexShrink: 0 },
+          '& [role=tab][aria-selected=false]': {
+            borderBottomColor: 'transparent',
+            color: 'greyscale.600',
+          },
+          '& [role=tab][aria-selected=true]': {
+            color: 'primary.700',
+            fontWeight: 600,
+          },
+          '& [role=tabpanel]': {
+            overflowY: 'auto',
+            minHeight: 0,
+            flex: '1 1 0',
+          },
+        })}
         selectedKey={selectedTab}
         onSelectionChange={(key) => setTab(String(key))}
       >
         <TabList aria-label={t('library.contentTabs')}>
           {canReadText && <Tab id="text">{t('library.text')}</Tab>}
-          {canReadText && (record.source_type === 'meeting' || captureId) && (
-            <Tab id="translations">{t('translationArchive.title')}</Tab>
-          )}
           {canReadSummary && <Tab id="summary">{t('library.minutes')}</Tab>}
-          {canReadText && record.source_type === 'audio_recording' && (
+          {canReadText && record.source_type !== 'meeting' && (
             <Tab id="speakers">{t('library.speakers')}</Tab>
           )}
           <Tab id="info">{t('library.info')}</Tab>
+          {canReadText && (record.source_type === 'meeting' || captureId) && (
+            <Tab id="translations">{t('translationArchive.title')}</Tab>
+          )}
         </TabList>
         {canReadText && (
           <TabPanel id="text" padding="md">
@@ -298,6 +314,7 @@ function WorkspaceContent({
                 viewerId={viewerId}
                 capture={source}
                 includeSummary={false}
+                compactControls
                 onSource={(ms) => player.current?.seek(ms)}
               />
             ) : (
@@ -353,7 +370,7 @@ function WorkspaceContent({
             )}
           </TabPanel>
         )}
-        {canReadText && record.source_type === 'audio_recording' && (
+        {canReadText && record.source_type !== 'meeting' && (
           <TabPanel id="speakers" padding="md">
             <p className={textStyle}>{t('library.speakersHint')}</p>
             <OriginalRead
@@ -365,7 +382,16 @@ function WorkspaceContent({
           </TabPanel>
         )}
         <TabPanel id="info" padding="md">
-          <dl className={textStyle}>
+          <dl
+            className={css({
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr',
+              columnGap: '2rem',
+              rowGap: '1.25rem',
+              padding: '1rem 0',
+              '& dt': { color: 'greyscale.600' },
+            })}
+          >
             <dt>{t('library.sourceLabel')}</dt>
             <dd>{t(`library.source.${record.source_type}`)}</dd>
             <dt>{t('library.date')}</dt>
@@ -377,6 +403,22 @@ function WorkspaceContent({
           {!record.source_available && <p>{t('library.sourceMissing')}</p>}
         </TabPanel>
       </Tabs>
+      {playable && (
+        <div
+          className={css({
+            flexShrink: 0,
+            backgroundColor: 'surface.default',
+            borderTop: '1px solid token(colors.greyscale.200)',
+          })}
+        >
+          <CaptureAudioPlayer
+            key={`${viewerId}:${source.id}`}
+            ref={player}
+            captureId={source.id}
+            compact
+          />
+        </div>
+      )}
     </>
   )
 }
@@ -397,8 +439,35 @@ export function RecordWorkspace({
   const query = useMeetingRecord(viewerId, recordId, true)
   return (
     <Screen>
-      <main className={libraryLayout}>
-        <Link href="/meeting/notes">{t('library.back')}</Link>
+      <main
+        className={css({
+          maxWidth: '1120px',
+          width: '100%',
+          height: '100%',
+          minHeight: 0,
+          margin: '0 auto',
+          padding: { base: '1rem', md: '1.5rem 2.5rem' },
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: 'surface.default',
+        })}
+      >
+        <Link
+          href="/meeting/notes"
+          className={css({
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            width: 'fit-content',
+            flexShrink: 0,
+            color: 'greyscale.600',
+            fontSize: '0.875rem',
+            padding: '0.5rem 0',
+          })}
+        >
+          <RiArrowLeftLine size={20} aria-hidden />
+          {t('library.back')}
+        </Link>
         {query.isError ? (
           <div role="alert">
             <p>{t('library.loadError')}</p>
@@ -412,14 +481,29 @@ export function RecordWorkspace({
           <>
             <h1
               className={css({
-                fontSize: '1.5rem',
+                fontSize: { base: '1.5rem', md: '2rem' },
                 fontWeight: 700,
                 margin: '1rem 0',
+                flexShrink: 0,
+                overflowWrap: 'anywhere',
+                lineClamp: 2,
               })}
             >
               {query.data.title || t('library.untitled')}
             </h1>
-            <p className={textStyle}>
+            <p
+              className={css({
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.5rem',
+                color: 'greyscale.600',
+                fontSize: '0.875rem',
+                marginBottom: '1.5rem',
+                flexShrink: 0,
+              })}
+            >
+              <RiTimeLine size={16} aria-hidden />
               {t(`library.source.${query.data.source_type}`)} ·{' '}
               {new Date(query.data.origin_at).toLocaleString()}
             </p>
