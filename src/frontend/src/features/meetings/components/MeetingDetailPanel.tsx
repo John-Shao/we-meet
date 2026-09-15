@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import {
   RiCloseLine,
   RiDeleteBinLine,
-  RiFileList3Line,
   RiHashtag,
   RiLinkM,
   RiShareForwardLine,
@@ -19,6 +18,8 @@ import { useConfirm } from '@/components/ConfirmProvider'
 import { useDeleteRoom } from '@/features/rooms/api/deleteRoom'
 import { MeetingShareDialog } from './MeetingShareDialog'
 import { useMeetingRoom } from '../api/fetchMeeting'
+import { MeetingRecordLinks } from './MeetingRecordLinks'
+import { useVideoSession } from '../api/videoMeetings'
 
 /** 8/9/6 位会议号按组分隔(与 App 端 formatSlug 同口径)。 */
 const formatSlugDigits = (slug: string): string => {
@@ -32,11 +33,13 @@ const formatSlugDigits = (slug: string): string => {
 
 /** 会议列表选中项(预约 / 历史共用的展示子集)。 */
 export interface MeetingSelection {
+  sessionId?: string | null
+  sessionStatus?: 'pending' | 'active' | 'ended'
   kind: 'scheduled' | 'recent'
   id: string
   name: string
   slug: string | null
-  /** scheduled → scheduled_at;recent → summary_updated_at。 */
+  /** scheduled → scheduled_at;recent → started_at。 */
   timeIso: string | null
   /**
    * 我是否是这场会的房主。列表混着「我创建的」和「我只是参会的」,而删除仅
@@ -71,8 +74,16 @@ export const MeetingDetailPanel = ({
   const [sharing, setSharing] = useState(false)
   const [joining, setJoining] = useState(false)
   const meetingRoom = useMeetingRoom(selection.id)
-  const isClosed = !!meetingRoom.data?.closed_at
-  const canJoin = !!meetingRoom.data?.slug && !isClosed && !meetingRoom.isError
+  const session = useVideoSession(selection.id, selection.sessionId)
+  const isClosed =
+    (session.data?.status ?? selection.sessionStatus) === 'ended' ||
+    !!meetingRoom.data?.closed_at
+  const canJoin =
+    !!meetingRoom.data?.slug &&
+    !isClosed &&
+    !meetingRoom.isError &&
+    (!selection.sessionId || session.data?.status === 'active') &&
+    !session.isError
   const activeSelection = useRef<string | null>(selection.id)
 
   useEffect(() => {
@@ -88,7 +99,13 @@ export const MeetingDetailPanel = ({
     setJoining(true)
     try {
       const latest = await meetingRoom.refetch()
+      const latestSession = selection.sessionId ? await session.refetch() : null
       if (activeSelection.current !== selection.id) return
+      if (
+        latestSession &&
+        (latestSession.isError || latestSession.data?.status !== 'active')
+      )
+        return
       if (!latest.isError && latest.data?.slug && !latest.data.closed_at) {
         navigateTo('room', latest.data.slug)
       }
@@ -332,29 +349,10 @@ export const MeetingDetailPanel = ({
             </div>
           )}
           {selection.kind === 'recent' && (
-            <button
-              type="button"
-              onClick={() => navigateTo('meetingDetail', selection.id)}
-              data-testid="meeting-detail-summary"
-              className={css({
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.375rem',
-                width: '100%',
-                paddingY: '0.5625rem',
-                border: '1px solid token(colors.greyscale.300)',
-                borderRadius: '0.5rem',
-                backgroundColor: 'greyscale.000',
-                color: 'greyscale.800',
-                fontSize: '0.875rem',
-                cursor: 'pointer',
-                _hover: { backgroundColor: 'greyscale.100' },
-              })}
-            >
-              <RiFileList3Line size={16} />
-              {t('detail.viewSummary')}
-            </button>
+            <MeetingRecordLinks
+              roomId={selection.id}
+              sessionId={selection.sessionId}
+            />
           )}
         </div>
       </div>

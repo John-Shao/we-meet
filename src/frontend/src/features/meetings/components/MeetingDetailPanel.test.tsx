@@ -5,6 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MeetingDetailPanel, type MeetingSelection } from './MeetingDetailPanel'
 
 const mocks = vi.hoisted(() => ({ fetchApi: vi.fn(), navigateTo: vi.fn() }))
+vi.mock('@/features/auth', () => ({
+  useUser: () => ({ user: { id: 'viewer' } }),
+}))
+vi.mock('./MeetingRecordLinks', () => ({
+  MeetingRecordLinks: () => <div data-testid="meeting-material-links" />,
+}))
 vi.mock('@/api/fetchApi', () => ({ fetchApi: mocks.fetchApi }))
 vi.mock('@/navigation/navigateTo', () => ({ navigateTo: mocks.navigateTo }))
 vi.mock('react-i18next', () => ({
@@ -53,7 +59,7 @@ describe('meeting detail join availability', () => {
     expect(button).toBeDisabled()
     fireEvent.click(button)
     expect(mocks.navigateTo).not.toHaveBeenCalled()
-    expect(screen.getByTestId('meeting-detail-summary')).toBeEnabled()
+    expect(screen.getByTestId('meeting-material-links')).toBeInTheDocument()
   })
 
   it('keeps the button disabled until the room status is loaded', () => {

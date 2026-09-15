@@ -112,5 +112,15 @@
   "share": {
     "action": "Vergadering delen",
     "sendFailed": "Vergadering delen is niet mogelijk. Probeer het opnieuw."
+  },
+  "video": {
+    "more": "More",
+    "materialUnavailable": "No accessible material yet",
+    "recordHint": "Open this session’s recordings and transcript",
+    "summaryReady": "Minutes available",
+    "summaryPending": "No generated minutes yet",
+    "viewRecord": "View record",
+    "active": "In progress",
+    "ended": "Ended"
   }
 }

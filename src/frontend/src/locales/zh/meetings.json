@@ -661,5 +661,15 @@
   "materials": {
     "title": "会后资料",
     "hint": "实录中查看录音与文字记录，智能纪要中生成、分享纪要和跟进待办。"
+  },
+  "video": {
+    "more": "更多",
+    "materialUnavailable": "暂无可访问的资料",
+    "recordHint": "查看本场会议的录音、录像和文字记录",
+    "summaryReady": "纪要已生成",
+    "summaryPending": "暂无已生成的纪要",
+    "viewRecord": "查看实录",
+    "active": "进行中",
+    "ended": "已结束"
   }
 }

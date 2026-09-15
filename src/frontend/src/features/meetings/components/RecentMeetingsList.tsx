@@ -1,17 +1,4 @@
-/**
- * "My recent meetings" — appears on the home page after sign-in.
- *
- * Lists meetings (Rooms) the user joined that have a Summary, newest
- * first. Hidden on the logged-out home; renders nothing (not a
- * placeholder) when the list is empty so brand-new users don't see an
- * empty section.
- *
- * P8(对标飞书):行本身只负责「选中」—— 点击经 [onSelect] 打开右侧
- * 会议详情面板,进入会议 / 查看纪要 / 删除等操作全部收进面板
- * (MeetingDetailPanel);行内不再放按钮与 ⋮ 菜单。
- */
-
-import { useState } from 'react'
+import { Link } from 'wouter'
 
 import { useTranslation } from 'react-i18next'
 import { RiVidiconLine } from '@remixicon/react'
@@ -20,11 +7,11 @@ import { PageState } from '@/components/PageState'
 import { css } from '@/styled-system/css'
 import { H, Text } from '@/primitives'
 
-import { useRecentMeetings } from '../api/fetchMeeting'
+import { useVideoMeetings } from '../api/videoMeetings'
 import type { MeetingSelection } from './MeetingDetailPanel'
 
-// Show a short list by default; the backend already caps the feed at 20.
-const COLLAPSED_COUNT = 5
+// The overview returns the ten latest actual sessions.
+const COLLAPSED_COUNT = 10
 
 const formatRelativeTime = (iso: string, locale: string) => {
   try {
@@ -53,11 +40,25 @@ export const RecentMeetingsList = ({
   selectedId?: string | null
 }) => {
   const { t, i18n } = useTranslation('meetings')
-  const { data, isLoading } = useRecentMeetings(enabled)
-  const [expanded, setExpanded] = useState(false)
+  const {
+    data: overview,
+    isLoading,
+    isError,
+    refetch,
+  } = useVideoMeetings(enabled)
+  const data = overview?.recent
 
   if (!enabled) return null
-  if (isLoading) return null
+  if (isLoading || isError)
+    return (
+      <section>
+        <H lvl={3}>{t('home.recentTitle')}</H>
+        <p>{t(isLoading ? 'loading' : 'error.loadFailed')}</p>
+        {isError && (
+          <button onClick={() => void refetch()}>{t('error.retry')}</button>
+        )}
+      </section>
+    )
   if (!data || data.length === 0) {
     if (!showEmpty) return null
     return (
@@ -79,12 +80,12 @@ export const RecentMeetingsList = ({
           icon={<RiVidiconLine size={20} />}
           description={t('home.recentEmpty')}
         />
+        <Link href="/meeting/notes?source_type=meeting">{t('video.more')}</Link>
       </div>
     )
   }
 
-  const canToggle = data.length > COLLAPSED_COUNT
-  const visible = expanded ? data : data.slice(0, COLLAPSED_COUNT)
+  const visible = data.slice(0, COLLAPSED_COUNT)
 
   return (
     <div
@@ -116,7 +117,7 @@ export const RecentMeetingsList = ({
           const label = m.name || t('home.untitled')
           return (
             <li
-              key={m.id}
+              key={m.meeting_session_id ?? m.id}
               className={css({
                 '&:not(:last-child)': {
                   borderBottom: '1px solid token(colors.greyscale.100)',
@@ -132,7 +133,9 @@ export const RecentMeetingsList = ({
                     id: m.id,
                     name: m.name,
                     slug: m.slug,
-                    timeIso: m.summary_updated_at,
+                    timeIso: m.started_at,
+                    sessionId: m.meeting_session_id,
+                    sessionStatus: m.status,
                     canManage: !!m.is_owner,
                   })
                 }
@@ -147,7 +150,9 @@ export const RecentMeetingsList = ({
                     textAlign: 'left',
                     border: 'none',
                     backgroundColor:
-                      selectedId === m.id ? 'greyscale.100' : 'transparent',
+                      selectedId === (m.meeting_session_id ?? m.id)
+                        ? 'greyscale.100'
+                        : 'transparent',
                     padding: '0.875rem 1rem',
                     cursor: 'pointer',
                     _hover: { backgroundColor: 'greyscale.50' },
@@ -181,7 +186,7 @@ export const RecentMeetingsList = ({
                   >
                     {label}
                   </span>
-                  {m.summary_updated_at && (
+                  {m.started_at && (
                     <Text
                       className={css({
                         fontSize: '0.8125rem',
@@ -189,7 +194,10 @@ export const RecentMeetingsList = ({
                         marginTop: '0.125rem',
                       })}
                     >
-                      {formatRelativeTime(m.summary_updated_at, i18n.language)}
+                      {t(
+                        m.status === 'active' ? 'video.active' : 'video.ended'
+                      )}{' '}
+                      · {formatRelativeTime(m.started_at, i18n.language)}
                     </Text>
                   )}
                 </span>
@@ -198,27 +206,12 @@ export const RecentMeetingsList = ({
           )
         })}
       </ul>
-      {canToggle && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className={css({
-            alignSelf: 'center',
-            marginTop: '0.25rem',
-            padding: '0.25rem 0.5rem',
-            background: 'none',
-            border: 'none',
-            color: 'primary.700',
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-            _hover: { textDecoration: 'underline' },
-          })}
-        >
-          {expanded
-            ? t('home.collapse')
-            : t('home.showAll', { count: data.length })}
-        </button>
-      )}
+      <Link
+        href="/meeting/notes?source_type=meeting"
+        className={css({ alignSelf: 'center', color: 'primary.700' })}
+      >
+        {t('video.more')}
+      </Link>
     </div>
   )
 }

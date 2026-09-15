@@ -1,16 +1,3 @@
-/**
- * "预约会议" — rooms with a future `scheduled_at` the user is a
- * member of. Sits above the recent-meetings list on Home; renders
- * nothing when empty so the page stays compact for users with no
- * upcoming meetings.
- *
- * P8(对标飞书):行本身只负责「选中」—— 点击经 [onSelect] 打开右侧
- * 会议详情面板,进入会议 / 复制 / 删除等操作全部收进面板
- * (MeetingDetailPanel);行内不再放按钮与 ⋮ 菜单。
- */
-
-import { useState } from 'react'
-
 import { useTranslation } from 'react-i18next'
 import { RiAddLine, RiCalendarLine } from '@remixicon/react'
 
@@ -18,10 +5,8 @@ import { PageState } from '@/components/PageState'
 import { css } from '@/styled-system/css'
 import { Button, H, Text } from '@/primitives'
 
-import { useScheduledMeetings } from '../api/fetchMeeting'
+import { useVideoMeetings } from '../api/videoMeetings'
 import type { MeetingSelection } from './MeetingDetailPanel'
-
-const COLLAPSED_COUNT = 5
 
 /** 节标题 + 右侧动作。空态与有列表两条分支共用,保证动作任何时候都在。 */
 const headerRow = css({
@@ -80,8 +65,13 @@ export const ScheduledMeetingsList = ({
   onSchedule?: () => void
 }) => {
   const { t, i18n } = useTranslation('meetings')
-  const { data, isLoading } = useScheduledMeetings(enabled)
-  const [expanded, setExpanded] = useState(false)
+  const {
+    data: overview,
+    isLoading,
+    isError,
+    refetch,
+  } = useVideoMeetings(enabled)
+  const data = overview?.scheduled
 
   const header = (title: string) => (
     <div className={headerRow}>
@@ -103,7 +93,16 @@ export const ScheduledMeetingsList = ({
   )
 
   if (!enabled) return null
-  if (isLoading) return null
+  if (isLoading || isError)
+    return (
+      <section>
+        {header(t('home.scheduledTitle'))}
+        <p>{t(isLoading ? 'loading' : 'error.loadFailed')}</p>
+        {isError && (
+          <button onClick={() => void refetch()}>{t('error.retry')}</button>
+        )}
+      </section>
+    )
   if (!data || data.length === 0) {
     if (!showEmpty) return null
     return (
@@ -127,8 +126,7 @@ export const ScheduledMeetingsList = ({
     )
   }
 
-  const canToggle = data.length > COLLAPSED_COUNT
-  const visible = expanded ? data : data.slice(0, COLLAPSED_COUNT)
+  const visible = data
 
   return (
     <div
@@ -247,27 +245,6 @@ export const ScheduledMeetingsList = ({
           )
         })}
       </ul>
-      {canToggle && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className={css({
-            alignSelf: 'center',
-            marginTop: '0.25rem',
-            padding: '0.25rem 0.5rem',
-            background: 'none',
-            border: 'none',
-            color: 'scheduledCard.text',
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-            _hover: { textDecoration: 'underline' },
-          })}
-        >
-          {expanded
-            ? t('home.collapse')
-            : t('home.showAll', { count: data.length })}
-        </button>
-      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, Redirect, useLocation } from 'wouter'
+import { Link, Redirect, useLocation, useSearch } from 'wouter'
 import {
   RiMicLine,
   RiUpload2Line,
@@ -309,10 +309,25 @@ export function Library({
   const [scope, setScope] = useState<MeetingRecordFilters['scope']>(
     minutes ? 'owned' : 'recent'
   )
-  const [source, setSource] = useState<MeetingRecordSource | ''>('')
+  const routeSearch = useSearch()
+  const candidate = new URLSearchParams(routeSearch).get('source_type')
+  const source: MeetingRecordSource | '' =
+    candidate === 'meeting' ||
+    candidate === 'audio_recording' ||
+    candidate === 'upload'
+      ? candidate
+      : ''
+  const setSource = (value: MeetingRecordSource | '') => {
+    const params = new URLSearchParams(routeSearch)
+    if (value) params.set('source_type', value)
+    else params.delete('source_type')
+    navigate(
+      `${minutes ? '/meeting/minutes' : '/meeting/notes'}${params.size ? '?' + params : ''}`
+    )
+  }
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(!!source)
   const [grid, setGrid] = useState(false)
   const filters: MeetingRecordFilters = {
     scope,

@@ -15,9 +15,9 @@ import {
   MeetingDetailPanel,
   MeetingNavPanel,
   ScheduledMeetingsList,
+  RecentMeetingsList,
   type MeetingSelection,
 } from '@/features/meetings'
-import { MeetingMaterialsLinks } from '@/features/meetings/components/MeetingMaterialsLinks'
 import { ReactNode, useEffect, useState } from 'react'
 
 import { css } from '@/styled-system/css'
@@ -275,14 +275,19 @@ export const Home = () => {
                 showEmpty
                 onSchedule={() => setScheduling(true)}
                 onSelect={setMeetingDetail}
-                selectedId={meetingDetail?.id}
+                selectedId={meetingDetail?.sessionId ?? meetingDetail?.id}
               />
-              {data?.meeting_records?.enabled && <MeetingMaterialsLinks />}
+              <RecentMeetingsList
+                enabled
+                showEmpty
+                onSelect={setMeetingDetail}
+                selectedId={meetingDetail?.sessionId ?? meetingDetail?.id}
+              />
             </main>
             {/* 一场会一个详情页:预约会议 = 创建日程后,有日程的走统一的
                 「日程详情」(与日历/IM 同一个组件,带参与人/RSVP/纪要);
                 无日程的(快速会议、存量裸预约)才留会议面板。 */}
-            {meetingDetail?.eventId ? (
+            {meetingDetail?.kind === 'scheduled' && meetingDetail.eventId ? (
               <EventDetailHost
                 eventId={meetingDetail.eventId}
                 editMode="inline"
@@ -298,6 +303,7 @@ export const Home = () => {
                   max={520}
                 >
                   <MeetingDetailPanel
+                    key={meetingDetail.sessionId ?? meetingDetail.id}
                     selection={meetingDetail}
                     onClose={() => setMeetingDetail(null)}
                   />
@@ -389,7 +395,7 @@ export const Home = () => {
               <ScheduledMeetingsList
                 enabled={!!isLoggedIn}
                 onSelect={setMeetingDetail}
-                selectedId={meetingDetail?.id}
+                selectedId={meetingDetail?.sessionId ?? meetingDetail?.id}
               />
               <Separator />
               <MoreLink />
@@ -406,6 +412,7 @@ export const Home = () => {
               setScheduling(false)
               // 日程创建时后端自建带 scheduled_at 的 Room → 刷新首页预约列表。
               void qc.invalidateQueries({ queryKey: ['scheduled-meetings'] })
+              void qc.invalidateQueries({ queryKey: ['video-meetings'] })
             }}
           />
         )}

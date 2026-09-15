@@ -1301,6 +1301,37 @@ class RoomViewSet(
         ]
         return drf_response.Response(data)
 
+    @decorators.action(
+        detail=False, methods=["get"], url_path="video-meetings",
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def video_meetings(self, request):
+        """List pending video rooms and the ten most recently started sessions."""
+        from core.services.video_meetings import overview
+
+        return drf_response.Response(overview(request.user))
+
+    @decorators.action(
+        detail=True, methods=["get"], url_path="video-session",
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def video_session(self, request, pk=None):
+        """Metadata for an exact session, checked against current membership."""
+        room = self.get_object()
+        try:
+            session_id = uuid.UUID(request.query_params.get("session_id", ""))
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise drf_exceptions.ValidationError("A valid session_id is required.") from exc
+        session = get_object_or_404(
+            models.MeetingSession.objects.filter(room__users=request.user),
+            pk=session_id, room=room,
+        )
+        return drf_response.Response({
+            "id": str(room.id), "meeting_session_id": str(session.id),
+            "status": session.status, "started_at": session.started_at.isoformat(),
+            "ended_at": session.ended_at.isoformat() if session.ended_at else None,
+        })
+
 
     @decorators.action(
         detail=True,

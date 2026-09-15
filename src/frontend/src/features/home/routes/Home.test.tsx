@@ -32,7 +32,8 @@ vi.mock('@/features/calendar', () => ({
 vi.mock('@/features/meetings', () => ({
   MeetingDetailPanel: () => null,
   MeetingNavPanel: () => null,
-  ScheduledMeetingsList: () => null,
+  ScheduledMeetingsList: () => <h2>Scheduled meetings</h2>,
+  RecentMeetingsList: () => <h2>Recent meetings</h2>,
 }))
 vi.mock('@/navigation/navigateTo', () => ({ navigateTo: vi.fn() }))
 vi.mock('@/layout/Screen', () => ({
@@ -52,7 +53,7 @@ afterEach(() => {
   auth.loggedIn = false
 })
 
-it('keeps after-meeting links in the signed-in workspace and removes them on logout', () => {
+it('retains scheduled and historical sections only in the signed-in workspace', () => {
   auth.loggedIn = true
   const view = () => (
     <QueryClientProvider client={client}>
@@ -60,28 +61,15 @@ it('keeps after-meeting links in the signed-in workspace and removes them on log
     </QueryClientProvider>
   )
   const { rerender } = render(view())
-  expect(screen.getByRole('link', { name: 'library.notes' })).toHaveAttribute(
-    'href',
-    '/meeting/notes'
-  )
-  expect(screen.getByRole('link', { name: 'library.minutes' })).toHaveAttribute(
-    'href',
-    '/meeting/minutes'
-  )
-
-  auth.loggedIn = false
-  rerender(view())
-  expect(screen.getByRole('button', { name: 'login' })).toBeInTheDocument()
   expect(
-    screen.getByRole('button', { name: 'joinMeeting' })
+    screen.getByRole('heading', { name: 'Scheduled meetings' })
   ).toBeInTheDocument()
   expect(
-    screen.queryByRole('heading', { name: 'materials.title' })
-  ).not.toBeInTheDocument()
+    screen.getByRole('heading', { name: 'Recent meetings' })
+  ).toBeInTheDocument()
+  auth.loggedIn = false
+  rerender(view())
   expect(
-    screen.queryByRole('link', { name: 'library.notes' })
-  ).not.toBeInTheDocument()
-  expect(
-    screen.queryByRole('link', { name: 'library.minutes' })
+    screen.queryByRole('heading', { name: 'Recent meetings' })
   ).not.toBeInTheDocument()
 })

@@ -35,6 +35,7 @@ function show(minutes = false, viewerId = 'owner') {
   )
 }
 beforeEach(() => {
+  window.history.replaceState({}, '', '/meeting/notes')
   vi.mocked(fetchApi).mockImplementation(async (path) => {
     const params = new URL(path, 'https://fixture.invalid').searchParams
     if (params.get('is_ongoing') === 'true')
@@ -210,4 +211,22 @@ it('does not reuse another account’s loaded records', async () => {
   expect(within(screen.getByRole('main')).getAllByRole('status')).toHaveLength(
     2
   )
+})
+
+it('applies the video filter when opened from More', async () => {
+  window.history.replaceState({}, '', '/meeting/notes?source_type=meeting')
+  show()
+  await screen.findByText(archived.title)
+  const reads = vi
+    .mocked(fetchApi)
+    .mock.calls.filter(([path]) => path.startsWith('meeting-records/'))
+  expect(reads.length).toBeGreaterThan(0)
+  expect(
+    reads.every(
+      ([path]) =>
+        new URL(path, 'https://fixture.invalid').searchParams.get(
+          'source_type'
+        ) === 'meeting'
+    )
+  ).toBe(true)
 })
