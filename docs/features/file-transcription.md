@@ -62,6 +62,8 @@ AWS_S3_SECRET_ACCESS_KEY=<secret>
 
 Agent 的 MinIO endpoint 使用 `host[:port]` 格式，两端均使用 `AWS_S3_SECURE_ACCESS` 指定协议。临时对象写入 `filetrans-temporary/`，任务结束或取消时删除；为该前缀配置 2 天生命周期作为进程强制终止后的清理兜底。签名下载 URL 有效期 24 小时。文本保留模式也会临时使用此存储，需采用无版本私有桶，避免删除后保留历史音频。
 
+Helm 部署时，worker 未显式配置的存储参数继承 `backend.envVars`，包括公网下载 endpoint 和协议开关。桶名优先使用 `capture-asr.envVars.AWS_STORAGE_BUCKET_NAME`，其次使用 `backend.envVars.AWS_STORAGE_BUCKET_NAME`，最后兼容后端已有的 `AWS_STORAGE_BUCKET_NAME_VIDEO`；均支持 Secret 引用。现有阿里云配置中的视频桶名无需重复填写。
+
 ## 旧版 summary 服务
 
 为 summary/transcribe worker 配置 `DASHSCOPE_API_KEY` 和相同的 `QWEN_FILE_ASR_*` 模型、区域和 API 地址。可通过 `AWS_S3_PUBLIC_ENDPOINT_URL` 为其现有私有录音生成公网签名 URL。该服务使用 Redis Celery result backend 保存 Filetrans 任务 ID，在 Celery 重试时查询原任务。未知提交不会自动再次提交。

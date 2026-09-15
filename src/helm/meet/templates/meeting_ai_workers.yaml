@@ -12,9 +12,18 @@
 {{- $workspaceRequired := eq $key "capture-live-asr" }}
 {{- $_ := set $env "DASHSCOPE_WORKSPACE_ID" (dict "secretKeyRef" (dict "name" $secret "key" "DASHSCOPE_WORKSPACE_ID" "optional" (not $workspaceRequired))) }}
 {{- if eq $key "capture-asr" }}
-{{- range $variable := list "AWS_S3_ENDPOINT_URL" "AWS_S3_ACCESS_KEY_ID" "AWS_S3_SECRET_ACCESS_KEY" "AWS_STORAGE_BUCKET_NAME" }}
+{{- range $variable := list "AWS_S3_ENDPOINT_URL" "AWS_S3_ACCESS_KEY_ID" "AWS_S3_SECRET_ACCESS_KEY" }}
 {{- if not (hasKey $env $variable) }}
 {{- $_ := set $env $variable (required (printf "File ASR requires %s in capture-asr.envVars or backend.envVars" $variable) (index $.Values.backend.envVars $variable)) }}
+{{- end }}
+{{- end }}
+{{- if not (hasKey $env "AWS_STORAGE_BUCKET_NAME") }}
+{{- $bucket := coalesce $.Values.backend.envVars.AWS_STORAGE_BUCKET_NAME $.Values.backend.envVars.AWS_STORAGE_BUCKET_NAME_VIDEO }}
+{{- $_ := set $env "AWS_STORAGE_BUCKET_NAME" (required "File ASR requires AWS_STORAGE_BUCKET_NAME in capture-asr.envVars or AWS_STORAGE_BUCKET_NAME/AWS_STORAGE_BUCKET_NAME_VIDEO in backend.envVars" $bucket) }}
+{{- end }}
+{{- range $variable := list "AWS_S3_PUBLIC_ENDPOINT_URL" "AWS_S3_SECURE_ACCESS" }}
+{{- if and (not (hasKey $env $variable)) (hasKey $.Values.backend.envVars $variable) }}
+{{- $_ := set $env $variable (index $.Values.backend.envVars $variable) }}
 {{- end }}
 {{- end }}
 {{- end }}

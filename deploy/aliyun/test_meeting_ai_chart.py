@@ -29,13 +29,19 @@ def render(*values, success=True):
 
 
 class MeetingAIChartTest(unittest.TestCase):
+    storage_settings = (
+        "backend.envVars.AWS_S3_ENDPOINT_URL=https://storage.example.invalid",
+        "backend.envVars.AWS_S3_ACCESS_KEY_ID=fixture-storage-key",
+        "backend.envVars.AWS_S3_SECRET_ACCESS_KEY=fixture-storage-secret",
+        "backend.envVars.AWS_STORAGE_BUCKET_NAME_VIDEO=fixture-private-video",
+    )
     settings = (
         "meetingAIWorkers.credentialsSecret=fixture-ai",
         "meetingAIWorkers.backendUrl=http://meet-backend:8000",
         "meetingAIWorkers.livekitUrl=wss://livekit.example.invalid",
         "meetingAIWorkers.gateway.origins=https://meet.example.invalid",
         "meetingAIWorkers.image.tag=fixture-immutable",
-    )
+    ) + storage_settings
 
     def test_production_gunicorn_memory_controls_are_consumed_by_image(self):
         config = yaml.safe_load((ROOT / "src/helm/env.d/aliyun-prod/values.meet.yaml").read_text(encoding="utf-8"))
@@ -74,6 +80,8 @@ class MeetingAIChartTest(unittest.TestCase):
         for item in ("agentAIAssistant.envVars.DASHSCOPE_API_KEY=fixture-provider",
                      "agentAIAssistant.envVars.DASHSCOPE_WORKSPACE_ID=fixture-workspace",
                      "backend.envVars.AGENT_INTERNAL_API_TOKEN=fixture-internal",
+                     "backend.envVars.AWS_S3_ACCESS_KEY_ID=fixture-storage-key",
+                     "backend.envVars.AWS_S3_SECRET_ACCESS_KEY=fixture-storage-secret",
                      "agentSubtitles.envVars.LIVEKIT_API_SECRET=fixture-livekit"):
             command += ["--set-string", item]
         result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8")
@@ -94,6 +102,13 @@ class MeetingAIChartTest(unittest.TestCase):
         for worker in WORKERS:
             container = deployments[f"meet-agent-{worker}"]["spec"]["template"]["spec"]["containers"][0]
             self.assertTrue(container["image"].startswith("jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:"))
+        capture = deployments["meet-agent-capture-asr"]["spec"]["template"]["spec"]["containers"][0]
+        capture_env = {item["name"]: item for item in capture["env"]}
+        self.assertEqual(config["backend"]["envVars"]["AWS_STORAGE_BUCKET_NAME_VIDEO"],
+                         capture_env["AWS_STORAGE_BUCKET_NAME"]["value"])
+        self.assertEqual(config["backend"]["envVars"]["AWS_S3_ENDPOINT_URL"],
+                         capture_env["AWS_S3_ENDPOINT_URL"]["value"])
+        self.assertEqual("fixture-storage-key", capture_env["AWS_S3_ACCESS_KEY_ID"]["value"])
         subtitle = deployments["meet-agent-subtitles"]["spec"]["template"]["spec"]["containers"][0]
         env = {item["name"]: item for item in subtitle["env"]}
         self.assertEqual("qwen", env["STT_PROVIDER"]["value"])
@@ -127,8 +142,7 @@ class MeetingAIChartTest(unittest.TestCase):
             "agentSubtitles.envVars.LIVEKIT_API_KEY=fixture-key",
             "agentSubtitles.envVars.LIVEKIT_API_SECRET=fixture-secret",
         )
-        for enabled in ("meetingAIWorkers.workers.capture-asr.enabled=true",
-                        "meetingAIWorkers.workers.capture-live-asr.enabled=true",
+        for enabled in ("meetingAIWorkers.workers.capture-live-asr.enabled=true",
                         "agentSubtitles.envVars.STT_PROVIDER=qwen"):
             with self.subTest(enabled=enabled):
                 self.assertIn("DASHSCOPE_WORKSPACE_ID", render(*credentials, enabled, success=False))
@@ -136,6 +150,9 @@ class MeetingAIChartTest(unittest.TestCase):
                     "agentAIAssistant.envVars.DASHSCOPE_WORKSPACE_ID=invalid/workspace", success=False))
         # Translation-only installations do not need the ASR workspace.
         self.assertTrue(render(*credentials))
+        # Whole-file ASR uses the API key; only realtime ASR requires a workspace.
+        self.assertTrue(render(*credentials, *self.storage_settings,
+                               "meetingAIWorkers.workers.capture-asr.enabled=true"))
 
     def test_enabled_workers_and_wss_are_exact_and_use_secret_references(self):
         rows = render(*self.settings,
@@ -152,7 +169,7 @@ class MeetingAIChartTest(unittest.TestCase):
             for name in ("AGENT_INTERNAL_API_TOKEN", "DASHSCOPE_API_KEY"):
                 self.assertEqual({"name": "fixture-ai", "key": name}, env[name]["valueFrom"]["secretKeyRef"])
             self.assertEqual(key in ("translation", "interpretation"), "LIVEKIT_API_SECRET" in env)
-            self.assertEqual(key not in ("capture-asr", "capture-live-asr"),
+            self.assertEqual(key != "capture-live-asr",
                              env["DASHSCOPE_WORKSPACE_ID"]["valueFrom"]["secretKeyRef"]["optional"])
             if key == "capture-translation":
                 self.assertEqual("true", env["CAPTURE_TRANSLATION_GATEWAY_ENABLED"]["value"])
@@ -178,6 +195,43 @@ class MeetingAIChartTest(unittest.TestCase):
                       "meetingAIWorkers.workers.capture-asr.imageTag=old-capture")
         row = next(row for row in rows if row["metadata"]["name"] == "meet-agent-capture-asr")
         self.assertEqual("lasuite/meet-agents:old-capture", row["spec"]["template"]["spec"]["containers"][0]["image"])
+
+    def capture_env(self, *values):
+        rows = render(*self.settings, "meetingAIWorkers.workers.capture-asr.enabled=true", *values)
+        row = next(row for row in rows if row["kind"] == "Deployment" and row["metadata"]["name"] == "meet-agent-capture-asr")
+        return {item["name"]: item for item in row["spec"]["template"]["spec"]["containers"][0]["env"]}
+
+    def test_file_asr_inherits_video_bucket_and_optional_storage_transport(self):
+        env = self.capture_env("backend.envVars.AWS_S3_PUBLIC_ENDPOINT_URL=https://public.example.invalid",
+                               "backend.envVars.AWS_S3_SECURE_ACCESS=false")
+        self.assertEqual("fixture-private-video", env["AWS_STORAGE_BUCKET_NAME"]["value"])
+        self.assertEqual("https://public.example.invalid", env["AWS_S3_PUBLIC_ENDPOINT_URL"]["value"])
+        self.assertEqual("false", env["AWS_S3_SECURE_ACCESS"]["value"])
+
+    def test_file_asr_preserves_explicit_worker_storage_and_secret_references(self):
+        env = self.capture_env(
+            "meetingAIWorkers.workers.capture-asr.envVars.AWS_STORAGE_BUCKET_NAME.secretKeyRef.name=worker-storage",
+            "meetingAIWorkers.workers.capture-asr.envVars.AWS_STORAGE_BUCKET_NAME.secretKeyRef.key=bucket",
+            "meetingAIWorkers.workers.capture-asr.envVars.AWS_S3_ACCESS_KEY_ID.secretKeyRef.name=worker-storage",
+            "meetingAIWorkers.workers.capture-asr.envVars.AWS_S3_ACCESS_KEY_ID.secretKeyRef.key=access-key",
+            "backend.envVars.AWS_S3_PUBLIC_ENDPOINT_URL=https://backend.example.invalid",
+            "meetingAIWorkers.workers.capture-asr.envVars.AWS_S3_PUBLIC_ENDPOINT_URL=https://worker.example.invalid",
+            "backend.envVars.AWS_S3_SECURE_ACCESS=true",
+            "meetingAIWorkers.workers.capture-asr.envVars.AWS_S3_SECURE_ACCESS=false",
+        )
+        self.assertEqual({"name": "worker-storage", "key": "bucket"}, env["AWS_STORAGE_BUCKET_NAME"]["valueFrom"]["secretKeyRef"])
+        self.assertEqual({"name": "worker-storage", "key": "access-key"}, env["AWS_S3_ACCESS_KEY_ID"]["valueFrom"]["secretKeyRef"])
+        self.assertEqual("https://worker.example.invalid", env["AWS_S3_PUBLIC_ENDPOINT_URL"]["value"])
+        self.assertEqual("false", env["AWS_S3_SECURE_ACCESS"]["value"])
+
+    def test_file_asr_supports_explicit_backend_bucket_before_video_alias(self):
+        env = self.capture_env("backend.envVars.AWS_STORAGE_BUCKET_NAME=backend-explicit")
+        self.assertEqual("backend-explicit", env["AWS_STORAGE_BUCKET_NAME"]["value"])
+
+    def test_file_asr_requires_bucket_when_neither_name_is_configured(self):
+        error = render(*self.settings, "meetingAIWorkers.workers.capture-asr.enabled=true",
+                       "backend.envVars.AWS_STORAGE_BUCKET_NAME_VIDEO=", success=False)
+        self.assertIn("AWS_STORAGE_BUCKET_NAME_VIDEO", error)
 
 
 class MeetingAIReleaseTest(unittest.TestCase):
