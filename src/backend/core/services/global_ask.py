@@ -11,11 +11,8 @@
   ``citations_used``。
 * LLM 兜底(§D7):检索不依赖 LLM——欠费/断网时发 ``done{degraded: true}``,
   前端转「检索结果模式」;Redis 熔断(连续 3 次失败开 5 分钟窗,半开 60s
-  探测一次),窗内不打 Ark、不让用户等超时。
-* 选型(§D6):``GLOBAL_ASK_LLM_ENDPOINT`` 独立 ep(缺省回落
-  ``DOUBAO_LLM_ENDPOINT``),本功能可单独换档不影响纪要/个人 AI。
-
-零改 personal_ai / hybrid_retrieval —— 只复用。
+  探测一次),窗内不调用模型、不让用户等超时。
+* 选型:与会议纪要、本场问答共用 Qwen;旧向量仅保留关键词检索。
 """
 
 from __future__ import annotations
@@ -28,6 +25,7 @@ from typing import Iterator, Optional
 from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Q
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from core.models import (
@@ -51,6 +49,8 @@ from core.services.hybrid_retrieval import (
 )
 from core.services.llm_client import LLMClient, LLMUnavailable
 from core.services.personal_ai import PersonalAIService
+from core.services.meeting_search import recall_records, citations_visible
+from rest_framework.exceptions import PermissionDenied
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ _SECTION_TITLES = {
     "im": "【聊天消息】",
 }
 
-_EMPTY_ANSWER = "没有找到相关内容(你可见的会议、日程和纪要里没有匹配这个问题的记录)。"
+_EMPTY_ANSWER = "没有找到相关内容，请尝试调整关键词或搜索范围。"
 
 # 各源 cap 与截断(§D1 预算表:合计 ≈11K 字,32K 窗口余量充足)。
 _CAP_TRANSCRIPTS = 8
@@ -110,7 +110,7 @@ _PROBE_INTERVAL = 60  # 半开:每 60s 放行一次探测
 
 
 def _circuit_allows_llm() -> bool:
-    """熔断窗内拒绝(不打 Ark 不等超时);半开期每分钟放一只探测请求。"""
+    """熔断窗内拒绝(不调用模型 不等超时);半开期每分钟放一只探测请求。"""
     try:
         fails = int(cache.get(_FAILS_KEY) or 0)
         if fails < _CIRCUIT_THRESHOLD:
@@ -155,14 +155,18 @@ class GlobalAskService:
         *,
         embed: Optional[EmbeddingClient] = None,
         llm: Optional[LLMClient] = None,
+        scope="all", date_from=None, date_to=None,
     ) -> None:
         self._embed = embed
         self._llm = llm
+        self.scope, self.date_from, self.date_to = scope, date_from, date_to
 
     # ---------------------------------------------------------------- public
 
     def ask(self, *, user, question: str) -> dict:
         prep = self._prepare(user=user, question=question)
+        if not citations_visible(user, prep["citations"]):
+            raise PermissionDenied("Meeting access changed. Search again.")
         base = {
             "citations": prep["citations"],
             "sources": prep["sources"],
@@ -184,8 +188,12 @@ class GlobalAskService:
                 max_tokens=1200,
             )
         except Exception as exc:  # noqa: BLE001 — §D7:检索结果模式,不裸抛
+            if not citations_visible(user, prep["citations"]):
+                raise PermissionDenied("Meeting access changed. Search again.") from exc
             _record_llm_failure(exc)
             return {**base, "answer": "", "citations_used": [], "degraded": True}
+        if not citations_visible(user, prep["citations"]):
+            raise PermissionDenied("Meeting access changed. Search again.")
         _record_llm_success()
         return {
             **base,
@@ -198,6 +206,8 @@ class GlobalAskService:
         """事件序列(§D2):meta{citations,sources,model_used} → delta×N →
         done{citations_used, degraded}。LLM 失败不抛——降级由 done 承载。"""
         prep = self._prepare(user=user, question=question)
+        if not citations_visible(user, prep["citations"]):
+            raise PermissionDenied("Meeting access changed. Search again.")
         yield {
             "type": "meta",
             "citations": prep["citations"],
@@ -222,11 +232,20 @@ class GlobalAskService:
                 temperature=0.2,
                 max_tokens=1200,
             ):
+                if not citations_visible(user, prep["citations"]):
+                    yield {"type": "error", "message": "Meeting access changed. Search again."}
+                    return
                 collected.append(delta)
                 yield {"type": "delta", "text": delta}
         except Exception as exc:  # noqa: BLE001 — 中途失败同样走降级
+            if not citations_visible(user, prep["citations"]):
+                yield {"type": "error", "message": "Meeting access changed. Search again."}
+                return
             _record_llm_failure(exc)
             yield {"type": "done", "citations_used": [], "degraded": True}
+            return
+        if not citations_visible(user, prep["citations"]):
+            yield {"type": "error", "message": "Meeting access changed. Search again."}
             return
         _record_llm_success()
         yield {
@@ -258,26 +277,27 @@ class GlobalAskService:
             logger.exception("global-ask transcripts source failed")
             sources["transcripts"] = "skipped"
 
-        # 源B IM(M2):调用顺序与 prompt 分节顺序一致,保证 [n] 分节内递增。
-        try:
-            im_entries = self._recall_im(user, keywords, citations)
-            if im_entries is None:
-                sources["im"] = "skipped"  # 未配置/无 IM 身份/jusi 全程不可达
-            else:
-                section_entries["im"] = im_entries
-                sources["im"] = "ok" if im_entries else "empty"
-        except Exception:  # noqa: BLE001
-            logger.exception("global-ask im source failed")
-            sources["im"] = "skipped"
+        if self.scope != "meetings":
+            # 源B IM(M2):调用顺序与 prompt 分节顺序一致,保证 [n] 分节内递增。
+            try:
+                im_entries = self._recall_im(user, keywords, citations)
+                if im_entries is None:
+                    sources["im"] = "skipped"  # 未配置/无 IM 身份/jusi 全程不可达
+                else:
+                    section_entries["im"] = im_entries
+                    sources["im"] = "ok" if im_entries else "empty"
+            except Exception:  # noqa: BLE001
+                logger.exception("global-ask im source failed")
+                sources["im"] = "skipped"
 
-        # 源C 日历。
-        try:
-            entries = self._recall_calendar(user, keywords, citations)
-            section_entries["calendar"] = entries
-            sources["calendar"] = "ok" if entries else "empty"
-        except Exception:  # noqa: BLE001
-            logger.exception("global-ask calendar source failed")
-            sources["calendar"] = "skipped"
+            # 源C 日历。
+            try:
+                entries = self._recall_calendar(user, keywords, citations)
+                section_entries["calendar"] = entries
+                sources["calendar"] = "ok" if entries else "empty"
+            except Exception:  # noqa: BLE001
+                logger.exception("global-ask calendar source failed")
+                sources["calendar"] = "skipped"
 
         # 源D 纪要。
         try:
@@ -287,6 +307,11 @@ class GlobalAskService:
         except Exception:  # noqa: BLE001
             logger.exception("global-ask summaries source failed")
             sources["summaries"] = "skipped"
+
+        if settings.MEETING_RECORDS_ENABLED:
+            entries = recall_records(user, keywords, citations, date_from=self.date_from, date_to=self.date_to)
+            section_entries.setdefault("summaries", []).extend(entries)
+            sources["records"] = "ok" if entries else "empty"
 
         canned = not citations
         llm_allowed = _circuit_allows_llm()
@@ -370,8 +395,7 @@ class GlobalAskService:
         if not room_ids:
             return []
         chunks = list(
-            TranscriptChunk.objects.filter(room_id__in=room_ids)
-            .exclude(embedding=[])
+            TranscriptChunk.objects.filter(room_id__in=room_ids, session__record__isnull=True)
             .only(
                 "id",
                 "room_id",
@@ -381,16 +405,21 @@ class GlobalAskService:
                 "text",
                 "started_at",
                 "embedding",
+                "embedding_model",
             )
         )
+        chunks = [chunk for chunk in chunks if (not self.date_from or chunk.started_at.date() >= self.date_from) and (not self.date_to or chunk.started_at.date() <= self.date_to)]
         if not chunks:
             return []
 
         candidate_n = getattr(settings, "RAG_CANDIDATE_N", DEFAULT_CANDIDATE_N)
         vec_ranked = None
         try:
-            q_vec = cached_embed(self._embed_client(), question)
-            vec_ranked = vector_rank(q_vec, chunks, top_n=candidate_n)
+            client = self._embed_client()
+            compatible = [chunk for chunk in chunks if chunk.embedding_model == client.model]
+            if compatible:
+                q_vec = cached_embed(client, question)
+                vec_ranked = vector_rank(q_vec, compatible, top_n=candidate_n)
         except Exception:  # noqa: BLE001 — §D1:embedding 挂 → BM25 单腿
             logger.warning(
                 "global-ask embedding unavailable — BM25-only leg", exc_info=True
@@ -681,11 +710,17 @@ class GlobalAskService:
             text_q |= Q(edited_content__icontains=kw) | (
                 Q(edited_content="") & Q(content__icontains=kw)
             )
+        date_q = Q()
+        if self.date_from:
+            date_q &= Q(meeting_date__date__gte=self.date_from)
+        if self.date_to:
+            date_q &= Q(meeting_date__date__lte=self.date_to)
         matches = list(
-            Summary.objects.filter(
+            Summary.objects.annotate(meeting_date=Coalesce("session__started_at", "updated_at")).filter(date_q).filter(
                 text_q,
-                room__users=user,  # 房间成员边界,与 _user_room_ids 同构(非组织)
+                room_id__in=PersonalAIService._user_room_ids(user),
                 status=Summary.Status.SUCCESS,
+                session__record__isnull=True,
             )
             .distinct()
             .select_related("room", "session")
@@ -693,6 +728,9 @@ class GlobalAskService:
         )
         entries: list[str] = []
         for summary in matches:
+            when = summary.session.started_at if summary.session_id else summary.updated_at
+            if (self.date_from and when.date() < self.date_from) or (self.date_to and when.date() > self.date_to):
+                continue
             body = summary.effective_content or ""
             snippet = self._hit_window(body, keywords)
             room_name = (summary.room.name if summary.room_id else "") or "未命名会议"
@@ -749,20 +787,9 @@ class GlobalAskService:
         return self._embed
 
     def _llm_client(self) -> LLMClient:
-        """§D6:独立 ep(GLOBAL_ASK_LLM_ENDPOINT)优先,缺省回落现网 ep。"""
+        """Use the same Qwen configuration as meeting summaries and room QA."""
         if self._llm is None:
-            endpoint = getattr(settings, "GLOBAL_ASK_LLM_ENDPOINT", None) or ""
-            if endpoint:
-                api_key = getattr(settings, "ARK_API_KEY", None) or ""
-                if not api_key:
-                    raise LLMUnavailable("ARK_API_KEY not configured.")
-                base_url = getattr(settings, "ARK_BASE_URL", None) or None
-                kwargs = {"api_key": api_key, "model": str(endpoint)}
-                if base_url:
-                    kwargs["base_url"] = base_url
-                self._llm = LLMClient(**kwargs)
-            else:
-                self._llm = LLMClient.from_settings()
+            self._llm = LLMClient.from_settings()
         return self._llm
 
 

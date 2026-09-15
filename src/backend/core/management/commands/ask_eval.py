@@ -4,20 +4,19 @@
 记录:各源状态 / 引用数 / 已用引用 / degraded / 耗时 / 期望源是否召回 /
 ``[n]`` 标记合法性,汇总成 markdown 报告。无 golden answer 比对(需人工
 标注,见设计文档 §7 M3)——本 harness 盯的是**召回健康度 + 标记纪律 +
-延迟**三件事,pro vs lite 对比跑两遍换 ``--endpoint`` 即可。
+延迟**三件事,模型 对比跑两遍换 ``--endpoint`` 即可。
 
 用法:
-    # 默认题库(内置 20 问),默认 LLM 链(GLOBAL_ASK_LLM_ENDPOINT 回落现网 ep)
+    # 默认题库(内置 20 问),默认 LLM 链(MEETING_SUMMARY_MODEL / Qwen)
     python manage.py ask_eval --user someone@example.com
 
-    # pro vs lite 对比:同一用户各跑一遍,报告横向对比
-    python manage.py ask_eval --user 13800000000 --endpoint ep-pro-xxx --output pro.md
-    python manage.py ask_eval --user 13800000000 --endpoint ep-lite-xxx --output lite.md
+    # 模型 对比:同一用户各跑一遍,报告横向对比
+    python manage.py ask_eval --user 13800000000 --endpoint qwen3.8-flash --output qwen.md
 
     # 自定义题库(JSON:[{"id","question","expect_sources":["transcripts",...]}])
     python manage.py ask_eval --user u@x.com --questions my20.json
 
-只读业务数据;会真实调用 Ark LLM(计费),熔断/降级逻辑与线上一致。
+只读业务数据;会真实调用 Qwen LLM(计费),熔断/降级逻辑与线上一致。
 """
 
 from __future__ import annotations
@@ -78,7 +77,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--endpoint",
             default="",
-            help="临时覆盖 LLM ep(pro/lite 对比);缺省走 settings 链",
+            help="临时覆盖 Qwen 模型;缺省走 settings 链",
         )
         parser.add_argument(
             "--questions", default="", help="自定义题库 JSON 路径(缺省内置 20 问)"
@@ -110,11 +109,11 @@ class Command(BaseCommand):
 
         from core.services.llm_client import LLMClient
 
-        api_key = getattr(settings, "ARK_API_KEY", None) or ""
-        if not api_key:
-            raise CommandError("ARK_API_KEY not configured — cannot override endpoint")
+        api_key = getattr(settings, "DASHSCOPE_API_KEY", None) or ""
+        if not api_key or not endpoint.startswith("qwen"):
+            raise CommandError("DASHSCOPE_API_KEY and a Qwen model are required")
         kwargs = {"api_key": api_key, "model": endpoint}
-        base_url = getattr(settings, "ARK_BASE_URL", None) or None
+        base_url = getattr(settings, "MEETING_SUMMARY_BASE_URL", None) or None
         if base_url:
             kwargs["base_url"] = base_url
         return GlobalAskService(llm=LLMClient(**kwargs))
@@ -199,7 +198,7 @@ class Command(BaseCommand):
             "# 全局搜索 AI 问答评测报告",
             "",
             f"- 用户:{user.email or user.phone or user.pk}",
-            f"- LLM ep:{endpoint or '(settings 链缺省)'}",
+            f"- Qwen 模型:{endpoint or '(settings 链缺省)'}",
             f"- 题数:{len(rows)}(异常 {len(rows) - len(ok_rows)})",
             f"- 期望源召回:{hit}/{with_expect}",
             f"- 平均耗时:{avg:.1f}s / 最慢 {slowest:.1f}s",
@@ -223,6 +222,6 @@ class Command(BaseCommand):
         lines.append("")
         lines.append(
             "> 期望源召回=题目标注的源在本次回答中状态为 ok;标记=正文 [n] 全部落在引用区间;"
-            "pro/lite 对比:换 --endpoint 再跑一遍对照本表。"
+            "模型对比:换 --endpoint 再跑一遍对照本表。"
         )
         return "\n".join(lines)

@@ -59,5 +59,6 @@
     },
     "carouselLabel": "Introduction slideshow",
     "slidePosition": "Slide {{current}} of {{total}}"
-  }
+  },
+  "meetingAiSearch": "Search meeting AI"
 }

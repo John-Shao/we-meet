@@ -1,7 +1,7 @@
 """Room sidebar AI — single-turn QA over the current meeting's transcripts
 (Sprint 2.3).
 
-Companion to ``meeting_summary.py``: both feed Doubao Pro via the Ark
+Companion to ``meeting_summary.py``: both feed Qwen via the Bailian
 OpenAI-compatible endpoint, but where summary runs *once* after the room
 ends, this service runs *on-demand* while the room is live. The user
 types a question in the sidebar; we slice the most-recent transcripts
@@ -14,7 +14,7 @@ Design notes:
 * Newest-first slicing: when a meeting overflows the token budget the
   recent context is what users typically ask about (Sprint 2.2's summary
   service truncates from the same end for the same reason).
-* Translations are intentionally ignored: Doubao Pro handles cross-lingual
+* Translations are intentionally ignored: Qwen handles cross-lingual
   reasoning natively, and skipping translations halves the prompt bytes.
 * The endpoint requires a room token AND a current transcript-material grant.
   One active session is fixed for the request and rechecked before releasing
@@ -27,8 +27,6 @@ from __future__ import annotations
 
 import logging
 from typing import Iterator, Optional
-
-from django.conf import settings
 
 from core import models
 from core.models import Room, Transcript

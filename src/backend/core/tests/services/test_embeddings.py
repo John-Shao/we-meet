@@ -1,8 +1,4 @@
-"""Unit tests for ``EmbeddingClient`` (Sprint 2.4).
-
-Ark multimodal-embeddings isn't OpenAI-compatible, so we mock at the
-``urllib.request.urlopen`` level instead of patching an SDK.
-"""
+"""Qwen embedding protocol and validation tests; no real provider calls."""
 # pylint: disable=W0621
 
 import json
@@ -15,14 +11,11 @@ import pytest
 from core.services.embeddings import EmbeddingClient, EmbeddingUnavailable
 
 
-def _ark_response(embedding: list[float], *, text_tokens: int = 10):
-    """Build a fake Ark multimodal-embedding success payload (bytes)."""
+def _qwen_response(embedding: list[float], *, text_tokens: int = 10):
+    """Build a fake Bailian OpenAI-compatible embedding response."""
     body = {
         "created": 1779929915,
-        "data": {
-            "embedding": embedding,
-            "object": "embedding",
-        },
+        "data": [{"embedding": embedding, "object": "embedding", "index": 0}],
         "id": "fake-id",
         "model": "ep-test",
         "object": "list",
@@ -71,19 +64,18 @@ def mock_urlopen(monkeypatch):
 
 
 def test_from_settings_raises_when_misconfigured(settings):
-    settings.ARK_API_KEY = ""
-    settings.DOUBAO_EMBEDDING_ENDPOINT = ""
+    settings.DASHSCOPE_API_KEY = ""
+    settings.QWEN_EMBEDDING_MODEL = "text-embedding-v4"
     with pytest.raises(EmbeddingUnavailable):
         EmbeddingClient.from_settings()
 
 
-def test_endpoint_path_is_multimodal():
-    """Sanity: the constructed URL must hit ``/embeddings/multimodal``,
-    not the OpenAI-compatible ``/embeddings`` path."""
+def test_endpoint_path_is_qwen_compatible():
+    """Use Bailian text embeddings, with no Ark fallback."""
     client = EmbeddingClient(api_key="k", model="ep-test")
     # _endpoint is internal but the test would silently regress if we
     # didn't pin the path.
-    assert client._endpoint.endswith("/api/v3/embeddings/multimodal")  # noqa: SLF001
+    assert client._endpoint.endswith("/compatible-mode/v1/embeddings")  # noqa: SLF001
 
 
 # ---------------------------------------------------------------------
@@ -92,7 +84,7 @@ def test_endpoint_path_is_multimodal():
 
 
 def test_embed_returns_vector(mock_urlopen):
-    mock_urlopen.return_value = _FakeResp(_ark_response([0.1, 0.2, 0.3, 0.4]))
+    mock_urlopen.return_value = _FakeResp(_qwen_response([0.1, 0.2, 0.3, 0.4]))
     client = EmbeddingClient(api_key="k", model="ep-test")
     vec = client.embed("hello")
     assert vec == [0.1, 0.2, 0.3, 0.4]
@@ -102,7 +94,7 @@ def test_embed_returns_vector(mock_urlopen):
 def test_batch_embed_preserves_order(mock_urlopen):
     """Each text → one HTTP call; results returned in the input order."""
     responses = [
-        _FakeResp(_ark_response([float(i)] * 4)) for i in range(3)
+        _FakeResp(_qwen_response([float(i)] * 4)) for i in range(3)
     ]
     mock_urlopen.side_effect = responses
     client = EmbeddingClient(api_key="k", model="ep-test")
@@ -112,8 +104,8 @@ def test_batch_embed_preserves_order(mock_urlopen):
 
 
 def test_batch_embed_request_shape(mock_urlopen):
-    """Request body must wrap each text into ``{type:'text', text:...}``."""
-    mock_urlopen.return_value = _FakeResp(_ark_response([0.0] * 2))
+    """Request body uses string inputs and a stable vector dimension."""
+    mock_urlopen.return_value = _FakeResp(_qwen_response([0.0] * 2))
     client = EmbeddingClient(api_key="k", model="ep-test")
     client.embed("你好")
 
@@ -121,7 +113,9 @@ def test_batch_embed_request_shape(mock_urlopen):
     req = mock_urlopen.call_args.args[0]
     sent = json.loads(req.data.decode("utf-8"))
     assert sent["model"] == "ep-test"
-    assert sent["input"] == [{"type": "text", "text": "你好"}]
+    assert sent["input"] == ["你好"]
+    assert sent["dimensions"] == 1024
+    assert sent["encoding_format"] == "float"
     assert req.get_method() == "POST"
     assert req.headers.get("Authorization") == "Bearer k"
 
@@ -147,7 +141,7 @@ def test_embed_query_returns_none_for_blank(mock_urlopen):
 
 
 def test_embed_query_returns_vector_for_real_question(mock_urlopen):
-    mock_urlopen.return_value = _FakeResp(_ark_response([0.5, 0.6]))
+    mock_urlopen.return_value = _FakeResp(_qwen_response([0.5, 0.6]))
     client = EmbeddingClient(api_key="k", model="ep-test")
     assert client.embed_query("结论是什么？") == [0.5, 0.6]
 

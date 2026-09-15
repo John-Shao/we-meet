@@ -23,6 +23,9 @@ const mocks = vi.hoisted(() => ({
   fetchApi: vi.fn(),
   searchMessages: vi.fn(),
   abortAsk: vi.fn(),
+  ask: vi.fn(),
+  resetAsk: vi.fn(),
+  aiEnabled: false,
   taskSearchError: false,
 }))
 
@@ -69,7 +72,7 @@ vi.mock('@/features/meetings/api/fetchMeeting', () => ({
   useScheduledMeetings: () => ({ data: [] }),
 }))
 vi.mock('@/api/useConfig', () => ({
-  useConfig: () => ({ data: { search_ai: { enabled: false } } }),
+  useConfig: () => ({ data: { search_ai: { enabled: mocks.aiEnabled } } }),
 }))
 vi.mock('@/features/global-ask/useGlobalAsk', () => ({
   useGlobalAsk: () => ({
@@ -81,7 +84,8 @@ vi.mock('@/features/global-ask/useGlobalAsk', () => ({
       degraded: false,
       sources: {},
     },
-    ask: vi.fn(),
+    ask: mocks.ask,
+    reset: mocks.resetAsk,
     abort: mocks.abortAsk,
   }),
 }))
@@ -184,6 +188,7 @@ describe('global task search', () => {
       { id: tasks[0].id, title: tasks[0].title, depth: 0 },
     ]
     mocks.taskSearchError = false
+    mocks.aiEnabled = false
     mocks.fetchApi.mockResolvedValue({ results: [], has_more: false })
     mocks.searchMessages.mockResolvedValue({
       items: [],
@@ -216,6 +221,32 @@ describe('global task search', () => {
     expect(mocks.navigate).toHaveBeenCalledWith(
       `/tasks?scope=all&status=all&time=all&priority=all&grouping=none&columns=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2Ccreator%2CcreatedAt&column_order=title%2Cassignee%2Cpriority%2CstartDate%2CdueDate%2CtaskList%2CcustomGroup%2Ccreator%2CcreatedAt%2CcompletedAt&task_list=all&group=all&view=list&task=${tasks[0].id}`
     )
+  })
+
+  it('carries meeting scope and dates into explicit AI search', async () => {
+    mocks.aiEnabled = true
+    const user = userEvent.setup()
+    renderPalette()
+    await user.click(screen.getByTestId('global-search-tab-meetings'))
+    await user.click(screen.getByTestId('global-search-tab-ai'))
+    expect(screen.getByLabelText('search.aiScope')).toHaveValue('meetings')
+    fireEvent.change(screen.getByLabelText('search.aiDateFrom'), {
+      target: { value: '2026-09-01' },
+    })
+    fireEvent.change(screen.getByLabelText('search.aiDateTo'), {
+      target: { value: '2026-09-15' },
+    })
+    await user.type(screen.getByTestId('global-search-input'), 'budget{Enter}')
+    expect(mocks.ask).toHaveBeenCalledWith('budget', {
+      scope: 'meetings',
+      date_from: '2026-09-01',
+      date_to: '2026-09-15',
+    })
+    fireEvent.change(screen.getByLabelText('search.aiScope'), {
+      target: { value: 'all' },
+    })
+    expect(mocks.resetAsk).toHaveBeenCalled()
+    expect(screen.queryByLabelText('search.aiDateFrom')).not.toBeInTheDocument()
   })
 
   it('keeps task filters while switching categories and clears them together', async () => {

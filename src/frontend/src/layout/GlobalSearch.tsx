@@ -70,6 +70,9 @@ interface TriggerProps {
 export const GlobalSearch = ({ collapsed }: TriggerProps) => {
   const { t } = useTranslation('shell')
   const [open, setOpen] = useState(false)
+  const [initialAiScope, setInitialAiScope] = useState<'all' | 'meetings'>(
+    'all'
+  )
   const [initialCategory, setInitialCategory] = useState<SearchCategory>('all')
 
   useEffect(() => {
@@ -77,12 +80,14 @@ export const GlobalSearch = ({ collapsed }: TriggerProps) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setInitialCategory('all')
+        setInitialAiScope('all')
         setOpen((v) => !v)
       }
     }
     window.addEventListener('keydown', onKey)
     const unsubscribe = subscribeGlobalSearchOpen((detail) => {
       setInitialCategory(detail.category ?? 'all')
+      setInitialAiScope(detail.aiScope ?? 'all')
       setOpen(true)
     })
     return () => {
@@ -98,7 +103,11 @@ export const GlobalSearch = ({ collapsed }: TriggerProps) => {
           type="button"
           aria-label={t('search.trigger')}
           title={t('search.trigger')}
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setInitialCategory('all')
+            setInitialAiScope('all')
+            setOpen(true)
+          }}
           className={css({
             display: 'flex',
             alignItems: 'center',
@@ -118,7 +127,11 @@ export const GlobalSearch = ({ collapsed }: TriggerProps) => {
       ) : (
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setInitialCategory('all')
+            setInitialAiScope('all')
+            setOpen(true)
+          }}
           data-testid="global-search-trigger"
           className={css({
             display: 'flex',
@@ -156,6 +169,7 @@ export const GlobalSearch = ({ collapsed }: TriggerProps) => {
       {open && (
         <SearchPalette
           initialCategory={initialCategory}
+          initialAiScope={initialAiScope}
           onClose={() => setOpen(false)}
         />
       )}
@@ -211,9 +225,11 @@ const DOCS_PAGE_SIZE = 20
 
 export const SearchPalette = ({
   initialCategory = 'all',
+  initialAiScope = 'all',
   onClose,
 }: {
   initialCategory?: SearchCategory
+  initialAiScope?: 'all' | 'meetings'
   onClose: () => void
 }) => {
   const { t } = useTranslation('shell')
@@ -223,6 +239,13 @@ export const SearchPalette = ({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const [category, setCategory] = useState<SearchCategory>(initialCategory)
+  useEffect(() => {
+    document
+      .querySelector<HTMLElement>(
+        `[data-testid="global-search-tab-${category}"]`
+      )
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [category])
   const [taskFilters, setTaskFilters] = useState<TaskSearchFilterValues>({
     ...EMPTY_TASK_SEARCH_FILTERS,
   })
@@ -240,7 +263,16 @@ export const SearchPalette = ({
   const categories: SearchCategory[] = aiEnabled
     ? [...BASE_CATEGORIES, 'ai']
     : BASE_CATEGORIES
-  const { state: askState, ask, abort: abortAsk } = useGlobalAsk()
+  const {
+    state: askState,
+    ask,
+    abort: abortAsk,
+    reset: resetAsk,
+  } = useGlobalAsk()
+  const [aiScope, setAiScope] = useState<'all' | 'meetings'>(initialAiScope)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const validDates = !dateFrom || !dateTo || dateFrom <= dateTo
   // 关面板必须断流:SSE 占用 gunicorn sync worker(设计 §D4 红线)。
   const close = () => {
     abortAsk()
@@ -249,9 +281,16 @@ export const SearchPalette = ({
   useEffect(() => () => abortAsk(), [abortAsk])
   const submitAsk = () => {
     const q = query.trim()
-    if (q.length < 2) return
+    if (q.length < 2 || (aiScope === 'meetings' && !validDates)) return
+    const scope = category === 'meetings' ? 'meetings' : aiScope
+    setAiScope(scope)
     setCategory('ai')
-    void ask(q)
+    void ask(q, {
+      scope,
+      ...(scope === 'meetings'
+        ? { date_from: dateFrom || undefined, date_to: dateTo || undefined }
+        : {}),
+    })
   }
 
   const ql = query.trim().toLowerCase()
@@ -483,7 +522,16 @@ export const SearchPalette = ({
   // 日程 → 日历按日定位(?d,CalendarRoute 新参数)。
   const openCitation = (c: GlobalAskCitation) => {
     close()
-    if (c.kind === 'meeting' && c.room_id) {
+    if (c.kind === 'meeting' && c.record_id) {
+      const params = new URLSearchParams({
+        tab: c.ability === 'read_transcript' ? 'text' : 'summary',
+      })
+      if (c.summary_id) params.set('summary', c.summary_id)
+      if (c.reviewed) params.set('review', 'true')
+      if (c.ability === 'read_transcript' && c.snippet)
+        params.set('q', c.snippet.slice(0, 120))
+      navigate(`/meeting/records/${encodeURIComponent(c.record_id)}?${params}`)
+    } else if (c.kind === 'meeting' && c.room_id) {
       navigateTo('meetingDetail', c.room_id)
     } else if (c.kind === 'im' && c.cid) {
       navigate(
@@ -568,7 +616,13 @@ export const SearchPalette = ({
           label: t(`search.${cat}`),
           testId: `global-search-tab-${cat}`,
         }))}
-        onChange={setCategory}
+        onChange={(next) => {
+          if (next === 'ai' && category === 'meetings') {
+            resetAsk()
+            setAiScope('meetings')
+          }
+          setCategory(next)
+        }}
         ariaLabel={t('search.trigger')}
         appearance="pill"
         density="compact"
@@ -601,54 +655,109 @@ export const SearchPalette = ({
         })}
       >
         {category === 'ai' ? (
-          <AiPanel
-            t={t}
-            state={askState}
-            question={rawQ}
-            onAsk={submitAsk}
-            onOpenCitation={openCitation}
-          />
+          <>
+            <div className={aiFiltersCls}>
+              <label>
+                {t('search.aiScope')}{' '}
+                <select
+                  aria-label={t('search.aiScope')}
+                  value={aiScope}
+                  onChange={(e) => {
+                    resetAsk()
+                    setAiScope(e.target.value as 'all' | 'meetings')
+                  }}
+                >
+                  <option value="all">{t('search.aiScopeAll')}</option>
+                  <option value="meetings">
+                    {t('search.aiScopeMeetings')}
+                  </option>
+                </select>
+              </label>
+              {aiScope === 'meetings' && (
+                <>
+                  <label>
+                    {t('search.aiDateFrom')}{' '}
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      max={dateTo || undefined}
+                      onChange={(e) => {
+                        resetAsk()
+                        setDateFrom(e.target.value)
+                      }}
+                    />
+                  </label>
+                  <label>
+                    {t('search.aiDateTo')}{' '}
+                    <input
+                      type="date"
+                      value={dateTo}
+                      min={dateFrom || undefined}
+                      onChange={(e) => {
+                        resetAsk()
+                        setDateTo(e.target.value)
+                      }}
+                    />
+                  </label>
+                </>
+              )}
+            </div>
+            {aiScope === 'meetings' && !validDates && (
+              <p role="alert" className={hintCls}>
+                {t('search.aiDatesInvalid')}
+              </p>
+            )}
+            <AiPanel
+              t={t}
+              state={askState}
+              question={aiScope === 'meetings' && !validDates ? '' : rawQ}
+              onAsk={submitAsk}
+              onOpenCitation={openCitation}
+            />
+          </>
         ) : (
           <>
             {!ql && <p className={hintCls}>{t('search.placeholder')}</p>}
             {empty && <p className={hintCls}>{t('search.empty')}</p>}
 
             {/* P1-4 快捷行:「全部」下 q≥2 时置顶,点击切 AI 标签并提交。 */}
-            {aiEnabled && category === 'all' && rawQ.length >= 2 && (
-              <button
-                type="button"
-                onClick={submitAsk}
-                data-testid="global-search-ask-ai"
-                className={css({
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.625rem',
-                  width: '100%',
-                  paddingX: '0.5rem',
-                  paddingY: '0.625rem',
-                  border: 'none',
-                  borderRadius: '8px',
-                  backgroundColor: 'brand.50',
-                  color: 'brand.700',
-                  fontSize: '0.875rem',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  marginBottom: '0.375rem',
-                  _hover: { backgroundColor: 'brand.100' },
-                })}
-              >
-                <RiSparklingLine size={18} />
-                <span
+            {aiEnabled &&
+              (category === 'all' || category === 'meetings') &&
+              rawQ.length >= 2 && (
+                <button
+                  type="button"
+                  onClick={submitAsk}
+                  data-testid="global-search-ask-ai"
                   className={css({
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.625rem',
+                    width: '100%',
+                    paddingX: '0.5rem',
+                    paddingY: '0.625rem',
+                    border: 'none',
+                    borderRadius: '8px',
+                    backgroundColor: 'brand.50',
+                    color: 'brand.700',
+                    fontSize: '0.875rem',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    marginBottom: '0.375rem',
+                    _hover: { backgroundColor: 'brand.100' },
                   })}
                 >
-                  {t('search.askAi', { q: rawQ })}
-                </span>
-              </button>
-            )}
+                  <RiSparklingLine size={18} />
+                  <span
+                    className={css({
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    })}
+                  >
+                    {t('search.askAi', { q: rawQ })}
+                  </span>
+                </button>
+              )}
 
             {convHits.length > 0 && (
               <Group title={t('search.conversations')}>
@@ -1320,4 +1429,34 @@ const searchCategoryTabsCls = css({
   padding: 'sm lg',
   borderBottom: '1px solid token(colors.border.subtle)',
   overflowX: 'auto',
+  '& > [role="tab"]': { flexShrink: 0, whiteSpace: 'nowrap' },
+})
+
+const aiFiltersCls = css({
+  display: 'grid',
+  gridTemplateColumns: {
+    base: 'repeat(2, minmax(0, 1fr))',
+    sm: 'repeat(3, minmax(0, 1fr))',
+  },
+  gap: 'sm',
+  padding: 'md lg',
+  borderBottom: '1px solid token(colors.border.subtle)',
+  '& label': {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'xs',
+    minWidth: 0,
+    textStyle: 'bodySmall',
+    color: 'text.secondary',
+  },
+  '& label:first-child': { gridColumn: { base: '1 / -1', sm: 'auto' } },
+  '& input, & select': {
+    width: '100%',
+    minWidth: 0,
+    padding: 'sm',
+    border: '1px solid token(colors.border.default)',
+    borderRadius: 'sm',
+    backgroundColor: 'surface.default',
+    color: 'text.primary',
+  },
 })

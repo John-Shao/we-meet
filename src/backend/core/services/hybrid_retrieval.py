@@ -85,6 +85,13 @@ def bm25_rank(question: str, chunks, *, top_n: int = DEFAULT_CANDIDATE_N):
 
     bm25 = BM25Okapi(corpus)
     scores = bm25.get_scores(q_tokens)
+    # Okapi IDF may be zero/negative when every document contains the query
+    # (including a user's first and only meeting). Keep exact token matches
+    # searchable while old provider vectors are being replaced.
+    if not any(score > 0 for score in scores):
+        overlap = [len(set(q_tokens).intersection(tokens)) for tokens in corpus]
+        order = sorted(range(len(chunk_list)), key=lambda i: overlap[i], reverse=True)
+        return [(chunk_list[i], float(overlap[i])) for i in order[:top_n] if overlap[i]]
     order = np.argsort(-scores)[:top_n]
     return [
         (chunk_list[i], float(scores[i])) for i in order if scores[i] > 0

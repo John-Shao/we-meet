@@ -11,6 +11,7 @@ import {
   RiLayoutGridLine,
   RiListUnordered,
 } from '@remixicon/react'
+import { openGlobalSearch } from '@/layout/globalSearchBus'
 import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
 import { Button } from '@/primitives'
@@ -365,6 +366,14 @@ export function Library({
               {t(minutes ? 'library.minutesHint' : 'library.notesHint')}
             </p>
           </div>
+          {config?.search_ai?.enabled !== false && (
+            <Button
+              variant="tertiary"
+              onPress={() => openGlobalSearch('ai', 'meetings')}
+            >
+              {t('minutesReader.searchMeetings')}
+            </Button>
+          )}
           {!minutes && (
             <div
               className={css({

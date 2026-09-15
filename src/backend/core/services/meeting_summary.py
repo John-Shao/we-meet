@@ -1,6 +1,6 @@
 """Meeting summary + action-item extraction (Sprint 2.2.a).
 
-Reads the Transcript rows for a MeetingSession, asks Doubao Pro (via the Ark
+Reads the Transcript rows for a MeetingSession, asks Qwen (via the Bailian
 OpenAI-compatible endpoint) to (a) produce a narrative summary and
 (b) extract a JSON-typed list of action items, persists both. Idempotent:
 re-running on the same session rewrites the Summary row and replaces its
@@ -109,7 +109,7 @@ class SummaryGenerationError(RuntimeError):
 class MeetingSummaryService:
     """Generate / refresh summary artifacts for one MeetingSession."""
 
-    # Hard cap: prompt token budget vs Doubao Pro 32K context.
+    # Keep a bounded transcript budget for predictable request size.
     # ~3 chars/token CN, ~4 chars/token EN — keep transcript bytes ≤ 60k to
     # leave room for system prompt + completion.
     _MAX_TRANSCRIPT_BYTES = 60_000
@@ -175,7 +175,7 @@ class MeetingSummaryService:
                 usage_sink=usage_sink,
             )
             items = self._parse_action_items(items_raw)
-        except Exception as exc:
+        except Exception:
             logger.exception("LLM action-items call failed for room %s", room.id)
             items = []  # Soft failure: keep the summary, lose the items.
 

@@ -30,12 +30,16 @@ const OPEN_EVENT = 'we-meet:open-global-search'
 
 export interface GlobalSearchOpenDetail {
   category?: SearchCategory
+  aiScope?: 'all' | 'meetings'
 }
 
-export const openGlobalSearch = (category?: SearchCategory): void => {
+export const openGlobalSearch = (
+  category?: SearchCategory,
+  aiScope?: 'all' | 'meetings'
+): void => {
   window.dispatchEvent(
     new CustomEvent<GlobalSearchOpenDetail>(OPEN_EVENT, {
-      detail: { category },
+      detail: { category, aiScope },
     })
   )
 }

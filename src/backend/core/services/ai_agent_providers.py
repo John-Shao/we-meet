@@ -56,7 +56,7 @@ def _prompt_payload(prompt):
 # ---------------------------------------------------------------------------
 
 
-def get_ai_agent_config():
+def get_ai_agent_config(*, meeting_only=False):
     """Return the catalog payload consumed by the frontend selector.
 
     The shape is:
@@ -86,6 +86,11 @@ def get_ai_agent_config():
             )
             .order_by("sort_order", "code")
         )
+
+        if meeting_only:
+            profile_qs = profile_qs.filter(
+                omni_model__vendor__code="aliyun", omni_model__code__icontains="qwen",
+            )
 
         # Pre-fetch voices grouped by TTS / Omni model id to avoid N+1.
         voice_qs = AIVoice.objects.filter(is_active=True).order_by(
@@ -151,6 +156,7 @@ def resolve_profile_context(
     profile_code: str,
     voice_id: Optional[str] = None,
     prompt_id: Optional[str] = None,
+    *, meeting_only=False,
 ):
     """Resolve the (profile, voice, prompt) triple following the priority:
 
@@ -176,6 +182,11 @@ def resolve_profile_context(
         .first()
     )
     if not profile:
+        return None, None, None
+    if meeting_only and not (
+        profile.omni_model and profile.omni_model.vendor.code == "aliyun"
+        and "qwen" in profile.omni_model.code.lower()
+    ):
         return None, None, None
 
     voice = None

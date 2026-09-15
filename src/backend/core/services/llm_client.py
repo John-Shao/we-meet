@@ -1,17 +1,4 @@
-"""OpenAI-compatible LLM client wrapping Volcengine Ark.
-
-We use the official ``openai`` SDK pointed at Ark's OpenAI-compatible
-endpoint (``https://ark.cn-beijing.volces.com/api/v3``). Same wire format,
-Doubao billing. Settings:
-
-* ``ARK_API_KEY``          — Ark API key
-* ``DOUBAO_LLM_ENDPOINT``  — Ark endpoint id (``ep-...``) used as ``model``
-* ``ARK_BASE_URL``         — overridable (default Ark CN-Beijing)
-
-This module is intentionally synchronous: callers are Celery tasks,
-management commands, and Django views (incl. SSE streaming) — none of
-which benefit from an async client.
-"""
+"""OpenAI-compatible Qwen client shared by meeting summaries and question answering."""
 
 from __future__ import annotations
 
@@ -23,7 +10,7 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
-_DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
+_DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 
 # Multi-turn history shaping is a shared concern: both RoomAIService and
@@ -94,16 +81,11 @@ class LLMClient:
 
     @classmethod
     def from_settings(cls) -> "LLMClient":
-        api_key = getattr(settings, "ARK_API_KEY", None) or ""
-        model = getattr(settings, "DOUBAO_LLM_ENDPOINT", None) or ""
-        base_url = (
-            getattr(settings, "ARK_BASE_URL", None) or _DEFAULT_BASE_URL
-        )
-        if not api_key or not model:
-            raise LLMUnavailable(
-                "ARK_API_KEY / DOUBAO_LLM_ENDPOINT not configured. "
-                "See helm values for backend.envVars."
-            )
+        api_key = getattr(settings, "DASHSCOPE_API_KEY", None) or ""
+        model = getattr(settings, "MEETING_SUMMARY_MODEL", None) or "qwen3.8-flash"
+        base_url = getattr(settings, "MEETING_SUMMARY_BASE_URL", None) or _DEFAULT_BASE_URL
+        if not api_key or not model.startswith("qwen"):
+            raise LLMUnavailable("DASHSCOPE_API_KEY and a Qwen meeting model are required.")
         return cls(api_key=api_key, model=model, base_url=base_url)
 
     @property
@@ -146,6 +128,8 @@ class LLMClient:
         if response_format is not None:
             kwargs["response_format"] = response_format
 
+        if self._model.startswith("qwen3"):
+            kwargs["extra_body"] = {"enable_thinking": False}
         resp = self._client.chat.completions.create(**kwargs)
         self._report_usage(usage_sink, resp)
         if require_complete and (
@@ -221,6 +205,8 @@ class LLMClient:
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
 
+        if self._model.startswith("qwen3"):
+            kwargs["extra_body"] = {"enable_thinking": False}
         resp = self._client.chat.completions.create(**kwargs)
         for event in resp:
             choices = getattr(event, "choices", None) or []

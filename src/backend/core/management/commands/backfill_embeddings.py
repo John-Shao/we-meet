@@ -35,6 +35,9 @@ class Command(BaseCommand):
         if not options["target"]:
             raise CommandError("Either <target> or --all is required")
         session = self._resolve_session(options["target"])
+        if options["dry_run"]:
+            self.stdout.write(f"Dry-run: would embed session {session.id}; no provider call made.")
+            return
         result = embed_meeting_transcripts(str(session.id))
         self.stdout.write(
             self.style.SUCCESS(

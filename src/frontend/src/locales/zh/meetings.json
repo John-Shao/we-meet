@@ -655,6 +655,7 @@
     "sourceInfo": "查看生成信息",
     "overview": "总结",
     "history": "历史版本",
-    "export": "导出纪要"
+    "export": "导出纪要",
+    "searchMeetings": "搜索会议 AI"
   }
 }

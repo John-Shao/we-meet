@@ -18,7 +18,7 @@ import {
   ScheduledMeetingsList,
   type MeetingSelection,
 } from '@/features/meetings'
-import { PersonalAIFab } from '@/features/personal-ai'
+import { openGlobalSearch } from '@/layout/globalSearchBus'
 import { ReactNode, useEffect, useState } from 'react'
 
 import { css } from '@/styled-system/css'
@@ -271,6 +271,14 @@ export const Home = () => {
                   {t('library.createError', { ns: 'meetings' })}
                 </p>
               )}
+              {isLoggedIn && data?.search_ai?.enabled !== false && (
+                <Button
+                  variant="tertiary"
+                  onPress={() => openGlobalSearch('ai', 'meetings')}
+                >
+                  {t('meetingAiSearch')}
+                </Button>
+              )}
               <ScheduledMeetingsList
                 enabled
                 showEmpty
@@ -392,6 +400,14 @@ export const Home = () => {
                   </DialogTrigger>
                 </div>
               )}
+              {isLoggedIn && data?.search_ai?.enabled !== false && (
+                <Button
+                  variant="tertiary"
+                  onPress={() => openGlobalSearch('ai', 'meetings')}
+                >
+                  {t('meetingAiSearch')}
+                </Button>
+              )}
               <ScheduledMeetingsList
                 enabled={!!isLoggedIn}
                 onSelect={setMeetingDetail}
@@ -420,7 +436,6 @@ export const Home = () => {
             }}
           />
         )}
-        {isLoggedIn && <PersonalAIFab />}
       </Screen>
     </UserAware>
   )

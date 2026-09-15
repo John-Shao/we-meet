@@ -14,8 +14,9 @@ import logging
 
 from django.conf import settings
 
-from rest_framework import permissions, status
+from rest_framework import permissions, status, serializers as drf_serializers
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.views import APIView
 
 from core.api import serializers, throttling
@@ -24,6 +25,21 @@ from core.api.viewsets import ServerSentEventRenderer, _sse_response
 from core.services.global_ask import GlobalAskService
 
 logger = logging.getLogger(__name__)
+
+
+class GlobalAskSerializer(serializers.AskPersonalAISerializer):
+    scope = drf_serializers.ChoiceField(choices=["all", "meetings"], default="all")
+    date_from = drf_serializers.DateField(required=False)
+    date_to = drf_serializers.DateField(required=False)
+
+    def validate(self, attrs):
+        if attrs.get("date_from") and attrs.get("date_to") and attrs["date_from"] > attrs["date_to"]:
+            raise drf_serializers.ValidationError("Start date must not follow end date.")
+        return attrs
+
+
+def ask_service(data):
+    return GlobalAskService(scope=data["scope"], date_from=data.get("date_from"), date_to=data.get("date_to"))
 
 
 class GlobalAskView(APIView):
@@ -37,16 +53,18 @@ class GlobalAskView(APIView):
 
     @FeatureFlag.require("search_ai")
     def post(self, request):
-        serializer = serializers.AskPersonalAISerializer(data=request.data)
+        serializer = GlobalAskSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         question = serializer.validated_data["question"]
         try:
-            result = GlobalAskService().ask(user=request.user, question=question)
-        except Exception as exc:  # pylint: disable=broad-except
+            result = ask_service(serializer.validated_data).ask(user=request.user, question=question)
+        except PermissionDenied:
+            raise
+        except Exception:  # pylint: disable=broad-except
             # LLM 失败在服务内已转 degraded;走到这里是检索层面的意外。
             logger.exception("global ask failed for user %s", request.user.pk)
             return Response(
-                {"error": f"Global ask failed: {exc}"},
+                {"error": "Search is unavailable. Please retry."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         return Response(result, status=status.HTTP_200_OK)
@@ -191,10 +209,10 @@ class GlobalAskStreamView(APIView):
 
     @FeatureFlag.require("search_ai")
     def post(self, request):
-        serializer = serializers.AskPersonalAISerializer(data=request.data)
+        serializer = GlobalAskSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         question = serializer.validated_data["question"]
-        event_iter = GlobalAskService().ask_stream(
+        event_iter = ask_service(serializer.validated_data).ask_stream(
             user=request.user, question=question
         )
         return _sse_response(event_iter, error_label="Global ask")

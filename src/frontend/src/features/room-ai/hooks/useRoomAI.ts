@@ -27,7 +27,7 @@ const MAX_HISTORY_MESSAGES = 6 // matches backend sanitise_history
 /**
  * Streaming, multi-turn conversation state for the room sidebar AI.
  *
- * Sprint 2.5 — same shape as `usePersonalAI`:
+ * Room-scoped streaming conversation:
  *   * POSTs to `/rooms/{id}/ask-ai-stream/` with the LiveKit token in
  *     the `Authorization` header (the endpoint authenticates against
  *     the room's LiveKit token, not the user session).

@@ -338,7 +338,7 @@
       "admin": "主持人设置",
       "tools": "更多工具",
       "info": "会议信息",
-      "roomAI": "会议 AI",
+      "roomAI": "问本场会议",
       "meetingNotes": "会议实录",
       "translation": "语音翻译",
       "interpretation": "会议同声传译"
@@ -352,7 +352,7 @@
       "admin": "主持人设置",
       "tools": "更多工具",
       "info": "会议信息",
-      "roomAI": "会议 AI",
+      "roomAI": "问本场会议",
       "meetingNotes": "会议实录",
       "translation": "语音翻译",
       "interpretation": "会议同声传译"

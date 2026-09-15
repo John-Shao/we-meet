@@ -71,9 +71,14 @@ class LLMObservability:
         Langfuse-wrapped OpenAI client that automatically traces all API calls
         to Langfuse for observability when enabled.
         """
+        api_key = settings.llm_api_key
+        if settings.llm_model.startswith("qwen"):
+            if not settings.dashscope_api_key:
+                raise ValueError("Qwen requires DASHSCOPE_API_KEY")
+            api_key = settings.dashscope_api_key
         base_args = {
             "base_url": settings.llm_base_url,
-            "api_key": settings.llm_api_key.get_secret_value(),
+            "api_key": api_key.get_secret_value(),
         }
 
         if not self.is_enabled:
@@ -126,6 +131,8 @@ class LLMService:
                     {"role": "user", "content": user_prompt},
                 ],
             }
+            if settings.llm_model.startswith("qwen3"):
+                params["extra_body"] = {"enable_thinking": False}
             if response_format is not None:
                 params["response_format"] = response_format
 

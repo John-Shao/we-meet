@@ -104,8 +104,9 @@ class Settings(BaseSettings):
     whisperx_default_language: Optional[str] = None
     whisperx_allowed_languages: Set[str] = {"en", "fr", "de", "nl"}
     llm_base_url: str
-    llm_api_key: SecretStr
+    llm_api_key: SecretStr = SecretStr("")
     llm_model: str
+    dashscope_api_key: Optional[SecretStr] = None
 
     # Transcription processing
     hallucination_patterns: List[str] = ["Vap'n'Roll Thierry"]

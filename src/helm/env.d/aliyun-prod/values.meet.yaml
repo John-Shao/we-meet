@@ -2,7 +2,7 @@
 #   - 4C8G Aliyun ECS in cn-shenzhen, single-node K3s
 #   - Keycloak running on a separate 2C2G ECS (id.we-meet.online)
 #   - Aliyun OSS as the S3-compatible media backend
-#   - 火山方舟 (Volcengine Ark) as the OpenAI-compatible LLM endpoint for summary
+#   - Alibaba Cloud Bailian Qwen for meeting transcription, summaries and QA
 #   - Recording disabled (待第二阶段加 livekit-egress + 第二台 ECS)
 #   - Subtitles/transcription disabled (current upstream agents code only supports
 #     deepgram/kyutai; 火山豆包 STT 需要后续移植自定义 plugin)
@@ -149,21 +149,11 @@ backend:
     SUMMARY_SERVICE_ENDPOINT: http://meet-summary:80/api/v1/tasks/
     # SUMMARY_SERVICE_API_TOKEN 来自 values.secrets.yaml
 
-    # Sprint 2.2.a — Meeting summary + action-item extraction.
-    # Uses Volcengine Ark via the OpenAI-compatible endpoint; same
-    # Ark account as agentSubtitles + agentAIAssistant.
-    DOUBAO_LLM_ENDPOINT: "ep-20260316164223-46rsh"
-    # ARK_API_KEY 来自 values.secrets.yaml
+    # All meeting text generation uses MEETING_SUMMARY_MODEL / DASHSCOPE_API_KEY.
+    # Old vectors remain keyword-searchable until an explicit Qwen reindex.
+    QWEN_EMBEDDING_MODEL: "text-embedding-v4"
 
-    # Sprint 2.4 — Cross-meeting AI (personal AI / RAG). Doubao multimodal
-    # embedding endpoint; reuses ARK_API_KEY. Doubao-embedding-large/text
-    # are slated for upstream deprecation; we use the vision variant which
-    # speaks the native /api/v3/embeddings/multimodal API (not OpenAI-compat
-    # — see core/services/embeddings.py).
-    # 留空时 embed_meeting_transcripts 静默 skip，/users/me/ai/ask 返回 503。
-    DOUBAO_EMBEDDING_ENDPOINT: "ep-20260528084632-l548s"
-
-    # Subtitles — Sprint 2.0 启用：multi_user_transcriber 已切换 Doubao Seed-ASR
+    # Realtime subtitles use Qwen ASR.
     ROOM_SUBTITLE_ENABLED: "True"
 
     # Telephony / external app / addons — 默认全关
@@ -172,7 +162,7 @@ backend:
     ADDONS_ENABLED: "False"
     METADATA_COLLECTOR_ENABLED: "True"
 
-    # AI assistant (Qwen-Omni / Doubao S2S / Doubao Pipeline)
+    # Meeting AI assistant (Qwen-Omni)
     # Agent worker registered under AI_AGENT_NAME; provider routing happens
     # via LiveKit job metadata. See agentAIAssistant block below.
     AI_AGENT_NAME: "ai-agent"
@@ -417,10 +407,13 @@ summary:
     AWS_S3_SECURE_ACCESS: "True"
     # AWS_S3_ACCESS_KEY_ID / AWS_S3_SECRET_ACCESS_KEY 来自 values.secrets.yaml
 
-    # 火山方舟 (Volcengine Ark) — OpenAI 兼容. ARK_API_KEY 与 endpoint 在客户控制台创建.
-    LLM_BASE_URL: https://ark.cn-beijing.volces.com/api/v3
-    LLM_MODEL: "ep-20260316164223-46rsh"   # 火山方舟接入点 ID, 形如 ep-XXXXXXXXXXXXX-XXXXX
-    # LLM_API_KEY 来自 values.secrets.yaml
+    # Legacy summary worker uses the same Qwen model and Bailian credentials.
+    LLM_BASE_URL: https://dashscope.aliyuncs.com/compatible-mode/v1
+    LLM_MODEL: "qwen3.8-flash"
+    DASHSCOPE_API_KEY:
+      secretKeyRef:
+        name: meet-ai-credentials
+        key: DASHSCOPE_API_KEY
 
     # WhisperX — v1 不开录制 → summary 不会真的发起音频转写, 这里只是
     # 占位满足 summary/core/config.py 的 pydantic 必填校验. 如果以后要
@@ -584,24 +577,18 @@ agentSubtitles:
       secretKeyRef:
         name: meet-ai-credentials
         key: DASHSCOPE_API_KEY
-    DOUBAO_ASR_MODEL: bigmodel
-    # DOUBAO_ASR_APP_ID / DOUBAO_ASR_ACCESS_TOKEN 来自 values.secrets.yaml
     # K8s 内部 service DNS — meet-backend service 监听 80 端口
     AGENT_BACKEND_API_URL: http://meet-backend
     # AGENT_INTERNAL_API_TOKEN 来自 values.secrets.yaml
     # Dedicated Qwen translation workers own translated output; keep originals separate.
     TRANSLATION_TARGET_LANGS: ""
-    DOUBAO_LLM_ENDPOINT: "ep-20260316164223-46rsh"
-    # ARK_API_KEY 来自 values.secrets.yaml
   command:
     - "python"
     - "multi_user_transcriber.py"
     - "start"
 
-# ---- AI assistant agent (Qwen-Omni / Doubao S2S / Doubao Pipeline) ----
-# Single worker, three architecturally distinct profiles dispatched via the
-# LiveKit job metadata's profile_code + architecture fields. Provider
-# credentials live in values.secrets.yaml.
+# ---- Meeting AI assistant agent (Qwen-Omni) ----
+# Meeting catalog and dispatch accept Qwen profiles; credentials stay in secrets.
 agentAIAssistant:
   enabled: true
   replicas: 1
@@ -625,19 +612,10 @@ agentAIAssistant:
     # LIVEKIT_API_SECRET 来自 values.secrets.yaml
     AI_AGENT_NAME: "ai-agent"
     FRAME_CAPTURE_INTERVAL: "1.0"
-    # Doubao pipeline's STT detects end-of-utterance on its own; Silero VAD
-    # would over-segment INGRESS streams. Matches jusi_meet doubao-ai-agent.
     ENABLE_SILERO_VAD: "true"
-    # ---- Doubao Pipeline endpoints (non-secret IDs) ----
-    DOUBAO_VLM_ENDPOINT: "ep-20260316163504-s4sb8"
-    DOUBAO_LLM_ENDPOINT: "ep-20260316164223-46rsh"
     # 以下所有 *_API_KEY / *_ACCESS_KEY / *_ACCESS_TOKEN / *_APP_ID
     # 来自 values.secrets.yaml:
     #   Qwen:           DASHSCOPE_API_KEY
-    #   Doubao S2S:     DOUBAO_S2S_APP_ID, DOUBAO_S2S_ACCESS_KEY
-    #   Doubao Pipeline: ARK_API_KEY, DOUBAO_ASR_APP_ID,
-    #                    DOUBAO_ASR_ACCESS_TOKEN, DOUBAO_TTS_APP_ID,
-    #                    DOUBAO_TTS_ACCESS_TOKEN
 
 # Meeting AI workers reuse credentials already supplied in values.secrets.yaml.
 # release-meet.sh agents pins all five processes to the selected immutable image.

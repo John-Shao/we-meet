@@ -59,5 +59,6 @@
     },
     "carouselLabel": "介绍幻灯片",
     "slidePosition": "第 {{current}} 张，共 {{total}} 张"
-  }
+  },
+  "meetingAiSearch": "AI 搜索"
 }

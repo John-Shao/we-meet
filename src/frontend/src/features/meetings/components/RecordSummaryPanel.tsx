@@ -1,3 +1,4 @@
+import { useSearch } from 'wouter'
 import { useEffect, useRef, useState, type ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
@@ -149,7 +150,10 @@ const RecordSummaryPanelContent = ({
   const pendingIntent = recovery.pending
   const inFlight = useRef(false)
   const [message, setMessage] = useState('')
-  const [tool, setTool] = useState<string>()
+  const search = useSearch()
+  const [tool, setTool] = useState<string | undefined>(() =>
+    new URLSearchParams(search).get('review') === 'true' ? 'edit' : undefined
+  )
   const [citation, setCitation] = useState<{
     snapshotId: string
     ref: RecordSourceReference

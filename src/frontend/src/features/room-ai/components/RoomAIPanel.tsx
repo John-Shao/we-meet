@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/api/ApiError'
 import ReactMarkdown from 'react-markdown'
 
-import { Text } from '@/primitives'
+import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { RoomMessageComposer } from '@/features/rooms/components/RoomMessageComposer'
 
@@ -130,7 +130,28 @@ export const RoomAIPanel = () => {
     <div className={containerStyle}>
       <div ref={scrollRef} className={messagesStyle}>
         {messages.length === 0 && !isAsking ? (
-          <Text className={hintStyle}>{t('hint')}</Text>
+          <div>
+            <Text className={hintStyle}>{t('hint')}</Text>
+            <div
+              className={css({
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem',
+                padding: '0 1rem',
+              })}
+            >
+              {(['summary', 'decisions', 'actions'] as const).map((key) => (
+                <Button
+                  key={key}
+                  variant="tertiary"
+                  isDisabled={!isReady || isAsking}
+                  onPress={() => submit(t(`prompts.${key}`))}
+                >
+                  {t(`prompts.${key}`)}
+                </Button>
+              ))}
+            </div>
+          </div>
         ) : (
           // Streaming bubbles show their own cursor while empty; no
           // need for a separate "thinking…" placeholder.

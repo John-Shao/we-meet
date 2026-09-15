@@ -51,7 +51,13 @@
     "clearFilters": "Clear filters",
     "taskError": "Task search is temporarily unavailable.",
     "retry": "Retry",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "aiScope": "Answer scope",
+    "aiScopeAll": "All accessible content",
+    "aiScopeMeetings": "Meetings and recordings",
+    "aiDateFrom": "From",
+    "aiDateTo": "To",
+    "aiDatesInvalid": "The end date must be on or after the start date."
   },
   "logout": "Sign out",
   "confirm": "Confirm",

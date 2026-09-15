@@ -5,11 +5,13 @@ import { css } from '@/styled-system/css'
 
 export function OriginalSearch({
   onSearch,
+  initialQuery = '',
 }: {
   onSearch: (query: string) => void
+  initialQuery?: string
 }) {
   const { t } = useTranslation('meetings')
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useState(initialQuery)
   return (
     <form
       className={css({

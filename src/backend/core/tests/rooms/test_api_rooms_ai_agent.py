@@ -64,7 +64,16 @@ def test_ai_agent_config_is_public():
     assert "profiles" in data
     assert "prompts" in data
     profile_codes = {p["code"] for p in data["profiles"]}
-    assert {"qwen", "doubao_s2s", "doubao_pipeline"}.issubset(profile_codes)
+    assert profile_codes == {"qwen"}
+
+
+@pytest.mark.parametrize("code", ["doubao_s2s", "doubao_pipeline"])
+def test_meeting_rejects_legacy_provider_profiles(code, mock_room_id, mock_livekit_token, mock_livekit_client):
+    room = RoomFactory(id=mock_room_id)
+    response = APIClient().post(f"/api/v1.0/rooms/{room.id}/start-ai-agent/",
+        {"profile_code": code}, HTTP_AUTHORIZATION=f"Bearer {mock_livekit_token}")
+    assert response.status_code == 400
+    mock_livekit_client.agent_dispatch.create_dispatch.assert_not_called()
 
 
 def test_start_ai_agent_requires_livekit_token():

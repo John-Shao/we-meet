@@ -51,7 +51,13 @@
     "clearFilters": "清除筛选",
     "taskError": "任务搜索暂不可用。",
     "retry": "重试",
-    "loading": "加载中…"
+    "loading": "加载中…",
+    "aiScope": "问答范围",
+    "aiScopeAll": "全部可访问内容",
+    "aiScopeMeetings": "会议与录音",
+    "aiDateFrom": "开始日期",
+    "aiDateTo": "结束日期",
+    "aiDatesInvalid": "结束日期不能早于开始日期。"
   },
   "logout": "退出登录",
   "confirm": "确定",

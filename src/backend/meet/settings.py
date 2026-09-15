@@ -1167,6 +1167,8 @@ class Base(Configuration):
     # Sprint 2.4 — Doubao text embedding endpoint (Ark /v1/embeddings).
     # Optional: when unset, the embedding pipeline silently skips, the
     # personal AI endpoint returns the misconfig error.
+    QWEN_EMBEDDING_MODEL = values.Value("text-embedding-v4", environ_prefix=None)
+
     DOUBAO_EMBEDDING_ENDPOINT = values.Value(
         None, environ_name="DOUBAO_EMBEDDING_ENDPOINT", environ_prefix=None
     )

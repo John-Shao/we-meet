@@ -99,6 +99,12 @@ class MeetingAIChartTest(unittest.TestCase):
                 self.assertEqual("True", env[flag]["value"], f"{name}:{flag}")
             self.assertEqual("qwen3.8-flash", env["MEETING_SUMMARY_MODEL"]["value"])
             self.assertEqual("meet-ai-credentials", env["DASHSCOPE_API_KEY"]["valueFrom"]["secretKeyRef"]["name"])
+            self.assertEqual("text-embedding-v4", env["QWEN_EMBEDDING_MODEL"]["value"])
+        for name in ("meet-summary", "meet-celery-summarize", "meet-celery-summary-backend"):
+            container = deployments[name]["spec"]["template"]["spec"]["containers"][0]
+            env = {item["name"]: item for item in container["env"]}
+            self.assertEqual("qwen3.8-flash", env["LLM_MODEL"]["value"])
+            self.assertEqual("meet-ai-credentials", env["DASHSCOPE_API_KEY"]["valueFrom"]["secretKeyRef"]["name"])
         for worker in WORKERS:
             container = deployments[f"meet-agent-{worker}"]["spec"]["template"]["spec"]["containers"][0]
             self.assertTrue(container["image"].startswith("jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:"))

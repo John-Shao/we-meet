@@ -56,7 +56,10 @@ function OriginalRead({
 }) {
   const { t } = useTranslation('meetings')
   const [cursors, setCursors] = useState<string[]>([''])
-  const [search, setSearch] = useState('')
+  const routeSearch = useSearch()
+  const [search, setSearch] = useState(
+    () => new URLSearchParams(routeSearch).get('q')?.slice(0, 200) ?? ''
+  )
   const client = useQueryClient()
   const endpoint = speakers
     ? 'speakers'
@@ -66,6 +69,7 @@ function OriginalRead({
   const path = `meeting-records/${record.id}/${endpoint}/?cursor=${encodeURIComponent(cursors.at(-1)!)}&q=${encodeURIComponent(search)}&expected_revision=${record.revision}`
   const searchForm = !speakers && (
     <OriginalSearch
+      initialQuery={search}
       onSearch={(query) => {
         setSearch(query)
         setCursors([''])

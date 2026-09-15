@@ -2,7 +2,7 @@
 
 Reads ``TranscriptChunk`` rows across every room the requesting user
 has access to, ranks by cosine similarity against the embedded
-question, hands the top-K to Doubao Pro with a citation-friendly system
+question, hands the top-K to Qwen with a citation-friendly system
 prompt.
 
 Privacy: the *only* place we enforce the user-visibility boundary is
@@ -20,6 +20,7 @@ import logging
 from typing import Iterator, Optional
 
 from django.conf import settings
+from django.db.models import Q
 from django.contrib.auth import get_user_model
 
 from core import models
@@ -184,7 +185,6 @@ class PersonalAIService:
 
         chunks = list(
             TranscriptChunk.objects.filter(room_id__in=room_ids)
-            .exclude(embedding=[])
             .only(
                 "id",
                 "room_id",
@@ -206,7 +206,7 @@ class PersonalAIService:
                 answer="这些会议里没有相关记录（暂时还没有完成索引的会议）。",
             )
 
-        q_vec = cached_embed(embed_client, question)
+        q_vec = cached_embed(embed_client, question) if any(c.embedding_model == embed_client.model for c in chunks) else None
         top = self._retrieve(q_vec, question, chunks)
         if not top:
             return self._empty_prep(
@@ -281,10 +281,12 @@ class PersonalAIService:
         (which guarantees TranscriptChunks were attempted). Anonymous
         users see nothing.
         """
-        if not user or not user.is_authenticated:
+        if not user or not user.is_authenticated or not user.is_active:
             return []
+        organizations = models.Membership.objects.filter(user=user,
+            status=models.MembershipStatusChoices.ACTIVE, organization__is_active=True).values("organization_id")
         return list(
-            Room.objects.filter(
+            Room.objects.filter(Q(organization__isnull=True) | Q(organization_id__in=organizations),
                 users=user,
                 summaries__status=Summary.Status.SUCCESS,
             )
@@ -304,8 +306,9 @@ class PersonalAIService:
         pure-vector behaviour.
         """
         candidate_n = getattr(settings, "RAG_CANDIDATE_N", DEFAULT_CANDIDATE_N)
-        vec_ranked = vector_rank(q_vec, chunks, top_n=candidate_n)
-        if not getattr(settings, "RAG_HYBRID_ENABLED", True):
+        compatible = [chunk for chunk in chunks if chunk.embedding_model == self._embed_client().model]
+        vec_ranked = vector_rank(q_vec, compatible, top_n=candidate_n) if compatible else []
+        if vec_ranked and not getattr(settings, "RAG_HYBRID_ENABLED", True):
             return vec_ranked[: self.TOP_K]
         bm25_ranked = bm25_rank(question, chunks, top_n=candidate_n)
         return reciprocal_rank_fusion(

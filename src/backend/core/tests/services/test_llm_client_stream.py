@@ -14,6 +14,22 @@ import pytest
 from core.services.llm_client import LLMClient
 
 
+def test_default_meeting_client_uses_qwen_without_ark_fallback(settings, fake_openai):
+    from core.services.llm_client import LLMUnavailable
+    settings.DASHSCOPE_API_KEY = "qwen-test-key"
+    settings.MEETING_SUMMARY_MODEL = "qwen3.8-flash"
+    settings.ARK_API_KEY = "legacy-key-must-not-be-used"
+    settings.DOUBAO_LLM_ENDPOINT = "legacy-endpoint"
+    client = LLMClient.from_settings()
+    assert client.model == "qwen3.8-flash"
+    fake_openai.chat.completions.create.return_value = iter([_chunk("answer")])
+    list(client.chat_stream(messages=[{"role": "user", "content": "question"}]))
+    assert fake_openai.chat.completions.create.call_args.kwargs["extra_body"] == {"enable_thinking": False}
+    settings.DASHSCOPE_API_KEY = ""
+    with pytest.raises(LLMUnavailable):
+        LLMClient.from_settings()
+
+
 def _chunk(text: str | None):
     """Mimic the openai SDK's chunk object: ``ev.choices[0].delta.content``."""
     return SimpleNamespace(

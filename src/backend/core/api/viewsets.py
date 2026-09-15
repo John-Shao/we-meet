@@ -1578,7 +1578,7 @@ class RoomViewSet(
         Public endpoint — the response contains no secrets, only choices
         the frontend needs to render the configuration panel.
         """
-        return drf_response.Response(get_ai_agent_config())
+        return drf_response.Response(get_ai_agent_config(meeting_only=True))
 
     @decorators.action(
         detail=True,
@@ -1610,6 +1610,7 @@ class RoomViewSet(
         requester_identity = getattr(request.auth, "identity", "") or ""
 
         profile, voice, prompt = resolve_profile_context(
+            meeting_only=True,
             profile_code=profile_code,
             voice_id=str(voice_id) if voice_id else None,
             prompt_id=str(prompt_id) if prompt_id else None,

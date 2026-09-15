@@ -1,14 +1,19 @@
 {
   "materialsUnavailable": "Materials for this session are unavailable, or you do not have access. Joining a meeting does not automatically grant access to its materials.",
   "toggle": {
-    "open": "Close meeting AI",
-    "closed": "Open meeting AI (answers from this meeting's transcript)"
+    "open": "Close meeting questions",
+    "closed": "Ask this meeting"
   },
-  "hint": "Ask the AI about this meeting. It answers from the live transcript. Examples:\n- What did Alice just say?\n- Summarise the last 5 minutes\n- Did we agree on the timeline?\n\nNote: only finalised transcript lines are available, so the very latest sentence may lag by 1–2 s.",
-  "placeholder": "Ask the meeting AI. Enter to send, Shift+Enter for newline",
+  "hint": "Ask about the transcript available for this meeting. Answers are private to you; untranscribed speech is not available yet.",
+  "placeholder": "Ask this meeting…",
   "inputAriaLabel": "Question input",
   "send": "Send",
   "sending": "Sending…",
   "thinking": "Thinking…",
-  "error": "Request failed: {{message}}"
+  "error": "Request failed: {{message}}",
+  "prompts": {
+    "summary": "Summarize the discussion so far",
+    "decisions": "What has been decided so far?",
+    "actions": "What are the action items?"
+  }
 }
