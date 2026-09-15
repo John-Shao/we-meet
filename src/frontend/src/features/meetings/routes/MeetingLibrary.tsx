@@ -7,6 +7,7 @@ import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useMeetingRecords } from '../api/fetchMeetingRecord'
 import { libraryLayout } from '../components/libraryStyles'
+import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import type {
   MeetingRecordFilters,
@@ -118,11 +119,9 @@ function RecordList({
 export function Library({
   viewerId,
   minutes = false,
-  captureEnabled = false,
 }: {
   viewerId: string
   minutes?: boolean
-  captureEnabled?: boolean
 }) {
   const { t } = useTranslation('meetings')
   const [scope, setScope] = useState<MeetingRecordFilters['scope']>('recent')
@@ -139,24 +138,9 @@ export function Library({
   return (
     <MeetingModuleShell>
       <main className={libraryLayout}>
-        <nav className={row} aria-label={t('library.navigation')}>
-          <Link href="/meeting">{t('library.home')}</Link>
-          <Link
-            href="/meeting/notes"
-            aria-current={!minutes ? 'page' : undefined}
-          >
-            {t('library.notes')}
-          </Link>
-          <Link
-            href="/meeting/minutes"
-            aria-current={minutes ? 'page' : undefined}
-          >
-            {t('library.minutes')}
-          </Link>
-          {captureEnabled && (
-            <Link href="/meeting/recording">{t('library.record')}</Link>
-          )}
-        </nav>
+        <MeetingModuleNav
+          current={minutes ? '/meeting/minutes' : '/meeting/notes'}
+        />
         <h1
           className={css({
             fontSize: '1.5rem',
@@ -264,7 +248,6 @@ function LibraryRoute({ minutes = false }: { minutes?: boolean }) {
       key={`${user.id}:${minutes}`}
       viewerId={user.id}
       minutes={minutes}
-      captureEnabled={!!data.meeting_records.capture_audio_enabled}
     />
   )
 }

@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSnapshot } from 'valtio'
-import { DialogTrigger } from 'react-aria-components'
 import {
   RiFlashlightLine,
   RiCalendarLine,
@@ -30,7 +29,6 @@ import { usePersistentUserChoices } from '@/features/rooms/livekit/hooks/usePers
 import { useCreateRoom } from '@/features/rooms/api/createRoom'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { CreateEventDialog } from '@/features/calendar'
-import { JoinMeetingDialog } from '@/features/home/components/JoinMeetingDialog'
 
 /**
  * 「视频会议」的一列功能导航:标题 + 会议设置 + 两栏磁贴。
@@ -87,7 +85,8 @@ export const MeetingNavPanel = () => {
 
   /**
    * 当前停留的二级页高亮为 `aria-current="page"`。
-   * 只给三个「页面」型入口标:快速会议 / 加入会议是动作(点完就进会),没有停留态。
+   * 只给**页面**型入口标:加入会议(点进去是 /meeting/join 那一页)、录音、会议笔记、
+   * 智能纪要都有停留态;快速会议是动作(点完就进会),没有停留态。
    * 这里刻意只加语义、不另做视觉选中态 —— 六个磁贴统一是浅主题色实心,再叠一层
    * 选中色需要一个新的语义角色,属于设计契约变更,没在这次改动里擅自决定。
    */
@@ -186,13 +185,16 @@ export const MeetingNavPanel = () => {
               <RiCalendarLine size={18} />
               {t('scheduleMeeting')}
             </Button>
-            <DialogTrigger>
-              <Button variant="tertiary" size="sm" className={tileBtn}>
-                <RiAddCircleLine size={18} />
-                {t('joinMeeting')}
-              </Button>
-              <JoinMeetingDialog />
-            </DialogTrigger>
+            <Button
+              variant="tertiary"
+              size="sm"
+              className={tileBtn}
+              aria-current={current('/meeting/join')}
+              onPress={() => navigateTo('joinMeeting')}
+            >
+              <RiAddCircleLine size={18} />
+              {t('joinMeeting')}
+            </Button>
             {data?.meeting_records?.capture_audio_enabled && (
               <Button
                 variant="tertiary"

@@ -12,6 +12,7 @@ import { CreateMeetingButton } from '@/features/sdk/routes/CreateMeetingButton'
 import { RecordingDownloadRoute } from '@/features/recording'
 import { MeetingDetailRoute } from '@/features/meetings'
 import { AudioRecording } from '@/features/meetings/routes/AudioRecording'
+import { JoinMeeting } from '@/features/meetings/routes/JoinMeeting'
 import {
   MeetingNotes,
   MeetingMinutes,
@@ -43,6 +44,7 @@ export const routes: Record<
   | 'recordingDownload'
   | 'meetingDetail'
   | 'audioRecording'
+  | 'joinMeeting'
   | 'meetingNotes'
   | 'meetingMinutes'
   | 'meetingRecord'
@@ -72,6 +74,13 @@ export const routes: Record<
     name: 'audioRecording',
     path: '/meeting/recording',
     Component: AudioRecording,
+  },
+  joinMeeting: {
+    name: 'joinMeeting',
+    // 「加入会议」原先是弹窗,现在是 /meeting/* 下的一个二级页(见
+    // features/meetings/routes/JoinMeeting.tsx)。
+    path: '/meeting/join',
+    Component: JoinMeeting,
   },
   meetingNotes: {
     name: 'meetingNotes',

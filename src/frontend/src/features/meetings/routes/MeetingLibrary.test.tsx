@@ -92,11 +92,12 @@ it('minutes uses the same record link with server-side summary and permission fi
     target: { value: 'shared' },
   })
   await screen.findByText(archived.title)
+  // 只看记录接口的请求:这一页现在还会读一次全局 config(页内那行导航要用它
+  // 决定显不显示「AI 录音」),那条请求没有 has_summary 这回事。
   const calls = vi
     .mocked(fetchApi)
-    .mock.calls.map(
-      ([path]) => new URL(path, 'https://fixture.invalid').searchParams
-    )
+    .mock.calls.filter(([path]) => path.includes('meeting-records'))
+    .map(([path]) => new URL(path, 'https://fixture.invalid').searchParams)
   expect(calls.every((params) => params.get('has_summary') === 'true')).toBe(
     true
   )
