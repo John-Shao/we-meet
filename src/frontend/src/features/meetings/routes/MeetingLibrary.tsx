@@ -9,6 +9,7 @@ import { useMeetingRecords } from '../api/fetchMeetingRecord'
 import { libraryLayout } from '../components/libraryStyles'
 import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
+import { RecordingUpload } from '../components/RecordingUpload'
 import type {
   MeetingRecordFilters,
   MeetingRecordSource,
@@ -153,6 +154,7 @@ export function Library({
         <p className={css({ marginBottom: '1rem' })}>
           {t(minutes ? 'library.minutesHint' : 'library.notesHint')}
         </p>
+        {!minutes && <RecordingUpload viewerId={viewerId} />}
         <form
           className={row}
           onSubmit={(event) => {

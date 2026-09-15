@@ -119,7 +119,7 @@ class MetadataManager:
         start_time = time.time()
         initial_metadata = {
             "start_time": start_time,
-            "asr_model": settings.whisperx_asr_model,
+            "asr_model": settings.qwen_file_asr_model,
             "retries": 0,
             "filename": filename,
             "email": email,

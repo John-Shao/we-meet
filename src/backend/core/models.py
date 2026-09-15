@@ -1185,10 +1185,47 @@ class CaptureSession(BaseModel):
         ):
             raise ValidationError("Published transcription must be a successful job of this capture.")
         if self.record_id and (
-            self.record.source_type != MeetingRecord.Source.AUDIO
+            self.record.source_type not in {MeetingRecord.Source.AUDIO, MeetingRecord.Source.UPLOAD}
             or self.record.owner_id != self.created_by_id
         ):
             raise ValidationError("Capture must belong to its audio-recording owner.")
+
+
+class UploadedRecording(BaseModel):
+    """Private file and durable asynchronous ASR state for one uploaded record."""
+
+    record = models.OneToOneField(MeetingRecord, on_delete=models.CASCADE, related_name="uploaded_recording")
+    capture = models.OneToOneField(CaptureSession, on_delete=models.CASCADE)
+    key = models.UUIDField(unique=True)
+    storage_name = models.CharField(max_length=500)
+    checksum = models.CharField(max_length=64)
+    size = models.PositiveBigIntegerField()
+    configuration = models.JSONField(default=dict)
+    status = models.CharField(max_length=16, default="queued", choices=[(s, s) for s in ("queued", "submitting", "running", "succeeded", "failed")])
+    provider_task_id = models.CharField(max_length=128, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+    attempt = models.PositiveIntegerField(default=1)
+    deadline = models.DateTimeField()
+    next_poll_at = models.DateTimeField()
+    lease_id = models.UUIDField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "next_poll_at"], name="upload_asr_poll_idx")]
+
+    def __str__(self):
+        return f"UploadedRecording({self.pk}, {self.status})"
+
+    def clean(self):
+        """A file's original text must remain attached to its own upload record."""
+        super().clean()
+        if self.record_id and self.capture_id and (
+            self.record.source_type != MeetingRecord.Source.UPLOAD
+            or self.capture.record_id != self.record_id
+            or self.capture.created_by_id != self.record.owner_id
+            or self.capture.status != CaptureSession.Status.STOPPED
+        ):
+            raise ValidationError("Uploaded recording must match its owner and source.")
 
 
 class CaptureOperation(BaseModel):

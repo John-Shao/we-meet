@@ -14,7 +14,8 @@ import wave
 from http import HTTPStatus
 from urllib.parse import urlsplit
 
-from plugins.qwen_asr import QwenASRConfig, QwenASRSession
+from plugins.qwen_asr import QwenASRConfig
+from plugins.qwen_filetrans import QwenFileASRConfig, QwenFileASRSession
 from transcript_writer import _open
 
 MAX_AUDIO_BYTES = 320044
@@ -166,7 +167,7 @@ def verified_pcm(data, source):
 class CaptureAttempt:
     """Own exactly one execution; cancellation cannot publish partial delivery."""
 
-    def __init__(self, backend, config, job, *, session_factory=QwenASRSession):
+    def __init__(self, backend, config, job, *, session_factory=QwenFileASRSession):
         """Keep audio bounded to one short chunk and text to one bounded FIFO."""
         self.backend, self.config, self.job = backend, config, job
         self.path = str(uuid.UUID(job["id"])) + "/"
@@ -255,15 +256,24 @@ class CaptureAttempt:
                     for offset in range(0, len(pcm), FRAME_BYTES):
                         frame = pcm[offset : offset + FRAME_BYTES]
                         yield frame
-                        await asyncio.sleep(len(frame) / 32000)
+                        await asyncio.sleep(0)
                     await self.control(
                         "ack_input", index=index, checksum=source["checksum"]
                     )
 
             session = self.session_factory(self.config)
             self.sessions.append(session)
+
+            async def file_final(sentence, a=start, b=end):
+                while self.queue.full():
+                    await asyncio.sleep(0.01)
+                self.final(sentence, a, b)
+
             await session.run(
-                audio(), lambda sentence, a=start, b=end: self.final(sentence, a, b)
+                audio(),
+                file_final
+                if isinstance(session, QwenFileASRSession)
+                else lambda sentence, a=start, b=end: self.final(sentence, a, b),
             )
             if not session.provider_finished:
                 raise CaptureError("provider_finish_missing")
@@ -277,7 +287,11 @@ class CaptureAttempt:
         first = await self.download(*runs[0][0])
         await self.control("begin")
         duration = sum(item[1]["duration_ms"] for run in runs for item in run)
-        async with asyncio.timeout(duration / 500 + 240):
+        async with asyncio.timeout(
+            86400
+            if isinstance(self.config, QwenFileASRConfig)
+            else duration / 500 + 240
+        ):
             async with asyncio.TaskGroup() as group:
                 group.create_task(self.produce(runs, first))
                 group.create_task(self.deliver())
@@ -329,10 +343,10 @@ async def serve(*, live=False, attempt_type=CaptureAttempt):
     """A separate process polls explicitly authorized jobs; it creates none itself."""
     if not os.getenv("DASHSCOPE_API_KEY"):
         raise CaptureError("dashscope_api_key_missing")
-    if not os.getenv("DASHSCOPE_WORKSPACE_ID"):
+    if live and not os.getenv("DASHSCOPE_WORKSPACE_ID"):
         raise CaptureError("dashscope_workspace_id_missing")
     try:
-        config = QwenASRConfig.from_env()
+        config = QwenASRConfig.from_env() if live else QwenFileASRConfig.from_env()
     except ValueError:
         raise CaptureError("qwen_asr_configuration_invalid") from None
     backend = CaptureBackend(

@@ -947,6 +947,10 @@ class Base(Configuration):
         ),
     }
     CELERY_BEAT_SCHEDULE = {
+        "tick-uploaded-recordings": {
+            "task": "core.tasks.uploaded_recordings.tick_uploaded_recordings",
+            "schedule": 10.0,
+        },
         "tick-cloud-recordings": {
             "task": "core.tasks.cloud_recording.tick_cloud_recordings",
             "schedule": 10.0,
@@ -1106,6 +1110,12 @@ class Base(Configuration):
     ROOM_INTERPRETATION_AGENT_NAME = values.Value("", environ_prefix=None)
     QWEN_ASR_MODEL = values.Value("qwen-audio-3.0-asr-flash-streaming", environ_prefix=None)
     QWEN_ASR_REGION = values.Value("cn-beijing", environ_prefix=None)
+    MEETING_FILE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_FILE_ASR_MAX_BYTES = values.PositiveIntegerValue(104857600, environ_prefix=None)
+    QWEN_FILE_ASR_MODEL = values.Value("qwen-audio-3.0-asr-flash-filetrans", environ_prefix=None)
+    QWEN_FILE_ASR_REGION = values.Value("cn-beijing", environ_prefix=None)
+    QWEN_FILE_ASR_BASE_URL = values.Value("", environ_prefix=None)
+    QWEN_FILE_ASR_STORAGE_ENDPOINT_URL = values.Value("", environ_prefix=None)
     ROOM_TRANSLATION_AGENT_NAME = values.Value("", environ_prefix=None)
     MEETING_SUMMARY_MODEL = values.Value("qwen3.8-flash", environ_prefix=None)
     MEETING_SUMMARY_BASE_URL = values.Value("https://dashscope.aliyuncs.com/compatible-mode/v1", environ_prefix=None)

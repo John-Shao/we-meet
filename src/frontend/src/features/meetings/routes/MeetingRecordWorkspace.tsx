@@ -26,6 +26,7 @@ import {
   type CaptureAudioHandle,
 } from '../components/CaptureAudioPlayer'
 import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
+import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
 import { libraryLayout } from '../components/libraryStyles'
 import { OriginalSearch } from '../components/OriginalSearch'
@@ -285,6 +286,12 @@ function WorkspaceContent({
         </TabList>
         {canReadText && (
           <TabPanel id="text" padding="md">
+            {record.source_type === 'upload' && (
+              <UploadedRecordingStatus
+                recordId={record.id}
+                viewerId={viewerId}
+              />
+            )}
             {readableCapture ? (
               <CaptureTranscriptionPanel
                 key={`${viewerId}:${source.id}`}

@@ -8,6 +8,7 @@ from rest_framework.routers import DefaultRouter, SimpleRouter
 
 from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
+from core.api.uploaded_recordings import UploadedRecordingView
 from core.api.admin_audit import AuditLogViewSet
 from core.api.admin_bots import AdminBotViewSet
 from core.api.admin_import import ImportJobViewSet, MemberExportView
@@ -401,6 +402,8 @@ urlpatterns = [
                 path("capture-sessions/<uuid:capture_id>/transcription/", CaptureTranscriptionView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/preview/", LiveTranscriptionPreviewView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/cancel/", CancelTranscriptionView.as_view()),
+                path("recording-uploads/", UploadedRecordingView.as_view(), name="recording-uploads"),
+                path("recording-uploads/<uuid:record_id>/", UploadedRecordingView.as_view(), name="recording-upload-state"),
                 path("capture-sessions/<uuid:capture_id>/audio/upload/", CaptureAudioUploadView.as_view(), name="capture-audio-upload"),
                 path("capture-sessions/<uuid:capture_id>/audio/seal/", CaptureAudioSealView.as_view(), name="capture-audio-seal"),
                 path("capture-sessions/<uuid:capture_id>/audio/<uuid:chunk_id>/", CaptureAudioDownloadView.as_view(), name="capture-audio-download"),

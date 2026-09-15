@@ -13,6 +13,7 @@ from capture_transcriber import (
     audio_runs,
     run_worker,
 )
+from plugins.qwen_asr import QwenASRSession
 
 PAGE_SIZE = 50
 INPUT_IDLE_SECONDS = 10
@@ -33,6 +34,7 @@ class LiveCaptureAttempt(CaptureAttempt):
 
     def __init__(self, *args, **kwargs):
         """Use the existing immutable final delivery queue and finish receipt."""
+        kwargs.setdefault("session_factory", QwenASRSession)
         super().__init__(*args, **kwargs)
         self.pending = deque()
         self.cursor = 0

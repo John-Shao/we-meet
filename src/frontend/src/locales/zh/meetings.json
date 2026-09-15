@@ -8,7 +8,10 @@
     "toolDescription": "选择收听语言，查看实时译文",
     "scope": "同传处理会议中各位发言人的麦克风声音。选择语言只影响你的收听，原声保持当前音量。",
     "listen": "选择收听语言",
-    "language": { "zh": "中文", "en": "英语" },
+    "language": {
+      "zh": "中文",
+      "en": "英语"
+    },
     "state": {
       "off": "未开启",
       "prepared": "等待收听者",
@@ -41,7 +44,10 @@
     "bidirectional": "双向翻译",
     "title": "译文",
     "scope": "这里保留开始翻译时选择保存的确认译文，与正式逐字稿分别存放。",
-    "language": { "zh": "中文", "en": "英语" },
+    "language": {
+      "zh": "中文",
+      "en": "英语"
+    },
     "status": {
       "capturing": "持续保存中",
       "complete": "已保存",
@@ -204,7 +210,10 @@
     "retry": "重试同一次创建",
     "confirm": "确认并创建任务",
     "cancel": "取消",
-    "status": { "todo": "待完成", "completed": "已完成" }
+    "status": {
+      "todo": "待完成",
+      "completed": "已完成"
+    }
   },
   "humanReview": {
     "history": "查看人工修订历史",
@@ -473,7 +482,10 @@
     "source": "说话语言",
     "target": "译为 {{language}}",
     "audio": "同时生成译音",
-    "language": { "zh": "中文", "en": "英语" },
+    "language": {
+      "zh": "中文",
+      "en": "英语"
+    },
     "state": {
       "off": "尚未开始",
       "starting": "正在连接翻译",
@@ -588,5 +600,28 @@
   "share": {
     "action": "分享会议",
     "sendFailed": "会议分享失败，请重试。"
+  },
+  "upload": {
+    "title": "上传录音转文字",
+    "hint": "支持常见音视频格式，单文件最大 {{size}} MB，最长 12 小时。",
+    "file": "录音文件",
+    "context": "上下文（可选，最多 400 字）",
+    "hotwords": "行业热词（可选，每行一个，最多 100 个）",
+    "consent": "点击后将文件发送至阿里云百炼进行转写，原文件保存在你的记录中。",
+    "submit": "上传并转写",
+    "uploading": "正在上传…",
+    "keepOpen": "上传期间请保持此页面打开；上传完成后可离开，转写会在后台继续。",
+    "error": "操作未完成。请检查文件格式、大小和网络；如已有转写任务，请稍后再试。",
+    "stateError": "暂时无法获取转写状态，请刷新页面重试。",
+    "unknown": "上次提交的结果未能确认。重新转写可能产生额外费用。",
+    "failedHint": "转写未完成，请检查音频是否有效后重试。",
+    "retry": "重新转写",
+    "status": {
+      "queued": "等待转写",
+      "submitting": "正在提交转写任务",
+      "running": "正在转写，可稍后回到此记录查看结果",
+      "succeeded": "转写完成",
+      "failed": "转写失败"
+    }
   }
 }

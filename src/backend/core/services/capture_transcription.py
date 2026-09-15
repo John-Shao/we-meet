@@ -204,8 +204,8 @@ def prepare(capture_id, user, key, payload):
             "runs": runs,
         },
         configuration={
-            "model": settings.QWEN_ASR_MODEL,
-            "region": settings.QWEN_ASR_REGION,
+            "model": settings.QWEN_ASR_MODEL if live else settings.QWEN_FILE_ASR_MODEL,
+            "region": settings.QWEN_ASR_REGION if live else settings.QWEN_FILE_ASR_REGION,
             **({"mode": "live"} if live else {}),
         },
         deadline=timezone.now() + timedelta(minutes=5),
@@ -329,11 +329,10 @@ def claim(worker_id, model, region, live=False):
         job = _expire(_locked(identity.pk))
         if job.status != "queued":
             continue
-        duration = sum(chunk["duration_ms"] for chunk in job.inputs["chunks"])
         job.status, job.worker_id = "running", worker_id
         job.lease_until = timezone.now() + timedelta(seconds=LEASE_SECONDS)
         job.deadline = timezone.now() + timedelta(
-            seconds=43500 if live else duration / 500 + 300
+            seconds=43500 if live else 86400
         )
         job.save(
             update_fields=[

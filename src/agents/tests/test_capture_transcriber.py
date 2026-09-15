@@ -212,7 +212,7 @@ class CaptureHTTPTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaisesRegex(
                     CaptureError, "dashscope_workspace_id_missing"
                 ):
-                    await serve()
+                    await serve(live=True)
                 backend.assert_not_called()
 
     async def test_invalid_asr_config_is_sanitized_before_network(self):
@@ -288,7 +288,7 @@ class CaptureStartupTests(unittest.TestCase):
             ):
                 with self.assertLogs("capture-transcriber", level="ERROR") as logs:
                     self.assertEqual(1, run_worker(live=live))
-                self.assertIn("dashscope_workspace_id_missing", logs.output[0])
+                self.assertIn("dashscope_workspace_id_missing" if live else "backend_configuration_required", logs.output[0])
                 self.assertNotIn("private-fixture", logs.output[0])
 
     def test_unknown_exception_never_logs_its_body(self):

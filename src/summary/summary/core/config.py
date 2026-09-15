@@ -84,6 +84,7 @@ class Settings(BaseSettings):
         validation_alias="AWS_STORAGE_BUCKET_NAME_VIDEO"
     )
     aws_s3_endpoint_url: str
+    aws_s3_public_endpoint_url: str = ""
     aws_s3_access_key_id: str
     aws_s3_secret_access_key: SecretStr
     aws_s3_secure_access: bool = True
@@ -91,7 +92,11 @@ class Settings(BaseSettings):
     aws_summary_path: str = "summaries"
 
     # AI-related settings
-    whisperx_api_key: SecretStr
+    dashscope_api_key: SecretStr = SecretStr("")
+    qwen_file_asr_model: str = "qwen-audio-3.0-asr-flash-filetrans"
+    qwen_file_asr_region: str = "cn-beijing"
+    qwen_file_asr_base_url: str = ""
+    whisperx_api_key: SecretStr = SecretStr("")
     whisperx_base_url: str = "https://api.openai.com/v1"
     whisperx_asr_model: str = "whisper-1"
     whisperx_max_retries: int = 0

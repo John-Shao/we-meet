@@ -8,7 +8,10 @@
     "toolDescription": "Choose a listening language and follow translated speech",
     "scope": "Interpretation uses each speaker's microphone. Your language choice affects only your listening; original audio keeps its current volume.",
     "listen": "Choose a listening language",
-    "language": { "zh": "Chinese", "en": "English" },
+    "language": {
+      "zh": "Chinese",
+      "en": "English"
+    },
     "state": {
       "off": "Not enabled",
       "prepared": "Waiting for listeners",
@@ -41,7 +44,10 @@
     "bidirectional": "Two-way translation",
     "title": "Translations",
     "scope": "Confirmed translations are saved only when selected at translation start, separately from the original transcript.",
-    "language": { "zh": "Chinese", "en": "English" },
+    "language": {
+      "zh": "Chinese",
+      "en": "English"
+    },
     "status": {
       "capturing": "Saving",
       "complete": "Saved",
@@ -204,7 +210,10 @@
     "retry": "Retry the same creation",
     "confirm": "Confirm and create task",
     "cancel": "Cancel",
-    "status": { "todo": "To do", "completed": "Completed" }
+    "status": {
+      "todo": "To do",
+      "completed": "Completed"
+    }
   },
   "humanReview": {
     "history": "View human revision history",
@@ -473,7 +482,10 @@
     "source": "Spoken language",
     "target": "Translate to {{language}}",
     "audio": "Generate translated audio",
-    "language": { "zh": "Chinese", "en": "English" },
+    "language": {
+      "zh": "Chinese",
+      "en": "English"
+    },
     "state": {
       "off": "Not started",
       "starting": "Connecting translation",
@@ -588,5 +600,28 @@
   "share": {
     "action": "Share meeting",
     "sendFailed": "Unable to share the meeting. Please try again."
+  },
+  "upload": {
+    "title": "Upload a recording",
+    "hint": "Common audio and video formats, up to {{size}} MB and 12 hours per file.",
+    "file": "Recording file",
+    "context": "Context (optional, up to 400 characters)",
+    "hotwords": "Industry terms (optional, one per line, up to 100)",
+    "consent": "Upload sends this file to Alibaba Cloud for transcription. The original is stored with your record.",
+    "submit": "Upload and transcribe",
+    "uploading": "Uploading…",
+    "keepOpen": "Keep this page open during upload. Transcription continues in the background afterwards.",
+    "error": "Could not complete this action. Check the file format, size and connection. If another transcription is active, try again later.",
+    "stateError": "Could not load transcription status. Refresh to try again.",
+    "unknown": "The previous submission could not be confirmed. Starting again may incur an additional charge.",
+    "failedHint": "Transcription did not complete. Check your audio and try again.",
+    "retry": "Transcribe again",
+    "status": {
+      "queued": "Waiting for transcription",
+      "submitting": "Submitting transcription",
+      "running": "Transcribing. You can return to this record later.",
+      "succeeded": "Transcription complete",
+      "failed": "Transcription failed"
+    }
   }
 }

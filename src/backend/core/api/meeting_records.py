@@ -175,6 +175,8 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
 
     def get_capture_id(self, obj):
         """An exact owner-only read link; never expose a device lease or pick latest."""
+        if obj.source_type == models.MeetingRecord.Source.UPLOAD:
+            return None
         captures = getattr(obj, "library_captures", [])
         if obj.owner_id == self.context["request"].user.pk and len(captures) == 1:
             return str(captures[0].pk)
@@ -628,9 +630,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=["get"], url_path="original-segments")
     def original_segments(self, request, pk=None):
         """Native standalone originals retain their own identity and source offsets."""
-        if not settings.MEETING_CAPTURE_PROTOCOL_ENABLED:
-            raise Http404
         record = self._content_record("read_transcript")
+        if not settings.MEETING_CAPTURE_PROTOCOL_ENABLED and record.source_type != models.MeetingRecord.Source.UPLOAD:
+            raise Http404
         rows = current_originals(record).select_related("speaker")
         job_id = request.query_params.get("transcription_job_id")
         if job_id:

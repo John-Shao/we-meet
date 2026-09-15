@@ -68,7 +68,7 @@ def claim(worker=None):
         "claim/",
         {
             "worker_id": str(worker),
-            "model": "qwen-audio-3.0-asr-flash-streaming",
+            "model": "qwen-audio-3.0-asr-flash-filetrans",
             "region": "cn-beijing",
         },
     )

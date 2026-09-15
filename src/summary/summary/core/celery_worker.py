@@ -6,7 +6,6 @@ import json
 import time
 from datetime import datetime
 
-import openai
 import sentry_sdk
 from celery import Celery, signals
 from celery.utils.log import get_task_logger
@@ -15,6 +14,7 @@ from requests import exceptions
 from summary.core.analytics import MetadataManager, get_analytics
 from summary.core.config import get_settings
 from summary.core.file_service import FileService, FileServiceException
+from summary.core.file_transcription import transcribe as transcribe_file
 from summary.core.llm_service import LLMException, LLMObservability, LLMService
 from summary.core.locales import get_locale
 from summary.core.models import (
@@ -84,80 +84,26 @@ def transcribe_audio(
     cloud_storage_url=None,
     raises: bool = False,
 ):
-    """Transcribe an audio file using WhisperX.
-
-    Downloads the audio from MinIO or a cloud storage URL, sends it to
-    WhisperX for transcription, and tracks metadata throughout the process.
-
-    Returns the transcription object, or None if the file could not be retrieved.
-    """
+    """Transcribe a complete recording with Qwen Filetrans, preserving webhook shape."""
     if bool(recording_filename) == bool(cloud_storage_url):
-        raise ValueError(
-            "Either filename or cloud_storage_url must be provided, but not both."
-        )
-
-    logger.info("Initiating WhisperX client")
-    whisperx_client = openai.OpenAI(
-        api_key=settings.whisperx_api_key.get_secret_value(),
-        base_url=settings.whisperx_base_url,
-        max_retries=settings.whisperx_max_retries,
-    )
-
-    # Transcription
+        raise ValueError("Supply exactly one audio source.")
+    started = time.monotonic()
     try:
-        with file_service.prepare_audio_file(
-            remote_object_key=recording_filename,
-            cloud_storage_url=cloud_storage_url,
-        ) as (audio_file, metadata):
-            metadata_manager.track(task_id, {"audio_length": metadata["duration"]})
-
-            # Compute language parameter
-            if language is None:
-                language = settings.whisperx_default_language
-                logger.info(
-                    "No language specified, using default from settings: %s",
-                    (language or "auto-detect"),
-                )
-            else:
-                logger.info(
-                    "Querying transcription in '%s' language",
-                    language,
-                )
-
-            # Call remote service for transcription
-            transcription_start_time = time.time()
-            transcription = whisperx_client.audio.transcriptions.create(
-                model=settings.whisperx_asr_model, file=audio_file, language=language
-            )
-
-            # Logging
-            transcription_duration = round(time.time() - transcription_start_time, 2)
-            metadata_manager.track(
-                task_id,
-                {"transcription_time": transcription_duration},
-            )
-            logger.info(
-                "Transcription received in %.2f seconds.", transcription_duration
-            )
-            logger.debug("Transcription: \n %s", transcription)
-
-    except FileServiceException as e:
-        # For v2 pipeline we want failures not silent errors like this
+        url = cloud_storage_url or file_service.get_audio_signed_url(recording_filename)
+        transcription = transcribe_file(
+            url,
+            settings,
+            language=language or settings.whisperx_default_language,
+            task_id=task_id,
+            ledger=celery.backend.client,
+        )
+    except FileServiceException:
         if raises:
-            raise e
-        redacted_cloud_storage_url = (
-            cloud_storage_url.split("?", 1)[0] if cloud_storage_url else None
-        )
-        logger.exception(
-            (
-                "Unexpected error while preparing file | filename: %s "
-                "| cloud_storage_url: %s"
-            ),
-            recording_filename,
-            redacted_cloud_storage_url,
-        )
+            raise
         return None
-
+    metadata_manager.track(
+        task_id, {"transcription_time": round(time.monotonic() - started, 2)}
+    )
     metadata_manager.track_transcription_metadata(task_id, transcription)
     return transcription
 
@@ -292,7 +238,7 @@ def process_audio_transcribe_summarize_v2(
     """Process an audio file by transcribing it and generating a summary.
 
     This Celery task orchestrates:
-    1. Audio transcription via WhisperX
+    1. Audio transcription via Qwen Filetrans
     2. Transcript formatting
     3. Webhook submission
     4. Conditional summarization queuing
@@ -524,7 +470,7 @@ def process_audio_transcribe_v2_task(
     """Process an audio file by transcribing it.
 
     This Celery task orchestrates:
-    1. Audio transcription via WhisperX
+    1. Audio transcription via Qwen Filetrans
     2. Store transcript result on S3
     3. Webhook submission
 

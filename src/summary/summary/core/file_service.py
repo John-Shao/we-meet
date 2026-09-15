@@ -144,6 +144,20 @@ class FileService:
         self._allowed_extensions = settings.recording_allowed_extensions
         self._max_duration = settings.recording_max_duration
 
+    def get_audio_signed_url(self, remote_object_key):
+        """Give the file-ASR provider temporary access to the existing recording."""
+        client = self._minio_client
+        if settings.aws_s3_public_endpoint_url:
+            client = Minio(
+                settings.aws_s3_public_endpoint_url.removeprefix("https://").removeprefix("http://").rstrip("/"),
+                access_key=settings.aws_s3_access_key_id,
+                secret_key=settings.aws_s3_secret_access_key.get_secret_value(),
+                secure=settings.aws_s3_secure_access,
+            )
+        return client.presigned_get_object(
+            self._bucket_name, remote_object_key, expires=timedelta(hours=24)
+        )
+
     def _download_from_minio(self, remote_object_key) -> Path:
         """Download file from MinIO to local temporary file.
 
