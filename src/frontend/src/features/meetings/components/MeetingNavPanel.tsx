@@ -23,9 +23,9 @@ import { useCreateRoom } from '@/features/rooms/api/createRoom'
 import { ResizablePanel } from '@/components/ResizablePanel'
 
 /**
- * 「视频会议」的一列功能导航:标题 + 会议设置 + 两栏磁贴。
+ * 「会议」的一列功能导航:标题 + 会议设置 + 两栏磁贴。
  *
- * 它是**模块级常驻栏**,不是首页专属:视频会议首页、录音、会议实录、智能纪要,
+ * 它是**模块级常驻栏**,不是首页专属:会议首页、录音、会议实录、智能纪要,
  * 以及进会前的预览页都渲染它,所以抽在这里而不是留在 Home 路由里 —— 否则这几页
  * 点进去导航栏就消失,只能靠浏览器后退。
  *
@@ -217,7 +217,7 @@ export const MeetingNavPanel = () => {
 }
 
 /**
- * 视频会议侧栏的功能磁贴:两栏网格里「图标在上、文字在下」。
+ * 会议侧栏的功能磁贴:两栏网格里「图标在上、文字在下」。
  *
  * 只切主轴方向 —— Button 基元的 `justifyContent/alignItems: center` 在两个方向
  * 上都把内容摆正,图标与文字的间距也直接沿用基元自己的 `gap`(0.5rem,恰好等于

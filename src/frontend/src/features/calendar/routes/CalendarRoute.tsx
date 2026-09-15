@@ -437,7 +437,7 @@ const CalendarAuthenticated = () => {
         }
       }}
     >
-      {/* 二级导航栏:迷你日历 + 即将开始,与「视频会议」侧栏对齐。可拖拽改宽。 */}
+      {/* 二级导航栏:迷你日历 + 即将开始,与「会议」侧栏对齐。可拖拽改宽。 */}
       {!sidebarCollapsed && (
         <ResizablePanel
           storageKey="we-meet:calendar-sidebar-width"

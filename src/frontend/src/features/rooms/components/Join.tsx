@@ -494,7 +494,7 @@ export const Join = ({
 
   return (
     <Screen footer={false}>
-      {/* 进会预览页也常驻「视频会议」导航列:从磁贴点进来时它不该消失。
+      {/* 进会预览页也常驻「会议」导航列:从磁贴点进来时它不该消失。
           这一页的版面是居中 hero,套不了 MeetingModuleShell,所以手动拼同一套
           moduleRow/moduleContent —— 右侧保持**竖直 flex**,里面那层
           `flexGrow: 1 + justifyContent: center` 才继续生效、hero 仍居中。 */}

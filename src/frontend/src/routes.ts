@@ -66,7 +66,7 @@ export const routes: Record<
 > = {
   home: {
     name: 'home',
-    // 视频会议主页迁到 /meeting;根路径 "/" 在 App.tsx 重定向到此。
+    // 会议主页迁到 /meeting;根路径 "/" 在 App.tsx 重定向到此。
     path: '/meeting',
     Component: HomeRoute,
   },

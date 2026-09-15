@@ -207,7 +207,7 @@ export const Home = () => {
       <Screen>
         {isLoggedIn ? (
           <div className={css({ display: 'flex', height: '100%' })}>
-            {/* 功能导航列已抽成 MeetingNavPanel:视频会议首页、录音、会议实录、
+            {/* 功能导航列已抽成 MeetingNavPanel:会议首页、录音、会议实录、
                 智能纪要、进会预览页共用同一列,别再往这里塞回内联版本。 */}
             <MeetingNavPanel />
             <main

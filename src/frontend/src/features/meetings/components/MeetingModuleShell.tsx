@@ -4,7 +4,7 @@ import { MeetingNavPanel } from './MeetingNavPanel'
 import { moduleContent, moduleRow } from './libraryStyles'
 
 /**
- * 「视频会议」二级页(录音 / 会议实录 / 智能纪要)的统一外壳:
+ * 「会议」二级页(录音 / 会议实录 / 智能纪要)的统一外壳:
  * 左列常驻 `MeetingNavPanel`,右列页面内容。
  *
  * 存在的理由:这三级页原先各自 `<Screen>` 一把,点进来左侧那列功能导航就消失,

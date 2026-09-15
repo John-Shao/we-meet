@@ -10,7 +10,7 @@ export const libraryLayout = css({
 })
 
 /**
- * 「视频会议」二级页的外壳:左列常驻导航面板,右列页面内容。
+ * 「会议」二级页的外壳:左列常驻导航面板,右列页面内容。
  *
  * 右列必须 `flex: 1 1 0` + `minWidth: 0`:面板是定宽(flexShrink 0),
  * 而页面自己的 <main> 写着 width:100% —— 不钉 minWidth 的话 100% 会把面板
