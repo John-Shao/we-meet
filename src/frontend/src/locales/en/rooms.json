@@ -339,7 +339,7 @@
       "tools": "More tools",
       "info": "Meeting information",
       "roomAI": "Meeting AI",
-      "meetingNotes": "Meeting notes",
+      "meetingNotes": "Meeting records",
       "translation": "Voice translation",
       "interpretation": "Meeting interpretation"
     },
@@ -353,7 +353,7 @@
       "tools": "more tools",
       "info": "meeting information",
       "roomAI": "meeting AI",
-      "meetingNotes": "meeting notes",
+      "meetingNotes": "meeting records",
       "translation": "voice translation",
       "interpretation": "meeting interpretation"
     },
@@ -377,7 +377,7 @@
         "body": "Save meetings as video."
       },
       "meetingNotes": {
-        "title": "Meeting notes",
+        "title": "Meeting records",
         "body": "This session's transcript, live summary and minutes"
       },
       "translation": {

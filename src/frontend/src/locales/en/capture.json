@@ -32,7 +32,7 @@
   "playbackRate": "Playback speed",
   "reloadAudio": "Reload audio",
   "back": "Back to meetings",
-  "scope": "Record an in-person meeting or interview. After saving audio, use available transcription and meeting notes features as needed.",
+  "scope": "Record an in-person meeting or interview. After saving audio, use available transcription and meeting records features as needed.",
   "asr": {
     "liveStart": "Start live transcription",
     "liveRetry": "Restart live transcription from saved audio",

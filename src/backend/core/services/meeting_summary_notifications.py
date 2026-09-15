@@ -137,7 +137,7 @@ def build_body(row, base):
                 "buttons": [
                     {
                         "id": "open-note",
-                        "text": "查看笔记" if zh else "Open note",
+                        "text": "查看实录" if zh else "Open record",
                         "style": "default",
                         "action": "url",
                         "url": url,

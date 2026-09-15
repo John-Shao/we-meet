@@ -339,7 +339,7 @@
       "tools": "更多工具",
       "info": "会议信息",
       "roomAI": "会议 AI",
-      "meetingNotes": "会议笔记",
+      "meetingNotes": "会议实录",
       "translation": "语音翻译",
       "interpretation": "会议同声传译"
     },
@@ -353,7 +353,7 @@
       "tools": "更多工具",
       "info": "会议信息",
       "roomAI": "会议 AI",
-      "meetingNotes": "会议笔记",
+      "meetingNotes": "会议实录",
       "translation": "语音翻译",
       "interpretation": "会议同声传译"
     },
@@ -377,7 +377,7 @@
         "body": "将会议保存为视频。"
       },
       "meetingNotes": {
-        "title": "会议笔记",
+        "title": "会议实录",
         "body": "查看本场会议的文字记录和智能纪要。"
       },
       "translation": {
