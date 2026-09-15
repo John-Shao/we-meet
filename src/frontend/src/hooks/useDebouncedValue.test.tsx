@@ -19,7 +19,13 @@ const Probe = ({
 
 /** 每次 commit 记下观察到的值 —— 调用方的查询 key 正是这么算出来的。 */
 const observed: string[] = []
-const Observer = ({ value, resetKey }: { value: string; resetKey: unknown }) => {
+const Observer = ({
+  value,
+  resetKey,
+}: {
+  value: string
+  resetKey: unknown
+}) => {
   const debounced = useDebouncedValue(value, 250, resetKey)
   useEffect(() => {
     observed.push(debounced)

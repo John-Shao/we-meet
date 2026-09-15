@@ -30,7 +30,11 @@ const baseActivity = (
 const keyOnlyT = ((key: string) => key) as unknown as TFunction<'tasks'>
 
 const statusSyncChanges = (
-  result: 'updated' | 'already_aligned' | 'skipped_manual_override' | 'skipped_conflict'
+  result:
+    | 'updated'
+    | 'already_aligned'
+    | 'skipped_manual_override'
+    | 'skipped_conflict'
 ): ApiTaskActivity['changes'] => ({
   status: { from: 'todo', to: 'completed' },
   source_action_item_sync: {
@@ -61,7 +65,9 @@ describe('taskActivityMessage', () => {
   it('renders a plain status change', () => {
     expect(
       taskActivityMessage(
-        baseActivity({ changes: { status: { from: 'todo', to: 'completed' } } }),
+        baseActivity({
+          changes: { status: { from: 'todo', to: 'completed' } },
+        }),
         keyOnlyT
       )
     ).toBe('history.events.status_changed')
@@ -86,7 +92,10 @@ describe('taskActivityMessage', () => {
 
   it('renders each status sync result', () => {
     expect(
-      taskActivityMessage(baseActivity({ changes: statusSyncChanges('updated') }), keyOnlyT)
+      taskActivityMessage(
+        baseActivity({ changes: statusSyncChanges('updated') }),
+        keyOnlyT
+      )
     ).toBe('history.events.status_changed_synced')
     expect(
       taskActivityMessage(

@@ -65,7 +65,7 @@ export const taskActivityMessage = (
       assignee == null
         ? null
         : 'to' in assignee
-          ? assignee.to?.name ?? null
+          ? (assignee.to?.name ?? null)
           : assignee.name
     return t('history.events.assignee_changed', {
       actor,

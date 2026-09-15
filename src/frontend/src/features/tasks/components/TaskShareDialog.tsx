@@ -56,9 +56,7 @@ export const TaskShareDialog = ({
                 {copied ? t('share.copied') : t('share.copy')}
               </button>
             </div>
-            {copyFailed && (
-              <p role="alert">{t('share.failed')}</p>
-            )}
+            {copyFailed && <p role="alert">{t('share.failed')}</p>}
           </div>
         ),
       }}

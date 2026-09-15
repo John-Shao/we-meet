@@ -67,10 +67,10 @@ describe('AttendeePicker organizer', () => {
     const user = userEvent.setup()
     const { onRoleChange } = renderPicker()
 
+    await user.click(screen.getByRole('button', { name: /form\.attendeeRole/ }))
     await user.click(
-      screen.getByRole('button', { name: /form\.attendeeRole/ })
+      await screen.findByRole('option', { name: 'form.optional' })
     )
-    await user.click(await screen.findByRole('option', { name: 'form.optional' }))
 
     expect(onRoleChange).toHaveBeenCalledWith('attendee-1', 'optional')
   })

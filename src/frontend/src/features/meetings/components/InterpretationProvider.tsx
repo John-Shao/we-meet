@@ -208,7 +208,6 @@ function InterpretationSession({
       }
     }, 250)
     return () => window.clearInterval(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desired, room, connectionSid])
 
   useEffect(() => {
@@ -265,7 +264,6 @@ function InterpretationSession({
       controller.abort()
       window.clearTimeout(timer)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desired, roomId, sid])
 
   useEffect(() => {

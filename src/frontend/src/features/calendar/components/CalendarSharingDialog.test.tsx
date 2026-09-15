@@ -81,9 +81,10 @@ describe('CalendarSharingDialog', () => {
     expect(
       container.querySelector('select')?.closest('[aria-hidden="true"]')
     ).not.toBeNull()
-    expect(
-      screen.getByRole('tab', { name: 'sharing.share' })
-    ).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'sharing.share' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
 
     await user.click(screen.getByRole('tab', { name: 'sharing.subscribe' }))
     await user.click(screen.getByRole('button', { name: 'pick-person' }))

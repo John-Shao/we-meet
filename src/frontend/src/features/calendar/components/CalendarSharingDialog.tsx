@@ -162,10 +162,12 @@ export const CalendarSharingDialog = ({ onClose, onChanged }: Props) => {
               value={mode}
               ariaLabel={t('sharing.title')}
               density="compact"
-              items={([
-                { id: 'share', label: t('sharing.share') },
-                { id: 'subscribe', label: t('sharing.subscribe') },
-              ] as const)}
+              items={
+                [
+                  { id: 'share', label: t('sharing.share') },
+                  { id: 'subscribe', label: t('sharing.subscribe') },
+                ] as const
+              }
               onChange={(value) => {
                 setMode(value)
                 setSelected(new Map())
