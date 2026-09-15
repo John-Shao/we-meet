@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
 import {
@@ -8,8 +9,7 @@ import {
   RiSettings3Line,
 } from '@remixicon/react'
 
-import { css } from '@/styled-system/css'
-import { Button } from '@/primitives'
+import { css, cx } from '@/styled-system/css'
 import { navigateTo } from '@/navigation/navigateTo'
 import { openSystemSettings } from '@/stores/systemSettings'
 import { useConfig } from '@/api/useConfig'
@@ -46,10 +46,11 @@ export const MeetingNavPanel = () => {
             height: '100%',
             borderRight: '1px solid token(colors.greyscale.200)',
             backgroundColor: 'subNavBg',
-            padding: '1.25rem 1rem',
+            // 内边距/行距与「审批」二级导航取同一档,两个模块并排看才是一套。
+            padding: '1rem 0.75rem',
             display: 'flex',
             flexDirection: 'column',
-            gap: '1rem',
+            gap: '0.25rem',
           })}
         >
           <div
@@ -57,6 +58,8 @@ export const MeetingNavPanel = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              margin: '0 0 0.5rem',
+              paddingX: '0.5rem',
             })}
           >
             <h1
@@ -93,57 +96,40 @@ export const MeetingNavPanel = () => {
           </div>
           <div
             className={css({
-              display: 'grid',
-              gridTemplateColumns: '1fr',
-              gap: '0.625rem',
-              alignItems: 'stretch',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.25rem',
             })}
           >
-            <Button
-              variant="tertiary"
-              size="sm"
-              className={tileBtn}
-              data-attr="meeting-home"
-              aria-current={current('/meeting')}
+            <NavRow
+              icon={<RiVidiconLine size={18} />}
+              label={t('library.video', { ns: 'meetings' })}
+              active={current('/meeting') === 'page'}
+              dataAttr="meeting-home"
               onPress={() => navigateTo('home')}
-            >
-              <RiVidiconLine size={18} />
-              {t('library.video', { ns: 'meetings' })}
-            </Button>
+            />
             {data?.meeting_records?.capture_audio_enabled && (
-              <Button
-                variant="tertiary"
-                size="sm"
-                className={tileBtn}
-                aria-current={current('/meeting/recording')}
+              <NavRow
+                icon={<RiMicLine size={18} />}
+                label={t('library.record', { ns: 'meetings' })}
+                active={current('/meeting/recording') === 'page'}
                 onPress={() => navigateTo('audioRecording')}
-              >
-                <RiMicLine size={18} />
-                {t('library.record', { ns: 'meetings' })}
-              </Button>
+              />
             )}
             {data?.meeting_records?.enabled && (
               <>
-                <Button
-                  variant="tertiary"
-                  size="sm"
-                  className={tileBtn}
-                  aria-current={current('/meeting/notes')}
+                <NavRow
+                  icon={<RiStickyNoteLine size={18} />}
+                  label={t('library.notes', { ns: 'meetings' })}
+                  active={current('/meeting/notes') === 'page'}
                   onPress={() => navigateTo('meetingNotes')}
-                >
-                  <RiStickyNoteLine size={18} />
-                  {t('library.notes', { ns: 'meetings' })}
-                </Button>
-                <Button
-                  variant="tertiary"
-                  size="sm"
-                  className={tileBtn}
-                  aria-current={current('/meeting/minutes')}
+                />
+                <NavRow
+                  icon={<RiSparklingLine size={18} />}
+                  label={t('library.minutes', { ns: 'meetings' })}
+                  active={current('/meeting/minutes') === 'page'}
                   onPress={() => navigateTo('meetingMinutes')}
-                >
-                  <RiSparklingLine size={18} />
-                  {t('library.minutes', { ns: 'meetings' })}
-                </Button>
+                />
               </>
             )}
           </div>
@@ -153,13 +139,64 @@ export const MeetingNavPanel = () => {
   )
 }
 
-const tileBtn = css({
-  justifyContent: 'flex-start',
-  minHeight: '3rem',
+/**
+ * 二级导航行。样式与「审批」「日历/任务/通讯录」等模块的二级导航一致:
+ * 静止态**透明底 + 灰字**,只有当前项填 `selected.bg`/`selected.text`
+ * —— `selected.*` 是全站二级导航/树形选中态的语义 token(见 ApprovalRoute、
+ * AdminShell、DepartmentTree 等二十余处)。
+ *
+ * 放在这里而不是复用 Button 基元:基元各档都带自己的底色/悬停色,叠一层
+ * `className` 去盖会撞上 panda-cx-atomic-order-trap(同属性原子类按样式表
+ * 顺序取胜,不是书写顺序)。所以和审批一样,**布局与状态拆成三个 css()**,
+ * 用 cx 叠加,谁赢是确定的。
+ */
+const NavRow = ({
+  icon,
+  label,
+  active,
+  dataAttr,
+  onPress,
+}: {
+  icon: ReactNode
+  label: string
+  active: boolean
+  dataAttr?: string
+  onPress: () => void
+}) => (
+  <button
+    type="button"
+    data-attr={dataAttr}
+    aria-current={active ? 'page' : undefined}
+    onClick={onPress}
+    className={cx(navRowBase, active ? navRowActive : navRowIdle)}
+  >
+    {icon}
+    {label}
+  </button>
+)
+
+const navRowBase = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.625rem',
+  paddingX: '0.625rem',
+  paddingY: '0.5rem',
+  borderRadius: '8px',
+  fontSize: '0.875rem',
+  cursor: 'pointer',
+  border: 'none',
   textAlign: 'left',
-  '&[aria-current="page"]': {
-    outline: '2px solid',
-    outlineColor: 'action.selected.on-container',
-    fontWeight: 'bold',
-  },
+  width: '100%',
+})
+
+const navRowIdle = css({
+  color: 'greyscale.700',
+  backgroundColor: 'transparent',
+  _hover: { backgroundColor: 'greyscale.100' },
+})
+
+const navRowActive = css({
+  backgroundColor: 'selected.bg',
+  color: 'selected.text',
+  fontWeight: '500',
 })
