@@ -96,6 +96,8 @@
     "minutes": "智能纪要",
     "record": "AI 录音",
     "home": "会议首页",
+    "video": "视频会议",
+    "createError": "暂时无法发起会议，请重试。",
     "navigation": "会议资料导航",
     "notesHint": "集中查看会议与录音的音视频、文字记录和智能纪要。",
     "minutesHint": "已生成纪要的记录；与会议实录共用同一份资料。",

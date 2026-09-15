@@ -96,6 +96,8 @@
     "minutes": "AI minutes",
     "record": "AI recording",
     "home": "Meetings",
+    "video": "Video meetings",
+    "createError": "Unable to start a meeting. Please try again.",
     "navigation": "Meeting library navigation",
     "notesHint": "Find audio, video, transcripts and AI minutes from meetings and recordings in one place.",
     "minutesHint": "Records with generated minutes, shared with the same meeting records library.",

@@ -159,15 +159,23 @@ export const Home = () => {
     userChoices: { username },
   } = usePersistentUserChoices()
 
-  const { mutateAsync: createRoom } = useCreateRoom()
-  /**
-   * 未登录落地页那条 CTA 行(下面 Columns 里)自己的预约弹窗。
-   *
-   * 它和 MeetingNavPanel 里那份是**两处**:外层 `isLoggedIn ? 工作台 : Columns`
-   * 已经保证进了 Columns 就一定是未登录,所以那一行的「已登录」分支其实不可达。
-   * 这里保持原样不动 —— 抽面板时把状态一起搬走会让这段编译不过,而顺手删掉
-   * 别人写的分支不属于本次改动范围。
-   */
+  const { mutateAsync: createRoom, isPending: creating } = useCreateRoom()
+  const [createError, setCreateError] = useState(false)
+  const handleCreate = async () => {
+    setCreateError(false)
+    try {
+      const owner = (user?.full_name || username || '').trim()
+      const name = owner
+        ? t('defaultRoomName', { user: owner })
+        : t('defaultRoomNameAnonymous')
+      const room = await createRoom({ name, username })
+      navigateTo('room', room.slug, {
+        state: { create: true, initialRoomData: room },
+      })
+    } catch {
+      setCreateError(true)
+    }
+  }
   const [scheduling, setScheduling] = useState(false)
   const qc = useQueryClient()
   const [redirectFailed, setRedirectFailed] = useState(false)
@@ -218,6 +226,50 @@ export const Home = () => {
                 padding: '1.5rem',
               })}
             >
+              <h1
+                className={css({
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold',
+                  marginBottom: '1rem',
+                })}
+              >
+                {t('library.video', { ns: 'meetings' })}
+              </h1>
+              <div
+                className={css({
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                })}
+              >
+                <Button
+                  variant="primary"
+                  data-attr="create-meeting"
+                  onPress={handleCreate}
+                  isDisabled={creating}
+                >
+                  {t('quickMeeting')}
+                </Button>
+                <Button
+                  variant="secondary"
+                  data-attr="join-meeting"
+                  onPress={() => navigateTo('joinMeeting')}
+                >
+                  {t('joinMeeting')}
+                </Button>
+                <Button
+                  variant="secondary"
+                  data-attr="schedule-meeting"
+                  onPress={() => setScheduling(true)}
+                >
+                  {t('scheduleMeeting')}
+                </Button>
+              </div>
+              {createError && (
+                <p role="alert">
+                  {t('library.createError', { ns: 'meetings' })}
+                </p>
+              )}
               <ScheduledMeetingsList
                 enabled
                 showEmpty

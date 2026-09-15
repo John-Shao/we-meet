@@ -30,18 +30,22 @@ export const MeetingModuleNav = ({ current }: { current?: string }) => {
   return (
     <nav className={row} aria-label={t('library.navigation')}>
       <Link href="/meeting" aria-current={at('/meeting')}>
-        {t('library.home')}
-      </Link>
-      <Link href="/meeting/notes" aria-current={at('/meeting/notes')}>
-        {t('library.notes')}
-      </Link>
-      <Link href="/meeting/minutes" aria-current={at('/meeting/minutes')}>
-        {t('library.minutes')}
+        {t('library.video')}
       </Link>
       {data?.meeting_records?.capture_audio_enabled && (
         <Link href="/meeting/recording" aria-current={at('/meeting/recording')}>
           {t('library.record')}
         </Link>
+      )}
+      {data?.meeting_records?.enabled && (
+        <>
+          <Link href="/meeting/notes" aria-current={at('/meeting/notes')}>
+            {t('library.notes')}
+          </Link>
+          <Link href="/meeting/minutes" aria-current={at('/meeting/minutes')}>
+            {t('library.minutes')}
+          </Link>
+        </>
       )}
     </nav>
   )
