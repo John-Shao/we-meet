@@ -631,5 +631,30 @@
       "succeeded": "转写完成",
       "failed": "转写失败"
     }
+  },
+  "minutesLibrary": {
+    "back": "返回智能纪要",
+    "all": "全部智能纪要",
+    "scope": {
+      "owned": "归我所有",
+      "participated": "我参与的",
+      "shared": "与我共享"
+    },
+    "empty": "暂无智能纪要",
+    "emptyHint": "试试其他分类或搜索词，也可以在会议实录中生成纪要。",
+    "recordedAt": "会议时间"
+  },
+  "minutesReader": {
+    "tools": "纪要工具",
+    "ask": "问问 AI",
+    "edit": "人工纪要",
+    "share": "分享",
+    "notify": "提醒",
+    "manage": "生成与设置",
+    "generatedAt": "生成于",
+    "sourceInfo": "查看生成信息",
+    "overview": "总结",
+    "history": "历史版本",
+    "export": "导出纪要"
   }
 }

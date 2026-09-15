@@ -114,6 +114,21 @@ beforeEach(() => {
 afterEach(() => {
   client.clear()
   vi.clearAllMocks()
+  window.history.replaceState(null, '', '/')
+})
+
+it('opens the summary tab directly from the minutes library without selecting a historical version', async () => {
+  window.history.replaceState(null, '', '/meeting/records/record?tab=summary')
+  show()
+  await screen.findByText('summary-workspace')
+  expect(
+    screen.getByRole('link', { name: 'minutesLibrary.back' })
+  ).toHaveAttribute('href', '/meeting/minutes')
+  expect(screen.getByRole('tab', { name: 'library.minutes' })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  expect(screen.queryByText('Shared original')).not.toBeInTheDocument()
 })
 
 it('reads an owner’s stopped cloud capture without any local journal or device commands', async () => {

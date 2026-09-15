@@ -631,5 +631,30 @@
       "succeeded": "Transcription complete",
       "failed": "Transcription failed"
     }
+  },
+  "minutesLibrary": {
+    "back": "Back to smart minutes",
+    "all": "All smart minutes",
+    "scope": {
+      "owned": "Owned by me",
+      "participated": "I participated",
+      "shared": "Shared with me"
+    },
+    "empty": "No smart minutes yet",
+    "emptyHint": "Try another category or search, or generate minutes from a meeting record.",
+    "recordedAt": "Meeting time"
+  },
+  "minutesReader": {
+    "tools": "Minutes tools",
+    "ask": "Ask AI",
+    "edit": "Reviewed minutes",
+    "share": "Share",
+    "notify": "Notifications",
+    "manage": "Generate & settings",
+    "generatedAt": "Generated",
+    "sourceInfo": "Generation details",
+    "overview": "Overview",
+    "history": "Version history",
+    "export": "Export minutes"
   }
 }

@@ -67,17 +67,19 @@ function RecordList({
   filters,
   ongoing,
   grid,
+  minutes = false,
 }: {
   viewerId: string
   filters: MeetingRecordFilters
   ongoing: boolean
   grid: boolean
+  minutes?: boolean
 }) {
   const { t } = useTranslation('meetings')
   const [cursors, setCursors] = useState<string[]>([''])
   const query = useMeetingRecords(viewerId, true, {
     ...filters,
-    is_ongoing: ongoing ? 'true' : 'false',
+    is_ongoing: minutes ? undefined : ongoing ? 'true' : 'false',
     cursor: cursors.at(-1),
   })
   if (query.isError)
@@ -92,7 +94,15 @@ function RecordList({
   if (!query.data) return <p role="status">{t('loading')}</p>
   if (ongoing && !query.data.results.length) return null
   return (
-    <section aria-label={t(ongoing ? 'library.ongoing' : 'library.archive')}>
+    <section
+      aria-label={t(
+        minutes
+          ? 'minutesLibrary.all'
+          : ongoing
+            ? 'library.ongoing'
+            : 'library.archive'
+      )}
+    >
       <h2
         className={css({
           fontSize: '0.875rem',
@@ -101,7 +111,13 @@ function RecordList({
           margin: '1.25rem 0 0.75rem',
         })}
       >
-        {t(ongoing ? 'library.ongoing' : 'library.archive')}
+        {t(
+          minutes
+            ? 'minutesLibrary.all'
+            : ongoing
+              ? 'library.ongoing'
+              : 'library.archive'
+        )}
       </h2>
       {!query.data.results.length && (
         <div
@@ -117,7 +133,9 @@ function RecordList({
             aria-hidden
             className={css({ margin: '0 auto 1rem', color: 'greyscale.400' })}
           />
-          <p className={css({ fontWeight: 600 })}>{t('library.empty')}</p>
+          <p className={css({ fontWeight: 600 })}>
+            {t(minutes ? 'minutesLibrary.empty' : 'library.empty')}
+          </p>
           <p
             className={css({
               marginTop: '0.5rem',
@@ -125,7 +143,7 @@ function RecordList({
               fontSize: '0.875rem',
             })}
           >
-            {t('library.emptyHint')}
+            {t(minutes ? 'minutesLibrary.emptyHint' : 'library.emptyHint')}
           </p>
         </div>
       )}
@@ -143,7 +161,8 @@ function RecordList({
         {query.data.results.map((record) => (
           <li key={record.id}>
             <Link
-              href={`/meeting/records/${record.id}`}
+              href={`/meeting/records/${record.id}${minutes ? '?tab=summary' : ''}`}
+              data-minutes={minutes}
               aria-label={record.title || t('library.untitled')}
               className={css({
                 display: 'flex',
@@ -164,6 +183,11 @@ function RecordList({
                   outline: '2px solid token(colors.primary.500)',
                   outlineOffset: '2px',
                 },
+                '&[data-minutes=true]': {
+                  borderColor: 'transparent',
+                  padding: '1.25rem 0.75rem',
+                  _hover: { backgroundColor: 'surface.canvas' },
+                },
               })}
             >
               <span
@@ -179,7 +203,9 @@ function RecordList({
                   color: 'primary.600',
                 })}
               >
-                {record.source_type === 'meeting' ? (
+                {minutes ? (
+                  <RiFileTextLine size={25} />
+                ) : record.source_type === 'meeting' ? (
                   <RiVidiconLine size={25} />
                 ) : record.source_type === 'upload' ? (
                   <RiUpload2Line size={25} />
@@ -209,6 +235,7 @@ function RecordList({
                   })}
                 >
                   <time dateTime={record.origin_at}>
+                    {minutes && `${t('minutesLibrary.recordedAt')} `}
                     {new Date(record.origin_at).toLocaleString(undefined, {
                       month: 'short',
                       day: 'numeric',
@@ -223,7 +250,7 @@ function RecordList({
                   <span aria-hidden>·</span>
                   <span>{t(`library.source.${record.source_type}`)}</span>
                 </p>
-                {(ongoing || record.has_summary) && (
+                {!minutes && (ongoing || record.has_summary) && (
                   <p
                     className={css({
                       display: 'flex',
@@ -278,7 +305,9 @@ export function Library({
   const { t } = useTranslation('meetings')
   const { data: config } = useConfig()
   const [, navigate] = useLocation()
-  const [scope, setScope] = useState<MeetingRecordFilters['scope']>('recent')
+  const [scope, setScope] = useState<MeetingRecordFilters['scope']>(
+    minutes ? 'owned' : 'recent'
+  )
   const [source, setSource] = useState<MeetingRecordSource | ''>('')
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
@@ -294,6 +323,7 @@ export function Library({
   return (
     <MeetingModuleShell compactNavigation>
       <main
+        data-minutes={minutes}
         className={css({
           width: '100%',
           maxWidth: '1120px',
@@ -301,6 +331,7 @@ export function Library({
           padding: { base: '1rem', md: '2rem 2.5rem' },
           minHeight: '100%',
           backgroundColor: 'surface.canvas',
+          '&[data-minutes=true]': { backgroundColor: 'surface.default' },
         })}
       >
         <div className={css({ md: { display: 'none' } })}>
@@ -372,11 +403,15 @@ export function Library({
               overflowX: 'auto',
             })}
           >
-            {(['recent', 'owned', 'shared'] as const).map((value) => (
+            {(minutes
+              ? (['owned', 'participated', 'shared'] as const)
+              : (['recent', 'owned', 'shared'] as const)
+            ).map((value) => (
               <button
                 key={value}
                 type="button"
                 aria-pressed={scope === value}
+                data-minutes={minutes}
                 onClick={() => setScope(value)}
                 className={css({
                   padding: {
@@ -398,9 +433,20 @@ export function Library({
                     outline: '2px solid token(colors.primary.500)',
                     outlineOffset: '2px',
                   },
+                  '&[data-minutes=true]': {
+                    backgroundColor: 'transparent',
+                    borderRadius: 0,
+                    borderBottom: '3px solid transparent',
+                    '&[aria-pressed=true]': {
+                      backgroundColor: 'transparent',
+                      borderBottomColor: 'primary.600',
+                    },
+                  },
                 })}
               >
-                {t(`library.scope.${value}`)}
+                {t(
+                  `${minutes ? 'minutesLibrary.scope' : 'library.scope'}.${value}`
+                )}
               </button>
             ))}
           </div>
@@ -409,7 +455,9 @@ export function Library({
             className={iconButton}
             aria-label={t('library.filters')}
             aria-expanded={showFilters}
-            aria-pressed={Boolean(source || scope === 'participated')}
+            aria-pressed={Boolean(
+              source || (!minutes && scope === 'participated')
+            )}
             onClick={() => setShowFilters(!showFilters)}
           >
             <RiFilter3Line size={20} aria-hidden />
@@ -498,13 +546,15 @@ export function Library({
                     )
                   }
                 >
-                  {(['recent', 'owned', 'participated', 'shared'] as const).map(
-                    (value) => (
+                  {(['recent', 'owned', 'participated', 'shared'] as const)
+                    .filter((value) => !minutes || value !== 'recent')
+                    .map((value) => (
                       <option key={value} value={value}>
-                        {t(`library.scope.${value}`)}
+                        {t(
+                          `${minutes ? 'minutesLibrary.scope' : 'library.scope'}.${value}`
+                        )}
                       </option>
-                    )
-                  )}
+                    ))}
                 </select>
               </label>
               <label>
@@ -529,19 +579,22 @@ export function Library({
             </div>
           )}
         </form>
-        <RecordList
-          key={`${filterKey}:ongoing`}
-          viewerId={viewerId}
-          filters={filters}
-          ongoing
-          grid={grid}
-        />
+        {!minutes && (
+          <RecordList
+            key={`${filterKey}:ongoing`}
+            viewerId={viewerId}
+            filters={filters}
+            ongoing
+            grid={grid}
+          />
+        )}
         <RecordList
           key={`${filterKey}:archive`}
           viewerId={viewerId}
           filters={filters}
           ongoing={false}
           grid={grid}
+          minutes={minutes}
         />
       </main>
     </MeetingModuleShell>

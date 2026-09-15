@@ -127,12 +127,28 @@ it('keeps upload and participation filters available and clears a submitted sear
   )
 })
 
-it('minutes uses the same record link with server-side summary and permission filters', async () => {
+it('minutes opens the summary reader and filters ownership on the server', async () => {
   show(true)
+  await screen.findByText(archived.title)
+  expect(
+    screen.getByRole('button', { name: 'minutesLibrary.scope.owned' })
+  ).toHaveAttribute('aria-pressed', 'true')
+  fireEvent.click(
+    screen.getByRole('button', { name: 'minutesLibrary.scope.participated' })
+  )
+  await waitFor(() =>
+    expect(
+      vi
+        .mocked(fetchApi)
+        .mock.calls.some(([path]) => path.includes('scope=participated'))
+    ).toBe(true)
+  )
   await screen.findByText(archived.title)
   fireEvent.click(screen.getByRole('button', { name: 'library.next' }))
   await screen.findByText('Second page')
-  fireEvent.click(screen.getByRole('button', { name: 'library.scope.shared' }))
+  fireEvent.click(
+    screen.getByRole('button', { name: 'minutesLibrary.scope.shared' })
+  )
   await screen.findByText(archived.title)
   // 只看记录接口的请求:这一页现在还会读一次全局 config(页内那行导航要用它
   // 决定显不显示「AI 录音」),那条请求没有 has_summary 这回事。
@@ -150,7 +166,7 @@ it('minutes uses the same record link with server-side summary and permission fi
   ).toBe(true)
   expect(screen.getByRole('link', { name: archived.title })).toHaveAttribute(
     'href',
-    '/meeting/records/archived'
+    '/meeting/records/archived?tab=summary'
   )
   fireEvent.change(screen.getByLabelText('library.search'), {
     target: { value: '  title & 中文  ' },

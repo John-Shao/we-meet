@@ -200,15 +200,17 @@ function WorkspaceContent({
   viewerId,
   summaryId,
   translations = false,
+  summary = false,
 }: {
   record: ApiMeetingRecord
   viewerId: string
   summaryId?: string
   translations?: boolean
+  summary?: boolean
 }) {
   const { t } = useTranslation('meetings')
   const [tab, setTab] = useState(
-    summaryId !== undefined
+    summaryId !== undefined || summary
       ? 'summary'
       : translations &&
           (record.source_type === 'meeting' || record.capture_id) &&
@@ -347,7 +349,10 @@ function WorkspaceContent({
             </TabPanel>
           )}
         {canReadSummary && (
-          <TabPanel id="summary" padding="md">
+          <TabPanel
+            id="summary"
+            className={css({ padding: { base: '1rem 0', md: '2rem' } })}
+          >
             <RecordSummaryPanel
               showHeading={false}
               selectedVersionId={summaryId}
@@ -436,6 +441,7 @@ export function RecordWorkspace({
   const summaryIds = search.getAll('summary')
   const summaryId = summaryIds.length > 1 ? '' : summaryIds[0]
   const translations = search.get('tab') === 'translations'
+  const summary = search.get('tab') === 'summary'
   const query = useMeetingRecord(viewerId, recordId, true)
   return (
     <Screen>
@@ -453,7 +459,11 @@ export function RecordWorkspace({
         })}
       >
         <Link
-          href="/meeting/notes"
+          href={
+            summary || summaryId !== undefined
+              ? '/meeting/minutes'
+              : '/meeting/notes'
+          }
           className={css({
             display: 'inline-flex',
             alignItems: 'center',
@@ -466,7 +476,11 @@ export function RecordWorkspace({
           })}
         >
           <RiArrowLeftLine size={20} aria-hidden />
-          {t('library.back')}
+          {t(
+            summary || summaryId !== undefined
+              ? 'minutesLibrary.back'
+              : 'library.back'
+          )}
         </Link>
         {query.isError ? (
           <div role="alert">
@@ -508,11 +522,12 @@ export function RecordWorkspace({
               {new Date(query.data.origin_at).toLocaleString()}
             </p>
             <WorkspaceContent
-              key={`${viewerId}:${recordId}:${summaryId ?? 'all'}:${translations}`}
+              key={`${viewerId}:${recordId}:${summaryId ?? 'all'}:${translations}:${summary}`}
               viewerId={viewerId}
               record={query.data}
               summaryId={summaryId}
               translations={translations}
+              summary={summary}
             />
           </>
         )}

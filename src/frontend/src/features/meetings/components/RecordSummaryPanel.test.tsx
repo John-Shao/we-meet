@@ -138,6 +138,34 @@ beforeEach(() => {
 afterEach(() => client?.clear())
 
 describe('Versioned summary requests', () => {
+  it('prioritizes the overview while keeping generation tools explicitly available', async () => {
+    withVersion = true
+    show()
+    expect(await screen.findByText('Protected minutes')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'recordAi.generate' })
+    ).not.toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'minutesReader.manage' })
+    )
+    expect(
+      screen.getByRole('button', { name: 'recordAi.generate' })
+    ).toBeVisible()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'minutesReader.manage' })
+    )
+    expect(
+      screen.queryByRole('button', { name: 'recordAi.generate' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'recordAi.source 0:00' })
+    ).toBeVisible()
+    expect(
+      mocks.fetchApi.mock.calls.filter(
+        ([, options]) => options?.method === 'POST'
+      )
+    ).toHaveLength(0)
+  })
   it.each([undefined, null, {}, { ...receipt(), job: null }, receipt('quick')])(
     'retains the exact request after malformed or mismatched success %j',
     async (invalid) => {
@@ -263,6 +291,9 @@ describe('Versioned summary requests', () => {
       return fallback(url, options)
     })
     show()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'minutesReader.manage' })
+    )
     fireEvent.click(
       await screen.findByRole('button', {
         name: 'recordAi.generateStage.realtime',
