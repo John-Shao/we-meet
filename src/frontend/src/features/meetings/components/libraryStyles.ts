@@ -7,16 +7,10 @@ import { css, cx } from '@/styled-system/css'
  *   ① 页壳 —— 铺满内容列（不再限宽居中）、占满高度、自己管滚动；
  *   ② 固定区 / 滚动区 —— 列表页钉头，仪表盘式页面整页滚；
  *   ③ 列表与行 —— 图标块、标题、辅助信息、区块标题。
+ *
+ * 模块内**不再有限宽居中的版心**：四个栏目页与三个次级页都走 `pageShell`，
+ * 原来那个 960px 的 `libraryLayout` 已随次级页收口一并删除。
  */
-
-export const libraryLayout = css({
-  maxWidth: '960px',
-  width: '100%',
-  margin: '0 auto',
-  padding: 'xl',
-  overflowY: 'auto',
-  overflowWrap: 'anywhere',
-})
 
 /**
  * 页壳。**不再设 maxWidth / margin auto**：原先版心锁在 1120px 居中，窗口一宽
@@ -26,6 +20,11 @@ export const libraryLayout = css({
 export const pageShell = (surface: 'canvas' | 'default' = 'canvas') =>
   css({
     flex: '1 1 0',
+    // `height: 100%` 与 `flex: 1 1 0` **两个都要**:前者给「父级不是 flex 列」的页面
+    // 兜底 —— 会议记录工作区直接挂在 <Screen> 下,没有 MeetingModuleShell。只写 flex
+    // 的话高度由内容决定,里面的 contentRegion 会塌成 0 高,Tabs 与搜索框跟着变成
+    // 零尺寸、点不动(这个回归是被 scripts/check-meeting-library-ui.mjs 抓到的)。
+    height: '100%',
     minHeight: 0,
     width: '100%',
     display: 'flex',
@@ -55,6 +54,44 @@ export const scrollRegion = css({
 
 /** 仪表盘式页面：整页一起滚（页头也跟着走），所以顶部要补一档页边距。 */
 export const wholePageScroll = cx(scrollRegion, css({ paddingTop: 'xl' }))
+
+/**
+ * 工作区内容区：占满剩余高度，**自己不带滚动** —— 转录 / 纪要 / 发言人这些面板
+ * 各自滚（见 MeetingRecordWorkspace 的 Tabs），外面再套一层会出双滚动条。
+ */
+export const contentRegion = css({
+  flex: '1 1 0',
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  paddingX: 'lg',
+  paddingBottom: 'xl',
+})
+
+/** 详情 / 工作区页头：返回链接 + 标题 + 元信息，与列表页头同一档留白。 */
+export const detailHeaderStack = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'sm',
+  marginBottom: 'lg',
+})
+
+/** 返回链接（详情 / 工作区页）：与列表页的「更多」同族 —— 蓝字 + hover 下划线。 */
+export const backLink = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 'xs',
+  width: 'fit-content',
+  textStyle: 'labelLarge',
+  color: 'text.link',
+  textDecoration: 'none',
+  borderRadius: 'field',
+  _hover: { textDecoration: 'underline' },
+  _focusVisible: {
+    outline: '2px solid token(colors.border.focus)',
+    outlineOffset: '2px',
+  },
+})
 
 /**
  * 页面主标题。四个栏目页(home 的 h1、录音、实录、纪要)共用一档,
@@ -128,6 +165,12 @@ export const rowMeta = css({
   color: 'text.secondary',
   margin: 0,
 })
+
+/** 元信息行(图标 + 来源 / 时间):与列表行的辅助信息同一档,详情页头用。 */
+export const metaLine = cx(
+  rowMeta,
+  css({ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'sm' })
+)
 
 /** 列表区块标题 + 统一间距(进行中/历史记录/历史录音/预约会议/全部智能纪要共用)。 */
 export const sectionHeading = cx(

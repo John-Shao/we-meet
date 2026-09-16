@@ -88,19 +88,32 @@
   内缩焦点环；列表卡 `listCard` + 行分隔线 `listRowDivider`。
   区块标题统一 `sectionHeading`（`titleSmall` + 次要色 + 统一上下间距）。
 
-按样板改过的页面：
+按样板改过的页面（含 2026-09-16 追加的三个次级页）：
 
 | 页面 | 滚动手感 | 列表风格 |
 | --- | --- | --- |
-| 智能纪要 `/meeting/minutes` | 钉头 | 样板本身（无边框阅读行） |
+| 智能纪要 `/meeting/minutes` | 钉头 | 样板本体（无边框阅读行） |
 | 会议实录 `/meeting/notes` | 钉头 | 网格卡（同一个 `Library` 组件） |
 | AI 录音 `/meeting/recording` | 钉头（入口块 + 标题固定） | 卡内行，已从「裸 24px 图标」换成样板行 |
 | 视频会议 `/meeting` | 整页滚 | 两段卡内行，已换成样板行几何与字阶 |
+| 录音详情 `/meeting/recording/history/:id` | 钉头（返回 + 标题） | 资料卡 |
+| 会议记录工作区 `/meeting/records/:recordId` | 钉头（返回 + 标题 + 元信息），滚动交给内部 Tabs 面板 | 面板自带 |
+| 录制页 `/meeting/recording/capture` | 钉头（返回 + 标题） | 表单卡 + 面板 |
 
-**刻意保留的一处例外**：「预约会议」列表卡仍是蓝调（`scheduledCard.*`，见
-`panda.config` 里那组 token 的说明）——它是产品层的「这是预约出来的会」标记，只统一了
-几何与行风格，没有改配色；因为卡片本身就是浅蓝底，行首图标块在这张卡里用实心品牌蓝 +
-反白图标，而不是样板的浅蓝块（同色叠同色等于没有）。
+次级页收口带出的两条经验：
+
+- **`pageShell` 必须同时写 `height: 100%` 与 `flex: 1 1 0`**。工作区页直接挂在
+  `<Screen>` 下、没有 `MeetingModuleShell`，父级不是 flex 列；只写 flex 时高度由内容
+  决定，里面的 `contentRegion` 会塌成 0 高、Tabs 与搜索框变成零尺寸点不动。
+  这个回归是被 `scripts/check-meeting-library-ui.mjs`（真实 Chromium）抓到的。
+- **工作区页头不能只看 `query.data`**：react-query 重取失败后仍保留上一次的 `data`，
+  页头在工作区上方，漏判 `isError` 会让「权限被撤销」时标题继续留在屏幕上。
+  现在统一用 `const record = query.isError ? undefined : query.data`。
+  这条是 `MeetingRecordWorkspace.test.tsx` 抓到的。
+
+「预约会议」列表卡**已按素卡统一**（原先是 `scheduledCard.*` 蓝调）：与「历史会议」
+同一张 `listCard`，行首图标块也换回样板的品牌浅蓝块；随之删掉了 `scheduledCard`
+token（`panda.config` 里那组已无任何引用）。区分「预约 / 历史」现在只靠区块标题。
 
 另：搜索框上限的 `maxLength={200}` 在收口 `SearchBox` 时补回（该基元不带此属性，
 改在受控值上截断）。
@@ -124,15 +137,17 @@
 
 - `npm run lint`、`npm run check`（prettier）、`npm run check:json`；
 - `npx tsc -b`；
-- `npm run check:colors`：58 组对比度配对 + 38 个已迁移源文件；
+- `npm run check:colors`：58 组对比度配对 + 40 个已迁移源文件；
 - `npm run check:foundations`：10 档 spacing、15 档字阶、7 档圆角、6 档高程、
-  12 档组件尺寸、37 个已迁移源文件；
+  12 档组件尺寸、39 个已迁移源文件；
 - `npx vitest run`：159 个文件 / 1027 条用例全绿。两条用例的同步方式随基元切换做了
   调整：`MeetingDetailPanel` 的「进入会议」不再把「加载中」写进按钮文案（改由
   `aria-busy` + 转圈表达），测试改为显式等待按钮可用；`MeetingLibrary` 的范围筛选
-  从 `aria-pressed` 按钮组变成 `tablist/tab`，断言随之改为 `aria-selected`；
+ 从 `aria-pressed` 按钮组变成 `tablist/tab`，断言随之改为 `aria-selected`；
+- `node scripts/check-meeting-library-ui.mjs`（仓库既有的真实 Chromium 走查，含工作区）
+  通过 —— 次级页收口时它先报出「页面壳高度塌陷、搜索框点不动」，改完复跑通过；
 - `node scripts/check-meeting-pages-ui.mjs`（真实 Chromium，需先起 dev server）：
-  四个页面在 1180px 与 390px 下均无横向滚动、分段控件键盘可切换、图标开关
+  四个栏目页在 1180px 与 390px 下均无横向滚动、分段控件键盘可切换、图标开关
   `aria-pressed` 同步、Tab 焦点有可见描边、浅深两套主题下语义 token 正确翻转；
   样板的每条规则都有断言锁住：
   - 铺满：页壳宽度必须**等于**内容列宽度（限宽居中的版心会让这条失败），卡片左右
@@ -143,6 +158,10 @@
   - 行风格：三页的行首图标块都必须是 48×48、标题都是 16px；
   - 数据量：归档 / 录音 fixture 各 24 条（页面按 20 条截断），否则列表滚不动、
     钉头那条断言会退化成恒真。
+  次级页（录音详情 / 记录工作区 / 录制页）不在这个脚本里：前两页要从 wouter Route
+  取 `:recordId`，而该脚本是「同一个 root 连续挂载多个页面」的写法，路由状态会滞后；
+  它们分别由 `check-meeting-library-ui.mjs`（工作区）与 `check-capture-ui.mjs`
+  （录制页，见下方遗留）覆盖。
 
 ### 走查截图
 
@@ -157,11 +176,12 @@
 - AI 录音：[1180px](meetings-ux-assets/desktop-recording.png)、
   [390px](meetings-ux-assets/mobile-recording.png)
 - 深色主题（实录）：[1180px](meetings-ux-assets/dark-records.png)
+- 会议记录工作区（钉头 + 内部面板自滚）：[390px](meetings-ux-assets/mobile-workspace.png)
+- 录制页（钉头 + 表单卡）：[1280px](meetings-ux-assets/desktop-capture.png)
 
 ## 遗留（未在本次改动）
 
-- 次级页（录音详情 `/meeting/recording/history/:id`、会议记录工作区
-  `/meeting/records/:recordId`、录制页 `/meeting/recording/capture`）仍用
-  `libraryLayout` 的限宽居中版心：它们是阅读 / 编辑型页面，不在「列表页 / 仪表盘式
-  页面」这两条规则里，保留可读行宽；等有明确结论再收。
 - 录制工作区与纪要/翻译面板仍是手写样式，属于下一批业务域收口。
+- `scripts/check-capture-ui.mjs` 在**本次改动之前就已经失败**（`播放` 按钮那一步超时）：
+  我在 HEAD 上复跑过同一条命令，报错与行号完全一致，所以与本次版面改动无关，
+  没在这个分支里顺手修。

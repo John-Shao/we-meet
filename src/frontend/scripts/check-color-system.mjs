@@ -48,6 +48,8 @@ const migratedSourceUrls = [
   '../src/features/meetings/components/RecordingUpload.tsx',
   '../src/features/meetings/routes/RecordingOverview.tsx',
   '../src/features/meetings/routes/RecordingDetail.tsx',
+  '../src/features/meetings/routes/MeetingRecordWorkspace.tsx',
+  '../src/features/meetings/routes/AudioRecording.tsx',
   '../src/features/meetings/routes/MeetingLibrary.tsx',
   '../src/features/home/routes/Home.tsx',
 ].map((path) => new URL(path, import.meta.url))

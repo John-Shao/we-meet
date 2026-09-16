@@ -9,8 +9,11 @@ import { Button } from '@/primitives'
 import { useVideoMeetings } from '../api/videoMeetings'
 import type { MeetingSelection } from './MeetingDetailPanel'
 import {
+  listCard,
+  listRowDivider,
   rowBody,
   rowHeadingOneLine,
+  rowIconTile,
   rowMetaBlock,
   sectionHeading,
 } from './libraryStyles'
@@ -25,29 +28,9 @@ const sectionStack = css({
 })
 
 /**
- * 预约会议列表卡。**刻意保留蓝调**(`scheduledCard.*`,见 panda.config 里那组
- * token 的说明):它是产品层的「这是预约出来的会」标记,与历史会议的素卡区分开。
- * 几何(圆角、分隔线、行高、行间距)已与其它列表统一。
- */
-const scheduledListCard = css({
-  listStyle: 'none',
-  padding: 0,
-  margin: 0,
-  width: '100%',
-  border: '1px solid token(colors.scheduledCard.border)',
-  borderRadius: 'card',
-  backgroundColor: 'scheduledCard.bg',
-  overflow: 'hidden',
-})
-
-/** 卡内分隔线:预约卡自己的边框色。 */
-const scheduledRowDivider = css({
-  '& + &': { borderTop: '1px solid token(colors.scheduledCard.border)' },
-})
-
-/**
  * 会议行。选中底色必须和基类写在**同一个 css()** 里:cx 叠加同属性原子类按
  * 样式表顺序取胜(见 memory: panda-cx-atomic-order-trap),拆开会随机丢选中态。
+ * 几何与样板对齐(行首 48px 图标块、lg 内边距、lg 间距)。
  */
 const rowButton = (selected: boolean) =>
   css({
@@ -58,32 +41,19 @@ const rowButton = (selected: boolean) =>
     minHeight: 'controlHeight.large',
     textAlign: 'left',
     border: 'none',
-    backgroundColor: selected ? 'scheduledCard.hover' : 'transparent',
+    backgroundColor: selected ? 'action.selected.bg' : 'transparent',
+    color: selected ? 'action.selected.text' : 'text.primary',
     paddingY: 'md',
     paddingX: 'lg',
     cursor: 'pointer',
-    transition: 'background-color token(durations.fast)',
-    _hover: { backgroundColor: 'scheduledCard.hover' },
+    transition:
+      'background-color token(durations.fast), color token(durations.fast)',
+    _hover: { backgroundColor: 'surface.canvas' },
     _focusVisible: {
       outline: '2px solid token(colors.border.focus)',
       outlineOffset: '-2px',
     },
   })
-
-/**
- * 行首图标块。这一份**故意不用样板的浅蓝底**:卡片本身就是浅蓝底
- * (`scheduledCard.bg`),再叠一层同色块等于没有,所以改用实心品牌蓝 + 反白图标。
- */
-const rowIcon = css({
-  flexShrink: 0,
-  display: 'grid',
-  placeItems: 'center',
-  width: '3xl',
-  height: '3xl',
-  borderRadius: 'control',
-  backgroundColor: 'action.primary.bg',
-  color: 'action.primary.text',
-})
 
 /** 时间那一行:与其它列表同一样式。 */
 const rowTime = rowMetaBlock
@@ -189,11 +159,11 @@ export const ScheduledMeetingsList = ({
   return (
     <div className={sectionStack}>
       {header(t('home.scheduledTitle'))}
-      <ul className={scheduledListCard}>
+      <ul className={listCard}>
         {visible.map((m) => {
           const label = m.name || t('home.untitled')
           return (
-            <li key={m.id} className={scheduledRowDivider}>
+            <li key={m.id} className={listRowDivider}>
               <button
                 type="button"
                 data-testid={`scheduled-row-${m.id}`}
@@ -210,7 +180,7 @@ export const ScheduledMeetingsList = ({
                 }
                 className={rowButton(selectedId === m.id)}
               >
-                <span aria-hidden className={rowIcon}>
+                <span aria-hidden className={rowIconTile}>
                   <RiCalendarLine size={24} />
                 </span>
                 <span className={rowBody}>

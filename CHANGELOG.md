@@ -71,6 +71,10 @@ and this project adheres to
 - 📝(docs) record the meeting module UX migration and its contract checks
 - ♻️(frontend) give every meeting page the same full-width layout, type scale
   and row style, with the record lists keeping a fixed toolbar
+- ♻️(frontend) extend that meeting page template to the recording detail,
+  record workspace and capture pages
+- ♻️(frontend) make the scheduled meetings card a plain card like the other
+  meeting lists
 
 ## [1.16.0] - 2026-05-13
 

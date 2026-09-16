@@ -318,6 +318,8 @@ const migratedTypographySources = [
   '../src/features/meetings/components/RecordingUpload.tsx',
   '../src/features/meetings/routes/RecordingOverview.tsx',
   '../src/features/meetings/routes/RecordingDetail.tsx',
+  '../src/features/meetings/routes/MeetingRecordWorkspace.tsx',
+  '../src/features/meetings/routes/AudioRecording.tsx',
   '../src/features/meetings/routes/MeetingLibrary.tsx',
 ].map((path) => new URL(path, import.meta.url))
 
@@ -368,6 +370,8 @@ const migratedShapeSources = [
   '../src/features/meetings/components/RecordingUpload.tsx',
   '../src/features/meetings/routes/RecordingOverview.tsx',
   '../src/features/meetings/routes/RecordingDetail.tsx',
+  '../src/features/meetings/routes/MeetingRecordWorkspace.tsx',
+  '../src/features/meetings/routes/AudioRecording.tsx',
   '../src/features/meetings/routes/MeetingLibrary.tsx',
 ].map((path) => new URL(path, import.meta.url))
 

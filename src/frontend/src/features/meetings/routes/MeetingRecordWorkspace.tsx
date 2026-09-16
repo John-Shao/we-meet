@@ -9,7 +9,7 @@ import { useUser } from '@/features/auth'
 import { Screen } from '@/layout/Screen'
 import { Button } from '@/primitives'
 import { Tabs, Tab, TabList, TabPanel } from '@/primitives/Tabs'
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
 import { useMeetingRecord, useRecordSummaries } from '../api/fetchMeetingRecord'
 import type {
   ApiMeetingRecord,
@@ -28,12 +28,27 @@ import {
 import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
-import { libraryLayout } from '../components/libraryStyles'
+import { StateHint } from '@/components/StateHint'
+import {
+  backLink,
+  contentRegion,
+  detailHeaderStack,
+  metaLine,
+  pageFixedTop,
+  pageShell,
+  pageTitle,
+} from '../components/libraryStyles'
 import { OriginalSearch } from '../components/OriginalSearch'
 import { TranslationArchivePanel } from '../components/TranslationArchivePanel'
 import { CaptureTranslationArchives } from '../components/CaptureTranslationArchives'
 import { TranscriptSegment } from '../components/TranscriptSegment'
 import { RiArrowLeftLine, RiTimeLine } from '@remixicon/react'
+
+/** 页壳与标题:与列表页同一套(铺满 + 阅读面底色)。 */
+const readerShell = pageShell('default')
+
+/** 记录标题:页面主标题一档,长标题换行到两行。 */
+const recordTitleCls = cx(pageTitle, css({ overflowWrap: 'anywhere' }))
 
 const privateOptions = { retry: false, gcTime: 0, staleTime: 0 }
 const textStyle = css({
@@ -277,15 +292,15 @@ function WorkspaceContent({
             overflowX: 'auto',
             flexShrink: 0,
             whiteSpace: 'nowrap',
-            borderBottom: '1px solid token(colors.greyscale.200)',
+            borderBottom: '1px solid token(colors.border.subtle)',
           },
           '& [role=tab]': { flexShrink: 0 },
           '& [role=tab][aria-selected=false]': {
             borderBottomColor: 'transparent',
-            color: 'greyscale.600',
+            color: 'text.secondary',
           },
           '& [role=tab][aria-selected=true]': {
-            color: 'primary.700',
+            color: 'text.link',
             fontWeight: 600,
           },
           '& [role=tabpanel]': {
@@ -400,7 +415,7 @@ function WorkspaceContent({
               columnGap: '2rem',
               rowGap: '1.25rem',
               padding: '1rem 0',
-              '& dt': { color: 'greyscale.600' },
+              '& dt': { color: 'text.secondary' },
             })}
           >
             <dt>{t('library.sourceLabel')}</dt>
@@ -419,7 +434,7 @@ function WorkspaceContent({
           className={css({
             flexShrink: 0,
             backgroundColor: 'surface.default',
-            borderTop: '1px solid token(colors.greyscale.200)',
+            borderTop: '1px solid token(colors.border.subtle)',
           })}
         >
           <CaptureAudioPlayer
@@ -449,94 +464,77 @@ export function RecordWorkspace({
   const translations = search.get('tab') === 'translations'
   const summary = search.get('tab') === 'summary'
   const query = useMeetingRecord(viewerId, recordId, true)
+  /**
+   * 权限被撤销(401/403/404)时**不能再显示任何私有内容** —— 连标题都不行。
+   * react-query 在重取失败后仍保留上一次的 `data`,所以这里不能只看 `data`:
+   * 页头在工作区上方,一旦漏掉这个判断,标题会跟着错误页一起留在屏幕上。
+   */
+  const record = query.isError ? undefined : query.data
   return (
     <Screen>
-      <main
-        className={css({
-          maxWidth: '1120px',
-          width: '100%',
-          height: '100%',
-          minHeight: 0,
-          margin: '0 auto',
-          padding: { base: '1rem', md: '1.5rem 2.5rem' },
-          display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: 'surface.default',
-        })}
-      >
-        <Link
-          href={
-            summary || summaryId !== undefined
-              ? '/meeting/minutes'
-              : '/meeting/notes'
-          }
-          className={css({
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            width: 'fit-content',
-            flexShrink: 0,
-            color: 'greyscale.600',
-            fontSize: '0.875rem',
-            padding: '0.5rem 0',
-          })}
-        >
-          <RiArrowLeftLine size={20} aria-hidden />
-          {t(
-            summary || summaryId !== undefined
-              ? 'minutesLibrary.back'
-              : 'library.back'
-          )}
-        </Link>
-        {query.isError ? (
-          <div role="alert">
-            <p>{t('library.loadError')}</p>
-            <Button variant="tertiary" onPress={() => void query.refetch()}>
-              {t('library.refresh')}
-            </Button>
+      <main className={readerShell}>
+        {/* 工作区页头(返回 + 标题 + 元信息)钉住;滚动交给内部各面板
+            (Tabs 的 tabpanel 自己 overflow),所以内容区不带滚动。 */}
+        <div className={pageFixedTop}>
+          <div className={detailHeaderStack}>
+            <Link
+              href={
+                summary || summaryId !== undefined
+                  ? '/meeting/minutes'
+                  : '/meeting/notes'
+              }
+              className={backLink}
+            >
+              <RiArrowLeftLine size={20} aria-hidden />
+              {t(
+                summary || summaryId !== undefined
+                  ? 'minutesLibrary.back'
+                  : 'library.back'
+              )}
+            </Link>
+            {record && (
+              <h1 className={recordTitleCls}>
+                {record.title || t('library.untitled')}
+              </h1>
+            )}
+            {record && (
+              <p className={metaLine}>
+                <RiTimeLine size={16} aria-hidden />
+                {t(`library.source.${record.source_type}`)} ·{' '}
+                {new Date(record.origin_at).toLocaleString()}
+              </p>
+            )}
           </div>
-        ) : !query.data ? (
-          <p role="status">{t('loading')}</p>
-        ) : (
-          <>
-            <h1
-              className={css({
-                fontSize: { base: '1.5rem', md: '2rem' },
-                fontWeight: 700,
-                margin: '1rem 0',
-                flexShrink: 0,
-                overflowWrap: 'anywhere',
-                lineClamp: 2,
-              })}
+        </div>
+        <div className={contentRegion}>
+          {query.isError ? (
+            <StateHint
+              state="error"
+              action={
+                <Button
+                  variant="tertiary"
+                  size="sm"
+                  onPress={() => void query.refetch()}
+                >
+                  {t('library.refresh')}
+                </Button>
+              }
             >
-              {query.data.title || t('library.untitled')}
-            </h1>
-            <p
-              className={css({
-                display: 'flex',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '0.5rem',
-                color: 'greyscale.600',
-                fontSize: '0.875rem',
-                marginBottom: '1.5rem',
-                flexShrink: 0,
-              })}
-            >
-              <RiTimeLine size={16} aria-hidden />
-              {t(`library.source.${query.data.source_type}`)} ·{' '}
-              {new Date(query.data.origin_at).toLocaleString()}
-            </p>
+              {t('library.loadError')}
+            </StateHint>
+          ) : !record ? (
+            <StateHint state="loading">{t('loading')}</StateHint>
+          ) : (
             <WorkspaceContent
               key={`${viewerId}:${recordId}:${summaryId ?? 'all'}:${translations}:${summary}`}
               viewerId={viewerId}
-              record={query.data}
+              record={record}
               summaryId={summaryId}
               translations={translations}
               summary={summary}
             />
-          </>
-        )}
+          )}
+        </div>
       </main>
     </Screen>
   )
@@ -548,13 +546,24 @@ export function MeetingRecordWorkspace() {
   const { data, isError } = useConfig()
   const { t } = useTranslation('meetings')
   if (isLoggedIn === false) return <Redirect to="/" />
-  if (!user || (!data && !isError)) return <p role="status">{t('loading')}</p>
+  if (!user || (!data && !isError))
+    return <StateHint state="loading">{t('loading')}</StateHint>
   if (isError || !data?.meeting_records?.enabled || !recordId)
     return (
       <Screen>
-        <main className={libraryLayout}>
-          <Link href="/meeting">{t('library.home')}</Link>
-          <p>{t('library.unavailable')}</p>
+        <main className={readerShell}>
+          <div className={contentRegion}>
+            <StateHint
+              state="empty"
+              action={
+                <Link href="/meeting" className={backLink}>
+                  {t('library.home')}
+                </Link>
+              }
+            >
+              {t('library.unavailable')}
+            </StateHint>
+          </div>
         </main>
       </Screen>
     )

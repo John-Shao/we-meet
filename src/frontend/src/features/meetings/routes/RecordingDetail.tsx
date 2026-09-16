@@ -9,10 +9,14 @@ import { useMeetingRecord } from '../api/fetchMeetingRecord'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import {
-  libraryLayout,
+  backLink,
+  pageFixedTop,
+  pageHeaderText,
   pageLead,
+  pageShell,
   pageTitle,
   rowMeta,
+  scrollRegion,
   sectionTitle,
 } from '../components/libraryStyles'
 
@@ -24,10 +28,11 @@ const detailStack = css({
 })
 
 /** 详情标题允许长标题换行,其余同页面主标题一档。 */
-const detailTitle = css({ overflowWrap: 'anywhere' })
+const detailTitle = cx(pageTitle, css({ overflowWrap: 'anywhere' }))
 
-/** 详情页页头:返回链接与标题之间的间距。 */
-const detailPageTitle = cx(pageTitle, css({ marginTop: 'lg' }))
+/** 页壳与滚动区:与列表页同一套(铺满 + 唯一滚动区)。 */
+const canvasShell = pageShell('canvas')
+const contentScroll = cx(scrollRegion, css({ paddingTop: 'lg' }))
 
 /** 资料入口卡(实录 / 纪要各一张)。 */
 const materialCard = css({
@@ -40,17 +45,6 @@ const materialCard = css({
 const materialHintCls = cx(rowMeta, css({ marginY: 'md' }))
 
 const materialLinkCls = css({
-  textStyle: 'labelLarge',
-  color: 'text.link',
-  borderRadius: 'field',
-  _hover: { textDecoration: 'underline' },
-  _focusVisible: {
-    outline: '2px solid token(colors.border.focus)',
-    outlineOffset: '2px',
-  },
-})
-
-const backLinkCls = css({
   textStyle: 'labelLarge',
   color: 'text.link',
   borderRadius: 'field',
@@ -176,20 +170,27 @@ export function RecordingDetail() {
     return <StateHint state="loading">{t('loading')}</StateHint>
   return (
     <MeetingModuleShell compactNavigation>
-      <main className={libraryLayout}>
-        <Link href="/meeting/recording" className={backLinkCls}>
-          {t('recordingOverview.back')}
-        </Link>
-        <h1 className={detailPageTitle}>{t('recordingOverview.detail')}</h1>
-        {!isError && data?.meeting_records?.enabled && recordId ? (
-          <RecordingDetailContent
-            key={`${user.id}:${recordId}`}
-            viewerId={user.id}
-            recordId={recordId}
-          />
-        ) : (
-          <StateHint state="empty">{t('library.unavailable')}</StateHint>
-        )}
+      <main className={canvasShell}>
+        {/* 详情页与列表页同一套:返回链接 + 标题钉住,内容区自己滚。 */}
+        <div className={pageFixedTop}>
+          <div className={pageHeaderText}>
+            <Link href="/meeting/recording" className={backLink}>
+              {t('recordingOverview.back')}
+            </Link>
+            <h1 className={pageTitle}>{t('recordingOverview.detail')}</h1>
+          </div>
+        </div>
+        <div className={contentScroll} data-testid="meeting-list-region">
+          {!isError && data?.meeting_records?.enabled && recordId ? (
+            <RecordingDetailContent
+              key={`${user.id}:${recordId}`}
+              viewerId={user.id}
+              recordId={recordId}
+            />
+          ) : (
+            <StateHint state="empty">{t('library.unavailable')}</StateHint>
+          )}
+        </div>
       </main>
     </MeetingModuleShell>
   )

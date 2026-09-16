@@ -3,9 +3,20 @@ import { useTranslation } from 'react-i18next'
 import { Link, Redirect } from 'wouter'
 import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
-import { Button } from '@/primitives'
-import { css } from '@/styled-system/css'
+import { Button, Input } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
+import { css, cx } from '@/styled-system/css'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
+import {
+  backLink,
+  pageFixedTop,
+  pageHeaderText,
+  pageLead,
+  pageShell,
+  pageTitle,
+  scrollRegion,
+  sectionTitle,
+} from '../components/libraryStyles'
 import { CaptureJournal, type LocalAudioChunk } from '../capture/journal'
 import {
   RecordingController,
@@ -21,6 +32,34 @@ const duration = (milliseconds: number) => {
   const seconds = Math.floor(milliseconds / 1000)
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
+
+/** 页壳与滚动区:与列表页同一套(铺满 + 唯一滚动区)。 */
+const canvasShell = pageShell('canvas')
+const contentScroll = cx(scrollRegion, css({ paddingTop: 'lg' }))
+
+/** 表单卡:与会议模块其它卡片同一档描边 / 圆角 / 底色。 */
+const formCard = css({
+  padding: 'lg',
+  border: '1px solid token(colors.border.subtle)',
+  borderRadius: 'card',
+  backgroundColor: 'surface.default',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'lg',
+})
+
+/** 字段标签与控件。 */
+const fieldLabel = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'xs',
+  textStyle: 'labelLarge',
+  color: 'text.secondary',
+})
+const fieldControl = css({ marginTop: 'xxs' })
+
+/** 说明性文字(离开页面的提示等)。 */
+const hintCls = cx(pageLead, css({ marginBottom: 'lg' }))
 
 export function Recorder({
   viewerId,
@@ -142,308 +181,289 @@ export function Recorder({
 
   return (
     <MeetingModuleShell>
-      <Link
-        href="/meeting/recording"
-        className={css({ padding: '0.75rem 1.5rem', color: 'primary.700' })}
-      >
-        {t('backToOverview')}
-      </Link>
-      <main
-        className={css({
-          width: '100%',
-          maxWidth: '54rem',
-          margin: '0 auto',
-          padding: '1.5rem',
-          overflowY: 'auto',
-        })}
-      >
-        <h1
-          className={css({
-            fontSize: '1.5rem',
-            fontWeight: 'bold',
-            marginTop: '1rem',
-          })}
-        >
-          {t('title')}
-        </h1>
-        <p>
-          {t(
-            textOnly || (working && local.create.retention_mode === 'text')
-              ? 'textScope'
-              : 'scope'
-          )}
-        </p>
-        <p className={css({ color: 'greyscale.600', marginBottom: '1.5rem' })}>
-          {t(
-            textOnly || (working && local.create.retention_mode === 'text')
-              ? 'textLeaveHint'
-              : 'leaveHint'
-          )}
-        </p>
-        {unavailable && <p role="alert">{t('unavailable')}</p>}
-        {!available && <p role="status">{t('disabled')}</p>}
-        <section
-          className={css({
-            padding: '1.25rem',
-            border: '1px solid',
-            borderColor: 'greyscale.200',
-            borderRadius: '0.75rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem',
-          })}
-        >
-          {working ? (
-            <h2>{local.create.title || t('untitled')}</h2>
-          ) : (
-            <label>
-              {t('name')}
-              <input
-                aria-label={t('name')}
-                maxLength={500}
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                className={css({
-                  display: 'block',
-                  width: '100%',
-                  padding: '0.625rem',
-                  border: '1px solid',
-                  borderColor: 'greyscale.300',
-                  borderRadius: '0.5rem',
-                })}
-              />
-            </label>
-          )}
-          {!working && textAvailable && (
-            <div>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={textOnly}
-                  disabled={disabled}
-                  onChange={(event) => setTextOnly(event.target.checked)}
-                />{' '}
-                {t('textOnly')}
-              </label>
-              {textOnly && <p role="note">{t('textOnlyConsent')}</p>}
-            </div>
-          )}
-          {working && local?.create.retention_mode === 'text' && (
-            <p role="note">{t('textOnlyConsent')}</p>
-          )}
-          <p role="status" aria-live="polite">
-            {t(
-              state.mode === 'saved' && local?.create.retention_mode === 'text'
-                ? 'textSaved'
-                : `state.${state.mode}`
-            )}
-            {state.busy ? ` · ${t('busy')}` : ''}
-          </p>
-          {local && (
-            <p>
-              {t('duration', { value: duration(local.durationMs) })} ·{' '}
-              {t('pending', {
-                value: (local.pendingBytes / 1048576).toFixed(1),
-              })}
-            </p>
-          )}
-          {local?.interrupted && <p role="note">{t('interrupted')}</p>}
-          {local?.remote?.media_status === 'incomplete' && (
-            <p role="note">{t('incomplete')}</p>
-          )}
-          {state.error && <p role="alert">{t(state.error)}</p>}
-          <div
-            className={css({
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '0.75rem',
-            })}
-          >
-            {!working && (
-              <Button
-                variant="primary"
-                isDisabled={
-                  disabled || !available || (textOnly && !textAvailable)
-                }
-                onPress={() =>
-                  void controller?.start(title, textOnly ? 'text' : 'media')
-                }
-              >
-                {t('start')}
-              </Button>
-            )}
-            {canResume && (
-              <Button
-                variant="primary"
-                isDisabled={disabled || !available}
-                onPress={() => void controller?.start(title)}
-              >
-                {t('resume')}
-              </Button>
-            )}
-            {state.mode === 'recording' && (
-              <Button
-                variant="secondary"
-                isDisabled={disabled}
-                onPress={() => void controller?.pause()}
-              >
-                {t('pause')}
-              </Button>
-            )}
-            {working && (
-              <Button
-                variant="secondary"
-                isDisabled={disabled}
-                onPress={() => void controller?.finish()}
-              >
-                {t('finish')}
-              </Button>
-            )}
-            {working && !!local.pendingBytes && (
-              <Button
-                variant="secondary"
-                isDisabled={disabled}
-                onPress={() => void controller?.retryUploads()}
-              >
-                {t('retry')}
-              </Button>
-            )}
+      <main className={canvasShell}>
+        {/* 页头(返回 + 标题)钉住;录音表单与各面板在滚动区里。 */}
+        <div className={pageFixedTop}>
+          <div className={pageHeaderText}>
+            <Link href="/meeting/recording" className={backLink}>
+              {t('backToOverview')}
+            </Link>
+            <h1 className={pageTitle}>{t('title')}</h1>
           </div>
-          {working && state.mode !== 'recording' && !!state.error && (
-            <details>
-              <summary>{t('cannotUpload')}</summary>
-              <p>{t('partialHint')}</p>
-              <Button
-                variant="secondary"
-                isDisabled={disabled}
-                onPress={() => void controller?.finish(true)}
-              >
-                {t('finishPartial')}
-              </Button>
-            </details>
+        </div>
+        <div className={contentScroll}>
+          <p className={pageLead}>
+            {t(
+              textOnly || (working && local.create.retention_mode === 'text')
+                ? 'textScope'
+                : 'scope'
+            )}
+          </p>
+          <p className={hintCls}>
+            {t(
+              textOnly || (working && local.create.retention_mode === 'text')
+                ? 'textLeaveHint'
+                : 'leaveHint'
+            )}
+          </p>
+          {unavailable && (
+            <StateHint state="error">{t('unavailable')}</StateHint>
           )}
-        </section>
-        {working && local?.remote && controller && (
-          <CaptureTranslationPanel
-            key={`translation:${viewerId}:${local.remote.id}:${local.remote.revision}`}
-            source={{
-              viewerId,
-              captureId: local.remote.id,
-              recordId: local.remote.record_id,
-              deviceId: local.create.device_id,
-              leaseKey: local.create.lease_key,
-            }}
-            revision={local.remote.revision}
-            controller={controller}
-          />
-        )}
-        {working && local?.remote && (
-          <CaptureTranscriptionPanel
-            key={`asr:${viewerId}:${local.remote.id}`}
-            viewerId={viewerId}
-            capture={local.remote}
-            includeSummary={false}
-          />
-        )}
-        {local?.sealed && local.remote && (
-          <section
-            className={css({
-              marginTop: '1.5rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.75rem',
-            })}
-          >
-            <h2>{local.create.title || t('untitled')}</h2>
-            <p>{t('savedDestination')}</p>
+          {!available && <StateHint state="empty">{t('disabled')}</StateHint>}
+          <section className={formCard}>
+            {working ? (
+              <h2 className={sectionTitle}>
+                {local.create.title || t('untitled')}
+              </h2>
+            ) : (
+              <label className={fieldLabel}>
+                {t('name')}
+                <Input
+                  aria-label={t('name')}
+                  maxLength={500}
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  className={fieldControl}
+                />
+              </label>
+            )}
+            {!working && textAvailable && (
+              <div>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={textOnly}
+                    disabled={disabled}
+                    onChange={(event) => setTextOnly(event.target.checked)}
+                  />{' '}
+                  {t('textOnly')}
+                </label>
+                {textOnly && <p role="note">{t('textOnlyConsent')}</p>}
+              </div>
+            )}
+            {working && local?.create.retention_mode === 'text' && (
+              <p role="note">{t('textOnlyConsent')}</p>
+            )}
+            <p role="status" aria-live="polite">
+              {t(
+                state.mode === 'saved' &&
+                  local?.create.retention_mode === 'text'
+                  ? 'textSaved'
+                  : `state.${state.mode}`
+              )}
+              {state.busy ? ` · ${t('busy')}` : ''}
+            </p>
+            {local && (
+              <p>
+                {t('duration', { value: duration(local.durationMs) })} ·{' '}
+                {t('pending', {
+                  value: (local.pendingBytes / 1048576).toFixed(1),
+                })}
+              </p>
+            )}
+            {local?.interrupted && <p role="note">{t('interrupted')}</p>}
+            {local?.remote?.media_status === 'incomplete' && (
+              <p role="note">{t('incomplete')}</p>
+            )}
+            {state.error && <p role="alert">{t(state.error)}</p>}
             <div
               className={css({
                 display: 'flex',
                 flexWrap: 'wrap',
-                gap: '1rem',
-                color: 'primary.700',
+                gap: '0.75rem',
               })}
             >
-              <Link href={`/meeting/records/${local.remote.record_id}`}>
-                {t('openRecord')}
-              </Link>
-              <Link
-                href={`/meeting/records/${local.remote.record_id}?tab=summary`}
-              >
-                {t('openSummary')}
-              </Link>
+              {!working && (
+                <Button
+                  variant="primary"
+                  isDisabled={
+                    disabled || !available || (textOnly && !textAvailable)
+                  }
+                  onPress={() =>
+                    void controller?.start(title, textOnly ? 'text' : 'media')
+                  }
+                >
+                  {t('start')}
+                </Button>
+              )}
+              {canResume && (
+                <Button
+                  variant="primary"
+                  isDisabled={disabled || !available}
+                  onPress={() => void controller?.start(title)}
+                >
+                  {t('resume')}
+                </Button>
+              )}
+              {state.mode === 'recording' && (
+                <Button
+                  variant="secondary"
+                  isDisabled={disabled}
+                  onPress={() => void controller?.pause()}
+                >
+                  {t('pause')}
+                </Button>
+              )}
+              {working && (
+                <Button
+                  variant="secondary"
+                  isDisabled={disabled}
+                  onPress={() => void controller?.finish()}
+                >
+                  {t('finish')}
+                </Button>
+              )}
+              {working && !!local.pendingBytes && (
+                <Button
+                  variant="secondary"
+                  isDisabled={disabled}
+                  onPress={() => void controller?.retryUploads()}
+                >
+                  {t('retry')}
+                </Button>
+              )}
             </div>
+            {working && state.mode !== 'recording' && !!state.error && (
+              <details>
+                <summary>{t('cannotUpload')}</summary>
+                <p>{t('partialHint')}</p>
+                <Button
+                  variant="secondary"
+                  isDisabled={disabled}
+                  onPress={() => void controller?.finish(true)}
+                >
+                  {t('finishPartial')}
+                </Button>
+              </details>
+            )}
           </section>
-        )}
-        {!!local?.pendingBytes && local.create.retention_mode === 'media' && (
-          <section className={css({ marginTop: '1.5rem' })}>
-            <h2>{t('localAudio')}</h2>
-            <p>{t('localHint')}</p>
-            <Button
-              variant="secondary"
-              isDisabled={disabled}
-              onPress={() => {
-                void controller
-                  ?.localAudio()
-                  .then(setLocalChunks)
-                  .catch(() => setUnavailable(true))
+          {working && local?.remote && controller && (
+            <CaptureTranslationPanel
+              key={`translation:${viewerId}:${local.remote.id}:${local.remote.revision}`}
+              source={{
+                viewerId,
+                captureId: local.remote.id,
+                recordId: local.remote.record_id,
+                deviceId: local.create.device_id,
+                leaseKey: local.create.lease_key,
               }}
+              revision={local.remote.revision}
+              controller={controller}
+            />
+          )}
+          {working && local?.remote && (
+            <CaptureTranscriptionPanel
+              key={`asr:${viewerId}:${local.remote.id}`}
+              viewerId={viewerId}
+              capture={local.remote}
+              includeSummary={false}
+            />
+          )}
+          {local?.sealed && local.remote && (
+            <section
+              className={css({
+                marginTop: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem',
+              })}
             >
-              {t('showLocal')}
-            </Button>
-            <ul>
-              {localChunks
-                .slice(localPage * 10, localPage * 10 + 10)
-                .map((chunk) => (
-                  <li key={chunk.sequence}>
-                    <Button variant="secondary" onPress={() => download(chunk)}>
-                      {t('downloadPart', {
-                        number: chunk.sequence,
-                        time: duration(chunk.start_ms),
-                      })}
+              <h2 className={sectionTitle}>
+                {local.create.title || t('untitled')}
+              </h2>
+              <p>{t('savedDestination')}</p>
+              <div
+                className={css({
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '1rem',
+                  color: 'text.link',
+                })}
+              >
+                <Link href={`/meeting/records/${local.remote.record_id}`}>
+                  {t('openRecord')}
+                </Link>
+                <Link
+                  href={`/meeting/records/${local.remote.record_id}?tab=summary`}
+                >
+                  {t('openSummary')}
+                </Link>
+              </div>
+            </section>
+          )}
+          {!!local?.pendingBytes && local.create.retention_mode === 'media' && (
+            <section className={css({ marginTop: '1.5rem' })}>
+              <h2 className={sectionTitle}>{t('localAudio')}</h2>
+              <p>{t('localHint')}</p>
+              <Button
+                variant="secondary"
+                isDisabled={disabled}
+                onPress={() => {
+                  void controller
+                    ?.localAudio()
+                    .then(setLocalChunks)
+                    .catch(() => setUnavailable(true))
+                }}
+              >
+                {t('showLocal')}
+              </Button>
+              <ul>
+                {localChunks
+                  .slice(localPage * 10, localPage * 10 + 10)
+                  .map((chunk) => (
+                    <li key={chunk.sequence}>
+                      <Button
+                        variant="secondary"
+                        onPress={() => download(chunk)}
+                      >
+                        {t('downloadPart', {
+                          number: chunk.sequence,
+                          time: duration(chunk.start_ms),
+                        })}
+                      </Button>
+                    </li>
+                  ))}
+              </ul>
+              {localPage > 0 && (
+                <Button
+                  variant="secondary"
+                  onPress={() => setLocalPage((page) => page - 1)}
+                >
+                  {t('previous')}
+                </Button>
+              )}
+              {(localPage + 1) * 10 < localChunks.length && (
+                <Button
+                  variant="secondary"
+                  onPress={() => setLocalPage((page) => page + 1)}
+                >
+                  {t('next')}
+                </Button>
+              )}
+            </section>
+          )}
+          {!!recoverable.length && (
+            <section className={css({ marginTop: '1.5rem' })}>
+              <h2 className={sectionTitle}>{t('recoverable')}</h2>
+              <p>{t('recoverableHint')}</p>
+              <ul>
+                {recoverable.map((item) => (
+                  <li key={item.id}>
+                    <Button
+                      variant="secondary"
+                      isDisabled={disabled || working}
+                      onPress={() => void controller?.load(item.id)}
+                    >
+                      {item.create.title || t('untitled')} ·{' '}
+                      {new Date(item.createdAt).toLocaleString()} ·{' '}
+                      {duration(item.durationMs)}
                     </Button>
                   </li>
                 ))}
-            </ul>
-            {localPage > 0 && (
-              <Button
-                variant="secondary"
-                onPress={() => setLocalPage((page) => page - 1)}
-              >
-                {t('previous')}
-              </Button>
-            )}
-            {(localPage + 1) * 10 < localChunks.length && (
-              <Button
-                variant="secondary"
-                onPress={() => setLocalPage((page) => page + 1)}
-              >
-                {t('next')}
-              </Button>
-            )}
-          </section>
-        )}
-        {!!recoverable.length && (
-          <section className={css({ marginTop: '1.5rem' })}>
-            <h2>{t('recoverable')}</h2>
-            <p>{t('recoverableHint')}</p>
-            <ul>
-              {recoverable.map((item) => (
-                <li key={item.id}>
-                  <Button
-                    variant="secondary"
-                    isDisabled={disabled || working}
-                    onPress={() => void controller?.load(item.id)}
-                  >
-                    {item.create.title || t('untitled')} ·{' '}
-                    {new Date(item.createdAt).toLocaleString()} ·{' '}
-                    {duration(item.durationMs)}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+              </ul>
+            </section>
+          )}
+        </div>
       </main>
     </MeetingModuleShell>
   )

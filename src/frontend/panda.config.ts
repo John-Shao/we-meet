@@ -813,35 +813,6 @@ const config: Config = {
             },
           },
         },
-        // 预约会议卡片(蓝色调):浅色用 primary.50/200/100/700,深色翻到
-        // primaryDark 色阶,保持蓝调的同时明暗互换、对比不倒。
-        // (等价于 brand.50/200/100/700,早于 brand 出现,保留不动。)
-        scheduledCard: {
-          bg: {
-            value: {
-              base: '{colors.primary.50}',
-              _dark: '{colors.primaryDark.75}',
-            },
-          },
-          border: {
-            value: {
-              base: '{colors.primary.200}',
-              _dark: '{colors.primaryDark.200}',
-            },
-          },
-          hover: {
-            value: {
-              base: '{colors.primary.100}',
-              _dark: '{colors.primaryDark.100}',
-            },
-          },
-          text: {
-            value: {
-              base: '{colors.primary.700}',
-              _dark: '{colors.primaryDark.700}',
-            },
-          },
-        },
         // 选中态(左栏导航项 / 树节点 / 列表选中行)。
         //
         // 存在的理由:primary.* 是**固定色阶,不随主题翻转**,手写
