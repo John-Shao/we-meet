@@ -1,4 +1,13 @@
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
+
+/**
+ * 会议模块的页面样板（以「智能纪要」页验收通过的那一版为准，2026-09-16）。
+ *
+ * 三类角色，取值只有这一处定义：
+ *   ① 页壳 —— 铺满内容列（不再限宽居中）、占满高度、自己管滚动；
+ *   ② 固定区 / 滚动区 —— 列表页钉头，仪表盘式页面整页滚；
+ *   ③ 列表与行 —— 图标块、标题、辅助信息、区块标题。
+ */
 
 export const libraryLayout = css({
   maxWidth: '960px',
@@ -8,6 +17,44 @@ export const libraryLayout = css({
   overflowY: 'auto',
   overflowWrap: 'anywhere',
 })
+
+/**
+ * 页壳。**不再设 maxWidth / margin auto**：原先版心锁在 1120px 居中，窗口一宽
+ * 两侧就各留一大块空白。`surface` 只有纪要阅读器要换成 `default`（白底阅读面），
+ * 其余页面用 `canvas`，卡片才立得起来。
+ */
+export const pageShell = (surface: 'canvas' | 'default' = 'canvas') =>
+  css({
+    flex: '1 1 0',
+    minHeight: 0,
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    backgroundColor: `surface.${surface}`,
+  })
+
+/**
+ * 列表以上部分：固定不滚（列表页）。底边分隔线把「固定的工具区」和「滚动的列表」
+ * 分开，与任务列表（TasksRoute 的 header/modeTabs）同一套做法。
+ */
+export const pageFixedTop = css({
+  flexShrink: 0,
+  paddingX: 'lg',
+  paddingTop: 'xl',
+  borderBottom: '1px solid token(colors.border.subtle)',
+})
+
+/** 唯一的滚动区。内边距留在里面，最后一行才不会贴着底。 */
+export const scrollRegion = css({
+  flex: '1 1 0',
+  minHeight: 0,
+  overflow: 'auto',
+  paddingX: 'lg',
+  paddingBottom: '2xl',
+})
+
+/** 仪表盘式页面：整页一起滚（页头也跟着走），所以顶部要补一档页边距。 */
+export const wholePageScroll = cx(scrollRegion, css({ paddingTop: 'xl' }))
 
 /**
  * 页面主标题。四个栏目页(home 的 h1、录音、实录、纪要)共用一档,
@@ -81,6 +128,100 @@ export const rowMeta = css({
   color: 'text.secondary',
   margin: 0,
 })
+
+/** 列表区块标题 + 统一间距(进行中/历史记录/历史录音/预约会议/全部智能纪要共用)。 */
+export const sectionHeading = cx(
+  groupLabel,
+  css({ marginTop: 'xl', marginBottom: 'md' })
+)
+
+/** 列表卡:整块一张卡,行与行之间用语义分隔线。 */
+export const listCard = css({
+  listStyle: 'none',
+  margin: 0,
+  padding: 0,
+  border: '1px solid token(colors.border.subtle)',
+  borderRadius: 'card',
+  backgroundColor: 'surface.default',
+  overflow: 'hidden',
+})
+
+/** 卡内行的分隔线(只在相邻行之间画)。 */
+export const listRowDivider = css({
+  '& + &': { borderTop: '1px solid token(colors.border.subtle)' },
+})
+
+/**
+ * 行首图标块 —— 样板的行都从这枚 48px 品牌浅蓝底 + 24px 蓝图标开始。
+ * 深浅两套主题由 `brand.*` 成对翻转，不写裸色值。
+ */
+export const rowIconTile = css({
+  flexShrink: 0,
+  display: 'grid',
+  placeItems: 'center',
+  width: '3xl',
+  height: '3xl',
+  borderRadius: 'control',
+  backgroundColor: 'brand.50',
+  color: 'brand.600',
+})
+
+/** 卡内行:一段式间距、悬停浅底、焦点环内缩(与列表边缘对齐)。 */
+export const rowSurface = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'lg',
+  minHeight: 'controlHeight.large',
+  padding: 'lg',
+  color: 'inherit',
+  textDecoration: 'none',
+  cursor: 'pointer',
+  transition: 'background-color token(durations.fast)',
+  _hover: { backgroundColor: 'surface.canvas' },
+  _focusVisible: {
+    outline: '2px solid token(colors.border.focus)',
+    outlineOffset: '-2px',
+  },
+})
+
+/** 行正文列。 */
+export const rowBody = css({ minWidth: 0, flex: 1 })
+
+/** 行标题(样板):卡片主标题一档,最多两行。 */
+export const rowHeadingClamped = cx(cardTitle, css({ lineClamp: 2 }))
+
+/** 行标题(密集列表):同样一档,单行省略。 */
+export const rowHeadingOneLine = cx(
+  cardTitle,
+  css({
+    display: 'block',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  })
+)
+
+/** 行辅助信息 —— 横排一行(`时间 · 来源`,卡片用)。 */
+export const rowMetaRow = cx(
+  rowMeta,
+  css({
+    marginTop: 'sm',
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 'sm',
+  })
+)
+
+/** 行辅助信息 —— 竖排多行(来源/状态、时间,密集列表用)。 */
+export const rowMetaBlock = cx(
+  rowMeta,
+  css({
+    marginTop: 'sm',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 'xxs',
+  })
+)
 
 /** 入口块排布:AI 录音页的「开始录音 / 导入音视频」并排,窄屏换行。 */
 export const entryTileRow = css({

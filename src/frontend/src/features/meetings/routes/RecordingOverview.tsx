@@ -14,55 +14,33 @@ import { RecordingUpload } from '../components/RecordingUpload'
 import {
   entryTile,
   entryTileRow,
-  libraryLayout,
+  listCard,
+  listRowDivider,
+  pageFixedTop,
   pageHeaderRow,
   pageHeaderText,
+  pageShell,
   pageTitle,
-  rowMeta,
-  rowTitle,
-  sectionTitle,
+  rowBody,
+  rowHeadingOneLine,
+  rowIconTile,
+  rowMetaBlock,
+  rowSurface,
+  scrollRegion,
+  sectionHeading,
 } from '../components/libraryStyles'
 
 /** 历史录音最多显示的条数；Android 端 RecordingHomeScreen 用的是同一个数。 */
 const HISTORY_LIMIT = 20
 
-/** 区块之间的竖向节奏(与左列导航取同一档)。 */
-const section = css({ marginTop: '2xl' })
+/** 页壳(铺满内容列,不限宽居中)。 */
+const canvasShell = pageShell('canvas')
 
-/** 历史录音整块一张卡:行与行之间用语义分隔线,不再各自画边框。 */
-const historyCard = css({
-  listStyle: 'none',
-  margin: 0,
-  padding: 0,
-  border: '1px solid token(colors.border.subtle)',
-  borderRadius: 'card',
-  backgroundColor: 'surface.default',
-  overflow: 'hidden',
-})
+/** 列表区补一档顶部内边距(固定区已经有自己的下边距)。 */
+const listRegion = cx(scrollRegion, css({ paddingTop: 'xs' }))
 
-const historyRowCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  gap: 'lg',
-  minHeight: 'controlHeight.large',
-  padding: 'lg',
-  color: 'inherit',
-  textDecoration: 'none',
-  cursor: 'pointer',
-  transition: 'background-color token(durations.fast)',
-  _hover: { backgroundColor: 'surface.canvas' },
-  _focusVisible: {
-    outline: '2px solid token(colors.border.focus)',
-    outlineOffset: '-2px',
-  },
-})
-
-const historyIconCls = css({ flexShrink: 0, color: 'icon.secondary' })
-
-const historyBodyCls = css({ minWidth: 0, overflowWrap: 'anywhere' })
-
-// 来源/状态与时间是两行辅助信息,共用 bodySmall 一档。
-const historyMetaCls = cx(rowMeta, css({ display: 'block' }))
+/** 入口块与下方分隔线之间留一档。 */
+const tilesRow = cx(entryTileRow, css({ marginBottom: 'xl' }))
 
 const moreLinkCls = css({
   display: 'block',
@@ -96,8 +74,8 @@ export function RecordingHistory({
   if (!enabled) return null
   const rows = query.isError ? [] : query.data?.results.slice(0, HISTORY_LIMIT)
   return (
-    <section className={section}>
-      <h2 className={sectionTitle}>{t('recordingOverview.history')}</h2>
+    <section>
+      <h2 className={sectionHeading}>{t('recordingOverview.history')}</h2>
       {query.isError ? (
         <StateHint
           state="error"
@@ -123,46 +101,40 @@ export function RecordingHistory({
           description={t('recordingOverview.empty')}
         />
       ) : (
-        <ul className={historyCard}>
+        <ul className={listCard}>
           {rows.map((record) => (
-            <li
-              key={record.id}
-              className={css({
-                '& + &': {
-                  borderTop: '1px solid token(colors.border.subtle)',
-                },
-              })}
-            >
+            <li key={record.id} className={listRowDivider}>
               <Link
                 href={`/meeting/recording/history/${encodeURIComponent(record.id)}`}
-                className={historyRowCls}
+                className={rowSurface}
               >
-                {record.upload?.media_type === 'video' ? (
-                  <RiVideoLine
-                    size={24}
-                    aria-hidden
-                    className={historyIconCls}
-                  />
-                ) : (
-                  <RiMicLine size={24} aria-hidden className={historyIconCls} />
-                )}
-                <span className={historyBodyCls}>
-                  <span className={rowTitle}>
+                {/* 行风格与实录/纪要同一套:48px 品牌浅蓝底图标块 + 标题 + 辅助信息。 */}
+                <span aria-hidden className={rowIconTile}>
+                  {record.upload?.media_type === 'video' ? (
+                    <RiVideoLine size={24} />
+                  ) : (
+                    <RiMicLine size={24} />
+                  )}
+                </span>
+                <span className={rowBody}>
+                  <span className={rowHeadingOneLine}>
                     {record.title || t('library.untitled')}
                   </span>
-                  <span className={historyMetaCls}>
-                    {t(
-                      record.source_type === 'upload'
-                        ? `upload.${record.upload?.media_type ?? 'audio'}`
-                        : 'library.source.audio_recording'
-                    )}
-                    {record.upload && (
-                      <> · {t(`upload.status.${record.upload.status}`)}</>
-                    )}
+                  <span className={rowMetaBlock}>
+                    <span>
+                      {t(
+                        record.source_type === 'upload'
+                          ? `upload.${record.upload?.media_type ?? 'audio'}`
+                          : 'library.source.audio_recording'
+                      )}
+                      {record.upload && (
+                        <> · {t(`upload.status.${record.upload.status}`)}</>
+                      )}
+                    </span>
+                    <time dateTime={record.origin_at}>
+                      {new Date(record.origin_at).toLocaleString(i18n.language)}
+                    </time>
                   </span>
-                  <time dateTime={record.origin_at} className={historyMetaCls}>
-                    {new Date(record.origin_at).toLocaleString(i18n.language)}
-                  </time>
                 </span>
               </Link>
             </li>
@@ -190,18 +162,19 @@ export function RecordingOverview() {
   const enabled = !isError && !!data?.meeting_records?.capture_audio_enabled
   return (
     <MeetingModuleShell compactNavigation>
-      <main className={libraryLayout}>
-        <div className={css({ md: { display: 'none' } })}>
-          <MeetingModuleNav current="/meeting/recording" />
-        </div>
-        <header className={pageHeaderRow}>
-          <div className={pageHeaderText}>
-            <h1 className={pageTitle}>{t('library.record')}</h1>
+      <main className={canvasShell}>
+        {/* 入口块 + 页头是这一页的「工具区」:固定住,滚到底也还能点开始录音。 */}
+        <div className={pageFixedTop}>
+          <div className={css({ md: { display: 'none' } })}>
+            <MeetingModuleNav current="/meeting/recording" />
           </div>
-        </header>
-        {enabled ? (
-          <>
-            <div className={entryTileRow}>
+          <header className={pageHeaderRow}>
+            <div className={pageHeaderText}>
+              <h1 className={pageTitle}>{t('library.record')}</h1>
+            </div>
+          </header>
+          {enabled && (
+            <div className={tilesRow}>
               <Link href="/meeting/recording/capture" className={entryTile}>
                 <RiMicLine size={32} aria-hidden />
                 {t('recordingOverview.record')}
@@ -213,19 +186,23 @@ export function RecordingOverview() {
                 onRecord={(id) => navigate(`/meeting/recording/history/${id}`)}
               />
             </div>
+          )}
+        </div>
+        <div className={listRegion} data-testid="meeting-list-region">
+          {enabled ? (
             <RecordingHistory
               key={user.id}
               viewerId={user.id}
               enabled={!!data?.meeting_records?.enabled}
             />
-          </>
-        ) : (
-          <PageState
-            density="compact"
-            icon={<RiMicLine size={20} />}
-            description={t('library.unavailable')}
-          />
-        )}
+          ) : (
+            <PageState
+              density="compact"
+              icon={<RiMicLine size={20} />}
+              description={t('library.unavailable')}
+            />
+          )}
+        </div>
       </main>
     </MeetingModuleShell>
   )

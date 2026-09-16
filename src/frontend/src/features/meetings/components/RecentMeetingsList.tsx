@@ -5,12 +5,20 @@ import { RiVidiconLine } from '@remixicon/react'
 
 import { PageState } from '@/components/PageState'
 import { StateHint } from '@/components/StateHint'
-import { css, cx } from '@/styled-system/css'
+import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 
 import { useVideoMeetings } from '../api/videoMeetings'
 import type { MeetingSelection } from './MeetingDetailPanel'
-import { rowMeta, sectionTitle } from './libraryStyles'
+import {
+  listCard,
+  listRowDivider,
+  rowBody,
+  rowHeadingOneLine,
+  rowIconTile,
+  rowMetaBlock,
+  sectionHeading,
+} from './libraryStyles'
 
 // The overview returns the twenty latest actual sessions.
 const COLLAPSED_COUNT = 20
@@ -36,27 +44,19 @@ const sectionStack = css({
   gap: 'md',
 })
 
-const listCard = css({
-  listStyle: 'none',
-  padding: 0,
-  margin: 0,
-  width: '100%',
-  border: '1px solid token(colors.border.subtle)',
-  borderRadius: 'card',
-  backgroundColor: 'surface.default',
-  overflow: 'hidden',
-})
-
 /**
  * 会议行。选中底色与基类写在**同一个 css()** 里:cx 叠加同属性原子类按样式表
  * 顺序取胜(见 memory: panda-cx-atomic-order-trap),拆开会随机丢选中态。
+ *
+ * 几何与样板对齐(行首 48px 图标块、lg 内边距、lg 间距):行高不再靠自己的
+ * paddingY 决定,与实录/纪要/录音的行是同一档。
  */
 const rowButton = (selected: boolean) =>
   css({
     width: '100%',
     display: 'flex',
     alignItems: 'center',
-    gap: 'md',
+    gap: 'lg',
     minHeight: 'controlHeight.large',
     textAlign: 'left',
     border: 'none',
@@ -74,32 +74,7 @@ const rowButton = (selected: boolean) =>
     },
   })
 
-/** 行首图标块:品牌浅蓝底 + 蓝图标(brand.* 深浅成对,不再裸写 primary.*)。 */
-const rowIcon = css({
-  flexShrink: 0,
-  width: 'control.lg',
-  height: 'control.lg',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderRadius: 'control',
-  backgroundColor: 'brand.50',
-  color: 'brand.600',
-})
-
-const rowBody = css({ minWidth: 0, flex: 1 })
-
-const rowName = css({
-  display: 'block',
-  textStyle: 'bodyMedium',
-  fontWeight: 500,
-  color: 'text.primary',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-})
-
-const rowTime = cx(rowMeta, css({ marginTop: 'xxs' }))
+const rowTime = rowMetaBlock
 
 const moreLink = css({
   alignSelf: 'center',
@@ -141,7 +116,7 @@ export const RecentMeetingsList = ({
   if (isLoading || isError)
     return (
       <section className={sectionStack}>
-        <h3 className={sectionTitle}>{t('home.recentTitle')}</h3>
+        <h3 className={sectionHeading}>{t('home.recentTitle')}</h3>
         <StateHint
           state={isError ? 'error' : 'loading'}
           action={
@@ -164,7 +139,7 @@ export const RecentMeetingsList = ({
     if (!showEmpty) return null
     return (
       <div className={sectionStack}>
-        <h3 className={sectionTitle}>{t('home.recentTitle')}</h3>
+        <h3 className={sectionHeading}>{t('home.recentTitle')}</h3>
         <PageState
           density="compact"
           surface="card"
@@ -182,20 +157,13 @@ export const RecentMeetingsList = ({
 
   return (
     <div className={sectionStack}>
-      <h3 className={sectionTitle}>{t('home.recentTitle')}</h3>
+      <h3 className={sectionHeading}>{t('home.recentTitle')}</h3>
       <ul className={listCard}>
         {visible.map((m) => {
           const label = m.name || t('home.untitled')
           const id = m.meeting_session_id ?? m.id
           return (
-            <li
-              key={id}
-              className={css({
-                '&:not(:last-child)': {
-                  borderBottom: '1px solid token(colors.border.subtle)',
-                },
-              })}
-            >
+            <li key={id} className={listRowDivider}>
               <button
                 type="button"
                 data-testid={`recent-row-${m.id}`}
@@ -213,11 +181,11 @@ export const RecentMeetingsList = ({
                 }
                 className={rowButton(selectedId === id)}
               >
-                <span className={rowIcon}>
-                  <RiVidiconLine size={20} aria-hidden />
+                <span aria-hidden className={rowIconTile}>
+                  <RiVidiconLine size={24} />
                 </span>
                 <span className={rowBody}>
-                  <span className={rowName}>{label}</span>
+                  <span className={rowHeadingOneLine}>{label}</span>
                   {m.started_at && (
                     <span className={rowTime}>
                       {t(

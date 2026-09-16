@@ -69,6 +69,8 @@ and this project adheres to
 - 🩹(frontend) keep meeting module navigation usable below 768px
 - 🩹(frontend) drop the duplicate schedule entry from the meetings header
 - 📝(docs) record the meeting module UX migration and its contract checks
+- ♻️(frontend) give every meeting page the same full-width layout, type scale
+  and row style, with the record lists keeping a fixed toolbar
 
 ## [1.16.0] - 2026-05-13
 

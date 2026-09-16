@@ -32,26 +32,27 @@ import {
   moduleRow,
   pageHeaderRow,
   pageHeaderText,
+  pageShell,
   pageTitle,
+  wholePageScroll,
 } from '@/features/meetings/components/libraryStyles'
 import { MeetingModuleNav } from '@/features/meetings/components/MeetingModuleNav'
 
 /**
- * 登录后的会议主区版心。数值与「AI 录音 / 会议实录 / 智能纪要」三页取同一档
- * —— 四个栏目来回切时,标题与内容的左边距、上下留白不再各跳一次。
+ * 登录后的会议主区。
+ *
+ * 这是模块里的**仪表盘式页面**(三个入口 + 两段短列表 + 右侧详情面板),按样板
+ * 铺满内容列、不限宽居中;但与列表页不同,它整页一起滚、页头跟着走 —— 列表页
+ * 才钉头(见 libraryStyles 的 pageFixedTop / scrollRegion 注释)。
  */
-const meetingPage = css({
-  width: '100%',
-  maxWidth: '1120px',
-  margin: '0 auto',
-  padding: 'xl',
-})
+const canvasShell = pageShell('canvas')
 
 /** 主区顶部的三个入口(快速 / 加入 / 预约)。 */
 const meetingActions = css({
   display: 'flex',
   flexWrap: 'wrap',
   gap: 'md',
+  marginBottom: 'xl',
 })
 
 const Columns = ({ children }: { children?: ReactNode }) => {
@@ -252,67 +253,69 @@ export const Home = () => {
               <MeetingNavPanel />
             </div>
             <div className={moduleContent}>
-              <main className={meetingPage}>
-                <div className={css({ md: { display: 'none' } })}>
-                  <MeetingModuleNav current="/meeting" />
-                </div>
-                <header className={pageHeaderRow}>
-                  <div className={pageHeaderText}>
-                    <h1 className={pageTitle}>
-                      {t('library.video', { ns: 'meetings' })}
-                    </h1>
+              <main className={canvasShell}>
+                <div className={wholePageScroll}>
+                  <div className={css({ md: { display: 'none' } })}>
+                    <MeetingModuleNav current="/meeting" />
                   </div>
-                </header>
-                {/* 三个入口:快速会议(实心主操作)+ 加入 / 预约(线框次操作)。
-                    三档都是 action 尺寸,和模块里其它页头动作同高同字号。 */}
-                <div className={meetingActions}>
-                  <Button
-                    variant="primary"
-                    size="action"
-                    data-attr="create-meeting"
-                    onPress={handleCreate}
-                    loading={creating}
-                  >
-                    {t('quickMeeting')}
-                  </Button>
-                  <DialogTrigger>
+                  <header className={pageHeaderRow}>
+                    <div className={pageHeaderText}>
+                      <h1 className={pageTitle}>
+                        {t('library.video', { ns: 'meetings' })}
+                      </h1>
+                    </div>
+                  </header>
+                  {/* 三个入口:快速会议(实心主操作)+ 加入 / 预约(线框次操作)。
+                      三档都是 action 尺寸,和模块里其它页头动作同高同字号。 */}
+                  <div className={meetingActions}>
+                    <Button
+                      variant="primary"
+                      size="action"
+                      data-attr="create-meeting"
+                      onPress={handleCreate}
+                      loading={creating}
+                    >
+                      {t('quickMeeting')}
+                    </Button>
+                    <DialogTrigger>
+                      <Button
+                        variant="secondary"
+                        size="action"
+                        data-attr="join-meeting"
+                      >
+                        {t('joinMeeting')}
+                      </Button>
+                      <JoinMeetingDialog />
+                    </DialogTrigger>
                     <Button
                       variant="secondary"
                       size="action"
-                      data-attr="join-meeting"
+                      data-attr="schedule-meeting"
+                      onPress={() => setScheduling(true)}
                     >
-                      {t('joinMeeting')}
+                      {t('scheduleMeeting')}
                     </Button>
-                    <JoinMeetingDialog />
-                  </DialogTrigger>
-                  <Button
-                    variant="secondary"
-                    size="action"
-                    data-attr="schedule-meeting"
-                    onPress={() => setScheduling(true)}
-                  >
-                    {t('scheduleMeeting')}
-                  </Button>
+                  </div>
+                  {createError && (
+                    <StateHint state="error">
+                      {t('library.createError', { ns: 'meetings' })}
+                    </StateHint>
+                  )}
+                  {/* 「预约会议」只保留上面动作行里那一颗:节标题右侧那颗是同一
+                      动作的重复入口,已删除。预约出来的会议仍出现在本节。 */}
+                  <ScheduledMeetingsList
+                    enabled
+                    showEmpty
+                    onSelect={setMeetingDetail}
+                    selectedId={meetingDetail?.sessionId ?? meetingDetail?.id}
+                  />
+                  <RecentMeetingsList
+                    enabled
+                    showEmpty
+                    onSelect={setMeetingDetail}
+                    selectedId={meetingDetail?.sessionId ?? meetingDetail?.id}
+                  />
                 </div>
-                {createError && (
-                  <StateHint state="error">
-                    {t('library.createError', { ns: 'meetings' })}
-                  </StateHint>
-                )}
-                {/* 「预约会议」只保留上面动作行里那一颗:节标题右侧那颗是同一
-                    动作的重复入口,已删除。预约出来的会议仍出现在本节。 */}
-                <ScheduledMeetingsList
-                  enabled
-                  showEmpty
-                  onSelect={setMeetingDetail}
-                  selectedId={meetingDetail?.sessionId ?? meetingDetail?.id}
-                />
-                <RecentMeetingsList
-                  enabled
-                  showEmpty
-                  onSelect={setMeetingDetail}
-                  selectedId={meetingDetail?.sessionId ?? meetingDetail?.id}
-                />
               </main>
             </div>
             {/* 一场会一个详情页:预约会议 = 创建日程后,有日程的走统一的

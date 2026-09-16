@@ -26,12 +26,18 @@ import { css, cx } from '@/styled-system/css'
 import { useMeetingRecords } from '../api/fetchMeetingRecord'
 import {
   cardTitle,
-  groupLabel,
+  pageFixedTop,
   pageHeaderRow,
   pageHeaderText,
   pageLead,
+  pageShell,
   pageTitle,
-  rowMeta,
+  rowBody,
+  rowHeadingClamped,
+  rowIconTile,
+  rowMetaRow,
+  sectionHeading,
+  scrollRegion,
 } from '../components/libraryStyles'
 import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
@@ -46,38 +52,12 @@ const toolbar = css({
   marginBottom: 'lg',
 })
 
-/**
- * 页壳。占满内容列的高度并自己管滚动,**不再设 maxWidth / margin auto** ——
- * 之前版心锁在 1120px 居中,窗口一宽两边就各留一大块空白。
- * 结构与任务列表一致:页壳 flex 列 + 固定区(flexShrink 0)+ 滚动区(flex 1)。
- */
-const pageShell = css({
-  flex: '1 1 0',
-  minHeight: 0,
-  width: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  backgroundColor: 'surface.canvas',
-  '&[data-minutes=true]': { backgroundColor: 'surface.default' },
-})
+/** 两种页壳:纪要是白底阅读面,实录用 canvas,卡片才立得起来。 */
+const canvasShell = pageShell('canvas')
+const readerShell = pageShell('default')
 
-/** 列表以上部分:固定,不随列表滚动。底边分隔线(R=border.subtle=greyscale.200)。 */
-const pageFixedTop = css({
-  flexShrink: 0,
-  paddingX: 'lg',
-  paddingTop: 'xl',
-  borderBottom: '1px solid token(colors.border.subtle)',
-})
-
-/** 唯一的滚动区。内边距留在里面,最后一行才不会贴着底。 */
-const listRegion = css({
-  flex: 1,
-  minHeight: 0,
-  overflow: 'auto',
-  paddingX: 'lg',
-  paddingTop: 'xs',
-  paddingBottom: '2xl',
-})
+/** 列表区补一档顶部内边距(固定区已经有自己的下边距)。 */
+const listRegion = cx(scrollRegion, css({ paddingTop: 'xs' }))
 
 /** 窄屏会横滚,不能被 flex 压扁。 */
 const toolbarScroll = css({
@@ -153,32 +133,11 @@ const cardShell = css({
   },
 })
 
-/** 卡片首字图标块:品牌浅蓝底 + 蓝图标(brand.* 随主题翻转)。 */
-const cardIcon = css({
-  flexShrink: 0,
-  display: 'grid',
-  placeItems: 'center',
-  width: '3xl',
-  height: '3xl',
-  borderRadius: 'control',
-  backgroundColor: 'brand.50',
-  color: 'brand.600',
-})
+/** 卡片首字图标块、正文列与标题一律取共享样板(libraryStyles)。 */
+const cardTitleCls = rowHeadingClamped
 
-const cardBody = css({ minWidth: 0, flex: 1 })
-
-const cardTitleCls = css({ lineClamp: 2 })
-
-/** 来源 / 时间那一行:辅助信息 + 自带一档上边距。 */
-const cardMeta = cx(
-  rowMeta,
-  css({
-    marginTop: 'sm',
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: 'sm',
-  })
-)
+/** 来源 / 时间那一行:辅助信息 + 自带一档上边距(横排)。 */
+const cardMeta = rowMetaRow
 
 /** 「进行中 / 已有纪要」状态标签:蓝色前景,文字本身是第二重非颜色线索。 */
 const statusTag = css({
@@ -197,12 +156,6 @@ const listGrid = css({
     md: { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
   },
 })
-
-/** 分组标题自带间距(基类只给字号与颜色)。 */
-const sectionHeading = cx(
-  groupLabel,
-  css({ marginTop: 'xl', marginBottom: 'md' })
-)
 
 /** 翻页行。 */
 const pagerRow = css({
@@ -328,7 +281,7 @@ function RecordList({
               aria-label={record.title || t('library.untitled')}
               className={cardShell}
             >
-              <span aria-hidden className={cardIcon}>
+              <span aria-hidden className={rowIconTile}>
                 {minutes ? (
                   <RiFileTextLine size={24} />
                 ) : record.source_type === 'meeting' ? (
@@ -339,7 +292,7 @@ function RecordList({
                   <RiMicLine size={24} />
                 )}
               </span>
-              <div className={cardBody}>
+              <div className={rowBody}>
                 <h3 className={cx(cardTitle, cardTitleCls)}>
                   {record.title || t('library.untitled')}
                 </h3>
@@ -447,7 +400,10 @@ export function Library({
     : (['recent', 'owned', 'shared'] as const)
   return (
     <MeetingModuleShell compactNavigation>
-      <main data-minutes={minutes} className={pageShell}>
+      <main
+        data-minutes={minutes}
+        className={minutes ? readerShell : canvasShell}
+      >
         {/* 列表以上的一切(窄屏栏目行、页头、范围筛选、搜索/筛选)固定不滚 —— 与
             任务列表(TasksRoute 的 header + modeTabs + listRegion)同一套布局:
             页壳占满高度,只有列表区自己滚,滚到底也看得见当前筛选条件。 */}

@@ -3,12 +3,17 @@ import { RiCalendarLine } from '@remixicon/react'
 
 import { PageState } from '@/components/PageState'
 import { StateHint } from '@/components/StateHint'
-import { css, cx } from '@/styled-system/css'
+import { css } from '@/styled-system/css'
 import { Button } from '@/primitives'
 
 import { useVideoMeetings } from '../api/videoMeetings'
 import type { MeetingSelection } from './MeetingDetailPanel'
-import { rowMeta, sectionTitle } from './libraryStyles'
+import {
+  rowBody,
+  rowHeadingOneLine,
+  rowMetaBlock,
+  sectionHeading,
+} from './libraryStyles'
 
 /** 一节整体的竖向堆叠(标题 + 列表 / 空态 / 加载)。 */
 const sectionStack = css({
@@ -19,8 +24,12 @@ const sectionStack = css({
   gap: 'md',
 })
 
-/** 列表容器:整块一张卡,行与行之间用语义分隔线。 */
-const listCard = css({
+/**
+ * 预约会议列表卡。**刻意保留蓝调**(`scheduledCard.*`,见 panda.config 里那组
+ * token 的说明):它是产品层的「这是预约出来的会」标记,与历史会议的素卡区分开。
+ * 几何(圆角、分隔线、行高、行间距)已与其它列表统一。
+ */
+const scheduledListCard = css({
   listStyle: 'none',
   padding: 0,
   margin: 0,
@@ -29,6 +38,11 @@ const listCard = css({
   borderRadius: 'card',
   backgroundColor: 'scheduledCard.bg',
   overflow: 'hidden',
+})
+
+/** 卡内分隔线:预约卡自己的边框色。 */
+const scheduledRowDivider = css({
+  '& + &': { borderTop: '1px solid token(colors.scheduledCard.border)' },
 })
 
 /**
@@ -40,7 +54,7 @@ const rowButton = (selected: boolean) =>
     width: '100%',
     display: 'flex',
     alignItems: 'center',
-    gap: 'md',
+    gap: 'lg',
     minHeight: 'controlHeight.large',
     textAlign: 'left',
     border: 'none',
@@ -56,33 +70,23 @@ const rowButton = (selected: boolean) =>
     },
   })
 
-/** 行首图标块:实心品牌蓝 + 反白图标,深浅两套主题成对翻转。 */
+/**
+ * 行首图标块。这一份**故意不用样板的浅蓝底**:卡片本身就是浅蓝底
+ * (`scheduledCard.bg`),再叠一层同色块等于没有,所以改用实心品牌蓝 + 反白图标。
+ */
 const rowIcon = css({
   flexShrink: 0,
-  width: 'control.lg',
-  height: 'control.lg',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
+  display: 'grid',
+  placeItems: 'center',
+  width: '3xl',
+  height: '3xl',
   borderRadius: 'control',
   backgroundColor: 'action.primary.bg',
   color: 'action.primary.text',
 })
 
-const rowBody = css({ minWidth: 0, flex: 1 })
-
-const rowName = css({
-  display: 'block',
-  textStyle: 'bodyMedium',
-  fontWeight: 500,
-  color: 'text.primary',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-})
-
-/** 时间那一行:辅助信息样式 + 一点上边距(两个 class 属性不重叠,可安全 cx)。 */
-const rowTime = cx(rowMeta, css({ marginTop: 'xxs' }))
+/** 时间那一行:与其它列表同一样式。 */
+const rowTime = rowMetaBlock
 
 /** 预约时间口径(与 App 端对齐):当天 →「今天 HH:mm」;否则「M月d日
  * HH:mm」(不带年,预约都是近期未来)。 */
@@ -140,7 +144,7 @@ export const ScheduledMeetingsList = ({
    * 已经有同一颗按钮,而那一行永远在屏上 —— 不需要靠标题行兜住可见性,同一屏
    * 出现两颗同款次按钮反而让人犹豫点哪个。预约出来的会议仍然出现在这一节里。
    */
-  const header = (title: string) => <h3 className={sectionTitle}>{title}</h3>
+  const header = (title: string) => <h3 className={sectionHeading}>{title}</h3>
 
   if (!enabled) return null
   if (isLoading || isError)
@@ -185,18 +189,11 @@ export const ScheduledMeetingsList = ({
   return (
     <div className={sectionStack}>
       {header(t('home.scheduledTitle'))}
-      <ul className={listCard}>
+      <ul className={scheduledListCard}>
         {visible.map((m) => {
           const label = m.name || t('home.untitled')
           return (
-            <li
-              key={m.id}
-              className={css({
-                '&:not(:last-child)': {
-                  borderBottom: '1px solid token(colors.scheduledCard.border)',
-                },
-              })}
-            >
+            <li key={m.id} className={scheduledRowDivider}>
               <button
                 type="button"
                 data-testid={`scheduled-row-${m.id}`}
@@ -213,11 +210,11 @@ export const ScheduledMeetingsList = ({
                 }
                 className={rowButton(selectedId === m.id)}
               >
-                <span className={rowIcon}>
-                  <RiCalendarLine size={20} aria-hidden />
+                <span aria-hidden className={rowIcon}>
+                  <RiCalendarLine size={24} />
                 </span>
                 <span className={rowBody}>
-                  <span className={rowName}>{label}</span>
+                  <span className={rowHeadingOneLine}>{label}</span>
                   {m.scheduled_at && (
                     <span className={rowTime}>
                       {formatScheduledAt(

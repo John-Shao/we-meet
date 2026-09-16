@@ -49,6 +49,15 @@ const archive = [
     has_summary: false,
   })),
 ]
+/** 录音页的历史列表同样要够长,「入口块钉住」那条才验得到。 */
+const recordings = [
+  record,
+  ...Array.from({ length: 23 }, (_, index) => ({
+    ...record,
+    id: `recording-${index}`,
+    title: `录制记录 ${index + 1}`,
+  })),
+]
 const user = {
   id: 'ui-owner',
   email: 'owner@example.com',
@@ -197,7 +206,7 @@ try {
       if (url.searchParams.get('is_ongoing') === 'true')
         return reply({ results: [ongoing], next_cursor: null })
       if (url.searchParams.get('source_type') === 'recordings')
-        return reply({ results: [record, video], next_cursor: null })
+        return reply({ results: recordings, next_cursor: null })
       return reply({ results: archive, next_cursor: null })
     }
     return reply(record)
@@ -245,9 +254,13 @@ try {
     Math.round(columnBox.width),
     '页壳必须铺满内容列,不能是限宽居中的版心'
   )
-  const cardBox = await page.locator('[aria-label="产品设计评审"]').boundingBox()
+  const cardBox = await page
+    .locator('[aria-label="产品设计评审"]')
+    .boundingBox()
   const leftGap = Math.round(cardBox.x - shellBox.x)
-  const rightGap = Math.round(shellBox.x + shellBox.width - (cardBox.x + cardBox.width))
+  const rightGap = Math.round(
+    shellBox.x + shellBox.width - (cardBox.x + cardBox.width)
+  )
   assert.ok(
     leftGap <= 20 && rightGap <= 20,
     `卡片左右留白应只有 16px 页边距,实际左 ${leftGap}px / 右 ${rightGap}px`
@@ -279,9 +292,7 @@ try {
     '列表滚动时搜索框必须固定不动'
   )
   assert.equal(
-    await page
-      .locator('main')
-      .evaluate((el) => el.parentElement.scrollTop),
+    await page.locator('main').evaluate((el) => el.parentElement.scrollTop),
     0,
     '外层内容列不应跟着滚(只能有一个滚动区)'
   )
@@ -444,10 +455,80 @@ try {
   await page.evaluate(() => {
     document.documentElement.dataset.theme = 'light'
   })
+  // 历史录音 fixture 24 条 → 页面上限 20 条,顺带锁住 HISTORY_LIMIT。
   assert.equal(
     await page.getByRole('listitem').count(),
-    2,
-    '历史录音两行(进行中那条不属于 history 查询)'
+    20,
+    '历史录音最多 20 行'
+  )
+
+  // 样板 ①:与实录/纪要一样铺满内容列。
+  const recordingShell = await page.locator('main').boundingBox()
+  const recordingColumn = await page.locator('main').evaluate((el) => {
+    const box = el.parentElement.getBoundingClientRect()
+    return { width: box.width }
+  })
+  assert.equal(
+    Math.round(recordingShell.width),
+    Math.round(recordingColumn.width),
+    'AI 录音页也要铺满内容列'
+  )
+
+  // 样板 ②:入口块 + 页头钉住,只有历史列表滚(与实录/纪要同一规则)。
+  const recordingList = page.getByTestId('meeting-list-region')
+  assert.equal(
+    await recordingList.count(),
+    1,
+    'AI 录音是列表页,必须有唯一的列表滚动区'
+  )
+  const tilesBefore = await page
+    .getByRole('link', { name: '录音', exact: true })
+    .boundingBox()
+  const recordingScrolled = await recordingList.evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+    return el.scrollTop
+  })
+  assert.ok(recordingScrolled > 0, '历史列表应可滚动')
+  const tilesAfter = await page
+    .getByRole('link', { name: '录音', exact: true })
+    .boundingBox()
+  assert.equal(
+    Math.round(tilesAfter.y),
+    Math.round(tilesBefore.y),
+    '列表滚动时入口块必须固定不动'
+  )
+  await recordingList.evaluate((el) => {
+    el.scrollTop = 0
+  })
+
+  // 样板 ③:行风格与实录/纪要同一套 —— 行首 48px 图标块、标题同一字号。
+  const anatomy = async (rowSelector) =>
+    page
+      .locator(rowSelector)
+      .first()
+      .evaluate((row) => {
+        const tile = row.querySelector('span[aria-hidden]')
+        const heading =
+          row.querySelector('span[aria-hidden]')?.nextElementSibling
+            ?.firstElementChild
+        return {
+          tileW: Math.round(tile.getBoundingClientRect().width),
+          tileH: Math.round(tile.getBoundingClientRect().height),
+          titleSize: heading ? getComputedStyle(heading).fontSize : null,
+        }
+      })
+  const recordingRow = await anatomy(
+    '[data-testid="meeting-list-region"] li:first-child a'
+  )
+  assert.deepEqual(
+    { tileW: recordingRow.tileW, tileH: recordingRow.tileH },
+    { tileW: 48, tileH: 48 },
+    `录音历史行的图标块应为 48×48,实际 ${recordingRow.tileW}×${recordingRow.tileH}`
+  )
+  assert.equal(
+    recordingRow.titleSize,
+    '16px',
+    `录音历史行标题应与实录/纪要同字号,实际 ${recordingRow.titleSize}`
   )
   await shot('meeting-recording-desktop')
 
@@ -492,6 +573,65 @@ try {
     .getByRole('button', { name: '快速会议' })
     .evaluate((el) => getComputedStyle(el).backgroundColor)
   assert.equal(quickBox, 'rgb(40, 96, 217)', '主操作走 action.primary.bg')
+
+  // 样板 ①:仪表盘式页面同样铺满内容列(不限宽居中)。
+  const homeShell = await page.locator('main').boundingBox()
+  const homeColumn = await page.locator('main').evaluate((el) => {
+    const box = el.parentElement.getBoundingClientRect()
+    return { width: box.width }
+  })
+  assert.equal(
+    Math.round(homeShell.width),
+    Math.round(homeColumn.width),
+    '视频会议页也要铺满内容列'
+  )
+
+  // 样板 ②:仪表盘式页面**不钉头** —— 没有独立的列表滚动区,页头与列表在同一个
+  // 滚动容器里(整页一起滚)。
+  assert.equal(
+    await page.getByTestId('meeting-list-region').count(),
+    0,
+    '仪表盘式页面不该有固定列表区'
+  )
+  const sharesScroller = await page
+    .getByRole('heading', { name: '视频会议', exact: true })
+    .evaluate((heading) => {
+      let node = heading.parentElement
+      while (node && node !== document.body) {
+        if (getComputedStyle(node).overflowY === 'auto')
+          return Boolean(node.querySelector('ul'))
+        node = node.parentElement
+      }
+      return false
+    })
+  assert.equal(
+    sharesScroller,
+    true,
+    '页头与列表必须在同一个滚动区里(整页一起滚)'
+  )
+
+  // 样板 ③:两段会议列表的行风格与实录/纪要一致(48px 图标块 + 16px 标题)。
+  const scheduledRow = await page
+    .locator('[data-testid="scheduled-row-room-upcoming"]')
+    .evaluate((row) => {
+      const tile = row.querySelector('span[aria-hidden]')
+      const heading = tile?.nextElementSibling?.firstElementChild
+      return {
+        tileW: Math.round(tile.getBoundingClientRect().width),
+        tileH: Math.round(tile.getBoundingClientRect().height),
+        titleSize: heading ? getComputedStyle(heading).fontSize : null,
+      }
+    })
+  assert.deepEqual(
+    { tileW: scheduledRow.tileW, tileH: scheduledRow.tileH },
+    { tileW: 48, tileH: 48 },
+    `预约会议行的图标块应为 48×48,实际 ${scheduledRow.tileW}×${scheduledRow.tileH}`
+  )
+  assert.equal(
+    scheduledRow.titleSize,
+    '16px',
+    `会议行标题应与实录/纪要同字号,实际 ${scheduledRow.titleSize}`
+  )
   await shot('meeting-home-desktop')
   await page.setViewportSize({ width: 390, height: 844 })
   await page.waitForTimeout(120)
