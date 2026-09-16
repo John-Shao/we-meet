@@ -37,6 +37,19 @@ const migratedSourceUrls = [
   '../src/features/notifications/components/ToastRecordingRequest.tsx',
   '../src/features/notifications/components/WaitingParticipantNotification.tsx',
   '../src/features/tasks/components/TaskActionFeedback.tsx',
+  // D 阶段:会议模块页面(视频会议 / AI 录音 / 会议实录 / 智能纪要)及其共享
+  // 导航与列表组件。这些文件不得再引入 greyscale/primary/control/default 兼容族。
+  '../src/features/meetings/components/libraryStyles.ts',
+  '../src/features/meetings/components/MeetingNavPanel.tsx',
+  '../src/features/meetings/components/MeetingModuleNav.tsx',
+  '../src/features/meetings/components/ScheduledMeetingsList.tsx',
+  '../src/features/meetings/components/RecentMeetingsList.tsx',
+  '../src/features/meetings/components/MeetingDetailPanel.tsx',
+  '../src/features/meetings/components/RecordingUpload.tsx',
+  '../src/features/meetings/routes/RecordingOverview.tsx',
+  '../src/features/meetings/routes/RecordingDetail.tsx',
+  '../src/features/meetings/routes/MeetingLibrary.tsx',
+  '../src/features/home/routes/Home.tsx',
 ].map((path) => new URL(path, import.meta.url))
 
 const legacyColorFamilies =

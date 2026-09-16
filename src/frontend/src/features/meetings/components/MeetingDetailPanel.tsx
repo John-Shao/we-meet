@@ -10,9 +10,10 @@ import {
   RiVidiconLine,
 } from '@remixicon/react'
 
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
 import { linkBtnCls } from '@/styles/controls'
-import { Button } from '@/primitives'
+import { Button, IconButton } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
 import { navigateTo } from '@/navigation/navigateTo'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useDeleteRoom } from '@/features/rooms/api/deleteRoom'
@@ -20,6 +21,7 @@ import { MeetingShareDialog } from './MeetingShareDialog'
 import { useMeetingRoom } from '../api/fetchMeeting'
 import { MeetingRecordLinks } from './MeetingRecordLinks'
 import { useVideoSession } from '../api/videoMeetings'
+import { rowMeta } from './libraryStyles'
 
 /** 8/9/6 位会议号按组分隔(与 App 端 formatSlug 同口径)。 */
 const formatSlugDigits = (slug: string): string => {
@@ -164,66 +166,69 @@ export const MeetingDetailPanel = ({
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        borderLeft: '1px solid token(colors.greyscale.200)',
-        backgroundColor: 'greyscale.000',
+        borderLeft: '1px solid token(colors.border.subtle)',
+        backgroundColor: 'surface.default',
+        color: 'text.primary',
         overflowY: 'auto',
       })}
     >
-      {/* 顶部操作行(对标飞书:操作图标在右上)。 */}
+      {/* 顶部操作行(对标飞书:操作图标在右上)。三个动作都是纯图标,统一走
+          IconButton —— 尺寸、悬停、焦点环、无障碍名与 Tooltip 由基元一处给出。 */}
       <div
         className={css({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
-          gap: '0.25rem',
-          padding: '0.75rem 0.75rem 0',
+          gap: 'xs',
+          paddingTop: 'md',
+          paddingX: 'md',
         })}
       >
         {selection.kind === 'scheduled' && (
-          <Button
-            variant="quaternaryText"
+          <IconButton
             size="icon32"
+            label={t('share.action', { defaultValue: '分享会议' })}
             onPress={() => setSharing(true)}
-            tooltip={t('share.action', { defaultValue: '分享会议' })}
-            aria-label={t('share.action', { defaultValue: '分享会议' })}
             data-testid="meeting-detail-share"
           >
-            <RiShareForwardLine size={18} />
-          </Button>
+            <RiShareForwardLine size={18} aria-hidden="true" />
+          </IconButton>
         )}
         {/* 删除仅房主可见:参会者对别人的会没有删除权(后端 DELETE → is_owner)。
             与日程详情、部门/会议室树一致:静止态同为中性灰,hover 才转红。 */}
         {selection.canManage && (
-          <Button
-            variant="quaternaryDanger"
+          <IconButton
             size="icon32"
+            variant="quaternaryDanger"
+            label={t('home.delete')}
             onPress={handleDelete}
-            tooltip={t('home.delete')}
-            aria-label={t('home.delete')}
             data-testid="meeting-detail-delete"
           >
-            <RiDeleteBinLine size={18} />
-          </Button>
+            <RiDeleteBinLine size={18} aria-hidden="true" />
+          </IconButton>
         )}
-        <Button
-          variant="quaternaryText"
+        <IconButton
           size="icon32"
+          label={t('detail.close')}
           onPress={onClose}
-          aria-label={t('detail.close')}
           data-testid="meeting-detail-close"
         >
-          <RiCloseLine size={18} />
-        </Button>
+          <RiCloseLine size={18} aria-hidden="true" />
+        </IconButton>
       </div>
 
-      <div className={css({ padding: '0.25rem 1.25rem 1.25rem' })}>
+      <div
+        className={css({
+          paddingTop: 'xs',
+          paddingX: 'xl',
+          paddingBottom: 'xl',
+        })}
+      >
         <h2
           className={css({
             margin: 0,
-            fontSize: '1.0625rem',
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-            lineHeight: 1.4,
+            textStyle: 'titleMedium',
+            color: 'text.primary',
             wordBreak: 'break-word',
           })}
         >
@@ -234,20 +239,20 @@ export const MeetingDetailPanel = ({
           className={css({
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.625rem',
-            marginTop: '1rem',
+            gap: 'sm',
+            marginTop: 'lg',
           })}
         >
           {timeText && (
             <div className={rowCls}>
-              <RiTimeLine size={16} className={rowIconCls} />
+              <RiTimeLine size={16} className={rowIconCls} aria-hidden />
               {/* 图标已表意,不带「预约时间:」前缀(与 App 端对齐)。 */}
               <span className={rowTextCls}>{timeText}</span>
             </div>
           )}
           {selection.slug && (
             <div className={rowCls}>
-              <RiHashtag size={16} className={rowIconCls} />
+              <RiHashtag size={16} className={rowIconCls} aria-hidden />
               {/* 会议号纯分组数字,# 图标已表意(与 App 端 formatSlug 同口径)。 */}
               <span className={rowTextCls}>
                 {formatSlugDigits(selection.slug)}
@@ -263,13 +268,13 @@ export const MeetingDetailPanel = ({
           )}
           {link && (
             <div className={rowCls}>
-              <RiLinkM size={16} className={rowIconCls} />
+              <RiLinkM size={16} className={rowIconCls} aria-hidden />
               <span
                 className={css({
                   flex: 1,
                   minWidth: 0,
-                  fontSize: '0.8125rem',
-                  color: 'greyscale.600',
+                  textStyle: 'bodySmall',
+                  color: 'text.secondary',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -293,60 +298,42 @@ export const MeetingDetailPanel = ({
           className={css({
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.5rem',
-            marginTop: '1.25rem',
+            gap: 'sm',
+            marginTop: 'xl',
           })}
         >
           {selection.slug && (
-            <button
-              type="button"
-              onClick={() => void handleJoin()}
-              disabled={!canJoin || joining}
-              aria-busy={joining || meetingRoom.isLoading}
+            <Button
+              variant="primary"
+              size="action"
+              fullWidth
+              icon={<RiVidiconLine size={16} aria-hidden />}
+              // loading 同时置 aria-busy 并禁止重复提交,不再手搓禁用底/禁用字。
+              loading={joining || meetingRoom.isLoading}
+              isDisabled={!canJoin}
+              onPress={() => void handleJoin()}
               data-testid="meeting-detail-enter"
-              className={css({
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.375rem',
-                width: '100%',
-                paddingY: '0.5625rem',
-                border: 'none',
-                borderRadius: '0.5rem',
-                backgroundColor: 'primary.500',
-                color: 'white',
-                fontSize: '0.875rem',
-                fontWeight: 'medium',
-                cursor: 'pointer',
-                _hover: { backgroundColor: 'primary.600' },
-                _disabled: {
-                  backgroundColor: 'greyscale.200',
-                  color: 'greyscale.500',
-                  cursor: 'not-allowed',
-                  _hover: { backgroundColor: 'greyscale.200' },
-                },
-              })}
             >
-              <RiVidiconLine size={16} />
-              {isClosed
-                ? tRoom('ended.title')
-                : joining || meetingRoom.isLoading
-                  ? t('loading')
-                  : t('home.enterMeeting')}
-            </button>
+              {isClosed ? tRoom('ended.title') : t('home.enterMeeting')}
+            </Button>
           )}
           {meetingRoom.isError && (
-            <div role="alert">
+            <StateHint
+              state="error"
+              action={
+                <Button
+                  variant="tertiary"
+                  size="sm"
+                  onPress={() => {
+                    void meetingRoom.refetch()
+                  }}
+                >
+                  {t('error.retry')}
+                </Button>
+              }
+            >
               {t('error.loadFailed')}
-              <Button
-                variant="tertiary"
-                onPress={() => {
-                  void meetingRoom.refetch()
-                }}
-              >
-                {t('error.retry')}
-              </Button>
-            </div>
+            </StateHint>
           )}
           {selection.kind === 'recent' && (
             <MeetingRecordLinks
@@ -375,14 +362,10 @@ export const MeetingDetailPanel = ({
 const rowCls = css({
   display: 'flex',
   alignItems: 'center',
-  gap: '0.5rem',
+  gap: 'sm',
 })
 
-const rowIconCls = css({ flexShrink: 0, color: 'greyscale.500' })
+const rowIconCls = css({ flexShrink: 0, color: 'icon.secondary' })
 
-const rowTextCls = css({
-  flex: 1,
-  minWidth: 0,
-  fontSize: '0.8125rem',
-  color: 'greyscale.700',
-})
+/** 信息值那一列:辅助信息样式 + 占满剩余宽度(属性不重叠,可安全 cx)。 */
+const rowTextCls = cx(rowMeta, css({ flex: 1, minWidth: 0 }))

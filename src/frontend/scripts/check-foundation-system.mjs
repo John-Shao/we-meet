@@ -309,6 +309,16 @@ const migratedTypographySources = [
   '../src/primitives/Select.tsx',
   '../src/primitives/SegmentedControl.tsx',
   '../src/components/PageState.tsx',
+  // D 阶段:会议模块页面与共享件(Home 的营销 hero 仍保留自己的字阶,未列入)。
+  '../src/features/meetings/components/MeetingNavPanel.tsx',
+  '../src/features/meetings/components/MeetingModuleNav.tsx',
+  '../src/features/meetings/components/ScheduledMeetingsList.tsx',
+  '../src/features/meetings/components/RecentMeetingsList.tsx',
+  '../src/features/meetings/components/MeetingDetailPanel.tsx',
+  '../src/features/meetings/components/RecordingUpload.tsx',
+  '../src/features/meetings/routes/RecordingOverview.tsx',
+  '../src/features/meetings/routes/RecordingDetail.tsx',
+  '../src/features/meetings/routes/MeetingLibrary.tsx',
 ].map((path) => new URL(path, import.meta.url))
 
 for (const sourceUrl of migratedTypographySources) {
@@ -348,6 +358,17 @@ const migratedShapeSources = [
   '../src/components/StateHint.tsx',
   '../src/features/tasks/components/TaskSidePanel.tsx',
   '../src/features/notifications/components/Toast.tsx',
+  // D 阶段:会议模块页面与共享件(shape 语义 token 已收口)。
+  '../src/features/meetings/components/libraryStyles.ts',
+  '../src/features/meetings/components/MeetingNavPanel.tsx',
+  '../src/features/meetings/components/MeetingModuleNav.tsx',
+  '../src/features/meetings/components/ScheduledMeetingsList.tsx',
+  '../src/features/meetings/components/RecentMeetingsList.tsx',
+  '../src/features/meetings/components/MeetingDetailPanel.tsx',
+  '../src/features/meetings/components/RecordingUpload.tsx',
+  '../src/features/meetings/routes/RecordingOverview.tsx',
+  '../src/features/meetings/routes/RecordingDetail.tsx',
+  '../src/features/meetings/routes/MeetingLibrary.tsx',
 ].map((path) => new URL(path, import.meta.url))
 
 for (const sourceUrl of migratedShapeSources) {
@@ -601,7 +622,9 @@ const standardizedFeedbackConsumers = [
   [
     '../src/features/calendar/components/CalendarManagementDialogs.tsx',
     [
-      "import { Button, Input, TextArea } from '@/primitives'",
+      // SearchBox 收口后这行多了 SearchBox,断言随之更新(与 Bots/Members/
+      // MeetingRooms 同一批改动;此前断言写成改动前的旧串,CI 一直红着)。
+      "import { Button, Input, SearchBox, TextArea } from '@/primitives'",
       "import { Radio } from '@/primitives/Radio'",
       '<Input',
       '<TextArea',
@@ -824,11 +847,11 @@ const standardizedFeedbackConsumers = [
   [
     '../src/features/admin/pages/Bots.tsx',
     [
-      "import { Button, Input } from '@/primitives'",
+      "import { Button, SearchBox } from '@/primitives'",
       '<StateHint state="loading">',
       'state="error"',
       'onPress={() => void refetchBots()}',
-      '<Input',
+      '<SearchBox',
     ],
   ],
   [
@@ -845,11 +868,11 @@ const standardizedFeedbackConsumers = [
   [
     '../src/features/admin/pages/Members.tsx',
     [
-      "import { Button, Input } from '@/primitives'",
+      "import { Button, SearchBox } from '@/primitives'",
       "import { StateHint } from '@/components/StateHint'",
       'state="error"',
       'onPress={() => void refetchMembers()}',
-      '<Input',
+      '<SearchBox',
     ],
   ],
   [
@@ -933,14 +956,14 @@ const standardizedFeedbackConsumers = [
   [
     '../src/features/admin/pages/MeetingRooms.tsx',
     [
-      "import { Button, Input } from '@/primitives'",
+      "import { Button, SearchBox } from '@/primitives'",
       "import { StateHint } from '@/components/StateHint'",
       '<StateHint state="loading">',
       'state="error"',
       'onPress={() => void refetchNodes()}',
       'onPress={() => void refetchFacilities()}',
       'onPress={() => void refetchRooms()}',
-      '<Input',
+      '<SearchBox',
     ],
   ],
   [

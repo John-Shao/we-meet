@@ -74,6 +74,9 @@ describe('meeting detail join availability', () => {
     const button = await screen.findByRole('button', {
       name: 'home.enterMeeting',
     })
+    // 按钮在房间状态读回之前是 loading(禁用 + aria-busy),不再把「加载中」
+    // 写成按钮文案 —— 名字因此全程不变,这里显式等它可用。
+    await waitFor(() => expect(button).toBeEnabled())
     fireEvent.click(button)
     await waitFor(() =>
       expect(mocks.navigateTo).toHaveBeenCalledWith('room', selection.slug)
@@ -84,9 +87,11 @@ describe('meeting detail join availability', () => {
   it('stays on the details when the host closes the meeting just before joining', async () => {
     mocks.fetchApi.mockResolvedValueOnce(openRoom).mockResolvedValue(closedRoom)
     show()
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'home.enterMeeting' })
-    )
+    const button = await screen.findByRole('button', {
+      name: 'home.enterMeeting',
+    })
+    await waitFor(() => expect(button).toBeEnabled())
+    fireEvent.click(button)
     expect(
       await screen.findByRole('button', { name: 'ended.title' })
     ).toBeDisabled()
@@ -98,9 +103,11 @@ describe('meeting detail join availability', () => {
       .mockResolvedValueOnce(openRoom)
       .mockRejectedValue(new Error('offline'))
     show()
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'home.enterMeeting' })
-    )
+    const button = await screen.findByRole('button', {
+      name: 'home.enterMeeting',
+    })
+    await waitFor(() => expect(button).toBeEnabled())
+    fireEvent.click(button)
     await screen.findByRole('alert')
     expect(screen.getByTestId('meeting-detail-enter')).toBeDisabled()
     expect(mocks.navigateTo).not.toHaveBeenCalled()

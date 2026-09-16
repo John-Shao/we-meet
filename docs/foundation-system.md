@@ -72,6 +72,9 @@ Spacing 采用 WeMeet 的跨端工程约定：4px/dp 是基础单位，8px/dp �
 - Web Panda 已直接消费 Typography、Spacing、Shape、Elevation、Component 五份 DTCG 契约；
 - Web Input、TextArea、Select、Field、Chip、Badge、Button 以及任务详情核心区域已开始使用
   Material 语义字阶和命名间距；
+- 会议模块（视频会议 / AI 录音 / 会议实录 / 智能纪要及其共享导航、列表与详情面板）
+  已完成字阶、间距、圆角与高程收口：裸 `fontSize` / 数字圆角 / 手写阴影在该模块内
+  不再出现，四个栏目页共用同一版心、页头与列表行语义样式；
 - Android `JusiTypography` 已显式映射全部 15 档，`Dimens.Space*` 已与共享间距阶梯对齐；
 - Android 任务详情原本已经使用 `MaterialTheme.typography` 与 `Dimens`，无需逐项重写；
 - 存量页面按业务域渐进迁移，不做一次性全站字号替换。

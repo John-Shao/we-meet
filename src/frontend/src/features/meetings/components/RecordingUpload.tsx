@@ -3,9 +3,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
 import { fetchApi } from '@/api/fetchApi'
-import { Button, Dialog } from '@/primitives'
+import { Button, Dialog, TextArea } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
 import { RiUpload2Line } from '@remixicon/react'
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
+import { entryTile, rowMeta } from './libraryStyles'
 
 type UploadState = {
   record_id: string
@@ -15,13 +17,46 @@ type UploadState = {
   error_code: string
 }
 
-const field = css({
-  display: 'block',
-  width: '100%',
-  padding: '0.5rem',
-  border: '1px solid token(colors.greyscale.400)',
-  borderRadius: '0.375rem',
+/** 弹窗里的多行输入:外观与状态由共享 TextArea 基元给出,这里只补间距。 */
+const textAreaCls = css({ marginTop: 'xs' })
+
+/** 上传弹窗的字段堆叠。 */
+const formCls = css({
+  display: 'grid',
+  gap: 'md',
+  maxHeight: '70dvh',
+  overflowY: 'auto',
 })
+
+const fileNameCls = css({
+  textStyle: 'titleSmall',
+  color: 'text.primary',
+  overflowWrap: 'anywhere',
+})
+
+const advancedSummaryCls = css({
+  cursor: 'pointer',
+  paddingY: 'sm',
+  textStyle: 'labelLarge',
+  color: 'text.link',
+})
+
+const advancedBodyCls = css({
+  display: 'grid',
+  gap: 'md',
+  paddingTop: 'sm',
+})
+
+const consentCls = cx(rowMeta, css({ display: 'block' }))
+
+const fieldLabelCls = css({
+  display: 'block',
+  textStyle: 'labelMedium',
+  color: 'text.secondary',
+})
+
+/** 上传进度/重试区块:与详情页内容留出一档间距。 */
+const statusSectionCls = css({ marginBottom: 'lg' })
 
 export function RecordingUpload({
   viewerId,
@@ -94,21 +129,7 @@ export function RecordingUpload({
           type="button"
           disabled={busy}
           onClick={() => input.current?.click()}
-          className={css({
-            display: 'inline-flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '0.75rem',
-            padding: '1rem 2rem',
-            color: 'primary.700',
-            borderRadius: '0.75rem',
-            backgroundColor: 'primary.100',
-            cursor: 'pointer',
-            _focusVisible: {
-              outline: '2px solid token(colors.primary.500)',
-              outlineOffset: '2px',
-            },
-          })}
+          className={cx(entryTile, css({ flexShrink: 0 }))}
         >
           <RiUpload2Line size={32} aria-hidden />
           {t('upload.open')}
@@ -116,6 +137,7 @@ export function RecordingUpload({
       ) : (
         <Button
           variant="secondary"
+          size="action"
           icon={<RiUpload2Line size={18} aria-hidden />}
           onPress={() => input.current?.click()}
         >
@@ -130,12 +152,7 @@ export function RecordingUpload({
         title={t('upload.title')}
       >
         <form
-          className={css({
-            display: 'grid',
-            gap: '0.75rem',
-            maxHeight: '70dvh',
-            overflowY: 'auto',
-          })}
+          className={formCls}
           onSubmit={async (event) => {
             event.preventDefault()
             if (!file || busy) return
@@ -176,9 +193,7 @@ export function RecordingUpload({
               size: Math.floor(config.max_bytes / 1024 / 1024),
             })}
           </p>
-          <p className={css({ overflowWrap: 'anywhere', fontWeight: 600 })}>
-            {file?.name}
-          </p>
+          <p className={fileNameCls}>{file?.name}</p>
           <p>
             {t(video ? 'upload.video' : 'upload.audio')} ·{' '}
             {file
@@ -191,6 +206,7 @@ export function RecordingUpload({
           {video && <p>{t('upload.videoHint')}</p>}
           <Button
             variant="secondary"
+            size="action"
             isDisabled={busy}
             onPress={() => input.current?.click()}
           >
@@ -198,26 +214,17 @@ export function RecordingUpload({
           </Button>
           {!valid && <p role="alert">{t('upload.error')}</p>}
           <details>
-            <summary
-              className={css({
-                cursor: 'pointer',
-                padding: '0.5rem 0',
-                fontSize: '0.875rem',
-              })}
-            >
+            <summary className={advancedSummaryCls}>
               {t('upload.advanced')}
             </summary>
-            <div
-              className={css({
-                display: 'grid',
-                gap: '0.75rem',
-                paddingTop: '0.5rem',
-              })}
-            >
-              <label>
+            <div className={advancedBodyCls}>
+              {/* 字段标签走 labelMedium,与「导入 / 会议室」等表单同一档;
+                  多行输入用共享 TextArea 基元(边框/圆角/焦点态一处定义)。 */}
+              <label className={fieldLabelCls}>
                 {t('upload.context')}
-                <textarea
-                  className={field}
+                <TextArea
+                  className={textAreaCls}
+                  rows={3}
                   maxLength={400}
                   disabled={busy}
                   value={context}
@@ -227,10 +234,11 @@ export function RecordingUpload({
                   }}
                 />
               </label>
-              <label>
+              <label className={fieldLabelCls}>
                 {t('upload.hotwords')}
-                <textarea
-                  className={field}
+                <TextArea
+                  className={textAreaCls}
+                  rows={3}
                   maxLength={4000}
                   disabled={busy}
                   value={hotwords}
@@ -242,10 +250,13 @@ export function RecordingUpload({
               </label>
             </div>
           </details>
-          <p className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}>
-            {t('upload.consent')}
-          </p>
-          <Button type="submit" isDisabled={!valid || busy}>
+          <p className={consentCls}>{t('upload.consent')}</p>
+          <Button
+            type="submit"
+            size="action"
+            loading={busy}
+            isDisabled={!valid}
+          >
             {t(busy ? 'upload.uploading' : 'upload.submit')}
           </Button>
           {busy && <p role="status">{t('upload.keepOpen')}</p>}
@@ -288,12 +299,13 @@ export function UploadedRecordingStatus({
         ? false
         : 5000,
   })
-  if (query.isError) return <p role="alert">{t('upload.stateError')}</p>
-  if (!query.data) return <p role="status">{t('loading')}</p>
+  if (query.isError)
+    return <StateHint state="error">{t('upload.stateError')}</StateHint>
+  if (!query.data) return <StateHint state="loading">{t('loading')}</StateHint>
   const state = query.data
   if (state.status === 'succeeded') return null
   return (
-    <section className={css({ marginBottom: '1rem' })}>
+    <section className={statusSectionCls}>
       <p role="status">{t(`upload.status.${state.status}`)}</p>
       {state.retryable && (
         <>
@@ -305,7 +317,8 @@ export function UploadedRecordingStatus({
             )}
           </p>
           <Button
-            isDisabled={busy}
+            size="action"
+            loading={busy}
             onPress={async () => {
               setBusy(true)
               setError(false)
@@ -326,7 +339,7 @@ export function UploadedRecordingStatus({
           </Button>
         </>
       )}
-      {error && <p role="alert">{t('upload.error')}</p>}
+      {error && <StateHint state="error">{t('upload.error')}</StateHint>}
     </section>
   )
 }

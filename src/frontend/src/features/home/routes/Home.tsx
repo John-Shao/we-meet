@@ -26,6 +26,33 @@ import { useConfig } from '@/api/useConfig'
 import { useQueryClient } from '@tanstack/react-query'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { StateHint } from '@/components/StateHint'
+import {
+  moduleContent,
+  moduleRow,
+  pageHeaderRow,
+  pageHeaderText,
+  pageTitle,
+} from '@/features/meetings/components/libraryStyles'
+import { MeetingModuleNav } from '@/features/meetings/components/MeetingModuleNav'
+
+/**
+ * 登录后的会议主区版心。数值与「AI 录音 / 会议实录 / 智能纪要」三页取同一档
+ * —— 四个栏目来回切时,标题与内容的左边距、上下留白不再各跳一次。
+ */
+const meetingPage = css({
+  width: '100%',
+  maxWidth: '1120px',
+  margin: '0 auto',
+  padding: 'xl',
+})
+
+/** 主区顶部的三个入口(快速 / 加入 / 预约)。 */
+const meetingActions = css({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 'md',
+})
 
 const Columns = ({ children }: { children?: ReactNode }) => {
   return (
@@ -118,7 +145,7 @@ const RightColumn = ({ children }: { children?: ReactNode }) => {
 const Separator = styled('div', {
   base: {
     borderBottom: '1px solid',
-    borderColor: 'greyscale.500',
+    borderColor: 'border.subtle',
     marginTop: '2.5rem',
     maxWidth: '30rem',
     width: '100%',
@@ -215,75 +242,79 @@ export const Home = () => {
     <UserAware>
       <Screen>
         {isLoggedIn ? (
-          <div className={css({ display: 'flex', height: '100%' })}>
+          <div className={moduleRow}>
             {/* 功能导航列已抽成 MeetingNavPanel:会议首页、录音、会议实录、
-                智能纪要、进会预览页共用同一列,别再往这里塞回内联版本。 */}
-            <MeetingNavPanel />
-            <main
-              className={css({
-                flex: 1,
-                minWidth: 0,
-                overflowY: 'auto',
-                padding: '1.5rem',
-              })}
-            >
-              <h1
-                className={css({
-                  fontSize: '1.5rem',
-                  fontWeight: 'bold',
-                  marginBottom: '1rem',
-                })}
-              >
-                {t('library.video', { ns: 'meetings' })}
-              </h1>
-              <div
-                className={css({
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '0.75rem',
-                })}
-              >
-                <Button
-                  variant="primary"
-                  data-attr="create-meeting"
-                  onPress={handleCreate}
-                  isDisabled={creating}
-                >
-                  {t('quickMeeting')}
-                </Button>
-                <DialogTrigger>
-                  <Button variant="secondary" data-attr="join-meeting">
-                    {t('joinMeeting')}
+                智能纪要、进会预览页共用同一列,别再往这里塞回内联版本。
+                窄屏必须让位给顶部栏目行 —— 与另外三个栏目页
+                (MeetingModuleShell 的 compactNavigation)同一套规则:
+                定宽左列在 390px 下会把正文挤成一字一行。 */}
+            <div className={css({ display: { base: 'none', md: 'flex' } })}>
+              <MeetingNavPanel />
+            </div>
+            <div className={moduleContent}>
+              <main className={meetingPage}>
+                <div className={css({ md: { display: 'none' } })}>
+                  <MeetingModuleNav current="/meeting" />
+                </div>
+                <header className={pageHeaderRow}>
+                  <div className={pageHeaderText}>
+                    <h1 className={pageTitle}>
+                      {t('library.video', { ns: 'meetings' })}
+                    </h1>
+                  </div>
+                </header>
+                {/* 三个入口:快速会议(实心主操作)+ 加入 / 预约(线框次操作)。
+                    三档都是 action 尺寸,和模块里其它页头动作同高同字号。 */}
+                <div className={meetingActions}>
+                  <Button
+                    variant="primary"
+                    size="action"
+                    data-attr="create-meeting"
+                    onPress={handleCreate}
+                    loading={creating}
+                  >
+                    {t('quickMeeting')}
                   </Button>
-                  <JoinMeetingDialog />
-                </DialogTrigger>
-                <Button
-                  variant="secondary"
-                  data-attr="schedule-meeting"
-                  onPress={() => setScheduling(true)}
-                >
-                  {t('scheduleMeeting')}
-                </Button>
-              </div>
-              {createError && (
-                <p role="alert">
-                  {t('library.createError', { ns: 'meetings' })}
-                </p>
-              )}
-              <ScheduledMeetingsList
-                enabled
-                showEmpty
-                onSchedule={() => setScheduling(true)}
-                onSelect={setMeetingDetail}
-                selectedId={meetingDetail?.sessionId ?? meetingDetail?.id}
-              />
-              <RecentMeetingsList
-                enabled
-                showEmpty
-                onSelect={setMeetingDetail}
-                selectedId={meetingDetail?.sessionId ?? meetingDetail?.id}
-              />
-            </main>
+                  <DialogTrigger>
+                    <Button
+                      variant="secondary"
+                      size="action"
+                      data-attr="join-meeting"
+                    >
+                      {t('joinMeeting')}
+                    </Button>
+                    <JoinMeetingDialog />
+                  </DialogTrigger>
+                  <Button
+                    variant="secondary"
+                    size="action"
+                    data-attr="schedule-meeting"
+                    onPress={() => setScheduling(true)}
+                  >
+                    {t('scheduleMeeting')}
+                  </Button>
+                </div>
+                {createError && (
+                  <StateHint state="error">
+                    {t('library.createError', { ns: 'meetings' })}
+                  </StateHint>
+                )}
+                {/* 「预约会议」只保留上面动作行里那一颗:节标题右侧那颗是同一
+                    动作的重复入口,已删除。预约出来的会议仍出现在本节。 */}
+                <ScheduledMeetingsList
+                  enabled
+                  showEmpty
+                  onSelect={setMeetingDetail}
+                  selectedId={meetingDetail?.sessionId ?? meetingDetail?.id}
+                />
+                <RecentMeetingsList
+                  enabled
+                  showEmpty
+                  onSelect={setMeetingDetail}
+                  selectedId={meetingDetail?.sessionId ?? meetingDetail?.id}
+                />
+              </main>
+            </div>
             {/* 一场会一个详情页:预约会议 = 创建日程后,有日程的走统一的
                 「日程详情」(与日历/IM 同一个组件,带参与人/RSVP/纪要);
                 无日程的(快速会议、存量裸预约)才留会议面板。 */}

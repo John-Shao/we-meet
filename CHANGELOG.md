@@ -43,6 +43,11 @@ and this project adheres to
 - ♻️(fullstack) simplify source serialization
 - ✨(backend) expose room configuration to all API consumers
 - 🩹(frontend) improve reaction toolbar centering with dynamic positioning
+- ♻️(frontend) move meeting module pages onto the shared semantic tokens
+- ♻️(frontend) rebuild meeting module controls on the shared primitives
+- 🩹(frontend) keep meeting module navigation usable below 768px
+- 🩹(frontend) drop the duplicate schedule entry from the meetings header
+- 📝(docs) record the meeting module UX migration and its contract checks
 
 ## [1.16.0] - 2026-05-13
 

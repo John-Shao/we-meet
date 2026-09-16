@@ -264,7 +264,9 @@ function WorkspaceContent({
       {source && !readableCapture && (
         <div role="status" className={textStyle}>
           <p>{t('library.originalDevice')}</p>
-          <Link href="/meeting/recording/capture">{t('library.openRecorder')}</Link>
+          <Link href="/meeting/recording/capture">
+            {t('library.openRecorder')}
+          </Link>
         </div>
       )}
       <Tabs

@@ -10,6 +10,7 @@ import {
 } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
+import { IconButton } from '@/primitives'
 import { navigateTo } from '@/navigation/navigateTo'
 import { openSystemSettings } from '@/stores/systemSettings'
 import { useConfig } from '@/api/useConfig'
@@ -45,13 +46,14 @@ export const MeetingNavPanel = () => {
           className={css({
             width: '100%',
             height: '100%',
-            borderRight: '1px solid token(colors.greyscale.200)',
+            borderRight: '1px solid token(colors.border.subtle)',
             backgroundColor: 'subNavBg',
             // 内边距/行距与「审批」二级导航取同一档,两个模块并排看才是一套。
-            padding: '1rem 0.75rem',
+            paddingY: 'lg',
+            paddingX: 'md',
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.25rem',
+            gap: 'xs',
           })}
         >
           <div
@@ -59,51 +61,40 @@ export const MeetingNavPanel = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              margin: '0 0 0.5rem',
-              paddingX: '0.5rem',
+              gap: 'sm',
+              marginBottom: 'sm',
+              paddingX: 'sm',
             })}
           >
             <h1
               className={css({
-                fontSize: '1.125rem',
-                fontWeight: 'bold',
-                color: 'greyscale.900',
+                textStyle: 'titleMedium',
+                color: 'text.primary',
+                margin: 0,
               })}
             >
               {t('nav.meeting', { ns: 'shell' })}
             </h1>
-            <button
-              type="button"
-              onClick={() => openSystemSettings('meeting')}
-              title={t('systemSettings.nav.meeting', { ns: 'settings' })}
-              aria-label={t('systemSettings.nav.meeting', { ns: 'settings' })}
+            {/* 面板头动作走 IconButton:悬停/pressed/focus-visible、无障碍名与
+                Tooltip 由基元一处给出,不再手搓方框热区。 */}
+            <IconButton
+              size="icon32"
+              label={t('systemSettings.nav.meeting', { ns: 'settings' })}
+              onPress={() => openSystemSettings('meeting')}
               data-testid="meeting-settings"
-              className={css({
-                width: '1.75rem',
-                height: '1.75rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: 'none',
-                borderRadius: '0.5rem',
-                backgroundColor: 'transparent',
-                color: 'greyscale.600',
-                cursor: 'pointer',
-                _hover: { backgroundColor: 'greyscale.100' },
-              })}
             >
-              <RiSettings3Line size={16} />
-            </button>
+              <RiSettings3Line size={18} aria-hidden="true" />
+            </IconButton>
           </div>
           <div
             className={css({
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.25rem',
+              gap: 'xs',
             })}
           >
             <NavRow
-              icon={<RiVidiconLine size={18} />}
+              icon={<RiVidiconLine size={18} aria-hidden="true" />}
               label={t('library.video', { ns: 'meetings' })}
               active={current('/meeting') === 'page'}
               dataAttr="meeting-home"
@@ -111,7 +102,7 @@ export const MeetingNavPanel = () => {
             />
             {data?.meeting_records?.capture_audio_enabled && (
               <NavRow
-                icon={<RiMicLine size={18} />}
+                icon={<RiMicLine size={18} aria-hidden="true" />}
                 label={t('library.record', { ns: 'meetings' })}
                 active={current('/meeting/recording') === 'page'}
                 onPress={() => navigateTo('audioRecording')}
@@ -120,13 +111,13 @@ export const MeetingNavPanel = () => {
             {data?.meeting_records?.enabled && (
               <>
                 <NavRow
-                  icon={<RiStickyNoteLine size={18} />}
+                  icon={<RiStickyNoteLine size={18} aria-hidden="true" />}
                   label={t('library.notes', { ns: 'meetings' })}
                   active={current('/meeting/notes') === 'page'}
                   onPress={() => navigateTo('meetingNotes')}
                 />
                 <NavRow
-                  icon={<RiSparklingLine size={18} />}
+                  icon={<RiSparklingLine size={18} aria-hidden="true" />}
                   label={t('library.minutes', { ns: 'meetings' })}
                   active={current('/meeting/minutes') === 'page'}
                   onPress={() => navigateTo('meetingMinutes')}
@@ -179,25 +170,33 @@ const NavRow = ({
 const navRowBase = css({
   display: 'flex',
   alignItems: 'center',
-  gap: '0.625rem',
-  paddingX: '0.625rem',
-  paddingY: '0.5rem',
-  borderRadius: '8px',
-  fontSize: '0.875rem',
+  gap: 'sm',
+  paddingX: 'sm',
+  paddingY: 'xs',
+  minHeight: 'controlHeight.compact',
+  borderRadius: 'control',
+  textStyle: 'bodyMedium',
   cursor: 'pointer',
   border: 'none',
   textAlign: 'left',
   width: '100%',
+  transition:
+    'background-color token(durations.fast), color token(durations.fast)',
+  // 基元之外的手写行也必须自带焦点环 —— 此前这几行按下 Tab 是「看不见焦点」的。
+  _focusVisible: {
+    outline: '2px solid token(colors.border.focus)',
+    outlineOffset: '-2px',
+  },
 })
 
 const navRowIdle = css({
-  color: 'greyscale.700',
+  color: 'text.secondary',
   backgroundColor: 'transparent',
-  _hover: { backgroundColor: 'greyscale.100' },
+  _hover: { backgroundColor: 'surface.muted', color: 'text.primary' },
 })
 
 const navRowActive = css({
   backgroundColor: 'selected.bg',
   color: 'selected.text',
-  fontWeight: '500',
+  fontWeight: 500,
 })

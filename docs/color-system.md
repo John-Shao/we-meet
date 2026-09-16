@@ -151,6 +151,10 @@ npm run check:colors
   primitives 迁移到这些角色；业务页面仍按阶段 D 逐步收口；
 - `npm run check:colors` 除 WCAG 配对外，还会扫描已迁移的源文件，禁止重新引入
   `greyscale/primary/control/default` 等兼容颜色族；
+- **会议模块已完成 D 阶段收口**：视频会议（`/meeting`）、AI 录音、会议实录、智能纪要
+  四个栏目页及其共享导航 / 列表 / 右下角详情面板全部改用语义角色，并已进入
+  `check:colors` 与 `check:foundations` 的迁移清单（详见
+  [会议模块 UX 收口](./reviews/meetings-ux-migration-2026-09-16.md)）；
 - 会中舞台的 `primaryDark.*` 固定深色控件，以及视频内容上的半透明遮罩属于
   component/product 例外；它们不跟随 App Light/Dark 模式反转；
 - 用户日历色、视频内容色和外部内容色单独建例外清单，不强行 token 化。

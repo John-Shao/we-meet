@@ -4,11 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { RiVidiconLine } from '@remixicon/react'
 
 import { PageState } from '@/components/PageState'
-import { css } from '@/styled-system/css'
-import { H, Text } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
+import { css, cx } from '@/styled-system/css'
+import { Button } from '@/primitives'
 
 import { useVideoMeetings } from '../api/videoMeetings'
 import type { MeetingSelection } from './MeetingDetailPanel'
+import { rowMeta, sectionTitle } from './libraryStyles'
 
 // The overview returns the twenty latest actual sessions.
 const COLLAPSED_COUNT = 20
@@ -24,6 +26,93 @@ const formatRelativeTime = (iso: string, locale: string) => {
     return iso
   }
 }
+
+/** 一节整体的竖向堆叠(标题 + 列表 / 空态 / 加载)。与预约列表同一档间距。 */
+const sectionStack = css({
+  width: '100%',
+  marginTop: 'xl',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'md',
+})
+
+const listCard = css({
+  listStyle: 'none',
+  padding: 0,
+  margin: 0,
+  width: '100%',
+  border: '1px solid token(colors.border.subtle)',
+  borderRadius: 'card',
+  backgroundColor: 'surface.default',
+  overflow: 'hidden',
+})
+
+/**
+ * 会议行。选中底色与基类写在**同一个 css()** 里:cx 叠加同属性原子类按样式表
+ * 顺序取胜(见 memory: panda-cx-atomic-order-trap),拆开会随机丢选中态。
+ */
+const rowButton = (selected: boolean) =>
+  css({
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'md',
+    minHeight: 'controlHeight.large',
+    textAlign: 'left',
+    border: 'none',
+    backgroundColor: selected ? 'action.selected.bg' : 'transparent',
+    color: selected ? 'action.selected.text' : 'text.primary',
+    paddingY: 'md',
+    paddingX: 'lg',
+    cursor: 'pointer',
+    transition:
+      'background-color token(durations.fast), color token(durations.fast)',
+    _hover: { backgroundColor: 'surface.canvas' },
+    _focusVisible: {
+      outline: '2px solid token(colors.border.focus)',
+      outlineOffset: '-2px',
+    },
+  })
+
+/** 行首图标块:品牌浅蓝底 + 蓝图标(brand.* 深浅成对,不再裸写 primary.*)。 */
+const rowIcon = css({
+  flexShrink: 0,
+  width: 'control.lg',
+  height: 'control.lg',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: 'control',
+  backgroundColor: 'brand.50',
+  color: 'brand.600',
+})
+
+const rowBody = css({ minWidth: 0, flex: 1 })
+
+const rowName = css({
+  display: 'block',
+  textStyle: 'bodyMedium',
+  fontWeight: 500,
+  color: 'text.primary',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+
+const rowTime = cx(rowMeta, css({ marginTop: 'xxs' }))
+
+const moreLink = css({
+  alignSelf: 'center',
+  textStyle: 'labelLarge',
+  color: 'text.link',
+  textDecoration: 'none',
+  borderRadius: 'field',
+  _hover: { textDecoration: 'underline' },
+  _focusVisible: {
+    outline: '2px solid token(colors.border.focus)',
+    outlineOffset: '2px',
+  },
+})
 
 export const RecentMeetingsList = ({
   enabled,
@@ -51,36 +140,40 @@ export const RecentMeetingsList = ({
   if (!enabled) return null
   if (isLoading || isError)
     return (
-      <section>
-        <H lvl={3}>{t('home.recentTitle')}</H>
-        <p>{t(isLoading ? 'loading' : 'error.loadFailed')}</p>
-        {isError && (
-          <button onClick={() => void refetch()}>{t('error.retry')}</button>
-        )}
+      <section className={sectionStack}>
+        <h3 className={sectionTitle}>{t('home.recentTitle')}</h3>
+        <StateHint
+          state={isError ? 'error' : 'loading'}
+          action={
+            isError ? (
+              <Button
+                variant="tertiary"
+                size="sm"
+                onPress={() => void refetch()}
+              >
+                {t('error.retry')}
+              </Button>
+            ) : undefined
+          }
+        >
+          {t(isError ? 'error.loadFailed' : 'loading')}
+        </StateHint>
       </section>
     )
   if (!data || data.length === 0) {
     if (!showEmpty) return null
     return (
-      <div
-        className={css({
-          width: '100%',
-          marginTop: '1.5rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.75rem',
-        })}
-      >
-        <H lvl={3} margin={false}>
-          {t('home.recentTitle')}
-        </H>
+      <div className={sectionStack}>
+        <h3 className={sectionTitle}>{t('home.recentTitle')}</h3>
         <PageState
           density="compact"
           surface="card"
           icon={<RiVidiconLine size={20} />}
           description={t('home.recentEmpty')}
         />
-        <Link href="/meeting/notes?source_type=meeting">{t('video.more')}</Link>
+        <Link href="/meeting/notes?source_type=meeting" className={moreLink}>
+          {t('video.more')}
+        </Link>
       </div>
     )
   }
@@ -88,39 +181,18 @@ export const RecentMeetingsList = ({
   const visible = data.slice(0, COLLAPSED_COUNT)
 
   return (
-    <div
-      className={css({
-        width: '100%',
-        marginTop: '1.5rem',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.75rem',
-      })}
-    >
-      <H lvl={3} margin={false}>
-        {t('home.recentTitle')}
-      </H>
-      <ul
-        className={css({
-          listStyle: 'none',
-          padding: 0,
-          margin: 0,
-          width: '100%',
-          border: '1px solid',
-          borderColor: 'greyscale.200',
-          borderRadius: '8px',
-          backgroundColor: 'greyscale.000',
-          overflow: 'hidden',
-        })}
-      >
+    <div className={sectionStack}>
+      <h3 className={sectionTitle}>{t('home.recentTitle')}</h3>
+      <ul className={listCard}>
         {visible.map((m) => {
           const label = m.name || t('home.untitled')
+          const id = m.meeting_session_id ?? m.id
           return (
             <li
-              key={m.meeting_session_id ?? m.id}
+              key={id}
               className={css({
                 '&:not(:last-child)': {
-                  borderBottom: '1px solid token(colors.greyscale.100)',
+                  borderBottom: '1px solid token(colors.border.subtle)',
                 },
               })}
             >
@@ -139,66 +211,20 @@ export const RecentMeetingsList = ({
                     canManage: !!m.is_owner,
                   })
                 }
-                className={
-                  // 单 css() 内联条件:cx 叠加同属性原子类按样式表顺序取
-                  // 胜,选中底色可能被基类盖掉(panda-cx-atomic-order-trap)。
-                  css({
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    textAlign: 'left',
-                    border: 'none',
-                    backgroundColor:
-                      selectedId === (m.meeting_session_id ?? m.id)
-                        ? 'greyscale.100'
-                        : 'transparent',
-                    padding: '0.875rem 1rem',
-                    cursor: 'pointer',
-                    _hover: { backgroundColor: 'greyscale.50' },
-                  })
-                }
+                className={rowButton(selectedId === id)}
               >
-                <span
-                  className={css({
-                    flexShrink: 0,
-                    width: '40px',
-                    height: '40px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '8px',
-                    backgroundColor: 'brand.50',
-                    color: 'brand.500',
-                  })}
-                >
-                  <RiVidiconLine size={20} />
+                <span className={rowIcon}>
+                  <RiVidiconLine size={20} aria-hidden />
                 </span>
-                <span className={css({ minWidth: 0, flex: 1 })}>
-                  <span
-                    className={css({
-                      display: 'block',
-                      fontWeight: 500,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    })}
-                  >
-                    {label}
-                  </span>
+                <span className={rowBody}>
+                  <span className={rowName}>{label}</span>
                   {m.started_at && (
-                    <Text
-                      className={css({
-                        fontSize: '0.8125rem',
-                        color: 'greyscale.600',
-                        marginTop: '0.125rem',
-                      })}
-                    >
+                    <span className={rowTime}>
                       {t(
                         m.status === 'active' ? 'video.active' : 'video.ended'
                       )}{' '}
                       · {formatRelativeTime(m.started_at, i18n.language)}
-                    </Text>
+                    </span>
                   )}
                 </span>
               </button>
@@ -206,10 +232,7 @@ export const RecentMeetingsList = ({
           )
         })}
       </ul>
-      <Link
-        href="/meeting/notes?source_type=meeting"
-        className={css({ alignSelf: 'center', color: 'primary.700' })}
-      >
+      <Link href="/meeting/notes?source_type=meeting" className={moreLink}>
         {t('video.more')}
       </Link>
     </div>

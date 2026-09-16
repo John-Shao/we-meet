@@ -1,20 +1,88 @@
 import { useTranslation } from 'react-i18next'
-import { RiAddLine, RiCalendarLine } from '@remixicon/react'
+import { RiCalendarLine } from '@remixicon/react'
 
 import { PageState } from '@/components/PageState'
-import { css } from '@/styled-system/css'
-import { Button, H, Text } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
+import { css, cx } from '@/styled-system/css'
+import { Button } from '@/primitives'
 
 import { useVideoMeetings } from '../api/videoMeetings'
 import type { MeetingSelection } from './MeetingDetailPanel'
+import { rowMeta, sectionTitle } from './libraryStyles'
 
-/** 节标题 + 右侧动作。空态与有列表两条分支共用,保证动作任何时候都在。 */
-const headerRow = css({
+/** 一节整体的竖向堆叠(标题 + 列表 / 空态 / 加载)。 */
+const sectionStack = css({
+  width: '100%',
+  marginTop: 'xl',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'md',
+})
+
+/** 列表容器:整块一张卡,行与行之间用语义分隔线。 */
+const listCard = css({
+  listStyle: 'none',
+  padding: 0,
+  margin: 0,
+  width: '100%',
+  border: '1px solid token(colors.scheduledCard.border)',
+  borderRadius: 'card',
+  backgroundColor: 'scheduledCard.bg',
+  overflow: 'hidden',
+})
+
+/**
+ * 会议行。选中底色必须和基类写在**同一个 css()** 里:cx 叠加同属性原子类按
+ * 样式表顺序取胜(见 memory: panda-cx-atomic-order-trap),拆开会随机丢选中态。
+ */
+const rowButton = (selected: boolean) =>
+  css({
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'md',
+    minHeight: 'controlHeight.large',
+    textAlign: 'left',
+    border: 'none',
+    backgroundColor: selected ? 'scheduledCard.hover' : 'transparent',
+    paddingY: 'md',
+    paddingX: 'lg',
+    cursor: 'pointer',
+    transition: 'background-color token(durations.fast)',
+    _hover: { backgroundColor: 'scheduledCard.hover' },
+    _focusVisible: {
+      outline: '2px solid token(colors.border.focus)',
+      outlineOffset: '-2px',
+    },
+  })
+
+/** 行首图标块:实心品牌蓝 + 反白图标,深浅两套主题成对翻转。 */
+const rowIcon = css({
+  flexShrink: 0,
+  width: 'control.lg',
+  height: 'control.lg',
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.75rem',
+  justifyContent: 'center',
+  borderRadius: 'control',
+  backgroundColor: 'action.primary.bg',
+  color: 'action.primary.text',
 })
+
+const rowBody = css({ minWidth: 0, flex: 1 })
+
+const rowName = css({
+  display: 'block',
+  textStyle: 'bodyMedium',
+  fontWeight: 500,
+  color: 'text.primary',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+})
+
+/** 时间那一行:辅助信息样式 + 一点上边距(两个 class 属性不重叠,可安全 cx)。 */
+const rowTime = cx(rowMeta, css({ marginTop: 'xxs' }))
 
 /** 预约时间口径(与 App 端对齐):当天 →「今天 HH:mm」;否则「M月d日
  * HH:mm」(不带年,预约都是近期未来)。 */
@@ -46,7 +114,6 @@ export const ScheduledMeetingsList = ({
   showEmpty = false,
   onSelect,
   selectedId,
-  onSchedule,
 }: {
   enabled: boolean
   /** 在会议主区常驻显示:无预约时渲染「暂无待开始的会议」空态卡(企微式);
@@ -56,13 +123,6 @@ export const ScheduledMeetingsList = ({
   onSelect: (selection: MeetingSelection) => void
   /** 当前详情面板展示的会议 id → 行高亮。 */
   selectedId?: string | null
-  /**
-   * 「预约会议」入口。原先在左侧导航列里,现收进本节标题右侧 —— 预约出来的
-   * 会议就出现在这个列表里,入口和结果同处一节比隔着一条导航列更好找。
-   * 放在标题行而不是空态卡里:空态卡在已有预约时会消失,入口不该跟着消失。
-   * 不传则不渲染(匿名落地页走自己的登录 CTA 行)。
-   */
-  onSchedule?: () => void
 }) => {
   const { t, i18n } = useTranslation('meetings')
   const {
@@ -73,48 +133,42 @@ export const ScheduledMeetingsList = ({
   } = useVideoMeetings(enabled)
   const data = overview?.scheduled
 
-  const header = (title: string) => (
-    <div className={headerRow}>
-      <H lvl={3} margin={false}>
-        {title}
-      </H>
-      {onSchedule && (
-        <Button
-          variant="secondary"
-          size="sm"
-          data-attr="schedule-meeting"
-          onPress={onSchedule}
-        >
-          <RiAddLine size={16} />
-          {t('scheduleMeeting', { ns: 'home' })}
-        </Button>
-      )}
-    </div>
-  )
+  /**
+   * 节标题。
+   *
+   * 「预约会议」入口**曾经**收在这一行右侧,现已删除:会议主区顶部的动作行里
+   * 已经有同一颗按钮,而那一行永远在屏上 —— 不需要靠标题行兜住可见性,同一屏
+   * 出现两颗同款次按钮反而让人犹豫点哪个。预约出来的会议仍然出现在这一节里。
+   */
+  const header = (title: string) => <h3 className={sectionTitle}>{title}</h3>
 
   if (!enabled) return null
   if (isLoading || isError)
     return (
-      <section>
+      <section className={sectionStack}>
         {header(t('home.scheduledTitle'))}
-        <p>{t(isLoading ? 'loading' : 'error.loadFailed')}</p>
-        {isError && (
-          <button onClick={() => void refetch()}>{t('error.retry')}</button>
-        )}
+        <StateHint
+          state={isError ? 'error' : 'loading'}
+          action={
+            isError ? (
+              <Button
+                variant="tertiary"
+                size="sm"
+                onPress={() => void refetch()}
+              >
+                {t('error.retry')}
+              </Button>
+            ) : undefined
+          }
+        >
+          {t(isError ? 'error.loadFailed' : 'loading')}
+        </StateHint>
       </section>
     )
   if (!data || data.length === 0) {
     if (!showEmpty) return null
     return (
-      <div
-        className={css({
-          width: '100%',
-          marginTop: '1.5rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.75rem',
-        })}
-      >
+      <div className={sectionStack}>
         {header(t('home.scheduledTitle'))}
         <PageState
           density="compact"
@@ -129,29 +183,9 @@ export const ScheduledMeetingsList = ({
   const visible = data
 
   return (
-    <div
-      className={css({
-        width: '100%',
-        marginTop: '1.5rem',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.75rem',
-      })}
-    >
+    <div className={sectionStack}>
       {header(t('home.scheduledTitle'))}
-      <ul
-        className={css({
-          listStyle: 'none',
-          padding: 0,
-          margin: 0,
-          width: '100%',
-          border: '1px solid',
-          borderColor: 'scheduledCard.border',
-          borderRadius: '8px',
-          backgroundColor: 'scheduledCard.bg',
-          overflow: 'hidden',
-        })}
-      >
+      <ul className={listCard}>
         {visible.map((m) => {
           const label = m.name || t('home.untitled')
           return (
@@ -177,67 +211,21 @@ export const ScheduledMeetingsList = ({
                     eventId: m.event_id ?? null,
                   })
                 }
-                className={
-                  // 单 css() 内联条件:cx 叠加同属性原子类按样式表顺序取
-                  // 胜,选中底色可能被基类盖掉(panda-cx-atomic-order-trap)。
-                  css({
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem',
-                    textAlign: 'left',
-                    border: 'none',
-                    backgroundColor:
-                      selectedId === m.id
-                        ? 'scheduledCard.hover'
-                        : 'transparent',
-                    padding: '0.875rem 1rem',
-                    cursor: 'pointer',
-                    _hover: { backgroundColor: 'scheduledCard.hover' },
-                  })
-                }
+                className={rowButton(selectedId === m.id)}
               >
-                <span
-                  className={css({
-                    flexShrink: 0,
-                    width: '40px',
-                    height: '40px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '8px',
-                    backgroundColor: 'primary.500',
-                    color: 'white',
-                  })}
-                >
-                  <RiCalendarLine size={20} />
+                <span className={rowIcon}>
+                  <RiCalendarLine size={20} aria-hidden />
                 </span>
-                <span className={css({ minWidth: 0, flex: 1 })}>
-                  <span
-                    className={css({
-                      display: 'block',
-                      fontWeight: 500,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    })}
-                  >
-                    {label}
-                  </span>
+                <span className={rowBody}>
+                  <span className={rowName}>{label}</span>
                   {m.scheduled_at && (
-                    <Text
-                      className={css({
-                        fontSize: '0.8125rem',
-                        color: 'scheduledCard.text',
-                        marginTop: '0.125rem',
-                      })}
-                    >
+                    <span className={rowTime}>
                       {formatScheduledAt(
                         m.scheduled_at,
                         i18n.language,
                         t('home.today')
                       )}
-                    </Text>
+                    </span>
                   )}
                 </span>
               </button>

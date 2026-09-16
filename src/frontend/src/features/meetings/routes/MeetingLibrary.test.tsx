@@ -131,11 +131,13 @@ it('keeps upload and participation filters available and clears a submitted sear
 it('minutes opens the summary reader and filters ownership on the server', async () => {
   show(true)
   await screen.findByText(archived.title)
+  // 范围筛选收口到共享 SegmentedControl,语义是 tablist/tab(页内阅读模式),
+  // 不再是页面手写的一组 aria-pressed 按钮。
   expect(
-    screen.getByRole('button', { name: 'minutesLibrary.scope.owned' })
-  ).toHaveAttribute('aria-pressed', 'true')
+    screen.getByRole('tab', { name: 'minutesLibrary.scope.owned' })
+  ).toHaveAttribute('aria-selected', 'true')
   fireEvent.click(
-    screen.getByRole('button', { name: 'minutesLibrary.scope.participated' })
+    screen.getByRole('tab', { name: 'minutesLibrary.scope.participated' })
   )
   await waitFor(() =>
     expect(
@@ -148,7 +150,7 @@ it('minutes opens the summary reader and filters ownership on the server', async
   fireEvent.click(screen.getByRole('button', { name: 'library.next' }))
   await screen.findByText('Second page')
   fireEvent.click(
-    screen.getByRole('button', { name: 'minutesLibrary.scope.shared' })
+    screen.getByRole('tab', { name: 'minutesLibrary.scope.shared' })
   )
   await screen.findByText(archived.title)
   // 只看记录接口的请求:这一页现在还会读一次全局 config(页内那行导航要用它

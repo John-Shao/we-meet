@@ -3,11 +3,63 @@ import { Link, Redirect, useParams } from 'wouter'
 import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
 import { Button } from '@/primitives'
-import { css } from '@/styled-system/css'
+import { StateHint } from '@/components/StateHint'
+import { css, cx } from '@/styled-system/css'
 import { useMeetingRecord } from '../api/fetchMeetingRecord'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
-import { libraryLayout } from '../components/libraryStyles'
+import {
+  libraryLayout,
+  pageLead,
+  pageTitle,
+  rowMeta,
+  sectionTitle,
+} from '../components/libraryStyles'
+
+/** 详情内容:标题 + 元信息 + 两份资料入口。 */
+const detailStack = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'lg',
+})
+
+/** 详情标题允许长标题换行,其余同页面主标题一档。 */
+const detailTitle = css({ overflowWrap: 'anywhere' })
+
+/** 详情页页头:返回链接与标题之间的间距。 */
+const detailPageTitle = cx(pageTitle, css({ marginTop: 'lg' }))
+
+/** 资料入口卡(实录 / 纪要各一张)。 */
+const materialCard = css({
+  padding: 'lg',
+  border: '1px solid token(colors.border.subtle)',
+  borderRadius: 'card',
+  backgroundColor: 'surface.default',
+})
+
+const materialHintCls = cx(rowMeta, css({ marginY: 'md' }))
+
+const materialLinkCls = css({
+  textStyle: 'labelLarge',
+  color: 'text.link',
+  borderRadius: 'field',
+  _hover: { textDecoration: 'underline' },
+  _focusVisible: {
+    outline: '2px solid token(colors.border.focus)',
+    outlineOffset: '2px',
+  },
+})
+
+const backLinkCls = css({
+  textStyle: 'labelLarge',
+  color: 'text.link',
+  borderRadius: 'field',
+  _hover: { textDecoration: 'underline' },
+  _focusVisible: {
+    outline: '2px solid token(colors.border.focus)',
+    outlineOffset: '2px',
+  },
+})
 
 export function RecordingDetailContent({
   viewerId,
@@ -26,22 +78,28 @@ export function RecordingDetailContent({
       : undefined
   if (query.isError || (query.data && !record))
     return (
-      <div role="alert">
-        <p>{t('library.loadError')}</p>
-        <Button variant="tertiary" onPress={() => void query.refetch()}>
-          {t('library.refresh')}
-        </Button>
-      </div>
+      <StateHint
+        state="error"
+        action={
+          <Button
+            variant="tertiary"
+            size="sm"
+            onPress={() => void query.refetch()}
+          >
+            {t('library.refresh')}
+          </Button>
+        }
+      >
+        {t('library.loadError')}
+      </StateHint>
     )
-  if (!record) return <p role="status">{t('loading')}</p>
+  if (!record) return <StateHint state="loading">{t('loading')}</StateHint>
   return (
-    <div
-      className={css({ display: 'flex', flexDirection: 'column', gap: '1rem' })}
-    >
-      <h2 className={css({ fontSize: '1.5rem', overflowWrap: 'anywhere' })}>
+    <div className={detailStack}>
+      <h2 className={cx(pageTitle, detailTitle)}>
         {record.title || t('library.untitled')}
       </h2>
-      <p>
+      <p className={pageLead}>
         {t(
           record.source_type === 'upload'
             ? `upload.${record.upload?.media_type ?? 'audio'}`
@@ -53,7 +111,7 @@ export function RecordingDetailContent({
         </time>
       </p>
       {record.upload && (
-        <p>
+        <p className={pageLead}>
           {record.upload.name} ·{' '}
           {(record.upload.size / 1024 / 1024).toLocaleString(i18n.language, {
             maximumFractionDigits: 2,
@@ -66,7 +124,7 @@ export function RecordingDetailContent({
       )}
       {record.source_type !== 'upload' &&
         record.retention_mode !== 'unknown' && (
-          <p>
+          <p className={pageLead}>
             {t(
               `recordingOverview.${record.retention_mode === 'text' ? 'textOnly' : 'keepAudio'}`
             )}
@@ -78,17 +136,9 @@ export function RecordingDetailContent({
             ? record.capabilities.read_transcript
             : record.capabilities.read_summary
         return (
-          <section
-            key={kind}
-            className={css({
-              padding: '1rem',
-              border: '1px solid',
-              borderColor: 'greyscale.200',
-              borderRadius: '0.75rem',
-            })}
-          >
-            <h3>{t(`library.${kind}`)}</h3>
-            <p className={css({ color: 'greyscale.600', margin: '0.75rem 0' })}>
+          <section key={kind} className={materialCard}>
+            <h3 className={sectionTitle}>{t(`library.${kind}`)}</h3>
+            <p className={materialHintCls}>
               {t(
                 !allowed
                   ? 'video.materialUnavailable'
@@ -102,7 +152,7 @@ export function RecordingDetailContent({
             {allowed && (
               <Link
                 href={`/meeting/records/${encodeURIComponent(record.id)}${kind === 'minutes' ? '?tab=summary' : ''}`}
-                className={css({ color: 'primary.700' })}
+                className={materialLinkCls}
               >
                 {t(
                   kind === 'notes' ? 'video.viewRecord' : 'detail.viewSummary'
@@ -122,19 +172,15 @@ export function RecordingDetail() {
   const { data, isError } = useConfig()
   const { t } = useTranslation('meetings')
   if (isLoggedIn === false) return <Redirect to="/" />
-  if (!user || (!data && !isError)) return <p role="status">{t('loading')}</p>
+  if (!user || (!data && !isError))
+    return <StateHint state="loading">{t('loading')}</StateHint>
   return (
     <MeetingModuleShell compactNavigation>
       <main className={libraryLayout}>
-        <Link
-          href="/meeting/recording"
-          className={css({ color: 'primary.700' })}
-        >
+        <Link href="/meeting/recording" className={backLinkCls}>
           {t('recordingOverview.back')}
         </Link>
-        <h1 className={css({ fontSize: '1.25rem', margin: '1rem 0' })}>
-          {t('recordingOverview.detail')}
-        </h1>
+        <h1 className={detailPageTitle}>{t('recordingOverview.detail')}</h1>
         {!isError && data?.meeting_records?.enabled && recordId ? (
           <RecordingDetailContent
             key={`${user.id}:${recordId}`}
@@ -142,7 +188,7 @@ export function RecordingDetail() {
             recordId={recordId}
           />
         ) : (
-          <p>{t('library.unavailable')}</p>
+          <StateHint state="empty">{t('library.unavailable')}</StateHint>
         )}
       </main>
     </MeetingModuleShell>
