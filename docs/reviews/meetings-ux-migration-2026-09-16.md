@@ -84,7 +84,10 @@
   右侧的三个入口随之消失，已统一成钉头，`wholePageScroll` 随之删除。）
 - **页头一行搞定**：页面标题在左，动作组在右（`pageHeaderRow` + `headerActions`），
   动作按钮统一 `Button size="action"` + 18px `icon`。视频会议的「快速会议 / 加入会议 /
-  预约会议」三个入口就放在标题行右侧。
+  预约会议」三个入口就放在标题行右侧，图标与 App 端取同一套语义 —— Android
+  `HomeScreen.kt` 用的是 Material `Bolt` / `AddBox` / `Schedule`，Web 侧对应
+  `RiFlashlightLine` / `RiAddBoxLine` / `RiTimeLine`（同符号；字重按 Web 一贯的线性
+  图标取 `*Line`，与 Foundation System §1「平台保留各自原生观感」一致）。
 - **一套行风格**：行首 48px 品牌浅蓝底图标块（`rowIconTile`，24px 图标）、
   16px/500 行标题（`rowHeadingOneLine` / `rowHeadingClamped`）、12px 次要色辅助信息
   （`rowMetaRow` 横排 / `rowMetaBlock` 竖排）、`lg` 内边距与行间距、浅底悬停、

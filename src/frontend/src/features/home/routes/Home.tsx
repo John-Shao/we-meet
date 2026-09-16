@@ -21,11 +21,7 @@ import {
 import { ReactNode, useEffect, useState } from 'react'
 
 import { css, cx } from '@/styled-system/css'
-import {
-  RiCalendarScheduleLine,
-  RiLoginBoxLine,
-  RiVideoAddLine,
-} from '@remixicon/react'
+import { RiAddBoxLine, RiFlashlightLine, RiTimeLine } from '@remixicon/react'
 import { usePersistentUserChoices } from '@/features/rooms/livekit/hooks/usePersistentUserChoices'
 import { useConfig } from '@/api/useConfig'
 import { useQueryClient } from '@tanstack/react-query'
@@ -269,12 +265,14 @@ export const Home = () => {
                       </h1>
                     </div>
                     {/* 快速会议(实心主操作)+ 加入 / 预约(线框次操作),
-                        三档都是 action 尺寸,和模块里其它页头动作同高同字号。 */}
+                        三档都是 action 尺寸,和模块里其它页头动作同高同字号。
+                        图标与 App 端同一套语义(Android HomeScreen 的 Bolt / AddBox /
+                        Schedule),按 Web 侧一贯的线性字重取 Ri*Line。 */}
                     <div className={headerActions}>
                       <Button
                         variant="primary"
                         size="action"
-                        icon={<RiVideoAddLine size={18} aria-hidden />}
+                        icon={<RiFlashlightLine size={18} aria-hidden />}
                         data-attr="create-meeting"
                         onPress={handleCreate}
                         loading={creating}
@@ -285,7 +283,7 @@ export const Home = () => {
                         <Button
                           variant="secondary"
                           size="action"
-                          icon={<RiLoginBoxLine size={18} aria-hidden />}
+                          icon={<RiAddBoxLine size={18} aria-hidden />}
                           data-attr="join-meeting"
                         >
                           {t('joinMeeting')}
@@ -295,7 +293,7 @@ export const Home = () => {
                       <Button
                         variant="secondary"
                         size="action"
-                        icon={<RiCalendarScheduleLine size={18} aria-hidden />}
+                        icon={<RiTimeLine size={18} aria-hidden />}
                         data-attr="schedule-meeting"
                         onPress={() => setScheduling(true)}
                       >

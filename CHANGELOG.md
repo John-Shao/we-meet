@@ -77,6 +77,7 @@ and this project adheres to
   meeting lists
 - ♻️(frontend) pin the video meeting header and move its three actions into
   the title row
+- ♻️(frontend) use the same quick action icons as the Android app on that page
 
 ## [1.16.0] - 2026-05-13
 
