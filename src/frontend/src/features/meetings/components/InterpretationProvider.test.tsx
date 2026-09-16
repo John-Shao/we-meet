@@ -282,7 +282,13 @@ describe('Shared interpretation listener lifecycle', () => {
     await act(() =>
       client.invalidateQueries({ queryKey: ['meeting-interpretation'] })
     )
-    expect(latest.rows).toHaveLength(0)
+    // 「权限失效 → 清空已收到的译文」是 effect 驱动的(status.isError → silence()),
+    // 而 invalidateQueries 的 resolve 只代表请求落地 —— 清空落在紧随其后的一轮
+    // 提交里。CI 上这轮提交晚于 act 的 flush 窗口(实测与 Node 版本、TZ 无关),
+    // 直接断言会稳定失败,所以等状态落定再断言:真没清空的话这里会超时失败,
+    // 不会把「丢了权限还留着别人的译文」这种问题盖过去。
+    await waitFor(() => expect(latest.rows).toHaveLength(0))
+    expect(latest.error).toBe(true)
     expect(latest.canPlay(sender, 'TR_voice')).toBe(false)
   })
   it('administrator channel control does not subscribe on their behalf', async () => {
