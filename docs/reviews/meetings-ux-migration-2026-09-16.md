@@ -168,6 +168,62 @@ token（`panda.config` 里那组已无任何引用）。区分「预约 / 历史
   注册进 `core/tasks/__init__.py` 与 beat（`close-abandoned-rooms`，每小时一次，
   与既有的 `reconcile-active-meeting-sessions` 同一套写法）。
 
+#### 手动清理（存量）
+
+beat 只清「跑起来之后」的，已经躺在库里的存量要手动跑一次。为此加了管理命令
+`core/management/commands/close_abandoned_rooms.py`，条件与定时任务**完全一致**，
+并且支持干跑：
+
+```bash
+# 生产 K3s 主机上
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+kubectl -n meet exec -i deploy/meet-backend -- \
+  python manage.py close_abandoned_rooms --dry-run
+kubectl -n meet exec -i deploy/meet-backend -- \
+  python manage.py close_abandoned_rooms
+```
+
+- `--dry-run` 逐行列出**会被关掉**的房间（id / 建房时间 / 名字），一行都不改；
+  先看一遍再执行。
+- `--seconds N` 覆盖宽限期。默认 86400 秒（一天）；只想清「一天内」的也可以用
+  `--seconds 3600` 之类的更短窗口，或 `--seconds 0` 表示「现在就清所有符合条件的」。
+- 前提是**本分支的后端已经发上去**（命令随镜像走）。若还没发、又想立刻清线上存量，
+  可以在 `manage.py shell` 里跑同一组条件（只用现成的模型关系，不需要新代码）：
+
+```bash
+kubectl -n meet exec -i deploy/meet-backend -- python manage.py shell <<'PY'
+from datetime import timedelta
+from django.utils import timezone
+from core import models
+
+cutoff = timezone.now() - timedelta(days=1)
+qs = models.Room.objects.filter(
+    ended_at__isnull=True, scheduled_at__isnull=True,
+    meeting_sessions__isnull=True, created_at__lte=cutoff,
+)
+print("would close:", qs.count())
+for room in qs[:20]:
+    print(" ", room.id, room.created_at.isoformat(), room.name)
+# 确认无误后取消注释这两行再跑一次：
+# print("closed:", qs.update(ended_at=timezone.now()))
+PY
+```
+
+本地实测（造 5 个样本：两个「无人进过且无预约」、一个刚建、一个有预约时间、
+一个有人进过）：
+
+```
+$ python manage.py close_abandoned_rooms --dry-run
+  4cd5ca5d-…  2026-09-13T16:04:17+00:00  与W002的通话
+  f9dd779e-…  2026-09-14T16:04:17+00:00  测试2群的视频会议
+[dry-run] 2 room(s) older than 86400s would be closed; nothing changed.
+
+$ python manage.py close_abandoned_rooms
+Closed 2 room(s) older than 86400s (cutoff 2026-09-15T16:04:17+00:00).
+```
+
+核对：两个该关的 `ended_at` 都写上了；刚建的、有预约时间的、有人进过的三个**都没动**。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把
@@ -247,9 +303,9 @@ token（`panda.config` 里那组已无任何引用）。区分「预约 / 历史
   导入时给友好默认名（例如「上传文件 · 9月16日 15:01」）并提供重命名入口 —— 需要产品定，
   没自作主张改后端。
 - **已经躺在库里的无时间房间**：3.3 的自动关闭要等 beat 跑起来才会清掉历史存量
-  （每小时一次、宽限期 86400 秒）。如果想立刻清，可以手工跑一次
-  `core.tasks.rooms.close_abandoned_rooms`（或把 `ROOM_ABANDONED_AFTER_SECONDS`
-  临时调小再跑）。列表侧已经不受影响 —— 它们本来就不再进 `scheduled` 了。
+  （每小时一次、宽限期 86400 秒）。**手动清理的完整方法见 3.3「手动清理（存量）」**
+  ——`manage.py close_abandoned_rooms --dry-run` 先看再执行。列表侧已经不受影响
+  —— 它们本来就不再进 `scheduled` 了。
 - **带 session 但从未关闭的房间**（有人进过、房主没点结束、webhook 也没到）没被这个
   任务处理：`reconcile_active_meeting_sessions` 只管 status=ACTIVE 的会话，房间的
   `ended_at` 仍是空的。要不要一并收掉需要产品定 —— 关掉会影响「复用房间」的语义

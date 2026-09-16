@@ -7,7 +7,9 @@ to it, because a call room is created with a name only.
 """
 
 from datetime import timedelta
+from io import StringIO
 
+from django.core.management import call_command
 from django.utils import timezone
 
 import pytest
@@ -65,3 +67,35 @@ def test_leaves_an_already_closed_room_alone():
 
     closed.refresh_from_db()
     assert closed.ended_at == ended_at
+
+
+def test_management_command_dry_run_reports_without_closing():
+    abandoned = factories.RoomFactory(scheduled_at=None, name="与 W002 的通话")
+    _age(abandoned)
+
+    output = StringIO()
+    call_command("close_abandoned_rooms", "--dry-run", stdout=output)
+
+    printed = output.getvalue()
+    assert "[dry-run]" in printed
+    assert "与 W002 的通话" in printed
+    abandoned.refresh_from_db()
+    assert abandoned.ended_at is None
+
+
+def test_management_command_closes_and_accepts_a_shorter_window():
+    fresh = factories.RoomFactory(scheduled_at=None)
+    abandoned = factories.RoomFactory(scheduled_at=None)
+    _age(abandoned)
+
+    # The regular window leaves the brand-new room alone.
+    call_command("close_abandoned_rooms", stdout=StringIO())
+    fresh.refresh_from_db()
+    abandoned.refresh_from_db()
+    assert abandoned.ended_at is not None
+    assert fresh.ended_at is None
+
+    # An operator can widen the window on purpose.
+    call_command("close_abandoned_rooms", "--seconds", "0", stdout=StringIO())
+    fresh.refresh_from_db()
+    assert fresh.ended_at is not None

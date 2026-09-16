@@ -87,6 +87,8 @@ and this project adheres to
   created by a chat call stop showing up without a time
 - ✨(backend) close rooms that were created but never joined and never
   scheduled, so abandoned call rooms stop piling up
+- 🩹(backend) add a close_abandoned_rooms command with --dry-run so operators
+  can clear the rooms already sitting in the database
 
 ## [1.16.0] - 2026-05-13
 
