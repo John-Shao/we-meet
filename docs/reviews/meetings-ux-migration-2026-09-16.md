@@ -63,8 +63,27 @@
 - 数字圆角（`8px` / `0.75rem` / `1rem`）换成 `control` / `card` / `panel` / `pill` / `field`；
 - 悬停阴影字面量换成 `shadows.raised`；
 - 页内散落的 `1rem` / `1.5rem` / `1.75rem` / `2rem` 边距收敛到
-  `space.sm|md|lg|xl|2xl` 语义档，四个栏目页共用同一版心（`1120px`）与同一套
-  页头 / 区块 / 行样式（`libraryStyles.ts`）。
+  `space.sm|md|lg|xl|2xl` 语义档，四个栏目页共用同一套页头 / 区块 / 行样式
+  （`libraryStyles.ts`）。
+
+### 3.1 列表页版式：铺满 + 只滚列表（2026-09-16 追加）
+
+「会议实录 / 智能纪要」这一对列表页（同一个 `Library` 组件，`minutes` 档切换）
+按任务列表（`TasksRoute` 的 `workspace → main → header + modeTabs + listRegion`）
+的版式重排：
+
+- **去掉限宽居中版心**：原先 `maxWidth: 1120px` + `margin: 0 auto`，窗口一宽两侧
+  就各留一大块空白。现在页壳铺满内容列，横向内边距用 `space.lg`（16px，即规范里
+  「页面边距」那一档，与任务列表的 `paddingX: 1rem` 同值）。
+- **只有列表滚动**：页壳是占满高度的 flex 列，列表以上部分（窄屏栏目行、页头、
+  范围筛选、搜索/筛选面板）`flexShrink: 0` 并带 `border.subtle` 底边分隔线；
+  列表区 `flex: 1; minHeight: 0; overflow: auto`。滚到底也始终看得见当前筛选条件，
+  与任务列表的手感一致。
+- 顺带把搜索框上限的 `maxLength={200}` 补回（`SearchBox` 不带该属性，改在受控值上截断）。
+
+分工要记一笔：**视频会议与 AI 录音两个页面仍是限宽居中的版式**（`maxWidth: 1120px`），
+本次只按需求改了列表页；要不要一起铺满、要不要也做成「固定页头 + 只滚列表」，
+属于产品取舍，留待确认。
 
 ### 4. 顺带修掉的缺陷
 
@@ -94,7 +113,11 @@
   从 `aria-pressed` 按钮组变成 `tablist/tab`，断言随之改为 `aria-selected`；
 - `node scripts/check-meeting-pages-ui.mjs`（真实 Chromium，需先起 dev server）：
   四个页面在 1180px 与 390px 下均无横向滚动、分段控件键盘可切换、图标开关
-  `aria-pressed` 同步、Tab 焦点有可见描边、浅深两套主题下语义 token 正确翻转。
+  `aria-pressed` 同步、Tab 焦点有可见描边、浅深两套主题下语义 token 正确翻转；
+  列表页另加两条断言锁住 3.1 的版式——页壳宽度必须等于内容列宽度（限宽居中的
+  版心会让这条失败）、卡片左右留白 ≤ 20px；列表区滚到底时页头与搜索框的 `y`
+  必须原封不动，且外层内容列 `scrollTop` 仍为 0（只能有一个滚动区）。归档
+  fixture 也补到 26 条，否则列表滚不动、第二条断言会退化成恒真。
 
 ### 走查截图
 
@@ -109,7 +132,6 @@
 - AI 录音：[1180px](meetings-ux-assets/desktop-recording.png)、
   [390px](meetings-ux-assets/mobile-recording.png)
 - 深色主题（实录）：[1180px](meetings-ux-assets/dark-records.png)
-
 
 ## 遗留（未在本次改动）
 

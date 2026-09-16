@@ -35,6 +35,20 @@ const video = {
   source_type: 'meeting',
   has_summary: false,
 }
+/**
+ * 归档列表要**足够长**,「只滚列表」这条才验得到:记录只有两条时列表根本滚不动,
+ * 断言会退化成恒真。
+ */
+const archive = [
+  record,
+  video,
+  ...Array.from({ length: 24 }, (_, index) => ({
+    ...record,
+    id: `archive-${index}`,
+    title: `评审记录 ${index + 1}`,
+    has_summary: false,
+  })),
+]
 const user = {
   id: 'ui-owner',
   email: 'owner@example.com',
@@ -182,7 +196,9 @@ try {
     if (url.pathname.endsWith('/meeting-records/')) {
       if (url.searchParams.get('is_ongoing') === 'true')
         return reply({ results: [ongoing], next_cursor: null })
-      return reply({ results: [record, video], next_cursor: null })
+      if (url.searchParams.get('source_type') === 'recordings')
+        return reply({ results: [record, video], next_cursor: null })
+      return reply({ results: archive, next_cursor: null })
     }
     return reply(record)
   })
@@ -216,6 +232,62 @@ try {
     2,
     '实录页仍然是「进行中 + 历史记录」两组'
   )
+
+  // ① 左右不留白:页壳铺满内容列(不再有 1120px 居中版心),卡片左右各只留一档
+  //    16px 页边距。
+  const shellBox = await page.locator('main').boundingBox()
+  const columnBox = await page.locator('main').evaluate((el) => {
+    const box = el.parentElement.getBoundingClientRect()
+    return { x: box.x, width: box.width }
+  })
+  assert.equal(
+    Math.round(shellBox.width),
+    Math.round(columnBox.width),
+    '页壳必须铺满内容列,不能是限宽居中的版心'
+  )
+  const cardBox = await page.locator('[aria-label="产品设计评审"]').boundingBox()
+  const leftGap = Math.round(cardBox.x - shellBox.x)
+  const rightGap = Math.round(shellBox.x + shellBox.width - (cardBox.x + cardBox.width))
+  assert.ok(
+    leftGap <= 20 && rightGap <= 20,
+    `卡片左右留白应只有 16px 页边距,实际左 ${leftGap}px / 右 ${rightGap}px`
+  )
+
+  // ② 只滚列表:列表区滚到底时页头与工具行必须原地不动,外层内容列也不能被滚动。
+  const listRegion = page.getByTestId('meeting-list-region')
+  const headingBefore = await page
+    .getByRole('heading', { name: '会议实录', exact: true })
+    .boundingBox()
+  const searchBefore = await page.getByLabel('搜索标题').boundingBox()
+  const scrolled = await listRegion.evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+    return el.scrollTop
+  })
+  assert.ok(scrolled > 0, `列表区应可滚动(实际 scrollTop=${scrolled})`)
+  const headingAfter = await page
+    .getByRole('heading', { name: '会议实录', exact: true })
+    .boundingBox()
+  const searchAfter = await page.getByLabel('搜索标题').boundingBox()
+  assert.equal(
+    Math.round(headingAfter.y),
+    Math.round(headingBefore.y),
+    '列表滚动时页头必须固定不动'
+  )
+  assert.equal(
+    Math.round(searchAfter.y),
+    Math.round(searchBefore.y),
+    '列表滚动时搜索框必须固定不动'
+  )
+  assert.equal(
+    await page
+      .locator('main')
+      .evaluate((el) => el.parentElement.scrollTop),
+    0,
+    '外层内容列不应跟着滚(只能有一个滚动区)'
+  )
+  await listRegion.evaluate((el) => {
+    el.scrollTop = 0
+  })
 
   // 范围筛选收口到共享分段控件:键盘可操作,选中态走 aria-selected。
   const scopeTabs = page.getByRole('tab')

@@ -46,6 +46,39 @@ const toolbar = css({
   marginBottom: 'lg',
 })
 
+/**
+ * 页壳。占满内容列的高度并自己管滚动,**不再设 maxWidth / margin auto** ——
+ * 之前版心锁在 1120px 居中,窗口一宽两边就各留一大块空白。
+ * 结构与任务列表一致:页壳 flex 列 + 固定区(flexShrink 0)+ 滚动区(flex 1)。
+ */
+const pageShell = css({
+  flex: '1 1 0',
+  minHeight: 0,
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  backgroundColor: 'surface.canvas',
+  '&[data-minutes=true]': { backgroundColor: 'surface.default' },
+})
+
+/** 列表以上部分:固定,不随列表滚动。底边分隔线(R=border.subtle=greyscale.200)。 */
+const pageFixedTop = css({
+  flexShrink: 0,
+  paddingX: 'lg',
+  paddingTop: 'xl',
+  borderBottom: '1px solid token(colors.border.subtle)',
+})
+
+/** 唯一的滚动区。内边距留在里面,最后一行才不会贴着底。 */
+const listRegion = css({
+  flex: 1,
+  minHeight: 0,
+  overflow: 'auto',
+  paddingX: 'lg',
+  paddingTop: 'xs',
+  paddingBottom: '2xl',
+})
+
 /** 窄屏会横滚,不能被 flex 压扁。 */
 const toolbarScroll = css({
   display: 'flex',
@@ -414,197 +447,193 @@ export function Library({
     : (['recent', 'owned', 'shared'] as const)
   return (
     <MeetingModuleShell compactNavigation>
-      <main
-        data-minutes={minutes}
-        className={css({
-          width: '100%',
-          maxWidth: '1120px',
-          margin: '0 auto',
-          padding: { base: 'lg', md: '2xl' },
-          minHeight: '100%',
-          backgroundColor: 'surface.canvas',
-          '&[data-minutes=true]': { backgroundColor: 'surface.default' },
-        })}
-      >
-        <div className={css({ md: { display: 'none' } })}>
-          <MeetingModuleNav
-            current={minutes ? '/meeting/minutes' : '/meeting/notes'}
-          />
-        </div>
-        <header className={pageHeaderRow}>
-          <div className={pageHeaderText}>
-            <h1 className={pageTitle}>
-              {t(minutes ? 'library.minutes' : 'library.notes')}
-            </h1>
-            <p className={pageLead}>
-              {t(minutes ? 'library.minutesHint' : 'library.notesHint')}
-            </p>
-          </div>
-          <div className={headerActions}>
-            {config?.search_ai?.enabled !== false && (
-              <Button
-                variant="secondary"
-                size="action"
-                onPress={() => openGlobalSearch('ai', 'meetings')}
-              >
-                {t('minutesReader.searchMeetings')}
-              </Button>
-            )}
-            {!minutes && (
-              <>
-                <RecordingUpload viewerId={viewerId} />
-                {config?.meeting_records?.capture_audio_enabled && (
-                  <Button
-                    size="action"
-                    icon={<RiMicLine size={18} aria-hidden />}
-                    onPress={() => navigate('/meeting/recording/capture')}
-                  >
-                    {t('library.startRecording')}
-                  </Button>
-                )}
-              </>
-            )}
-          </div>
-        </header>
-        {/* 范围筛选走共享分段控件:实录用 pill(紧凑筛选),纪要阅读器用
-            underline(同级阅读模式)。焦点态、方向键与 Home / End 由基元提供。 */}
-        <div className={toolbar}>
-          <div className={toolbarScroll}>
-            <SegmentedControl
-              value={scope as string}
-              items={scopeValues.map((value) => ({
-                id: value,
-                label: t(
-                  `${minutes ? 'minutesLibrary.scope' : 'library.scope'}.${value}`
-                ),
-              }))}
-              onChange={(value) =>
-                setScope(value as MeetingRecordFilters['scope'])
-              }
-              ariaLabel={t('library.scopeLabel')}
-              appearance={minutes ? 'underline' : 'pill'}
-              density="compact"
+      <main data-minutes={minutes} className={pageShell}>
+        {/* 列表以上的一切(窄屏栏目行、页头、范围筛选、搜索/筛选)固定不滚 —— 与
+            任务列表(TasksRoute 的 header + modeTabs + listRegion)同一套布局:
+            页壳占满高度,只有列表区自己滚,滚到底也看得见当前筛选条件。 */}
+        <div className={pageFixedTop}>
+          <div className={css({ md: { display: 'none' } })}>
+            <MeetingModuleNav
+              current={minutes ? '/meeting/minutes' : '/meeting/notes'}
             />
           </div>
-          <IconToggleButton
-            size="icon32"
-            label={t('library.filters')}
-            isSelected={showFilters || Boolean(source)}
-            onPress={() => setShowFilters(!showFilters)}
-          >
-            <RiFilter3Line size={20} aria-hidden />
-          </IconToggleButton>
-          <div className={gridToggleWrap}>
+          <header className={pageHeaderRow}>
+            <div className={pageHeaderText}>
+              <h1 className={pageTitle}>
+                {t(minutes ? 'library.minutes' : 'library.notes')}
+              </h1>
+              <p className={pageLead}>
+                {t(minutes ? 'library.minutesHint' : 'library.notesHint')}
+              </p>
+            </div>
+            <div className={headerActions}>
+              {config?.search_ai?.enabled !== false && (
+                <Button
+                  variant="secondary"
+                  size="action"
+                  onPress={() => openGlobalSearch('ai', 'meetings')}
+                >
+                  {t('minutesReader.searchMeetings')}
+                </Button>
+              )}
+              {!minutes && (
+                <>
+                  <RecordingUpload viewerId={viewerId} />
+                  {config?.meeting_records?.capture_audio_enabled && (
+                    <Button
+                      size="action"
+                      icon={<RiMicLine size={18} aria-hidden />}
+                      onPress={() => navigate('/meeting/recording/capture')}
+                    >
+                      {t('library.startRecording')}
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          </header>
+          {/* 范围筛选走共享分段控件:实录用 pill(紧凑筛选),纪要阅读器用
+            underline(同级阅读模式)。焦点态、方向键与 Home / End 由基元提供。 */}
+          <div className={toolbar}>
+            <div className={toolbarScroll}>
+              <SegmentedControl
+                value={scope as string}
+                items={scopeValues.map((value) => ({
+                  id: value,
+                  label: t(
+                    `${minutes ? 'minutesLibrary.scope' : 'library.scope'}.${value}`
+                  ),
+                }))}
+                onChange={(value) =>
+                  setScope(value as MeetingRecordFilters['scope'])
+                }
+                ariaLabel={t('library.scopeLabel')}
+                appearance={minutes ? 'underline' : 'pill'}
+                density="compact"
+              />
+            </div>
             <IconToggleButton
               size="icon32"
-              label={t(grid ? 'library.listView' : 'library.gridView')}
-              isSelected={grid}
-              onPress={() => setGrid(!grid)}
-              data-desktop-only
+              label={t('library.filters')}
+              isSelected={showFilters || Boolean(source)}
+              onPress={() => setShowFilters(!showFilters)}
             >
-              {grid ? (
-                <RiListUnordered size={20} aria-hidden />
-              ) : (
-                <RiLayoutGridLine size={20} aria-hidden />
-              )}
+              <RiFilter3Line size={20} aria-hidden />
             </IconToggleButton>
+            <div className={gridToggleWrap}>
+              <IconToggleButton
+                size="icon32"
+                label={t(grid ? 'library.listView' : 'library.gridView')}
+                isSelected={grid}
+                onPress={() => setGrid(!grid)}
+                data-desktop-only
+              >
+                {grid ? (
+                  <RiListUnordered size={20} aria-hidden />
+                ) : (
+                  <RiLayoutGridLine size={20} aria-hidden />
+                )}
+              </IconToggleButton>
+            </div>
           </div>
-        </div>
-        <form
-          className={searchRow}
-          onSubmit={(event) => {
-            event.preventDefault()
-            setQuery(search.trim())
-          }}
-        >
-          <SearchBox
-            className={searchBoxCls}
-            value={search}
-            onChange={(value) => {
-              // SearchBox 不带 maxLength,受控值在这里截断,行为与收口前的
-              // `<input maxLength={200}>` 一致(粘贴超长文本同样被截到 200)。
-              const next = value.slice(0, SEARCH_MAX_LENGTH)
-              setSearch(next)
-              if (!next) setQuery('')
+          <form
+            className={searchRow}
+            onSubmit={(event) => {
+              event.preventDefault()
+              setQuery(search.trim())
             }}
-            placeholder={t('library.search')}
-            ariaLabel={t('library.search')}
-          />
-          <Button type="submit" variant="secondary" size="action">
-            {t('library.searchButton')}
-          </Button>
-          {showFilters && (
-            <div className={filterPanel}>
-              <label className={filterLabel}>
-                {t('library.scopeLabel')}
-                <select
-                  className={filterSelect}
-                  value={scope}
-                  onChange={(event) =>
-                    setScope(
-                      event.target.value as MeetingRecordFilters['scope']
-                    )
-                  }
-                >
-                  {(['recent', 'owned', 'participated', 'shared'] as const)
-                    .filter((value) => !minutes || value !== 'recent')
-                    .map((value) => (
+          >
+            <SearchBox
+              className={searchBoxCls}
+              value={search}
+              onChange={(value) => {
+                // SearchBox 不带 maxLength,受控值在这里截断,行为与收口前的
+                // `<input maxLength={200}>` 一致(粘贴超长文本同样被截到 200)。
+                const next = value.slice(0, SEARCH_MAX_LENGTH)
+                setSearch(next)
+                if (!next) setQuery('')
+              }}
+              placeholder={t('library.search')}
+              ariaLabel={t('library.search')}
+            />
+            <Button type="submit" variant="secondary" size="action">
+              {t('library.searchButton')}
+            </Button>
+            {showFilters && (
+              <div className={filterPanel}>
+                <label className={filterLabel}>
+                  {t('library.scopeLabel')}
+                  <select
+                    className={filterSelect}
+                    value={scope}
+                    onChange={(event) =>
+                      setScope(
+                        event.target.value as MeetingRecordFilters['scope']
+                      )
+                    }
+                  >
+                    {(['recent', 'owned', 'participated', 'shared'] as const)
+                      .filter((value) => !minutes || value !== 'recent')
+                      .map((value) => (
+                        <option key={value} value={value}>
+                          {t(
+                            `${minutes ? 'minutesLibrary.scope' : 'library.scope'}.${value}`
+                          )}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label className={filterLabel}>
+                  {t('library.sourceLabel')}
+                  <select
+                    className={filterSelect}
+                    value={source}
+                    onChange={(event) =>
+                      setSource(
+                        event.target.value as
+                          | NonNullable<MeetingRecordFilters['source_type']>
+                          | ''
+                      )
+                    }
+                  >
+                    <option value="">{t('library.allSources')}</option>
+                    {(
+                      [
+                        'meeting',
+                        'recordings',
+                        'audio_recording',
+                        'upload',
+                      ] as const
+                    ).map((value) => (
                       <option key={value} value={value}>
-                        {t(
-                          `${minutes ? 'minutesLibrary.scope' : 'library.scope'}.${value}`
-                        )}
+                        {t(`library.source.${value}`)}
                       </option>
                     ))}
-                </select>
-              </label>
-              <label className={filterLabel}>
-                {t('library.sourceLabel')}
-                <select
-                  className={filterSelect}
-                  value={source}
-                  onChange={(event) =>
-                    setSource(
-                      event.target.value as
-                        | NonNullable<MeetingRecordFilters['source_type']>
-                        | ''
-                    )
-                  }
-                >
-                  <option value="">{t('library.allSources')}</option>
-                  {(
-                    [
-                      'meeting',
-                      'recordings',
-                      'audio_recording',
-                      'upload',
-                    ] as const
-                  ).map((value) => (
-                    <option key={value} value={value}>
-                      {t(`library.source.${value}`)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+                  </select>
+                </label>
+              </div>
+            )}
+          </form>
+        </div>
+        <div className={listRegion} data-testid="meeting-list-region">
+          {!minutes && (
+            <RecordList
+              key={`${filterKey}:ongoing`}
+              viewerId={viewerId}
+              filters={filters}
+              ongoing
+              grid={grid}
+            />
           )}
-        </form>
-        {!minutes && (
           <RecordList
-            key={`${filterKey}:ongoing`}
+            key={`${filterKey}:archive`}
             viewerId={viewerId}
             filters={filters}
-            ongoing
+            ongoing={false}
             grid={grid}
+            minutes={minutes}
           />
-        )}
-        <RecordList
-          key={`${filterKey}:archive`}
-          viewerId={viewerId}
-          filters={filters}
-          ongoing={false}
-          grid={grid}
-          minutes={minutes}
-        />
+        </div>
       </main>
     </MeetingModuleShell>
   )
