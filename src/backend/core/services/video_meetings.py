@@ -6,7 +6,7 @@ from core import models
 
 
 def overview(user):
-    """Pending rooms and ten latest sessions visible through current membership.
+    """Pending rooms and twenty latest sessions visible through current membership.
 
     Delayed appointments stay pending until a session starts. Audio captures and
     assistant calls are not video meetings. Reused rooms retain exact session IDs.
@@ -26,7 +26,7 @@ def overview(user):
     recent = list(
         models.MeetingSession.objects.filter(room__in=rooms)
         .select_related("room")
-        .order_by("-started_at", "-id")[:10]
+        .order_by("-started_at", "-id")[:20]
     )
     owner_ids = set(
         models.ResourceAccess.objects.filter(

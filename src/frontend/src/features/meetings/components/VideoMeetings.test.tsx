@@ -40,7 +40,7 @@ function show(children: React.ReactNode) {
 }
 beforeEach(() => vi.resetAllMocks())
 
-it('shows all pending rows, ten historical sessions, and the filtered More link', async () => {
+it('shows all pending rows, twenty historical sessions, and the filtered More link', async () => {
   const row = {
     id: 'room',
     name: 'Video',
@@ -56,7 +56,7 @@ it('shows all pending rows, ten historical sessions, and the filtered More link'
       id: `pending-${i}`,
       name: `Pending ${i}`,
     })),
-    recent: Array.from({ length: 12 }, (_, i) => ({
+    recent: Array.from({ length: 24 }, (_, i) => ({
       ...row,
       name: `History ${i}`,
       meeting_session_id: `session-${i}`,
@@ -70,8 +70,8 @@ it('shows all pending rows, ten historical sessions, and the filtered More link'
     </>
   )
   expect(await screen.findByText('Pending 51')).toBeInTheDocument()
-  expect(screen.getByText('History 9')).toBeInTheDocument()
-  expect(screen.queryByText('History 10')).not.toBeInTheDocument()
+  expect(screen.getByText('History 19')).toBeInTheDocument()
+  expect(screen.queryByText('History 20')).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'video.more' })).toHaveAttribute(
     'href',
     '/meeting/notes?source_type=meeting'

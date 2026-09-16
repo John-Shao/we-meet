@@ -4,7 +4,7 @@ AI 录音一级页统一为录音功能入口和历史录音，原录音功能�
 
 ## Web 路由与行为
 
-- `/meeting/recording`：录音入口和最近 10 条已结束录音，按服务端发生时间倒序。
+- `/meeting/recording`：录音入口和最近 20 条已结束录音，按服务端发生时间倒序。
 - `/meeting/recording/capture`：原录音工作区，保留录制、暂停、恢复、翻译、保存等功能。
 - `/meeting/recording/history/:recordId`：录音详情，展示标题、发生时间、保留模式和会议实录 / 智能纪要链接，不加载音频、转写或纪要正文。
 - “更多”指向 `/meeting/notes?source_type=audio_recording`；会议实录中的录音和恢复入口直接打开二级录音工作区。
@@ -21,7 +21,7 @@ Android 对应提交 `3752df1f`，重新构建安装 App。Web 更新前端镜�
 bash deploy/aliyun/release-meet.sh frontend
 ```
 
-验证录音入口、返回、空历史、最近 10 条、更多筛选、详情权限及两个详情链接。保留原录音页的录制 / 暂停 / 恢复 / 保存回归。
+验证录音入口、返回、空历史、最近 20 条、更多筛选、详情权限及两个详情链接。保留原录音页的录制 / 暂停 / 恢复 / 保存回归。
 
 ## 本地验证
 

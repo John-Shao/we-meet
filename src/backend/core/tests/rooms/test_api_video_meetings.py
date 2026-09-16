@@ -44,7 +44,7 @@ def test_pending_includes_overdue_and_all_pages_but_excludes_started_closed_and_
     assert not models.MeetingRecord.objects.exists()
 
 
-def test_history_returns_latest_ten_exact_sessions_without_summaries():
+def test_history_returns_latest_twenty_exact_sessions_without_summaries():
     user = factories.UserFactory()
     room = factories.RoomFactory(users=[(user, "owner")])
     now = timezone.now()
@@ -56,7 +56,7 @@ def test_history_returns_latest_ten_exact_sessions_without_summaries():
             status="ended",
             end_reason="room_finished",
         )
-        for i in range(1, 12)
+        for i in range(1, 26)
     ]
     active = factories.MeetingSessionFactory(room=room, started_at=now)
     factories.MeetingSessionFactory()  # Not a member: invisible.
@@ -65,7 +65,7 @@ def test_history_returns_latest_ten_exact_sessions_without_summaries():
     data = client.get(URL).json()
     assert data["scheduled"] == []
     assert [r["meeting_session_id"] for r in data["recent"]] == [
-        str(s.id) for s in [active, *sessions[:9]]
+        str(s.id) for s in [active, *sessions[:19]]
     ]
     assert data["recent"][0]["status"] == "active"
     assert data["recent"][1]["status"] == "ended"

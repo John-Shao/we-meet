@@ -10,6 +10,9 @@ import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { libraryLayout } from '../components/libraryStyles'
 
+/** 历史录音最多显示的条数；Android 端 RecordingHomeScreen 用的是同一个数。 */
+const HISTORY_LIMIT = 20
+
 /** Only history is read here. Capture controls mount at /recording/capture. */
 export function RecordingHistory({
   viewerId,
@@ -25,7 +28,9 @@ export function RecordingHistory({
     is_ongoing: 'false',
   })
   if (!enabled) return null
-  const rows = query.isError ? [] : query.data?.results.slice(0, 10)
+  const rows = query.isError
+    ? []
+    : query.data?.results.slice(0, HISTORY_LIMIT)
   return (
     <section className={css({ marginTop: '2rem' })}>
       <h2 className={css({ fontSize: '1.25rem', marginBottom: '1rem' })}>

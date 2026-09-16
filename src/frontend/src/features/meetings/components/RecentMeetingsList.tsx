@@ -10,8 +10,8 @@ import { H, Text } from '@/primitives'
 import { useVideoMeetings } from '../api/videoMeetings'
 import type { MeetingSelection } from './MeetingDetailPanel'
 
-// The overview returns the ten latest actual sessions.
-const COLLAPSED_COUNT = 10
+// The overview returns the twenty latest actual sessions.
+const COLLAPSED_COUNT = 20
 
 const formatRelativeTime = (iso: string, locale: string) => {
   try {

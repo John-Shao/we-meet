@@ -62,9 +62,9 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-it('loads only completed recordings, limits history to ten and links to second-level pages', async () => {
+it('loads only completed recordings, limits history to twenty and links to second-level pages', async () => {
   vi.mocked(fetchApi).mockResolvedValue({
-    results: Array.from({ length: 12 }, (_, index) => ({
+    results: Array.from({ length: 24 }, (_, index) => ({
       ...record,
       id: `id-${index}`,
       title: `Recording ${index}`,
@@ -78,8 +78,8 @@ it('loads only completed recordings, limits history to ten and links to second-l
   expect(
     await screen.findByRole('link', { name: /Recording 0 / })
   ).toHaveAttribute('href', '/meeting/recording/history/id-0')
-  expect(screen.getAllByRole('listitem')).toHaveLength(10)
-  expect(screen.queryByText('Recording 10')).not.toBeInTheDocument()
+  expect(screen.getAllByRole('listitem')).toHaveLength(20)
+  expect(screen.queryByText('Recording 20')).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'video.more' })).toHaveAttribute(
     'href',
     '/meeting/notes?source_type=audio_recording'
