@@ -13,6 +13,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 import boto3
+import magic
 from storages.backends.s3 import S3Storage
 
 from core import models
@@ -30,6 +31,7 @@ EXTENSIONS = {
     "flv",
     "m4a",
     "mkv",
+    "mov",
     "mp3",
     "mp4",
     "mpeg",
@@ -41,6 +43,56 @@ EXTENSIONS = {
     "wmv",
 }
 ACTIVE = {"queued", "submitting", "running"}
+VIDEO_EXTENSIONS = {"avi", "flv", "mkv", "mov", "mp4", "mpeg", "webm", "wmv"}
+MEDIA_MIMES = {
+    "aac": {"audio/aac", "audio/x-aac", "audio/x-hx-aac-adts"},
+    "amr": {"audio/amr", "audio/amr-wb"},
+    "avi": {"video/x-msvideo", "video/avi"},
+    "aiff": {"audio/x-aiff", "audio/aiff"},
+    "flac": {"audio/flac", "audio/x-flac"},
+    "flv": {"video/x-flv"},
+    "m4a": {"audio/mp4", "video/mp4", "audio/x-m4a"},
+    "mkv": {"video/x-matroska", "audio/x-matroska"},
+    "mov": {"video/quicktime", "video/mp4"},
+    "mp3": {"audio/mpeg", "audio/mp3"},
+    "mp4": {"video/mp4", "audio/mp4"},
+    "mpeg": {"video/mpeg", "audio/mpeg"},
+    "ogg": {"audio/ogg", "video/ogg", "application/ogg"},
+    "opus": {"audio/ogg", "application/ogg"},
+    "wav": {"audio/x-wav", "audio/wav", "audio/vnd.wave"},
+    "webm": {"video/webm", "audio/webm"},
+    "wma": {"audio/x-ms-wma", "video/x-ms-asf", "application/vnd.ms-asf"},
+    "wmv": {"video/x-ms-wmv", "video/x-ms-asf", "application/vnd.ms-asf"},
+}
+
+
+def file_metadata(upload, extension):
+    """Inspect a bounded header; the ASR decoder performs full media validation."""
+    upload.seek(0)
+    try:
+        mime = magic.from_buffer(upload.read(65536), mime=True)
+    finally:
+        upload.seek(0)
+    if mime not in MEDIA_MIMES.get(extension, set()):
+        raise ValueError("invalid_media_content")
+    return {
+        "name": Path(upload.name).name[:255],
+        "media_type": "video" if extension in VIDEO_EXTENSIONS else "audio",
+    }
+
+
+def public_metadata(job):
+    """List-safe upload metadata, without object keys or provider identifiers."""
+    metadata = job.configuration.get("_file", {})
+    extension = Path(job.storage_name).suffix.lower().lstrip(".")
+    return {
+        "media_type": metadata.get(
+            "media_type", "video" if extension in VIDEO_EXTENSIONS else "audio"
+        ),
+        "name": metadata.get("name", ""),
+        "size": job.size,
+        "status": job.status,
+    }
 
 
 def available():
@@ -75,6 +127,7 @@ def create(user, key, upload, options):
     ):
         raise ValueError("invalid_file")
     checksum = hashlib.sha256()
+    metadata = file_metadata(upload, extension)
     size = 0
     for part in upload.chunks():
         size += len(part)
@@ -94,7 +147,8 @@ def create(user, key, upload, options):
             if (
                 previous.record.owner_id != user.pk
                 or previous.checksum != checksum.hexdigest()
-                or previous.configuration != configuration
+                or {k: v for k, v in previous.configuration.items() if k != "_file"}
+                != configuration
             ):
                 raise RecordConflict("Upload intent changed.")
             return previous
@@ -129,7 +183,7 @@ def create(user, key, upload, options):
                 storage_name=name,
                 checksum=checksum.hexdigest(),
                 size=size,
-                configuration=configuration,
+                configuration={**configuration, "_file": metadata},
                 deadline=now + timedelta(hours=24),
                 next_poll_at=now,
             )

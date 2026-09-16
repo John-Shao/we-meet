@@ -178,6 +178,10 @@ backend:
     MEETING_TRANSCRIPT_DELIVERY_ENABLED: "True"
     MEETING_CAPTURE_PROTOCOL_ENABLED: "True"
     MEETING_CAPTURE_AUDIO_ENABLED: "True"
+    # Import original audio/video and transcribe asynchronously with Celery.
+    MEETING_FILE_ASR_ENABLED: "True"
+    MEETING_FILE_ASR_MAX_BYTES: "104857600"
+    QWEN_FILE_ASR_REGION: "cn-beijing"
     MEETING_CAPTURE_ASR_ENABLED: "True"
     MEETING_CAPTURE_LIVE_ASR_ENABLED: "True"
     MEETING_CAPTURE_TEXT_ONLY_ENABLED: "True"
@@ -333,7 +337,8 @@ ingress:
   host: meet.we-meet.online
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    # 100 MiB media plus multipart fields and headers.
+    nginx.ingress.kubernetes.io/proxy-body-size: "101m"
     # Sprint 2.5 — disable response buffering so the SSE streams from
     # /rooms/.../ask-ai-stream/ and /users/me/ai/ask-stream/ reach the
     # browser chunk-by-chunk instead of being collected into one blob.

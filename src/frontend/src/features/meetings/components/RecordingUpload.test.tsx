@@ -110,3 +110,64 @@ it('retries only the failed attempt shown to the user', async () => {
   )
   expect(await screen.findByText('upload.status.running')).toBeInTheDocument()
 })
+
+it('opens the picker directly, confirms video metadata and opens the native history destination', async () => {
+  const onRecord = vi.fn()
+  vi.mocked(fetchApi)
+    .mockResolvedValueOnce({
+      available: true,
+      max_bytes: 1024,
+      extensions: ['wav', 'mp4', 'mov'],
+    })
+    .mockResolvedValueOnce({ record_id: 'video-id', status: 'queued' })
+  show(<RecordingUpload viewerId="owner" tile onRecord={onRecord} />)
+  const trigger = await screen.findByRole('button', { name: 'upload.open' })
+  const input = screen.getByLabelText('upload.file') as HTMLInputElement
+  expect(input.accept).toBe('.wav,.mp4,.mov')
+  const click = vi.spyOn(input, 'click')
+  fireEvent.click(trigger)
+  expect(click).toHaveBeenCalledOnce()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  fireEvent.change(input, { target: { files: [] } })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  const video = new File(['video'], 'Demo.MOV', { type: 'video/quicktime' })
+  fireEvent.change(input, { target: { files: [video] } })
+  expect(await screen.findByText('Demo.MOV')).toBeInTheDocument()
+  expect(screen.getByText('upload.videoHint')).toBeInTheDocument()
+  expect(fetchApi).toHaveBeenCalledTimes(1)
+  fireEvent.submit(
+    screen
+      .getByRole('button', { name: 'upload.submit', hidden: true })
+      .closest('form')!
+  )
+  await waitFor(() => expect(onRecord).toHaveBeenCalledWith('video-id'))
+  expect(navigate).not.toHaveBeenCalled()
+  click.mockRestore()
+})
+it('preserves the upload intent when a failed request is retried', async () => {
+  vi.mocked(fetchApi)
+    .mockResolvedValueOnce({
+      available: true,
+      max_bytes: 1024,
+      extensions: ['wav'],
+    })
+    .mockRejectedValueOnce(new Error('Response lost'))
+    .mockResolvedValueOnce({ record_id: 'record', status: 'queued' })
+  show(<RecordingUpload viewerId="owner" />)
+  const input = await screen.findByLabelText('upload.file')
+  fireEvent.change(input, {
+    target: { files: [new File(['audio'], 'Demo.wav')] },
+  })
+  const form = screen
+    .getByRole('button', { name: 'upload.submit', hidden: true })
+    .closest('form')!
+  fireEvent.submit(form)
+  await screen.findByRole('alert')
+  fireEvent.submit(form)
+  await waitFor(() => expect(navigate).toHaveBeenCalled())
+  const bodies = vi
+    .mocked(fetchApi)
+    .mock.calls.slice(1)
+    .map(([, options]) => options!.body as FormData)
+  expect(bodies[1].get('key')).toEqual(bodies[0].get('key'))
+})

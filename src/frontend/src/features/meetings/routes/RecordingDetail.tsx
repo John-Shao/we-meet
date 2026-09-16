@@ -6,6 +6,7 @@ import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useMeetingRecord } from '../api/fetchMeetingRecord'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
+import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { libraryLayout } from '../components/libraryStyles'
 
 export function RecordingDetailContent({
@@ -18,7 +19,9 @@ export function RecordingDetailContent({
   const { t, i18n } = useTranslation('meetings')
   const query = useMeetingRecord(viewerId, recordId, true)
   const record =
-    !query.isError && query.data?.source_type === 'audio_recording'
+    !query.isError &&
+    query.data &&
+    ['audio_recording', 'upload'].includes(query.data.source_type)
       ? query.data
       : undefined
   if (query.isError || (query.data && !record))
@@ -39,18 +42,36 @@ export function RecordingDetailContent({
         {record.title || t('library.untitled')}
       </h2>
       <p>
-        {t('library.source.audio_recording')} ·{' '}
+        {t(
+          record.source_type === 'upload'
+            ? `upload.${record.upload?.media_type ?? 'audio'}`
+            : 'library.source.audio_recording'
+        )}{' '}
+        ·{' '}
         <time dateTime={record.origin_at}>
           {new Date(record.origin_at).toLocaleString(i18n.language)}
         </time>
       </p>
-      {record.retention_mode !== 'unknown' && (
+      {record.upload && (
         <p>
-          {t(
-            `recordingOverview.${record.retention_mode === 'text' ? 'textOnly' : 'keepAudio'}`
-          )}
+          {record.upload.name} ·{' '}
+          {(record.upload.size / 1024 / 1024).toLocaleString(i18n.language, {
+            maximumFractionDigits: 2,
+          })}{' '}
+          MB · {t(`upload.status.${record.upload.status}`)}
         </p>
       )}
+      {record.source_type === 'upload' && record.upload?.can_control && (
+        <UploadedRecordingStatus viewerId={viewerId} recordId={recordId} />
+      )}
+      {record.source_type !== 'upload' &&
+        record.retention_mode !== 'unknown' && (
+          <p>
+            {t(
+              `recordingOverview.${record.retention_mode === 'text' ? 'textOnly' : 'keepAudio'}`
+            )}
+          </p>
+        )}
       {(['notes', 'minutes'] as const).map((kind) => {
         const allowed =
           kind === 'notes'

@@ -124,6 +124,7 @@
       "shared": "Shared with me"
     },
     "source": {
+      "recordings": "Recordings and imports",
       "meeting": "Online meeting",
       "audio_recording": "Audio recording",
       "upload": "Uploaded file"
@@ -608,15 +609,18 @@
   },
   "upload": {
     "choose": "Choose a recording file",
-    "open": "Upload",
+    "open": "Import",
+    "audio": "Imported audio",
+    "video": "Imported video",
+    "videoHint": "Keep the original video and transcribe its speech for the transcript and minutes.",
     "advanced": "Improve recognition (optional)",
-    "title": "Upload a recording",
+    "title": "Confirm import",
     "hint": "Common audio and video formats, up to {{size}} MB and 12 hours per file.",
     "file": "Recording file",
     "context": "Context (optional, up to 400 characters)",
     "hotwords": "Industry terms (optional, one per line, up to 100)",
     "consent": "Upload sends this file to Alibaba Cloud for transcription. The original is stored with your record.",
-    "submit": "Upload and transcribe",
+    "submit": "Import and transcribe",
     "uploading": "Uploading…",
     "keepOpen": "Keep this page open during upload. Transcription continues in the background afterwards.",
     "error": "Could not complete this action. Check the file format, size and connection. If another transcription is active, try again later.",
@@ -674,7 +678,7 @@
   },
   "recordingOverview": {
     "history": "Recording history",
-    "empty": "No completed recordings yet",
+    "empty": "No recordings yet. Record or import audio and video.",
     "detail": "Recording details",
     "back": "Back to AI recording",
     "record": "Record",

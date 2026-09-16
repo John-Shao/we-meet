@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
@@ -23,9 +23,18 @@ const field = css({
   borderRadius: '0.375rem',
 })
 
-export function RecordingUpload({ viewerId }: { viewerId: string }) {
+export function RecordingUpload({
+  viewerId,
+  tile = false,
+  onRecord,
+}: {
+  viewerId: string
+  tile?: boolean
+  onRecord?: (id: string) => void
+}) {
   const { t } = useTranslation('meetings')
   const [, navigate] = useLocation()
+  const input = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [key, setKey] = useState(() => crypto.randomUUID())
   const [context, setContext] = useState('')
@@ -45,15 +54,74 @@ export function RecordingUpload({ viewerId }: { viewerId: string }) {
   })
   if (!capabilities.data?.available) return null
   const config = capabilities.data
+  const extension = file?.name.split('.').pop()?.toLowerCase() ?? ''
+  const valid =
+    !!file &&
+    file.size > 0 &&
+    file.size <= config.max_bytes &&
+    config.extensions.includes(extension)
+  const video = [
+    'avi',
+    'flv',
+    'mkv',
+    'mov',
+    'mp4',
+    'mpeg',
+    'webm',
+    'wmv',
+  ].includes(extension)
   return (
     <>
-      <Button
-        variant="secondary"
-        icon={<RiUpload2Line size={18} aria-hidden />}
-        onPress={() => setOpen(true)}
-      >
-        {t('upload.open')}
-      </Button>
+      <input
+        ref={input}
+        hidden
+        type="file"
+        aria-label={t('upload.file')}
+        disabled={busy}
+        accept={config.extensions.map((ext) => `.${ext}`).join(',')}
+        onChange={(event) => {
+          const selected = event.target.files?.[0]
+          if (!selected) return
+          setFile(selected)
+          setKey(crypto.randomUUID())
+          setError(false)
+          setOpen(true)
+          event.target.value = ''
+        }}
+      />
+      {tile ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => input.current?.click()}
+          className={css({
+            display: 'inline-flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '0.75rem',
+            padding: '1rem 2rem',
+            color: 'primary.700',
+            borderRadius: '0.75rem',
+            backgroundColor: 'primary.100',
+            cursor: 'pointer',
+            _focusVisible: {
+              outline: '2px solid token(colors.primary.500)',
+              outlineOffset: '2px',
+            },
+          })}
+        >
+          <RiUpload2Line size={32} aria-hidden />
+          {t('upload.open')}
+        </button>
+      ) : (
+        <Button
+          variant="secondary"
+          icon={<RiUpload2Line size={18} aria-hidden />}
+          onPress={() => input.current?.click()}
+        >
+          {t('upload.open')}
+        </Button>
+      )}
       <Dialog
         isOpen={open}
         onOpenChange={(value) => {
@@ -93,7 +161,9 @@ export function RecordingUpload({ viewerId }: { viewerId: string }) {
                 method: 'POST',
                 body,
               })
-              navigate(`/meeting/records/${result.record_id}?tab=text`)
+              setOpen(false)
+              if (onRecord) onRecord(result.record_id)
+              else navigate(`/meeting/records/${result.record_id}?tab=text`)
             } catch {
               setError(true)
             } finally {
@@ -106,58 +176,27 @@ export function RecordingUpload({ viewerId }: { viewerId: string }) {
               size: Math.floor(config.max_bytes / 1024 / 1024),
             })}
           </p>
-          <label
-            className={css({
-              padding: '1.25rem',
-              border: '1px dashed token(colors.primary.300)',
-              borderRadius: '0.75rem',
-              backgroundColor: 'primary.100',
-              position: 'relative',
-              _focusWithin: {
-                outline: '2px solid token(colors.primary.500)',
-                outlineOffset: '2px',
-              },
-            })}
+          <p className={css({ overflowWrap: 'anywhere', fontWeight: 600 })}>
+            {file?.name}
+          </p>
+          <p>
+            {t(video ? 'upload.video' : 'upload.audio')} ·{' '}
+            {file
+              ? (file.size / 1024 / 1024).toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })
+              : 0}{' '}
+            MB
+          </p>
+          {video && <p>{t('upload.videoHint')}</p>}
+          <Button
+            variant="secondary"
+            isDisabled={busy}
+            onPress={() => input.current?.click()}
           >
-            <RiUpload2Line
-              size={28}
-              aria-hidden
-              className={css({
-                margin: '0 auto 0.75rem',
-                color: 'primary.600',
-              })}
-            />
-            <span
-              className={css({
-                display: 'block',
-                textAlign: 'center',
-                overflowWrap: 'anywhere',
-                fontWeight: 600,
-              })}
-            >
-              {file?.name || t('upload.choose')}
-            </span>
-            <input
-              className={css({
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                opacity: 0,
-                cursor: 'pointer',
-              })}
-              aria-label={t('upload.file')}
-              type="file"
-              disabled={busy}
-              accept={config.extensions
-                .map((extension) => `.${extension}`)
-                .join(',')}
-              onChange={(event) => {
-                setFile(event.target.files?.[0] ?? null)
-                setKey(crypto.randomUUID())
-              }}
-            />
-          </label>
+            {t('upload.choose')}
+          </Button>
+          {!valid && <p role="alert">{t('upload.error')}</p>}
           <details>
             <summary
               className={css({
@@ -206,11 +245,11 @@ export function RecordingUpload({ viewerId }: { viewerId: string }) {
           <p className={css({ fontSize: '0.8125rem', color: 'greyscale.600' })}>
             {t('upload.consent')}
           </p>
-          <Button type="submit" isDisabled={!file || busy}>
+          <Button type="submit" isDisabled={!valid || busy}>
             {t(busy ? 'upload.uploading' : 'upload.submit')}
           </Button>
           {busy && <p role="status">{t('upload.keepOpen')}</p>}
-          {error && <p role="alert">{t('upload.error')}</p>}
+          {error && valid && <p role="alert">{t('upload.error')}</p>}
         </form>
       </Dialog>
     </>

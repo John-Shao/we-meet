@@ -15,6 +15,13 @@ export interface ApiMeetingRecord {
   has_summary?: boolean
   /** Exact standalone capture, only exposed to its current owner. */
   capture_id?: string | null
+  upload?: {
+    can_control?: boolean
+    media_type: 'audio' | 'video'
+    name: string
+    size: number
+    status: 'queued' | 'submitting' | 'running' | 'succeeded' | 'failed'
+  } | null
   capabilities: {
     read_summary: boolean
     read_transcript: boolean
@@ -34,7 +41,7 @@ export interface MeetingRecordPage<T> {
 
 export interface MeetingRecordFilters {
   scope?: 'recent' | 'owned' | 'participated' | 'shared'
-  source_type?: MeetingRecordSource
+  source_type?: MeetingRecordSource | 'recordings'
   meeting_session_id?: string
   room_id?: string
   q?: string

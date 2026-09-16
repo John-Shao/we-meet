@@ -21,10 +21,7 @@ import { libraryLayout } from '../components/libraryStyles'
 import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { RecordingUpload } from '../components/RecordingUpload'
-import type {
-  MeetingRecordFilters,
-  MeetingRecordSource,
-} from '../api/ApiMeetingRecord'
+import type { MeetingRecordFilters } from '../api/ApiMeetingRecord'
 
 const row = css({
   display: 'flex',
@@ -311,13 +308,16 @@ export function Library({
   )
   const routeSearch = useSearch()
   const candidate = new URLSearchParams(routeSearch).get('source_type')
-  const source: MeetingRecordSource | '' =
+  const source: NonNullable<MeetingRecordFilters['source_type']> | '' =
     candidate === 'meeting' ||
     candidate === 'audio_recording' ||
-    candidate === 'upload'
+    candidate === 'upload' ||
+    candidate === 'recordings'
       ? candidate
       : ''
-  const setSource = (value: MeetingRecordSource | '') => {
+  const setSource = (
+    value: NonNullable<MeetingRecordFilters['source_type']> | ''
+  ) => {
     const params = new URLSearchParams(routeSearch)
     if (value) params.set('source_type', value)
     else params.delete('source_type')
@@ -587,17 +587,26 @@ export function Library({
                   className={field}
                   value={source}
                   onChange={(event) =>
-                    setSource(event.target.value as MeetingRecordSource | '')
+                    setSource(
+                      event.target.value as
+                        | NonNullable<MeetingRecordFilters['source_type']>
+                        | ''
+                    )
                   }
                 >
                   <option value="">{t('library.allSources')}</option>
-                  {(['meeting', 'audio_recording', 'upload'] as const).map(
-                    (value) => (
-                      <option key={value} value={value}>
-                        {t(`library.source.${value}`)}
-                      </option>
-                    )
-                  )}
+                  {(
+                    [
+                      'meeting',
+                      'recordings',
+                      'audio_recording',
+                      'upload',
+                    ] as const
+                  ).map((value) => (
+                    <option key={value} value={value}>
+                      {t(`library.source.${value}`)}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>

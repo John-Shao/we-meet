@@ -59,6 +59,13 @@ class MeetingAIChartTest(unittest.TestCase):
                              for row in rows for key in WORKERS))
         self.assertFalse(any(row["metadata"]["name"] == "meet-celery-beat" for row in rows))
 
+    def test_import_enabled_with_multipart_headroom(self):
+        config = yaml.safe_load((ROOT / "src/helm/env.d/aliyun-prod/values.meet.yaml").read_text(encoding="utf-8"))
+        env = config["backend"]["envVars"]
+        self.assertEqual("True", env["MEETING_FILE_ASR_ENABLED"])
+        self.assertEqual(100 * 1024 * 1024, int(env["MEETING_FILE_ASR_MAX_BYTES"]))
+        self.assertEqual("101m", config["ingress"]["annotations"]["nginx.ingress.kubernetes.io/proxy-body-size"])
+
     def test_beat_inherits_backend_settings_without_worker_override_leak(self):
         rows = render("celeryBeat.enabled=true", "backend.envVars.AI_SCOPE=backend",
                       "celeryBackend.envVars.AI_SCOPE=worker", "backend.image.tag=fixture-backend")

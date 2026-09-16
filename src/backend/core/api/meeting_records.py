@@ -149,6 +149,7 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
     is_ongoing = serializers.BooleanField(read_only=True)
     has_summary = serializers.BooleanField(read_only=True)
     capture_id = serializers.SerializerMethodField()
+    upload = serializers.SerializerMethodField()
 
     class Meta:
         model = models.MeetingRecord
@@ -166,12 +167,25 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
             "is_ongoing",
             "has_summary",
             "capture_id",
+            "upload",
         ]
         read_only_fields = fields
 
     def get_capabilities(self, obj):
         """Resolve current access, not the role at record creation time."""
         return record_capabilities(obj, self.context["request"].user)
+
+    def get_upload(self, obj):
+        """Expose metadata and owner controls, never the private storage location."""
+        from core.services.uploaded_recordings import public_metadata  # pylint: disable=import-outside-toplevel
+
+        job = getattr(obj, "uploaded_recording", None)
+        if not job:
+            return None
+        return {
+            **public_metadata(job),
+            "can_control": obj.owner_id == self.context["request"].user.pk,
+        }
 
     def get_capture_id(self, obj):
         """An exact owner-only read link; never expose a device lease or pick latest."""
@@ -244,7 +258,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         """Scope every detail and list query before applying user filters."""
         queryset = visible_records(self.request.user).select_related(
-            "meeting_session__room"
+            "meeting_session__room", "uploaded_recording"
         )
         # EXISTS preserves one row per record even with many summary versions.
         # Restrict legacy materials to their exact room/session attribution.
@@ -298,9 +312,12 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 queryset = queryset.filter(**{name: value == "true"})
         source = self.request.query_params.get("source_type")
         if source:
-            if source not in models.MeetingRecord.Source.values:
+            if source not in [*models.MeetingRecord.Source.values, "recordings"]:
                 raise ValidationError({"source_type": "Unsupported source type."})
-            queryset = queryset.filter(source_type=source)
+            queryset = queryset.filter(
+                source_type__in=["audio_recording", "upload"]
+                if source == "recordings" else [source]
+            )
         session_id = self.request.query_params.get("meeting_session_id")
         room_id = self.request.query_params.get("room_id")
         if room_id:

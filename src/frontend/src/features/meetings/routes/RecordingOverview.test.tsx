@@ -29,6 +29,10 @@ vi.mock('../components/MeetingModuleShell', () => ({
     <>{children}</>
   ),
 }))
+vi.mock('../components/RecordingUpload', () => ({
+  RecordingUpload: () => <button>upload.open</button>,
+  UploadedRecordingStatus: () => <span>upload.state</span>,
+}))
 vi.mock('../components/MeetingModuleNav', () => ({
   MeetingModuleNav: () => null,
 }))
@@ -82,12 +86,12 @@ it('loads only completed recordings, limits history to twenty and links to secon
   expect(screen.queryByText('Recording 20')).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'video.more' })).toHaveAttribute(
     'href',
-    '/meeting/notes?source_type=audio_recording'
+    '/meeting/notes?source_type=recordings'
   )
   for (const [path] of vi.mocked(fetchApi).mock.calls) {
     const url = new URL(path, 'https://fixture.invalid')
     expect(url.pathname).toBe('/meeting-records/')
-    expect(url.searchParams.get('source_type')).toBe('audio_recording')
+    expect(url.searchParams.get('source_type')).toBe('recordings')
     expect(url.searchParams.get('is_ongoing')).toBe('false')
     expect(url.searchParams.has('has_summary')).toBe(false)
   }
@@ -159,4 +163,46 @@ it('rejects non-recording metadata on recording details', async () => {
   show(<RecordingDetailContent viewerId="owner" recordId={record.id} />)
   expect(await screen.findByRole('alert')).toBeInTheDocument()
   expect(screen.queryByText(record.title)).not.toBeInTheDocument()
+})
+
+it('shows imported video and its processing state in history', async () => {
+  vi.mocked(fetchApi).mockResolvedValue({
+    results: [
+      {
+        ...record,
+        source_type: 'upload',
+        upload: {
+          media_type: 'video',
+          name: 'Demo.mp4',
+          size: 1024,
+          status: 'running',
+        },
+      },
+    ],
+    next_cursor: null,
+  })
+  show(<RecordingOverview />)
+  expect(await screen.findByText(/upload.video/)).toBeInTheDocument()
+  expect(screen.getByText(/upload.status.running/)).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'upload.open' })
+  ).toBeInTheDocument()
+})
+it('opens imported video metadata and retains native workspace links', async () => {
+  vi.mocked(fetchApi).mockResolvedValue({
+    ...record,
+    source_type: 'upload',
+    upload: {
+      media_type: 'video',
+      name: 'Demo.mp4',
+      size: 1024,
+      status: 'failed',
+    },
+  })
+  show(<RecordingDetailContent viewerId="owner" recordId={record.id} />)
+  expect(await screen.findByText(/upload.video/)).toBeInTheDocument()
+  expect(screen.getByText(/Demo.mp4/)).toBeInTheDocument()
+  expect(
+    screen.getByRole('link', { name: 'video.viewRecord' })
+  ).toHaveAttribute('href', '/meeting/records/record-1')
 })

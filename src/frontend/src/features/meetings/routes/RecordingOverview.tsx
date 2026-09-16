@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { Link, Redirect } from 'wouter'
-import { RiMicLine } from '@remixicon/react'
+import { Link, Redirect, useLocation } from 'wouter'
+import { RiMicLine, RiVideoLine } from '@remixicon/react'
 import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
 import { Button } from '@/primitives'
@@ -8,6 +8,7 @@ import { css } from '@/styled-system/css'
 import { useMeetingRecords } from '../api/fetchMeetingRecord'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { MeetingModuleNav } from '../components/MeetingModuleNav'
+import { RecordingUpload } from '../components/RecordingUpload'
 import { libraryLayout } from '../components/libraryStyles'
 
 /** 历史录音最多显示的条数；Android 端 RecordingHomeScreen 用的是同一个数。 */
@@ -24,13 +25,11 @@ export function RecordingHistory({
   const { t, i18n } = useTranslation('meetings')
   const query = useMeetingRecords(viewerId, enabled, {
     scope: 'recent',
-    source_type: 'audio_recording',
+    source_type: 'recordings',
     is_ongoing: 'false',
   })
   if (!enabled) return null
-  const rows = query.isError
-    ? []
-    : query.data?.results.slice(0, HISTORY_LIMIT)
+  const rows = query.isError ? [] : query.data?.results.slice(0, HISTORY_LIMIT)
   return (
     <section className={css({ marginTop: '2rem' })}>
       <h2 className={css({ fontSize: '1.25rem', marginBottom: '1rem' })}>
@@ -81,15 +80,35 @@ export function RecordingHistory({
                   },
                 })}
               >
-                <RiMicLine
-                  size={24}
-                  aria-hidden
-                  className={css({ color: 'primary.600', flexShrink: 0 })}
-                />
+                {record.upload?.media_type === 'video' ? (
+                  <RiVideoLine size={24} aria-hidden />
+                ) : (
+                  <RiMicLine
+                    size={24}
+                    aria-hidden
+                    className={css({ color: 'primary.600', flexShrink: 0 })}
+                  />
+                )}
                 <span
                   className={css({ minWidth: 0, overflowWrap: 'anywhere' })}
                 >
                   <span>{record.title || t('library.untitled')}</span>
+                  <span
+                    className={css({
+                      display: 'block',
+                      fontSize: '0.875rem',
+                      color: 'greyscale.600',
+                    })}
+                  >
+                    {t(
+                      record.source_type === 'upload'
+                        ? `upload.${record.upload?.media_type ?? 'audio'}`
+                        : 'library.source.audio_recording'
+                    )}
+                    {record.upload && (
+                      <> · {t(`upload.status.${record.upload.status}`)}</>
+                    )}
+                  </span>
                   <time
                     dateTime={record.origin_at}
                     className={css({
@@ -107,7 +126,7 @@ export function RecordingHistory({
         </ul>
       )}
       <Link
-        href="/meeting/notes?source_type=audio_recording"
+        href="/meeting/notes?source_type=recordings"
         className={css({
           display: 'block',
           textAlign: 'center',
@@ -122,6 +141,7 @@ export function RecordingHistory({
 }
 
 export function RecordingOverview() {
+  const [, navigate] = useLocation()
   const { user, isLoggedIn } = useUser()
   const { data, isError } = useConfig()
   const { t } = useTranslation('meetings')
@@ -145,26 +165,40 @@ export function RecordingOverview() {
         </h1>
         {enabled ? (
           <>
-            <Link
-              href="/meeting/recording/capture"
+            <div
               className={css({
-                display: 'inline-flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '1rem 2rem',
-                color: 'primary.700',
-                borderRadius: '0.75rem',
-                backgroundColor: 'primary.100',
-                _focusVisible: {
-                  outline: '2px solid token(colors.primary.500)',
-                  outlineOffset: '2px',
-                },
+                display: 'flex',
+                gap: '1rem',
+                flexWrap: 'wrap',
               })}
             >
-              <RiMicLine size={32} aria-hidden />
-              {t('recordingOverview.record')}
-            </Link>
+              <Link
+                href="/meeting/recording/capture"
+                className={css({
+                  display: 'inline-flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '1rem 2rem',
+                  color: 'primary.700',
+                  borderRadius: '0.75rem',
+                  backgroundColor: 'primary.100',
+                  _focusVisible: {
+                    outline: '2px solid token(colors.primary.500)',
+                    outlineOffset: '2px',
+                  },
+                })}
+              >
+                <RiMicLine size={32} aria-hidden />
+                {t('recordingOverview.record')}
+              </Link>
+              <RecordingUpload
+                key={user.id}
+                viewerId={user.id}
+                tile
+                onRecord={(id) => navigate(`/meeting/recording/history/${id}`)}
+              />
+            </div>
             <RecordingHistory
               key={user.id}
               viewerId={user.id}

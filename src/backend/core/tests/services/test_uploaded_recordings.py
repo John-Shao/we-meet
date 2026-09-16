@@ -1,7 +1,9 @@
 """File uploads cannot leak sources, duplicate paid tasks or publish partial text."""
 
+import io
 import json
 import uuid
+import wave
 from datetime import timedelta
 from unittest import mock
 
@@ -14,10 +16,20 @@ from core import models
 from core.factories import UserFactory
 from core.services import qwen_filetrans as provider
 from core.services import uploaded_recordings as service
-from core.tests.services.test_meeting_records import client_for
+from core.tests.services.test_meeting_records import audio_note, client_for, online_note
 
 pytestmark = pytest.mark.django_db
 ROOT = "/api/v1.0/recording-uploads/"
+
+
+def wav_bytes():
+    output = io.BytesIO()
+    with wave.open(output, "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(16000)
+        audio.writeframes(b"\0\0" * 160)
+    return output.getvalue()
 
 
 @pytest.fixture(autouse=True)
@@ -39,7 +51,7 @@ def upload(user, key=None, **extra):
         ROOT,
         {
             "key": str(key or uuid.uuid4()),
-            "audio": SimpleUploadedFile("meeting.wav", b"test audio", "audio/wav"),
+            "audio": SimpleUploadedFile("meeting.wav", wav_bytes(), "audio/wav"),
             **extra,
         },
         format="multipart",
@@ -93,6 +105,120 @@ def test_disabled_and_invalid_uploads_do_not_create_jobs(settings):
     )
     assert upload(owner, audio=SimpleUploadedFile("bad.exe", b"x")).status_code == 400
     assert not models.UploadedRecording.objects.exists()
+
+
+def test_renamed_text_is_rejected_without_storing_an_object():
+    owner = UserFactory()
+    with mock.patch.object(service, "audio_storage") as storage:
+        response = upload(
+            owner, audio=SimpleUploadedFile("fake.mp4", b"not a video", "video/mp4")
+        )
+    assert response.status_code == 400
+    storage.assert_not_called()
+    assert not models.UploadedRecording.objects.exists()
+
+
+def test_video_original_is_preserved_and_metadata_is_private():
+    owner = UserFactory()
+    # Minimal QuickTime ftyp box: real signature, full decoding belongs to ASR.
+    content = b"\x00\x00\x00\x18ftypqt  \x00\x00\x00\x00qt  \x00\x00\x00\x00"
+    response = upload(
+        owner, audio=SimpleUploadedFile("Meeting.MOV", content, "video/quicktime")
+    )
+    assert response.status_code == 202, response.data
+    job = models.UploadedRecording.objects.get(record_id=response.data["record_id"])
+    with service.audio_storage().open(job.storage_name, "rb") as stored:
+        assert stored.read() == content
+    result = client_for(owner).get(f"/api/v1.0/meeting-records/{job.record_id}/").json()
+    assert result["upload"] == {
+        "media_type": "video",
+        "name": "Meeting.MOV",
+        "can_control": True,
+        "size": len(content),
+        "status": "queued",
+    }
+    assert job.storage_name not in json.dumps(result)
+    assert (
+        client_for(UserFactory())
+        .get(f"/api/v1.0/meeting-records/{job.record_id}/")
+        .status_code
+        == 404
+    )
+
+
+def test_combined_recordings_filter_orders_imports_and_capture_and_excludes_others():
+    owner = UserFactory()
+    original = audio_note(owner)
+    job = job_for(owner)
+    job_for(UserFactory())
+    online_note(owner)
+    response = client_for(owner).get(
+        "/api/v1.0/meeting-records/?source_type=recordings"
+    )
+    assert response.status_code == 200
+    rows = response.json()["results"]
+    assert [r["id"] for r in rows] == [str(job.record_id), str(original.pk)]
+    assert rows[0]["upload"]["media_type"] == "audio"
+    assert rows[1]["upload"] is None
+
+
+def test_legacy_upload_metadata_fallback_and_idempotent_retry():
+    owner = UserFactory()
+    key = uuid.uuid4()
+    first = upload(owner, key)
+    job = models.UploadedRecording.objects.get(record_id=first.data["record_id"])
+    job.configuration.pop("_file")
+    job.save(update_fields=["configuration"])
+    assert upload(owner, key).data == first.data
+    assert service.public_metadata(job) == {
+        "media_type": "audio",
+        "name": "",
+        "size": len(wav_bytes()),
+        "status": "queued",
+    }
+
+
+def test_shared_reader_sees_metadata_but_cannot_control_import():
+    job = job_for(UserFactory())
+    reader = UserFactory()
+    models.MeetingRecordAccess.objects.create(
+        record=job.record, user=reader, read_summary=True
+    )
+    result = (
+        client_for(reader).get(f"/api/v1.0/meeting-records/{job.record_id}/").json()
+    )
+    assert result["upload"]["can_control"] is False
+    assert result["capabilities"]["read_transcript"] is False
+    assert (
+        client_for(reader)
+        .post(ROOT + str(job.record_id) + "/", {"attempt": 1}, format="json")
+        .status_code
+        == 404
+    )
+
+
+def test_combined_history_cursor_keeps_filter_and_avoids_duplicates():
+    owner = UserFactory()
+    for _ in range(32):
+        audio_note(owner)
+    job = job_for(owner)
+    client = client_for(owner)
+    first = client.get(
+        "/api/v1.0/meeting-records/?source_type=recordings&is_ongoing=false"
+    ).json()
+    assert len(first["results"]) == 30
+    assert first["results"][0]["id"] == str(job.record_id)
+    second = client.get(
+        "/api/v1.0/meeting-records/",
+        {
+            "source_type": "recordings",
+            "is_ongoing": "false",
+            "cursor": first["next_cursor"],
+        },
+    ).json()
+    ids = [row["id"] for row in first["results"] + second["results"]]
+    assert len(ids) == len(set(ids)) == 33
+    assert second["next_cursor"] is None
 
 
 def test_submission_is_fenced_and_lost_response_requires_explicit_retry():
