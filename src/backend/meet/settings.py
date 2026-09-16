@@ -1083,7 +1083,9 @@ class Base(Configuration):
         False, environ_name="MEETING_RECORDS_ENABLED", environ_prefix=None
     )
     MEETING_VERSIONED_SUMMARY_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    MEETING_TRANSCRIPT_DELIVERY_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_TRANSCRIPT_DELIVERY_ENABLED = values.BooleanValue(
+        False, environ_prefix=None
+    )
     MEETING_SUMMARY_REQUESTS_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_STAGED_SUMMARY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_AUTOMATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
@@ -1096,7 +1098,9 @@ class Base(Configuration):
     MEETING_SUMMARY_TASKS_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_RECORD_QA_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_AUDIO_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    MEETING_CAPTURE_TRANSLATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_CAPTURE_TRANSLATION_ENABLED = values.BooleanValue(
+        False, environ_prefix=None
+    )
     MEETING_CAPTURE_TRANSLATION_URL = values.Value("", environ_prefix=None)
     MEETING_CAPTURE_TRANSLATION_REGION = values.Value("cn-beijing", environ_prefix=None)
     MEETING_CAPTURE_TEXT_ONLY_ENABLED = values.BooleanValue(False, environ_prefix=None)
@@ -1107,22 +1111,34 @@ class Base(Configuration):
         False, environ_prefix=None
     )
     MEETING_SUMMARY_EXPORT_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    MEETING_SUMMARY_NOTIFICATIONS_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_SUMMARY_NOTIFICATIONS_ENABLED = values.BooleanValue(
+        False, environ_prefix=None
+    )
     MEETING_SUMMARY_SHARING_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_INTERPRETATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    MEETING_TRANSLATION_ARCHIVE_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_TRANSLATION_ARCHIVE_ENABLED = values.BooleanValue(
+        False, environ_prefix=None
+    )
     ROOM_INTERPRETATION_AGENT_NAME = values.Value("", environ_prefix=None)
-    QWEN_ASR_MODEL = values.Value("qwen-audio-3.0-asr-flash-streaming", environ_prefix=None)
+    QWEN_ASR_MODEL = values.Value(
+        "qwen-audio-3.0-asr-flash-streaming", environ_prefix=None
+    )
     QWEN_ASR_REGION = values.Value("cn-beijing", environ_prefix=None)
     MEETING_FILE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    MEETING_FILE_ASR_MAX_BYTES = values.PositiveIntegerValue(104857600, environ_prefix=None)
-    QWEN_FILE_ASR_MODEL = values.Value("qwen-audio-3.0-asr-flash-filetrans", environ_prefix=None)
+    MEETING_FILE_ASR_MAX_BYTES = values.PositiveIntegerValue(
+        104857600, environ_prefix=None
+    )
+    QWEN_FILE_ASR_MODEL = values.Value(
+        "qwen-audio-3.0-asr-flash-filetrans", environ_prefix=None
+    )
     QWEN_FILE_ASR_REGION = values.Value("cn-beijing", environ_prefix=None)
     QWEN_FILE_ASR_BASE_URL = values.Value("", environ_prefix=None)
     QWEN_FILE_ASR_STORAGE_ENDPOINT_URL = values.Value("", environ_prefix=None)
     ROOM_TRANSLATION_AGENT_NAME = values.Value("", environ_prefix=None)
     MEETING_SUMMARY_MODEL = values.Value("qwen3.8-flash", environ_prefix=None)
-    MEETING_SUMMARY_BASE_URL = values.Value("https://dashscope.aliyuncs.com/compatible-mode/v1", environ_prefix=None)
+    MEETING_SUMMARY_BASE_URL = values.Value(
+        "https://dashscope.aliyuncs.com/compatible-mode/v1", environ_prefix=None
+    )
     DASHSCOPE_API_KEY = SecretFileValue(
         None, environ_name="DASHSCOPE_API_KEY", environ_prefix=None
     )
@@ -1145,9 +1161,7 @@ class Base(Configuration):
     DOUBAO_TTS_ACCESS_TOKEN = SecretFileValue(
         None, environ_name="DOUBAO_TTS_ACCESS_TOKEN", environ_prefix=None
     )
-    ARK_API_KEY = SecretFileValue(
-        None, environ_name="ARK_API_KEY", environ_prefix=None
-    )
+    ARK_API_KEY = SecretFileValue(None, environ_name="ARK_API_KEY", environ_prefix=None)
     DOUBAO_VLM_ENDPOINT = values.Value(
         None, environ_name="DOUBAO_VLM_ENDPOINT", environ_prefix=None
     )
@@ -1794,6 +1808,51 @@ class Production(Base):
 
     # Privacy
     SECURE_REFERRER_POLICY = "same-origin"
+
+    # 日志:生产**只开会议链路那几个 logger**,root 仍是 WARNING。
+    #
+    # 起因(2026-09-16 排查「房间没有 meeting session」):session、纪要、记录全部只由
+    # LiveKit webhook 驱动,而「收到事件」那条正是 INFO
+    # (core/services/livekit_events.py 的 livekit_webhook.received)。生产没有 LOGGING
+    # 配置时 root 是 WARNING,这条日志压根不会被写出来 —— 于是「有没有收到 webhook」
+    # 在日志里查不到,只能靠数据反推。这里把它开出来,以后同类问题一条 grep 就能定性。
+    #
+    # 只开这几个 logger(内容全是 id,不带姓名/邮箱/token),避免整站 INFO 刷屏;
+    # 需要更安静时用 LOG_LEVEL=WARNING 覆盖。
+    LOG_LEVEL = values.Value("INFO", environ_name="LOG_LEVEL", environ_prefix=None)
+    MEETING_LOGGERS = (
+        "core.services.livekit_events",
+        "core.services.meeting_sessions",
+        "core.tasks.meeting_sessions",
+        "core.tasks.rooms",
+    )
+    LOGGING = values.DictValue(
+        {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "handlers": {"console": {"class": "logging.StreamHandler"}},
+            "loggers": {
+                name: {
+                    "handlers": ["console"],
+                    "level": "INFO",
+                    "propagate": False,
+                }
+                # 类体里的推导式拿不到类作用域的其它名字,所以这里再写一遍字面量。
+                for name in (
+                    "core.services.livekit_events",
+                    "core.services.meeting_sessions",
+                    "core.tasks.meeting_sessions",
+                    "core.tasks.rooms",
+                )
+            },
+        }
+    )
+
+    @classmethod
+    def setup(cls):
+        super().setup()
+        for name in cls.MEETING_LOGGERS:
+            cls.LOGGING["loggers"][name]["level"] = cls.LOG_LEVEL
 
     CACHES = {
         "default": {

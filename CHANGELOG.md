@@ -93,6 +93,8 @@ and this project adheres to
   leaving the pinned header on its light gray band as the app does
 - ♻️(frontend) unify the four meeting pages on the smart minutes layout: one
   header band, one title block, one set of header actions and one row style
+- ✨(backend) log the meeting webhook and session projection at INFO in
+  production so delivery can be checked from the pod logs
 
 ## [1.16.0] - 2026-05-13
 

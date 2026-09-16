@@ -280,6 +280,53 @@ Closed 2 room(s) older than 86400s (cutoff 2026-09-15T16:04:17+00:00).
 `rgb(246,246,246)`、滚动区 `rgb(255,255,255)`、`main` 里的标题 `24px`、首行
 `border-top-width: 0px` 且底色透明；深色主题下滚动区底色必须翻转。
 
+### 3.6 排查：房间为什么没有 meeting session（2026-09-17 追加）
+
+起因：清理那 171 个房间时发现一批（`老酒🥂的会议` 等）**没有 session**。如果那些房
+真的开过会，就说明「历史会议」会漏记录 —— 需要定性。
+
+**代码事实（决定了能怎么查）**
+
+- session **只有 LiveKit webhook 会创建**：`core/services/livekit_events.py:254`
+  （`room_started`）、`:373`（`participant_joined/left`）；兜底任务
+  `core/tasks/meeting_sessions.py:68` 只在 LiveKit 里房间还在时才会补建。
+  **没有「发 token / 进房即建 session」的同步路径**，也没有任何独立于 webhook 的
+  进房痕迹（`MeetingParticipation`、`MeetingRecord.meeting_session` 都挂在 session 上）。
+- 客户端是**先建房、再进房**：Web `Home.tsx` 的 `createRoom()` → `navigateTo('room')`；
+  App `PreviewViewModel.createMeeting()` → 摄像头预览页。所以「点了快速会议但没连上」
+  （返回 / 关页 / 拒权限 / 网络失败）天然只剩一个空房。
+- 生产的 webhook 过滤器 `LIVEKIT_WEBHOOK_EVENTS_FILTER_REGEX` 只放行 UUID 房名，
+  而房间名就是 UUID ✓ 这条链本身是通的。
+
+**线上数据（近 14 天）**
+
+| 日期 | 建房 | 有过 session | 只建房没开会 |
+| --- | --- | --- | --- |
+| 9/03–9/09 | 16 | 8 | 8 |
+| 9/14 | 21 | 1 | 20 |
+| 9/15 | 25 | 2 | 23 |
+
+同窗口：**0 条投影失败**、**0 条僵尸 active session**、3 个房间有 session —— 而且那 3 场
+正是用户 9/15 08:10 / 08:48 真正进过的那两间房（1 场 + 2 场）。51 个无 session 的房里
+49 个只有 1 个授权人（仅创建者）、没有一个有录音，另 2 个有 4/6 个授权人（带参与人的
+日程，没人开始）。
+
+**结论**：记录机制是好的 —— **只要进了房就有 session**；9/14–9/15 那 46 次建房是
+「创建后没进房」（75 秒内建 4 个的密集节奏与反复点击/重试吻合），不是漏记。
+`close_abandoned_rooms` 已经把这类空房收掉，这条关闭。
+
+**顺带修掉的观测缺口**：生产原本没有 `LOGGING` 配置（root = WARNING），而
+「收到 webhook」那条是 `logger.info` —— 于是「webhook 到底有没有投递」在日志里查不到，
+这次排查只能靠数据反推。现在 `Production` 只把会议链路的 4 个 logger 开到 INFO
+（`livekit_events` / `meeting_sessions` / `tasks.meeting_sessions` / `tasks.rooms`，
+内容全是 id，不含姓名/邮箱/token），root 仍是 WARNING，并加了 `LOG_LEVEL` 环境变量
+（默认 INFO，需要安静时设 WARNING）。验证：用 Production 配置实际加载，
+4 个 logger 均为 INFO 且 `isEnabledFor(INFO)` 为真；`LOG_LEVEL=WARNING` 时为假。
+
+**待定**：那 46 次建房如果是**客户端在重试**（进房失败 → 再点 → 又建一个新房），
+值得做一个 UX 改进：已经存在未开始的房间时**复用它**，或提示「你有一个未开始的会议，
+继续进入？」。是手动测试点击的话就不用改。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把
