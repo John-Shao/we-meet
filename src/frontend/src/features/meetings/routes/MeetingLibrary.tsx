@@ -78,7 +78,11 @@ const searchRow = css({
   textStyle: 'bodyMedium',
 })
 
-const searchBoxCls = css({ flex: '1 1 14rem', minWidth: 0 })
+/**
+ * 搜索框:窄屏撑满,宽屏**封顶 28rem**。铺满版式下不限宽的话,在 1600px 宽的
+ * 窗口里输入框会被拉到近千像素,光标起点离内容区左缘太远,整行也失衡。
+ */
+const searchBoxCls = css({ flex: '1 1 14rem', maxWidth: '28rem', minWidth: 0 })
 
 /** 搜索词输入上限(沿用收口前那个 `<input maxLength={200}>`)。 */
 const SEARCH_MAX_LENGTH = 200
@@ -285,7 +289,11 @@ function RecordList({
                 )}
               </span>
               <div className={rowBody}>
-                <h3 className={cx(cardTitle, cardTitleCls)}>
+                {/* 长标题(上传文件的原始名可能很长)被省略时,悬停可看全。 */}
+                <h3
+                  className={cx(cardTitle, cardTitleCls)}
+                  title={record.title}
+                >
                   {record.title || t('library.untitled')}
                 </h3>
                 <p className={cardMeta}>
@@ -304,6 +312,10 @@ function RecordList({
                   </time>
                   <span aria-hidden>·</span>
                   <span>{t(`library.source.${record.source_type}`)}</span>
+                  {/* 上传的处理状态在两个列表页都要看得见 —— 否则「上传中/失败」
+                      只能在 AI 录音页看到,而这一页才是管理记录的入口。 */}
+                  {record.upload &&
+                    ` · ${t(`upload.status.${record.upload.status}`)}`}
                 </p>
                 {!minutes && (ongoing || record.has_summary) && (
                   <p className={statusTag}>

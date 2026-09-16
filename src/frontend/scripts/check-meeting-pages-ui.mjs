@@ -91,6 +91,8 @@ const past = {
 /** 视频会议页的两段列表也要够长,「页头钉住」那条才验得到。 */
 const scheduledMeetings = [
   upcoming,
+  /** 线上确实出现过解析不了的 scheduled_at,客户端不能把脏值原样画出来。 */
+  { ...upcoming, id: 'room-dirty', name: '无日期会议', scheduled_at: '—' },
   ...Array.from({ length: 12 }, (_, index) => ({
     ...upcoming,
     id: `room-upcoming-${index}`,
@@ -284,6 +286,14 @@ try {
   assert.ok(
     leftGap <= 20 && rightGap <= 20,
     `卡片左右留白应只有 16px 页边距,实际左 ${leftGap}px / 右 ${rightGap}px`
+  )
+  // UX 修复:搜索框在宽屏下封顶 28rem(448px),不再被拉到近千像素。
+  const searchWidth = Math.round(
+    (await page.getByLabel('搜索标题').boundingBox()).width
+  )
+  assert.ok(
+    searchWidth <= 460,
+    `搜索框应封顶 28rem(448px),实际 ${searchWidth}px`
   )
 
   // ② 只滚列表:列表区滚到底时页头与工具行必须原地不动,外层内容列也不能被滚动。
@@ -550,6 +560,17 @@ try {
     '16px',
     `录音历史行标题应与实录/纪要同字号,实际 ${recordingRow.titleSize}`
   )
+  // UX 修复:录音历史行的元信息与实录一致,是**单行横排**(时间 · 来源),不是竖排两行。
+  const recordingMetaDirection = await page
+    .locator(
+      '[data-testid="meeting-list-region"] li:first-child a > span:nth-child(2) > span:nth-child(2)'
+    )
+    .evaluate((el) => getComputedStyle(el).flexDirection)
+  assert.equal(
+    recordingMetaDirection,
+    'row',
+    `录音行元信息应单行横排,实际 flex-direction=${recordingMetaDirection}`
+  )
   await shot('meeting-recording-desktop')
 
   await page.setViewportSize({ width: 390, height: 844 })
@@ -660,6 +681,38 @@ try {
       .count()
     assert.ok(icons >= 1, `「${name}」应带图标`)
   }
+  await homeList.evaluate((el) => {
+    el.scrollTop = 0
+  })
+
+  // UX 修复:预约列表默认只预览 10 条,超出时可就地展开/收起。
+  const previewCount = await page
+    .locator('[data-testid^="scheduled-row-"]')
+    .count()
+  assert.equal(previewCount, 10, `预约列表默认预览 10 条,实际 ${previewCount}`)
+  const expandButton = page.getByRole('button', { name: /查看全部/ })
+  assert.equal(await expandButton.getAttribute('aria-expanded'), 'false')
+  await expandButton.click()
+  const expandedCount = await page
+    .locator('[data-testid^="scheduled-row-"]')
+    .count()
+  assert.equal(expandedCount, 14, `展开后显示全部 14 条,实际 ${expandedCount}`)
+  await page.getByRole('button', { name: '收起' }).click()
+  assert.equal(
+    await page.locator('[data-testid^="scheduled-row-"]').count(),
+    10,
+    '收起后回到 10 条'
+  )
+  // UX 修复:解析不了的 scheduled_at 不再原样回显 —— 该行只剩标题。
+  const dirtyRowText = await page
+    .locator('[data-testid="scheduled-row-room-dirty"]')
+    .innerText()
+  assert.equal(
+    dirtyRowText.trim(),
+    '无日期会议',
+    `脏日期不该被画出来,实际行文本:${JSON.stringify(dirtyRowText)}`
+  )
+  // 点「查看全部」会把列表滚下去,复位回顶部,后面的截图才是首屏的样子。
   await homeList.evaluate((el) => {
     el.scrollTop = 0
   })

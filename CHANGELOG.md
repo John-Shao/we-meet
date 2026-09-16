@@ -78,6 +78,11 @@ and this project adheres to
 - ♻️(frontend) pin the video meeting header and move its three actions into
   the title row
 - ♻️(frontend) use the same quick action icons as the Android app on that page
+- 🩹(frontend) preview the next ten meetings with an in-place expand instead of
+  listing every pending one
+- 🩹(frontend) skip unparseable dates instead of echoing them, and align the
+  record row meta on both list pages
+- 🩹(frontend) cap the meeting search field and unify the scope wording
 
 ## [1.16.0] - 2026-05-13
 

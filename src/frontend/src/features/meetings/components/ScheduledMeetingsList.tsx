@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RiCalendarLine } from '@remixicon/react'
 
@@ -10,6 +11,7 @@ import { useVideoMeetings } from '../api/videoMeetings'
 import type { MeetingSelection } from './MeetingDetailPanel'
 import {
   listCard,
+  listMoreLink,
   listRowDivider,
   rowBody,
   rowHeadingOneLine,
@@ -59,10 +61,19 @@ const rowButton = (selected: boolean) =>
 const rowTime = rowMetaBlock
 
 /** 预约时间口径(与 App 端对齐):当天 →「今天 HH:mm」;否则「M月d日
- * HH:mm」(不带年,预约都是近期未来)。 */
-const formatScheduledAt = (iso: string, locale: string, today: string) => {
+ * HH:mm」(不带年,预约都是近期未来)。
+ *
+ * 解析不出来就返回 `null`(整行不渲染这条元信息)。**绝不能把原始值回显出去**:
+ * 后端只要送来一个非 ISO 的占位串(实测线上有这类行),它就会原样画在界面上,
+ * 看起来像一截莫名其妙的短横线;App 端对同样情况走的是自己的 "—" 占位符。 */
+const formatScheduledAt = (
+  iso: string,
+  locale: string,
+  today: string
+): string | null => {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
   try {
-    const d = new Date(iso)
     const now = new Date()
     const sameDay =
       d.getFullYear() === now.getFullYear() &&
@@ -79,9 +90,16 @@ const formatScheduledAt = (iso: string, locale: string, today: string) => {
     }).format(d)
     return `${monthDay} ${time}`
   } catch {
-    return iso
+    return null
   }
 }
+
+/**
+ * 预约列表默认只显示前 N 条 —— 待开始的会议可能攒到十几条,而这一节是「最近的安排」,
+ * 不是完整清单;不截断会把「历史会议」整段顶出首屏。超出时行尾给「查看全部（N）」,
+ * 就地展开,不再需要单独的目标页面。
+ */
+const PREVIEW_COUNT = 10
 
 export const ScheduledMeetingsList = ({
   enabled,
@@ -99,6 +117,7 @@ export const ScheduledMeetingsList = ({
   selectedId?: string | null
 }) => {
   const { t, i18n } = useTranslation('meetings')
+  const [expanded, setExpanded] = useState(false)
   const {
     data: overview,
     isLoading,
@@ -154,7 +173,7 @@ export const ScheduledMeetingsList = ({
     )
   }
 
-  const visible = data
+  const visible = expanded ? data : data.slice(0, PREVIEW_COUNT)
 
   return (
     <div className={sectionStack}>
@@ -162,6 +181,9 @@ export const ScheduledMeetingsList = ({
       <ul className={listCard}>
         {visible.map((m) => {
           const label = m.name || t('home.untitled')
+          const timeText = m.scheduled_at
+            ? formatScheduledAt(m.scheduled_at, i18n.language, t('home.today'))
+            : null
           return (
             <li key={m.id} className={listRowDivider}>
               <button
@@ -184,22 +206,29 @@ export const ScheduledMeetingsList = ({
                   <RiCalendarLine size={24} />
                 </span>
                 <span className={rowBody}>
-                  <span className={rowHeadingOneLine}>{label}</span>
-                  {m.scheduled_at && (
-                    <span className={rowTime}>
-                      {formatScheduledAt(
-                        m.scheduled_at,
-                        i18n.language,
-                        t('home.today')
-                      )}
-                    </span>
-                  )}
+                  {/* 长标题(含上传文件的原始名)被省略时,悬停可看全。 */}
+                  <span className={rowHeadingOneLine} title={label}>
+                    {label}
+                  </span>
+                  {timeText && <span className={rowTime}>{timeText}</span>}
                 </span>
               </button>
             </li>
           )
         })}
       </ul>
+      {data.length > PREVIEW_COUNT && (
+        <button
+          type="button"
+          className={listMoreLink}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded
+            ? t('home.collapse')
+            : t('home.showAll', { count: data.length })}
+        </button>
+      )}
     </div>
   )
 }

@@ -178,6 +178,29 @@ export const metaLine = cx(
   css({ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 'sm' })
 )
 
+/**
+ * 列表底部的「更多 / 查看全部」动作:居中文字链。既是 `<a>`(跳转)也是
+ * `<button>`(就地展开)的样式,所以把按钮的默认外观一并清掉。
+ */
+export const listMoreLink = css({
+  display: 'block',
+  width: '100%',
+  padding: 'lg',
+  textAlign: 'center',
+  textStyle: 'labelLarge',
+  color: 'text.link',
+  textDecoration: 'none',
+  cursor: 'pointer',
+  backgroundColor: 'transparent',
+  border: 'none',
+  borderRadius: 'field',
+  _hover: { textDecoration: 'underline' },
+  _focusVisible: {
+    outline: '2px solid token(colors.border.focus)',
+    outlineOffset: '2px',
+  },
+})
+
 /** 列表区块标题 + 统一间距(进行中/历史记录/历史录音/预约会议/全部智能纪要共用)。 */
 export const sectionHeading = cx(
   groupLabel,

@@ -24,7 +24,7 @@ import {
   rowBody,
   rowHeadingOneLine,
   rowIconTile,
-  rowMetaBlock,
+  rowMetaRow,
   rowSurface,
   scrollRegion,
   sectionHeading,
@@ -117,23 +117,26 @@ export function RecordingHistory({
                   )}
                 </span>
                 <span className={rowBody}>
-                  <span className={rowHeadingOneLine}>
+                  {/* 长标题(上传文件的原始名可能很长)被省略时,悬停可看全。 */}
+                  <span className={rowHeadingOneLine} title={record.title}>
                     {record.title || t('library.untitled')}
                   </span>
-                  <span className={rowMetaBlock}>
+                  {/* 与「会议实录」同一套读数:时间 · 来源(· 上传状态),单行排列 ——
+                      同一条记录在两个栏目里不该是两种版式。 */}
+                  <span className={rowMetaRow}>
+                    <time dateTime={record.origin_at}>
+                      {new Date(record.origin_at).toLocaleString(i18n.language)}
+                    </time>
+                    <span aria-hidden>·</span>
                     <span>
                       {t(
                         record.source_type === 'upload'
                           ? `upload.${record.upload?.media_type ?? 'audio'}`
                           : 'library.source.audio_recording'
                       )}
-                      {record.upload && (
-                        <> · {t(`upload.status.${record.upload.status}`)}</>
-                      )}
+                      {record.upload &&
+                        ` · ${t(`upload.status.${record.upload.status}`)}`}
                     </span>
-                    <time dateTime={record.origin_at}>
-                      {new Date(record.origin_at).toLocaleString(i18n.language)}
-                    </time>
                   </span>
                 </span>
               </Link>

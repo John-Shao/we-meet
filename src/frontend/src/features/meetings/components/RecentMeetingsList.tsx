@@ -12,6 +12,7 @@ import { useVideoMeetings } from '../api/videoMeetings'
 import type { MeetingSelection } from './MeetingDetailPanel'
 import {
   listCard,
+  listMoreLink,
   listRowDivider,
   rowBody,
   rowHeadingOneLine,
@@ -23,15 +24,18 @@ import {
 // The overview returns the twenty latest actual sessions.
 const COLLAPSED_COUNT = 20
 
-const formatRelativeTime = (iso: string, locale: string) => {
+/** 解析不出来就返回 `null`(那条元信息整段不渲染),不回显服务端原始值 —— 见
+ * ScheduledMeetingsList 里同一处说明:回显脏值会在界面上留下莫名其妙的短横线。 */
+const formatRelativeTime = (iso: string, locale: string): string | null => {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return null
   try {
-    const date = new Date(iso)
     return new Intl.DateTimeFormat(locale || undefined, {
       dateStyle: 'medium',
       timeStyle: 'short',
     }).format(date)
   } catch {
-    return iso
+    return null
   }
 }
 
@@ -75,19 +79,6 @@ const rowButton = (selected: boolean) =>
   })
 
 const rowTime = rowMetaBlock
-
-const moreLink = css({
-  alignSelf: 'center',
-  textStyle: 'labelLarge',
-  color: 'text.link',
-  textDecoration: 'none',
-  borderRadius: 'field',
-  _hover: { textDecoration: 'underline' },
-  _focusVisible: {
-    outline: '2px solid token(colors.border.focus)',
-    outlineOffset: '2px',
-  },
-})
 
 export const RecentMeetingsList = ({
   enabled,
@@ -146,7 +137,10 @@ export const RecentMeetingsList = ({
           icon={<RiVidiconLine size={20} />}
           description={t('home.recentEmpty')}
         />
-        <Link href="/meeting/notes?source_type=meeting" className={moreLink}>
+        <Link
+          href="/meeting/notes?source_type=meeting"
+          className={listMoreLink}
+        >
           {t('video.more')}
         </Link>
       </div>
@@ -162,6 +156,9 @@ export const RecentMeetingsList = ({
         {visible.map((m) => {
           const label = m.name || t('home.untitled')
           const id = m.meeting_session_id ?? m.id
+          const startedText = m.started_at
+            ? formatRelativeTime(m.started_at, i18n.language)
+            : null
           return (
             <li key={id} className={listRowDivider}>
               <button
@@ -185,13 +182,16 @@ export const RecentMeetingsList = ({
                   <RiVidiconLine size={24} />
                 </span>
                 <span className={rowBody}>
-                  <span className={rowHeadingOneLine}>{label}</span>
-                  {m.started_at && (
+                  {/* 长标题被省略时,悬停可看全。 */}
+                  <span className={rowHeadingOneLine} title={label}>
+                    {label}
+                  </span>
+                  {startedText && (
                     <span className={rowTime}>
                       {t(
                         m.status === 'active' ? 'video.active' : 'video.ended'
                       )}{' '}
-                      · {formatRelativeTime(m.started_at, i18n.language)}
+                      · {startedText}
                     </span>
                   )}
                 </span>
@@ -200,7 +200,7 @@ export const RecentMeetingsList = ({
           )
         })}
       </ul>
-      <Link href="/meeting/notes?source_type=meeting" className={moreLink}>
+      <Link href="/meeting/notes?source_type=meeting" className={listMoreLink}>
         {t('video.more')}
       </Link>
     </div>

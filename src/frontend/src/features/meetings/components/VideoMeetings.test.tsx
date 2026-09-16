@@ -40,7 +40,7 @@ function show(children: React.ReactNode) {
 }
 beforeEach(() => vi.resetAllMocks())
 
-it('shows all pending rows, twenty historical sessions, and the filtered More link', async () => {
+it('previews pending rows, expands on demand, keeps twenty sessions and the filtered More link', async () => {
   const row = {
     id: 'room',
     name: 'Video',
@@ -69,7 +69,20 @@ it('shows all pending rows, twenty historical sessions, and the filtered More li
       <RecentMeetingsList enabled showEmpty onSelect={selected} />
     </>
   )
+  // 预约列表默认只预览前十条 —— 待开始的会议不该把「历史会议」顶出首屏。
+  expect(await screen.findByText('Pending 0')).toBeInTheDocument()
+  expect(screen.getByText('Pending 9')).toBeInTheDocument()
+  expect(screen.queryByText('Pending 10')).not.toBeInTheDocument()
+  expect(screen.queryByText('Pending 51')).not.toBeInTheDocument()
+  // 超出时给「查看全部（总数）」，就地展开/收起。
+  const expand = screen.getByRole('button', { name: 'home.showAll' })
+  expect(expand).toHaveAttribute('aria-expanded', 'false')
+  fireEvent.click(expand)
   expect(await screen.findByText('Pending 51')).toBeInTheDocument()
+  const collapse = screen.getByRole('button', { name: 'home.collapse' })
+  expect(collapse).toHaveAttribute('aria-expanded', 'true')
+  fireEvent.click(collapse)
+  expect(screen.queryByText('Pending 51')).not.toBeInTheDocument()
   expect(screen.getByText('History 19')).toBeInTheDocument()
   expect(screen.queryByText('History 20')).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'video.more' })).toHaveAttribute(
