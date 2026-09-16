@@ -75,6 +75,8 @@ and this project adheres to
   record workspace and capture pages
 - ♻️(frontend) make the scheduled meetings card a plain card like the other
   meeting lists
+- ♻️(frontend) pin the video meeting header and move its three actions into
+  the title row
 
 ## [1.16.0] - 2026-05-13
 

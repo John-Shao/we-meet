@@ -74,14 +74,17 @@
 - **铺满内容列**：去掉 `maxWidth: 1120px` + `margin: 0 auto` 的限宽居中版心（窗口一宽
   两侧就各留一大块空白）。页壳 `pageShell(surface)` 占满内容列，横向内边距用
   `space.lg`（16px，规范里「页面边距」那一档，与任务列表的 `paddingX: 1rem` 同值）。
-- **分级滚动手感**（与任务列表 `TasksRoute` 的 `workspace → main → header + modeTabs +
-  listRegion` 同一套做法）：
-  - **列表页钉头**：「会议实录 / 智能纪要 / AI 录音」——页头与工具区（窄屏栏目行、
-    标题、范围筛选、搜索、入口块）`flexShrink: 0` 并带 `border.subtle` 底边分隔线，
-    列表区 `flex: 1; minHeight: 0; overflow: auto` 是页面上**唯一**的滚动区。
-  - **仪表盘式页面整页滚**：「视频会议」——三个入口 + 两段会议列表 + 右侧详情面板，
-    页头与列表在同一个滚动容器里，不设固定列表区。
-  - 两种规则各只有一处定义：`pageFixedTop` / `scrollRegion` / `wholePageScroll`。
+- **滚动手感：模块内全部钉头**（与任务列表 `TasksRoute` 的 `workspace → main →
+  header + modeTabs + listRegion` 同一套做法）。页头与工具区（窄屏栏目行、标题、
+  范围筛选、搜索、入口块）`flexShrink: 0` 并带 `border.subtle` 底边分隔线，内容区
+  `flex: 1; minHeight: 0; overflow: auto` 是页面上**唯一**的滚动区；工作区页把滚动
+  让给内部 Tabs 面板，外面用 `contentRegion` 不叠第二层。
+  只有一处定义：`pageFixedTop` / `scrollRegion` / `contentRegion`。
+  （2026-09-16 之前视频会议页是「整页一起滚」，实机走查发现页头会跟着滚走、标题行
+  右侧的三个入口随之消失，已统一成钉头，`wholePageScroll` 随之删除。）
+- **页头一行搞定**：页面标题在左，动作组在右（`pageHeaderRow` + `headerActions`），
+  动作按钮统一 `Button size="action"` + 18px `icon`。视频会议的「快速会议 / 加入会议 /
+  预约会议」三个入口就放在标题行右侧。
 - **一套行风格**：行首 48px 品牌浅蓝底图标块（`rowIconTile`，24px 图标）、
   16px/500 行标题（`rowHeadingOneLine` / `rowHeadingClamped`）、12px 次要色辅助信息
   （`rowMetaRow` 横排 / `rowMetaBlock` 竖排）、`lg` 内边距与行间距、浅底悬停、
@@ -95,7 +98,7 @@
 | 智能纪要 `/meeting/minutes` | 钉头 | 样板本体（无边框阅读行） |
 | 会议实录 `/meeting/notes` | 钉头 | 网格卡（同一个 `Library` 组件） |
 | AI 录音 `/meeting/recording` | 钉头（入口块 + 标题固定） | 卡内行，已从「裸 24px 图标」换成样板行 |
-| 视频会议 `/meeting` | 整页滚 | 两段卡内行，已换成样板行几何与字阶 |
+| 视频会议 `/meeting` | 钉头（标题行 + 三个入口固定） | 两段卡内行，已换成样板行几何与字阶 |
 | 录音详情 `/meeting/recording/history/:id` | 钉头（返回 + 标题） | 资料卡 |
 | 会议记录工作区 `/meeting/records/:recordId` | 钉头（返回 + 标题 + 元信息），滚动交给内部 Tabs 面板 | 面板自带 |
 | 录制页 `/meeting/recording/capture` | 钉头（返回 + 标题） | 表单卡 + 面板 |
@@ -153,11 +156,11 @@ token（`panda.config` 里那组已无任何引用）。区分「预约 / 历史
   - 铺满：页壳宽度必须**等于**内容列宽度（限宽居中的版心会让这条失败），卡片左右
     留白 ≤ 20px；
   - 钉头：列表区滚到底时页头 / 搜索框 / 入口块的 `y` 原封不动，且外层内容列
-    `scrollTop` 仍为 0（只能有一个滚动区）；仪表盘页反过来断言**没有**固定列表区、
-    页头与列表在同一个滚动容器里；
+    `scrollTop` 仍为 0（只能有一个滚动区）；视频会议页还额外断言标题行**同一行内**
+    右对齐的三个入口（按竖向重叠判定）也钉住、且三个按钮各带一个 `aria-hidden` 图标；
   - 行风格：三页的行首图标块都必须是 48×48、标题都是 16px；
-  - 数据量：归档 / 录音 fixture 各 24 条（页面按 20 条截断），否则列表滚不动、
-    钉头那条断言会退化成恒真。
+  - 数据量：归档 / 录音 fixture 各 24 条、视频会议 fixture 13 + 13 条（页面按 20 条
+    截断），否则列表滚不动、钉头那条断言会退化成恒真。
   次级页（录音详情 / 记录工作区 / 录制页）不在这个脚本里：前两页要从 wouter Route
   取 `:recordId`，而该脚本是「同一个 root 连续挂载多个页面」的写法，路由状态会滞后；
   它们分别由 `check-meeting-library-ui.mjs`（工作区）与 `check-capture-ui.mjs`

@@ -20,7 +20,12 @@ import {
 } from '@/features/meetings'
 import { ReactNode, useEffect, useState } from 'react'
 
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
+import {
+  RiCalendarScheduleLine,
+  RiLoginBoxLine,
+  RiVideoAddLine,
+} from '@remixicon/react'
 import { usePersistentUserChoices } from '@/features/rooms/livekit/hooks/usePersistentUserChoices'
 import { useConfig } from '@/api/useConfig'
 import { useQueryClient } from '@tanstack/react-query'
@@ -28,32 +33,29 @@ import { LoadingScreen } from '@/components/LoadingScreen'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { StateHint } from '@/components/StateHint'
 import {
+  headerActions,
   moduleContent,
   moduleRow,
+  pageFixedTop,
   pageHeaderRow,
   pageHeaderText,
   pageShell,
   pageTitle,
-  wholePageScroll,
+  scrollRegion,
 } from '@/features/meetings/components/libraryStyles'
 import { MeetingModuleNav } from '@/features/meetings/components/MeetingModuleNav'
 
 /**
  * 登录后的会议主区。
  *
- * 这是模块里的**仪表盘式页面**(三个入口 + 两段短列表 + 右侧详情面板),按样板
- * 铺满内容列、不限宽居中;但与列表页不同,它整页一起滚、页头跟着走 —— 列表页
- * 才钉头(见 libraryStyles 的 pageFixedTop / scrollRegion 注释)。
+ * 与另外三个栏目页完全同一套版面:页壳铺满内容列、页头(标题行 + 三个入口)钉住、
+ * 只有下面两段会议列表滚。原先这里是「仪表盘式页面整页滚」,实际用起来页头会跟着
+ * 滚走,标题行右侧的三个入口也就跟着消失 —— 2026-09-16 统一成钉头。
  */
 const canvasShell = pageShell('canvas')
 
-/** 主区顶部的三个入口(快速 / 加入 / 预约)。 */
-const meetingActions = css({
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 'md',
-  marginBottom: 'xl',
-})
+/** 列表区补一档顶部内边距(固定区已经有自己的下边距)。 */
+const listRegion = cx(scrollRegion, css({ paddingTop: 'lg' }))
 
 const Columns = ({ children }: { children?: ReactNode }) => {
   return (
@@ -254,7 +256,9 @@ export const Home = () => {
             </div>
             <div className={moduleContent}>
               <main className={canvasShell}>
-                <div className={wholePageScroll}>
+                {/* 页头钉住:标题行左侧是页面标题,右侧是三个入口(与实录 / 纪要
+                    的页头同一套 pageHeaderRow + headerActions)。 */}
+                <div className={pageFixedTop}>
                   <div className={css({ md: { display: 'none' } })}>
                     <MeetingModuleNav current="/meeting" />
                   </div>
@@ -264,45 +268,50 @@ export const Home = () => {
                         {t('library.video', { ns: 'meetings' })}
                       </h1>
                     </div>
-                  </header>
-                  {/* 三个入口:快速会议(实心主操作)+ 加入 / 预约(线框次操作)。
-                      三档都是 action 尺寸,和模块里其它页头动作同高同字号。 */}
-                  <div className={meetingActions}>
-                    <Button
-                      variant="primary"
-                      size="action"
-                      data-attr="create-meeting"
-                      onPress={handleCreate}
-                      loading={creating}
-                    >
-                      {t('quickMeeting')}
-                    </Button>
-                    <DialogTrigger>
+                    {/* 快速会议(实心主操作)+ 加入 / 预约(线框次操作),
+                        三档都是 action 尺寸,和模块里其它页头动作同高同字号。 */}
+                    <div className={headerActions}>
+                      <Button
+                        variant="primary"
+                        size="action"
+                        icon={<RiVideoAddLine size={18} aria-hidden />}
+                        data-attr="create-meeting"
+                        onPress={handleCreate}
+                        loading={creating}
+                      >
+                        {t('quickMeeting')}
+                      </Button>
+                      <DialogTrigger>
+                        <Button
+                          variant="secondary"
+                          size="action"
+                          icon={<RiLoginBoxLine size={18} aria-hidden />}
+                          data-attr="join-meeting"
+                        >
+                          {t('joinMeeting')}
+                        </Button>
+                        <JoinMeetingDialog />
+                      </DialogTrigger>
                       <Button
                         variant="secondary"
                         size="action"
-                        data-attr="join-meeting"
+                        icon={<RiCalendarScheduleLine size={18} aria-hidden />}
+                        data-attr="schedule-meeting"
+                        onPress={() => setScheduling(true)}
                       >
-                        {t('joinMeeting')}
+                        {t('scheduleMeeting')}
                       </Button>
-                      <JoinMeetingDialog />
-                    </DialogTrigger>
-                    <Button
-                      variant="secondary"
-                      size="action"
-                      data-attr="schedule-meeting"
-                      onPress={() => setScheduling(true)}
-                    >
-                      {t('scheduleMeeting')}
-                    </Button>
-                  </div>
+                    </div>
+                  </header>
+                </div>
+                <div className={listRegion} data-testid="meeting-list-region">
                   {createError && (
                     <StateHint state="error">
                       {t('library.createError', { ns: 'meetings' })}
                     </StateHint>
                   )}
-                  {/* 「预约会议」只保留上面动作行里那一颗:节标题右侧那颗是同一
-                      动作的重复入口,已删除。预约出来的会议仍出现在本节。 */}
+                  {/* 「预约会议」只保留页头那颗:节标题右侧那颗是同一动作的重复
+                      入口,已删除。预约出来的会议仍出现在本节。 */}
                   <ScheduledMeetingsList
                     enabled
                     showEmpty

@@ -88,6 +88,26 @@ const past = {
   meeting_session_id: 'session-past',
   status: 'ended',
 }
+/** 视频会议页的两段列表也要够长,「页头钉住」那条才验得到。 */
+const scheduledMeetings = [
+  upcoming,
+  ...Array.from({ length: 12 }, (_, index) => ({
+    ...upcoming,
+    id: `room-upcoming-${index}`,
+    slug: `8600${1000 + index}`,
+    name: `规划会 ${index + 1}`,
+  })),
+]
+const recentMeetings = [
+  past,
+  ...Array.from({ length: 12 }, (_, index) => ({
+    ...past,
+    id: `room-past-${index}`,
+    slug: `8601${1000 + index}`,
+    name: `例会 ${index + 1}`,
+    meeting_session_id: `session-past-${index}`,
+  })),
+]
 const config = {
   meeting_records: {
     enabled: true,
@@ -195,7 +215,7 @@ try {
     if (url.pathname.endsWith('/recording-uploads/'))
       return reply({ available: false, max_bytes: 0, extensions: [] })
     if (url.pathname.endsWith('/rooms/video-meetings/'))
-      return reply({ scheduled: [upcoming], recent: [past] })
+      return reply({ scheduled: scheduledMeetings, recent: recentMeetings })
     if (url.pathname.includes('/video-session/'))
       return reply({
         status: 'ended',
@@ -574,7 +594,7 @@ try {
     .evaluate((el) => getComputedStyle(el).backgroundColor)
   assert.equal(quickBox, 'rgb(40, 96, 217)', '主操作走 action.primary.bg')
 
-  // 样板 ①:仪表盘式页面同样铺满内容列(不限宽居中)。
+  // 样板 ①:铺满内容列(不限宽居中)。
   const homeShell = await page.locator('main').boundingBox()
   const homeColumn = await page.locator('main').evaluate((el) => {
     const box = el.parentElement.getBoundingClientRect()
@@ -586,29 +606,63 @@ try {
     '视频会议页也要铺满内容列'
   )
 
-  // 样板 ②:仪表盘式页面**不钉头** —— 没有独立的列表滚动区,页头与列表在同一个
-  // 滚动容器里(整页一起滚)。
-  assert.equal(
-    await page.getByTestId('meeting-list-region').count(),
-    0,
-    '仪表盘式页面不该有固定列表区'
-  )
-  const sharesScroller = await page
+  // 样板 ②:视频会议也钉头(2026-09-16 起与另外三个栏目页一致)——页头(标题行 +
+  // 三个入口)固定,只有下面两段会议列表滚。
+  const homeList = page.getByTestId('meeting-list-region')
+  assert.equal(await homeList.count(), 1, '视频会议页应有唯一的列表滚动区')
+  const homeHeaderBefore = await page
     .getByRole('heading', { name: '视频会议', exact: true })
-    .evaluate((heading) => {
-      let node = heading.parentElement
-      while (node && node !== document.body) {
-        if (getComputedStyle(node).overflowY === 'auto')
-          return Boolean(node.querySelector('ul'))
-        node = node.parentElement
-      }
-      return false
-    })
+    .boundingBox()
+  const homeQuickBefore = await page
+    .getByRole('button', { name: '快速会议' })
+    .boundingBox()
+  const homeScrolled = await homeList.evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+    return el.scrollTop
+  })
+  assert.ok(homeScrolled > 0, '两段会议列表应可滚动')
+  const homeHeaderAfter = await page
+    .getByRole('heading', { name: '视频会议', exact: true })
+    .boundingBox()
+  const homeQuickAfter = await page
+    .getByRole('button', { name: '快速会议' })
+    .boundingBox()
   assert.equal(
-    sharesScroller,
-    true,
-    '页头与列表必须在同一个滚动区里(整页一起滚)'
+    Math.round(homeHeaderAfter.y),
+    Math.round(homeHeaderBefore.y),
+    '列表滚动时页头必须固定不动'
   )
+  assert.equal(
+    Math.round(homeQuickAfter.y),
+    Math.round(homeQuickBefore.y),
+    '列表滚动时页头的三个入口也必须固定不动'
+  )
+  // 三个入口在标题行里、右对齐(与标题竖向重叠,而不是另起一行)。
+  const homeTitleBox = await page
+    .getByRole('heading', { name: '视频会议', exact: true })
+    .boundingBox()
+  assert.ok(
+    homeQuickBefore.y < homeTitleBox.y + homeTitleBox.height + 24 &&
+      homeQuickBefore.y + homeQuickBefore.height > homeTitleBox.y,
+    '三个入口应与页面标题同一行(竖向重叠)'
+  )
+  const homeListBox = await homeList.boundingBox()
+  assert.ok(
+    homeQuickBefore.x + homeQuickBefore.width >
+      homeListBox.x + homeListBox.width / 2,
+    '三个入口应右对齐'
+  )
+  // 三个入口都带图标(按钮里应有一个 aria-hidden 的 svg)。
+  for (const name of ['快速会议', '加入会议', '预约会议']) {
+    const icons = await page
+      .getByRole('button', { name })
+      .locator('svg[aria-hidden="true"]')
+      .count()
+    assert.ok(icons >= 1, `「${name}」应带图标`)
+  }
+  await homeList.evaluate((el) => {
+    el.scrollTop = 0
+  })
 
   // 样板 ③:两段会议列表的行风格与实录/纪要一致(48px 图标块 + 16px 标题)。
   const scheduledRow = await page

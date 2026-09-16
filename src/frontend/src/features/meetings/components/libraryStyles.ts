@@ -52,9 +52,6 @@ export const scrollRegion = css({
   paddingBottom: '2xl',
 })
 
-/** 仪表盘式页面：整页一起滚（页头也跟着走），所以顶部要补一档页边距。 */
-export const wholePageScroll = cx(scrollRegion, css({ paddingTop: 'xl' }))
-
 /**
  * 工作区内容区：占满剩余高度，**自己不带滚动** —— 转录 / 纪要 / 发言人这些面板
  * 各自滚（见 MeetingRecordWorkspace 的 Tabs），外面再套一层会出双滚动条。
@@ -129,6 +126,15 @@ export const pageHeaderRow = css({
   justifyContent: 'space-between',
   gap: 'lg',
   marginBottom: 'xl',
+})
+
+/** 页头右侧动作组:窄屏换行、右对齐(实录 / 纪要 / 视频会议共用同一档)。 */
+export const headerActions = css({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  gap: 'md',
 })
 
 /** 区块标题(「待开始的会议」「历史会议」这类列表小节标题)。 */

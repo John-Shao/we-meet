@@ -26,6 +26,7 @@ import { css, cx } from '@/styled-system/css'
 import { useMeetingRecords } from '../api/fetchMeetingRecord'
 import {
   cardTitle,
+  headerActions,
   pageFixedTop,
   pageHeaderRow,
   pageHeaderText,
@@ -163,15 +164,6 @@ const pagerRow = css({
   gap: 'md',
   alignItems: 'center',
   marginTop: 'lg',
-})
-
-/** 页头右侧动作组:窄屏换行,右对齐。 */
-const headerActions = css({
-  display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  justifyContent: 'flex-end',
-  gap: 'md',
 })
 
 /** 栅格视图开关:窄屏隐藏。display 放外层,避免与基元 recipe 抢同一个原子类。 */
