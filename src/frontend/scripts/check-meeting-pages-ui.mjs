@@ -198,6 +198,54 @@ const themeSurface = (selector) =>
       return { backgroundColor: style.backgroundColor, color: style.color }
     })
 
+/**
+ * 四个一级页面必须长得一样的那几条(以「智能纪要」为基准):
+ * 页壳浅灰(canvas,钉住的头部露这个色)+ 滚动内容白(surface.default)+
+ * 标题一档 24px + 首行不着卡(透明底、无边框)。
+ */
+const assertUnifiedPageChrome = async (label) => {
+  const chrome = await page.evaluate(() => {
+    const main = document.querySelector('main')
+    const list = main.querySelector('[data-testid="meeting-list-region"]')
+    const firstRow = list?.querySelector('li:first-child > *')
+    // 页面标题要取 main 里的那个:外壳/导航里还有别的 h1。
+    const title = main.querySelector('h1')
+    const rowStyle = firstRow ? getComputedStyle(firstRow) : null
+    return {
+      shell: getComputedStyle(main).backgroundColor,
+      list: list ? getComputedStyle(list).backgroundColor : null,
+      titleSize: title ? getComputedStyle(title).fontSize : null,
+      rowBackground: rowStyle?.backgroundColor ?? null,
+      rowBorder: rowStyle?.borderTopWidth ?? null,
+    }
+  })
+  assert.equal(
+    chrome.shell,
+    'rgb(246, 246, 246)',
+    `${label}:页壳应为浅灰 surface.canvas,实际 ${chrome.shell}`
+  )
+  assert.equal(
+    chrome.list,
+    'rgb(255, 255, 255)',
+    `${label}:列表滚动区应为白 surface.default,实际 ${chrome.list}`
+  )
+  assert.equal(
+    chrome.titleSize,
+    '24px',
+    `${label}:页面标题应与纪要同档(pageTitle),实际 ${chrome.titleSize}`
+  )
+  assert.equal(
+    chrome.rowBorder,
+    '0px',
+    `${label}:样板行不着卡,不应有边框,实际 ${chrome.rowBorder}`
+  )
+  assert.equal(
+    chrome.rowBackground,
+    'rgba(0, 0, 0, 0)',
+    `${label}:样板行底色应透明(悬停才给浅底),实际 ${chrome.rowBackground}`
+  )
+}
+
 try {
   const context = await browser.newContext({
     locale: 'zh-CN',
@@ -426,62 +474,54 @@ try {
   await shot('meeting-notes-mobile')
   await page.setViewportSize({ width: 1180, height: 900 })
 
-  // ── 智能纪要(同一份 Library,minutes 档换 underline 与阅读器底色) ────────
+  // ── 智能纪要(同一份 Library,与实录只差文案与内容) ──────────────────────
   await page.evaluate(() => history.replaceState({}, '', '/meeting/minutes'))
   await mount('library', { viewerId: 'ui-owner', minutes: true })
   await page.getByRole('link', { name: record.title }).waitFor()
-  const minutesMain = await page
-    .locator('main')
-    .evaluate((el) => getComputedStyle(el).backgroundColor)
-  assert.equal(
-    minutesMain,
-    'rgb(255, 255, 255)',
-    '纪要页用阅读器底色 surface.default'
-  )
+  await assertUnifiedPageChrome('智能纪要(基准)')
   await page.evaluate(() => {
     document.documentElement.dataset.theme = 'dark'
   })
   await page.waitForTimeout(120)
-  const minutesMainDark = await page
-    .locator('main')
+  const minutesListDark = await page
+    .getByTestId('meeting-list-region')
     .evaluate((el) => getComputedStyle(el).backgroundColor)
-  assert.notEqual(minutesMainDark, minutesMain, '纪要页底色也要跟随主题')
+  assert.notEqual(
+    minutesListDark,
+    'rgb(255, 255, 255)',
+    '滚动区底色也要跟随主题,深色下不能还是白的'
+  )
   await page.evaluate(() => {
     document.documentElement.dataset.theme = 'light'
   })
   await page.waitForTimeout(200)
-  // 切回浅色后再确认一次卡片底色:主题切换是纯属性驱动的,截图里不该混着两套。
-  const cardBackLight = await page
-    .locator('[aria-label="产品设计评审"]')
-    .evaluate((el) => getComputedStyle(el).backgroundColor)
-  assert.equal(
-    cardBackLight,
-    'rgb(255, 255, 255)',
-    `切回浅色后卡片必须回到 surface.default,实际 ${cardBackLight}`
-  )
   await shot('meeting-minutes-desktop')
 
   // ── AI 录音 ──────────────────────────────────────────────────────────────
   await page.evaluate(() => history.replaceState({}, '', '/meeting/recording'))
   await mount('recording', {})
-  await page.getByRole('link', { name: '录音', exact: true }).waitFor()
-  const tile = page.getByRole('link', { name: '录音', exact: true })
-  const entryTile = await tile.evaluate(
-    (el) => getComputedStyle(el).backgroundColor
-  )
+  // 页头工具按钮与实录同款:同一个「录音」动作现在是一枚 action 按钮(带图标),
+  // 不再是页面里的大入口块 —— 四个页面因此共用一套工具按钮。
+  const recordButton = page.getByRole('button', { name: '录音', exact: true })
+  await recordButton.waitFor()
   assert.equal(
-    entryTile,
-    'rgb(214, 228, 255)',
-    '浅色下入口块仍是原浅蓝底(零回归)'
+    await recordButton.locator('svg[aria-hidden="true"]').count(),
+    1,
+    '「录音」工具按钮应带图标'
   )
+  await assertUnifiedPageChrome('AI 录音')
   await page.evaluate(() => {
     document.documentElement.dataset.theme = 'dark'
   })
   await page.waitForTimeout(120)
-  const entryTileDark = await tile.evaluate(
-    (el) => getComputedStyle(el).backgroundColor
+  const recordingListDark = await page
+    .getByTestId('meeting-list-region')
+    .evaluate((el) => getComputedStyle(el).backgroundColor)
+  assert.notEqual(
+    recordingListDark,
+    'rgb(255, 255, 255)',
+    'AI 录音滚动区底色必须随主题翻转'
   )
-  assert.notEqual(entryTileDark, entryTile, '入口块底色必须随主题翻转')
   await page.evaluate(() => {
     document.documentElement.dataset.theme = 'light'
   })
@@ -511,21 +551,17 @@ try {
     1,
     'AI 录音是列表页,必须有唯一的列表滚动区'
   )
-  const tilesBefore = await page
-    .getByRole('link', { name: '录音', exact: true })
-    .boundingBox()
+  const recordButtonBefore = await recordButton.boundingBox()
   const recordingScrolled = await recordingList.evaluate((el) => {
     el.scrollTop = el.scrollHeight
     return el.scrollTop
   })
   assert.ok(recordingScrolled > 0, '历史列表应可滚动')
-  const tilesAfter = await page
-    .getByRole('link', { name: '录音', exact: true })
-    .boundingBox()
+  const recordButtonAfter = await recordButton.boundingBox()
   assert.equal(
-    Math.round(tilesAfter.y),
-    Math.round(tilesBefore.y),
-    '列表滚动时入口块必须固定不动'
+    Math.round(recordButtonAfter.y),
+    Math.round(recordButtonBefore.y),
+    '列表滚动时页头的工具按钮必须固定不动'
   )
   await recordingList.evaluate((el) => {
     el.scrollTop = 0

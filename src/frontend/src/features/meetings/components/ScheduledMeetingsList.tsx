@@ -10,9 +10,8 @@ import { Button } from '@/primitives'
 import { useVideoMeetings } from '../api/videoMeetings'
 import type { MeetingSelection } from './MeetingDetailPanel'
 import {
-  listCard,
   listMoreLink,
-  listRowDivider,
+  listStack,
   rowBody,
   rowHeadingOneLine,
   rowIconTile,
@@ -178,7 +177,7 @@ export const ScheduledMeetingsList = ({
   return (
     <div className={sectionStack}>
       {header(t('home.scheduledTitle'))}
-      <ul className={listCard}>
+      <ul className={listStack}>
         {visible.map((m) => {
           const label = m.name || t('home.untitled')
           /**
@@ -192,7 +191,7 @@ export const ScheduledMeetingsList = ({
             ? formatScheduledAt(m.scheduled_at, i18n.language, t('home.today'))
             : null
           return (
-            <li key={m.id} className={listRowDivider}>
+            <li key={m.id}>
               <button
                 type="button"
                 data-testid={`scheduled-row-${m.id}`}

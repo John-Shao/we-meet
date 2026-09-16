@@ -12,13 +12,13 @@ import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { RecordingUpload } from '../components/RecordingUpload'
 import {
-  entryTile,
-  entryTileRow,
-  listCard,
-  listRowDivider,
+  contentSurface,
+  headerActions,
+  listStack,
   pageFixedTop,
   pageHeaderRow,
   pageHeaderText,
+  pageLead,
   pageShell,
   pageTitle,
   rowBody,
@@ -36,11 +36,8 @@ const HISTORY_LIMIT = 20
 /** 页壳(铺满内容列,不限宽居中)。 */
 const canvasShell = pageShell('canvas')
 
-/** 列表区补一档顶部内边距(固定区已经有自己的下边距)。 */
-const listRegion = cx(scrollRegion, css({ paddingTop: 'xs' }))
-
-/** 入口块与下方分隔线之间留一档。 */
-const tilesRow = cx(entryTileRow, css({ marginBottom: 'xl' }))
+/** 列表区:唯一的滚动区,内容铺白(一级页规则,与另外三个栏目页同一档)。 */
+const listRegion = cx(scrollRegion, contentSurface, css({ paddingTop: 'xs' }))
 
 const moreLinkCls = css({
   display: 'block',
@@ -101,9 +98,9 @@ export function RecordingHistory({
           description={t('recordingOverview.empty')}
         />
       ) : (
-        <ul className={listCard}>
+        <ul className={listStack}>
           {rows.map((record) => (
-            <li key={record.id} className={listRowDivider}>
+            <li key={record.id}>
               <Link
                 href={`/meeting/recording/history/${encodeURIComponent(record.id)}`}
                 className={rowSurface}
@@ -174,22 +171,30 @@ export function RecordingOverview() {
           <header className={pageHeaderRow}>
             <div className={pageHeaderText}>
               <h1 className={pageTitle}>{t('library.record')}</h1>
+              <p className={pageLead}>{t('library.recordHint')}</p>
             </div>
+            {/* 与「会议实录」页头同一套工具按钮:同一档 action 尺寸 + 18px 图标,
+                右对齐。原先这里是两枚大入口块,四个页面因此各长一个样。 */}
+            {enabled && (
+              <div className={headerActions}>
+                <RecordingUpload
+                  key={user.id}
+                  viewerId={user.id}
+                  onRecord={(id) =>
+                    navigate(`/meeting/recording/history/${id}`)
+                  }
+                />
+                <Button
+                  variant="secondary"
+                  size="action"
+                  icon={<RiMicLine size={18} aria-hidden />}
+                  onPress={() => navigate('/meeting/recording/capture')}
+                >
+                  {t('library.startRecording')}
+                </Button>
+              </div>
+            )}
           </header>
-          {enabled && (
-            <div className={tilesRow}>
-              <Link href="/meeting/recording/capture" className={entryTile}>
-                <RiMicLine size={32} aria-hidden />
-                {t('recordingOverview.record')}
-              </Link>
-              <RecordingUpload
-                key={user.id}
-                viewerId={user.id}
-                tile
-                onRecord={(id) => navigate(`/meeting/recording/history/${id}`)}
-              />
-            </div>
-          )}
         </div>
         <div className={listRegion} data-testid="meeting-list-region">
           {enabled ? (

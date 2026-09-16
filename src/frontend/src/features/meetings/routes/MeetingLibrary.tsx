@@ -9,6 +9,7 @@ import {
   RiFilter3Line,
   RiLayoutGridLine,
   RiListUnordered,
+  RiSparklingLine,
 } from '@remixicon/react'
 import { openGlobalSearch } from '@/layout/globalSearchBus'
 import { useConfig } from '@/api/useConfig'
@@ -26,6 +27,7 @@ import { css, cx } from '@/styled-system/css'
 import { useMeetingRecords } from '../api/fetchMeetingRecord'
 import {
   cardTitle,
+  contentSurface,
   headerActions,
   pageFixedTop,
   pageHeaderRow,
@@ -55,10 +57,10 @@ const toolbar = css({
 
 /** 两种页壳:纪要是白底阅读面,实录用 canvas,卡片才立得起来。 */
 const canvasShell = pageShell('canvas')
-const readerShell = pageShell('default')
 
 /** 列表区补一档顶部内边距(固定区已经有自己的下边距)。 */
-const listRegion = cx(scrollRegion, css({ paddingTop: 'xs' }))
+/** 列表区:唯一的滚动区,内容铺白(一级页规则,见 libraryStyles.contentSurface)。 */
+const listRegion = cx(scrollRegion, contentSurface, css({ paddingTop: 'xs' }))
 
 /** 窄屏会横滚,不能被 flex 压扁。 */
 const toolbarScroll = css({
@@ -110,31 +112,29 @@ const filterLabel = css({
 /** 原生 select 走共享 chrome:自绘箭头、32px 钉高、option 跟随主题。 */
 const filterSelect = cx(selectChrome, css({ minWidth: '9rem' }))
 
-/** 一条记录(卡 / 行)的外壳。 */
+/**
+ * 一条记录(行)的外壳 —— 四个栏目页共用的**样板行**:不着卡、悬停一层浅底。
+ * 「智能纪要」原先只是这一档的 `[data-minutes=true]` 变体,现在实录页也走同一套,
+ * 两个页面只有内容与文案的差别,不再有「卡 / 无边框」两种列表形态。
+ */
 const cardShell = css({
   display: 'flex',
   alignItems: 'center',
   gap: 'lg',
   height: '100%',
   padding: 'lg',
+  paddingX: 'md',
   borderRadius: 'card',
-  backgroundColor: 'surface.default',
-  border: '1px solid token(colors.border.subtle)',
+  backgroundColor: 'transparent',
+  borderColor: 'transparent',
   textDecoration: 'none',
   color: 'text.primary',
   cursor: 'pointer',
-  transition:
-    'border-color token(durations.fast), box-shadow token(durations.fast), background-color token(durations.fast)',
-  _hover: { borderColor: 'border.strong', boxShadow: 'raised' },
+  transition: 'background-color token(durations.fast)',
+  _hover: { backgroundColor: 'surface.canvas' },
   _focusVisible: {
     outline: '2px solid token(colors.border.focus)',
     outlineOffset: '2px',
-  },
-  // 纪要页是「阅读器」的列表形态:不着卡,悬停只给一层浅底。
-  '&[data-minutes=true]': {
-    borderColor: 'transparent',
-    paddingX: 'md',
-    _hover: { backgroundColor: 'surface.canvas', boxShadow: 'none' },
   },
 })
 
@@ -273,7 +273,6 @@ function RecordList({
           <li key={record.id}>
             <Link
               href={`/meeting/records/${record.id}${minutes ? '?tab=summary' : ''}`}
-              data-minutes={minutes}
               aria-label={record.title || t('library.untitled')}
               className={cardShell}
             >
@@ -404,10 +403,8 @@ export function Library({
     : (['recent', 'owned', 'shared'] as const)
   return (
     <MeetingModuleShell compactNavigation>
-      <main
-        data-minutes={minutes}
-        className={minutes ? readerShell : canvasShell}
-      >
+      {/* 页壳一律 canvas:钉住的页头在四个栏目页上都是同一档浅灰。 */}
+      <main className={canvasShell}>
         {/* 列表以上的一切(窄屏栏目行、页头、范围筛选、搜索/筛选)固定不滚 —— 与
             任务列表(TasksRoute 的 header + modeTabs + listRegion)同一套布局:
             页壳占满高度,只有列表区自己滚,滚到底也看得见当前筛选条件。 */}
@@ -431,6 +428,7 @@ export function Library({
                 <Button
                   variant="secondary"
                   size="action"
+                  icon={<RiSparklingLine size={18} aria-hidden />}
                   onPress={() => openGlobalSearch('ai', 'meetings')}
                 >
                   {t('minutesReader.searchMeetings')}
@@ -452,8 +450,8 @@ export function Library({
               )}
             </div>
           </header>
-          {/* 范围筛选走共享分段控件:实录用 pill(紧凑筛选),纪要阅读器用
-            underline(同级阅读模式)。焦点态、方向键与 Home / End 由基元提供。 */}
+          {/* 范围筛选走共享分段控件,两个页面统一用 underline:同一档工具按钮,
+            与页头动作同高同字号。焦点态、方向键与 Home / End 由基元提供。 */}
           <div className={toolbar}>
             <div className={toolbarScroll}>
               <SegmentedControl
@@ -468,7 +466,7 @@ export function Library({
                   setScope(value as MeetingRecordFilters['scope'])
                 }
                 ariaLabel={t('library.scopeLabel')}
-                appearance={minutes ? 'underline' : 'pill'}
+                appearance="underline"
                 density="compact"
               />
             </div>

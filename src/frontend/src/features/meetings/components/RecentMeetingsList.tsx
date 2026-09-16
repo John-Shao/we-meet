@@ -11,9 +11,8 @@ import { Button } from '@/primitives'
 import { useVideoMeetings } from '../api/videoMeetings'
 import type { MeetingSelection } from './MeetingDetailPanel'
 import {
-  listCard,
   listMoreLink,
-  listRowDivider,
+  listStack,
   rowBody,
   rowHeadingOneLine,
   rowIconTile,
@@ -152,7 +151,7 @@ export const RecentMeetingsList = ({
   return (
     <div className={sectionStack}>
       <h3 className={sectionHeading}>{t('home.recentTitle')}</h3>
-      <ul className={listCard}>
+      <ul className={listStack}>
         {visible.map((m) => {
           const label = m.name || t('home.untitled')
           const id = m.meeting_session_id ?? m.id
@@ -160,7 +159,7 @@ export const RecentMeetingsList = ({
             ? formatRelativeTime(m.started_at, i18n.language)
             : null
           return (
-            <li key={id} className={listRowDivider}>
+            <li key={id}>
               <button
                 type="button"
                 data-testid={`recent-row-${m.id}`}

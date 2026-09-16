@@ -7,7 +7,7 @@ import { Button, Dialog, TextArea } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
 import { RiUpload2Line } from '@remixicon/react'
 import { css, cx } from '@/styled-system/css'
-import { entryTile, rowMeta } from './libraryStyles'
+import { rowMeta } from './libraryStyles'
 
 type UploadState = {
   record_id: string
@@ -60,11 +60,9 @@ const statusSectionCls = css({ marginBottom: 'lg' })
 
 export function RecordingUpload({
   viewerId,
-  tile = false,
   onRecord,
 }: {
   viewerId: string
-  tile?: boolean
   onRecord?: (id: string) => void
 }) {
   const { t } = useTranslation('meetings')
@@ -124,26 +122,16 @@ export function RecordingUpload({
           event.target.value = ''
         }}
       />
-      {tile ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => input.current?.click()}
-          className={cx(entryTile, css({ flexShrink: 0 }))}
-        >
-          <RiUpload2Line size={32} aria-hidden />
-          {t('upload.open')}
-        </button>
-      ) : (
-        <Button
-          variant="secondary"
-          size="action"
-          icon={<RiUpload2Line size={18} aria-hidden />}
-          onPress={() => input.current?.click()}
-        >
-          {t('upload.open')}
-        </Button>
-      )}
+      {/* 只有一种形态了:与另外三个栏目页页头同款的 action 按钮。
+          (原先还有一个大入口块的 `tile` 形态,四个页面统一后没有调用点。) */}
+      <Button
+        variant="secondary"
+        size="action"
+        icon={<RiUpload2Line size={18} aria-hidden />}
+        onPress={() => input.current?.click()}
+      >
+        {t('upload.open')}
+      </Button>
       <Dialog
         isOpen={open}
         onOpenChange={(value) => {

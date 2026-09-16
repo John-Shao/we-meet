@@ -207,20 +207,29 @@ export const sectionHeading = cx(
   css({ marginTop: 'xl', marginBottom: 'md' })
 )
 
-/** 列表卡:整块一张卡,行与行之间用语义分隔线。 */
-export const listCard = css({
+/**
+ * 一级页的**内容底**:页壳仍是 `surface.canvas`(钉住的头部因此保持浅灰),滚动区
+ * 铺白。这条规则来自 App 的页面层级规范
+ * (`we-meet-android/docs/page-backgrounds.md` §1):一级页面 = 顶部固定区域浅灰 +
+ * 下方滚动区域白。
+ *
+ * 四个栏目页都用它,头部颜色才不会一页一个样(纪要页原先是整页白壳)。
+ */
+export const contentSurface = css({ backgroundColor: 'surface.default' })
+
+/**
+ * 样板列表:无边框行 + 行间距(智能纪要的阅读列表形态),四个栏目页共用。
+ *
+ * 取代「整块白卡 + 行分隔线」:一级页的内容底本来就是白的,再套一层白卡只会剩下
+ * 一圈描边,而行间距比 1px 分隔线更接近纪要页的观感。
+ */
+export const listStack = css({
   listStyle: 'none',
   margin: 0,
   padding: 0,
-  border: '1px solid token(colors.border.subtle)',
-  borderRadius: 'card',
-  backgroundColor: 'surface.default',
-  overflow: 'hidden',
-})
-
-/** 卡内行的分隔线(只在相邻行之间画)。 */
-export const listRowDivider = css({
-  '& + &': { borderTop: '1px solid token(colors.border.subtle)' },
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'md',
 })
 
 /**
@@ -294,50 +303,6 @@ export const rowMetaBlock = cx(
     gap: 'xxs',
   })
 )
-
-/** 入口块排布:AI 录音页的「开始录音 / 导入音视频」并排,窄屏换行。 */
-export const entryTileRow = css({
-  display: 'flex',
-  gap: 'lg',
-  flexWrap: 'wrap',
-})
-
-/**
- * 二级页里的「入口块」。原先「开始录音」和「导入音视频」各画一套浅蓝底 +
- * 数字圆角,并排放着却差几个像素 —— 现在只有这一份外观定义。
- *
- * 用 `<a>` 还是 `<button>` 由调用点决定(跳页 vs 唤起文件选择),这里只管外观;
- * 因此不能依赖标签选择器。
- */
-export const entryTile = css({
-  display: 'inline-flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 'md',
-  minWidth: '10rem',
-  minHeight: '7rem',
-  paddingX: '2xl',
-  paddingY: 'lg',
-  border: 'none',
-  borderRadius: 'panel',
-  textStyle: 'labelLarge',
-  textDecoration: 'none',
-  cursor: 'pointer',
-  color: 'brand.700',
-  backgroundColor: 'brand.100',
-  transition: 'background-color token(durations.fast)',
-  _hover: { backgroundColor: 'brand.200' },
-  _focusVisible: {
-    outline: '2px solid token(colors.border.focus)',
-    outlineOffset: '2px',
-  },
-  _disabled: {
-    cursor: 'not-allowed',
-    color: 'text.disabled',
-    backgroundColor: 'surface.muted',
-  },
-})
 
 /**
  * 「会议」二级页的外壳:左列常驻导航面板,右列页面内容。

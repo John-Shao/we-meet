@@ -112,6 +112,8 @@
     "navigation": "Meeting library navigation",
     "notesHint": "Find audio, video, transcripts and AI minutes from meetings and recordings in one place.",
     "minutesHint": "Records with generated minutes, shared with the same meeting records library.",
+    "videoHint": "Start or join a meeting, or schedule one ahead.",
+    "recordHint": "Record offline meetings and interviews, then transcribe or summarise them.",
     "search": "Search titles",
     "searchButton": "Search",
     "scopeLabel": "Scope",

@@ -76,9 +76,10 @@ it('loads only completed recordings, limits history to twenty and links to secon
     next_cursor: 'next',
   })
   show(<RecordingOverview />)
+  // 「录音」现在是页头的 action 按钮(与会议实录同款工具按钮),不再是页面里的大入口块。
   expect(
-    screen.getByRole('link', { name: 'recordingOverview.record' })
-  ).toHaveAttribute('href', '/meeting/recording/capture')
+    screen.getByRole('button', { name: 'library.startRecording' })
+  ).toBeInTheDocument()
   expect(
     await screen.findByRole('link', { name: /Recording 0 / })
   ).toHaveAttribute('href', '/meeting/recording/history/id-0')
@@ -106,7 +107,7 @@ it('keeps capture accessible on history errors and retries to an empty state', a
     'library.loadError'
   )
   expect(
-    screen.getByRole('link', { name: 'recordingOverview.record' })
+    screen.getByRole('button', { name: 'library.startRecording' })
   ).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'library.refresh' }))
   expect(await screen.findByText('recordingOverview.empty')).toBeInTheDocument()

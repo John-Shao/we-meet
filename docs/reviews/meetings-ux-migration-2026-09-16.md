@@ -250,6 +250,36 @@ Closed 2 room(s) older than 86400s (cutoff 2026-09-15T16:04:17+00:00).
 走查脚本新增断言把这两块底色锁住：页壳必须是 `rgb(246, 246, 246)`（固定头部露出的底色）、
 列表滚动区必须是 `rgb(255, 255, 255)`。
 
+### 3.5 四个一级页面统一到「智能纪要」这一版（2026-09-17 追加）
+
+要求是「以智能摘要页面为基准，统一会议模块 4 个一级页面的风格，包括标题、工具按钮、
+头部颜色、列表风格」。落地时把基准页的每一处拆成可复用的类，四个页面共用同一份定义：
+
+| 部位 | 统一后的规则 | 之前的分歧 |
+| --- | --- | --- |
+| 头部颜色 | 页壳一律 `surface.canvas`（浅灰），只有滚动内容区铺 `surface.default`（白）—— App 一级页规则 | 纪要页整页白壳；AI 录音 / 视频会议的滚动区也是浅灰 |
+| 标题 | `pageTitle`（headlineSmall 24px）+ `pageLead`（次要色说明） | 视频会议 / AI 录音只有标题，没有说明行 |
+| 工具按钮 | 页头右侧 `headerActions`，一律 `Button size="action"` + 18px 图标，右对齐 | AI 录音是两枚大入口块；「搜索会议 AI」没有图标 |
+| 范围筛选 | `SegmentedControl appearance="underline"` | 实录用 pill、纪要用 underline，同为一级页却两种控件 |
+| 列表风格 | `listStack` + `rowSurface`：无边框行、行间距 `md`、悬停一层浅底；行首 48px 品牌块、16px 标题、12px 辅助信息 | 实录 / AI 录音 / 视频会议都是「整块白卡 + 1px 分隔线」，只有纪要是阅读行 |
+
+具体改动：
+
+- `MeetingLibrary`：删掉「卡 / 阅读行」两种形态，`cardShell` 只剩样板行那一份（连带
+  `data-minutes` 分支整个去掉）；范围控件统一 underline；「搜索会议 AI」补
+  `RiSparklingLine` 图标。
+- `RecordingOverview`：页头改成「标题 + 说明 + 两个 action 按钮」，删掉大入口块
+  （`RecordingUpload` 的 `tile` 形态随之没有调用点，一并删除）；列表换成 `listStack`。
+- `Home`：两个会议列表换成 `listStack`；标题补说明行。
+- `libraryStyles`：新增 `contentSurface` / `listStack`，删掉已无引用的 `listCard`、
+  `listRowDivider`、`entryTile`、`entryTileRow`。
+- 新增两条文案 `library.videoHint` / `library.recordHint`（zh + en；fr/de/nl 回落英文，
+  与其它新键一致）。
+
+走查脚本新增 `assertUnifiedPageChrome(label)`，**四个页面逐个跑同一组断言**：页壳
+`rgb(246,246,246)`、滚动区 `rgb(255,255,255)`、`main` 里的标题 `24px`、首行
+`border-top-width: 0px` 且底色透明；深色主题下滚动区底色必须翻转。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把

@@ -120,7 +120,7 @@ it('opens the picker directly, confirms video metadata and opens the native hist
       extensions: ['wav', 'mp4', 'mov'],
     })
     .mockResolvedValueOnce({ record_id: 'video-id', status: 'queued' })
-  show(<RecordingUpload viewerId="owner" tile onRecord={onRecord} />)
+  show(<RecordingUpload viewerId="owner" onRecord={onRecord} />)
   const trigger = await screen.findByRole('button', { name: 'upload.open' })
   const input = screen.getByLabelText('upload.file') as HTMLInputElement
   expect(input.accept).toBe('.wav,.mp4,.mov')

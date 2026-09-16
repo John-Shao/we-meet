@@ -91,6 +91,8 @@ and this project adheres to
   can clear the rooms already sitting in the database
 - 🩹(frontend) paint the video meeting list area on the white content surface,
   leaving the pinned header on its light gray band as the app does
+- ♻️(frontend) unify the four meeting pages on the smart minutes layout: one
+  header band, one title block, one set of header actions and one row style
 
 ## [1.16.0] - 2026-05-13
 
