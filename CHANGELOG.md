@@ -10,15 +10,22 @@ and this project adheres to
 
 ### Added
 
-- Add audited task-list ownership transfer and recovery, including owned lists in offboarding resource checks.
-- Preview unassigned tasks before deleting a list and reject stale deletion confirmations.
-- ✨(fullstack) add timezone-aware recurring tasks with idempotent daily, weekly, and monthly materialization
-- ✅(fullstack) cover recurring-task month-end, retry, edit-scope, and failure-stop behavior
-- ✨(fullstack) add bounded recursive subtasks with secure parent chains and subtree confirmations
-- ✨(fullstack) add atomic subtask ordering and concurrency-safe hierarchy writes
+- Add audited task-list ownership transfer and recovery, including owned
+  lists in offboarding resource checks.
+- Preview unassigned tasks before deleting a list and reject stale deletion
+  confirmations.
+- ✨(fullstack) add timezone-aware recurring tasks with idempotent daily,
+  weekly, and monthly materialization
+- ✅(fullstack) cover recurring-task month-end, retry, edit-scope, and
+  failure-stop behavior
+- ✨(fullstack) add bounded recursive subtasks with secure parent chains and
+  subtree confirmations
+- ✨(fullstack) add atomic subtask ordering and concurrency-safe hierarchy
+  writes
 - ✨(fullstack) add task results and task-specific filters to global search
 - ✨(frontend) add real-stack Playwright coverage for the task workflow
-- ✅(frontend) add task workspace visual regression across 1024–1600px Web viewports
+- ✅(frontend) add task workspace visual regression across 1024–1600px Web
+  viewports
 - ✨(fullstack) allow participants to mute others based on room configuration
 - ✨(frontend) add synchronizer for room metadata updates
 - ✨(frontend) make reaction toolbar responsive on small viewports
@@ -26,17 +33,31 @@ and this project adheres to
 
 ### Changed
 
-- Separate task editing, moving and deletion permissions; reserve list membership management for owners. Archived task lists can be opened and left directly, with consistent creation restrictions and access-change guidance.
-- ✨(frontend) replace task loading text with layout-stable list, board, detail, subtask, comment, attachment, and history skeletons
-- ✨(frontend) add unified task action feedback with bounded undo for status, assignee, and placement changes
-- ✨(frontend) use a centered takeover task detail below 1440px and preserve the split-panel workspace on wider Web viewports
-- ♻️(frontend) remove unsupported small-screen task fallbacks and keep one desktop Web workspace implementation
-- ✨(frontend) replace whole-row task dragging with dedicated group-move and subtask-reorder handles plus accessible fallback actions
-- ✨(frontend) refine task filters, actionable workspace states, row actions, and detail information hierarchy
-- ✨(frontend) sharpen task hierarchy UX with compact panel-aware columns, explicit status feedback, keyboard tree controls, and unfinished-subtask completion warnings
-- 🔒️(backend) enforce full parent-chain visibility for task collaboration and notifications
-- 🔒️(backend) let a subtask collaborator read the complete parent chain as a read-only grant, gated by `TASK_UPWARD_VISIBILITY`
-- ♻️(fullstack) delete a task by unbinding its direct subtasks instead of deleting the whole tree
+- Separate task editing, moving and deletion permissions; reserve list
+  membership management for owners. Archived task lists can be opened and
+  left directly, with consistent creation restrictions and access-change
+  guidance.
+- ✨(frontend) replace task loading text with layout-stable list, board,
+  detail, subtask, comment, attachment, and history skeletons
+- ✨(frontend) add unified task action feedback with bounded undo for
+  status, assignee, and placement changes
+- ✨(frontend) use a centered takeover task detail below 1440px and preserve
+  the split-panel workspace on wider Web viewports
+- ♻️(frontend) remove unsupported small-screen task fallbacks and keep one
+  desktop Web workspace implementation
+- ✨(frontend) replace whole-row task dragging with dedicated group-move and
+  subtask-reorder handles plus accessible fallback actions
+- ✨(frontend) refine task filters, actionable workspace states, row
+  actions, and detail information hierarchy
+- ✨(frontend) sharpen task hierarchy UX with compact panel-aware columns,
+  explicit status feedback, keyboard tree controls, and unfinished-subtask
+  completion warnings
+- 🔒️(backend) enforce full parent-chain visibility for task collaboration
+  and notifications
+- 🔒️(backend) let a subtask collaborator read the complete parent chain as a
+  read-only grant, gated by `TASK_UPWARD_VISIBILITY`
+- ♻️(fullstack) delete a task by unbinding its direct subtasks instead of
+  deleting the whole tree
 - 🩹(backend) keep task detail loading when a sibling subtask stays hidden
 - 📝(docs) add a prioritized task module gap analysis and incremental roadmap
 - 📝(docs) align task module documentation with the current implementation

@@ -41,6 +41,13 @@ Implemented login and signup features, and integrated OAuth2 for social login.
 
 Please add a line to the changelog describing your development. The changelog entry should include a brief summary of the changes, this helps in tracking changes effectively and keeping everyone informed. We usually include the title of the pull request, followed by the pull request ID to finish the log entry. The changelog line should be less than 80 characters in total.
 
+That limit is enforced by the `lint-changelog` CI job, which measures **display columns** (`wc -L`), not characters: the emoji prefix counts as two columns and a CJK character as two as well. If an entry does not fit, wrap it onto continuation lines indented by two spaces instead of shortening it:
+
+```
+- ✨(frontend) replace whole-row task dragging with dedicated group-move and
+  subtask-reorder handles plus accessible fallback actions
+```
+
 ### Example Changelog Message
 ```
 ## [Unreleased]
