@@ -95,6 +95,8 @@ and this project adheres to
   header band, one title block, one set of header actions and one row style
 - ✨(backend) log the meeting webhook and session projection at INFO in
   production so delivery can be checked from the pod logs
+- ✨(backend) reuse the caller's own unstarted room when quick meetings or chat
+  calls are started again, instead of piling up empty rooms
 
 ## [1.16.0] - 2026-05-13
 

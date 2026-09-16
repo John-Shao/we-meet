@@ -764,6 +764,56 @@ class RoomViewSet(
         serializer = self.get_serializer(queryset, many=True)
         return drf_response.Response(serializer.data)
 
+    def create(self, request, *args, **kwargs):
+        """Reuse the caller's own unstarted room with the same name.
+
+        三个入口都打这个接口:会议页的「快速会议」、聊天里的语音聊天 / 视频会议
+        (`features/im/call/callController.ts`)、以及 App 的「发起会议」和「快速会议」。
+        它们全是「先建房、再进房」—— 用户没进成(返回、关页、权限被拒、连不上)就会留下
+        一个空房,反复点就攒出一堆(线上实测:两天 46 个,其中只有 3 个真的进过房)。
+
+        所以同名的、自己建的、**还没开始过**的房间直接复用,不再新建,也不弹任何提示。
+        条件刻意收得很紧:
+
+        * 调用者必须是 OWNER —— 别人的同名房间不能抢;
+        * `scheduled_at` 为空 —— 预约会议走日程,不该被「快速会议」顶掉;
+        * `ended_at` 为空 —— 已结束(或被 `close_abandoned_rooms` 清掉)的不复用;
+        * 一场 session 都没有 —— 开过会的房间不复用,下一次是真的新会议。
+
+        请求自带 `scheduled_at` 时一律新建:那是「预约一场会」,不是复用空房。
+        命中时返回 200 + 已有房间(而不是 201),让调用方能区分。
+        """
+
+        reusable = self._reusable_room(request)
+        if reusable is not None:
+            return drf_response.Response(self.get_serializer(reusable).data)
+        return super().create(request, *args, **kwargs)
+
+    def _reusable_room(self, request):
+        """Return the caller's own unstarted room with the requested name, if any."""
+
+        if not request.user.is_authenticated:
+            return None
+        # 「预约会议」明确带时间:那是新的一场安排,不能并进已有的空房。
+        if request.data.get("scheduled_at"):
+            return None
+        name = (request.data.get("name") or "").strip()
+        if not name:
+            return None
+        return (
+            models.Room.objects.filter(
+                name=name,
+                accesses__user=request.user,
+                accesses__role=models.RoleChoices.OWNER,
+                ended_at__isnull=True,
+                scheduled_at__isnull=True,
+                meeting_sessions__isnull=True,
+            )
+            .distinct()
+            .order_by("-created_at")
+            .first()
+        )
+
     def perform_create(self, serializer):
         """Set the current user as owner of the newly created room."""
         room = serializer.save()
