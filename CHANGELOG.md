@@ -89,6 +89,8 @@ and this project adheres to
   scheduled, so abandoned call rooms stop piling up
 - 🩹(backend) add a close_abandoned_rooms command with --dry-run so operators
   can clear the rooms already sitting in the database
+- 🩹(frontend) paint the video meeting list area on the white content surface,
+  leaving the pinned header on its light gray band as the app does
 
 ## [1.16.0] - 2026-05-13
 

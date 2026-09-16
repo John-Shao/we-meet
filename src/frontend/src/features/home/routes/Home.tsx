@@ -50,8 +50,17 @@ import { MeetingModuleNav } from '@/features/meetings/components/MeetingModuleNa
  */
 const canvasShell = pageShell('canvas')
 
-/** 列表区补一档顶部内边距(固定区已经有自己的下边距)。 */
-const listRegion = cx(scrollRegion, css({ paddingTop: 'lg' }))
+/**
+ * 列表区补一档顶部内边距(固定区已经有自己的下边距),底色换成内容面。
+ *
+ * 一级页面的区域底色规则(见 we-meet-android/docs/page-backgrounds.md):**顶部固定
+ * 区域浅灰(`surface.canvas`)+ 下方滚动区域白(`surface.default`)**。页壳仍是 canvas,
+ * 所以钉住的页头保持浅灰不变,只有这一块内容区是白的 —— 与 App 的会议页一致。
+ */
+const listRegion = cx(
+  scrollRegion,
+  css({ paddingTop: 'lg', backgroundColor: 'surface.default' })
+)
 
 const Columns = ({ children }: { children?: ReactNode }) => {
   return (

@@ -224,6 +224,32 @@ Closed 2 room(s) older than 86400s (cutoff 2026-09-15T16:04:17+00:00).
 
 核对：两个该关的 `ended_at` 都写上了；刚建的、有预约时间的、有人进过的三个**都没动**。
 
+### 3.4 区域底色与 App 的页面层级规则对齐（2026-09-17 追加）
+
+线上反馈「固定头部颜色保持不变，列表背景色改为浅色」。先量了实机截图的像素确认现状：
+
+```
+页头（钉住）      #F6F6F6   surface.canvas
+列表卡            #FFFFFF   surface.default
+行分隔线          #E9E9E9   border.subtle
+卡片之外那一圈    #F6F6F6   surface.canvas   ← 与页头同色,滚动区不是内容底
+```
+
+对照 App 的页面层级规范（`we-meet-android/docs/page-backgrounds.md` §1）：
+
+| 页面层级 | 顶部固定区域 | 下方滚动区域 |
+| --- | --- | --- |
+| 一级：消息 / 日历 / 会议 / 通讯录 / 云文档 / 任务 | 浅灰 `#F6F6F6` | 白 `#FFFFFF` |
+| 二级及更深：新建 / 详情 / 设置 / 搜索 | 白 `#FFFFFF` | 浅灰 `#F6F6F6` |
+
+视频会议是**一级页**，所以页头保持浅灰（页壳 `surface.canvas` 不动），**列表滚动区改成
+白**（`surface.default`）—— 改动只有一处：`Home.tsx` 的 `listRegion` 加
+`backgroundColor: 'surface.default'`，页头所在页壳仍是 canvas，于是「浅灰头部 + 白色内容」
+两段式成立，与 App 的会议页一致。深色主题由 token 自动翻转。
+
+走查脚本新增断言把这两块底色锁住：页壳必须是 `rgb(246, 246, 246)`（固定头部露出的底色）、
+列表滚动区必须是 `rgb(255, 255, 255)`。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把

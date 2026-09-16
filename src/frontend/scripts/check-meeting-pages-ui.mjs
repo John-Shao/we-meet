@@ -703,6 +703,22 @@ try {
     10,
     '收起后回到 10 条'
   )
+  // 区域底色(App 一级页规则):页头所在页壳浅灰 surface.canvas,列表滚动区白。
+  // 页头自身是透明的,露出的就是页壳底色,所以量页壳。
+  const homeRegionBg = await homeList.evaluate((el) => ({
+    shell: getComputedStyle(el.closest('main')).backgroundColor,
+    list: getComputedStyle(el).backgroundColor,
+  }))
+  assert.equal(
+    homeRegionBg.shell,
+    'rgb(246, 246, 246)',
+    `固定头部所在的页壳应保持浅灰 surface.canvas,实际 ${homeRegionBg.shell}`
+  )
+  assert.equal(
+    homeRegionBg.list,
+    'rgb(255, 255, 255)',
+    `列表滚动区应为白 surface.default,实际 ${homeRegionBg.list}`
+  )
   // 解析不了的 scheduled_at 不再原样回显 —— 该行只剩标题。
   const dirtyRowText = await page
     .locator('[data-testid="scheduled-row-room-dirty"]')
