@@ -137,11 +137,36 @@ token（`panda.config` 里那组已无任何引用）。区分「预约 / 历史
 | 5 | 列表主标题是**机器生成的文件名**（`share_68a4…`、`新录音-260915-142621`） | Web 端先补上 `title` 提示（省略号截断的长标题悬停可看全）；**根治要后端在导入时给友好默认名 + 提供重命名入口**，属于产品取舍，未擅自改 |
 | 6 | 「我的内容」这件事**两页两套文案**：实录「我的内容 / 共享内容」，纪要「归我所有 / 与我共享」 | 统一到实录那套（zh）：纪要 scope 改为「我的内容 / 我参与的 / 共享内容」。英文本就一致；fr/de/nl 没有这两组 key，回落英文 |
 
-第 3 条的根因说明：后端 `core/services/video_meetings.py:48` 现在只会发
-`room.scheduled_at.isoformat()` 或 `null`，所以线上那些行要么是**后端版本比这份代码旧**、
-要么值本身是客户端解析不了的字符串；App 端对同样情况走的是自己的 `"—"` 占位符
-（`ScheduledMeetingsList.kt:46-48`），因此**症状一致、机制不同**。Web 侧不再回显原值的
-改动与根因无关，两种情况下都成立。
+第 3 条的**根因后来定死了，见 3.3**：那些行是聊天通话房，`scheduled_at` 本来就是
+`null`（不是脏值），只是被当成「待开始的会议」列了出来。Web 侧不再回显原值的改动
+仍然保留 —— 它是防御性的，与根因无关。
+
+### 3.3 房间没有自动关闭机制（2026-09-16 追加，根因）
+
+截图里「预约会议」那几行没有时间、名字又是「与W002的通话」「测试2群的视频会议」的，
+是**聊天里发起的通话房**。链条：
+
+1. `features/im/call/callController.ts` 发起通话时 `POST /rooms/`，body 只有
+   `{ name }`；`RoomSerializer` 也没有默认值 → 房间的 `scheduled_at = NULL`。
+   放弃的「快速会议」同理。
+2. `video_meetings.overview()` 当时把「没有 session 且未关闭」的房间全列进
+   `scheduled`，并 `Coalesce("scheduled_at", "created_at")` 排序 —— 于是这些
+   **从来不是预约**的房间被当成「待开始的会议」排在真预约之间，而它们没有时间可显示。
+3. 更根本的一层：**房间没有自动关闭机制** —— 没人进过的房间永远停在
+   `ended_at IS NULL`，于是这个噪声只增不减（每打一次没人接的通话就多一行）。
+
+两边都修了：
+
+- **预约列表只列真预约**（`core/services/video_meetings.py`）：`scheduled_at` 非空 +
+  无 session + 未关闭，按 `scheduled_at` 排序；去掉了 `Coalesce` 注解。**延迟的预约
+  照旧保留**（产品明确要求「直到有 session 才离开这一节」），被排除的只有从来就没有
+  时间的房间。App 端无需改动 —— 它读的是同一个接口。
+- **房间自动关闭**（新任务 `core/tasks/rooms.py::close_abandoned_rooms`）：定时关闭
+  「创建后没人进过、也没有预约时间、且超过 `ROOM_ABANDONED_AFTER_SECONDS`（默认
+  86400）宽限期」的房间。四个条件同时满足才动，所以**延迟预约永远不会被关掉**
+  （关掉等于悄悄取消别人的会），**有人进过的房间也不动**（历史不能丢）。
+  注册进 `core/tasks/__init__.py` 与 beat（`close-abandoned-rooms`，每小时一次，
+  与既有的 `reconcile-active-meeting-sessions` 同一套写法）。
 
 ### 4. 顺带修掉的缺陷
 
@@ -187,6 +212,14 @@ token（`panda.config` 里那组已无任何引用）。区分「预约 / 历史
   取 `:recordId`，而该脚本是「同一个 root 连续挂载多个页面」的写法，路由状态会滞后；
   它们分别由 `check-meeting-library-ui.mjs`（工作区）与 `check-capture-ui.mjs`
   （录制页，见下方遗留）覆盖。
+- 后端（3.3 的改动，用本地 Postgres + Redis 按 CI 的环境变量跑）：
+  `core/tests/rooms/test_api_video_meetings.py`（含新增的「只有真预约进 scheduled」）、
+  `core/tests/tasks/test_rooms.py`（3 条：关闭无人进的房间 / 保留延迟预约与有人进过的
+  房间与刚建的房间 / 已关闭的不再动）、`core/tests/test_task_registry.py` 与
+  `core/tests/test_tasks_registration.py`（新任务模块的注册守卫）—— **12 passed**。
+  `core/tests/rooms` + `core/tests/tasks` 全量跑有 32 条失败，**在改动前的干净树上
+  同样失败**（字幕 / 更新权限 / webhook / 附件那几条，缺 S3、LiveKit 等 compose 依赖），
+  与本次改动无关。
 
 ### 走查截图
 
@@ -213,5 +246,11 @@ token（`panda.config` 里那组已无任何引用）。区分「预约 / 历史
 - **列表标题的机器名**（见 3.2 第 5 条）：Web 侧只加了悬停提示，真正的修法是后端在
   导入时给友好默认名（例如「上传文件 · 9月16日 15:01」）并提供重命名入口 —— 需要产品定，
   没自作主张改后端。
-- 3.2 第 3 条的**根因未定性**：需要线上 `rooms/video-meetings/` 响应里那几行脏
-  `scheduled_at` 的原始值。客户端已经不会再把它画出来，但「是谁写进去的」还没查。
+- **已经躺在库里的无时间房间**：3.3 的自动关闭要等 beat 跑起来才会清掉历史存量
+  （每小时一次、宽限期 86400 秒）。如果想立刻清，可以手工跑一次
+  `core.tasks.rooms.close_abandoned_rooms`（或把 `ROOM_ABANDONED_AFTER_SECONDS`
+  临时调小再跑）。列表侧已经不受影响 —— 它们本来就不再进 `scheduled` 了。
+- **带 session 但从未关闭的房间**（有人进过、房主没点结束、webhook 也没到）没被这个
+  任务处理：`reconcile_active_meeting_sessions` 只管 status=ACTIVE 的会话，房间的
+  `ended_at` 仍是空的。要不要一并收掉需要产品定 —— 关掉会影响「复用房间」的语义
+  （`overview` 的说明里写着复用房间保留精确 session id），我没擅自扩大范围。

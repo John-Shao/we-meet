@@ -83,6 +83,10 @@ and this project adheres to
 - 🩹(frontend) skip unparseable dates instead of echoing them, and align the
   record row meta on both list pages
 - 🩹(frontend) cap the meeting search field and unify the scope wording
+- 🩹(backend) list only real appointments as upcoming video meetings so rooms
+  created by a chat call stop showing up without a time
+- ✨(backend) close rooms that were created but never joined and never
+  scheduled, so abandoned call rooms stop piling up
 
 ## [1.16.0] - 2026-05-13
 

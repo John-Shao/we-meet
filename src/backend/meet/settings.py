@@ -971,6 +971,10 @@ class Base(Configuration):
             "task": "core.tasks.meeting_sessions.reconcile_active_meeting_sessions",
             "schedule": 900.0,
         },
+        "close-abandoned-rooms": {
+            "task": "core.tasks.rooms.close_abandoned_rooms",
+            "schedule": 3600.0,
+        },
     }
     LIVEKIT_FORCE_WSS_PROTOCOL = values.BooleanValue(
         False, environ_name="LIVEKIT_FORCE_WSS_PROTOCOL", environ_prefix=None
@@ -1193,6 +1197,14 @@ class Base(Configuration):
     MEETING_SESSION_STALE_AFTER_SECONDS = values.PositiveIntegerValue(
         86400,
         environ_name="MEETING_SESSION_STALE_AFTER_SECONDS",
+        environ_prefix=None,
+    )
+    # Grace period before a room that was never joined and never scheduled is
+    # closed by ``core.tasks.rooms.close_abandoned_rooms``. Appointments
+    # (``scheduled_at`` set) are never touched, whatever their age.
+    ROOM_ABANDONED_AFTER_SECONDS = values.PositiveIntegerValue(
+        86400,
+        environ_name="ROOM_ABANDONED_AFTER_SECONDS",
         environ_prefix=None,
     )
     RESOURCE_DEFAULT_ACCESS_LEVEL = values.Value(

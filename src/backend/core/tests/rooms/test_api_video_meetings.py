@@ -44,6 +44,27 @@ def test_pending_includes_overdue_and_all_pages_but_excludes_started_closed_and_
     assert not models.MeetingRecord.objects.exists()
 
 
+def test_pending_lists_appointments_only():
+    """A room without a schedule is not an appointment.
+
+    Chat calls and quick meetings create their room with a name only, so
+    ``scheduled_at`` stays null. They used to be listed as upcoming meetings,
+    sorted by creation time, with no time to show.
+    """
+    user = factories.UserFactory()
+    now = timezone.now()
+    appointment = factories.RoomFactory(
+        users=[(user, "owner")], scheduled_at=now + timedelta(days=1)
+    )
+    factories.RoomFactory(users=[(user, "owner")], scheduled_at=None)
+    client = APIClient()
+    client.force_login(user)
+
+    data = client.get(URL).json()
+
+    assert [r["id"] for r in data["scheduled"]] == [str(appointment.id)]
+
+
 def test_history_returns_latest_twenty_exact_sessions_without_summaries():
     user = factories.UserFactory()
     room = factories.RoomFactory(users=[(user, "owner")])

@@ -91,7 +91,7 @@ const past = {
 /** 视频会议页的两段列表也要够长,「页头钉住」那条才验得到。 */
 const scheduledMeetings = [
   upcoming,
-  /** 线上确实出现过解析不了的 scheduled_at,客户端不能把脏值原样画出来。 */
+  /** 后端只返回带 scheduled_at 的房间(通话房已被排除),但值本身仍可能解析不了。 */
   { ...upcoming, id: 'room-dirty', name: '无日期会议', scheduled_at: '—' },
   ...Array.from({ length: 12 }, (_, index) => ({
     ...upcoming,
@@ -703,14 +703,14 @@ try {
     10,
     '收起后回到 10 条'
   )
-  // UX 修复:解析不了的 scheduled_at 不再原样回显 —— 该行只剩标题。
+  // 解析不了的 scheduled_at 不再原样回显 —— 该行只剩标题。
   const dirtyRowText = await page
     .locator('[data-testid="scheduled-row-room-dirty"]')
     .innerText()
   assert.equal(
     dirtyRowText.trim(),
     '无日期会议',
-    `脏日期不该被画出来,实际行文本:${JSON.stringify(dirtyRowText)}`
+    `脏值不该被画出来,实际行文本:${JSON.stringify(dirtyRowText)}`
   )
   // 点「查看全部」会把列表滚下去,复位回顶部,后面的截图才是首屏的样子。
   await homeList.evaluate((el) => {

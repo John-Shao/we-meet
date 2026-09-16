@@ -1,15 +1,24 @@
 """Lightweight video overview, classified by actual server-side sessions."""
 
-from django.db.models.functions import Coalesce
-
 from core import models
 
 
 def overview(user):
-    """Pending rooms and twenty latest sessions visible through current membership.
+    """Scheduled rooms and twenty latest sessions visible through membership.
 
-    Delayed appointments stay pending until a session starts. Audio captures and
-    assistant calls are not video meetings. Reused rooms retain exact session IDs.
+    ``scheduled`` is **appointments only**: a room is listed while it has a
+    ``scheduled_at``, no session yet and is not closed. Delayed appointments
+    stay until a session starts, exactly as before.
+
+    Rooms that were created without a schedule are deliberately not
+    appointments and never appear here: a chat call creates its room with the
+    name only (``features/im/call/callController.ts`` posts ``{name}``), and an
+    abandoned quick meeting does the same. They used to be listed anyway,
+    sorted by creation time, which is how a call nobody ever joined showed up
+    as an upcoming meeting with no time next to it. They are also not lost:
+    once someone actually joins, the session puts the room in ``recent``.
+    Rooms left open forever are closed by ``close_abandoned_rooms``.
+
     This read does not create credentials, records, or AI jobs.
     """
     rooms = (
@@ -18,9 +27,12 @@ def overview(user):
         .distinct()
     )
     pending = list(
-        rooms.filter(meeting_sessions__isnull=True, ended_at__isnull=True)
-        .annotate(display_at=Coalesce("scheduled_at", "created_at"))
-        .order_by("display_at", "id")
+        rooms.filter(
+            meeting_sessions__isnull=True,
+            ended_at__isnull=True,
+            scheduled_at__isnull=False,
+        )
+        .order_by("scheduled_at", "id")
         .prefetch_related("calendar_events")
     )
     recent = list(

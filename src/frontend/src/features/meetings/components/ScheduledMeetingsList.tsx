@@ -181,6 +181,13 @@ export const ScheduledMeetingsList = ({
       <ul className={listCard}>
         {visible.map((m) => {
           const label = m.name || t('home.untitled')
+          /**
+           * 这一节只列**真预约**:后端 `video_meetings.overview()` 只返回带
+           * `scheduled_at` 的房间,聊天通话房/放弃的快速会议不再混进来(它们由
+           * `core.tasks.rooms.close_abandoned_rooms` 兜底关闭)。
+           *
+           * 解析不出来的值(脏数据)整段不渲染 —— 绝不把服务端原始值画到界面上。
+           */
           const timeText = m.scheduled_at
             ? formatScheduledAt(m.scheduled_at, i18n.language, t('home.today'))
             : null
