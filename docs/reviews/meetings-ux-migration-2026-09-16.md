@@ -94,8 +94,22 @@
   从 `aria-pressed` 按钮组变成 `tablist/tab`，断言随之改为 `aria-selected`；
 - `node scripts/check-meeting-pages-ui.mjs`（真实 Chromium，需先起 dev server）：
   四个页面在 1180px 与 390px 下均无横向滚动、分段控件键盘可切换、图标开关
-  `aria-pressed` 同步、Tab 焦点有可见描边、浅深两套主题下语义 token 正确翻转；
-  截图见 `test-results/meeting-*.png`。
+  `aria-pressed` 同步、Tab 焦点有可见描边、浅深两套主题下语义 token 正确翻转。
+
+### 走查截图
+
+`check-meeting-pages-ui.mjs` 会覆盖写 `src/frontend/test-results/` 下的同名文件；
+下面这份是本次改动验收时的留档（全部为 fixture 假数据）。
+
+- 视频会议主区：[1180px](meetings-ux-assets/desktop-video-meetings.png)、
+  [390px](meetings-ux-assets/mobile-video-meetings.png)
+- 会议实录：[1180px](meetings-ux-assets/desktop-records.png)、
+  [390px](meetings-ux-assets/mobile-records.png)
+- 智能纪要：[1180px](meetings-ux-assets/desktop-minutes.png)
+- AI 录音：[1180px](meetings-ux-assets/desktop-recording.png)、
+  [390px](meetings-ux-assets/mobile-recording.png)
+- 深色主题（实录）：[1180px](meetings-ux-assets/dark-records.png)
+
 
 ## 遗留（未在本次改动）
 
