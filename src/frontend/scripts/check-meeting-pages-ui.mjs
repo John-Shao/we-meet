@@ -656,6 +656,84 @@ try {
   }
   assert.equal(ringFound, true, 'Tab 焦点必须落在带可见焦点环的控件上')
 
+  // ── 二级导航栏栏头:以「通讯录」为基准(ContactsSidebar 的 header) ─────────
+  // 基准:标题 16px/bold、栏头内边距 16px/12px(标题左缘因此距栏边 16px)、右端一颗
+  // 28×28 的收起按钮;收起后留 36px 窄条(展开按钮在窄条里),状态写 localStorage。
+  const navHeader = await page.evaluate(() => {
+    const collapse = document.querySelector(
+      '[data-testid="meeting-nav-collapse"]'
+    )
+    const aside = collapse?.closest('aside')
+    const title = aside?.querySelector('h2')
+    if (!aside || !title || !collapse) return null
+    const asideBox = aside.getBoundingClientRect()
+    const titleBox = title.getBoundingClientRect()
+    const titleStyle = getComputedStyle(title)
+    const headerStyle = getComputedStyle(title.parentElement)
+    const collapseBox = collapse.getBoundingClientRect()
+    return {
+      titleSize: titleStyle.fontSize,
+      titleWeight: titleStyle.fontWeight,
+      titleLeft: Math.round(titleBox.left - asideBox.left),
+      paddingTop: headerStyle.paddingTop,
+      paddingLeft: headerStyle.paddingLeft,
+      collapseWidth: Math.round(collapseBox.width),
+      collapseHeight: Math.round(collapseBox.height),
+    }
+  })
+  assert.ok(navHeader, '二级导航栏应有栏头与收起按钮')
+  assert.equal(navHeader.titleSize, '16px', '栏头标题字号应与通讯录同档')
+  assert.equal(navHeader.titleWeight, '700', '栏头标题字重应与通讯录同档(bold)')
+  assert.equal(
+    navHeader.titleLeft,
+    16,
+    '栏头标题左缘应距栏边 16px(与通讯录一致)'
+  )
+  // 栏头几何量的是**内边距**(16/12),不是标题盒子的上缘 —— 那个数还受行高影响
+  // (`titleMedium` 的行高是 24,通讯录那边继承行高),量内边距才是两边真正对齐的那条。
+  assert.equal(
+    navHeader.paddingLeft,
+    '16px',
+    '栏头左内边距应为 16px(与通讯录一致)'
+  )
+  assert.equal(
+    navHeader.paddingTop,
+    '12px',
+    '栏头上内边距应为 12px(与通讯录一致)'
+  )
+  assert.deepEqual(
+    [navHeader.collapseWidth, navHeader.collapseHeight],
+    [28, 28],
+    '收起按钮应是 28×28(与通讯录那颗同档)'
+  )
+  // 收起 -> 36px 窄条 + 展开按钮;展开 -> 恢复栏头。状态要记住。
+  await page.getByTestId('meeting-nav-collapse').click()
+  assert.equal(await page.getByTestId('meeting-nav-collapse').count(), 0)
+  const strip = await page.evaluate(() => {
+    const expand = document.querySelector('[data-testid="meeting-nav-expand"]')
+    if (!expand) return null
+    return Math.round(expand.parentElement.getBoundingClientRect().width)
+  })
+  assert.equal(strip, 36, `收起后应只留 36px 窄条,实际 ${strip}px`)
+  assert.equal(
+    await page.evaluate(() =>
+      localStorage.getItem('we-meet:meeting-nav-collapsed')
+    ),
+    '1',
+    '收起态要写进 localStorage(换页/重开仍然收起)'
+  )
+  await dismissTooltips()
+  await shot('meeting-notes-nav-collapsed')
+  await page.getByTestId('meeting-nav-expand').click()
+  assert.equal(
+    await page.getByTestId('meeting-nav-collapse').count(),
+    1,
+    '展开后应恢复栏头'
+  )
+  await page.evaluate(() =>
+    localStorage.removeItem('we-meet:meeting-nav-collapsed')
+  )
+
   await dismissTooltips()
   await shot('meeting-notes-desktop')
 

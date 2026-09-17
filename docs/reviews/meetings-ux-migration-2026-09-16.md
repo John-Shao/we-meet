@@ -609,6 +609,35 @@ AI 录音页（页头同款按钮 + 导航里的固定入口），不必同一�
 `font-weight: 600`、页头无副标题、页壳与滚动区底色不变；视频会议页那处「固定区浅灰」
 的注释也改成量页头本栏。
 
+### 3.19 二级导航栏栏头对齐「通讯录」（2026-09-17 追加）
+
+以「通讯录」左栏（`ContactsSidebar`）为基准，统一会议模块二级导航栏（`MeetingNavPanel`）
+栏头的**字号、位置与收起按钮**：
+
+| 项 | 通讯录（基准） | 会议（改前） | 会议（改后） |
+| --- | --- | --- | --- |
+| 标题字体 | 16px / **bold** | `titleMedium` 16px / 500 | 16px / **bold**（`fontWeight: 'bold'`） |
+| 栏头内边距 | `1rem` / `0.75rem` | aside 12px + 栏头 8px，标题左缘落在 20px | **16 / 12**，标题左缘 16px（与导航行对齐） |
+| 收起按钮 | 右端一颗 28×28、灰图标、hover 浅底 | 没有 | 同一位置同一档（`IconButton icon28`，`RiArrowLeftDoubleLine` 16px） |
+| 收起态 | 36px 窄条 + 展开按钮，状态写 localStorage | 没有 | 同左（窄条 36px、`RiLayoutLeftLine`、`we-meet:meeting-nav-collapsed`） |
+
+实现要点：
+
+- 栏头内边距**从 aside 移到栏头这一行**，导航行的容器补 `paddingX: sm`：标题左缘
+  (16px) 与导航行文字左缘(8+8=16px)才对得齐 —— 这也是通讯录那边的做法。
+- 收起状态放在 `MeetingNavPanel` 自己身上（通讯录是路由持有 + 窄条在中栏左侧；
+  会议模块的栏与窄条都在同一个组件里，组件自己持有就够）。
+- 收起/展开各一条 i18n 文案 `library.hideNav` / `library.showNav`（zh/en；de/fr/nl
+  走 en 兜底）。基元 `IconButton` 的盒子圆角是 `control`(8px)，通讯录那颗手写的是
+  6px —— 会议模块的文件在 `check:foundations` 的收口名单里，不允许写裸 6px，
+  有意保留这 2px 差异。
+
+走查新增断言（基准数字写死在脚本里，通讯录那边改了而这边没跟上就会红）：栏头标题
+`16px` / `font-weight: 700`、标题左缘距栏边 `16px`、栏头内边距 `16px`/`12px`、收起按钮
+`28×28`、点击后只留 `36px` 窄条且 `localStorage` 记下 `'1'`、再点展开恢复栏头。另存
+一张收起态截图 `meeting-notes-nav-collapsed.png`。`MeetingNavPanel.test.tsx` 也补了一条
+「收起 → 窄条 → 展开 → 重挂载仍收起」的用例。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把

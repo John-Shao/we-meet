@@ -82,4 +82,29 @@ describe('meeting module navigation', () => {
       screen.queryByRole('button', { name: 'library.record' })
     ).not.toBeInTheDocument()
   })
+
+  it('collapses the whole column to a strip and remembers it', () => {
+    localStorage.removeItem('we-meet:meeting-nav-collapsed')
+    const view = render(<MeetingNavPanel />)
+    fireEvent.click(screen.getByTestId('meeting-nav-collapse'))
+    // 收起后整栏只剩「展开」那一颗,导航入口都不在(与通讯录同一套)。
+    expect(screen.getByTestId('meeting-nav-expand')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'library.video' })
+    ).not.toBeInTheDocument()
+    expect(localStorage.getItem('we-meet:meeting-nav-collapsed')).toBe('1')
+    // 展开后恢复四节入口,并把收起态清掉。
+    fireEvent.click(screen.getByTestId('meeting-nav-expand'))
+    expect(
+      screen.getByRole('button', { name: 'library.video' })
+    ).toBeInTheDocument()
+    expect(localStorage.getItem('we-meet:meeting-nav-collapsed')).toBe('0')
+    // 收起态写进 localStorage:重新挂载(换页/重开)仍是收起的。
+    fireEvent.click(screen.getByTestId('meeting-nav-collapse'))
+    expect(localStorage.getItem('we-meet:meeting-nav-collapsed')).toBe('1')
+    view.unmount()
+    render(<MeetingNavPanel />)
+    expect(screen.getByTestId('meeting-nav-expand')).toBeInTheDocument()
+    localStorage.removeItem('we-meet:meeting-nav-collapsed')
+  })
 })

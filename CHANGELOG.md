@@ -125,6 +125,8 @@ and this project adheres to
   their headers carry the title alone
 - ♻️(frontend) restyle the meeting module page headers after the chat title
   bar: white band, 16px title, tighter padding, borderless actions
+- ♻️(frontend) line the meeting module second-level nav header up with the
+  contacts one and let the whole column collapse to a 36px strip
 
 ### Fixed
 
