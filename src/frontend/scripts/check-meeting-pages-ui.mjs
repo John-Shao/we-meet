@@ -19,6 +19,10 @@ const record = {
   origin_at: '2026-09-13T00:00:00Z',
   has_summary: true,
   is_ongoing: false,
+  /** 表格视图的三列:所有者 / 修改时间 / 创建时间(与飞书对齐的那三列)。 */
+  owner: 'UI Owner',
+  created_at: '2026-09-01T00:00:00Z',
+  updated_at: '2026-09-13T08:00:00Z',
   capabilities: { read_summary: true, read_transcript: true },
 }
 const ongoing = {
@@ -27,6 +31,8 @@ const ongoing = {
   title: '进行中的访谈',
   is_ongoing: true,
   has_summary: false,
+  created_at: '2026-09-16T00:00:00Z',
+  updated_at: '2026-09-16T00:00:00Z',
 }
 const video = {
   ...record,
@@ -37,7 +43,8 @@ const video = {
 }
 /**
  * 归档列表要**足够长**,「只滚列表」这条才验得到:记录只有两条时列表根本滚不动,
- * 断言会退化成恒真。
+ * 断言会退化成恒真。创建时间逐条递增,「按创建时间排序」也才验得出来(默认降序时
+ * 最新的一条排在最前,切升序后它落到最后)。
  */
 const archive = [
   record,
@@ -47,6 +54,9 @@ const archive = [
     id: `archive-${index}`,
     title: `评审记录 ${index + 1}`,
     has_summary: false,
+    created_at: new Date(
+      Date.parse(record.created_at) + (index + 1) * 3600_000
+    ).toISOString(),
   })),
 ]
 /** 录音页的历史列表同样要够长,「入口块钉住」那条才验得到。 */
@@ -207,7 +217,10 @@ const assertUnifiedPageChrome = async (label) => {
   const chrome = await page.evaluate(() => {
     const main = document.querySelector('main')
     const list = main.querySelector('[data-testid="meeting-list-region"]')
-    const firstRow = list?.querySelector('li:first-child > *')
+    // 列表视图是表格(主单元格在 td 里),卡片视图与录音页是 <ul>(行是 li 的孩子)。
+    const firstRow =
+      list?.querySelector('tr[data-record-row] > td') ??
+      list?.querySelector('li:first-child > *')
     // 页面标题要取 main 里的那个:外壳/导航里还有别的 h1。
     const title = main.querySelector('h1')
     const rowStyle = firstRow ? getComputedStyle(firstRow) : null
@@ -304,12 +317,48 @@ try {
     '进行中的记录必须单独成组出现'
   )
   assert.equal(
-    (await page.getByRole('heading', { name: '进行中', exact: true }).count()) +
+    (await page
+      .getByRole('rowheader', { name: '进行中', exact: true })
+      .count()) +
       (await page
-        .getByRole('heading', { name: '历史记录', exact: true })
+        .getByRole('rowheader', { name: '历史记录', exact: true })
         .count()),
     2,
-    '实录页仍然是「进行中 + 历史记录」两组'
+    '实录页仍然是「进行中 + 历史记录」两组(表格里是小节标题单元格)'
+  )
+  // 列表视图 = 表格:四列表头只出现一次,分组名是表内的行组标题。
+  const recordsTable = page.getByTestId('meeting-records-table')
+  assert.equal(await recordsTable.count(), 1, '列表视图应是一张表格')
+  assert.deepEqual(
+    await recordsTable.locator('thead th').allInnerTexts(),
+    ['标题', '所有者', '修改时间', '创建时间'],
+    '表头四列应与飞书对齐,且只出现一次'
+  )
+  // 后三列在宽屏真的画出来了(不是 display:none 占位)。
+  assert.equal(
+    await recordsTable
+      .locator('thead th:nth-child(2)')
+      .evaluate((el) => getComputedStyle(el).display),
+    'table-cell'
+  )
+  // 「所有者」列取的是服务端的显示名。
+  assert.equal(
+    await recordsTable
+      .locator('tbody tr[data-record-row] td:nth-child(2)')
+      .first()
+      .innerText(),
+    'UI Owner',
+    '所有者列应显示记录所有者'
+  )
+  // 桌面端所有者只出现在自己那一列,副行里不重复(窄屏收列时才并进副行)。
+  assert.ok(
+    !(
+      await recordsTable
+        .locator('tbody tr[data-record-row] td:first-child')
+        .first()
+        .innerText()
+    ).includes('UI Owner'),
+    '桌面端副行不应重复所有者'
   )
   // 这一页只查/看:「上传」和「录音」两个动作都不在这儿(都归 AI 录音页)。
   assert.equal(
@@ -323,8 +372,42 @@ try {
     '会议实录页不应再有「录音」按钮'
   )
 
-  // ① 左右不留白:页壳铺满内容列(不再有 1120px 居中版心),卡片左右各只留一档
-  //    16px 页边距。
+  // 创建时间排序:默认降序(最新的一条在组内最前),点表头切成升序后落到最后。
+  const createdHeader = page.getByRole('columnheader', { name: '创建时间' })
+  assert.equal(
+    await createdHeader.getAttribute('aria-sort'),
+    'descending',
+    '创建时间默认降序'
+  )
+  const rowTitles = () =>
+    page
+      .locator('tr[data-record-row] td:first-child a')
+      .evaluateAll((links) =>
+        links.map((link) => link.getAttribute('aria-label'))
+      )
+  const descending = await rowTitles()
+  assert.equal(
+    descending[1],
+    '评审记录 24',
+    '降序时归档组的第一行应是创建最新的那条'
+  )
+  await page.getByRole('button', { name: '创建时间' }).click()
+  assert.equal(await createdHeader.getAttribute('aria-sort'), 'ascending')
+  const ascending = await rowTitles()
+  assert.equal(
+    ascending.at(-1),
+    '评审记录 24',
+    '升序时创建最新的那条应落到最后'
+  )
+  assert.equal(
+    ascending[1],
+    '产品设计评审',
+    '升序时归档组的第一行应是最旧的那条'
+  )
+  await page.getByRole('button', { name: '创建时间' }).click()
+
+  // ① 左右不留白:页壳铺满内容列(不再有 1120px 居中版心),行左右各只留一档
+  //    16px 页边距。列表视图量的是整行(表格行铺满表宽),卡片视图量的是卡片。
   const shellBox = await page.locator('main').boundingBox()
   const columnBox = await page.locator('main').evaluate((el) => {
     const box = el.parentElement.getBoundingClientRect()
@@ -335,16 +418,14 @@ try {
     Math.round(columnBox.width),
     '页壳必须铺满内容列,不能是限宽居中的版心'
   )
-  const cardBox = await page
-    .locator('[aria-label="产品设计评审"]')
-    .boundingBox()
-  const leftGap = Math.round(cardBox.x - shellBox.x)
+  const rowBox = await page.locator('[data-record-row]').first().boundingBox()
+  const leftGap = Math.round(rowBox.x - shellBox.x)
   const rightGap = Math.round(
-    shellBox.x + shellBox.width - (cardBox.x + cardBox.width)
+    shellBox.x + shellBox.width - (rowBox.x + rowBox.width)
   )
   assert.ok(
     leftGap <= 20 && rightGap <= 20,
-    `卡片左右留白应只有 16px 页边距,实际左 ${leftGap}px / 右 ${rightGap}px`
+    `行左右留白应只有 16px 页边距,实际左 ${leftGap}px / 右 ${rightGap}px`
   )
   // UX 修复:搜索框在宽屏下封顶 28rem(448px),不再被拉到近千像素。
   const searchWidth = Math.round(
@@ -400,14 +481,26 @@ try {
       document.activeElement.textContent.includes('我的内容')
   )
 
-  // 图标开关是基元:aria-pressed 与面板显隐同步。
+  // 图标开关是基元:aria-pressed 与面板显隐同步。两个视图是同一份数据的两种形态
+  // —— 列表视图是表格(有表头、有排序),卡片视图是没有表头的两栏网格。
   const gridToggle = page.getByRole('button', { name: '切换为网格视图' })
   assert.equal(await gridToggle.getAttribute('aria-pressed'), 'false')
+  assert.equal(await page.getByTestId('meeting-records-table').count(), 1)
   await gridToggle.click()
   await page.getByRole('button', { name: '切换为列表视图' }).waitFor()
   assert.equal(await page.locator('ul[data-grid="true"]').count(), 2)
+  assert.equal(
+    await page.getByTestId('meeting-records-table').count(),
+    0,
+    '卡片视图不该再有表格(表头随视图一起消失)'
+  )
+  assert.equal(await page.locator('thead').count(), 0, '卡片视图里不应残留列名')
   await page.getByRole('button', { name: '切换为列表视图' }).click()
-  assert.equal(await page.locator('ul[data-grid="false"]').count(), 2)
+  assert.equal(
+    await page.getByTestId('meeting-records-table').count(),
+    1,
+    '切回列表视图应恢复表格'
+  )
 
   const filterToggle = page.getByRole('button', { name: '筛选' })
   await filterToggle.click()
@@ -471,6 +564,24 @@ try {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.waitForTimeout(120)
   await noHorizontalOverflow('会议实录 390px')
+  // 窄屏收起后三列:列表退回「标题 + 一行辅助信息」,所有者并进那一行(桌面端它是
+  // 独立的一列,不在副行里)。
+  assert.equal(
+    await page
+      .getByTestId('meeting-records-table')
+      .locator('thead')
+      .evaluate((el) => getComputedStyle(el).display),
+    'none',
+    '窄屏应收起表头'
+  )
+  const narrowMeta = await page
+    .locator('tr[data-record-row] td:first-child')
+    .first()
+    .innerText()
+  assert.ok(
+    narrowMeta.includes('UI Owner'),
+    `窄屏应把所有者并进辅助信息一行,实际「${narrowMeta}」`
+  )
   // 窄屏下左列导航让位给顶部胶囊行,当前项必须是 aria-current。
   const mobileNav = page.getByRole('navigation', { name: '会议资料导航' })
   assert.equal(await mobileNav.count(), 1, '窄屏应有栏目胶囊行')

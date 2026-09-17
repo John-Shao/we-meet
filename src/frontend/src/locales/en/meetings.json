@@ -131,6 +131,14 @@
       "audio_recording": "Audio recording",
       "upload": "Uploaded file"
     },
+    "table": {
+      "title": "Title",
+      "owner": "Owner",
+      "modified": "Modified",
+      "created": "Created"
+    },
+    "ownerUnknown": "Unknown",
+    "sortByCreated": "Sort by creation time",
     "ongoing": "In progress",
     "archive": "History",
     "noOngoing": "No ongoing records",

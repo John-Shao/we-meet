@@ -232,3 +232,76 @@ it('applies the video filter when opened from More', async () => {
     )
   ).toBe(true)
 })
+
+it('lists records as a table and sorts the loaded page by creation time', async () => {
+  vi.mocked(fetchApi).mockImplementation(async (path) => {
+    const params = new URL(path, 'https://fixture.invalid').searchParams
+    if (params.get('is_ongoing') === 'true')
+      return { results: [], next_cursor: null }
+    return {
+      results: [
+        {
+          ...archived,
+          id: 'older',
+          title: 'Older record',
+          owner: 'Ann',
+          created_at: '2026-09-01T00:00:00Z',
+          updated_at: '2026-09-02T00:00:00Z',
+        },
+        {
+          ...archived,
+          id: 'newer',
+          title: 'Newer record',
+          owner: 'Bob',
+          created_at: '2026-09-09T00:00:00Z',
+          updated_at: '2026-09-10T00:00:00Z',
+        },
+      ],
+      next_cursor: null,
+    }
+  })
+  show()
+  await screen.findByText('Newer record')
+  const table = screen.getByRole('table')
+  // 表头只出现一次,四列与飞书对齐;分组名是表内的行组标题。
+  expect(
+    within(table)
+      .getAllByRole('columnheader')
+      .map((header) => header.textContent)
+  ).toEqual([
+    'library.table.title',
+    'library.table.owner',
+    'library.table.modified',
+    'library.table.created',
+  ])
+  expect(within(table).getByText('library.archive')).toBeInTheDocument()
+  const rowTitles = () =>
+    within(table)
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('aria-label'))
+  // 默认按创建时间降序(与列表服务端顺序一致),点表头切成升序。
+  expect(rowTitles()).toEqual(['Newer record', 'Older record'])
+  const createdAtHeader = within(table).getByRole('columnheader', {
+    name: 'library.table.created',
+  })
+  expect(createdAtHeader).toHaveAttribute('aria-sort', 'descending')
+  fireEvent.click(
+    within(table).getByRole('button', { name: 'library.table.created' })
+  )
+  expect(createdAtHeader).toHaveAttribute('aria-sort', 'ascending')
+  expect(rowTitles()).toEqual(['Older record', 'Newer record'])
+})
+
+it('keeps the loaded page when switching between the table and the grid', async () => {
+  show()
+  await screen.findByText(archived.title)
+  fireEvent.click(screen.getByRole('button', { name: 'library.next' }))
+  await screen.findByText('Second page')
+  // 两个视图同一份数据:换视图不重挂列表组件,翻过的页不丢。
+  fireEvent.click(screen.getByRole('button', { name: 'library.gridView' }))
+  expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  expect(screen.getByText('Second page')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'library.listView' }))
+  expect(screen.getByRole('table')).toBeInTheDocument()
+  expect(screen.getByText('Second page')).toBeInTheDocument()
+})

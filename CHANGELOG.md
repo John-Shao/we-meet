@@ -103,8 +103,10 @@ and this project adheres to
   page, which now only reads and searches
 - 🩹(backend) clear the 28 stale room API test failures: response shape drift,
   rename-keeps-the-code, localized messages and an unhandled event type
-- ✨(backend) expose owner, created_at and updated_at on meeting records,
-  ahead of the table-style list view
+- ✨(backend) expose owner, created_at and updated_at on meeting records and
+  prefetch the owner for the table list view
+- ✨(frontend) render the meeting records and minutes lists as a Feishu-style
+  table with an owner column and creation-time sorting
 
 ## [1.16.0] - 2026-05-13
 

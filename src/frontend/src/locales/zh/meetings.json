@@ -131,6 +131,14 @@
       "audio_recording": "独立录音",
       "upload": "上传文件"
     },
+    "table": {
+      "title": "标题",
+      "owner": "所有者",
+      "modified": "修改时间",
+      "created": "创建时间"
+    },
+    "ownerUnknown": "未知",
+    "sortByCreated": "按创建时间排序",
     "ongoing": "进行中",
     "archive": "历史记录",
     "noOngoing": "暂无进行中的记录",

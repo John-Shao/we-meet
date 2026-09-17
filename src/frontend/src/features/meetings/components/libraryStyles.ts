@@ -247,6 +247,21 @@ export const rowIconTile = css({
   color: 'brand.600',
 })
 
+/**
+ * 行首图标块(表格视图)—— 与 `rowIconTile` 同族配色,但只有一档控件高:表格行
+ * 的主单元格是「图标 + 标题 + 辅助信息」两行,48px 的大图标块会把行高顶回去。
+ */
+export const rowIconTileCompact = css({
+  flexShrink: 0,
+  display: 'grid',
+  placeItems: 'center',
+  width: 'controlHeight.compact',
+  height: 'controlHeight.compact',
+  borderRadius: 'field',
+  backgroundColor: 'brand.50',
+  color: 'brand.600',
+})
+
 /** 卡内行:一段式间距、悬停浅底、焦点环内缩(与列表边缘对齐)。 */
 export const rowSurface = css({
   display: 'flex',
