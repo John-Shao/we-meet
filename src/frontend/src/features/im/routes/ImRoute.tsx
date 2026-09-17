@@ -8,6 +8,8 @@ import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { SubNavHeader, SubNavStrip } from '@/components/SubNav'
+import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 import { IconButton } from '@/primitives'
@@ -703,6 +705,10 @@ const ImAuthenticated = () => {
     }
   }
 
+  // 会话列表栏收起态:与其它模块同一套共享实现(storage key 各模块一个)。
+  const { collapsed: imNavCollapsed, toggle: toggleImNav } =
+    useCollapsibleSubNav('we-meet:im-nav-collapsed')
+
   // 会话 → 转发选择器条目(复用 nameOf / avatarOf / membersOf)。
   const forwardConvs: ForwardConv[] = conversations.map((c) => ({
     cid: c.cid,
@@ -734,49 +740,34 @@ const ImAuthenticated = () => {
           overflow: 'hidden',
         })}
       >
-        <ResizablePanel
-          storageKey="we-meet:im-list-width"
-          defaultWidth={280}
-          min={240}
-          max={460}
-        >
-          <aside
-            className={css({
-              width: '100%',
-              height: '100%',
-              borderRight: '1px solid token(colors.greyscale.200)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              backgroundColor: 'subNavBg',
-            })}
+        {imNavCollapsed ? (
+          // 收起后整栏换成 36px 窄条(共享定义),把宽度还给会话窗。
+          <SubNavStrip onExpand={toggleImNav} testId="im-nav-expand" />
+        ) : (
+          <ResizablePanel
+            storageKey="we-meet:im-list-width"
+            defaultWidth={280}
+            min={240}
+            max={460}
           >
-            <div
+            <aside
               className={css({
+                width: '100%',
+                height: '100%',
+                borderRight: '1px solid token(colors.greyscale.200)',
                 display: 'flex',
-                flexShrink: 0,
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingX: '1rem',
-                paddingY: '0.75rem',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                backgroundColor: 'subNavBg',
               })}
             >
-              <h2
-                className={css({
-                  margin: 0,
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  color: 'greyscale.900',
-                })}
-              >
-                {t('list.title')}
-              </h2>
-              <div
-                className={css({
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.125rem',
-                })}
+              {/* 栏头走 components/SubNav 的共享定义(以「通讯录」为基准):16px bold
+                标题 + 内边距 16/12 + 右端 28px 收起按钮;模块自己的三颗图标钮排在
+                收起按钮左侧。 */}
+              <SubNavHeader
+                title={t('list.title')}
+                onCollapse={toggleImNav}
+                collapseTestId="im-nav-collapse"
               >
                 <IconButton
                   label={t('later.title')}
@@ -828,51 +819,51 @@ const ImAuthenticated = () => {
                 >
                   <RiChatNewLine size={17} aria-hidden="true" />
                 </IconButton>
-              </div>
-            </div>
-            {/* P8:当日有未结束日程时的「日程提醒」入口(对标飞书:列表
+              </SubNavHeader>
+              {/* P8:当日有未结束日程时的「日程提醒」入口(对标飞书:列表
                 首项,在列表滚动区域内随会话一起滚动,非固定置顶)。 */}
-            <div
-              className={css({
-                flex: 1,
-                minHeight: 0,
-                overflowY: 'auto',
-              })}
-            >
-              <ReminderEntry
-                active={reminderOpen}
-                onOpen={() => {
-                  setReminderOpen(true)
-                  setSelectedCID(null)
-                }}
-              />
-              <ConversationList
-                conversations={conversations}
-                selectedCID={reminderOpen ? null : selectedCID}
-                onSelect={(cid) => {
-                  setReminderOpen(false)
-                  setSelectedCID(cid)
-                }}
-                loading={convLoading}
-                nameOf={nameOf}
-                avatarOf={avatarOf}
-                membersOf={membersOf}
-                onDelete={handleDelete}
-                onLeave={handleLeave}
-                onTogglePinned={(c) =>
-                  void handleConversationSetting(c, { pinned: !c.pinned })
-                }
-                onToggleMuted={(c) =>
-                  void handleConversationSetting(c, { muted: !c.muted })
-                }
-                mentionedCids={mentionedCids}
-                starredCids={starredCids}
-                specialAlertCids={specialAlertCids}
-                previewOf={previewOf}
-              />
-            </div>
-          </aside>
-        </ResizablePanel>
+              <div
+                className={css({
+                  flex: 1,
+                  minHeight: 0,
+                  overflowY: 'auto',
+                })}
+              >
+                <ReminderEntry
+                  active={reminderOpen}
+                  onOpen={() => {
+                    setReminderOpen(true)
+                    setSelectedCID(null)
+                  }}
+                />
+                <ConversationList
+                  conversations={conversations}
+                  selectedCID={reminderOpen ? null : selectedCID}
+                  onSelect={(cid) => {
+                    setReminderOpen(false)
+                    setSelectedCID(cid)
+                  }}
+                  loading={convLoading}
+                  nameOf={nameOf}
+                  avatarOf={avatarOf}
+                  membersOf={membersOf}
+                  onDelete={handleDelete}
+                  onLeave={handleLeave}
+                  onTogglePinned={(c) =>
+                    void handleConversationSetting(c, { pinned: !c.pinned })
+                  }
+                  onToggleMuted={(c) =>
+                    void handleConversationSetting(c, { muted: !c.muted })
+                  }
+                  mentionedCids={mentionedCids}
+                  starredCids={starredCids}
+                  specialAlertCids={specialAlertCids}
+                  previewOf={previewOf}
+                />
+              </div>
+            </aside>
+          </ResizablePanel>
+        )}
         <main
           className={css({
             flex: 1,

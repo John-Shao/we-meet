@@ -106,6 +106,7 @@ const renderNavigation = (
   const onShowArchivedTaskListsChange = vi.fn()
   const onRestoreArchivedTaskList = vi.fn()
   const onOpenActivity = vi.fn()
+  const onCollapse = vi.fn()
   render(
     <TaskWorkspaceNavigation
       state={navigationState}
@@ -137,6 +138,7 @@ const renderNavigation = (
       onShowArchivedTaskListsChange={onShowArchivedTaskListsChange}
       onRestoreArchivedTaskList={onRestoreArchivedTaskList}
       onOpenActivity={onOpenActivity}
+      onCollapse={onCollapse}
     />
   )
   return {
@@ -154,6 +156,7 @@ const renderNavigation = (
     onShowArchivedTaskListsChange,
     onRestoreArchivedTaskList,
     onOpenActivity,
+    onCollapse,
   }
 }
 
@@ -215,6 +218,7 @@ describe('TaskWorkspaceNavigation', () => {
         onCreateTaskListGroup={vi.fn()}
         onMoveTaskList={vi.fn()}
         onRenameTaskListGroup={vi.fn()}
+        onCollapse={vi.fn()}
         onDeleteTaskListGroup={vi.fn()}
         onSelectTaskGroup={onSelectTaskGroup}
         onCreateTaskGroup={onCreateTaskGroup}
@@ -268,6 +272,7 @@ describe('TaskWorkspaceNavigation', () => {
         onCreateTaskListGroup={vi.fn()}
         onMoveTaskList={vi.fn()}
         onRenameTaskListGroup={vi.fn()}
+        onCollapse={vi.fn()}
         onDeleteTaskListGroup={vi.fn()}
         onRenameTaskGroup={onRenameTaskGroup}
         onDeleteTaskGroup={onDeleteTaskGroup}
@@ -504,6 +509,7 @@ describe('TaskWorkspaceNavigation', () => {
         onCreateTaskListGroup={vi.fn()}
         onMoveTaskList={vi.fn()}
         onRenameTaskListGroup={vi.fn()}
+        onCollapse={vi.fn()}
         onDeleteTaskListGroup={vi.fn()}
       />
     )
@@ -539,6 +545,7 @@ describe('TaskWorkspaceNavigation', () => {
         onCreateTaskListGroup={vi.fn()}
         onMoveTaskList={vi.fn()}
         onRenameTaskListGroup={vi.fn()}
+        onCollapse={vi.fn()}
         onDeleteTaskListGroup={vi.fn()}
         onLeaveTaskList={onLeaveTaskList}
       />

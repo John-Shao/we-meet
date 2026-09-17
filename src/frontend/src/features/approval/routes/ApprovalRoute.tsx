@@ -17,6 +17,8 @@ import { css, cx } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { SubNavHeader, SubNavStrip } from '@/components/SubNav'
+import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
 import { RequireAuth } from '@/components/RequireAuth'
 import { StateHint } from '@/components/StateHint'
 import { Screen } from '@/layout/Screen'
@@ -112,6 +114,9 @@ const ApprovalAuthenticated = () => {
   const qc = useQueryClient()
   const { confirm: askConfirm, alert: showAlert } = useConfirm()
   const [view, setView] = useState<ApprovalView>('pending')
+  // 左栏收起态:与其它模块同一套共享实现。
+  const { collapsed: approvalNavCollapsed, toggle: toggleApprovalNav } =
+    useCollapsibleSubNav('we-meet:approval-nav-collapsed')
   const [submitOpen, setSubmitOpen] = useState(false)
   const [presetTemplate, setPresetTemplate] = useState<string | undefined>()
 
@@ -215,59 +220,62 @@ const ApprovalAuthenticated = () => {
 
   return (
     <div className={css({ display: 'flex', height: '100%' })}>
-      {/* 二级导航栏:发起申请 / 待办 / 我发起,与其它模块对齐,可拖拽改宽。 */}
-      <ResizablePanel
-        storageKey="we-meet:approval-sidebar-width"
-        defaultWidth={230}
-        min={200}
-        max={400}
-      >
-        <nav
-          aria-label={t('page.title')}
-          className={css({
-            width: '100%',
-            height: '100%',
-            borderRight: '1px solid token(colors.greyscale.200)',
-            backgroundColor: 'subNavBg',
-            padding: '1rem 0.75rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.25rem',
-            overflowY: 'auto',
-          })}
+      {/* 二级导航栏:发起申请 / 待办 / 我发起,与其它模块对齐,可拖拽改宽。
+          栏头走 components/SubNav 的共享定义(以「通讯录」为基准):16px bold 标题 +
+          内边距 16/12 + 右端 28px 收起按钮;收起后整栏换成 36px 窄条。 */}
+      {approvalNavCollapsed ? (
+        <SubNavStrip
+          onExpand={toggleApprovalNav}
+          testId="approval-nav-expand"
+        />
+      ) : (
+        <ResizablePanel
+          storageKey="we-meet:approval-sidebar-width"
+          defaultWidth={230}
+          min={200}
+          max={400}
         >
-          <h1
+          <nav
+            aria-label={t('page.title')}
             className={css({
-              margin: '0 0 0.5rem',
-              paddingX: '0.5rem',
-              fontSize: '1.125rem',
-              fontWeight: 'bold',
-              color: 'greyscale.900',
+              width: '100%',
+              height: '100%',
+              borderRight: '1px solid token(colors.greyscale.200)',
+              backgroundColor: 'subNavBg',
+              display: 'flex',
+              flexDirection: 'column',
+              overflowY: 'auto',
             })}
           >
-            {t('page.title')}
-          </h1>
-          <NavItem
-            icon={<RiAddCircleLine size={18} />}
-            label={t('tab.create')}
-            active={view === 'create'}
-            onClick={() => setView('create')}
-          />
-          <NavItem
-            icon={<RiInboxLine size={18} />}
-            label={t('tab.pending')}
-            active={view === 'pending'}
-            badge={pendingCount}
-            onClick={() => setView('pending')}
-          />
-          <NavItem
-            icon={<RiSendPlaneLine size={18} />}
-            label={t('tab.mine')}
-            active={view === 'mine'}
-            onClick={() => setView('mine')}
-          />
-        </nav>
-      </ResizablePanel>
+            <SubNavHeader
+              title={t('page.title')}
+              onCollapse={toggleApprovalNav}
+              collapseTestId="approval-nav-collapse"
+            />
+            <div className={navItemsCls}>
+              <NavItem
+                icon={<RiAddCircleLine size={18} />}
+                label={t('tab.create')}
+                active={view === 'create'}
+                onClick={() => setView('create')}
+              />
+              <NavItem
+                icon={<RiInboxLine size={18} />}
+                label={t('tab.pending')}
+                active={view === 'pending'}
+                badge={pendingCount}
+                onClick={() => setView('pending')}
+              />
+              <NavItem
+                icon={<RiSendPlaneLine size={18} />}
+                label={t('tab.mine')}
+                active={view === 'mine'}
+                onClick={() => setView('mine')}
+              />
+            </div>
+          </nav>
+        </ResizablePanel>
+      )}
 
       <main
         className={css({
@@ -410,6 +418,14 @@ const contentTitle = css({
   fontSize: '1.125rem',
   fontWeight: 'bold',
   color: 'greyscale.900',
+})
+
+/** 导航行容器:内边距在栏头之外单独给(栏头自带 16/12)。 */
+const navItemsCls = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.25rem',
+  paddingX: '0.75rem',
 })
 
 // 布局与状态拆开:cx 叠加同属性原子类按样式表顺序取胜,active 的 bg/color

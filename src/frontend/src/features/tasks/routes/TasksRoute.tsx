@@ -16,6 +16,8 @@ import { Modal, ModalCloseButton } from '@/components/Modal'
 import { PageState } from '@/components/PageState'
 import { RequireAuth } from '@/components/RequireAuth'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { SubNavStrip } from '@/components/SubNav'
+import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
 import { Screen } from '@/layout/Screen'
 import { Button, SegmentedControl } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -146,6 +148,9 @@ const TasksAuthenticated = () => {
     new Map<string, { columns: TaskColumnId[]; columnOrder: TaskColumnId[] }>()
   )
   const viewPreferencesRef = useRef(new Map<string, TaskWorkspacePreferences>())
+  // 左栏收起态:与其它模块同一套共享实现(每个模块一个 storage key)。
+  const { collapsed: taskNavCollapsed, toggle: toggleTaskNav } =
+    useCollapsibleSubNav(taskNavCollapsedStorageKey)
   // Board and analytics force the status to "all". Keep the prior list status
   // per view so switching modes cannot leak another view's status filter.
   const lastListStatusRef = useRef(new Map<string, TaskStatusFilter>())
@@ -536,63 +541,71 @@ const TasksAuthenticated = () => {
 
   return (
     <div className={workspaceCss}>
-      <div className={desktopNavigationHolderCss}>
-        <ResizablePanel
-          storageKey="we-meet:task-sidebar-width"
-          defaultWidth={230}
-          min={200}
-          max={400}
-        >
-          <TaskWorkspaceNavigation
-            state={state}
-            navigationCounts={navigationCounts}
-            taskLists={taskLists}
-            archivedTaskLists={archivedTaskLists}
-            archivedTaskListsLoading={archivedTaskListsLoading}
-            archivedTaskListsError={Boolean(
-              archivedTaskListsError || updateTaskListMutation.error
-            )}
-            showArchivedTaskLists={showArchivedTaskLists}
-            taskListGroups={taskListGroups}
-            taskGroups={taskGroups}
-            standaloneTaskCount={standaloneTaskCount}
-            onChange={changeView}
-            onTaskListChange={changeTaskList}
-            onCreateTaskList={openTaskListManager}
-            onCreateTaskListGroup={() => setTaskListGroupCreating(true)}
-            onSelectTaskGroup={changeTaskGroup}
-            onCreateTaskGroup={createTaskGroup}
-            onRenameTaskGroup={renameTaskGroup}
-            onDeleteTaskGroup={deleteGroup}
-            onMoveTaskGroup={moveTaskGroup}
-            taskGroupMutating={
-              createGroupMutation.isPending ||
-              updateGroupMutation.isPending ||
-              deleteGroupMutation.isPending
-            }
-            onMoveTaskList={(taskListId, listGroupId) =>
-              moveTaskListMutation.mutate({ taskListId, listGroupId })
-            }
-            onRenameTaskListGroup={setTaskListGroupRenaming}
-            onDeleteTaskListGroup={(group) => void deleteTaskListGroup(group)}
-            onShareTaskList={setTaskListSharing}
-            onRenameTaskList={setTaskListRenaming}
-            onArchiveTaskList={(taskList) => void archiveTaskList(taskList)}
-            onLeaveTaskList={(taskList) => void leaveTaskList(taskList)}
-            onDeleteTaskList={setTaskListDeleting}
-            onShowArchivedTaskListsChange={setShowArchivedTaskLists}
-            onRestoreArchivedTaskList={(taskList) =>
-              updateTaskListMutation.mutate({
-                taskListId: taskList.id,
-                patch: { is_archived: false },
-                archived: true,
-              })
-            }
-            restoringArchivedTaskList={updateTaskListMutation.isPending}
-            onOpenActivity={() => setTaskActivityOpen(true)}
-          />
-        </ResizablePanel>
-      </div>
+      {taskNavCollapsed ? (
+        // 收起后整栏换成 36px 窄条(components/SubNav 的共享定义),把宽度还给列表。
+        <div className={desktopNavigationHolderCss}>
+          <SubNavStrip onExpand={toggleTaskNav} testId="task-nav-expand" />
+        </div>
+      ) : (
+        <div className={desktopNavigationHolderCss}>
+          <ResizablePanel
+            storageKey="we-meet:task-sidebar-width"
+            defaultWidth={230}
+            min={200}
+            max={400}
+          >
+            <TaskWorkspaceNavigation
+              state={state}
+              onCollapse={toggleTaskNav}
+              navigationCounts={navigationCounts}
+              taskLists={taskLists}
+              archivedTaskLists={archivedTaskLists}
+              archivedTaskListsLoading={archivedTaskListsLoading}
+              archivedTaskListsError={Boolean(
+                archivedTaskListsError || updateTaskListMutation.error
+              )}
+              showArchivedTaskLists={showArchivedTaskLists}
+              taskListGroups={taskListGroups}
+              taskGroups={taskGroups}
+              standaloneTaskCount={standaloneTaskCount}
+              onChange={changeView}
+              onTaskListChange={changeTaskList}
+              onCreateTaskList={openTaskListManager}
+              onCreateTaskListGroup={() => setTaskListGroupCreating(true)}
+              onSelectTaskGroup={changeTaskGroup}
+              onCreateTaskGroup={createTaskGroup}
+              onRenameTaskGroup={renameTaskGroup}
+              onDeleteTaskGroup={deleteGroup}
+              onMoveTaskGroup={moveTaskGroup}
+              taskGroupMutating={
+                createGroupMutation.isPending ||
+                updateGroupMutation.isPending ||
+                deleteGroupMutation.isPending
+              }
+              onMoveTaskList={(taskListId, listGroupId) =>
+                moveTaskListMutation.mutate({ taskListId, listGroupId })
+              }
+              onRenameTaskListGroup={setTaskListGroupRenaming}
+              onDeleteTaskListGroup={(group) => void deleteTaskListGroup(group)}
+              onShareTaskList={setTaskListSharing}
+              onRenameTaskList={setTaskListRenaming}
+              onArchiveTaskList={(taskList) => void archiveTaskList(taskList)}
+              onLeaveTaskList={(taskList) => void leaveTaskList(taskList)}
+              onDeleteTaskList={setTaskListDeleting}
+              onShowArchivedTaskListsChange={setShowArchivedTaskLists}
+              onRestoreArchivedTaskList={(taskList) =>
+                updateTaskListMutation.mutate({
+                  taskListId: taskList.id,
+                  patch: { is_archived: false },
+                  archived: true,
+                })
+              }
+              restoringArchivedTaskList={updateTaskListMutation.isPending}
+              onOpenActivity={() => setTaskActivityOpen(true)}
+            />
+          </ResizablePanel>
+        </div>
+      )}
       <main className={mainCss}>
         <header className={headerCss}>
           <div>
@@ -1036,6 +1049,8 @@ const useUsesTakeoverDetail = () => {
   }, [])
   return usesTakeoverDetail
 }
+
+const taskNavCollapsedStorageKey = 'we-meet:task-nav-collapsed'
 
 const workspaceCss = css({
   width: '100%',

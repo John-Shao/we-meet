@@ -110,8 +110,6 @@
     "video": "视频会议",
     "createError": "暂时无法发起会议，请重试。",
     "navigation": "会议资料导航",
-    "hideNav": "收起导航",
-    "showNav": "展开导航",
     "search": "搜索标题",
     "searchButton": "搜索",
     "scopeLabel": "范围",

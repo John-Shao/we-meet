@@ -27,6 +27,8 @@ import type { CalendarEvent, EditScope, RSVPStatus } from '../api/ApiCalendar'
 import { openSystemSettings } from '@/stores/systemSettings'
 import { CreateEventDialog } from '../components/CreateEventDialog'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { SubNavStrip } from '@/components/SubNav'
+import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
 import { CalendarGrid, type SlotDraft } from '../components/CalendarGrid'
 import {
   CalendarPageTabs,
@@ -88,9 +90,9 @@ const CalendarAuthenticated = () => {
   const { alert: showAlert, confirm: askConfirm } = useConfirm()
   const { user } = useUser()
   const [creating, setCreating] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => localStorage.getItem('we-meet:calendar-sidebar-collapsed') === '1'
-  )
+  // 左栏收起态:与其它模块同一套共享实现(storage key 沿用原来的,不丢用户偏好)。
+  const { collapsed: sidebarCollapsed, toggle: toggleSidebar } =
+    useCollapsibleSubNav('we-meet:calendar-sidebar-collapsed')
   const [draft, setDraft] = useState<SlotDraft | null>(null)
   const [meetingRoomDraft, setMeetingRoomDraft] = useState<{
     room: MeetingRoomBrief
@@ -153,20 +155,6 @@ const CalendarAuthenticated = () => {
     setDraft(slot)
     setCreating(true)
   }
-
-  const toggleSidebar = () =>
-    setSidebarCollapsed((current) => {
-      const next = !current
-      try {
-        localStorage.setItem(
-          'we-meet:calendar-sidebar-collapsed',
-          next ? '1' : '0'
-        )
-      } catch {
-        /* Persistence is optional in private mode. */
-      }
-      return next
-    })
 
   // 网格容器:用来判断一次点击是落在日历表内还是表外(表外 = 清预选框)。
   const gridRef = useRef<HTMLDivElement>(null)
@@ -437,8 +425,12 @@ const CalendarAuthenticated = () => {
         }
       }}
     >
-      {/* 二级导航栏:迷你日历 + 即将开始,与「会议」侧栏对齐。可拖拽改宽。 */}
-      {!sidebarCollapsed && (
+      {/* 二级导航栏:迷你日历 + 即将开始,与「会议」侧栏对齐。可拖拽改宽。
+          收起后整栏换成 36px 窄条(components/SubNav 的共享定义),展开按钮就在
+          窄条里 —— 收起按钮本身也已经搬进栏头,与其它模块同一位置。 */}
+      {sidebarCollapsed ? (
+        <SubNavStrip onExpand={toggleSidebar} testId="calendar-nav-expand" />
+      ) : (
         <ResizablePanel
           storageKey="we-meet:calendar-sidebar-width"
           defaultWidth={260}
@@ -454,6 +446,7 @@ const CalendarAuthenticated = () => {
             onCreate={() => openCreate(null)}
             onCalendarChanged={() => void invalidateCalendarData()}
             calendarColors={calendarColors}
+            onCollapse={toggleSidebar}
           />
         </ResizablePanel>
       )}
@@ -485,30 +478,6 @@ const CalendarAuthenticated = () => {
               gap: '0.75rem',
             })}
           >
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              title={t(sidebarCollapsed ? 'shell:expand' : 'shell:collapse')}
-              aria-label={t(
-                sidebarCollapsed ? 'shell:expand' : 'shell:collapse'
-              )}
-              data-testid="calendar-sidebar-toggle"
-              className={css({
-                width: '2rem',
-                height: '2rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: 'none',
-                borderRadius: '0.375rem',
-                backgroundColor: 'transparent',
-                color: 'greyscale.700',
-                cursor: 'pointer',
-                _hover: { backgroundColor: 'greyscale.100' },
-              })}
-            >
-              {sidebarCollapsed ? '\u00bb' : '\u00ab'}
-            </button>
             <CalendarPageTabs tab={tab} onTab={changeTab} />
           </div>
           <div

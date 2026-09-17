@@ -27,6 +27,7 @@ import {
 
 import { Button, Input, Menu, MenuList, Popover, Switch } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { SubNavHeader } from '@/components/SubNav'
 
 import type {
   ApiTaskGroup,
@@ -101,6 +102,7 @@ export const TaskWorkspaceNavigation = ({
   onRestoreArchivedTaskList,
   restoringArchivedTaskList = false,
   onOpenActivity,
+  onCollapse,
 }: {
   state: TaskWorkspaceState
   navigationCounts: Record<TaskWorkspaceView, number>
@@ -140,6 +142,8 @@ export const TaskWorkspaceNavigation = ({
   onRestoreArchivedTaskList?: (taskList: ApiTaskList) => void
   restoringArchivedTaskList?: boolean
   onOpenActivity?: () => void
+  /** 收起整栏:状态由路由持有(与通讯录/会议同一套共享实现)。 */
+  onCollapse: () => void
 }) => {
   const { t } = useTranslation('tasks')
   const current = activeView(state)
@@ -272,7 +276,13 @@ export const TaskWorkspaceNavigation = ({
   )
   return (
     <aside className={desktopNavCss} aria-label={t('workspace.navigation')}>
-      <h1 className={navTitleCss}>{t('title')}</h1>
+      {/* 栏头走 components/SubNav 的共享定义(以「通讯录」为基准):16px bold 标题 +
+          内边距 16/12 + 右端 28px 收起按钮。 */}
+      <SubNavHeader
+        title={t('title')}
+        onCollapse={onCollapse}
+        collapseTestId="task-nav-collapse"
+      />
       <nav className={navListCss}>
         <p className={sectionLabelCss}>{t('workspace.taskViews')}</p>
         {views.map((view) => (
@@ -803,23 +813,18 @@ const desktopNavCss = css({
   width: '100%',
   height: '100%',
   flexDirection: 'column',
-  gap: '0.25rem',
-  padding: '1rem 0.75rem',
+  // 内边距由栏头(16/12)与 navListCss(12)各自带 —— 标题左缘才与导航行左缘齐平。
+  padding: 0,
   borderRight: '1px solid token(colors.greyscale.200)',
   backgroundColor: 'subNavBg',
   overflowY: 'auto',
-})
-const navTitleCss = css({
-  margin: '0 0 0.5rem',
-  paddingX: '0.5rem',
-  color: 'greyscale.900',
-  fontSize: '1.125rem',
-  fontWeight: 'bold',
 })
 const navListCss = css({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.25rem',
+  paddingX: '0.75rem',
+  paddingBottom: '1rem',
 })
 const sectionLabelCss = css({
   margin: '0.75rem 0.5rem 0.25rem',

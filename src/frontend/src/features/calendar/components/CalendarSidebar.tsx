@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { css } from '@/styled-system/css'
+import { SubNavHeader } from '@/components/SubNav'
 import type { CalendarEvent } from '../api/ApiCalendar'
 import { useCalendarSettings } from '../hooks/useCalendarSettings'
 import {
@@ -110,6 +111,8 @@ interface Props {
   onCreate: () => void
   onCalendarChanged: () => void
   calendarColors?: CalendarColorMap
+  /** 收起整栏:状态由路由持有(与其它模块同一套共享实现)。 */
+  onCollapse: () => void
 }
 
 export const CalendarSidebar = ({
@@ -121,6 +124,7 @@ export const CalendarSidebar = ({
   onCreate,
   onCalendarChanged,
   calendarColors = {},
+  onCollapse,
 }: Props) => {
   const { t, i18n } = useTranslation('calendar')
   const { calendarTimezone } = useCalendarSettings()
@@ -151,134 +155,153 @@ export const CalendarSidebar = ({
         height: '100%',
         borderRight: '1px solid token(colors.greyscale.200)',
         backgroundColor: 'subNavBg',
-        padding: '1.25rem 1rem',
         display: 'flex',
         flexDirection: 'column',
-        gap: '1.25rem',
         overflowY: 'auto',
       })}
     >
-      <h1
-        className={css({
-          fontSize: '1.125rem',
-          fontWeight: 'bold',
-          color: 'greyscale.900',
-        })}
-      >
-        {t('page.title')}
-      </h1>
-
-      <MiniCalendar
-        value={date}
-        onChange={onDateChange}
-        events={events}
-        calendarColors={calendarColors}
+      {/* 栏头走 components/SubNav 的共享定义(以「通讯录」为基准):16px bold 标题 +
+          内边距 16/12 + 右端 28px 收起按钮。aside 不再自带内边距 —— 内边距由栏头与
+          下面的 sidebarBodyCls 各自带,标题左缘才与正文齐平。 */}
+      <SubNavHeader
+        title={t('page.title')}
+        onCollapse={onCollapse}
+        collapseTestId="calendar-nav-collapse"
       />
+      <div className={sidebarBodyCls}>
+        <MiniCalendar
+          value={date}
+          onChange={onDateChange}
+          events={events}
+          calendarColors={calendarColors}
+        />
 
-      <div
-        className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.5rem',
-        })}
-      >
-        <CalendarListManager onChanged={onCalendarChanged} />
-      </div>
-
-      <div
-        className={css({
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.5rem',
-        })}
-      >
-        <h2
+        <div
           className={css({
-            fontSize: '0.875rem',
-            fontWeight: 600,
-            color: 'greyscale.700',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
           })}
         >
-          {t('sidebar.upcoming')}
-        </h2>
-        {upcoming.length === 0 ? (
-          <div className={emptyUpcomingCls}>
-            <p
-              className={css({ fontSize: '0.8125rem', color: 'greyscale.500' })}
-            >
-              {t('page.empty')}
-            </p>
-            <button type="button" className={emptyCreateCls} onClick={onCreate}>
-              + {t('page.create')}
-            </button>
-          </div>
-        ) : (
-          <ul
+          <CalendarListManager onChanged={onCalendarChanged} />
+        </div>
+
+        <div
+          className={css({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+          })}
+        >
+          <h2
             className={css({
-              listStyle: 'none',
-              margin: 0,
-              padding: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.25rem',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: 'greyscale.700',
             })}
           >
-            {upcoming.map((e) => (
-              <li key={e.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelectEvent(e)}
-                  className={css({
-                    width: '100%',
-                    textAlign: 'left',
-                    border: 'none',
-                    background: 'transparent',
-                    borderRadius: '6px',
-                    padding: '0.5rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    gap: '0.5rem',
-                    alignItems: 'stretch',
-                    _hover: { backgroundColor: 'brand.50' },
-                  })}
-                >
-                  <span
-                    className={barCls}
-                    style={{
-                      backgroundColor: calendarColorForEvent(e, calendarColors),
-                    }}
-                  />
-                  <span className={upcomingContentCls}>
-                    <span className={upcomingTextCls}>
-                      <span
-                        className={
-                          e.my_rsvp === 'declined' ? titleDeclinedCls : titleCls
-                        }
-                      >
-                        {e.title}
-                      </span>
-                      <span
-                        className={
-                          e.my_rsvp === 'declined' ? whenDeclinedCls : whenCls
-                        }
-                      >
-                        {formatWhen(e, i18n.language, calendarTimezone)}
-                      </span>
-                    </span>
-                    <EventRsvpStatus
-                      status={e.my_rsvp}
-                      className={upcomingStatusCls}
+            {t('sidebar.upcoming')}
+          </h2>
+          {upcoming.length === 0 ? (
+            <div className={emptyUpcomingCls}>
+              <p
+                className={css({
+                  fontSize: '0.8125rem',
+                  color: 'greyscale.500',
+                })}
+              >
+                {t('page.empty')}
+              </p>
+              <button
+                type="button"
+                className={emptyCreateCls}
+                onClick={onCreate}
+              >
+                + {t('page.create')}
+              </button>
+            </div>
+          ) : (
+            <ul
+              className={css({
+                listStyle: 'none',
+                margin: 0,
+                padding: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.25rem',
+              })}
+            >
+              {upcoming.map((e) => (
+                <li key={e.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectEvent(e)}
+                    className={css({
+                      width: '100%',
+                      textAlign: 'left',
+                      border: 'none',
+                      background: 'transparent',
+                      borderRadius: '6px',
+                      padding: '0.5rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      gap: '0.5rem',
+                      alignItems: 'stretch',
+                      _hover: { backgroundColor: 'brand.50' },
+                    })}
+                  >
+                    <span
+                      className={barCls}
+                      style={{
+                        backgroundColor: calendarColorForEvent(
+                          e,
+                          calendarColors
+                        ),
+                      }}
                     />
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+                    <span className={upcomingContentCls}>
+                      <span className={upcomingTextCls}>
+                        <span
+                          className={
+                            e.my_rsvp === 'declined'
+                              ? titleDeclinedCls
+                              : titleCls
+                          }
+                        >
+                          {e.title}
+                        </span>
+                        <span
+                          className={
+                            e.my_rsvp === 'declined' ? whenDeclinedCls : whenCls
+                          }
+                        >
+                          {formatWhen(e, i18n.language, calendarTimezone)}
+                        </span>
+                      </span>
+                      <EventRsvpStatus
+                        status={e.my_rsvp}
+                        className={upcomingStatusCls}
+                      />
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </aside>
   )
 }
+
+/** 栏头以下的内容:内边距与堆叠间距原来挂在 aside 上,现在栏头自带 16/12。 */
+const sidebarBodyCls = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '1.25rem',
+  paddingX: 'lg',
+  paddingBottom: 'lg',
+})
 
 const emptyUpcomingCls = css({
   display: 'flex',

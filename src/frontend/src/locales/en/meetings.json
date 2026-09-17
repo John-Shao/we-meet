@@ -110,8 +110,6 @@
     "video": "Video meetings",
     "createError": "Unable to start a meeting. Please try again.",
     "navigation": "Meeting library navigation",
-    "hideNav": "Collapse navigation",
-    "showNav": "Expand navigation",
     "search": "Search titles",
     "searchButton": "Search",
     "scopeLabel": "Scope",
