@@ -880,6 +880,7 @@ const ImAuthenticated = () => {
               client={client}
               conversation={selectedConv}
               title={nameOf(selectedConv)}
+              avatarUrl={avatarOf(selectedConv)}
               currentUserUID={currentUserUID}
               sendDisabled={sendDisabled}
               locate={locate}

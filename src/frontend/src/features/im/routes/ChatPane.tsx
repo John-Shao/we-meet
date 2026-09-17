@@ -35,6 +35,9 @@ import {
   type RecentEmoji,
 } from '../api/inputSync'
 import { markLater } from '../api/markLater'
+import { Avatar } from '../components/Avatar'
+import { ChatHeader } from '../components/ChatHeader'
+import { GroupAvatar } from '../components/GroupAvatar'
 import { MessageInput, type ReplyPreview } from '../components/MessageInput'
 import { PinnedBar } from '../components/PinnedBar'
 import { MessageItem, type ReactionChip } from '../components/MessageItem'
@@ -68,6 +71,7 @@ import { messageTaskDescription } from '../components/messageTask'
 import { imDividerTimeLabel } from '../components/imTimeLabels'
 
 // Recall is allowed only on your own messages within this window (WeChat: 2 min).
+
 const RECALL_WINDOW_MS = 2 * 60 * 1000
 
 // Quick-reaction emojis offered in the message context menu.
@@ -142,6 +146,8 @@ interface Props {
   conversation: ConversationSummary
   /** Display title resolved upstream (group name / direct peer name). */
   title: string
+  /** 会话头像:群自定义头像,或私聊对端的头像(缺省时群聊退回成员拼图)。 */
+  avatarUrl?: string
   currentUserUID: string
   sendDisabled: boolean
   /** Toggle the 群成员 (member roster) panel — the ⋯ button (group only). */
@@ -175,6 +181,7 @@ export const ChatPane = ({
   client,
   conversation,
   title,
+  avatarUrl,
   currentUserUID,
   sendDisabled,
   onOpenInfo,
@@ -1188,74 +1195,39 @@ export const ChatPane = ({
         height: '100%',
       })}
     >
-      {/* Header: title + (group) member count + actions */}
-      <div
-        className={css({
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          paddingX: '1rem',
-          paddingY: '0.625rem',
-          borderBottom: '1px solid token(colors.greyscale.200)',
-          minHeight: '3rem',
-        })}
-      >
-        <div className={css({ flex: 1, minWidth: 0 })}>
-          {onOpenSettings ? (
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              title={t('manage.settings')}
-              data-testid="chat-group-title"
-              className={css({
-                display: 'block',
-                maxWidth: '100%',
-                padding: 0,
-                border: 'none',
-                background: 'transparent',
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontWeight: 'bold',
-                color: 'greyscale.900',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                _hover: { color: 'primary.500' },
-              })}
-            >
-              {title}
-            </button>
+      {/* 标题栏:头像 + 标题 + 备注(群人数 / 已离职提示)一行排开、**不换行** ——
+          飞书聊天窗口那一栏就是这个形态;排版与「不被挤掉」的规则都写在
+          components/ChatHeader 里,这里只负责喂头像与备注。 */}
+      <ChatHeader
+        title={title}
+        onOpenSettings={onOpenSettings}
+        settingsLabel={t('manage.settings')}
+        avatar={
+          isGroup ? (
+            <GroupAvatar
+              members={memberUids.slice(0, 9).map((uid) => ({
+                name: nameOf(uid),
+                src: names[uid]?.avatar_url || undefined,
+              }))}
+              customSrc={avatarUrl}
+              size="1.5rem"
+            />
           ) : (
-            <div
-              className={css({
-                fontWeight: 'bold',
-                color: 'greyscale.900',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              })}
-            >
-              {title}
-            </div>
-          )}
-          {/* 私聊对端已离职:提示写在标题下方,与群聊的成员数同一行位。不把
-              「(已离职)」拼进 `title` —— title 会顺着 peerName / roomName 流进
-              通话与会议室命名,那些地方不该带这个后缀。 */}
-          {peerLeft && (
-            <div
-              className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}
-            >
-              {t('departed.hint')}
-            </div>
-          )}
-          {isGroup && (
-            <div
-              className={css({ fontSize: '0.75rem', color: 'greyscale.500' })}
-            >
+            <Avatar name={title} src={avatarUrl} size="1.5rem" />
+          )
+        }
+        meta={
+          isGroup ? (
+            <span data-testid="chat-header-count">
               {t('header.memberCount', { count: memberUids.length })}
-            </div>
-          )}
-        </div>
+            </span>
+          ) : peerLeft ? (
+            // 私聊对端已离职:同一个备注位。不把「(已离职)」拼进 `title` —— 那会顺着
+            // peerName / roomName 流进通话与会议室命名。
+            t('departed.hint')
+          ) : undefined
+        }
+      >
         {/* P4.1 群语音通话: member picker → parallel ringing invites. */}
         {isGroup && (
           <IconButton
@@ -1357,7 +1329,7 @@ export const ChatPane = ({
             ⋯
           </IconButton>
         )}
-      </div>
+      </ChatHeader>
 
       {/* Body: message stream (+ input) on the left, info panel on the right.
           Both sit below the full-width header, matching Feishu. */}

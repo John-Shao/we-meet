@@ -131,6 +131,8 @@ and this project adheres to
   approval, task and meeting modules, with a collapse button in each
 - ♻️(frontend) fold the contacts sidebar into that shared header too, which
   also aligns its collapse button radius
+- ♻️(frontend) put the chat title bar on one line as Feishu does: avatar,
+  title and an optional note such as the member count
 
 ### Fixed
 
