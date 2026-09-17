@@ -297,6 +297,22 @@ const assertUnifiedPageChrome = async (label) => {
         ? Math.round(headerBox.bottom - fixedTopBox.top)
         : null
     const rowStyle = firstRow ? getComputedStyle(firstRow) : null
+    // 垂直居中:标题与右侧动作的中心都必须落在标题行的中线上(±1px)。页头里
+    // 有任何一项被内边距顶偏,这里就会红 —— 走查反馈过「文字和按钮没有居中」。
+    const header = main.querySelector('header')
+    const actions = header?.lastElementChild
+    const bandCenter = headerBox ? (headerBox.top + headerBox.bottom) / 2 : null
+    const centerOffset = (el) => {
+      if (!el || bandCenter == null) return null
+      const box = el.getBoundingClientRect()
+      return Math.round(((box.top + box.bottom) / 2 - bandCenter) * 10) / 10
+    }
+    const navTitle = document.querySelector(
+      '[data-testid="meeting-nav-collapse"]'
+    )
+    const navTitleBox = navTitle?.parentElement?.parentElement
+      ?.querySelector('h2')
+      ?.getBoundingClientRect()
     return {
       shell: getComputedStyle(main).backgroundColor,
       list: list ? getComputedStyle(list).backgroundColor : null,
@@ -305,6 +321,19 @@ const assertUnifiedPageChrome = async (label) => {
       titleWeight: title ? getComputedStyle(title).fontWeight : null,
       leadCount,
       titleBandHeight,
+      titleCenterOffset: centerOffset(title),
+      actionsCenterOffset: centerOffset(actions),
+      // 左栏栏头标题与右栏标题的中线差:两条并排的栏必须在同一条线上。
+      navTitleGap:
+        navTitleBox && title
+          ? Math.round(
+              ((navTitleBox.top + navTitleBox.bottom) / 2 -
+                (title.getBoundingClientRect().top +
+                  title.getBoundingClientRect().bottom) /
+                  2) *
+                10
+            ) / 10
+          : null,
       rowBackground: rowStyle?.backgroundColor ?? null,
       rowBorder: rowStyle?.borderTopWidth ?? null,
     }
@@ -343,6 +372,18 @@ const assertUnifiedPageChrome = async (label) => {
     chrome.leadCount,
     0,
     `${label}:页头只留标题,不该再有副标题段落(2026-09-17 起四个一级页统一去掉)`
+  )
+  assert.ok(
+    Math.abs(chrome.titleCenterOffset) <= 1,
+    `${label}:标题必须垂直居中于标题栏,实测偏 ${chrome.titleCenterOffset}px`
+  )
+  assert.ok(
+    Math.abs(chrome.actionsCenterOffset) <= 1,
+    `${label}:右侧动作必须垂直居中于标题栏,实测偏 ${chrome.actionsCenterOffset}px`
+  )
+  assert.ok(
+    Math.abs(chrome.navTitleGap) <= 1,
+    `${label}:左栏栏头标题与右栏页面标题必须同一中线,实测差 ${chrome.navTitleGap}px`
   )
   assert.equal(
     chrome.rowBorder,
@@ -1266,6 +1307,9 @@ try {
     `会议行标题应与实录/纪要同字号,实际 ${scheduledRow.titleSize}`
   )
   await shot('meeting-home-desktop')
+  // 视频会议(首页)也是同一套页头:栏高/居中/与左栏同一条中线都要过一遍 ——
+  // 用户报的「标题栏偏高、文字与按钮没居中」就是这一页。
+  await assertUnifiedPageChrome('视频会议')
   await page.setViewportSize({ width: 390, height: 844 })
   await page.waitForTimeout(120)
   await noHorizontalOverflow('视频会议 390px')
