@@ -272,7 +272,7 @@ const dismissTooltips = async () => {
 /**
  * 四个一级页面必须长得一样的那几条(以「智能纪要」为基准):
  * 页壳浅灰(canvas,钉住的头部露这个色)+ 滚动内容白(surface.default)+
- * 标题一档 24px + 首行不着卡(透明底、无边框)。
+ * 标题一档 24px + 页头不再带副标题 + 首行不着卡(透明底、无边框)。
  */
 const assertUnifiedPageChrome = async (label) => {
   const chrome = await page.evaluate(() => {
@@ -284,11 +284,14 @@ const assertUnifiedPageChrome = async (label) => {
       list?.querySelector('li:first-child > *')
     // 页面标题要取 main 里的那个:外壳/导航里还有别的 h1。
     const title = main.querySelector('h1')
+    // 副标题已删(2026-09-17):页头里不该再有说明性段落。
+    const leadCount = main.querySelectorAll('header p').length
     const rowStyle = firstRow ? getComputedStyle(firstRow) : null
     return {
       shell: getComputedStyle(main).backgroundColor,
       list: list ? getComputedStyle(list).backgroundColor : null,
       titleSize: title ? getComputedStyle(title).fontSize : null,
+      leadCount,
       rowBackground: rowStyle?.backgroundColor ?? null,
       rowBorder: rowStyle?.borderTopWidth ?? null,
     }
@@ -307,6 +310,11 @@ const assertUnifiedPageChrome = async (label) => {
     chrome.titleSize,
     '24px',
     `${label}:页面标题应与纪要同档(pageTitle),实际 ${chrome.titleSize}`
+  )
+  assert.equal(
+    chrome.leadCount,
+    0,
+    `${label}:页头只留标题,不该再有副标题段落(2026-09-17 起四个一级页统一去掉)`
   )
   assert.equal(
     chrome.rowBorder,

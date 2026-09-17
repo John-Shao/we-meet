@@ -35,7 +35,6 @@ import {
   pageFixedTop,
   pageHeaderRow,
   pageHeaderText,
-  pageLead,
   pageShell,
   pageTitle,
   rowBody,
@@ -763,13 +762,11 @@ export function Library({
             />
           </div>
           <header className={pageHeaderRow}>
+            {/* 页头只有标题:四个一级页都不再带副标题(2026-09-17)。 */}
             <div className={pageHeaderText}>
               <h1 className={pageTitle}>
                 {t(minutes ? 'library.minutes' : 'library.notes')}
               </h1>
-              <p className={pageLead}>
-                {t(minutes ? 'library.minutesHint' : 'library.notesHint')}
-              </p>
             </div>
             <div className={headerActions}>
               {/* 搜索框在动作行里、紧挨「搜索会议 AI」的左侧,**没有提交按钮**:

@@ -559,6 +559,27 @@ AI 录音页（页头同款按钮 + 导航里的固定入口），不必同一�
 照样渲染，而用例只断言了「未登录时『最近会议』消失」，没断言「『预约会议』也消失」。
 现在补上了三条：未登录落地页两个列表都不在、`登录` 按钮在、`createMeeting` 不在。
 
+### 3.17 四个一级页去掉副标题（2026-09-17 追加）
+
+四个一级页的页头原先都是「标题 + 一行说明」（`pageTitle` + `pageLead`），按要求把说明
+整行删掉，页头只留标题：
+
+| 页面 | 删掉的文案键 | 原文案 |
+| --- | --- | --- |
+| 视频会议 | `library.videoHint` | 发起或加入会议，也可以先预约。 |
+| AI 录音 | `library.recordHint` | 录制线下会议与访谈，保存后可按需转写与生成纪要。 |
+| 会议实录 | `library.notesHint` | 集中查看会议与录音的音视频、文字记录和智能纪要。 |
+| 智能纪要 | `library.minutesHint` | 已生成纪要的记录；与会议实录共用同一份资料。 |
+
+- 三个页面文件（`Home.tsx` / `RecordingOverview.tsx` / `MeetingLibrary.tsx`）删掉
+  `<p className={pageLead}>` 与随之不再使用的 `pageLead` import；`pageLead` 本身保留
+  —— 三个次级页（录音详情 / 录制页 / 记录工作区）还在用。
+- 文案键只从 `zh` / `en` 里删（`de` / `fr` / `nl` 本来就没有这几个键，走 en 兜底）。
+- 页头动作行的对齐没变：`pageHeaderRow` 是 `align-items: flex-start`，标题（24px，
+  行高 32）与右侧 32px 的按钮、搜索框本来就顶对齐。
+- 走查在 `assertUnifiedPageChrome` 里加了一条：页头里 `header p` 数量必须是 0
+  —— 四个页面一处定义、四页同时受检，以后谁再加回说明行会直接红。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把

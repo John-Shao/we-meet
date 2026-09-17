@@ -36,7 +36,6 @@ import {
   pageFixedTop,
   pageHeaderRow,
   pageHeaderText,
-  pageLead,
   pageShell,
   pageTitle,
   scrollRegion,
@@ -267,13 +266,11 @@ export const Home = () => {
                     <MeetingModuleNav current="/meeting" />
                   </div>
                   <header className={pageHeaderRow}>
+                    {/* 页头只有标题:四个一级页都不再带副标题(2026-09-17)。 */}
                     <div className={pageHeaderText}>
                       <h1 className={pageTitle}>
                         {t('library.video', { ns: 'meetings' })}
                       </h1>
-                      <p className={pageLead}>
-                        {t('library.videoHint', { ns: 'meetings' })}
-                      </p>
                     </div>
                     {/* 快速会议(实心主操作)+ 加入 / 预约(线框次操作),
                         三档都是 action 尺寸,和模块里其它页头动作同高同字号。

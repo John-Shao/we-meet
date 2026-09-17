@@ -121,6 +121,8 @@ and this project adheres to
   twice, which left a blank band above the lists
 - ♻️(frontend) drop the signed-in meeting list and calls to action that the
   anonymous landing page could never render
+- ♻️(frontend) remove the subtitle line from the four meeting module pages so
+  their headers carry the title alone
 
 ## [1.16.0] - 2026-05-13
 

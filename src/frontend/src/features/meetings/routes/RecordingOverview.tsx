@@ -18,7 +18,6 @@ import {
   pageFixedTop,
   pageHeaderRow,
   pageHeaderText,
-  pageLead,
   pageShell,
   pageTitle,
   rowBody,
@@ -169,9 +168,9 @@ export function RecordingOverview() {
             <MeetingModuleNav current="/meeting/recording" />
           </div>
           <header className={pageHeaderRow}>
+            {/* 页头只有标题:四个一级页都不再带副标题(2026-09-17)。 */}
             <div className={pageHeaderText}>
               <h1 className={pageTitle}>{t('library.record')}</h1>
-              <p className={pageLead}>{t('library.recordHint')}</p>
             </div>
             {/* 页头动作与其它栏目页同一档:headerActions 里放 action 尺寸 + 18px 图标的
                 按钮,右对齐。这一页是「录制/导入」两个动作的归属页,会议实录页只查/看。
