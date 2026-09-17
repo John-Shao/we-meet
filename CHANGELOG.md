@@ -119,6 +119,8 @@ and this project adheres to
 - ♻️(frontend) give the import button a downward arrow
 - 🩹(frontend) stop the video meeting sections from spacing their headings
   twice, which left a blank band above the lists
+- ♻️(frontend) drop the signed-in meeting list and calls to action that the
+  anonymous landing page could never render
 
 ## [1.16.0] - 2026-05-13
 

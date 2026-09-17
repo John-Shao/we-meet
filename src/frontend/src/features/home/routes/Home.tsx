@@ -364,91 +364,41 @@ export const Home = () => {
             )}
           </div>
         ) : (
+          // 未登录落地页。这一支**只**在 `isLoggedIn` 为假时渲染(上面那个三元),
+          // 所以这里不需要再判一次登录态 —— 原先留着的「登录态三个入口 + 预约会议
+          // 列表」两层判断永远进不去,是「登录态首页搬去会议模块」那次重构(2026-09-16)
+          // 留下的死代码:列表那边 `enabled={!!isLoggedIn}` 恒为 false,
+          // `ScheduledMeetingsList` 直接 `return null`。
           <Columns>
             <LeftColumn>
               <Heading>{t('heading')}</Heading>
               <IntroText>{t('intro')}</IntroText>
-              {isLoggedIn ? (
-                <div
-                  className={css({
-                    display: 'flex',
-                    gap: 0.5,
-                    flexDirection: { base: 'column', xsm: 'row' },
-                    alignItems: { base: 'center', xsm: 'items-start' },
-                  })}
+              {/* 未登录看到 [登录] + [加入会议]:登录走抖音式双栏弹窗(二维码 + 手机
+                  验证码);加入会议不需要登录(公开房间),受限房间由房间页自己跳登录。 */}
+              <div
+                className={css({
+                  display: 'flex',
+                  gap: 0.5,
+                  flexDirection: { base: 'column', xsm: 'row' },
+                  alignItems: { base: 'center', xsm: 'items-start' },
+                })}
+              >
+                <Button
+                  variant="primary"
+                  data-attr="login"
+                  onPress={() => {
+                    window.location.href = authUrl()
+                  }}
                 >
-                  <Button
-                    variant="primary"
-                    data-attr="create-meeting"
-                    onPress={async () => {
-                      // Backend generates the 8-digit slug on save — don't
-                      // ship a random 10-letter "code" that would co-exist
-                      // with it and confuse users.
-                      const owner = (user?.full_name || username || '').trim()
-                      const name = owner
-                        ? t('defaultRoomName', { user: owner })
-                        : t('defaultRoomNameAnonymous')
-                      createRoom({ name, username }).then((data) =>
-                        navigateTo('room', data.slug, {
-                          state: { create: true, initialRoomData: data },
-                        })
-                      )
-                    }}
-                  >
-                    {t('createMeeting')}
+                  {t('login')}
+                </Button>
+                <DialogTrigger>
+                  <Button variant="secondary" data-attr="join-meeting">
+                    {t('joinMeeting')}
                   </Button>
-                  {/* Logged-in users get the standard join entry — anonymous
-                    join is gated below (the button doesn't render at all
-                    when isLoggedIn is false). */}
-                  <DialogTrigger>
-                    <Button variant="secondary" data-attr="join-meeting">
-                      {t('joinMeeting')}
-                    </Button>
-                    <JoinMeetingDialog />
-                  </DialogTrigger>
-                  <Button
-                    variant="secondary"
-                    data-attr="schedule-meeting"
-                    onPress={() => setScheduling(true)}
-                  >
-                    {t('scheduleMeeting')}
-                  </Button>
-                </div>
-              ) : (
-                // Anonymous users see [Login] + [Join meeting]. Login opens
-                // the Douyin-style dual-pane dialog (QR + phone OTP). Join
-                // works without login for public rooms — the room page
-                // routes restricted rooms back to login as needed.
-                <div
-                  className={css({
-                    display: 'flex',
-                    gap: 0.5,
-                    flexDirection: { base: 'column', xsm: 'row' },
-                    alignItems: { base: 'center', xsm: 'items-start' },
-                  })}
-                >
-                  <Button
-                    variant="primary"
-                    data-attr="login"
-                    onPress={() => {
-                      window.location.href = authUrl()
-                    }}
-                  >
-                    {t('login')}
-                  </Button>
-                  <DialogTrigger>
-                    <Button variant="secondary" data-attr="join-meeting">
-                      {t('joinMeeting')}
-                    </Button>
-                    <JoinMeetingDialog />
-                  </DialogTrigger>
-                </div>
-              )}
-              <ScheduledMeetingsList
-                enabled={!!isLoggedIn}
-                onSelect={setMeetingDetail}
-                selectedId={meetingDetail?.sessionId ?? meetingDetail?.id}
-              />
+                  <JoinMeetingDialog />
+                </DialogTrigger>
+              </div>
               <Separator />
               <MoreLink />
             </LeftColumn>

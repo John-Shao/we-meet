@@ -72,4 +72,14 @@ it('retains scheduled and historical sections only in the signed-in workspace', 
   expect(
     screen.queryByRole('heading', { name: 'Recent meetings' })
   ).not.toBeInTheDocument()
+  // 未登录落地页两个列表都不挂:它以前在落地页上也放了一份「预约会议」,但传的是
+  // `enabled={!!isLoggedIn}` —— 而落地页这一支本身就只在未登录时渲染,那份列表
+  // 永远 `return null`(死代码,已删)。落地页只留 [登录] + [加入会议]。
+  expect(
+    screen.queryByRole('heading', { name: 'Scheduled meetings' })
+  ).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'login' })).toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'createMeeting' })
+  ).not.toBeInTheDocument()
 })
