@@ -11,6 +11,10 @@ export interface ApiMeetingRecord {
   retention_mode: 'media' | 'text' | 'unknown'
   revision: number
   source_available: boolean
+  /** 列表视图(对齐飞书的表格)需要的两列:所有者显示名与创建/修改时间。 */
+  owner?: string | null
+  created_at?: string
+  updated_at?: string
   is_ongoing?: boolean
   has_summary?: boolean
   /** Exact standalone capture, only exposed to its current owner. */
