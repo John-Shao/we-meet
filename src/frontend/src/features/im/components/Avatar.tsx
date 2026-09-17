@@ -10,6 +10,14 @@ const tintFor = avatarFallbackColor
 /** First non-space character, upper-cased; falls back to "?". */
 const initial = (s: string): string => (s.trim()[0] || '?').toUpperCase()
 
+/**
+ * 会话头像的那一档尺寸（40px）—— **会话列表与聊天窗口标题栏共用同一个值**。
+ *
+ * 飞书里这两处的头像一样大：列表里认人靠它，点进会话后标题栏还是它，视觉上是同一个
+ * 对象。所以别再各写各的（标题栏一度写成 24px，和列表并排看就是对不上）。
+ */
+export const IM_AVATAR_SIZE = '2.5rem'
+
 interface Props {
   /** Display name — drives both the tint and the rendered initial. */
   name: string

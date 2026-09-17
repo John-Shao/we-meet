@@ -705,24 +705,29 @@ AI 录音页（页头同款按钮 + 导航里的固定入口），不必同一�
 排版抽成 `features/im/components/ChatHeader.tsx`（这一页原先没有单测，抽出来才有
 地方量）：
 
-- 头像在最左、固定 **24px**（群聊用成员拼图，群自定义头像优先；私聊用对端头像），
-  不参与挤压；
+- 头像在最左、**40px**（`IM_AVATAR_SIZE`，与会话列表里那一枚**同一档**；群聊用成员
+  拼图，群自定义头像优先；私聊用对端头像），不参与挤压；
 - 标题与备注在**同一行**：标题 `flexShrink: 1` + 省略号，备注 `flexShrink: 0`
   —— 名字再长也不会把人数挤掉；
-- 整栏仍是 `min-height: 3rem`（48px）、`paddingX 1rem / paddingY 0.625rem`、
-  1px 底分割线，右侧动作（通话 / 会议 / 添加成员 / ⋯）位置不变；
+- 整栏 `min-height: 3rem`（实测 61px = 40 头像 + 上下各 10 内边距 + 1px 描边）、
+  `paddingX 1rem / paddingY 0.625rem`、1px 底分割线，右侧动作（通话 / 会议 / 添加
+  成员 / ⋯）位置不变；
 - 「私聊对端已离职」提示从标题下方搬进同一个备注位（仍然不拼进 `title` —— 那会顺着
   `peerName` / `roomName` 流进通话与会议室命名）。
+
+首版把头像写成 24px，走查反馈「偏小，飞书那个头像和会话列表里的一样大」—— 现在两处
+共用 `Avatar.tsx` 里的 `IM_AVATAR_SIZE`（40px），不再是两个各写各的数字。
 
 验证：
 
 - `ChatHeader.test.tsx` 4 条：三件套同框、只有给了 `onOpenSettings` 才是可点标题、
   没备注就不渲染备注位、动作仍在右侧。
 - 新增 `scripts/check-chat-header.mjs`（真实 Chromium，只挂这一个组件、不需要后端）：
-  在 360px 宽的栏里塞一个超长群名，量「头像 24px / 头像在标题左 / 标题与备注竖向
-  重叠（同一行）/ 标题与标题行都是 `nowrap` / 超长标题确实被截断（`scrollWidth >
-  clientWidth`）/ 备注不被挤掉且不越界 / 栏高 ≤ 56px」，另存截图
-  `test-results/chat-header.png`。
+  ① **源码级**检查会话列表（`ConversationList`）与标题栏（`ChatPane`）都引用
+  `IM_AVATAR_SIZE`（谁又各写各的尺寸就会红）；② 在 360px 宽的栏里塞一个超长群名，
+  量「头像 40×40 / 头像在标题左 / 标题与备注竖向重叠（同一行）/ 标题与标题行都是
+  `nowrap` / 超长标题确实被截断（`scrollWidth > clientWidth`）/ 备注不被挤掉且不越界 /
+  栏高 ≤ 72px」，另存截图 `test-results/chat-header.png`。
   写这条时踩了一个坑：把外层容器设成**行向** flex 时，标题栏会按 max-content 撑开
   （min-content 贡献算的是 nowrap 文本的全宽），于是「省略号」永远量不到 —— 改成
   列向 flex（与应用里的真实结构一致）才量得准。

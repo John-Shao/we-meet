@@ -35,7 +35,7 @@ import {
   type RecentEmoji,
 } from '../api/inputSync'
 import { markLater } from '../api/markLater'
-import { Avatar } from '../components/Avatar'
+import { Avatar, IM_AVATAR_SIZE } from '../components/Avatar'
 import { ChatHeader } from '../components/ChatHeader'
 import { GroupAvatar } from '../components/GroupAvatar'
 import { MessageInput, type ReplyPreview } from '../components/MessageInput'
@@ -1210,10 +1210,10 @@ export const ChatPane = ({
                 src: names[uid]?.avatar_url || undefined,
               }))}
               customSrc={avatarUrl}
-              size="1.5rem"
+              size={IM_AVATAR_SIZE}
             />
           ) : (
-            <Avatar name={title} src={avatarUrl} size="1.5rem" />
+            <Avatar name={title} src={avatarUrl} size={IM_AVATAR_SIZE} />
           )
         }
         meta={

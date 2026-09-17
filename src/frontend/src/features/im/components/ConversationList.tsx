@@ -6,6 +6,7 @@ import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
 
 import { Avatar } from './Avatar'
+import { IM_AVATAR_SIZE } from './Avatar'
 import { GroupAvatar, type GroupAvatarMember } from './GroupAvatar'
 import { MessageContextMenu, type ContextMenuItem } from './MessageContextMenu'
 import { imConversationTimeLabel } from './imTimeLabels'
@@ -194,10 +195,14 @@ export const ConversationList = ({
                   <GroupAvatar
                     members={groupTiles ?? []}
                     customSrc={avatarOf?.(c)}
-                    size="2.5rem"
+                    size={IM_AVATAR_SIZE}
                   />
                 ) : (
-                  <Avatar name={nameOf(c)} src={avatarOf?.(c)} size="2.5rem" />
+                  <Avatar
+                    name={nameOf(c)}
+                    src={avatarOf?.(c)}
+                    size={IM_AVATAR_SIZE}
+                  />
                 )}
                 <span
                   className={css({

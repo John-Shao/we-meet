@@ -7,11 +7,29 @@
 //   npm run dev
 //   CAPTURE_TEST_ORIGIN=http://localhost:3187 node scripts/check-chat-header.mjs
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { chromium } from '@playwright/test'
 
 const origin = process.env.CAPTURE_TEST_ORIGIN || 'http://localhost:3187'
 const longTitle =
   '这是一个特别特别长的群聊名字用来验证标题栏不会换行也不会把人数挤掉'
+
+// 会话列表与标题栏必须共用同一个头像尺寸常量(飞书里这两处一样大)。
+const avatarSources = [
+  ['会话列表', 'src/features/im/components/ConversationList.tsx'],
+  ['聊天标题栏', 'src/features/im/routes/ChatPane.tsx'],
+]
+for (const [label, relative] of avatarSources) {
+  const source = readFileSync(
+    fileURLToPath(new URL(`../${relative}`, import.meta.url)),
+    'utf8'
+  )
+  assert.ok(
+    source.includes('IM_AVATAR_SIZE'),
+    `${label}(${relative})没有用共享的 IM_AVATAR_SIZE —— 两处各写各的尺寸就会对不上`
+  )
+}
 
 const browser = await chromium.launch({ headless: true })
 try {
@@ -43,7 +61,8 @@ try {
     ).default
     const { ChatHeader } =
       await import('/src/features/im/components/ChatHeader.tsx')
-    const { Avatar } = await import('/src/features/im/components/Avatar.tsx')
+    const { Avatar, IM_AVATAR_SIZE } =
+      await import('/src/features/im/components/Avatar.tsx')
     createRoot(document.getElementById('root')).render(
       React.createElement(
         'div',
@@ -52,7 +71,10 @@ try {
           ChatHeader,
           {
             title: longTitle,
-            avatar: React.createElement(Avatar, { name: '前', size: '1.5rem' }),
+            avatar: React.createElement(Avatar, {
+              name: '前',
+              size: IM_AVATAR_SIZE,
+            }),
             meta: '5 人',
           },
           React.createElement(
@@ -94,8 +116,11 @@ try {
     }
   })
 
-  assert.equal(metrics.avatarBox[0], 24, '头像 24px(飞书那一栏的档)')
-  assert.equal(metrics.avatarBox[1], 24, '头像 24px')
+  assert.deepEqual(
+    metrics.avatarBox,
+    [40, 40],
+    '头像 40px:与会话列表里的头像同一档(IM_AVATAR_SIZE)'
+  )
   assert.equal(metrics.avatarLeftOfTitle, true, '头像在标题左侧')
   assert.equal(metrics.titleAndMetaSameRow, true, '标题与备注必须同一行')
   assert.equal(metrics.titleWhitespace, 'nowrap', '标题不换行')
@@ -109,8 +134,8 @@ try {
   assert.equal(metrics.metaVisible, true, '备注不被标题挤掉(人数必须看得见)')
   assert.equal(metrics.metaInside, true, '备注不越出标题栏')
   assert.ok(
-    metrics.headerHeight <= 56,
-    `标题栏应是一行的高度(48px 上下),实际 ${metrics.headerHeight}px`
+    metrics.headerHeight <= 72,
+    `标题栏应是一行的高度(40px 头像 + 上下各 10px 内边距 = 60px 上下),实际 ${metrics.headerHeight}px`
   )
   await page.screenshot({
     path: 'test-results/chat-header.png',
@@ -118,7 +143,7 @@ try {
   })
   assert.deepEqual(errors, [], `页面不应有运行时错误:${errors.join(' / ')}`)
   console.log(
-    'Chat header passed: 头像 24px + 标题(超长省略)+ 备注「5 人」同一行、不换行,备注不被挤掉;栏高 %dpx。截图:test-results/chat-header.png',
+    'Chat header passed: 头像 40px(与会话列表同档)+ 标题(超长省略)+ 备注「5 人」同一行、不换行,备注不被挤掉;栏高 %dpx。截图:test-results/chat-header.png',
     metrics.headerHeight
   )
 } finally {
