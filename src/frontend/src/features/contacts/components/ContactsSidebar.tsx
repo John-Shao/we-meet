@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  RiArrowLeftDoubleLine,
   RiGroupLine,
   RiHistoryLine,
   RiStarFill,
@@ -12,6 +11,7 @@ import {
 
 import { css, cx } from '@/styled-system/css'
 import { SearchBox } from '@/primitives'
+import { SubNavHeader } from '@/components/SubNav'
 
 import type { DirectoryDepartment } from '../api/ApiDirectory'
 import { DepartmentTree } from './DepartmentTree'
@@ -76,30 +76,14 @@ export const ContactsSidebar = ({
 
   return (
     <aside className={asideCls}>
-      <div className={headerCls}>
-        <h2
-          className={css({
-            margin: 0,
-            fontSize: '1rem',
-            fontWeight: 'bold',
-            color: 'greyscale.900',
-          })}
-        >
-          {t('page.title')}
-        </h2>
-        {/* 收起整栏:窄屏/只想看名单时把 260px 还给中栏。收起后中栏左侧留一条
-            36px 的窄条,「展开」按钮就在那里,任何视图下都找得到。 */}
-        <button
-          type="button"
-          onClick={onCollapse}
-          aria-label={t('page.hideNav')}
-          title={t('page.hideNav')}
-          data-testid="contacts-nav-collapse"
-          className={collapseBtnCls}
-        >
-          <RiArrowLeftDoubleLine size={16} />
-        </button>
-      </div>
+      {/* 栏头走 components/SubNav 的共享定义 —— 通讯录是这套基准的**来源**,现在也
+          折进共享件了:收起按钮的圆角因此从手写的 6px 归到 `control`(8px),与其余
+          模块完全一致。收起后中栏左侧留一条 36px 窄条,「展开」按钮就在那里。 */}
+      <SubNavHeader
+        title={t('page.title')}
+        onCollapse={onCollapse}
+        collapseTestId="contacts-nav-collapse"
+      />
 
       {/* 部门筛选:几十个部门时按名字定位,不必手翻整棵树。 */}
       <SearchBox
@@ -248,29 +232,6 @@ const asideCls = css({
   // 二级导航栏底色的**基准**:消息/日历/任务/会议/审批都对齐这一档
   // (见 panda.config 的 subNavBg)。改这里等于改全站。
   backgroundColor: 'subNavBg',
-})
-
-const headerCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.5rem',
-  paddingX: '1rem',
-  paddingY: '0.75rem',
-})
-const collapseBtnCls = css({
-  flexShrink: 0,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '1.75rem',
-  height: '1.75rem',
-  border: 'none',
-  borderRadius: '6px',
-  background: 'transparent',
-  color: 'greyscale.500',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.800' },
 })
 
 /**

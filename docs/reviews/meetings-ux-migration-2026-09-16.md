@@ -628,15 +628,74 @@ AI 录音页（页头同款按钮 + 导航里的固定入口），不必同一�
 - 收起状态放在 `MeetingNavPanel` 自己身上（通讯录是路由持有 + 窄条在中栏左侧；
   会议模块的栏与窄条都在同一个组件里，组件自己持有就够）。
 - 收起/展开各一条 i18n 文案 `library.hideNav` / `library.showNav`（zh/en；de/fr/nl
-  走 en 兜底）。基元 `IconButton` 的盒子圆角是 `control`(8px)，通讯录那颗手写的是
-  6px —— 会议模块的文件在 `check:foundations` 的收口名单里，不允许写裸 6px，
-  有意保留这 2px 差异。
+  走 en 兜底）。⚠️ 这两条文案与「会议自己手写栏头」的做法在 3.20 里被**共享件取代**：
+  文案改成 `shell` 命名空间的 `collapse` / `expand`（六个模块共用一句），本节保留
+  只是记录当时的过程。
 
 走查新增断言（基准数字写死在脚本里，通讯录那边改了而这边没跟上就会红）：栏头标题
 `16px` / `font-weight: 700`、标题左缘距栏边 `16px`、栏头内边距 `16px`/`12px`、收起按钮
 `28×28`、点击后只留 `36px` 窄条且 `localStorage` 记下 `'1'`、再点展开恢复栏头。另存
 一张收起态截图 `meeting-notes-nav-collapsed.png`。`MeetingNavPanel.test.tsx` 也补了一条
 「收起 → 窄条 → 展开 → 重挂载仍收起」的用例。
+
+### 3.20 二级导航栏栏头收成**一处定义**，铺到六个模块（2026-09-17 追加）
+
+3.19 只是把「会议」一个模块对齐到「通讯录」；这一轮按「消息 / 日历 / 审批 / 任务四
+个模块一起收」的要求，把栏头抽成共享件，五个模块（含会议）全部改用它：
+
+- `components/SubNav.tsx`：`SubNavHeader`（左标题、右动作 + 收起按钮）与
+  `SubNavStrip`（收起后的 36px 窄条 + 展开按钮）。基准数字只写在这里 ——
+  标题 16px / **bold**、栏头内边距 **16px / 12px**、收起按钮 **28×28**、窄条 **36px**；
+  无障碍名默认取 `shell:collapse` / `shell:expand`（「收起导航栏 / 展开导航栏」），
+  五个模块念同一句话。
+- `components/useCollapsibleSubNav.ts`：收起态 + 跨路由持久化（每个模块一个 storage
+  key，存 `'1'`/`'0'`，隐私模式下本会话仍可用）。单独成文件是因为 `SubNav.tsx` 同时
+  导出组件，混着导出 hook 会让 Fast Refresh 失效（eslint 的
+  `react-refresh/only-export-components` 会拦）。
+
+各模块原先的差异（这次一并抹平）：
+
+| 模块 | 标题字号 | 标题左缘 | 收起按钮 |
+| --- | --- | --- | --- |
+| 消息 | 16px ✓ | 16px ✓ | **新增**（栏头最右） |
+| 日历 | 18px（`1.125rem`） | 20px（aside 内边距） | **从内容工具栏搬进栏头**，原来是 32px 文字 `«`/`»`，且收起后没有任何展开入口 |
+| 审批 | 18px | 28px（aside 16 + 标题再补 12） | **新增** |
+| 任务 | 18px | 28px | **新增** |
+| 会议 | 16px ✓ | 16px ✓ | 上一轮已加，这轮改成走共享件 |
+| 通讯录 | 16px ✓ | 16px ✓ | 它有，但**自己手写**（圆角 6px）→ 折进共享件，圆角归到 `control`(8px) |
+
+行为上的一处变化：日历收起后**不再是无路可退** —— 窄条里那颗「展开」在任何视图下
+都在（原先只有内容工具栏那颗 `»`，且工具栏会随视图切换而变化）。
+
+**通讯录也折进共享件了**（2026-09-17 同日追加）：它是这套基准的来源，早先自己手写了
+栏头与窄条、收起按钮圆角写死 6px。现在它同样用 `SubNavHeader` / `SubNavStrip` /
+`useCollapsibleSubNav`（storage key 与文案键沿用原值，用户偏好不丢），因此：
+
+- 圆角统一到 `control`(8px) —— `check:foundations` 本来就不允许写裸 6px，这下没有例外；
+- 窄屏那条路径照旧：同一个按钮在窄屏是「关移动抽屉」，展开按钮是「开移动抽屉」
+  （`compactNav` 分支原样保留）；
+- `contacts.page.hideNav` / `page.showNav` 两条文案随之作废，已从 zh/en/de/fr/nl 五个
+  语言包里删掉（无障碍名改用共享件的 `shell:collapse` / `shell:expand`）。
+
+**未动**：「云文档」（按要求留给单独任务）。
+
+验证：
+
+- 新增 `scripts/check-subnav-panels.mjs`（真实 Chromium，不需要后端）。它做两件事：
+  ① **源码级**检查六个模块确实引用 `SubNavHeader` / `SubNavStrip` /
+  `useCollapsibleSubNav`，且没有哪个模块自己画 `RiArrowLeftDoubleLine`（谁再手写一份
+  栏头就会红）；② 在浏览器里量基准数字：16px / 700 / h2 / 左缘 16px / 内边距 16、12 /
+  收起按钮 28×28 且在最右 / 窄条 36px / 无障碍名两句话 / 收起态写进 localStorage。
+- `components/SubNav.test.tsx` 5 条：收起→窄条→展开→记住、从 storage 恢复、隐私模式下
+  仍可收起、模块动作排在栏头里、toggle 身份稳定。
+- `TaskWorkspaceNavigation.test.tsx` 补 `onCollapse` 并保留原断言；通讯录原有的
+  「收起 → 窄条 → 展开 + 记住」用例（`ContactsRoute.test.tsx`）原样通过；会议走查
+  （`check-meeting-pages-ui.mjs`）继续守着会议侧栏的同一套数字。
+- 全量 `vitest` 161 文件 / 1039 条、lint / prettier / check:json / color / foundation /
+  `tsc -b` / build 全绿。
+
+顺带修掉一处走查里的**断言撞车**：视频会议页「查看全部 / 收起」那颗按钮按 `收起`
+模糊匹配，栏头新增的「收起导航栏」也含这两个字 —— 改成 `exact: true`。
 
 ### 4. 顺带修掉的缺陷
 

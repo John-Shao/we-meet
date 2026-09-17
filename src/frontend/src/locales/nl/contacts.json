@@ -43,8 +43,6 @@
     "deleteDeptConfirm": "Afdeling '{{name}}' verwijderen? De leden worden 'geen afdeling'.",
     "deleteDeptError": "Verwijderen van afdeling mislukt: {{message}}",
     "recent": "Recent",
-    "hideNav": "Navigatie invouwen",
-    "showNav": "Navigatie uitvouwen",
     "selfTag": "(jij)",
     "loadMore": "Meer laden",
     "resultCount": "{{count}} resultaten",

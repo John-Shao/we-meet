@@ -127,6 +127,10 @@ and this project adheres to
   bar: white band, 16px title, tighter padding, borderless actions
 - ♻️(frontend) line the meeting module second-level nav header up with the
   contacts one and let the whole column collapse to a 36px strip
+- ♻️(frontend) share one sub-navigation header across the message, calendar,
+  approval, task and meeting modules, with a collapse button in each
+- ♻️(frontend) fold the contacts sidebar into that shared header too, which
+  also aligns its collapse button radius
 
 ### Fixed
 

@@ -1178,7 +1178,8 @@ try {
     .locator('[data-testid^="scheduled-row-"]')
     .count()
   assert.equal(expandedCount, 14, `展开后显示全部 14 条,实际 ${expandedCount}`)
-  await page.getByRole('button', { name: '收起' }).click()
+  // exact:true 不能省 —— 二级导航栏栏头那颗「收起导航栏」也含「收起」二字。
+  await page.getByRole('button', { name: '收起', exact: true }).click()
   assert.equal(
     await page.locator('[data-testid^="scheduled-row-"]').count(),
     10,

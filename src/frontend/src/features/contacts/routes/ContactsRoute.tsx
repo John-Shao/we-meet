@@ -8,7 +8,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { useLocation, useSearchParams } from 'wouter'
-import { RiArrowLeftLine, RiLayoutLeftLine } from '@remixicon/react'
+import { RiArrowLeftLine } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
 import { Button, SearchBox } from '@/primitives'
@@ -19,6 +19,8 @@ import { createDirectConversationByUserId } from '@/features/im/api/createDirect
 import { createGroupConversation } from '@/features/im/api/createGroupConversation'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { SubNavStrip } from '@/components/SubNav'
+import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 import { useMediaQuery } from '@/features/rooms/livekit/hooks/useMediaQuery'
@@ -169,27 +171,12 @@ const ContactsAuthenticated = () => {
   const [recentIds, setRecentIds] = useState<string[]>(() =>
     readRecentDepartments()
   )
-  const [navCollapsed, setNavCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem(NAV_COLLAPSED_KEY) === '1'
-    } catch {
-      return false
-    }
-  })
+  // 收起态走共享 hook(同一个 storage key,用户偏好不丢)。
+  const { collapsed: navCollapsed, toggle: toggleNav } =
+    useCollapsibleSubNav(NAV_COLLAPSED_KEY)
   const narrowDetail = useMediaQuery(NARROW_DETAIL_QUERY)
   const compactNav = useMediaQuery('(max-width: 767px)')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-
-  const toggleNav = () => {
-    setNavCollapsed((prev) => {
-      try {
-        localStorage.setItem(NAV_COLLAPSED_KEY, prev ? '0' : '1')
-      } catch {
-        // 隐私模式:这次会话里仍然能收起/展开,只是不记住。
-      }
-      return !prev
-    })
-  }
 
   // ── URL 即状态 ──────────────────────────────────────────────────────────
   const [searchParams, setSearchParams] = useSearchParams()
@@ -898,20 +885,12 @@ const ContactsAuthenticated = () => {
       })}
     >
       {navCollapsed || compactNav ? (
-        // 收起态:只留一条 36px 窄条,把 260px 还给名单。按钮放在这里而不是中栏
-        // 的页头里 —— 群组/外部联系人视图没有同一个页头,放那儿就找不到了。
-        <div className={navStripCls}>
-          <button
-            type="button"
-            onClick={() => (compactNav ? setMobileNavOpen(true) : toggleNav())}
-            aria-label={t('page.showNav')}
-            title={t('page.showNav')}
-            data-testid="contacts-nav-expand"
-            className={navStripBtnCls}
-          >
-            <RiLayoutLeftLine size={16} />
-          </button>
-        </div>
+        // 收起态:只留一条 36px 窄条(components/SubNav 的共享定义),把 260px 还给
+        // 名单。窄屏那一档走的是移动抽屉:同一个按钮既收起抽屉也展开抽屉。
+        <SubNavStrip
+          testId="contacts-nav-expand"
+          onExpand={() => (compactNav ? setMobileNavOpen(true) : toggleNav())}
+        />
       ) : (
         <ResizablePanel
           storageKey="we-meet:contacts-dept-width"
@@ -1279,33 +1258,6 @@ const listHeaderCls = css({
   paddingRight: `calc(1rem + var(--contacts-gutter, ${SCROLLBAR_GUTTER_FALLBACK}px))`,
   paddingY: '0.625rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
-})
-
-/** 左栏收起后的窄条:恒定留在最左侧,所以「展开」在任何视图下都能找到。 */
-const navStripCls = css({
-  flexShrink: 0,
-  width: '36px',
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  paddingTop: '0.75rem',
-  borderRight: '1px solid token(colors.greyscale.200)',
-  // 收起后的窄条仍是二级导航栏的一部分,底色跟着左栏走。
-  backgroundColor: 'subNavBg',
-})
-const navStripBtnCls = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: '1.75rem',
-  height: '1.75rem',
-  border: 'none',
-  borderRadius: '6px',
-  background: 'transparent',
-  color: 'greyscale.500',
-  cursor: 'pointer',
-  _hover: { backgroundColor: 'greyscale.100', color: 'greyscale.800' },
 })
 
 /** 窄屏的右栏浮层:盖住内容区,自带一条返回栏。 */

@@ -42,8 +42,6 @@
     "deleteDeptConfirm": "确定删除部门「{{name}}」？该部门下的成员将变为「无部门」。",
     "deleteDeptError": "删除部门失败：{{message}}",
     "recent": "最近访问",
-    "hideNav": "收起导航",
-    "showNav": "展开导航",
     "selfTag": "(我)",
     "loadMore": "加载更多",
     "resultCount": "找到 {{count}} 人",

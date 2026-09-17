@@ -43,8 +43,6 @@
     "deleteDeptConfirm": "Abteilung „{{name}}“ löschen? Ihre Mitglieder werden „keine Abteilung“.",
     "deleteDeptError": "Abteilung konnte nicht gelöscht werden: {{message}}",
     "recent": "Zuletzt",
-    "hideNav": "Navigation einklappen",
-    "showNav": "Navigation ausklappen",
     "selfTag": "(Sie)",
     "loadMore": "Mehr laden",
     "resultCount": "{{count}} Ergebnisse",

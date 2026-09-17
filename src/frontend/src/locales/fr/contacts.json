@@ -43,8 +43,6 @@
     "deleteDeptConfirm": "Supprimer le service « {{name}} » ? Ses membres passeront en « aucun service ».",
     "deleteDeptError": "Échec de la suppression du service : {{message}}",
     "recent": "Récents",
-    "hideNav": "Réduire la navigation",
-    "showNav": "Développer la navigation",
     "selfTag": "(vous)",
     "loadMore": "Charger plus",
     "resultCount": "{{count}} résultats",

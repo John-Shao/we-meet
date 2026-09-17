@@ -1,7 +1,7 @@
 // 「二级导航栏」共享栏头的走查(真实 Chromium,不需要后端)。
 //
 // 守两件事:
-//   ① 栏头只有**一处定义**:消息 / 日历 / 审批 / 任务 / 会议五个模块都得用
+//   ① 栏头只有**一处定义**:消息 / 日历 / 审批 / 任务 / 会议六个模块都得用
 //      components/SubNav 的 SubNavHeader + SubNavStrip,不许再手写一份
 //      (手写的那几份原先标题分别落在 16 / 20 / 28px 三个位置,收起按钮的位置
 //       也各不相同)。这条是源码级检查,避免「改了共享件但某个模块没跟上」。
@@ -19,7 +19,7 @@ import { chromium } from '@playwright/test'
 const origin = process.env.CAPTURE_TEST_ORIGIN || 'http://localhost:3187'
 
 /**
- * 五个模块的二级导航栏载体:源码级检查它们确实走共享件。
+ * 六个模块的二级导航栏载体:源码级检查它们确实走共享件。
  * 一个模块可能拆两个文件 —— 面板组件 + 持有收起态的路由(通讯录那套写法)。
  */
 const modules = [
@@ -40,6 +40,14 @@ const modules = [
     ],
   ],
   ['会议', ['src/features/meetings/components/MeetingNavPanel.tsx']],
+  // 通讯录是这套基准的来源,2026-09-17 也折进共享件了(圆角一并归到 control)。
+  [
+    '通讯录',
+    [
+      'src/features/contacts/components/ContactsSidebar.tsx',
+      'src/features/contacts/routes/ContactsRoute.tsx',
+    ],
+  ],
 ]
 
 const failures = []
@@ -181,7 +189,7 @@ try {
   assert.equal(
     metrics.collapseLabel,
     '收起导航栏',
-    '五个模块共用同一句无障碍名'
+    '六个模块共用同一句无障碍名'
   )
 
   await page.getByTestId('check-collapse').click()
@@ -206,7 +214,7 @@ try {
   })
   assert.deepEqual(errors, [], `页面不应有运行时错误:${errors.join(' / ')}`)
   console.log(
-    'Sub nav passed: 五个模块共用 components/SubNav 的栏头;基准 16px/bold + 16/12 内边距 + 28×28 收起按钮 + 36px 窄条 + 同一句无障碍名。截图:test-results/subnav-collapsed.png'
+    'Sub nav passed: 六个模块共用 components/SubNav 的栏头;基准 16px/bold + 16/12 内边距 + 28×28 收起按钮 + 36px 窄条 + 同一句无障碍名。截图:test-results/subnav-collapsed.png'
   )
 } finally {
   await browser.close()
