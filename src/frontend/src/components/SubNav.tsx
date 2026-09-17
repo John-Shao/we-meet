@@ -34,7 +34,9 @@ const headerCls = css({
   justifyContent: 'space-between',
   gap: 'sm',
   paddingX: 'lg',
-  paddingY: 'md',
+  paddingY: 'sm',
+  // 栏高与内容区标题栏(TitleBar)统一到 48px —— 一级页左栏与右栏两条头同高。
+  minHeight: 'controlHeight.large',
 })
 
 const titleCls = css({

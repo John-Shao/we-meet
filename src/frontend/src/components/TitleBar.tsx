@@ -11,11 +11,10 @@ import { css } from '@/styled-system/css'
  *   ① 标题与备注**同一行、不换行** —— 原先「标题 + 人数」上下两行的地方
  *      （任务「我负责的 / 5 个任务」、通讯录「内部联系人 / 14 人」）一长就高一截；
  *   ② 标题可被挤到省略号，备注 `flexShrink: 0` 不被挤掉（人数/结果数是最该看见的）；
- *   ③ 几何统一：内边距 16/8、`min-height: 3rem`、1px 底分割线、白底。
- *      有 40px 前导头像时栏高自然落到 57px（40 + 8×2 + 1），无前导时 48px。
- *
- * 「消息」的会话列表与聊天窗口标题栏、任务 / 通讯录 / 审批的内容标题栏都走这里
- * —— 六处曾各写各的：标题 15 / 16 / 18px 三种、备注有的在下一行、栏高 48~64px。
+ *   ③ 几何统一：**栏高一律 48px**（`controlHeight.large`，与二级导航栏、任务/通讯录/
+ *      审批、会议四个一级页的标题栏同高）、1px 底分割线、白底。无前导时靠 8px 纵向
+ *      内边距撑到 48；有 40px 前导头像时内边距收到 4px —— 48 是这个栏的**高度基准**，
+ *      不因为放了个头像就长高。
  */
 export const TitleBar = ({
   leading,
@@ -42,7 +41,13 @@ export const TitleBar = ({
 }) => (
   <div
     className={barCls}
-    style={paddingRight ? ({ paddingRight } as CSSProperties) : undefined}
+    style={
+      {
+        ...(paddingRight ? { paddingRight } : {}),
+        // 40px 前导装进 48px 的栏:上下各 4px(内联样式,不与 barCls 抢同一个原子类)。
+        ...(leading ? { paddingTop: '4px', paddingBottom: '4px' } : {}),
+      } as CSSProperties
+    }
     data-testid="title-bar"
   >
     {leading && (

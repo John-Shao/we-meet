@@ -288,6 +288,14 @@ const assertUnifiedPageChrome = async (label) => {
     const title = main.querySelector('h1')
     // 副标题已删(2026-09-17):页头里不该再有说明性段落。
     const leadCount = main.querySelectorAll('header p').length
+    // 标题栏高度:固定区顶边 → 标题行底边,基准 48px(与任务/通讯录/审批的
+    // TitleBar、以及二级导航栏栏头同高)。
+    const fixedTopBox = fixedTop?.getBoundingClientRect()
+    const headerBox = main.querySelector('header')?.getBoundingClientRect()
+    const titleBandHeight =
+      fixedTopBox && headerBox
+        ? Math.round(headerBox.bottom - fixedTopBox.top)
+        : null
     const rowStyle = firstRow ? getComputedStyle(firstRow) : null
     return {
       shell: getComputedStyle(main).backgroundColor,
@@ -296,6 +304,7 @@ const assertUnifiedPageChrome = async (label) => {
       titleSize: title ? getComputedStyle(title).fontSize : null,
       titleWeight: title ? getComputedStyle(title).fontWeight : null,
       leadCount,
+      titleBandHeight,
       rowBackground: rowStyle?.backgroundColor ?? null,
       rowBorder: rowStyle?.borderTopWidth ?? null,
     }
@@ -324,6 +333,11 @@ const assertUnifiedPageChrome = async (label) => {
     chrome.titleWeight,
     '600',
     `${label}:标题字重应是 semibold(600),实际 ${chrome.titleWeight}`
+  )
+  assert.equal(
+    chrome.titleBandHeight,
+    48,
+    `${label}:标题栏高度应与任务/通讯录/审批同档 48px,实际 ${chrome.titleBandHeight}px`
   )
   assert.equal(
     chrome.leadCount,
@@ -677,6 +691,9 @@ try {
       titleLeft: Math.round(titleBox.left - asideBox.left),
       paddingTop: headerStyle.paddingTop,
       paddingLeft: headerStyle.paddingLeft,
+      headerHeight: Math.round(
+        title.parentElement.getBoundingClientRect().height
+      ),
       collapseWidth: Math.round(collapseBox.width),
       collapseHeight: Math.round(collapseBox.height),
     }
@@ -689,8 +706,8 @@ try {
     16,
     '栏头标题左缘应距栏边 16px(与通讯录一致)'
   )
-  // 栏头几何量的是**内边距**(16/12),不是标题盒子的上缘 —— 那个数还受行高影响
-  // (`titleMedium` 的行高是 24,通讯录那边继承行高),量内边距才是两边真正对齐的那条。
+  // 栏头几何量的是**内边距**(16/8)与**栏高**(48),不是标题盒子的上缘 —— 那个数还
+  // 受行高影响(`titleMedium` 的行高是 24),两边真正对齐的是这两条。
   assert.equal(
     navHeader.paddingLeft,
     '16px',
@@ -698,8 +715,13 @@ try {
   )
   assert.equal(
     navHeader.paddingTop,
-    '12px',
-    '栏头上内边距应为 12px(与通讯录一致)'
+    '8px',
+    '栏头上内边距应为 8px(与通讯录一致)'
+  )
+  assert.equal(
+    navHeader.headerHeight,
+    48,
+    '栏头高度应为 48px(与内容区标题栏同高)'
   )
   assert.deepEqual(
     [navHeader.collapseWidth, navHeader.collapseHeight],

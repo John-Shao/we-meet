@@ -135,6 +135,8 @@ and this project adheres to
   title and an optional note such as the member count
 - ♻️(frontend) share that title bar as one component across the message, task,
   contacts and approval modules, with a tighter 8px vertical padding
+- 🎨(frontend) give every module title bar and sub-navigation header the same
+  48px height, instead of 48 / 52 / 57 / 60 depending on the page
 
 ### Fixed
 

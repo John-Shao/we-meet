@@ -45,7 +45,9 @@ export const pageShell = (surface: 'canvas' | 'default' = 'canvas') =>
 export const pageFixedTop = css({
   flexShrink: 0,
   paddingX: 'lg',
-  paddingTop: 'md',
+  // 顶部不再留白:标题栏自身高度收在 pageHeaderText 的纵向内边距里 —— 这样
+  // 「固定区顶边 → 标题行底边」正好 48px,与任务/通讯录/审批的标题栏同高。
+  paddingTop: 0,
   backgroundColor: 'surface.default',
   borderBottom: '1px solid token(colors.border.subtle)',
 })
@@ -126,6 +128,8 @@ export const pageHeaderText = css({
   flexDirection: 'column',
   gap: 'xs',
   minWidth: 0,
+  // 8px 纵向内边距 + 32px 动作行 = 48px 标题栏(pageHeaderRow 的 minHeight 兜底)。
+  paddingY: 'sm',
 })
 
 /**

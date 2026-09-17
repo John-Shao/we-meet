@@ -168,6 +168,7 @@ try {
       titleLeft: Math.round(titleBox.left - asideBox.left),
       paddingX: headerStyle.paddingLeft,
       paddingY: headerStyle.paddingTop,
+      headerHeight: Math.round(header.getBoundingClientRect().height),
       collapseBox: [
         Math.round(collapseBox.width),
         Math.round(collapseBox.height),
@@ -183,7 +184,12 @@ try {
   assert.equal(metrics.titleTag, 'H2', '栏头标题是 h2(与通讯录同档)')
   assert.equal(metrics.titleLeft, 16, '标题左缘距栏边 16px')
   assert.equal(metrics.paddingX, '16px', '栏头左内边距 16px')
-  assert.equal(metrics.paddingY, '12px', '栏头上内边距 12px')
+  assert.equal(metrics.paddingY, '8px', '栏头上内边距 8px')
+  assert.equal(
+    metrics.headerHeight,
+    48,
+    '栏头高度 48px:与内容区标题栏(TitleBar)同高'
+  )
   assert.deepEqual(metrics.collapseBox, [28, 28], '收起按钮 28×28')
   assert.equal(metrics.actionBeforeCollapse, true, '收起按钮在最右端')
   assert.equal(
@@ -214,7 +220,7 @@ try {
   })
   assert.deepEqual(errors, [], `页面不应有运行时错误:${errors.join(' / ')}`)
   console.log(
-    'Sub nav passed: 六个模块共用 components/SubNav 的栏头;基准 16px/bold + 16/12 内边距 + 28×28 收起按钮 + 36px 窄条 + 同一句无障碍名。截图:test-results/subnav-collapsed.png'
+    'Sub nav passed: 六个模块共用 components/SubNav 的栏头;基准 16px/bold + 16/8 内边距 + 48px 栏高 + 28×28 收起按钮 + 36px 窄条 + 同一句无障碍名。截图:test-results/subnav-collapsed.png'
   )
 } finally {
   await browser.close()
