@@ -109,6 +109,9 @@ and this project adheres to
   table with an owner column and creation-time sorting
 - 🩹(frontend) fit all four meeting-module pills on a 390px screen
 - 🩹(frontend) dismiss leftover tooltips before the walkthrough screenshots
+- 🩹(frontend) keep the task filter toolbar on one horizontally scrollable row
+- 🩹(frontend) anchor the task toolbar menus with fixed coordinates so the
+  scrollable row cannot clip them
 
 ## [1.16.0] - 2026-05-13
 

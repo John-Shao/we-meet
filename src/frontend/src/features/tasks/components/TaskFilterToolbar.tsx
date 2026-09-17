@@ -43,6 +43,7 @@ import {
   normalizeTaskColumnOrder,
   type TaskWorkspaceState,
 } from '../taskWorkspaceState'
+import { useAnchoredPanel } from './useAnchoredPanel'
 
 const statusFilters: TaskStatusFilter[] = ['open', 'completed', 'all']
 const timeFilters: TaskTimeFilter[] = [
@@ -147,6 +148,10 @@ export const TaskFilterToolbar = ({
     position: FieldDropPosition
   }>()
   const [droppedColumn, setDroppedColumn] = useState<TaskColumnId>()
+  // 两个 <details> 面板挂在 fixed 坐标上(见 useAnchoredPanel):面板开关仍由
+  // <details>.open 管,hook 只从原生 toggle 事件里读状态、按触发元素算坐标。
+  const orderingPanelPosition = useAnchoredPanel(orderingPickerRef)
+  const columnPanelPosition = useAnchoredPanel(columnPickerRef)
   const configuredColumns = state.columns
   const columnOrder = normalizeTaskColumnOrder(
     state.columnOrder,
@@ -492,7 +497,7 @@ export const TaskFilterToolbar = ({
                     <RiArrowUpLine size={15} aria-hidden="true" />
                   ))}
               </summary>
-              <div>
+              <div style={orderingPanelPosition}>
                 <button
                   type="button"
                   className={smartOrderingOptionCss}
@@ -549,7 +554,7 @@ export const TaskFilterToolbar = ({
             <span>{t('workspace.fieldSettings')}</span>
             <details ref={columnPickerRef} className={columnPickerCss}>
               <summary>{t('workspace.displayAndOrdering')}</summary>
-              <div>
+              <div style={columnPanelPosition}>
                 <div className={columnPickerActionsCss}>
                   <Button
                     variant="secondaryText"
@@ -695,9 +700,16 @@ const filterRegionCss = css({
 })
 const toolbarCss = css({
   display: 'flex',
-  flexWrap: 'wrap',
+  // 单行横向可滑:六个控件一行合计约 880px,而 1024px 窗口下内容列只有 ~590px,
+  // 折行会把「分组 / 排序 / 字段设置」甩到第二行右对齐(看着像排版坏了)。这里
+  // 永远只有一行,放不下就整行横滑。
+  flexWrap: 'nowrap',
   alignItems: 'end',
   gap: '0.5rem',
+  overflowX: 'auto',
+  // 内边距与改动前一致:宽屏不横滑时最后一组距右边缘 16px;横滑到底时同一个
+  // padding-right 也吃得住(Chromium 对 flex 滚动容器会算上尾部内边距,走查里
+  // 有一条断言锁住这 16px,浏览器哪天改了会直接红)。
   padding: '0.625rem 1rem',
   fontSize: '0.8125rem',
   '& label': { fontSize: '0.8125rem', fontWeight: 'medium' },
@@ -708,16 +720,17 @@ const filterSelectCss = css({
   flexDirection: 'column',
   gap: '0.25rem',
   minWidth: '8rem',
+  flexShrink: 0,
 })
 const orderingControlCss = css({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.25rem',
   minWidth: '11rem',
+  flexShrink: 0,
   '& > span': { fontSize: '0.8125rem', fontWeight: 'medium' },
 })
 const orderingPickerCss = css({
-  position: 'relative',
   '& summary': {
     minHeight: '2rem',
     display: 'flex',
@@ -733,11 +746,12 @@ const orderingPickerCss = css({
     '&::-webkit-details-marker': { display: 'none' },
     '& svg': { color: 'primary.600', flexShrink: 0 },
   },
+  // 面板位置由 useAnchoredPanel 按触发元素算(内联 top/right/maxHeight):
+  // fixed 才不会被工具栏那个横滑裁剪区域整块吃掉。
   '& > div': {
-    position: 'absolute',
+    position: 'fixed',
     zIndex: 'docked',
-    top: 'calc(100% + 0.25rem)',
-    right: 0,
+    overflowY: 'auto',
     minWidth: '15rem',
     padding: '0.375rem',
     border: '1px solid token(colors.greyscale.200)',
@@ -785,20 +799,21 @@ const orderingOptionRowCss = css({
 })
 const displaySettingsCss = css({
   display: 'flex',
-  flexWrap: 'wrap',
+  flexWrap: 'nowrap',
   alignItems: 'end',
   justifyContent: 'flex-end',
   gap: '0.5rem',
   marginLeft: 'auto',
+  flexShrink: 0,
 })
 const columnPickerControlCss = css({
   display: 'flex',
   flexDirection: 'column',
   gap: '0.25rem',
+  flexShrink: 0,
   '& > span': { fontSize: '0.8125rem', fontWeight: 'medium' },
 })
 const columnPickerCss = css({
-  position: 'relative',
   '& summary': {
     minHeight: '2rem',
     display: 'flex',
@@ -810,14 +825,14 @@ const columnPickerCss = css({
     cursor: 'pointer',
     listStyle: 'none',
   },
+  // 与排序面板同一处理:fixed + 内联坐标,否则会被工具栏的横滑裁剪区域裁掉。
   '& > div': {
-    position: 'absolute',
+    position: 'fixed',
     // Keep the picker above the task table's sticky column headers. `dropdown`
     // is not a defined project z-index token and was therefore ignored by the
     // browser, leaving the sticky headers (z-index: 1) on top of this panel.
     zIndex: 'docked',
-    top: 'calc(100% + 0.25rem)',
-    right: 0,
+    overflowY: 'auto',
     minWidth: '15rem',
     display: 'grid',
     gap: '0.5rem',

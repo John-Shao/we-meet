@@ -49,3 +49,20 @@
 ## 下次续接
 
 本轮审查列出的六类问题已完成实现与上述验证。若继续发布验收，应在完整本地服务启动后执行 `docs/features/task_e2e_testing.md` 中的真实登录流程，并在发布环境应用迁移。通讯录和布局的其他未提交改动属于本轮开始前的工作区内容，后续提交时应按任务范围审阅拆分。
+
+## 追加：筛选工具栏改成单行横向可滑（2026-09-17）
+
+问题（生产截图，1020px 窗口）：工具栏是 `flex-wrap: wrap`，六个控件合计约 851px，而任务内容列只有约 588px，于是「分组 / 排序 / 字段设置」被折到第二行、靠 `margin-left: auto` 贴在右侧，第一行右边留一大块空白，看着像排版坏了。
+
+- `toolbarCss`：`flex-wrap: nowrap` + `overflow-x: auto`，内边距维持 `0.625rem 1rem`（宽屏与横滑到底都是同一档 16px 右边距，Chromium 会算上滚动容器的尾部内边距 —— 走查里有断言锁住）；三个筛选与显示设置组加 `flexShrink: 0`，宽度不被压扁。
+- **两个 `<details>` 面板必须挂 fixed**：`overflow-x: auto` 会把 `overflow-y` 也算成 `auto`，行内 `position: absolute` 的面板被整块裁掉 —— 实测面板高 162px、**可视高度 0**。新增 `useAnchoredPanel`：从 `<details>` 的原生 `toggle` 事件读开关，按触发元素算 `top/right/maxHeight`，滚动（捕获阶段）与缩放时跟随，触发元素滑出视口时把面板钳回视口内。面板仍是 `<details>` 的 DOM 子节点，所以「点外面关闭 / Escape 关闭」的逻辑一行没改。
+- 宽屏回归不变：内容放得下时不出现横滑，显示设置组仍由 `margin-left: auto` 贴右。
+
+验证：
+
+- 新增走查 `scripts/check-task-filter-toolbar-ui.mjs`（真实 Chromium，只挂这一个组件，不需要后端）：588px 下必须**只有一行**且 `scrollWidth > clientWidth`、两个面板 `position: fixed` 且完整可见（高 > 100px，改之前是 0）、横滑到底后面板仍在视口内且留 16px 尾距、1400px 下不横滑且右边距 16px；截图 `test-results/task-filter-toolbar.png`。
+- `useAnchoredPanel` 单测 4 条：锚点偏移、滑出视口时钳位、关闭时清空坐标、无布局时不写坐标。
+- 全量 `npx vitest run` 160 文件 / 1033 条通过；lint / prettier / color / foundation / `tsc -b` 通过。
+
+**未完成**：`e2e/tasks.responsive.spec.ts-snapshots/` 下 4 张视觉快照需要重跑 `npx playwright test --update-snapshots` —— 本机没有起 compose 的任务后端，跑不了。这 4 张自 2026-08-31 起就已经与代码脱节（那时工具栏才加上「分组 / 排序 / 字段设置」，而快照是 08-27 拍的，`tasks-web-1024.png` 里根本没有那一组），所以不是这次改动引入的偏差，但改动后差异只会更大，发布前需要在有完整服务的地方重基线一次。
+
