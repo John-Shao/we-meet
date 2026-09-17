@@ -173,8 +173,8 @@ export function RecordingOverview() {
               <h1 className={pageTitle}>{t('library.record')}</h1>
               <p className={pageLead}>{t('library.recordHint')}</p>
             </div>
-            {/* 与「会议实录」页头同一套工具按钮:同一档 action 尺寸 + 18px 图标,
-                右对齐。原先这里是两枚大入口块,四个页面因此各长一个样。 */}
+            {/* 页头动作与其它栏目页同一档:headerActions 里放 action 尺寸 + 18px 图标的
+                按钮,右对齐。这一页是「录制/导入」两个动作的归属页,会议实录页只查/看。 */}
             {enabled && (
               <div className={headerActions}>
                 <RecordingUpload

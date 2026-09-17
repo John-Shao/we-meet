@@ -311,6 +311,17 @@ try {
     2,
     '实录页仍然是「进行中 + 历史记录」两组'
   )
+  // 这一页只查/看:「上传」和「录音」两个动作都不在这儿(都归 AI 录音页)。
+  assert.equal(
+    await page.getByRole('button', { name: 'upload.open' }).count(),
+    0,
+    '会议实录页不应再有「上传」按钮'
+  )
+  assert.equal(
+    await page.getByRole('button', { name: '录音', exact: true }).count(),
+    0,
+    '会议实录页不应再有「录音」按钮'
+  )
 
   // ① 左右不留白:页壳铺满内容列(不再有 1120px 居中版心),卡片左右各只留一档
   //    16px 页边距。
@@ -500,8 +511,8 @@ try {
   // ── AI 录音 ──────────────────────────────────────────────────────────────
   await page.evaluate(() => history.replaceState({}, '', '/meeting/recording'))
   await mount('recording', {})
-  // 页头工具按钮与实录同款:同一个「录音」动作现在是一枚 action 按钮(带图标),
-  // 不再是页面里的大入口块 —— 四个页面因此共用一套工具按钮。
+  // 页头工具按钮:action 尺寸 + 图标。「录音 / 导入」现在只属于这一页
+  // (会议实录页只保留「搜索会议 AI」),而且不再是页面里的大入口块。
   const recordButton = page.getByRole('button', { name: '录音', exact: true })
   await recordButton.waitFor()
   assert.equal(

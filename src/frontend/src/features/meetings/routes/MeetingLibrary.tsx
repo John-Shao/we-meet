@@ -44,7 +44,6 @@ import {
 } from '../components/libraryStyles'
 import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
-import { RecordingUpload } from '../components/RecordingUpload'
 import type { MeetingRecordFilters } from '../api/ApiMeetingRecord'
 
 /** 工具行:范围筛选在左,紧凑图标动作在右。 */
@@ -434,20 +433,8 @@ export function Library({
                   {t('minutesReader.searchMeetings')}
                 </Button>
               )}
-              {!minutes && (
-                <>
-                  <RecordingUpload viewerId={viewerId} />
-                  {config?.meeting_records?.capture_audio_enabled && (
-                    <Button
-                      size="action"
-                      icon={<RiMicLine size={18} aria-hidden />}
-                      onPress={() => navigate('/meeting/recording/capture')}
-                    >
-                      {t('library.startRecording')}
-                    </Button>
-                  )}
-                </>
-              )}
+              {/* 「上传」和「录音」不再挂在这一页上:两个动作都在 AI 录音页
+                  (页头同款按钮 + 导航里的固定入口),实录页只负责查/看。 */}
             </div>
           </header>
           {/* 范围筛选走共享分段控件,两个页面统一用 underline:同一档工具按钮,

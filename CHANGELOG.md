@@ -99,6 +99,8 @@ and this project adheres to
   calls are started again, instead of piling up empty rooms
 - 🩹(backend) refresh the room creation tests that still expected a slugified
   meeting code instead of the generated 8-digit one
+- 🩹(frontend) drop the upload and record buttons from the meeting records
+  page, which now only reads and searches
 
 ## [1.16.0] - 2026-05-13
 
