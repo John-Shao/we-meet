@@ -3,6 +3,7 @@ Test rooms API endpoints in the Meet core app: create.
 """
 
 # pylint: disable=redefined-outer-name,unused-argument
+import re
 from datetime import timedelta
 
 from django.core.cache import cache
@@ -11,6 +12,7 @@ from django.utils import timezone
 import pytest
 from rest_framework.test import APIClient
 
+from ... import models
 from ...factories import MeetingSessionFactory, RoomFactory, UserFactory
 from ...models import Room
 
@@ -160,7 +162,8 @@ def test_api_rooms_create_authenticated(reset_cache):
     assert response.status_code == 201
     room = Room.objects.get()
     assert room.name == "my room"
-    assert room.slug == "my-room"
+    # 会议号不再是名字的 slugify,而是服务端生成的 8 位数字(Room.generate_unique_slug)。
+    assert re.fullmatch(r"\d{8}", room.slug)
     assert room.accesses.filter(role="owner", user=user).exists() is True
 
     rooms_data = cache.keys("room-creation-callback_*")
@@ -184,30 +187,41 @@ def test_api_rooms_create_generation_cache(reset_cache):
     assert response.status_code == 201
     room = Room.objects.get()
     assert room.name == "my room"
-    assert room.slug == "my-room"
+    assert re.fullmatch(r"\d{8}", room.slug)
     assert room.accesses.filter(role="owner", user=user).exists() is True
 
     room_data = cache.get("room-creation-callback_1234")
-    assert room_data.get("slug") == "my-room"
+    assert room_data.get("slug") == room.slug
 
 
-def test_api_rooms_create_authenticated_existing_slug():
+def test_api_rooms_create_gives_each_room_its_own_meeting_code():
     """
-    A user trying to create a room with a name that translates to a slug that already exists
-    should receive a 400 error.
+    同名建房不再撞 slug:会议号由服务端生成,和名字无关,所以两个「my room」各有各的号。
     """
-    RoomFactory(name="my room")
     user = UserFactory()
 
     client = APIClient()
     client.force_login(user)
 
-    response = client.post(
-        "/api/v1.0/rooms/",
-        {
-            "name": "My Room!",
-        },
-    )
+    first = client.post("/api/v1.0/rooms/", {"name": "my room"})
+    second = client.post("/api/v1.0/rooms/", {"name": "My Room!"})
 
-    assert response.status_code == 400
-    assert response.json() == {"slug": ["Room with this Slug already exists."]}
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json()["slug"] != second.json()["slug"]
+    assert Room.objects.count() == 2
+
+
+def test_generate_unique_slug_skips_a_code_that_is_taken(monkeypatch):
+    """
+    生成器撞上已有会议号时必须重试,而不是把重复值返回出去(那会撞唯一约束)。
+
+    secrets.randbelow 被喂成「先返回已占用的号、再返回下一个」,验证它真的重试了。
+    注意显式给一个数字会议号:RoomFactory 默认用的是名字的 slugify,与生产不一致。
+    """
+    taken = RoomFactory(slug="00123456").slug
+
+    values = iter([int(taken), int(taken) + 1])
+    monkeypatch.setattr(models.secrets, "randbelow", lambda _max: next(values))
+
+    assert Room().generate_unique_slug() != taken

@@ -357,9 +357,27 @@ Closed 2 room(s) older than 86400s (cutoff 2026-09-15T16:04:17+00:00).
 
 **验证**：`core/tests/rooms/test_api_rooms_create.py` 新增 6 条用例（复用命中并返回同一个
 id/slug、开过会后新建、结束后新建、带 `scheduled_at` 时新建、不抢别人的同名房、不同名
-各自建房）全部通过。整个 `core/tests/rooms` 目录在改动前后**失败数一致（31 条，差异为空）**
-—— 那 31 条是既有的：3 条还在断言 slug 是 `my-room`（实际早已改成 8 位数字），其余是缺
-S3 / LiveKit 等 compose 依赖的环境问题。
+各自建房）全部通过。整个 `core/tests/rooms` 目录在改动前后**失败数一致（31 条，差异为空）**。
+
+### 3.8 顺手修掉 3 条过期的建房断言（2026-09-17 追加）
+
+3.7 那 31 条既有失败里有 3 条是**断言过期**（不是环境问题），已修：
+
+- 会议号早就从「名字的 slugify」改成服务端生成的 8 位数字（`Room.save()` →
+  `Room.generate_unique_slug()`，`secrets.randbelow` + 重试 + `zfill(8)`），而
+  `test_api_rooms_create_authenticated` / `..._generation_cache` 还在断言
+  `room.slug == "my-room"`。现在断言 `\d{8}`；缓存里的 slug 改成与建出来的房间比对。
+- `test_api_rooms_create_authenticated_existing_slug` 的前提已经不存在（同名建房不再
+  撞 slug），拆成两条更贴近现状的：**同名两个房间各有各的会议号**（会议号与名字无关），
+  以及**生成器撞上已占用的号会重试**（monkeypatch `secrets.randbelow` 喂「先返回占用的、
+  再返回下一个」）。
+  注意：`RoomFactory` 默认用名字的 slugify 生成 slug，与生产不一致，所以那条用例显式
+  传了数字 slug。
+
+结果：`core/tests/rooms` 失败数 **31 → 28**，消失的正好是这 3 条、无新增失败。剩下 28 条
+是既有的环境问题（缺 S3 / LiveKit 等 compose 依赖）与 `test_api_rooms_retrieve.py` 里
+一批**响应结构过期**的断言（`response.json()` 精确比对，多出的字段没跟上）——后者性质
+相同，属于下一批可以顺手清的。
 
 ### 4. 顺带修掉的缺陷
 

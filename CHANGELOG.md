@@ -97,6 +97,8 @@ and this project adheres to
   production so delivery can be checked from the pod logs
 - ✨(backend) reuse the caller's own unstarted room when quick meetings or chat
   calls are started again, instead of piling up empty rooms
+- 🩹(backend) refresh the room creation tests that still expected a slugified
+  meeting code instead of the generated 8-digit one
 
 ## [1.16.0] - 2026-05-13
 
