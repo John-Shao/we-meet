@@ -289,7 +289,7 @@ export const Home = () => {
                       </Button>
                       <DialogTrigger>
                         <Button
-                          variant="secondary"
+                          variant="secondaryText"
                           size="action"
                           icon={<RiAddBoxLine size={18} aria-hidden />}
                           data-attr="join-meeting"
@@ -299,7 +299,7 @@ export const Home = () => {
                         <JoinMeetingDialog />
                       </DialogTrigger>
                       <Button
-                        variant="secondary"
+                        variant="secondaryText"
                         size="action"
                         icon={<RiTimeLine size={18} aria-hidden />}
                         data-attr="schedule-meeting"

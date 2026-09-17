@@ -580,6 +580,35 @@ AI 录音页（页头同款按钮 + 导航里的固定入口），不必同一�
 - 走查在 `assertUnifiedPageChrome` 里加了一条：页头里 `header p` 数量必须是 0
   —— 四个页面一处定义、四页同时受检，以后谁再加回说明行会直接红。
 
+### 3.18 页头那一栏对齐「消息」模块聊天窗口的标题栏（2026-09-17 追加）
+
+参考 `ChatPane` 的聊天窗口标题栏（`paddingX: 1rem` / `paddingY: 0.625rem` /
+`border-bottom: 1px` / `min-height: 3rem` / 16px bold 标题 / 32px 无边框图标钮），
+把会议模块页头那一栏收成同一套。改动都在共享样式 `libraryStyles` 里，四个栏目页 +
+三个次级页一起生效：
+
+| 项 | 改前 | 改后 | 依据 |
+| --- | --- | --- | --- |
+| 页头底色 | 透出页壳浅灰 `surface.canvas` | `surface.default`（白）+ 1px `border.subtle` 分割线 | 聊天窗口标题栏是白底靠分割线分层 |
+| 标题字号/字重 | `headlineSmall` 24px/400 | `titleMedium` 16px/**600** | 那边是 16px bold |
+| 垂直内边距 | `paddingTop: xl`(24) | `md`(12) | 那边 `paddingY: 0.625rem`(10) |
+| 标题行 | `align-items: flex-start`、无最小高度、下边距 24 | `align-items: center`、`min-height: controlHeight.large`(48)、下边距 16 | 那边 `align-items: center` + `min-height: 3rem` |
+| 动作间距 | `md`(12) | `sm`(8) | 那边 `gap: 0.5rem` |
+| 次操作按钮 | `secondary`（线框 + 蓝边） | `secondaryText`（无边框 + 蓝字，hover 浅底） | 那边的动作是无边框的 ghost 图标钮 |
+
+主操作仍是 `primary` 实心（「快速会议」「录音」）—— 聊天窗口那一栏没有主操作，但这两颗
+是全模块最重的入口，保留层级。**文字标签也保留**（那边是纯图标；四个页面的按钮带标签
+是前面几轮特意加的，不在这轮回退）。
+
+一处**有意偏离 App 规则**：`we-meet-android/docs/page-backgrounds.md` §1 写的是
+「一级页 = 顶部固定区浅灰 + 下方滚动区白」，这轮按聊天窗口标题栏把固定区改成白。
+页壳本身仍是 `surface.canvas`，滚到尽头露出的仍是浅灰；下一个人若按 App 规则来核对，
+以本节为准。
+
+走查更新/新增断言：页头那一栏的实测底色必须是 `rgb(255,255,255)`、标题 16px 且
+`font-weight: 600`、页头无副标题、页壳与滚动区底色不变；视频会议页那处「固定区浅灰」
+的注释也改成量页头本栏。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把

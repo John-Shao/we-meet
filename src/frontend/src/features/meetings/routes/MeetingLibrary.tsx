@@ -795,7 +795,7 @@ export function Library({
               </form>
               {config?.search_ai?.enabled !== false && (
                 <Button
-                  variant="secondary"
+                  variant="secondaryText"
                   size="action"
                   icon={<RiSparklingLine size={18} aria-hidden />}
                   onPress={() => openGlobalSearch('ai', 'meetings')}

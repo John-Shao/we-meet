@@ -271,13 +271,15 @@ const dismissTooltips = async () => {
 
 /**
  * 四个一级页面必须长得一样的那几条(以「智能纪要」为基准):
- * 页壳浅灰(canvas,钉住的头部露这个色)+ 滚动内容白(surface.default)+
- * 标题一档 24px + 页头不再带副标题 + 首行不着卡(透明底、无边框)。
+ * 页壳浅灰(canvas)+ 滚动内容白(surface.default)+ **页头那一栏白底**(对齐聊天窗口
+ * 标题栏)+ 标题一档 16px + 页头不再带副标题 + 首行不着卡(透明底、无边框)。
  */
 const assertUnifiedPageChrome = async (label) => {
   const chrome = await page.evaluate(() => {
     const main = document.querySelector('main')
     const list = main.querySelector('[data-testid="meeting-list-region"]')
+    // 页头那一栏 = main 的第一个 div(pageFixedTop)。
+    const fixedTop = list?.previousElementSibling
     // 列表视图是表格(主单元格在 td 里),卡片视图与录音页是 <ul>(行是 li 的孩子)。
     const firstRow =
       list?.querySelector('tr[data-record-row] > td') ??
@@ -290,7 +292,9 @@ const assertUnifiedPageChrome = async (label) => {
     return {
       shell: getComputedStyle(main).backgroundColor,
       list: list ? getComputedStyle(list).backgroundColor : null,
+      fixedTop: fixedTop ? getComputedStyle(fixedTop).backgroundColor : null,
       titleSize: title ? getComputedStyle(title).fontSize : null,
+      titleWeight: title ? getComputedStyle(title).fontWeight : null,
       leadCount,
       rowBackground: rowStyle?.backgroundColor ?? null,
       rowBorder: rowStyle?.borderTopWidth ?? null,
@@ -307,9 +311,19 @@ const assertUnifiedPageChrome = async (label) => {
     `${label}:列表滚动区应为白 surface.default,实际 ${chrome.list}`
   )
   assert.equal(
+    chrome.fixedTop,
+    'rgb(255, 255, 255)',
+    `${label}:页头那一栏应为白(对齐聊天窗口标题栏),实际 ${chrome.fixedTop}`
+  )
+  assert.equal(
     chrome.titleSize,
-    '24px',
-    `${label}:页面标题应与纪要同档(pageTitle),实际 ${chrome.titleSize}`
+    '16px',
+    `${label}:页面标题应与聊天窗口标题栏同档(pageTitle 16px),实际 ${chrome.titleSize}`
+  )
+  assert.equal(
+    chrome.titleWeight,
+    '600',
+    `${label}:标题字重应是 semibold(600),实际 ${chrome.titleWeight}`
   )
   assert.equal(
     chrome.leadCount,
@@ -1092,16 +1106,22 @@ try {
     10,
     '收起后回到 10 条'
   )
-  // 区域底色(App 一级页规则):页头所在页壳浅灰 surface.canvas,列表滚动区白。
-  // 页头自身是透明的,露出的就是页壳底色,所以量页壳。
+  // 区域底色:页壳浅灰 surface.canvas(滚动到尽头露出的那一层),列表滚动区白,
+  // 页头那一栏也是白底 —— 2026-09-17 起对齐「消息」模块聊天窗口的标题栏。
   const homeRegionBg = await homeList.evaluate((el) => ({
     shell: getComputedStyle(el.closest('main')).backgroundColor,
     list: getComputedStyle(el).backgroundColor,
+    fixedTop: getComputedStyle(el.previousElementSibling).backgroundColor,
   }))
   assert.equal(
     homeRegionBg.shell,
     'rgb(246, 246, 246)',
-    `固定头部所在的页壳应保持浅灰 surface.canvas,实际 ${homeRegionBg.shell}`
+    `页壳应保持浅灰 surface.canvas,实际 ${homeRegionBg.shell}`
+  )
+  assert.equal(
+    homeRegionBg.fixedTop,
+    'rgb(255, 255, 255)',
+    `页头那一栏应为白(对齐聊天窗口标题栏),实际 ${homeRegionBg.fixedTop}`
   )
   assert.equal(
     homeRegionBg.list,

@@ -35,11 +35,18 @@ export const pageShell = (surface: 'canvas' | 'default' = 'canvas') =>
 /**
  * 列表以上部分：固定不滚（列表页）。底边分隔线把「固定的工具区」和「滚动的列表」
  * 分开，与任务列表（TasksRoute 的 header/modeTabs）同一套做法。
+ *
+ * **底色 2026-09-17 改为白**（`surface.default`），对齐「消息」模块聊天窗口的标题栏
+ * （`ChatPane` 的 header：paddingX 1rem / paddingY 0.625rem / 1px 底分割线 /
+ * min-height 3rem）：面板头不再铺一级页的浅灰画布色，而是与内容同色，只靠那 1px
+ * 分层。页壳仍是 `surface.canvas`（`pageShell('canvas')`），所以滚动到尽头时露出的
+ * 仍是浅灰 —— 这是与 App「一级页」规则的一处**有意偏离**，以聊天窗口标题栏为准。
  */
 export const pageFixedTop = css({
   flexShrink: 0,
   paddingX: 'lg',
-  paddingTop: 'xl',
+  paddingTop: 'md',
+  backgroundColor: 'surface.default',
   borderBottom: '1px solid token(colors.border.subtle)',
 })
 
@@ -93,14 +100,20 @@ export const backLink = css({
 /**
  * 页面主标题。四个栏目页(home 的 h1、录音、实录、纪要)共用一档,
  * 之前是 1.5rem/bold 与 1.25rem 各自手写,并排切栏目时标题会跳字号。
+ *
+ * **2026-09-17 收到 16px**(`headlineSmall` 24px → `titleMedium`)并加一档字重,
+ * 对齐「消息」模块聊天窗口标题栏的标题(16px / bold):那一栏是面板头,字号比页面
+ * 大标题小一档,页头整体因此矮下来。字重写在这里(而不是新造一个 textStyle):
+ * `textStyle` 展开后本行的显式 `fontWeight` 在后,取的就是 600。
  */
 export const pageTitle = css({
-  textStyle: 'headlineSmall',
+  textStyle: 'titleMedium',
+  fontWeight: 'semibold',
   color: 'text.primary',
   margin: 0,
 })
 
-/** 页面副标题/说明。 */
+/** 页面副标题/说明(次级页仍在用;四个一级页 2026-09-17 起不再有副标题)。 */
 export const pageLead = css({
   textStyle: 'bodyMedium',
   color: 'text.secondary',
@@ -116,25 +129,30 @@ export const pageHeaderText = css({
 })
 
 /**
- * 页头行:左侧标题块,右侧动作组。四个栏目页共用同一档下边距,
- * 此前 1rem / 1.5rem / 1.75rem 三种写法让并排切栏目时内容会上下跳。
+ * 页头行:左侧标题块,右侧动作组。
+ *
+ * 几何对齐聊天窗口标题栏(2026-09-17):**居中**而不是顶对齐、最小高度一档控件
+ * (`controlHeight.large` 48px = 那边 `min-height: 3rem`)、标题行与工具栏之间 16px
+ * (原先 24px)。四个栏目页共用。
  */
 export const pageHeaderRow = css({
   display: 'flex',
   flexWrap: 'wrap',
-  alignItems: 'flex-start',
+  alignItems: 'center',
   justifyContent: 'space-between',
-  gap: 'lg',
-  marginBottom: 'xl',
+  gap: 'md',
+  minHeight: 'controlHeight.large',
+  marginBottom: 'lg',
 })
 
-/** 页头右侧动作组:窄屏换行、右对齐(实录 / 纪要 / 视频会议共用同一档)。 */
+/** 页头右侧动作组:窄屏换行、右对齐(实录 / 纪要 / 视频会议共用同一档)。间距取
+ * 聊天窗口标题栏那一档(8px),图标钮与按钮排在一起时不显散。 */
 export const headerActions = css({
   display: 'flex',
   flexWrap: 'wrap',
   alignItems: 'center',
   justifyContent: 'flex-end',
-  gap: 'md',
+  gap: 'sm',
 })
 
 /** 区块标题(「待开始的会议」「历史会议」这类列表小节标题)。 */

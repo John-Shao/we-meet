@@ -125,9 +125,10 @@ export function RecordingUpload({
       {/* 只有一种形态了:与另外三个栏目页页头同款的 action 按钮。
           (原先还有一个大入口块的 `tile` 形态,四个页面统一后没有调用点。)
           图标是**向下**的箭头:这一页的动作是「把外部的音视频收进来」,向下的箭头
-          才读得通(向上的 RiUpload2Line 看着像要把东西发出去)。 */}
+          才读得通(向上的 RiUpload2Line 看着像要把东西发出去)。
+          变体是 `secondaryText`:页头那一栏参考聊天窗口标题栏,次操作不再描边。 */}
       <Button
-        variant="secondary"
+        variant="secondaryText"
         size="action"
         icon={<RiDownload2Line size={18} aria-hidden />}
         onPress={() => input.current?.click()}

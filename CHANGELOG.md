@@ -123,13 +123,16 @@ and this project adheres to
   anonymous landing page could never render
 - ♻️(frontend) remove the subtitle line from the four meeting module pages so
   their headers carry the title alone
+- ♻️(frontend) restyle the meeting module page headers after the chat title
+  bar: white band, 16px title, tighter padding, borderless actions
 
 ### Fixed
 
-- 🩹(deploy) derive image tags from the first nine characters of the full commit
-  SHA in both build-and-push.sh and release-meet.sh. `git rev-parse --short`
-  abbreviates by repository size, so the build host pushed `be9fdcdfe` while the
-  release host deployed the truncated `be9fdcdf` and hit ImagePullBackOff.
+- 🩹(deploy) derive image tags from the first nine characters of the full
+  commit SHA in both build-and-push.sh and release-meet.sh. `git rev-parse
+  --short` abbreviates by repository size, so the build host pushed
+  `be9fdcdfe` while the release host deployed the truncated `be9fdcdf` and hit
+  ImagePullBackOff.
 - 🩹(deploy) verify the selected tag exists in the container registry before
   `helm upgrade`, failing fast on 404 instead of waiting for the rollout
   (`--skip-image-check` opts out; `--dry-run` skips it unless `--image-check`).
