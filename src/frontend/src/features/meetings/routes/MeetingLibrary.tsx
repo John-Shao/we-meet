@@ -84,31 +84,31 @@ const toolbarScroll = css({
   overflowX: 'auto',
 })
 
-/** 搜索行:输入 + 提交。整行钉 14px,两个控件才落在同一档 32px 高度上。 */
-const searchRow = css({
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 'md',
-  alignItems: 'center',
-  marginBottom: 'lg',
-  textStyle: 'bodyMedium',
-})
+/**
+ * 搜索框所在的表单(在页头动作行里)。只剩一个输入:提交靠回车 —— 原先那颗
+ * 「搜索」按钮已去掉,所以这里不写按钮,`role="search"` 给读屏一个地标。
+ */
+const searchForm = css({ display: 'flex', alignItems: 'center', minWidth: 0 })
 
 /**
- * 搜索框:窄屏撑满,宽屏**封顶 28rem**。铺满版式下不限宽的话,在 1600px 宽的
- * 窗口里输入框会被拉到近千像素,光标起点离内容区左缘太远,整行也失衡。
+ * 搜索框:宽屏钉 18rem(288px)—— 与「搜索会议 AI」并排后不再独占一行;28rem 会把
+ * 标题块挤成两三行。窄屏放开收缩:390px 下这一行是「输入框 + 搜索会议 AI」,输入框
+ * 让出空间 —— 不折行,也不横向溢出。
  */
-const searchBoxCls = css({ flex: '1 1 14rem', maxWidth: '28rem', minWidth: 0 })
+const searchBoxCls = css({
+  flex: { base: '0 1 18rem', md: '0 0 18rem' },
+  minWidth: 0,
+})
 
 /** 搜索词输入上限(沿用收口前那个 `<input maxLength={200}>`)。 */
 const SEARCH_MAX_LENGTH = 200
 
-/** 展开的筛选面板。 */
+/** 展开的筛选面板(独立于搜索表单,落在工具栏下方)。 */
 const filterPanel = css({
   display: 'flex',
   flexWrap: 'wrap',
   gap: 'lg',
-  flexBasis: '100%',
+  marginBottom: 'lg',
   padding: 'lg',
   borderRadius: 'card',
   backgroundColor: 'surface.default',
@@ -772,6 +772,30 @@ export function Library({
               </p>
             </div>
             <div className={headerActions}>
+              {/* 搜索框在动作行里、紧挨「搜索会议 AI」的左侧,**没有提交按钮**:
+                  回车即搜(清空输入即撤销筛选,见 onChange)。两个页面共用这一份。 */}
+              <form
+                className={searchForm}
+                role="search"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  setQuery(search.trim())
+                }}
+              >
+                <SearchBox
+                  className={searchBoxCls}
+                  value={search}
+                  onChange={(value) => {
+                    // SearchBox 不带 maxLength,受控值在这里截断,行为与收口前的
+                    // `<input maxLength={200}>` 一致(粘贴超长文本同样被截到 200)。
+                    const next = value.slice(0, SEARCH_MAX_LENGTH)
+                    setSearch(next)
+                    if (!next) setQuery('')
+                  }}
+                  placeholder={t('library.search')}
+                  ariaLabel={t('library.search')}
+                />
+              </form>
               {config?.search_ai?.enabled !== false && (
                 <Button
                   variant="secondary"
@@ -830,84 +854,62 @@ export function Library({
               </IconToggleButton>
             </div>
           </div>
-          <form
-            className={searchRow}
-            onSubmit={(event) => {
-              event.preventDefault()
-              setQuery(search.trim())
-            }}
-          >
-            <SearchBox
-              className={searchBoxCls}
-              value={search}
-              onChange={(value) => {
-                // SearchBox 不带 maxLength,受控值在这里截断,行为与收口前的
-                // `<input maxLength={200}>` 一致(粘贴超长文本同样被截到 200)。
-                const next = value.slice(0, SEARCH_MAX_LENGTH)
-                setSearch(next)
-                if (!next) setQuery('')
-              }}
-              placeholder={t('library.search')}
-              ariaLabel={t('library.search')}
-            />
-            <Button type="submit" variant="secondary" size="action">
-              {t('library.searchButton')}
-            </Button>
-            {showFilters && (
-              <div className={filterPanel}>
-                <label className={filterLabel}>
-                  {t('library.scopeLabel')}
-                  <select
-                    className={filterSelect}
-                    value={scope}
-                    onChange={(event) =>
-                      setScope(
-                        event.target.value as MeetingRecordFilters['scope']
-                      )
-                    }
-                  >
-                    {(['recent', 'owned', 'participated', 'shared'] as const)
-                      .filter((value) => !minutes || value !== 'recent')
-                      .map((value) => (
-                        <option key={value} value={value}>
-                          {t(
-                            `${minutes ? 'minutesLibrary.scope' : 'library.scope'}.${value}`
-                          )}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-                <label className={filterLabel}>
-                  {t('library.sourceLabel')}
-                  <select
-                    className={filterSelect}
-                    value={source}
-                    onChange={(event) =>
-                      setSource(
-                        event.target.value as
-                          | NonNullable<MeetingRecordFilters['source_type']>
-                          | ''
-                      )
-                    }
-                  >
-                    <option value="">{t('library.allSources')}</option>
-                    {(
-                      [
-                        'meeting',
-                        'recordings',
-                        'audio_recording',
-                        'upload',
-                      ] as const
-                    ).map((value) => (
+          {/* 筛选面板留在工具栏下面:它原先挂在搜索表单里(靠 flexBasis 占满一行),
+              搜索框搬进页头之后表单只剩一个输入,面板就跟着独立出来。 */}
+          {showFilters && (
+            <div className={filterPanel}>
+              <label className={filterLabel}>
+                {t('library.scopeLabel')}
+                <select
+                  className={filterSelect}
+                  value={scope}
+                  onChange={(event) =>
+                    setScope(
+                      event.target.value as MeetingRecordFilters['scope']
+                    )
+                  }
+                >
+                  {(['recent', 'owned', 'participated', 'shared'] as const)
+                    .filter((value) => !minutes || value !== 'recent')
+                    .map((value) => (
                       <option key={value} value={value}>
-                        {t(`library.source.${value}`)}
+                        {t(
+                          `${minutes ? 'minutesLibrary.scope' : 'library.scope'}.${value}`
+                        )}
                       </option>
                     ))}
-                  </select>
-                </label>
-              </div>
-            )}
-          </form>
+                </select>
+              </label>
+              <label className={filterLabel}>
+                {t('library.sourceLabel')}
+                <select
+                  className={filterSelect}
+                  value={source}
+                  onChange={(event) =>
+                    setSource(
+                      event.target.value as
+                        | NonNullable<MeetingRecordFilters['source_type']>
+                        | ''
+                    )
+                  }
+                >
+                  <option value="">{t('library.allSources')}</option>
+                  {(
+                    [
+                      'meeting',
+                      'recordings',
+                      'audio_recording',
+                      'upload',
+                    ] as const
+                  ).map((value) => (
+                    <option key={value} value={value}>
+                      {t(`library.source.${value}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
         </div>
         <div className={listRegion} data-testid="meeting-list-region">
           {grid ? (

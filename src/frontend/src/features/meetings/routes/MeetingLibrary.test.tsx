@@ -58,6 +58,12 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+/** 搜索框没有提交按钮了:回车(表单提交)是唯一的提交方式。 */
+const submitSearch = () =>
+  fireEvent.submit(
+    screen.getByLabelText('library.search').closest('form') as HTMLFormElement
+  )
+
 it('pins ongoing records separately and follows the exact opaque archive cursor', async () => {
   show()
   expect(
@@ -98,7 +104,7 @@ it('keeps upload and participation filters available and clears a submitted sear
   fireEvent.change(screen.getByLabelText('library.search'), {
     target: { value: 'Project' },
   })
-  fireEvent.click(screen.getByRole('button', { name: 'library.searchButton' }))
+  submitSearch()
   await waitFor(() =>
     expect(
       vi.mocked(fetchApi).mock.calls.some(([path]) => {
@@ -174,7 +180,7 @@ it('minutes opens the summary reader and filters ownership on the server', async
   fireEvent.change(screen.getByLabelText('library.search'), {
     target: { value: '  title & 中文  ' },
   })
-  fireEvent.click(screen.getByRole('button', { name: 'library.searchButton' }))
+  submitSearch()
   await waitFor(() =>
     expect(
       vi

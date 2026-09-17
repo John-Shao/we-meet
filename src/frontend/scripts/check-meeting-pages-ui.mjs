@@ -411,6 +411,40 @@ try {
     '会议实录页不应再有「录音」按钮'
   )
 
+  // 搜索:输入框搬进页头动作行、**没有提交按钮**,靠回车提交;位置在
+  // 「搜索会议 AI」左侧、同一行。
+  assert.equal(
+    await page.getByRole('button', { name: '搜索', exact: true }).count(),
+    0,
+    '搜索框不该再带一颗「搜索」按钮'
+  )
+  const searchBox = page.getByLabel('搜索标题')
+  const aiButton = page.getByRole('button', { name: '搜索会议 AI' })
+  const [searchBoxBox, aiBox] = await Promise.all([
+    searchBox.boundingBox(),
+    aiButton.boundingBox(),
+  ])
+  assert.ok(
+    searchBoxBox.x + searchBoxBox.width <= aiBox.x,
+    `搜索框必须在「搜索会议 AI」左侧,实际 搜索框右缘 ${Math.round(
+      searchBoxBox.x + searchBoxBox.width
+    )} / 按钮左缘 ${Math.round(aiBox.x)}`
+  )
+  assert.ok(
+    searchBoxBox.y < aiBox.y + aiBox.height &&
+      aiBox.y < searchBoxBox.y + searchBoxBox.height,
+    '搜索框与「搜索会议 AI」必须在同一行'
+  )
+  // 回车即搜:一次带 q 的查询请求。
+  await searchBox.fill('评审')
+  const searched = page.waitForRequest(
+    (request) => new URL(request.url()).searchParams.get('q') === '评审'
+  )
+  await searchBox.press('Enter')
+  assert.equal((await searched).method(), 'GET', '回车应触发一次带 q 的查询')
+  await searchBox.fill('')
+  await page.waitForTimeout(150)
+
   // 创建时间排序:默认降序(最新的一条在组内最前),点表头切成升序后落到最后。
   const createdHeader = page.getByRole('columnheader', { name: '创建时间' })
   assert.equal(
@@ -466,13 +500,14 @@ try {
     leftGap <= 20 && rightGap <= 20,
     `行左右留白应只有 16px 页边距,实际左 ${leftGap}px / 右 ${rightGap}px`
   )
-  // UX 修复:搜索框在宽屏下封顶 28rem(448px),不再被拉到近千像素。
+  // 搜索框现在与「搜索会议 AI」同处页头动作行,宽屏钉 18rem(288px):不再独占
+  // 一行,也不会被拉到近千像素。
   const searchWidth = Math.round(
     (await page.getByLabel('搜索标题').boundingBox()).width
   )
   assert.ok(
-    searchWidth <= 460,
-    `搜索框应封顶 28rem(448px),实际 ${searchWidth}px`
+    searchWidth >= 240 && searchWidth <= 320,
+    `搜索框宽屏应钉在 18rem(288px)附近,实际 ${searchWidth}px`
   )
 
   // ② 只滚列表:列表区滚到底时页头与工具行必须原地不动,外层内容列也不能被滚动。
@@ -670,6 +705,22 @@ try {
   await mount('library', { viewerId: 'ui-owner', minutes: true })
   await page.getByRole('link', { name: record.title }).waitFor()
   await assertUnifiedPageChrome('智能纪要(基准)')
+  // 这一页与实录共用同一份页头:同样没有「搜索」按钮,输入框同样在 AI 按钮左侧。
+  assert.equal(
+    await page.getByRole('button', { name: '搜索', exact: true }).count(),
+    0,
+    '智能纪要页也不应有「搜索」按钮'
+  )
+  {
+    const [box, ai] = await Promise.all([
+      page.getByLabel('搜索标题').boundingBox(),
+      page.getByRole('button', { name: '搜索会议 AI' }).boundingBox(),
+    ])
+    assert.ok(
+      box.x + box.width <= ai.x,
+      '智能纪要页的搜索框也必须在「搜索会议 AI」左侧'
+    )
+  }
   await page.evaluate(() => {
     document.documentElement.dataset.theme = 'dark'
   })

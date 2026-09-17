@@ -112,6 +112,8 @@ and this project adheres to
 - 🩹(frontend) keep the task filter toolbar on one horizontally scrollable row
 - 🩹(frontend) anchor the task toolbar menus with fixed coordinates so the
   scrollable row cannot clip them
+- ♻️(frontend) move the meeting records search into the header action row and
+  drop the separate search button
 
 ## [1.16.0] - 2026-05-13
 
