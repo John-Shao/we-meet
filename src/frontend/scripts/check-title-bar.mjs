@@ -2,7 +2,7 @@
 //
 // 形态按要求对齐飞书聊天窗口那一栏:**[前导图标/头像] 标题 + 备注(可选) 、不换行**;
 // 这里量 jsdom 量不到的那几条:同一行、不换行、标题过长被省略而备注不被挤掉、
-// 栏高(两种形态都必须是 48px)、备注是 12px 灰字。
+// 栏高(两种形态都必须是 57px = 56 内容 + 1px 线)、备注是 12px 灰字。
 //
 // 用法(cwd = src/frontend):
 //   npm run dev
@@ -163,7 +163,7 @@ try {
 
   const chat = metrics.withLeading
   const page1 = metrics.withoutLeading
-  // ① 有前导:48px 是标题栏的高度基准,40px 头像靠 4px 内边距装进去(含 1px 描边 49)
+  // ① 有前导:栏高基准是 57px = 40px 头像 + 上下各 8px 内边距 + 1px 描边
   assert.deepEqual(chat.leadingBox, [40, 40], '前导头像 40px(与会话列表同档)')
   assert.equal(chat.leadingLeftOfTitle, true, '前导在标题左侧')
   assert.equal(chat.titleAndMetaSameRow, true, '标题与备注必须同一行')
@@ -172,23 +172,19 @@ try {
   assert.equal(chat.titleClipped, true, '超长标题应被省略号截断')
   assert.equal(chat.metaVisible, true, '备注不被标题挤掉')
   assert.equal(chat.metaBeforeAction, true, '备注在右侧动作左侧')
-  // 高度基准是 48px:有 40px 前导时内容正好顶到 48,再加 1px 描边是 49 —— 那一像素
-  // 来自描边、不是两种形态不同高,所以按「差 <= 1px」断言(肉眼不可辨)。
-  assert.ok(
-    Math.abs(chat.barHeight - metrics.withoutLeading.barHeight) <= 1,
-    `有前导与无前导的标题栏必须同高(差 <=1px),实际 ${chat.barHeight}px / ${metrics.withoutLeading.barHeight}px`
+  assert.equal(
+    chat.barHeight,
+    57,
+    `标题栏应为 57px(56 内容 + 1px 描边),实际 ${chat.barHeight}px`
   )
-  assert.ok(
-    chat.barHeight <= 50,
-    `标题栏应在一档控件高(48px + 1px 描边)以内,实际 ${chat.barHeight}px`
+  assert.equal(
+    metrics.withoutLeading.barHeight,
+    57,
+    `无前导的标题栏也要 57px,实际 ${metrics.withoutLeading.barHeight}px`
   )
   assert.equal(chat.barBackground, 'rgb(255, 255, 255)', '标题栏白底')
   assert.equal(chat.paddingX, '16px', '左内边距 16px')
-  assert.equal(
-    chat.paddingY,
-    '4px',
-    '有前导时上内边距 4px(把 40px 头像装进 48px)'
-  )
+  assert.equal(chat.paddingY, '8px', '上内边距 8px(40px 头像上下各留 8px)')
   assert.equal(chat.titleSize, '16px', '标题 16px')
   assert.equal(chat.titleWeight, '700', '标题 bold')
   assert.equal(chat.metaSize, '12px', '备注 12px')
@@ -201,7 +197,7 @@ try {
   })
   assert.deepEqual(errors, [], `页面不应有运行时错误:${errors.join(' / ')}`)
   console.log(
-    'Title bar passed: 四个调用点共用 TitleBar;两种形态都是 48px(有 40px 前导头像时靠 4px 内边距装进去),标题 16px bold + 备注 12px 灰字同行不换行,超长省略且备注不被挤掉。截图:test-results/title-bar.png'
+    'Title bar passed: 四个调用点共用 TitleBar;两种形态都是 57px(40px 头像 + 上下各 8px + 1px 线),标题 16px bold + 备注 12px 灰字同行不换行,超长省略且备注不被挤掉。截图:test-results/title-bar.png'
   )
 } finally {
   await browser.close()

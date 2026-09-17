@@ -1,4 +1,5 @@
 import { css, cx } from '@/styled-system/css'
+import { TITLE_BAR_MIN_HEIGHT } from '@/components/TitleBar'
 
 /**
  * 会议模块的页面样板（以「智能纪要」页验收通过的那一版为准，2026-09-16）。
@@ -149,7 +150,7 @@ export const pageHeaderRow = css({
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: 'md',
-  minHeight: 'controlHeight.large',
+  minHeight: TITLE_BAR_MIN_HEIGHT,
 })
 
 /** 页头右侧动作组:窄屏换行、右对齐(实录 / 纪要 / 视频会议共用同一档)。间距取

@@ -288,8 +288,8 @@ const assertUnifiedPageChrome = async (label) => {
     const title = main.querySelector('h1')
     // 副标题已删(2026-09-17):页头里不该再有说明性段落。
     const leadCount = main.querySelectorAll('header p').length
-    // 标题栏高度:固定区顶边 → 标题行底边,基准 48px(与任务/通讯录/审批的
-    // TitleBar、以及二级导航栏栏头同高)。
+    // 标题栏高度:固定区顶边 → 标题行底边,基准 56px(+1px 线 = 57,与任务/通讯录/
+    // 审批的 TitleBar、以及二级导航栏栏头同高)。
     const fixedTopBox = fixedTop?.getBoundingClientRect()
     const headerBox = main.querySelector('header')?.getBoundingClientRect()
     const titleBandHeight =
@@ -313,7 +313,7 @@ const assertUnifiedPageChrome = async (label) => {
     const navTitleBox = navTitle?.parentElement?.parentElement
       ?.querySelector('h2')
       ?.getBoundingClientRect()
-    // 固定区(白条)自己的高度:标题行之后没有别的行时,它必须就是标题栏 48px + 1px 线
+    // 固定区(白条)自己的高度:标题行之后没有别的行时,它必须就是标题栏 56px + 1px 线
     // —— 否则标题相对底部分割线看起来会偏上(「标题栏偏高」那条反馈的根因)。
     const fixedTopHeight = fixedTopBox ? Math.round(fixedTopBox.height) : null
     return {
@@ -369,8 +369,8 @@ const assertUnifiedPageChrome = async (label) => {
   )
   assert.equal(
     chrome.titleBandHeight,
-    48,
-    `${label}:标题栏高度应与任务/通讯录/审批同档 48px,实际 ${chrome.titleBandHeight}px`
+    56,
+    `${label}:标题栏高度应与任务/通讯录/审批同档 56px(+1px 线 = 57),实际 ${chrome.titleBandHeight}px`
   )
   assert.equal(
     chrome.leadCount,
@@ -389,12 +389,12 @@ const assertUnifiedPageChrome = async (label) => {
     Math.abs(chrome.navTitleGap) <= 1,
     `${label}:左栏栏头标题与右栏页面标题必须同一中线,实测差 ${chrome.navTitleGap}px`
   )
-  // 视频会议 / AI 录音的固定区里只有标题行 → 白条就是 48 + 1px 线(不许再多出内边距,
-  // 那会让标题相对底部分割线看起来偏上)。
-  if (chrome.fixedTopHeight != null && chrome.fixedTopHeight <= 60) {
+  // 视频会议 / AI 录音的固定区里只有标题行 → 白条就是 56 + 1px 线 = 57(不许再多出
+  // 内边距,那会让标题相对底部分割线看起来偏上)。
+  if (chrome.fixedTopHeight != null && chrome.fixedTopHeight <= 70) {
     assert.ok(
-      chrome.fixedTopHeight <= 49,
-      `${label}:标题栏白条应为 48px + 1px 线,实测 ${chrome.fixedTopHeight}px`
+      chrome.fixedTopHeight <= 57,
+      `${label}:标题栏白条应为 56px + 1px 线 = 57px,实测 ${chrome.fixedTopHeight}px`
     )
   }
   assert.equal(
@@ -773,8 +773,8 @@ try {
   )
   assert.equal(
     navHeader.headerHeight,
-    48,
-    '栏头高度应为 48px(与内容区标题栏同高)'
+    56,
+    '栏头高度应为 56px(与内容区标题栏同高,后者含 1px 线为 57)'
   )
   assert.deepEqual(
     [navHeader.collapseWidth, navHeader.collapseHeight],

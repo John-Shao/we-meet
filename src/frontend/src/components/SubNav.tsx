@@ -8,6 +8,7 @@ import {
 
 import { css } from '@/styled-system/css'
 import { IconButton } from '@/primitives'
+import { TITLE_BAR_MIN_HEIGHT } from './TitleBar'
 
 /**
  * 二级导航栏的**共享栏头**（2026-09-17 起，以「通讯录」左栏为基准的一处定义）。
@@ -35,8 +36,9 @@ const headerCls = css({
   gap: 'sm',
   paddingX: 'lg',
   paddingY: 'sm',
-  // 栏高与内容区标题栏(TitleBar)统一到 48px —— 一级页左栏与右栏两条头同高。
-  minHeight: 'controlHeight.large',
+  // 栏高与内容区标题栏(TitleBar)统一(一处定义,见 TITLE_BAR_MIN_HEIGHT)——
+  // 一级页左栏与右栏两条头同高。
+  minHeight: TITLE_BAR_MIN_HEIGHT,
 })
 
 const titleCls = css({

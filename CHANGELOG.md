@@ -139,6 +139,8 @@ and this project adheres to
   48px height, instead of 48 / 52 / 57 / 60 depending on the page
 - 🎨(frontend) pull the meeting title bar's white band down to 48px so its
   title sits centred above the divider
+- 🎨(frontend) settle every title bar at 57px, giving the chat avatar its 8px
+  of breathing room again
 
 ### Fixed
 
