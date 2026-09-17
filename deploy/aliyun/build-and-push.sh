@@ -18,11 +18,16 @@
 #   .image.credentials.{registry,username,password} 读取 (需要 yq); 也可显式 export.
 #
 # 用法:
-#   不设 IMAGE_TAG 时，自动使用当前 HEAD 的短提交号。
+#   不设 IMAGE_TAG 时，自动取当前 HEAD 完整 commit SHA 的前 9 位 (固定长度)。
 #   也可显式 export IMAGE_TAG=<immutable-tag> 覆盖。
 #   bash deploy/aliyun/build-and-push.sh                       # build 全部 + push 全部
 #   bash deploy/aliyun/build-and-push.sh backend               # 只处理 backend
 #   bash deploy/aliyun/build-and-push.sh backend frontend      # 只处理指定子集
+#
+#   ⚠️ 这里**不能**用 `git rev-parse --short HEAD`: 它的缩写位数由本地仓库
+#   对象数决定, 同一个 commit 在构建机 (9 位) 和发布机 (8 位) 会得到不同长度,
+#   于是 release-meet.sh 拼出的镜像名在 CR 里根本不存在 → ImagePullBackOff。
+#   长度可用 IMAGE_TAG_LEN 覆盖, 但 build 和 release 两侧必须一致。
 #
 # 阶段 flag:
 #   --build-only        只 build, 不 push (等价于 build.sh)
@@ -45,6 +50,14 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
+
+# 镜像 tag = 完整 commit SHA 的前 IMAGE_TAG_LEN 位, 跨机器可复现.
+# 用完整 SHA 截断而不是 `git rev-parse --short`, 是为了让位数与本地仓库大小
+# 无关 — 构建机和发布机必须算出同一个字符串, 否则 release 找不到镜像.
+IMAGE_TAG_LEN="${IMAGE_TAG_LEN:-9}"
+head_image_tag() {
+  git rev-parse --verify HEAD 2>/dev/null | cut -c "1-${IMAGE_TAG_LEN}"
+}
 
 # ─── flag 解析 ────────────────────────────────────────────────────────────
 DO_BUILD=1
@@ -117,10 +130,17 @@ fi
 VOLC_CR_REGISTRY="$(secret_or "${VOLC_CR_REGISTRY:-}" '.image.credentials.registry')"
 : "${VOLC_CR_REGISTRY:=your-cr.cr-domain.com}"
 : "${VOLC_CR_NAMESPACE:=we-meet}"
-IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD)}"
+IMAGE_TAG="${IMAGE_TAG:-}"
+if [[ -z "$IMAGE_TAG" ]]; then
+  IMAGE_TAG="$(head_image_tag)" || IMAGE_TAG=""
+  [[ -n "$IMAGE_TAG" ]] || die "$(printf '%s\n' \
+    "无法从 git 推导镜像 tag: 当前目录不是 git 仓库, 或 HEAD 不可解析." \
+    "请 export IMAGE_TAG=<immutable-tag> 显式指定, 或确认在仓库根目录运行.")"
+fi
 if [[ "$IMAGE_TAG" == "latest" ]]; then
   die "IMAGE_TAG=latest 已禁用；请留空以使用当前 HEAD，或指定不可变 tag"
 fi
+[[ "$IMAGE_TAG" =~ ^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$ ]] || die "invalid image tag: $IMAGE_TAG"
 
 if [[ "$VOLC_CR_REGISTRY" == "your-cr.cr-domain.com" ]]; then
   die "$(printf '%s\n' \
@@ -130,6 +150,7 @@ if [[ "$VOLC_CR_REGISTRY" == "your-cr.cr-domain.com" ]]; then
 fi
 
 echo "镜像 registry: $VOLC_CR_REGISTRY/$VOLC_CR_NAMESPACE   tag: $IMAGE_TAG"
+echo "commit:       $(git rev-parse HEAD 2>/dev/null || echo unknown)"
 echo "模块:         $SELECTED"
 echo "阶段:         build=$([[ $DO_BUILD = 1 ]] && echo 是 || echo 否)  push=$([[ $DO_PUSH = 1 ]] && echo 是 || echo 否)"
 echo
@@ -240,6 +261,7 @@ if [[ $DO_PUSH == 1 ]]; then
     echo "  # ── meet 服务 (aliyun-sjy, k8s) ──"
     echo "  cd /opt/we-meet && git pull origin aliyun-dev"
     echo "  bash deploy/aliyun/release-meet.sh --tag ${IMAGE_TAG} ${K8S_SEL}"
+    echo "  # --tag 也可以省略: release 脚本默认取同一个 HEAD 的前 ${IMAGE_TAG_LEN} 位"
     echo
   fi
 

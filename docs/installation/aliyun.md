@@ -271,7 +271,10 @@ docker login --username='<MYORG2025@xxxx>' your-cr.cr-domain.com
 
 export CR_REGISTRY=your-cr.cr-domain.com
 export CR_NAMESPACE=we-meet
-export IMAGE_TAG=$(git rev-parse --short HEAD)
+# tag 固定取完整 commit SHA 的前 9 位。**不要**用 `git rev-parse --short HEAD`：
+# 它的缩写位数随本地仓库对象数变化，构建机算出 9 位、发布机可能算出 8 位，
+# 发布时就会指向一个 CR 里不存在的镜像（ImagePullBackOff）。
+export IMAGE_TAG=$(git rev-parse HEAD | cut -c1-9)
 export DOCKER_BUILDKIT=1
 
 # 4 个镜像
@@ -293,7 +296,7 @@ done
 或者用一条龙脚本（凭据 / IMAGE_TAG 自动从 values.secrets.yaml 读，build + push 一跑到底；VPN 一直开着即可，前提是 VPN 客户端把 `*.cr.volces.com` 加进了 bypass / 不走代理列表）：
 
 ```bash
-export IMAGE_TAG=$(git rev-parse --short HEAD)   # 或不设, 默认 latest
+export IMAGE_TAG=$(git rev-parse HEAD | cut -c1-9)   # 不设也行：脚本默认取 HEAD 前 9 位
 bash deploy/aliyun/build-and-push.sh                 # 全部 4 个模块
 # 或子集:
 bash deploy/aliyun/build-and-push.sh backend         # 只 backend
@@ -682,6 +685,7 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 | `bootstrap-realm.sh` 报 `401 Unauthorized` 但浏览器登 admin 可以 | 你的 admin 密码含 `+`/`/` 等字符。curl `-d` 不 URL-encode，`+` 在 form body 里被解析成空格。改用 `--data-urlencode`。已修。 |
 | `Caddy LE challenge timeout` for id.example.com | aliyun-zlm 安全组 80/443 没开。阿里云控制台加规则 `0.0.0.0/0` 入方向 TCP 80 + 443。 |
 | `kubectl exec ... <<EOF` heredoc 内容被吞 | `kubectl exec` 默认不转发 stdin。要么加 `-i` 让它转发，要么把 SQL/命令塞进 `-c "..."` 参数。 |
+| 构建镜像 tag `be9fdcdfe`、发布时却是 `be9fdcdf`（少一位），helm 卡到 `ImagePullBackOff` | `git rev-parse --short HEAD` 的缩写位数由**本地仓库对象数**决定：构建机 9 位、发布机 8 位，同一个 commit 得到两个字符串。已改为一律取**完整 SHA 的前 9 位**（[build-and-push.sh](../../deploy/aliyun/build-and-push.sh) / [release-meet.sh](../../deploy/aliyun/release-meet.sh)，`IMAGE_TAG_LEN` 可覆盖），且 `release-meet.sh` 发布前会调 CR v2 API 校验 `<repo>:<tag>` 是否存在（`--skip-image-check` 跳过）。 |
 | `psql -c "stmt1; stmt2; CREATE DATABASE x..."` 整体回滚 | 多语句 `-c` 在同一事务，CREATE DATABASE 不能在事务里。用多个 `-c`（每个独立事务）。 |
 | postgres `role "meet" does not exist`（chart 装完直接缺）| chart 16.7.27 默认匹配 postgres 17 init 脚本，跟我们的 bitnamilegacy/postgresql:16.4 不匹配，meet user/db 没建。**应急手动建**：见 §7.3 黄框。 |
 | `manage.py createsuperuser: error: unrecognized arguments: --no-input` | 项目自定义的 createsuperuser 命令签名不一样，用 `--email + --password`，不要 `--no-input`。 |

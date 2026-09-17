@@ -248,7 +248,10 @@ class MeetingAIChartTest(unittest.TestCase):
 
 
 class MeetingAIReleaseTest(unittest.TestCase):
-    def release(self, module, denied=False):
+    # 40 位 fixture commit: 前 9 位是 123456789.
+    FULL_SHA = "1234567890abcdef1234567890abcdef12345678"
+
+    def release(self, module, denied=False, tag="new-tag"):
         bash = shutil.which("bash")
         git = shutil.which("git")
         if os.name == "nt" and git:
@@ -265,10 +268,13 @@ class MeetingAIReleaseTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             scripts = {
-                "git": """#!/usr/bin/env bash
+                # `--short` 故意只回 8 位 —— 复现发布机与构建机缩写位数不一致的事故.
+                "git": f"""#!/usr/bin/env bash
 case "$*" in
   *rev-parse*--is-inside-work-tree*) echo true ;;
   *branch*--show-current*) echo aliyun-dev ;;
+  *rev-parse*--short*) echo 12345678 ;;
+  *rev-parse*HEAD*) echo {self.FULL_SHA} ;;
 esac
 exit 0
 """,
@@ -294,7 +300,8 @@ printf '%s\\n' "$@" > "$FIXTURE_LOG"
             log = root / "helm.log"
             env = dict(os.environ, VALUES_FILE=posix(values), SECRETS_FILE=posix(values),
                        FIXTURE_LOG=posix(log), FIXTURE_DENIED="1" if denied else "0")
-            command = f'export PATH="{posix(root)}:$PATH"; exec bash "{posix(ROOT / "deploy/aliyun/release-meet.sh")}" --tag new-tag --skip-git-pull --dry-run {module}'
+            tag_arg = f"--tag {tag} " if tag else ""
+            command = f'export PATH="{posix(root)}:$PATH"; exec bash "{posix(ROOT / "deploy/aliyun/release-meet.sh")}" {tag_arg}--skip-git-pull --dry-run {module}'
             result = subprocess.run([bash, "-c", command], env=env, capture_output=True, text=True)
             return result, log.read_text(encoding="utf-8") if log.exists() else ""
 
@@ -316,6 +323,21 @@ printf '%s\\n' "$@" > "$FIXTURE_LOG"
         result, log = self.release("frontend", denied=True)
         self.assertNotEqual(0, result.returncode)
         self.assertEqual("", log)
+
+    def test_derived_tag_ignores_git_short_sha_length(self):
+        # `git rev-parse --short` 的位数随仓库大小变化, 构建机 9 位 / 发布机 8 位
+        # 会让发布指向不存在的镜像 (§tag-be9fdcdfe-vs-be9fdcdf). 标签必须取完整
+        # SHA 的前 9 位, 与 `--short` 的输出无关.
+        result, log = self.release("frontend", tag=None)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("frontend.image.tag=123456789", log)
+        self.assertNotIn("frontend.image.tag=12345678\n", log)
+
+    def test_explicit_short_tag_warns_about_truncation(self):
+        result, log = self.release("frontend", tag="12345678")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("has 8 characters", result.stderr)
+        self.assertIn("frontend.image.tag=12345678", log)
 
 
 if __name__ == "__main__":
