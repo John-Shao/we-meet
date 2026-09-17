@@ -5,6 +5,7 @@ import { useLocation } from 'wouter'
 import { css, cx } from '@/styled-system/css'
 import { Button, SearchBox } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
+import { TitleBar } from '@/components/TitleBar'
 import { GroupAvatar } from '@/features/im/components/GroupAvatar'
 
 import { resolveGroupName } from '../groups'
@@ -89,13 +90,12 @@ export const MyGroupsPanel = ({ selectedCid, onSelect }: Props) => {
         minHeight: 0,
       })}
     >
-      <header className={headerCls}>
-        <div className={css({ minWidth: 0 })}>
-          <h2 className={titleCls}>{t('groups.title')}</h2>
-          <p className={subtitleCls}>
-            {t('groups.total', { count: groups.length })}
-          </p>
-        </div>
+      {/* 内容标题栏走共享件(与通讯录成员列表 / 消息聊天窗口同一形态):标题 + 备注
+          (群组总数)一行、不换行;搜索框留在右侧动作位。 */}
+      <TitleBar
+        title={t('groups.title')}
+        meta={t('groups.total', { count: groups.length })}
+      >
         <SearchBox
           value={query}
           onChange={setQuery}
@@ -103,7 +103,7 @@ export const MyGroupsPanel = ({ selectedCid, onSelect }: Props) => {
           testId="contacts-groups-search"
           className={searchBoxCls}
         />
-      </header>
+      </TitleBar>
 
       <div className={css({ overflowY: 'auto', flex: 1 })}>
         {isLoading && groups.length === 0 ? (
@@ -195,27 +195,6 @@ export const MyGroupsPanel = ({ selectedCid, onSelect }: Props) => {
   )
 }
 
-const headerCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.75rem',
-  paddingX: '1rem',
-  paddingY: '0.625rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
-const titleCls = css({
-  margin: 0,
-  fontSize: '0.9375rem',
-  fontWeight: 'bold',
-  color: 'greyscale.900',
-  whiteSpace: 'nowrap',
-})
-const subtitleCls = css({
-  margin: '0.125rem 0 0',
-  fontSize: '0.75rem',
-  color: 'greyscale.500',
-})
 /** 只给宽度:长相由统一搜索框 SearchBox 负责。 */
 const searchBoxCls = css({
   width: '14rem',

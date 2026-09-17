@@ -138,8 +138,16 @@ const titleButtonCls = css({
 
 const titleTextCls = css({ ...titleBase, margin: 0 })
 
+/**
+ * 备注:小一号灰字,**不参与挤压**(人数/结果数这类短信息必须看得见),但最多占
+ * 半个标题行、超出部分省略 —— 通讯录「外部联系人」那种一句话说明很长,窄窗口下
+ * 要么换行要么溢出,这里只让它自己截断,不动标题与动作的位置。
+ */
 const metaCls = css({
   flexShrink: 0,
+  maxWidth: '50%',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
   textStyle: 'bodySmall',
   color: 'text.secondary',
 })

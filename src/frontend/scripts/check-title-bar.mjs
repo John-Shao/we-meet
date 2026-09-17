@@ -17,14 +17,19 @@ const longTitle =
   '这是一个特别特别长的标题用来验证标题栏不会换行也不会把备注挤掉'
 
 /**
- * 六个调用点都必须走共享件(谁再自己排一份标题栏就会红):
- * 「消息」的聊天标题栏 / 任务 / 通讯录 / 审批 —— 会议模块的四个一级页在
- * 3.18 已经统一过(白底 + 16px 标题 + 右侧动作),这里不再重复列。
+ * 所有内容标题栏调用点都必须走共享件(谁再自己排一份就会红):
+ * 「消息」聊天栏 / 任务 / 通讯录(成员列表 + 我的群组 + 外部联系人) / 审批 ——
+ * 会议模块的四个一级页在 3.18 已经统一过(白底 + 16px 标题 + 右侧动作),这里不重复列。
  */
 const callSites = [
   ['消息聊天栏', 'src/features/im/routes/ChatPane.tsx'],
   ['任务', 'src/features/tasks/routes/TasksRoute.tsx'],
-  ['通讯录', 'src/features/contacts/routes/ContactsRoute.tsx'],
+  ['通讯录成员列表', 'src/features/contacts/routes/ContactsRoute.tsx'],
+  ['通讯录我的群组', 'src/features/contacts/components/MyGroupsPanel.tsx'],
+  [
+    '通讯录外部联系人',
+    'src/features/contacts/components/ExternalContactsPanel.tsx',
+  ],
   ['审批', 'src/features/approval/routes/ApprovalRoute.tsx'],
 ]
 const failures = []
@@ -50,7 +55,13 @@ try {
       body: '<!doctype html><html lang="zh"><meta charset="utf-8"><div id="root"></div></html>',
     })
   )
-  await context.route('**/api/v1.0/**', (route) => route.fulfill({ json: {} }))
+  // 通讯录面板会拉列表数据:按接口给「空但形状对」的响应(这里只关心标题栏几何)。
+  // `/directory/external-contacts/` 那几个接口返回的是**数组**,别的一律给对象。
+  await context.route('**/api/v1.0/**', (route) => {
+    const url = route.request().url()
+    if (/external-contacts/.test(url)) return route.fulfill({ json: [] })
+    return route.fulfill({ json: { rows: [], items: [], data: [], total: 0 } })
+  })
   const page = await context.newPage()
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
@@ -195,9 +206,65 @@ try {
     path: 'test-results/title-bar.png',
     fullPage: true,
   })
+
+  // ③ 通讯录「外部联系人」面板(走查反馈里漏掉的一处):备注是一句长说明,标题 +
+  //    长备注 + 右侧按钮三者抢宽度 —— 必须在真实浏览器里量它仍是同一行、不越界。
+  //    「我的群组」依赖 IM SDK(dev 环境没有 VITE_JUSI_IM_BASE_URL),由 jsdom 的
+  //    ContactsRoute 用例 + 下面的源码级检查覆盖。
+  await page.evaluate(async () => {
+    const { mountExternalPanel } =
+      await import('/scripts/harness/title-bar-panels.tsx')
+    // 另起一个容器:#root 上已经挂着上面那棵 TitleBar 的树,同一个容器不能挂两次 root。
+    const host = document.createElement('div')
+    host.id = 'panels-root'
+    document.body.appendChild(host)
+    mountExternalPanel(host)
+  })
+  await page
+    .locator('[data-testid="host-external"] [data-testid="title-bar"]')
+    .waitFor()
+
+  const external = await page.evaluate(() => {
+    const host = document.querySelector('[data-testid="host-external"]')
+    const bar = host.querySelector('[data-testid="title-bar"]')
+    const title = host.querySelector('[data-testid="title-bar-title"]')
+    const meta = host.querySelector('[data-testid="title-bar-meta"]')
+    const action = host.querySelector('[data-testid="external-contact-add"]')
+    const box = (el) => el.getBoundingClientRect()
+    return {
+      barHeight: Math.round(box(bar).height),
+      titleAndMetaSameRow:
+        Math.max(box(title).top, box(meta).top) <
+        Math.min(box(title).bottom, box(meta).bottom),
+      metaInsideBar: box(meta).right <= box(bar).right + 1,
+      metaBeforeAction: box(meta).right <= box(action).left + 1,
+      titleText: title.textContent,
+      metaText: meta.textContent,
+    }
+  })
+  assert.equal(
+    external.barHeight,
+    57,
+    `外部联系人:标题栏应与其它模块同高 57px,实际 ${external.barHeight}px`
+  )
+  assert.equal(
+    external.titleAndMetaSameRow,
+    true,
+    '外部联系人:标题与备注必须在同一行(备注不再另起一行)'
+  )
+  assert.equal(external.metaInsideBar, true, '外部联系人:备注不越出标题栏')
+  assert.equal(
+    external.metaBeforeAction,
+    true,
+    '外部联系人:备注在右侧「添加」按钮左侧'
+  )
+  await page.screenshot({
+    path: 'test-results/title-bar-contacts-panels.png',
+    fullPage: true,
+  })
   assert.deepEqual(errors, [], `页面不应有运行时错误:${errors.join(' / ')}`)
   console.log(
-    'Title bar passed: 四个调用点共用 TitleBar;两种形态都是 57px(40px 头像 + 上下各 8px + 1px 线),标题 16px bold + 备注 12px 灰字同行不换行,超长省略且备注不被挤掉。截图:test-results/title-bar.png'
+    'Title bar passed: 六个调用点共用 TitleBar(含通讯录的我的群组 / 外部联系人);两种形态都是 57px(40px 头像 + 上下各 8px + 1px 线),标题 16px bold + 备注 12px 灰字同行不换行,超长省略且备注不被挤掉。截图:test-results/title-bar.png, test-results/title-bar-contacts-panels.png'
   )
 } finally {
   await browser.close()

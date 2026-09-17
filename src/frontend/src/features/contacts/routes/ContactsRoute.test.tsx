@@ -816,6 +816,14 @@ describe('ContactsRoute', () => {
     await waitFor(() =>
       expect(screen.queryByTestId('contacts-letter-chip')).toBeNull()
     )
+    // 群组视图的内容标题栏与成员列表同一形态(共享 TitleBar):标题 + 备注同框,
+    // 备注不再另起一行(走查反馈过「我的群组 / 外部联系人」还没统一)。
+    expect(screen.getByTestId('title-bar-title')).toHaveTextContent(
+      'groups.title'
+    )
+    expect(screen.getByTestId('title-bar-meta')).toHaveTextContent(
+      'groups.total'
+    )
   })
 
   it('上千人只渲染一屏:整表高度撑开,但 DOM 里没有上千行', async () => {

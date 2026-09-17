@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, SearchBox } from '@/primitives'
 import { Modal, ModalCloseButton } from '@/components/Modal'
 import { StateHint } from '@/components/StateHint'
+import { TitleBar } from '@/components/TitleBar'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { css } from '@/styled-system/css'
 
@@ -76,11 +77,9 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
   const pending = requests.data ?? []
   return (
     <section className={panelCls} data-testid="external-contacts-panel">
-      <header className={headerCls}>
-        <div>
-          <h2 className={titleCls}>{t('external.title')}</h2>
-          <p className={hintCls}>{t('external.hint')}</p>
-        </div>
+      {/* 内容标题栏走共享件(与通讯录成员列表 / 我的群组同一形态):标题 + 备注
+          (一句话说明)一行、不换行;添加按钮留在右侧动作位。 */}
+      <TitleBar title={t('external.title')} meta={t('external.hint')}>
         <Button
           variant="secondary"
           size="dense"
@@ -89,146 +88,149 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
         >
           {t('external.add')}
         </Button>
-      </header>
-
-      {requests.isError && (
-        <StateHint
-          state="error"
-          action={
-            <Button size="dense" onPress={() => void requests.refetch()}>
-              {t('picker.retry')}
-            </Button>
-          }
-        >
-          {t('external.requestsLoadError')}
-        </StateHint>
-      )}
-      {requests.isPending && (
-        <StateHint state="loading">{t('external.requestsLoading')}</StateHint>
-      )}
-      {pending.length > 0 && (
-        <div className={sectionCls}>
-          <h3 className={sectionTitleCls}>{t('external.requests')}</h3>
-          {pending.map((contact) => (
-            <ContactRow
-              key={contact.relationship_id}
-              contact={contact}
-              busy={busyIds.has(contact.relationship_id!)}
-            >
-              {contact.direction === 'incoming' ? (
-                <>
-                  <Button
-                    variant="primary"
-                    size="dense"
-                    onPress={() =>
-                      void run(contact.relationship_id!, () =>
-                        acceptExternalContactRequest(contact.relationship_id!)
-                      )
-                    }
-                  >
-                    {t('external.accept')}
-                  </Button>
-                  <Button
-                    variant="secondaryText"
-                    size="dense"
-                    onPress={() =>
-                      void run(contact.relationship_id!, () =>
-                        declineExternalContactRequest(contact.relationship_id!)
-                      )
-                    }
-                  >
-                    {t('external.decline')}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <span className={statusCls}>{t('external.pending')}</span>
-                  <Button
-                    variant="secondaryText"
-                    size="dense"
-                    onPress={() =>
-                      void run(contact.relationship_id!, () =>
-                        removeExternalContact(contact.relationship_id!)
-                      )
-                    }
-                  >
-                    {t('external.cancelRequest')}
-                  </Button>
-                </>
-              )}
-            </ContactRow>
-          ))}
-        </div>
-      )}
-
-      <div className={sectionCls}>
-        {contacts.isError && (
+      </TitleBar>
+      <div className={bodyCls}>
+        {requests.isError && (
           <StateHint
             state="error"
             action={
-              <Button size="dense" onPress={() => void contacts.refetch()}>
+              <Button size="dense" onPress={() => void requests.refetch()}>
                 {t('picker.retry')}
               </Button>
             }
           >
-            {t('picker.loadError')}
+            {t('external.requestsLoadError')}
           </StateHint>
         )}
-        {contacts.isFetching && rows.length === 0 ? (
-          <StateHint state="loading">{t('page.loading')}</StateHint>
-        ) : rows.length === 0 && !contacts.isError ? (
-          <StateHint>{t('external.empty')}</StateHint>
-        ) : (
-          rows.map((contact) => (
-            <ContactRow
-              key={contact.relationship_id}
-              contact={contact}
-              busy={busyIds.has(contact.relationship_id!)}
+        {requests.isPending && (
+          <StateHint state="loading">{t('external.requestsLoading')}</StateHint>
+        )}
+        {pending.length > 0 && (
+          <div className={sectionCls}>
+            <h3 className={sectionTitleCls}>{t('external.requests')}</h3>
+            {pending.map((contact) => (
+              <ContactRow
+                key={contact.relationship_id}
+                contact={contact}
+                busy={busyIds.has(contact.relationship_id!)}
+              >
+                {contact.direction === 'incoming' ? (
+                  <>
+                    <Button
+                      variant="primary"
+                      size="dense"
+                      onPress={() =>
+                        void run(contact.relationship_id!, () =>
+                          acceptExternalContactRequest(contact.relationship_id!)
+                        )
+                      }
+                    >
+                      {t('external.accept')}
+                    </Button>
+                    <Button
+                      variant="secondaryText"
+                      size="dense"
+                      onPress={() =>
+                        void run(contact.relationship_id!, () =>
+                          declineExternalContactRequest(
+                            contact.relationship_id!
+                          )
+                        )
+                      }
+                    >
+                      {t('external.decline')}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span className={statusCls}>{t('external.pending')}</span>
+                    <Button
+                      variant="secondaryText"
+                      size="dense"
+                      onPress={() =>
+                        void run(contact.relationship_id!, () =>
+                          removeExternalContact(contact.relationship_id!)
+                        )
+                      }
+                    >
+                      {t('external.cancelRequest')}
+                    </Button>
+                  </>
+                )}
+              </ContactRow>
+            ))}
+          </div>
+        )}
+
+        <div className={sectionCls}>
+          {contacts.isError && (
+            <StateHint
+              state="error"
+              action={
+                <Button size="dense" onPress={() => void contacts.refetch()}>
+                  {t('picker.retry')}
+                </Button>
+              }
             >
-              <span className={externalTagCls}>{t('external.tag')}</span>
-              <Button
-                variant="secondary"
-                size="dense"
-                loading={busyIds.has(contact.relationship_id!)}
-                onPress={() =>
-                  void run(contact.relationship_id!, () => onMessage(contact))
-                }
+              {t('picker.loadError')}
+            </StateHint>
+          )}
+          {contacts.isFetching && rows.length === 0 ? (
+            <StateHint state="loading">{t('page.loading')}</StateHint>
+          ) : rows.length === 0 && !contacts.isError ? (
+            <StateHint>{t('external.empty')}</StateHint>
+          ) : (
+            rows.map((contact) => (
+              <ContactRow
+                key={contact.relationship_id}
+                contact={contact}
+                busy={busyIds.has(contact.relationship_id!)}
               >
-                {t('page.message')}
-              </Button>
-              <Button
-                variant="secondaryText"
-                size="dense"
-                onPress={async () => {
-                  const ok = await confirm({
-                    message: t('external.removeConfirm', {
-                      name: displayName(contact),
-                    }),
-                    danger: true,
-                  })
-                  if (ok) {
-                    void run(contact.relationship_id!, () =>
-                      removeExternalContact(contact.relationship_id!)
-                    )
+                <span className={externalTagCls}>{t('external.tag')}</span>
+                <Button
+                  variant="secondary"
+                  size="dense"
+                  loading={busyIds.has(contact.relationship_id!)}
+                  onPress={() =>
+                    void run(contact.relationship_id!, () => onMessage(contact))
                   }
-                }}
-              >
-                {t('external.remove')}
-              </Button>
-            </ContactRow>
-          ))
+                >
+                  {t('page.message')}
+                </Button>
+                <Button
+                  variant="secondaryText"
+                  size="dense"
+                  onPress={async () => {
+                    const ok = await confirm({
+                      message: t('external.removeConfirm', {
+                        name: displayName(contact),
+                      }),
+                      danger: true,
+                    })
+                    if (ok) {
+                      void run(contact.relationship_id!, () =>
+                        removeExternalContact(contact.relationship_id!)
+                      )
+                    }
+                  }}
+                >
+                  {t('external.remove')}
+                </Button>
+              </ContactRow>
+            ))
+          )}
+        </div>
+
+        {adding && (
+          <AddExternalContactDialog
+            onClose={() => setAdding(false)}
+            onSent={() => {
+              setAdding(false)
+              void refresh()
+            }}
+          />
         )}
       </div>
-
-      {adding && (
-        <AddExternalContactDialog
-          onClose={() => setAdding(false)}
-          onSent={() => {
-            setAdding(false)
-            void refresh()
-          }}
-        />
-      )}
     </section>
   )
 }
@@ -333,10 +335,10 @@ const AddExternalContactDialog = ({
       initialFocusRef={inputRef}
       maxWidth="600px"
     >
-      <div className={headerCls}>
+      <div className={dialogHeaderCls}>
         <div>
-          <h2 className={titleCls}>{t('external.addTitle')}</h2>
-          <p className={hintCls}>{t('external.addHint')}</p>
+          <h2 className={dialogTitleCls}>{t('external.addTitle')}</h2>
+          <p className={dialogHintCls}>{t('external.addHint')}</p>
         </div>
         <ModalCloseButton onClose={onClose} label={t('starred.cancel')} />
       </div>
@@ -421,8 +423,9 @@ const AddExternalContactDialog = ({
   )
 }
 
-const panelCls = css({ height: '100%', overflowY: 'auto' })
-const headerCls = css({
+/** 面板:标题栏固定在上,正文自己滚(与成员列表 / 我的群组同一结构)。 */
+/** 「添加外部联系人」弹窗自己的页头(原先是借用面板那份,面板改走 TitleBar 后独立出来)。 */
+const dialogHeaderCls = css({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -430,12 +433,20 @@ const headerCls = css({
   padding: '1rem',
   borderBottom: '1px solid token(colors.greyscale.200)',
 })
-const titleCls = css({ margin: 0, fontSize: '1rem', fontWeight: 'bold' })
-const hintCls = css({
+const dialogTitleCls = css({ margin: 0, fontSize: '1rem', fontWeight: 'bold' })
+const dialogHintCls = css({
   margin: '0.25rem 0 0',
   color: 'greyscale.500',
   fontSize: '0.8125rem',
 })
+
+const panelCls = css({
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+})
+const bodyCls = css({ flex: 1, minHeight: 0, overflowY: 'auto' })
+
 const sectionCls = css({ padding: '0.5rem 1rem' })
 const sectionTitleCls = css({ fontSize: '0.8125rem', color: 'greyscale.600' })
 const rowCls = css({

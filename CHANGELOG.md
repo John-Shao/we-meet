@@ -141,6 +141,8 @@ and this project adheres to
   title sits centred above the divider
 - 🎨(frontend) settle every title bar at 57px, giving the chat avatar its 8px
   of breathing room again
+- 🎨(frontend) bring the contacts groups and external contacts panels onto that
+  shared title bar as well
 
 ### Fixed
 

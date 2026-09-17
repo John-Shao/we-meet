@@ -853,6 +853,34 @@ TitleBar 的三条规则（写死在共享件里）：① 标题与备注同一�
 `check-subnav-panels.mjs` 栏头 **56px**；`check-meeting-pages-ui.mjs` 标题行 **56px**、
 固定区白条 ≤57px、栏头 **56px**。
 
+### 3.26 通讯录「我的群组 / 外部联系人」也并进共享标题栏（2026-09-18 追加）
+
+走查反馈：通讯录里这两个页面的内容标题栏还没统一，备注仍在下一行。原因是它们各自
+手写了页头（`MyGroupsPanel` 的 `headerCls/titleCls/subtitleCls`、`ExternalContactsPanel`
+的 `headerCls/titleCls/hintCls`），没走 `TitleBar`：
+
+- `MyGroupsPanel`：标题「我的群组」+ 备注「共 N 个群组」同一行，搜索框留在右侧动作位；
+- `ExternalContactsPanel`：标题「外部联系人」+ 备注（那句说明）同一行，「添加外部联系人」
+  按钮留在右侧动作位；顺带把面板改成**列向 flex + 正文自己滚**，标题栏不再跟着列表滚走
+  （与成员列表 / 我的群组同一结构）；「添加外部联系人」弹窗此前借用了面板那两个类，
+  现在给它自己的一对 `dialogHeaderCls/dialogTitleCls/dialogHintCls`。
+
+另外给 `TitleBar` 的备注加了 `maxWidth: 50%` + 省略号：短备注（人数 / 结果数）不受影响，
+而「外部联系人」那句长说明在窄窗口下只会自己截断，不会把标题挤没或溢出栏外
+（备注本身仍 `flexShrink: 0`，短备注永远看得见）。
+
+验证：
+
+- `check-title-bar.mjs` 的源码级调用点从 4 个扩到 **6 个**（多了这两个面板，谁再手写页头
+  就会红）；并新增一段**真实浏览器**检查：夹具 `scripts/harness/title-bar-panels.tsx`
+  挂起「外部联系人」面板，量标题栏 57px、标题与长备注**同一行**、备注不越出标题栏且在
+  「添加」按钮左侧。截图 `test-results/title-bar-contacts-panels.png`。
+  （「我的群组」依赖 IM SDK，dev 环境没有 `VITE_JUSI_IM_BASE_URL` 会直接抛错，由 jsdom 覆盖。）
+- `ContactsRoute.test.tsx` 的群组视图用例补断言：标题栏的 `title-bar-title` /
+  `title-bar-meta` 分别是「我的群组」与群组总数（备注不再另起一行）。
+- 全量 `vitest` 162 文件 / 1043 条、lint / prettier / color / foundation / `tsc -b` /
+  build 全绿。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把
