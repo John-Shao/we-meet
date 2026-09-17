@@ -881,6 +881,37 @@ TitleBar 的三条规则（写死在共享件里）：① 标题与备注同一�
 - 全量 `vitest` 162 文件 / 1043 条、lint / prettier / color / foundation / `tsc -b` /
   build 全绿。
 
+### 3.27 内容标题栏按钮统一到「会议」那两档（2026-09-18 追加）
+
+以「会议」标题栏的动作按钮为基准（`Home` 的「快速会议 / 加入会议 / 预约会议」、
+`RecordingOverview` 的「录音 / 导入」、`MeetingLibrary` 的「搜索会议 AI」）：
+
+| 角色   | 会议模块的写法（基准）                                                       |
+| ------ | ---------------------------------------------------------------------------- |
+| 主操作 | `variant="primary" size="action"` + `icon={<RiXxx size={18} aria-hidden />}` |
+| 次操作 | `variant="secondaryText" size="action"` + 18px 图标                          |
+| 纯图标 | `size="icon32"`（工具行 / 齿轮钮这一档）                                     |
+
+按这个基准改掉的不一致：
+
+| 模块       | 按钮                   | 改前                              | 改后                                            |
+| ---------- | ---------------------- | --------------------------------- | ----------------------------------------------- |
+| 任务       | 新建任务               | `primary action`，**无图标**      | 加 `RiAddLine` 18px                             |
+| 任务       | 找回清单               | `secondaryText` **dense**，无图标 | `secondaryText action` + `RiInboxUnarchiveLine` |
+| 通讯录     | 部门信息               | `secondaryText` **dense**         | `secondaryText action` + `RiInformationLine`    |
+| 通讯录     | 添加（星标视图主操作） | `secondary` **dense**             | `primary action` + `RiAddLine`                  |
+| 通讯录     | 添加外部联系人         | `secondary` **dense**             | `primary action` + `RiUserAddLine`              |
+| 审批       | —（标题栏没有按钮）    | —                                 | —                                               |
+| 消息聊天栏 | 图标钮                 | `icon32` ✓                        | 不变（与工具行同一档）                          |
+
+一句话规则：**标题栏里不出现 `dense`**；每页只有一个主操作（品牌蓝实底 + 18px 图标），
+其余是文字按钮 + 18px 图标。
+
+验证：`check-title-bar.mjs` 增加**源码级**检查 —— 六个 `TitleBar` 调用点的
+`<TitleBar …>` 区块里出现 `size="dense"` 就报错（任务 / 通讯录那几处就是这样漏出去的）；
+「外部联系人」那段真实浏览器检查再加三条：按钮高 **40px**（action 档）、背景
+**`rgb(40, 96, 217)`**（与「快速会议 / 录音」同一品牌蓝）、图标 **18×18** ✓。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把

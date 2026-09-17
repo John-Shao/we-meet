@@ -8,7 +8,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { useLocation, useSearchParams } from 'wouter'
-import { RiArrowLeftLine } from '@remixicon/react'
+import { RiAddLine, RiArrowLeftLine, RiInformationLine } from '@remixicon/react'
 
 import { css, cx } from '@/styled-system/css'
 import { Button, SearchBox } from '@/primitives'
@@ -931,9 +931,12 @@ const ContactsAuthenticated = () => {
             >
               <div className={headerActionsCls}>
                 {narrowDetail && selectedDept && (
+                  // 标题栏按钮与「会议」模块同一套:次操作 secondaryText + action 尺寸
+                  // + 18px 图标(dense 那档在标题栏里比同排按钮小一号)。
                   <Button
-                    size="dense"
                     variant="secondaryText"
+                    size="action"
+                    icon={<RiInformationLine size={18} aria-hidden="true" />}
                     onPress={() => setDepartmentDetailsOpen(true)}
                     data-testid="contacts-department-info"
                   >
@@ -954,12 +957,12 @@ const ContactsAuthenticated = () => {
                   className={searchBoxCls}
                 />
                 {view === 'starred' && (
-                  // dense 而非 sm:sm 不带字号,会吃到浏览器默认 16px,比同页的
-                  //「发消息」大一号 —— 正是 buttonRecipe 里 dense 那档点名要收口的
-                  //「通讯录『添加』vs『发消息』」不一致。
+                  // 这一页的主操作:与「会议」的「快速会议 / 录音」同一档(primary +
+                  // action + 18px 图标),不再是比同排按钮小一号的 dense 次级按钮。
                   <Button
-                    variant="secondary"
-                    size="dense"
+                    variant="primary"
+                    size="action"
+                    icon={<RiAddLine size={18} aria-hidden="true" />}
                     onPress={() => setAddingStarred(true)}
                     data-testid="contacts-starred-add"
                   >

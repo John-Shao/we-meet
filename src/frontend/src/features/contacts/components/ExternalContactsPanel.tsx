@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { RiUserAddLine } from '@remixicon/react'
 
 import { Button, SearchBox } from '@/primitives'
 import { Modal, ModalCloseButton } from '@/components/Modal'
@@ -80,9 +81,11 @@ export const ExternalContactsPanel = ({ onMessage }: Props) => {
       {/* 内容标题栏走共享件(与通讯录成员列表 / 我的群组同一形态):标题 + 备注
           (一句话说明)一行、不换行;添加按钮留在右侧动作位。 */}
       <TitleBar title={t('external.title')} meta={t('external.hint')}>
+        {/* 这一页的主操作:与「会议」的「快速会议 / 录音」同一档。 */}
         <Button
-          variant="secondary"
-          size="dense"
+          variant="primary"
+          size="action"
+          icon={<RiUserAddLine size={18} aria-hidden="true" />}
           onPress={() => setAdding(true)}
           data-testid="external-contact-add"
         >

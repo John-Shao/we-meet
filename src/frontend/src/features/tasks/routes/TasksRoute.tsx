@@ -3,9 +3,11 @@ import { createPortal } from 'react-dom'
 import { useLocation, useSearchParams } from 'wouter'
 import { useTranslation } from 'react-i18next'
 import {
+  RiAddLine,
   RiBarChartBoxLine,
   RiFilterOffLine,
   RiInbox2Line,
+  RiInboxUnarchiveLine,
   RiKanbanView2,
   RiListCheck3,
   RiRefreshLine,
@@ -622,10 +624,13 @@ const TasksAuthenticated = () => {
           }
         >
           <div className={headerActionsCss}>
+            {/* 标题栏按钮与「会议」模块同一套:次操作 secondaryText + action 尺寸 +
+                18px 图标(那边「加入会议 / 预约会议 / 导入」)。 */}
             {recoverableLists.length > 0 && (
               <Button
-                size="dense"
                 variant="secondaryText"
+                size="action"
+                icon={<RiInboxUnarchiveLine size={18} aria-hidden="true" />}
                 onPress={() => setRecoveringLists(true)}
               >
                 {t('taskLists.recover')}
@@ -640,9 +645,12 @@ const TasksAuthenticated = () => {
             >
               <RiSettings3Line size={19} aria-hidden="true" />
             </Button>
+            {/* 主操作与「会议」的「快速会议 / 录音」同一档:primary + action + 18px 图标。 */}
             <Button
               ref={newButtonRef}
+              variant="primary"
               size="action"
+              icon={<RiAddLine size={18} aria-hidden="true" />}
               isDisabled={Boolean(
                 selectedTaskList && !selectedTaskList.can_create_tasks
               )}

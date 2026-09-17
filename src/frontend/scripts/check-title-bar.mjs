@@ -40,6 +40,24 @@ for (const [label, relative] of callSites) {
   )
   if (!source.includes('TitleBar'))
     failures.push(`${label}(${relative})没有用共享的 TitleBar`)
+  // 标题栏里的按钮只允许「会议」那两档:主操作 primary + action + 18px 图标、
+  // 次操作 secondaryText + action + 18px 图标;dense 那档在标题栏里比同排小一号
+  // (走查反馈过「通讯录 / 任务的标题栏按钮和会议不一致」)。
+  const start = source.indexOf('<TitleBar')
+  if (start < 0) continue
+  const close = source.indexOf('</TitleBar>', start)
+  const selfClose = source.indexOf('/>', start)
+  const end =
+    close >= 0 && (selfClose < 0 || close < selfClose)
+      ? close
+      : selfClose >= 0
+        ? selfClose
+        : source.length
+  const block = source.slice(start, end)
+  if (block.includes('size="dense"'))
+    failures.push(
+      `${label}(${relative})标题栏里用了 dense 档按钮,应改用 action`
+    )
 }
 assert.deepEqual(failures, [], failures.join('\n'))
 
@@ -230,6 +248,7 @@ try {
     const title = host.querySelector('[data-testid="title-bar-title"]')
     const meta = host.querySelector('[data-testid="title-bar-meta"]')
     const action = host.querySelector('[data-testid="external-contact-add"]')
+    const icon = action.querySelector('svg')
     const box = (el) => el.getBoundingClientRect()
     return {
       barHeight: Math.round(box(bar).height),
@@ -238,6 +257,12 @@ try {
         Math.min(box(title).bottom, box(meta).bottom),
       metaInsideBar: box(meta).right <= box(bar).right + 1,
       metaBeforeAction: box(meta).right <= box(action).left + 1,
+      // 按钮风格与「会议」的主操作同档:action 尺寸(40px)、品牌蓝实底、18px 图标。
+      actionHeight: Math.round(box(action).height),
+      actionBackground: getComputedStyle(action).backgroundColor,
+      actionIcon: icon
+        ? [Math.round(box(icon).width), Math.round(box(icon).height)]
+        : null,
       titleText: title.textContent,
       metaText: meta.textContent,
     }
@@ -257,6 +282,22 @@ try {
     external.metaBeforeAction,
     true,
     '外部联系人:备注在右侧「添加」按钮左侧'
+  )
+  // 按钮风格 = 「会议」标题栏那一套:主操作 40px(action)、品牌蓝实底、18px 图标。
+  assert.equal(
+    external.actionHeight,
+    40,
+    `外部联系人:标题栏按钮应为 action 档 40px,实际 ${external.actionHeight}px`
+  )
+  assert.equal(
+    external.actionBackground,
+    'rgb(40, 96, 217)',
+    `外部联系人:主操作应与会展「快速会议 / 录音」同色(品牌蓝),实际 ${external.actionBackground}`
+  )
+  assert.deepEqual(
+    external.actionIcon,
+    [18, 18],
+    `外部联系人:主操作应带 18px 图标(与会议模块一致),实际 ${JSON.stringify(external.actionIcon)}`
   )
   await page.screenshot({
     path: 'test-results/title-bar-contacts-panels.png',

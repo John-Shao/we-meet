@@ -143,6 +143,8 @@ and this project adheres to
   of breathing room again
 - 🎨(frontend) bring the contacts groups and external contacts panels onto that
   shared title bar as well
+- 🎨(frontend) align every title bar button with the meeting module's two
+  styles: a filled primary with an icon, or a text button with one
 
 ### Fixed
 
