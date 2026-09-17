@@ -65,6 +65,8 @@ const toolbar = css({
   display: 'flex',
   alignItems: 'center',
   gap: 'sm',
+  // 与标题栏之间的 16px 间距(标题行自己不再带下外边距,见 libraryStyles.pageHeaderRow)。
+  marginTop: 'lg',
   marginBottom: 'lg',
 })
 

@@ -313,6 +313,9 @@ const assertUnifiedPageChrome = async (label) => {
     const navTitleBox = navTitle?.parentElement?.parentElement
       ?.querySelector('h2')
       ?.getBoundingClientRect()
+    // 固定区(白条)自己的高度:标题行之后没有别的行时,它必须就是标题栏 48px + 1px 线
+    // —— 否则标题相对底部分割线看起来会偏上(「标题栏偏高」那条反馈的根因)。
+    const fixedTopHeight = fixedTopBox ? Math.round(fixedTopBox.height) : null
     return {
       shell: getComputedStyle(main).backgroundColor,
       list: list ? getComputedStyle(list).backgroundColor : null,
@@ -321,6 +324,7 @@ const assertUnifiedPageChrome = async (label) => {
       titleWeight: title ? getComputedStyle(title).fontWeight : null,
       leadCount,
       titleBandHeight,
+      fixedTopHeight,
       titleCenterOffset: centerOffset(title),
       actionsCenterOffset: centerOffset(actions),
       // 左栏栏头标题与右栏标题的中线差:两条并排的栏必须在同一条线上。
@@ -385,6 +389,14 @@ const assertUnifiedPageChrome = async (label) => {
     Math.abs(chrome.navTitleGap) <= 1,
     `${label}:左栏栏头标题与右栏页面标题必须同一中线,实测差 ${chrome.navTitleGap}px`
   )
+  // 视频会议 / AI 录音的固定区里只有标题行 → 白条就是 48 + 1px 线(不许再多出内边距,
+  // 那会让标题相对底部分割线看起来偏上)。
+  if (chrome.fixedTopHeight != null && chrome.fixedTopHeight <= 60) {
+    assert.ok(
+      chrome.fixedTopHeight <= 49,
+      `${label}:标题栏白条应为 48px + 1px 线,实测 ${chrome.fixedTopHeight}px`
+    )
+  }
   assert.equal(
     chrome.rowBorder,
     '0px',

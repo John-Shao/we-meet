@@ -137,6 +137,8 @@ and this project adheres to
   contacts and approval modules, with a tighter 8px vertical padding
 - 🎨(frontend) give every module title bar and sub-navigation header the same
   48px height, instead of 48 / 52 / 57 / 60 depending on the page
+- 🎨(frontend) pull the meeting title bar's white band down to 48px so its
+  title sits centred above the divider
 
 ### Fixed
 

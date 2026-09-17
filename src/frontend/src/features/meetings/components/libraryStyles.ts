@@ -136,8 +136,12 @@ export const pageHeaderText = css({
  * 页头行:左侧标题块,右侧动作组。
  *
  * 几何对齐聊天窗口标题栏(2026-09-17):**居中**而不是顶对齐、最小高度一档控件
- * (`controlHeight.large` 48px = 那边 `min-height: 3rem`)、标题行与工具栏之间 16px
- * (原先 24px)。四个栏目页共用。
+ * (`controlHeight.large` 48px = 那边 `min-height: 3rem`)。
+ *
+ * **不再带下外边距**(2026-09-17 走查反馈):原先这 16px 让「固定区顶边 → 底部分割线」
+ * 变成 64px,标题看着压在 48px 条的上半截(上 24 / 下 40),被报成「标题栏偏高、没居中」。
+ * 间距挪给下面那一行(工具栏 `marginTop: lg`),所以标题栏自己的白条就是 48px + 1px 线,
+ * 与任务/通讯录/审批/消息完全一致;只有标题行的固定区(视频会议、AI 录音)因此正好 49px。
  */
 export const pageHeaderRow = css({
   display: 'flex',
@@ -146,7 +150,6 @@ export const pageHeaderRow = css({
   justifyContent: 'space-between',
   gap: 'md',
   minHeight: 'controlHeight.large',
-  marginBottom: 'lg',
 })
 
 /** 页头右侧动作组:窄屏换行、右对齐(实录 / 纪要 / 视频会议共用同一档)。间距取
