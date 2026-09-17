@@ -107,6 +107,8 @@ and this project adheres to
   prefetch the owner for the table list view
 - ✨(frontend) render the meeting records and minutes lists as a Feishu-style
   table with an owner column and creation-time sorting
+- 🩹(frontend) fit all four meeting-module pills on a 390px screen
+- 🩹(frontend) dismiss leftover tooltips before the walkthrough screenshots
 
 ## [1.16.0] - 2026-05-13
 

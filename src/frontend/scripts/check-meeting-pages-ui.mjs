@@ -209,6 +209,45 @@ const themeSurface = (selector) =>
     })
 
 /**
+ * 清掉键盘走查留下的 Tooltip。
+ *
+ * react-aria 的 tooltip 是挂到 body 上 `data-overlay-container` 里的 portal:Tab 走到
+ * 「会议设置」齿轮时它弹出来,之后把视口缩到 390px,它仍在原来的坐标上淡出/停留 ——
+ * 2026-09-17 我就是把它当成了「胶囊行多了一项、折到了第二行」,白排查一轮。所以截图
+ * 前先关掉,再等到它彻底不可见(退场有淡出动画,等一拍是等不干净的)。
+ */
+const invisibleTooltipCount = () =>
+  page.evaluate(
+    () =>
+      [...document.querySelectorAll('[data-overlay-container] *')].filter(
+        (node) => {
+          if ((node.textContent || '').trim() !== '会议设置') return false
+          if (!node.getClientRects().length) return false
+          const style = getComputedStyle(node)
+          return (
+            style.visibility !== 'hidden' &&
+            Number.parseFloat(style.opacity) > 0.05
+          )
+        }
+      ).length
+  )
+
+const dismissTooltips = async () => {
+  await page.keyboard.press('Escape')
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement)
+      document.activeElement.blur()
+  })
+  for (let i = 0; i < 20 && (await invisibleTooltipCount()) > 0; i += 1)
+    await page.waitForTimeout(50)
+  assert.equal(
+    await invisibleTooltipCount(),
+    0,
+    '截图前不得残留 Tooltip(它是 portal,viewport 变了也不会自己消失)'
+  )
+}
+
+/**
  * 四个一级页面必须长得一样的那几条(以「智能纪要」为基准):
  * 页壳浅灰(canvas,钉住的头部露这个色)+ 滚动内容白(surface.default)+
  * 标题一档 24px + 首行不着卡(透明底、无边框)。
@@ -532,6 +571,7 @@ try {
   }
   assert.equal(ringFound, true, 'Tab 焦点必须落在带可见焦点环的控件上')
 
+  await dismissTooltips()
   await shot('meeting-notes-desktop')
 
   // ── 深色主题:品牌浅底面必须随主题翻转(旧 primary.* 固定色阶是这里翻车的) ──
@@ -593,6 +633,35 @@ try {
           .length
     )
   assert.equal(currentInNav, 1, '窄屏栏目行只能有一个当前项')
+  // 栏目胶囊行是**横向可滑**的:窄屏一律不折行(折了第二行会贴住页面标题),
+  // 四个胶囊必须落在同一条水平线上,内容超出时整行横向滚。
+  const navRow = await mobileNav.evaluate((el) => {
+    const tops = [...el.children].map((child) =>
+      Math.round(child.getBoundingClientRect().top)
+    )
+    return {
+      itemCount: el.children.length,
+      rowCount: new Set(tops).size,
+      flexWrap: getComputedStyle(el).flexWrap,
+      overflowX: getComputedStyle(el).overflowX,
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    }
+  })
+  assert.equal(
+    navRow.itemCount,
+    4,
+    '窄屏栏目行是四个入口(设置齿轮不在这一行里)'
+  )
+  assert.equal(navRow.rowCount, 1, '窄屏栏目行不得折行,只能是一行')
+  assert.equal(navRow.flexWrap, 'nowrap')
+  assert.equal(navRow.overflowX, 'auto')
+  assert.ok(
+    navRow.scrollWidth <= navRow.clientWidth,
+    `390px 下四个入口应完整显示(整行 ${navRow.scrollWidth}px / 可视 ${navRow.clientWidth}px,` +
+      '最后一个胶囊被切掉会让人以为列表还有一项)'
+  )
+  await dismissTooltips()
   await shot('meeting-notes-mobile')
   await page.setViewportSize({ width: 1180, height: 900 })
 

@@ -81,7 +81,10 @@ const itemCls = css({
   alignItems: 'center',
   flexShrink: 0,
   minHeight: 'controlHeight.compact',
-  paddingX: 'lg',
+  // 窄屏收到一档内边距:四个入口在 375/390 这类常见机宽下**完整显示**(16px 内边距
+  // 时整行比视口宽 2~17px,最后一个胶囊会被切掉一截,只能靠横向滚动去够)。再窄
+  // (≤360)仍然横滑,不折行。
+  paddingX: { base: 'md', md: 'lg' },
   borderRadius: 'pill',
   textStyle: 'labelMedium',
   textDecoration: 'none',
