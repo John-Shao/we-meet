@@ -146,6 +146,7 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
 
     capabilities = serializers.SerializerMethodField()
     source_available = serializers.SerializerMethodField()
+    owner = serializers.SerializerMethodField()
     is_ongoing = serializers.BooleanField(read_only=True)
     has_summary = serializers.BooleanField(read_only=True)
     capture_id = serializers.SerializerMethodField()
@@ -168,6 +169,10 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
             "has_summary",
             "capture_id",
             "upload",
+            # 列表视图(对齐飞书的四列)要用:所有者显示名 + 创建 / 修改时间。
+            "owner",
+            "created_at",
+            "updated_at",
         ]
         read_only_fields = fields
 
@@ -175,9 +180,18 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
         """Resolve current access, not the role at record creation time."""
         return record_capabilities(obj, self.context["request"].user)
 
+    def get_owner(self, obj):
+        """所有者显示名 —— 与房间序列化同一口径(姓名 → 短名 → 邮箱)。"""
+        user = obj.owner
+        if user is None:
+            return None
+        return user.full_name or user.short_name or user.email or None
+
     def get_upload(self, obj):
         """Expose metadata and owner controls, never the private storage location."""
-        from core.services.uploaded_recordings import public_metadata  # pylint: disable=import-outside-toplevel
+        from core.services.uploaded_recordings import (
+            public_metadata,  # pylint: disable=import-outside-toplevel
+        )
 
         job = getattr(obj, "uploaded_recording", None)
         if not job:
@@ -257,8 +271,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         """Scope every detail and list query before applying user filters."""
+        # owner 供列表视图的「所有者」列用;一页 30 行,不 select_related 就是 N+1。
         queryset = visible_records(self.request.user).select_related(
-            "meeting_session__room", "uploaded_recording"
+            "meeting_session__room", "uploaded_recording", "owner"
         )
         # EXISTS preserves one row per record even with many summary versions.
         # Restrict legacy materials to their exact room/session attribution.
@@ -267,8 +282,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 When(
                     Q(meeting_session__status=models.MeetingSession.Status.ACTIVE)
                     | Exists(
-                        models.CaptureSession.objects.filter(record_id=OuterRef("pk"))
-                        .exclude(status=models.CaptureSession.Status.STOPPED)
+                        models.CaptureSession.objects.filter(
+                            record_id=OuterRef("pk")
+                        ).exclude(status=models.CaptureSession.Status.STOPPED)
                     ),
                     then=True,
                 ),
@@ -278,7 +294,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 When(
                     Q(can_read_summary=True),
                     then=Exists(
-                        models.MeetingSummaryVersion.objects.filter(record_id=OuterRef("pk"))
+                        models.MeetingSummaryVersion.objects.filter(
+                            record_id=OuterRef("pk")
+                        )
                     )
                     | Exists(
                         models.Summary.objects.filter(
@@ -293,8 +311,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         ).prefetch_related(
             Prefetch(
                 "captures",
-                queryset=models.CaptureSession.objects.filter(created_by=self.request.user)
-                .only("id", "record_id"),
+                queryset=models.CaptureSession.objects.filter(
+                    created_by=self.request.user
+                ).only("id", "record_id"),
                 to_attr="library_captures",
             )
         )
@@ -316,7 +335,8 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 raise ValidationError({"source_type": "Unsupported source type."})
             queryset = queryset.filter(
                 source_type__in=["audio_recording", "upload"]
-                if source == "recordings" else [source]
+                if source == "recordings"
+                else [source]
             )
         session_id = self.request.query_params.get("meeting_session_id")
         room_id = self.request.query_params.get("room_id")
@@ -442,9 +462,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "available": bool(
                         supports_automation(record) and automation_enabled()
                     ),
-                    "can_control": bool(
-                        can_generate_summary(record, request.user)
-                    ),
+                    "can_control": bool(can_generate_summary(record, request.user)),
                 }
             )
         key = serializers.UUIDField().run_validation(
@@ -531,10 +549,13 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         )
         rows = record.summary_versions.select_related("job", "input_snapshot")
         if "version_id" in request.query_params:
-            if request.query_params.get("cursor") or len(
-                request.query_params.getlist("version_id")
-            ) != 1:
-                raise ValidationError("A pinned version cannot use a cursor or multiple IDs.")
+            if (
+                request.query_params.get("cursor")
+                or len(request.query_params.getlist("version_id")) != 1
+            ):
+                raise ValidationError(
+                    "A pinned version cannot use a cursor or multiple IDs."
+                )
             version_id = serializers.UUIDField().run_validation(
                 request.query_params["version_id"]
             )
@@ -631,7 +652,8 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         raw = self.request.query_params.get("expected_revision")
         expected = (
             serializers.IntegerField(min_value=1).run_validation(raw)
-            if raw is not None else None
+            if raw is not None
+            else None
         )
         self._check_original_revision(record, expected)
         return (rows.filter(text__icontains=query) if query else rows), expected
@@ -639,16 +661,22 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
     @staticmethod
     def _check_original_revision(record, expected):
         """Check again after serializing to catch publication during the read."""
-        if expected is not None and not models.MeetingRecord.objects.filter(
-            pk=record.pk, revision=expected
-        ).exists():
+        if (
+            expected is not None
+            and not models.MeetingRecord.objects.filter(
+                pk=record.pk, revision=expected
+            ).exists()
+        ):
             raise TranscriptSourceChanged()
 
     @action(detail=True, methods=["get"], url_path="original-segments")
     def original_segments(self, request, pk=None):
         """Native standalone originals retain their own identity and source offsets."""
         record = self._content_record("read_transcript")
-        if not settings.MEETING_CAPTURE_PROTOCOL_ENABLED and record.source_type != models.MeetingRecord.Source.UPLOAD:
+        if (
+            not settings.MEETING_CAPTURE_PROTOCOL_ENABLED
+            and record.source_type != models.MeetingRecord.Source.UPLOAD
+        ):
             raise Http404
         rows = current_originals(record).select_related("speaker")
         job_id = request.query_params.get("transcription_job_id")
