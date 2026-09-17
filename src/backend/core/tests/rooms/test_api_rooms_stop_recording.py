@@ -6,6 +6,8 @@ Test rooms API endpoints in the Meet core app: stop recording.
 
 from unittest import mock
 
+from django.utils.translation import gettext as _
+
 import pytest
 from rest_framework.test import APIClient
 
@@ -86,7 +88,7 @@ def test_stop_recording_recording_disabled(settings):
     response = client.post(f"/api/v1.0/rooms/{room.id}/stop-recording/")
 
     assert response.status_code == 404
-    assert response.json() == {"detail": "Not found."}
+    assert response.json() == {"detail": _("Not found.")}
     # Verify no recording exists
     assert Recording.objects.count() == 0
 

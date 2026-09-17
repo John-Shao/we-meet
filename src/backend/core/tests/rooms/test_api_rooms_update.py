@@ -96,6 +96,7 @@ def test_api_rooms_update_administrators(mock_update_metadata):
     )
     client = APIClient()
     client.force_login(user)
+    slug_before = room.slug
 
     response = client.put(
         f"/api/v1.0/rooms/{room.id!s}/",
@@ -110,7 +111,8 @@ def test_api_rooms_update_administrators(mock_update_metadata):
     assert response.status_code == 200
     room.refresh_from_db()
     assert room.name == "New name"
-    assert room.slug == "new-name"
+    # 会议号是服务端生成的数字、且只读:改名不改号,客户端传来的 slug 也被忽略。
+    assert room.slug == slug_before
     assert room.access_level == RoomAccessLevel.PUBLIC
     assert room.configuration == {"can_publish_sources": ["camera", "microphone"]}
 
@@ -134,6 +136,7 @@ def test_api_rooms_update_administrators_configuration_only(mock_update_metadata
     )
     client = APIClient()
     client.force_login(user)
+    slug_before = room.slug
 
     response = client.put(
         f"/api/v1.0/rooms/{room.id!s}/",
@@ -147,7 +150,8 @@ def test_api_rooms_update_administrators_configuration_only(mock_update_metadata
     assert response.status_code == 200
     room.refresh_from_db()
     assert room.name == "New name"
-    assert room.slug == "new-name"
+    # 会议号只读:改名不改号。
+    assert room.slug == slug_before
     assert room.access_level == RoomAccessLevel.RESTRICTED
     assert room.configuration == {"can_publish_sources": ["camera", "microphone"]}
 
@@ -171,6 +175,7 @@ def test_api_rooms_update_administrators_access_level_only(mock_update_metadata)
     )
     client = APIClient()
     client.force_login(user)
+    slug_before = room.slug
 
     response = client.put(
         f"/api/v1.0/rooms/{room.id!s}/",
@@ -183,7 +188,8 @@ def test_api_rooms_update_administrators_access_level_only(mock_update_metadata)
     assert response.status_code == 200
     room.refresh_from_db()
     assert room.name == "New name"
-    assert room.slug == "new-name"
+    # 会议号只读:改名不改号。
+    assert room.slug == slug_before
     assert room.access_level == RoomAccessLevel.PUBLIC
     assert room.configuration == {"can_publish_sources": ["camera"]}
 
@@ -217,7 +223,7 @@ def test_api_rooms_update_administrators_name_only(mock_update_metadata):
     assert response.status_code == 200
     room.refresh_from_db()
     assert room.name == "New name"
-    assert room.slug == "new-name"
+    assert room.slug == "old-name"
     # Unrelated fields untouched
     assert room.access_level == RoomAccessLevel.PUBLIC
     assert room.configuration == {"can_publish_sources": ["camera"]}

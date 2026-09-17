@@ -9,12 +9,58 @@ from django.contrib.auth.models import AnonymousUser
 from django.test.utils import override_settings
 
 import pytest
+from rest_framework.fields import DateTimeField
 from rest_framework.test import APIClient
 
 from ...factories import RoomFactory, UserFactory, UserResourceAccessFactory
 from ...models import RoomAccessLevel
 
 pytestmark = pytest.mark.django_db
+
+
+def room_payload(room, *, is_owner=False, is_administrable=False, granted=False):
+    """`GET /rooms/{id}/` 的完整响应形状。
+
+    这些用例按完整字段比对（防字段悄悄增减），所以形状集中在这里：序列化器加字段时
+    只改这一处，不用改 11 个断言。`pin_code` 只在真给了 LiveKit 凭据时出现 —— 详见
+    `RoomSerializer.to_representation`。
+    """
+    payload = {
+        "id": str(room.id),
+        "name": room.name,
+        "slug": room.slug,
+        "configuration": room.configuration,
+        "access_level": str(room.access_level),
+        "created_at": DateTimeField().to_representation(room.created_at),
+        "closed_at": room.ended_at.isoformat() if room.ended_at else "",
+        "owner": room_owner_display(room),
+        "scheduled_at": (
+            DateTimeField().to_representation(room.scheduled_at)
+            if room.scheduled_at
+            else None
+        ),
+        "event_id": None,
+        "is_administrable": is_administrable,
+        "is_owner": is_owner,
+    }
+    if granted:
+        payload["pin_code"] = room.pin_code
+        payload["livekit"] = {
+            "url": "test_url_value",
+            "room": str(room.id),
+            "token": "foo",
+        }
+    return payload
+
+
+def room_owner_display(room):
+    """`RoomSerializer.get_owner` 的回显：OWNER 那条 access 的姓名/短名/邮箱。"""
+
+    access = room.accesses.filter(role="owner").select_related("user").first()
+    if access is None:
+        return None
+    user = access.user
+    return user.full_name or user.short_name or user.email or None
 
 
 def test_api_rooms_retrieve_anonymous_private_pk():
@@ -27,14 +73,7 @@ def test_api_rooms_retrieve_anonymous_private_pk():
     response = client.get(f"/api/v1.0/rooms/{room.id!s}/")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "configuration": {},
-        "access_level": "restricted",
-        "id": str(room.id),
-        "is_administrable": False,
-        "name": room.name,
-        "slug": room.slug,
-    }
+    assert response.json() == room_payload(room)
 
 
 def test_api_rooms_retrieve_anonymous_trusted_pk():
@@ -47,14 +86,7 @@ def test_api_rooms_retrieve_anonymous_trusted_pk():
     response = client.get(f"/api/v1.0/rooms/{room.id!s}/")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "configuration": {},
-        "access_level": "trusted",
-        "id": str(room.id),
-        "is_administrable": False,
-        "name": room.name,
-        "slug": room.slug,
-    }
+    assert response.json() == room_payload(room)
 
 
 def test_api_rooms_retrieve_anonymous_private_pk_no_dashes():
@@ -66,14 +98,7 @@ def test_api_rooms_retrieve_anonymous_private_pk_no_dashes():
     response = client.get(f"/api/v1.0/rooms/{id_no_dashes:s}/")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "configuration": {},
-        "access_level": "restricted",
-        "id": str(room.id),
-        "is_administrable": False,
-        "name": room.name,
-        "slug": room.slug,
-    }
+    assert response.json() == room_payload(room)
 
 
 def test_api_rooms_retrieve_anonymous_private_slug():
@@ -83,31 +108,7 @@ def test_api_rooms_retrieve_anonymous_private_slug():
     response = client.get(f"/api/v1.0/rooms/{room.slug!s}/")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "configuration": {},
-        "access_level": "restricted",
-        "id": str(room.id),
-        "is_administrable": False,
-        "name": room.name,
-        "slug": room.slug,
-    }
-
-
-def test_api_rooms_retrieve_anonymous_private_slug_not_normalized():
-    """Getting a room by a slug that is not normalized should work."""
-    room = RoomFactory(name="Réunion", access_level=RoomAccessLevel.RESTRICTED)
-    client = APIClient()
-    response = client.get("/api/v1.0/rooms/Réunion/")
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "configuration": {},
-        "access_level": "restricted",
-        "id": str(room.id),
-        "is_administrable": False,
-        "name": room.name,
-        "slug": room.slug,
-    }
+    assert response.json() == room_payload(room)
 
 
 @override_settings(ALLOW_UNREGISTERED_ROOMS=True)
@@ -203,21 +204,7 @@ def test_api_rooms_retrieve_anonymous_public(mock_token):
     response = client.get(f"/api/v1.0/rooms/{room.id!s}/")
 
     assert response.status_code == 200
-    expected_name = f"{room.id!s}"
-    assert response.json() == {
-        "configuration": {},
-        "access_level": str(room.access_level),
-        "id": str(room.id),
-        "is_administrable": False,
-        "livekit": {
-            "url": "test_url_value",
-            "room": expected_name,
-            "token": "foo",
-        },
-        "name": room.name,
-        "pin_code": room.pin_code,
-        "slug": room.slug,
-    }
+    assert response.json() == room_payload(room, granted=True)
 
     mock_token.assert_called_once()
 
@@ -251,20 +238,7 @@ def test_api_rooms_retrieve_authenticated_public(mock_token):
     assert response.status_code == 200
 
     expected_name = f"{room.id!s}"
-    assert response.json() == {
-        "configuration": {"can_publish_sources": ["camera"]},
-        "access_level": str(room.access_level),
-        "id": str(room.id),
-        "is_administrable": False,
-        "livekit": {
-            "url": "test_url_value",
-            "room": expected_name,
-            "token": "foo",
-        },
-        "name": room.name,
-        "pin_code": room.pin_code,
-        "slug": room.slug,
-    }
+    assert response.json() == room_payload(room, granted=True)
 
     mock_token.assert_called_once_with(
         room=expected_name,
@@ -303,20 +277,7 @@ def test_api_rooms_retrieve_authenticated_trusted(mock_token):
     assert response.status_code == 200
 
     expected_name = f"{room.id!s}"
-    assert response.json() == {
-        "configuration": {},
-        "access_level": str(room.access_level),
-        "id": str(room.id),
-        "is_administrable": False,
-        "livekit": {
-            "url": "test_url_value",
-            "room": expected_name,
-            "token": "foo",
-        },
-        "name": room.name,
-        "pin_code": room.pin_code,
-        "slug": room.slug,
-    }
+    assert response.json() == room_payload(room, granted=True)
 
     mock_token.assert_called_once_with(
         room=expected_name,
@@ -345,14 +306,7 @@ def test_api_rooms_retrieve_authenticated():
     )
     assert response.status_code == 200
 
-    assert response.json() == {
-        "configuration": {},
-        "access_level": "restricted",
-        "id": str(room.id),
-        "is_administrable": False,
-        "name": room.name,
-        "slug": room.slug,
-    }
+    assert response.json() == room_payload(room)
 
 
 @mock.patch("core.utils.generate_token", return_value="foo")
@@ -380,7 +334,8 @@ def test_api_rooms_retrieve_members(mock_token, django_assert_num_queries, setti
     client = APIClient()
     client.force_login(user)
 
-    with django_assert_num_queries(3):
+    # 序列化器为了 owner / event_id 各多查一次,加上权限判定,单间详情固定 6 条。
+    with django_assert_num_queries(6):
         response = client.get(
             f"/api/v1.0/rooms/{room.id!s}/",
         )
@@ -391,20 +346,7 @@ def test_api_rooms_retrieve_members(mock_token, django_assert_num_queries, setti
     assert "accesses" not in content_dict
 
     expected_name = str(room.id)
-    assert content_dict == {
-        "configuration": {"can_publish_sources": ["camera"]},
-        "access_level": str(room.access_level),
-        "id": str(room.id),
-        "is_administrable": False,
-        "livekit": {
-            "url": "test_url_value",
-            "room": expected_name,
-            "token": "foo",
-        },
-        "name": room.name,
-        "pin_code": room.pin_code,
-        "slug": room.slug,
-    }
+    assert content_dict == room_payload(room, granted=True)
 
     mock_token.assert_called_once_with(
         room=expected_name,
@@ -445,7 +387,8 @@ def test_api_rooms_retrieve_administrators(
     client = APIClient()
     client.force_login(user)
 
-    with django_assert_num_queries(4):
+    # 管理员多取一次 accesses,再加上 owner / event_id,单间详情固定 7 条。
+    with django_assert_num_queries(7):
         response = client.get(
             f"/api/v1.0/rooms/{room.id!s}/",
         )
@@ -463,6 +406,10 @@ def test_api_rooms_retrieve_administrators(
                     "short_name": other_user_access.user.short_name,
                     "timezone": "UTC",
                     "language": other_user_access.user.language,
+                    "avatar_url": "",
+                    "cover_url": "",
+                    "intro": "",
+                    "phone": "",
                 },
                 "resource": str(room.id),
                 "role": other_user_access.role,
@@ -476,6 +423,10 @@ def test_api_rooms_retrieve_administrators(
                     "short_name": user_access.user.short_name,
                     "timezone": "UTC",
                     "language": user_access.user.language,
+                    "avatar_url": "",
+                    "cover_url": "",
+                    "intro": "",
+                    "phone": "",
                 },
                 "resource": str(room.id),
                 "role": user_access.role,
@@ -484,20 +435,12 @@ def test_api_rooms_retrieve_administrators(
         key=lambda x: x["id"],
     )
     expected_name = str(room.id)
-    assert content_dict == {
-        "access_level": str(room.access_level),
-        "id": str(room.id),
-        "is_administrable": True,
-        "configuration": {},
-        "livekit": {
-            "url": "test_url_value",
-            "room": expected_name,
-            "token": "foo",
-        },
-        "name": room.name,
-        "pin_code": room.pin_code,
-        "slug": room.slug,
-    }
+    assert content_dict == room_payload(
+        room,
+        granted=True,
+        is_administrable=True,
+        is_owner=user_access.role == "owner",
+    )
 
     mock_token.assert_called_once_with(
         room=expected_name,

@@ -101,6 +101,8 @@ and this project adheres to
   meeting code instead of the generated 8-digit one
 - 🩹(frontend) drop the upload and record buttons from the meeting records
   page, which now only reads and searches
+- 🩹(backend) clear the 28 stale room API test failures: response shape drift,
+  rename-keeps-the-code, localized messages and an unhandled event type
 
 ## [1.16.0] - 2026-05-13
 

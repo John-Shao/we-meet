@@ -7,6 +7,7 @@ import uuid
 from unittest import mock
 
 from django.conf import settings
+from django.utils.translation import gettext as _
 
 import pytest
 from livekit.api import AccessToken, TwirpError, VideoGrants
@@ -75,7 +76,7 @@ def test_start_subtitle_missing_token_anonymous(settings):
 
     assert response.status_code == 403
     assert response.json() == {
-        "detail": "Authentication credentials were not provided."
+        "detail": _("Authentication credentials were not provided.")
     }
 
 
@@ -95,7 +96,7 @@ def test_start_subtitle_missing_token_authenticated(settings):
 
     assert response.status_code == 403
     assert response.json() == {
-        "detail": "Authentication credentials were not provided."
+        "detail": _("Authentication credentials were not provided.")
     }
 
 
@@ -132,7 +133,7 @@ def test_start_subtitle_disabled_by_default(mock_livekit_token):
     )
 
     assert response.status_code == 404
-    assert response.json() == {"detail": "Not found."}
+    assert response.json() == {"detail": _("Not found.")}
 
 
 def test_start_subtitle_valid_token(
@@ -203,7 +204,7 @@ def test_start_subtitle_wrong_room(settings, mock_livekit_token):
 
     assert response.status_code == 403
     assert response.json() == {
-        "detail": "You do not have permission to perform this action."
+        "detail": _("You do not have permission to perform this action.")
     }
 
 

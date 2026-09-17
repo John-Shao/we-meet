@@ -11,6 +11,7 @@ from uuid import uuid4
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import SuspiciousOperation
 from django.urls import reverse
+from django.utils.translation import gettext as _
 
 import pytest
 from livekit.api import TwirpError, UpdateParticipantRequest
@@ -335,7 +336,7 @@ def test_mute_participant_admin_with_token_for_another_room(mock_livekit_client)
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
     assert response.data == {
-        "detail": "You do not have permission to perform this action."
+        "detail": _("You do not have permission to perform this action.")
     }
 
     mock_livekit_client.room.mute_published_track.assert_not_called()

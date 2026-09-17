@@ -141,7 +141,9 @@ def test_handled_event_type(
 
 def test_unhandled_event_type(client, mock_livekit_config):
     """Should return 200 for event types that have no handler."""
-    event_data = json.dumps({"event": "participant_joined"})
+    # track_published 在 LiveKitWebhookEventType 里、但没有对应的 _handle_*,才是「未处理
+    # 事件」;participant_joined 是有处理器的,拿它当未处理事件会进去解析 room.name 报错。
+    event_data = json.dumps({"event": "track_published"})
 
     hash64 = base64.b64encode(hashlib.sha256(event_data.encode()).digest()).decode()
     token = api.AccessToken(

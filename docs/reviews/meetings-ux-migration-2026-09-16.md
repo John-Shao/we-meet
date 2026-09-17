@@ -391,6 +391,24 @@ AI 录音页（页头同款按钮 + 导航里的固定入口），不必同一�
   （3.5 定的那条「同一档 action 尺寸 + 18px 图标、右对齐」继续成立）。
 - 走查脚本新增两条断言：实录页上「上传」「录音」按钮计数必须为 0 —— 以后谁加回来直接红。
 
+### 3.10 把 rooms 那 28 条失败清干净（2026-09-17 追加）
+
+接着 3.8 把剩下的 28 条全部定性并修掉，`core/tests/rooms` 现在 **308 passed / 1 skipped
+/ 0 failed**。按根因分四类 —— **只有最后一条是真的外部依赖**：
+
+| 根因 | 条数 | 处理 |
+| --- | --- | --- |
+| **响应结构漂移**：`RoomSerializer` 后来加了 `created_at / closed_at / owner / scheduled_at / event_id / is_owner`，`accesses` 里的 user 也多了 `avatar_url / cover_url / intro / phone`，测试仍按旧形状精确比对 | retrieve 13 + participants 1 | retrieve 加 `room_payload()` helper（按序列化器构造完整期望值，以后加字段只改一处）；participants 补上 user 的四个字段 |
+| **旧行为前提消失**：① 改名连带改 slug（现在会议号只读、改名不改号）；② `assertNumQueries(3/4)` 没算上序列化器为 owner / event_id 多查的两次 | update 4 + retrieve 2 | 断言改成「slug 与改名前的值相等」；查询数改成实测的 6 / 7，并注明多出来的两次是什么 |
+| **本地化消息**：接口返回中文（`{'detail': '未找到。'}`），测试写死英文 | subtitle 4 + start/stop recording 2 + participants 1 + invite 4 | 期望值改用 `gettext(...)`：语言无关，且仍然精确比对 |
+| **被测前提变了**：`participant_joined` 现在有处理器（拿它当「未处理事件」会去解析 `room.name` 而报错），枚举里没有 `_handle_*` 的是 `track_published` | webhook 1 | 改用 `track_published` |
+| **外部依赖**：邀请邮件模板 `mail/html/invitation.html` 不在本仓库（由 mail 服务提供） | invite 1 | 标 `@pytest.mark.skip(reason=…)`；接口行为由同文件另外几条用例覆盖 |
+
+另外删掉一条前提已消失的用例：`test_api_rooms_retrieve_anonymous_private_slug_not_normalized`
+依赖「房名 slugify 成会议号，所以非规范化写法也能命中」，而会议号现在是服务端生成的数字，
+拿房名去取会落到「未注册房间」分支（`id: null` + 一张临时 LiveKit 凭据）。按会议号取房的
+覆盖由 `..._anonymous_private_slug` 与 `..._private_pk_no_dashes` 保留。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把
