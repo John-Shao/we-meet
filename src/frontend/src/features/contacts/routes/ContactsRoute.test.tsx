@@ -303,7 +303,7 @@ describe('ContactsRoute', () => {
     await waitFor(() =>
       expect(screen.queryByTestId('contacts-member-s2')).toBeNull()
     )
-    expect(screen.getByTestId('contacts-list-subtitle')).toHaveTextContent(
+    expect(screen.getByTestId('title-bar-meta')).toHaveTextContent(
       'page.resultCount:1'
     )
     expect(screen.getByTestId('contacts-message-s1')).toBeInTheDocument()
@@ -350,13 +350,11 @@ describe('ContactsRoute', () => {
 
     // 「销售部」在左栏树上也有一个,所以按标题这个 testid 断言,不用文本查询。
     await waitFor(() =>
-      expect(screen.getByTestId('contacts-list-title')).toHaveTextContent(
-        '销售部'
-      )
+      expect(screen.getByTestId('title-bar-title')).toHaveTextContent('销售部')
     )
     // 人数取服务端报的 count,不是「已加载几条」。
     await waitFor(() =>
-      expect(screen.getByTestId('contacts-list-subtitle')).toHaveTextContent(
+      expect(screen.getByTestId('title-bar-meta')).toHaveTextContent(
         'page.count:2'
       )
     )
@@ -725,9 +723,7 @@ describe('ContactsRoute', () => {
     renderRoute('/contacts?dept=hr')
     // 人事部 member_count = 0:右栏照常显示,但没有那个按钮。
     await waitFor(() =>
-      expect(screen.getByTestId('contacts-list-title')).toHaveTextContent(
-        '人事部'
-      )
+      expect(screen.getByTestId('title-bar-title')).toHaveTextContent('人事部')
     )
     expect(screen.queryByTestId('contacts-dept-group-chat')).toBeNull()
   })
@@ -809,7 +805,7 @@ describe('ContactsRoute', () => {
   it('星标 / 群组视图没有字母头(那里不按拼音排)', async () => {
     const { unmount } = renderRoute('/contacts?view=starred')
     await waitFor(() =>
-      expect(screen.getByTestId('contacts-list-title')).toHaveTextContent(
+      expect(screen.getByTestId('title-bar-title')).toHaveTextContent(
         'starred.title'
       )
     )

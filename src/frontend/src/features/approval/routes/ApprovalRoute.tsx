@@ -18,6 +18,7 @@ import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { SubNavHeader, SubNavStrip } from '@/components/SubNav'
+import { TitleBar } from '@/components/TitleBar'
 import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
 import { RequireAuth } from '@/components/RequireAuth'
 import { StateHint } from '@/components/StateHint'
@@ -277,79 +278,33 @@ const ApprovalAuthenticated = () => {
         </ResizablePanel>
       )}
 
-      <main
-        className={css({
-          flex: 1,
-          minWidth: 0,
-          height: '100%',
-          overflowY: 'auto',
-          padding: '1.5rem',
-        })}
-      >
-        {view === 'create' ? (
-          <>
-            <h2 className={contentTitle}>{t('tab.create')}</h2>
-            {loadingTemplates ? (
-              <StateHint state="loading">{t('page.loading')}</StateHint>
-            ) : templatesError ? (
-              <StateHint
-                state="error"
-                action={
-                  <Button
-                    variant="secondary"
-                    size="dense"
-                    onPress={() => void refetchTemplates()}
-                  >
-                    {tAdmin('feedback.retry')}
-                  </Button>
-                }
-              >
-                {tAdmin('feedback.loadFailed')}
-              </StateHint>
-            ) : templates.length === 0 ? (
-              <StateHint>{t('form.noTemplates')}</StateHint>
-            ) : (
-              <div
-                className={css({
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-                  gap: '0.875rem',
-                })}
-              >
-                {templates.map((tpl, i) => (
-                  <TemplateCard
-                    key={tpl.id}
-                    tpl={tpl}
-                    color={CARD_PALETTE[i % CARD_PALETTE.length]}
-                    onPick={() => openSubmit(tpl.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            <h2 className={contentTitle}>
-              {view === 'pending' ? t('tab.pending') : t('tab.mine')}
-            </h2>
-            <div
-              className={css({
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.75rem',
-                maxWidth: '760px',
-              })}
-            >
-              {loadingList ? (
+      {/*
+        内容区:标题栏走共享件(与消息聊天窗口同一形态 —— 16px bold 标题 + 备注 +
+        1px 底分割线),标题从原来的滚动区里搬出来成为一条固定的栏;下面的正文自己滚。
+      */}
+      <div className={contentColumnCls}>
+        <TitleBar
+          title={
+            view === 'create'
+              ? t('tab.create')
+              : view === 'pending'
+                ? t('tab.pending')
+                : t('tab.mine')
+          }
+        />
+        <main className={contentBodyCls}>
+          {view === 'create' ? (
+            <>
+              {loadingTemplates ? (
                 <StateHint state="loading">{t('page.loading')}</StateHint>
-              ) : activeQ.isError ? (
+              ) : templatesError ? (
                 <StateHint
                   state="error"
                   action={
                     <Button
                       variant="secondary"
                       size="dense"
-                      onPress={() => void activeQ.refetch()}
+                      onPress={() => void refetchTemplates()}
                     >
                       {tAdmin('feedback.retry')}
                     </Button>
@@ -357,47 +312,97 @@ const ApprovalAuthenticated = () => {
                 >
                   {tAdmin('feedback.loadFailed')}
                 </StateHint>
-              ) : list.length === 0 ? (
-                <StateHint>{t('section.empty')}</StateHint>
+              ) : templates.length === 0 ? (
+                <StateHint>{t('form.noTemplates')}</StateHint>
               ) : (
-                <>
-                  {list.map((inst) => (
-                    <InstanceCard
-                      key={inst.id}
-                      inst={inst}
-                      fmt={fmt}
-                      mode={view === 'pending' ? 'pending' : 'mine'}
-                      onAct={onAct}
-                      onCancel={onCancel}
-                      onUrge={onUrge}
+                <div
+                  className={css({
+                    display: 'grid',
+                    gridTemplateColumns:
+                      'repeat(auto-fill, minmax(240px, 1fr))',
+                    gap: '0.875rem',
+                  })}
+                >
+                  {templates.map((tpl, i) => (
+                    <TemplateCard
+                      key={tpl.id}
+                      tpl={tpl}
+                      color={CARD_PALETTE[i % CARD_PALETTE.length]}
+                      onPick={() => openSubmit(tpl.id)}
                     />
                   ))}
-                  {activeQ.hasNextPage && (
-                    <Button
-                      variant="secondary"
-                      size="dense"
-                      onPress={() => void activeQ.fetchNextPage()}
-                      isDisabled={activeQ.isFetchingNextPage}
-                      loading={activeQ.isFetchingNextPage}
-                      data-testid="approval-load-more"
-                      className={css({
-                        alignSelf: 'center',
-                        marginTop: '0.25rem',
-                        color: 'greyscale.700',
-                        borderColor: 'greyscale.300',
-                      })}
-                    >
-                      {activeQ.isFetchingNextPage
-                        ? t('page.loading')
-                        : t('act.loadMore')}
-                    </Button>
-                  )}
-                </>
+                </div>
               )}
-            </div>
-          </>
-        )}
-      </main>
+            </>
+          ) : (
+            <>
+              <div
+                className={css({
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  maxWidth: '760px',
+                })}
+              >
+                {loadingList ? (
+                  <StateHint state="loading">{t('page.loading')}</StateHint>
+                ) : activeQ.isError ? (
+                  <StateHint
+                    state="error"
+                    action={
+                      <Button
+                        variant="secondary"
+                        size="dense"
+                        onPress={() => void activeQ.refetch()}
+                      >
+                        {tAdmin('feedback.retry')}
+                      </Button>
+                    }
+                  >
+                    {tAdmin('feedback.loadFailed')}
+                  </StateHint>
+                ) : list.length === 0 ? (
+                  <StateHint>{t('section.empty')}</StateHint>
+                ) : (
+                  <>
+                    {list.map((inst) => (
+                      <InstanceCard
+                        key={inst.id}
+                        inst={inst}
+                        fmt={fmt}
+                        mode={view === 'pending' ? 'pending' : 'mine'}
+                        onAct={onAct}
+                        onCancel={onCancel}
+                        onUrge={onUrge}
+                      />
+                    ))}
+                    {activeQ.hasNextPage && (
+                      <Button
+                        variant="secondary"
+                        size="dense"
+                        onPress={() => void activeQ.fetchNextPage()}
+                        isDisabled={activeQ.isFetchingNextPage}
+                        loading={activeQ.isFetchingNextPage}
+                        data-testid="approval-load-more"
+                        className={css({
+                          alignSelf: 'center',
+                          marginTop: '0.25rem',
+                          color: 'greyscale.700',
+                          borderColor: 'greyscale.300',
+                        })}
+                      >
+                        {activeQ.isFetchingNextPage
+                          ? t('page.loading')
+                          : t('act.loadMore')}
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </main>
+      </div>
 
       {submitOpen && (
         <SubmitApprovalDialog
@@ -413,11 +418,18 @@ const ApprovalAuthenticated = () => {
   )
 }
 
-const contentTitle = css({
-  margin: '0 0 1rem',
-  fontSize: '1.125rem',
-  fontWeight: 'bold',
-  color: 'greyscale.900',
+const contentColumnCls = css({
+  flex: 1,
+  minWidth: 0,
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+})
+const contentBodyCls = css({
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  padding: '1.5rem',
 })
 
 /** 导航行容器:内边距在栏头之外单独给(栏头自带 16/12)。 */

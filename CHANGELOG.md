@@ -133,6 +133,8 @@ and this project adheres to
   also aligns its collapse button radius
 - ♻️(frontend) put the chat title bar on one line as Feishu does: avatar,
   title and an optional note such as the member count
+- ♻️(frontend) share that title bar as one component across the message, task,
+  contacts and approval modules, with a tighter 8px vertical padding
 
 ### Fixed
 

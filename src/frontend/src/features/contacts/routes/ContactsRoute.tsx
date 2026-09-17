@@ -20,6 +20,7 @@ import { createGroupConversation } from '@/features/im/api/createGroupConversati
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { SubNavStrip } from '@/components/SubNav'
+import { TitleBar } from '@/components/TitleBar'
 import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
@@ -920,20 +921,14 @@ const ContactsAuthenticated = () => {
           <ExternalContactsPanel onMessage={handleMessage} />
         ) : (
           <>
-            <header className={listHeaderCls}>
-              <div className={css({ minWidth: 0 })}>
-                <h2 className={listTitleCls} data-testid="contacts-list-title">
-                  {listTitle}
-                </h2>
-                {listSubtitle && (
-                  <p
-                    className={listSubtitleCls}
-                    data-testid="contacts-list-subtitle"
-                  >
-                    {listSubtitle}
-                  </p>
-                )}
-              </div>
+            {/* 内容标题栏走共享件(与消息聊天窗口同一形态):标题 + 备注(人数)
+                一行、不换行。右内边距仍按滚动条槽宽对齐(与下面的成员列表同一条槽)。
+                搜索框与按钮留在右侧动作组里。 */}
+            <TitleBar
+              title={listTitle}
+              meta={listSubtitle}
+              paddingRight={`calc(1rem + var(--contacts-gutter, ${SCROLLBAR_GUTTER_FALLBACK}px))`}
+            >
               <div className={headerActionsCls}>
                 {narrowDetail && selectedDept && (
                   <Button
@@ -972,7 +967,7 @@ const ContactsAuthenticated = () => {
                   </Button>
                 )}
               </div>
-            </header>
+            </TitleBar>
 
             <div className={listBodyCls}>
               <div
@@ -1248,19 +1243,9 @@ const ContactsAuthenticated = () => {
  * 槽宽不写死:`--contacts-gutter` 是实测值(见 useScrollbarGutter),10px 只是还没
  * 量到时的兜底。
  */
-const listHeaderCls = css({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.75rem',
-  flexWrap: 'wrap',
-  paddingLeft: '1rem',
-  paddingRight: `calc(1rem + var(--contacts-gutter, ${SCROLLBAR_GUTTER_FALLBACK}px))`,
-  paddingY: '0.625rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-})
-
-/** 窄屏的右栏浮层:盖住内容区,自带一条返回栏。 */
+/**
+ * 窄屏的右栏浮层:盖住内容区,自带一条返回栏。
+ */
 const takeoverHeaderCls = css({
   flexShrink: 0,
   display: 'flex',
@@ -1282,23 +1267,6 @@ const takeoverBodyCls = css({
     backgroundColor: 'greyscale.000',
     boxShadow: '0 0 0 1px token(colors.greyscale.200)',
   },
-})
-const listTitleCls = css({
-  margin: 0,
-  fontSize: '0.9375rem',
-  fontWeight: 'bold',
-  color: 'greyscale.900',
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-})
-const listSubtitleCls = css({
-  margin: '0.125rem 0 0',
-  fontSize: '0.75rem',
-  color: 'greyscale.500',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
 })
 const headerActionsCls = css({
   display: 'flex',

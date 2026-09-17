@@ -732,6 +732,44 @@ AI 录音页（页头同款按钮 + 导航里的固定入口），不必同一�
   （min-content 贡献算的是 nowrap 文本的全宽），于是「省略号」永远量不到 —— 改成
   列向 flex（与应用里的真实结构一致）才量得准。
 
+### 3.22 内容区标题栏收成一处定义（任务 / 通讯录 / 审批 / 消息，2026-09-17 追加）
+
+3.21 把聊天窗口标题栏改成「头像 + 标题 + 备注、不换行」之后，按要求把这一形态铺到
+其它模块的内容标题栏 —— 抽成 `components/TitleBar.tsx`（与 `SubNav` 同一套路：**基准
+只写一处**）：
+
+| 调用点 | 改前 | 改后 |
+| --- | --- | --- |
+| 消息聊天栏 | 头像 24px + 标题 + 人数（本轮上一版） | 前导头像 **40px**（与会话列表同档）+ 标题 + 备注，同一行 |
+| 任务 | `我负责的` 18px + `5 个任务` 13px **下一行**，栏高 64px | 标题 16px bold + 备注 12px 灰字**同一行**，栏高 48px |
+| 通讯录 | `内部联系人` 15px + `14 人` 12px **下一行** | 同一行；右内边距仍按滚动条槽宽对齐（`paddingRight` 透传） |
+| 审批 | 标题在**滚动区里**（`h2` + `padding: 1.5rem`，没有栏、没有分割线） | 标题栏独立成栏（白底 + 1px 分割线），正文自己滚 |
+
+TitleBar 的三条规则（写死在共享件里）：① 标题与备注同一行、`nowrap`；② 标题
+`flexShrink: 1` + 省略号，备注 `flexShrink: 0` 不被挤掉；③ 几何统一 —— 内边距 **16/8**、
+`min-height: 3rem`、白底 + 1px `border.subtle` 分割线。有 40px 前导时栏高自然落到
+**57px**（40 + 8×2 + 1），无前导时 **48px** —— 这就是「栏高 61 → 57」那条微调的落点：
+把纵向内边距从 10 收到 8（`paddingY: 'sm'`）。
+
+「会议」四个一级页上一轮已经是这一形态（白底 + 16px 标题 + 右对齐动作 + 分割线），
+只是标题字重是 600、内边距 16/12 —— 本轮**没有**再动它：那一栏里还有搜索框与图标钮，
+改内边距会把四个页面的钉头几何一起带动，收益只是 4px。若以后要完全对齐，把
+`libraryStyles.pageHeaderRow` 的 `marginBottom`/`paddingTop` 换成 TitleBar 的这两档即可。
+
+验证：
+
+- `components/TitleBar.test.tsx` 4 条：前导 + 标题 + 备注同框、只有给了 `onTitlePress`
+  才是可点标题、没有前导/备注就不渲染那两个槽、动作在右侧。
+- 新增 `scripts/check-title-bar.mjs`（真实 Chromium，只挂这一个组件）：① **源码级**检查
+  四个调用点（消息 / 任务 / 通讯录 / 审批）都引用 `TitleBar`；② 量两种形态 —— 有前导
+  （40px 头像 / 栏高 57 / 白底 / 内边距 16、8 / 标题 16px bold / 备注 12px）与无前导
+  （栏高 48），两种都要「标题与备注同一行、`nowrap`、超长标题被省略、备注不被挤掉」。
+  另存截图 `test-results/title-bar.png`。
+- `ContactsRoute.test.tsx` 里 5 处 `contacts-list-title` / `contacts-list-subtitle` 断言
+  跟着改成共享件的 `title-bar-title` / `title-bar-meta`（标题栏抽走后 testid 只该有一套）。
+- 全量 `vitest` 162 文件 / 1043 条、lint / prettier / color / foundation / `tsc -b` /
+  build 全绿。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把

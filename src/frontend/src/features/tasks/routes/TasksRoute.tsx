@@ -16,6 +16,7 @@ import { Modal, ModalCloseButton } from '@/components/Modal'
 import { PageState } from '@/components/PageState'
 import { RequireAuth } from '@/components/RequireAuth'
 import { ResizablePanel } from '@/components/ResizablePanel'
+import { TitleBar } from '@/components/TitleBar'
 import { SubNavStrip } from '@/components/SubNav'
 import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
 import { Screen } from '@/layout/Screen'
@@ -607,19 +608,19 @@ const TasksAuthenticated = () => {
         </div>
       )}
       <main className={mainCss}>
-        <header className={headerCss}>
-          <div>
-            <h1 className={headingCss}>{currentViewName}</h1>
-            <p className={countCss}>{t('workspace.resultCount', { count })}</p>
-            {selectedTaskList?.is_archived && (
-              <p className={countCss}>{t('taskLists.archiveHint')}</p>
-            )}
-            {groupNotice && (
-              <p role="status" className={groupNoticeCss}>
-                {groupNotice}
-              </p>
-            )}
-          </div>
+        {/* 内容标题栏走共享件(与消息聊天窗口同一形态):标题 + 备注(结果数/已归档)
+            一行、不换行;归档提示与操作反馈这类较长的状态文案留在下面一行。 */}
+        <TitleBar
+          title={currentViewName}
+          meta={
+            <>
+              <span>{t('workspace.resultCount', { count })}</span>
+              {selectedTaskList?.is_archived && (
+                <span> · {t('taskLists.archiveHint')}</span>
+              )}
+            </>
+          }
+        >
           <div className={headerActionsCss}>
             {recoverableLists.length > 0 && (
               <Button
@@ -655,7 +656,12 @@ const TasksAuthenticated = () => {
               {t('workspace.newTask')}
             </Button>
           </div>
-        </header>
+        </TitleBar>
+        {groupNotice && (
+          <p role="status" className={groupNoticeCss}>
+            {groupNotice}
+          </p>
+        )}
         <SegmentedControl
           className={modeTabsCss}
           value={state.mode}
@@ -1071,27 +1077,6 @@ const mainCss = css({
   minHeight: 0,
   display: 'flex',
   flexDirection: 'column',
-})
-const headerCss = css({
-  minHeight: '4rem',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '1rem',
-  paddingX: '1rem',
-  borderBottom: '1px solid token(colors.greyscale.200)',
-  backgroundColor: 'greyscale.000',
-})
-const headingCss = css({
-  margin: 0,
-  color: 'default.text',
-  fontSize: '1.125rem',
-  fontWeight: '600',
-})
-const countCss = css({
-  margin: 0,
-  color: 'default.subtle-text',
-  fontSize: '0.75rem',
 })
 const groupNoticeCss = css({
   margin: '0.125rem 0 0',

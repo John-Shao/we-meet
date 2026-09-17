@@ -10,6 +10,7 @@ import { css } from '@/styled-system/css'
 import { fetchApi } from '@/api/fetchApi'
 import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
+import { TitleBar } from '@/components/TitleBar'
 import { StateHint } from '@/components/StateHint'
 import { EventDetailHost } from '@/features/calendar'
 
@@ -36,7 +37,6 @@ import {
 } from '../api/inputSync'
 import { markLater } from '../api/markLater'
 import { Avatar, IM_AVATAR_SIZE } from '../components/Avatar'
-import { ChatHeader } from '../components/ChatHeader'
 import { GroupAvatar } from '../components/GroupAvatar'
 import { MessageInput, type ReplyPreview } from '../components/MessageInput'
 import { PinnedBar } from '../components/PinnedBar'
@@ -1198,11 +1198,11 @@ export const ChatPane = ({
       {/* 标题栏:头像 + 标题 + 备注(群人数 / 已离职提示)一行排开、**不换行** ——
           飞书聊天窗口那一栏就是这个形态;排版与「不被挤掉」的规则都写在
           components/ChatHeader 里,这里只负责喂头像与备注。 */}
-      <ChatHeader
+      <TitleBar
         title={title}
-        onOpenSettings={onOpenSettings}
-        settingsLabel={t('manage.settings')}
-        avatar={
+        onTitlePress={onOpenSettings}
+        titleActionLabel={t('manage.settings')}
+        leading={
           isGroup ? (
             <GroupAvatar
               members={memberUids.slice(0, 9).map((uid) => ({
@@ -1329,7 +1329,7 @@ export const ChatPane = ({
             ⋯
           </IconButton>
         )}
-      </ChatHeader>
+      </TitleBar>
 
       {/* Body: message stream (+ input) on the left, info panel on the right.
           Both sit below the full-width header, matching Feishu. */}
