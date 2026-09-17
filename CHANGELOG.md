@@ -103,8 +103,8 @@ and this project adheres to
   page, which now only reads and searches
 - 🩹(backend) clear the 28 stale room API test failures: response shape drift,
   rename-keeps-the-code, localized messages and an unhandled event type
-- ✨(backend) expose owner, created_at and updated_at on meeting records for the
-  upcoming table-style list view
+- ✨(backend) expose owner, created_at and updated_at on meeting records,
+  ahead of the table-style list view
 
 ## [1.16.0] - 2026-05-13
 
