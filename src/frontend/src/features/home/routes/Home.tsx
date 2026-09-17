@@ -55,7 +55,11 @@ const canvasShell = pageShell('canvas')
 /**
  * 列表区:唯一的滚动区,内容铺白(一级页规则,见 libraryStyles.contentSurface)。
  */
-const listRegion = cx(scrollRegion, contentSurface, css({ paddingTop: 'lg' }))
+/**
+ * 列表滚动区。顶部内边距与另外三个栏目页同档(`xs`):首个小节标题到固定区下沿
+ * 一律 28px(4 + 标题自带的 24),四个页面并排切栏目时标题不会上下跳。
+ */
+const listRegion = cx(scrollRegion, contentSurface, css({ paddingTop: 'xs' }))
 
 const Columns = ({ children }: { children?: ReactNode }) => {
   return (

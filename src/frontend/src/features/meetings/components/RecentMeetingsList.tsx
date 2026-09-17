@@ -17,7 +17,7 @@ import {
   rowHeadingOneLine,
   rowIconTile,
   rowMetaBlock,
-  sectionHeading,
+  sectionHeadingFlush,
 } from './libraryStyles'
 
 // The overview returns the twenty latest actual sessions.
@@ -106,7 +106,7 @@ export const RecentMeetingsList = ({
   if (isLoading || isError)
     return (
       <section className={sectionStack}>
-        <h3 className={sectionHeading}>{t('home.recentTitle')}</h3>
+        <h3 className={sectionHeadingFlush}>{t('home.recentTitle')}</h3>
         <StateHint
           state={isError ? 'error' : 'loading'}
           action={
@@ -129,7 +129,7 @@ export const RecentMeetingsList = ({
     if (!showEmpty) return null
     return (
       <div className={sectionStack}>
-        <h3 className={sectionHeading}>{t('home.recentTitle')}</h3>
+        <h3 className={sectionHeadingFlush}>{t('home.recentTitle')}</h3>
         <PageState
           density="compact"
           surface="card"
@@ -150,7 +150,7 @@ export const RecentMeetingsList = ({
 
   return (
     <div className={sectionStack}>
-      <h3 className={sectionHeading}>{t('home.recentTitle')}</h3>
+      <h3 className={sectionHeadingFlush}>{t('home.recentTitle')}</h3>
       <ul className={listStack}>
         {visible.map((m) => {
           const label = m.name || t('home.untitled')

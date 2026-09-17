@@ -955,6 +955,47 @@ try {
     .evaluate((el) => getComputedStyle(el).backgroundColor)
   assert.equal(quickBox, 'rgb(40, 96, 217)', '主操作走 action.primary.bg')
 
+  // 节标题上方的空白:节间距只由**一层**负责(容器给 marginTop,标题不再自带)。
+  // 两层各顶 24px 时首节标题距固定区下沿 64px —— 就是截图里「预约会议 / 历史会议
+  // 上面多出来的空白」;现在是一档 28px(滚动区上边距 4 + 节间距 24)。
+  const homeSpacing = await page.evaluate(() => {
+    const region = document.querySelector('[data-testid="meeting-list-region"]')
+    const headings = [...region.querySelectorAll('h3')]
+    const first = headings[0]
+    const style = getComputedStyle(first)
+    return {
+      headingCount: headings.length,
+      headingMarginTops: headings.map((el) => getComputedStyle(el).marginTop),
+      sectionMarginTops: headings.map(
+        (el) => getComputedStyle(el.parentElement).marginTop
+      ),
+      firstHeadingGap: Math.round(
+        first.getBoundingClientRect().top +
+          Number.parseFloat(style.paddingTop) -
+          region.previousElementSibling.getBoundingClientRect().bottom
+      ),
+    }
+  })
+  assert.equal(
+    homeSpacing.headingCount,
+    2,
+    '视频会议页是「预约会议 + 历史会议」两节'
+  )
+  assert.deepEqual(
+    homeSpacing.headingMarginTops,
+    ['0px', '0px'],
+    '节容器已经排过节间距,节标题不该再自带一档(两层相加就是那截多余空白)'
+  )
+  assert.deepEqual(
+    homeSpacing.sectionMarginTops,
+    ['24px', '24px'],
+    '节间距由容器给一档 xl(24px)'
+  )
+  assert.ok(
+    Math.abs(homeSpacing.firstHeadingGap - 28) <= 2,
+    `首节标题应距固定区下沿 28px(4px 滚动区上边距 + 24px 节间距),实际 ${homeSpacing.firstHeadingGap}px`
+  )
+
   // 样板 ①:铺满内容列(不限宽居中)。
   const homeShell = await page.locator('main').boundingBox()
   const homeColumn = await page.locator('main').evaluate((el) => {

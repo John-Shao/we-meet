@@ -117,6 +117,8 @@ and this project adheres to
 - ♻️(frontend) put the record button first on the AI recording page and make it
   the primary action
 - ♻️(frontend) give the import button a downward arrow
+- 🩹(frontend) stop the video meeting sections from spacing their headings
+  twice, which left a blank band above the lists
 
 ## [1.16.0] - 2026-05-13
 

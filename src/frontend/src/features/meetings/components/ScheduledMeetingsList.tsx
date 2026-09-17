@@ -16,7 +16,7 @@ import {
   rowHeadingOneLine,
   rowIconTile,
   rowMetaBlock,
-  sectionHeading,
+  sectionHeadingFlush,
 } from './libraryStyles'
 
 /** 一节整体的竖向堆叠(标题 + 列表 / 空态 / 加载)。 */
@@ -132,7 +132,9 @@ export const ScheduledMeetingsList = ({
    * 已经有同一颗按钮,而那一行永远在屏上 —— 不需要靠标题行兜住可见性,同一屏
    * 出现两颗同款次按钮反而让人犹豫点哪个。预约出来的会议仍然出现在这一节里。
    */
-  const header = (title: string) => <h3 className={sectionHeading}>{title}</h3>
+  const header = (title: string) => (
+    <h3 className={sectionHeadingFlush}>{title}</h3>
+  )
 
   if (!enabled) return null
   if (isLoading || isError)

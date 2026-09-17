@@ -208,6 +208,16 @@ export const sectionHeading = cx(
 )
 
 /**
+ * 区块标题的**不带自身外边距**版本:给「外层容器已经用 `marginTop` 排过节间距」的
+ * 地方用(视频会议页的两个列表各自包在 `sectionStack` 里)。
+ *
+ * 两处各顶一档 24px 时,标题上方会多出一倍空白 —— 实测「预约会议」上沿距固定区下沿
+ * 64px,而另外三个栏目页的首个小节标题是 28px。这里的规则是:**节间距只由一层负责**
+ * —— 容器负责间距的地方,标题就不再自带。
+ */
+export const sectionHeadingFlush = cx(groupLabel, css({ marginBottom: 'md' }))
+
+/**
  * 一级页的**内容底**:页壳仍是 `surface.canvas`(钉住的头部因此保持浅灰),滚动区
  * 铺白。这条规则来自 App 的页面层级规范
  * (`we-meet-android/docs/page-backgrounds.md` §1):一级页面 = 顶部固定区域浅灰 +
