@@ -174,9 +174,19 @@ export function RecordingOverview() {
               <p className={pageLead}>{t('library.recordHint')}</p>
             </div>
             {/* 页头动作与其它栏目页同一档:headerActions 里放 action 尺寸 + 18px 图标的
-                按钮,右对齐。这一页是「录制/导入」两个动作的归属页,会议实录页只查/看。 */}
+                按钮,右对齐。这一页是「录制/导入」两个动作的归属页,会议实录页只查/看。
+                **录音在前、导入在后**(与 App 端 RecordingHomeScreen 同序:录音卡片在左),
+                主操作走 primary —— 与视频会议页的「快速会议」是同一档实心按钮。 */}
             {enabled && (
               <div className={headerActions}>
+                <Button
+                  variant="primary"
+                  size="action"
+                  icon={<RiMicLine size={18} aria-hidden />}
+                  onPress={() => navigate('/meeting/recording/capture')}
+                >
+                  {t('library.startRecording')}
+                </Button>
                 <RecordingUpload
                   key={user.id}
                   viewerId={user.id}
@@ -184,14 +194,6 @@ export function RecordingOverview() {
                     navigate(`/meeting/recording/history/${id}`)
                   }
                 />
-                <Button
-                  variant="secondary"
-                  size="action"
-                  icon={<RiMicLine size={18} aria-hidden />}
-                  onPress={() => navigate('/meeting/recording/capture')}
-                >
-                  {t('library.startRecording')}
-                </Button>
               </div>
             )}
           </header>

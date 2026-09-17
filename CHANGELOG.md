@@ -114,6 +114,9 @@ and this project adheres to
   scrollable row cannot clip them
 - ♻️(frontend) move the meeting records search into the header action row and
   drop the separate search button
+- ♻️(frontend) put the record button first on the AI recording page and make it
+  the primary action
+- ♻️(frontend) give the import button a downward arrow
 
 ## [1.16.0] - 2026-05-13
 

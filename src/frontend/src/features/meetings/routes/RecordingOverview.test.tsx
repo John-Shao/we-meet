@@ -77,9 +77,16 @@ it('loads only completed recordings, limits history to twenty and links to secon
   })
   show(<RecordingOverview />)
   // 「录音」现在是页头的 action 按钮(与会议实录同款工具按钮),不再是页面里的大入口块。
+  const recordButton = screen.getByRole('button', {
+    name: 'library.startRecording',
+  })
+  expect(recordButton).toBeInTheDocument()
+  // 录音在前、导入在后(与 App 端 RecordingHomeScreen 同序:录音卡片在左)。
   expect(
-    screen.getByRole('button', { name: 'library.startRecording' })
-  ).toBeInTheDocument()
+    recordButton.compareDocumentPosition(
+      screen.getByRole('button', { name: 'upload.open' })
+    ) & Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy()
   expect(
     await screen.findByRole('link', { name: /Recording 0 / })
   ).toHaveAttribute('href', '/meeting/recording/history/id-0')

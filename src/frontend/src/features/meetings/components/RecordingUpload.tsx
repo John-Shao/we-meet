@@ -5,7 +5,7 @@ import { useLocation } from 'wouter'
 import { fetchApi } from '@/api/fetchApi'
 import { Button, Dialog, TextArea } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
-import { RiUpload2Line } from '@remixicon/react'
+import { RiDownload2Line } from '@remixicon/react'
 import { css, cx } from '@/styled-system/css'
 import { rowMeta } from './libraryStyles'
 
@@ -123,11 +123,13 @@ export function RecordingUpload({
         }}
       />
       {/* 只有一种形态了:与另外三个栏目页页头同款的 action 按钮。
-          (原先还有一个大入口块的 `tile` 形态,四个页面统一后没有调用点。) */}
+          (原先还有一个大入口块的 `tile` 形态,四个页面统一后没有调用点。)
+          图标是**向下**的箭头:这一页的动作是「把外部的音视频收进来」,向下的箭头
+          才读得通(向上的 RiUpload2Line 看着像要把东西发出去)。 */}
       <Button
         variant="secondary"
         size="action"
-        icon={<RiUpload2Line size={18} aria-hidden />}
+        icon={<RiDownload2Line size={18} aria-hidden />}
         onPress={() => input.current?.click()}
       >
         {t('upload.open')}

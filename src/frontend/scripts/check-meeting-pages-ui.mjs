@@ -209,6 +209,28 @@ const themeSurface = (selector) =>
     })
 
 /**
+ * 现取一枚 remixicon 线稿图标的 `path d`,用来断言按钮上换的是**哪个**图标 ——
+ * 比"有没有 svg"强一档:方向搞反(上箭头写成下箭头)这类回归只有比路径才守得住。
+ */
+const iconPath = (name) =>
+  page.evaluate(async (name) => {
+    const React = (await import('/node_modules/.vite/deps/react.js')).default
+    const { createRoot } = (
+      await import('/node_modules/.vite/deps/react-dom_client.js')
+    ).default
+    const icons = await import('/@id/@remixicon/react')
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    root.render(React.createElement(icons[name], { size: 18 }))
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    const path = host.querySelector('path')?.getAttribute('d') ?? null
+    root.unmount()
+    host.remove()
+    return path
+  }, name)
+
+/**
  * 清掉键盘走查留下的 Tooltip。
  *
  * react-aria 的 tooltip 是挂到 body 上 `data-overlay-container` 里的 portal:Tab 走到
@@ -314,8 +336,14 @@ try {
     const reply = (json) => route.fulfill({ json })
     if (url.pathname.endsWith('/config/')) return reply(config)
     if (url.pathname.endsWith('/users/me')) return reply(user)
+    // 「导入」按钮只在能力可用时渲染(见 RecordingUpload 的早退),这里给可用的
+    // 一份,页头的两个动作才都画出来(顺序 / 图标那条断言才有对象)。
     if (url.pathname.endsWith('/recording-uploads/'))
-      return reply({ available: false, max_bytes: 0, extensions: [] })
+      return reply({
+        available: true,
+        max_bytes: 500_000_000,
+        extensions: ['mp3', 'wav', 'm4a', 'mp4', 'mov', 'webm'],
+      })
     if (url.pathname.endsWith('/rooms/video-meetings/'))
       return reply({ scheduled: scheduledMeetings, recent: recentMeetings })
     if (url.pathname.includes('/video-session/'))
@@ -399,11 +427,11 @@ try {
     ).includes('UI Owner'),
     '桌面端副行不应重复所有者'
   )
-  // 这一页只查/看:「上传」和「录音」两个动作都不在这儿(都归 AI 录音页)。
+  // 这一页只查/看:「上传(导入)」和「录音」两个动作都不在这儿(都归 AI 录音页)。
   assert.equal(
-    await page.getByRole('button', { name: 'upload.open' }).count(),
+    await page.getByRole('button', { name: '导入', exact: true }).count(),
     0,
-    '会议实录页不应再有「上传」按钮'
+    '会议实录页不应再有「导入」按钮'
   )
   assert.equal(
     await page.getByRole('button', { name: '录音', exact: true }).count(),
@@ -751,6 +779,40 @@ try {
     1,
     '「录音」工具按钮应带图标'
   )
+  // 「录音」是这一页的主操作:实心 primary,与视频会议页的「快速会议」同一档色。
+  assert.equal(
+    await recordButton.evaluate((el) => getComputedStyle(el).backgroundColor),
+    'rgb(40, 96, 217)',
+    '「录音」应走 action.primary.bg(与「快速会议」同款实心按钮)'
+  )
+  // 顺序:录音在导入左侧、同一行(与 App 端 RecordingHomeScreen 同序)。
+  const importButton = page.getByRole('button', { name: '导入', exact: true })
+  const [recordBox, importBox] = await Promise.all([
+    recordButton.boundingBox(),
+    importButton.boundingBox(),
+  ])
+  assert.ok(
+    recordBox.x + recordBox.width <= importBox.x,
+    `「录音」必须在「导入」左侧,实际 录音右缘 ${Math.round(
+      recordBox.x + recordBox.width
+    )} / 导入左缘 ${Math.round(importBox.x)}`
+  )
+  assert.ok(
+    recordBox.y < importBox.y + importBox.height &&
+      importBox.y < recordBox.y + recordBox.height,
+    '「录音」与「导入」必须在同一行'
+  )
+  // 「导入」的图标是**向下**的箭头(RiDownload2Line),不再用向上的上传图标。
+  const [downloadPath, uploadPath] = await Promise.all([
+    iconPath('RiDownload2Line'),
+    iconPath('RiUpload2Line'),
+  ])
+  const importIconPath = await importButton
+    .locator('svg[aria-hidden="true"] path')
+    .first()
+    .getAttribute('d')
+  assert.equal(importIconPath, downloadPath, '「导入」按钮应是向下的箭头图标')
+  assert.notEqual(importIconPath, uploadPath, '「导入」不该再用向上的上传图标')
   await assertUnifiedPageChrome('AI 录音')
   await page.evaluate(() => {
     document.documentElement.dataset.theme = 'dark'
