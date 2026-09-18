@@ -36,8 +36,6 @@ import {
   type RecentEmoji,
 } from '../api/inputSync'
 import { markLater } from '../api/markLater'
-import { Avatar, IM_AVATAR_SIZE } from '../components/Avatar'
-import { GroupAvatar } from '../components/GroupAvatar'
 import { MessageInput, type ReplyPreview } from '../components/MessageInput'
 import { PinnedBar } from '../components/PinnedBar'
 import { MessageItem, type ReactionChip } from '../components/MessageItem'
@@ -146,8 +144,6 @@ interface Props {
   conversation: ConversationSummary
   /** Display title resolved upstream (group name / direct peer name). */
   title: string
-  /** 会话头像:群自定义头像,或私聊对端的头像(缺省时群聊退回成员拼图)。 */
-  avatarUrl?: string
   currentUserUID: string
   sendDisabled: boolean
   /** Toggle the 群成员 (member roster) panel — the ⋯ button (group only). */
@@ -183,7 +179,6 @@ export const ChatPane = ({
   client,
   conversation,
   title,
-  avatarUrl,
   currentUserUID,
   sendDisabled,
   onOpenInfo,
@@ -1198,30 +1193,15 @@ export const ChatPane = ({
         height: '100%',
       })}
     >
-      {/* 标题栏:头像 + 标题 + 备注(群人数 / 已离职提示)一行排开、**不换行** ——
-          飞书聊天窗口那一栏就是这个形态;排版与「不被挤掉」的规则都写在
-          components/ChatHeader 里,这里只负责喂头像与备注。 */}
+      {/* 标题栏:标题 + 备注(群人数 / 已离职提示)一行排开、**不换行** ——
+          排版与「不被挤掉」的规则都写在 components/ChatHeader 里,这里只负责喂备注。
+          标题栏里不再放头像(2026-09-18):会话头像在左侧会话列表里已经有一份,
+          标题栏这一个是重复信息,还占掉了标题最前面的一档宽度。 */}
       <TitleBar
         title={title}
         onTitlePress={onOpenSettings}
         titleActionLabel={t('manage.settings')}
-        leading={
-          <>
-            {navExpand}
-            {isGroup ? (
-              <GroupAvatar
-                members={memberUids.slice(0, 9).map((uid) => ({
-                  name: nameOf(uid),
-                  src: names[uid]?.avatar_url || undefined,
-                }))}
-                customSrc={avatarUrl}
-                size={IM_AVATAR_SIZE}
-              />
-            ) : (
-              <Avatar name={title} src={avatarUrl} size={IM_AVATAR_SIZE} />
-            )}
-          </>
-        }
+        leading={navExpand}
         meta={
           isGroup ? (
             <span data-testid="chat-header-count">

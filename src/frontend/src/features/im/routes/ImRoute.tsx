@@ -886,7 +886,6 @@ const ImAuthenticated = () => {
               navExpand={navExpandButton}
               conversation={selectedConv}
               title={nameOf(selectedConv)}
-              avatarUrl={avatarOf(selectedConv)}
               currentUserUID={currentUserUID}
               sendDisabled={sendDisabled}
               locate={locate}
