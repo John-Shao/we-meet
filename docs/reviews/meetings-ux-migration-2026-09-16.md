@@ -927,9 +927,14 @@ TitleBar 的三条规则（写死在共享件里）：① 标题与备注同一�
 | 列表页标题栏（`we-meet-pages.css` 的 `.wm-grid-titlebar`） | 标题 500、内边距 16（高度对，字重偏细） | 标题 **700**（与宿主 `titleMedium + bold` 同档）、`min-height: 3.5rem` + 内边距 8/16、1px 底分割线 |
 
 **没有动**：文档页自己的 `DocHeader`（125px 高，可编辑标题 + emoji + 元信息 + 协作状态）
-—— 那是**文档**的头，不是页面标题栏；压成 57px 会改掉编辑体验，属于产品决策。
-**也没有加**：桌面端左栏的收起按钮 / 36px 窄条 —— 那边左栏的收起是平板浮动条与文档页
-按钮上的能力，桌面布局本身没有「收起」入口；加它是新增功能，不是样式对齐。
+—— 那是**文档**的头，不是页面标题栏；压成 57px 会改掉编辑体验，走查明确说保持现状。
+
+**桌面端的收起窄条（走查追加）**：桌面布局里左栏收起后原本**没有展开入口**（文档页用浮动
+按钮收起、回到列表页就回不去了），现在补上 `LeftPanelStrip`：**36px 宽、上内边距 12px、
+1px 右分割线、一颗 16px 图标的展开按钮**（与宿主 `SubNavStrip` 同档），两条桌面路径都接
+（`MainLayoutContent` 的列表/新建页 + `ResizableLeftPanel` 的文档页）；**只在桌面渲染**，
+平板/手机的抽屉 + 浮动条维持原样。样式在 `.wm-subnav-strip`，值由
+`we-meet-bars.test.ts` 钉住，行为由 `LeftPanelStrip.test.tsx` 3 条守住。
 
 验证：那边 `tsc --noEmit` / `eslint` / `stylelint` / `prettier --check` 全过，
 `vitest`（cunningham / left-panel / header）10 条通过，token 对齐脚本
