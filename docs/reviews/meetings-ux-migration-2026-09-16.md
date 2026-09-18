@@ -912,6 +912,31 @@ TitleBar 的三条规则（写死在共享件里）：① 标题与备注同一�
 「外部联系人」那段真实浏览器检查再加三条：按钮高 **40px**（action 档）、背景
 **`rgb(40, 96, 217)`**（与「快速会议 / 录音」同一品牌蓝）、图标 **18×18** ✓。
 
+### 3.28 云文档（另一个仓库）的两条栏对齐（2026-09-18 追加）
+
+「云文档」不是本仓库的页面：它是 **iframe 内嵌的另一个 App**（`we-meet-docs`，
+`DocsFrame.tsx` 只负责把 `docs.<域名>` 装进来），所以它的二级导航栏栏头与内容标题栏
+都由那边渲染 —— 组件不能共用，只能对齐**值**（那个 App 已经通过 `yarn sync-we-meet-ui`
+同步了本仓库的设计 token，字体 / 间距 / 控件高都在）。
+
+在 `we-meet-docs`（分支 `docs-dev`，两个提交）里做的：
+
+| 位置 | 改前 | 改后 |
+| --- | --- | --- |
+| 左栏页头（二级导航栏，`LeftPanelHeader`） | 内嵌时**只有一行动作**，没有标题 | 标题（`Docs`）+ 模块动作一行；`we-meet-ui.css` 新增 `.wm-subnav-header`：**56px 高、内边距 16/8、16px bold 标题、1px 底分割线** |
+| 列表页标题栏（`we-meet-pages.css` 的 `.wm-grid-titlebar`） | 标题 500、内边距 16（高度对，字重偏细） | 标题 **700**（与宿主 `titleMedium + bold` 同档）、`min-height: 3.5rem` + 内边距 8/16、1px 底分割线 |
+
+**没有动**：文档页自己的 `DocHeader`（125px 高，可编辑标题 + emoji + 元信息 + 协作状态）
+—— 那是**文档**的头，不是页面标题栏；压成 57px 会改掉编辑体验，属于产品决策。
+**也没有加**：桌面端左栏的收起按钮 / 36px 窄条 —— 那边左栏的收起是平板浮动条与文档页
+按钮上的能力，桌面布局本身没有「收起」入口；加它是新增功能，不是样式对齐。
+
+验证：那边 `tsc --noEmit` / `eslint` / `stylelint` / `prettier --check` 全过，
+`vitest`（cunningham / left-panel / header）10 条通过，token 对齐脚本
+（`check-we-meet-token-alignment` 与 `sync-we-meet-ui` 检查模式）通过；新增
+`src/cunningham/__tests__/we-meet-bars.test.ts` 把上面这两条值钉住（谁把高度/字重
+改回去谁红）。真实浏览器实拍由走查人确认（那个 App 本地起需要后端）。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把
