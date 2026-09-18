@@ -14,7 +14,7 @@ import {
   RiShareLine,
 } from '@remixicon/react'
 
-import { Button, Menu, MenuList } from '@/primitives'
+import { IconButton, Menu, MenuList } from '@/primitives'
 import { css } from '@/styled-system/css'
 
 import type { ApiTaskList, ApiTaskListGroup } from '../api/ApiTask'
@@ -80,14 +80,13 @@ export const TaskListNavigationRow = ({
         data-node-actions
       >
         <Menu placement="bottom">
-          <Button
-            variant="tertiary"
+          <IconButton
             size="icon24"
             className={taskNavigationActionButtonCss}
-            aria-label={t('taskLists.more', { name: taskList.name })}
+            label={t('taskLists.more', { name: taskList.name })}
           >
             <RiMoreLine size={16} />
-          </Button>
+          </IconButton>
           <MenuList
             aria-label={t('taskLists.more', { name: taskList.name })}
             menuClassName={taskNavigationMenuCss}
@@ -239,24 +238,22 @@ export const TaskListGroupNavigationNode = ({
           className={taskNavigationActionsCss({ visibility: 'conditional' })}
           data-node-actions
         >
-          <Button
-            variant="tertiary"
+          <IconButton
             size="icon24"
             className={taskNavigationActionButtonCss}
-            aria-label={t('taskListGroups.createListIn', { name: group.name })}
+            label={t('taskListGroups.createListIn', { name: group.name })}
             onPress={onCreateTaskList}
           >
             <RiAddLine size={16} />
-          </Button>
+          </IconButton>
           <Menu placement="bottom">
-            <Button
-              variant="tertiary"
+            <IconButton
               size="icon24"
               className={taskNavigationActionButtonCss}
-              aria-label={t('taskListGroups.more', { name: group.name })}
+              label={t('taskListGroups.more', { name: group.name })}
             >
               <RiMoreLine size={16} />
-            </Button>
+            </IconButton>
             <MenuList
               aria-label={t('taskListGroups.more', { name: group.name })}
               menuClassName={taskNavigationMenuCss}

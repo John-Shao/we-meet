@@ -149,6 +149,11 @@ and this project adheres to
   the same 56px white band with a 1px divider, the page tabs still on the
   left, a 40px filled create button with an 18px icon and an icon32 settings
   button on the right
+- 🎨(frontend) converge the task module's icon-only buttons on the IconButton
+  primitive: the title bar gear and the sub-navigation plus / more / gear
+  buttons drop the brand-blue tertiary fill, the gear moves to the right of the
+  create button as on the calendar bar, and removing a collaborator becomes a
+  danger-toned icon button
 
 ### Fixed
 

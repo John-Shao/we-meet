@@ -22,7 +22,7 @@ import { TitleBar } from '@/components/TitleBar'
 import { SubNavStrip } from '@/components/SubNav'
 import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
 import { Screen } from '@/layout/Screen'
-import { Button, SegmentedControl } from '@/primitives'
+import { Button, IconButton, SegmentedControl } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { css } from '@/styled-system/css'
 import { openSystemSettings } from '@/stores/systemSettings'
@@ -637,14 +637,6 @@ const TasksAuthenticated = () => {
               </Button>
             )}
 
-            <Button
-              variant="tertiary"
-              size="icon32"
-              aria-label={t('settings.open')}
-              onPress={() => openSystemSettings('tasks')}
-            >
-              <RiSettings3Line size={19} aria-hidden="true" />
-            </Button>
             {/* 主操作与「会议」的「快速会议 / 录音」同一档:primary + action + 18px 图标。 */}
             <Button
               ref={newButtonRef}
@@ -663,6 +655,20 @@ const TasksAuthenticated = () => {
             >
               {t('workspace.newTask')}
             </Button>
+            {/* 纯图标次操作收在主操作**右侧** —— 与「日历」那条栏同一顺序
+                (见 3.29:主操作贴左、齿轮在最右),不是随手摆的。
+                走基元 icon32(与「日历」齿轮 / 工具行同一档):`label` 一处给出无障碍名
+                + Tooltip。原先这里写的是 `variant="tertiary"`,那是 `action.selected`
+                (选中态容器色,浅蓝底 + 品牌蓝图标)—— 常驻且未选中的齿轮看起来一直
+                「激活」,也在标题栏里多出一块品牌蓝强调,与「每页只有一个主操作
+                (品牌蓝实底)」冲突。 */}
+            <IconButton
+              size="icon32"
+              label={t('settings.open')}
+              onPress={() => openSystemSettings('tasks')}
+            >
+              <RiSettings3Line size={19} aria-hidden="true" />
+            </IconButton>
           </div>
         </TitleBar>
         {groupNotice && (

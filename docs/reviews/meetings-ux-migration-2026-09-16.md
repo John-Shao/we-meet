@@ -1056,6 +1056,75 @@ CJK 下落的是同一个 Bold 字面，观感一致，按共享件那一档写�
 （1 条：用**真 i18n** 切到中文断言栏头读作「云文档」、切回英文读作 "Docs" —— 既有那份
 `LeftPanelHeader.test.tsx` 把 `t` 换成了 `s => s`，只能证明「标题走 t()」，看不到译文）。
 
+### 3.31 「任务」标题栏与二级导航栏的纯图标钮收敛到基元（2026-09-19 追加）
+
+起因是并排比对两页截图:「日历」与「任务」的齿轮不是一个颜色。日历那颗是透明底 + 灰图标
+（`icon.secondary` `#666666`），任务那颗是浅蓝底 + 品牌蓝图（`action.selected.bg`
+`#D6E4FF` / `.text` `#1E4DB3`）。
+
+按规范后者不成立：`docs/component-system.md` §「图标按钮」写的是「纯图标操作统一使用
+`IconButton`…普通动作使用 `quaternaryText`」，而 `action.selected.*` 在
+`docs/color-system.md` 里的定位是「**选中行、选中 chip**」。一颗常驻、并未选中的齿轮画成
+选中态容器色，等于一直向用户喊「我是激活的」；标题栏里也多出一块品牌蓝，与 3.27
+「每页只有一个主操作（品牌蓝实底）」冲突。
+
+| 位置                                                    | 改前                                                                       | 改后                                                                             |
+| ------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 任务 · 内容标题栏齿轮                                   | `Button variant="tertiary" size="icon32"`，只有 `aria-label`               | 基元 `IconButton size="icon32" label=…`（无障碍名 + Tooltip 一处给出，并补焦点环） |
+| 任务 · 二级导航栏 11 颗 icon24（＋ / ⋯ / 齿轮 / 提交 / 取消） | `variant="tertiary"` + `taskNavigationActionButtonCss` 把底色按成 `transparent!` | 基元 `IconButton size="icon24"`（底色/图标色/焦点环不再由调用点拼）                |
+| 任务 · 清单共享弹窗的「移除协作者」                     | `variant="tertiary"`（一颗**品牌蓝的删除钮**）                             | `IconButton variant="quaternaryDanger"`（平时中性灰、hover 才转红）               |
+| 任务 · 标题栏两档的顺序                                 | …找回清单 / **设置齿轮** / **新建任务**（齿轮夹在主操作左边）              | …找回清单 / **新建任务** / **设置齿轮**（与 3.29「日历」那条栏同序：主操作贴左、齿轮在最右） |
+| `taskNavigationActionButtonCss`                         | `transparent!` + `boxShadow: none!` + `greyscale.200` 悬停                 | 只留一条 `surface.muted` 悬停（理由见下）                                        |
+
+根因：`tertiary` 取的是 `action.selected.*`（选中态容器色），而导航栏那批覆盖色只按掉了
+`backgroundColor`、**没按 `color`** —— 于是底色透明了、图标仍是品牌蓝。这不是有意设计，
+是绕规范打补丁留下的半成品。
+
+**为什么导航栏那批还留一条悬停覆盖**：基元 `quaternaryText` 的悬停底色是
+`surface.canvas`，而二级导航栏底色 `subNavBg` 就是 `greyscale.50` —— 浅色下两边同为
+`#F6F6F6`，悬停完全看不见，直接违背组件系统「状态矩阵」里 hover 是 Web 必填项。所以这一处
+显式换成高一档的 `surface.muted`（`#EEEEEE`；深色 `#242424`），两套主题都可见。
+
+顺带记一笔**同类隐患**（没在这次里改）：「会议」二级导航栏栏头那颗齿轮
+（`MeetingNavPanel.tsx:69`，3.27 的基准本身）同样挂在 `subNavBg` 上、且用基元默认悬停，
+也就是**看不见悬停**；通讯录等模块的 `IconButton` 只要落在二级导航栏上都有这个问题。
+真正的修法是在 `quaternaryText` 或 token 层给「canvas 面上的悬停」一个落点，影响面是五个
+模块，不属于这次的范围。
+
+验证：
+
+- **新增源码级护栏** `scripts/title-bar-rules.mjs`（`check-title-bar.mjs` 与
+  `check-calendar-title-bar.mjs` 共用），三条：① 标题栏区块里的 `size="icon24|28|32"`
+  必须走基元 `IconButton`；② 纯图标钮不得带 `variant="primary|tertiary|primaryDark"`；
+  ③ 纯图标钮必须排在主操作**右侧**（与 3.29「日历」那条栏同序）。
+  拿 HEAD 版本的 `TasksRoute.tsx` 回放，①能命中那条 `icon32` 的 `<Button>`；
+  ③拿本次调换前的顺序（齿轮在主操作左侧）回放同样命中 —— 注意③**必须两趟**
+  （先定位主操作再比位置）：只走一趟的话，主操作在图标之后才出现，规则永远不会命中，
+  初版就是这么写的，写完拿反例回放才发现。
+- **修掉护栏自身的空转**：`check-title-bar.mjs` 原先用 `indexOf('/>', start)` 切
+  `TitleBar` 区块，而 `<TitleBar title={…} meta={…}>` 的**第一个** `/>` 属于它内部第一个
+  自闭合子元素（比如主操作的 `icon={<RiXxx size={18} aria-hidden />}`）——切出来的区间只有
+  239–589 字符、含 **0** 个 icon 档按钮，3.27 说要拦的「dense 漏出去」那几处正是这样漏的。
+  现在走 `extractElementInner` 按标签边界切（六个调用点实测 222–3486 字符），`dense` 这条
+  从空转变成了真检查；复跑六个调用点 + 日历 header，均 0 违规。
+- `npx vitest run src/features/tasks`：27 文件 / 177 条通过（含
+  `TaskWorkspaceNavigation.test.tsx` 16 条 —— 菜单触发器换成 `IconButton` 后
+  `MenuTrigger` 仍正常，`label` 仍是无障碍名）；
+- `npx tsc -b`、`npx eslint src/features/tasks`、`npm run check:json`、
+  `npm run check:colors`（58 组配对 / 40 个已迁移源）、`npm run check:foundations`
+  （39 个已迁移源）、`prettier --check` 全过。
+- **两个标题栏脚本的浏览器段也都跑了**（本地 `VITE_PORT=3187 npm run dev` + 真实
+  Chromium，两个都 exit 0）：`check-title-bar.mjs` 六个调用点共用 TitleBar、两种形态都是
+  57px；`check-calendar-title-bar.mjs` 日历栏 56px、主操作 40px 品牌蓝 + 18px 图标、
+  齿轮 icon32 32×32、**齿轮在主操作右侧**、390px 无横向溢出。截图落在
+  `src/frontend/test-results/`。
+- **仍未覆盖**：「任务」标题栏没有自己的浏览器走查脚本（这次的换序只由源码级规则③守着）。
+  要像「日历」那样量真实 DOM 顺序，需要照 `check-calendar-title-bar.mjs` 给任务页补一份
+  —— 那页要 `ConfirmProvider` + 任务数据 fixture，属于下一批。
+- **还没做**：`e2e/tasks.responsive.spec.ts-snapshots/` 的 4 张视觉快照重基线
+  （需要 compose 任务后端；这 4 张自 2026-08-31 起就已与代码脱节，见
+  [任务模块 UX](./tasks-ux-implementation-2026-09-12.md)）。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把

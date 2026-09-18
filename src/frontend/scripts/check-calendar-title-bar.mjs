@@ -23,6 +23,11 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { chromium } from '@playwright/test'
 
+import {
+  extractElementInner,
+  findTitleBarButtonViolations,
+} from './title-bar-rules.mjs'
+
 const origin = process.env.CAPTURE_TEST_ORIGIN || 'http://localhost:3187'
 const routeSource = 'src/features/calendar/routes/CalendarRoute.tsx'
 
@@ -46,10 +51,10 @@ assert.deepEqual(
   `${routeSource} 的标题栏必须走「会议」模块的共享定义(libraryStyles),缺:${missing.join(' / ')}`
 )
 {
-  const start = source.indexOf('<header className={pageHeaderRow}>')
-  assert.ok(start >= 0, `${routeSource} 的标题行没有用 pageHeaderRow`)
-  const end = source.indexOf('</header>', start)
-  const block = source.slice(start, end)
+  const anchor = source.indexOf('<header className={pageHeaderRow}>')
+  assert.ok(anchor >= 0, `${routeSource} 的标题行没有用 pageHeaderRow`)
+  // 区块按标签边界切(同 `check-title-bar.mjs`;旧写法取到第一个自闭合子元素就收尾)。
+  const block = extractElementInner(source, 'header', anchor) ?? ''
   assert.ok(
     !block.includes('size="dense"'),
     '标题栏里不出现 dense 档按钮(比同排小一号,见 3.27):应改用 action'
@@ -58,6 +63,9 @@ assert.deepEqual(
     /icon=\{<RiAddLine size=\{18\}/.test(block),
     '标题栏的主操作必须带 18px 图标(与「快速会议 / 新建任务」同一档)'
   )
+  // 纯图标齿轮:必须是基元 `IconButton`,且不得借用品牌蓝(见 title-bar-rules.mjs)。
+  const violations = findTitleBarButtonViolations(block, '日历标题栏')
+  assert.deepEqual(violations, [], violations.join('\n'))
 }
 
 const config = {

@@ -25,7 +25,15 @@ import {
   RiUserLine,
 } from '@remixicon/react'
 
-import { Button, Input, Menu, MenuList, Popover, Switch } from '@/primitives'
+import {
+  Button,
+  IconButton,
+  Input,
+  Menu,
+  MenuList,
+  Popover,
+  Switch,
+} from '@/primitives'
 import { css } from '@/styled-system/css'
 import { SubNavHeader } from '@/components/SubNav'
 
@@ -338,11 +346,10 @@ export const TaskWorkspaceNavigation = ({
           <div
             className={taskNavigationActionsCss({ visibility: 'persistent' })}
           >
-            <Button
-              variant="tertiary"
+            <IconButton
               size="icon24"
               className={taskNavigationActionButtonCss}
-              aria-label={t('groups.create')}
+              label={t('groups.create')}
               isDisabled={!onCreateTaskGroup || taskGroupMutating}
               onPress={() => {
                 setTaskGroupCreateError(false)
@@ -350,7 +357,7 @@ export const TaskWorkspaceNavigation = ({
               }}
             >
               <RiAddLine size={17} />
-            </Button>
+            </IconButton>
           </div>
         </div>
         {orderedTaskGroups.length === 0
@@ -391,23 +398,21 @@ export const TaskWorkspaceNavigation = ({
                 setCreatingTaskGroup(false)
               }}
             />
-            <Button
+            <IconButton
               type="submit"
-              variant="tertiary"
               size="icon24"
               className={taskNavigationActionButtonCss}
-              aria-label={t('groups.create')}
+              label={t('groups.create')}
               loading={taskGroupCreatePending}
               isDisabled={!newTaskGroupName.trim()}
             >
               <RiCheckLine size={16} />
-            </Button>
-            <Button
+            </IconButton>
+            <IconButton
               type="button"
-              variant="tertiary"
               size="icon24"
               className={taskNavigationActionButtonCss}
-              aria-label={t('workspace.createCancel')}
+              label={t('workspace.createCancel')}
               isDisabled={taskGroupCreatePending}
               onPress={() => {
                 setNewTaskGroupName('')
@@ -415,7 +420,7 @@ export const TaskWorkspaceNavigation = ({
               }}
             >
               <RiCloseLine size={16} />
-            </Button>
+            </IconButton>
           </form>
         )}
         {taskGroupCreateError && (
@@ -443,14 +448,13 @@ export const TaskWorkspaceNavigation = ({
               aria-label={t('taskLists.navigationSettings')}
               withArrow={false}
             >
-              <Button
-                variant="tertiary"
+              <IconButton
                 size="icon24"
                 className={taskNavigationActionButtonCss}
-                aria-label={t('taskLists.navigationSettings')}
+                label={t('taskLists.navigationSettings')}
               >
                 <RiSettings3Line size={16} />
-              </Button>
+              </IconButton>
               <div className={taskListSettingsCss}>
                 <Switch
                   className={taskListSettingsSwitchCss}
@@ -464,14 +468,13 @@ export const TaskWorkspaceNavigation = ({
               </div>
             </Popover>
             <Menu placement="bottom">
-              <Button
-                variant="tertiary"
+              <IconButton
                 size="icon24"
                 className={taskNavigationActionButtonCss}
-                aria-label={t('taskLists.title')}
+                label={t('taskLists.title')}
               >
                 <RiAddLine size={17} />
-              </Button>
+              </IconButton>
               <MenuList
                 aria-label={t('taskLists.title')}
                 menuClassName={taskNavigationMenuCss}
@@ -652,28 +655,26 @@ const TaskGroupNavigationRow = ({
               if (event.key === 'Escape') cancelInlineAction()
             }}
           />
-          <Button
+          <IconButton
             type="submit"
-            variant="tertiary"
             size="icon24"
             className={taskNavigationActionButtonCss}
-            aria-label={t('groups.renameNamed', { name: group.name })}
+            label={t('groups.renameNamed', { name: group.name })}
             loading={pending}
             isDisabled={!name.trim() || name.trim() === group.name || mutating}
           >
             <RiCheckLine size={16} />
-          </Button>
-          <Button
+          </IconButton>
+          <IconButton
             type="button"
-            variant="tertiary"
             size="icon24"
             className={taskNavigationActionButtonCss}
-            aria-label={t('workspace.createCancel')}
+            label={t('workspace.createCancel')}
             isDisabled={pending || mutating}
             onPress={cancelInlineAction}
           >
             <RiCloseLine size={16} />
-          </Button>
+          </IconButton>
         </form>
       ) : mode === 'delete' ? (
         <div className={taskGroupDeleteConfirmationCss}>
@@ -720,15 +721,14 @@ const TaskGroupNavigationRow = ({
             data-node-actions
           >
             <Menu placement="bottom">
-              <Button
-                variant="tertiary"
+              <IconButton
                 size="icon24"
                 className={taskNavigationActionButtonCss}
-                aria-label={t('groups.moreNamed', { name: group.name })}
+                label={t('groups.moreNamed', { name: group.name })}
                 isDisabled={pending || mutating}
               >
                 <RiMoreLine size={16} />
-              </Button>
+              </IconButton>
               <MenuList
                 aria-label={t('groups.moreNamed', { name: group.name })}
                 menuClassName={taskNavigationMenuCss}

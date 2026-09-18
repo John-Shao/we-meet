@@ -11,7 +11,7 @@ import {
   MemberAvatar,
   type DirectoryMember,
 } from '@/features/contacts'
-import { Button, Input } from '@/primitives'
+import { Button, IconButton, Input } from '@/primitives'
 import { css } from '@/styled-system/css'
 
 import type { ApiTaskList } from '../api/ApiTask'
@@ -231,10 +231,13 @@ export const TaskListSharingDialog = ({
                           {t('taskLists.roles.editor')}
                         </option>
                       </select>
-                      <Button
-                        variant="tertiary"
+                      {/* 删除协作者是危险动作:走基元的 quaternaryDanger(平时中性灰、
+                          hover 才转红),别用 tertiary —— 那是选中态容器色,会把一颗
+                          不可逆的删除钮画成品牌蓝。 */}
+                      <IconButton
+                        variant="quaternaryDanger"
                         size="icon24"
-                        aria-label={t('taskLists.removeCollaborator', {
+                        label={t('taskLists.removeCollaborator', {
                           name: userName(access.user),
                         })}
                         isDisabled={busy}
@@ -247,7 +250,7 @@ export const TaskListSharingDialog = ({
                         }}
                       >
                         <RiDeleteBinLine size={16} />
-                      </Button>
+                      </IconButton>
                     </>
                   )}
                 </li>

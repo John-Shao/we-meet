@@ -12,6 +12,12 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { chromium } from '@playwright/test'
 
+import {
+  extractElementInner,
+  findDenseButtons,
+  findTitleBarButtonViolations,
+} from './title-bar-rules.mjs'
+
 const origin = process.env.CAPTURE_TEST_ORIGIN || 'http://localhost:3187'
 const longTitle =
   '这是一个特别特别长的标题用来验证标题栏不会换行也不会把备注挤掉'
@@ -40,24 +46,20 @@ for (const [label, relative] of callSites) {
   )
   if (!source.includes('TitleBar'))
     failures.push(`${label}(${relative})没有用共享的 TitleBar`)
-  // 标题栏里的按钮只允许「会议」那两档:主操作 primary + action + 18px 图标、
-  // 次操作 secondaryText + action + 18px 图标;dense 那档在标题栏里比同排小一号
-  // (走查反馈过「通讯录 / 任务的标题栏按钮和会议不一致」)。
-  const start = source.indexOf('<TitleBar')
-  if (start < 0) continue
-  const close = source.indexOf('</TitleBar>', start)
-  const selfClose = source.indexOf('/>', start)
-  const end =
-    close >= 0 && (selfClose < 0 || close < selfClose)
-      ? close
-      : selfClose >= 0
-        ? selfClose
-        : source.length
-  const block = source.slice(start, end)
-  if (block.includes('size="dense"'))
-    failures.push(
-      `${label}(${relative})标题栏里用了 dense 档按钮,应改用 action`
-    )
+  // 标题栏里的按钮只允许「会议」这几档:主操作 primary + action + 18px 图标、
+  // 次操作 secondaryText + action + 18px 图标、纯图标走基元 IconButton(icon24/28/32);
+  // dense 那档在标题栏里比同排小一号(走查反馈过「通讯录 / 任务的标题栏按钮和会议不一致」)。
+  //
+  // 区块的取法见 `title-bar-rules.mjs` 的 `extractElementInner`:旧的
+  // `indexOf('/>', start)` 会在第一个自闭合子元素处收尾,切出来的区间里一个按钮都没有,
+  // dense 这条当时是空转的。
+  const siteLabel = `${label}(${relative})`
+  const block = extractElementInner(source, 'TitleBar')
+  if (block === null) continue
+  failures.push(
+    ...findDenseButtons(block, siteLabel),
+    ...findTitleBarButtonViolations(block, siteLabel)
+  )
 }
 assert.deepEqual(failures, [], failures.join('\n'))
 
