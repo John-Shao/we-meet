@@ -1070,7 +1070,7 @@ CJK 下落的是同一个 Bold 字面，观感一致，按共享件那一档写�
 
 | 位置                                                    | 改前                                                                       | 改后                                                                             |
 | ------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 任务 · 内容标题栏齿轮                                   | `Button variant="tertiary" size="icon32"`，只有 `aria-label`               | 基元 `IconButton size="icon32" label=…`（无障碍名 + Tooltip 一处给出，并补焦点环） |
+| 任务 · 内容标题栏齿轮                                   | `Button variant="tertiary" size="icon32"`，只有 `aria-label`，文案「打开任务设置」 | 基元 `IconButton size="icon32" label=…`（无障碍名 + Tooltip 一处给出，并补焦点环）；文案改取 `settings.title`「任务设置」—— 与「日历」齿轮同一处，不再只有任务读成一整句话 |
 | 任务 · 二级导航栏 11 颗 icon24（＋ / ⋯ / 齿轮 / 提交 / 取消） | `variant="tertiary"` + `taskNavigationActionButtonCss` 把底色按成 `transparent!` | 基元 `IconButton size="icon24"`（底色/图标色/焦点环不再由调用点拼）                |
 | 任务 · 清单共享弹窗的「移除协作者」                     | `variant="tertiary"`（一颗**品牌蓝的删除钮**）                             | `IconButton variant="quaternaryDanger"`（平时中性灰、hover 才转红）               |
 | 任务 · 标题栏两档的顺序                                 | …找回清单 / **设置齿轮** / **新建任务**（齿轮夹在主操作左边）              | …找回清单 / **新建任务** / **设置齿轮**（与 3.29「日历」那条栏同序：主操作贴左、齿轮在最右） |

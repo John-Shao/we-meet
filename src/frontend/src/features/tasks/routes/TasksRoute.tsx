@@ -658,13 +658,16 @@ const TasksAuthenticated = () => {
             {/* 纯图标次操作收在主操作**右侧** —— 与「日历」那条栏同一顺序
                 (见 3.29:主操作贴左、齿轮在最右),不是随手摆的。
                 走基元 icon32(与「日历」齿轮 / 工具行同一档):`label` 一处给出无障碍名
-                + Tooltip。原先这里写的是 `variant="tertiary"`,那是 `action.selected`
+                + Tooltip,文案取 `settings.title`(「任务设置」)—— 与「日历」齿轮同一处;
+                原先用的是动词式的 `settings.open`(「打开任务设置」),同一个齿轮在日历那边
+                读作「日历设置」,只有任务读成一整句话。
+                原先这里写的是 `variant="tertiary"`,那是 `action.selected`
                 (选中态容器色,浅蓝底 + 品牌蓝图标)—— 常驻且未选中的齿轮看起来一直
                 「激活」,也在标题栏里多出一块品牌蓝强调,与「每页只有一个主操作
                 (品牌蓝实底)」冲突。 */}
             <IconButton
               size="icon32"
-              label={t('settings.open')}
+              label={t('settings.title')}
               onPress={() => openSystemSettings('tasks')}
             >
               <RiSettings3Line size={19} aria-hidden="true" />
