@@ -979,6 +979,59 @@ ESM 循环（`routes.ts` 静态 import 了 `@/features/calendar`，而后者又�
 改为先 import 路由表再取 `routes.calendar.Component`；② 页面自己要用 `ConfirmProvider`
 （日程的删除 / 改期确认），缺了它整棵树会被 React 卸载、页面上什么都量不到。
 
+### 3.30 云文档两条栏的线上复查：栏头其实竖排了（2026-09-18 追加）
+
+走查人拿线上截图（`meet.we-meet.online/docs`，镜子里的版本是 `ce339052`）回来对两条栏：
+
+- **内容标题栏**：`[图标] 所有文档 [新建]` 缩成内容宽、被父容器的 `align-items: center`
+  居中在内容区中间 —— 这条 `c56d88fc` 已经修了（补 `$width="100%"`，栏横贯内容列、
+  标题贴左、主操作贴右）；线上那份镜子停在 `ce339052`，修它的提交在那之后。
+- **二级导航栏栏头**：`Docs` **居中在上、收起按钮居中在下**（竖排），与「会议」那条
+  左标题 / 右图标的一行**完全不是一回事**。这条当时没修掉，根因也不是几何值。
+
+根因（写在这里，免得下次再从「值对不齐」查起）：栏头是 `Box` 渲染的，而
+`components/Box.tsx` **无条件**吐一条 `flex-direction: ${$direction || 'column'}`
+—— 栏头没传 `$direction`，所以它带的是 `column`。styled-components 是运行时注入、
+排在全局 CSS **之后**，两边都是单类（0,1,0），于是那条 `column` 把
+`.wm-subnav-header` 里的 `display / align-items / justify-content` 全部架空：
+栏头成了「竖排 + 水平居中 + space-between」，正是截图里的样子。
+`49e1e913` 修标题字重时踩的是同一类坑（所以标题那条当时就加了 `.wm-ui` 前缀），
+栏头与动作组这两条漏了。
+
+在 `we-meet-docs` 里改的（`we-meet-ui.css` 一处）：
+
+| 位置       | 改前                                                                  | 改后                                                                      |
+| ---------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 栏头       | `.wm-subnav-header`（0,1,0）：被 Box 的 `column` 压成竖排、还多一条 1px 底分割线 | `.wm-ui .wm-subnav-header`（0,2,0）并**显式写回 `flex-direction: row`** + `gap: sm`；底分割线**删掉** —— 宿主 `SubNav.tsx` 的 `headerCls` 没有那一条（1px 线是**内容标题栏**的） |
+| 动作组     | `.wm-subnav-header__actions`（0,1,0）：同样竖排，`gap: 4px`            | `.wm-ui .wm-subnav-header__actions`：`row` + `gap: var(--wm-space-xxs)`（2px，宿主是 `space.xxs`） |
+| 动作字形   | 20px（沿用 `.wm-ui .c__button--icon-only` 那一档）                     | 16px（`--wm-icon-small`）—— 宿主的 icon28 钮里就是 16px 字形              |
+
+验证：那个 App 本地起需要后端（Postgres / Keycloak / y-provider），所以这次改走一段
+**真实 Chromium** 的对照脚本（一次性草稿，放在仓库外的 `.tmp/docs-bar-check/check.js`，
+不入库）：把两份 CSS（HEAD 版 / 修好的版）按 `cunningham-style.css` 的 `@import`
+顺序注入，再把 Box 的基样式作为**最后一段** `<style>` 打进去（如实模拟 styled-components
+的注入位置），用 `getBoundingClientRect` 量盒子。量出来是：
+
+| 量点                       | 改前（HEAD）            | 改后              |
+| -------------------------- | ----------------------- | ----------------- |
+| 栏头 `flex-direction`      | `column`                | `row`             |
+| 栏高                       | 145（三个动作竖排撑开；线上列表页只剩收起一颗，量到 109） | **56** |
+| 标题左缘 / 右缘留白        | 130 / 130（居中）       | **16** / 244      |
+| 动作组排列 / 间距          | `column` / 4px          | **`row`** / 2px   |
+| 收起图标字形               | 20×20                   | **16×16**         |
+| 动作组到栏右缘             | 136                     | **16**            |
+
+那个 App 侧：`tsc --noEmit`、`eslint`、`stylelint`、`prettier --check` 全过，
+`vitest` 全量 **49 文件 313 条**通过。`we-meet-bars.test.ts` 把这次的坑钉住：
+栏头必须带 `.wm-ui`、必须 `flex-direction: row`、**不许有 `border-bottom`**，
+动作组必须 `row` + `--wm-space-xxs` + 16px 字形；另加一条源码级断言，
+`DocGridTitleBar` 少了 `$width="100%"` 就红（3.28 那条线上问题不能回来）。
+
+**仍然刻意不一样的两处**（不是漏掉）：① 内容标题栏标题用 700，宿主的共享
+`TitleBar` 是 `titleMedium + bold`；「会议」页头用的是 `pageTitle`（600）—— 两者在
+CJK 下落的是同一个 Bold 字面，观感一致，按共享件那一档写。② 标题前那枚模块图标
+（所有文档 / 我的文档 / 与我分享 / 回收站）保留：那是筛选状态的指示，不是标题栏装饰。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把
