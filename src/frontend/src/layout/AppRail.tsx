@@ -197,6 +197,30 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
     </RACMenu>
   )
 
+  /**
+   * 收起/展开**整条一级导航栏**的按钮。
+   *
+   * 收起态下它排在顶部那一组的**第一个**(最上面)—— 收起后它是唯一的展开入口,
+   * 排在搜索下面会被当成"第二个动作";展开态仍留在搜索右侧(栏头右端)。
+   */
+  const panelToggle = (
+    <button
+      type="button"
+      onClick={onToggleCollapse}
+      aria-label={collapsed ? t('railExpand') : t('railCollapse')}
+      title={collapsed ? t('railExpand') : t('railCollapse')}
+      data-testid="rail-collapse-toggle"
+      className={iconButton}
+    >
+      {/*
+        一级导航栏(整条轨道)用**面板图形**,二级导航栏用双箭头 —— 两级的图标
+        分属两个字族,并排时一眼能分清收的是哪一级(单双箭头的区分要数箭头,太弱)。
+        两态同一个静态字形:开合由 tooltip / 无障碍名说明。
+      */}
+      <RiLayoutLeftLine size={18} aria-hidden="true" />
+    </button>
+  )
+
   return (
     <nav
       aria-label={t('railLabel')}
@@ -250,22 +274,10 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
             flexDirection: collapsed ? 'column' : 'row',
           })}
         >
+          {/* 收起态(竖排):面板按钮排第一个;展开态(横排):留在搜索右侧。 */}
+          {collapsed && panelToggle}
           <GlobalSearch collapsed />
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            aria-label={collapsed ? t('railExpand') : t('railCollapse')}
-            title={collapsed ? t('railExpand') : t('railCollapse')}
-            data-testid="rail-collapse-toggle"
-            className={iconButton}
-          >
-            {/*
-              一级导航栏(整条轨道)用**面板图形**,二级导航栏用双箭头 —— 两级的图标
-              分属两个字族,并排时一眼能分清收的是哪一级(单双箭头的区分要数箭头,太弱)。
-              两态同一个静态字形:开合由 tooltip / 无障碍名说明。
-            */}
-            <RiLayoutLeftLine size={18} aria-hidden="true" />
-          </button>
+          {!collapsed && panelToggle}
         </div>
       </div>
 
