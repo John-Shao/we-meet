@@ -21,8 +21,9 @@ import { TITLE_BAR_MIN_HEIGHT } from './TitleBar'
  *   │ 标题 16px / bold          动作… «收起 │
  *   └──────────────────────────────────────┘
  *
- * 收起后由 `SubNavStrip` 顶替整栏：一条 36px 窄条，「展开」按钮就在里面 —— 任何
- * 视图下都找得到展开入口（通讯录的窄条也是这个尺寸）。
+ * 收起后**不再用 36px 窄条顶替整栏**（那要吃掉一条屏宽）：收起后左列直接让出去，
+ * 展开入口是一颗 28px 图标钮 `SubNavExpandButton`，放进该模块**内容标题栏**的
+ * `leading` 槽（标题栏本来就有 56px 高，这颗按钮因此不多占一列）。
  *
  * **不要再在模块里手写这一栏**：基准数字写在下面的样式里，改这里等于改五个模块。
  */
@@ -53,18 +54,6 @@ const headerActionsCls = css({
   display: 'flex',
   alignItems: 'center',
   gap: 'xxs',
-})
-
-const stripCls = css({
-  flexShrink: 0,
-  width: '36px',
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  paddingTop: 'md',
-  borderRight: '1px solid token(colors.border.subtle)',
-  backgroundColor: 'subNavBg',
 })
 
 /**
@@ -105,8 +94,8 @@ export const SubNavHeader = ({
   )
 }
 
-/** 收起后的 36px 窄条：只放一颗「展开」。 */
-export const SubNavStrip = ({
+/** 收起后的展开入口：一颗 28px 图标钮，放进各模块**内容标题栏**的 `leading` 槽。 */
+export const SubNavExpandButton = ({
   onExpand,
   expandLabel,
   testId,
@@ -120,15 +109,13 @@ export const SubNavStrip = ({
 }) => {
   const { t } = useTranslation('shell')
   return (
-    <div className={stripCls}>
-      <IconButton
-        size="icon28"
-        label={expandLabel ?? t('expand')}
-        onPress={onExpand}
-        data-testid={testId}
-      >
-        <Icon size={16} aria-hidden="true" />
-      </IconButton>
-    </div>
+    <IconButton
+      size="icon28"
+      label={expandLabel ?? t('expand')}
+      onPress={onExpand}
+      data-testid={testId}
+    >
+      <Icon size={16} aria-hidden="true" />
+    </IconButton>
   )
 }

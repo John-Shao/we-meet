@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MeetingNavPanel } from './MeetingNavPanel'
+import { SubNavExpandButton } from '@/components/SubNav'
+import { useModuleSubNav } from '@/components/subNavModules'
 import { navigateTo } from '@/navigation/navigateTo'
 
 const state = vi.hoisted(() => ({ path: '/meeting', enabled: true }))
@@ -83,11 +85,17 @@ describe('meeting module navigation', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('collapses the whole column to a strip and remembers it', () => {
+  it('collapses the whole column, remembers it, and the content header can expand it', () => {
     localStorage.removeItem('we-meet:meeting-nav-collapsed')
-    const view = render(<MeetingNavPanel />)
+    const view = render(
+      <>
+        <MeetingNavPanel />
+        <ExpandProbe />
+      </>
+    )
     fireEvent.click(screen.getByTestId('meeting-nav-collapse'))
-    // 收起后整栏只剩「展开」那一颗,导航入口都不在(与通讯录同一套)。
+    // 收起后整栏让出去(不再有 36px 窄条):导航入口都不在,展开按钮在内容页标题栏里
+    // —— 由 ExpandProbe 代替真实的内容页标题栏,顺带验证两处用的是同一份状态。
     expect(screen.getByTestId('meeting-nav-expand')).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'library.video' })
@@ -103,8 +111,20 @@ describe('meeting module navigation', () => {
     fireEvent.click(screen.getByTestId('meeting-nav-collapse'))
     expect(localStorage.getItem('we-meet:meeting-nav-collapsed')).toBe('1')
     view.unmount()
-    render(<MeetingNavPanel />)
+    render(
+      <>
+        <MeetingNavPanel />
+        <ExpandProbe />
+      </>
+    )
     expect(screen.getByTestId('meeting-nav-expand')).toBeInTheDocument()
     localStorage.removeItem('we-meet:meeting-nav-collapsed')
   })
 })
+
+/** 内容页标题栏里那颗展开按钮的替身:与面板共享同一份收起态。 */
+const ExpandProbe = () => {
+  const { collapsed, toggle } = useModuleSubNav('meetings')
+  if (!collapsed) return null
+  return <SubNavExpandButton onExpand={toggle} testId="meeting-nav-expand" />
+}

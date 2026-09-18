@@ -19,8 +19,8 @@ import { PageState } from '@/components/PageState'
 import { RequireAuth } from '@/components/RequireAuth'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { TitleBar } from '@/components/TitleBar'
-import { SubNavStrip } from '@/components/SubNav'
-import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
+import { SubNavExpandButton } from '@/components/SubNav'
+import { useModuleSubNav } from '@/components/subNavModules'
 import { Screen } from '@/layout/Screen'
 import { Button, SegmentedControl } from '@/primitives'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -151,9 +151,9 @@ const TasksAuthenticated = () => {
     new Map<string, { columns: TaskColumnId[]; columnOrder: TaskColumnId[] }>()
   )
   const viewPreferencesRef = useRef(new Map<string, TaskWorkspacePreferences>())
-  // 左栏收起态:与其它模块同一套共享实现(每个模块一个 storage key)。
+  // 左栏收起态:与其它模块同一套共享实现(收起按钮在栏头、展开按钮在内容标题栏)。
   const { collapsed: taskNavCollapsed, toggle: toggleTaskNav } =
-    useCollapsibleSubNav(taskNavCollapsedStorageKey)
+    useModuleSubNav('tasks')
   // Board and analytics force the status to "all". Keep the prior list status
   // per view so switching modes cannot leak another view's status filter.
   const lastListStatusRef = useRef(new Map<string, TaskStatusFilter>())
@@ -544,12 +544,7 @@ const TasksAuthenticated = () => {
 
   return (
     <div className={workspaceCss}>
-      {taskNavCollapsed ? (
-        // 收起后整栏换成 36px 窄条(components/SubNav 的共享定义),把宽度还给列表。
-        <div className={desktopNavigationHolderCss}>
-          <SubNavStrip onExpand={toggleTaskNav} testId="task-nav-expand" />
-        </div>
-      ) : (
+      {!taskNavCollapsed && (
         <div className={desktopNavigationHolderCss}>
           <ResizablePanel
             storageKey="we-meet:task-sidebar-width"
@@ -613,6 +608,14 @@ const TasksAuthenticated = () => {
         {/* 内容标题栏走共享件(与消息聊天窗口同一形态):标题 + 备注(结果数/已归档)
             一行、不换行;归档提示与操作反馈这类较长的状态文案留在下面一行。 */}
         <TitleBar
+          leading={
+            taskNavCollapsed ? (
+              <SubNavExpandButton
+                onExpand={toggleTaskNav}
+                testId="task-nav-expand"
+              />
+            ) : undefined
+          }
           title={currentViewName}
           meta={
             <>
@@ -1063,8 +1066,6 @@ const useUsesTakeoverDetail = () => {
   }, [])
   return usesTakeoverDetail
 }
-
-const taskNavCollapsedStorageKey = 'we-meet:task-nav-collapsed'
 
 const workspaceCss = css({
   width: '100%',

@@ -134,6 +134,18 @@ export const pageHeaderText = css({
 })
 
 /**
+ * 页头里的「展开导航栏」一行:收起左栏时把一颗 28px 图标钮与页头文字块并排放。
+ *
+ * 只给返回 + 标题那两页(实录详情 / AI 录音)用 —— 它们的页头没有 `pageHeaderRow`,
+ * 包一层 pageHeaderRow(56px)会把 48px 的页头顶高一档,所以这里只做一行 flex。
+ */
+export const pageHeaderLeadingRow = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'sm',
+})
+
+/**
  * 页头行:左侧标题块,右侧动作组。
  *
  * 几何对齐聊天窗口标题栏(2026-09-17):**居中**而不是顶对齐、最小高度一档控件

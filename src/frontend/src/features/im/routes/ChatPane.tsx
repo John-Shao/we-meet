@@ -175,6 +175,8 @@ interface Props {
    * 稍后处理跳转), scroll it into view and flash it. `key` is a nonce so
    * clicking the same hit twice re-locates. */
   locate?: { seq: number; key: string } | null
+  /** 会话列表栏收起时的展开按钮(标题栏 leading 位、排在头像前)。 */
+  navExpand?: ReactNode
 }
 
 export const ChatPane = ({
@@ -193,6 +195,7 @@ export const ChatPane = ({
   infoPanel,
   onMemberClick,
   locate,
+  navExpand,
 }: Props) => {
   const { t, i18n } = useTranslation('im')
   const { t: tTasks } = useTranslation('tasks')
@@ -1203,18 +1206,21 @@ export const ChatPane = ({
         onTitlePress={onOpenSettings}
         titleActionLabel={t('manage.settings')}
         leading={
-          isGroup ? (
-            <GroupAvatar
-              members={memberUids.slice(0, 9).map((uid) => ({
-                name: nameOf(uid),
-                src: names[uid]?.avatar_url || undefined,
-              }))}
-              customSrc={avatarUrl}
-              size={IM_AVATAR_SIZE}
-            />
-          ) : (
-            <Avatar name={title} src={avatarUrl} size={IM_AVATAR_SIZE} />
-          )
+          <>
+            {navExpand}
+            {isGroup ? (
+              <GroupAvatar
+                members={memberUids.slice(0, 9).map((uid) => ({
+                  name: nameOf(uid),
+                  src: names[uid]?.avatar_url || undefined,
+                }))}
+                customSrc={avatarUrl}
+                size={IM_AVATAR_SIZE}
+              />
+            ) : (
+              <Avatar name={title} src={avatarUrl} size={IM_AVATAR_SIZE} />
+            )}
+          </>
         }
         meta={
           isGroup ? (

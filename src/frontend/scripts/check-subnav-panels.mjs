@@ -2,11 +2,12 @@
 //
 // 守两件事:
 //   ① 栏头只有**一处定义**:消息 / 日历 / 审批 / 任务 / 会议六个模块都得用
-//      components/SubNav 的 SubNavHeader + SubNavStrip,不许再手写一份
+//      components/SubNav 的 SubNavHeader + 收起后的 SubNavExpandButton,不许再手写一份
 //      (手写的那几份原先标题分别落在 16 / 20 / 28px 三个位置,收起按钮的位置
 //       也各不相同)。这条是源码级检查,避免「改了共享件但某个模块没跟上」。
 //   ② 基准数字(以「通讯录」左栏为准)在真实浏览器里量得到:
-//      标题 16px / bold、栏头内边距 16px / 12px、收起按钮 28×28、窄条 36px。
+//      标题 16px / bold、栏头内边距 16px / 12px、收起按钮 28×28;
+//      **收起后不再有 36px 窄条占宽**,展开入口是内容标题栏里的 28×28 图标钮。
 //
 // 用法(cwd = src/frontend):
 //   npm run dev
@@ -62,8 +63,11 @@ for (const [label, relatives] of modules) {
   const joined = sources.map(([, source]) => source).join('\n')
   for (const [needle, why] of [
     ['SubNavHeader', '栏头应走共享件 SubNavHeader'],
-    ['SubNavStrip', '收起态应走共享件 SubNavStrip'],
-    ['useCollapsibleSubNav', '收起态应走共享 hook'],
+    ['SubNavExpandButton', '收起后的展开入口应走共享件 SubNavExpandButton'],
+    [
+      'useModuleSubNav',
+      '收起态应走共享 hook(同 key 的面板与内容标题栏共享状态)',
+    ],
   ]) {
     if (!joined.includes(needle))
       failures.push(`${label}:${relatives.join(' + ')} ${why}`)
@@ -105,7 +109,7 @@ try {
     const { createRoot } = (
       await import('/node_modules/.vite/deps/react-dom_client.js')
     ).default
-    const { SubNavHeader, SubNavStrip } =
+    const { SubNavHeader, SubNavExpandButton } =
       await import('/src/components/SubNav.tsx')
     const { useCollapsibleSubNav } =
       await import('/src/components/useCollapsibleSubNav.ts')
@@ -124,10 +128,24 @@ try {
           },
         },
         collapsed
-          ? React.createElement(SubNavStrip, {
-              onExpand: toggle,
-              testId: 'check-expand',
-            })
+          ? // 收起态:不再有 36px 窄条;展开按钮进**内容标题栏**(这里用一条与
+            // TitleBar 同高的行模拟,`paddingX: lg` + `paddingY: sm`)。
+            React.createElement(
+              'div',
+              {
+                'data-testid': 'check-titlebar',
+                style: {
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '8px 16px',
+                  minHeight: '57px',
+                },
+              },
+              React.createElement(SubNavExpandButton, {
+                onExpand: toggle,
+                testId: 'check-expand',
+              })
+            )
           : React.createElement(
               SubNavHeader,
               {
@@ -199,16 +217,33 @@ try {
   )
 
   await page.getByTestId('check-collapse').click()
-  const strip = await page.evaluate(() => {
+  const collapsedChrome = await page.evaluate(() => {
     const expand = document.querySelector('[data-testid="check-expand"]')
-    const box = expand.parentElement.getBoundingClientRect()
+    const box = expand.getBoundingClientRect()
     return {
-      width: Math.round(box.width),
+      box: [Math.round(box.width), Math.round(box.height)],
       label: expand.getAttribute('aria-label'),
+      // 收起后不该再有窄条占宽:aside 里只剩那条与标题栏同高的行。
+      asideWidth: Math.round(
+        expand.closest('aside').getBoundingClientRect().width
+      ),
     }
   })
-  assert.equal(strip.width, 36, '收起后窄条 36px(与通讯录同档)')
-  assert.equal(strip.label, '展开导航栏', '展开按钮共用同一句无障碍名')
+  assert.deepEqual(
+    collapsedChrome.box,
+    [28, 28],
+    '展开按钮 28×28(内容标题栏里的一颗图标钮,不再占一列屏宽)'
+  )
+  assert.equal(
+    collapsedChrome.label,
+    '展开导航栏',
+    '展开按钮共用同一句无障碍名'
+  )
+  assert.equal(
+    collapsedChrome.asideWidth,
+    260,
+    'aside 宽度由模块自己决定,收起态不再额外多出一条 36px 窄条'
+  )
   assert.equal(
     await page.evaluate(() => localStorage.getItem('we-meet:subnav-check')),
     '1',
@@ -220,7 +255,7 @@ try {
   })
   assert.deepEqual(errors, [], `页面不应有运行时错误:${errors.join(' / ')}`)
   console.log(
-    'Sub nav passed: 六个模块共用 components/SubNav 的栏头;基准 16px/bold + 16/8 内边距 + 56px 栏高 + 28×28 收起按钮 + 36px 窄条 + 同一句无障碍名。截图:test-results/subnav-collapsed.png'
+    'Sub nav passed: 六个模块共用 components/SubNav 的栏头;基准 16px/bold + 16/8 内边距 + 56px 栏高 + 28×28 收起按钮;收起后不再有 36px 窄条,展开入口是内容标题栏里的 28×28 图标钮 + 同一句无障碍名。截图:test-results/subnav-collapsed.png'
   )
 } finally {
   await browser.close()

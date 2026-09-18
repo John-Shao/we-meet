@@ -6,6 +6,8 @@ import { useUser } from '@/features/auth'
 import { Button } from '@/primitives'
 import { PageState } from '@/components/PageState'
 import { StateHint } from '@/components/StateHint'
+import { SubNavExpandButton } from '@/components/SubNav'
+import { useModuleSubNav } from '@/components/subNavModules'
 import { css, cx } from '@/styled-system/css'
 import { useMeetingRecords } from '../api/fetchMeetingRecord'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
@@ -155,6 +157,8 @@ export function RecordingOverview() {
   const { user, isLoggedIn } = useUser()
   const { data, isError } = useConfig()
   const { t } = useTranslation('meetings')
+  const { collapsed: navCollapsed, toggle: toggleNav } =
+    useModuleSubNav('meetings')
   if (isLoggedIn === false) return <Redirect to="/" />
   if (!user || (!data && !isError))
     return <StateHint state="loading">{t('loading')}</StateHint>
@@ -168,6 +172,12 @@ export function RecordingOverview() {
             <MeetingModuleNav current="/meeting/recording" />
           </div>
           <header className={pageHeaderRow}>
+            {navCollapsed && (
+              <SubNavExpandButton
+                onExpand={toggleNav}
+                testId="meeting-nav-expand"
+              />
+            )}
             {/* 页头只有标题:四个一级页都不再带副标题(2026-09-17)。 */}
             <div className={pageHeaderText}>
               <h1 className={pageTitle}>{t('library.record')}</h1>

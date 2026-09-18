@@ -27,8 +27,8 @@ import type { CalendarEvent, EditScope, RSVPStatus } from '../api/ApiCalendar'
 import { openSystemSettings } from '@/stores/systemSettings'
 import { CreateEventDialog } from '../components/CreateEventDialog'
 import { ResizablePanel } from '@/components/ResizablePanel'
-import { SubNavStrip } from '@/components/SubNav'
-import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
+import { SubNavExpandButton } from '@/components/SubNav'
+import { useModuleSubNav } from '@/components/subNavModules'
 import { CalendarGrid, type SlotDraft } from '../components/CalendarGrid'
 import {
   CalendarPageTabs,
@@ -126,7 +126,7 @@ const CalendarAuthenticated = () => {
   const [creating, setCreating] = useState(false)
   // 左栏收起态:与其它模块同一套共享实现(storage key 沿用原来的,不丢用户偏好)。
   const { collapsed: sidebarCollapsed, toggle: toggleSidebar } =
-    useCollapsibleSubNav('we-meet:calendar-sidebar-collapsed')
+    useModuleSubNav('calendar')
   const [draft, setDraft] = useState<SlotDraft | null>(null)
   const [meetingRoomDraft, setMeetingRoomDraft] = useState<{
     room: MeetingRoomBrief
@@ -460,11 +460,9 @@ const CalendarAuthenticated = () => {
       }}
     >
       {/* 二级导航栏:迷你日历 + 即将开始,与「会议」侧栏对齐。可拖拽改宽。
-          收起后整栏换成 36px 窄条(components/SubNav 的共享定义),展开按钮就在
-          窄条里 —— 收起按钮本身也已经搬进栏头,与其它模块同一位置。 */}
-      {sidebarCollapsed ? (
-        <SubNavStrip onExpand={toggleSidebar} testId="calendar-nav-expand" />
-      ) : (
+          收起后左列直接让出去(不再有 36px 窄条占宽),展开按钮在下面内容标题栏
+          的 leading 位;收起按钮本身在栏头,与其它模块同一位置。 */}
+      {!sidebarCollapsed && (
         <ResizablePanel
           storageKey="we-meet:calendar-sidebar-width"
           defaultWidth={260}
@@ -499,6 +497,12 @@ const CalendarAuthenticated = () => {
             与会议页并排切栏目时两条栏差一档。 */}
         <div className={pageFixedTop} data-testid="calendar-page-header">
           <header className={pageHeaderRow}>
+            {sidebarCollapsed && (
+              <SubNavExpandButton
+                onExpand={toggleSidebar}
+                testId="calendar-nav-expand"
+              />
+            )}
             {/* 原「日历」标题位换成页面级 Tab(日历 / 会议室);日/周/月/日程
                 分段切换器由网格自己的工具栏渲染。 */}
             <div className={headerTabs}>

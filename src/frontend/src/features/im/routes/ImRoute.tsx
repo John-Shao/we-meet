@@ -8,8 +8,8 @@ import { css } from '@/styled-system/css'
 import { useUser } from '@/features/auth'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
-import { SubNavHeader, SubNavStrip } from '@/components/SubNav'
-import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
+import { SubNavExpandButton, SubNavHeader } from '@/components/SubNav'
+import { useModuleSubNav } from '@/components/subNavModules'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 import { IconButton } from '@/primitives'
@@ -705,9 +705,17 @@ const ImAuthenticated = () => {
     }
   }
 
-  // 会话列表栏收起态:与其它模块同一套共享实现(storage key 各模块一个)。
+  // 会话列表栏收起态:与其它模块同一套共享实现(收起按钮在栏头、展开按钮在内容标题栏)。
   const { collapsed: imNavCollapsed, toggle: toggleImNav } =
-    useCollapsibleSubNav('we-meet:im-nav-collapsed')
+    useModuleSubNav('im')
+
+  /**
+   * 收起后的展开入口(不再有 36px 窄条占宽):内容区三条分支(会话窗 / 日程提醒 /
+   * 空态)各有自己的顶栏,按钮分别放进它们的 leading 位。
+   */
+  const navExpandButton = imNavCollapsed ? (
+    <SubNavExpandButton onExpand={toggleImNav} testId="im-nav-expand" />
+  ) : undefined
 
   // 会话 → 转发选择器条目(复用 nameOf / avatarOf / membersOf)。
   const forwardConvs: ForwardConv[] = conversations.map((c) => ({
@@ -740,10 +748,7 @@ const ImAuthenticated = () => {
           overflow: 'hidden',
         })}
       >
-        {imNavCollapsed ? (
-          // 收起后整栏换成 36px 窄条(共享定义),把宽度还给会话窗。
-          <SubNavStrip onExpand={toggleImNav} testId="im-nav-expand" />
-        ) : (
+        {!imNavCollapsed && (
           <ResizablePanel
             storageKey="we-meet:im-list-width"
             defaultWidth={280}
@@ -874,10 +879,11 @@ const ImAuthenticated = () => {
           })}
         >
           {reminderOpen ? (
-            <ReminderPane />
+            <ReminderPane navExpand={navExpandButton} />
           ) : selectedConv ? (
             <ChatPane
               client={client}
+              navExpand={navExpandButton}
               conversation={selectedConv}
               title={nameOf(selectedConv)}
               avatarUrl={avatarOf(selectedConv)}
@@ -975,13 +981,38 @@ const ImAuthenticated = () => {
           ) : (
             <div
               className={css({
-                padding: '2rem',
-                color: 'greyscale.500',
-                textAlign: 'center',
-                marginTop: '2rem',
+                display: 'flex',
+                flexDirection: 'column',
+                flex: 1,
+                minWidth: 0,
               })}
             >
-              {selectedCID ? t('chat.loading') : t('chat.pickPrompt')}
+              {/* 空态本来没有任何顶栏:收起态下把展开按钮放进一条与标题栏同高的空栏,
+                  否则进到这一屏就没有展开入口了。 */}
+              {navExpandButton && (
+                <div
+                  className={css({
+                    display: 'flex',
+                    alignItems: 'center',
+                    paddingX: 'lg',
+                    paddingY: 'sm',
+                    minHeight: '3.5rem',
+                  })}
+                  data-testid="im-empty-nav-bar"
+                >
+                  {navExpandButton}
+                </div>
+              )}
+              <div
+                className={css({
+                  padding: '2rem',
+                  color: 'greyscale.500',
+                  textAlign: 'center',
+                  marginTop: '2rem',
+                })}
+              >
+                {selectedCID ? t('chat.loading') : t('chat.pickPrompt')}
+              </div>
             </div>
           )}
         </main>
