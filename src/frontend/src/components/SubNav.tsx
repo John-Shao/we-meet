@@ -2,7 +2,7 @@ import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RiArrowLeftDoubleLine,
-  RiLayoutLeftLine,
+  RiArrowRightDoubleLine,
   type RemixiconComponentType,
 } from '@remixicon/react'
 
@@ -71,6 +71,9 @@ const stripCls = css({
  * 栏头：左标题、右动作（模块自己的图标钮）+ 收起按钮。
  *
  * `collapseLabel` 默认取 `shell` 命名空间的「收起导航栏」—— 五个模块因此念同一句话。
+ *
+ * 图标固定 `«`(`RiArrowLeftDoubleLine`)，与窄条里的 `»` 互为镜像；**双箭头这一族
+ * 专属二级导航栏**，一级轨道（整条 rail）另有面板图形，并排时不会混。
  */
 export const SubNavHeader = ({
   title,
@@ -105,17 +108,23 @@ export const SubNavHeader = ({
   )
 }
 
-/** 收起后的 36px 窄条：只放一颗「展开」。 */
+/**
+ * 收起后的 36px 窄条：只放一颗「展开」。
+ *
+ * 图标与栏头的收起按钮**同族镜像**:收起 `«`(`RiArrowLeftDoubleLine`)、
+ * 展开 `»`(`RiArrowRightDoubleLine`) —— 同一个控件两个状态只反方向,用户不用重新认;
+ * 双箭头这一族专属于**二级导航栏**(一级轨道用面板图形,见 layout/AppRail.tsx)。
+ */
 export const SubNavStrip = ({
   onExpand,
   expandLabel,
   testId,
-  icon: Icon = RiLayoutLeftLine,
+  icon: Icon = RiArrowRightDoubleLine,
 }: {
   onExpand: () => void
   expandLabel?: string
   testId?: string
-  /** 个别模块的展开图标（默认 `RiLayoutLeftLine`，与通讯录一致）。 */
+  /** 个别模块的展开图标（默认 `RiArrowRightDoubleLine`，与栏头那颗 `«` 镜像）。 */
   icon?: RemixiconComponentType
 }) => {
   const { t } = useTranslation('shell')

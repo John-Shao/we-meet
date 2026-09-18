@@ -1,5 +1,7 @@
 {
   "railLabel": "Hoofdnavigatie",
+  "railCollapse": "Hoofdnavigatie inklappen",
+  "railExpand": "Hoofdnavigatie uitklappen",
   "resizeHandle": "Sleep om formaat te wijzigen",
   "collapse": "Navigatie inklappen",
   "expand": "Navigatie uitklappen",

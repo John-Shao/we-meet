@@ -13,8 +13,7 @@ import {
   RiTaskLine,
   RiContactsBookLine,
   RiFileTextLine,
-  RiArrowLeftSLine,
-  RiArrowRightSLine,
+  RiLayoutLeftLine,
   RiMoreLine,
   RiSettings3Line,
   RiLogoutBoxRLine,
@@ -255,16 +254,17 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
           <button
             type="button"
             onClick={onToggleCollapse}
-            aria-label={collapsed ? t('expand') : t('collapse')}
-            title={collapsed ? t('expand') : t('collapse')}
+            aria-label={collapsed ? t('railExpand') : t('railCollapse')}
+            title={collapsed ? t('railExpand') : t('railCollapse')}
             data-testid="rail-collapse-toggle"
             className={iconButton}
           >
-            {collapsed ? (
-              <RiArrowRightSLine size={18} />
-            ) : (
-              <RiArrowLeftSLine size={18} />
-            )}
+            {/*
+              一级导航栏(整条轨道)用**面板图形**,二级导航栏用双箭头 —— 两级的图标
+              分属两个字族,并排时一眼能分清收的是哪一级(单双箭头的区分要数箭头,太弱)。
+              两态同一个静态字形:开合由 tooltip / 无障碍名说明。
+            */}
+            <RiLayoutLeftLine size={18} aria-hidden="true" />
           </button>
         </div>
       </div>

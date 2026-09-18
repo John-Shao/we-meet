@@ -1,5 +1,7 @@
 {
   "railLabel": "Main navigation",
+  "railCollapse": "Collapse main navigation",
+  "railExpand": "Expand main navigation",
   "resizeHandle": "Drag to resize",
   "collapse": "Collapse navigation",
   "expand": "Expand navigation",

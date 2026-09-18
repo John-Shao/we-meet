@@ -1,5 +1,7 @@
 {
   "railLabel": "Navigation principale",
+  "railCollapse": "Réduire la navigation principale",
+  "railExpand": "Développer la navigation principale",
   "resizeHandle": "Glisser pour redimensionner",
   "collapse": "Réduire la navigation",
   "expand": "Développer la navigation",

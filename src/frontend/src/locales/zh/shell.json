@@ -1,5 +1,7 @@
 {
   "railLabel": "主导航",
+  "railCollapse": "收起主导航",
+  "railExpand": "展开主导航",
   "resizeHandle": "拖拽调整宽度",
   "collapse": "收起导航栏",
   "expand": "展开导航栏",
