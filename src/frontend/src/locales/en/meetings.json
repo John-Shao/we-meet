@@ -99,7 +99,7 @@
     "filters": "Filters",
     "gridView": "Switch to grid view",
     "listView": "Switch to list view",
-    "emptyHint": "Try another search or filter, upload a file, or start a recording.",
+    "emptyHint": "Try another search or filter, import a file, or start a recording.",
     "searchOriginal": "Search the full transcript",
     "clearSearch": "Clear search",
     "sourceChanged": "The transcript has changed. Reload before continuing.",
@@ -125,7 +125,7 @@
       "recordings": "Recordings and imports",
       "meeting": "Online meeting",
       "audio_recording": "Audio recording",
-      "upload": "Uploaded file"
+      "upload": "Imported file"
     },
     "table": {
       "title": "Title",
@@ -625,10 +625,10 @@
     "file": "Recording file",
     "context": "Context (optional, up to 400 characters)",
     "hotwords": "Industry terms (optional, one per line, up to 100)",
-    "consent": "Upload sends this file to Alibaba Cloud for transcription. The original is stored with your record.",
+    "consent": "Importing sends this file to Alibaba Cloud for transcription. The original is stored with your record.",
     "submit": "Import and transcribe",
-    "uploading": "Uploading…",
-    "keepOpen": "Keep this page open during upload. Transcription continues in the background afterwards.",
+    "uploading": "Importing…",
+    "keepOpen": "Keep this page open during the import. Transcription continues in the background afterwards.",
     "error": "Could not complete this action. Check the file format, size and connection. If another transcription is active, try again later.",
     "stateError": "Could not load transcription status. Refresh to try again.",
     "unknown": "The previous submission could not be confirmed. Starting again may incur an additional charge.",
