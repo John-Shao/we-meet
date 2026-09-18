@@ -28,8 +28,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { StateHint } from '@/components/StateHint'
-import { SubNavExpandButton } from '@/components/SubNav'
-import { useModuleSubNav } from '@/components/subNavModules'
 import {
   contentSurface,
   headerActions,
@@ -190,8 +188,6 @@ const IntroText = styled('div', {
 export const Home = () => {
   const { t } = useTranslation(['home', 'shell', 'capture'])
   const { isLoggedIn, user } = useUser()
-  const { collapsed: navCollapsed, toggle: toggleNav } =
-    useModuleSubNav('meetings')
 
   const {
     userChoices: { username },
@@ -270,12 +266,6 @@ export const Home = () => {
                     <MeetingModuleNav current="/meeting" />
                   </div>
                   <header className={pageHeaderRow}>
-                    {navCollapsed && (
-                      <SubNavExpandButton
-                        onExpand={toggleNav}
-                        testId="meeting-nav-expand"
-                      />
-                    )}
                     {/* 页头只有标题:四个一级页都不再带副标题(2026-09-17)。 */}
                     <div className={pageHeaderText}>
                       <h1 className={pageTitle}>

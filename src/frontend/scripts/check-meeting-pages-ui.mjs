@@ -781,30 +781,15 @@ try {
     [28, 28],
     '收起按钮应是 28×28(与通讯录那颗同档)'
   )
-  // 收起 -> 左列让出去(不再有 36px 窄条),展开按钮进内容页标题栏;展开 -> 恢复栏头。
+  // 收起 -> 36px 窄条 + 展开按钮;展开 -> 恢复栏头。状态要记住。
   await page.getByTestId('meeting-nav-collapse').click()
   assert.equal(await page.getByTestId('meeting-nav-collapse').count(), 0)
-  const collapsedChrome = await page.evaluate(() => {
+  const strip = await page.evaluate(() => {
     const expand = document.querySelector('[data-testid="meeting-nav-expand"]')
     if (!expand) return null
-    const box = expand.getBoundingClientRect()
-    return {
-      // 展开按钮是内容标题栏里的一颗 28×28 图标钮(不再有一条 36px 窄条占宽)。
-      box: [Math.round(box.width), Math.round(box.height)],
-      inHeader: Boolean(expand.closest('header')),
-    }
+    return Math.round(expand.parentElement.getBoundingClientRect().width)
   })
-  assert.notEqual(collapsedChrome, null, '收起后应能找到展开按钮')
-  assert.deepEqual(
-    collapsedChrome.box,
-    [28, 28],
-    `展开按钮应是 28×28,实际 ${collapsedChrome?.box}`
-  )
-  assert.equal(
-    collapsedChrome.inHeader,
-    true,
-    '展开按钮应落在内容页标题栏里(不再占一列屏宽)'
-  )
+  assert.equal(strip, 36, `收起后应只留 36px 窄条,实际 ${strip}px`)
   assert.equal(
     await page.evaluate(() =>
       localStorage.getItem('we-meet:meeting-nav-collapsed')

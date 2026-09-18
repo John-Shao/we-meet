@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { RiUserAddLine } from '@remixicon/react'
@@ -24,14 +24,12 @@ import { MemberAvatar } from './MemberAvatar'
 
 interface Props {
   onMessage: (contact: ExternalContact) => Promise<void>
-  /** 左栏收起时的展开按钮(内容标题栏 leading 位),由 ContactsRoute 一处给出。 */
-  navExpand?: ReactNode
 }
 
 const displayName = (contact: ExternalContact) =>
   contact.full_name || contact.short_name || contact.id
 
-export const ExternalContactsPanel = ({ onMessage, navExpand }: Props) => {
+export const ExternalContactsPanel = ({ onMessage }: Props) => {
   const { t } = useTranslation('contacts')
   const qc = useQueryClient()
   const { confirm, alert } = useConfirm()
@@ -82,11 +80,7 @@ export const ExternalContactsPanel = ({ onMessage, navExpand }: Props) => {
     <section className={panelCls} data-testid="external-contacts-panel">
       {/* 内容标题栏走共享件(与通讯录成员列表 / 我的群组同一形态):标题 + 备注
           (一句话说明)一行、不换行;添加按钮留在右侧动作位。 */}
-      <TitleBar
-        leading={navExpand}
-        title={t('external.title')}
-        meta={t('external.hint')}
-      >
+      <TitleBar title={t('external.title')} meta={t('external.hint')}>
         {/* 这一页的主操作:与「会议」的「快速会议 / 录音」同一档。 */}
         <Button
           variant="primary"

@@ -15,8 +15,11 @@ import { navigateTo } from '@/navigation/navigateTo'
 import { openSystemSettings } from '@/stores/systemSettings'
 import { useConfig } from '@/api/useConfig'
 import { ResizablePanel } from '@/components/ResizablePanel'
-import { SubNavHeader } from '@/components/SubNav'
-import { useModuleSubNav } from '@/components/subNavModules'
+import { SubNavHeader, SubNavStrip } from '@/components/SubNav'
+import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
+
+/** 左栏收起态跨路由持久化(与通讯录同一套 storage 约定)。 */
+const NAV_COLLAPSED_KEY = 'we-meet:meeting-nav-collapsed'
 
 /** Shared module navigation: video meetings, recording, records and minutes. */
 export const MeetingNavPanel = () => {
@@ -26,7 +29,8 @@ export const MeetingNavPanel = () => {
   const { t } = useTranslation(['shell', 'meetings', 'settings'])
   const { data } = useConfig()
   const [location] = useLocation()
-  const { collapsed, toggle: toggleCollapsed } = useModuleSubNav('meetings')
+  const { collapsed, toggle: toggleCollapsed } =
+    useCollapsibleSubNav(NAV_COLLAPSED_KEY)
 
   const current = (path: string) => {
     const selected =
@@ -37,9 +41,11 @@ export const MeetingNavPanel = () => {
     return selected ? 'page' : undefined
   }
 
-  // 收起态:整栏让出去(不再有 36px 窄条占宽)。展开入口是各内容页标题栏 leading
-  // 位里的那颗按钮(SubNavExpandButton) —— 状态共享,见 components/subNavModules。
-  if (collapsed) return null
+  // 收起态:只留一条 36px 窄条(栏头/收起按钮/窄条都走 components/SubNav 的共享定义)。
+  if (collapsed)
+    return (
+      <SubNavStrip onExpand={toggleCollapsed} testId="meeting-nav-expand" />
+    )
 
   return (
     <>

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
 
@@ -16,8 +16,6 @@ interface Props {
   selectedCid: string | null
   /** 点一行 = 选中(不直接跳转):与成员行同一套手感,跳转交给行内按钮。 */
   onSelect: (cid: string) => void
-  /** 左栏收起时的展开按钮(内容标题栏 leading 位),由 ContactsRoute 一处给出。 */
-  navExpand?: ReactNode
 }
 
 /**
@@ -35,7 +33,7 @@ interface Props {
  * 行里**不显示最后活跃时间**:这里是「我加入了哪些群」的名册,不是收件箱,时间既
  * 帮不上找人、又让每一行多一列窄字,所以只留群名 / 成员数 / 未读。
  */
-export const MyGroupsPanel = ({ selectedCid, onSelect, navExpand }: Props) => {
+export const MyGroupsPanel = ({ selectedCid, onSelect }: Props) => {
   const { t } = useTranslation('contacts')
   const [, navigate] = useLocation()
   const { groups, memberInfo, groupAvatars, selfUid, isLoading } = useMyGroups()
@@ -95,7 +93,6 @@ export const MyGroupsPanel = ({ selectedCid, onSelect, navExpand }: Props) => {
       {/* 内容标题栏走共享件(与通讯录成员列表 / 消息聊天窗口同一形态):标题 + 备注
           (群组总数)一行、不换行;搜索框留在右侧动作位。 */}
       <TitleBar
-        leading={navExpand}
         title={t('groups.title')}
         meta={t('groups.total', { count: groups.length })}
       >

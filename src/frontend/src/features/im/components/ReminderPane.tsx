@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
 import { RiCalendarTodoFill } from '@remixicon/react'
@@ -24,7 +24,7 @@ import {
  * (标题、时间、进入会议);今日安排 / 明日安排分组列表;点条目 →
  * EventDetailHost 详情。开关状态与置顶入口共用 localStorage。
  */
-export const ReminderPane = ({ navExpand }: { navExpand?: ReactNode } = {}) => {
+export const ReminderPane = () => {
   const { t, i18n } = useTranslation('im')
   const [, navigate] = useLocation()
   const [enabled, setEnabled] = useReminderEntryEnabled()
@@ -71,7 +71,6 @@ export const ReminderPane = ({ navExpand }: { navExpand?: ReactNode } = {}) => {
           borderBottom: '1px solid token(colors.greyscale.200)',
         })}
       >
-        {navExpand}
         <span
           aria-hidden="true"
           className={css({

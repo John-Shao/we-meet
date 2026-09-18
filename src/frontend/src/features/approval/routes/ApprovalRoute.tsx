@@ -17,9 +17,9 @@ import { css, cx } from '@/styled-system/css'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
-import { SubNavExpandButton, SubNavHeader } from '@/components/SubNav'
+import { SubNavHeader, SubNavStrip } from '@/components/SubNav'
 import { TitleBar } from '@/components/TitleBar'
-import { useModuleSubNav } from '@/components/subNavModules'
+import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
 import { RequireAuth } from '@/components/RequireAuth'
 import { StateHint } from '@/components/StateHint'
 import { Screen } from '@/layout/Screen'
@@ -115,9 +115,9 @@ const ApprovalAuthenticated = () => {
   const qc = useQueryClient()
   const { confirm: askConfirm, alert: showAlert } = useConfirm()
   const [view, setView] = useState<ApprovalView>('pending')
-  // 左栏收起态:与其它模块同一套共享实现(收起按钮在栏头、展开按钮在内容标题栏)。
+  // 左栏收起态:与其它模块同一套共享实现。
   const { collapsed: approvalNavCollapsed, toggle: toggleApprovalNav } =
-    useModuleSubNav('approval')
+    useCollapsibleSubNav('we-meet:approval-nav-collapsed')
   const [submitOpen, setSubmitOpen] = useState(false)
   const [presetTemplate, setPresetTemplate] = useState<string | undefined>()
 
@@ -223,9 +223,13 @@ const ApprovalAuthenticated = () => {
     <div className={css({ display: 'flex', height: '100%' })}>
       {/* 二级导航栏:发起申请 / 待办 / 我发起,与其它模块对齐,可拖拽改宽。
           栏头走 components/SubNav 的共享定义(以「通讯录」为基准):16px bold 标题 +
-          内边距 16/12 + 右端 28px 收起按钮。收起后左列直接让出去(不再有 36px 窄条),
-          展开入口是内容标题栏 leading 槽里的那颗按钮。 */}
-      {!approvalNavCollapsed && (
+          内边距 16/12 + 右端 28px 收起按钮;收起后整栏换成 36px 窄条。 */}
+      {approvalNavCollapsed ? (
+        <SubNavStrip
+          onExpand={toggleApprovalNav}
+          testId="approval-nav-expand"
+        />
+      ) : (
         <ResizablePanel
           storageKey="we-meet:approval-sidebar-width"
           defaultWidth={230}
@@ -280,14 +284,6 @@ const ApprovalAuthenticated = () => {
       */}
       <div className={contentColumnCls}>
         <TitleBar
-          leading={
-            approvalNavCollapsed ? (
-              <SubNavExpandButton
-                onExpand={toggleApprovalNav}
-                testId="approval-nav-expand"
-              />
-            ) : undefined
-          }
           title={
             view === 'create'
               ? t('tab.create')

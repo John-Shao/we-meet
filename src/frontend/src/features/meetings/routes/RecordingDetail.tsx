@@ -4,8 +4,6 @@ import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
 import { Button } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
-import { SubNavExpandButton } from '@/components/SubNav'
-import { useModuleSubNav } from '@/components/subNavModules'
 import { css, cx } from '@/styled-system/css'
 import { useMeetingRecord } from '../api/fetchMeetingRecord'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
@@ -13,7 +11,6 @@ import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import {
   backLink,
   pageFixedTop,
-  pageHeaderLeadingRow,
   pageHeaderText,
   pageLead,
   pageShell,
@@ -168,8 +165,6 @@ export function RecordingDetail() {
   const { user, isLoggedIn } = useUser()
   const { data, isError } = useConfig()
   const { t } = useTranslation('meetings')
-  const { collapsed: navCollapsed, toggle: toggleNav } =
-    useModuleSubNav('meetings')
   if (isLoggedIn === false) return <Redirect to="/" />
   if (!user || (!data && !isError))
     return <StateHint state="loading">{t('loading')}</StateHint>
@@ -178,19 +173,11 @@ export function RecordingDetail() {
       <main className={canvasShell}>
         {/* 详情页与列表页同一套:返回链接 + 标题钉住,内容区自己滚。 */}
         <div className={pageFixedTop}>
-          <div className={pageHeaderLeadingRow}>
-            {navCollapsed && (
-              <SubNavExpandButton
-                onExpand={toggleNav}
-                testId="meeting-nav-expand"
-              />
-            )}
-            <div className={pageHeaderText}>
-              <Link href="/meeting/recording" className={backLink}>
-                {t('recordingOverview.back')}
-              </Link>
-              <h1 className={pageTitle}>{t('recordingOverview.detail')}</h1>
-            </div>
+          <div className={pageHeaderText}>
+            <Link href="/meeting/recording" className={backLink}>
+              {t('recordingOverview.back')}
+            </Link>
+            <h1 className={pageTitle}>{t('recordingOverview.detail')}</h1>
           </div>
         </div>
         <div className={contentScroll} data-testid="meeting-list-region">

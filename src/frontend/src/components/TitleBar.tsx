@@ -101,14 +101,7 @@ const barCls = css({
   backgroundColor: 'surface.default',
 })
 
-const leadingCls = css({
-  flexShrink: 0,
-  display: 'inline-flex',
-  alignItems: 'center',
-  // 前导位可能不止一个元素(例如「展开导航栏」按钮 + 会话头像),给它们一点间距;
-  // 只有一个子元素时 gap 不起作用。
-  gap: 'xs',
-})
+const leadingCls = css({ flexShrink: 0, display: 'inline-flex' })
 
 /** 标题 + 备注一行排开：不换行，标题可省略、备注不被挤掉。 */
 const titleRowCls = css({

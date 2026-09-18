@@ -5,14 +5,11 @@ import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
 import { Button, Input } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
-import { SubNavExpandButton } from '@/components/SubNav'
-import { useModuleSubNav } from '@/components/subNavModules'
 import { css, cx } from '@/styled-system/css'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import {
   backLink,
   pageFixedTop,
-  pageHeaderLeadingRow,
   pageHeaderText,
   pageLead,
   pageShell,
@@ -72,8 +69,6 @@ export function Recorder({
   available: boolean
 }) {
   const { t } = useTranslation('capture')
-  const { collapsed: navCollapsed, toggle: toggleNav } =
-    useModuleSubNav('meetings')
   const [controller, setController] = useState<RecordingController>()
   const [state, setState] = useState<CaptureViewState>({
     history: [],
@@ -189,19 +184,11 @@ export function Recorder({
       <main className={canvasShell}>
         {/* 页头(返回 + 标题)钉住;录音表单与各面板在滚动区里。 */}
         <div className={pageFixedTop}>
-          <div className={pageHeaderLeadingRow}>
-            {navCollapsed && (
-              <SubNavExpandButton
-                onExpand={toggleNav}
-                testId="meeting-nav-expand"
-              />
-            )}
-            <div className={pageHeaderText}>
-              <Link href="/meeting/recording" className={backLink}>
-                {t('backToOverview')}
-              </Link>
-              <h1 className={pageTitle}>{t('title')}</h1>
-            </div>
+          <div className={pageHeaderText}>
+            <Link href="/meeting/recording" className={backLink}>
+              {t('backToOverview')}
+            </Link>
+            <h1 className={pageTitle}>{t('title')}</h1>
           </div>
         </div>
         <div className={contentScroll}>

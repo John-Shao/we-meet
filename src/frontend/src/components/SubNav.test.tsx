@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { SubNavExpandButton, SubNavHeader } from './SubNav'
+import { SubNavHeader, SubNavStrip } from './SubNav'
 import { useCollapsibleSubNav } from './useCollapsibleSubNav'
 
 vi.mock('react-i18next', () => ({
@@ -10,8 +10,7 @@ vi.mock('react-i18next', () => ({
 
 const Harness = ({ storageKey }: { storageKey: string }) => {
   const { collapsed, toggle } = useCollapsibleSubNav(storageKey)
-  if (collapsed)
-    return <SubNavExpandButton onExpand={toggle} testId="nav-expand" />
+  if (collapsed) return <SubNavStrip onExpand={toggle} testId="nav-expand" />
   return (
     <SubNavHeader
       title="模块标题"
@@ -26,7 +25,7 @@ afterEach(() => {
 })
 
 describe('sub navigation chrome', () => {
-  it('collapses to a title-bar button, remembers it and expands again', () => {
+  it('collapses to the strip, remembers it and expands again', () => {
     render(<Harness storageKey="we-meet:test-nav-collapsed" />)
     fireEvent.click(screen.getByTestId('nav-collapse'))
     expect(screen.getByTestId('nav-expand')).toBeInTheDocument()

@@ -19,9 +19,9 @@ import { createDirectConversationByUserId } from '@/features/im/api/createDirect
 import { createGroupConversation } from '@/features/im/api/createGroupConversation'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { ResizablePanel } from '@/components/ResizablePanel'
-import { SubNavExpandButton } from '@/components/SubNav'
+import { SubNavStrip } from '@/components/SubNav'
 import { TitleBar } from '@/components/TitleBar'
-import { useModuleSubNav } from '@/components/subNavModules'
+import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 import { useMediaQuery } from '@/features/rooms/livekit/hooks/useMediaQuery'
@@ -85,6 +85,9 @@ const isViewParam = (v: string | null): v is (typeof VIEW_PARAMS)[number] =>
  * 右栏改浮层。与任务的「接管式详情」同一手法(那边是 1439px,这里三栏更宽,
  * 取 xl 断点 1280px)。 */
 const NARROW_DETAIL_QUERY = '(max-width: 1280px)'
+
+const NAV_COLLAPSED_KEY = 'we-meet:contacts-nav-collapsed'
+
 /** 成员行高(px):36px 头像 + 上下各 0.625rem 内边距 + 1px 分隔线。
  *  窗口化靠这个数算位置,量出来的和实际不符滚动就会漂 —— 行样式改了要一起改。 */
 const MEMBER_ROW_HEIGHT = 57
@@ -169,24 +172,12 @@ const ContactsAuthenticated = () => {
   const [recentIds, setRecentIds] = useState<string[]>(() =>
     readRecentDepartments()
   )
-  // 收起态走共享实现(同一个 storage key,用户偏好不丢)。
+  // 收起态走共享 hook(同一个 storage key,用户偏好不丢)。
   const { collapsed: navCollapsed, toggle: toggleNav } =
-    useModuleSubNav('contacts')
+    useCollapsibleSubNav(NAV_COLLAPSED_KEY)
   const narrowDetail = useMediaQuery(NARROW_DETAIL_QUERY)
   const compactNav = useMediaQuery('(max-width: 767px)')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-
-  /**
-   * 收起后的展开入口(以及窄屏抽屉的打开入口):不再有 36px 窄条,这颗按钮进各视图
-   * 内容标题栏的 leading 槽 —— 三个视图(成员 / 群组 / 外部联系人)各有一份。
-   */
-  const navExpandButton =
-    navCollapsed || compactNav ? (
-      <SubNavExpandButton
-        onExpand={() => (compactNav ? setMobileNavOpen(true) : toggleNav())}
-        testId="contacts-nav-expand"
-      />
-    ) : undefined
 
   // ── URL 即状态 ──────────────────────────────────────────────────────────
   const [searchParams, setSearchParams] = useSearchParams()
@@ -894,7 +885,14 @@ const ContactsAuthenticated = () => {
         overflow: 'hidden',
       })}
     >
-      {!navCollapsed && !compactNav && (
+      {navCollapsed || compactNav ? (
+        // 收起态:只留一条 36px 窄条(components/SubNav 的共享定义),把 260px 还给
+        // 名单。窄屏那一档走的是移动抽屉:同一个按钮既收起抽屉也展开抽屉。
+        <SubNavStrip
+          testId="contacts-nav-expand"
+          onExpand={() => (compactNav ? setMobileNavOpen(true) : toggleNav())}
+        />
+      ) : (
         <ResizablePanel
           storageKey="we-meet:contacts-dept-width"
           defaultWidth={260}
@@ -918,23 +916,15 @@ const ContactsAuthenticated = () => {
         style={{ '--contacts-gutter': `${gutter}px` } as CSSProperties}
       >
         {view === 'groups' ? (
-          <MyGroupsPanel
-            selectedCid={groupParam}
-            onSelect={selectGroup}
-            navExpand={navExpandButton}
-          />
+          <MyGroupsPanel selectedCid={groupParam} onSelect={selectGroup} />
         ) : view === 'external' ? (
-          <ExternalContactsPanel
-            onMessage={handleMessage}
-            navExpand={navExpandButton}
-          />
+          <ExternalContactsPanel onMessage={handleMessage} />
         ) : (
           <>
             {/* 内容标题栏走共享件(与消息聊天窗口同一形态):标题 + 备注(人数)
                 一行、不换行。右内边距仍按滚动条槽宽对齐(与下面的成员列表同一条槽)。
                 搜索框与按钮留在右侧动作组里。 */}
             <TitleBar
-              leading={navExpandButton}
               title={listTitle}
               meta={listSubtitle}
               paddingRight={`calc(1rem + var(--contacts-gutter, ${SCROLLBAR_GUTTER_FALLBACK}px))`}

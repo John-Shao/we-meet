@@ -25,8 +25,6 @@ import {
 import { selectChrome } from '@/primitives/selectChrome'
 import { PageState } from '@/components/PageState'
 import { StateHint } from '@/components/StateHint'
-import { SubNavExpandButton } from '@/components/SubNav'
-import { useModuleSubNav } from '@/components/subNavModules'
 import { css, cx } from '@/styled-system/css'
 import { useMeetingRecords } from '../api/fetchMeetingRecord'
 import {
@@ -677,8 +675,6 @@ export function Library({
 }) {
   const { t } = useTranslation('meetings')
   const { data: config } = useConfig()
-  const { collapsed: navCollapsed, toggle: toggleNav } =
-    useModuleSubNav('meetings')
   const [, navigate] = useLocation()
   const [scope, setScope] = useState<MeetingRecordFilters['scope']>(
     minutes ? 'owned' : 'recent'
@@ -768,12 +764,6 @@ export function Library({
             />
           </div>
           <header className={pageHeaderRow}>
-            {navCollapsed && (
-              <SubNavExpandButton
-                onExpand={toggleNav}
-                testId="meeting-nav-expand"
-              />
-            )}
             {/* 页头只有标题:四个一级页都不再带副标题(2026-09-17)。 */}
             <div className={pageHeaderText}>
               <h1 className={pageTitle}>
