@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'wouter'
-import { RiSettings3Line } from '@remixicon/react'
+import { RiAddLine, RiSettings3Line } from '@remixicon/react'
 import { addMonths, addYears, startOfDay, startOfMonth } from 'date-fns'
 
-import { Button } from '@/primitives'
+import { Button, IconButton } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { StateHint } from '@/components/StateHint'
 import { apiErrorMessage } from '@/api/apiErrorMessage'
@@ -34,6 +34,11 @@ import {
   CalendarPageTabs,
   type CalendarPageTab,
 } from '../components/CalendarPageTabs'
+import {
+  headerActions,
+  pageFixedTop,
+  pageHeaderRow,
+} from '@/features/meetings/components/libraryStyles'
 import { MeetingRoomsPane } from '@/features/meeting-rooms'
 import type { MeetingRoomBrief, RoomBooking } from '@/features/meeting-rooms'
 import type { View } from 'react-big-calendar'
@@ -70,6 +75,35 @@ const isRoomConflict = (error: unknown): boolean => {
   }
   return true
 }
+
+/**
+ * 内容标题栏的左槽:这一页放的是**页面级 Tab**(日历 / 会议室),不是一行标题 ——
+ * 两个 Tab 的文字本身就是页面名,再补一行标题是重复。
+ *
+ * 栏本身(白底 / 56px + 1px 线 / 标题行居中 / 右侧动作档位)一律走「会议」模块的
+ * 共享定义(`libraryStyles` 的 `pageFixedTop` + `pageHeaderRow` + `headerActions`,
+ * 那边四个一级页与「消息」聊天窗口标题栏同高),这里只补左槽的排布。
+ */
+const headerTabs = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'sm',
+  minWidth: 0,
+})
+
+/**
+ * 网格区:标题栏以下唯一的伸缩区。左右内边距与标题栏同档(16px),rbc 工具栏
+ * 因此与标题栏左缘齐平(原先标题栏在 20px 内边距里、网格也在 20px 里,两条边是齐的,
+ * 但都比会议模块多 4px)。
+ */
+const gridRegion = css({
+  flex: 1,
+  minHeight: 0,
+  position: 'relative',
+  paddingX: 'lg',
+  paddingTop: 'lg',
+  paddingBottom: 'lg',
+})
 
 export const CalendarRoute = () => (
   <RequireAuth>
@@ -458,76 +492,49 @@ const CalendarAuthenticated = () => {
           display: 'flex',
           flexDirection: 'column',
           height: '100%',
-          padding: '1rem 1.25rem',
         })}
       >
-        <div
-          className={css({
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '1rem',
-          })}
-        >
-          {/* 原「日历」标题位换成 日/周/月/日程 分段切换器(飞书式);
-             P9 起左侧再挂一组页面级 Tab(日历 / 会议室)。 */}
-          <div
-            className={css({
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-            })}
-          >
-            <CalendarPageTabs tab={tab} onTab={changeTab} />
-          </div>
-          <div
-            className={css({
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-            })}
-          >
-            <Button
-              variant="primary"
-              size="action"
-              onPress={() => openCreate(null)}
-              data-testid="calendar-create"
-            >
-              ＋ {t('page.create')}
-            </Button>
-            {/* P8 设置收敛:齿轮只是快捷入口,打开系统设置并定位「日历」节。
-               无边框纯图标钮,置于「新建日程」右侧。 */}
-            <button
-              type="button"
-              onClick={() => openSystemSettings('calendar')}
-              title={t('settings.title')}
-              aria-label={t('settings.title')}
-              data-testid="calendar-settings"
-              className={css({
-                width: '2rem',
-                height: '2rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: 'none',
-                borderRadius: '0.375rem',
-                backgroundColor: 'transparent',
-                color: 'greyscale.700',
-                cursor: 'pointer',
-                _hover: { backgroundColor: 'greyscale.100' },
-              })}
-            >
-              <RiSettings3Line size={16} />
-            </button>
-          </div>
+        {/* 内容标题栏与「会议」模块同一条(白底 + 56px + 1px 底分割线 + 居中标题行)。
+            改前这条是自己排的:没有白底与分割线,高度由分段控件的纵向内边距决定,
+            与会议页并排切栏目时两条栏差一档。 */}
+        <div className={pageFixedTop} data-testid="calendar-page-header">
+          <header className={pageHeaderRow}>
+            {/* 原「日历」标题位换成页面级 Tab(日历 / 会议室);日/周/月/日程
+                分段切换器由网格自己的工具栏渲染。 */}
+            <div className={headerTabs}>
+              <CalendarPageTabs tab={tab} onTab={changeTab} />
+            </div>
+            <div className={headerActions}>
+              {/* 主操作与「会议」的「快速会议 / 录音」同一档:primary + action +
+                  18px 图标(原先那颗只有文字前缀「＋」,没有图标)。 */}
+              <Button
+                variant="primary"
+                size="action"
+                icon={<RiAddLine size={18} aria-hidden />}
+                onPress={() => openCreate(null)}
+                data-testid="calendar-create"
+              >
+                {t('page.create')}
+              </Button>
+              {/* P8 设置收敛:齿轮只是快捷入口,打开系统设置并定位「日历」节。
+                  纯图标钮走基元(icon32,与工具行 / 面板头同一档),无障碍名与
+                  Tooltip 由 `label` 一处给出 —— 原先手写的 32px 按钮只有 title,
+                  键盘走到它没有焦点环。 */}
+              <IconButton
+                size="icon32"
+                label={t('settings.title')}
+                onPress={() => openSystemSettings('calendar')}
+                data-testid="calendar-settings"
+              >
+                <RiSettings3Line size={19} aria-hidden="true" />
+              </IconButton>
+            </div>
+          </header>
         </div>
 
         {/* 月/周/日 网格(react-big-calendar);点事件开详情弹窗(RSVP/进会)。
            P9 会议室 Tab 走自研横向时间轴(资源 × 时间,不是 rbc 的事件流)。 */}
-        <div
-          ref={gridRef}
-          className={css({ flex: 1, minHeight: 0, position: 'relative' })}
-        >
+        <div ref={gridRef} className={gridRegion}>
           {tab === 'meetingRooms' ? (
             <MeetingRoomsPane
               date={date}

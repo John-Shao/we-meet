@@ -145,6 +145,10 @@ and this project adheres to
   shared title bar as well
 - 🎨(frontend) align every title bar button with the meeting module's two
   styles: a filled primary with an icon, or a text button with one
+- 🎨(frontend) put the calendar content title bar on the meeting module's bar:
+  the same 56px white band with a 1px divider, the page tabs still on the
+  left, a 40px filled create button with an 18px icon and an icon32 settings
+  button on the right
 
 ### Fixed
 

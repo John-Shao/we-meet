@@ -942,6 +942,43 @@ TitleBar 的三条规则（写死在共享件里）：① 标题与备注同一�
 `src/cunningham/__tests__/we-meet-bars.test.ts` 把上面这两条值钉住（谁把高度/字重
 改回去谁红）。真实浏览器实拍由走查人确认（那个 App 本地起需要后端）。
 
+### 3.29 「日历」的内容标题栏并到「会议」那一条（2026-09-18 追加）
+
+走查反馈：日历模块的内容标题栏与会议模块不是一条 —— 那边是白底 + 56px（+1px 线）、
+右侧动作走 `action` 档按钮；这边是自己排的一行（没有白底与分割线，高度由分段控件的
+纵向内边距决定，主操作只有「＋」文字前缀、没有图标，齿轮是手写的 32px `<button>`）。
+
+| 位置         | 改前                                           | 改后                                                                      |
+| ------------ | ---------------------------------------------- | ------------------------------------------------------------------------- |
+| 栏本身       | 自己排的一行：无白底、无分割线，高度随分段控件 | `libraryStyles` 的 `pageFixedTop` + `pageHeaderRow`（白底 + 56 + 1px 线） |
+| 左槽         | 页面级 Tab（日历 / 会议室）                    | **不变**（两个 Tab 的文字就是页面名，不再另补一行标题）                   |
+| 主操作       | `primary action`，「＋ 新建日程」（无图标）    | 加 `RiAddLine` 18px（与「新建任务 / 快速会议」同档）                      |
+| 齿轮         | 手写 `<button>` 32px，只有 `title`、无焦点环   | 基元 `IconButton size="icon32"`（`label` 一处给出无障碍名 + Tooltip）     |
+| 网格区内边距 | 与标题栏同在 20px 的容器里                     | 标题栏 16px、网格区 16px（与会议的固定区 / 滚动区同档，两条边仍然齐）     |
+
+「会议」那条栏的共享定义是 `features/meetings/components/libraryStyles`（把它当**跨模块
+样板**用已经有先例：`features/home/routes/Home.tsx` 也是从这里取的页头）。3.27 的
+「每页一个主操作 + 标题栏里不出现 `dense`」在这一页照旧：只有「新建日程」是主操作，
+齿轮是纯图标次操作。
+
+验证：新增 `scripts/check-calendar-title-bar.mjs`（真实 Chromium）。
+
+- **源码级**：`CalendarRoute.tsx` 必须引用 `pageFixedTop` / `pageHeaderRow` /
+  `headerActions` 三个共享类（谁换回手写的一行，当天高度可能还是对的，下一个人改共享件
+  时它就悄悄掉队）；标题栏区块里出现 `size="dense"`、或主操作没带 18px 图标，都报错。
+- **真实浏览器**：栏高 56（+1px 线 = 57）、白底 `surface.default` + 1px `border.subtle`、
+  左侧 Tab 与右侧动作都垂直居中（±1px）、左栏栏头与右栏标题栏同一中线；主操作
+  40px + `rgb(40, 96, 217)` + 18×18 图标，齿轮 32×32 且有无障碍名，左槽仍是两个
+  下划线 Tab（`日历 / 会议室`）；390px 下靠 `flex-wrap` 换行、不横向溢出。
+  截图留档：[1180px](meetings-ux-assets/desktop-calendar-title-bar.png)、
+  [390px](meetings-ux-assets/mobile-calendar-title-bar.png)（脚本自己写到
+  `src/frontend/test-results/`）。
+
+挂载这个页面有两个坑，都写在脚本的注释里了：① 直接 `import CalendarRoute.tsx` 会踩到
+ESM 循环（`routes.ts` 静态 import 了 `@/features/calendar`，而后者又导出 `CalendarRoute`），
+改为先 import 路由表再取 `routes.calendar.Component`；② 页面自己要用 `ConfirmProvider`
+（日程的删除 / 改期确认），缺了它整棵树会被 React 卸载、页面上什么都量不到。
+
 ### 4. 顺带修掉的缺陷
 
 - **窄屏左列不收起**：`/meeting` 登录态直接渲染定宽 `MeetingNavPanel`，390px 下会把
@@ -1016,6 +1053,8 @@ TitleBar 的三条规则（写死在共享件里）：① 标题与备注同一�
 - 深色主题（实录）：[1180px](meetings-ux-assets/dark-records.png)
 - 会议记录工作区（钉头 + 内部面板自滚）：[390px](meetings-ux-assets/mobile-workspace.png)
 - 录制页（钉头 + 表单卡）：[1280px](meetings-ux-assets/desktop-capture.png)
+- 日历内容标题栏（3.29）：[1180px](meetings-ux-assets/desktop-calendar-title-bar.png)、
+  [390px](meetings-ux-assets/mobile-calendar-title-bar.png)
 
 ## 遗留（未在本次改动）
 
