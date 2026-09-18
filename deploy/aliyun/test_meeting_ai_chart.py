@@ -276,6 +276,11 @@ case "$*" in
   *rev-parse*--short*) echo 12345678 ;;
   *rev-parse*HEAD*) echo {self.FULL_SHA} ;;
 esac
+# 会打印 commit 缩写的命令必须固定位数, 否则日志里同一个 commit 会同时出现
+# 8 位和 9 位两个字符串.
+case "$*" in
+  *checkout*|*fetch*|*pull*) [[ "$*" == *"core.abbrev=9"* ]] || echo "GIT-ABBREV-MISSING: $*" >&2 ;;
+esac
 exit 0
 """,
                 "kubectl": """#!/usr/bin/env bash
@@ -326,18 +331,27 @@ printf '%s\\n' "$@" > "$FIXTURE_LOG"
 
     def test_derived_tag_ignores_git_short_sha_length(self):
         # `git rev-parse --short` 的位数随仓库大小变化, 构建机 9 位 / 发布机 8 位
-        # 会让发布指向不存在的镜像 (§tag-be9fdcdfe-vs-be9fdcdf). 标签必须取完整
+        # 会让发布指向不存在的镜像 (be9fdcdfe vs be9fdcdf). 标签必须取完整
         # SHA 的前 9 位, 与 `--short` 的输出无关.
         result, log = self.release("frontend", tag=None)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("frontend.image.tag=123456789", log)
         self.assertNotIn("frontend.image.tag=12345678\n", log)
+        # 日志里不能出现没固定缩写的 git 输出, 也要说明 tag 就是那个 commit 的前缀.
+        self.assertNotIn("GIT-ABBREV-MISSING", result.stderr)
+        self.assertIn("first 9 chars of the commit above", result.stdout)
+
+    def test_git_output_is_pinned_to_the_tag_length(self):
+        result, _ = self.release("frontend")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn("GIT-ABBREV-MISSING", result.stderr)
 
     def test_explicit_short_tag_warns_about_truncation(self):
         result, log = self.release("frontend", tag="12345678")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("has 8 characters", result.stderr)
         self.assertIn("frontend.image.tag=12345678", log)
+        self.assertIn("(explicit --tag)", result.stdout)
 
 
 if __name__ == "__main__":

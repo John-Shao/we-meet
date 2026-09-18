@@ -18,6 +18,10 @@
 # 它的缩写位数随本地仓库对象数变化, 构建机算出 9 位而发布机算出 8 位,
 # release 就会指向一个 CR 里不存在的镜像, 一路等到 ImagePullBackOff.
 #
+# git 自己的 pull / fetch 输出 ("Updating aaaa..bbbb") 同样按 IMAGE_TAG_LEN 位
+# 显示 (见 git_display), 否则日志里同一个 commit 会同时出现 8 位和 9 位两个
+# 字符串, 看起来像两个 tag.
+#
 # 发布前默认会调 CR 的 Docker Registry v2 API 校验 <repo>:<tag> 存在
 # (--skip-image-check 可跳过); 明确 404 直接失败, 拿不到凭据/网络异常只告警.
 # --dry-run 默认跳过该校验 (chart 测试 / 纯渲染场景不联网), --image-check 可强制.
@@ -34,12 +38,16 @@ SECRETS_FILE="${SECRETS_FILE:-src/helm/env.d/aliyun-prod/values.secrets.yaml}"
 ALL_MODULES=(backend frontend summary agents)
 SELECTED=()
 TAG=""
+TAG_EXPLICIT=0
 DRY_RUN=0
 SKIP_GIT_PULL=0
 # 镜像 tag 位数 — 必须与 build-and-push.sh 的 IMAGE_TAG_LEN 一致.
 IMAGE_TAG_LEN="${IMAGE_TAG_LEN:-9}"
 IMAGE_CHECK=1
 IMAGE_CHECK_EXPLICIT=0
+# 预检的 curl 上限: 预检只是护栏, 网络卡住不该拖住发布.
+CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-5}"
+CURL_MAX_TIME="${CURL_MAX_TIME:-15}"
 CR_USER=""
 CR_PASS=""
 
@@ -55,6 +63,13 @@ warn() {
 # 完整 SHA 的前 IMAGE_TAG_LEN 位 — 位数与本地仓库大小无关, 构建/发布两侧一致.
 head_image_tag() {
   git rev-parse --verify HEAD 2>/dev/null | cut -c "1-${IMAGE_TAG_LEN}"
+}
+
+# 需要 git 打印 commit 缩写的命令都走这里: 固定成 IMAGE_TAG_LEN 位, 让 pull 的
+# "Updating aaaa..bbbb" 与本次部署的 tag 是同一个字符串 (git 默认的位数随仓库
+# 大小变化, 发布机上就是 8 位, 正是本文件开头说的那次事故).
+git_display() {
+  git -c "core.abbrev=${IMAGE_TAG_LEN}" "$@"
 }
 
 usage() {
@@ -152,14 +167,15 @@ require_image_exists() {
   local headers=() challenge="" realm="" service="" token="" body="" code
   local auth_hint=""
   [[ -n "$CR_USER" && -n "$CR_PASS" ]] && headers=(-u "$CR_USER:$CR_PASS")
+  local timeouts=(--connect-timeout "$CURL_CONNECT_TIMEOUT" --max-time "$CURL_MAX_TIME")
 
   # 未授权响应里的 WWW-Authenticate 决定取 token 的方式 (Bearer challenge / Basic).
-  challenge=$(curl -sS -o /dev/null -D - "${headers[@]}" -H "Accept: $accept" "$url" 2>/dev/null \
+  challenge=$(curl -sS "${timeouts[@]}" -o /dev/null -D - "${headers[@]}" -H "Accept: $accept" "$url" 2>/dev/null \
     | tr -d '\r' | awk 'tolower($1) == "www-authenticate:" { $1 = ""; sub(/^ /, ""); print; exit }') || challenge=""
   if [[ "$challenge" == Bearer* ]]; then
     realm=$(sed -n 's/.*realm="\([^"]*\)".*/\1/p' <<<"$challenge")
     service=$(sed -n 's/.*service="\([^"]*\)".*/\1/p' <<<"$challenge")
-    body=$(curl -sS "${headers[@]}" \
+    body=$(curl -sS "${timeouts[@]}" "${headers[@]}" \
       "${realm}?service=${service}&scope=repository:${repository}:pull" 2>/dev/null) || body=""
     token=$(printf '%s' "$body" \
       | grep -oE '"(access_)?token" *: *"[^"]+"' | head -n1 | sed 's/.*: *"//; s/"$//') || token=""
@@ -170,7 +186,7 @@ require_image_exists() {
     fi
   fi
 
-  code=$(curl -sS -o /dev/null -w '%{http_code}' "${headers[@]}" -H "Accept: $accept" "$url" 2>/dev/null) || code=000
+  code=$(curl -sS "${timeouts[@]}" -o /dev/null -w '%{http_code}' "${headers[@]}" -H "Accept: $accept" "$url" 2>/dev/null) || code=000
   case "$code" in
     200) return 0 ;;
     404) die "image not found: ${reference}:${tag} — push it with deploy/aliyun/build-and-push.sh, or release a tag that exists (--tag <pushed-tag>)" ;;
@@ -208,6 +224,7 @@ while (($#)); do
     --tag)
       (($# >= 2)) || die "--tag requires a value"
       TAG=$2
+      TAG_EXPLICIT=1
       shift 2
       ;;
     --branch)
@@ -275,15 +292,15 @@ fi
 # branches. Check out the requested branch first so TAG and Helm charts always
 # come from the intended source.
 if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
-  git checkout "$BRANCH"
+  git_display checkout "$BRANCH"
 else
-  git fetch origin "$BRANCH"
-  git checkout --track "origin/$BRANCH"
+  git_display fetch origin "$BRANCH"
+  git_display checkout --track "origin/$BRANCH"
 fi
 
 if ((SKIP_GIT_PULL == 0)); then
   echo "==> Updating source: origin/$BRANCH"
-  git pull --ff-only origin "$BRANCH"
+  git_display pull --ff-only origin "$BRANCH"
 fi
 
 TAG="${TAG:-}"
@@ -303,8 +320,13 @@ if [[ "$TAG" =~ ^[0-9a-fA-F]{7,40}$ ]] && ((${#TAG} != IMAGE_TAG_LEN)); then
   warn "tag '$TAG' has ${#TAG} characters, but the deployed images use ${IMAGE_TAG_LEN} (HEAD would be $(head_image_tag)); check for a truncated SHA or a stale checkout"
 fi
 
-echo "==> Releasing tag: $TAG"
-echo "==> Commit: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+head_full=$(git rev-parse HEAD 2>/dev/null) || head_full="unknown"
+echo "==> Commit: $head_full"
+if ((TAG_EXPLICIT)); then
+  echo "==> Releasing tag: $TAG  (explicit --tag)"
+else
+  echo "==> Releasing tag: $TAG  (first ${IMAGE_TAG_LEN} chars of the commit above)"
+fi
 echo "==> Modules: ${SELECTED[*]}"
 
 if ((IMAGE_CHECK)); then

@@ -686,6 +686,7 @@ docker compose exec keycloak-db pg_dump -U keycloak keycloak | gzip > kc-$(date 
 | `Caddy LE challenge timeout` for id.example.com | aliyun-zlm 安全组 80/443 没开。阿里云控制台加规则 `0.0.0.0/0` 入方向 TCP 80 + 443。 |
 | `kubectl exec ... <<EOF` heredoc 内容被吞 | `kubectl exec` 默认不转发 stdin。要么加 `-i` 让它转发，要么把 SQL/命令塞进 `-c "..."` 参数。 |
 | 构建镜像 tag `be9fdcdfe`、发布时却是 `be9fdcdf`（少一位），helm 卡到 `ImagePullBackOff` | `git rev-parse --short HEAD` 的缩写位数由**本地仓库对象数**决定：构建机 9 位、发布机 8 位，同一个 commit 得到两个字符串。已改为一律取**完整 SHA 的前 9 位**（[build-and-push.sh](../../deploy/aliyun/build-and-push.sh) / [release-meet.sh](../../deploy/aliyun/release-meet.sh)，`IMAGE_TAG_LEN` 可覆盖），且 `release-meet.sh` 发布前会调 CR v2 API 校验 `<repo>:<tag>` 是否存在（`--skip-image-check` 跳过）。 |
+| 日志里 `git pull` 的 `Updating b41f9cc6..cf0b16cd` 是 8 位、`Releasing tag: cf0b16cd1` 是 9 位，看着像两个 tag | git 自己的缩写同样随仓库大小变化。`release-meet.sh` 现在把 pull / fetch / checkout 都跑在 `git -c core.abbrev=$IMAGE_TAG_LEN` 下，所以 `Updating 4d6098a95..17a14e1b4` 与部署 tag 是同一个字符串；`==> Commit:` 行还会打印完整 SHA 做对照。 |
 | `psql -c "stmt1; stmt2; CREATE DATABASE x..."` 整体回滚 | 多语句 `-c` 在同一事务，CREATE DATABASE 不能在事务里。用多个 `-c`（每个独立事务）。 |
 | postgres `role "meet" does not exist`（chart 装完直接缺）| chart 16.7.27 默认匹配 postgres 17 init 脚本，跟我们的 bitnamilegacy/postgresql:16.4 不匹配，meet user/db 没建。**应急手动建**：见 §7.3 黄框。 |
 | `manage.py createsuperuser: error: unrecognized arguments: --no-input` | 项目自定义的 createsuperuser 命令签名不一样，用 `--email + --password`，不要 `--no-input`。 |

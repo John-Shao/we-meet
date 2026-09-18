@@ -156,6 +156,12 @@ and this project adheres to
 - 🩹(deploy) verify the selected tag exists in the container registry before
   `helm upgrade`, failing fast on 404 instead of waiting for the rollout
   (`--skip-image-check` opts out; `--dry-run` skips it unless `--image-check`).
+- 🩹(deploy) pin git's own abbreviation to the same nine characters
+  (`git -c core.abbrev`), so the `Updating aaaa..bbbb` line of `git pull` and
+  the release tag are the same string instead of looking like two different
+  tags; the release log now states which commit the tag came from. The registry
+  preflight also caps its curl calls, so an unreachable registry warns instead
+  of stalling the release.
 
 ## [1.16.0] - 2026-05-13
 
