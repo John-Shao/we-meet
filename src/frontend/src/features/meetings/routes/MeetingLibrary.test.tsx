@@ -311,3 +311,35 @@ it('keeps the loaded page when switching between the table and the grid', async 
   expect(screen.getByRole('table')).toBeInTheDocument()
   expect(screen.getByText('Second page')).toBeInTheDocument()
 })
+
+it('labels an imported file by its media type instead of a blanket upload label', async () => {
+  vi.mocked(fetchApi).mockImplementation(async (path) => {
+    const params = new URL(path, 'https://fixture.invalid').searchParams
+    if (params.get('is_ongoing') === 'true')
+      return { results: [], next_cursor: null }
+    return {
+      results: [
+        {
+          ...archived,
+          id: 'clip',
+          title: 'Kickoff.mp4',
+          source_type: 'upload',
+          upload: {
+            media_type: 'video',
+            name: 'Kickoff.mp4',
+            size: 1024,
+            status: 'succeeded',
+          },
+        },
+      ],
+      next_cursor: null,
+    }
+  })
+  show()
+  const row = await screen.findByRole('link', { name: 'Kickoff.mp4' })
+  // 同一条记录在「AI 录音」页写的就是 upload.video:记录库不能退回笼统的通用标签。
+  expect(within(row).getByText('upload.video')).toBeInTheDocument()
+  expect(
+    within(row).queryByText('library.source.upload')
+  ).not.toBeInTheDocument()
+})

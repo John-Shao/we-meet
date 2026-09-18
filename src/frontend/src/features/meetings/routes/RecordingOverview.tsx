@@ -11,6 +11,7 @@ import { useMeetingRecords } from '../api/fetchMeetingRecord'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { RecordingUpload } from '../components/RecordingUpload'
+import { recordSourceKey } from '../recordSource'
 import {
   contentSurface,
   headerActions,
@@ -125,11 +126,7 @@ export function RecordingHistory({
                     </time>
                     <span aria-hidden>·</span>
                     <span>
-                      {t(
-                        record.source_type === 'upload'
-                          ? `upload.${record.upload?.media_type ?? 'audio'}`
-                          : 'library.source.audio_recording'
-                      )}
+                      {t(recordSourceKey(record))}
                       {record.upload &&
                         ` · ${t(`upload.status.${record.upload.status}`)}`}
                     </span>

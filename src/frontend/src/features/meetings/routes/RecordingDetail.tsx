@@ -8,6 +8,7 @@ import { css, cx } from '@/styled-system/css'
 import { useMeetingRecord } from '../api/fetchMeetingRecord'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
+import { recordSourceKey } from '../recordSource'
 import {
   backLink,
   pageFixedTop,
@@ -94,12 +95,7 @@ export function RecordingDetailContent({
         {record.title || t('library.untitled')}
       </h2>
       <p className={pageLead}>
-        {t(
-          record.source_type === 'upload'
-            ? `upload.${record.upload?.media_type ?? 'audio'}`
-            : 'library.source.audio_recording'
-        )}{' '}
-        ·{' '}
+        {t(recordSourceKey(record))} ·{' '}
         <time dateTime={record.origin_at}>
           {new Date(record.origin_at).toLocaleString(i18n.language)}
         </time>

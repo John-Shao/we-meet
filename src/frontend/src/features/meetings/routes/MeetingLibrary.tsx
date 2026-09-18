@@ -48,6 +48,7 @@ import {
 } from '../components/libraryStyles'
 import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
+import { recordSourceKey } from '../recordSource'
 import type {
   ApiMeetingRecord,
   MeetingRecordFilters,
@@ -557,7 +558,7 @@ function RecordList({
                       {formatRecordTime(record.origin_at)}
                     </time>
                     <span aria-hidden>·</span>
-                    <span>{t(`library.source.${record.source_type}`)}</span>
+                    <span>{t(recordSourceKey(record))}</span>
                     {/* 上传的处理状态在两个列表页都要看得见 —— 否则「上传中/失败」
                         只能在 AI 录音页看到,而这一页才是管理记录的入口。 */}
                     {record.upload &&
@@ -618,7 +619,7 @@ function RecordList({
                     {formatRecordTime(record.origin_at)}
                   </time>
                   <span aria-hidden>·</span>
-                  <span>{t(`library.source.${record.source_type}`)}</span>
+                  <span>{t(recordSourceKey(record))}</span>
                   {/* 所有者那一列在窄屏收起,这一份信息跟着并进副行。 */}
                   <span className={narrowOnly}>
                     <span aria-hidden>·</span>

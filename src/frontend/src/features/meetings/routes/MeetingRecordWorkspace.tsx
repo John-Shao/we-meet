@@ -42,6 +42,7 @@ import { OriginalSearch } from '../components/OriginalSearch'
 import { TranslationArchivePanel } from '../components/TranslationArchivePanel'
 import { CaptureTranslationArchives } from '../components/CaptureTranslationArchives'
 import { TranscriptSegment } from '../components/TranscriptSegment'
+import { recordSourceKey } from '../recordSource'
 import { RiArrowLeftLine, RiTimeLine } from '@remixicon/react'
 
 /** 页壳与标题:与列表页同一套(铺满 + 阅读面底色)。 */
@@ -419,7 +420,7 @@ function WorkspaceContent({
             })}
           >
             <dt>{t('library.sourceLabel')}</dt>
-            <dd>{t(`library.source.${record.source_type}`)}</dd>
+            <dd>{t(recordSourceKey(record))}</dd>
             <dt>{t('library.date')}</dt>
             <dd>{new Date(record.origin_at).toLocaleString()}</dd>
             <dt>{t('library.retentionLabel')}</dt>
@@ -500,7 +501,7 @@ export function RecordWorkspace({
             {record && (
               <p className={metaLine}>
                 <RiTimeLine size={16} aria-hidden />
-                {t(`library.source.${record.source_type}`)} ·{' '}
+                {t(recordSourceKey(record))} ·{' '}
                 {new Date(record.origin_at).toLocaleString()}
               </p>
             )}
