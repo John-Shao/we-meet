@@ -28,6 +28,7 @@ from core.services.meeting_records import (
     can_generate_summary,
     filter_record_scope,
     record_capabilities,
+    record_captures,
     visible_records,
 )
 from core.services.meeting_summary_automation import (
@@ -374,9 +375,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         ).prefetch_related(
             Prefetch(
                 "captures",
-                queryset=models.CaptureSession.objects.filter(
-                    created_by=self.request.user
-                ).only("id", "record_id"),
+                queryset=record_captures(self.request.user),
                 to_attr="library_captures",
             )
         )
@@ -419,7 +418,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["patch"], url_path="title")
     def rename_title(self, request, pk=None):
-        """Only the owner can rename an ended audio recording, with a stale edit guard."""
+        """Owners can rename ended standalone or uploaded records with a stale edit guard."""
         record = self.get_object()
         if not record_capabilities(record, request.user)["rename"]:
             raise PermissionDenied("Only the owner can rename an ended recording.")

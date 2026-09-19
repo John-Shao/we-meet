@@ -424,6 +424,7 @@ function WorkspaceContent({
   const uploadMedia = useRef<UploadMediaHandle>(null)
   /** Imports are served whole; captures are served as verified chunks. */
   const isUpload = record.source_type === 'upload'
+  const canPlayUpload = isUpload && record.capabilities.play_media === true
   /**
    * Playback position lives here because the player and the transcript are
    * separate regions: the player owns the clock, the transcript owns the text,
@@ -456,7 +457,9 @@ function WorkspaceContent({
   const source = captureId ? capture.data : undefined
   const readableCapture = source?.status === 'stopped'
   const playable =
-    readableCapture && ['saved', 'incomplete'].includes(source.media_status)
+    record.capabilities.play_media === true &&
+    readableCapture &&
+    ['saved', 'incomplete'].includes(source.media_status)
   const canReadText = record.capabilities.read_transcript
   /**
    * One seek entry point for both players. The two sources differ in how the
@@ -542,19 +545,19 @@ function WorkspaceContent({
                 capture={source}
                 includeSummary={false}
                 compactControls
-                onSource={(ms) => seekTo(ms)}
-                positionMs={follow.positionMs}
+                onSource={playable ? seekTo : undefined}
+                positionMs={playable ? follow.positionMs : undefined}
                 activeId={follow.activeId}
-                follow={follow}
+                follow={playable ? follow : undefined}
               />
             ) : (
               <OriginalRead
                 key={`${record.id}:${record.revision}`}
                 record={record}
                 viewerId={viewerId}
-                activeId={isUpload ? follow.activeId : undefined}
-                follow={isUpload ? follow : undefined}
-                onSource={isUpload ? seekTo : undefined}
+                activeId={canPlayUpload ? follow.activeId : undefined}
+                follow={canPlayUpload ? follow : undefined}
+                onSource={canPlayUpload ? seekTo : undefined}
               />
             )}
           </TabPanel>
@@ -594,7 +597,7 @@ function WorkspaceContent({
                 // A capture's clock starts at its own session, so a citation's
                 // record-clock offset has to be rebased. An import's clock is the
                 // record's, so the offset is already the answer.
-                isUpload
+                canPlayUpload
                   ? (ms: number) => seekTo(ms)
                   : playable && source
                     ? (ms: number) =>
@@ -667,7 +670,7 @@ function WorkspaceContent({
         The signed URL expires, which is why this mounts only with the transcript
         and re-resolves per record rather than being held for the page's life.
       */}
-      {isUpload && canReadText && (
+      {canPlayUpload && canReadText && (
         <UploadMediaPlayer
           key={`${viewerId}:${record.id}`}
           ref={uploadMedia}

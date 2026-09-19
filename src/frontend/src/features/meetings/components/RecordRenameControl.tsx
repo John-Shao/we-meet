@@ -10,7 +10,7 @@ import { useRenameMeetingRecord } from '../api/fetchMeetingRecord'
 /**
  * Rename an ended standalone recording, mirroring the Android action
  * (`RecordRename.kt`). The backend gates this on `capabilities.rename`
- * (owner + `audio_recording` + not ongoing) and guards the write with the title
+ * (owner + standalone/upload + not ongoing) and guards the write with the title
  * the caller last saw, so a 409 means somebody else renamed it first — we must
  * say so rather than silently retrying with the stale value.
  */

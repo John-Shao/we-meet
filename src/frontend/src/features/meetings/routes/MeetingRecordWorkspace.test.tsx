@@ -84,7 +84,7 @@ beforeEach(() => {
     origin_at: '2026-09-13T00:00:00Z',
     revision: 1,
     capture_id: 'capture',
-    capabilities: { read_transcript: true, read_summary: true },
+    capabilities: { read_transcript: true, read_summary: true, play_media: true },
   }
   capture = {
     id: 'capture',
@@ -348,4 +348,16 @@ it('connects upload timestamps to playback without sending an empty speaker filt
   for (const [path] of vi.mocked(fetchApi).mock.calls.filter(([path]) => path.includes('original-segments'))) {
     expect(new URLSearchParams(path.split('?')[1]).has('speaker')).toBe(false)
   }
+})
+
+
+it('does not offer media or timestamp actions to a transcript-only upload reader', async () => {
+  record.source_type = 'upload'
+  record.capture_id = null
+  record.capabilities = { read_transcript: true, read_summary: true, play_media: false }
+  show()
+  await screen.findByText('Shared original')
+  expect(screen.queryByText('upload-player')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '0:00' })).not.toBeInTheDocument()
+  expect(screen.queryByText('library.backToPlayback')).not.toBeInTheDocument()
 })

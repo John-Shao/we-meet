@@ -108,3 +108,26 @@ def test_this_path_does_not_serve_capture_or_meeting_records():
     response, storage = get(owner, type("J", (), {"record_id": record.id})())
     assert response.status_code == 404
     assert storage.signed == []
+
+
+def test_upload_capabilities_match_owner_playback_and_guarded_rename():
+    job = upload_job()
+    path = f"/api/v1.0/meeting-records/{job.record_id}/"
+    owner = client_for(job.record.owner)
+    caps = owner.get(path).data["capabilities"]
+    assert caps["play_media"] is True
+    assert caps["rename"] is True
+    renamed = owner.patch(path + "title/", {"title": "Interview", "expected_title": job.record.title}, format="json")
+    assert renamed.status_code == 200
+    assert renamed.data["title"] == "Interview"
+    assert renamed.data["revision"] == job.record.revision
+    assert owner.patch(path + "title/", {"title": "Stale", "expected_title": job.record.title}, format="json").status_code == 409
+    reader = UserFactory()
+    models.MeetingRecordAccess.objects.create(record=job.record, user=reader, read_transcript=True)
+    caps = client_for(reader).get(path).data["capabilities"]
+    assert caps["read_transcript"] is True
+    assert caps["play_media"] is False
+    assert caps["rename"] is False
+    assert get(reader, job)[0].status_code == 404
+    models.UploadedRecording.objects.filter(pk=job.pk).update(storage_name="")
+    assert owner.get(path).data["capabilities"]["play_media"] is False

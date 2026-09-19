@@ -131,6 +131,51 @@ def visible_records(user, *, ability=None):
     return queryset.filter(**{f"can_{ability}": True})
 
 
+def record_captures(user):
+    """Bounded metadata for the owner's capture link and playable-source status."""
+    return (
+        models.CaptureSession.objects.filter(created_by=user)
+        .only("id", "record_id", "status")
+        .annotate(
+            has_audio=Exists(
+                models.CaptureAudioChunk.objects.filter(
+                    capture_id=OuterRef("pk"), stored=True
+                )
+            ),
+            has_manifest=Exists(
+                models.CaptureAudioManifest.objects.filter(
+                    capture_id=OuterRef("pk"), outcome__in=["saved", "incomplete"]
+                )
+            ),
+        )
+    )
+
+
+def can_play_media(record, user):
+    """Playback remains owner-only; transcript grants do not grant source bytes."""
+    if (
+        not record
+        or not record.can_read_transcript
+        or record.owner_id != user.pk
+        or record.retention_mode != models.MeetingRecord.Retention.MEDIA
+    ):
+        return False
+    if record.source_type == models.MeetingRecord.Source.UPLOAD:
+        job = getattr(record, "uploaded_recording", None)
+        return bool(job and job.storage_name and job.size > 0)
+    if record.source_type != models.MeetingRecord.Source.AUDIO:
+        return False
+    captures = getattr(record, "library_captures", None)
+    if captures is None:
+        captures = list(record_captures(user).filter(record=record))
+    return bool(
+        len(captures) == 1
+        and captures[0].status == "stopped"
+        and captures[0].has_audio
+        and captures[0].has_manifest
+    )
+
+
 def record_capabilities(record, user):
     """Advertise implemented reads and the opt-in generation capability."""
     # Called with a freshly authorized queryset row; no per-item ACL queries.
@@ -142,7 +187,7 @@ def record_capabilities(record, user):
     return {
         "read_summary": bool(scoped and scoped.can_read_summary),
         "read_transcript": bool(scoped and scoped.can_read_transcript),
-        "play_media": False,
+        "play_media": can_play_media(scoped, user),
         "download_media": False,
         "edit": bool(
             scoped
@@ -153,7 +198,8 @@ def record_capabilities(record, user):
         "rename": bool(
             scoped
             and scoped.owner_id == user.pk
-            and scoped.source_type == models.MeetingRecord.Source.AUDIO
+            and scoped.source_type
+            in (models.MeetingRecord.Source.AUDIO, models.MeetingRecord.Source.UPLOAD)
             and not getattr(scoped, "is_ongoing", True)
         ),
         "manage": False,
