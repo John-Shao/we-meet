@@ -202,7 +202,7 @@ def test_this_path_only_addresses_capture_originals():
     appeared to succeed but never reached the reader is undetectable.
     """
     user, _, _, record = online_note()
-    with pytest.raises(LookupError):
+    with pytest.raises(PermissionError):
         corrections.correct(record, uuid.uuid4(), user, text="nothing to fix")
 
 

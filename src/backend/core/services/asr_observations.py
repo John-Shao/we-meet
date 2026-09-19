@@ -79,7 +79,10 @@ def snapshot_asr_status(delivery):
     ]
     statuses.extend(
         item.get("asr_status", "unverified")
-        for item in delivery.get("capture_transcriptions", [])
+        for item in [
+            *delivery.get("capture_transcriptions", []),
+            *delivery.get("upload_transcriptions", []),
+        ]
     )
     if "incomplete" in statuses:
         return "incomplete"

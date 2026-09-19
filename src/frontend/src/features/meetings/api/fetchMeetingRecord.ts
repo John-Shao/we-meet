@@ -354,6 +354,9 @@ export const useCorrectOriginalSegment = (
         await client.invalidateQueries({
           queryKey: ['capture-originals', viewerId],
         })
+        await client.invalidateQueries({
+          queryKey: ['record-library-content', viewerId],
+        })
       }
     },
   })

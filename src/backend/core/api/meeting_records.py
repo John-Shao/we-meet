@@ -24,6 +24,7 @@ from core.services.capture_transcription import current_originals
 from core.services.effective_transcripts import project
 from core.services.meeting_records import (
     RecordConflict,
+    can_edit_transcript,
     can_generate_summary,
     filter_record_scope,
     record_capabilities,
@@ -793,7 +794,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         rows, expected = self._filter_original_text(
             record, project(rows), text_field="corrected_text"
         )
-        can_correct = can_generate_summary(record, request.user)
+        can_correct = can_edit_transcript(record, request.user)
         pager = RecordPagination()
         pager.ordering = ("start_ms", "id")
         page = pager.paginate_queryset(rows, request, view=self)
@@ -982,7 +983,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "param": "speaker",
                     # Whether this reader may change the attribution, so the UI
                     # does not offer a control that would be refused.
-                    "can_attribute": can_generate_summary(record, request.user),
+                    "can_attribute": can_edit_transcript(record, request.user),
                 }
                 for row in page
             ]
@@ -1034,7 +1035,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         record = self._content_record("read_transcript")
         if set(request.query_params) - {"q"}:
             raise ValidationError("Unsupported candidate filter.")
-        if not can_generate_summary(record, request.user):
+        if not can_edit_transcript(record, request.user):
             return Response({"results": []})
         query = serializers.CharField(max_length=80, allow_blank=True).run_validation(
             request.query_params.get("q", "")

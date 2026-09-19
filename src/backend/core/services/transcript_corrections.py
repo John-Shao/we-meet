@@ -18,7 +18,7 @@ from django.db.models.functions import Coalesce, NullIf
 
 from core import models
 from core.models import MeetingSpeaker
-from core.services.meeting_records import RecordConflict, can_generate_summary
+from core.services.meeting_records import RecordConflict, can_edit_transcript
 
 #: Bound on a single correction. Long enough for a real sentence and for pasting
 #: a paragraph an ASR mangled, short enough that the field is not a document.
@@ -90,15 +90,10 @@ def speaker_display_name(speaker):
 
 
 def _authorize(record, user):
-    """Correcting the source is the same standing as regenerating from it.
-
-    Both change what every downstream artifact will say, so a reader who may only
-    read must not be able to alter the input. Room managers and standalone owners
-    are exactly the people `can_generate_summary` already admits.
-    """
+    """Editing stored text requires editorial access, independent of AI switches."""
     if not user or not getattr(user, "is_authenticated", False) or not user.is_active:
         raise PermissionError("An active user is required.")
-    if not can_generate_summary(record, user):
+    if not can_edit_transcript(record, user):
         raise PermissionError("Only current meeting managers can correct a transcript.")
 
 

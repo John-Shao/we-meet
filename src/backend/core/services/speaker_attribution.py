@@ -15,7 +15,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from core import models
-from core.services.meeting_records import can_generate_summary
+from core.services.meeting_records import can_edit_transcript
 
 #: A picker is a lookup, not an export: past a screenful the user should search.
 MAX_CANDIDATES = 50
@@ -32,12 +32,11 @@ class AttributionDenied(ValueError):
 def _authorize(record, user):
     """Attribution is an editorial act on the record's presentation.
 
-    Same standing as correcting the transcript or regenerating from it: room
-    managers, plus the owner of a standalone record.
+    It shares transcript editing access and does not require AI generation.
     """
     if not user or not getattr(user, "is_authenticated", False) or not user.is_active:
         raise PermissionError("An active user is required.")
-    if not can_generate_summary(record, user):
+    if not can_edit_transcript(record, user):
         raise PermissionError("Only current meeting managers can attribute a speaker.")
 
 
@@ -83,7 +82,9 @@ def attribute(record, speaker_id, actor, *, user_id):
         speaker.user = None
         speaker.attributed_by = None
         speaker.attributed_at = None
-        speaker.save(update_fields=["user", "attributed_by", "attributed_at", "updated_at"])
+        speaker.save(
+            update_fields=["user", "attributed_by", "attributed_at", "updated_at"]
+        )
         return speaker
 
     target = models.User.objects.filter(pk=user_id).first()
@@ -121,15 +122,13 @@ def attribution_candidates(record, actor, query=""):
     )
     if record.organization_id:
         candidates = candidates.filter(
-            pk__in=memberships.filter(
-                organization_id=record.organization_id
-            ).values("user_id")
+            pk__in=memberships.filter(organization_id=record.organization_id).values(
+                "user_id"
+            )
         )
     else:
         shared = memberships.filter(
-            organization_id__in=memberships.filter(user=actor).values(
-                "organization_id"
-            )
+            organization_id__in=memberships.filter(user=actor).values("organization_id")
         ).values("user_id")
         candidates = candidates.filter(Q(pk__in=shared) | Q(pk=actor.pk))
     if query:

@@ -85,7 +85,7 @@ def _verify_stored_header(storage, storage_name, extension):
             Bucket=storage.bucket_name, Key=object_key, Range="bytes=0-65535"
         )
         leading = head["Body"].read(65536)
-    except Exception as exc:  # noqa: BLE001 -- an unreadable object is simply invalid
+    except Exception as exc:
         raise ValueError("invalid_media_content") from exc
     if magic.from_buffer(leading, mime=True) not in MEDIA_MIMES.get(extension, set()):
         raise ValueError("invalid_media_content")
@@ -215,7 +215,11 @@ def _replay_guard(user, key, checksum, configuration):
     if (
         previous.record.owner_id != user.pk
         or previous.checksum != checksum
-        or {k: v for k, v in previous.configuration.items() if k != "_file"}
+        or {
+            k: v
+            for k, v in previous.configuration.items()
+            if k not in {"_file", "_published"}
+        }
         != configuration
     ):
         raise RecordConflict("Upload intent changed.")
@@ -357,7 +361,9 @@ def media_read_url(job):
         ),
         "name": metadata.get("name", ""),
         "size": job.size,
-        "content_type": sorted(MEDIA_MIMES.get(extension, {"application/octet-stream"}))[0],
+        "content_type": sorted(
+            MEDIA_MIMES.get(extension, {"application/octet-stream"})
+        )[0],
     }
 
 
@@ -458,7 +464,6 @@ def complete_direct_upload(user, *, key, storage_name, size, content_type, optio
         except Exception:
             storage.delete(storage_name)
             raise
-
 
 
 @transaction.atomic
@@ -575,6 +580,13 @@ def finish(job, rows, billed_seconds=None):
     # Source identities and provider fields above are validated before bulk insertion.
     models.MeetingOriginalSegment.objects.bulk_create(segments, batch_size=500)
     current.status, current.error_code = "succeeded", ""
+    current.configuration = {
+        **current.configuration,
+        "_published": {
+            "segment_count": len(segments),
+            "attempt": current.attempt,
+        },
+    }
     current.lease_id = current.lease_until = None
     current.save()
     record = current.record

@@ -104,20 +104,25 @@ def visible_records(user, *, ability=None):
             for name in ("read_summary", "read_transcript")
         }
     )
+    managers = Exists(
+        models.ResourceAccess.objects.filter(
+            resource_id=OuterRef("meeting_session__room_id"),
+            user=user,
+            role__in=[models.RoleChoices.OWNER, models.RoleChoices.ADMIN],
+        )
+    )
     queryset = queryset.annotate(
-        can_generate_summary=(
+        can_manage_record=own | managers,
+        can_generate_summary=Q(
+            source_type=models.MeetingRecord.Source.UPLOAD, owner=user
+        )
+        | (
             Q(source_type=models.MeetingRecord.Source.AUDIO, owner=user)
             if settings.MEETING_CAPTURE_SUMMARY_ENABLED
             and settings.MEETING_CAPTURE_PROTOCOL_ENABLED
             else Q(pk__isnull=True)
         )
-        | Exists(
-            models.ResourceAccess.objects.filter(
-                resource_id=OuterRef("meeting_session__room_id"),
-                user=user,
-                role__in=[models.RoleChoices.OWNER, models.RoleChoices.ADMIN],
-            )
-        )
+        | managers,
     )
     if ability is None:
         return queryset.filter(Q(can_read_summary=True) | Q(can_read_transcript=True))
@@ -139,7 +144,12 @@ def record_capabilities(record, user):
         "read_transcript": bool(scoped and scoped.can_read_transcript),
         "play_media": False,
         "download_media": False,
-        "edit": False,
+        "edit": bool(
+            scoped
+            and scoped.can_manage_record
+            and scoped.source_type
+            in (models.MeetingRecord.Source.AUDIO, models.MeetingRecord.Source.UPLOAD)
+        ),
         "rename": bool(
             scoped
             and scoped.owner_id == user.pk
@@ -164,6 +174,18 @@ def can_generate_summary(record, user):
     return bool(
         visible_records(user, ability="read_transcript")
         .filter(pk=record.pk, can_generate_summary=True)
+        .exists()
+    )
+
+
+def can_edit_transcript(record, user):
+    """Editorial ownership is independent of billable AI rollout switches."""
+    return bool(
+        settings.MEETING_RECORDS_ENABLED
+        and record.source_type
+        in (models.MeetingRecord.Source.AUDIO, models.MeetingRecord.Source.UPLOAD)
+        and visible_records(user, ability="read_transcript")
+        .filter(pk=record.pk, can_manage_record=True)
         .exists()
     )
 

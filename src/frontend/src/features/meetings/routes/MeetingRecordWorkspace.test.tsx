@@ -20,6 +20,15 @@ vi.mock('../components/CaptureAudioPlayer', () => ({
     return <p>protected-player</p>
   }),
 }))
+vi.mock('../components/UploadMediaPlayer', () => ({
+  UploadMediaPlayer: forwardRef(function Player(_, ref) {
+    useImperativeHandle(ref, () => ({ seek: mocks.seek }))
+    return <p>upload-player</p>
+  }),
+}))
+vi.mock('../components/RecordingUpload', () => ({
+  UploadedRecordingStatus: () => <p>upload-status</p>,
+}))
 vi.mock('../components/CaptureTranscriptionPanel', () => ({
   CaptureTranscriptionPanel: ({
     onSource,
@@ -169,6 +178,55 @@ it('summary-only shares never request original text, capture state or audio', as
   expect(vi.mocked(fetchApi).mock.calls.map(([path]) => path)).toEqual([
     'meeting-records/record/',
   ])
+})
+
+it('edits uploaded text using the server capability and reaches its summary workspace', async () => {
+  record.source_type = 'upload'
+  record.capture_id = null
+  let text = 'Imported words'
+  let version = 0
+  const baseline = vi.mocked(fetchApi).getMockImplementation()!
+  vi.mocked(fetchApi).mockImplementation(async (path, options, ...rest) => {
+    if (options?.method === 'PATCH') {
+      expect(JSON.parse(options.body as string)).toEqual({
+        text: 'Corrected import',
+        expected_revision: 0,
+      })
+      text = 'Corrected import'
+      version = 1
+      record.revision = 2
+      return {
+        id: 'original',
+        text,
+        correction_revision: version,
+        record_revision: 2,
+      }
+    }
+    if (path.includes('original-segments'))
+      return {
+        results: [
+          {
+            id: 'original',
+            text,
+            start_ms: 0,
+            can_correct: true,
+            correction_revision: version,
+          },
+        ],
+        next_cursor: null,
+      }
+    return baseline(path, options, ...rest)
+  })
+  show()
+  fireEvent.click(await screen.findByText('transcriptCorrection.edit'))
+  fireEvent.change(
+    screen.getByRole('textbox', { name: 'transcriptCorrection.edit' }),
+    { target: { value: 'Corrected import' } }
+  )
+  fireEvent.click(screen.getByText('transcriptCorrection.save'))
+  await screen.findByText('Corrected import')
+  fireEvent.click(screen.getByRole('tab', { name: 'library.minutes' }))
+  expect(await screen.findByText('summary-workspace')).toBeInTheDocument()
 })
 
 it('transcript-only shares read originals but cannot mount paid or private capture controls', async () => {

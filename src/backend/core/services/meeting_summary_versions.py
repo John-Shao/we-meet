@@ -33,6 +33,7 @@ from core.services.meeting_summary_chunks import (
 )
 from core.services.meeting_summary_notifications import record_completion
 from core.services.transcript_delivery import source_delivery
+from core.services.upload_summary_source import source as upload_source
 
 
 class SourceReference(BaseModel):
@@ -102,7 +103,10 @@ def _source_ended(record):
 def _source_input(record, *, require_ended=True, enforce_budget=True):
     """Read all confirmed legacy rows, never truncate or choose another session."""
     if record.meeting_session_id is None:
-        segments, delivery = capture_source(record, allow_live=not require_ended)
+        if record.source_type == models.MeetingRecord.Source.UPLOAD:
+            segments, delivery = upload_source(record)
+        else:
+            segments, delivery = capture_source(record, allow_live=not require_ended)
         return _fingerprint(record, segments, delivery, enforce_budget=enforce_budget)
     session = record.meeting_session
     if session.room.organization_id != record.organization_id:
@@ -173,6 +177,8 @@ def source_payload(record, *, require_ended=True):
 def _stage_readiness(record, segments, delivery, latest):
     """Coalesce stable text and distinguish meeting end from provider tail closure."""
     ended = _source_ended(record)
+    if record.source_type == models.MeetingRecord.Source.UPLOAD:
+        return {"ready_stages": ["final"] if segments else [], "next_update_at": None}
     if not record.meeting_session_id and not capture_staged_enabled():
         return {"ready_stages": ["final"] if ended else [], "next_update_at": None}
     source_open = delivery.get("status") == "open" or any(
@@ -307,7 +313,11 @@ def prepare_summary_job(record_id, *, regenerate=False, stage="final"):
             "chunk_prompt_version": PROMPT_VERSION,
             "capture_run_id": capture_run_id(record),
         }
-        if record.meeting_session_id is None:
+        if record.source_type == models.MeetingRecord.Source.UPLOAD:
+            job.configuration["upload_transcription_id"] = delivery[
+                "upload_transcriptions"
+            ][0]["id"]
+        elif record.meeting_session_id is None:
             job.configuration["capture_transcription_id"] = delivery[
                 "capture_transcriptions"
             ][0]["id"]

@@ -10,7 +10,11 @@ import { Screen } from '@/layout/Screen'
 import { Button } from '@/primitives'
 import { Tabs, Tab, TabList, TabPanel } from '@/primitives/Tabs'
 import { css, cx } from '@/styled-system/css'
-import { useMeetingRecord, useRecordSummaries } from '../api/fetchMeetingRecord'
+import {
+  useMeetingRecord,
+  useRecordSummaries,
+  useCorrectOriginalSegment,
+} from '../api/fetchMeetingRecord'
 import type {
   ApiMeetingRecord,
   ApiRecordTranscript,
@@ -51,7 +55,12 @@ import { TranslationArchivePanel } from '../components/TranslationArchivePanel'
 import { CaptureTranslationArchives } from '../components/CaptureTranslationArchives'
 import { TranscriptSegment } from '../components/TranscriptSegment'
 import { recordSourceKey } from '../recordSource'
-import { usePlaybackFollow, useTranscriptFollow, type PlaybackFollow, type TimedRow } from '../transcriptSync'
+import {
+  usePlaybackFollow,
+  useTranscriptFollow,
+  type PlaybackFollow,
+  type TimedRow,
+} from '../transcriptSync'
 import { RiArrowLeftLine, RiTimeLine } from '@remixicon/react'
 
 /** The workspace carries the clock only; each transcript derives its own rows. */
@@ -90,6 +99,7 @@ function OriginalRead({
   }
 }) {
   const { t } = useTranslation('meetings')
+  const correction = useCorrectOriginalSegment(viewerId, record.id)
   const [cursors, setCursors] = useState<string[]>([''])
   const routeSearch = useSearch()
   const [search, setSearch] = useState(
@@ -199,7 +209,10 @@ function OriginalRead({
       {!query.data.results.length && <p>{t('library.noContent')}</p>}
       {query.data.results.map((item) =>
         'identity_type' in item ? (
-          <p key={item.id} className={cx(textStyle, css({ overflowWrap: 'anywhere' }))}>
+          <p
+            key={item.id}
+            className={cx(textStyle, css({ overflowWrap: 'anywhere' }))}
+          >
             {item.identity_type === 'unknown' ? (
               t('library.unknownSpeaker')
             ) : (
@@ -228,6 +241,40 @@ function OriginalRead({
                 : time(item.start_ms)
             }
             text={item.text}
+            originalText={
+              'original_text' in item ? item.original_text : undefined
+            }
+            isCorrected={'is_corrected' in item && item.is_corrected}
+            correctionRevision={
+              'correction_revision' in item
+                ? item.correction_revision
+                : undefined
+            }
+            correcting={correction.isPending}
+            onCorrect={
+              'can_correct' in item &&
+              item.can_correct &&
+              item.correction_revision !== undefined
+                ? (segmentId, text, expectedRevision) =>
+                    correction.mutateAsync({
+                      segmentId,
+                      text,
+                      expectedRevision,
+                    })
+                : undefined
+            }
+            onRevert={
+              'can_correct' in item &&
+              item.can_correct &&
+              item.correction_revision !== undefined
+                ? (segmentId, expectedRevision) =>
+                    correction.mutateAsync({
+                      segmentId,
+                      expectedRevision,
+                      revert: true,
+                    })
+                : undefined
+            }
           />
         )
       )}

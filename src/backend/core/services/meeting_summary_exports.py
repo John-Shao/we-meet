@@ -36,7 +36,7 @@ def can_export(record, user):
     return bool(
         scoped
         and (
-            scoped.can_generate_summary
+            scoped.can_manage_record
             or (
                 scoped.source_type != models.MeetingRecord.Source.MEETING
                 and scoped.owner_id == user.pk
