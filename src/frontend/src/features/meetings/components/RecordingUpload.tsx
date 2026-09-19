@@ -415,16 +415,16 @@ export function RecordingUpload({
             {t(busy ? 'upload.uploading' : 'upload.submit')}
           </Button>
           {/* A GB-scale import takes minutes, so it needs a real number and a
-              way out rather than an indefinite spinner. */}
+              way out rather than an indefinite spinner. The native <progress>
+              already carries the progressbar role and its own values, so the
+              wrapper must not declare a second one. */}
           {busy && chunked && (
-            <div
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={percent}
-              aria-label={t('upload.progress', { percent })}
-            >
-              <progress value={uploaded} max={Math.max(file?.size ?? 1, 1)} />
+            <div className={css({ display: 'flex', gap: '0.5rem', alignItems: 'center' })}>
+              <progress
+                value={uploaded}
+                max={Math.max(file?.size ?? 1, 1)}
+                aria-label={t('upload.progress', { percent })}
+              />
               <span>{t('upload.progress', { percent })}</span>
             </div>
           )}

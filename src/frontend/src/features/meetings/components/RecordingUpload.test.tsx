@@ -2,17 +2,33 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { fetchApi } from '@/api/fetchApi'
+import { CHUNKED_THRESHOLD, UploadCancelled } from '../chunkedUpload'
 import { RecordingUpload, UploadedRecordingStatus } from './RecordingUpload'
 
 const navigate = vi.fn()
+// Hoisted: the factory below runs before this module's body, so the mock has to
+// be created first.
+const { uploadInParts } = vi.hoisted(() => ({ uploadInParts: vi.fn() }))
 vi.mock('@/api/fetchApi', () => ({ fetchApi: vi.fn() }))
 vi.mock('wouter', () => ({ useLocation: () => ['', navigate] }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
+// The chunked loop is unit-tested on its own; here only the component's reaction
+// to it matters, and the real one needs XMLHttpRequest (absent in jsdom).
+vi.mock('../chunkedUpload', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../chunkedUpload')>()),
+  uploadInParts,
+  putPartWithProgress: vi.fn(),
+}))
 let client: QueryClient
 beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  // `resetAllMocks` in afterEach clears calls but leaves a queued
+  // `mockRejectedValueOnce`/`mockImplementationOnce` to be consumed by whatever
+  // runs next. The chunked mock is file-scoped, so it has to be cleared here or a
+  // test only passes in isolation.
+  uploadInParts.mockReset()
 })
 afterEach(() => {
   client.clear()
@@ -177,7 +193,7 @@ const withDirect = (overrides: Record<string, unknown> = {}) => ({
   available: true,
   max_bytes: 100,
   direct_upload_available: true,
-  direct_max_bytes: 6 * 1024 * 1024,
+  direct_max_bytes: 4 * CHUNKED_THRESHOLD,
   extensions: ['wav'],
   ...overrides,
 })
@@ -350,4 +366,45 @@ it('refuses a file above the direct ceiling before opening a ticket', async () =
   expect(await screen.findByRole('alert')).toHaveTextContent('upload.error')
   // Only the capability read happened: nothing was signed and nothing was sent.
   expect(fetchApi).toHaveBeenCalledTimes(1)
+})
+
+/** A file above the threshold, so the chunked path is the one taken. */
+const chunkedCapabilities = {
+  available: true,
+  max_bytes: 100,
+  direct_upload_available: true,
+  direct_max_bytes: 4 * CHUNKED_THRESHOLD,
+  extensions: ['wav'],
+}
+
+it('reports a cancelled transfer as cancelled, not as an error', async () => {
+  // A stop is not an ambiguous outcome. Showing the generic failure here would
+  // tell the reader something went wrong when they are the one who stopped it.
+  uploadInParts.mockRejectedValueOnce(new UploadCancelled())
+  vi.mocked(fetchApi).mockResolvedValueOnce(chunkedCapabilities)
+  show(<RecordingUpload viewerId="owner" />)
+  fireEvent.click(await screen.findByRole('button', { name: 'upload.open' }))
+  await pick('Long.wav', CHUNKED_THRESHOLD + 1)
+  await screen.findByText('upload.cancelled')
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  // Nothing navigated: the reader stays where they were, free to retry.
+  expect(navigate).not.toHaveBeenCalled()
+})
+
+it('shows byte progress and offers a way out while a large transfer runs', async () => {
+  let report: ((sent: number, total: number) => void) | undefined
+  uploadInParts.mockImplementationOnce(
+    (_file, _intent, _declaration, _deps, _signal, onProgress: (s: number, t: number) => void) => {
+      report = onProgress
+      // Never settles, so the mid-transfer state can be inspected.
+      return new Promise(() => {})
+    }
+  )
+  vi.mocked(fetchApi).mockResolvedValueOnce(chunkedCapabilities)
+  show(<RecordingUpload viewerId="owner" />)
+  fireEvent.click(await screen.findByRole('button', { name: 'upload.open' }))
+  await pick('Long.wav', CHUNKED_THRESHOLD + 1)
+  await waitFor(() => expect(report).toBeDefined())
+  expect(screen.getByRole('button', { name: 'upload.cancel' })).toBeInTheDocument()
+  expect(screen.getByRole('progressbar')).toBeInTheDocument()
 })

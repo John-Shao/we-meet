@@ -332,7 +332,7 @@ GET    /meeting-records/{id}/source-status/
 | **1** | **音视频 ↔ 逐字稿双向同步**（P1） | 这是妙记与「转写文本导出」的分水岭。没有它，用户仍要自己找位置 | ① 播放器 `onTimeUpdate` 已算全局 ms（`CaptureAudioPlayer.tsx:311`）→ 用 context/prop 向上暴露 `positionMs`；② 逐字稿行按 `start_ms/end_ms` 命中区间加 `aria-current` + 样式；③ 命中变化时 `scrollIntoView({block:'nearest'})`（复刻 `MeetingDetail.tsx:841-843` 已有的 2s 高亮做法）；④ 用户手动滚动时**暂停自动滚动 3–5 秒**，避免抢焦点 | 中（Web 先做；Android 复用 `CapturePlaybackRegistry`） |
 | **2** | **逐字稿可编辑**（T1/T5） | 妙记把逐字稿当内容；只读的逐字稿在真实会议里不可用（ASR 必错） | ⚠️ **不能改 `MeetingOriginalSegment`**（不可变是溯源根基）。新增 `TranscriptRevision`（record + segment + 新 text + 作者 + 时间 + revision），读取时走「修订优先，回退原文」；`payload_hash` 与 `source_refs` 继续锚定 **segment_id + revision**，历史引用仍可回读 | 大 |
 | **3** | **媒体下载 + 原始媒体可达**（M1） | 妙记可下载原始音视频；用户对「我的录音」有天然所有权预期 | 接线 `download_media`：新增 `GET /meeting-records/{id}/media/`（签名 URL，短时效，复验 `read_transcript` + `retention_mode==media`）。**注意**：旧 `Recording` 已有整文件签名下载（`viewsets.py:2376-2420` `/recordings/media-auth/` + nginx auth subrequest），**可复用该模式**；但新记录侧的 `MeetingMediaSegment` 没有序列化器/视图/路由（`models.py:1615`），需先补映射暴露。Web/Android 加「下载」入口 | ⚠️ **未闭环**（见 §5.8）——只覆盖「上传件 + 属主 + 回放」，不是「媒体下载」 |
-| **4** | **上传上限提到与妙记同量级**（G2） | 100 MB ≈ 1 小时 mp3；妙记 **6 GB / 6 h**。60× 差距直接排除长会议与线上培训场景 | 改 `MEETING_FILE_ASR_MAX_BYTES` 到 GB 级 + 对象存储直传（分片）+ 异步 ASR；注意 `BoundedUploadHandler`（`uploaded_recordings.py:51-58`）是为防磁盘打满而设，**必须换成直传对象存储**而非单纯调大阈值 | ⚠️ **代码已齐，卡在两个未验证前提**（见 §5.8/§5.9/§5.10）——两端整文件直传与可续传分片上传均已实现并测试；但①生产开关仍为 `False`；②`we-meet-video` 的 bucket CORS 无据可查，浏览器分片上传可能整体不可用 |
+| **4** | **上传上限提到与妙记同量级**（G2） | 100 MB ≈ 1 小时 mp3；妙记 **6 GB / 6 h**。60× 差距直接排除长会议与线上培训场景 | 改 `MEETING_FILE_ASR_MAX_BYTES` 到 GB 级 + 对象存储直传（分片）+ 异步 ASR；注意 `BoundedUploadHandler`（`uploaded_recordings.py:51-58`）是为防磁盘打满而设，**必须换成直传对象存储**而非单纯调大阈值 | ⚠️ **代码已齐、CORS 已确认，仍未真实跑通**（见 §5.8/§5.9/§5.10/§5.11）——两端整文件直传与可续传分片上传均已实现并测试，模拟器验证并修掉两个真缺陷；剩余：①生产开关仍为 `False`；②**未对真实 OSS 跑过一次分片往返**（本机 AccessKey 已失效） |
 | **5** | **逐字稿导出**（M3） | 妙记有独立导出接口；纪要不能替代逐字稿（合规/归档刚需） | 新增导出：`TXT / Markdown / SRT / VTT`（按 `start_ms` 生成时间轴）。**SRT/VTT 顺带解决 P5 字幕轨**——同一份数据两个用途 | 小 |
 | **6** | **说话人 → 真实成员映射**（T2） | 妙记可把 `speaker_id` 换成 `ou_` 成员；「说话人 1/2」在纪要里等于没归因 | ~~扩 `MeetingSpeaker`：加可空的 `user` FK + `confidence`；新增 `PATCH /meeting-records/{id}/speakers/{speaker_id}/` 绑定成员；纪要生成时把真人名写进要点文本（与妙记 `@姓名` 纯文本口径一致）~~ → **已完成（见 §5.6）** | ~~中~~ ✅ |
 
@@ -447,7 +447,7 @@ MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES: "6442450944"   # 6 GiB，但用不上
 
 **顺手修掉一个我自己写出来的真缺陷**：分片路径最初用 `CancellationException` 表示「用户点了取消」。这个类型是协程机制自己的信号，必须原样上抛，复用它会让「读者取消」和「作用域正在销毁」无法区分，于是取消会以**抛异常**而非返回失败的形式逃逸（被自己的测试抓到）。改为独立的 `RecordingUploadCancelled`。
 
-**⚠️ 未验证，且可能直接否掉浏览器端：bucket CORS**
+**⚠️ 未验证，且可能直接否掉浏览器端：bucket CORS** —— **已由运维侧确认，见 §5.11。** 以下为当时的结论，保留以便追溯。
 
 浏览器直传 `oss-cn-shenzhen.aliyuncs.com` 是跨源请求。要成功，bucket 的 CORS 规则必须允许 `meet.we-meet.online`、允许 `PUT/POST`、允许 `Content-Type`，并且**暴露 `ETag` 响应头**——分片上传没有 ETag 就无法 `CompleteMultipartUpload`。
 
@@ -462,6 +462,25 @@ Android 不受此影响：OkHttp 能读到所有响应头，不存在 CORS 暴�
 `UploadThrottle` 是 **6 次/分钟/用户**，且 `recording-uploads/`、`upload-url/`、`upload-complete/` 共享这一份额度（`core/api/uploaded_recordings.py:78-80`）。若按「一个分片一次签名请求」设计，6 GiB 需要约 96 次签名 = 至少要 16 分钟才签得完，功能上等于不可用。所以分片端点用了独立 scope（`recording_multipart_upload` 30/min、读 60/min）并做批量签名。**分片 PUT 本身直连存储，不经过本应用，也不消耗任何 DRF 配额。**
 
 **另需注意**：`create_multipart_upload` 与会话模型都带 `ACL: private`。整文件直传也这么做且据称在运（头像/聊天桶的跨源 PUT 是活的），但**阿里云 OSS 若启用了「禁止 ACL」策略，带 ACL 的调用会报 `AccessDenied` 而纯粹策略解析失败**。这一条同样只能在真实桶上验证。
+
+### 5.11 外部验证结果（CORS 已确认、真实桶未跑通、模拟器发现两个真缺陷）
+
+**① bucket CORS：已确认满足要求。** 运维侧给出的 OSS 控制台截图显示 `we-meet-video`（华南1 深圳）的跨域设置规则为：来源 `https://we-meet.online`，允许 Methods `GET/PUT/HEAD/POST/DELETE`，允许 Headers `*`，**暴露 Headers `ETag`**，缓存 600 秒。
+
+这一条正好覆盖了 §5.10 列的全部前置条件（origin、方法、Content-Type 可写、**ETag 暴露**）。**结论：浏览器分片上传的前置条件已满足**，`we-meet-video` 不再是被阻塞项。注意来源是 `https://we-meet.online`，与截图同屏的应用域名一致；若后续上线其它源（例如带 `www` 的别名或预发域名），需要相应追加规则。
+
+**② 真实桶无法用本机凭据跑通（未验证，且不是代码问题）。** 本机 `src/helm/env.d/aliyun-prod/values.secrets.yaml` 里的 `AWS_S3_ACCESS_KEY_ID` 调 `list_objects_v2` 返回 **`InvalidAccessKeyId`：The OSS Access Key Id you provided does not exist in our records**。该文件**已被 `.gitignore` 忽略且未被 git 跟踪**（`values.secrets.yaml.dist` 里是 `REPLACE_OSS_ACCESS_KEY_ID` 占位），所以**不是仓库泄露的密钥，而是一份过期/失效的本地副本**。
+
+因此**分片上传仍未对真实 OSS 跑过一次**。要推进需要一对有效的 AccessKey（或改用 STS 临时凭据）。§5.10 里那条「`moto` 未安装，所以只覆盖到 seam」的限定**依然成立**。
+
+**③ 模拟器验证发现并修掉两个真缺陷。** 这正是「未做设备验证」这一条欠下的账：
+
+- **上传跑在主线程上。** 组件用 `rememberCoroutineScope()` 启动上传，其调度器是 Compose 的 `AndroidUiDispatcher.Main`；而 `OkHttpPartStorage.putPart` 用的是**同步 `execute()`**。于是传输期间主线程被阻塞，**进度条与取消按钮根本来不及绘制**——一个为长时间上传而做的界面，在最需要它的时候是冻结的。已改为 `withContext(Dispatchers.IO)`。
+- **取消被报成「无法确认」。** 分片 PUT 因取消返回空时，仓库抛的是通用 `IOException("Part N was not stored")`，与「响应丢失」无法区分，界面于是落入不确定分支，告诉读者**「文件可能已经收到」并劝其重试——恰好是他们刚刚中止的那件事**。现在先用 `cancelled()` 区分为 `RecordingUploadCancelled`，界面单独处理为「已取消」，且保留意图以便续传。
+
+两处都补了回归测试：Android 走真机对话框（`RecordingImportChunkedTest`，按住一个分片 PUT，检查进度与取消可用、点击后得到「已取消」而非「无法确认」）；Web 组件层补了取消分类与进度/取消可见性（`RecordingUpload.test.tsx`），并把重复的 `role="progressbar"` 去掉——原生 `<progress>` 已带该语义，外层再声明一个会造出两个进度条。
+
+**④ 顺带查清一件与本功能无关的既有问题**：`connectedDebugAndroidTest` 全量跑时有 10 个用例失败（`CaptureForegroundServiceTest` 8、`CaptureScreenIntegrationTest` 1、`RecordSharingCopyLinkTest` 1），原因是 `ClassCastException: WeMeetApp cannot be cast to CaptureFixtureApplication`——这些用例要求 `app/build.gradle.kts:61` 的 `WE_MEET_TEST_RUNNER` 指向 `IsolatedCaptureRunner`，而**默认构建用的是生产 Application**。用该 property 重跑，`CaptureForegroundServiceTest` **8/8 通过**。仓库里有两个互不兼容的 runner（`IsolatedCaptureRunner` 与 `IsolatedRecordsRunner`，各自带不同 fixture Application），**没有任何单次运行能同时满足两组**；而 `docs/meeting-ai-batch65-2026-09-13.md:15` 只写了后者。这条属测试基建，未在本轮改动。
 
 ---
 
