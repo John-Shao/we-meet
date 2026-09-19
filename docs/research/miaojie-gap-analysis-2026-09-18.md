@@ -332,7 +332,7 @@ GET    /meeting-records/{id}/source-status/
 | **1** | **音视频 ↔ 逐字稿双向同步**（P1） | 这是妙记与「转写文本导出」的分水岭。没有它，用户仍要自己找位置 | ① 播放器 `onTimeUpdate` 已算全局 ms（`CaptureAudioPlayer.tsx:311`）→ 用 context/prop 向上暴露 `positionMs`；② 逐字稿行按 `start_ms/end_ms` 命中区间加 `aria-current` + 样式；③ 命中变化时 `scrollIntoView({block:'nearest'})`（复刻 `MeetingDetail.tsx:841-843` 已有的 2s 高亮做法）；④ 用户手动滚动时**暂停自动滚动 3–5 秒**，避免抢焦点 | 中（Web 先做；Android 复用 `CapturePlaybackRegistry`） |
 | **2** | **逐字稿可编辑**（T1/T5） | 妙记把逐字稿当内容；只读的逐字稿在真实会议里不可用（ASR 必错） | ⚠️ **不能改 `MeetingOriginalSegment`**（不可变是溯源根基）。新增 `TranscriptRevision`（record + segment + 新 text + 作者 + 时间 + revision），读取时走「修订优先，回退原文」；`payload_hash` 与 `source_refs` 继续锚定 **segment_id + revision**，历史引用仍可回读 | 大 |
 | **3** | **媒体下载 + 原始媒体可达**（M1） | 妙记可下载原始音视频；用户对「我的录音」有天然所有权预期 | 接线 `download_media`：新增 `GET /meeting-records/{id}/media/`（签名 URL，短时效，复验 `read_transcript` + `retention_mode==media`）。**注意**：旧 `Recording` 已有整文件签名下载（`viewsets.py:2376-2420` `/recordings/media-auth/` + nginx auth subrequest），**可复用该模式**；但新记录侧的 `MeetingMediaSegment` 没有序列化器/视图/路由（`models.py:1615`），需先补映射暴露。Web/Android 加「下载」入口 | ⚠️ **未闭环**（见 §5.8）——只覆盖「上传件 + 属主 + 回放」，不是「媒体下载」 |
-| **4** | **上传上限提到与妙记同量级**（G2） | 100 MB ≈ 1 小时 mp3；妙记 **6 GB / 6 h**。60× 差距直接排除长会议与线上培训场景 | 改 `MEETING_FILE_ASR_MAX_BYTES` 到 GB 级 + 对象存储直传（分片）+ 异步 ASR；注意 `BoundedUploadHandler`（`uploaded_recordings.py:51-58`）是为防磁盘打满而设，**必须换成直传对象存储**而非单纯调大阈值 | ⚠️ **代码已齐、CORS 已确认，仍未真实跑通**（见 §5.8/§5.9/§5.10/§5.11）——两端整文件直传与可续传分片上传均已实现并测试，模拟器验证并修掉两个真缺陷；剩余：①生产开关仍为 `False`；②**未对真实 OSS 跑过一次分片往返**（本机 AccessKey 已失效） |
+| **4** | **上传上限提到与妙记同量级**（G2） | 100 MB ≈ 1 小时 mp3；妙记 **6 GB / 6 h**。60× 差距直接排除长会议与线上培训场景 | 改 `MEETING_FILE_ASR_MAX_BYTES` 到 GB 级 + 对象存储直传（分片）+ 异步 ASR；注意 `BoundedUploadHandler`（`uploaded_recordings.py:51-58`）是为防磁盘打满而设，**必须换成直传对象存储**而非单纯调大阈值 | ⚠️ **代码已齐、CORS 与真实桶分片均已验证；只差翻开关与一次端到端**（见 §5.8–§5.11）——两端整文件直传与可续传分片上传已实现并测试，模拟器验证并修掉两个真缺陷，真实 OSS 完整分片往返已跑通；剩余：①生产开关仍为 `False`；②未跑过「我们的端点 + 客户端 + 真实桶」的端到端，也未跑 6 GiB 级文件 |
 | **5** | **逐字稿导出**（M3） | 妙记有独立导出接口；纪要不能替代逐字稿（合规/归档刚需） | 新增导出：`TXT / Markdown / SRT / VTT`（按 `start_ms` 生成时间轴）。**SRT/VTT 顺带解决 P5 字幕轨**——同一份数据两个用途 | 小 |
 | **6** | **说话人 → 真实成员映射**（T2） | 妙记可把 `speaker_id` 换成 `ou_` 成员；「说话人 1/2」在纪要里等于没归因 | ~~扩 `MeetingSpeaker`：加可空的 `user` FK + `confidence`；新增 `PATCH /meeting-records/{id}/speakers/{speaker_id}/` 绑定成员；纪要生成时把真人名写进要点文本（与妙记 `@姓名` 纯文本口径一致）~~ → **已完成（见 §5.6）** | ~~中~~ ✅ |
 
@@ -469,9 +469,29 @@ Android 不受此影响：OkHttp 能读到所有响应头，不存在 CORS 暴�
 
 这一条正好覆盖了 §5.10 列的全部前置条件（origin、方法、Content-Type 可写、**ETag 暴露**）。**结论：浏览器分片上传的前置条件已满足**，`we-meet-video` 不再是被阻塞项。注意来源是 `https://we-meet.online`，与截图同屏的应用域名一致；若后续上线其它源（例如带 `www` 的别名或预发域名），需要相应追加规则。
 
-**② 真实桶无法用本机凭据跑通（未验证，且不是代码问题）。** 本机 `src/helm/env.d/aliyun-prod/values.secrets.yaml` 里的 `AWS_S3_ACCESS_KEY_ID` 调 `list_objects_v2` 返回 **`InvalidAccessKeyId`：The OSS Access Key Id you provided does not exist in our records**。该文件**已被 `.gitignore` 忽略且未被 git 跟踪**（`values.secrets.yaml.dist` 里是 `REPLACE_OSS_ACCESS_KEY_ID` 占位），所以**不是仓库泄露的密钥，而是一份过期/失效的本地副本**。
+**② 真实桶已跑通完整分片往返（本条已闭环，推翻上一版结论）。** 用 `src/helm/env.d/aliyun-prod/values.secrets.yaml` 里的**当前**凭据对 `we-meet-video` 跑了探针。探针已固化为管理命令：`python manage.py probe_multipart_upload --full`（`core/management/commands/probe_multipart_upload.py`），它走的是**应用自己的 `audio_storage()`**（而不是另起一个 boto3 客户端），只创建/删除自己的 `record-uploads/probe-*` 对象，并保证中止任何未完成的 upload。
 
-因此**分片上传仍未对真实 OSS 跑过一次**。要推进需要一对有效的 AccessKey（或改用 STS 临时凭据）。§5.10 里那条「`moto` 未安装，所以只覆盖到 seam」的限定**依然成立**。
+| 操作 | 结果 |
+|---|---|
+| `create_multipart_upload`（**带 `ACL: private`**，与产品一致） | OK，`UploadId` 长 32 |
+| `upload_part` | OK，**ETag 返回且带引号** |
+| `list_parts`（续传清单的来源） | OK，`IsTruncated=False`，分页字段存在 |
+| `abort_multipart_upload`（取消路径） | OK，不留残留 |
+| `complete_multipart_upload` + `get_object` 回读 | OK，**5246976 == 5246976 字节且逐字节相同** |
+
+**顺带证实了两条我们代码依赖的硬约束**：
+- **非末分片必须 ≥ 5 MiB**：先用 8 KiB 分片，OSS 直接回 `EntityTooSmall`（`Your proposed upload smaller than the minimum allowed size`）。我们的 `MIN_PART_SIZE = 5 MiB`、`PART_SIZE = 64 MiB` 正照这个下限定，实测确认无误。
+- **分片顺序是硬校验**：把 `[2,1]` 交给完成调用会被拒（`InvalidPartOrder`），而不是被默默按错误顺序拼装。这意味着顺序错会**快速失败**，而不会产出「看起来成功但内容错乱」的对象。
+
+字段边界也对得上：实测 `UploadId` 32 字符，远低于 `RecordingUploadSession.upload_id` 的 `max_length=512`。
+
+**关于本机凭据的订正**：上一版曾记「本机 AccessKey 失效（`InvalidAccessKeyId`）」。**当前文件里的凭据是有效的**，上面整张表就是用它跑出来的；差异原因未查明，**以本次实测为准**。教训是这类本地明文副本会漂移，不应被当作权威。
+
+**一条稳健性观察（不阻塞）**：`capture_storage.py` 给 `audio_storage()` 固定了 **`connect_timeout=3, read_timeout=10, total_max_attempts=1`**（即**完全不重试**）。九次探针里有**一次** `complete_multipart_upload` 报 `ConnectionClosedError`，其余八次通过——即一次瞬时抖动会直接失败。
+
+这条的**影响范围比看起来小，值得写清楚**：分片 PUT 与完成调用都是**客户端直连 OSS**（我们只发预签名 URL），**不经过这段 10 秒的客户端配置**，所以大文件传输本身不受影响；受影响的只有建会话、列分片、head、abort 这类**服务端元数据调用**。因此不必为它改动传输路径，但要知道「服务端 S3 调用零重试」是既有的有意设计（为录音分块的快失败而设），任何新增的服务端 S3 往返都继承了它。
+
+**仍未验证的最后一环**：以上证明的是**存储服务支持且行为符合预期**，走的是应用自己的 storage 但**没有经过我们自己的端点与两端客户端**（那需要一个可登录的后端 + 真实桶），也没有对 6 GiB 级文件跑过。剩余风险因此收窄为「我们的签名参数/客户端实现 + 传输时长」，而不再是「OSS 能不能」。
 
 **③ 模拟器验证发现并修掉两个真缺陷。** 这正是「未做设备验证」这一条欠下的账：
 
