@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from core import models
-
+from core.services import transcript_corrections
 
 FORMATS = ("txt", "srt", "vtt")
 
@@ -99,7 +99,9 @@ def _resolve_bounds(rows: list[TranscriptRow]) -> list[tuple[int, int]]:
 def render_srt(rows: list[TranscriptRow]) -> str:
     """Numbered cues with comma-separated milliseconds."""
     blocks = []
-    for number, (row, (start, end)) in enumerate(zip(rows, _resolve_bounds(rows)), 1):
+    for number, (row, (start, end)) in enumerate(
+        zip(rows, _resolve_bounds(rows), strict=True), 1
+    ):
         label = f"{row.speaker}: " if row.speaker else ""
         blocks.append(
             f"{number}\n"
@@ -113,7 +115,7 @@ def render_srt(rows: list[TranscriptRow]) -> str:
 def render_vtt(rows: list[TranscriptRow]) -> str:
     """A `WEBVTT` file with the speaker as a voice tag, which players render."""
     lines = ["WEBVTT", ""]
-    for row, (start, end) in zip(rows, _resolve_bounds(rows)):
+    for row, (start, end) in zip(rows, _resolve_bounds(rows), strict=True):
         text = _escape_markup(row.text)
         if row.speaker:
             body = f"<v {_escape_markup(row.speaker)}>{text}"
@@ -192,7 +194,9 @@ def rows_for(record) -> list[TranscriptRow]:
                 start_ms=row.start_ms,
                 end_ms=row.end_ms,
                 speaker=row.speaker.label if row.speaker_id else "",
-                text=row.text,
+                # A reader who fixed an ASR error expects the file they download
+                # to contain the fix, not the text they just corrected.
+                text=transcript_corrections.corrected_text(row),
             )
         )
     return rows

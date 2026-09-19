@@ -18,6 +18,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 
 from core import models
+from core.services import transcript_corrections, transcript_export
 from core.services.asr_observations import observation_status, snapshot_asr_status
 from core.services.capture_transcription import current_originals
 from core.services.meeting_records import (
@@ -40,6 +41,11 @@ from core.services.meeting_summary_requests import (
     serialize_summary_job,
 )
 from core.services.meeting_summary_versions import source_payload, summary_readiness
+from core.services.uploaded_recordings import (
+    media_available,
+    media_read_url,
+    public_metadata,
+)
 
 
 class SummaryRequestThrottle(UserRateThrottle):
@@ -75,6 +81,27 @@ class SummaryRequestSerializer(serializers.Serializer):
             raise ValidationError("Job ID and attempt must be supplied together.")
         if attrs["expected_job_id"] is not None:
             attrs["expected_job_id"] = str(attrs["expected_job_id"])
+        return attrs
+
+
+class OriginalCorrectionSerializer(serializers.Serializer):
+    """A correction to one segment, with an optional staleness guard.
+
+    `expected_revision` is the revision number the editor last saw for this
+    segment (0 for "never corrected"). Supplying it turns a concurrent edit into
+    a conflict instead of a silent overwrite.
+    """
+
+    text = serializers.CharField(
+        max_length=transcript_corrections.MAX_CORRECTION_CHARS,
+        allow_blank=False,
+        trim_whitespace=False,
+    )
+    expected_revision = serializers.IntegerField(min_value=0, required=False)
+
+    def validate(self, attrs):
+        if set(self.initial_data) - set(self.fields):
+            raise ValidationError("Unsupported correction field.")
         return attrs
 
 
@@ -207,10 +234,6 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
 
     def get_upload(self, obj):
         """Expose metadata and owner controls, never the private storage location."""
-        from core.services.uploaded_recordings import (
-            public_metadata,  # pylint: disable=import-outside-toplevel
-        )
-
         job = getattr(obj, "uploaded_recording", None)
         if not job:
             return None
@@ -750,6 +773,13 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             ).select_related("speaker")
         rows = self._filter_speaker(rows, identity_field="speaker_id")
         rows, expected = self._filter_original_text(record, rows)
+        # Readers get the corrected text; the original stays in the database as
+        # the recogniser's record. Search still matches the stored original —
+        # note that when someone searches for a word they just corrected, the
+        # corrected row may not be returned. Widening the filter to the revision
+        # table would mean a join across paged rows; left as a known bound rather
+        # than traded for a slower, harder-to-read query.
+        rows = rows.annotate(corrected_text=transcript_corrections.corrected_text_subquery())
         pager = RecordPagination()
         pager.ordering = ("start_ms", "id")
         page = pager.paginate_queryset(rows, request, view=self)
@@ -765,7 +795,11 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "end_ms": row.end_ms,
                     "speaker_id": str(row.speaker_id),
                     "speaker_label": row.speaker.label,
-                    "text": row.text,
+                    "text": row.corrected_text,
+                    # The recogniser's own words, so a reader can see what changed
+                    # and an edit never looks like it was always there.
+                    "original_text": row.text,
+                    "is_corrected": row.corrected_text != row.text,
                     "language": row.language,
                 }
                 for row in page
@@ -773,6 +807,72 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         )
         self._check_original_revision(record, expected)
         return response
+
+    @action(
+        detail=True,
+        methods=["patch", "delete"],
+        url_path=r"original-segments/(?P<segment_id>[0-9a-f-]{36})",
+    )
+    def correct_original(self, request, pk=None, segment_id=None):
+        """Correct one transcript segment, or drop the corrections for it.
+
+        An edit appends a revision instead of rewriting the original, because
+        summary points and stored transcript versions cite a segment by id — see
+        `core.services.transcript_corrections`. `DELETE` restores what the
+        recogniser produced rather than appending a blank correction.
+        """
+        record = self._content_record("read_transcript")
+        segment = serializers.UUIDField().run_validation(segment_id)
+        try:
+            if request.method == "DELETE":
+                original, removed = transcript_corrections.revert(
+                    record, segment, request.user
+                )
+                return Response(
+                    {
+                        "id": str(original.pk),
+                        "text": original.text,
+                        "original_text": original.text,
+                        "is_corrected": False,
+                        "reverted": removed,
+                    }
+                )
+            serializer = OriginalCorrectionSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            original, revision = transcript_corrections.correct(
+                record,
+                segment,
+                request.user,
+                text=serializer.validated_data["text"],
+                expected_revision=serializer.validated_data.get("expected_revision"),
+            )
+        except PermissionError as error:
+            raise PermissionDenied(str(error)) from error
+        except LookupError as error:
+            raise Http404 from error
+        except RecordConflict as error:
+            return Response(
+                {
+                    "code": "transcript_changed",
+                    "message": str(error),
+                },
+                status=409,
+            )
+        except ValueError as error:
+            raise ValidationError({"text": str(error)}) from error
+
+        current = transcript_corrections.corrected_text(original)
+        return Response(
+            {
+                "id": str(original.pk),
+                "text": current,
+                "original_text": original.text,
+                "is_corrected": current != original.text,
+                # Null when the submission matched what the segment already said,
+                # which is the retry case rather than a failure.
+                "revision": revision.revision if revision else None,
+            }
+        )
 
     @action(detail=True, methods=["get"], url_path="source-status")
     def source_status(self, request, pk=None):
@@ -874,11 +974,6 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         without a manifest, a chunk table, or a transcode job. Permission is the
         owner's, matching the capture session's own rule, so this widens nothing.
         """
-        from core.services.uploaded_recordings import (  # noqa: PLC0415
-            media_available,
-            media_read_url,
-        )
-
         record = self._content_record("read_transcript")
         job = getattr(record, "uploaded_recording", None)
         if (
@@ -904,8 +999,6 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         consumed before the view runs and the request 404s on a suffixed URL that
         does not exist.
         """
-        from core.services import transcript_export  # noqa: PLC0415
-
         record = self._content_record("read_transcript")
         fmt = str(request.query_params.get("as") or "txt").lower()
         if fmt not in transcript_export.FORMATS:
