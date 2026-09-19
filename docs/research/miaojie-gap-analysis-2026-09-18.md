@@ -187,7 +187,7 @@ GET    /meeting-records/{id}/source-status/
 | S1 | 按**所有者 / 参与者 / 时间范围**检索 | 部分：scope=`owned/participated/shared` 覆盖所有者与参与者；**列表端点无时间范围参数**（`date_from/date_to` 只存在于 Ask/RAG 召回，`meeting_search.py:15-18`）；无 `owner=<id>` 参数 | 🟠 | `meeting_records.py:320-355` |
 | S2 | 标题/内容关键词检索 | 标题 `q`（`:352-355`）+ 记录内逐字稿 `q`（`:647-659`） | 🟡 | — |
 | S3 | 搜索命中**高亮** | 无（只过滤） | 🟠 | 无 `<mark>`/`SpanStyle` |
-| S4 | 按发言人筛选逐字稿 | Android **有**，Web **无** | 🟠 双端不一致 | `RecordOriginals.kt:87-94` vs Web 无 |
+| S4 | 按发言人筛选逐字稿 | ~~Android **有**，Web **无**~~ → **已闭环，且两端口径统一** | ✅ | 后端新增统一 `speaker` 参数（`meeting_records.py` `_filter_speaker`）+ `speakers` 端点同时覆盖线上会议与采集来源；Web `SpeakerFilter.tsx` + 7 项单测；Android `RecordOriginals.kt:87-94` |
 | S5 | **跨妙记语义问答 + 引用回跳** | ✅ **已实现且强于妙记** | ✅ 差异化 | `meeting_search.py:10-127`、`:130-153`；`GlobalAskService` |
 
 ### 4.5 协作、权限、编辑
@@ -256,7 +256,7 @@ GET    /meeting-records/{id}/source-status/
 
 | 能力 | Web | Android |
 |---|---|---|
-| 逐字稿按发言人筛选 | ❌ | ✅ `RecordOriginals.kt:87-94` |
+| 逐字稿按发言人筛选 | ✅ 已补（`SpeakerFilter.tsx` + 后端统一 `speaker` 参数） | ✅ `RecordOriginals.kt:87-94` |
 | 录音改名 | ✅ 已补（`RecordRenameControl.tsx`） | ✅ `RecordRename.kt:39` |
 | 逐字稿逐行回听 | ❌ | ✅ `RecordOriginals.kt:114-116` |
 | 房间纪要页（6 Tab） | ✅ | ❌ |
