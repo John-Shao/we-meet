@@ -69,6 +69,95 @@ def test_preview_has_no_side_effect_then_grants_summary_only():
     assert not models.MeetingSummaryExport.objects.exists()
 
 
+def test_transcript_scope_grants_only_originals_and_replay_does_not_restore_revoked_access():
+    owner, peer, record = fixture()
+    ids = [peer.pk]
+    preview = service.preview(record, owner, ids, "grant", "transcript")
+    assert preview["scope"] == "record_transcript"
+    assert preview["grants_originals"] and not preview["grants_media"]
+    assert not preview["recipients"][0]["after_effective_summary"]
+    assert preview["recipients"][0]["after_effective_transcript"]
+    key = uuid.uuid4()
+    service.apply_share(
+        record.pk, owner, key, ids, "grant", preview["preview_hash"], "transcript"
+    )
+    grant = record.accesses.get(user=peer)
+    assert grant.read_transcript and not grant.read_summary
+    assert (
+        visible_records(peer, ability="read_transcript").filter(pk=record.pk).exists()
+    )
+    revoke = service.preview(record, owner, ids, "revoke", "transcript")
+    service.apply_share(
+        record.pk,
+        owner,
+        uuid.uuid4(),
+        ids,
+        "revoke",
+        revoke["preview_hash"],
+        "transcript",
+    )
+    _, replayed = service.apply_share(
+        record.pk, owner, key, ids, "grant", preview["preview_hash"], "transcript"
+    )
+    assert replayed and not record.accesses.exists()
+    with pytest.raises(RecordConflict):
+        service.apply_share(
+            record.pk, owner, key, ids, "grant", preview["preview_hash"], "summary"
+        )
+
+
+def test_revoking_transcript_preserves_summary_and_inherited_original_access():
+    owner, _, _, record = online_note()
+    peer = UserFactory()
+    models.ResourceAccess.objects.create(
+        resource=record.meeting_session.room, user=peer, role=models.RoleChoices.MEMBER
+    )
+    models.MeetingRecordAccess.objects.create(
+        record=record, user=peer, read_summary=True, read_transcript=True
+    )
+    preview = service.preview(record, owner, [peer.pk], "revoke", "transcript")
+    recipient = preview["recipients"][0]
+    assert recipient["after_effective_transcript"] and recipient["inherited_transcript"]
+    assert recipient["after_explicit_summary"]
+    service.apply_share(
+        record.pk,
+        owner,
+        uuid.uuid4(),
+        [peer.pk],
+        "revoke",
+        preview["preview_hash"],
+        "transcript",
+    )
+    grant = record.accesses.get(user=peer)
+    assert grant.read_summary and not grant.read_transcript
+
+
+def test_transcript_api_requires_explicit_scope_and_preview_is_bound_to_that_scope():
+    owner, peer, record = fixture()
+    client = client_for(owner)
+    path = f"/api/v1.0/meeting-records/{record.pk}/summary-sharing/"
+    assert client.get(path).data["supported_scopes"] == ["summary", "transcript"]
+    selection = {
+        "user_ids": [str(peer.pk)],
+        "operation": "grant",
+        "access_scope": "transcript",
+    }
+    preview = client.post(path + "preview/", selection, format="json")
+    assert preview.status_code == 200
+    request = {**selection, "expected_hash": preview.data["preview_hash"]}
+    response = client.post(
+        path, request, format="json", HTTP_IDEMPOTENCY_KEY=str(uuid.uuid4())
+    )
+    assert response.status_code == 200
+    assert record.accesses.get(user=peer).read_transcript
+    bad = client.post(
+        path + "preview/", {**selection, "access_scope": "media"}, format="json"
+    )
+    assert bad.status_code == 400
+    with pytest.raises(PermissionError):
+        service.preview(record, peer, [owner.pk], "grant", "transcript")
+
+
 def test_shared_reader_cannot_manage_or_reshare():
     owner, peer, record = fixture()
     change(record, owner, peer)

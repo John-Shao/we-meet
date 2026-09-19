@@ -113,6 +113,64 @@ it('requires selection and reviewed scope before any permission mutation', async
   })
 })
 
+it('keeps transcript scope explicit through preview, confirmation and an ambiguous-result retry', async () => {
+  const normal = mocks.fetchApi.getMockImplementation()!
+  let lost = true
+  mocks.fetchApi.mockImplementation(async (url, options) => {
+    if (url.endsWith('/preview/'))
+      return {
+        ...preview,
+        recipients: [
+          {
+            ...preview.recipients[0],
+            after_effective_transcript: true,
+            inherited_transcript: false,
+          },
+        ],
+      }
+    if (options?.method === 'POST' && lost) throw new TypeError('lost response')
+    const value = await normal(url, options)
+    return { ...value, supported_scopes: ['summary', 'transcript'] }
+  })
+  const first = show()
+  await open()
+  fireEvent.change(
+    screen.getByRole('combobox', { name: 'recordSharing.scope' }),
+    { target: { value: 'transcript' } }
+  )
+  await inspect()
+  expect(screen.getByText('recordSharing.willRead')).toBeInTheDocument()
+  expect(screen.getByText('recordSharing.boundaries')).toBeInTheDocument()
+  fireEvent.click(
+    screen.getByRole('button', { name: 'summarySharing.confirm' })
+  )
+  await screen.findByText('summarySharing.uncertain')
+  const original = mutations()[0][1]
+  expect(JSON.parse(original.body).access_scope).toBe('transcript')
+  first.unmount()
+  client.clear()
+  lost = false
+  show()
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'summarySharing.title' })
+  )
+  await screen.findByText('recordSharing.transcriptScope')
+  fireEvent.click(
+    screen.getByRole('button', { name: 'summarySharing.resubmit' })
+  )
+  await screen.findByText('summarySharing.accepted')
+  expect(mutations()[1][1].body).toEqual(original.body)
+  expect(mutations()[1][1].headers).toEqual(original.headers)
+})
+
+it('does not offer transcript grants against a server without scoped sharing', async () => {
+  show()
+  await open()
+  expect(
+    screen.queryByRole('combobox', { name: 'recordSharing.scope' })
+  ).not.toBeInTheDocument()
+})
+
 it('recovers the original permission request after a lost response and remount', async () => {
   const normal = mocks.fetchApi.getMockImplementation()!
   let fail = true

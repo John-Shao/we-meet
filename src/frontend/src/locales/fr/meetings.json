@@ -1,4 +1,14 @@
 {
+  "recordSharing": {
+    "scope": "Périmètre d’accès",
+    "summary": "Versions du compte rendu",
+    "transcript": "Transcription",
+    "transcriptScope": "Accès aux transcriptions actuelles et futures de cet enregistrement et aux références historiques.",
+    "boundaries": "Seul l’accès à la transcription change. Les droits sur les comptes rendus, médias et documents restent inchangés. Aucun message n’est envoyé.",
+    "willRead": "Pourra lire la transcription.",
+    "willLose": "Perdra l’accès à la transcription.",
+    "inherited": "L’accès hérité de la réunion ou du propriétaire reste valable."
+  },
   "speakerActivity": {
     "basis": "Estimation des intervalles transcrits valides, pas de la durée de l’enregistrement. Les chevauchements d’un même intervenant sont fusionnés ; les intervenants simultanés comptent séparément. Le total inclut les interventions non attribuées.",
     "unavailable": "Durées de parole indisponibles.",
@@ -578,7 +588,7 @@
     "preview": "Traduction en cours"
   },
   "summarySharing": {
-    "title": "Partager le compte-rendu",
+    "title": "Droits de partage",
     "close": "Masquer le partage",
     "scope": "L’accès couvre tous les comptes-rendus IA et révisions manuelles, actuels et futurs, de cet enregistrement.",
     "boundaries": "Seul l’accès au compte-rendu change. Les originaux, enregistrements et documents séparés conservent leurs droits. Aucun message n’est envoyé.",

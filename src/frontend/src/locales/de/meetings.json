@@ -1,4 +1,14 @@
 {
+  "recordSharing": {
+    "scope": "Zugriffsumfang",
+    "summary": "Zusammenfassungen",
+    "transcript": "Transkript",
+    "transcriptScope": "Zugriff auf aktuelle und künftige Transkripte dieser Aufzeichnung sowie historische Quellenverweise.",
+    "boundaries": "Nur der Transkriptzugriff wird geändert. Rechte für Zusammenfassungen, Medien und Dokumente bleiben bestehen. Es werden keine Nachrichten gesendet.",
+    "willRead": "Kann anschließend das Transkript lesen.",
+    "willLose": "Verliert den Transkriptzugriff.",
+    "inherited": "Über die Besprechungsrolle oder Eigentümerschaft geerbter Transkriptzugriff bleibt bestehen."
+  },
   "speakerActivity": {
     "basis": "Schätzung anhand gültiger Transkriptintervalle, nicht der Aufnahmedauer. Überlappungen derselben Person werden zusammengeführt; gleichzeitige Personen zählen getrennt. Nicht zugeordnete Beiträge sind im Gesamtwert enthalten.",
     "unavailable": "Keine Sprechzeitdaten verfügbar.",
@@ -578,7 +588,7 @@
     "preview": "Wird übersetzt"
   },
   "summarySharing": {
-    "title": "Protokoll teilen",
+    "title": "Freigaberechte",
     "close": "Freigabe ausblenden",
     "scope": "Die Freigabe gilt für alle aktuellen und künftigen intelligenten Protokolle und manuellen Überarbeitungen dieser Aufzeichnung.",
     "boundaries": "Nur die Protokoll-Leseberechtigung wird geändert. Originaltext, Aufnahmen und separate Dokumente behalten ihre Berechtigungen. Es werden keine Nachrichten gesendet.",

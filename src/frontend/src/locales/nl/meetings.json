@@ -1,4 +1,14 @@
 {
+  "recordSharing": {
+    "scope": "Toegangsbereik",
+    "summary": "Samenvattingen",
+    "transcript": "Transcript",
+    "transcriptScope": "Toegang tot huidige en toekomstige transcripten van deze opname en historische bronverwijzingen.",
+    "boundaries": "Alleen transcripttoegang verandert. Rechten voor samenvattingen, media en documenten blijven ongewijzigd. Er worden geen berichten verstuurd.",
+    "willRead": "Kan het transcript lezen.",
+    "willLose": "Verliest toegang tot het transcript.",
+    "inherited": "Transcripttoegang via de vergadering of het eigendom blijft geldig."
+  },
   "speakerActivity": {
     "basis": "Geschat op basis van geldige transcriptintervallen, niet de opnameduur. Overlap van dezelfde spreker wordt samengevoegd; gelijktijdige sprekers tellen afzonderlijk. Het totaal bevat niet-toegewezen spraak.",
     "unavailable": "Geen spreektijden beschikbaar.",
@@ -578,7 +588,7 @@
     "preview": "Bezig met vertalen"
   },
   "summarySharing": {
-    "title": "Notulen delen",
+    "title": "Deelrechten",
     "close": "Delen sluiten",
     "scope": "Toegang geldt voor alle huidige en toekomstige AI-notulen en handmatige revisies van dit record.",
     "boundaries": "Alleen de toegang tot de notulen wordt aangepast. Originelen, opnamen en aparte documenten behouden hun machtigingen. Er worden geen berichten verstuurd.",

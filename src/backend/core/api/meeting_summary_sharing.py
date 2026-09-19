@@ -1,4 +1,4 @@
-"""Preview and confirm summary-only record sharing; no external side effects."""
+"""Preview and confirm scoped record sharing; no messages or media grants."""
 
 from django.conf import settings
 from django.http import Http404
@@ -27,6 +27,9 @@ class Selection(serializers.Serializer):
         child=serializers.UUIDField(), min_length=1, max_length=service.MAX_RECIPIENTS
     )
     operation = serializers.ChoiceField(choices=["grant", "revoke"])
+    access_scope = serializers.ChoiceField(
+        choices=["summary", "transcript"], default="summary"
+    )
 
     def validate(self, attrs):
         if set(self.initial_data) - set(self.fields) or len(attrs["user_ids"]) != len(
@@ -93,7 +96,11 @@ class SummarySharingView(Base):
             ]
         )
         self.record(request, record_id)
-        result.data.update(available=service.enabled(), can_manage=True)
+        result.data.update(
+            available=service.enabled(),
+            can_manage=True,
+            supported_scopes=["summary", "transcript"],
+        )
         return result
 
     def post(self, request, record_id):

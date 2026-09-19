@@ -1,4 +1,4 @@
-"""Explicit summary-only grants with fresh previews and non-reapplying retry receipts."""
+"""Independent summary/transcript grants with previews and non-reapplying receipts."""
 
 import uuid
 
@@ -60,11 +60,13 @@ def _targets(user_ids):
     return users
 
 
-def preview(record, actor, user_ids, operation):
+def preview(record, actor, user_ids, operation, access_scope="summary"):
     if not can_manage(record, actor):
         raise PermissionError
     if operation not in {"grant", "revoke"}:
         raise RecordConflict("Unsupported sharing operation.")
+    if access_scope not in {"summary", "transcript"}:
+        raise RecordConflict("Unsupported sharing scope.")
     users = _targets(user_ids)
     eligible = set(
         eligible_users(record, actor)
@@ -106,6 +108,17 @@ def preview(record, actor, user_ids, operation):
                 "grant_updated_at": grant.updated_at.isoformat() if grant else None,
             }
         )
+        if access_scope == "transcript":
+            recipients[-1].update(
+                after_explicit_summary=bool(grant and grant.read_summary),
+                after_effective_summary=bool(scoped and scoped.can_read_summary),
+                inherited_transcript=bool(
+                    scoped and user.pk in inherited and scoped.can_read_transcript
+                ),
+                after_explicit_transcript=operation == "grant",
+                after_effective_transcript=operation == "grant"
+                or bool(scoped and user.pk in inherited and scoped.can_read_transcript),
+            )
     result = {
         "record_id": str(record.pk),
         "title": record.title,
@@ -113,9 +126,11 @@ def preview(record, actor, user_ids, operation):
         if record.organization_id
         else None,
         "operation": operation,
-        "scope": "all_record_summary_versions",
+        "scope": "all_record_summary_versions"
+        if access_scope == "summary"
+        else "record_transcript",
         "recipients": recipients,
-        "grants_originals": False,
+        "grants_originals": access_scope == "transcript" and operation == "grant",
         "grants_media": False,
         "changes_document_permissions": False,
         "sends_messages": False,
@@ -124,7 +139,9 @@ def preview(record, actor, user_ids, operation):
 
 
 @transaction.atomic
-def apply_share(record_id, actor, key, user_ids, operation, expected_hash):  # noqa: PLR0913 -- explicit preview contract
+def apply_share(  # noqa: PLR0913 -- explicit preview contract
+    record_id, actor, key, user_ids, operation, expected_hash, access_scope="summary"
+):
     # Consistent user ordering also covers two managers sharing with one another.
     target_ids = {str(uuid.UUID(str(value))) for value in user_ids}
     list(
@@ -135,9 +152,13 @@ def apply_share(record_id, actor, key, user_ids, operation, expected_hash):  # n
     record = models.MeetingRecord.objects.select_for_update().get(pk=record_id)
     if not can_manage(record, actor):
         raise PermissionError
-    request_hash = digest(
-        [str(record_id), sorted(target_ids), operation, expected_hash]
-    )
+    if access_scope not in {"summary", "transcript"}:
+        raise RecordConflict("Unsupported sharing scope.")
+    request_parts = [str(record_id), sorted(target_ids), operation, expected_hash]
+    # Preserve existing summary receipt hashes for ambiguous-result retries.
+    if access_scope != "summary":
+        request_parts.append(access_scope)
+    request_hash = digest(request_parts)
     previous = models.MeetingSummaryShareRequest.objects.filter(
         user=actor, key=key
     ).first()
@@ -165,24 +186,19 @@ def apply_share(record_id, actor, key, user_ids, operation, expected_hash):  # n
         .filter(user_id__in=target_ids)
         .order_by("pk")
     )
-    current = preview(record, actor, user_ids, operation)
+    current = preview(record, actor, user_ids, operation, access_scope)
     if current["preview_hash"] != expected_hash:
         raise RecordConflict("Sharing preview changed.")
+    field = "read_summary" if access_scope == "summary" else "read_transcript"
     for user_id in target_ids:
-        if operation == "grant":
-            row, _ = models.MeetingRecordAccess.objects.get_or_create(
-                record=record, user_id=user_id
-            )
-            if not row.read_summary:
-                row.read_summary = True
-                row.save(update_fields=["read_summary", "updated_at"])
+        row, _ = models.MeetingRecordAccess.objects.get_or_create(
+            record=record, user_id=user_id
+        )
+        setattr(row, field, operation == "grant")
+        if row.read_summary or row.read_transcript:
+            row.save(update_fields=[field, "updated_at"])
         else:
-            row = record.accesses.get(user_id=user_id)
-            if row.read_transcript:
-                row.read_summary = False
-                row.save(update_fields=["read_summary", "updated_at"])
-            else:
-                row.delete()
+            row.delete()
     receipt = models.MeetingSummaryShareRequest.objects.create(
         user=actor, record=record, key=key, request_hash=request_hash, preview=current
     )

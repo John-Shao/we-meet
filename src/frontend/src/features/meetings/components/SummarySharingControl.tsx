@@ -15,8 +15,16 @@ type Grant = Person & {
   read_transcript: boolean
 }
 type Page<T> = { results: T[]; next_cursor: string | null }
-type Access = Page<Grant> & { available: boolean; can_manage: boolean }
-type Selection = { user_ids: string[]; operation: 'grant' | 'revoke' }
+type Access = Page<Grant> & {
+  available: boolean
+  can_manage: boolean
+  supported_scopes?: string[]
+}
+type Selection = {
+  user_ids: string[]
+  operation: 'grant' | 'revoke'
+  access_scope?: 'summary' | 'transcript'
+}
 type Preview = {
   title: string
   preview_hash: string
@@ -24,6 +32,8 @@ type Preview = {
     after_effective_summary: boolean
     inherited_summary: boolean
     effective_transcript: boolean
+    inherited_transcript?: boolean
+    after_effective_transcript?: boolean
   })[]
 }
 type Intent = Selection & { key: string; expected_hash: string }
@@ -51,6 +61,8 @@ function loadIntent(key: string): Intent | undefined {
       uuid.test(value.key) &&
       /^[a-f0-9]{64}$/.test(value.expected_hash) &&
       ['grant', 'revoke'].includes(value.operation) &&
+      (value.access_scope === undefined ||
+        ['summary', 'transcript'].includes(value.access_scope)) &&
       Array.isArray(value.user_ids) &&
       value.user_ids.length > 0 &&
       value.user_ids.length <= 50 &&
@@ -206,6 +218,7 @@ function Editor({
           user_ids: request.user_ids,
           operation: request.operation,
           expected_hash: request.expected_hash,
+          access_scope: request.access_scope,
         }),
       })
       if (signal.aborted) return
@@ -239,10 +252,44 @@ function Editor({
   if (grants.isError || (grants.data && !grants.data.can_manage))
     return <Text>{t('summarySharing.loadError')}</Text>
   if (!grants.data) return <Text>{t('loading')}</Text>
+  const transcript =
+    (intent?.access_scope ?? selection.access_scope) === 'transcript'
   return (
     <div className={stack}>
-      <Text>{t('summarySharing.scope')}</Text>
-      <Text variant="note">{t('summarySharing.boundaries')}</Text>
+      {!intent &&
+        !preview &&
+        grants.data.supported_scopes?.includes('transcript') && (
+          <label>
+            {t('recordSharing.scope')}
+            <select
+              aria-label={t('recordSharing.scope')}
+              disabled={busy}
+              value={selection.access_scope ?? 'summary'}
+              onChange={(event) =>
+                setSelection({
+                  user_ids: [],
+                  operation: 'grant',
+                  access_scope: event.target.value as 'summary' | 'transcript',
+                })
+              }
+            >
+              <option value="summary">{t('recordSharing.summary')}</option>
+              <option value="transcript">
+                {t('recordSharing.transcript')}
+              </option>
+            </select>
+          </label>
+        )}
+      <Text>
+        {t(
+          transcript ? 'recordSharing.transcriptScope' : 'summarySharing.scope'
+        )}
+      </Text>
+      <Text variant="note">
+        {t(
+          transcript ? 'recordSharing.boundaries' : 'summarySharing.boundaries'
+        )}
+      </Text>
       {!available && <Text>{t('summarySharing.paused')}</Text>}
       {intent ? (
         <>
@@ -265,15 +312,27 @@ function Editor({
                 <strong>{person.name || t('summaryNotice.unnamed')}</strong>
                 <p>
                   {t(
-                    person.after_effective_summary
-                      ? 'summarySharing.willRead'
-                      : 'summarySharing.willLose'
+                    transcript
+                      ? person.after_effective_transcript
+                        ? 'recordSharing.willRead'
+                        : 'recordSharing.willLose'
+                      : person.after_effective_summary
+                        ? 'summarySharing.willRead'
+                        : 'summarySharing.willLose'
                   )}
                 </p>
-                {person.inherited_summary && (
-                  <p>{t('summarySharing.inherited')}</p>
+                {(transcript
+                  ? person.inherited_transcript
+                  : person.inherited_summary) && (
+                  <p>
+                    {t(
+                      transcript
+                        ? 'recordSharing.inherited'
+                        : 'summarySharing.inherited'
+                    )}
+                  </p>
                 )}
-                {person.effective_transcript && (
+                {!transcript && person.effective_transcript && (
                   <p>{t('summarySharing.originalAccess')}</p>
                 )}
               </li>
@@ -301,13 +360,17 @@ function Editor({
         <>
           {available && grants.data.available && (
             <Candidates
-              key={`${selection.operation}:${message}`}
+              key={`${selection.operation}:${selection.access_scope}:${message}`}
               viewerId={viewerId}
               path={path}
               online={online}
               disabled={busy}
               onPreview={(ids) =>
-                void inspect({ user_ids: ids, operation: 'grant' })
+                void inspect({
+                  user_ids: ids,
+                  operation: 'grant',
+                  access_scope: selection.access_scope,
+                })
               }
             />
           )}
@@ -323,7 +386,9 @@ function Editor({
                     {person.name || t('summaryNotice.unnamed')}
                     {!person.active && ` · ${t('summarySharing.inactive')}`}
                   </Text>
-                  {person.read_summary &&
+                  {(transcript
+                    ? person.read_transcript
+                    : person.read_summary) &&
                     available &&
                     grants.data!.available && (
                       <Button
@@ -334,6 +399,7 @@ function Editor({
                           void inspect({
                             user_ids: [person.id],
                             operation: 'revoke',
+                            access_scope: selection.access_scope,
                           })
                         }
                       >

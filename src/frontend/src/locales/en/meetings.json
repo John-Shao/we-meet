@@ -1,4 +1,14 @@
 {
+  "recordSharing": {
+    "scope": "Access scope",
+    "summary": "Summary versions",
+    "transcript": "Transcript",
+    "transcriptScope": "Access to this record’s current and future transcripts and historical source references.",
+    "boundaries": "Only transcript access changes. Summary, media and document permissions stay unchanged. No messages are sent.",
+    "willRead": "Will be able to read the transcript.",
+    "willLose": "Will lose transcript access.",
+    "inherited": "Transcript access inherited from the meeting or ownership remains."
+  },
   "speakerActivity": {
     "basis": "Estimated from valid transcribed intervals, not recording length. Overlaps by the same speaker are merged; simultaneous speakers count separately. Unassigned speech is included in the denominator.",
     "unavailable": "Speaker timing is unavailable.",
@@ -578,7 +588,7 @@
     "preview": "Translating"
   },
   "summarySharing": {
-    "title": "Share minutes",
+    "title": "Sharing permissions",
     "close": "Hide sharing",
     "scope": "Access covers all current and future AI minutes and human revisions for this record.",
     "boundaries": "Only minutes access changes. Original text, recordings and separate documents keep their permissions. No messages are sent.",
