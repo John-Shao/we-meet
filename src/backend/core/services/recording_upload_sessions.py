@@ -27,6 +27,8 @@ from pathlib import Path
 from django.conf import settings
 from django.db import transaction
 
+from botocore.exceptions import ClientError
+
 from core import models
 from core.services.capture_storage import audio_storage
 from core.services.meeting_records import RecordConflict
@@ -38,6 +40,7 @@ from core.services.uploaded_recordings import (
     _job_configuration,
     _record_job,
     _replay_guard,
+    _verify_stored_header,
     active_upload_exists,
     direct_upload_available,
 )
@@ -118,6 +121,49 @@ def _parts_for(session):
     return uploaded
 
 
+def _completed_object(session):
+    """Verify the exact server-assigned object after a lost Complete response."""
+    storage = audio_storage()
+    try:
+        head = storage.connection.meta.client.head_object(
+            Bucket=storage.bucket_name, Key=_object_key(storage, session.storage_name)
+        )
+    except ClientError as error:
+        if str(error.response.get("Error", {}).get("Code")) in {
+            "404",
+            "NoSuchKey",
+            "NotFound",
+        }:
+            return False
+        raise
+    if head.get("ContentLength") != session.size:
+        raise ValueError("upload_size_mismatch")
+    if head.get("ContentType") != session.content_type:
+        raise ValueError("invalid_media_content")
+    intent = head.get("Metadata", {}).get("upload-intent")
+    # Older sessions predate this marker; their object key was also generated
+    # exclusively on the server and cannot be chosen in a completion request.
+    if intent is not None and intent != _session_checksum(session):
+        raise RecordConflict("Upload intent changed.")
+    _verify_stored_header(storage, session.storage_name, session.extension)
+    return True
+
+
+def _resume_parts(session):
+    if session.status == models.RecordingUploadSession.Status.ABORTED:
+        raise ValueError("session_aborted")
+    if session.status == models.RecordingUploadSession.Status.COMPLETED:
+        return None
+    try:
+        return _parts_for(session)
+    except ClientError as error:
+        if error.response.get("Error", {}).get("Code") != "NoSuchUpload":
+            raise
+        if _completed_object(session):
+            return None
+        raise
+
+
 def serialize_session(session, uploaded):
     """What a client needs to resume, and nothing that widens read access."""
     return {
@@ -128,8 +174,11 @@ def serialize_session(session, uploaded):
         "part_count": part_count(session.size, session.part_size),
         "expires_in": settings.MEETING_FILE_DIRECT_UPLOAD_TTL_SECONDS,
         # Echoed so a client can compute progress without re-deriving the plan.
-        "uploaded": uploaded,
-        "uploaded_bytes": sum(part["size"] for part in uploaded),
+        "completion_pending": uploaded is None,
+        "uploaded": uploaded or [],
+        "uploaded_bytes": session.size
+        if uploaded is None
+        else sum(part["size"] for part in uploaded),
     }
 
 
@@ -189,11 +238,14 @@ def begin(user, *, name, size, content_type, key, options):  # noqa: PLR0913 -- 
             if existing.status == models.RecordingUploadSession.Status.ABORTED:
                 raise RecordConflict("Upload session was aborted.")
             if existing.status == models.RecordingUploadSession.Status.OPEN:
-                return existing, _parts_for(existing)
+                return existing, _resume_parts(existing)
             # Already completed: the job exists, so replay it rather than
             # opening a second upload for the same intent.
             previous = _replay_guard(
-                user, key, _session_checksum(existing), _job_configuration(configuration)
+                user,
+                key,
+                _session_checksum(existing),
+                _job_configuration(configuration),
             )
             if previous:
                 return previous, []
@@ -208,6 +260,7 @@ def begin(user, *, name, size, content_type, key, options):  # noqa: PLR0913 -- 
             Key=_object_key(storage, storage_name),
             ContentType=content_type,
             ACL="private",
+            Metadata={"upload-intent": checksum},
         )
         session = models.RecordingUploadSession.objects.create(
             owner=user,
@@ -267,18 +320,17 @@ def sign_parts(user, session_id, part_numbers):
             },
             ExpiresIn=settings.MEETING_FILE_DIRECT_UPLOAD_TTL_SECONDS,
         )
-        signed.append(
-            {"part_number": number, "url": url, "expected_bytes": expected}
-        )
+        signed.append({"part_number": number, "url": url, "expected_bytes": expected})
     return session, signed
 
 
 def resume(user, session_id):
     """What is already stored, so a client can skip the parts it finished."""
     session = _session(user, session_id)
-    return session, _parts_for(session)
+    return session, _resume_parts(session)
 
 
+@transaction.atomic
 def complete(user, session_id, parts):
     """Reassemble the object, then adopt it as a job.
 
@@ -286,9 +338,14 @@ def complete(user, session_id, parts):
     parts is still cross-checked against storage, so a client cannot complete an
     upload while silently omitting bytes.
     """
+    models.User.objects.select_for_update().get(pk=user.pk, is_active=True)
     session = _session(user, session_id)
     if session.status == models.RecordingUploadSession.Status.ABORTED:
         raise ValueError("session_aborted")
+    if session.status == models.RecordingUploadSession.Status.COMPLETED:
+        return adopt(user, session)
+    if _completed_object(session):
+        return adopt(user, session)
     stored = {part["part_number"]: part for part in _parts_for(session)}
     total = part_count(session.size, session.part_size)
     supplied = {}
@@ -307,26 +364,37 @@ def complete(user, session_id, parts):
         raise ValueError("upload_size_mismatch")
 
     storage = audio_storage()
-    storage.connection.meta.client.complete_multipart_upload(
-        Bucket=storage.bucket_name,
-        Key=_object_key(storage, session.storage_name),
-        UploadId=session.upload_id,
-        MultipartUpload={
-            "Parts": [
-                {"PartNumber": number, "ETag": supplied[number]}
-                for number in sorted(supplied)
-            ]
-        },
-    )
+    try:
+        storage.connection.meta.client.complete_multipart_upload(
+            Bucket=storage.bucket_name,
+            Key=_object_key(storage, session.storage_name),
+            UploadId=session.upload_id,
+            MultipartUpload={
+                "Parts": [
+                    {"PartNumber": number, "ETag": supplied[number]}
+                    for number in sorted(supplied)
+                ]
+            },
+        )
+    except Exception:
+        # A timeout is uncertain: the storage service may have committed.
+        if not _completed_object(session):
+            raise
+    else:
+        if not _completed_object(session):
+            raise ValueError("completed_object_missing")
     return adopt(user, session)
 
 
 @transaction.atomic
 def adopt(user, session):
     """Turn a completed multipart object into the job the worker will process."""
+    models.User.objects.select_for_update().get(pk=user.pk, is_active=True)
     session = models.RecordingUploadSession.objects.select_for_update().get(
-        pk=session.pk
+        pk=session.pk, owner=user
     )
+    if session.status == models.RecordingUploadSession.Status.ABORTED:
+        raise ValueError("session_aborted")
     if session.status == models.RecordingUploadSession.Status.COMPLETED:
         previous = _replay_guard(
             user,
@@ -337,7 +405,6 @@ def adopt(user, session):
         if previous:
             return previous
         raise ValueError("session_completed")
-    models.User.objects.select_for_update().get(pk=user.pk, is_active=True)
     checksum = _session_checksum(session)
     previous = _replay_guard(
         user, session.key, checksum, _job_configuration(_session_options(session))
@@ -348,35 +415,27 @@ def adopt(user, session):
         return previous
     metadata = {
         "name": Path(session.storage_name).name[:255],
-        "media_type": "video"
-        if session.extension in VIDEO_EXTENSIONS
-        else "audio",
+        "media_type": "video" if session.extension in VIDEO_EXTENSIONS else "audio",
     }
-    try:
-        job = _record_job(
-            user,
-            session.key,
-            storage_name=session.storage_name,
-            checksum=checksum,
-            size=session.size,
-            configuration=_job_configuration(_session_options(session)),
-            metadata={
-                "title": Path(session.declared_name).stem
-                or Path(session.storage_name).stem,
-                "file": metadata,
-            },
-        )
-    except Exception:
-        # The object is real and would otherwise be orphaned by a failure here.
-        audio_storage().delete(session.storage_name)
-        session.status = models.RecordingUploadSession.Status.ABORTED
-        session.save(update_fields=["status", "updated_at"])
-        raise
+    job = _record_job(
+        user,
+        session.key,
+        storage_name=session.storage_name,
+        checksum=checksum,
+        size=session.size,
+        configuration=_job_configuration(_session_options(session)),
+        metadata={
+            "title": Path(session.declared_name).stem
+            or Path(session.storage_name).stem,
+            "file": metadata,
+        },
+    )
     session.status = models.RecordingUploadSession.Status.COMPLETED
     session.save(update_fields=["status", "updated_at"])
     return job
 
 
+@transaction.atomic
 def abort(user, session_id):
     """Drop an upload in progress.
 
@@ -384,16 +443,24 @@ def abort(user, session_id):
     incomplete upload, so a cancelled import that is merely forgotten keeps
     costing money for as long as the upload lives.
     """
+    models.User.objects.select_for_update().get(pk=user.pk, is_active=True)
     session = _session(user, session_id)
     if session.status == models.RecordingUploadSession.Status.COMPLETED:
         raise ValueError("session_completed")
     if session.status == models.RecordingUploadSession.Status.OPEN:
         storage = audio_storage()
-        storage.connection.meta.client.abort_multipart_upload(
-            Bucket=storage.bucket_name,
-            Key=_object_key(storage, session.storage_name),
-            UploadId=session.upload_id,
-        )
+        try:
+            storage.connection.meta.client.abort_multipart_upload(
+                Bucket=storage.bucket_name,
+                Key=_object_key(storage, session.storage_name),
+                UploadId=session.upload_id,
+            )
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") != "NoSuchUpload":
+                raise
+            # Explicit cancellation may arrive after assembly but before adoption.
+            # Invalid media must also be cancellable; the server assigned this key.
+            storage.delete(session.storage_name)
     session.status = models.RecordingUploadSession.Status.ABORTED
     session.save(update_fields=["status", "updated_at"])
     return session

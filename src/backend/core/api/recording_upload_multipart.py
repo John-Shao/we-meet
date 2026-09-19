@@ -85,7 +85,7 @@ class PartSerializer(serializers.Serializer):
 class CompleteSerializer(serializers.Serializer):
     """The ETags the client saw. The set is still cross-checked against storage."""
 
-    parts = PartSerializer(many=True, allow_empty=False)
+    parts = PartSerializer(many=True, allow_empty=True)
 
 
 class MultipartBase(APIView):

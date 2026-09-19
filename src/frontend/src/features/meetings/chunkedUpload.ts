@@ -35,6 +35,7 @@ export type SessionPlan = {
   part_size: number
   part_count: number
   uploaded: { part_number: number; etag: string; size: number }[]
+  completion_pending?: boolean
   uploaded_bytes: number
   parts?: PartPlan[]
 }
@@ -136,7 +137,11 @@ export async function uploadInParts(
         : {
             method: 'POST',
             cache: 'no-store',
-            body: JSON.stringify({ key: intent, size: file.size, ...declaration }),
+            body: JSON.stringify({
+              key: intent,
+              size: file.size,
+              ...declaration,
+            }),
           }
     )
 
@@ -154,8 +159,22 @@ export async function uploadInParts(
   }
   if (!state) state = await begin(null)
   // A server that answered with a finished job has nothing left to upload.
-  if (!isPlan(state)) return state.job
+  if (!isPlan(state)) {
+    forgetSession(intent)
+    return state.job
+  }
   rememberSession(intent, state.session_id)
+
+  if (state.completion_pending) {
+    if (signal.aborted) throw new UploadCancelled()
+    const job = await deps.request<unknown>(
+      `recording-uploads/multipart/${encodeURIComponent(state.session_id)}/`,
+      { method: 'POST', cache: 'no-store', body: JSON.stringify({ parts: [] }) }
+    )
+    onProgress(state.size, state.size)
+    forgetSession(intent)
+    return job
+  }
 
   const total = state.size
   const partSize = state.part_size || DEFAULT_PART_SIZE
@@ -163,7 +182,9 @@ export async function uploadInParts(
   onProgress(state.uploaded_bytes, total)
 
   // Server-known parts, so a resumed upload does not re-send what landed.
-  const held = new Map(state.uploaded.map((part) => [part.part_number, part.etag]))
+  const held = new Map(
+    state.uploaded.map((part) => [part.part_number, part.etag])
+  )
   const remaining: number[] = []
   for (let number = 1; number <= partCount; number += 1) {
     if (!held.has(number)) remaining.push(number)
@@ -172,6 +193,7 @@ export async function uploadInParts(
   // Sign in bounded batches: one request per part would not fit the endpoint's
   // request budget on a large file.
   const BATCH = 24
+  let carried = state.uploaded_bytes
   for (let index = 0; index < remaining.length; index += BATCH) {
     if (signal.aborted) throw new UploadCancelled()
     const batch = remaining.slice(index, index + BATCH)
@@ -183,7 +205,6 @@ export async function uploadInParts(
         body: JSON.stringify({ parts: batch }),
       }
     )
-    let carried = state.uploaded_bytes
     for (const plan of signed.parts ?? []) {
       if (signal.aborted) throw new UploadCancelled()
       const start = (plan.part_number - 1) * partSize
@@ -233,11 +254,14 @@ export async function abortSession(
   sessionId: string,
   request: <T>(path: string, init?: RequestInit) => Promise<T>
 ): Promise<void> {
-  await request(`recording-uploads/multipart/${encodeURIComponent(sessionId)}/`, {
-    method: 'DELETE',
-    cache: 'no-store',
-    redirect: 'error',
-  })
+  await request(
+    `recording-uploads/multipart/${encodeURIComponent(sessionId)}/`,
+    {
+      method: 'DELETE',
+      cache: 'no-store',
+      redirect: 'error',
+    }
+  )
 }
 
 /**

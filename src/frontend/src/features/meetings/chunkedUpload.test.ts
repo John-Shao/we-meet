@@ -83,6 +83,42 @@ const declaration = {
   hotwords: '',
 }
 
+it('resumes an assembled object without signing or uploading another part', async () => {
+  const { deps, calls, puts } = harness({
+    begin: plan({ completion_pending: true, uploaded_bytes: SIZE }),
+  })
+  const result = await uploadInParts(
+    sized(SIZE),
+    'assembled',
+    declaration,
+    deps,
+    new AbortController().signal,
+    () => {}
+  )
+  expect(result).toEqual({ record_id: 'record', status: 'queued' })
+  expect(puts).toHaveLength(0)
+  expect(calls).toHaveLength(2)
+  expect(JSON.parse(String(calls[1].init?.body))).toEqual({ parts: [] })
+})
+
+it('keeps progress increasing across signing batches', async () => {
+  const size = PART * 26
+  const { deps } = harness({ begin: plan({ size, part_count: 26 }) })
+  const progress: number[] = []
+  await uploadInParts(
+    sized(size),
+    'large',
+    declaration,
+    deps,
+    new AbortController().signal,
+    (sent) => progress.push(sent)
+  )
+  expect(progress.at(-1)).toBe(size)
+  expect(
+    progress.every((value, index) => !index || value >= progress[index - 1])
+  ).toBe(true)
+})
+
 // A File's size is fixed by its content, so the declared size is overridden
 // rather than allocating a multi-megabyte buffer in a unit test.
 const sized = (size: number) => {

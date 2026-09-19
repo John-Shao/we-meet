@@ -12,16 +12,19 @@ every guard is covered, while the storage service's own behaviour is not. That
 distinction is written down rather than glossed: see the plan doc.
 """
 
+import io
 import uuid
 from unittest import mock
 
 import pytest
+from botocore.exceptions import ClientError
 
 from core import models
 from core.factories import UserFactory
 from core.services import recording_upload_sessions as sessions
 from core.services import uploaded_recordings as service
 from core.tests.services.test_meeting_records import client_for
+from core.tests.services.test_uploaded_recordings import wav_bytes
 
 pytestmark = pytest.mark.django_db
 
@@ -49,6 +52,8 @@ class FakeStorage:
         self.parts = {}
         self.connection = mock.Mock()
         client = self.connection.meta.client
+        client.head_object.side_effect = self._head
+        client.get_object.side_effect = lambda **_: {"Body": io.BytesIO(wav_bytes())}
         client.create_multipart_upload.side_effect = self._create
         client.list_parts.side_effect = self._list
         client.complete_multipart_upload.side_effect = self._complete
@@ -59,7 +64,19 @@ class FakeStorage:
         self.created.append(kwargs)
         return {"UploadId": f"upload-{len(self.created)}"}
 
+    def _head(self, **kwargs):
+        if not any(item["Key"] == kwargs["Key"] for item in self.completed):
+            raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
+        declared = next(item for item in self.created if item["Key"] == kwargs["Key"])
+        return {
+            "ContentLength": sum(size for _, size in self.parts.values()),
+            "ContentType": declared["ContentType"],
+            "Metadata": declared["Metadata"],
+        }
+
     def _list(self, **kwargs):
+        if any(item["Key"] == kwargs["Key"] for item in self.completed):
+            raise ClientError({"Error": {"Code": "NoSuchUpload"}}, "ListParts")
         return {
             "Parts": [
                 {
@@ -174,7 +191,9 @@ def test_begin_rejects_a_changed_intent_for_the_same_key(storage):
 
 
 def test_begin_refuses_an_extension_the_declared_type_does_not_allow(storage):
-    response, _ = begin(UserFactory(), storage, name="clip.wav", content_type="video/mp4")
+    response, _ = begin(
+        UserFactory(), storage, name="clip.wav", content_type="video/mp4"
+    )
     assert response.status_code == 400
     assert storage.created == []
 
@@ -296,7 +315,12 @@ def test_complete_refuses_an_upload_that_is_missing_a_part(storage):
     # The client claims both parts, but storage only ever received one.
     response = client_for(owner).post(
         SESSION.format(session_id),
-        {"parts": [{"part_number": 1, "etag": "etag1"}, {"part_number": 2, "etag": "etag2"}]},
+        {
+            "parts": [
+                {"part_number": 1, "etag": "etag1"},
+                {"part_number": 2, "etag": "etag2"},
+            ]
+        },
         format="json",
     )
     assert response.status_code == 400
@@ -311,9 +335,7 @@ def test_complete_refuses_a_part_whose_etag_does_not_match_storage(storage):
     fill(storage)
     body = complete_body(storage)
     body["parts"][0]["etag"] = "tampered"
-    response = client_for(owner).post(
-        SESSION.format(session_id), body, format="json"
-    )
+    response = client_for(owner).post(SESSION.format(session_id), body, format="json")
     assert response.status_code == 400
     assert storage.completed == []
 
@@ -384,7 +406,9 @@ def test_repeating_an_intent_after_an_abort_is_refused_not_silently_restarted(st
 
 def test_abort_is_scoped_to_the_owner(storage):
     session_id = begin(UserFactory(), storage)[0].data["session_id"]
-    assert client_for(UserFactory()).delete(SESSION.format(session_id)).status_code == 404
+    assert (
+        client_for(UserFactory()).delete(SESSION.format(session_id)).status_code == 404
+    )
     assert storage.aborted == []
 
 
@@ -402,3 +426,119 @@ def test_part_planning_matches_the_storage_limits():
 def test_a_file_needing_too_many_parts_is_refused():
     with pytest.raises(ValueError):
         sessions.part_count(sessions.PART_SIZE * (sessions.MAX_PARTS + 1))
+
+
+def test_complete_response_loss_recovers_without_reassembling_or_duplicating(storage):
+    owner = UserFactory()
+    session_id = begin(owner, storage)[0].data["session_id"]
+    fill(storage)
+
+    def lost(**kwargs):
+        storage._complete(**kwargs)
+        raise TimeoutError("response lost")
+
+    storage.connection.meta.client.complete_multipart_upload.side_effect = lost
+    result = client_for(owner).post(
+        SESSION.format(session_id), complete_body(storage), format="json"
+    )
+    assert result.status_code == 202, result.data
+    repeated = client_for(owner).post(
+        SESSION.format(session_id), {"parts": []}, format="json"
+    )
+    assert repeated.data["record_id"] == result.data["record_id"]
+    assert len(storage.completed) == models.UploadedRecording.objects.count() == 1
+
+
+def test_db_failure_preserves_bytes_and_resume_requests_completion_without_puts(
+    storage,
+):
+    owner = UserFactory()
+    session_id = begin(owner, storage)[0].data["session_id"]
+    fill(storage)
+    with mock.patch.object(
+        sessions, "_record_job", side_effect=RuntimeError("database unavailable")
+    ):
+        with pytest.raises(RuntimeError):
+            sessions.complete(owner, session_id, complete_body(storage)["parts"])
+    assert storage.deleted == []
+    assert models.UploadedRecording.objects.count() == 0
+    resumed = client_for(owner).get(SESSION.format(session_id))
+    assert resumed.status_code == 200
+    assert resumed.data["completion_pending"] is True
+    assert resumed.data["uploaded_bytes"] == SIZE
+    assert models.UploadedRecording.objects.count() == 0  # GET does not enqueue AI.
+    result = client_for(owner).post(
+        SESSION.format(session_id), {"parts": []}, format="json"
+    )
+    assert result.status_code == 202, result.data
+    assert len(storage.completed) == 1
+    assert models.UploadedRecording.objects.count() == 1
+
+
+def test_completed_object_is_checked_for_exact_size_and_real_media(storage):
+    owner = UserFactory()
+    session_id = begin(owner, storage)[0].data["session_id"]
+    fill(storage)
+    session = models.RecordingUploadSession.objects.get(pk=session_id)
+    storage.completed.append({"Key": session.storage_name})
+    client = client_for(owner)
+    storage.parts[1] = ("etag1", 1)
+    assert (
+        client.post(SESSION.format(session_id), {"parts": []}, format="json").data[
+            "code"
+        ]
+        == "upload_size_mismatch"
+    )
+    fill(storage)
+    storage.connection.meta.client.get_object.side_effect = lambda **_: {
+        "Body": io.BytesIO(b"not media")
+    }
+    assert (
+        client.post(SESSION.format(session_id), {"parts": []}, format="json").data[
+            "code"
+        ]
+        == "invalid_media_content"
+    )
+    assert models.UploadedRecording.objects.count() == 0
+    assert (
+        client_for(UserFactory())
+        .post(SESSION.format(session_id), {"parts": []}, format="json")
+        .status_code
+        == 404
+    )
+
+
+def test_no_parts_cannot_complete_an_unassembled_object(storage):
+    owner = UserFactory()
+    session_id = begin(owner, storage)[0].data["session_id"]
+    response = client_for(owner).post(SESSION.format(session_id), {"parts": []}, format="json")
+    assert response.status_code == 400
+    assert response.data["code"] == "incomplete_upload"
+    assert models.UploadedRecording.objects.count() == 0
+
+
+def test_abort_cleans_an_assembled_but_unadopted_object(storage):
+    owner = UserFactory()
+    session_id = begin(owner, storage)[0].data["session_id"]
+    session = models.RecordingUploadSession.objects.get(pk=session_id)
+    fill(storage)
+    storage.completed.append({"Key": session.storage_name})
+    storage.connection.meta.client.abort_multipart_upload.side_effect = ClientError(
+        {"Error": {"Code": "NoSuchUpload"}}, "AbortMultipartUpload"
+    )
+    response = client_for(owner).delete(SESSION.format(session_id))
+    assert response.status_code == 204
+    assert storage.deleted == [session.storage_name]
+    assert client_for(owner).get(SESSION.format(session_id)).status_code == 400
+
+
+def test_unrelated_completion_marker_does_not_create_a_job(storage):
+    owner = UserFactory()
+    session_id = begin(owner, storage)[0].data["session_id"]
+    session = models.RecordingUploadSession.objects.get(pk=session_id)
+    fill(storage)
+    storage.completed.append({"Key": session.storage_name})
+    storage.created[0]["Metadata"]["upload-intent"] = "different-intent"
+    response = client_for(owner).post(SESSION.format(session_id), {"parts": []}, format="json")
+    assert response.status_code == 409
+    assert models.UploadedRecording.objects.count() == 0
