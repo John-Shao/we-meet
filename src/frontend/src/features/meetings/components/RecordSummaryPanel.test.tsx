@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/ApiError'
+import type { RecordSummaryPoint } from '../api/ApiMeetingRecord'
 import { RecordSummaryPanel, RoomRecordSummaries } from './RecordSummaryPanel'
 
 const mocks = vi.hoisted(() => ({ fetchApi: vi.fn() }))
@@ -44,7 +45,7 @@ const version = {
         ],
       },
     ],
-    chapters: [],
+    chapters: [] as RecordSummaryPoint[],
     action_items: [],
     open_questions: [],
   },
@@ -75,7 +76,8 @@ let withVersion: boolean
 function show(
   roomList = false,
   onSourceAudio?: (time: number) => void,
-  duringCapture = false
+  duringCapture = false,
+  chaptersOnly = false
 ) {
   client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -90,6 +92,7 @@ function show(
           recordId="record-1"
           onSourceAudio={onSourceAudio}
           duringCapture={duringCapture}
+          chaptersOnly={chaptersOnly}
         />
       )}
     </QueryClientProvider>
@@ -103,6 +106,7 @@ beforeEach(() => {
   job = null
   readError = false
   withVersion = false
+  version.content.chapters = []
   mocks.fetchApi.mockImplementation(
     async (url: string, options?: RequestInit) => {
       if (options?.method === 'POST')
@@ -138,6 +142,77 @@ beforeEach(() => {
 afterEach(() => client?.clear())
 
 describe('Versioned summary requests', () => {
+  it('distinguishes missing summary from an empty chapter list without guessing a reason', async () => {
+    show(false, undefined, false, true)
+    await screen.findByText('chapterReader.noVersion')
+    withVersion = true
+    fireEvent.click(screen.getByRole('button', { name: 'recordAi.refresh' }))
+    await screen.findByText('chapterReader.empty')
+    expect(
+      screen.queryByText('chapterReader.noVersion')
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Protected minutes')).not.toBeInTheDocument()
+    expect(
+      mocks.fetchApi.mock.calls.some(([url]) => url.includes('summary-job'))
+    ).toBe(false)
+  })
+
+  it('reads chapter evidence from its snapshot before offering media navigation', async () => {
+    withVersion = true
+    version.content.chapters = [
+      {
+        text: 'Chapter one',
+        source_refs: version.content.decisions[0].source_refs,
+      },
+    ]
+    const audio = vi.fn()
+    show(false, audio, false, true)
+    await screen.findByText('Chapter one')
+    expect(screen.queryByText('recordAi.listenSource')).not.toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'recordAi.source 0:00' })
+    )
+    await screen.findByText('Historical original text')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'recordAi.listenSource' })
+    )
+    expect(audio).toHaveBeenCalledWith(0)
+    expect(
+      mocks.fetchApi.mock.calls.some(
+        ([url]) =>
+          url === 'meeting-records/record-1/transcript-versions/snapshot-1/'
+      )
+    ).toBe(true)
+  })
+
+  it('allows summary-only chapter reading without requesting original transcripts', async () => {
+    withVersion = true
+    version.content.chapters = [
+      {
+        text: 'Chapter one',
+        source_refs: version.content.decisions[0].source_refs,
+      },
+    ]
+    currentRecord.capabilities.read_transcript = false
+    show(false, undefined, false, true)
+    await screen.findByText('Chapter one')
+    expect(
+      screen.queryByRole('button', { name: /recordAi.source/ })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('group', { name: 'minutesReader.tools' })
+    ).not.toBeInTheDocument()
+    expect(
+      mocks.fetchApi.mock.calls.some(([url]) =>
+        url.includes('transcript-versions')
+      )
+    ).toBe(false)
+    readError = true
+    fireEvent.click(screen.getByRole('button', { name: 'recordAi.refresh' }))
+    await screen.findByText('recordAi.unavailable')
+    expect(screen.queryByText('Chapter one')).not.toBeInTheDocument()
+  })
+
   it('prioritizes the overview while keeping generation tools explicitly available', async () => {
     withVersion = true
     show()

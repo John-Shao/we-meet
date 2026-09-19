@@ -119,6 +119,7 @@ const RecordSummaryPanelContent = ({
   showHeading = true,
   selectedVersionId,
   duringCapture = false,
+  chaptersOnly = false,
 }: {
   recordId: string
   viewerId: string
@@ -126,11 +127,16 @@ const RecordSummaryPanelContent = ({
   showHeading?: boolean
   selectedVersionId?: string
   duringCapture?: boolean
+  chaptersOnly?: boolean
 }) => {
   const { t } = useTranslation('meetings')
   const detail = useMeetingRecord(viewerId, recordId, true)
   const allowed = !!detail.data?.capabilities.read_summary && !detail.isError
-  const progress = useRecordSummaryJob(viewerId, recordId, allowed)
+  const progress = useRecordSummaryJob(
+    viewerId,
+    recordId,
+    allowed && !chaptersOnly
+  )
   const [cursor, setCursor] = useState<string>()
   const pinned = selectedVersionId !== undefined
   const versions = useRecordSummaryVersions(
@@ -230,7 +236,7 @@ const RecordSummaryPanelContent = ({
     }
   }
 
-  if (detail.isError || progress.isError)
+  if (detail.isError || (!chaptersOnly && progress.isError))
     return <StateHint state="error">{t('recordAi.unavailable')}</StateHint>
   if (versions.isError)
     return (
@@ -249,7 +255,10 @@ const RecordSummaryPanelContent = ({
         )}
       </div>
     )
-  if (!detail.data || (allowed && (!progress.data || !versions.data)))
+  if (
+    !detail.data ||
+    (allowed && ((!chaptersOnly && !progress.data) || !versions.data))
+  )
     return <StateHint state="loading">{t('loading')}</StateHint>
   if (!allowed) return <StateHint>{t('recordAi.unavailable')}</StateHint>
 
@@ -286,200 +295,220 @@ const RecordSummaryPanelContent = ({
           </Link>
         </div>
       )}
-      {!duringCapture && (
-        <div
-          role="group"
-          aria-label={t('minutesReader.tools')}
-          className={css({
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '0.5rem',
-            paddingBottom: '0.75rem',
-            borderBottom: '1px solid token(colors.greyscale.200)',
-          })}
-        >
-          {(['ask', 'edit', 'share', 'notify', 'manage'] as const)
-            .filter(
-              (value) =>
-                (value !== 'ask' || detail.data.capabilities.read_transcript) &&
-                (!pinned || !['edit', 'manage'].includes(value))
-            )
-            .map((value) => (
-              <Button
-                key={value}
-                size="sm"
-                variant="tertiary"
-                aria-pressed={tool === value}
-                onPress={() => setTool(tool === value ? undefined : value)}
-              >
-                {t(`minutesReader.${value}`)}
-              </Button>
-            ))}
-        </div>
-      )}
-      <div hidden={!duringCapture && tool !== 'notify'}>
-        {!duringCapture && (
-          <SummaryNotificationPanel
-            recordId={recordId}
-            viewerId={viewerId}
-            summaryId={selectedVersionId}
-          />
-        )}
-      </div>
-      <div hidden={!duringCapture && tool !== 'share'}>
-        {!duringCapture && (
-          <SummarySharingControl
-            recordId={recordId}
-            viewerId={viewerId}
-            online={detail.data.source_type === 'meeting'}
-          />
-        )}
-      </div>
-      <div
-        className={stack}
-        hidden={
-          !duringCapture &&
-          !!primaryVersion &&
-          tool !== 'manage' &&
-          !pendingIntent &&
-          !busy &&
-          !message
-        }
-      >
-        {!pinned && (
-          <SummaryAutomationControl recordId={recordId} viewerId={viewerId} />
-        )}
-        {!pinned && job && (
-          <div role="status">
-            {t(`recordAi.status.${job.status}`)}
-            {job.dispatch_pending && ` · ${t('recordAi.dispatchPending')}`}
-            {busy &&
-              job.chunk_progress &&
-              ` · ${t('recordAi.chunkProgress', job.chunk_progress)}`}
-          </div>
-        )}
-        {!pinned && canGenerate && (
-          <div
-            className={css({
-              display: 'flex',
-              gap: '0.5rem',
-              flexWrap: 'wrap',
-            })}
-          >
-            {pendingIntent ? (
-              <Button
-                size="sm"
-                isDisabled={mutation.isPending || !recovery.ready}
-                onPress={() => void submit(pendingIntent.payload.operation)}
-              >
-                {t('recordAi.resubmit')}
-              </Button>
-            ) : (
-              <>
-                {staged ? (
-                  readyStages.map((stage) => (
-                    <Button
-                      key={stage}
-                      size="sm"
-                      isDisabled={busy || mutation.isPending || !recovery.ready}
-                      onPress={() =>
-                        void submit(job ? 'regenerate' : 'generate', stage)
-                      }
-                    >
-                      {t(`recordAi.generateStage.${stage}`)}
-                    </Button>
-                  ))
-                ) : (
+      {!chaptersOnly && (
+        <>
+          {!duringCapture && (
+            <div
+              role="group"
+              aria-label={t('minutesReader.tools')}
+              className={css({
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '0.5rem',
+                paddingBottom: '0.75rem',
+                borderBottom: '1px solid token(colors.greyscale.200)',
+              })}
+            >
+              {(['ask', 'edit', 'share', 'notify', 'manage'] as const)
+                .filter(
+                  (value) =>
+                    (value !== 'ask' ||
+                      detail.data.capabilities.read_transcript) &&
+                    (!pinned || !['edit', 'manage'].includes(value))
+                )
+                .map((value) => (
                   <Button
-                    size="sm"
-                    isDisabled={
-                      !ready || busy || mutation.isPending || !recovery.ready
-                    }
-                    onPress={() => void submit(job ? 'regenerate' : 'generate')}
-                  >
-                    {t(job ? 'recordAi.regenerate' : 'recordAi.generate')}
-                  </Button>
-                )}
-                {job?.retryable && !busy && (
-                  <Button
+                    key={value}
                     size="sm"
                     variant="tertiary"
-                    isDisabled={mutation.isPending || !recovery.ready}
-                    onPress={() =>
-                      void submit('retry', staged ? job.stage : undefined)
-                    }
+                    aria-pressed={tool === value}
+                    onPress={() => setTool(tool === value ? undefined : value)}
                   >
-                    {t('recordAi.retry')}
+                    {t(`minutesReader.${value}`)}
                   </Button>
-                )}
-              </>
+                ))}
+            </div>
+          )}
+          <div hidden={!duringCapture && tool !== 'notify'}>
+            {!duringCapture && (
+              <SummaryNotificationPanel
+                recordId={recordId}
+                viewerId={viewerId}
+                summaryId={selectedVersionId}
+              />
             )}
           </div>
-        )}
-        {message && <div role="status">{t(message)}</div>}
-        {!pinned && canGenerate && recovery.failed && (
-          <div role="status">
-            <Text>{t('recordAi.recoveryError')}</Text>
-            <Button size="sm" variant="tertiary" onPress={recovery.reload}>
-              {t('recordAi.refresh')}
-            </Button>
+          <div hidden={!duringCapture && tool !== 'share'}>
+            {!duringCapture && (
+              <SummarySharingControl
+                recordId={recordId}
+                viewerId={viewerId}
+                online={detail.data.source_type === 'meeting'}
+              />
+            )}
           </div>
-        )}
-        {!pinned &&
-          progress.data?.blocked_reason === 'source_budget_exceeded' && (
-            <Text>{t('recordAi.sourceBudgetExceeded')}</Text>
-          )}
-        {!pinned &&
-          canGenerate &&
-          !progress.data?.blocked_reason &&
-          (staged ? readyStages.length === 0 : !ready) && (
-            <Text>
-              {t(
-                staged
-                  ? 'recordAi.waitForStableSource'
-                  : 'recordAi.waitForSource'
-              )}
-            </Text>
-          )}
-        {!pinned && staged && progress.data?.next_update_at && (
-          <Text>
-            {t('recordAi.nextUpdate', {
-              time: new Date(progress.data.next_update_at).toLocaleTimeString(),
-            })}
-          </Text>
-        )}
-      </div>
-      <div hidden={!duringCapture && tool !== 'edit'}>
-        {!pinned && !duringCapture && (
-          <HumanSummaryPanel
-            key={`human:${viewerId}:${recordId}`}
-            recordId={recordId}
-            viewerId={viewerId}
-            versions={versions.data?.results ?? []}
-            onSource={
-              detail.data.capabilities.read_transcript
-                ? (snapshotId, ref) => setCitation({ snapshotId, ref })
-                : undefined
+          <div
+            className={stack}
+            hidden={
+              !duringCapture &&
+              !!primaryVersion &&
+              tool !== 'manage' &&
+              !pendingIntent &&
+              !busy &&
+              !message
             }
-          />
-        )}
-      </div>
-      {versions.data?.results.length === 0 && (
-        <StateHint>{t('recordAi.noVersions')}</StateHint>
+          >
+            {!pinned && (
+              <SummaryAutomationControl
+                recordId={recordId}
+                viewerId={viewerId}
+              />
+            )}
+            {!pinned && job && (
+              <div role="status">
+                {t(`recordAi.status.${job.status}`)}
+                {job.dispatch_pending && ` · ${t('recordAi.dispatchPending')}`}
+                {busy &&
+                  job.chunk_progress &&
+                  ` · ${t('recordAi.chunkProgress', job.chunk_progress)}`}
+              </div>
+            )}
+            {!pinned && canGenerate && (
+              <div
+                className={css({
+                  display: 'flex',
+                  gap: '0.5rem',
+                  flexWrap: 'wrap',
+                })}
+              >
+                {pendingIntent ? (
+                  <Button
+                    size="sm"
+                    isDisabled={mutation.isPending || !recovery.ready}
+                    onPress={() => void submit(pendingIntent.payload.operation)}
+                  >
+                    {t('recordAi.resubmit')}
+                  </Button>
+                ) : (
+                  <>
+                    {staged ? (
+                      readyStages.map((stage) => (
+                        <Button
+                          key={stage}
+                          size="sm"
+                          isDisabled={
+                            busy || mutation.isPending || !recovery.ready
+                          }
+                          onPress={() =>
+                            void submit(job ? 'regenerate' : 'generate', stage)
+                          }
+                        >
+                          {t(`recordAi.generateStage.${stage}`)}
+                        </Button>
+                      ))
+                    ) : (
+                      <Button
+                        size="sm"
+                        isDisabled={
+                          !ready ||
+                          busy ||
+                          mutation.isPending ||
+                          !recovery.ready
+                        }
+                        onPress={() =>
+                          void submit(job ? 'regenerate' : 'generate')
+                        }
+                      >
+                        {t(job ? 'recordAi.regenerate' : 'recordAi.generate')}
+                      </Button>
+                    )}
+                    {job?.retryable && !busy && (
+                      <Button
+                        size="sm"
+                        variant="tertiary"
+                        isDisabled={mutation.isPending || !recovery.ready}
+                        onPress={() =>
+                          void submit('retry', staged ? job.stage : undefined)
+                        }
+                      >
+                        {t('recordAi.retry')}
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+            {message && <div role="status">{t(message)}</div>}
+            {!pinned && canGenerate && recovery.failed && (
+              <div role="status">
+                <Text>{t('recordAi.recoveryError')}</Text>
+                <Button size="sm" variant="tertiary" onPress={recovery.reload}>
+                  {t('recordAi.refresh')}
+                </Button>
+              </div>
+            )}
+            {!pinned &&
+              progress.data?.blocked_reason === 'source_budget_exceeded' && (
+                <Text>{t('recordAi.sourceBudgetExceeded')}</Text>
+              )}
+            {!pinned &&
+              canGenerate &&
+              !progress.data?.blocked_reason &&
+              (staged ? readyStages.length === 0 : !ready) && (
+                <Text>
+                  {t(
+                    staged
+                      ? 'recordAi.waitForStableSource'
+                      : 'recordAi.waitForSource'
+                  )}
+                </Text>
+              )}
+            {!pinned && staged && progress.data?.next_update_at && (
+              <Text>
+                {t('recordAi.nextUpdate', {
+                  time: new Date(
+                    progress.data.next_update_at
+                  ).toLocaleTimeString(),
+                })}
+              </Text>
+            )}
+          </div>
+          <div hidden={!duringCapture && tool !== 'edit'}>
+            {!pinned && !duringCapture && (
+              <HumanSummaryPanel
+                key={`human:${viewerId}:${recordId}`}
+                recordId={recordId}
+                viewerId={viewerId}
+                versions={versions.data?.results ?? []}
+                onSource={
+                  detail.data.capabilities.read_transcript
+                    ? (snapshotId, ref) => setCitation({ snapshotId, ref })
+                    : undefined
+                }
+              />
+            )}
+          </div>
+          <div hidden={!duringCapture && tool !== 'ask'}>
+            {!duringCapture && detail.data.capabilities.read_transcript && (
+              <RecordQuestionPanel
+                key={`question:${viewerId}:${recordId}`}
+                recordId={recordId}
+                viewerId={viewerId}
+                versions={versions.data?.results ?? []}
+                onSource={(snapshotId, ref) => setCitation({ snapshotId, ref })}
+              />
+            )}
+          </div>
+        </>
       )}
-      <div hidden={!duringCapture && tool !== 'ask'}>
-        {!duringCapture && detail.data.capabilities.read_transcript && (
-          <RecordQuestionPanel
-            key={`question:${viewerId}:${recordId}`}
-            recordId={recordId}
-            viewerId={viewerId}
-            versions={versions.data?.results ?? []}
-            onSource={(snapshotId, ref) => setCitation({ snapshotId, ref })}
-          />
-        )}
-      </div>
+      {versions.data?.results.length === 0 && (
+        <StateHint>
+          {t(chaptersOnly ? 'chapterReader.noVersion' : 'recordAi.noVersions')}
+        </StateHint>
+      )}
       {primaryVersion && (
         <Version
+          chaptersOnly={chaptersOnly}
           key={primaryVersion.id}
           version={primaryVersion}
           recordId={recordId}
@@ -514,6 +543,7 @@ const RecordSummaryPanelContent = ({
           </summary>
           {otherVersions.map((version) => (
             <Version
+              chaptersOnly={chaptersOnly}
               key={version.id}
               version={version}
               recordId={recordId}
@@ -551,7 +581,7 @@ const RecordSummaryPanelContent = ({
         onPress={() =>
           void Promise.allSettled([
             detail.refetch(),
-            progress.refetch(),
+            ...(!chaptersOnly ? [progress.refetch()] : []),
             versions.refetch(),
           ])
         }
@@ -595,12 +625,14 @@ const Version = ({
   viewerId,
   onSource,
   duringCapture,
+  chaptersOnly = false,
 }: {
   version: ApiRecordSummaryVersion
   recordId: string
   viewerId: string
   onSource?: (ref: RecordSourceReference) => void
   duringCapture?: boolean
+  chaptersOnly?: boolean
 }) => {
   const { t } = useTranslation('meetings')
   return (
@@ -651,26 +683,40 @@ const Version = ({
               </Text>
             )}
         </details>
-        <section
-          className={css({
-            padding: '1.25rem',
-            borderRadius: '1rem',
-            backgroundColor: 'surface.canvas',
-          })}
-        >
-          <h3
+        {!chaptersOnly && (
+          <section
             className={css({
-              fontSize: '1.25rem',
-              fontWeight: 700,
-              marginBottom: '0.75rem',
+              padding: '1.25rem',
+              borderRadius: '1rem',
+              backgroundColor: 'surface.canvas',
             })}
           >
-            {t('minutesReader.overview')}
-          </h3>
-          <Text>{version.content.overview}</Text>
-        </section>
-        {(
-          ['decisions', 'action_items', 'chapters', 'open_questions'] as const
+            <h3
+              className={css({
+                fontSize: '1.25rem',
+                fontWeight: 700,
+                marginBottom: '0.75rem',
+              })}
+            >
+              {t('minutesReader.overview')}
+            </h3>
+            <Text>{version.content.overview}</Text>
+          </section>
+        )}
+        {chaptersOnly && (
+          <Text variant="note">{t('chapterReader.aiVersion')}</Text>
+        )}
+        {version.content.chapters.length === 0 && (
+          <Text variant="note">{t('chapterReader.empty')}</Text>
+        )}
+        {(chaptersOnly
+          ? (['chapters'] as const)
+          : ([
+              'decisions',
+              'action_items',
+              'chapters',
+              'open_questions',
+            ] as const)
         ).map(
           (kind) =>
             version.content[kind].length > 0 && (
@@ -737,7 +783,7 @@ const Version = ({
               </details>
             )
         )}
-        {!duringCapture && (
+        {!chaptersOnly && !duringCapture && (
           <details>
             <summary
               className={css({

@@ -1,4 +1,9 @@
 {
+  "chapterReader": {
+    "empty": "This summary version has no chapters. You can read the overview or, if permitted, the transcript.",
+    "noVersion": "Chapters will appear here once a summary is available.",
+    "aiVersion": "Chapters from this AI summary version. Source links open its original transcript snapshot."
+  },
   "interpretation": {
     "saveTranslations": "Save confirmed translations to this meeting's record",
     "savingTranslations": "Saving selected; original-material access is required to read",

@@ -401,24 +401,28 @@ function WorkspaceContent({
   summaryId,
   translations = false,
   summary = false,
+  chapters = false,
 }: {
   record: ApiMeetingRecord
   viewerId: string
   summaryId?: string
   translations?: boolean
   summary?: boolean
+  chapters?: boolean
 }) {
   const { t } = useTranslation('meetings')
   const [tab, setTab] = useState(
-    summaryId !== undefined || summary
-      ? 'summary'
-      : translations &&
-          (record.source_type === 'meeting' || record.capture_id) &&
-          record.capabilities.read_transcript
-        ? 'translations'
-        : record.capabilities.read_transcript
-          ? 'text'
-          : 'summary'
+    chapters
+      ? 'chapters'
+      : summaryId !== undefined || summary
+        ? 'summary'
+        : translations &&
+            (record.source_type === 'meeting' || record.capture_id) &&
+            record.capabilities.read_transcript
+          ? 'translations'
+          : record.capabilities.read_transcript
+            ? 'text'
+            : 'summary'
   )
   const player = useRef<CaptureAudioHandle>(null)
   const uploadMedia = useRef<UploadMediaHandle>(null)
@@ -475,7 +479,7 @@ function WorkspaceContent({
     (tab === 'text' || tab === 'speakers' || tab === 'translations') &&
     !canReadText
       ? 'info'
-      : tab === 'summary' && !canReadSummary
+      : (tab === 'summary' || tab === 'chapters') && !canReadSummary
         ? 'info'
         : tab
   return (
@@ -519,6 +523,9 @@ function WorkspaceContent({
         <TabList aria-label={t('library.contentTabs')}>
           {canReadText && <Tab id="text">{t('library.text')}</Tab>}
           {canReadSummary && <Tab id="summary">{t('library.minutes')}</Tab>}
+          {canReadSummary && (
+            <Tab id="chapters">{t('recordAi.sections.chapters')}</Tab>
+          )}
           {canReadText && record.source_type !== 'meeting' && (
             <Tab id="speakers">{t('library.speakers')}</Tab>
           )}
@@ -582,38 +589,43 @@ function WorkspaceContent({
               />
             </TabPanel>
           )}
-        {canReadSummary && (
-          <TabPanel
-            id="summary"
-            className={css({ padding: { base: '1rem 0', md: '2rem' } })}
-          >
-            <RecordSummaryPanel
-              showHeading={false}
-              selectedVersionId={summaryId}
-              key={`${viewerId}:${record.id}`}
-              viewerId={viewerId}
-              recordId={record.id}
-              onSourceAudio={
-                // A capture's clock starts at its own session, so a citation's
-                // record-clock offset has to be rebased. An import's clock is the
-                // record's, so the offset is already the answer.
-                canPlayUpload
-                  ? (ms: number) => seekTo(ms)
-                  : playable && source
-                    ? (ms: number) =>
-                        seekTo(
-                          ms -
-                            (Date.parse(source.started_at) -
-                              Date.parse(record.origin_at))
-                        )
-                    : undefined
-              }
-            />
-            {summaryId === undefined && record.source_type === 'meeting' && (
-              <LegacySummary viewerId={viewerId} recordId={record.id} />
-            )}
-          </TabPanel>
-        )}
+        {canReadSummary &&
+          ['summary', 'chapters'].map((contentTab) => (
+            <TabPanel
+              key={contentTab}
+              id={contentTab}
+              className={css({ padding: { base: '1rem 0', md: '2rem' } })}
+            >
+              <RecordSummaryPanel
+                chaptersOnly={contentTab === 'chapters'}
+                showHeading={false}
+                selectedVersionId={summaryId}
+                key={`${viewerId}:${record.id}`}
+                viewerId={viewerId}
+                recordId={record.id}
+                onSourceAudio={
+                  // A capture's clock starts at its own session, so a citation's
+                  // record-clock offset has to be rebased. An import's clock is the
+                  // record's, so the offset is already the answer.
+                  canPlayUpload
+                    ? (ms: number) => seekTo(ms)
+                    : playable && source
+                      ? (ms: number) =>
+                          seekTo(
+                            ms -
+                              (Date.parse(source.started_at) -
+                                Date.parse(record.origin_at))
+                          )
+                      : undefined
+                }
+              />
+              {contentTab === 'summary' &&
+                summaryId === undefined &&
+                record.source_type === 'meeting' && (
+                  <LegacySummary viewerId={viewerId} recordId={record.id} />
+                )}
+            </TabPanel>
+          ))}
         {canReadText && record.source_type !== 'meeting' && (
           <TabPanel id="speakers" padding="md">
             <p className={textStyle}>{t('library.speakersHint')}</p>
@@ -696,6 +708,7 @@ export function RecordWorkspace({
   const summaryId = summaryIds.length > 1 ? '' : summaryIds[0]
   const translations = search.get('tab') === 'translations'
   const summary = search.get('tab') === 'summary'
+  const chapters = search.get('tab') === 'chapters'
   const query = useMeetingRecord(viewerId, recordId, true)
   /**
    * 权限被撤销(401/403/404)时**不能再显示任何私有内容** —— 连标题都不行。
@@ -781,6 +794,7 @@ export function RecordWorkspace({
               summaryId={summaryId}
               translations={translations}
               summary={summary}
+              chapters={chapters}
             />
           )}
         </div>

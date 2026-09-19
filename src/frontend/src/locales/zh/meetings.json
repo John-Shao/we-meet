@@ -1,4 +1,9 @@
 {
+  "chapterReader": {
+    "empty": "本版纪要未生成章节，可查看总结或有权访问的文字记录。",
+    "noVersion": "生成纪要后，可在这里查看章节。",
+    "aiVersion": "章节来自本版 AI 纪要，原文链接对应生成时的文字快照。"
+  },
   "interpretation": {
     "saveTranslations": "将确认译文保存到本场会议实录",
     "savingTranslations": "已选择保存译文，需实录原文权限查看",

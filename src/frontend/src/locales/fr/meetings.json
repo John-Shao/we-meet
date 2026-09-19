@@ -1,4 +1,9 @@
 {
+  "chapterReader": {
+    "empty": "Cette version du compte rendu ne contient aucun chapitre. Consultez la synthèse ou, si vous y avez accès, la transcription.",
+    "noVersion": "Les chapitres apparaîtront ici lorsqu’un compte rendu sera disponible.",
+    "aiVersion": "Chapitres de cette version du compte rendu IA. Les liens ouvrent la transcription conservée lors de sa génération."
+  },
   "interpretation": {
     "saveTranslations": "Enregistrer les traductions confirmées dans les archives de cette réunion",
     "savingTranslations": "Enregistrement sélectionné ; l’accès aux originaux est requis pour les consulter",

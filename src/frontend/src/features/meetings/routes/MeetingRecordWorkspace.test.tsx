@@ -50,11 +50,13 @@ vi.mock('../components/CaptureTranslationArchives', () => ({
 vi.mock('../components/RecordSummaryPanel', () => ({
   RecordSummaryPanel: ({
     onSourceAudio,
+    chaptersOnly,
   }: {
     onSourceAudio?: (ms: number) => void
+    chaptersOnly?: boolean
   }) => (
     <div>
-      summary-workspace
+      {chaptersOnly ? 'chapters-workspace' : 'summary-workspace'}
       {onSourceAudio && (
         <button onClick={() => onSourceAudio(3000)}>summary-audio</button>
       )}
@@ -84,7 +86,11 @@ beforeEach(() => {
     origin_at: '2026-09-13T00:00:00Z',
     revision: 1,
     capture_id: 'capture',
-    capabilities: { read_transcript: true, read_summary: true, play_media: true },
+    capabilities: {
+      read_transcript: true,
+      read_summary: true,
+      play_media: true,
+    },
   }
   capture = {
     id: 'capture',
@@ -138,6 +144,32 @@ it('opens the summary tab directly from the minutes library without selecting a 
     'true'
   )
   expect(screen.queryByText('Shared original')).not.toBeInTheDocument()
+})
+
+it('opens chapter navigation directly and rebases its source time for capture playback', async () => {
+  window.history.replaceState(null, '', '/meeting/records/record?tab=chapters')
+  show()
+  await screen.findByText('chapters-workspace')
+  expect(
+    screen.getByRole('tab', { name: 'recordAi.sections.chapters' })
+  ).toHaveAttribute('aria-selected', 'true')
+  fireEvent.click(await screen.findByText('summary-audio'))
+  expect(mocks.seek).toHaveBeenCalledWith(1000)
+})
+
+it('does not expose chapters when summary access is absent', async () => {
+  record.capabilities = {
+    read_transcript: true,
+    read_summary: false,
+    play_media: false,
+  }
+  window.history.replaceState(null, '', '/meeting/records/record?tab=chapters')
+  show()
+  await screen.findByText('Private recording')
+  expect(
+    screen.queryByRole('tab', { name: 'recordAi.sections.chapters' })
+  ).not.toBeInTheDocument()
+  expect(screen.queryByText('chapters-workspace')).not.toBeInTheDocument()
 })
 
 it('reads an owner’s stopped cloud capture without any local journal or device commands', async () => {
@@ -336,7 +368,6 @@ it('searches the complete original with a revision fence and hides stale results
   await screen.findByText('Exact online source')
 })
 
-
 it('connects upload timestamps to playback without sending an empty speaker filter', async () => {
   record.source_type = 'upload'
   record.capture_id = null
@@ -345,16 +376,21 @@ it('connects upload timestamps to playback without sending an empty speaker filt
   expect(row).toHaveAttribute('aria-current', 'true')
   fireEvent.click(screen.getByRole('button', { name: '0:00' }))
   expect(mocks.seek).toHaveBeenCalledWith(0)
-  for (const [path] of vi.mocked(fetchApi).mock.calls.filter(([path]) => path.includes('original-segments'))) {
+  for (const [path] of vi
+    .mocked(fetchApi)
+    .mock.calls.filter(([path]) => path.includes('original-segments'))) {
     expect(new URLSearchParams(path.split('?')[1]).has('speaker')).toBe(false)
   }
 })
 
-
 it('does not offer media or timestamp actions to a transcript-only upload reader', async () => {
   record.source_type = 'upload'
   record.capture_id = null
-  record.capabilities = { read_transcript: true, read_summary: true, play_media: false }
+  record.capabilities = {
+    read_transcript: true,
+    read_summary: true,
+    play_media: false,
+  }
   show()
   await screen.findByText('Shared original')
   expect(screen.queryByText('upload-player')).not.toBeInTheDocument()

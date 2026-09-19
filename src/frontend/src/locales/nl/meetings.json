@@ -1,4 +1,9 @@
 {
+  "chapterReader": {
+    "empty": "Deze versie van de samenvatting bevat geen hoofdstukken. Lees het overzicht of, als u toegang hebt, het transcript.",
+    "noVersion": "Hoofdstukken verschijnen hier zodra een samenvatting beschikbaar is.",
+    "aiVersion": "Hoofdstukken uit deze AI-samenvatting. Bronlinks openen het transcript dat bij het genereren is vastgelegd."
+  },
   "interpretation": {
     "saveTranslations": "Bevestigde vertalingen opslaan in de vergaderrecord",
     "savingTranslations": "Opslaan is gekozen; toegang tot de oorspronkelijke tekst is nodig om te lezen",

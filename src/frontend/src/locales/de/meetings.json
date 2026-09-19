@@ -1,4 +1,9 @@
 {
+  "chapterReader": {
+    "empty": "Diese Zusammenfassung enthält keine Kapitel. Lesen Sie die Übersicht oder, falls berechtigt, das Transkript.",
+    "noVersion": "Kapitel erscheinen hier, sobald eine Zusammenfassung verfügbar ist.",
+    "aiVersion": "Kapitel dieser KI-Zusammenfassung. Quellenlinks öffnen das bei der Erstellung gespeicherte Transkript."
+  },
   "interpretation": {
     "saveTranslations": "Bestätigte Übersetzungen in der Aufzeichnung dieser Besprechung speichern",
     "savingTranslations": "Speichern ausgewählt; zum Ansehen ist Zugriff auf das Original der Aufzeichnung nötig",
