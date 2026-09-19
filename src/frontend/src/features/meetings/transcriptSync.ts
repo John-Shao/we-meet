@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 
 /**
  * Playback ↔ transcript coupling.
@@ -119,35 +119,50 @@ export function usePlaybackFollow(rows: readonly TimedRow[]): PlaybackFollow {
 }
 
 /**
- * Keep one segment's text in view while playback moves through it.
+ * Keep the active row in view, once per change, from the list rather than from
+ * every row.
+ *
+ * Why the list: if each row scrolled itself, every mounted row would run its own
+ * effect on each active change, so a seek across the recording would fire a
+ * scroll request from every row it passed — all in one commit, racing, and the
+ * list could settle anywhere. One owner makes it a single request for the row
+ * that actually matters.
  *
  * Scrolling is refused while the reader holds control (see
- * {@link usePlaybackFollow}); the element is only realigned on the renders where
- * the window lapses, so a gesture cannot be yanked back mid-scroll.
+ * {@link usePlaybackFollow}). Reduced-motion is honoured. A missing
+ * `scrollIntoView` — jsdom, or a detached node — is tolerated rather than
+ * throwing, because following is a progressive enhancement.
  */
-export function useSegmentFollow(
-  activeId: string | null,
-  segmentId: string,
+export function useTranscriptFollow({
+  containerRef,
+  activeId,
+  follow,
+  enabled = true,
+}: {
+  containerRef: RefObject<HTMLElement | null>
+  activeId: string | null
   follow: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'>
-) {
-  const ref = useRef<HTMLElement | null>(null)
-  const active = activeId !== null && activeId === segmentId
-
+  /** False when a filter is applied and the active row may not be rendered. */
+  enabled?: boolean
+}) {
   useEffect(() => {
-    if (!active || follow.suppressed()) return
-    const node = ref.current
-    // Absent in jsdom and on detached nodes; scrolling is a progressive
-    // enhancement, never a reason to break the transcript.
-    if (typeof node?.scrollIntoView !== 'function') return
-    // Respect a reduced-motion preference rather than always animating.
+    if (!enabled || activeId === null) return
+    if (follow.suppressed()) return
+    const container = containerRef.current
+    if (!container) return
+    // Only a rendered row can be scrolled to; a filtered list may omit it.
+    const row = container.querySelector<HTMLElement>(
+      `[data-segment-id="${CSS.escape(activeId)}"]`
+    )
+    if (typeof row?.scrollIntoView !== 'function') return
     const reduced = window.matchMedia?.(
       '(prefers-reduced-motion: reduce)'
     ).matches
-    node.scrollIntoView({
+    row.scrollIntoView({
       block: 'nearest',
       behavior: reduced ? 'auto' : 'smooth',
     })
-  }, [active, follow])
-
-  return { ref, active }
+    // suppressionEpoch is the signal that a gesture's window lapsed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, enabled, follow.suppressed, follow.suppressionEpoch])
 }

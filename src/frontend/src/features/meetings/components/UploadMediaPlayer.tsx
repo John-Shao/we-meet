@@ -35,7 +35,7 @@ const time = (seconds: number) => {
 }
 
 export const UploadMediaPlayer = forwardRef<
-  UploadMediaHandle,
+  UploadMediaHandle | null,
   {
     recordId: string
     onPosition?: (milliseconds: number) => void

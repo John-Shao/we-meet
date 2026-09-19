@@ -17,6 +17,7 @@ import { LiveCaptureTranscript } from './LiveCaptureTranscript'
 import { TranscriptSegment } from './TranscriptSegment'
 import {
   activeRowId,
+  useTranscriptFollow,
   type PlaybackFollow,
   type TimedRow,
 } from '../transcriptSync'
@@ -475,6 +476,22 @@ function Originals({
     PlaybackFollow,
     'suppressed' | 'suppressionEpoch'
   > = follow ?? { suppressed: () => false, suppressionEpoch: 0 }
+  const listRef = useRef<HTMLDivElement>(null)
+  /** The visible rows are a subset, so position cannot address them. */
+  const filtersActive = search.trim() !== ''
+  /**
+   * The list scrolls the active row once per change. Scrolling is off while a
+   * filter is applied: the active row may not be rendered at all, and a partial
+   * list would scroll to whatever happened to survive the filter.
+   */
+  useTranscriptFollow({
+    containerRef: listRef,
+    activeId: resolvedActiveId,
+    follow: resolvedFollow,
+    // A filtered or searched list may omit the active row entirely; following it
+    // would scroll to whichever row happened to survive the filter.
+    enabled: query.isSuccess && !filtersActive,
+  })
   if (query.isError)
     return (
       <div>
@@ -493,7 +510,7 @@ function Originals({
       </div>
     )
   return (
-    <div className={style}>
+    <div className={style} ref={listRef}>
       {searchForm}
       <h3>{t('asr.originals')}</h3>
       <p>{t(onSource ? 'asr.unknownSpeaker' : 'retention.noPlayback')}</p>
@@ -502,8 +519,7 @@ function Originals({
         <TranscriptSegment
           key={row.id}
           segmentId={row.id}
-          activeId={resolvedActiveId}
-          follow={resolvedFollow}
+          active={resolvedActiveId === row.id}
           speaker={row.speaker_label || t('asr.unknownSpeaker')}
           time={`${Math.floor(row.start_ms / 60000)}:${String(Math.floor(row.start_ms / 1000) % 60).padStart(2, '0')}`}
           onSeek={onSource ? () => onSource(row.start_ms) : undefined}

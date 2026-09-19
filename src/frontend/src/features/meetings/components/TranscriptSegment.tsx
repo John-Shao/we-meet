@@ -1,8 +1,6 @@
 import { RiUser3Line } from '@remixicon/react'
 import { css, cx } from '@/styled-system/css'
 
-import { useSegmentFollow, type PlaybackFollow } from '../transcriptSync'
-
 /** Keep speaker identity and source time together, with room to read the transcript. */
 export function TranscriptSegment({
   speaker,
@@ -11,30 +9,27 @@ export function TranscriptSegment({
   onSeek,
   seekLabel,
   segmentId,
-  activeId,
-  follow,
+  active = false,
 }: {
   speaker: string
   time: string
   text: string
   onSeek?: () => void
   seekLabel?: string
-  /** Identifies this segment to `activeId`. */
+  /** Identifies this row to the list that scrolls it into view. */
   segmentId: string
-  /** Row playback is currently inside, shared by every segment in the list. */
-  activeId?: string | null
-  /** Playback-follow state; omit when there is no player to follow. */
-  follow?: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'>
+  /**
+   * True while playback is inside this row. Passed in rather than derived here
+   * so the row stays a leaf: the list decides which row is active and which row
+   * gets scrolled, exactly once per change.
+   */
+  active?: boolean
 }) {
-  const { ref, active } = useSegmentFollow(
-    follow ? (activeId ?? null) : null,
-    segmentId,
-    follow ?? { suppressed: () => true, suppressionEpoch: 0 }
-  )
-
   return (
     <article
-      ref={ref}
+      // The list finds the active row by this attribute, so a filtered list can
+      // simply not find it instead of needing a second source of truth.
+      data-segment-id={segmentId}
       // aria-current is the accessible signal; the left rule is its visual twin.
       aria-current={active ? 'true' : undefined}
       data-active={active ? 'true' : undefined}

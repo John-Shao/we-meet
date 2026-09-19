@@ -49,7 +49,7 @@ import { TranslationArchivePanel } from '../components/TranslationArchivePanel'
 import { CaptureTranslationArchives } from '../components/CaptureTranslationArchives'
 import { TranscriptSegment } from '../components/TranscriptSegment'
 import { recordSourceKey } from '../recordSource'
-import { usePlaybackFollow, type PlaybackFollow, type TimedRow } from '../transcriptSync'
+import { usePlaybackFollow, useTranscriptFollow, type PlaybackFollow, type TimedRow } from '../transcriptSync'
 import { RiArrowLeftLine, RiTimeLine } from '@remixicon/react'
 
 /** The workspace carries the clock only; each transcript derives its own rows. */
@@ -92,6 +92,14 @@ function OriginalRead({
     () => new URLSearchParams(routeSearch).get('q')?.slice(0, 200) ?? ''
   )
   const [speaker, setSpeaker] = useState('')
+  const listRef = useRef<HTMLDivElement>(null)
+  // The list scrolls the active row, once per change, rather than every row
+  // asking to be scrolled on the same commit.
+  useTranscriptFollow({
+    containerRef: listRef,
+    activeId: follow ? (activeId ?? null) : null,
+    follow: follow ?? { suppressed: () => true, suppressionEpoch: 0 },
+  })
   const client = useQueryClient()
   const endpoint = speakers
     ? 'speakers'
@@ -163,7 +171,7 @@ function OriginalRead({
       </div>
     )
   return (
-    <div>
+    <div ref={listRef}>
       {searchForm}
       {!query.data.results.length && <p>{t('library.noContent')}</p>}
       {query.data.results.map((item) =>
@@ -177,8 +185,7 @@ function OriginalRead({
           <TranscriptSegment
             key={item.id}
             segmentId={item.id}
-            activeId={activeId}
-            follow={follow}
+            active={follow !== undefined && activeId === item.id}
             speaker={
               ('started_at' in item ? item.speaker_name : item.speaker_label) ||
               t('library.unknownSpeaker')
