@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { RecordWorkspace } from './MeetingRecordWorkspace'
+import { act } from '@testing-library/react'
 
 const mocks = vi.hoisted(() => ({ seek: vi.fn() }))
 vi.mock('@/api/fetchApi', () => ({ fetchApi: vi.fn() }))
@@ -170,6 +171,68 @@ it('does not expose chapters when summary access is absent', async () => {
     screen.queryByRole('tab', { name: 'recordAi.sections.chapters' })
   ).not.toBeInTheDocument()
   expect(screen.queryByText('chapters-workspace')).not.toBeInTheDocument()
+})
+
+it('retains a correction draft and its opening revision across a record revision refresh', async () => {
+  record.source_type = 'upload'
+  record.capture_id = null
+  const baseFetch = vi.mocked(fetchApi).getMockImplementation()!
+  let correctionRevision = 2
+  vi.mocked(fetchApi).mockImplementation(async (path, options) => {
+    if (options?.method === 'PATCH') throw new ApiError(409, {})
+    if (path.includes('original-segments'))
+      return {
+        results: [
+          {
+            id: 'original',
+            text: correctionRevision === 2 ? 'Before' : 'Other editor',
+            start_ms: 0,
+            end_ms: 1000,
+            can_correct: true,
+            correction_revision: correctionRevision,
+          },
+        ],
+        next_cursor: null,
+      }
+    return baseFetch(path, options)
+  })
+  show()
+  fireEvent.click(await screen.findByText('transcriptCorrection.edit'))
+  fireEvent.change(
+    screen.getByRole('textbox', { name: 'transcriptCorrection.edit' }),
+    { target: { value: 'My unsaved draft' } }
+  )
+  correctionRevision = 3
+  record = { ...record, revision: 2 }
+  await act(async () => {
+    await client.invalidateQueries({
+      queryKey: ['meeting-records', 'owner', 'detail', 'record'],
+    })
+  })
+  await waitFor(() =>
+    expect(
+      screen.getByRole('textbox', { name: 'transcriptCorrection.edit' })
+    ).toHaveValue('My unsaved draft')
+  )
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'transcriptCorrection.save' })
+  )
+  await screen.findByText('transcriptCorrection.conflict')
+  const patch = vi
+    .mocked(fetchApi)
+    .mock.calls.find(([, options]) => options?.method === 'PATCH')
+  expect(JSON.parse(String(patch?.[1]?.body))).toEqual({
+    text: 'My unsaved draft',
+    expected_revision: 2,
+  })
+  expect(
+    screen.getByRole('textbox', { name: 'transcriptCorrection.edit' })
+  ).toHaveValue('My unsaved draft')
+  fireEvent.click(screen.getByText('transcriptCorrection.cancel'))
+  fireEvent.click(screen.getByText('transcriptCorrection.edit'))
+  expect(
+    screen.getByRole('textbox', { name: 'transcriptCorrection.edit' })
+  ).toHaveValue('Other editor')
 })
 
 it('reads an owner’s stopped cloud capture without any local journal or device commands', async () => {

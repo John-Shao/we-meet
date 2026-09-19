@@ -37,6 +37,8 @@ import { TranscriptExportControl } from '../components/TranscriptExportControl'
 import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
+import { TranscriptDraftScope } from '../components/TranscriptDraftScope'
+import { useTranscriptDraftScope } from '../hooks/useTranscriptDraft'
 import { RecordRenameControl } from '../components/RecordRenameControl'
 import { StateHint } from '@/components/StateHint'
 import {
@@ -104,6 +106,7 @@ function OriginalRead({
 }) {
   const { t } = useTranslation('meetings')
   const correction = useCorrectOriginalSegment(viewerId, record.id)
+  const drafts = useTranscriptDraftScope()
   const [cursors, setCursors] = useState<string[]>([''])
   const routeSearch = useSearch()
   const [search, setSearch] = useState(
@@ -153,6 +156,13 @@ function OriginalRead({
       >(path, { signal, cache: 'no-store' }),
     refetchInterval: (q) => (q.state.error ? false : 10000),
   })
+  useEffect(() => {
+    if (
+      query.error instanceof ApiError &&
+      [401, 403, 404].includes(query.error.statusCode)
+    )
+      drafts?.clear()
+  }, [query.error, drafts])
   // Only capture-backed rows carry a source window in the record's clock. An
   // online transcript is stamped with wall time instead, so it cannot be followed
   // on the media timeline and contributes no rows here. Computed before the early
@@ -787,15 +797,19 @@ export function RecordWorkspace({
           ) : !record ? (
             <StateHint state="loading">{t('loading')}</StateHint>
           ) : (
-            <WorkspaceContent
-              key={`${viewerId}:${recordId}:${summaryId ?? 'all'}:${translations}:${summary}`}
-              viewerId={viewerId}
-              record={record}
-              summaryId={summaryId}
-              translations={translations}
-              summary={summary}
-              chapters={chapters}
-            />
+            <TranscriptDraftScope
+              key={`${viewerId}:${recordId}:${record.capabilities.read_transcript}`}
+            >
+              <WorkspaceContent
+                key={`${viewerId}:${recordId}:${summaryId ?? 'all'}:${translations}:${summary}`}
+                viewerId={viewerId}
+                record={record}
+                summaryId={summaryId}
+                translations={translations}
+                summary={summary}
+                chapters={chapters}
+              />
+            </TranscriptDraftScope>
           )}
         </div>
       </main>

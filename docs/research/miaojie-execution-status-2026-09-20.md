@@ -1,4 +1,4 @@
-# 妙记差距整改：七批执行状态
+# 妙记差距整改：八批执行状态
 
 本文件是执行后的状态；[复评](miaojie-reassessment-2026-09-20.md)保留实施前证据和完整路线图。以下“完成”指实现及所列回归，不等于已部署或生产验收。
 
@@ -10,7 +10,8 @@
 | 4 | 视频输出、Web 签名续期、Android 媒体生命周期和异步准备 | `f3c09ccbd` | `8af30b1f` |
 | 5 | 真实播放能力契约、只读控件边界、上传改名 | `b0485e359` | `4bb139b6` |
 | 6 | 分片合并响应丢失及登记失败恢复，双端免重传，进度累计 | `8261c9e44` | `f3fda4be` |
-| 7 | 独立章节入口、版本/快照引用、可信空态 | 见本文件所在批次提交 | 见 Android 同批提交 |
+| 7 | 独立章节入口、版本/快照引用、可信空态 | `08a2e3453` | `23368f49` |
+| 8 | 记录详情 revision 刷新和行重建时保留 Web 校对草稿 | 见本文件所在批次提交 | 本批无变更 |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaojie-first-batch-2026-09-20.md)、[上传纪要](miaojie-batch-2-upload-summary.md)、[定位](miaojie-batch-3-playback-navigation.md)、[媒体](miaojie-batch-4-media-playback.md)、[能力](miaojie-batch-5-capabilities.md)、[上传恢复](miaojie-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 

@@ -16,6 +16,7 @@ import { RecordSummaryPanel } from './RecordSummaryPanel'
 import { OriginalSearch } from './OriginalSearch'
 import { LiveCaptureTranscript } from './LiveCaptureTranscript'
 import { TranscriptSegment } from './TranscriptSegment'
+import { useTranscriptDraftScope } from '../hooks/useTranscriptDraft'
 import {
   activeRowId,
   transcriptWindowTarget,
@@ -491,6 +492,14 @@ function Originals({
    * gets no handler, and the row renders without an edit control.
    */
   const correction = useCorrectOriginalSegment(viewerId, capture.record_id)
+  const drafts = useTranscriptDraftScope()
+  useEffect(() => {
+    if (
+      query.error instanceof ApiError &&
+      [401, 403, 404].includes(query.error.statusCode)
+    )
+      drafts?.clear()
+  }, [query.error, drafts])
   const correct = (segmentId: string, next: string, expectedRevision: number) =>
     correction.mutateAsync({ segmentId, text: next, expectedRevision })
   const revert = (segmentId: string, expectedRevision: number) =>

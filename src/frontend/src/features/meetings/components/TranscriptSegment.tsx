@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/api/ApiError'
 import { Button } from '@/primitives'
 import { css, cx } from '@/styled-system/css'
+import { useTranscriptDraft } from '../hooks/useTranscriptDraft'
 
 /**
  * One utterance.
@@ -60,11 +61,14 @@ export function TranscriptSegment({
   editFailed?: boolean
 }) {
   const { t } = useTranslation('meetings')
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(text)
-  const [editRevision, setEditRevision] = useState(correctionRevision)
-  const [pending, setPending] = useState(false)
-  const [failure, setFailure] = useState<'failed' | 'conflict' | null>(null)
+  const editor = useTranscriptDraft(segmentId, text, correctionRevision)
+  const {
+    editing,
+    text: draft,
+    revision: editRevision,
+    pending,
+    failure,
+  } = editor.state
   const [showingOriginal, setShowingOriginal] = useState(false)
   const input = useRef<HTMLTextAreaElement>(null)
 
@@ -74,36 +78,38 @@ export function TranscriptSegment({
 
   const trimmed = draft.trim()
   const busy = correcting || pending
-  const canSave = trimmed.length > 0 && trimmed !== text && !busy
+  const canSave = !!onCorrect && trimmed.length > 0 && trimmed !== text && !busy
 
   const startEditing = () => {
-    setDraft(text)
-    setEditRevision(correctionRevision)
-    setFailure(null)
+    editor.update({
+      text,
+      revision: correctionRevision,
+      failure: null,
+      editing: true,
+    })
     setShowingOriginal(false)
-    setEditing(true)
   }
 
   const shown =
     showingOriginal && originalText !== undefined ? originalText : text
 
   const submit = async (restore = false) => {
-    if (busy) return
-    setPending(true)
-    setFailure(null)
+    if (busy || (restore ? !onRevert : !onCorrect)) return
+    editor.update({ pending: true, failure: null })
     try {
       if (restore) await onRevert?.(segmentId, correctionRevision)
       else await onCorrect?.(segmentId, trimmed, editRevision)
-      setEditing(false)
+      editor.reset()
       setShowingOriginal(false)
     } catch (error) {
-      setFailure(
-        error instanceof ApiError && error.statusCode === 409
-          ? 'conflict'
-          : 'failed'
-      )
+      editor.update({
+        failure:
+          error instanceof ApiError && error.statusCode === 409
+            ? 'conflict'
+            : 'failed',
+      })
     } finally {
-      setPending(false)
+      editor.update({ pending: false })
     }
   }
 
@@ -266,7 +272,7 @@ export function TranscriptSegment({
             disabled={busy}
             rows={3}
             maxLength={20_000}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => editor.update({ text: event.target.value })}
             className={css({
               width: '100%',
               border: '1px solid token(colors.greyscale.200)',
@@ -291,7 +297,7 @@ export function TranscriptSegment({
               size="sm"
               variant="secondaryText"
               isDisabled={busy}
-              onPress={() => setEditing(false)}
+              onPress={editor.reset}
             >
               {t('transcriptCorrection.cancel')}
             </Button>

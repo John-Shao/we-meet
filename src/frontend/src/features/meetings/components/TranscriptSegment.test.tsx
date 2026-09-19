@@ -2,7 +2,14 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 
 import { TranscriptSegment } from './TranscriptSegment'
+import { TranscriptDraftScope } from './TranscriptDraftScope'
+import { useTranscriptDraftScope } from '../hooks/useTranscriptDraft'
 import { ApiError } from '@/api/ApiError'
+
+function ClearDrafts() {
+  const drafts = useTranscriptDraftScope()
+  return <button onClick={() => drafts?.clear()}>revoke</button>
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -185,6 +192,91 @@ it('keeps the draft and its opening version through a refresh and a failed save'
   fireEvent.click(screen.getByText('transcriptCorrection.cancel'))
   fireEvent.click(screen.getByText('transcriptCorrection.edit'))
   expect(screen.getByRole('textbox')).toHaveValue("Someone else's edit")
+})
+
+it('keeps pending and failed writes attached to the same draft after the row remounts', async () => {
+  let reject!: (reason: unknown) => void
+  const onCorrect = vi.fn(
+    () =>
+      new Promise((_, fail) => {
+        reject = fail
+      })
+  )
+  const content = (generation: number) => (
+    <TranscriptDraftScope>
+      <TranscriptSegment
+        key={generation}
+        speaker="Ada"
+        time="0:01"
+        segmentId="s"
+        text="Original"
+        correctionRevision={generation}
+        onCorrect={onCorrect}
+      />
+    </TranscriptDraftScope>
+  )
+  const view = render(content(1))
+  fireEvent.click(screen.getByText('transcriptCorrection.edit'))
+  fireEvent.change(screen.getByRole('textbox'), {
+    target: { value: 'Retained draft' },
+  })
+  fireEvent.click(screen.getByText('transcriptCorrection.save'))
+  view.rerender(content(2))
+  expect(screen.getByRole('textbox')).toHaveValue('Retained draft')
+  expect(screen.getByRole('textbox')).toBeDisabled()
+  await act(async () => reject(new ApiError(409, {})))
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'transcriptCorrection.conflict'
+  )
+  expect(screen.getByRole('textbox')).not.toBeDisabled()
+  expect(onCorrect).toHaveBeenCalledWith('s', 'Retained draft', 1)
+})
+
+it('does not revive cleared drafts when a revoked request finishes late', async () => {
+  let reject!: (reason: unknown) => void
+  const onCorrect = () =>
+    new Promise((_, fail) => {
+      reject = fail
+    })
+  render(
+    <TranscriptDraftScope>
+      <ClearDrafts />
+      <TranscriptSegment
+        speaker="Ada"
+        time="0:01"
+        segmentId="s"
+        text="Original"
+        onCorrect={onCorrect}
+      />
+    </TranscriptDraftScope>
+  )
+  fireEvent.click(screen.getByText('transcriptCorrection.edit'))
+  fireEvent.change(screen.getByRole('textbox'), {
+    target: { value: 'Private draft' },
+  })
+  fireEvent.click(screen.getByText('transcriptCorrection.save'))
+  fireEvent.click(screen.getByText('revoke'))
+  await act(async () => reject(new ApiError(403, {})))
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByText('transcriptCorrection.edit'))
+  expect(screen.getByRole('textbox')).toHaveValue('Original')
+})
+
+it('cannot save a retained draft after edit permission is removed', () => {
+  const props = {
+    speaker: 'Ada',
+    time: '0:01',
+    segmentId: 's',
+    text: 'Original',
+  }
+  const view = render(<TranscriptSegment {...props} onCorrect={vi.fn()} />)
+  fireEvent.click(screen.getByText('transcriptCorrection.edit'))
+  fireEvent.change(screen.getByRole('textbox'), {
+    target: { value: 'Private draft' },
+  })
+  view.rerender(<TranscriptSegment {...props} />)
+  expect(screen.getByText('transcriptCorrection.save')).toBeDisabled()
+  expect(screen.getByRole('textbox')).toHaveValue('Private draft')
 })
 
 it('only closes the editor after the write resolves', async () => {
