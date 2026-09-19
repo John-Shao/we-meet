@@ -1,5 +1,6 @@
 """Exact-source record reads and opt-in user-authorized summary requests."""
 
+import io
 import uuid
 from urllib.parse import parse_qs, urlsplit
 
@@ -7,7 +8,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError as ModelValidationError
 from django.db import IntegrityError
 from django.db.models import Case, Count, Exists, OuterRef, Prefetch, Q, When
-from django.http import Http404
+from django.http import FileResponse, Http404
 from django.utils import timezone
 
 from rest_framework import pagination, permissions, serializers, viewsets
@@ -887,6 +888,41 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         ):
             raise Http404
         return Response(media_read_url(job))
+
+    @action(detail=True, methods=["get"], url_path="transcript-export")
+    def transcript_export(self, request, pk=None):
+        """Download the transcript as a file: TXT, SRT or WebVTT.
+
+        A transcript is evidence, so it has to be exportable as a file rather
+        than only readable in our UI — and SRT/VTT double as the subtitle track
+        for the recording. Rendered synchronously: it is a formatting pass over
+        rows the reader can already fetch, so a job and a poll would be
+        ceremony without a payoff.
+
+        The selector is `as`, deliberately not `format`: DRF reserves `?format=`
+        for content negotiation (`URL_FORMAT_OVERRIDE`), so `?format=txt` is
+        consumed before the view runs and the request 404s on a suffixed URL that
+        does not exist.
+        """
+        from core.services import transcript_export  # noqa: PLC0415
+
+        record = self._content_record("read_transcript")
+        fmt = str(request.query_params.get("as") or "txt").lower()
+        if fmt not in transcript_export.FORMATS:
+            raise ValidationError(
+                {"as": f"Use one of: {', '.join(transcript_export.FORMATS)}."}
+            )
+        body = transcript_export.render(fmt, transcript_export.rows_for(record))
+        extension, content_type = transcript_export.CONTENT_TYPES[fmt]
+        title = (record.title or "transcript").strip() or "transcript"
+        return FileResponse(
+            io.BytesIO(body.encode("utf-8")),
+            as_attachment=True,
+            # Django encodes a non-ASCII filename per RFC 5987, so a Chinese
+            # record title survives instead of raising.
+            filename=f"{title}.{extension}",
+            content_type=content_type,
+        )
 
     @action(detail=True, methods=["get"])
     def summaries(self, request, pk=None):
