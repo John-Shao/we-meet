@@ -50,6 +50,18 @@
     "restore": "Rétablir l'original",
     "failed": "La correction n'a pas été enregistrée. Réessayez."
   },
+  "speakerAttribution": {
+    "change": "Qui est-ce ?",
+    "changeFor": "Indiquer qui est réellement {{name}}",
+    "cancel": "Fermer",
+    "search": "Rechercher des personnes",
+    "find": "Rechercher",
+    "choose": "Attribuer ce locuteur à {{name}}",
+    "clear": "Retirer l’attribution",
+    "nobody": "Personne à sélectionner.",
+    "loadError": "L’annuaire n’a pas pu être chargé. Réessayez.",
+    "failed": "L’attribution n’a pas été enregistrée. Réessayez."
+  },
   "transcriptExport": {
     "label": "Exporter la transcription",
     "download": "Télécharger {format}"

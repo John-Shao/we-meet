@@ -16,7 +16,10 @@ from core.services.docs_delivery_client import (
 )
 
 KEY = str(uuid.uuid4())
-DOCUMENT = str(uuid.uuid4())
+# Fixed rather than random: this value is interpolated into a parametrize id, so
+# a per-process UUID makes each xdist worker collect different node ids and
+# "Different tests were collected" aborts the run before a single test executes.
+DOCUMENT = "3f2a1c0e-9b7d-4f81-8a2e-5c6d7e8f9a0b"
 PAYLOAD = {"sub": "trusted-owner", "title": "Minutes", "content": "Reviewed minutes"}
 
 
@@ -127,6 +130,17 @@ def test_no_http_error_falls_back_or_retries_creation(status, expected, transpor
         b"x" * (MAX_RESPONSE_BYTES + 1),
         json.dumps({"state": "ready", "id": "not-a-uuid", "replayed": True}).encode(),
         json.dumps({"state": "ready", "id": DOCUMENT, "replayed": "yes"}).encode(),
+    ],
+    # Named explicitly: pytest's generated id echoes the parameter, and the
+    # oversized-payload case turns that into a multi-kilobyte node id. On Windows
+    # that id cannot be written to PYTEST_CURRENT_TEST (32767-character
+    # environment limit), so the case errors before it ever runs.
+    ids=[
+        "not-json",
+        "json-list",
+        "oversized-payload",
+        "invalid-document-id",
+        "replayed-not-boolean",
     ],
 )
 def test_bounded_invalid_results_do_not_leak_response_content(body, transport):

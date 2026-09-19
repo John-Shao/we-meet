@@ -46,6 +46,7 @@ import {
 } from '../components/libraryStyles'
 import { OriginalSearch } from '../components/OriginalSearch'
 import { SpeakerFilter } from '../components/SpeakerFilter'
+import { SpeakerAttributionControl } from '../components/SpeakerAttributionControl'
 import { TranslationArchivePanel } from '../components/TranslationArchivePanel'
 import { CaptureTranslationArchives } from '../components/CaptureTranslationArchives'
 import { TranscriptSegment } from '../components/TranscriptSegment'
@@ -177,10 +178,19 @@ function OriginalRead({
       {!query.data.results.length && <p>{t('library.noContent')}</p>}
       {query.data.results.map((item) =>
         'identity_type' in item ? (
-          <p key={item.id} className={textStyle}>
-            {item.identity_type === 'unknown'
-              ? t('library.unknownSpeaker')
-              : item.label}
+          <p key={item.id} className={cx(textStyle, css({ overflowWrap: 'anywhere' }))}>
+            {item.identity_type === 'unknown' ? (
+              t('library.unknownSpeaker')
+            ) : (
+              // A diarised track is a guess, so an editor can say who it really
+              // was. The control is absent for a reader who may not write it,
+              // and for the `unknown` track, where there is nothing to bind.
+              <SpeakerAttributionControl
+                recordId={record.id}
+                viewerId={viewerId}
+                speaker={item}
+              />
+            )}
           </p>
         ) : (
           <TranscriptSegment

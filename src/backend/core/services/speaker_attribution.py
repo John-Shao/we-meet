@@ -11,10 +11,14 @@ letting every reader-facing artifact show the person.
 """
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from core import models
 from core.services.meeting_records import can_generate_summary
+
+#: A picker is a lookup, not an export: past a screenful the user should search.
+MAX_CANDIDATES = 50
 
 
 class AttributionDenied(ValueError):
@@ -93,6 +97,44 @@ def attribute(record, speaker_id, actor, *, user_id):
     speaker.attributed_at = timezone.now()
     speaker.save(update_fields=["user", "attributed_by", "attributed_at", "updated_at"])
     return speaker
+
+
+def attribution_candidates(record, actor, query=""):
+    """Who the UI may offer as the person behind a speaker track.
+
+    This deliberately mirrors `_member_of_record_organization`, the check the
+    write path applies, because a picker that offers a name the write then
+    refuses is worse than no picker: it turns a product rule into an error the
+    user cannot act on.
+
+    A record outside an organization has no directory to draw on. Rather than
+    fall back to a global user search — which would let anyone enumerate the
+    whole deployment — it is narrowed to people who share an active
+    organization with the actor, plus the actor. That is a strict subset of
+    what attribution would accept, so the two still agree; it only means a
+    personal import cannot name a stranger.
+    """
+    candidates = models.User.objects.filter(is_active=True)
+    memberships = models.Membership.objects.filter(
+        status=models.MembershipStatusChoices.ACTIVE,
+        organization__is_active=True,
+    )
+    if record.organization_id:
+        candidates = candidates.filter(
+            pk__in=memberships.filter(
+                organization_id=record.organization_id
+            ).values("user_id")
+        )
+    else:
+        shared = memberships.filter(
+            organization_id__in=memberships.filter(user=actor).values(
+                "organization_id"
+            )
+        ).values("user_id")
+        candidates = candidates.filter(Q(pk__in=shared) | Q(pk=actor.pk))
+    if query:
+        candidates = candidates.filter(full_name__icontains=query)
+    return candidates.order_by("full_name", "id")[:MAX_CANDIDATES]
 
 
 def serialize(speaker):

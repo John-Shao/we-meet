@@ -20,6 +20,7 @@ pytestmark = pytest.mark.django_db
 SPEAKERS = "/api/v1.0/meeting-records/{}/speakers/"
 ONE = "/api/v1.0/meeting-records/{}/speakers/{}/"
 SEGMENTS = "/api/v1.0/meeting-records/{}/original-segments/"
+CANDIDATES = "/api/v1.0/meeting-records/{}/attribution-candidates/"
 
 
 @pytest.fixture(autouse=True)
@@ -232,3 +233,94 @@ def test_a_deleted_account_leaves_the_label_behind():
     speaker.refresh_from_db()
     assert speaker.user_id is None
     assert speaker.display_name == "Speaker 1"
+
+
+def candidates(user, record, query=""):
+    response = client_for(user).get(
+        CANDIDATES.format(record.id), {"q": query} if query else {}
+    )
+    assert response.status_code == 200, response.data
+    return response.data["results"]
+
+
+def test_the_directory_offers_exactly_who_the_write_path_accepts():
+    """A picker that offers a name the write refuses is worse than no picker."""
+    owner, record, speaker, organization = org_record()
+    inside = MembershipFactory(
+        organization=organization, user__full_name="Ada Lovelace"
+    ).user
+    outsider = UserFactory(full_name="Outsider")
+
+    offered = {row["id"] for row in candidates(owner, record)}
+    assert str(inside.pk) in offered
+    # The owner is a member themselves, so they are offerable too.
+    assert str(owner.pk) in offered
+    assert str(outsider.pk) not in offered
+
+    # And every offered name really is accepted, so the list cannot drift from
+    # the check behind it.
+    for user_id in offered:
+        response = client_for(owner).patch(
+            ONE.format(record.id, speaker.pk), {"user_id": user_id}, format="json"
+        )
+        assert response.status_code == 200, (user_id, response.data)
+
+
+def test_the_directory_is_searchable_by_name():
+    owner, record, _, organization = org_record()
+    MembershipFactory(organization=organization, user__full_name="Ada Lovelace")
+    MembershipFactory(organization=organization, user__full_name="Grace Hopper")
+
+    found = candidates(owner, record, "hopper")
+    assert [row["name"] for row in found] == ["Grace Hopper"]
+
+
+def test_a_reader_who_cannot_attribute_is_offered_nobody():
+    """Not a 403: the transcript is not the place to explain an unused permission."""
+    _, record, _, organization = org_record()
+    shared = MembershipFactory(organization=organization).user
+    models.MeetingRecordAccess.objects.create(
+        record=record, user=shared, read_transcript=True
+    )
+    assert candidates(shared, record) == []
+
+
+def test_a_shared_organization_still_does_not_reach_across_organizations():
+    """Directory membership is the boundary, not "anyone we can see"."""
+    organization = MembershipFactory().organization
+    owner = MembershipFactory(organization=organization, is_primary=True).user
+    record = audio_note(user=owner, organization=organization)
+    stranger = MembershipFactory(user__full_name="Stranger").user
+
+    offered = {row["id"] for row in candidates(owner, record)}
+    assert str(owner.pk) in offered
+    assert str(stranger.pk) not in offered
+
+
+def test_a_personal_import_offers_people_the_actor_shares_an_organization_with():
+    """An organization-less record has no directory, so a global search is refused.
+
+    The write path would accept any active account here. The picker is
+    deliberately narrower: enumerating the whole deployment is a worse outcome
+    than a personal import being unable to name a stranger.
+    """
+    organization = MembershipFactory().organization
+    actor = MembershipFactory(organization=organization).user
+    colleague = MembershipFactory(
+        organization=organization, user__full_name="Colleague"
+    ).user
+    stranger = UserFactory(full_name="Stranger")
+    record = audio_note(user=actor, organization=None)
+
+    offered = {row["id"] for row in candidates(actor, record)}
+    assert str(colleague.pk) in offered
+    assert str(actor.pk) in offered
+    assert str(stranger.pk) not in offered
+
+
+def test_the_directory_rejects_an_unsupported_filter_rather_than_ignoring_it():
+    owner, record, _, _ = org_record()
+    response = client_for(owner).get(
+        CANDIDATES.format(record.id), {"scope": "everyone"}
+    )
+    assert response.status_code == 400

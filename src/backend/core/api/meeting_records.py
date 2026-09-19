@@ -1022,6 +1022,35 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             raise Http404 from error
         return Response(speaker_attribution.serialize(bound))
 
+    @action(detail=True, methods=["get"], url_path="attribution-candidates")
+    def attribution_candidates(self, request, pk=None):
+        """People this reader may bind a speaker track to.
+
+        Only offered to a reader who could actually write the attribution, and
+        drawn from the directory `attribute` itself accepts, so the control and
+        the write cannot disagree. A plain reader gets an empty list rather
+        than a 403: the transcript they are reading is not the place to explain
+        a permission they never asked to use.
+        """
+        record = self._content_record("read_transcript")
+        if set(request.query_params) - {"q"}:
+            raise ValidationError("Unsupported candidate filter.")
+        if not can_generate_summary(record, request.user):
+            return Response({"results": []})
+        query = serializers.CharField(max_length=80, allow_blank=True).run_validation(
+            request.query_params.get("q", "")
+        )
+        return Response(
+            {
+                "results": [
+                    {"id": str(user.pk), "name": user.full_name or ""}
+                    for user in speaker_attribution.attribution_candidates(
+                        record, request.user, query
+                    )
+                ]
+            }
+        )
+
     @action(detail=True, methods=["get"])
     def media(self, request, pk=None):
         """Sign one whole-object GET for a sealed upload, so it can be replayed.

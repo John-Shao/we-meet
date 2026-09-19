@@ -182,6 +182,26 @@ export interface ApiRecordSpeaker {
   source_key?: string
   /** Present for online speakers: how many rows this person contributed. */
   rows?: number
+  /**
+   * What a reader should see, already resolved by the server: the person a
+   * human bound this track to, else the recogniser's own label.
+   */
+  display_name?: string
+  /** The bound person, or null while the track is still only "Speaker 1". */
+  attributed_user_id?: string | null
+  attributed_at?: string | null
+  /**
+   * Whether this reader may change the binding. Only capture-backed records
+   * have tracks to bind, and only an editor may do it, so the control is
+   * absent rather than disabled when this is false.
+   */
+  can_attribute?: boolean
+}
+
+/** One person the reader may bind a speaker track to. */
+export interface ApiAttributionCandidate {
+  id: string
+  name: string
 }
 
 export interface ApiSummaryJob {

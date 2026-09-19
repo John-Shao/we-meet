@@ -50,6 +50,18 @@
     "restore": "Restore original",
     "failed": "The correction was not saved. Try again."
   },
+  "speakerAttribution": {
+    "change": "Who is this?",
+    "changeFor": "Say who {{name}} really is",
+    "cancel": "Close",
+    "search": "Search people",
+    "find": "Find",
+    "choose": "Attribute this speaker to {{name}}",
+    "clear": "Clear attribution",
+    "nobody": "Nobody to choose from.",
+    "loadError": "The directory could not be loaded. Try again.",
+    "failed": "The attribution was not saved. Try again."
+  },
   "transcriptExport": {
     "label": "Export transcript",
     "download": "Download {format}"

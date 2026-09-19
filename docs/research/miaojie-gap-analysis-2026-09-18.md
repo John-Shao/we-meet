@@ -159,10 +159,10 @@ GET    /meeting-records/{id}/source-status/
 | # | 妙记能力 | 我方 | 状态 | 证据 |
 |---|---|---|---|---|
 | T1 | **逐字稿关键词批量替换** | 无 | 🔴 | 原文硬约束不可改写：`models.py:1585`（`original_revision_one`）、`:1600-1601` |
-| T2 | **说话人替换为真实成员**（`speaker_id → open_id`） | 无；说话人**明确不关联账号** | 🔴 | `MeetingSpeaker.identity_type` 仅 `diarized\|unknown`（`models.py:1526-1528`）；docstring `:1517`；前端 `library.speakersHint` |
+| T2 | **说话人替换为真实成员**（`speaker_id → open_id`） | ~~无~~ → **已补齐（双端）**：可把一条 diarised 轨道绑定到组织内成员，也可清除绑定 | ✅ | `PATCH /meeting-records/{id}/speakers/{speaker_id}/`（`speaker_attribution.py`）+ 候选目录 `attribution-candidates`；Web `SpeakerAttributionControl.tsx`（10 项单测）、Android `RecordSpeakerAttribution.kt`（6 项单测）；**识别器标签不改写**，可空 `user` FK 只做投影 |
 | T3 | 发言人识别与**观点总结** | 纪要要点可归因到说话人文本，但**无「按发言人」维度聚合** | 🟠 | `MeetingOriginalSegment.speaker` 有；无 per-speaker 聚合产物 |
 | T4 | **声纹识别**（会议室中识别身份） | 无 | 🔴 | 无代码痕迹 |
-| T5 | 逐字稿人工校对 | 无（仅纪要可编辑） | 🔴 | `TranscriptSegment.tsx` 只读 |
+| T5 | 逐字稿人工校对 | ~~无（仅纪要可编辑）~~ → **已补齐（双端）**：逐行修订（追加版本，不改原文），可查看识别器原文并回退 | ✅ | `PATCH/DELETE /meeting-records/{id}/original-segments/{segment_id}/`（`transcript_corrections.py`、`MeetingOriginalRevision`）；Web `TranscriptSegment.tsx`、Android `RecordSegmentCorrection.kt` |
 | T6 | 个人热词 / ASR 热词 | **导入路径有**（一次性 vocabulary，≤100 词），录音/会议路径无 | 🟠 | `uploaded_recordings.py:24-36`、`qwen_filetrans.py:94-95`；前端无热词 UI |
 | T7 | **关键词（Keyword）作为独立 AI 产物** | 无。仅有**查询词**抽取（`GlobalAskService._keywords`），非逐字稿关键词产物 | 🔴 | 后端 `keyword` 命中均为**机器人 webhook 关键词网关**或搜索关键词，与妙记 Keyword 无关 |
 | T8 | 方言识别（粤语/四川话/西安话/上海话/闽南话） | 未验证；曾记录 Doubao STT **语言恒为 `zh`** | 🟠 | `transcripts_followup.md:168-197` |
@@ -293,6 +293,32 @@ GET    /meeting-records/{id}/source-status/
 | 3 | LLM 翻译过度纠正 | 翻译纪要质量 | `:135-164` |
 | 4 | 离线推送缺失 | 纪要送达触达（妙记靠 IM 卡片） | 竞品调研报告 §五 P0-1 |
 
+### 5.6 收口账（本报告发布后补齐的项）
+
+按时间顺序，只记录**已落代码并已验证**的项；未闭环项仍在 §4/§6 原位。
+
+| 项 | 落地范围 | 关键取舍（读代码的人需要知道的） |
+|---|---|---|
+| **逐字稿修订（P0-2 / T5）** | 后端 `MeetingOriginalRevision`（≥0180）+ `transcript_corrections.py`；Web `TranscriptSegment.tsx`；Android `RecordSegmentCorrection.kt` | 原文与说话人**都不改写**：修订是追加层，经 `corrected_text_subquery` 一个投影解析；`expected_revision` 让并发编辑成为 409 而非静默覆盖。**线上会议不受支持**：那条来源没有修订模型，服务端是**拒绝**而不是半可用，因此两端都对该来源不显示控件 |
+| **逐字稿导出（P0-5）** | 后端 `transcript_export.py`（TXT/SRT/VTT）；Web `<a download>`、Android 流式下载 | 选择器是 **`as` 而不是 `format`**——DRF 的 `URL_FORMAT_OVERRIDE` 默认就是 `format`，用 `?format=txt` 会在进入视图前被消费并 404。VTT 转义 `&`/`<`/`>`；重叠行按下一行起点截断 |
+| **上传上限（P0-4）** | `presign_direct_upload` / `complete_direct_upload` 两步直传，6 GiB 上限 | **Shipped dark**：`MEETING_FILE_DIRECT_UPLOAD_ENABLED` 默认 `False`，多段上传仍为 100 MiB、ingress 注解未动。客户端先接入两步流程才能打开开关 |
+| **媒体下载（P0-3）** | 折进「上传即整文件回放」：签名 GET + HTTP Range | 未做成独立下载入口。权限沿用录制会话的**属主**规则（`created_by=user` 且 `owner=user`），没有放宽。`MEETING_GET_URL_TTL_SECONDS = 3600`，**> 1 小时的文件 TTL 未实测** |
+| **说话人归属（P0-6 / T2）** | 后端 `speaker_attribution.py` + `PATCH speakers/{id}/` + 候选目录 `attribution-candidates`；Web `SpeakerAttributionControl.tsx`；Android `RecordSpeakerAttribution.kt` | 识别器标签不改写，只加可空 `user` FK 与一个 `attributed_name_subquery` 投影。候选目录**刻意复用写入侧的边界**（记录所属组织的在职成员），因为「选择器给出一个写入会拒绝的人」比没有选择器更糟；无组织的个人导入退化为「与操作者同组织的人 + 本人」，**不做全量用户搜索**。清除绑定是一等操作。读不到目录的纯读者得到**空列表而不是 403** |
+| **`-n auto` 修复（测试基建）** | `test_docs_delivery_client.py`、`test_api_tasks.py` 的 parametrize 加显式 `ids` | 两处把随机 UUID / 多 KB 载荷写进了 parametrize id：xdist 各 worker 因此收集到不同 node id（`Different tests were collected`），且超长 id 无法写入 `PYTEST_CURRENT_TEST`（Windows 32767 字符上限）。**与会议实录功能无关，但会挡住任何并行全量跑** |
+
+**仍然已知未闭环**（承接既有记录，不重复展开）：`/recordings/media-auth/` 在生产实际拒答（`Recording.is_saved` 恒为 `False`）；线上会议媒体时间轴**被基建阻塞**（缺 livekit-egress 与第二台 ECS，见 `docs/plan/online-meeting-media-timeline-2026-09-19.md`）；直接上传的文件在列表里显示 UUID 形状的 `name`；搜索结果只匹配**存储原文**而非修订后文本；共享读者的回放权限仍是开放产品问题。
+
+### 5.7 全量后端的既有失败——**是并行污染，不是功能缺陷**（一次差点写错的结论）
+
+`pytest core/tests -n 4` 现在有约 85 条失败。第一次核对时只看了「失败文件是否属于本次改动」，得出「都不在改动范围内」——**这个判据是错的**，因为 `core/tests/tasks/test_api_tasks.py` 恰好既失败、又被本次改动碰过（只加了 parametrize 的显式 `ids`）。
+
+改用基线对照后（`git worktree` 检出 `a8a57dc07` 干净树，同机同库跑同一套）：
+
+- 干净基线 **84** 条失败，改后 **86** 条；两边**各自独有约 30 条**，方向相反，属**顺序/并发相关的抖动**，不是集合包含关系。
+- 逐文件复核：把 `test_api_tasks.py` **单独**在两棵树上各跑一次，**均 69 passed**。也就是说那 5 条失败来自全量并发跑时的相互污染（共享组织/权限状态），与 `ids` 改动无关。
+
+**因此本报告的验收口径是「集合差」而不是「计数」**，并且凡涉及「某测试是否被改动影响」的结论，都以**单文件隔离复跑**为准，不以全量跑的名单为准。已知稳定失败的族：`test_cloud_egress`（livekit protobuf 字段漂移）、`test_jusi_im_p5`（外部服务 503）、依赖 mailcatcher 的邮件类测试。
+
 ---
 
 ## 六、需要「真正补齐」的清单（按优先级）
@@ -308,7 +334,7 @@ GET    /meeting-records/{id}/source-status/
 | **3** | **媒体下载 + 原始媒体可达**（M1） | 妙记可下载原始音视频；用户对「我的录音」有天然所有权预期 | 接线 `download_media`：新增 `GET /meeting-records/{id}/media/`（签名 URL，短时效，复验 `read_transcript` + `retention_mode==media`）。**注意**：旧 `Recording` 已有整文件签名下载（`viewsets.py:2376-2420` `/recordings/media-auth/` + nginx auth subrequest），**可复用该模式**；但新记录侧的 `MeetingMediaSegment` 没有序列化器/视图/路由（`models.py:1615`），需先补映射暴露。Web/Android 加「下载」入口 | 小—中（模式复用，主要工作在映射暴露） |
 | **4** | **上传上限提到与妙记同量级**（G2） | 100 MB ≈ 1 小时 mp3；妙记 **6 GB / 6 h**。60× 差距直接排除长会议与线上培训场景 | 改 `MEETING_FILE_ASR_MAX_BYTES` 到 GB 级 + 对象存储直传（分片）+ 异步 ASR；注意 `BoundedUploadHandler`（`uploaded_recordings.py:51-58`）是为防磁盘打满而设，**必须换成直传对象存储**而非单纯调大阈值 | 中（含存储与配额设计） |
 | **5** | **逐字稿导出**（M3） | 妙记有独立导出接口；纪要不能替代逐字稿（合规/归档刚需） | 新增导出：`TXT / Markdown / SRT / VTT`（按 `start_ms` 生成时间轴）。**SRT/VTT 顺带解决 P5 字幕轨**——同一份数据两个用途 | 小 |
-| **6** | **说话人 → 真实成员映射**（T2） | 妙记可把 `speaker_id` 换成 `ou_` 成员；「说话人 1/2」在纪要里等于没归因 | 扩 `MeetingSpeaker`：加可空的 `user` FK + `confidence`；新增 `PATCH /meeting-records/{id}/speakers/{speaker_id}/` 绑定成员；纪要生成时把真人名写进要点文本（与妙记 `@姓名` 纯文本口径一致） | 中 |
+| **6** | **说话人 → 真实成员映射**（T2） | 妙记可把 `speaker_id` 换成 `ou_` 成员；「说话人 1/2」在纪要里等于没归因 | ~~扩 `MeetingSpeaker`：加可空的 `user` FK + `confidence`；新增 `PATCH /meeting-records/{id}/speakers/{speaker_id}/` 绑定成员；纪要生成时把真人名写进要点文本（与妙记 `@姓名` 纯文本口径一致）~~ → **已完成（见 §5.6）** | ~~中~~ ✅ |
 
 ### P1 — 决定「好用」与「完整」
 

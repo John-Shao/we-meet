@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
@@ -11,6 +11,7 @@ import type {
   ApiRecordTranscriptVersion,
   ApiRecordTranscript,
   ApiRecordSpeaker,
+  ApiAttributionCandidate,
   MeetingRecordFilters,
   MeetingRecordPage,
   LegacyMeetingRecordSource,
@@ -319,6 +320,76 @@ export const useCorrectOriginalSegment = (viewerId: string, recordId: string) =>
     onSuccess: async () => {
       // The corrected text is projected into every transcript read, so the list
       // has to re-read rather than be patched locally.
+      await client.invalidateQueries({
+        queryKey: ['meeting-records', viewerId],
+      })
+    },
+  })
+}
+
+/**
+ * People this reader may bind a speaker track to.
+ *
+ * Read at the moment the picker opens rather than on mount: most readers never
+ * attribute anyone, and the server draws the list from the same directory the
+ * write accepts, so there is no point holding it in the cache.
+ */
+export const useAttributionCandidates = (
+  viewerId: string | undefined,
+  recordId: string | undefined,
+  query: string,
+  enabled: boolean
+) =>
+  useQuery<{ results: ApiAttributionCandidate[] }, ApiError>({
+    ...privateReadOptions,
+    // A search keeps the previous list on screen: blanking it mid-keystroke
+    // looks like "nobody matches" while the request is still in flight.
+    placeholderData: keepPreviousData,
+    queryKey: [
+      'meeting-records',
+      viewerId,
+      'attribution-candidates',
+      recordId,
+      query,
+    ],
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams(query ? { q: query } : {})
+      return fetchApi(
+        `${recordPath(recordId!)}attribution-candidates/?${params}`,
+        { signal }
+      )
+    },
+    enabled: enabled && !!viewerId && !!recordId,
+  })
+
+/**
+ * Bind a speaker track to a person, or clear the binding.
+ *
+ * Attribution never rewrites the recogniser's label — the server keeps it and
+ * resolves one name for readers — so the transcript has to be re-read rather
+ * than patched locally.
+ */
+export const useAttributeSpeaker = (viewerId: string, recordId: string) => {
+  const client = useQueryClient()
+  return useMutation<
+    ApiRecordSpeaker,
+    ApiError,
+    { speakerId: string; userId: string | null }
+  >({
+    mutationFn: ({ speakerId, userId }) =>
+      fetchApi<ApiRecordSpeaker>(
+        `${recordPath(recordId)}speakers/${encodeURIComponent(speakerId)}/`,
+        {
+          method: 'PATCH',
+          cache: 'no-store',
+          redirect: 'error',
+          signal: AbortSignal.timeout(20000),
+          body: JSON.stringify({ user_id: userId }),
+        }
+      ),
+    retry: false,
+    gcTime: 0,
+    onSuccess: async () => {
       await client.invalidateQueries({
         queryKey: ['meeting-records', viewerId],
       })

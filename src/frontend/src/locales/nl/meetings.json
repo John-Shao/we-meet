@@ -50,6 +50,18 @@
     "restore": "Origineel herstellen",
     "failed": "De correctie is niet opgeslagen. Probeer opnieuw."
   },
+  "speakerAttribution": {
+    "change": "Wie is dit?",
+    "changeFor": "Aangeven wie {{name}} echt is",
+    "cancel": "Sluiten",
+    "search": "Personen zoeken",
+    "find": "Zoeken",
+    "choose": "Deze spreker aan {{name}} toewijzen",
+    "clear": "Toewijzing wissen",
+    "nobody": "Niemand om uit te kiezen.",
+    "loadError": "De map kon niet worden geladen. Probeer het opnieuw.",
+    "failed": "De toewijzing is niet opgeslagen. Probeer het opnieuw."
+  },
   "transcriptExport": {
     "label": "Transcript exporteren",
     "download": "{format} downloaden"

@@ -50,6 +50,18 @@
     "restore": "Original wiederherstellen",
     "failed": "Die Korrektur wurde nicht gespeichert. Versuchen Sie es erneut."
   },
+  "speakerAttribution": {
+    "change": "Wer ist das?",
+    "changeFor": "Festlegen, wer {{name}} wirklich ist",
+    "cancel": "Schließen",
+    "search": "Personen suchen",
+    "find": "Suchen",
+    "choose": "Diesen Sprecher {{name}} zuordnen",
+    "clear": "Zuordnung entfernen",
+    "nobody": "Keine Person zur Auswahl.",
+    "loadError": "Das Verzeichnis konnte nicht geladen werden. Bitte erneut versuchen.",
+    "failed": "Die Zuordnung wurde nicht gespeichert. Bitte erneut versuchen."
+  },
   "transcriptExport": {
     "label": "Transkript exportieren",
     "download": "{format} herunterladen"

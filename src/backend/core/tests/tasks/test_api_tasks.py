@@ -1123,6 +1123,19 @@ def test_task_global_search_visibility_includes_list_members_but_not_card_only()
         ("follower_ids", ","),
         ("due", "next_month"),
     ],
+    # Named explicitly. The assignee case carries twenty-one random UUIDs, and
+    # pytest's generated id echoes them: the node ids then differ between xdist
+    # workers ("Different tests were collected") and the multi-kilobyte id
+    # cannot be written to PYTEST_CURRENT_TEST on Windows.
+    ids=[
+        "query-too-short",
+        "query-blank",
+        "query-too-long",
+        "creator-ids-not-uuid",
+        "too-many-assignees",
+        "follower-ids-empty",
+        "due-unknown",
+    ],
 )
 def test_task_global_search_rejects_invalid_parameters(parameter, value):
     response = _client(UserFactory()).get(
