@@ -366,8 +366,11 @@ def test_speakers_are_source_scoped_and_never_map_to_an_account():
     _, _, other, other_token = recording()
     assert ingest(other_token, source(other)).status_code == 201
     assert models.MeetingSpeaker.objects.count() == 3
+    # Ingesting never attributes a speaker to an account. Attribution exists, but
+    # it is a deliberate human act (`speaker_attribution.attribute`), never a side
+    # effect of a track arriving with a particular label.
     assert all(
-        s.identity_type == "diarized" and not hasattr(s, "user_id")
+        s.identity_type == "diarized" and s.user_id is None
         for s in models.MeetingSpeaker.objects.all()
     )
 

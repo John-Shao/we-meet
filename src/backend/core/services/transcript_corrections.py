@@ -17,6 +17,7 @@ from django.db.models import F, OuterRef, Subquery
 from django.db.models.functions import Coalesce
 
 from core import models
+from core.models import MeetingSpeaker
 from core.services.meeting_records import RecordConflict, can_generate_summary
 
 #: Bound on a single correction. Long enough for a real sentence and for pasting
@@ -51,6 +52,41 @@ def corrected_text(segment):
     """The reader's text for one segment: the newest revision, else the original."""
     revision = segment.revisions.order_by("-revision").first()
     return revision.text if revision else segment.text
+
+
+def attributed_name_subquery():
+    """The speaker's visible name, for annotating a segment queryset.
+
+    Attribute to a person and the reader sees that person; leave it unattributed
+    and they see the recogniser's label. Resolved in one place so the transcript,
+    the export and the summary cannot disagree about what a speaker is called.
+
+    Coalesced through the label for the same reason as the text projection: a bare
+    lookup yields NULL for every unattributed speaker, which is most of them.
+    """
+    named = (
+        MeetingSpeaker.objects.filter(pk=OuterRef("speaker_id"))
+        .annotate(
+            resolved=Coalesce(
+                "user__full_name",
+                "user__short_name",
+                "user__email",
+                "label",
+                # The account's email column is an EmailField, so without an
+                # explicit target the coalesce mixes types and Django refuses it.
+                output_field=django_models.CharField(max_length=128),
+            )
+        )
+        .values("resolved")[:1]
+    )
+    return Subquery(named, output_field=django_models.CharField(max_length=128))
+
+
+def speaker_display_name(speaker):
+    """The same resolution in Python, for callers holding an instance."""
+    if speaker is None:
+        return ""
+    return speaker.display_name
 
 
 def _authorize(record, user):

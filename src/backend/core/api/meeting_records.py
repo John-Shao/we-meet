@@ -18,7 +18,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 
 from core import models
-from core.services import transcript_corrections, transcript_export
+from core.services import speaker_attribution, transcript_corrections, transcript_export
 from core.services.asr_observations import observation_status, snapshot_asr_status
 from core.services.capture_transcription import current_originals
 from core.services.meeting_records import (
@@ -81,6 +81,21 @@ class SummaryRequestSerializer(serializers.Serializer):
             raise ValidationError("Job ID and attempt must be supplied together.")
         if attrs["expected_job_id"] is not None:
             attrs["expected_job_id"] = str(attrs["expected_job_id"])
+        return attrs
+
+
+class SpeakerAttributionSerializer(serializers.Serializer):
+    """Bind a speaker track to a member, or clear the binding.
+
+    Omitting `user_id` (or sending null) clears it, which is a real operation:
+    an editor who attributed the wrong colleague has to be able to undo that.
+    """
+
+    user_id = serializers.UUIDField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        if set(self.initial_data) - set(self.fields):
+            raise ValidationError("Unsupported attribution field.")
         return attrs
 
 
@@ -779,7 +794,10 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         # corrected row may not be returned. Widening the filter to the revision
         # table would mean a join across paged rows; left as a known bound rather
         # than traded for a slower, harder-to-read query.
-        rows = rows.annotate(corrected_text=transcript_corrections.corrected_text_subquery())
+        rows = rows.annotate(
+            corrected_text=transcript_corrections.corrected_text_subquery(),
+            display_name=transcript_corrections.attributed_name_subquery(),
+        )
         pager = RecordPagination()
         pager.ordering = ("start_ms", "id")
         page = pager.paginate_queryset(rows, request, view=self)
@@ -794,7 +812,10 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "start_ms": row.start_ms,
                     "end_ms": row.end_ms,
                     "speaker_id": str(row.speaker_id),
-                    "speaker_label": row.speaker.label,
+                    # The attributed person when a human bound one, else the
+                    # recogniser's label. Resolved server-side so the row and the
+                    # summary cannot disagree about who is speaking.
+                    "speaker_label": row.display_name or row.speaker.label,
                     "text": row.corrected_text,
                     # The recogniser's own words, so a reader can see what changed
                     # and an edit never looks like it was always there.
@@ -953,17 +974,53 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         return pager.get_paginated_response(
             [
                 {
-                    "id": str(row.pk),
-                    "label": row.label,
-                    "identity_type": row.identity_type,
+                    **speaker_attribution.serialize(row),
                     # Capture-backed reads also carry the source key, so a caller
                     # that only kept the raw track key can still filter.
                     "source_key": row.source_key,
                     "param": "speaker",
+                    # Whether this reader may change the attribution, so the UI
+                    # does not offer a control that would be refused.
+                    "can_attribute": can_generate_summary(record, request.user),
                 }
                 for row in page
             ]
         )
+
+    @action(
+        detail=True,
+        methods=["patch"],
+        url_path=r"speakers/(?P<speaker_id>[0-9a-f-]{36})",
+    )
+    def attribute_speaker(self, request, pk=None, speaker_id=None):
+        """Bind one diarised track to a member, or clear the binding.
+
+        Bound to a person, every reader-facing artifact shows that name — the
+        transcript row, the export and the summary. The recogniser's label is
+        untouched, so attributing is a presentation decision that adds no evidence
+        and rewrites none.
+        """
+        record = self._content_record("read_transcript")
+        speaker = serializers.UUIDField().run_validation(speaker_id)
+        serializer = SpeakerAttributionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            bound = speaker_attribution.attribute(
+                record,
+                speaker,
+                request.user,
+                user_id=serializer.validated_data.get("user_id"),
+            )
+        except PermissionError as error:
+            raise PermissionDenied(str(error)) from error
+        except speaker_attribution.AttributionDenied as error:
+            # The caller may attribute; this target is the problem.
+            return Response(
+                {"code": "not_a_member", "message": str(error)}, status=400
+            )
+        except LookupError as error:
+            raise Http404 from error
+        return Response(speaker_attribution.serialize(bound))
 
     @action(detail=True, methods=["get"])
     def media(self, request, pk=None):

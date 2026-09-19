@@ -1514,7 +1514,13 @@ class CaptureTranscriptionInput(BaseModel):
 
 
 class MeetingSpeaker(BaseModel):
-    """Source-scoped offline labels never imply a user account identity."""
+    """A source track's speaker, optionally attributed to a real person.
+
+    `label` is what the recogniser produced ("Speaker 1"), and it stays as
+    produced: it is evidence, and it is what the source used. `user` is a human
+    attribution made afterwards. Callers resolve one visible name through
+    `display_name`, so binding a person never rewrites the recogniser's record.
+    """
 
     record = models.ForeignKey(
         MeetingRecord, on_delete=models.CASCADE, related_name="speakers"
@@ -1526,6 +1532,23 @@ class MeetingSpeaker(BaseModel):
     identity_type = models.CharField(
         max_length=16, choices=[("diarized", "Diarized"), ("unknown", "Unknown")]
     )
+    #: Who a human decided this track is. Null means "not attributed yet", which
+    #: is not the same as "nobody": an unattributed speaker is still a speaker.
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attributed_speakers",
+    )
+    attributed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="speaker_attributions",
+    )
+    attributed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [
@@ -1538,13 +1561,48 @@ class MeetingSpeaker(BaseModel):
     def __str__(self):
         return f"MeetingSpeaker({self.pk})"
 
-    def clean(self):
-        """Keep source identity immutable and reject cross-record attribution."""
-        super().clean()
-        if not self._state.adding or self.capture_session.record_id != self.record_id:
-            raise ValidationError(
-                "Speaker source is immutable and must match its record."
+    @property
+    def display_name(self) -> str:
+        """The one name a reader sees: the attributed person, else the label.
+
+        Kept here rather than at each call site so the transcript, the export and
+        the summary cannot disagree about what a speaker is called.
+        """
+        if self.user_id:
+            return (
+                self.user.full_name
+                or self.user.short_name
+                or self.user.email
+                or self.label
             )
+        return self.label
+
+    def clean(self):
+        """Keep source identity immutable; attribution is what may change.
+
+        Attribution is deliberately outside the immutable set: deciding that
+        "Speaker 1" is a person is the whole point, and it appends no evidence —
+        the recogniser's label is untouched either way.
+        """
+        super().clean()
+        if self._state.adding:
+            if self.capture_session.record_id != self.record_id:
+                raise ValidationError(
+                    "Speaker source is immutable and must match its record."
+                )
+            return
+        source = (
+            type(self)
+            .objects.filter(pk=self.pk)
+            .values("record_id", "capture_session_id", "source_track_id", "source_key", "identity_type", "label")
+            .first()
+        )
+        if source and any(
+            source[key] != getattr(self, key) for key in source
+        ):
+            raise ValidationError("Speaker source is immutable.")
+        if self.id and self.capture_session.record_id != self.record_id:
+            raise ValidationError("Speaker must match its record.")
 
 
 class MeetingOriginalSegment(BaseModel):
