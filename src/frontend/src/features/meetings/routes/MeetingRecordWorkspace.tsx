@@ -37,6 +37,7 @@ import { TranscriptExportControl } from '../components/TranscriptExportControl'
 import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
+import { SpeakerActivity } from '../components/SpeakerActivity'
 import { TranscriptDraftScope } from '../components/TranscriptDraftScope'
 import { useTranscriptDraftScope } from '../hooks/useTranscriptDraft'
 import { RecordRenameControl } from '../components/RecordRenameControl'
@@ -273,7 +274,7 @@ function OriginalRead({
       {!query.data.results.length && <p>{t('library.noContent')}</p>}
       {query.data.results.map((item) =>
         'identity_type' in item ? (
-          <p
+          <div
             key={item.id}
             className={cx(textStyle, css({ overflowWrap: 'anywhere' }))}
           >
@@ -289,7 +290,8 @@ function OriginalRead({
                 speaker={item}
               />
             )}
-          </p>
+            <SpeakerActivity activity={item.activity} />
+          </div>
         ) : (
           <TranscriptSegment
             key={item.id}
@@ -639,6 +641,7 @@ function WorkspaceContent({
         {canReadText && record.source_type !== 'meeting' && (
           <TabPanel id="speakers" padding="md">
             <p className={textStyle}>{t('library.speakersHint')}</p>
+            <p className={textStyle}>{t('speakerActivity.basis')}</p>
             <OriginalRead
               key={`${record.id}:${record.revision}:speakers`}
               record={record}

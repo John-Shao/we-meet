@@ -1,4 +1,11 @@
 {
+  "speakerActivity": {
+    "basis": "Estimation des intervalles transcrits valides, pas de la durée de l’enregistrement. Les chevauchements d’un même intervenant sont fusionnés ; les intervenants simultanés comptent séparément. Le total inclut les interventions non attribuées.",
+    "unavailable": "Durées de parole indisponibles.",
+    "value": "{{time}} · {{percent}} % du temps de parole reconnu",
+    "share": "Part du temps de parole reconnu",
+    "partial": "Certains intervalles sans heure de fin valide sont exclus."
+  },
   "chapterReader": {
     "empty": "Cette version du compte rendu ne contient aucun chapitre. Consultez la synthèse ou, si vous y avez accès, la transcription.",
     "noVersion": "Les chapitres apparaîtront ici lorsqu’un compte rendu sera disponible.",

@@ -18,7 +18,12 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 
 from core import models
-from core.services import speaker_attribution, transcript_corrections, transcript_export
+from core.services import (
+    speaker_activity,
+    speaker_attribution,
+    transcript_corrections,
+    transcript_export,
+)
 from core.services.asr_observations import observation_status, snapshot_asr_status
 from core.services.capture_transcription import current_originals
 from core.services.effective_transcripts import project
@@ -950,9 +955,12 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         returned here so a caller can offer one filter and simply echo back the
         token it was handed, together with the parameter name to use.
         """
-        if not settings.MEETING_CAPTURE_PROTOCOL_ENABLED:
-            raise Http404
         record = self._content_record("read_transcript")
+        if (
+            not settings.MEETING_CAPTURE_PROTOCOL_ENABLED
+            and record.source_type != models.MeetingRecord.Source.UPLOAD
+        ):
+            raise Http404
 
         if record.meeting_session_id:
             rows = (
@@ -988,10 +996,13 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             request,
             view=self,
         )
+        stats, stats_status = speaker_activity.activity(record)
+        self._check_original_revision(record, record.revision)
         return pager.get_paginated_response(
             [
                 {
                     **speaker_attribution.serialize(row),
+                    "activity": speaker_activity.serialize(stats, stats_status, row.pk),
                     # Capture-backed reads also carry the source key, so a caller
                     # that only kept the raw track key can still filter.
                     "source_key": row.source_key,

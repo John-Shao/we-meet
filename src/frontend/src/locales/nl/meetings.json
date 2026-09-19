@@ -1,4 +1,11 @@
 {
+  "speakerActivity": {
+    "basis": "Geschat op basis van geldige transcriptintervallen, niet de opnameduur. Overlap van dezelfde spreker wordt samengevoegd; gelijktijdige sprekers tellen afzonderlijk. Het totaal bevat niet-toegewezen spraak.",
+    "unavailable": "Geen spreektijden beschikbaar.",
+    "value": "{{time}} · {{percent}}% van de herkende spreektijd",
+    "share": "Aandeel van de herkende spreektijd",
+    "partial": "Intervallen zonder geldige eindtijd zijn uitgesloten."
+  },
   "chapterReader": {
     "empty": "Deze versie van de samenvatting bevat geen hoofdstukken. Lees het overzicht of, als u toegang hebt, het transcript.",
     "noVersion": "Hoofdstukken verschijnen hier zodra een samenvatting beschikbaar is.",

@@ -81,6 +81,12 @@ export interface ApiMeetingSpeaker {
   id: string
   label: string
   identity_type: 'diarized' | 'unknown'
+  activity?: {
+    basis: 'recognized_speaker_time'
+    status: 'available' | 'partial' | 'unavailable'
+    duration_ms: number | null
+    share_percent: number | null
+  }
 }
 
 /** /meeting-records/{id}/original-segments/, separately authorized from summaries. */

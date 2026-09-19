@@ -1,4 +1,4 @@
-# 妙记差距整改：九批执行状态
+# 妙记差距整改：十批执行状态
 
 本文件是执行后的状态；[复评](miaojie-reassessment-2026-09-20.md)保留实施前证据和完整路线图。以下“完成”指实现及所列回归，不等于已部署或生产验收。
 
@@ -12,7 +12,8 @@
 | 6 | 分片合并响应丢失及登记失败恢复，双端免重传，进度累计 | `8261c9e44` | `f3fda4be` |
 | 7 | 独立章节入口、版本/快照引用、可信空态 | `08a2e3453` | `23368f49` |
 | 8 | 记录详情 revision 刷新和行重建时保留 Web 校对草稿 | `90a2f04a5` | 本批无变更 |
-| 9 | Android 原文重新加载时保留草稿与保存任务 | 见本文件所在批次提交（文档） | 见 Android 同批提交 |
+| 9 | Android 原文重新加载时保留草稿与保存任务 | `fea5bf5ed`（文档） | `b52b5032` |
+| 10 | 发言片段时长/占比、全量分母、不可用和部分统计说明 | 见本文件所在批次提交 | 见 Android 同批提交 |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaojie-first-batch-2026-09-20.md)、[上传纪要](miaojie-batch-2-upload-summary.md)、[定位](miaojie-batch-3-playback-navigation.md)、[媒体](miaojie-batch-4-media-playback.md)、[能力](miaojie-batch-5-capabilities.md)、[上传恢复](miaojie-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
@@ -26,4 +27,4 @@
 
 ## 仍未实现的产品项
 
-本轮关闭了优先级最高的正确性及回看链路缺口。[第七批](miaojie-batch-7-chapters.md)补齐独立章节导航及空态，[第八批](miaojie-batch-8-drafts.md)与[第九批](miaojie-batch-9-android-drafts.md)补齐列表重建时的草稿保护。复评中的共享范围与原媒体下载、发言占比/时间轴、批量校对、长期热词库、关键词、多条件全局筛选排序仍属于后续产品批次；线上会议完整录像回放另需实际录制产物和媒体时间映射。不要把这些批次理解为已全量对齐飞书妙记。
+本轮关闭了优先级最高的正确性及回看链路缺口。[第七批](miaojie-batch-7-chapters.md)补齐独立章节导航及空态，[第八批](miaojie-batch-8-drafts.md)与[第九批](miaojie-batch-9-android-drafts.md)补齐列表重建时的草稿保护，[第十批](miaojie-batch-10-speaker-activity.md)补齐录音与上传件的发言时长占比。复评中的共享范围与原媒体下载、精细发言时间轴、批量校对、长期热词库、关键词、多条件全局筛选排序仍属于后续产品批次；线上会议完整录像回放另需实际录制产物和媒体时间映射。不要把这些批次理解为已全量对齐飞书妙记。

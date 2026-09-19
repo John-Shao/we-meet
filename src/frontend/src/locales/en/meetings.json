@@ -1,4 +1,11 @@
 {
+  "speakerActivity": {
+    "basis": "Estimated from valid transcribed intervals, not recording length. Overlaps by the same speaker are merged; simultaneous speakers count separately. Unassigned speech is included in the denominator.",
+    "unavailable": "Speaker timing is unavailable.",
+    "value": "{{time}} · {{percent}}% of recognized speaker time",
+    "share": "Share of recognized speaker time",
+    "partial": "Some intervals have no usable end time and are excluded."
+  },
   "chapterReader": {
     "empty": "This summary version has no chapters. You can read the overview or, if permitted, the transcript.",
     "noVersion": "Chapters will appear here once a summary is available.",

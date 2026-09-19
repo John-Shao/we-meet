@@ -1,4 +1,11 @@
 {
+  "speakerActivity": {
+    "basis": "Schätzung anhand gültiger Transkriptintervalle, nicht der Aufnahmedauer. Überlappungen derselben Person werden zusammengeführt; gleichzeitige Personen zählen getrennt. Nicht zugeordnete Beiträge sind im Gesamtwert enthalten.",
+    "unavailable": "Keine Sprechzeitdaten verfügbar.",
+    "value": "{{time}} · {{percent}} % der erkannten Sprechzeit",
+    "share": "Anteil der erkannten Sprechzeit",
+    "partial": "Intervalle ohne gültige Endzeit sind ausgeschlossen."
+  },
   "chapterReader": {
     "empty": "Diese Zusammenfassung enthält keine Kapitel. Lesen Sie die Übersicht oder, falls berechtigt, das Transkript.",
     "noVersion": "Kapitel erscheinen hier, sobald eine Zusammenfassung verfügbar ist.",
