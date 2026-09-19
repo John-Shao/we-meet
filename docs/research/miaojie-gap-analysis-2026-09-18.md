@@ -301,7 +301,7 @@ GET    /meeting-records/{id}/source-status/
 |---|---|---|
 | **逐字稿修订（P0-2 / T5）** | 后端 `MeetingOriginalRevision`（≥0180）+ `transcript_corrections.py`；Web `TranscriptSegment.tsx`；Android `RecordSegmentCorrection.kt` | 原文与说话人**都不改写**：修订是追加层，经 `corrected_text_subquery` 一个投影解析；`expected_revision` 让并发编辑成为 409 而非静默覆盖。**线上会议不受支持**：那条来源没有修订模型，服务端是**拒绝**而不是半可用，因此两端都对该来源不显示控件 |
 | **逐字稿导出（P0-5）** | 后端 `transcript_export.py`（TXT/SRT/VTT）；Web `<a download>`、Android 流式下载 | 选择器是 **`as` 而不是 `format`**——DRF 的 `URL_FORMAT_OVERRIDE` 默认就是 `format`，用 `?format=txt` 会在进入视图前被消费并 404。VTT 转义 `&`/`<`/`>`；重叠行按下一行起点截断 |
-| **上传上限（P0-4）** | `presign_direct_upload` / `complete_direct_upload` 两步直传，6 GiB 上限 | **Shipped dark**：`MEETING_FILE_DIRECT_UPLOAD_ENABLED` 默认 `False`，多段上传仍为 100 MiB、ingress 注解未动。客户端先接入两步流程才能打开开关 |
+| **上传上限（P0-4）** | `presign_direct_upload` / `complete_direct_upload` 两步直传 + 可续传分片端点（`multipart/*`）；6 GiB 上限 | **开关已开**（2026-09-19，见 §5.9 末）——两端客户端、CORS、真实 OSS 分片往返均已验证；多段上传仍保留 100 MiB、ingress 注解未动，作为回滚与老客户端路径。**尚欠一次部署后的真实端到端** |
 | **媒体下载（P0-3）** | 折进「上传即整文件回放」：签名 GET + HTTP Range | 未做成独立下载入口。权限沿用录制会话的**属主**规则（`created_by=user` 且 `owner=user`），没有放宽。`MEETING_GET_URL_TTL_SECONDS = 3600`，**> 1 小时的文件 TTL 未实测** |
 | **说话人归属（P0-6 / T2）** | 后端 `speaker_attribution.py` + `PATCH speakers/{id}/` + 候选目录 `attribution-candidates`；Web `SpeakerAttributionControl.tsx`；Android `RecordSpeakerAttribution.kt` | 识别器标签不改写，只加可空 `user` FK 与一个 `attributed_name_subquery` 投影。候选目录**刻意复用写入侧的边界**（记录所属组织的在职成员），因为「选择器给出一个写入会拒绝的人」比没有选择器更糟；无组织的个人导入退化为「与操作者同组织的人 + 本人」，**不做全量用户搜索**。清除绑定是一等操作。读不到目录的纯读者得到**空列表而不是 403** |
 | **`-n auto` 修复（测试基建）** | `test_docs_delivery_client.py`、`test_api_tasks.py` 的 parametrize 加显式 `ids` | 两处把随机 UUID / 多 KB 载荷写进了 parametrize id：xdist 各 worker 因此收集到不同 node id（`Different tests were collected`），且超长 id 无法写入 `PYTEST_CURRENT_TEST`（Windows 32767 字符上限）。**与会议实录功能无关，但会挡住任何并行全量跑** |
@@ -332,7 +332,7 @@ GET    /meeting-records/{id}/source-status/
 | **1** | **音视频 ↔ 逐字稿双向同步**（P1） | 这是妙记与「转写文本导出」的分水岭。没有它，用户仍要自己找位置 | ① 播放器 `onTimeUpdate` 已算全局 ms（`CaptureAudioPlayer.tsx:311`）→ 用 context/prop 向上暴露 `positionMs`；② 逐字稿行按 `start_ms/end_ms` 命中区间加 `aria-current` + 样式；③ 命中变化时 `scrollIntoView({block:'nearest'})`（复刻 `MeetingDetail.tsx:841-843` 已有的 2s 高亮做法）；④ 用户手动滚动时**暂停自动滚动 3–5 秒**，避免抢焦点 | 中（Web 先做；Android 复用 `CapturePlaybackRegistry`） |
 | **2** | **逐字稿可编辑**（T1/T5） | 妙记把逐字稿当内容；只读的逐字稿在真实会议里不可用（ASR 必错） | ⚠️ **不能改 `MeetingOriginalSegment`**（不可变是溯源根基）。新增 `TranscriptRevision`（record + segment + 新 text + 作者 + 时间 + revision），读取时走「修订优先，回退原文」；`payload_hash` 与 `source_refs` 继续锚定 **segment_id + revision**，历史引用仍可回读 | 大 |
 | **3** | **媒体下载 + 原始媒体可达**（M1） | 妙记可下载原始音视频；用户对「我的录音」有天然所有权预期 | 接线 `download_media`：新增 `GET /meeting-records/{id}/media/`（签名 URL，短时效，复验 `read_transcript` + `retention_mode==media`）。**注意**：旧 `Recording` 已有整文件签名下载（`viewsets.py:2376-2420` `/recordings/media-auth/` + nginx auth subrequest），**可复用该模式**；但新记录侧的 `MeetingMediaSegment` 没有序列化器/视图/路由（`models.py:1615`），需先补映射暴露。Web/Android 加「下载」入口 | ⚠️ **未闭环**（见 §5.8）——只覆盖「上传件 + 属主 + 回放」，不是「媒体下载」 |
-| **4** | **上传上限提到与妙记同量级**（G2） | 100 MB ≈ 1 小时 mp3；妙记 **6 GB / 6 h**。60× 差距直接排除长会议与线上培训场景 | 改 `MEETING_FILE_ASR_MAX_BYTES` 到 GB 级 + 对象存储直传（分片）+ 异步 ASR；注意 `BoundedUploadHandler`（`uploaded_recordings.py:51-58`）是为防磁盘打满而设，**必须换成直传对象存储**而非单纯调大阈值 | ⚠️ **代码已齐、CORS 与真实桶分片均已验证；只差翻开关与一次端到端**（见 §5.8–§5.11）——两端整文件直传与可续传分片上传已实现并测试，模拟器验证并修掉两个真缺陷，真实 OSS 完整分片往返已跑通；剩余：①生产开关仍为 `False`；②未跑过「我们的端点 + 客户端 + 真实桶」的端到端，也未跑 6 GiB 级文件 |
+| **4** | **上传上限提到与妙记同量级**（G2） | 100 MB ≈ 1 小时 mp3；妙记 **6 GB / 6 h**。60× 差距直接排除长会议与线上培训场景 | 改 `MEETING_FILE_ASR_MAX_BYTES` 到 GB 级 + 对象存储直传（分片）+ 异步 ASR；注意 `BoundedUploadHandler`（`uploaded_recordings.py:51-58`）是为防磁盘打满而设，**必须换成直传对象存储**而非单纯调大阈值 | ✅ **开关已开（2026-09-19）**；代码、两端客户端、CORS、真实 OSS 分片往返均验证；**唯一未验证项是部署后的真实端到端**（见 §5.9 末与 §5.11） |
 | **5** | **逐字稿导出**（M3） | 妙记有独立导出接口；纪要不能替代逐字稿（合规/归档刚需） | 新增导出：`TXT / Markdown / SRT / VTT`（按 `start_ms` 生成时间轴）。**SRT/VTT 顺带解决 P5 字幕轨**——同一份数据两个用途 | 小 |
 | **6** | **说话人 → 真实成员映射**（T2） | 妙记可把 `speaker_id` 换成 `ou_` 成员；「说话人 1/2」在纪要里等于没归因 | ~~扩 `MeetingSpeaker`：加可空的 `user` FK + `confidence`；新增 `PATCH /meeting-records/{id}/speakers/{speaker_id}/` 绑定成员；纪要生成时把真人名写进要点文本（与妙记 `@姓名` 纯文本口径一致）~~ → **已完成（见 §5.6）** | ~~中~~ ✅ |
 
@@ -403,12 +403,12 @@ GET    /meeting-records/{id}/source-status/
 
 更根本的是 `MeetingMediaSegment` 至今**在生产代码里零写入、零读取**：`core/api` 与 `core/urls.py` 中无任何引用，全部命中都在测试里。生产值文件也自陈 `# Recording disabled（待第二阶段加 livekit-egress + 第二台 ECS）`，`RECORDING_STORAGE_EVENT_ENABLE: "False"`。**结论：媒体可达性仍是被基建阻塞的原状态，「媒体下载」这一能力没有新增覆盖。**
 
-**P0-4 上传上限 —— 后端已备，用户不可达。** 生产实际生效的 `src/helm/env.d/aliyun-prod/values.meet.yaml`：
+**P0-4 上传上限 —— 当时：后端已备、用户不可达。** 生产实际生效的 `src/helm/env.d/aliyun-prod/values.meet.yaml`（**以下为当时的值，现已被 §5.9 末的翻转取代**）：
 
 ```
 MEETING_FILE_ASR_MAX_BYTES: "104857600"             # 100 MiB，多段上传路径的硬上限
-MEETING_FILE_DIRECT_UPLOAD_ENABLED: "False"          # 直传关闭
-MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES: "6442450944"   # 6 GiB，但用不上
+MEETING_FILE_DIRECT_UPLOAD_ENABLED: "False"          # 直传关闭（现为 "True"）
+MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES: "6442450944"   # 6 GiB
 ```
 
 `BoundedUploadHandler` 仍按 100 MiB 截断。**关键的一点：两端客户端都没有接入两步直传流程**——Web 与 Android 对 `recording-uploads/upload-url`、`recording-uploads/upload-complete` 的引用数均为 **0**，`RecordingUpload.tsx` 走的还是单次 `FormData` 多段上传。所以即使把开关翻成 `True`，用户拿到的仍是 100 MiB；**这不是配置问题，是客户端工作尚未开始。**
@@ -427,7 +427,11 @@ MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES: "6442450944"   # 6 GiB，但用不上
 - **凭证边界**：两端直传都**不携带 App 凭证**。Web 用的是裸 `fetch`（不带 cookie）；Android 用 `recordingStorageHttp()` —— 一个没有 `AuthInterceptor`、没有 `SessionExpiredInterceptor`、没有 authenticator 的独立 OkHttpClient。预签名 URL 自带授权，把 bearer token 发给存储主机只会平白泄露一个应用凭证；而存储侧 401 也不是会话过期，刷新令牌救不了它。
 - **重试语义**：两步之间不是原子的，因此 PUT 成功但登记失败时，保留 signed ticket 并**重发登记**（同一个 `key`），而不是重新签名——重签会在桶里留下一个孤儿对象并重传整份文件。PUT 本身幂等，重传字节无害。
 
-**仍差一步**：生产 `values.meet.yaml` 的 `MEETING_FILE_DIRECT_UPLOAD_ENABLED` 仍是 `"False"`。代码已就位，**翻开关是运维动作**；在此之前用户拿到的仍是 100 MiB。
+**开关已翻转（2026-09-19）**：生产 `values.meet.yaml` 的 `MEETING_FILE_DIRECT_UPLOAD_ENABLED` 已改为 `"True"`。翻转前逐条核对了 `direct_upload_available()` 的**全部合取项**（不是只看这一个开关）：`MEETING_RECORDS_ENABLED`、`MEETING_FILE_ASR_ENABLED`、`CELERY_ENABLED` 均为 `"True"`，`DASHSCOPE_API_KEY` 已配（77 字符，来自 k8s secret），默认 storage 仍是 `S3Storage`（该文件只覆盖了 `STORAGES_STATICFILES_BACKEND` 给静态文件，未动 default）。用 `Production` 配置类实测：`direct_upload_available()` 返回 `True`。
+
+**部署后仍需一次真实端到端**（见 §5.11 末尾）：`values` 里的值要经 helm 注入容器才生效，而「我们自己的端点 + 两端客户端 + 真实桶」这条链路从未跑过。建议先在预发用浏览器传一个 >100 MiB 的文件、用 App 传一个、再各传一个接近上限的文件，确认四件事：①两端都能拿到直传能力；②浏览器确实能完成分片（即 CORS 的 ETag 暴露在真实运行中生效）；③完成后的记录可播放、可转写；④`upload-complete` 的 `head_object` 校验在 10 秒读超时、**零重试**的客户端配置下不误报（§5.11 记录过一次瞬时 `ConnectionClosedError`）。
+
+**回滚方式**：把该值改回 `"False"` 并重新部署即可。两端客户端都保留了分支——大文件会退回多段上传（受 100 MiB 上限），小文件退回单次 `FormData`，因此回滚不会让客户端报错，只会失去 GB 级能力。已经开始的直传会话在开关关闭后无法完成（`begin`/签名端点返回 503），需要在客户端侧重新选择文件。
 
 **P0-1 空隙续跟：两端已修。** `nearestStartedRowId` 从死代码变成滚动目标，`activeRowId` 继续单独决定高亮——空隙中高亮消失（不冤枉上一句），但视图不再停住。两端各补了「高亮与滚动目标只在空隙内分歧」的测试。Web 的 `rows` 由列表自己从已取到的原文行推导（仅采集类行有 `start_ms/end_ms`；线上会议是墙钟时间戳，不参与媒体时间轴）。
 

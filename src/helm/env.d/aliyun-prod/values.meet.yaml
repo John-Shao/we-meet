@@ -184,10 +184,17 @@ backend:
     MEETING_FILE_ASR_MAX_BYTES: "104857600"
     # Direct (presigned) uploads: client PUTs straight to object storage, so the
     # 100 MiB app-disk ceiling above does not apply and GB-scale imports become
-    # possible. Enable only after the clients ship the agent's two-step flow —
-    # the API signs an exact byte count and verifies the stored object on
-    # completion, but older clients would still use the multipart branch.
-    MEETING_FILE_DIRECT_UPLOAD_ENABLED: "False"
+    # possible. Both clients now ship the two-step flow (Web and Android), and
+    # imports above 100 MiB use the resumable multipart endpoints instead of one
+    # all-or-nothing PUT, so `upload-url/` + `upload-complete/` are no longer the
+    # only path a large file can take.
+    #
+    # Requires the bucket's CORS rule to allow the web origin, PUT/POST and
+    # Content-Type, and to EXPOSE THE ETag RESPONSE HEADER - without ETag
+    # exposure a browser cannot complete a multipart upload at all. Confirmed
+    # present for we-meet-video (Aliyun OSS, Shenzhen). Android is unaffected:
+    # OkHttp reads any response header.
+    MEETING_FILE_DIRECT_UPLOAD_ENABLED: "True"
     MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES: "6442450944"
     QWEN_FILE_ASR_REGION: "cn-beijing"
     MEETING_CAPTURE_ASR_ENABLED: "True"
