@@ -28,6 +28,7 @@ import {
 import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
+import { RecordRenameControl } from '../components/RecordRenameControl'
 import { StateHint } from '@/components/StateHint'
 import {
   backLink,
@@ -39,11 +40,16 @@ import {
   pageTitle,
 } from '../components/libraryStyles'
 import { OriginalSearch } from '../components/OriginalSearch'
+import { SpeakerFilter } from '../components/SpeakerFilter'
 import { TranslationArchivePanel } from '../components/TranslationArchivePanel'
 import { CaptureTranslationArchives } from '../components/CaptureTranslationArchives'
 import { TranscriptSegment } from '../components/TranscriptSegment'
 import { recordSourceKey } from '../recordSource'
+import { usePlaybackFollow, type TimedRow } from '../transcriptSync'
 import { RiArrowLeftLine, RiTimeLine } from '@remixicon/react'
+
+/** The workspace carries the clock only; each transcript derives its own rows. */
+const EMPTY_ROWS: readonly TimedRow[] = []
 
 /** 页壳与标题:与列表页同一套(铺满 + 阅读面底色)。 */
 const readerShell = pageShell('default')
@@ -76,21 +82,34 @@ function OriginalRead({
   const [search, setSearch] = useState(
     () => new URLSearchParams(routeSearch).get('q')?.slice(0, 200) ?? ''
   )
+  const [speaker, setSpeaker] = useState('')
   const client = useQueryClient()
   const endpoint = speakers
     ? 'speakers'
     : record.source_type === 'meeting'
       ? 'transcripts'
       : 'original-segments'
-  const path = `meeting-records/${record.id}/${endpoint}/?cursor=${encodeURIComponent(cursors.at(-1)!)}&q=${encodeURIComponent(search)}&expected_revision=${record.revision}`
+  const path = `meeting-records/${record.id}/${endpoint}/?cursor=${encodeURIComponent(cursors.at(-1)!)}&q=${encodeURIComponent(search)}&speaker=${encodeURIComponent(speaker)}&expected_revision=${record.revision}`
   const searchForm = !speakers && (
-    <OriginalSearch
-      initialQuery={search}
-      onSearch={(query) => {
-        setSearch(query)
-        setCursors([''])
-      }}
-    />
+    <>
+      <SpeakerFilter
+        viewerId={viewerId}
+        recordId={record.id}
+        revision={record.revision}
+        selected={speaker}
+        onSelect={(next) => {
+          setSpeaker(next)
+          setCursors([''])
+        }}
+      />
+      <OriginalSearch
+        initialQuery={search}
+        onSearch={(query) => {
+          setSearch(query)
+          setCursors([''])
+        }}
+      />
+    </>
   )
   const query = useQuery({
     ...privateOptions,
@@ -148,6 +167,7 @@ function OriginalRead({
         ) : (
           <TranscriptSegment
             key={item.id}
+            segmentId={item.id}
             speaker={
               ('started_at' in item ? item.speaker_name : item.speaker_label) ||
               t('library.unknownSpeaker')
@@ -241,6 +261,14 @@ function WorkspaceContent({
           : 'summary'
   )
   const player = useRef<CaptureAudioHandle>(null)
+  /**
+   * Playback position lives here because the player and the transcript are
+   * separate regions: the player owns the clock, the transcript owns the text,
+   * and this is the one place that connects them. The row list is empty by
+   * design — the transcript derives its own active row from the position it is
+   * handed, so this hook only carries the clock and the reader's scroll state.
+   */
+  const follow = usePlaybackFollow(EMPTY_ROWS)
   const captureId = record.capabilities.read_transcript
     ? record.capture_id
     : null
@@ -340,6 +368,9 @@ function WorkspaceContent({
                 includeSummary={false}
                 compactControls
                 onSource={(ms) => player.current?.seek(ms)}
+                positionMs={follow.positionMs}
+                activeId={follow.activeId}
+                follow={follow}
               />
             ) : (
               <OriginalRead
@@ -443,6 +474,7 @@ function WorkspaceContent({
             ref={player}
             captureId={source.id}
             compact
+            onPosition={follow.report}
           />
         </div>
       )}
@@ -494,9 +526,25 @@ export function RecordWorkspace({
               )}
             </Link>
             {record && (
-              <h1 className={recordTitleCls}>
-                {record.title || t('library.untitled')}
-              </h1>
+              <div
+                className={css({
+                  display: 'flex',
+                  gap: '0.75rem',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                })}
+              >
+                <h1 className={recordTitleCls}>
+                  {record.title || t('library.untitled')}
+                </h1>
+                {record.capabilities.rename && (
+                  <RecordRenameControl
+                    viewerId={viewerId}
+                    recordId={record.id}
+                    title={record.title}
+                  />
+                )}
+              </div>
             )}
             {record && (
               <p className={metaLine}>

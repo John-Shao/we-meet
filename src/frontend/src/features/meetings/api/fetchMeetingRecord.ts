@@ -10,11 +10,13 @@ import type {
   ApiRecordSummaryVersion,
   ApiRecordTranscriptVersion,
   ApiRecordTranscript,
+  ApiRecordSpeaker,
   MeetingRecordFilters,
   MeetingRecordPage,
   LegacyMeetingRecordSource,
   ApiSummaryJob,
   ApiSummaryRequest,
+  RecordTitlePayload,
   SummaryRequestPayload,
   SummaryStage,
 } from './ApiMeetingRecord'
@@ -117,6 +119,26 @@ export const useRecordTranscripts = (
         signal,
       })
     },
+    enabled: enabled && !!viewerId && !!recordId,
+  })
+
+/**
+ * Speakers of a record's original text, for the transcript filter.
+ *
+ * Read once per viewer/record/revision rather than polled: the speaker set only
+ * changes when new text is published, and `revision` already tracks that.
+ */
+export const useRecordSpeakers = (
+  viewerId: string | undefined,
+  recordId: string | undefined,
+  revision: number | undefined,
+  enabled: boolean
+) =>
+  useQuery<MeetingRecordPage<ApiRecordSpeaker>, ApiError>({
+    ...privateReadOptions,
+    queryKey: ['meeting-records', viewerId, 'speakers', recordId, revision],
+    queryFn: ({ signal }) =>
+      fetchApi(`${recordPath(recordId!)}speakers/`, { signal }),
     enabled: enabled && !!viewerId && !!recordId,
   })
 
@@ -249,3 +271,29 @@ export const useRequestRecordSummary = (viewerId: string, recordId: string) => {
   })
 }
 export type { SummaryRequestPayload }
+
+/**
+ * Rename an ended standalone recording. The backend rejects with 409 when
+ * `expected_title` no longer matches, so callers must surface the conflict and
+ * re-read rather than silently overwriting someone else's change.
+ */
+export const useRenameMeetingRecord = (viewerId: string, recordId: string) => {
+  const client = useQueryClient()
+  return useMutation<ApiMeetingRecord, ApiError, RecordTitlePayload>({
+    mutationFn: (payload) =>
+      fetchApi<ApiMeetingRecord>(`${recordPath(recordId)}title/`, {
+        method: 'PATCH',
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(20000),
+        body: JSON.stringify(payload),
+      }),
+    retry: false,
+    gcTime: 0,
+    onSuccess: async () => {
+      await client.invalidateQueries({
+        queryKey: ['meeting-records', viewerId],
+      })
+    },
+  })
+}

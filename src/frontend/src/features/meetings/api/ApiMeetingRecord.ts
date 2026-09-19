@@ -32,10 +32,22 @@ export interface ApiMeetingRecord {
     play_media: boolean
     download_media: boolean
     edit: boolean
+    /**
+     * Owner-only rename of an ended standalone recording. The backend has served
+     * this since the record-title batch and Android has always consumed it; the
+     * field was simply absent from the Web contract, so Web could not offer it.
+     */
+    rename: boolean
     manage: boolean
     capture: boolean
     generate_summary: boolean
   }
+}
+
+/** Rename is guarded by the title the caller last saw: 409 means it changed. */
+export interface RecordTitlePayload {
+  title: string
+  expected_title: string
 }
 
 export interface MeetingRecordPage<T> {
@@ -65,6 +77,8 @@ export interface ApiRecordTranscript {
   id: string
   session_id: string
   speaker_identity: string
+  /** Stable token to echo back as the `speaker` filter; never a display name. */
+  identity?: string
   speaker_name: string
   text: string
   language: string
@@ -149,6 +163,25 @@ export interface ApiRecordTranscriptVersion {
     speaker_identity: string
     language: string
   })[]
+}
+
+/**
+ * One speaker of an original-text read.
+ *
+ * `id` is what the `speaker` filter expects. For a capture-backed record it is
+ * a `MeetingSpeaker` UUID; for an online meeting it is the LiveKit identity,
+ * because that is how the two sources identify a speaker. A display name is
+ * never safe as a filter token — two participants can share one.
+ */
+export interface ApiRecordSpeaker {
+  id: string
+  label: string
+  /** `diarized` / `unknown` for captures, `online` for meeting identities. */
+  identity_type: 'diarized' | 'unknown' | 'online'
+  /** Present for capture-backed speakers; accepted as a filter alias. */
+  source_key?: string
+  /** Present for online speakers: how many rows this person contributed. */
+  rows?: number
 }
 
 export interface ApiSummaryJob {
