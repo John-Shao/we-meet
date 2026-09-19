@@ -331,8 +331,8 @@ GET    /meeting-records/{id}/source-status/
 |---|---|---|---|---|
 | **1** | **音视频 ↔ 逐字稿双向同步**（P1） | 这是妙记与「转写文本导出」的分水岭。没有它，用户仍要自己找位置 | ① 播放器 `onTimeUpdate` 已算全局 ms（`CaptureAudioPlayer.tsx:311`）→ 用 context/prop 向上暴露 `positionMs`；② 逐字稿行按 `start_ms/end_ms` 命中区间加 `aria-current` + 样式；③ 命中变化时 `scrollIntoView({block:'nearest'})`（复刻 `MeetingDetail.tsx:841-843` 已有的 2s 高亮做法）；④ 用户手动滚动时**暂停自动滚动 3–5 秒**，避免抢焦点 | 中（Web 先做；Android 复用 `CapturePlaybackRegistry`） |
 | **2** | **逐字稿可编辑**（T1/T5） | 妙记把逐字稿当内容；只读的逐字稿在真实会议里不可用（ASR 必错） | ⚠️ **不能改 `MeetingOriginalSegment`**（不可变是溯源根基）。新增 `TranscriptRevision`（record + segment + 新 text + 作者 + 时间 + revision），读取时走「修订优先，回退原文」；`payload_hash` 与 `source_refs` 继续锚定 **segment_id + revision**，历史引用仍可回读 | 大 |
-| **3** | **媒体下载 + 原始媒体可达**（M1） | 妙记可下载原始音视频；用户对「我的录音」有天然所有权预期 | 接线 `download_media`：新增 `GET /meeting-records/{id}/media/`（签名 URL，短时效，复验 `read_transcript` + `retention_mode==media`）。**注意**：旧 `Recording` 已有整文件签名下载（`viewsets.py:2376-2420` `/recordings/media-auth/` + nginx auth subrequest），**可复用该模式**；但新记录侧的 `MeetingMediaSegment` 没有序列化器/视图/路由（`models.py:1615`），需先补映射暴露。Web/Android 加「下载」入口 | 小—中（模式复用，主要工作在映射暴露） |
-| **4** | **上传上限提到与妙记同量级**（G2） | 100 MB ≈ 1 小时 mp3；妙记 **6 GB / 6 h**。60× 差距直接排除长会议与线上培训场景 | 改 `MEETING_FILE_ASR_MAX_BYTES` 到 GB 级 + 对象存储直传（分片）+ 异步 ASR；注意 `BoundedUploadHandler`（`uploaded_recordings.py:51-58`）是为防磁盘打满而设，**必须换成直传对象存储**而非单纯调大阈值 | 中（含存储与配额设计） |
+| **3** | **媒体下载 + 原始媒体可达**（M1） | 妙记可下载原始音视频；用户对「我的录音」有天然所有权预期 | 接线 `download_media`：新增 `GET /meeting-records/{id}/media/`（签名 URL，短时效，复验 `read_transcript` + `retention_mode==media`）。**注意**：旧 `Recording` 已有整文件签名下载（`viewsets.py:2376-2420` `/recordings/media-auth/` + nginx auth subrequest），**可复用该模式**；但新记录侧的 `MeetingMediaSegment` 没有序列化器/视图/路由（`models.py:1615`），需先补映射暴露。Web/Android 加「下载」入口 | ⚠️ **未闭环**（见 §5.8）——只覆盖「上传件 + 属主 + 回放」，不是「媒体下载」 |
+| **4** | **上传上限提到与妙记同量级**（G2） | 100 MB ≈ 1 小时 mp3；妙记 **6 GB / 6 h**。60× 差距直接排除长会议与线上培训场景 | 改 `MEETING_FILE_ASR_MAX_BYTES` 到 GB 级 + 对象存储直传（分片）+ 异步 ASR；注意 `BoundedUploadHandler`（`uploaded_recordings.py:51-58`）是为防磁盘打满而设，**必须换成直传对象存储**而非单纯调大阈值 | ⚠️ **后端已备、用户不可达**（见 §5.8）——端点与开关都在，但开关为 `False` 且**两端客户端都未接入** |
 | **5** | **逐字稿导出**（M3） | 妙记有独立导出接口；纪要不能替代逐字稿（合规/归档刚需） | 新增导出：`TXT / Markdown / SRT / VTT`（按 `start_ms` 生成时间轴）。**SRT/VTT 顺带解决 P5 字幕轨**——同一份数据两个用途 | 小 |
 | **6** | **说话人 → 真实成员映射**（T2） | 妙记可把 `speaker_id` 换成 `ou_` 成员；「说话人 1/2」在纪要里等于没归因 | ~~扩 `MeetingSpeaker`：加可空的 `user` FK + `confidence`；新增 `PATCH /meeting-records/{id}/speakers/{speaker_id}/` 绑定成员；纪要生成时把真人名写进要点文本（与妙记 `@姓名` 纯文本口径一致）~~ → **已完成（见 §5.6）** | ~~中~~ ✅ |
 
@@ -390,6 +390,32 @@ GET    /meeting-records/{id}/source-status/
 5. **`play_media`/`download_media` 恒 `False`** 的意图不明（预留 or 废弃），需与作者确认后再决定接线或删字段。注意旧 `Recording` 路径的整文件下载**是活的**，两条路径的收敛策略需一并决定。
 6. **本报告关键论断已做独立复核**：不可变原文、无说话人-账号关联、无关键词产物、无逐句修订模型、热词仅导入路径、子串搜索无高亮、无按发言人聚合、导出仅 Markdown、列表无时间范围——均经二次读码确认。其中两条初稿结论被修正（媒体下载、所有者筛选），已在上文标注。
 7. **i18n 一节曾整体误判，已作废重写**（见 §5.3）：初稿据二手审计称 `fr/nl/de` 语言包缺失，**逐语言实质核对后证伪**——五语言键集齐平且翻译真实。同时 `rename` Web 接线、导出语言 i18n、locale 护栏三处「问题」在核对时发现在工作区中**已被修复**。教训：**二手审计结论必须回到文件用可复现的比对方式（逐叶子键集合解析）验证，不能凭行数/字节数或顶层键计数推断**。
+
+### 5.8 硬缺口复核：两条 P0 被过早标记为完成
+
+§5.6 的收口账把 P0-3、P0-4 写成「已落地」。**回到代码复验后，两条都不能算闭环**，此处按证据降级。判据是同一句话：**用户今天能不能做到这件事**，而不是「代码库里有没有这段代码」。
+
+**P0-3 媒体下载 —— 未闭环。** 现有 `GET /meeting-records/{id}/media/` 有三个叠加限制，每一个都把它挡在「媒体下载」之外：
+
+- 只对 `source_type == "upload"` 生效，线上会议与 AI 录音一律 `Http404`；
+- 只对**属主**生效（`record.owner_id != request.user.pk` 即 404），共享读者拿不到；
+- 它的用途是**喂播放器**，不是给下载入口（Web `UploadMediaPlayer.tsx`、Android `MeetingRecordApi.media()`）。
+
+更根本的是 `MeetingMediaSegment` 至今**在生产代码里零写入、零读取**：`core/api` 与 `core/urls.py` 中无任何引用，全部命中都在测试里。生产值文件也自陈 `# Recording disabled（待第二阶段加 livekit-egress + 第二台 ECS）`，`RECORDING_STORAGE_EVENT_ENABLE: "False"`。**结论：媒体可达性仍是被基建阻塞的原状态，「媒体下载」这一能力没有新增覆盖。**
+
+**P0-4 上传上限 —— 后端已备，用户不可达。** 生产实际生效的 `src/helm/env.d/aliyun-prod/values.meet.yaml`：
+
+```
+MEETING_FILE_ASR_MAX_BYTES: "104857600"             # 100 MiB，多段上传路径的硬上限
+MEETING_FILE_DIRECT_UPLOAD_ENABLED: "False"          # 直传关闭
+MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES: "6442450944"   # 6 GiB，但用不上
+```
+
+`BoundedUploadHandler` 仍按 100 MiB 截断。**关键的一点：两端客户端都没有接入两步直传流程**——Web 与 Android 对 `recording-uploads/upload-url`、`recording-uploads/upload-complete` 的引用数均为 **0**，`RecordingUpload.tsx` 走的还是单次 `FormData` 多段上传。所以即使把开关翻成 `True`，用户拿到的仍是 100 MiB；**这不是配置问题，是客户端工作尚未开始。**
+
+**新发现的缺陷（此前未记录）：跨空隙续跟是死代码，两端都是。** `nearestStartedRowId` 在两端的 docstring 都写着「used to follow playback across gaps」，但它在**生产代码中零调用**——Web 与 Android 各只有定义与单测（`transcriptSync.ts:45` / `TranscriptSync.kt:39`）。实际跟随只由 `activeRowId` 驱动，而它在空隙中返回 `null`，于是**音频处于空隙时高亮与自动滚动都会停住**。这是 P0-1 的一个真实缺口（不是设计取舍：函数为它而写、为它而测，却没人调用），且**两端行为一致**——§5.2 曾把这类问题记为双端不对称，这里要更正为「双端同缺」。
+
+**复核后仍然成立的 P0 闭环**（同样回代码验证）：P0-1 的高亮与点击回听两端均已接线；P0-2 的原文仍不可改写（`models.py:1659` `Original segments are immutable.`）、修订走 `MeetingOriginalRevision` 追加层；P0-5 的导出读的是**修订后**文本（`transcript_export.py:199` `corrected_text(row)`）而非存储原文；P0-6 见 §5.6。
 
 ---
 
