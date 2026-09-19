@@ -17,6 +17,111 @@ type UploadState = {
   error_code: string
 }
 
+/** What the server can accept, and by which of the two paths. */
+type UploadCapabilities = {
+  available: boolean
+  /** The multipart branch's hard ceiling. */
+  max_bytes: number
+  extensions: string[]
+  /** True once the server offers presigned direct uploads. */
+  direct_upload_available?: boolean
+  /** The direct branch's ceiling, 0 when direct uploads are off. */
+  direct_max_bytes?: number
+}
+
+type DirectUploadTicket = {
+  upload_url: string
+  storage_name: string
+  headers: Record<string, string>
+}
+
+const DIRECT = 'recording-uploads/upload-url/'
+const COMPLETE = 'recording-uploads/upload-complete/'
+
+/**
+ * Import one recording, by whichever path the server offers.
+ *
+ * A presigned direct upload is the only way past the multipart ceiling: the body
+ * goes straight to object storage, so it never passes through the app server's
+ * disk. `size` is bound into the signature the server hands out, so the storage
+ * service enforces the declared length rather than trusting it.
+ *
+ * The two steps are not atomic, so a failure after the PUT is recovered by
+ * re-POSTing completion with the same declaration — the client keeps
+ * `storage_name` for exactly that. Re-running the whole flow instead would
+ * upload the bytes again.
+ */
+async function importRecording(
+  file: File,
+  key: string,
+  options: { context: string; hotwords: string },
+  direct: { maxBytes: number } | null,
+  ticket: { current: DirectUploadTicket | null }
+): Promise<UploadState> {
+  const content_type = file.type || 'application/octet-stream'
+  if (!direct || file.size > direct.maxBytes) {
+    const body = new FormData()
+    body.set('key', key)
+    body.set('audio', file)
+    body.set('context', options.context)
+    body.set('hotwords', options.hotwords)
+    return fetchApi<UploadState>('recording-uploads/', {
+      method: 'POST',
+      body,
+    })
+  }
+
+  ticket.current ??= await fetchApi<DirectUploadTicket>(DIRECT, {
+    method: 'POST',
+    cache: 'no-store',
+    redirect: 'error',
+    signal: AbortSignal.timeout(30000),
+    body: JSON.stringify({
+      key,
+      name: file.name,
+      size: file.size,
+      content_type,
+      ...options,
+    }),
+  })
+
+  // Straight to storage. The URL carries its own authorization in the query
+  // string, so this request deliberately sends no app credentials back to a
+  // third-party host. The signature covers Content-Type, so that one header
+  // must match what was signed.
+  let stored = false
+  try {
+    const response = await fetch(ticket.current.upload_url, {
+      method: 'PUT',
+      headers: ticket.current.headers,
+      body: file,
+    })
+    stored = response.ok
+  } catch {
+    stored = false
+  }
+  if (!stored) {
+    // The ticket is spent or the transfer broke; a retry needs a fresh one.
+    ticket.current = null
+    throw new Error('direct upload failed')
+  }
+
+  return fetchApi<UploadState>(COMPLETE, {
+    method: 'POST',
+    cache: 'no-store',
+    redirect: 'error',
+    signal: AbortSignal.timeout(30000),
+    body: JSON.stringify({
+      key,
+      name: file.name,
+      size: file.size,
+      content_type,
+      storage_name: ticket.current.storage_name,
+      ...options,
+    }),
+  })
+}
+
 /** 弹窗里的多行输入:外观与状态由共享 TextArea 基元给出,这里只补间距。 */
 const textAreaCls = css({ marginTop: 'xs' })
 
@@ -68,6 +173,9 @@ export function RecordingUpload({
   const { t } = useTranslation('meetings')
   const [, navigate] = useLocation()
   const input = useRef<HTMLInputElement>(null)
+  // A spent or half-used direct-upload ticket, kept across retries so a second
+  // attempt does not re-upload bytes that already landed in storage.
+  const ticket = useRef<DirectUploadTicket | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [key, setKey] = useState(() => crypto.randomUUID())
   const [context, setContext] = useState('')
@@ -78,20 +186,27 @@ export function RecordingUpload({
   const capabilities = useQuery({
     queryKey: ['recording-upload-capabilities', viewerId],
     queryFn: ({ signal }) =>
-      fetchApi<{ available: boolean; max_bytes: number; extensions: string[] }>(
-        'recording-uploads/',
-        { signal, cache: 'no-store' }
-      ),
+      fetchApi<UploadCapabilities>('recording-uploads/', {
+        signal,
+        cache: 'no-store',
+      }),
     retry: false,
     gcTime: 0,
   })
   if (!capabilities.data?.available) return null
   const config = capabilities.data
+  // When the server offers direct uploads, that path's ceiling is the real one;
+  // the multipart ceiling only still applies to the legacy branch.
+  const directAllowed =
+    config.direct_upload_available === true && (config.direct_max_bytes ?? 0) > 0
+  const limit = directAllowed
+    ? Math.max(config.max_bytes, config.direct_max_bytes ?? 0)
+    : config.max_bytes
   const extension = file?.name.split('.').pop()?.toLowerCase() ?? ''
   const valid =
     !!file &&
     file.size > 0 &&
-    file.size <= config.max_bytes &&
+    file.size <= limit &&
     config.extensions.includes(extension)
   const video = [
     'avi',
@@ -117,6 +232,8 @@ export function RecordingUpload({
           if (!selected) return
           setFile(selected)
           setKey(crypto.randomUUID())
+          // A ticket belongs to one file's bytes; a different file needs its own.
+          ticket.current = null
           setError(false)
           setOpen(true)
           event.target.value = ''
@@ -150,7 +267,7 @@ export function RecordingUpload({
             setError(false)
             if (
               !file.size ||
-              file.size > config.max_bytes ||
+              file.size > limit ||
               !config.extensions.includes(
                 file.name.split('.').pop()!.toLowerCase()
               )
@@ -159,16 +276,14 @@ export function RecordingUpload({
               return
             }
             setBusy(true)
-            const body = new FormData()
-            body.set('key', key)
-            body.set('audio', file)
-            body.set('context', context)
-            body.set('hotwords', hotwords)
             try {
-              const result = await fetchApi<UploadState>('recording-uploads/', {
-                method: 'POST',
-                body,
-              })
+              const result = await importRecording(
+                file,
+                key,
+                { context, hotwords },
+                directAllowed ? { maxBytes: limit } : null,
+                ticket
+              )
               setOpen(false)
               if (onRecord) onRecord(result.record_id)
               else navigate(`/meeting/records/${result.record_id}?tab=text`)
@@ -181,7 +296,7 @@ export function RecordingUpload({
         >
           <p>
             {t('upload.hint', {
-              size: Math.floor(config.max_bytes / 1024 / 1024),
+              size: Math.floor(limit / 1024 / 1024),
             })}
           </p>
           <p className={fileNameCls}>{file?.name}</p>

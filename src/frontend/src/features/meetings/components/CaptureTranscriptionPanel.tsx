@@ -476,7 +476,12 @@ function Originals({
   const resolvedFollow: Pick<
     PlaybackFollow,
     'suppressed' | 'suppressionEpoch'
-  > = follow ?? { suppressed: () => false, suppressionEpoch: 0 }
+  > & { positionMs?: number } = follow ?? {
+    suppressed: () => false,
+    suppressionEpoch: 0,
+    // Only a caller that owns a clock can follow across a gap.
+    positionMs,
+  }
   const listRef = useRef<HTMLDivElement>(null)
   /**
    * Correcting is offered from here because this list is the reader's view of the
@@ -497,6 +502,9 @@ function Originals({
   useTranscriptFollow({
     containerRef: listRef,
     activeId: resolvedActiveId,
+    // The rows the highlight came from, so playback in a gap can still advance
+    // the view instead of stalling until the next utterance begins.
+    rows: timedRows,
     follow: resolvedFollow,
     // A filtered or searched list may omit the active row entirely; following it
     // would scroll to whichever row happened to survive the filter.

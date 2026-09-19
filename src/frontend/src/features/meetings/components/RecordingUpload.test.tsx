@@ -171,3 +171,183 @@ it('preserves the upload intent when a failed request is retried', async () => {
     .map(([, options]) => options!.body as FormData)
   expect(bodies[1].get('key')).toEqual(bodies[0].get('key'))
 })
+
+/** The direct path is the only one that can carry more than the multipart limit. */
+const withDirect = (overrides: Record<string, unknown> = {}) => ({
+  available: true,
+  max_bytes: 100,
+  direct_upload_available: true,
+  direct_max_bytes: 6 * 1024 * 1024,
+  extensions: ['wav'],
+  ...overrides,
+})
+
+/** Selects a file and submits the dialog, returning the form for a retry. */
+async function pick(name = 'Long.wav', bytes = 4096) {
+  const input = await screen.findByLabelText('upload.file')
+  fireEvent.change(input, {
+    target: { files: [new File(['x'.repeat(bytes)], name)] },
+  })
+  const form = screen
+    .getByRole('button', { name: 'upload.submit', hidden: true })
+    .closest('form')!
+  fireEvent.submit(form)
+  return form
+}
+
+it('sends a file over the multipart limit straight to storage, then adopts it', async () => {
+  const storage = vi.fn().mockResolvedValue({ ok: true })
+  vi.stubGlobal('fetch', storage)
+  vi.mocked(fetchApi)
+    .mockResolvedValueOnce(withDirect())
+    .mockResolvedValueOnce({
+      upload_url: 'https://bucket.example/put?sig=abc',
+      storage_name: 'record-uploads/abc.wav',
+      headers: { 'Content-Type': 'audio/wav' },
+    })
+    .mockResolvedValueOnce({ record_id: 'big', status: 'queued' })
+  try {
+    show(<RecordingUpload viewerId="owner" />)
+    await pick()
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/meeting/records/big?tab=text'))
+
+    // Bytes go to storage, addressed by the signed URL the server handed out.
+    expect(storage).toHaveBeenCalledOnce()
+    const [url, init] = storage.mock.calls[0]
+    expect(url).toBe('https://bucket.example/put?sig=abc')
+    expect((init as RequestInit).method).toBe('PUT')
+
+    // Adoption is a second call carrying the declaration plus the storage key.
+    const complete = vi.mocked(fetchApi).mock.calls.at(-1)!
+    expect(complete[0]).toBe('recording-uploads/upload-complete/')
+    const body = JSON.parse((complete[1] as RequestInit).body as string)
+    expect(body.storage_name).toBe('record-uploads/abc.wav')
+    expect(body.size).toBe(4096)
+    expect(body.name).toBe('Long.wav')
+    // No multipart body anywhere: that branch cannot carry this file.
+    expect(
+      vi.mocked(fetchApi).mock.calls.some(([, o]) => o?.body instanceof FormData)
+    ).toBe(false)
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+it('does not send app credentials to the storage host', async () => {
+  // The signed URL carries its own authorization; replaying our session cookie
+  // to a third-party origin would leak it, so the PUT is deliberately bare
+  // except for the Content-Type the signature covers.
+  const storage = vi.fn().mockResolvedValue({ ok: true })
+  vi.stubGlobal('fetch', storage)
+  vi.mocked(fetchApi)
+    .mockResolvedValueOnce(withDirect())
+    .mockResolvedValueOnce({
+      upload_url: 'https://bucket.example/put?sig=abc',
+      storage_name: 'record-uploads/abc.wav',
+      headers: { 'Content-Type': 'audio/wav' },
+    })
+    .mockResolvedValueOnce({ record_id: 'big', status: 'queued' })
+  try {
+    show(<RecordingUpload viewerId="owner" />)
+    await pick()
+    await waitFor(() => expect(storage).toHaveBeenCalled())
+    const init = storage.mock.calls[0][1] as RequestInit
+    expect(init.credentials).toBeUndefined()
+    expect(init.headers).toEqual({ 'Content-Type': 'audio/wav' })
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+it('keeps the storage ticket when only the final adoption failed', async () => {
+  // The ticket is a signed PUT for one exact object, so a retry must reuse it
+  // rather than ask the server to sign a second key — otherwise the first
+  // object is orphaned in the bucket.
+  const storage = vi.fn().mockResolvedValue({ ok: true })
+  vi.stubGlobal('fetch', storage)
+  vi.mocked(fetchApi)
+    .mockResolvedValueOnce(withDirect())
+    .mockResolvedValueOnce({
+      upload_url: 'https://bucket.example/put?sig=abc',
+      storage_name: 'record-uploads/abc.wav',
+      headers: { 'Content-Type': 'audio/wav' },
+    })
+    .mockRejectedValueOnce(new Error('Response lost'))
+    .mockResolvedValueOnce({ record_id: 'big', status: 'queued' })
+  try {
+    show(<RecordingUpload viewerId="owner" />)
+    const form = await pick()
+    await screen.findByRole('alert')
+    fireEvent.submit(form)
+    await waitFor(() => expect(navigate).toHaveBeenCalled())
+    expect(
+      vi.mocked(fetchApi).mock.calls.filter(
+        ([url]) => url === 'recording-uploads/upload-url/'
+      )
+    ).toHaveLength(1)
+    // Both PUTs target that one signed key. Re-sending the bytes is fine (the
+    // PUT is idempotent); signing a new key is not.
+    expect(storage).toHaveBeenCalledTimes(2)
+    expect(new Set(storage.mock.calls.map(([url]) => url))).toEqual(
+      new Set(['https://bucket.example/put?sig=abc'])
+    )
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+it('reuses one idempotency key across a retried completion', async () => {
+  const storage = vi.fn().mockResolvedValue({ ok: true })
+  vi.stubGlobal('fetch', storage)
+  vi.mocked(fetchApi)
+    .mockResolvedValueOnce(withDirect())
+    .mockResolvedValueOnce({
+      upload_url: 'https://bucket.example/put?sig=abc',
+      storage_name: 'record-uploads/abc.wav',
+      headers: { 'Content-Type': 'audio/wav' },
+    })
+    .mockRejectedValueOnce(new Error('Response lost'))
+    .mockResolvedValueOnce({ record_id: 'big', status: 'queued' })
+  try {
+    show(<RecordingUpload viewerId="owner" />)
+    const form = await pick()
+    await screen.findByRole('alert')
+    fireEvent.submit(form)
+    await waitFor(() => expect(navigate).toHaveBeenCalled())
+    const keys = vi
+      .mocked(fetchApi)
+      .mock.calls.filter(([url]) => url === 'recording-uploads/upload-complete/')
+      .map(([, o]) => JSON.parse((o as RequestInit).body as string).key)
+    expect(keys).toHaveLength(2)
+    expect(keys[1]).toEqual(keys[0])
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+it('still uses the multipart branch when the server does not offer direct uploads', async () => {
+  vi.mocked(fetchApi)
+    .mockResolvedValueOnce({
+      available: true,
+      max_bytes: 1024,
+      // The older server's capability payload: no direct fields at all.
+      extensions: ['wav'],
+    })
+    .mockResolvedValueOnce({ record_id: 'small', status: 'queued' })
+  show(<RecordingUpload viewerId="owner" />)
+  await pick('Small.wav', 64)
+  await waitFor(() => expect(navigate).toHaveBeenCalledWith('/meeting/records/small?tab=text'))
+  const call = vi.mocked(fetchApi).mock.calls.at(-1)!
+  expect(call[0]).toBe('recording-uploads/')
+  expect((call[1] as RequestInit).body).toBeInstanceOf(FormData)
+})
+
+it('refuses a file above the direct ceiling before opening a ticket', async () => {
+  vi.mocked(fetchApi).mockResolvedValueOnce(withDirect({ direct_max_bytes: 2048 }))
+  show(<RecordingUpload viewerId="owner" />)
+  fireEvent.click(await screen.findByRole('button', { name: 'upload.open' }))
+  await pick('TooBig.wav', 4096)
+  expect(await screen.findByRole('alert')).toHaveTextContent('upload.error')
+  // Only the capability read happened: nothing was signed and nothing was sent.
+  expect(fetchApi).toHaveBeenCalledTimes(1)
+})

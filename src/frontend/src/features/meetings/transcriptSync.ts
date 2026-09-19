@@ -119,7 +119,7 @@ export function usePlaybackFollow(rows: readonly TimedRow[]): PlaybackFollow {
 }
 
 /**
- * Keep the active row in view, once per change, from the list rather than from
+ * Keep the right row in view, once per change, from the list rather than from
  * every row.
  *
  * Why the list: if each row scrolled itself, every mounted row would run its own
@@ -127,6 +127,12 @@ export function usePlaybackFollow(rows: readonly TimedRow[]): PlaybackFollow {
  * scroll request from every row it passed — all in one commit, racing, and the
  * list could settle anywhere. One owner makes it a single request for the row
  * that actually matters.
+ *
+ * The highlight and the scroll have different targets on purpose. Playback can
+ * sit in a gap, where no row is being spoken and none should be highlighted;
+ * the view still has to follow, or the text stalls behind the audio until the
+ * next row starts. So the highlight is the row whose window contains the
+ * position, and the scroll target is the last row that has already started.
  *
  * Scrolling is refused while the reader holds control (see
  * {@link usePlaybackFollow}). Reduced-motion is honoured. A missing
@@ -136,25 +142,57 @@ export function usePlaybackFollow(rows: readonly TimedRow[]): PlaybackFollow {
 export function useTranscriptFollow({
   containerRef,
   activeId,
+  rows = [],
   follow,
   enabled = true,
 }: {
   containerRef: RefObject<HTMLElement | null>
   activeId: string | null
-  follow: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'>
+  /** Same rows the highlight was derived from, for the gap-following target. */
+  rows?: readonly TimedRow[]
+  follow: Pick<
+    PlaybackFollow,
+    'suppressed' | 'suppressionEpoch'
+  > & {
+    /** Required for gap-following; omit to follow the highlight only. */
+    positionMs?: number
+  }
   /** False when a filter is applied and the active row may not be rendered. */
   enabled?: boolean
 }) {
+  const scrolled = useRef<string | null>(null)
+  // Position lives in a ref because the effect must react to the *target*, not
+  // to every tick: re-scrolling to a row already in view would fight the
+  // reader's own scrolling for the whole of a long utterance.
+  const position = useRef(0)
+  const lastEpoch = useRef(follow.suppressionEpoch)
+  // Gap-following needs a clock. A caller that only supplies a pre-derived
+  // `activeId` gets exactly the old behaviour, because without a position there
+  // is no way to say which row has already started.
+  const gapFollow = follow.positionMs !== undefined
+  position.current = follow.positionMs ?? 0
+  // A gesture that suspends following invalidates where we last scrolled, so
+  // the next eligible target is applied even if it is the same row.
+  if (lastEpoch.current !== follow.suppressionEpoch) {
+    lastEpoch.current = follow.suppressionEpoch
+    scrolled.current = null
+  }
+
+  const target =
+    activeId ?? (gapFollow ? nearestStartedRowId(rows, position.current) : null)
+
   useEffect(() => {
-    if (!enabled || activeId === null) return
+    if (!enabled || target === null) return
     if (follow.suppressed()) return
+    if (scrolled.current === target) return
     const container = containerRef.current
     if (!container) return
     // Only a rendered row can be scrolled to; a filtered list may omit it.
     const row = container.querySelector<HTMLElement>(
-      `[data-segment-id="${CSS.escape(activeId)}"]`
+      `[data-segment-id="${CSS.escape(target)}"]`
     )
     if (typeof row?.scrollIntoView !== 'function') return
+    scrolled.current = target
     const reduced = window.matchMedia?.(
       '(prefers-reduced-motion: reduce)'
     ).matches
@@ -164,5 +202,5 @@ export function useTranscriptFollow({
     })
     // suppressionEpoch is the signal that a gesture's window lapsed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId, enabled, follow.suppressed, follow.suppressionEpoch])
+  }, [target, enabled, follow.suppressed, follow.suppressionEpoch])
 }

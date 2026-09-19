@@ -85,7 +85,9 @@ function OriginalRead({
   speakers?: boolean
   /** Row playback is inside, so the text can follow the audio. */
   activeId?: string | null
-  follow?: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'>
+  follow?: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'> & {
+    positionMs?: number
+  }
 }) {
   const { t } = useTranslation('meetings')
   const [cursors, setCursors] = useState<string[]>([''])
@@ -95,13 +97,6 @@ function OriginalRead({
   )
   const [speaker, setSpeaker] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
-  // The list scrolls the active row, once per change, rather than every row
-  // asking to be scrolled on the same commit.
-  useTranscriptFollow({
-    containerRef: listRef,
-    activeId: follow ? (activeId ?? null) : null,
-    follow: follow ?? { suppressed: () => true, suppressionEpoch: 0 },
-  })
   const client = useQueryClient()
   const endpoint = speakers
     ? 'speakers'
@@ -141,6 +136,29 @@ function OriginalRead({
       >(path, { signal, cache: 'no-store' }),
     refetchInterval: (q) => (q.state.error ? false : 10000),
   })
+  // Only capture-backed rows carry a source window in the record's clock. An
+  // online transcript is stamped with wall time instead, so it cannot be followed
+  // on the media timeline and contributes no rows here. Computed before the early
+  // returns below so hook order cannot change.
+  const rowIds: TimedRow[] = (query.data?.results ?? [])
+    .filter((item): item is ApiMeetingOriginalSegment => 'start_ms' in item)
+    .map((item) => ({
+      id: item.id,
+      start_ms: item.start_ms,
+      end_ms: item.end_ms,
+    }))
+  // The list scrolls the right row once per change, rather than every row asking
+  // to be scrolled on the same commit.
+  useTranscriptFollow({
+    containerRef: listRef,
+    activeId: follow ? (activeId ?? null) : null,
+    // The rows the highlight came from, so playback inside a gap still advances
+    // the view rather than stalling until the next utterance starts.
+    rows: rowIds,
+    // Only a clock can say which row has already started; without `positionMs`
+    // in `follow` this falls back to following the highlight alone.
+    follow: follow ?? { suppressed: () => true, suppressionEpoch: 0 },
+  })
   if (query.isError)
     return (
       <div>
@@ -172,6 +190,9 @@ function OriginalRead({
         <p role="status">{t('loading')}</p>
       </div>
     )
+  // Only capture-backed rows carry a source window in the record's clock. An
+  // online transcript is stamped with wall time instead, so it cannot be followed
+  // on the media timeline and contributes no rows here.
   return (
     <div ref={listRef}>
       {searchForm}

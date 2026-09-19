@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import { createRef } from 'react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
-import { useTranscriptFollow } from './transcriptSync'
+import { activeRowId, useTranscriptFollow } from './transcriptSync'
 
 /**
  * The list owns the scroll, so it happens once per active change. When every row
@@ -143,5 +143,76 @@ describe('useTranscriptFollow', () => {
 
   it('does nothing without an active row', () => {
     expect(() => render(<Harness activeId={null} />)).not.toThrow()
+  })
+})
+
+/**
+ * Playback can sit in a gap, where no row is being spoken. The highlight must
+ * disappear there — naming a neighbour would mark text that is not being said —
+ * but the view still has to follow, or the text stalls behind the audio.
+ */
+describe('useTranscriptFollow across a gap', () => {
+  const rows = [
+    { id: 'a', start_ms: 0, end_ms: 1000 },
+    // A deliberate hole between 1000 and 5000.
+    { id: 'b', start_ms: 5000, end_ms: 6000 },
+  ]
+
+  function GapHarness({ positionMs }: { positionMs: number }) {
+    const containerRef = createRef<HTMLDivElement>()
+    const activeId = activeRowId(rows, positionMs)
+    useTranscriptFollow({
+      containerRef,
+      activeId,
+      rows,
+      follow: {
+        suppressed: () => false,
+        suppressionEpoch: 0,
+        positionMs,
+      },
+    })
+    return (
+      <div ref={containerRef}>
+        {rows.map((row) => (
+          <p
+            key={row.id}
+            data-segment-id={row.id}
+            ref={(node) => {
+              if (node) node.scrollIntoView = () => scrolls.push(row.id)
+            }}
+          >
+            {row.id}
+          </p>
+        ))}
+      </div>
+    )
+  }
+
+  let scrolls: string[] = []
+  beforeEach(() => {
+    scrolls = []
+  })
+
+  it('is inside a row while one is being spoken', () => {
+    render(<GapHarness positionMs={200} />)
+    expect(scrolls).toEqual(['a'])
+  })
+
+  it('follows the last row that started while sitting in the gap', () => {
+    render(<GapHarness positionMs={3000} />)
+    // No highlight is correct here, but the view must not be abandoned.
+    expect(scrolls).toEqual(['a'])
+  })
+
+  it('advances when the next row starts', () => {
+    render(<GapHarness positionMs={5200} />)
+    expect(scrolls).toEqual(['b'])
+  })
+
+  it('follows the highlight alone when no clock is supplied', () => {
+    // Callers that pass a pre-derived activeId keep the old behaviour: without a
+    // position there is no way to say which row has already started.
+    render(<Harness activeId={null} />)
+    expect(screen.getByTestId('list')).toBeInTheDocument()
   })
 })
