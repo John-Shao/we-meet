@@ -1,7 +1,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { createRef } from 'react'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { UploadMediaPlayer, type UploadMediaHandle } from './UploadMediaPlayer'
 
@@ -36,7 +43,9 @@ const media = {
 }
 
 function show(handle?: React.RefObject<UploadMediaHandle | null>) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
     <QueryClientProvider client={client}>
       <UploadMediaPlayer recordId="record" ref={handle} onPosition={() => {}} />
@@ -44,7 +53,15 @@ function show(handle?: React.RefObject<UploadMediaHandle | null>) {
   )
 }
 
+beforeEach(() => {
+  vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+  vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {})
+})
 afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
@@ -68,7 +85,9 @@ it('offers a player even though the record has no capture to read', async () => 
   // capture path, so the absence of a playlist must not hide the controls.
   mocks.fetchApi.mockResolvedValue(media)
   show()
-  expect(await screen.findByRole('button', { name: 'play' })).toBeInTheDocument()
+  expect(
+    await screen.findByRole('button', { name: 'play' })
+  ).toBeInTheDocument()
   expect(screen.queryByText('audioError')).not.toBeInTheDocument()
 })
 
@@ -107,4 +126,91 @@ it('degrades to a visible error when the signed read is refused', async () => {
   show()
   expect(await screen.findByRole('alert')).toHaveTextContent('audioError')
   expect(screen.queryByRole('button', { name: 'play' })).not.toBeInTheDocument()
+})
+
+it('renders video imports with a picture and keeps audio imports compact', async () => {
+  mocks.fetchApi.mockResolvedValue({ ...media, media_type: 'video' })
+  const { container } = show()
+  await waitFor(() =>
+    expect(container.querySelector('video')).toHaveAttribute('src', media.url)
+  )
+  expect(container.querySelector('video')).toHaveAttribute('playsinline')
+  expect(container.querySelector('audio')).toBeNull()
+})
+
+it.each([false, true])(
+  'renews the URL retaining position and speed, playing=%s',
+  async (playing) => {
+    vi.useFakeTimers()
+    mocks.fetchApi
+      .mockResolvedValueOnce({ ...media, expires_in: 10 })
+      .mockResolvedValue({
+        ...media,
+        url: 'https://private.example/renewed',
+        expires_in: 10,
+      })
+    const view = show()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    const audio = view.container.querySelector('audio')!
+    Object.defineProperty(audio, 'duration', { value: 120 })
+    audio.currentTime = 42
+    fireEvent.timeUpdate(audio)
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '1.5' } })
+    if (playing) fireEvent.play(audio)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000)
+    })
+    expect(audio).toHaveAttribute('src', 'https://private.example/renewed')
+    audio.currentTime = 0
+    fireEvent.timeUpdate(audio)
+    fireEvent.loadedMetadata(audio)
+    expect(audio.currentTime).toBe(42)
+    expect(audio.playbackRate).toBe(1.5)
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(
+      playing ? 1 : 0
+    )
+    view.unmount()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20000)
+    })
+    expect(mocks.fetchApi).toHaveBeenCalledTimes(2)
+  }
+)
+
+it('queues citation seeks until metadata is available and retries a failed lease', async () => {
+  const handle = createRef<UploadMediaHandle>()
+  mocks.fetchApi
+    .mockRejectedValueOnce(new Error('unavailable'))
+    .mockResolvedValue(media)
+  const view = show(handle)
+  await screen.findByRole('alert')
+  fireEvent.click(screen.getByRole('button', { name: 'asr.refresh' }))
+  act(() => handle.current!.seek(65000))
+  await waitFor(() =>
+    expect(view.container.querySelector('audio')).toBeTruthy()
+  )
+  const audio = view.container.querySelector('audio')!
+  Object.defineProperty(audio, 'duration', { value: 120 })
+  fireEvent.loadedMetadata(audio)
+  expect(audio.currentTime).toBe(65)
+  expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled()
+})
+
+it('stops exposing media when lease renewal is refused', async () => {
+  vi.useFakeTimers()
+  mocks.fetchApi
+    .mockResolvedValueOnce({ ...media, expires_in: 10 })
+    .mockRejectedValue(new Error('revoked'))
+  const view = show()
+  await act(async () => {
+    await Promise.resolve()
+  })
+  expect(view.container.querySelector('audio')).not.toBeNull()
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(8000)
+  })
+  expect(view.container.querySelector('audio')).toBeNull()
+  expect(screen.getByRole('alert')).toBeInTheDocument()
 })

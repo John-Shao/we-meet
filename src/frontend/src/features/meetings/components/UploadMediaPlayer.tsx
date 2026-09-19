@@ -1,4 +1,11 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { fetchApi } from '@/api/fetchApi'
@@ -49,13 +56,22 @@ export const UploadMediaPlayer = forwardRef<
   const [position, setPositionState] = useState(0)
   const [duration, setDuration] = useState(0)
   const [rate, setRate] = useState(1)
-  const audio = useRef<HTMLAudioElement>(null)
+  const audio = useRef<HTMLMediaElement | null>(null)
+  const positionRef = useRef(0)
+  const playingRef = useRef(false)
+  const pending = useRef<{ seconds: number; resume: boolean } | null>(null)
+  const [retry, setRetry] = useState(0)
+  const attachMedia = useCallback((element: HTMLMediaElement | null) => {
+    if (!element) audio.current?.pause()
+    audio.current = element
+  }, [])
   const mounted = useRef(true)
   const onPositionRef = useRef(onPosition)
   onPositionRef.current = onPosition
 
   /** Single writer for the source clock, so a follower cannot miss a change. */
   const setPosition = (milliseconds: number) => {
+    positionRef.current = milliseconds
     setPositionState(milliseconds)
     onPositionRef.current?.(milliseconds)
   }
@@ -64,34 +80,66 @@ export const UploadMediaPlayer = forwardRef<
     mounted.current = true
     const request = new AbortController()
     setState('loading')
-    void (async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const resolve = async () => {
       try {
-        // The URL is short-lived, so it is resolved per mount and never cached.
         const data = await fetchApi<MediaRead>(
           `meeting-records/${recordId}/media/`,
           { signal: request.signal, cache: 'no-store' }
         )
         if (request.signal.aborted || !mounted.current) return
+        const element = audio.current
+        if (element && element.getAttribute('src') !== data.url) {
+          pending.current ??= {
+            seconds: positionRef.current / 1000,
+            resume: playingRef.current,
+          }
+        }
         setMedia(data)
-        setState('ready')
+        if (retry && element?.getAttribute('src') === data.url) element.load()
+        setState(playingRef.current ? 'playing' : 'ready')
+        // Refresh the lease before a later Range request can use an expired URL.
+        timer = setTimeout(
+          () => void resolve(),
+          Math.max(1000, Math.min(86400000, data.expires_in * 800))
+        )
       } catch {
-        if (!request.signal.aborted && mounted.current) setState('error')
+        if (!request.signal.aborted && mounted.current) {
+          playingRef.current = false
+          audio.current?.pause()
+          setMedia(undefined)
+          setState('error')
+        }
       }
-    })()
+    }
+    void resolve()
     return () => {
       mounted.current = false
       request.abort()
+      clearTimeout(timer)
     }
-  }, [recordId])
+  }, [recordId, retry])
 
-  useImperativeHandle(ref, () => ({
-    seek: (milliseconds: number) => {
-      const element = audio.current
-      if (!element) return
-      element.currentTime = Math.max(0, milliseconds / 1000)
-      setPosition(milliseconds)
-    },
-  }))
+  const seek = (milliseconds: number) => {
+    if (!Number.isFinite(milliseconds)) return
+    const bounded = Math.max(0, milliseconds)
+    const element = audio.current
+    if (element) {
+      try {
+        element.currentTime = bounded / 1000
+      } catch {
+        /* Apply after metadata. */
+      }
+    }
+    if (!element || element.readyState === 0 || pending.current) {
+      pending.current = {
+        seconds: bounded / 1000,
+        resume: pending.current?.resume ?? playingRef.current,
+      }
+    }
+    setPosition(bounded)
+  }
+  useImperativeHandle(ref, () => ({ seek }))
 
   const toggle = () => {
     const element = audio.current
@@ -103,9 +151,10 @@ export const UploadMediaPlayer = forwardRef<
   const jump = (delta: number) => {
     const element = audio.current
     if (!element) return
-    element.currentTime = Math.max(0, element.currentTime + delta / 1000)
+    seek(positionRef.current + delta)
   }
 
+  const MediaElement = media?.media_type === 'video' ? 'video' : 'audio'
   return (
     <section
       aria-label={t('playback')}
@@ -122,9 +171,23 @@ export const UploadMediaPlayer = forwardRef<
         </p>
       )}
       {state === 'error' && (
-        <p role="alert" className={css({ padding: '0 1rem' })}>
-          {t('audioError')}
-        </p>
+        <div>
+          <p role="alert" className={css({ padding: '0 1rem' })}>
+            {t('audioError')}
+          </p>
+          <Button
+            variant="tertiary"
+            onPress={() => {
+              pending.current = {
+                seconds: positionRef.current / 1000,
+                resume: false,
+              }
+              setRetry((value) => value + 1)
+            }}
+          >
+            {t('asr.refresh')}
+          </Button>
+        </div>
       )}
       {media && (
         <>
@@ -182,24 +245,60 @@ export const UploadMediaPlayer = forwardRef<
           </div>
           {/* The browser owns seeking over Range, so no custom scrubber is needed. */}
           {/* eslint-disable-next-line jsx-a11y/media-has-caption -- the transcript is a separate synced panel; an imported file may have no captions at all. */}
-          <audio
-            ref={audio}
+          <MediaElement
+            ref={attachMedia}
             src={media.url}
             controls
+            playsInline
             preload="metadata"
-            className={css({ width: '100%', marginTop: '0.5rem' })}
+            className={css({
+              width: '100%',
+              marginTop: '0.5rem',
+              maxHeight: '40vh',
+              objectFit: 'contain',
+            })}
             onLoadedMetadata={(event) => {
               const element = event.currentTarget
               element.playbackRate = rate
-              setDuration(Number.isFinite(element.duration) ? element.duration : 0)
+              const restore = pending.current
+              pending.current = null
+              if (restore) {
+                const seconds = Number.isFinite(element.duration)
+                  ? Math.min(restore.seconds, element.duration)
+                  : restore.seconds
+                element.currentTime = seconds
+                setPosition(seconds * 1000)
+                if (restore.resume)
+                  void element.play().catch(() => {
+                    if (mounted.current) setState('error')
+                  })
+              }
+              setDuration(
+                Number.isFinite(element.duration) ? element.duration : 0
+              )
             }}
-            onTimeUpdate={(event) =>
-              setPosition(event.currentTarget.currentTime * 1000)
-            }
-            onPlay={() => setState('playing')}
-            onPause={() => setState('ready')}
-            onEnded={() => setState('ready')}
-            onError={() => setState('error')}
+            onTimeUpdate={(event) => {
+              if (!pending.current)
+                setPosition(event.currentTarget.currentTime * 1000)
+            }}
+            onPlay={() => {
+              playingRef.current = true
+              setState('playing')
+            }}
+            onPause={() => {
+              if (!pending.current) {
+                playingRef.current = false
+                setState('ready')
+              }
+            }}
+            onEnded={() => {
+              playingRef.current = false
+              setState('ready')
+            }}
+            onError={() => {
+              playingRef.current = false
+              setState('error')
+            }}
           />
         </>
       )}
