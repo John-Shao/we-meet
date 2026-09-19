@@ -1125,8 +1125,26 @@ class Base(Configuration):
     )
     QWEN_ASR_REGION = values.Value("cn-beijing", environ_prefix=None)
     MEETING_FILE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    # Multipart ceiling. Bytes in this path spool to the application's own disk,
+    # so it stays small on purpose; large files use the direct-upload path below.
     MEETING_FILE_ASR_MAX_BYTES = values.PositiveIntegerValue(
         104857600, environ_prefix=None
+    )
+    # Direct (presigned) upload ceiling — 6 GiB, matching Feishu Minutes' 6 GB
+    # import limit. Bytes never traverse the application or its ingress: the
+    # client PUTs straight to object storage against a signed URL whose
+    # ContentLength is part of the signature, so declaring a small size and
+    # sending more fails at the storage boundary.
+    MEETING_FILE_DIRECT_UPLOAD_ENABLED = values.BooleanValue(
+        False, environ_prefix=None
+    )
+    MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES = values.PositiveIntegerValue(
+        6 * 1024 * 1024 * 1024, environ_prefix=None
+    )
+    # Lifetime of a presigned PUT URL. A 6 GiB upload on a slow uplink needs
+    # materially longer than an image PUT, which is why this is its own knob.
+    MEETING_FILE_DIRECT_UPLOAD_TTL_SECONDS = values.PositiveIntegerValue(
+        3600, environ_prefix=None
     )
     QWEN_FILE_ASR_MODEL = values.Value(
         "qwen-audio-3.0-asr-flash-filetrans", environ_prefix=None

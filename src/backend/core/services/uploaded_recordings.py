@@ -66,6 +66,31 @@ MEDIA_MIMES = {
 }
 
 
+def _declared_media_ok(extension, content_type):
+    """Trust only a caller-declared MIME that the extension actually allows."""
+    if content_type not in MEDIA_MIMES.get(extension, set()):
+        raise ValueError("invalid_media_content")
+
+
+def _verify_stored_header(storage, storage_name, extension):
+    """Check the stored object's real leading bytes, not the caller's claim.
+
+    The multipart path inspects an in-hand upload; this path has no body, so it
+    fetches a bounded byte range from storage instead. A wrong extension is
+    rejected here before any provider is ever billed.
+    """
+    object_key = posixpath.join(storage.location, storage_name)
+    try:
+        head = storage.connection.meta.client.get_object(
+            Bucket=storage.bucket_name, Key=object_key, Range="bytes=0-65535"
+        )
+        leading = head["Body"].read(65536)
+    except Exception as exc:  # noqa: BLE001 -- an unreadable object is simply invalid
+        raise ValueError("invalid_media_content") from exc
+    if magic.from_buffer(leading, mime=True) not in MEDIA_MIMES.get(extension, set()):
+        raise ValueError("invalid_media_content")
+
+
 def file_metadata(upload, extension):
     """Inspect a bounded header; the ASR decoder performs full media validation."""
     upload.seek(0)
@@ -118,13 +143,78 @@ def serialize(job):
     }
 
 
+def _record_job(user, key, *, storage_name, checksum, size, configuration, metadata):
+    """Create the record/capture/job triple for an object already in storage.
+
+    Caller owns the transaction and must delete ``storage_name`` if this raises.
+    Both upload paths (multipart spool and direct presigned PUT) share this so
+    they cannot drift on idempotency, the single-active-job rule, or metadata.
+    ``metadata`` is ``{"title": <record title>, "file": <public _file payload>}``.
+    """
+    now = timezone.now()
+    record = models.MeetingRecord.objects.create(
+        owner=user,
+        source_type="upload",
+        title=metadata["title"][:500],
+        origin_at=now,
+        retention_mode="media",
+    )
+    capture = models.CaptureSession.objects.create(
+        record=record,
+        created_by=user,
+        device_id="file-upload",
+        status="stopped",
+        started_at=now,
+        ended_at=now,
+    )
+    return models.UploadedRecording.objects.create(
+        record=record,
+        capture=capture,
+        key=key,
+        storage_name=storage_name,
+        checksum=checksum,
+        size=size,
+        configuration={**configuration, "_file": metadata["file"]},
+        deadline=now + timedelta(hours=24),
+        next_poll_at=now,
+    )
+
+
+def _replay_guard(user, key, checksum, configuration):
+    """Return an identical prior job, or raise when the same intent changed."""
+    previous = models.UploadedRecording.objects.filter(key=key).first()
+    if not previous:
+        return None
+    if (
+        previous.record.owner_id != user.pk
+        or previous.checksum != checksum
+        or {k: v for k, v in previous.configuration.items() if k != "_file"}
+        != configuration
+    ):
+        raise RecordConflict("Upload intent changed.")
+    return previous
+
+
+def _parse_extension(name):
+    extension = Path(name).suffix.lower().lstrip(".")
+    if extension not in EXTENSIONS:
+        raise ValueError("invalid_file")
+    return extension
+
+
+def _job_configuration(options):
+    return {
+        "model": provider.MODEL,
+        "region": settings.QWEN_FILE_ASR_REGION,
+        "base_url": provider.base_url(),
+        **options,
+    }
+
+
 def create(user, key, upload, options):
     """Hash and store incrementally; a repeated intent never creates another paid job."""
-    extension = Path(upload.name).suffix.lower().lstrip(".")
-    if (
-        extension not in EXTENSIONS
-        or not 0 < upload.size <= settings.MEETING_FILE_ASR_MAX_BYTES
-    ):
+    extension = _parse_extension(upload.name)
+    if not 0 < upload.size <= settings.MEETING_FILE_ASR_MAX_BYTES:
         raise ValueError("invalid_file")
     checksum = hashlib.sha256()
     metadata = file_metadata(upload, extension)
@@ -134,23 +224,11 @@ def create(user, key, upload, options):
         if size > settings.MEETING_FILE_ASR_MAX_BYTES:
             raise ValueError("file_too_large")
         checksum.update(part)
-    configuration = {
-        "model": provider.MODEL,
-        "region": settings.QWEN_FILE_ASR_REGION,
-        "base_url": provider.base_url(),
-        **options,
-    }
+    configuration = _job_configuration(options)
     with transaction.atomic():
         models.User.objects.select_for_update().get(pk=user.pk, is_active=True)
-        previous = models.UploadedRecording.objects.filter(key=key).first()
+        previous = _replay_guard(user, key, checksum.hexdigest(), configuration)
         if previous:
-            if (
-                previous.record.owner_id != user.pk
-                or previous.checksum != checksum.hexdigest()
-                or {k: v for k, v in previous.configuration.items() if k != "_file"}
-                != configuration
-            ):
-                raise RecordConflict("Upload intent changed.")
             return previous
         if models.UploadedRecording.objects.filter(
             record__owner=user, status__in=ACTIVE
@@ -160,36 +238,144 @@ def create(user, key, upload, options):
         storage = audio_storage()
         name = storage.save(f"record-uploads/{uuid.uuid4()}.{extension}", upload)
         try:
-            now = timezone.now()
-            record = models.MeetingRecord.objects.create(
-                owner=user,
-                source_type="upload",
-                title=Path(upload.name).stem[:500],
-                origin_at=now,
-                retention_mode="media",
-            )
-            capture = models.CaptureSession.objects.create(
-                record=record,
-                created_by=user,
-                device_id="file-upload",
-                status="stopped",
-                started_at=now,
-                ended_at=now,
-            )
-            return models.UploadedRecording.objects.create(
-                record=record,
-                capture=capture,
-                key=key,
+            return _record_job(
+                user,
+                key,
                 storage_name=name,
                 checksum=checksum.hexdigest(),
                 size=size,
-                configuration={**configuration, "_file": metadata},
-                deadline=now + timedelta(hours=24),
-                next_poll_at=now,
+                configuration=configuration,
+                metadata={
+                    "title": Path(upload.name).stem,
+                    # Preserve the original filename verbatim; it is what the
+                    # record list shows for an import.
+                    "file": metadata,
+                },
             )
         except Exception:
             storage.delete(name)
             raise
+
+
+# ---------------------------------------------------------------------------
+# Direct (presigned) uploads
+#
+# The multipart path above streams the whole file through the application, so
+# its ceiling is bounded by application disk. This path keeps the bytes off the
+# application entirely: the API signs a PUT whose ContentLength is part of the
+# signature, the client uploads straight to private object storage, then reports
+# the object key back for adoption. No ingress or application byte limit applies
+# (there is no body to limit), which is what makes a GB-scale file possible.
+# ---------------------------------------------------------------------------
+
+
+def direct_upload_available():
+    """Direct uploads need the same machinery as multipart, plus opt-in."""
+    return bool(settings.MEETING_FILE_DIRECT_UPLOAD_ENABLED and available())
+
+
+def direct_upload_max_bytes():
+    return settings.MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES
+
+
+def presign_direct_upload(user, *, name, size, content_type, key, options):
+    """Sign one PUT for an exact byte count and return where to send it.
+
+    ``ContentLength`` is signed, so a client that declares a small size and then
+    streams more has its request rejected by object storage rather than by us.
+    """
+    extension = _parse_extension(name)
+    if not 0 < size <= settings.MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES:
+        raise ValueError("invalid_file")
+    _declared_media_ok(extension, content_type)
+    models.User.objects.select_for_update().get(pk=user.pk, is_active=True)
+    if models.UploadedRecording.objects.filter(
+        record__owner=user, status__in=ACTIVE
+    ).exists():
+        raise RecordConflict("An upload transcription is already active.")
+    storage = audio_storage()
+    storage_name = f"record-uploads/{uuid.uuid4()}.{extension}"
+    object_key = posixpath.join(storage.location, storage_name)
+    upload_url = storage.connection.meta.client.generate_presigned_url(
+        ClientMethod="put_object",
+        Params={
+            "Bucket": storage.bucket_name,
+            "Key": object_key,
+            "ContentLength": size,
+            "ContentType": content_type,
+            "ACL": "private",
+        },
+        ExpiresIn=settings.MEETING_FILE_DIRECT_UPLOAD_TTL_SECONDS,
+    )
+    return {
+        "upload_url": upload_url,
+        "upload_key": str(key),
+        # The client echoes this back verbatim on completion; it is a storage
+        # key, never a URL, so returning it does not widen read access.
+        "storage_name": storage_name,
+        "expires_in": settings.MEETING_FILE_DIRECT_UPLOAD_TTL_SECONDS,
+        "max_bytes": settings.MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES,
+        "headers": {"Content-Type": content_type},
+    }
+
+
+def complete_direct_upload(user, *, key, storage_name, size, content_type, options):
+    """Adopt an object the client already PUT, after verifying it server-side.
+
+    The client's claims are never trusted: the object must exist in our private
+    bucket at the expected key and its stored length must equal what was signed.
+    Only the header is fetched, so a GB-scale object costs a bounded read.
+    """
+    if not 0 < size <= settings.MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES:
+        raise ValueError("invalid_file")
+    extension = _parse_extension(storage_name)
+    _declared_media_ok(extension, content_type)
+    storage = audio_storage()
+    # Confine adoption to objects this service namespaces in its own bucket.
+    # ``_normalize_name`` collapses traversal before the prefix test, so a caller
+    # cannot point the record at an arbitrary key (or escape the prefix).
+    normalized = storage._normalize_name(storage_name)  # noqa: SLF001 -- the backend's own key normalizer
+    if not normalized.startswith("record-uploads/"):
+        raise ValueError("invalid_object_key")
+    storage_name = normalized
+    object_key = posixpath.join(storage.location, normalized)
+    _verify_stored_header(storage, storage_name, extension)
+    head = storage.connection.meta.client.head_object(
+        Bucket=storage.bucket_name, Key=object_key
+    )
+    if head.get("ContentLength") != size:
+        raise ValueError("upload_size_mismatch")
+    metadata = {
+        "name": Path(storage_name).name[:255],
+        "media_type": "video" if extension in VIDEO_EXTENSIONS else "audio",
+    }
+    configuration = _job_configuration(options)
+    # Declared length stands in for the streamed digest the multipart path
+    # computes: it is verified above against the stored object, and the signed
+    # PUT already pinned it at upload time.
+    checksum = hashlib.sha256(f"{storage_name}:{size}".encode()).hexdigest()
+    with transaction.atomic():
+        models.User.objects.select_for_update().get(pk=user.pk, is_active=True)
+        previous = _replay_guard(user, key, checksum, configuration)
+        if previous:
+            return previous
+        try:
+            return _record_job(
+                user,
+                key,
+                storage_name=storage_name,
+                checksum=checksum,
+                size=size,
+                configuration=configuration,
+                metadata={
+                    "title": Path(storage_name).stem,
+                    "file": metadata,
+                },
+            )
+        except Exception:
+            storage.delete(storage_name)
+            raise
+
 
 
 @transaction.atomic

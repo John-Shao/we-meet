@@ -90,6 +90,7 @@ it('loads only completed recordings, limits history to twenty and links to secon
   expect(
     await screen.findByRole('link', { name: /Recording 0 / })
   ).toHaveAttribute('href', '/meeting/recording/history/id-0')
+  // 本页给最近 20 条；会议实录才是录音/上传记录的权威列表,全部记录走下面的「更多」。
   expect(screen.getAllByRole('listitem')).toHaveLength(20)
   expect(screen.queryByText('Recording 20')).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'video.more' })).toHaveAttribute(

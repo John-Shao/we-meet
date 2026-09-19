@@ -30,7 +30,12 @@ import {
   sectionHeading,
 } from '../components/libraryStyles'
 
-/** 历史录音最多显示的条数；Android 端 RecordingHomeScreen 用的是同一个数。 */
+/**
+ * 本页展示最近 20 条，**会议实录才是录音/上传记录的权威列表**（全部记录走
+ * 「更多」→ `/meeting/notes?source_type=recordings`）。这里的长列表曾与实录页
+ * 重复展示同一批记录，因此标题用「最近录音」而不是「历史录音」——不承诺全量。
+ * Android 端 RecordingHomeScreen 用同一个数。
+ */
 const HISTORY_LIMIT = 20
 
 /** 页壳(铺满内容列,不限宽居中)。 */

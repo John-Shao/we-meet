@@ -180,7 +180,15 @@ backend:
     MEETING_CAPTURE_AUDIO_ENABLED: "True"
     # Import original audio/video and transcribe asynchronously with Celery.
     MEETING_FILE_ASR_ENABLED: "True"
+    # Multipart ceiling: bytes spool to app disk, so this stays bounded.
     MEETING_FILE_ASR_MAX_BYTES: "104857600"
+    # Direct (presigned) uploads: client PUTs straight to object storage, so the
+    # 100 MiB app-disk ceiling above does not apply and GB-scale imports become
+    # possible. Enable only after the clients ship the agent's two-step flow —
+    # the API signs an exact byte count and verifies the stored object on
+    # completion, but older clients would still use the multipart branch.
+    MEETING_FILE_DIRECT_UPLOAD_ENABLED: "False"
+    MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES: "6442450944"
     QWEN_FILE_ASR_REGION: "cn-beijing"
     MEETING_CAPTURE_ASR_ENABLED: "True"
     MEETING_CAPTURE_LIVE_ASR_ENABLED: "True"

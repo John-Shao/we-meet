@@ -66,6 +66,13 @@ class MeetingAIChartTest(unittest.TestCase):
         self.assertEqual(100 * 1024 * 1024, int(env["MEETING_FILE_ASR_MAX_BYTES"]))
         self.assertEqual("101m", config["ingress"]["annotations"]["nginx.ingress.kubernetes.io/proxy-body-size"])
 
+    def test_direct_upload_stays_off_until_clients_ship_it(self):
+        """The GB ceiling ships dark: signing it on early would strand old clients."""
+        config = yaml.safe_load((ROOT / "src/helm/env.d/aliyun-prod/values.meet.yaml").read_text(encoding="utf-8"))
+        env = config["backend"]["envVars"]
+        self.assertEqual("False", env["MEETING_FILE_DIRECT_UPLOAD_ENABLED"])
+        self.assertEqual(6 * 1024 * 1024 * 1024, int(env["MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES"]))
+
     def test_beat_inherits_backend_settings_without_worker_override_leak(self):
         rows = render("celeryBeat.enabled=true", "backend.envVars.AI_SCOPE=backend",
                       "celeryBackend.envVars.AI_SCOPE=worker", "backend.image.tag=fixture-backend")
@@ -96,7 +103,12 @@ class MeetingAIChartTest(unittest.TestCase):
         rows = [row for row in yaml.safe_load_all(result.stdout) if row]
         deployments = {row["metadata"]["name"]: row for row in rows if row["kind"] == "Deployment"}
         config = yaml.safe_load((ROOT / "src/helm/env.d/aliyun-prod/values.meet.yaml").read_text(encoding="utf-8"))
-        flags = [key for key in config["backend"]["envVars"] if key.startswith("MEETING_") and key.endswith("_ENABLED")]
+        # Shipped dark on purpose: presigned direct uploads only work once the
+        # clients adopt the two-step flow, so this flag is deliberately not part
+        # of the "every rolled-out flag is True" invariant below.
+        dark = {"MEETING_FILE_DIRECT_UPLOAD_ENABLED"}
+        flags = [key for key in config["backend"]["envVars"]
+                 if key.startswith("MEETING_") and key.endswith("_ENABLED") and key not in dark]
         self.assertTrue({"MEETING_RECORDS_ENABLED", "MEETING_CAPTURE_AUDIO_ENABLED",
                          "MEETING_SUMMARY_REQUESTS_ENABLED", "MEETING_CAPTURE_TRANSLATION_ENABLED"}.issubset(flags))
         for name in ("meet-backend", "meet-celery-backend", "meet-celery-beat"):
@@ -104,6 +116,9 @@ class MeetingAIChartTest(unittest.TestCase):
             env = {item["name"]: item for item in container["env"]}
             for flag in flags:
                 self.assertEqual("True", env[flag]["value"], f"{name}:{flag}")
+            # The dark flag must still be *wired*, just False.
+            for flag in dark:
+                self.assertEqual("False", env[flag]["value"], f"{name}:{flag}")
             self.assertEqual("qwen3.8-flash", env["MEETING_SUMMARY_MODEL"]["value"])
             self.assertEqual("meet-ai-credentials", env["DASHSCOPE_API_KEY"]["valueFrom"]["secretKeyRef"]["name"])
             self.assertEqual("text-embedding-v4", env["QWEN_EMBEDDING_MODEL"]["value"])
