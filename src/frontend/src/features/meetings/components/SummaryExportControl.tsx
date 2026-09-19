@@ -106,8 +106,11 @@ const Control = (props: Props) => {
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
             >
-              <option value="zh">中文</option>
-              <option value="en">English</option>
+              {/* Language names come from the shared `language.*` keys, the same
+                  source every other language picker in this feature uses —
+                  hardcoding 中文/English here left fr/nl/de users with Chinese. */}
+              <option value="zh">{t('language.zh')}</option>
+              <option value="en">{t('language.en')}</option>
             </select>
           </label>
           <Text variant="note">{t('summaryExport.languageHint')}</Text>

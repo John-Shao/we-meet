@@ -46,9 +46,14 @@ function show(viewerId = 'owner', sourceId = 'version') {
   )
 }
 async function open() {
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'summaryExport.open' })
-  )
+  // React Aria derives a native `disabled` attribute while the capability read
+  // is still in flight, and a click on a disabled element is dropped. Wait for
+  // an actionable toggle before clicking so the helper never races the query.
+  const toggle = await screen.findByRole('button', {
+    name: 'summaryExport.open',
+  })
+  await waitFor(() => expect(toggle).toBeEnabled())
+  fireEvent.click(toggle)
   await screen.findByRole('button', { name: 'summaryExport.preview' })
 }
 async function inspect() {
@@ -125,9 +130,11 @@ it('persists the original key before POST and recovers it after remount', async 
   client.clear()
   fail = false
   show()
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'summaryExport.open' })
-  )
+  const reopened = await screen.findByRole('button', {
+    name: 'summaryExport.open',
+  })
+  await waitFor(() => expect(reopened).toBeEnabled())
+  fireEvent.click(reopened)
   fireEvent.click(
     await screen.findByRole('button', { name: 'summaryExport.resubmit' })
   )
@@ -299,11 +306,29 @@ it.each(['{', '{}', ''])(
     const key = `meeting-summary-export:owner:record:ai:version:en`
     sessionStorage.setItem(key, raw)
     show()
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'summaryExport.open' })
-    )
+    const toggle = await screen.findByRole('button', {
+      name: 'summaryExport.open',
+    })
+    await waitFor(() => expect(toggle).toBeEnabled())
+    fireEvent.click(toggle)
     await screen.findByText('summaryExport.storageUnavailable')
     expect(posts()).toHaveLength(0)
     expect(sessionStorage.getItem(key)).toBe(raw)
   }
 )
+
+it('labels the language options through the shared translation keys', async () => {
+  // Hardcoded 中文/English left fr/nl/de users reading Chinese in this picker.
+  show()
+  await open()
+  const select = screen.getByRole('combobox')
+  expect(
+    Array.from(select.querySelectorAll('option')).map((option) => ({
+      value: (option as HTMLOptionElement).value,
+      label: option.textContent,
+    }))
+  ).toEqual([
+    { value: 'zh', label: 'language.zh' },
+    { value: 'en', label: 'language.en' },
+  ])
+})
