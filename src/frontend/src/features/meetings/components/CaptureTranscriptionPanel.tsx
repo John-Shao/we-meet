@@ -15,6 +15,11 @@ import { RecordSummaryPanel } from './RecordSummaryPanel'
 import { OriginalSearch } from './OriginalSearch'
 import { LiveCaptureTranscript } from './LiveCaptureTranscript'
 import { TranscriptSegment } from './TranscriptSegment'
+import {
+  activeRowId,
+  type PlaybackFollow,
+  type TimedRow,
+} from '../transcriptSync'
 
 type Job = {
   id: string
@@ -57,12 +62,19 @@ export function CaptureTranscriptionPanel({
   onSource,
   includeSummary = true,
   compactControls = false,
+  positionMs,
+  activeId,
+  follow,
 }: {
   viewerId: string
   capture: ApiCaptureSession
   onSource?: (milliseconds: number) => void
   includeSummary?: boolean
   compactControls?: boolean
+  /** Playback position in the source clock, so the text can follow audio. */
+  positionMs?: number
+  activeId?: string | null
+  follow?: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'>
 }) {
   const { t } = useTranslation('capture')
   const path = `capture-sessions/${capture.id}/transcription/`
@@ -356,6 +368,9 @@ export function CaptureTranscriptionPanel({
           capture={capture}
           jobId={state.data.active_job_id}
           onSource={textMode ? undefined : onSource}
+          positionMs={positionMs}
+          activeId={activeId}
+          follow={follow}
         />
       )}
       {!!state.data.results.length && (
@@ -404,11 +419,18 @@ function Originals({
   capture,
   jobId,
   onSource,
+  positionMs,
+  activeId,
+  follow,
 }: {
   viewerId: string
   capture: ApiCaptureSession
   jobId: string
   onSource?: (milliseconds: number) => void
+  /** Playback position in the source clock; undefined when nothing is playing. */
+  positionMs?: number
+  activeId?: string | null
+  follow?: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'>
 }) {
   const { t } = useTranslation('capture')
   const [cursors, setCursors] = useState<string[]>([''])
@@ -435,6 +457,24 @@ function Originals({
     staleTime: 0,
   })
   const next = query.data?.next_cursor
+  // Computed before the early returns below so hook order cannot change.
+  // Rows carry their own window, matching the clock the player reports in.
+  const timedRows: TimedRow[] = (query.data?.results ?? []).map((row) => ({
+    id: row.id,
+    start_ms: row.start_ms,
+    end_ms: row.end_ms,
+  }))
+  // The shared activeId wins when the workspace computed it; otherwise fall back
+  // to deriving it here, so this panel also works without a player.
+  const resolvedActiveId = follow
+    ? (activeId ?? null)
+    : positionMs === undefined
+      ? null
+      : activeRowId(timedRows, positionMs)
+  const resolvedFollow: Pick<
+    PlaybackFollow,
+    'suppressed' | 'suppressionEpoch'
+  > = follow ?? { suppressed: () => false, suppressionEpoch: 0 }
   if (query.isError)
     return (
       <div>
@@ -461,6 +501,9 @@ function Originals({
       {query.data.results.map((row) => (
         <TranscriptSegment
           key={row.id}
+          segmentId={row.id}
+          activeId={resolvedActiveId}
+          follow={resolvedFollow}
           speaker={row.speaker_label || t('asr.unknownSpeaker')}
           time={`${Math.floor(row.start_ms / 60000)}:${String(Math.floor(row.start_ms / 1000) % 60).padStart(2, '0')}`}
           onSeek={onSource ? () => onSource(row.start_ms) : undefined}

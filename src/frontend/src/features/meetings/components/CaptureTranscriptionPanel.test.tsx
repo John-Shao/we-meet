@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
@@ -420,3 +420,111 @@ it.each([401, 403, 404, 408, 429, 503])(
     expect(sessionStorage.getItem('capture-asr:owner:capture')).not.toBeNull()
   }
 )
+
+// --- playback ↔ transcript coupling -----------------------------------------
+
+/** Two contiguous originals so a position can fall inside exactly one of them. */
+const twoRows = () => {
+  vi.mocked(fetchApi).mockImplementation(async (path, options) => {
+    if (options?.method === 'POST') return { job: { id: 'job' } }
+    if (path.includes('original-segments'))
+      return {
+        results: [
+          { id: 'first', start_ms: 0, end_ms: 1000, text: 'First line' },
+          { id: 'second', start_ms: 1000, end_ms: 2000, text: 'Second line' },
+        ],
+        next_cursor: null,
+      }
+    return status
+  })
+}
+
+function showWithPosition(positionMs: number) {
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={client}>
+      <CaptureTranscriptionPanel
+        viewerId="owner"
+        capture={capture}
+        onSource={onSource}
+        positionMs={positionMs}
+      />
+    </QueryClientProvider>
+  )
+}
+
+it('marks the segment the playback position is inside', async () => {
+  twoRows()
+  status.active_job_id = 'job'
+  showWithPosition(1200)
+  const second = (await screen.findByText('Second line')).closest('article')!
+  const first = screen.getByText('First line').closest('article')!
+  // aria-current is the accessible twin of the visual highlight.
+  expect(second).toHaveAttribute('aria-current', 'true')
+  expect(first).not.toHaveAttribute('aria-current')
+})
+
+it('moves the highlight as the position advances', async () => {
+  twoRows()
+  status.active_job_id = 'job'
+  const view = showWithPosition(100)
+  const first = (await screen.findByText('First line')).closest('article')!
+  expect(first).toHaveAttribute('aria-current', 'true')
+
+  view.rerender(
+    <QueryClientProvider client={client}>
+      <CaptureTranscriptionPanel
+        viewerId="owner"
+        capture={capture}
+        onSource={onSource}
+        positionMs={1500}
+      />
+    </QueryClientProvider>
+  )
+  expect(
+    screen.getByText('Second line').closest('article')!
+  ).toHaveAttribute('aria-current', 'true')
+  expect(screen.getByText('First line').closest('article')!).not.toHaveAttribute(
+    'aria-current'
+  )
+})
+
+it('highlights nothing in a recording gap instead of pointing at a neighbour', async () => {
+  vi.mocked(fetchApi).mockImplementation(async (path, options) => {
+    if (options?.method === 'POST') return { job: { id: 'job' } }
+    if (path.includes('original-segments'))
+      return {
+        results: [
+          { id: 'a', start_ms: 0, end_ms: 1000, text: 'Before the gap' },
+          { id: 'b', start_ms: 3000, end_ms: 4000, text: 'After the gap' },
+        ],
+        next_cursor: null,
+      }
+    return status
+  })
+  status.active_job_id = 'job'
+  showWithPosition(2000)
+  await screen.findByText('Before the gap')
+  expect(screen.queryByRole('article', { current: 'true' })).not.toBeInTheDocument()
+})
+
+it('keeps every row highlight-free when nothing is playing', async () => {
+  twoRows()
+  status.active_job_id = 'job'
+  // No position prop at all: the panel is usable without a player.
+  show()
+  await screen.findByText('First line')
+  expect(
+    document.querySelectorAll('article[aria-current="true"]')
+  ).toHaveLength(0)
+})
+
+it('lets a click on a timestamp still seek, now that rows also follow playback', async () => {
+  twoRows()
+  status.active_job_id = 'job'
+  showWithPosition(100)
+  const row = (await screen.findByText('Second line')).closest('article')!
+  fireEvent.click(within(row).getByRole('button', { name: /asr\.source/ }))
+  // One direction is unchanged: clicking text still moves the audio.
+  expect(onSource).toHaveBeenCalledWith(1000)
+})

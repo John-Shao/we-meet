@@ -25,14 +25,25 @@ const time = (milliseconds: number) => {
 export type CaptureAudioHandle = { seek: (milliseconds: number) => void }
 export const CaptureAudioPlayer = forwardRef<
   CaptureAudioHandle,
-  { captureId: string; compact?: boolean }
->(function CaptureAudioPlayer({ captureId, compact = false }, ref) {
+  {
+    captureId: string
+    compact?: boolean
+    /**
+     * Report the source-clock position so a transcript can follow playback.
+     * Fires on seeks and on every time update while playing.
+     */
+    onPosition?: (milliseconds: number) => void
+  }
+>(function CaptureAudioPlayer(
+  { captureId, compact = false, onPosition },
+  ref
+) {
   const { t } = useTranslation('capture')
   const [playlist, setPlaylist] = useState<AudioPlaylist>()
   const [state, setState] = useState<
     'loading' | 'ready' | 'playing' | 'gap' | 'error'
   >('loading')
-  const [position, setPosition] = useState(0)
+  const [position, setPositionState] = useState(0)
   const [rate, setRate] = useState(1)
   const audio = useRef<HTMLAudioElement>(null)
   const current = useRef<number>()
@@ -42,6 +53,15 @@ export const CaptureAudioPlayer = forwardRef<
   const playlistRef = useRef<AudioPlaylist>()
   const rateRef = useRef(1)
   const seeking = useRef<{ playing: boolean }>()
+  // Kept in a ref so a new callback identity never re-runs the load effects.
+  const onPositionRef = useRef(onPosition)
+  onPositionRef.current = onPosition
+
+  /** Single writer for the source clock, so a follower cannot miss a change. */
+  const setPosition = (milliseconds: number) => {
+    setPositionState(milliseconds)
+    onPositionRef.current?.(milliseconds)
+  }
 
   const clear = () => {
     activeRequest.current?.abort()

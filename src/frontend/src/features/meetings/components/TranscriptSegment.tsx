@@ -1,5 +1,7 @@
 import { RiUser3Line } from '@remixicon/react'
-import { css } from '@/styled-system/css'
+import { css, cx } from '@/styled-system/css'
+
+import { useSegmentFollow, type PlaybackFollow } from '../transcriptSync'
 
 /** Keep speaker identity and source time together, with room to read the transcript. */
 export function TranscriptSegment({
@@ -8,16 +10,49 @@ export function TranscriptSegment({
   text,
   onSeek,
   seekLabel,
+  segmentId,
+  activeId,
+  follow,
 }: {
   speaker: string
   time: string
   text: string
   onSeek?: () => void
   seekLabel?: string
+  /** Identifies this segment to `activeId`. */
+  segmentId: string
+  /** Row playback is currently inside, shared by every segment in the list. */
+  activeId?: string | null
+  /** Playback-follow state; omit when there is no player to follow. */
+  follow?: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'>
 }) {
+  const { ref, active } = useSegmentFollow(
+    follow ? (activeId ?? null) : null,
+    segmentId,
+    follow ?? { suppressed: () => true, suppressionEpoch: 0 }
+  )
+
   return (
     <article
-      className={css({ padding: '1.25rem 0', overflowWrap: 'anywhere' })}
+      ref={ref}
+      // aria-current is the accessible signal; the left rule is its visual twin.
+      aria-current={active ? 'true' : undefined}
+      data-active={active ? 'true' : undefined}
+      className={cx(
+        css({
+          padding: '1.25rem 0',
+          overflowWrap: 'anywhere',
+          borderLeft: '3px solid transparent',
+          paddingLeft: '0.75rem',
+          marginLeft: '-0.75rem',
+          transition: 'background-color 150ms ease',
+        }),
+        active &&
+          css({
+            backgroundColor: 'primary.50',
+            borderLeftColor: 'primary.500',
+          })
+      )}
     >
       <div
         className={css({
