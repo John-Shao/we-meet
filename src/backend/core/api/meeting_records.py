@@ -865,6 +865,30 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
     @action(detail=True, methods=["get"])
+    def media(self, request, pk=None):
+        """Sign one whole-object GET for a sealed upload, so it can be replayed.
+
+        Uploads are served whole rather than as playback chunks: they land
+        complete, so a signed GET with HTTP Range gives a client exact seeking
+        without a manifest, a chunk table, or a transcode job. Permission is the
+        owner's, matching the capture session's own rule, so this widens nothing.
+        """
+        from core.services.uploaded_recordings import (  # noqa: PLC0415
+            media_available,
+            media_read_url,
+        )
+
+        record = self._content_record("read_transcript")
+        job = getattr(record, "uploaded_recording", None)
+        if (
+            record.source_type != models.MeetingRecord.Source.UPLOAD
+            or record.owner_id != request.user.pk
+            or not media_available(job)
+        ):
+            raise Http404
+        return Response(media_read_url(job))
+
+    @action(detail=True, methods=["get"])
     def summaries(self, request, pk=None):
         """Read the legacy summary as a source-scoped compatibility artifact."""
         record = self._content_record("read_summary")

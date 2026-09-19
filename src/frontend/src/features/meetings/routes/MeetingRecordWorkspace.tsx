@@ -25,6 +25,10 @@ import {
   CaptureAudioPlayer,
   type CaptureAudioHandle,
 } from '../components/CaptureAudioPlayer'
+import {
+  UploadMediaPlayer,
+  type UploadMediaHandle,
+} from '../components/UploadMediaPlayer'
 import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
@@ -45,7 +49,7 @@ import { TranslationArchivePanel } from '../components/TranslationArchivePanel'
 import { CaptureTranslationArchives } from '../components/CaptureTranslationArchives'
 import { TranscriptSegment } from '../components/TranscriptSegment'
 import { recordSourceKey } from '../recordSource'
-import { usePlaybackFollow, type TimedRow } from '../transcriptSync'
+import { usePlaybackFollow, type PlaybackFollow, type TimedRow } from '../transcriptSync'
 import { RiArrowLeftLine, RiTimeLine } from '@remixicon/react'
 
 /** The workspace carries the clock only; each transcript derives its own rows. */
@@ -71,10 +75,15 @@ function OriginalRead({
   record,
   viewerId,
   speakers = false,
+  activeId,
+  follow,
 }: {
   record: ApiMeetingRecord
   viewerId: string
   speakers?: boolean
+  /** Row playback is inside, so the text can follow the audio. */
+  activeId?: string | null
+  follow?: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'>
 }) {
   const { t } = useTranslation('meetings')
   const [cursors, setCursors] = useState<string[]>([''])
@@ -168,6 +177,8 @@ function OriginalRead({
           <TranscriptSegment
             key={item.id}
             segmentId={item.id}
+            activeId={activeId}
+            follow={follow}
             speaker={
               ('started_at' in item ? item.speaker_name : item.speaker_label) ||
               t('library.unknownSpeaker')
@@ -261,6 +272,9 @@ function WorkspaceContent({
           : 'summary'
   )
   const player = useRef<CaptureAudioHandle>(null)
+  const uploadMedia = useRef<UploadMediaHandle>(null)
+  /** Imports are served whole; captures are served as verified chunks. */
+  const isUpload = record.source_type === 'upload'
   /**
    * Playback position lives here because the player and the transcript are
    * separate regions: the player owns the clock, the transcript owns the text,
@@ -295,6 +309,15 @@ function WorkspaceContent({
   const playable =
     readableCapture && ['saved', 'incomplete'].includes(source.media_status)
   const canReadText = record.capabilities.read_transcript
+  /**
+   * One seek entry point for both players. The two sources differ in how the
+   * bytes are fetched, not in what a transcript citation means: a millisecond
+   * offset in the record's own clock.
+   */
+  const seekTo = (milliseconds: number) => {
+    if (isUpload) uploadMedia.current?.seek(milliseconds)
+    else player.current?.seek(milliseconds)
+  }
   const canReadSummary = record.capabilities.read_summary
   const selectedTab =
     (tab === 'text' || tab === 'speakers' || tab === 'translations') &&
@@ -367,7 +390,7 @@ function WorkspaceContent({
                 capture={source}
                 includeSummary={false}
                 compactControls
-                onSource={(ms) => player.current?.seek(ms)}
+                onSource={(ms) => seekTo(ms)}
                 positionMs={follow.positionMs}
                 activeId={follow.activeId}
                 follow={follow}
@@ -377,6 +400,8 @@ function WorkspaceContent({
                 key={`${record.id}:${record.revision}`}
                 record={record}
                 viewerId={viewerId}
+                activeId={isUpload ? follow.activeId : undefined}
+                follow={isUpload ? follow : undefined}
               />
             )}
           </TabPanel>
@@ -413,14 +438,19 @@ function WorkspaceContent({
               viewerId={viewerId}
               recordId={record.id}
               onSourceAudio={
-                playable
-                  ? (ms) =>
-                      player.current?.seek(
-                        ms -
-                          (Date.parse(source.started_at) -
-                            Date.parse(record.origin_at))
-                      )
-                  : undefined
+                // A capture's clock starts at its own session, so a citation's
+                // record-clock offset has to be rebased. An import's clock is the
+                // record's, so the offset is already the answer.
+                isUpload
+                  ? (ms: number) => seekTo(ms)
+                  : playable && source
+                    ? (ms: number) =>
+                        seekTo(
+                          ms -
+                            (Date.parse(source.started_at) -
+                              Date.parse(record.origin_at))
+                        )
+                    : undefined
               }
             />
             {summaryId === undefined && record.source_type === 'meeting' && (
@@ -477,6 +507,20 @@ function WorkspaceContent({
             onPosition={follow.report}
           />
         </div>
+      )}
+      {/*
+        An import has no capture playlist to read, so it gets its own player:
+        the whole sealed object, with the browser's Range handling for seeking.
+        The signed URL expires, which is why this mounts only with the transcript
+        and re-resolves per record rather than being held for the page's life.
+      */}
+      {isUpload && canReadText && (
+        <UploadMediaPlayer
+          key={`${viewerId}:${record.id}`}
+          ref={uploadMedia}
+          recordId={record.id}
+          onPosition={follow.report}
+        />
       )}
     </>
   )

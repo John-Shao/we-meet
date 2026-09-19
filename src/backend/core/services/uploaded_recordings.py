@@ -278,6 +278,62 @@ def direct_upload_max_bytes():
     return settings.MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES
 
 
+# ---------------------------------------------------------------------------
+# Whole-file reads
+#
+# An uploaded file is *sealed*: it lands complete and never changes, unlike a
+# live capture whose audio arrives incrementally and can have gaps. So it is not
+# sliced into playback chunks — a signed GET supports HTTP Range natively, which
+# gives an <audio> element or ExoPlayer exact seeking for free instead of a
+# manifest, a chunk table and a transcode job that would exist only to imitate a
+# file the storage service already serves.
+# ---------------------------------------------------------------------------
+
+#: Lifetime of a presigned whole-object GET. Long enough for a GB-scale file to
+#: be read through, short enough that a leaked URL does not stay useful.
+MEDIA_GET_URL_TTL_SECONDS = 3600
+
+
+def media_available(job):
+    """True when this upload still has bytes a reader could fetch."""
+    return bool(
+        job
+        and job.record.retention_mode == models.MeetingRecord.Retention.MEDIA
+        and job.storage_name
+        and job.size > 0
+    )
+
+
+def media_read_url(job):
+    """Sign one GET for the whole stored object.
+
+    Callers must have already authorized the reader; this only signs. The URL is
+    returned with the object's own size and media type so a client can decide
+    whether to stream it before issuing any request.
+    """
+    storage = audio_storage()
+    url = storage.connection.meta.client.generate_presigned_url(
+        ClientMethod="get_object",
+        Params={
+            "Bucket": storage.bucket_name,
+            "Key": posixpath.join(storage.location, job.storage_name),
+        },
+        ExpiresIn=MEDIA_GET_URL_TTL_SECONDS,
+    )
+    metadata = job.configuration.get("_file", {})
+    extension = Path(job.storage_name).suffix.lower().lstrip(".")
+    return {
+        "url": url,
+        "expires_in": MEDIA_GET_URL_TTL_SECONDS,
+        "media_type": metadata.get(
+            "media_type", "video" if extension in VIDEO_EXTENSIONS else "audio"
+        ),
+        "name": metadata.get("name", ""),
+        "size": job.size,
+        "content_type": sorted(MEDIA_MIMES.get(extension, {"application/octet-stream"}))[0],
+    }
+
+
 def presign_direct_upload(user, *, name, size, content_type, key, options):
     """Sign one PUT for an exact byte count and return where to send it.
 
