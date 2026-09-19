@@ -39,6 +39,17 @@
     "final": "已确认译文",
     "preview": "翻译中"
   },
+  "transcriptCorrection": {
+    "edit": "编辑",
+    "save": "保存",
+    "cancel": "取消",
+    "saving": "保存中…",
+    "editedBadge": "已编辑",
+    "showOriginal": "查看原文",
+    "hideOriginal": "隐藏原文",
+    "restore": "恢复原文",
+    "failed": "修订未保存，请重试。"
+  },
   "transcriptExport": {
     "label": "导出文字记录",
     "download": "下载 {format}"

@@ -39,6 +39,17 @@
     "final": "Bevestigde vertaling",
     "preview": "Bezig met vertalen"
   },
+  "transcriptCorrection": {
+    "edit": "Bewerken",
+    "save": "Opslaan",
+    "cancel": "Annuleren",
+    "saving": "Opslaan…",
+    "editedBadge": "Bewerkt",
+    "showOriginal": "Origineel tonen",
+    "hideOriginal": "Origineel verbergen",
+    "restore": "Origineel herstellen",
+    "failed": "De correctie is niet opgeslagen. Probeer opnieuw."
+  },
   "transcriptExport": {
     "label": "Transcript exporteren",
     "download": "{format} downloaden"

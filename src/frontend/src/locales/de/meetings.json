@@ -39,6 +39,17 @@
     "final": "Bestätigte Übersetzung",
     "preview": "Wird übersetzt"
   },
+  "transcriptCorrection": {
+    "edit": "Bearbeiten",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "saving": "Speichern…",
+    "editedBadge": "Bearbeitet",
+    "showOriginal": "Original anzeigen",
+    "hideOriginal": "Original ausblenden",
+    "restore": "Original wiederherstellen",
+    "failed": "Die Korrektur wurde nicht gespeichert. Versuchen Sie es erneut."
+  },
   "transcriptExport": {
     "label": "Transkript exportieren",
     "download": "{format} herunterladen"

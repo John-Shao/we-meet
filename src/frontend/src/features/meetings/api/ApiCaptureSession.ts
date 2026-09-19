@@ -94,6 +94,10 @@ export interface ApiMeetingOriginalSegment {
   end_ms: number | null
   speaker_id: string
   speaker_label: string
+  /** The reader's text: the newest correction, else what the recogniser said. */
   text: string
+  /** The recogniser's own words, so a correction never looks original. */
+  original_text?: string
+  is_corrected?: boolean
   language: string
 }

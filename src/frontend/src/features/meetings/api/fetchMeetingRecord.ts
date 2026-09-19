@@ -272,6 +272,60 @@ export const useRequestRecordSummary = (viewerId: string, recordId: string) => {
 }
 export type { SummaryRequestPayload }
 
+/** What the server reports back for one corrected segment. */
+export interface ApiSegmentCorrection {
+  id: string
+  text: string
+  original_text: string
+  is_corrected: boolean
+  /** Null when the submission matched what the segment already said. */
+  revision: number | null
+}
+
+/**
+ * Correct one transcript segment, or drop its corrections.
+ *
+ * The write appends a revision and never rewrites the original, so a reader can
+ * always see what the recogniser produced. `expectedRevision` guards a
+ * concurrent edit: the server answers 409 rather than letting the later saver
+ * silently overwrite the earlier one.
+ */
+export const useCorrectOriginalSegment = (viewerId: string, recordId: string) => {
+  const client = useQueryClient()
+  const segmentPath = (segmentId: string) =>
+    `${recordPath(recordId)}original-segments/${encodeURIComponent(segmentId)}/`
+  return useMutation<
+    ApiSegmentCorrection,
+    ApiError,
+    { segmentId: string; text?: string; expectedRevision?: number; revert?: boolean }
+  >({
+    mutationFn: ({ segmentId, text, expectedRevision, revert }) =>
+      fetchApi<ApiSegmentCorrection>(segmentPath(segmentId), {
+        method: revert ? 'DELETE' : 'PATCH',
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(20000),
+        ...(revert
+          ? {}
+          : {
+              body: JSON.stringify({
+                text,
+                ...(expectedRevision === undefined ? {} : { expected_revision: expectedRevision }),
+              }),
+            }),
+      }),
+    retry: false,
+    gcTime: 0,
+    onSuccess: async () => {
+      // The corrected text is projected into every transcript read, so the list
+      // has to re-read rather than be patched locally.
+      await client.invalidateQueries({
+        queryKey: ['meeting-records', viewerId],
+      })
+    },
+  })
+}
+
 /**
  * Rename an ended standalone recording. The backend rejects with 409 when
  * `expected_title` no longer matches, so callers must surface the conflict and

@@ -11,6 +11,7 @@ import type {
   CaptureAudioRetention,
 } from '../api/ApiCaptureSession'
 import { isAudioRetention } from '../capture/retention'
+import { useCorrectOriginalSegment } from '../api/fetchMeetingRecord'
 import { RecordSummaryPanel } from './RecordSummaryPanel'
 import { OriginalSearch } from './OriginalSearch'
 import { LiveCaptureTranscript } from './LiveCaptureTranscript'
@@ -477,6 +478,15 @@ function Originals({
     'suppressed' | 'suppressionEpoch'
   > = follow ?? { suppressed: () => false, suppressionEpoch: 0 }
   const listRef = useRef<HTMLDivElement>(null)
+  /**
+   * Correcting is offered from here because this list is the reader's view of the
+   * source. A record whose text lives somewhere without a revision model simply
+   * gets no handler, and the row renders without an edit control.
+   */
+  const correction = useCorrectOriginalSegment(viewerId, capture.record_id)
+  const correct = (segmentId: string, next: string) =>
+    correction.mutate({ segmentId, text: next })
+  const revert = (segmentId: string) => correction.mutate({ segmentId, revert: true })
   /** The visible rows are a subset, so position cannot address them. */
   const filtersActive = search.trim() !== ''
   /**
@@ -520,6 +530,12 @@ function Originals({
           key={row.id}
           segmentId={row.id}
           active={resolvedActiveId === row.id}
+          originalText={row.original_text}
+          isCorrected={row.is_corrected === true}
+          onCorrect={correct}
+          onRevert={revert}
+          correcting={correction.isPending}
+          editFailed={correction.isError}
           speaker={row.speaker_label || t('asr.unknownSpeaker')}
           time={`${Math.floor(row.start_ms / 60000)}:${String(Math.floor(row.start_ms / 1000) % 60).padStart(2, '0')}`}
           onSeek={onSource ? () => onSource(row.start_ms) : undefined}

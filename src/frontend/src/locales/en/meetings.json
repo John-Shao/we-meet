@@ -39,6 +39,17 @@
     "final": "Confirmed translation",
     "preview": "Translating"
   },
+  "transcriptCorrection": {
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "editedBadge": "Edited",
+    "showOriginal": "Show original",
+    "hideOriginal": "Hide original",
+    "restore": "Restore original",
+    "failed": "The correction was not saved. Try again."
+  },
   "transcriptExport": {
     "label": "Export transcript",
     "download": "Download {format}"
