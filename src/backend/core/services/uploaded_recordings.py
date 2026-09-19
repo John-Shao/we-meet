@@ -143,6 +143,33 @@ def serialize(job):
     }
 
 
+def parse_hotwords(value):
+    """One temporary vocabulary per recording, with bounded word lengths.
+
+    Lives in the service layer because the multipart session service needs the
+    same rule, and importing it from the API module would make the API and the
+    service import each other.
+    """
+    words = list(
+        dict.fromkeys(word.strip() for word in value.splitlines() if word.strip())
+    )
+    if len(words) > 100 or any(len(word) > 40 for word in words):
+        raise ValueError("Use at most 100 hotwords, each up to 40 characters.")
+    return words
+
+
+def active_upload_exists(user):
+    """True when this owner already has a paid import in flight.
+
+    The single-active-job rule is checked under a locked user row at every entry
+    point, so it lives here rather than being spelled out three times and
+    drifting.
+    """
+    return models.UploadedRecording.objects.filter(
+        record__owner=user, status__in=ACTIVE
+    ).exists()
+
+
 def _record_job(user, key, *, storage_name, checksum, size, configuration, metadata):
     """Create the record/capture/job triple for an object already in storage.
 

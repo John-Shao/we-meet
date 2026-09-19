@@ -1228,6 +1228,74 @@ class UploadedRecording(BaseModel):
             raise ValidationError("Uploaded recording must match its owner and source.")
 
 
+class RecordingUploadSession(BaseModel):
+    """A resumable direct upload, before any record or transcription job exists.
+
+    Deliberately separate from `UploadedRecording`: that row is only created once
+    the object is *in* storage, and a multipart upload needs somewhere to keep the
+    storage service's upload id while the bytes are still arriving. Putting the
+    session here keeps the invariant that an `UploadedRecording` always points at
+    a complete object.
+
+    One row per client intent (the `key` the client generated), so a repeat of the
+    same intent resumes the same upload instead of starting a second one and
+    paying for the bytes twice.
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "open", "open"
+        COMPLETED = "completed", "completed"
+        ABORTED = "aborted", "aborted"
+
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
+    key = models.UUIDField()
+    #: The object key is a UUID, so the human name has to be kept separately or
+    #: the record would be titled with a UUID.
+    declared_name = models.CharField(max_length=255)
+    storage_name = models.CharField(max_length=500)
+    #: The storage service's handle for this upload; meaningless without it.
+    upload_id = models.CharField(max_length=512)
+    size = models.PositiveBigIntegerField()
+    content_type = models.CharField(max_length=128)
+    extension = models.CharField(max_length=16)
+    part_size = models.PositiveIntegerField()
+    configuration = models.JSONField(default=dict)
+    status = models.CharField(
+        max_length=16, default=Status.OPEN, choices=Status.choices
+    )
+
+    class Meta:
+        db_table = "meet_recording_upload_session"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "key"], name="unique_recording_upload_intent"
+            ),
+            # A part cannot be shorter than the storage service's minimum, and a
+            # part larger than the declared size cannot describe a real upload.
+            models.CheckConstraint(
+                condition=models.Q(part_size__gte=5 * 1024 * 1024),
+                name="upload_part_size_reasonable",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(size__gte=1), name="upload_session_size_positive"
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["owner", "status"], name="upload_session_owner_idx"
+            )
+        ]
+
+    def __str__(self):
+        return f"RecordingUploadSession({self.pk}, {self.status})"
+
+    def clean(self):
+        """A session must be able to describe the object it is building."""
+        super().clean()
+        if self.size and self.part_size and self.part_size > self.size:
+            raise ValidationError("A part cannot exceed the whole file.")
+
+
 class CaptureOperation(BaseModel):
     """Durable control receipt; never persist a raw capture lease."""
 

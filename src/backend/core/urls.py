@@ -13,6 +13,11 @@ from core.api.uploaded_recordings import (
     DirectUploadPresignView,
     UploadedRecordingView,
 )
+from core.api.recording_upload_multipart import (
+    MultipartBeginView,
+    MultipartPartsView,
+    MultipartSessionView,
+)
 from core.api.admin_audit import AuditLogViewSet
 from core.api.admin_bots import AdminBotViewSet
 from core.api.admin_import import ImportJobViewSet, MemberExportView
@@ -412,6 +417,13 @@ urlpatterns = [
                 # the object. Bytes never pass through the application.
                 path("recording-uploads/upload-url/", DirectUploadPresignView.as_view(), name="recording-upload-url"),
                 path("recording-uploads/upload-complete/", DirectUploadCompleteView.as_view(), name="recording-upload-complete"),
+                # Resumable chunked upload. Object storage's multipart API is the
+                # only way to survive a break without starting over; the server
+                # keeps the upload id and treats storage as the authority on which
+                # parts actually landed.
+                path("recording-uploads/multipart/begin/", MultipartBeginView.as_view(), name="recording-upload-multipart-begin"),
+                path("recording-uploads/multipart/<uuid:session_id>/", MultipartSessionView.as_view(), name="recording-upload-multipart-session"),
+                path("recording-uploads/multipart/<uuid:session_id>/parts/", MultipartPartsView.as_view(), name="recording-upload-multipart-parts"),
                 path("capture-sessions/<uuid:capture_id>/audio/upload/", CaptureAudioUploadView.as_view(), name="capture-audio-upload"),
                 path("capture-sessions/<uuid:capture_id>/audio/seal/", CaptureAudioSealView.as_view(), name="capture-audio-seal"),
                 path("capture-sessions/<uuid:capture_id>/audio/<uuid:chunk_id>/", CaptureAudioDownloadView.as_view(), name="capture-audio-download"),

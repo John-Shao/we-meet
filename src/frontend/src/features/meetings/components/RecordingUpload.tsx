@@ -8,6 +8,12 @@ import { StateHint } from '@/components/StateHint'
 import { RiDownload2Line } from '@remixicon/react'
 import { css, cx } from '@/styled-system/css'
 import { rowMeta } from './libraryStyles'
+import {
+  CHUNKED_THRESHOLD,
+  putPartWithProgress,
+  UploadCancelled,
+  uploadInParts,
+} from '../chunkedUpload'
 
 type UploadState = {
   record_id: string
@@ -183,6 +189,10 @@ export function RecordingUpload({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
   const [open, setOpen] = useState(false)
+  // Byte progress for the chunked path, and the handle that lets the reader stop.
+  const [uploaded, setUploaded] = useState(0)
+  const [cancelled, setCancelled] = useState(false)
+  const controller = useRef<AbortController | null>(null)
   const capabilities = useQuery({
     queryKey: ['recording-upload-capabilities', viewerId],
     queryFn: ({ signal }) =>
@@ -203,6 +213,12 @@ export function RecordingUpload({
     ? Math.max(config.max_bytes, config.direct_max_bytes ?? 0)
     : config.max_bytes
   const extension = file?.name.split('.').pop()?.toLowerCase() ?? ''
+  // Past the threshold a single PUT means one break loses everything, so large
+  // files go up in parts. Small ones keep the simpler whole-file path.
+  const chunked = directAllowed && (file?.size ?? 0) > CHUNKED_THRESHOLD
+  const percent = file?.size
+    ? Math.min(100, Math.floor((uploaded / file.size) * 100))
+    : 0
   const valid =
     !!file &&
     file.size > 0 &&
@@ -276,17 +292,50 @@ export function RecordingUpload({
               return
             }
             setBusy(true)
+            setCancelled(false)
+            setUploaded(0)
             try {
-              const result = await importRecording(
-                file,
-                key,
-                { context, hotwords },
-                directAllowed ? { maxBytes: limit } : null,
-                ticket
-              )
+              let recordId: string
+              if (chunked) {
+                const abort = new AbortController()
+                controller.current = abort
+                try {
+                  const job = (await uploadInParts(
+                    file,
+                    key,
+                    {
+                      name: file.name,
+                      content_type: file.type || 'application/octet-stream',
+                      context,
+                      hotwords,
+                    },
+                    { request: fetchApi, putPart: putPartWithProgress },
+                    abort.signal,
+                    (sent) => setUploaded(sent)
+                  )) as UploadState
+                  recordId = job.record_id
+                } catch (failure) {
+                  if (failure instanceof UploadCancelled) {
+                    setCancelled(true)
+                    return
+                  }
+                  throw failure
+                } finally {
+                  controller.current = null
+                }
+              } else {
+                const result = await importRecording(
+                  file,
+                  key,
+                  { context, hotwords },
+                  directAllowed ? { maxBytes: limit } : null,
+                  ticket
+                )
+                recordId = result.record_id
+              }
               setOpen(false)
-              if (onRecord) onRecord(result.record_id)
-              else navigate(`/meeting/records/${result.record_id}?tab=text`)
+              if (onRecord) onRecord(recordId)
+              else navigate(`/meeting/records/${recordId}?tab=text`)
             } catch {
               setError(true)
             } finally {
@@ -365,7 +414,31 @@ export function RecordingUpload({
           >
             {t(busy ? 'upload.uploading' : 'upload.submit')}
           </Button>
-          {busy && <p role="status">{t('upload.keepOpen')}</p>}
+          {/* A GB-scale import takes minutes, so it needs a real number and a
+              way out rather than an indefinite spinner. */}
+          {busy && chunked && (
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={percent}
+              aria-label={t('upload.progress', { percent })}
+            >
+              <progress value={uploaded} max={Math.max(file?.size ?? 1, 1)} />
+              <span>{t('upload.progress', { percent })}</span>
+            </div>
+          )}
+          {busy && (
+            <Button
+              variant="secondaryText"
+              size="dense"
+              onPress={() => controller.current?.abort()}
+            >
+              {t('upload.cancel')}
+            </Button>
+          )}
+          {busy && !chunked && <p role="status">{t('upload.keepOpen')}</p>}
+          {cancelled && <p role="status">{t('upload.cancelled')}</p>}
           {error && valid && <p role="alert">{t('upload.error')}</p>}
         </form>
       </Dialog>

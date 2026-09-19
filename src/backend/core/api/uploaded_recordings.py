@@ -11,6 +11,7 @@ from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
 from core import models
+from core.services import recording_upload_sessions
 from core.services import uploaded_recordings as service
 from core.services.meeting_records import RecordConflict, visible_records
 
@@ -26,14 +27,10 @@ class UploadSerializer(serializers.Serializer):
 
     def validate_hotwords(self, value):
         """One temporary vocabulary per recording, with bounded word lengths."""
-        words = list(
-            dict.fromkeys(word.strip() for word in value.splitlines() if word.strip())
-        )
-        if len(words) > 100 or any(len(word) > 40 for word in words):
-            raise serializers.ValidationError(
-                "Use at most 100 hotwords, each up to 40 characters."
-            )
-        return words
+        try:
+            return service.parse_hotwords(value)
+        except ValueError as error:
+            raise serializers.ValidationError(str(error)) from error
 
 
 class DirectUploadPresignSerializer(serializers.Serializer):
@@ -145,6 +142,12 @@ class UploadedRecordingView(APIView):
                 "direct_upload_available": direct,
                 "direct_max_bytes": (
                     service.direct_upload_max_bytes() if direct else 0
+                ),
+                # Above the chunked threshold a client should use the resumable
+                # multipart endpoints rather than one all-or-nothing PUT.
+                "multipart_upload_available": direct,
+                "multipart_part_size": (
+                    recording_upload_sessions.PART_SIZE if direct else 0
                 ),
                 "extensions": sorted(service.EXTENSIONS),
             }
