@@ -85,6 +85,8 @@ export interface ApiMeetingSpeaker {
 
 /** /meeting-records/{id}/original-segments/, separately authorized from summaries. */
 export interface ApiMeetingOriginalSegment {
+  correction_revision?: number
+  can_correct?: boolean
   id: string
   revision: 1
   capture_session_id: string

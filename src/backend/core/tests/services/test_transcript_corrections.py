@@ -7,16 +7,15 @@ correcting the source advances the record so downstream artifacts re-read it.
 
 import uuid
 
-import pytest
-
 from django.core.exceptions import ValidationError
+
+import pytest
 
 from core import models
 from core.factories import UserFactory
 from core.services import transcript_corrections as corrections
 from core.services.meeting_records import RecordConflict
 from core.tests.services.test_meeting_records import audio_note, online_note
-
 
 pytestmark = pytest.mark.django_db
 
@@ -135,7 +134,9 @@ def test_a_stale_editor_is_rejected_rather_than_overwriting():
     record.owner = someone_else
     record.save(update_fields=["owner"])
     with pytest.raises(RecordConflict):
-        corrections.correct(record, segment.pk, someone_else, text="theirs", expected_revision=0)
+        corrections.correct(
+            record, segment.pk, someone_else, text="theirs", expected_revision=0
+        )
 
 
 def test_a_reader_who_may_only_read_cannot_correct():
@@ -166,10 +167,10 @@ def test_reverting_restores_what_the_recogniser_said():
     record.refresh_from_db()
     after_correction = record.revision
 
-    original, removed = corrections.revert(record, segment.pk, user)
+    original, restored = corrections.revert(record, segment.pk, user)
     record.refresh_from_db()
-    assert removed == 1
-    assert original.revisions.count() == 0
+    assert restored.revision == 2
+    assert original.revisions.count() == 2
     assert corrections.corrected_text(original) == "Hello word."
     assert record.revision == after_correction + 1
 
@@ -177,9 +178,9 @@ def test_reverting_restores_what_the_recogniser_said():
 def test_reverting_with_nothing_to_revert_does_not_advance_the_record():
     user, record, segment = captured_segment()
     before = record.revision
-    _, removed = corrections.revert(record, segment.pk, user)
+    _, restored = corrections.revert(record, segment.pk, user)
     record.refresh_from_db()
-    assert removed == 0
+    assert restored is None
     assert record.revision == before
 
 

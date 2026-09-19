@@ -21,6 +21,7 @@ from core import models
 from core.services import speaker_attribution, transcript_corrections, transcript_export
 from core.services.asr_observations import observation_status, snapshot_asr_status
 from core.services.capture_transcription import current_originals
+from core.services.effective_transcripts import project
 from core.services.meeting_records import (
     RecordConflict,
     can_generate_summary,
@@ -100,10 +101,10 @@ class SpeakerAttributionSerializer(serializers.Serializer):
 
 
 class OriginalCorrectionSerializer(serializers.Serializer):
-    """A correction to one segment, with an optional staleness guard.
+    """A correction to one segment, with a required staleness guard.
 
     `expected_revision` is the revision number the editor last saw for this
-    segment (0 for "never corrected"). Supplying it turns a concurrent edit into
+    segment (0 for "never corrected"). This turns a concurrent edit into
     a conflict instead of a silent overwrite.
     """
 
@@ -112,7 +113,7 @@ class OriginalCorrectionSerializer(serializers.Serializer):
         allow_blank=False,
         trim_whitespace=False,
     )
-    expected_revision = serializers.IntegerField(min_value=0, required=False)
+    expected_revision = serializers.IntegerField(min_value=0)
 
     def validate(self, attrs):
         if set(self.initial_data) - set(self.fields):
@@ -706,7 +707,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         self._check_original_revision(record, expected)
         return pager.get_paginated_response(data)
 
-    def _filter_original_text(self, record, rows):
+    def _filter_original_text(self, record, rows, *, text_field="text"):
         """Search only authorized original rows, before cursor pagination."""
         query = self.request.query_params.get("q", "").strip()
         if len(query) > 200:
@@ -718,7 +719,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             else None
         )
         self._check_original_revision(record, expected)
-        return (rows.filter(text__icontains=query) if query else rows), expected
+        return (
+            rows.filter(**{f"{text_field}__icontains": query}) if query else rows
+        ), expected
 
     def _filter_speaker(self, rows, *, identity_field):
         """Narrow to one speaker, using the identifier the `speakers` action returned.
@@ -772,7 +775,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             and record.source_type != models.MeetingRecord.Source.UPLOAD
         ):
             raise Http404
-        rows = current_originals(record).select_related("speaker")
+        rows = current_originals(record).select_related("speaker", "capture_session")
         job_id = request.query_params.get("transcription_job_id")
         if job_id:
             # Pin pagination to an actually published generation, including history.
@@ -785,19 +788,12 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 raise Http404
             rows = record.original_segments.filter(
                 transcription_job=job
-            ).select_related("speaker")
+            ).select_related("speaker", "capture_session")
         rows = self._filter_speaker(rows, identity_field="speaker_id")
-        rows, expected = self._filter_original_text(record, rows)
-        # Readers get the corrected text; the original stays in the database as
-        # the recogniser's record. Search still matches the stored original —
-        # note that when someone searches for a word they just corrected, the
-        # corrected row may not be returned. Widening the filter to the revision
-        # table would mean a join across paged rows; left as a known bound rather
-        # than traded for a slower, harder-to-read query.
-        rows = rows.annotate(
-            corrected_text=transcript_corrections.corrected_text_subquery(),
-            display_name=transcript_corrections.attributed_name_subquery(),
+        rows, expected = self._filter_original_text(
+            record, project(rows), text_field="corrected_text"
         )
+        can_correct = can_generate_summary(record, request.user)
         pager = RecordPagination()
         pager.ordering = ("start_ms", "id")
         page = pager.paginate_queryset(rows, request, view=self)
@@ -806,6 +802,13 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 {
                     "id": str(row.pk),
                     "revision": row.revision,
+                    "correction_revision": row.correction_revision,
+                    "can_correct": can_correct
+                    and (
+                        row.transcription_job_id is None
+                        or row.transcription_job_id
+                        == row.capture_session.active_transcription_id
+                    ),
                     "capture_session_id": str(row.capture_session_id),
                     "source_track_id": row.source_track_id,
                     "source_sequence": row.source_sequence,
@@ -835,7 +838,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         url_path=r"original-segments/(?P<segment_id>[0-9a-f-]{36})",
     )
     def correct_original(self, request, pk=None, segment_id=None):
-        """Correct one transcript segment, or drop the corrections for it.
+        """Correct one transcript segment, or append a restoration of the original.
 
         An edit appends a revision instead of rewriting the original, because
         summary points and stored transcript versions cite a segment by id — see
@@ -846,27 +849,22 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         segment = serializers.UUIDField().run_validation(segment_id)
         try:
             if request.method == "DELETE":
-                original, removed = transcript_corrections.revert(
-                    record, segment, request.user
+                expected = serializers.IntegerField(min_value=0).run_validation(
+                    request.query_params.get("expected_revision")
                 )
-                return Response(
-                    {
-                        "id": str(original.pk),
-                        "text": original.text,
-                        "original_text": original.text,
-                        "is_corrected": False,
-                        "reverted": removed,
-                    }
+                original, revision = transcript_corrections.revert(
+                    record, segment, request.user, expected_revision=expected
                 )
-            serializer = OriginalCorrectionSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            original, revision = transcript_corrections.correct(
-                record,
-                segment,
-                request.user,
-                text=serializer.validated_data["text"],
-                expected_revision=serializer.validated_data.get("expected_revision"),
-            )
+            else:
+                serializer = OriginalCorrectionSerializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                original, revision = transcript_corrections.correct(
+                    record,
+                    segment,
+                    request.user,
+                    text=serializer.validated_data["text"],
+                    expected_revision=serializer.validated_data["expected_revision"],
+                )
         except PermissionError as error:
             raise PermissionDenied(str(error)) from error
         except LookupError as error:
@@ -882,7 +880,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         except ValueError as error:
             raise ValidationError({"text": str(error)}) from error
 
-        current = transcript_corrections.corrected_text(original)
+        current = original.corrected_text
         return Response(
             {
                 "id": str(original.pk),
@@ -892,6 +890,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 # Null when the submission matched what the segment already said,
                 # which is the retry case rather than a failure.
                 "revision": revision.revision if revision else None,
+                "correction_revision": original.correction_revision,
+                "record_revision": original.record_revision,
+                "reverted": int(request.method == "DELETE" and revision is not None),
             }
         )
 
@@ -1015,9 +1016,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             raise PermissionDenied(str(error)) from error
         except speaker_attribution.AttributionDenied as error:
             # The caller may attribute; this target is the problem.
-            return Response(
-                {"code": "not_a_member", "message": str(error)}, status=400
-            )
+            return Response({"code": "not_a_member", "message": str(error)}, status=400)
         except LookupError as error:
             raise Http404 from error
         return Response(speaker_attribution.serialize(bound))

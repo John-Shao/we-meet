@@ -48,7 +48,8 @@
     "showOriginal": "Original anzeigen",
     "hideOriginal": "Original ausblenden",
     "restore": "Original wiederherstellen",
-    "failed": "Die Korrektur wurde nicht gespeichert. Versuchen Sie es erneut."
+    "failed": "Die Korrektur wurde nicht gespeichert. Versuchen Sie es erneut.",
+    "conflict": "Das Transkript wurde geändert. Ihr Entwurf bleibt erhalten. Kopieren Sie ihn, brechen Sie ab und öffnen Sie den Editor erneut, um den aktuellen Text vor dem Speichern zu prüfen."
   },
   "speakerAttribution": {
     "change": "Wer ist das?",

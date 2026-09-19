@@ -48,7 +48,8 @@
     "showOriginal": "Voir l'original",
     "hideOriginal": "Masquer l'original",
     "restore": "Rétablir l'original",
-    "failed": "La correction n'a pas été enregistrée. Réessayez."
+    "failed": "La correction n'a pas été enregistrée. Réessayez.",
+    "conflict": "La transcription a changé. Votre brouillon est conservé. Copiez-le, annulez puis rouvrez l’éditeur pour vérifier le texte avant de sauvegarder."
   },
   "speakerAttribution": {
     "change": "Qui est-ce ?",

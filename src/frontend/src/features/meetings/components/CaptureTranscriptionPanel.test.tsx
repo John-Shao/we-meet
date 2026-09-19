@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
@@ -95,6 +101,115 @@ afterEach(() => {
   client.clear()
   vi.clearAllMocks()
   sessionStorage.clear()
+})
+
+it('refreshes the mounted transcript after correction and guards the next edit and restore', async () => {
+  status.active_job_id = 'published'
+  let text = 'Original text'
+  let revision = 0
+  vi.mocked(fetchApi).mockImplementation(async (path, options) => {
+    if (!path.includes('original-segments')) return status
+    if (options?.method === 'PATCH') {
+      const body = JSON.parse(options.body as string)
+      expect(body.expected_revision).toBe(revision)
+      text = body.text
+      revision++
+      return {
+        id: 'text',
+        text,
+        original_text: 'Original text',
+        is_corrected: true,
+        correction_revision: revision,
+        record_revision: revision + 1,
+      }
+    }
+    if (options?.method === 'DELETE') {
+      expect(
+        new URL(path, 'https://fixture.invalid').searchParams.get(
+          'expected_revision'
+        )
+      ).toBe(String(revision))
+      text = 'Original text'
+      revision++
+      return {
+        id: 'text',
+        text,
+        original_text: text,
+        is_corrected: false,
+        correction_revision: revision,
+        record_revision: revision + 1,
+      }
+    }
+    return {
+      results: [
+        {
+          id: 'text',
+          start_ms: 0,
+          text,
+          original_text: 'Original text',
+          is_corrected: text !== 'Original text',
+          can_correct: true,
+          correction_revision: revision,
+        },
+      ],
+      next_cursor: null,
+    }
+  })
+  show()
+  await screen.findByText('Original text')
+  for (const next of ['First correction', 'Second correction']) {
+    fireEvent.click(screen.getByText('transcriptCorrection.edit'))
+    fireEvent.change(
+      screen.getByRole('textbox', { name: 'transcriptCorrection.edit' }),
+      { target: { value: next } }
+    )
+    fireEvent.click(screen.getByText('transcriptCorrection.save'))
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('textbox', { name: 'transcriptCorrection.edit' })
+      ).not.toBeInTheDocument()
+    )
+    expect(screen.getByText(next)).toBeInTheDocument()
+  }
+  fireEvent.click(screen.getByText('transcriptCorrection.restore'))
+  await screen.findByText('Original text')
+  expect(revision).toBe(3)
+  expect(
+    screen.queryByText('transcriptCorrection.editedBadge')
+  ).not.toBeInTheDocument()
+})
+
+it('keeps the editor draft when saving fails with a network error', async () => {
+  status.active_job_id = 'published'
+  const baseline = vi.mocked(fetchApi).getMockImplementation()!
+  vi.mocked(fetchApi).mockImplementation(async (path, options, ...rest) => {
+    if (options?.method === 'PATCH') throw new TypeError('Network unavailable')
+    if (path.includes('original-segments'))
+      return {
+        results: [
+          {
+            id: 'text',
+            start_ms: 0,
+            text: 'Before',
+            correction_revision: 0,
+            can_correct: true,
+          },
+        ],
+        next_cursor: null,
+      }
+    return baseline(path, options, ...rest)
+  })
+  show()
+  fireEvent.click(await screen.findByText('transcriptCorrection.edit'))
+  fireEvent.change(
+    screen.getByRole('textbox', { name: 'transcriptCorrection.edit' }),
+    { target: { value: 'Unsaved draft' } }
+  )
+  fireEvent.click(screen.getByText('transcriptCorrection.save'))
+  await screen.findByText('transcriptCorrection.failed')
+  expect(
+    screen.getByRole('textbox', { name: 'transcriptCorrection.edit' })
+  ).toHaveValue('Unsaved draft')
 })
 
 it('opens the summary workspace lazily and links citations to playback', async () => {
@@ -481,12 +596,13 @@ it('moves the highlight as the position advances', async () => {
       />
     </QueryClientProvider>
   )
-  expect(
-    screen.getByText('Second line').closest('article')!
-  ).toHaveAttribute('aria-current', 'true')
-  expect(screen.getByText('First line').closest('article')!).not.toHaveAttribute(
-    'aria-current'
+  expect(screen.getByText('Second line').closest('article')!).toHaveAttribute(
+    'aria-current',
+    'true'
   )
+  expect(
+    screen.getByText('First line').closest('article')!
+  ).not.toHaveAttribute('aria-current')
 })
 
 it('highlights nothing in a recording gap instead of pointing at a neighbour', async () => {
@@ -505,7 +621,9 @@ it('highlights nothing in a recording gap instead of pointing at a neighbour', a
   status.active_job_id = 'job'
   showWithPosition(2000)
   await screen.findByText('Before the gap')
-  expect(screen.queryByRole('article', { current: 'true' })).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('article', { current: 'true' })
+  ).not.toBeInTheDocument()
 })
 
 it('keeps every row highlight-free when nothing is playing', async () => {

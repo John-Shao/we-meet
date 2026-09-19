@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from core import models
 from core.services.capture_live_inputs import inputs, is_live
+from core.services.effective_transcripts import project
 from core.services.meeting_captures import digest
 from core.services.meeting_records import RecordConflict, can_generate_summary
 
@@ -60,7 +61,7 @@ def source(record, *, allow_live=False):
     offset = int((capture.started_at - record.origin_at).total_seconds() * 1000)
     if offset < 0:
         raise RecordConflict("Source origin changed.")
-    rows = list(job.originals.select_related("speaker").order_by("source_sequence"))
+    rows = list(project(job.originals.all()).order_by("source_sequence"))
     if len(rows) != job.final_sequence:
         raise RecordConflict("Published originals are missing.")
     segments = []
@@ -78,11 +79,11 @@ def source(record, *, allow_live=False):
         segments.append(
             {
                 "segment_id": str(row.pk),
-                "segment_revision": row.revision,
+                "segment_revision": row.revision + row.correction_revision,
                 "start_ms": offset + row.start_ms,
                 "end_ms": offset + row.end_ms if row.end_ms is not None else None,
-                "text": row.text,
-                "speaker_name": row.speaker.label,
+                "text": row.corrected_text,
+                "speaker_name": row.display_name,
                 "speaker_identity": "",
                 "language": row.language,
             }

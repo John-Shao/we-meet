@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from core import models
-from core.services import transcript_corrections
+from core.services import effective_transcripts
 
 FORMATS = ("txt", "srt", "vtt")
 
@@ -68,10 +68,7 @@ def _escape_markup(text: str) -> str:
     closing bracket renders literally, which is worse than not escaping at all.
     """
     return (
-        _one_line(text)
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
+        _one_line(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     )
 
 
@@ -88,7 +85,11 @@ def _resolve_bounds(rows: list[TranscriptRow]) -> list[tuple[int, int]]:
     for index, row in enumerate(rows):
         start = max(0, row.start_ms)
         following = rows[index + 1].start_ms if index + 1 < len(rows) else None
-        end = row.end_ms if row.end_ms is not None else (following if following is not None else start + DEFAULT_ROW_MS)
+        end = (
+            row.end_ms
+            if row.end_ms is not None
+            else (following if following is not None else start + DEFAULT_ROW_MS)
+        )
         end = max(end, start)
         if following is not None:
             end = min(end, max(following, start))
@@ -134,7 +135,9 @@ def render_txt(rows: list[TranscriptRow]) -> str:
     lines = []
     for row in rows:
         label = f"{row.speaker}: " if row.speaker else ""
-        lines.append(f"[{format_timestamp(row.start_ms)}] {_one_line(label + row.text)}")
+        lines.append(
+            f"[{format_timestamp(row.start_ms)}] {_one_line(label + row.text)}"
+        )
     return "\n".join(lines) + ("\n" if lines else "")
 
 
@@ -183,20 +186,16 @@ def rows_for(record) -> list[TranscriptRow]:
             )
         return rows
 
-    originals = (
-        models.MeetingOriginalSegment.objects.filter(record=record)
-        .select_related("speaker")
-        .order_by("start_ms", "id")
-    )
+    originals = effective_transcripts.originals(record).order_by("start_ms", "id")
     for row in originals:
         rows.append(
             TranscriptRow(
                 start_ms=row.start_ms,
                 end_ms=row.end_ms,
-                speaker=row.speaker.label if row.speaker_id else "",
+                speaker=row.display_name or "",
                 # A reader who fixed an ASR error expects the file they download
                 # to contain the fix, not the text they just corrected.
-                text=transcript_corrections.corrected_text(row),
+                text=row.corrected_text,
             )
         )
     return rows

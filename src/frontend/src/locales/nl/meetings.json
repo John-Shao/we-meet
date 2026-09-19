@@ -48,7 +48,8 @@
     "showOriginal": "Origineel tonen",
     "hideOriginal": "Origineel verbergen",
     "restore": "Origineel herstellen",
-    "failed": "De correctie is niet opgeslagen. Probeer opnieuw."
+    "failed": "De correctie is niet opgeslagen. Probeer opnieuw.",
+    "conflict": "Het transcript is gewijzigd. Je concept is bewaard. Kopieer het, annuleer en open de editor opnieuw om de nieuwste tekst te controleren voordat je opslaat."
   },
   "speakerAttribution": {
     "change": "Wie is dit?",

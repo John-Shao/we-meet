@@ -13,8 +13,8 @@ decides which text a reader sees.
 
 from django.db import models as django_models
 from django.db import transaction
-from django.db.models import F, OuterRef, Subquery
-from django.db.models.functions import Coalesce
+from django.db.models import F, OuterRef, Subquery, Value
+from django.db.models.functions import Coalesce, NullIf
 
 from core import models
 from core.models import MeetingSpeaker
@@ -68,9 +68,9 @@ def attributed_name_subquery():
         MeetingSpeaker.objects.filter(pk=OuterRef("speaker_id"))
         .annotate(
             resolved=Coalesce(
-                "user__full_name",
-                "user__short_name",
-                "user__email",
+                NullIf("user__full_name", Value("")),
+                NullIf("user__short_name", Value("")),
+                NullIf("user__email", Value("")),
                 "label",
                 # The account's email column is an EmailField, so without an
                 # explicit target the coalesce mixes types and Django refuses it.
@@ -102,7 +102,6 @@ def _authorize(record, user):
         raise PermissionError("Only current meeting managers can correct a transcript.")
 
 
-@transaction.atomic
 def correct(record, original_id, user, *, text, expected_revision=None):
     """Append a correction to one segment and advance the record's revision.
 
@@ -119,17 +118,32 @@ def correct(record, original_id, user, *, text, expected_revision=None):
     if not cleaned or len(cleaned) > MAX_CORRECTION_CHARS:
         raise ValueError("invalid_text")
 
+    return _append(record, original_id, user, cleaned, expected_revision)
+
+
+@transaction.atomic
+def _append(record, original_id, user, text, expected_revision):
+    # Import locally: the read projection uses the subqueries above.
+    from core.services.effective_transcripts import current_generation  # noqa: PLC0415
+
     locked = models.MeetingRecord.objects.select_for_update().get(pk=record.pk)
-    original = models.MeetingOriginalSegment.objects.filter(
-        pk=original_id, record_id=locked.pk
+    _authorize(locked, user)
+    original = current_generation(
+        models.MeetingOriginalSegment.objects.filter(
+            pk=original_id, record_id=locked.pk
+        )
     ).first()
     if original is None:
         raise LookupError("No such segment on this record.")
 
-    current = corrected_text(original)
+    previous = original.revisions.order_by("-revision").first()
+    actual = previous.revision if previous else 0
+    current = previous.text if previous else original.text
+    cleaned = original.text if text is None else text
+    original.correction_revision = actual
+    original.record_revision = locked.revision
+    original.corrected_text = current
     if expected_revision is not None:
-        latest = original.revisions.order_by("-revision").first()
-        actual = latest.revision if latest else 0
         if actual != expected_revision:
             raise RecordConflict("The transcript changed; refresh before correcting.")
     if cleaned == current:
@@ -137,7 +151,6 @@ def correct(record, original_id, user, *, text, expected_revision=None):
         # downstream regeneration is keyed on it.
         return original, None
 
-    previous = original.revisions.order_by("-revision").first()
     revision = models.MeetingOriginalRevision.objects.create(
         record_id=locked.pk,
         original=original,
@@ -149,26 +162,12 @@ def correct(record, original_id, user, *, text, expected_revision=None):
     # instead of continuing to serve text the reader has already fixed.
     locked.revision += 1
     locked.save(update_fields=["revision", "updated_at"])
+    original.correction_revision = revision.revision
+    original.record_revision = locked.revision
+    original.corrected_text = cleaned
     return original, revision
 
 
-@transaction.atomic
-def revert(record, original_id, user):
-    """Drop every correction for one segment, restoring what ASR produced.
-
-    Deletes rather than appends another revision: the point of reverting is to
-    get back to the original, and keeping the corrections would leave the
-    "latest revision" still overriding it.
-    """
-    _authorize(record, user)
-    locked = models.MeetingRecord.objects.select_for_update().get(pk=record.pk)
-    original = models.MeetingOriginalSegment.objects.filter(
-        pk=original_id, record_id=locked.pk
-    ).first()
-    if original is None:
-        raise LookupError("No such segment on this record.")
-    removed = original.revisions.all().delete()[0]
-    if removed:
-        locked.revision += 1
-        locked.save(update_fields=["revision", "updated_at"])
-    return original, removed
+def revert(record, original_id, user, *, expected_revision=None):
+    """Append the recogniser's text, retaining history and guarding stale editors."""
+    return _append(record, original_id, user, None, expected_revision)

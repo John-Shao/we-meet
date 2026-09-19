@@ -8,7 +8,6 @@ from core import models
 from core.factories import UserFactory
 from core.tests.services.test_meeting_records import audio_note, client_for
 
-
 pytestmark = pytest.mark.django_db
 
 # The empty string is the detail route; the action takes a segment id.
@@ -69,7 +68,9 @@ def rows(user, record):
 def test_a_correction_is_what_a_reader_then_sees():
     user, record, segment = captured()
     response = client_for(user).patch(
-        ONE.format(record.id, segment.pk), {"text": "Hello world."}, format="json"
+        ONE.format(record.id, segment.pk),
+        {"text": "Hello world.", "expected_revision": 0},
+        format="json",
     )
     assert response.status_code == 200, response.data
     assert response.data["text"] == "Hello world."
@@ -95,7 +96,9 @@ def test_the_stored_original_is_never_rewritten():
     """Citations anchor to this row; an edit must not move what they point at."""
     user, record, segment = captured()
     client_for(user).patch(
-        ONE.format(record.id, segment.pk), {"text": "fixed"}, format="json"
+        ONE.format(record.id, segment.pk),
+        {"text": "fixed", "expected_revision": 0},
+        format="json",
     )
     segment.refresh_from_db()
     assert segment.text == "Hello word."
@@ -104,9 +107,13 @@ def test_the_stored_original_is_never_rewritten():
 def test_deleting_restores_what_the_recogniser_produced():
     user, record, segment = captured()
     client_for(user).patch(
-        ONE.format(record.id, segment.pk), {"text": "fixed"}, format="json"
+        ONE.format(record.id, segment.pk),
+        {"text": "fixed", "expected_revision": 0},
+        format="json",
     )
-    response = client_for(user).delete(ONE.format(record.id, segment.pk))
+    response = client_for(user).delete(
+        ONE.format(record.id, segment.pk) + "?expected_revision=1"
+    )
     assert response.status_code == 200
     assert response.data["text"] == "Hello word."
     assert response.data["is_corrected"] is False
@@ -116,7 +123,9 @@ def test_deleting_restores_what_the_recogniser_produced():
 def test_a_stale_editor_gets_a_conflict_not_a_silent_overwrite():
     user, record, segment = captured()
     client_for(user).patch(
-        ONE.format(record.id, segment.pk), {"text": "mine"}, format="json"
+        ONE.format(record.id, segment.pk),
+        {"text": "mine", "expected_revision": 0},
+        format="json",
     )
     response = client_for(user).patch(
         ONE.format(record.id, segment.pk),
@@ -130,10 +139,14 @@ def test_a_stale_editor_gets_a_conflict_not_a_silent_overwrite():
 def test_resubmitting_the_same_text_reports_no_new_revision():
     user, record, segment = captured()
     client_for(user).patch(
-        ONE.format(record.id, segment.pk), {"text": "fixed"}, format="json"
+        ONE.format(record.id, segment.pk),
+        {"text": "fixed", "expected_revision": 0},
+        format="json",
     )
     response = client_for(user).patch(
-        ONE.format(record.id, segment.pk), {"text": "fixed"}, format="json"
+        ONE.format(record.id, segment.pk),
+        {"text": "fixed", "expected_revision": 1},
+        format="json",
     )
     assert response.status_code == 200
     # The retry case, not a failure: nothing changed, so nothing was appended.
@@ -144,7 +157,9 @@ def test_resubmitting_the_same_text_reports_no_new_revision():
 def test_a_reader_who_may_only_read_cannot_correct():
     _, record, segment = captured()
     response = client_for(UserFactory()).patch(
-        ONE.format(record.id, segment.pk), {"text": "nope"}, format="json"
+        ONE.format(record.id, segment.pk),
+        {"text": "nope", "expected_revision": 0},
+        format="json",
     )
     assert response.status_code in (403, 404)
     assert models.MeetingOriginalRevision.objects.count() == 0
@@ -154,7 +169,9 @@ def test_blank_and_oversized_text_are_refused():
     user, record, segment = captured()
     for bad in ("", "   ", "x" * 20_001):
         response = client_for(user).patch(
-            ONE.format(record.id, segment.pk), {"text": bad}, format="json"
+            ONE.format(record.id, segment.pk),
+            {"text": bad, "expected_revision": 0},
+            format="json",
         )
         assert response.status_code == 400, bad
     assert models.MeetingOriginalRevision.objects.count() == 0
@@ -164,7 +181,7 @@ def test_an_unknown_field_is_rejected_rather_than_ignored():
     user, record, segment = captured()
     response = client_for(user).patch(
         ONE.format(record.id, segment.pk),
-        {"text": "fixed", "surprise": 1},
+        {"text": "fixed", "expected_revision": 0, "surprise": 1},
         format="json",
     )
     assert response.status_code == 400
@@ -174,7 +191,9 @@ def test_a_segment_on_another_record_is_not_found():
     user, record, segment = captured()
     _, other, _ = captured(owner=user)
     response = client_for(user).patch(
-        ONE.format(other.id, segment.pk), {"text": "cross"}, format="json"
+        ONE.format(other.id, segment.pk),
+        {"text": "cross", "expected_revision": 0},
+        format="json",
     )
     assert response.status_code == 404
 
@@ -189,7 +208,9 @@ def test_correcting_advances_the_revision_the_reader_was_told():
     assert revision_before.status_code == 200
 
     client_for(user).patch(
-        ONE.format(record.id, segment.pk), {"text": "fixed"}, format="json"
+        ONE.format(record.id, segment.pk),
+        {"text": "fixed", "expected_revision": 0},
+        format="json",
     )
     stale = client_for(user).get(
         f"{LIST.format(record.id)}?expected_revision={record.revision}"
@@ -198,3 +219,13 @@ def test_correcting_advances_the_revision_the_reader_was_told():
     # And an unpinned read still works, so a reader is never stuck.
     assert rows(user, record)[0]["text"] == "fixed"
     assert before[0]["start_ms"] == rows(user, record)[0]["start_ms"]
+
+
+@pytest.mark.parametrize("method", ["patch", "delete"])
+def test_unguarded_writes_are_refused(method):
+    user, record, segment = captured()
+    response = getattr(client_for(user), method)(
+        ONE.format(record.id, segment.pk), {"text": "unsafe overwrite"}, format="json"
+    )
+    assert response.status_code == 400
+    assert not segment.revisions.exists()

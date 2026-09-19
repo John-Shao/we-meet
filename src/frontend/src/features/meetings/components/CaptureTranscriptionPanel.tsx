@@ -489,9 +489,10 @@ function Originals({
    * gets no handler, and the row renders without an edit control.
    */
   const correction = useCorrectOriginalSegment(viewerId, capture.record_id)
-  const correct = (segmentId: string, next: string) =>
-    correction.mutate({ segmentId, text: next })
-  const revert = (segmentId: string) => correction.mutate({ segmentId, revert: true })
+  const correct = (segmentId: string, next: string, expectedRevision: number) =>
+    correction.mutateAsync({ segmentId, text: next, expectedRevision })
+  const revert = (segmentId: string, expectedRevision: number) =>
+    correction.mutateAsync({ segmentId, revert: true, expectedRevision })
   /** The visible rows are a subset, so position cannot address them. */
   const filtersActive = search.trim() !== ''
   /**
@@ -540,10 +541,18 @@ function Originals({
           active={resolvedActiveId === row.id}
           originalText={row.original_text}
           isCorrected={row.is_corrected === true}
-          onCorrect={correct}
-          onRevert={revert}
+          correctionRevision={row.correction_revision}
+          onCorrect={
+            row.can_correct && row.correction_revision !== undefined
+              ? correct
+              : undefined
+          }
+          onRevert={
+            row.can_correct && row.correction_revision !== undefined
+              ? revert
+              : undefined
+          }
           correcting={correction.isPending}
-          editFailed={correction.isError}
           speaker={row.speaker_label || t('asr.unknownSpeaker')}
           time={`${Math.floor(row.start_ms / 60000)}:${String(Math.floor(row.start_ms / 1000) % 60).padStart(2, '0')}`}
           onSeek={onSource ? () => onSource(row.start_ms) : undefined}

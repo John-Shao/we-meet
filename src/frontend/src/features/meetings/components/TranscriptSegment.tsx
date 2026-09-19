@@ -2,6 +2,7 @@ import { RiUser3Line } from '@remixicon/react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ApiError } from '@/api/ApiError'
 import { Button } from '@/primitives'
 import { css, cx } from '@/styled-system/css'
 
@@ -27,6 +28,7 @@ export function TranscriptSegment({
   onRevert,
   correcting = false,
   editFailed = false,
+  correctionRevision = 0,
 }: {
   speaker: string
   time: string
@@ -44,14 +46,25 @@ export function TranscriptSegment({
   /** What the recogniser produced, shown when it differs from `text`. */
   originalText?: string
   isCorrected?: boolean
-  onCorrect?: (segmentId: string, text: string) => void
-  onRevert?: (segmentId: string) => void
+  correctionRevision?: number
+  onCorrect?: (
+    segmentId: string,
+    text: string,
+    expectedRevision: number
+  ) => Promise<unknown> | void
+  onRevert?: (
+    segmentId: string,
+    expectedRevision: number
+  ) => Promise<unknown> | void
   correcting?: boolean
   editFailed?: boolean
 }) {
   const { t } = useTranslation('meetings')
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(text)
+  const [editRevision, setEditRevision] = useState(correctionRevision)
+  const [pending, setPending] = useState(false)
+  const [failure, setFailure] = useState<'failed' | 'conflict' | null>(null)
   const [showingOriginal, setShowingOriginal] = useState(false)
   const input = useRef<HTMLTextAreaElement>(null)
 
@@ -60,15 +73,39 @@ export function TranscriptSegment({
   }, [editing])
 
   const trimmed = draft.trim()
-  const canSave = trimmed.length > 0 && trimmed !== text && !correcting
+  const busy = correcting || pending
+  const canSave = trimmed.length > 0 && trimmed !== text && !busy
 
   const startEditing = () => {
     setDraft(text)
+    setEditRevision(correctionRevision)
+    setFailure(null)
     setShowingOriginal(false)
     setEditing(true)
   }
 
-  const shown = showingOriginal && originalText !== undefined ? originalText : text
+  const shown =
+    showingOriginal && originalText !== undefined ? originalText : text
+
+  const submit = async (restore = false) => {
+    if (busy) return
+    setPending(true)
+    setFailure(null)
+    try {
+      if (restore) await onRevert?.(segmentId, correctionRevision)
+      else await onCorrect?.(segmentId, trimmed, editRevision)
+      setEditing(false)
+      setShowingOriginal(false)
+    } catch (error) {
+      setFailure(
+        error instanceof ApiError && error.statusCode === 409
+          ? 'conflict'
+          : 'failed'
+      )
+    } finally {
+      setPending(false)
+    }
+  }
 
   return (
     <article
@@ -178,6 +215,7 @@ export function TranscriptSegment({
           <button
             type="button"
             onClick={startEditing}
+            disabled={busy}
             className={css({
               cursor: 'pointer',
               color: 'primary.700',
@@ -193,8 +231,8 @@ export function TranscriptSegment({
         {!editing && isCorrected && onRevert && (
           <button
             type="button"
-            disabled={correcting}
-            onClick={() => onRevert(segmentId)}
+            disabled={busy}
+            onClick={() => void submit(true)}
             className={css({
               cursor: 'pointer',
               color: 'primary.700',
@@ -213,15 +251,19 @@ export function TranscriptSegment({
           onSubmit={(event) => {
             event.preventDefault()
             if (!canSave) return
-            onCorrect?.(segmentId, trimmed)
-            setEditing(false)
+            void submit()
           }}
-          className={css({ display: 'flex', flexDirection: 'column', gap: '0.5rem' })}
+          className={css({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+          })}
         >
           <textarea
             ref={input}
             aria-label={t('transcriptCorrection.edit')}
             value={draft}
+            disabled={busy}
             rows={3}
             maxLength={20_000}
             onChange={(event) => setDraft(event.target.value)}
@@ -239,7 +281,7 @@ export function TranscriptSegment({
           <div className={css({ display: 'flex', gap: '0.5rem' })}>
             <Button type="submit" size="sm" isDisabled={!canSave}>
               {t(
-                correcting
+                busy
                   ? 'transcriptCorrection.saving'
                   : 'transcriptCorrection.save'
               )}
@@ -248,7 +290,7 @@ export function TranscriptSegment({
               type="button"
               size="sm"
               variant="secondaryText"
-              isDisabled={correcting}
+              isDisabled={busy}
               onPress={() => setEditing(false)}
             >
               {t('transcriptCorrection.cancel')}
@@ -268,9 +310,12 @@ export function TranscriptSegment({
         </p>
       )}
 
-      {editFailed && (
-        <p role="alert" className={css({ color: 'text.error', marginTop: '0.5rem' })}>
-          {t('transcriptCorrection.failed')}
+      {(failure || editFailed) && (
+        <p
+          role="alert"
+          className={css({ color: 'text.error', marginTop: '0.5rem' })}
+        >
+          {t(`transcriptCorrection.${failure ?? 'failed'}`)}
         </p>
       )}
     </article>

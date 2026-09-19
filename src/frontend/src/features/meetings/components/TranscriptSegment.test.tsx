@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 
 import { TranscriptSegment } from './TranscriptSegment'
+import { ApiError } from '@/api/ApiError'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -24,7 +25,9 @@ vi.mock('@/primitives', () => ({
   ),
 }))
 
-function show(overrides: Partial<React.ComponentProps<typeof TranscriptSegment>> = {}) {
+function show(
+  overrides: Partial<React.ComponentProps<typeof TranscriptSegment>> = {}
+) {
   const onCorrect = vi.fn()
   const onRevert = vi.fn()
   render(
@@ -45,7 +48,9 @@ it('offers no edit control when no handler is supplied', () => {
   // An online transcript has no revision model; a button that can only fail is
   // worse than no button.
   show({ onCorrect: undefined })
-  expect(screen.queryByText('transcriptCorrection.edit')).not.toBeInTheDocument()
+  expect(
+    screen.queryByText('transcriptCorrection.edit')
+  ).not.toBeInTheDocument()
 })
 
 it('saves a corrected line, trimmed', () => {
@@ -54,7 +59,7 @@ it('saves a corrected line, trimmed', () => {
   const field = screen.getByLabelText('transcriptCorrection.edit')
   fireEvent.change(field, { target: { value: '  Hello word.  ' } })
   fireEvent.click(screen.getByText('transcriptCorrection.save'))
-  expect(onCorrect).toHaveBeenCalledWith('seg-1', 'Hello word.')
+  expect(onCorrect).toHaveBeenCalledWith('seg-1', 'Hello word.', 0)
 })
 
 it('will not save an unchanged line', () => {
@@ -98,7 +103,9 @@ it('marks a corrected row and lets the reader compare with the original', () => 
       onRevert={vi.fn()}
     />
   )
-  expect(screen.getByText('transcriptCorrection.editedBadge')).toBeInTheDocument()
+  expect(
+    screen.getByText('transcriptCorrection.editedBadge')
+  ).toBeInTheDocument()
   expect(screen.getByText('Hello world.')).toBeInTheDocument()
   fireEvent.click(screen.getByText('transcriptCorrection.showOriginal'))
   // The recogniser's own words must be reachable, or an edit looks original.
@@ -108,8 +115,12 @@ it('marks a corrected row and lets the reader compare with the original', () => 
 
 it('an uncorrected row shows no badge and no revert', () => {
   show({ originalText: 'Hello world.', isCorrected: false })
-  expect(screen.queryByText('transcriptCorrection.editedBadge')).not.toBeInTheDocument()
-  expect(screen.queryByText('transcriptCorrection.restore')).not.toBeInTheDocument()
+  expect(
+    screen.queryByText('transcriptCorrection.editedBadge')
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByText('transcriptCorrection.restore')
+  ).not.toBeInTheDocument()
 })
 
 it('reverting names the segment it applies to', () => {
@@ -118,15 +129,78 @@ it('reverting names the segment it applies to', () => {
     isCorrected: true,
   })
   fireEvent.click(screen.getByText('transcriptCorrection.restore'))
-  expect(onRevert).toHaveBeenCalledWith('seg-1')
+  expect(onRevert).toHaveBeenCalledWith('seg-1', 0)
 })
 
 it('reports a failed correction instead of failing silently', () => {
   show({ editFailed: true })
-  expect(screen.getByRole('alert')).toHaveTextContent('transcriptCorrection.failed')
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'transcriptCorrection.failed'
+  )
 })
 
 it('keeps the segment id the list uses to find the active row', () => {
   show()
   expect(document.querySelector('[data-segment-id="seg-1"]')).toBeTruthy()
+})
+
+it('keeps the draft and its opening version through a refresh and a failed save', async () => {
+  let reject!: (reason: unknown) => void
+  const onCorrect = vi.fn(
+    () =>
+      new Promise((_, fail) => {
+        reject = fail
+      })
+  )
+  const props = {
+    speaker: 'Ada',
+    time: '0:01',
+    text: 'Before',
+    segmentId: 'seg-1',
+    correctionRevision: 2,
+    onCorrect,
+  }
+  const view = render(<TranscriptSegment {...props} />)
+  fireEvent.click(screen.getByText('transcriptCorrection.edit'))
+  fireEvent.change(screen.getByRole('textbox'), {
+    target: { value: 'My draft' },
+  })
+  view.rerender(
+    <TranscriptSegment
+      {...props}
+      text="Someone else's edit"
+      correctionRevision={3}
+    />
+  )
+  fireEvent.click(screen.getByText('transcriptCorrection.save'))
+  expect(onCorrect).toHaveBeenCalledWith('seg-1', 'My draft', 2)
+  expect(screen.getByRole('textbox')).toHaveValue('My draft')
+  expect(screen.getByRole('textbox')).toBeDisabled()
+  await act(async () => reject(new ApiError(409, {})))
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'transcriptCorrection.conflict'
+  )
+  expect(screen.getByRole('textbox')).toHaveValue('My draft')
+  expect(screen.getByRole('textbox')).not.toBeDisabled()
+  fireEvent.click(screen.getByText('transcriptCorrection.cancel'))
+  fireEvent.click(screen.getByText('transcriptCorrection.edit'))
+  expect(screen.getByRole('textbox')).toHaveValue("Someone else's edit")
+})
+
+it('only closes the editor after the write resolves', async () => {
+  let resolve!: () => void
+  show({
+    onCorrect: () =>
+      new Promise<void>((done) => {
+        resolve = done
+      }),
+  })
+  fireEvent.click(screen.getByText('transcriptCorrection.edit'))
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Fixed' } })
+  fireEvent.click(screen.getByText('transcriptCorrection.save'))
+  expect(screen.getByRole('textbox')).toHaveValue('Fixed')
+  await act(async () => resolve())
+  await waitFor(() =>
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  )
 })

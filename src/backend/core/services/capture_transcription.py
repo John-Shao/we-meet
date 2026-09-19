@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import Q
 from django.utils import timezone
 
 from core import models
@@ -20,6 +20,7 @@ from core.services.capture_storage import text_audio_enabled
 from core.services.capture_summary_source import (
     staged_enabled as capture_staged_enabled,
 )
+from core.services.effective_transcripts import current_generation
 from core.services.meeting_captures import CaptureDenied, authorize, digest
 from core.services.meeting_records import RecordConflict
 
@@ -40,10 +41,7 @@ def available():
 
 def current_originals(record):
     """A retry never mixes its partial output with the previously published attempt."""
-    return record.original_segments.filter(
-        Q(transcription_job__isnull=True)
-        | Q(transcription_job_id=F("capture_session__active_transcription_id"))
-    )
+    return current_generation(record.original_segments.all())
 
 
 def owned(capture, user):
@@ -205,7 +203,9 @@ def prepare(capture_id, user, key, payload):
         },
         configuration={
             "model": settings.QWEN_ASR_MODEL if live else settings.QWEN_FILE_ASR_MODEL,
-            "region": settings.QWEN_ASR_REGION if live else settings.QWEN_FILE_ASR_REGION,
+            "region": settings.QWEN_ASR_REGION
+            if live
+            else settings.QWEN_FILE_ASR_REGION,
             **({"mode": "live"} if live else {}),
         },
         deadline=timezone.now() + timedelta(minutes=5),
@@ -331,9 +331,7 @@ def claim(worker_id, model, region, live=False):
             continue
         job.status, job.worker_id = "running", worker_id
         job.lease_until = timezone.now() + timedelta(seconds=LEASE_SECONDS)
-        job.deadline = timezone.now() + timedelta(
-            seconds=43500 if live else 86400
-        )
+        job.deadline = timezone.now() + timedelta(seconds=43500 if live else 86400)
         job.save(
             update_fields=[
                 "status",

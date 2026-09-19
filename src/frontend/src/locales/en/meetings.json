@@ -48,7 +48,8 @@
     "showOriginal": "Show original",
     "hideOriginal": "Hide original",
     "restore": "Restore original",
-    "failed": "The correction was not saved. Try again."
+    "failed": "The correction was not saved. Try again.",
+    "conflict": "The transcript changed. Your draft is kept. Copy it, cancel and reopen the editor to review the latest text before saving."
   },
   "speakerAttribution": {
     "change": "Who is this?",

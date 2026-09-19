@@ -1,4 +1,9 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
@@ -275,6 +280,8 @@ export type { SummaryRequestPayload }
 
 /** What the server reports back for one corrected segment. */
 export interface ApiSegmentCorrection {
+  correction_revision: number
+  record_revision: number
   id: string
   text: string
   original_text: string
@@ -284,45 +291,70 @@ export interface ApiSegmentCorrection {
 }
 
 /**
- * Correct one transcript segment, or drop its corrections.
+ * Correct one transcript segment, or append a restoration of the original.
  *
  * The write appends a revision and never rewrites the original, so a reader can
  * always see what the recogniser produced. `expectedRevision` guards a
  * concurrent edit: the server answers 409 rather than letting the later saver
  * silently overwrite the earlier one.
  */
-export const useCorrectOriginalSegment = (viewerId: string, recordId: string) => {
+export const useCorrectOriginalSegment = (
+  viewerId: string,
+  recordId: string
+) => {
   const client = useQueryClient()
   const segmentPath = (segmentId: string) =>
     `${recordPath(recordId)}original-segments/${encodeURIComponent(segmentId)}/`
   return useMutation<
     ApiSegmentCorrection,
     ApiError,
-    { segmentId: string; text?: string; expectedRevision?: number; revert?: boolean }
+    {
+      segmentId: string
+      text?: string
+      expectedRevision: number
+      revert?: boolean
+    }
   >({
     mutationFn: ({ segmentId, text, expectedRevision, revert }) =>
-      fetchApi<ApiSegmentCorrection>(segmentPath(segmentId), {
-        method: revert ? 'DELETE' : 'PATCH',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: AbortSignal.timeout(20000),
-        ...(revert
-          ? {}
-          : {
-              body: JSON.stringify({
-                text,
-                ...(expectedRevision === undefined ? {} : { expected_revision: expectedRevision }),
+      fetchApi<ApiSegmentCorrection>(
+        segmentPath(segmentId) +
+          (revert ? `?expected_revision=${expectedRevision}` : ''),
+        {
+          method: revert ? 'DELETE' : 'PATCH',
+          cache: 'no-store',
+          redirect: 'error',
+          signal: AbortSignal.timeout(20000),
+          ...(revert
+            ? {}
+            : {
+                body: JSON.stringify({
+                  text,
+                  expected_revision: expectedRevision,
+                }),
               }),
-            }),
-      }),
+        }
+      ),
     retry: false,
     gcTime: 0,
     onSuccess: async () => {
       // The corrected text is projected into every transcript read, so the list
       // has to re-read rather than be patched locally.
-      await client.invalidateQueries({
-        queryKey: ['meeting-records', viewerId],
-      })
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ['meeting-records', viewerId] }),
+        client.invalidateQueries({ queryKey: ['capture-originals', viewerId] }),
+        client.invalidateQueries({
+          queryKey: ['record-library-content', viewerId],
+        }),
+      ])
+    },
+    onError: async (error) => {
+      // Refresh the version to compare with, while the editor retains its draft
+      // and the version it originally opened against.
+      if ([401, 403, 404, 409].includes(error.statusCode)) {
+        await client.invalidateQueries({
+          queryKey: ['capture-originals', viewerId],
+        })
+      }
     },
   })
 }

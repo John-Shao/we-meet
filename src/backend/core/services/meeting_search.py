@@ -1,9 +1,10 @@
 """Bounded meeting retrieval using the same live permissions as the record reader."""
 
 from django.conf import settings
-from django.db.models import F, OuterRef, Q, Subquery
+from django.db.models import OuterRef, Q, Subquery
 
 from core import models
+from core.services.effective_transcripts import current_generation, project
 from core.services.meeting_records import visible_records
 
 
@@ -50,18 +51,24 @@ def recall_records(user, keywords, citations, *, date_from=None, date_to=None):
         )
 
     readable_text = records.filter(can_read_transcript=True)
-    originals = models.MeetingOriginalSegment.objects.filter(
-        record_id__in=readable_text.values("pk"),
-    ).filter(
-        Q(transcription_job__isnull=True)
-        | Q(transcription_job_id=F("capture_session__active_transcription_id"))
+    originals = project(
+        current_generation(
+            models.MeetingOriginalSegment.objects.filter(
+                record_id__in=readable_text.values("pk"),
+            )
+        )
     )
     for row in (
-        originals.filter(match("text"))
+        originals.filter(match("corrected_text"))
         .select_related("record", "speaker")
         .order_by("-record__origin_at", "start_ms", "id")[:4]
     ):
-        append(row.record, row.text, ability="read_transcript", start_ms=row.start_ms)
+        append(
+            row.record,
+            row.corrected_text,
+            ability="read_transcript",
+            start_ms=row.start_ms,
+        )
 
     online = models.Transcript.objects.filter(
         session_id__in=readable_text.values("meeting_session_id"),
