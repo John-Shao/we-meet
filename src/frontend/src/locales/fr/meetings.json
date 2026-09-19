@@ -39,6 +39,10 @@
     "final": "Traduction confirmée",
     "preview": "Traduction en cours"
   },
+  "transcriptExport": {
+    "label": "Exporter la transcription",
+    "download": "Télécharger {format}"
+  },
   "translationArchive": {
     "privateScope": "Traduction privée, visible uniquement par vous",
     "bidirectional": "Traduction bidirectionnelle",

@@ -29,6 +29,7 @@ import {
   UploadMediaPlayer,
   type UploadMediaHandle,
 } from '../components/UploadMediaPlayer'
+import { TranscriptExportControl } from '../components/TranscriptExportControl'
 import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
@@ -384,6 +385,9 @@ function WorkspaceContent({
         </TabList>
         {canReadText && (
           <TabPanel id="text" padding="md">
+            {/* Downloads belong with the transcript they export, not only in a
+                menu: the reader is looking at the text when they want the file. */}
+            <TranscriptExportControl recordId={record.id} />
             {record.source_type === 'upload' && (
               <UploadedRecordingStatus
                 recordId={record.id}

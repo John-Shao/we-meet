@@ -39,6 +39,10 @@
     "final": "Bevestigde vertaling",
     "preview": "Bezig met vertalen"
   },
+  "transcriptExport": {
+    "label": "Transcript exporteren",
+    "download": "{format} downloaden"
+  },
   "translationArchive": {
     "privateScope": "Privévertaling, alleen voor jou zichtbaar",
     "bidirectional": "Tweerichtingsvertaling",

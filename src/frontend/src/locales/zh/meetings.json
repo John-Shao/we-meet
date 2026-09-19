@@ -39,6 +39,10 @@
     "final": "已确认译文",
     "preview": "翻译中"
   },
+  "transcriptExport": {
+    "label": "导出文字记录",
+    "download": "下载 {format}"
+  },
   "translationArchive": {
     "privateScope": "私人译文，仅你可见",
     "bidirectional": "双向翻译",
