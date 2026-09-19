@@ -1094,7 +1094,10 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             or not media_available(job)
         ):
             raise Http404
-        return Response(media_read_url(job))
+        download = serializers.BooleanField().run_validation(
+            request.query_params.get("download", False)
+        )
+        return Response(media_read_url(job, download=download))
 
     @action(detail=True, methods=["get"], url_path="transcript-export")
     def transcript_export(self, request, pk=None):

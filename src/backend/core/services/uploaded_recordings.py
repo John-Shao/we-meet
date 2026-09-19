@@ -11,6 +11,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.http import content_disposition_header
 
 import boto3
 import magic
@@ -335,7 +336,7 @@ def media_available(job):
     )
 
 
-def media_read_url(job):
+def media_read_url(job, *, download=False):
     """Sign one GET for the whole stored object.
 
     Callers must have already authorized the reader; this only signs. The URL is
@@ -343,23 +344,30 @@ def media_read_url(job):
     whether to stream it before issuing any request.
     """
     storage = audio_storage()
-    url = storage.connection.meta.client.generate_presigned_url(
-        ClientMethod="get_object",
-        Params={
-            "Bucket": storage.bucket_name,
-            "Key": posixpath.join(storage.location, job.storage_name),
-        },
-        ExpiresIn=MEDIA_GET_URL_TTL_SECONDS,
-    )
     metadata = job.configuration.get("_file", {})
     extension = Path(job.storage_name).suffix.lower().lstrip(".")
+    params = {
+        "Bucket": storage.bucket_name,
+        "Key": posixpath.join(storage.location, job.storage_name),
+    }
+    if download:
+        # Metadata is user supplied: remove path components and all controls.
+        raw_name = str(metadata.get("name", "")).replace("\\", "/").rsplit("/", 1)[-1]
+        name = "".join(char for char in raw_name if char.isprintable()).strip()[:200]
+        name = name if name not in {"", ".", ".."} else f"recording.{extension}"
+        params["ResponseContentDisposition"] = content_disposition_header(True, name)
+    url = storage.connection.meta.client.generate_presigned_url(
+        ClientMethod="get_object",
+        Params=params,
+        ExpiresIn=MEDIA_GET_URL_TTL_SECONDS,
+    )
     return {
         "url": url,
         "expires_in": MEDIA_GET_URL_TTL_SECONDS,
         "media_type": metadata.get(
             "media_type", "video" if extension in VIDEO_EXTENSIONS else "audio"
         ),
-        "name": metadata.get("name", ""),
+        "name": name if download else metadata.get("name", ""),
         "size": job.size,
         "content_type": sorted(
             MEDIA_MIMES.get(extension, {"application/octet-stream"})

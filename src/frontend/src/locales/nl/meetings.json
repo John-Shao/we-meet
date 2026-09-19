@@ -1,4 +1,9 @@
 {
+  "mediaDownload": {
+    "action": "Origineel bestand downloaden",
+    "preparing": "Download voorbereiden…",
+    "failed": "De download kon niet starten. Probeer het opnieuw."
+  },
   "recordSharing": {
     "scope": "Toegangsbereik",
     "summary": "Samenvattingen",

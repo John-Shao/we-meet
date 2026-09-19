@@ -38,6 +38,7 @@ import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPan
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
 import { SpeakerActivity } from '../components/SpeakerActivity'
+import { RecordMediaDownload } from '../components/RecordMediaDownload'
 import { TranscriptDraftScope } from '../components/TranscriptDraftScope'
 import { useTranscriptDraftScope } from '../hooks/useTranscriptDraft'
 import { RecordRenameControl } from '../components/RecordRenameControl'
@@ -651,6 +652,12 @@ function WorkspaceContent({
           </TabPanel>
         )}
         <TabPanel id="info" padding="md">
+          {record.capabilities.download_media && (
+            <RecordMediaDownload
+              key={`${viewerId}:${record.id}:${record.revision}`}
+              record={record}
+            />
+          )}
           <dl
             className={css({
               display: 'grid',

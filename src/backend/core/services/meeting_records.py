@@ -188,7 +188,11 @@ def record_capabilities(record, user):
         "read_summary": bool(scoped and scoped.can_read_summary),
         "read_transcript": bool(scoped and scoped.can_read_transcript),
         "play_media": can_play_media(scoped, user),
-        "download_media": False,
+        "download_media": bool(
+            scoped
+            and scoped.source_type == models.MeetingRecord.Source.UPLOAD
+            and can_play_media(scoped, user)
+        ),
         "edit": bool(
             scoped
             and scoped.can_manage_record

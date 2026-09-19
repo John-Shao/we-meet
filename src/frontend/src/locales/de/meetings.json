@@ -1,4 +1,9 @@
 {
+  "mediaDownload": {
+    "action": "Originaldatei herunterladen",
+    "preparing": "Download wird vorbereitet…",
+    "failed": "Download konnte nicht gestartet werden. Versuchen Sie es erneut."
+  },
   "recordSharing": {
     "scope": "Zugriffsumfang",
     "summary": "Zusammenfassungen",

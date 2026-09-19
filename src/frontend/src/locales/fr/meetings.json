@@ -1,4 +1,9 @@
 {
+  "mediaDownload": {
+    "action": "Télécharger le fichier original",
+    "preparing": "Préparation du téléchargement…",
+    "failed": "Impossible de lancer le téléchargement. Réessayez."
+  },
   "recordSharing": {
     "scope": "Périmètre d’accès",
     "summary": "Versions du compte rendu",

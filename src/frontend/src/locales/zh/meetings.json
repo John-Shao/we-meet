@@ -1,4 +1,9 @@
 {
+  "mediaDownload": {
+    "action": "下载原文件",
+    "preparing": "正在准备下载…",
+    "failed": "未能开始下载，请重试。"
+  },
   "recordSharing": {
     "scope": "授权范围",
     "summary": "纪要版本",

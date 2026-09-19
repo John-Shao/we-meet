@@ -1,4 +1,9 @@
 {
+  "mediaDownload": {
+    "action": "Download original file",
+    "preparing": "Preparing download…",
+    "failed": "Unable to start the download. Try again."
+  },
   "recordSharing": {
     "scope": "Access scope",
     "summary": "Summary versions",
