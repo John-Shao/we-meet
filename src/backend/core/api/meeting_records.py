@@ -1,11 +1,12 @@
 """Exact-source record reads and opt-in user-authorized summary requests."""
 
+import uuid
 from urllib.parse import parse_qs, urlsplit
 
 from django.conf import settings
 from django.core.exceptions import ValidationError as ModelValidationError
 from django.db import IntegrityError
-from django.db.models import Case, Exists, OuterRef, Prefetch, Q, When
+from django.db.models import Case, Count, Exists, OuterRef, Prefetch, Q, When
 from django.http import Http404
 from django.utils import timezone
 
@@ -141,6 +142,22 @@ class RecordPagination(pagination.CursorPagination):
         return Response({"results": data, "next_cursor": cursor})
 
 
+class SpeakerPagination(pagination.LimitOffsetPagination):
+    """Bound a speaker list that is aggregated in Python, not read as a queryset.
+
+    `RecordPagination` is a cursor pager and needs an ordered queryset to derive
+    its cursor. The online speaker list is a grouped aggregate, so paginating it
+    would mean ordering a `GROUP BY`. A plain limit is enough here — a single
+    record has a handful of speakers, and the cap is only a backstop.
+    """
+
+    default_limit = 100
+    max_limit = 200
+
+    def get_paginated_response(self, data):
+        return Response({"results": data, "next_cursor": None})
+
+
 class MeetingRecordSerializer(serializers.ModelSerializer):
     """Metadata only; never embed privileged media URLs or transcript snippets."""
 
@@ -221,12 +238,17 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
 class RecordTranscriptSerializer(serializers.ModelSerializer):
     """Expose only material authorized through the record and exact session."""
 
+    #: Echoed back as the `speaker` filter token, so the frontend never has to
+    #: match on a display name that two participants could share.
+    identity = serializers.CharField(source="speaker_identity", read_only=True)
+
     class Meta:
         model = models.Transcript
         fields = [
             "id",
             "session_id",
             "speaker_identity",
+            "identity",
             "speaker_name",
             "text",
             "language",
@@ -632,6 +654,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 session_id=record.meeting_session_id,
                 room_id=record.meeting_session.room_id,
             )
+        rows = self._filter_speaker(rows, identity_field="speaker_identity")
         rows, expected = self._filter_original_text(record, rows)
         pager = TranscriptPagination()
         order = request.query_params.get("order", "oldest")
@@ -657,6 +680,38 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         )
         self._check_original_revision(record, expected)
         return (rows.filter(text__icontains=query) if query else rows), expected
+
+    def _filter_speaker(self, rows, *, identity_field):
+        """Narrow to one speaker, using the identifier the `speakers` action returned.
+
+        `speakers` hands out a `MeetingSpeaker` UUID for capture-backed records and
+        a raw `speaker_identity` for online meetings, because those two sources
+        identify a speaker differently. Callers echo back whichever they were
+        given, so the filter has to accept both and match the one that belongs to
+        the rows at hand. An unknown identity yields no rows — never the full set.
+        """
+        raw = self.request.query_params.get("speaker")
+        if raw is None:
+            return rows
+        value = raw.strip()
+        if not value:
+            raise ValidationError({"speaker": "Speaker identifier must not be empty."})
+        if len(value) > 128:
+            raise ValidationError({"speaker": "Speaker identifier is too long."})
+
+        if identity_field == "speaker_identity":
+            return rows.filter(speaker_identity=value)
+
+        # Capture-backed rows: the caller echoes the MeetingSpeaker UUID. Accept
+        # the source key as well so a stale link still resolves to a bounded
+        # subset rather than silently widening back to the whole transcript.
+        matches = Q(speaker__source_key=value)
+        try:
+            matches |= Q(speaker_id=uuid.UUID(value))
+        except (ValueError, AttributeError, TypeError):
+            # Not a UUID: it can only match on the source key.
+            pass
+        return rows.filter(matches)
 
     @staticmethod
     def _check_original_revision(record, expected):
@@ -692,11 +747,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             rows = record.original_segments.filter(
                 transcription_job=job
             ).select_related("speaker")
-        speaker_id = request.query_params.get("speaker_id")
-        if speaker_id:
-            rows = rows.filter(
-                speaker_id=serializers.UUIDField().run_validation(speaker_id)
-            )
+        rows = self._filter_speaker(rows, identity_field="speaker_id")
         rows, expected = self._filter_original_text(record, rows)
         pager = RecordPagination()
         pager.ordering = ("start_ms", "id")
@@ -752,10 +803,43 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["get"])
     def speakers(self, request, pk=None):
-        """Speaker labels are original-text material, not summary metadata."""
+        """Speaker labels are original-text material, not summary metadata.
+
+        Online meetings and capture-backed records identify a speaker
+        differently: the former by the LiveKit identity stored on every
+        transcript row, the latter by a `MeetingSpeaker` row. Both shapes are
+        returned here so a caller can offer one filter and simply echo back the
+        token it was handed, together with the parameter name to use.
+        """
         if not settings.MEETING_CAPTURE_PROTOCOL_ENABLED:
             raise Http404
         record = self._content_record("read_transcript")
+
+        if record.meeting_session_id:
+            rows = (
+                models.Transcript.objects.filter(
+                    session_id=record.meeting_session_id,
+                    room_id=record.meeting_session.room_id,
+                )
+                .exclude(speaker_identity="")
+                .values("speaker_identity", "speaker_name")
+                .annotate(rows=Count("id"))
+                .order_by("speaker_name", "speaker_identity")
+            )
+            data = [
+                {
+                    "id": row["speaker_identity"],
+                    "label": row["speaker_name"] or row["speaker_identity"],
+                    "identity_type": "online",
+                    "rows": row["rows"],
+                    "param": "speaker",
+                }
+                for row in rows
+            ]
+            pager = SpeakerPagination()
+            page = pager.paginate_queryset(data, request, view=self)
+            return pager.get_paginated_response(page)
+
         pager = RecordPagination()
         pager.ordering = ("created_at", "id")
         page = pager.paginate_queryset(
@@ -771,6 +855,10 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "id": str(row.pk),
                     "label": row.label,
                     "identity_type": row.identity_type,
+                    # Capture-backed reads also carry the source key, so a caller
+                    # that only kept the raw track key can still filter.
+                    "source_key": row.source_key,
+                    "param": "speaker",
                 }
                 for row in page
             ]
