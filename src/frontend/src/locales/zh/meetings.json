@@ -123,6 +123,7 @@
     }
   },
   "library": {
+    "backToPlayback": "回到播放位置",
     "startRecording": "录音",
     "filters": "筛选",
     "gridView": "切换为网格视图",

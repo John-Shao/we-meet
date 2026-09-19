@@ -123,6 +123,7 @@
     }
   },
   "library": {
+    "backToPlayback": "Terug naar afspeelpositie",
     "startRecording": "Opnemen",
     "filters": "Filters",
     "gridView": "Naar rasterweergave",

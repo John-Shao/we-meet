@@ -563,6 +563,8 @@ function showWithPosition(positionMs: number) {
         capture={capture}
         onSource={onSource}
         positionMs={positionMs}
+        activeId={null}
+        follow={{ suppressed: () => false, suppressionEpoch: 0 }}
       />
     </QueryClientProvider>
   )
@@ -645,4 +647,23 @@ it('lets a click on a timestamp still seek, now that rows also follow playback',
   fireEvent.click(within(row).getByRole('button', { name: /asr\.source/ }))
   // One direction is unchanged: clicking text still moves the audio.
   expect(onSource).toHaveBeenCalledWith(1000)
+})
+
+
+it('fetches the playback window beyond page one and can seek back', async () => {
+  status.active_job_id = 'job'
+  vi.mocked(fetchApi).mockImplementation(async (path) => {
+    if (!path.includes('original-segments')) return status
+    const at = Number(new URLSearchParams(path.split('?')[1]).get('at_ms'))
+    return at >= 60000
+      ? { results: [{ id: 'late', start_ms: 60000, end_ms: 62000, text: 'Later minute' }], next_cursor: null }
+      : { results: [{ id: 'early', start_ms: 0, end_ms: 1000, text: 'Opening' }], next_cursor: 'next' }
+  })
+  const view = showWithPosition(61000)
+  expect((await screen.findByText('Later minute')).closest('article')).toHaveAttribute('aria-current', 'true')
+  expect(vi.mocked(fetchApi).mock.calls.some(([path]) => path.includes('at_ms=61000'))).toBe(true)
+  view.rerender(<QueryClientProvider client={client}>
+    <CaptureTranscriptionPanel viewerId="owner" capture={capture} positionMs={100} onSource={onSource} />
+  </QueryClientProvider>)
+  expect((await screen.findByText('Opening')).closest('article')).toHaveAttribute('aria-current', 'true')
 })

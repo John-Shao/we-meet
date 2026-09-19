@@ -123,6 +123,7 @@
     }
   },
   "library": {
+    "backToPlayback": "Revenir à la lecture",
     "startRecording": "Enregistrer",
     "filters": "Filtres",
     "gridView": "Passer en vue grille",

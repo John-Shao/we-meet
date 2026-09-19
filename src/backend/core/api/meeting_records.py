@@ -794,6 +794,22 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         rows, expected = self._filter_original_text(
             record, project(rows), text_field="corrected_text"
         )
+        # Locate inside the authorized, generation-pinned and filtered source.
+        # Keep the predecessor for gap context; cursor pagination continues from
+        # the same bounded window without downloading every preceding page.
+        raw_at = request.query_params.get("at_ms")
+        if raw_at is not None:
+            at_ms = serializers.IntegerField(
+                min_value=0, max_value=9223372036854775807
+            ).run_validation(raw_at)
+            start = (
+                rows.filter(start_ms__lte=at_ms)
+                .order_by("-start_ms")
+                .values_list("start_ms", flat=True)
+                .first()
+            )
+            if start is not None:
+                rows = rows.filter(start_ms__gte=start)
         can_correct = can_edit_transcript(record, request.user)
         pager = RecordPagination()
         pager.ordering = ("start_ms", "id")

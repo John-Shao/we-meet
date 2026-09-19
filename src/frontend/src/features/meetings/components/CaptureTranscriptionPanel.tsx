@@ -18,6 +18,7 @@ import { LiveCaptureTranscript } from './LiveCaptureTranscript'
 import { TranscriptSegment } from './TranscriptSegment'
 import {
   activeRowId,
+  transcriptWindowTarget,
   useTranscriptFollow,
   type PlaybackFollow,
   type TimedRow,
@@ -437,10 +438,14 @@ function Originals({
   const { t } = useTranslation('capture')
   const [cursors, setCursors] = useState<string[]>([''])
   const [search, setSearch] = useState('')
+  const [anchorMs, setAnchorMs] = useState(0)
+  const [following, setFollowing] = useState(true)
   const cursor = cursors.at(-1)!
-  const path = `meeting-records/${capture.record_id}/original-segments/?transcription_job_id=${jobId}&cursor=${encodeURIComponent(cursor)}&q=${encodeURIComponent(search)}`
+  const path = `meeting-records/${capture.record_id}/original-segments/?transcription_job_id=${jobId}&cursor=${encodeURIComponent(cursor)}&q=${encodeURIComponent(search)}&at_ms=${search ? 0 : anchorMs}`
   const searchForm = (
     <OriginalSearch
+      key={search}
+      initialQuery={search}
       onSearch={(query) => {
         setSearch(query)
         setCursors([''])
@@ -466,20 +471,17 @@ function Originals({
     start_ms: row.start_ms,
     end_ms: row.end_ms,
   }))
-  // The shared activeId wins when the workspace computed it; otherwise fall back
-  // to deriving it here, so this panel also works without a player.
-  const resolvedActiveId = follow
-    ? (activeId ?? null)
-    : positionMs === undefined
-      ? null
+  const resolvedActiveId =
+    positionMs === undefined
+      ? (activeId ?? null)
       : activeRowId(timedRows, positionMs)
   const resolvedFollow: Pick<
     PlaybackFollow,
     'suppressed' | 'suppressionEpoch'
-  > & { positionMs?: number } = follow ?? {
+  > & { positionMs?: number } = {
     suppressed: () => false,
     suppressionEpoch: 0,
-    // Only a caller that owns a clock can follow across a gap.
+    ...follow,
     positionMs,
   }
   const listRef = useRef<HTMLDivElement>(null)
@@ -495,6 +497,25 @@ function Originals({
     correction.mutateAsync({ segmentId, revert: true, expectedRevision })
   /** The visible rows are a subset, so position cannot address them. */
   const filtersActive = search.trim() !== ''
+  useEffect(() => {
+    if (
+      !following ||
+      filtersActive ||
+      positionMs === undefined ||
+      follow?.suppressed()
+    )
+      return
+    const target = transcriptWindowTarget(
+      timedRows,
+      positionMs,
+      anchorMs,
+      !!next
+    )
+    if (target !== null) {
+      setAnchorMs(target)
+      setCursors([''])
+    }
+  }, [following, filtersActive, positionMs, follow, timedRows, anchorMs, next])
   /**
    * The list scrolls the active row once per change. Scrolling is off while a
    * filter is applied: the active row may not be rendered at all, and a partial
@@ -509,7 +530,7 @@ function Originals({
     follow: resolvedFollow,
     // A filtered or searched list may omit the active row entirely; following it
     // would scroll to whichever row happened to survive the filter.
-    enabled: query.isSuccess && !filtersActive,
+    enabled: query.isSuccess && !filtersActive && following,
   })
   if (query.isError)
     return (
@@ -529,8 +550,27 @@ function Originals({
       </div>
     )
   return (
-    <div className={style} ref={listRef}>
+    <div
+      className={style}
+      ref={listRef}
+      onFocusCapture={(event) => {
+        if (event.target instanceof HTMLTextAreaElement) setFollowing(false)
+      }}
+    >
       {searchForm}
+      {positionMs !== undefined && (
+        <Button
+          variant="tertiary"
+          onPress={() => {
+            setSearch('')
+            setAnchorMs(Math.floor(positionMs))
+            setCursors([''])
+            setFollowing(true)
+          }}
+        >
+          {t('library.backToPlayback', { ns: 'meetings' })}
+        </Button>
+      )}
       <h3>{t('asr.originals')}</h3>
       <p>{t(onSource ? 'asr.unknownSpeaker' : 'retention.noPlayback')}</p>
       {!query.data.results.length && <p>{t('asr.noText')}</p>}
@@ -566,7 +606,10 @@ function Originals({
         {cursors.length > 1 && (
           <Button
             variant="secondary"
-            onPress={() => setCursors((values) => values.slice(0, -1))}
+            onPress={() => {
+              setFollowing(false)
+              setCursors((values) => values.slice(0, -1))
+            }}
           >
             {t('previous')}
           </Button>
@@ -574,7 +617,10 @@ function Originals({
         {next && (
           <Button
             variant="secondary"
-            onPress={() => setCursors((values) => [...values, next])}
+            onPress={() => {
+              setFollowing(false)
+              setCursors((values) => [...values, next])
+            }}
           >
             {t('next')}
           </Button>

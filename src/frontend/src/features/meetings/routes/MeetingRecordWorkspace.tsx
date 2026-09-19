@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, Redirect, useParams, useSearch } from 'wouter'
@@ -57,6 +57,8 @@ import { TranscriptSegment } from '../components/TranscriptSegment'
 import { recordSourceKey } from '../recordSource'
 import {
   usePlaybackFollow,
+  activeRowId,
+  transcriptWindowTarget,
   useTranscriptFollow,
   type PlaybackFollow,
   type TimedRow,
@@ -88,12 +90,14 @@ function OriginalRead({
   speakers = false,
   activeId,
   follow,
+  onSource,
 }: {
   record: ApiMeetingRecord
   viewerId: string
   speakers?: boolean
   /** Row playback is inside, so the text can follow the audio. */
   activeId?: string | null
+  onSource?: (milliseconds: number) => void
   follow?: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'> & {
     positionMs?: number
   }
@@ -106,6 +110,8 @@ function OriginalRead({
     () => new URLSearchParams(routeSearch).get('q')?.slice(0, 200) ?? ''
   )
   const [speaker, setSpeaker] = useState('')
+  const [anchorMs, setAnchorMs] = useState(0)
+  const [following, setFollowing] = useState(true)
   const listRef = useRef<HTMLDivElement>(null)
   const client = useQueryClient()
   const endpoint = speakers
@@ -113,7 +119,7 @@ function OriginalRead({
     : record.source_type === 'meeting'
       ? 'transcripts'
       : 'original-segments'
-  const path = `meeting-records/${record.id}/${endpoint}/?cursor=${encodeURIComponent(cursors.at(-1)!)}&q=${encodeURIComponent(search)}&speaker=${encodeURIComponent(speaker)}&expected_revision=${record.revision}`
+  const path = `meeting-records/${record.id}/${endpoint}/?cursor=${encodeURIComponent(cursors.at(-1)!)}&q=${encodeURIComponent(search)}${speaker ? `&speaker=${encodeURIComponent(speaker)}` : ''}&expected_revision=${record.revision}${endpoint === 'original-segments' ? `&at_ms=${search || speaker ? 0 : anchorMs}` : ''}`
   const searchForm = !speakers && (
     <>
       <SpeakerFilter
@@ -127,6 +133,7 @@ function OriginalRead({
         }}
       />
       <OriginalSearch
+        key={search}
         initialQuery={search}
         onSearch={(query) => {
           setSearch(query)
@@ -157,17 +164,45 @@ function OriginalRead({
       start_ms: item.start_ms,
       end_ms: item.end_ms,
     }))
+  const positionMs = follow?.positionMs
+  const resolvedActiveId =
+    positionMs === undefined
+      ? (activeId ?? null)
+      : activeRowId(rowIds, positionMs)
+  const followEnabled = following && !search && !speaker && !speakers
+  useEffect(() => {
+    if (!followEnabled || positionMs === undefined || follow?.suppressed())
+      return
+    const target = transcriptWindowTarget(
+      rowIds,
+      positionMs,
+      anchorMs,
+      !!query.data?.next_cursor
+    )
+    if (target !== null) {
+      setAnchorMs(target)
+      setCursors([''])
+    }
+  }, [
+    followEnabled,
+    positionMs,
+    follow,
+    rowIds,
+    anchorMs,
+    query.data?.next_cursor,
+  ])
   // The list scrolls the right row once per change, rather than every row asking
   // to be scrolled on the same commit.
   useTranscriptFollow({
     containerRef: listRef,
-    activeId: follow ? (activeId ?? null) : null,
+    activeId: resolvedActiveId,
     // The rows the highlight came from, so playback inside a gap still advances
     // the view rather than stalling until the next utterance starts.
     rows: rowIds,
     // Only a clock can say which row has already started; without `positionMs`
     // in `follow` this falls back to following the highlight alone.
     follow: follow ?? { suppressed: () => true, suppressionEpoch: 0 },
+    enabled: followEnabled,
   })
   if (query.isError)
     return (
@@ -204,8 +239,27 @@ function OriginalRead({
   // online transcript is stamped with wall time instead, so it cannot be followed
   // on the media timeline and contributes no rows here.
   return (
-    <div ref={listRef}>
+    <div
+      ref={listRef}
+      onFocusCapture={(event) => {
+        if (event.target instanceof HTMLTextAreaElement) setFollowing(false)
+      }}
+    >
       {searchForm}
+      {positionMs !== undefined && !speakers && (
+        <Button
+          variant="tertiary"
+          onPress={() => {
+            setSearch('')
+            setSpeaker('')
+            setAnchorMs(Math.floor(positionMs))
+            setCursors([''])
+            setFollowing(true)
+          }}
+        >
+          {t('library.backToPlayback')}
+        </Button>
+      )}
       {!query.data.results.length && <p>{t('library.noContent')}</p>}
       {query.data.results.map((item) =>
         'identity_type' in item ? (
@@ -230,7 +284,12 @@ function OriginalRead({
           <TranscriptSegment
             key={item.id}
             segmentId={item.id}
-            active={follow !== undefined && activeId === item.id}
+            active={follow !== undefined && resolvedActiveId === item.id}
+            onSeek={
+              'start_ms' in item && onSource
+                ? () => onSource(item.start_ms)
+                : undefined
+            }
             speaker={
               ('started_at' in item ? item.speaker_name : item.speaker_label) ||
               t('library.unknownSpeaker')
@@ -284,7 +343,10 @@ function OriginalRead({
         {cursors.length > 1 && (
           <Button
             variant="tertiary"
-            onPress={() => setCursors((values) => values.slice(0, -1))}
+            onPress={() => {
+              setFollowing(false)
+              setCursors((values) => values.slice(0, -1))
+            }}
           >
             {t('library.previous')}
           </Button>
@@ -292,9 +354,10 @@ function OriginalRead({
         {query.data.next_cursor && (
           <Button
             variant="tertiary"
-            onPress={() =>
+            onPress={() => {
+              setFollowing(false)
               setCursors((values) => [...values, query.data!.next_cursor!])
-            }
+            }}
           >
             {t('library.next')}
           </Button>
@@ -491,6 +554,7 @@ function WorkspaceContent({
                 viewerId={viewerId}
                 activeId={isUpload ? follow.activeId : undefined}
                 follow={isUpload ? follow : undefined}
+                onSource={isUpload ? seekTo : undefined}
               />
             )}
           </TabPanel>

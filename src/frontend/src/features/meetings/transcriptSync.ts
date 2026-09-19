@@ -29,7 +29,8 @@ export function activeRowId(
   rows: readonly TimedRow[],
   positionMs: number
 ): string | null {
-  if (!rows.length || !Number.isFinite(positionMs) || positionMs < 0) return null
+  if (!rows.length || !Number.isFinite(positionMs) || positionMs < 0)
+    return null
   let candidate: TimedRow | null = null
   for (const row of rows) {
     if (row.start_ms > positionMs) break
@@ -56,6 +57,22 @@ export function nearestStartedRowId(
 
 /** How long a reader keeps control after scrolling before playback takes over. */
 export const SCROLL_SUPPRESSION_MS = 4000
+
+/** Fetch another bounded page only when playback leaves this page's window. */
+export function transcriptWindowTarget(
+  rows: readonly TimedRow[],
+  positionMs: number,
+  anchorMs: number,
+  hasNext: boolean
+): number | null {
+  if (!rows.length || !Number.isFinite(positionMs) || positionMs < 0)
+    return null
+  const target = Math.floor(positionMs)
+  if (target === anchorMs) return null
+  if (anchorMs > 0 && positionMs < rows[0].start_ms) return target
+  if (hasNext && positionMs >= rows[rows.length - 1].start_ms) return target
+  return null
+}
 
 export type PlaybackFollow = {
   /** Latest playback position, in the same clock the rows use. */
@@ -95,15 +112,22 @@ export function usePlaybackFollow(rows: readonly TimedRow[]): PlaybackFollow {
   // A wheel or touch gesture in the transcript means the reader is looking
   // somewhere specific; hold auto-scroll off until they stop.
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
     const note = () => {
       suppressedUntil.current = performance.now() + SCROLL_SUPPRESSION_MS
       // A gesture while paused must still re-render, otherwise the highlight
       // would stay put until the next position tick that may never come.
       setSuppressionEpoch((value) => value + 1)
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        suppressedUntil.current = 0
+        setSuppressionEpoch((value) => value + 1)
+      }, SCROLL_SUPPRESSION_MS)
     }
     window.addEventListener('wheel', note, { passive: true })
     window.addEventListener('touchmove', note, { passive: true })
     return () => {
+      clearTimeout(timer)
       window.removeEventListener('wheel', note)
       window.removeEventListener('touchmove', note)
     }
@@ -150,10 +174,7 @@ export function useTranscriptFollow({
   activeId: string | null
   /** Same rows the highlight was derived from, for the gap-following target. */
   rows?: readonly TimedRow[]
-  follow: Pick<
-    PlaybackFollow,
-    'suppressed' | 'suppressionEpoch'
-  > & {
+  follow: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'> & {
     /** Required for gap-following; omit to follow the highlight only. */
     positionMs?: number
   }

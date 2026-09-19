@@ -123,6 +123,7 @@
     }
   },
   "library": {
+    "backToPlayback": "Zur Wiedergabeposition",
     "startRecording": "Aufnehmen",
     "filters": "Filter",
     "gridView": "Zur Rasteransicht wechseln",

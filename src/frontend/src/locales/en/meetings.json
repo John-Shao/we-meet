@@ -123,6 +123,7 @@
     }
   },
   "library": {
+    "backToPlayback": "Back to playback",
     "startRecording": "Record",
     "filters": "Filters",
     "gridView": "Switch to grid view",

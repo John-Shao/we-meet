@@ -20,6 +20,40 @@ from core.tests.services.test_meeting_records import client_for, online_note
 pytestmark = pytest.mark.django_db
 
 
+def test_playback_window_locates_beyond_page_one_and_preserves_cursor_and_acl():
+    owner, capture, worker, job = running()
+    for index in range(65):
+        response, _ = final(
+            job["id"], worker, sequence=index + 1,
+            start_ms=index * 10, end_ms=index * 10 + 5, text=f"line {index}",
+        )
+        assert response.status_code == 201
+    acknowledge(job, worker)
+    assert finish(job["id"], worker, count=65).data["status"] == "succeeded"
+    client = client_for(owner)
+    path = f"/api/v1.0/meeting-records/{capture.record_id}/original-segments/"
+    params = {"at_ms": 153, "transcription_job_id": job["id"]}
+    page = client.get(path, params).data
+    assert len(page["results"]) == 30
+    assert page["results"][0]["start_ms"] == 150
+    continued = client.get(path, {**params, "cursor": page["next_cursor"]}).data
+    assert continued["results"][0]["start_ms"] == 450
+    assert continued["next_cursor"] is None
+    # A seek in silence keeps the preceding utterance for context.
+    assert client.get(path, {"at_ms": 458}).data["results"][0]["start_ms"] == 450
+    assert client.get(path, {"at_ms": 9999}).data["results"][0]["start_ms"] == 640
+    assert client.get(path, {"at_ms": 0}).data["results"][0]["start_ms"] == 0
+    assert client.get(path, {"at_ms": 450, "q": "line 2"}).data["results"][0]["text"] == "line 29"
+    for invalid in (-1, "bad", "9223372036854775808"):
+        assert client.get(path, {"at_ms": invalid}).status_code == 400
+    reader = UserFactory()
+    models.MeetingRecordAccess.objects.create(record=capture.record, user=reader, read_summary=True)
+    assert client_for(reader).get(path, {"at_ms": 450}).status_code == 403
+    assert client_for(UserFactory()).get(path, {"at_ms": 450}).status_code == 404
+    capture.record.refresh_from_db()
+    assert client.get(path, {"at_ms": 450, "expected_revision": capture.record.revision + 1}).status_code == 409
+
+
 def test_search_covers_rows_beyond_first_page_without_crossing_reused_room():
     owner, session, original, record = online_note(text="first unrelated line")
     for index in range(35):

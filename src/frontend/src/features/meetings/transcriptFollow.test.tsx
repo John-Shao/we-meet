@@ -1,8 +1,24 @@
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react'
 import { createRef } from 'react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { activeRowId, useTranscriptFollow } from './transcriptSync'
+import { activeRowId, useTranscriptFollow, usePlaybackFollow, SCROLL_SUPPRESSION_MS } from './transcriptSync'
+
+it('resumes following after a scroll even when playback is paused', () => {
+  vi.useFakeTimers()
+  try {
+    const hook = renderHook(() => usePlaybackFollow([]))
+    fireEvent.wheel(window)
+    expect(hook.result.current.suppressed()).toBe(true)
+    const epoch = hook.result.current.suppressionEpoch
+    act(() => vi.advanceTimersByTime(SCROLL_SUPPRESSION_MS))
+    expect(hook.result.current.suppressed()).toBe(false)
+    expect(hook.result.current.suppressionEpoch).toBeGreaterThan(epoch)
+    hook.unmount()
+  } finally {
+    vi.useRealTimers()
+  }
+})
 
 /**
  * The list owns the scroll, so it happens once per active change. When every row

@@ -335,3 +335,17 @@ it('searches the complete original with a revision fence and hides stale results
   fireEvent.click(screen.getByRole('button', { name: 'library.clearSearch' }))
   await screen.findByText('Exact online source')
 })
+
+
+it('connects upload timestamps to playback without sending an empty speaker filter', async () => {
+  record.source_type = 'upload'
+  record.capture_id = null
+  show()
+  const row = (await screen.findByText('Shared original')).closest('article')!
+  expect(row).toHaveAttribute('aria-current', 'true')
+  fireEvent.click(screen.getByRole('button', { name: '0:00' }))
+  expect(mocks.seek).toHaveBeenCalledWith(0)
+  for (const [path] of vi.mocked(fetchApi).mock.calls.filter(([path]) => path.includes('original-segments'))) {
+    expect(new URLSearchParams(path.split('?')[1]).has('speaker')).toBe(false)
+  }
+})
