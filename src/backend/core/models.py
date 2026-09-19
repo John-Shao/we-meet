@@ -1612,6 +1612,57 @@ class MeetingOriginalSegment(BaseModel):
             )
 
 
+class MeetingOriginalRevision(BaseModel):
+    """A human correction to one immutable original segment.
+
+    ASR is wrong often enough that a transcript nobody can fix is not usable. But
+    the original cannot be rewritten: `source_refs` on every summary point, and
+    every stored transcript version, anchor to a segment id — editing in place
+    would silently change what an existing citation points at.
+
+    So a correction is an appended revision. The original keeps saying what the
+    recogniser produced, and every reader resolves "latest revision, else
+    original" through one projection.
+    """
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="original_revisions"
+    )
+    original = models.ForeignKey(
+        MeetingOriginalSegment, on_delete=models.CASCADE, related_name="revisions"
+    )
+    revision = models.PositiveIntegerField()
+    text = models.TextField()
+    edited_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    class Meta:
+        db_table = "meet_meeting_original_revision"
+        ordering = ("original_id", "-revision")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["original", "revision"],
+                name="unique_original_revision",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(revision__gte=1),
+                name="original_revision_positive",
+            ),
+        ]
+
+    def __str__(self):
+        return f"OriginalRevision({self.original_id}, {self.revision})"
+
+    def clean(self):
+        """Append-only, and never across records."""
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Original revisions are immutable.")
+        if self.original.record_id != self.record_id:
+            raise ValidationError("A revision must belong to its original's record.")
+
+
 class MeetingMediaSegment(BaseModel):
     """Map an optional media asset onto a record timeline with explicit gaps."""
 
