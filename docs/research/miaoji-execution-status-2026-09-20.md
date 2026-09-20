@@ -36,11 +36,14 @@
 | 30 | 部署后 App/API 联合验收：批改、热词、分布回听、12 份导出分页及跨账号撤权 | 本批文档 | 无运行变更 |
 | 31 | 导出历史空态只在实际可导出时提示创建，双端及多语言修正 | 本批实现 | `e17dda59` |
 | 32 | 创建日期 × 归属/来源/标题组合筛选、旧后端保护；Android 资源去重与导出提示主线程修正 | 本批实现 | `d5796c85` |
-| 33 | 日期组合筛选、只读导出空态的 App/API 生产验收；发现筛选面板收起问题 | 本批文档 | 无运行变更 |
+| 33 | 日期组合筛选、只读导出空态的 App/API 生产验收；发现筛选面板收起问题 | `a2bd10117` | 无运行变更 |
+| 34 | 日期错误面板保持展开、提交后收起键盘及可见性回归 | 本批文档 | `8d8e8bc3` |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第三十四批](miaoji-batch-34-filter-sheet.md)：Android `8d8e8bc3` 修正日期错误后的面板和键盘遮挡，三项仪器回归、截图检查及设计规范检查通过。仅需新版 App 分发，无后端/Web 部署；第 33 批发现的布局问题已修复。
 
 [第三十三批](miaoji-batch-33-date-production-acceptance.md)：用户已发布 backend/frontend `85c0291d6`（revision 378），第 31/32 批部署阻塞解除。生产 API 日期边界/组合筛选/权限，App 单日筛选、未来空态、清除日期、只读导出提示通过所列场景，临时分享撤销。发现日期错误导致筛选面板缩回半屏，进入第 34 批修正。下方各批“待部署”保留历史，当前以本段为准。
 
