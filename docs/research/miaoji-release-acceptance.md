@@ -1,5 +1,9 @@
 # 妙记整改：目标环境验收清单
 
+## 第四十二批待发布
+
+[逻辑回收启用配置](miaoji-batch-42-trash-rollout.md)已准备，Helm 验证开关在三个 backend 进程一致。下一次执行 `bash deploy/aliyun/release-meet.sh backend`；frontend 保持 `bd16ac487`，Android `9fcdb382` 已安装。生产当前仍关闭，发布后仅用第 41 批新样本验收回收/恢复、授权不复活及忙态保护。永久清理未实现。
+
 ## 第四十一批生产验收更新
 
 [部署后验收](miaoji-batch-41-production-acceptance.md)：`bd16ac487` / Helm 379 已部署；Android `9fcdb382` 已安装。新音频 93461ms、旧音频/视频播放器时长、人工版本 5 来源导航及仅纪要分享/撤权 API 通过；回收入口/接口确认关闭。下一项为启用回收配置后验收逻辑回收/恢复及权限、任务边界。完整/部分原生采集、历史页 App 撤权清理、Web UI 和正式分发仍待验收；详情及样本 ID 见本批文档。下方“待部署”保留历史，当前以本节为准。

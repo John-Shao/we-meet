@@ -44,11 +44,14 @@
 | 38 | 双端人工纪要导出来源精确导航、只读历史及原始快照引用 | `11aa176fb` | `4934a960` |
 | 39 | 回收站后端、统一读取隔离、恢复与任务/分享边界；默认关闭 | `d5ac89907` | 无运行变更 |
 | 40 | Web/App 回收确认、回收站分页和恢复；服务器能力控制入口 | 本批实现 | `210345aa`、`9fcdb382` |
-| 41 | 部署后 App/API 时长、人工旧版本导航、仅纪要分享撤权与关闭回收开关验收 | 本批文档 | `9fcdb382` 构建并安装 |
+| 41 | 部署后 App/API 时长、人工旧版本导航、仅纪要分享撤权与关闭回收开关验收 | `d15ccf8e3` | `9fcdb382` 构建并安装 |
+| 42 | 回收站启用配置及三个 backend 进程的 Helm 环境变量校验 | 本批配置 | 无运行变更 |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第四十二批](miaoji-batch-42-trash-rollout.md)：生产 values 已准备启用回收，Helm 渲染并断言 backend、celery-backend、celery-beat 均为 True。待用户仅发布 backend；现网仍关闭，下一项为专用样本逻辑回收/恢复及权限边界验收。无需新增迁移、frontend 或 summary/agents 发布。
 
 [第四十一批](miaoji-batch-41-production-acceptance.md)：backend/frontend `bd16ac487`、Helm revision 379 已部署。新音频原始时长 93461ms 与 App 未播放前显示、旧音频/视频播放器补充时长、人工历史 5 不回退当前 6、仅纪要分享及撤权 API 均通过所列检查；临时分享已清理。回收关闭契约通过，逻辑回收仍未开启/验收；下一步准备启用配置并发布 backend。完整/部分原生采集、Web 页面及正式 App 分发不在本批生产覆盖内。
 
