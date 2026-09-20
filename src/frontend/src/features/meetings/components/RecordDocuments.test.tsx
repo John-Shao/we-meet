@@ -32,6 +32,21 @@ afterEach(() => {
   vi.resetAllMocks()
 })
 
+it.each([true, false, undefined])(
+  'only suggests creating an export when the server allows it: %s',
+  async (available) => {
+    mocks.fetchApi.mockResolvedValue({ available, results: [] })
+    show()
+    await screen.findByText('recordDocuments.empty')
+    expect(Boolean(screen.queryByText('recordDocuments.createHint'))).toBe(
+      available === true
+    )
+    expect(
+      mocks.fetchApi.mock.calls.every(([, options]) => !options.method)
+    ).toBe(true)
+  }
+)
+
 it('opens the existing document and exact source version without creating an export', async () => {
   mocks.fetchApi.mockResolvedValue({ available: false, results: [receipt] })
   show()

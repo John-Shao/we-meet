@@ -48,10 +48,11 @@ function DocumentHistory({
   const query = useQuery({
     queryKey: ['summary-exports', viewerId, recordId, path],
     queryFn: ({ signal }) =>
-      fetchApi<{ results: ExportReceipt[]; next_cursor?: string | null }>(
-        path,
-        { signal }
-      ),
+      fetchApi<{
+        available?: boolean
+        results: ExportReceipt[]
+        next_cursor?: string | null
+      }>(path, { signal }),
     gcTime: 0,
     staleTime: 0,
     retry: false,
@@ -82,7 +83,12 @@ function DocumentHistory({
       ) : !query.data ? (
         <p>{t('loading')}</p>
       ) : query.data.results.length === 0 ? (
-        <p>{t('recordDocuments.empty')}</p>
+        <>
+          <p>{t('recordDocuments.empty')}</p>
+          {query.data.available === true && (
+            <p>{t('recordDocuments.createHint')}</p>
+          )}
+        </>
       ) : (
         query.data.results.map((row) => (
           <article

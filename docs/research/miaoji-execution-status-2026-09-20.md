@@ -34,10 +34,13 @@
 | 28 | 双端发言分布、统一识别范围、区间回听及权限降级 | 本批实现 | `add185f7`、`41fa0a55` |
 | 29 | 双端个人纪要导出历史分页、签名游标和跨账号隔离 | 本批实现 | `a2a9a5b0` |
 | 30 | 部署后 App/API 联合验收：批改、热词、分布回听、12 份导出分页及跨账号撤权 | 本批文档 | 无运行变更 |
+| 31 | 导出历史空态只在实际可导出时提示创建，双端及多语言修正 | 本批实现 | `e17dda59` |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第三十一批](miaoji-batch-31-export-empty-state.md)修正第 30 批发现的只读账号空态误导。Web 12 项、Android 11 项仪器测试及类型/语言/设计检查通过；debug APK 已安装。无后端/迁移变更，需 frontend 发布和新版 App 正式分发；更新后的生产 UI 提示仍待复测。下一个产品开发项为 G4 组合筛选。
 
 [第三十批联合验收](miaoji-batch-30-deployment-preflight.md)：用户已部署 backend/frontend `ad06f3e8a`（revision 377），部署阻塞解除；summary/agents 仍为 `f2e7f3cd4`。Android `a2a9a5b0` debug APK 配合生产 API，验证批量校对/撤回/冲突、个人热词显式合并与冲突草稿、短音频上传、发言区间回听、12 份私有导出分页、只读账号和撤权内容清理。临时文字/词表恢复、分享撤销。具体证据和未覆盖边界见链接；Web 页面、正式 App 分发、物理设备仍待完成。第 31 批继续修正只读用户的空文档提示。
 

@@ -51,7 +51,8 @@
   "recordDocuments": {
     "title": "My minutes documents",
     "hint": "Your exports from this record, newest first. Use the page controls for older copies. Each document has independent access permissions.",
-    "empty": "No document exports by you yet. Create one from a minutes version.",
+    "empty": "No document exports by you yet.",
+    "createHint": "You can create a document from a minutes version.",
     "ai": "AI minutes copy",
     "human": "Reviewed minutes copy",
     "source": "View the source AI minutes version"

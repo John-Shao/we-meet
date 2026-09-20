@@ -51,7 +51,8 @@
   "recordDocuments": {
     "title": "Mijn notulendocumenten",
     "hint": "Uw exports, nieuwste eerst. Gebruik de paginaknoppen voor oudere kopieën. Elk document heeft eigen toegangsrechten.",
-    "empty": "Nog geen exports. Maak een document vanuit een notulenversie.",
+    "empty": "U hebt nog geen documenten geëxporteerd.",
+    "createHint": "U kunt een document maken vanuit een notulenversie.",
     "ai": "Kopie van AI-notulen",
     "human": "Kopie van herziene notulen",
     "source": "AI-bronversie bekijken"
