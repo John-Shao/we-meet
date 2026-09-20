@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'wouter'
 import { fetchApi } from '@/api/fetchApi'
@@ -24,12 +25,33 @@ export function RecordDocuments({
   viewerId: string
   recordId: string
 }) {
+  return (
+    <DocumentHistory
+      key={`${viewerId}:${recordId}`}
+      viewerId={viewerId}
+      recordId={recordId}
+    />
+  )
+}
+
+function DocumentHistory({
+  viewerId,
+  recordId,
+}: {
+  viewerId: string
+  recordId: string
+}) {
   const { t } = useTranslation('meetings')
-  const path = `meeting-records/${encodeURIComponent(recordId)}/document-exports/`
+  const [cursors, setCursors] = useState<(string | null)[]>([null])
+  const cursor = cursors[cursors.length - 1]
+  const path = `meeting-records/${encodeURIComponent(recordId)}/document-exports/${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`
   const query = useQuery({
     queryKey: ['summary-exports', viewerId, recordId, path],
     queryFn: ({ signal }) =>
-      fetchApi<{ results: ExportReceipt[] }>(path, { signal }),
+      fetchApi<{ results: ExportReceipt[]; next_cursor?: string | null }>(
+        path,
+        { signal }
+      ),
     gcTime: 0,
     staleTime: 0,
     retry: false,
@@ -95,6 +117,28 @@ export function RecordDocuments({
           </article>
         ))
       )}
+      <div className={css({ display: 'flex', gap: '0.5rem' })}>
+        {cursors.length > 1 && (
+          <Button
+            size="sm"
+            variant="tertiary"
+            onPress={() => setCursors((values) => values.slice(0, -1))}
+          >
+            {t('library.previous')}
+          </Button>
+        )}
+        {!query.isError && query.data?.next_cursor && (
+          <Button
+            size="sm"
+            variant="tertiary"
+            onPress={() =>
+              setCursors((values) => [...values, query.data!.next_cursor!])
+            }
+          >
+            {t('library.next')}
+          </Button>
+        )}
+      </div>
     </section>
   )
 }

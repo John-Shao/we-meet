@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { RecordDocuments } from './RecordDocuments'
 
@@ -83,4 +83,64 @@ it('does not reuse a previous viewer’s document links', async () => {
   )
   await waitFor(() => expect(screen.queryByRole('link')).toBeNull())
   await screen.findByText('recordDocuments.empty')
+})
+
+it('pages older copies and returns without creating documents', async () => {
+  mocks.fetchApi.mockImplementation(async (path: string) =>
+    path.includes('?cursor=')
+      ? { results: [{ ...receipt, document_id: 'older' }], next_cursor: null }
+      : { results: [receipt], next_cursor: 'signed+cursor' }
+  )
+  show()
+  fireEvent.click(await screen.findByRole('button', { name: 'library.next' }))
+  await waitFor(() =>
+    expect(
+      screen.getByRole('link', { name: 'summaryExport.openDocument' })
+    ).toHaveAttribute('href', '/docs/older')
+  )
+  expect(
+    mocks.fetchApi.mock.calls.some(([path]) =>
+      path.endsWith('?cursor=signed%2Bcursor')
+    )
+  ).toBe(true)
+  expect(screen.queryByRole('button', { name: 'library.next' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'library.previous' }))
+  await waitFor(() =>
+    expect(
+      screen.getByRole('link', { name: 'summaryExport.openDocument' })
+    ).toHaveAttribute('href', '/docs/doc')
+  )
+  expect(
+    mocks.fetchApi.mock.calls.every(([, options]) => !options.method)
+  ).toBe(true)
+})
+
+it('clears older-page links and cursor when switching viewers', async () => {
+  mocks.fetchApi.mockResolvedValue({ results: [receipt], next_cursor: 'token' })
+  const view = show()
+  fireEvent.click(await screen.findByRole('button', { name: 'library.next' }))
+  await screen.findByRole('button', { name: 'library.previous' })
+  mocks.fetchApi.mockResolvedValue({ results: [] })
+  view.rerender(
+    <QueryClientProvider client={client}>
+      <RecordDocuments viewerId="reader" recordId="record" />
+    </QueryClientProvider>
+  )
+  await screen.findByText('recordDocuments.empty')
+  expect(screen.queryByRole('link')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'library.previous' })).toBeNull()
+  expect(mocks.fetchApi.mock.calls.at(-1)![0]).toBe(
+    'meeting-records/record/document-exports/'
+  )
+})
+
+it('hides cached older documents when paging loses access', async () => {
+  mocks.fetchApi
+    .mockResolvedValueOnce({ results: [receipt], next_cursor: 'token' })
+    .mockRejectedValue(new Error('Denied'))
+  show()
+  fireEvent.click(await screen.findByRole('button', { name: 'library.next' }))
+  await screen.findByText('library.loadError')
+  expect(screen.queryByRole('link')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'library.next' })).toBeNull()
 })

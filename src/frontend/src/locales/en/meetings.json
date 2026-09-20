@@ -50,7 +50,7 @@
   },
   "recordDocuments": {
     "title": "My minutes documents",
-    "hint": "Your 10 most recent exports from this record. Each document is an independent copy with its own access permissions.",
+    "hint": "Your exports from this record, newest first. Use the page controls for older copies. Each document has independent access permissions.",
     "empty": "No document exports by you yet. Create one from a minutes version.",
     "ai": "AI minutes copy",
     "human": "Reviewed minutes copy",

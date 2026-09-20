@@ -50,7 +50,7 @@
   },
   "recordDocuments": {
     "title": "Meine Protokolldokumente",
-    "hint": "Ihre 10 letzten Exporte aus diesem Eintrag. Jedes Dokument ist eine unabhängige Kopie mit eigenen Zugriffsrechten.",
+    "hint": "Ihre Exporte, neueste zuerst. Ältere Kopien finden Sie auf den Folgeseiten. Jedes Dokument hat eigene Zugriffsrechte.",
     "empty": "Noch keine Exporte. Erstellen Sie ein Dokument aus einer Protokollversion.",
     "ai": "Kopie des KI-Protokolls",
     "human": "Kopie des überarbeiteten Protokolls",

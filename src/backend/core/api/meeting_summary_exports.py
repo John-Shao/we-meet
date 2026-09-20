@@ -1,8 +1,10 @@
 """Explicit document preview and durable intent; no external writes in HTTP views."""
 
 from django.conf import settings
+from django.core import signing
 from django.core.exceptions import ValidationError as ModelValidationError
 from django.db import IntegrityError
+from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 
@@ -67,15 +69,54 @@ class SummaryExportView(MeetingCommandReceiptMixin, APIView):
         rows = record.document_exports.filter(requested_by=request.user).order_by(
             "-created_at", "-id"
         )
-        if request.query_params:
-            selection = ExportSelection(data=request.query_params)
+        params = request.query_params.copy()
+        cursor = params.pop("cursor", None)
+        filters = {}
+        if params:
+            selection = ExportSelection(data=params)
             selection.is_valid(raise_exception=True)
-            rows = rows.filter(**selection.validated_data)
+            filters = selection.validated_data
+            rows = rows.filter(**filters)
+        scope = [str(request.user.pk), str(record.pk), filters]
+        salt = "meeting-document-export-history-v1"
+        if cursor is not None:
+            try:
+                if len(cursor) != 1 or not cursor[0] or len(cursor[0]) > 2048:
+                    raise ValueError
+                position = signing.loads(cursor[0], salt=salt)
+                if position["scope"] != scope:
+                    raise ValueError
+                created = serializers.DateTimeField().run_validation(
+                    position["created"]
+                )
+                row_id = serializers.UUIDField().run_validation(position["id"])
+            except (signing.BadSignature, ValueError, KeyError, TypeError) as exc:
+                raise serializers.ValidationError(
+                    {"cursor": "Invalid history cursor."}
+                ) from exc
+            rows = rows.filter(
+                Q(created_at__lt=created) | Q(created_at=created, id__lt=row_id)
+            )
+        page = list(rows[:11])
+        next_cursor = None
+        if len(page) > 10:
+            last = page[9]
+            next_cursor = signing.dumps(
+                {
+                    "scope": scope,
+                    "created": last.created_at.isoformat(),
+                    "id": str(last.pk),
+                },
+                salt=salt,
+            )
+        # A page read is still a fresh authorization boundary after revocation.
+        self.record(request, record_id)
         return Response(
             {
                 "available": service.available()
                 and service.can_export(record, request.user),
-                "results": [service.serialize(row) for row in rows[:10]],
+                "results": [service.serialize(row) for row in page[:10]],
+                "next_cursor": next_cursor,
             }
         )
 

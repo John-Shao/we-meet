@@ -32,10 +32,13 @@
 | 26 | 双端整条记录字面替换、预览、整批冲突保护、幂等收据和安全撤回 | 本批实现 | `f6469c06` |
 | 27 | 双端个人热词、明确合并、跨设备冲突保护、上传配置冻结 | 本批实现 | `26c1d521` |
 | 28 | 双端发言分布、统一识别范围、区间回听及权限降级 | 本批实现 | `add185f7`、`41fa0a55` |
+| 29 | 双端个人纪要导出历史分页、签名游标和跨账号隔离 | 本批实现 | `a2a9a5b0` |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第二十九批](miaoji-batch-29-export-history.md)实现信息页个人导出历史分页。后端 16 项、Web 9 项、Android 11 项单元及 10 项 Pixel 8 仪器测试通过，debug APK 已安装。无新迁移，需 backend/frontend 部署及新版 App；生产待验收。G6 的更多导出历史已实现，可靠媒体时长与人工历史版本精确导航仍未完成。
 
 [第二十八批](miaoji-batch-28-speaker-timeline.md)实现双端片段级发言分布与回听，后端 22 项、Web 34 项、Android 3 项单元及 3 项仪器测试通过。无新迁移，需配套 backend/frontend 和新版 Android；生产验收等待部署。第 26/27 批也仍待部署确认，勿与本地回归混同。
 

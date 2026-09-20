@@ -50,7 +50,7 @@
   },
   "recordDocuments": {
     "title": "Mes documents de compte rendu",
-    "hint": "Vos 10 dernières exportations de cet enregistrement. Chaque document est une copie indépendante avec ses propres droits d’accès.",
+    "hint": "Vos exportations, de la plus récente à la plus ancienne. Parcourez les pages pour les anciennes copies. Chaque document a ses propres droits d’accès.",
     "empty": "Aucune exportation. Créez un document depuis une version du compte rendu.",
     "ai": "Copie du compte rendu IA",
     "human": "Copie du compte rendu révisé",

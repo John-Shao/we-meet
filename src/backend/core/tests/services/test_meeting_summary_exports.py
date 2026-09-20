@@ -47,6 +47,72 @@ def path(record):
     return f"/api/v1.0/meeting-records/{record.pk}/document-exports/"
 
 
+def history_fixture():
+    owner, record, _, summary = fixture()
+    for index in range(13):
+        review, _, _ = meeting_summary_review.save_review(
+            record.pk, owner, uuid.uuid4(), payload(summary, revision=index)
+        )
+        export_request(record.pk, owner, uuid.uuid4(), selection(review, human=True))
+    # Same timestamp deliberately exercises the UUID tie-breaker.
+    record.document_exports.update(created_at=record.origin_at)
+    return owner, record, summary
+
+
+def test_history_pages_all_receipts_with_stable_ties_and_new_insert():
+    owner, record, summary = history_fixture()
+    client = client_for(owner)
+    expected = [
+        str(pk)
+        for pk in record.document_exports.order_by("-created_at", "-id").values_list(
+            "pk", flat=True
+        )
+    ]
+    first = client.get(path(record)).json()
+    assert len(first["results"]) == 10
+    assert first["next_cursor"]
+    export_request(record.pk, owner, uuid.uuid4(), selection(summary))
+    second = client.get(path(record), {"cursor": first["next_cursor"]}).json()
+    assert [row["id"] for row in first["results"] + second["results"]] == expected
+    assert second["next_cursor"] is None
+
+
+def test_history_cursor_is_bound_to_reader_record_and_selection():
+    owner, record, summary = history_fixture()
+    client = client_for(owner)
+    token = client.get(path(record)).json()["next_cursor"]
+    reader = UserFactory()
+    models.MeetingRecordAccess.objects.create(
+        record=record, user=reader, read_summary=True
+    )
+    assert client_for(reader).get(path(record)).json()["results"] == []
+    assert client_for(reader).get(path(record), {"cursor": token}).status_code == 400
+    other = models.MeetingRecord.objects.create(
+        owner=owner, source_type="upload", title="Other", origin_at=record.origin_at
+    )
+    assert client.get(path(other), {"cursor": token}).status_code == 400
+    assert (
+        client.get(path(record), {"cursor": token, **selection(summary)}).status_code
+        == 400
+    )
+
+
+@pytest.mark.parametrize("cursor", ["", "not-a-signed-cursor", "a" * 2049])
+def test_history_rejects_malformed_cursor(cursor):
+    owner, record, _, _ = fixture()
+    assert client_for(owner).get(path(record), {"cursor": cursor}).status_code == 400
+
+
+def test_history_rechecks_visibility_for_later_pages():
+    owner, record, _ = history_fixture()
+    client = client_for(owner)
+    token = client.get(path(record)).json()["next_cursor"]
+    models.ResourceAccess.objects.filter(
+        user=owner, resource=record.meeting_session.room
+    ).delete()
+    assert client.get(path(record), {"cursor": token}).status_code == 404
+
+
 def test_preview_and_persisted_copy_use_same_selected_version_without_external_calls():
     owner, record, _, summary = fixture()
     choice = selection(summary)
@@ -122,7 +188,11 @@ def test_shared_readers_cannot_export_or_preview_and_never_see_others_receipts()
         record=record, user=reader, read_summary=True
     )
     client = client_for(reader)
-    assert client.get(path(record)).data == {"available": False, "results": []}
+    assert client.get(path(record)).data == {
+        "available": False,
+        "results": [],
+        "next_cursor": None,
+    }
     assert client.get(path(record) + "preview/", selection(summary)).status_code == 403
     assert (
         client.post(
