@@ -36,10 +36,13 @@
 | 30 | 部署后 App/API 联合验收：批改、热词、分布回听、12 份导出分页及跨账号撤权 | 本批文档 | 无运行变更 |
 | 31 | 导出历史空态只在实际可导出时提示创建，双端及多语言修正 | 本批实现 | `e17dda59` |
 | 32 | 创建日期 × 归属/来源/标题组合筛选、旧后端保护；Android 资源去重与导出提示主线程修正 | 本批实现 | `d5796c85` |
+| 33 | 日期组合筛选、只读导出空态的 App/API 生产验收；发现筛选面板收起问题 | 本批文档 | 无运行变更 |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第三十三批](miaoji-batch-33-date-production-acceptance.md)：用户已发布 backend/frontend `85c0291d6`（revision 378），第 31/32 批部署阻塞解除。生产 API 日期边界/组合筛选/权限，App 单日筛选、未来空态、清除日期、只读导出提示通过所列场景，临时分享撤销。发现日期错误导致筛选面板缩回半屏，进入第 34 批修正。下方各批“待部署”保留历史，当前以本段为准。
 
 [第三十二批](miaoji-batch-32-date-filters.md)补齐创建日期组合筛选；后端 48 项、Web 16 项、Android 28 项单元及 36 项仪器测试全部通过。第 31 批资源整理的重复字符串和本轮发现的导出 Toast 线程问题已修正，以本批最终源码构建为准。debug APK 已安装，Android `d5796c85` 已推送。需发布 **backend + frontend**，无新迁移、无需发布 summary/agents；新日期功能生产验收等待部署，Android 正式分发另行完成。当前生产仍为用户部署的 `ad06f3e8a`（revision 377）。G4 剩余指定任意所有者/标签/保存筛选/Android 可选排序；G6 可靠时长和人工历史精确导航、G7 回收站仍未完成。
 
