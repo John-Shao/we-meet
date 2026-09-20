@@ -110,6 +110,8 @@ def test_presign_binds_the_declared_size_into_the_signature():
     assert signed["method"] == "put_object"
     assert signed["params"]["ContentLength"] == 1024
     assert signed["params"]["ACL"] == "private"
+    assert response.data["headers"]["x-amz-acl"] == signed["params"]["ACL"]
+    assert response.data["headers"]["Content-Type"] == signed["params"]["ContentType"]
     assert signed["params"]["Bucket"] == "private-bucket"
     assert signed["expires"] == 3600
     # The client echoes this exact key back; it is a storage key, not a URL.

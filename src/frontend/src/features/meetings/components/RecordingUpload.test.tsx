@@ -219,7 +219,7 @@ it('sends a file over the multipart limit straight to storage, then adopts it', 
     .mockResolvedValueOnce({
       upload_url: 'https://bucket.example/put?sig=abc',
       storage_name: 'record-uploads/abc.wav',
-      headers: { 'Content-Type': 'audio/wav' },
+      headers: { 'Content-Type': 'audio/wav', 'x-amz-acl': 'private' },
     })
     .mockResolvedValueOnce({ record_id: 'big', status: 'queued' })
   try {
@@ -232,6 +232,10 @@ it('sends a file over the multipart limit straight to storage, then adopts it', 
     const [url, init] = storage.mock.calls[0]
     expect(url).toBe('https://bucket.example/put?sig=abc')
     expect((init as RequestInit).method).toBe('PUT')
+    expect((init as RequestInit).headers).toEqual({
+      'Content-Type': 'audio/wav',
+      'x-amz-acl': 'private',
+    })
 
     // Adoption is a second call carrying the declaration plus the storage key.
     const complete = vi.mocked(fetchApi).mock.calls.at(-1)!

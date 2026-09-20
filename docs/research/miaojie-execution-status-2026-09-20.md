@@ -17,19 +17,20 @@
 | 11 | 纪要/全文独立授权、预览/撤权/恢复与旧后端兼容 | `fedc380ed` | `f2f72198` |
 | 12 | 上传原文件下载、附件签名及 Android 上传改名入口 | `f2e7f3cd4` | `e1ebc39e` |
 | 13 | 生产直传签名事务错误与真实 PostgreSQL 回归 | `243cd30f0` | 本批无变更 |
-| 14 | 直传原文件名、完成重试免重复 PUT、登记失败保留文件 | 见本批提交 | 本批无变更 |
+| 14 | 直传原文件名、完成重试免重复 PUT、登记失败保留文件 | `a5f314c33` | 本批无变更 |
+| 15 | 生产直传 PUT 缺少已签名 ACL 请求头 | 见本批提交 | 本批无变更 |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaojie-first-batch-2026-09-20.md)、[上传纪要](miaojie-batch-2-upload-summary.md)、[定位](miaojie-batch-3-playback-navigation.md)、[媒体](miaojie-batch-4-media-playback.md)、[能力](miaojie-batch-5-capabilities.md)、[上传恢复](miaojie-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
 
-正在进行[目标环境验收](miaojie-release-acceptance.md)。用户已提供 `meet.we-meet.online`、部署版本 `f2e7f3cd4`、演示身份与音视频样本。真实接口发现直传签名 500，[第十三批](miaojie-batch-13-production-upload.md)补充事务修复。浏览器自动化连接失败，页面验收尚未进行。
+正在进行[目标环境验收](miaojie-release-acceptance.md)。用户已部署后端/Web `a5f314c33`（revision 372）；summary/agents 仍为 `f2e7f3cd4`。直传签名 500 已解决，实际 PUT 又暴露缺失已签名 ACL 头导致 403，[第十五批](miaojie-batch-15-signed-upload-headers.md)修复。浏览器自动化连接仍失败，页面验收尚未进行。
 
 先更新后端，再配套发布 Web/Android。校对需要版本字段；新客户端读取旧后端的恒 false `play_media` 会隐藏播放入口。无需数据库迁移。本轮没有执行部署；已通过用户授权样本调用生产 ASR，后续结果以验收清单为准。
 
 已补充 Android Pixel 8 / Android 16 模拟器播放器测试，8 项通过，含真实本地 WAV 的异步准备和定位、真实 Surface 连接。它替代了早期“尚未运行模拟器”的状态，但不替代真实视频解码、竖屏视觉、大文件、网络中断和对象存储验收。
 
-音频与约 47 秒视频已完成生产普通上传、转写、纪要与原文件哈希/后段 Range 接口验收。视频纪要首次供应商错误，产品内重试后生成；原因待脱敏日志。仍需验证实际 UI、超过 30 段长录音、大于 100 MiB 分片恢复、超过媒体签名 TTL 的续期和权限撤销。第十三、十四批需部署后重新验收直传入口。
+音频与约 47 秒视频已完成生产普通上传、转写、纪要与原文件哈希/后段 Range 接口验收。视频纪要首次供应商错误，产品内重试后生成；原因待脱敏日志。`a5f314c33` 发布后，两样本在补齐签名头的 HTTP 请求中完成直传、转写与原文件名/哈希核验。仍需部署第十五批复测原样客户端请求，以及实际 UI、超过 30 段长录音、大于 100 MiB 分片恢复、超过媒体签名 TTL 的续期和权限撤销。
 
 ## 仍未实现的产品项
 

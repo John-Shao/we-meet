@@ -413,7 +413,9 @@ def presign_direct_upload(user, *, name, size, content_type, key, options):
         "storage_name": storage_name,
         "expires_in": settings.MEETING_FILE_DIRECT_UPLOAD_TTL_SECONDS,
         "max_bytes": settings.MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES,
-        "headers": {"Content-Type": content_type},
+        # ACL participates in SigV4 just like Content-Type; clients must send it.
+        # Content-Length is also signed, but is set by the browser/HTTP client.
+        "headers": {"Content-Type": content_type, "x-amz-acl": "private"},
     }
 
 
