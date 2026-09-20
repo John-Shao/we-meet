@@ -19,6 +19,7 @@
 | 13 | 生产直传签名事务错误与真实 PostgreSQL 回归 | `243cd30f0` | 本批无变更 |
 | 14 | 直传原文件名、完成重试免重复 PUT、登记失败保留文件 | `a5f314c33` | 本批无变更 |
 | 15 | 生产直传 PUT 缺少已签名 ACL 请求头 | `2eb3482c6` | 本批无变更 |
+| 16 | Android 准备阶段读取媒体时长导致播放失败 | 本批文档 | `cd3b23dd` |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
@@ -33,5 +34,7 @@
 音频与约 47 秒视频已完成生产普通上传、转写、纪要与原文件哈希/后段 Range 接口验收；第十五批发布后另通过了不修改接口请求头的真实直传验收。视频纪要此前首次供应商错误，产品内重试后生成；原因待脱敏日志。仍需验证实际 UI、超过 30 段长录音、大于 100 MiB 分片恢复、超过媒体签名 TTL 的续期和权限撤销。本次仅更新验收证据，无需再次部署。
 
 ## 仍未实现的产品项
+
+App 验收已按用户选择改走 Pixel 8 / Android 16 + ADB / UI Automator。[第十六批](miaoji-batch-16-android-preparation.md)复现并修复真实视频播放 `-38/0`，8 项播放器回归通过，生产视频已显示画面、前进时钟及原文高亮。竖屏画面溢出、窄屏按钮断字仍待下一批修复；其他未验收项继续保留，不将模拟器验收等同于物理设备或正式包发布。
 
 本轮关闭了优先级最高的正确性及回看链路缺口。[第七批](miaoji-batch-7-chapters.md)补齐独立章节导航及空态，[第八批](miaoji-batch-8-drafts.md)与[第九批](miaoji-batch-9-android-drafts.md)补齐列表重建时的草稿保护，[第十批](miaoji-batch-10-speaker-activity.md)补齐录音与上传件的发言时长占比。[第十一批](miaoji-batch-11-sharing-scopes.md)补齐纪要/全文独立授权。[第十二批](miaoji-batch-12-original-download.md)补齐上传所有者原文件下载。媒体共享、原生录音分片下载/拼接、精细发言时间轴、批量校对、长期热词库、关键词、多条件全局筛选排序仍属于后续产品批次；线上会议完整录像回放另需实际录制产物和媒体时间映射。不要把这些批次理解为已全量对齐飞书妙记。

@@ -31,6 +31,10 @@
 
 ## 操作与通过条件
 
+### Android App 实际验收（2026-09-20，第十六批）
+
+用户选择 Pixel 8 / Android 16 模拟器，ADB / UI Automator 操作真实界面。生产登录、会议记录列表及转写原文显示通过。起始 Android `e1ebc39e` 播放视频立即报 `-38/0`；[第十六批](miaoji-batch-16-android-preparation.md) Android `cd3b23dd` 修复后，视频解码出画、时钟到 `0:10 / 0:47`、原文高亮切换通过。全部 8 项播放器仪器测试通过。真实截图仍发现竖屏 Surface 溢出与导出按钮断字，视觉验收未通过，自动进入下一批。尚未完成 App 重新导入、下载、纪要引用等完整流程。修复 APK 仅安装到模拟器，正式 Android 发布待后续分发。
+
 ### `a5f314c33` 发布后复测（约 10:00 起）
 
 - 用户提供 Helm revision 372 部署记录；后端/Web 为 `a5f314c33`，summary/agents 为 `f2e7f3cd4`。
