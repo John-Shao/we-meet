@@ -40,6 +40,7 @@ import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
 import { SpeakerActivity } from '../components/SpeakerActivity'
 import { RecordMediaDownload } from '../components/RecordMediaDownload'
 import { RecordDocuments } from '../components/RecordDocuments'
+import { TranscriptReplacementControl } from '../components/TranscriptReplacementControl'
 import { TranscriptDraftScope } from '../components/TranscriptDraftScope'
 import { useTranscriptDraftScope } from '../hooks/useTranscriptDraft'
 import { RecordRenameControl } from '../components/RecordRenameControl'
@@ -553,6 +554,12 @@ function WorkspaceContent({
             {/* Downloads belong with the transcript they export, not only in a
                 menu: the reader is looking at the text when they want the file. */}
             <TranscriptExportControl recordId={record.id} />
+            {record.capabilities.batch_correct && (
+              <TranscriptReplacementControl
+                viewerId={viewerId}
+                recordId={record.id}
+              />
+            )}
             {record.source_type === 'upload' && record.upload?.can_control && (
               <UploadedRecordingStatus
                 recordId={record.id}

@@ -1,5 +1,7 @@
 # 妙记对标：整改后的真实缺口盘点
 
+> [第二十六批](miaoji-batch-26-transcript-replacements.md)已实现 G5 的单记录全量批量查找替换：预览、整批冲突拒绝、幂等重试、安全撤回及双端入口。后端 74 个不同用例、Web 32 项、Android 45 项单元及 5 项仪器测试通过；需迁移 `0183` 并发布 backend/frontend 和新版 App，生产待验收。**G5 当前剩余为个人/组织热词复用**；原下表单段校对限制是盘点时状态，不再计作未实现。
+
 > 实施更新：[第二十二批](miaoji-batch-22-upload-controls.md)已修复 G1/G2，并通过 Web 68 项、Android 34 项相关回归；Web 已发布，实际 Web UI 仍待验收。下文保留盘点时证据，其余缺口继续有效。
 > [第二十三批](miaoji-batch-23-speakers-and-ordering.md)已实现 G3 分人选项和 G4 全局排序，后端 80 项、Web 42 项、Android 36 项及 3 项模拟器 UI 测试通过。backend/frontend `66b3e3bb3` 已部署；[第二十四批](miaoji-batch-24-production-acceptance.md)记录生产排序 API、App 上传停止重试与分人链路验收及进一步 UX 修复。Android 正式分发、Web UI、真实多人质量仍待完成；G4 的组合筛选仍待实施。
 > [第二十五批](miaoji-batch-25-record-information.md)补齐 G6 的所有者、创建时间、个人最近 10 次导出文档及 AI 来源版本导航，Web 38 项、Android 9 项回归通过；frontend `d6c7de6c7` 已部署。App 生产信息页、私有文档导出/打开、指定版本回查及跨系统独立权限通过，临时分享已撤回。Web 页面、Android 正式分发等仍待完成。可靠总时长、更多导出历史及人工纪要历史版本定位仍待补齐；G5/G7/G8 等其余缺口继续有效。

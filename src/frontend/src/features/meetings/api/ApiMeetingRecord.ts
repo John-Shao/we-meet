@@ -27,6 +27,7 @@ export interface ApiMeetingRecord {
     status: 'queued' | 'submitting' | 'running' | 'succeeded' | 'failed'
   } | null
   capabilities: {
+    batch_correct?: boolean
     read_summary: boolean
     read_transcript: boolean
     play_media: boolean

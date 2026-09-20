@@ -8,16 +8,6 @@ from rest_framework.routers import DefaultRouter, SimpleRouter
 
 from core.addons import viewsets as addons_viewsets
 from core.api import get_frontend_configuration, viewsets
-from core.api.uploaded_recordings import (
-    DirectUploadCompleteView,
-    DirectUploadPresignView,
-    UploadedRecordingView,
-)
-from core.api.recording_upload_multipart import (
-    MultipartBeginView,
-    MultipartPartsView,
-    MultipartSessionView,
-)
 from core.api.admin_audit import AuditLogViewSet
 from core.api.admin_bots import AdminBotViewSet
 from core.api.admin_import import ImportJobViewSet, MemberExportView
@@ -64,8 +54,11 @@ from core.api.capture_transcription import (
     LiveTranscriptionPreviewView,
     TranscriptionInputView,
 )
-from core.api.cloud_recording import CloudRecordingView
 from core.api.capture_translation import CaptureTranslationView
+from core.api.capture_translation_archive import (
+    CaptureTranslationArchivesView,
+    CaptureTranslationSegmentsView,
+)
 from core.api.capture_translation_worker import (
     CaptureTranslationClaimView,
     CaptureTranslationControlView,
@@ -73,7 +66,7 @@ from core.api.capture_translation_worker import (
     CaptureTranslationSegmentView,
     CaptureTranslationTicketView,
 )
-from core.api.capture_translation_archive import CaptureTranslationArchivesView, CaptureTranslationSegmentsView
+from core.api.cloud_recording import CloudRecordingView
 from core.api.directory import (
     ContactPreferenceViewSet,
     DepartmentViewSet,
@@ -164,6 +157,11 @@ from core.api.qr_login import (
     QrScanView,
 )
 from core.api.recording_accesses import RecordingAccessViewSet
+from core.api.recording_upload_multipart import (
+    MultipartBeginView,
+    MultipartPartsView,
+    MultipartSessionView,
+)
 from core.api.search import (
     DocsMyDocumentsView,
     DocsSearchView,
@@ -176,11 +174,21 @@ from core.api.tasks import (
     TaskListViewSet,
     TaskViewSet,
 )
+from core.api.transcript_replacements import (
+    TranscriptReplacementPreviewView,
+    TranscriptReplacementUndoView,
+    TranscriptReplacementView,
+)
 from core.api.translation_archives import (
     PrivateTranslationSegmentIngestView,
     RecordTranslationArchivesView,
     RecordTranslationSegmentsView,
     TranslationSegmentIngestView,
+)
+from core.api.uploaded_recordings import (
+    DirectUploadCompleteView,
+    DirectUploadPresignView,
+    UploadedRecordingView,
 )
 from core.external_api import viewsets as external_viewsets
 
@@ -392,6 +400,9 @@ urlpatterns = [
                 path("meeting-records/<uuid:record_id>/translation-archives/", RecordTranslationArchivesView.as_view(), name="record-translation-archives"),
                 path("meeting-records/<uuid:record_id>/translation-segments/", RecordTranslationSegmentsView.as_view(), name="record-translation-segments"),
                 path("meeting-records/<uuid:record_id>/summary-sharing/", SummarySharingView.as_view(), name="summary-sharing"),
+                path("meeting-records/<uuid:record_id>/transcript-replacements/", TranscriptReplacementView.as_view(), name="transcript-replacements"),
+                path("meeting-records/<uuid:record_id>/transcript-replacements/preview/", TranscriptReplacementPreviewView.as_view(), name="transcript-replacements-preview"),
+                path("meeting-records/<uuid:record_id>/transcript-replacements/<uuid:batch_id>/undo/", TranscriptReplacementUndoView.as_view(), name="transcript-replacements-undo"),
                 path("meeting-records/<uuid:record_id>/summary-sharing/preview/", SummarySharingPreviewView.as_view(), name="summary-sharing-preview"),
                 path("meeting-records/<uuid:record_id>/summary-sharing/candidates/", SummarySharingCandidatesView.as_view(), name="summary-sharing-candidates"),
                 path("meeting-records/<uuid:record_id>/summary-notifications/<uuid:notice_id>/retry/", SummaryNotificationRetryView.as_view(), name="summary-notification-retry"),

@@ -1,10 +1,36 @@
 {
+  "batchCorrection": {
+    "title": "Suchen und ersetzen",
+    "hint": "Groß-/Kleinschreibung beachten: Ersetzt Text im gesamten gespeicherten Transkript einschließlich anderer Seiten. Höchstens 100 Segmente. Leerer Ersatz löscht Text. Entwürfe und vorhandene Protokolle bleiben unverändert.",
+    "find": "Suchtext",
+    "replacement": "Ersetzen durch",
+    "preview": "Änderungen prüfen",
+    "count": "{{segments}} Segmente · {{count}} Treffer",
+    "before": "Vorher",
+    "after": "Nachher",
+    "confirm": "Alle Änderungen bestätigen",
+    "pending": "Ergebnis unbestätigt. Vor weiteren Änderungen dieselbe Anfrage wiederholen.",
+    "retry": "Dieselbe Anfrage wiederholen",
+    "applied": "Gespeichert. Transkript vor einem neuen Protokoll prüfen.",
+    "undone": "Ersetzung rückgängig gemacht",
+    "conflict": "Transkript geändert. Nichts überschrieben. Vorschau erneuern; spätere Korrekturen verhindern auch das Rückgängigmachen.",
+    "invalid": "Ersetzen nicht möglich: Text, leere Ergebnisse, 100-Segment-Grenze und Textlänge prüfen.",
+    "error": "Fehler oder unbekanntes Ergebnis. Wiederholen, keine doppelte Ersetzung starten.",
+    "storageError": "Wiederherstellungsspeicher nicht verfügbar. Neue Änderungen gesperrt.",
+    "history": "Letzte 10 Ersetzungen",
+    "deleted": "(gelöscht)",
+    "undo": "Ersetzung rückgängig machen",
+    "undoHint": "Alle betroffenen Segmente auf den vorherigen Text zurücksetzen? Jede spätere Korrektur verhindert den gesamten Vorgang.",
+    "confirmUndo": "Rückgängigmachen bestätigen",
+    "close": "Schließen",
+    "cancelUndo": "Abbrechen"
+  },
   "recordDocuments": {
     "title": "Meine Protokolldokumente",
-    "hint": "Ihre 10 letzten Exporte aus diesem Eintrag. Jedes Dokument ist eine unabh?ngige Kopie mit eigenen Zugriffsrechten.",
+    "hint": "Ihre 10 letzten Exporte aus diesem Eintrag. Jedes Dokument ist eine unabhängige Kopie mit eigenen Zugriffsrechten.",
     "empty": "Noch keine Exporte. Erstellen Sie ein Dokument aus einer Protokollversion.",
     "ai": "Kopie des KI-Protokolls",
-    "human": "Kopie des ?berarbeiteten Protokolls",
+    "human": "Kopie des überarbeiteten Protokolls",
     "source": "KI-Quellversion anzeigen"
   },
   "mediaDownload": {

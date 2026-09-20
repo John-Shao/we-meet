@@ -206,6 +206,13 @@ def record_capabilities(record, user):
             in (models.MeetingRecord.Source.AUDIO, models.MeetingRecord.Source.UPLOAD)
             and not getattr(scoped, "is_ongoing", True)
         ),
+        "batch_correct": bool(
+            scoped
+            and scoped.can_manage_record
+            and scoped.can_read_transcript
+            and scoped.source_type
+            in (models.MeetingRecord.Source.AUDIO, models.MeetingRecord.Source.UPLOAD)
+        ),
         "manage": False,
         "capture": False,
         "generate_summary": bool(

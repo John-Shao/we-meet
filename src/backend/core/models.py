@@ -1789,6 +1789,32 @@ class MeetingOriginalRevision(BaseModel):
             raise ValidationError("A revision must belong to its original's record.")
 
 
+class TranscriptReplacement(BaseModel):
+    """One atomic, retryable correction and the exact inverse for a guarded undo."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="transcript_replacements"
+    )
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    key = models.UUIDField()
+    request_hash = models.CharField(max_length=64)
+    find = models.CharField(max_length=200)
+    replacement = models.CharField(max_length=200, blank=True)
+    changes = models.JSONField()
+    record_revision = models.PositiveIntegerField()
+    undone_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record", "key"], name="unique_transcript_replacement_key"
+            )
+        ]
+
+    def __str__(self):
+        return f"TranscriptReplacement({self.pk})"
+
+
 class MeetingMediaSegment(BaseModel):
     """Map an optional media asset onto a record timeline with explicit gaps."""
 
