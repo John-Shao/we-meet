@@ -39,6 +39,7 @@ import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
 import { SpeakerActivity } from '../components/SpeakerActivity'
 import { RecordMediaDownload } from '../components/RecordMediaDownload'
+import { RecordDocuments } from '../components/RecordDocuments'
 import { TranscriptDraftScope } from '../components/TranscriptDraftScope'
 import { useTranscriptDraftScope } from '../hooks/useTranscriptDraft'
 import { RecordRenameControl } from '../components/RecordRenameControl'
@@ -668,6 +669,14 @@ function WorkspaceContent({
               '& dt': { color: 'text.secondary' },
             })}
           >
+            <dt>{t('library.table.owner')}</dt>
+            <dd>{record.owner?.trim() || t('library.ownerUnknown')}</dd>
+            <dt>{t('library.table.created')}</dt>
+            <dd>
+              {record.created_at
+                ? new Date(record.created_at).toLocaleString()
+                : t('library.ownerUnknown')}
+            </dd>
             <dt>{t('library.sourceLabel')}</dt>
             <dd>{t(recordSourceKey(record))}</dd>
             <dt>{t('library.date')}</dt>
@@ -677,6 +686,13 @@ function WorkspaceContent({
           </dl>
           {source && <p>{t(`library.captureStatus.${source.status}`)}</p>}
           {!record.source_available && <p>{t('library.sourceMissing')}</p>}
+          {record.capabilities.read_summary && (
+            <RecordDocuments
+              key={`${viewerId}:${record.id}`}
+              viewerId={viewerId}
+              recordId={record.id}
+            />
+          )}
         </TabPanel>
       </Tabs>
       {playable && (

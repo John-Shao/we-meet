@@ -1,4 +1,12 @@
 {
+  "recordDocuments": {
+    "title": "Mes documents de compte rendu",
+    "hint": "Vos 10 derni?res exportations de cet enregistrement. Chaque document est une copie ind?pendante avec ses propres droits d?acc?s.",
+    "empty": "Aucune exportation. Cr?ez un document depuis une version du compte rendu.",
+    "ai": "Copie du compte rendu IA",
+    "human": "Copie du compte rendu r?vis?",
+    "source": "Voir la version IA source"
+  },
   "mediaDownload": {
     "action": "Télécharger le fichier original",
     "preparing": "Préparation du téléchargement…",

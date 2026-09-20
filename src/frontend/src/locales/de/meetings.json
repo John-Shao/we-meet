@@ -1,4 +1,12 @@
 {
+  "recordDocuments": {
+    "title": "Meine Protokolldokumente",
+    "hint": "Ihre 10 letzten Exporte aus diesem Eintrag. Jedes Dokument ist eine unabh?ngige Kopie mit eigenen Zugriffsrechten.",
+    "empty": "Noch keine Exporte. Erstellen Sie ein Dokument aus einer Protokollversion.",
+    "ai": "Kopie des KI-Protokolls",
+    "human": "Kopie des ?berarbeiteten Protokolls",
+    "source": "KI-Quellversion anzeigen"
+  },
   "mediaDownload": {
     "action": "Originaldatei herunterladen",
     "preparing": "Download wird vorbereitet…",

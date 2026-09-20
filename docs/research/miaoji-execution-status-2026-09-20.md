@@ -28,10 +28,13 @@
 | 22 | Web 只读上传状态保护、双端普通/直传取消进度及登记恢复 | `7f286c7d8` | `915c4f07` |
 | 23 | 双端上传分人选项、服务端创建时间全局排序与分页重置 | `66b3e3bb3` | `2f86da85` |
 | 24 | 部署后生产 App 上传/分人验收，固定进度与停止按钮 | 本批文档 | `a5edbcd9` |
+| 25 | 双端所有者/创建时间、个人纪要文档及 AI 来源版本导航 | 本批实现 | `98a20dba` |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第二十五批](miaoji-batch-25-record-information.md)补齐 G6 的信息和文档导航部分：Web 38 项、Android 9 项仪器测试及类型/语言检查通过；Web frontend 待发布，Android `98a20dba` 仅安装 debug APK。本批没有后端/summary/agents 或数据库迁移变更，不重复部署这些模块。生产基线仍为下述第二十四批版本。
 
 [第二十三批](miaoji-batch-23-speakers-and-ordering.md)已完成上传分人选项和服务端全局排序。后端 80 项、Web 42 项、Android 上传相关 36 项及 3 项模拟器仪器测试通过。用户已先后发布 backend/frontend `66b3e3bb3`（revision 374/375）；Android 尚待正式分发。无数据库迁移，summary/agents 无运行变更。本地回归不代替真实多人质量验收和 Web UI 验收。
 
@@ -51,7 +54,7 @@ Android Pixel 8 / Android 16：此前播放器 13 项、详情页 23 项仪器�
 
 ## 仍未实现的产品项
 
-重新盘点见[当前真实缺口](miaoji-current-gaps-2026-09-20.md)。盘点中的 Web 只读上传状态保护、非分片上传取消/进度已由第二十二批修复，上传分人开关和全局排序已由第二十三批补齐实现；backend/frontend 已部署，Android 正式分发及剩余验收见第二十四批。记录级删除/恢复、信息页产物导航、组合筛选等仍待实施。原有签名续期、跨账号权限验收结论保留；长原文和大文件恢复继续按用户要求延后。
+重新盘点见[当前真实缺口](miaoji-current-gaps-2026-09-20.md)。盘点中的 Web 只读上传状态保护、非分片上传取消/进度已由第二十二批修复，上传分人开关和全局排序已由第二十三批补齐实现；backend/frontend 已部署，Android 正式分发及剩余验收见第二十四批。第二十五批补齐所有者/创建时间及个人文档导航，尚待发布和生产验收；G6 的可靠时长、更多历史导出和人工历史版本定位仍未补齐。批量校对/热词、记录级删除/恢复、组合筛选等仍待实施。原有签名续期、跨账号权限验收结论保留；长原文和大文件恢复继续按用户要求延后。
 
 [第十六批](miaoji-batch-16-android-preparation.md)修复准备阶段播放失败，[第十七批](miaoji-batch-17-android-video-layout.md)修复竖屏溢出并改善原文阅读，[第十八批](miaoji-batch-18-android-export.md)修复系统选择器返回后导出为空，并记录 App 核心流程验收。普通上传进度/取消语义与分人选项已在第二十二、二十三批继续完善。
 

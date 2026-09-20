@@ -101,6 +101,7 @@ beforeEach(() => {
     started_at: '2026-09-13T00:00:02Z',
   }
   vi.mocked(fetchApi).mockImplementation(async (path) => {
+    if (path.includes('/document-exports/')) return { results: [] }
     if (path.startsWith('capture-sessions/')) return capture
     if (path.includes('original-segments'))
       return {
@@ -126,6 +127,24 @@ beforeEach(() => {
       }
     return record
   })
+})
+
+it('shows owner and actual creation time without requesting documents for a transcript-only reader', async () => {
+  record.owner = 'Recording owner'
+  record.created_at = '2026-09-19T12:00:00Z'
+  record.capabilities = { read_transcript: true, read_summary: false }
+  show()
+  fireEvent.click(await screen.findByRole('tab', { name: 'library.info' }))
+  expect(await screen.findByText('Recording owner')).toBeInTheDocument()
+  expect(
+    screen.getByText(new Date('2026-09-19T12:00:00Z').toLocaleString())
+  ).toBeInTheDocument()
+  expect(screen.queryByText('recordDocuments.title')).toBeNull()
+  expect(
+    vi
+      .mocked(fetchApi)
+      .mock.calls.some(([path]) => path.includes('/document-exports/'))
+  ).toBe(false)
 })
 afterEach(() => {
   client.clear()

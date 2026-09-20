@@ -2,6 +2,7 @@
 
 > 实施更新：[第二十二批](miaoji-batch-22-upload-controls.md)已修复 G1/G2，并通过 Web 68 项、Android 34 项相关回归；Web 已发布，实际 Web UI 仍待验收。下文保留盘点时证据，其余缺口继续有效。
 > [第二十三批](miaoji-batch-23-speakers-and-ordering.md)已实现 G3 分人选项和 G4 全局排序，后端 80 项、Web 42 项、Android 36 项及 3 项模拟器 UI 测试通过。backend/frontend `66b3e3bb3` 已部署；[第二十四批](miaoji-batch-24-production-acceptance.md)记录生产排序 API、App 上传停止重试与分人链路验收及进一步 UX 修复。Android 正式分发、Web UI、真实多人质量仍待完成；G4 的组合筛选仍待实施。
+> [第二十五批](miaoji-batch-25-record-information.md)补齐 G6 的所有者、创建时间、个人最近 10 次导出文档及 AI 来源版本导航，Web 38 项、Android 9 项回归通过；待发布和生产验收。可靠总时长、更多导出历史及人工纪要历史版本定位仍待补齐；G5/G7/G8 等其余缺口继续有效。
 
 > 盘点日期：2026-09-20。代码基线：Web/后端 `03f7d913a`，Android `b80d5e21`。这是第 1–21 批整改后的清单，取代旧报告作为后续排期依据；旧报告保留历史证据。
 > 方法：重新核对双端与服务端实现、[执行状态](miaoji-execution-status-2026-09-20.md)、[生产验收记录](miaoji-release-acceptance.md)、用户提供的 1–9.jpg，以及本日可访问的飞书官方资料。本次没有重新执行生产验收，也没有修改运行代码。
