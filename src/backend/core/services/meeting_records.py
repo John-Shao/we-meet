@@ -62,7 +62,7 @@ def ensure_online_record(session, *, allow_empty=False):
     return record, created
 
 
-def visible_records(user, *, ability=None):
+def visible_records(user, *, ability=None, include_trashed=False):
     """Apply membership and explicit grants before pagination or content reads.
 
     Legacy online records retain live ResourceAccess checks. A copied owner ID
@@ -72,6 +72,10 @@ def visible_records(user, *, ability=None):
     queryset = models.MeetingRecord.objects.all()
     if not user or not user.is_authenticated or not user.is_active:
         return queryset.none()
+    if include_trashed:
+        queryset = queryset.filter(owner=user, source_type__in=["upload", "audio_recording"])
+    else:
+        queryset = queryset.filter(deleted_at__isnull=True)
     organizations = models.Membership.objects.filter(
         user=user,
         status=models.MembershipStatusChoices.ACTIVE,
@@ -213,6 +217,12 @@ def record_capabilities(record, user):
             and scoped.can_read_transcript
             and scoped.source_type
             in (models.MeetingRecord.Source.AUDIO, models.MeetingRecord.Source.UPLOAD)
+        ),
+        "trash": bool(
+            settings.MEETING_RECORD_TRASH_ENABLED
+            and scoped and scoped.owner_id == user.pk
+            and scoped.source_type in (models.MeetingRecord.Source.AUDIO, models.MeetingRecord.Source.UPLOAD)
+            and not getattr(scoped, "is_ongoing", True)
         ),
         "manage": False,
         "capture": False,

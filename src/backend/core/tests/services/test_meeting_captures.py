@@ -411,7 +411,7 @@ def test_native_reads_preserve_gaps_and_recovery_never_reports_audio_ack():
     assert [row["start_ms"] for row in originals] == [0, 20000]
     assert originals[1]["end_ms"] is None
     assert (
-        client_for(user).get(base + f"?speaker_id={uuid.uuid4()}").data["results"] == []
+        client_for(user).get(base + f"?speaker={uuid.uuid4()}").data["results"] == []
     )
     capture.refresh_from_db()
     assert capture.last_acked_sequence == capture.captured_duration_ms == 0

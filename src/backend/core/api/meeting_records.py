@@ -20,6 +20,7 @@ from rest_framework.throttling import UserRateThrottle
 
 from core import models
 from core.services import (
+    record_lifecycle,
     speaker_activity,
     speaker_attribution,
     transcript_corrections,
@@ -128,6 +129,28 @@ class OriginalCorrectionSerializer(serializers.Serializer):
         if set(self.initial_data) - set(self.fields):
             raise ValidationError("Unsupported correction field.")
         return attrs
+
+
+class RecordLifecycleSerializer(serializers.Serializer):
+    """A lifecycle revision never substitutes for a transcript revision."""
+    target = serializers.ChoiceField(choices=["active", "trashed"])
+    expected_revision = serializers.IntegerField(min_value=0)
+
+    def validate(self, attrs):
+        if set(self.initial_data) - set(self.fields):
+            raise ValidationError("Unsupported lifecycle field.")
+        return attrs
+
+
+class RecordTrashPagination(pagination.CursorPagination):
+    page_size = 30
+    ordering = ("-deleted_at", "-id")
+
+    def get_paginated_response(self, data):
+        """Expose only the cursor, never an origin-dependent URL."""
+        url = self.get_next_link()
+        cursor = parse_qs(urlsplit(url).query).get("cursor", [None])[0] if url else None
+        return Response({"results": data, "next_cursor": cursor})
 
 
 class RecordTitleSerializer(serializers.Serializer):
@@ -287,6 +310,7 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
             "title",
             "origin_at",
             "retention_mode",
+            "lifecycle_revision",
             "revision",
             "source_available",
             "capabilities",
@@ -490,7 +514,35 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         """Clients must not silently accept ignored filters from older servers."""
         response = super().list(request, *args, **kwargs)
         response.data["supported_filters"] = ["created_from", "created_before"]
+        response.data["trash_available"] = record_lifecycle.enabled()
         return response
+
+    @action(detail=False, methods=["get"], url_path="trash")
+    def trash(self, request):
+        """Only the owner can list trashed independent records."""
+        if not record_lifecycle.enabled():
+            raise Http404
+        queryset = visible_records(request.user, include_trashed=True).filter(deleted_at__isnull=False)
+        paginator = RecordTrashPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        return paginator.get_paginated_response([record_lifecycle.serialize(record) for record in page])
+
+    @action(detail=True, methods=["patch"], url_path="lifecycle")
+    def lifecycle(self, request, pk=None):
+        """Move to trash or restore after checking current owner and revision."""
+        if not record_lifecycle.enabled():
+            raise Http404
+        serializer = RecordLifecycleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            record = record_lifecycle.transition(pk, request.user, **serializer.validated_data)
+        except models.MeetingRecord.DoesNotExist as exc:
+            raise Http404 from exc
+        except PermissionError as exc:
+            raise PermissionDenied from exc
+        except RecordConflict as exc:
+            return Response({"code": "record_lifecycle_conflict", "detail": str(exc)}, status=409)
+        return Response(record_lifecycle.serialize(record))
 
     @action(detail=True, methods=["patch"], url_path="title")
     def rename_title(self, request, pk=None):

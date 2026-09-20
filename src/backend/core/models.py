@@ -1000,6 +1000,8 @@ class MeetingRecord(BaseModel):
         choices=Retention.choices,
         default=Retention.UNKNOWN,
     )
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    lifecycle_revision = models.PositiveIntegerField(default=0)
     revision = models.PositiveIntegerField(default=1)
 
     class Meta:

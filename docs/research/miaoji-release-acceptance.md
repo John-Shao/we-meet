@@ -1,5 +1,9 @@
 # 妙记整改：目标环境验收清单
 
+## 第三十九批发布前置
+
+[回收站后端](miaoji-batch-39-record-lifecycle.md)新增迁移 0185，`MEETING_RECORD_TRASH_ENABLED=false` 保持默认。开启前必须统一更新 backend/summary/agents 的记录读取代码并完成双端入口；旧 worker 混用不允许启用。124 个不同后端用例通过；没有生产回收操作。后续用专用样本验证回收/恢复、旧采集链接和签名续签、共享不复活、处理中的拒绝以及无隐式新任务；永久删除另批完成。
+
 ## 第三十八批待发布验收
 
 [人工导出来源导航](miaoji-batch-38-human-export-source.md)：新版 App/frontend 使用现有后端接口。选择早于当前稿的导出，核对指定历史 UUID、正文和引用快照；打开来源不能创建新导出，失效版本不回退最新稿。验证仅纪要身份、撤权及账号切换；Docs 独立权限不变。本地后端 8、Web 45、Android 8 项单元与 21 项仪器通过，生产尚未验收。与第 37 批合并需发布 backend/frontend，无新迁移。

@@ -42,10 +42,13 @@
 | 36 | 生产 App 两个列表升降序、组合条件保留及日期错误提示实测 | 本批文档 | 无运行变更 |
 | 37 | 可靠媒体时长、完整/部分采集语义及发言分布完整标尺 | 本批实现 | `d8f48d9a` |
 | 38 | 双端人工纪要导出来源精确导航、只读历史及原始快照引用 | 本批实现 | `4934a960` |
+| 39 | 回收站后端、统一读取隔离、恢复与任务/分享边界；默认关闭 | 本批实现 | 无运行变更 |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第三十九批](miaoji-batch-39-record-lifecycle.md)：124 个不同后端用例通过。新增迁移 0185，回收站开关默认关闭；须统一部署记录读取者后启用，双端入口进入下一批。逻辑回收保留内容、撤销分享并停用自动纪要；永久清理未实现，G7 未整体完成。
 
 [第三十八批](miaoji-batch-38-human-export-source.md)：后端既有 8、Web 45、Android 8 项单元与 21 项仪器测试通过。无后端变更，本批需 frontend 和新版 App；连同第 37 批发布 backend/frontend。生产人工历史导航尚待验收，下一开发项为 G7 回收站。
 
