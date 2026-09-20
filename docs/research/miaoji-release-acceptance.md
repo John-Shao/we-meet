@@ -1,5 +1,9 @@
 # 妙记整改：目标环境验收清单
 
+## 第三十八批待发布验收
+
+[人工导出来源导航](miaoji-batch-38-human-export-source.md)：新版 App/frontend 使用现有后端接口。选择早于当前稿的导出，核对指定历史 UUID、正文和引用快照；打开来源不能创建新导出，失效版本不回退最新稿。验证仅纪要身份、撤权及账号切换；Docs 独立权限不变。本地后端 8、Web 45、Android 8 项单元与 21 项仪器通过，生产尚未验收。与第 37 批合并需发布 backend/frontend，无新迁移。
+
 ## 第三十七批待部署验收
 
 [可靠媒体时长](miaoji-batch-37-media-duration.md)：需 backend/frontend 和新版 Android，无迁移、无 summary/agents 变更。验证新音频转写后的源时长、旧上传/视频准备播放器后的时长、部分采集仅显示保存长度、尾部静音标尺、切换记录不串用长度。后端 77、Web 52、Android 29 项单元和 16 项仪器回归通过；生产尚未验收。

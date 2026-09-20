@@ -47,19 +47,28 @@ it.each([true, false, undefined])(
   }
 )
 
-it('opens the existing document and exact source version without creating an export', async () => {
-  mocks.fetchApi.mockResolvedValue({ available: false, results: [receipt] })
-  show()
-  expect(
-    await screen.findByRole('link', { name: 'summaryExport.openDocument' })
-  ).toHaveAttribute('href', '/docs/doc')
-  expect(
-    screen.getByRole('link', { name: 'recordDocuments.source' })
-  ).toHaveAttribute('href', '/meeting/records/record?summary=version')
-  expect(
-    mocks.fetchApi.mock.calls.every(([, options]) => !options.method)
-  ).toBe(true)
-})
+it.each(['ai', 'human'])(
+  'opens the existing document and exact %s source version without creating an export',
+  async (kind) => {
+    mocks.fetchApi.mockResolvedValue({
+      available: false,
+      results: [{ ...receipt, source_kind: kind }],
+    })
+    show()
+    expect(
+      await screen.findByRole('link', { name: 'summaryExport.openDocument' })
+    ).toHaveAttribute('href', '/docs/doc')
+    expect(
+      screen.getByRole('link', { name: 'recordDocuments.source' })
+    ).toHaveAttribute(
+      'href',
+      `/meeting/records/record?${kind === 'human' ? 'human' : 'summary'}=version`
+    )
+    expect(
+      mocks.fetchApi.mock.calls.every(([, options]) => !options.method)
+    ).toBe(true)
+  }
+)
 
 it.each([
   { status: 'uncertain', can_open: true },

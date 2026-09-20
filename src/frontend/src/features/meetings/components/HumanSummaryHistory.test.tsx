@@ -2,7 +2,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
-import { HumanSummaryHistory } from './HumanSummaryHistory'
+import {
+  HumanSummaryHistory,
+  HumanSummaryRevision,
+} from './HumanSummaryHistory'
 
 const mocks = vi.hoisted(() => ({ fetchApi: vi.fn() }))
 vi.mock('@/api/fetchApi', () => ({ fetchApi: mocks.fetchApi }))
@@ -56,6 +59,94 @@ beforeEach(() => {
   )
 })
 afterEach(() => client?.clear())
+
+function exact(
+  viewerId = 'user',
+  versionId = 'old',
+  canReadTranscript = false
+) {
+  return (
+    <QueryClientProvider client={client}>
+      <HumanSummaryRevision
+        recordId="record"
+        viewerId={viewerId}
+        versionId={versionId}
+        canReadTranscript={canReadTranscript}
+        linked
+      />
+    </QueryClientProvider>
+  )
+}
+
+it('opens an exact export revision without reading current or paginating history', async () => {
+  client = new QueryClient()
+  render(exact())
+  await screen.findByText('Old human text')
+  expect(
+    mocks.fetchApi.mock.calls.some(
+      ([path]) => path === 'meeting-records/record/human-summary/history/old/'
+    )
+  ).toBe(true)
+  expect(
+    mocks.fetchApi.mock.calls.some(
+      ([path]) => path.endsWith('/human-summary/') || path.endsWith('/history/')
+    )
+  ).toBe(false)
+  expect(screen.queryByRole('textbox')).toBeNull()
+  expect(
+    screen.queryByRole('button', { name: 'recordAi.source 1s' })
+  ).toBeNull()
+  expect(
+    screen.getByRole('link', { name: 'summaryNotice.allVersions' })
+  ).toHaveAttribute('href', '/meeting/records/record?tab=summary')
+})
+
+it('hides the old body after a revoked read and never falls back to latest', async () => {
+  client = new QueryClient()
+  render(exact())
+  await screen.findByText('Old human text')
+  mocks.fetchApi.mockRejectedValue(new ApiError(404, {}))
+  await client.invalidateQueries({ queryKey: ['human-summary-history-detail'] })
+  await screen.findByText('humanReview.unavailable')
+  expect(screen.queryByText('Old human text')).toBeNull()
+})
+
+it('does not reuse an old viewer or version body', async () => {
+  client = new QueryClient()
+  const view = render(exact())
+  await screen.findByText('Old human text')
+  mocks.fetchApi.mockRejectedValue(new ApiError(404, {}))
+  view.rerender(exact('reader', 'missing'))
+  expect(screen.queryByText('Old human text')).toBeNull()
+  await screen.findByText('humanReview.unavailable')
+})
+
+it('does not turn an empty version selector into a history-list read', async () => {
+  client = new QueryClient()
+  render(exact('user', ''))
+  await screen.findByText('humanReview.unavailable')
+  expect(mocks.fetchApi).not.toHaveBeenCalled()
+})
+
+it('resolves the selected historical snapshot instead of current transcript text', async () => {
+  const fallback = mocks.fetchApi.getMockImplementation()!
+  mocks.fetchApi.mockImplementation((path: string) =>
+    path.includes('transcript-versions/old-snapshot/')
+      ? Promise.resolve({ segments: [{ ...source, text: 'Frozen original' }] })
+      : fallback(path)
+  )
+  client = new QueryClient()
+  render(exact('user', 'old', true))
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'recordAi.source 1s' })
+  )
+  await screen.findByText('Frozen original')
+  expect(
+    mocks.fetchApi.mock.calls.some(([path]) =>
+      path.endsWith('/transcript-versions/old-snapshot/')
+    )
+  ).toBe(true)
+})
 
 it('loads on demand and cites the immutable historical snapshot', async () => {
   show()

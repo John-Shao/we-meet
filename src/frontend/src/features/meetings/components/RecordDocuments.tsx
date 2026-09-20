@@ -113,9 +113,9 @@ function DocumentHistory({
                 {t('summaryExport.openDocument')}
               </Link>
             )}
-            {row.source_kind === 'ai' && (
+            {['ai', 'human'].includes(row.source_kind) && (
               <Link
-                href={`/meeting/records/${encodeURIComponent(recordId)}?summary=${encodeURIComponent(row.source_id)}`}
+                href={`/meeting/records/${encodeURIComponent(recordId)}?${row.source_kind === 'human' ? 'human' : 'summary'}=${encodeURIComponent(row.source_id)}`}
               >
                 {t('recordDocuments.source')}
               </Link>

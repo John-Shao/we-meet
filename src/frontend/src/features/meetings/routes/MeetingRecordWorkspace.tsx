@@ -36,6 +36,7 @@ import {
 import { TranscriptExportControl } from '../components/TranscriptExportControl'
 import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
+import { HumanSummaryRevision } from '../components/HumanSummaryHistory'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
 import { mediaDuration, validMediaDuration } from '../recordMediaTiming'
 import { SpeakerActivity } from '../components/SpeakerActivity'
@@ -421,6 +422,7 @@ function WorkspaceContent({
   record,
   viewerId,
   summaryId,
+  humanId,
   translations = false,
   summary = false,
   chapters = false,
@@ -428,6 +430,7 @@ function WorkspaceContent({
   record: ApiMeetingRecord
   viewerId: string
   summaryId?: string
+  humanId?: string
   translations?: boolean
   summary?: boolean
   chapters?: boolean
@@ -436,7 +439,7 @@ function WorkspaceContent({
   const [tab, setTab] = useState(
     chapters
       ? 'chapters'
-      : summaryId !== undefined || summary
+      : humanId !== undefined || summaryId !== undefined || summary
         ? 'summary'
         : translations &&
             (record.source_type === 'meeting' || record.capture_id) &&
@@ -626,31 +629,59 @@ function WorkspaceContent({
               id={contentTab}
               className={css({ padding: { base: '1rem 0', md: '2rem' } })}
             >
-              <RecordSummaryPanel
-                chaptersOnly={contentTab === 'chapters'}
-                showHeading={false}
-                selectedVersionId={summaryId}
-                key={`${viewerId}:${record.id}`}
-                viewerId={viewerId}
-                recordId={record.id}
-                onSourceAudio={
-                  // A capture's clock starts at its own session, so a citation's
-                  // record-clock offset has to be rebased. An import's clock is the
-                  // record's, so the offset is already the answer.
-                  canPlayUpload
-                    ? (ms: number) => seekTo(ms)
-                    : playable && source
-                      ? (ms: number) =>
-                          seekTo(
-                            ms -
-                              (Date.parse(source.started_at) -
-                                Date.parse(record.origin_at))
-                          )
-                      : undefined
-                }
-              />
+              {humanId !== undefined && contentTab === 'summary' ? (
+                <HumanSummaryRevision
+                  key={`${viewerId}:${record.id}:${humanId}`}
+                  viewerId={viewerId}
+                  recordId={record.id}
+                  versionId={humanId}
+                  canReadTranscript={canReadText}
+                  linked
+                  onSourceAudio={
+                    // A capture's clock starts at its own session, so a citation's
+                    // record-clock offset has to be rebased. An import's clock is the
+                    // record's, so the offset is already the answer.
+                    canPlayUpload
+                      ? (ms: number) => seekTo(ms)
+                      : playable && source
+                        ? (ms: number) =>
+                            seekTo(
+                              ms -
+                                (Date.parse(source.started_at) -
+                                  Date.parse(record.origin_at))
+                            )
+                        : undefined
+                  }
+                />
+              ) : (
+                <RecordSummaryPanel
+                  chaptersOnly={contentTab === 'chapters'}
+                  showHeading={false}
+                  selectedVersionId={summaryId}
+                  key={`${viewerId}:${record.id}`}
+                  viewerId={viewerId}
+                  recordId={record.id}
+                  onSourceAudio={
+                    // A capture's clock starts at its own session, so a citation's
+                    // record-clock offset has to be rebased. An import's clock is the
+                    // record's, so the offset is already the answer.
+                    canPlayUpload
+                      ? (ms: number) => seekTo(ms)
+                      : playable && source
+                        ? (ms: number) =>
+                            seekTo(
+                              ms -
+                                (Date.parse(source.started_at) -
+                                  Date.parse(record.origin_at))
+                            )
+                        : undefined
+                  }
+                />
+              )}
+
               {contentTab === 'summary' &&
                 summaryId === undefined &&
+                humanId === undefined &&
                 record.source_type === 'meeting' && (
                   <LegacySummary viewerId={viewerId} recordId={record.id} />
                 )}
@@ -773,6 +804,12 @@ export function RecordWorkspace({
   const { t } = useTranslation('meetings')
   const search = new URLSearchParams(useSearch())
   // Preserve invalid/empty selectors so the API rejects them instead of opening latest.
+  const humanIds = search.getAll('human')
+  const humanId = humanIds.length
+    ? humanIds.length > 1 || search.has('summary')
+      ? ''
+      : humanIds[0]
+    : undefined
   const summaryIds = search.getAll('summary')
   const summaryId = summaryIds.length > 1 ? '' : summaryIds[0]
   const translations = search.get('tab') === 'translations'
@@ -860,10 +897,11 @@ export function RecordWorkspace({
               key={`${viewerId}:${recordId}:${record.capabilities.read_transcript}`}
             >
               <WorkspaceContent
-                key={`${viewerId}:${recordId}:${summaryId ?? 'all'}:${translations}:${summary}`}
+                key={`${viewerId}:${recordId}:${summaryId ?? 'all'}:${humanId ?? 'none'}:${translations}:${summary}`}
                 viewerId={viewerId}
                 record={record}
                 summaryId={summaryId}
+                humanId={humanId}
                 translations={translations}
                 summary={summary}
                 chapters={chapters}

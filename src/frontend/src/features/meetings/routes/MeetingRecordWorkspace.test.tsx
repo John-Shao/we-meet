@@ -129,6 +129,61 @@ beforeEach(() => {
   })
 })
 
+it('routes a human export to its exact read-only source', async () => {
+  window.history.replaceState(null, '', '/meeting/records/record?human=old')
+  const baseline = vi.mocked(fetchApi).getMockImplementation()!
+  vi.mocked(fetchApi).mockImplementation(async (path, options) =>
+    path.endsWith('/human-summary/history/old/')
+      ? {
+          id: 'old',
+          revision: 1,
+          input_snapshot_id: 'snapshot',
+          content: {
+            overview: 'Exported human revision',
+            decisions: [],
+            action_items: [],
+            chapters: [],
+            open_questions: [],
+          },
+        }
+      : baseline(path, options)
+  )
+  show()
+  await screen.findByText('Exported human revision')
+  expect(screen.queryByText('summary-workspace')).toBeNull()
+  expect(screen.getByRole('tab', { name: 'library.minutes' })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+})
+
+it.each(['human=', 'human=one&human=two', 'human=one&summary=two'])(
+  'rejects ambiguous human source selectors: %s',
+  async (selector) => {
+    window.history.replaceState(null, '', `/meeting/records/record?${selector}`)
+    show()
+    await screen.findByText('humanReview.unavailable')
+    expect(screen.queryByText('summary-workspace')).toBeNull()
+    expect(
+      vi
+        .mocked(fetchApi)
+        .mock.calls.some(([path]) => path.includes('/human-summary/'))
+    ).toBe(false)
+  }
+)
+
+it('does not read human history without summary permission', async () => {
+  window.history.replaceState(null, '', '/meeting/records/record?human=old')
+  record.capabilities = { read_transcript: true, read_summary: false }
+  show()
+  await screen.findByRole('tab', { name: 'library.info' })
+  expect(
+    vi
+      .mocked(fetchApi)
+      .mock.calls.some(([path]) => path.includes('/human-summary/'))
+  ).toBe(false)
+})
+
 it('shows owner and actual creation time without requesting documents for a transcript-only reader', async () => {
   record.owner = 'Recording owner'
   record.created_at = '2026-09-19T12:00:00Z'
