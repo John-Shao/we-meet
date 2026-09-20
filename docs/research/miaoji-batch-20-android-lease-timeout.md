@@ -21,7 +21,7 @@
 
 HTTP 故障测试用 1.5 秒的可注入准备期限加快回归，生产默认仍为 30 秒。有效媒体通过 HTTP 200 或 206 返回并实际解码；不要求原生播放器每次初始打开都发 Range。生产对象存储 Range 的验证独立进行。
 
-测试依赖 MockWebServer 只加入 `androidTestImplementation`。新增 `ProductionMediaRenewalAcceptanceTest` 是显式启用的生产验收入口：必须提供临时 loopback 描述服务，未配置时跳过，不自动访问生产。它使用真正过期和重新签发的 HTTPS URL，在原生播放器中验证恢复、1.5 倍速和 40 秒定位。签名只通过临时内存通道传递，不作为命令行参数或提交内容；此入口的生产执行结果尚待自然 TTL 到期。
+测试依赖 MockWebServer 只加入 `androidTestImplementation`。新增 `ProductionMediaRenewalAcceptanceTest` 是显式启用的生产验收入口：必须提供临时 loopback 描述服务，未配置时跳过，不自动访问生产。它使用真正过期和重新签发的 HTTPS URL，在原生播放器中验证恢复、1.5 倍速和 40 秒定位。签名只通过临时内存通道传递，不作为命令行参数或提交内容；此入口已在自然 TTL 到期后通过，结果见[第二十一批](miaoji-batch-21-production-lease.md)。
 
 ## 发布
 
