@@ -30,10 +30,13 @@
 | 24 | 部署后生产 App 上传/分人验收，固定进度与停止按钮 | 本批文档 | `a5edbcd9` |
 | 25 | 双端所有者/创建时间、个人纪要文档及 AI 来源版本导航 | 本批实现 | `98a20dba` |
 | 26 | 双端整条记录字面替换、预览、整批冲突保护、幂等收据和安全撤回 | 本批实现 | `f6469c06` |
+| 27 | 双端个人热词、明确合并、跨设备冲突保护、上传配置冻结 | 本批实现 | `26c1d521` |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第二十七批](miaoji-batch-27-personal-hotwords.md)补齐个人热词复用：后端 82 项、Web 41 项、Android 38 项单元及 6 项仪器测试通过。新增迁移 `0184`，需发布 **backend + frontend** 及新版 Android；第 26 批若尚未部署，可一起发布，Helm hook 会先按顺序应用 `0183`、`0184`。尚未收到第 26/27 批生产部署证据，两批生产验收均待完成。正式 Android 分发仍待完成。
 
 [第二十六批](miaoji-batch-26-transcript-replacements.md)补齐批量校对：后端 74 个不同用例、Web 32 项、Android 45 项单元及 5 项 Pixel 8 仪器测试通过。本批新增数据库迁移 `0183`，本地已应用；需发布 **backend + frontend**，Helm 的迁移 hook 会先执行迁移。生产仍是下述第二十五批版本，本批未进行生产写入验收。Android 已安装本批 debug APK 到 Pixel 8，正式分发仍待完成。
 
@@ -45,7 +48,7 @@
 
 正在进行[目标环境验收](miaoji-release-acceptance.md)。当前 backend `66b3e3bb3`、frontend `d6c7de6c7`，summary/agents `f2e7f3cd4`。[第二十四批](miaoji-batch-24-production-acceptance.md)完成生产排序 API、未分享身份隔离，以及 App 普通上传进度、等待响应时停止重试、分人标签与统计展示验收；仅新增一条测试记录。修复高级设置展开时进度/停止按钮不可见的问题，3 项模拟器测试通过。Web UI、生产跨页排序、真实多人质量仍待验收。此前两个样本真实直传及下载哈希结论保留。
 
-先更新后端，再配套发布 Web/Android。前二十五批的上述改动无需迁移；第二十六批新增 `0183`，不能沿用“无需迁移”的结论。本轮没有执行生产部署，后续结果以验收清单为准。
+先更新后端，再配套发布 Web/Android。前二十五批的上述改动无需迁移；第二十六、二十七批新增 `0183`、`0184`，不能沿用“无需迁移”的结论。本轮没有执行生产部署，后续结果以验收清单为准。
 
 Android Pixel 8 / Android 16：此前播放器 13 项、详情页 23 项仪器测试及 1 项显式生产过期签名仪器测试通过。真实生产音视频解码、竖屏视觉、暂停/倍速/定位、导入转写、视频纪要与章节引用、两样本下载哈希、TXT/SRT/VTT 系统保存均已实测。最新运行修复 `a5edbcd9`；修复版仅以 debug APK 安装到模拟器，尚未正式分发。
 
@@ -57,8 +60,8 @@ Android Pixel 8 / Android 16：此前播放器 13 项、详情页 23 项仪器�
 
 ## 仍未实现的产品项
 
-重新盘点见[当前真实缺口](miaoji-current-gaps-2026-09-20.md)。盘点中的 Web 只读上传状态保护、非分片上传取消/进度已由第二十二批修复，上传分人开关和全局排序已由第二十三批补齐实现；backend/frontend 已部署，Android 正式分发及剩余验收见第二十四批。第二十五批补齐所有者/创建时间及个人文档导航，Web 已发布、App 生产主流程通过；G6 的可靠时长、更多历史导出和人工历史版本定位仍未补齐。第二十六批已实现批量校对，生产待验收；个人热词、记录级删除/恢复、组合筛选等仍待实施。原有签名续期、跨账号权限验收结论保留；长原文和大文件恢复继续按用户要求延后。
+重新盘点见[当前真实缺口](miaoji-current-gaps-2026-09-20.md)。盘点中的 Web 只读上传状态保护、非分片上传取消/进度已由第二十二批修复，上传分人开关和全局排序已由第二十三批补齐实现；backend/frontend 已部署，Android 正式分发及剩余验收见第二十四批。第二十五批补齐所有者/创建时间及个人文档导航，Web 已发布、App 生产主流程通过；G6 的可靠时长、更多历史导出和人工历史版本定位仍未补齐。第二十六、二十七批已实现批量校对及个人上传热词，生产待验收；组织词表、记录级删除/恢复、组合筛选等仍待实施。原有签名续期、跨账号权限验收结论保留；长原文和大文件恢复继续按用户要求延后。
 
 [第十六批](miaoji-batch-16-android-preparation.md)修复准备阶段播放失败，[第十七批](miaoji-batch-17-android-video-layout.md)修复竖屏溢出并改善原文阅读，[第十八批](miaoji-batch-18-android-export.md)修复系统选择器返回后导出为空，并记录 App 核心流程验收。普通上传进度/取消语义与分人选项已在第二十二、二十三批继续完善。
 
-本轮关闭了优先级最高的正确性及回看链路缺口。[第七批](miaoji-batch-7-chapters.md)补齐独立章节导航及空态，[第八批](miaoji-batch-8-drafts.md)与[第九批](miaoji-batch-9-android-drafts.md)补齐列表重建时的草稿保护，[第十批](miaoji-batch-10-speaker-activity.md)补齐录音与上传件的发言时长占比。[第十一批](miaoji-batch-11-sharing-scopes.md)补齐纪要/全文独立授权。[第十二批](miaoji-batch-12-original-download.md)补齐上传所有者原文件下载。媒体共享、原生录音分片下载/拼接、精细发言时间轴、长期热词库、关键词、组合筛选仍属于后续产品批次；线上会议完整录像回放另需实际录制产物和媒体时间映射。不要把这些批次理解为已全量对齐飞书妙记。
+本轮关闭了优先级最高的正确性及回看链路缺口。[第七批](miaoji-batch-7-chapters.md)补齐独立章节导航及空态，[第八批](miaoji-batch-8-drafts.md)与[第九批](miaoji-batch-9-android-drafts.md)补齐列表重建时的草稿保护，[第十批](miaoji-batch-10-speaker-activity.md)补齐录音与上传件的发言时长占比。[第十一批](miaoji-batch-11-sharing-scopes.md)补齐纪要/全文独立授权。[第十二批](miaoji-batch-12-original-download.md)补齐上传所有者原文件下载。媒体共享、原生录音分片下载/拼接、精细发言时间轴、组织热词库、实时录音热词、关键词、组合筛选仍属于后续产品批次；线上会议完整录像回放另需实际录制产物和媒体时间映射。不要把这些批次理解为已全量对齐飞书妙记。

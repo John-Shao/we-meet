@@ -1,4 +1,19 @@
 {
+  "personalHotwords": {
+    "title": "Mots-clés personnels",
+    "hint": "Privés et synchronisés entre vos appareils. Un terme par ligne, 100 termes maximum, 40 caractères par terme, 4000 au total. Enregistrez un texte vide pour effacer. Enregistrer ne modifie pas les tâches : fusionnez explicitement avant l’import.",
+    "editor": "Modifier le vocabulaire personnel",
+    "copyCurrent": "Copier les termes de cet import",
+    "save": "Enregistrer le vocabulaire",
+    "apply": "Fusionner dans cet import",
+    "saved": "Vocabulaire enregistré. Les options de cet import restent inchangées.",
+    "applied": "Fusion terminée, doublons supprimés. Les termes de cet import restent modifiables.",
+    "conflict": "Vocabulaire modifié sur un autre appareil. Brouillon conservé ; abandonnez les modifications et rechargez pour vérifier.",
+    "limit": "Trop de termes ou de caractères. Aucun texte tronqué ni fusionné. Réduisez la liste.",
+    "error": "Échec de la requête. Réessayez ; les modifications restent à confirmer.",
+    "reload": "Abandonner et recharger",
+    "close": "Fermer le vocabulaire"
+  },
   "batchCorrection": {
     "title": "Rechercher et remplacer",
     "hint": "Remplacement littéral sensible à la casse dans toute la transcription enregistrée, autres pages incluses. Maximum 100 segments. Un remplacement vide supprime le texte. Les brouillons et comptes rendus existants restent inchangés.",

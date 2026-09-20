@@ -1,4 +1,19 @@
 {
+  "personalHotwords": {
+    "title": "Personal hotwords",
+    "hint": "Private to you and synced across devices. One word per line; up to 100 words, 40 characters each, 4000 total. Save empty text to clear. Saving does not change this or submitted jobs; explicitly merge before uploading.",
+    "editor": "Edit personal vocabulary",
+    "copyCurrent": "Copy this upload’s words to editor",
+    "save": "Save personal vocabulary",
+    "apply": "Merge into this upload",
+    "saved": "Vocabulary saved. This upload’s options are unchanged.",
+    "applied": "Merged and de-duplicated. You can still edit this upload’s words.",
+    "conflict": "Vocabulary changed on another device. Your draft is kept; discard edits and reload to review.",
+    "limit": "Too many words or characters. Nothing was truncated or merged; reduce the list.",
+    "error": "Request failed. Retry; unsaved edits still need confirmation.",
+    "reload": "Discard edits and reload",
+    "close": "Close vocabulary"
+  },
   "batchCorrection": {
     "title": "Find and replace",
     "hint": "Replace literal, case-sensitive text across this record’s saved transcript, including other pages. Up to 100 segments per batch. Empty replacement deletes text. Unsaved drafts and existing minutes stay unchanged.",

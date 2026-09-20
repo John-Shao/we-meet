@@ -146,6 +146,7 @@ from core.api.personal_calendars import (
     CalendarSubscriptionViewSet,
     PersonalCalendarViewSet,
 )
+from core.api.personal_hotwords import PersonalHotwordsView
 from core.api.push import ImPushHookView, PushPreferenceView, PushTokenView
 from core.api.qr_login import (
     QrAuthenticatorStatusView,
@@ -423,6 +424,7 @@ urlpatterns = [
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/preview/", LiveTranscriptionPreviewView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/cancel/", CancelTranscriptionView.as_view()),
                 path("recording-uploads/", UploadedRecordingView.as_view(), name="recording-uploads"),
+                path("recording-hotwords/", PersonalHotwordsView.as_view(), name="recording-hotwords"),
                 path("recording-uploads/<uuid:record_id>/", UploadedRecordingView.as_view(), name="recording-upload-state"),
                 # Two-step presigned upload: sign an exact byte count, then adopt
                 # the object. Bytes never pass through the application.

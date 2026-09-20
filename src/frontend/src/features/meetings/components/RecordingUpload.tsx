@@ -10,6 +10,7 @@ import { StateHint } from '@/components/StateHint'
 import { RiDownload2Line } from '@remixicon/react'
 import { css, cx } from '@/styled-system/css'
 import { rowMeta } from './libraryStyles'
+import { PersonalHotwords } from './PersonalHotwords'
 import {
   CHUNKED_THRESHOLD,
   putPartWithProgress,
@@ -27,6 +28,7 @@ type UploadState = {
 
 /** What the server can accept, and by which of the two paths. */
 type UploadCapabilities = {
+  personal_hotwords_available?: boolean
   available: boolean
   /** The multipart branch's hard ceiling. */
   max_bytes: number
@@ -455,6 +457,18 @@ export function RecordingUpload({
                   }}
                 />
               </label>
+              {config.personal_hotwords_available && (
+                <PersonalHotwords
+                  viewerId={viewerId}
+                  value={hotwords}
+                  disabled={busy || submitted}
+                  onApply={(value) => {
+                    if (busy || submitted) return
+                    setHotwords(value)
+                    setKey(crypto.randomUUID())
+                  }}
+                />
+              )}
             </div>
           </details>
           <p className={consentCls}>{t('upload.consent')}</p>

@@ -39,6 +39,55 @@ afterEach(() => {
 const show = (element: React.ReactNode) =>
   render(<QueryClientProvider client={client}>{element}</QueryClientProvider>)
 
+it('explicitly merges personal words into the frozen upload request without saving the library', async () => {
+  vi.mocked(fetchApi).mockImplementation(async (path) => {
+    if (path === 'recording-hotwords/') return { words: ['Qwen'], revision: 1 }
+    if (vi.mocked(fetchApi).mock.calls.length === 1)
+      return {
+        available: true,
+        max_bytes: 100,
+        extensions: ['wav'],
+        personal_hotwords_available: true,
+      }
+    return { record_id: 'record', status: 'queued' }
+  })
+  show(<RecordingUpload viewerId="owner" />)
+  fireEvent.click(await screen.findByRole('button', { name: 'upload.open' }))
+  fireEvent.change(await screen.findByLabelText('upload.file'), {
+    target: { files: [new File(['audio'], 'record.wav')] },
+  })
+  fireEvent.change(screen.getByLabelText('upload.hotwords'), {
+    target: { value: 'Manual' },
+  })
+  fireEvent.click(
+    screen.getByRole('button', { name: 'personalHotwords.title', hidden: true })
+  )
+  fireEvent.click(
+    await screen.findByRole('button', {
+      name: 'personalHotwords.apply',
+      hidden: true,
+    })
+  )
+  expect(screen.getByLabelText('upload.hotwords')).toHaveValue('Manual\nQwen')
+  fireEvent.submit(
+    screen
+      .getByRole('button', { name: 'upload.submit', hidden: true })
+      .closest('form')!
+  )
+  await waitFor(() =>
+    expect(navigate).toHaveBeenCalledWith('/meeting/records/record?tab=text')
+  )
+  const write = vi
+    .mocked(fetchApi)
+    .mock.calls.find(([, options]) => options?.method === 'POST')!
+  expect((write[1]!.body as FormData).get('hotwords')).toBe('Manual\nQwen')
+  expect(
+    vi
+      .mocked(fetchApi)
+      .mock.calls.some(([, options]) => options?.method === 'PUT')
+  ).toBe(false)
+})
+
 it('uploads the chosen file and optional context without putting credentials in the browser', async () => {
   vi.mocked(fetchApi)
     .mockResolvedValueOnce({

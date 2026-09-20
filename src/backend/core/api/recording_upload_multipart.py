@@ -17,8 +17,8 @@ from rest_framework.views import APIView
 
 from core.services import recording_upload_sessions as sessions
 from core.services import uploaded_recordings as service
+from core.services.hotwords import parse_hotwords
 from core.services.meeting_records import RecordConflict
-from core.services.uploaded_recordings import parse_hotwords
 
 
 class MultipartThrottle(UserRateThrottle):

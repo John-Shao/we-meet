@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 from core import models
 from core.services import recording_upload_sessions
 from core.services import uploaded_recordings as service
+from core.services.hotwords import parse_hotwords
 from core.services.meeting_records import RecordConflict, visible_records
 
 
@@ -28,7 +29,7 @@ class UploadSerializer(serializers.Serializer):
     def validate_hotwords(self, value):
         """One temporary vocabulary per recording, with bounded word lengths."""
         try:
-            return service.parse_hotwords(value)
+            return parse_hotwords(value)
         except ValueError as error:
             raise serializers.ValidationError(str(error)) from error
 
@@ -135,6 +136,7 @@ class UploadedRecordingView(APIView):
         return Response(
             {
                 "available": service.available(),
+                "personal_hotwords_available": settings.MEETING_RECORDS_ENABLED,
                 "max_bytes": settings.MEETING_FILE_ASR_MAX_BYTES,
                 # When direct uploads are on, callers should use the larger
                 # presigned path; the multipart ceiling still applies to the

@@ -1,4 +1,19 @@
 {
+  "personalHotwords": {
+    "title": "Persönliche Fachwörter",
+    "hint": "Privat und geräteübergreifend synchronisiert. Ein Begriff pro Zeile; höchstens 100 Begriffe, je 40 Zeichen, insgesamt 4000. Leer speichern zum Löschen. Speichern ändert keine Aufträge; vor dem Upload ausdrücklich übernehmen.",
+    "editor": "Persönliches Wörterverzeichnis bearbeiten",
+    "copyCurrent": "Begriffe dieses Uploads in den Editor kopieren",
+    "save": "Wörterverzeichnis speichern",
+    "apply": "Mit diesem Upload zusammenführen",
+    "saved": "Gespeichert. Die Optionen dieses Uploads bleiben unverändert.",
+    "applied": "Zusammengeführt und Duplikate entfernt. Die Begriffe dieses Uploads bleiben bearbeitbar.",
+    "conflict": "Auf einem anderen Gerät geändert. Entwurf bleibt erhalten; Änderungen verwerfen und zur Prüfung neu laden.",
+    "limit": "Zu viele Begriffe oder Zeichen. Nichts gekürzt oder zusammengeführt. Liste verkürzen.",
+    "error": "Anfrage fehlgeschlagen. Wiederholen; ungespeicherte Änderungen müssen noch bestätigt werden.",
+    "reload": "Änderungen verwerfen und neu laden",
+    "close": "Wörterverzeichnis schließen"
+  },
   "batchCorrection": {
     "title": "Suchen und ersetzen",
     "hint": "Groß-/Kleinschreibung beachten: Ersetzt Text im gesamten gespeicherten Transkript einschließlich anderer Seiten. Höchstens 100 Segmente. Leerer Ersatz löscht Text. Entwürfe und vorhandene Protokolle bleiben unverändert.",

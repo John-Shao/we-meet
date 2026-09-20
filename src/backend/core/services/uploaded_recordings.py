@@ -144,21 +144,6 @@ def serialize(job):
     }
 
 
-def parse_hotwords(value):
-    """One temporary vocabulary per recording, with bounded word lengths.
-
-    Lives in the service layer because the multipart session service needs the
-    same rule, and importing it from the API module would make the API and the
-    service import each other.
-    """
-    words = list(
-        dict.fromkeys(word.strip() for word in value.splitlines() if word.strip())
-    )
-    if len(words) > 100 or any(len(word) > 40 for word in words):
-        raise ValueError("Use at most 100 hotwords, each up to 40 characters.")
-    return words
-
-
 def active_upload_exists(user):
     """True when this owner already has a paid import in flight.
 

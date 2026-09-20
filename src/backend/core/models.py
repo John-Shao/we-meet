@@ -1789,6 +1789,17 @@ class MeetingOriginalRevision(BaseModel):
             raise ValidationError("A revision must belong to its original's record.")
 
 
+class PersonalHotwords(BaseModel):
+    """One private vocabulary per user; uploads copy words into their own intent."""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="personal_hotwords")
+    words = models.JSONField(default=list, blank=True)
+    revision = models.PositiveIntegerField(default=1)
+
+    def __str__(self):
+        return f"PersonalHotwords({self.pk})"
+
+
 class TranscriptReplacement(BaseModel):
     """One atomic, retryable correction and the exact inverse for a guarded undo."""
 

@@ -1,4 +1,19 @@
 {
+  "personalHotwords": {
+    "title": "Persoonlijke trefwoorden",
+    "hint": "Privé en gesynchroniseerd tussen je apparaten. Eén term per regel; maximaal 100 termen, elk 40 tekens, 4000 totaal. Sla lege tekst op om te wissen. Opslaan wijzigt geen taken; voeg expliciet samen vóór de upload.",
+    "editor": "Persoonlijke woordenlijst bewerken",
+    "copyCurrent": "Woorden van deze upload naar de editor kopiëren",
+    "save": "Woordenlijst opslaan",
+    "apply": "Samenvoegen met deze upload",
+    "saved": "Opgeslagen. De opties van deze upload blijven ongewijzigd.",
+    "applied": "Samengevoegd en ontdubbeld. Je kunt de woorden van deze upload nog bewerken.",
+    "conflict": "Gewijzigd op een ander apparaat. Concept bewaard; verwerp wijzigingen en laad opnieuw om te controleren.",
+    "limit": "Te veel woorden of tekens. Niets afgekapt of samengevoegd. Verkort de lijst.",
+    "error": "Verzoek mislukt. Probeer opnieuw; niet-opgeslagen wijzigingen moeten nog worden bevestigd.",
+    "reload": "Wijzigingen verwerpen en herladen",
+    "close": "Woordenlijst sluiten"
+  },
   "batchCorrection": {
     "title": "Zoeken en vervangen",
     "hint": "Hoofdlettergevoelig letterlijk vervangen in het hele opgeslagen transcript, inclusief andere pagina’s. Maximaal 100 segmenten. Lege vervanging verwijdert tekst. Concepten en bestaande notulen blijven ongewijzigd.",

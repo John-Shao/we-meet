@@ -64,6 +64,41 @@ def job_for(user):
     return models.UploadedRecording.objects.get(record_id=response.data["record_id"])
 
 
+def test_personal_vocabulary_is_an_explicit_immutable_upload_snapshot():
+    owner = UserFactory()
+    client = client_for(owner)
+    vocabulary = "/api/v1.0/recording-hotwords/"
+    assert (
+        client.put(
+            vocabulary, {"text": "Qwen", "expected_revision": 0}, format="json"
+        ).status_code
+        == 200
+    )
+    key = uuid.uuid4()
+    response = upload(owner, key, hotwords="Qwen")
+    assert response.status_code == 202
+    job = models.UploadedRecording.objects.get(record_id=response.data["record_id"])
+    assert (
+        client.put(
+            vocabulary, {"text": "New", "expected_revision": 1}, format="json"
+        ).status_code
+        == 200
+    )
+    job.refresh_from_db()
+    assert job.configuration["hotwords"] == ["Qwen"]
+    assert upload(owner, key, hotwords="Qwen").status_code == 202
+    assert upload(owner, key, hotwords="New").status_code == 409
+    models.UploadedRecording.objects.filter(pk=job.pk).update(status="succeeded")
+    plain = upload(owner)
+    assert plain.status_code == 202
+    assert (
+        models.UploadedRecording.objects.get(
+            record_id=plain.data["record_id"]
+        ).configuration["hotwords"]
+        == []
+    )
+
+
 @pytest.mark.parametrize("diarization", [True, False])
 def test_upload_keeps_speaker_choice_and_rejects_changed_retry(diarization):
     owner = UserFactory()
@@ -73,7 +108,9 @@ def test_upload_keeps_speaker_choice_and_rejects_changed_retry(diarization):
     job = models.UploadedRecording.objects.get(record_id=response.data["record_id"])
     assert job.configuration["diarization"] is diarization
     assert upload(owner, key, diarization=str(diarization).lower()).status_code == 202
-    assert upload(owner, key, diarization=str(not diarization).lower()).status_code == 409
+    assert (
+        upload(owner, key, diarization=str(not diarization).lower()).status_code == 409
+    )
 
 
 def due(job):
@@ -329,7 +366,11 @@ def test_provider_payload_uses_file_urls_context_and_vocabulary(diarization):
         assert (
             provider.submit(
                 "https://audio.invalid/a.wav",
-                {"context": "Context", "hotwords": ["Qwen"], "diarization": diarization},
+                {
+                    "context": "Context",
+                    "hotwords": ["Qwen"],
+                    "diarization": diarization,
+                },
             )
             == "task"
         )
