@@ -23,6 +23,7 @@
 | 17 | 竖屏画面约束、窄屏按钮换行及正文优先阅读 | 本批文档 | `9e7a96b2` |
 | 18 | 系统选择器返回后原文导出为空，及 App 核心生产流程验收 | 本批文档 | `9e259872` |
 | 19 | 生产跨账号分享/撤权验收，修复只读上传件误报不可用 | 本批文档 | `88934269` |
+| 20 | 原生 HTTP 403 准备超时、新签名恢复及重试上限 | 本批文档 | `a06355a6` |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
@@ -37,6 +38,8 @@ Android Pixel 8 / Android 16：播放器 9 项仪器测试、详情页 21 项仪
 [第十九批](miaoji-batch-19-cross-account.md)通过生产上传记录的纪要/全文独立分享、撤权、幂等请求重放及 App 内容清理验收，并修复只读页面误报不可用。23 项详情页仪器测试通过，Android `88934269` 已推送并安装到模拟器，尚未正式分发。
 
 当前优先验收媒体签名 TTL 与续期；用户明确将超过 30 段长录音、大于 100 MiB 分片恢复延后。Web/物理设备仍待补测。先前一次视频纪要供应商错误原因待脱敏日志；新 App 视频生成成功不能抹去该失败记录。第十六至十九批只修改 Android，无需重新部署后端/Web。
+
+[第二十批](miaoji-batch-20-android-lease-timeout.md)进一步发现并修复原生播放器对过期 URL 的 HTTP 403 长时间停留在准备态的问题。13 项播放器仪器测试通过；生产签名自然到期与原生恢复另行验收。本批仍只有 Android 变更。
 
 ## 仍未实现的产品项
 
