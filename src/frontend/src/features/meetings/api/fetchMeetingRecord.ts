@@ -86,12 +86,22 @@ export const useMeetingRecords = (
     queryKey: meetingRecordKeys.list(viewerId, filters),
     refetchInterval: (query) =>
       query.state.status === 'error' ? false : 15000,
-    queryFn: ({ signal }) => {
+    queryFn: async ({ signal }) => {
       const params = new URLSearchParams()
       Object.entries(filters).forEach(([key, value]) => {
         if (value) params.set(key, value)
       })
-      return fetchApi(`meeting-records/?${params.toString()}`, { signal })
+      const page = await fetchApi<MeetingRecordPage<ApiMeetingRecord>>(
+        `meeting-records/?${params.toString()}`,
+        { signal }
+      )
+      if (
+        ['created_from', 'created_before'].some(
+          (key) => params.has(key) && !page.supported_filters?.includes(key)
+        )
+      )
+        throw new Error('The server does not support date filtering.')
+      return page
     },
     enabled: enabled && !!viewerId,
   })

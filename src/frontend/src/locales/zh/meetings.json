@@ -208,6 +208,12 @@
     }
   },
   "library": {
+    "createdFrom": "创建日期从",
+    "createdThrough": "创建日期至",
+    "applyDates": "应用日期",
+    "clearDates": "清除日期",
+    "dateHint": "按本地时区筛选创建日期，包含结束日期当天。",
+    "dateError": "请输入有效日期，开始日期不能晚于结束日期。",
     "backToPlayback": "回到播放位置",
     "startRecording": "录音",
     "filters": "筛选",

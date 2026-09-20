@@ -208,6 +208,12 @@
     }
   },
   "library": {
+    "createdFrom": "Créé à partir du",
+    "createdThrough": "Créé jusqu’au",
+    "applyDates": "Appliquer les dates",
+    "clearDates": "Effacer les dates",
+    "dateHint": "Les dates utilisent votre fuseau horaire local ; la date de fin est incluse.",
+    "dateError": "Saisissez des dates valides, avec un début au plus tard à la date de fin.",
     "backToPlayback": "Revenir à la lecture",
     "startRecording": "Enregistrer",
     "filters": "Filtres",

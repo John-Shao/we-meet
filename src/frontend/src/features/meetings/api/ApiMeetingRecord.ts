@@ -52,11 +52,14 @@ export interface RecordTitlePayload {
 }
 
 export interface MeetingRecordPage<T> {
+  supported_filters?: string[]
   results: T[]
   next_cursor: string | null
 }
 
 export interface MeetingRecordFilters {
+  created_from?: string
+  created_before?: string
   ordering?: 'created_at' | '-created_at'
   scope?: 'recent' | 'owned' | 'participated' | 'shared'
   source_type?: MeetingRecordSource | 'recordings'

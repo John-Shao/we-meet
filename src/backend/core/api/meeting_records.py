@@ -10,6 +10,7 @@ from django.db import IntegrityError
 from django.db.models import Case, Count, Exists, OuterRef, Prefetch, Q, When
 from django.http import FileResponse, Http404
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from rest_framework import pagination, permissions, serializers, viewsets
 from rest_framework.decorators import action
@@ -178,6 +179,49 @@ class LegacyRecordSourceSerializer(serializers.Serializer):
         }:
             raise ValidationError("LiveKit SID requires an exact room ID pair.")
         return attrs
+
+
+class RecordDateRangeSerializer(serializers.Serializer):
+    """Explicit instants: inclusive creation start and exclusive end."""
+
+    created_from = serializers.DateTimeField(required=False)
+    created_before = serializers.DateTimeField(required=False)
+
+    def validate(self, attrs):
+        for name in self.fields:
+            if name in self.initial_data:
+                value = self.initial_data[name]
+                if len(value) > 64:
+                    raise ValidationError({name: "Use an ISO timestamp with timezone."})
+                try:
+                    parsed = parse_datetime(value)
+                except (ValueError, OverflowError):
+                    parsed = None
+                if parsed is None or timezone.is_naive(parsed):
+                    raise ValidationError({name: "Use an ISO timestamp with timezone."})
+        if (
+            "created_from" in attrs
+            and "created_before" in attrs
+            and attrs["created_from"] >= attrs["created_before"]
+        ):
+            raise ValidationError({"created_before": "End must be after start."})
+        return attrs
+
+    @classmethod
+    def filter_queryset(cls, queryset, params):
+        """Reject duplicate bounds rather than choosing an arbitrary value."""
+        dates = {}
+        for name in ("created_from", "created_before"):
+            if name in params:
+                if len(params.getlist(name)) != 1:
+                    raise ValidationError({name: "Use one value."})
+                dates[name] = params[name]
+        date_range = cls(data=dates)
+        date_range.is_valid(raise_exception=True)
+        for name, value in date_range.validated_data.items():
+            lookup = "created_at__gte" if name == "created_from" else "created_at__lt"
+            queryset = queryset.filter(**{lookup: value})
+        return queryset
 
 
 class RecordPagination(pagination.CursorPagination):
@@ -397,6 +441,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         )
         if self.action != "list":
             return queryset
+        queryset = RecordDateRangeSerializer.filter_queryset(
+            queryset, self.request.query_params
+        )
         scope = self.request.query_params.get("scope", "recent")
         if scope not in {"recent", "owned", "participated", "shared"}:
             raise ValidationError({"scope": "Unsupported record scope."})
@@ -431,6 +478,12 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         if len(query) > 200:
             raise ValidationError({"q": "Search text exceeds 200 characters."})
         return queryset.filter(title__icontains=query) if query else queryset
+
+    def list(self, request, *args, **kwargs):
+        """Clients must not silently accept ignored filters from older servers."""
+        response = super().list(request, *args, **kwargs)
+        response.data["supported_filters"] = ["created_from", "created_before"]
+        return response
 
     @action(detail=True, methods=["patch"], url_path="title")
     def rename_title(self, request, pk=None):

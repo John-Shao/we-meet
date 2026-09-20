@@ -208,6 +208,12 @@
     }
   },
   "library": {
+    "createdFrom": "Created on or after",
+    "createdThrough": "Created on or before",
+    "applyDates": "Apply dates",
+    "clearDates": "Clear dates",
+    "dateHint": "Dates use your local time zone; the end date is included.",
+    "dateError": "Enter valid dates with the start no later than the end.",
     "backToPlayback": "Back to playback",
     "startRecording": "Record",
     "filters": "Filters",

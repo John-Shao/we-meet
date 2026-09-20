@@ -208,6 +208,12 @@
     }
   },
   "library": {
+    "createdFrom": "Aangemaakt vanaf",
+    "createdThrough": "Aangemaakt tot en met",
+    "applyDates": "Datums toepassen",
+    "clearDates": "Datums wissen",
+    "dateHint": "Datums gebruiken uw lokale tijdzone; de einddatum is inbegrepen.",
+    "dateError": "Voer geldige datums in. De begindatum mag niet na de einddatum liggen.",
     "backToPlayback": "Terug naar afspeelpositie",
     "startRecording": "Opnemen",
     "filters": "Filters",

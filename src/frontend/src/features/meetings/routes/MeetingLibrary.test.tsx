@@ -64,6 +64,69 @@ const submitSearch = () =>
     screen.getByLabelText('library.search').closest('form') as HTMLFormElement
   )
 
+it('applies creation dates to both sections, resets pagination, and clears dates', async () => {
+  vi.mocked(fetchApi).mockImplementation(async (path) => {
+    const params = new URL(path, 'https://fixture.invalid').searchParams
+    return {
+      results: params.get('is_ongoing') === 'true' ? [] : [archived],
+      next_cursor: params.has('cursor') ? null : 'page2',
+      supported_filters: ['created_from', 'created_before'],
+    }
+  })
+  show()
+  await screen.findByText(archived.title)
+  fireEvent.click(screen.getByRole('button', { name: 'library.next' }))
+  await screen.findByRole('button', { name: 'library.previous' })
+  fireEvent.click(screen.getByRole('button', { name: 'library.filters' }))
+  fireEvent.change(screen.getByLabelText('library.createdFrom'), {
+    target: { value: '2026-09-20' },
+  })
+  fireEvent.change(screen.getByLabelText('library.createdThrough'), {
+    target: { value: '2026-09-20' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'library.applyDates' }))
+  await waitFor(() => {
+    const calls = vi
+      .mocked(fetchApi)
+      .mock.calls.map(
+        ([path]) => new URL(path, 'https://fixture.invalid').searchParams
+      )
+      .filter((params) => params.has('created_from'))
+    expect(calls.length).toBeGreaterThanOrEqual(2)
+    expect(
+      calls.every(
+        (params) =>
+          !params.has('cursor') &&
+          params.get('created_from') === new Date(2026, 8, 20).toISOString() &&
+          params.get('created_before') === new Date(2026, 8, 21).toISOString()
+      )
+    ).toBe(true)
+  })
+  expect(screen.queryByRole('button', { name: 'library.previous' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'library.clearDates' }))
+  await waitFor(() =>
+    expect(
+      vi
+        .mocked(fetchApi)
+        .mock.calls.slice(-2)
+        .every(([path]) => !path.includes('created_from'))
+    ).toBe(true)
+  )
+})
+
+it('does not display unfiltered content when an older server ignores date filters', async () => {
+  show()
+  await screen.findByText(archived.title)
+  fireEvent.click(screen.getByRole('button', { name: 'library.filters' }))
+  fireEvent.change(screen.getByLabelText('library.createdFrom'), {
+    target: { value: '2026-09-20' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'library.applyDates' }))
+  await screen.findAllByText('library.loadError')
+  expect(screen.queryByText(archived.title)).toBeNull()
+  expect(screen.queryByText('Older paused recording')).toBeNull()
+})
+
 it('pins ongoing records separately and follows the exact opaque archive cursor', async () => {
   show()
   expect(

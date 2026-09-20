@@ -208,6 +208,12 @@
     }
   },
   "library": {
+    "createdFrom": "Erstellt ab",
+    "createdThrough": "Erstellt bis",
+    "applyDates": "Daten anwenden",
+    "clearDates": "Daten löschen",
+    "dateHint": "Die Daten gelten in Ihrer lokalen Zeitzone; das Enddatum ist eingeschlossen.",
+    "dateError": "Geben Sie gültige Daten ein. Der Beginn darf nicht nach dem Ende liegen.",
     "backToPlayback": "Zur Wiedergabeposition",
     "startRecording": "Aufnehmen",
     "filters": "Filter",

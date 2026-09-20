@@ -49,6 +49,7 @@ import {
 import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { recordSourceKey } from '../recordSource'
+import { recordDateRange } from '../recordDateRange'
 import type {
   MeetingRecordFilters,
   MeetingRecordSource,
@@ -126,6 +127,14 @@ const filterLabel = css({
 
 /** 原生 select 走共享 chrome:自绘箭头、32px 钉高、option 跟随主题。 */
 const filterSelect = cx(selectChrome, css({ minWidth: '9rem' }))
+const dateInput = css({
+  border: '1px solid token(colors.border.subtle)',
+  borderRadius: 'control',
+  padding: 'sm',
+  color: 'text.primary',
+  backgroundColor: 'surface.default',
+  minWidth: 0,
+})
 
 /**
  * 一条记录(行)的外壳 —— 四个栏目页共用的**样板行**:不着卡、悬停一层浅底。
@@ -673,7 +682,15 @@ export function Library({
   const [showFilters, setShowFilters] = useState(!!source)
   const [grid, setGrid] = useState(false)
   const [sort, setSort] = useState<SortDirection>('desc')
+  const [dateDraft, setDateDraft] = useState({ from: '', through: '' })
+  const [dates, setDates] = useState<{
+    created_from?: string
+    created_before?: string
+  }>({})
+  const [dateError, setDateError] = useState(false)
+  const [dateLabels, setDateLabels] = useState({ from: '', through: '' })
   const filters: MeetingRecordFilters = {
+    ...dates,
     ordering: sort === 'asc' ? 'created_at' : '-created_at',
     scope,
     source_type: source || undefined,
@@ -802,7 +819,10 @@ export function Library({
             <IconToggleButton
               size="icon32"
               label={t('library.filters')}
-              isSelected={showFilters || Boolean(source)}
+              isSelected={
+                showFilters ||
+                Boolean(source || dates.created_from || dates.created_before)
+              }
               onPress={() => setShowFilters(!showFilters)}
             >
               <RiFilter3Line size={20} aria-hidden />
@@ -877,7 +897,76 @@ export function Library({
                   ))}
                 </select>
               </label>
+              <form
+                className={css({
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 'md',
+                  alignItems: 'center',
+                  width: '100%',
+                })}
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  try {
+                    setDates(recordDateRange(dateDraft.from, dateDraft.through))
+                    setDateLabels(dateDraft)
+                    setDateError(false)
+                  } catch {
+                    setDateError(true)
+                  }
+                }}
+              >
+                <label className={filterLabel}>
+                  {t('library.createdFrom')}
+                  <input
+                    type="date"
+                    className={dateInput}
+                    value={dateDraft.from}
+                    onChange={(event) =>
+                      setDateDraft({ ...dateDraft, from: event.target.value })
+                    }
+                  />
+                </label>
+                <label className={filterLabel}>
+                  {t('library.createdThrough')}
+                  <input
+                    type="date"
+                    className={dateInput}
+                    value={dateDraft.through}
+                    onChange={(event) =>
+                      setDateDraft({
+                        ...dateDraft,
+                        through: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <Button type="submit" size="sm">
+                  {t('library.applyDates')}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="tertiary"
+                  onPress={() => {
+                    setDateDraft({ from: '', through: '' })
+                    setDates({})
+                    setDateLabels({ from: '', through: '' })
+                    setDateError(false)
+                  }}
+                >
+                  {t('library.clearDates')}
+                </Button>
+                <p>{t('library.dateHint')}</p>
+                {dateError && <p role="alert">{t('library.dateError')}</p>}
+              </form>
             </div>
+          )}
+          {(dates.created_from || dates.created_before) && (
+            <p>
+              {t('library.createdFrom')}: {dateLabels.from || '…'} ·{' '}
+              {t('library.createdThrough')}: {dateLabels.through || '…'}
+            </p>
           )}
         </div>
         <div className={listRegion} data-testid="meeting-list-region">
