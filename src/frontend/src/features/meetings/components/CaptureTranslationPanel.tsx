@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/api/ApiError'
 import { Button } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { css } from '@/styled-system/css'
 import type { RecordingController } from '../capture/controller'
 import { textAudioExpired } from '../capture/retention'
@@ -298,17 +299,18 @@ export function CaptureTranslationPanel({
     <section
       aria-label={t('translation.title')}
       className={css({
-        marginTop: '1.5rem',
+        marginTop: 'xl',
         padding: '1.25rem',
         border: '1px solid',
-        borderColor: 'greyscale.200',
-        borderRadius: '0.75rem',
+        borderColor: 'border.subtle',
+        borderRadius: 'card',
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.75rem',
+        gap: 'md',
       })}
     >
-      <h2 className={css({ fontWeight: 'semibold', fontSize: '1.125rem' })}>
+      {/* 面板标题取 Material 语义字阶(原裸 18px/600)。 */}
+      <h2 className={css({ textStyle: 'titleMedium' })}>
         {t('translation.title')}
       </h2>
       <p>{t('translation.scope')}</p>
@@ -317,7 +319,7 @@ export function CaptureTranslationPanel({
         className={css({
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.5rem',
+          gap: 'sm',
         })}
       >
         <legend>{t('translation.settings')}</legend>
@@ -357,33 +359,24 @@ export function CaptureTranslationPanel({
           </select>
         </label>
         <div>
-          <label>
-            <input
-              type="checkbox"
-              checked={choice.audio}
-              onChange={(event) =>
-                setChoice({ ...choice, audio: event.target.checked })
-              }
-            />{' '}
+          <Checkbox
+            isSelected={choice.audio}
+            onChange={(audio) => setChoice({ ...choice, audio })}
+          >
             {t('translation.audio')}
-          </label>
+          </Checkbox>
         </div>
         {choice.audio && <p role="note">{t('translation.headphones')}</p>}
         <div>
-          <label>
-            <input
-              type="checkbox"
-              disabled={!remote?.can_save_translations}
-              checked={choice.save_translations}
-              onChange={(event) =>
-                setChoice({
-                  ...choice,
-                  save_translations: event.target.checked,
-                })
-              }
-            />{' '}
+          <Checkbox
+            isSelected={choice.save_translations}
+            isDisabled={!remote?.can_save_translations}
+            onChange={(save_translations) =>
+              setChoice({ ...choice, save_translations })
+            }
+          >
             {t('translation.save')}
-          </label>
+          </Checkbox>
         </div>
       </fieldset>
       {message && <p role="alert">{t(message)}</p>}
@@ -406,9 +399,7 @@ export function CaptureTranslationPanel({
       {!connected && activeRun(remote?.current ?? null) && (
         <p>{t('translation.detached')}</p>
       )}
-      <div
-        className={css({ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' })}
-      >
+      <div className={css({ display: 'flex', flexWrap: 'wrap', gap: 'md' })}>
         <Button
           variant="primary"
           isDisabled={!canStart}
@@ -438,9 +429,7 @@ export function CaptureTranslationPanel({
         )}
       </div>
       {connected && choice.mode === 'push_to_talk' && (
-        <div
-          className={css({ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' })}
-        >
+        <div className={css({ display: 'flex', flexWrap: 'wrap', gap: 'md' })}>
           {live?.phase === 'speaking' ? (
             <Button variant="primary" onPress={() => socket.current?.endTurn()}>
               {t('translation.endTurn', {

@@ -150,7 +150,7 @@
   },
   "transcriptExport": {
     "label": "Exporter la transcription",
-    "download": "Télécharger {format}"
+    "download": "Télécharger {{format}}"
   },
   "translationArchive": {
     "privateScope": "Traduction privée, visible uniquement par vous",
@@ -803,10 +803,6 @@
     "history": "Historique des versions",
     "export": "Exporter le compte-rendu",
     "searchMeetings": "Rechercher des réunions avec l’IA"
-  },
-  "materials": {
-    "title": "Après la réunion",
-    "hint": "Retrouvez les enregistrements et transcriptions dans les archives de réunion ; générez, partagez les comptes-rendus et suivez les actions dans les comptes-rendus IA."
   },
   "video": {
     "more": "Plus",

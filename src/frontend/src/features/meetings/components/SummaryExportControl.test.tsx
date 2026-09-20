@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
+import zhMeetings from '@/locales/zh/meetings.json'
 import { SummaryExportControl } from './SummaryExportControl'
 
 const mocks = vi.hoisted(() => ({ fetchApi: vi.fn() }))
@@ -319,6 +320,8 @@ it.each(['{', '{}', ''])(
 
 it('labels the language options through the shared translation keys', async () => {
   // Hardcoded 中文/English left fr/nl/de users reading Chinese in this picker.
+  // 这一条同时守住「key 真的在 `translation` 下」:`meetings.json` 没有顶层
+  // `language`,原先写 `t('language.zh')` 只会把 key 原文渲染进下拉。
   show()
   await open()
   const select = screen.getByRole('combobox')
@@ -328,7 +331,10 @@ it('labels the language options through the shared translation keys', async () =
       label: option.textContent,
     }))
   ).toEqual([
-    { value: 'zh', label: 'language.zh' },
-    { value: 'en', label: 'language.en' },
+    { value: 'zh', label: 'translation.language.zh' },
+    { value: 'en', label: 'translation.language.en' },
   ])
+  // 用真语言包复核一次:上面那个 `t` 是 stub,只证明「请求了哪个 key」。
+  expect(zhMeetings.translation.language.zh).toBeTruthy()
+  expect(zhMeetings.translation.language.en).toBeTruthy()
 })

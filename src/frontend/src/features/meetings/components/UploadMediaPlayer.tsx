@@ -169,17 +169,17 @@ export const UploadMediaPlayer = forwardRef<
         flexShrink: 0,
         backgroundColor: 'surface.default',
         borderTop: '1px solid token(colors.border.subtle)',
-        padding: '0.75rem 0',
+        padding: 'md 0',
       })}
     >
       {state === 'loading' && (
-        <p role="status" className={css({ padding: '0 1rem' })}>
+        <p role="status" className={css({ padding: '0 lg' })}>
           {t('audioLoading')}
         </p>
       )}
       {state === 'error' && (
         <div>
-          <p role="alert" className={css({ padding: '0 1rem' })}>
+          <p role="alert" className={css({ padding: '0 lg' })}>
             {t('audioError')}
           </p>
           <Button
@@ -202,7 +202,7 @@ export const UploadMediaPlayer = forwardRef<
             className={css({
               display: 'flex',
               flexWrap: 'wrap',
-              gap: '0.75rem',
+              gap: 'md',
               alignItems: 'center',
               justifyContent: 'center',
             })}
@@ -250,8 +250,9 @@ export const UploadMediaPlayer = forwardRef<
               </select>
             </label>
           </div>
-          {/* The browser owns seeking over Range, so no custom scrubber is needed. */}
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption -- the transcript is a separate synced panel; an imported file may have no captions at all. */}
+          {/* The browser owns seeking over Range, so no custom scrubber is needed.
+              `jsx-a11y/media-has-caption` 只认原生 <audio>/<video>,这里渲染的是
+              自定义的 `MediaElement`,所以那条 eslint-disable 从未生效过(已删)。 */}
           <MediaElement
             ref={attachMedia}
             src={media.url}
@@ -260,7 +261,7 @@ export const UploadMediaPlayer = forwardRef<
             preload="metadata"
             className={css({
               width: '100%',
-              marginTop: '0.5rem',
+              marginTop: 'sm',
               maxHeight: '40vh',
               objectFit: 'contain',
             })}

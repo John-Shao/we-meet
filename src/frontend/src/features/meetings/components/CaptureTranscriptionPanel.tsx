@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { Button } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { css } from '@/styled-system/css'
 import type {
   ApiCaptureSession,
@@ -292,15 +293,13 @@ export function CaptureTranscriptionPanel({
           </p>
         )}
         {capture.media_status === 'incomplete' && !active(latest) && (
-          <label>
-            <input
-              type="checkbox"
-              checked={allowIncomplete}
-              disabled={saving || !!intent}
-              onChange={(event) => setAllowIncomplete(event.target.checked)}
-            />{' '}
+          <Checkbox
+            isSelected={allowIncomplete}
+            isDisabled={saving || !!intent}
+            onChange={setAllowIncomplete}
+          >
             {t('asr.acceptIncomplete')}
-          </label>
+          </Checkbox>
         )}
         {message && <p role="alert">{t(message)}</p>}
         <div

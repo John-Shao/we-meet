@@ -13,7 +13,7 @@ import type {
 } from '../api/ApiMeetingRecord'
 
 type Header = { id: string; revision: number; created_at: string }
-const stack = css({ display: 'flex', flexDirection: 'column', gap: '0.75rem' })
+const stack = css({ display: 'flex', flexDirection: 'column', gap: 'md' })
 export const HumanSummaryHistory = ({
   recordId,
   viewerId,

@@ -34,7 +34,7 @@ const privateOptions = { retry: false, gcTime: 0, staleTime: 0 }
 const layout = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.75rem',
+  gap: 'md',
   minWidth: 0,
 })
 
@@ -49,7 +49,7 @@ function PageButtons({
 }) {
   const { t } = useTranslation('meetings', { keyPrefix: 'library' })
   return (
-    <div className={css({ display: 'flex', gap: '0.75rem' })}>
+    <div className={css({ display: 'flex', gap: 'md' })}>
       {cursors.length > 1 && (
         <Button variant="tertiary" onPress={() => change(cursors.slice(0, -1))}>
           {t('previous')}
@@ -131,7 +131,7 @@ function ArchiveSegments({
               className={css({
                 borderBottomWidth: '1px',
                 borderColor: 'border.default',
-                paddingY: '0.75rem',
+                paddingY: 'md',
               })}
             >
               <Text variant="note">

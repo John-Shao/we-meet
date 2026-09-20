@@ -45,7 +45,10 @@ function harness(
   const puts: { url: string; size: number }[] = []
   // A plain function rather than `vi.fn`: the request seam is generic, and a
   // mocked generic loses its type parameter.
-  const respond = async (path: string, init?: RequestInit): Promise<unknown> => {
+  const respond = async (
+    path: string,
+    init?: RequestInit
+  ): Promise<unknown> => {
     calls.push({ path, init })
     if (path.endsWith('/begin/')) return script.begin ?? plan()
     if (path.endsWith('/parts/')) {
@@ -201,7 +204,14 @@ describe('uploadInParts', () => {
       return { record_id: 'record', status: 'queued' }
     }) as ChunkedDeps['request']
     rememberSession('intent-1', 'session-1')
-    await uploadInParts(sized(SIZE), 'intent-1', declaration, deps, new AbortController().signal, () => {})
+    await uploadInParts(
+      sized(SIZE),
+      'intent-1',
+      declaration,
+      deps,
+      new AbortController().signal,
+      () => {}
+    )
     const complete = calls.at(-1)!
     expect(complete.init?.method).toBe('POST')
     const parts = JSON.parse(String(complete.init?.body)).parts
@@ -248,11 +258,23 @@ describe('uploadInParts', () => {
       .mockResolvedValueOnce({ ok: false, etag: null })
       .mockResolvedValue({ ok: true, etag: 'etag-x' })
     await expect(
-      uploadInParts(sized(SIZE), 'intent-1', declaration, deps, new AbortController().signal, () => {})
+      uploadInParts(
+        sized(SIZE),
+        'intent-1',
+        declaration,
+        deps,
+        new AbortController().signal,
+        () => {}
+      )
     ).rejects.toThrow('part 1 failed')
     // Nothing was completed, so the next attempt starts from the failed part
     // rather than believing it is done.
-    expect(calls.some((c) => c.path.endsWith('/multipart/session-1/') && c.init?.method === 'POST')).toBe(false)
+    expect(
+      calls.some(
+        (c) =>
+          c.path.endsWith('/multipart/session-1/') && c.init?.method === 'POST'
+      )
+    ).toBe(false)
   })
 
   it('aborts as a cancel, not a failure', async () => {
@@ -264,7 +286,14 @@ describe('uploadInParts', () => {
       return { ok: true, etag: 'etag-1' }
     })
     await expect(
-      uploadInParts(sized(SIZE), 'intent-1', declaration, deps, controller.signal, () => {})
+      uploadInParts(
+        sized(SIZE),
+        'intent-1',
+        declaration,
+        deps,
+        controller.signal,
+        () => {}
+      )
     ).rejects.toBeInstanceOf(UploadCancelled)
   })
 
@@ -333,7 +362,14 @@ describe('uploadInParts', () => {
 
   it('forgets the session once the upload is adopted', async () => {
     const { deps } = harness()
-    await uploadInParts(sized(SIZE), 'intent-1', declaration, deps, new AbortController().signal, () => {})
+    await uploadInParts(
+      sized(SIZE),
+      'intent-1',
+      declaration,
+      deps,
+      new AbortController().signal,
+      () => {}
+    )
     expect(rememberedSession('intent-1')).toBeNull()
   })
 
@@ -345,7 +381,14 @@ describe('uploadInParts', () => {
     })
     const { deps } = harness()
     await expect(
-      uploadInParts(sized(SIZE), 'intent-1', declaration, deps, new AbortController().signal, () => {})
+      uploadInParts(
+        sized(SIZE),
+        'intent-1',
+        declaration,
+        deps,
+        new AbortController().signal,
+        () => {}
+      )
     ).resolves.toEqual({ record_id: 'record', status: 'queued' })
   })
 })
@@ -353,7 +396,10 @@ describe('uploadInParts', () => {
 describe('abortSession', () => {
   it('tells the server, because incomplete parts are billed', async () => {
     const request = vi.fn(async () => undefined)
-    await abortSession('session-1', request as unknown as ChunkedDeps['request'])
+    await abortSession(
+      'session-1',
+      request as unknown as ChunkedDeps['request']
+    )
     expect(request).toHaveBeenCalledWith(
       'recording-uploads/multipart/session-1/',
       expect.objectContaining({ method: 'DELETE' })

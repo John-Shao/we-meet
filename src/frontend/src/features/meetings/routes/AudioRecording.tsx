@@ -4,6 +4,7 @@ import { Link, Redirect } from 'wouter'
 import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
 import { Button, Input } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { StateHint } from '@/components/StateHint'
 import { css, cx } from '@/styled-system/css'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
@@ -229,15 +230,13 @@ export function Recorder({
             )}
             {!working && textAvailable && (
               <div>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={textOnly}
-                    disabled={disabled}
-                    onChange={(event) => setTextOnly(event.target.checked)}
-                  />{' '}
+                <Checkbox
+                  isSelected={textOnly}
+                  isDisabled={disabled}
+                  onChange={setTextOnly}
+                >
                   {t('textOnly')}
-                </label>
+                </Checkbox>
                 {textOnly && <p role="note">{t('textOnlyConsent')}</p>}
               </div>
             )}
@@ -270,7 +269,7 @@ export function Recorder({
               className={css({
                 display: 'flex',
                 flexWrap: 'wrap',
-                gap: '0.75rem',
+                gap: 'md',
               })}
             >
               {!working && (
@@ -362,10 +361,10 @@ export function Recorder({
           {local?.sealed && local.remote && (
             <section
               className={css({
-                marginTop: '1.5rem',
+                marginTop: 'xl',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.75rem',
+                gap: 'md',
               })}
             >
               <h2 className={sectionTitle}>
@@ -376,7 +375,7 @@ export function Recorder({
                 className={css({
                   display: 'flex',
                   flexWrap: 'wrap',
-                  gap: '1rem',
+                  gap: 'lg',
                   color: 'text.link',
                 })}
               >
@@ -392,7 +391,7 @@ export function Recorder({
             </section>
           )}
           {!!local?.pendingBytes && local.create.retention_mode === 'media' && (
-            <section className={css({ marginTop: '1.5rem' })}>
+            <section className={css({ marginTop: 'xl' })}>
               <h2 className={sectionTitle}>{t('localAudio')}</h2>
               <p>{t('localHint')}</p>
               <Button
@@ -443,7 +442,7 @@ export function Recorder({
             </section>
           )}
           {!!recoverable.length && (
-            <section className={css({ marginTop: '1.5rem' })}>
+            <section className={css({ marginTop: 'xl' })}>
               <h2 className={sectionTitle}>{t('recoverable')}</h2>
               <p>{t('recoverableHint')}</p>
               <ul>
@@ -472,8 +471,11 @@ export function Recorder({
 export function AudioRecording() {
   const { user, isLoggedIn } = useUser()
   const { data } = useConfig()
+  const { t } = useTranslation('meetings')
   if (isLoggedIn === false) return <Redirect to="/" />
-  if (!user) return <></>
+  // 用户资料还没到时返回空片段 = 白屏。另外三个栏目页这一档都是
+  // `StateHint state="loading"`,这里跟它们对齐。
+  if (!user) return <StateHint state="loading">{t('loading')}</StateHint>
   return (
     <Recorder
       key={user.id}

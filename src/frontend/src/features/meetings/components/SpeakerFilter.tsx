@@ -43,16 +43,16 @@ export function SpeakerFilter({
     <div
       className={css({
         display: 'flex',
-        gap: '0.5rem',
+        gap: 'sm',
         alignItems: 'center',
         flexWrap: 'wrap',
-        margin: '0.75rem 0',
+        margin: 'md 0',
       })}
     >
       <label
         className={css({
           display: 'flex',
-          gap: '0.5rem',
+          gap: 'sm',
           alignItems: 'center',
         })}
       >
@@ -63,9 +63,9 @@ export function SpeakerFilter({
           value={selected}
           onChange={(event) => onSelect(event.target.value)}
           className={css({
-            border: '1px solid token(colors.greyscale.200)',
-            borderRadius: '0.75rem',
-            padding: '0.5rem 0.75rem',
+            border: '1px solid token(colors.border.subtle)',
+            borderRadius: 'card',
+            padding: 'sm md',
             backgroundColor: 'transparent',
           })}
         >

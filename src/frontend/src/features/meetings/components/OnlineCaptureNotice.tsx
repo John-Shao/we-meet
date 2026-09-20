@@ -64,15 +64,16 @@ export const OnlineCaptureNoticeState = ({
       className={css({
         position: 'absolute',
         bottom: '5rem',
-        left: '0.75rem',
+        left: 'md',
         zIndex: 10,
         maxWidth: 'calc(100% - 1.5rem)',
-        paddingY: '0.25rem',
-        paddingX: '0.75rem',
-        borderRadius: '4px',
-        backgroundColor: 'danger.700',
-        color: 'white',
-        fontSize: '0.875rem',
+        paddingY: 'xs',
+        paddingX: 'md',
+        borderRadius: 'field',
+        // default / on-default 必须成对取:不能从 status.danger 借背景、再从别处借前景。
+        backgroundColor: 'status.danger',
+        color: 'status.danger.text',
+        textStyle: 'bodyMedium',
       })}
     >
       {t('recordAi.capture.title')} ·{' '}

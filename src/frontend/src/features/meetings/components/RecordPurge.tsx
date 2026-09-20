@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { Button } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { css } from '@/styled-system/css'
 
 export type PurgeReceipt = {
@@ -108,7 +109,7 @@ export function RecordPurge({
       className={css({
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.75rem',
+        gap: 'md',
       })}
     >
       {query.isError ? (
@@ -124,15 +125,13 @@ export function RecordPurge({
           {!accepted ? (
             <>
               <p>{t('purge.hint')}</p>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={acknowledged}
-                  disabled={busy}
-                  onChange={(e) => setAcknowledged(e.target.checked)}
-                />{' '}
+              <Checkbox
+                isSelected={acknowledged}
+                isDisabled={busy}
+                onChange={setAcknowledged}
+              >
                 {t('purge.acknowledge')}
-              </label>
+              </Checkbox>
             </>
           ) : query.data ? (
             <>

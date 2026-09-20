@@ -57,7 +57,9 @@ function show(overrides: Partial<ApiRecordSpeaker> = {}) {
 }
 
 const open = async () => {
-  fireEvent.click(screen.getByRole('button', { name: /speakerAttribution.change/ }))
+  fireEvent.click(
+    screen.getByRole('button', { name: /speakerAttribution.change/ })
+  )
   return screen.findByLabelText('speakerAttribution.search')
 }
 
@@ -110,7 +112,9 @@ it('re-searches the directory with the typed name', async () => {
   // Typing is not a search: `staleTime: 0` means every distinct key really does
   // hit the network, so a per-keystroke fetch would be a request storm.
   expect(mocks.fetchApi.mock.calls.length).toBe(before)
-  fireEvent.click(screen.getByRole('button', { name: 'speakerAttribution.find' }))
+  fireEvent.click(
+    screen.getByRole('button', { name: 'speakerAttribution.find' })
+  )
   await vi.waitFor(() => {
     const url = mocks.fetchApi.mock.calls.at(-1)![0] as string
     expect(url).toContain('q=ada')
@@ -139,7 +143,9 @@ it('clears an attribution instead of refusing to', async () => {
   // Attributing the wrong colleague has to be undoable.
   show({ attributed_user_id: 'user-1', display_name: 'Ada Lovelace' })
   await open()
-  fireEvent.click(screen.getByRole('button', { name: 'speakerAttribution.clear' }))
+  fireEvent.click(
+    screen.getByRole('button', { name: 'speakerAttribution.clear' })
+  )
   await vi.waitFor(() => {
     const call = mocks.fetchApi.mock.calls.find(
       ([, init]) => (init as RequestInit | undefined)?.method === 'PATCH'
@@ -154,30 +160,40 @@ it('says so when nobody matches rather than looking broken', async () => {
   mocks.fetchApi.mockResolvedValue({ results: [] })
   show()
   await open()
-  expect(await screen.findByText('speakerAttribution.nobody')).toBeInTheDocument()
+  expect(
+    await screen.findByText('speakerAttribution.nobody')
+  ).toBeInTheDocument()
 })
 
 it('reports a failed write instead of failing silently', async () => {
   // A refused write (403, or a target outside the organization) must not look
   // like a success: the reader would go on believing the track was bound.
-  mocks.fetchApi.mockImplementation(async (_url: string, init?: RequestInit) => {
-    if (init?.method === 'PATCH') throw new Error('refused')
-    return { results: [{ id: 'user-1', name: 'Ada' }] }
-  })
+  mocks.fetchApi.mockImplementation(
+    async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'PATCH') throw new Error('refused')
+      return { results: [{ id: 'user-1', name: 'Ada' }] }
+    }
+  )
   show()
   await open()
   fireEvent.click(await chooseButton('Ada'))
-  expect(await screen.findByText('speakerAttribution.failed')).toBeInTheDocument()
+  expect(
+    await screen.findByText('speakerAttribution.failed')
+  ).toBeInTheDocument()
   // The picker stays open so the reader can try another person.
   expect(screen.getByLabelText('speakerAttribution.search')).toBeInTheDocument()
 })
 
 it('reports a directory that could not be read', async () => {
-  mocks.fetchApi.mockImplementation(async (_url: string, init?: RequestInit) => {
-    if (init?.method === 'PATCH') return null
-    throw new Error('offline')
-  })
+  mocks.fetchApi.mockImplementation(
+    async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'PATCH') return null
+      throw new Error('offline')
+    }
+  )
   show()
   await open()
-  expect(await screen.findByText('speakerAttribution.loadError')).toBeInTheDocument()
+  expect(
+    await screen.findByText('speakerAttribution.loadError')
+  ).toBeInTheDocument()
 })

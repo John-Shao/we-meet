@@ -34,10 +34,7 @@ export const CaptureAudioPlayer = forwardRef<
      */
     onPosition?: (milliseconds: number) => void
   }
->(function CaptureAudioPlayer(
-  { captureId, compact = false, onPosition },
-  ref
-) {
+>(function CaptureAudioPlayer({ captureId, compact = false, onPosition }, ref) {
   const { t } = useTranslation('capture')
   const [playlist, setPlaylist] = useState<AudioPlaylist>()
   const [state, setState] = useState<
@@ -194,16 +191,16 @@ export const CaptureAudioPlayer = forwardRef<
       data-compact={compact}
       aria-label={t('playback')}
       className={css({
-        marginTop: '1.5rem',
+        marginTop: 'xl',
         padding: '1.25rem',
         border: '1px solid',
-        borderColor: 'greyscale.200',
-        borderRadius: '0.75rem',
+        borderColor: 'border.subtle',
+        borderRadius: 'card',
         '&[data-compact=true]': {
           marginTop: 0,
-          padding: '0.75rem 0',
+          padding: 'md 0',
           border: 'none',
-          borderRadius: 0,
+          borderRadius: 'none',
         },
       })}
     >
@@ -247,8 +244,8 @@ export const CaptureAudioPlayer = forwardRef<
             className={css({
               display: 'flex',
               flexWrap: 'wrap',
-              gap: '0.75rem',
-              marginTop: '0.75rem',
+              gap: 'md',
+              marginTop: 'md',
               alignItems: 'center',
               justifyContent: 'center',
             })}

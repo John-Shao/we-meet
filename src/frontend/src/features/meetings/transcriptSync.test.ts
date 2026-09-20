@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { activeRowId, nearestStartedRowId, transcriptWindowTarget, type TimedRow } from './transcriptSync'
+import {
+  activeRowId,
+  nearestStartedRowId,
+  transcriptWindowTarget,
+  type TimedRow,
+} from './transcriptSync'
 
 /** Contiguous rows, as a normal recording produces. */
 const rows: TimedRow[] = [
@@ -20,8 +25,12 @@ it('locates forward and backward windows without refetching on every tick', () =
   expect(transcriptWindowTarget(rows, 9000, 0, true)).toBe(9000)
   expect(transcriptWindowTarget(rows, 9000, 9000, true)).toBeNull()
   expect(transcriptWindowTarget(rows, 9000, 0, false)).toBeNull()
-  expect(transcriptWindowTarget([{ id: 'later', start_ms: 8000 }], 500, 9000, false)).toBe(500)
-  expect(transcriptWindowTarget([{ id: 'late-start', start_ms: 8000 }], 0, 0, false)).toBeNull()
+  expect(
+    transcriptWindowTarget([{ id: 'later', start_ms: 8000 }], 500, 9000, false)
+  ).toBe(500)
+  expect(
+    transcriptWindowTarget([{ id: 'late-start', start_ms: 8000 }], 0, 0, false)
+  ).toBeNull()
   expect(transcriptWindowTarget([], 9000, 0, true)).toBeNull()
 })
 

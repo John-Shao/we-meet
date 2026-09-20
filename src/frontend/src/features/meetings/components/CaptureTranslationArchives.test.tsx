@@ -10,6 +10,23 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 vi.mock('@/primitives', () => ({
+  SearchBox: ({
+    value,
+    onChange,
+    placeholder,
+  }: {
+    value: string
+    onChange: (value: string) => void
+    placeholder: string
+  }) => (
+    <input
+      type="search"
+      aria-label={placeholder}
+      placeholder={placeholder}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  ),
   Button: ({
     children,
     onPress,

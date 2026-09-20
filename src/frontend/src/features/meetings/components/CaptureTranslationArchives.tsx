@@ -13,7 +13,7 @@ const options = { retry: false, gcTime: 0, staleTime: 0 }
 const layout = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.75rem',
+  gap: 'md',
   minWidth: 0,
 })
 function Pages({
@@ -27,7 +27,7 @@ function Pages({
 }) {
   const { t } = useTranslation('capture')
   return (
-    <div className={css({ display: 'flex', gap: '0.75rem' })}>
+    <div className={css({ display: 'flex', gap: 'md' })}>
       {history.length > 1 && (
         <Button variant="tertiary" onPress={() => change(history.slice(0, -1))}>
           {t('previous')}
@@ -94,7 +94,7 @@ function Content({ source }: { source: Source }) {
   const refresh = () => void pending.refetch()
   return (
     <section className={layout} aria-label={t('title')}>
-      <h2 className={css({ fontWeight: 'semibold' })}>{t('title')}</h2>
+      <h2 className={css({ textStyle: 'titleMedium' })}>{t('title')}</h2>
       <p>{t('scope')}</p>
       {selected && (
         <Button
@@ -131,14 +131,14 @@ function Content({ source }: { source: Source }) {
               key={row.id}
               className={css({
                 borderBottom: '1px solid',
-                borderColor: 'greyscale.200',
-                paddingY: '0.75rem',
+                borderColor: 'border.subtle',
+                paddingY: 'md',
               })}
             >
               <p
                 className={css({
-                  color: 'greyscale.600',
-                  fontSize: '0.875rem',
+                  textStyle: 'bodyMedium',
+                  color: 'text.secondary',
                 })}
               >
                 {t(`language.${row.target}`)} ·{' '}

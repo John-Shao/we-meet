@@ -1175,9 +1175,103 @@ CJK 下落的是同一个 Bold 字面，观感一致，按共享件那一档写�
   MeetingRooms / CalendarManagementDialogs 的 import 串已变，断言仍写旧串，
   CI 一直是红的。已按现状更新这四条（不涉及产品代码）。
 
-## 验证
+### 3.34 录制工作区与纪要 / 翻译 / 字幕面板收口（2026-09-19 追加，Web 端「遗留」第一批）
 
-- `npm run lint`、`npm run check`（prettier）、`npm run check:json`；
+上一轮结尾的「遗留」写着：
+
+> 录制工作区与纪要/翻译面板仍是手写样式，属于下一批业务域收口。
+
+这一节就是那一批。范围是 AI 录音 / 会议实录 / 智能纪要三个子模块里**页面之外的**
+全部 UI：录制工作区（`MeetingRecordWorkspace`）与它引用的每一个面板、录制页
+（`AudioRecording`）的两个面板、以及列表页用到的次级件。
+
+#### 1. 颜色 / 圆角 / 间距：50 处裸值 → 语义角色
+
+18 个文件里 50 处裸色族、14 处裸 `fontSize`、25 处数字圆角，逐条换成语义角色。
+浅色取值逐一相等（`greyscale.200` = `border.subtle`、`greyscale.600` =
+`text.secondary`、`primary.700` = `text.link`、`0.75rem` = `card`…），所以**浅色是零视觉
+回归**；深色下这批文件第一次真正跟着主题翻转 —— 此前 `greyscale.50` / `primary.100`
+这类是固定色阶，深色下会留一条刺眼的浅色带。
+
+几条判断口径：
+
+| 原写法                            | 换法                                    | 为什么                                              |
+| --------------------------------- | --------------------------------------- | --------------------------------------------------- |
+| `_hover: { backgroundColor: 'primary.100' }` | `surface.canvas`              | `action.selected.*` 的定位是「选中行 / 选中 chip」；拿它当悬停会让「划过」和「选中」长得一样。共享基元（`secondaryText` / `quaternarySurface` / `rowSurface`）的悬停一律是 `surface.canvas` |
+| `backgroundColor: 'danger.700'` + `color: 'white'` | `status.danger` + `status.danger.text` | `default / on-default` 必须成对取 |
+| `fontSize: '1.25rem'` + `fontWeight: 700` | `textStyle: 'titleLarge'`      | 纪要正文的一级标题，对应「重要内容标题」那一档      |
+| `fontSize: '0.8125rem'`（13px）    | `textStyle: 'bodySmall'`                | 13px 不在 15 档字阶里；这一处是辅助信息，取 12px 的 `bodySmall` |
+| `lineHeight: 1.7 / 1.9`（逐字稿正文） | **保留**，只把 `fontSize` 换成 `textStyle` | 长文阅读行距是内容决定的几何，不是排版节奏 —— 与「视频舞台、日历网格不套栅格」同一条 |
+
+#### 2. 顺带查出的四个真缺陷
+
+| # | 缺陷 | 证据 | 处理 |
+| - | ---- | ---- | ---- |
+| 1 | **智能纪要 scope 术语两端两套** | 实录「我的内容 / 共享内容」↔ 纪要「归我所有 / 与我共享」 | 已在上一轮 §3.2 #6 统一（zh 对照核实：两处现在都是「我的内容 / 我参与的 / 共享内容」）；**App 端没落地，见 Android 记录 D1** |
+| 2 | **`text.error` 不是 token** | `TranscriptSegment.tsx` / `RecordRenameControl.tsx` 的 `color: 'text.error'`：`text` 组只有 `primary/secondary/disabled/inverse/link`，这条声明一直静默失效（错误文案不是红的） | 换成 `status.danger`（`StateHint` 的错误色同源） |
+| 3 | **`fontSize: 'sm'` 不是 token** | `LiveCaptureTranscript.tsx` —— 本仓库 `fontSizes` 只挂了 10–64 的数字档，`'sm'` 解析不到任何变量 | 换成 `textStyle: 'bodySmall'` |
+| 4 | **导出语言下拉与导出按钮的无障碍名都在渲染 key 原文** | ① `SummaryExportControl` 写 `t('language.zh')`，而 `meetings.json` **没有顶层 `language`**（正确键是 `translation.language.*`）→ 下拉里显示 `language.zh`；② `transcriptExport.download` 五个语言包的值都是**单花括号**（`下载 {format}`），i18next 只插值 `{{var}}` → 读屏念作「下载 {format}」 | 两处都改；并为 ① 补了一条用**真语言包**复核的用例（原来的 `t` 是 stub，只证明「请求了哪个键」，看不出键存不存在） |
+
+#### 3. 无障碍：错误播报与提交加载态
+
+- **14 处错误播报用的是 `role="status"`**（polite），这 11 个文件里 `role="alert"` 为 0 ——
+  与 `docs/component-system.md` §「加载、空数据与错误状态」相反。这些 `message` 槽同时
+  承载成功回执（`*.accepted` / `*.saved` / `*.copied` / `applied` / `undone`）与失败
+  （限流 / 权限 / 结果不确定 / 冲突 / 复制失败），所以判断收在
+  `components/liveRegionRole.ts` 一处：`receiptRole(message)` 与
+  `statusRole(status)`（后者的值域是服务端任务状态，`failed / uncertain / unavailable /
+  canceled / incomplete` 同样要断言式播报）。调用点只写 `role={receiptRole(message)}`。
+- **提交类动作零 `loading`**：`HumanSummaryPanel` / `SummaryTaskActions` /
+  `SummaryAutomationControl` / `SummarySharingControl`（确认 + 重提）/
+  `SummaryExportControl`（确认 + 重提）/ `RecordQuestionPanel` 的 8 颗提交按钮都只有
+  `isDisabled={busy}`，补上 `loading={busy}`（基元会同时置 `aria-busy` 并阻止重复提交）；
+  生成进度区补 `aria-busy`。
+- **智能纪要工具行选中态不可见**：五颗 `variant="tertiary"`（= `action.selected.bg`）
+  配 `aria-pressed`，而 `buttonRecipe` 没有 `[aria-pressed]` 样式 → 当前打开的那一颗与
+  其余四颗长得一模一样。改成选中 `tertiary` / 未选中 `secondaryText`。
+- **`SpeakerAttributionControl` 的搜索框写死 `backgroundColor: 'white'`**：深色主题下
+  输入文字继承翻转后的 `text.primary`（#E2E2E5），白底上对比度约 **1.3:1**（门槛
+  4.5:1）。底与前景改成成对的 `surface.default` / `text.primary`，并补 `_disabled`。
+- **`TranscriptSegment` 的四颗手写按钮**：「显示 / 隐藏原文」此前 hover 与
+  focus-visible **都没有**（键盘走到它看不见焦点），「恢复」缺 focus-visible；补齐。
+  同文件里错误提示的 `<p role="alert">` 保留（角色本来就对）。
+
+#### 4. 顺着审计清掉的三处结构问题
+
+- **智能纪要的兜底页重新引入了限宽版心**：§3.1 明确「去掉 `maxWidth` + `margin: 0 auto`」，
+  但 `MeetingLibrary` 的「能力不可用」分支还是 `maxWidth: 960px` + 居中。改成与四个
+  栏目页共用的 `pageShell('canvas')`；状态本身也从面板级的 `StateHint` 换成页面级的
+  `PageState`（§3「页面主内容区的空状态使用 `PageState`」）。
+- **录制页在用户资料未到时返回空片段**（白屏），另外三个栏目页这一档都是
+  `StateHint state="loading"`。已对齐。
+- **`MeetingMaterialsLinks.tsx` 是死代码**：全仓库无任何引用（`materials.title` /
+  `materials.hint` 也只有它在用）。删除组件 + 五个语言包里那一段（与 §3.16 处理未登录
+  落地页死代码同一做法）。
+- **`npm run lint` 在 HEAD 上本来就是红的**：`UploadMediaPlayer.tsx` 挂着一条
+  `eslint-disable-next-line jsx-a11y/media-has-caption`，而该规则只认原生
+  `<audio>` / `<video>`，这里渲染的是自定义 `MediaElement` → `--report-unused-disable-directives`
+  报「unused directive」。已在 HEAD 上复现并删除该指令，顺带两处 prettier 未格式化的
+  测试文件也一并格式化（`npm run check` 由红转绿）。
+
+#### 5. 护栏：把这一批纳入强制清单
+
+- `check:colors` 的 `migratedSourceUrls` 新增 30 个会议文件（40 → **71** 个已迁移源）；
+- `check:foundations` 的 `migratedTypographySources` / `migratedShapeSources` 新增同一批
+  （39 → **70**）；
+- 两处**覆盖缺口**补上：`libraryStyles.ts` 此前只在 shape/color 清单里、自己再写裸
+  `fontSize` 不会红，现在进 typography 清单；`migratedElevationSources` 此前**一个会议
+  文件都没有**（裸 `boxShadow` 无守卫），现在把四页共用件与三个一级页纳进来。
+- 仍未覆盖、有意留着的：**裸 spacing**（`check:foundations` 根本不扫
+  `padding/margin/gap`，会议模块还有 ~110 处 `0.625rem` / `1.25rem` 这类不在 10 档上的
+  值 —— 它们不是「没换」，是本来就没有对应档位，见下）、`brand.N` 数字档（`panda.config`
+  明确指定它替代裸 `primary.N`，但与 color-system §3.1「不得引用数字档」的口径冲突，
+  属规范层待收敛）、以及检查器 `legacyDirectColor` 的键名白名单不含
+  `borderLeftColor` 这类变体。
+
+**没动 `routes/MeetingDetail.tsx`**（视频会议详情，45 处）：它属于「视频会议」这一个
+栏目，不在这一批的三个子模块里。
+
+
 - `npx tsc -b`；
 - `npm run check:colors`：58 组对比度配对 + 40 个已迁移源文件；
 - `npm run check:foundations`：10 档 spacing、15 档字阶、7 档圆角、6 档高程、
@@ -1210,6 +1304,91 @@ CJK 下落的是同一个 Bold 字面，观感一致，按共享件那一档写�
     取 `:recordId`，而该脚本是「同一个 root 连续挂载多个页面」的写法，路由状态会滞后；
     它们分别由 `check-meeting-library-ui.mjs`（工作区）与 `check-capture-ui.mjs`
     （录制页，见下方遗留）覆盖。
+### 3.35 逐字稿搜索与命中高亮（2026-09-19 追加，两端同改）
+
+拿飞书妙记的实机截图逐屏比对之后，落了这件参考稿里已经成型、我们这边还没做的事。
+（另一件「会议信息页排版」只动了 App 端，记在
+`we-meet-android/docs/会议三子模块_UIUX_优化记录.md`。）
+
+#### 1. 搜索框：手写 input + 「搜索」按钮 → 共享 `SearchBox`
+
+`OriginalSearch` 是这一轮之前**最后一个还在手写搜索框**的会议组件：原生 `<input>`
+自己拼描边圆角，旁边再挂一颗 `secondary` 的「搜索」按钮，还有一个「清空」按钮。
+
+- 结构换成共享 `SearchBox`（放大镜 + 清空 ✕ + `type="search"`），与列表页 §3.13
+  完全同一口径：**提交只剩回车**，清空输入立刻撤销关键词筛选，✕ 只清空不提交
+  （基元里写了 `type="button"`，否则回车与 ✕ 会互相干扰）。
+- `TranscriptSegment` 新增 `highlight`：服务端只负责把**不匹配的行**过滤掉，
+  命中的**是哪个词**此前完全没标出来 —— 一条里出现多次时尤其难找。
+  现在正文里所有命中处包 `<mark>`（`action.selected.*` 成对取色，浅色 6:1 /
+  深色 5.5:1），大小写不敏感，且**按字面量匹配**（`indexOf` 而不是正则：搜索词
+  直接来自用户输入，拼进正则会让 `(`、`*` 这类字符抛异常或误匹配）。
+  参考稿里那一行「中国」被高亮成浅蓝底，就是这个位置。
+
+对应截图：`01.jpg` / `06.jpg` 里逐字稿顶部的搜索框，以及正文里被高亮的关键词。
+
+#### 3. 剩下的手写表单控件收进基元（同一轮）
+
+审计在 §B3 里点过：这一模块的表单控件大量绕过基元。这一轮把**能一一对应**的收掉：
+
+| 项 | 处数 | 改法 |
+| -- | ---: | ---- |
+| 原生 `<input type="checkbox">` | **9 处 / 7 文件**（`AudioRecording`、`CaptureTranscriptionPanel`、`CaptureTranslationPanel`×2、`InterpretationPanel`、`PrivateTranslationPanel`×2、`RecordPurge`、`SummarySharingControl`） | 全模块此前**只有 `RecordingUpload`** 用了共享 `Checkbox`。原生 input 拿不到 §2「状态矩阵」要求的 hover / pressed / focus-visible / selected / disabled —— 键盘走到它看不见焦点、深色下也不跟随主题。基元的 API 是 RAC 口径（`isSelected` / `onChange(value)` / `isDisabled`），逐处按原文替换 |
+| 连 `className` 都没有的裸 `<input>` | **3 处 / 2 文件**（`SummarySharingControl` 的搜索、`TranscriptReplacementControl` 的查找/替换） | 走共享 `Input`：32px 钉高 + 语义描边/底色/前景 + hover / invalid / disabled。此前是**浏览器默认外观**，深色主题下是白底黑字，与同屏控件对不上 |
+
+**有意没换**的：`SummaryTaskActions` / `HumanSummaryPanel` / `RecordQuestionPanel` 里那几个
+`className={field}` 的 input 与 select（`field` 是面板自己的一档几何，换成 32px 的 `Input`
+会改变弹层里的密度），以及 `TranscriptSegment` 的编辑框（`lineHeight: 1.7` 是逐字稿的阅读
+行距，基元不表达这个）。这三处留在「未做」清单里，理由写在那边。
+
+**验证**：`SummarySharingControl` / `TranscriptReplacementControl` / `CaptureTranscriptionPanel`
+/ `CaptureTranslationPanel` / `InterpretationPanel` / `PrivateTranslationPanel` / `RecordTrash`
+的既有用例（含 `getByRole('checkbox', { name: … })`）全部通过 —— RAC 的 Checkbox 仍是
+`role="checkbox"` 且无障碍名取子节点文本，断言不必改。
+
+## 验证
+
+#### 2026-09-19（§3.34 / §3.35 那一批）的验证记录
+
+```bash
+cd src/frontend
+npm run lint                                  # eslint . --ext ts,tsx --max-warnings 0 → 0
+npm run check                                  # prettier --check ./src → All matched files
+npm run check:json                             # 120 files
+npm run check:locales                          # 5 语言包 meetings + capture 结构一致
+npx tsc -b                                     # 0
+npm run check:colors                           # 58 组配对 / 71 个已迁移源(原 40)
+npm run check:foundations                      # 71 个已迁移源(原 39)
+npx vitest run                                 # 182 文件 / 1271 条
+```
+
+- §3.35 落地后复跑同一组命令：**lint / prettier / tsc / check:colors / check:foundations
+  仍全绿**，`vitest` **181/182 文件、1269/1271 条**通过（新增 3 条 `TranscriptSegment`
+  的高亮用例：多次命中、大小写不敏感、正则元字符按字面量处理）。
+- §3.35 第 3 节（表单控件收进基元）之后又复跑一次：同样全绿，
+  `vitest` 仍是 181/182 文件（余下那 2 条见下）。
+
+- **`npm run lint` 在 HEAD 上本来就是红的**（见 §3.34 第 4 节），这批顺手修掉，现在 0 错误。
+- **`npm run check`（prettier）在 HEAD 上也是红的**：`prettier --check ./src` 报 **8 个文件**
+  —— `chunkedUpload.test.ts`、`transcriptFollow.test.tsx`、`transcriptSync.test.ts`、
+  `CaptureAudioPlayer.tsx`、`CaptureTranscriptionPanel.test.tsx`、
+  `SpeakerAttributionControl.tsx`、`SpeakerAttributionControl.test.tsx`、
+  `TranscriptExportControl.tsx`，**全部落在 `features/meetings` 里**（这批动的正是这个
+  模块），已在 HEAD 上复现并 `--write` 修好。
+  注：只对 `./src` 跑 prettier —— 仓库 `check` 脚本的范围就是它；我一度顺手 `--write`
+  了 `scripts/*.mjs`（不在 `check` 范围内），已**全部回滚**，避免无关 churn。
+- `vitest` 全量：**2 条 `RecordingUpload.test.tsx` 超时**（「reports a cancelled transfer」
+  与「shows byte progress」）。两条在**单独跑该文件时都通过**（18/18），单条耗时约 3.2s
+  对 5s 预算 —— 是并行负载下的敏感超时，与本次改动无关（`RecordingUpload.tsx` 本次**一个
+  字节都没改**，`git diff --stat` 对该文件为空）。
+- 随文案 / 角色改动同步的用例 2 条：`SummaryExportControl.test.tsx` 的语言下拉断言
+  （旧断言把 bug 当成期望值 `language.zh`，改成 `translation.language.zh` 并**用真语言包
+  复核键存在**）、`InterpretationPanel.test.tsx` 的失败播报由 `status` 改 `alert`。
+- `prettier --write` 顺带格式化了两个此前未通过 `prettier --check` 的测试文件
+  （`CaptureTranscriptionPanel.test.tsx` / `SpeakerAttributionControl.test.tsx`，纯格式）。
+
+#### 2026-09-16 那批的验证记录（走查脚本与后端）
+
 - 后端（3.3 的改动，用本地 Postgres + Redis 按 CI 的环境变量跑）：
   `core/tests/rooms/test_api_video_meetings.py`（含新增的「只有真预约进 scheduled」）、
   `core/tests/tasks/test_rooms.py`（3 条：关闭无人进的房间 / 保留延迟预约与有人进过的
@@ -1219,7 +1398,9 @@ CJK 下落的是同一个 Bold 字面，观感一致，按共享件那一档写�
   同样失败**（字幕 / 更新权限 / webhook / 附件那几条，缺 S3、LiveKit 等 compose 依赖），
   与本次改动无关。
 
-### 走查截图
+### 走查截图（2026-09-16 那批）
+
+#### 2026-09-16 那批的留档
 
 `check-meeting-pages-ui.mjs` 会覆盖写 `src/frontend/test-results/` 下的同名文件；
 下面这份是本次改动验收时的留档（全部为 fixture 假数据）。
@@ -1239,7 +1420,28 @@ CJK 下落的是同一个 Bold 字面，观感一致，按共享件那一档写�
 
 ## 遗留（未在本次改动）
 
-- 录制工作区与纪要/翻译面板仍是手写样式，属于下一批业务域收口。
+- ~~录制工作区与纪要/翻译面板仍是手写样式，属于下一批业务域收口。~~
+  **2026-09-19 已完成，见 §3.34。**
+- **`routes/MeetingDetail.tsx`（视频会议详情）仍有 45 处裸值**（20 色族 / 17 裸
+  `fontSize` / 8 数字圆角）。它属于「视频会议」这一个栏目，不在 §3.34 的三个子模块里，
+  保持一致没动 —— 下一批把「视频会议」自己收口时一起做。
+- **面板族里的手写表单控件**：9 处原生 checkbox 与 3 处裸 `<input>` 已由 §3.35 第 3 节
+  收进基元。**仍未换**的三类（有意，不是漏掉）：① `SummaryTaskActions` /
+  `HumanSummaryPanel` / `RecordQuestionPanel` 里 `className={field}` 的 input / select
+  —— `field` 是面板自己的一档几何，换成 32px 的 `Input` 会改变弹层里的密度，要换得连
+  弹层一起改；② `TranscriptSegment` 的编辑框（`lineHeight: 1.7` 是逐字稿的阅读行距，
+  基元不表达这个）；③ `RecordOriginals` 之外的 4 处手写搜索入口。
+- **27 处 `toLocaleString()` 没传界面语言**：列表页那两处带 NaN 守卫与 `i18n.language`，
+  次级页与面板没跟上 —— 中文界面 + 英文浏览器时日期读作英文格式。修法是一处
+  `formatDateTime(value, locale)` 共享件（含解析失败的守卫，照 §3.2 #3 的口径），
+  但它要动 15 个文件、且面板里有多处是 `toLocaleTimeString`，属独立的一批。
+- **`AudioRecording` 之外的面板首屏仍未走 `StateHint`**：12+ 个面板用
+  `<p role="status">` 手写加载 / 错误（`RecordTrash` / `RecordPurge` / `RecordDocuments`
+  / `HumanSummary*` / `Summary*` 各面板）。这批只改了「错误播报的角色」与「提交按钮的
+  loading」，把整块换成 `StateHint` 是版面改动，留给下一批。
+- **轮询面板一次失败即整块换成错误文案**（`SummarySharingControl` / `SummaryExportControl`
+  / `SummaryNotificationPanel` / `SummaryAutomationControl`），会卸载 Editor 并丢掉已选
+  人员与草稿 —— 与 §3「后台刷新已有数据时保留旧内容」相反。属行为改动，需单独回归。
 - `scripts/check-capture-ui.mjs` 在**本次改动之前就已经失败**（`播放` 按钮那一步超时）：
   我在 HEAD 上复跑过同一条命令，报错与行号完全一致，所以与本次版面改动无关，
   没在这个分支里顺手修。

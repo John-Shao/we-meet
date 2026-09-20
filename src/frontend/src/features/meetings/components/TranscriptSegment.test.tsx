@@ -60,6 +60,28 @@ it('offers no edit control when no handler is supplied', () => {
   ).not.toBeInTheDocument()
 })
 
+it('marks every hit of the search term, case-insensitively', () => {
+  show({ text: 'World, world and WORLD.', highlight: 'world' })
+  const marks = screen.getAllByRole('mark') // <mark>
+  expect(marks).toHaveLength(3)
+  expect(marks.map((node) => node.textContent)).toEqual([
+    'World',
+    'world',
+    'WORLD',
+  ])
+})
+
+it('treats the search term literally instead of as a pattern', () => {
+  // 搜索词直接来自用户输入,含正则元字符时不能抛异常、也不能误匹配。
+  show({ text: 'a (b) c', highlight: '(b)' })
+  expect(screen.getAllByRole('mark').map((n) => n.textContent)).toEqual(['(b)'])
+})
+
+it('does not mark anything when no search term is set', () => {
+  show({ text: 'Hello world.' })
+  expect(screen.queryAllByRole('mark')).toHaveLength(0)
+})
+
 it('saves a corrected line, trimmed', () => {
   const { onCorrect } = show()
   fireEvent.click(screen.getByText('transcriptCorrection.edit'))

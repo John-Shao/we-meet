@@ -7,6 +7,7 @@ import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { receiptRole, statusRole } from './liveRegionRole'
 
 type Props = { recordId: string; viewerId: string; summaryId?: string }
 type Notice = {
@@ -36,7 +37,7 @@ type Intent = { key: string; expected_attempt: number }
 const stack = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.75rem',
+  gap: 'md',
   minWidth: 0,
   overflowWrap: 'anywhere',
 })
@@ -241,13 +242,13 @@ function Delivery({
     <article
       className={css({
         border: '1px solid',
-        borderColor: 'greyscale.200',
-        borderRadius: '8px',
-        padding: '0.75rem',
+        borderColor: 'border.subtle',
+        borderRadius: 'control',
+        padding: 'md',
       })}
     >
       <div className={stack}>
-        <div role="status">
+        <div role={statusRole(notice.status)}>
           {new Date(notice.created_at).toLocaleString()} ·{' '}
           {t(`summaryNotice.status.${notice.status}`)}
         </div>
@@ -279,7 +280,7 @@ function Delivery({
             </Button>
           </>
         )}
-        {message && <div role="status">{t(message)}</div>}
+        {message && <div role={receiptRole(message)}>{t(message)}</div>}
       </div>
     </article>
   )

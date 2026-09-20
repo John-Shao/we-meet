@@ -23,13 +23,13 @@ const FORMATS = [
 const linkCls = css({
   display: 'inline-flex',
   alignItems: 'center',
-  padding: '0.25rem 0.5rem',
-  borderRadius: '0.375rem',
+  padding: 'xs sm',
+  borderRadius: 'control',
   textStyle: 'labelMedium',
   color: 'text.link',
   textDecoration: 'none',
-  _hover: { backgroundColor: 'primary.100' },
-  _focusVisible: { outline: '2px solid token(colors.primary.500)' },
+  _hover: { backgroundColor: 'surface.canvas' },
+  _focusVisible: { outline: '2px solid token(colors.border.focus)' },
 })
 
 export function TranscriptExportControl({ recordId }: { recordId: string }) {
@@ -39,11 +39,13 @@ export function TranscriptExportControl({ recordId }: { recordId: string }) {
       className={css({
         display: 'flex',
         alignItems: 'center',
-        gap: '0.25rem',
+        gap: 'xs',
         flexWrap: 'wrap',
       })}
     >
-      <span className={css({ color: 'text.secondary', textStyle: 'labelMedium' })}>
+      <span
+        className={css({ color: 'text.secondary', textStyle: 'labelMedium' })}
+      >
         {t('transcriptExport.label')}
       </span>
       {FORMATS.map((format) => (

@@ -355,13 +355,21 @@ const pagerRow = css({
 /** 栅格视图开关:窄屏隐藏。display 放外层,避免与基元 recipe 抢同一个原子类。 */
 const gridToggleWrap = css({ display: { base: 'none', md: 'inline-flex' } })
 
-/** 功能不可用时的兜底版心。 */
-const unavailableLayout = css({
-  maxWidth: '960px',
-  width: '100%',
-  margin: '0 auto',
-  padding: 'xl',
-})
+/**
+ * 功能不可用时的兜底页。
+ *
+ * 原先这里自己写了一份 `maxWidth: 960px` + `margin: 0 auto` 的限宽居中版心 ——
+ * 收口记录 §3.1 已把限宽版心整个删掉(「窗口一宽两侧就各留一大块空白」),
+ * 这个分支是当时漏掉的一处。现在与四个栏目页共用 `pageShell('canvas')`:
+ * 铺满内容列、高度占满,状态块在其中居中。
+ *
+ * 状态本身也从 `StateHint`(面板级)换成 `PageState`(页面主内容区),与
+ * `docs/component-system.md` §「加载、空数据与错误状态」的分工一致。
+ */
+const unavailableLayout = cx(
+  pageShell('canvas'),
+  css({ padding: 'xl', justifyContent: 'center' })
+)
 
 /** 兜底页的「回会议首页」入口。 */
 const homeLink = css({
@@ -1043,16 +1051,15 @@ function LibraryRoute({ minutes = false }: { minutes?: boolean }) {
     return (
       <MeetingModuleShell>
         <main className={unavailableLayout}>
-          <StateHint
-            state="empty"
+          <PageState
+            density="compact"
+            description={t('library.unavailable')}
             action={
               <Link href="/meeting" className={homeLink}>
                 {t('library.home')}
               </Link>
             }
-          >
-            {t('library.unavailable')}
-          </StateHint>
+          />
         </main>
       </MeetingModuleShell>
     )

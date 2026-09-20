@@ -9,6 +9,7 @@ import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { receiptRole, statusRole } from './liveRegionRole'
 
 type Props = {
   recordId: string
@@ -45,7 +46,7 @@ type Intent = {
 const stack = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.75rem',
+  gap: 'md',
   minWidth: 0,
 })
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
@@ -108,9 +109,11 @@ const Control = (props: Props) => {
             >
               {/* Language names come from the shared `language.*` keys, the same
                   source every other language picker in this feature uses —
-                  hardcoding 中文/English here left fr/nl/de users with Chinese. */}
-              <option value="zh">{t('language.zh')}</option>
-              <option value="en">{t('language.en')}</option>
+                  hardcoding 中文/English here left fr/nl/de users with Chinese.
+                  `meetings.json` 没有顶层 `language`,必须在 `translation` 下取;
+                  原先写 `t('language.zh')` 只会把 key 原文渲染到下拉里。 */}
+              <option value="zh">{t('translation.language.zh')}</option>
+              <option value="en">{t('translation.language.en')}</option>
             </select>
           </label>
           <Text variant="note">{t('summaryExport.languageHint')}</Text>
@@ -290,7 +293,9 @@ const ExportCopy = ({
     <div className={stack}>
       <Text variant="note">{t('summaryExport.copyHint')}</Text>
       {receipt && (
-        <div role="status">{t(`summaryExport.status.${receipt.status}`)}</div>
+        <div role={statusRole(receipt.status)}>
+          {t(`summaryExport.status.${receipt.status}`)}
+        </div>
       )}
       {receipt?.status === 'ready' &&
         receipt.document_id &&
@@ -302,7 +307,12 @@ const ExportCopy = ({
       {intent ? (
         <>
           <Text>{t('summaryExport.pendingHint')}</Text>
-          <Button size="sm" isDisabled={busy} onPress={() => void submit()}>
+          <Button
+            size="sm"
+            loading={busy}
+            isDisabled={busy}
+            onPress={() => void submit()}
+          >
             {t('summaryExport.resubmit')}
           </Button>
         </>
@@ -327,14 +337,18 @@ const ExportCopy = ({
                   overflowWrap: 'anywhere',
                   maxHeight: '24rem',
                   overflow: 'auto',
-                  padding: '0.75rem',
+                  padding: 'md',
                   border: '1px solid',
-                  borderColor: 'greyscale.200',
-                  borderRadius: '6px',
-                  '& h1, & h2': { fontWeight: 600, marginBottom: '0.75rem' },
-                  '& h1': { fontSize: '1.125rem' },
-                  '& h2': { marginTop: '1rem' },
-                  '& p': { marginBottom: '0.75rem', whiteSpace: 'pre-wrap' },
+                  borderColor: 'border.subtle',
+                  borderRadius: 'control',
+                  '& h1, & h2': {
+                    textStyle: 'titleSmall',
+                    fontWeight: 'semibold',
+                    marginBottom: 'md',
+                  },
+                  '& h1': { textStyle: 'titleMedium' },
+                  '& h2': { marginTop: 'lg' },
+                  '& p': { marginBottom: 'md', whiteSpace: 'pre-wrap' },
                   '& ul': { paddingLeft: '1.25rem', listStyleType: 'disc' },
                 })}
               >
@@ -361,6 +375,7 @@ const ExportCopy = ({
               {maySubmit && (
                 <Button
                   size="sm"
+                  loading={busy}
                   isDisabled={
                     busy ||
                     (!!receipt &&
@@ -380,7 +395,7 @@ const ExportCopy = ({
           )}
         </>
       )}
-      {message && <div role="status">{t(message)}</div>}
+      {message && <div role={receiptRole(message)}>{t(message)}</div>}
       <Button
         size="sm"
         variant="tertiary"

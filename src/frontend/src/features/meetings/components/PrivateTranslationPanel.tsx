@@ -2,6 +2,7 @@ import { useLocalParticipant } from '@livekit/components-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Text } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { css } from '@/styled-system/css'
 import {
   usePrivateTranslation,
@@ -150,32 +151,23 @@ export const PrivateTranslationPanel = () => {
             </select>
           </label>
           <Text>{t('target', { language: languages(options.target) })}</Text>
-          <label>
-            <input
-              type="checkbox"
-              checked={options.audio}
-              disabled={state.pending || state.uncertain}
-              onChange={(event) =>
-                setOptions({ ...options, audio: event.target.checked })
-              }
-            />
+          <Checkbox
+            isSelected={options.audio}
+            isDisabled={state.pending || state.uncertain}
+            onChange={(audio) => setOptions({ ...options, audio })}
+          >
             {t('audio')}
-          </label>
+          </Checkbox>
           {state.archiveAvailable && (
-            <label>
-              <input
-                type="checkbox"
-                checked={options.save_translations ?? false}
-                disabled={state.pending || state.uncertain}
-                onChange={(event) =>
-                  setOptions({
-                    ...options,
-                    save_translations: event.target.checked,
-                  })
-                }
-              />
+            <Checkbox
+              isSelected={options.save_translations ?? false}
+              isDisabled={state.pending || state.uncertain}
+              onChange={(save_translations) =>
+                setOptions({ ...options, save_translations })
+              }
+            >
               {t('saveTranslations')}
-            </label>
+            </Checkbox>
           )}
         </>
       ) : (
@@ -241,7 +233,7 @@ export const PrivateTranslationPanel = () => {
         </>
       )}
       {state.error && (
-        <div role="status">{t(state.uncertain ? 'uncertain' : 'error')}</div>
+        <div role="alert">{t(state.uncertain ? 'uncertain' : 'error')}</div>
       )}
       <Text variant="note">{t('historyHint')}</Text>
       <div aria-label={t('text')} className={css({ wordBreak: 'break-word' })}>

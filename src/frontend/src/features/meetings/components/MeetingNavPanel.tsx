@@ -181,7 +181,7 @@ const navRowIdle = css({
 const navRowActive = css({
   backgroundColor: 'selected.bg',
   color: 'selected.text',
-  fontWeight: 500,
+  fontWeight: 'medium',
 })
 
 /**

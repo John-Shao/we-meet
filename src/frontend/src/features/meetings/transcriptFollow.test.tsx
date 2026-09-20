@@ -1,8 +1,19 @@
-import { act, fireEvent, render, renderHook, screen } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+} from '@testing-library/react'
 import { createRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { activeRowId, useTranscriptFollow, usePlaybackFollow, SCROLL_SUPPRESSION_MS } from './transcriptSync'
+import {
+  activeRowId,
+  useTranscriptFollow,
+  usePlaybackFollow,
+  SCROLL_SUPPRESSION_MS,
+} from './transcriptSync'
 
 it('resumes following after a scroll even when playback is paused', () => {
   vi.useFakeTimers()
@@ -101,7 +112,12 @@ describe('useTranscriptFollow', () => {
       })
       return (
         <div ref={containerRef}>
-          <p data-segment-id="b" ref={(n) => { if (n) n.scrollIntoView = () => scrolls.push('b') }}>
+          <p
+            data-segment-id="b"
+            ref={(n) => {
+              if (n) n.scrollIntoView = () => scrolls.push('b')
+            }}
+          >
             b
           </p>
         </div>
@@ -123,7 +139,12 @@ describe('useTranscriptFollow', () => {
       })
       return (
         <div ref={containerRef}>
-          <p data-segment-id="b" ref={(n) => { if (n) n.scrollIntoView = () => scrolls.push('b') }}>
+          <p
+            data-segment-id="b"
+            ref={(n) => {
+              if (n) n.scrollIntoView = () => scrolls.push('b')
+            }}
+          >
             b
           </p>
         </div>

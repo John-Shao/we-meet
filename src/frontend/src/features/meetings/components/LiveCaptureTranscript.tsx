@@ -61,7 +61,7 @@ export function LiveCaptureTranscript({
       className={css({
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.75rem',
+        gap: 'md',
         minWidth: 0,
       })}
     >
@@ -79,10 +79,14 @@ export function LiveCaptureTranscript({
           className={css({
             borderBottomWidth: '1px',
             borderColor: 'border.default',
-            paddingY: '0.5rem',
+            paddingY: 'sm',
           })}
         >
-          <p className={css({ color: 'text.secondary', fontSize: 'sm' })}>
+          {/* `fontSize: 'sm'` 不是本仓库的字号 token(Panda 只挂了 10–64 的数字档),
+              这条声明此前一直静默失效 —— 改成 Material 语义字阶。 */}
+          <p
+            className={css({ textStyle: 'bodySmall', color: 'text.secondary' })}
+          >
             {Math.floor(row.start_ms / 60000)}:
             {String(Math.floor(row.start_ms / 1000) % 60).padStart(2, '0')}
           </p>
@@ -96,9 +100,7 @@ export function LiveCaptureTranscript({
           </p>
         </article>
       ))}
-      <div
-        className={css({ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' })}
-      >
+      <div className={css({ display: 'flex', gap: 'md', flexWrap: 'wrap' })}>
         {after > 0 && (
           <Button
             variant="secondary"

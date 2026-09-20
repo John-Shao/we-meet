@@ -19,7 +19,7 @@ type TrashRecord = {
   lifecycle_revision: number
   purge?: PurgeReceipt | null
 }
-const stack = css({ display: 'flex', flexDirection: 'column', gap: '0.75rem' })
+const stack = css({ display: 'flex', flexDirection: 'column', gap: 'md' })
 
 function LifecycleConfirmation({
   viewerId,

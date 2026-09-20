@@ -3,8 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
-import { Button } from '@/primitives'
+import { Button, Input } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { receiptRole } from './liveRegionRole'
 
 type Preview = {
   preview_hash: string
@@ -25,7 +26,7 @@ type Intent = {
   find: string
   replacement: string
 }
-const stack = css({ display: 'flex', flexDirection: 'column', gap: '0.75rem' })
+const stack = css({ display: 'flex', flexDirection: 'column', gap: 'md' })
 
 // Only the retry marker is persisted, never a preview or a transcript copy.
 function load(key: string): Intent | null {
@@ -202,9 +203,12 @@ function Control({
     <section className={stack} aria-label={t('batchCorrection.title')}>
       <h3>{t('batchCorrection.title')}</h3>
       <p>{t('batchCorrection.hint')}</p>
+      {/* 两个查找/替换框此前是裸 `<input>`(无 className) —— 浏览器默认外观在深色
+          主题下不跟随主题。走共享 `Input`,与同面板的其它控件同一套几何与状态。 */}
       <label>
         {t('batchCorrection.find')}
-        <input
+        <Input
+          aria-label={t('batchCorrection.find')}
           value={find}
           maxLength={200}
           disabled={locked}
@@ -217,7 +221,8 @@ function Control({
       </label>
       <label>
         {t('batchCorrection.replacement')}
-        <input
+        <Input
+          aria-label={t('batchCorrection.replacement')}
           value={replacement}
           maxLength={200}
           disabled={locked}
@@ -282,7 +287,9 @@ function Control({
           </Button>
         </>
       )}
-      {message && <p role="status">{t(`batchCorrection.${message}`)}</p>}
+      {message && (
+        <p role={receiptRole(message)}>{t(`batchCorrection.${message}`)}</p>
+      )}
       <h4>{t('batchCorrection.history')}</h4>
       {history.isError ? (
         <Button onPress={() => void history.refetch()}>

@@ -9,6 +9,7 @@ import type {
   ApiRecordSummaryVersion,
   RecordSourceReference,
 } from '../api/ApiMeetingRecord'
+import { receiptRole, statusRole } from './liveRegionRole'
 
 type Question = {
   id: string
@@ -23,13 +24,13 @@ type Question = {
   error_code: string
 }
 type Intent = { key: string; snapshot_id: string; question: string }
-const stack = css({ display: 'flex', flexDirection: 'column', gap: '0.75rem' })
+const stack = css({ display: 'flex', flexDirection: 'column', gap: 'md' })
 const field = css({
   width: '100%',
-  padding: '0.5rem',
+  padding: 'sm',
   border: '1px solid',
-  borderColor: 'greyscale.300',
-  borderRadius: '4px',
+  borderColor: 'border.default',
+  borderRadius: 'field',
   background: 'transparent',
   color: 'inherit',
 })
@@ -230,6 +231,7 @@ export const RecordQuestionPanel = ({
       </label>
       <Button
         size="sm"
+        loading={saving}
         isDisabled={
           saving ||
           answer?.status === 'running' ||
@@ -241,11 +243,13 @@ export const RecordQuestionPanel = ({
         {t(intent ? 'recordQuestion.retry' : 'recordQuestion.ask')}
       </Button>
       {saving && <div role="status">{t('recordQuestion.status.running')}</div>}
-      {message && <div role="status">{t(message)}</div>}
+      {message && <div role={receiptRole(message)}>{t(message)}</div>}
       {answer && (
         <article className={stack}>
           <Text>{answer.question}</Text>
-          <div role="status">{t(`recordQuestion.status.${answer.status}`)}</div>
+          <div role={statusRole(answer.status)}>
+            {t(`recordQuestion.status.${answer.status}`)}
+          </div>
           {answer.status === 'succeeded' && answer.content && (
             <>
               <Text>

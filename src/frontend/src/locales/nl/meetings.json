@@ -150,7 +150,7 @@
   },
   "transcriptExport": {
     "label": "Transcript exporteren",
-    "download": "{format} downloaden"
+    "download": "{{format}} downloaden"
   },
   "translationArchive": {
     "privateScope": "Privévertaling, alleen voor jou zichtbaar",
@@ -803,10 +803,6 @@
     "history": "Versiegeschiedenis",
     "export": "Notulen exporteren",
     "searchMeetings": "Vergaderingen doorzoeken met AI"
-  },
-  "materials": {
-    "title": "Na de vergadering",
-    "hint": "Bekijk opnamen en transcripten in de vergaderrecords. Genereer en deel notulen en volg actiepunten op in de AI-notulen."
   },
   "video": {
     "more": "Meer",

@@ -150,7 +150,7 @@
   },
   "transcriptExport": {
     "label": "Export transcript",
-    "download": "Download {format}"
+    "download": "Download {{format}}"
   },
   "translationArchive": {
     "privateScope": "Private translation, visible only to you",
@@ -803,10 +803,6 @@
     "history": "Version history",
     "export": "Export minutes",
     "searchMeetings": "Search meetings with AI"
-  },
-  "materials": {
-    "title": "After the meeting",
-    "hint": "Find recordings and transcripts in meeting records. Generate and share minutes and follow up on action items in smart minutes."
   },
   "video": {
     "more": "More",

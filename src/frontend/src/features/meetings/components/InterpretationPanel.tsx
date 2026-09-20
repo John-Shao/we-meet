@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { Link } from 'wouter'
 import { Button, Text } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { css } from '@/styled-system/css'
 import { useInterpretation } from '../interpretationContext'
 import type { InterpretationLanguage } from '../interpretationEvents'
@@ -59,20 +60,18 @@ export function InterpretationPanel() {
                 state.archiveAvailable &&
                 (!channel ||
                   ['stopped', 'incomplete'].includes(channel.state)) && (
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={save[target]}
-                      disabled={state.pending || state.uncertain}
-                      onChange={(event) =>
-                        setSave((previous) => ({
-                          ...previous,
-                          [target]: event.target.checked,
-                        }))
-                      }
-                    />
+                  <Checkbox
+                    isSelected={save[target]}
+                    isDisabled={state.pending || state.uncertain}
+                    onChange={(selected) =>
+                      setSave((previous) => ({
+                        ...previous,
+                        [target]: selected,
+                      }))
+                    }
+                  >
                     {t('saveTranslations')}
-                  </label>
+                  </Checkbox>
                 )}
               {channel?.archive_record_id && (
                 <Text variant="note">
@@ -170,7 +169,7 @@ export function InterpretationPanel() {
         </Button>
       )}
       {state.error && (
-        <div role="status">{t(state.uncertain ? 'uncertain' : 'error')}</div>
+        <div role="alert">{t(state.uncertain ? 'uncertain' : 'error')}</div>
       )}
       <Text variant="note">{t('historyHint')}</Text>
       <div aria-label={t('text')} className={css({ wordBreak: 'break-word' })}>

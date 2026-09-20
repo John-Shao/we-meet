@@ -150,7 +150,7 @@
   },
   "transcriptExport": {
     "label": "导出文字记录",
-    "download": "下载 {format}"
+    "download": "下载 {{format}}"
   },
   "translationArchive": {
     "privateScope": "私人译文，仅你可见",
@@ -803,10 +803,6 @@
     "history": "历史版本",
     "export": "导出纪要",
     "searchMeetings": "搜索会议 AI"
-  },
-  "materials": {
-    "title": "会后资料",
-    "hint": "实录中查看录音与文字记录，智能纪要中生成、分享纪要和跟进待办。"
   },
   "video": {
     "more": "更多",

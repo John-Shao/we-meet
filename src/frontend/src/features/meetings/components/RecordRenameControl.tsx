@@ -66,7 +66,7 @@ export function RecordRenameControl({
       className={css({
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.5rem',
+        gap: 'sm',
         alignItems: 'flex-start',
       })}
       onSubmit={(event) => {
@@ -86,7 +86,7 @@ export function RecordRenameControl({
       <label
         className={css({
           display: 'flex',
-          gap: '0.5rem',
+          gap: 'sm',
           alignItems: 'center',
           flexWrap: 'wrap',
         })}
@@ -105,15 +105,15 @@ export function RecordRenameControl({
             if (rename.error) rename.reset()
           }}
           className={css({
-            border: '1px solid token(colors.greyscale.200)',
-            borderRadius: '0.75rem',
-            padding: '0.5rem 0.75rem',
+            border: '1px solid token(colors.border.subtle)',
+            borderRadius: 'card',
+            padding: 'sm md',
             backgroundColor: 'transparent',
             minWidth: '16rem',
           })}
         />
       </label>
-      <div className={css({ display: 'flex', gap: '0.5rem' })}>
+      <div className={css({ display: 'flex', gap: 'sm' })}>
         <Button type="submit" size="dense" isDisabled={disabled}>
           {t(rename.isPending ? 'library.renaming' : 'library.renameSave')}
         </Button>
@@ -128,7 +128,7 @@ export function RecordRenameControl({
         </Button>
       </div>
       {rename.isError && (
-        <p role="alert" className={css({ color: 'text.error' })}>
+        <p role="alert" className={css({ color: 'status.danger' })}>
           {t(conflict ? 'library.renameConflict' : 'library.renameError')}
         </p>
       )}

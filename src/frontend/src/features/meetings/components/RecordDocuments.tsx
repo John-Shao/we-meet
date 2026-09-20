@@ -64,7 +64,7 @@ function DocumentHistory({
       className={css({
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.75rem',
+        gap: 'md',
       })}
     >
       <h3>{t('recordDocuments.title')}</h3>
@@ -96,7 +96,7 @@ function DocumentHistory({
             className={css({
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.5rem',
+              gap: 'sm',
             })}
           >
             <p>
@@ -123,7 +123,7 @@ function DocumentHistory({
           </article>
         ))
       )}
-      <div className={css({ display: 'flex', gap: '0.5rem' })}>
+      <div className={css({ display: 'flex', gap: 'sm' })}>
         {cursors.length > 1 && (
           <Button
             size="sm"

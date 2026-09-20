@@ -42,7 +42,7 @@ export function SpeakerAttributionControl({
       className={css({
         display: 'inline-flex',
         alignItems: 'center',
-        gap: '0.5rem',
+        gap: 'sm',
         flexWrap: 'wrap',
       })}
     >
@@ -54,12 +54,12 @@ export function SpeakerAttributionControl({
         onClick={() => setOpened((value) => !value)}
         className={css({
           cursor: 'pointer',
-          color: 'primary.700',
-          borderRadius: '0.25rem',
-          padding: '0.125rem 0.25rem',
+          color: 'text.link',
+          borderRadius: 'field',
+          padding: 'xxs xs',
           textStyle: 'labelMedium',
-          _hover: { backgroundColor: 'primary.100' },
-          _focusVisible: { outline: '2px solid token(colors.primary.500)' },
+          _hover: { backgroundColor: 'surface.canvas' },
+          _focusVisible: { outline: '2px solid token(colors.border.focus)' },
         })}
       >
         {t(opened ? 'speakerAttribution.cancel' : 'speakerAttribution.change')}
@@ -106,17 +106,26 @@ function Picker({
       className={css({
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.5rem',
-        margin: '0.5rem 0',
-        padding: '0.75rem',
-        borderRadius: '0.75rem',
-        border: '1px solid token(colors.greyscale.200)',
-        backgroundColor: 'greyscale.50',
+        gap: 'sm',
+        margin: 'sm 0',
+        padding: 'md',
+        borderRadius: 'card',
+        border: '1px solid token(colors.border.subtle)',
+        backgroundColor: 'surface.canvas',
       })}
     >
-      <span className={css({ display: 'flex', gap: '0.5rem', alignItems: 'center' })}>
-        <label className={css({ display: 'flex', gap: '0.5rem', alignItems: 'center' })}>
-          <span className={css({ color: 'text.secondary', textStyle: 'labelMedium' })}>
+      <span
+        className={css({ display: 'flex', gap: 'sm', alignItems: 'center' })}
+      >
+        <label
+          className={css({ display: 'flex', gap: 'sm', alignItems: 'center' })}
+        >
+          <span
+            className={css({
+              color: 'text.secondary',
+              textStyle: 'labelMedium',
+            })}
+          >
             {t('speakerAttribution.search')}
           </span>
           <input
@@ -125,10 +134,15 @@ function Picker({
             value={text}
             onChange={(event) => setText(event.target.value)}
             className={css({
-              border: '1px solid token(colors.greyscale.200)',
-              borderRadius: '0.5rem',
-              padding: '0.25rem 0.5rem',
-              backgroundColor: 'white',
+              border: '1px solid token(colors.border.subtle)',
+              borderRadius: 'control',
+              padding: 'xs sm',
+              // 此前写死 `white`:深色主题下输入文字继承翻转后的 text.primary
+              // (#E2E2E5),压在纯白底上只有约 1.3:1 —— 远低于 4.5:1。
+              // 底与前景成对取语义角色,两套主题都成立。
+              backgroundColor: 'surface.default',
+              color: 'text.primary',
+              _disabled: { color: 'text.disabled' },
             })}
           />
         </label>
@@ -141,7 +155,9 @@ function Picker({
           {t('speakerAttribution.find')}
         </Button>
       </span>
-      {candidates.isError && <span role="status">{t('speakerAttribution.loadError')}</span>}
+      {candidates.isError && (
+        <span role="alert">{t('speakerAttribution.loadError')}</span>
+      )}
       {candidates.data && !candidates.data.results.length && (
         <span className={css({ color: 'text.secondary' })}>
           {t('speakerAttribution.nobody')}
@@ -179,7 +195,9 @@ function Picker({
           {t('speakerAttribution.clear')}
         </Button>
       </span>
-      {attribute.isError && <span role="status">{t('speakerAttribution.failed')}</span>}
+      {attribute.isError && (
+        <span role="alert">{t('speakerAttribution.failed')}</span>
+      )}
     </span>
   )
 }

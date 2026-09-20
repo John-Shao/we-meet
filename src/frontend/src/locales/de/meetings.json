@@ -150,7 +150,7 @@
   },
   "transcriptExport": {
     "label": "Transkript exportieren",
-    "download": "{format} herunterladen"
+    "download": "{{format}} herunterladen"
   },
   "translationArchive": {
     "privateScope": "Private Übersetzung, nur für Sie sichtbar",
@@ -803,10 +803,6 @@
     "history": "Versionsverlauf",
     "export": "Protokoll exportieren",
     "searchMeetings": "Besprechungen mit KI durchsuchen"
-  },
-  "materials": {
-    "title": "Nach der Besprechung",
-    "hint": "Aufnahmen und Transkripte finden Sie in den Besprechungsaufzeichnungen. Dort erstellen und teilen Sie auch intelligente Protokolle und verfolgen Maßnahmen nach."
   },
   "video": {
     "more": "Mehr",

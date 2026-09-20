@@ -310,6 +310,9 @@ const migratedTypographySources = [
   '../src/primitives/SegmentedControl.tsx',
   '../src/components/PageState.tsx',
   // D 阶段:会议模块页面与共享件(Home 的营销 hero 仍保留自己的字阶,未列入)。
+  // `libraryStyles.ts` 是样板本体 —— 它此前只在 shape/color 清单里,自己再写裸
+  // `fontSize` 不会红;补进 typography 清单才算真正锁住字阶。
+  '../src/features/meetings/components/libraryStyles.ts',
   '../src/features/meetings/components/MeetingNavPanel.tsx',
   '../src/features/meetings/components/MeetingModuleNav.tsx',
   '../src/features/meetings/components/ScheduledMeetingsList.tsx',
@@ -321,6 +324,38 @@ const migratedTypographySources = [
   '../src/features/meetings/routes/MeetingRecordWorkspace.tsx',
   '../src/features/meetings/routes/AudioRecording.tsx',
   '../src/features/meetings/routes/MeetingLibrary.tsx',
+  // D 阶段第二批:录制工作区与纪要 / 翻译 / 字幕面板(上一轮的「遗留」)。
+  '../src/features/meetings/components/CaptureAudioPlayer.tsx',
+  '../src/features/meetings/components/CaptureTranscriptionPanel.tsx',
+  '../src/features/meetings/components/CaptureTranslationArchives.tsx',
+  '../src/features/meetings/components/CaptureTranslationPanel.tsx',
+  '../src/features/meetings/components/HumanSummaryHistory.tsx',
+  '../src/features/meetings/components/HumanSummaryPanel.tsx',
+  '../src/features/meetings/components/LiveCaptureTranscript.tsx',
+  '../src/features/meetings/components/MeetingRecordLinks.tsx',
+  '../src/features/meetings/components/OnlineCaptureControl.tsx',
+  '../src/features/meetings/components/OnlineCaptureNotice.tsx',
+  '../src/features/meetings/components/OriginalSearch.tsx',
+  '../src/features/meetings/components/RecordDocuments.tsx',
+  '../src/features/meetings/components/RecordPurge.tsx',
+  '../src/features/meetings/components/RecordQuestionPanel.tsx',
+  '../src/features/meetings/components/RecordRenameControl.tsx',
+  '../src/features/meetings/components/RecordSummaryPanel.tsx',
+  '../src/features/meetings/components/RecordTrash.tsx',
+  '../src/features/meetings/components/SpeakerActivity.tsx',
+  '../src/features/meetings/components/SpeakerAttributionControl.tsx',
+  '../src/features/meetings/components/SpeakerFilter.tsx',
+  '../src/features/meetings/components/SpeakerTimeline.tsx',
+  '../src/features/meetings/components/SummaryAutomationControl.tsx',
+  '../src/features/meetings/components/SummaryExportControl.tsx',
+  '../src/features/meetings/components/SummaryNotificationPanel.tsx',
+  '../src/features/meetings/components/SummarySharingControl.tsx',
+  '../src/features/meetings/components/SummaryTaskActions.tsx',
+  '../src/features/meetings/components/TranscriptExportControl.tsx',
+  '../src/features/meetings/components/TranscriptReplacementControl.tsx',
+  '../src/features/meetings/components/TranscriptSegment.tsx',
+  '../src/features/meetings/components/TranslationArchivePanel.tsx',
+  '../src/features/meetings/components/UploadMediaPlayer.tsx',
 ].map((path) => new URL(path, import.meta.url))
 
 for (const sourceUrl of migratedTypographySources) {
@@ -373,6 +408,38 @@ const migratedShapeSources = [
   '../src/features/meetings/routes/MeetingRecordWorkspace.tsx',
   '../src/features/meetings/routes/AudioRecording.tsx',
   '../src/features/meetings/routes/MeetingLibrary.tsx',
+  // D 阶段第二批:录制工作区与纪要 / 翻译 / 字幕面板(上一轮的「遗留」)。
+  '../src/features/meetings/components/CaptureAudioPlayer.tsx',
+  '../src/features/meetings/components/CaptureTranscriptionPanel.tsx',
+  '../src/features/meetings/components/CaptureTranslationArchives.tsx',
+  '../src/features/meetings/components/CaptureTranslationPanel.tsx',
+  '../src/features/meetings/components/HumanSummaryHistory.tsx',
+  '../src/features/meetings/components/HumanSummaryPanel.tsx',
+  '../src/features/meetings/components/LiveCaptureTranscript.tsx',
+  '../src/features/meetings/components/MeetingRecordLinks.tsx',
+  '../src/features/meetings/components/OnlineCaptureControl.tsx',
+  '../src/features/meetings/components/OnlineCaptureNotice.tsx',
+  '../src/features/meetings/components/OriginalSearch.tsx',
+  '../src/features/meetings/components/RecordDocuments.tsx',
+  '../src/features/meetings/components/RecordPurge.tsx',
+  '../src/features/meetings/components/RecordQuestionPanel.tsx',
+  '../src/features/meetings/components/RecordRenameControl.tsx',
+  '../src/features/meetings/components/RecordSummaryPanel.tsx',
+  '../src/features/meetings/components/RecordTrash.tsx',
+  '../src/features/meetings/components/SpeakerActivity.tsx',
+  '../src/features/meetings/components/SpeakerAttributionControl.tsx',
+  '../src/features/meetings/components/SpeakerFilter.tsx',
+  '../src/features/meetings/components/SpeakerTimeline.tsx',
+  '../src/features/meetings/components/SummaryAutomationControl.tsx',
+  '../src/features/meetings/components/SummaryExportControl.tsx',
+  '../src/features/meetings/components/SummaryNotificationPanel.tsx',
+  '../src/features/meetings/components/SummarySharingControl.tsx',
+  '../src/features/meetings/components/SummaryTaskActions.tsx',
+  '../src/features/meetings/components/TranscriptExportControl.tsx',
+  '../src/features/meetings/components/TranscriptReplacementControl.tsx',
+  '../src/features/meetings/components/TranscriptSegment.tsx',
+  '../src/features/meetings/components/TranslationArchivePanel.tsx',
+  '../src/features/meetings/components/UploadMediaPlayer.tsx',
 ].map((path) => new URL(path, import.meta.url))
 
 for (const sourceUrl of migratedShapeSources) {
@@ -397,6 +464,16 @@ const migratedElevationSources = [
   '../src/primitives/VisualOnlyTooltip.tsx',
   '../src/components/Modal.tsx',
   '../src/features/notifications/components/Toast.tsx',
+  // D 阶段:会议模块此前**没有任何**文件被高程规则覆盖 —— 评审 §3 声称悬停阴影已换成
+  // `shadows.raised`,但裸 `boxShadow` 在该模块没有守卫(当前恰好 0 处,属回归风险)。
+  // 先把四页共用件与三个一级页纳进来,谁再写裸阴影当天就红。
+  '../src/features/meetings/components/libraryStyles.ts',
+  '../src/features/meetings/components/MeetingNavPanel.tsx',
+  '../src/features/meetings/routes/RecordingOverview.tsx',
+  '../src/features/meetings/routes/MeetingLibrary.tsx',
+  '../src/features/meetings/routes/RecordingDetail.tsx',
+  '../src/features/meetings/routes/MeetingRecordWorkspace.tsx',
+  '../src/features/home/routes/Home.tsx',
 ].map((path) => new URL(path, import.meta.url))
 
 for (const sourceUrl of migratedElevationSources) {

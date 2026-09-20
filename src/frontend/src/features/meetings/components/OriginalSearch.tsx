@@ -1,8 +1,19 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/primitives'
+import { SearchBox } from '@/primitives'
 import { css } from '@/styled-system/css'
 
+/**
+ * 逐字稿内的搜索框。
+ *
+ * 与列表页（收口记录 §3.13）同一口径：
+ *   - 结构走共享 `SearchBox`（放大镜 + 清空 + `type="search"`），不再手写 input；
+ *   - **没有「搜索」按钮** —— 提交只剩回车（`onSubmit`），清空输入立刻撤销关键词筛选。
+ *     `SearchBox` 的 ✕ 是清空不是提交（基元里写了 `type="button"`），两者不会互相干扰。
+ *
+ * 命中词的高亮不在这里：它由 `TranscriptSegment` 的 `highlight` 负责 —— 那个词要落在
+ * 正文里（对齐参考稿：命中处是浅蓝底），搜索框本身只负责取值。
+ */
 export function OriginalSearch({
   onSearch,
   initialQuery = '',
@@ -14,11 +25,12 @@ export function OriginalSearch({
   const [draft, setDraft] = useState(initialQuery)
   return (
     <form
+      role="search"
       className={css({
         display: 'flex',
-        gap: '0.5rem',
+        gap: 'sm',
         flexWrap: 'wrap',
-        margin: '0.75rem 0',
+        margin: 'md 0',
         alignItems: 'center',
       })}
       onSubmit={(event) => {
@@ -26,43 +38,16 @@ export function OriginalSearch({
         onSearch(draft.trim())
       }}
     >
-      <label
-        className={css({ minWidth: 0, maxWidth: '100%', flex: '1 1 12rem' })}
-      >
-        <input
-          aria-label={t('library.searchOriginal')}
-          placeholder={t('library.searchOriginal')}
-          type="search"
-          maxLength={200}
-          value={draft}
-          onChange={(event) => {
-            setDraft(event.target.value)
-            if (!event.target.value) onSearch('')
-          }}
-          className={css({
-            border: '1px solid token(colors.greyscale.200)',
-            borderRadius: '0.75rem',
-            padding: '0.625rem 0.75rem',
-            width: '100%',
-            maxWidth: '100%',
-            backgroundColor: 'transparent',
-          })}
-        />
-      </label>
-      <Button type="submit" variant="secondary">
-        {t('library.searchButton')}
-      </Button>
-      {draft && (
-        <Button
-          variant="tertiary"
-          onPress={() => {
-            setDraft('')
-            onSearch('')
-          }}
-        >
-          {t('library.clearSearch')}
-        </Button>
-      )}
+      <SearchBox
+        value={draft}
+        onChange={(value) => {
+          setDraft(value)
+          // 清空即撤销：与列表页一样，不必再点一次「搜索」。
+          if (!value) onSearch('')
+        }}
+        placeholder={t('library.searchOriginal')}
+        className={css({ flex: '1 1 12rem', minWidth: 0, maxWidth: '100%' })}
+      />
     </form>
   )
 }

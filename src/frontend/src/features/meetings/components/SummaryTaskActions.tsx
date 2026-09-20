@@ -6,6 +6,7 @@ import { fetchApi } from '@/api/fetchApi'
 import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
 import type { ApiRecordSummaryVersion } from '../api/ApiMeetingRecord'
+import { receiptRole } from './liveRegionRole'
 
 type TaskLink = {
   task_id: string | null
@@ -26,13 +27,13 @@ type Intent = {
   assignee_id: string
   due_date: string | null
 }
-const stack = css({ display: 'flex', flexDirection: 'column', gap: '0.75rem' })
+const stack = css({ display: 'flex', flexDirection: 'column', gap: 'md' })
 const field = css({
   width: '100%',
-  padding: '0.5rem',
+  padding: 'sm',
   border: '1px solid',
-  borderColor: 'greyscale.300',
-  borderRadius: '4px',
+  borderColor: 'border.default',
+  borderRadius: 'field',
   background: 'transparent',
   color: 'inherit',
 })
@@ -231,6 +232,7 @@ export const SummaryTaskActions = ({
                 <Text variant="note">{t('summaryTasks.shareNotice')}</Text>
                 <Button
                   size="sm"
+                  loading={saving}
                   isDisabled={
                     saving ||
                     !query.data.can_convert ||
@@ -253,7 +255,7 @@ export const SummaryTaskActions = ({
           </div>
         )
       })}
-      {message && <div role="status">{t(message)}</div>}
+      {message && <div role={receiptRole(message)}>{t(message)}</div>}
     </section>
   )
 }

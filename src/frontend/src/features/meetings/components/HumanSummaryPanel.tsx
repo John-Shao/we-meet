@@ -13,6 +13,7 @@ import type {
 import { SummaryTaskActions } from './SummaryTaskActions'
 import { HumanSummaryHistory } from './HumanSummaryHistory'
 import { SummaryExportControl } from './SummaryExportControl'
+import { receiptRole } from './liveRegionRole'
 
 type Content = ApiRecordSummaryVersion['content']
 type Review = {
@@ -34,13 +35,13 @@ const kinds = [
   'action_items',
   'open_questions',
 ] as const
-const stack = css({ display: 'flex', flexDirection: 'column', gap: '0.75rem' })
+const stack = css({ display: 'flex', flexDirection: 'column', gap: 'md' })
 const field = css({
   width: '100%',
-  padding: '0.5rem',
+  padding: 'sm',
   border: '1px solid',
-  borderColor: 'greyscale.300',
-  borderRadius: '4px',
+  borderColor: 'border.default',
+  borderRadius: 'field',
   color: 'inherit',
   background: 'transparent',
 })
@@ -352,6 +353,7 @@ export const HumanSummaryPanel = ({
           <Text variant="note">{t('humanReview.draftNotice')}</Text>
           <Button
             size="sm"
+            loading={saving}
             isDisabled={saving || !query.data.can_edit}
             onPress={() => void save()}
           >
@@ -395,7 +397,7 @@ export const HumanSummaryPanel = ({
           onSource={onSource}
         />
       )}
-      {message && <div role="status">{t(message)}</div>}
+      {message && <div role={receiptRole(message)}>{t(message)}</div>}
     </section>
   )
 }

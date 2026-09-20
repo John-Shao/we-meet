@@ -28,16 +28,16 @@ export function MeetingRecordLinks({
   const record = result.isError ? undefined : result.data
   return (
     <div
-      className={css({ display: 'flex', flexDirection: 'column', gap: '1rem' })}
+      className={css({ display: 'flex', flexDirection: 'column', gap: 'lg' })}
     >
       {(['notes', 'minutes'] as const).map((kind) => (
         <section
           key={kind}
           className={css({
             border: '1px solid',
-            borderColor: 'greyscale.200',
-            borderRadius: '8px',
-            padding: '1rem',
+            borderColor: 'border.subtle',
+            borderRadius: 'control',
+            padding: 'lg',
           })}
         >
           <h3>{t(`library.${kind}`)}</h3>
@@ -67,7 +67,7 @@ export function MeetingRecordLinks({
               <Link
                 data-testid={`meeting-detail-${kind}`}
                 href={`/meeting/records/${record.id}${kind === 'minutes' ? '?tab=summary' : ''}`}
-                className={css({ color: 'primary.700' })}
+                className={css({ color: 'text.link' })}
               >
                 {t(
                   kind === 'notes' ? 'video.viewRecord' : 'detail.viewSummary'

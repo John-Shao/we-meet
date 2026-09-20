@@ -176,10 +176,10 @@ const OnlineCaptureWorkspace = ({ roomId, sid, viewerId }: Props) => {
     <section
       aria-label={t('recordAi.capture.title')}
       className={css({
-        padding: '1rem',
+        padding: 'lg',
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.5rem',
+        gap: 'sm',
       })}
     >
       <Text>{t(`recordAi.capture.state.${current?.state ?? 'off'}`)}</Text>

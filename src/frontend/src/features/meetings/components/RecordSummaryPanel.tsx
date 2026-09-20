@@ -29,6 +29,7 @@ import { SummaryExportControl } from './SummaryExportControl'
 import { SummaryNotificationPanel } from './SummaryNotificationPanel'
 import { SummarySharingControl } from './SummarySharingControl'
 import { isSummaryPayload, useSummaryIntent } from '../hooks/useSummaryIntent'
+import { receiptRole } from './liveRegionRole'
 
 export const RecordSummaryPanel = (
   props: ComponentProps<typeof RecordSummaryPanelContent>
@@ -42,7 +43,7 @@ export const RecordSummaryPanel = (
 const stack = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '1rem',
+  gap: 'lg',
   '&[hidden]': { display: 'none' },
 })
 
@@ -304,9 +305,9 @@ const RecordSummaryPanelContent = ({
               className={css({
                 display: 'flex',
                 flexWrap: 'wrap',
-                gap: '0.5rem',
-                paddingBottom: '0.75rem',
-                borderBottom: '1px solid token(colors.greyscale.200)',
+                gap: 'sm',
+                paddingBottom: 'md',
+                borderBottom: '1px solid token(colors.border.subtle)',
               })}
             >
               {(['ask', 'edit', 'share', 'notify', 'manage'] as const)
@@ -317,10 +318,14 @@ const RecordSummaryPanelContent = ({
                     (!pinned || !['edit', 'manage'].includes(value))
                 )
                 .map((value) => (
+                  // 选中态必须看得见:`buttonRecipe` 没有 `[aria-pressed]` 样式,
+                  // 原先五颗都用 `tertiary`(= action.selected.bg) → 选中的那颗和
+                  // 其余四颗长得一模一样,用户不知道当前打开的是哪个面板。
+                  // 现在选中走 `tertiary`(品牌浅蓝容器),未选中走 `secondaryText`。
                   <Button
                     key={value}
                     size="sm"
-                    variant="tertiary"
+                    variant={tool === value ? 'tertiary' : 'secondaryText'}
                     aria-pressed={tool === value}
                     onPress={() => setTool(tool === value ? undefined : value)}
                   >
@@ -365,7 +370,9 @@ const RecordSummaryPanelContent = ({
               />
             )}
             {!pinned && job && (
-              <div role="status">
+              // 生成中:进度区声明 aria-busy,读屏才知道这里在持续更新
+              // (§3「loading 同时设置 aria-busy」)。
+              <div role="status" aria-busy={busy || undefined}>
                 {t(`recordAi.status.${job.status}`)}
                 {job.dispatch_pending && ` · ${t('recordAi.dispatchPending')}`}
                 {busy &&
@@ -377,7 +384,7 @@ const RecordSummaryPanelContent = ({
               <div
                 className={css({
                   display: 'flex',
-                  gap: '0.5rem',
+                  gap: 'sm',
                   flexWrap: 'wrap',
                 })}
               >
@@ -438,9 +445,12 @@ const RecordSummaryPanelContent = ({
                 )}
               </div>
             )}
-            {message && <div role="status">{t(message)}</div>}
+            {/* `message` 既可能是「已接受」也可能是一条错误
+                (限流 / 权限 / 结果不确定),两类必须用不同的 live region:
+                成功用 polite 的 status,失败用 assertive 的 alert。 */}
+            {message && <div role={receiptRole(message)}>{t(message)}</div>}
             {!pinned && canGenerate && recovery.failed && (
-              <div role="status">
+              <div role="alert">
                 <Text>{t('recordAi.recoveryError')}</Text>
                 <Button size="sm" variant="tertiary" onPress={recovery.reload}>
                   {t('recordAi.refresh')}
@@ -528,15 +538,16 @@ const RecordSummaryPanelContent = ({
       {(otherVersions.length > 0 || versions.data?.next_cursor || cursor) && (
         <details
           className={css({
-            paddingTop: '1rem',
-            borderTop: '1px solid token(colors.greyscale.200)',
+            paddingTop: 'lg',
+            borderTop: '1px solid token(colors.border.subtle)',
           })}
         >
           <summary
             className={css({
               cursor: 'pointer',
-              fontWeight: 600,
-              paddingBottom: '1rem',
+              textStyle: 'titleSmall',
+              fontWeight: 'semibold',
+              paddingBottom: 'lg',
             })}
           >
             {t('minutesReader.history')}
@@ -638,12 +649,12 @@ const Version = ({
   return (
     <article
       className={css({
-        padding: '0.5rem 0',
+        padding: 'sm 0',
         '& p': { lineHeight: 1.85, overflowWrap: 'anywhere' },
       })}
     >
       <div className={stack}>
-        <p className={css({ color: 'greyscale.600', fontSize: '0.8125rem' })}>
+        <p className={css({ textStyle: 'bodySmall', color: 'text.secondary' })}>
           {version.stage && `${t(`recordAi.stage.${version.stage}`)} · `}
           {t('minutesReader.generatedAt')}{' '}
           {new Date(version.created_at).toLocaleString()} ·{' '}
@@ -659,8 +670,8 @@ const Version = ({
           <summary
             className={css({
               cursor: 'pointer',
-              color: 'greyscale.600',
-              fontSize: '0.8125rem',
+              textStyle: 'bodySmall',
+              color: 'text.secondary',
             })}
           >
             {t('minutesReader.sourceInfo')}
@@ -687,15 +698,14 @@ const Version = ({
           <section
             className={css({
               padding: '1.25rem',
-              borderRadius: '1rem',
+              borderRadius: 'panel',
               backgroundColor: 'surface.canvas',
             })}
           >
             <h3
               className={css({
-                fontSize: '1.25rem',
-                fontWeight: 700,
-                marginBottom: '0.75rem',
+                textStyle: 'titleLarge',
+                marginBottom: 'md',
               })}
             >
               {t('minutesReader.overview')}
@@ -720,25 +730,20 @@ const Version = ({
         ).map(
           (kind) =>
             version.content[kind].length > 0 && (
-              <details
-                key={kind}
-                open
-                className={css({ padding: '0.75rem 0' })}
-              >
+              <details key={kind} open className={css({ padding: 'md 0' })}>
                 <summary
                   className={css({
                     cursor: 'pointer',
-                    fontSize: '1.125rem',
-                    fontWeight: 600,
-                    marginBottom: '1rem',
+                    textStyle: 'titleMedium',
+                    marginBottom: 'lg',
                   })}
                 >
                   {t(`recordAi.sections.${kind}`)}{' '}
                   <span
                     className={css({
-                      color: 'greyscale.500',
-                      fontSize: '0.875rem',
-                      marginLeft: '0.5rem',
+                      textStyle: 'bodyMedium',
+                      color: 'text.secondary',
+                      marginLeft: 'sm',
                     })}
                   >
                     {version.content[kind].length}
@@ -749,9 +754,9 @@ const Version = ({
                     <li
                       key={index}
                       className={css({
-                        marginBottom: '1rem',
-                        padding: '0.25rem 0 0.25rem 1rem',
-                        borderLeft: '2px solid token(colors.primary.200)',
+                        marginBottom: 'lg',
+                        padding: 'xs 0 xs lg',
+                        borderLeft: '2px solid token(colors.brand.200)',
                       })}
                     >
                       <Text>{point.text}</Text>
@@ -788,8 +793,8 @@ const Version = ({
             <summary
               className={css({
                 cursor: 'pointer',
-                color: 'primary.700',
-                padding: '0.75rem 0',
+                color: 'text.link',
+                padding: 'md 0',
               })}
             >
               {t('minutesReader.export')}

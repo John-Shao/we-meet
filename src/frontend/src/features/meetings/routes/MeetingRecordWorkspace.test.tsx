@@ -537,10 +537,13 @@ it('searches the complete original with a revision fence and hides stale results
   })
   show()
   await screen.findByText('Exact online source')
-  fireEvent.change(screen.getByLabelText('library.searchOriginal'), {
+  const searchInput = () => screen.getByLabelText('library.searchOriginal')
+  fireEvent.change(searchInput(), {
     target: { value: ' 中文 & % ' },
   })
-  fireEvent.click(screen.getByRole('button', { name: 'library.searchButton' }))
+  // 提交只剩回车(与列表页 §3.13 同一口径:页面上不再有「搜索」按钮),
+  // 所以这里直接提交表单本身。
+  fireEvent.submit(searchInput().closest('form')!)
   await screen.findByText('Found on a later page')
   expect(screen.queryByText('Exact online source')).not.toBeInTheDocument()
   expect(
@@ -552,13 +555,14 @@ it('searches the complete original with a revision fence and hides stale results
           '中文 & %'
       )
   ).toBe(true)
-  fireEvent.change(screen.getByLabelText('library.searchOriginal'), {
+  fireEvent.change(searchInput(), {
     target: { value: 'updated' },
   })
-  fireEvent.click(screen.getByRole('button', { name: 'library.searchButton' }))
+  fireEvent.submit(searchInput().closest('form')!)
   await screen.findByText('library.sourceChanged')
   expect(screen.queryByText('Found on a later page')).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'library.clearSearch' }))
+  // 清空输入立刻撤销关键词筛选 —— 不必再点一次 ✕ 或「清空」。
+  fireEvent.change(searchInput(), { target: { value: '' } })
   await screen.findByText('Exact online source')
 })
 

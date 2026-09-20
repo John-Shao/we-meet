@@ -77,7 +77,9 @@ describe('Meeting interpretation controls', () => {
     ).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'resubmit' }))
     expect(state.resubmit).toHaveBeenCalledOnce()
-    expect(screen.getByRole('status')).toHaveTextContent('uncertain')
+    // 失败必须断言式播报(component-system §「加载、空数据与错误状态」),
+    // 所以这里是 alert 而不是礼貌播报的 status。
+    expect(screen.getByRole('alert')).toHaveTextContent('uncertain')
   })
   it('requires a separate unchecked choice before retaining translations', () => {
     state.canControl = true

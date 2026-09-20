@@ -4,8 +4,10 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
-import { Button, Text } from '@/primitives'
+import { Button, Input, Text } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { css } from '@/styled-system/css'
+import { receiptRole } from './liveRegionRole'
 
 type Props = { recordId: string; viewerId: string; online: boolean }
 type Person = { id: string; name: string }
@@ -40,13 +42,13 @@ type Intent = Selection & { key: string; expected_hash: string }
 const stack = css({
   display: 'flex',
   flexDirection: 'column',
-  gap: '0.75rem',
+  gap: 'md',
   minWidth: 0,
   overflowWrap: 'anywhere',
 })
 const line = css({
   display: 'flex',
-  gap: '0.75rem',
+  gap: 'md',
   flexWrap: 'wrap',
   alignItems: 'center',
 })
@@ -296,7 +298,12 @@ function Editor({
           <Text>
             {t('summarySharing.pending', { count: intent.user_ids.length })}
           </Text>
-          <Button size="sm" isDisabled={busy} onPress={() => void submit()}>
+          <Button
+            size="sm"
+            loading={busy}
+            isDisabled={busy}
+            onPress={() => void submit()}
+          >
             {t('summarySharing.resubmit')}
           </Button>
         </>
@@ -341,6 +348,7 @@ function Editor({
           <div className={line}>
             <Button
               size="sm"
+              loading={busy}
               isDisabled={busy || !available || !grants.data.available}
               onPress={() => void submit()}
             >
@@ -453,7 +461,7 @@ function Editor({
           </Button>
         </>
       )}
-      {message && <div role="status">{t(message)}</div>}
+      {message && <div role={receiptRole(message)}>{t(message)}</div>}
     </div>
   )
 }
@@ -526,7 +534,11 @@ function Candidates({
       >
         <label>
           {t('summarySharing.search')}{' '}
-          <input
+          {/* 此前是裸 `<input>`,连 className 都没有 —— 浏览器默认外观在深色主题下
+              不跟随主题(白底黑字),与同屏的其它控件对不上。走共享 `Input`:
+              32px 钉高 + 语义描边/底色/前景 + hover / invalid / disabled 状态。 */}
+          <Input
+            aria-label={t('summarySharing.search')}
             disabled={disabled}
             maxLength={80}
             value={text}
@@ -554,24 +566,23 @@ function Candidates({
           <ul className={stack}>
             {query.data.results.map((person) => (
               <li key={person.id}>
-                <label className={line}>
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(person.id)}
-                    disabled={
-                      disabled ||
-                      (selected.length >= 50 && !selected.includes(person.id))
-                    }
-                    onChange={(e) =>
-                      setSelected((ids) =>
-                        e.target.checked
-                          ? [...ids, person.id]
-                          : ids.filter((id) => id !== person.id)
-                      )
-                    }
-                  />
+                <Checkbox
+                  className={line}
+                  isSelected={selected.includes(person.id)}
+                  isDisabled={
+                    disabled ||
+                    (selected.length >= 50 && !selected.includes(person.id))
+                  }
+                  onChange={(checked) =>
+                    setSelected((ids) =>
+                      checked
+                        ? [...ids, person.id]
+                        : ids.filter((id) => id !== person.id)
+                    )
+                  }
+                >
                   {person.name || t('summaryNotice.unnamed')}
-                </label>
+                </Checkbox>
               </li>
             ))}
           </ul>

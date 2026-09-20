@@ -126,6 +126,7 @@ const SummaryAutomationContent = ({
       <Button
         size="sm"
         variant="tertiary"
+        loading={mutation.isPending}
         isDisabled={mutation.isPending || !recovery.ready}
         onPress={() => void change()}
       >
@@ -138,12 +139,12 @@ const SummaryAutomationContent = ({
         )}
       </Button>
       {error && (
-        <div role="status">
+        <div role="alert">
           {t(pending ? 'recordAi.uncertain' : 'recordAi.conflict')}
         </div>
       )}
       {recovery.failed && (
-        <div role="status">
+        <div role="alert">
           <Text>{t('recordAi.recoveryError')}</Text>
           <Button size="sm" variant="tertiary" onPress={recovery.reload}>
             {t('recordAi.refresh')}

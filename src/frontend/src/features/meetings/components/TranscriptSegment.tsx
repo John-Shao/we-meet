@@ -8,6 +8,47 @@ import { css, cx } from '@/styled-system/css'
 import { useTranscriptDraft } from '../hooks/useTranscriptDraft'
 
 /**
+ * 命中片段的高亮底色。
+ *
+ * 取 `action.selected.*` 成对使用：浅色是品牌浅蓝底 + 深蓝字（约 6:1），
+ * 深色自动翻成深蓝底 + 浅蓝字（约 5.5:1），两套都过 §2.1 的 4.5:1。
+ * 不加内边距 —— 行内高亮一旦撑开盒模型，同一条里命中多次时字距会跳。
+ */
+const markCls = css({
+  backgroundColor: 'action.selected.bg',
+  color: 'action.selected.text',
+  borderRadius: 'field',
+})
+
+/**
+ * 把 `text` 里所有 `query` 的命中处包进 `<mark>`。
+ *
+ * 大小写不敏感、按字面量匹配（`indexOf` 而不是正则）—— 搜索词直接来自用户输入，
+ * 拼进正则会让 `(`、`*` 这类字符抛异常或误匹配。逐字稿的查询本来就是字面量。
+ */
+function highlightMatches(text: string, query: string) {
+  const needle = query.trim()
+  if (!needle) return text
+  const haystack = text.toLowerCase()
+  const lowered = needle.toLowerCase()
+  const parts: React.ReactNode[] = []
+  let cursor = 0
+  let index = haystack.indexOf(lowered)
+  while (index !== -1) {
+    if (index > cursor) parts.push(text.slice(cursor, index))
+    parts.push(
+      <mark key={`${index}-${parts.length}`} className={markCls}>
+        {text.slice(index, index + needle.length)}
+      </mark>
+    )
+    cursor = index + needle.length
+    index = haystack.indexOf(lowered, cursor)
+  }
+  parts.push(text.slice(cursor))
+  return parts
+}
+
+/**
  * One utterance.
  *
  * Editing is offered only when a caller passes `onCorrect`. A record whose
@@ -30,6 +71,7 @@ export function TranscriptSegment({
   correcting = false,
   editFailed = false,
   correctionRevision = 0,
+  highlight,
 }: {
   speaker: string
   time: string
@@ -48,6 +90,13 @@ export function TranscriptSegment({
   originalText?: string
   isCorrected?: boolean
   correctionRevision?: number
+  /**
+   * 当前搜索词：正文里命中的片段会被标出来。
+   *
+   * 高亮落在正文里而不是只做「筛掉不匹配的行」—— 服务端把整份逐字稿按关键词过滤后
+   * 返回，读者仍需在每条里找到**是哪个词**命中的，尤其是一条里出现多次时。
+   */
+  highlight?: string
   onCorrect?: (
     segmentId: string,
     text: string,
@@ -127,14 +176,14 @@ export function TranscriptSegment({
           padding: '1.25rem 0',
           overflowWrap: 'anywhere',
           borderLeft: '3px solid transparent',
-          paddingLeft: '0.75rem',
+          paddingLeft: 'md',
           marginLeft: '-0.75rem',
           transition: 'background-color 150ms ease',
         }),
         active &&
           css({
-            backgroundColor: 'primary.50',
-            borderLeftColor: 'primary.500',
+            backgroundColor: 'brand.50',
+            borderLeftColor: 'brand.500',
           })
       )}
     >
@@ -144,8 +193,8 @@ export function TranscriptSegment({
           alignItems: 'center',
           gap: '0.625rem',
           marginBottom: '0.875rem',
-          color: 'greyscale.600',
-          fontSize: '0.875rem',
+          color: 'text.secondary',
+          textStyle: 'bodyMedium',
           flexWrap: 'wrap',
         })}
       >
@@ -154,11 +203,11 @@ export function TranscriptSegment({
           className={css({
             display: 'grid',
             placeItems: 'center',
-            width: '2rem',
-            height: '2rem',
-            borderRadius: '50%',
-            backgroundColor: 'primary.100',
-            color: 'primary.600',
+            width: '2xl',
+            height: '2xl',
+            borderRadius: 'pill',
+            backgroundColor: 'action.selected.bg',
+            color: 'brand.600',
             flexShrink: 0,
           })}
         >
@@ -173,11 +222,13 @@ export function TranscriptSegment({
             aria-label={seekLabel}
             className={css({
               cursor: 'pointer',
-              color: 'primary.700',
-              borderRadius: '0.25rem',
-              padding: '0.25rem',
-              _hover: { backgroundColor: 'primary.100' },
-              _focusVisible: { outline: '2px solid token(colors.primary.500)' },
+              color: 'text.link',
+              borderRadius: 'field',
+              padding: 'xs',
+              _hover: { backgroundColor: 'surface.canvas' },
+              _focusVisible: {
+                outline: '2px solid token(colors.border.focus)',
+              },
             })}
           >
             {time}
@@ -188,11 +239,11 @@ export function TranscriptSegment({
         {isCorrected && (
           <span
             className={css({
-              padding: '0.125rem 0.5rem',
-              borderRadius: '0.5rem',
-              backgroundColor: 'primary.100',
-              color: 'primary.700',
-              fontSize: '0.75rem',
+              padding: 'xxs sm',
+              borderRadius: 'control',
+              backgroundColor: 'action.selected.bg',
+              color: 'text.link',
+              textStyle: 'labelMedium',
             })}
           >
             {t('transcriptCorrection.editedBadge')}
@@ -204,10 +255,16 @@ export function TranscriptSegment({
             onClick={() => setShowingOriginal((value) => !value)}
             className={css({
               cursor: 'pointer',
-              color: 'primary.700',
+              color: 'text.link',
               textDecoration: 'underline',
-              borderRadius: '0.25rem',
-              padding: '0.125rem 0.25rem',
+              borderRadius: 'field',
+              padding: 'xxs xs',
+              // 「显示/隐藏原文」此前 hover 与 focus-visible 都没有 ——
+              // 键盘走到它时看不见焦点,是四条手写按钮里唯一完全没状态覆盖的一颗。
+              _hover: { backgroundColor: 'surface.canvas' },
+              _focusVisible: {
+                outline: '2px solid token(colors.border.focus)',
+              },
             })}
           >
             {t(
@@ -224,11 +281,13 @@ export function TranscriptSegment({
             disabled={busy}
             className={css({
               cursor: 'pointer',
-              color: 'primary.700',
-              borderRadius: '0.25rem',
-              padding: '0.125rem 0.25rem',
-              _hover: { backgroundColor: 'primary.100' },
-              _focusVisible: { outline: '2px solid token(colors.primary.500)' },
+              color: 'text.link',
+              borderRadius: 'field',
+              padding: 'xxs xs',
+              _hover: { backgroundColor: 'surface.canvas' },
+              _focusVisible: {
+                outline: '2px solid token(colors.border.focus)',
+              },
             })}
           >
             {t('transcriptCorrection.edit')}
@@ -241,10 +300,13 @@ export function TranscriptSegment({
             onClick={() => void submit(true)}
             className={css({
               cursor: 'pointer',
-              color: 'primary.700',
-              borderRadius: '0.25rem',
-              padding: '0.125rem 0.25rem',
-              _hover: { backgroundColor: 'primary.100' },
+              color: 'text.link',
+              borderRadius: 'field',
+              padding: 'xxs xs',
+              _hover: { backgroundColor: 'surface.canvas' },
+              _focusVisible: {
+                outline: '2px solid token(colors.border.focus)',
+              },
             })}
           >
             {t('transcriptCorrection.restore')}
@@ -262,7 +324,7 @@ export function TranscriptSegment({
           className={css({
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.5rem',
+            gap: 'sm',
           })}
         >
           <textarea
@@ -275,16 +337,16 @@ export function TranscriptSegment({
             onChange={(event) => editor.update({ text: event.target.value })}
             className={css({
               width: '100%',
-              border: '1px solid token(colors.greyscale.200)',
-              borderRadius: '0.5rem',
-              padding: '0.75rem',
-              fontSize: '1rem',
+              border: '1px solid token(colors.border.subtle)',
+              borderRadius: 'control',
+              padding: 'md',
+              textStyle: 'bodyLarge',
               lineHeight: 1.7,
               backgroundColor: 'transparent',
               resize: 'vertical',
             })}
           />
-          <div className={css({ display: 'flex', gap: '0.5rem' })}>
+          <div className={css({ display: 'flex', gap: 'sm' })}>
             <Button type="submit" size="sm" isDisabled={!canSave}>
               {t(
                 busy
@@ -307,19 +369,19 @@ export function TranscriptSegment({
         <p
           className={css({
             whiteSpace: 'pre-wrap',
-            fontSize: '1rem',
+            textStyle: 'bodyLarge',
             lineHeight: 1.9,
-            color: 'greyscale.900',
+            color: 'text.primary',
           })}
         >
-          {shown}
+          {highlight ? highlightMatches(shown, highlight) : shown}
         </p>
       )}
 
       {(failure || editFailed) && (
         <p
           role="alert"
-          className={css({ color: 'text.error', marginTop: '0.5rem' })}
+          className={css({ color: 'text.error', marginTop: 'sm' })}
         >
           {t(`transcriptCorrection.${failure ?? 'failed'}`)}
         </p>

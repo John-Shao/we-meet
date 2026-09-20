@@ -88,7 +88,7 @@ const textStyle = css({
   whiteSpace: 'pre-wrap',
   overflowWrap: 'anywhere',
   lineHeight: 1.7,
-  margin: '0.75rem 0',
+  margin: 'md 0',
 })
 const time = (ms: number) =>
   `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`
@@ -324,6 +324,8 @@ function OriginalRead({
                 : time(item.start_ms)
             }
             text={item.text}
+            // 命中处落在正文里（服务端只负责把不匹配的行过滤掉）。
+            highlight={search || undefined}
             originalText={
               'original_text' in item ? item.original_text : undefined
             }
@@ -361,9 +363,7 @@ function OriginalRead({
           />
         )
       )}
-      <div
-        className={css({ display: 'flex', gap: '0.75rem', marginTop: '1rem' })}
-      >
+      <div className={css({ display: 'flex', gap: 'md', marginTop: 'lg' })}>
         {cursors.length > 1 && (
           <Button
             variant="tertiary"
@@ -408,7 +408,12 @@ function LegacySummary({
         .filter((item) => item.status === 'success')
         .map((item) => (
           <section key={item.id}>
-            <h2 className={css({ fontWeight: 600, marginTop: '1rem' })}>
+            <h2
+              className={css({
+                textStyle: 'titleMedium',
+                marginTop: 'lg',
+              })}
+            >
               {t('library.legacySummary')}
             </h2>
             <p className={textStyle}>{item.content}</p>
@@ -537,7 +542,7 @@ function WorkspaceContent({
           },
           '& [role=tab][aria-selected=true]': {
             color: 'text.link',
-            fontWeight: 600,
+            fontWeight: 'semibold',
           },
           '& [role=tabpanel]': {
             overflowY: 'auto',
@@ -718,9 +723,9 @@ function WorkspaceContent({
             className={css({
               display: 'grid',
               gridTemplateColumns: 'auto 1fr',
-              columnGap: '2rem',
+              columnGap: '2xl',
               rowGap: '1.25rem',
-              padding: '1rem 0',
+              padding: 'lg 0',
               '& dt': { color: 'text.secondary' },
             })}
           >
@@ -854,7 +859,7 @@ export function RecordWorkspace({
               <div
                 className={css({
                   display: 'flex',
-                  gap: '0.75rem',
+                  gap: 'md',
                   alignItems: 'center',
                   flexWrap: 'wrap',
                 })}
