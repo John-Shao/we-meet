@@ -14,4 +14,4 @@
 - Ruff：API/测试文件通过；服务文件继续排除既有 3 处 PLR0913，其余通过。
 - 不需要迁移；完成接口原本就要求 `name`，客户端请求结构不变。已登记历史记录不会自动改名。
 - Web 的免重传状态限当前组件生命周期；刷新后的普通直传恢复、遗留孤立对象清理不在本批范围内。Android 本批未修改，不能将 Web 重试结果记为 Android 验收。
-- 本轮生产 API 结果与尚未执行的 UI 场景见 [验收清单](miaojie-release-acceptance.md)。
+- 本轮生产 API 结果与尚未执行的 UI 场景见 [验收清单](miaoji-release-acceptance.md)。

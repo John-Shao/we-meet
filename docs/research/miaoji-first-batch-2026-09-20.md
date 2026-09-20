@@ -1,6 +1,6 @@
 # 妙记差距补齐：首批实施记录
 
-本批落实[重新评估](miaojie-reassessment-2026-09-20.md)后的两个优先项：校对可靠性、有效逐字稿一致性。代码涉及 `we-meet` 和 `we-meet-android`，未部署。
+本批落实[重新评估](miaoji-reassessment-2026-09-20.md)后的两个优先项：校对可靠性、有效逐字稿一致性。代码涉及 `we-meet` 和 `we-meet-android`，未部署。
 
 ## 已完成
 

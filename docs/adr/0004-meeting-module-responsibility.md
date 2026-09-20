@@ -1,7 +1,7 @@
 # ADR 0004：会议模块的职责边界（会议实录 = 妙记等价物）
 
 - 状态：**已采纳**（2026-09-19）
-- 相关：`docs/research/miaojie-gap-analysis-2026-09-18.md` §5.1
+- 相关：`docs/research/miaoji-gap-analysis-2026-09-18.md` §5.1
 
 ## 背景
 
