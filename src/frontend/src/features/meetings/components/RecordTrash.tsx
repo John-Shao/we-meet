@@ -6,6 +6,7 @@ import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { Button, Dialog } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { RecordPurge, type PurgeReceipt } from './RecordPurge'
 import type {
   ApiMeetingRecord,
   MeetingRecordPage,
@@ -16,6 +17,7 @@ type TrashRecord = {
   title: string
   deleted_at: string | null
   lifecycle_revision: number
+  purge?: PurgeReceipt | null
 }
 const stack = css({ display: 'flex', flexDirection: 'column', gap: '0.75rem' })
 
@@ -174,11 +176,12 @@ function TrashList({ viewerId }: { viewerId: string }) {
   const { t } = useTranslation('meetings')
   const [cursors, setCursors] = useState<(string | null)[]>([null])
   const [selected, setSelected] = useState<TrashRecord>()
+  const [purging, setPurging] = useState<TrashRecord>()
   const cursor = cursors[cursors.length - 1]
   const query = useQuery({
     queryKey: ['record-trash', viewerId, cursor],
     queryFn: ({ signal }) =>
-      fetchApi<MeetingRecordPage<TrashRecord>>(
+      fetchApi<MeetingRecordPage<TrashRecord> & { purge_available?: boolean }>(
         `meeting-records/trash/${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
         { signal }
       ),
@@ -219,9 +222,28 @@ function TrashList({ viewerId }: { viewerId: string }) {
         }}
       />
     )
+  if (purging)
+    return (
+      <RecordPurge
+        key={`${viewerId}:${purging.id}`}
+        viewerId={viewerId}
+        item={purging}
+        onClose={() => {
+          setPurging(undefined)
+          setCursors([null])
+          void query.refetch()
+        }}
+      />
+    )
   return (
     <div className={stack}>
-      <p>{t('trash.retentionHint')}</p>
+      <p>
+        {t(
+          query.data?.purge_available
+            ? 'purge.retentionHint'
+            : 'trash.retentionHint'
+        )}
+      </p>
       {!query.data ? (
         <p>{t('loading')}</p>
       ) : !query.data.results.length ? (
@@ -234,9 +256,17 @@ function TrashList({ viewerId }: { viewerId: string }) {
                 {item.title} ·{' '}
                 {item.deleted_at && new Date(item.deleted_at).toLocaleString()}
               </p>
-              <Button variant="tertiary" onPress={() => setSelected(item)}>
-                {t('trash.restore')}
-              </Button>
+              {!item.purge && (
+                <Button variant="tertiary" onPress={() => setSelected(item)}>
+                  {t('trash.restore')}
+                </Button>
+              )}
+              {(item.purge || query.data?.purge_available) && (
+                <Button variant="tertiary" onPress={() => setPurging(item)}>
+                  {t(item.purge ? 'purge.status' : 'purge.remove')}
+                </Button>
+              )}
+              {item.purge && <p>{t(`purge.${item.purge.state}`)}</p>}
             </article>
           ))}
         </div>

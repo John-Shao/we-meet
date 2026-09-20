@@ -50,6 +50,9 @@
 | 44 | App 回收成功清除失效详情栈并进入记录库，现网复测通过 | 本批文档 | `0e40b65e` |
 | 45 | 非空原文、AI 纪要、6 版人工历史与两页 12 份导出的生产回收恢复比对 | 本批文档 | 无运行变更 |
 | 46 | 手动永久删除后端、媒体验证清理、最小凭据与上传重放保护；125 项通过，生产关闭 | 本批提交 | 待下一批入口 |
+| 47 | 永久删除双端确认/状态/重试，Web 27 项、App 33 项单元及 14 项仪器通过，发布预检通过 | 本批提交（含 `2e7b6d665` 后端） | `30a7c2b3` |
+
+[第四十七批](miaoji-batch-47-permanent-deletion-ui.md)已补齐手动永久删除双端入口并完成本地回归。生产开关仍关闭，等待 backend/frontend 发布、`0186` 迁移及所有后端实例更新后进入独立启用批次。本轮未清理生产记录；自动保留期限继续延后。以下既有部署/验收记录保留其历史范围。
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 

@@ -848,5 +848,20 @@
     "conflict": "The record changed, access was lost, or processing is still active. Return, refresh and try again.",
     "uncertain": "The result could not be confirmed. You may retry the same action or return and refresh to check.",
     "unavailable": "Trash is unavailable. Refresh to check access."
+  },
+  "purge": {
+    "remove": "Permanently delete",
+    "status": "Deletion status",
+    "confirm": "Confirm permanent deletion",
+    "retry": "Retry deletion",
+    "close": "Close",
+    "hint": "Delete this recording, media, transcript and summary history permanently. Once accepted, it cannot be restored. Exported documents, tasks and delivered copies remain.",
+    "acknowledge": "I understand that this cannot be undone.",
+    "pending": "Deletion in progress. This recording cannot be restored.",
+    "failed": "Deletion could not be completed. It will be retried; this recording cannot be restored.",
+    "complete": "Permanently deleted.",
+    "wait": "Cleanup may start after {{time}}. You can close this window; it continues in the background.",
+    "uncertain": "The result is unknown. Refresh the trash to check, or retry this same request. Do not restore this recording.",
+    "retentionHint": "Trash is not cleared automatically. Restore a recording, or explicitly delete it permanently."
   }
 }

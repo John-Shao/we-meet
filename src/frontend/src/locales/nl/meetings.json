@@ -848,5 +848,20 @@
     "conflict": "De status of toegang is gewijzigd, of de verwerking loopt nog. Ga terug, vernieuw en probeer opnieuw.",
     "uncertain": "Het resultaat is niet bevestigd. Herhaal dezelfde actie of ga terug en vernieuw om te controleren.",
     "unavailable": "Prullenbak niet beschikbaar. Vernieuw om de toegang te controleren."
+  },
+  "purge": {
+    "remove": "Definitief verwijderen",
+    "status": "Verwijderstatus",
+    "confirm": "Definitief verwijderen bevestigen",
+    "retry": "Verwijderen opnieuw proberen",
+    "close": "Sluiten",
+    "hint": "Verwijder deze opname, media, transcriptie en samenvattingsgeschiedenis definitief. Na acceptatie is herstel onmogelijk. Geëxporteerde documenten, taken en verzonden kopieën blijven behouden.",
+    "acknowledge": "Ik begrijp dat dit niet ongedaan kan worden gemaakt.",
+    "pending": "Verwijderen bezig. Deze opname kan niet worden hersteld.",
+    "failed": "Verwijderen is nog niet voltooid en wordt opnieuw geprobeerd. Herstel is niet mogelijk.",
+    "complete": "Definitief verwijderd.",
+    "wait": "Opruimen kan beginnen na {{time}}. U kunt dit venster sluiten; het gaat op de achtergrond verder.",
+    "uncertain": "Resultaat onbekend. Vernieuw de prullenbak of probeer hetzelfde verzoek opnieuw. Herstel deze opname niet.",
+    "retentionHint": "De prullenbak wordt niet automatisch geleegd. Herstel een opname of kies expliciet voor definitief verwijderen."
   }
 }

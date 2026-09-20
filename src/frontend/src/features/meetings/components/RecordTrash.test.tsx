@@ -147,3 +147,111 @@ it('clears private trash metadata after an access failure', async () => {
   expect(screen.queryByRole('button', { name: 'trash.restore' })).toBeNull()
   expect(screen.queryByText(/Trashed record/)).toBeNull()
 })
+
+const receipt = {
+  id: row.id,
+  state: 'pending',
+  expected_revision: 3,
+  not_before: '2026-09-20T00:00:00Z',
+  completed_at: null,
+  can_retry: false,
+}
+it('hides permanent deletion on older backends', async () => {
+  mocks.fetchApi.mockResolvedValue({ results: [row], next_cursor: null })
+  show(true)
+  fireEvent.click(screen.getByRole('button', { name: 'trash.title' }))
+  await screen.findByRole('button', { name: 'trash.restore' })
+  expect(screen.queryByRole('button', { name: 'purge.remove' })).toBeNull()
+})
+it('requires explicit acknowledgement and then tracks the deletion receipt', async () => {
+  mocks.fetchApi.mockImplementation(async (path: string) =>
+    path.endsWith('/purge/')
+      ? receipt
+      : { results: [row], next_cursor: null, purge_available: true }
+  )
+  show(true)
+  fireEvent.click(screen.getByRole('button', { name: 'trash.title' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'purge.remove' }))
+  expect(screen.getByRole('button', { name: 'purge.confirm' })).toBeDisabled()
+  expect(
+    mocks.fetchApi.mock.calls.every(([, options]) => options.method !== 'POST')
+  ).toBe(true)
+  fireEvent.click(screen.getByRole('checkbox'))
+  fireEvent.click(screen.getByRole('button', { name: 'purge.confirm' }))
+  await screen.findByText('purge.pending')
+  const writes = mocks.fetchApi.mock.calls.filter(
+    ([, options]) => options.method === 'POST'
+  )
+  expect(writes).toHaveLength(1)
+  expect(JSON.parse(writes[0][1].body)).toEqual({ expected_revision: 3 })
+  expect(screen.queryByRole('button', { name: 'trash.restore' })).toBeNull()
+})
+it('retries an unknown deletion result with the same frozen revision only on a click', async () => {
+  let writes = 0
+  mocks.fetchApi.mockImplementation(
+    async (path: string, options: { method?: string }) => {
+      if (options.method === 'POST' && ++writes === 1)
+        throw new Error('lost response')
+      return path.endsWith('/purge/')
+        ? receipt
+        : { results: [row], next_cursor: null, purge_available: true }
+    }
+  )
+  show(true)
+  fireEvent.click(screen.getByRole('button', { name: 'trash.title' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'purge.remove' }))
+  fireEvent.click(screen.getByRole('checkbox'))
+  fireEvent.click(screen.getByRole('button', { name: 'purge.confirm' }))
+  await screen.findByText('purge.uncertain')
+  expect(writes).toBe(1)
+  fireEvent.click(screen.getByRole('button', { name: 'purge.confirm' }))
+  await screen.findByText('purge.pending')
+  const bodies = mocks.fetchApi.mock.calls
+    .filter(([, options]) => options.method === 'POST')
+    .map(([, options]) => options.body)
+  expect(bodies[0]).toBe(bodies[1])
+})
+it('blocks restore for accepted deletion and retries with the original intent version', async () => {
+  const failed = { ...receipt, state: 'failed', can_retry: true }
+  mocks.fetchApi.mockImplementation(
+    async (path: string, options: { method?: string }) =>
+      options.method === 'POST'
+        ? receipt
+        : path.endsWith('/purge/')
+          ? failed
+          : {
+              results: [{ ...row, lifecycle_revision: 4, purge: failed }],
+              next_cursor: null,
+              purge_available: true,
+            }
+  )
+  show(true)
+  fireEvent.click(screen.getByRole('button', { name: 'trash.title' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'purge.status' }))
+  expect(screen.queryByRole('button', { name: 'trash.restore' })).toBeNull()
+  fireEvent.click(await screen.findByRole('button', { name: 'purge.retry' }))
+  await waitFor(() =>
+    expect(
+      mocks.fetchApi.mock.calls.some(([, options]) => options.method === 'POST')
+    ).toBe(true)
+  )
+  expect(
+    JSON.parse(
+      mocks.fetchApi.mock.calls.find(
+        ([, options]) => options.method === 'POST'
+      )![1].body
+    )
+  ).toEqual({ expected_revision: 3 })
+})
+it('clears deletion detail after status authorization fails', async () => {
+  mocks.fetchApi.mockImplementation(async (path: string) => {
+    if (path.endsWith('/purge/')) throw new ApiError(404, {})
+    return { results: [{ ...row, purge: receipt }], next_cursor: null }
+  })
+  show(true)
+  fireEvent.click(screen.getByRole('button', { name: 'trash.title' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'purge.status' }))
+  await screen.findByText('trash.unavailable')
+  expect(screen.queryByText(row.title)).toBeNull()
+  expect(screen.queryByRole('button', { name: 'purge.retry' })).toBeNull()
+})
