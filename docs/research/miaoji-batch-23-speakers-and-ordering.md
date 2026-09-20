@@ -21,3 +21,5 @@
 Android 提交 `2f86da85`。本批需要先发布 backend，再配套 frontend；Android 新版需正式分发，包含第二十二批上传取消/进度修复。本次仪器测试使用 debug 构建，不代表正式发布。无数据库迁移，无 summary/agents 运行变更。
 
 生产 Web 的只读身份/上传取消、服务器全局排序及真实多人样本需在部署后验证。G4 后续的所有者/日期等组合筛选仍留在产品清单，不能将本批理解为筛选已完整对齐。
+
+部署后更新：用户已将 backend/frontend 发布至 `66b3e3bb3`（revision 374/375）。[第二十四批](miaoji-batch-24-production-acceptance.md)记录生产排序 API 和 App 分人链路的实际结果；生产跨页、Web UI、真实多人质量及 Android 正式分发仍待完成。
