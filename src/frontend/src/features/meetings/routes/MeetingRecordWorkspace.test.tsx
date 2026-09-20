@@ -146,6 +146,63 @@ it('shows owner and actual creation time without requesting documents for a tran
       .mock.calls.some(([path]) => path.includes('/document-exports/'))
   ).toBe(false)
 })
+
+it.each(['upload', 'audio_recording'])(
+  'connects speaker intervals to the %s player only with media capability',
+  async (source) => {
+    record.source_type = source
+    if (source === 'upload') record.capture_id = null
+    const baseline = vi.mocked(fetchApi).getMockImplementation()!
+    vi.mocked(fetchApi).mockImplementation(async (path, options) => {
+      if (path.includes('/speakers/'))
+        return {
+          results: [
+            {
+              id: 'speaker',
+              identity_type: 'diarized',
+              label: 'Speaker A',
+              activity: {
+                basis: 'recognized_speaker_time',
+                status: 'available',
+                duration_ms: 2000,
+                share_percent: 100,
+                timeline: {
+                  basis: 'recognized_extent',
+                  status: 'available',
+                  extent_ms: 6000,
+                  intervals: [{ start_ms: 4000, end_ms: 6000 }],
+                },
+              },
+            },
+          ],
+          next_cursor: null,
+        }
+      return baseline(path, options)
+    })
+    show()
+    fireEvent.click(
+      await screen.findByRole('tab', { name: 'library.speakers' })
+    )
+    fireEvent.click(await screen.findByText('speakerTimeline.intervals'))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'speakerTimeline.seek' })
+    )
+    expect(mocks.seek).toHaveBeenCalledWith(4000)
+    record = {
+      ...record,
+      capabilities: { read_transcript: true, play_media: false },
+    }
+    await act(async () => {
+      await client.invalidateQueries({
+        queryKey: ['meeting-records', 'owner', 'detail', 'record'],
+      })
+    })
+    await screen.findByText('speakerTimeline.readOnly')
+    expect(
+      screen.queryByRole('button', { name: 'speakerTimeline.seek' })
+    ).not.toBeInTheDocument()
+  }
+)
 afterEach(() => {
   client.clear()
   vi.clearAllMocks()

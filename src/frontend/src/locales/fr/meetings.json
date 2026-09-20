@@ -1,4 +1,12 @@
 {
+  "speakerTimeline": {
+    "basis": "Répartition · 0:00–{{end}} du texte reconnu, pas la durée totale du média.",
+    "partial": "Certains segments sans heure de fin valide sont omis.",
+    "unavailable": "La répartition est indisponible pour cette source.",
+    "readOnly": "La lecture est indisponible ici. Les plages restent consultables.",
+    "intervals": "Afficher {{count}} plages de parole",
+    "seek": "Écouter {{start}}–{{end}}"
+  },
   "personalHotwords": {
     "title": "Mots-clés personnels",
     "hint": "Privés et synchronisés entre vos appareils. Un terme par ligne, 100 termes maximum, 40 caractères par terme, 4000 au total. Enregistrez un texte vide pour effacer. Enregistrer ne modifie pas les tâches : fusionnez explicitement avant l’import.",

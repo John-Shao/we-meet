@@ -1,4 +1,12 @@
 {
+  "speakerTimeline": {
+    "basis": "Speech distribution · 0:00–{{end}} of recognized text, not full media duration.",
+    "partial": "Some segments have no valid end time and are omitted.",
+    "unavailable": "Speech distribution is unavailable for this source.",
+    "readOnly": "Playback is unavailable here. Time ranges remain readable.",
+    "intervals": "Show {{count}} speech intervals",
+    "seek": "Play {{start}}–{{end}}"
+  },
   "personalHotwords": {
     "title": "Personal hotwords",
     "hint": "Private to you and synced across devices. One word per line; up to 100 words, 40 characters each, 4000 total. Save empty text to clear. Saving does not change this or submitted jobs; explicitly merge before uploading.",

@@ -5,6 +5,18 @@ from collections import defaultdict
 from core.services.capture_transcription import current_originals
 
 MAX_ACTIVITY_SEGMENTS = 50_000
+MAX_TIMELINE_INTERVALS = 1_000
+
+
+def merged_intervals(spans):
+    """Keep silence visible; coalesce only overlapping/adjacent speech."""
+    merged = []
+    for start, end in sorted(spans):
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return merged
 
 
 def activity(record):
@@ -28,19 +40,46 @@ def activity(record):
             missing = True
             continue
         intervals[(speaker, capture)].append((start, end))
+    merged = {key: merged_intervals(spans) for key, spans in intervals.items()}
     durations = defaultdict(int)
-    for (speaker, _capture), spans in intervals.items():
-        end = -1
-        for start, stop in sorted(spans):
-            durations[speaker] += max(0, stop - max(start, end))
-            end = max(end, stop)
+    for (speaker, _capture), spans in merged.items():
+        durations[speaker] += sum(end - start for start, end in spans)
     total = sum(durations.values())
     if not total:
         return {}, "unavailable"
+    clocks = {capture for _, capture, _, _ in rows}
+    interval_count = sum(len(spans) for spans in merged.values())
+    reason = (
+        "multiple_clocks"
+        if len(clocks) != 1
+        else "interval_limit"
+        if interval_count > MAX_TIMELINE_INTERVALS
+        else None
+    )
+    extent = max(end for spans in merged.values() for _, end in spans)
     return {
         speaker: {
             "duration_ms": duration,
             "share_percent": round(duration * 100 / total, 1),
+            "timeline": {
+                "basis": "recognized_extent",
+                "status": "unavailable"
+                if reason
+                else "partial"
+                if missing
+                else "available",
+                "reason": reason,
+                # This is the last recognized end, NOT the media duration.
+                "extent_ms": None if reason else extent,
+                "intervals": []
+                if reason
+                else [
+                    {"start_ms": start, "end_ms": end}
+                    for (key, _), spans in merged.items()
+                    if key == speaker
+                    for start, end in spans
+                ],
+            },
         }
         for speaker, duration in durations.items()
     }, "partial" if missing else "available"

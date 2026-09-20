@@ -1,4 +1,12 @@
 {
+  "speakerTimeline": {
+    "basis": "Spreekverdeling · 0:00–{{end}} van herkende tekst, niet de volledige mediaduur.",
+    "partial": "Segmenten zonder geldige eindtijd worden weggelaten.",
+    "unavailable": "Spreekverdeling is niet beschikbaar voor deze bron.",
+    "readOnly": "Afspelen is hier niet beschikbaar. Tijdbereiken blijven leesbaar.",
+    "intervals": "{{count}} spreekintervallen tonen",
+    "seek": "{{start}}–{{end}} afspelen"
+  },
   "personalHotwords": {
     "title": "Persoonlijke trefwoorden",
     "hint": "Privé en gesynchroniseerd tussen je apparaten. Eén term per regel; maximaal 100 termen, elk 40 tekens, 4000 totaal. Sla lege tekst op om te wissen. Opslaan wijzigt geen taken; voeg expliciet samen vóór de upload.",

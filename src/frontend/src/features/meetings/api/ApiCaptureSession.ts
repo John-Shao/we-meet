@@ -77,6 +77,14 @@ export interface CaptureTranscriptReceipts {
   coverage_status: 'unverified'
 }
 
+export interface ApiSpeakerTimeline {
+  basis: 'recognized_extent'
+  status: 'available' | 'partial' | 'unavailable'
+  reason: 'multiple_clocks' | 'interval_limit' | null
+  extent_ms: number | null
+  intervals: { start_ms: number; end_ms: number }[]
+}
+
 export interface ApiMeetingSpeaker {
   id: string
   label: string
@@ -86,6 +94,7 @@ export interface ApiMeetingSpeaker {
     status: 'available' | 'partial' | 'unavailable'
     duration_ms: number | null
     share_percent: number | null
+    timeline?: ApiSpeakerTimeline
   }
 }
 

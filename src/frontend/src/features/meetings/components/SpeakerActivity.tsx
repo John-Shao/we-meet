@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next'
 import type { ApiMeetingSpeaker } from '../api/ApiCaptureSession'
 import { css } from '@/styled-system/css'
+import { SpeakerTimeline } from './SpeakerTimeline'
 
 export function SpeakerActivity({
   activity,
-}: Pick<ApiMeetingSpeaker, 'activity'>) {
+  onSeek,
+}: Pick<ApiMeetingSpeaker, 'activity'> & { onSeek?: (ms: number) => void }) {
   const { t } = useTranslation('meetings')
   const valid =
     activity?.basis === 'recognized_speaker_time' &&
@@ -35,6 +37,7 @@ export function SpeakerActivity({
         className={css({ width: '100%' })}
       />
       {activity.status === 'partial' && <p>{t('speakerActivity.partial')}</p>}
+      <SpeakerTimeline timeline={activity.timeline} onSeek={onSeek} />
     </div>
   )
 }

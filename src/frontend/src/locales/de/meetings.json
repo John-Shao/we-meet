@@ -1,4 +1,12 @@
 {
+  "speakerTimeline": {
+    "basis": "Sprechverteilung · 0:00–{{end}} des erkannten Textes, nicht die gesamte Mediendauer.",
+    "partial": "Abschnitte ohne gültige Endzeit werden ausgelassen.",
+    "unavailable": "Für diese Quelle ist keine Sprechverteilung verfügbar.",
+    "readOnly": "Wiedergabe ist hier nicht verfügbar. Zeitbereiche bleiben sichtbar.",
+    "intervals": "{{count}} Sprechintervalle anzeigen",
+    "seek": "{{start}}–{{end}} abspielen"
+  },
   "personalHotwords": {
     "title": "Persönliche Fachwörter",
     "hint": "Privat und geräteübergreifend synchronisiert. Ein Begriff pro Zeile; höchstens 100 Begriffe, je 40 Zeichen, insgesamt 4000. Leer speichern zum Löschen. Speichern ändert keine Aufträge; vor dem Upload ausdrücklich übernehmen.",

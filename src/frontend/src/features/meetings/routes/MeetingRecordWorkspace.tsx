@@ -293,7 +293,7 @@ function OriginalRead({
                 speaker={item}
               />
             )}
-            <SpeakerActivity activity={item.activity} />
+            <SpeakerActivity activity={item.activity} onSeek={onSource} />
           </div>
         ) : (
           <TranscriptSegment
@@ -655,6 +655,7 @@ function WorkspaceContent({
               key={`${record.id}:${record.revision}:speakers`}
               record={record}
               viewerId={viewerId}
+              onSource={playable || canPlayUpload ? seekTo : undefined}
               speakers
             />
           </TabPanel>
