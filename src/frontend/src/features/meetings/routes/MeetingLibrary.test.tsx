@@ -239,7 +239,7 @@ it('applies the video filter when opened from More', async () => {
   ).toBe(true)
 })
 
-it('lists records as a table and sorts the loaded page by creation time', async () => {
+it('requests creation-time sorting from the server and preserves response order', async () => {
   vi.mocked(fetchApi).mockImplementation(async (path) => {
     const params = new URL(path, 'https://fixture.invalid').searchParams
     if (params.get('is_ongoing') === 'true')
@@ -262,7 +262,11 @@ it('lists records as a table and sorts the loaded page by creation time', async 
           created_at: '2026-09-09T00:00:00Z',
           updated_at: '2026-09-10T00:00:00Z',
         },
-      ],
+      ].sort((a, b) =>
+        params.get('ordering') === 'created_at'
+          ? a.created_at.localeCompare(b.created_at)
+          : b.created_at.localeCompare(a.created_at)
+      ),
       next_cursor: null,
     }
   })
@@ -295,7 +299,30 @@ it('lists records as a table and sorts the loaded page by creation time', async 
     within(table).getByRole('button', { name: 'library.table.created' })
   )
   expect(createdAtHeader).toHaveAttribute('aria-sort', 'ascending')
-  expect(rowTitles()).toEqual(['Older record', 'Newer record'])
+  await waitFor(() =>
+    expect(rowTitles()).toEqual(['Older record', 'Newer record'])
+  )
+})
+
+it('drops both sections old cursors when switching global ordering', async () => {
+  show()
+  await screen.findByText(archived.title)
+  fireEvent.click(screen.getByRole('button', { name: 'library.next' }))
+  await screen.findByText('Second page')
+  vi.mocked(fetchApi).mockClear()
+  fireEvent.click(screen.getByRole('button', { name: 'library.table.created' }))
+  await screen.findByText(archived.title)
+  const queries = vi
+    .mocked(fetchApi)
+    .mock.calls.filter(([path]) => path.startsWith('meeting-records/?'))
+    .map(([path]) => new URL(path, 'https://fixture.invalid').searchParams)
+  expect(queries.length).toBeGreaterThan(0)
+  expect(
+    queries.every(
+      (params) =>
+        params.get('ordering') === 'created_at' && !params.has('cursor')
+    )
+  ).toBe(true)
 })
 
 it('keeps the loaded page when switching between the table and the grid', async () => {

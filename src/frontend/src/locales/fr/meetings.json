@@ -698,6 +698,8 @@
     "uploading": "Import en cours…",
     "keepOpen": "Gardez cette page ouverte pendant l’import. La transcription se poursuit en arrière-plan ensuite.",
     "confirming": "Fichier envoyé. Confirmation de l’import en cours…",
+    "diarization": "Distinguer les intervenants",
+    "diarizationHint": "Pour les enregistrements à plusieurs voix. Les voix sont séparées automatiquement ; les noms peuvent être attribués après transcription.",
     "stopped": "Demande d’envoi arrêtée. Le serveur peut avoir reçu le fichier. Réessayez avec le même fichier et les mêmes paramètres pour confirmer le résultat.",
     "error": "L’opération n’a pas abouti. Vérifiez le format, la taille et la connexion. Si une autre transcription est en cours, réessayez plus tard.",
     "stateError": "Impossible de charger l’état de la transcription. Actualisez pour réessayer.",

@@ -186,6 +186,17 @@ class RecordPagination(pagination.CursorPagination):
     page_size = 30
     ordering = ("-origin_at", "-id")
 
+    def get_ordering(self, request, queryset, view):
+        # Detail content pagers inherit this class; only the library may choose
+        # a record sort. Always apply ordering before taking a page.
+        if getattr(view, "action", None) == "list":
+            value = request.query_params.get("ordering")
+            if value is not None:
+                if value not in {"created_at", "-created_at"}:
+                    raise ValidationError({"ordering": "Use created_at or -created_at."})
+                return (value, "-id" if value.startswith("-") else "id")
+        return super().get_ordering(request, queryset, view)
+
     def get_paginated_response(self, data):
         """Return the cursor token rather than an origin-dependent URL."""
         url = self.get_next_link()

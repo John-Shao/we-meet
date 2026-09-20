@@ -64,6 +64,18 @@ def job_for(user):
     return models.UploadedRecording.objects.get(record_id=response.data["record_id"])
 
 
+@pytest.mark.parametrize("diarization", [True, False])
+def test_upload_keeps_speaker_choice_and_rejects_changed_retry(diarization):
+    owner = UserFactory()
+    key = uuid.uuid4()
+    response = upload(owner, key, diarization=str(diarization).lower())
+    assert response.status_code == 202
+    job = models.UploadedRecording.objects.get(record_id=response.data["record_id"])
+    assert job.configuration["diarization"] is diarization
+    assert upload(owner, key, diarization=str(diarization).lower()).status_code == 202
+    assert upload(owner, key, diarization=str(not diarization).lower()).status_code == 409
+
+
 def due(job):
     models.UploadedRecording.objects.filter(pk=job.pk).update(
         next_poll_at=timezone.now() - timedelta(seconds=1)
@@ -309,14 +321,15 @@ def test_revoked_owner_cannot_continue_provider_work():
     assert job.status == "failed"
 
 
-def test_provider_payload_uses_file_urls_context_and_vocabulary():
+@pytest.mark.parametrize("diarization", [True, False])
+def test_provider_payload_uses_file_urls_context_and_vocabulary(diarization):
     with mock.patch.object(
         provider, "request_json", return_value={"output": {"task_id": "task"}}
     ) as request:
         assert (
             provider.submit(
                 "https://audio.invalid/a.wav",
-                {"context": "Context", "hotwords": ["Qwen"]},
+                {"context": "Context", "hotwords": ["Qwen"], "diarization": diarization},
             )
             == "task"
         )
@@ -328,6 +341,7 @@ def test_provider_payload_uses_file_urls_context_and_vocabulary():
         "text": "Context",
     }
     assert payload["parameters"]["vocabulary"] == {"Qwen": 3}
+    assert payload["parameters"]["diarization_enabled"] is diarization
 
 
 @pytest.mark.parametrize("status", ["FAILED", "UNKNOWN", "CANCELED"])

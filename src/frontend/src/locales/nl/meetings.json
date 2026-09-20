@@ -698,6 +698,8 @@
     "uploading": "Bezig met importeren…",
     "keepOpen": "Houd deze pagina open tijdens het importeren. Daarna gaat het transcriberen op de achtergrond verder.",
     "confirming": "Bestand verzonden. Wachten op het importresultaat…",
+    "diarization": "Sprekers onderscheiden",
+    "diarizationHint": "Voor opnamen met meerdere sprekers. Stemmen worden automatisch onderscheiden; namen kunnen na de transcriptie worden toegewezen.",
     "stopped": "Uploadverzoek gestopt. De server kan het bestand al hebben ontvangen. Probeer opnieuw met hetzelfde bestand en dezelfde instellingen om het resultaat te bevestigen.",
     "error": "De actie is niet voltooid. Controleer het bestandsformaat, de grootte en je verbinding. Als er al een transcriptie loopt, probeer het dan later opnieuw.",
     "stateError": "De transcriptiestatus kon niet worden opgehaald. Vernieuw de pagina en probeer het opnieuw.",

@@ -274,9 +274,13 @@ def test_resume_is_scoped_to_the_owner(storage):
 # --- completing --------------------------------------------------------------
 
 
-def test_complete_reassembles_then_creates_one_job(storage):
+@pytest.mark.parametrize("diarization", [True, False])
+def test_complete_reassembles_then_creates_one_job(storage, diarization):
     owner = UserFactory()
-    session_id = begin(owner, storage)[0].data["session_id"]
+    key = str(uuid.uuid4())
+    session_id = begin(owner, storage, key=key, diarization=diarization)[0].data["session_id"]
+    assert begin(owner, storage, key=key, diarization=diarization)[0].data["session_id"] == session_id
+    assert begin(owner, storage, key=key, diarization=not diarization)[0].status_code == 409
     fill(storage)
     response = client_for(owner).post(
         SESSION.format(session_id), complete_body(storage), format="json"
@@ -289,6 +293,7 @@ def test_complete_reassembles_then_creates_one_job(storage):
     assert [p["PartNumber"] for p in sent] == [1, 2]
     job = models.UploadedRecording.objects.get(record_id=response.data["record_id"])
     assert job.record.owner_id == owner.pk
+    assert job.configuration["diarization"] is diarization
     assert job.size == SIZE
 
 

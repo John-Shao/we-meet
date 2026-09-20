@@ -56,6 +56,7 @@ export interface MeetingRecordPage<T> {
 }
 
 export interface MeetingRecordFilters {
+  ordering?: 'created_at' | '-created_at'
   scope?: 'recent' | 'owned' | 'participated' | 'shared'
   source_type?: MeetingRecordSource | 'recordings'
   meeting_session_id?: string

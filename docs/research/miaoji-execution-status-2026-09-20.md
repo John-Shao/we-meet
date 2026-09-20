@@ -26,10 +26,13 @@
 | 20 | 原生 HTTP 403 准备超时、新签名恢复及重试上限 | 本批文档 | `a06355a6` |
 | 21 | 一小时生产签名自然过期、Range 续期和原生恢复验收 | 本批文档 | `b80d5e21`（验收断言） |
 | 22 | Web 只读上传状态保护、双端普通/直传取消进度及登记恢复 | 本批实现 | `915c4f07` |
+| 23 | 双端上传分人选项、服务端创建时间全局排序与分页重置 | 本批实现 | `2f86da85` |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第二十三批](miaoji-batch-23-speakers-and-ordering.md)已完成上传分人选项和服务端全局排序。后端 80 项、Web 42 项、Android 上传相关 36 项及 3 项模拟器仪器测试通过；先发布 backend，再配套 frontend，并正式分发 Android。无数据库迁移，summary/agents 无运行变更。本地回归不代替部署后的真实多人质量验收和 Web UI 验收。
 
 [第二十二批](miaoji-batch-22-upload-controls.md)已完成 G1/G2 实现和针对性回归，尚未部署：Web 68 项、Android 上传相关 34 项通过。需要发布 frontend 和新版 Android；本批无后端运行变更。下文生产环境基线仍是此前已部署版本。
 
@@ -47,8 +50,8 @@ Android Pixel 8 / Android 16：播放器 13 项、详情页 23 项仪器测试�
 
 ## 仍未实现的产品项
 
-重新盘点见[当前真实缺口](miaoji-current-gaps-2026-09-20.md)。本次额外确认 Web 未同步 Android 的只读上传状态保护、非分片上传取消未接通、Web 排序仅作用于当前页；上传分人开关、记录级删除/恢复和信息页产物导航也需补齐。这些结论来自代码审查，本次没有运行代码变更。原有签名续期、跨账号权限验收结论保留；长原文和大文件恢复继续按用户要求延后。
+重新盘点见[当前真实缺口](miaoji-current-gaps-2026-09-20.md)。盘点中的 Web 只读上传状态保护、非分片上传取消/进度已由第二十二批修复，上传分人开关和全局排序已由第二十三批补齐实现，均尚待正式发布。记录级删除/恢复、信息页产物导航、组合筛选等仍待实施。原有签名续期、跨账号权限验收结论保留；长原文和大文件恢复继续按用户要求延后。
 
-[第十六批](miaoji-batch-16-android-preparation.md)修复准备阶段播放失败，[第十七批](miaoji-batch-17-android-video-layout.md)修复竖屏溢出并改善原文阅读，[第十八批](miaoji-batch-18-android-export.md)修复系统选择器返回后导出为空，并记录 App 核心流程验收。普通上传进度/取消语义、上传时的分人选项仍需后续完善。
+[第十六批](miaoji-batch-16-android-preparation.md)修复准备阶段播放失败，[第十七批](miaoji-batch-17-android-video-layout.md)修复竖屏溢出并改善原文阅读，[第十八批](miaoji-batch-18-android-export.md)修复系统选择器返回后导出为空，并记录 App 核心流程验收。普通上传进度/取消语义与分人选项已在第二十二、二十三批继续完善。
 
-本轮关闭了优先级最高的正确性及回看链路缺口。[第七批](miaoji-batch-7-chapters.md)补齐独立章节导航及空态，[第八批](miaoji-batch-8-drafts.md)与[第九批](miaoji-batch-9-android-drafts.md)补齐列表重建时的草稿保护，[第十批](miaoji-batch-10-speaker-activity.md)补齐录音与上传件的发言时长占比。[第十一批](miaoji-batch-11-sharing-scopes.md)补齐纪要/全文独立授权。[第十二批](miaoji-batch-12-original-download.md)补齐上传所有者原文件下载。媒体共享、原生录音分片下载/拼接、精细发言时间轴、批量校对、长期热词库、关键词、多条件全局筛选排序仍属于后续产品批次；线上会议完整录像回放另需实际录制产物和媒体时间映射。不要把这些批次理解为已全量对齐飞书妙记。
+本轮关闭了优先级最高的正确性及回看链路缺口。[第七批](miaoji-batch-7-chapters.md)补齐独立章节导航及空态，[第八批](miaoji-batch-8-drafts.md)与[第九批](miaoji-batch-9-android-drafts.md)补齐列表重建时的草稿保护，[第十批](miaoji-batch-10-speaker-activity.md)补齐录音与上传件的发言时长占比。[第十一批](miaoji-batch-11-sharing-scopes.md)补齐纪要/全文独立授权。[第十二批](miaoji-batch-12-original-download.md)补齐上传所有者原文件下载。媒体共享、原生录音分片下载/拼接、精细发言时间轴、批量校对、长期热词库、关键词、组合筛选仍属于后续产品批次；线上会议完整录像回放另需实际录制产物和媒体时间映射。不要把这些批次理解为已全量对齐飞书妙记。

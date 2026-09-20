@@ -122,6 +122,7 @@ export async function uploadInParts(
     content_type: string
     context: string
     hotwords: string
+    diarization?: boolean
   },
   deps: ChunkedDeps,
   signal: AbortSignal,

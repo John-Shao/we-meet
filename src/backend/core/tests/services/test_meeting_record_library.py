@@ -16,6 +16,35 @@ pytestmark = pytest.mark.django_db
 PATH = "/api/v1.0/meeting-records/"
 
 
+@pytest.mark.parametrize("ordering", ["created_at", "-created_at"])
+def test_creation_sort_is_global_stable_and_scoped_before_pagination(ordering):
+    owner = UserFactory()
+    now = timezone.now()
+    records = []
+    for index in range(33):
+        record = audio_note(user=owner)
+        # Equal timestamps exercise the ID tie-breaker across the page boundary.
+        created = now + timedelta(minutes=index // 2)
+        models.MeetingRecord.objects.filter(pk=record.pk).update(
+            created_at=created, origin_at=now - timedelta(minutes=index)
+        )
+        records.append((created, str(record.pk)))
+    audio_note()  # Another user's record must never appear in either sort order.
+    expected = [pk for _, pk in sorted(records, reverse=ordering.startswith("-"))]
+    client = client_for(owner)
+    first = client.get(PATH, {"ordering": ordering}).json()
+    assert len(first["results"]) == 30
+    second = client.get(PATH, {"ordering": ordering, "cursor": first["next_cursor"]}).json()
+    assert [row["id"] for row in first["results"] + second["results"]] == expected
+    assert second["next_cursor"] is None
+
+
+@pytest.mark.parametrize("ordering", ["", "title", "owner__email", "created_at,id"])
+def test_library_rejects_unsupported_sort(ordering):
+    record = audio_note()
+    assert client_for(record.owner).get(PATH, {"ordering": ordering}).status_code == 400
+
+
 @pytest.fixture(autouse=True)
 def enabled(settings):
     settings.MEETING_RECORDS_ENABLED = True

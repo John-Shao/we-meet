@@ -172,15 +172,17 @@ def complete(user, storage, **overrides):
     return response, body
 
 
-def test_complete_adopts_the_verified_object_and_creates_one_job():
+@pytest.mark.parametrize("diarization", [True, False])
+def test_complete_adopts_the_verified_object_and_creates_one_job(diarization):
     owner = UserFactory()
     storage = FakeStorage(stored_size=DECLARED_SIZE)
-    response, body = complete(owner, storage)
+    response, body = complete(owner, storage, diarization=diarization)
     assert response.status_code == 202, response.data
     assert response.data["status"] == "queued"
     assert models.UploadedRecording.objects.count() == 1
     job = models.UploadedRecording.objects.get()
     assert job.record.owner_id == owner.pk
+    assert job.configuration["diarization"] is diarization
     assert job.record.source_type == "upload"
     assert job.storage_name == body["storage_name"]
     assert job.size == DECLARED_SIZE

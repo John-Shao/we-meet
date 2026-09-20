@@ -59,6 +59,7 @@ it('uploads the chosen file and optional context without putting credentials in 
   fireEvent.change(screen.getByLabelText('upload.hotwords'), {
     target: { value: 'Qwen' },
   })
+  fireEvent.click(screen.getByLabelText('upload.diarization'))
   fireEvent.submit(
     screen
       .getByRole('button', { name: 'upload.submit', hidden: true })
@@ -73,6 +74,7 @@ it('uploads the chosen file and optional context without putting credentials in 
   expect(body.get('audio')).toBe(file)
   expect(body.get('context')).toBe('Project context')
   expect(body.get('hotwords')).toBe('Qwen')
+  expect(body.get('diarization')).toBe('true')
   expect(body.get('key')).toBeTruthy()
 })
 
@@ -201,11 +203,12 @@ const withDirect = (overrides: Record<string, unknown> = {}) => ({
 })
 
 /** Selects a file and submits the dialog, returning the form for a retry. */
-async function pick(name = 'Long.wav', bytes = 4096) {
+async function pick(name = 'Long.wav', bytes = 4096, diarization = false) {
   const input = await screen.findByLabelText('upload.file')
   fireEvent.change(input, {
     target: { files: [new File(['x'.repeat(bytes)], name)] },
   })
+  if (diarization) fireEvent.click(screen.getByLabelText('upload.diarization'))
   const form = screen
     .getByRole('button', { name: 'upload.submit', hidden: true })
     .closest('form')!
@@ -226,7 +229,7 @@ it('sends a file over the multipart limit straight to storage, then adopts it', 
     .mockResolvedValueOnce({ record_id: 'big', status: 'queued' })
   try {
     show(<RecordingUpload viewerId="owner" />)
-    await pick()
+    await pick('Long.wav', 4096, true)
     await waitFor(() =>
       expect(navigate).toHaveBeenCalledWith('/meeting/records/big?tab=text')
     )
@@ -248,6 +251,11 @@ it('sends a file over the multipart limit straight to storage, then adopts it', 
     expect(body.storage_name).toBe('record-uploads/abc.wav')
     expect(body.size).toBe(4096)
     expect(body.name).toBe('Long.wav')
+    expect(body.diarization).toBe(true)
+    expect(
+      JSON.parse(vi.mocked(fetchApi).mock.calls[1][1]!.body as string)
+        .diarization
+    ).toBe(true)
     // No multipart body anywhere: that branch cannot carry this file.
     expect(
       vi
@@ -400,11 +408,13 @@ it('reports a cancelled transfer as cancelled, not as an error', async () => {
   vi.mocked(fetchApi).mockResolvedValueOnce(chunkedCapabilities)
   show(<RecordingUpload viewerId="owner" />)
   fireEvent.click(await screen.findByRole('button', { name: 'upload.open' }))
-  await pick('Long.wav', CHUNKED_THRESHOLD + 1)
+  await pick('Long.wav', CHUNKED_THRESHOLD + 1, true)
   await screen.findByText('upload.cancelled')
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   // Nothing navigated: the reader stays where they were, free to retry.
   expect(navigate).not.toHaveBeenCalled()
+  expect(uploadInParts.mock.calls[0][2].diarization).toBe(true)
+  expect(screen.getByLabelText('upload.diarization')).toBeDisabled()
 })
 
 it('shows byte progress and offers a way out while a large transfer runs', async () => {

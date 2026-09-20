@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Redirect, useLocation, useSearch } from 'wouter'
 import {
@@ -50,7 +50,6 @@ import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { recordSourceKey } from '../recordSource'
 import type {
-  ApiMeetingRecord,
   MeetingRecordFilters,
   MeetingRecordSource,
 } from '../api/ApiMeetingRecord'
@@ -406,37 +405,12 @@ const recordIcon = (
     <RiMicLine size={size} />
   )
 
-/**
- * 当前一页按创建时间排序。缺 `created_at`(老记录)或值解析不了的排在**最后**,其余
- * 相等时保持服务端顺序(Array#sort 稳定)—— 排序只作用于已加载的这一页,跨页排序
- * 要后端加 ordering 参数。
- */
-const sortByCreatedAt = (
-  records: ApiMeetingRecord[],
-  direction: SortDirection
-): ApiMeetingRecord[] => {
-  const time = (record: ApiMeetingRecord) => {
-    const value = record.created_at ? Date.parse(record.created_at) : NaN
-    return Number.isNaN(value) ? null : value
-  }
-  return [...records].sort((left, right) => {
-    const leftTime = time(left)
-    const rightTime = time(right)
-    if (leftTime === null || rightTime === null) {
-      if (leftTime === rightTime) return 0
-      return leftTime === null ? 1 : -1
-    }
-    return direction === 'desc' ? rightTime - leftTime : leftTime - rightTime
-  })
-}
-
 /** Paged sections keep bounded private content and never merge another filter's cache. */
 function RecordList({
   viewerId,
   filters,
   ongoing,
   grid,
-  sort,
   cursors,
   onCursors,
   minutes = false,
@@ -445,7 +419,6 @@ function RecordList({
   filters: MeetingRecordFilters
   ongoing: boolean
   grid: boolean
-  sort: SortDirection
   /** 这一节的游标栈:末尾是本页游标,栈长 > 1 就说明翻过页。 */
   cursors: string[]
   onCursors: (cursors: string[]) => void
@@ -458,11 +431,7 @@ function RecordList({
     cursor: cursors.at(-1),
   })
   // 权限被收回后 react-query 仍留着上一次的数据,错误态必须一行都不渲染。
-  const records = useMemo(
-    () =>
-      query.isError ? [] : sortByCreatedAt(query.data?.results ?? [], sort),
-    [query.data, query.isError, sort]
-  )
+  const records = query.isError ? [] : (query.data?.results ?? [])
   const sectionLabel = t(
     minutes
       ? 'minutesLibrary.all'
@@ -705,6 +674,7 @@ export function Library({
   const [grid, setGrid] = useState(false)
   const [sort, setSort] = useState<SortDirection>('desc')
   const filters: MeetingRecordFilters = {
+    ordering: sort === 'asc' ? 'created_at' : '-created_at',
     scope,
     source_type: source || undefined,
     q: query,
@@ -742,7 +712,6 @@ export function Library({
       filters={filters}
       ongoing={ongoing}
       grid={grid}
-      sort={sort}
       cursors={sectionCursors(ongoing)}
       onCursors={(next) => setSectionCursors(ongoing, next)}
       minutes={isMinutes}

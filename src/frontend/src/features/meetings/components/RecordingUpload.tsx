@@ -5,6 +5,7 @@ import { useLocation } from 'wouter'
 import { fetchApi } from '@/api/fetchApi'
 import { uploadFetch } from '@/api/uploadFetch'
 import { Button, Dialog, TextArea } from '@/primitives'
+import { Checkbox } from '@/primitives/Checkbox'
 import { StateHint } from '@/components/StateHint'
 import { RiDownload2Line } from '@remixicon/react'
 import { css, cx } from '@/styled-system/css'
@@ -62,7 +63,7 @@ const COMPLETE = 'recording-uploads/upload-complete/'
 async function importRecording(
   file: File,
   key: string,
-  options: { context: string; hotwords: string },
+  options: { context: string; hotwords: string; diarization: boolean },
   direct: { maxBytes: number } | null,
   ticket: { current: DirectUploadTicket | null },
   signal: AbortSignal,
@@ -75,6 +76,7 @@ async function importRecording(
     body.set('audio', file)
     body.set('context', options.context)
     body.set('hotwords', options.hotwords)
+    body.set('diarization', String(options.diarization))
     return fetchApi<UploadState>('recording-uploads/', {
       method: 'POST',
       body,
@@ -204,6 +206,7 @@ export function RecordingUpload({
   const [key, setKey] = useState(() => crypto.randomUUID())
   const [context, setContext] = useState('')
   const [hotwords, setHotwords] = useState('')
+  const [diarization, setDiarization] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
   const [open, setOpen] = useState(false)
@@ -341,6 +344,7 @@ export function RecordingUpload({
                       content_type: file.type || 'application/octet-stream',
                       context,
                       hotwords,
+                      diarization,
                     },
                     { request: fetchApi, putPart: putPartWithProgress },
                     abort.signal,
@@ -360,7 +364,7 @@ export function RecordingUpload({
                 const result = await importRecording(
                   file,
                   key,
-                  { context, hotwords },
+                  { context, hotwords, diarization },
                   directAllowed ? { maxBytes: limit } : null,
                   ticket,
                   abort.signal,
@@ -410,6 +414,17 @@ export function RecordingUpload({
               {t('upload.advanced')}
             </summary>
             <div className={advancedBodyCls}>
+              <Checkbox
+                isSelected={diarization}
+                isDisabled={busy || submitted}
+                onChange={(value) => {
+                  setDiarization(value)
+                  setKey(crypto.randomUUID())
+                }}
+                description={t('upload.diarizationHint')}
+              >
+                {t('upload.diarization')}
+              </Checkbox>
               {/* 字段标签走 labelMedium,与「导入 / 会议室」等表单同一档;
                   多行输入用共享 TextArea 基元(边框/圆角/焦点态一处定义)。 */}
               <label className={fieldLabelCls}>
