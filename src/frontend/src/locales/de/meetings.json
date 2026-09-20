@@ -55,7 +55,7 @@
     "createHint": "Sie können ein Dokument aus einer Protokollversion erstellen.",
     "ai": "Kopie des KI-Protokolls",
     "human": "Kopie des überarbeiteten Protokolls",
-    "source": "KI-Quellversion anzeigen"
+    "source": "Quellversion des Protokolls anzeigen"
   },
   "mediaDownload": {
     "action": "Originaldatei herunterladen",
@@ -833,5 +833,20 @@
     "saved": "Gespeichertes Audio",
     "partial": "Die Audioübertragung ist unvollständig oder enthält Lücken; keine vollständige Dauer verfügbar.",
     "ruler": "Medienzeitleiste: 0:00 – {{end}}"
+  },
+  "trash": {
+    "title": "Papierkorb",
+    "remove": "In den Papierkorb",
+    "confirmRemove": "Verschieben bestätigen",
+    "restore": "Wiederherstellen",
+    "confirmRestore": "Wiederherstellung bestätigen",
+    "cancel": "Abbrechen",
+    "empty": "Der Papierkorb ist leer.",
+    "removeHint": "Eintrag und Inhalt werden ausgeblendet. Freigaben und automatische Protokolle werden deaktiviert. Exportierte Dokumente bleiben eigenständige Kopien.",
+    "restoreHint": "Eintrag und gespeicherte Inhalte wiederherstellen. Freigaben und automatische Protokolle bleiben deaktiviert.",
+    "retentionHint": "Einträge können hier wiederhergestellt werden. Endgültiges Löschen ist noch nicht verfügbar. Bestehende Audio-Aufbewahrungsregeln gelten weiter.",
+    "conflict": "Status oder Berechtigung geändert, oder Verarbeitung noch aktiv. Zurückkehren, aktualisieren und erneut versuchen.",
+    "uncertain": "Das Ergebnis ist unbestätigt. Dieselbe Aktion wiederholen oder zur Prüfung zurückkehren und aktualisieren.",
+    "unavailable": "Papierkorb nicht verfügbar. Zugriff durch Aktualisieren prüfen."
   }
 }

@@ -175,6 +175,8 @@ backend:
     CELERY_ENABLED: "True"
     # Meeting AI rollout: shared by API, celeryBackend and celeryBeat.
     MEETING_RECORDS_ENABLED: "True"
+    # Enable only after migration 0185 and the backend/worker rollout are complete.
+    MEETING_RECORD_TRASH_ENABLED: "False"
     MEETING_TRANSCRIPT_DELIVERY_ENABLED: "True"
     MEETING_CAPTURE_PROTOCOL_ENABLED: "True"
     MEETING_CAPTURE_AUDIO_ENABLED: "True"

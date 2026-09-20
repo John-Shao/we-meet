@@ -55,7 +55,7 @@
     "createHint": "You can create a document from a minutes version.",
     "ai": "AI minutes copy",
     "human": "Reviewed minutes copy",
-    "source": "View the source AI minutes version"
+    "source": "View the source minutes version"
   },
   "mediaDownload": {
     "action": "Download original file",
@@ -833,5 +833,20 @@
     "saved": "Saved audio",
     "partial": "Audio delivery is incomplete or contains gaps; no complete duration is claimed.",
     "ruler": "Media timeline: 0:00 – {{end}}"
+  },
+  "trash": {
+    "title": "Trash",
+    "remove": "Move to trash",
+    "confirmRemove": "Confirm move to trash",
+    "restore": "Restore",
+    "confirmRestore": "Restore record",
+    "cancel": "Cancel",
+    "empty": "No records in trash.",
+    "removeHint": "The record and its contents will be hidden. Sharing and automatic minutes will be turned off. Existing exported documents remain separate copies.",
+    "restoreHint": "Restore the record and saved content. Previous sharing and automatic minutes will remain off.",
+    "retentionHint": "Records can be restored here. Permanent deletion is not yet available. Existing audio retention rules still apply.",
+    "conflict": "The record changed, access was lost, or processing is still active. Return, refresh and try again.",
+    "uncertain": "The result could not be confirmed. You may retry the same action or return and refresh to check.",
+    "unavailable": "Trash is unavailable. Refresh to check access."
   }
 }

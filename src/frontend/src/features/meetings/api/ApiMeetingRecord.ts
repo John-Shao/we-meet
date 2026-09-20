@@ -10,6 +10,7 @@ export interface ApiMeetingRecord {
   origin_at: string
   retention_mode: 'media' | 'text' | 'unknown'
   revision: number
+  lifecycle_revision?: number
   media_timing?: {
     duration_ms: number | null
     saved_duration_ms: number | null
@@ -32,6 +33,7 @@ export interface ApiMeetingRecord {
     status: 'queued' | 'submitting' | 'running' | 'succeeded' | 'failed'
   } | null
   capabilities: {
+    trash?: boolean
     batch_correct?: boolean
     read_summary: boolean
     read_transcript: boolean
@@ -57,6 +59,7 @@ export interface RecordTitlePayload {
 }
 
 export interface MeetingRecordPage<T> {
+  trash_available?: boolean
   supported_filters?: string[]
   results: T[]
   next_cursor: string | null

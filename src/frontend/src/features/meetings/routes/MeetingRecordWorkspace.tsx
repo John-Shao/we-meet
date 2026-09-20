@@ -41,6 +41,7 @@ import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
 import { mediaDuration, validMediaDuration } from '../recordMediaTiming'
 import { SpeakerActivity } from '../components/SpeakerActivity'
 import { RecordMediaDownload } from '../components/RecordMediaDownload'
+import { RecordTrashControl } from '../components/RecordTrash'
 import { RecordDocuments } from '../components/RecordDocuments'
 import { TranscriptReplacementControl } from '../components/TranscriptReplacementControl'
 import { TranscriptDraftScope } from '../components/TranscriptDraftScope'
@@ -702,6 +703,11 @@ function WorkspaceContent({
           </TabPanel>
         )}
         <TabPanel id="info" padding="md">
+          <RecordTrashControl
+            key={`${viewerId}:${record.id}`}
+            viewerId={viewerId}
+            record={record}
+          />
           {record.capabilities.download_media && (
             <RecordMediaDownload
               key={`${viewerId}:${record.id}:${record.revision}`}

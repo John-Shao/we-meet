@@ -55,7 +55,7 @@
     "createHint": "U kunt een document maken vanuit een notulenversie.",
     "ai": "Kopie van AI-notulen",
     "human": "Kopie van herziene notulen",
-    "source": "AI-bronversie bekijken"
+    "source": "Bronversie van de notulen bekijken"
   },
   "mediaDownload": {
     "action": "Origineel bestand downloaden",
@@ -833,5 +833,20 @@
     "saved": "Opgeslagen audio",
     "partial": "De audio is onvolledig of bevat hiaten; de volledige duur is onbekend.",
     "ruler": "Mediatijdlijn: 0:00 – {{end}}"
+  },
+  "trash": {
+    "title": "Prullenbak",
+    "remove": "Naar prullenbak",
+    "confirmRemove": "Verplaatsen bevestigen",
+    "restore": "Herstellen",
+    "confirmRestore": "Herstel bevestigen",
+    "cancel": "Annuleren",
+    "empty": "De prullenbak is leeg.",
+    "removeHint": "Het item en de inhoud worden verborgen. Delen en automatische notulen worden uitgeschakeld. Geëxporteerde documenten blijven aparte kopieën.",
+    "restoreHint": "Herstel het item en de bewaarde inhoud. Delen en automatische notulen blijven uitgeschakeld.",
+    "retentionHint": "Items kunnen hier worden hersteld. Definitief verwijderen is nog niet beschikbaar. Bestaande regels voor audiobewaring blijven gelden.",
+    "conflict": "De status of toegang is gewijzigd, of de verwerking loopt nog. Ga terug, vernieuw en probeer opnieuw.",
+    "uncertain": "Het resultaat is niet bevestigd. Herhaal dezelfde actie of ga terug en vernieuw om te controleren.",
+    "unavailable": "Prullenbak niet beschikbaar. Vernieuw om de toegang te controleren."
   }
 }

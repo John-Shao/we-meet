@@ -15,6 +15,6 @@
 
 ## 发布约束
 
-`MEETING_RECORD_TRASH_ENABLED` 默认 **false**。可见性过滤始终生效，关闭开关也不会重新暴露已回收记录。需要先完成迁移，再统一发布 backend、summary 及使用本仓库的 agents/worker，使所有记录读取者执行相同规则，然后才允许开启入口；不能在旧 worker 并存时提前启用。
+`MEETING_RECORD_TRASH_ENABLED` 默认 **false**。可见性过滤始终生效，关闭开关也不会重新暴露已回收记录。第 40 批核对 Dockerfile、Helm 镜像和任务归属后修正发布范围：这套 Django 规则运行在 **backend 及其 Celery/beat** 中，独立 summary/agents 镜像不直接执行这些 ORM 读取，无需为本批重发。需要先完成迁移及所有 backend 进程滚动更新，再允许开启入口；不能在旧 backend worker 并存时提前启用。
 
 本批无生产操作、无生产删除。永久清理仍待专门实现。第 37/38 批可以正常部署；回收站在整组服务更新及双端验收完成之前保持关闭。

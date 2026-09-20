@@ -55,7 +55,7 @@
     "createHint": "Vous pouvez créer un document depuis une version du compte rendu.",
     "ai": "Copie du compte rendu IA",
     "human": "Copie du compte rendu révisé",
-    "source": "Voir la version IA source"
+    "source": "Voir la version source du compte rendu"
   },
   "mediaDownload": {
     "action": "Télécharger le fichier original",
@@ -833,5 +833,20 @@
     "saved": "Audio enregistré",
     "partial": "La transmission audio est incomplète ou comporte des lacunes ; durée complète indisponible.",
     "ruler": "Chronologie du média : 0:00 – {{end}}"
+  },
+  "trash": {
+    "title": "Corbeille",
+    "remove": "Mettre à la corbeille",
+    "confirmRemove": "Confirmer le déplacement",
+    "restore": "Restaurer",
+    "confirmRestore": "Confirmer la restauration",
+    "cancel": "Annuler",
+    "empty": "La corbeille est vide.",
+    "removeHint": "La fiche et son contenu seront masqués. Le partage et les comptes rendus automatiques seront désactivés. Les documents exportés restent des copies indépendantes.",
+    "restoreHint": "Restaurer la fiche et son contenu conservé. Le partage et les comptes rendus automatiques restent désactivés.",
+    "retentionHint": "Les fiches peuvent être restaurées ici. La suppression définitive est indisponible. Les règles de conservation audio restent applicables.",
+    "conflict": "État ou accès modifié, ou traitement en cours. Revenez et actualisez avant de réessayer.",
+    "uncertain": "Résultat non confirmé. Réessayez la même action ou revenez et actualisez pour vérifier.",
+    "unavailable": "Corbeille indisponible. Actualisez pour vérifier l’accès."
   }
 }

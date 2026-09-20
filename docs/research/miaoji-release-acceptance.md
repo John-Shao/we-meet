@@ -1,8 +1,12 @@
 # 妙记整改：目标环境验收清单
 
+## 第三十七至四十批当前发布要求
+
+[第四十批](miaoji-batch-40-record-trash-ui.md)：发布 backend/frontend，迁移 0185；确认 backend 及 Celery/beat 完成更新。生产 values 保持回收站关闭，暂不需要 summary/agents 发布。先验时长和历史来源，再开启 `backend.envVars.MEETING_RECORD_TRASH_ENABLED` 并发布 backend，以专用样本验证回收/恢复、旧入口拒绝、共享不复活、自动纪要不重启与处理忙态拒绝。Web 47、Android 29 项单元和 6 项仪器通过；生产逻辑回收尚未验收，永久清理未实现。
+
 ## 第三十九批发布前置
 
-[回收站后端](miaoji-batch-39-record-lifecycle.md)新增迁移 0185，`MEETING_RECORD_TRASH_ENABLED=false` 保持默认。开启前必须统一更新 backend/summary/agents 的记录读取代码并完成双端入口；旧 worker 混用不允许启用。124 个不同后端用例通过；没有生产回收操作。后续用专用样本验证回收/恢复、旧采集链接和签名续签、共享不复活、处理中的拒绝以及无隐式新任务；永久删除另批完成。
+[回收站后端](miaoji-batch-39-record-lifecycle.md)新增迁移 0185，`MEETING_RECORD_TRASH_ENABLED=false` 保持默认。第 40 批核对镜像后确认只需统一更新 backend 及其 Celery/beat，独立 summary/agents 无需为本批发布；旧 backend worker 混用不允许启用。124 个不同后端用例通过；没有生产回收操作。后续用专用样本验证回收/恢复、旧采集链接和签名续签、共享不复活、处理中的拒绝以及无隐式新任务；永久删除另批完成。
 
 ## 第三十八批待发布验收
 

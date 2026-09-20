@@ -64,6 +64,22 @@ const submitSearch = () =>
     screen.getByLabelText('library.search').closest('form') as HTMLFormElement
   )
 
+it.each([true, false, undefined])(
+  'shows trash only with server support, including an empty library: %s',
+  async (available) => {
+    vi.mocked(fetchApi).mockResolvedValue({
+      results: [],
+      next_cursor: null,
+      trash_available: available,
+    })
+    show()
+    await waitFor(() => expect(vi.mocked(fetchApi)).toHaveBeenCalled())
+    if (available) await screen.findByRole('button', { name: 'trash.title' })
+    else
+      expect(screen.queryByRole('button', { name: 'trash.title' })).toBeNull()
+  }
+)
+
 it('applies creation dates to both sections, resets pagination, and clears dates', async () => {
   vi.mocked(fetchApi).mockImplementation(async (path) => {
     const params = new URL(path, 'https://fixture.invalid').searchParams

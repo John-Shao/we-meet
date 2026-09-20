@@ -46,6 +46,7 @@ import {
   sectionHeading,
   scrollRegion,
 } from '../components/libraryStyles'
+import { RecordTrashLibrary } from '../components/RecordTrash'
 import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { recordSourceKey } from '../recordSource'
@@ -714,6 +715,12 @@ export function Library({
     paging.key === filterKey
       ? paging
       : { key: filterKey, ongoing: [''], archive: [''] }
+  // Share the archive query/cache with RecordList, including an empty library.
+  const archive = useMeetingRecords(viewerId, true, {
+    ...filters,
+    is_ongoing: minutes ? undefined : 'false',
+    cursor: pages.archive.at(-1),
+  })
   const sectionCursors = (ongoing: boolean) =>
     ongoing ? pages.ongoing : pages.archive
   const setSectionCursors = (ongoing: boolean, next: string[]) =>
@@ -758,6 +765,9 @@ export function Library({
               </h1>
             </div>
             <div className={headerActions}>
+              {!archive.isError && archive.data?.trash_available && (
+                <RecordTrashLibrary key={viewerId} viewerId={viewerId} />
+              )}
               {/* 搜索框在动作行里、紧挨「搜索会议 AI」的左侧,**没有提交按钮**:
                   回车即搜(清空输入即撤销筛选,见 onChange)。两个页面共用这一份。 */}
               <form
