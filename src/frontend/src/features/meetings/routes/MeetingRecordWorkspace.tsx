@@ -37,6 +37,7 @@ import { TranscriptExportControl } from '../components/TranscriptExportControl'
 import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
+import { mediaDuration, validMediaDuration } from '../recordMediaTiming'
 import { SpeakerActivity } from '../components/SpeakerActivity'
 import { RecordMediaDownload } from '../components/RecordMediaDownload'
 import { RecordDocuments } from '../components/RecordDocuments'
@@ -94,6 +95,7 @@ function OriginalRead({
   record,
   viewerId,
   speakers = false,
+  fullDuration,
   activeId,
   follow,
   onSource,
@@ -101,6 +103,7 @@ function OriginalRead({
   record: ApiMeetingRecord
   viewerId: string
   speakers?: boolean
+  fullDuration?: number
   /** Row playback is inside, so the text can follow the audio. */
   activeId?: string | null
   onSource?: (milliseconds: number) => void
@@ -293,7 +296,11 @@ function OriginalRead({
                 speaker={item}
               />
             )}
-            <SpeakerActivity activity={item.activity} onSeek={onSource} />
+            <SpeakerActivity
+              activity={item.activity}
+              onSeek={onSource}
+              mediaDuration={fullDuration}
+            />
           </div>
         ) : (
           <TranscriptSegment
@@ -443,6 +450,8 @@ function WorkspaceContent({
   const uploadMedia = useRef<UploadMediaHandle>(null)
   /** Imports are served whole; captures are served as verified chunks. */
   const isUpload = record.source_type === 'upload'
+  const [playerDuration, setPlayerDuration] = useState<number | null>(null)
+  const fullDuration = mediaDuration(record, playerDuration)
   const canPlayUpload = isUpload && record.capabilities.play_media === true
   /**
    * Playback position lives here because the player and the transcript are
@@ -657,6 +666,7 @@ function WorkspaceContent({
               viewerId={viewerId}
               onSource={playable || canPlayUpload ? seekTo : undefined}
               speakers
+              fullDuration={fullDuration}
             />
           </TabPanel>
         )}
@@ -685,6 +695,20 @@ function WorkspaceContent({
                 ? new Date(record.created_at).toLocaleString()
                 : t('library.ownerUnknown')}
             </dd>
+            <dt>{t('mediaTiming.title')}</dt>
+            <dd>
+              {fullDuration ? time(fullDuration) : t('mediaTiming.unknown')}
+            </dd>
+            {record.media_timing?.basis === 'partial_audio' &&
+              validMediaDuration(record.media_timing.saved_duration_ms) && (
+                <>
+                  <dt>{t('mediaTiming.saved')}</dt>
+                  <dd>
+                    {time(record.media_timing.saved_duration_ms)} —{' '}
+                    {t('mediaTiming.partial')}
+                  </dd>
+                </>
+              )}
             <dt>{t('library.sourceLabel')}</dt>
             <dd>{t(recordSourceKey(record))}</dd>
             <dt>{t('library.date')}</dt>
@@ -731,6 +755,7 @@ function WorkspaceContent({
           key={`${viewerId}:${record.id}`}
           ref={uploadMedia}
           recordId={record.id}
+          onDuration={setPlayerDuration}
           onPosition={follow.report}
         />
       )}

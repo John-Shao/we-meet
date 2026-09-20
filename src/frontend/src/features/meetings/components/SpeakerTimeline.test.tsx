@@ -19,6 +19,19 @@ const timeline: ApiSpeakerTimeline = {
     { start_ms: 4000, end_ms: 6000 },
   ],
 }
+it('keeps trailing silence in a complete media ruler without changing interval offsets', () => {
+  const { container, rerender } = render(
+    <SpeakerTimeline timeline={timeline} mediaDuration={10000} />
+  )
+  expect(
+    screen.getByText('mediaTiming.ruler:{"end":"0:10"}')
+  ).toBeInTheDocument()
+  expect(container.querySelectorAll('rect')[2]).toHaveAttribute('x', '400')
+  rerender(<SpeakerTimeline timeline={timeline} mediaDuration={5000} />)
+  expect(
+    screen.getByText('speakerTimeline.basis:{"end":"0:07"}')
+  ).toBeInTheDocument()
+})
 it('preserves silence geometrically and seeks to an exact interval start', () => {
   const seek = vi.fn()
   const { container } = render(

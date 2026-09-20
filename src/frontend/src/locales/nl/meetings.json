@@ -826,5 +826,12 @@
     "record": "Opnemen",
     "keepAudio": "Audio bewaard",
     "textOnly": "Alleen tekst"
+  },
+  "mediaTiming": {
+    "title": "Mediaduur",
+    "unknown": "Onbekend; beschikbaar zodra het afspelen van geïmporteerde bestanden is voorbereid.",
+    "saved": "Opgeslagen audio",
+    "partial": "De audio is onvolledig of bevat hiaten; de volledige duur is onbekend.",
+    "ruler": "Mediatijdlijn: 0:00 – {{end}}"
   }
 }

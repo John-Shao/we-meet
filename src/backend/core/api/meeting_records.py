@@ -50,6 +50,7 @@ from core.services.meeting_summary_requests import (
     serialize_summary_job,
 )
 from core.services.meeting_summary_versions import source_payload, summary_readiness
+from core.services.record_media_timing import media_timing
 from core.services.uploaded_recordings import (
     media_available,
     media_read_url,
@@ -274,6 +275,7 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
     has_summary = serializers.BooleanField(read_only=True)
     capture_id = serializers.SerializerMethodField()
     upload = serializers.SerializerMethodField()
+    media_timing = serializers.SerializerMethodField()
 
     class Meta:
         model = models.MeetingRecord
@@ -292,6 +294,7 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
             "has_summary",
             "capture_id",
             "upload",
+            "media_timing",
             # 列表视图(对齐飞书的四列)要用:所有者显示名 + 创建 / 修改时间。
             "owner",
             "created_at",
@@ -302,6 +305,10 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
     def get_capabilities(self, obj):
         """Resolve current access, not the role at record creation time."""
         return record_capabilities(obj, self.context["request"].user)
+
+    def get_media_timing(self, obj):
+        """No media URL, no inference from ASR or wall-clock session time."""
+        return media_timing(obj)
 
     def get_owner(self, obj):
         """所有者显示名 —— 与房间序列化同一口径(姓名 → 短名 → 邮箱)。"""

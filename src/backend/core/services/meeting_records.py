@@ -135,7 +135,8 @@ def record_captures(user):
     """Bounded metadata for the owner's capture link and playable-source status."""
     return (
         models.CaptureSession.objects.filter(created_by=user)
-        .only("id", "record_id", "status")
+        .select_related("audio_manifest")
+        .only("id", "record_id", "status", "audio_manifest")
         .annotate(
             has_audio=Exists(
                 models.CaptureAudioChunk.objects.filter(

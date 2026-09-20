@@ -40,10 +40,13 @@
 | 34 | 日期错误面板保持展开、提交后收起键盘及可见性回归 | 本批文档 | `8d8e8bc3` |
 | 35 | Android 记录/纪要创建时间升降序、分页重置与筛选保留 | 本批文档 | `ce1fcead` |
 | 36 | 生产 App 两个列表升降序、组合条件保留及日期错误提示实测 | 本批文档 | 无运行变更 |
+| 37 | 可靠媒体时长、完整/部分采集语义及发言分布完整标尺 | 本批实现 | `d8f48d9a` |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第三十七批](miaoji-batch-37-media-duration.md)：后端 77、Web 52、Android 29 项单元及 16 项仪器测试通过。需发布 backend/frontend 和新版 App，无迁移、无 summary/agents 变更；生产验收待部署。完整时长只覆盖有可信来源的产物，历史/视频可由授权播放器补充；其余明确未知。
 
 [第三十六批](miaoji-batch-36-android-production-ordering.md)：使用 `ce1fcead` 连接生产 `85c0291d6`，App 记录库/纪要库的两个排序方向以及日期错误完整显示通过所列场景。没有生产写入。生产多页/进行中样本、正式 Android 分发、物理设备和 Web 页面仍待验收；下文第 35 批“App 生产页面待验收”已由本批更新。
 

@@ -309,6 +309,7 @@ def test_worker_submits_once_and_publishes_complete_originals():
     poll.assert_called_once_with("provider-task")
     due(job)
     result = {
+        "properties": {"original_duration_in_milliseconds": 1200},
         "transcripts": [
             {"sentences": [{"text": "Hello", "begin_time": 10, "end_time": 900}]}
         ]
@@ -317,6 +318,7 @@ def test_worker_submits_once_and_publishes_complete_originals():
         service.process(job.pk)
     job.refresh_from_db()
     assert job.status == "succeeded"
+    assert job.configuration["_original_audio_duration_ms"] == 1200
     assert job.record.original_segments.get().text == "Hello"
     assert job.record.revision == 2
     path = f"/api/v1.0/meeting-records/{job.record_id}/"

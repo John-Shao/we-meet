@@ -6,7 +6,11 @@ import { SpeakerTimeline } from './SpeakerTimeline'
 export function SpeakerActivity({
   activity,
   onSeek,
-}: Pick<ApiMeetingSpeaker, 'activity'> & { onSeek?: (ms: number) => void }) {
+  mediaDuration,
+}: Pick<ApiMeetingSpeaker, 'activity'> & {
+  onSeek?: (ms: number) => void
+  mediaDuration?: number
+}) {
   const { t } = useTranslation('meetings')
   const valid =
     activity?.basis === 'recognized_speaker_time' &&
@@ -37,7 +41,11 @@ export function SpeakerActivity({
         className={css({ width: '100%' })}
       />
       {activity.status === 'partial' && <p>{t('speakerActivity.partial')}</p>}
-      <SpeakerTimeline timeline={activity.timeline} onSeek={onSeek} />
+      <SpeakerTimeline
+        timeline={activity.timeline}
+        onSeek={onSeek}
+        mediaDuration={mediaDuration}
+      />
     </div>
   )
 }

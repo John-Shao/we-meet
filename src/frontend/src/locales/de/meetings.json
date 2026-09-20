@@ -826,5 +826,12 @@
     "record": "Aufnehmen",
     "keepAudio": "Audio behalten",
     "textOnly": "Nur Text"
+  },
+  "mediaTiming": {
+    "title": "Mediendauer",
+    "unknown": "Unbekannt; bei importierten Dateien nach Vorbereitung der Wiedergabe verfügbar.",
+    "saved": "Gespeichertes Audio",
+    "partial": "Die Audioübertragung ist unvollständig oder enthält Lücken; keine vollständige Dauer verfügbar.",
+    "ruler": "Medienzeitleiste: 0:00 – {{end}}"
   }
 }

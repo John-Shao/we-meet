@@ -80,6 +80,30 @@ it('resolves the signed read for the record and streams that url', async () => {
   expect(container.querySelector('audio')).toHaveAttribute('controls')
 })
 
+it('reports prepared full-file duration and clears it on unmount', async () => {
+  mocks.fetchApi.mockResolvedValue(media)
+  const onDuration = vi.fn()
+  const { container, unmount } = render(
+    <UploadMediaPlayer recordId="record" onDuration={onDuration} />
+  )
+  await waitFor(() => expect(container.querySelector('audio')).not.toBeNull())
+  const audio = container.querySelector('audio')!
+  Object.defineProperty(audio, 'duration', {
+    configurable: true,
+    value: 47.123,
+  })
+  fireEvent.loadedMetadata(audio)
+  expect(onDuration).toHaveBeenLastCalledWith(47123)
+  Object.defineProperty(audio, 'duration', {
+    configurable: true,
+    value: Infinity,
+  })
+  fireEvent.durationChange(audio)
+  expect(onDuration).toHaveBeenLastCalledWith(null)
+  unmount()
+  expect(onDuration).toHaveBeenLastCalledWith(null)
+})
+
 it('offers a player even though the record has no capture to read', async () => {
   // This is the whole point: an import is not playable through the chunked
   // capture path, so the absence of a playlist must not hide the controls.

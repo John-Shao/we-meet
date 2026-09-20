@@ -10,6 +10,11 @@ export interface ApiMeetingRecord {
   origin_at: string
   retention_mode: 'media' | 'text' | 'unknown'
   revision: number
+  media_timing?: {
+    duration_ms: number | null
+    saved_duration_ms: number | null
+    basis: string
+  }
   source_available: boolean
   /** 列表视图(对齐飞书的表格)需要的两列:所有者显示名与创建/修改时间。 */
   owner?: string | null

@@ -826,5 +826,12 @@
     "record": "Enregistrer",
     "keepAudio": "Audio conservé",
     "textOnly": "Texte uniquement"
+  },
+  "mediaTiming": {
+    "title": "Durée du média",
+    "unknown": "Inconnue ; disponible après préparation de la lecture des fichiers importés.",
+    "saved": "Audio enregistré",
+    "partial": "La transmission audio est incomplète ou comporte des lacunes ; durée complète indisponible.",
+    "ruler": "Chronologie du média : 0:00 – {{end}}"
   }
 }

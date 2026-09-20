@@ -22,6 +22,7 @@ from core.services import ai_usage
 from core.services import qwen_filetrans as provider
 from core.services.capture_storage import audio_storage
 from core.services.meeting_records import RecordConflict, visible_records
+from core.services.record_media_timing import provider_audio_duration
 
 EXTENSIONS = {
     "aac",
@@ -531,7 +532,7 @@ def claim(job_id):
 
 
 @transaction.atomic
-def finish(job, rows, billed_seconds=None):
+def finish(job, rows, billed_seconds=None, original_audio_duration_ms=None):
     """Publish all validated sentences in one revision, after rechecking ownership."""
     models.MeetingRecord.objects.select_for_update().get(pk=job.record_id)
     current = models.UploadedRecording.objects.select_for_update().get(pk=job.pk)
@@ -578,6 +579,7 @@ def finish(job, rows, billed_seconds=None):
     current.status, current.error_code = "succeeded", ""
     current.configuration = {
         **current.configuration,
+        "_original_audio_duration_ms": original_audio_duration_ms,
         "_published": {
             "segment_count": len(segments),
             "attempt": current.attempt,
@@ -645,7 +647,8 @@ def process(job_id):
         else:
             result = provider.poll(job.provider_task_id)
             if result is not None:
-                finish(job, provider.sentences(result), result.get("billed_seconds"))
+                rows = provider.sentences(result)
+                finish(job, rows, result.get("billed_seconds"), provider_audio_duration(result, rows))
                 return
     except provider.FileTranscriptionError as exc:
         updates.update(

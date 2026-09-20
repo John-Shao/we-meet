@@ -826,5 +826,12 @@
     "record": "Record",
     "keepAudio": "Audio retained",
     "textOnly": "Text only"
+  },
+  "mediaTiming": {
+    "title": "Media duration",
+    "unknown": "Unknown; available after playback prepares for imported files.",
+    "saved": "Saved audio",
+    "partial": "Audio delivery is incomplete or contains gaps; no complete duration is claimed.",
+    "ruler": "Media timeline: 0:00 – {{end}}"
   }
 }

@@ -46,8 +46,9 @@ export const UploadMediaPlayer = forwardRef<
   {
     recordId: string
     onPosition?: (milliseconds: number) => void
+    onDuration?: (milliseconds: number | null) => void
   }
->(function UploadMediaPlayer({ recordId, onPosition }, ref) {
+>(function UploadMediaPlayer({ recordId, onPosition, onDuration }, ref) {
   const { t } = useTranslation('capture')
   const [media, setMedia] = useState<MediaRead>()
   const [state, setState] = useState<'loading' | 'ready' | 'playing' | 'error'>(
@@ -66,6 +67,12 @@ export const UploadMediaPlayer = forwardRef<
     audio.current = element
   }, [])
   const mounted = useRef(true)
+  const onDurationRef = useRef(onDuration)
+  onDurationRef.current = onDuration
+  useEffect(() => {
+    onDurationRef.current?.(null)
+    return () => onDurationRef.current?.(null)
+  }, [recordId])
   const onPositionRef = useRef(onPosition)
   onPositionRef.current = onPosition
 
@@ -259,6 +266,11 @@ export const UploadMediaPlayer = forwardRef<
             })}
             onLoadedMetadata={(event) => {
               const element = event.currentTarget
+              onDurationRef.current?.(
+                Number.isFinite(element.duration) && element.duration > 0
+                  ? Math.round(element.duration * 1000)
+                  : null
+              )
               element.playbackRate = rate
               const restore = pending.current
               pending.current = null
@@ -275,6 +287,15 @@ export const UploadMediaPlayer = forwardRef<
               }
               setDuration(
                 Number.isFinite(element.duration) ? element.duration : 0
+              )
+            }}
+            onDurationChange={(event) => {
+              const value = event.currentTarget.duration
+              setDuration(Number.isFinite(value) ? value : 0)
+              onDurationRef.current?.(
+                Number.isFinite(value) && value > 0
+                  ? Math.round(value * 1000)
+                  : null
               )
             }}
             onTimeUpdate={(event) => {

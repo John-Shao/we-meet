@@ -1,3 +1,4 @@
+import { validMediaDuration } from '../recordMediaTiming'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ApiSpeakerTimeline } from '../api/ApiCaptureSession'
@@ -10,9 +11,11 @@ const time = (ms: number) =>
 export function SpeakerTimeline({
   timeline,
   onSeek,
+  mediaDuration,
 }: {
   timeline?: ApiSpeakerTimeline
   onSeek?: (ms: number) => void
+  mediaDuration?: number
 }) {
   const { t } = useTranslation('meetings')
   const [page, setPage] = useState(0)
@@ -36,10 +39,21 @@ export function SpeakerTimeline({
         (index === 0 || span.start_ms > intervals[index - 1].end_ms)
     )
   if (!valid) return <p>{t('speakerTimeline.unavailable')}</p>
+  const ruler =
+    validMediaDuration(mediaDuration) && mediaDuration >= extent!
+      ? mediaDuration
+      : extent!
   const current = Math.min(page, Math.floor((intervals.length - 1) / 10))
   return (
     <div>
-      <p>{t('speakerTimeline.basis', { end: time(extent!) })}</p>
+      <p>
+        {t(
+          ruler === mediaDuration
+            ? 'mediaTiming.ruler'
+            : 'speakerTimeline.basis',
+          { end: time(ruler) }
+        )}
+      </p>
       <svg
         viewBox="0 0 1000 24"
         preserveAspectRatio="none"
@@ -50,8 +64,8 @@ export function SpeakerTimeline({
         {intervals.map((span) => (
           <rect
             key={span.start_ms}
-            x={(span.start_ms / extent!) * 1000}
-            width={((span.end_ms - span.start_ms) / extent!) * 1000}
+            x={(span.start_ms / ruler) * 1000}
+            width={((span.end_ms - span.start_ms) / ruler) * 1000}
             height="24"
             fill="currentColor"
             onClick={onSeek ? () => onSeek(span.start_ms) : undefined}
