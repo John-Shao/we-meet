@@ -44,10 +44,13 @@
 | 38 | 双端人工纪要导出来源精确导航、只读历史及原始快照引用 | `11aa176fb` | `4934a960` |
 | 39 | 回收站后端、统一读取隔离、恢复与任务/分享边界；默认关闭 | `d5ac89907` | 无运行变更 |
 | 40 | Web/App 回收确认、回收站分页和恢复；服务器能力控制入口 | 本批实现 | `210345aa`、`9fcdb382` |
+| 41 | 部署后 App/API 时长、人工旧版本导航、仅纪要分享撤权与关闭回收开关验收 | 本批文档 | `9fcdb382` 构建并安装 |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第四十一批](miaoji-batch-41-production-acceptance.md)：backend/frontend `bd16ac487`、Helm revision 379 已部署。新音频原始时长 93461ms 与 App 未播放前显示、旧音频/视频播放器补充时长、人工历史 5 不回退当前 6、仅纪要分享及撤权 API 均通过所列检查；临时分享已清理。回收关闭契约通过，逻辑回收仍未开启/验收；下一步准备启用配置并发布 backend。完整/部分原生采集、Web 页面及正式 App 分发不在本批生产覆盖内。
 
 [第四十批](miaoji-batch-40-record-trash-ui.md)：Web 47、Android 29 项单元与 6 项仪器测试通过。需 backend/frontend 发布、迁移 0185 和新版 App；核对镜像后确认无需重发 summary/agents。生产 values 显式关闭回收站，待 backend 所有进程更新后再开启并验收。下一步是第 37–40 批生产验收；永久清理未交付。
 

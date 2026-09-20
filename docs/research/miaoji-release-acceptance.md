@@ -1,5 +1,9 @@
 # 妙记整改：目标环境验收清单
 
+## 第四十一批生产验收更新
+
+[部署后验收](miaoji-batch-41-production-acceptance.md)：`bd16ac487` / Helm 379 已部署；Android `9fcdb382` 已安装。新音频 93461ms、旧音频/视频播放器时长、人工版本 5 来源导航及仅纪要分享/撤权 API 通过；回收入口/接口确认关闭。下一项为启用回收配置后验收逻辑回收/恢复及权限、任务边界。完整/部分原生采集、历史页 App 撤权清理、Web UI 和正式分发仍待验收；详情及样本 ID 见本批文档。下方“待部署”保留历史，当前以本节为准。
+
 ## 第三十七至四十批当前发布要求
 
 [第四十批](miaoji-batch-40-record-trash-ui.md)：发布 backend/frontend，迁移 0185；确认 backend 及 Celery/beat 完成更新。生产 values 保持回收站关闭，暂不需要 summary/agents 发布。先验时长和历史来源，再开启 `backend.envVars.MEETING_RECORD_TRASH_ENABLED` 并发布 backend，以专用样本验证回收/恢复、旧入口拒绝、共享不复活、自动纪要不重启与处理忙态拒绝。Web 47、Android 29 项单元和 6 项仪器通过；生产逻辑回收尚未验收，永久清理未实现。
