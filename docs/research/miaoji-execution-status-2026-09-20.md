@@ -25,10 +25,13 @@
 | 19 | 生产跨账号分享/撤权验收，修复只读上传件误报不可用 | 本批文档 | `88934269` |
 | 20 | 原生 HTTP 403 准备超时、新签名恢复及重试上限 | 本批文档 | `a06355a6` |
 | 21 | 一小时生产签名自然过期、Range 续期和原生恢复验收 | 本批文档 | `b80d5e21`（验收断言） |
+| 22 | Web 只读上传状态保护、双端普通/直传取消进度及登记恢复 | 本批实现 | `915c4f07` |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第二十二批](miaoji-batch-22-upload-controls.md)已完成 G1/G2 实现和针对性回归，尚未部署：Web 68 项、Android 上传相关 34 项通过。需要发布 frontend 和新版 Android；本批无后端运行变更。下文生产环境基线仍是此前已部署版本。
 
 正在进行[目标环境验收](miaoji-release-acceptance.md)。用户已部署 backend `2eb3482c6`（revision 373），frontend `a5f314c33`，summary/agents `f2e7f3cd4`。两个样本真实直传签名、PUT、登记、转写及下载哈希已通过，签名 500 和缺头导致的 403 已关闭。浏览器自动化仍不可用；用户选择改走 Android 模拟器，App 核心生产流程结果见第十八批。
 

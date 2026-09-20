@@ -1,5 +1,10 @@
 import { ApiError } from './ApiError'
 import { apiUrl } from './apiUrl'
+import { uploadFetch } from './uploadFetch'
+
+type ApiRequest = RequestInit & {
+  onUploadProgress?: (sent: number, total: number) => void
+}
 import {
   clearTokens,
   getAuthSnapshot,
@@ -63,10 +68,8 @@ const buildHeaders = (
 }
 
 /** Same-login refresh only. Cookie identity discovery is restricted to GET users/me. */
-export const authenticatedFetch = async (
-  url: string,
-  options?: RequestInit
-) => {
+export const authenticatedFetch = async (url: string, options?: ApiRequest) => {
+  const { onUploadProgress, ...requestOptions } = options ?? {}
   let snapshot = getAuthSnapshot()
   const csrf = getCsrfToken()
   const explicit = new Headers(options?.headers).has('Authorization')
@@ -74,11 +77,14 @@ export const authenticatedFetch = async (
   const request = (bearer: string | null) => {
     assertAuthSession(snapshot)
     options?.signal?.throwIfAborted()
-    return fetch(apiUrl(url), {
+    const init = {
       credentials: 'include',
-      ...options,
+      ...requestOptions,
       headers: buildHeaders(bearer, csrf, options),
-    })
+    } satisfies RequestInit
+    return onUploadProgress
+      ? uploadFetch(apiUrl(url), init, onUploadProgress)
+      : fetch(apiUrl(url), init)
   }
   let response = await request(initial)
   assertAuthSession(snapshot)
@@ -106,7 +112,7 @@ export const authenticatedFetch = async (
 
 export const fetchApi = async <T = Record<string, unknown>>(
   url: string,
-  options?: RequestInit & {
+  options?: ApiRequest & {
     meetingCommand?: { key: string; scope: Record<string, string> }
   },
   binary?: { maxBytes: number }

@@ -552,7 +552,7 @@ function WorkspaceContent({
             {/* Downloads belong with the transcript they export, not only in a
                 menu: the reader is looking at the text when they want the file. */}
             <TranscriptExportControl recordId={record.id} />
-            {record.source_type === 'upload' && (
+            {record.source_type === 'upload' && record.upload?.can_control && (
               <UploadedRecordingStatus
                 recordId={record.id}
                 viewerId={viewerId}

@@ -697,6 +697,8 @@
     "submit": "Importieren und transkribieren",
     "uploading": "Wird importiert…",
     "keepOpen": "Lassen Sie diese Seite während des Imports geöffnet. Danach können Sie sie verlassen; die Transkription läuft im Hintergrund weiter.",
+    "confirming": "Datei gesendet. Das Importergebnis wird bestätigt…",
+    "stopped": "Upload-Anfrage gestoppt. Der Server hat die Datei möglicherweise erhalten. Wiederholen Sie den Vorgang mit derselben Datei und denselben Einstellungen, um das Ergebnis zu bestätigen.",
     "error": "Der Vorgang konnte nicht abgeschlossen werden. Prüfen Sie Dateiformat, Größe und Verbindung; falls bereits eine Transkription läuft, versuchen Sie es später erneut.",
     "stateError": "Der Transkriptionsstatus konnte nicht geladen werden. Aktualisieren Sie die Seite und versuchen Sie es erneut.",
     "unknown": "Die letzte Übermittlung konnte nicht bestätigt werden. Eine erneute Transkription kann zusätzliche Kosten verursachen.",

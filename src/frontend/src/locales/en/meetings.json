@@ -697,6 +697,8 @@
     "submit": "Import and transcribe",
     "uploading": "Importing…",
     "keepOpen": "Keep this page open during the import. Transcription continues in the background afterwards.",
+    "confirming": "Bytes sent. Waiting for the import result…",
+    "stopped": "Upload request stopped. The server may have received the file. Retry with the same file and settings to confirm the result.",
     "error": "Could not complete this action. Check the file format, size and connection. If another transcription is active, try again later.",
     "stateError": "Could not load transcription status. Refresh to try again.",
     "unknown": "The previous submission could not be confirmed. Starting again may incur an additional charge.",

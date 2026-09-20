@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchApi, fetchApiBlob, attemptSilentRefresh } from './fetchApi'
 import { refreshTokens } from '@/features/auth/api/mobileOtp'
+import * as uploadTransport from './uploadFetch'
 import {
   setTokens,
   clearTokens,
@@ -26,6 +27,32 @@ describe('fetchApi authentication fallback', () => {
     vi.mocked(refreshTokens).mockReset()
     localStorage.clear()
     localStorage.setItem('we-meet:access_token', 'expired-access-token')
+  })
+
+  it('uses the same auth and abort contract for progress uploads', async () => {
+    const transport = vi
+      .spyOn(uploadTransport, 'uploadFetch')
+      .mockResolvedValue(jsonResponse(202, { record_id: 'accepted' }))
+    const controller = new AbortController()
+    const progress = vi.fn()
+    const body = new FormData()
+    await expect(
+      fetchApi('recording-uploads/', {
+        method: 'POST',
+        body,
+        signal: controller.signal,
+        onUploadProgress: progress,
+      })
+    ).resolves.toEqual({ record_id: 'accepted' })
+    const [url, options, callback] = transport.mock.calls[0]
+    expect(url).toContain('/api/v1.0/recording-uploads/')
+    expect(options.credentials).toBe('include')
+    expect(new Headers(options.headers).get('Authorization')).toBe(
+      'Bearer expired-access-token'
+    )
+    expect(new Headers(options.headers).has('Content-Type')).toBe(false)
+    expect(options.signal).toBe(controller.signal)
+    expect(callback).toBe(progress)
   })
 
   it('does not retry source-bound mutations with a cookie identity', async () => {

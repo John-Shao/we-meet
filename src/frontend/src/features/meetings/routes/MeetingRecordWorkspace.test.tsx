@@ -449,6 +449,7 @@ it('connects upload timestamps to playback without sending an empty speaker filt
 it('does not offer media or timestamp actions to a transcript-only upload reader', async () => {
   record.source_type = 'upload'
   record.capture_id = null
+  record.upload = { can_control: false }
   record.capabilities = {
     read_transcript: true,
     read_summary: true,
@@ -457,6 +458,23 @@ it('does not offer media or timestamp actions to a transcript-only upload reader
   show()
   await screen.findByText('Shared original')
   expect(screen.queryByText('upload-player')).not.toBeInTheDocument()
+  expect(screen.queryByText('upload-status')).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: '0:00' })).not.toBeInTheDocument()
   expect(screen.queryByText('library.backToPlayback')).not.toBeInTheDocument()
+})
+
+it('shows upload controls only when the owner control capability is granted', async () => {
+  record.source_type = 'upload'
+  record.capture_id = null
+  record.upload = { can_control: true }
+  show()
+  expect(await screen.findByText('upload-status')).toBeInTheDocument()
+})
+
+it('does not infer upload controls from transcript access on older metadata', async () => {
+  record.source_type = 'upload'
+  record.capture_id = null
+  show()
+  await screen.findByText('Shared original')
+  expect(screen.queryByText('upload-status')).not.toBeInTheDocument()
 })

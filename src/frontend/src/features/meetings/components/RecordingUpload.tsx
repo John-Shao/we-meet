@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
 import { fetchApi } from '@/api/fetchApi'
+import { uploadFetch } from '@/api/uploadFetch'
 import { Button, Dialog, TextArea } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
 import { RiDownload2Line } from '@remixicon/react'
@@ -63,7 +64,9 @@ async function importRecording(
   key: string,
   options: { context: string; hotwords: string },
   direct: { maxBytes: number } | null,
-  ticket: { current: DirectUploadTicket | null }
+  ticket: { current: DirectUploadTicket | null },
+  signal: AbortSignal,
+  onProgress: (sent: number, total: number) => void
 ): Promise<UploadState> {
   const content_type = file.type || 'application/octet-stream'
   if (!direct || file.size > direct.maxBytes) {
@@ -75,6 +78,8 @@ async function importRecording(
     return fetchApi<UploadState>('recording-uploads/', {
       method: 'POST',
       body,
+      signal,
+      onUploadProgress: onProgress,
     })
   }
 
@@ -82,7 +87,7 @@ async function importRecording(
     method: 'POST',
     cache: 'no-store',
     redirect: 'error',
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
     body: JSON.stringify({
       key,
       name: file.name,
@@ -99,11 +104,17 @@ async function importRecording(
   if (!ticket.current.uploaded) {
     let stored = false
     try {
-      const response = await fetch(ticket.current.upload_url, {
-        method: 'PUT',
-        headers: ticket.current.headers,
-        body: file,
-      })
+      const response = await uploadFetch(
+        ticket.current.upload_url,
+        {
+          method: 'PUT',
+          headers: ticket.current.headers,
+          body: file,
+          signal,
+          credentials: 'omit',
+        },
+        onProgress
+      )
       stored = response.ok
     } catch {
       stored = false
@@ -116,11 +127,14 @@ async function importRecording(
     ticket.current.uploaded = true
   }
 
+  signal.throwIfAborted()
+  onProgress(file.size, file.size)
+
   return fetchApi<UploadState>(COMPLETE, {
     method: 'POST',
     cache: 'no-store',
     redirect: 'error',
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
     body: JSON.stringify({
       key,
       name: file.name,
@@ -193,7 +207,11 @@ export function RecordingUpload({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
   const [open, setOpen] = useState(false)
-  // Byte progress for the chunked path, and the handle that lets the reader stop.
+  // Once sent, keep the declaration stable until its result is known.
+  const [submitted, setSubmitted] = useState(false)
+  const [stopped, setStopped] = useState(false)
+  const [uploadTotal, setUploadTotal] = useState(0)
+  // Transport progress is not a successful import receipt.
   const [uploaded, setUploaded] = useState(0)
   const [cancelled, setCancelled] = useState(false)
   const controller = useRef<AbortController | null>(null)
@@ -212,7 +230,8 @@ export function RecordingUpload({
   // When the server offers direct uploads, that path's ceiling is the real one;
   // the multipart ceiling only still applies to the legacy branch.
   const directAllowed =
-    config.direct_upload_available === true && (config.direct_max_bytes ?? 0) > 0
+    config.direct_upload_available === true &&
+    (config.direct_max_bytes ?? 0) > 0
   const limit = directAllowed
     ? Math.max(config.max_bytes, config.direct_max_bytes ?? 0)
     : config.max_bytes
@@ -220,8 +239,8 @@ export function RecordingUpload({
   // Past the threshold a single PUT means one break loses everything, so large
   // files go up in parts. Small ones keep the simpler whole-file path.
   const chunked = directAllowed && (file?.size ?? 0) > CHUNKED_THRESHOLD
-  const percent = file?.size
-    ? Math.min(100, Math.floor((uploaded / file.size) * 100))
+  const percent = uploadTotal
+    ? Math.min(100, Math.floor((uploaded / uploadTotal) * 100))
     : 0
   const valid =
     !!file &&
@@ -254,6 +273,9 @@ export function RecordingUpload({
           setKey(crypto.randomUUID())
           // A ticket belongs to one file's bytes; a different file needs its own.
           ticket.current = null
+          setSubmitted(false)
+          setStopped(false)
+          setCancelled(false)
           setError(false)
           setOpen(true)
           event.target.value = ''
@@ -296,13 +318,20 @@ export function RecordingUpload({
               return
             }
             setBusy(true)
+            setSubmitted(true)
+            setStopped(false)
             setCancelled(false)
             setUploaded(0)
+            setUploadTotal(file.size)
+            const abort = new AbortController()
+            controller.current = abort
+            const progress = (sent: number, total: number) => {
+              setUploaded(sent)
+              setUploadTotal(total)
+            }
             try {
               let recordId: string
               if (chunked) {
-                const abort = new AbortController()
-                controller.current = abort
                 try {
                   const job = (await uploadInParts(
                     file,
@@ -315,7 +344,7 @@ export function RecordingUpload({
                     },
                     { request: fetchApi, putPart: putPartWithProgress },
                     abort.signal,
-                    (sent) => setUploaded(sent)
+                    progress
                   )) as UploadState
                   recordId = job.record_id
                 } catch (failure) {
@@ -333,7 +362,9 @@ export function RecordingUpload({
                   key,
                   { context, hotwords },
                   directAllowed ? { maxBytes: limit } : null,
-                  ticket
+                  ticket,
+                  abort.signal,
+                  progress
                 )
                 recordId = result.record_id
               }
@@ -341,8 +372,10 @@ export function RecordingUpload({
               if (onRecord) onRecord(recordId)
               else navigate(`/meeting/records/${recordId}?tab=text`)
             } catch {
-              setError(true)
+              if (abort.signal.aborted && !chunked) setStopped(true)
+              else setError(true)
             } finally {
+              controller.current = null
               setBusy(false)
             }
           }}
@@ -385,7 +418,7 @@ export function RecordingUpload({
                   className={textAreaCls}
                   rows={3}
                   maxLength={400}
-                  disabled={busy}
+                  disabled={busy || submitted}
                   value={context}
                   onChange={(event) => {
                     setContext(event.target.value)
@@ -399,7 +432,7 @@ export function RecordingUpload({
                   className={textAreaCls}
                   rows={3}
                   maxLength={4000}
-                  disabled={busy}
+                  disabled={busy || submitted}
                   value={hotwords}
                   onChange={(event) => {
                     setHotwords(event.target.value)
@@ -422,11 +455,17 @@ export function RecordingUpload({
               way out rather than an indefinite spinner. The native <progress>
               already carries the progressbar role and its own values, so the
               wrapper must not declare a second one. */}
-          {busy && chunked && (
-            <div className={css({ display: 'flex', gap: '0.5rem', alignItems: 'center' })}>
+          {busy && (
+            <div
+              className={css({
+                display: 'flex',
+                gap: '0.5rem',
+                alignItems: 'center',
+              })}
+            >
               <progress
                 value={uploaded}
-                max={Math.max(file?.size ?? 1, 1)}
+                max={Math.max(uploadTotal, 1)}
                 aria-label={t('upload.progress', { percent })}
               />
               <span>{t('upload.progress', { percent })}</span>
@@ -442,6 +481,10 @@ export function RecordingUpload({
             </Button>
           )}
           {busy && !chunked && <p role="status">{t('upload.keepOpen')}</p>}
+          {busy && percent === 100 && (
+            <p role="status">{t('upload.confirming')}</p>
+          )}
+          {stopped && <p role="status">{t('upload.stopped')}</p>}
           {cancelled && <p role="status">{t('upload.cancelled')}</p>}
           {error && valid && <p role="alert">{t('upload.error')}</p>}
         </form>

@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { fetchApi } from '@/api/fetchApi'
+import { uploadFetch } from '@/api/uploadFetch'
 import { CHUNKED_THRESHOLD, UploadCancelled } from '../chunkedUpload'
 import { RecordingUpload, UploadedRecordingStatus } from './RecordingUpload'
 
@@ -10,6 +11,7 @@ const navigate = vi.fn()
 // be created first.
 const { uploadInParts } = vi.hoisted(() => ({ uploadInParts: vi.fn() }))
 vi.mock('@/api/fetchApi', () => ({ fetchApi: vi.fn() }))
+vi.mock('@/api/uploadFetch', () => ({ uploadFetch: vi.fn() }))
 vi.mock('wouter', () => ({ useLocation: () => ['', navigate] }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -213,7 +215,7 @@ async function pick(name = 'Long.wav', bytes = 4096) {
 
 it('sends a file over the multipart limit straight to storage, then adopts it', async () => {
   const storage = vi.fn().mockResolvedValue({ ok: true })
-  vi.stubGlobal('fetch', storage)
+  vi.mocked(uploadFetch).mockImplementation(storage)
   vi.mocked(fetchApi)
     .mockResolvedValueOnce(withDirect())
     .mockResolvedValueOnce({
@@ -225,7 +227,9 @@ it('sends a file over the multipart limit straight to storage, then adopts it', 
   try {
     show(<RecordingUpload viewerId="owner" />)
     await pick()
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/meeting/records/big?tab=text'))
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith('/meeting/records/big?tab=text')
+    )
 
     // Bytes go to storage, addressed by the signed URL the server handed out.
     expect(storage).toHaveBeenCalledOnce()
@@ -246,7 +250,9 @@ it('sends a file over the multipart limit straight to storage, then adopts it', 
     expect(body.name).toBe('Long.wav')
     // No multipart body anywhere: that branch cannot carry this file.
     expect(
-      vi.mocked(fetchApi).mock.calls.some(([, o]) => o?.body instanceof FormData)
+      vi
+        .mocked(fetchApi)
+        .mock.calls.some(([, o]) => o?.body instanceof FormData)
     ).toBe(false)
   } finally {
     vi.unstubAllGlobals()
@@ -258,7 +264,7 @@ it('does not send app credentials to the storage host', async () => {
   // to a third-party origin would leak it, so the PUT is deliberately bare
   // except for the Content-Type the signature covers.
   const storage = vi.fn().mockResolvedValue({ ok: true })
-  vi.stubGlobal('fetch', storage)
+  vi.mocked(uploadFetch).mockImplementation(storage)
   vi.mocked(fetchApi)
     .mockResolvedValueOnce(withDirect())
     .mockResolvedValueOnce({
@@ -272,7 +278,7 @@ it('does not send app credentials to the storage host', async () => {
     await pick()
     await waitFor(() => expect(storage).toHaveBeenCalled())
     const init = storage.mock.calls[0][1] as RequestInit
-    expect(init.credentials).toBeUndefined()
+    expect(init.credentials).toBe('omit')
     expect(init.headers).toEqual({ 'Content-Type': 'audio/wav' })
   } finally {
     vi.unstubAllGlobals()
@@ -284,7 +290,7 @@ it('keeps the storage ticket when only the final adoption failed', async () => {
   // rather than ask the server to sign a second key — otherwise the first
   // object is orphaned in the bucket.
   const storage = vi.fn().mockResolvedValue({ ok: true })
-  vi.stubGlobal('fetch', storage)
+  vi.mocked(uploadFetch).mockImplementation(storage)
   vi.mocked(fetchApi)
     .mockResolvedValueOnce(withDirect())
     .mockResolvedValueOnce({
@@ -301,9 +307,9 @@ it('keeps the storage ticket when only the final adoption failed', async () => {
     fireEvent.submit(form)
     await waitFor(() => expect(navigate).toHaveBeenCalled())
     expect(
-      vi.mocked(fetchApi).mock.calls.filter(
-        ([url]) => url === 'recording-uploads/upload-url/'
-      )
+      vi
+        .mocked(fetchApi)
+        .mock.calls.filter(([url]) => url === 'recording-uploads/upload-url/')
     ).toHaveLength(1)
     // Completion retries also work after the PUT signature has expired.
     // Successfully transferred bytes are not uploaded again.
@@ -318,7 +324,7 @@ it('keeps the storage ticket when only the final adoption failed', async () => {
 
 it('reuses one idempotency key across a retried completion', async () => {
   const storage = vi.fn().mockResolvedValue({ ok: true })
-  vi.stubGlobal('fetch', storage)
+  vi.mocked(uploadFetch).mockImplementation(storage)
   vi.mocked(fetchApi)
     .mockResolvedValueOnce(withDirect())
     .mockResolvedValueOnce({
@@ -336,7 +342,9 @@ it('reuses one idempotency key across a retried completion', async () => {
     await waitFor(() => expect(navigate).toHaveBeenCalled())
     const keys = vi
       .mocked(fetchApi)
-      .mock.calls.filter(([url]) => url === 'recording-uploads/upload-complete/')
+      .mock.calls.filter(
+        ([url]) => url === 'recording-uploads/upload-complete/'
+      )
       .map(([, o]) => JSON.parse((o as RequestInit).body as string).key)
     expect(keys).toHaveLength(2)
     expect(keys[1]).toEqual(keys[0])
@@ -356,14 +364,18 @@ it('still uses the multipart branch when the server does not offer direct upload
     .mockResolvedValueOnce({ record_id: 'small', status: 'queued' })
   show(<RecordingUpload viewerId="owner" />)
   await pick('Small.wav', 64)
-  await waitFor(() => expect(navigate).toHaveBeenCalledWith('/meeting/records/small?tab=text'))
+  await waitFor(() =>
+    expect(navigate).toHaveBeenCalledWith('/meeting/records/small?tab=text')
+  )
   const call = vi.mocked(fetchApi).mock.calls.at(-1)!
   expect(call[0]).toBe('recording-uploads/')
   expect((call[1] as RequestInit).body).toBeInstanceOf(FormData)
 })
 
 it('refuses a file above the direct ceiling before opening a ticket', async () => {
-  vi.mocked(fetchApi).mockResolvedValueOnce(withDirect({ direct_max_bytes: 2048 }))
+  vi.mocked(fetchApi).mockResolvedValueOnce(
+    withDirect({ direct_max_bytes: 2048 })
+  )
   show(<RecordingUpload viewerId="owner" />)
   fireEvent.click(await screen.findByRole('button', { name: 'upload.open' }))
   await pick('TooBig.wav', 4096)
@@ -398,7 +410,14 @@ it('reports a cancelled transfer as cancelled, not as an error', async () => {
 it('shows byte progress and offers a way out while a large transfer runs', async () => {
   let report: ((sent: number, total: number) => void) | undefined
   uploadInParts.mockImplementationOnce(
-    (_file, _intent, _declaration, _deps, _signal, onProgress: (s: number, t: number) => void) => {
+    (
+      _file,
+      _intent,
+      _declaration,
+      _deps,
+      _signal,
+      onProgress: (s: number, t: number) => void
+    ) => {
       report = onProgress
       // Never settles, so the mid-transfer state can be inspected.
       return new Promise(() => {})
@@ -409,6 +428,102 @@ it('shows byte progress and offers a way out while a large transfer runs', async
   fireEvent.click(await screen.findByRole('button', { name: 'upload.open' }))
   await pick('Long.wav', CHUNKED_THRESHOLD + 1)
   await waitFor(() => expect(report).toBeDefined())
-  expect(screen.getByRole('button', { name: 'upload.cancel' })).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'upload.cancel' })
+  ).toBeInTheDocument()
   expect(screen.getByRole('progressbar')).toBeInTheDocument()
+})
+
+it('stops a normal upload and retains its declaration for an uncertain retry', async () => {
+  let options: NonNullable<Parameters<typeof fetchApi>[1]> | undefined
+  vi.mocked(fetchApi)
+    .mockResolvedValueOnce({
+      available: true,
+      max_bytes: 8192,
+      extensions: ['wav'],
+    })
+    .mockImplementationOnce((_path, init) => {
+      options = init
+      return new Promise((_resolve, reject) =>
+        init!.signal!.addEventListener('abort', () =>
+          reject(init!.signal!.reason)
+        )
+      )
+    })
+    .mockResolvedValueOnce({ record_id: 'accepted', status: 'queued' })
+  show(<RecordingUpload viewerId="owner" />)
+  const form = await pick()
+  act(() => options!.onUploadProgress!(2048, 4096))
+  expect(screen.getByRole('progressbar')).toHaveAttribute('value', '2048')
+  fireEvent.click(screen.getByRole('button', { name: 'upload.cancel' }))
+  await screen.findByText('upload.stopped')
+  expect(options!.signal!.aborted).toBe(true)
+  expect(screen.queryByText('upload.cancelled')).not.toBeInTheDocument()
+  expect(screen.getByLabelText('upload.context')).toBeDisabled()
+  expect(navigate).not.toHaveBeenCalled()
+  fireEvent.submit(form)
+  await waitFor(() =>
+    expect(navigate).toHaveBeenCalledWith('/meeting/records/accepted?tab=text')
+  )
+  const retried = vi.mocked(fetchApi).mock.calls.at(-1)![1]!.body as FormData
+  expect(retried.get('key')).toBe((options!.body as FormData).get('key'))
+})
+
+it('cancels a direct PUT before adoption and reports its progress', async () => {
+  vi.mocked(fetchApi)
+    .mockResolvedValueOnce(withDirect())
+    .mockResolvedValueOnce({
+      upload_url: 'https://storage.example/put',
+      storage_name: 'object',
+      headers: {},
+    })
+  vi.mocked(uploadFetch).mockImplementation((_url, options, report) => {
+    report(2048, 4096)
+    return new Promise((_resolve, reject) =>
+      options.signal!.addEventListener('abort', () =>
+        reject(options.signal!.reason)
+      )
+    )
+  })
+  show(<RecordingUpload viewerId="owner" />)
+  await pick()
+  await waitFor(() =>
+    expect(screen.getByRole('progressbar')).toHaveAttribute('value', '2048')
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'upload.cancel' }))
+  await screen.findByText('upload.stopped')
+  expect(fetchApi).toHaveBeenCalledTimes(2)
+  expect(navigate).not.toHaveBeenCalled()
+})
+
+it('retries a stopped completion without uploading the stored bytes again', async () => {
+  vi.mocked(uploadFetch).mockResolvedValue({ ok: true } as Response)
+  vi.mocked(fetchApi)
+    .mockResolvedValueOnce(withDirect())
+    .mockResolvedValueOnce({
+      upload_url: 'https://storage.example/put',
+      storage_name: 'object',
+      headers: {},
+    })
+    .mockImplementationOnce(
+      (_url, options) =>
+        new Promise((_resolve, reject) => {
+          options!.signal!.addEventListener('abort', () =>
+            reject(options!.signal!.reason)
+          )
+        })
+    )
+    .mockResolvedValueOnce({ record_id: 'accepted', status: 'queued' })
+  show(<RecordingUpload viewerId="owner" />)
+  const form = await pick()
+  await screen.findByText('upload.confirming')
+  fireEvent.click(screen.getByRole('button', { name: 'upload.cancel' }))
+  await screen.findByText('upload.stopped')
+  fireEvent.submit(form)
+  await waitFor(() => expect(navigate).toHaveBeenCalled())
+  expect(uploadFetch).toHaveBeenCalledOnce()
+  const completions = vi
+    .mocked(fetchApi)
+    .mock.calls.filter(([path]) => path.endsWith('upload-complete/'))
+  expect(completions[0][1]!.body).toEqual(completions[1][1]!.body)
 })
