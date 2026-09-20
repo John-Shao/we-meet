@@ -1,5 +1,7 @@
 # 妙记对标：整改后的真实缺口盘点
 
+> [?????](miaoji-batch-34-filter-sheet.md)?Android `8d8e8bc3` ???????????????/????????????????????? App ???????????????? backend/frontend?
+
 > [第三十三批](miaoji-batch-33-date-production-acceptance.md)：backend/frontend `85c0291d6`（revision 378）已部署，App/API 日期组合筛选和只读导出空态已验收所列场景。日期错误时面板半屏隐藏提示的问题进入第 34 批。真实多页/进行中样本、Web 页面、物理设备及正式 App 分发仍待验收，G4/G6/G7 的其余开发缺口保持不变。
 
 > [第三十二批](miaoji-batch-32-date-filters.md)已实现 G4 的创建日期范围与既有归属/来源/标题组合筛选，服务端分页前执行、双端清空旧游标，旧后端未确认能力时不误显未筛选结果。指定任意所有者、标签/文件夹、保存筛选及 Android 可选排序仍未覆盖。需 backend/frontend 发布和新版 App，生产未验收；下方历史“组合筛选未实现”现应按这些具体边界理解。
