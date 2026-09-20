@@ -1,5 +1,9 @@
 # 妙记整改：目标环境验收清单
 
+## 第四十三批生产结果
+
+[回收生产验收](miaoji-batch-43-trash-production-acceptance.md)：backend `b4bd230e4` / Helm 380 已启用。主样本 App 回收与恢复、跨账号权限不复活、相同请求幂等及旧请求冲突通过；原生空会话准备/录音中拒绝回收、停止后的自动纪要关闭与旧入口拒绝也通过。样本全部恢复，授权列表为空。发现 App 嵌套详情回收后落入错误页，第 44 批修复后复测；永久清理、Web UI、真实回收分页等不在本批通过范围。下方待启用条目保留历史。
+
 ## 第四十二批待发布
 
 [逻辑回收启用配置](miaoji-batch-42-trash-rollout.md)已准备，Helm 验证开关在三个 backend 进程一致。下一次执行 `bash deploy/aliyun/release-meet.sh backend`；frontend 保持 `bd16ac487`，Android `9fcdb382` 已安装。生产当前仍关闭，发布后仅用第 41 批新样本验收回收/恢复、授权不复活及忙态保护。永久清理未实现。
