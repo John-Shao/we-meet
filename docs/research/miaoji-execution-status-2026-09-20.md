@@ -39,10 +39,13 @@
 | 33 | 日期组合筛选、只读导出空态的 App/API 生产验收；发现筛选面板收起问题 | `a2bd10117` | 无运行变更 |
 | 34 | 日期错误面板保持展开、提交后收起键盘及可见性回归 | 本批文档 | `8d8e8bc3` |
 | 35 | Android 记录/纪要创建时间升降序、分页重置与筛选保留 | 本批文档 | `ce1fcead` |
+| 36 | 生产 App 两个列表升降序、组合条件保留及日期错误提示实测 | 本批文档 | 无运行变更 |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第三十六批](miaoji-batch-36-android-production-ordering.md)：使用 `ce1fcead` 连接生产 `85c0291d6`，App 记录库/纪要库的两个排序方向以及日期错误完整显示通过所列场景。没有生产写入。生产多页/进行中样本、正式 Android 分发、物理设备和 Web 页面仍待验收；下文第 35 批“App 生产页面待验收”已由本批更新。
 
 [第三十五批](miaoji-batch-35-android-ordering.md)：Android `ce1fcead` 已补齐 G4 可选创建时间排序；30 项单元测试、31 个不同仪器用例、截图和设计检查通过。生产 API 两条既有样本的组合条件下升降序通过；App 生产排序页面、多页/进行中样本和正式分发仍待验收。无 backend/frontend 新部署要求。
 
