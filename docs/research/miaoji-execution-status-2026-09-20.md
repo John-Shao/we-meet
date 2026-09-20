@@ -21,23 +21,22 @@
 | 15 | 生产直传 PUT 缺少已签名 ACL 请求头 | `2eb3482c6` | 本批无变更 |
 | 16 | Android 准备阶段读取媒体时长导致播放失败 | 本批文档 | `cd3b23dd` |
 | 17 | 竖屏画面约束、窄屏按钮换行及正文优先阅读 | 本批文档 | `9e7a96b2` |
+| 18 | 系统选择器返回后原文导出为空，及 App 核心生产流程验收 | 本批文档 | `9e259872` |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
 
-正在进行[目标环境验收](miaoji-release-acceptance.md)。用户已部署 backend `2eb3482c6`（revision 373），frontend `a5f314c33`，summary/agents `f2e7f3cd4`。2026-09-20 约 10:30 两个样本原样使用接口返回的请求头，签名、PUT、登记、转写及下载哈希均通过，直传签名 500 和缺头导致的 403 已关闭。浏览器自动化连接仍失败，页面验收尚未进行。
+正在进行[目标环境验收](miaoji-release-acceptance.md)。用户已部署 backend `2eb3482c6`（revision 373），frontend `a5f314c33`，summary/agents `f2e7f3cd4`。两个样本真实直传签名、PUT、登记、转写及下载哈希已通过，签名 500 和缺头导致的 403 已关闭。浏览器自动化仍不可用；用户选择改走 Android 模拟器，App 核心生产流程结果见第十八批。
 
 先更新后端，再配套发布 Web/Android。校对需要版本字段；新客户端读取旧后端的恒 false `play_media` 会隐藏播放入口。无需数据库迁移。本轮没有执行部署；已通过用户授权样本调用生产 ASR，后续结果以验收清单为准。
 
-已补充 Android Pixel 8 / Android 16 模拟器播放器测试，8 项通过，含真实本地 WAV 的异步准备和定位、真实 Surface 连接。它替代了早期“尚未运行模拟器”的状态，但不替代真实视频解码、竖屏视觉、大文件、网络中断和对象存储验收。
+Android Pixel 8 / Android 16：播放器 9 项仪器测试、详情页 21 项仪器测试通过。真实生产音视频解码、竖屏视觉、暂停/倍速/定位、导入转写、视频纪要与章节引用、两样本下载哈希、TXT/SRT/VTT 系统保存均已实测。当前 Android `9e259872` 仅以 debug APK 安装到模拟器，尚未正式分发。
 
-音频与约 47 秒视频已完成生产普通上传、转写、纪要与原文件哈希/后段 Range 接口验收；第十五批发布后另通过了不修改接口请求头的真实直传验收。视频纪要此前首次供应商错误，产品内重试后生成；原因待脱敏日志。仍需验证实际 UI、超过 30 段长录音、大于 100 MiB 分片恢复、超过媒体签名 TTL 的续期和权限撤销。本次仅更新验收证据，无需再次部署。
+仍需 Web/物理设备、超过 30 段长录音、大于 100 MiB 分片恢复、超过媒体签名 TTL 的续期和跨身份撤权验收。先前一次视频纪要供应商错误原因待脱敏日志；新 App 视频生成成功不能抹去该失败记录。第十六至十八批只修改 Android，无需重新部署后端/Web。
 
 ## 仍未实现的产品项
 
-App 验收已按用户选择改走 Pixel 8 / Android 16 + ADB / UI Automator。[第十六批](miaoji-batch-16-android-preparation.md)复现并修复真实视频播放 `-38/0`，8 项播放器回归通过，生产视频已显示画面、前进时钟及原文高亮。竖屏画面溢出、窄屏按钮断字仍待下一批修复；其他未验收项继续保留，不将模拟器验收等同于物理设备或正式包发布。
-
-[第十七批](miaoji-batch-17-android-video-layout.md)已关闭上述画面溢出和断字问题，并改善正文可见性；9 项播放器仪器测试、最终构建/设计 token 检查通过，生产视频截图与暂停位置复测通过。App 原生导入音频样本后，列表显示转写完成。继续音视频与纪要全流程验收。
+[第十六批](miaoji-batch-16-android-preparation.md)修复准备阶段播放失败，[第十七批](miaoji-batch-17-android-video-layout.md)修复竖屏溢出并改善原文阅读，[第十八批](miaoji-batch-18-android-export.md)修复系统选择器返回后导出为空，并记录 App 核心流程验收。普通上传进度/取消语义、上传时的分人选项仍需后续完善。
 
 本轮关闭了优先级最高的正确性及回看链路缺口。[第七批](miaoji-batch-7-chapters.md)补齐独立章节导航及空态，[第八批](miaoji-batch-8-drafts.md)与[第九批](miaoji-batch-9-android-drafts.md)补齐列表重建时的草稿保护，[第十批](miaoji-batch-10-speaker-activity.md)补齐录音与上传件的发言时长占比。[第十一批](miaoji-batch-11-sharing-scopes.md)补齐纪要/全文独立授权。[第十二批](miaoji-batch-12-original-download.md)补齐上传所有者原文件下载。媒体共享、原生录音分片下载/拼接、精细发言时间轴、批量校对、长期热词库、关键词、多条件全局筛选排序仍属于后续产品批次；线上会议完整录像回放另需实际录制产物和媒体时间映射。不要把这些批次理解为已全量对齐飞书妙记。
