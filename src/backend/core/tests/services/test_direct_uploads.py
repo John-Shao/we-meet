@@ -12,15 +12,14 @@ import possible. These tests pin the guarantees that make that safe:
 """
 
 import uuid
-
 from unittest import mock
 
 import pytest
+from rest_framework.test import APIClient
 
 from core import models
 from core.factories import UserFactory
 from core.services import uploaded_recordings as service
-
 
 pytestmark = pytest.mark.django_db
 
@@ -30,8 +29,6 @@ WAV_MIME = "audio/wav"
 
 
 def client_for(user):
-    from rest_framework.test import APIClient
-
     client = APIClient()
     client.force_authenticate(user=user)
     return client
@@ -186,6 +183,8 @@ def test_complete_adopts_the_verified_object_and_creates_one_job():
     assert job.storage_name == body["storage_name"]
     assert job.size == DECLARED_SIZE
     assert job.configuration["_file"]["media_type"] == "audio"
+    assert job.configuration["_file"]["name"] == "meeting.wav"
+    assert job.record.title == "meeting"
     # Public projection must not leak the storage key.
     assert "storage_name" not in response.data
 
@@ -197,6 +196,48 @@ def test_complete_rejects_a_stored_object_whose_length_disagrees():
     assert response.status_code == 400
     assert models.UploadedRecording.objects.count() == 0
     assert storage.deleted == []  # nothing was adopted, so nothing is cleaned up
+
+
+def test_complete_rejects_a_filename_with_a_different_extension():
+    storage = FakeStorage(stored_size=DECLARED_SIZE)
+    response, _ = complete(UserFactory(), storage, name="misleading.mp4")
+    assert response.status_code == 400
+    assert models.UploadedRecording.objects.count() == 0
+
+
+def test_complete_strips_client_path_from_original_filename():
+    response, _ = complete(
+        UserFactory(), FakeStorage(stored_size=DECLARED_SIZE), name="C:\\clips\\会议.wav"
+    )
+    assert response.status_code == 202
+    job = models.UploadedRecording.objects.get()
+    assert job.configuration["_file"]["name"] == "会议.wav"
+    assert job.record.title == "会议"
+
+
+def test_complete_keeps_uploaded_bytes_when_registration_rolls_back():
+    owner = UserFactory()
+    storage = FakeStorage(stored_size=DECLARED_SIZE)
+    key = str(uuid.uuid4())
+    with mock.patch.object(service, "_record_job", side_effect=RuntimeError("DB down")):
+        with pytest.raises(RuntimeError, match="DB down"):
+            complete(owner, storage, key=key)
+    assert storage.deleted == []
+    assert models.UploadedRecording.objects.count() == 0
+    response, _ = complete(owner, storage, key=key)
+    assert response.status_code == 202
+    assert models.UploadedRecording.objects.count() == 1
+
+
+def test_complete_rechecks_active_job_under_the_owner_lock():
+    owner = UserFactory()
+    storage = FakeStorage(stored_size=DECLARED_SIZE)
+    first, _ = complete(owner, storage)
+    assert first.status_code == 202
+    second, _ = complete(owner, storage, storage_name="record-uploads/second.wav")
+    assert second.status_code == 409
+    assert models.UploadedRecording.objects.count() == 1
+    assert storage.deleted == []
 
 
 def test_complete_rejects_a_key_outside_the_upload_prefix():

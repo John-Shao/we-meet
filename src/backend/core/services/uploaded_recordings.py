@@ -174,7 +174,7 @@ def active_upload_exists(user):
 def _record_job(user, key, *, storage_name, checksum, size, configuration, metadata):
     """Create the record/capture/job triple for an object already in storage.
 
-    Caller owns the transaction and must delete ``storage_name`` if this raises.
+    Caller owns the transaction and recovery of ``storage_name`` if this raises.
     Both upload paths (multipart spool and direct presigned PUT) share this so
     they cannot drift on idempotency, the single-active-job rule, or metadata.
     ``metadata`` is ``{"title": <record title>, "file": <public _file payload>}``.
@@ -417,7 +417,7 @@ def presign_direct_upload(user, *, name, size, content_type, key, options):
     }
 
 
-def complete_direct_upload(user, *, key, storage_name, size, content_type, options):
+def complete_direct_upload(user, *, key, name, storage_name, size, content_type, options):
     """Adopt an object the client already PUT, after verifying it server-side.
 
     The client's claims are never trusted: the object must exist in our private
@@ -427,6 +427,9 @@ def complete_direct_upload(user, *, key, storage_name, size, content_type, optio
     if not 0 < size <= settings.MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES:
         raise ValueError("invalid_file")
     extension = _parse_extension(storage_name)
+    original_name = name.replace("\\", "/").rsplit("/", 1)[-1]
+    if _parse_extension(original_name) != extension:
+        raise ValueError("invalid_file")
     _declared_media_ok(extension, content_type)
     storage = audio_storage()
     # Confine adoption to objects this service namespaces in its own bucket.
@@ -444,7 +447,7 @@ def complete_direct_upload(user, *, key, storage_name, size, content_type, optio
     if head.get("ContentLength") != size:
         raise ValueError("upload_size_mismatch")
     metadata = {
-        "name": Path(storage_name).name[:255],
+        "name": original_name[:255],
         "media_type": "video" if extension in VIDEO_EXTENSIONS else "audio",
     }
     configuration = _job_configuration(options)
@@ -457,22 +460,19 @@ def complete_direct_upload(user, *, key, storage_name, size, content_type, optio
         previous = _replay_guard(user, key, checksum, configuration)
         if previous:
             return previous
-        try:
-            return _record_job(
-                user,
-                key,
-                storage_name=storage_name,
-                checksum=checksum,
-                size=size,
-                configuration=configuration,
-                metadata={
-                    "title": Path(storage_name).stem,
-                    "file": metadata,
-                },
-            )
-        except Exception:
-            storage.delete(storage_name)
-            raise
+        if active_upload_exists(user):
+            raise RecordConflict("An upload transcription is already active.")
+        # The client already uploaded these bytes. Keep them if registration
+        # rolls back, so completion can be retried without another PUT.
+        return _record_job(
+            user,
+            key,
+            storage_name=storage_name,
+            checksum=checksum,
+            size=size,
+            configuration=configuration,
+            metadata={"title": Path(original_name).stem, "file": metadata},
+        )
 
 
 @transaction.atomic

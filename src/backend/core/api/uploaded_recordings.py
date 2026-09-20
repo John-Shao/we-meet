@@ -232,8 +232,5 @@ class DirectUploadCompleteView(DirectUploadBase):
     serializer_class = DirectUploadCompleteSerializer
 
     def handle(self, user, data, options):
-        # Completion derives the extension from the storage key it verifies,
-        # so the client's declared ``name`` is not an input here.
-        data.pop("name", None)
         job = service.complete_direct_upload(user, **data, options=options)
         return Response(service.serialize(job), status=202)

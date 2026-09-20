@@ -301,9 +301,9 @@ it('keeps the storage ticket when only the final adoption failed', async () => {
         ([url]) => url === 'recording-uploads/upload-url/'
       )
     ).toHaveLength(1)
-    // Both PUTs target that one signed key. Re-sending the bytes is fine (the
-    // PUT is idempotent); signing a new key is not.
-    expect(storage).toHaveBeenCalledTimes(2)
+    // Completion retries also work after the PUT signature has expired.
+    // Successfully transferred bytes are not uploaded again.
+    expect(storage).toHaveBeenCalledTimes(1)
     expect(new Set(storage.mock.calls.map(([url]) => url))).toEqual(
       new Set(['https://bucket.example/put?sig=abc'])
     )

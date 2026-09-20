@@ -39,6 +39,7 @@ type DirectUploadTicket = {
   upload_url: string
   storage_name: string
   headers: Record<string, string>
+  uploaded?: boolean
 }
 
 const DIRECT = 'recording-uploads/upload-url/'
@@ -95,21 +96,24 @@ async function importRecording(
   // string, so this request deliberately sends no app credentials back to a
   // third-party host. The signature covers Content-Type, so that one header
   // must match what was signed.
-  let stored = false
-  try {
-    const response = await fetch(ticket.current.upload_url, {
-      method: 'PUT',
-      headers: ticket.current.headers,
-      body: file,
-    })
-    stored = response.ok
-  } catch {
-    stored = false
-  }
-  if (!stored) {
-    // The ticket is spent or the transfer broke; a retry needs a fresh one.
-    ticket.current = null
-    throw new Error('direct upload failed')
+  if (!ticket.current.uploaded) {
+    let stored = false
+    try {
+      const response = await fetch(ticket.current.upload_url, {
+        method: 'PUT',
+        headers: ticket.current.headers,
+        body: file,
+      })
+      stored = response.ok
+    } catch {
+      stored = false
+    }
+    if (!stored) {
+      // The transfer broke; a retry needs a fresh ticket.
+      ticket.current = null
+      throw new Error('direct upload failed')
+    }
+    ticket.current.uploaded = true
   }
 
   return fetchApi<UploadState>(COMPLETE, {
