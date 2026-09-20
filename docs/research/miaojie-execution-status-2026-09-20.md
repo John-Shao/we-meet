@@ -1,4 +1,4 @@
-# 妙记差距整改：十二批执行状态
+# 妙记差距整改：执行状态
 
 本文件是执行后的状态；[复评](miaojie-reassessment-2026-09-20.md)保留实施前证据和完整路线图。以下“完成”指实现及所列回归，不等于已部署或生产验收。
 
@@ -15,15 +15,16 @@
 | 9 | Android 原文重新加载时保留草稿与保存任务 | `fea5bf5ed`（文档） | `b52b5032` |
 | 10 | 发言片段时长/占比、全量分母、不可用和部分统计说明 | `b61c35270` | `df131139` |
 | 11 | 纪要/全文独立授权、预览/撤权/恢复与旧后端兼容 | `fedc380ed` | `f2f72198` |
-| 12 | 上传原文件下载、附件签名及 Android 上传改名入口 | 见本文件所在批次提交 | 见 Android 同批提交 |
+| 12 | 上传原文件下载、附件签名及 Android 上传改名入口 | `f2e7f3cd4` | `e1ebc39e` |
+| 13 | 生产直传签名事务错误与真实 PostgreSQL 回归 | 见本批提交 | 本批无变更 |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaojie-first-batch-2026-09-20.md)、[上传纪要](miaojie-batch-2-upload-summary.md)、[定位](miaojie-batch-3-playback-navigation.md)、[媒体](miaojie-batch-4-media-playback.md)、[能力](miaojie-batch-5-capabilities.md)、[上传恢复](miaojie-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
 
-下一批为[目标环境验收](miaojie-release-acceptance.md)。目前缺少已部署本轮提交的测试地址、登录方式与媒体样本信息，已向用户请求；不把环境实测标为通过。
+正在进行[目标环境验收](miaojie-release-acceptance.md)。用户已提供 `meet.we-meet.online`、部署版本 `f2e7f3cd4`、演示身份与音视频样本。真实接口发现直传签名 500，[第十三批](miaojie-batch-13-production-upload.md)补充事务修复。浏览器自动化连接失败，页面验收尚未进行。
 
-先更新后端，再配套发布 Web/Android。校对需要版本字段；新客户端读取旧后端的恒 false `play_media` 会隐藏播放入口。无需数据库迁移。没有执行部署或调用真实 ASR/LLM。
+先更新后端，再配套发布 Web/Android。校对需要版本字段；新客户端读取旧后端的恒 false `play_media` 会隐藏播放入口。无需数据库迁移。本轮没有执行部署；已通过用户授权样本调用生产 ASR，后续结果以验收清单为准。
 
 已补充 Android Pixel 8 / Android 16 模拟器播放器测试，8 项通过，含真实本地 WAV 的异步准备和定位、真实 Surface 连接。它替代了早期“尚未运行模拟器”的状态，但不替代真实视频解码、竖屏视觉、大文件、网络中断和对象存储验收。
 

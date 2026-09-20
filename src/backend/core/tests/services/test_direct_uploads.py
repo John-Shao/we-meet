@@ -121,6 +121,15 @@ def test_presign_binds_the_declared_size_into_the_signature():
     assert response.data["max_bytes"] == 6 * 1024 * 1024 * 1024
 
 
+@pytest.mark.django_db(transaction=True)
+def test_presign_works_without_a_request_transaction():
+    """Production requests run in autocommit; TestCase must not hide row-lock errors."""
+    response, storage, _ = presign(UserFactory())
+    assert response.status_code == 200, response.data
+    assert len(storage.signed) == 1
+    assert models.UploadedRecording.objects.count() == 0
+
+
 def test_presign_rejects_an_extension_the_mime_does_not_allow():
     owner = UserFactory()
     response, _, _ = presign(owner, name="clip.wav", content_type="video/mp4")

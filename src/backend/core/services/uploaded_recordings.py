@@ -375,6 +375,7 @@ def media_read_url(job, *, download=False):
     }
 
 
+@transaction.atomic
 def presign_direct_upload(user, *, name, size, content_type, key, options):
     """Sign one PUT for an exact byte count and return where to send it.
 
