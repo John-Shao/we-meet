@@ -38,10 +38,13 @@
 | 32 | 创建日期 × 归属/来源/标题组合筛选、旧后端保护；Android 资源去重与导出提示主线程修正 | 本批实现 | `d5796c85` |
 | 33 | 日期组合筛选、只读导出空态的 App/API 生产验收；发现筛选面板收起问题 | `a2bd10117` | 无运行变更 |
 | 34 | 日期错误面板保持展开、提交后收起键盘及可见性回归 | 本批文档 | `8d8e8bc3` |
+| 35 | Android 记录/纪要创建时间升降序、分页重置与筛选保留 | 本批文档 | `ce1fcead` |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第三十五批](miaoji-batch-35-android-ordering.md)：Android `ce1fcead` 已补齐 G4 可选创建时间排序；30 项单元测试、31 个不同仪器用例、截图和设计检查通过。生产 API 两条既有样本的组合条件下升降序通过；App 生产排序页面、多页/进行中样本和正式分发仍待验收。无 backend/frontend 新部署要求。
 
 [第三十四批](miaoji-batch-34-filter-sheet.md)：Android `8d8e8bc3` 修正日期错误后的面板和键盘遮挡，三项仪器回归、截图检查及设计规范检查通过。仅需新版 App 分发，无后端/Web 部署；第 33 批发现的布局问题已修复。
 
