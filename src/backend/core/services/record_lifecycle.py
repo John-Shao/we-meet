@@ -59,6 +59,8 @@ def transition(record_id, user, target, expected_revision):
         .select_for_update(of=("self",))
         .get(pk=record_id)
     )
+    if models.MeetingRecordPurge.objects.filter(record_uuid=record.pk).exists():
+        raise RecordConflict("Permanent deletion has already been requested.")
     desired = target == "trashed"
     if target not in {"active", "trashed"}:
         raise ValueError("Unsupported lifecycle target.")

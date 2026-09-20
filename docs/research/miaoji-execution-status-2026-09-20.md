@@ -49,6 +49,7 @@
 | 43 | 生产 App/API 回收、恢复、分享不复活、幂等冲突、原生忙态与自动纪要关闭 | `35ac38b9e` | `9fcdb382` 验收，导航问题由 44 修复 |
 | 44 | App 回收成功清除失效详情栈并进入记录库，现网复测通过 | 本批文档 | `0e40b65e` |
 | 45 | 非空原文、AI 纪要、6 版人工历史与两页 12 份导出的生产回收恢复比对 | 本批文档 | 无运行变更 |
+| 46 | 手动永久删除后端、媒体验证清理、最小凭据与上传重放保护；125 项通过，生产关闭 | 本批提交 | 待下一批入口 |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 

@@ -178,6 +178,8 @@ backend:
     # Batch 41 verified the lifecycle columns and bd16ac487 backend/worker rollout.
     # Reversible trash only; no automatic expiry or permanent deletion.
     MEETING_RECORD_TRASH_ENABLED: "True"
+    # Separate rollout after migration and all upload adopters/workers are updated.
+    MEETING_RECORD_PURGE_ENABLED: "False"
     MEETING_TRANSCRIPT_DELIVERY_ENABLED: "True"
     MEETING_CAPTURE_PROTOCOL_ENABLED: "True"
     MEETING_CAPTURE_AUDIO_ENABLED: "True"

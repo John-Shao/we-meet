@@ -1068,6 +1068,37 @@ class MeetingRecord(BaseModel):
                 raise ValidationError("Record provenance cannot be reassigned.")
 
 
+class MeetingRecordPurge(BaseModel):
+    """Explicit erasure receipt, surviving the record without keeping its content."""
+
+    record = models.OneToOneField(MeetingRecord, on_delete=models.SET_NULL, null=True, blank=True, related_name="purge")
+    record_uuid = models.UUIDField(unique=True)
+    owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    organization_uuid = models.UUIDField(null=True, blank=True)
+    expected_revision = models.PositiveIntegerField()
+    upload_key = models.UUIDField(null=True, blank=True, unique=True)
+    state = models.CharField(max_length=16, default="pending", choices=[(s, s) for s in ("pending", "failed", "complete")])
+    error_code = models.CharField(max_length=64, blank=True)
+    not_before = models.DateTimeField()
+    next_attempt_at = models.DateTimeField(db_index=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"MeetingRecordPurge({self.pk}, {self.state})"
+
+
+class MeetingRecordPurgeObject(BaseModel):
+    """Private deletion identity; never accept a key from a deletion request."""
+
+    purge = models.ForeignKey(MeetingRecordPurge, on_delete=models.CASCADE, related_name="media_objects")
+    key_hash = models.CharField(max_length=64, unique=True)
+    storage_name = models.CharField(max_length=500)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"MeetingRecordPurgeObject({self.pk})"
+
+
 class MeetingRecordAccess(BaseModel):
     """Explicit read grants; attendance alone never creates a grant."""
 

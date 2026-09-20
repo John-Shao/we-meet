@@ -60,6 +60,7 @@ def test_trash_restore_preserves_content_but_revokes_sharing_and_automation():
         "source_type",
         "deleted_at",
         "lifecycle_revision",
+        "purge",
     }
     assert not record.accesses.exists()
     automatic.refresh_from_db()

@@ -179,7 +179,11 @@ def tick_audio_cleanup(limit=20):
         .values_list("pk", flat=True)[:limit]
     )
     for capture_id in candidates:
-        schedule(capture_id)
+        try:
+            schedule(capture_id)
+        except (models.CaptureSession.DoesNotExist, models.MeetingRecord.DoesNotExist):
+            # An owner-confirmed record purge may have won the record lock.
+            continue
     jobs = list(
         models.CaptureAudioCleanup.objects.exclude(state="complete")
         .filter(next_attempt_at__lte=timezone.now())
@@ -189,7 +193,14 @@ def tick_audio_cleanup(limit=20):
     processed = 0
     while jobs and processed < 100 and monotonic() < deadline:
         job_id = jobs.pop(0)
-        result = step(job_id)
+        try:
+            result = step(job_id)
+        except (
+            models.CaptureSession.DoesNotExist,
+            models.MeetingRecord.DoesNotExist,
+            models.CaptureAudioCleanup.DoesNotExist,
+        ):
+            continue
         processed += 1
         if result.state == "pending":
             jobs.append(job_id)

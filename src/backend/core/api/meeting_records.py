@@ -52,6 +52,7 @@ from core.services.meeting_summary_requests import (
 )
 from core.services.meeting_summary_versions import source_payload, summary_readiness
 from core.services.record_media_timing import media_timing
+from core.services import record_purge
 from core.services.uploaded_recordings import (
     media_available,
     media_read_url,
@@ -522,10 +523,39 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         """Only the owner can list trashed independent records."""
         if not record_lifecycle.enabled():
             raise Http404
-        queryset = visible_records(request.user, include_trashed=True).filter(deleted_at__isnull=False)
+        queryset = visible_records(request.user, include_trashed=True).filter(deleted_at__isnull=False).select_related("purge")
         paginator = RecordTrashPagination()
         page = paginator.paginate_queryset(queryset, request, view=self)
-        return paginator.get_paginated_response([record_lifecycle.serialize(record) for record in page])
+        rows = []
+        for record in page:
+            row = record_lifecycle.serialize(record)
+            purge = getattr(record, "purge", None)
+            row["purge"] = record_purge.serialize(purge) if purge else None
+            rows.append(row)
+        response = paginator.get_paginated_response(rows)
+        response.data["purge_available"] = record_purge.enabled()
+        return response
+
+    @action(detail=True, methods=["get", "post"], url_path="purge")
+    def purge(self, request, pk=None):
+        """Only a trashed record owner can explicitly request irreversible erasure."""
+        if request.method == "POST" and not record_purge.enabled():
+            raise Http404
+        try:
+            if request.method == "GET":
+                job = record_purge.receipt(pk, request.user)
+            else:
+                if set(request.data) != {"expected_revision"}:
+                    raise ValidationError("Only the observed lifecycle revision is accepted.")
+                revision = serializers.IntegerField(min_value=0).run_validation(request.data["expected_revision"])
+                job = record_purge.request(pk, request.user, revision)
+        except models.MeetingRecordPurge.DoesNotExist as exc:
+            raise Http404 from exc
+        except PermissionError as exc:
+            raise PermissionDenied from exc
+        except RecordConflict as exc:
+            return Response({"code": "record_purge_conflict", "detail": str(exc)}, status=409)
+        return Response(record_purge.serialize(job), status=202 if request.method == "POST" and job.state != "complete" else 200)
 
     @action(detail=True, methods=["patch"], url_path="lifecycle")
     def lifecycle(self, request, pk=None):

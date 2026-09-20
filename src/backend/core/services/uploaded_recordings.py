@@ -165,6 +165,9 @@ def _record_job(user, key, *, storage_name, checksum, size, configuration, metad
     they cannot drift on idempotency, the single-active-job rule, or metadata.
     ``metadata`` is ``{"title": <record title>, "file": <public _file payload>}``.
     """
+    from core.services.record_purge import guard_adoption  # noqa: PLC0415
+
+    guard_adoption(storage_name, key)
     now = timezone.now()
     record = models.MeetingRecord.objects.create(
         owner=user,
@@ -196,6 +199,8 @@ def _record_job(user, key, *, storage_name, checksum, size, configuration, metad
 
 def _replay_guard(user, key, checksum, configuration):
     """Return an identical prior job, or raise when the same intent changed."""
+    if models.MeetingRecordPurge.objects.filter(upload_key=key).exists():
+        raise RecordConflict("This upload has been permanently removed.")
     previous = models.UploadedRecording.objects.filter(key=key).first()
     if not previous:
         return None

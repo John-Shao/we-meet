@@ -959,6 +959,10 @@ class Base(Configuration):
             "task": "core.tasks.capture_audio.cleanup_capture_audio",
             "schedule": 30.0,
         },
+        "purge-requested-records": {
+            "task": "core.tasks.record_purge.purge_requested_records",
+            "schedule": 30.0,
+        },
         "tick-record-summaries": {
             "task": "core.tasks.summary_versions.tick_record_summaries",
             "schedule": 15.0,
@@ -1081,6 +1085,9 @@ class Base(Configuration):
     )
     MEETING_RECORD_TRASH_ENABLED = values.BooleanValue(
         False, environ_name="MEETING_RECORD_TRASH_ENABLED", environ_prefix=None
+    )
+    MEETING_RECORD_PURGE_ENABLED = values.BooleanValue(
+        False, environ_name="MEETING_RECORD_PURGE_ENABLED", environ_prefix=None
     )
     MEETING_RECORDS_ENABLED = values.BooleanValue(
         False, environ_name="MEETING_RECORDS_ENABLED", environ_prefix=None
