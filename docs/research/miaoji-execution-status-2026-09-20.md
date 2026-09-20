@@ -46,11 +46,14 @@
 | 40 | Web/App 回收确认、回收站分页和恢复；服务器能力控制入口 | 本批实现 | `210345aa`、`9fcdb382` |
 | 41 | 部署后 App/API 时长、人工旧版本导航、仅纪要分享撤权与关闭回收开关验收 | `d15ccf8e3` | `9fcdb382` 构建并安装 |
 | 42 | 回收站启用配置及三个 backend 进程的 Helm 环境变量校验 | 本批配置 | 无运行变更 |
-| 43 | 生产 App/API 回收、恢复、分享不复活、幂等冲突、原生忙态与自动纪要关闭 | 本批文档 | `9fcdb382` 验收，发现导航待修 |
+| 43 | 生产 App/API 回收、恢复、分享不复活、幂等冲突、原生忙态与自动纪要关闭 | `35ac38b9e` | `9fcdb382` 验收，导航问题由 44 修复 |
+| 44 | App 回收成功清除失效详情栈并进入记录库，现网复测通过 | 本批文档 | `0e40b65e` |
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
+
+[第四十四批](miaoji-batch-44-trash-navigation.md)：Android `0e40b65e` 已推送并安装，9 项仪器测试及原始生产嵌套详情路径复测通过。回收后进入记录库，返回不再出现失效详情；样本再次恢复，最终上传生命周期版本 4、授权为空，原生采集自动纪要关闭。无需 backend/frontend 再发布，正式 App 分发仍待完成。
 
 [第四十三批](miaoji-batch-43-trash-production-acceptance.md)：backend `b4bd230e4`、Helm 380 已启用回收。App/API 所列逻辑回收、恢复、撤权和原生采集自动纪要不重启通过；两条专用样本均恢复，临时授权清理完毕。发现从录音详情进入后回收返回已不可读详情的问题，进入第 44 批修复。永久清理尚未实现；其余未覆盖生产场景见本批边界。
 
