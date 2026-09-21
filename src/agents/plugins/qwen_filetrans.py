@@ -21,6 +21,31 @@ MODEL = "qwen-audio-3.0-asr-flash-filetrans"
 MAX_RESULT_BYTES = 32 * 1024 * 1024
 
 
+def storage_client(endpoint):
+    """Use bucket hostnames and an explicit signing region for Alibaba OSS."""
+    endpoint = endpoint.removeprefix("https://").removeprefix("http://").rstrip("/")
+    is_oss = (urlsplit("https://" + endpoint).hostname or "").endswith(".aliyuncs.com")
+    region = os.getenv("AWS_S3_REGION_NAME") or None
+    style = os.getenv("AWS_S3_ADDRESSING_STYLE") or ("virtual" if is_oss else "auto")
+    if style not in {"virtual", "path", "auto"}:
+        raise ValueError("invalid_file_asr_storage_addressing")
+    # MinIO's location discovery forces path addressing even in virtual mode.
+    if is_oss and (not region or style != "virtual"):
+        raise ValueError("file_asr_oss_region_and_virtual_style_required")
+    client = Minio(
+        endpoint,
+        access_key=os.environ["AWS_S3_ACCESS_KEY_ID"],
+        secret_key=os.environ["AWS_S3_SECRET_ACCESS_KEY"],
+        secure=os.getenv("AWS_S3_SECURE_ACCESS", "true").lower() == "true",
+        region=region,
+    )
+    if style == "virtual":
+        client.enable_virtual_style_endpoint()
+    elif style == "path":
+        client.disable_virtual_style_endpoint()
+    return client
+
+
 @dataclass(frozen=True)
 class QwenFileASRConfig:
     """File ASR settings are independent from the realtime model."""
@@ -103,19 +128,14 @@ class QwenFileASRSession:
             .removeprefix("http://")
             .rstrip("/")
         )
-        credentials = {
-            "access_key": os.environ["AWS_S3_ACCESS_KEY_ID"],
-            "secret_key": os.environ["AWS_S3_SECRET_ACCESS_KEY"],
-            "secure": os.getenv("AWS_S3_SECURE_ACCESS", "true").lower() == "true",
-        }
-        storage = Minio(endpoint, **credentials)
+        storage = storage_client(endpoint)
         public_endpoint = (
             (os.getenv("AWS_S3_PUBLIC_ENDPOINT_URL") or endpoint)
             .removeprefix("https://")
             .removeprefix("http://")
             .rstrip("/")
         )
-        public = Minio(public_endpoint, **credentials)
+        public = storage_client(public_endpoint)
         bucket = os.environ["AWS_STORAGE_BUCKET_NAME"]
         key = f"filetrans-temporary/{uuid.uuid4()}.wav"
         with tempfile.TemporaryDirectory(prefix="filetrans-") as directory:

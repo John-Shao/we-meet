@@ -4,16 +4,86 @@ import os
 import unittest
 import uuid
 import wave
+from datetime import timedelta
 from unittest import mock
+from urllib.parse import parse_qs, urlsplit
 
 from capture_live_transcriber import LiveCaptureAttempt
 from capture_transcriber import CaptureAttempt
 from plugins.qwen_asr import QwenASRSession
-from plugins.qwen_filetrans import MODEL, QwenFileASRConfig, QwenFileASRSession
+from plugins.qwen_filetrans import (
+    MODEL,
+    QwenFileASRConfig,
+    QwenFileASRSession,
+    storage_client,
+)
 
 
 class FileTranscriptionTests(unittest.IsolatedAsyncioTestCase):
     """Exercise the complete adapter without making any provider requests."""
+
+    def test_oss_signs_bucket_hostname_without_location_discovery(self):
+        """Both private uploads and public signatures use the configured region."""
+        with mock.patch.dict(
+            os.environ,
+            {
+                "AWS_S3_ACCESS_KEY_ID": "test",
+                "AWS_S3_SECRET_ACCESS_KEY": "test",
+                "AWS_S3_REGION_NAME": "cn-shenzhen",
+                "AWS_S3_ADDRESSING_STYLE": "virtual",
+            },
+            clear=True,
+        ):
+            for endpoint in (
+                "https://oss-cn-shenzhen-internal.aliyuncs.com",
+                "https://oss-cn-shenzhen.aliyuncs.com",
+            ):
+                client = storage_client(endpoint)
+                with mock.patch.object(
+                    client, "_url_open", side_effect=AssertionError("network")
+                ):
+                    url = client.presigned_get_object(
+                        "private",
+                        "filetrans-temporary/test.wav",
+                        expires=timedelta(minutes=1),
+                    )
+                parsed = urlsplit(url)
+                self.assertEqual(
+                    parsed.hostname, "private." + urlsplit(endpoint).hostname
+                )
+                self.assertEqual(parsed.path, "/filetrans-temporary/test.wav")
+                self.assertIn(
+                    "/cn-shenzhen/s3/", parse_qs(parsed.query)["X-Amz-Credential"][0]
+                )
+
+    def test_oss_requires_region_before_any_storage_io(self):
+        """Virtual style alone still triggers an incompatible location query."""
+        with (
+            mock.patch.dict(os.environ, {}, clear=True),
+            mock.patch("plugins.qwen_filetrans.Minio") as client,
+        ):
+            with self.assertRaisesRegex(ValueError, "oss_region_and_virtual"):
+                storage_client("oss-cn-shenzhen.aliyuncs.com")
+            client.assert_not_called()
+
+    def test_local_minio_keeps_path_style(self):
+        """The OSS fix must not require wildcard DNS for development MinIO."""
+        with mock.patch.dict(
+            os.environ,
+            {
+                "AWS_S3_ACCESS_KEY_ID": "test",
+                "AWS_S3_SECRET_ACCESS_KEY": "test",
+                "AWS_S3_REGION_NAME": "us-east-1",
+                "AWS_S3_SECURE_ACCESS": "false",
+            },
+            clear=True,
+        ):
+            url = storage_client("minio:9000").presigned_get_object(
+                "private", "test.wav", expires=timedelta(minutes=1)
+            )
+        self.assertEqual(urlsplit(url).netloc, "minio:9000")
+        self.assertEqual(urlsplit(url).scheme, "http")
+        self.assertEqual(urlsplit(url).path, "/private/test.wav")
 
     async def test_file_upload_complete_result_and_cleanup(self):
         """WAV is closed before upload; final timestamps and billing survive."""

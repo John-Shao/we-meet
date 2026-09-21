@@ -1,5 +1,9 @@
 # 妙记整改：目标环境验收清单
 
+## 第五十二批：原生 ASR 存储修复待发布
+
+[第五十二批](miaoji-batch-52-capture-oss-storage.md)：旧 MinIO 客户端在实际 OSS 复现 `SecondLevelDomainForbidden`；修复 virtual 地址样式及显式区域，Helm 传递配置，34 项测试和真实探针通过。仅需新 agents 镜像及 agents 发布，发布后继续第 51 批原样本；未提前声明转写恢复。
+
 ## 第五十一批：非空历史删除前置转写阻塞
 
 [第五十一批](miaoji-batch-51-capture-asr-diagnostic.md)：独立原生样本三个分片保存/确认成功，但 sealed ASR 为 `provider_or_delivery_incomplete`、0 段原文，未创建纪要/导出或删除样本。只读生产回执诊断脚本及 5 项本地测试完成，待生产主机运行回传；不需要部署。第 50 批上传到期复核仍待完成。
