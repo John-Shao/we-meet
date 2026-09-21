@@ -77,7 +77,9 @@
       "succeeded": "Terminée",
       "incomplete": "Incomplète",
       "canceled": "Annulée"
-    }
+    },
+    "noSpeech": "Aucune parole reconnaissable détectée",
+    "noSpeechHint": "Aucun texte n’a été généré. Vérifiez l’enregistrement, le volume et le microphone avant de relancer la transcription."
   },
   "leaveHint": "Quitter cette page interrompt l’enregistrement ; rouvrez-la pour récupérer les segments enregistrés. Prévenez les participants avant d’enregistrer.",
   "unavailable": "L’enregistrement local est indisponible. Fermez les autres onglets d’enregistrement et utilisez un navigateur prenant en charge la capture audio et le stockage local.",

@@ -77,7 +77,9 @@
       "succeeded": "Completed",
       "incomplete": "Incomplete",
       "canceled": "Canceled"
-    }
+    },
+    "noSpeech": "No recognizable speech found",
+    "noSpeechHint": "No text was generated. Check the recording, volume and microphone before deciding whether to transcribe again."
   },
   "leaveHint": "Leaving this page interrupts recording. Return to recover saved chunks. Let participants know before recording.",
   "unavailable": "Local recording is unavailable. Close any other recording tab and use a browser supporting audio capture and local storage.",

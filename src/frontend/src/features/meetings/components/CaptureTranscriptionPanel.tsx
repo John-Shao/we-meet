@@ -35,6 +35,7 @@ type Job = {
   input_count: number
   acknowledged_inputs: number
   final_count: number
+  error_code?: string
   mode?: 'live' | 'sealed'
   input_closed?: boolean
 }
@@ -55,6 +56,10 @@ type Intent = {
 }
 const active = (job?: Job) =>
   !!job && ['queued', 'running'].includes(job.status)
+const noSpeech = (job?: Job) =>
+  job?.status === 'incomplete' &&
+  job.error_code === 'no_speech_detected' &&
+  job.final_count === 0
 const style = css({
   marginTop: '1.5rem',
   display: 'flex',
@@ -290,11 +295,14 @@ export function CaptureTranscriptionPanel({
         {latest && (
           <p role="status">
             {t('asr.version', { number: latest.generation })} ·{' '}
-            {t(`asr.status.${latest.status}`)}
+            {t(
+              noSpeech(latest) ? 'asr.noSpeech' : `asr.status.${latest.status}`
+            )}
             {active(latest) &&
               ` · ${t('asr.progress', { done: latest.acknowledged_inputs, total: latest.input_count })}`}
           </p>
         )}
+        {noSpeech(latest) && <p>{t('asr.noSpeechHint')}</p>}
         {capture.media_status === 'incomplete' && !active(latest) && (
           <Checkbox
             isSelected={allowIncomplete}
@@ -386,7 +394,7 @@ export function CaptureTranscriptionPanel({
             {state.data.results.map((job) => (
               <li key={job.id}>
                 {t('asr.version', { number: job.generation })} ·{' '}
-                {t(`asr.status.${job.status}`)}
+                {t(noSpeech(job) ? 'asr.noSpeech' : `asr.status.${job.status}`)}
               </li>
             ))}
           </ul>

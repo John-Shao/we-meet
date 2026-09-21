@@ -77,7 +77,9 @@
       "succeeded": "Voltooid",
       "incomplete": "Onvolledig",
       "canceled": "Geannuleerd"
-    }
+    },
+    "noSpeech": "Geen herkenbare spraak gevonden",
+    "noSpeechHint": "Er is geen tekst gegenereerd. Controleer de opname, het volume en de microfoon voordat u opnieuw transcribeert."
   },
   "leaveHint": "Als je deze pagina verlaat, wordt de opname onderbroken. Kom terug om opgeslagen fragmenten te herstellen. Vertel het deelnemers voordat je begint met opnemen.",
   "unavailable": "Lokale opname is niet beschikbaar. Sluit andere tabbladen met een opname en gebruik een browser die audio-opname en lokale opslag ondersteunt.",

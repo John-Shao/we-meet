@@ -38,6 +38,25 @@ class WorkerDiagnosticTests(unittest.IsolatedAsyncioTestCase):
 
     setUp = worker_fixture.CaptureWorkerTests.setUp
 
+    async def test_no_speech_reason_requires_advertised_backend_and_no_text(self):
+        """Old strict backends keep the old envelope; partial text stays generic."""
+        for supported, final_count in ((False, 0), (True, 0), (True, 1)):
+            with self.subTest(supported=supported, final_count=final_count):
+                self.setUp()
+                self.job["supports_failure_code"] = supported
+                self.attempt.sequence = self.attempt.delivered = final_count
+                with mock.patch.object(
+                    self.attempt,
+                    "process",
+                    side_effect=StageError("transcription_poll", "no_speech"),
+                ):
+                    await self.attempt.execute()
+                self.assertEqual(
+                    self.attempt.receipt.get("failure_code"),
+                    "no_speech_detected" if supported and final_count == 0 else None,
+                )
+                self.assertFalse(self.attempt.receipt["provider_finished"])
+
     async def test_delivery_failure_has_job_stage_and_no_exception_text(self):
         """TaskGroup exceptions resolve to the failed backend delivery stage."""
         self.backend.fail = "originals"
@@ -48,6 +67,29 @@ class WorkerDiagnosticTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(entry["stage"], "delivery")
         self.assertNotIn("simulated_unknown_response", str(logs.output))
         self.assertFalse(self.attempt.receipt["provider_finished"])
+
+    async def test_secondary_errors_prevent_no_speech_reason(self):
+        """Mixed task failures and cleanup failures must remain operational errors."""
+        empty = StageError("transcription_poll", "no_speech")
+        for failure, cleanup in (
+            (ExceptionGroup("private", [empty, StageError("delivery")]), None),
+            (empty, StageError("cleanup")),
+        ):
+            with self.subTest(cleanup=cleanup):
+                self.setUp()
+                self.job["supports_failure_code"] = True
+                if cleanup:
+                    session = mock.Mock(
+                        cleanup_error=cleanup,
+                        provider_finished=False,
+                        input_samples=16000,
+                        billed_seconds=None,
+                    )
+                    session.task_id = str(uuid.uuid4())
+                    self.attempt.sessions = [session]
+                with mock.patch.object(self.attempt, "process", side_effect=failure):
+                    await self.attempt.execute()
+                self.assertNotIn("failure_code", self.attempt.receipt)
 
     async def test_corrupt_audio_has_specific_stage_before_provider(self):
         """Storage integrity failure is distinguishable from provider failure."""
@@ -166,3 +208,46 @@ class ProviderDiagnosticTests(unittest.IsolatedAsyncioTestCase):
         final = mock.Mock()
         await session.publish({"transcripts": []}, final)
         final.assert_not_called()
+
+    async def test_only_observed_terminal_code_maps_to_no_speech(self):
+        """Require the exact code, not empty output or a matching message."""
+        for output, code in (
+            (
+                {"task_status": "FAILED", "code": "ASR_RESPONSE_HAVE_NO_WORDS"},
+                "no_speech",
+            ),
+            ({"task_status": "FAILED", "code": "FILE_DOWNLOAD_FAILED"}, "failed"),
+            (
+                {"task_status": "FAILED", "message": "ASR_RESPONSE_HAVE_NO_WORDS"},
+                "failed",
+            ),
+            (
+                {
+                    "task_status": "FAILED",
+                    "code": "ASR_RESPONSE_HAVE_NO_WORDS",
+                    "results": [{}],
+                },
+                "failed",
+            ),
+            (
+                {"task_status": "SUCCEEDED", "code": "ASR_RESPONSE_HAVE_NO_WORDS"},
+                "failed",
+            ),
+        ):
+            session = QwenFileASRSession(QwenFileASRConfig(api_key="test-only"))
+            with (
+                self.subTest(output=output),
+                mock.patch.object(
+                    session,
+                    "request",
+                    side_effect=[
+                        {"output": {"task_id": str(uuid.uuid4())}},
+                        {"output": output},
+                    ],
+                ),
+                self.assertRaises(StageError) as caught,
+            ):
+                await session.transcribe("https://fixture.invalid", mock.Mock())
+            self.assertEqual(caught.exception.stage, "transcription_poll")
+            self.assertEqual(caught.exception.code, code)
+            self.assertFalse(session.provider_finished)

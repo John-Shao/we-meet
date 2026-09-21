@@ -25,7 +25,7 @@ STAGES = frozenset(
         "execution",
     }
 )
-CODES = frozenset({"failed", "timeout"})
+CODES = frozenset({"failed", "timeout", "no_speech"})
 PREFIX = "capture_diagnostic "
 
 

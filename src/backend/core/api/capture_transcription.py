@@ -57,7 +57,9 @@ class RequestThrottle(UserRateThrottle):
     rate = "6/min"
 
 
-class CaptureTranscriptionView(MeetingCommandReceiptMixin, SafeErrors, CaptureAudioView):
+class CaptureTranscriptionView(
+    MeetingCommandReceiptMixin, SafeErrors, CaptureAudioView
+):
     """The audio owner alone may spend on a source transcription."""
 
     def get_throttles(self):
@@ -184,6 +186,9 @@ class FinishSerializer(StrictSerializer):
     provider_finished = serializers.BooleanField()
     final_sequence = serializers.IntegerField(min_value=0, max_value=service.MAX_FINALS)
     tasks = ProviderTaskSerializer(many=True, max_length=50)
+    failure_code = serializers.ChoiceField(
+        choices=["no_speech_detected"], required=False
+    )
 
     def validate(self, attrs):
         super().validate(attrs)

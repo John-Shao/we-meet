@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 import aiohttp
 from minio import Minio
 
-from asr_diagnostics import stage
+from asr_diagnostics import StageError, stage
 from plugins.qwen_asr import ASRSentence
 
 MODEL = "qwen-audio-3.0-asr-flash-filetrans"
@@ -212,6 +212,14 @@ class QwenFileASRSession:
                             break
                         await asyncio.sleep(5)
                 files = result["output"].get("results", [])
+                # Exact terminal code only: empty text, timeouts and arbitrary
+                # provider messages must never be guessed to mean silence.
+                if (
+                    status == "FAILED"
+                    and result["output"].get("code") == "ASR_RESPONSE_HAVE_NO_WORDS"
+                    and not files
+                ):
+                    raise StageError("transcription_poll", "no_speech")
                 if (
                     status != "SUCCEEDED"
                     or len(files) != 1

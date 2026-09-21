@@ -77,7 +77,9 @@
       "succeeded": "Abgeschlossen",
       "incomplete": "Unvollständig",
       "canceled": "Abgebrochen"
-    }
+    },
+    "noSpeech": "Keine erkennbare Sprache gefunden",
+    "noSpeechHint": "Es wurde kein Text erzeugt. Prüfen Sie Aufnahme, Lautstärke und Mikrofon, bevor Sie erneut transkribieren."
   },
   "leaveHint": "Beim Verlassen dieser Seite wird die Aufnahme unterbrochen. Kehren Sie zurück, um gespeicherte Abschnitte wiederherzustellen. Informieren Sie die Teilnehmer vor der Aufnahme.",
   "unavailable": "Die lokale Aufnahme ist nicht verfügbar. Schließen Sie andere Aufnahme-Tabs und verwenden Sie einen Browser, der Audioaufnahme und lokalen Speicher unterstützt.",

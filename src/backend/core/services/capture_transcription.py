@@ -301,6 +301,7 @@ def worker_state(job, *, include_inputs=True):
         "configuration": job.configuration,
         **({"inputs": job.inputs} if include_inputs else {}),
         "started": job.started_at is not None,
+        "supports_failure_code": True,
     }
 
 
@@ -515,6 +516,20 @@ def finish(job_id, worker_id, payload):
     if job.status == "running":
         job.status = "succeeded" if success else "incomplete"
         job.error_code = "" if success else "provider_or_delivery_incomplete"
+        if (
+            not success
+            and payload.get("failure_code") == "no_speech_detected"
+            and not live_inputs.is_live(job)
+            and job.started_at
+            and not payload["provider_finished"]
+            and source["manifest"]["outcome"] == "saved"
+            and len(observations) == source["runs"]
+            and sum(item["input_samples"] for item in observations)
+            == sum(chunk["duration_ms"] * 16 for chunk in source["chunks"])
+            and job.acknowledged_inputs == len(source["chunks"])
+            and payload["final_sequence"] == job.final_sequence == 0
+        ):
+            job.error_code = "no_speech_detected"
     job.finish_hash, job.report = fingerprint, payload
     job.save(
         update_fields=["status", "error_code", "finish_hash", "report", "updated_at"]

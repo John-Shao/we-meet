@@ -63,6 +63,25 @@ class DiagnosticTests(unittest.TestCase):
         self.assertIsNone(report["provider_finished"])
         self.assertFalse(report["input_samples_match"])
 
+    def test_failure_code_is_allowlisted(self):
+        for value, expected in (
+            ("no_speech_detected", "no_speech_detected"),
+            ("PRIVATE provider message", None),
+            ("", None),
+        ):
+            report = diagnostic.counts_report(self.job(error_code=value))
+            self.assertEqual(report["failure_code"], expected)
+            self.assertNotIn("PRIVATE", json.dumps(report))
+        logs = "capture_diagnostic " + json.dumps(
+            {
+                "job_id": "job",
+                "stage": "transcription_poll",
+                "code": "no_speech",
+                "elapsed_ms": 123,
+            }
+        )
+        self.assertEqual(diagnostic.stage_reports(logs, "job")[0]["code"], "no_speech")
+
     def test_delivery_mismatch_is_visible(self):
         report = diagnostic.counts_report(
             self.job(

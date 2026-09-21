@@ -76,6 +76,7 @@ let status: {
     generation: number
     mode?: 'live' | 'sealed'
     final_count?: number
+    error_code?: string
   }>
 }
 const capture = {
@@ -118,6 +119,80 @@ afterEach(() => {
   client.clear()
   vi.clearAllMocks()
   sessionStorage.clear()
+})
+
+it('shows an explicit no-speech explanation without automatic retry', async () => {
+  status.results = [
+    {
+      id: 'empty',
+      status: 'incomplete',
+      generation: 1,
+      final_count: 0,
+      error_code: 'no_speech_detected',
+    },
+  ]
+  show()
+  expect(await screen.findByText('asr.noSpeechHint')).toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent('asr.noSpeech')
+  expect(posts()).toHaveLength(0)
+})
+
+it.each(['', 'provider_or_delivery_incomplete'])(
+  'does not reinterpret generic failures as silence (%s)',
+  async (error_code) => {
+    status.results = [
+      {
+        id: 'failed',
+        status: 'incomplete',
+        generation: 1,
+        final_count: 0,
+        error_code,
+      },
+    ]
+    show()
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'asr.status.incomplete'
+      )
+    )
+    expect(screen.queryByText('asr.noSpeechHint')).not.toBeInTheDocument()
+  }
+)
+
+it('does not label partial text as no speech', async () => {
+  status.results = [
+    {
+      id: 'partial',
+      status: 'incomplete',
+      generation: 1,
+      final_count: 1,
+      error_code: 'no_speech_detected',
+    },
+  ]
+  show()
+  await waitFor(() =>
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'asr.status.incomplete'
+    )
+  )
+  expect(screen.queryByText('asr.noSpeechHint')).not.toBeInTheDocument()
+})
+
+it('keeps the previous published transcript after an empty attempt', async () => {
+  status.active_job_id = 'old-success'
+  status.results = [
+    {
+      id: 'empty',
+      status: 'incomplete',
+      generation: 2,
+      final_count: 0,
+      error_code: 'no_speech_detected',
+    },
+  ]
+  show()
+  await screen.findByText('asr.noSpeechHint')
+  expect(await screen.findByText('Confirmed original')).toBeInTheDocument()
+  expect(posts()).toHaveLength(0)
 })
 
 it('refreshes the mounted transcript after correction and guards the next edit and restore', async () => {

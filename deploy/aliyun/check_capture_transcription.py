@@ -39,7 +39,7 @@ def stage_reports(logs, job_id):
             if (
                 entry.get("job_id") != str(job_id)
                 or entry.get("stage") not in DIAGNOSTIC_STAGES
-                or entry.get("code") not in {"failed", "timeout"}
+                or entry.get("code") not in {"failed", "timeout", "no_speech"}
                 or type(entry.get("elapsed_ms")) is not int
                 or not 0 <= entry["elapsed_ms"] <= 172800000
             ):
@@ -70,6 +70,9 @@ def counts_report(job, inputs=None):
         "final_count": job.final_sequence,
         "receipt_final_count": receipt.get("final_sequence"),
         "provider_finished": receipt.get("provider_finished"),
+        "failure_code": "no_speech_detected"
+        if getattr(job, "error_code", "") == "no_speech_detected"
+        else None,
         "expected_runs": inputs.get("runs"),
         "observed_tasks": len(tasks),
         "finished_tasks": sum(t.get("finished") is True for t in tasks),

@@ -312,19 +312,26 @@ class CaptureAttempt:
         success = False
         started = time.monotonic()
         reported = set()
+        no_speech = False
         try:
             await self.process()
             success = True
         except asyncio.CancelledError:
             raise
         except Exception as error:
-            for failure in failures(error):
+            causes = failures(error)
+            no_speech = bool(causes) and all(
+                cause.stage == "transcription_poll" and cause.code == "no_speech"
+                for cause in causes
+            )
+            for failure in causes:
                 emit(self.job["id"], failure, started)
                 reported.add((failure.stage, failure.code))
         finally:
             for session in self.sessions:
                 error = getattr(session, "cleanup_error", None)
                 if error is not None:
+                    no_speech = False
                     for failure in failures(error):
                         if (failure.stage, failure.code) not in reported:
                             emit(self.job["id"], failure, started)
@@ -344,6 +351,14 @@ class CaptureAttempt:
                     for session in self.sessions
                 ],
             }
+            # Old backends reject unknown receipt fields. Only a new backend
+            # that advertised support may receive the additive reason.
+            if (
+                no_speech
+                and self.sequence == self.delivered == 0
+                and self.job.get("supports_failure_code") is True
+            ):
+                self.receipt["failure_code"] = "no_speech_detected"
             # If finish remains unknown, fail the process rather than claim more work.
             try:
                 with stage("finish"):

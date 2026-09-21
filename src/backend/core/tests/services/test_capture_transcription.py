@@ -220,10 +220,11 @@ def test_retry_retains_previous_published_generation_until_success():
     assert [row["text"] for row in originals(user, capture)] == ["Revised ASR result"]
     assert models.MeetingOriginalSegment.objects.count() == 2
     # Source-pinned pagination stays stable after publishing a newer generation.
+    # Historical text remains readable, but corrections belong to the active source.
     path = f"/api/v1.0/meeting-records/{capture.record_id}/original-segments/"
     assert (
         client_for(user).get(path, {"transcription_job_id": job["id"]}).data["results"]
-        == original
+        == [{**row, "can_correct": False} for row in original]
     )
     assert (
         client_for(user).get(path, {"transcription_job_id": uuid.uuid4()}).status_code
