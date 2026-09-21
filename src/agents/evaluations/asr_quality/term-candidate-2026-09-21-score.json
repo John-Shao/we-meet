@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "expected_cases": 6,
+  "evaluated_cases": 3,
+  "succeeded_cases": 2,
+  "scope": "Synthetic regression baseline; not human meeting accuracy or DER.",
+  "cases": [
+    {
+      "id": "two-speakers-clean",
+      "category": "multi_speaker",
+      "synthetic": true,
+      "status": "not_evaluated"
+    },
+    {
+      "id": "two-speakers-noise10",
+      "category": "multi_speaker",
+      "synthetic": true,
+      "status": "not_evaluated"
+    },
+    {
+      "id": "two-speakers-noise0",
+      "category": "multi_speaker",
+      "synthetic": true,
+      "status": "not_evaluated"
+    },
+    {
+      "id": "terms-zh-clean",
+      "category": "terminology",
+      "synthetic": true,
+      "status": "succeeded",
+      "elapsed_ms": 5954,
+      "cer": 0.0141,
+      "silence_hallucinated_chars": null,
+      "term_recall": 1.0,
+      "speaker_window_accuracy": 0.0,
+      "speaker_labels_available": false,
+      "manual_fact_todo_review": "pending"
+    },
+    {
+      "id": "terms-zh-noise10",
+      "category": "terminology",
+      "synthetic": true,
+      "status": "succeeded",
+      "elapsed_ms": 5874,
+      "cer": 0.0141,
+      "silence_hallucinated_chars": null,
+      "term_recall": 1.0,
+      "speaker_window_accuracy": 0.0,
+      "speaker_labels_available": false,
+      "manual_fact_todo_review": "pending",
+      "cer_delta_from_clean": 0.0
+    },
+    {
+      "id": "silence",
+      "category": "silence",
+      "synthetic": true,
+      "status": "failed",
+      "elapsed_ms": 5703,
+      "cer": null,
+      "silence_hallucinated_chars": 0,
+      "term_recall": null,
+      "speaker_window_accuracy": null,
+      "speaker_labels_available": false,
+      "manual_fact_todo_review": "pending"
+    }
+  ]
+}

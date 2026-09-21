@@ -1,0 +1,99 @@
+{
+  "label": "one-term-weight5-zh-clean-noise-silence",
+  "model": "qwen-audio-3.0-asr-flash-filetrans",
+  "region": "cn-beijing",
+  "adapter": "sealed_filetrans_no_diarization_or_hotwords",
+  "cases": [
+    {
+      "id": "terms-zh-clean",
+      "sha256": "0062b1b0fe54bf34c2d2348af88196695496c90a85f64594fcf6043a42b58712",
+      "segments": [
+        {
+          "text": "今天核验对象存储签名续期和跨账号权限，妙记的转写结果需要保留原文引用。",
+          "start_ms": 240,
+          "end_ms": 9320,
+          "speaker": null,
+          "language": ""
+        },
+        {
+          "text": "陈晨负责术语校对，周五下午3点前完成。",
+          "start_ms": 10580,
+          "end_ms": 14820,
+          "speaker": null,
+          "language": ""
+        },
+        {
+          "text": "临时文件清理失败，不能掩盖转写提交的原始错误。",
+          "start_ms": 15720,
+          "end_ms": 20760,
+          "speaker": null,
+          "language": ""
+        }
+      ],
+      "language_hints": [
+        "zh"
+      ],
+      "vocabulary": {
+        "妙记": 5
+      },
+      "status": "succeeded",
+      "elapsed_ms": 5954
+    },
+    {
+      "id": "terms-zh-noise10",
+      "sha256": "31724bed6c44354ea2def95bf96d131adb8e93a46a396769a3ef87a0c3bd6228",
+      "segments": [
+        {
+          "text": "今天核验对象存储签名续期和跨账号权限，妙记的转写结果需要保留原文引用。",
+          "start_ms": 240,
+          "end_ms": 9320,
+          "speaker": null,
+          "language": ""
+        },
+        {
+          "text": "陈晨负责术语校对，周五下午3点前完成。",
+          "start_ms": 10590,
+          "end_ms": 14910,
+          "speaker": null,
+          "language": ""
+        },
+        {
+          "text": "临时文件清理失败，不能掩盖转写提交的原始错误。",
+          "start_ms": 15710,
+          "end_ms": 20990,
+          "speaker": null,
+          "language": ""
+        }
+      ],
+      "language_hints": [
+        "zh"
+      ],
+      "vocabulary": {
+        "妙记": 5
+      },
+      "status": "succeeded",
+      "elapsed_ms": 5874
+    },
+    {
+      "id": "silence",
+      "sha256": "d303811b8c84619667cd0501342f84ec6cbe69f7aa3856dcf52fabda374c92b8",
+      "segments": [],
+      "language_hints": [
+        "zh"
+      ],
+      "vocabulary": {
+        "妙记": 5
+      },
+      "status": "failed",
+      "errors": [
+        {
+          "stage": "transcription_poll",
+          "code": "no_speech"
+        }
+      ],
+      "elapsed_ms": 5703
+    }
+  ],
+  "candidate": "known_zh_language_and_one_term_weight5",
+  "scope": "Two Chinese fixtures and silence; no production parameter change"
+}

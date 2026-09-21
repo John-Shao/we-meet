@@ -62,3 +62,7 @@ bash deploy/aliyun/release-meet.sh --tag eb9f94dca backend
 ```
 
 本轮停在生产部署依赖；收到回执后继续源语言定向生产复核及剩余质量事项。不把候选模型结果当作已上线结果。
+
+## Helm 394 后续
+
+用户已部署 backend 7fffb1f9f，与本页实现运行代码一致。现有隔离样本源语言字段为空，因此生产只验收空语言回退，未将其冒充已知语言分支通过；[边界及 ASR 候选](miaoji-asr-language-candidates-2026-09-21.md)已记录。
