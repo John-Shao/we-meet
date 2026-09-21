@@ -62,6 +62,7 @@ import { OriginalSearch } from '../components/OriginalSearch'
 import { SpeakerFilter } from '../components/SpeakerFilter'
 import { SpeakerAttributionControl } from '../components/SpeakerAttributionControl'
 import { TranslationArchivePanel } from '../components/TranslationArchivePanel'
+import { UploadTranslationPanel } from '../components/UploadTranslationPanel'
 import { CaptureTranslationArchives } from '../components/CaptureTranslationArchives'
 import { TranscriptSegment } from '../components/TranscriptSegment'
 import { recordSourceKey } from '../recordSource'
@@ -450,7 +451,9 @@ function WorkspaceContent({
       : humanId !== undefined || summaryId !== undefined || summary
         ? 'summary'
         : translations &&
-            (record.source_type === 'meeting' || record.capture_id) &&
+            (record.source_type === 'meeting' ||
+              record.source_type === 'upload' ||
+              record.capture_id) &&
             record.capabilities.read_transcript
           ? 'translations'
           : record.capabilities.read_transcript
@@ -565,9 +568,10 @@ function WorkspaceContent({
             <Tab id="speakers">{t('library.speakers')}</Tab>
           )}
           <Tab id="info">{t('library.info')}</Tab>
-          {canReadText && (record.source_type === 'meeting' || captureId) && (
-            <Tab id="translations">{t('translationArchive.title')}</Tab>
-          )}
+          {canReadText &&
+            (record.source_type === 'meeting' || isUpload || captureId) && (
+              <Tab id="translations">{t('translationArchive.title')}</Tab>
+            )}
         </TabList>
         {canReadText && (
           <TabPanel id="text" padding="md">
@@ -608,6 +612,16 @@ function WorkspaceContent({
                 onSource={canPlayUpload ? seekTo : undefined}
               />
             )}
+          </TabPanel>
+        )}
+        {canReadText && isUpload && (
+          <TabPanel id="translations" padding="md">
+            <UploadTranslationPanel
+              key={`${viewerId}:${record.id}`}
+              viewerId={viewerId}
+              recordId={record.id}
+              onSource={canPlayUpload ? seekTo : undefined}
+            />
           </TabPanel>
         )}
         {canReadText && record.source_type === 'meeting' && (

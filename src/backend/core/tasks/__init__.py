@@ -32,4 +32,5 @@ from core.tasks import summary_exports as _summary_exports
 from core.tasks import summary_notifications as _summary_notifications
 from core.tasks import summary_versions as _summary_versions
 from core.tasks import task_notifications as _task_notifications
+from core.tasks import upload_translations as _upload_translations
 from core.tasks import uploaded_recordings as _uploaded_recordings

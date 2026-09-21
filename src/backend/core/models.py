@@ -1978,6 +1978,42 @@ class MeetingProcessingJob(BaseModel):
         return f"MeetingProcessingJob({self.record_id}, {self.kind}, {self.generation})"
 
 
+class UploadTranscriptTranslation(BaseModel):
+    """One explicit paid attempt over an immutable corrected upload transcript."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="upload_translations"
+    )
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    key = models.UUIDField()
+    target = models.CharField(max_length=8)
+    input_revision = models.PositiveIntegerField()
+    source = models.JSONField(default=list)
+    configuration = models.JSONField(default=dict)
+    status = models.CharField(max_length=16, default="queued")
+    content = models.JSONField(default=list, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+    deadline = models.DateTimeField()
+    started_at = models.DateTimeField(null=True, blank=True)
+    dispatched_at = models.DateTimeField(null=True, blank=True)
+    completed_chunks = models.PositiveIntegerField(default=0)
+    total_chunks = models.PositiveIntegerField(default=0)
+    segment_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["requested_by", "key"], name="unique_upload_translation_key"
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["status", "deadline"], name="upload_translation_deadline")
+        ]
+
+    def __str__(self):
+        return f"UploadTranscriptTranslation({self.pk}, {self.status})"
+
+
 class MeetingTranscriptVersion(BaseModel):
     """Immutable, complete snapshot of the confirmed source read for a job."""
 

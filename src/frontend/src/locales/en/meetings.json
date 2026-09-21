@@ -859,5 +859,36 @@
     "wait": "Cleanup may start after {{time}}. You can close this window; it continues in the background.",
     "uncertain": "The result is unknown. Refresh the trash to check, or retry this same request. Do not restore this recording.",
     "retentionHint": "Trash is not cleared automatically. Restore a recording, or explicitly delete it permanently."
+  },
+  "uploadTranslation": {
+    "title": "Full transcript translation",
+    "description": "Translate the corrected full transcript. Readers with original-text access can view translations. Generation may incur AI usage; retries are manual.",
+    "language": "Target language",
+    "en": "English",
+    "zh": "Simplified Chinese",
+    "generate": "Translate full transcript",
+    "regenerate": "Translate again",
+    "check": "Check previous request",
+    "empty": "No translation in this language.",
+    "stale": "The original has changed. This translation uses an older version; translate again before exporting.",
+    "uncertain": "The result is unknown. Check the same request before starting another translation.",
+    "conflict": "The source, permission or task has changed. Refresh and try again.",
+    "budget": "This transcript exceeds the translation limit. No text was truncated or sent.",
+    "unavailable": "Translation is unavailable. Refresh to check access.",
+    "loading": "Loading…",
+    "refresh": "Refresh",
+    "download": "Download translation ({{format}})",
+    "play": "Play this segment",
+    "original": "Original",
+    "previous": "Previous",
+    "next": "Next",
+    "status": {
+      "queued": "Waiting to translate",
+      "running": "Translating",
+      "succeeded": "Translation complete",
+      "failed": "Translation failed. You can start a new attempt.",
+      "incomplete": "Translation was not completed. You can start a new attempt.",
+      "canceled": "Source or access changed. Refresh before translating again."
+    }
   }
 }

@@ -859,5 +859,36 @@
     "wait": "Le nettoyage peut commencer après {{time}}. Vous pouvez fermer cette fenêtre ; il continue en arrière-plan.",
     "uncertain": "Résultat inconnu. Actualisez la corbeille ou réessayez la même demande. Ne restaurez pas cet enregistrement.",
     "retentionHint": "La corbeille ne se vide pas automatiquement. Restaurez un enregistrement ou choisissez sa suppression définitive."
+  },
+  "uploadTranslation": {
+    "title": "Traduction intégrale",
+    "description": "Traduisez la transcription corrigée. Les lecteurs du texte original peuvent lire la traduction. La génération consomme de l’IA ; les nouvelles tentatives sont manuelles.",
+    "language": "Langue cible",
+    "en": "Anglais",
+    "zh": "Chinois simplifié",
+    "generate": "Traduire tout le texte",
+    "regenerate": "Traduire à nouveau",
+    "check": "Vérifier la demande précédente",
+    "empty": "Aucune traduction dans cette langue.",
+    "stale": "L’original a changé. Traduisez à nouveau avant d’exporter.",
+    "uncertain": "Résultat inconnu. Vérifiez la demande précédente avant de recommencer.",
+    "conflict": "La source, les droits ou la tâche ont changé. Actualisez.",
+    "budget": "Le texte dépasse la limite de traduction. Aucun texte n’a été tronqué ni envoyé.",
+    "unavailable": "Traduction indisponible. Actualisez pour vérifier les droits.",
+    "loading": "Chargement…",
+    "refresh": "Actualiser",
+    "download": "Télécharger la traduction ({{format}})",
+    "play": "Écouter ce passage",
+    "original": "Original",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "status": {
+      "queued": "En attente",
+      "running": "Traduction en cours",
+      "succeeded": "Traduction terminée",
+      "failed": "Échec. Vous pouvez réessayer.",
+      "incomplete": "Traduction incomplète. Vous pouvez réessayer.",
+      "canceled": "La source ou les droits ont changé. Actualisez."
+    }
   }
 }

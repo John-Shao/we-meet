@@ -859,5 +859,36 @@
     "wait": "Die Bereinigung kann nach {{time}} beginnen. Sie können dieses Fenster schließen; sie läuft im Hintergrund weiter.",
     "uncertain": "Ergebnis unbekannt. Aktualisieren Sie den Papierkorb oder wiederholen Sie dieselbe Anfrage. Stellen Sie diese Aufnahme nicht wieder her.",
     "retentionHint": "Der Papierkorb wird nicht automatisch geleert. Stellen Sie eine Aufnahme wieder her oder löschen Sie sie ausdrücklich endgültig."
+  },
+  "uploadTranslation": {
+    "title": "Vollständige Übersetzung",
+    "description": "Das korrigierte Transkript übersetzen. Leser des Originals können Übersetzungen lesen. Die Erstellung verbraucht KI-Kontingent; Wiederholungen erfolgen manuell.",
+    "language": "Zielsprache",
+    "en": "Englisch",
+    "zh": "Vereinfachtes Chinesisch",
+    "generate": "Gesamtes Transkript übersetzen",
+    "regenerate": "Erneut übersetzen",
+    "check": "Letzte Anfrage prüfen",
+    "empty": "Keine Übersetzung in dieser Sprache.",
+    "stale": "Das Original wurde geändert. Vor dem Export erneut übersetzen.",
+    "uncertain": "Ergebnis unbekannt. Zuerst die letzte Anfrage prüfen.",
+    "conflict": "Quelle, Berechtigung oder Aufgabe geändert. Bitte aktualisieren.",
+    "budget": "Das Transkript überschreitet das Übersetzungslimit. Es wurde kein Text gekürzt oder gesendet.",
+    "unavailable": "Übersetzung nicht verfügbar. Zum Prüfen der Berechtigung aktualisieren.",
+    "loading": "Wird geladen…",
+    "refresh": "Aktualisieren",
+    "download": "Übersetzung herunterladen ({{format}})",
+    "play": "Diesen Abschnitt abspielen",
+    "original": "Original",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "status": {
+      "queued": "Wartet auf Übersetzung",
+      "running": "Wird übersetzt",
+      "succeeded": "Übersetzung abgeschlossen",
+      "failed": "Übersetzung fehlgeschlagen. Erneut versuchen.",
+      "incomplete": "Übersetzung unvollständig. Erneut versuchen.",
+      "canceled": "Quelle oder Berechtigung geändert. Bitte aktualisieren."
+    }
   }
 }

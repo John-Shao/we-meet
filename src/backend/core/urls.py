@@ -186,6 +186,10 @@ from core.api.translation_archives import (
     RecordTranslationSegmentsView,
     TranslationSegmentIngestView,
 )
+from core.api.upload_translations import (
+    UploadTranslationExportView,
+    UploadTranslationView,
+)
 from core.api.uploaded_recordings import (
     DirectUploadCompleteView,
     DirectUploadPresignView,
@@ -399,6 +403,9 @@ urlpatterns = [
                 path("meeting-interpretation/subscription/", InterpretationSubscriptionView.as_view(), name="interpretation-subscription"),
                 path("meeting-interpretation/renew/", InterpretationRenewalView.as_view(), name="interpretation-renew"),
                 path("meeting-records/<uuid:record_id>/translation-archives/", RecordTranslationArchivesView.as_view(), name="record-translation-archives"),
+                path("meeting-records/<uuid:record_id>/upload-translations/", UploadTranslationView.as_view(), name="upload-translations"),
+                path("meeting-records/<uuid:record_id>/upload-translations/<uuid:translation_id>/", UploadTranslationView.as_view(), name="upload-translation"),
+                path("meeting-records/<uuid:record_id>/upload-translations/<uuid:translation_id>/export/", UploadTranslationExportView.as_view(), name="upload-translation-export"),
                 path("meeting-records/<uuid:record_id>/translation-segments/", RecordTranslationSegmentsView.as_view(), name="record-translation-segments"),
                 path("meeting-records/<uuid:record_id>/summary-sharing/", SummarySharingView.as_view(), name="summary-sharing"),
                 path("meeting-records/<uuid:record_id>/transcript-replacements/", TranscriptReplacementView.as_view(), name="transcript-replacements"),

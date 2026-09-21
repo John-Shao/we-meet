@@ -23,6 +23,9 @@ def busy(record):
         .exists()
         or record.processing_jobs.filter(status__in=["queued", "running"]).exists()
         or record.questions.filter(status__in=["queued", "running"]).exists()
+        or record.upload_translations.filter(
+            status__in=["queued", "running"], deadline__gt=timezone.now()
+        ).exists()
         or models.CaptureTranscriptionJob.objects.filter(
             capture__record=record, status__in=["queued", "running"]
         ).exists()

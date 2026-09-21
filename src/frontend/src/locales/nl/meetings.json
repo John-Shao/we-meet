@@ -859,5 +859,36 @@
     "wait": "Opruimen kan beginnen na {{time}}. U kunt dit venster sluiten; het gaat op de achtergrond verder.",
     "uncertain": "Resultaat onbekend. Vernieuw de prullenbak of probeer hetzelfde verzoek opnieuw. Herstel deze opname niet.",
     "retentionHint": "De prullenbak wordt niet automatisch geleegd. Herstel een opname of kies expliciet voor definitief verwijderen."
+  },
+  "uploadTranslation": {
+    "title": "Volledige vertaling",
+    "description": "Vertaal het gecorrigeerde transcript. Lezers van de originele tekst kunnen vertalingen lezen. Genereren verbruikt AI-tegoed; opnieuw proberen gebeurt handmatig.",
+    "language": "Doeltaal",
+    "en": "Engels",
+    "zh": "Vereenvoudigd Chinees",
+    "generate": "Volledig transcript vertalen",
+    "regenerate": "Opnieuw vertalen",
+    "check": "Vorige aanvraag controleren",
+    "empty": "Geen vertaling in deze taal.",
+    "stale": "Het origineel is gewijzigd. Vertaal opnieuw voordat je exporteert.",
+    "uncertain": "Resultaat onbekend. Controleer eerst de vorige aanvraag.",
+    "conflict": "Bron, toegang of taak is gewijzigd. Vernieuw de pagina.",
+    "budget": "Het transcript overschrijdt de vertaallimiet. Er is geen tekst afgekapt of verzonden.",
+    "unavailable": "Vertaling niet beschikbaar. Vernieuw om de toegang te controleren.",
+    "loading": "Laden…",
+    "refresh": "Vernieuwen",
+    "download": "Vertaling downloaden ({{format}})",
+    "play": "Dit fragment afspelen",
+    "original": "Origineel",
+    "previous": "Vorige",
+    "next": "Volgende",
+    "status": {
+      "queued": "Wacht op vertaling",
+      "running": "Wordt vertaald",
+      "succeeded": "Vertaling voltooid",
+      "failed": "Vertaling mislukt. Je kunt opnieuw proberen.",
+      "incomplete": "Vertaling niet voltooid. Je kunt opnieuw proberen.",
+      "canceled": "Bron of toegang gewijzigd. Vernieuw de pagina."
+    }
   }
 }

@@ -210,7 +210,7 @@ def _replay_guard(user, key, checksum, configuration):
         or {
             k: v
             for k, v in previous.configuration.items()
-            if k not in {"_file", "_published"}
+            if k not in {"_file", "_published", "_original_audio_duration_ms"}
         }
         != configuration
     ):

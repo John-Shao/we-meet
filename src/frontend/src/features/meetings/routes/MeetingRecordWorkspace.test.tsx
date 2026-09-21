@@ -49,6 +49,9 @@ vi.mock('../components/CaptureTranslationArchives', () => ({
     captureId: string
   }) => <p>{`capture-translations:${viewerId}:${recordId}:${captureId}`}</p>,
 }))
+vi.mock('../components/UploadTranslationPanel', () => ({
+  UploadTranslationPanel: () => <p>upload-full-translation</p>,
+}))
 vi.mock('../components/RecordSummaryPanel', () => ({
   RecordSummaryPanel: ({
     onSourceAudio,
@@ -266,6 +269,21 @@ afterEach(() => {
   client.clear()
   vi.clearAllMocks()
   window.history.replaceState(null, '', '/')
+})
+
+it('opens upload full translation without a capture ID', async () => {
+  record.source_type = 'upload'
+  record.capture_id = null
+  window.history.replaceState(
+    null,
+    '',
+    '/meeting/records/record?tab=translations'
+  )
+  show()
+  expect(await screen.findByText('upload-full-translation')).toBeInTheDocument()
+  expect(
+    screen.getByRole('tab', { name: 'translationArchive.title' })
+  ).toHaveAttribute('aria-selected', 'true')
 })
 
 it('opens the summary tab directly from the minutes library without selecting a historical version', async () => {

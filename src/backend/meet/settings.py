@@ -947,6 +947,10 @@ class Base(Configuration):
         ),
     }
     CELERY_BEAT_SCHEDULE = {
+        "tick-upload-translations": {
+            "task": "core.tasks.upload_translations.tick_upload_translations",
+            "schedule": 15.0,
+        },
         "tick-uploaded-recordings": {
             "task": "core.tasks.uploaded_recordings.tick_uploaded_recordings",
             "schedule": 10.0,
@@ -1107,6 +1111,7 @@ class Base(Configuration):
     MEETING_SUMMARY_REVIEW_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_TASKS_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_RECORD_QA_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    UPLOAD_TRANSCRIPT_TRANSLATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_AUDIO_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_TRANSLATION_ENABLED = values.BooleanValue(
         False, environ_prefix=None

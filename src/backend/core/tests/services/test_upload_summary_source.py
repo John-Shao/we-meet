@@ -168,10 +168,13 @@ def test_editor_permission_survives_disabled_ai_and_does_not_grant_readers_write
 
 def test_upload_replay_after_publication_preserves_idempotency():
     owner, job = published()
+    assert "_original_audio_duration_ms" in job.configuration
     replay = upload(owner, job.key)
     assert replay.status_code == 202
     assert replay.data["record_id"] == str(job.record_id)
     assert models.UploadedRecording.objects.count() == 1
+    # Derived duration is not user intent; genuine option changes still conflict.
+    assert upload(owner, job.key, diarization=True).status_code == 409
 
 
 def test_transcript_reader_cannot_request_paid_generation():
