@@ -360,6 +360,12 @@ class GlobalAskService:
     _QUOTED_RE = re.compile(r"[\"“「『']([^\"”」』']{2,20})[\"”」』']")
     _ASCII_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_\-.]+")
 
+    _ENGLISH_QUERY_STOPWORDS = frozenset(
+        "a an the what is are was were do does did who whom which when where why how "
+        "of to in on at for from with and or as by be been being have has had its "
+        "this that these those can could would should please tell me about".split()
+    )
+
     @classmethod
     def _keywords(cls, question: str) -> list[str]:
         """B/C/D 共享的字面检索词:引号短语 > 英数 token > jieba TF-IDF。
@@ -371,7 +377,9 @@ class GlobalAskService:
         for match in cls._QUOTED_RE.finditer(question):
             ordered.append(match.group(1).strip())
         ordered.extend(
-            token for token in cls._ASCII_RE.findall(question) if len(token) >= 2
+            token
+            for token in cls._ASCII_RE.findall(question)
+            if len(token) >= 2 and token.casefold() not in cls._ENGLISH_QUERY_STOPWORDS
         )
         try:
             import jieba.analyse  # 惰性:jieba 已因 bm25_rank 在进程内热
@@ -379,11 +387,15 @@ class GlobalAskService:
             ordered.extend(
                 tag
                 for tag in jieba.analyse.extract_tags(question, topK=5)
-                if len(tag) >= 2
+                if len(tag) >= 2 and tag.casefold() not in cls._ENGLISH_QUERY_STOPWORDS
             )
         except Exception:  # noqa: BLE001 — 抽词失败退化为引号/英数
             logger.warning("global-ask jieba extract_tags failed", exc_info=True)
-        deduped = list(dict.fromkeys(kw for kw in ordered if kw))
+        deduped, seen = [], set()
+        for word in ordered:
+            if word and word.casefold() not in seen:
+                seen.add(word.casefold())
+                deduped.append(word)
         return deduped[:3]
 
     # ----------------------------------------------------------------- 源A
