@@ -1,5 +1,9 @@
 # 妙记整改：目标环境验收清单
 
+## 第五十批：启用后原生通过，上传到期复核待办
+
+[生产验收](miaoji-batch-50-purge-production-acceptance.md)：Helm 383 启用及三进程预检通过。新建原生媒体样本 App 勾选/取消/确认/完成、跨账号与旧版本拒绝、完成收据幂等及源 WAV HEAD 404 均通过；旧回归样本保留。另一新上传样本已有 18 段原文，删除请求已受理，等待/不可恢复保护通过；须北京时间 **2026-09-21 10:49:50** 后复核最终清理与旧上传键重放，不能提前记为通过。没有代码或配置变更，无需部署。
+
 ## 第四十九批待启用发布
 
 [启用配置](miaoji-batch-49-purge-rollout.md)：用户已回传第 48 批生产预检 PASS，三进程 `0186`、镜像/实例、实际 worker/beat 与 API/worker 存储探针通过，既有删除意图数为 0。生产 values 已改为 True，启用/关闭两种 Helm 渲染均确认三进程一致；集群尚待发布。执行 `bash deploy/aliyun/release-meet.sh --tag d2c791e9d backend`，然后以 `--expect-enabled --storage-canary` 重跑预检。上传件实际等待窗口 3600 秒；启用后以新建可销毁记录验收，旧回归样本保留。

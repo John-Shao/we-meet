@@ -1,5 +1,7 @@
 # 第四十九批：手动永久删除启用配置
 
+> 后续状态：用户确认 Helm 383 已发布，启用后预检完整 PASS，三个进程均 `purge_enabled=true`。生产专用记录验收进入[第 50 批](miaoji-batch-50-purge-production-acceptance.md)；下文保留启用批次记录。
+
 ## 生产前置已通过
 
 2026-09-21 用户在 `jd-sjy` 执行第 48 批预检并回传完整 PASS：
