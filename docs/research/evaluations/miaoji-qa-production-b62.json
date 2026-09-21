@@ -1,0 +1,148 @@
+{
+  "backend_tag": "4c5ca713f",
+  "helm_revision": 388,
+  "deployment_evidence": "user rollout log; not independently queried in cluster",
+  "kind": "production_smoke_not_accuracy_benchmark",
+  "reviewer": "Codex assistant; not independent human review",
+  "cases": [
+    {
+      "case": "grounded",
+      "question": "两种老板思维中，资本家与奴隶主最大的区别是什么？",
+      "elapsed_seconds_client": 13.502,
+      "answer": "根据资料，资本家思维与奴隶主思维最大的区别在于对员工赚钱行为的认知[5]：\n\n*   **资本家**觉得你是在帮他赚钱[5]。\n*   **奴隶主**觉得你是在挣他的钱[5]。",
+      "degraded": false,
+      "model_used": "qwen3.8-flash",
+      "citations_used": [
+        5
+      ],
+      "total_citations": 8,
+      "unified_record_citations": 8,
+      "legacy_citations": 0,
+      "sources": {
+        "transcripts": "empty",
+        "summaries": "empty",
+        "records": "ok"
+      },
+      "assistant_outcome": "all_claims_supported_in_this_response_no_added_cost_interpretation"
+    },
+    {
+      "case": "empty",
+      "question": "zzb58unfindable93217",
+      "elapsed_seconds_client": 2.514,
+      "answer": "没有找到相关内容，请尝试调整关键词或搜索范围。",
+      "degraded": false,
+      "model_used": "",
+      "citations_used": [],
+      "total_citations": 0,
+      "unified_record_citations": 0,
+      "legacy_citations": 0,
+      "sources": {
+        "transcripts": "empty",
+        "summaries": "empty",
+        "records": "empty"
+      },
+      "assistant_outcome": "expected_empty"
+    },
+    {
+      "case": "date_empty",
+      "question": "资本家",
+      "elapsed_seconds_client": 4.356,
+      "answer": "没有找到相关内容，请尝试调整关键词或搜索范围。",
+      "degraded": false,
+      "model_used": "",
+      "citations_used": [],
+      "total_citations": 0,
+      "unified_record_citations": 0,
+      "legacy_citations": 0,
+      "sources": {
+        "transcripts": "empty",
+        "summaries": "empty",
+        "records": "empty"
+      },
+      "assistant_outcome": "expected_empty"
+    },
+    {
+      "case": "explicit_phrase",
+      "question": "“两者之间最大的区别”是什么？",
+      "elapsed_seconds_client": 4.824,
+      "answer": "根据资料，两者之间最大的区别是：**资本家觉得你是在帮他赚钱，奴隶主觉得你是在挣他的钱**[1][6][7][8]。",
+      "degraded": false,
+      "model_used": "qwen3.8-flash",
+      "citations_used": [
+        1,
+        6,
+        7,
+        8
+      ],
+      "total_citations": 8,
+      "unified_record_citations": 8,
+      "legacy_citations": 0,
+      "sources": {
+        "transcripts": "empty",
+        "summaries": "empty",
+        "records": "ok"
+      },
+      "assistant_outcome": "claims_supported_legacy_noise_absent_redundant_provenance_remains"
+    }
+  ],
+  "citation_access": {
+    "readable_record_count": 8,
+    "grounded_sources": [
+      {
+        "citation": 5,
+        "start_ms": 34740,
+        "exact_source_match": true
+      },
+      {
+        "citation": 1,
+        "start_ms": 34740,
+        "exact_source_match": true
+      },
+      {
+        "citation": 6,
+        "start_ms": 34740,
+        "exact_source_match": true
+      },
+      {
+        "citation": 7,
+        "start_ms": 34740,
+        "exact_source_match": true
+      },
+      {
+        "citation": 8,
+        "start_ms": 34740,
+        "exact_source_match": true
+      }
+    ]
+  },
+  "app": {
+    "status": "blocked_shared_emulator",
+    "detail": "UI Automator already registered; another active app session took foreground. Stopped input; no new UI acceptance claimed."
+  },
+  "sse": {
+    "question": "“两者之间最大的区别”是什么？",
+    "status": 200,
+    "content_type": "text/event-stream",
+    "elapsed_seconds_client": 3.692,
+    "event_counts": {
+      "meta": 1,
+      "delta": 11,
+      "done": 1
+    },
+    "answer": "根据资料，两者之间最大的区别是：**资本家觉得你是在帮他赚钱，奴隶主觉得你是在挣他的钱**[1][6][7][8]。",
+    "done": {
+      "type": "done",
+      "citations_used": [
+        1,
+        6,
+        7,
+        8
+      ],
+      "degraded": false
+    },
+    "used_citations_match_verified_nonstream_sources": true,
+    "model_used": "qwen3.8-flash",
+    "total_citations": 8,
+    "legacy_citations": 0
+  }
+}
