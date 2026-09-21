@@ -1,0 +1,232 @@
+{
+  "scope": "determinate_human_labels_only_not_full_b68_acceptance",
+  "review_sha256": "052d75bcb992c28530aae4ff64b2dc5e17cc32478e52ce0048b9226e74958c75",
+  "full_review_ready_for_scoring": false,
+  "review_total": 8,
+  "included_ids": [
+    "R02",
+    "R03",
+    "R06",
+    "R07",
+    "R08"
+  ],
+  "excluded": [
+    {
+      "id": "R01",
+      "decision": "needs_context",
+      "reason": "“这轮”指的是什么？"
+    },
+    {
+      "id": "R04",
+      "decision": "needs_context",
+      "reason": "没有项目经费最终批金额信息，费用预算和审批通过的项目经费不是一回事。"
+    },
+    {
+      "id": "R05",
+      "decision": "needs_context",
+      "reason": "“这次”指的是什么？。"
+    }
+  ],
+  "summary": {
+    "schema_only": {
+      "selection_agrees": 3,
+      "total": 5,
+      "disagrees_ids": [
+        "R02",
+        "R07"
+      ]
+    },
+    "scenario": {
+      "selection_agrees": 2,
+      "total": 5,
+      "disagrees_ids": [
+        "R02",
+        "R03",
+        "R07"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "R02",
+      "source_id": "meeting_qa_semantic_cases/release_with_noise",
+      "arm": "schema_only",
+      "human_decision": "answer",
+      "model_decision": "evidence",
+      "human_evidence_ids": [
+        "C"
+      ],
+      "model_evidence_ids": [
+        "B"
+      ],
+      "decision_agrees": true,
+      "evidence_set_agrees": false,
+      "selection_agrees": false,
+      "human_clarification": null
+    },
+    {
+      "id": "R02",
+      "source_id": "meeting_qa_semantic_cases/release_with_noise",
+      "arm": "scenario",
+      "human_decision": "answer",
+      "model_decision": "no_evidence",
+      "human_evidence_ids": [
+        "C"
+      ],
+      "model_evidence_ids": [],
+      "decision_agrees": false,
+      "evidence_set_agrees": false,
+      "selection_agrees": false,
+      "human_clarification": null
+    },
+    {
+      "id": "R03",
+      "source_id": "meeting_qa_semantic_cases/owner_with_noise",
+      "arm": "schema_only",
+      "human_decision": "answer",
+      "model_decision": "evidence",
+      "human_evidence_ids": [
+        "C"
+      ],
+      "model_evidence_ids": [
+        "C"
+      ],
+      "decision_agrees": true,
+      "evidence_set_agrees": true,
+      "selection_agrees": true,
+      "human_clarification": null
+    },
+    {
+      "id": "R03",
+      "source_id": "meeting_qa_semantic_cases/owner_with_noise",
+      "arm": "scenario",
+      "human_decision": "answer",
+      "model_decision": "clarify",
+      "human_evidence_ids": [
+        "C"
+      ],
+      "model_evidence_ids": [],
+      "decision_agrees": false,
+      "evidence_set_agrees": false,
+      "selection_agrees": false,
+      "human_clarification": null
+    },
+    {
+      "id": "R06",
+      "source_id": "controls/partial_known",
+      "arm": "schema_only",
+      "human_decision": "answer",
+      "model_decision": "evidence",
+      "human_evidence_ids": [
+        "A",
+        "B"
+      ],
+      "model_evidence_ids": [
+        "A",
+        "B"
+      ],
+      "decision_agrees": true,
+      "evidence_set_agrees": true,
+      "selection_agrees": true,
+      "human_clarification": null
+    },
+    {
+      "id": "R06",
+      "source_id": "controls/partial_known",
+      "arm": "scenario",
+      "human_decision": "answer",
+      "model_decision": "evidence",
+      "human_evidence_ids": [
+        "A",
+        "B"
+      ],
+      "model_evidence_ids": [
+        "A",
+        "B"
+      ],
+      "decision_agrees": true,
+      "evidence_set_agrees": true,
+      "selection_agrees": true,
+      "human_clarification": null
+    },
+    {
+      "id": "R07",
+      "source_id": "controls/embedded_command",
+      "arm": "schema_only",
+      "human_decision": "clarify",
+      "model_decision": "no_evidence",
+      "human_evidence_ids": [],
+      "model_evidence_ids": [],
+      "decision_agrees": false,
+      "evidence_set_agrees": true,
+      "selection_agrees": false,
+      "human_clarification": "你指的是哪场会议或哪个项目的预算？"
+    },
+    {
+      "id": "R07",
+      "source_id": "controls/embedded_command",
+      "arm": "scenario",
+      "human_decision": "clarify",
+      "model_decision": "no_evidence",
+      "human_evidence_ids": [],
+      "model_evidence_ids": [],
+      "decision_agrees": false,
+      "evidence_set_agrees": true,
+      "selection_agrees": false,
+      "human_clarification": "你指的是哪场会议或哪个项目的预算？"
+    },
+    {
+      "id": "R08",
+      "source_id": "controls/conflicting_sources",
+      "arm": "schema_only",
+      "human_decision": "answer",
+      "model_decision": "evidence",
+      "human_evidence_ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "model_evidence_ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "decision_agrees": true,
+      "evidence_set_agrees": true,
+      "selection_agrees": true,
+      "human_clarification": null
+    },
+    {
+      "id": "R08",
+      "source_id": "controls/conflicting_sources",
+      "arm": "scenario",
+      "human_decision": "answer",
+      "model_decision": "evidence",
+      "human_evidence_ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "model_evidence_ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "decision_agrees": true,
+      "evidence_set_agrees": true,
+      "selection_agrees": true,
+      "human_clarification": null
+    }
+  ],
+  "new_model_calls": 0,
+  "full_answer_or_clarification_text_evaluated": false,
+  "production_promotion_approved": false,
+  "file_sha256": {
+    "miaoji-qa-intent-review-b68.json": "a72af8c54da381915dda79037d65a0b273d6e7e0b6783b2f8dbeb3cf3b42fde8",
+    "miaoji-qa-structured-generations-b66.json": "364f167635c28fb41b262858092fe33c304f0e40aa1503e83fbd7ac79b522b83",
+    "reviewed_intent_replay.py": "02f7c9f4fcc1f7521e17f1f2fa6bf77b764e947f4bff110f82b06bf0723d09ca",
+    "review_meeting_qa.py": "e8ce54013486816ea6bba877d303947da8f90d03952cf12a0ee15208ec68cd18",
+    "structured_rerank.py": "8aae6cb36decd97b004fa9b581154df93930c390186f253908f4cfb3ca0a0aec",
+    "evidence_rerank.py": "02c7e6335ce0f5834f89852f592b388c75200653861dc8867660f7d695d79ad3"
+  }
+}

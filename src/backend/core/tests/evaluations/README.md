@@ -229,3 +229,15 @@ python -m core.tests.evaluations.context_decisions --draws /tmp/context-draws.js
 评分验证题库/计划/提示/模型/请求hash以及原始输出与结构化字段一致性；必须包含两个方案的全部40条唯一结果。分别统计决策正确、候选集合完全匹配且原文摘句包含必要事实、同一基础题两个顺序都通过。顺序变体不视为20个独立场景。失败题照常保留在分母，不替换或丢弃。
 
 这仅测固定候选上的证据选择；未跑线上召回、未生成最终答案，也未评价澄清问题措辞。原R01/R04/R05继续待定，第68批准入状态及历史gold不变。测试绿色只表示评测程序契约成立，质量结果需另读报告；任何分数均不自动授权生产推广。
+
+## 第70批：已定人工标签的局部诊断
+
+`reviewed_intent_replay.py`只读第68批人工标签及第66批原始生成。它验证完整模型产物，再按标题/全文匹配重新编号的候选，单独报告确定标签的决策与证据集合一致性；`needs_context`和未填题逐项排除并记录原因，绝不改变第68批整套准入状态。当前纳入R02/R03/R06/R07/R08，分母每方案5，基础3/5、场景2/5。无新增模型调用，不评价最终答案或澄清问句文本。
+
+从backend目录重放，输出文件不得已存在：
+
+```bash
+python -m core.tests.evaluations.reviewed_intent_replay --review ../../docs/research/evaluations/miaoji-qa-intent-review-b68.json --draws ../../docs/research/evaluations/miaoji-qa-structured-generations-b66.json --output /tmp/human-subset-report.json
+```
+
+退出0只代表局部诊断成功生成，不代表模型全部通过或整套标签齐备。检查报告`scope`、`full_review_ready_for_scoring`、`included_ids`、`excluded`及`summary`；正式发布门槛不引用这份局部报告代替全部质量验证。源码测试使用真实冻结输出核对候选映射，不联网、不修改原标签。
