@@ -38,3 +38,18 @@
 73 个相关回归通过，覆盖来源快照、版本、引用、分块、过期提示版本 1/2/3 不付费执行、未知责任人和语言规则；Ruff/diff 检查通过。第二候选仅临时提示文字不同，最终恢复第一候选提示及同一解析/执行路径；两份提示哈希分别留存。
 
 只需发布 backend，agents 的上一批改动仅是评测工具。本轮停在 backend 生产发布依赖，随后对同一隔离快照复核新增动作约束。已知语言分支仍缺合法带语言元数据的生产样本；真人标注及 App 画面阻塞继续保留，详见[收尾清单](miaoji-quality-diagnostics-completion.md)。
+
+## 固定镜像
+
+实现与证据 `7ee54f11e` 已提交推送。由固定提交 Git archive 构建 backend-production，未带入其他窗口未提交改动；仓库推送完成：
+
+- `jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:7ee54f11e`
+- Digest：`sha256:2217fd6bb9262b95c0088ff28dd40b1c018ace30f84447def669e8d764ce488d`
+
+在途长文纪要完成后执行：
+
+```bash
+bash deploy/aliyun/release-meet.sh --tag 7ee54f11e backend
+```
+
+无需 agents/frontend/summary 发布或数据库迁移。固定 tag 对应第一候选提示；第二候选仅作为未采用的失败证据保留。
