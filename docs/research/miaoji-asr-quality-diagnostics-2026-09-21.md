@@ -55,7 +55,7 @@ R9 从“无共同基线/只有笼统 incomplete”推进到“有可执行 v1 �
 bash deploy/aliyun/release-meet.sh --tag 4913647f5 agents
 ```
 
-后续文档提交无需新镜像。生产发布及新任务 `--worker-logs` 验收仍待回执；不要用本地测量替代生产通过。
+后续文档提交无需新镜像。该交付时的待发布/待回执状态已由下文 Helm 389 部署与服务器探针回执更新。
 
 ## Helm 389 部署与生产 API 复核
 
@@ -68,11 +68,21 @@ bash deploy/aliyun/release-meet.sh --tag 4913647f5 agents
 | 21.89 秒中文术语 | `e289db59-0b31-4662-a44d-05ac9144f4df` | generation 1 succeeded，3/3 输入确认，4 段正式原文，正文与首次 adapter 基线一致。 |
 | 3 秒静音 | `9bdbbbe5-6c7d-4985-b514-5e0ada5f0ef0` | generation 1 incomplete，1/1 输入确认，0 段正式原文，错误仍为客户端通用 `provider_or_delivery_incomplete`。 |
 
-正常链路生产 API 已通过。静音失败被正确保留为非成功，未虚构文字，但尚不能判定为供应商轮询阶段：本机 Kubernetes context 是本地 kind，无法直接读取生产 worker 日志。需服务器执行以下只读命令并回传结果：
+正常链路生产 API 已通过。随后用户已在服务器执行以下只读命令并回传结果，现已确认静音失败发生在供应商轮询阶段。探针没有重试任务、修改记录或再次请求供应商：
 
 ```bash
 python3 deploy/aliyun/check_capture_transcription.py --job e289db59-0b31-4662-a44d-05ac9144f4df --worker-logs
 python3 deploy/aliyun/check_capture_transcription.py --job 9bdbbbe5-6c7d-4985-b514-5e0ada5f0ef0 --worker-logs
 ```
 
-暂保留两条独立测试记录供日志查询：中文 `2c1f5d35-3f0a-4ac2-a48f-42c69925f81e`；静音 `551da1bb-e220-454a-ba86-bd6cf21006a6`。本次没有清理它们，没有 App 画面验收，也不将生产阶段日志标记为已通过。静音的预期产品行为（正常空结果/明确无语音）仍需后续处理。
+暂保留两条独立测试记录供日志查询：中文 `2c1f5d35-3f0a-4ac2-a48f-42c69925f81e`；静音 `551da1bb-e220-454a-ba86-bd6cf21006a6`。本次没有清理它们，没有 App 画面验收。生产阶段日志已核验；静音的预期产品行为（正常空结果/明确无语音）仍需后续处理。
+
+## 服务器探针回执：阶段诊断验收通过
+
+用户回传两个任务的只读探针结果，运行 backend `4c5ca713f`、capture-asr agents `c92b7408e`，各 1 个 ready replica：
+
+- 中文语音：succeeded，终态回执存在；3/3 输入确认，原文与回执均为 4 段；1/1 供应商任务完成；预期/实际采样均 350240。当前日志没有失败事件。成功结论来自完整终态回执，不是“日志为空”。
+- 静音：incomplete，终态回执存在；1/1 输入确认，原文与回执均为 0；预期/实际采样均 48000；1 个供应商任务、0 个完成。当前日志明确为 `transcription_poll / failed / elapsed_ms=6087`。输入没有缺失，失败发生在轮询/任务结果处理阶段；不是从没有原文反推阶段。
+- 两者 previous 日志 unavailable，不作为当前任务失败或历史无错误的证据。
+
+本专项的“生产正常转写及实际失败可定位”验收通过，无需新镜像。该日志尚无供应商具体错误分类，不能仅凭轮询失败断言是“无有效语音”或网络/服务端原因，也不能将静音任务改记为成功。只有该阶段有真实生产失败证据，其他阶段仍以本地故障注入为证据。R9 的真实会议质量、分人/热词、静音友好空态、App 验收和持久诊断历史仍保留，不宣称全部关闭。

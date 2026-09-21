@@ -29,7 +29,24 @@
       "next_cursor": null,
       "text_matches_initial_adapter_run": true,
       "transcript_sha256": "6f87ee754cc714f76b0eba06bd687445ea08d1fefa9b810c19a2f774e39e82a1",
-      "worker_stage_log_verified": false
+      "worker_stage_log_verified": true,
+      "operator_receipt": {
+        "terminal_receipt_present": true,
+        "started": true,
+        "provider_finished": true,
+        "expected_runs": 1,
+        "observed_tasks": 1,
+        "finished_tasks": 1,
+        "expected_samples": 350240,
+        "observed_samples": 350240,
+        "input_samples_match": true,
+        "receipt_final_count": 4
+      },
+      "worker_logs": {
+        "current_stages": [],
+        "previous_available": false,
+        "window": "last 24h / 2000 lines per current pod"
+      }
     },
     {
       "case": "silence",
@@ -55,7 +72,32 @@
       "next_cursor": null,
       "text_matches_initial_adapter_run": true,
       "transcript_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "worker_stage_log_verified": false
+      "worker_stage_log_verified": true,
+      "operator_receipt": {
+        "terminal_receipt_present": true,
+        "started": true,
+        "provider_finished": false,
+        "expected_runs": 1,
+        "observed_tasks": 1,
+        "finished_tasks": 0,
+        "expected_samples": 48000,
+        "observed_samples": 48000,
+        "input_samples_match": true,
+        "receipt_final_count": 0
+      },
+      "worker_logs": {
+        "current_stages": [
+          {
+            "stage": "transcription_poll",
+            "code": "failed",
+            "elapsed_ms": 6087
+          }
+        ],
+        "previous_available": false,
+        "window": "last 24h / 2000 lines per current pod"
+      }
     }
-  ]
+  ],
+  "operator_probe_evidence": "user supplied check_capture_transcription.py --worker-logs output",
+  "stage_diagnostics_production_verified": true
 }
