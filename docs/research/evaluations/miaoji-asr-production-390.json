@@ -1,0 +1,165 @@
+{
+  "helm_revision": 390,
+  "agents_tag": "696a7768f",
+  "backend_tag": "696a7768f",
+  "frontend_tag": "696a7768f",
+  "cases": [
+    {
+      "case": "terms-zh-clean",
+      "source_sha256": "0062b1b0fe54bf34c2d2348af88196695496c90a85f64594fcf6043a42b58712",
+      "record_id": "7155dab2-6e13-494d-b0e2-83e55a7c1a60",
+      "capture_id": "662ebb7c-49d7-4a6f-8422-9c881f15458d",
+      "duration_ms": 21890,
+      "chunks": [
+        "23e0a36b-60c8-47cf-a1c3-48bb563f6f46",
+        "643df457-f287-4ac7-9507-ea878ec5603d",
+        "8519722d-4253-419f-86b8-af8bb843159e"
+      ],
+      "job": {
+        "id": "10e0aff5-e388-44af-aa98-c6760dc3c0d2",
+        "generation": 1,
+        "status": "queued",
+        "created_at": "2026-09-21T09:04:17.225983+00:00",
+        "error_code": "",
+        "input_count": 3,
+        "acknowledged_inputs": 0,
+        "final_count": 0,
+        "audio_status": "saved",
+        "mode": "sealed",
+        "input_closed": true,
+        "coverage_status": "unverified"
+      },
+      "observed_job": {
+        "id": "10e0aff5-e388-44af-aa98-c6760dc3c0d2",
+        "generation": 1,
+        "status": "succeeded",
+        "created_at": "2026-09-21T09:04:17.225983+00:00",
+        "error_code": "",
+        "input_count": 3,
+        "acknowledged_inputs": 3,
+        "final_count": 4,
+        "audio_status": "saved",
+        "mode": "sealed",
+        "input_closed": true,
+        "coverage_status": "unverified"
+      },
+      "segments": {
+        "results": [
+          {
+            "id": "5df98000-a011-4ec5-98d4-338b9ba92782",
+            "revision": 1,
+            "correction_revision": 0,
+            "can_correct": true,
+            "capture_session_id": "662ebb7c-49d7-4a6f-8422-9c881f15458d",
+            "source_track_id": "asr:10e0aff5-e388-44af-aa98-c6760dc3c0d2",
+            "source_sequence": 1,
+            "start_ms": 240,
+            "end_ms": 5240,
+            "speaker_id": "386973c6-026d-45e2-8111-66132ac39448",
+            "speaker_label": "Unknown speaker",
+            "text": "今天核验对象存储签名续期和跨账号权限。",
+            "original_text": "今天核验对象存储签名续期和跨账号权限。",
+            "is_corrected": false,
+            "language": ""
+          },
+          {
+            "id": "9621d06d-8815-4641-984f-fc02cb566071",
+            "revision": 1,
+            "correction_revision": 0,
+            "can_correct": true,
+            "capture_session_id": "662ebb7c-49d7-4a6f-8422-9c881f15458d",
+            "source_track_id": "asr:10e0aff5-e388-44af-aa98-c6760dc3c0d2",
+            "source_sequence": 2,
+            "start_ms": 6000,
+            "end_ms": 9320,
+            "speaker_id": "386973c6-026d-45e2-8111-66132ac39448",
+            "speaker_label": "Unknown speaker",
+            "text": "庙记的转写结果需要保留原文引用。",
+            "original_text": "庙记的转写结果需要保留原文引用。",
+            "is_corrected": false,
+            "language": ""
+          },
+          {
+            "id": "fad1b052-9c0e-4de8-8edd-8af28ca45c2f",
+            "revision": 1,
+            "correction_revision": 0,
+            "can_correct": true,
+            "capture_session_id": "662ebb7c-49d7-4a6f-8422-9c881f15458d",
+            "source_track_id": "asr:10e0aff5-e388-44af-aa98-c6760dc3c0d2",
+            "source_sequence": 3,
+            "start_ms": 10580,
+            "end_ms": 14820,
+            "speaker_id": "386973c6-026d-45e2-8111-66132ac39448",
+            "speaker_label": "Unknown speaker",
+            "text": "陈晨负责术语校对，周五下午3点前完成。",
+            "original_text": "陈晨负责术语校对，周五下午3点前完成。",
+            "is_corrected": false,
+            "language": ""
+          },
+          {
+            "id": "633262ad-0329-450b-9feb-1014c0b2dabd",
+            "revision": 1,
+            "correction_revision": 0,
+            "can_correct": true,
+            "capture_session_id": "662ebb7c-49d7-4a6f-8422-9c881f15458d",
+            "source_track_id": "asr:10e0aff5-e388-44af-aa98-c6760dc3c0d2",
+            "source_sequence": 4,
+            "start_ms": 15720,
+            "end_ms": 20760,
+            "speaker_id": "386973c6-026d-45e2-8111-66132ac39448",
+            "speaker_label": "Unknown speaker",
+            "text": "临时文件清理失败，不能掩盖转写提交的原始错误。",
+            "original_text": "临时文件清理失败，不能掩盖转写提交的原始错误。",
+            "is_corrected": false,
+            "language": ""
+          }
+        ],
+        "next_cursor": null
+      },
+      "observed_job_count": 1
+    },
+    {
+      "case": "silence",
+      "source_sha256": "d303811b8c84619667cd0501342f84ec6cbe69f7aa3856dcf52fabda374c92b8",
+      "record_id": "db461cae-0954-4420-936b-34320785fba0",
+      "capture_id": "fec548b7-47f3-4402-8986-d7039810a100",
+      "duration_ms": 3000,
+      "chunks": [
+        "d0a5ef3c-b838-4126-aa4c-737a06a2bc32"
+      ],
+      "job": {
+        "id": "0b056ade-01b1-4161-b67b-37b8e6f9a158",
+        "generation": 1,
+        "status": "queued",
+        "created_at": "2026-09-21T09:04:36.208293+00:00",
+        "error_code": "",
+        "input_count": 1,
+        "acknowledged_inputs": 0,
+        "final_count": 0,
+        "audio_status": "saved",
+        "mode": "sealed",
+        "input_closed": true,
+        "coverage_status": "unverified"
+      },
+      "observed_job": {
+        "id": "0b056ade-01b1-4161-b67b-37b8e6f9a158",
+        "generation": 1,
+        "status": "incomplete",
+        "created_at": "2026-09-21T09:04:36.208293+00:00",
+        "error_code": "no_speech_detected",
+        "input_count": 1,
+        "acknowledged_inputs": 1,
+        "final_count": 0,
+        "audio_status": "saved",
+        "mode": "sealed",
+        "input_closed": true,
+        "coverage_status": "unverified"
+      },
+      "segments": {
+        "results": [],
+        "next_cursor": null
+      },
+      "observed_job_count": 1
+    }
+  ]
+}

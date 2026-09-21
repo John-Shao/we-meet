@@ -1,0 +1,379 @@
+{
+  "provenance": "Synthetic scripts and production snapshots of isolated synthetic test records; not real meeting quality.",
+  "cases": [
+    {
+      "id": "zh-asr",
+      "snapshot": {
+        "id": "ce4f30bc-7c1f-46bf-b2e7-4bdb4b597283",
+        "revision": 2,
+        "segments": [
+          {
+            "text": "今天核验对象存储签名续期和跨账号权限。",
+            "end_ms": 5240,
+            "language": "",
+            "start_ms": 240,
+            "segment_id": "5df98000-a011-4ec5-98d4-338b9ba92782",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "庙记的转写结果需要保留原文引用。",
+            "end_ms": 9320,
+            "language": "",
+            "start_ms": 6000,
+            "segment_id": "9621d06d-8815-4641-984f-fc02cb566071",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "陈晨负责术语校对，周五下午3点前完成。",
+            "end_ms": 14820,
+            "language": "",
+            "start_ms": 10580,
+            "segment_id": "fad1b052-9c0e-4de8-8edd-8af28ca45c2f",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "临时文件清理失败，不能掩盖转写提交的原始错误。",
+            "end_ms": 20760,
+            "language": "",
+            "start_ms": 15720,
+            "segment_id": "633262ad-0329-450b-9feb-1014c0b2dabd",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          }
+        ],
+        "delivery": {
+          "status": "complete",
+          "capture_transcriptions": [
+            {
+              "id": "10e0aff5-e388-44af-aa98-c6760dc3c0d2",
+              "asr_status": "finished",
+              "capture_id": "662ebb7c-49d7-4a6f-8422-9c881f15458d",
+              "generation": 1,
+              "final_count": 4,
+              "input_count": 3,
+              "audio_status": "saved",
+              "coverage_status": "unverified",
+              "acknowledged_inputs": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "en-asr",
+      "snapshot": {
+        "id": "ca3f1a60-ed18-4258-9ed8-2befc3045200",
+        "revision": 2,
+        "segments": [
+          {
+            "text": "The release is postponed to Friday. ",
+            "end_ms": 2240,
+            "language": "",
+            "start_ms": 160,
+            "segment_id": "59117f7e-f7a4-4d78-8248-e4e867622c71",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "Alice will verify the storage permissions. ",
+            "end_ms": 5230,
+            "language": "",
+            "start_ms": 2870,
+            "segment_id": "0f22fc14-1c8c-45a1-a865-56830a383bf3",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "I will review the transcript. ",
+            "end_ms": 8180,
+            "language": "",
+            "start_ms": 6540,
+            "segment_id": "ad817a3f-3798-4402-abdb-1509f559ae8c",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "The budget is $15,000, not $50,000.",
+            "end_ms": 12580,
+            "language": "",
+            "start_ms": 8900,
+            "segment_id": "329dd758-14e7-4afc-bc0a-282dcb6119d1",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "请保留原始录音。",
+            "end_ms": 15730,
+            "language": "",
+            "start_ms": 14010,
+            "segment_id": "b7b0ab6c-e700-4f83-91ce-1f3c94fe5909",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "do not delete it before the review. ",
+            "end_ms": 18510,
+            "language": "",
+            "start_ms": 16500,
+            "segment_id": "4948bbed-6b34-4662-a06f-0dc689d18c70",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "agreed. ",
+            "end_ms": 20500,
+            "language": "",
+            "start_ms": 19610,
+            "segment_id": "00d3035e-0713-40e7-ac23-f678c8b7a57a",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "Bob will send the test report before Thursday afternoon. ",
+            "end_ms": 24340,
+            "language": "",
+            "start_ms": 21040,
+            "segment_id": "2703a520-e6fa-4ecb-b2f2-3b43cfbe1122",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          }
+        ],
+        "delivery": {
+          "status": "complete",
+          "capture_transcriptions": [
+            {
+              "id": "c6ea1f39-3a2f-4c5f-a38f-99f1f203af58",
+              "asr_status": "finished",
+              "capture_id": "6b77722c-6b04-4469-8058-812f02bcc94c",
+              "generation": 1,
+              "final_count": 8,
+              "input_count": 3,
+              "audio_status": "saved",
+              "coverage_status": "unverified",
+              "acknowledged_inputs": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "zh-corrected",
+      "snapshot": {
+        "id": "604e09db-bedb-4c7d-ae02-6f9481ed1e7c",
+        "revision": 3,
+        "segments": [
+          {
+            "text": "今天核验对象存储签名续期和跨账号权限。",
+            "end_ms": 5240,
+            "language": "",
+            "start_ms": 240,
+            "segment_id": "5df98000-a011-4ec5-98d4-338b9ba92782",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "妙记的转写结果需要保留原文引用。",
+            "end_ms": 9320,
+            "language": "",
+            "start_ms": 6000,
+            "segment_id": "9621d06d-8815-4641-984f-fc02cb566071",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 2,
+            "speaker_identity": ""
+          },
+          {
+            "text": "陈晨负责术语校对，周五下午3点前完成。",
+            "end_ms": 14820,
+            "language": "",
+            "start_ms": 10580,
+            "segment_id": "fad1b052-9c0e-4de8-8edd-8af28ca45c2f",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "临时文件清理失败，不能掩盖转写提交的原始错误。",
+            "end_ms": 20760,
+            "language": "",
+            "start_ms": 15720,
+            "segment_id": "633262ad-0329-450b-9feb-1014c0b2dabd",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          }
+        ],
+        "delivery": {
+          "status": "complete",
+          "capture_transcriptions": [
+            {
+              "id": "10e0aff5-e388-44af-aa98-c6760dc3c0d2",
+              "asr_status": "finished",
+              "capture_id": "662ebb7c-49d7-4a6f-8422-9c881f15458d",
+              "generation": 1,
+              "final_count": 4,
+              "input_count": 3,
+              "audio_status": "saved",
+              "coverage_status": "unverified",
+              "acknowledged_inputs": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "en-corrected",
+      "snapshot": {
+        "id": "afd09aa4-8b83-4f29-bff7-72089f7ed642",
+        "revision": 3,
+        "segments": [
+          {
+            "text": "The release is postponed to Friday. ",
+            "end_ms": 2240,
+            "language": "",
+            "start_ms": 160,
+            "segment_id": "59117f7e-f7a4-4d78-8248-e4e867622c71",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "Alice will verify the storage permissions. ",
+            "end_ms": 5230,
+            "language": "",
+            "start_ms": 2870,
+            "segment_id": "0f22fc14-1c8c-45a1-a865-56830a383bf3",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "I will review the transcript. ",
+            "end_ms": 8180,
+            "language": "",
+            "start_ms": 6540,
+            "segment_id": "ad817a3f-3798-4402-abdb-1509f559ae8c",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "The budget is $15,000, not $50,000.",
+            "end_ms": 12580,
+            "language": "",
+            "start_ms": 8900,
+            "segment_id": "329dd758-14e7-4afc-bc0a-282dcb6119d1",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "Please keep the original recording.",
+            "end_ms": 15730,
+            "language": "",
+            "start_ms": 14010,
+            "segment_id": "b7b0ab6c-e700-4f83-91ce-1f3c94fe5909",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 2,
+            "speaker_identity": ""
+          },
+          {
+            "text": "do not delete it before the review. ",
+            "end_ms": 18510,
+            "language": "",
+            "start_ms": 16500,
+            "segment_id": "4948bbed-6b34-4662-a06f-0dc689d18c70",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "agreed. ",
+            "end_ms": 20500,
+            "language": "",
+            "start_ms": 19610,
+            "segment_id": "00d3035e-0713-40e7-ac23-f678c8b7a57a",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          },
+          {
+            "text": "Bob will send the test report before Thursday afternoon. ",
+            "end_ms": 24340,
+            "language": "",
+            "start_ms": 21040,
+            "segment_id": "2703a520-e6fa-4ecb-b2f2-3b43cfbe1122",
+            "speaker_name": "Unknown speaker",
+            "segment_revision": 1,
+            "speaker_identity": ""
+          }
+        ],
+        "delivery": {
+          "status": "complete",
+          "capture_transcriptions": [
+            {
+              "id": "c6ea1f39-3a2f-4c5f-a38f-99f1f203af58",
+              "asr_status": "finished",
+              "capture_id": "6b77722c-6b04-4469-8058-812f02bcc94c",
+              "generation": 1,
+              "final_count": 8,
+              "input_count": 3,
+              "audio_status": "saved",
+              "coverage_status": "unverified",
+              "acknowledged_inputs": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "explicit-change",
+      "snapshot": {
+        "segments": [
+          {
+            "segment_id": "00000000-0000-4000-8000-000000000001",
+            "segment_revision": 1,
+            "start_ms": 0,
+            "end_ms": 10000,
+            "text": "The team approved a budget of 50,000 dollars yesterday. Today we explicitly revise that approved budget to 15,000 dollars. Alice will send the revised estimate before Friday afternoon.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "en"
+          }
+        ]
+      }
+    },
+    {
+      "id": "negated-date",
+      "snapshot": {
+        "segments": [
+          {
+            "segment_id": "00000000-0000-4000-8000-000000000002",
+            "segment_revision": 1,
+            "start_ms": 0,
+            "end_ms": 10000,
+            "text": "The deadline is Monday, not Wednesday. No previous deadline was approved. Someone needs to review the figures, but we have not assigned an owner or a due date for that review.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "en"
+          }
+        ]
+      }
+    }
+  ]
+}

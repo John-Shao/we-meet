@@ -1,0 +1,15 @@
+{
+  "label": "negated-values-and-unknown-owner-20260921",
+  "inputs_sha256": "11ba746100a5461a7cb0d0507b0c22363b5db367f25ae8a84b9886199d1f648b",
+  "scope": "Local production prompt/parser; no database, notifications or tasks.",
+  "semantic_review": "pending; valid references do not prove factual support",
+  "cases": [
+    {
+      "id": "zh-asr",
+      "model": "qwen3.8-flash",
+      "status": "failed",
+      "error_code": "provider_or_validation_failed",
+      "elapsed_ms": 1887
+    }
+  ]
+}

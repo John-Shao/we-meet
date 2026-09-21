@@ -57,3 +57,9 @@ bash deploy/aliyun/release-meet.sh --tag ae4db984b agents
 ```
 
 此处是镜像交付状态，尚未收到本版本的生产部署回执。下一项为新静音任务、正常语音对照和 App 提示验收。后续文档提交不需要重新构建镜像，应继续使用上述固定 tag。
+
+## Helm 390 生产更新
+
+用户提供 2026-09-21 16:57:46 Helm 390 成功回执，backend/frontend/agents 均为 `696a7768f`，包含 ae4db984b 的运行时代码。独立新静音 job `0b056ade-01b1-4161-b67b-37b8e6f9a158` 返回 incomplete、no_speech_detected、0 原文；普通中文 job `10e0aff5-e388-44af-aa98-c6760dc3c0d2` succeeded、4 段原文。复查两者均只有一次任务。详见[生产证据](evaluations/miaoji-asr-production-390.json)。这是本轮 API 验收，历史失败未改写。
+
+已在 Pixel 8 模拟器安装 6f372546 debug APK。打开测试记录深链被自动审批拒绝，理由仅为 blocked by policy，故 App 画面未验收。本轮亦未重做生产“旧原文保留”失败重试场景，不能用既有本地回归替代。新 job 阶段日志需另行取证。
