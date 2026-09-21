@@ -44,3 +44,15 @@ python3 deploy/aliyun/check_capture_transcription.py --job <本次任务UUID> --
 ## 剩余边界
 
 R9 从“无共同基线/只有笼统 incomplete”推进到“有可执行 v1 和阶段定位”，但未关闭：真实多人/交叠、方言/真实噪声、人工分人时间标注、AI 纪要/待办事实质量、正式终端仍需补。静音失败的供应商原因分类、输入语种忠实度和“妙记”专有词是本轮暴露的具体后续项。原生自动分人/热词仍属于 R1/R2，不在本专项顺便实现。
+
+## 固定镜像交付
+
+代码提交 `4913647f5d51559786e70e53f6c2d08c99b4c897` 已推送。production agents 镜像 `jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:4913647f5` 已构建/推送，digest 为 `sha256:2bd728b275f99e78fff313aa090742aab05bb15c2da2b3c0d936791187db274a`。镜像使用仓库锁定依赖，在禁网 Linux 容器内重复通过 51 项运行链路回归；不与本地 62 项相加冒充独立测试数。质量语料未打入镜像。
+
+生产主机执行：
+
+```bash
+bash deploy/aliyun/release-meet.sh --tag 4913647f5 agents
+```
+
+后续文档提交无需新镜像。生产发布及新任务 `--worker-logs` 验收仍待回执；不要用本地测量替代生产通过。
