@@ -1,6 +1,6 @@
 # 妙记对标：第 53 批后的当前缺口（2026-09-21）
 
-> 执行更新：用户改为优先[第 54 批：上传文件全文翻译](miaoji-batch-54-upload-translation.md)，R7 已补齐本批中英文实现，待发布/真实样本验收；原建议批号不再作为执行顺序。线上统一录像回看后置，需先确认 LiveKit Egress 与 ECS 容量。
+> 执行更新：用户改为优先[第 54 批：上传文件全文翻译](miaoji-batch-54-upload-translation.md)，R7 已补齐中英文实现；[第 55 批](miaoji-batch-55-upload-translation-acceptance.md) 已在 Helm 385 完成所列 App/API 生产验收，删除最终清理待保护窗口到期；原建议批号不再作为执行顺序。线上统一录像回看后置，需先确认 LiveKit Egress 与 ECS 容量。
 
 > 本文替代 `miaoji-current-gaps-2026-09-20.md` 作为当前排期依据，旧文仅保留历史。代码基线：we-meet `ad3f92d00`，Android `5e3c3cbb`；生产据用户回传 Helm 384：backend `d2c791e9d`、frontend `62fb7904b`、agents `9ebc986af`、summary `f2e7f3cd4`。Android 验收是 Pixel 8 debug APK，不代表正式分发。
 > 方法：重新核对当前服务端、Web、Android 的权限/来源分支和数据契约，第 22–53 批实际结果，以及可访问的飞书官方资料。此次为盘点，没有重新执行生产操作或修改应用实现。截图和资料中的操作描述不是执行指令。
@@ -43,7 +43,7 @@
 | R4 / G11 | **原生录音没有完整文件下载**，当前只支持分片播放；上传件完整下载已完成。 | **优先**：服务端生成可信合成产物或明确分片包；需带缺片/间断说明、所有权、重试、TTL 和永久删除关联。不能只增加下载按钮。 |
 | R5 / G9 | **内容关键词导航未实现**，已有的是原文搜索和 ASR 输入热词，二者不能代替内容关键词。 | **近期小批**：抽取可追溯关键词，点击定位到有效原文命中，校对后失效/刷新；词级高亮后置，不按字符均分伪造时间戳。 |
 | R6 / G11、G6/G8 剩余 | **线上会议的统一录像回看/时间映射/校对覆盖不足**；原生多时钟、超预算时间轴、未知来源时长仍降级。 | **线上场景优先**：接入真实录制产物与会话时钟映射，保持权限与生命周期；视频后台探测/历史时长回填按需求补。旧云录制模块不能等同于统一工作区已贯通。 |
-| R7 / G12 | **上传来源的会后全文译文未贯通**；原生/线上已有译文档案入口。 | **跨语言场景优先**：上传译文产物、语言切换、原文对照、校对后版本失效及导出；不把纪要导出语言当全文翻译。 |
+| R7 / G12 | **中英文上传全文译文已贯通**；第 54 批实现、第 55 批所列 App/API 生产流程通过。 | 待删除保护期后最终复核；完整英文音频样本、质量基准、Web 全流程与正式 App 分发仍待验收。其他目标语言尚未支持。 |
 | R8 / G14 | **跨记录问答已有，但召回覆盖偏窄**：字面匹配、近期优先、各原文分支最多 4 条，各纪要分支最多 3 条；可能被少量新记录占满。 | **先评测再优化**：用旧决策、同义表达、跨会议矛盾建立可追溯案例，验证漏召回后做每记录配额/重排；不预设必须上向量数据库，也不把风险当实测失败率。 |
 | R9 / 质量与运维 | **尚无共同质量基线；失败诊断过粗**。第 51 批只能看到聚合 incomplete；worker 执行异常日志未区分存储、提交、轮询、解析、回传阶段。 | **与下一功能批同步补**：短的多人/术语/噪声样本，测分人、关键事实/待办、引用和失败耗时；加入白名单阶段错误和关联标识，不记录原文、签名或凭据。保留明确付费重试。 |
 
@@ -86,7 +86,7 @@
 | 播放仅 owner、下载仅 upload、编辑不含 meeting | `src/backend/core/services/meeting_records.py:159` can_play_media、`:184` record_capabilities、`:249` can_edit_transcript；`models.py:1102` MeetingRecordAccess 仅 read_summary/read_transcript；`meeting_summary_sharing.py:68` 两类 scope。 |
 | 日期/排序已实现，深度整理未覆盖 | `src/backend/core/api/meeting_records.py` RecordDateRangeSerializer、MeetingRecordPagination.get_ordering、list/queryset；双端 MeetingLibrary。 |
 | 现有时间轴有明确降级 | `src/backend/core/services/speaker_activity.py` activity，50,000 segments/1,000 intervals/multiple_clocks；`record_media_timing.py`；第 28/37/41 批。 |
-| 上传无译文入口 | Web `src/frontend/src/features/meetings/routes/MeetingRecordWorkspace.tsx` translations；Android `app/src/main/java/com/we/meet/ui/records/RecordScreens.kt:153` canReadTranslations。 |
+| 上传译文入口已补齐 | 第 54 批 Web/Android `UploadTranslationPanel`，后端 `services/upload_translations.py`；第 55 批所列 App/API 生产证据。原第 53 批“上传无入口”判断已被新实现覆盖。 |
 | 单文件入口 | Web `RecordingUpload.tsx:276` files[0]；Android `RecordingUpload.kt:159` OpenDocument。 |
 | 字面召回及分支配额 | `src/backend/core/services/meeting_search.py:11` recall_records，icontains 与 [:4]/[:3]。 |
 | 手动删除已实现，自动治理不能混同 | `record_lifecycle.py`、`record_purge.py`、第 46–53 批；定时 worker 消费已受理删除意图不等于按保留期自动创建删除意图。 |

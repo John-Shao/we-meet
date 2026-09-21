@@ -46,3 +46,7 @@ bash deploy/aliyun/release-meet.sh --tag <本批提交前9位> backend frontend
 ```
 
 上线验收用专门上传测试记录，先中文原文→英语，再英语原文→中文：核对全段对照、首尾段和原声定位，三个导出格式；修改一段验证旧版提示/拒绝导出，再生成新版；用 13800000008 验证全文分享可读、纪要分享不可读及撤权清理。核对任务只有一次供应商执行，并确认回收/永久删除包含译文。生产发布和真实供应商验收未在本批提前记为通过。
+
+## 2026-09-21 生产后续
+
+第 55 批已确认 Helm 385 / backend、frontend `a616ec42e`，Android `48af303a` debug APK 在 Pixel 8 上完成真实生成、对照/回听、三个格式保存、旧版提示和重生成；API 验证权限撤销与回收恢复。专用样本永久删除 pending，北京时间 13:21:35 后复核。完整证据与未覆盖项见 we-meet 仓库 `docs/research/miaoji-batch-55-upload-translation-acceptance.md`。上述“待发布”是本批实施时的历史状态；正式 APK 分发仍待完成。

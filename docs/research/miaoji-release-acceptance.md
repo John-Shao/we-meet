@@ -1,6 +1,6 @@
 # 妙记整改：目标环境验收清单
 
-> 第 54 批新增上传全文翻译：需要 backend/frontend 镜像、0187 迁移、backend worker/beat 和新版 Android；真实供应商/跨账号/修改原文/导出/删除的生产验收尚待完成，详见[批次说明](miaoji-batch-54-upload-translation.md)。无需 Egress。
+> 第 55 批：Helm 385 / `a616ec42e` 已发布；App 真实上传全文翻译、原文对照/回听、TXT/SRT/VTT、修订失效和重生成，以及 API 跨账号/回收恢复通过。专用记录删除 pending，须北京时间 2026-09-21 13:21:35 后复核完成；剩余边界见[生产验收](miaoji-batch-55-upload-translation-acceptance.md)。本批无新镜像，无需再次部署。
 
 ## 第五十三批：转写恢复与永久删除收尾通过
 
