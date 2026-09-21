@@ -90,13 +90,14 @@ const posts = () =>
   vi
     .mocked(fetchApi)
     .mock.calls.filter(([, options]) => options?.method === 'POST')
-function show(source = capture) {
+function show(source = capture, compactControls = false) {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
       <CaptureTranscriptionPanel
         viewerId="owner"
         capture={source}
+        compactControls={compactControls}
         onSource={onSource}
       />
     </QueryClientProvider>
@@ -178,22 +179,25 @@ it('does not label partial text as no speech', async () => {
   expect(screen.queryByText('asr.noSpeechHint')).not.toBeInTheDocument()
 })
 
-it('keeps the previous published transcript after an empty attempt', async () => {
-  status.active_job_id = 'old-success'
-  status.results = [
-    {
-      id: 'empty',
-      status: 'incomplete',
-      generation: 2,
-      final_count: 0,
-      error_code: 'no_speech_detected',
-    },
-  ]
-  show()
-  await screen.findByText('asr.noSpeechHint')
-  expect(await screen.findByText('Confirmed original')).toBeInTheDocument()
-  expect(posts()).toHaveLength(0)
-})
+it.each([false, true])(
+  'keeps empty-attempt feedback visible beside previous text (compact=%s)',
+  async (compactControls) => {
+    status.active_job_id = 'old-success'
+    status.results = [
+      {
+        id: 'empty',
+        status: 'incomplete',
+        generation: 2,
+        final_count: 0,
+        error_code: 'no_speech_detected',
+      },
+    ]
+    show(capture, compactControls)
+    expect(await screen.findByText('asr.noSpeechHint')).toBeVisible()
+    expect(await screen.findByText('Confirmed original')).toBeInTheDocument()
+    expect(posts()).toHaveLength(0)
+  }
+)
 
 it('refreshes the mounted transcript after correction and guards the next edit and restore', async () => {
   status.active_job_id = 'published'

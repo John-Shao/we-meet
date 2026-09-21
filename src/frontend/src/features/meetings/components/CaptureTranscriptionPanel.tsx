@@ -253,6 +253,7 @@ export function CaptureTranscriptionPanel({
     compactControls &&
     !!state.data.active_job_id &&
     !active(latest) &&
+    !noSpeech(latest) &&
     !intent &&
     !message &&
     !textMode
