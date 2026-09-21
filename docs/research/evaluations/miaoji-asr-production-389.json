@@ -1,0 +1,61 @@
+{
+  "helm_revision": 389,
+  "agents_tag": "c92b7408e",
+  "deployment_evidence": "user supplied release log",
+  "verification": "owner API, dedicated synthetic native-capture fixtures",
+  "app_verified": false,
+  "cases": [
+    {
+      "case": "terms-zh-clean",
+      "record_id": "2c1f5d35-3f0a-4ac2-a48f-42c69925f81e",
+      "capture_id": "9d615d7b-902f-4238-bd7a-2083a01fe6b0",
+      "job": {
+        "id": "e289db59-0b31-4662-a44d-05ac9144f4df",
+        "generation": 1,
+        "status": "succeeded",
+        "created_at": "2026-09-21T08:18:48.847336+00:00",
+        "error_code": "",
+        "input_count": 3,
+        "acknowledged_inputs": 3,
+        "final_count": 4,
+        "audio_status": "saved",
+        "mode": "sealed",
+        "input_closed": true,
+        "coverage_status": "unverified"
+      },
+      "duration_ms": 21890,
+      "source_sha256": "0062b1b0fe54bf34c2d2348af88196695496c90a85f64594fcf6043a42b58712",
+      "published_segments": 4,
+      "next_cursor": null,
+      "text_matches_initial_adapter_run": true,
+      "transcript_sha256": "6f87ee754cc714f76b0eba06bd687445ea08d1fefa9b810c19a2f774e39e82a1",
+      "worker_stage_log_verified": false
+    },
+    {
+      "case": "silence",
+      "record_id": "551da1bb-e220-454a-ba86-bd6cf21006a6",
+      "capture_id": "1457bffa-0edc-48cb-be11-9b1f8f31d8be",
+      "job": {
+        "id": "9bdbbbe5-6c7d-4985-b514-5e0ada5f0ef0",
+        "generation": 1,
+        "status": "incomplete",
+        "created_at": "2026-09-21T08:19:08.208349+00:00",
+        "error_code": "provider_or_delivery_incomplete",
+        "input_count": 1,
+        "acknowledged_inputs": 1,
+        "final_count": 0,
+        "audio_status": "saved",
+        "mode": "sealed",
+        "input_closed": true,
+        "coverage_status": "unverified"
+      },
+      "duration_ms": 3000,
+      "source_sha256": "d303811b8c84619667cd0501342f84ec6cbe69f7aa3856dcf52fabda374c92b8",
+      "published_segments": 0,
+      "next_cursor": null,
+      "text_matches_initial_adapter_run": true,
+      "transcript_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "worker_stage_log_verified": false
+    }
+  ]
+}

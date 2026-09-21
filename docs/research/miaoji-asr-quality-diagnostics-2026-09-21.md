@@ -56,3 +56,23 @@ bash deploy/aliyun/release-meet.sh --tag 4913647f5 agents
 ```
 
 后续文档提交无需新镜像。生产发布及新任务 `--worker-logs` 验收仍待回执；不要用本地测量替代生产通过。
+
+## Helm 389 部署与生产 API 复核
+
+用户回传 2026-09-21 16:13:40 Helm 389：agents 实际发布 `c92b7408e`，所有列出的 agents deployment rollout 成功；backend `4c5ca713f`、frontend `a616ec42e` 保持原版本。`4913647f5..c92b7408e` 仅文档差异；本机 `c92b7408e` 镜像中三个改动的运行文件与专项源码 SHA-256 一致。这里没有读取生产 Pod 文件或独立验证其镜像 digest。
+
+使用演示所有者账号，对冻结合成 WAV 新建两个独立原生 capture，每个只提交一次转写。未修改其他用户记录、供应商配置或开关；未自动重试。API 观察结果保存在[验收证据](evaluations/miaoji-asr-production-389.json)。
+
+| 样本 | 转写任务 | API 结果 |
+|---|---|---|
+| 21.89 秒中文术语 | `e289db59-0b31-4662-a44d-05ac9144f4df` | generation 1 succeeded，3/3 输入确认，4 段正式原文，正文与首次 adapter 基线一致。 |
+| 3 秒静音 | `9bdbbbe5-6c7d-4985-b514-5e0ada5f0ef0` | generation 1 incomplete，1/1 输入确认，0 段正式原文，错误仍为客户端通用 `provider_or_delivery_incomplete`。 |
+
+正常链路生产 API 已通过。静音失败被正确保留为非成功，未虚构文字，但尚不能判定为供应商轮询阶段：本机 Kubernetes context 是本地 kind，无法直接读取生产 worker 日志。需服务器执行以下只读命令并回传结果：
+
+```bash
+python3 deploy/aliyun/check_capture_transcription.py --job e289db59-0b31-4662-a44d-05ac9144f4df --worker-logs
+python3 deploy/aliyun/check_capture_transcription.py --job 9bdbbbe5-6c7d-4985-b514-5e0ada5f0ef0 --worker-logs
+```
+
+暂保留两条独立测试记录供日志查询：中文 `2c1f5d35-3f0a-4ac2-a48f-42c69925f81e`；静音 `551da1bb-e220-454a-ba86-bd6cf21006a6`。本次没有清理它们，没有 App 画面验收，也不将生产阶段日志标记为已通过。静音的预期产品行为（正常空结果/明确无语音）仍需后续处理。
