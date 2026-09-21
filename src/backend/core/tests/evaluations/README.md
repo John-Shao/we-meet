@@ -123,3 +123,25 @@ MEETING_QA_VECTORS=/absolute/repo/docs/research/evaluations/miaoji-qa-semantic-v
 `report.json`内每个corpus有baseline与五档reports、逐题comparisons以及ranking诊断。报告的`generation=disabled`指没有回答生成，embedding来自指定冻结产物；mode必须是replay才是实际语义评测。计划、向量和harness的hash须相符，模型/维度/数值不匹配会拒绝。阈值只做敏感性对照，不能从同一批合成数据挑阈值就当作线上校准。
 
 第64批0.55仍存在实体错误，0.65大量漏召回，未接入生产。pytest绿色不表示全部质量比较通过；详见第64批决策文档。
+
+## 第65批：编号过滤与证据重排
+
+`test_evidence_rerank.py`复用第64批冻结向量，比较字面基线、语义0.35、编号过滤、再加模型重排四方案。另有`meeting_qa_rerank_controls.json`六个直接控制，单独计分。只过滤空结果补召回，不修改生产服务或实现持久索引。
+
+从backend目录运行，先按本文配置测试数据库。离线回放已提交的实际生成，无需密钥或外部请求：
+
+```bash
+MEETING_QA_RERANK_DRAWS=/absolute/repo/docs/research/evaluations/miaoji-qa-rerank-generations-b65.json MEETING_QA_RERANK_OUTPUT=/tmp/rerank-replay python -m pytest core/tests/evaluations/test_evidence_rerank.py --no-cov
+```
+
+指定输出目录时应运行整个文件，勿只挑部分用例或使用xdist；session级汇总检查57个检索case和6个控制完整性。可以与其他回归联合执行，pytest-django可能按数据库标记重新排列用例。无输出目录、无生成文件时只执行规划/结构检查，不代表模型质量已测。
+
+重新实验时，先不设`MEETING_QA_RERANK_DRAWS`，设置`MEETING_QA_RERANK_OUTPUT`导出plan。显式调用模型会产生费用，环境变量`MIAOJI_EVAL_API_KEY`提供凭据；仍从backend目录以模块方式运行：
+
+```bash
+python -m core.tests.evaluations.run_evidence_rerank --plan /tmp/rerank-plan/plan.json --output /tmp/rerank-draws.json --model qwen3.8-flash --base-url https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+输出已存在则拒绝覆盖，每题一次、不自动重试。只发送问题与合成候选id/title/text，不发送gold或内部标签。完整保留原始输出、用量和完成原因；形状/摘句不合法会记录`invalid_output`并拒绝选择。重放校验输入hash及原始输出与保存选择一致。摘句存在不证明语义相关；最终回答未生成。
+
+第65批22次请求中有一次裸编号数组输出，按原样冻结。三套题库应为空题恢复，但干扰正例从6/6降到3/6，含产品上线误配快递。报告中的比较器通过只表示相对字面基线无退化，不等于相对语义候选无损；`summary`另外保留语义到重排的逐题比较。详见第65批决策，候选不推广。
