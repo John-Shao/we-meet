@@ -9,6 +9,7 @@ import type {
   ApiRecordSummaryVersion,
   RecordSourceReference,
 } from '../api/ApiMeetingRecord'
+import { formatDateTime } from '../recordDateTime'
 import { receiptRole, statusRole } from './liveRegionRole'
 
 type Question = {
@@ -213,7 +214,7 @@ export const RecordQuestionPanel = ({
               value={version.input_snapshot_id}
             >
               {t(`recordAi.stage.${version.stage}`)} ·{' '}
-              {new Date(version.created_at).toLocaleString()}
+              {formatDateTime(version.created_at)}
             </option>
           ))}
         </select>

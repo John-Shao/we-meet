@@ -356,6 +356,8 @@ const migratedTypographySources = [
   '../src/features/meetings/components/TranscriptSegment.tsx',
   '../src/features/meetings/components/TranslationArchivePanel.tsx',
   '../src/features/meetings/components/UploadMediaPlayer.tsx',
+  // D 阶段收尾:视频会议详情页 —— 会议模块里最后一个仍写裸 fontSize 的文件。
+  '../src/features/meetings/routes/MeetingDetail.tsx',
 ].map((path) => new URL(path, import.meta.url))
 
 for (const sourceUrl of migratedTypographySources) {
@@ -440,6 +442,8 @@ const migratedShapeSources = [
   '../src/features/meetings/components/TranscriptSegment.tsx',
   '../src/features/meetings/components/TranslationArchivePanel.tsx',
   '../src/features/meetings/components/UploadMediaPlayer.tsx',
+  // D 阶段收尾:视频会议详情页 —— 会议模块里最后一个仍写数字圆角的文件。
+  '../src/features/meetings/routes/MeetingDetail.tsx',
 ].map((path) => new URL(path, import.meta.url))
 
 for (const sourceUrl of migratedShapeSources) {

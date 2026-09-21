@@ -5,6 +5,7 @@ import { fetchApi } from '@/api/fetchApi'
 import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { useRecordTranscriptVersion } from '../api/fetchMeetingRecord'
+import { formatDateTime } from '../recordDateTime'
 import { Link } from 'wouter'
 import { SummaryExportControl } from './SummaryExportControl'
 import type {
@@ -68,7 +69,7 @@ export const HumanSummaryHistory = ({
                   onPress={() => setSelected(row.id)}
                 >
                   {t('humanReview.historyVersion', { revision: row.revision })}{' '}
-                  · {new Date(row.created_at).toLocaleString()}
+                  · {formatDateTime(row.created_at)}
                 </Button>
               ))}
               {query.data?.next_before && (

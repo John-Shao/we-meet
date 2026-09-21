@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
 import { css } from '@/styled-system/css'
 import {
   captureArchiveApi,
   type CaptureArchive,
 } from '../capture/translationArchives'
+import { formatDateTime } from '../recordDateTime'
 
 type Source = { viewerId: string; captureId: string; recordId: string }
 const options = { retry: false, gcTime: 0, staleTime: 0 }
@@ -115,9 +117,11 @@ function Content({ source }: { source: Source }) {
         {t('refresh')}
       </Button>
       {error ? (
-        <p role="alert">{t('error')}</p>
+        // 恢复动作是上面那颗面板级的「刷新」，这里不再重复一颗（StateHint 的 action 槽
+        // 留给没有其它恢复入口的地方）。
+        <StateHint state="error">{t('error')}</StateHint>
       ) : loading ? (
-        <p role="status">{t('loading')}</p>
+        <StateHint state="loading">{t('loading')}</StateHint>
       ) : selected && text.data ? (
         <>
           <p role="status">{t(`status.${text.data.archive_status}`)}</p>
@@ -143,7 +147,7 @@ function Content({ source }: { source: Source }) {
               >
                 {t(`language.${row.target}`)} ·{' '}
                 {t('received', {
-                  time: new Date(row.received_at).toLocaleString(),
+                  time: formatDateTime(row.received_at),
                 })}
               </p>
               <p
@@ -175,7 +179,7 @@ function Content({ source }: { source: Source }) {
                 }}
               >
                 {t('open', {
-                  date: new Date(archive.created_at).toLocaleString(),
+                  date: formatDateTime(archive.created_at),
                   generation: archive.generation,
                 })}
               </Button>

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { Button } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
 import { Checkbox } from '@/primitives/Checkbox'
 import { css } from '@/styled-system/css'
 import type {
@@ -11,6 +12,7 @@ import type {
   ApiMeetingOriginalSegment,
   CaptureAudioRetention,
 } from '../api/ApiCaptureSession'
+import { formatDateTime } from '../recordDateTime'
 import { isAudioRetention } from '../capture/retention'
 import { useCorrectOriginalSegment } from '../api/fetchMeetingRecord'
 import { RecordSummaryPanel } from './RecordSummaryPanel'
@@ -233,7 +235,8 @@ export function CaptureTranscriptionPanel({
         </Button>
       </section>
     )
-  if (!state.data) return <p role="status">{t('asr.loading')}</p>
+  if (!state.data)
+    return <StateHint state="loading">{t('asr.loading')}</StateHint>
   if (
     !(openCapture ? state.data.live_available : state.data.available) &&
     !state.data.results.length &&
@@ -268,12 +271,12 @@ export function CaptureTranscriptionPanel({
                 <p>{t(`retention.${retention.cleanup_status}`)}</p>
                 <p>
                   {t('retention.deadline', {
-                    time: new Date(retention.temporary_until!).toLocaleString(),
+                    time: formatDateTime(retention.temporary_until),
                   })}
                 </p>
                 <p>
                   {t('retention.retryUntil', {
-                    time: new Date(retention.retry_until!).toLocaleString(),
+                    time: formatDateTime(retention.retry_until),
                   })}
                 </p>
                 {!retryOpen() && <p>{t('retention.retryClosed')}</p>}
@@ -554,7 +557,7 @@ function Originals({
     return (
       <div>
         {searchForm}
-        <p role="status">{t('asr.loading')}</p>
+        <StateHint state="loading">{t('asr.loading')}</StateHint>
       </div>
     )
   return (

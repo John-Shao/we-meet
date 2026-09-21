@@ -6,6 +6,7 @@ import { Button } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
 import { css, cx } from '@/styled-system/css'
 import { useMeetingRecord } from '../api/fetchMeetingRecord'
+import { formatDateTime, formatDecimal } from '../recordDateTime'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { recordSourceKey } from '../recordSource'
@@ -63,7 +64,7 @@ export function RecordingDetailContent({
   viewerId: string
   recordId: string
 }) {
-  const { t, i18n } = useTranslation('meetings')
+  const { t } = useTranslation('meetings')
   const query = useMeetingRecord(viewerId, recordId, true)
   const record =
     !query.isError &&
@@ -97,13 +98,13 @@ export function RecordingDetailContent({
       <p className={pageLead}>
         {t(recordSourceKey(record))} ·{' '}
         <time dateTime={record.origin_at}>
-          {new Date(record.origin_at).toLocaleString(i18n.language)}
+          {formatDateTime(record.origin_at)}
         </time>
       </p>
       {record.upload && (
         <p className={pageLead}>
           {record.upload.name} ·{' '}
-          {(record.upload.size / 1024 / 1024).toLocaleString(i18n.language, {
+          {formatDecimal(record.upload.size / 1024 / 1024, undefined, {
             maximumFractionDigits: 2,
           })}{' '}
           MB · {t(`upload.status.${record.upload.status}`)}

@@ -6,6 +6,7 @@ import { fetchApi } from '@/api/fetchApi'
 import { Button } from '@/primitives'
 import { Checkbox } from '@/primitives/Checkbox'
 import { css } from '@/styled-system/css'
+import { formatDateTime } from '../recordDateTime'
 
 export type PurgeReceipt = {
   id: string
@@ -139,7 +140,7 @@ export function RecordPurge({
               {query.data.state === 'pending' && (
                 <p>
                   {t('purge.wait', {
-                    time: new Date(query.data.not_before).toLocaleString(),
+                    time: formatDateTime(query.data.not_before),
                   })}
                 </p>
               )}

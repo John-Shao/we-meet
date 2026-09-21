@@ -10,6 +10,7 @@ import type {
   ApiRecordSummaryVersion,
   RecordSourceReference,
 } from '../api/ApiMeetingRecord'
+import { formatDateTime } from '../recordDateTime'
 import { SummaryTaskActions } from './SummaryTaskActions'
 import { HumanSummaryHistory } from './HumanSummaryHistory'
 import { SummaryExportControl } from './SummaryExportControl'
@@ -171,7 +172,7 @@ export const HumanSummaryPanel = ({
                   {versions.map((version) => (
                     <option key={version.id} value={version.id}>
                       {t(`recordAi.stage.${version.stage}`)} ·{' '}
-                      {new Date(version.created_at).toLocaleString()}
+                      {formatDateTime(version.created_at)}
                     </option>
                   ))}
                 </select>

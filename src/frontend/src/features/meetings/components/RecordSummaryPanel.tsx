@@ -17,6 +17,7 @@ import {
   useRequestRecordSummary,
   type SummaryRequestPayload,
 } from '../api/fetchMeetingRecord'
+import { formatClock, formatDateTime } from '../recordDateTime'
 import type {
   ApiRecordSummaryVersion,
   RecordSourceReference,
@@ -93,7 +94,7 @@ export const RoomRecordSummaries = ({
             variant="tertiary"
             onPress={() => setSelected(record.id)}
           >
-            {record.title} · {new Date(record.origin_at).toLocaleString()}
+            {record.title} · {formatDateTime(record.origin_at)}
           </Button>
         ))}
       {records.data.next_cursor && (
@@ -283,7 +284,7 @@ const RecordSummaryPanelContent = ({
       {showHeading && (
         <>
           <H lvl={2}>{detail.data.title}</H>
-          <Text>{new Date(detail.data.origin_at).toLocaleString()}</Text>
+          <Text>{formatDateTime(detail.data.origin_at)}</Text>
         </>
       )}
       {pinned && (
@@ -476,9 +477,7 @@ const RecordSummaryPanelContent = ({
             {!pinned && staged && progress.data?.next_update_at && (
               <Text>
                 {t('recordAi.nextUpdate', {
-                  time: new Date(
-                    progress.data.next_update_at
-                  ).toLocaleTimeString(),
+                  time: formatClock(progress.data.next_update_at),
                 })}
               </Text>
             )}
@@ -656,9 +655,8 @@ const Version = ({
       <div className={stack}>
         <p className={css({ textStyle: 'bodySmall', color: 'text.secondary' })}>
           {version.stage && `${t(`recordAi.stage.${version.stage}`)} · `}
-          {t('minutesReader.generatedAt')}{' '}
-          {new Date(version.created_at).toLocaleString()} ·{' '}
-          {t(version.is_current ? 'recordAi.current' : 'recordAi.historical')}
+          {t('minutesReader.generatedAt')} {formatDateTime(version.created_at)}{' '}
+          · {t(version.is_current ? 'recordAi.current' : 'recordAi.historical')}
         </p>
         {version.stage && version.stage !== 'final' && (
           <Text variant="note">{t('recordAi.provisional')}</Text>

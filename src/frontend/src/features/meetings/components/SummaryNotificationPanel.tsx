@@ -1,4 +1,5 @@
 import { readRecovery } from '../hooks/readRecovery'
+import { formatDateTime } from '../recordDateTime'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -249,7 +250,7 @@ function Delivery({
     >
       <div className={stack}>
         <div role={statusRole(notice.status)}>
-          {new Date(notice.created_at).toLocaleString()} ·{' '}
+          {formatDateTime(notice.created_at)} ·{' '}
           {t(`summaryNotice.status.${notice.status}`)}
         </div>
         <Link

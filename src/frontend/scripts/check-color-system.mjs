@@ -84,6 +84,9 @@ const migratedSourceUrls = [
   '../src/features/meetings/components/TranscriptSegment.tsx',
   '../src/features/meetings/components/TranslationArchivePanel.tsx',
   '../src/features/meetings/components/UploadMediaPlayer.tsx',
+  // D 阶段收尾:视频会议详情页 —— 会议模块里最后一个仍写裸色族的文件,收口后
+  // 该模块不再有 greyscale/primary/control/default 兼容族。
+  '../src/features/meetings/routes/MeetingDetail.tsx',
   '../src/features/home/routes/Home.tsx',
 ].map((path) => new URL(path, import.meta.url))
 

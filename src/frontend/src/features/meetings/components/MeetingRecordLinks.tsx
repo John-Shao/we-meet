@@ -4,6 +4,7 @@ import { useUser } from '@/features/auth'
 import { useConfig } from '@/api/useConfig'
 import { css } from '@/styled-system/css'
 import { useResolveMeetingRecord } from '../api/fetchMeetingRecord'
+import { formatDateTime } from '../recordDateTime'
 
 /** Only load record metadata here; full media/text/AI content belongs to its detail. */
 export function MeetingRecordLinks({
@@ -13,7 +14,7 @@ export function MeetingRecordLinks({
   roomId: string
   sessionId?: string | null
 }) {
-  const { t, i18n } = useTranslation('meetings')
+  const { t } = useTranslation('meetings')
   const { user } = useUser()
   const { data: config } = useConfig()
   const enabled = !!config?.meeting_records?.enabled
@@ -44,7 +45,7 @@ export function MeetingRecordLinks({
           {record?.title && <p>{record.title}</p>}
           {record?.origin_at && (
             <time dateTime={record.origin_at}>
-              {new Date(record.origin_at).toLocaleString(i18n.language)}
+              {formatDateTime(record.origin_at)}
             </time>
           )}
           <p>

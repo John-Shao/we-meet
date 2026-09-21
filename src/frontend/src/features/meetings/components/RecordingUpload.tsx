@@ -17,6 +17,7 @@ import {
   UploadCancelled,
   uploadInParts,
 } from '../chunkedUpload'
+import { formatDecimal } from '../recordDateTime'
 
 type UploadState = {
   record_id: string
@@ -395,7 +396,7 @@ export function RecordingUpload({
           <p>
             {t(video ? 'upload.video' : 'upload.audio')} ·{' '}
             {file
-              ? (file.size / 1024 / 1024).toLocaleString(undefined, {
+              ? formatDecimal(file.size / 1024 / 1024, undefined, {
                   maximumFractionDigits: 2,
                 })
               : 0}{' '}

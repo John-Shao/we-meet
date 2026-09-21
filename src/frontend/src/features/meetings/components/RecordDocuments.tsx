@@ -5,6 +5,7 @@ import { Link } from 'wouter'
 import { fetchApi } from '@/api/fetchApi'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { formatDateTime } from '../recordDateTime'
 
 type ExportReceipt = {
   id: string
@@ -105,7 +106,7 @@ function DocumentHistory({
                   ? 'recordDocuments.human'
                   : 'recordDocuments.ai'
               )}{' '}
-              · {new Date(row.created_at).toLocaleString()} · {row.language}
+              · {formatDateTime(row.created_at)} · {row.language}
             </p>
             <p>{t(`summaryExport.status.${row.status}`)}</p>
             {row.status === 'ready' && row.can_open && row.document_id && (

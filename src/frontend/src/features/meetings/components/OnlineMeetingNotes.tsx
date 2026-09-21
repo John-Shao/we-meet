@@ -15,6 +15,7 @@ import type {
   ApiRecordTranscript,
   MeetingRecordPage,
 } from '../api/ApiMeetingRecord'
+import { formatClock } from '../recordDateTime'
 import { RecordSummaryPanel } from './RecordSummaryPanel'
 import { OnlineCaptureControl } from './OnlineCaptureControl'
 import { useConnectedMeetingSid } from '../useConnectedMeetingSid'
@@ -188,7 +189,7 @@ const OnlineRecordText = ({
         >
           <Text variant="note">
             {row.speaker_name || t('recordAi.online.unknownSpeaker')} ·{' '}
-            {new Date(row.started_at).toLocaleTimeString()}
+            {formatClock(row.started_at)}
           </Text>
           <Text>{row.text}</Text>
         </article>

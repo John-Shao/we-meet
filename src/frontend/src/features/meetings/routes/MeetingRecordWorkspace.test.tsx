@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { RecordWorkspace } from './MeetingRecordWorkspace'
+import { formatDateTime } from '../recordDateTime'
 import { act } from '@testing-library/react'
 
 const mocks = vi.hoisted(() => ({ seek: vi.fn() }))
@@ -192,7 +193,10 @@ it('shows owner and actual creation time without requesting documents for a tran
   fireEvent.click(await screen.findByRole('tab', { name: 'library.info' }))
   expect(await screen.findByText('Recording owner')).toBeInTheDocument()
   expect(
-    screen.getByText(new Date('2026-09-19T12:00:00Z').toLocaleString())
+    // 走共享格式化件取值：断言的就是「页面渲染的是这一处定义的输出」。
+    // 不显式传语言 —— 与组件同一条解析路径（测试里 i18next 单例没初始化，
+    // 两边都落到运行时的默认 locale），所以不会跟着宿主时区/语言漂。
+    screen.getByText(formatDateTime('2026-09-19T12:00:00Z')!)
   ).toBeInTheDocument()
   expect(screen.queryByText('recordDocuments.title')).toBeNull()
   expect(

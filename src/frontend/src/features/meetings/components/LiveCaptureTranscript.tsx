@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { fetchApi } from '@/api/fetchApi'
 import { Button } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
 import { css } from '@/styled-system/css'
 
 interface Preview {
@@ -47,14 +48,19 @@ export function LiveCaptureTranscript({
   })
   if (query.isError || (query.data && query.data.job_id !== jobId))
     return (
-      <div role="alert">
-        <p>{t('asr.textError')}</p>
-        <Button variant="secondary" onPress={() => void query.refetch()}>
-          {t('asr.refreshText')}
-        </Button>
-      </div>
+      <StateHint
+        state="error"
+        action={
+          <Button variant="secondary" onPress={() => void query.refetch()}>
+            {t('asr.refreshText')}
+          </Button>
+        }
+      >
+        {t('asr.textError')}
+      </StateHint>
     )
-  if (!query.data) return <p role="status">{t('asr.loading')}</p>
+  if (!query.data)
+    return <StateHint state="loading">{t('asr.loading')}</StateHint>
   return (
     <section
       aria-label={t('asr.liveText')}

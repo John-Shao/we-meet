@@ -11,6 +11,7 @@ import type {
   ApiMeetingRecord,
   MeetingRecordPage,
 } from '../api/ApiMeetingRecord'
+import { formatDateTime } from '../recordDateTime'
 
 type TrashRecord = {
   id: string
@@ -254,7 +255,7 @@ function TrashList({ viewerId }: { viewerId: string }) {
             <article key={item.id} className={stack}>
               <p>
                 {item.title} ·{' '}
-                {item.deleted_at && new Date(item.deleted_at).toLocaleString()}
+                {item.deleted_at && formatDateTime(item.deleted_at)}
               </p>
               {!item.purge && (
                 <Button variant="tertiary" onPress={() => setSelected(item)}>

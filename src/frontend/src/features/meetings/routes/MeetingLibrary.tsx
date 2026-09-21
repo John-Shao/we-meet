@@ -51,6 +51,7 @@ import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { recordSourceKey } from '../recordSource'
 import { recordDateRange } from '../recordDateRange'
+import { formatRecordTime } from '../recordDateTime'
 import type {
   MeetingRecordFilters,
   MeetingRecordSource,
@@ -389,23 +390,10 @@ const homeLink = css({
 })
 
 /**
- * 表格里的时间:同年只到「月日 时:分」,跨年补年份。解析不出来返回 `null`(整格
- * 退成「—」),不回显服务端的原始脏值 —— 与预约 / 历史列表同一处理。
+ * 表格里的时间走共享件 `formatRecordTime`：同年只到「月日 时:分」、跨年补年份，
+ * 解析不出来返回 `null`（整格退成「—」）。**它同时跟随界面语言** —— 这一页原先是
+ * 全模块唯一自己写了一份的地方，传的是 `undefined`（浏览器语言），与其它页不一致。
  */
-const formatRecordTime = (iso?: string): string | null => {
-  if (!iso) return null
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return null
-  return date.toLocaleString(undefined, {
-    ...(date.getFullYear() !== new Date().getFullYear()
-      ? { year: 'numeric' }
-      : {}),
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 /** 行首图标:纪要一律文档,其余按来源(线上会议 / 上传文件 / 独立录音)。 */
 const recordIcon = (

@@ -7,6 +7,7 @@ import { useParams } from 'wouter'
 
 import { Center, VStack } from '@/styled-system/jsx'
 import { css } from '@/styled-system/css'
+import { token } from '@/styled-system/tokens'
 import { ErrorScreen } from '@/components/ErrorScreen'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { StateHint } from '@/components/StateHint'
@@ -17,6 +18,7 @@ import { Tabs, Tab, TabList, TabPanel } from '@/primitives/Tabs'
 import { UserAware, useUser } from '@/features/auth'
 import { useInlineEditFocus } from '@/hooks/useInlineEditFocus'
 import { useConfig } from '@/api/useConfig'
+import { formatClock, formatDateTime } from '../recordDateTime'
 import { RoomRecordSummaries } from '../components/RecordSummaryPanel'
 
 import {
@@ -33,30 +35,48 @@ import {
 import { ApiActionItem } from '../api/ApiMeeting'
 
 const markdownBodyStyle = css({
-  fontSize: '0.9375rem',
+  textStyle: 'bodyLarge',
+  // 纪要正文的 1.7 是长文阅读行距 —— 内容决定的几何,不是排版节奏,
+  // 与 TranscriptSegment 的逐字稿同一口径,故照旧保留(放在 textStyle 之后才压得住)。
   lineHeight: '1.7',
   '& > :first-child': { marginTop: 0 },
   '& h1, & h2, & h3, & h4': {
-    fontWeight: 600,
+    fontWeight: 'semibold',
     marginTop: '1.25rem',
     marginBottom: '0.5rem',
+    // 标题行距固定 1.3:多行标题要与上段贴紧,不取字阶自带的宽松行高。
     lineHeight: '1.3',
   },
-  '& h2': { fontSize: '1.35rem' },
-  '& h3': { fontSize: '1.125rem' },
-  '& h4': { fontSize: '1rem' },
+  // textStyle 会一并写入 fontWeight / lineHeight,所以 h2/h3/h4 把 semibold 与 1.3
+  // 排在它后面压回来(libraryStyles / RecordSummaryPanel 也是这个写法)。
+  '& h2': {
+    textStyle: 'titleLarge',
+    fontWeight: 'semibold',
+    lineHeight: '1.3',
+  },
+  '& h3': {
+    textStyle: 'titleMedium',
+    fontWeight: 'semibold',
+    lineHeight: '1.3',
+  },
+  '& h4': {
+    textStyle: 'bodyLarge',
+    fontWeight: 'semibold',
+    lineHeight: '1.3',
+  },
   '& p': { margin: '0.5rem 0' },
   '& ul, & ol': { margin: '0.25rem 0 0.5rem 1.5rem' },
   '& ul': { listStyleType: 'disc' },
   '& ol': { listStyleType: 'decimal' },
   '& code': {
-    backgroundColor: 'greyscale.100',
+    backgroundColor: 'surface.muted',
     padding: '0.05rem 0.25rem',
-    borderRadius: '3px',
+    borderRadius: 'field',
+    // textStyle 自带 sans 字体族,等宽要写在它后面才不被覆盖。
+    textStyle: 'bodyMedium',
     fontFamily: 'monospace',
-    fontSize: '0.92em',
   },
-  '& a': { color: 'primary.700', textDecoration: 'underline' },
+  '& a': { color: 'text.link', textDecoration: 'underline' },
 })
 
 const APP_TITLE = import.meta.env.VITE_APP_TITLE ?? ''
@@ -143,10 +163,10 @@ const SummaryTab = ({ roomId }: { roomId: string }) => {
         {data.is_edited && (
           <span
             className={css({
-              fontSize: '0.75rem',
-              color: 'greyscale.600',
-              backgroundColor: 'greyscale.100',
-              borderRadius: '999px',
+              textStyle: 'labelMedium',
+              color: 'text.secondary',
+              backgroundColor: 'surface.muted',
+              borderRadius: 'pill',
               padding: '0.125rem 0.5rem',
             })}
           >
@@ -178,11 +198,11 @@ const SummaryTab = ({ roomId }: { roomId: string }) => {
             alignItems: 'center',
             gap: '0.75rem',
             flexWrap: 'wrap',
-            fontSize: '0.8125rem',
-            color: 'greyscale.600',
-            backgroundColor: 'greyscale.50',
-            border: '1px solid token(colors.greyscale.200)',
-            borderRadius: '0.5rem',
+            textStyle: 'bodySmall',
+            color: 'text.secondary',
+            backgroundColor: 'surface.canvas',
+            border: '1px solid token(colors.border.subtle)',
+            borderRadius: 'control',
             padding: '0.5rem 0.75rem',
           })}
         >
@@ -227,12 +247,14 @@ const SummaryTab = ({ roomId }: { roomId: string }) => {
             data-testid="summary-editor"
             className={css({
               width: '100%',
+              // 编辑器的 1.6 是长文改写的阅读行距,同样属于内容决定的几何;
+              // textStyle 自带字体族与行高,等宽与 1.6 都要排在它后面。
+              textStyle: 'bodyMedium',
               fontFamily: 'monospace',
-              fontSize: '0.875rem',
               lineHeight: 1.6,
               padding: '0.75rem',
-              border: '1px solid token(colors.greyscale.300)',
-              borderRadius: '0.5rem',
+              border: '1px solid token(colors.border.default)',
+              borderRadius: 'control',
               resize: 'vertical',
             })}
           />
@@ -283,7 +305,7 @@ const ChaptersTab = ({
   roomId: string
   onJump?: (startIso: string) => void
 }) => {
-  const { t, i18n } = useTranslation('meetings')
+  const { t } = useTranslation('meetings')
   const { data, isLoading, error } = useMeetingSummary(roomId)
 
   if (isLoading) return <StateHint state="loading">{t('loading')}</StateHint>
@@ -293,13 +315,7 @@ const ChaptersTab = ({
   const chapters = data?.chapters ?? []
   if (chapters.length === 0) return <StateHint>{t('chapters.empty')}</StateHint>
 
-  const fmt = (iso: string | null) =>
-    iso
-      ? new Date(iso).toLocaleTimeString(i18n.language, {
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : ''
+  const fmt = (iso: string | null) => formatClock(iso) ?? ''
 
   return (
     <ol
@@ -330,22 +346,23 @@ const ChaptersTab = ({
                 width: '100%',
                 gap: '0.75rem',
                 alignItems: 'flex-start',
-                borderRadius: '0.5rem',
+                borderRadius: 'control',
                 border: 0,
                 background: 'transparent',
                 textAlign: 'left',
                 padding: '0.25rem 0.375rem',
                 cursor: jumpable ? 'pointer' : 'default',
-                _hover: jumpable ? { backgroundColor: 'greyscale.50' } : {},
+                _hover: jumpable ? { backgroundColor: 'surface.canvas' } : {},
               })}
             >
               <span
                 className={css({
                   flexShrink: 0,
                   minWidth: '7.5rem',
+                  // textStyle 自带 sans 字体族,等宽时间戳要写在它后面。
+                  textStyle: 'bodySmall',
                   fontFamily: 'monospace',
-                  fontSize: '0.8125rem',
-                  color: 'greyscale.500',
+                  color: 'text.secondary',
                   paddingTop: '0.125rem',
                 })}
               >
@@ -446,12 +463,12 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
           key={item.id}
           className={css({
             border: '1px solid',
-            borderColor: 'greyscale.300',
-            borderRadius: '6px',
+            borderColor: 'border.default',
+            borderRadius: 'control',
             padding: '0.75rem 1rem',
             backgroundColor: item.is_completed
-              ? 'greyscale.100'
-              : 'greyscale.000',
+              ? 'surface.muted'
+              : 'surface.default',
             opacity: item.is_completed ? 0.7 : 1,
           })}
         >
@@ -505,7 +522,7 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.25rem',
-                  fontSize: '0.875rem',
+                  textStyle: 'bodyMedium',
                 })}
               >
                 {t('actionItems.dueAt')}
@@ -516,12 +533,12 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
                   disabled={patch.isPending}
                   className={css({
                     width: 'full',
-                    minHeight: 'control.md',
+                    minHeight: 'controlHeight.compact',
                     paddingX: '0.5rem',
                     border: '1px solid',
-                    borderColor: 'control.border',
-                    color: 'control.text',
-                    borderRadius: 4,
+                    borderColor: 'border.strong',
+                    color: 'text.primary',
+                    borderRadius: 'field',
                   })}
                 />
               </label>
@@ -566,21 +583,25 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
                   marginBottom: '0.25rem',
                 })}
               >
-                <span className={css({ fontWeight: 500 })}>{item.content}</span>
+                <span className={css({ fontWeight: 'medium' })}>
+                  {item.content}
+                </span>
                 <span
                   className={css({
                     flexShrink: 0,
-                    borderRadius: '999px',
+                    borderRadius: 'pill',
                     padding: '0.125rem 0.5rem',
-                    fontSize: '0.75rem',
+                    textStyle: 'labelMedium',
+                    // 状态色走 status.success 的 container/container-text 成对角色:
+                    // 原先的 success.100/700 是不随主题翻转的原始数字档,深色下会糊。
                     color:
                       item.status === 'completed'
-                        ? 'success.700'
-                        : 'greyscale.700',
+                        ? 'status.success.container-text'
+                        : 'text.secondary',
                     backgroundColor:
                       item.status === 'completed'
-                        ? 'success.100'
-                        : 'greyscale.100',
+                        ? 'status.success.container'
+                        : 'surface.muted',
                   })}
                 >
                   {t(`actionItems.status.${item.status}`)}
@@ -588,8 +609,8 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
               </div>
               <div
                 className={css({
-                  fontSize: '0.875rem',
-                  color: 'greyscale.700',
+                  textStyle: 'bodyMedium',
+                  color: 'text.secondary',
                   display: 'flex',
                   gap: '1rem',
                   flexWrap: 'wrap',
@@ -637,8 +658,10 @@ const ActionItemsTab = ({ roomId }: { roomId: string }) => {
                     <span
                       className={css({
                         alignSelf: 'center',
-                        color: 'success.700',
-                        fontSize: '0.875rem',
+                        // 成功文案:status 组只给了 container/container-text 这对前景档,
+                        // 单行文字取后者(浅色深绿,压白底约 9.4:1)。
+                        color: 'status.success.container-text',
+                        textStyle: 'bodyMedium',
                       })}
                     >
                       {t('actionItems.taskCreated')}
@@ -816,7 +839,7 @@ const TranscriptTab = ({
       })}
     >
       {data.map((row) => {
-        const ts = new Date(row.started_at).toLocaleTimeString()
+        const ts = formatClock(row.started_at)
         const speaker = row.speaker_name || row.speaker_identity.slice(0, 12)
         const translationKey = Object.keys(row.translations || {}).find(
           (k) => k.toLowerCase().split('-')[0] === userLang
@@ -832,21 +855,23 @@ const TranscriptTab = ({
             id={`transcript-row-${row.id}`}
             className={css({
               borderLeft: '3px solid',
-              borderColor: 'greyscale.300',
+              borderColor: 'border.default',
               paddingLeft: '0.75rem',
               paddingY: '0.25rem',
               transition: 'background-color 0.6s ease',
             })}
+            // 章节跳转命中行的高亮:与选中态同源(action.selected.bg 随主题翻转),
+            // 2s 后由 flashId 消费掉,所以只能走内联 style 的运行时 token。
             style={
               flashId === row.id
-                ? { backgroundColor: 'rgba(59,130,246,0.14)' }
+                ? { backgroundColor: token('colors.action.selected.bg') }
                 : undefined
             }
           >
             <div
               className={css({
-                fontSize: '0.75rem',
-                color: 'greyscale.600',
+                textStyle: 'bodySmall',
+                color: 'text.secondary',
               })}
             >
               {ts} · {speaker}
@@ -856,8 +881,8 @@ const TranscriptTab = ({
               <div
                 className={css({
                   fontStyle: 'italic',
-                  color: 'greyscale.700',
-                  fontSize: '0.875rem',
+                  color: 'text.secondary',
+                  textStyle: 'bodyMedium',
                   marginTop: '0.125rem',
                 })}
               >
@@ -884,7 +909,7 @@ const InfoRow = ({
       gap: '1rem',
       padding: '0.6rem 0',
       borderBottom: '1px solid',
-      borderColor: 'greyscale.200',
+      borderColor: 'border.subtle',
       alignItems: 'baseline',
     })}
   >
@@ -892,8 +917,8 @@ const InfoRow = ({
       className={css({
         width: '5.5rem',
         flexShrink: 0,
-        color: 'greyscale.600',
-        fontSize: '0.875rem',
+        color: 'text.secondary',
+        textStyle: 'bodyMedium',
       })}
     >
       {label}
@@ -901,7 +926,7 @@ const InfoRow = ({
     <div
       className={css({
         flex: 1,
-        fontSize: '0.9375rem',
+        textStyle: 'bodyLarge',
         wordBreak: 'break-word',
       })}
     >
@@ -935,8 +960,8 @@ const MeetingInfoTab = ({ roomId }: { roomId: string }) => {
   if (isError || !data)
     return <StateHint state="error">{t('error.loadFailed')}</StateHint>
 
-  const start = new Date(data.created_at).toLocaleString()
-  const end = data.closed_at ? new Date(data.closed_at).toLocaleString() : null
+  const start = formatDateTime(data.created_at)
+  const end = data.closed_at ? formatDateTime(data.closed_at) : null
   const timeText = end
     ? `${start} – ${end}`
     : `${start}（${t('info.ongoing')}）`

@@ -8,6 +8,7 @@ import { Checkbox } from '@/primitives/Checkbox'
 import { StateHint } from '@/components/StateHint'
 import { css, cx } from '@/styled-system/css'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
+import { formatDateTime } from '../recordDateTime'
 import {
   backLink,
   pageFixedTop,
@@ -454,7 +455,7 @@ export function Recorder({
                       onPress={() => void controller?.load(item.id)}
                     >
                       {item.create.title || t('untitled')} ·{' '}
-                      {new Date(item.createdAt).toLocaleString()} ·{' '}
+                      {formatDateTime(item.createdAt)} ·{' '}
                       {duration(item.durationMs)}
                     </Button>
                   </li>

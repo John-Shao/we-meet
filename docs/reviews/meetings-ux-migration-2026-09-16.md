@@ -1269,7 +1269,7 @@ CJK 下落的是同一个 Bold 字面，观感一致，按共享件那一档写�
   `borderLeftColor` 这类变体。
 
 **没动 `routes/MeetingDetail.tsx`**（视频会议详情，45 处）：它属于「视频会议」这一个
-栏目，不在这一批的三个子模块里。
+栏目，不在这一批的三个子模块里。（**2026-09-19 已收口，见 §3.36 第 2 节**。）
 
 
 - `npx tsc -b`；
@@ -1346,9 +1346,81 @@ CJK 下落的是同一个 Bold 字面，观感一致，按共享件那一档写�
 的既有用例（含 `getByRole('checkbox', { name: … })`）全部通过 —— RAC 的 Checkbox 仍是
 `role="checkbox"` 且无障碍名取子节点文本，断言不必改。
 
+### 3.36 日期本地化、视频会议详情页 token、面板族三态（2026-09-19 追加，「遗留」第二批）
+
+上一轮结尾列了四条遗留，这一节收掉其中三条：① 日期时间没跟随界面语言、② 视频会议
+详情页（`MeetingDetail`）的裸值、③ 面板族首屏三态。**第四条是参考稿里的「转写关键词
+芯片行」，需要后端先给数据，没在这一轮做 —— 见文末遗留。**
+
+#### 1. 日期时间格式化收进一处，跟随界面语言
+
+模块里原先共有 **35 处** `toLocale*` 调用，分下来是：**5 处**传了语言（`MeetingLibrary`、
+`MeetingRecordLinks`、`MeetingDetail`、`RecordingDetail`、`RecordingOverview`）、**2 处**
+显式传 `undefined`（文件大小与列表日期，等于浏览器默认）、**27 处完全裸调用**、**1 处**
+在测试断言里。裸调用一律用浏览器默认语言 —— 中文界面 + 英文浏览器时，同一条记录在
+列表里读作「9月16日 15:36」、点进面板读作「9/16/26, 3:36 PM」。
+
+现在**模块内一处 `toLocale*` 都不剩**（连测试断言一起折进共享件）：
+
+新增 `src/features/meetings/recordDateTime.ts`，四个格式化件：
+
+| 函数 | 形态 | 用在哪 |
+| --- | --- | --- |
+| `formatDateTime` | `dateStyle: medium` + `timeStyle: short` | 详情页页头、资料卡、面板里的「生成于 / 会议时间」 |
+| `formatRecordTime` | 同年只到「月日 时:分」，跨年补年份 | 表格的修改 / 创建时间列（原先 `MeetingLibrary` 自己写了一份，现在折进来） |
+| `formatClock` | 只要时分 | 逐字稿行首、面板里的时刻 |
+| `formatDecimal` | 数字（文件大小那几处） | `1.5` / `1,5` |
+
+两条规矩写在文件头：**语言**默认取 i18next 单例的 `language`（调用点不必逐个改
+`useTranslation` 解构，测试可显式传语言求确定性）；**解析失败返回 `null`**，调用点整段
+不渲染 —— 与 §3.2 #3 的口径一致，不再把服务端原值或空白画到界面上。
+
+顺带两处结构收口：
+
+- `TranscriptSegment.time` 改成 `string | null`：时间戳解析不出来时**连分隔符一起不渲染**，
+  不留一个孤零零的「·」。
+- `MeetingDetail` 里那个自己的 `fmt` 与 `MeetingLibrary` 的 `formatRecordTime` 都折进共享件，
+  模块里不再有第二份日期格式化。
+
+#### 2. 视频会议详情页（`routes/MeetingDetail.tsx`）的 55 处裸值
+
+这是会议模块里**最后一个**还写裸色族/裸字阶/数字圆角的文件（§3.34 当时按「不在三个
+子模块内」没动它）。收口内容：27 处裸色族、17 处裸 `fontSize`、8 处数字圆角、2 处裸
+`fontWeight`、1 处 `minHeight: 'control.md'`；改完把它**注册进两个检查器**
+（`check:colors` 71 → **72** 个已迁移源，`check:foundations` 同样 72）。
+
+两处必须留意的层叠陷阱（否则是视觉回归，不是收口）：
+
+- Panda 的 `textStyle` 会**一并写入** `fontFamily` / `fontWeight` / `lineHeight`。所以
+  markdown 的 `& h2/h3/h4` 要在 `textStyle` **之后**重新声明 `fontWeight: 'semibold'` 与
+  `lineHeight: '1.3'`（否则标题字重被字阶带成 500/400）；三处等宽字体（行内 `<code>`、
+  纪要编辑器、章节时间戳）也要把 `fontFamily: 'monospace'` 写在 `textStyle` 之后。
+- 内联 `style` 里的 `rgba(59,130,246,0.14)`（章节跳转高亮）改用运行时
+  `token('colors.action.selected.bg')` —— `css()` 的 `token(...)` 语法在内联样式里不生效。
+
+**三处非逐位等值的替换**（已注释说明）：`success.700` / `success.100` 是 pandaPreset 的
+原始数字档（不随主题翻转），仓库里没有语义 token 与之逐位相等 → 取成对角色
+`status.success.container-text` / `status.success.container`。浅色仍是同色系、配对成立；
+深色第一次真正翻转。其余 52 处浅色取值完全一致。
+
+#### 3. 面板族首屏三态收进 `StateHint`
+
+审计数出 12+ 个面板用手写 `<p role="status">` / `<Text>` 表达加载与错误。这一轮换掉
+**有重试槽的那几个面板级状态块**（4 个文件、6 处）：
+
+| 文件 | 改动 |
+| --- | --- |
+| `LiveCaptureTranscript.tsx` | 错误块 + 首屏加载 → `StateHint state="error"`（重试进 `action` 槽）/ `state="loading"` |
+| `TranslationArchivePanel.tsx` | 展开的单条与列表首屏各一处，同上 |
+| `CaptureTranslationArchives.tsx` | 错误 + 加载 → `StateHint`；错误态**不再重复一颗重试**，恢复动作是面板级那颗「刷新」（注释写明） |
+| `CaptureTranscriptionPanel.tsx` | 两处首屏加载 → `StateHint state="loading"` |
+
+**有意没换**的两类：瞬时回执（「正在确认…」「已停止」这类单行 `role="status"`）与卡片内的
+一句失败提示 —— 它们不是「整个面板没有内容」，套 `StateHint` 会把一句话撑成一块居中版式。
+
 ## 验证
 
-#### 2026-09-19（§3.34 / §3.35 那一批）的验证记录
+#### 2026-09-19（§3.34 / §3.35 / §3.36 那一批）的验证记录
 
 ```bash
 cd src/frontend
@@ -1357,14 +1429,23 @@ npm run check                                  # prettier --check ./src → All 
 npm run check:json                             # 120 files
 npm run check:locales                          # 5 语言包 meetings + capture 结构一致
 npx tsc -b                                     # 0
-npm run check:colors                           # 58 组配对 / 71 个已迁移源(原 40)
-npm run check:foundations                      # 71 个已迁移源(原 39)
-npx vitest run                                 # 182 文件 / 1271 条
+npm run check:colors                           # 58 组配对 / 72 个已迁移源(原 40)
+npm run check:foundations                      # 72 个已迁移源(原 39)
+npx vitest run                                 # 183 文件 / 1281 条
 ```
 
 - §3.35 落地后复跑同一组命令：**lint / prettier / tsc / check:colors / check:foundations
   仍全绿**，`vitest` **181/182 文件、1269/1271 条**通过（新增 3 条 `TranscriptSegment`
   的高亮用例：多次命中、大小写不敏感、正则元字符按字面量处理）。
+- §3.36 落地后复跑：静态检查**仍全绿**（`check:colors` / `check:foundations` 都是
+  **72 个已迁移源**），`vitest` **182/183 文件、1279/1281 条**通过。新增 12 条
+  `recordDateTime.test.ts` 的用例（zh/en 语言差异、脏值 → `null`、非法 locale →
+  `null`、同年省略年份 / 跨年补年份、数字小数分隔符）。
+- **提交前在最终内容上再复跑一遍全部命令**：`lint` / `check` / `check:json`（120 文件）/
+  `check:locales`（5 语言包）/ `check:colors`（58 组配对 + **72** 个已迁移源）/
+  `check:foundations`（10 档间距、15 档字阶、7 档圆角、6 档高程、12 档组件尺寸 +
+  **72** 个已迁移源）/ `tsc -b` —— 全绿；`vitest` **182/183 文件、1279/1281 条**通过，
+  余下 2 条见下。
 - §3.35 第 3 节（表单控件收进基元）之后又复跑一次：同样全绿，
   `vitest` 仍是 181/182 文件（余下那 2 条见下）。
 
@@ -1378,9 +1459,9 @@ npx vitest run                                 # 182 文件 / 1271 条
   注：只对 `./src` 跑 prettier —— 仓库 `check` 脚本的范围就是它；我一度顺手 `--write`
   了 `scripts/*.mjs`（不在 `check` 范围内），已**全部回滚**，避免无关 churn。
 - `vitest` 全量：**2 条 `RecordingUpload.test.tsx` 超时**（「reports a cancelled transfer」
-  与「shows byte progress」）。两条在**单独跑该文件时都通过**（18/18），单条耗时约 3.2s
-  对 5s 预算 —— 是并行负载下的敏感超时，与本次改动无关（`RecordingUpload.tsx` 本次**一个
-  字节都没改**，`git diff --stat` 对该文件为空）。
+  与「shows byte progress」）。两条在**单独跑该文件时都通过**（18/18），单条耗时
+  3.8s / 3.9s 对 5s 预算 —— 是并行负载下的敏感超时，与本次改动无关（`RecordingUpload.tsx`
+  本次**一个字节都没改**，`git diff --stat` 对该文件为空）。
 - 随文案 / 角色改动同步的用例 2 条：`SummaryExportControl.test.tsx` 的语言下拉断言
   （旧断言把 bug 当成期望值 `language.zh`，改成 `translation.language.zh` 并**用真语言包
   复核键存在**）、`InterpretationPanel.test.tsx` 的失败播报由 `status` 改 `alert`。
@@ -1422,23 +1503,33 @@ npx vitest run                                 # 182 文件 / 1271 条
 
 - ~~录制工作区与纪要/翻译面板仍是手写样式，属于下一批业务域收口。~~
   **2026-09-19 已完成，见 §3.34。**
-- **`routes/MeetingDetail.tsx`（视频会议详情）仍有 45 处裸值**（20 色族 / 17 裸
-  `fontSize` / 8 数字圆角）。它属于「视频会议」这一个栏目，不在 §3.34 的三个子模块里，
-  保持一致没动 —— 下一批把「视频会议」自己收口时一起做。
+- ~~**`routes/MeetingDetail.tsx`（视频会议详情）仍有 45 处裸值**（20 色族 / 17 裸
+  `fontSize` / 8 数字圆角）。~~ **2026-09-19 已完成，见 §3.36 第 2 节**（实际 55 处：
+  45 处裸值 + 2 处 `fontWeight` + `minHeight: 'control.md'` + 3 处非逐位等值的色族 +
+  1 处内联 `rgba()`；改完 `check:colors` 与 `check:foundations` 的已迁移源各 72 个，
+  会议模块**再无一个未收口文件**）。
 - **面板族里的手写表单控件**：9 处原生 checkbox 与 3 处裸 `<input>` 已由 §3.35 第 3 节
   收进基元。**仍未换**的三类（有意，不是漏掉）：① `SummaryTaskActions` /
   `HumanSummaryPanel` / `RecordQuestionPanel` 里 `className={field}` 的 input / select
   —— `field` 是面板自己的一档几何，换成 32px 的 `Input` 会改变弹层里的密度，要换得连
   弹层一起改；② `TranscriptSegment` 的编辑框（`lineHeight: 1.7` 是逐字稿的阅读行距，
   基元不表达这个）；③ `RecordOriginals` 之外的 4 处手写搜索入口。
-- **27 处 `toLocaleString()` 没传界面语言**：列表页那两处带 NaN 守卫与 `i18n.language`，
-  次级页与面板没跟上 —— 中文界面 + 英文浏览器时日期读作英文格式。修法是一处
-  `formatDateTime(value, locale)` 共享件（含解析失败的守卫，照 §3.2 #3 的口径），
-  但它要动 15 个文件、且面板里有多处是 `toLocaleTimeString`，属独立的一批。
-- **`AudioRecording` 之外的面板首屏仍未走 `StateHint`**：12+ 个面板用
-  `<p role="status">` 手写加载 / 错误（`RecordTrash` / `RecordPurge` / `RecordDocuments`
-  / `HumanSummary*` / `Summary*` 各面板）。这批只改了「错误播报的角色」与「提交按钮的
-  loading」，把整块换成 `StateHint` 是版面改动，留给下一批。
+- ~~**27 处 `toLocaleString()` 没传界面语言**~~ **2026-09-19 已完成，见 §3.36 第 1 节**
+  （全模块 35 处 `toLocale*` 一并折进 `recordDateTime.ts`，模块内不再有直接调用）。
+- ~~**`AudioRecording` 之外的面板首屏仍未走 `StateHint`**~~ **2026-09-19 部分完成，
+  见 §3.36 第 3 节**：有重试槽的 4 个面板级状态块（6 处）已换。**剩下的有意不换**：
+  那些面板里写的是**瞬时回执**（「正在确认…」「已停止」）或**卡片内的一句失败提示**，
+  不是「整块没有内容」—— 套 `StateHint` 会把一行字撑成一块居中版式，反而更差。
+- **参考稿里的「转写关键词芯片行」（未做，卡在后端）**：`06.jpg` 里逐字稿上方那排
+  「现金 / 地主 / 老板 / 中国 / …」是**服务端抽取的关键词**，点一颗即按该词筛选 /
+  高亮。查过两边：Web 的 `MeetingRecord` 与 App 的 `RecordDto` 都**没有任何关键词
+  字段**，也没有对应接口。中文抽词要有分词能力，客户端硬按字切出来的不是词，所以
+  这一条**不能在客户端单独做出可用版本**。需要的最小后端契约是二选一：
+  `MeetingRecord.keywords: string[]`（转写完成时抽一次、随记录返回），或
+  `GET /meeting-records/{id}/keywords/`（按需返回 top-N 词与出现次数）。拿到之后
+  客户端这一半是现成的：芯片行用现成的 FilterChip 一档，点一颗 → 复用 §3.35 已有的
+  逐字稿搜索 + 命中高亮（把芯片文本当查询词提交即可），不需要新渲染逻辑。App 侧
+  同一结论见 `we-meet-android/docs/会议三子模块_UIUX_优化记录.md` §8.4。
 - **轮询面板一次失败即整块换成错误文案**（`SummarySharingControl` / `SummaryExportControl`
   / `SummaryNotificationPanel` / `SummaryAutomationControl`），会卸载 Editor 并丢掉已选
   人员与草稿 —— 与 §3「后台刷新已有数据时保留旧内容」相反。属行为改动，需单独回归。

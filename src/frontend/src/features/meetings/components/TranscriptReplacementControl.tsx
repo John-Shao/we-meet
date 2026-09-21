@@ -5,6 +5,7 @@ import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { Button, Input } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { formatDateTime } from '../recordDateTime'
 import { receiptRole } from './liveRegionRole'
 
 type Preview = {
@@ -300,8 +301,7 @@ function Control({
           <article key={row.id}>
             <p>
               {row.find} → {row.replacement || t('batchCorrection.deleted')} ·{' '}
-              {row.changed_segments} ·{' '}
-              {new Date(row.created_at).toLocaleString()}
+              {row.changed_segments} · {formatDateTime(row.created_at)}
             </p>
             {row.undone ? (
               <p>{t('batchCorrection.undone')}</p>

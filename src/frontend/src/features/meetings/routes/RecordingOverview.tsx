@@ -8,6 +8,7 @@ import { PageState } from '@/components/PageState'
 import { StateHint } from '@/components/StateHint'
 import { css, cx } from '@/styled-system/css'
 import { useMeetingRecords } from '../api/fetchMeetingRecord'
+import { formatDateTime } from '../recordDateTime'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { RecordingUpload } from '../components/RecordingUpload'
@@ -67,7 +68,7 @@ export function RecordingHistory({
   viewerId: string
   enabled: boolean
 }) {
-  const { t, i18n } = useTranslation('meetings')
+  const { t } = useTranslation('meetings')
   const query = useMeetingRecords(viewerId, enabled, {
     scope: 'recent',
     source_type: 'recordings',
@@ -127,7 +128,7 @@ export function RecordingHistory({
                       同一条记录在两个栏目里不该是两种版式。 */}
                   <span className={rowMetaRow}>
                     <time dateTime={record.origin_at}>
-                      {new Date(record.origin_at).toLocaleString(i18n.language)}
+                      {formatDateTime(record.origin_at)}
                     </time>
                     <span aria-hidden>·</span>
                     <span>

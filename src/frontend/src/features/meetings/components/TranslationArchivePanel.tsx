@@ -3,7 +3,9 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { fetchApi } from '@/api/fetchApi'
 import { Button, Text } from '@/primitives'
+import { StateHint } from '@/components/StateHint'
 import { css } from '@/styled-system/css'
+import { formatClock, formatDateTime } from '../recordDateTime'
 
 interface Archive {
   id: string
@@ -100,14 +102,18 @@ function ArchiveSegments({
         {t('back')}
       </Button>
       {query.isError || (query.data && query.data.archive_id !== archiveId) ? (
-        <div role="alert">
-          <Text>{t('error')}</Text>
-          <Button variant="tertiary" onPress={() => void query.refetch()}>
-            {t('refresh')}
-          </Button>
-        </div>
+        <StateHint
+          state="error"
+          action={
+            <Button variant="tertiary" onPress={() => void query.refetch()}>
+              {t('refresh')}
+            </Button>
+          }
+        >
+          {t('error')}
+        </StateHint>
       ) : !query.data ? (
-        <Text role="status">{t('loading')}</Text>
+        <StateHint state="loading">{t('loading')}</StateHint>
       ) : (
         <>
           <Text>
@@ -138,7 +144,7 @@ function ArchiveSegments({
                 {row.speaker_label || t('unknownSpeaker')} ·{' '}
                 {t(`language.${row.target}`)} ·{' '}
                 {t('received', {
-                  time: new Date(row.received_at).toLocaleTimeString(),
+                  time: formatClock(row.received_at),
                 })}
               </Text>
               <Text
@@ -182,14 +188,18 @@ export function TranslationArchivePanel({
   })
   if (query.isError)
     return (
-      <div role="alert">
-        <Text>{t('error')}</Text>
-        <Button variant="tertiary" onPress={() => void query.refetch()}>
-          {t('refresh')}
-        </Button>
-      </div>
+      <StateHint
+        state="error"
+        action={
+          <Button variant="tertiary" onPress={() => void query.refetch()}>
+            {t('refresh')}
+          </Button>
+        }
+      >
+        {t('error')}
+      </StateHint>
     )
-  if (!query.data) return <Text role="status">{t('loading')}</Text>
+  if (!query.data) return <StateHint state="loading">{t('loading')}</StateHint>
   if (selected)
     return (
       <ArchiveSegments
@@ -216,7 +226,7 @@ export function TranslationArchivePanel({
           <Text variant="note">
             {archive.source_kind === 'private' && `${t('privateScope')} · `}
             {archive.mode === 'push_to_talk' && `${t('bidirectional')} · `}
-            {new Date(archive.created_at).toLocaleString()} ·{' '}
+            {formatDateTime(archive.created_at)} ·{' '}
             {t('count', { count: archive.segment_count })}
           </Text>
           <Button

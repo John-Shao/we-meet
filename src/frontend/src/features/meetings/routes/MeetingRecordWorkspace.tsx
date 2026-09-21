@@ -15,6 +15,7 @@ import {
   useRecordSummaries,
   useCorrectOriginalSegment,
 } from '../api/fetchMeetingRecord'
+import { formatClock, formatDateTime } from '../recordDateTime'
 import type {
   ApiMeetingRecord,
   ApiRecordTranscript,
@@ -320,7 +321,7 @@ function OriginalRead({
             }
             time={
               'started_at' in item
-                ? new Date(item.started_at).toLocaleTimeString()
+                ? formatClock(item.started_at)
                 : time(item.start_ms)
             }
             text={item.text}
@@ -734,7 +735,7 @@ function WorkspaceContent({
             <dt>{t('library.table.created')}</dt>
             <dd>
               {record.created_at
-                ? new Date(record.created_at).toLocaleString()
+                ? formatDateTime(record.created_at)
                 : t('library.ownerUnknown')}
             </dd>
             <dt>{t('mediaTiming.title')}</dt>
@@ -754,7 +755,7 @@ function WorkspaceContent({
             <dt>{t('library.sourceLabel')}</dt>
             <dd>{t(recordSourceKey(record))}</dd>
             <dt>{t('library.date')}</dt>
-            <dd>{new Date(record.origin_at).toLocaleString()}</dd>
+            <dd>{formatDateTime(record.origin_at)}</dd>
             <dt>{t('library.retentionLabel')}</dt>
             <dd>{t(`library.retention.${record.retention_mode}`)}</dd>
           </dl>
@@ -880,7 +881,7 @@ export function RecordWorkspace({
               <p className={metaLine}>
                 <RiTimeLine size={16} aria-hidden />
                 {t(recordSourceKey(record))} ·{' '}
-                {new Date(record.origin_at).toLocaleString()}
+                {formatDateTime(record.origin_at)}
               </p>
             )}
           </div>

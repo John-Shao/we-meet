@@ -74,7 +74,11 @@ export function TranscriptSegment({
   highlight,
 }: {
   speaker: string
-  time: string
+  /**
+   * 行首的时间戳。**可以是 `null`**：共享格式化件解析不出来时返回 `null`，
+   * 那一档整段（含分隔符）不渲染，而不是画一个空串或服务端原值。
+   */
+  time?: string | null
   text: string
   onSeek?: () => void
   seekLabel?: string
@@ -214,27 +218,32 @@ export function TranscriptSegment({
           <RiUser3Line size={17} />
         </span>
         <span>{speaker}</span>
-        <span aria-hidden>·</span>
-        {onSeek ? (
-          <button
-            type="button"
-            onClick={onSeek}
-            aria-label={seekLabel}
-            className={css({
-              cursor: 'pointer',
-              color: 'text.link',
-              borderRadius: 'field',
-              padding: 'xs',
-              _hover: { backgroundColor: 'surface.canvas' },
-              _focusVisible: {
-                outline: '2px solid token(colors.border.focus)',
-              },
-            })}
-          >
-            {time}
-          </button>
-        ) : (
-          <span>{time}</span>
+        {/* 时间戳解析不出来时整段（含分隔符）不渲染 —— 不留一个孤零零的「·」。 */}
+        {time && (
+          <>
+            <span aria-hidden>·</span>
+            {onSeek ? (
+              <button
+                type="button"
+                onClick={onSeek}
+                aria-label={seekLabel}
+                className={css({
+                  cursor: 'pointer',
+                  color: 'text.link',
+                  borderRadius: 'field',
+                  padding: 'xs',
+                  _hover: { backgroundColor: 'surface.canvas' },
+                  _focusVisible: {
+                    outline: '2px solid token(colors.border.focus)',
+                  },
+                })}
+              >
+                {time}
+              </button>
+            ) : (
+              <span>{time}</span>
+            )}
+          </>
         )}
         {isCorrected && (
           <span
