@@ -69,3 +69,17 @@ pytest 的绿色表示评测过程及安全边界可用，**不表示31题问答
 `meeting_qa_mixed_cases.json`是独立12题诊断集，9道有证据、3道应为空。`test_meeting_qa_mixed.py`执行统一记录与旧TranscriptChunk共同进入meetings scope的真实查询，设置`MEETING_QA_MIXED_OUTPUT`导出报告。向量控制使用固定人工向量，只验证分支仍可用；禁止真实生成和外部源调用。该题集不是盲测，不替换冻结31题。
 
 旧实现与候选报告在`docs/research/evaluations/miaoji-qa-mixed-{baseline-v1,candidate-b59}.json`。用同一比较器比较两者，并另比较原31题b57/b59，不能跨题库总分混算。生产中文视频派生回归在`test_meeting_search_ranking.py`，不含旧会议私有文本。生产重问及真实回答质量继续单独验收。
+
+## 第61批：固定证据实际生成对照
+
+`meeting_qa_answer_cases.json` 是独立6题诊断集，固定证据来自合成数据与用户提供的公开样本；不读生产会议、不测召回。`prompts/meeting_qa_b61_{before,after}.txt` 冻结本批前后模板。两套检索题库继续单独比较，不混算分母。
+
+以下命令从仓库根运行，明确调用外部模型并产生费用。自行通过环境变量提供 `MIAOJI_EVAL_API_KEY`，不要提交凭据：
+
+```bash
+python src/backend/core/tests/evaluations/run_answer_eval.py --before src/backend/core/tests/evaluations/prompts/meeting_qa_b61_before.txt --after src/backend/core/tests/evaluations/prompts/meeting_qa_b61_after.txt --output /tmp/answer-eval.json --model qwen3.8-flash --base-url https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+使用一个新的输出路径保留既有结果；每题每侧只生成一次，错误直接退出、不自动重试，已完成输出逐次保存。请求只发送context与question，不发送requirements。报告记录模板/哈希/用量/耗时，Qwen3系列关闭thinking；其他模型不设置该参数。该脚本不走应用用量登记，不能用于声称生产成本数据。
+
+成功请求不等于质量通过；检查完成原因，再逐claim核查引用。Codex复核只写`assistant_review`，`human_review`留待独立人工。第61批报告保留了日期表达缺口，没有把6题小样本当成完整问答验收。
