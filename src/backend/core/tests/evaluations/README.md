@@ -101,3 +101,25 @@ MEETING_QA_EXPANSIONS=/absolute/repo/docs/research/evaluations/miaoji-qa-expansi
 ```
 
 对输出的每套`baseline/candidate`使用既有比较器。新题库可召回而非空态的题只有8道，不能与旧25道合并分母；pytest通过只表示评测与边界控制运行通过。原题库基线还应与第61批逐题比较。六项人工指定关键词的权限/修订控制不计入模型改写成绩。详情与未推广原因见第63批文档。
+
+## 第64批：冻结语义向量与多阈值重放
+
+只用于合成测试数据库。`semantic_candidates.py`全量枚举当前可见有效内容，切800字符窗口，使用真实向量和原上下文配额；不是生产索引实现。`meeting_qa_semantic_cases.json`新增带干扰的12题，与原31题/第63批14题各自计分。
+
+先不设`MEETING_QA_VECTORS`，以`MEETING_QA_SEMANTIC_OUTPUT`指定目录运行`test_semantic_retrieval.py`导出plan；此时是planning，不能把相同基线当向量评测结果。显式生成向量会产生费用，环境变量`MIAOJI_EVAL_API_KEY`提供凭据：
+
+```bash
+python src/backend/core/tests/evaluations/run_semantic_embeddings.py --plan /tmp/semantic/plan.json --output /tmp/vectors.json.gz --model text-embedding-v4 --base-url https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+输出已存在则拒绝覆盖，成功请求逐次保存；失败不自动重试。只发送plan中的合成文本，最多256个输入，1024维。没有gold或最终答案生成。模型服务请求不经应用用量登记。
+
+从backend目录离线重放本批已提交向量（先配置测试数据库，路径换成绝对路径）：
+
+```bash
+MEETING_QA_VECTORS=/absolute/repo/docs/research/evaluations/miaoji-qa-semantic-vectors-b64.json.gz MEETING_QA_SEMANTIC_OUTPUT=/tmp/semantic-replay python -m pytest core/tests/evaluations/test_semantic_retrieval.py --no-cov
+```
+
+`report.json`内每个corpus有baseline与五档reports、逐题comparisons以及ranking诊断。报告的`generation=disabled`指没有回答生成，embedding来自指定冻结产物；mode必须是replay才是实际语义评测。计划、向量和harness的hash须相符，模型/维度/数值不匹配会拒绝。阈值只做敏感性对照，不能从同一批合成数据挑阈值就当作线上校准。
+
+第64批0.55仍存在实体错误，0.65大量漏召回，未接入生产。pytest绿色不表示全部质量比较通过；详见第64批决策文档。

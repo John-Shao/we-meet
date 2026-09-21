@@ -1,0 +1,547 @@
+{
+  "backend_runtime_unchanged": true,
+  "decision": "do_not_promote_cosine_threshold_only",
+  "model": "text-embedding-v4",
+  "dimensions": 1024,
+  "requests": 68,
+  "total_tokens": 747,
+  "query_embeddings": 22,
+  "query_embedding_latency_median": 1.7455,
+  "all_request_latency_median": 1.715,
+  "matrix": {
+    "meeting_qa_cases": {
+      "baseline": {
+        "cases": 31,
+        "record_recall": {
+          "value": 0.84,
+          "denominator": 25
+        },
+        "evidence_recall": {
+          "value": 0.84,
+          "denominator": 25
+        },
+        "evidence_precision": {
+          "value": 0.7546666666666667,
+          "denominator": 25
+        },
+        "all_evidence": {
+          "value": 0.84,
+          "denominator": 25
+        },
+        "reciprocal_rank": {
+          "value": 0.82,
+          "denominator": 25
+        },
+        "empty_expectation_met": {
+          "value": 1.0,
+          "denominator": 5
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.35": {
+        "cases": 31,
+        "record_recall": {
+          "value": 0.92,
+          "denominator": 25
+        },
+        "evidence_recall": {
+          "value": 0.92,
+          "denominator": 25
+        },
+        "evidence_precision": {
+          "value": 0.8346666666666667,
+          "denominator": 25
+        },
+        "all_evidence": {
+          "value": 0.92,
+          "denominator": 25
+        },
+        "reciprocal_rank": {
+          "value": 0.9,
+          "denominator": 25
+        },
+        "empty_expectation_met": {
+          "value": 1.0,
+          "denominator": 5
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.45": {
+        "cases": 31,
+        "record_recall": {
+          "value": 0.92,
+          "denominator": 25
+        },
+        "evidence_recall": {
+          "value": 0.92,
+          "denominator": 25
+        },
+        "evidence_precision": {
+          "value": 0.8346666666666667,
+          "denominator": 25
+        },
+        "all_evidence": {
+          "value": 0.92,
+          "denominator": 25
+        },
+        "reciprocal_rank": {
+          "value": 0.9,
+          "denominator": 25
+        },
+        "empty_expectation_met": {
+          "value": 1.0,
+          "denominator": 5
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.55": {
+        "cases": 31,
+        "record_recall": {
+          "value": 0.92,
+          "denominator": 25
+        },
+        "evidence_recall": {
+          "value": 0.92,
+          "denominator": 25
+        },
+        "evidence_precision": {
+          "value": 0.8346666666666667,
+          "denominator": 25
+        },
+        "all_evidence": {
+          "value": 0.92,
+          "denominator": 25
+        },
+        "reciprocal_rank": {
+          "value": 0.9,
+          "denominator": 25
+        },
+        "empty_expectation_met": {
+          "value": 1.0,
+          "denominator": 5
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.65": {
+        "cases": 31,
+        "record_recall": {
+          "value": 0.84,
+          "denominator": 25
+        },
+        "evidence_recall": {
+          "value": 0.84,
+          "denominator": 25
+        },
+        "evidence_precision": {
+          "value": 0.7546666666666667,
+          "denominator": 25
+        },
+        "all_evidence": {
+          "value": 0.84,
+          "denominator": 25
+        },
+        "reciprocal_rank": {
+          "value": 0.82,
+          "denominator": 25
+        },
+        "empty_expectation_met": {
+          "value": 1.0,
+          "denominator": 5
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.75": {
+        "cases": 31,
+        "record_recall": {
+          "value": 0.84,
+          "denominator": 25
+        },
+        "evidence_recall": {
+          "value": 0.84,
+          "denominator": 25
+        },
+        "evidence_precision": {
+          "value": 0.7546666666666667,
+          "denominator": 25
+        },
+        "all_evidence": {
+          "value": 0.84,
+          "denominator": 25
+        },
+        "reciprocal_rank": {
+          "value": 0.82,
+          "denominator": 25
+        },
+        "empty_expectation_met": {
+          "value": 1.0,
+          "denominator": 5
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      }
+    },
+    "meeting_qa_expansion_cases": {
+      "baseline": {
+        "cases": 14,
+        "record_recall": {
+          "value": 0.125,
+          "denominator": 8
+        },
+        "evidence_recall": {
+          "value": 0.125,
+          "denominator": 8
+        },
+        "evidence_precision": {
+          "value": 0.125,
+          "denominator": 8
+        },
+        "all_evidence": {
+          "value": 0.125,
+          "denominator": 8
+        },
+        "reciprocal_rank": {
+          "value": 0.125,
+          "denominator": 8
+        },
+        "empty_expectation_met": {
+          "value": 1.0,
+          "denominator": 6
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.35": {
+        "cases": 14,
+        "record_recall": {
+          "value": 1.0,
+          "denominator": 8
+        },
+        "evidence_recall": {
+          "value": 1.0,
+          "denominator": 8
+        },
+        "evidence_precision": {
+          "value": 1.0,
+          "denominator": 8
+        },
+        "all_evidence": {
+          "value": 1.0,
+          "denominator": 8
+        },
+        "reciprocal_rank": {
+          "value": 1.0,
+          "denominator": 8
+        },
+        "empty_expectation_met": {
+          "value": 0.6666666666666666,
+          "denominator": 6
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.45": {
+        "cases": 14,
+        "record_recall": {
+          "value": 0.875,
+          "denominator": 8
+        },
+        "evidence_recall": {
+          "value": 0.875,
+          "denominator": 8
+        },
+        "evidence_precision": {
+          "value": 0.875,
+          "denominator": 8
+        },
+        "all_evidence": {
+          "value": 0.875,
+          "denominator": 8
+        },
+        "reciprocal_rank": {
+          "value": 0.875,
+          "denominator": 8
+        },
+        "empty_expectation_met": {
+          "value": 0.6666666666666666,
+          "denominator": 6
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.55": {
+        "cases": 14,
+        "record_recall": {
+          "value": 0.625,
+          "denominator": 8
+        },
+        "evidence_recall": {
+          "value": 0.625,
+          "denominator": 8
+        },
+        "evidence_precision": {
+          "value": 0.625,
+          "denominator": 8
+        },
+        "all_evidence": {
+          "value": 0.625,
+          "denominator": 8
+        },
+        "reciprocal_rank": {
+          "value": 0.625,
+          "denominator": 8
+        },
+        "empty_expectation_met": {
+          "value": 1.0,
+          "denominator": 6
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.65": {
+        "cases": 14,
+        "record_recall": {
+          "value": 0.25,
+          "denominator": 8
+        },
+        "evidence_recall": {
+          "value": 0.25,
+          "denominator": 8
+        },
+        "evidence_precision": {
+          "value": 0.25,
+          "denominator": 8
+        },
+        "all_evidence": {
+          "value": 0.25,
+          "denominator": 8
+        },
+        "reciprocal_rank": {
+          "value": 0.25,
+          "denominator": 8
+        },
+        "empty_expectation_met": {
+          "value": 1.0,
+          "denominator": 6
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.75": {
+        "cases": 14,
+        "record_recall": {
+          "value": 0.125,
+          "denominator": 8
+        },
+        "evidence_recall": {
+          "value": 0.125,
+          "denominator": 8
+        },
+        "evidence_precision": {
+          "value": 0.125,
+          "denominator": 8
+        },
+        "all_evidence": {
+          "value": 0.125,
+          "denominator": 8
+        },
+        "reciprocal_rank": {
+          "value": 0.125,
+          "denominator": 8
+        },
+        "empty_expectation_met": {
+          "value": 1.0,
+          "denominator": 6
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      }
+    },
+    "meeting_qa_semantic_cases": {
+      "baseline": {
+        "cases": 12,
+        "record_recall": {
+          "value": 0.0,
+          "denominator": 6
+        },
+        "evidence_recall": {
+          "value": 0.0,
+          "denominator": 6
+        },
+        "evidence_precision": {
+          "value": 0.0,
+          "denominator": 6
+        },
+        "all_evidence": {
+          "value": 0.0,
+          "denominator": 6
+        },
+        "reciprocal_rank": {
+          "value": 0.0,
+          "denominator": 6
+        },
+        "empty_expectation_met": {
+          "value": 1.0,
+          "denominator": 6
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.35": {
+        "cases": 12,
+        "record_recall": {
+          "value": 1.0,
+          "denominator": 6
+        },
+        "evidence_recall": {
+          "value": 1.0,
+          "denominator": 6
+        },
+        "evidence_precision": {
+          "value": 0.2916666666666667,
+          "denominator": 6
+        },
+        "all_evidence": {
+          "value": 1.0,
+          "denominator": 6
+        },
+        "reciprocal_rank": {
+          "value": 0.8333333333333334,
+          "denominator": 6
+        },
+        "empty_expectation_met": {
+          "value": 0.5,
+          "denominator": 6
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.45": {
+        "cases": 12,
+        "record_recall": {
+          "value": 1.0,
+          "denominator": 6
+        },
+        "evidence_recall": {
+          "value": 1.0,
+          "denominator": 6
+        },
+        "evidence_precision": {
+          "value": 0.47222222222222227,
+          "denominator": 6
+        },
+        "all_evidence": {
+          "value": 1.0,
+          "denominator": 6
+        },
+        "reciprocal_rank": {
+          "value": 0.8333333333333334,
+          "denominator": 6
+        },
+        "empty_expectation_met": {
+          "value": 0.6666666666666666,
+          "denominator": 6
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.55": {
+        "cases": 12,
+        "record_recall": {
+          "value": 0.5,
+          "denominator": 6
+        },
+        "evidence_recall": {
+          "value": 0.5,
+          "denominator": 6
+        },
+        "evidence_precision": {
+          "value": 0.3333333333333333,
+          "denominator": 6
+        },
+        "all_evidence": {
+          "value": 0.5,
+          "denominator": 6
+        },
+        "reciprocal_rank": {
+          "value": 0.4166666666666667,
+          "denominator": 6
+        },
+        "empty_expectation_met": {
+          "value": 0.8333333333333334,
+          "denominator": 6
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.65": {
+        "cases": 12,
+        "record_recall": {
+          "value": 0.16666666666666666,
+          "denominator": 6
+        },
+        "evidence_recall": {
+          "value": 0.16666666666666666,
+          "denominator": 6
+        },
+        "evidence_precision": {
+          "value": 0.16666666666666666,
+          "denominator": 6
+        },
+        "all_evidence": {
+          "value": 0.16666666666666666,
+          "denominator": 6
+        },
+        "reciprocal_rank": {
+          "value": 0.16666666666666666,
+          "denominator": 6
+        },
+        "empty_expectation_met": {
+          "value": 1.0,
+          "denominator": 6
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      },
+      "0.75": {
+        "cases": 12,
+        "record_recall": {
+          "value": 0.0,
+          "denominator": 6
+        },
+        "evidence_recall": {
+          "value": 0.0,
+          "denominator": 6
+        },
+        "evidence_precision": {
+          "value": 0.0,
+          "denominator": 6
+        },
+        "all_evidence": {
+          "value": 0.0,
+          "denominator": 6
+        },
+        "reciprocal_rank": {
+          "value": 0.0,
+          "denominator": 6
+        },
+        "empty_expectation_met": {
+          "value": 1.0,
+          "denominator": 6
+        },
+        "forbidden_content_cases": 0,
+        "answer_semantics": "not_evaluated"
+      }
+    }
+  },
+  "limitations": [
+    "synthetic non-blind diagnostic sets",
+    "empty/unquoted fallback only",
+    "full-scan test collector, not production index",
+    "no generated answer or production latency evaluation"
+  ]
+}

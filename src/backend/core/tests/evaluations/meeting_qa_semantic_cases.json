@@ -1,0 +1,516 @@
+{
+  "dataset": "miaoji-semantic-noise-v1",
+  "data_kind": "synthetic",
+  "cases": [
+    {
+      "id": "cost_with_noise",
+      "category": "semantic_noise",
+      "split": "validation",
+      "question": "这轮得掏多少银子？",
+      "records": [
+        {
+          "id": "r0",
+          "title": "讨论记录0",
+          "date": "2026-09-01",
+          "texts": [
+            "预算审批额度为18万元。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r1",
+          "title": "讨论记录1",
+          "date": "2026-09-02",
+          "texts": [
+            "午餐每份价格25元。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r2",
+          "title": "讨论记录2",
+          "date": "2026-09-03",
+          "texts": [
+            "差旅报销总计900元。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r3",
+          "title": "讨论记录3",
+          "date": "2026-09-04",
+          "texts": [
+            "报价单尚未签字。"
+          ],
+          "source": "upload"
+        }
+      ],
+      "evidence": [
+        {
+          "record": "r0",
+          "span": "预算审批额度为18万元。"
+        }
+      ],
+      "expect_empty": false,
+      "answer_requirements": [
+        "证据须对应所问事项与实体；不得因语义接近推断未记录的事实。"
+      ]
+    },
+    {
+      "id": "release_with_noise",
+      "category": "semantic_noise",
+      "split": "validation",
+      "question": "When do we ship the product?",
+      "records": [
+        {
+          "id": "r0",
+          "title": "讨论记录0",
+          "date": "2026-09-01",
+          "texts": [
+            "正式上线定于11月2日。"
+          ],
+          "source": "audio_recording"
+        },
+        {
+          "id": "r1",
+          "title": "讨论记录1",
+          "date": "2026-09-02",
+          "texts": [
+            "快递将于明天派送。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r2",
+          "title": "讨论记录2",
+          "date": "2026-09-03",
+          "texts": [
+            "试用活动本周结束。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r3",
+          "title": "讨论记录3",
+          "date": "2026-09-04",
+          "texts": [
+            "去年曾在十月开放内测。"
+          ],
+          "source": "upload"
+        }
+      ],
+      "evidence": [
+        {
+          "record": "r0",
+          "span": "正式上线定于11月2日。"
+        }
+      ],
+      "expect_empty": false,
+      "answer_requirements": [
+        "证据须对应所问事项与实体；不得因语义接近推断未记录的事实。"
+      ]
+    },
+    {
+      "id": "rollback_with_noise",
+      "category": "semantic_noise",
+      "split": "validation",
+      "question": "How do we undo a failed deployment?",
+      "records": [
+        {
+          "id": "r0",
+          "title": "讨论记录0",
+          "date": "2026-09-01",
+          "texts": [
+            "发布失败时回滚到上一个稳定镜像。"
+          ],
+          "source": "meeting"
+        },
+        {
+          "id": "r1",
+          "title": "讨论记录1",
+          "date": "2026-09-02",
+          "texts": [
+            "客户退货统一走售后渠道。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r2",
+          "title": "讨论记录2",
+          "date": "2026-09-03",
+          "texts": [
+            "撤销请假申请需要主管批准。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r3",
+          "title": "讨论记录3",
+          "date": "2026-09-04",
+          "texts": [
+            "数据备份每天凌晨执行。"
+          ],
+          "source": "upload"
+        }
+      ],
+      "evidence": [
+        {
+          "record": "r0",
+          "span": "发布失败时回滚到上一个稳定镜像。"
+        }
+      ],
+      "expect_empty": false,
+      "answer_requirements": [
+        "证据须对应所问事项与实体；不得因语义接近推断未记录的事实。"
+      ]
+    },
+    {
+      "id": "retention_with_noise",
+      "category": "semantic_noise",
+      "split": "validation",
+      "question": "How long before recordings expire?",
+      "records": [
+        {
+          "id": "r0",
+          "title": "讨论记录0",
+          "date": "2026-09-01",
+          "texts": [
+            "录音保留期为30天。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r1",
+          "title": "讨论记录1",
+          "date": "2026-09-02",
+          "texts": [
+            "登录令牌有效期为一小时。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r2",
+          "title": "讨论记录2",
+          "date": "2026-09-03",
+          "texts": [
+            "历史合同需保存五年。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r3",
+          "title": "讨论记录3",
+          "date": "2026-09-04",
+          "texts": [
+            "视频播放时长为四十分钟。"
+          ],
+          "source": "upload"
+        }
+      ],
+      "evidence": [
+        {
+          "record": "r0",
+          "span": "录音保留期为30天。"
+        }
+      ],
+      "expect_empty": false,
+      "answer_requirements": [
+        "证据须对应所问事项与实体；不得因语义接近推断未记录的事实。"
+      ]
+    },
+    {
+      "id": "owner_with_noise",
+      "category": "semantic_noise",
+      "split": "validation",
+      "question": "这项活儿该找谁牵头？",
+      "records": [
+        {
+          "id": "r0",
+          "title": "讨论记录0",
+          "date": "2026-09-01",
+          "texts": [
+            "责任人指定为赵明。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r1",
+          "title": "讨论记录1",
+          "date": "2026-09-02",
+          "texts": [
+            "联系人陈宇负责发票收件。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r2",
+          "title": "讨论记录2",
+          "date": "2026-09-03",
+          "texts": [
+            "讲师王芳讲解了流程。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r3",
+          "title": "讨论记录3",
+          "date": "2026-09-04",
+          "texts": [
+            "审计员刘平会参加下周会议。"
+          ],
+          "source": "upload"
+        }
+      ],
+      "evidence": [
+        {
+          "record": "r0",
+          "span": "责任人指定为赵明。"
+        }
+      ],
+      "expect_empty": false,
+      "answer_requirements": [
+        "证据须对应所问事项与实体；不得因语义接近推断未记录的事实。"
+      ]
+    },
+    {
+      "id": "delay_with_noise",
+      "category": "semantic_noise",
+      "split": "validation",
+      "question": "Did the delivery get pushed back?",
+      "records": [
+        {
+          "id": "r0",
+          "title": "讨论记录0",
+          "date": "2026-09-01",
+          "texts": [
+            "交付已延期至12月8日。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r1",
+          "title": "讨论记录1",
+          "date": "2026-09-02",
+          "texts": [
+            "物流包裹已退回发货人。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r2",
+          "title": "讨论记录2",
+          "date": "2026-09-03",
+          "texts": [
+            "本周日程保持不变。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r3",
+          "title": "讨论记录3",
+          "date": "2026-09-04",
+          "texts": [
+            "需求评审尚未开始。"
+          ],
+          "source": "upload"
+        }
+      ],
+      "evidence": [
+        {
+          "record": "r0",
+          "span": "交付已延期至12月8日。"
+        }
+      ],
+      "expect_empty": false,
+      "answer_requirements": [
+        "证据须对应所问事项与实体；不得因语义接近推断未记录的事实。"
+      ]
+    },
+    {
+      "id": "unknown_project",
+      "category": "semantic_noise",
+      "split": "validation",
+      "question": "ZXQ997花多少银子？",
+      "records": [
+        {
+          "id": "r0",
+          "title": "讨论记录0",
+          "date": "2026-09-01",
+          "texts": [
+            "另一项目预算批准18万元。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r1",
+          "title": "讨论记录1",
+          "date": "2026-09-02",
+          "texts": [
+            "差旅额度为两千元。"
+          ],
+          "source": "upload"
+        }
+      ],
+      "evidence": [],
+      "expect_empty": true,
+      "answer_requirements": [
+        "证据须对应所问事项与实体；不得因语义接近推断未记录的事实。"
+      ]
+    },
+    {
+      "id": "unknown_person",
+      "category": "semantic_noise",
+      "split": "validation",
+      "question": "Who approved the budget for ZXQ997?",
+      "records": [
+        {
+          "id": "r0",
+          "title": "讨论记录0",
+          "date": "2026-09-01",
+          "texts": [
+            "其他项目的预算由张明审批。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r1",
+          "title": "讨论记录1",
+          "date": "2026-09-02",
+          "texts": [
+            "供应商合同已经签署。"
+          ],
+          "source": "upload"
+        }
+      ],
+      "evidence": [],
+      "expect_empty": true,
+      "answer_requirements": [
+        "证据须对应所问事项与实体；不得因语义接近推断未记录的事实。"
+      ]
+    },
+    {
+      "id": "refund_not_rollback",
+      "category": "semantic_noise",
+      "split": "validation",
+      "question": "What is the return policy for these shoes?",
+      "records": [
+        {
+          "id": "r0",
+          "title": "讨论记录0",
+          "date": "2026-09-01",
+          "texts": [
+            "发布失败时回滚到上一个稳定镜像。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r1",
+          "title": "讨论记录1",
+          "date": "2026-09-02",
+          "texts": [
+            "数据库恢复需要先停止写入。"
+          ],
+          "source": "upload"
+        }
+      ],
+      "evidence": [],
+      "expect_empty": true,
+      "answer_requirements": [
+        "证据须对应所问事项与实体；不得因语义接近推断未记录的事实。"
+      ]
+    },
+    {
+      "id": "weather_not_schedule",
+      "category": "semantic_noise",
+      "split": "validation",
+      "question": "Will it rain in Paris tomorrow?",
+      "records": [
+        {
+          "id": "r0",
+          "title": "讨论记录0",
+          "date": "2026-09-01",
+          "texts": [
+            "明天讨论上线计划。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r1",
+          "title": "讨论记录1",
+          "date": "2026-09-02",
+          "texts": [
+            "巴黎分部采购电脑的预算已批准。"
+          ],
+          "source": "upload"
+        }
+      ],
+      "evidence": [],
+      "expect_empty": true,
+      "answer_requirements": [
+        "证据须对应所问事项与实体；不得因语义接近推断未记录的事实。"
+      ]
+    },
+    {
+      "id": "medical_not_business",
+      "category": "semantic_noise",
+      "split": "validation",
+      "question": "How is diabetes treated?",
+      "records": [
+        {
+          "id": "r0",
+          "title": "讨论记录0",
+          "date": "2026-09-01",
+          "texts": [
+            "项目预算为30万元。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r1",
+          "title": "讨论记录1",
+          "date": "2026-09-02",
+          "texts": [
+            "服务器扩容到八个节点。"
+          ],
+          "source": "upload"
+        }
+      ],
+      "evidence": [],
+      "expect_empty": true,
+      "answer_requirements": [
+        "证据须对应所问事项与实体；不得因语义接近推断未记录的事实。"
+      ]
+    },
+    {
+      "id": "nonexistent_flight",
+      "category": "semantic_noise",
+      "split": "validation",
+      "question": "ZXQ997的起飞时间？",
+      "records": [
+        {
+          "id": "r0",
+          "title": "讨论记录0",
+          "date": "2026-09-01",
+          "texts": [
+            "正式上线日期定于11月2日。"
+          ],
+          "source": "upload"
+        },
+        {
+          "id": "r1",
+          "title": "讨论记录1",
+          "date": "2026-09-02",
+          "texts": [
+            "发布活动将在晚上八点开始。"
+          ],
+          "source": "upload"
+        }
+      ],
+      "evidence": [],
+      "expect_empty": true,
+      "answer_requirements": [
+        "证据须对应所问事项与实体；不得因语义接近推断未记录的事实。"
+      ]
+    }
+  ]
+}
