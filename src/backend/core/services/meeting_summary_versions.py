@@ -32,6 +32,7 @@ from core.services.meeting_summary_chunks import (
     summarize_chunks,
 )
 from core.services.meeting_summary_notifications import record_completion
+from core.services.summary_facts import normalize_owner
 from core.services.transcript_delivery import source_delivery
 from core.services.upload_summary_source import source as upload_source
 
@@ -346,6 +347,10 @@ def validate_output(raw, snapshot):
                 for key in ("segment_revision", "start_ms", "end_ms")
             ):
                 raise ValueError("Reference does not match the input snapshot.")
+    for action in result.action_items:
+        action.owner_text = normalize_owner(
+            action.owner_text, [sources[ref.segment_id] for ref in action.source_refs]
+        )
     return result.model_dump()
 
 
@@ -481,6 +486,9 @@ def _generate_content(job, client, attempt):
             "Only describe a correction, previous agreement or reversal when the source explicitly states it. "
             "Keep unspecified owners and deadlines empty; generic speaker labels are not identified people. "
             "Preserve relative deadlines without inventing calendar dates. "
+            "Keep conditional rules, hypothetical risks and actual events distinct in every section, including overview. "
+            "A rule about what to do on failure does not establish that failure occurred; when ambiguous, describe the rule without asserting an incident. "
+            "Preserve explicitly negated amounts or dates in the corresponding point, and keep deadline boundaries such as 'before' exact. "
             + instruction
             + " "
             + (

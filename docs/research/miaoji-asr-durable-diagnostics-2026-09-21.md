@@ -66,3 +66,8 @@ bash deploy/aliyun/release-meet.sh --tag 4ee18439e agents
 ```
 
 当前停在部署依赖；生产新静音/正常语音及持久历史读取尚未验收。后续文档提交不需要新镜像，继续使用固定 tag。
+
+
+## Helm 392 更新
+
+用户提供 2026-09-21 19:04:10 Helm 392 回执，backend/agents 实际 tag 为 `2651b6afa`，与实现提交运行代码一致。新静音已在 owner API 读取到持久 transcription_poll/no_speech 6458ms，普通语音成功；跨账号读取拒绝、独立登录复读不变。详见[本轮验收](miaoji-summary-semantics-2026-09-21.md)及[原始证据](evaluations/miaoji-asr-production-392.json)。本次未强制重启 Pod、未等待实际 30 天，也未注入生产其他阶段故障；不扩大验收范围。

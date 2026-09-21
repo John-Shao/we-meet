@@ -246,3 +246,18 @@ def test_complete_output_guard_rejects_even_valid_json_when_finish_is_not_stop(r
     with pytest.raises(ValueError):
         client.chat(system="schema", user="source", require_complete=True)
     assert client.chat(system="schema", user="source") == '{"valid":"json"}'
+
+
+def test_old_chunk_prompt_cannot_be_reused_by_new_semantics():
+    """Explicit regeneration is required before spending on an old queued plan."""
+    _, _, record = long_note()
+    job = prepare_summary_job(record.pk)
+    job.configuration["chunk_prompt_version"] = 1
+    job.save(update_fields=["configuration"])
+    with patch("core.services.meeting_summary_versions.LLMClient") as client:
+        assert execute_summary_job(job.pk, 1) is None
+        client.return_value.chat.assert_not_called()
+    job.refresh_from_db()
+    assert job.status == "failed"
+    assert job.error_code == "invalid_output"
+    assert not models.MeetingSummaryVersion.objects.filter(record=record).exists()
