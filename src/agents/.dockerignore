@@ -36,3 +36,6 @@ db.sqlite3
 
 # Env
 .env
+
+# Offline quality fixtures are not runtime assets
+evaluations

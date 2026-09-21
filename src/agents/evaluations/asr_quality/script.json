@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "provenance": "Local Windows SAPI synthetic speech. Not human meeting accuracy or real speaker diarization ground truth.",
+  "scenarios": [
+    {
+      "id": "two-speakers",
+      "category": "multi_speaker",
+      "turns": [
+        {"speaker": "A", "voice": "Microsoft David Desktop", "text": "The release is postponed to Friday. Alice will verify the storage permissions."},
+        {"speaker": "B", "voice": "Microsoft Zira Desktop", "text": "I will review the transcript. The budget is fifteen thousand dollars, not fifty thousand."},
+        {"speaker": "A", "voice": "Microsoft David Desktop", "text": "Please keep the original recording. Do not delete it before the review."},
+        {"speaker": "B", "voice": "Microsoft Zira Desktop", "text": "Agreed. Bob will send the test report before Thursday afternoon."}
+      ],
+      "terms": ["Friday", "Alice", "fifteen thousand", "Bob", "Thursday"],
+      "manual_checks": ["发布时间是周五，不是周四", "预算是一万五，不是五万", "Alice 核验存储权限；Bob 周四下午前发送测试报告", "复核前保留原录音", "说话人 A/B 轮流出现；不要求自动实名"]
+    },
+    {
+      "id": "terms-zh",
+      "category": "terminology",
+      "turns": [
+        {"speaker": "A", "voice": "Microsoft Huihui Desktop", "text": "今天核验对象存储、签名续期和跨账号权限。妙记的转写结果需要保留原文引用。"},
+        {"speaker": "A", "voice": "Microsoft Huihui Desktop", "text": "陈晨负责术语校对，周五下午三点前完成。临时文件清理失败，不能掩盖转写提交的原始错误。"}
+      ],
+      "terms": ["对象存储", "签名续期", "跨账号权限", "妙记", "原文引用", "陈晨", "术语校对"],
+      "manual_checks": ["陈晨负责术语校对", "截止时间为周五下午三点", "清理失败和转写提交失败不能混为一个错误", "不能凭空补充未说过的负责人或待办"]
+    }
+  ]
+}

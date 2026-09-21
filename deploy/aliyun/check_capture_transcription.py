@@ -8,6 +8,47 @@ import subprocess
 import sys
 import uuid
 
+DIAGNOSTIC_STAGES = {
+    "manifest",
+    "control",
+    "storage_read",
+    "audio_validate",
+    "storage_prepare",
+    "storage_upload",
+    "storage_sign",
+    "transcription_submit",
+    "transcription_poll",
+    "result_fetch",
+    "result_parse",
+    "delivery",
+    "cleanup",
+    "finish",
+    "execution",
+}
+
+
+def stage_reports(logs, job_id):
+    """Only project fixed enums for the requested job; never echo raw log lines."""
+    reports = []
+    for line in logs.splitlines():
+        _, marker, body = line.partition("capture_diagnostic ")
+        if not marker:
+            continue
+        try:
+            entry = json.loads(body)
+            if (
+                entry.get("job_id") != str(job_id)
+                or entry.get("stage") not in DIAGNOSTIC_STAGES
+                or entry.get("code") not in {"failed", "timeout"}
+                or type(entry.get("elapsed_ms")) is not int
+                or not 0 <= entry["elapsed_ms"] <= 172800000
+            ):
+                continue
+            reports.append({key: entry[key] for key in ("stage", "code", "elapsed_ms")})
+        except (ValueError, TypeError, AttributeError):
+            continue
+    return reports[-20:]
+
 
 def counts_report(job, inputs=None):
     """Project known receipt fields; never return raw provider reports or inputs."""
@@ -73,6 +114,11 @@ def main():
     parser.add_argument("--job", required=True, type=uuid.UUID)
     parser.add_argument("--namespace", default="meet")
     parser.add_argument("--release", default="meet")
+    parser.add_argument(
+        "--worker-logs",
+        action="store_true",
+        help="Read bounded current/previous worker logs for stage failures",
+    )
     parser.add_argument("--inside-pod", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.inside_pod:
@@ -122,6 +168,51 @@ def main():
     if len(reports) != 1 or reports[0].get("ok") is not True:
         raise RuntimeError("diagnostic_report_missing")
     print(json.dumps(reports[0]))
+    if args.worker_logs:
+        suffix = "capture-live-asr" if reports[0]["mode"] == "live" else "capture-asr"
+        worker = args.release + "-agent-" + suffix
+        worker_dep = json.loads(
+            run(kubectl + ["get", "deployment", worker, "-o", "json"])
+        )
+        selector = ",".join(
+            key + "=" + value
+            for key, value in worker_dep["spec"]["selector"]["matchLabels"].items()
+        )
+        pods = json.loads(run(kubectl + ["get", "pods", "-l", selector, "-o", "json"]))
+        for pod in pods["items"]:
+            for previous in (False, True):
+                try:
+                    logs = run(
+                        kubectl
+                        + [
+                            "logs",
+                            pod["metadata"]["name"],
+                            "--tail=2000",
+                            "--since=24h",
+                            "--limit-bytes=2097152",
+                        ]
+                        + (["--previous"] if previous else [])
+                    )
+                    print(
+                        json.dumps(
+                            {
+                                "worker_log": "previous" if previous else "current",
+                                "stages": stage_reports(logs, args.job),
+                            }
+                        )
+                    )
+                except RuntimeError:
+                    print(
+                        json.dumps(
+                            {
+                                "worker_log": "previous" if previous else "current",
+                                "available": False,
+                            }
+                        )
+                    )
+        print(
+            "LOG WINDOW: last 24h/2000 lines per current pod; absent stages do not imply success."
+        )
     print("READ ONLY: no jobs retried, records changed, or provider requests made.")
 
 

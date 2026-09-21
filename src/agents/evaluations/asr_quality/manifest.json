@@ -1,0 +1,244 @@
+{
+  "version": 1,
+  "provenance": "Local Windows SAPI synthetic speech. Not human meeting accuracy or real speaker diarization ground truth.",
+  "noise": "Seed 20260921, Gaussian white noise, whole-file RMS SNR. Not real room noise.",
+  "speaker_metric": "Best one-to-one speaker mapping over TTS utterance windows; not DER.",
+  "cases": [
+    {
+      "id": "two-speakers-clean",
+      "category": "multi_speaker",
+      "synthetic": true,
+      "snr_db": null,
+      "clean_case": "two-speakers-clean",
+      "duration_ms": 25280.0,
+      "sha256": "fd9bfa8bc91f4d3f560b9df94989dd916eb1750f06a5734e5a816938045e8323",
+      "segments": [
+        {
+          "start_ms": 0.0,
+          "end_ms": 5905.0,
+          "speaker": "A",
+          "text": "The release is postponed to Friday. Alice will verify the storage permissions."
+        },
+        {
+          "start_ms": 6405.0,
+          "end_ms": 13250.0,
+          "speaker": "B",
+          "text": "I will review the transcript. The budget is fifteen thousand dollars, not fifty thousand."
+        },
+        {
+          "start_ms": 13750.0,
+          "end_ms": 18980.0,
+          "speaker": "A",
+          "text": "Please keep the original recording. Do not delete it before the review."
+        },
+        {
+          "start_ms": 19480.0,
+          "end_ms": 24780.0,
+          "speaker": "B",
+          "text": "Agreed. Bob will send the test report before Thursday afternoon."
+        }
+      ],
+      "terms": [
+        "Friday",
+        "Alice",
+        "fifteen thousand",
+        "Bob",
+        "Thursday"
+      ],
+      "manual_checks": [
+        "发布时间是周五，不是周四",
+        "预算是一万五，不是五万",
+        "Alice 核验存储权限；Bob 周四下午前发送测试报告",
+        "复核前保留原录音",
+        "说话人 A/B 轮流出现；不要求自动实名"
+      ]
+    },
+    {
+      "id": "two-speakers-noise10",
+      "category": "multi_speaker",
+      "synthetic": true,
+      "snr_db": 10,
+      "clean_case": "two-speakers-clean",
+      "duration_ms": 25280.0,
+      "sha256": "045e5a696d255f5f243b2adc04fa185147f6e2fff24fcf41061cc58949190678",
+      "segments": [
+        {
+          "start_ms": 0.0,
+          "end_ms": 5905.0,
+          "speaker": "A",
+          "text": "The release is postponed to Friday. Alice will verify the storage permissions."
+        },
+        {
+          "start_ms": 6405.0,
+          "end_ms": 13250.0,
+          "speaker": "B",
+          "text": "I will review the transcript. The budget is fifteen thousand dollars, not fifty thousand."
+        },
+        {
+          "start_ms": 13750.0,
+          "end_ms": 18980.0,
+          "speaker": "A",
+          "text": "Please keep the original recording. Do not delete it before the review."
+        },
+        {
+          "start_ms": 19480.0,
+          "end_ms": 24780.0,
+          "speaker": "B",
+          "text": "Agreed. Bob will send the test report before Thursday afternoon."
+        }
+      ],
+      "terms": [
+        "Friday",
+        "Alice",
+        "fifteen thousand",
+        "Bob",
+        "Thursday"
+      ],
+      "manual_checks": [
+        "发布时间是周五，不是周四",
+        "预算是一万五，不是五万",
+        "Alice 核验存储权限；Bob 周四下午前发送测试报告",
+        "复核前保留原录音",
+        "说话人 A/B 轮流出现；不要求自动实名"
+      ]
+    },
+    {
+      "id": "two-speakers-noise0",
+      "category": "multi_speaker",
+      "synthetic": true,
+      "snr_db": 0,
+      "clean_case": "two-speakers-clean",
+      "duration_ms": 25280.0,
+      "sha256": "949a300bb0bb49ae289f5bd7d8fcd3b140719e1a7615eb4048836f2119f80e8c",
+      "segments": [
+        {
+          "start_ms": 0.0,
+          "end_ms": 5905.0,
+          "speaker": "A",
+          "text": "The release is postponed to Friday. Alice will verify the storage permissions."
+        },
+        {
+          "start_ms": 6405.0,
+          "end_ms": 13250.0,
+          "speaker": "B",
+          "text": "I will review the transcript. The budget is fifteen thousand dollars, not fifty thousand."
+        },
+        {
+          "start_ms": 13750.0,
+          "end_ms": 18980.0,
+          "speaker": "A",
+          "text": "Please keep the original recording. Do not delete it before the review."
+        },
+        {
+          "start_ms": 19480.0,
+          "end_ms": 24780.0,
+          "speaker": "B",
+          "text": "Agreed. Bob will send the test report before Thursday afternoon."
+        }
+      ],
+      "terms": [
+        "Friday",
+        "Alice",
+        "fifteen thousand",
+        "Bob",
+        "Thursday"
+      ],
+      "manual_checks": [
+        "发布时间是周五，不是周四",
+        "预算是一万五，不是五万",
+        "Alice 核验存储权限；Bob 周四下午前发送测试报告",
+        "复核前保留原录音",
+        "说话人 A/B 轮流出现；不要求自动实名"
+      ]
+    },
+    {
+      "id": "terms-zh-clean",
+      "category": "terminology",
+      "synthetic": true,
+      "snr_db": null,
+      "clean_case": "terms-zh-clean",
+      "duration_ms": 21890.0,
+      "sha256": "0062b1b0fe54bf34c2d2348af88196695496c90a85f64594fcf6043a42b58712",
+      "segments": [
+        {
+          "start_ms": 0.0,
+          "end_ms": 9880.0,
+          "speaker": "A",
+          "text": "今天核验对象存储、签名续期和跨账号权限。妙记的转写结果需要保留原文引用。"
+        },
+        {
+          "start_ms": 10380.0,
+          "end_ms": 21390.0,
+          "speaker": "A",
+          "text": "陈晨负责术语校对，周五下午三点前完成。临时文件清理失败，不能掩盖转写提交的原始错误。"
+        }
+      ],
+      "terms": [
+        "对象存储",
+        "签名续期",
+        "跨账号权限",
+        "妙记",
+        "原文引用",
+        "陈晨",
+        "术语校对"
+      ],
+      "manual_checks": [
+        "陈晨负责术语校对",
+        "截止时间为周五下午三点",
+        "清理失败和转写提交失败不能混为一个错误",
+        "不能凭空补充未说过的负责人或待办"
+      ]
+    },
+    {
+      "id": "terms-zh-noise10",
+      "category": "terminology",
+      "synthetic": true,
+      "snr_db": 10,
+      "clean_case": "terms-zh-clean",
+      "duration_ms": 21890.0,
+      "sha256": "31724bed6c44354ea2def95bf96d131adb8e93a46a396769a3ef87a0c3bd6228",
+      "segments": [
+        {
+          "start_ms": 0.0,
+          "end_ms": 9880.0,
+          "speaker": "A",
+          "text": "今天核验对象存储、签名续期和跨账号权限。妙记的转写结果需要保留原文引用。"
+        },
+        {
+          "start_ms": 10380.0,
+          "end_ms": 21390.0,
+          "speaker": "A",
+          "text": "陈晨负责术语校对，周五下午三点前完成。临时文件清理失败，不能掩盖转写提交的原始错误。"
+        }
+      ],
+      "terms": [
+        "对象存储",
+        "签名续期",
+        "跨账号权限",
+        "妙记",
+        "原文引用",
+        "陈晨",
+        "术语校对"
+      ],
+      "manual_checks": [
+        "陈晨负责术语校对",
+        "截止时间为周五下午三点",
+        "清理失败和转写提交失败不能混为一个错误",
+        "不能凭空补充未说过的负责人或待办"
+      ]
+    },
+    {
+      "id": "silence",
+      "category": "silence",
+      "synthetic": true,
+      "duration_ms": 3000,
+      "snr_db": null,
+      "segments": [],
+      "terms": [],
+      "sha256": "d303811b8c84619667cd0501342f84ec6cbe69f7aa3856dcf52fabda374c92b8",
+      "manual_checks": [
+        "No invented speech, summary or action items."
+      ]
+    }
+  ]
+}

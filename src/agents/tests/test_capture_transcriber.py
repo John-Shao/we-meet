@@ -10,6 +10,7 @@ import uuid
 import wave
 from unittest import mock
 
+from asr_diagnostics import StageError
 from capture_transcriber import (
     CaptureAttempt,
     CaptureBackend,
@@ -177,7 +178,7 @@ class CaptureWorkerTests(unittest.IsolatedAsyncioTestCase):
     async def test_finish_uncertainty_propagates_to_stop_worker(self):
         """No next claim is allowed after terminal delivery remains unknown."""
         self.backend.fail = "finish"
-        with self.assertRaises(CaptureError):
+        with self.assertRaisesRegex(StageError, "finish:failed"):
             await self.attempt.execute()
         self.assertTrue(self.attempt.queue.empty())
 
@@ -288,7 +289,12 @@ class CaptureStartupTests(unittest.TestCase):
             ):
                 with self.assertLogs("capture-transcriber", level="ERROR") as logs:
                     self.assertEqual(1, run_worker(live=live))
-                self.assertIn("dashscope_workspace_id_missing" if live else "backend_configuration_required", logs.output[0])
+                self.assertIn(
+                    "dashscope_workspace_id_missing"
+                    if live
+                    else "backend_configuration_required",
+                    logs.output[0],
+                )
                 self.assertNotIn("private-fixture", logs.output[0])
 
     def test_unknown_exception_never_logs_its_body(self):

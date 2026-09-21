@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "expected_cases": 6,
+  "evaluated_cases": 6,
+  "succeeded_cases": 5,
+  "scope": "Synthetic regression baseline; not human meeting accuracy or DER.",
+  "cases": [
+    {
+      "id": "two-speakers-clean",
+      "category": "multi_speaker",
+      "synthetic": true,
+      "status": "succeeded",
+      "elapsed_ms": 5913,
+      "cer": 0.261,
+      "silence_hallucinated_chars": null,
+      "term_recall": 0.8,
+      "speaker_window_accuracy": 0.0,
+      "speaker_labels_available": false,
+      "manual_fact_todo_review": "pending"
+    },
+    {
+      "id": "two-speakers-noise10",
+      "category": "multi_speaker",
+      "synthetic": true,
+      "status": "succeeded",
+      "elapsed_ms": 5853,
+      "cer": 0.0,
+      "silence_hallucinated_chars": null,
+      "term_recall": 1.0,
+      "speaker_window_accuracy": 0.0,
+      "speaker_labels_available": false,
+      "manual_fact_todo_review": "pending",
+      "cer_delta_from_clean": -0.261
+    },
+    {
+      "id": "two-speakers-noise0",
+      "category": "multi_speaker",
+      "synthetic": true,
+      "status": "succeeded",
+      "elapsed_ms": 5831,
+      "cer": 0.1124,
+      "silence_hallucinated_chars": null,
+      "term_recall": 0.8,
+      "speaker_window_accuracy": 0.0,
+      "speaker_labels_available": false,
+      "manual_fact_todo_review": "pending",
+      "cer_delta_from_clean": -0.1486
+    },
+    {
+      "id": "terms-zh-clean",
+      "category": "terminology",
+      "synthetic": true,
+      "status": "succeeded",
+      "elapsed_ms": 5915,
+      "cer": 0.0282,
+      "silence_hallucinated_chars": null,
+      "term_recall": 0.8571,
+      "speaker_window_accuracy": 0.0,
+      "speaker_labels_available": false,
+      "manual_fact_todo_review": "pending"
+    },
+    {
+      "id": "terms-zh-noise10",
+      "category": "terminology",
+      "synthetic": true,
+      "status": "succeeded",
+      "elapsed_ms": 5888,
+      "cer": 0.0282,
+      "silence_hallucinated_chars": null,
+      "term_recall": 0.8571,
+      "speaker_window_accuracy": 0.0,
+      "speaker_labels_available": false,
+      "manual_fact_todo_review": "pending",
+      "cer_delta_from_clean": 0.0
+    },
+    {
+      "id": "silence",
+      "category": "silence",
+      "synthetic": true,
+      "status": "failed",
+      "elapsed_ms": 5636,
+      "cer": null,
+      "silence_hallucinated_chars": 0,
+      "term_recall": null,
+      "speaker_window_accuracy": null,
+      "speaker_labels_available": false,
+      "manual_fact_todo_review": "pending"
+    }
+  ]
+}

@@ -85,6 +85,26 @@ class DiagnosticTests(unittest.TestCase):
         self.assertEqual(report["input_count"], 1)
         self.assertTrue(report["input_samples_match"])
 
+    def test_log_projection_is_job_scoped_and_content_free(self):
+        job = "requested-job"
+        event = {
+            "job_id": job,
+            "stage": "storage_upload",
+            "code": "failed",
+            "elapsed_ms": 42,
+            "secret": "PRIVATE",
+        }
+        logs = "capture_diagnostic " + json.dumps(event)
+        logs += "\ncapture_diagnostic " + json.dumps({**event, "job_id": "other"})
+        logs += "\ncapture_diagnostic " + json.dumps({**event, "stage": "PRIVATE"})
+        logs += "\ncapture_diagnostic not-json PRIVATE"
+        logs += "\ncapture_diagnostic null"
+        reports = diagnostic.stage_reports(logs, job)
+        self.assertEqual(
+            reports, [{"stage": "storage_upload", "code": "failed", "elapsed_ms": 42}]
+        )
+        self.assertNotIn("PRIVATE", json.dumps(reports))
+
     def test_subprocess_error_does_not_echo_sensitive_output(self):
         with patch.object(
             diagnostic.subprocess,

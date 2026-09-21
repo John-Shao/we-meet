@@ -1,0 +1,247 @@
+{
+  "label": "asr-quality-v1-initial-synthetic-filetrans",
+  "model": "qwen-audio-3.0-asr-flash-filetrans",
+  "region": "cn-beijing",
+  "adapter": "sealed_filetrans_no_diarization_or_hotwords",
+  "cases": [
+    {
+      "id": "two-speakers-clean",
+      "sha256": "fd9bfa8bc91f4d3f560b9df94989dd916eb1750f06a5734e5a816938045e8323",
+      "segments": [
+        {
+          "text": "The release is postponed to Friday. ",
+          "start_ms": 160,
+          "end_ms": 2240,
+          "speaker": null
+        },
+        {
+          "text": "Alice will verify the storage permissions. ",
+          "start_ms": 2870,
+          "end_ms": 5230,
+          "speaker": null
+        },
+        {
+          "text": "I will review the transcript. ",
+          "start_ms": 6540,
+          "end_ms": 8180,
+          "speaker": null
+        },
+        {
+          "text": "The budget is $15,000, not $50,000.",
+          "start_ms": 8900,
+          "end_ms": 12580,
+          "speaker": null
+        },
+        {
+          "text": "请保留原始录音。",
+          "start_ms": 14010,
+          "end_ms": 15730,
+          "speaker": null
+        },
+        {
+          "text": "do not delete it before the review. ",
+          "start_ms": 16500,
+          "end_ms": 18510,
+          "speaker": null
+        },
+        {
+          "text": "agreed. ",
+          "start_ms": 19610,
+          "end_ms": 20500,
+          "speaker": null
+        },
+        {
+          "text": "Bob will send the test report before Thursday afternoon. ",
+          "start_ms": 21040,
+          "end_ms": 24120,
+          "speaker": null
+        }
+      ],
+      "status": "succeeded",
+      "elapsed_ms": 5913
+    },
+    {
+      "id": "two-speakers-noise10",
+      "sha256": "045e5a696d255f5f243b2adc04fa185147f6e2fff24fcf41061cc58949190678",
+      "segments": [
+        {
+          "text": "The release is postponed to Friday.",
+          "start_ms": 160,
+          "end_ms": 2160,
+          "speaker": null
+        },
+        {
+          "text": " Alice will verify the storage permissions.",
+          "start_ms": 2960,
+          "end_ms": 5280,
+          "speaker": null
+        },
+        {
+          "text": " 。",
+          "start_ms": 5480,
+          "end_ms": 5510,
+          "speaker": null
+        },
+        {
+          "text": "I will review the transcript.",
+          "start_ms": 6550,
+          "end_ms": 8190,
+          "speaker": null
+        },
+        {
+          "text": " The budget is fifteen thousand dollars, not fifty thousand. ",
+          "start_ms": 8870,
+          "end_ms": 12750,
+          "speaker": null
+        },
+        {
+          "text": "Please keep the original recording. ",
+          "start_ms": 14000,
+          "end_ms": 15720,
+          "speaker": null
+        },
+        {
+          "text": "Do not delete it before the review. ",
+          "start_ms": 16510,
+          "end_ms": 18430,
+          "speaker": null
+        },
+        {
+          "text": "Agreed, Bob will send the test report before Thursday afternoon. ",
+          "start_ms": 19600,
+          "end_ms": 24400,
+          "speaker": null
+        }
+      ],
+      "status": "succeeded",
+      "elapsed_ms": 5853
+    },
+    {
+      "id": "two-speakers-noise0",
+      "sha256": "949a300bb0bb49ae289f5bd7d8fcd3b140719e1a7615eb4048836f2119f80e8c",
+      "segments": [
+        {
+          "text": "The release is postponed to Friday.",
+          "start_ms": 160,
+          "end_ms": 2200,
+          "speaker": null
+        },
+        {
+          "text": " Alice will verify the storage permissions. ",
+          "start_ms": 3000,
+          "end_ms": 5620,
+          "speaker": null
+        },
+        {
+          "text": "I will review the transcript.",
+          "start_ms": 6560,
+          "end_ms": 8200,
+          "speaker": null
+        },
+        {
+          "text": " The budget is 15,000 dollars, not 50,000.",
+          "start_ms": 8880,
+          "end_ms": 12800,
+          "speaker": null
+        },
+        {
+          "text": "Please keep the original recording. ",
+          "start_ms": 14010,
+          "end_ms": 15730,
+          "speaker": null
+        },
+        {
+          "text": "Do not delete it before the review. ",
+          "start_ms": 16490,
+          "end_ms": 18530,
+          "speaker": null
+        },
+        {
+          "text": "Agreed.",
+          "start_ms": 19600,
+          "end_ms": 20320,
+          "speaker": null
+        },
+        {
+          "text": " Bob will send the test report before Thursday afternoon. ",
+          "start_ms": 21000,
+          "end_ms": 24360,
+          "speaker": null
+        }
+      ],
+      "status": "succeeded",
+      "elapsed_ms": 5831
+    },
+    {
+      "id": "terms-zh-clean",
+      "sha256": "0062b1b0fe54bf34c2d2348af88196695496c90a85f64594fcf6043a42b58712",
+      "segments": [
+        {
+          "text": "今天核验对象存储签名续期和跨账号权限。",
+          "start_ms": 240,
+          "end_ms": 5240,
+          "speaker": null
+        },
+        {
+          "text": "妙计的转写结果需要保留原文引用。",
+          "start_ms": 6000,
+          "end_ms": 9320,
+          "speaker": null
+        },
+        {
+          "text": "陈晨负责术语校对，周五下午3点前完成。",
+          "start_ms": 10580,
+          "end_ms": 14820,
+          "speaker": null
+        },
+        {
+          "text": "临时文件清理失败，不能掩盖转写提交的原始错误。",
+          "start_ms": 15720,
+          "end_ms": 20760,
+          "speaker": null
+        }
+      ],
+      "status": "succeeded",
+      "elapsed_ms": 5915
+    },
+    {
+      "id": "terms-zh-noise10",
+      "sha256": "31724bed6c44354ea2def95bf96d131adb8e93a46a396769a3ef87a0c3bd6228",
+      "segments": [
+        {
+          "text": "今天核验对象存储签名续期和跨账号权限，妙计的转写结果需要保留原文引用。",
+          "start_ms": 240,
+          "end_ms": 9320,
+          "speaker": null
+        },
+        {
+          "text": "陈晨负责术语校对，周五下午3点前完成。",
+          "start_ms": 10590,
+          "end_ms": 14910,
+          "speaker": null
+        },
+        {
+          "text": "临时文件清理失败，不能掩盖转写提交的原始错误。",
+          "start_ms": 15710,
+          "end_ms": 20990,
+          "speaker": null
+        }
+      ],
+      "status": "succeeded",
+      "elapsed_ms": 5888
+    },
+    {
+      "id": "silence",
+      "sha256": "d303811b8c84619667cd0501342f84ec6cbe69f7aa3856dcf52fabda374c92b8",
+      "segments": [],
+      "status": "failed",
+      "errors": [
+        {
+          "stage": "transcription_poll",
+          "code": "failed"
+        }
+      ],
+      "elapsed_ms": 5636
+    }
+  ]
+}

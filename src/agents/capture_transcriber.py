@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import signal
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -14,6 +15,7 @@ import wave
 from http import HTTPStatus
 from urllib.parse import urlsplit
 
+from asr_diagnostics import emit, failures, stage
 from plugins.qwen_asr import QwenASRConfig
 from plugins.qwen_filetrans import QwenFileASRConfig, QwenFileASRSession
 from transcript_writer import _open
@@ -180,19 +182,24 @@ class CaptureAttempt:
 
     async def control(self, operation, **payload):
         """Begin is deliberately non-replayable, even when its response is lost."""
-        result = await self.backend.request(
-            self.path + "control/",
-            {"operation": operation, **payload},
-            attempts=1 if operation in {"begin", "heartbeat"} else 3,
-        )
-        if result.get("id") != self.job["id"] or result.get("status") != "running":
-            raise CaptureError("execution_no_longer_running")
-        return result
+        with stage("control"):
+            result = await self.backend.request(
+                self.path + "control/",
+                {"operation": operation, **payload},
+                attempts=1 if operation in {"begin", "heartbeat"} else 3,
+            )
+            if result.get("id") != self.job["id"] or result.get("status") != "running":
+                raise CaptureError("execution_no_longer_running")
+            return result
 
     async def download(self, index, source):
         """Fetch only a source index from this job, never a supplied external URL."""
-        data = await self.backend.request(self.path + f"audio/{index}/", binary=True)
-        return verified_pcm(data, source)
+        with stage("storage_read"):
+            data = await self.backend.request(
+                self.path + f"audio/{index}/", binary=True
+            )
+        with stage("audio_validate"):
+            return verified_pcm(data, source)
 
     def final(self, sentence, start, end):
         """Map task offsets to source time, preserving missing audio."""
@@ -230,9 +237,10 @@ class CaptureAttempt:
     async def deliver(self):
         """Retain provider UUIDs and sequence numbers across receipt retries."""
         while (payload := await self.queue.get()) is not None:
-            result = await self.backend.request(self.path + "originals/", payload)
-            uuid.UUID(result["id"])
-            self.delivered = payload["sequence"]
+            with stage("delivery"):
+                result = await self.backend.request(self.path + "originals/", payload)
+                uuid.UUID(result["id"])
+                self.delivered = payload["sequence"]
         self.done.set()
 
     async def heartbeat(self):
@@ -267,7 +275,8 @@ class CaptureAttempt:
             async def file_final(sentence, a=start, b=end):
                 while self.queue.full():
                     await asyncio.sleep(0.01)
-                self.final(sentence, a, b)
+                with stage("result_parse"):
+                    self.final(sentence, a, b)
 
             await session.run(
                 audio(),
@@ -281,9 +290,10 @@ class CaptureAttempt:
 
     async def process(self):
         """Process the original sealed snapshot with no provider replay."""
-        runs = audio_runs(self.job, self.config)
-        if self.job.get("started") is not False:
-            raise CaptureError("provider_execution_already_started")
+        with stage("manifest"):
+            runs = audio_runs(self.job, self.config)
+            if self.job.get("started") is not False:
+                raise CaptureError("provider_execution_already_started")
         first = await self.download(*runs[0][0])
         await self.control("begin")
         duration = sum(item[1]["duration_ms"] for run in runs for item in run)
@@ -297,19 +307,28 @@ class CaptureAttempt:
                 group.create_task(self.deliver())
                 group.create_task(self.heartbeat())
 
-    async def execute(self):
+    async def execute(self):  # noqa: PLR0912 -- terminal receipt and cleanup remain one lifecycle
         """Record one frozen terminal receipt even when cancellation interrupts work."""
         success = False
+        started = time.monotonic()
+        reported = set()
         try:
             await self.process()
             success = True
         except asyncio.CancelledError:
             raise
-        except Exception:
-            logger.warning(
-                "Standalone transcription incomplete: job=%s", self.job["id"]
-            )
+        except Exception as error:
+            for failure in failures(error):
+                emit(self.job["id"], failure, started)
+                reported.add((failure.stage, failure.code))
         finally:
+            for session in self.sessions:
+                error = getattr(session, "cleanup_error", None)
+                if error is not None:
+                    for failure in failures(error):
+                        if (failure.stage, failure.code) not in reported:
+                            emit(self.job["id"], failure, started)
+                            reported.add((failure.stage, failure.code))
             self.receipt = {
                 "provider_finished": success,
                 "final_sequence": self.delivered,
@@ -327,13 +346,22 @@ class CaptureAttempt:
             }
             # If finish remains unknown, fail the process rather than claim more work.
             try:
-                result = await self.backend.request(self.path + "finish/", self.receipt)
-                if result.get("id") != self.job["id"] or result.get("status") not in {
-                    "succeeded",
-                    "incomplete",
-                    "canceled",
-                }:
-                    raise CaptureError("terminal_receipt_unknown")
+                with stage("finish"):
+                    result = await self.backend.request(
+                        self.path + "finish/", self.receipt
+                    )
+                    if result.get("id") != self.job["id"] or result.get(
+                        "status"
+                    ) not in {
+                        "succeeded",
+                        "incomplete",
+                        "canceled",
+                    }:
+                        raise CaptureError("terminal_receipt_unknown")
+            except Exception as error:
+                for failure in failures(error):
+                    emit(self.job["id"], failure, started)
+                raise
             finally:
                 while not self.queue.empty():
                     self.queue.get_nowait()
