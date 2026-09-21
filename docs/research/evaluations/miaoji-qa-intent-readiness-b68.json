@@ -1,22 +1,16 @@
 {
-  "review_sha256": "aeecd54b67e019620420937bb55ace93290c57046db3f4a044e5b7d6b28113da",
+  "review_sha256": "052d75bcb992c28530aae4ff64b2dc5e17cc32478e52ce0048b9226e74958c75",
   "ready_for_scoring": false,
-  "pending": [
+  "pending": [],
+  "needs_context": [
     "R01",
-    "R02",
-    "R03",
     "R04",
-    "R05",
-    "R06",
-    "R07",
-    "R08"
+    "R05"
   ],
-  "needs_context": [],
-  "reviewer_provided": false,
-  "review_date_provided": false,
+  "reviewer_provided": true,
+  "review_date_provided": true,
   "human_identity_independently_verified": false,
   "production_promotion_approved": false,
   "cli_exit_code": 2,
-  "tests_passed": 32,
-  "packet_file_sha256": "93d78d28b1de781b864656c27a602183cc9f1554974b6c607ef47111c57683d9"
+  "packet_file_sha256": "a72af8c54da381915dda79037d65a0b273d6e7e0b6783b2f8dbeb3cf3b42fde8"
 }

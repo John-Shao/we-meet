@@ -188,7 +188,7 @@ python -m core.tests.evaluations.run_dedicated_rerank --plan /absolute/repo/docs
 
 ## 第68批：人工意图标注准入
 
-先阅读`docs/research/evaluations/miaoji-qa-intent-review-b68.md`。八题尚未取得人工结论，模型/评测作者不能自行填写并宣称独立复核。用户已确认多项目指代不清时先追问，这只是一条产品规则。
+先阅读`docs/research/evaluations/miaoji-qa-intent-review-b68.md`。2026-09-22八题已由用户填写并转录：四题回答、一题澄清、三题需补上下文；模型/评测作者不能自行补齐待定结论并宣称独立复核。用户已确认多项目指代不清时先追问，这只是一条产品规则。
 
 从backend目录生成新的JSON模板及同名Markdown（不联网、不读取生产、已有文件拒绝覆盖）：
 
@@ -202,4 +202,4 @@ python -m core.tests.evaluations.review_meeting_qa --create /tmp/intent-review.j
 python -m core.tests.evaluations.review_meeting_qa --review /tmp/intent-review.json
 ```
 
-未填完整或仍需上下文时退出2、列出pending/needs_context；格式或源内容错误会拒绝；全部结构完整且无待定才退出0并标记可评分。0不等于人工身份认证或可上线。当前已提交模板应返回2，不能把它当作测试失败后自动补答案。阅读版按文本hash稳定重排候选且隐藏模型输出，历史结果已公开，仍不是严格盲测。
+未填完整或仍需上下文时退出2、列出pending/needs_context；格式或源内容错误会拒绝；全部结构完整且无待定才退出0并标记可评分。0不等于人工身份认证或可上线。当前已提交标注应返回2：pending为空，R01/R04/R05仍需上下文，不能把它当作测试失败后自动补答案。阅读版按文本hash稳定重排候选且隐藏模型输出，历史结果已公开，仍不是严格盲测。

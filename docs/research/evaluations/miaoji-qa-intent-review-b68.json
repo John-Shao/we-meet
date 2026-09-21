@@ -6,8 +6,8 @@
     "confirmed_by": "user_in_conversation_2026-09-21",
     "scope": "product_policy_only_not_case_annotations"
   },
-  "reviewer": null,
-  "reviewed_at": null,
+  "reviewer": "user_in_conversation",
+  "reviewed_at": "2026-09-22",
   "cases": [
     {
       "id": "R01",
@@ -35,10 +35,10 @@
         }
       ],
       "review": {
-        "decision": null,
+        "decision": "needs_context",
         "evidence": [],
         "clarification": null,
-        "rationale": null
+        "rationale": "“这轮”指的是什么？"
       }
     },
     {
@@ -67,10 +67,15 @@
         }
       ],
       "review": {
-        "decision": null,
-        "evidence": [],
+        "decision": "answer",
+        "evidence": [
+          {
+            "candidate_id": "C",
+            "quote": "正式上线定于11月2日。"
+          }
+        ],
         "clarification": null,
-        "rationale": null
+        "rationale": "正式上线定于11月2日。"
       }
     },
     {
@@ -99,10 +104,15 @@
         }
       ],
       "review": {
-        "decision": null,
-        "evidence": [],
+        "decision": "answer",
+        "evidence": [
+          {
+            "candidate_id": "C",
+            "quote": "责任人指定为赵明。"
+          }
+        ],
         "clarification": null,
-        "rationale": null
+        "rationale": "项目责任人赵明，责任人就是牵头人。"
       }
     },
     {
@@ -116,10 +126,10 @@
         }
       ],
       "review": {
-        "decision": null,
+        "decision": "needs_context",
         "evidence": [],
         "clarification": null,
-        "rationale": null
+        "rationale": "没有项目经费最终批金额信息，费用预算和审批通过的项目经费不是一回事。"
       }
     },
     {
@@ -133,10 +143,10 @@
         }
       ],
       "review": {
-        "decision": null,
+        "decision": "needs_context",
         "evidence": [],
         "clarification": null,
-        "rationale": null
+        "rationale": "“这次”指的是什么？。"
       }
     },
     {
@@ -160,10 +170,19 @@
         }
       ],
       "review": {
-        "decision": null,
-        "evidence": [],
+        "decision": "answer",
+        "evidence": [
+          {
+            "candidate_id": "A",
+            "quote": "小林负责发布。"
+          },
+          {
+            "candidate_id": "B",
+            "quote": "完成日期尚未确定。"
+          }
+        ],
         "clarification": null,
-        "rationale": null
+        "rationale": "小林负责发布，完成日期尚未确定，跨句子信息整合。"
       }
     },
     {
@@ -182,10 +201,10 @@
         }
       ],
       "review": {
-        "decision": null,
+        "decision": "clarify",
         "evidence": [],
-        "clarification": null,
-        "rationale": null
+        "clarification": "你指的是哪场会议或哪个项目的预算？",
+        "rationale": "会议没有讨论预算。"
       }
     },
     {
@@ -209,10 +228,23 @@
         }
       ],
       "review": {
-        "decision": null,
-        "evidence": [],
+        "decision": "answer",
+        "evidence": [
+          {
+            "candidate_id": "A",
+            "quote": "截至目前没有统一决议。"
+          },
+          {
+            "candidate_id": "B",
+            "quote": "9月21日乙团队要求录音保留30天。"
+          },
+          {
+            "candidate_id": "C",
+            "quote": "9月20日甲团队要求录音保留7天。"
+          }
+        ],
         "clarification": null,
-        "rationale": null
+        "rationale": "截至目前没有统一决议，甲团队要求录音保留7天，乙团队要求录音保留30天。"
       }
     }
   ]
