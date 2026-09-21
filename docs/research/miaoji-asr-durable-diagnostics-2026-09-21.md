@@ -45,3 +45,24 @@ python3 deploy/aliyun/check_capture_transcription.py --job <新任务UUID> --wor
 ## 其他质量事项
 
 Helm 391 纪要预算历史约束已完成定向生产复核，详见[纪要事实报告](miaoji-summary-fact-quality-2026-09-21.md)。Unknown speaker 占位责任人仍出现，条件性语句事实化和否定遗漏仍待改进；ASR 术语/原语言、真实多人标注样本及 App 画面也未关闭。专项整体仍未完成。
+
+
+## 固定版本交付
+
+代码 `4ee18439e` 已提交并推送；从该 Git archive 构建，隔离其他窗口的未提交改动。backend/agents production 镜像均已推送，统一 tag **4ee18439e**。agents 默认 Debian 软件源出现 HTTP 500/下载停滞后终止该构建，使用项目支持的 `APT_MIRROR=mirrors.aliyun.com` 构建成功。锁定依赖未改动。
+
+| 镜像 | Registry digest |
+|---|---|
+| meet-backend | `sha256:b06a7507a6b8a53cb26d50a73a32eff2ea5144bf9ed08e38f411c9bb8c3eeae4` |
+| meet-agents | `sha256:c1288b2223e3648d6c0d1759aff982b392687d1c1308ed01ce2c53266fa91f64` |
+
+本地共 105 项相关测试通过；生产 agents 镜像在禁网 Linux 容器另复跑同一组 47 项通过，不重复累加。backend 迁移在新的独立 PostgreSQL 测试库完成；makemigrations 检查无未提交模型差异。
+
+生产主机顺序执行，第一步成功后再执行第二步：
+
+```bash
+bash deploy/aliyun/release-meet.sh --tag 4ee18439e backend
+bash deploy/aliyun/release-meet.sh --tag 4ee18439e agents
+```
+
+当前停在部署依赖；生产新静音/正常语音及持久历史读取尚未验收。后续文档提交不需要新镜像，继续使用固定 tag。
