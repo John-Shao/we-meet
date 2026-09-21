@@ -1,5 +1,9 @@
 # 妙记整改：目标环境验收清单
 
+## 第五十三批：转写恢复与永久删除收尾通过
+
+[第五十三批](miaoji-batch-53-purge-final-acceptance.md)：用户已部署 Helm 384 / agents `9ebc986af`。原生同样本新代次成功，6 段原文、1 个 AI 版本、2 个人工历史和 1 个私有导出后完成删除；旧接口拒绝、三个源 WAV 404，独立 Docs 标题/正文不变且第二账号仍拒绝。上传样本 10:49:59 完成删除，App 完成态、旧接口、收据幂等与旧上传键 409 通过。原生 App 仅看到提交/处理中，完成态为 API 证据；其余未覆盖边界见本批。无新运行改动，无需部署。以下各批是历史验收状态。
+
 ## 第五十二批：原生 ASR 存储修复待发布
 
 [第五十二批](miaoji-batch-52-capture-oss-storage.md)：旧 MinIO 客户端在实际 OSS 复现 `SecondLevelDomainForbidden`；修复 virtual 地址样式及显式区域，Helm 传递配置，34 项测试和真实探针通过。仅需新 agents 镜像及 agents 发布，发布后继续第 51 批原样本；未提前声明转写恢复。
