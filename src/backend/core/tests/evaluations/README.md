@@ -145,3 +145,23 @@ python -m core.tests.evaluations.run_evidence_rerank --plan /tmp/rerank-plan/pla
 输出已存在则拒绝覆盖，每题一次、不自动重试。只发送问题与合成候选id/title/text，不发送gold或内部标签。完整保留原始输出、用量和完成原因；形状/摘句不合法会记录`invalid_output`并拒绝选择。重放校验输入hash及原始输出与保存选择一致。摘句存在不证明语义相关；最终回答未生成。
 
 第65批22次请求中有一次裸编号数组输出，按原样冻结。三套题库应为空题恢复，但干扰正例从6/6降到3/6，含产品上线误配快递。报告中的比较器通过只表示相对字面基线无退化，不等于相对语义候选无损；`summary`另外保留语义到重排的逐题比较。详见第65批决策，候选不推广。
+
+## 第66批：严格Schema与场景决策
+
+`structured_rerank.py`定义两个固定方案：原证据要求适配严格Schema的`schema_only`，以及增加场景核对/歧义决策的`scenario`。复用第65批输入计划，另加入`meeting_qa_scenario_controls.json`中的14个直接控制（10个基础样例、4个反序变体），共36个输入、每方案各一次请求。它们是合成诊断，不是独立盲测。
+
+从backend目录、已配置测试数据库的环境重放，不需要网络或模型密钥：
+
+```bash
+MEETING_QA_STRUCTURED_DRAWS=/absolute/repo/docs/research/evaluations/miaoji-qa-structured-generations-b66.json MEETING_QA_STRUCTURED_OUTPUT=/tmp/structured-report.json python -m pytest core/tests/evaluations/test_structured_rerank.py core/tests/evaluations/test_structured_rerank_runner.py --no-cov
+```
+
+未设置生成文件时，154个需要模型产物的回放case会明确skip，只运行本地契约检查；不能将skip算作质量通过。回放使用session汇总，应运行完整文件且不使用xdist。报告仍按第65批gold判断旧题，旧正例即使返回`clarify`也计为漏召回。新增明确期望澄清的题另行评分。
+
+如需重新付费生成，从backend目录运行以下命令，`MIAOJI_EVAL_API_KEY`通过环境注入；使用新输出路径，不覆盖既有结果：
+
+```bash
+python -m core.tests.evaluations.run_structured_rerank --plan /absolute/repo/docs/research/evaluations/miaoji-qa-structured-plan-b66.json --output /tmp/new-structured-draws.json --model qwen3.8-flash --base-url https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+脚本核对计划与冻结数据相符、总输入不超过64个；逐条保存响应，交替方案调用顺序，失败不自动重试。使用严格JSON Schema、不设置max_tokens，本地继续检查ID、原文摘句及decision/selected一致性。报告核对完整请求hash、模型、提示、Schema、输入和原始响应；不把合法JSON等同于正确证据。最终回答与生产索引均未接入。
