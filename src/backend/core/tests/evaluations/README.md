@@ -83,3 +83,21 @@ python src/backend/core/tests/evaluations/run_answer_eval.py --before src/backen
 使用一个新的输出路径保留既有结果；每题每侧只生成一次，错误直接退出、不自动重试，已完成输出逐次保存。请求只发送context与question，不发送requirements。报告记录模板/哈希/用量/耗时，Qwen3系列关闭thinking；其他模型不设置该参数。该脚本不走应用用量登记，不能用于声称生产成本数据。
 
 成功请求不等于质量通过；检查完成原因，再逐claim核查引用。Codex复核只写`assistant_review`，`human_review`留待独立人工。第61批报告保留了日期表达缺口，没有把6题小样本当成完整问答验收。
+
+## 第63批：空结果关键词改写离线实验
+
+生产代码不变。新增`meeting_qa_expansion_cases.json`的14题，与原31题独立计分。先不设置`MEETING_QA_EXPANSIONS`运行`test_query_expansion.py`，以`MEETING_QA_EXPANSION_OUTPUT`指定目录，导出问题计划和基线。随后显式调用外部模型（产生费用）生成固定产物：
+
+```bash
+python src/backend/core/tests/evaluations/run_query_expansion.py --plan /tmp/b63/plan.json --output /tmp/rewrites.json --model qwen3.8-flash --base-url https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+通过环境变量提供`MIAOJI_EVAL_API_KEY`，不提交凭据。计划只允许id/question；原始记录、gold和答案要求不会发给模型。输出文件已存在则拒绝覆写；每case一次，不重试挑结果。最终回答模型不调用。
+
+使用已提交产物重放时无需模型凭据或网络。从backend目录执行（先按本文件开头配置测试数据库，路径使用绝对值）：
+
+```bash
+MEETING_QA_EXPANSIONS=/absolute/repo/docs/research/evaluations/miaoji-qa-expansion-generations-b63.json MEETING_QA_EXPANSION_OUTPUT=/tmp/replay python -m pytest core/tests/evaluations/test_query_expansion.py --no-cov
+```
+
+对输出的每套`baseline/candidate`使用既有比较器。新题库可召回而非空态的题只有8道，不能与旧25道合并分母；pytest通过只表示评测与边界控制运行通过。原题库基线还应与第61批逐题比较。六项人工指定关键词的权限/修订控制不计入模型改写成绩。详情与未推广原因见第63批文档。

@@ -1,0 +1,375 @@
+{
+  "dataset": "miaoji-query-expansion-controls-v1",
+  "data_kind": "synthetic",
+  "cases": [
+    {
+      "id": "cost_paraphrase",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "这次得掏多少银子？",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "预算批准为18万元。"
+          ],
+          "access": "owner"
+        }
+      ],
+      "evidence": [
+        {
+          "record": "a",
+          "span": "预算批准为18万元。"
+        }
+      ],
+      "expect_empty": false,
+      "answer_requirements": [
+        "只引用当前可见且直接相关的证据，不从术语相似推断事实。"
+      ]
+    },
+    {
+      "id": "release_bilingual",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "When is the product launch?",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "产品上线日期定为11月2日。"
+          ],
+          "access": "owner"
+        }
+      ],
+      "evidence": [
+        {
+          "record": "a",
+          "span": "产品上线日期定为11月2日。"
+        }
+      ],
+      "expect_empty": false,
+      "answer_requirements": [
+        "只引用当前可见且直接相关的证据，不从术语相似推断事实。"
+      ]
+    },
+    {
+      "id": "revert_bilingual",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "发布失败后怎么回退？",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "Deployment rollback uses the previous stable image."
+          ],
+          "access": "owner"
+        }
+      ],
+      "evidence": [
+        {
+          "record": "a",
+          "span": "Deployment rollback uses the previous stable image."
+        }
+      ],
+      "expect_empty": false,
+      "answer_requirements": [
+        "只引用当前可见且直接相关的证据，不从术语相似推断事实。"
+      ]
+    },
+    {
+      "id": "retention_paraphrase",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "资料多久会被清掉？",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "数据保留期为30天。"
+          ],
+          "access": "owner"
+        }
+      ],
+      "evidence": [
+        {
+          "record": "a",
+          "span": "数据保留期为30天。"
+        }
+      ],
+      "expect_empty": false,
+      "answer_requirements": [
+        "只引用当前可见且直接相关的证据，不从术语相似推断事实。"
+      ]
+    },
+    {
+      "id": "ownership_paraphrase",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "这项活儿由谁牵头？",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "任务负责人为赵明。"
+          ],
+          "access": "owner"
+        }
+      ],
+      "evidence": [
+        {
+          "record": "a",
+          "span": "任务负责人为赵明。"
+        }
+      ],
+      "expect_empty": false,
+      "answer_requirements": [
+        "只引用当前可见且直接相关的证据，不从术语相似推断事实。"
+      ]
+    },
+    {
+      "id": "delay_paraphrase",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "交付是不是往后挪了？",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "交付延期至12月8日。"
+          ],
+          "access": "owner"
+        }
+      ],
+      "evidence": [
+        {
+          "record": "a",
+          "span": "交付延期至12月8日。"
+        }
+      ],
+      "expect_empty": false,
+      "answer_requirements": [
+        "只引用当前可见且直接相关的证据，不从术语相似推断事实。"
+      ]
+    },
+    {
+      "id": "private_translation",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "deployment rollback",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "回滚使用上一个稳定镜像。"
+          ],
+          "access": "private"
+        }
+      ],
+      "evidence": [],
+      "expect_empty": true,
+      "answer_requirements": [
+        "只引用当前可见且直接相关的证据，不从术语相似推断事实。"
+      ],
+      "forbidden_records": [
+        "a"
+      ]
+    },
+    {
+      "id": "revoked_translation",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "deployment rollback",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "回滚使用上一个稳定镜像。"
+          ],
+          "access": "revoked"
+        }
+      ],
+      "evidence": [],
+      "expect_empty": true,
+      "answer_requirements": [
+        "只引用当前可见且直接相关的证据，不从术语相似推断事实。"
+      ],
+      "forbidden_records": [
+        "a"
+      ]
+    },
+    {
+      "id": "trashed_translation",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "deployment rollback",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "回滚使用上一个稳定镜像。"
+          ],
+          "access": "owner",
+          "trashed": true
+        }
+      ],
+      "evidence": [],
+      "expect_empty": true,
+      "answer_requirements": [
+        "只引用当前可见且直接相关的证据，不从术语相似推断事实。"
+      ],
+      "forbidden_records": [
+        "a"
+      ]
+    },
+    {
+      "id": "dated_translation",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "deployment rollback",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "回滚使用上一个稳定镜像。"
+          ],
+          "access": "owner"
+        }
+      ],
+      "evidence": [],
+      "expect_empty": true,
+      "answer_requirements": [
+        "只引用当前可见且直接相关的证据，不从术语相似推断事实。"
+      ],
+      "date_from": "2099-01-01",
+      "forbidden_records": [
+        "a"
+      ]
+    },
+    {
+      "id": "unknown_entity",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "ZXQ997计划花多少银子？",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "其他项目预算批准18万元。"
+          ],
+          "access": "owner"
+        }
+      ],
+      "evidence": [],
+      "expect_empty": true,
+      "answer_requirements": [
+        "只引用当前可见且直接相关的证据，不从术语相似推断事实。"
+      ]
+    },
+    {
+      "id": "unrelated_usage",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "这个包怎么退回去？",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "数据库回滚使用上一个稳定镜像。"
+          ],
+          "access": "owner"
+        }
+      ],
+      "evidence": [],
+      "expect_empty": true,
+      "answer_requirements": [
+        "只引用当前可见且直接相关的证据，不从术语相似推断事实。"
+      ]
+    },
+    {
+      "id": "corrected_translation",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "deployment rollback",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "回滚使用旧镜像。"
+          ],
+          "corrections": {
+            "0": "回滚使用经过验证的稳定镜像。"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "record": "a",
+          "span": "回滚使用经过验证的稳定镜像。"
+        }
+      ],
+      "forbidden_spans": [
+        "回滚使用旧镜像。"
+      ],
+      "answer_requirements": [
+        "只返回当前有效修订，不返回旧镜像结论。"
+      ]
+    },
+    {
+      "id": "reviewed_translation",
+      "category": "semantic_control",
+      "split": "validation",
+      "question": "deployment rollback",
+      "records": [
+        {
+          "id": "a",
+          "title": "项目讨论",
+          "date": "2026-09-01",
+          "texts": [
+            "开场白。"
+          ],
+          "summary": "回滚使用旧镜像。",
+          "review": "回滚使用经过验证的稳定镜像。"
+        }
+      ],
+      "evidence": [
+        {
+          "record": "a",
+          "span": "回滚使用经过验证的稳定镜像。"
+        }
+      ],
+      "forbidden_spans": [
+        "回滚使用旧镜像。"
+      ],
+      "answer_requirements": [
+        "只返回当前有效修订，不返回旧镜像结论。"
+      ]
+    }
+  ]
+}

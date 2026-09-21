@@ -1,0 +1,62 @@
+[
+  {
+    "id": "meeting_qa_cases/cross_language",
+    "question": "rollback"
+  },
+  {
+    "id": "meeting_qa_cases/natural_synonym",
+    "question": "上次项目经费最终批了多少？"
+  },
+  {
+    "id": "meeting_qa_expansion_cases/cost_paraphrase",
+    "question": "这次得掏多少银子？"
+  },
+  {
+    "id": "meeting_qa_expansion_cases/release_bilingual",
+    "question": "When is the product launch?"
+  },
+  {
+    "id": "meeting_qa_expansion_cases/revert_bilingual",
+    "question": "发布失败后怎么回退？"
+  },
+  {
+    "id": "meeting_qa_expansion_cases/retention_paraphrase",
+    "question": "资料多久会被清掉？"
+  },
+  {
+    "id": "meeting_qa_expansion_cases/ownership_paraphrase",
+    "question": "这项活儿由谁牵头？"
+  },
+  {
+    "id": "meeting_qa_expansion_cases/private_translation",
+    "question": "deployment rollback"
+  },
+  {
+    "id": "meeting_qa_expansion_cases/revoked_translation",
+    "question": "deployment rollback"
+  },
+  {
+    "id": "meeting_qa_expansion_cases/trashed_translation",
+    "question": "deployment rollback"
+  },
+  {
+    "id": "meeting_qa_expansion_cases/dated_translation",
+    "question": "deployment rollback"
+  },
+  {
+    "id": "meeting_qa_expansion_cases/unknown_entity",
+    "question": "ZXQ997计划花多少银子？"
+  },
+  {
+    "id": "meeting_qa_expansion_cases/unrelated_usage",
+    "question": "这个包怎么退回去？"
+  },
+  {
+    "id": "meeting_qa_expansion_cases/corrected_translation",
+    "question": "deployment rollback"
+  },
+  {
+    "id": "meeting_qa_expansion_cases/reviewed_translation",
+    "question": "deployment rollback"
+  }
+]
