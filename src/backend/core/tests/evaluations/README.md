@@ -185,3 +185,21 @@ python -m core.tests.evaluations.run_dedicated_rerank --plan /absolute/repo/docs
 ```
 
 脚本固定官方DashScope北京兼容排序端点与模型，不会遇错改用其他模型；逐次保存实际索引/分数/用量。失败的HTTP或格式响应保留失败标记，不自动重试。完整索引映射、非有限分数、模型身份和用量均验证。原始排名与最终受配额限制的问答上下文分别保留。无生产运行集成。
+
+## 第68批：人工意图标注准入
+
+先阅读`docs/research/evaluations/miaoji-qa-intent-review-b68.md`。八题尚未取得人工结论，模型/评测作者不能自行填写并宣称独立复核。用户已确认多项目指代不清时先追问，这只是一条产品规则。
+
+从backend目录生成新的JSON模板及同名Markdown（不联网、不读取生产、已有文件拒绝覆盖）：
+
+```bash
+python -m core.tests.evaluations.review_meeting_qa --create /tmp/intent-review.json
+```
+
+填写`reviewer`、ISO日期`reviewed_at`，以及每题`review`：decision可用`answer/clarify/no_evidence/needs_context`；answer要求`evidence=[{"candidate_id":"A","quote":"逐字原文"}]`；clarify要求`clarification`为具体追问，其他决策该字段为null；所有已填结论要求rationale。保留问题、原文、编号和源hash，不直接修改历史题库gold。
+
+```bash
+python -m core.tests.evaluations.review_meeting_qa --review /tmp/intent-review.json
+```
+
+未填完整或仍需上下文时退出2、列出pending/needs_context；格式或源内容错误会拒绝；全部结构完整且无待定才退出0并标记可评分。0不等于人工身份认证或可上线。当前已提交模板应返回2，不能把它当作测试失败后自动补答案。阅读版按文本hash稳定重排候选且隐藏模型输出，历史结果已公开，仍不是严格盲测。

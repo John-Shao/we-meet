@@ -34,3 +34,26 @@ Helm 389 的历史静音任务 `9bdbbbe5-6c7d-4985-b514-5e0ada5f0ef0` 只保存�
 发布 backend/frontend/agents 并更新 Android 后，用新建独立静音录音显式转写一次：API 应为 incomplete、no_speech_detected、0 原文，双端显示无语音提示；普通语音仍成功，已有原文在失败重试后保留。使用新 job UUID 执行 `python3 deploy/aliyun/check_capture_transcription.py --job <UUID> --worker-logs`。
 
 本次只处理实际观测到的顶层 FAILED 代码。供应商 SUCCEEDED 且显式空 transcripts 的原有语义、实时 ASR、上传转写路径没有因此宣称完成无语音统一分类。R9 的真实人声/交叠/真实噪声标注、纪要与待办事实质量、完整持久诊断历史仍未完成；不将合成样本视为真实会议准确率。
+
+## 固定版本交付
+
+we-meet 实现 `a89178bab`、紧凑布局补充 `ae4db984b` 已推送；Android `6f372546` 已推送。149 项本地相关测试通过；生产 agents 镜像内另复跑 54 项运行链路测试通过（与本地重复，不累加为独立用例）。构建使用固定提交的 Git archive，隔离其他窗口的未提交改动。
+
+Android debug APK：`we-meet-android-6f372546-no-speech.apk`，本机保存在 `D:/workspace/jusi-meet/.tmp/`；SHA-256 `f5083ee4b6b92d140b765c4355fa4cabb68e5d1fbd82038ff2444df82a891881`。正式分发和安装后的画面验收仍待完成。
+
+以下 production 镜像已构建并推送到 `jusi-cn-guangzhou.cr.volces.com/we-meet/`，统一 tag **ae4db984b**：
+
+| 镜像 | Registry digest |
+|---|---|
+| meet-backend | `sha256:9514e9dd657612a666f4fc54a5eb024235060f0724e3f68b13ed340dc8780496` |
+| meet-frontend | `sha256:73596fdf611fddd76fdaa6785e127e68ccc53714cd08d7d9e6984fb0d90ab404` |
+| meet-agents | `sha256:bdd78b59dbabf9e282cf76d6e02bcfd0b9d47b809307b268773f79f51c1e4a14` |
+
+生产主机按顺序执行；无新迁移、无开关更改，无需更新 summary：
+
+```bash
+bash deploy/aliyun/release-meet.sh --tag ae4db984b backend frontend
+bash deploy/aliyun/release-meet.sh --tag ae4db984b agents
+```
+
+此处是镜像交付状态，尚未收到本版本的生产部署回执。下一项为新静音任务、正常语音对照和 App 提示验收。后续文档提交不需要重新构建镜像，应继续使用上述固定 tag。
