@@ -1,0 +1,1396 @@
+{
+  "decision": "ranking_only_not_ready_to_answer",
+  "production_changes": false,
+  "tests_passed": 281,
+  "calls": {
+    "count": 36,
+    "total_tokens": 2702,
+    "latency_median": 1.6524999999999999,
+    "latency_max": 2.704
+  },
+  "corpora": {
+    "meeting_qa_cases": {
+      "overall": {
+        "rank_all": {
+          "cases": 31,
+          "record_recall": {
+            "value": 0.92,
+            "denominator": 25
+          },
+          "evidence_recall": {
+            "value": 0.92,
+            "denominator": 25
+          },
+          "evidence_precision": {
+            "value": 0.8346666666666667,
+            "denominator": 25
+          },
+          "all_evidence": {
+            "value": 0.92,
+            "denominator": 25
+          },
+          "reciprocal_rank": {
+            "value": 0.9,
+            "denominator": 25
+          },
+          "empty_expectation_met": {
+            "value": 1.0,
+            "denominator": 5
+          },
+          "forbidden_content_cases": 0,
+          "answer_semantics": "not_evaluated"
+        },
+        "top1": {
+          "cases": 31,
+          "record_recall": {
+            "value": 0.92,
+            "denominator": 25
+          },
+          "evidence_recall": {
+            "value": 0.92,
+            "denominator": 25
+          },
+          "evidence_precision": {
+            "value": 0.8346666666666667,
+            "denominator": 25
+          },
+          "all_evidence": {
+            "value": 0.92,
+            "denominator": 25
+          },
+          "reciprocal_rank": {
+            "value": 0.9,
+            "denominator": 25
+          },
+          "empty_expectation_met": {
+            "value": 1.0,
+            "denominator": 5
+          },
+          "forbidden_content_cases": 0,
+          "answer_semantics": "not_evaluated"
+        },
+        "top2": {
+          "cases": 31,
+          "record_recall": {
+            "value": 0.92,
+            "denominator": 25
+          },
+          "evidence_recall": {
+            "value": 0.92,
+            "denominator": 25
+          },
+          "evidence_precision": {
+            "value": 0.8346666666666667,
+            "denominator": 25
+          },
+          "all_evidence": {
+            "value": 0.92,
+            "denominator": 25
+          },
+          "reciprocal_rank": {
+            "value": 0.9,
+            "denominator": 25
+          },
+          "empty_expectation_met": {
+            "value": 1.0,
+            "denominator": 5
+          },
+          "forbidden_content_cases": 0,
+          "answer_semantics": "not_evaluated"
+        }
+      },
+      "comparisons": {
+        "rank_all": {
+          "baseline": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [
+              "cross_language: evidence_recall",
+              "cross_language: record_recall",
+              "cross_language: evidence_precision",
+              "natural_synonym: evidence_recall",
+              "natural_synonym: record_recall",
+              "natural_synonym: evidence_precision"
+            ],
+            "answer_semantics": "not_evaluated"
+          },
+          "dense_035": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          },
+          "schema_only": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          }
+        },
+        "top1": {
+          "baseline": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [
+              "cross_language: evidence_recall",
+              "cross_language: record_recall",
+              "cross_language: evidence_precision",
+              "natural_synonym: evidence_recall",
+              "natural_synonym: record_recall",
+              "natural_synonym: evidence_precision"
+            ],
+            "answer_semantics": "not_evaluated"
+          },
+          "dense_035": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          },
+          "schema_only": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          }
+        },
+        "top2": {
+          "baseline": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [
+              "cross_language: evidence_recall",
+              "cross_language: record_recall",
+              "cross_language: evidence_precision",
+              "natural_synonym: evidence_recall",
+              "natural_synonym: record_recall",
+              "natural_synonym: evidence_precision"
+            ],
+            "answer_semantics": "not_evaluated"
+          },
+          "dense_035": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          },
+          "schema_only": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          }
+        }
+      }
+    },
+    "meeting_qa_expansion_cases": {
+      "overall": {
+        "rank_all": {
+          "cases": 14,
+          "record_recall": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "evidence_recall": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "evidence_precision": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "all_evidence": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "reciprocal_rank": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "empty_expectation_met": {
+            "value": 0.8333333333333334,
+            "denominator": 6
+          },
+          "forbidden_content_cases": 0,
+          "answer_semantics": "not_evaluated"
+        },
+        "top1": {
+          "cases": 14,
+          "record_recall": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "evidence_recall": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "evidence_precision": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "all_evidence": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "reciprocal_rank": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "empty_expectation_met": {
+            "value": 0.8333333333333334,
+            "denominator": 6
+          },
+          "forbidden_content_cases": 0,
+          "answer_semantics": "not_evaluated"
+        },
+        "top2": {
+          "cases": 14,
+          "record_recall": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "evidence_recall": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "evidence_precision": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "all_evidence": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "reciprocal_rank": {
+            "value": 1.0,
+            "denominator": 8
+          },
+          "empty_expectation_met": {
+            "value": 0.8333333333333334,
+            "denominator": 6
+          },
+          "forbidden_content_cases": 0,
+          "answer_semantics": "not_evaluated"
+        }
+      },
+      "comparisons": {
+        "rank_all": {
+          "baseline": {
+            "passed": false,
+            "regressions": [
+              "unrelated_usage: access/version/empty boundary"
+            ],
+            "improvements": [
+              "cost_paraphrase: evidence_recall",
+              "cost_paraphrase: record_recall",
+              "cost_paraphrase: evidence_precision",
+              "release_bilingual: evidence_recall",
+              "release_bilingual: record_recall",
+              "release_bilingual: evidence_precision",
+              "revert_bilingual: evidence_recall",
+              "revert_bilingual: record_recall",
+              "revert_bilingual: evidence_precision",
+              "retention_paraphrase: evidence_recall",
+              "retention_paraphrase: record_recall",
+              "retention_paraphrase: evidence_precision",
+              "ownership_paraphrase: evidence_recall",
+              "ownership_paraphrase: record_recall",
+              "ownership_paraphrase: evidence_precision",
+              "corrected_translation: evidence_recall",
+              "corrected_translation: record_recall",
+              "corrected_translation: evidence_precision",
+              "reviewed_translation: evidence_recall",
+              "reviewed_translation: record_recall",
+              "reviewed_translation: evidence_precision"
+            ],
+            "answer_semantics": "not_evaluated"
+          },
+          "dense_035": {
+            "passed": false,
+            "regressions": [
+              "unrelated_usage: access/version/empty boundary"
+            ],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          },
+          "schema_only": {
+            "passed": false,
+            "regressions": [
+              "unrelated_usage: access/version/empty boundary"
+            ],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          }
+        },
+        "top1": {
+          "baseline": {
+            "passed": false,
+            "regressions": [
+              "unrelated_usage: access/version/empty boundary"
+            ],
+            "improvements": [
+              "cost_paraphrase: evidence_recall",
+              "cost_paraphrase: record_recall",
+              "cost_paraphrase: evidence_precision",
+              "release_bilingual: evidence_recall",
+              "release_bilingual: record_recall",
+              "release_bilingual: evidence_precision",
+              "revert_bilingual: evidence_recall",
+              "revert_bilingual: record_recall",
+              "revert_bilingual: evidence_precision",
+              "retention_paraphrase: evidence_recall",
+              "retention_paraphrase: record_recall",
+              "retention_paraphrase: evidence_precision",
+              "ownership_paraphrase: evidence_recall",
+              "ownership_paraphrase: record_recall",
+              "ownership_paraphrase: evidence_precision",
+              "corrected_translation: evidence_recall",
+              "corrected_translation: record_recall",
+              "corrected_translation: evidence_precision",
+              "reviewed_translation: evidence_recall",
+              "reviewed_translation: record_recall",
+              "reviewed_translation: evidence_precision"
+            ],
+            "answer_semantics": "not_evaluated"
+          },
+          "dense_035": {
+            "passed": false,
+            "regressions": [
+              "unrelated_usage: access/version/empty boundary"
+            ],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          },
+          "schema_only": {
+            "passed": false,
+            "regressions": [
+              "unrelated_usage: access/version/empty boundary"
+            ],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          }
+        },
+        "top2": {
+          "baseline": {
+            "passed": false,
+            "regressions": [
+              "unrelated_usage: access/version/empty boundary"
+            ],
+            "improvements": [
+              "cost_paraphrase: evidence_recall",
+              "cost_paraphrase: record_recall",
+              "cost_paraphrase: evidence_precision",
+              "release_bilingual: evidence_recall",
+              "release_bilingual: record_recall",
+              "release_bilingual: evidence_precision",
+              "revert_bilingual: evidence_recall",
+              "revert_bilingual: record_recall",
+              "revert_bilingual: evidence_precision",
+              "retention_paraphrase: evidence_recall",
+              "retention_paraphrase: record_recall",
+              "retention_paraphrase: evidence_precision",
+              "ownership_paraphrase: evidence_recall",
+              "ownership_paraphrase: record_recall",
+              "ownership_paraphrase: evidence_precision",
+              "corrected_translation: evidence_recall",
+              "corrected_translation: record_recall",
+              "corrected_translation: evidence_precision",
+              "reviewed_translation: evidence_recall",
+              "reviewed_translation: record_recall",
+              "reviewed_translation: evidence_precision"
+            ],
+            "answer_semantics": "not_evaluated"
+          },
+          "dense_035": {
+            "passed": false,
+            "regressions": [
+              "unrelated_usage: access/version/empty boundary"
+            ],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          },
+          "schema_only": {
+            "passed": false,
+            "regressions": [
+              "unrelated_usage: access/version/empty boundary"
+            ],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          }
+        }
+      }
+    },
+    "meeting_qa_semantic_cases": {
+      "overall": {
+        "rank_all": {
+          "cases": 12,
+          "record_recall": {
+            "value": 1.0,
+            "denominator": 6
+          },
+          "evidence_recall": {
+            "value": 1.0,
+            "denominator": 6
+          },
+          "evidence_precision": {
+            "value": 0.2916666666666667,
+            "denominator": 6
+          },
+          "all_evidence": {
+            "value": 1.0,
+            "denominator": 6
+          },
+          "reciprocal_rank": {
+            "value": 0.8055555555555555,
+            "denominator": 6
+          },
+          "empty_expectation_met": {
+            "value": 1.0,
+            "denominator": 6
+          },
+          "forbidden_content_cases": 0,
+          "answer_semantics": "not_evaluated"
+        },
+        "top1": {
+          "cases": 12,
+          "record_recall": {
+            "value": 0.6666666666666666,
+            "denominator": 6
+          },
+          "evidence_recall": {
+            "value": 0.6666666666666666,
+            "denominator": 6
+          },
+          "evidence_precision": {
+            "value": 0.6666666666666666,
+            "denominator": 6
+          },
+          "all_evidence": {
+            "value": 0.6666666666666666,
+            "denominator": 6
+          },
+          "reciprocal_rank": {
+            "value": 0.6666666666666666,
+            "denominator": 6
+          },
+          "empty_expectation_met": {
+            "value": 1.0,
+            "denominator": 6
+          },
+          "forbidden_content_cases": 0,
+          "answer_semantics": "not_evaluated"
+        },
+        "top2": {
+          "cases": 12,
+          "record_recall": {
+            "value": 0.8333333333333334,
+            "denominator": 6
+          },
+          "evidence_recall": {
+            "value": 0.8333333333333334,
+            "denominator": 6
+          },
+          "evidence_precision": {
+            "value": 0.4166666666666667,
+            "denominator": 6
+          },
+          "all_evidence": {
+            "value": 0.8333333333333334,
+            "denominator": 6
+          },
+          "reciprocal_rank": {
+            "value": 0.75,
+            "denominator": 6
+          },
+          "empty_expectation_met": {
+            "value": 1.0,
+            "denominator": 6
+          },
+          "forbidden_content_cases": 0,
+          "answer_semantics": "not_evaluated"
+        }
+      },
+      "comparisons": {
+        "rank_all": {
+          "baseline": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [
+              "cost_with_noise: evidence_recall",
+              "cost_with_noise: record_recall",
+              "cost_with_noise: evidence_precision",
+              "release_with_noise: evidence_recall",
+              "release_with_noise: record_recall",
+              "release_with_noise: evidence_precision",
+              "rollback_with_noise: evidence_recall",
+              "rollback_with_noise: record_recall",
+              "rollback_with_noise: evidence_precision",
+              "retention_with_noise: evidence_recall",
+              "retention_with_noise: record_recall",
+              "retention_with_noise: evidence_precision",
+              "owner_with_noise: evidence_recall",
+              "owner_with_noise: record_recall",
+              "owner_with_noise: evidence_precision",
+              "delay_with_noise: evidence_recall",
+              "delay_with_noise: record_recall",
+              "delay_with_noise: evidence_precision"
+            ],
+            "answer_semantics": "not_evaluated"
+          },
+          "dense_035": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          },
+          "schema_only": {
+            "passed": false,
+            "regressions": [
+              "rollback_with_noise: evidence_precision",
+              "retention_with_noise: evidence_precision",
+              "owner_with_noise: evidence_precision",
+              "delay_with_noise: evidence_precision"
+            ],
+            "improvements": [
+              "cost_with_noise: evidence_recall",
+              "cost_with_noise: record_recall",
+              "cost_with_noise: evidence_precision",
+              "release_with_noise: evidence_recall",
+              "release_with_noise: record_recall",
+              "release_with_noise: evidence_precision"
+            ],
+            "answer_semantics": "not_evaluated"
+          }
+        },
+        "top1": {
+          "baseline": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [
+              "rollback_with_noise: evidence_recall",
+              "rollback_with_noise: record_recall",
+              "rollback_with_noise: evidence_precision",
+              "retention_with_noise: evidence_recall",
+              "retention_with_noise: record_recall",
+              "retention_with_noise: evidence_precision",
+              "owner_with_noise: evidence_recall",
+              "owner_with_noise: record_recall",
+              "owner_with_noise: evidence_precision",
+              "delay_with_noise: evidence_recall",
+              "delay_with_noise: record_recall",
+              "delay_with_noise: evidence_precision"
+            ],
+            "answer_semantics": "not_evaluated"
+          },
+          "dense_035": {
+            "passed": false,
+            "regressions": [
+              "cost_with_noise: evidence_recall",
+              "cost_with_noise: record_recall",
+              "cost_with_noise: evidence_precision",
+              "release_with_noise: evidence_recall",
+              "release_with_noise: record_recall",
+              "release_with_noise: evidence_precision"
+            ],
+            "improvements": [
+              "rollback_with_noise: evidence_precision",
+              "retention_with_noise: evidence_precision",
+              "owner_with_noise: evidence_precision",
+              "delay_with_noise: evidence_precision"
+            ],
+            "answer_semantics": "not_evaluated"
+          },
+          "schema_only": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [],
+            "answer_semantics": "not_evaluated"
+          }
+        },
+        "top2": {
+          "baseline": {
+            "passed": true,
+            "regressions": [],
+            "improvements": [
+              "release_with_noise: evidence_recall",
+              "release_with_noise: record_recall",
+              "release_with_noise: evidence_precision",
+              "rollback_with_noise: evidence_recall",
+              "rollback_with_noise: record_recall",
+              "rollback_with_noise: evidence_precision",
+              "retention_with_noise: evidence_recall",
+              "retention_with_noise: record_recall",
+              "retention_with_noise: evidence_precision",
+              "owner_with_noise: evidence_recall",
+              "owner_with_noise: record_recall",
+              "owner_with_noise: evidence_precision",
+              "delay_with_noise: evidence_recall",
+              "delay_with_noise: record_recall",
+              "delay_with_noise: evidence_precision"
+            ],
+            "answer_semantics": "not_evaluated"
+          },
+          "dense_035": {
+            "passed": false,
+            "regressions": [
+              "cost_with_noise: evidence_recall",
+              "cost_with_noise: record_recall",
+              "cost_with_noise: evidence_precision"
+            ],
+            "improvements": [
+              "release_with_noise: evidence_precision",
+              "retention_with_noise: evidence_precision",
+              "owner_with_noise: evidence_precision",
+              "delay_with_noise: evidence_precision"
+            ],
+            "answer_semantics": "not_evaluated"
+          },
+          "schema_only": {
+            "passed": false,
+            "regressions": [
+              "rollback_with_noise: evidence_precision",
+              "retention_with_noise: evidence_precision",
+              "owner_with_noise: evidence_precision",
+              "delay_with_noise: evidence_precision"
+            ],
+            "improvements": [
+              "release_with_noise: evidence_recall",
+              "release_with_noise: record_recall",
+              "release_with_noise: evidence_precision"
+            ],
+            "answer_semantics": "not_evaluated"
+          }
+        }
+      }
+    }
+  },
+  "controls": {
+    "rank_all": {
+      "controls/": {
+        "cases": 6,
+        "positive_cases": 5,
+        "all_evidence": 5,
+        "exact_selection": 2,
+        "no_evidence_or_clarify_supported": false,
+        "selection_mismatches": [
+          {
+            "id": "controls/chinese_entity_missing",
+            "policy": "rank_all",
+            "expected": [],
+            "actual": [
+              "1"
+            ],
+            "first_relevant_rank": null,
+            "required_decision": "no_evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": null
+          },
+          {
+            "id": "controls/partial_known",
+            "policy": "rank_all",
+            "expected": [
+              "1",
+              "2"
+            ],
+            "actual": [
+              "1",
+              "3",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "controls/embedded_command",
+            "policy": "rank_all",
+            "expected": [
+              "2"
+            ],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "controls/unknown_cause",
+            "policy": "rank_all",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          }
+        ]
+      },
+      "scenario_controls/": {
+        "cases": 14,
+        "positive_cases": 11,
+        "all_evidence": 11,
+        "exact_selection": 1,
+        "no_evidence_or_clarify_supported": false,
+        "selection_mismatches": [
+          {
+            "id": "scenario_controls/software_release",
+            "policy": "rank_all",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/cargo_arrival",
+            "policy": "rank_all",
+            "expected": [
+              "2"
+            ],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/delivery_owner",
+            "policy": "rank_all",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/invoice_contact",
+            "policy": "rank_all",
+            "expected": [
+              "2"
+            ],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/ambiguous_budget",
+            "policy": "rank_all",
+            "expected": [],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": null,
+            "required_decision": "clarify",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": null
+          },
+          {
+            "id": "scenario_controls/named_budget",
+            "policy": "rank_all",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/missing_budget",
+            "policy": "rank_all",
+            "expected": [],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": null,
+            "required_decision": "no_evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": null
+          },
+          {
+            "id": "scenario_controls/partial_unknown",
+            "policy": "rank_all",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/embedded_override",
+            "policy": "rank_all",
+            "expected": [
+              "2"
+            ],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/software_release_reversed",
+            "policy": "rank_all",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/delivery_owner_reversed",
+            "policy": "rank_all",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/ambiguous_budget_reversed",
+            "policy": "rank_all",
+            "expected": [],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": null,
+            "required_decision": "clarify",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": null
+          },
+          {
+            "id": "scenario_controls/named_budget_reversed",
+            "policy": "rank_all",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          }
+        ]
+      }
+    },
+    "top1": {
+      "controls/": {
+        "cases": 6,
+        "positive_cases": 5,
+        "all_evidence": 3,
+        "exact_selection": 3,
+        "no_evidence_or_clarify_supported": false,
+        "selection_mismatches": [
+          {
+            "id": "controls/chinese_entity_missing",
+            "policy": "top1",
+            "expected": [],
+            "actual": [
+              "1"
+            ],
+            "first_relevant_rank": null,
+            "required_decision": "no_evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": null
+          },
+          {
+            "id": "controls/partial_known",
+            "policy": "top1",
+            "expected": [
+              "1",
+              "2"
+            ],
+            "actual": [
+              "1"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": false
+          },
+          {
+            "id": "controls/conflicting_sources",
+            "policy": "top1",
+            "expected": [
+              "1",
+              "2",
+              "3"
+            ],
+            "actual": [
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": false
+          }
+        ]
+      },
+      "scenario_controls/": {
+        "cases": 14,
+        "positive_cases": 11,
+        "all_evidence": 10,
+        "exact_selection": 10,
+        "no_evidence_or_clarify_supported": false,
+        "selection_mismatches": [
+          {
+            "id": "scenario_controls/ambiguous_budget",
+            "policy": "top1",
+            "expected": [],
+            "actual": [
+              "2"
+            ],
+            "first_relevant_rank": null,
+            "required_decision": "clarify",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": null
+          },
+          {
+            "id": "scenario_controls/missing_budget",
+            "policy": "top1",
+            "expected": [],
+            "actual": [
+              "2"
+            ],
+            "first_relevant_rank": null,
+            "required_decision": "no_evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": null
+          },
+          {
+            "id": "scenario_controls/conflict_not_ambiguity",
+            "policy": "top1",
+            "expected": [
+              "1",
+              "2",
+              "3"
+            ],
+            "actual": [
+              "3"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": false
+          },
+          {
+            "id": "scenario_controls/ambiguous_budget_reversed",
+            "policy": "top1",
+            "expected": [],
+            "actual": [
+              "2"
+            ],
+            "first_relevant_rank": null,
+            "required_decision": "clarify",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": null
+          }
+        ]
+      }
+    },
+    "top2": {
+      "controls/": {
+        "cases": 6,
+        "positive_cases": 5,
+        "all_evidence": 3,
+        "exact_selection": 1,
+        "no_evidence_or_clarify_supported": false,
+        "selection_mismatches": [
+          {
+            "id": "controls/chinese_entity_missing",
+            "policy": "top2",
+            "expected": [],
+            "actual": [
+              "1"
+            ],
+            "first_relevant_rank": null,
+            "required_decision": "no_evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": null
+          },
+          {
+            "id": "controls/partial_known",
+            "policy": "top2",
+            "expected": [
+              "1",
+              "2"
+            ],
+            "actual": [
+              "1",
+              "3"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": false
+          },
+          {
+            "id": "controls/conflicting_sources",
+            "policy": "top2",
+            "expected": [
+              "1",
+              "2",
+              "3"
+            ],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": false
+          },
+          {
+            "id": "controls/embedded_command",
+            "policy": "top2",
+            "expected": [
+              "2"
+            ],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "controls/unknown_cause",
+            "policy": "top2",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          }
+        ]
+      },
+      "scenario_controls/": {
+        "cases": 14,
+        "positive_cases": 11,
+        "all_evidence": 10,
+        "exact_selection": 0,
+        "no_evidence_or_clarify_supported": false,
+        "selection_mismatches": [
+          {
+            "id": "scenario_controls/software_release",
+            "policy": "top2",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/cargo_arrival",
+            "policy": "top2",
+            "expected": [
+              "2"
+            ],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/delivery_owner",
+            "policy": "top2",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/invoice_contact",
+            "policy": "top2",
+            "expected": [
+              "2"
+            ],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/ambiguous_budget",
+            "policy": "top2",
+            "expected": [],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": null,
+            "required_decision": "clarify",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": null
+          },
+          {
+            "id": "scenario_controls/named_budget",
+            "policy": "top2",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/missing_budget",
+            "policy": "top2",
+            "expected": [],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": null,
+            "required_decision": "no_evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": null
+          },
+          {
+            "id": "scenario_controls/conflict_not_ambiguity",
+            "policy": "top2",
+            "expected": [
+              "1",
+              "2",
+              "3"
+            ],
+            "actual": [
+              "3",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": false
+          },
+          {
+            "id": "scenario_controls/partial_unknown",
+            "policy": "top2",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/embedded_override",
+            "policy": "top2",
+            "expected": [
+              "2"
+            ],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/software_release_reversed",
+            "policy": "top2",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/delivery_owner_reversed",
+            "policy": "top2",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          },
+          {
+            "id": "scenario_controls/ambiguous_budget_reversed",
+            "policy": "top2",
+            "expected": [],
+            "actual": [
+              "2",
+              "1"
+            ],
+            "first_relevant_rank": null,
+            "required_decision": "clarify",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": null
+          },
+          {
+            "id": "scenario_controls/named_budget_reversed",
+            "policy": "top2",
+            "expected": [
+              "1"
+            ],
+            "actual": [
+              "1",
+              "2"
+            ],
+            "first_relevant_rank": 1,
+            "required_decision": "evidence",
+            "decision_capability": "not_implemented",
+            "selection_exact": false,
+            "all_evidence": true
+          }
+        ]
+      }
+    }
+  }
+}

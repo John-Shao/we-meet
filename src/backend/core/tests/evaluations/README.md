@@ -165,3 +165,23 @@ python -m core.tests.evaluations.run_structured_rerank --plan /absolute/repo/doc
 ```
 
 脚本核对计划与冻结数据相符、总输入不超过64个；逐条保存响应，交替方案调用顺序，失败不自动重试。使用严格JSON Schema、不设置max_tokens，本地继续检查ID、原文摘句及decision/selected一致性。报告核对完整请求hash、模型、提示、Schema、输入和原始响应；不把合法JSON等同于正确证据。最终回答与生产索引均未接入。
+
+## 第67批：专用排序模型与Top N对照
+
+`dedicated_rerank.py`校验`qwen3-rerank`完整候选排序，`run_dedicated_rerank.py`只接受相同冻结合成计划。使用第66批36个输入，每个请求一次，再离线比较全量保留/Top 1/Top 2。分数按官方契约是请求内相对相关性，不添加跨请求绝对拒答阈值，不自动生成澄清决策。
+
+从backend目录且配置测试数据库后离线重放：
+
+```bash
+MEETING_QA_DEDICATED_DRAWS=/absolute/repo/docs/research/evaluations/miaoji-qa-dedicated-generations-b67.json MEETING_QA_DEDICATED_OUTPUT=/tmp/dedicated-report.json python -m pytest core/tests/evaluations/test_dedicated_rerank.py core/tests/evaluations/test_dedicated_rerank_runner.py --no-cov
+```
+
+运行完整文件、不使用xdist。未提供生成产物时，231个模型回放case明确skip，本地契约测试仍运行。直接控制仅报排名/选择是否覆盖，不伪造模型没有输出的evidence/clarify分类。
+
+重新付费调用（`MIAOJI_EVAL_API_KEY`由环境注入，使用新输出文件）：
+
+```bash
+python -m core.tests.evaluations.run_dedicated_rerank --plan /absolute/repo/docs/research/evaluations/miaoji-qa-structured-plan-b66.json --output /tmp/new-dedicated-draws.json
+```
+
+脚本固定官方DashScope北京兼容排序端点与模型，不会遇错改用其他模型；逐次保存实际索引/分数/用量。失败的HTTP或格式响应保留失败标记，不自动重试。完整索引映射、非有限分数、模型身份和用量均验证。原始排名与最终受配额限制的问答上下文分别保留。无生产运行集成。
