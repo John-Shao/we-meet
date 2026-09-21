@@ -1,5 +1,9 @@
 # 妙记整改：目标环境验收清单
 
+## 第四十九批待启用发布
+
+[启用配置](miaoji-batch-49-purge-rollout.md)：用户已回传第 48 批生产预检 PASS，三进程 `0186`、镜像/实例、实际 worker/beat 与 API/worker 存储探针通过，既有删除意图数为 0。生产 values 已改为 True，启用/关闭两种 Helm 渲染均确认三进程一致；集群尚待发布。执行 `bash deploy/aliyun/release-meet.sh --tag d2c791e9d backend`，然后以 `--expect-enabled --storage-canary` 重跑预检。上传件实际等待窗口 3600 秒；启用后以新建可销毁记录验收，旧回归样本保留。
+
 ## 第四十八批存储核验与启用准备
 
 [存储与生产预检](miaoji-batch-48-purge-storage-preflight.md)：用户确认 Helm 382，backend `d2c791e9d`、frontend `62fb7904b`。生产回收站 `purge_available=false` 实测通过；实际 OSS 桶无版本控制、无 WORM 配置，两个随机媒体目录探针私有读取与真实删除检查通过并已清理。尚需在生产主机运行 `python3 deploy/aliyun/check_record_purge.py --expected-backend-tag d2c791e9d --storage-canary`，确认各 Pod、迁移及 live worker/beat。开关仍关闭；本批 13 项预检测试、拟启用三进程 Helm 渲染通过，没有永久删除应用记录。下方条目为历史批次状态。

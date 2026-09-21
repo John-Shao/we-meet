@@ -175,11 +175,11 @@ backend:
     CELERY_ENABLED: "True"
     # Meeting AI rollout: shared by API, celeryBackend and celeryBeat.
     MEETING_RECORDS_ENABLED: "True"
-    # Batch 41 verified the lifecycle columns and bd16ac487 backend/worker rollout.
-    # Reversible trash only; no automatic expiry or permanent deletion.
+    # Reversible trash; no age-based automatic expiry.
     MEETING_RECORD_TRASH_ENABLED: "True"
-    # Separate rollout after migration and all upload adopters/workers are updated.
-    MEETING_RECORD_PURGE_ENABLED: "False"
+    # Batch 49: production migration, all backend pods, worker/beat and storage
+    # canaries passed preflight on d2c791e9d. Only owner-confirmed requests run.
+    MEETING_RECORD_PURGE_ENABLED: "True"
     MEETING_TRANSCRIPT_DELIVERY_ENABLED: "True"
     MEETING_CAPTURE_PROTOCOL_ENABLED: "True"
     MEETING_CAPTURE_AUDIO_ENABLED: "True"
