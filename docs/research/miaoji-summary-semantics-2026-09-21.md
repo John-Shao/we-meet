@@ -45,3 +45,19 @@
 仅 backend 需要部署；不新增迁移、开关、权限或 API 字段。发布后对同一英文测试原文显式生成一次，验证占位字段为空、引用/历史版本保留。预算问题已在 Helm 391 定向通过；条件含混和原语言问题继续保留，不宣称“质量与故障诊断”整体完成。
 
 真人轮流发言/真实噪声/交叠样本与人工标注仍待用户提供；App 画面受此前深链自动审批 blocked by policy 阻塞，未绕过。ASR 原语言及术语候选、其他冻结噪声样本的纪要事实基线也尚未全部覆盖。
+
+
+## 固定版本交付
+
+实现与证据提交 `e03b50ee6` 已推送；从固定提交 Git archive 构建，未包含其他窗口未提交改动。backend production 镜像已构建并推送：
+
+- `jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:e03b50ee6`
+- Registry digest：`sha256:e8f45ed59d6a1eb2483f255595124afe6de1da27e8f325650e903de2af6fb451`
+
+让在途长文纪要完成后，在生产主机执行：
+
+```bash
+bash deploy/aliyun/release-meet.sh --tag e03b50ee6 backend
+```
+
+无需再发布 agents/frontend/summary，无新迁移。收到部署回执后验证新纪要占位字段，并复读 Helm 392 静音 job 的持久诊断，补充跨 backend 发布的历史保留证据。本轮停在该生产部署依赖；后续文档提交仍使用上述固定 tag。
