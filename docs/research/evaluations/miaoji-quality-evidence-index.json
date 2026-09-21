@@ -1,0 +1,655 @@
+{
+  "schema_version": 1,
+  "as_of_helm": 395,
+  "path_base": "repository root",
+  "purpose": "Evidence inventory, not an accuracy score. Each case retains failures and scope; reports hold semantic judgments. Offline reparse/history are not new paid runs.",
+  "suites": [
+    {
+      "output": "src/agents/evaluations/asr_quality/baseline-2026-09-21-results.json",
+      "output_sha256": "8e193a35249e4a422c654de26d7b47d8f362e2c8bd78a158839b6b75ee0cd6ed",
+      "review_report": "docs/research/miaoji-asr-quality-diagnostics-2026-09-21.md",
+      "scope": "local_adapter_real_provider_synthetic_audio",
+      "cases": [
+        {
+          "case": "two-speakers-clean",
+          "pointer": "/cases/0",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "two-speakers-noise10",
+          "pointer": "/cases/1",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "two-speakers-noise0",
+          "pointer": "/cases/2",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "terms-zh-clean",
+          "pointer": "/cases/3",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "terms-zh-noise10",
+          "pointer": "/cases/4",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "silence",
+          "pointer": "/cases/5",
+          "execution_status_not_quality_verdict": "failed"
+        }
+      ],
+      "input": "src/agents/evaluations/asr_quality/manifest.json",
+      "input_sha256": "944c84e0466b4ccd2d6a39e2baeda80d72272e39f90d4fc77910af9c6d8dacb8",
+      "deployment_metadata": {}
+    },
+    {
+      "output": "src/agents/evaluations/asr_quality/language-candidate-2026-09-21-results.json",
+      "output_sha256": "c9773361483341d09847470922ab87ecd6fdfdb7abe482cd16cf094cee8a0d51",
+      "review_report": "docs/research/miaoji-asr-language-candidates-2026-09-21.md",
+      "scope": "local_adapter_real_provider_synthetic_audio",
+      "cases": [
+        {
+          "case": "two-speakers-clean",
+          "pointer": "/cases/0",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "terms-zh-clean",
+          "pointer": "/cases/1",
+          "execution_status_not_quality_verdict": "succeeded"
+        }
+      ],
+      "input": "src/agents/evaluations/asr_quality/manifest.json",
+      "input_sha256": "944c84e0466b4ccd2d6a39e2baeda80d72272e39f90d4fc77910af9c6d8dacb8",
+      "deployment_metadata": {}
+    },
+    {
+      "output": "src/agents/evaluations/asr_quality/term-candidate-2026-09-21-results.json",
+      "output_sha256": "033b2fb3b8f2c5e22d84039418faa50a5a77f8a2a7a55c7ab8c4de5cd3ff6273",
+      "review_report": "docs/research/miaoji-asr-language-candidates-2026-09-21.md",
+      "scope": "local_adapter_real_provider_synthetic_audio",
+      "cases": [
+        {
+          "case": "terms-zh-clean",
+          "pointer": "/cases/0",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "terms-zh-noise10",
+          "pointer": "/cases/1",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "silence",
+          "pointer": "/cases/2",
+          "execution_status_not_quality_verdict": "failed"
+        }
+      ],
+      "input": "src/agents/evaluations/asr_quality/manifest.json",
+      "input_sha256": "944c84e0466b4ccd2d6a39e2baeda80d72272e39f90d4fc77910af9c6d8dacb8",
+      "deployment_metadata": {}
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-asr-production-389.json",
+      "output_sha256": "a6be4b7dad17a5230649c68c66187de3bbff2a917af4396d1190843c925843a3",
+      "review_report": "docs/research/miaoji-asr-no-speech-2026-09-21.md",
+      "scope": "production_api_synthetic_audio",
+      "cases": [
+        {
+          "case": "terms-zh-clean",
+          "pointer": "/cases/0",
+          "record_id": "2c1f5d35-3f0a-4ac2-a48f-42c69925f81e"
+        },
+        {
+          "case": "silence",
+          "pointer": "/cases/1",
+          "record_id": "551da1bb-e220-454a-ba86-bd6cf21006a6"
+        }
+      ],
+      "input": "src/agents/evaluations/asr_quality/manifest.json",
+      "input_sha256": "944c84e0466b4ccd2d6a39e2baeda80d72272e39f90d4fc77910af9c6d8dacb8",
+      "deployment_metadata": {
+        "helm_revision": 389,
+        "agents_tag": "c92b7408e"
+      }
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-asr-production-390.json",
+      "output_sha256": "4fcc9c028a14d9396f36b911149176e6258e91030b17c91efd829de1055a45c6",
+      "review_report": "docs/research/miaoji-asr-no-speech-2026-09-21.md",
+      "scope": "production_api_synthetic_audio",
+      "cases": [
+        {
+          "case": "terms-zh-clean",
+          "pointer": "/cases/0",
+          "record_id": "7155dab2-6e13-494d-b0e2-83e55a7c1a60"
+        },
+        {
+          "case": "silence",
+          "pointer": "/cases/1",
+          "record_id": "db461cae-0954-4420-936b-34320785fba0"
+        }
+      ],
+      "input": "src/agents/evaluations/asr_quality/manifest.json",
+      "input_sha256": "944c84e0466b4ccd2d6a39e2baeda80d72272e39f90d4fc77910af9c6d8dacb8",
+      "deployment_metadata": {
+        "helm_revision": 390,
+        "backend_tag": "696a7768f",
+        "agents_tag": "696a7768f",
+        "frontend_tag": "696a7768f"
+      }
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-asr-production-392.json",
+      "output_sha256": "8deac86b862cb1fb3d8e7a3650ed8a607777fe04ae4f5f05d33189cb03e01957",
+      "review_report": "docs/research/miaoji-asr-durable-diagnostics-2026-09-21.md",
+      "scope": "production_api_synthetic_audio",
+      "cases": [
+        {
+          "case": "terms-zh-clean",
+          "pointer": "/cases/0",
+          "record_id": "83160ce5-8366-45ba-8108-572af060dfe5"
+        },
+        {
+          "case": "silence",
+          "pointer": "/cases/1",
+          "record_id": "20b587a9-1dfa-470e-9df5-147628e62959"
+        }
+      ],
+      "input": "src/agents/evaluations/asr_quality/manifest.json",
+      "input_sha256": "944c84e0466b4ccd2d6a39e2baeda80d72272e39f90d4fc77910af9c6d8dacb8",
+      "deployment_metadata": {
+        "helm_revision": 392,
+        "backend_tag": "2651b6afa",
+        "agents_tag": "2651b6afa",
+        "frontend_tag": "696a7768f"
+      }
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-asr-history-after-release-393.json",
+      "output_sha256": "0c0bfc728001c11e78508e7354aa730b5544e9ad427a66cffef016b41b7f4caf",
+      "review_report": "docs/research/miaoji-asr-durable-diagnostics-2026-09-21.md",
+      "scope": "readonly_history_no_provider_requests",
+      "cases": [
+        {
+          "case": "terms-zh-clean",
+          "pointer": "/cases/0",
+          "record_id": "83160ce5-8366-45ba-8108-572af060dfe5"
+        },
+        {
+          "case": "silence",
+          "pointer": "/cases/1",
+          "record_id": "20b587a9-1dfa-470e-9df5-147628e62959"
+        }
+      ],
+      "input": "docs/research/evaluations/miaoji-asr-production-392.json",
+      "input_sha256": "8deac86b862cb1fb3d8e7a3650ed8a607777fe04ae4f5f05d33189cb03e01957",
+      "deployment_metadata": {
+        "helm": 393,
+        "backend_tag": "f7fbcea77"
+      }
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-summary-quality-candidate.json",
+      "output_sha256": "e57b9548e9675318926569513b1c8d27d5c2e8bf014484f9f09cf84deb12fd2d",
+      "review_report": "docs/research/miaoji-summary-fact-quality-2026-09-21.md",
+      "scope": "provider_candidate",
+      "cases": [
+        {
+          "case": "zh-asr",
+          "pointer": "/cases/0",
+          "execution_status_not_quality_verdict": "failed"
+        }
+      ],
+      "input": "docs/research/evaluations/miaoji-summary-quality-inputs.json",
+      "input_sha256": "11ba746100a5461a7cb0d0507b0c22363b5db367f25ae8a84b9886199d1f648b",
+      "declared_inputs_sha256": "11ba746100a5461a7cb0d0507b0c22363b5db367f25ae8a84b9886199d1f648b",
+      "input_hash_matches": true,
+      "deployment_metadata": {}
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-summary-quality-candidate-v2.json",
+      "output_sha256": "d21937d593ac45ade3dcaee4b3a62982f5e6c0129476bc4bc3ea5c9ef67f34ee",
+      "review_report": "docs/research/miaoji-summary-fact-quality-2026-09-21.md",
+      "scope": "provider_candidate",
+      "cases": [
+        {
+          "case": "zh-asr",
+          "pointer": "/cases/0",
+          "execution_status_not_quality_verdict": "failed"
+        }
+      ],
+      "input": "docs/research/evaluations/miaoji-summary-quality-inputs.json",
+      "input_sha256": "11ba746100a5461a7cb0d0507b0c22363b5db367f25ae8a84b9886199d1f648b",
+      "declared_inputs_sha256": "11ba746100a5461a7cb0d0507b0c22363b5db367f25ae8a84b9886199d1f648b",
+      "input_hash_matches": true,
+      "deployment_metadata": {}
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-summary-quality-candidate-v3.json",
+      "output_sha256": "34be518be07b364f8bec3f3c8e77470ac668cc942edb4443d568607f36b565d1",
+      "review_report": "docs/research/miaoji-summary-fact-quality-2026-09-21.md",
+      "scope": "provider_candidate",
+      "cases": [
+        {
+          "case": "zh-asr",
+          "pointer": "/cases/0",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "en-asr",
+          "pointer": "/cases/1",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "zh-corrected",
+          "pointer": "/cases/2",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "en-corrected",
+          "pointer": "/cases/3",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "explicit-change",
+          "pointer": "/cases/4",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "negated-date",
+          "pointer": "/cases/5",
+          "execution_status_not_quality_verdict": "succeeded"
+        }
+      ],
+      "input": "docs/research/evaluations/miaoji-summary-quality-inputs.json",
+      "input_sha256": "11ba746100a5461a7cb0d0507b0c22363b5db367f25ae8a84b9886199d1f648b",
+      "declared_inputs_sha256": "11ba746100a5461a7cb0d0507b0c22363b5db367f25ae8a84b9886199d1f648b",
+      "input_hash_matches": true,
+      "deployment_metadata": {}
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-summary-semantics-candidate.json",
+      "output_sha256": "2a6fa2e450458bdcc94e049bfede808a473b8b58227f33dcd557c696cb01b356",
+      "review_report": "docs/research/miaoji-summary-semantics-2026-09-21.md",
+      "scope": "provider_candidate",
+      "cases": [
+        {
+          "case": "zh-asr",
+          "pointer": "/cases/0",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "en-asr",
+          "pointer": "/cases/1",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "zh-corrected",
+          "pointer": "/cases/2",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "en-corrected",
+          "pointer": "/cases/3",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "explicit-change",
+          "pointer": "/cases/4",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "negated-date",
+          "pointer": "/cases/5",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "conditional-only",
+          "pointer": "/cases/6",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "actual-failure",
+          "pointer": "/cases/7",
+          "execution_status_not_quality_verdict": "succeeded"
+        }
+      ],
+      "input": "docs/research/evaluations/miaoji-summary-semantics-inputs.json",
+      "input_sha256": "ec0f2e4689de1ef01ce30d8e5473faeae0a81baeb1d2953d8ad8922d2b2b92d5",
+      "declared_inputs_sha256": "ec0f2e4689de1ef01ce30d8e5473faeae0a81baeb1d2953d8ad8922d2b2b92d5",
+      "input_hash_matches": true,
+      "deployment_metadata": {}
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-summary-semantics-normalized.json",
+      "output_sha256": "341902cecd58f8fbc5cc523d11bb332a753058cfc19ec5a6c8ac119ce5180236",
+      "review_report": "docs/research/miaoji-summary-semantics-2026-09-21.md",
+      "scope": "offline_reparse_not_a_new_provider_run",
+      "cases": [
+        {
+          "case": "zh-asr",
+          "pointer": "/cases/0"
+        },
+        {
+          "case": "en-asr",
+          "pointer": "/cases/1"
+        },
+        {
+          "case": "zh-corrected",
+          "pointer": "/cases/2"
+        },
+        {
+          "case": "en-corrected",
+          "pointer": "/cases/3"
+        },
+        {
+          "case": "explicit-change",
+          "pointer": "/cases/4"
+        },
+        {
+          "case": "negated-date",
+          "pointer": "/cases/5"
+        },
+        {
+          "case": "conditional-only",
+          "pointer": "/cases/6"
+        },
+        {
+          "case": "actual-failure",
+          "pointer": "/cases/7"
+        }
+      ],
+      "input": "docs/research/evaluations/miaoji-summary-semantics-inputs.json",
+      "input_sha256": "ec0f2e4689de1ef01ce30d8e5473faeae0a81baeb1d2953d8ad8922d2b2b92d5",
+      "declared_inputs_sha256": "ec0f2e4689de1ef01ce30d8e5473faeae0a81baeb1d2953d8ad8922d2b2b92d5",
+      "input_hash_matches": true,
+      "deployment_metadata": {}
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-summary-noise-language-results.json",
+      "output_sha256": "846bcfe1ce1dd43677643b8ed2e8bcbbbb29a2173f0ef4082fc2b99877c5b823",
+      "review_report": "docs/research/miaoji-summary-language-noise-2026-09-21.md",
+      "scope": "provider_candidate",
+      "cases": [
+        {
+          "case": "two-speakers-noise10-asr",
+          "pointer": "/cases/0",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "two-speakers-noise10-reference",
+          "pointer": "/cases/1",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "two-speakers-noise0-asr",
+          "pointer": "/cases/2",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "two-speakers-noise0-reference",
+          "pointer": "/cases/3",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "terms-zh-noise10-asr",
+          "pointer": "/cases/4",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "terms-zh-noise10-reference",
+          "pointer": "/cases/5",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "conditional-only",
+          "pointer": "/cases/6",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "actual-failure",
+          "pointer": "/cases/7",
+          "execution_status_not_quality_verdict": "succeeded"
+        }
+      ],
+      "input": "docs/research/evaluations/miaoji-summary-noise-language-inputs.json",
+      "input_sha256": "ca3de5cff546ce13c6607fc9ed5fbe04e23fc48f205cbdec3a1fb946013104d3",
+      "declared_inputs_sha256": "ca3de5cff546ce13c6607fc9ed5fbe04e23fc48f205cbdec3a1fb946013104d3",
+      "input_hash_matches": true,
+      "deployment_metadata": {}
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-summary-action-boundaries-results.json",
+      "output_sha256": "d85003d44b6ed1ba391202d49ad5855f0e5c6baf7a8d75ac8aa92e4611b4728c",
+      "review_report": "docs/research/miaoji-summary-action-boundaries-2026-09-21.md",
+      "scope": "provider_candidate",
+      "cases": [
+        {
+          "case": "production393-zh",
+          "pointer": "/cases/0",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "production393-en",
+          "pointer": "/cases/1",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "retention-only",
+          "pointer": "/cases/2",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "explicit-deadline",
+          "pointer": "/cases/3",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "explicit-submission",
+          "pointer": "/cases/4",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "failure-rule",
+          "pointer": "/cases/5",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "conditional-only",
+          "pointer": "/cases/6",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "actual-failure",
+          "pointer": "/cases/7",
+          "execution_status_not_quality_verdict": "succeeded"
+        }
+      ],
+      "input": "docs/research/evaluations/miaoji-summary-action-boundaries-inputs.json",
+      "input_sha256": "9c26f7d833b59b877197f49130d189b6259fa99c95e0706cb1c64cd7ba9487f7",
+      "declared_inputs_sha256": "9c26f7d833b59b877197f49130d189b6259fa99c95e0706cb1c64cd7ba9487f7",
+      "input_hash_matches": true,
+      "deployment_metadata": {}
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-summary-action-boundaries-v2-results.json",
+      "output_sha256": "06b1361bb44a919ccf724089568805e861d2d5e4a3e2ed91df9b09dd571ebdb7",
+      "review_report": "docs/research/miaoji-summary-action-boundaries-2026-09-21.md",
+      "scope": "rejected_candidate_retained",
+      "cases": [
+        {
+          "case": "production393-zh",
+          "pointer": "/cases/0",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "production393-en",
+          "pointer": "/cases/1",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "retention-only",
+          "pointer": "/cases/2",
+          "execution_status_not_quality_verdict": "succeeded"
+        },
+        {
+          "case": "explicit-retention-completion",
+          "pointer": "/cases/3",
+          "execution_status_not_quality_verdict": "succeeded"
+        }
+      ],
+      "input": "docs/research/evaluations/miaoji-summary-action-boundaries-v2-inputs.json",
+      "input_sha256": "e99b9b4b359e88d846d88e622b9100c7a8ea713caf468542343e4f7b2dabf72c",
+      "declared_inputs_sha256": "e99b9b4b359e88d846d88e622b9100c7a8ea713caf468542343e4f7b2dabf72c",
+      "input_hash_matches": true,
+      "deployment_metadata": {}
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-summary-quality-production-390.json",
+      "output_sha256": "06f9ef371f156a635f190fadf3286112665610af99cb4acfe3d16ebcf57e11e5",
+      "review_report": "docs/research/miaoji-summary-fact-quality-2026-09-21.md",
+      "scope": "production_api_summary_isolated_synthetic_source",
+      "cases": [
+        {
+          "case": "zh",
+          "pointer": "/cases/0",
+          "source": "asr",
+          "record_id": "7155dab2-6e13-494d-b0e2-83e55a7c1a60",
+          "summary_version_id": "61483165-766f-46d3-b63c-838e49e044ff"
+        },
+        {
+          "case": "en",
+          "pointer": "/cases/1",
+          "source": "asr",
+          "record_id": "5d75cdf1-0599-4975-b116-c1d89a281934",
+          "summary_version_id": "9d060f98-e269-4934-bf5d-cd7015d60ed4"
+        },
+        {
+          "case": "zh",
+          "pointer": "/cases/2",
+          "source": "corrected",
+          "record_id": "7155dab2-6e13-494d-b0e2-83e55a7c1a60",
+          "summary_version_id": "d276a33c-5aae-41e6-bcd3-e250b38f3b11"
+        },
+        {
+          "case": "en",
+          "pointer": "/cases/3",
+          "source": "corrected",
+          "record_id": "5d75cdf1-0599-4975-b116-c1d89a281934",
+          "summary_version_id": "1ef27b00-ded6-4b13-aa94-fecc5088b67c"
+        }
+      ],
+      "input": "embedded source_rows / snapshot in each production case",
+      "deployment_metadata": {
+        "helm": 390
+      }
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-summary-quality-production-391.json",
+      "output_sha256": "ef4150b77db11e882083bbee28d0f8f1342ebf14465b82250ccb8a3cc95d5ffb",
+      "review_report": "docs/research/miaoji-summary-fact-quality-2026-09-21.md",
+      "scope": "production_api_summary_isolated_synthetic_source",
+      "cases": [
+        {
+          "case": "zh",
+          "pointer": "/cases/0",
+          "source": "corrected",
+          "record_id": "7155dab2-6e13-494d-b0e2-83e55a7c1a60",
+          "summary_version_id": "09435fe7-475d-4031-8406-ddc19d63e43f"
+        },
+        {
+          "case": "en",
+          "pointer": "/cases/1",
+          "source": "corrected",
+          "record_id": "5d75cdf1-0599-4975-b116-c1d89a281934",
+          "summary_version_id": "65b51d2a-ded0-4b03-ac5e-f547f206b818"
+        }
+      ],
+      "input": "embedded source_rows / snapshot in each production case",
+      "deployment_metadata": {
+        "helm": 391,
+        "backend_tag": "0ccbd5e85"
+      }
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-summary-quality-production-393.json",
+      "output_sha256": "232c593da7afadb7bbd59f3d745dd161d3b3b40f692826f0836999d9d669f7b4",
+      "review_report": "docs/research/miaoji-summary-language-noise-2026-09-21.md",
+      "scope": "production_api_summary_isolated_synthetic_source",
+      "cases": [
+        {
+          "case": "zh",
+          "pointer": "/cases/0",
+          "source": "corrected",
+          "record_id": "7155dab2-6e13-494d-b0e2-83e55a7c1a60",
+          "summary_version_id": "c35b305a-9afd-49ec-8ba9-e38957e22829"
+        },
+        {
+          "case": "en",
+          "pointer": "/cases/1",
+          "source": "corrected",
+          "record_id": "5d75cdf1-0599-4975-b116-c1d89a281934",
+          "summary_version_id": "d8ee72d9-8b45-4511-9b15-a724cb75db3f"
+        }
+      ],
+      "input": "embedded source_rows / snapshot in each production case",
+      "deployment_metadata": {
+        "helm": 393,
+        "backend_tag": "f7fbcea77"
+      }
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-summary-quality-production-394.json",
+      "output_sha256": "6c8a67046ce28a2261c7840ad38746596f9558994af47da24094e00b34c0b5c4",
+      "review_report": "docs/research/miaoji-asr-language-candidates-2026-09-21.md",
+      "scope": "production_api_summary_isolated_synthetic_source",
+      "cases": [
+        {
+          "case": "zh",
+          "pointer": "/cases/0",
+          "source": "corrected",
+          "record_id": "7155dab2-6e13-494d-b0e2-83e55a7c1a60",
+          "summary_version_id": "788c2b3a-bc31-4949-a844-8a207f65d090"
+        }
+      ],
+      "input": "embedded source_rows / snapshot in each production case",
+      "deployment_metadata": {
+        "helm": 394,
+        "backend_tag": "7fffb1f9f"
+      }
+    },
+    {
+      "output": "docs/research/evaluations/miaoji-summary-quality-production-395.json",
+      "output_sha256": "6cf258a152a57d97e183960cdbb1f34d81890493ade8fc85040497d5d9b3be3c",
+      "review_report": "docs/research/miaoji-quality-acceptance-395.md",
+      "scope": "production_api_summary_isolated_synthetic_source",
+      "cases": [
+        {
+          "case": "zh",
+          "pointer": "/cases/0",
+          "source": "corrected",
+          "record_id": "7155dab2-6e13-494d-b0e2-83e55a7c1a60",
+          "summary_version_id": "df0f8a78-b216-4dde-98e2-c9ad77d24f51"
+        },
+        {
+          "case": "en",
+          "pointer": "/cases/1",
+          "source": "corrected",
+          "record_id": "5d75cdf1-0599-4975-b116-c1d89a281934",
+          "summary_version_id": "e429efe2-40d2-4f19-987c-7253b545410f"
+        }
+      ],
+      "input": "embedded source_rows / snapshot in each production case",
+      "deployment_metadata": {
+        "helm": 395,
+        "backend_tag": "1e13d1689"
+      }
+    }
+  ],
+  "suite_count": 20,
+  "case_observation_count": 74
+}

@@ -53,3 +53,7 @@ bash deploy/aliyun/release-meet.sh --tag 7ee54f11e backend
 ```
 
 无需 agents/frontend/summary 发布或数据库迁移。固定 tag 对应第一候选提示；第二候选仅作为未采用的失败证据保留。
+
+## Helm 395 后续验收
+
+用户已部署 backend 1e13d1689，与实现运行代码一致。两个固定隔离样本定向复核通过：没有新增提交动作或错误录音截止时间，责任人/金额/期限保留，旧版本未变。原句歧义和其他边界失败未据此关闭；[生产结果与总体状态](miaoji-quality-acceptance-395.md)记录实际范围。本页之前待部署状态已解除，无需再发镜像。
