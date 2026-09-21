@@ -203,3 +203,29 @@ python -m core.tests.evaluations.review_meeting_qa --review /tmp/intent-review.j
 ```
 
 未填完整或仍需上下文时退出2、列出pending/needs_context；格式或源内容错误会拒绝；全部结构完整且无待定才退出0并标记可评分。0不等于人工身份认证或可上线。当前已提交标注应返回2：pending为空，R01/R04/R05仍需上下文，不能把它当作测试失败后自动补答案。阅读版按文本hash稳定重排候选且隐藏模型输出，历史结果已公开，仍不是严格盲测。
+
+## 第69批：另建明确上下文题库
+
+`meeting_qa_context_cases.json`是10个作者构造的合成场景，与第68批人工标注分开。`context_decisions.py`分别生成正序/倒序候选，共20个输入；批准预算、预算建议、实际支付、跨语言软件发布、明确未定、冲突要求和候选内测试指令分别覆盖。未指定项目的双预算样例明确期望澄清。期望决策、证据及关键事实在请求前冻结，但不作为独立人工复核或真实用户样本。
+
+从backend目录创建新计划（所有输出路径都拒绝覆盖）：
+
+```bash
+python -m core.tests.evaluations.context_decisions --plan /tmp/context-plan.json
+```
+
+显式真实请求复用第66批两种提示词及严格Schema，每方案20次，不重试、不按新题调提示。凭据仍由`MIAOJI_EVAL_API_KEY`环境注入，不写入产物：
+
+```bash
+python -m core.tests.evaluations.run_structured_rerank --corpus b69 --plan /tmp/context-plan.json --output /tmp/context-draws.json --model qwen3.8-flash --base-url https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+离线校验与评分，不请求模型：
+
+```bash
+python -m core.tests.evaluations.context_decisions --draws /tmp/context-draws.json --output /tmp/context-report.json
+```
+
+评分验证题库/计划/提示/模型/请求hash以及原始输出与结构化字段一致性；必须包含两个方案的全部40条唯一结果。分别统计决策正确、候选集合完全匹配且原文摘句包含必要事实、同一基础题两个顺序都通过。顺序变体不视为20个独立场景。失败题照常保留在分母，不替换或丢弃。
+
+这仅测固定候选上的证据选择；未跑线上召回、未生成最终答案，也未评价澄清问题措辞。原R01/R04/R05继续待定，第68批准入状态及历史gold不变。测试绿色只表示评测程序契约成立，质量结果需另读报告；任何分数均不自动授权生产推广。

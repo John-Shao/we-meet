@@ -1,0 +1,25 @@
+{
+  "date": "2026-09-22",
+  "corpus": "b69",
+  "first_attempt": {
+    "case": "approved_target/forward",
+    "arm": "schema_only",
+    "route": "environment_proxy",
+    "error": "requests.exceptions.ReadTimeout",
+    "stage": "proxy_connection_tls_handshake",
+    "timeout_seconds": 60,
+    "received_model_outputs": 0,
+    "generation_artifact_created": false
+  },
+  "unauthenticated_connectivity_checks": {
+    "environment_route_http_status": 401,
+    "direct_route_http_status": 401
+  },
+  "next_attempt": {
+    "scope": "same_frozen_40_requests",
+    "route": "direct_using_process_NO_PROXY_for_dashscope",
+    "tls_verification": true,
+    "output_file": "miaoji-qa-context-generations-b69.json",
+    "selective_quality_retries": false
+  }
+}

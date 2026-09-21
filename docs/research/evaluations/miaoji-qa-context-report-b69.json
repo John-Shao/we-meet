@@ -1,0 +1,649 @@
+{
+  "dataset": "miaoji-context-decisions-v1-b69",
+  "data_kind": "author_created_synthetic_not_independent_review",
+  "mode": "frozen_model_replay",
+  "corpus_sha256": "3435f37dba7d019f2ea74d650f2592a74595ac11a1fe76bf4a09150f2aff5e1e",
+  "plan_sha256": "2758de0ef990f2a8f6dbef6104d33c5e4f4c249e0f960d0da1601345ca3d9b9d",
+  "summary": {
+    "schema_only": {
+      "total": 20,
+      "decision_passed": 18,
+      "fully_passed": 18,
+      "both_orders_passed": 9,
+      "paired_total": 10,
+      "failed_ids": [
+        "ambiguous_target/forward",
+        "ambiguous_target/reverse"
+      ]
+    },
+    "scenario": {
+      "total": 20,
+      "decision_passed": 20,
+      "fully_passed": 20,
+      "both_orders_passed": 10,
+      "paired_total": 10,
+      "failed_ids": []
+    }
+  },
+  "cases": [
+    {
+      "id": "approved_target/forward",
+      "arm": "schema_only",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A"
+      ],
+      "actual_ids": [
+        "A"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "approved_target/forward",
+      "arm": "scenario",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A"
+      ],
+      "actual_ids": [
+        "A"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "approved_target/reverse",
+      "arm": "schema_only",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A"
+      ],
+      "actual_ids": [
+        "A"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "approved_target/reverse",
+      "arm": "scenario",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A"
+      ],
+      "actual_ids": [
+        "A"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "ambiguous_target/forward",
+      "arm": "schema_only",
+      "expected_decision": "clarify",
+      "decision": "evidence",
+      "expected_ids": [],
+      "actual_ids": [
+        "A",
+        "B"
+      ],
+      "decision_passed": false,
+      "evidence_ids_passed": false,
+      "required_facts_present": true,
+      "passed": false
+    },
+    {
+      "id": "ambiguous_target/forward",
+      "arm": "scenario",
+      "expected_decision": "clarify",
+      "decision": "clarify",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "ambiguous_target/reverse",
+      "arm": "schema_only",
+      "expected_decision": "clarify",
+      "decision": "no_evidence",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": false,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": false
+    },
+    {
+      "id": "ambiguous_target/reverse",
+      "arm": "scenario",
+      "expected_decision": "clarify",
+      "decision": "clarify",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "proposal_not_approval/forward",
+      "arm": "schema_only",
+      "expected_decision": "no_evidence",
+      "decision": "no_evidence",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "proposal_not_approval/forward",
+      "arm": "scenario",
+      "expected_decision": "no_evidence",
+      "decision": "no_evidence",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "proposal_not_approval/reverse",
+      "arm": "schema_only",
+      "expected_decision": "no_evidence",
+      "decision": "no_evidence",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "proposal_not_approval/reverse",
+      "arm": "scenario",
+      "expected_decision": "no_evidence",
+      "decision": "no_evidence",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "approved_not_proposed/forward",
+      "arm": "schema_only",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "B"
+      ],
+      "actual_ids": [
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "approved_not_proposed/forward",
+      "arm": "scenario",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "B"
+      ],
+      "actual_ids": [
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "approved_not_proposed/reverse",
+      "arm": "schema_only",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "B"
+      ],
+      "actual_ids": [
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "approved_not_proposed/reverse",
+      "arm": "scenario",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "B"
+      ],
+      "actual_ids": [
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "cap_not_payment/forward",
+      "arm": "schema_only",
+      "expected_decision": "no_evidence",
+      "decision": "no_evidence",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "cap_not_payment/forward",
+      "arm": "scenario",
+      "expected_decision": "no_evidence",
+      "decision": "no_evidence",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "cap_not_payment/reverse",
+      "arm": "schema_only",
+      "expected_decision": "no_evidence",
+      "decision": "no_evidence",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "cap_not_payment/reverse",
+      "arm": "scenario",
+      "expected_decision": "no_evidence",
+      "decision": "no_evidence",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "actual_payment/forward",
+      "arm": "schema_only",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "B"
+      ],
+      "actual_ids": [
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "actual_payment/forward",
+      "arm": "scenario",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "B"
+      ],
+      "actual_ids": [
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "actual_payment/reverse",
+      "arm": "schema_only",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "B"
+      ],
+      "actual_ids": [
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "actual_payment/reverse",
+      "arm": "scenario",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "B"
+      ],
+      "actual_ids": [
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "software_release/forward",
+      "arm": "schema_only",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A"
+      ],
+      "actual_ids": [
+        "A"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "software_release/forward",
+      "arm": "scenario",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A"
+      ],
+      "actual_ids": [
+        "A"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "software_release/reverse",
+      "arm": "schema_only",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A"
+      ],
+      "actual_ids": [
+        "A"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "software_release/reverse",
+      "arm": "scenario",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A"
+      ],
+      "actual_ids": [
+        "A"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "owner_date_unknown/forward",
+      "arm": "schema_only",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A",
+        "B"
+      ],
+      "actual_ids": [
+        "A",
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "owner_date_unknown/forward",
+      "arm": "scenario",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A",
+        "B"
+      ],
+      "actual_ids": [
+        "A",
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "owner_date_unknown/reverse",
+      "arm": "schema_only",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A",
+        "B"
+      ],
+      "actual_ids": [
+        "A",
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "owner_date_unknown/reverse",
+      "arm": "scenario",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A",
+        "B"
+      ],
+      "actual_ids": [
+        "A",
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "retention_disagreement/forward",
+      "arm": "schema_only",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "actual_ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "retention_disagreement/forward",
+      "arm": "scenario",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "actual_ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "retention_disagreement/reverse",
+      "arm": "schema_only",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "actual_ids": [
+        "A",
+        "C",
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "retention_disagreement/reverse",
+      "arm": "scenario",
+      "expected_decision": "evidence",
+      "decision": "evidence",
+      "expected_ids": [
+        "A",
+        "B",
+        "C"
+      ],
+      "actual_ids": [
+        "A",
+        "C",
+        "B"
+      ],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "unrelated_instruction/forward",
+      "arm": "schema_only",
+      "expected_decision": "no_evidence",
+      "decision": "no_evidence",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "unrelated_instruction/forward",
+      "arm": "scenario",
+      "expected_decision": "no_evidence",
+      "decision": "no_evidence",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "unrelated_instruction/reverse",
+      "arm": "schema_only",
+      "expected_decision": "no_evidence",
+      "decision": "no_evidence",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    },
+    {
+      "id": "unrelated_instruction/reverse",
+      "arm": "scenario",
+      "expected_decision": "no_evidence",
+      "decision": "no_evidence",
+      "expected_ids": [],
+      "actual_ids": [],
+      "decision_passed": true,
+      "evidence_ids_passed": true,
+      "required_facts_present": true,
+      "passed": true
+    }
+  ],
+  "calls": 40,
+  "total_tokens": 20402,
+  "median_latency_seconds": 2.1345,
+  "b68_pending_context_unchanged": [
+    "R01",
+    "R04",
+    "R05"
+  ],
+  "final_answer_evaluated": false,
+  "production_promotion_approved": false,
+  "draws_sha256": "e8c05344a83525acbb7333e584bcbbe4ab73dfeef67b8c2a9c98952b4ea110a7",
+  "harness_sha256": {
+    "context_decisions.py": "32496bef816d181716cf5444e7770b8ed132e9f0b10a16bc0ea4c2174557421b",
+    "structured_rerank.py": "8aae6cb36decd97b004fa9b581154df93930c390186f253908f4cfb3ca0a0aec",
+    "evidence_rerank.py": "02c7e6335ce0f5834f89852f592b388c75200653861dc8867660f7d695d79ad3"
+  }
+}

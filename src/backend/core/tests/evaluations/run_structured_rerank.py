@@ -1,4 +1,4 @@
-"""Explicit paid batch 66 experiment on synthetic data, without retries."""
+"""Explicit paid frozen-corpus experiment on synthetic data, without retries."""
 
 import argparse
 import hashlib
@@ -9,6 +9,8 @@ from pathlib import Path
 
 import requests
 
+from core.tests.evaluations.context_decisions import CASES_PATH
+from core.tests.evaluations.context_decisions import build_plan as context_plan
 from core.tests.evaluations.evidence_rerank import payload
 from core.tests.evaluations.structured_rerank import (
     ARMS,
@@ -26,14 +28,20 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--model", required=True)
     parser.add_argument("--base-url", required=True)
+    parser.add_argument("--corpus", choices=("b66", "b69"), default="b66")
     args = parser.parse_args()
     if args.output.exists():
         raise FileExistsError("Use a new output path")
     plan = json.loads(args.plan.read_text(encoding="utf-8"))
-    if plan != build_plan() or len(plan) > 64:
+    if args.corpus == "b69":
+        canonical = context_plan()
+    else:
+        canonical = build_plan()
+    if plan != canonical or len(plan) > 64:
         raise ValueError("Plan must match the frozen synthetic corpus")
     report = {
         "complete": False,
+        "corpus": args.corpus,
         "plan_sha256": hashlib.sha256(args.plan.read_bytes()).hexdigest(),
         "prompts": PROMPTS,
         "model": args.model,
@@ -44,6 +52,8 @@ def main():
         "response_format": "json_schema/strict",
         "cases": [],
     }
+    if args.corpus == "b69":
+        report["corpus_sha256"] = hashlib.sha256(CASES_PATH.read_bytes()).hexdigest()
     for index, item in enumerate(plan):
         # Alternate arm order to reduce a consistent temporal ordering effect.
         for arm in ARMS if index % 2 == 0 else reversed(ARMS):

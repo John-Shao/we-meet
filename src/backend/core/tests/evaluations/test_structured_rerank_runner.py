@@ -108,3 +108,13 @@ def test_changed_plan_rejected_before_provider_request(tmp_path, monkeypatch):
     )
     with pytest.raises(ValueError, match="frozen"):
         runner.main()
+
+
+def test_b69_cannot_use_a_b66_plan(tmp_path, monkeypatch):
+    configure(tmp_path, monkeypatch)
+    monkeypatch.setattr(sys, "argv", [*sys.argv, "--corpus", "b69"])
+    monkeypatch.setattr(
+        runner.requests, "post", lambda *a, **k: pytest.fail("unexpected request")
+    )
+    with pytest.raises(ValueError, match="frozen"):
+        runner.main()
