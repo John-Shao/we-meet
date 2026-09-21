@@ -17,6 +17,7 @@ from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
 from core.api.capture_audio import CaptureAudioView
 from core.api.meeting_captures import StrictSerializer
 from core.api.meeting_command_receipt import MeetingCommandReceiptMixin
+from core.services import capture_diagnostics
 from core.services import capture_transcription as service
 from core.services.capture_audio import read_verified
 from core.services.meeting_captures import CaptureDenied
@@ -179,6 +180,23 @@ class ProviderTaskSerializer(StrictSerializer):
         return value
 
 
+class DiagnosticEventSerializer(StrictSerializer):
+    """Fixed enums only: no exception messages, object keys or provider bodies."""
+
+    stage = serializers.ChoiceField(choices=sorted(capture_diagnostics.STAGES))
+    code = serializers.ChoiceField(choices=sorted(capture_diagnostics.CODES))
+    elapsed_ms = serializers.IntegerField(min_value=0, max_value=172800000)
+
+
+class DiagnosticSerializer(StrictSerializer):
+    """Bound each write and reject extra content-bearing keys at both levels."""
+
+    worker_id = serializers.UUIDField()
+    events = DiagnosticEventSerializer(
+        many=True, max_length=capture_diagnostics.MAX_EVENTS, allow_empty=False
+    )
+
+
 class FinishSerializer(StrictSerializer):
     """The same final receipt can be retried without publishing or billing twice."""
 
@@ -274,3 +292,12 @@ class FinishTranscriptionView(TranscriptionAgentView):
         data = dict(serializer.validated_data)
         worker = data.pop("worker_id")
         return Response(service.serialize(service.finish(job_id, worker, data)))
+
+
+class DiagnosticTranscriptionView(TranscriptionAgentView):
+    """Only the claimed worker can append bounded, non-content observations."""
+
+    def post(self, request, job_id):
+        serializer = DiagnosticSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(service.diagnose(job_id, **serializer.validated_data))

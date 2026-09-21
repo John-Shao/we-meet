@@ -31,6 +31,7 @@ WAV_HEADER_BYTES = 44
 SHA256_HEX_LENGTH = 64
 MAX_FINALS = 20000
 MAX_TEXT_BYTES = 4000000
+MAX_DIAGNOSTIC_EVENTS = 20
 FRAME_BYTES = 3200  # 100 ms of mono PCM16/16k
 logger = logging.getLogger("capture-transcriber")
 
@@ -307,11 +308,45 @@ class CaptureAttempt:
                 group.create_task(self.deliver())
                 group.create_task(self.heartbeat())
 
+    async def persist_diagnostics(self, events):
+        """Best effort, bounded write; failures cannot replace the original outcome."""
+        if not events or self.job.get("supports_diagnostics") is not True:
+            return
+        try:
+            async with asyncio.timeout(4):
+                await self.backend.request(
+                    self.path + "diagnostics/", {"events": events}, attempts=1
+                )
+        except Exception:
+            logger.warning(
+                "capture_diagnostic_persistence_unavailable job_id=%s", self.job["id"]
+            )
+
     async def execute(self):  # noqa: PLR0912 -- terminal receipt and cleanup remain one lifecycle
         """Record one frozen terminal receipt even when cancellation interrupts work."""
         success = False
         started = time.monotonic()
         reported = set()
+        events = []
+
+        def report(failure):
+            key = (failure.stage, failure.code)
+            if key in reported:
+                return
+            emit(self.job["id"], failure, started)
+            reported.add(key)
+            if len(events) < MAX_DIAGNOSTIC_EVENTS:
+                events.append(
+                    {
+                        "stage": failure.stage,
+                        "code": failure.code,
+                        "elapsed_ms": min(
+                            172800000,
+                            max(0, round((time.monotonic() - started) * 1000)),
+                        ),
+                    }
+                )
+
         no_speech = False
         try:
             await self.process()
@@ -325,17 +360,14 @@ class CaptureAttempt:
                 for cause in causes
             )
             for failure in causes:
-                emit(self.job["id"], failure, started)
-                reported.add((failure.stage, failure.code))
+                report(failure)
         finally:
             for session in self.sessions:
                 error = getattr(session, "cleanup_error", None)
                 if error is not None:
                     no_speech = False
                     for failure in failures(error):
-                        if (failure.stage, failure.code) not in reported:
-                            emit(self.job["id"], failure, started)
-                            reported.add((failure.stage, failure.code))
+                        report(failure)
             self.receipt = {
                 "provider_finished": success,
                 "final_sequence": self.delivered,
@@ -359,6 +391,9 @@ class CaptureAttempt:
                 and self.job.get("supports_failure_code") is True
             ):
                 self.receipt["failure_code"] = "no_speech_detected"
+            # Persist roots independently before finish so a lost terminal response
+            # does not erase the observed cause. Never replay the provider.
+            await self.persist_diagnostics(events)
             # If finish remains unknown, fail the process rather than claim more work.
             try:
                 with stage("finish"):
@@ -375,7 +410,8 @@ class CaptureAttempt:
                         raise CaptureError("terminal_receipt_unknown")
             except Exception as error:
                 for failure in failures(error):
-                    emit(self.job["id"], failure, started)
+                    report(failure)
+                await self.persist_diagnostics(events)
                 raise
             finally:
                 while not self.queue.empty():

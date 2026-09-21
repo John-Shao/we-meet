@@ -57,6 +57,71 @@ class WorkerDiagnosticTests(unittest.IsolatedAsyncioTestCase):
                 )
                 self.assertFalse(self.attempt.receipt["provider_finished"])
 
+    async def test_durable_roots_and_lost_finish_stops_worker(
+        self,
+    ):
+        """A replacement Pod can query roots independently of the terminal receipt."""
+        self.job["supports_diagnostics"] = True
+        original = self.backend.request
+        history = []
+
+        async def request(path, payload=None, **options):
+            if path.endswith("diagnostics/"):
+                history.append(payload["events"][:])
+                self.assertEqual(options["attempts"], 1)
+                return {"stored": True}
+            if path.endswith("finish/"):
+                self.assertEqual(history[0][0]["stage"], "transcription_submit")
+            return await original(path, payload, **options)
+
+        self.backend.request = request
+        self.backend.fail = "finish"
+        with (
+            mock.patch.object(
+                self.attempt, "process", side_effect=StageError("transcription_submit")
+            ),
+            self.assertRaises(StageError),
+        ):
+            await self.attempt.execute()
+        self.assertEqual(
+            [e["stage"] for e in history[-1]], ["transcription_submit", "finish"]
+        )
+        self.assertNotIn("simulated", json.dumps(history))
+
+    async def test_diagnostic_transport_failure_cannot_change_terminal_result(self):
+        """Unreachable reporting never causes provider replay or false success."""
+        self.job["supports_diagnostics"] = True
+        original = self.backend.request
+
+        async def request(path, payload=None, **options):
+            if path.endswith("diagnostics/"):
+                raise TimeoutError("PRIVATE URL")
+            return await original(path, payload, **options)
+
+        self.backend.request = request
+        with (
+            mock.patch.object(
+                self.attempt, "process", side_effect=StageError("result_parse")
+            ),
+            self.assertLogs("capture-transcriber", "WARNING") as logs,
+        ):
+            await self.attempt.execute()
+        self.assertFalse(self.attempt.receipt["provider_finished"])
+        self.assertNotIn("PRIVATE", str(logs.output))
+        self.assertTrue(self.backend.calls[-1][0].endswith("finish/"))
+
+    async def test_old_backend_and_cancellation_do_not_receive_invented_failures(self):
+        """Cancellation propagates and is not recast as a provider error."""
+        self.job["supports_diagnostics"] = True
+        with (
+            mock.patch.object(
+                self.attempt, "process", side_effect=asyncio.CancelledError
+            ),
+            self.assertRaises(asyncio.CancelledError),
+        ):
+            await self.attempt.execute()
+        self.assertFalse(any(c[0].endswith("diagnostics/") for c in self.backend.calls))
+
     async def test_delivery_failure_has_job_stage_and_no_exception_text(self):
         """TaskGroup exceptions resolve to the failed backend delivery stage."""
         self.backend.fail = "originals"

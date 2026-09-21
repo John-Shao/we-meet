@@ -1565,9 +1565,13 @@ class CaptureTranscriptionJob(BaseModel):
     text_bytes = models.PositiveIntegerField(default=0)
     finish_hash = models.CharField(max_length=64, blank=True)
     report = models.JSONField(default=dict, blank=True)
+    diagnostics = models.JSONField(default=list, blank=True)
     error_code = models.CharField(max_length=64, blank=True)
 
     class Meta:
+        indexes = [
+            models.Index(fields=["created_at"], condition=~models.Q(diagnostics=[]), name="capture_diag_retention"),
+        ]
         constraints = [
             models.UniqueConstraint(fields=["requested_by", "key"], name="unique_capture_asr_intent"),
             models.UniqueConstraint(fields=["capture", "generation"], name="unique_capture_asr_generation"),

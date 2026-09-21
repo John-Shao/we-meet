@@ -1,6 +1,7 @@
 """Read one capture ASR receipt without exposing content, credentials or URLs."""
 
 import argparse
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -50,6 +51,31 @@ def stage_reports(logs, job_id):
     return reports[-20:]
 
 
+def durable_reports(job):
+    """Old images/history remain unknown; expired observations never reach output."""
+    events = getattr(job, "diagnostics", None)
+    created = getattr(job, "created_at", None)
+    if not isinstance(events, list) or created is None:
+        return {"status": "not_supported", "stages": []}
+    if created + timedelta(days=30) <= datetime.now(timezone.utc):
+        return {"status": "expired", "stages": []}
+    safe = []
+    for event in events[:20]:
+        if isinstance(event, dict):
+            safe.extend(
+                stage_reports(
+                    "capture_diagnostic "
+                    + json.dumps({**event, "job_id": str(job.pk)}),
+                    job.pk,
+                )
+            )
+    return {
+        "status": "retained" if safe else "empty_or_not_reported",
+        "retention_days": 30,
+        "stages": safe,
+    }
+
+
 def counts_report(job, inputs=None):
     """Project known receipt fields; never return raw provider reports or inputs."""
     inputs = (job.inputs or {}) if inputs is None else inputs
@@ -59,6 +85,7 @@ def counts_report(job, inputs=None):
     expected_samples = sum(c["duration_ms"] * 16 for c in chunks)
     observed_samples = sum(t["input_samples"] for t in tasks)
     return {
+        "diagnostic_history": durable_reports(job),
         "job_id": str(job.pk),
         "capture_id": str(job.capture_id),
         "status": job.status,

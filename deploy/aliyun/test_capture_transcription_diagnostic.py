@@ -1,5 +1,6 @@
 """The production diagnostic must expose counts, never source/provider payloads."""
 
+from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
 from pathlib import Path
@@ -46,6 +47,31 @@ class DiagnosticTests(unittest.TestCase):
             },
         )
         return SimpleNamespace(**{**values, **changes})
+
+    def test_durable_history_is_bounded_redacted_and_expires(self):
+        entry = {
+            "stage": "delivery",
+            "code": "timeout",
+            "elapsed_ms": 123,
+            "message": "PRIVATE",
+        }
+        job = self.job(created_at=datetime.now(timezone.utc), diagnostics=[entry] * 25)
+        report = diagnostic.counts_report(job)["diagnostic_history"]
+        self.assertEqual(report["status"], "retained")
+        self.assertEqual(len(report["stages"]), 20)
+        self.assertNotIn("PRIVATE", json.dumps(report))
+        job.created_at -= timedelta(days=31)
+        self.assertEqual(
+            diagnostic.durable_reports(job), {"status": "expired", "stages": []}
+        )
+        self.assertEqual(
+            diagnostic.durable_reports(self.job())["status"], "not_supported"
+        )
+        job.created_at = datetime.now(timezone.utc)
+        job.diagnostics = []
+        self.assertEqual(
+            diagnostic.durable_reports(job)["status"], "empty_or_not_reported"
+        )
 
     def test_incomplete_after_all_audio_received(self):
         report = diagnostic.counts_report(self.job())

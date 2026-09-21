@@ -70,3 +70,12 @@ bash deploy/aliyun/release-meet.sh --tag 2b84e9838 backend
 ```
 
 本次停在生产部署依赖。部署后才进行新提示的生产纪要复核；此文档交付提交无需另建镜像。旧无语音修复已随 Helm 390 部署，无需重复操作。
+
+
+## Helm 391 定向生产复核
+
+用户回传 2026-09-21 18:24:28 Helm 391：backend/celery-backend/beat 均为 `0ccbd5e85`；其 backend 运行代码与 `2b84e9838` 一致。frontend/agents 仍为 `696a7768f`。对上一轮中文/英文最小校对记录各显式 regenerate 一次，先核对源段落完全未变；没有再校对、挑选重跑或修改首次结果。
+
+[完整生产证据](evaluations/miaoji-summary-quality-production-391.json)：中文 job `d3f02b82-b289-424a-b353-9fe162ad2be8`、英文 job `52799e2b-1146-48d5-a5e3-2d869de7e156`。均生成新版本，终态 partial（覆盖仍未校验），旧版本正文完全保留；新版本引用逐项匹配不可变快照的段落、revision 和时间。
+
+英文这次没有虚构“过去 50,000 预算”，15,000、Alice/Bob、before Thursday afternoon 正确；但 transcript review 的 owner_text 再次为 Unknown speaker，说明仅提示约束不能稳定保证未知责任人留空。中文保留妙记、陈晨和周五下午 3 点前，概述仍存在条件故障被事实化的风险。结论只关闭本次预算历史问题的定向生产复核，不关闭责任人、条件语义、遗漏或总体事实质量。

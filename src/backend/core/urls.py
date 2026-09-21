@@ -50,6 +50,7 @@ from core.api.capture_transcription import (
     ClaimTranscriptionView,
     ControlTranscriptionView,
     FinishTranscriptionView,
+    DiagnosticTranscriptionView,
     IngestTranscriptionView,
     LiveTranscriptionPreviewView,
     TranscriptionInputView,
@@ -382,6 +383,7 @@ urlpatterns = [
     path("api/agent/capture-transcriptions/<uuid:job_id>/audio/<int:index>/", TranscriptionInputView.as_view()),
     path("api/agent/capture-transcriptions/<uuid:job_id>/originals/", IngestTranscriptionView.as_view()),
     path("api/agent/capture-transcriptions/<uuid:job_id>/finish/", FinishTranscriptionView.as_view()),
+    path("api/agent/capture-transcriptions/<uuid:job_id>/diagnostics/", DiagnosticTranscriptionView.as_view()),
     path("api/agent/capture-writer-grants/", CaptureWriterGrantView.as_view()),
     path("api/agent/record-transcripts/", IngestRecordOriginalView.as_view()),
     path(

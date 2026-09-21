@@ -9,7 +9,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from core import models
-from core.services import ai_usage, capture_retention
+from core.services import ai_usage, capture_diagnostics, capture_retention
 from core.services import capture_live_inputs as live_inputs
 from core.services.capture_audio import (
     ensure_audio_not_cleaning,
@@ -104,6 +104,7 @@ def serialize(job):
         "status": job.status,
         "created_at": job.created_at.isoformat(),
         "error_code": job.error_code,
+        "diagnostics": capture_diagnostics.visible(job),
         "input_count": job.live_inputs.count() if live else len(job.inputs["chunks"]),
         "acknowledged_inputs": job.acknowledged_inputs,
         "final_count": job.final_sequence,
@@ -302,6 +303,7 @@ def worker_state(job, *, include_inputs=True):
         **({"inputs": job.inputs} if include_inputs else {}),
         "started": job.started_at is not None,
         "supports_failure_code": True,
+        "supports_diagnostics": True,
     }
 
 
@@ -570,8 +572,31 @@ def finish(job_id, worker_id, payload):
     return job
 
 
+@transaction.atomic
+def diagnose(job_id, worker_id, events):
+    """Diagnostics may arrive after cancel/finish, but cannot mutate execution state."""
+    job = _locked(job_id)
+    if not job.worker_id or job.worker_id != worker_id or job.status == "queued":
+        raise RecordConflict("Worker identity changed.")
+    if capture_diagnostics.expired(job):
+        return {"stored": False, "reason": "expired"}
+    existing = capture_diagnostics.visible(job)
+    keys = {(e["stage"], e["code"]) for e in existing}
+    for event in events:
+        key = (event["stage"], event["code"])
+        if key not in keys and len(existing) < capture_diagnostics.MAX_EVENTS:
+            existing.append({k: event[k] for k in ("stage", "code", "elapsed_ms")})
+            keys.add(key)
+    # Do not extend the lease, alter the immutable finish receipt, bill, or publish.
+    models.CaptureTranscriptionJob.objects.filter(pk=job.pk).update(
+        diagnostics=existing
+    )
+    return {"stored": True, "count": len(existing)}
+
+
 def tick_transcriptions(limit=100):
     """Background expiry never queues or replays a billable provider attempt."""
+    capture_diagnostics.prune(limit)
     ids = list(
         models.CaptureTranscriptionJob.objects.filter(status__in=ACTIVE)
         .order_by("updated_at", "id")
