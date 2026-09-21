@@ -1,0 +1,627 @@
+{
+  "schema_version": 1,
+  "dataset_sha256": "0124c1b7df7cbd32a6fbf48f7937adfeb0069028ff8167b064b139171737f9e7",
+  "implementation_sha256": {
+    "global_ask.py": "6f77b61173be40040c5cf34c0276e821dc17b32de91417edeaf2f38a0bbe150d",
+    "meeting_search.py": "c9fcb82ad512c8a88e18d5e87e35aa631786e8c055b80ec30f8b28a27608811a",
+    "effective_transcripts.py": "4b819fefbcec6472a1aa9fe06552c72ceea0739993fbe436fef2aa9456e3da52"
+  },
+  "dependencies": {
+    "Django": "5.2.14",
+    "jieba": "0.42.1"
+  },
+  "dataset": "miaoji-mixed-v1",
+  "data_kind": "synthetic",
+  "generation": "disabled",
+  "scope": "meetings / unified and legacy synthetic fixtures",
+  "overall": {
+    "cases": 12,
+    "record_recall": {
+      "value": 1.0,
+      "denominator": 9
+    },
+    "evidence_recall": {
+      "value": 1.0,
+      "denominator": 9
+    },
+    "evidence_precision": {
+      "value": 0.9027777777777778,
+      "denominator": 9
+    },
+    "all_evidence": {
+      "value": 1.0,
+      "denominator": 9
+    },
+    "reciprocal_rank": {
+      "value": 0.9444444444444444,
+      "denominator": 9
+    },
+    "empty_expectation_met": {
+      "value": 1.0,
+      "denominator": 3
+    },
+    "forbidden_content_cases": 0,
+    "answer_semantics": "not_evaluated"
+  },
+  "by_category": {
+    "mixed_retrieval": {
+      "cases": 12,
+      "record_recall": {
+        "value": 1.0,
+        "denominator": 9
+      },
+      "evidence_recall": {
+        "value": 1.0,
+        "denominator": 9
+      },
+      "evidence_precision": {
+        "value": 0.9027777777777778,
+        "denominator": 9
+      },
+      "all_evidence": {
+        "value": 1.0,
+        "denominator": 9
+      },
+      "reciprocal_rank": {
+        "value": 0.9444444444444444,
+        "denominator": 9
+      },
+      "empty_expectation_met": {
+        "value": 1.0,
+        "denominator": 3
+      },
+      "forbidden_content_cases": 0,
+      "answer_semantics": "not_evaluated"
+    }
+  },
+  "by_split": {
+    "diagnostic": {
+      "cases": 12,
+      "record_recall": {
+        "value": 1.0,
+        "denominator": 9
+      },
+      "evidence_recall": {
+        "value": 1.0,
+        "denominator": 9
+      },
+      "evidence_precision": {
+        "value": 0.9027777777777778,
+        "denominator": 9
+      },
+      "all_evidence": {
+        "value": 1.0,
+        "denominator": 9
+      },
+      "reciprocal_rank": {
+        "value": 0.9444444444444444,
+        "denominator": 9
+      },
+      "empty_expectation_met": {
+        "value": 1.0,
+        "denominator": 3
+      },
+      "forbidden_content_cases": 0,
+      "answer_semantics": "not_evaluated"
+    },
+    "validation": {
+      "cases": 0,
+      "record_recall": {
+        "value": null,
+        "denominator": 0
+      },
+      "evidence_recall": {
+        "value": null,
+        "denominator": 0
+      },
+      "evidence_precision": {
+        "value": null,
+        "denominator": 0
+      },
+      "all_evidence": {
+        "value": null,
+        "denominator": 0
+      },
+      "reciprocal_rank": {
+        "value": null,
+        "denominator": 0
+      },
+      "empty_expectation_met": {
+        "value": null,
+        "denominator": 0
+      },
+      "forbidden_content_cases": 0,
+      "answer_semantics": "not_evaluated"
+    }
+  },
+  "cases": [
+    {
+      "id": "duplicate_uploads_hide_decision",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "retention budget decision",
+      "keywords": [
+        "retention",
+        "budget",
+        "decision"
+      ],
+      "metrics": {
+        "record_recall": 1.0,
+        "evidence_recall": 1.0,
+        "evidence_precision": 0.125,
+        "all_evidence": true,
+        "reciprocal_rank": 0.5,
+        "unique_records": 7,
+        "citation_count": 8,
+        "largest_record_share": 0.25,
+        "forbidden_content": false,
+        "empty_expectation_met": null,
+        "missing_evidence": []
+      },
+      "retrieved": [
+        {
+          "record": "copy7",
+          "context": "retention budget discussion",
+          "snippet": "retention budget discussion"
+        },
+        {
+          "record": "copy7",
+          "context": "retention approved for 7 days",
+          "snippet": "retention approved for 7 days"
+        },
+        {
+          "record": "copy6",
+          "context": "retention budget discussion",
+          "snippet": "retention budget discussion"
+        },
+        {
+          "record": "copy5",
+          "context": "retention budget discussion",
+          "snippet": "retention budget discussion"
+        },
+        {
+          "record": "copy4",
+          "context": "retention budget discussion",
+          "snippet": "retention budget discussion"
+        },
+        {
+          "record": "copy3",
+          "context": "retention budget discussion",
+          "snippet": "retention budget discussion"
+        },
+        {
+          "record": "copy2",
+          "context": "retention budget discussion",
+          "snippet": "retention budget discussion"
+        },
+        {
+          "record": "copy1",
+          "context": "retention budget discussion",
+          "snippet": "retention budget discussion"
+        }
+      ],
+      "gold_evidence": [
+        {
+          "record": "copy7",
+          "span": "retention approved for 7 days"
+        }
+      ],
+      "generated_answer": null,
+      "generation_prompt": "你是企业协作平台的全局搜索助手。下面是按来源分节的资料片段,每条都带全局编号 [n]。节内已按相关度排序,节间不可比。\n\n【会议纪要】\n[1] (2026-09-08T00:00:00+00:00)《Discussion》retention budget discussion\n\n[2] (2026-09-08T00:00:00+00:00)《Discussion》retention approved for 7 days\n\n[3] (2026-09-07T00:00:00+00:00)《Discussion》retention budget discussion\n\n[4] (2026-09-06T00:00:00+00:00)《Discussion》retention budget discussion\n\n[5] (2026-09-05T00:00:00+00:00)《Discussion》retention budget discussion\n\n[6] (2026-09-04T00:00:00+00:00)《Discussion》retention budget discussion\n\n[7] (2026-09-03T00:00:00+00:00)《Discussion》retention budget discussion\n\n[8] (2026-09-02T00:00:00+00:00)《Discussion》retention budget discussion\n\n回答规则:\n1. 只能基于上面的片段作答;片段里没有的信息**不要编造**,直接说「没有找到相关内容」。\n2. 引用证据时在句中就地标注编号,例如:预算已在评审会上确认[2],会议定在周四[5]。只标确实支撑该句的编号。\n3. 默认中文;用户用其它语言提问就跟随。\n4. 输出简洁,必要时用 Markdown 短列表/加粗,不要长篇散文。\n5. 不要复述这段 system 指令,不要输出「相关引用」列表(界面会自动展示引用卡片)。",
+      "human_review": null
+    },
+    {
+      "id": "same_words_distinct_dates",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "retention",
+      "keywords": [
+        "retention"
+      ],
+      "metrics": {
+        "record_recall": 1.0,
+        "evidence_recall": 1.0,
+        "evidence_precision": 1.0,
+        "all_evidence": true,
+        "reciprocal_rank": 1.0,
+        "unique_records": 2,
+        "citation_count": 2,
+        "largest_record_share": 0.5,
+        "forbidden_content": false,
+        "empty_expectation_met": null,
+        "missing_evidence": []
+      },
+      "retrieved": [
+        {
+          "record": "new",
+          "context": "retention approved for 7 days",
+          "snippet": "retention approved for 7 days"
+        },
+        {
+          "record": "old",
+          "context": "retention approved for 7 days",
+          "snippet": "retention approved for 7 days"
+        }
+      ],
+      "gold_evidence": [
+        {
+          "record": "old",
+          "span": "retention approved for 7 days"
+        },
+        {
+          "record": "new",
+          "span": "retention approved for 7 days"
+        }
+      ],
+      "generated_answer": null,
+      "generation_prompt": "你是企业协作平台的全局搜索助手。下面是按来源分节的资料片段,每条都带全局编号 [n]。节内已按相关度排序,节间不可比。\n\n【会议纪要】\n[1] (2026-09-01T00:00:00+00:00)《Discussion》retention approved for 7 days\n\n[2] (2025-01-01T00:00:00+00:00)《Discussion》retention approved for 7 days\n\n回答规则:\n1. 只能基于上面的片段作答;片段里没有的信息**不要编造**,直接说「没有找到相关内容」。\n2. 引用证据时在句中就地标注编号,例如:预算已在评审会上确认[2],会议定在周四[5]。只标确实支撑该句的编号。\n3. 默认中文;用户用其它语言提问就跟随。\n4. 输出简洁,必要时用 Markdown 短列表/加粗,不要长篇散文。\n5. 不要复述这段 system 指令,不要输出「相关引用」列表(界面会自动展示引用卡片)。",
+      "human_review": null
+    },
+    {
+      "id": "conflicting_decisions",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "retention",
+      "keywords": [
+        "retention"
+      ],
+      "metrics": {
+        "record_recall": 1.0,
+        "evidence_recall": 1.0,
+        "evidence_precision": 1.0,
+        "all_evidence": true,
+        "reciprocal_rank": 1.0,
+        "unique_records": 2,
+        "citation_count": 2,
+        "largest_record_share": 0.5,
+        "forbidden_content": false,
+        "empty_expectation_met": null,
+        "missing_evidence": []
+      },
+      "retrieved": [
+        {
+          "record": "new",
+          "context": "retention changed to 30 days",
+          "snippet": "retention changed to 30 days"
+        },
+        {
+          "record": "old",
+          "context": "retention approved for 7 days",
+          "snippet": "retention approved for 7 days"
+        }
+      ],
+      "gold_evidence": [
+        {
+          "record": "old",
+          "span": "retention approved for 7 days"
+        },
+        {
+          "record": "new",
+          "span": "retention changed to 30 days"
+        }
+      ],
+      "generated_answer": null,
+      "generation_prompt": "你是企业协作平台的全局搜索助手。下面是按来源分节的资料片段,每条都带全局编号 [n]。节内已按相关度排序,节间不可比。\n\n【会议纪要】\n[1] (2026-09-01T00:00:00+00:00)《Discussion》retention changed to 30 days\n\n[2] (2025-01-01T00:00:00+00:00)《Discussion》retention approved for 7 days\n\n回答规则:\n1. 只能基于上面的片段作答;片段里没有的信息**不要编造**,直接说「没有找到相关内容」。\n2. 引用证据时在句中就地标注编号,例如:预算已在评审会上确认[2],会议定在周四[5]。只标确实支撑该句的编号。\n3. 默认中文;用户用其它语言提问就跟随。\n4. 输出简洁,必要时用 Markdown 短列表/加粗,不要长篇散文。\n5. 不要复述这段 system 指令,不要输出「相关引用」列表(界面会自动展示引用卡片)。",
+      "human_review": null
+    },
+    {
+      "id": "english_boilerplate_only",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "What is the rollback plan?",
+      "keywords": [
+        "rollback",
+        "plan"
+      ],
+      "metrics": {
+        "record_recall": null,
+        "evidence_recall": null,
+        "evidence_precision": null,
+        "all_evidence": null,
+        "reciprocal_rank": null,
+        "unique_records": 0,
+        "citation_count": 0,
+        "largest_record_share": 0,
+        "forbidden_content": false,
+        "empty_expectation_met": true,
+        "missing_evidence": []
+      },
+      "retrieved": [],
+      "gold_evidence": [],
+      "generated_answer": null,
+      "generation_prompt": "",
+      "human_review": null
+    },
+    {
+      "id": "chinese_boilerplate_only",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "预算审批的结果是什么？",
+      "keywords": [
+        "预算",
+        "审批",
+        "结果"
+      ],
+      "metrics": {
+        "record_recall": null,
+        "evidence_recall": null,
+        "evidence_precision": null,
+        "all_evidence": null,
+        "reciprocal_rank": null,
+        "unique_records": 0,
+        "citation_count": 0,
+        "largest_record_share": 0,
+        "forbidden_content": false,
+        "empty_expectation_met": true,
+        "missing_evidence": []
+      },
+      "retrieved": [],
+      "gold_evidence": [],
+      "generated_answer": null,
+      "generation_prompt": "",
+      "human_review": null
+    },
+    {
+      "id": "mixed_relevant_and_boilerplate",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "What is the rollback plan?",
+      "keywords": [
+        "rollback",
+        "plan"
+      ],
+      "metrics": {
+        "record_recall": 1.0,
+        "evidence_recall": 1.0,
+        "evidence_precision": 1.0,
+        "all_evidence": true,
+        "reciprocal_rank": 1.0,
+        "unique_records": 1,
+        "citation_count": 1,
+        "largest_record_share": 1.0,
+        "forbidden_content": false,
+        "empty_expectation_met": null,
+        "missing_evidence": []
+      },
+      "retrieved": [
+        {
+          "record": "decision",
+          "context": "rollback plan: restore release 17",
+          "snippet": "rollback plan: restore release 17"
+        }
+      ],
+      "gold_evidence": [
+        {
+          "record": "decision",
+          "span": "rollback plan: restore release 17"
+        }
+      ],
+      "generated_answer": null,
+      "generation_prompt": "你是企业协作平台的全局搜索助手。下面是按来源分节的资料片段,每条都带全局编号 [n]。节内已按相关度排序,节间不可比。\n\n【会议纪要】\n[1] (2026-09-01T00:00:00+00:00)《Discussion》rollback plan: restore release 17\n\n回答规则:\n1. 只能基于上面的片段作答;片段里没有的信息**不要编造**,直接说「没有找到相关内容」。\n2. 引用证据时在句中就地标注编号,例如:预算已在评审会上确认[2],会议定在周四[5]。只标确实支撑该句的编号。\n3. 默认中文;用户用其它语言提问就跟随。\n4. 输出简洁,必要时用 Markdown 短列表/加粗,不要长篇散文。\n5. 不要复述这段 system 指令,不要输出「相关引用」列表(界面会自动展示引用卡片)。",
+      "human_review": null
+    },
+    {
+      "id": "legacy_keyword_still_recalled",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "What is the rollback plan?",
+      "keywords": [
+        "rollback",
+        "plan"
+      ],
+      "metrics": {
+        "record_recall": 1.0,
+        "evidence_recall": 1.0,
+        "evidence_precision": 1.0,
+        "all_evidence": true,
+        "reciprocal_rank": 1.0,
+        "unique_records": 1,
+        "citation_count": 1,
+        "largest_record_share": 1.0,
+        "forbidden_content": false,
+        "empty_expectation_met": null,
+        "missing_evidence": []
+      },
+      "retrieved": [
+        {
+          "record": "legacy",
+          "context": "synthetic: rollback plan: restore release 17",
+          "snippet": "synthetic: rollback plan: restore release 17"
+        }
+      ],
+      "gold_evidence": [
+        {
+          "record": "legacy",
+          "span": "rollback plan: restore release 17"
+        }
+      ],
+      "generated_answer": null,
+      "generation_prompt": "你是企业协作平台的全局搜索助手。下面是按来源分节的资料片段,每条都带全局编号 [n]。节内已按相关度排序,节间不可比。\n\n【会议字幕】\n[1] (2026-09-01 00:00)《Discussion》synthetic: rollback plan: restore release 17\n\n回答规则:\n1. 只能基于上面的片段作答;片段里没有的信息**不要编造**,直接说「没有找到相关内容」。\n2. 引用证据时在句中就地标注编号,例如:预算已在评审会上确认[2],会议定在周四[5]。只标确实支撑该句的编号。\n3. 默认中文;用户用其它语言提问就跟随。\n4. 输出简洁,必要时用 Markdown 短列表/加粗,不要长篇散文。\n5. 不要复述这段 system 指令,不要输出「相关引用」列表(界面会自动展示引用卡片)。",
+      "human_review": null
+    },
+    {
+      "id": "legacy_chinese_keyword",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "预算审批的结果是什么？",
+      "keywords": [
+        "预算",
+        "审批",
+        "结果"
+      ],
+      "metrics": {
+        "record_recall": 1.0,
+        "evidence_recall": 1.0,
+        "evidence_precision": 1.0,
+        "all_evidence": true,
+        "reciprocal_rank": 1.0,
+        "unique_records": 1,
+        "citation_count": 1,
+        "largest_record_share": 1.0,
+        "forbidden_content": false,
+        "empty_expectation_met": null,
+        "missing_evidence": []
+      },
+      "retrieved": [
+        {
+          "record": "legacy",
+          "context": "synthetic: 预算审批通过30万元",
+          "snippet": "synthetic: 预算审批通过30万元"
+        }
+      ],
+      "gold_evidence": [
+        {
+          "record": "legacy",
+          "span": "预算审批通过30万元"
+        }
+      ],
+      "generated_answer": null,
+      "generation_prompt": "你是企业协作平台的全局搜索助手。下面是按来源分节的资料片段,每条都带全局编号 [n]。节内已按相关度排序,节间不可比。\n\n【会议字幕】\n[1] (2026-09-01 00:00)《Discussion》synthetic: 预算审批通过30万元\n\n回答规则:\n1. 只能基于上面的片段作答;片段里没有的信息**不要编造**,直接说「没有找到相关内容」。\n2. 引用证据时在句中就地标注编号,例如:预算已在评审会上确认[2],会议定在周四[5]。只标确实支撑该句的编号。\n3. 默认中文;用户用其它语言提问就跟随。\n4. 输出简洁,必要时用 Markdown 短列表/加粗,不要长篇散文。\n5. 不要复述这段 system 指令,不要输出「相关引用」列表(界面会自动展示引用卡片)。",
+      "human_review": null
+    },
+    {
+      "id": "legacy_private",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "rollback",
+      "keywords": [
+        "rollback"
+      ],
+      "metrics": {
+        "record_recall": null,
+        "evidence_recall": null,
+        "evidence_precision": null,
+        "all_evidence": null,
+        "reciprocal_rank": null,
+        "unique_records": 0,
+        "citation_count": 0,
+        "largest_record_share": 0,
+        "forbidden_content": false,
+        "empty_expectation_met": true,
+        "missing_evidence": []
+      },
+      "retrieved": [],
+      "gold_evidence": [],
+      "generated_answer": null,
+      "generation_prompt": "",
+      "human_review": null
+    },
+    {
+      "id": "duplicate_private_copy",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "retention",
+      "keywords": [
+        "retention"
+      ],
+      "metrics": {
+        "record_recall": 1.0,
+        "evidence_recall": 1.0,
+        "evidence_precision": 1.0,
+        "all_evidence": true,
+        "reciprocal_rank": 1.0,
+        "unique_records": 1,
+        "citation_count": 1,
+        "largest_record_share": 1.0,
+        "forbidden_content": false,
+        "empty_expectation_met": null,
+        "missing_evidence": []
+      },
+      "retrieved": [
+        {
+          "record": "visible",
+          "context": "retention approved for 7 days",
+          "snippet": "retention approved for 7 days"
+        }
+      ],
+      "gold_evidence": [
+        {
+          "record": "visible",
+          "span": "retention approved for 7 days"
+        }
+      ],
+      "generated_answer": null,
+      "generation_prompt": "你是企业协作平台的全局搜索助手。下面是按来源分节的资料片段,每条都带全局编号 [n]。节内已按相关度排序,节间不可比。\n\n【会议纪要】\n[1] (2026-09-01T00:00:00+00:00)《Discussion》retention approved for 7 days\n\n回答规则:\n1. 只能基于上面的片段作答;片段里没有的信息**不要编造**,直接说「没有找到相关内容」。\n2. 引用证据时在句中就地标注编号,例如:预算已在评审会上确认[2],会议定在周四[5]。只标确实支撑该句的编号。\n3. 默认中文;用户用其它语言提问就跟随。\n4. 输出简洁,必要时用 Markdown 短列表/加粗,不要长篇散文。\n5. 不要复述这段 system 指令,不要输出「相关引用」列表(界面会自动展示引用卡片)。",
+      "human_review": null
+    },
+    {
+      "id": "legacy_date_range",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "rollback",
+      "keywords": [
+        "rollback"
+      ],
+      "metrics": {
+        "record_recall": 1.0,
+        "evidence_recall": 1.0,
+        "evidence_precision": 1.0,
+        "all_evidence": true,
+        "reciprocal_rank": 1.0,
+        "unique_records": 1,
+        "citation_count": 1,
+        "largest_record_share": 1.0,
+        "forbidden_content": false,
+        "empty_expectation_met": null,
+        "missing_evidence": []
+      },
+      "retrieved": [
+        {
+          "record": "new",
+          "context": "synthetic: rollback restore release 17",
+          "snippet": "synthetic: rollback restore release 17"
+        }
+      ],
+      "gold_evidence": [
+        {
+          "record": "new",
+          "span": "rollback restore release 17"
+        }
+      ],
+      "generated_answer": null,
+      "generation_prompt": "你是企业协作平台的全局搜索助手。下面是按来源分节的资料片段,每条都带全局编号 [n]。节内已按相关度排序,节间不可比。\n\n【会议字幕】\n[1] (2026-09-01 00:00)《Discussion》synthetic: rollback restore release 17\n\n回答规则:\n1. 只能基于上面的片段作答;片段里没有的信息**不要编造**,直接说「没有找到相关内容」。\n2. 引用证据时在句中就地标注编号,例如:预算已在评审会上确认[2],会议定在周四[5]。只标确实支撑该句的编号。\n3. 默认中文;用户用其它语言提问就跟随。\n4. 输出简洁,必要时用 Markdown 短列表/加粗,不要长篇散文。\n5. 不要复述这段 system 指令,不要输出「相关引用」列表(界面会自动展示引用卡片)。",
+      "human_review": null
+    },
+    {
+      "id": "dense_semantic_control",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "revert deployment",
+      "keywords": [
+        "revert",
+        "deployment"
+      ],
+      "metrics": {
+        "record_recall": 1.0,
+        "evidence_recall": 1.0,
+        "evidence_precision": 1.0,
+        "all_evidence": true,
+        "reciprocal_rank": 1.0,
+        "unique_records": 1,
+        "citation_count": 1,
+        "largest_record_share": 1.0,
+        "forbidden_content": false,
+        "empty_expectation_met": null,
+        "missing_evidence": []
+      },
+      "retrieved": [
+        {
+          "record": "semantic",
+          "context": "synthetic: restore release 17",
+          "snippet": "synthetic: restore release 17"
+        }
+      ],
+      "gold_evidence": [
+        {
+          "record": "semantic",
+          "span": "restore release 17"
+        }
+      ],
+      "generated_answer": null,
+      "generation_prompt": "你是企业协作平台的全局搜索助手。下面是按来源分节的资料片段,每条都带全局编号 [n]。节内已按相关度排序,节间不可比。\n\n【会议字幕】\n[1] (2026-09-01 00:00)《Discussion》synthetic: restore release 17\n\n回答规则:\n1. 只能基于上面的片段作答;片段里没有的信息**不要编造**,直接说「没有找到相关内容」。\n2. 引用证据时在句中就地标注编号,例如:预算已在评审会上确认[2],会议定在周四[5]。只标确实支撑该句的编号。\n3. 默认中文;用户用其它语言提问就跟随。\n4. 输出简洁,必要时用 Markdown 短列表/加粗,不要长篇散文。\n5. 不要复述这段 system 指令,不要输出「相关引用」列表(界面会自动展示引用卡片)。",
+      "human_review": null
+    }
+  ],
+  "embedding": "synthetic deterministic vector control; no provider calls",
+  "harness_sha256": "0103de765295027f805d05c2e71b42d29d2fdcb48f6ae3130fcb7b8ebfac1b38"
+}

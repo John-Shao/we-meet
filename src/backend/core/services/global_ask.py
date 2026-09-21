@@ -436,7 +436,10 @@ class GlobalAskService:
             logger.warning(
                 "global-ask embedding unavailable — BM25-only leg", exc_info=True
             )
-        bm25_ranked = bm25_rank(question, chunks, top_n=candidate_n)
+        # Rank lexical evidence by content terms, not question boilerplate such as
+        # "what is the" / "是什么". Dense retrieval keeps its separate semantic leg.
+        lexical_query = " ".join(self._keywords(question))
+        bm25_ranked = bm25_rank(lexical_query, chunks, top_n=candidate_n)
         if vec_ranked is None:
             top = bm25_ranked[:_CAP_TRANSCRIPTS]
         elif not getattr(settings, "RAG_HYBRID_ENABLED", True):

@@ -123,3 +123,27 @@ def test_duplicate_fragments_are_not_repeated_in_context():
 )
 def test_english_query_terms_keep_explicit_phrases_and_acronyms(question, expected):
     assert GlobalAskService._keywords(question) == expected
+
+
+def test_repeated_video_opening_and_question_do_not_hide_later_answer():
+    # Derived only from the user's supplied public sample, not private meetings.
+    texts = [
+        "中国大部分老板都不是资本家思维，而是封建地主奴隶主思维。",
+        "资本家思维是你只要给他挣到钱，你怎么都可以，你不来上班也没问题。",
+        "对，那么奴隶主思维呢？",
+        "他就是看不得你闲，他在全方位监控你。",
+        "两者之间最大的区别就是，资本家觉得你是在帮他赚钱，奴隶主觉得你是在挣他的钱。",
+    ]
+    viewer, _ = seed_case({"records": [record(str(i), texts) for i in range(7)]})
+    citations = []
+    entries = recall_records(
+        viewer,
+        GlobalAskService._keywords("两种老板思维中，资本家与奴隶主最大的区别是什么？"),
+        citations,
+    )
+    assert any(texts[-1] in entry for entry in entries)
+    assert len(entries) <= CONTEXT_CITATIONS
+    assert all(
+        sum(c["record_id"] == row["record_id"] for c in citations) <= 2
+        for row in citations
+    )

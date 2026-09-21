@@ -1,0 +1,443 @@
+{
+  "dataset": "miaoji-mixed-v1",
+  "cases": [
+    {
+      "id": "duplicate_uploads_hide_decision",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "retention budget decision",
+      "records": [
+        {
+          "id": "copy0",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "retention budget discussion",
+            "retention approved for 7 days"
+          ]
+        },
+        {
+          "id": "copy1",
+          "title": "Discussion",
+          "date": "2026-09-02",
+          "texts": [
+            "retention budget discussion",
+            "retention approved for 7 days"
+          ]
+        },
+        {
+          "id": "copy2",
+          "title": "Discussion",
+          "date": "2026-09-03",
+          "texts": [
+            "retention budget discussion",
+            "retention approved for 7 days"
+          ]
+        },
+        {
+          "id": "copy3",
+          "title": "Discussion",
+          "date": "2026-09-04",
+          "texts": [
+            "retention budget discussion",
+            "retention approved for 7 days"
+          ]
+        },
+        {
+          "id": "copy4",
+          "title": "Discussion",
+          "date": "2026-09-05",
+          "texts": [
+            "retention budget discussion",
+            "retention approved for 7 days"
+          ]
+        },
+        {
+          "id": "copy5",
+          "title": "Discussion",
+          "date": "2026-09-06",
+          "texts": [
+            "retention budget discussion",
+            "retention approved for 7 days"
+          ]
+        },
+        {
+          "id": "copy6",
+          "title": "Discussion",
+          "date": "2026-09-07",
+          "texts": [
+            "retention budget discussion",
+            "retention approved for 7 days"
+          ]
+        },
+        {
+          "id": "copy7",
+          "title": "Discussion",
+          "date": "2026-09-08",
+          "texts": [
+            "retention budget discussion",
+            "retention approved for 7 days"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "record": "copy7",
+          "span": "retention approved for 7 days"
+        }
+      ],
+      "answer_requirements": [
+        "Use cited evidence; do not invent missing facts."
+      ]
+    },
+    {
+      "id": "same_words_distinct_dates",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "retention",
+      "records": [
+        {
+          "id": "old",
+          "title": "Discussion",
+          "date": "2025-01-01",
+          "texts": [
+            "retention approved for 7 days"
+          ]
+        },
+        {
+          "id": "new",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "retention approved for 7 days"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "record": "old",
+          "span": "retention approved for 7 days"
+        },
+        {
+          "record": "new",
+          "span": "retention approved for 7 days"
+        }
+      ],
+      "answer_requirements": [
+        "Use cited evidence; do not invent missing facts."
+      ]
+    },
+    {
+      "id": "conflicting_decisions",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "retention",
+      "records": [
+        {
+          "id": "old",
+          "title": "Discussion",
+          "date": "2025-01-01",
+          "texts": [
+            "retention approved for 7 days"
+          ]
+        },
+        {
+          "id": "new",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "retention changed to 30 days"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "record": "old",
+          "span": "retention approved for 7 days"
+        },
+        {
+          "record": "new",
+          "span": "retention changed to 30 days"
+        }
+      ],
+      "answer_requirements": [
+        "Use cited evidence; do not invent missing facts."
+      ]
+    },
+    {
+      "id": "english_boilerplate_only",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "What is the rollback plan?",
+      "records": [],
+      "evidence": [],
+      "answer_requirements": [
+        "Use cited evidence; do not invent missing facts."
+      ],
+      "legacy": [
+        {
+          "id": "noise",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "What is the lunch menu?"
+          ]
+        }
+      ],
+      "expect_empty": true
+    },
+    {
+      "id": "chinese_boilerplate_only",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "预算审批的结果是什么？",
+      "records": [],
+      "evidence": [],
+      "answer_requirements": [
+        "Use cited evidence; do not invent missing facts."
+      ],
+      "legacy": [
+        {
+          "id": "noise",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "现目前的是什么状态？"
+          ]
+        }
+      ],
+      "expect_empty": true
+    },
+    {
+      "id": "mixed_relevant_and_boilerplate",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "What is the rollback plan?",
+      "records": [
+        {
+          "id": "decision",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "rollback plan: restore release 17"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "record": "decision",
+          "span": "rollback plan: restore release 17"
+        }
+      ],
+      "answer_requirements": [
+        "Use cited evidence; do not invent missing facts."
+      ],
+      "legacy": [
+        {
+          "id": "noise",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "What is the lunch menu?"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "legacy_keyword_still_recalled",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "What is the rollback plan?",
+      "records": [],
+      "evidence": [
+        {
+          "record": "legacy",
+          "span": "rollback plan: restore release 17"
+        }
+      ],
+      "answer_requirements": [
+        "Use cited evidence; do not invent missing facts."
+      ],
+      "legacy": [
+        {
+          "id": "legacy",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "rollback plan: restore release 17"
+          ]
+        },
+        {
+          "id": "noise",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "What is the lunch menu?"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "legacy_chinese_keyword",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "预算审批的结果是什么？",
+      "records": [],
+      "evidence": [
+        {
+          "record": "legacy",
+          "span": "预算审批通过30万元"
+        }
+      ],
+      "answer_requirements": [
+        "Use cited evidence; do not invent missing facts."
+      ],
+      "legacy": [
+        {
+          "id": "legacy",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "预算审批通过30万元"
+          ]
+        },
+        {
+          "id": "noise",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "现目前的是什么状态？"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "legacy_private",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "rollback",
+      "records": [],
+      "evidence": [],
+      "answer_requirements": [
+        "Use cited evidence; do not invent missing facts."
+      ],
+      "legacy": [
+        {
+          "id": "private",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "rollback plan: secret release"
+          ],
+          "access": "private"
+        }
+      ],
+      "expect_empty": true,
+      "forbidden_records": [
+        "private"
+      ]
+    },
+    {
+      "id": "duplicate_private_copy",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "retention",
+      "records": [
+        {
+          "id": "private",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "retention approved for 7 days"
+          ],
+          "access": "private"
+        },
+        {
+          "id": "visible",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "retention approved for 7 days"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "record": "visible",
+          "span": "retention approved for 7 days"
+        }
+      ],
+      "answer_requirements": [
+        "Use cited evidence; do not invent missing facts."
+      ],
+      "forbidden_records": [
+        "private"
+      ]
+    },
+    {
+      "id": "legacy_date_range",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "rollback",
+      "records": [],
+      "evidence": [
+        {
+          "record": "new",
+          "span": "rollback restore release 17"
+        }
+      ],
+      "answer_requirements": [
+        "Use cited evidence; do not invent missing facts."
+      ],
+      "legacy": [
+        {
+          "id": "old",
+          "title": "Discussion",
+          "date": "2025-01-01",
+          "texts": [
+            "rollback restore release 16"
+          ]
+        },
+        {
+          "id": "new",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "rollback restore release 17"
+          ]
+        }
+      ],
+      "date_from": "2026-01-01",
+      "forbidden_records": [
+        "old"
+      ]
+    },
+    {
+      "id": "dense_semantic_control",
+      "category": "mixed_retrieval",
+      "split": "diagnostic",
+      "question": "revert deployment",
+      "records": [],
+      "evidence": [
+        {
+          "record": "semantic",
+          "span": "restore release 17"
+        }
+      ],
+      "answer_requirements": [
+        "Use cited evidence; do not invent missing facts."
+      ],
+      "legacy": [
+        {
+          "id": "semantic",
+          "title": "Discussion",
+          "date": "2026-09-01",
+          "texts": [
+            "restore release 17"
+          ],
+          "embedded": true
+        }
+      ]
+    }
+  ]
+}

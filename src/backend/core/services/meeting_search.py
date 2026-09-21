@@ -23,7 +23,8 @@ from core.services.meeting_records import visible_records
 
 # Pools are bounded independently; final context has one shared budget.
 CANDIDATES_PER_SOURCE = 64
-CANDIDATES_PER_RECORD = 2
+CANDIDATES_PER_RECORD = 4
+CITATIONS_PER_RECORD = 2
 CONTEXT_CITATIONS = 8
 CONTEXT_CHARS = 800
 
@@ -155,12 +156,38 @@ def _select(candidates):
         if len(group) < CANDIDATES_PER_RECORD:
             group.append(candidate)
     # Best evidence from each record precedes a second fragment from any record.
-    return [
+    diverse = [
         group[index]
         for index in range(CANDIDATES_PER_RECORD)
         for group in groups.values()
         if len(group) > index
-    ][:CONTEXT_CITATIONS]
+    ]
+    # Repeated uploads must not crowd out another fact. Defer rather than merge:
+    # identical wording at distinct dates/records still has separate provenance.
+    selected, repeated, texts, counts = [], [], set(), {}
+    for candidate in diverse:
+        count = counts.get(candidate.record_id, 0)
+        if count >= CITATIONS_PER_RECORD:
+            continue
+        key = candidate.text.strip().casefold()
+        if key in texts:
+            repeated.append(candidate)
+            continue
+        # Only admitted evidence reserves a text key. A record that exhausts its
+        # quota cannot suppress the same useful evidence from another record.
+        texts.add(key)
+        selected.append(candidate)
+        counts[candidate.record_id] = count + 1
+        if len(selected) == CONTEXT_CITATIONS:
+            return selected
+    for candidate in repeated:
+        count = counts.get(candidate.record_id, 0)
+        if count < CITATIONS_PER_RECORD:
+            selected.append(candidate)
+            counts[candidate.record_id] = count + 1
+        if len(selected) == CONTEXT_CITATIONS:
+            break
+    return selected
 
 
 def recall_records(user, keywords, citations, *, date_from=None, date_to=None):
