@@ -1,5 +1,9 @@
 # 妙记整改：目标环境验收清单
 
+## 第四十八批存储核验与启用准备
+
+[存储与生产预检](miaoji-batch-48-purge-storage-preflight.md)：用户确认 Helm 382，backend `d2c791e9d`、frontend `62fb7904b`。生产回收站 `purge_available=false` 实测通过；实际 OSS 桶无版本控制、无 WORM 配置，两个随机媒体目录探针私有读取与真实删除检查通过并已清理。尚需在生产主机运行 `python3 deploy/aliyun/check_record_purge.py --expected-backend-tag d2c791e9d --storage-canary`，确认各 Pod、迁移及 live worker/beat。开关仍关闭；本批 13 项预检测试、拟启用三进程 Helm 渲染通过，没有永久删除应用记录。下方条目为历史批次状态。
+
 ## 第四十七批发布门槛
 
 [双端入口与预检](miaoji-batch-47-permanent-deletion-ui.md)：Web 27 项、Android 33 项单元及 14 项仪器测试通过，debug APK 已安装。永久删除开关保持关闭，需先发布 **backend + frontend** 并应用 `0186`；确认所有后端上传采用者/worker 更新和生产关闭契约后，另外核验存储条件并准备启用。本轮没有永久删除生产样本，不能将本地通过记为生产通过。

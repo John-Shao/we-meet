@@ -51,8 +51,9 @@
 | 45 | 非空原文、AI 纪要、6 版人工历史与两页 12 份导出的生产回收恢复比对 | 本批文档 | 无运行变更 |
 | 46 | 手动永久删除后端、媒体验证清理、最小凭据与上传重放保护；125 项通过，生产关闭 | 本批提交 | 待下一批入口 |
 | 47 | 永久删除双端确认/状态/重试，Web 27 项、App 33 项单元及 14 项仪器通过，发布预检通过 | 本批提交（含 `2e7b6d665` 后端） | `30a7c2b3` |
+| 48 | 生产关闭契约、实际媒体桶版本/WORM/私有访问与探针删除核验；生产 Pod 预检工具及启用步骤，13 项测试 | 本批提交，无应用运行代码变更 | 无运行变更 |
 
-[第四十七批](miaoji-batch-47-permanent-deletion-ui.md)已补齐手动永久删除双端入口并完成本地回归。生产开关仍关闭，等待 backend/frontend 发布、`0186` 迁移及所有后端实例更新后进入独立启用批次。本轮未清理生产记录；自动保留期限继续延后。以下既有部署/验收记录保留其历史范围。
+[第四十八批](miaoji-batch-48-purge-storage-preflight.md)：用户确认 Helm 382，backend `d2c791e9d`、frontend `62fb7904b` 已部署。生产回收站仍返回 `purge_available=false`；实际 OSS 桶与两类随机探针检查通过，探针全部清理。生产 Pod 的迁移、镜像与 worker/beat 运行核验尚待宿主机执行本批命令，开关仍关闭。拟启用三进程 Helm 渲染通过；未永久删除应用记录。自动保留期限继续延后，以下记录保留历史范围。
 
 每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
