@@ -198,7 +198,8 @@ export const CaptureAudioPlayer = forwardRef<
         borderRadius: 'card',
         '&[data-compact=true]': {
           marginTop: 0,
-          padding: 'md 0',
+          paddingY: 'md',
+          paddingX: 0,
           border: 'none',
           borderRadius: 'none',
         },

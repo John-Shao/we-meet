@@ -23,7 +23,8 @@ const FORMATS = [
 const linkCls = css({
   display: 'inline-flex',
   alignItems: 'center',
-  padding: 'xs sm',
+  paddingY: 'xs',
+  paddingX: 'sm',
   borderRadius: 'control',
   textStyle: 'labelMedium',
   color: 'text.link',

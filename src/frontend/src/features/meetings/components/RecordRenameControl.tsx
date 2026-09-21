@@ -107,7 +107,8 @@ export function RecordRenameControl({
           className={css({
             border: '1px solid token(colors.border.subtle)',
             borderRadius: 'card',
-            padding: 'sm md',
+            paddingY: 'sm',
+            paddingX: 'md',
             backgroundColor: 'transparent',
             minWidth: '16rem',
           })}

@@ -56,7 +56,8 @@ export function SpeakerAttributionControl({
           cursor: 'pointer',
           color: 'text.link',
           borderRadius: 'field',
-          padding: 'xxs xs',
+          paddingY: 'xxs',
+          paddingX: 'xs',
           textStyle: 'labelMedium',
           _hover: { backgroundColor: 'surface.canvas' },
           _focusVisible: { outline: '2px solid token(colors.border.focus)' },
@@ -107,7 +108,8 @@ function Picker({
         display: 'flex',
         flexDirection: 'column',
         gap: 'sm',
-        margin: 'sm 0',
+        marginY: 'sm',
+        marginX: 0,
         padding: 'md',
         borderRadius: 'card',
         border: '1px solid token(colors.border.subtle)',
@@ -136,7 +138,8 @@ function Picker({
             className={css({
               border: '1px solid token(colors.border.subtle)',
               borderRadius: 'control',
-              padding: 'xs sm',
+              paddingY: 'xs',
+              paddingX: 'sm',
               // 此前写死 `white`:深色主题下输入文字继承翻转后的 text.primary
               // (#E2E2E5),压在纯白底上只有约 1.3:1 —— 远低于 4.5:1。
               // 底与前景成对取语义角色,两套主题都成立。

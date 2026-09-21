@@ -6,6 +6,35 @@ import { TranscriptDraftScope } from './TranscriptDraftScope'
 import { useTranscriptDraftScope } from '../hooks/useTranscriptDraft'
 import { ApiError } from '@/api/ApiError'
 
+it.each([
+  ['İx x', 'x', ['x', 'x']],
+  ['İ İstanbul', 'İ', ['İ', 'İ']],
+  ['Hello HELLO', 'hello', ['Hello', 'HELLO']],
+  ['[a].* [a].*', '[a].*', ['[a].*', '[a].*']],
+  ['🙂İx🙂', '🙂', ['🙂', '🙂']],
+  ['unchanged', 'missing', []],
+  ['unchanged', '  ', []],
+])(
+  'highlights literal matches without changing %s',
+  (text, highlight, matches) => {
+    const view = render(
+      <TranscriptSegment
+        speaker="Ada"
+        segmentId="segment"
+        text={text}
+        highlight={highlight}
+      />
+    )
+    expect(view.container.querySelector('p')?.textContent).toBe(text)
+    expect(
+      Array.from(
+        view.container.querySelectorAll('mark'),
+        (mark) => mark.textContent
+      )
+    ).toEqual(matches)
+  }
+)
+
 function ClearDrafts() {
   const drafts = useTranscriptDraftScope()
   return <button onClick={() => drafts?.clear()}>revoke</button>

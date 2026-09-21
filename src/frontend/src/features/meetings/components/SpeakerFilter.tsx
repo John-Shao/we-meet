@@ -46,7 +46,8 @@ export function SpeakerFilter({
         gap: 'sm',
         alignItems: 'center',
         flexWrap: 'wrap',
-        margin: 'md 0',
+        marginY: 'md',
+        marginX: 0,
       })}
     >
       <label
@@ -65,7 +66,8 @@ export function SpeakerFilter({
           className={css({
             border: '1px solid token(colors.border.subtle)',
             borderRadius: 'card',
-            padding: 'sm md',
+            paddingY: 'sm',
+            paddingX: 'md',
             backgroundColor: 'transparent',
           })}
         >

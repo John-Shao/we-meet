@@ -46,6 +46,7 @@ export const SearchBox = ({
   inputRef,
   clearLabel,
   className,
+  maxLength,
 }: {
   value: string
   /** 直接传 setState 即可:回调只给字符串,不给事件。 */
@@ -59,6 +60,7 @@ export const SearchBox = ({
   clearLabel?: string
   /** 只用来定宽度 / 外边距这类排布,外观不要再从这里改。 */
   className?: string
+  maxLength?: number
 }) => {
   const { t } = useTranslation('global')
   // 显式写成 `T | null`:React 18 的 `useRef<T>(null)` 返回的 `RefObject` 把
@@ -97,6 +99,7 @@ export const SearchBox = ({
       <input
         ref={attachInput}
         type="search"
+        maxLength={maxLength}
         className={inputCls}
         value={value}
         onChange={(event: ChangeEvent<HTMLInputElement>) =>

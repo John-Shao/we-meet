@@ -23,26 +23,27 @@ const markCls = css({
 /**
  * 把 `text` 里所有 `query` 的命中处包进 `<mark>`。
  *
- * 大小写不敏感、按字面量匹配（`indexOf` 而不是正则）—— 搜索词直接来自用户输入，
- * 拼进正则会让 `(`、`*` 这类字符抛异常或误匹配。逐字稿的查询本来就是字面量。
+ * 转义查询词以保持字面量匹配，并直接在原文上匹配，保留原始索引。
+ * 不能先转小写再截取原文：例如 `İ` 转小写会增加字符长度。
  */
 function highlightMatches(text: string, query: string) {
   const needle = query.trim()
   if (!needle) return text
-  const haystack = text.toLowerCase()
-  const lowered = needle.toLowerCase()
+  const pattern = new RegExp(
+    needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+    'giu'
+  )
   const parts: React.ReactNode[] = []
   let cursor = 0
-  let index = haystack.indexOf(lowered)
-  while (index !== -1) {
+  for (const match of text.matchAll(pattern)) {
+    const index = match.index
     if (index > cursor) parts.push(text.slice(cursor, index))
     parts.push(
       <mark key={`${index}-${parts.length}`} className={markCls}>
-        {text.slice(index, index + needle.length)}
+        {match[0]}
       </mark>
     )
-    cursor = index + needle.length
-    index = haystack.indexOf(lowered, cursor)
+    cursor = index + match[0].length
   }
   parts.push(text.slice(cursor))
   return parts
@@ -248,7 +249,8 @@ export function TranscriptSegment({
         {isCorrected && (
           <span
             className={css({
-              padding: 'xxs sm',
+              paddingY: 'xxs',
+              paddingX: 'sm',
               borderRadius: 'control',
               backgroundColor: 'action.selected.bg',
               color: 'text.link',
@@ -267,7 +269,8 @@ export function TranscriptSegment({
               color: 'text.link',
               textDecoration: 'underline',
               borderRadius: 'field',
-              padding: 'xxs xs',
+              paddingY: 'xxs',
+              paddingX: 'xs',
               // 「显示/隐藏原文」此前 hover 与 focus-visible 都没有 ——
               // 键盘走到它时看不见焦点,是四条手写按钮里唯一完全没状态覆盖的一颗。
               _hover: { backgroundColor: 'surface.canvas' },
@@ -292,7 +295,8 @@ export function TranscriptSegment({
               cursor: 'pointer',
               color: 'text.link',
               borderRadius: 'field',
-              padding: 'xxs xs',
+              paddingY: 'xxs',
+              paddingX: 'xs',
               _hover: { backgroundColor: 'surface.canvas' },
               _focusVisible: {
                 outline: '2px solid token(colors.border.focus)',
@@ -311,7 +315,8 @@ export function TranscriptSegment({
               cursor: 'pointer',
               color: 'text.link',
               borderRadius: 'field',
-              padding: 'xxs xs',
+              paddingY: 'xxs',
+              paddingX: 'xs',
               _hover: { backgroundColor: 'surface.canvas' },
               _focusVisible: {
                 outline: '2px solid token(colors.border.focus)',

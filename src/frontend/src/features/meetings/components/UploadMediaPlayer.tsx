@@ -169,17 +169,18 @@ export const UploadMediaPlayer = forwardRef<
         flexShrink: 0,
         backgroundColor: 'surface.default',
         borderTop: '1px solid token(colors.border.subtle)',
-        padding: 'md 0',
+        paddingY: 'md',
+        paddingX: 0,
       })}
     >
       {state === 'loading' && (
-        <p role="status" className={css({ padding: '0 lg' })}>
+        <p role="status" className={css({ paddingY: 0, paddingX: 'lg' })}>
           {t('audioLoading')}
         </p>
       )}
       {state === 'error' && (
         <div>
-          <p role="alert" className={css({ padding: '0 lg' })}>
+          <p role="alert" className={css({ paddingY: 0, paddingX: 'lg' })}>
             {t('audioError')}
           </p>
           <Button

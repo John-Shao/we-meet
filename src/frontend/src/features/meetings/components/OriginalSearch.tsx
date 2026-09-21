@@ -30,7 +30,8 @@ export function OriginalSearch({
         display: 'flex',
         gap: 'sm',
         flexWrap: 'wrap',
-        margin: 'md 0',
+        marginY: 'md',
+        marginX: 0,
         alignItems: 'center',
       })}
       onSubmit={(event) => {
@@ -39,6 +40,7 @@ export function OriginalSearch({
       }}
     >
       <SearchBox
+        maxLength={200}
         value={draft}
         onChange={(value) => {
           setDraft(value)

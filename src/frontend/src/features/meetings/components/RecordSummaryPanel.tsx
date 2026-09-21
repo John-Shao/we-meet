@@ -648,7 +648,8 @@ const Version = ({
   return (
     <article
       className={css({
-        padding: 'sm 0',
+        paddingY: 'sm',
+        paddingX: 0,
         '& p': { lineHeight: 1.85, overflowWrap: 'anywhere' },
       })}
     >
@@ -728,7 +729,11 @@ const Version = ({
         ).map(
           (kind) =>
             version.content[kind].length > 0 && (
-              <details key={kind} open className={css({ padding: 'md 0' })}>
+              <details
+                key={kind}
+                open
+                className={css({ paddingY: 'md', paddingX: 0 })}
+              >
                 <summary
                   className={css({
                     cursor: 'pointer',
@@ -753,7 +758,10 @@ const Version = ({
                       key={index}
                       className={css({
                         marginBottom: 'lg',
-                        padding: 'xs 0 xs lg',
+                        paddingTop: 'xs',
+                        paddingRight: 0,
+                        paddingBottom: 'xs',
+                        paddingLeft: 'lg',
                         borderLeft: '2px solid token(colors.brand.200)',
                       })}
                     >
@@ -792,7 +800,8 @@ const Version = ({
               className={css({
                 cursor: 'pointer',
                 color: 'text.link',
-                padding: 'md 0',
+                paddingY: 'md',
+                paddingX: 0,
               })}
             >
               {t('minutesReader.export')}

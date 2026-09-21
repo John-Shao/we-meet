@@ -89,7 +89,8 @@ const textStyle = css({
   whiteSpace: 'pre-wrap',
   overflowWrap: 'anywhere',
   lineHeight: 1.7,
-  margin: 'md 0',
+  marginY: 'md',
+  marginX: 0,
 })
 const time = (ms: number) =>
   `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`
@@ -726,7 +727,8 @@ function WorkspaceContent({
               gridTemplateColumns: 'auto 1fr',
               columnGap: '2xl',
               rowGap: '1.25rem',
-              padding: 'lg 0',
+              paddingY: 'lg',
+              paddingX: 0,
               '& dt': { color: 'text.secondary' },
             })}
           >
