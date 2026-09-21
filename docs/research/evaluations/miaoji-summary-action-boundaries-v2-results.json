@@ -1,0 +1,318 @@
+{
+  "label": "action-boundary-v2-start-versus-completion-20260921",
+  "inputs_sha256": "e99b9b4b359e88d846d88e622b9100c7a8ea713caf468542343e4f7b2dabf72c",
+  "scope": "Local production prompt/parser; no database, notifications or tasks.",
+  "semantic_review": "pending; valid references do not prove factual support",
+  "cases": [
+    {
+      "id": "production393-zh",
+      "model": "qwen3.8-flash",
+      "status": "succeeded",
+      "prompt_sha256": "ce52089f59c9f68f9cc4941e9fe3ee5952a37de2960b3e488fca3986a970b8c3",
+      "raw_output": "{\n  \"overview\": \"会议主要涉及对象存储签名续期和跨账号权限的核验，以及妙记转写结果的处理。明确了陈晨负责术语校对的任务及截止时间，并指出临时文件清理失败时不能掩盖转写提交的原始错误。\",\n  \"decisions\": [\n    {\n      \"text\": \"今天核验对象存储签名续期和跨账号权限。\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"5df98000-a011-4ec5-98d4-338b9ba92782\",\n          \"segment_revision\": 1,\n          \"start_ms\": 240,\n          \"end_ms\": 5240\n        }\n      ]\n    },\n    {\n      \"text\": \"妙记的转写结果需要保留原文引用。\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"9621d06d-8815-4641-984f-fc02cb566071\",\n          \"segment_revision\": 2,\n          \"start_ms\": 6000,\n          \"end_ms\": 9320\n        }\n      ]\n    },\n    {\n      \"text\": \"临时文件清理失败，不能掩盖转写提交的原始错误。\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"633262ad-0329-450b-9feb-1014c0b2dabd\",\n          \"segment_revision\": 1,\n          \"start_ms\": 15720,\n          \"end_ms\": 20760\n        }\n      ]\n    }\n  ],\n  \"chapters\": [],\n  \"action_items\": [\n    {\n      \"text\": \"负责术语校对\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"fad1b052-9c0e-4de8-8edd-8af28ca45c2f\",\n          \"segment_revision\": 1,\n          \"start_ms\": 10580,\n          \"end_ms\": 14820\n        }\n      ],\n      \"owner_text\": \"陈晨\",\n      \"due_text\": \"周五下午3点前\"\n    }\n  ],\n  \"open_questions\": []\n}",
+      "content": {
+        "overview": "会议主要涉及对象存储签名续期和跨账号权限的核验，以及妙记转写结果的处理。明确了陈晨负责术语校对的任务及截止时间，并指出临时文件清理失败时不能掩盖转写提交的原始错误。",
+        "decisions": [
+          {
+            "text": "今天核验对象存储签名续期和跨账号权限。",
+            "source_refs": [
+              {
+                "segment_id": "5df98000-a011-4ec5-98d4-338b9ba92782",
+                "segment_revision": 1,
+                "start_ms": 240,
+                "end_ms": 5240
+              }
+            ]
+          },
+          {
+            "text": "妙记的转写结果需要保留原文引用。",
+            "source_refs": [
+              {
+                "segment_id": "9621d06d-8815-4641-984f-fc02cb566071",
+                "segment_revision": 2,
+                "start_ms": 6000,
+                "end_ms": 9320
+              }
+            ]
+          },
+          {
+            "text": "临时文件清理失败，不能掩盖转写提交的原始错误。",
+            "source_refs": [
+              {
+                "segment_id": "633262ad-0329-450b-9feb-1014c0b2dabd",
+                "segment_revision": 1,
+                "start_ms": 15720,
+                "end_ms": 20760
+              }
+            ]
+          }
+        ],
+        "chapters": [],
+        "action_items": [
+          {
+            "text": "负责术语校对",
+            "source_refs": [
+              {
+                "segment_id": "fad1b052-9c0e-4de8-8edd-8af28ca45c2f",
+                "segment_revision": 1,
+                "start_ms": 10580,
+                "end_ms": 14820
+              }
+            ],
+            "owner_text": "陈晨",
+            "due_text": "周五下午3点前"
+          }
+        ],
+        "open_questions": []
+      },
+      "elapsed_ms": 7630
+    },
+    {
+      "id": "production393-en",
+      "model": "qwen3.8-flash",
+      "status": "succeeded",
+      "prompt_sha256": "ce52089f59c9f68f9cc4941e9fe3ee5952a37de2960b3e488fca3986a970b8c3",
+      "raw_output": "{\n  \"overview\": \"The release is postponed to Friday. Alice will verify storage permissions, and the speaker will review the transcript. The budget is confirmed as $15,000, not $50,000. It is agreed that the original recording must be kept and not deleted before the review. Bob will send the test report before Thursday afternoon.\",\n  \"decisions\": [\n    {\n      \"text\": \"The release is postponed to Friday.\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"59117f7e-f7a4-4d78-8248-e4e867622c71\",\n          \"segment_revision\": 1,\n          \"start_ms\": 160,\n          \"end_ms\": 2240\n        }\n      ]\n    },\n    {\n      \"text\": \"The budget is $15,000, not $50,000.\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"329dd758-14e7-4afc-bc0a-282dcb6119d1\",\n          \"segment_revision\": 1,\n          \"start_ms\": 8900,\n          \"end_ms\": 12580\n        }\n      ]\n    },\n    {\n      \"text\": \"Agreed to keep the original recording and not delete it before the review.\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"b7b0ab6c-e700-4f83-91ce-1f3c94fe5909\",\n          \"segment_revision\": 2,\n          \"start_ms\": 14010,\n          \"end_ms\": 15730\n        },\n        {\n          \"segment_id\": \"4948bbed-6b34-4662-a06f-0dc689d18c70\",\n          \"segment_revision\": 1,\n          \"start_ms\": 16500,\n          \"end_ms\": 18510\n        },\n        {\n          \"segment_id\": \"00d3035e-0713-40e7-ac23-f678c8b7a57a\",\n          \"segment_revision\": 1,\n          \"start_ms\": 19610,\n          \"end_ms\": 20500\n        }\n      ]\n    }\n  ],\n  \"chapters\": [\n    {\n      \"text\": \"Release postponement and budget clarification.\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"59117f7e-f7a4-4d78-8248-e4e867622c71\",\n          \"segment_revision\": 1,\n          \"start_ms\": 160,\n          \"end_ms\": 2240\n        },\n        {\n          \"segment_id\": \"329dd758-14e7-4afc-bc0a-282dcb6119d1\",\n          \"segment_revision\": 1,\n          \"start_ms\": 8900,\n          \"end_ms\": 12580\n        }\n      ]\n    },\n    {\n      \"text\": \"Task assignments for verification, review, and reporting.\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"0f22fc14-1c8c-45a1-a865-56830a383bf3\",\n          \"segment_revision\": 1,\n          \"start_ms\": 2870,\n          \"end_ms\": 5230\n        },\n        {\n          \"segment_id\": \"ad817a3f-3798-4402-abdb-1509f559ae8c\",\n          \"segment_revision\": 1,\n          \"start_ms\": 6540,\n          \"end_ms\": 8180\n        },\n        {\n          \"segment_id\": \"2703a520-e6fa-4ecb-b2f2-3b43cfbe1122\",\n          \"segment_revision\": 1,\n          \"start_ms\": 21040,\n          \"end_ms\": 24340\n        }\n      ]\n    },\n    {\n      \"text\": \"Agreement on retaining the original recording until after the review.\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"b7b0ab6c-e700-4f83-91ce-1f3c94fe5909\",\n          \"segment_revision\": 2,\n          \"start_ms\": 14010,\n          \"end_ms\": 15730\n        },\n        {\n          \"segment_id\": \"4948bbed-6b34-4662-a06f-0dc689d18c70\",\n          \"segment_revision\": 1,\n          \"start_ms\": 16500,\n          \"end_ms\": 18510\n        },\n        {\n          \"segment_id\": \"00d3035e-0713-40e7-ac23-f678c8b7a57a\",\n          \"segment_revision\": 1,\n          \"start_ms\": 19610,\n          \"end_ms\": 20500\n        }\n      ]\n    }\n  ],\n  \"action_items\": [\n    {\n      \"text\": \"Verify the storage permissions.\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"0f22fc14-1c8c-45a1-a865-56830a383bf3\",\n          \"segment_revision\": 1,\n          \"start_ms\": 2870,\n          \"end_ms\": 5230\n        }\n      ],\n      \"owner_text\": \"Alice\",\n      \"due_text\": \"\"\n    },\n    {\n      \"text\": \"Review the transcript.\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"ad817a3f-3798-4402-abdb-1509f559ae8c\",\n          \"segment_revision\": 1,\n          \"start_ms\": 6540,\n          \"end_ms\": 8180\n        }\n      ],\n      \"owner_text\": \"\",\n      \"due_text\": \"\"\n    },\n    {\n      \"text\": \"Send the test report.\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"2703a520-e6fa-4ecb-b2f2-3b43cfbe1122\",\n          \"segment_revision\": 1,\n          \"start_ms\": 21040,\n          \"end_ms\": 24340\n        }\n      ],\n      \"owner_text\": \"Bob\",\n      \"due_text\": \"before Thursday afternoon\"\n    }\n  ],\n  \"open_questions\": []\n}",
+      "content": {
+        "overview": "The release is postponed to Friday. Alice will verify storage permissions, and the speaker will review the transcript. The budget is confirmed as $15,000, not $50,000. It is agreed that the original recording must be kept and not deleted before the review. Bob will send the test report before Thursday afternoon.",
+        "decisions": [
+          {
+            "text": "The release is postponed to Friday.",
+            "source_refs": [
+              {
+                "segment_id": "59117f7e-f7a4-4d78-8248-e4e867622c71",
+                "segment_revision": 1,
+                "start_ms": 160,
+                "end_ms": 2240
+              }
+            ]
+          },
+          {
+            "text": "The budget is $15,000, not $50,000.",
+            "source_refs": [
+              {
+                "segment_id": "329dd758-14e7-4afc-bc0a-282dcb6119d1",
+                "segment_revision": 1,
+                "start_ms": 8900,
+                "end_ms": 12580
+              }
+            ]
+          },
+          {
+            "text": "Agreed to keep the original recording and not delete it before the review.",
+            "source_refs": [
+              {
+                "segment_id": "b7b0ab6c-e700-4f83-91ce-1f3c94fe5909",
+                "segment_revision": 2,
+                "start_ms": 14010,
+                "end_ms": 15730
+              },
+              {
+                "segment_id": "4948bbed-6b34-4662-a06f-0dc689d18c70",
+                "segment_revision": 1,
+                "start_ms": 16500,
+                "end_ms": 18510
+              },
+              {
+                "segment_id": "00d3035e-0713-40e7-ac23-f678c8b7a57a",
+                "segment_revision": 1,
+                "start_ms": 19610,
+                "end_ms": 20500
+              }
+            ]
+          }
+        ],
+        "chapters": [
+          {
+            "text": "Release postponement and budget clarification.",
+            "source_refs": [
+              {
+                "segment_id": "59117f7e-f7a4-4d78-8248-e4e867622c71",
+                "segment_revision": 1,
+                "start_ms": 160,
+                "end_ms": 2240
+              },
+              {
+                "segment_id": "329dd758-14e7-4afc-bc0a-282dcb6119d1",
+                "segment_revision": 1,
+                "start_ms": 8900,
+                "end_ms": 12580
+              }
+            ]
+          },
+          {
+            "text": "Task assignments for verification, review, and reporting.",
+            "source_refs": [
+              {
+                "segment_id": "0f22fc14-1c8c-45a1-a865-56830a383bf3",
+                "segment_revision": 1,
+                "start_ms": 2870,
+                "end_ms": 5230
+              },
+              {
+                "segment_id": "ad817a3f-3798-4402-abdb-1509f559ae8c",
+                "segment_revision": 1,
+                "start_ms": 6540,
+                "end_ms": 8180
+              },
+              {
+                "segment_id": "2703a520-e6fa-4ecb-b2f2-3b43cfbe1122",
+                "segment_revision": 1,
+                "start_ms": 21040,
+                "end_ms": 24340
+              }
+            ]
+          },
+          {
+            "text": "Agreement on retaining the original recording until after the review.",
+            "source_refs": [
+              {
+                "segment_id": "b7b0ab6c-e700-4f83-91ce-1f3c94fe5909",
+                "segment_revision": 2,
+                "start_ms": 14010,
+                "end_ms": 15730
+              },
+              {
+                "segment_id": "4948bbed-6b34-4662-a06f-0dc689d18c70",
+                "segment_revision": 1,
+                "start_ms": 16500,
+                "end_ms": 18510
+              },
+              {
+                "segment_id": "00d3035e-0713-40e7-ac23-f678c8b7a57a",
+                "segment_revision": 1,
+                "start_ms": 19610,
+                "end_ms": 20500
+              }
+            ]
+          }
+        ],
+        "action_items": [
+          {
+            "text": "Verify the storage permissions.",
+            "source_refs": [
+              {
+                "segment_id": "0f22fc14-1c8c-45a1-a865-56830a383bf3",
+                "segment_revision": 1,
+                "start_ms": 2870,
+                "end_ms": 5230
+              }
+            ],
+            "owner_text": "Alice",
+            "due_text": ""
+          },
+          {
+            "text": "Review the transcript.",
+            "source_refs": [
+              {
+                "segment_id": "ad817a3f-3798-4402-abdb-1509f559ae8c",
+                "segment_revision": 1,
+                "start_ms": 6540,
+                "end_ms": 8180
+              }
+            ],
+            "owner_text": "",
+            "due_text": ""
+          },
+          {
+            "text": "Send the test report.",
+            "source_refs": [
+              {
+                "segment_id": "2703a520-e6fa-4ecb-b2f2-3b43cfbe1122",
+                "segment_revision": 1,
+                "start_ms": 21040,
+                "end_ms": 24340
+              }
+            ],
+            "owner_text": "Bob",
+            "due_text": "before Thursday afternoon"
+          }
+        ],
+        "open_questions": []
+      },
+      "elapsed_ms": 20340
+    },
+    {
+      "id": "retention-only",
+      "model": "qwen3.8-flash",
+      "status": "succeeded",
+      "prompt_sha256": "9b20e4a0c2eb018ead88037ad7481005ab37f93f4af7b80aa5a87127f5fcceae",
+      "raw_output": "{\n  \"overview\": \"该片段包含一条关于保留原始录音的指令，要求在复核前不得删除。\",\n  \"decisions\": [],\n  \"chapters\": [\n    {\n      \"text\": \"指示在复核完成之前保留原始录音，禁止删除。\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"2c26a490-5378-544a-b980-62389ae09f70\",\n          \"segment_revision\": 1,\n          \"start_ms\": 0,\n          \"end_ms\": 10000\n        }\n      ]\n    }\n  ],\n  \"action_items\": [\n    {\n      \"text\": \"保留原始录音，直到复核完成。\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"2c26a490-5378-544a-b980-62389ae09f70\",\n          \"segment_revision\": 1,\n          \"start_ms\": 0,\n          \"end_ms\": 10000\n        }\n      ],\n      \"owner_text\": \"\",\n      \"due_text\": \"\"\n    }\n  ],\n  \"open_questions\": []\n}",
+      "content": {
+        "overview": "该片段包含一条关于保留原始录音的指令，要求在复核前不得删除。",
+        "decisions": [],
+        "chapters": [
+          {
+            "text": "指示在复核完成之前保留原始录音，禁止删除。",
+            "source_refs": [
+              {
+                "segment_id": "2c26a490-5378-544a-b980-62389ae09f70",
+                "segment_revision": 1,
+                "start_ms": 0,
+                "end_ms": 10000
+              }
+            ]
+          }
+        ],
+        "action_items": [
+          {
+            "text": "保留原始录音，直到复核完成。",
+            "source_refs": [
+              {
+                "segment_id": "2c26a490-5378-544a-b980-62389ae09f70",
+                "segment_revision": 1,
+                "start_ms": 0,
+                "end_ms": 10000
+              }
+            ],
+            "owner_text": "",
+            "due_text": ""
+          }
+        ],
+        "open_questions": []
+      },
+      "elapsed_ms": 6120
+    },
+    {
+      "id": "explicit-retention-completion",
+      "model": "qwen3.8-flash",
+      "status": "succeeded",
+      "prompt_sha256": "9b20e4a0c2eb018ead88037ad7481005ab37f93f4af7b80aa5a87127f5fcceae",
+      "raw_output": "{\n  \"overview\": \"该片段包含一条关于保留原始录音的指令，要求保留至复核完成。\",\n  \"decisions\": [],\n  \"chapters\": [\n    {\n      \"text\": \"指示保留原始录音直到复核完成。\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"efa9be1d-f168-5fcc-8bc5-71405d8674b2\",\n          \"segment_revision\": 1,\n          \"start_ms\": 0,\n          \"end_ms\": 10000\n        }\n      ]\n    }\n  ],\n  \"action_items\": [\n    {\n      \"text\": \"保留原始录音\",\n      \"source_refs\": [\n        {\n          \"segment_id\": \"efa9be1d-f168-5fcc-8bc5-71405d8674b2\",\n          \"segment_revision\": 1,\n          \"start_ms\": 0,\n          \"end_ms\": 10000\n        }\n      ],\n      \"owner_text\": \"\",\n      \"due_text\": \"直到复核完成\"\n    }\n  ],\n  \"open_questions\": []\n}",
+      "content": {
+        "overview": "该片段包含一条关于保留原始录音的指令，要求保留至复核完成。",
+        "decisions": [],
+        "chapters": [
+          {
+            "text": "指示保留原始录音直到复核完成。",
+            "source_refs": [
+              {
+                "segment_id": "efa9be1d-f168-5fcc-8bc5-71405d8674b2",
+                "segment_revision": 1,
+                "start_ms": 0,
+                "end_ms": 10000
+              }
+            ]
+          }
+        ],
+        "action_items": [
+          {
+            "text": "保留原始录音",
+            "source_refs": [
+              {
+                "segment_id": "efa9be1d-f168-5fcc-8bc5-71405d8674b2",
+                "segment_revision": 1,
+                "start_ms": 0,
+                "end_ms": 10000
+              }
+            ],
+            "owner_text": "",
+            "due_text": "直到复核完成"
+          }
+        ],
+        "open_questions": []
+      },
+      "elapsed_ms": 6487
+    }
+  ]
+}

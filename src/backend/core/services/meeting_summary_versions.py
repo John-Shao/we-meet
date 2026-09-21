@@ -493,6 +493,13 @@ def _generate_content(job, client, attempt):
             "Keep conditional rules, hypothetical risks and actual events distinct in every section, including overview. "
             "A rule about what to do on failure does not establish that failure occurred; when ambiguous, describe the rule without asserting an incident. "
             "Preserve explicitly negated amounts or dates in the corresponding point, and keep deadline boundaries such as 'before' exact. "
+            "For action_items, include only work explicitly requested or committed in the cited source: "
+            "proofreading or completing work does not imply submitting, sending or reporting it. "
+            "due_text is only an explicitly stated deadline to perform that action. "
+            "A retention period, prohibition boundary or prerequisite is not an action deadline; "
+            "keep those conditions in text and leave due_text empty unless a separate completion deadline is stated. "
+            "In overview and chapters, describe failure-handling rules as rules, "
+            "not as incidents to investigate or fix unless the source explicitly reports an occurrence. "
             + language
             + instruction
             + " "

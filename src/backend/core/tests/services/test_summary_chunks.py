@@ -248,7 +248,7 @@ def test_complete_output_guard_rejects_even_valid_json_when_finish_is_not_stop(r
     assert client.chat(system="schema", user="source") == '{"valid":"json"}'
 
 
-@pytest.mark.parametrize("old_version", [1, 2])
+@pytest.mark.parametrize("old_version", [1, 2, 3])
 def test_old_chunk_prompt_cannot_be_reused_by_new_semantics(old_version):
     """Explicit regeneration is required before spending on an old queued plan."""
     _, _, record = long_note()
