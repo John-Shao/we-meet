@@ -55,3 +55,18 @@ Helm 390（backend/frontend/agents `696a7768f`，包含 `ae4db984b`）已部署�
 待交付 backend 固定镜像后，需要生产部署并对独立合成记录显式生成一次，确认定向约束和既有 partial/版本/引用行为。frontend、agents、summary 无需为该提示变更重新发布。部署后继续条件/事实、否定遗漏与时间措辞质量，不应宣布专项全部完成。
 
 其余阻塞与遗留：App 深链审批拒绝；真实多人轮流/噪声/交叠录音及人工标注待提供；ASR 原语言及术语候选对照未完成；通用阶段故障仍只有有界日志窗口，完整持久诊断查询尚未实现。大文件恢复与长原文跨页按用户要求继续延后。
+
+## 固定版本交付
+
+实现与证据提交 `2b84e9838` 已推送。采用该提交的 Git archive 构建，未带入其他窗口的未提交修改。backend production 镜像已推送：
+
+- `jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:2b84e9838`
+- Registry digest：`sha256:7468c07d9944b90aa3e959fa953776967b7c3a9f5d97faeaab290dde7aa987f8`
+
+生产主机执行：
+
+```bash
+bash deploy/aliyun/release-meet.sh --tag 2b84e9838 backend
+```
+
+本次停在生产部署依赖。部署后才进行新提示的生产纪要复核；此文档交付提交无需另建镜像。旧无语音修复已随 Helm 390 部署，无需重复操作。
