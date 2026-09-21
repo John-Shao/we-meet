@@ -1,0 +1,54 @@
+{
+  "helm": 393,
+  "backend_tag": "f7fbcea77",
+  "cases": [
+    {
+      "case": "terms-zh-clean",
+      "capture_id": "4168456c-f5b3-43a4-9a30-efc699be49ea",
+      "record_id": "83160ce5-8366-45ba-8108-572af060dfe5",
+      "job": {
+        "id": "7e1268d7-2dac-4568-baf4-9ef0dc89b5e0",
+        "generation": 1,
+        "status": "succeeded",
+        "created_at": "2026-09-21T11:09:56.169628+00:00",
+        "error_code": "",
+        "diagnostics": [],
+        "input_count": 3,
+        "acknowledged_inputs": 3,
+        "final_count": 4,
+        "audio_status": "saved",
+        "mode": "sealed",
+        "input_closed": true,
+        "coverage_status": "unverified"
+      },
+      "job_count": 1
+    },
+    {
+      "case": "silence",
+      "capture_id": "39ddf978-f529-4372-a837-70482ff8a34e",
+      "record_id": "20b587a9-1dfa-470e-9df5-147628e62959",
+      "job": {
+        "id": "e09a3db6-ef4d-4a37-8287-f9f8fce91e0b",
+        "generation": 1,
+        "status": "incomplete",
+        "created_at": "2026-09-21T11:10:12.152173+00:00",
+        "error_code": "no_speech_detected",
+        "diagnostics": [
+          {
+            "stage": "transcription_poll",
+            "code": "no_speech",
+            "elapsed_ms": 6458
+          }
+        ],
+        "input_count": 1,
+        "acknowledged_inputs": 1,
+        "final_count": 0,
+        "audio_status": "saved",
+        "mode": "sealed",
+        "input_closed": true,
+        "coverage_status": "unverified"
+      },
+      "job_count": 1
+    }
+  ]
+}

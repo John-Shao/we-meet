@@ -1,0 +1,426 @@
+{
+  "scope": "Frozen synthetic noise ASR vs scripted reference; no fresh ASR requests or speaker identity inference",
+  "baseline_sha256": "8e193a35249e4a422c654de26d7b47d8f362e2c8bd78a158839b6b75ee0cd6ed",
+  "cases": [
+    {
+      "id": "two-speakers-noise10-asr",
+      "source": "asr",
+      "audio_sha256": "045e5a696d255f5f243b2adc04fa185147f6e2fff24fcf41061cc58949190678",
+      "review_criteria": [
+        "发布时间是周五，不是周四",
+        "预算是一万五，不是五万",
+        "Alice 核验存储权限；Bob 周四下午前发送测试报告",
+        "复核前保留原录音",
+        "说话人 A/B 轮流出现；不要求自动实名"
+      ],
+      "snapshot": {
+        "segments": [
+          {
+            "segment_id": "6170369d-b391-559a-adc4-2bd866f1a409",
+            "segment_revision": 1,
+            "start_ms": 160,
+            "end_ms": 2160,
+            "text": "The release is postponed to Friday.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "17a38a58-c6a4-5f2c-890b-cc4f67e016ea",
+            "segment_revision": 1,
+            "start_ms": 2960,
+            "end_ms": 5280,
+            "text": " Alice will verify the storage permissions.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "c6b73ef0-83d3-53c8-936c-c1cb2a497307",
+            "segment_revision": 1,
+            "start_ms": 5480,
+            "end_ms": 5510,
+            "text": " 。",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "d84e111a-dd12-5f08-bcbc-58f2a9270ba0",
+            "segment_revision": 1,
+            "start_ms": 6550,
+            "end_ms": 8190,
+            "text": "I will review the transcript.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "bcc5ee4d-776a-524a-9cd5-b59c0b7a9c9d",
+            "segment_revision": 1,
+            "start_ms": 8870,
+            "end_ms": 12750,
+            "text": " The budget is fifteen thousand dollars, not fifty thousand. ",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "dceade95-c8c0-578c-8324-87f3bd9c2cf1",
+            "segment_revision": 1,
+            "start_ms": 14000,
+            "end_ms": 15720,
+            "text": "Please keep the original recording. ",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "2a6bc19b-b09c-5b1d-8bb2-42f4988b5d7d",
+            "segment_revision": 1,
+            "start_ms": 16510,
+            "end_ms": 18430,
+            "text": "Do not delete it before the review. ",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "4bf52031-c5f1-53f0-959c-f19bd5287a95",
+            "segment_revision": 1,
+            "start_ms": 19600,
+            "end_ms": 24400,
+            "text": "Agreed, Bob will send the test report before Thursday afternoon. ",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "two-speakers-noise10-reference",
+      "source": "reference",
+      "audio_sha256": "045e5a696d255f5f243b2adc04fa185147f6e2fff24fcf41061cc58949190678",
+      "review_criteria": [
+        "发布时间是周五，不是周四",
+        "预算是一万五，不是五万",
+        "Alice 核验存储权限；Bob 周四下午前发送测试报告",
+        "复核前保留原录音",
+        "说话人 A/B 轮流出现；不要求自动实名"
+      ],
+      "snapshot": {
+        "segments": [
+          {
+            "segment_id": "acb90786-0201-56c2-8fed-11d1ac6c4e1b",
+            "segment_revision": 1,
+            "start_ms": 0,
+            "end_ms": 5905,
+            "text": "The release is postponed to Friday. Alice will verify the storage permissions.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "en"
+          },
+          {
+            "segment_id": "dc239ba7-b016-50f6-a12f-983f14bd461a",
+            "segment_revision": 1,
+            "start_ms": 6405,
+            "end_ms": 13250,
+            "text": "I will review the transcript. The budget is fifteen thousand dollars, not fifty thousand.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "en"
+          },
+          {
+            "segment_id": "f23f37f0-f4d7-5e61-8e10-274ec0335251",
+            "segment_revision": 1,
+            "start_ms": 13750,
+            "end_ms": 18980,
+            "text": "Please keep the original recording. Do not delete it before the review.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "en"
+          },
+          {
+            "segment_id": "7ac24407-775b-53df-b881-c0d9f7cfe790",
+            "segment_revision": 1,
+            "start_ms": 19480,
+            "end_ms": 24780,
+            "text": "Agreed. Bob will send the test report before Thursday afternoon.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "en"
+          }
+        ]
+      }
+    },
+    {
+      "id": "two-speakers-noise0-asr",
+      "source": "asr",
+      "audio_sha256": "949a300bb0bb49ae289f5bd7d8fcd3b140719e1a7615eb4048836f2119f80e8c",
+      "review_criteria": [
+        "发布时间是周五，不是周四",
+        "预算是一万五，不是五万",
+        "Alice 核验存储权限；Bob 周四下午前发送测试报告",
+        "复核前保留原录音",
+        "说话人 A/B 轮流出现；不要求自动实名"
+      ],
+      "snapshot": {
+        "segments": [
+          {
+            "segment_id": "2b92b2d9-26a9-5784-9d56-42da229644c4",
+            "segment_revision": 1,
+            "start_ms": 160,
+            "end_ms": 2200,
+            "text": "The release is postponed to Friday.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "353c5662-850d-527c-a891-26390f831b2f",
+            "segment_revision": 1,
+            "start_ms": 3000,
+            "end_ms": 5620,
+            "text": " Alice will verify the storage permissions. ",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "9de0bd71-d519-5d8e-a717-e493ce3b0d3b",
+            "segment_revision": 1,
+            "start_ms": 6560,
+            "end_ms": 8200,
+            "text": "I will review the transcript.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "e697f0ac-b7f7-52ea-9025-80449af9ddaa",
+            "segment_revision": 1,
+            "start_ms": 8880,
+            "end_ms": 12800,
+            "text": " The budget is 15,000 dollars, not 50,000.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "b68d2520-a396-51b4-92fa-e7cb5fdfea58",
+            "segment_revision": 1,
+            "start_ms": 14010,
+            "end_ms": 15730,
+            "text": "Please keep the original recording. ",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "2cc4f5c1-6861-53a4-a46b-5c8174d9d426",
+            "segment_revision": 1,
+            "start_ms": 16490,
+            "end_ms": 18530,
+            "text": "Do not delete it before the review. ",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "622607ff-6517-5040-899f-ec94a23b7c56",
+            "segment_revision": 1,
+            "start_ms": 19600,
+            "end_ms": 20320,
+            "text": "Agreed.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "8865be43-7505-59ee-910d-921ae5f151d2",
+            "segment_revision": 1,
+            "start_ms": 21000,
+            "end_ms": 24360,
+            "text": " Bob will send the test report before Thursday afternoon. ",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "two-speakers-noise0-reference",
+      "source": "reference",
+      "audio_sha256": "949a300bb0bb49ae289f5bd7d8fcd3b140719e1a7615eb4048836f2119f80e8c",
+      "review_criteria": [
+        "发布时间是周五，不是周四",
+        "预算是一万五，不是五万",
+        "Alice 核验存储权限；Bob 周四下午前发送测试报告",
+        "复核前保留原录音",
+        "说话人 A/B 轮流出现；不要求自动实名"
+      ],
+      "snapshot": {
+        "segments": [
+          {
+            "segment_id": "d10122f5-7027-542c-9d82-ff567fd3af4b",
+            "segment_revision": 1,
+            "start_ms": 0,
+            "end_ms": 5905,
+            "text": "The release is postponed to Friday. Alice will verify the storage permissions.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "en"
+          },
+          {
+            "segment_id": "1ff2b41c-d441-5402-934c-76626504477d",
+            "segment_revision": 1,
+            "start_ms": 6405,
+            "end_ms": 13250,
+            "text": "I will review the transcript. The budget is fifteen thousand dollars, not fifty thousand.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "en"
+          },
+          {
+            "segment_id": "0d18c531-ce35-511f-8c94-b6fc9b6f6f2e",
+            "segment_revision": 1,
+            "start_ms": 13750,
+            "end_ms": 18980,
+            "text": "Please keep the original recording. Do not delete it before the review.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "en"
+          },
+          {
+            "segment_id": "f152f773-e6f6-5f85-91a7-c2566242a44c",
+            "segment_revision": 1,
+            "start_ms": 19480,
+            "end_ms": 24780,
+            "text": "Agreed. Bob will send the test report before Thursday afternoon.",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "en"
+          }
+        ]
+      }
+    },
+    {
+      "id": "terms-zh-noise10-asr",
+      "source": "asr",
+      "audio_sha256": "31724bed6c44354ea2def95bf96d131adb8e93a46a396769a3ef87a0c3bd6228",
+      "review_criteria": [
+        "陈晨负责术语校对",
+        "截止时间为周五下午三点",
+        "清理失败和转写提交失败不能混为一个错误",
+        "不能凭空补充未说过的负责人或待办"
+      ],
+      "snapshot": {
+        "segments": [
+          {
+            "segment_id": "010a5844-5118-5369-8890-6684a45b2843",
+            "segment_revision": 1,
+            "start_ms": 240,
+            "end_ms": 9320,
+            "text": "今天核验对象存储签名续期和跨账号权限，妙计的转写结果需要保留原文引用。",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "eb74ab74-f919-5469-bb08-64acb39b97a4",
+            "segment_revision": 1,
+            "start_ms": 10590,
+            "end_ms": 14910,
+            "text": "陈晨负责术语校对，周五下午3点前完成。",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          },
+          {
+            "segment_id": "2185f08e-be26-53b7-80cf-af7928815725",
+            "segment_revision": 1,
+            "start_ms": 15710,
+            "end_ms": 20990,
+            "text": "临时文件清理失败，不能掩盖转写提交的原始错误。",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "terms-zh-noise10-reference",
+      "source": "reference",
+      "audio_sha256": "31724bed6c44354ea2def95bf96d131adb8e93a46a396769a3ef87a0c3bd6228",
+      "review_criteria": [
+        "陈晨负责术语校对",
+        "截止时间为周五下午三点",
+        "清理失败和转写提交失败不能混为一个错误",
+        "不能凭空补充未说过的负责人或待办"
+      ],
+      "snapshot": {
+        "segments": [
+          {
+            "segment_id": "ee018580-58e8-5bc7-a9fa-ab82ed8e73b5",
+            "segment_revision": 1,
+            "start_ms": 0,
+            "end_ms": 9880,
+            "text": "今天核验对象存储、签名续期和跨账号权限。妙记的转写结果需要保留原文引用。",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "zh"
+          },
+          {
+            "segment_id": "1fcf0796-a386-57c2-b226-75bc9fea72cf",
+            "segment_revision": 1,
+            "start_ms": 10380,
+            "end_ms": 21390,
+            "text": "陈晨负责术语校对，周五下午三点前完成。临时文件清理失败，不能掩盖转写提交的原始错误。",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "zh"
+          }
+        ]
+      }
+    },
+    {
+      "id": "conditional-only",
+      "review_criteria": "不能称已经失败；保留成功及重传未决定；不创建无条件重新上传待办。",
+      "snapshot": {
+        "segments": [
+          {
+            "segment_id": "00000000-0000-4000-8000-000000000003",
+            "segment_revision": 1,
+            "start_ms": 0,
+            "end_ms": 10000,
+            "text": "如果上传失败，请保留本地录音。当前上传已成功，没有发生失败。是否重新上传尚未决定。",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "zh"
+          }
+        ]
+      }
+    },
+    {
+      "id": "actual-failure",
+      "review_criteria": "保留确实失败、陈晨、明天上午十点前；通知李敏必须保留再次失败的前提。",
+      "snapshot": {
+        "segments": [
+          {
+            "segment_id": "00000000-0000-4000-8000-000000000004",
+            "segment_revision": 1,
+            "start_ms": 0,
+            "end_ms": 10000,
+            "text": "今天上传失败了一次。陈晨需要明天上午十点前重传。若再次失败，再通知李敏。",
+            "speaker_name": "Unknown speaker",
+            "speaker_identity": "",
+            "language": "zh"
+          }
+        ]
+      }
+    }
+  ]
+}

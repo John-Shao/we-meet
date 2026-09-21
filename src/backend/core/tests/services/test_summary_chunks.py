@@ -248,11 +248,12 @@ def test_complete_output_guard_rejects_even_valid_json_when_finish_is_not_stop(r
     assert client.chat(system="schema", user="source") == '{"valid":"json"}'
 
 
-def test_old_chunk_prompt_cannot_be_reused_by_new_semantics():
+@pytest.mark.parametrize("old_version", [1, 2])
+def test_old_chunk_prompt_cannot_be_reused_by_new_semantics(old_version):
     """Explicit regeneration is required before spending on an old queued plan."""
     _, _, record = long_note()
     job = prepare_summary_job(record.pk)
-    job.configuration["chunk_prompt_version"] = 1
+    job.configuration["chunk_prompt_version"] = old_version
     job.save(update_fields=["configuration"])
     with patch("core.services.meeting_summary_versions.LLMClient") as client:
         assert execute_summary_job(job.pk, 1) is None
@@ -261,3 +262,18 @@ def test_old_chunk_prompt_cannot_be_reused_by_new_semantics():
     assert job.status == "failed"
     assert job.error_code == "invalid_output"
     assert not models.MeetingSummaryVersion.objects.filter(record=record).exists()
+
+
+def test_synthesis_language_comes_from_snapshot_not_english_extractions():
+    _, first, record = long_note()
+    models.Transcript.objects.filter(session=first.session).update(language="zh")
+    job = prepare_summary_job(record.pk)
+    with patch("core.services.meeting_summary_versions.LLMClient") as client:
+        client.return_value.chat.side_effect = model_reply
+        assert execute_summary_job(job.pk, 1)
+        calls = client.return_value.chat.call_args_list
+        assert len(calls) > 2
+        assert all(
+            "Write all generated prose in Chinese" in c.kwargs["system"] for c in calls
+        )
+        assert "All supplied parts reconciled" in calls[-1].kwargs["user"]

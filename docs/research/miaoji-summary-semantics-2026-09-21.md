@@ -61,3 +61,7 @@ bash deploy/aliyun/release-meet.sh --tag e03b50ee6 backend
 ```
 
 无需再发布 agents/frontend/summary，无新迁移。收到部署回执后验证新纪要占位字段，并复读 Helm 392 静音 job 的持久诊断，补充跨 backend 发布的历史保留证据。本轮停在该生产部署依赖；后续文档提交仍使用上述固定 tag。
+
+## Helm 393 后续验证
+
+Helm 393 / backend f7fbcea77 已部署本页实现。新英文纪要的未知责任人留空；金额否定和具名责任人保留。中文仍出现无依据“完成提交”及条件事件化风险。两份新输出与后续噪声基线见[复核报告](miaoji-summary-language-noise-2026-09-21.md)。

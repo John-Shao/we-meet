@@ -80,6 +80,19 @@ def test_snapshots_are_idempotent_and_keep_previous_text():
         snapshot.save()
 
 
+def test_direct_language_uses_source_metadata():
+    _, _, transcript, record = online_note()
+    transcript.language = "zh"
+    transcript.save()
+    job = prepare_summary_job(record.pk)
+    with patch("core.services.meeting_summary_versions.LLMClient") as client:
+        client.return_value.chat.return_value = output(job)
+        assert execute_summary_job(job.pk, 1)
+        system = client.return_value.chat.call_args.kwargs["system"]
+        assert "Write all generated prose in Chinese" in system
+        assert "Write all generated prose in English" not in system
+
+
 def test_worker_persists_once_and_does_not_change_manual_summary(settings):
     user, session, _, record = online_note()
     legacy = models.Summary.objects.create(
