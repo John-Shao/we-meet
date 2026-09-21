@@ -1,5 +1,7 @@
 # 第 55 批：上传全文翻译生产验收
 
+> 到期复核更新：[第58批](miaoji-batch-58-production-qa-acceptance.md)确认服务端于北京时间13:22:02完成删除；旧译文/三格式导出与记录入口拒绝，第二账号收据拒绝。未独立核对本样本源对象HEAD，以下pending表述保留验收当时状态。
+
 ## 结论与部署基线
 
 2026-09-21，用户部署回执确认 Helm **385**，backend / celery-backend / celery-beat / frontend 使用 **a616ec42e**；agents 保持 **9ebc986af**，summary 保持 **f2e7f3cd4**。生产翻译查询、创建及后台处理成功，说明所测接口及任务所需表可用；本轮没有直接读取集群迁移表，不将发布日志等同于逐 Pod 迁移审计。

@@ -2,6 +2,8 @@
 
 > 执行更新：用户改为优先[第 54 批：上传文件全文翻译](miaoji-batch-54-upload-translation.md)，R7 已补齐中英文实现；[第 55 批](miaoji-batch-55-upload-translation-acceptance.md) 已在 Helm 385 完成所列 App/API 生产验收，删除最终清理待保护窗口到期；原建议批号不再作为执行顺序。线上统一录像回看后置，需先确认 LiveKit Egress 与 ECS 容量。
 
+> [第58批](miaoji-batch-58-production-qa-acceptance.md)：第57批已部署。真实自然问法仍漏证据，明确短语可回答；发现跨记录重复内容挤占和旧会议分支无关候选，R8优先补这两类评测，再做同义/跨语言。第55批服务端删除complete，未独立HEAD核对本样本源对象。
+
 > [第 57 批](miaoji-batch-57-cross-record-retrieval.md) 已改进正文排序、记录配额、命中窗口与英文抽词：同一题库完整证据 21/25（84%），逐题无退化，95 项通过。backend 待发布/验收；同义/跨语言四题、真实回答质量和大库性能仍待处理。
 
 > [第 56 批](miaoji-batch-56-cross-record-qa-evaluation.md) 已建立跨记录问答31题合成基线：完整证据15/25、应为空5/5，10个明确漏证据样本；R8 从待评测改为有基线，生产召回未改。
