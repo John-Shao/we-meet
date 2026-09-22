@@ -1,21 +1,27 @@
 {
   "name": "we-meet-desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0-d0.7",
   "description": "we-meet 桌面端 (Electron) — 复用 src/frontend 的 React 应用",
   "main": "dist/main.js",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build:main": "tsc",
-    "build:renderer": "cd ../frontend && npm run build",
+    "build:renderer": "node scripts/build-renderer.mjs",
     "copy:renderer": "node scripts/copy-renderer.mjs",
     "dev": "npm run build:main && electron .",
-    "package": "npm run build:main && npm run build:renderer && npm run copy:renderer && electron-builder"
+    "test": "npm run build:main && node --test tests/*.test.cjs",
+    "test:smoke": "npm run build:main && node scripts/smoke.cjs",
+    "package": "node scripts/verify-electron.mjs && npm run build:main && npm run build:renderer && npm run copy:renderer && electron-builder --win --x64 && node scripts/release-manifest.mjs",
+    "package:prepared": "node scripts/verify-electron.mjs && npm run build:main && electron-builder --win --x64 && node scripts/release-manifest.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "electron": "^33.0.0",
-    "electron-builder": "^25.0.0",
+    "electron": "44.4.3",
+    "electron-builder": "26.15.3",
     "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "jose": "6.2.2"
   }
 }

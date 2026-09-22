@@ -3,6 +3,9 @@ import { authUrl } from '@/features/auth'
 const SILENT_LOGIN_RETRY_KEY = 'silent-login-retry'
 
 const isRetryAllowed = () => {
+  // Native credentials are restored by the main process. Never automatically
+  // open the system browser because a background /users/me request returned 401.
+  if (window.weMeetDesktop?.isDesktop) return false
   const lastRetryDate = localStorage.getItem(SILENT_LOGIN_RETRY_KEY)
   if (!lastRetryDate) {
     return true

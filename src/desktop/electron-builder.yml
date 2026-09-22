@@ -1,17 +1,25 @@
 appId: online.we-meet.desktop
 productName: We-Meet
+# Reuse the exact Electron binary installed by npm ci; avoid a second download.
+electronDist: node_modules/electron/dist
 directories:
   output: release
   buildResources: build
 files:
   - dist/**/*
+  - '!dist/**/*.map'
   - package.json
+protocols:
+  - name: We-Meet Desktop Login
+    schemes:
+      - online.we-meet.desktop
 win:
   target: nsis
   artifactName: ${productName}-${version}-setup.${ext}
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
 mac:
   target: dmg
   category: public.app-category.business

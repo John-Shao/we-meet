@@ -10,7 +10,7 @@
 
 | 文档 | 用途 |
 |---|---|
-| [work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md) | 工作（Work）：产品、架构与 Agent 选型；v1.4 含 WorkBuddy 中文版截图分析 |
+| [work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md) | 工作（Work）：产品、架构与 Agent 选型；v1.8 记录桌面 D0 真实认证、业务与安装验收，设备及干净环境通过后再做 Work 闭环 |
 | [task-module-improvement-plan.md](task-module-improvement-plan.md) | 任务模块完善与实施范围 |
 | [chat-message-to-task-plan.md](chat-message-to-task-plan.md) | 聊天消息转任务 |
 | [docs-member-identity.md](docs-member-identity.md) | 云文档成员身份与授权；独立跨服务协议说明 |

@@ -1,0 +1,15 @@
+{
+  "clientId": "desktop",
+  "name": "We-Meet Desktop",
+  "enabled": true,
+  "protocol": "openid-connect",
+  "publicClient": true,
+  "standardFlowEnabled": true,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "serviceAccountsEnabled": false,
+  "redirectUris": ["online.we-meet.desktop://oauth/callback"],
+  "webOrigins": [],
+  "attributes": { "pkce.code.challenge.method": "S256" },
+  "defaultClientScopes": ["web-origins", "acr", "roles", "profile", "email"]
+}

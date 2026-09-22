@@ -222,7 +222,7 @@ export const Home = () => {
 
   useEffect(() => {
     const checkSiteAndRedirect = async () => {
-      if (!data?.external_home_url) return
+      if (!data?.external_home_url || window.weMeetDesktop?.isDesktop) return
       if (isLoggedIn === false) {
         try {
           await fetch(data.external_home_url, {
@@ -240,7 +240,7 @@ export const Home = () => {
     checkSiteAndRedirect()
   }, [isLoggedIn, data])
 
-  if (data?.external_home_url && isLoggedIn == false && !redirectFailed) {
+  if (data?.external_home_url && !window.weMeetDesktop?.isDesktop && isLoggedIn == false && !redirectFailed) {
     return <LoadingScreen header={false} footer={false} delay={0} />
   }
 
