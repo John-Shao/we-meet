@@ -1,0 +1,161 @@
+{
+  "dataset": "miaoji-media-auto-reference-v1-b72",
+  "reference_origin": "assistant_authored_not_human_confirmed",
+  "human_review_gate": "skipped_by_user_2026-09-22",
+  "human_review_performed": false,
+  "source_sha256": "a9db20f533221e29e399f839d7bda7a420e6b481e32ce9ac078484e249847f26",
+  "cases": [
+    {
+      "id": "M01",
+      "expected_decision": "evidence",
+      "allowed_ids": [
+        "A01",
+        "A02",
+        "A05",
+        "A06"
+      ],
+      "fact_groups": [
+        {
+          "A05": [
+            "终止"
+          ],
+          "A02": [
+            "停止直播"
+          ],
+          "A01": [
+            "停止直播"
+          ]
+        }
+      ],
+      "rationale": "A05给出退出10秒重连只能终止；同义操作说明也可支持答案，不要求重复选择所有表述。"
+    },
+    {
+      "id": "M02",
+      "expected_decision": "evidence",
+      "allowed_ids": [
+        "A03",
+        "A05",
+        "A06",
+        "A07",
+        "A09",
+        "A10",
+        "A11",
+        "A13",
+        "A16",
+        "A17"
+      ],
+      "fact_groups": [
+        {
+          "A09": [
+            "协议"
+          ],
+          "A10": [
+            "协议"
+          ]
+        },
+        {
+          "A07": [
+            "UI"
+          ],
+          "A10": [
+            "UI"
+          ]
+        },
+        {
+          "A10": [
+            "不可能到达"
+          ],
+          "A11": [
+            "不可能到达"
+          ],
+          "A16": [
+            "不存在"
+          ]
+        }
+      ],
+      "rationale": "需覆盖协议约定、UI限制和对应路径无法到达；不同摘句组合均可，不按唯一候选集打分。"
+    },
+    {
+      "id": "M03",
+      "expected_decision": "evidence",
+      "allowed_ids": [
+        "A03",
+        "A05",
+        "A06",
+        "A07",
+        "A08",
+        "A09",
+        "A10",
+        "A11",
+        "A13",
+        "A14",
+        "A16",
+        "A17",
+        "A18"
+      ],
+      "fact_groups": [
+        {
+          "A06": [
+            "代码",
+            "限制"
+          ],
+          "A07": [
+            "代码",
+            "限制"
+          ],
+          "A09": [
+            "代码",
+            "限制"
+          ],
+          "A13": [
+            "代码"
+          ]
+        },
+        {
+          "A03": [
+            "删掉"
+          ],
+          "A07": [
+            "没有必要"
+          ],
+          "A17": [
+            "删"
+          ]
+        }
+      ],
+      "rationale": "只能选出代码层限制与删除建议的证据；尚不能从讨论直接确认代码已改。此处仅测选证据，不给“已完成”结论背书。"
+    },
+    {
+      "id": "M04",
+      "expected_decision": "no_evidence",
+      "allowed_ids": [],
+      "fact_groups": [],
+      "rationale": "材料未给删除代码限制的责任人或完成日期；这是自动参考判断，不替代人工标准。"
+    },
+    {
+      "id": "M05",
+      "expected_decision": "evidence",
+      "allowed_ids": [
+        "V01",
+        "V02",
+        "V04",
+        "V05",
+        "V06",
+        "V07"
+      ],
+      "fact_groups": [
+        {
+          "V07": [
+            "帮他赚钱",
+            "挣他的钱"
+          ]
+        }
+      ],
+      "rationale": "核心区别需要V07中的两种视角；可保留其他相关解释，不选广告或技术录音。"
+    }
+  ],
+  "final_answer_requirements_not_scored_here": {
+    "M03": "区分讨论删除与实际完成，不得声称代码已经删除。",
+    "M04": "不得编造责任人或完成日期。"
+  }
+}

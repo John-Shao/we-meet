@@ -1,0 +1,381 @@
+{
+  "human_review_gate": "skipped_by_user_2026-09-22",
+  "human_review_performed": false,
+  "reference_origin": "assistant_authored_not_human_confirmed",
+  "source_sha256": "a9db20f533221e29e399f839d7bda7a420e6b481e32ce9ac078484e249847f26",
+  "corpus_sha256": "8ff776bb94823c347cb8ff0d24abf46a31df82d379f7f83fd8e58daa5eeb9156",
+  "summary": {
+    "schema_only": {
+      "total": 10,
+      "decision_agrees": 10,
+      "automatic_reference_agrees": 8,
+      "both_orders_agree": 3,
+      "disagrees_ids": [
+        "M02/reverse",
+        "M03/reverse"
+      ]
+    },
+    "scenario": {
+      "total": 10,
+      "decision_agrees": 10,
+      "automatic_reference_agrees": 7,
+      "both_orders_agree": 3,
+      "disagrees_ids": [
+        "M02/forward",
+        "M02/reverse",
+        "M03/reverse"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "id": "M01/forward",
+      "arm": "schema_only",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "A05",
+        "A02"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M01/forward",
+      "arm": "scenario",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "A05",
+        "A02"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "schema_only",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "A05",
+        "A02",
+        "A01"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "scenario",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "A05",
+        "A02",
+        "A01"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M02/forward",
+      "arm": "schema_only",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "A03",
+        "A07",
+        "A10",
+        "A16"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        true,
+        true,
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M02/forward",
+      "arm": "scenario",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "A07",
+        "A16",
+        "A13"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        false,
+        true,
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": false
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "schema_only",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "A07",
+        "A16",
+        "A13"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        false,
+        true,
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": false
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "scenario",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "A07",
+        "A16",
+        "A13"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        false,
+        true,
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": false
+    },
+    {
+      "id": "M03/forward",
+      "arm": "schema_only",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "A17",
+        "A03",
+        "A06",
+        "A07",
+        "A13",
+        "A16"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        true,
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M03/forward",
+      "arm": "scenario",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "A17",
+        "A03",
+        "A06",
+        "A07",
+        "A13",
+        "A16"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        true,
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "schema_only",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "A17",
+        "A03",
+        "A02"
+      ],
+      "unexpected_ids": [
+        "A02"
+      ],
+      "fact_groups_covered": [
+        false,
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": false
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "scenario",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "A17",
+        "A03",
+        "A02"
+      ],
+      "unexpected_ids": [
+        "A02"
+      ],
+      "fact_groups_covered": [
+        false,
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": false
+    },
+    {
+      "id": "M04/forward",
+      "arm": "schema_only",
+      "reference_decision": "no_evidence",
+      "actual_decision": "no_evidence",
+      "actual_ids": [],
+      "unexpected_ids": [],
+      "fact_groups_covered": [],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M04/forward",
+      "arm": "scenario",
+      "reference_decision": "no_evidence",
+      "actual_decision": "no_evidence",
+      "actual_ids": [],
+      "unexpected_ids": [],
+      "fact_groups_covered": [],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "schema_only",
+      "reference_decision": "no_evidence",
+      "actual_decision": "no_evidence",
+      "actual_ids": [],
+      "unexpected_ids": [],
+      "fact_groups_covered": [],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "scenario",
+      "reference_decision": "no_evidence",
+      "actual_decision": "no_evidence",
+      "actual_ids": [],
+      "unexpected_ids": [],
+      "fact_groups_covered": [],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M05/forward",
+      "arm": "schema_only",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "V07",
+        "V02",
+        "V04"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M05/forward",
+      "arm": "scenario",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "V07",
+        "V02",
+        "V04"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "schema_only",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "V07",
+        "V02",
+        "V04"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "scenario",
+      "reference_decision": "evidence",
+      "actual_decision": "evidence",
+      "actual_ids": [
+        "V07",
+        "V02",
+        "V04"
+      ],
+      "unexpected_ids": [],
+      "fact_groups_covered": [
+        true
+      ],
+      "decision_agrees": true,
+      "automatic_reference_agrees": true
+    }
+  ],
+  "calls": 20,
+  "total_tokens": 31321,
+  "median_latency_seconds": 5.0955,
+  "real_user_query_log": false,
+  "independent_holdout": false,
+  "final_answer_evaluated": false,
+  "production_promotion_approved": false,
+  "file_sha256": {
+    "miaoji-qa-media-auto-generations-b72.json": "a78ff6ded1dc960fd22caa88bbc8290da3f059dcaea4b89b30c8457fbb25a7a5",
+    "media_auto_evaluation.py": "f0903efd03d99301a2500ecfe856ea6c3b4307724d5fa2a948d5b773bca81a72",
+    "meeting_qa_media_auto_cases.json": "8ff776bb94823c347cb8ff0d24abf46a31df82d379f7f83fd8e58daa5eeb9156"
+  }
+}

@@ -1,4 +1,4 @@
-"""Explicit paid frozen-corpus experiment on synthetic data, without retries."""
+"""Explicit paid frozen-corpus experiment, without selective quality retries."""
 
 import argparse
 import hashlib
@@ -12,6 +12,10 @@ import requests
 from core.tests.evaluations.context_decisions import CASES_PATH
 from core.tests.evaluations.context_decisions import build_plan as context_plan
 from core.tests.evaluations.evidence_rerank import payload
+from core.tests.evaluations.media_auto_evaluation import build_plan as media_plan
+from core.tests.evaluations.media_auto_evaluation import (
+    corpus_hash as media_corpus_hash,
+)
 from core.tests.evaluations.structured_rerank import (
     ARMS,
     PROMPTS,
@@ -28,17 +32,19 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--model", required=True)
     parser.add_argument("--base-url", required=True)
-    parser.add_argument("--corpus", choices=("b66", "b69"), default="b66")
+    parser.add_argument("--corpus", choices=("b66", "b69", "b72"), default="b66")
     args = parser.parse_args()
     if args.output.exists():
         raise FileExistsError("Use a new output path")
     plan = json.loads(args.plan.read_text(encoding="utf-8"))
     if args.corpus == "b69":
         canonical = context_plan()
+    elif args.corpus == "b72":
+        canonical = media_plan()
     else:
         canonical = build_plan()
     if plan != canonical or len(plan) > 64:
-        raise ValueError("Plan must match the frozen synthetic corpus")
+        raise ValueError("Plan must match the frozen corpus")
     report = {
         "complete": False,
         "corpus": args.corpus,
@@ -54,6 +60,8 @@ def main():
     }
     if args.corpus == "b69":
         report["corpus_sha256"] = hashlib.sha256(CASES_PATH.read_bytes()).hexdigest()
+    elif args.corpus == "b72":
+        report["corpus_sha256"] = media_corpus_hash()
     for index, item in enumerate(plan):
         # Alternate arm order to reduce a consistent temporal ordering effect.
         for arm in ARMS if index % 2 == 0 else reversed(ARMS):

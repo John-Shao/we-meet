@@ -256,3 +256,17 @@ python -m core.tests.evaluations.media_intent_review --review /tmp/media-review.
 用户可只填Markdown，由助手转录JSON。引用使用原文编号A01–A18/V01–V08作为`candidate_id`，摘句必须逐字存在；处理方式使用中文名称，与编号无关。结构字段与第68批review一致。源hash、原问题和来源类型必须保留。输出路径存在则拒绝覆盖。
 
 当前五题全部pending，CLI应退出2；填完且无待定时才标记`ready_for_calibration=true`。任何情况下`real_user_query_log`、`independent_holdout`和`production_promotion_approved`均为false，不能因为材料来自真实媒体就宣称真实用户质量验证已完成。
+
+## 第72批：用户跳过人工复核后的自动诊断
+
+用户已明确跳过人工复核，第71批人工包继续保持原状但不再作为执行门槛。`media_auto_evaluation.py`使用独立的助手参考文件`meeting_qa_media_auto_cases.json`，引用原始26段媒体转写。五题分别正反序，共10个输入、两种已有方案20次请求；全部自动参考在运行前冻结且不进入模型输入。
+
+从backend目录运行，所有输出要求新路径：
+
+```bash
+python -m core.tests.evaluations.media_auto_evaluation --plan /tmp/media-auto-plan.json
+python -m core.tests.evaluations.run_structured_rerank --corpus b72 --plan /tmp/media-auto-plan.json --output /tmp/media-auto-draws.json --model qwen3.8-flash --base-url https://dashscope.aliyuncs.com/compatible-mode/v1
+python -m core.tests.evaluations.media_auto_evaluation --draws /tmp/media-auto-draws.json --output /tmp/media-auto-report.json
+```
+
+仅中间步骤调用模型，密钥通过`MIAOJI_EVAL_API_KEY`注入。报告统计与自动参考的决策/关键事实覆盖一致性，允许等价证据组合并拒绝无关候选；`human_review_performed=false`、`final_answer_evaluated=false`始终显式保留。跳过人工不等于伪造人工通过，也不等于推广候选到生产；后续可以直接做答案自动检查，无需等待人工填题。

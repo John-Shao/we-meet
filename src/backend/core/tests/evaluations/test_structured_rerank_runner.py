@@ -110,9 +110,10 @@ def test_changed_plan_rejected_before_provider_request(tmp_path, monkeypatch):
         runner.main()
 
 
-def test_b69_cannot_use_a_b66_plan(tmp_path, monkeypatch):
+@pytest.mark.parametrize("corpus", ["b69", "b72"])
+def test_other_corpus_cannot_use_a_b66_plan(tmp_path, monkeypatch, corpus):
     configure(tmp_path, monkeypatch)
-    monkeypatch.setattr(sys, "argv", [*sys.argv, "--corpus", "b69"])
+    monkeypatch.setattr(sys, "argv", [*sys.argv, "--corpus", corpus])
     monkeypatch.setattr(
         runner.requests, "post", lambda *a, **k: pytest.fail("unexpected request")
     )
