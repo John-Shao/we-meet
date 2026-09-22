@@ -241,3 +241,18 @@ python -m core.tests.evaluations.reviewed_intent_replay --review ../../docs/rese
 ```
 
 退出0只代表局部诊断成功生成，不代表模型全部通过或整套标签齐备。检查报告`scope`、`full_review_ready_for_scoring`、`included_ids`、`excluded`及`summary`；正式发布门槛不引用这份局部报告代替全部质量验证。源码测试使用真实冻结输出核对候选映射，不联网、不修改原标签。
+
+## 第71批：已授权真实媒体与待复核问题
+
+`miaoji-qa-media-source-b71.json`冻结两份用户提供媒体的当前有效原文：18段技术讨论音频、8段观点视频。全部原文、时间和本地媒体链接可在`miaoji-qa-media-review-b71.md`阅读。问题是助手拟定，不是真实用户查询日志；用途是人工标注后的校准，不能称为独立验证集。
+
+从backend目录生成新路径或验证标注，不调用模型或生产API：
+
+```bash
+python -m core.tests.evaluations.media_intent_review --create /tmp/media-review.json
+python -m core.tests.evaluations.media_intent_review --review /tmp/media-review.json
+```
+
+用户可只填Markdown，由助手转录JSON。引用使用原文编号A01–A18/V01–V08作为`candidate_id`，摘句必须逐字存在；处理方式使用中文名称，与编号无关。结构字段与第68批review一致。源hash、原问题和来源类型必须保留。输出路径存在则拒绝覆盖。
+
+当前五题全部pending，CLI应退出2；填完且无待定时才标记`ready_for_calibration=true`。任何情况下`real_user_query_log`、`independent_holdout`和`production_promotion_approved`均为false，不能因为材料来自真实媒体就宣称真实用户质量验证已完成。

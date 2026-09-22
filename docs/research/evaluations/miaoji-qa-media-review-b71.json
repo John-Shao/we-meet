@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "source_sha256": "a9db20f533221e29e399f839d7bda7a420e6b481e32ce9ac078484e249847f26",
+  "data_kind": "real_authorized_media_assistant_authored_questions_unreviewed",
+  "reviewer": null,
+  "reviewed_at": null,
+  "cases": [
+    {
+      "id": "M01",
+      "question": "设备已经开播，APP退出10秒后重新连接，这时还能执行什么操作？",
+      "review": {
+        "decision": null,
+        "evidence": [],
+        "clarification": null,
+        "rationale": null
+      }
+    },
+    {
+      "id": "M02",
+      "question": "技术讨论中，为什么有人认为代码里的这套限制可以删除？",
+      "review": {
+        "decision": null,
+        "evidence": [],
+        "clarification": null,
+        "rationale": null
+      }
+    },
+    {
+      "id": "M03",
+      "question": "讨论里说“把这个也删”，指的是什么？原文是否证明这个改动已经完成？",
+      "review": {
+        "decision": null,
+        "evidence": [],
+        "clarification": null,
+        "rationale": null
+      }
+    },
+    {
+      "id": "M04",
+      "question": "这次取消限制的改动由谁负责，什么时候完成？",
+      "review": {
+        "decision": null,
+        "evidence": [],
+        "clarification": null,
+        "rationale": null
+      }
+    },
+    {
+      "id": "M05",
+      "question": "视频里说的两种老板思维，最大的区别是什么？",
+      "review": {
+        "decision": null,
+        "evidence": [],
+        "clarification": null,
+        "rationale": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "review_sha256": "5c484e3f6ba7919b9988c97fbd49b8eefe4a100586da362c4a8275ed1f7606ca",
+  "source_sha256": "a9db20f533221e29e399f839d7bda7a420e6b481e32ce9ac078484e249847f26",
+  "ready_for_calibration": false,
+  "pending": [
+    "M01",
+    "M02",
+    "M03",
+    "M04",
+    "M05"
+  ],
+  "needs_context": [],
+  "reviewer_provided": false,
+  "review_date_provided": false,
+  "real_user_query_log": false,
+  "independent_holdout": false,
+  "production_promotion_approved": false,
+  "cli_exit_code": 2,
+  "packet_file_sha256": "5c484e3f6ba7919b9988c97fbd49b8eefe4a100586da362c4a8275ed1f7606ca"
+}

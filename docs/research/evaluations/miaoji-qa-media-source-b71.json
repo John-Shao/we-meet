@@ -1,0 +1,285 @@
+{
+  "dataset": "miaoji-authorized-media-review-v1-b71",
+  "data_kind": "real_authorized_media_assistant_authored_questions_unreviewed",
+  "retrieved_at": "2026-09-22T01:01:52.765048+00:00",
+  "source_method": "authenticated_read_only_original_segments_api",
+  "asr_manually_verified": false,
+  "sources": [
+    {
+      "id": "audio",
+      "record_id": "ca527aa6-147f-400d-9ded-e0230ddac36f",
+      "media_name": "test-audio01.m4a",
+      "title": "test-audio01",
+      "complete_pagination": true,
+      "segments": [
+        {
+          "id": "A01",
+          "source_segment_id": "6fd335ef-2030-4320-b66b-8ed2df79f72d",
+          "start_ms": 160,
+          "end_ms": 5960,
+          "text": "就限制这个用户直播之后，基本上就只能只能停止直播。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A02",
+          "source_segment_id": "c304460b-2451-4979-9e19-9b9b85824e70",
+          "start_ms": 6400,
+          "end_ms": 19830,
+          "text": "对，然后就是，沃尔沃这个还多做了多做了一套机制，就是说后面连上来的后面连上来的 APP 只能做停止直播的一个限制，我感觉这个。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A03",
+          "source_segment_id": "7eee0932-6203-4d9f-88b7-718c501342ca",
+          "start_ms": 20720,
+          "end_ms": 25280,
+          "text": "这一套限制的实现可以直接删掉哦，你说哪哪些限制？",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A04",
+          "source_segment_id": "3e943bb2-ab40-4dbd-9cef-e124215f0bb8",
+          "start_ms": 25960,
+          "end_ms": 26800,
+          "text": "就是说。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A05",
+          "source_segment_id": "83cfcdfe-b255-49bc-9e9c-8ed1d82d6d6b",
+          "start_ms": 28620,
+          "end_ms": 48100,
+          "text": "嗯，库本身本身是不会对这个，就说你一个APP连上了，连上了设备之后，然后让它开播了，然后这个时候退出，过了10秒之后再连回来的话，那么它能执行的操作只有终止。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A06",
+          "source_segment_id": "6fb30f63-fc2d-488c-abb7-4b918a7c136c",
+          "start_ms": 48180,
+          "end_ms": 53020,
+          "text": "对呀，对呀，不是，这个是在代码实现里面有实际的限制的。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A07",
+          "source_segment_id": "f70bec70-62e7-4a2a-ae69-a17eca691efc",
+          "start_ms": 53220,
+          "end_ms": 60260,
+          "text": "但是但是我觉得这样我们已经约定好了，然后UI上也有做这种操作限制，那其实就没有必要在代码上写这个限制。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A08",
+          "source_segment_id": "23424771-e034-4fcc-943e-50a1287753cd",
+          "start_ms": 61740,
+          "end_ms": 64020,
+          "text": "也可以啊，不用给你不用不用去掉它。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A09",
+          "source_segment_id": "1012cd35-66fb-4b8c-a308-d443055851b5",
+          "start_ms": 64500,
+          "end_ms": 69580,
+          "text": "你说你说在代码上做一个限制，那协议里面写的不是我们做的限制吗？",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A10",
+          "source_segment_id": "6a5c6dff-d22d-4d6d-bda0-0b5b6f88ed51",
+          "start_ms": 70340,
+          "end_ms": 74500,
+          "text": "对啊，我意思说协议里面有了限制，然后在UI层面又不可能到达。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A11",
+          "source_segment_id": "af6cb002-e02d-4a95-83ba-796b718630c6",
+          "start_ms": 74970,
+          "end_ms": 78290,
+          "text": "就不可能到达，就是说重新连完了之后又重新配网。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A12",
+          "source_segment_id": "d3047b71-1da8-466d-95d6-b8636e82c028",
+          "start_ms": 78450,
+          "end_ms": 79250,
+          "text": "嗯，是的。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A13",
+          "source_segment_id": "0f74e38a-33c1-4180-947c-4f0938abb9e2",
+          "start_ms": 79370,
+          "end_ms": 81130,
+          "text": "那其实代码里面不需要写死。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A14",
+          "source_segment_id": "731e4188-7cae-44ba-b970-66b41da967df",
+          "start_ms": 81290,
+          "end_ms": 81890,
+          "text": "对对对。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A15",
+          "source_segment_id": "54c5ce48-2131-4014-976d-7c0268f3fb6a",
+          "start_ms": 82170,
+          "end_ms": 82610,
+          "text": "对，因为。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A16",
+          "source_segment_id": "c8ccaf94-d3f9-419d-8f84-a0dd36338749",
+          "start_ms": 82650,
+          "end_ms": 89210,
+          "text": "因为那个那个无，不可能到达的，你去做做阻挡，你根本阻挡一个不存在的东西嘛。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A17",
+          "source_segment_id": "ebd28f2d-7936-465c-8a66-1da409ffbc4a",
+          "start_ms": 89250,
+          "end_ms": 91170,
+          "text": "对，是啊，所以我说把这个也删。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "A18",
+          "source_segment_id": "eb477116-10f0-4749-b588-dc45c8dc8979",
+          "start_ms": 91410,
+          "end_ms": 91970,
+          "text": "对。",
+          "revision": 1,
+          "correction_revision": 0
+        }
+      ]
+    },
+    {
+      "id": "video",
+      "record_id": "edefb542-e50a-4851-964e-2682961939be",
+      "media_name": "test-video01.mp4",
+      "title": "miaoji-app-20260920-video",
+      "complete_pagination": true,
+      "segments": [
+        {
+          "id": "V01",
+          "source_segment_id": "fdf314af-92f1-461d-a91c-5e781eb31da1",
+          "start_ms": 320,
+          "end_ms": 6040,
+          "text": "中国大部分老板都不是资本家思维，而是封建地主奴隶主思维。",
+          "revision": 1,
+          "correction_revision": 11
+        },
+        {
+          "id": "V02",
+          "source_segment_id": "04632f21-e32a-433e-8405-379bda18ee3c",
+          "start_ms": 6680,
+          "end_ms": 12760,
+          "text": "资本家思维是你只要给他挣到钱，你怎么都可以，你不来上班也没问题。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "V03",
+          "source_segment_id": "d267e3dd-bc00-498e-b290-ca9394d209f4",
+          "start_ms": 12880,
+          "end_ms": 14680,
+          "text": "对，那么奴隶主思维呢？",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "V04",
+          "source_segment_id": "ddaaef9f-13f7-4646-8953-187b693eb871",
+          "start_ms": 15120,
+          "end_ms": 26200,
+          "text": "他就是看不得你闲，他在全方位监控你，就跟你签了卖身契卖给他一样，只要你闲着，他就觉得你工作没做完，你在偷懒。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "V05",
+          "source_segment_id": "ce0752bc-59c4-4acc-8cfe-c6d35d8b445f",
+          "start_ms": 26460,
+          "end_ms": 30540,
+          "text": "他绝对不会因为你的能力强，把工作提前做完而高兴。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "V06",
+          "source_segment_id": "89248ee5-829d-4efa-ad2e-d900375aaa69",
+          "start_ms": 30900,
+          "end_ms": 34220,
+          "text": "他看见你下班早，比他亏钱还难受。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "V07",
+          "source_segment_id": "1aa55a20-8145-40b2-bab9-5d3477648a74",
+          "start_ms": 34740,
+          "end_ms": 43420,
+          "text": "两者之间最大的区别就是，资本家觉得你是在帮他赚钱，奴隶主觉得你是在挣他的钱。",
+          "revision": 1,
+          "correction_revision": 0
+        },
+        {
+          "id": "V08",
+          "source_segment_id": "977e929b-f496-44e2-8680-dedd214652f9",
+          "start_ms": 44820,
+          "end_ms": 47340,
+          "text": "来抖音极速版看视频领现金。",
+          "revision": 1,
+          "correction_revision": 0
+        }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "M01",
+      "question": "设备已经开播，APP退出10秒后重新连接，这时还能执行什么操作？"
+    },
+    {
+      "id": "M02",
+      "question": "技术讨论中，为什么有人认为代码里的这套限制可以删除？"
+    },
+    {
+      "id": "M03",
+      "question": "讨论里说“把这个也删”，指的是什么？原文是否证明这个改动已经完成？"
+    },
+    {
+      "id": "M04",
+      "question": "这次取消限制的改动由谁负责，什么时候完成？"
+    },
+    {
+      "id": "M05",
+      "question": "视频里说的两种老板思维，最大的区别是什么？"
+    }
+  ],
+  "question_origin": "assistant_authored_from_source_not_real_user_query_log",
+  "intended_use": "calibration_after_human_review_not_independent_holdout"
+}
