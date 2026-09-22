@@ -218,6 +218,7 @@
     "event": "[Event]",
     "calendar": "Calendar share",
     "doc": "[Document]",
+    "record": "[Meeting record]",
     "meeting": "[Meeting]",
     "richCard": "[Card]",
     "richText": "[Rich text]"
@@ -233,6 +234,9 @@
   },
   "docCard": {
     "view": "View document"
+  },
+  "meetingRecordCard": {
+    "view": "View minutes"
   },
   "docPicker": {
     "title": "Share document",

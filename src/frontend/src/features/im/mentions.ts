@@ -82,6 +82,8 @@ const AT_EVERYONE_UID = 'all'
  *   会让所有人**再被通知一次**,那是 bug 不是设计。
  * - 其余(图片/文件/卡片/合并转发/控制消息……)一律不扫。此前 Web 是拿原始
  *   body 无差别扫的,于是一个叫「@所有人 周会」的会议卡片也会点亮红 @。
+ *   新增卡片的默认位置就是这里:**不加 case 就等于不扫**,卡片标题里出现
+ *   「@所有人」不会误伤全群。
  */
 export const mentionScan = (
   contentType: string,

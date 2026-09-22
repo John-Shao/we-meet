@@ -219,6 +219,7 @@
     "event": "[日程]",
     "calendar": "日历分享",
     "doc": "[云文档]",
+    "record": "[会议记录]",
     "richCard": "[卡片]",
     "richText": "[富文本]"
   },
@@ -228,6 +229,9 @@
   },
   "docCard": {
     "view": "查看文档"
+  },
+  "meetingRecordCard": {
+    "view": "查看纪要"
   },
   "meetingCard": {
     "ongoing": "进行中",

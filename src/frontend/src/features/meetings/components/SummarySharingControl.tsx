@@ -1,44 +1,27 @@
-import { readRecovery } from '../hooks/readRecovery'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
-import { Button, Input, Text } from '@/primitives'
-import { Checkbox } from '@/primitives/Checkbox'
+import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
+import { SummaryMembersDialog } from './SummaryMembersDialog'
+import { SummaryShareToChatDialog } from './SummaryShareToChatDialog'
 import { receiptRole } from './liveRegionRole'
+import {
+  summarySharingPath,
+  useSummarySharing,
+  type Access,
+  type Grant,
+} from '../hooks/useSummarySharing'
 
-type Props = { recordId: string; viewerId: string; online: boolean }
-type Person = { id: string; name: string }
-type Grant = Person & {
-  active: boolean
-  read_summary: boolean
-  read_transcript: boolean
+type Props = {
+  recordId: string
+  viewerId: string
+  online: boolean
+  title?: string
+  originAt?: string | null
 }
-type Page<T> = { results: T[]; next_cursor: string | null }
-type Access = Page<Grant> & {
-  available: boolean
-  can_manage: boolean
-  supported_scopes?: string[]
-}
-type Selection = {
-  user_ids: string[]
-  operation: 'grant' | 'revoke'
-  access_scope?: 'summary' | 'transcript'
-}
-type Preview = {
-  title: string
-  preview_hash: string
-  recipients: (Person & {
-    after_effective_summary: boolean
-    inherited_summary: boolean
-    effective_transcript: boolean
-    inherited_transcript?: boolean
-    after_effective_transcript?: boolean
-  })[]
-}
-type Intent = Selection & { key: string; expected_hash: string }
+
 const stack = css({
   display: 'flex',
   flexDirection: 'column',
@@ -52,40 +35,40 @@ const line = css({
   flexWrap: 'wrap',
   alignItems: 'center',
 })
-const uuid = /^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i
-function loadIntent(key: string): Intent | undefined {
-  try {
-    const value = JSON.parse(
-      sessionStorage.getItem(key) ?? 'null'
-    ) as Intent | null
-    if (
-      value &&
-      uuid.test(value.key) &&
-      /^[a-f0-9]{64}$/.test(value.expected_hash) &&
-      ['grant', 'revoke'].includes(value.operation) &&
-      (value.access_scope === undefined ||
-        ['summary', 'transcript'].includes(value.access_scope)) &&
-      Array.isArray(value.user_ids) &&
-      value.user_ids.length > 0 &&
-      value.user_ids.length <= 50 &&
-      value.user_ids.every((id) => uuid.test(id))
-    )
-      return value
-  } catch {
-    /* Only request IDs and hashes are kept for ambiguous-result recovery. */
-  }
-}
+const section = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'sm',
+  minWidth: 0,
+  paddingY: 'md',
+  borderTop: '1px solid token(colors.border.subtle)',
+  _first: { borderTop: 'none', paddingTop: 0 },
+})
 
 export const SummarySharingControl = (props: Props) => (
   <Control key={`${props.viewerId}:${props.recordId}`} {...props} />
 )
 
-function Control(props: Props) {
+/**
+ * 「分享」面板 —— 把两件粒度不同的事分开:
+ *
+ * 1. **分享转发**:把这条记录发出去(分享到聊天 / 复制链接)。只回答「怎么给到
+ *    别人」,不改变任何人的权限。
+ * 2. **协作管理**:谁能看、看到哪一层 —— 逐人授权/撤销,带影响预览与确认。
+ *
+ * 原先两块混在一个竖列里(选人 → 预览 → 确认 → 授权列表 → 复制链接),用户分不清
+ * 自己点的是「发出去」还是「给了权限」;权限那几条安全约束(预览哈希、幂等键、
+ * 未确认回执)也被夹在转发按钮中间。分开后,协作管理整体交给一个弹窗
+ * ([SummaryMembersDialog],与云文档「邀请成员」同形态),选人面板复用通讯录多选。
+ */
+function Control({ recordId, viewerId, online, title, originAt }: Props) {
   const { t } = useTranslation('meetings')
-  const [opened, setOpened] = useState(false)
-  const path = `meeting-records/${encodeURIComponent(props.recordId)}/summary-sharing/`
+  const [membersOpen, setMembersOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+  const [message, setMessage] = useState('')
+  const path = summarySharingPath(recordId)
   const query = useQuery({
-    queryKey: ['summary-sharing', props.viewerId, props.recordId, path],
+    queryKey: ['summary-sharing', viewerId, recordId, path],
     queryFn: ({ signal }) =>
       fetchApi<Access>(path, { signal, cache: 'no-store' }),
     retry: false,
@@ -93,6 +76,7 @@ function Control(props: Props) {
     staleTime: 0,
     refetchInterval: (q) => (q.state.status === 'error' ? false : 5000),
   })
+  const write = useSummarySharing({ recordId, viewerId, path })
   if (query.isError)
     return (
       <div className={stack}>
@@ -107,529 +91,103 @@ function Control(props: Props) {
       </div>
     )
   if (!query.data?.can_manage) return null
+  const data = query.data
+  const count = data.results.length
+  const revocable = data.results.filter(
+    (person: Grant) => person.read_summary || person.read_transcript
+  ).length
+  // 弹窗打开时回执由弹窗显示(它才是那一刻的焦点);关闭后由本面板接着显示。
+  const receipt = membersOpen ? '' : message || write.message
   return (
     <section className={stack} aria-label={t('summarySharing.title')}>
-      <Button size="sm" variant="tertiary" onPress={() => setOpened(!opened)}>
-        {t(opened ? 'summarySharing.close' : 'summarySharing.title')}
-      </Button>
-      {opened && (
-        <Editor
-          {...props}
-          path={path}
-          available={query.data.available}
-          refresh={() => void query.refetch()}
-        />
-      )}
-    </section>
-  )
-}
-
-function Editor({
-  recordId,
-  viewerId,
-  online,
-  path,
-  available,
-  refresh,
-}: Props & { path: string; available: boolean; refresh: () => void }) {
-  const { t } = useTranslation('meetings')
-  const [cursor, setCursor] = useState<string>()
-  const [selection, setSelection] = useState<Selection>({
-    user_ids: [],
-    operation: 'grant',
-  })
-  const [preview, setPreview] = useState<Preview>()
-  const storageKey = `meeting-summary-sharing:${viewerId}:${recordId}`
-  const [recovery] = useState(() =>
-    readRecovery(storageKey, () => loadIntent(storageKey))
-  )
-  const [intent, setIntent] = useState(recovery.value)
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState('')
-  const inFlight = useRef(false)
-  const lifetime = useRef<AbortController | null>(null)
-  useEffect(() => {
-    const controller = new AbortController()
-    lifetime.current = controller
-    return () => controller.abort()
-  }, [])
-  const grants = useQuery({
-    queryKey: ['summary-sharing-grants', viewerId, recordId, path, cursor],
-    queryFn: ({ signal }) =>
-      fetchApi<Access>(
-        `${path}?${new URLSearchParams(cursor ? { cursor } : {})}`,
-        { signal, cache: 'no-store' }
-      ),
-    retry: false,
-    gcTime: 0,
-    staleTime: 0,
-    refetchInterval: (q) => (q.state.status === 'error' ? false : 5000),
-  })
-  const inspect = async (next: Selection) => {
-    if (inFlight.current || !next.user_ids.length) return
-    setSelection(next)
-    const signal = lifetime.current!.signal
-    inFlight.current = true
-    setBusy(true)
-    setMessage('')
-    try {
-      const result = await fetchApi<Preview>(`${path}preview/`, {
-        method: 'POST',
-        signal,
-        body: JSON.stringify(next),
-      })
-      if (!signal.aborted) setPreview(result)
-    } catch {
-      if (!signal.aborted) setMessage('summarySharing.previewError')
-    } finally {
-      inFlight.current = false
-      if (!signal.aborted) setBusy(false)
-    }
-  }
-  const submit = async () => {
-    if (recovery.blocked) return
-    if (inFlight.current || (!intent && !preview)) return
-    const request = intent ?? {
-      ...selection,
-      key: crypto.randomUUID(),
-      expected_hash: preview!.preview_hash,
-    }
-    try {
-      sessionStorage.setItem(storageKey, JSON.stringify(request))
-    } catch {
-      setMessage('summarySharing.storageUnavailable')
-      return
-    }
-    const signal = lifetime.current!.signal
-    setIntent(request)
-    inFlight.current = true
-    setBusy(true)
-    setMessage('')
-    const clear = () => {
-      sessionStorage.removeItem(storageKey)
-      setIntent(undefined)
-      setPreview(undefined)
-    }
-    try {
-      await fetchApi(path, {
-        method: 'POST',
-        signal,
-        headers: { 'Idempotency-Key': request.key },
-        meetingCommand: { key: request.key, scope: { record_id: recordId } },
-        body: JSON.stringify({
-          user_ids: request.user_ids,
-          operation: request.operation,
-          expected_hash: request.expected_hash,
-          access_scope: request.access_scope,
-        }),
-      })
-      if (signal.aborted) return
-      clear()
-      setSelection({ user_ids: [], operation: 'grant' })
-      setMessage('summarySharing.accepted')
-    } catch (error) {
-      if (signal.aborted) return
-      if (
-        error instanceof ApiError &&
-        [400, 409, 422].includes(error.statusCode)
-      ) {
-        clear()
-        setMessage(
-          error.statusCode === 409
-            ? 'summarySharing.conflict'
-            : 'summarySharing.loadError'
-        )
-      } else setMessage('summarySharing.uncertain')
-    } finally {
-      inFlight.current = false
-      if (!signal.aborted) {
-        setBusy(false)
-        void grants.refetch()
-        refresh()
-      }
-    }
-  }
-  if (recovery.blocked)
-    return <Text>{t('summarySharing.storageUnavailable')}</Text>
-  if (grants.isError || (grants.data && !grants.data.can_manage))
-    return <Text>{t('summarySharing.loadError')}</Text>
-  if (!grants.data) return <Text>{t('loading')}</Text>
-  const transcript =
-    (intent?.access_scope ?? selection.access_scope) === 'transcript'
-  return (
-    <div className={stack}>
-      {!intent &&
-        !preview &&
-        grants.data.supported_scopes?.includes('transcript') && (
-          <label>
-            {t('recordSharing.scope')}
-            <select
-              aria-label={t('recordSharing.scope')}
-              disabled={busy}
-              value={selection.access_scope ?? 'summary'}
-              onChange={(event) =>
-                setSelection({
-                  user_ids: [],
-                  operation: 'grant',
-                  access_scope: event.target.value as 'summary' | 'transcript',
-                })
-              }
-            >
-              <option value="summary">{t('recordSharing.summary')}</option>
-              <option value="transcript">
-                {t('recordSharing.transcript')}
-              </option>
-            </select>
-          </label>
-        )}
-      <Text>
-        {t(
-          transcript ? 'recordSharing.transcriptScope' : 'summarySharing.scope'
-        )}
-      </Text>
-      <Text variant="note">
-        {t(
-          transcript ? 'recordSharing.boundaries' : 'summarySharing.boundaries'
-        )}
-      </Text>
-      {!available && <Text>{t('summarySharing.paused')}</Text>}
-      {intent ? (
-        <>
-          <Text>
-            {t('summarySharing.pending', { count: intent.user_ids.length })}
-          </Text>
-          <Button
-            size="sm"
-            loading={busy}
-            isDisabled={busy}
-            onPress={() => void submit()}
-          >
-            {t('summarySharing.resubmit')}
+      <div className={section}>
+        <h3>{t('summarySharing.forward')}</h3>
+        <Text variant="note">{t('summarySharing.forwardHint')}</Text>
+        <div className={line}>
+          <Button size="sm" onPress={() => setChatOpen(true)}>
+            {t('summarySharing.chat')}
           </Button>
-        </>
-      ) : preview ? (
-        <>
-          <h3>
-            {t('summarySharing.previewTitle')} · {preview.title}
-          </h3>
-          <Text>{t(`summarySharing.operation.${selection.operation}`)}</Text>
-          <ul className={stack}>
-            {preview.recipients.map((person) => (
-              <li key={person.id}>
-                <strong>{person.name || t('summaryNotice.unnamed')}</strong>
-                <p>
-                  {t(
-                    transcript
-                      ? person.after_effective_transcript
-                        ? 'recordSharing.willRead'
-                        : 'recordSharing.willLose'
-                      : person.after_effective_summary
-                        ? 'summarySharing.willRead'
-                        : 'summarySharing.willLose'
-                  )}
-                </p>
-                {(transcript
-                  ? person.inherited_transcript
-                  : person.inherited_summary) && (
-                  <p>
-                    {t(
-                      transcript
-                        ? 'recordSharing.inherited'
-                        : 'summarySharing.inherited'
-                    )}
-                  </p>
-                )}
-                {!transcript && person.effective_transcript && (
-                  <p>{t('summarySharing.originalAccess')}</p>
-                )}
-              </li>
-            ))}
-          </ul>
-          <div className={line}>
-            <Button
-              size="sm"
-              loading={busy}
-              isDisabled={busy || !available || !grants.data.available}
-              onPress={() => void submit()}
-            >
-              {t('summarySharing.confirm')}
-            </Button>
-            <Button
-              size="sm"
-              variant="tertiary"
-              isDisabled={busy}
-              onPress={() => setPreview(undefined)}
-            >
-              {t('summarySharing.back')}
-            </Button>
-          </div>
-        </>
-      ) : (
-        <>
-          {available && grants.data.available && (
-            <Candidates
-              key={`${selection.operation}:${selection.access_scope}:${message}`}
-              viewerId={viewerId}
-              path={path}
-              online={online}
-              disabled={busy}
-              onPreview={(ids) =>
-                void inspect({
-                  user_ids: ids,
-                  operation: 'grant',
-                  access_scope: selection.access_scope,
-                })
-              }
-            />
-          )}
-          <h3>{t('summarySharing.existing')}</h3>
-          {!grants.data.results.length && (
-            <Text>{t('summarySharing.empty')}</Text>
-          )}
-          <ul className={stack}>
-            {grants.data.results.map((person) => (
-              <li key={person.id}>
-                <div className={line}>
-                  <Text>
-                    {person.name || t('summaryNotice.unnamed')}
-                    {!person.active && ` · ${t('summarySharing.inactive')}`}
-                  </Text>
-                  {(transcript
-                    ? person.read_transcript
-                    : person.read_summary) &&
-                    available &&
-                    grants.data!.available && (
-                      <Button
-                        size="sm"
-                        variant="tertiary"
-                        isDisabled={busy}
-                        onPress={() =>
-                          void inspect({
-                            user_ids: [person.id],
-                            operation: 'revoke',
-                            access_scope: selection.access_scope,
-                          })
-                        }
-                      >
-                        {t('summarySharing.revoke')}
-                      </Button>
-                    )}
-                </div>
-                {person.read_transcript && (
-                  <Text variant="note">
-                    {t('summarySharing.originalAccess')}
-                  </Text>
-                )}
-              </li>
-            ))}
-          </ul>
-          <div className={line}>
-            {cursor && (
-              <Button
-                size="sm"
-                variant="tertiary"
-                onPress={() => setCursor(undefined)}
-              >
-                {t('recordAi.firstPage')}
-              </Button>
-            )}
-            {grants.data.next_cursor && (
-              <Button
-                size="sm"
-                variant="tertiary"
-                onPress={() => setCursor(grants.data!.next_cursor!)}
-              >
-                {t('library.next')}
-              </Button>
-            )}
-          </div>
           <Button
             size="sm"
             variant="tertiary"
-            onPress={() => {
+            onPress={() =>
               void navigator.clipboard
                 .writeText(
                   `${location.origin}/meeting/records/${encodeURIComponent(recordId)}`
                 )
                 .then(
-                  () => setMessage('summarySharing.copied'),
-                  () => setMessage('summarySharing.copyError')
+                  () => setMessage(t('summarySharing.copied')),
+                  () => setMessage(t('summarySharing.copyError'))
                 )
-            }}
+            }
           >
             {t('summarySharing.copyLink')}
           </Button>
-        </>
-      )}
-      {message && <div role={receiptRole(message)}>{t(message)}</div>}
-    </div>
-  )
-}
-
-function Candidates({
-  viewerId,
-  path,
-  online,
-  disabled,
-  onPreview,
-}: {
-  viewerId: string
-  path: string
-  online: boolean
-  disabled: boolean
-  onPreview: (ids: string[]) => void
-}) {
-  const { t } = useTranslation('meetings')
-  const [scope, setScope] = useState(online ? 'participants' : 'directory')
-  const [cursor, setCursor] = useState<string>()
-  const [text, setText] = useState('')
-  const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState<string[]>([])
-  const query = useQuery({
-    queryKey: [
-      'summary-sharing-candidates',
-      viewerId,
-      path,
-      scope,
-      cursor,
-      search,
-    ],
-    queryFn: ({ signal }) =>
-      fetchApi<Page<Person>>(
-        `${path}candidates/?${new URLSearchParams({ scope, q: search, ...(cursor ? { cursor } : {}) })}`,
-        { signal, cache: 'no-store' }
-      ),
-    retry: false,
-    gcTime: 0,
-    staleTime: 0,
-    refetchInterval: (q) => (q.state.status === 'error' ? false : 10000),
-  })
-  return (
-    <div className={stack}>
-      {online && (
-        <label>
-          {t('summarySharing.recipientSource')}{' '}
-          <select
-            disabled={disabled}
-            value={scope}
-            onChange={(e) => {
-              setScope(e.target.value)
-              setCursor(undefined)
-            }}
-          >
-            <option value="participants">
-              {t('summarySharing.participants')}
-            </option>
-            <option value="directory">{t('summarySharing.directory')}</option>
-          </select>
-        </label>
-      )}
-      <form
-        className={line}
-        onSubmit={(e) => {
-          e.preventDefault()
-          setSearch(text.trim())
-          setCursor(undefined)
-        }}
-      >
-        <label>
-          {t('summarySharing.search')}{' '}
-          {/* 此前是裸 `<input>`,连 className 都没有 —— 浏览器默认外观在深色主题下
-              不跟随主题(白底黑字),与同屏的其它控件对不上。走共享 `Input`:
-              32px 钉高 + 语义描边/底色/前景 + hover / invalid / disabled 状态。 */}
-          <Input
-            aria-label={t('summarySharing.search')}
-            disabled={disabled}
-            maxLength={80}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-        </label>
-        <Button
-          size="sm"
-          type="submit"
-          variant="tertiary"
-          isDisabled={disabled}
-        >
-          {t('summarySharing.search')}
-        </Button>
-      </form>
-      {query.isError ? (
-        <Text>{t('summarySharing.loadError')}</Text>
-      ) : !query.data ? (
-        <Text>{t('loading')}</Text>
-      ) : (
-        <>
-          {!query.data.results.length && (
-            <Text>{t('summarySharing.noCandidates')}</Text>
+        </div>
+        <Text variant="note">{t('summarySharing.copyHint')}</Text>
+      </div>
+      <div className={section}>
+        <h3>{t('summarySharing.collaboration')}</h3>
+        <Text>
+          {t(count ? 'summarySharing.granted' : 'summarySharing.noGrants', {
+            count,
+          })}
+        </Text>
+        <Text variant="note">{t('summarySharing.collaborationHint')}</Text>
+        {!data.available && <Text>{t('summarySharing.paused')}</Text>}
+        {write.pending && (
+          <Text>
+            {t('summarySharing.pending', { count: write.pendingCount })}
+          </Text>
+        )}
+        {write.blocked && <Text>{t('summarySharing.storageUnavailable')}</Text>}
+        <div className={line}>
+          {write.pending && (
+            <Button
+              size="sm"
+              loading={write.busy}
+              isDisabled={write.busy}
+              onPress={() => void write.submit()}
+            >
+              {t('summarySharing.resubmit')}
+            </Button>
           )}
-          <ul className={stack}>
-            {query.data.results.map((person) => (
-              <li key={person.id}>
-                <Checkbox
-                  className={line}
-                  isSelected={selected.includes(person.id)}
-                  isDisabled={
-                    disabled ||
-                    (selected.length >= 50 && !selected.includes(person.id))
-                  }
-                  onChange={(checked) =>
-                    setSelected((ids) =>
-                      checked
-                        ? [...ids, person.id]
-                        : ids.filter((id) => id !== person.id)
-                    )
-                  }
-                >
-                  {person.name || t('summaryNotice.unnamed')}
-                </Checkbox>
-              </li>
-            ))}
-          </ul>
-          <div className={line}>
-            {cursor && (
-              <Button
-                size="sm"
-                variant="tertiary"
-                isDisabled={disabled}
-                onPress={() => setCursor(undefined)}
-              >
-                {t('recordAi.firstPage')}
-              </Button>
-            )}
-            {query.data.next_cursor && (
-              <Button
-                size="sm"
-                variant="tertiary"
-                isDisabled={disabled}
-                onPress={() => setCursor(query.data!.next_cursor!)}
-              >
-                {t('library.next')}
-              </Button>
-            )}
-          </div>
-        </>
-      )}
-      <Text>{t('summarySharing.selected', { count: selected.length })}</Text>
-      <div className={line}>
-        <Button
-          size="sm"
-          isDisabled={disabled || query.isError || !selected.length}
-          onPress={() => onPreview(selected)}
-        >
-          {t('summarySharing.preview')}
-        </Button>
-        {selected.length > 0 && (
           <Button
             size="sm"
-            variant="tertiary"
-            isDisabled={disabled}
-            onPress={() => setSelected([])}
+            isDisabled={!data.available || write.blocked}
+            onPress={() => {
+              setMessage('')
+              setMembersOpen(true)
+            }}
           >
-            {t('summarySharing.clear')}
+            {t('summarySharing.members')}
           </Button>
+        </div>
+        {!revocable && count > 0 && (
+          <Text variant="note">{t('summarySharing.originalAccess')}</Text>
         )}
       </div>
-    </div>
+      {receipt && <div role={receiptRole(receipt)}>{receipt}</div>}
+      {membersOpen && (
+        <SummaryMembersDialog
+          recordId={recordId}
+          viewerId={viewerId}
+          online={online}
+          available={data.available}
+          supportedScopes={data.supported_scopes ?? []}
+          write={write}
+          onResult={() => void query.refetch()}
+          onClose={() => setMembersOpen(false)}
+        />
+      )}
+      {chatOpen && (
+        <SummaryShareToChatDialog
+          recordId={recordId}
+          title={title || t('home.untitled')}
+          originAt={originAt}
+          onClose={() => setChatOpen(false)}
+        />
+      )}
+    </section>
   )
 }

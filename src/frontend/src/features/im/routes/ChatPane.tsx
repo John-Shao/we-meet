@@ -63,6 +63,7 @@ import {
 } from '../call/callController'
 import { GroupVoiceCallPicker } from '../call/GroupVoiceCallPicker'
 import { navigateTo } from '@/navigation/navigateTo'
+import { navigate } from 'wouter/use-browser-location'
 import { IconButton } from '@/primitives'
 import { buildTaskCardBody } from '@/features/tasks/components/taskCard'
 
@@ -124,6 +125,7 @@ const snippetOf = (m: Message, t: (k: string) => string): string => {
   if (m.content_type === 'phone-viewed') return t('preview.phoneViewed')
   if (m.content_type === 'event-card') return t('preview.event')
   if (m.content_type === 'meeting-card') return t('preview.meeting')
+  if (m.content_type === 'meeting-record-card') return t('preview.record')
   if (m.content_type === 'calendar-card') return t('preview.calendar')
   // One branch here fixes three downstream users at once: the quote bar,
   // the 稍后处理 snippet and the merged-forward snapshot.
@@ -837,6 +839,7 @@ export const ChatPane = ({
     if (m.content_type === 'phone-viewed') return t('preview.phoneViewed')
     if (m.content_type === 'event-card') return t('preview.event')
     if (m.content_type === 'meeting-card') return t('preview.meeting')
+    if (m.content_type === 'meeting-record-card') return t('preview.record')
     if (m.content_type === 'rich-text')
       return richTextPreview(m.body) || t('preview.richText')
     if (m.content_type === 'rich-card')
@@ -922,6 +925,7 @@ export const ChatPane = ({
       m.content_type !== 'merged' &&
       m.content_type !== 'event-card' && // 复制裸 JSON 无意义
       m.content_type !== 'meeting-card' &&
+      m.content_type !== 'meeting-record-card' &&
       m.content_type !== 'calendar-card' &&
       m.body &&
       navigator.clipboard
@@ -1450,6 +1454,14 @@ export const ChatPane = ({
                           selectMode
                             ? undefined
                             : (card) => navigateTo('docs', card.doc_id)
+                        }
+                        onOpenRecord={
+                          selectMode
+                            ? undefined
+                            : (card) =>
+                                navigate(
+                                  `/meeting/records/${encodeURIComponent(card.record_id)}?tab=summary`
+                                )
                         }
                         onJoinGroupCall={
                           m.content_type === 'group-call' && groupCallSlugOf(m)

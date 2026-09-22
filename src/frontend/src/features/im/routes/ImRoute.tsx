@@ -407,21 +407,23 @@ const ImAuthenticated = () => {
                       ? t('preview.phoneViewed')
                       : ct === 'meeting-card'
                         ? t('preview.meeting')
-                        : ct === 'event-card'
-                          ? t('preview.event')
-                          : ct === 'doc-card'
-                            ? t('preview.doc')
-                            : ct === 'calendar-card'
-                              ? t('preview.calendar')
-                              : ct === 'rich-text'
-                                ? richTextPreview(c.last_message ?? '') ||
-                                  t('preview.richText')
-                                : ct === 'rich-card'
-                                  ? richCardPreview(c.last_message ?? '') ||
-                                    t('preview.richCard')
-                                  : ct === 'quote'
-                                    ? parseQuoteText(c.last_message)
-                                    : (c.last_message ?? '')
+                        : ct === 'meeting-record-card'
+                          ? t('preview.record')
+                          : ct === 'event-card'
+                            ? t('preview.event')
+                            : ct === 'doc-card'
+                              ? t('preview.doc')
+                              : ct === 'calendar-card'
+                                ? t('preview.calendar')
+                                : ct === 'rich-text'
+                                  ? richTextPreview(c.last_message ?? '') ||
+                                    t('preview.richText')
+                                  : ct === 'rich-card'
+                                    ? richCardPreview(c.last_message ?? '') ||
+                                      t('preview.richCard')
+                                    : ct === 'quote'
+                                      ? parseQuoteText(c.last_message)
+                                      : (c.last_message ?? '')
     const ts = c.last_message_ts
     if (c.type !== 'group' || c.last_content_type === 'system') {
       return { text: body, ts }
@@ -557,6 +559,7 @@ const ImAuthenticated = () => {
     }
     if (m.content_type === 'merged') return t('preview.merged')
     if (m.content_type === 'doc-card') return t('preview.doc')
+    if (m.content_type === 'meeting-record-card') return t('preview.record')
     if (m.content_type === 'calendar-card') return t('preview.calendar')
     if (m.content_type === 'event-card')
       return eventCardPreview(m.body) || t('preview.event')
@@ -588,6 +591,7 @@ const ImAuthenticated = () => {
       m.content_type === 'merged' ||
       m.content_type === 'event-card' ||
       m.content_type === 'meeting-card' ||
+      m.content_type === 'meeting-record-card' ||
       m.content_type === 'doc-card' ||
       m.content_type === 'calendar-card' ||
       // 富文本 body 自包含(单语言、无外部引用),除了拆 @ 不用动别的。

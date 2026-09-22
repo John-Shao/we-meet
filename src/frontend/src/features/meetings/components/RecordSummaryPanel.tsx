@@ -350,6 +350,8 @@ const RecordSummaryPanelContent = ({
                 recordId={recordId}
                 viewerId={viewerId}
                 online={detail.data.source_type === 'meeting'}
+                title={detail.data.title}
+                originAt={detail.data.origin_at}
               />
             )}
           </div>

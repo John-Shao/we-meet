@@ -150,6 +150,7 @@ describe('mentionScan', () => {
     const card = JSON.stringify({ title: '@所有人 周会', status: 'ongoing' })
     for (const ct of [
       'meeting-card',
+      'meeting-record-card',
       'doc-card',
       'event-card',
       'image',

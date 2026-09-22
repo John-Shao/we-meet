@@ -9,6 +9,41 @@ vi.mock('@/api/fetchApi', () => ({ fetchApi: mocks.fetchApi }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
+// 选人面板本身有独立单测(通讯录搜索/分页/已选);这里只保留它的「候选来源 +
+// 勾选」两个出口,让本文件专注权限流程本身:预览哈希、幂等键、未确认回执、
+// 继承权限提示。`load` 是真调用 —— 候选集来自后端,不是通讯录。
+vi.mock('@/features/contacts', () => ({
+  DirectoryMultiPicker: ({
+    onToggle,
+    sources,
+  }: {
+    onToggle: (id: string, label: string) => void
+    sources?: {
+      value: string
+      load?: (params: { query: string; cursor?: string }) => Promise<unknown>
+    }[]
+  }) => (
+    <div>
+      {sources?.map((source) => (
+        <button
+          key={source.value}
+          type="button"
+          data-testid={`picker-source-${source.value}`}
+          onClick={() => void source.load?.({ query: '' })}
+        >
+          {source.value}
+        </button>
+      ))}
+      <button
+        type="button"
+        data-testid="picker-toggle"
+        onClick={() => onToggle(peer.id, peer.name)}
+      >
+        {peer.name}
+      </button>
+    </div>
+  ),
+}))
 const peer = {
   id: 'f9a2cd03-14d0-461a-9311-5aeeac3ce756',
   name: 'Invited colleague',
@@ -45,18 +80,30 @@ function show(viewerId = 'owner') {
     </QueryClientProvider>
   )
 }
-async function open() {
+/** 「协作管理」现在是弹窗:先等面板渲染出来,再进去选人。 */
+async function openMembers() {
   fireEvent.click(
-    await screen.findByRole('button', { name: 'summarySharing.title' })
+    await screen.findByRole('button', { name: 'summarySharing.members' })
   )
-  await screen.findByText('summarySharing.scope')
 }
 async function inspect() {
-  fireEvent.click(await screen.findByRole('checkbox', { name: peer.name }))
+  fireEvent.click(screen.getByTestId('picker-toggle'))
   fireEvent.click(
     screen.getByRole('button', { name: 'summarySharing.preview' })
   )
   await screen.findByRole('button', { name: 'summarySharing.confirm' })
+}
+/**
+ * 授权范围下拉是 react-aria 的 Select:它把 [aria-label] 吃掉、只留一个隐藏的
+ * 原生 select 承接值/表单语义,所以按无障碍名找不到它 —— 这里就走那个隐藏
+ * select,和真实键盘操作落到的也是同一处。
+ */
+function chooseScope(value: 'summary' | 'transcript') {
+  const select = document.querySelector(
+    '[data-testid="hidden-select-container"] select'
+  )
+  if (!select) throw new Error('scope select not rendered')
+  fireEvent.change(select, { target: { value } })
 }
 beforeEach(() => {
   vi.resetAllMocks()
@@ -79,6 +126,7 @@ beforeEach(() => {
       can_manage: manager,
       results: grants,
       next_cursor: null,
+      supported_scopes: ['summary', 'transcript'],
     }
   })
 })
@@ -87,20 +135,36 @@ afterEach(() => {
   sessionStorage.clear()
 })
 
-it('requires selection and reviewed scope before any permission mutation', async () => {
+it('splits sharing from collaboration and requires a reviewed scope before any mutation', async () => {
   show()
-  await open()
-  expect(screen.getByText('summarySharing.scope')).toBeInTheDocument()
+  // 两个区块同时在面板上:分享转发(聊天/链接)不掺权限,协作管理单独一处。
+  expect(await screen.findByText('summarySharing.forward')).toBeInTheDocument()
+  expect(screen.getByText('summarySharing.collaboration')).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'summarySharing.chat' })
+  ).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'summarySharing.copyLink' })
+  ).toBeInTheDocument()
+  // 权限写入只发生在协作管理弹窗里,且必须先预览。
+  expect(
+    screen.queryByRole('button', { name: 'summarySharing.preview' })
+  ).toBeNull()
+  await openMembers()
+  // 候选集来自后端的 summary-sharing 接口(不是通讯录搜索)。
+  fireEvent.click(screen.getByTestId('picker-source-participants'))
+  await waitFor(() =>
+    expect(
+      mocks.fetchApi.mock.calls.some(([url]) =>
+        url.includes('scope=participants')
+      )
+    ).toBe(true)
+  )
   expect(
     screen.queryByRole('button', { name: 'summarySharing.confirm' })
   ).toBeNull()
   await inspect()
   expect(mutations()).toHaveLength(0)
-  expect(
-    mocks.fetchApi.mock.calls.some(([url]) =>
-      url.includes('scope=participants')
-    )
-  ).toBe(true)
   fireEvent.click(
     screen.getByRole('button', { name: 'summarySharing.confirm' })
   )
@@ -133,11 +197,9 @@ it('keeps transcript scope explicit through preview, confirmation and an ambiguo
     return { ...value, supported_scopes: ['summary', 'transcript'] }
   })
   const first = show()
-  await open()
-  fireEvent.change(
-    screen.getByRole('combobox', { name: 'recordSharing.scope' }),
-    { target: { value: 'transcript' } }
-  )
+  await openMembers()
+  await screen.findByTestId('picker-toggle')
+  chooseScope('transcript')
   await inspect()
   expect(screen.getByText('recordSharing.willRead')).toBeInTheDocument()
   expect(screen.getByText('recordSharing.boundaries')).toBeInTheDocument()
@@ -150,13 +212,10 @@ it('keeps transcript scope explicit through preview, confirmation and an ambiguo
   first.unmount()
   client.clear()
   lost = false
+  // 关掉弹窗重挂:面板自己要接着显示「上次操作未确认」并能核对同一次操作。
   show()
   fireEvent.click(
-    await screen.findByRole('button', { name: 'summarySharing.title' })
-  )
-  await screen.findByText('recordSharing.transcriptScope')
-  fireEvent.click(
-    screen.getByRole('button', { name: 'summarySharing.resubmit' })
+    await screen.findByRole('button', { name: 'summarySharing.resubmit' })
   )
   await screen.findByText('summarySharing.accepted')
   expect(mutations()[1][1].body).toEqual(original.body)
@@ -164,10 +223,15 @@ it('keeps transcript scope explicit through preview, confirmation and an ambiguo
 })
 
 it('does not offer transcript grants against a server without scoped sharing', async () => {
+  const normal = mocks.fetchApi.getMockImplementation()!
+  mocks.fetchApi.mockImplementation(async (url, options) => {
+    const value = await normal(url, options)
+    return { ...value, supported_scopes: ['summary'] }
+  })
   show()
-  await open()
+  await openMembers()
   expect(
-    screen.queryByRole('combobox', { name: 'recordSharing.scope' })
+    screen.queryByRole('button', { name: 'recordSharing.scope' })
   ).not.toBeInTheDocument()
 })
 
@@ -184,7 +248,7 @@ it('recovers the original permission request after a lost response and remount',
     return normal(url, options)
   })
   const first = show()
-  await open()
+  await openMembers()
   await inspect()
   fireEvent.click(
     screen.getByRole('button', { name: 'summarySharing.confirm' })
@@ -195,9 +259,8 @@ it('recovers the original permission request after a lost response and remount',
   client.clear()
   fail = false
   show()
-  await open()
   fireEvent.click(
-    screen.getByRole('button', { name: 'summarySharing.resubmit' })
+    await screen.findByRole('button', { name: 'summarySharing.resubmit' })
   )
   await screen.findByText('summarySharing.accepted')
   expect(mutations()[1][1].headers).toEqual(original.headers)
@@ -212,7 +275,7 @@ it('does not allow a changed preview to be confirmed again', async () => {
       : normal(url, options)
   )
   show()
-  await open()
+  await openMembers()
   await inspect()
   fireEvent.click(
     screen.getByRole('button', { name: 'summarySharing.confirm' })
@@ -242,9 +305,11 @@ it('previews inherited access that remains after revoking a direct grant', async
       : normal(url, options)
   )
   show()
-  await open()
+  await openMembers()
   fireEvent.click(
-    await screen.findByRole('button', { name: 'summarySharing.revoke' })
+    await screen.findByRole('button', {
+      name: `Invited colleague · summarySharing.scopeSummary`,
+    })
   )
   await screen.findByText('summarySharing.inherited')
   expect(screen.getByText('summarySharing.originalAccess')).toBeInTheDocument()
@@ -258,7 +323,7 @@ it('previews inherited access that remains after revoking a direct grant', async
 
 it('removes the private preview and all write controls on permission failure', async () => {
   show()
-  await open()
+  await openMembers()
   await inspect()
   failRead = true
   await client.invalidateQueries()
@@ -285,13 +350,13 @@ it('never exposes management to shared readers or reuses a different account mar
   const first = show('reader')
   await waitFor(() => expect(mocks.fetchApi).toHaveBeenCalled())
   expect(
-    screen.queryByRole('button', { name: 'summarySharing.title' })
+    screen.queryByRole('button', { name: 'summarySharing.members' })
   ).toBeNull()
   first.unmount()
   client.clear()
   manager = true
   show()
-  await open()
+  await screen.findByRole('button', { name: 'summarySharing.members' })
   expect(
     screen.queryByRole('button', { name: 'summarySharing.resubmit' })
   ).toBeNull()
@@ -301,12 +366,10 @@ it('turning off sharing retains existing grants without new actions', async () =
   available = false
   grants = [peer]
   show()
-  await open()
-  await screen.findByText(peer.name)
-  expect(screen.getByText('summarySharing.paused')).toBeInTheDocument()
+  await screen.findByText('summarySharing.paused')
   expect(
-    screen.queryByRole('button', { name: 'summarySharing.revoke' })
-  ).toBeNull()
+    screen.getByRole('button', { name: 'summarySharing.members' })
+  ).toBeDisabled()
   expect(mutations()).toHaveLength(0)
 })
 
@@ -316,10 +379,10 @@ it.each(['{', '{}', ''])(
     const key = `meeting-summary-sharing:owner:record`
     sessionStorage.setItem(key, raw)
     show()
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'summarySharing.title' })
-    )
     await screen.findByText('summarySharing.storageUnavailable')
+    expect(
+      screen.getByRole('button', { name: 'summarySharing.members' })
+    ).toBeDisabled()
     expect(mutations()).toHaveLength(0)
     expect(sessionStorage.getItem(key)).toBe(raw)
   }
