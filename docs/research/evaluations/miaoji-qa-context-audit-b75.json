@@ -1,0 +1,578 @@
+{
+  "human_review_gate": "skipped_by_user_2026-09-22",
+  "human_review_performed": false,
+  "audit_method": "programmatic_provenance_and_context_availability_plus_codex_semantic_readthrough",
+  "independent_judge": false,
+  "independent_holdout": false,
+  "semantic_audit_recorded_after_generation": true,
+  "production_promotion_approved": false,
+  "production_retrieval_executed": false,
+  "context_policy": {
+    "neighbors_each_side": 3,
+    "radius_ms": 30000,
+    "max_chars": 800
+  },
+  "structural_checks": {
+    "total": 20,
+    "model_calls": 16,
+    "canned_answers": 4,
+    "reference_or_completion_failures": [],
+    "semantic_support_checked": false
+  },
+  "hashes": {
+    "miaoji-qa-context-plan-b75.json": "da938c2cacf606861f6228275db857881735b42d84a30396b51a243acd8e4cfa",
+    "miaoji-qa-context-generations-b75.json": "a1829c95c5493329f7eb9ce68e17e2e8fa80ae31d5c62b489d760470c8c66ad9"
+  },
+  "availability_before": [
+    {
+      "id": "M01/forward",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 142
+    },
+    {
+      "id": "M01/forward",
+      "arm": "scenario",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 142
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "scenario",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 167
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 167
+    },
+    {
+      "id": "M02/forward",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true,
+        true,
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 142
+    },
+    {
+      "id": "M02/forward",
+      "arm": "scenario",
+      "fact_groups_present": [
+        false,
+        true,
+        true
+      ],
+      "all_fact_groups_present": false,
+      "context_chars": 101
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "scenario",
+      "fact_groups_present": [
+        false,
+        true,
+        true
+      ],
+      "all_fact_groups_present": false,
+      "context_chars": 101
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        false,
+        true,
+        true
+      ],
+      "all_fact_groups_present": false,
+      "context_chars": 101
+    },
+    {
+      "id": "M03/forward",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true,
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 167
+    },
+    {
+      "id": "M03/forward",
+      "arm": "scenario",
+      "fact_groups_present": [
+        true,
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 167
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "scenario",
+      "fact_groups_present": [
+        false,
+        true
+      ],
+      "all_fact_groups_present": false,
+      "context_chars": 102
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        false,
+        true
+      ],
+      "all_fact_groups_present": false,
+      "context_chars": 102
+    },
+    {
+      "id": "M04/forward",
+      "arm": "schema_only",
+      "fact_groups_present": [],
+      "all_fact_groups_present": true,
+      "context_chars": 0
+    },
+    {
+      "id": "M04/forward",
+      "arm": "scenario",
+      "fact_groups_present": [],
+      "all_fact_groups_present": true,
+      "context_chars": 0
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "scenario",
+      "fact_groups_present": [],
+      "all_fact_groups_present": true,
+      "context_chars": 0
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "schema_only",
+      "fact_groups_present": [],
+      "all_fact_groups_present": true,
+      "context_chars": 0
+    },
+    {
+      "id": "M05/forward",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 124
+    },
+    {
+      "id": "M05/forward",
+      "arm": "scenario",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 124
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "scenario",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 124
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 124
+    }
+  ],
+  "availability_after": [
+    {
+      "id": "M01/forward",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 645
+    },
+    {
+      "id": "M01/forward",
+      "arm": "scenario",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 645
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "scenario",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 832
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 832
+    },
+    {
+      "id": "M02/forward",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true,
+        true,
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 1193
+    },
+    {
+      "id": "M02/forward",
+      "arm": "scenario",
+      "fact_groups_present": [
+        true,
+        true,
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 809
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "scenario",
+      "fact_groups_present": [
+        true,
+        true,
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 809
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true,
+        true,
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 809
+    },
+    {
+      "id": "M03/forward",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true,
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 1662
+    },
+    {
+      "id": "M03/forward",
+      "arm": "scenario",
+      "fact_groups_present": [
+        true,
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 1662
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "scenario",
+      "fact_groups_present": [
+        true,
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 773
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true,
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 773
+    },
+    {
+      "id": "M04/forward",
+      "arm": "schema_only",
+      "fact_groups_present": [],
+      "all_fact_groups_present": true,
+      "context_chars": 0
+    },
+    {
+      "id": "M04/forward",
+      "arm": "scenario",
+      "fact_groups_present": [],
+      "all_fact_groups_present": true,
+      "context_chars": 0
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "scenario",
+      "fact_groups_present": [],
+      "all_fact_groups_present": true,
+      "context_chars": 0
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "schema_only",
+      "fact_groups_present": [],
+      "all_fact_groups_present": true,
+      "context_chars": 0
+    },
+    {
+      "id": "M05/forward",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 809
+    },
+    {
+      "id": "M05/forward",
+      "arm": "scenario",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 809
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "scenario",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 809
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "schema_only",
+      "fact_groups_present": [
+        true
+      ],
+      "all_fact_groups_present": true,
+      "context_chars": 809
+    }
+  ],
+  "fact_groups_all_present_before": 15,
+  "fact_groups_all_present_after": 20,
+  "canned_empty_cases_included": 4,
+  "semantic_issue_outputs": 5,
+  "asserted_completed_change_outputs": 0,
+  "invented_owner_or_date_outputs": 0,
+  "model_tokens": 18204,
+  "median_model_latency_seconds": 2.9545,
+  "cases": [
+    {
+      "id": "M01/forward",
+      "arm": "schema_only",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M01/forward",
+      "arm": "scenario",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "scenario",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "schema_only",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M02/forward",
+      "arm": "schema_only",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M02/forward",
+      "arm": "scenario",
+      "issues": [
+        {
+          "kind": "event_and_cause_overstatement",
+          "answer_excerpt": "导致“APP连上设备开播后退出，过10秒再连回”这一特定场景在UI上根本不可能到达",
+          "reason": "A11所说不可达的是重连后重新配网；不能把重连本身改成不可达，也不能自动归因为协议。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "scenario",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "schema_only",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M03/forward",
+      "arm": "schema_only",
+      "issues": [
+        {
+          "kind": "time_condition_changed",
+          "answer_excerpt": "10秒内重新连接",
+          "reason": "A05原文为“过了10秒之后再连回来”，不是10秒内。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M03/forward",
+      "arm": "scenario",
+      "issues": [
+        {
+          "kind": "time_condition_changed",
+          "answer_excerpt": "10秒内重连",
+          "reason": "A05原文为“过了10秒之后再连回来”，不是10秒内。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "scenario",
+      "issues": [
+        {
+          "kind": "unsupported_object_interpretation",
+          "answer_excerpt": "即重新连接后的完整功能权限",
+          "reason": "A16的“不存在的东西”不能被原文直接解释为完整功能权限。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "schema_only",
+      "issues": [
+        {
+          "kind": "unsupported_causal_link",
+          "answer_excerpt": "库本身不会施加这种限制，因此这套代码层面的实现可以直接删掉",
+          "reason": "A05讲库本身与限制现象，未建立“库不限制所以删代码”的原因关系。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M04/forward",
+      "arm": "schema_only",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M04/forward",
+      "arm": "scenario",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "scenario",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "schema_only",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M05/forward",
+      "arm": "schema_only",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M05/forward",
+      "arm": "scenario",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "scenario",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "schema_only",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false
+    }
+  ]
+}

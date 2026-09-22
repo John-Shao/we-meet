@@ -1,0 +1,553 @@
+{
+  "complete": true,
+  "human_review_gate": "skipped_by_user_2026-09-22",
+  "human_review_performed": false,
+  "mode": "offline_fixed_evidence_answer_generation",
+  "model_requested": "qwen3.8-flash",
+  "temperature": 0,
+  "enable_thinking": false,
+  "max_tokens": null,
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "plan_sha256": "da938c2cacf606861f6228275db857881735b42d84a30396b51a243acd8e4cfa",
+  "upstream_sha256": "a78ff6ded1dc960fd22caa88bbc8290da3f059dcaea4b89b30c8457fbb25a7a5",
+  "service_sha256": "293ad38aa3cdada8c4b6ffdc3b0635656b61b619f57b59a1b00b077f84110db6",
+  "production_retrieval_executed": false,
+  "production_promotion_approved": false,
+  "cases": [
+    {
+      "id": "M01/forward",
+      "arm": "schema_only",
+      "input_sha256": "89034b7de71bf28e5f9b45cdf143ab0a80fdfd13ed16fcd6af83b8bb5f896ca7",
+      "answer": "根据会议字幕，当APP连上设备并开播后退出，过了10秒再连回来时，它能执行的操作只有**终止**（即停止直播）[1][2]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 41,
+        "prompt_tokens": 791,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 791
+        },
+        "total_tokens": 832
+      },
+      "elapsed_seconds": 1.649,
+      "request_sha256": "46dde95fe8d546b1df349c7593251b2f543c8b4e791274abcb50b5c9e75273b1",
+      "citation_check": {
+        "used": [
+          1,
+          2
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M01/forward",
+      "arm": "scenario",
+      "input_sha256": "c2e50dbcf02f350a365901701af19e2a11f229bbd5d58809b65249d9dc214f79",
+      "answer": "根据会议字幕，当APP连上设备并开播后退出，过了10秒再重新连接时，它能执行的操作只有**终止**（即停止直播）[1][2]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 41,
+        "prompt_tokens": 791,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 791
+        },
+        "total_tokens": 832
+      },
+      "elapsed_seconds": 3.014,
+      "request_sha256": "46dde95fe8d546b1df349c7593251b2f543c8b4e791274abcb50b5c9e75273b1",
+      "citation_check": {
+        "used": [
+          1,
+          2
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "scenario",
+      "input_sha256": "49f7deea645b37d383d607c322e7e65a9742762949f8d9f3de62930635b7afb5",
+      "answer": "根据会议记录，在这种情况下，APP 只能执行**终止（停止直播）**的操作[1][2]。\n\n具体背景如下：\n*   **限制机制**：沃尔沃项目额外实现了一套机制，规定后续连上来的 APP 仅受限于“停止直播”这一操作[1][2]。\n*   **场景描述**：当 APP 连接设备并开播后退出，若过 10 秒再重新连接，其能执行的操作只有终止[1][2]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 105,
+        "prompt_tokens": 931,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 931
+        },
+        "total_tokens": 1036
+      },
+      "elapsed_seconds": 3.575,
+      "request_sha256": "403b41f83c45744f93fcf213be09f7e32bfd177300e1a0c15713bb16f862ce4d",
+      "citation_check": {
+        "used": [
+          1,
+          2
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "schema_only",
+      "input_sha256": "7240ff0c37427779d865c0ebc4e039e5e24b31597315068013d2655b325017c7",
+      "answer": "根据会议字幕，在这种情况下，APP 只能执行**终止（停止直播）**的操作[1][2]。\n\n具体依据如下：\n*   讨论中提到：“过了10秒之后再连回来的话，那么它能执行的操作只有终止”[1][2]。\n*   另一处也指出：“后面连上来的 APP 只能做停止直播的一个限制”[1][2]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 84,
+        "prompt_tokens": 931,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 931
+        },
+        "total_tokens": 1015
+      },
+      "elapsed_seconds": 2.895,
+      "request_sha256": "403b41f83c45744f93fcf213be09f7e32bfd177300e1a0c15713bb16f862ce4d",
+      "citation_check": {
+        "used": [
+          1,
+          2
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M02/forward",
+      "arm": "schema_only",
+      "input_sha256": "da06c5c0bc5bdd0869893a9080778248f885c005ce4c2efff6db2cd946f85dd7",
+      "answer": "根据会议讨论，认为代码里的限制可以删除的主要原因如下：\n\n1.  **UI层面已做限制**：双方已约定好，且用户界面（UI）上已经实现了相应的操作限制[2][3]。\n2.  **协议层面已有约束**：通信协议中已经包含了这些限制规定[3]。\n3.  **逻辑上不可达**：在重新连接后需要重新配网的情况下，该限制条件在UI层面“不可能到达”，因此在代码中写死阻挡一个“不存在的东西”是没有必要的[3][4]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 121,
+        "prompt_tokens": 1234,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 1234
+        },
+        "total_tokens": 1355
+      },
+      "elapsed_seconds": 2.889,
+      "request_sha256": "a6acfa2a35755fa957212cc1fed20b17eb830d1d00afe7bb819aec14cee9b3e3",
+      "citation_check": {
+        "used": [
+          2,
+          3,
+          4
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M02/forward",
+      "arm": "scenario",
+      "input_sha256": "112a6d3d8e40f26849f6207ee518439c0e3a8f3453f865cf43d491f906162bfe",
+      "answer": "根据会议讨论，认为代码里的限制可以删除的原因主要有以下几点：\n\n1.  **协议与UI已双重保障**：协议中已经写明了相关限制[1]，且在UI层面也做了相应的操作限制，使得用户无法触发该场景[1][3]。\n2.  **场景不可达（逻辑冗余）**：由于上述限制，导致“APP连上设备开播后退出，过10秒再连回”这一特定场景在UI上根本不可能到达[1][3]。既然阻挡的是一个“不存在的东西”，因此在代码里写死这个限制是没有必要的[2][3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 131,
+        "prompt_tokens": 973,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 973
+        },
+        "total_tokens": 1104
+      },
+      "elapsed_seconds": 2.605,
+      "request_sha256": "85f2fa3e3019265803d6a4713e2887058556003ef19a06494b985d2f4464f3ec",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "scenario",
+      "input_sha256": "6845f3cc987eb3e4553a5f23028de9466eab7150ab13fa68bf7d6a2adff439d2",
+      "answer": "根据会议讨论，认为代码里的限制可以删除的主要原因如下：\n\n*   **协议与UI已有限制**：协议中已经定义了相关限制，且UI层面也做了操作限制[1]。\n*   **场景不可达**：在重新连接后需要重新配网的情况下，该限制在UI层面“不可能到达”[3]。\n*   **无需阻挡不存在的情况**：既然该情况不可能发生，在代码中做阻挡就是“阻挡一个不存在的东西”，因此没有必要写死[2][3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 113,
+        "prompt_tokens": 973,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 973
+        },
+        "total_tokens": 1086
+      },
+      "elapsed_seconds": 2.249,
+      "request_sha256": "85f2fa3e3019265803d6a4713e2887058556003ef19a06494b985d2f4464f3ec",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "schema_only",
+      "input_sha256": "7e0402ac67d15577e9b1fa40ce6a04515f26e4e8ab16f234725990ac4ebe7fcd",
+      "answer": "根据会议讨论，认为代码里的限制可以删除的原因主要有以下几点：\n\n1.  **协议与UI已双重保障**：协议中已经包含了相关限制[1]，且在UI层面也做了相应的操作限制[1]。\n2.  **场景不可达**：在重新连接后需要重新配网的情况下，该限制所针对的操作路径在UI上根本不可能到达[3]。\n3.  **阻挡不存在的东西无意义**：既然该状态或操作不可能发生（“不存在”），在代码中做阻挡就是多余的[2][3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 122,
+        "prompt_tokens": 973,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 973
+        },
+        "total_tokens": 1095
+      },
+      "elapsed_seconds": 3.053,
+      "request_sha256": "85f2fa3e3019265803d6a4713e2887058556003ef19a06494b985d2f4464f3ec",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M03/forward",
+      "arm": "schema_only",
+      "input_sha256": "047c34381b6186d0ad58eb4be7d765503304613232a28be9be5c1c63a9da3bb6",
+      "answer": "根据会议字幕片段，回答如下：\n\n1.  **“把这个也删”指的是什么？**\n    指的是**代码实现中关于“APP重连后只能执行终止操作”的限制逻辑**。\n    *   讨论背景是：当APP开播后退出，10秒内重新连接时，代码里写死了只能执行“终止直播”的操作[2][3]。\n    *   删除理由：协议层面已有约定，UI层面也有操作限制，且该场景在UI上“不可能到达”，因此认为在代码里做这个阻挡是多余的（“根本阻挡一个不存在的东西”）[4][5]。\n\n2.  **原文是否证明这个改动已经完成？**\n    **没有证明。**\n    *   原文仅记录了参会者达成共识决定删除该限制（“所以我说把这个也删”、“对”）[6]。\n    *   资料中没有任何关于代码修改、提交或测试通过的后续记录。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 204,
+        "prompt_tokens": 1620,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 1620
+        },
+        "total_tokens": 1824
+      },
+      "elapsed_seconds": 5.406,
+      "request_sha256": "f17360dc315d35b643d8be5b0902e19db6387150f58218d6697c5474bbc3df55",
+      "citation_check": {
+        "used": [
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M03/forward",
+      "arm": "scenario",
+      "input_sha256": "fef8ef5d0a6a7eb52e7fcf73ec3bd9a37e105c66a9263d7622dc5fae7fdb7ca7",
+      "answer": "根据会议字幕片段，回答如下：\n\n**1. “把这个也删”指的是什么？**\n指的是删除代码中关于“APP重连后仅允许执行终止直播操作”的**实际限制实现**[2][3]。\n*   讨论背景是：当APP开播后退出并在10秒内重连时，原本在代码层面限制了只能执行“终止”操作[2]。\n*   删除理由：协议层已有约定，UI层也有操作限制，且该场景在UI上“不可能到达”，因此认为在代码里写死这个限制是多余的，阻挡了一个不存在的东西[5][6]。\n\n**2. 原文是否证明这个改动已经完成？**\n**没有证明**。\n*   原文仅记录了参会者达成共识决定要删除该限制（如“所以我说把这个也删”、“对”）[6]。\n*   资料中没有任何关于代码修改、提交或测试通过的后续记录，无法证实该改动已实际落地。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 212,
+        "prompt_tokens": 1620,
+        "prompt_tokens_details": {
+          "cached_tokens": 1024,
+          "text_tokens": 1620
+        },
+        "total_tokens": 1832
+      },
+      "elapsed_seconds": 5.706,
+      "request_sha256": "f17360dc315d35b643d8be5b0902e19db6387150f58218d6697c5474bbc3df55",
+      "citation_check": {
+        "used": [
+          2,
+          3,
+          5,
+          6
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "scenario",
+      "input_sha256": "bc09222ab30dad16fa04ac9661b8983a9f1ba12424772dccda181ee9c8b0bdc2",
+      "answer": "根据提供的会议字幕片段，回答如下：\n\n**1. “把这个也删”指的是什么？**\n指的是删除**沃尔沃项目中额外实现的一套限制机制**。\n*   该机制的具体表现是：当APP连接设备并开播后退出，若过一段时间（如10秒）再连回来，该APP只能执行“停止直播”的操作，无法进行其他操作[2]。\n*   讨论者认为库本身不会施加这种限制，且因为要阻挡的对象（即重新连接后的完整功能权限）在逻辑上可能被视为“不存在”或无需阻挡，因此建议直接删掉这套代码实现[1][2]。\n\n**2. 原文是否证明这个改动已经完成？**\n**没有证明改动已完成。**\n*   原文仅记录了讨论过程中的**建议**和**共识**，例如“这一套限制的实现可以直接删掉哦”[2]以及“所以我说把这个也删”[1]。\n*   片段中没有任何关于代码已修改、测试通过或部署上线的描述。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 218,
+        "prompt_tokens": 913,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 913
+        },
+        "total_tokens": 1131
+      },
+      "elapsed_seconds": 5.792,
+      "request_sha256": "74a385905926ff1c22d93629b2350f72a2d9484fc81318041ce9ade0f9574b80",
+      "citation_check": {
+        "used": [
+          1,
+          2
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "schema_only",
+      "input_sha256": "261ec08373e677ad23d3172ce8b8b4b4e256a4c2fe4a0df22ab5db3b170a28f5",
+      "answer": "根据提供的会议字幕片段，回答如下：\n\n1.  **“把这个也删”指的是什么？**\n    指的是**沃尔沃项目中额外实现的一套限制机制**。具体而言，该机制规定当APP连接设备并开播后退出，若过一段时间（如10秒）再连回来，只能执行“停止直播”的操作[2]。讨论中认为库本身不会施加这种限制，因此这套代码层面的实现可以直接删掉[2][3]。\n\n2.  **原文是否证明这个改动已经完成？**\n    **没有证明。** 原文仅记录了讨论过程中提出“这一套限制的实现可以直接删掉”以及“所以我说把这个也删”的建议和共识[1][2]，并未包含任何关于代码已删除、测试通过或部署完成的后续陈述。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 164,
+        "prompt_tokens": 913,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 913
+        },
+        "total_tokens": 1077
+      },
+      "elapsed_seconds": 3.531,
+      "request_sha256": "74a385905926ff1c22d93629b2350f72a2d9484fc81318041ce9ade0f9574b80",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M04/forward",
+      "arm": "schema_only",
+      "input_sha256": "24af559f4237883c0a5a3000a5845a46ddcd20a9238d3291e4c65d0f02c10227",
+      "answer": "没有找到相关内容，请尝试调整关键词或搜索范围。",
+      "model_called": false,
+      "finish_reason": "canned",
+      "citation_check": {
+        "used": [],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M04/forward",
+      "arm": "scenario",
+      "input_sha256": "07b3d9963cc5fbc96c93a8c9e0bc40299dab48f371c1e06526eb6c052153c40b",
+      "answer": "没有找到相关内容，请尝试调整关键词或搜索范围。",
+      "model_called": false,
+      "finish_reason": "canned",
+      "citation_check": {
+        "used": [],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "scenario",
+      "input_sha256": "bae9e14be9a173afbffb0c7f644c373ef9bda99601aafa3df3053f55243cb6d1",
+      "answer": "没有找到相关内容，请尝试调整关键词或搜索范围。",
+      "model_called": false,
+      "finish_reason": "canned",
+      "citation_check": {
+        "used": [],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "schema_only",
+      "input_sha256": "fc50bedd3121a36c2367f33a1f9a3ef3bbaab0dd88b8f5d9c2a798b61d1a3561",
+      "answer": "没有找到相关内容，请尝试调整关键词或搜索范围。",
+      "model_called": false,
+      "finish_reason": "canned",
+      "citation_check": {
+        "used": [],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M05/forward",
+      "arm": "schema_only",
+      "input_sha256": "17a938ed55c42f0526eb030198071d4194aec047288caa28be3bc7b792b9f3e3",
+      "answer": "根据视频内容，资本家思维与奴隶主思维最大的区别在于：\n\n**资本家觉得你是在帮他赚钱，而奴隶主觉得你是在挣他的钱**[1][3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 41,
+        "prompt_tokens": 953,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 953
+        },
+        "total_tokens": 994
+      },
+      "elapsed_seconds": 25.033,
+      "request_sha256": "d08406916bc755f6b095b9a6648e0711c62ccd2c28a8fce25527fbf06c4bb80a",
+      "citation_check": {
+        "used": [
+          1,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M05/forward",
+      "arm": "scenario",
+      "input_sha256": "fd02b43ab1b33342d6c89dbd67309b79f22fdb3ccf24fa7a19b1b70c874727ef",
+      "answer": "根据视频内容，资本家思维与奴隶主思维最大的区别在于：\n\n*   **资本家**觉得员工是在**帮他赚钱**[3]。\n*   **奴隶主**觉得员工是在**挣他的钱**[3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 52,
+        "prompt_tokens": 953,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 953
+        },
+        "total_tokens": 1005
+      },
+      "elapsed_seconds": 1.151,
+      "request_sha256": "d08406916bc755f6b095b9a6648e0711c62ccd2c28a8fce25527fbf06c4bb80a",
+      "citation_check": {
+        "used": [
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "scenario",
+      "input_sha256": "6fa6afc4eb033723e794030e12a7d56b96a9300fad9f3095db31bf742596b111",
+      "answer": "根据视频内容，资本家思维与奴隶主思维最大的区别在于：\n\n**资本家觉得你是在帮他赚钱，而奴隶主觉得你是在挣他的钱**[3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 39,
+        "prompt_tokens": 953,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 953
+        },
+        "total_tokens": 992
+      },
+      "elapsed_seconds": 1.078,
+      "request_sha256": "d08406916bc755f6b095b9a6648e0711c62ccd2c28a8fce25527fbf06c4bb80a",
+      "citation_check": {
+        "used": [
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "schema_only",
+      "input_sha256": "a954e66d869b3c9e6bd7dfb728fd4364bc945c2333d4984865be03811c25f40f",
+      "answer": "根据视频内容，资本家思维与奴隶主思维最大的区别在于：\n\n**资本家觉得你是在帮他赚钱，而奴隶主觉得你是在挣他的钱**[1][3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 41,
+        "prompt_tokens": 953,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 953
+        },
+        "total_tokens": 994
+      },
+      "elapsed_seconds": 1.257,
+      "request_sha256": "d08406916bc755f6b095b9a6648e0711c62ccd2c28a8fce25527fbf06c4bb80a",
+      "citation_check": {
+        "used": [
+          1,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    }
+  ],
+  "context_neighbors": true,
+  "context_policy": {
+    "neighbors_each_side": 3,
+    "radius_ms": 30000,
+    "max_chars": 800
+  },
+  "source_sha256": "a9db20f533221e29e399f839d7bda7a420e6b481e32ce9ac078484e249847f26"
+}

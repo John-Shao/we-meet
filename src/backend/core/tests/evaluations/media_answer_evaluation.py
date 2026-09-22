@@ -16,6 +16,7 @@ from core.tests.evaluations.media_auto_evaluation import build_plan as evidence_
 from core.tests.evaluations.media_auto_evaluation import (
     evaluate as validate_evidence_run,
 )
+from core.tests.evaluations.media_context_evaluation import POLICY, SOURCE, expand_plan
 from core.tests.evaluations.structured_rerank import ARTIFACTS, digest
 
 DRAWS = ARTIFACTS / "miaoji-qa-media-auto-generations-b72.json"
@@ -35,7 +36,7 @@ def service_constants():
     return values
 
 
-def build_plan():
+def build_plan(context_neighbors=False):
     draws = json.loads(DRAWS.read_text(encoding="utf-8"))
     validate_evidence_run(draws)
     inputs = {p["id"]: p for p in evidence_plan()}
@@ -65,6 +66,8 @@ def build_plan():
                 "canned_answer": constants["_EMPTY_ANSWER"] if not citations else None,
             }
         )
+    if context_neighbors:
+        return expand_plan(cases, constants["_SYSTEM_PROMPT_TEMPLATE"])
     return cases
 
 
@@ -97,7 +100,14 @@ def citation_check(answer, citations):
 
 def validate_report(report, plan):
     """Validate provenance and reference numbers; semantic audit remains separate."""
-    assert report["complete"] and plan == build_plan()
+    if report.get("context_neighbors", False):
+        assert report["context_policy"] == POLICY
+        assert (
+            report["source_sha256"] == hashlib.sha256(SOURCE.read_bytes()).hexdigest()
+        )
+    assert report["complete"] and plan == build_plan(
+        context_neighbors=report.get("context_neighbors", False)
+    )
     assert report["plan_sha256"] == hashlib.sha256(encoded(plan)).hexdigest()
     assert report["upstream_sha256"] == hashlib.sha256(DRAWS.read_bytes()).hexdigest()
     assert report["service_sha256"] == hashlib.sha256(SERVICE.read_bytes()).hexdigest()
@@ -175,10 +185,11 @@ def main():
     parser.add_argument("--model", required=True)
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--resume-from", type=Path)
+    parser.add_argument("--context-neighbors", action="store_true")
     args = parser.parse_args()
     if args.plan.exists() or args.output.exists():
         raise FileExistsError("Use new output paths")
-    plan = build_plan()
+    plan = build_plan(True) if args.context_neighbors else build_plan()
     args.plan.write_bytes(encoded(plan))
     report = {
         "complete": False,
@@ -197,6 +208,10 @@ def main():
         "production_promotion_approved": False,
         "cases": [],
     }
+    if args.context_neighbors:
+        report["context_neighbors"] = True
+        report["context_policy"] = POLICY
+        report["source_sha256"] = hashlib.sha256(SOURCE.read_bytes()).hexdigest()
     if args.resume_from:
         previous = json.loads(args.resume_from.read_text(encoding="utf-8"))
         report["cases"] = resume_rows(previous, report, plan)

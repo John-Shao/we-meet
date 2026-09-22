@@ -294,3 +294,9 @@ python -m core.tests.evaluations.media_answer_evaluation --plan /tmp/resumed-pla
 第74批第二候选一次读取超时后接续，超时请求用量未知；完整报告中的用量只累计收到的响应。当前`validate_report`要求源码提示与计划一致，历史候选需使用对应版本或其冻结提示快照校验，不拿当前提示改写旧请求。人工复核已跳过，自动审读身份与局限保持明确。
 
 第74批最终未采用两个提示候选：第一版仍有因果风险并省略已知延期，第二版恢复已知信息但因果风险仍不稳定。生产`global_ask.py`已恢复实验前状态，无需部署；原始失败结果全部保留。下一方向为证据上下文与逐事实支撑，不再以人工填写作为继续条件。
+
+### B75 bounded evidence context (offline)
+
+`python -m core.tests.evaluations.media_answer_evaluation --context-neighbors --plan NEW_PLAN.json --output NEW_RESPONSES.json --model MODEL --base-url BASE_URL`
+
+Uses the existing `MIAOJI_EVAL_API_KEY`, current service prompt, frozen B72 selections and B71 source snapshot. Default execution remains the B73 unexpanded plan. Each anchor retains its verbatim quote and gets up to three same-record neighbors per side within 30 seconds, capped at 800 characters. Empty evidence remains canned. `availability()` reports fact presence separately from selection correctness; `validate_report()` checks requests and provenance, not entailment. B75's assistant semantic audit found new temporal/object errors; this is not a promoted production retriever or an independent holdout.
