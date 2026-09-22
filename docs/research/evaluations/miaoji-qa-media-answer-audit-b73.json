@@ -1,0 +1,311 @@
+{
+  "human_review_gate": "skipped_by_user_2026-09-22",
+  "human_review_performed": false,
+  "audit_method": "programmatic_provenance_and_citation_checks_plus_codex_assistant_semantic_readthrough",
+  "independent_judge": false,
+  "semantic_audit_recorded_after_generation": true,
+  "plan_sha256": "08800c89078dc8bb67473033379e050d1741e2e7b0265ca37f595ed9b9f0e1b1",
+  "draws_sha256": "c6af90c4715e29193fcc4c4f560ff71d783ddc3f63c5f7fd6f0ce9795c80d90f",
+  "structural_checks": {
+    "total": 20,
+    "model_calls": 16,
+    "canned_answers": 4,
+    "reference_or_completion_failures": [],
+    "semantic_support_checked": false
+  },
+  "model_tokens": 8442,
+  "findings": {
+    "causal_overstatement_outputs": 5,
+    "incomplete_evidence_outputs": 5,
+    "asserted_completed_change_outputs": 0,
+    "invented_owner_or_date_outputs": 0
+  },
+  "cases": [
+    {
+      "id": "M01/forward",
+      "arm": "schema_only",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "A05",
+        "2": "A02"
+      }
+    },
+    {
+      "id": "M01/forward",
+      "arm": "scenario",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "A05",
+        "2": "A02"
+      }
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "scenario",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "A05",
+        "2": "A02",
+        "3": "A01"
+      }
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "schema_only",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "A05",
+        "2": "A02",
+        "3": "A01"
+      }
+    },
+    {
+      "id": "M02/forward",
+      "arm": "schema_only",
+      "issues": [
+        {
+          "kind": "causal_overstatement",
+          "answer_excerpt": "协议里已有限制，导致在 UI 层面根本不可能到达",
+          "reason": "A10并列协议限制与UI不可达，未明确说前者导致后者；建议并列复述。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "A03",
+        "2": "A07",
+        "3": "A10",
+        "4": "A16"
+      }
+    },
+    {
+      "id": "M02/forward",
+      "arm": "scenario",
+      "issues": [
+        {
+          "kind": "incomplete_evidence",
+          "reason": "回答包含约定、UI和不可达，但未明确保留协议层理由；筛选输入已漏掉A09/A10，不能靠生成补回。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "A07",
+        "2": "A16",
+        "3": "A13"
+      }
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "scenario",
+      "issues": [
+        {
+          "kind": "incomplete_evidence",
+          "reason": "回答包含约定、UI和不可达，但未明确保留协议层理由；筛选输入已漏掉A09/A10，不能靠生成补回。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "A07",
+        "2": "A16",
+        "3": "A13"
+      }
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "schema_only",
+      "issues": [
+        {
+          "kind": "incomplete_evidence",
+          "reason": "回答包含约定、UI和不可达，但未明确保留协议层理由；筛选输入已漏掉A09/A10，不能靠生成补回。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "A07",
+        "2": "A16",
+        "3": "A13"
+      }
+    },
+    {
+      "id": "M03/forward",
+      "arm": "schema_only",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "A17",
+        "2": "A03",
+        "3": "A06",
+        "4": "A07",
+        "5": "A13",
+        "6": "A16"
+      }
+    },
+    {
+      "id": "M03/forward",
+      "arm": "scenario",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "A17",
+        "2": "A03",
+        "3": "A06",
+        "4": "A07",
+        "5": "A13",
+        "6": "A16"
+      }
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "scenario",
+      "issues": [
+        {
+          "kind": "incomplete_evidence",
+          "reason": "筛选输入缺失A06/A07/A13，回答不能确定代码层对象；对已完成状态保持未知是正确的保守行为。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "A17",
+        "2": "A03",
+        "3": "A02"
+      }
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "schema_only",
+      "issues": [
+        {
+          "kind": "incomplete_evidence",
+          "reason": "筛选输入缺失A06/A07/A13，回答不能确定代码层对象；对已完成状态保持未知是正确的保守行为。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "A17",
+        "2": "A03",
+        "3": "A02"
+      }
+    },
+    {
+      "id": "M04/forward",
+      "arm": "schema_only",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {}
+    },
+    {
+      "id": "M04/forward",
+      "arm": "scenario",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {}
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "scenario",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {}
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "schema_only",
+      "issues": [],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {}
+    },
+    {
+      "id": "M05/forward",
+      "arm": "schema_only",
+      "issues": [
+        {
+          "kind": "causal_overstatement",
+          "answer_excerpt": "因此",
+          "reason": "V07的赚钱关系与V04的监控行为为不同片段的陈述，未明示前者导致后者；答案应并列呈现或只答核心区别。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "V07",
+        "2": "V02",
+        "3": "V04"
+      }
+    },
+    {
+      "id": "M05/forward",
+      "arm": "scenario",
+      "issues": [
+        {
+          "kind": "causal_overstatement",
+          "answer_excerpt": "因此",
+          "reason": "V07的赚钱关系与V04的监控行为为不同片段的陈述，未明示前者导致后者；答案应并列呈现或只答核心区别。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "V07",
+        "2": "V02",
+        "3": "V04"
+      }
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "scenario",
+      "issues": [
+        {
+          "kind": "causal_overstatement",
+          "answer_excerpt": "因此",
+          "reason": "V07的赚钱关系与V04的监控行为为不同片段的陈述，未明示前者导致后者；答案应并列呈现或只答核心区别。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "V07",
+        "2": "V02",
+        "3": "V04"
+      }
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "schema_only",
+      "issues": [
+        {
+          "kind": "causal_overstatement",
+          "answer_excerpt": "因此",
+          "reason": "V07的赚钱关系与V04的监控行为为不同片段的陈述，未明示前者导致后者；答案应并列呈现或只答核心区别。"
+        }
+      ],
+      "asserted_completed_change": false,
+      "invented_owner_or_date": false,
+      "citation_sources": {
+        "1": "V07",
+        "2": "V02",
+        "3": "V04"
+      }
+    }
+  ],
+  "production_retrieval_executed": false,
+  "production_promotion_approved": false
+}

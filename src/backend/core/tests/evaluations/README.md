@@ -270,3 +270,13 @@ python -m core.tests.evaluations.media_auto_evaluation --draws /tmp/media-auto-d
 ```
 
 仅中间步骤调用模型，密钥通过`MIAOJI_EVAL_API_KEY`注入。报告统计与自动参考的决策/关键事实覆盖一致性，允许等价证据组合并拒绝无关候选；`human_review_performed=false`、`final_answer_evaluated=false`始终显式保留。跳过人工不等于伪造人工通过，也不等于推广候选到生产；后续可以直接做答案自动检查，无需等待人工填题。
+
+## 第73批：实际回答及引用自动核验
+
+`media_answer_evaluation.py`使用第72批全部筛选输出，从生产源码AST读取字面量系统提示词和空态文案。固定输入下20个结果中16次调用模型、4次空证据直接返回文案；不会把“无证据”交给模型补造答案。实际模型请求只有系统资料和问题，不发送自动参考答案。
+
+```bash
+python -m core.tests.evaluations.media_answer_evaluation --plan /tmp/media-answer-plan.json --output /tmp/media-answer-draws.json --model qwen3.8-flash --base-url https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+计划和输出都不得已存在，密钥经`MIAOJI_EVAL_API_KEY`注入。`validate_report(report, plan)`验证完整性、固定输入/请求hash、返回模型和引用编号；它显式返回`semantic_support_checked=false`。第73批单独的audit文件记录助手对已生成答案的语义审读，非独立模型裁判、非人工复核，不能以编号合法代替事实支撑。
