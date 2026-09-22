@@ -1,0 +1,210 @@
+{
+  "summary": {
+    "control": {
+      "total": 12,
+      "agrees": 11,
+      "unsupported_reference_count": 6,
+      "unsupported_detected": 5,
+      "unsupported_passed": [
+        "control/C04"
+      ],
+      "supported_reference_count": 6,
+      "supported_rejected": [],
+      "uncertain_or_invalid": []
+    },
+    "media": {
+      "total": 16,
+      "agrees": 11,
+      "unsupported_reference_count": 5,
+      "unsupported_detected": 0,
+      "unsupported_passed": [
+        "media/M02/forward/scenario",
+        "media/M03/forward/schema_only",
+        "media/M03/forward/scenario",
+        "media/M03/reverse/scenario",
+        "media/M03/reverse/schema_only"
+      ],
+      "supported_reference_count": 11,
+      "supported_rejected": [],
+      "uncertain_or_invalid": []
+    }
+  },
+  "cases": [
+    {
+      "id": "control/C01",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "control/C02",
+      "expected": "unsupported",
+      "actual": "unsupported",
+      "agrees": true
+    },
+    {
+      "id": "control/C03",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "control/C04",
+      "expected": "unsupported",
+      "actual": "supported",
+      "agrees": false
+    },
+    {
+      "id": "control/C05",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "control/C06",
+      "expected": "unsupported",
+      "actual": "unsupported",
+      "agrees": true
+    },
+    {
+      "id": "control/C07",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "control/C08",
+      "expected": "unsupported",
+      "actual": "unsupported",
+      "agrees": true
+    },
+    {
+      "id": "control/C09",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "control/C10",
+      "expected": "unsupported",
+      "actual": "unsupported",
+      "agrees": true
+    },
+    {
+      "id": "control/C11",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "control/C12",
+      "expected": "unsupported",
+      "actual": "unsupported",
+      "agrees": true
+    },
+    {
+      "id": "media/M01/forward/schema_only",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "media/M01/forward/scenario",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "media/M01/reverse/scenario",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "media/M01/reverse/schema_only",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "media/M02/forward/schema_only",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "media/M02/forward/scenario",
+      "expected": "unsupported",
+      "actual": "supported",
+      "agrees": false
+    },
+    {
+      "id": "media/M02/reverse/scenario",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "media/M02/reverse/schema_only",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "media/M03/forward/schema_only",
+      "expected": "unsupported",
+      "actual": "supported",
+      "agrees": false
+    },
+    {
+      "id": "media/M03/forward/scenario",
+      "expected": "unsupported",
+      "actual": "supported",
+      "agrees": false
+    },
+    {
+      "id": "media/M03/reverse/scenario",
+      "expected": "unsupported",
+      "actual": "supported",
+      "agrees": false
+    },
+    {
+      "id": "media/M03/reverse/schema_only",
+      "expected": "unsupported",
+      "actual": "supported",
+      "agrees": false
+    },
+    {
+      "id": "media/M05/forward/schema_only",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "media/M05/forward/scenario",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "media/M05/reverse/scenario",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    },
+    {
+      "id": "media/M05/reverse/schema_only",
+      "expected": "supported",
+      "actual": "supported",
+      "agrees": true
+    }
+  ],
+  "reference_origin": "assistant_authored_not_human_confirmed",
+  "human_review_performed": false,
+  "independent_judge": false,
+  "independent_holdout": false,
+  "production_promotion_approved": false,
+  "model_tokens": 21895,
+  "generations_sha256": "b90c95c9ea175afe9cbf3bd9fd08596abc37b5bde31cf279a02190f4b300871d",
+  "interpretation": "Same-model checker passed all five known risky media answers. Synthetic control agreement does not establish real-answer detection. Do not promote as an automatic answer gate."
+}

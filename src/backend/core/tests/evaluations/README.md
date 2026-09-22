@@ -300,3 +300,9 @@ python -m core.tests.evaluations.media_answer_evaluation --plan /tmp/resumed-pla
 `python -m core.tests.evaluations.media_answer_evaluation --context-neighbors --plan NEW_PLAN.json --output NEW_RESPONSES.json --model MODEL --base-url BASE_URL`
 
 Uses the existing `MIAOJI_EVAL_API_KEY`, current service prompt, frozen B72 selections and B71 source snapshot. Default execution remains the B73 unexpanded plan. Each anchor retains its verbatim quote and gets up to three same-record neighbors per side within 30 seconds, capped at 800 characters. Empty evidence remains canned. `availability()` reports fact presence separately from selection correctness; `validate_report()` checks requests and provenance, not entailment. B75's assistant semantic audit found new temporal/object errors; this is not a promoted production retriever or an independent holdout.
+
+### B76 answer support checker calibration (offline, rejected)
+
+`python -m core.tests.evaluations.answer_support_check --plan NEW_PLAN.json --output NEW_RESPONSES.json --model MODEL --base-url BASE_URL`
+
+Uses `MIAOJI_EVAL_API_KEY`. The corpus contains 12 frozen balanced controls plus 16 B75 model answers (four canned empty-evidence replies excluded). Gold labels and case IDs are absent from model input. `evaluate(report)` replays hashes, requests, raw validation and ordered completeness, reporting risk detection separately from false rejection. Same-model verification detected 5/6 synthetic risks but 0/5 media-answer risks; do not deploy it as an automatic answer gate. Retain B75 failures for future configuration/model comparisons; human review is skipped by user instruction.
