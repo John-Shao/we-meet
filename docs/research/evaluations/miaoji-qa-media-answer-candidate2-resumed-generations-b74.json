@@ -1,0 +1,555 @@
+{
+  "complete": true,
+  "human_review_gate": "skipped_by_user_2026-09-22",
+  "human_review_performed": false,
+  "mode": "offline_fixed_evidence_answer_generation",
+  "model_requested": "qwen3.8-flash",
+  "temperature": 0,
+  "enable_thinking": false,
+  "max_tokens": null,
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "plan_sha256": "893771b45715b7e3b50dd8f9c27e092b423b890b8eb5a71970de29441ca0e122",
+  "upstream_sha256": "a78ff6ded1dc960fd22caa88bbc8290da3f059dcaea4b89b30c8457fbb25a7a5",
+  "service_sha256": "0501c349f04188d3af73c119f0374538e9178490824b8f4c0ef578febb821518",
+  "production_retrieval_executed": false,
+  "production_promotion_approved": false,
+  "cases": [
+    {
+      "id": "M01/forward",
+      "arm": "schema_only",
+      "input_sha256": "12b7d7110284cbded76059c05da16ab43d987e742beca094478cf6acec282e09",
+      "answer": "根据会议字幕，设备开播后APP退出10秒再重新连接，此时能执行的操作**只有终止**[1]。\n\n此外，资料提到沃尔沃还额外做了一套机制，限制后面连上来的APP**只能做停止直播**的操作[2]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 56,
+        "prompt_tokens": 535,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 535
+        },
+        "total_tokens": 591
+      },
+      "elapsed_seconds": 3.081,
+      "request_sha256": "ce1e3018e7380d0c4a9d1bd28bdf95b543d594571c17c5b9eb894677b2dfbf5c",
+      "citation_check": {
+        "used": [
+          1,
+          2
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M01/forward",
+      "arm": "scenario",
+      "input_sha256": "b4e926c202488b7dcb060eccb0601f3ed62a5e8b94d1a4dc5d78e3a839e941b1",
+      "answer": "根据会议字幕，在这种情况下：\n\n*   APP 能执行的操作只有**终止**[1]。\n*   沃尔沃项目还额外增加了一套机制，限制后面连上来的 APP **只能做停止直播**的操作[2]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 50,
+        "prompt_tokens": 535,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 535
+        },
+        "total_tokens": 585
+      },
+      "elapsed_seconds": 4.82,
+      "request_sha256": "ce1e3018e7380d0c4a9d1bd28bdf95b543d594571c17c5b9eb894677b2dfbf5c",
+      "citation_check": {
+        "used": [
+          1,
+          2
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "scenario",
+      "input_sha256": "286a05fea8ea08f10ebb1593627fbff0228b94fd9d776b8c0e3a5bd6bd05b9f8",
+      "answer": "根据会议字幕，在这种情况下：\n\n*   APP 能执行的操作只有**终止**（停止直播）[1]。\n*   后续连上来的 APP 被限制只能做**停止直播**的操作 [2][3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 50,
+        "prompt_tokens": 553,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 553
+        },
+        "total_tokens": 603
+      },
+      "elapsed_seconds": 1.998,
+      "request_sha256": "78b1ad3138d5da4799427a4850f86fd2dd6f94cece0746060cbaf70590540ee0",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M01/reverse",
+      "arm": "schema_only",
+      "input_sha256": "972175393e9ea55946cd0e505e7c63321df17d4ea0d42add81be630272473231",
+      "answer": "根据会议字幕，在这种情况下：\n\n*   APP只能执行**终止**（停止直播）操作[1]。\n*   这是沃尔沃额外增加的一套机制，限制后连上来的APP只能做停止直播的限制[2][3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 51,
+        "prompt_tokens": 553,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 553
+        },
+        "total_tokens": 604
+      },
+      "elapsed_seconds": 4.32,
+      "request_sha256": "78b1ad3138d5da4799427a4850f86fd2dd6f94cece0746060cbaf70590540ee0",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M02/forward",
+      "arm": "schema_only",
+      "input_sha256": "8e89d5e95060dda4189dc54682d3858e4869605e824396ef623e7a06cfac1413",
+      "answer": "根据会议字幕，认为代码里的限制可以删除的理由如下：\n\n*   **已有协议约定**：双方已经约定好了相关规则[2]。\n*   **UI层面已做限制**：用户界面（UI）上已经实现了这种操作限制[2]。\n*   **逻辑上不可达**：在协议和UI的限制下，该情况在代码层面根本不可能到达，因此无需在代码中编写阻挡逻辑[3][4]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 98,
+        "prompt_tokens": 544,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 544
+        },
+        "total_tokens": 642
+      },
+      "elapsed_seconds": 4.568,
+      "request_sha256": "56981ae3113f5fffd698b5a8a3035f72b051aec8154d19b59f42d52ddfebd8c2",
+      "citation_check": {
+        "used": [
+          2,
+          3,
+          4
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M02/forward",
+      "arm": "scenario",
+      "input_sha256": "a50eb93ad96615fa111ac625229ed32514ca55213f67dc965042222b79ec63ea",
+      "answer": "根据会议字幕，认为代码里的限制可以删除的原因主要有两点：\n\n1.  **已有约定和UI限制**：团队已经就此达成约定，并且UI层面已经做了相应的操作限制[1]。\n2.  **逻辑上无法触发**：该情况在逻辑上是“不可能到达”的，因此代码中去做阻挡没有意义（即“根本阻挡一个不存在的东西”）[2]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 87,
+        "prompt_tokens": 515,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 515
+        },
+        "total_tokens": 602
+      },
+      "elapsed_seconds": 4.259,
+      "request_sha256": "0f27e82d2ce94b0940cc9b74da864e0aa69aa88d059a6bd93e27b5199742b063",
+      "citation_check": {
+        "used": [
+          1,
+          2
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "scenario",
+      "input_sha256": "261db98e9fdea8397f960c52855826f5d6f8e35138b05f167add214579641d97",
+      "answer": "根据会议字幕，认为代码里的限制可以删除的原因主要有两点：\n\n1.  **已有约定和UI限制**：团队已经就此达成约定，并且UI层面已经做了相应的操作限制[1]。\n2.  **逻辑上无法触发/阻挡不存在的东西**：该情况在技术上是不可能到达的，因此去阻挡一个“不存在的东西”没有意义[2]。\n\n基于以上理由，结论是代码里面不需要写死这个限制[3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 99,
+        "prompt_tokens": 515,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 515
+        },
+        "total_tokens": 614
+      },
+      "elapsed_seconds": 3.717,
+      "request_sha256": "0f27e82d2ce94b0940cc9b74da864e0aa69aa88d059a6bd93e27b5199742b063",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M02/reverse",
+      "arm": "schema_only",
+      "input_sha256": "cd5a3146cbf3dd8f096abd03521934e1ae7b6a6650c377f48585d7d53237abc7",
+      "answer": "根据会议字幕，认为代码里的限制可以删除的原因主要有两点：\n\n1.  **已有约定和UI限制**：团队已经对此进行了约定，并且UI层面也做了相应的操作限制[1]。\n2.  **逻辑上无法触发**：该情况在逻辑上是“不可能到达”的，因此代码中做阻挡没有意义（即“根本阻挡一个不存在的东西”）[2][3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 89,
+        "prompt_tokens": 515,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 515
+        },
+        "total_tokens": 604
+      },
+      "elapsed_seconds": 6.452,
+      "request_sha256": "0f27e82d2ce94b0940cc9b74da864e0aa69aa88d059a6bd93e27b5199742b063",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M03/forward",
+      "arm": "schema_only",
+      "input_sha256": "b0c47e9dc6949ed6f69b754370a92c07dcdc911b349bb2a2525747f921325af2",
+      "answer": "根据提供的会议字幕片段，回答如下：\n\n**1. “把这个也删”指的是什么？**\n资料中未明确说明“这个”具体指代哪个文件或功能模块。但结合上下文[2][3]，讨论的核心对象是**代码实现中的某些限制逻辑**。\n*   说话人认为这些限制在UI上已有操作约束[4]，且针对的是不可能到达的状态（阻挡不存在的东西）[6]，因此主张删除代码里写死的限制[5]。\n\n**2. 原文是否证明这个改动已经完成？**\n**没有证明。**\n*   片段仅记录了**讨论过程和观点**（如“我觉得没有必要”[4]、“可以直接删掉哦”[2]），属于建议或共识阶段。\n*   没有任何片段提及该代码已被实际删除、提交或合并。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 176,
+        "prompt_tokens": 576,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 576
+        },
+        "total_tokens": 752
+      },
+      "elapsed_seconds": 4.958,
+      "request_sha256": "1a3344705802ba407eeff4d4b5e8d9118ff2646b75fc04c396594a508dae3bbe",
+      "citation_check": {
+        "used": [
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M03/forward",
+      "arm": "scenario",
+      "input_sha256": "97025d7e5afa750cd4acc4827db00e7725bd939fb4b40b33992ab8b02f7d455d",
+      "answer": "根据提供的会议字幕片段，回答如下：\n\n**1. “把这个也删”指的是什么？**\n指的是**代码实现中实际存在的限制逻辑**。\n*   讨论背景是认为既然已经约定好且UI上做了操作限制，就没有必要在代码里写死这些限制[4]。\n*   具体提到“这一套限制的实现可以直接删掉”[2]，并确认“这个是在代码实现里面有实际的限制的”[3]。\n*   结论倾向于“代码里面不需要写死”[5]。\n\n**2. 原文是否证明这个改动已经完成？**\n**没有证明改动已完成。**\n*   片段仅展示了关于“是否需要删除”以及“建议删除”的**讨论和决策过程**（如“我觉得...没有必要...”[4]、“那其实代码里面不需要写死”[5]）。\n*   文中没有任何语句表明该代码修改动作已经执行完毕或已合并。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 201,
+        "prompt_tokens": 576,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 576
+        },
+        "total_tokens": 777
+      },
+      "elapsed_seconds": 5.271,
+      "request_sha256": "1a3344705802ba407eeff4d4b5e8d9118ff2646b75fc04c396594a508dae3bbe",
+      "citation_check": {
+        "used": [
+          2,
+          3,
+          4,
+          5
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "scenario",
+      "input_sha256": "0776bdd7796f353540564cb7c824392431c1bb9bac6045438397fc0fdc7667d9",
+      "answer": "根据提供的会议字幕片段，回答如下：\n\n1.  **“把这个也删”指的是什么？**\n    *   资料中**没有明确说明**“这个”具体指代的内容。\n    *   虽然[2]中提到“这一套限制的实现可以直接删掉”，且[3]提到了沃尔沃多做的一套“只能做停止直播的一个限制”的机制，但片段中并未建立[1]中的“这个”与[2]或[3]中具体内容的直接指代关系。因此，无法确定“这个”是指“这一套限制”还是其他未提及的对象。\n\n2.  **原文是否证明这个改动已经完成？**\n    *   **没有**。\n    *   [1]和[2]使用的是建议性或陈述性语气（“我说把这个也删”、“可以直接删掉”），仅表明讨论中提出了删除的想法或可行性，并没有证据显示该操作已经执行完毕。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 194,
+        "prompt_tokens": 519,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 519
+        },
+        "total_tokens": 713
+      },
+      "elapsed_seconds": 6.331,
+      "request_sha256": "d26ea23a0f5414f3ce5dc2f4d2df9ab0a1cec1f1d5149765649cf3888fd5f86c",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M03/reverse",
+      "arm": "schema_only",
+      "input_sha256": "68518e47d16fdd8d3c0af78555d224dc508d4257d93cbd477d789db55782e958",
+      "answer": "根据提供的会议字幕片段，回答如下：\n\n1.  **“把这个也删”指的是什么？**\n    *   **没有找到相关内容**。片段 [1] 中仅提到“把这个也删”，但未明确指代具体对象。虽然片段 [2] 和 [3] 讨论了“限制的实现”和“沃尔沃的机制”，但片段 [1] 本身并未建立与这些内容的直接指代关系，且片段 [2] 中的提问“你说哪哪些限制？”暗示前文可能未完全澄清或存在歧义，因此无法仅凭现有片段确定“这个”的具体所指。\n\n2.  **原文是否证明这个改动已经完成？**\n    *   **没有**。片段 [1] 和 [2] 均为讨论过程中的陈述（如“所以我说...”、“可以直接删掉哦”），属于建议或计划阶段，**没有任何证据表明该删除操作已经实际执行或完成**。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 192,
+        "prompt_tokens": 519,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 519
+        },
+        "total_tokens": 711
+      },
+      "elapsed_seconds": 6.403,
+      "request_sha256": "d26ea23a0f5414f3ce5dc2f4d2df9ab0a1cec1f1d5149765649cf3888fd5f86c",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M04/forward",
+      "arm": "schema_only",
+      "input_sha256": "24af559f4237883c0a5a3000a5845a46ddcd20a9238d3291e4c65d0f02c10227",
+      "answer": "没有找到相关内容，请尝试调整关键词或搜索范围。",
+      "model_called": false,
+      "finish_reason": "canned",
+      "citation_check": {
+        "used": [],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M04/forward",
+      "arm": "scenario",
+      "input_sha256": "07b3d9963cc5fbc96c93a8c9e0bc40299dab48f371c1e06526eb6c052153c40b",
+      "answer": "没有找到相关内容，请尝试调整关键词或搜索范围。",
+      "model_called": false,
+      "finish_reason": "canned",
+      "citation_check": {
+        "used": [],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "scenario",
+      "input_sha256": "bae9e14be9a173afbffb0c7f644c373ef9bda99601aafa3df3053f55243cb6d1",
+      "answer": "没有找到相关内容，请尝试调整关键词或搜索范围。",
+      "model_called": false,
+      "finish_reason": "canned",
+      "citation_check": {
+        "used": [],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M04/reverse",
+      "arm": "schema_only",
+      "input_sha256": "fc50bedd3121a36c2367f33a1f9a3ef3bbaab0dd88b8f5d9c2a798b61d1a3561",
+      "answer": "没有找到相关内容，请尝试调整关键词或搜索范围。",
+      "model_called": false,
+      "finish_reason": "canned",
+      "citation_check": {
+        "used": [],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M05/forward",
+      "arm": "schema_only",
+      "input_sha256": "54b9d17223f2fff4aaf8ca69c5aa0804d8300854c225bb5f8b3ca8c02af83dae",
+      "answer": "根据视频字幕，两种老板思维（资本家与奴隶主）最大的区别在于**对员工“赚钱”关系的认知不同**：\n\n*   **资本家思维**：认为员工是在**帮他赚钱**。只要员工能挣到钱，过程如何甚至是否来上班都不重要[1][2]。\n*   **奴隶主思维**：认为员工是在**挣他的钱**。因此会全方位监控员工，看不得员工闲着，认为员工空闲就是偷懒或工作没做完[1][3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 108,
+        "prompt_tokens": 533,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 533
+        },
+        "total_tokens": 641
+      },
+      "elapsed_seconds": 5.393,
+      "request_sha256": "d679a631301084d48ffc8c6e294eef860c102053e95560ff33d06e373dc3c0f5",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M05/forward",
+      "arm": "scenario",
+      "input_sha256": "81916a295376d38976f2498ed8cb3f94a9bc046d3668b479b09e295954e2394a",
+      "answer": "根据视频字幕，两种老板思维最大的区别在于**对员工赚钱关系的认知不同**：\n\n*   **资本家思维**：认为员工是在帮自己赚钱[1]。只要员工能挣到钱，其他方面（如是否来上班）都可以接受[2]。\n*   **奴隶主思维**：认为员工是在挣自己的钱[1]。因此会全方位监控员工，看不得员工闲着，认为员工闲着就是偷懒或工作没做完[3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 102,
+        "prompt_tokens": 533,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 533
+        },
+        "total_tokens": 635
+      },
+      "elapsed_seconds": 4.88,
+      "request_sha256": "d679a631301084d48ffc8c6e294eef860c102053e95560ff33d06e373dc3c0f5",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "scenario",
+      "input_sha256": "5ba35af6516e3f7bc81206dd5b2fdf7beece4437cbf9daa1c982d80f532a8c3b",
+      "answer": "根据视频字幕，两种老板思维最大的区别在于**对员工赚钱关系的认知不同**：\n\n*   **资本家思维**：认为员工是在帮自己赚钱[1]。只要员工能挣到钱，其他方面（如是否来上班）都可以接受[2]。\n*   **奴隶主思维**：认为员工是在挣自己的钱[1]。因此会全方位监控员工，看不得员工闲着，认为员工闲着就是偷懒或工作没做完[3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 102,
+        "prompt_tokens": 533,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 533
+        },
+        "total_tokens": 635
+      },
+      "elapsed_seconds": 4.77,
+      "request_sha256": "d679a631301084d48ffc8c6e294eef860c102053e95560ff33d06e373dc3c0f5",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    },
+    {
+      "id": "M05/reverse",
+      "arm": "schema_only",
+      "input_sha256": "ae41f0171d51bef5cd9b501efa5f6daa55999d0b81c4121245ce04e25be96c70",
+      "answer": "根据视频字幕，两种老板思维最大的区别在于**对员工赚钱方向的认知不同**：\n\n*   **资本家思维**：认为员工是在帮自己赚钱[1]。只要员工能挣到钱，形式不限，甚至不来上班也没问题[2]。\n*   **奴隶主思维**：认为员工是在挣自己的钱[1]。因此全方位监控员工，看不得员工闲着，一旦空闲就认定员工在偷懒或工作没做完[3]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 101,
+        "prompt_tokens": 533,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 533
+        },
+        "total_tokens": 634
+      },
+      "elapsed_seconds": 12.12,
+      "request_sha256": "d679a631301084d48ffc8c6e294eef860c102053e95560ff33d06e373dc3c0f5",
+      "citation_check": {
+        "used": [
+          1,
+          2,
+          3
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    }
+  ],
+  "resumed_from_sha256": "9d98cb723f282715a79e122e2118a1a3510b48450b7bf4f139956529acdfa131"
+}

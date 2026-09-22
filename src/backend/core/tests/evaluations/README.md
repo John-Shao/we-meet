@@ -280,3 +280,17 @@ python -m core.tests.evaluations.media_answer_evaluation --plan /tmp/media-answe
 ```
 
 计划和输出都不得已存在，密钥经`MIAOJI_EVAL_API_KEY`注入。`validate_report(report, plan)`验证完整性、固定输入/请求hash、返回模型和引用编号；它显式返回`semantic_support_checked=false`。第73批单独的audit文件记录助手对已生成答案的语义审读，非独立模型裁判、非人工复核，不能以编号合法代替事实支撑。
+
+## 第74批：通用回答约束与中断接续
+
+比较两个显式不同的提示候选，保留第一个候选未消除全部因果问题且遗漏已知延期信息的结果；第二个候选同时限制对比答复范围与保留已知事实。两轮媒体计划、模型响应及六题前后控制均独立存档，不能删除失败后只保留最后结果。
+
+`media_answer_evaluation.py`新增`--resume-from`用于运输层中断：计划与输出仍写新路径；要求旧文件是同一计划/模型/服务提示/参数的未完成有序前缀；已有响应无论好坏均保留，完成的实验拒绝接续。不会覆盖原始不完整文件，输出附其hash。
+
+```bash
+python -m core.tests.evaluations.media_answer_evaluation --plan /tmp/resumed-plan.json --output /tmp/resumed-draws.json --resume-from /tmp/interrupted-draws.json --model qwen3.8-flash --base-url https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+第74批第二候选一次读取超时后接续，超时请求用量未知；完整报告中的用量只累计收到的响应。当前`validate_report`要求源码提示与计划一致，历史候选需使用对应版本或其冻结提示快照校验，不拿当前提示改写旧请求。人工复核已跳过，自动审读身份与局限保持明确。
+
+第74批最终未采用两个提示候选：第一版仍有因果风险并省略已知延期，第二版恢复已知信息但因果风险仍不稳定。生产`global_ask.py`已恢复实验前状态，无需部署；原始失败结果全部保留。下一方向为证据上下文与逐事实支撑，不再以人工填写作为继续条件。

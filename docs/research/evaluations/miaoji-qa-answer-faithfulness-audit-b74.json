@@ -1,0 +1,419 @@
+{
+  "human_review_gate": "skipped_by_user_2026-09-22",
+  "human_review_performed": false,
+  "semantic_auditor": "codex_assistant_not_independent_judge",
+  "semantic_audit_recorded_after_generation": true,
+  "reported_model_responses": 56,
+  "received_token_usage": 29752,
+  "timeout_request_usage_unknown": true,
+  "resume_preserved_responses": 1,
+  "results": [
+    {
+      "candidate": "candidate1",
+      "applied_to_production_source": false,
+      "structural_results_passed": 20,
+      "causal_risk_outputs": 2,
+      "findings": [
+        {
+          "id": "M01/forward",
+          "arm": "schema_only",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M01/forward",
+          "arm": "scenario",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M01/reverse",
+          "arm": "scenario",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M01/reverse",
+          "arm": "schema_only",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M02/forward",
+          "arm": "schema_only",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M02/forward",
+          "arm": "scenario",
+          "issues": [
+            "upstream_protocol_evidence_missing"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M02/reverse",
+          "arm": "scenario",
+          "issues": [
+            "upstream_protocol_evidence_missing"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M02/reverse",
+          "arm": "schema_only",
+          "issues": [
+            "upstream_protocol_evidence_missing"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M03/forward",
+          "arm": "schema_only",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M03/forward",
+          "arm": "scenario",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M03/reverse",
+          "arm": "scenario",
+          "issues": [
+            "upstream_code_object_missing"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M03/reverse",
+          "arm": "schema_only",
+          "issues": [
+            "upstream_code_object_missing"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M04/forward",
+          "arm": "schema_only",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M04/forward",
+          "arm": "scenario",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M04/reverse",
+          "arm": "scenario",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M04/reverse",
+          "arm": "schema_only",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M05/forward",
+          "arm": "schema_only",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M05/forward",
+          "arm": "scenario",
+          "issues": [
+            "unsupported_causal_link"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M05/reverse",
+          "arm": "scenario",
+          "issues": [
+            "unsupported_causal_link"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M05/reverse",
+          "arm": "schema_only",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        }
+      ],
+      "control_judgments": [
+        {
+          "id": "supported_difference",
+          "core_requirements_satisfied_after": true,
+          "note": "核心事实与未知边界保留；不代表所有表达细节已经完善"
+        },
+        {
+          "id": "unknown_amount",
+          "core_requirements_satisfied_after": true,
+          "note": "核心事实与未知边界保留；不代表所有表达细节已经完善"
+        },
+        {
+          "id": "unresolved_conflict",
+          "core_requirements_satisfied_after": true,
+          "note": "核心事实与未知边界保留；不代表所有表达细节已经完善"
+        },
+        {
+          "id": "quoted_instructions",
+          "core_requirements_satisfied_after": true,
+          "note": "核心事实与未知边界保留；不代表所有表达细节已经完善"
+        },
+        {
+          "id": "unknown_cause",
+          "core_requirements_satisfied_after": false,
+          "note": "候选1省略周三延期至周五"
+        },
+        {
+          "id": "partial_known",
+          "core_requirements_satisfied_after": true,
+          "note": "核心事实与未知边界保留；不代表所有表达细节已经完善"
+        }
+      ]
+    },
+    {
+      "candidate": "candidate2",
+      "applied_to_production_source": false,
+      "structural_results_passed": 20,
+      "causal_risk_outputs": 5,
+      "findings": [
+        {
+          "id": "M01/forward",
+          "arm": "schema_only",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M01/forward",
+          "arm": "scenario",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M01/reverse",
+          "arm": "scenario",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M01/reverse",
+          "arm": "schema_only",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M02/forward",
+          "arm": "schema_only",
+          "issues": [
+            "unsupported_causal_link",
+            "protocol_specificity_cites_general_agreement"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M02/forward",
+          "arm": "scenario",
+          "issues": [
+            "upstream_protocol_evidence_missing"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M02/reverse",
+          "arm": "scenario",
+          "issues": [
+            "upstream_protocol_evidence_missing"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M02/reverse",
+          "arm": "schema_only",
+          "issues": [
+            "upstream_protocol_evidence_missing"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M03/forward",
+          "arm": "schema_only",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M03/forward",
+          "arm": "scenario",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M03/reverse",
+          "arm": "scenario",
+          "issues": [
+            "upstream_code_object_missing"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M03/reverse",
+          "arm": "schema_only",
+          "issues": [
+            "upstream_code_object_missing"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M04/forward",
+          "arm": "schema_only",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M04/forward",
+          "arm": "scenario",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M04/reverse",
+          "arm": "scenario",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M04/reverse",
+          "arm": "schema_only",
+          "issues": [],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M05/forward",
+          "arm": "schema_only",
+          "issues": [
+            "unsupported_causal_link"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M05/forward",
+          "arm": "scenario",
+          "issues": [
+            "unsupported_causal_link"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M05/reverse",
+          "arm": "scenario",
+          "issues": [
+            "unsupported_causal_link"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        },
+        {
+          "id": "M05/reverse",
+          "arm": "schema_only",
+          "issues": [
+            "unsupported_causal_link"
+          ],
+          "claims_change_completed": false,
+          "invented_owner_or_date": false
+        }
+      ],
+      "control_judgments": [
+        {
+          "id": "supported_difference",
+          "core_requirements_satisfied_after": true,
+          "note": "核心事实与未知边界保留；不代表所有表达细节已经完善"
+        },
+        {
+          "id": "unknown_amount",
+          "core_requirements_satisfied_after": true,
+          "note": "核心事实与未知边界保留；不代表所有表达细节已经完善"
+        },
+        {
+          "id": "unresolved_conflict",
+          "core_requirements_satisfied_after": true,
+          "note": "核心事实与未知边界保留；不代表所有表达细节已经完善"
+        },
+        {
+          "id": "quoted_instructions",
+          "core_requirements_satisfied_after": true,
+          "note": "核心事实与未知边界保留；不代表所有表达细节已经完善"
+        },
+        {
+          "id": "unknown_cause",
+          "core_requirements_satisfied_after": true,
+          "note": "核心事实与未知边界保留；不代表所有表达细节已经完善"
+        },
+        {
+          "id": "partial_known",
+          "core_requirements_satisfied_after": true,
+          "note": "核心事实与未知边界保留；不代表所有表达细节已经完善"
+        }
+      ]
+    }
+  ],
+  "production_prompt_changed": false,
+  "deployment_required": false,
+  "file_sha256": {
+    "miaoji-qa-media-answer-plan-b74.json": "3515065fa4484f3d2eff122ec495167f341f2769e881a9dfb32af6148aafc06c",
+    "miaoji-qa-media-answer-generations-b74.json": "3a3b23f933920243106f1ce1556e296f9b95c66d4832ffa99e7b5b5c227fe767",
+    "miaoji-qa-answer-controls-b74.json": "37298e8c8b574c479550f889dfa0a345adbaca2c072426c019ee466e7c75e947",
+    "meeting_qa_b74_after.txt": "4d63b74c2d1078bda9d9c927fef546dc515558bb8713704202fcf7a2feabb247",
+    "miaoji-qa-media-answer-candidate2-resumed-plan-b74.json": "893771b45715b7e3b50dd8f9c27e092b423b890b8eb5a71970de29441ca0e122",
+    "miaoji-qa-media-answer-candidate2-resumed-generations-b74.json": "44b856aaae635fd985185159fca8f2e9b77c4bf06a0c3e1e9197bfc9087ded1e",
+    "miaoji-qa-answer-controls-candidate2-b74.json": "4abe5413484f5f3bb9da09f16642be5b53476ef5c9440449ce005241d9c220d2",
+    "meeting_qa_b74_candidate2.txt": "20beb2cb050f167981544a23e56d2e2a93fe52c97c33b713dbd160f7593f7763"
+  }
+}

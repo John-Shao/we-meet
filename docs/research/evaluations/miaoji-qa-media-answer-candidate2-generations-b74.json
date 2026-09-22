@@ -1,0 +1,47 @@
+{
+  "complete": false,
+  "human_review_gate": "skipped_by_user_2026-09-22",
+  "human_review_performed": false,
+  "mode": "offline_fixed_evidence_answer_generation",
+  "model_requested": "qwen3.8-flash",
+  "temperature": 0,
+  "enable_thinking": false,
+  "max_tokens": null,
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "plan_sha256": "893771b45715b7e3b50dd8f9c27e092b423b890b8eb5a71970de29441ca0e122",
+  "upstream_sha256": "a78ff6ded1dc960fd22caa88bbc8290da3f059dcaea4b89b30c8457fbb25a7a5",
+  "service_sha256": "0501c349f04188d3af73c119f0374538e9178490824b8f4c0ef578febb821518",
+  "production_retrieval_executed": false,
+  "production_promotion_approved": false,
+  "cases": [
+    {
+      "id": "M01/forward",
+      "arm": "schema_only",
+      "input_sha256": "12b7d7110284cbded76059c05da16ab43d987e742beca094478cf6acec282e09",
+      "answer": "根据会议字幕，设备开播后APP退出10秒再重新连接，此时能执行的操作**只有终止**[1]。\n\n此外，资料提到沃尔沃还额外做了一套机制，限制后面连上来的APP**只能做停止直播**的操作[2]。",
+      "finish_reason": "stop",
+      "model_called": true,
+      "model_returned": "qwen3.8-flash",
+      "usage": {
+        "completion_tokens": 56,
+        "prompt_tokens": 535,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "text_tokens": 535
+        },
+        "total_tokens": 591
+      },
+      "elapsed_seconds": 3.081,
+      "request_sha256": "ce1e3018e7380d0c4a9d1bd28bdf95b543d594571c17c5b9eb894677b2dfbf5c",
+      "citation_check": {
+        "used": [
+          1,
+          2
+        ],
+        "invalid": [],
+        "references_existing_evidence": true,
+        "semantic_support_checked": false
+      }
+    }
+  ]
+}

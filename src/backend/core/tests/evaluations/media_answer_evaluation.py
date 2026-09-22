@@ -136,12 +136,45 @@ def validate_report(report, plan):
     }
 
 
+def resume_rows(previous, current, plan):
+    """Only resume an interrupted prefix, preserving every existing response."""
+    if previous["complete"]:
+        raise ValueError("Completed runs must not be resumed")
+    for key in current.keys() - {"cases", "complete"}:
+        if previous[key] != current[key]:
+            raise ValueError("Resume provenance does not match")
+    rows = previous["cases"]
+    if not isinstance(rows, list) or len(rows) >= len(plan):
+        raise ValueError("Expected an incomplete response prefix")
+    for row, case in zip(rows, plan, strict=False):
+        if (row["id"], row["arm"], row["input_sha256"]) != (
+            case["id"],
+            case["arm"],
+            digest(case),
+        ):
+            raise ValueError("Resume rows must be the original ordered prefix")
+        if case["canned_answer"] is not None:
+            if row["model_called"] or row["answer"] != case["canned_answer"]:
+                raise ValueError("Changed canned response")
+        elif (
+            not row["model_called"]
+            or row["request_sha256"]
+            != digest(request_body(case, current["model_requested"]))
+            or row["model_returned"] != current["model_requested"]
+        ):
+            raise ValueError("Changed model request")
+        if row["citation_check"] != citation_check(row["answer"], case["citations"]):
+            raise ValueError("Changed citation check")
+    return list(rows)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--model", required=True)
     parser.add_argument("--base-url", required=True)
+    parser.add_argument("--resume-from", type=Path)
     args = parser.parse_args()
     if args.plan.exists() or args.output.exists():
         raise FileExistsError("Use new output paths")
@@ -164,8 +197,14 @@ def main():
         "production_promotion_approved": False,
         "cases": [],
     }
+    if args.resume_from:
+        previous = json.loads(args.resume_from.read_text(encoding="utf-8"))
+        report["cases"] = resume_rows(previous, report, plan)
+        report["resumed_from_sha256"] = hashlib.sha256(
+            args.resume_from.read_bytes()
+        ).hexdigest()
     args.output.write_bytes(encoded(report))
-    for case in plan:
+    for case in plan[len(report["cases"]) :]:
         row = {"id": case["id"], "arm": case["arm"], "input_sha256": digest(case)}
         if case["canned_answer"] is not None:
             row.update(

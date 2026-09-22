@@ -124,3 +124,30 @@ def test_report_validates_requests_but_does_not_claim_semantic_correctness(tampe
         result = answers.validate_report(report, plan)
         assert result["model_calls"] == 16 and result["canned_answers"] == 4
         assert result["semantic_support_checked"] is False
+
+
+def test_resume_keeps_an_existing_bad_answer_and_rejects_cherry_picking():
+    plan = answers.build_plan()
+    current = {"complete": False, "model_requested": "fixture", "cases": []}
+    case = plan[0]
+    row = {
+        "id": case["id"],
+        "arm": case["arm"],
+        "input_sha256": digest(case),
+        "model_called": True,
+        "model_returned": "fixture",
+        "finish_reason": "stop",
+        "request_sha256": digest(answers.request_body(case, "fixture")),
+        "answer": "unsupported uncited answer",
+        "citation_check": answers.citation_check(
+            "unsupported uncited answer", case["citations"]
+        ),
+    }
+    previous = {**current, "cases": [row]}
+    assert answers.resume_rows(previous, current, plan) == [row]
+    with pytest.raises(ValueError, match="Completed"):
+        answers.resume_rows({**previous, "complete": True}, current, plan)
+    with pytest.raises(ValueError, match="prefix"):
+        answers.resume_rows({**previous, "cases": [row, row]}, current, plan)
+    with pytest.raises(ValueError, match="provenance"):
+        answers.resume_rows({**previous, "model_requested": "other"}, current, plan)
