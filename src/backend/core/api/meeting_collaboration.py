@@ -9,10 +9,13 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core import models
+from core import models, utils
 from core.services import meeting_collaboration as service
 from core.services.meeting_records import RecordConflict, visible_records
 from core.services.meeting_summary_sharing import eligible_users
+
+# One page of candidates == one page of the shared picker.
+CANDIDATES_PAGE = 50
 
 
 class Member(serializers.Serializer):
@@ -104,6 +107,16 @@ class CollaborationView(APIView):
 
 
 class CollaborationCandidatesView(CollaborationView):
+    """Invite candidates for one object, as pages the shared picker can consume.
+
+    Keyed by cursor rather than offset because the picker's contract is "load
+    more" (`next_cursor`), and the candidate set is filtered by who may be
+    granted this object at all — it is not the organization directory. `kind`
+    switches between people and the two team targets that `Change` accepts
+    (`dept:` / `group:` keys), so callers never translate directory ids into
+    ACL keys themselves.
+    """
+
     def get(self, request, record_id, scope):
         record = self.record(request, record_id, scope)
         if not service.can_manage(record, request.user, scope):
@@ -111,20 +124,46 @@ class CollaborationCandidatesView(CollaborationView):
         query = serializers.CharField(max_length=80, allow_blank=True).run_validation(
             request.query_params.get("q", "")
         )
-        offset = serializers.IntegerField(
+        cursor = serializers.IntegerField(
             min_value=0, max_value=1000000
-        ).run_validation(request.query_params.get("offset", 0))
-        rows = (
-            eligible_users(record, request.user)
-            .filter(full_name__icontains=query)
-            .order_by("full_name", "id")
-        )
+        ).run_validation(request.query_params.get("cursor") or 0)
         kind = serializers.ChoiceField(
             choices=["users", "departments", "groups"]
         ).run_validation(request.query_params.get("kind", "users"))
-        if kind != "users":
-            if not record.organization_id or kind == "groups" and scope != "minutes":
-                return Response({"results": [], "next_offset": None})
+        # Mirrors the write path: no organization, or groups on a record, means
+        # nothing can be granted by team.
+        team_kind = kind != "users"
+        if team_kind and (
+            not record.organization_id or (kind == "groups" and scope != "minutes")
+        ):
+            return Response({"results": [], "next_cursor": None})
+
+        def people(row):
+            return {
+                "id": str(row.pk),
+                "name": row.full_name or "",
+                # Same presigned-URL pattern as every other directory surface:
+                # the buckets are private, so the client cannot build this.
+                "avatar_url": utils.generate_profile_image_get_url(
+                    "avatar", row.avatar_key
+                ),
+            }
+
+        def team(row):
+            return {
+                "id": row.team_key if kind == "departments" else row.group_key,
+                "name": row.name,
+                "avatar_url": "",
+            }
+
+        if not team_kind:
+            rows = (
+                eligible_users(record, request.user)
+                .filter(full_name__icontains=query)
+                .order_by("full_name", "id")
+            )
+            target = people
+        else:
             model = models.Department if kind == "departments" else models.UserGroup
             rows = model.objects.filter(
                 organization_id=record.organization_id,
@@ -132,21 +171,18 @@ class CollaborationCandidatesView(CollaborationView):
                 deleted_at__isnull=True,
                 name__icontains=query,
             ).order_by("name", "id")
-        selected = list(rows[offset : offset + 51])
+            target = team
+        # Slice before evaluating: a page costs one query, and the extra row is
+        # only there to answer "is there more" without a second COUNT.
+        page = list(rows[cursor : cursor + CANDIDATES_PAGE + 1])
         return Response(
             {
-                "results": [
-                    {
-                        "id": str(row.pk)
-                        if kind == "users"
-                        else row.team_key
-                        if kind == "departments"
-                        else row.group_key,
-                        "name": row.full_name or "" if kind == "users" else row.name,
-                    }
-                    for row in selected[:50]
-                ],
-                "next_offset": offset + 50 if len(selected) > 50 else None,
+                "results": [target(row) for row in page[:CANDIDATES_PAGE]],
+                "next_cursor": (
+                    str(cursor + CANDIDATES_PAGE)
+                    if len(page) > CANDIDATES_PAGE
+                    else None
+                ),
             }
         )
 

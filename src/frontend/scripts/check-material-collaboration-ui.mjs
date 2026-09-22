@@ -22,7 +22,7 @@ try {
     if (path.endsWith('/users/me/')) return route.fulfill({ json: { id: owner.id, full_name: owner.name } })
     if (denied) return route.fulfill({ status: 404, json: {} })
     const scope = path.includes('/minutes/') ? 'minutes' : 'record'
-    if (path.endsWith('/candidates/')) return route.fulfill({ json: { results: [peer], next_offset: null } })
+    if (path.endsWith('/candidates/')) return route.fulfill({ json: { results: [peer], next_cursor: null } })
     if (path.endsWith('/preview/')) return route.fulfill({ json: { role: 'editor', excerpt: '本次讨论比较了结果导向与过程监督两种管理方式，明确了下一步协作安排。\n\n总结\n关注团队目标，为执行保留合理的自主空间。', media_type: 'audio', media_url: null, duration_ms: 47000 } })
     return route.fulfill({ json: { scope, record_id: 'record', revision: 0, can_manage: true, is_owner: true, link_scope: 'private', can_link_organization: true, results: [owner], count: 1, can_notify: true, pending_notifications: 0 } })
   })
@@ -63,17 +63,29 @@ try {
   await page.screenshot({ path: 'test-results/material-share-desktop.png', fullPage: true })
   await page.getByRole('button', { name: '关闭', exact: true }).click()
   await page.getByRole('button', { name: '协作者管理', exact: true }).click()
+  // 邀请是「一个弹窗、两个视图」:成员名单 → 选人(复用通讯录多选面板),
+  // 整批共用一个角色,不再经过逐人配置的「下一步」确认页。
   await page.getByRole('button', { name: '邀请协作者', exact: true }).click()
-  await page.getByLabel('陈晨', { exact: true }).check()
-  await page.getByRole('button', { name: '下一步', exact: true }).click()
-  await page.getByRole('combobox', { name: '陈晨' }).selectOption('editor')
+  // candidates 用的是游标分页契约;面板先加载再渲染,所以等行出现再点。
+  const inviteRow = page.getByTestId(`material-invite-item-${peer.id}`)
+  await inviteRow.waitFor()
+  assert.equal(await inviteRow.getByText(peer.name).count(), 1)
+  await inviteRow.click()
+  assert.equal(await inviteRow.getAttribute('aria-pressed'), 'true')
+  // 手机宽度也要能走完邀请:先切窄,再选角色 —— 基元 Select 的弹层按触发器宽度
+  // 定宽(min-w --trigger-width),桌面宽度下开出来的那层在窄视口里会横向溢出。
   await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: '角色' }).click()
+  await page.getByRole('option', { name: '可编辑' }).click()
+  // 弹层按触发器宽度定宽,窄视口下要先关掉再量横向溢出/截图。
+  await page.getByRole('heading', { name: '邀请协作者' }).click()
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
   await page.screenshot({ path: 'test-results/material-invite-mobile.png', fullPage: true })
   await page.getByRole('button', { name: '邀请协作者', exact: true }).click()
   await page.getByText('已保存', { exact: true }).waitFor()
   assert.equal(writes.length, 1)
   assert.equal(writes[0].members[0].role, 'editor')
+  assert.equal(writes[0].members[0].id, peer.id)
   await page.getByRole('button', { name: '关闭', exact: true }).last().click()
   await page.getByTestId('im-msg-meeting-record-card').last().click()
   assert.equal(await page.evaluate(() => window.lastOpened.scope), 'record')
