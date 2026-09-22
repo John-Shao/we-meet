@@ -250,7 +250,7 @@ GET    /meeting-records/{id}/source-status/
 
 | 入口 | 路由 | 职责 | 问题 |
 |---|---|---|---|
-| AI 录音 | `/meeting/recording`、`/meeting/recording/capture` | 采集 + 导入 | 列表与会议实录**重复展示**同一批记录（`ai-recording-overview-2026-09-16.md:9-12`） |
+| AI 录音 | `/meeting/recording`、`/meeting/recording/capture` | 采集 + 导入 | 列表与会议实录**重复展示**同一批记录（[AI 录音概览：Web 路由与行为](../plan/meeting-ui-recording-updates-2026-09-14-16.md#ai-recording-overview)） |
 | 会议实录 | `/meeting/notes`、`/meeting/records/:id` | 记录与原文 | 标题/来源筛选与录音页**两套版式**（`meetings-ux-migration-2026-09-16.md:134`） |
 | 智能纪要 | `/meeting/minutes` | AI 产物 | 与实录**共用同一份资料**，仅注入 `has_summary:'true'`（`MeetingLibrary.tsx:711`） |
 

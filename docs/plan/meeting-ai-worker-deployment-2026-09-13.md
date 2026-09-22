@@ -1,6 +1,6 @@
 # AI Worker 部署配置与联调入口
 
-2026-09-14：本项目 `aliyun-prod` 已按用户指令开启下述 Worker，并增加独立 Beat 和现有凭据复用；Android 构建配置也已开启。当前发布步骤见[配置启用说明](meeting-ai-rollout-2026-09-14.md)。通用 Chart 默认值仍关闭。
+2026-09-14：本项目 `aliyun-prod` 已按用户指令开启下述 Worker，并增加独立 Beat 和现有凭据复用；Android 构建配置也已开启。当前发布步骤见[配置启用说明](meeting-ai-rollout-incidents-2026-09-14.md#meeting-ai-rollout)。通用 Chart 默认值仍关闭。
 
 这份说明供部署测试使用。代码和渲染检查已完成，不代表已部署或通过真实模型验收。所有新增 Worker、后端能力和 Android 入口默认关闭。
 

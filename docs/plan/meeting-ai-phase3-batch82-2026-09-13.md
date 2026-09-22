@@ -1,5 +1,0 @@
-# Phase 3 batch 82 (cumulative 102): native shared interpretation workspace
-
-Android main `cea5c3ea` adds the shared interpretation SDK transport, channel management and participant listening UI. Opening a channel does not auto-subscribe; closing confirms impact on all listeners. Leaving affects only the current device. Original encrypted intents survive unknown responses, while historical receipts cannot reactivate playback. Foreground leases and exact active-source grants bound playback; backgrounding and renewal failure silence it. Personal and shared translated voice are mutually muted when choosing listening.
-
-23 isolated instrumentation tests (10 shared UI, 9 private UI, 4 shared coordinator), enabled/default Debug builds, design tokens and diff checks passed. Light confirmation and dark listener screens inspected. No migration or real provider/audio/deployment invocation. WE_MEET_ONLINE_AI_NATIVE remains off by default. Native retained-translation browsing and remaining first-release gaps follow; M3/M4 are not yet complete.

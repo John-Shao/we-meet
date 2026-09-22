@@ -1,7 +1,0 @@
-# Batch 124 ? Standalone translation gateway authorization
-
-Adds capture-owner/device-lease ticket issuance and private agent claim, begin, ready, heartbeat and finish endpoints. Signed 30-second bearer tickets bind exact capture, generation, owner, device and source revision. Send a ticket only in the first WSS message, never in a URL. Only one worker can claim a generation. Only the first acknowledged begin response permits a paid provider connection; an ambiguous begin must not reconnect or replay audio.
-
-Worker leases last 15 seconds. Every advance rechecks current original-material access, source revision/lease, retention and rollout. Rollback drains already begun sessions with a fixed stop deadline; it cannot start new connections. A terminal or expired worker cannot renew or replace its process. Late finish can record observed usage once but cannot restore revoked/expired success or alter a replacement generation. Finish hashes are immutable; usage uses the existing best-effort ledger and is not a billing guarantee.
-
-Validation: 40 standalone translation control/worker tests pass, including concurrent claims, duplicate begin, revoked source, expired/tampered tickets, stop-before-claim, rollback draining and exactly-once finish metering. Ruff/diff checks pass. No migration beyond 0177. Gateway PCM transport, archives and Web/native clients follow; keep the feature disabled. No real provider calls were made.
