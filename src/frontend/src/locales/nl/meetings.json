@@ -790,6 +790,28 @@
     "emptyHint": "Probeer een andere categorie of zoekterm, of genereer notulen vanuit een vergaderrecord.",
     "recordedAt": "Vergadertijd"
   },
+  "recordOverview": {
+    "title": "Overzicht",
+    "hint": "Een kort overzicht van de opname en de belangrijkste punten.",
+    "openMinutes": "AI-notulen openen",
+    "empty": "Nog geen overzicht. Genereer het rechtstreeks uit het transcript.",
+    "documentTitle": "AI-notulen: {{title}}",
+    "backToRecord": "Opname en overzicht bekijken",
+    "generate": "Overzicht genereren",
+    "regenerate": "Overzicht opnieuw genereren",
+    "retry": "Genereren opnieuw proberen",
+    "resubmit": "Vorige aanvraag controleren",
+    "generating": "Overzicht wordt gegenereerd…",
+    "failed": "Het genereren is niet voltooid. Het vorige overzicht blijft bewaard. Vernieuw om het opnieuw te proberen.",
+    "accepted": "Het genereren is aangevraagd.",
+    "uncertain": "Het resultaat van de aanvraag is onbekend. Controleer dezelfde aanvraag opnieuw.",
+    "conflict": "Het transcript of de taak is gewijzigd. Vernieuw en probeer opnieuw.",
+    "rateLimited": "Te veel aanvragen. Probeer het later opnieuw.",
+    "waitSource": "Voltooi eerst de opname en transcriptie. Te lange transcripten kunnen nog niet worden verwerkt.",
+    "sourceChanged": "Het transcript is gewijzigd. Dit is het vorige overzicht.",
+    "unavailable": "Genereren is momenteel niet beschikbaar.",
+    "storageError": "De aanvraag kan niet worden opgeslagen. Sta sessieopslag toe en probeer opnieuw."
+  },
   "minutesReader": {
     "tools": "Notulengereedschap",
     "ask": "Vraag AI",

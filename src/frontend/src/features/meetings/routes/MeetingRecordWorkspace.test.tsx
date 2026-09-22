@@ -123,6 +123,29 @@ beforeEach(() => {
         ],
         next_cursor: null,
       }
+    if (path.includes('/overview/'))
+      return {
+        revision: 1,
+        available: true,
+        can_generate: false,
+        generation_ready: true,
+        job: null,
+        version: {
+          id: 'overview',
+          is_current: true,
+          created_at: '2026-09-13T00:00:00Z',
+          content: {
+            synopsis: 'Recording overview',
+            topics: [
+              {
+                title: 'Topic',
+                text: 'Main talking point',
+                source_refs: [{ start_ms: 3000 }],
+              },
+            ],
+          },
+        },
+      }
     if (path.includes('/summaries/'))
       return {
         results: [
@@ -155,10 +178,8 @@ it('routes a human export to its exact read-only source', async () => {
   show()
   await screen.findByText('Exported human revision')
   expect(screen.queryByText('summary-workspace')).toBeNull()
-  expect(screen.getByRole('tab', { name: 'library.minutes' })).toHaveAttribute(
-    'aria-selected',
-    'true'
-  )
+  expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+  expect(screen.queryByText('protected-player')).not.toBeInTheDocument()
 })
 
 it.each(['human=', 'human=one&human=two', 'human=one&summary=two'])(
@@ -180,7 +201,7 @@ it('does not read human history without summary permission', async () => {
   window.history.replaceState(null, '', '/meeting/records/record?human=old')
   record.capabilities = { read_transcript: true, read_summary: false }
   show()
-  await screen.findByRole('tab', { name: 'library.info' })
+  await screen.findByText('recordAi.unavailable')
   expect(
     vi
       .mocked(fetchApi)
@@ -286,17 +307,15 @@ it('opens upload full translation without a capture ID', async () => {
   ).toHaveAttribute('aria-selected', 'true')
 })
 
-it('opens the summary tab directly from the minutes library without selecting a historical version', async () => {
+it('opens a standalone document directly from the minutes library without selecting a historical version', async () => {
   window.history.replaceState(null, '', '/meeting/records/record?tab=summary')
   show()
   await screen.findByText('summary-workspace')
   expect(
     screen.getByRole('link', { name: 'minutesLibrary.back' })
   ).toHaveAttribute('href', '/meeting/minutes')
-  expect(screen.getByRole('tab', { name: 'library.minutes' })).toHaveAttribute(
-    'aria-selected',
-    'true'
-  )
+  expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+  expect(screen.queryByText('protected-player')).not.toBeInTheDocument()
   expect(screen.queryByText('Shared original')).not.toBeInTheDocument()
 })
 
@@ -393,8 +412,10 @@ it('reads an owner’s stopped cloud capture without any local journal or device
   await screen.findByText('protected-player')
   fireEvent.click(screen.getByText('asr-controls'))
   expect(mocks.seek).toHaveBeenCalledWith(500)
-  fireEvent.click(screen.getByRole('tab', { name: 'library.minutes' }))
-  fireEvent.click(await screen.findByText('summary-audio'))
+  fireEvent.click(screen.getByRole('tab', { name: 'recordOverview.title' }))
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'recordAi.listenSource 0:03' })
+  )
   expect(mocks.seek).toHaveBeenCalledWith(1000) // Record time to capture time.
   expect(
     vi
@@ -418,13 +439,14 @@ it('summary-only shares never request original text, capture state or audio', as
   record.capture_id = null
   record.capabilities = { read_summary: true, read_transcript: false }
   show('reader')
-  await screen.findByText('summary-workspace')
+  await screen.findByText('Recording overview')
   expect(
     screen.queryByRole('tab', { name: 'library.text' })
   ).not.toBeInTheDocument()
   expect(screen.queryByText('summary-audio')).not.toBeInTheDocument()
   expect(vi.mocked(fetchApi).mock.calls.map(([path]) => path)).toEqual([
     'meeting-records/record/',
+    'meeting-records/record/overview/',
   ])
 })
 
@@ -473,8 +495,12 @@ it('edits uploaded text using the server capability and reaches its summary work
   )
   fireEvent.click(screen.getByText('transcriptCorrection.save'))
   await screen.findByText('Corrected import')
-  fireEvent.click(screen.getByRole('tab', { name: 'library.minutes' }))
-  expect(await screen.findByText('summary-workspace')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('tab', { name: 'recordOverview.title' }))
+  expect(await screen.findByText('Recording overview')).toBeInTheDocument()
+  expect(screen.queryByText('Document decision')).not.toBeInTheDocument()
+  expect(
+    screen.getByRole('link', { name: 'recordOverview.openMinutes' })
+  ).toHaveAttribute('href', '/meeting/records/record?tab=summary')
 })
 
 it('transcript-only shares read originals but cannot mount paid or private capture controls', async () => {
@@ -487,7 +513,7 @@ it('transcript-only shares read originals but cannot mount paid or private captu
     screen.queryByRole('tab', { name: 'translationArchive.title' })
   ).not.toBeInTheDocument()
   expect(
-    screen.queryByRole('tab', { name: 'library.minutes' })
+    screen.queryByRole('tab', { name: 'recordOverview.title' })
   ).not.toBeInTheDocument()
   expect(
     vi
@@ -523,9 +549,8 @@ it('unmounts private content and the player when access is revoked', async () =>
 it('reads old online material only through the immutable record ID', async () => {
   record.capture_id = null
   record.source_type = 'meeting'
+  window.history.replaceState(null, '', '/meeting/records/record?tab=summary')
   show()
-  await screen.findByText('Exact online source')
-  fireEvent.click(screen.getByRole('tab', { name: 'library.minutes' }))
   await screen.findByText('Exact legacy minutes')
   expect(
     vi

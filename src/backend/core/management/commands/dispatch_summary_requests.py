@@ -20,7 +20,7 @@ class Command(BaseCommand):
         parser.add_argument("--limit", type=int, default=100)
 
     def handle(self, *args, **options):
-        if not requests_enabled() or not 1 <= options["limit"] <= 1000:
+        if not (requests_enabled() or requests_enabled("overview")) or not 1 <= options["limit"] <= 1000:
             raise CommandError("Enable summary requests and supply limit 1..1000.")
         rows = (
             models.MeetingSummaryRequest.objects.filter(dispatch_state="pending")

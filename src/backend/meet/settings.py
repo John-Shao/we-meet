@@ -1169,6 +1169,8 @@ class Base(Configuration):
     QWEN_FILE_ASR_STORAGE_ENDPOINT_URL = values.Value("", environ_prefix=None)
     ROOM_TRANSLATION_AGENT_NAME = values.Value("", environ_prefix=None)
     MEETING_SUMMARY_MODEL = values.Value("qwen3.8-flash", environ_prefix=None)
+    MEETING_OVERVIEW_ENABLED = values.BooleanValue(True, environ_prefix=None)
+    MEETING_OVERVIEW_MODEL = values.Value("qwen3.8-flash", environ_prefix=None)
     MEETING_SUMMARY_BASE_URL = values.Value(
         "https://dashscope.aliyuncs.com/compatible-mode/v1", environ_prefix=None
     )

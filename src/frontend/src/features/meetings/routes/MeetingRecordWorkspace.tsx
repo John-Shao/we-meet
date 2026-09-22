@@ -39,6 +39,7 @@ import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPan
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { HumanSummaryRevision } from '../components/HumanSummaryHistory'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
+import { RecordOverviewPanel } from '../components/RecordOverviewPanel'
 import { mediaDuration, validMediaDuration } from '../recordMediaTiming'
 import { SpeakerActivity } from '../components/SpeakerActivity'
 import { RecordMediaDownload } from '../components/RecordMediaDownload'
@@ -430,25 +431,21 @@ function LegacySummary({
 function WorkspaceContent({
   record,
   viewerId,
-  summaryId,
-  humanId,
   translations = false,
-  summary = false,
+  overview = false,
   chapters = false,
 }: {
   record: ApiMeetingRecord
   viewerId: string
-  summaryId?: string
-  humanId?: string
   translations?: boolean
-  summary?: boolean
+  overview?: boolean
   chapters?: boolean
 }) {
   const { t } = useTranslation('meetings')
   const [tab, setTab] = useState(
     chapters
       ? 'chapters'
-      : humanId !== undefined || summaryId !== undefined || summary
+      : overview
         ? 'summary'
         : translations &&
             (record.source_type === 'meeting' ||
@@ -466,7 +463,10 @@ function WorkspaceContent({
   const isUpload = record.source_type === 'upload'
   const [playerDuration, setPlayerDuration] = useState<number | null>(null)
   const fullDuration = mediaDuration(record, playerDuration)
-  const canPlayUpload = isUpload && record.capabilities.play_media === true
+  const canPlayUpload =
+    isUpload &&
+    record.capabilities.read_transcript &&
+    record.capabilities.play_media === true
   /**
    * Playback position lives here because the player and the transcript are
    * separate regions: the player owns the clock, the transcript owns the text,
@@ -560,7 +560,9 @@ function WorkspaceContent({
       >
         <TabList aria-label={t('library.contentTabs')}>
           {canReadText && <Tab id="text">{t('library.text')}</Tab>}
-          {canReadSummary && <Tab id="summary">{t('library.minutes')}</Tab>}
+          {canReadSummary && (
+            <Tab id="summary">{t('recordOverview.title')}</Tab>
+          )}
           {canReadSummary && (
             <Tab id="chapters">{t('recordAi.sections.chapters')}</Tab>
           )}
@@ -651,22 +653,15 @@ function WorkspaceContent({
               id={contentTab}
               className={css({ padding: { base: '1rem 0', md: '2rem' } })}
             >
-              {humanId !== undefined && contentTab === 'summary' ? (
-                <HumanSummaryRevision
-                  key={`${viewerId}:${record.id}:${humanId}`}
+              {contentTab === 'summary' ? (
+                <RecordOverviewPanel
                   viewerId={viewerId}
                   recordId={record.id}
-                  versionId={humanId}
-                  canReadTranscript={canReadText}
-                  linked
                   onSourceAudio={
-                    // A capture's clock starts at its own session, so a citation's
-                    // record-clock offset has to be rebased. An import's clock is the
-                    // record's, so the offset is already the answer.
                     canPlayUpload
-                      ? (ms: number) => seekTo(ms)
+                      ? seekTo
                       : playable && source
-                        ? (ms: number) =>
+                        ? (ms) =>
                             seekTo(
                               ms -
                                 (Date.parse(source.started_at) -
@@ -677,20 +672,15 @@ function WorkspaceContent({
                 />
               ) : (
                 <RecordSummaryPanel
-                  chaptersOnly={contentTab === 'chapters'}
+                  chaptersOnly
                   showHeading={false}
-                  selectedVersionId={summaryId}
-                  key={`${viewerId}:${record.id}`}
                   viewerId={viewerId}
                   recordId={record.id}
                   onSourceAudio={
-                    // A capture's clock starts at its own session, so a citation's
-                    // record-clock offset has to be rebased. An import's clock is the
-                    // record's, so the offset is already the answer.
                     canPlayUpload
-                      ? (ms: number) => seekTo(ms)
+                      ? seekTo
                       : playable && source
-                        ? (ms: number) =>
+                        ? (ms) =>
                             seekTo(
                               ms -
                                 (Date.parse(source.started_at) -
@@ -700,13 +690,6 @@ function WorkspaceContent({
                   }
                 />
               )}
-
-              {contentTab === 'summary' &&
-                summaryId === undefined &&
-                humanId === undefined &&
-                record.source_type === 'meeting' && (
-                  <LegacySummary viewerId={viewerId} recordId={record.id} />
-                )}
             </TabPanel>
           ))}
         {canReadText && record.source_type !== 'meeting' && (
@@ -843,6 +826,12 @@ export function RecordWorkspace({
   const translations = search.get('tab') === 'translations'
   const summary = search.get('tab') === 'summary'
   const chapters = search.get('tab') === 'chapters'
+  const overview = search.get('tab') === 'overview'
+  const document =
+    summary ||
+    summaryId !== undefined ||
+    humanId !== undefined ||
+    search.get('review') === 'true'
   const query = useMeetingRecord(viewerId, recordId, true)
   /**
    * 权限被撤销(401/403/404)时**不能再显示任何私有内容** —— 连标题都不行。
@@ -858,19 +847,11 @@ export function RecordWorkspace({
         <div className={pageFixedTop}>
           <div className={detailHeaderStack}>
             <Link
-              href={
-                summary || summaryId !== undefined
-                  ? '/meeting/minutes'
-                  : '/meeting/notes'
-              }
+              href={document ? '/meeting/minutes' : '/meeting/notes'}
               className={backLink}
             >
               <RiArrowLeftLine size={20} aria-hidden />
-              {t(
-                summary || summaryId !== undefined
-                  ? 'minutesLibrary.back'
-                  : 'library.back'
-              )}
+              {t(document ? 'minutesLibrary.back' : 'library.back')}
             </Link>
             {record && (
               <div
@@ -882,9 +863,13 @@ export function RecordWorkspace({
                 })}
               >
                 <h1 className={recordTitleCls}>
-                  {record.title || t('library.untitled')}
+                  {document
+                    ? t('recordOverview.documentTitle', {
+                        title: record.title || t('library.untitled'),
+                      })
+                    : record.title || t('library.untitled')}
                 </h1>
-                {record.capabilities.rename && (
+                {!document && record.capabilities.rename && (
                   <RecordRenameControl
                     viewerId={viewerId}
                     recordId={record.id}
@@ -920,18 +905,72 @@ export function RecordWorkspace({
             </StateHint>
           ) : !record ? (
             <StateHint state="loading">{t('loading')}</StateHint>
+          ) : document ? (
+            <div
+              className={css({
+                overflowY: 'auto',
+                minHeight: 0,
+                flex: '1 1 0',
+                padding: { base: 'lg', md: '2xl' },
+              })}
+            >
+              <h2
+                className={css({
+                  textStyle: 'headlineLarge',
+                  marginBottom: 'lg',
+                  overflowWrap: 'anywhere',
+                })}
+              >
+                {t('recordOverview.documentTitle', {
+                  title: record.title || t('library.untitled'),
+                })}
+              </h2>
+              <p className={metaLine}>
+                {record.owner?.trim() || t('library.ownerUnknown')} ·{' '}
+                {formatDateTime(record.origin_at)}
+              </p>
+              {record.capabilities.read_transcript && (
+                <Link href={`/meeting/records/${record.id}?tab=overview`}>
+                  {t('recordOverview.backToRecord')}
+                </Link>
+              )}
+              {!record.capabilities.read_summary ? (
+                <StateHint>{t('recordAi.unavailable')}</StateHint>
+              ) : humanId !== undefined ? (
+                <HumanSummaryRevision
+                  key={`${viewerId}:${record.id}:${humanId}`}
+                  viewerId={viewerId}
+                  recordId={record.id}
+                  versionId={humanId}
+                  canReadTranscript={record.capabilities.read_transcript}
+                  linked
+                />
+              ) : (
+                <>
+                  <RecordSummaryPanel
+                    key={`${viewerId}:${record.id}:${summaryId ?? 'latest'}:${search.get('review')}`}
+                    showHeading={false}
+                    selectedVersionId={summaryId}
+                    viewerId={viewerId}
+                    recordId={record.id}
+                  />
+                  {summaryId === undefined &&
+                    record.source_type === 'meeting' && (
+                      <LegacySummary viewerId={viewerId} recordId={record.id} />
+                    )}
+                </>
+              )}
+            </div>
           ) : (
             <TranscriptDraftScope
               key={`${viewerId}:${recordId}:${record.capabilities.read_transcript}`}
             >
               <WorkspaceContent
-                key={`${viewerId}:${recordId}:${summaryId ?? 'all'}:${humanId ?? 'none'}:${translations}:${summary}`}
+                key={`${viewerId}:${recordId}:${translations}:${overview}:${chapters}`}
                 viewerId={viewerId}
                 record={record}
-                summaryId={summaryId}
-                humanId={humanId}
                 translations={translations}
-                summary={summary}
+                overview={overview}
                 chapters={chapters}
               />
             </TranscriptDraftScope>

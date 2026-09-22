@@ -805,6 +805,28 @@
     "emptyHint": "Try another category or search, or generate minutes from a meeting record.",
     "recordedAt": "Meeting time"
   },
+  "recordOverview": {
+    "title": "Overview",
+    "hint": "A quick overview of the recording and its main points.",
+    "openMinutes": "Open AI minutes",
+    "empty": "No overview yet. Generate one directly from the transcript.",
+    "documentTitle": "AI minutes: {{title}}",
+    "backToRecord": "View recording and overview",
+    "generate": "Generate overview",
+    "regenerate": "Regenerate overview",
+    "retry": "Retry overview generation",
+    "resubmit": "Check previous overview request",
+    "generating": "Generating overview…",
+    "failed": "Overview generation did not finish. Any previous overview is preserved. Refresh to retry or regenerate.",
+    "accepted": "Overview generation requested.",
+    "uncertain": "The overview request outcome is unknown. Check the same request again.",
+    "conflict": "The transcript or overview job changed. Refresh and try again.",
+    "rateLimited": "Too many overview requests. Try again later.",
+    "waitSource": "Finish recording and transcription first. Oversized transcripts cannot be processed yet.",
+    "sourceChanged": "The transcript has changed. This is the previous overview.",
+    "unavailable": "Overview generation is currently unavailable.",
+    "storageError": "Cannot save the overview request. Allow session storage and try again."
+  },
   "minutesReader": {
     "tools": "Minutes tools",
     "ask": "Ask AI",

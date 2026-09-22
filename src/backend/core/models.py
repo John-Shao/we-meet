@@ -1930,6 +1930,7 @@ class MeetingProcessingJob(BaseModel):
     class Kind(models.TextChoices):
         TRANSCRIPTION = "transcription", _("Transcription")
         SUMMARY = "summary", _("Summary")
+        OVERVIEW = "overview", _("Overview")
         DOC = "doc", _("Document")
         DELIVERY = "delivery", _("Delivery")
 
@@ -2044,6 +2045,46 @@ class MeetingTranscriptVersion(BaseModel):
         super().clean()
         if not self._state.adding:
             raise ValidationError("Transcript versions are immutable.")
+
+
+class MeetingOverviewVersion(BaseModel):
+    """Recording digest generated from original text, never from meeting minutes."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="overview_versions"
+    )
+    job = models.OneToOneField(
+        MeetingProcessingJob, on_delete=models.RESTRICT, related_name="overview_version"
+    )
+    input_snapshot = models.ForeignKey(
+        MeetingTranscriptVersion, on_delete=models.RESTRICT, related_name="overviews"
+    )
+    content = models.JSONField()
+    model_used = models.CharField(max_length=128)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+
+    def __str__(self):
+        return f"OverviewVersion({self.record_id}, {self.job_id})"
+
+    def clean(self):
+        """Keep outputs immutable and tied to their own source and job kind."""
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Overview versions are immutable.")
+        if (
+            self.job_id
+            and self.input_snapshot_id
+            and (
+                self.job.kind != "overview"
+                or self.job.record_id != self.record_id
+                or self.input_snapshot.record_id != self.record_id
+                or self.job.input_snapshot_id != self.input_snapshot_id
+                or self.job.input_revision != self.input_snapshot.revision
+            )
+        ):
+            raise ValidationError("Overview input must match its job and record.")
 
 
 class MeetingSummaryVersion(BaseModel):

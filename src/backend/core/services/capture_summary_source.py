@@ -20,10 +20,14 @@ def staged_enabled():
     )
 
 
-def source(record, *, allow_live=False):
+def source(record, *, allow_live=False, purpose="summary"):
     """Freeze exactly one capture, its successful ASR generation and real originals."""
     if (
-        not settings.MEETING_CAPTURE_SUMMARY_ENABLED
+        not (
+            settings.MEETING_OVERVIEW_ENABLED
+            if purpose == "overview"
+            else settings.MEETING_CAPTURE_SUMMARY_ENABLED
+        )
         or not settings.MEETING_CAPTURE_PROTOCOL_ENABLED
     ):
         raise RecordConflict("Standalone summaries are disabled.")

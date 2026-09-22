@@ -20,7 +20,9 @@ from rest_framework.throttling import UserRateThrottle
 
 from core import models
 from core.services import (
+    meeting_overviews,
     record_lifecycle,
+    record_purge,
     speaker_activity,
     speaker_attribution,
     transcript_corrections,
@@ -52,7 +54,6 @@ from core.services.meeting_summary_requests import (
 )
 from core.services.meeting_summary_versions import source_payload, summary_readiness
 from core.services.record_media_timing import media_timing
-from core.services import record_purge
 from core.services.uploaded_recordings import (
     media_available,
     media_read_url,
@@ -408,7 +409,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         """Polling does not consume the generation request allowance."""
         return (
             [SummaryRequestThrottle()]
-            if self.action == "summary_requests"
+            if self.action in {"summary_requests", "overview_requests"}
             or (self.action == "summary_automation" and self.request.method == "POST")
             else super().get_throttles()
         )
@@ -649,6 +650,86 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         ):
             raise PermissionDenied("This material has not been shared with you.")
         return record
+
+    @action(detail=True, methods=["get"], url_path="overview")
+    def overview(self, request, pk=None):
+        """Read only the independently generated overview and its own job."""
+        record = self._content_record("read_summary")
+        job = (
+            record.processing_jobs.filter(kind="overview")
+            .order_by("-generation")
+            .first()
+        )
+        version = record.overview_versions.select_related("input_snapshot").first()
+        try:
+            fingerprint = meeting_overviews.source(record)[1]
+        except RecordConflict:
+            fingerprint = None
+        content = None
+        if version:
+            content = {
+                "id": str(version.pk),
+                "content": version.content,
+                "created_at": version.created_at,
+                "input_snapshot_id": str(version.input_snapshot_id),
+                "input_revision": version.input_snapshot.revision,
+                "asr_status": snapshot_asr_status(version.input_snapshot.delivery),
+                "is_current": record.revision == version.input_snapshot.revision
+                and fingerprint == version.input_snapshot.fingerprint,
+            }
+        self._content_record("read_summary")
+        return Response(
+            {
+                "revision": record.revision,
+                "available": meeting_overviews.enabled(),
+                "can_generate": meeting_overviews.enabled()
+                and meeting_overviews.can_generate(record, request.user),
+                "generation_ready": fingerprint is not None,
+                "job": serialize_summary_job(job),
+                "version": content,
+            }
+        )
+
+    @action(detail=True, methods=["post"], url_path="overview-requests")
+    def overview_requests(self, request, pk=None):
+        """Generate directly from original text without touching any minutes."""
+        if not requests_enabled("overview"):
+            raise Http404
+        record = self._content_record("read_summary")
+        key = serializers.UUIDField().run_validation(
+            request.headers.get("Idempotency-Key")
+        )
+        serializer = SummaryRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if serializer.validated_data.get("stage", "final") != "final":
+            raise ValidationError("Overviews do not have minutes stages.")
+        try:
+            intent, replay = request_summary(
+                record.pk, request.user, key, serializer.validated_data, kind="overview"
+            )
+        except SummaryRequestDenied as exc:
+            raise PermissionDenied(
+                "Only current source managers can generate overviews."
+            ) from exc
+        except (RecordConflict, IntegrityError, ModelValidationError):
+            return Response(
+                {
+                    "code": "overview_request_conflict",
+                    "message": "Refresh the source and overview job before requesting.",
+                },
+                status=409,
+            )
+        intent.refresh_from_db()
+        intent.job.refresh_from_db()
+        return Response(
+            {
+                "request_id": str(intent.pk),
+                "replayed": replay,
+                "dispatch_state": intent.dispatch_state,
+                "job": serialize_summary_job(intent.job),
+            },
+            status=202,
+        )
 
     @action(detail=True, methods=["get"], url_path="summary-job")
     def summary_job(self, request, pk=None):

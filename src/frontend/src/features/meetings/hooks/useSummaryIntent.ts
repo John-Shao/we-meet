@@ -48,6 +48,7 @@ export const isAutomationPayload = (
 export function useSummaryIntent<T>(
   kind:
     | 'summary'
+    | 'overview'
     | 'automation'
     | 'online-capture'
     | 'capture-translation'

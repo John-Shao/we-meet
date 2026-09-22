@@ -226,6 +226,10 @@ def record_capabilities(record, user):
         ),
         "manage": False,
         "capture": False,
+        "generate_overview": bool(
+            settings.CELERY_ENABLED and settings.MEETING_OVERVIEW_ENABLED
+            and scoped and scoped.can_read_transcript and scoped.can_manage_record
+        ),
         "generate_summary": bool(
             settings.CELERY_ENABLED
             and settings.MEETING_SUMMARY_REQUESTS_ENABLED

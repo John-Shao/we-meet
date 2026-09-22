@@ -1,12 +1,15 @@
 """User-authorized summary intent, optimistic concurrency and durable dispatch."""
 
+from datetime import timedelta
 from functools import partial
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from core import models
+from core.services import meeting_overviews
 from core.services.meeting_records import (
     RecordConflict,
     can_generate_summary,
@@ -23,8 +26,10 @@ class SummaryRequestDenied(Exception):
     """Authorization was revoked or does not include generation."""
 
 
-def requests_enabled():
-    """Both data and processing rollouts must be enabled for public mutations."""
+def requests_enabled(kind="summary"):
+    """Check the processing rollout for the requested artifact."""
+    if kind == "overview":
+        return meeting_overviews.enabled()
     return (
         settings.MEETING_RECORDS_ENABLED
         and settings.MEETING_VERSIONED_SUMMARY_ENABLED
@@ -34,14 +39,27 @@ def requests_enabled():
 
 
 @transaction.atomic
-def request_summary(record_id, user, key, payload):
+def request_summary(record_id, user, key, payload, *, kind="summary"):
     """Commit one intent per caller key; replays cannot advance generation/attempt."""
     record = models.MeetingRecord.objects.select_for_update().get(pk=record_id)
-    if not requests_enabled() or not can_generate_summary(record, user):
+    if kind not in {"summary", "overview"}:
+        raise SummaryRequestDenied
+    can_generate = (
+        meeting_overviews.can_generate if kind == "overview" else can_generate_summary
+    )
+    current_source = (
+        meeting_overviews.source_is_current if kind == "overview" else source_is_current
+    )
+    prepare = meeting_overviews.prepare if kind == "overview" else prepare_summary_job
+    if not requests_enabled(kind) or not can_generate(record, user):
         raise SummaryRequestDenied
     existing = models.MeetingSummaryRequest.objects.filter(user=user, key=key).first()
     if existing:
-        if existing.record_id != record.pk or existing.payload != payload:
+        if (
+            existing.record_id != record.pk
+            or existing.payload != payload
+            or existing.job.kind != kind
+        ):
             raise RecordConflict("Idempotency key was used for another request.")
         transaction.on_commit(
             partial(dispatch_summary_request, existing.pk), robust=True
@@ -49,9 +67,7 @@ def request_summary(record_id, user, key, payload):
         return existing, True
     if record.revision != payload["expected_revision"]:
         raise RecordConflict("Record revision changed; refresh before requesting.")
-    latest = (
-        record.processing_jobs.filter(kind="summary").order_by("-generation").first()
-    )
+    latest = record.processing_jobs.filter(kind=kind).order_by("-generation").first()
     if (str(latest.pk) if latest else None, latest.attempt if latest else None) != (
         payload["expected_job_id"],
         payload["expected_attempt"],
@@ -64,7 +80,7 @@ def request_summary(record_id, user, key, payload):
             latest is None
             or latest.input_snapshot_id is None
             or latest.configuration.get("stage", "final") != stage
-            or not source_is_current(latest)
+            or not current_source(latest)
         ):
             raise RecordConflict(
                 "Retry source has changed; generate from current text."
@@ -90,9 +106,7 @@ def request_summary(record_id, user, key, payload):
             )
         ):
             raise RecordConflict("Wait for the current generation to finish.")
-        job = prepare_summary_job(
-            record.pk, regenerate=operation == "regenerate", stage=stage
-        )
+        job = prepare(record.pk, regenerate=operation == "regenerate", stage=stage)
     # Pin the initiating user only for a newly requested, not-yet-running job.
     if (
         job.status == "queued"
@@ -121,7 +135,11 @@ def dispatch_summary_request(request_id):
         .filter(pk=request_id)
         .first()
     )
-    if request is None or request.dispatch_state != "pending" or not requests_enabled():
+    if (
+        request is None
+        or request.dispatch_state != "pending"
+        or not requests_enabled(request.job.kind)
+    ):
         return False
     record = models.MeetingRecord.objects.select_for_update().get(pk=request.record_id)
     request = (
@@ -132,8 +150,10 @@ def dispatch_summary_request(request_id):
     if request.dispatch_state != "pending":
         return False
     job = request.job
-    authorized = can_generate_summary(record, request.user) and requester_is_authorized(
-        job
+    authorized = (
+        meeting_overviews.authorized(job)
+        if job.kind == "overview"
+        else can_generate_summary(record, request.user) and requester_is_authorized(job)
     )
     if (
         job.status != "queued"
@@ -168,7 +188,9 @@ def dispatch_summary_request(request_id):
                     socket_timeout=3, socket_connect_timeout=3
                 )
                 app.send_task(
-                    "core.tasks.summary_versions.generate_record_summary",
+                    "core.tasks.summary_versions.generate_record_overview"
+                    if job.kind == "overview"
+                    else "core.tasks.summary_versions.generate_record_summary",
                     args=[str(job.pk), request.attempt],
                     connection=connection,
                     retry=False,
@@ -187,6 +209,25 @@ def dispatch_summary_request(request_id):
         ]
     )
     return request.dispatch_state == "sent"
+
+
+def dispatch_pending_overviews():
+    """Recover overview outbox rows even when minutes automation is disabled."""
+    if not requests_enabled("overview"):
+        return
+    ids = (
+        models.MeetingSummaryRequest.objects.filter(
+            job__kind="overview", dispatch_state="pending"
+        )
+        .filter(
+            Q(dispatch_attempted_at__isnull=True)
+            | Q(dispatch_attempted_at__lt=timezone.now() - timedelta(seconds=30))
+        )
+        .order_by("created_at")
+        .values_list("pk", flat=True)[:50]
+    )
+    for request_id in list(ids):
+        dispatch_summary_request(request_id)
 
 
 def serialize_summary_job(job):

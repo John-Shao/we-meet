@@ -7,8 +7,8 @@ import pytest
 
 from core import models
 from core.factories import UserFactory
+from core.services import meeting_overviews, uploaded_recordings
 from core.services import meeting_record_qa as qa
-from core.services import uploaded_recordings
 from core.services.meeting_records import (
     RecordConflict,
     can_edit_transcript,
@@ -19,6 +19,8 @@ from core.services.meeting_summary_versions import (
     prepare_summary_job,
     summary_readiness,
 )
+from core.tests.services.test_meeting_overviews import output as overview_output
+from core.tests.services.test_meeting_overviews import request as request_overview
 from core.tests.services.test_meeting_record_qa import output as answer_output
 from core.tests.services.test_meeting_records import client_for
 from core.tests.services.test_meeting_summary_requests import payload, post
@@ -58,6 +60,19 @@ def published():
     job.refresh_from_db()
     job.record.refresh_from_db()
     return owner, job
+
+
+def test_import_overview_reads_uploaded_originals_without_a_summary(settings):
+    owner, upload_job = published()
+    settings.MEETING_VERSIONED_SUMMARY_ENABLED = False
+    settings.MEETING_SUMMARY_REQUESTS_ENABLED = False
+    assert request_overview(owner, upload_job.record).status_code == 202
+    job = upload_job.record.processing_jobs.get(kind="overview")
+    assert job.input_snapshot.segments[0]["text"] == "Original words"
+    with patch("core.services.meeting_overviews.LLMClient") as llm:
+        llm.return_value.chat.return_value = overview_output(job)
+        assert meeting_overviews.execute(job.pk, 1)
+    assert not models.MeetingSummaryVersion.objects.exists()
 
 
 def test_upload_correction_to_public_summary_and_immutable_citation(settings):

@@ -790,6 +790,28 @@
     "emptyHint": "Versuchen Sie eine andere Kategorie oder Suche, oder erstellen Sie ein Protokoll aus einer Besprechungsaufzeichnung.",
     "recordedAt": "Besprechungszeit"
   },
+  "recordOverview": {
+    "title": "Überblick",
+    "hint": "Ein kurzer Überblick über die Aufnahme und ihre Kernaussagen.",
+    "openMinutes": "KI-Protokoll öffnen",
+    "empty": "Noch kein Überblick. Erstellen Sie ihn direkt aus dem Transkript.",
+    "documentTitle": "KI-Protokoll: {{title}}",
+    "backToRecord": "Aufnahme und Überblick ansehen",
+    "generate": "Überblick erstellen",
+    "regenerate": "Überblick neu erstellen",
+    "retry": "Erstellung erneut versuchen",
+    "resubmit": "Vorherige Anfrage prüfen",
+    "generating": "Überblick wird erstellt…",
+    "failed": "Die Erstellung wurde nicht abgeschlossen. Der bisherige Überblick bleibt erhalten. Aktualisieren Sie die Ansicht, um es erneut zu versuchen.",
+    "accepted": "Die Erstellung wurde angefordert.",
+    "uncertain": "Das Ergebnis der Anfrage ist unklar. Prüfen Sie dieselbe Anfrage erneut.",
+    "conflict": "Transkript oder Auftrag geändert. Bitte aktualisieren und erneut versuchen.",
+    "rateLimited": "Zu viele Anfragen. Bitte später erneut versuchen.",
+    "waitSource": "Schließen Sie zuerst Aufnahme und Transkription ab. Zu lange Transkripte können noch nicht verarbeitet werden.",
+    "sourceChanged": "Das Transkript wurde geändert. Dies ist der bisherige Überblick.",
+    "unavailable": "Die Erstellung ist derzeit nicht verfügbar.",
+    "storageError": "Die Anfrage konnte nicht gespeichert werden. Erlauben Sie Sitzungsspeicher und versuchen Sie es erneut."
+  },
   "minutesReader": {
     "tools": "Protokollwerkzeuge",
     "ask": "KI fragen",

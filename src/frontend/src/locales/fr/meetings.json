@@ -790,6 +790,28 @@
     "emptyHint": "Essayez une autre catégorie ou un autre terme, ou générez un compte-rendu depuis les archives de réunion.",
     "recordedAt": "Date de la réunion"
   },
+  "recordOverview": {
+    "title": "Aperçu",
+    "hint": "Un aperçu de l’enregistrement et de ses points clés.",
+    "openMinutes": "Ouvrir le compte rendu IA",
+    "empty": "Aucun aperçu. Générez-le directement à partir de la transcription.",
+    "documentTitle": "Compte rendu IA : {{title}}",
+    "backToRecord": "Voir l’enregistrement et l’aperçu",
+    "generate": "Générer l’aperçu",
+    "regenerate": "Régénérer l’aperçu",
+    "retry": "Réessayer la génération",
+    "resubmit": "Vérifier la demande précédente",
+    "generating": "Génération de l’aperçu…",
+    "failed": "La génération n’a pas abouti. L’aperçu précédent est conservé. Actualisez pour réessayer.",
+    "accepted": "Génération de l’aperçu demandée.",
+    "uncertain": "Le résultat de la demande est inconnu. Vérifiez à nouveau la même demande.",
+    "conflict": "La transcription ou la tâche a changé. Actualisez puis réessayez.",
+    "rateLimited": "Trop de demandes. Réessayez plus tard.",
+    "waitSource": "Terminez d’abord l’enregistrement et la transcription. Les transcriptions trop longues ne sont pas encore prises en charge.",
+    "sourceChanged": "La transcription a changé. Ceci est l’aperçu précédent.",
+    "unavailable": "La génération est actuellement indisponible.",
+    "storageError": "Impossible d’enregistrer la demande. Autorisez le stockage de session puis réessayez."
+  },
   "minutesReader": {
     "tools": "Outils du compte-rendu",
     "ask": "Demander à l’IA",

@@ -102,13 +102,17 @@ def _source_ended(record):
     )
 
 
-def _source_input(record, *, require_ended=True, enforce_budget=True):
+def _source_input(
+    record, *, require_ended=True, enforce_budget=True, purpose="summary"
+):
     """Read all confirmed legacy rows, never truncate or choose another session."""
     if record.meeting_session_id is None:
         if record.source_type == models.MeetingRecord.Source.UPLOAD:
             segments, delivery = upload_source(record)
         else:
-            segments, delivery = capture_source(record, allow_live=not require_ended)
+            segments, delivery = capture_source(
+                record, allow_live=not require_ended, purpose=purpose
+            )
         return _fingerprint(record, segments, delivery, enforce_budget=enforce_budget)
     session = record.meeting_session
     if session.room.organization_id != record.organization_id:

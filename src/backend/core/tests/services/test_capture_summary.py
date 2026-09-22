@@ -8,7 +8,7 @@ import pytest
 
 from core import models
 from core.factories import MembershipFactory, UserFactory
-from core.services import meeting_record_qa, meeting_summary_review
+from core.services import meeting_overviews, meeting_record_qa, meeting_summary_review
 from core.services.meeting_records import RecordConflict, can_generate_summary
 from core.services.meeting_summary_versions import (
     execute_summary_job,
@@ -27,6 +27,8 @@ from core.tests.services.test_capture_transcription import (
     running,
     saved,
 )
+from core.tests.services.test_meeting_overviews import output as overview_output
+from core.tests.services.test_meeting_overviews import request as request_overview
 from core.tests.services.test_meeting_record_qa import output as question_output
 from core.tests.services.test_meeting_records import client_for
 from core.tests.services.test_meeting_summary_requests import payload, post
@@ -60,6 +62,20 @@ def published():
     assert finish(asr["id"], worker).data["status"] == "succeeded"
     capture.record.refresh_from_db()
     return user, capture, asr
+
+
+def test_native_overview_generates_from_asr_when_minutes_are_disabled(settings):
+    user, capture, _ = published()
+    settings.MEETING_CAPTURE_SUMMARY_ENABLED = False
+    settings.MEETING_VERSIONED_SUMMARY_ENABLED = False
+    settings.MEETING_SUMMARY_REQUESTS_ENABLED = False
+    assert request_overview(user, capture.record).status_code == 202
+    job = capture.record.processing_jobs.get(kind="overview")
+    with patch("core.services.meeting_overviews.LLMClient") as llm:
+        llm.return_value.chat.return_value = overview_output(job)
+        assert meeting_overviews.execute(job.pk, 1)
+    assert models.MeetingOverviewVersion.objects.count() == 1
+    assert not models.MeetingSummaryVersion.objects.exists()
 
 
 def test_public_native_summary_keeps_real_source_identity_and_exact_references():
