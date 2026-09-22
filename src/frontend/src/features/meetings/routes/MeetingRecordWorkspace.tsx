@@ -40,6 +40,7 @@ import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { HumanSummaryRevision } from '../components/HumanSummaryHistory'
 import { RecordSummaryPanel } from '../components/RecordSummaryPanel'
 import { RecordOverviewPanel } from '../components/RecordOverviewPanel'
+import { MaterialActions } from '../components/MaterialActions'
 import { mediaDuration, validMediaDuration } from '../recordMediaTiming'
 import { SpeakerActivity } from '../components/SpeakerActivity'
 import { RecordMediaDownload } from '../components/RecordMediaDownload'
@@ -512,7 +513,7 @@ function WorkspaceContent({
     if (isUpload) uploadMedia.current?.seek(milliseconds)
     else player.current?.seek(milliseconds)
   }
-  const canReadSummary = record.capabilities.read_summary
+  const canReadSummary = record.capabilities.read_transcript
   const selectedTab =
     (tab === 'text' || tab === 'speakers' || tab === 'translations') &&
     !canReadText
@@ -571,7 +572,9 @@ function WorkspaceContent({
           )}
           <Tab id="info">{t('library.info')}</Tab>
           {canReadText &&
-            (record.source_type === 'meeting' || isUpload || captureId) && (
+            (record.source_type === 'meeting' ||
+              isUpload ||
+              (captureId && record.capabilities.control_capture)) && (
               <Tab id="translations">{t('translationArchive.title')}</Tab>
             )}
         </TabList>
@@ -592,7 +595,7 @@ function WorkspaceContent({
                 viewerId={viewerId}
               />
             )}
-            {readableCapture ? (
+            {readableCapture && record.capabilities.control_capture ? (
               <CaptureTranscriptionPanel
                 key={`${viewerId}:${source.id}`}
                 viewerId={viewerId}
@@ -609,9 +612,11 @@ function WorkspaceContent({
                 key={`${record.id}:${record.revision}`}
                 record={record}
                 viewerId={viewerId}
-                activeId={canPlayUpload ? follow.activeId : undefined}
-                follow={canPlayUpload ? follow : undefined}
-                onSource={canPlayUpload ? seekTo : undefined}
+                activeId={
+                  canPlayUpload || playable ? follow.activeId : undefined
+                }
+                follow={canPlayUpload || playable ? follow : undefined}
+                onSource={canPlayUpload || playable ? seekTo : undefined}
               />
             )}
           </TabPanel>
@@ -637,6 +642,7 @@ function WorkspaceContent({
         )}
         {canReadText &&
           captureId &&
+          record.capabilities.control_capture &&
           record.source_type === 'audio_recording' && (
             <TabPanel id="translations" padding="md">
               <CaptureTranslationArchives
@@ -671,9 +677,8 @@ function WorkspaceContent({
                   }
                 />
               ) : (
-                <RecordSummaryPanel
+                <RecordOverviewPanel
                   chaptersOnly
-                  showHeading={false}
                   viewerId={viewerId}
                   recordId={record.id}
                   onSourceAudio={
@@ -874,6 +879,18 @@ export function RecordWorkspace({
                     viewerId={viewerId}
                     recordId={record.id}
                     title={record.title}
+                  />
+                )}
+                {(document
+                  ? record.capabilities.read_summary
+                  : record.capabilities.read_transcript) && (
+                  <MaterialActions
+                    key={`${viewerId}:${record.id}:${document}`}
+                    recordId={record.id}
+                    viewerId={viewerId}
+                    scope={document ? 'minutes' : 'record'}
+                    title={record.title || t('library.untitled')}
+                    originAt={record.origin_at}
                   />
                 )}
               </div>

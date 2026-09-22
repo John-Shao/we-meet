@@ -2,6 +2,7 @@
 
 from django.core.exceptions import ValidationError as ModelValidationError
 from django.db import IntegrityError
+from django.db.models import Q
 from django.http import Http404
 
 from rest_framework import permissions, serializers, viewsets
@@ -110,7 +111,7 @@ def operation_response(operation, replay, *, status):
 
 
 class CaptureSessionViewSet(CaptureProtocolMixin, viewsets.GenericViewSet):
-    """Only the current capture creator can inspect device state or control it."""
+    """Recording collaborators read stopped media; device writes stay creator-only."""
 
     permission_classes = [permissions.IsAuthenticated]
 
@@ -119,6 +120,10 @@ class CaptureSessionViewSet(CaptureProtocolMixin, viewsets.GenericViewSet):
             pk=self.request.user.pk, is_active=True
         ).exists():
             return models.CaptureSession.objects.none()
+        if self.action == "retrieve":
+            return models.CaptureSession.objects.filter(
+                record_id__in=visible_records(self.request.user, ability="read_transcript").filter(collaboration_media=True).values("pk"),
+            ).filter(Q(created_by=self.request.user) | Q(status="stopped"))
         return models.CaptureSession.objects.filter(
             created_by=self.request.user,
             record_id__in=visible_records(self.request.user, ability="read_transcript")
@@ -151,7 +156,12 @@ class CaptureSessionViewSet(CaptureProtocolMixin, viewsets.GenericViewSet):
         return operation_response(operation, replay, status=200 if replay else 201)
 
     def retrieve(self, request, pk=None):
-        return Response(capture_state(self.get_object()))
+        capture = self.get_object()
+        state = capture_state(capture)
+        if capture.created_by_id != request.user.pk:
+            state["device_id"] = ""
+            state.pop("audio_retention", None)
+        return Response(state)
 
     @action(detail=True, methods=["post"])
     def commands(self, request, pk=None):

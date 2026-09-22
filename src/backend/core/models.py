@@ -1123,6 +1123,67 @@ class MeetingRecordAccess(BaseModel):
         return f"MeetingRecordAccess({self.record_id}, {self.user_id})"
 
 
+class MeetingCollaboration(BaseModel):
+    """Independent access policy for a record or its minutes document."""
+
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE, related_name="collaboration_policies")
+    scope = models.CharField(max_length=10, choices=[("record", "Record"), ("minutes", "Minutes")])
+    owner = models.ForeignKey(User, null=True, blank=True, on_delete=models.PROTECT, related_name="owned_meeting_materials")
+    link_scope = models.CharField(max_length=16, default="private", choices=[("private", "Collaborators"), ("organization", "Organization")])
+    revision = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["record", "scope"], name="unique_meeting_collaboration")]
+
+
+class MeetingCollaborator(BaseModel):
+    """An explicit role overrides legacy access only for this object and user."""
+
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE, related_name="collaborators")
+    scope = models.CharField(max_length=10, choices=[("record", "Record"), ("minutes", "Minutes")])
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="meeting_collaborations")
+    role = models.CharField(max_length=10, choices=[("reader", "Reader"), ("editor", "Editor"), ("manager", "Manager"), ("none", "Removed")])
+    # Existing transcript-only grants must never acquire media access implicitly.
+    media = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["record", "scope", "user"], name="unique_meeting_collaborator")]
+
+
+class MeetingCollaborationTeam(BaseModel):
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE, related_name="collaboration_teams")
+    scope = models.CharField(max_length=10, choices=[("record", "Record"), ("minutes", "Minutes")])
+    team = models.CharField(max_length=100)
+    role = models.CharField(max_length=10, choices=[("reader", "Reader"), ("editor", "Editor"), ("manager", "Manager")])
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["record", "scope", "team"], name="unique_meeting_collaboration_team")]
+
+
+class MeetingCollaborationReceipt(BaseModel):
+    policy = models.ForeignKey(MeetingCollaboration, on_delete=models.CASCADE)
+    actor = models.ForeignKey(User, on_delete=models.CASCADE)
+    key = models.UUIDField()
+    request_hash = models.CharField(max_length=64)
+    result = models.JSONField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["actor", "key"], name="unique_meeting_collaboration_receipt")]
+
+
+class MeetingCollaborationNotice(BaseModel):
+    receipt = models.ForeignKey(MeetingCollaborationReceipt, on_delete=models.CASCADE, related_name="notices")
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE)
+    note = models.CharField(max_length=1000, blank=True)
+    body = models.TextField(blank=True)
+    sender_uid = models.UUIDField(null=True, blank=True)
+    conversation_id = models.UUIDField(null=True, blank=True)
+    status = models.CharField(max_length=12, default="pending")
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["receipt", "recipient"], name="unique_collaboration_notice")]
+
+
 class MeetingSummaryShareRequest(BaseModel):
     """Durable explicit sharing receipt; replay never restores a revoked grant."""
 

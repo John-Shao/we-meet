@@ -1460,7 +1460,7 @@ export const ChatPane = ({
                             ? undefined
                             : (card) =>
                                 navigate(
-                                  `/meeting/records/${encodeURIComponent(card.record_id)}?tab=summary`
+                                  `/meeting/records/${encodeURIComponent(card.record_id)}?tab=${card.scope === 'record' ? 'overview' : 'summary'}`
                                 )
                         }
                         onJoinGroupCall={

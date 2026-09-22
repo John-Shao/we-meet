@@ -95,6 +95,7 @@ beforeEach(() => {
       read_transcript: true,
       read_summary: true,
       play_media: true,
+      control_capture: true,
     },
   }
   capture = {
@@ -322,15 +323,17 @@ it('opens a standalone document directly from the minutes library without select
 it('opens chapter navigation directly and rebases its source time for capture playback', async () => {
   window.history.replaceState(null, '', '/meeting/records/record?tab=chapters')
   show()
-  await screen.findByText('chapters-workspace')
+  await screen.findByText('Main talking point')
   expect(
     screen.getByRole('tab', { name: 'recordAi.sections.chapters' })
   ).toHaveAttribute('aria-selected', 'true')
-  fireEvent.click(await screen.findByText('summary-audio'))
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'recordAi.listenSource 0:03' })
+  )
   expect(mocks.seek).toHaveBeenCalledWith(1000)
 })
 
-it('does not expose chapters when summary access is absent', async () => {
+it('exposes recording chapters independently of minutes access', async () => {
   record.capabilities = {
     read_transcript: true,
     read_summary: false,
@@ -338,10 +341,10 @@ it('does not expose chapters when summary access is absent', async () => {
   }
   window.history.replaceState(null, '', '/meeting/records/record?tab=chapters')
   show()
-  await screen.findByText('Private recording')
+  await screen.findByText('Main talking point')
   expect(
     screen.queryByRole('tab', { name: 'recordAi.sections.chapters' })
-  ).not.toBeInTheDocument()
+  ).toBeInTheDocument()
   expect(screen.queryByText('chapters-workspace')).not.toBeInTheDocument()
 })
 
@@ -438,15 +441,15 @@ it('does not mount audio or ASR controls for a recording still running on anothe
 it('summary-only shares never request original text, capture state or audio', async () => {
   record.capture_id = null
   record.capabilities = { read_summary: true, read_transcript: false }
+  window.history.replaceState(null, '', '/meeting/records/record?tab=summary')
   show('reader')
-  await screen.findByText('Recording overview')
+  await screen.findByText('summary-workspace')
   expect(
     screen.queryByRole('tab', { name: 'library.text' })
   ).not.toBeInTheDocument()
   expect(screen.queryByText('summary-audio')).not.toBeInTheDocument()
   expect(vi.mocked(fetchApi).mock.calls.map(([path]) => path)).toEqual([
     'meeting-records/record/',
-    'meeting-records/record/overview/',
   ])
 })
 
@@ -514,7 +517,7 @@ it('transcript-only shares read originals but cannot mount paid or private captu
   ).not.toBeInTheDocument()
   expect(
     screen.queryByRole('tab', { name: 'recordOverview.title' })
-  ).not.toBeInTheDocument()
+  ).toBeInTheDocument()
   expect(
     vi
       .mocked(fetchApi)

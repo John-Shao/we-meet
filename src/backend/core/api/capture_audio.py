@@ -1,5 +1,6 @@
 """Authenticated binary WAV uploads, bounded receipts and explicit storage sealing."""
 
+from django.db.models import Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 
@@ -35,12 +36,16 @@ class SealSerializer(serializers.Serializer):
 
 
 class CaptureAudioView(APIView):
-    """Reading source audio requires both current original-text access and ownership."""
+    """Reads require current recording media access; uploads stay creator-only."""
 
     permission_classes = [permissions.IsAuthenticated]
 
     def capture(self, request, capture_id):
         user = get_object_or_404(models.User, pk=request.user.pk, is_active=True)
+        if request.method in {"GET", "HEAD"}:
+            return get_object_or_404(models.CaptureSession.objects.filter(
+                record_id__in=visible_records(user, ability="read_transcript").filter(collaboration_media=True).values("pk"),
+            ).filter(Q(created_by=user) | Q(status="stopped")), pk=capture_id)
         return get_object_or_404(
             models.CaptureSession.objects.filter(
                 created_by=user,

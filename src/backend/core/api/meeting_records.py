@@ -358,7 +358,7 @@ class MeetingRecordSerializer(serializers.ModelSerializer):
         if obj.source_type == models.MeetingRecord.Source.UPLOAD:
             return None
         captures = getattr(obj, "library_captures", [])
-        if obj.owner_id == self.context["request"].user.pk and len(captures) == 1:
+        if obj.can_read_transcript and obj.collaboration_media and len(captures) == 1:
             return str(captures[0].pk)
         return None
 
@@ -654,7 +654,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=["get"], url_path="overview")
     def overview(self, request, pk=None):
         """Read only the independently generated overview and its own job."""
-        record = self._content_record("read_summary")
+        record = self._content_record("read_transcript")
         job = (
             record.processing_jobs.filter(kind="overview")
             .order_by("-generation")
@@ -677,7 +677,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 "is_current": record.revision == version.input_snapshot.revision
                 and fingerprint == version.input_snapshot.fingerprint,
             }
-        self._content_record("read_summary")
+        self._content_record("read_transcript")
         return Response(
             {
                 "revision": record.revision,
@@ -1324,7 +1324,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         job = getattr(record, "uploaded_recording", None)
         if (
             record.source_type != models.MeetingRecord.Source.UPLOAD
-            or record.owner_id != request.user.pk
+            or not record.collaboration_media
             or not media_available(job)
         ):
             raise Http404

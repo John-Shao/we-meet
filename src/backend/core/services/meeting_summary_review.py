@@ -46,13 +46,7 @@ def can_edit(record, user):
         settings.MEETING_RECORDS_ENABLED
         and settings.MEETING_SUMMARY_REVIEW_ENABLED
         and scoped
-        and (
-            scoped.can_manage_record
-            or (
-                scoped.source_type != models.MeetingRecord.Source.MEETING
-                and scoped.owner_id == user.pk
-            )
-        )
+        and scoped.collaboration_minutes_edit
     )
 
 

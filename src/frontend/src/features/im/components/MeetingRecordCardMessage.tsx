@@ -8,13 +8,14 @@ import { SenderLabel } from './SenderLabel'
 import { Avatar } from './Avatar'
 import { chatCardColumn, chatCardSize } from './chatCardSize'
 import { parseMeetingRecordCard } from './meetingRecordCard'
+import { MeetingMaterialPreview } from './MeetingMaterialPreview'
 
 /**
  * 分享会议记录到聊天(content_type='meeting-record-card')的卡片气泡。
  *
  * 与 doc-card 同构:**普通**消息行(头像/名字/左右对齐,可右键转发),
- * 卡片内容是分享时刻的静态快照。点卡片 → 打开会议记录工作区,直接落到
- * 纪要页签(`?tab=summary`)—— 分享的动机就是「给你看这份纪要」。
+ * 标题是分享时刻的快照；正文预览和角色按当前查看者实时读取。
+ * scope 决定打开实录或智能纪要，旧卡片继续打开纪要。
  *
  * ⚠️ 与 meeting-card(会议邀请)的区别:那张卡点进去是**加入会议**,这张是
  * **读记录**。两者都用 `navigateTo`,但目标路由不同。
@@ -40,7 +41,7 @@ export const MeetingRecordCardMessage = ({
   showSender?: boolean
   onAvatarClick?: () => void
   onContextMenu?: (e: React.MouseEvent) => void
-  onOpen?: (card: { record_id: string }) => void
+  onOpen?: (card: { record_id: string; scope?: 'record' | 'minutes' }) => void
 }) => {
   const { t, i18n } = useTranslation('im')
   const card = parseMeetingRecordCard(body)
@@ -60,7 +61,7 @@ export const MeetingRecordCardMessage = ({
       <button
         type="button"
         disabled={!clickable}
-        onClick={() => clickable && onOpen?.({ record_id: card.record_id })}
+        onClick={() => clickable && onOpen?.(card)}
         data-testid="im-msg-meeting-record-card"
         className={`${chatCardSize({ size: 'standard' })} ${css({
           display: 'flex',
@@ -105,12 +106,20 @@ export const MeetingRecordCardMessage = ({
             {card.title || t('preview.record')}
           </span>
         </span>
-        <span
-          className={css({ fontSize: '0.8125rem', color: 'greyscale.700' })}
-        >
-          {when ?? t('preview.record')}
-        </span>
-        {clickable && (
+        {(when || !card.scope) && (
+          <span
+            className={css({ fontSize: '0.8125rem', color: 'greyscale.700' })}
+          >
+            {when ?? t('preview.record')}
+          </span>
+        )}
+        {card.scope && (
+          <MeetingMaterialPreview
+            recordId={card.record_id}
+            scope={card.scope}
+          />
+        )}
+        {clickable && !card.scope && (
           <span
             className={css({
               fontSize: '0.75rem',

@@ -2,7 +2,7 @@
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import BooleanField, Case, Exists, F, OuterRef, Q, When
+from django.db.models import Exists, F, OuterRef, Q
 from django.utils import timezone
 
 from core import models
@@ -95,19 +95,6 @@ def visible_records(user, *, ability=None, include_trashed=False):
             user=user,
         )
     )
-    grants = models.MeetingRecordAccess.objects.filter(
-        record_id=OuterRef("pk"), user=user
-    )
-    queryset = queryset.annotate(
-        **{
-            f"can_{name}": Case(
-                When(own | legacy | Exists(grants.filter(**{name: True})), then=True),
-                default=False,
-                output_field=BooleanField(),
-            )
-            for name in ("read_summary", "read_transcript")
-        }
-    )
     managers = Exists(
         models.ResourceAccess.objects.filter(
             resource_id=OuterRef("meeting_session__room_id"),
@@ -115,9 +102,12 @@ def visible_records(user, *, ability=None, include_trashed=False):
             role__in=[models.RoleChoices.OWNER, models.RoleChoices.ADMIN],
         )
     )
+    from core.services.meeting_collaboration import annotate_access  # noqa: PLC0415
+
+    queryset = annotate_access(queryset, user, own, legacy, managers)
     queryset = queryset.annotate(
-        can_manage_record=own | managers,
-        can_generate_summary=Q(
+        can_manage_record=F("collaboration_record_edit"),
+        can_generate_summary=Q(collaboration_minutes_edit=True) & (Q(
             source_type=models.MeetingRecord.Source.UPLOAD, owner=user
         )
         | (
@@ -126,7 +116,7 @@ def visible_records(user, *, ability=None, include_trashed=False):
             and settings.MEETING_CAPTURE_PROTOCOL_ENABLED
             else Q(pk__isnull=True)
         )
-        | managers,
+        | managers),
     )
     if ability is None:
         return queryset.filter(Q(can_read_summary=True) | Q(can_read_transcript=True))
@@ -138,7 +128,7 @@ def visible_records(user, *, ability=None, include_trashed=False):
 def record_captures(user):
     """Bounded metadata for the owner's capture link and playable-source status."""
     return (
-        models.CaptureSession.objects.filter(created_by=user)
+        models.CaptureSession.objects.filter(Q(created_by=user) | Q(status="stopped", record_id__in=visible_records(user, ability="read_transcript").filter(collaboration_media=True).values("pk")))
         .select_related("audio_manifest")
         .only("id", "record_id", "status", "audio_manifest")
         .annotate(
@@ -157,11 +147,11 @@ def record_captures(user):
 
 
 def can_play_media(record, user):
-    """Playback remains owner-only; transcript grants do not grant source bytes."""
+    """Explicit recording collaboration includes media; legacy text grants do not."""
     if (
         not record
         or not record.can_read_transcript
-        or record.owner_id != user.pk
+        or not record.collaboration_media
         or record.retention_mode != models.MeetingRecord.Retention.MEDIA
     ):
         return False
@@ -193,6 +183,7 @@ def record_capabilities(record, user):
         "read_summary": bool(scoped and scoped.can_read_summary),
         "read_transcript": bool(scoped and scoped.can_read_transcript),
         "play_media": can_play_media(scoped, user),
+        "control_capture": bool(scoped and scoped.can_read_transcript and scoped.owner_id == user.pk),
         "download_media": bool(
             scoped
             and scoped.source_type == models.MeetingRecord.Source.UPLOAD
@@ -206,6 +197,7 @@ def record_capabilities(record, user):
         ),
         "rename": bool(
             scoped
+            and scoped.collaboration_record_owner
             and scoped.owner_id == user.pk
             and scoped.source_type
             in (models.MeetingRecord.Source.AUDIO, models.MeetingRecord.Source.UPLOAD)
@@ -221,6 +213,7 @@ def record_capabilities(record, user):
         "trash": bool(
             settings.MEETING_RECORD_TRASH_ENABLED
             and scoped and scoped.owner_id == user.pk
+            and scoped.collaboration_record_owner and scoped.collaboration_minutes_owner
             and scoped.source_type in (models.MeetingRecord.Source.AUDIO, models.MeetingRecord.Source.UPLOAD)
             and not getattr(scoped, "is_ongoing", True)
         ),

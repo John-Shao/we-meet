@@ -62,6 +62,8 @@ def transition(record_id, user, target, expected_revision):
         .select_for_update(of=("self",))
         .get(pk=record_id)
     )
+    if not record.collaboration_record_owner or not record.collaboration_minutes_owner:
+        raise PermissionError
     if models.MeetingRecordPurge.objects.filter(record_uuid=record.pk).exists():
         raise RecordConflict("Permanent deletion has already been requested.")
     desired = target == "trashed"
@@ -83,6 +85,10 @@ def transition(record_id, user, target, expected_revision):
         # Restore never resurrects previous sharing. Existing share receipts do
         # not reapply grants, so replaying an old command cannot undo this.
         record.accesses.all().delete()
+        record.collaborators.update(role="none", media=False)
+        record.collaboration_teams.all().delete()
+        record.collaboration_policies.update(link_scope="private", revision=F("revision") + 1)
+        models.MeetingCollaborationNotice.objects.filter(receipt__policy__record=record, status="pending").update(status="canceled")
         models.MeetingSummaryAutomation.objects.filter(
             record=record, enabled=True
         ).update(

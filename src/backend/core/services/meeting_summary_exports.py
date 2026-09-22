@@ -35,13 +35,7 @@ def can_export(record, user):
     scoped = visible_records(user, ability="read_summary").filter(pk=record.pk).first()
     return bool(
         scoped
-        and (
-            scoped.can_manage_record
-            or (
-                scoped.source_type != models.MeetingRecord.Source.MEETING
-                and scoped.owner_id == user.pk
-            )
-        )
+        and scoped.collaboration_minutes_manage
     )
 
 

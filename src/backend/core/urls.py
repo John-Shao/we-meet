@@ -133,6 +133,7 @@ from core.api.meeting_summary_sharing import (
     SummarySharingPreviewView,
     SummarySharingView,
 )
+from core.api.meeting_collaboration import CollaborationView, CollaborationCandidatesView, MaterialPreviewView, CollaborationNotificationRetryView
 from core.api.meeting_summary_tasks import SummaryTaskView
 from core.api.meeting_translation import MeetingTranslationViewSet, TranslationAgentView
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
@@ -410,6 +411,10 @@ urlpatterns = [
                 path("meeting-records/<uuid:record_id>/upload-translations/<uuid:translation_id>/export/", UploadTranslationExportView.as_view(), name="upload-translation-export"),
                 path("meeting-records/<uuid:record_id>/translation-segments/", RecordTranslationSegmentsView.as_view(), name="record-translation-segments"),
                 path("meeting-records/<uuid:record_id>/summary-sharing/", SummarySharingView.as_view(), name="summary-sharing"),
+                path("meeting-records/<uuid:record_id>/collaboration/<str:scope>/", CollaborationView.as_view(), name="meeting-collaboration"),
+                path("meeting-records/<uuid:record_id>/collaboration/<str:scope>/candidates/", CollaborationCandidatesView.as_view(), name="meeting-collaboration-candidates"),
+                path("meeting-records/<uuid:record_id>/collaboration/<str:scope>/preview/", MaterialPreviewView.as_view(), name="meeting-material-preview"),
+                path("meeting-records/<uuid:record_id>/collaboration/<str:scope>/notifications/retry/", CollaborationNotificationRetryView.as_view(), name="meeting-invitation-retry"),
                 path("meeting-records/<uuid:record_id>/transcript-replacements/", TranscriptReplacementView.as_view(), name="transcript-replacements"),
                 path("meeting-records/<uuid:record_id>/transcript-replacements/preview/", TranscriptReplacementPreviewView.as_view(), name="transcript-replacements-preview"),
                 path("meeting-records/<uuid:record_id>/transcript-replacements/<uuid:batch_id>/undo/", TranscriptReplacementUndoView.as_view(), name="transcript-replacements-undo"),

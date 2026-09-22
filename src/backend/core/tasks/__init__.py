@@ -20,6 +20,7 @@ from core.tasks import calendar_exports as _calendar_exports
 from core.tasks import calendar_maintenance as _calendar_maintenance
 from core.tasks import capture_audio as _capture_audio
 from core.tasks import cloud_recording as _cloud_recording
+from core.tasks import collaboration_notifications as _collaboration_notifications
 from core.tasks import embeddings as _embeddings
 from core.tasks import file as _file
 from core.tasks import meeting_sessions as _meeting_sessions

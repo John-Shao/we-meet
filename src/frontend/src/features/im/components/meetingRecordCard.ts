@@ -5,17 +5,20 @@ export interface MeetingRecordCardBody {
   title: string
   /** 会议发生时间(ISO)。卡片上只作副标题,点开按 record_id 跳转。 */
   origin_at?: string | null
+  scope?: 'record' | 'minutes'
 }
 
 export const buildMeetingRecordCardBody = (card: {
   recordId: string
   title: string
   originAt?: string | null
+  scope?: 'record' | 'minutes'
 }) =>
   JSON.stringify({
     v: 1,
     record_id: card.recordId,
     title: card.title,
+    ...(card.scope ? { scope: card.scope } : {}),
     ...(card.originAt ? { origin_at: card.originAt } : {}),
   } satisfies MeetingRecordCardBody)
 
@@ -30,7 +33,10 @@ export const parseMeetingRecordCard = (
       typeof value !== 'object' ||
       typeof value.record_id !== 'string' ||
       !value.record_id ||
-      typeof value.title !== 'string'
+      typeof value.title !== 'string' ||
+      (value.scope !== undefined &&
+        value.scope !== 'record' &&
+        value.scope !== 'minutes')
     )
       return null
     return {
@@ -38,6 +44,9 @@ export const parseMeetingRecordCard = (
       record_id: value.record_id,
       title: value.title,
       origin_at: typeof value.origin_at === 'string' ? value.origin_at : null,
+      ...(value.scope === 'record' || value.scope === 'minutes'
+        ? { scope: value.scope }
+        : {}),
     }
   } catch {
     return null

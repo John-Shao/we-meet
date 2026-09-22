@@ -28,7 +28,6 @@ import { HumanSummaryPanel } from './HumanSummaryPanel'
 import { RecordQuestionPanel } from './RecordQuestionPanel'
 import { SummaryExportControl } from './SummaryExportControl'
 import { SummaryNotificationPanel } from './SummaryNotificationPanel'
-import { SummarySharingControl } from './SummarySharingControl'
 import { isSummaryPayload, useSummaryIntent } from '../hooks/useSummaryIntent'
 import { receiptRole } from './liveRegionRole'
 
@@ -311,7 +310,7 @@ const RecordSummaryPanelContent = ({
                 borderBottom: '1px solid token(colors.border.subtle)',
               })}
             >
-              {(['ask', 'edit', 'share', 'notify', 'manage'] as const)
+              {(['ask', 'edit', 'notify', 'manage'] as const)
                 .filter(
                   (value) =>
                     (value !== 'ask' ||
@@ -341,17 +340,6 @@ const RecordSummaryPanelContent = ({
                 recordId={recordId}
                 viewerId={viewerId}
                 summaryId={selectedVersionId}
-              />
-            )}
-          </div>
-          <div hidden={!duringCapture && tool !== 'share'}>
-            {!duringCapture && (
-              <SummarySharingControl
-                recordId={recordId}
-                viewerId={viewerId}
-                online={detail.data.source_type === 'meeting'}
-                title={detail.data.title}
-                originAt={detail.data.origin_at}
               />
             )}
           </div>

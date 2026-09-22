@@ -98,7 +98,8 @@ def test_upload_replay_and_protected_download_verify_real_bytes():
 
 
 @pytest.mark.parametrize(
-    "data", [b"not audio", wav(rate=44100), wav(channels=2), wav()[:-2]]
+    "data", [b"not audio", wav(rate=44100), wav(channels=2), wav()[:-2]],
+    ids=["not-audio", "wrong-rate", "stereo", "truncated"],
 )
 def test_rejects_mislabeled_invalid_audio(data):
     user, body, capture = recording()

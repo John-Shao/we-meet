@@ -15,10 +15,12 @@ export function RecordOverviewPanel({
   viewerId,
   recordId,
   onSourceAudio,
+  chaptersOnly = false,
 }: {
   viewerId: string
   recordId: string
   onSourceAudio?: (milliseconds: number) => void
+  chaptersOnly?: boolean
 }) {
   const { t } = useTranslation('meetings')
   const query = useRecordOverview(viewerId, recordId)
@@ -177,7 +179,7 @@ export function RecordOverviewPanel({
           {version.asr_status === 'incomplete' && (
             <Text variant="note">{t('recordAi.asr.incomplete')}</Text>
           )}
-          <Text>{version.content.synopsis}</Text>
+          {!chaptersOnly && <Text>{version.content.synopsis}</Text>}
           {version.content.topics.length > 0 && (
             <ul
               className={css({

@@ -38,6 +38,7 @@ export interface ApiMeetingRecord {
     read_summary: boolean
     read_transcript: boolean
     play_media: boolean
+    control_capture?: boolean
     download_media: boolean
     edit: boolean
     /**

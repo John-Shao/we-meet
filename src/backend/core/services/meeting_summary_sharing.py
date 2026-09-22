@@ -18,7 +18,11 @@ def enabled():
 
 
 def can_manage(record, user):
-    return can_export(record, user)
+    # Compatibility endpoint can still target either object. New clients use
+    # the object-scoped endpoint; legacy writers must manage both objects.
+    from core.services.meeting_collaboration import can_manage as manages  # noqa: PLC0415
+
+    return can_export(record, user) and manages(record, user, "record")
 
 
 def eligible_users(record, actor):
