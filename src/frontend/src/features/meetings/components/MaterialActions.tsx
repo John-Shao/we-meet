@@ -13,7 +13,7 @@ import { buildMeetingRecordCardBody } from '@/features/im/components/meetingReco
 
 export type MaterialScope = 'record' | 'minutes'
 type Role = 'reader' | 'editor' | 'manager'
-type Person = { id: string; name: string }
+type Person = { id: string; name: string; avatar_url?: string | null }
 type Member = Person & { role: Role | 'owner'; active: boolean }
 type Access = {
   scope: MaterialScope
@@ -38,7 +38,7 @@ type Change = {
 }
 /** candidates/ 分页与共享选人面板同一套游标契约。 */
 type CandidatePage = {
-  results: (Person & { avatar_url?: string | null })[]
+  results: Person[]
   next_cursor: string | null
 }
 const stack = css({
@@ -620,6 +620,7 @@ function MaterialMembers({
                 <Card
                   key={member.id}
                   label={member.name || member.id}
+                  avatarSrc={member.avatar_url}
                   role={member.role}
                   onRoleChange={(role) =>
                     // 直接提交:不再让用户在「改了下拉」和「确认」之间多点一次。

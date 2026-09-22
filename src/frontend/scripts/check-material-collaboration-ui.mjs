@@ -7,8 +7,11 @@ const browser = await chromium.launch({ headless: true })
 try {
   await mkdir('test-results', { recursive: true })
   const context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1100, height: 850 } })
-  const owner = { id: '11111111-1111-4111-8111-111111111111', name: '林晓', role: 'owner', active: true }
-  const peer = { id: '22222222-2222-4222-8222-222222222222', name: '陈晨', role: 'reader', active: true }
+  // 1×1 PNG,当作 presigned 头像 URL 用:验的是「成员行有没有把 URL 接到头像上」,
+  // 不是图片本身。
+  const avatar = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='
+  const owner = { id: '11111111-1111-4111-8111-111111111111', name: '林晓', role: 'owner', active: true, avatar_url: avatar }
+  const peer = { id: '22222222-2222-4222-8222-222222222222', name: '陈晨', role: 'reader', active: true, avatar_url: avatar }
   let denied = false
   const writes = []
   await context.route('**/collaboration-ui-harness', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="zh"><meta charset="utf-8"><title>分享与协作验收</title><div id="root"></div></html>' }))
@@ -63,6 +66,13 @@ try {
   await page.screenshot({ path: 'test-results/material-share-desktop.png', fullPage: true })
   await page.getByRole('button', { name: '关闭', exact: true }).click()
   await page.getByRole('button', { name: '协作者管理', exact: true }).click()
+  // 成员行带头像(与飞书截图一致):头像 URL 由后端给的 avatar_url 决定。
+  await page.waitForFunction(() => {
+    const img = document.querySelector('[role="dialog"] img[aria-hidden="true"]')
+    return !!img && img.getAttribute('src')?.length > 0
+  })
+  assert.equal(await page.locator('[role="dialog"] img').count(), 1)
+  await page.screenshot({ path: 'test-results/material-members-desktop.png', fullPage: true })
   // 邀请是「一个弹窗、两个视图」:成员名单 → 选人(复用通讯录多选面板),
   // 整批共用一个角色,不再经过逐人配置的「下一步」确认页。
   await page.getByRole('button', { name: '邀请协作者', exact: true }).click()

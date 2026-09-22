@@ -1,6 +1,7 @@
 """Independent object roles, link access, transfers and retry receipts."""
 
 import uuid
+from unittest import mock
 
 import pytest
 
@@ -209,11 +210,26 @@ def test_stale_revision_rejected_and_old_transcript_never_gets_media(material):
         )
 
 
+def test_member_rows_carry_a_presigned_avatar_and_teams_fall_back_to_initials(
+    material,
+):
+    record, owner, peer, third = material
+    models.User.objects.filter(pk=owner.pk).update(avatar_key="avatar-key-1")
+    with mock.patch(
+        "core.services.meeting_collaboration.utils.generate_profile_image_get_url",
+        side_effect=lambda kind, key: f"https://oss/{kind}/{key}" if key else "",
+    ):
+        state = service.state(record, owner, "record")
+    assert state["results"][0]["avatar_url"] == "https://oss/avatar/avatar-key-1"
+
+
 def test_api_validates_scope_roles_and_duplicate_recipients(material):
     record, owner, peer, third = material
     client = client_for(owner)
     path = f"/api/v1.0/meeting-records/{record.pk}/collaboration/record/"
-    assert client.get(path).json()["count"] == 1
+    listed = client.get(path).json()
+    assert listed["count"] == 1
+    assert listed["results"][0]["avatar_url"] == ""
     member = {"id": str(peer.pk), "role": "reader"}
     headers = {"HTTP_IDEMPOTENCY_KEY": str(uuid.uuid4())}
     assert (

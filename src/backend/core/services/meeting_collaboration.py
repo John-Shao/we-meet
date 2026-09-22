@@ -8,7 +8,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import BooleanField, Case, Exists, OuterRef, Q, When
 
-from core import models
+from core import models, utils
 
 SCOPES = {"record": "read_transcript", "minutes": "read_summary"}
 ROLES = {"reader", "editor", "manager"}
@@ -157,6 +157,11 @@ def state(record, user, scope):
         {
             "id": key,
             "name": value["user"].full_name or "",
+            # 与目录接口同一套 presigned URL:头像桶是私有的,客户端自己拼不出来。
+            # 用户行的 avatar_key 已经随 user 取回来了,这里不再多查一次库。
+            "avatar_url": utils.generate_profile_image_get_url(
+                "avatar", value["user"].avatar_key
+            ),
             "role": value["role"],
             "active": value["user"].is_active,
             "inherited": value["inherited"],
@@ -183,6 +188,8 @@ def state(record, user, scope):
             {
                 "id": grant.team,
                 "name": name,
+                # 部门/用户组没有头像字段,客户端回落到首字色块。
+                "avatar_url": "",
                 "active": active,
                 "role": grant.role,
                 "inherited": False,

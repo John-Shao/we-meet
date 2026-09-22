@@ -44,6 +44,11 @@ vi.mock('@/primitives/Select', () => ({
 // 是否直接提交、未确认回执能否用同一个编号重试。
 vi.mock('@/features/contacts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/features/contacts')>()),
+  // 名单头像只验证「服务端给的 URL 有没有真的接到头像上」,所以把 src 摊平成
+  // 可断言的文本,不去查 img 节点(真实头像是 aria-hidden 的装饰元素)。
+  MemberAvatar: ({ name, src }: { name: string; src?: string | null }) => (
+    <span data-testid={`avatar-${name}`}>{src ?? ''}</span>
+  ),
   DirectoryMultiPicker: ({
     onToggle,
     selected,
@@ -74,6 +79,7 @@ const member = {
   name: 'Teammate',
   role: 'reader',
   active: true,
+  avatar_url: 'https://oss.example/avatar/teammate?signature=abc',
 }
 const posts = () =>
   vi
@@ -177,6 +183,11 @@ it('invites the picked people in one step, with one role for the batch', async (
 it('applies a role change without a second confirmation', async () => {
   show()
   await openMembers()
+  // 成员行带头像:服务端在成员行上给的 presigned URL 要真的接到头像组件上
+  // (飞书截图与 Web 都有头像,Android 侧同款)。
+  expect(screen.getByTestId('avatar-Teammate')).toHaveTextContent(
+    member.avatar_url
+  )
   fireEvent.change(screen.getByRole('combobox', { name: 'Teammate' }), {
     target: { value: 'editor' },
   })
