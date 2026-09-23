@@ -1,4 +1,7 @@
 {
+  "playbackVolume": "Playback volume",
+  "mutePlayback": "Mute",
+  "unmutePlayback": "Unmute",
   "followPlayback": "Follow",
   "showVideo": "Show video",
   "hideVideo": "Hide video",

@@ -1,5 +1,11 @@
-import { RiCrosshair2Line, RiPauseFill, RiPlayFill } from '@remixicon/react'
-import type { CSSProperties, InputHTMLAttributes } from 'react'
+import {
+  RiCrosshair2Line,
+  RiPauseFill,
+  RiPlayFill,
+  RiVolumeUpLine,
+  RiVolumeMuteLine,
+} from '@remixicon/react'
+import type { CSSProperties, InputHTMLAttributes, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives/Button'
 import { css, cx } from '@/styled-system/css'
@@ -17,20 +23,24 @@ const playbackTime = (milliseconds: number) => {
 }
 
 const action = css({
-  minWidth: '3rem',
-  minHeight: '3rem',
+  minWidth: '2.75rem',
+  minHeight: '2.75rem',
   padding: 'xs',
   borderRadius: 'pill',
   justifySelf: 'center',
   textStyle: 'labelMedium',
 })
 
-/** Native range semantics and a 48px hit area around a 4px visual track. */
+/** Full-width timeline above a compact transport row; wraps inside narrow panes. */
 export function RecordPlaybackControls({
   position,
   duration,
   playing,
   rate,
+  volume,
+  muted,
+  onVolume,
+  onToggleMute,
   disabled = false,
   playDisabled = disabled,
   onPlayPause,
@@ -39,12 +49,17 @@ export function RecordPlaybackControls({
   onBack,
   onForward,
   followControl,
+  trailingControl,
   seekEvents,
 }: {
   position: number
   duration: number
   playing: boolean
   rate: number
+  volume: number
+  muted: boolean
+  onVolume: (volume: number) => void
+  onToggleMute: () => void
   disabled?: boolean
   playDisabled?: boolean
   onPlayPause: () => void
@@ -53,6 +68,7 @@ export function RecordPlaybackControls({
   onBack: () => void
   onForward: () => void
   followControl?: PlaybackFollowControl
+  trailingControl?: ReactNode
   seekEvents?: Pick<
     InputHTMLAttributes<HTMLInputElement>,
     | 'onPointerDown'
@@ -69,21 +85,8 @@ export function RecordPlaybackControls({
   return (
     <div
       data-record-playback-controls
-      className={css({ width: '100%', maxWidth: '48rem', marginX: 'auto' })}
+      className={css({ width: '100%', containerType: 'inline-size' })}
     >
-      <div
-        aria-live="off"
-        className={css({
-          display: 'flex',
-          justifyContent: 'space-between',
-          color: 'text.secondary',
-          textStyle: 'labelMedium',
-          fontVariantNumeric: 'tabular-nums',
-        })}
-      >
-        <span>{playbackTime(position)}</span>
-        <span>{end ? playbackTime(end) : '—'}</span>
-      </div>
       <input
         type="range"
         aria-label={t('audioPosition')}
@@ -100,7 +103,8 @@ export function RecordPlaybackControls({
           appearance: 'none',
           display: 'block',
           width: '100%',
-          height: '3rem',
+          height: '1.75rem',
+          '@media (pointer: coarse)': { height: '2.75rem' },
           margin: 0,
           cursor: 'pointer',
           background: 'transparent',
@@ -114,7 +118,7 @@ export function RecordPlaybackControls({
             height: '0.25rem',
             borderRadius: 'pill',
             background:
-              'linear-gradient(to right, token(colors.action.primary.bg) var(--playback-progress), token(colors.border.subtle) var(--playback-progress))',
+              'linear-gradient(to right, token(colors.action.primary.bg) var(--playback-progress), token(colors.action.selected.bg) var(--playback-progress))',
           },
           '&::-webkit-slider-thumb': {
             appearance: 'none',
@@ -128,7 +132,7 @@ export function RecordPlaybackControls({
           '&::-moz-range-track': {
             height: '0.25rem',
             borderRadius: 'pill',
-            backgroundColor: 'border.subtle',
+            backgroundColor: 'action.selected.bg',
           },
           '&::-moz-range-progress': {
             height: '0.25rem',
@@ -145,30 +149,177 @@ export function RecordPlaybackControls({
         })}
       />
       <div
+        data-extra={!!trailingControl}
         className={css({
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 3rem 3.5rem 3rem minmax(0, 1fr)',
+          gridTemplateAreas:
+            '"play back forward volume speed" "time time time follow follow"',
+          gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
           alignItems: 'center',
-          columnGap: { base: 'xs', sm: 'lg' },
+          columnGap: 'xs',
+          '&[data-extra=true]': {
+            gridTemplateAreas:
+              '"play back forward volume speed extra" "time time time follow follow follow"',
+            gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+          },
+          '@container (min-width: 560px)': {
+            gridTemplateAreas:
+              '"play back forward volume time spacer follow speed"',
+            gridTemplateColumns:
+              '2.75rem 2.75rem 2.75rem 2.75rem auto 1fr auto 3.5rem',
+            '&[data-extra=true]': {
+              gridTemplateAreas:
+                '"play back forward volume time spacer follow speed extra"',
+              gridTemplateColumns:
+                '2.75rem 2.75rem 2.75rem 2.75rem auto 1fr auto 3.5rem 2.75rem',
+            },
+          },
         })}
       >
+        <Button
+          size="xs"
+          variant="quaternaryText"
+          aria-label={t(playing ? 'pausePlayback' : 'play')}
+          isDisabled={playDisabled}
+          onPress={onPlayPause}
+          className={cx(
+            action,
+            css({ gridArea: 'play', color: 'text.primary' })
+          )}
+        >
+          {playing ? (
+            <RiPauseFill size={28} aria-hidden />
+          ) : (
+            <RiPlayFill size={28} aria-hidden />
+          )}
+        </Button>
+        <Button
+          size="xs"
+          variant="quaternaryText"
+          aria-label={t('skipBack')}
+          tooltip={t('skipBack')}
+          isDisabled={disabled}
+          onPress={onBack}
+          className={cx(action, css({ gridArea: 'back' }))}
+        >
+          <SkipFifteen />
+        </Button>
+        <Button
+          size="xs"
+          variant="quaternaryText"
+          aria-label={t('skipForward')}
+          tooltip={t('skipForward')}
+          isDisabled={disabled || !end}
+          onPress={onForward}
+          className={cx(action, css({ gridArea: 'forward' }))}
+        >
+          <SkipFifteen forward />
+        </Button>
+        <div
+          className={css({
+            gridArea: 'volume',
+            position: 'relative',
+            justifySelf: 'center',
+            '&:hover [data-volume-panel], &:focus-within [data-volume-panel]': {
+              display: 'flex',
+            },
+          })}
+        >
+          <Button
+            size="xs"
+            variant="quaternaryText"
+            aria-label={t(
+              muted || volume === 0 ? 'unmutePlayback' : 'mutePlayback'
+            )}
+            aria-pressed={muted || volume === 0}
+            onPress={onToggleMute}
+            className={action}
+          >
+            {muted || volume === 0 ? (
+              <RiVolumeMuteLine size={22} aria-hidden />
+            ) : (
+              <RiVolumeUpLine size={22} aria-hidden />
+            )}
+          </Button>
+          <div
+            data-volume-panel
+            className={css({
+              display: 'none',
+              position: 'absolute',
+              bottom: '100%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 1,
+              padding: 'sm',
+              gap: 'sm',
+              alignItems: 'center',
+              backgroundColor: 'surface.default',
+              border: '1px solid token(colors.border.subtle)',
+              borderRadius: 'control',
+            })}
+          >
+            <input
+              type="range"
+              aria-label={t('playbackVolume')}
+              min={0}
+              max={1}
+              step={0.05}
+              value={muted ? 0 : volume}
+              onChange={(event) => onVolume(Number(event.target.value))}
+              className={css({
+                width: '5rem',
+                height: '2.75rem',
+                accentColor: 'action.primary.bg',
+              })}
+            />
+            <span
+              className={css({
+                textStyle: 'labelMedium',
+                color: 'text.secondary',
+                minWidth: '3ch',
+                fontVariantNumeric: 'tabular-nums',
+              })}
+            >
+              {Math.round((muted ? 0 : volume) * 100)}%
+            </span>
+          </div>
+        </div>
+        <div
+          data-playback-time
+          aria-live="off"
+          className={css({
+            gridArea: 'time',
+            whiteSpace: 'nowrap',
+            textStyle: 'titleSmall',
+            color: 'text.primary',
+            fontVariantNumeric: 'tabular-nums',
+            paddingX: 'sm',
+          })}
+        >
+          {playbackTime(position)}{' '}
+          <span className={css({ color: 'text.secondary' })}>
+            / {end ? playbackTime(end) : '—'}
+          </span>
+        </div>
         <select
           aria-label={t('playbackRate')}
           value={rate}
           disabled={disabled}
           onChange={(event) => onRate(Number(event.target.value))}
           className={css({
+            gridArea: 'speed',
             width: '100%',
             maxWidth: '5.5rem',
             minWidth: 0,
             // Override the global compact form-select chrome for touch playback.
-            minHeight: '3rem !important',
+            minHeight: '2.75rem !important',
             justifySelf: 'center',
             padding: '0 !important',
             backgroundImage: 'none !important',
+            border: '0 !important',
             textAlign: 'center',
             borderRadius: 'control',
-            color: 'text.link',
+            color: 'text.primary',
             backgroundColor: 'surface.default',
             textStyle: 'labelLarge',
             cursor: 'pointer',
@@ -182,56 +333,20 @@ export function RecordPlaybackControls({
             </option>
           ))}
         </select>
-        <Button
-          size="xs"
-          round
-          variant="quaternaryText"
-          aria-label={t('skipBack')}
-          tooltip={t('skipBack')}
-          isDisabled={disabled}
-          onPress={onBack}
-          className={action}
+        <div
+          className={css({
+            gridArea: 'follow',
+            minWidth: 0,
+            justifySelf: 'end',
+          })}
         >
-          <SkipFifteen />
-        </Button>
-        <Button
-          size="xs"
-          round
-          variant="primary"
-          aria-label={t(playing ? 'pausePlayback' : 'play')}
-          isDisabled={playDisabled}
-          onPress={onPlayPause}
-          className={cx(
-            action,
-            css({ width: '3.5rem', height: '3.5rem', padding: 0 })
-          )}
-        >
-          {playing ? (
-            <RiPauseFill size={28} aria-hidden />
-          ) : (
-            <RiPlayFill size={28} aria-hidden />
-          )}
-        </Button>
-        <Button
-          size="xs"
-          round
-          variant="quaternaryText"
-          aria-label={t('skipForward')}
-          tooltip={t('skipForward')}
-          isDisabled={disabled || !end}
-          onPress={onForward}
-          className={action}
-        >
-          <SkipFifteen forward />
-        </Button>
-        <div className={css({ minWidth: 0, justifySelf: 'center' })}>
           {followControl && (
             <Button
               size="xs"
-              round
               variant="quaternaryText"
               aria-label={t('followPlayback')}
               aria-pressed={followControl.enabled}
+              tooltip={t('followPlayback')}
               onPress={followControl.onToggle}
               className={cx(
                 action,
@@ -247,9 +362,10 @@ export function RecordPlaybackControls({
               <span
                 className={css({
                   display: 'flex',
-                  flexDirection: 'column',
+                  flexDirection: 'row',
                   alignItems: 'center',
-                  gap: 'xxs',
+                  gap: 'xs',
+                  paddingX: 'sm',
                 })}
               >
                 <RiCrosshair2Line size={20} aria-hidden />
@@ -258,6 +374,11 @@ export function RecordPlaybackControls({
             </Button>
           )}
         </div>
+        {trailingControl && (
+          <div className={css({ gridArea: 'extra', justifySelf: 'center' })}>
+            {trailingControl}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -266,8 +387,8 @@ export function RecordPlaybackControls({
 function SkipFifteen({ forward = false }: { forward?: boolean }) {
   return (
     <svg
-      width="30"
-      height="30"
+      width="24"
+      height="24"
       viewBox="0 0 30 30"
       fill="none"
       aria-hidden="true"

@@ -1,4 +1,7 @@
 {
+  "playbackVolume": "Wiedergabelautstärke",
+  "mutePlayback": "Stummschalten",
+  "unmutePlayback": "Stummschaltung aufheben",
   "followPlayback": "Folgen",
   "showVideo": "Video anzeigen",
   "hideVideo": "Video ausblenden",

@@ -95,6 +95,30 @@ it('plays the source position selected from the transcript', async () => {
   expect(container.querySelector('audio')!.currentTime).toBe(0.5)
 })
 
+it('retains volume across chunk changes and restores sound from zero', async () => {
+  const ref = createRef<CaptureAudioHandle>()
+  const { container } = render(
+    <CaptureAudioPlayer ref={ref} captureId="capture" />
+  )
+  await screen.findByRole('button', { name: 'play' })
+  const audio = container.querySelector('audio')!
+  fireEvent.change(screen.getByRole('slider', { name: 'playbackVolume' }), {
+    target: { value: '0.4' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'mutePlayback' }))
+  act(() => ref.current!.seek(2500))
+  await screen.findByRole('button', { name: 'pausePlayback' })
+  expect(audio.volume).toBe(0.4)
+  expect(audio.muted).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'unmutePlayback' }))
+  fireEvent.change(screen.getByRole('slider', { name: 'playbackVolume' }), {
+    target: { value: '0' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'unmutePlayback' }))
+  expect(audio.muted).toBe(false)
+  expect(audio.volume).toBe(1)
+})
+
 it('pauses at missing audio and continues only after an explicit skip', async () => {
   const { container } = render(<CaptureAudioPlayer captureId="capture" />)
   await screen.findByRole('button', { name: 'play' })

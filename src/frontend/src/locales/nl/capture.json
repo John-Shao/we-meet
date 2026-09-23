@@ -1,4 +1,7 @@
 {
+  "playbackVolume": "Afspeelvolume",
+  "mutePlayback": "Dempen",
+  "unmutePlayback": "Dempen opheffen",
   "followPlayback": "Volgen",
   "showVideo": "Video tonen",
   "hideVideo": "Video verbergen",

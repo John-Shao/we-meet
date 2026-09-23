@@ -46,6 +46,8 @@ export const CaptureAudioPlayer = forwardRef<
   >('loading')
   const [position, setPositionState] = useState(0)
   const [rate, setRate] = useState(1)
+  const [volume, setVolume] = useState(1)
+  const [muted, setMuted] = useState(false)
   const audio = useRef<HTMLAudioElement>(null)
   const current = useRef<number>()
   const activeRequest = useRef<AbortController>()
@@ -217,8 +219,7 @@ export const CaptureAudioPlayer = forwardRef<
           paddingY: 'sm',
           paddingX: 'lg',
           border: 'none',
-          borderTopLeftRadius: 'card',
-          borderTopRightRadius: 'card',
+          borderRadius: 'none',
         },
       })}
     >
@@ -242,6 +243,25 @@ export const CaptureAudioPlayer = forwardRef<
             duration={total}
             playing={state === 'playing'}
             rate={rate}
+            volume={volume}
+            muted={muted}
+            onVolume={(value) => {
+              setVolume(value)
+              setMuted(false)
+              if (audio.current) {
+                audio.current.volume = value
+                audio.current.muted = false
+              }
+            }}
+            onToggleMute={() => {
+              const nextMuted = !(muted || volume === 0)
+              setMuted(nextMuted)
+              if (audio.current) audio.current.muted = nextMuted
+              if (!nextMuted && volume === 0) {
+                setVolume(1)
+                if (audio.current) audio.current.volume = 1
+              }
+            }}
             disabled={state === 'loading' || state === 'error'}
             playDisabled={
               state === 'loading' || state === 'error' || state === 'gap'
@@ -305,6 +325,10 @@ export const CaptureAudioPlayer = forwardRef<
       <audio
         ref={audio}
         preload="none"
+        onVolumeChange={(event) => {
+          setVolume(event.currentTarget.volume)
+          setMuted(event.currentTarget.muted)
+        }}
         onTimeUpdate={() => {
           const chunk = chunks[current.current ?? -1]
           if (chunk && audio.current)

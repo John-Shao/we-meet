@@ -1,4 +1,7 @@
 {
+  "playbackVolume": "播放音量",
+  "mutePlayback": "静音",
+  "unmutePlayback": "取消静音",
   "followPlayback": "跟随",
   "showVideo": "展开视频",
   "hideVideo": "收起视频",

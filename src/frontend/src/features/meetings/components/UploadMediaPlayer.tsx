@@ -64,6 +64,8 @@ export const UploadMediaPlayer = forwardRef<
   const [fullscreen, setFullscreen] = useState(false)
   const [fullscreenSupported, setFullscreenSupported] = useState(false)
   const [fullscreenError, setFullscreenError] = useState(false)
+  const [controlsVisible, setControlsVisible] = useState(true)
+  const hideControls = useRef<ReturnType<typeof setTimeout>>()
   const scrubbing = useRef<boolean>()
   useEffect(() => {
     setFullscreenSupported(
@@ -91,9 +93,23 @@ export const UploadMediaPlayer = forwardRef<
   const [state, setState] = useState<'loading' | 'ready' | 'playing' | 'error'>(
     'loading'
   )
+  const revealControls = () => {
+    setControlsVisible(true)
+    clearTimeout(hideControls.current)
+    if (state === 'playing')
+      hideControls.current = setTimeout(() => setControlsVisible(false), 2500)
+  }
+  useEffect(() => {
+    setControlsVisible(true)
+    if (state === 'playing' && videoExpanded)
+      hideControls.current = setTimeout(() => setControlsVisible(false), 2500)
+    return () => clearTimeout(hideControls.current)
+  }, [state, videoExpanded])
   const [position, setPositionState] = useState(0)
   const [duration, setDuration] = useState(0)
   const [rate, setRate] = useState(1)
+  const [volume, setVolume] = useState(1)
+  const [muted, setMuted] = useState(false)
   const audio = useRef<HTMLMediaElement | null>(null)
   const positionRef = useRef(0)
   const playingRef = useRef(false)
@@ -215,9 +231,16 @@ export const UploadMediaPlayer = forwardRef<
     if (resume) void audio.current?.play().catch(() => setState('error'))
   }
   const MediaElement = media?.media_type === 'video' ? 'video' : 'audio'
+  const videoSurface = media?.media_type === 'video' && videoExpanded
   return (
     <section
       ref={playerSurface}
+      data-video-expanded={videoSurface}
+      data-controls-visible={controlsVisible || state !== 'playing'}
+      data-theme={videoSurface ? 'dark' : undefined}
+      onPointerMove={revealControls}
+      onPointerDown={revealControls}
+      onFocusCapture={revealControls}
       aria-label={t('playback')}
       className={css({
         flexShrink: 0,
@@ -225,20 +248,63 @@ export const UploadMediaPlayer = forwardRef<
         borderTop: '1px solid token(colors.border.subtle)',
         paddingY: 'sm',
         paddingX: 'lg',
-        borderTopLeftRadius: 'card',
-        borderTopRightRadius: 'card',
-        '&:fullscreen': {
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'sm',
-          padding: 'lg',
-          overflowY: 'auto',
-          borderRadius: 'none',
-          '& video': {
-            flex: 1,
-            minHeight: 0,
-            maxHeight: 'calc(100dvh - 12rem)',
+        position: 'relative',
+        '&[data-video-expanded=true]': {
+          padding: 0,
+          border: 0,
+          backgroundColor: 'black',
+          color: 'white',
+          aspectRatio: '16 / 9',
+          minHeight: '15rem',
+          alignSelf: 'stretch',
+          '& video': { position: 'absolute', inset: 0, height: '100%' },
+          '& [data-video-chrome]': { transition: 'opacity 160ms ease' },
+          '& [data-video-header]': {
+            position: 'absolute',
+            top: 'sm',
+            right: 'sm',
+            zIndex: 2,
+            margin: 0,
           },
+          '& [data-video-controls]': {
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: 'lg',
+            paddingTop: 'xl',
+            background: 'linear-gradient(transparent, rgba(0, 0, 0, 0.85))',
+            '& button:not([data-disabled]), & [data-playback-time], & [data-playback-time] span':
+              { color: 'white' },
+            '& select': {
+              backgroundColor: 'transparent !important',
+              color: 'white !important',
+            },
+          },
+          '& [data-video-header] button': {
+            color: 'white',
+            backgroundColor: 'black/40',
+          },
+          '& [role=status], & [role=alert]': {
+            position: 'relative',
+            zIndex: 3,
+          },
+        },
+        '&[data-video-expanded=true][data-controls-visible=false] [data-video-chrome]':
+          { opacity: 0, pointerEvents: 'none' },
+        '&:has(:focus-visible) [data-video-chrome]': {
+          opacity: 1,
+          pointerEvents: 'auto',
+        },
+        '@media (prefers-reduced-motion: reduce)': {
+          '& [data-video-chrome]': { transition: 'none' },
+        },
+        '&:fullscreen': {
+          width: '100%',
+          height: '100%',
+          maxHeight: 'none',
+          padding: 0,
+          borderRadius: 'none',
         },
       })}
     >
@@ -270,6 +336,8 @@ export const UploadMediaPlayer = forwardRef<
         <>
           {media.media_type === 'video' && (
             <div
+              data-video-header
+              data-video-chrome
               className={css({
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -292,19 +360,6 @@ export const UploadMediaPlayer = forwardRef<
                 )}
                 {t(videoExpanded ? 'hideVideo' : 'showVideo')}
               </PlayerButton>
-              <PlayerButton
-                variant="quaternaryText"
-                size="dense"
-                onPress={() => void toggleFullscreen()}
-                aria-label={t(fullscreen ? 'exitFullscreen' : 'fullscreen')}
-                isDisabled={!fullscreenSupported}
-              >
-                {fullscreen ? (
-                  <RiFullscreenExitLine size={20} aria-hidden />
-                ) : (
-                  <RiFullscreenLine size={20} aria-hidden />
-                )}
-              </PlayerButton>
             </div>
           )}
           {fullscreenError && <p role="status">{t('fullscreenError')}</p>}
@@ -319,9 +374,6 @@ export const UploadMediaPlayer = forwardRef<
             className={css({
               width: '100%',
               display: 'block',
-              marginBottom: 'sm',
-              borderRadius: 'control',
-              maxHeight: '30vh',
               '&[hidden]': { display: 'none' },
               objectFit: 'contain',
             })}
@@ -333,6 +385,8 @@ export const UploadMediaPlayer = forwardRef<
                   : null
               )
               element.playbackRate = rate
+              element.volume = volume
+              element.muted = muted
               const restore = pending.current
               pending.current = null
               if (restore) {
@@ -359,6 +413,10 @@ export const UploadMediaPlayer = forwardRef<
                   : null
               )
             }}
+            onVolumeChange={(event) => {
+              setVolume(event.currentTarget.volume)
+              setMuted(event.currentTarget.muted)
+            }}
             onTimeUpdate={(event) => {
               if (!pending.current)
                 setPosition(event.currentTarget.currentTime * 1000)
@@ -382,44 +440,86 @@ export const UploadMediaPlayer = forwardRef<
               setState('error')
             }}
           />
-          <RecordPlaybackControls
-            position={position}
-            duration={duration * 1000}
-            playing={state === 'playing'}
-            rate={rate}
-            disabled={state === 'loading' || state === 'error'}
-            onPlayPause={toggle}
-            onSeek={seek}
-            onBack={() => jump(-15000)}
-            onForward={() => jump(15000)}
-            onRate={(value) => {
-              setRate(value)
-              if (audio.current) audio.current.playbackRate = value
-            }}
-            followControl={fullscreen ? undefined : followControl}
-            seekEvents={{
-              onPointerDown: beginSeek,
-              onPointerUp: endSeek,
-              onPointerCancel: endSeek,
-              onKeyDown: (event) => {
-                if (
-                  [
-                    'ArrowLeft',
-                    'ArrowRight',
-                    'ArrowUp',
-                    'ArrowDown',
-                    'Home',
-                    'End',
-                    'PageUp',
-                    'PageDown',
-                  ].includes(event.key)
-                )
-                  beginSeek()
-              },
-              onKeyUp: endSeek,
-              onBlur: endSeek,
-            }}
-          />
+          <div data-video-controls data-video-chrome>
+            <RecordPlaybackControls
+              position={position}
+              duration={duration * 1000}
+              playing={state === 'playing'}
+              rate={rate}
+              volume={volume}
+              muted={muted}
+              onVolume={(value) => {
+                setVolume(value)
+                setMuted(false)
+                if (audio.current) {
+                  audio.current.volume = value
+                  audio.current.muted = false
+                }
+              }}
+              onToggleMute={() => {
+                const nextMuted = !(muted || volume === 0)
+                setMuted(nextMuted)
+                if (audio.current) audio.current.muted = nextMuted
+                if (!nextMuted && volume === 0) {
+                  setVolume(1)
+                  if (audio.current) audio.current.volume = 1
+                }
+              }}
+              disabled={state === 'loading' || state === 'error'}
+              onPlayPause={toggle}
+              onSeek={seek}
+              onBack={() => jump(-15000)}
+              onForward={() => jump(15000)}
+              onRate={(value) => {
+                setRate(value)
+                if (audio.current) audio.current.playbackRate = value
+              }}
+              followControl={fullscreen ? undefined : followControl}
+              trailingControl={
+                media.media_type === 'video' ? (
+                  <PlayerButton
+                    variant="quaternaryText"
+                    size="xs"
+                    className={css({
+                      minWidth: '2.75rem',
+                      minHeight: '2.75rem',
+                    })}
+                    onPress={() => void toggleFullscreen()}
+                    aria-label={t(fullscreen ? 'exitFullscreen' : 'fullscreen')}
+                    isDisabled={!fullscreenSupported}
+                  >
+                    {fullscreen ? (
+                      <RiFullscreenExitLine size={20} aria-hidden />
+                    ) : (
+                      <RiFullscreenLine size={20} aria-hidden />
+                    )}
+                  </PlayerButton>
+                ) : undefined
+              }
+              seekEvents={{
+                onPointerDown: beginSeek,
+                onPointerUp: endSeek,
+                onPointerCancel: endSeek,
+                onKeyDown: (event) => {
+                  if (
+                    [
+                      'ArrowLeft',
+                      'ArrowRight',
+                      'ArrowUp',
+                      'ArrowDown',
+                      'Home',
+                      'End',
+                      'PageUp',
+                      'PageDown',
+                    ].includes(event.key)
+                  )
+                    beginSeek()
+                },
+                onKeyUp: endSeek,
+                onBlur: endSeek,
+              }}
+            />
+          </div>
         </>
       )}
     </section>

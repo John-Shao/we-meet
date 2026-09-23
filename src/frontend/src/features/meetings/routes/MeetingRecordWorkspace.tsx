@@ -538,7 +538,28 @@ function WorkspaceContent({
         ? 'info'
         : tab
   return (
-    <>
+    <div
+      data-record-content
+      className={css({
+        display: 'flex',
+        flexDirection: 'column',
+        flex: '1 1 0',
+        minHeight: 0,
+        minWidth: 0,
+        '& > [data-video-expanded=true]': { order: -1 },
+        '@media (min-width: 960px)': {
+          '&:has(> [data-video-expanded=true])': {
+            flexDirection: 'row',
+            gap: 'lg',
+            '& > [data-video-expanded=true]': {
+              width: '55%',
+              alignSelf: 'flex-start',
+              maxHeight: '100%',
+            },
+          },
+        },
+      })}
+    >
       {source && !readableCapture && (
         <div role="status" className={textStyle}>
           <p>{t('library.originalDevice')}</p>
@@ -551,6 +572,7 @@ function WorkspaceContent({
         className={css({
           flex: '1 1 0',
           minHeight: 0,
+          minWidth: 0,
           '& [role=tablist]': {
             overflowX: 'auto',
             flexShrink: 0,
@@ -842,7 +864,7 @@ function WorkspaceContent({
           }
         />
       )}
-    </>
+    </div>
   )
 }
 

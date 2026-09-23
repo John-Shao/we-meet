@@ -1,4 +1,7 @@
 {
+  "playbackVolume": "Volume de lecture",
+  "mutePlayback": "Couper le son",
+  "unmutePlayback": "Rétablir le son",
   "followPlayback": "Suivre",
   "showVideo": "Afficher la vidéo",
   "hideVideo": "Masquer la vidéo",

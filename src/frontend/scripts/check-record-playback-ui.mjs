@@ -41,7 +41,7 @@ try {
   await context.route('**/record-player-harness', (route) =>
     route.fulfill({
       contentType: 'text/html',
-      body: '<!doctype html><html lang="zh"><meta charset="utf-8"><div id="root" style="height:100dvh;display:flex;flex-direction:column"></div></html>',
+      body: '<!doctype html><html lang="zh"><meta charset="utf-8"><div id="root" style="height:100dvh;display:flex;flex-direction:column;font-family:Arial,sans-serif"></div></html>',
     })
   )
   await context.route('**/api/v1.0/**', async (route) => {
@@ -98,7 +98,7 @@ try {
             end_ms: index * 2000 + 2000,
             text: [
               '本周先完成播放器与文字记录页面的体验优化。',
-              '音频和视频使用统一的控制栏，播放按钮保持居中。',
+              '音频和视频使用统一的控制栏，播放操作集中在左侧。',
               '移动端需要保留足够的阅读空间，并支持随时回到播放位置。',
             ][index % 3],
           })),
@@ -230,7 +230,7 @@ try {
   }
   await mount()
   const controls = page.locator('[data-record-playback-controls]')
-  const slider = controls.getByRole('slider')
+  const slider = controls.getByRole('slider', { name: '音频位置' })
   await expect(slider).toBeEnabled()
   await page.getByRole('button', { name: '播放', exact: true }).click()
   await page.getByRole('button', { name: '暂停播放', exact: true }).click()
@@ -266,24 +266,47 @@ try {
       .getByRole('button', { name: '播放', exact: true })
       .boundingBox()
     const barBox = await controls.boundingBox()
+    assert.ok(playBox.x - barBox.x < 20, 'transport starts at the left')
+    const trackBox = await slider.boundingBox()
     assert.ok(
-      Math.abs(playBox.x + playBox.width / 2 - barBox.x - barBox.width / 2) < 1,
-      'play stays centered'
+      Math.abs(trackBox.width - barBox.width) < 1,
+      'timeline fills the content pane'
     )
+    if (width >= 560) {
+      assert.ok(barBox.height <= 80, 'desktop controls stay compact')
+      const timeBox = await controls
+        .locator('[data-playback-time]')
+        .boundingBox()
+      assert.ok(
+        Math.abs(
+          timeBox.y + timeBox.height / 2 - playBox.y - playBox.height / 2
+        ) < 1,
+        'time aligns with transport controls'
+      )
+    }
     assert.ok(barBox.y + barBox.height <= 900, 'controls stay visible')
     const targets = await controls
       .locator('button,select')
       .evaluateAll((nodes) =>
         nodes.map((node) => {
           const r = node.getBoundingClientRect()
-          return { left: r.left, right: r.right, height: r.height }
+          return {
+            left: r.left,
+            right: r.right,
+            top: r.top,
+            bottom: r.bottom,
+            height: r.height,
+          }
         })
       )
     targets.forEach((target, index) => {
       assert.ok(target.height >= 44, 'touch targets retain their height')
-      if (index)
+      for (const other of targets.slice(0, index))
         assert.ok(
-          target.left >= targets[index - 1].right - 1,
+          target.left >= other.right - 1 ||
+            other.left >= target.right - 1 ||
+            target.top >= other.bottom - 1 ||
+            other.top >= target.bottom - 1,
           'controls do not overlap'
         )
     })
@@ -292,11 +315,33 @@ try {
       fullPage: true,
     })
   }
+  const checkVolume = async (element) => {
+    await page.getByRole('button', { name: '静音', exact: true }).focus()
+    const volume = page.getByRole('slider', { name: '播放音量' })
+    await volume.fill('0.35')
+    await expect
+      .poll(() => element.evaluate((media) => media.volume))
+      .toBe(0.35)
+    await page.getByRole('button', { name: '静音', exact: true }).click()
+    await expect.poll(() => element.evaluate((media) => media.muted)).toBe(true)
+    await page.getByRole('button', { name: '取消静音', exact: true }).click()
+    await expect
+      .poll(() => element.evaluate((media) => media.muted))
+      .toBe(false)
+    await expect
+      .poll(() => element.evaluate((media) => media.volume))
+      .toBe(0.35)
+    await slider.focus()
+    await page.mouse.move(0, 0)
+    await expect(volume).toBeHidden()
+  }
+  await checkVolume(page.locator('audio'))
   kind = 'capture'
   await mount()
   await page.getByRole('button', { name: '播放', exact: true }).click()
   await page.getByRole('button', { name: '暂停播放', exact: true }).click()
   await expect(slider).toBeEnabled()
+  await checkVolume(page.locator('audio'))
   await page.screenshot({
     path: `${output}/capture-320-dark.png`,
     fullPage: true,
@@ -309,6 +354,29 @@ try {
   await mount()
   const video = page.locator('video')
   await video.waitFor()
+  const surface = page.locator('[data-video-expanded=true]')
+  const paneBox = await page.locator('[role=tablist]').boundingBox()
+  const videoBox = await video.boundingBox()
+  assert.ok(
+    videoBox.x + videoBox.width <= paneBox.x,
+    'desktop video sits beside the text'
+  )
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth
+    ),
+    true
+  )
+  await video.evaluate((element) => {
+    element.loop = true
+  })
+  await page.getByRole('button', { name: '播放', exact: true }).click()
+  await page.getByRole('tab', { name: '文字记录', exact: true }).click()
+  await expect(surface).toHaveAttribute('data-controls-visible', 'false')
+  await expect(page.locator('[data-video-controls]')).toHaveCSS('opacity', '0')
+  await video.hover()
+  await expect(page.locator('[data-video-controls]')).toHaveCSS('opacity', '1')
+  await page.getByRole('button', { name: '暂停播放', exact: true }).click()
   await video.evaluate((element) => {
     window.fixtureVideo = element
   })
@@ -322,6 +390,7 @@ try {
   await page.getByRole('button', { name: '全屏', exact: true }).click()
   await page.getByRole('button', { name: '退出全屏', exact: true }).waitFor()
   assert.equal(await page.evaluate(() => !!document.fullscreenElement), true)
+  await checkVolume(video)
   await page.screenshot({ path: `${output}/video-fullscreen.png` })
   await page.getByRole('button', { name: '退出全屏', exact: true }).click()
   await expect
@@ -342,6 +411,20 @@ try {
     true
   )
   await page.screenshot({ path: `${output}/video-inline.png`, fullPage: true })
+  await page.setViewportSize({ width: 390, height: 900 })
+  const mobileVideo = await video.boundingBox()
+  const mobileText = await page.locator('[role=tablist]').boundingBox()
+  assert.ok(
+    mobileVideo.y + mobileVideo.height <= mobileText.y,
+    'mobile video sits above the text'
+  )
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth
+    ),
+    true
+  )
+  await page.screenshot({ path: `${output}/video-mobile.png`, fullPage: true })
   assert.deepEqual(errors, [])
   console.log(
     `Playback UI passed: real audio, verified capture chunks, shared controls, 320/390/1280px, light/dark, follow, video collapse and full screen. Screenshots: ${output}`

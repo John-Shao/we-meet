@@ -172,7 +172,9 @@ it('keeps the same video element and paused position when collapsing the preview
   Object.defineProperty(video, 'duration', { value: 120 })
   Object.defineProperty(video, 'readyState', { value: 2 })
   fireEvent.loadedMetadata(video)
-  fireEvent.change(screen.getByRole('slider'), { target: { value: '42000' } })
+  fireEvent.change(screen.getByRole('slider', { name: 'audioPosition' }), {
+    target: { value: '42000' },
+  })
   expect(video.currentTime).toBe(42)
   fireEvent.click(screen.getByRole('button', { name: 'hideVideo' }))
   expect(video).toHaveAttribute('hidden')
@@ -192,11 +194,15 @@ it('clamps timeline jumps to the known duration and preserves playback speed', a
   Object.defineProperty(audio, 'readyState', { value: 2 })
   fireEvent.loadedMetadata(audio)
   fireEvent.change(screen.getByRole('combobox'), { target: { value: '1.5' } })
-  fireEvent.change(screen.getByRole('slider'), { target: { value: '24000' } })
+  fireEvent.change(screen.getByRole('slider', { name: 'audioPosition' }), {
+    target: { value: '24000' },
+  })
   fireEvent.click(screen.getByRole('button', { name: 'skipForward' }))
   expect(audio.currentTime).toBe(25)
   expect(audio.playbackRate).toBe(1.5)
-  fireEvent.change(screen.getByRole('slider'), { target: { value: '1000' } })
+  fireEvent.change(screen.getByRole('slider', { name: 'audioPosition' }), {
+    target: { value: '1000' },
+  })
   fireEvent.click(screen.getByRole('button', { name: 'skipBack' }))
   expect(audio.currentTime).toBe(0)
 })
@@ -221,6 +227,10 @@ it.each([false, true])(
     audio.currentTime = 42
     fireEvent.timeUpdate(audio)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '1.5' } })
+    fireEvent.change(screen.getByRole('slider', { name: 'playbackVolume' }), {
+      target: { value: '0.35' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'mutePlayback' }))
     if (playing) fireEvent.play(audio)
     await act(async () => {
       await vi.advanceTimersByTimeAsync(8000)
@@ -231,6 +241,11 @@ it.each([false, true])(
     fireEvent.loadedMetadata(audio)
     expect(audio.currentTime).toBe(42)
     expect(audio.playbackRate).toBe(1.5)
+    expect(audio.volume).toBe(0.35)
+    expect(audio.muted).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'unmutePlayback' }))
+    expect(audio.muted).toBe(false)
+    expect(audio.volume).toBe(0.35)
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(
       playing ? 1 : 0
     )
