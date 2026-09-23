@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { RecordWorkspace } from './MeetingRecordWorkspace'
+import type { PlaybackFollowControl } from '../components/RecordPlaybackControls'
 import { formatDateTime } from '../recordDateTime'
 import { act } from '@testing-library/react'
 
@@ -23,9 +24,25 @@ vi.mock('../components/CaptureAudioPlayer', () => ({
   }),
 }))
 vi.mock('../components/UploadMediaPlayer', () => ({
-  UploadMediaPlayer: forwardRef(function Player(_, ref) {
+  UploadMediaPlayer: forwardRef(function Player(
+    { followControl }: { followControl?: PlaybackFollowControl },
+    ref
+  ) {
     useImperativeHandle(ref, () => ({ seek: mocks.seek }))
-    return <p>upload-player</p>
+    return (
+      <>
+        <p>upload-player</p>
+        {followControl && (
+          <button
+            aria-label="followPlayback"
+            aria-pressed={followControl.enabled}
+            onClick={followControl.onToggle}
+          >
+            Follow
+          </button>
+        )}
+      </>
+    )
   }),
 }))
 vi.mock('../components/RecordingUpload', () => ({
@@ -622,7 +639,7 @@ it('connects upload timestamps to playback without sending an empty speaker filt
   show()
   const row = (await screen.findByText('Shared original')).closest('article')!
   expect(row).toHaveAttribute('aria-current', 'true')
-  fireEvent.click(screen.getByRole('button', { name: '0:00' }))
+  fireEvent.click(screen.getByRole('button', { name: '00:00' }))
   expect(mocks.seek).toHaveBeenCalledWith(0)
   for (const [path] of vi
     .mocked(fetchApi)
@@ -644,7 +661,9 @@ it('does not offer media or timestamp actions to a transcript-only upload reader
   await screen.findByText('Shared original')
   expect(screen.queryByText('upload-player')).not.toBeInTheDocument()
   expect(screen.queryByText('upload-status')).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: '0:00' })).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: '00:00' })
+  ).not.toBeInTheDocument()
   expect(screen.queryByText('library.backToPlayback')).not.toBeInTheDocument()
 })
 
@@ -662,4 +681,35 @@ it('does not infer upload controls from transcript access on older metadata', as
   show()
   await screen.findByText('Shared original')
   expect(screen.queryByText('upload-status')).not.toBeInTheDocument()
+})
+
+it('lets the player resume transcript following after browsing and searching', async () => {
+  record.source_type = 'upload'
+  record.capture_id = null
+  show()
+  const row = (await screen.findByText('Shared original')).closest('article')!
+  fireEvent.wheel(row)
+  expect(
+    screen.getByRole('button', { name: 'followPlayback' })
+  ).toHaveAttribute('aria-pressed', 'false')
+  const input = screen.getByLabelText('library.searchOriginal')
+  fireEvent.change(input, { target: { value: 'release' } })
+  fireEvent.submit(input.closest('form')!)
+  await waitFor(() =>
+    expect(
+      vi
+        .mocked(fetchApi)
+        .mock.calls.some(([path]) => path.includes('q=release'))
+    ).toBe(true)
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'followPlayback' }))
+  await waitFor(() =>
+    expect(screen.getByLabelText('library.searchOriginal')).toHaveValue('')
+  )
+  expect(
+    screen.getByRole('button', { name: 'followPlayback' })
+  ).toHaveAttribute('aria-pressed', 'true')
+  expect(
+    screen.queryByRole('button', { name: 'library.backToPlayback' })
+  ).not.toBeInTheDocument()
 })

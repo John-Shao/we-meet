@@ -1,4 +1,10 @@
 {
+  "followPlayback": "Follow",
+  "showVideo": "Show video",
+  "hideVideo": "Hide video",
+  "fullscreen": "Full screen",
+  "exitFullscreen": "Exit full screen",
+  "fullscreenError": "Full screen is unavailable. You can keep playing here.",
   "skipBack": "Back 15 seconds",
   "skipForward": "Forward 15 seconds",
   "backToLibrary": "View meeting records",

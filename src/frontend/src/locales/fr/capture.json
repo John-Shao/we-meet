@@ -1,4 +1,10 @@
 {
+  "followPlayback": "Suivre",
+  "showVideo": "Afficher la vidéo",
+  "hideVideo": "Masquer la vidéo",
+  "fullscreen": "Plein écran",
+  "exitFullscreen": "Quitter le plein écran",
+  "fullscreenError": "Le plein écran est indisponible. Vous pouvez continuer la lecture ici.",
   "skipBack": "Reculer de 15 secondes",
   "skipForward": "Avancer de 15 secondes",
   "backToLibrary": "Voir les archives de réunion",

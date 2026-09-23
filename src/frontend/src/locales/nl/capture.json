@@ -1,4 +1,10 @@
 {
+  "followPlayback": "Volgen",
+  "showVideo": "Video tonen",
+  "hideVideo": "Video verbergen",
+  "fullscreen": "Volledig scherm",
+  "exitFullscreen": "Volledig scherm verlaten",
+  "fullscreenError": "Volledig scherm is niet beschikbaar. Je kunt hier verder afspelen.",
   "skipBack": "15 seconden terug",
   "skipForward": "15 seconden vooruit",
   "backToLibrary": "Vergaderrecords bekijken",

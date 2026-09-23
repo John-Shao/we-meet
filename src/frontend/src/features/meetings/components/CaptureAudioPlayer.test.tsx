@@ -143,3 +143,16 @@ it('clears private audio on a revoked access check', async () => {
   expect(container.querySelector('audio')).not.toHaveAttribute('src')
   expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:private-audio')
 })
+
+it('treats the exact end of the timeline as completed, not as missing audio', async () => {
+  render(<CaptureAudioPlayer captureId="capture" />)
+  await screen.findByRole('button', { name: 'play' })
+  const slider = screen.getByRole('slider', { name: 'audioPosition' })
+  fireEvent.keyDown(slider, { key: 'End' })
+  fireEvent.change(slider, { target: { value: '3000' } })
+  fireEvent.keyUp(slider, { key: 'End' })
+  expect(screen.queryByText('audioGap')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'play' }))
+  await screen.findByRole('button', { name: 'pausePlayback' })
+  expect(vi.mocked(audioChunk).mock.calls[0][1].id).toBe('a')
+})

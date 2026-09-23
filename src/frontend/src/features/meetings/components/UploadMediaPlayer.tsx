@@ -6,6 +6,17 @@ import {
   useRef,
   useState,
 } from 'react'
+import {
+  RiArrowDownSLine,
+  RiArrowUpSLine,
+  RiFullscreenLine,
+  RiFullscreenExitLine,
+} from '@remixicon/react'
+import {
+  RecordPlaybackControls,
+  type PlaybackFollowControl,
+} from './RecordPlaybackControls'
+import { Button as PlayerButton } from '@/primitives/Button'
 import { useTranslation } from 'react-i18next'
 
 import { fetchApi } from '@/api/fetchApi'
@@ -35,21 +46,47 @@ type MediaRead = {
   content_type: string
 }
 
-const time = (seconds: number) => {
-  if (!Number.isFinite(seconds) || seconds < 0) return '0:00'
-  const whole = Math.floor(seconds)
-  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
-}
-
 export const UploadMediaPlayer = forwardRef<
   UploadMediaHandle | null,
   {
     recordId: string
+    followControl?: PlaybackFollowControl
     onPosition?: (milliseconds: number) => void
     onDuration?: (milliseconds: number | null) => void
   }
->(function UploadMediaPlayer({ recordId, onPosition, onDuration }, ref) {
+>(function UploadMediaPlayer(
+  { recordId, onPosition, onDuration, followControl },
+  ref
+) {
   const { t } = useTranslation('capture')
+  const playerSurface = useRef<HTMLElement>(null)
+  const [videoExpanded, setVideoExpanded] = useState(true)
+  const [fullscreen, setFullscreen] = useState(false)
+  const [fullscreenSupported, setFullscreenSupported] = useState(false)
+  const [fullscreenError, setFullscreenError] = useState(false)
+  const scrubbing = useRef<boolean>()
+  useEffect(() => {
+    setFullscreenSupported(
+      typeof document.documentElement.requestFullscreen === 'function'
+    )
+    const changed = () =>
+      setFullscreen(document.fullscreenElement === playerSurface.current)
+    document.addEventListener('fullscreenchange', changed)
+    return () => document.removeEventListener('fullscreenchange', changed)
+  }, [])
+  const toggleFullscreen = async () => {
+    setFullscreenError(false)
+    try {
+      if (document.fullscreenElement === playerSurface.current)
+        await document.exitFullscreen()
+      else {
+        setVideoExpanded(true)
+        await playerSurface.current?.requestFullscreen()
+      }
+    } catch {
+      setFullscreenError(true)
+    }
+  }
   const [media, setMedia] = useState<MediaRead>()
   const [state, setState] = useState<'loading' | 'ready' | 'playing' | 'error'>(
     'loading'
@@ -129,7 +166,10 @@ export const UploadMediaPlayer = forwardRef<
 
   const seek = (milliseconds: number) => {
     if (!Number.isFinite(milliseconds)) return
-    const bounded = Math.max(0, milliseconds)
+    const bounded = Math.max(
+      0,
+      duration > 0 ? Math.min(duration * 1000, milliseconds) : milliseconds
+    )
     const element = audio.current
     if (element) {
       try {
@@ -151,8 +191,11 @@ export const UploadMediaPlayer = forwardRef<
   const toggle = () => {
     const element = audio.current
     if (!element) return
-    if (element.paused) void element.play().catch(() => setState('error'))
-    else element.pause()
+    if (playingRef.current) element.pause()
+    else {
+      if (duration > 0 && positionRef.current >= duration * 1000) seek(0)
+      void element.play().catch(() => setState('error'))
+    }
   }
 
   const jump = (delta: number) => {
@@ -161,16 +204,42 @@ export const UploadMediaPlayer = forwardRef<
     seek(positionRef.current + delta)
   }
 
+  const beginSeek = () => {
+    if (scrubbing.current !== undefined) return
+    scrubbing.current = playingRef.current
+    audio.current?.pause()
+  }
+  const endSeek = () => {
+    const resume = scrubbing.current
+    scrubbing.current = undefined
+    if (resume) void audio.current?.play().catch(() => setState('error'))
+  }
   const MediaElement = media?.media_type === 'video' ? 'video' : 'audio'
   return (
     <section
+      ref={playerSurface}
       aria-label={t('playback')}
       className={css({
         flexShrink: 0,
         backgroundColor: 'surface.default',
         borderTop: '1px solid token(colors.border.subtle)',
-        paddingY: 'md',
-        paddingX: 0,
+        paddingY: 'sm',
+        paddingX: 'lg',
+        borderTopLeftRadius: 'card',
+        borderTopRightRadius: 'card',
+        '&:fullscreen': {
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'sm',
+          padding: 'lg',
+          overflowY: 'auto',
+          borderRadius: 'none',
+          '& video': {
+            flex: 1,
+            minHeight: 0,
+            maxHeight: 'calc(100dvh - 12rem)',
+          },
+        },
       })}
     >
       {state === 'loading' && (
@@ -199,71 +268,61 @@ export const UploadMediaPlayer = forwardRef<
       )}
       {media && (
         <>
-          <div
-            className={css({
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 'md',
-              alignItems: 'center',
-              justifyContent: 'center',
-            })}
-          >
-            <Button
-              variant="tertiary"
-              isDisabled={state === 'loading' || state === 'error'}
-              onPress={() => jump(-15_000)}
+          {media.media_type === 'video' && (
+            <div
+              className={css({
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 'sm',
+                marginBottom: 'sm',
+              })}
             >
-              {t('skipBack')}
-            </Button>
-            <Button
-              variant="primary"
-              isDisabled={state === 'loading' || state === 'error'}
-              onPress={toggle}
-            >
-              {t(state === 'playing' ? 'pausePlayback' : 'play')}
-            </Button>
-            <Button
-              variant="tertiary"
-              isDisabled={state === 'loading' || state === 'error'}
-              onPress={() => jump(15_000)}
-            >
-              {t('skipForward')}
-            </Button>
-            <span aria-live="off" className={css({ minWidth: '6rem' })}>
-              {time(position / 1000)} / {time(duration)}
-            </span>
-            <label>
-              {t('playbackRate')}{' '}
-              <select
-                aria-label={t('playbackRate')}
-                value={rate}
-                onChange={(event) => {
-                  const value = Number(event.target.value)
-                  setRate(value)
-                  if (audio.current) audio.current.playbackRate = value
-                }}
+              <PlayerButton
+                variant="quaternaryText"
+                size="dense"
+                aria-expanded={videoExpanded}
+                onPress={() => setVideoExpanded((value) => !value)}
+                isDisabled={fullscreen}
               >
-                {[0.75, 1, 1.25, 1.5, 2].map((value) => (
-                  <option key={value} value={value}>
-                    {value}×
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {/* The browser owns seeking over Range, so no custom scrubber is needed.
-              `jsx-a11y/media-has-caption` 只认原生 <audio>/<video>,这里渲染的是
-              自定义的 `MediaElement`,所以那条 eslint-disable 从未生效过(已删)。 */}
+                {videoExpanded ? (
+                  <RiArrowDownSLine size={18} aria-hidden />
+                ) : (
+                  <RiArrowUpSLine size={18} aria-hidden />
+                )}
+                {t(videoExpanded ? 'hideVideo' : 'showVideo')}
+              </PlayerButton>
+              <PlayerButton
+                variant="quaternaryText"
+                size="dense"
+                onPress={() => void toggleFullscreen()}
+                aria-label={t(fullscreen ? 'exitFullscreen' : 'fullscreen')}
+                isDisabled={!fullscreenSupported}
+              >
+                {fullscreen ? (
+                  <RiFullscreenExitLine size={20} aria-hidden />
+                ) : (
+                  <RiFullscreenLine size={20} aria-hidden />
+                )}
+              </PlayerButton>
+            </div>
+          )}
+          {fullscreenError && <p role="status">{t('fullscreenError')}</p>}
+          {/* Keep one media element mounted: pause, collapse and full screen preserve its frame and stream. */}
           <MediaElement
             ref={attachMedia}
             src={media.url}
-            controls
+            controls={false}
+            hidden={media.media_type !== 'video' || !videoExpanded}
             playsInline
             preload="metadata"
             className={css({
               width: '100%',
-              marginTop: 'sm',
-              maxHeight: '40vh',
+              display: 'block',
+              marginBottom: 'sm',
+              borderRadius: 'control',
+              maxHeight: '30vh',
+              '&[hidden]': { display: 'none' },
               objectFit: 'contain',
             })}
             onLoadedMetadata={(event) => {
@@ -321,6 +380,44 @@ export const UploadMediaPlayer = forwardRef<
             onError={() => {
               playingRef.current = false
               setState('error')
+            }}
+          />
+          <RecordPlaybackControls
+            position={position}
+            duration={duration * 1000}
+            playing={state === 'playing'}
+            rate={rate}
+            disabled={state === 'loading' || state === 'error'}
+            onPlayPause={toggle}
+            onSeek={seek}
+            onBack={() => jump(-15000)}
+            onForward={() => jump(15000)}
+            onRate={(value) => {
+              setRate(value)
+              if (audio.current) audio.current.playbackRate = value
+            }}
+            followControl={fullscreen ? undefined : followControl}
+            seekEvents={{
+              onPointerDown: beginSeek,
+              onPointerUp: endSeek,
+              onPointerCancel: endSeek,
+              onKeyDown: (event) => {
+                if (
+                  [
+                    'ArrowLeft',
+                    'ArrowRight',
+                    'ArrowUp',
+                    'ArrowDown',
+                    'Home',
+                    'End',
+                    'PageUp',
+                    'PageDown',
+                  ].includes(event.key)
+                )
+                  beginSeek()
+              },
+              onKeyUp: endSeek,
+              onBlur: endSeek,
             }}
           />
         </>

@@ -1,0 +1,369 @@
+// Local fixture-only visual and interaction checks; no account or production writes.
+// Start Vite on port 3191, then run: node scripts/check-record-playback-ui.mjs
+import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { mkdir } from 'node:fs/promises'
+import { chromium, expect } from '@playwright/test'
+
+const origin = process.env.CAPTURE_TEST_ORIGIN || 'http://127.0.0.1:3191'
+const output = 'test-results/record-playback'
+await mkdir(output, { recursive: true })
+function wave(seconds) {
+  const pcm = 16000 * 2 * seconds
+  const buffer = Buffer.alloc(44 + pcm)
+  buffer.write('RIFF', 0)
+  buffer.writeUInt32LE(36 + pcm, 4)
+  buffer.write('WAVEfmt ', 8)
+  buffer.writeUInt32LE(16, 16)
+  buffer.writeUInt16LE(1, 20)
+  buffer.writeUInt16LE(1, 22)
+  buffer.writeUInt32LE(16000, 24)
+  buffer.writeUInt32LE(32000, 28)
+  buffer.writeUInt16LE(2, 32)
+  buffer.writeUInt16LE(16, 34)
+  buffer.write('data', 36)
+  buffer.writeUInt32LE(pcm, 40)
+  return buffer
+}
+const wholeAudio = wave(25)
+const chunks = [wave(10), wave(10), wave(5)]
+let kind = 'audio'
+let videoBytes
+const browser = await chromium.launch({ headless: true })
+const errors = []
+let page
+try {
+  const context = await browser.newContext({
+    locale: 'zh-CN',
+    viewport: { width: 1280, height: 900 },
+    reducedMotion: 'reduce',
+  })
+  await context.route('**/record-player-harness', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<!doctype html><html lang="zh"><meta charset="utf-8"><div id="root" style="height:100dvh;display:flex;flex-direction:column"></div></html>',
+    })
+  )
+  await context.route('**/api/v1.0/**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (/\/audio\/chunk-\d\/$/.test(path)) {
+      return route.fulfill({
+        contentType: 'audio/wav',
+        body: chunks[Number(path.match(/chunk-(\d)/)[1])],
+      })
+    }
+    if (path.endsWith('/audio/'))
+      return route.fulfill({
+        json: {
+          manifest: null,
+          next_after_sequence: null,
+          results: chunks.map((chunk, index) => ({
+            id: `chunk-${index}`,
+            sequence: index + 1,
+            start_ms: index * 10000,
+            duration_ms: index === 2 ? 5000 : 10000,
+            stored: true,
+            byte_size: chunk.length,
+            checksum: createHash('sha256').update(chunk).digest('hex'),
+          })),
+        },
+      })
+    if (path.endsWith('/capture-sessions/capture/'))
+      return route.fulfill({
+        json: {
+          id: 'capture',
+          record_id: 'capture-record',
+          status: 'stopped',
+          media_status: 'saved',
+        },
+      })
+    if (path.endsWith('/media/'))
+      return route.fulfill({
+        json: {
+          url: `${origin}/fixtures/${kind}`,
+          expires_in: 3600,
+          media_type: kind,
+          name: kind === 'video' ? 'review.webm' : 'review.wav',
+          content_type: kind === 'video' ? 'video/webm' : 'audio/wav',
+          size: wholeAudio.length,
+        },
+      })
+    if (path.includes('original-segments'))
+      return route.fulfill({
+        json: {
+          results: Array.from({ length: 12 }, (_, index) => ({
+            id: `segment-${index}`,
+            speaker_label: index % 2 ? '李明' : '王晓',
+            start_ms: index * 2000,
+            end_ms: index * 2000 + 2000,
+            text: [
+              '本周先完成播放器与文字记录页面的体验优化。',
+              '音频和视频使用统一的控制栏，播放按钮保持居中。',
+              '移动端需要保留足够的阅读空间，并支持随时回到播放位置。',
+            ][index % 3],
+          })),
+          next_cursor: null,
+        },
+      })
+    if (/\/meeting-records\/[^/]+\/$/.test(path))
+      return route.fulfill({
+        json: {
+          id: kind === 'capture' ? 'capture-record' : 'record',
+          title: '产品体验评审 · 播放器优化',
+          source_type: kind === 'capture' ? 'audio_recording' : 'upload',
+          capture_id: kind === 'capture' ? 'capture' : null,
+          origin_at: '2026-09-23T01:06:00Z',
+          revision: 1,
+          capabilities: {
+            read_transcript: true,
+            read_summary: false,
+            play_media: true,
+          },
+        },
+      })
+    return route.fulfill({ json: { results: [], next_cursor: null } })
+  })
+  await context.route('**/fixtures/*', (route) => {
+    const bytes = kind === 'video' ? videoBytes : wholeAudio
+    const range = /bytes=(\d+)-(\d*)/.exec(
+      route.request().headers().range ?? ''
+    )
+    const start = range ? Number(range[1]) : 0
+    const end = range?.[2]
+      ? Math.min(Number(range[2]), bytes.length - 1)
+      : bytes.length - 1
+    return route.fulfill({
+      status: range ? 206 : 200,
+      contentType: kind === 'video' ? 'video/webm' : 'audio/wav',
+      headers: {
+        'accept-ranges': 'bytes',
+        ...(range
+          ? { 'content-range': `bytes ${start}-${end}/${bytes.length}` }
+          : {}),
+      },
+      body: bytes.subarray(start, end + 1),
+    })
+  })
+  page = await context.newPage()
+  page.on('pageerror', (error) => {
+    errors.push(error.message)
+    console.error(error.message)
+  })
+  await page.goto(`${origin}/record-player-harness`)
+  // A small, genuine video stream exercises paused frames and full screen without external media.
+  videoBytes = Buffer.from(
+    await page.evaluate(async () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 640
+      canvas.height = 360
+      const drawing = canvas.getContext('2d')
+      drawing.fillStyle = '#1e3a7a'
+      drawing.fillRect(0, 0, 640, 360)
+      drawing.fillStyle = '#fff'
+      drawing.font = '28px sans-serif'
+      drawing.fillText('Meeting playback preview', 120, 185)
+      const stream = canvas.captureStream(10)
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' })
+      const pieces = []
+      const done = new Promise((resolve) => {
+        recorder.onstop = resolve
+      })
+      recorder.ondataavailable = (event) => pieces.push(event.data)
+      recorder.start()
+      const frames = setInterval(() => {
+        drawing.fillRect(0, 0, 1, 1)
+      }, 100)
+      await new Promise((resolve) => setTimeout(resolve, 1200))
+      clearInterval(frames)
+      recorder.stop()
+      await done
+      stream.getTracks().forEach((track) => track.stop())
+      return Array.from(new Uint8Array(await new Blob(pieces).arrayBuffer()))
+    })
+  )
+  const mount = async () => {
+    await page.evaluate(async (capture) => {
+      const runtime = (await import('/@react-refresh')).default
+      runtime.injectIntoGlobalHook(window)
+      window.$RefreshReg$ = () => {}
+      window.$RefreshSig$ = () => (type) => type
+      window.__vite_plugin_react_preamble_installed__ = true
+      await import('/src/styles/index.css')
+      await import('/src/i18n/init.ts')
+      const React = (await import('/node_modules/.vite/deps/react.js')).default
+      const { createRoot } = (
+        await import('/node_modules/.vite/deps/react-dom_client.js')
+      ).default
+      const { QueryClient, QueryClientProvider } =
+        await import('/node_modules/.vite/deps/@tanstack_react-query.js')
+      const { RecordWorkspace } =
+        await import('/src/features/meetings/routes/MeetingRecordWorkspace.tsx')
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      })
+      if (!window.playerRoot)
+        window.playerRoot = createRoot(document.getElementById('root'))
+      window.playerRoot.render(
+        React.createElement(
+          React.Suspense,
+          { fallback: null },
+          React.createElement(
+            QueryClientProvider,
+            { client },
+            React.createElement(RecordWorkspace, {
+              key: `${capture}-${Date.now()}`,
+              recordId: capture ? 'capture-record' : 'record',
+              viewerId: 'fixture-reader',
+            })
+          )
+        )
+      )
+    }, kind === 'capture')
+    await page
+      .getByRole('button', { name: '播放', exact: true })
+      .waitFor()
+      .catch(async (error) => {
+        console.error(await page.locator('body').innerText())
+        await page.screenshot({ path: `${output}/failure.png`, fullPage: true })
+        throw error
+      })
+  }
+  await mount()
+  const controls = page.locator('[data-record-playback-controls]')
+  const slider = controls.getByRole('slider')
+  await expect(slider).toBeEnabled()
+  await page.getByRole('button', { name: '播放', exact: true }).click()
+  await page.getByRole('button', { name: '暂停播放', exact: true }).click()
+  await slider.fill('6000')
+  await expect(page.locator('[data-segment-id="segment-3"]')).toHaveAttribute(
+    'aria-current',
+    'true'
+  )
+  await page.locator('[data-segment-id="segment-3"]').hover()
+  await page.mouse.wheel(0, 180)
+  const follow = page.getByRole('button', { name: '跟随', exact: true })
+  await expect(follow).toHaveAttribute('aria-pressed', 'false')
+  await follow.click()
+  await expect(follow).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('audio')).not.toHaveAttribute('controls')
+  for (const [width, theme] of [
+    [1280, 'light'],
+    [390, 'light'],
+    [320, 'dark'],
+  ]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.evaluate((theme) => {
+      document.documentElement.dataset.theme = theme
+    }, theme)
+    await follow.click()
+    await follow.click()
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
+      )
+      .toBe(true)
+    const playBox = await controls
+      .getByRole('button', { name: '播放', exact: true })
+      .boundingBox()
+    const barBox = await controls.boundingBox()
+    assert.ok(
+      Math.abs(playBox.x + playBox.width / 2 - barBox.x - barBox.width / 2) < 1,
+      'play stays centered'
+    )
+    assert.ok(barBox.y + barBox.height <= 900, 'controls stay visible')
+    const targets = await controls
+      .locator('button,select')
+      .evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const r = node.getBoundingClientRect()
+          return { left: r.left, right: r.right, height: r.height }
+        })
+      )
+    targets.forEach((target, index) => {
+      assert.ok(target.height >= 44, 'touch targets retain their height')
+      if (index)
+        assert.ok(
+          target.left >= targets[index - 1].right - 1,
+          'controls do not overlap'
+        )
+    })
+    await page.screenshot({
+      path: `${output}/audio-${width}-${theme}.png`,
+      fullPage: true,
+    })
+  }
+  kind = 'capture'
+  await mount()
+  await page.getByRole('button', { name: '播放', exact: true }).click()
+  await page.getByRole('button', { name: '暂停播放', exact: true }).click()
+  await expect(slider).toBeEnabled()
+  await page.screenshot({
+    path: `${output}/capture-320-dark.png`,
+    fullPage: true,
+  })
+  kind = 'video'
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = 'light'
+  })
+  await mount()
+  const video = page.locator('video')
+  await video.waitFor()
+  await video.evaluate((element) => {
+    window.fixtureVideo = element
+  })
+  await page.getByRole('button', { name: '收起视频' }).click()
+  await expect(video).toBeHidden()
+  await page.getByRole('button', { name: '展开视频' }).click()
+  assert.equal(
+    await video.evaluate((element) => element === window.fixtureVideo),
+    true
+  )
+  await page.getByRole('button', { name: '全屏', exact: true }).click()
+  await page.getByRole('button', { name: '退出全屏', exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => !!document.fullscreenElement), true)
+  await page.screenshot({ path: `${output}/video-fullscreen.png` })
+  await page.getByRole('button', { name: '退出全屏', exact: true }).click()
+  await expect
+    .poll(() => page.evaluate(() => !document.fullscreenElement))
+    .toBe(true)
+  await page.getByRole('button', { name: '全屏', exact: true }).click()
+  await expect
+    .poll(() => page.evaluate(() => !!document.fullscreenElement))
+    .toBe(true)
+  // Headless Escape does not perform the browser chrome's native exit action.
+  // Exiting through the DOM API exercises the same fullscreenchange event.
+  await page.evaluate(() => document.exitFullscreen())
+  await expect
+    .poll(() => page.evaluate(() => !document.fullscreenElement))
+    .toBe(true)
+  assert.equal(
+    await video.evaluate((element) => element === window.fixtureVideo),
+    true
+  )
+  await page.screenshot({ path: `${output}/video-inline.png`, fullPage: true })
+  assert.deepEqual(errors, [])
+  console.log(
+    `Playback UI passed: real audio, verified capture chunks, shared controls, 320/390/1280px, light/dark, follow, video collapse and full screen. Screenshots: ${output}`
+  )
+} catch (error) {
+  if (page) {
+    console.error(
+      await page.evaluate(() => ({
+        media: [...document.querySelectorAll('audio,video')].map((media) => ({
+          time: media.currentTime,
+          duration: media.duration,
+          paused: media.paused,
+        })),
+        slider: document.querySelector('input[type=range]')?.value,
+        active: [...document.querySelectorAll('[aria-current=true]')].map(
+          (row) => row.getAttribute('data-segment-id')
+        ),
+      }))
+    )
+    await page.screenshot({ path: `${output}/failure.png`, fullPage: true })
+  }
+  throw error
+} finally {
+  await browser.close()
+}

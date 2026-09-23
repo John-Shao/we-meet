@@ -1,4 +1,10 @@
 {
+  "followPlayback": "Folgen",
+  "showVideo": "Video anzeigen",
+  "hideVideo": "Video ausblenden",
+  "fullscreen": "Vollbild",
+  "exitFullscreen": "Vollbild verlassen",
+  "fullscreenError": "Vollbild ist nicht verfügbar. Sie können die Wiedergabe hier fortsetzen.",
   "skipBack": "15 Sekunden zurück",
   "skipForward": "15 Sekunden vor",
   "backToLibrary": "Besprechungsaufzeichnungen anzeigen",

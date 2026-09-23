@@ -70,10 +70,11 @@ import { TranscriptSegment } from '../components/TranscriptSegment'
 import { recordSourceKey } from '../recordSource'
 import {
   usePlaybackFollow,
+  usePlaybackResume,
   activeRowId,
   transcriptWindowTarget,
   useTranscriptFollow,
-  type PlaybackFollow,
+  type TranscriptPlaybackFollow,
   type TimedRow,
 } from '../transcriptSync'
 import { RiArrowLeftLine, RiTimeLine } from '@remixicon/react'
@@ -114,9 +115,7 @@ function OriginalRead({
   /** Row playback is inside, so the text can follow the audio. */
   activeId?: string | null
   onSource?: (milliseconds: number) => void
-  follow?: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'> & {
-    positionMs?: number
-  }
+  follow?: TranscriptPlaybackFollow
 }) {
   const { t } = useTranslation('meetings')
   const correction = useCorrectOriginalSegment(viewerId, record.id)
@@ -193,7 +192,19 @@ function OriginalRead({
     positionMs === undefined
       ? (activeId ?? null)
       : activeRowId(rowIds, positionMs)
-  const followEnabled = following && !search && !speaker && !speakers
+  usePlaybackResume(follow, () => {
+    setSearch('')
+    setSpeaker('')
+    setAnchorMs(Math.floor(positionMs ?? 0))
+    setCursors([''])
+    setFollowing(true)
+  })
+  const pauseFollowing = follow?.pauseFollowing
+  useEffect(() => {
+    if ((!following || search || speaker) && !speakers) pauseFollowing?.()
+  }, [following, search, speaker, speakers, pauseFollowing])
+  const followEnabled =
+    following && follow?.enabled !== false && !search && !speaker && !speakers
   useEffect(() => {
     if (!followEnabled || positionMs === undefined || follow?.suppressed())
       return
@@ -265,25 +276,30 @@ function OriginalRead({
   return (
     <div
       ref={listRef}
+      onWheel={() => follow?.pauseFollowing?.()}
+      onTouchMove={() => follow?.pauseFollowing?.()}
       onFocusCapture={(event) => {
         if (event.target instanceof HTMLTextAreaElement) setFollowing(false)
       }}
     >
       {searchForm}
-      {positionMs !== undefined && !speakers && (
-        <Button
-          variant="tertiary"
-          onPress={() => {
-            setSearch('')
-            setSpeaker('')
-            setAnchorMs(Math.floor(positionMs))
-            setCursors([''])
-            setFollowing(true)
-          }}
-        >
-          {t('library.backToPlayback')}
-        </Button>
-      )}
+      {positionMs !== undefined &&
+        !speakers &&
+        (!followEnabled || follow?.suppressed()) && (
+          <Button
+            variant="tertiary"
+            onPress={() => {
+              setSearch('')
+              setSpeaker('')
+              setAnchorMs(Math.floor(positionMs))
+              setCursors([''])
+              setFollowing(true)
+              follow?.resumeFollowing?.()
+            }}
+          >
+            {t('library.backToPlayback')}
+          </Button>
+        )}
       {!query.data.results.length && <p>{t('library.noContent')}</p>}
       {query.data.results.map((item) =>
         'identity_type' in item ? (
@@ -788,6 +804,16 @@ function WorkspaceContent({
             captureId={source.id}
             compact
             onPosition={follow.report}
+            followControl={
+              selectedTab === 'text'
+                ? {
+                    enabled: follow.enabled,
+                    onToggle: follow.enabled
+                      ? follow.pauseFollowing
+                      : follow.resumeFollowing,
+                  }
+                : undefined
+            }
           />
         </div>
       )}
@@ -804,6 +830,16 @@ function WorkspaceContent({
           recordId={record.id}
           onDuration={setPlayerDuration}
           onPosition={follow.report}
+          followControl={
+            selectedTab === 'text'
+              ? {
+                  enabled: follow.enabled,
+                  onToggle: follow.enabled
+                    ? follow.pauseFollowing
+                    : follow.resumeFollowing,
+                }
+              : undefined
+          }
         />
       )}
     </>

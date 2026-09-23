@@ -1,4 +1,10 @@
 {
+  "followPlayback": "跟随",
+  "showVideo": "展开视频",
+  "hideVideo": "收起视频",
+  "fullscreen": "全屏",
+  "exitFullscreen": "退出全屏",
+  "fullscreenError": "暂时无法进入全屏，可继续在此播放。",
   "skipBack": "后退 15 秒",
   "skipForward": "前进 15 秒",
   "backToLibrary": "查看会议实录",

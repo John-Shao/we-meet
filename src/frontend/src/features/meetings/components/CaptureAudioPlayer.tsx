@@ -16,10 +16,10 @@ import {
   type AudioPlaylist,
 } from '../capture/playback'
 
-const time = (milliseconds: number) => {
-  const seconds = Math.floor(milliseconds / 1000)
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
-}
+import {
+  RecordPlaybackControls,
+  type PlaybackFollowControl,
+} from './RecordPlaybackControls'
 
 /** Mount with viewer/capture key. Only one small, verified audio blob is retained at a time. */
 export type CaptureAudioHandle = { seek: (milliseconds: number) => void }
@@ -28,13 +28,17 @@ export const CaptureAudioPlayer = forwardRef<
   {
     captureId: string
     compact?: boolean
+    followControl?: PlaybackFollowControl
     /**
      * Report the source-clock position so a transcript can follow playback.
      * Fires on seeks and on every time update while playing.
      */
     onPosition?: (milliseconds: number) => void
   }
->(function CaptureAudioPlayer({ captureId, compact = false, onPosition }, ref) {
+>(function CaptureAudioPlayer(
+  { captureId, compact = false, onPosition, followControl },
+  ref
+) {
   const { t } = useTranslation('capture')
   const [playlist, setPlaylist] = useState<AudioPlaylist>()
   const [state, setState] = useState<
@@ -49,6 +53,7 @@ export const CaptureAudioPlayer = forwardRef<
   const mounted = useRef(true)
   const playlistRef = useRef<AudioPlaylist>()
   const rateRef = useRef(1)
+  const positionRef = useRef(0)
   const seeking = useRef<{ playing: boolean }>()
   // Kept in a ref so a new callback identity never re-runs the load effects.
   const onPositionRef = useRef(onPosition)
@@ -56,6 +61,7 @@ export const CaptureAudioPlayer = forwardRef<
 
   /** Single writer for the source clock, so a follower cannot miss a change. */
   const setPosition = (milliseconds: number) => {
+    positionRef.current = milliseconds
     setPositionState(milliseconds)
     onPositionRef.current?.(milliseconds)
   }
@@ -156,8 +162,18 @@ export const CaptureAudioPlayer = forwardRef<
   }, [captureId, state])
 
   const seek = (milliseconds: number, resume = true) => {
-    setPosition(milliseconds)
-    const target = locateAudio(playlistRef.current?.chunks ?? [], milliseconds)
+    if (!Number.isFinite(milliseconds)) return
+    const entries = playlistRef.current?.chunks ?? []
+    const last = entries.at(-1)
+    const end = last ? last.start_ms + last.duration_ms : 0
+    const bounded = Math.max(0, Math.min(milliseconds, end))
+    setPosition(bounded)
+    if (end > 0 && bounded === end) {
+      clear()
+      setState('ready')
+      return
+    }
+    const target = locateAudio(entries, bounded)
     if (!target) {
       clear()
       setState('gap')
@@ -178,7 +194,7 @@ export const CaptureAudioPlayer = forwardRef<
     seek: (milliseconds) => seek(milliseconds),
   }))
   const endSeek = () => {
-    seek(position, !!seeking.current?.playing)
+    seek(positionRef.current, !!seeking.current?.playing)
     seeking.current = undefined
   }
 
@@ -198,10 +214,11 @@ export const CaptureAudioPlayer = forwardRef<
         borderRadius: 'card',
         '&[data-compact=true]': {
           marginTop: 0,
-          paddingY: 'md',
-          paddingX: 0,
+          paddingY: 'sm',
+          paddingX: 'lg',
           border: 'none',
-          borderRadius: 'none',
+          borderTopLeftRadius: 'card',
+          borderTopRightRadius: 'card',
         },
       })}
     >
@@ -220,97 +237,62 @@ export const CaptureAudioPlayer = forwardRef<
       {!!playlist && !total && <p>{t('audioEmpty')}</p>}
       {!!total && (
         <>
-          <p aria-live="off">
-            {time(position)} / {time(total)}
-          </p>
-          <input
-            aria-label={t('audioPosition')}
-            type="range"
-            min={0}
-            max={Math.max(0, total - 1)}
-            step={1}
-            value={Math.min(position, total - 1)}
-            onChange={(event) => setPosition(Number(event.target.value))}
-            onPointerDown={beginSeek}
-            onPointerUp={endSeek}
-            onPointerCancel={endSeek}
-            onKeyDown={beginSeek}
-            onKeyUp={endSeek}
-            onBlur={() => {
-              if (seeking.current) endSeek()
+          <RecordPlaybackControls
+            position={position}
+            duration={total}
+            playing={state === 'playing'}
+            rate={rate}
+            disabled={state === 'loading' || state === 'error'}
+            playDisabled={
+              state === 'loading' || state === 'error' || state === 'gap'
+            }
+            onSeek={setPosition}
+            seekEvents={{
+              onPointerDown: beginSeek,
+              onPointerUp: endSeek,
+              onPointerCancel: endSeek,
+              onKeyDown: (event) => {
+                if (
+                  [
+                    'ArrowLeft',
+                    'ArrowRight',
+                    'ArrowUp',
+                    'ArrowDown',
+                    'Home',
+                    'End',
+                    'PageUp',
+                    'PageDown',
+                  ].includes(event.key)
+                )
+                  beginSeek()
+              },
+              onKeyUp: () => {
+                if (seeking.current) endSeek()
+              },
+              onBlur: () => {
+                if (seeking.current) endSeek()
+              },
             }}
-            className={css({ width: '100%' })}
+            onPlayPause={() => {
+              if (state === 'playing') {
+                clear()
+                setState('ready')
+              } else seek(position >= total ? 0 : position)
+            }}
+            onBack={() => seek(Math.max(0, position - 15000))}
+            onForward={() => seek(Math.min(total - 1, position + 15000))}
+            onRate={(value) => {
+              setRate(value)
+              rateRef.current = value
+              if (audio.current) audio.current.playbackRate = value
+            }}
+            followControl={followControl}
           />
-          <div
-            className={css({
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 'md',
-              marginTop: 'md',
-              alignItems: 'center',
-              justifyContent: 'center',
-            })}
-          >
-            <Button
-              variant="tertiary"
-              isDisabled={state === 'loading' || state === 'error'}
-              onPress={() => seek(Math.max(0, position - 15000))}
-            >
-              {t('skipBack')}
+          {state === 'gap' && next >= 0 && (
+            <Button variant="secondary" onPress={() => void play(next)}>
+              {t('skipGap')}
             </Button>
-            {state === 'playing' ? (
-              <Button
-                variant="secondary"
-                onPress={() => {
-                  clear()
-                  setState('ready')
-                }}
-              >
-                {t('pausePlayback')}
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                isDisabled={
-                  state === 'loading' || state === 'error' || state === 'gap'
-                }
-                onPress={() => seek(position >= total ? 0 : position)}
-              >
-                {t('play')}
-              </Button>
-            )}
-            <Button
-              variant="tertiary"
-              isDisabled={state === 'loading' || state === 'error'}
-              onPress={() => seek(Math.min(total - 1, position + 15000))}
-            >
-              {t('skipForward')}
-            </Button>
-            {state === 'gap' && next >= 0 && (
-              <Button variant="secondary" onPress={() => void play(next)}>
-                {t('skipGap')}
-              </Button>
-            )}
-            <label>
-              {t('playbackRate')}{' '}
-              <select
-                aria-label={t('playbackRate')}
-                value={rate}
-                onChange={(event) => {
-                  const value = Number(event.target.value)
-                  setRate(value)
-                  rateRef.current = value
-                  if (audio.current) audio.current.playbackRate = value
-                }}
-              >
-                {[0.75, 1, 1.25, 1.5, 2].map((value) => (
-                  <option key={value} value={value}>
-                    {value}×
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          )}
         </>
       )}
       {state === 'error' && (

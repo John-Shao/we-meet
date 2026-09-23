@@ -1,4 +1,4 @@
-import { RiUser3Line } from '@remixicon/react'
+import { RiPlayFill, RiUser3Line } from '@remixicon/react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -187,8 +187,8 @@ export function TranscriptSegment({
         }),
         active &&
           css({
-            backgroundColor: 'brand.50',
-            borderLeftColor: 'brand.500',
+            backgroundColor: 'action.selected.bg',
+            borderLeftColor: 'action.primary.bg',
           })
       )}
     >
@@ -222,7 +222,7 @@ export function TranscriptSegment({
         {/* 时间戳解析不出来时整段（含分隔符）不渲染 —— 不留一个孤零零的「·」。 */}
         {time && (
           <>
-            <span aria-hidden>·</span>
+            {!onSeek && <span aria-hidden>·</span>}
             {onSeek ? (
               <button
                 type="button"
@@ -230,6 +230,12 @@ export function TranscriptSegment({
                 aria-label={seekLabel}
                 className={css({
                   cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 'xs',
+                  minHeight: '2rem',
+                  marginLeft: 'auto',
+                  fontVariantNumeric: 'tabular-nums',
                   color: 'text.link',
                   borderRadius: 'field',
                   padding: 'xs',
@@ -239,7 +245,8 @@ export function TranscriptSegment({
                   },
                 })}
               >
-                {time}
+                <RiPlayFill size={16} aria-hidden />
+                {/^\d+:\d{2}$/.test(time) ? time.padStart(5, '0') : time}
               </button>
             ) : (
               <span>{time}</span>

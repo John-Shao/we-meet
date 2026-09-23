@@ -76,8 +76,10 @@ it('resolves the signed read for the record and streams that url', async () => {
     'meeting-records/record/media/',
     expect.objectContaining({ cache: 'no-store' })
   )
-  // Native controls are what give precise Range seeking for a sealed file.
-  expect(container.querySelector('audio')).toHaveAttribute('controls')
+  // One shared control bar drives the browser's existing Range-capable element.
+  expect(container.querySelector('audio')).not.toHaveAttribute('controls')
+  expect(container.querySelector('audio')).toHaveAttribute('hidden')
+  expect(screen.getByRole('slider', { name: 'audioPosition' })).toBeDisabled()
 })
 
 it('reports prepared full-file duration and clears it on unmount', async () => {
@@ -160,6 +162,43 @@ it('renders video imports with a picture and keeps audio imports compact', async
   )
   expect(container.querySelector('video')).toHaveAttribute('playsinline')
   expect(container.querySelector('audio')).toBeNull()
+})
+
+it('keeps the same video element and paused position when collapsing the preview', async () => {
+  mocks.fetchApi.mockResolvedValue({ ...media, media_type: 'video' })
+  const { container } = show()
+  await waitFor(() => expect(container.querySelector('video')).not.toBeNull())
+  const video = container.querySelector('video')!
+  Object.defineProperty(video, 'duration', { value: 120 })
+  Object.defineProperty(video, 'readyState', { value: 2 })
+  fireEvent.loadedMetadata(video)
+  fireEvent.change(screen.getByRole('slider'), { target: { value: '42000' } })
+  expect(video.currentTime).toBe(42)
+  fireEvent.click(screen.getByRole('button', { name: 'hideVideo' }))
+  expect(video).toHaveAttribute('hidden')
+  fireEvent.click(screen.getByRole('button', { name: 'showVideo' }))
+  expect(video).not.toHaveAttribute('hidden')
+  expect(container.querySelector('video')).toBe(video)
+  expect(video.currentTime).toBe(42)
+  expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled()
+})
+
+it('clamps timeline jumps to the known duration and preserves playback speed', async () => {
+  mocks.fetchApi.mockResolvedValue(media)
+  const { container } = show()
+  await waitFor(() => expect(container.querySelector('audio')).not.toBeNull())
+  const audio = container.querySelector('audio')!
+  Object.defineProperty(audio, 'duration', { value: 25 })
+  Object.defineProperty(audio, 'readyState', { value: 2 })
+  fireEvent.loadedMetadata(audio)
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: '1.5' } })
+  fireEvent.change(screen.getByRole('slider'), { target: { value: '24000' } })
+  fireEvent.click(screen.getByRole('button', { name: 'skipForward' }))
+  expect(audio.currentTime).toBe(25)
+  expect(audio.playbackRate).toBe(1.5)
+  fireEvent.change(screen.getByRole('slider'), { target: { value: '1000' } })
+  fireEvent.click(screen.getByRole('button', { name: 'skipBack' }))
+  expect(audio.currentTime).toBe(0)
 })
 
 it.each([false, true])(

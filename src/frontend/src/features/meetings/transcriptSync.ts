@@ -85,13 +85,45 @@ export type PlaybackFollow = {
   suppressed: () => boolean
   /** Bumped when a gesture changes suppression, to re-render followers. */
   suppressionEpoch: number
+  enabled: boolean
+  resumeEpoch: number
+  pauseFollowing: () => void
+  resumeFollowing: () => void
+}
+
+export type TranscriptPlaybackFollow = Pick<
+  PlaybackFollow,
+  'suppressed' | 'suppressionEpoch'
+> &
+  Partial<
+    Pick<
+      PlaybackFollow,
+      | 'positionMs'
+      | 'enabled'
+      | 'resumeEpoch'
+      | 'pauseFollowing'
+      | 'resumeFollowing'
+    >
+  >
+
+/** Explicit resume clears the list's filters using its latest clock, once per request. */
+export function usePlaybackResume(
+  follow: TranscriptPlaybackFollow | undefined,
+  onResume: () => void
+) {
+  const latest = useRef(onResume)
+  latest.current = onResume
+  useEffect(() => {
+    if (follow?.resumeEpoch) latest.current()
+  }, [follow?.resumeEpoch])
 }
 
 /**
  * Follow playback without fighting the reader.
  *
- * Only a physical scroll gesture suppresses following, and only for
- * {@link SCROLL_SUPPRESSION_MS}. A seek is deliberately *not* suppressed: the
+ * A physical scroll gesture temporarily suppresses following for
+ * {@link SCROLL_SUPPRESSION_MS}; transcript lists can also pause it explicitly
+ * until the reader presses Follow. A seek is deliberately *not* suppressed: the
  * reader clicked a row or dragged the timeline to see that moment, so bringing
  * its text into view is the point rather than an intrusion.
  */
@@ -99,6 +131,15 @@ export function usePlaybackFollow(rows: readonly TimedRow[]): PlaybackFollow {
   const [positionMs, setPositionMs] = useState(0)
   const suppressedUntil = useRef(0)
   const [suppressionEpoch, setSuppressionEpoch] = useState(0)
+  const [enabled, setEnabled] = useState(true)
+  const [resumeEpoch, setResumeEpoch] = useState(0)
+  const pauseFollowing = useCallback(() => setEnabled(false), [])
+  const resumeFollowing = useCallback(() => {
+    suppressedUntil.current = 0
+    setEnabled(true)
+    setResumeEpoch((value) => value + 1)
+    setSuppressionEpoch((value) => value + 1)
+  }, [])
 
   const suppressed = useCallback(
     () => performance.now() < suppressedUntil.current,
@@ -139,6 +180,10 @@ export function usePlaybackFollow(rows: readonly TimedRow[]): PlaybackFollow {
     report,
     suppressed,
     suppressionEpoch,
+    enabled,
+    resumeEpoch,
+    pauseFollowing,
+    resumeFollowing,
   }
 }
 
@@ -174,7 +219,7 @@ export function useTranscriptFollow({
   activeId: string | null
   /** Same rows the highlight was derived from, for the gap-following target. */
   rows?: readonly TimedRow[]
-  follow: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'> & {
+  follow: TranscriptPlaybackFollow & {
     /** Required for gap-following; omit to follow the highlight only. */
     positionMs?: number
   }
@@ -203,7 +248,7 @@ export function useTranscriptFollow({
     activeId ?? (gapFollow ? nearestStartedRowId(rows, position.current) : null)
 
   useEffect(() => {
-    if (!enabled || target === null) return
+    if (!enabled || follow.enabled === false || target === null) return
     if (follow.suppressed()) return
     if (scrolled.current === target) return
     const container = containerRef.current
@@ -223,5 +268,11 @@ export function useTranscriptFollow({
     })
     // suppressionEpoch is the signal that a gesture's window lapsed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, enabled, follow.suppressed, follow.suppressionEpoch])
+  }, [
+    target,
+    enabled,
+    follow.enabled,
+    follow.suppressed,
+    follow.suppressionEpoch,
+  ])
 }

@@ -24,6 +24,8 @@ import {
   activeRowId,
   transcriptWindowTarget,
   useTranscriptFollow,
+  usePlaybackResume,
+  type TranscriptPlaybackFollow,
   type PlaybackFollow,
   type TimedRow,
 } from '../transcriptSync'
@@ -86,7 +88,7 @@ export function CaptureTranscriptionPanel({
   /** Playback position in the source clock, so the text can follow audio. */
   positionMs?: number
   activeId?: string | null
-  follow?: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'>
+  follow?: TranscriptPlaybackFollow
 }) {
   const { t } = useTranslation('capture')
   const path = `capture-sessions/${capture.id}/transcription/`
@@ -445,7 +447,7 @@ function Originals({
   /** Playback position in the source clock; undefined when nothing is playing. */
   positionMs?: number
   activeId?: string | null
-  follow?: Pick<PlaybackFollow, 'suppressed' | 'suppressionEpoch'>
+  follow?: TranscriptPlaybackFollow
 }) {
   const { t } = useTranslation('capture')
   const [cursors, setCursors] = useState<string[]>([''])
@@ -517,9 +519,20 @@ function Originals({
     correction.mutateAsync({ segmentId, revert: true, expectedRevision })
   /** The visible rows are a subset, so position cannot address them. */
   const filtersActive = search.trim() !== ''
+  usePlaybackResume(follow, () => {
+    setSearch('')
+    setAnchorMs(Math.floor(positionMs ?? 0))
+    setCursors([''])
+    setFollowing(true)
+  })
+  const pauseFollowing = follow?.pauseFollowing
+  useEffect(() => {
+    if (!following || filtersActive) pauseFollowing?.()
+  }, [following, filtersActive, pauseFollowing])
   useEffect(() => {
     if (
       !following ||
+      follow?.enabled === false ||
       filtersActive ||
       positionMs === undefined ||
       follow?.suppressed()
@@ -550,7 +563,11 @@ function Originals({
     follow: resolvedFollow,
     // A filtered or searched list may omit the active row entirely; following it
     // would scroll to whichever row happened to survive the filter.
-    enabled: query.isSuccess && !filtersActive && following,
+    enabled:
+      query.isSuccess &&
+      !filtersActive &&
+      following &&
+      follow?.enabled !== false,
   })
   if (query.isError)
     return (
@@ -573,24 +590,31 @@ function Originals({
     <div
       className={style}
       ref={listRef}
+      onWheel={() => follow?.pauseFollowing?.()}
+      onTouchMove={() => follow?.pauseFollowing?.()}
       onFocusCapture={(event) => {
         if (event.target instanceof HTMLTextAreaElement) setFollowing(false)
       }}
     >
       {searchForm}
-      {positionMs !== undefined && (
-        <Button
-          variant="tertiary"
-          onPress={() => {
-            setSearch('')
-            setAnchorMs(Math.floor(positionMs))
-            setCursors([''])
-            setFollowing(true)
-          }}
-        >
-          {t('library.backToPlayback', { ns: 'meetings' })}
-        </Button>
-      )}
+      {positionMs !== undefined &&
+        (!following ||
+          filtersActive ||
+          follow?.enabled === false ||
+          follow?.suppressed()) && (
+          <Button
+            variant="tertiary"
+            onPress={() => {
+              setSearch('')
+              setAnchorMs(Math.floor(positionMs))
+              setCursors([''])
+              setFollowing(true)
+              follow?.resumeFollowing?.()
+            }}
+          >
+            {t('library.backToPlayback', { ns: 'meetings' })}
+          </Button>
+        )}
       <h3>{t('asr.originals')}</h3>
       <p>{t(onSource ? 'asr.unknownSpeaker' : 'retention.noPlayback')}</p>
       {!query.data.results.length && <p>{t('asr.noText')}</p>}
