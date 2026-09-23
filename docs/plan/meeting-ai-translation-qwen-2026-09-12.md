@@ -151,6 +151,19 @@ we-meet 当前 `src/agents/plugins/doubao_translate.py` 接收已有 FINAL 文�
 
 本地验证：Agent 协议/私人翻译/网关/同传共 98 项、后端翻译服务 31 项、前端协议与状态机 23 项测试通过；TypeScript 检查、Ruff 与三个翻译 Worker 的 Helm 模型渲染检查通过。探测脚本离线配置检查通过。
 
+追加浏览器验收（2026-09-23）：`check-capture-translation.mjs` 与 `check-capture-translation-ui.mjs` 均通过。使用 Chromium 合成设备和隔离后端，验证 3.8 一轮多句响应不会提前解锁、同方向旧 `turn_completed` 不会解锁新轮、说话中停止后收齐尾句、中英方向切换、单次麦克风打开及原录音继续。真实 React 控件与窄屏布局也通过；这些结果不代表百炼真实接口或生产 Worker 验收通过。
+
+线上只读检查：前端入口资源已含 3.8 模型标识，不含旧 3.5 标识；公开配置中 Work、会议记录、音频采集与纪要请求均为开启。入口资源与本地 `0a9e4b146` 镜像不同，不能据此认定线上精确提交号。公开接口不提供各 Worker 模型，因此仍需在服务器执行以下只读检查，核对镜像、就绪副本及模型覆盖值：
+
+```bash
+kubectl -n meet get deployment meet-backend meet-agent-translation meet-agent-interpretation meet-agent-capture-translation \
+  -o custom-columns='NAME:.metadata.name,READY:.status.readyReplicas,DESIRED:.spec.replicas,IMAGE:.spec.template.spec.containers[*].image'
+kubectl -n meet get deployment meet-agent-translation meet-agent-interpretation meet-agent-capture-translation \
+  -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .spec.template.spec.containers[*].env[?(@.name=="QWEN_TRANSLATION_MODEL")]}{.value}{end}{"\n"}{end}'
+```
+
+三个翻译 Worker 的模型应为 `qwen3.8-livetranslate-flash-realtime`；若某个 Worker 尚未启用，明确记录为未验收。若服务器私有 values 覆盖了旧模型值，需要同步更新后重新发布。以上命令不输出凭据。
+
 本地尚未配置百炼实时翻译凭据，3.8 真实握手、译音、翻译质量与生产部署状态需以发布后的验收结果为准。
 
 协议依据：[客户端事件](https://help.aliyun.com/zh/model-studio/live-translator-client-events)、[服务端事件](https://help.aliyun.com/zh/model-studio/live-translator-server-events)、[3.8 模型说明](https://help.aliyun.com/zh/model-studio/qwen3-8-livetranslate-flash-realtime)。

@@ -9,6 +9,9 @@ const config = { source_language: 'zh', target_language: 'en', mode: 'push_to_ta
 const runId = '55555555-5555-4555-8555-555555555555'
 const errors = []
 const stats = { opens: 0, frames: 0, turns: 0 }
+let releaseTurn
+let finishRequested = false
+const completedTurns = new Map()
 const server = new WebSocketServer({ host: '127.0.0.1', port: 0, maxPayload: 8192 })
 await once(server, 'listening')
 server.on('connection', (socket, request) => {
@@ -36,17 +39,36 @@ server.on('connection', (socket, request) => {
         return
       }
       assert.equal(message.sequence, ++sequence)
-      if (message.type === 'begin') { direction = message.direction; turnFrames = 0 }
+      if (message.type === 'begin') {
+        assert.equal(releaseTurn, undefined, 'input must remain locked until the whole turn drains')
+        direction = message.direction; turnFrames = 0
+      }
       else if (message.type === 'end') {
         assert.equal(message.direction, direction)
-        const response_id = `turn-${++stats.turns}`
+        const turnId = `turn-${++stats.turns}`
         if (turnFrames) {
-          emit({ type: 'target_final', direction, response_id, item_id: response_id, text: 'Synthetic translation' })
-          emit({ type: 'response_completed', direction, response_id, usage: {} })
+          for (const sentence of [1, 2]) {
+            const response_id = `${turnId}-sentence-${sentence}`
+            emit({ type: 'target_candidate', direction, response_id, item_id: response_id, text: 'Synthetic' })
+            emit({ type: 'target_final', direction, response_id, item_id: response_id, text: `Synthetic translation ${sentence}` })
+            emit({ type: 'response_completed', direction, response_id, usage: {}, turn_complete: false })
+          }
+          // A delayed completion from an earlier turn in the same direction
+          // must not unlock this one. The test explicitly releases the new turn.
+          const previous = completedTurns.get(direction)
+          if (previous) emit(previous)
+          const completion = { type: 'turn_completed', direction, response_id: turnId }
+          releaseTurn = () => {
+            releaseTurn = undefined
+            completedTurns.set(completion.direction, completion)
+            emit(completion)
+            if (finishRequested) emit({ type: 'finished', status: 'stopped', complete: true })
+          }
         } else emit({ type: 'turn_empty', direction, sequence })
         direction = null
       } else if (message.type === 'finish') {
-        emit({ type: 'finished', status: 'stopped', complete: true })
+        finishRequested = true
+        if (!releaseTurn) emit({ type: 'finished', status: 'stopped', complete: true })
         return
       } else assert.fail('unexpected control')
       emit({ type: 'ack', sequence })
@@ -88,7 +110,7 @@ try {
   await page.getByRole('button').click()
   await page.waitForFunction(() => window.live?.phase === 'ready' || window.failed || ['incomplete', 'unknown'].includes(window.live?.phase)).catch(async error => { throw new Error(JSON.stringify({ stats, errors, state: await page.evaluate(() => ({ live: window.live, failed: window.failed, originals: window.originalFrames })) }), {cause: error}) })
   assert.equal(await page.evaluate(() => window.live?.phase), 'ready', JSON.stringify({stats, errors, live: await page.evaluate(() => window.live)}))
-  for (const direction of ['forward', 'reverse']) {
+  for (const [index, direction] of ['forward', 'reverse', 'forward'].entries()) {
     const before = stats.frames
     await page.evaluate((direction) => window.translation.begin(direction), direction)
     const deadline = Date.now() + 10000
@@ -96,10 +118,25 @@ try {
     assert.ok(stats.frames >= before + 2, JSON.stringify({ stats, errors, live: await page.evaluate(() => window.live) }))
     assert.deepEqual(errors, [])
     await page.evaluate(() => window.translation.endTurn())
+    await page.waitForFunction(count => window.live?.finals.length === count, (index + 1) * 2)
+    assert.equal(await page.evaluate(() => window.live.phase), 'awaiting')
+    await page.evaluate(() => window.translation.begin('reverse'))
+    assert.equal(await page.evaluate(() => window.live.phase), 'awaiting')
+    assert.equal(typeof releaseTurn, 'function')
+    releaseTurn()
     await page.waitForFunction(() => window.live?.phase === 'ready' || ['incomplete', 'unknown'].includes(window.live?.phase))
     assert.equal(await page.evaluate(() => window.live.phase), 'ready')
   }
+  const before = stats.frames
+  await page.evaluate(() => window.translation.begin('reverse'))
+  const tailDeadline = Date.now() + 10000
+  while (stats.frames < before + 2 && errors.length === 0 && Date.now() < tailDeadline) await new Promise(resolve => setTimeout(resolve, 20))
+  assert.ok(stats.frames >= before + 2)
   await page.evaluate(() => window.translation.finish())
+  await page.waitForFunction(() => window.live?.finals.length === 8)
+  assert.equal(await page.evaluate(() => window.live.phase), 'finishing')
+  assert.equal(typeof releaseTurn, 'function')
+  releaseTurn()
   await page.waitForFunction(() => window.live?.phase === 'stopped')
   await page.waitForFunction(() => window.originalFrames >= 80000 || window.failed, null, { timeout: 10000 })
   const result = await page.evaluate(async () => {
@@ -109,12 +146,12 @@ try {
   assert.equal(result.failed, false)
   assert.equal(result.deviceOpens, 1)
   assert.ok(result.originalFrames >= 80000)
-  assert.equal(result.finals, 2)
+  assert.equal(result.finals, 8)
   assert.equal(result.storage.includes('isolated-browser-ticket'), false)
   assert.deepEqual(errors, [])
   assert.equal(stats.opens, 1)
-  assert.equal(stats.turns, 2)
-  console.log('Capture translation Chromium checks passed: one microphone, exact WS sequencing, copied PCM, both speech directions, tail commit and continuing original recording.')
+  assert.equal(stats.turns, 4)
+  console.log('Capture translation Chromium checks passed: Qwen 3.8 sentence/turn gates, stale-turn deduplication, stop during speech, both directions, one microphone and continuing original recording.')
 } finally {
   await browser.close()
   for (const client of server.clients) client.terminate()

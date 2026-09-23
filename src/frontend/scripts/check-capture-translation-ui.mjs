@@ -50,7 +50,8 @@ server.on('connection', socket => {
           assert.equal(message.direction, direction)
           const id = `turn-${++turns}`
           emit({ type: 'target_final', direction, response_id: id, item_id: id, text: direction === 'forward' ? 'We will finish the design review tomorrow.' : '明天完成设计评审。' })
-          emit({ type: 'response_completed', direction, response_id: id })
+          emit({ type: 'response_completed', direction, response_id: `${id}-sentence`, turn_complete: false })
+          emit({ type: 'turn_completed', direction, response_id: id })
           direction = undefined
         } else if (message.type === 'finish') {
           run = { ...run, status: 'stopped', ended_at: new Date().toISOString() }
