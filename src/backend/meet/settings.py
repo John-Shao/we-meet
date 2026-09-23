@@ -949,11 +949,22 @@ class Base(Configuration):
     }
     WORK_ENABLED = values.BooleanValue(False, environ_prefix=None)
     WORK_MATERIALS_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    WORK_COMMUNICATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    WORK_MODEL = values.Value("", environ_prefix=None)
+    WORK_MODEL_BASE_URL = values.Value("", environ_prefix=None)
+    WORK_MODEL_API_KEY = SecretFileValue(None, environ_prefix=None)
+    WORK_DAILY_TOKEN_BUDGET = values.PositiveIntegerValue(100000, environ_prefix=None)
+    WORK_MAX_OUTPUT_TOKENS = values.PositiveIntegerValue(3000, environ_prefix=None)
     WORK_STORAGE = values.DictValue(
         {"BACKEND": "work.storage.PrivateMaterialStorage"}, environ_prefix=None
     )
 
     CELERY_BEAT_SCHEDULE = {
+        "tick-work-runs": {
+            "task": "work.tasks.tick_runs",
+            "schedule": 5.0,
+            "options": {"queue": "work", "expires": 30},
+        },
         "tick-work-materials": {
             "task": "work.tasks.tick_materials",
             "schedule": 5.0,

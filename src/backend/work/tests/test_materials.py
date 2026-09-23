@@ -144,7 +144,7 @@ def test_anonymous_rejected():
 @pytest.mark.parametrize(
     "name,data,code",
     [
-        ("report.pdf", b"%PDF-1.4", "unsupported_format"),
+        ("report.doc", b"legacy document", "unsupported_format"),
         ("notes.txt", b"", "empty_file"),
         ("fake.md", b"PK\x03\x04blob", "not_text"),
         ("fake.txt", b"hello\x00there", "not_text"),

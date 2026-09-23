@@ -17,6 +17,7 @@ import {
   type Material,
 } from '../api/materials'
 import './work.css'
+import { Communication } from './Communication'
 
 const statusLabel: Record<Material['status'], string> = {
   uploaded: '等待解析',
@@ -40,10 +41,15 @@ interface UploadItem {
 
 export const WorkRoute = () => {
   const { user } = useUser()
+  const [params] = useSearchParams()
   return (
     <RequireAuth>
       <Screen footer={false}>
-        <WorkMaterials key={user?.id} ownerId={user?.id || ''} />
+        {params.get('view') === 'communication' ? (
+          <Communication key={user?.id} ownerId={user?.id || ''} />
+        ) : (
+          <WorkMaterials key={user?.id} ownerId={user?.id || ''} />
+        )}
       </Screen>
     </RequireAuth>
   )
@@ -191,9 +197,17 @@ export const WorkMaterials = ({ ownerId }: { ownerId: string }) => {
           <h1>工作材料</h1>
           <p>把背景和资料放在这里，为下一次工作做好准备。</p>
         </div>
-        <button className="work-button" onClick={() => void refresh()}>
-          刷新
-        </button>
+        <div className="work-actions">
+          <button
+            className="work-button work-primary"
+            onClick={() => navigate('/work?view=communication')}
+          >
+            沟通准备
+          </button>
+          <button className="work-button" onClick={() => void refresh()}>
+            刷新
+          </button>
+        </div>
       </header>
       {capabilities.isError && (
         <p role="alert">
@@ -216,7 +230,7 @@ export const WorkMaterials = ({ ownerId }: { ownerId: string }) => {
           <RiUploadCloud2Line size={32} aria-hidden="true" />
           <div>
             <h2>上传工作材料</h2>
-            <p>支持 UTF-8 编码的 TXT、Markdown；每份不超过 10 MiB。</p>
+            <p>支持 TXT、Markdown、文本型 PDF 和 DOCX；每份不超过 10 MiB。</p>
             <p>文件上传到云端处理，仅当前账号可见。可选择文件或拖放到此处。</p>
           </div>
           <button
@@ -350,7 +364,7 @@ export const WorkMaterials = ({ ownerId }: { ownerId: string }) => {
               {actionError && <p role="alert">{actionError}</p>}
               {confirmDelete && (
                 <div className="work-errors" role="alert">
-                  <p>删除后将无法继续预览这份材料。</p>
+                  <p>删除后无法预览材料，也无法继续读取引用它的沟通成果。</p>
                   <button
                     className="work-button"
                     disabled={remove.isPending}
@@ -406,7 +420,11 @@ const MaterialText = ({
   item: Material
   ownerId: string
 }) => {
-  const [start, setStart] = useState(1)
+  const [params] = useSearchParams()
+  const requestedLine = Number(params.get('line')) || 1
+  const [start, setStart] = useState(
+    Math.max(1, Math.min(item.line_count, Math.floor(requestedLine)))
+  )
   const preview = useQuery({
     queryKey: ['work', ownerId, 'preview', item.id, item.generation, start],
     queryFn: () => getMaterialPreview(item.id, start),
@@ -429,8 +447,13 @@ const MaterialText = ({
       <div className="work-text" aria-label="材料原文">
         {preview.data.lines.map((line) => (
           <div className="work-text-line" key={line.number}>
-            <span aria-label={`第 ${line.number} 行`}>{line.number}</span>
+            <span aria-label={`第 ${line.number} 行`} title={line.location}>
+              {line.number}
+            </span>
             <pre>
+              {line.location && (
+                <small className="work-muted">{line.location} · </small>
+              )}
               {line.text}
               {line.truncated && <em>（本行预览仅显示前 2000 字符）</em>}
             </pre>

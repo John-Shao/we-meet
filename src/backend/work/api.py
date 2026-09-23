@@ -15,7 +15,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import services
+from . import runs, services
 from .models import WorkMaterial
 from .upload import BoundedMaterialUpload
 
@@ -67,13 +67,17 @@ class CapabilitiesView(APIView):
                 "enabled": settings.WORK_ENABLED,
                 "materials_enabled": settings.WORK_ENABLED
                 and settings.WORK_MATERIALS_ENABLED,
-                "formats": [".txt", ".md", ".markdown"],
+                "formats": [".txt", ".md", ".markdown", ".pdf", ".docx"],
                 "max_file_bytes": services.MAX_FILE_BYTES,
                 "max_owner_bytes": services.MAX_OWNER_BYTES,
                 "max_owner_files": services.MAX_OWNER_FILES,
                 "max_batch_files": 10,
                 "max_batch_bytes": 30 * 1024 * 1024,
-                "skills": [],
+                "skills": ["communication"] if runs.enabled() else [],
+                "communication_enabled": runs.enabled(),
+                "model": settings.WORK_MODEL if runs.enabled() else "",
+                "daily_token_budget": settings.WORK_DAILY_TOKEN_BUDGET,
+                "max_context_chars": 12000,
             }
         )
 
@@ -164,6 +168,9 @@ class MaterialViewSet(viewsets.GenericViewSet):
             }
             for i in range(start - 1, end)
         ]
+        if item.locations:
+            for line in selected:
+                line["location"] = item.locations[line["number"] - 1]
         return Response(
             {
                 "id": str(item.pk),
@@ -199,12 +206,14 @@ class MaterialViewSet(viewsets.GenericViewSet):
             item.deleted_at = timezone.now()
             item.text = ""
             item.line_count = 0
+            item.locations = []
             item.generation += 1
             item.save(
                 update_fields=[
                     "deleted_at",
                     "text",
                     "line_count",
+                    "locations",
                     "generation",
                     "updated_at",
                 ]

@@ -9,6 +9,8 @@ export interface WorkCapabilities {
   max_batch_files: number
   max_batch_bytes: number
   skills: string[]
+  communication_enabled?: boolean
+  model?: string
 }
 
 export interface Material {
@@ -35,7 +37,12 @@ export interface MaterialPage {
 export interface MaterialPreview {
   id: string
   line_count: number
-  lines: { number: number; text: string; truncated: boolean }[]
+  lines: {
+    number: number
+    text: string
+    truncated: boolean
+    location?: string
+  }[]
   next_start: number | null
 }
 
@@ -73,7 +80,30 @@ export const deleteMaterial = (id: string) =>
   fetchApi<void>(`work/materials/${id}/`, { method: 'DELETE' })
 
 const errors: Record<string, string> = {
-  unsupported_format: '暂不支持该格式，请上传 TXT 或 Markdown 文件。',
+  unsupported_format: '请上传 TXT、Markdown、文本型 PDF 或 DOCX 文件。',
+  invalid_document: '文件格式或内容无效，请重新导出后上传。',
+  encrypted_document: '暂不支持加密文件，请上传未加密的材料。',
+  pdf_ocr_required: 'PDF 存在无法提取文字的页面，请先完成 OCR 或另存为文本。',
+  unsupported_document_content:
+    'DOCX 含暂不支持的图片、修订、页眉页脚或嵌入内容，请核对后导出纯文本。',
+  document_limit_exceeded: '文档页数、解压大小或解析资源超限，请拆分后上传。',
+  parser_limits_unavailable: '文档解析隔离环境不可用，请联系管理员。',
+  context_too_large: '选中材料超过完整读取范围，请减少材料或拆分为更短的文本。',
+  source_unavailable:
+    '引用的材料已删除、变更或不可访问，无法继续读取成果。请重新选择材料创建任务。',
+  generation_unavailable: '沟通生成未启用或模型配置已变化，请稍后重试。',
+  budget_exceeded: '今日生成额度不足，请明天再试或联系管理员调整额度。',
+  task_material_limit: '选中材料合计超过 30 MiB，请减少材料。',
+  execution_unknown:
+    '此次执行未能确认完成，不会自动重复调用。重新生成会新增一次用量。',
+  invalid_model_output: '模型未返回完整且有效的草稿，可重新生成。',
+  invalid_citation: '模型引用与材料原文不符，草稿未交付，可重新生成。',
+  run_active: '已有任务正在生成，请等待或取消后重试。',
+  version_conflict:
+    '版本已变化。请读取最新版本，比较后再保存；当前修改已保留。',
+  artifact_not_ready: '草稿尚未就绪，请稍后刷新。',
+  task_run_limit: '本任务已达 20 次运行上限，请创建新任务。',
+  artifact_version_limit: '已达 100 个版本上限，请下载保存后创建新任务。',
   invalid_filename: '文件名无效，请修改文件名后重试。',
   file_too_large: '文件超过 10 MiB，请拆分后上传。',
   empty_file: '文件为空，请检查后重新上传。',
@@ -83,12 +113,12 @@ const errors: Record<string, string> = {
   text_limit_exceeded: '文字超过 20 万字符或 5 万行，请拆分材料后上传。',
   material_quota_exceeded:
     '材料空间已满（最多 100 份、100 MiB），请删除不再需要的材料。',
-  idempotency_conflict: '上传请求与原文件不一致，请重新选择文件。',
+  idempotency_conflict: '请求内容与之前提交不一致，请重新检查输入后提交。',
   upload_deleted: '这次上传的材料已被删除，请重新选择文件。',
   upload_unavailable: '上传服务暂不可用，请重试；已受理的文件不会重复创建。',
   parse_unavailable: '暂时无法读取文件，请重试解析。',
   source_changed: '文件校验不一致，请删除后重新上传。',
-  access_revoked: '材料的账号或组织权限已变化，无法继续解析。',
+  access_revoked: '账号或组织权限已变化，无法继续处理这项工作。',
   stale_material: '材料状态已更新，请刷新后再试。',
   material_not_failed: '材料状态已变化，请刷新查看。',
 }

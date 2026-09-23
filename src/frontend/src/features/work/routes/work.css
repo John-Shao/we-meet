@@ -206,3 +206,66 @@
     font-size: 24px;
   }
 }
+.work-form {
+  display: grid;
+  gap: 16px;
+}
+.work-form label,
+.work-output > label {
+  display: grid;
+  gap: 8px;
+}
+.work-form input:not([type='checkbox']),
+.work-form textarea,
+.work-output select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid var(--colors-greyscale-300);
+  border-radius: 8px;
+  font: inherit;
+  color: inherit;
+  background: white;
+  min-height: 44px;
+  height: auto;
+  line-height: 1.5;
+}
+.work-form textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+.work-form .work-editor {
+  min-height: 480px;
+  line-height: 1.8;
+}
+.work-form fieldset {
+  min-width: 0;
+  border: 1px solid var(--colors-greyscale-200);
+  border-radius: 12px;
+  padding: 16px;
+}
+.work-form .work-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+}
+.work-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.work-output {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--colors-greyscale-200);
+}
+.work-history {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 16px;
+  background: var(--colors-greyscale-50);
+  max-height: 400px;
+  overflow: auto;
+}

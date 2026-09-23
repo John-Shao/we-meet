@@ -576,6 +576,15 @@ wheels = [
 ]
 
 [[package]]
+name = "defusedxml"
+version = "0.7.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/d5/c66da9b79e5bdb124974bfe172b4daf3c984ebd9c2a06e2b8a4dc7331c72/defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69", size = 75520, upload-time = "2021-03-08T10:59:26.269Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/6c/aa3f2f849e01cb6a001cd8554a88d4c77c5c1a31c95bdf1cf9301e6d9ef4/defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61", size = 25604, upload-time = "2021-03-08T10:59:24.45Z" },
+]
+
+[[package]]
 name = "dill"
 version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1324,6 +1333,7 @@ dependencies = [
     { name = "brevo-python" },
     { name = "brotli" },
     { name = "celery", extra = ["redis"] },
+    { name = "defusedxml" },
     { name = "dj-database-url" },
     { name = "django" },
     { name = "django-configurations" },
@@ -1354,6 +1364,7 @@ dependencies = [
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
     { name = "pyjwt" },
+    { name = "pypdf" },
     { name = "pypinyin" },
     { name = "python-frontmatter" },
     { name = "python-magic" },
@@ -1394,6 +1405,7 @@ requires-dist = [
     { name = "brevo-python", specifier = "==1.2.0" },
     { name = "brotli", specifier = "==1.2.0" },
     { name = "celery", extras = ["redis"], specifier = "==5.6.2" },
+    { name = "defusedxml", specifier = "==0.7.1" },
     { name = "dj-database-url", specifier = "==3.1.2" },
     { name = "django", specifier = "==5.2.14" },
     { name = "django-configurations", specifier = "==2.5.1" },
@@ -1424,6 +1436,7 @@ requires-dist = [
     { name = "psycopg", extras = ["binary"], specifier = "==3.3.3" },
     { name = "pydantic", specifier = "==2.12.5" },
     { name = "pyjwt", specifier = "==2.12.1" },
+    { name = "pypdf", specifier = "==6.19.0" },
     { name = "pypinyin", specifier = "==0.55.0" },
     { name = "python-frontmatter", specifier = "==1.1.0" },
     { name = "python-magic", specifier = "==0.4.27" },
@@ -2064,6 +2077,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/73/85/24eaf5d0d078fc8799ae6d89faf326d6e4d27d862fc9a710a52ab07b7bb5/pylint_plugin_utils-0.9.0.tar.gz", hash = "sha256:5468d763878a18d5cc4db46eaffdda14313b043c962a263a7d78151b90132055", size = 10474, upload-time = "2025-06-24T07:14:00.534Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5e/c9/a3b871b0b590c49e38884af6dab58ab9711053bd5c39b8899b72e367b9f6/pylint_plugin_utils-0.9.0-py3-none-any.whl", hash = "sha256:16e9b84e5326ba893a319a0323fcc8b4bcc9c71fc654fcabba0605596c673818", size = 11129, upload-time = "2025-06-24T07:13:58.993Z" },
+]
+
+[[package]]
+name = "pypdf"
+version = "6.19.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1f/ac/63d71aaedb59acbcdef491e6ca6469165e3771c9c74358204818fd9bc5a6/pypdf-6.19.0.tar.gz", hash = "sha256:bbc43aca292369ccc6cbc8a921991ecf2538a3587ab5a116eff06c321d647155", size = 7033266, upload-time = "2026-09-16T09:32:05.946Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3c/2c/c43c03eaf630435f023f1dc61ec4a4a78951ad5530a62c71cc89bde307b7/pypdf-6.19.0-py3-none-any.whl", hash = "sha256:7e5d6e730e7dae87d560a2cee218b852f6498c8be61966f3cd02ead971e48d14", size = 395480, upload-time = "2026-09-16T09:32:04.087Z" },
 ]
 
 [[package]]

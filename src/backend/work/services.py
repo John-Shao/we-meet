@@ -1,10 +1,14 @@
 """Bounded upload, ownership and recoverable text parsing."""
 
 import hashlib
+import json
 import logging
+import os
+import subprocess
+import sys
 import uuid
 from datetime import timedelta
-from pathlib import PurePath
+from pathlib import Path, PurePath
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -60,7 +64,7 @@ def read_upload(upload):
     """Enforce the limit on bytes read as well as the multipart declaration."""
     name = PurePath(upload.name.replace("\\", "/")).name
     extension = PurePath(name).suffix.lower()
-    if extension not in {".txt", ".md", ".markdown"}:
+    if extension not in {".txt", ".md", ".markdown", ".pdf", ".docx"}:
         raise MaterialError("unsupported_format")
     if not name or len(name) > 255:
         raise MaterialError("invalid_filename")
@@ -71,6 +75,17 @@ def read_upload(upload):
         raise MaterialError("file_too_large", 413)
     if not data:
         raise MaterialError("empty_file")
+    if extension in {".pdf", ".docx"}:
+        signature = b"%PDF-" if extension == ".pdf" else b"PK\x03\x04"
+        if not data.startswith(signature):
+            raise MaterialError("invalid_document")
+        return (
+            name,
+            data,
+            "application/pdf"
+            if extension == ".pdf"
+            else "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
     # Known containers and binary controls cannot masquerade as plain text.
     if (
         data.startswith((b"PK\x03\x04", b"%PDF-", b"\x89PNG", b"\xff\xd8\xff"))
@@ -170,7 +185,7 @@ def claim_material():
         return item
 
 
-def finish_material(item, *, text="", error_code=""):
+def finish_material(item, *, text="", error_code="", locations=None):
     """A deletion, account revocation or newer attempt wins over a late result."""
     with transaction.atomic():
         current = WorkMaterial.objects.select_for_update().get(pk=item.pk)
@@ -195,9 +210,14 @@ def finish_material(item, *, text="", error_code=""):
                 WorkMaterial.Status.FAILED if error_code else WorkMaterial.Status.READY
             )
             current.text = text
+            current.locations = locations or [] if text else []
             current.line_count = len(text.splitlines())
             current.error_code = error_code
-            current.parser_version = PARSER_VERSION
+            current.parser_version = (
+                "document-text-v1"
+                if item.mime.startswith("application/")
+                else PARSER_VERSION
+            )
         current.lease_until = None
         current.save()
         return True
@@ -205,7 +225,7 @@ def finish_material(item, *, text="", error_code=""):
 
 def parse_material(item):
     """Read a bounded object and validate its immutable checksum before parsing."""
-    text, error = "", ""
+    text, error, locations = "", "", []
     try:
         user = User.objects.get(pk=item.owner_id)
         if (
@@ -219,13 +239,24 @@ def parse_material(item):
             data = source.read(MAX_FILE_BYTES + 1)
         if len(data) != item.size or hashlib.sha256(data).hexdigest() != item.checksum:
             raise MaterialError("source_changed")
-        text = parse_text(data)
+        if item.mime.startswith("application/"):
+            text, locations = parse_document(
+                data, "pdf" if item.mime == "application/pdf" else "docx"
+            )
+            text = parse_text(text.encode("utf-8"))
+        else:
+            text = parse_text(data)
     except MaterialError as exc:
         error = exc.code
     except Exception:  # noqa: BLE001 -- storage failures become a sanitized retryable state
         error = "parse_unavailable"
         logger.warning("work_material_parse_unavailable id=%s", item.pk)
-    finish_material(item, text=text, error_code=error)
+    finish_material(
+        item,
+        text="" if error else text,
+        error_code=error,
+        locations=[] if error else locations,
+    )
 
 
 def process_materials(limit=20):
@@ -252,5 +283,36 @@ def cleanup_deleted(limit=20):
             logger.warning("work_material_cleanup_unavailable id=%s", item.pk)
             continue
         WorkMaterial.objects.filter(pk=item.pk, purged_at__isnull=True).update(
-            purged_at=timezone.now(), storage_key="", text="", line_count=0
+            purged_at=timezone.now(),
+            storage_key="",
+            text="",
+            line_count=0,
+            locations=[],
         )
+
+
+def parse_document(data, kind):
+    """Bounded subprocess boundary, with no application credentials in its environment."""
+    try:
+        result = subprocess.run(  # noqa: S603 -- fixed executable/parser; untrusted bytes only on stdin
+            [sys.executable, str(Path(__file__).with_name("document_parser.py")), kind],
+            input=data,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=25,
+            check=False,
+            env={
+                key: value
+                for key, value in os.environ.items()
+                if key.upper() in {"SYSTEMROOT", "TEMP", "TMP", "PATH"}
+            },
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise MaterialError("document_limit_exceeded") from exc
+    if result.returncode or len(result.stdout) > 10 * 1024 * 1024:
+        raise MaterialError("document_limit_exceeded")
+    parsed = json.loads(result.stdout)
+    if "error" in parsed:
+        raise MaterialError(parsed["error"])
+    return parsed["text"], parsed["locations"]
