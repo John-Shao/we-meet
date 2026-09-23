@@ -69,6 +69,7 @@ def get_frontend_configuration(request):
         # P1-4 全局搜索 AI 问答:false ⇒ 前端隐藏 AI 标签/快捷行(端点侧
         # 另有 FeatureFlag 404,双端 gate)。
         "search_ai": {"enabled": settings.GLOBAL_SEARCH_AI_ENABLED},
+        "work": {"enabled": settings.WORK_ENABLED},
         "meeting_records": {
             "enabled": settings.MEETING_RECORDS_ENABLED,
             "capture_audio_enabled": bool(

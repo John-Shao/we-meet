@@ -461,6 +461,7 @@ class Base(Configuration):
     INSTALLED_APPS = [
         # Meet
         "core",
+        "work",
         "demo",
         "drf_spectacular",
         # Third party apps
@@ -946,7 +947,18 @@ class Base(Configuration):
             5.0, environ_name="DOCS_TIMEOUT_S", environ_prefix=None
         ),
     }
+    WORK_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    WORK_MATERIALS_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    WORK_STORAGE = values.DictValue(
+        {"BACKEND": "work.storage.PrivateMaterialStorage"}, environ_prefix=None
+    )
+
     CELERY_BEAT_SCHEDULE = {
+        "tick-work-materials": {
+            "task": "work.tasks.tick_materials",
+            "schedule": 5.0,
+            "options": {"queue": "work", "expires": 30},
+        },
         "tick-upload-translations": {
             "task": "core.tasks.upload_translations.tick_upload_translations",
             "schedule": 15.0,

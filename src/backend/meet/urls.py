@@ -17,6 +17,7 @@ urlpatterns = [
     # management console (M 端) SPA served at /admin/. See the M 端 plan.
     path("dj-admin/", admin.site.urls),
     path("", include("core.urls")),
+    path(f"api/{settings.API_VERSION}/work/", include("work.urls")),
     path("", include("lasuite.oidc_resource_server.urls")),
 ]
 

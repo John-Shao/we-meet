@@ -40,7 +40,11 @@ export const Layout = ({ children }: { children: ReactNode }) => {
   const [railCollapsed, setRailCollapsed] = useState(readInitialRailState)
   const [location] = useLocation()
   const smallScreen = useMediaQuery('(max-width: 767px)')
-  const compactContacts = smallScreen && location === '/contacts'
+  const compactContacts =
+    smallScreen &&
+    (location === '/contacts' ||
+      location === '/work' ||
+      location === '/work/new')
   const [compactRailExpanded, setCompactRailExpanded] = useState(false)
   useEffect(() => setCompactRailExpanded(false), [compactContacts])
   const effectiveRailCollapsed = compactContacts

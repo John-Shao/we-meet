@@ -7,6 +7,7 @@ import {
 } from 'react-aria-components'
 import {
   RiMessage3Line,
+  RiBriefcaseLine,
   RiVidiconLine,
   RiCalendarLine,
   RiCheckboxCircleLine,
@@ -50,6 +51,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: '/im', labelKey: 'nav.messages', Icon: RiMessage3Line },
+  { to: '/work', labelKey: 'nav.work', Icon: RiBriefcaseLine },
   { to: '/meeting', labelKey: 'nav.meeting', Icon: RiVidiconLine },
   { to: '/calendar', labelKey: 'nav.calendar', Icon: RiCalendarLine },
   { to: '/approval', labelKey: 'nav.approval', Icon: RiCheckboxCircleLine },
@@ -129,6 +131,9 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
   const { open: settingsOpen, section: settingsSection } =
     useSnapshot(systemSettingsStore)
   const docsUrl = config?.docs?.url
+  const visibleNav = NAV.filter(
+    (item) => item.to !== '/work' || config?.work?.enabled
+  )
   const initial = (user?.full_name || user?.email || '?')
     .slice(0, 1)
     .toUpperCase()
@@ -289,7 +294,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
           gap: '0.125rem',
         })}
       >
-        {NAV.map((item) => {
+        {visibleNav.map((item) => {
           const badge = badgeFor(item.to)
           return (
             <Link

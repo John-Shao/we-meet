@@ -6,6 +6,7 @@ import { Track } from 'livekit-client'
 import Source = Track.Source
 
 export interface ApiConfig {
+  work?: { enabled: boolean }
   meeting_records?: {
     enabled: boolean
     summary_requests_enabled: boolean

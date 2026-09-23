@@ -1,0 +1,208 @@
+.work-materials {
+  padding: clamp(16px, 3vw, 40px);
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  color: var(--colors-default-text);
+}
+.work-heading,
+.work-detail-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.work-materials h1 {
+  font-size: 28px;
+  font-weight: 650;
+  margin: 4px 0 8px;
+}
+.work-materials h2 {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+.work-materials p {
+  font-size: 14px;
+  line-height: 1.7;
+}
+.work-eyebrow,
+.work-muted,
+.work-detail-heading p {
+  color: var(--colors-greyscale-600);
+}
+.work-materials button {
+  cursor: pointer;
+}
+.work-materials button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.work-materials button:focus-visible {
+  outline: 2px solid var(--colors-primary-500);
+  outline-offset: 3px;
+}
+.work-button {
+  padding: 8px 14px;
+  border: 1px solid var(--colors-greyscale-300);
+  border-radius: 8px;
+  background: var(--colors-greyscale-000);
+  color: inherit;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.work-primary {
+  background: var(--colors-greyscale-900);
+  color: var(--colors-greyscale-000);
+  border-color: transparent;
+}
+.work-dropzone {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  padding: 24px;
+  border: 1px dashed var(--colors-greyscale-300);
+  border-radius: 16px;
+  background: var(--colors-greyscale-50);
+}
+.work-dropzone > div {
+  flex: 1;
+  min-width: 0;
+}
+.work-file-input {
+  display: none;
+}
+.work-notice {
+  min-height: 24px;
+  margin: 12px 0;
+}
+.work-errors {
+  padding: 12px;
+  border: 1px solid var(--colors-greyscale-300);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  overflow-wrap: anywhere;
+}
+.work-errors button + button {
+  margin-left: 8px;
+}
+.work-columns {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+  gap: 24px;
+}
+.work-list,
+.work-detail {
+  min-width: 0;
+  border: 1px solid var(--colors-greyscale-200);
+  border-radius: 12px;
+  padding: 20px;
+}
+.work-material-row {
+  display: flex;
+  width: 100%;
+  text-align: left;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  margin-top: 4px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+}
+.work-material-row[aria-pressed='true'] {
+  background: var(--colors-greyscale-100);
+  border-color: var(--colors-greyscale-300);
+}
+.work-material-row > svg {
+  flex-shrink: 0;
+}
+.work-material-row strong {
+  display: block;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.work-material-row small {
+  display: block;
+  color: var(--colors-greyscale-600);
+  margin-top: 6px;
+}
+.work-empty {
+  text-align: center;
+  padding: 44px 8px;
+  color: var(--colors-greyscale-600);
+}
+.work-empty svg {
+  margin: 0 auto 12px;
+}
+.work-detail-heading {
+  flex-wrap: wrap;
+}
+.work-text {
+  margin-top: 16px;
+  border-top: 1px solid var(--colors-greyscale-200);
+  padding-top: 12px;
+}
+.work-text-line {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.work-text-line > span {
+  color: var(--colors-greyscale-500);
+  text-align: right;
+  user-select: none;
+}
+.work-text-line pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-height: 1.8em;
+  font-family: inherit;
+}
+.work-text-line em {
+  color: var(--colors-greyscale-600);
+}
+.work-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.work-pagination button {
+  border: 0;
+  padding: 4px;
+  background: transparent;
+  color: inherit;
+}
+@media (max-width: 1000px) {
+  .work-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .work-dropzone {
+    flex-wrap: wrap;
+    padding: 16px;
+  }
+}
+@media (max-width: 600px) {
+  .work-heading {
+    flex-wrap: wrap;
+  }
+  .work-dropzone > div {
+    flex-basis: 100%;
+  }
+  .work-list,
+  .work-detail {
+    padding: 12px;
+  }
+  .work-materials h1 {
+    font-size: 24px;
+  }
+}

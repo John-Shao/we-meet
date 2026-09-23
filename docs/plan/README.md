@@ -10,7 +10,7 @@
 
 | 文档 | 用途 |
 |---|---|
-| [work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md) | 工作（Work）：v1.9 办公 MVP 优先，按上传材料 → 沟通准备 → 周报 → 表格分析落地；会议集成后置，桌面 D0 剩余验收独立跟踪；含范围、契约、步骤和验收门槛 |
+| [work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md) | 工作（Work）：v1.10 首批私人材料上传 / 解析预览已本地验收，下一步沟通准备、周报、表格分析；会议集成和桌面 D0 独立跟踪；含范围、契约、步骤及实施证据 |
 | [task-module-improvement-plan.md](task-module-improvement-plan.md) | 任务模块完善与实施范围 |
 | [chat-message-to-task-plan.md](chat-message-to-task-plan.md) | 聊天消息转任务 |
 | [docs-member-identity.md](docs-member-identity.md) | 云文档成员身份与授权；独立跨服务协议说明 |
