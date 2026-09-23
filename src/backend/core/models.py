@@ -1788,6 +1788,9 @@ class MeetingOriginalSegment(BaseModel):
     end_ms = models.PositiveBigIntegerField(null=True, blank=True)
     revision = models.PositiveIntegerField(default=1)
     text = models.TextField()
+    word_alignment = models.JSONField(null=True, blank=True)
+    alignment_revision = models.PositiveIntegerField(default=0)
+    alignment_status = models.CharField(max_length=16, default="missing")
     language = models.CharField(max_length=16, blank=True)
     payload_hash = models.CharField(max_length=64)
     transcription_job = models.ForeignKey(

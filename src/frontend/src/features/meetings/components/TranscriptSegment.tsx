@@ -1,11 +1,17 @@
 import { RiPlayFill, RiUser3Line } from '@remixicon/react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ApiError } from '@/api/ApiError'
 import { Button } from '@/primitives'
 import { css, cx } from '@/styled-system/css'
 import { useTranscriptDraft } from '../hooks/useTranscriptDraft'
+import {
+  activeWordIndex,
+  useWordAlignment,
+  type PlaybackAlignment,
+} from '../wordAlignment'
+import { WordPlaybackText } from './WordPlaybackText'
 
 /**
  * 命中片段的高亮底色。
@@ -73,7 +79,13 @@ export function TranscriptSegment({
   editFailed = false,
   correctionRevision = 0,
   highlight,
+  playbackAlignment,
+  positionMs,
+  onWordSeek,
 }: {
+  playbackAlignment?: PlaybackAlignment
+  positionMs?: number
+  onWordSeek?: (milliseconds: number) => void
   speaker: string
   /**
    * 行首的时间戳。**可以是 `null`**：共享格式化件解析不出来时返回 `null`，
@@ -146,6 +158,12 @@ export function TranscriptSegment({
 
   const shown =
     showingOriginal && originalText !== undefined ? originalText : text
+  const words = useWordAlignment(text, playbackAlignment)
+  const wordSeekRef = useRef(onWordSeek)
+  wordSeekRef.current = onWordSeek
+  const seekWord = useCallback((ms: number) => wordSeekRef.current?.(ms), [])
+  const wordMode =
+    words.length > 0 && !!onWordSeek && !showingOriginal && !editing && !busy
 
   const submit = async (restore = false) => {
     if (busy || (restore ? !onRevert : !onCorrect)) return
@@ -187,9 +205,9 @@ export function TranscriptSegment({
         }),
         active &&
           css({
-            backgroundColor: 'action.selected.bg',
             borderLeftColor: 'action.primary.bg',
-          })
+          }),
+        active && !wordMode && css({ backgroundColor: 'action.selected.bg' })
       )}
     >
       <div
@@ -395,7 +413,19 @@ export function TranscriptSegment({
             color: 'text.primary',
           })}
         >
-          {highlight ? highlightMatches(shown, highlight) : shown}
+          {wordMode ? (
+            <WordPlaybackText
+              text={shown}
+              tokens={words}
+              active={activeWordIndex(words, active ? positionMs : undefined)}
+              query={highlight}
+              onSeek={seekWord}
+            />
+          ) : highlight ? (
+            highlightMatches(shown, highlight)
+          ) : (
+            shown
+          )}
         </p>
       )}
 

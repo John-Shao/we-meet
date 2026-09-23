@@ -235,6 +235,16 @@ export function useTranscriptFollow({
     if (scroller === document.body || scroller === document.documentElement)
       scroller = list
     const pause = () => pauseFollowing()
+    const selection = () => {
+      const selected = window.getSelection()
+      if (
+        selected &&
+        !selected.isCollapsed &&
+        selected.anchorNode &&
+        list.contains(selected.anchorNode)
+      )
+        pause()
+    }
     const key = (event: KeyboardEvent) => {
       if (
         (event.target as Element)?.closest(
@@ -266,18 +276,19 @@ export function useTranscriptFollow({
     scroller.addEventListener('touchmove', pause, { passive: true })
     scroller.addEventListener('keydown', key)
     scroller.addEventListener('pointerdown', pointer)
+    document.addEventListener('selectionchange', selection)
     return () => {
       scroller.removeEventListener('wheel', pause)
       scroller.removeEventListener('touchmove', pause)
       scroller.removeEventListener('keydown', key)
       scroller.removeEventListener('pointerdown', pointer)
+      document.removeEventListener('selectionchange', selection)
     }
   }, [containerRef, pauseFollowing, target])
 
   useEffect(() => {
     if (!enabled || follow.enabled === false || target === null) return
     if (follow.suppressed()) return
-    if (scrolled.current === target) return
     const container = containerRef.current
     if (!container) return
     // Only a rendered row can be scrolled to; a filtered list may omit it.
@@ -285,11 +296,29 @@ export function useTranscriptFollow({
       `[data-segment-id="${CSS.escape(target)}"]`
     )
     if (typeof row?.scrollIntoView !== 'function') return
-    scrolled.current = target
+    const word = row.querySelector<HTMLElement>('[data-playing-word]')
+    const scrollKey = word ? `${target}:${word.dataset.playingWord}` : target
+    if (scrolled.current === scrollKey) return
+    scrolled.current = scrollKey
+    let scrollParent: HTMLElement | null = container
+    while (
+      scrollParent.parentElement &&
+      !/(auto|scroll)/.test(getComputedStyle(scrollParent).overflowY)
+    )
+      scrollParent = scrollParent.parentElement
+    const bounds = scrollParent.getBoundingClientRect()
+    const rect = (word ?? row).getBoundingClientRect()
+    if (
+      word &&
+      bounds.height > 0 &&
+      rect.top >= Math.max(0, bounds.top) + 48 &&
+      rect.bottom <= Math.min(window.innerHeight, bounds.bottom) - 16
+    )
+      return
     const reduced = window.matchMedia?.(
       '(prefers-reduced-motion: reduce)'
     ).matches
-    row.scrollIntoView({
+    ;(word ?? row).scrollIntoView({
       block: 'nearest',
       behavior: reduced ? 'auto' : 'smooth',
     })
@@ -301,5 +330,6 @@ export function useTranscriptFollow({
     follow.enabled,
     follow.suppressed,
     follow.suppressionEpoch,
+    follow.positionMs,
   ])
 }

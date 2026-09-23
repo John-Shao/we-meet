@@ -59,6 +59,7 @@ from core.services.uploaded_recordings import (
     media_read_url,
     public_metadata,
 )
+from core.services.word_alignment import for_reader as playback_alignment
 
 
 class SummaryRequestThrottle(UserRateThrottle):
@@ -1078,6 +1079,10 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     # The recogniser's own words, so a reader can see what changed
                     # and an edit never looks like it was always there.
                     "original_text": row.text,
+                    "playback_alignment": (
+                        playback_alignment(row) if settings.MEETING_WORD_ALIGNMENT_READ_ENABLED
+                        else {"status": "missing"}
+                    ),
                     "is_corrected": row.corrected_text != row.text,
                     "language": row.language,
                 }

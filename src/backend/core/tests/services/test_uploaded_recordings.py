@@ -287,7 +287,12 @@ def test_submission_is_fenced_and_lost_response_requires_explicit_retry():
     assert client.post(path, {"attempt": 1}, format="json").status_code == 409
 
 
-def test_worker_submits_once_and_publishes_complete_originals():
+@pytest.mark.parametrize(
+    "word_end,alignment_status", [(900, "available"), (2000, "invalid")]
+)
+def test_worker_submits_once_and_publishes_complete_originals(
+    word_end, alignment_status
+):
     job = job_for(UserFactory())
     storage = mock.Mock()
     storage._normalize_name.side_effect = lambda name: name
@@ -311,8 +316,19 @@ def test_worker_submits_once_and_publishes_complete_originals():
     result = {
         "properties": {"original_duration_in_milliseconds": 1200},
         "transcripts": [
-            {"sentences": [{"text": "Hello", "begin_time": 10, "end_time": 900}]}
-        ]
+            {
+                "sentences": [
+                    {
+                        "text": "Hello",
+                        "begin_time": 10,
+                        "end_time": 900,
+                        "words": [
+                            {"text": "Hello", "begin_time": 10, "end_time": word_end}
+                        ],
+                    }
+                ]
+            }
+        ],
     }
     with mock.patch.object(provider, "poll", return_value=result):
         service.process(job.pk)
@@ -326,6 +342,13 @@ def test_worker_submits_once_and_publishes_complete_originals():
     assert record["capture_id"] is None
     originals = client_for(job.record.owner).get(path + "original-segments/").json()
     assert originals["results"][0]["text"] == "Hello"
+    assert originals["results"][0]["playback_alignment"]["status"] == alignment_status
+    if alignment_status == "available":
+        assert originals["results"][0]["playback_alignment"]["tokens"] == [
+            {"start_offset": 0, "end_offset": 5, "start_ms": 10, "end_ms": 900}
+        ]
+    else:
+        assert "tokens" not in originals["results"][0]["playback_alignment"]
 
 
 def test_invalid_result_publishes_nothing():

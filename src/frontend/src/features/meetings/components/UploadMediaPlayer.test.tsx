@@ -147,6 +147,44 @@ it('seeks the element when a transcript citation asks for a position', async () 
   expect(container.querySelector('audio')!.currentTime).toBe(65)
 })
 
+it('samples the real media clock between timeupdate events and stops on pause', async () => {
+  mocks.fetchApi.mockResolvedValue(media)
+  let callback: FrameRequestCallback | undefined
+  const raf = vi
+    .spyOn(window, 'requestAnimationFrame')
+    .mockImplementation((fn) => {
+      callback = fn
+      return 123
+    })
+  const cancel = vi
+    .spyOn(window, 'cancelAnimationFrame')
+    .mockImplementation(() => {})
+  const onPosition = vi.fn()
+  const view = render(
+    <UploadMediaPlayer recordId="record" onPosition={onPosition} />
+  )
+  await waitFor(() =>
+    expect(view.container.querySelector('audio')).not.toBeNull()
+  )
+  const audio = view.container.querySelector('audio')!
+  fireEvent.play(audio)
+  Object.defineProperty(audio, 'currentTime', { value: 0.55, writable: true })
+  act(() => callback?.(100))
+  expect(onPosition).toHaveBeenLastCalledWith(550)
+  const count = onPosition.mock.calls.length
+  act(() => callback?.(200))
+  expect(onPosition).toHaveBeenCalledTimes(count) // stalled clock must not advance
+  Object.defineProperty(audio, 'seeking', { value: true, configurable: true })
+  audio.currentTime = 9
+  act(() => callback?.(300))
+  expect(onPosition).toHaveBeenCalledTimes(count)
+  fireEvent.pause(audio)
+  expect(cancel).toHaveBeenCalledWith(123)
+  view.unmount()
+  raf.mockRestore()
+  cancel.mockRestore()
+})
+
 it('degrades to a visible error when the signed read is refused', async () => {
   mocks.fetchApi.mockRejectedValue(new Error('404'))
   show()

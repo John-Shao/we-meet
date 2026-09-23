@@ -130,8 +130,37 @@ export const UploadMediaPlayer = forwardRef<
   const setPosition = (milliseconds: number) => {
     positionRef.current = milliseconds
     setPositionState(milliseconds)
-    onPositionRef.current?.(milliseconds)
+    if (scrubbing.current === undefined) onPositionRef.current?.(milliseconds)
   }
+
+  // Read the real media clock, including stalls/rate changes. Background tabs
+  // suspend RAF; foreground resumes from currentTime, never an elapsed counter.
+  useEffect(() => {
+    if (state !== 'playing') return
+    let frame = 0,
+      last = 0
+    const sample = (now: number) => {
+      const element = audio.current
+      if (
+        now - last >= 50 &&
+        element &&
+        !element.seeking &&
+        !pending.current &&
+        scrubbing.current === undefined
+      ) {
+        last = now
+        const ms = element.currentTime * 1000
+        if (Number.isFinite(ms) && ms !== positionRef.current) {
+          positionRef.current = ms
+          setPositionState(ms)
+          onPositionRef.current?.(ms)
+        }
+      }
+      frame = requestAnimationFrame(sample)
+    }
+    frame = requestAnimationFrame(sample)
+    return () => cancelAnimationFrame(frame)
+  }, [state, recordId])
 
   useEffect(() => {
     mounted.current = true
@@ -198,7 +227,7 @@ export const UploadMediaPlayer = forwardRef<
       }
     }
     setPosition(bounded)
-    onUserSeek?.(bounded)
+    if (scrubbing.current === undefined) onUserSeek?.(bounded)
   }
   useImperativeHandle(ref, () => ({ seek }))
 
@@ -226,6 +255,9 @@ export const UploadMediaPlayer = forwardRef<
   const endSeek = () => {
     const resume = scrubbing.current
     scrubbing.current = undefined
+    const ms = (audio.current?.currentTime ?? positionRef.current / 1000) * 1000
+    onPositionRef.current?.(ms)
+    onUserSeek?.(ms)
     if (resume) void audio.current?.play().catch(() => setState('error'))
   }
   const MediaElement = media?.media_type === 'video' ? 'video' : 'audio'

@@ -100,6 +100,7 @@ export interface ApiMeetingSpeaker {
 
 /** /meeting-records/{id}/original-segments/, separately authorized from summaries. */
 export interface ApiMeetingOriginalSegment {
+  playback_alignment?: import('../wordAlignment').PlaybackAlignment
   correction_revision?: number
   can_correct?: boolean
   id: string

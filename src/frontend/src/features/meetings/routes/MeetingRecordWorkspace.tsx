@@ -350,6 +350,11 @@ function OriginalRead({
           <TranscriptSegment
             key={item.id}
             segmentId={item.id}
+            playbackAlignment={
+              'playback_alignment' in item ? item.playback_alignment : undefined
+            }
+            positionMs={positionMs}
+            onWordSeek={onSource}
             active={follow !== undefined && resolvedActiveId === item.id}
             onSeek={
               'start_ms' in item && onSource

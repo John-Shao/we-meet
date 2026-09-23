@@ -1163,6 +1163,8 @@ class Base(Configuration):
     )
     QWEN_ASR_REGION = values.Value("cn-beijing", environ_prefix=None)
     MEETING_FILE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_WORD_ALIGNMENT_WRITE_ENABLED = values.BooleanValue(True, environ_prefix=None)
+    MEETING_WORD_ALIGNMENT_READ_ENABLED = values.BooleanValue(True, environ_prefix=None)
     # Multipart ceiling. Bytes in this path spool to the application's own disk,
     # so it stays small on purpose; large files use the direct-upload path below.
     MEETING_FILE_ASR_MAX_BYTES = values.PositiveIntegerValue(

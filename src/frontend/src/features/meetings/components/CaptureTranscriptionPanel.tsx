@@ -647,6 +647,9 @@ function Originals({
         <TranscriptSegment
           key={row.id}
           segmentId={row.id}
+          playbackAlignment={row.playback_alignment}
+          positionMs={positionMs}
+          onWordSeek={onSource}
           active={resolvedActiveId === row.id}
           originalText={row.original_text}
           isCorrected={row.is_corrected === true}

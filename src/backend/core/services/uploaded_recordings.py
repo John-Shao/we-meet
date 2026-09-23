@@ -575,6 +575,9 @@ def finish(job, rows, billed_seconds=None, original_audio_duration_ms=None):
                 start_ms=row["start_ms"],
                 end_ms=row["end_ms"],
                 text=row["text"],
+                word_alignment=row.get("word_alignment"),
+                alignment_status=row.get("alignment_status", "missing"),
+                alignment_revision=1 if row.get("word_alignment") else 0,
                 language=row["language"],
                 payload_hash=hashlib.sha256(row["text"].encode()).hexdigest(),
             )
@@ -588,6 +591,10 @@ def finish(job, rows, billed_seconds=None, original_audio_duration_ms=None):
         "_published": {
             "segment_count": len(segments),
             "attempt": current.attempt,
+            "word_alignment_counts": {
+                status: sum(segment.alignment_status == status for segment in segments)
+                for status in ("available", "missing", "invalid")
+            },
         },
     }
     current.lease_id = current.lease_until = None

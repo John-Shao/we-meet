@@ -8,6 +8,8 @@ from django.conf import settings
 
 import requests
 
+from core.services import word_alignment
+
 MODEL = "qwen-audio-3.0-asr-flash-filetrans"
 MAX_RESULT_BYTES = 32 * 1024 * 1024
 
@@ -139,6 +141,12 @@ def poll(task_id):
 def sentences(result):
     """Validate a complete source before atomically publishing any of its text."""
     rows, text_bytes = [], 0
+    properties = result.get("properties")
+    media_end_ms = (
+        properties.get("original_duration_in_milliseconds")
+        if isinstance(properties, dict)
+        else None
+    )
     for transcript in result.get("transcripts", []):
         for sentence in transcript.get("sentences", []):
             text = sentence.get("text", "")
@@ -156,6 +164,15 @@ def sentences(result):
             text_bytes += len(text.encode())
             if len(rows) >= 20000 or text_bytes > 4000000:
                 raise FileTranscriptionError("provider_text_too_large")
+            alignment, alignment_status = (
+                word_alignment.from_sentence(
+                    sentence,
+                    MODEL,
+                    media_end_ms,
+                )
+                if settings.MEETING_WORD_ALIGNMENT_WRITE_ENABLED
+                else (None, "missing")
+            )
             rows.append(
                 {
                     "text": text,
@@ -163,6 +180,8 @@ def sentences(result):
                     "end_ms": end,
                     "speaker": str(sentence.get("speaker_id", "unknown"))[:100],
                     "language": str(sentence.get("language", ""))[:16],
+                    "word_alignment": alignment,
+                    "alignment_status": alignment_status,
                 }
             )
     if not rows:

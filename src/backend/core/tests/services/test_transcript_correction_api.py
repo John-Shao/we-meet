@@ -6,6 +6,7 @@ import pytest
 
 from core import models
 from core.factories import UserFactory
+from core.services.word_alignment import from_sentence
 from core.tests.services.test_meeting_records import audio_note, client_for
 
 pytestmark = pytest.mark.django_db
@@ -67,12 +68,29 @@ def rows(user, record):
 
 def test_a_correction_is_what_a_reader_then_sees():
     user, record, segment = captured()
+    alignment, _ = from_sentence(
+        {
+            "text": segment.text,
+            "begin_time": 0,
+            "end_time": 1000,
+            "words": [
+                {"text": "Hello", "begin_time": 0, "end_time": 400},
+                {"text": "word", "begin_time": 500, "end_time": 1000},
+            ],
+        },
+        "test",
+    )
+    models.MeetingOriginalSegment.objects.filter(pk=segment.pk).update(
+        word_alignment=alignment, alignment_status="available", alignment_revision=1
+    )
+    assert rows(user, record)[0]["playback_alignment"]["status"] == "available"
     response = client_for(user).patch(
         ONE.format(record.id, segment.pk),
         {"text": "Hello world.", "expected_revision": 0},
         format="json",
     )
     assert response.status_code == 200, response.data
+    assert rows(user, record)[0]["playback_alignment"] == {"status": "text_changed"}
     assert response.data["text"] == "Hello world."
     assert response.data["is_corrected"] is True
     assert response.data["revision"] == 1
