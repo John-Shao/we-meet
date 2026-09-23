@@ -1,6 +1,6 @@
 # Work 办公模块
 
-当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**已通过本地隔离联调，真实模型与生产部署尚未验收，不能据此宣布 P0-1 正式放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
+当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**材料已在生产启用并完成四种格式上传 / 解析验证；沟通准备仅通过本地隔离联调，真实模型与桌面办公验收待完成，P0-1 尚未正式放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
 
 ## 启用与运行
 
@@ -28,6 +28,14 @@ bash deploy/aliyun/enable-work.sh materials
 材料上线后，在 overlay 的 `backend.envVars` 配置下表的独立 Work 模型，API key 使用已有 Kubernetes Secret 的 `secretKeyRef`。在受控验收时启用 `WORK_COMMUNICATION_ENABLED`，验证真实模型引用、实际用量与业务闭环后再开放使用；重新执行 `materials` 模式会将它重置为 `False`。
 
 2026-09-23 首次线上启用检查：Work 迁移已通过，但存储探针和清理均失败，开关仍关闭、没有进入 Helm 发布。旧诊断只返回 `storage_probe_failed`，不足以确定根因。现已增加失败阶段、白名单异常类型 / S3 错误码 / HTTP 状态、独立清理结果，以及存储配置完整性和客户端配置差异（不输出凭证、地址或原始异常）。另修复已确认的源码问题：Work 的超时配置曾覆盖部署级 OSS 签名、寻址和 checksum 兼容配置，现在合并保留部署配置。该修复需重新构建并发布 **backend** 镜像；宿主机诊断脚本可在旧镜像上直接运行。更新镜像后先清理原探针，再重试 `materials`；真实存储结果仍以服务器输出为准。
+
+2026-09-23 生产回执更新：backend `c6d61ad7e` 已发布，Helm revision 401；旧探针清理成功，私有读写、匿名访问拒绝及新探针清理均通过。随后 revision 402 启用材料，`work_consumers=1`，Work / 材料开关为 true、沟通生成为 false，客户端配置差异为空。前端仍为 `e82d71f91`。这些结果覆盖了前述“尚未启用”的历史状态。
+
+生产 Web 验收使用授权 demo 账号与合成材料：TXT / Markdown / PDF / DOCX 均返回 201 并由真实 Worker 解析至 `ready`；PDF 返回页码，DOCX 返回段落和表格单元格位置。刷新保留选中材料，1440 / 1024 / 390 px 无横向溢出，材料中的脚本文本未执行；未登录访问返回 401。四份合成材料删除均返回 204，随后详情和预览均返回 404。这验证了应用层删除与拒读；业务文件的后台 OSS 清理未通过服务器查询单独复核，不能与部署探针清理混为一项。
+
+追加第五份合成材料验证两个 demo 账号隔离：其他账号的详情 / 预览均为 404；所有者在界面确认删除后，旧链接提示不可访问，详情 / 预览也均为 404。五份验收材料均已删除。第二账号首次登录受测试脚本未等待验证码发送完成影响，等待“验证码已发送”后成功；未修改线上登录逻辑。证据位于本地 gitignored `src/desktop/test-results/work-production-materials-{1440,1024,390}.png`、`work-production-acceptance.json`（含第一次登录等待失败与四份清理记录）、`work-production-isolation.json`（最终隔离 / 界面删除通过记录），不保存登录 Cookie 或 Token。这是生产 Web 验收，不代表 Electron 安装包验收。
+
+下一步模型建议（2026-09-23 核对官方资料，尚未配置或调用）：以 `qwen3.7-plus-2026-05-26` 固定快照作为沟通准备验收候选。它支持结构化输出；现有 `LLMClient` 对 `qwen3*` 已显式设置 `enable_thinking=false`，首轮继续采用 JSON Object + 本地结构 / 原文引用校验。北京地域、输入不超过 256K 的原价为输入 2 元、输出 8 元 / 百万 Token；一次 1 万输入 + 2000 输出约 0.036 元，仅为示例估算，不是业务实测费用。模型 ID / API 地址 / Secret 引用需匹配同一百炼业务空间，实际延迟、引用语义与 usage 仍须验收。[模型与价格](https://help.aliyun.com/zh/model-studio/qwen3-7-plus) · [结构化输出](https://help.aliyun.com/zh/model-studio/qwen-structured-output)。
 
 使用现有 Django / Celery 环境，启动专用队列：
 
