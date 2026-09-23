@@ -400,9 +400,14 @@ try {
       'speed and time share a row'
     )
     assert.ok(full.y + full.height < play.y, 'fullscreen stays above transport')
+    const header = await surface.locator('[data-video-header]').boundingBox()
     assert.ok(
-      full.x + full.width <= collapse.x,
-      'fullscreen is first at the top left'
+      Math.abs(full.x + full.width - header.x - header.width) < 2,
+      'fullscreen aligns with the right edge'
+    )
+    assert.ok(
+      collapse.x + collapse.width <= full.x,
+      'fullscreen is at the top right'
     )
     assert.ok(
       Math.abs(full.y + full.height / 2 - collapse.y - collapse.height / 2) < 2,

@@ -339,12 +339,26 @@ export const UploadMediaPlayer = forwardRef<
               data-video-chrome
               className={css({
                 display: 'flex',
-                justifyContent: 'flex-start',
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 gap: 'sm',
                 marginBottom: 'sm',
               })}
             >
+              <PlayerButton
+                variant="quaternaryText"
+                size="dense"
+                aria-expanded={videoExpanded}
+                onPress={() => setVideoExpanded((value) => !value)}
+                isDisabled={fullscreen}
+              >
+                {videoExpanded ? (
+                  <RiArrowDownSLine size={18} aria-hidden />
+                ) : (
+                  <RiArrowUpSLine size={18} aria-hidden />
+                )}
+                {t(videoExpanded ? 'hideVideo' : 'showVideo')}
+              </PlayerButton>
               <PlayerButton
                 variant="quaternaryText"
                 size="xs"
@@ -362,20 +376,6 @@ export const UploadMediaPlayer = forwardRef<
                 ) : (
                   <RiFullscreenLine size={20} aria-hidden />
                 )}
-              </PlayerButton>
-              <PlayerButton
-                variant="quaternaryText"
-                size="dense"
-                aria-expanded={videoExpanded}
-                onPress={() => setVideoExpanded((value) => !value)}
-                isDisabled={fullscreen}
-              >
-                {videoExpanded ? (
-                  <RiArrowDownSLine size={18} aria-hidden />
-                ) : (
-                  <RiArrowUpSLine size={18} aria-hidden />
-                )}
-                {t(videoExpanded ? 'hideVideo' : 'showVideo')}
               </PlayerButton>
             </div>
           )}
