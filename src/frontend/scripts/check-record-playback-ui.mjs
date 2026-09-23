@@ -355,6 +355,45 @@ try {
   const video = page.locator('video')
   await video.waitFor()
   const surface = page.locator('[data-video-expanded=true]')
+  const checkVideoControlLayout = async () => {
+    const time = surface.locator('[data-playback-time]')
+    await expect(time).toHaveCount(1)
+    const clock = await time.boundingBox()
+    const full = await surface
+      .getByRole('button', { name: '全屏', exact: true })
+      .boundingBox()
+    const tracking = surface.getByRole('button', { name: '跟随', exact: true })
+    const track = await tracking.boundingBox()
+    const play = await surface
+      .getByRole('button', { name: '播放', exact: true })
+      .boundingBox()
+    assert.ok(
+      clock.x + clock.width < full.x,
+      'time is left of the top-right fullscreen button'
+    )
+    assert.ok(
+      Math.abs(clock.y + clock.height / 2 - full.y - full.height / 2) < 2,
+      'time and fullscreen share the top row'
+    )
+    assert.ok(
+      full.y + full.height < play.y,
+      'fullscreen is above the transport row'
+    )
+    assert.ok(
+      Math.abs(track.y + track.height / 2 - play.y - play.height / 2) < 2,
+      'tracking sits on the transport row'
+    )
+    assert.ok(
+      Math.abs(track.x + track.width - full.x - full.width) < 2,
+      'tracking and fullscreen align at the right edge'
+    )
+    assert.equal(
+      (await tracking.textContent()).trim(),
+      '',
+      'tracking uses only an icon'
+    )
+  }
+  await checkVideoControlLayout()
   const paneBox = await page.locator('[role=tablist]').boundingBox()
   const videoBox = await video.boundingBox()
   const divider = page.getByRole('separator', { name: '调整视频与内容宽度' })
@@ -392,6 +431,7 @@ try {
     'video retains its minimum width'
   )
   await divider.press('End')
+  await checkVideoControlLayout()
   assert.ok(
     (await page.locator('[role=tablist]').boundingBox()).width >= 319,
     'text retains its minimum width'
@@ -468,6 +508,7 @@ try {
     true
   )
   await page.screenshot({ path: `${output}/video-mobile.png`, fullPage: true })
+  await checkVideoControlLayout()
   assert.deepEqual(errors, [])
   console.log(
     `Playback UI passed: real audio, verified capture chunks, shared controls, 320/390/1280px, light/dark, follow, video collapse and full screen. Screenshots: ${output}`

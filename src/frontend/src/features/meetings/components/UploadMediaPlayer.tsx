@@ -14,6 +14,7 @@ import {
 } from '@remixicon/react'
 import {
   RecordPlaybackControls,
+  PlaybackTime,
   type PlaybackFollowControl,
 } from './RecordPlaybackControls'
 import { Button as PlayerButton } from '@/primitives/Button'
@@ -262,9 +263,19 @@ export const UploadMediaPlayer = forwardRef<
           '& [data-video-header]': {
             position: 'absolute',
             top: 'sm',
-            right: 'sm',
+            left: 'lg',
+            right: 'lg',
             zIndex: 2,
             margin: 0,
+            '& [data-playback-time]': {
+              marginRight: 'auto',
+              paddingY: 'xs',
+              borderRadius: 'control',
+              backgroundColor: 'black/40',
+            },
+            '& [data-playback-time], & [data-playback-time] span': {
+              color: 'white',
+            },
           },
           '& [data-video-controls]': {
             position: 'absolute',
@@ -346,6 +357,9 @@ export const UploadMediaPlayer = forwardRef<
                 marginBottom: 'sm',
               })}
             >
+              {videoSurface && (
+                <PlaybackTime position={position} duration={duration * 1000} />
+              )}
               <PlayerButton
                 variant="quaternaryText"
                 size="dense"
@@ -359,6 +373,24 @@ export const UploadMediaPlayer = forwardRef<
                   <RiArrowUpSLine size={18} aria-hidden />
                 )}
                 {t(videoExpanded ? 'hideVideo' : 'showVideo')}
+              </PlayerButton>
+              <PlayerButton
+                variant="quaternaryText"
+                size="xs"
+                className={css({
+                  minWidth: '2.75rem',
+                  minHeight: '2.75rem',
+                })}
+                onPress={() => void toggleFullscreen()}
+                aria-label={t(fullscreen ? 'exitFullscreen' : 'fullscreen')}
+                tooltip={t(fullscreen ? 'exitFullscreen' : 'fullscreen')}
+                isDisabled={!fullscreenSupported}
+              >
+                {fullscreen ? (
+                  <RiFullscreenExitLine size={20} aria-hidden />
+                ) : (
+                  <RiFullscreenLine size={20} aria-hidden />
+                )}
               </PlayerButton>
             </div>
           )}
@@ -442,6 +474,7 @@ export const UploadMediaPlayer = forwardRef<
           />
           <div data-video-controls data-video-chrome>
             <RecordPlaybackControls
+              videoLayout={videoSurface}
               position={position}
               duration={duration * 1000}
               playing={state === 'playing'}
@@ -475,27 +508,6 @@ export const UploadMediaPlayer = forwardRef<
                 if (audio.current) audio.current.playbackRate = value
               }}
               followControl={fullscreen ? undefined : followControl}
-              trailingControl={
-                media.media_type === 'video' ? (
-                  <PlayerButton
-                    variant="quaternaryText"
-                    size="xs"
-                    className={css({
-                      minWidth: '2.75rem',
-                      minHeight: '2.75rem',
-                    })}
-                    onPress={() => void toggleFullscreen()}
-                    aria-label={t(fullscreen ? 'exitFullscreen' : 'fullscreen')}
-                    isDisabled={!fullscreenSupported}
-                  >
-                    {fullscreen ? (
-                      <RiFullscreenExitLine size={20} aria-hidden />
-                    ) : (
-                      <RiFullscreenLine size={20} aria-hidden />
-                    )}
-                  </PlayerButton>
-                ) : undefined
-              }
               seekEvents={{
                 onPointerDown: beginSeek,
                 onPointerUp: endSeek,

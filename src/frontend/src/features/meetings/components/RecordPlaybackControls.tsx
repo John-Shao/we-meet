@@ -5,7 +5,7 @@ import {
   RiVolumeUpLine,
   RiVolumeMuteLine,
 } from '@remixicon/react'
-import type { CSSProperties, InputHTMLAttributes, ReactNode } from 'react'
+import type { CSSProperties, InputHTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives/Button'
 import { css, cx } from '@/styled-system/css'
@@ -31,6 +31,37 @@ const action = css({
   textStyle: 'labelMedium',
 })
 
+export function PlaybackTime({
+  position,
+  duration,
+}: {
+  position: number
+  duration: number
+}) {
+  return (
+    <div
+      data-playback-time
+      aria-live="off"
+      className={css({
+        gridArea: 'time',
+        whiteSpace: 'nowrap',
+        textStyle: 'titleSmall',
+        color: 'text.primary',
+        fontVariantNumeric: 'tabular-nums',
+        paddingX: 'sm',
+      })}
+    >
+      {playbackTime(position)}{' '}
+      <span className={css({ color: 'text.secondary' })}>
+        /{' '}
+        {Number.isFinite(duration) && duration > 0
+          ? playbackTime(duration)
+          : '—'}
+      </span>
+    </div>
+  )
+}
+
 /** Full-width timeline above a compact transport row; wraps inside narrow panes. */
 export function RecordPlaybackControls({
   position,
@@ -49,7 +80,7 @@ export function RecordPlaybackControls({
   onBack,
   onForward,
   followControl,
-  trailingControl,
+  videoLayout = false,
   seekEvents,
 }: {
   position: number
@@ -68,7 +99,7 @@ export function RecordPlaybackControls({
   onBack: () => void
   onForward: () => void
   followControl?: PlaybackFollowControl
-  trailingControl?: ReactNode
+  videoLayout?: boolean
   seekEvents?: Pick<
     InputHTMLAttributes<HTMLInputElement>,
     | 'onPointerDown'
@@ -149,7 +180,7 @@ export function RecordPlaybackControls({
         })}
       />
       <div
-        data-extra={!!trailingControl}
+        data-video-layout={videoLayout}
         className={css({
           display: 'grid',
           gridTemplateAreas:
@@ -157,9 +188,8 @@ export function RecordPlaybackControls({
           gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
           alignItems: 'center',
           columnGap: 'xs',
-          '&[data-extra=true]': {
-            gridTemplateAreas:
-              '"play back forward volume speed extra" "time time time follow follow follow"',
+          '&[data-video-layout=true]': {
+            gridTemplateAreas: '"play back forward volume speed follow"',
             gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
           },
           '@container (min-width: 560px)': {
@@ -167,11 +197,11 @@ export function RecordPlaybackControls({
               '"play back forward volume time spacer follow speed"',
             gridTemplateColumns:
               '2.75rem 2.75rem 2.75rem 2.75rem auto 1fr auto 3.5rem',
-            '&[data-extra=true]': {
+            '&[data-video-layout=true]': {
               gridTemplateAreas:
-                '"play back forward volume time spacer follow speed extra"',
+                '"play back forward volume spacer speed follow"',
               gridTemplateColumns:
-                '2.75rem 2.75rem 2.75rem 2.75rem auto 1fr auto 3.5rem 2.75rem',
+                '2.75rem 2.75rem 2.75rem 2.75rem 1fr 3.5rem 2.75rem',
             },
           },
         })}
@@ -284,23 +314,7 @@ export function RecordPlaybackControls({
             </span>
           </div>
         </div>
-        <div
-          data-playback-time
-          aria-live="off"
-          className={css({
-            gridArea: 'time',
-            whiteSpace: 'nowrap',
-            textStyle: 'titleSmall',
-            color: 'text.primary',
-            fontVariantNumeric: 'tabular-nums',
-            paddingX: 'sm',
-          })}
-        >
-          {playbackTime(position)}{' '}
-          <span className={css({ color: 'text.secondary' })}>
-            / {end ? playbackTime(end) : '—'}
-          </span>
-        </div>
+        {!videoLayout && <PlaybackTime position={position} duration={end} />}
         <select
           aria-label={t('playbackRate')}
           value={rate}
@@ -363,11 +377,6 @@ export function RecordPlaybackControls({
             </Button>
           )}
         </div>
-        {trailingControl && (
-          <div className={css({ gridArea: 'extra', justifySelf: 'center' })}>
-            {trailingControl}
-          </div>
-        )}
       </div>
     </div>
   )
