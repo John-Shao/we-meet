@@ -35,7 +35,11 @@ bash deploy/aliyun/enable-work.sh materials
 
 追加第五份合成材料验证两个 demo 账号隔离：其他账号的详情 / 预览均为 404；所有者在界面确认删除后，旧链接提示不可访问，详情 / 预览也均为 404。五份验收材料均已删除。第二账号首次登录受测试脚本未等待验证码发送完成影响，等待“验证码已发送”后成功；未修改线上登录逻辑。证据位于本地 gitignored `src/desktop/test-results/work-production-materials-{1440,1024,390}.png`、`work-production-acceptance.json`（含第一次登录等待失败与四份清理记录）、`work-production-isolation.json`（最终隔离 / 界面删除通过记录），不保存登录 Cookie 或 Token。这是生产 Web 验收，不代表 Electron 安装包验收。
 
-下一步模型建议（2026-09-23 核对官方资料，尚未配置或调用）：以 `qwen3.7-plus-2026-05-26` 固定快照作为沟通准备验收候选。它支持结构化输出；现有 `LLMClient` 对 `qwen3*` 已显式设置 `enable_thinking=false`，首轮继续采用 JSON Object + 本地结构 / 原文引用校验。北京地域、输入不超过 256K 的原价为输入 2 元、输出 8 元 / 百万 Token；一次 1 万输入 + 2000 输出约 0.036 元，仅为示例估算，不是业务实测费用。模型 ID / API 地址 / Secret 引用需匹配同一百炼业务空间，实际延迟、引用语义与 usage 仍须验收。[模型与价格](https://help.aliyun.com/zh/model-studio/qwen3-7-plus) · [结构化输出](https://help.aliyun.com/zh/model-studio/qwen-structured-output)。
+模型复用结论（2026-09-23）：仓库已有 `qwen3.8-flash` 接入，`values.meet.yaml` 的 backend `MEETING_SUMMARY_MODEL` 与 summary `LLM_MODEL` 均使用它，兼容地址为 `https://dashscope.aliyuncs.com/compatible-mode/v1`，凭证引用 `meet-ai-credentials` 的 `DASHSCOPE_API_KEY`。会议总结 / 问答共用 `LLMClient.from_settings()`，且已有[真实短 / 长总结通过记录](../../../docs/plan/meeting-ai-phase0-2026-09-12.md)。因此撤回将 Qwen3.7-Plus 作为首选的建议，Work 直接以现有 Flash 做业务验收，无需新申请 API Key。
+
+`values.work.yaml.dist` 已给出对应的 `WORK_MODEL / WORK_MODEL_BASE_URL / WORK_MODEL_API_KEY` 显式绑定，沟通生成默认仍关闭。复用同一模型服务和 Secret，不让 Work 自动跟随会议配置变更；队列、任务、每日用量上限及开关仍独立。**示例文件更新不会修改服务器已有的 `values.work.yaml`**，最新生产回执中的 Work `model_configured=false` 仍需通过本地 overlay 绑定解决。现有 `LLMClient` 对 `qwen3*` 显式设置 `enable_thinking=false`，首轮继续采用 JSON Object + 本地结构 / 原文引用校验。会议模型接入通过不等于办公提示词、引用语义、耗时和 usage 已验收。
+
+Flash 北京地域公开原价为输入 0.8 元、输出 2.7 元 / 百万 Token；一次 1 万输入 + 2000 输出约 0.0134 元，仅为示例估算，不是业务实测费用。[模型与价格](https://help.aliyun.com/zh/model-studio/qwen3-8-flash) · [结构化输出](https://help.aliyun.com/zh/model-studio/qwen-structured-output)。
 
 使用现有 Django / Celery 环境，启动专用队列：
 
