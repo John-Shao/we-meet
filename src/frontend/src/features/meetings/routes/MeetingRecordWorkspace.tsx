@@ -48,7 +48,10 @@ import { RecordTrashControl } from '../components/RecordTrash'
 import { RecordDocuments } from '../components/RecordDocuments'
 import { TranscriptReplacementControl } from '../components/TranscriptReplacementControl'
 import { TranscriptDraftScope } from '../components/TranscriptDraftScope'
-import { useTranscriptDraftScope } from '../hooks/useTranscriptDraft'
+import {
+  useTranscriptDraftScope,
+  useTranscriptEditing,
+} from '../hooks/useTranscriptDraft'
 import { RecordRenameControl } from '../components/RecordRenameControl'
 import { RecordSplitLayout } from '../components/RecordSplitLayout'
 import { StateHint } from '@/components/StateHint'
@@ -121,6 +124,7 @@ function OriginalRead({
   const { t } = useTranslation('meetings')
   const correction = useCorrectOriginalSegment(viewerId, record.id)
   const drafts = useTranscriptDraftScope()
+  const editing = useTranscriptEditing()
   const [cursors, setCursors] = useState<string[]>([''])
   const routeSearch = useSearch()
   const [search, setSearch] = useState(
@@ -202,10 +206,16 @@ function OriginalRead({
   })
   const pauseFollowing = follow?.pauseFollowing
   useEffect(() => {
-    if ((!following || search || speaker) && !speakers) pauseFollowing?.()
-  }, [following, search, speaker, speakers, pauseFollowing])
+    if ((!following || search || speaker || editing) && !speakers)
+      pauseFollowing?.()
+  }, [following, search, speaker, speakers, editing, pauseFollowing])
   const followEnabled =
-    following && follow?.enabled !== false && !search && !speaker && !speakers
+    following &&
+    !editing &&
+    follow?.enabled !== false &&
+    !search &&
+    !speaker &&
+    !speakers
   useEffect(() => {
     if (!followEnabled || positionMs === undefined || follow?.suppressed())
       return
@@ -277,10 +287,12 @@ function OriginalRead({
   return (
     <div
       ref={listRef}
-      onWheel={() => follow?.pauseFollowing?.()}
-      onTouchMove={() => follow?.pauseFollowing?.()}
       onFocusCapture={(event) => {
-        if (event.target instanceof HTMLTextAreaElement) setFollowing(false)
+        if (
+          event.target instanceof HTMLTextAreaElement ||
+          event.target instanceof HTMLInputElement
+        )
+          setFollowing(false)
       }}
     >
       {searchForm}
@@ -289,7 +301,15 @@ function OriginalRead({
         (!followEnabled || follow?.suppressed()) && (
           <Button
             variant="tertiary"
+            isDisabled={editing}
+            className={css({
+              position: 'sticky',
+              top: 'sm',
+              zIndex: 2,
+              marginBottom: 'sm',
+            })}
             onPress={() => {
+              if (editing) return
               setSearch('')
               setSpeaker('')
               setAnchorMs(Math.floor(positionMs))
@@ -492,7 +512,11 @@ function WorkspaceContent({
    * design — the transcript derives its own active row from the position it is
    * handed, so this hook only carries the clock and the reader's scroll state.
    */
-  const follow = usePlaybackFollow(EMPTY_ROWS)
+  const playbackDrafts = useTranscriptDraftScope()
+  const follow = usePlaybackFollow(
+    EMPTY_ROWS,
+    () => !playbackDrafts?.isEditing()
+  )
   const captureId = record.capabilities.read_transcript
     ? record.capture_id
     : null
@@ -806,16 +830,10 @@ function WorkspaceContent({
             captureId={source.id}
             compact
             onPosition={follow.report}
-            followControl={
-              selectedTab === 'text'
-                ? {
-                    enabled: follow.enabled,
-                    onToggle: follow.enabled
-                      ? follow.pauseFollowing
-                      : follow.resumeFollowing,
-                  }
-                : undefined
-            }
+            onUserSeek={(milliseconds) => {
+              follow.report(milliseconds)
+              follow.resumeFollowing()
+            }}
           />
         </div>
       )}
@@ -832,16 +850,10 @@ function WorkspaceContent({
           recordId={record.id}
           onDuration={setPlayerDuration}
           onPosition={follow.report}
-          followControl={
-            selectedTab === 'text'
-              ? {
-                  enabled: follow.enabled,
-                  onToggle: follow.enabled
-                    ? follow.pauseFollowing
-                    : follow.resumeFollowing,
-                }
-              : undefined
-          }
+          onUserSeek={(milliseconds) => {
+            follow.report(milliseconds)
+            follow.resumeFollowing()
+          }}
         />
       )}
     </RecordSplitLayout>

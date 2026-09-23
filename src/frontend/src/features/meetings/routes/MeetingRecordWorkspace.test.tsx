@@ -5,7 +5,6 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { RecordWorkspace } from './MeetingRecordWorkspace'
-import type { PlaybackFollowControl } from '../components/RecordPlaybackControls'
 import { formatDateTime } from '../recordDateTime'
 import { act } from '@testing-library/react'
 
@@ -25,22 +24,19 @@ vi.mock('../components/CaptureAudioPlayer', () => ({
 }))
 vi.mock('../components/UploadMediaPlayer', () => ({
   UploadMediaPlayer: forwardRef(function Player(
-    { followControl }: { followControl?: PlaybackFollowControl },
+    { onUserSeek }: { onUserSeek?: (ms: number) => void },
     ref
   ) {
-    useImperativeHandle(ref, () => ({ seek: mocks.seek }))
+    useImperativeHandle(ref, () => ({
+      seek: (ms: number) => {
+        mocks.seek(ms)
+        onUserSeek?.(ms)
+      },
+    }))
     return (
       <>
         <p>upload-player</p>
-        {followControl && (
-          <button
-            aria-label="followPlayback"
-            aria-pressed={followControl.enabled}
-            onClick={followControl.onToggle}
-          >
-            Follow
-          </button>
-        )}
+        <button onClick={() => onUserSeek?.(1500)}>seek-player</button>
       </>
     )
   }),
@@ -478,6 +474,48 @@ it('summary-only shares never request original text, capture state or audio', as
   ])
 })
 
+it('protects an editor from player seeks and leaves return available after cancel', async () => {
+  record.source_type = 'upload'
+  record.capture_id = null
+  const baseline = vi.mocked(fetchApi).getMockImplementation()!
+  vi.mocked(fetchApi).mockImplementation(async (path, ...args) => {
+    if (path.includes('original-segments'))
+      return {
+        results: [
+          {
+            id: 'original',
+            text: 'Editable words',
+            start_ms: 0,
+            can_correct: true,
+            correction_revision: 0,
+          },
+        ],
+        next_cursor: null,
+      }
+    return baseline(path, ...args)
+  })
+  show()
+  fireEvent.click(await screen.findByText('transcriptCorrection.edit'))
+  const editor = screen.getByRole('textbox', {
+    name: 'transcriptCorrection.edit',
+  })
+  fireEvent.change(editor, { target: { value: 'Keep my draft' } })
+  fireEvent.click(screen.getByRole('button', { name: 'seek-player' }))
+  expect(editor).toHaveValue('Keep my draft')
+  expect(
+    screen.getByRole('button', { name: 'library.backToPlayback' })
+  ).toBeDisabled()
+  fireEvent.click(screen.getByText('transcriptCorrection.cancel'))
+  fireEvent.click(
+    screen.getByRole('button', { name: 'library.backToPlayback' })
+  )
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('button', { name: 'library.backToPlayback' })
+    ).not.toBeInTheDocument()
+  )
+})
+
 it('edits uploaded text using the server capability and reaches its summary workspace', async () => {
   record.source_type = 'upload'
   record.capture_id = null
@@ -698,8 +736,8 @@ it('lets the player resume transcript following after browsing and searching', a
   const row = (await screen.findByText('Shared original')).closest('article')!
   fireEvent.wheel(row)
   expect(
-    screen.getByRole('button', { name: 'followPlayback' })
-  ).toHaveAttribute('aria-pressed', 'false')
+    screen.getByRole('button', { name: 'library.backToPlayback' })
+  ).toBeInTheDocument()
   const input = screen.getByLabelText('library.searchOriginal')
   fireEvent.change(input, { target: { value: 'release' } })
   fireEvent.submit(input.closest('form')!)
@@ -710,13 +748,13 @@ it('lets the player resume transcript following after browsing and searching', a
         .mock.calls.some(([path]) => path.includes('q=release'))
     ).toBe(true)
   )
-  fireEvent.click(screen.getByRole('button', { name: 'followPlayback' }))
+  fireEvent.click(screen.getByRole('button', { name: 'seek-player' }))
   await waitFor(() =>
     expect(screen.getByLabelText('library.searchOriginal')).toHaveValue('')
   )
   expect(
-    screen.getByRole('button', { name: 'followPlayback' })
-  ).toHaveAttribute('aria-pressed', 'true')
+    screen.queryByRole('button', { name: 'followPlayback' })
+  ).not.toBeInTheDocument()
   expect(
     screen.queryByRole('button', { name: 'library.backToPlayback' })
   ).not.toBeInTheDocument()

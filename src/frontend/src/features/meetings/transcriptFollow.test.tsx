@@ -12,23 +12,41 @@ import {
   activeRowId,
   useTranscriptFollow,
   usePlaybackFollow,
-  SCROLL_SUPPRESSION_MS,
 } from './transcriptSync'
 
-it('resumes following after a scroll even when playback is paused', () => {
+it('keeps manual browsing paused until an explicit return, even while playback advances', () => {
   vi.useFakeTimers()
   try {
     const hook = renderHook(() => usePlaybackFollow([]))
     fireEvent.wheel(window)
+    expect(hook.result.current.enabled).toBe(true)
+    act(() => hook.result.current.pauseFollowing())
+    act(() => {
+      hook.result.current.report(42_000)
+      vi.advanceTimersByTime(60_000)
+    })
     expect(hook.result.current.suppressed()).toBe(true)
-    const epoch = hook.result.current.suppressionEpoch
-    act(() => vi.advanceTimersByTime(SCROLL_SUPPRESSION_MS))
+    act(() => hook.result.current.resumeFollowing())
     expect(hook.result.current.suppressed()).toBe(false)
-    expect(hook.result.current.suppressionEpoch).toBeGreaterThan(epoch)
+    expect(hook.result.current.positionMs).toBe(42_000)
     hook.unmount()
   } finally {
     vi.useRealTimers()
   }
+})
+
+it('refuses explicit follow requests while an editor has an unsaved or pending draft', () => {
+  let editing = true
+  const hook = renderHook(() => usePlaybackFollow([], () => !editing))
+  act(() => hook.result.current.pauseFollowing())
+  act(() => hook.result.current.resumeFollowing())
+  expect(hook.result.current.resumeEpoch).toBe(0)
+  expect(hook.result.current.suppressed()).toBe(true)
+  editing = false
+  expect(hook.result.current.enabled).toBe(false)
+  act(() => hook.result.current.resumeFollowing())
+  expect(hook.result.current.resumeEpoch).toBe(1)
+  expect(hook.result.current.enabled).toBe(true)
 })
 
 /**

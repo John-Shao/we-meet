@@ -20,6 +20,8 @@ export function createDraftStore() {
   const notify = () => listeners.forEach((listener) => listener())
   return {
     get: (id: string) => drafts.get(id),
+    isEditing: () =>
+      [...drafts.values()].some((draft) => draft.editing || draft.pending),
     epoch: () => epoch,
     set: (id: string, draft: Draft | undefined) => {
       if (draft) drafts.set(id, draft)
@@ -45,6 +47,17 @@ export const DraftContext = createContext<ReturnType<
 > | null>(null)
 
 export const useTranscriptDraftScope = () => useContext(DraftContext)
+
+const noSubscription = () => () => {}
+const notEditing = () => false
+export function useTranscriptEditing() {
+  const store = useTranscriptDraftScope()
+  return useSyncExternalStore(
+    store?.subscribe ?? noSubscription,
+    store?.isEditing ?? notEditing,
+    notEditing
+  )
+}
 
 export function useTranscriptDraft(id: string, text: string, revision: number) {
   const shared = useTranscriptDraftScope()

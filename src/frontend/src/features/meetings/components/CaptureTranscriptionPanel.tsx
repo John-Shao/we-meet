@@ -19,7 +19,10 @@ import { RecordSummaryPanel } from './RecordSummaryPanel'
 import { OriginalSearch } from './OriginalSearch'
 import { LiveCaptureTranscript } from './LiveCaptureTranscript'
 import { TranscriptSegment } from './TranscriptSegment'
-import { useTranscriptDraftScope } from '../hooks/useTranscriptDraft'
+import {
+  useTranscriptDraftScope,
+  useTranscriptEditing,
+} from '../hooks/useTranscriptDraft'
 import {
   activeRowId,
   transcriptWindowTarget,
@@ -506,6 +509,7 @@ function Originals({
    */
   const correction = useCorrectOriginalSegment(viewerId, capture.record_id)
   const drafts = useTranscriptDraftScope()
+  const editing = useTranscriptEditing()
   useEffect(() => {
     if (
       query.error instanceof ApiError &&
@@ -527,11 +531,12 @@ function Originals({
   })
   const pauseFollowing = follow?.pauseFollowing
   useEffect(() => {
-    if (!following || filtersActive) pauseFollowing?.()
-  }, [following, filtersActive, pauseFollowing])
+    if (!following || filtersActive || editing) pauseFollowing?.()
+  }, [following, filtersActive, editing, pauseFollowing])
   useEffect(() => {
     if (
       !following ||
+      editing ||
       follow?.enabled === false ||
       filtersActive ||
       positionMs === undefined ||
@@ -548,7 +553,16 @@ function Originals({
       setAnchorMs(target)
       setCursors([''])
     }
-  }, [following, filtersActive, positionMs, follow, timedRows, anchorMs, next])
+  }, [
+    following,
+    editing,
+    filtersActive,
+    positionMs,
+    follow,
+    timedRows,
+    anchorMs,
+    next,
+  ])
   /**
    * The list scrolls the active row once per change. Scrolling is off while a
    * filter is applied: the active row may not be rendered at all, and a partial
@@ -566,6 +580,7 @@ function Originals({
     enabled:
       query.isSuccess &&
       !filtersActive &&
+      !editing &&
       following &&
       follow?.enabled !== false,
   })
@@ -590,10 +605,12 @@ function Originals({
     <div
       className={style}
       ref={listRef}
-      onWheel={() => follow?.pauseFollowing?.()}
-      onTouchMove={() => follow?.pauseFollowing?.()}
       onFocusCapture={(event) => {
-        if (event.target instanceof HTMLTextAreaElement) setFollowing(false)
+        if (
+          event.target instanceof HTMLTextAreaElement ||
+          event.target instanceof HTMLInputElement
+        )
+          setFollowing(false)
       }}
     >
       {searchForm}
@@ -604,7 +621,15 @@ function Originals({
           follow?.suppressed()) && (
           <Button
             variant="tertiary"
+            isDisabled={editing}
+            className={css({
+              position: 'sticky',
+              top: 'sm',
+              zIndex: 2,
+              marginBottom: 'sm',
+            })}
             onPress={() => {
+              if (editing) return
               setSearch('')
               setAnchorMs(Math.floor(positionMs))
               setCursors([''])

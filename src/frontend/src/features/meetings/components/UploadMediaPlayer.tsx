@@ -12,11 +12,7 @@ import {
   RiFullscreenLine,
   RiFullscreenExitLine,
 } from '@remixicon/react'
-import {
-  RecordPlaybackControls,
-  PlaybackTime,
-  type PlaybackFollowControl,
-} from './RecordPlaybackControls'
+import { RecordPlaybackControls, PlaybackTime } from './RecordPlaybackControls'
 import { Button as PlayerButton } from '@/primitives/Button'
 import { useTranslation } from 'react-i18next'
 
@@ -51,12 +47,12 @@ export const UploadMediaPlayer = forwardRef<
   UploadMediaHandle | null,
   {
     recordId: string
-    followControl?: PlaybackFollowControl
+    onUserSeek?: (milliseconds: number) => void
     onPosition?: (milliseconds: number) => void
     onDuration?: (milliseconds: number | null) => void
   }
 >(function UploadMediaPlayer(
-  { recordId, onPosition, onDuration, followControl },
+  { recordId, onPosition, onDuration, onUserSeek },
   ref
 ) {
   const { t } = useTranslation('capture')
@@ -202,6 +198,7 @@ export const UploadMediaPlayer = forwardRef<
       }
     }
     setPosition(bounded)
+    onUserSeek?.(bounded)
   }
   useImperativeHandle(ref, () => ({ seek }))
 
@@ -507,7 +504,6 @@ export const UploadMediaPlayer = forwardRef<
                 setRate(value)
                 if (audio.current) audio.current.playbackRate = value
               }}
-              followControl={fullscreen ? undefined : followControl}
               seekEvents={{
                 onPointerDown: beginSeek,
                 onPointerUp: endSeek,

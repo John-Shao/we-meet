@@ -1,5 +1,4 @@
 import {
-  RiCrosshair2Line,
   RiPauseFill,
   RiPlayFill,
   RiVolumeUpLine,
@@ -9,11 +8,6 @@ import type { CSSProperties, InputHTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives/Button'
 import { css, cx } from '@/styled-system/css'
-
-export type PlaybackFollowControl = {
-  enabled: boolean
-  onToggle: () => void
-}
 
 const playbackTime = (milliseconds: number) => {
   const seconds = Math.floor(
@@ -79,7 +73,6 @@ export function RecordPlaybackControls({
   onRate,
   onBack,
   onForward,
-  followControl,
   videoLayout = false,
   seekEvents,
 }: {
@@ -98,7 +91,6 @@ export function RecordPlaybackControls({
   onRate: (rate: number) => void
   onBack: () => void
   onForward: () => void
-  followControl?: PlaybackFollowControl
   videoLayout?: boolean
   seekEvents?: Pick<
     InputHTMLAttributes<HTMLInputElement>,
@@ -184,24 +176,21 @@ export function RecordPlaybackControls({
         className={css({
           display: 'grid',
           gridTemplateAreas:
-            '"play back forward volume speed" "time time time follow follow"',
+            '"play back forward volume speed" "time time time time time"',
           gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
           alignItems: 'center',
           columnGap: 'xs',
           '&[data-video-layout=true]': {
-            gridTemplateAreas: '"play back forward volume speed follow"',
-            gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+            gridTemplateAreas: '"play back forward volume speed"',
+            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
           },
           '@container (min-width: 560px)': {
-            gridTemplateAreas:
-              '"play back forward volume time spacer follow speed"',
+            gridTemplateAreas: '"play back forward volume time spacer speed"',
             gridTemplateColumns:
-              '2.75rem 2.75rem 2.75rem 2.75rem auto 1fr auto 3.5rem',
+              '2.75rem 2.75rem 2.75rem 2.75rem auto 1fr 3.5rem',
             '&[data-video-layout=true]': {
-              gridTemplateAreas:
-                '"play back forward volume spacer speed follow"',
-              gridTemplateColumns:
-                '2.75rem 2.75rem 2.75rem 2.75rem 1fr 3.5rem 2.75rem',
+              gridTemplateAreas: '"play back forward volume spacer speed"',
+              gridTemplateColumns: '2.75rem 2.75rem 2.75rem 2.75rem 1fr 3.5rem',
             },
           },
         })}
@@ -347,36 +336,6 @@ export function RecordPlaybackControls({
             </option>
           ))}
         </select>
-        <div
-          className={css({
-            gridArea: 'follow',
-            minWidth: 0,
-            justifySelf: 'end',
-          })}
-        >
-          {followControl && (
-            <Button
-              size="xs"
-              variant="quaternaryText"
-              aria-label={t('followPlayback')}
-              aria-pressed={followControl.enabled}
-              tooltip={t('followPlayback')}
-              onPress={followControl.onToggle}
-              className={cx(
-                action,
-                css({
-                  color: 'text.secondary',
-                  '&[aria-pressed=true]': {
-                    color: 'text.link',
-                    backgroundColor: 'action.selected.bg',
-                  },
-                })
-              )}
-            >
-              <RiCrosshair2Line size={20} aria-hidden />
-            </Button>
-          )}
-        </div>
       </div>
     </div>
   )

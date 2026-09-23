@@ -242,9 +242,16 @@ try {
   await page.locator('[data-segment-id="segment-3"]').hover()
   await page.mouse.wheel(0, 180)
   const follow = page.getByRole('button', { name: '跟随', exact: true })
-  await expect(follow).toHaveAttribute('aria-pressed', 'false')
-  await follow.click()
-  await expect(follow).toHaveAttribute('aria-pressed', 'true')
+  await expect(follow).toHaveCount(0)
+  const returnToPlayback = page.getByRole('button', {
+    name: '回到播放位置',
+    exact: true,
+  })
+  await expect(returnToPlayback).toBeVisible()
+  await page.waitForTimeout(4500)
+  await expect(returnToPlayback).toBeVisible()
+  await returnToPlayback.click()
+  await expect(returnToPlayback).toHaveCount(0)
   await expect(page.locator('audio')).not.toHaveAttribute('controls')
   for (const [width, theme] of [
     [1280, 'light'],
@@ -255,8 +262,7 @@ try {
     await page.evaluate((theme) => {
       document.documentElement.dataset.theme = theme
     }, theme)
-    await follow.click()
-    await follow.click()
+    await expect(follow).toHaveCount(0)
     await expect
       .poll(() =>
         page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
@@ -362,8 +368,11 @@ try {
     const full = await surface
       .getByRole('button', { name: '全屏', exact: true })
       .boundingBox()
-    const tracking = surface.getByRole('button', { name: '跟随', exact: true })
-    const track = await tracking.boundingBox()
+    await expect(
+      surface.getByRole('button', { name: '跟随', exact: true })
+    ).toHaveCount(0)
+    const speed = surface.getByRole('combobox')
+    const track = await speed.boundingBox()
     const play = await surface
       .getByRole('button', { name: '播放', exact: true })
       .boundingBox()
@@ -381,16 +390,11 @@ try {
     )
     assert.ok(
       Math.abs(track.y + track.height / 2 - play.y - play.height / 2) < 2,
-      'tracking sits on the transport row'
+      'speed sits on the transport row'
     )
     assert.ok(
-      Math.abs(track.x + track.width - full.x - full.width) < 2,
-      'tracking and fullscreen align at the right edge'
-    )
-    assert.equal(
-      (await tracking.textContent()).trim(),
-      '',
-      'tracking uses only an icon'
+      Math.abs(track.x + track.width - full.x - full.width) < 16,
+      'speed remains at the right edge'
     )
   }
   await checkVideoControlLayout()

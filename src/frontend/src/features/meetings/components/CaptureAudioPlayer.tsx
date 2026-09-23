@@ -16,10 +16,7 @@ import {
   type AudioPlaylist,
 } from '../capture/playback'
 
-import {
-  RecordPlaybackControls,
-  type PlaybackFollowControl,
-} from './RecordPlaybackControls'
+import { RecordPlaybackControls } from './RecordPlaybackControls'
 
 /** Mount with viewer/capture key. Only one small, verified audio blob is retained at a time. */
 export type CaptureAudioHandle = { seek: (milliseconds: number) => void }
@@ -28,7 +25,7 @@ export const CaptureAudioPlayer = forwardRef<
   {
     captureId: string
     compact?: boolean
-    followControl?: PlaybackFollowControl
+    onUserSeek?: (milliseconds: number) => void
     /**
      * Report the source-clock position so a transcript can follow playback.
      * Fires on seeks and on every time update while playing.
@@ -36,7 +33,7 @@ export const CaptureAudioPlayer = forwardRef<
     onPosition?: (milliseconds: number) => void
   }
 >(function CaptureAudioPlayer(
-  { captureId, compact = false, onPosition, followControl },
+  { captureId, compact = false, onPosition, onUserSeek },
   ref
 ) {
   const { t } = useTranslation('capture')
@@ -163,13 +160,14 @@ export const CaptureAudioPlayer = forwardRef<
     }
   }, [captureId, state])
 
-  const seek = (milliseconds: number, resume = true) => {
+  const seek = (milliseconds: number, resume = true, userInitiated = true) => {
     if (!Number.isFinite(milliseconds)) return
     const entries = playlistRef.current?.chunks ?? []
     const last = entries.at(-1)
     const end = last ? last.start_ms + last.duration_ms : 0
     const bounded = Math.max(0, Math.min(milliseconds, end))
     setPosition(bounded)
+    if (userInitiated) onUserSeek?.(bounded)
     if (end > 0 && bounded === end) {
       clear()
       setState('ready')
@@ -196,6 +194,7 @@ export const CaptureAudioPlayer = forwardRef<
     seek: (milliseconds) => seek(milliseconds),
   }))
   const endSeek = () => {
+    if (!seeking.current) return
     seek(positionRef.current, !!seeking.current?.playing)
     seeking.current = undefined
   }
@@ -297,7 +296,8 @@ export const CaptureAudioPlayer = forwardRef<
               if (state === 'playing') {
                 clear()
                 setState('ready')
-              } else seek(position >= total ? 0 : position)
+              } else
+                seek(position >= total ? 0 : position, true, position >= total)
             }}
             onBack={() => seek(Math.max(0, position - 15000))}
             onForward={() => seek(Math.min(total - 1, position + 15000))}
@@ -306,10 +306,12 @@ export const CaptureAudioPlayer = forwardRef<
               rateRef.current = value
               if (audio.current) audio.current.playbackRate = value
             }}
-            followControl={followControl}
           />
           {state === 'gap' && next >= 0 && (
-            <Button variant="secondary" onPress={() => void play(next)}>
+            <Button
+              variant="secondary"
+              onPress={() => seek(chunks[next].start_ms)}
+            >
               {t('skipGap')}
             </Button>
           )}

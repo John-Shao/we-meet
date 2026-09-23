@@ -55,9 +55,6 @@ export function nearestStartedRowId(
   return candidate
 }
 
-/** How long a reader keeps control after scrolling before playback takes over. */
-export const SCROLL_SUPPRESSION_MS = 4000
-
 /** Fetch another bounded page only when playback leaves this page's window. */
 export function transcriptWindowTarget(
   rows: readonly TimedRow[],
@@ -118,62 +115,38 @@ export function usePlaybackResume(
   }, [follow?.resumeEpoch])
 }
 
-/**
- * Follow playback without fighting the reader.
- *
- * A physical scroll gesture temporarily suppresses following for
- * {@link SCROLL_SUPPRESSION_MS}; transcript lists can also pause it explicitly
- * until the reader presses Follow. A seek is deliberately *not* suppressed: the
- * reader clicked a row or dragged the timeline to see that moment, so bringing
- * its text into view is the point rather than an intrusion.
- */
-export function usePlaybackFollow(rows: readonly TimedRow[]): PlaybackFollow {
+/** Playback follows by default; browsing pauses it until an explicit return or seek. */
+export function usePlaybackFollow(
+  rows: readonly TimedRow[],
+  canResume: () => boolean = () => true
+): PlaybackFollow {
   const [positionMs, setPositionMs] = useState(0)
-  const suppressedUntil = useRef(0)
   const [suppressionEpoch, setSuppressionEpoch] = useState(0)
   const [enabled, setEnabled] = useState(true)
   const [resumeEpoch, setResumeEpoch] = useState(0)
-  const pauseFollowing = useCallback(() => setEnabled(false), [])
+  const enabledRef = useRef(true)
+  const resumeAllowed = useRef(canResume)
+  resumeAllowed.current = canResume
+  const pauseFollowing = useCallback(() => {
+    enabledRef.current = false
+    setEnabled(false)
+    setSuppressionEpoch((value) => value + 1)
+  }, [])
   const resumeFollowing = useCallback(() => {
-    suppressedUntil.current = 0
+    if (!resumeAllowed.current()) return
+    enabledRef.current = true
     setEnabled(true)
     setResumeEpoch((value) => value + 1)
     setSuppressionEpoch((value) => value + 1)
   }, [])
-
   const suppressed = useCallback(
-    () => performance.now() < suppressedUntil.current,
+    () => !enabledRef.current || !resumeAllowed.current(),
     []
   )
-
-  const report = useCallback((milliseconds: number) => {
-    setPositionMs(milliseconds)
-  }, [])
-
-  // A wheel or touch gesture in the transcript means the reader is looking
-  // somewhere specific; hold auto-scroll off until they stop.
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const note = () => {
-      suppressedUntil.current = performance.now() + SCROLL_SUPPRESSION_MS
-      // A gesture while paused must still re-render, otherwise the highlight
-      // would stay put until the next position tick that may never come.
-      setSuppressionEpoch((value) => value + 1)
-      clearTimeout(timer)
-      timer = setTimeout(() => {
-        suppressedUntil.current = 0
-        setSuppressionEpoch((value) => value + 1)
-      }, SCROLL_SUPPRESSION_MS)
-    }
-    window.addEventListener('wheel', note, { passive: true })
-    window.addEventListener('touchmove', note, { passive: true })
-    return () => {
-      clearTimeout(timer)
-      window.removeEventListener('wheel', note)
-      window.removeEventListener('touchmove', note)
-    }
-  }, [])
-
+  const report = useCallback(
+    (milliseconds: number) => setPositionMs(milliseconds),
+    []
+  )
   return {
     positionMs,
     activeId: activeRowId(rows, positionMs),
@@ -246,6 +219,60 @@ export function useTranscriptFollow({
 
   const target =
     activeId ?? (gapFollow ? nearestStartedRowId(rows, position.current) : null)
+  const pauseFollowing = follow.pauseFollowing
+
+  useEffect(() => {
+    const list = containerRef.current
+    if (!list || !pauseFollowing) return
+    let scroller = list
+    while (
+      scroller.parentElement &&
+      !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)
+    ) {
+      scroller = scroller.parentElement
+    }
+    // Never let gestures elsewhere on the page suspend this transcript.
+    if (scroller === document.body || scroller === document.documentElement)
+      scroller = list
+    const pause = () => pauseFollowing()
+    const key = (event: KeyboardEvent) => {
+      if (
+        (event.target as Element)?.closest(
+          'input, textarea, select, button, [contenteditable=true]'
+        )
+      )
+        return
+      if (
+        [
+          'ArrowUp',
+          'ArrowDown',
+          'PageUp',
+          'PageDown',
+          'Home',
+          'End',
+          ' ',
+        ].includes(event.key)
+      )
+        pause()
+    }
+    const pointer = (event: PointerEvent) => {
+      if (
+        event.target === scroller &&
+        scroller.scrollHeight > scroller.clientHeight
+      )
+        pause()
+    }
+    scroller.addEventListener('wheel', pause, { passive: true })
+    scroller.addEventListener('touchmove', pause, { passive: true })
+    scroller.addEventListener('keydown', key)
+    scroller.addEventListener('pointerdown', pointer)
+    return () => {
+      scroller.removeEventListener('wheel', pause)
+      scroller.removeEventListener('touchmove', pause)
+      scroller.removeEventListener('keydown', key)
+      scroller.removeEventListener('pointerdown', pointer)
+    }
+  }, [containerRef, pauseFollowing, target])
 
   useEffect(() => {
     if (!enabled || follow.enabled === false || target === null) return
@@ -266,7 +293,7 @@ export function useTranscriptFollow({
       block: 'nearest',
       behavior: reduced ? 'auto' : 'smooth',
     })
-    // suppressionEpoch is the signal that a gesture's window lapsed.
+    // Explicitly returning to playback invalidates the previous scroll target.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     target,
