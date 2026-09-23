@@ -1,4 +1,6 @@
 {
+  "resizeVideoPanels": "Breite von Video und Inhalt anpassen",
+  "resizeVideoPanelsHint": "Zum Anpassen nach links oder rechts ziehen; Doppelklick oder Eingabetaste für gleiche Breiten",
   "playbackVolume": "Wiedergabelautstärke",
   "mutePlayback": "Stummschalten",
   "unmutePlayback": "Stummschaltung aufheben",

@@ -1,4 +1,6 @@
 {
+  "resizeVideoPanels": "Redimensionner les panneaux vidéo et contenu",
+  "resizeVideoPanelsHint": "Glisser à gauche ou à droite ; double-cliquer ou appuyer sur Entrée pour rétablir des largeurs égales",
   "playbackVolume": "Volume de lecture",
   "mutePlayback": "Couper le son",
   "unmutePlayback": "Rétablir le son",

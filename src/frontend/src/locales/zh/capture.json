@@ -1,4 +1,6 @@
 {
+  "resizeVideoPanels": "调整视频与内容宽度",
+  "resizeVideoPanelsHint": "左右拖动调整宽度；双击或按 Enter 恢复等分",
   "playbackVolume": "播放音量",
   "mutePlayback": "静音",
   "unmutePlayback": "取消静音",

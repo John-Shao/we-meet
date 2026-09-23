@@ -101,6 +101,13 @@ function show(viewerId = 'owner', recordId = 'record') {
   )
 }
 beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    }
+  )
   record = {
     id: 'record',
     title: 'Private recording',
@@ -305,6 +312,7 @@ it.each(['upload', 'audio_recording'])(
   }
 )
 afterEach(() => {
+  vi.unstubAllGlobals()
   client.clear()
   vi.clearAllMocks()
   window.history.replaceState(null, '', '/')

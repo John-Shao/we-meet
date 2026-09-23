@@ -1,4 +1,6 @@
 {
+  "resizeVideoPanels": "Breedte van video en inhoud aanpassen",
+  "resizeVideoPanelsHint": "Sleep naar links of rechts; dubbelklik of druk op Enter voor gelijke breedtes",
   "playbackVolume": "Afspeelvolume",
   "mutePlayback": "Dempen",
   "unmutePlayback": "Dempen opheffen",

@@ -359,18 +359,7 @@ export function RecordPlaybackControls({
                 })
               )}
             >
-              <span
-                className={css({
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 'xs',
-                  paddingX: 'sm',
-                })}
-              >
-                <RiCrosshair2Line size={20} aria-hidden />
-                <span>{t('followPlayback')}</span>
-              </span>
+              <RiCrosshair2Line size={20} aria-hidden />
             </Button>
           )}
         </div>

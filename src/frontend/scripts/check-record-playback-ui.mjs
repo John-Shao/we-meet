@@ -357,6 +357,47 @@ try {
   const surface = page.locator('[data-video-expanded=true]')
   const paneBox = await page.locator('[role=tablist]').boundingBox()
   const videoBox = await video.boundingBox()
+  const divider = page.getByRole('separator', { name: '调整视频与内容宽度' })
+  await expect(divider).toHaveAttribute('aria-valuenow', '50')
+  assert.ok(
+    Math.abs(videoBox.width - paneBox.width) <= 1,
+    'video and tabs start at equal widths'
+  )
+  await video.evaluate((element) => {
+    window.fixtureVideo = element
+  })
+  const handleBox = await divider.boundingBox()
+  const dragX = handleBox.x + handleBox.width / 2
+  const dragY = handleBox.y + 100
+  await page.mouse.move(dragX, dragY)
+  await page.mouse.down()
+  await page.mouse.move(dragX + 120, dragY, { steps: 8 })
+  await page.mouse.up()
+  assert.ok(
+    (await video.boundingBox()).width > videoBox.width + 100,
+    'dragging increases video width'
+  )
+  assert.equal(
+    await video.evaluate((element) => element === window.fixtureVideo),
+    true
+  )
+  await page.screenshot({ path: `${output}/video-resized.png`, fullPage: true })
+  await divider.dblclick()
+  await expect(divider).toHaveAttribute('aria-valuenow', '50')
+  await divider.press('ArrowLeft')
+  await expect(divider).toHaveAttribute('aria-valuenow', '48')
+  await divider.press('Home')
+  assert.ok(
+    (await video.boundingBox()).width >= 319,
+    'video retains its minimum width'
+  )
+  await divider.press('End')
+  assert.ok(
+    (await page.locator('[role=tablist]').boundingBox()).width >= 319,
+    'text retains its minimum width'
+  )
+  await divider.press('Enter')
+  await expect(divider).toHaveAttribute('aria-valuenow', '50')
   assert.ok(
     videoBox.x + videoBox.width <= paneBox.x,
     'desktop video sits beside the text'
@@ -382,6 +423,7 @@ try {
   })
   await page.getByRole('button', { name: '收起视频' }).click()
   await expect(video).toBeHidden()
+  await expect(divider).toBeHidden()
   await page.getByRole('button', { name: '展开视频' }).click()
   assert.equal(
     await video.evaluate((element) => element === window.fixtureVideo),
@@ -412,6 +454,7 @@ try {
   )
   await page.screenshot({ path: `${output}/video-inline.png`, fullPage: true })
   await page.setViewportSize({ width: 390, height: 900 })
+  await expect(divider).toBeHidden()
   const mobileVideo = await video.boundingBox()
   const mobileText = await page.locator('[role=tablist]').boundingBox()
   assert.ok(

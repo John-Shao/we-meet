@@ -1,4 +1,6 @@
 {
+  "resizeVideoPanels": "Resize video and content panes",
+  "resizeVideoPanelsHint": "Drag left or right to resize; double-click or press Enter to reset to equal widths",
   "playbackVolume": "Playback volume",
   "mutePlayback": "Mute",
   "unmutePlayback": "Unmute",

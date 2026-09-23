@@ -50,6 +50,7 @@ import { TranscriptReplacementControl } from '../components/TranscriptReplacemen
 import { TranscriptDraftScope } from '../components/TranscriptDraftScope'
 import { useTranscriptDraftScope } from '../hooks/useTranscriptDraft'
 import { RecordRenameControl } from '../components/RecordRenameControl'
+import { RecordSplitLayout } from '../components/RecordSplitLayout'
 import { StateHint } from '@/components/StateHint'
 import {
   backLink,
@@ -538,28 +539,7 @@ function WorkspaceContent({
         ? 'info'
         : tab
   return (
-    <div
-      data-record-content
-      className={css({
-        display: 'flex',
-        flexDirection: 'column',
-        flex: '1 1 0',
-        minHeight: 0,
-        minWidth: 0,
-        '& > [data-video-expanded=true]': { order: -1 },
-        '@media (min-width: 960px)': {
-          '&:has(> [data-video-expanded=true])': {
-            flexDirection: 'row',
-            gap: 'lg',
-            '& > [data-video-expanded=true]': {
-              width: '55%',
-              alignSelf: 'flex-start',
-              maxHeight: '100%',
-            },
-          },
-        },
-      })}
-    >
+    <RecordSplitLayout>
       {source && !readableCapture && (
         <div role="status" className={textStyle}>
           <p>{t('library.originalDevice')}</p>
@@ -864,7 +844,7 @@ function WorkspaceContent({
           }
         />
       )}
-    </div>
+    </RecordSplitLayout>
   )
 }
 
