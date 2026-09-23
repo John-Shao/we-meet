@@ -392,23 +392,22 @@ try {
       .getByRole('button', { name: '播放', exact: true })
       .boundingBox()
     const collapse = await surface
-      .locator('[data-video-header] button')
+      .locator('[data-video-header] button[aria-expanded]')
       .boundingBox()
     assert.ok(track.x + track.width <= clock.x + 2, 'time follows speed')
-    assert.ok(clock.x + clock.width <= full.x + 2, 'fullscreen follows time')
     assert.ok(
-      Math.abs(clock.y + clock.height / 2 - full.y - full.height / 2) < 2,
-      'time and fullscreen share a row'
+      Math.abs(track.y + track.height / 2 - clock.y - clock.height / 2) < 2,
+      'speed and time share a row'
+    )
+    assert.ok(full.y + full.height < play.y, 'fullscreen stays above transport')
+    assert.ok(
+      full.x + full.width <= collapse.x,
+      'fullscreen is first at the top left'
     )
     assert.ok(
-      Math.abs(track.y + track.height / 2 - full.y - full.height / 2) < 2,
-      'speed, time and fullscreen share a row'
+      Math.abs(full.y + full.height / 2 - collapse.y - collapse.height / 2) < 2,
+      'fullscreen and collapse share the top row'
     )
-    assert.ok(
-      collapse.y + collapse.height < play.y,
-      'collapse stays above the transport controls'
-    )
-    assert.ok(collapse.x < full.x, 'collapse is at the left')
   }
   await checkVideoControlLayout()
   const paneBox = await page.locator('[role=tablist]').boundingBox()

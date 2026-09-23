@@ -347,6 +347,24 @@ export const UploadMediaPlayer = forwardRef<
             >
               <PlayerButton
                 variant="quaternaryText"
+                size="xs"
+                className={css({
+                  minWidth: '2.75rem',
+                  minHeight: '2.75rem',
+                })}
+                onPress={() => void toggleFullscreen()}
+                aria-label={t(fullscreen ? 'exitFullscreen' : 'fullscreen')}
+                tooltip={t(fullscreen ? 'exitFullscreen' : 'fullscreen')}
+                isDisabled={!fullscreenSupported}
+              >
+                {fullscreen ? (
+                  <RiFullscreenExitLine size={20} aria-hidden />
+                ) : (
+                  <RiFullscreenLine size={20} aria-hidden />
+                )}
+              </PlayerButton>
+              <PlayerButton
+                variant="quaternaryText"
                 size="dense"
                 aria-expanded={videoExpanded}
                 onPress={() => setVideoExpanded((value) => !value)}
@@ -442,28 +460,6 @@ export const UploadMediaPlayer = forwardRef<
           <div data-video-controls data-video-chrome>
             <RecordPlaybackControls
               videoLayout={media.media_type === 'video'}
-              fullscreenControl={
-                media.media_type === 'video' ? (
-                  <PlayerButton
-                    variant="quaternaryText"
-                    size="xs"
-                    className={css({
-                      minWidth: '2.75rem',
-                      minHeight: '2.75rem',
-                    })}
-                    onPress={() => void toggleFullscreen()}
-                    aria-label={t(fullscreen ? 'exitFullscreen' : 'fullscreen')}
-                    tooltip={t(fullscreen ? 'exitFullscreen' : 'fullscreen')}
-                    isDisabled={!fullscreenSupported}
-                  >
-                    {fullscreen ? (
-                      <RiFullscreenExitLine size={20} aria-hidden />
-                    ) : (
-                      <RiFullscreenLine size={20} aria-hidden />
-                    )}
-                  </PlayerButton>
-                ) : undefined
-              }
               position={position}
               duration={duration * 1000}
               playing={state === 'playing'}

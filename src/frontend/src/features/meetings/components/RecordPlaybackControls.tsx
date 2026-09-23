@@ -4,7 +4,7 @@ import {
   RiVolumeUpLine,
   RiVolumeMuteLine,
 } from '@remixicon/react'
-import type { CSSProperties, InputHTMLAttributes, ReactNode } from 'react'
+import type { CSSProperties, InputHTMLAttributes } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives/Button'
 import { css, cx } from '@/styled-system/css'
@@ -74,7 +74,6 @@ export function RecordPlaybackControls({
   onBack,
   onForward,
   videoLayout = false,
-  fullscreenControl,
   seekEvents,
 }: {
   position: number
@@ -93,7 +92,6 @@ export function RecordPlaybackControls({
   onBack: () => void
   onForward: () => void
   videoLayout?: boolean
-  fullscreenControl?: ReactNode
   seekEvents?: Pick<
     InputHTMLAttributes<HTMLInputElement>,
     | 'onPointerDown'
@@ -184,7 +182,7 @@ export function RecordPlaybackControls({
           columnGap: 'xs',
           '&[data-video-layout=true]': {
             gridTemplateAreas:
-              '"play back forward volume" "speed time time fullscreen"',
+              '"play back forward volume" "speed time time time"',
             gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
           },
           '@container (min-width: 560px)': {
@@ -192,10 +190,9 @@ export function RecordPlaybackControls({
             gridTemplateColumns:
               '2.75rem 2.75rem 2.75rem 2.75rem auto 1fr 3.5rem',
             '&[data-video-layout=true]': {
-              gridTemplateAreas:
-                '"play back forward volume spacer speed time fullscreen"',
+              gridTemplateAreas: '"play back forward volume spacer speed time"',
               gridTemplateColumns:
-                '2.75rem 2.75rem 2.75rem 2.75rem 1fr 3.5rem auto 2.75rem',
+                '2.75rem 2.75rem 2.75rem 2.75rem 1fr 3.5rem auto',
             },
           },
         })}
@@ -341,11 +338,6 @@ export function RecordPlaybackControls({
           ))}
         </select>
         <PlaybackTime position={position} duration={end} />
-        {fullscreenControl && (
-          <div className={css({ gridArea: 'fullscreen', justifySelf: 'end' })}>
-            {fullscreenControl}
-          </div>
-        )}
       </div>
     </div>
   )
