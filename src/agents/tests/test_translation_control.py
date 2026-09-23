@@ -174,6 +174,23 @@ class InputTests(unittest.IsolatedAsyncioTestCase):
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
     """Inspect privacy and cleanup boundaries using a mocked LiveKit room."""
 
+    async def test_stop_allows_ptt_tail_beyond_old_input_deadline(self):
+        """A valid tail taking over five seconds still receives a complete receipt."""
+        runtime, _ = self.runtime()
+        runtime.input = mock.Mock()
+        channel = mock.Mock(
+            finished=True, finish=mock.AsyncMock(), close=mock.AsyncMock()
+        )
+        runtime.channels = {"forward": channel}
+        runtime.pump = asyncio.create_task(asyncio.sleep(5.1))
+        await runtime.close()
+        self.assertFalse(runtime.pump.cancelled())
+        channel.request_finish.assert_called_once()
+        channel.finish.assert_awaited_once()
+        self.assertTrue(
+            runtime.reporter.command.call_args.kwargs["receipt"]["consumer_finished"]
+        )
+
     async def test_38_intermediate_response_does_not_unlock_ptt(self):
         """Account sentences separately and release only after the turn drains."""
         runtime, _ = self.runtime()
@@ -220,7 +237,10 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         runtime.archive = SimpleNamespace(finish=mock.AsyncMock(return_value=False))
         runtime.channels = {
             "forward": SimpleNamespace(
-                finished=True, finish=mock.AsyncMock(), close=mock.AsyncMock()
+                finished=True,
+                finish=mock.AsyncMock(),
+                close=mock.AsyncMock(),
+                request_finish=mock.Mock(),
             )
         }
         await runtime.close()

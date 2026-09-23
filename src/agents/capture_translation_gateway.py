@@ -256,6 +256,8 @@ class CaptureTranslationConnection:
         reader.cancel()
         monitor.cancel()
         await asyncio.gather(reader, monitor, return_exceptions=True)
+        for session in self.sessions.values():
+            session.request_finish()
         if self.manual and self.direction:
             await self.guarded(self.sessions[self.direction].commit(), heartbeat)
         tail = asyncio.wait_for(

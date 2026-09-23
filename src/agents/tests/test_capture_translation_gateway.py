@@ -88,6 +88,9 @@ class Provider:
         """Start exactly one fake provider connection."""
         self.calls.append("start")
 
+    def request_finish(self):
+        """Real sessions suppress next-turn warmup during final shutdown."""
+
     async def send_audio(self, audio):
         """Store only this test's synthetic bytes."""
         self.calls.append(audio)

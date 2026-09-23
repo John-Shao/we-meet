@@ -10,6 +10,7 @@ from livekit import rtc
 from livekit.agents import AutoSubscribe, WorkerOptions, WorkerPermissions, cli
 
 from plugins.qwen_live_translate import (
+    FINISH_TIMEOUT,
     TranslationConfig,
     TranslationError,
     TranslationSession,
@@ -25,7 +26,7 @@ EVENT_TOPIC = "meeting.translation.events"
 CONTROL_TOPIC = "meeting.translation.control"
 MAX_CONTROL_BYTES = 1024
 MAX_EVENT_BYTES = 14000
-MANUAL_RESPONSE_SECONDS = 30
+MANUAL_RESPONSE_SECONDS = 45
 MANUAL_IDLE_SECONDS = 60
 
 
@@ -358,6 +359,22 @@ class PrivateTranslation:
         finally:
             await self.close()
 
+    async def drain_input(self):
+        """Share one finish budget between queued PTT tails and channel shutdown."""
+        for channel in self.channels.values():
+            channel.request_finish()
+        if self.stream:
+            await asyncio.wait_for(self.stream.aclose(), 3)
+        # A 3.8 PTT commit includes tail delivery, beyond the old input-only limit.
+        async with asyncio.timeout(FINISH_TIMEOUT):
+            if self.input and self.pump:
+                self.input.end()
+                await self.pump
+            return await asyncio.gather(
+                *(channel.finish() for channel in self.channels.values()),
+                return_exceptions=True,
+            )
+
     async def close(self):
         """Stop listening now, then drain ordered audio and bounded provider tails."""
         async with self._closing:
@@ -368,15 +385,7 @@ class PrivateTranslation:
             if self.audio_source:
                 self.audio_source.clear_queue()
             try:
-                if self.stream:
-                    await asyncio.wait_for(self.stream.aclose(), 3)
-                if self.input and self.pump:
-                    self.input.end()
-                    await asyncio.wait_for(self.pump, 5)
-                results = await asyncio.gather(
-                    *(channel.finish() for channel in self.channels.values()),
-                    return_exceptions=True,
-                )
+                results = await self.drain_input()
                 self.failed |= any(
                     isinstance(result, BaseException) for result in results
                 )

@@ -336,6 +336,7 @@ class TranslationSession:
         self._ending = False
         self._has_audio = False
         self._closed = False
+        self._finish_requested = False
         self._send_lock = asyncio.Lock()
         self._close_lock = asyncio.Lock()
 
@@ -420,6 +421,8 @@ class TranslationSession:
             if self._closed or self.error_code:
                 raise TranslationError("translation_input_closed")
             self._has_audio = False
+            if self._finish_requested:
+                return True
             # Prepare the next turn before unblocking microphone input. A lazy
             # handshake on its first frame would overflow the bounded audio FIFO.
             self._ending = self.finished = False
@@ -458,11 +461,16 @@ class TranslationSession:
 
     async def finish(self):
         """Wait for provider completion AND consumed tail events before closing."""
+        self.request_finish()
         async with self._send_lock:
             try:
                 await self._finish_locked()
             finally:
                 self._closed = True
+
+    def request_finish(self):
+        """Drain queued input without opening another push-to-talk connection."""
+        self._finish_requested = True
 
     async def _finish_locked(self):
         try:

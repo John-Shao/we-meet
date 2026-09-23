@@ -372,6 +372,23 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
             await session.send_audio(bytes(2560))
         self.assertEqual(connector.await_count, 2)
 
+    async def test_final_stop_drains_manual_tail_without_opening_next_session(self):
+        """Stopping during PTT retains its final sentence without a new handshake."""
+        session, socket, consumer, connector = await self.make_session(manual=True)
+        await session.send_audio(bytes(2560))
+        session.request_finish()
+        await session.commit()
+        await session.finish()
+        self.assertTrue(session.finished)
+        self.assertEqual(connector.await_count, 1)
+        self.assertEqual(socket.closes, 1)
+        self.assertTrue(
+            any(
+                call.args[0]["type"] == "target_final"
+                for call in consumer.call_args_list
+            )
+        )
+
     async def test_finish_timeout_is_not_success(self):
         """A silent provider cannot make stop wait forever or claim completeness."""
         session, socket, _, connector = await self.make_session(tail=[])
