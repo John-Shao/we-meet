@@ -18,6 +18,7 @@ bash deploy/aliyun/enable-work.sh materials
 脚本先检查当前后端的 Work 迁移，再上传一份随机合成文件，验证认证读写、匿名读取返回 403，并删除该测试对象；任何检查或清理失败都会停止，不开启材料功能。随后生成服务器本地 `src/helm/env.d/aliyun-prod/values.work.yaml`，用**当前正在运行的后端镜像 tag** 发布 Work 配置，等待 `meet-celery-work` Ready，并验证真实队列消费者与开关。无需为这次 Chart / 脚本改动重新构建前后端镜像；当前镜像必须已包含 Work（如 `e82d71f91`）。发布仍经过现有 Helm 迁移 hook，其他模块镜像沿用发布脚本的版本保护。
 
 - `bash deploy/aliyun/enable-work.sh check`：只读检查迁移、开关、模型配置是否完整、Work 队列消费者，不上传、不生成、不打印密钥。
+- `bash deploy/aliyun/enable-work.sh cleanup <cleanup_key>`：重试删除上次失败输出中的单个合成探针，并验证对象不存在。只接受 `_deployment-probes/<随机标识>.txt`，不接受材料路径或目录；不会新建探针、修改开关或发布。
 - `bash deploy/aliyun/enable-work.sh materials`：启用 Work 和材料，**沟通生成保持关闭**。仅检查随机探针对象的私有读写，不修改 bucket policy / ACL 配置；若出现 `anonymous_read_allowed` 或存储不可用，先为 Work 配置合适的私有存储再重试。
 - `bash deploy/aliyun/enable-work.sh off`：关闭 Work 写入和生成，保留独立 Worker 进行已请求删除的清理，并保留历史数据；不反向执行数据库迁移。
 - 脚本依赖服务器已有的 `kubectl / helm / python3 / python3-yaml`。发布或最终检查失败时以非零状态退出，不宣称已启用；本地 overlay 保留，可修复后重试或执行 `off`，不自动回滚其他团队同时发布的变更。
@@ -25,6 +26,8 @@ bash deploy/aliyun/enable-work.sh materials
 `release-meet.sh` 后续自动加载这份 gitignored overlay，避免常规发布丢失 Work 开关；模板为 `src/helm/env.d/aliyun-prod/values.work.yaml.dist`。生产 Worker 使用独立 `work` 队列、prefork / 并发 1、1 CPU / 1 GiB 上限、只读根文件系统与 256 MiB 临时盘，继承 backend 的 Work / DB / Redis / S3 配置，使用 Celery ping 就绪探针。它需要现有 Beat 开启；没有把办公任务加进会议 Worker 的队列列表。
 
 材料上线后，在 overlay 的 `backend.envVars` 配置下表的独立 Work 模型，API key 使用已有 Kubernetes Secret 的 `secretKeyRef`。在受控验收时启用 `WORK_COMMUNICATION_ENABLED`，验证真实模型引用、实际用量与业务闭环后再开放使用；重新执行 `materials` 模式会将它重置为 `False`。
+
+2026-09-23 首次线上启用检查：Work 迁移已通过，但存储探针和清理均失败，开关仍关闭、没有进入 Helm 发布。旧诊断只返回 `storage_probe_failed`，不足以确定根因。现已增加失败阶段、白名单异常类型 / S3 错误码 / HTTP 状态、独立清理结果，以及存储配置完整性和客户端配置差异（不输出凭证、地址或原始异常）。另修复已确认的源码问题：Work 的超时配置曾覆盖部署级 OSS 签名、寻址和 checksum 兼容配置，现在合并保留部署配置。该修复需重新构建并发布 **backend** 镜像；宿主机诊断脚本可在旧镜像上直接运行。更新镜像后先清理原探针，再重试 `materials`；真实存储结果仍以服务器输出为准。
 
 使用现有 Django / Celery 环境，启动专用队列：
 

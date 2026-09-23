@@ -4,7 +4,7 @@
 # off: disable new Work writes, preserving the worker for cleanup/history.
 set -euo pipefail
 MODE="${1:-check}"
-[[ "$MODE" == check || "$MODE" == materials || "$MODE" == off ]] || { echo "Usage: bash deploy/aliyun/enable-work.sh [check|materials|off]" >&2; exit 2; }
+[[ "$MODE" == check || "$MODE" == materials || "$MODE" == off || "$MODE" == cleanup ]] || { echo "Usage: bash deploy/aliyun/enable-work.sh [check|materials|off|cleanup PROBE_KEY]" >&2; exit 2; }
 NAMESPACE="${NAMESPACE:-meet}"
 RELEASE="${RELEASE:-meet}"
 WORK_VALUES_FILE="${WORK_VALUES_FILE:-src/helm/env.d/aliyun-prod/values.work.yaml}"
@@ -17,6 +17,11 @@ runtime_check() {
 }
 if [[ "$MODE" == check ]]; then
   runtime_check
+  exit
+fi
+if [[ "$MODE" == cleanup ]]; then
+  [[ $# == 2 ]] || { echo "cleanup requires the exact cleanup_key from a previous probe" >&2; exit 2; }
+  runtime_check --cleanup-probe "$2"
   exit
 fi
 image=$(kubectl -n "$NAMESPACE" get "deployment/$RELEASE-backend" -o 'jsonpath={.spec.template.spec.containers[0].image}')

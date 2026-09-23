@@ -143,6 +143,71 @@ class WorkStorageProbeTest(unittest.TestCase):
         self.assertFalse(result['cleanup'])
         self.assertTrue(result['cleanup_key'].startswith('_deployment-probes/'))
 
+    def test_save_failure_reports_stage_and_sanitized_provider_error(self):
+        storage = FakeStorage()
+        error = ClientError({'Error': {'Code': 'AccessDenied', 'Message': 'secret-url'},
+                             'ResponseMetadata': {'HTTPStatusCode': 403}}, 'PutObject')
+        storage.save = Mock(side_effect=error)
+        storage.delete = Mock(side_effect=error)
+        with patch('work.storage.PrivateMaterialStorage', FakeStorage):
+            result = runtime.storage_probe(storage)
+        self.assertEqual(result['stage'], 'save')
+        self.assertEqual(result['error']['provider_code'], 'AccessDenied')
+        self.assertEqual(result['cleanup_detail']['stage'], 'delete')
+        self.assertNotIn('secret-url', json.dumps(result))
+
+    def test_cleanup_rejects_material_keys_before_storage_access(self):
+        storage = Mock()
+        for name in ('materials/anything.txt', '_deployment-probes/../secret.txt',
+                     '_deployment-probes/', '_deployment-probes/' + 'a' * 32 + '.txt/other'):
+            self.assertFalse(runtime.cleanup_probe(storage, name)['ok'])
+        storage.delete.assert_not_called()
+
+    def test_cleanup_retries_exact_previous_probe(self):
+        storage = Mock()
+        storage.exists.return_value = False
+        name = '_deployment-probes/95f0c925b6574bd785e1f3acc4fc1685.txt'
+        self.assertTrue(runtime.cleanup_probe(storage, name)['ok'])
+        storage.delete.assert_called_once_with(name)
+        storage.exists.assert_called_once_with(name)
+
+    def test_unknown_provider_values_are_not_echoed(self):
+        exc = ClientError({'Error': {'Code': 'secret-url', 'Message': 'private-key'},
+                           'ResponseMetadata': {'HTTPStatusCode': 400}}, 'PutObject')
+        self.assertEqual(runtime.safe_error(exc),
+                         {'type': 'ClientError', 'http_status': 400, 'provider_code': 'OtherCode'})
+
+
+class WorkStorageConfigTest(unittest.TestCase):
+    def test_preserves_deployment_and_explicit_provider_config_with_bounded_timeouts(self):
+        # A fresh settings registry exercises django-storages' actual defaults.
+        script = '''
+from django.conf import settings
+from botocore.config import Config
+deployment = Config(signature_version="s3v4", s3={"addressing_style": "virtual"},
+                    request_checksum_calculation="when_required",
+                    response_checksum_validation="when_required")
+settings.configure(AWS_S3_CLIENT_CONFIG=deployment)
+from work.storage import PrivateMaterialStorage
+for provider in (deployment, deployment.merge(Config(s3={"addressing_style": "path"}))):
+    kwargs = {} if provider is deployment else {"client_config": provider}
+    storage = PrivateMaterialStorage(**kwargs)
+    actual = storage.client_config
+    for field in ("signature_version", "s3", "request_checksum_calculation", "response_checksum_validation"):
+        assert getattr(actual, field) == getattr(provider, field), field
+    assert actual.connect_timeout == 5
+    assert actual.read_timeout == 15
+    assert actual.retries["max_attempts"] == 1
+    assert storage.get_object_parameters("fixture.txt")["ACL"] == "private"
+    try:
+        storage.url("fixture.txt")
+        raise AssertionError("public URL allowed")
+    except NotImplementedError:
+        pass
+'''
+        result = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
 
 class WorkEnableScriptTest(unittest.TestCase):
     def execute(self, mode, denied=False):
@@ -200,6 +265,14 @@ esac
         self.assertNotEqual(result.returncode, 0)
         self.assertIsNone(overlay)
         self.assertNotIn('release ', log)
+
+    def test_cleanup_does_not_create_overlay_or_release(self):
+        result, log, overlay = self.execute('cleanup _deployment-probes/' + 'a' * 32 + '.txt')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('--cleanup-probe', log)
+        self.assertNotIn('--probe-storage', log)
+        self.assertNotIn('release ', log)
+        self.assertIsNone(overlay)
 
     def test_enable_reuses_running_image_and_requires_worker(self):
         result, log, overlay = self.execute('materials')

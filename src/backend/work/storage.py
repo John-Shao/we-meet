@@ -14,9 +14,13 @@ class PrivateMaterialStorage(S3Storage):
     querystring_auth = True
     custom_domain = None
     location = "work-materials"
-    client_config = Config(
-        connect_timeout=5, read_timeout=15, retries={"max_attempts": 1}
-    )
+    def __init__(self, **settings):
+        super().__init__(**settings)
+        # Preserve deployment/provider compatibility (signature, addressing and
+        # checksum settings), while bounding Work's network calls.
+        self.client_config = self.client_config.merge(
+            Config(connect_timeout=5, read_timeout=15, retries={"max_attempts": 1})
+        )
 
     def url(self, name, **kwargs):
         raise NotImplementedError(
