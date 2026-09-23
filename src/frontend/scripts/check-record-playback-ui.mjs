@@ -230,6 +230,19 @@ try {
   }
   await mount()
   const controls = page.locator('[data-record-playback-controls]')
+  const checkAudioAtTop = async () => {
+    const title = await page.getByRole('heading', { level: 1 }).boundingBox()
+    const player = await controls.boundingBox()
+    const tabs = await page.getByRole('tablist').boundingBox()
+    assert.ok(
+      title.y + title.height <= player.y,
+      'audio player follows the title'
+    )
+    assert.ok(
+      player.y + player.height <= tabs.y,
+      'audio player stays above the tabs'
+    )
+  }
   const slider = controls.getByRole('slider', { name: '音频位置' })
   await expect(slider).toBeEnabled()
   await page.getByRole('button', { name: '播放', exact: true }).click()
@@ -271,6 +284,7 @@ try {
     const playBox = await controls
       .getByRole('button', { name: '播放', exact: true })
       .boundingBox()
+    await checkAudioAtTop()
     const barBox = await controls.boundingBox()
     assert.ok(playBox.x - barBox.x < 20, 'transport starts at the left')
     const trackBox = await slider.boundingBox()
@@ -352,6 +366,7 @@ try {
     path: `${output}/capture-320-dark.png`,
     fullPage: true,
   })
+  await checkAudioAtTop()
   kind = 'video'
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.evaluate(() => {
@@ -376,26 +391,24 @@ try {
     const play = await surface
       .getByRole('button', { name: '播放', exact: true })
       .boundingBox()
-    assert.ok(
-      clock.x + clock.width < full.x,
-      'time is left of the top-right fullscreen button'
-    )
+    const collapse = await surface
+      .locator('[data-video-header] button')
+      .boundingBox()
+    assert.ok(track.x + track.width <= clock.x + 2, 'time follows speed')
+    assert.ok(clock.x + clock.width <= full.x + 2, 'fullscreen follows time')
     assert.ok(
       Math.abs(clock.y + clock.height / 2 - full.y - full.height / 2) < 2,
-      'time and fullscreen share the top row'
+      'time and fullscreen share a row'
     )
     assert.ok(
-      full.y + full.height < play.y,
-      'fullscreen is above the transport row'
+      Math.abs(track.y + track.height / 2 - full.y - full.height / 2) < 2,
+      'speed, time and fullscreen share a row'
     )
     assert.ok(
-      Math.abs(track.y + track.height / 2 - play.y - play.height / 2) < 2,
-      'speed sits on the transport row'
+      collapse.y + collapse.height < play.y,
+      'collapse stays above the transport controls'
     )
-    assert.ok(
-      Math.abs(track.x + track.width - full.x - full.width) < 16,
-      'speed remains at the right edge'
-    )
+    assert.ok(collapse.x < full.x, 'collapse is at the left')
   }
   await checkVideoControlLayout()
   const paneBox = await page.locator('[role=tablist]').boundingBox()

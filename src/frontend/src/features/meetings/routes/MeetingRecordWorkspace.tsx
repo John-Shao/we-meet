@@ -572,6 +572,46 @@ function WorkspaceContent({
           </Link>
         </div>
       )}
+      {playable && (
+        <div
+          className={css({
+            flexShrink: 0,
+            backgroundColor: 'surface.default',
+            borderTop: '1px solid token(colors.border.subtle)',
+          })}
+        >
+          <CaptureAudioPlayer
+            key={`${viewerId}:${source.id}`}
+            ref={player}
+            captureId={source.id}
+            compact
+            onPosition={follow.report}
+            onUserSeek={(milliseconds) => {
+              follow.report(milliseconds)
+              follow.resumeFollowing()
+            }}
+          />
+        </div>
+      )}
+      {/*
+        An import has no capture playlist to read, so it gets its own player:
+        the whole sealed object, with the browser's Range handling for seeking.
+        The signed URL expires, which is why this mounts only with the transcript
+        and re-resolves per record rather than being held for the page's life.
+      */}
+      {canPlayUpload && canReadText && (
+        <UploadMediaPlayer
+          key={`${viewerId}:${record.id}`}
+          ref={uploadMedia}
+          recordId={record.id}
+          onDuration={setPlayerDuration}
+          onPosition={follow.report}
+          onUserSeek={(milliseconds) => {
+            follow.report(milliseconds)
+            follow.resumeFollowing()
+          }}
+        />
+      )}
       <Tabs
         className={css({
           flex: '1 1 0',
@@ -816,46 +856,6 @@ function WorkspaceContent({
           )}
         </TabPanel>
       </Tabs>
-      {playable && (
-        <div
-          className={css({
-            flexShrink: 0,
-            backgroundColor: 'surface.default',
-            borderTop: '1px solid token(colors.border.subtle)',
-          })}
-        >
-          <CaptureAudioPlayer
-            key={`${viewerId}:${source.id}`}
-            ref={player}
-            captureId={source.id}
-            compact
-            onPosition={follow.report}
-            onUserSeek={(milliseconds) => {
-              follow.report(milliseconds)
-              follow.resumeFollowing()
-            }}
-          />
-        </div>
-      )}
-      {/*
-        An import has no capture playlist to read, so it gets its own player:
-        the whole sealed object, with the browser's Range handling for seeking.
-        The signed URL expires, which is why this mounts only with the transcript
-        and re-resolves per record rather than being held for the page's life.
-      */}
-      {canPlayUpload && canReadText && (
-        <UploadMediaPlayer
-          key={`${viewerId}:${record.id}`}
-          ref={uploadMedia}
-          recordId={record.id}
-          onDuration={setPlayerDuration}
-          onPosition={follow.report}
-          onUserSeek={(milliseconds) => {
-            follow.report(milliseconds)
-            follow.resumeFollowing()
-          }}
-        />
-      )}
     </RecordSplitLayout>
   )
 }

@@ -4,7 +4,7 @@ import {
   RiVolumeUpLine,
   RiVolumeMuteLine,
 } from '@remixicon/react'
-import type { CSSProperties, InputHTMLAttributes } from 'react'
+import type { CSSProperties, InputHTMLAttributes, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/primitives/Button'
 import { css, cx } from '@/styled-system/css'
@@ -74,6 +74,7 @@ export function RecordPlaybackControls({
   onBack,
   onForward,
   videoLayout = false,
+  fullscreenControl,
   seekEvents,
 }: {
   position: number
@@ -92,6 +93,7 @@ export function RecordPlaybackControls({
   onBack: () => void
   onForward: () => void
   videoLayout?: boolean
+  fullscreenControl?: ReactNode
   seekEvents?: Pick<
     InputHTMLAttributes<HTMLInputElement>,
     | 'onPointerDown'
@@ -181,16 +183,19 @@ export function RecordPlaybackControls({
           alignItems: 'center',
           columnGap: 'xs',
           '&[data-video-layout=true]': {
-            gridTemplateAreas: '"play back forward volume speed"',
-            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+            gridTemplateAreas:
+              '"play back forward volume" "speed time time fullscreen"',
+            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
           },
           '@container (min-width: 560px)': {
             gridTemplateAreas: '"play back forward volume time spacer speed"',
             gridTemplateColumns:
               '2.75rem 2.75rem 2.75rem 2.75rem auto 1fr 3.5rem',
             '&[data-video-layout=true]': {
-              gridTemplateAreas: '"play back forward volume spacer speed"',
-              gridTemplateColumns: '2.75rem 2.75rem 2.75rem 2.75rem 1fr 3.5rem',
+              gridTemplateAreas:
+                '"play back forward volume spacer speed time fullscreen"',
+              gridTemplateColumns:
+                '2.75rem 2.75rem 2.75rem 2.75rem 1fr 3.5rem auto 2.75rem',
             },
           },
         })}
@@ -303,7 +308,6 @@ export function RecordPlaybackControls({
             </span>
           </div>
         </div>
-        {!videoLayout && <PlaybackTime position={position} duration={end} />}
         <select
           aria-label={t('playbackRate')}
           value={rate}
@@ -336,6 +340,12 @@ export function RecordPlaybackControls({
             </option>
           ))}
         </select>
+        <PlaybackTime position={position} duration={end} />
+        {fullscreenControl && (
+          <div className={css({ gridArea: 'fullscreen', justifySelf: 'end' })}>
+            {fullscreenControl}
+          </div>
+        )}
       </div>
     </div>
   )
