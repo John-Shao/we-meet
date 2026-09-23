@@ -6,6 +6,26 @@
 
 默认关闭 `WORK_ENABLED`、`WORK_MATERIALS_ENABLED`。部署时先执行 `python manage.py migrate`，确认私有存储和独立 worker 可用，再将两个环境变量设为 `true`；前端配置接口据此显示“工作”导航。共用 Web / 桌面路由为 `/work`（兼容 `/work/new`），本批的选中文件和列表页码保存在查询参数中。
 
+京东云现有 Helm 部署：用户提供的发布日志确认 `e82d71f91`、Helm revision 400 的前后端 / Celery / Beat 已更新。随后检查线上 `config/` 仍为 `work.enabled=false`；原 Chart 只有 `meet-backend` 队列，没有 Work 专用消费者。因此代码部署完成不等于 Work 已启用。
+
+已补充 `workWorker`（默认关闭）与服务器上的启用入口。在 `~/we-meet` 执行：
+
+```sh
+git pull --ff-only
+bash deploy/aliyun/enable-work.sh materials
+```
+
+脚本先检查当前后端的 Work 迁移，再上传一份随机合成文件，验证认证读写、匿名读取返回 403，并删除该测试对象；任何检查或清理失败都会停止，不开启材料功能。随后生成服务器本地 `src/helm/env.d/aliyun-prod/values.work.yaml`，用**当前正在运行的后端镜像 tag** 发布 Work 配置，等待 `meet-celery-work` Ready，并验证真实队列消费者与开关。无需为这次 Chart / 脚本改动重新构建前后端镜像；当前镜像必须已包含 Work（如 `e82d71f91`）。发布仍经过现有 Helm 迁移 hook，其他模块镜像沿用发布脚本的版本保护。
+
+- `bash deploy/aliyun/enable-work.sh check`：只读检查迁移、开关、模型配置是否完整、Work 队列消费者，不上传、不生成、不打印密钥。
+- `bash deploy/aliyun/enable-work.sh materials`：启用 Work 和材料，**沟通生成保持关闭**。仅检查随机探针对象的私有读写，不修改 bucket policy / ACL 配置；若出现 `anonymous_read_allowed` 或存储不可用，先为 Work 配置合适的私有存储再重试。
+- `bash deploy/aliyun/enable-work.sh off`：关闭 Work 写入和生成，保留独立 Worker 进行已请求删除的清理，并保留历史数据；不反向执行数据库迁移。
+- 脚本依赖服务器已有的 `kubectl / helm / python3 / python3-yaml`。发布或最终检查失败时以非零状态退出，不宣称已启用；本地 overlay 保留，可修复后重试或执行 `off`，不自动回滚其他团队同时发布的变更。
+
+`release-meet.sh` 后续自动加载这份 gitignored overlay，避免常规发布丢失 Work 开关；模板为 `src/helm/env.d/aliyun-prod/values.work.yaml.dist`。生产 Worker 使用独立 `work` 队列、prefork / 并发 1、1 CPU / 1 GiB 上限、只读根文件系统与 256 MiB 临时盘，继承 backend 的 Work / DB / Redis / S3 配置，使用 Celery ping 就绪探针。它需要现有 Beat 开启；没有把办公任务加进会议 Worker 的队列列表。
+
+材料上线后，在 overlay 的 `backend.envVars` 配置下表的独立 Work 模型，API key 使用已有 Kubernetes Secret 的 `secretKeyRef`。在受控验收时启用 `WORK_COMMUNICATION_ENABLED`，验证真实模型引用、实际用量与业务闭环后再开放使用；重新执行 `materials` 模式会将它重置为 `False`。
+
 使用现有 Django / Celery 环境，启动专用队列：
 
 ```sh
@@ -66,6 +86,8 @@ Beat 每 5 秒投递 `work.tasks.tick_runs`，每次最多处理一个运行。�
 ## 验证记录（2026-09-23）
 
 第二批沟通准备（基线 `09a7841f9`）：
+
+- 部署补充：新增 12 项 Helm / 私有存储探针 / 启用脚本测试，现有 6 项发布脚本测试通过；另通过 Helm lint 和 Bash 语法检查。采用模拟 kubectl / 存储验证失败阻止启用、复用线上镜像和配置持久化，尚未在生产执行启用脚本。当前工作机只有本地 kind 上下文，生产 SSH 连接信息待提供，或由用户在现有发布主机执行上述命令。
 
 - PostgreSQL 16 的 53 项后端测试通过，随后新增实际内存分配上限检查并通过文档子集 9 项复验（合计 54 项）；13 项前端交互测试通过。覆盖请求重放 / 并发去重、额度拒绝、引用造假、模型异常、取消晚到、过期运行、跨账号 / 撤权、版本冲突、历史与下载。模型响应是明确的测试 fixture。
 - Windows 真实子进程的 PDF / DOCX、加密 / 无文字 PDF、文档嵌入内容、XML 实体、ZIP 超限和超时路径通过；另在 Python 3.13 Linux 容器（无网络、只读挂载、512 MiB、1 CPU）验证文字 PDF / DOCX、加密 PDF、无文字 PDF 四个样本通过。

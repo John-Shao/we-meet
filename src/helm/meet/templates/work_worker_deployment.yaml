@@ -1,0 +1,81 @@
+{{- if .Values.workWorker.enabled }}
+{{- if or (lt (int .Values.workWorker.replicas) 1) (lt (int .Values.workWorker.concurrency) 1) }}
+{{- fail "enabled workWorker requires positive replicas and concurrency" }}
+{{- end }}
+{{- if not .Values.celeryBeat.enabled }}
+{{- fail "workWorker requires celeryBeat.enabled=true for durable job dispatch" }}
+{{- end }}
+{{- $component := "celery-work" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "meet.fullname" . }}-celery-work
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list . $component) | nindent 4 }}
+spec:
+  replicas: {{ .Values.workWorker.replicas }}
+  selector:
+    matchLabels:
+      {{- include "meet.common.selectorLabels" (list . $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "meet.common.selectorLabels" (list . $component) | nindent 8 }}
+    spec:
+      terminationGracePeriodSeconds: 100
+      {{- if .Values.image.credentials }}
+      imagePullSecrets:
+        - name: {{ include "meet.secret.dockerconfigjson.name" (dict "fullname" (include "meet.fullname" .) "imageCredentials" .Values.image.credentials) }}
+      {{- end }}
+      containers:
+        - name: work
+          image: "{{ (.Values.backend.image | default dict).repository | default .Values.image.repository }}:{{ (.Values.backend.image | default dict).tag | default .Values.image.tag }}"
+          imagePullPolicy: {{ (.Values.backend.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - meet.celery_app
+            - worker
+            - --loglevel=info
+            - --pool=prefork
+            - --concurrency={{ .Values.workWorker.concurrency }}
+            - --prefetch-multiplier=1
+            - --max-tasks-per-child=20
+            - --hostname=work@%h
+            - -Q
+            - work
+          env:
+            {{- include "meet.env.transformDict" .Values.backend.envVars | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          readinessProbe:
+            exec:
+              command: [/bin/sh, -c, 'celery -A meet.celery_app inspect ping --destination="work@$HOSTNAME" --timeout=3']
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 10
+          resources:
+            {{- toYaml .Values.workWorker.resources | nindent 12 }}
+          volumeMounts:
+            - name: work-tmp
+              mountPath: /tmp
+            {{- range $index, $value := .Values.mountFiles }}
+            - name: "files-{{ $index }}"
+              mountPath: {{ $value.path }}
+              subPath: content
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: work-tmp
+          emptyDir:
+            sizeLimit: 256Mi
+        {{- range $index, $value := .Values.mountFiles }}
+        - name: "files-{{ $index }}"
+          configMap:
+            name: "{{ include "meet.fullname" $ }}-files-{{ $index }}"
+        {{- end }}
+{{- end }}

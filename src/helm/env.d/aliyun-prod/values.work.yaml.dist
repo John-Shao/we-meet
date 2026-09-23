@@ -1,0 +1,18 @@
+# Copy to values.work.yaml; release-meet.sh automatically includes it.
+# Start via deploy/aliyun/enable-work.sh materials after the storage probe passes.
+workWorker:
+  enabled: true
+celeryBeat:
+  enabled: true
+backend:
+  envVars:
+    WORK_ENABLED: "True"
+    WORK_MATERIALS_ENABLED: "True"
+    WORK_COMMUNICATION_ENABLED: "False"
+    # Communication stays off until the real model has passed acceptance.
+    # WORK_MODEL: "your-verified-model-id"
+    # WORK_MODEL_BASE_URL: "https://your-verified-provider/compatible-mode/v1"
+    # WORK_MODEL_API_KEY:
+    #   secretKeyRef:
+    #     name: your-existing-model-secret
+    #     key: DASHSCOPE_API_KEY

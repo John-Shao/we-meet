@@ -35,6 +35,7 @@ RELEASE="${RELEASE:-meet}"
 BRANCH="${BRANCH:-}"
 VALUES_FILE="${VALUES_FILE:-src/helm/env.d/aliyun-prod/values.meet.yaml}"
 SECRETS_FILE="${SECRETS_FILE:-src/helm/env.d/aliyun-prod/values.secrets.yaml}"
+WORK_VALUES_FILE="${WORK_VALUES_FILE:-src/helm/env.d/aliyun-prod/values.work.yaml}"
 ALL_MODULES=(backend frontend summary agents)
 SELECTED=()
 TAG=""
@@ -373,6 +374,11 @@ helm_args=(
   --wait --timeout 10m
 )
 
+# Preserve the host-local Work configuration across regular releases.
+if [[ -r "$WORK_VALUES_FILE" ]]; then
+  helm_args+=(-f "$WORK_VALUES_FILE")
+fi
+
 # Optional AI processes use the agents image family. Preserve each live tag on
 # partial releases, and leave absent workers at their explicitly configured tag.
 ai_workers=(translation interpretation capture-asr capture-live-asr capture-translation)
@@ -399,6 +405,10 @@ helm "${helm_args[@]}"
 if contains_module backend; then
   wait_for_deployment "$RELEASE-backend"
   wait_for_deployment "$RELEASE-celery-backend"
+  work_worker=$(kubectl -n "$NAMESPACE" get deployment "$RELEASE-celery-work" --ignore-not-found -o name)
+  if [[ -n "$work_worker" ]]; then
+    wait_for_deployment "$RELEASE-celery-work"
+  fi
   beat=$(kubectl -n "$NAMESPACE" get deployment "$RELEASE-celery-beat" --ignore-not-found -o name)
   if [[ -n "$beat" ]]; then
     wait_for_deployment "$RELEASE-celery-beat"

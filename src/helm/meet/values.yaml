@@ -653,6 +653,18 @@ summary:
 
 ## @section celeryBackend
 
+workWorker:
+  enabled: false
+  replicas: 1
+  concurrency: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
 celeryBackend:
 
   ## @param celeryBackend.dpAnnotations Annotations to add to the celeryBackend Deployment
