@@ -759,3 +759,46 @@ it('lets the player resume transcript following after browsing and searching', a
     screen.queryByRole('button', { name: 'library.backToPlayback' })
   ).not.toBeInTheDocument()
 })
+
+it('allows manual browsing before the first spoken segment', async () => {
+  record.source_type = 'upload'
+  record.capture_id = null
+  const baseline = vi.mocked(fetchApi).getMockImplementation()!
+  vi.mocked(fetchApi).mockImplementation(async (path, ...args) => {
+    if (path.includes('original-segments'))
+      return {
+        results: [
+          {
+            id: 'delayed',
+            text: 'Speech after silence',
+            start_ms: 5000,
+            end_ms: 10000,
+          },
+        ],
+        next_cursor: null,
+      }
+    return baseline(path, ...args)
+  })
+  show()
+  const row = (await screen.findByText('Speech after silence')).closest(
+    'article'
+  )!
+  fireEvent.wheel(row)
+  expect(
+    screen.queryByRole('button', { name: 'library.backToPlayback' })
+  ).toBeInTheDocument()
+})
+
+it('return clears an unsubmitted search draft while paused at zero', async () => {
+  record.source_type = 'upload'
+  record.capture_id = null
+  show()
+  await screen.findByText('Shared original')
+  const input = screen.getByLabelText('library.searchOriginal')
+  fireEvent.focus(input)
+  fireEvent.change(input, { target: { value: 'unsubmitted' } })
+  fireEvent.click(
+    screen.getByRole('button', { name: 'library.backToPlayback' })
+  )
+  expect(screen.getByLabelText('library.searchOriginal')).toHaveValue('')
+})

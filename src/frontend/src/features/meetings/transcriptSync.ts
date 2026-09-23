@@ -183,12 +183,15 @@ export function usePlaybackFollow(
  */
 export function useTranscriptFollow({
   containerRef,
+  containerReady = true,
   activeId,
   rows = [],
   follow,
   enabled = true,
 }: {
   containerRef: RefObject<HTMLElement | null>
+  /** The list is mounted; loading/error views do not carry its ref. */
+  containerReady?: boolean
   activeId: string | null
   /** Same rows the highlight was derived from, for the gap-following target. */
   rows?: readonly TimedRow[]
@@ -223,7 +226,7 @@ export function useTranscriptFollow({
 
   useEffect(() => {
     const list = containerRef.current
-    if (!list || !pauseFollowing) return
+    if (!containerReady || !list || !pauseFollowing) return
     let scroller = list
     while (
       scroller.parentElement &&
@@ -284,7 +287,7 @@ export function useTranscriptFollow({
       scroller.removeEventListener('pointerdown', pointer)
       document.removeEventListener('selectionchange', selection)
     }
-  }, [containerRef, pauseFollowing, target])
+  }, [containerRef, containerReady, pauseFollowing])
 
   useEffect(() => {
     if (!enabled || follow.enabled === false || target === null) return

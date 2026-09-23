@@ -130,6 +130,7 @@ function OriginalRead({
   const [search, setSearch] = useState(
     () => new URLSearchParams(routeSearch).get('q')?.slice(0, 200) ?? ''
   )
+  const [searchDraft, setSearchDraft] = useState(search)
   const [speaker, setSpeaker] = useState('')
   const [anchorMs, setAnchorMs] = useState(0)
   const [following, setFollowing] = useState(true)
@@ -154,9 +155,13 @@ function OriginalRead({
         }}
       />
       <OriginalSearch
-        key={search}
-        initialQuery={search}
+        value={searchDraft}
+        onChange={(value) => {
+          setSearchDraft(value)
+          setFollowing(false)
+        }}
         onSearch={(query) => {
+          setSearchDraft(query)
           setSearch(query)
           setCursors([''])
         }}
@@ -198,6 +203,7 @@ function OriginalRead({
       ? (activeId ?? null)
       : activeRowId(rowIds, positionMs)
   usePlaybackResume(follow, () => {
+    setSearchDraft('')
     setSearch('')
     setSpeaker('')
     setAnchorMs(Math.floor(positionMs ?? 0))
@@ -241,6 +247,7 @@ function OriginalRead({
   // to be scrolled on the same commit.
   useTranscriptFollow({
     containerRef: listRef,
+    containerReady: query.isSuccess,
     activeId: resolvedActiveId,
     // The rows the highlight came from, so playback inside a gap still advances
     // the view rather than stalling until the next utterance starts.
@@ -310,6 +317,7 @@ function OriginalRead({
             })}
             onPress={() => {
               if (editing) return
+              setSearchDraft('')
               setSearch('')
               setSpeaker('')
               setAnchorMs(Math.floor(positionMs))

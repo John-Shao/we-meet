@@ -5,7 +5,7 @@ import {
   renderHook,
   screen,
 } from '@testing-library/react'
-import { createRef } from 'react'
+import { createRef, useRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -87,6 +87,41 @@ function Harness({
 /** jsdom has no layout, so the scroll call is observed rather than its effect. */
 
 describe('useTranscriptFollow', () => {
+  it('binds browsing to list readiness during silence and removes detached listeners', () => {
+    const pause = vi.fn()
+    function LoadingList({ ready }: { ready: boolean }) {
+      const containerRef = useRef<HTMLDivElement>(null)
+      useTranscriptFollow({
+        containerRef,
+        containerReady: ready,
+        activeId: null,
+        follow: {
+          suppressed: () => false,
+          suppressionEpoch: 0,
+          pauseFollowing: pause,
+        },
+      })
+      return ready ? (
+        <div ref={containerRef} data-testid="ready-list" />
+      ) : (
+        <p>Loading</p>
+      )
+    }
+    const view = render(<LoadingList ready={false} />)
+    view.rerender(<LoadingList ready />)
+    const oldList = screen.getByTestId('ready-list')
+    fireEvent.wheel(oldList)
+    expect(pause).toHaveBeenCalledTimes(1)
+    view.rerender(<LoadingList ready={false} />)
+    fireEvent.wheel(oldList)
+    expect(pause).toHaveBeenCalledTimes(1)
+    view.rerender(<LoadingList ready />)
+    fireEvent.touchMove(screen.getByTestId('ready-list'))
+    expect(pause).toHaveBeenCalledTimes(2)
+    fireEvent.wheel(window)
+    expect(pause).toHaveBeenCalledTimes(2)
+  })
+
   it('scrolls only the active row, not every row it did not reach', () => {
     const scrolls: string[] = []
     function Tracked({ activeId }: { activeId: string }) {

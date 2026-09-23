@@ -666,6 +666,25 @@ function showWithPosition(positionMs: number) {
   )
 }
 
+it('clears an unsubmitted search draft on return, including repeated browsing', async () => {
+  twoRows()
+  status.active_job_id = 'job'
+  showWithPosition(0)
+  await screen.findByText('First line')
+  const input = screen.getByLabelText('library.searchOriginal')
+  fireEvent.focus(input)
+  for (const value of ['unsubmitted', 'another draft']) {
+    fireEvent.change(input, { target: { value } })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'library.backToPlayback' })
+    )
+    expect(input).toHaveValue('')
+    expect(
+      screen.queryByRole('button', { name: 'library.backToPlayback' })
+    ).not.toBeInTheDocument()
+  }
+})
+
 it('marks the segment the playback position is inside', async () => {
   twoRows()
   status.active_job_id = 'job'

@@ -455,15 +455,20 @@ function Originals({
   const { t } = useTranslation('capture')
   const [cursors, setCursors] = useState<string[]>([''])
   const [search, setSearch] = useState('')
+  const [searchDraft, setSearchDraft] = useState('')
   const [anchorMs, setAnchorMs] = useState(0)
   const [following, setFollowing] = useState(true)
   const cursor = cursors.at(-1)!
   const path = `meeting-records/${capture.record_id}/original-segments/?transcription_job_id=${jobId}&cursor=${encodeURIComponent(cursor)}&q=${encodeURIComponent(search)}&at_ms=${search ? 0 : anchorMs}`
   const searchForm = (
     <OriginalSearch
-      key={search}
-      initialQuery={search}
+      value={searchDraft}
+      onChange={(value) => {
+        setSearchDraft(value)
+        setFollowing(false)
+      }}
       onSearch={(query) => {
+        setSearchDraft(query)
         setSearch(query)
         setCursors([''])
       }}
@@ -524,6 +529,7 @@ function Originals({
   /** The visible rows are a subset, so position cannot address them. */
   const filtersActive = search.trim() !== ''
   usePlaybackResume(follow, () => {
+    setSearchDraft('')
     setSearch('')
     setAnchorMs(Math.floor(positionMs ?? 0))
     setCursors([''])
@@ -570,6 +576,7 @@ function Originals({
    */
   useTranscriptFollow({
     containerRef: listRef,
+    containerReady: query.isSuccess,
     activeId: resolvedActiveId,
     // The rows the highlight came from, so playback in a gap can still advance
     // the view instead of stalling until the next utterance begins.
@@ -630,6 +637,7 @@ function Originals({
             })}
             onPress={() => {
               if (editing) return
+              setSearchDraft('')
               setSearch('')
               setAnchorMs(Math.floor(positionMs))
               setCursors([''])

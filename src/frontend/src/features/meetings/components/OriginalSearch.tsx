@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SearchBox } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -16,13 +15,14 @@ import { css } from '@/styled-system/css'
  */
 export function OriginalSearch({
   onSearch,
-  initialQuery = '',
+  value,
+  onChange,
 }: {
   onSearch: (query: string) => void
-  initialQuery?: string
+  value: string
+  onChange: (value: string) => void
 }) {
   const { t } = useTranslation('meetings')
-  const [draft, setDraft] = useState(initialQuery)
   return (
     <form
       role="search"
@@ -36,14 +36,14 @@ export function OriginalSearch({
       })}
       onSubmit={(event) => {
         event.preventDefault()
-        onSearch(draft.trim())
+        onSearch(value.trim())
       }}
     >
       <SearchBox
         maxLength={200}
-        value={draft}
+        value={value}
         onChange={(value) => {
-          setDraft(value)
+          onChange(value)
           // 清空即撤销：与列表页一样，不必再点一次「搜索」。
           if (!value) onSearch('')
         }}
