@@ -47,6 +47,7 @@
 | [meeting-ai-media-import-2026-09-16.md](meeting-ai-media-import-2026-09-16.md) | 录音首页导入音视频与统一历史 |
 | [direct-upload-large-import-2026-09-19.md](direct-upload-large-import-2026-09-19.md) | 大文件直传对象存储 |
 | [upload-playback-2026-09-19.md](upload-playback-2026-09-19.md) | 上传件回放、签名 URL 与 Range |
+| [word-level-playback-tracking-2026-09-23.md](word-level-playback-tracking-2026-09-23.md) | 字词级播放跟踪设计草案：数据契约、App / Web 交互、兼容降级及验收；暂未实现 |
 | [online-meeting-media-timeline-2026-09-19.md](online-meeting-media-timeline-2026-09-19.md) | 线上会议录制、媒体时间轴及回放前置条件 |
 
 ## 按阶段归档的执行记录
