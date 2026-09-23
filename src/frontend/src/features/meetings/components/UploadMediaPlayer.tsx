@@ -459,7 +459,6 @@ export const UploadMediaPlayer = forwardRef<
           />
           <div data-video-controls data-video-chrome>
             <RecordPlaybackControls
-              videoLayout={media.media_type === 'video'}
               position={position}
               duration={duration * 1000}
               playing={state === 'playing'}

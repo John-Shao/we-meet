@@ -230,7 +230,20 @@ try {
   }
   await mount()
   const controls = page.locator('[data-record-playback-controls]')
+  const checkControlOrder = async () => {
+    const speed = await controls.getByRole('combobox').boundingBox()
+    const time = await controls.locator('[data-playback-time]').boundingBox()
+    assert.ok(
+      speed.x + speed.width <= time.x + 2,
+      'time follows speed in every media mode'
+    )
+    assert.ok(
+      Math.abs(speed.y + speed.height / 2 - time.y - time.height / 2) < 2,
+      'speed and time share a row in every media mode'
+    )
+  }
   const checkAudioAtTop = async () => {
+    await checkControlOrder()
     const title = await page.getByRole('heading', { level: 1 }).boundingBox()
     const player = await controls.boundingBox()
     const tabs = await page.getByRole('tablist').boundingBox()
@@ -377,6 +390,7 @@ try {
   await video.waitFor()
   const surface = page.locator('[data-video-expanded=true]')
   const checkVideoControlLayout = async () => {
+    await checkControlOrder()
     const time = surface.locator('[data-playback-time]')
     await expect(time).toHaveCount(1)
     const clock = await time.boundingBox()
@@ -485,6 +499,11 @@ try {
   await page.getByRole('button', { name: '收起视频' }).click()
   await expect(video).toBeHidden()
   await expect(divider).toBeHidden()
+  await checkControlOrder()
+  await page.screenshot({
+    path: `${output}/video-collapsed.png`,
+    fullPage: true,
+  })
   await page.getByRole('button', { name: '展开视频' }).click()
   assert.equal(
     await video.evaluate((element) => element === window.fixtureVideo),

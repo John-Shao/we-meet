@@ -73,7 +73,6 @@ export function RecordPlaybackControls({
   onRate,
   onBack,
   onForward,
-  videoLayout = false,
   seekEvents,
 }: {
   position: number
@@ -91,7 +90,6 @@ export function RecordPlaybackControls({
   onRate: (rate: number) => void
   onBack: () => void
   onForward: () => void
-  videoLayout?: boolean
   seekEvents?: Pick<
     InputHTMLAttributes<HTMLInputElement>,
     | 'onPointerDown'
@@ -172,28 +170,17 @@ export function RecordPlaybackControls({
         })}
       />
       <div
-        data-video-layout={videoLayout}
         className={css({
           display: 'grid',
           gridTemplateAreas:
-            '"play back forward volume speed" "time time time time time"',
-          gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+            '"play back forward volume" "speed time time time"',
+          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
           alignItems: 'center',
           columnGap: 'xs',
-          '&[data-video-layout=true]': {
-            gridTemplateAreas:
-              '"play back forward volume" "speed time time time"',
-            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-          },
           '@container (min-width: 560px)': {
-            gridTemplateAreas: '"play back forward volume time spacer speed"',
+            gridTemplateAreas: '"play back forward volume spacer speed time"',
             gridTemplateColumns:
-              '2.75rem 2.75rem 2.75rem 2.75rem auto 1fr 3.5rem',
-            '&[data-video-layout=true]': {
-              gridTemplateAreas: '"play back forward volume spacer speed time"',
-              gridTemplateColumns:
-                '2.75rem 2.75rem 2.75rem 2.75rem 1fr 3.5rem auto',
-            },
+              '2.75rem 2.75rem 2.75rem 2.75rem 1fr 3.5rem auto',
           },
         })}
       >
