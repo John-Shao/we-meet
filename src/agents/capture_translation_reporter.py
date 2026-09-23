@@ -16,7 +16,7 @@ MAX_RESPONSE = 16384
 MAX_AUTH = 6000
 MAX_TICKET = 4096
 FINISH_ATTEMPTS = 3
-MODEL = "qwen3.5-livetranslate-flash-realtime"
+MODEL = "qwen3.8-livetranslate-flash-realtime"
 
 
 def authentication(raw):

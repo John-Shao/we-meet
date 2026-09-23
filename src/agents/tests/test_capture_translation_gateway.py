@@ -39,7 +39,7 @@ def config(**overrides):
         "mode": "simultaneous",
         "audio": False,
         "save_translations": False,
-        "model": "qwen3.5-livetranslate-flash-realtime",
+        "model": "qwen3.8-livetranslate-flash-realtime",
         "region": "cn-beijing",
         **overrides,
     }
@@ -165,6 +165,28 @@ def control(kind, sequence, direction=None):
 
 class GatewayTests(unittest.IsolatedAsyncioTestCase):
     """Recording audio survives conceptually because the gateway owns no recorder."""
+
+    async def test_38_response_accounts_usage_without_unlocking_manual_turn(self):
+        """Native VAD may emit several responses before the PTT finish handshake."""
+        connection, socket, _ = self.connection([], config(mode="push_to_talk"))
+        connection.awaiting = "forward"
+        await connection.consume(
+            "forward",
+            {
+                "type": "response_completed",
+                "response_id": "sentence-1",
+                "turn_complete": False,
+                "usage": {"input_tokens": 8, "output_tokens": 2},
+            },
+        )
+        self.assertEqual(connection.awaiting, "forward")
+        self.assertEqual(connection.input_tokens, 8)
+        await connection.consume(
+            "forward", {"type": "turn_completed", "response_id": "turn-1"}
+        )
+        self.assertIsNone(connection.awaiting)
+        self.assertEqual(connection.input_tokens, 8)
+        self.assertEqual(socket.sent[-1]["type"], "turn_completed")
 
     def connection(self, messages, configuration=None):
         """Construct a standalone connection with no external IO."""

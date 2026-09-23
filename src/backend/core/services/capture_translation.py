@@ -22,7 +22,7 @@ from core.services.meeting_captures import (
 from core.services.meeting_records import RecordConflict
 
 ACTIVE = ("starting", "translating", "stopping")
-MODEL = "qwen3.5-livetranslate-flash-realtime"
+MODEL = "qwen3.8-livetranslate-flash-realtime"
 LANGUAGES = ("zh", "en")
 RESERVATION_LIFETIME = timedelta(seconds=30)
 DRAIN_LIFETIME = timedelta(seconds=20)

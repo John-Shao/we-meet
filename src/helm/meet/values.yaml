@@ -1429,7 +1429,7 @@ meetingAIWorkers:
       envVars:
         ROOM_TRANSLATION_AGENT_NAME: meeting-translation
         DASHSCOPE_REGION: cn-beijing
-        QWEN_TRANSLATION_MODEL: qwen3.5-livetranslate-flash-realtime
+        QWEN_TRANSLATION_MODEL: qwen3.8-livetranslate-flash-realtime
         QWEN_TRANSLATION_LANGUAGES: zh,en
       resources: {}
     interpretation:
@@ -1441,7 +1441,7 @@ meetingAIWorkers:
       envVars:
         ROOM_INTERPRETATION_AGENT_NAME: meeting-interpretation
         DASHSCOPE_REGION: cn-beijing
-        QWEN_TRANSLATION_MODEL: qwen3.5-livetranslate-flash-realtime
+        QWEN_TRANSLATION_MODEL: qwen3.8-livetranslate-flash-realtime
         QWEN_TRANSLATION_LANGUAGES: zh,en
       resources: {}
     capture-asr:
@@ -1475,7 +1475,7 @@ meetingAIWorkers:
       command: [python, capture_translation_gateway.py]
       envVars:
         DASHSCOPE_REGION: cn-beijing
-        QWEN_TRANSLATION_MODEL: qwen3.5-livetranslate-flash-realtime
+        QWEN_TRANSLATION_MODEL: qwen3.8-livetranslate-flash-realtime
         QWEN_TRANSLATION_LANGUAGES: zh,en
       resources: {}
 

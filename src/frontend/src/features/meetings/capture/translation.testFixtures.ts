@@ -24,7 +24,7 @@ export const run = (): CaptureTranslationRun => ({
     mode: 'simultaneous',
     audio: false,
     save_translations: false,
-    model: 'qwen3.5-livetranslate-flash-realtime',
+    model: 'qwen3.8-livetranslate-flash-realtime',
     region: 'cn-beijing',
   },
   status: 'starting',

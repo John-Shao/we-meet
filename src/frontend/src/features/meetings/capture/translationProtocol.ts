@@ -10,7 +10,7 @@ export interface TranslationChoice {
   save_translations: boolean
 }
 export interface TranslationConfiguration extends TranslationChoice {
-  model: 'qwen3.5-livetranslate-flash-realtime'
+  model: 'qwen3.8-livetranslate-flash-realtime'
   region: 'cn-beijing' | 'ap-southeast-1'
 }
 export interface CaptureTranslationRun {
@@ -119,7 +119,7 @@ export const isConfiguration = (
 ): value is TranslationConfiguration =>
   isChoice(value, true) &&
   object(value) &&
-  value.model === 'qwen3.5-livetranslate-flash-realtime' &&
+  value.model === 'qwen3.8-livetranslate-flash-realtime' &&
   oneOf(value.region, ['cn-beijing', 'ap-southeast-1'])
 export const sameChoice = (one: TranslationChoice, two: TranslationChoice) =>
   one.source_language === two.source_language &&

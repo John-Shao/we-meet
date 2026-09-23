@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -22,7 +23,7 @@ import wave
 
 MODEL = "qwen3.8-flash"
 ASR = "qwen-audio-3.0-asr-flash-streaming"
-TRANSLATION = "qwen3.5-livetranslate-flash-realtime"
+TRANSLATION = "qwen3.8-livetranslate-flash-realtime"
 SAMPLE = [
     {"id": "s1", "speaker": "主持人", "text": "这是合成会议。原计划周五上线。"},
     {"id": "s2", "speaker": "研发", "text": "测试未完成，建议推迟上线，负责人还没确定。"},
@@ -108,14 +109,53 @@ def pcm_audio(path):
         return audio.readframes(audio.getnframes())
 
 
+async def translation_probe(key, workspace, region, pcm, target, mode, text_only):
+    # Exercise the production adapter, including 3.8 delta normalization and PTT drain.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "agents"))
+    from plugins.qwen_live_translate import TranslationConfig, TranslationSession
+
+    result = {"model": TRANSLATION, "events": {}, "final_texts": [], "audio_bytes": 0,
+              "input_seconds": len(pcm) / 32000, "usage": [], "mode": mode,
+              "target": target, "text_only": text_only}
+    async def consume(event):
+        kind = event["type"]
+        result["events"][kind] = result["events"].get(kind, 0) + 1
+        if kind == "audio":
+            result["audio_bytes"] += len(event["audio"])
+        elif kind == "target_final":
+            result["final_texts"].append(event["text"])
+        elif kind == "response_completed":
+            result["usage"].append(event["usage"])
+
+    config = TranslationConfig(key, workspace, target, region=region,
+                               manual=mode == "manual", audio=not text_only)
+    session = TranslationSession(config, consume)
+    started = time.monotonic()
+    try:
+        async with asyncio.timeout(60):
+            await session.start()
+            for offset in range(0, len(pcm), 3200):
+                chunk = pcm[offset:offset + 3200]
+                await session.send_audio(chunk)
+                await asyncio.sleep(len(chunk) / 32000)
+            if config.manual:
+                await session.commit()
+            await session.finish()
+    finally:
+        await session.close()
+    result["session_seconds"] = round(time.monotonic() - started, 3)
+    result["status"] = "PASS" if session.finished and any(result["final_texts"]) and (text_only or result["audio_bytes"] > 0) else "FAIL_EMPTY_OUTPUT"
+    result["scope"] = "short_audio_protocol_probe_not_meeting_latency_or_quality"
+    return result
+
+
 async def audio_probe(key, workspace, region, pcm, translate, target, mode, text_only):
+    if translate:
+        return await translation_probe(key, workspace, region, pcm, target, mode, text_only)
     import websockets
 
-    path = "/api-ws/v1/realtime?model=" + TRANSLATION if translate else "/api-ws/v1/inference"
-    url = endpoint(workspace, region, "wss", path)
-    result = {"model": TRANSLATION if translate else ASR, "events": {}, "final_texts": [], "audio_bytes": 0, "input_seconds": len(pcm) / 32000, "usage": []}
-    if translate:
-        result.update(mode=mode, target=target, text_only=text_only)
+    url = endpoint(workspace, region, "wss", "/api-ws/v1/inference")
+    result = {"model": ASR, "events": {}, "final_texts": [], "audio_bytes": 0, "input_seconds": len(pcm) / 32000, "usage": []}
     async with asyncio.timeout(60):
         async with websockets.connect(url, additional_headers={"Authorization": f"Bearer {key}"}, open_timeout=15, close_timeout=5, max_size=16*1024*1024) as ws:
             task_id = uuid.uuid4().hex
@@ -123,40 +163,22 @@ async def audio_probe(key, workspace, region, pcm, translate, target, mode, text
             async def receive():
                 while True:
                     event = json.loads(await ws.recv())
-                    kind = event.get("type") if translate else event.get("header", {}).get("event")
+                    kind = event.get("header", {}).get("event")
                     result["events"][kind] = result["events"].get(kind, 0) + 1
-                    if kind in {"error", "task-failed"}:
+                    if kind == "task-failed":
                         raise RuntimeError("provider_error")
-                    if translate:
-                        if kind == "response.audio.delta":
-                            result["audio_bytes"] += len(base64.b64decode(event["delta"]))
-                        if kind in {"response.audio_transcript.done", "response.text.done"}:
-                            result["final_texts"].append(event.get("transcript") or event.get("text") or "")
-                        if kind == "response.done":
-                            result["usage"].append(event.get("response", {}).get("usage", {}))
-                    else:
-                        payload = event.get("payload", {})
-                        sentence = payload.get("output", {}).get("sentence", {})
-                        if sentence.get("sentence_end") and sentence.get("text"):
-                            result["final_texts"].append(sentence["text"])
-                        if payload.get("usage"):
-                            result["usage"].append(payload["usage"])
-                    if kind in {"session.finished", "task-finished"}:
+                    payload = event.get("payload", {})
+                    sentence = payload.get("output", {}).get("sentence", {})
+                    if sentence.get("sentence_end") and sentence.get("text"):
+                        result["final_texts"].append(sentence["text"])
+                    if payload.get("usage"):
+                        result["usage"].append(payload["usage"])
+                    if kind == "task-finished":
                         return
-            if translate:
-                initial = json.loads(await ws.recv())
-                if initial.get("type") != "session.created":
-                    raise RuntimeError("session_not_created")
-                session = {"modalities": ["text"] if text_only else ["text", "audio"], "voice": "Tina", "enable_voice_clone": False, "sample_rate": 16000, "input_audio_format": "pcm", "output_audio_format": "pcm", "turn_detection": {"type": "server_vad"} if mode == "server_vad" else None, "translation": {"language": target}}
-                await ws.send(json.dumps({"event_id": uuid.uuid4().hex, "type": "session.update", "session": session}))
-                configured = json.loads(await ws.recv())
-                if configured.get("type") != "session.updated":
-                    raise RuntimeError("session_not_updated")
-            else:
-                await ws.send(json.dumps({"header": {"action": "run-task", "task_id": task_id, "streaming": "duplex"}, "payload": {"task_group": "audio", "task": "asr", "function": "recognition", "model": ASR, "parameters": {"format": "pcm", "sample_rate": 16000}, "input": {}}}))
-                initial = json.loads(await ws.recv())
-                if initial.get("header", {}).get("event") != "task-started":
-                    raise RuntimeError("task_not_started")
+            await ws.send(json.dumps({"header": {"action": "run-task", "task_id": task_id, "streaming": "duplex"}, "payload": {"task_group": "audio", "task": "asr", "function": "recognition", "model": ASR, "parameters": {"format": "pcm", "sample_rate": 16000}, "input": {}}}))
+            initial = json.loads(await ws.recv())
+            if initial.get("header", {}).get("event") != "task-started":
+                raise RuntimeError("task_not_started")
             reader = asyncio.create_task(receive())
             try:
                 for offset in range(0, len(pcm), 3200):
@@ -164,21 +186,16 @@ async def audio_probe(key, workspace, region, pcm, translate, target, mode, text
                         await reader
                         raise RuntimeError("premature_finish")
                     chunk = pcm[offset:offset+3200]
-                    await ws.send(json.dumps({"event_id": uuid.uuid4().hex, "type": "input_audio_buffer.append", "audio": base64.b64encode(chunk).decode()}) if translate else chunk)
+                    await ws.send(chunk)
                     await asyncio.sleep(len(chunk)/32000)
-                if translate:
-                    if mode == "manual":
-                        await ws.send(json.dumps({"event_id": uuid.uuid4().hex, "type": "input_audio_buffer.commit"}))
-                    await ws.send(json.dumps({"event_id": uuid.uuid4().hex, "type": "session.finish"}))
-                else:
-                    await ws.send(json.dumps({"header": {"action": "finish-task", "task_id": task_id, "streaming": "duplex"}, "payload": {"input": {}}}))
+                await ws.send(json.dumps({"header": {"action": "finish-task", "task_id": task_id, "streaming": "duplex"}, "payload": {"input": {}}}))
                 await reader
             finally:
                 if not reader.done():
                     reader.cancel()
                 await asyncio.gather(reader, return_exceptions=True)
             result["session_seconds"] = round(time.monotonic()-started, 3)
-    result["status"] = "PASS" if any(result["final_texts"]) and (not translate or text_only or result["audio_bytes"]>0) else "FAIL_EMPTY_OUTPUT"
+    result["status"] = "PASS" if any(result["final_texts"]) else "FAIL_EMPTY_OUTPUT"
     result["scope"] = "short_audio_protocol_probe_not_meeting_latency_or_quality"
     return result
 
@@ -193,7 +210,7 @@ def main():
     parser.add_argument("--live-translation", action="store_true")
     parser.add_argument("--audio", type=Path, help="Explicitly authorized WAV, max 30s")
     parser.add_argument("--target", choices=["en", "zh"], default="en")
-    parser.add_argument("--translation-mode", choices=["manual", "server_vad"], default="manual")
+    parser.add_argument("--translation-mode", choices=["manual", "server_vad"], default="server_vad", help="manual tests push-to-talk with session.finish, not the legacy commit event")
     parser.add_argument("--text-only", action="store_true")
     parser.add_argument("--output", type=Path, help="Optional result file; may include test transcript")
     args = parser.parse_args()

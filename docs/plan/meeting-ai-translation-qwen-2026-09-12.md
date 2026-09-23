@@ -6,7 +6,7 @@
 
 ## 1. 已确定的选型
 
-实时音频翻译统一使用 `qwen3.5-livetranslate-flash-realtime`，覆盖两种产品模式：
+实时音频翻译统一使用 `qwen3.8-livetranslate-flash-realtime`，覆盖两种产品模式：
 
 | 模式 | 场景与交互 | 输入组织 | 输出 |
 | --- | --- | --- | --- |
@@ -47,7 +47,7 @@
 
 建议模块：
 
-- `qwen_live_translate`：协议客户端和事件解析，参数化 VAD/Manual、源/目标语言、输出模态、音色及热词；不承载产品权限。
+- `qwen_live_translate`：协议客户端和事件解析，参数化连续/按键输入、源/目标语言、输出模态、音色及热词；不承载产品权限。
 - `translation_session`：启动、停止、切换、订阅人数、授权和费用归属。生命周期独立于 MeetingSession 和 CaptureSession。
 - `translation_audio`：来源选择、重采样、音频分片、输出轨道、队列与回声防护。
 - `translation_events`：source/target、partial/final、record_id、meeting_session_id、translation_session_id、speaker_id、source_segment_id、语言及时间映射。
@@ -63,7 +63,7 @@
 
 一个用户关闭收听只停止自己的播放/订阅；有其他订阅者时保持共享频道。最后一个订阅者离开后按空闲策略释放会话；主持人停止公共翻译才结束公共频道。切换语言使用会话 generation 标识，清除旧译音队列并丢弃迟到的旧会话事件。
 
-同传优先连续输入、固定目标语言，由源音轨或源识别结果标记说话人；双向交流复用两个固定目标会话及逐句路由。两种模式共享协议实现，不共享不适合自身体验的输入调度。
+同传优先连续输入、固定目标语言，由源音轨或源识别结果标记说话人；双向交流保留两个固定目标方向，3.8 按键模式每轮结束后重建该方向的供应商连接。两种模式共享协议实现，不共享不适合自身体验的输入调度。
 
 ## 4. 关键协议契约
 
@@ -71,12 +71,12 @@
 
 - 音频是必要输入，图像为可选增强；首期只接音频。后续如使用屏幕/视频图像，必须明确用户选择的输入源及对应权限。
 - 源语言可自动识别，目标语言必须由用户/频道配置明确给出；不依赖供应商默认英语。
-- 连续同传使用服务端 VAD 配置；逐句模式使用 `turn_detection=null` 并由客户端 `input_audio_buffer.commit`。Manual commit 后由服务端自动生成，不重复触发响应。
-- 仅文本输出接 `response.text.text` / `response.text.done`；文本+音频接 `response.audio_transcript.text` / `.done` 及 `response.audio.delta`。不能按 Omni 的 `response.text.delta` 解析。
-- 区分已确认文本与待确认预测片段（stash）；UI 可展示预测文字，但只把 final 结果作为正式译文持久化。依照协议更新段落，避免把多次 partial 累加成重复句。
-- 源 ASR 的 completed 事件是原文候选来源；目标译文不能覆盖原文。多个目标翻译会话返回重复源 ASR 时，用原始输入段 ID 归并，不按各供应商 item_id 各存一份。
+- 3.8 使用 `output_modalities` 和嵌套 `audio.input` / `audio.output`；连续同传设置 `audio.input.turn_detection.type=server_vad`。按键模式也使用服务端 VAD，松开后以 `session.finish` 收齐本轮，再准备下一轮连接；不发送旧版 `turn_detection=null`、`input_audio_buffer.commit` 或 `response.create`。
+- 3.8 仅文本输出接 `response.text.delta` / `.done`；文本+音频接 `response.audio_transcript.delta` / `.done` 及 `response.audio.delta`。新增 delta 按 response/item 顺序累加，完成帧以完整文本校正；完成后的迟到片段不再追加。
+- UI 展示累计候选文本；`.done` 文本事件不等于本轮成功，只有 `response.done(status=completed)` 确认后才能落库。保留旧快照事件解析以处理历史测试，不把快照当作新增 delta 累加。
+- 3.8 原生 ASR 始终开启，不能发送旧版关闭参数；适配器默认丢弃源候选输出，仍沿用原转写链路。源 ASR 的 delta 累加、completed 完整校正，仅作原文候选来源；目标译文不能覆盖原文。多个目标翻译会话返回重复源 ASR 时，用原始输入段 ID 归并，不按各供应商 item_id 各存一份。
 - 正常停止发送 `session.finish`，等待 `session.finished`，并确保已收到的末段事件完成落库。用户停止播音立即生效，尾段服务端清理可以继续；超时显示可恢复失败而非永远等待。
-- 声音复刻首期保持关闭，使用固定音色。热词按租户/会议配置，可逐步支持专业词汇；不在每个普通用户面板展示模型参数。
+- 3.8 使用 `audio.output.voice=Tina` 固定音色，不发送旧版声音复刻参数。热词按租户/会议配置，可逐步支持专业词汇；不在每个普通用户面板展示模型参数。
 
 语言能力注册表至少包含：code、label、input_supported、text_output_supported、audio_output_supported、enabled。在同传“收听语言”只列音频支持且已上线的语种；仅文本语种仍可作为译文语言。双向语音的两个方向都要做输出能力检查。语言别名规范化沿用全站约定，不把旧产品的 `zhen` 伪代码发给 Qwen。
 
@@ -124,3 +124,31 @@ we-meet 当前 `src/agents/plugins/doubao_translate.py` 接收已有 FINAL 文�
 衡量：从对应原始语音时间点到首个稳定译文/首段译音的延迟、连续翻译滞后 P50/P95、停止尾段丢失率、断线恢复率、源文/译文准确性。现有 Agent 的首次音频日志从会话启动计时，包含等待发言时间，不能直接用作端到端同传延迟指标。
 
 旧项目作为复用来源保持不变。协议客户端已在本项目实现并通过隔离测试；真实会议 Agent 接线、权限分发及设备测试仍待后续批次。
+
+## 9. 2026-09-23：3.8 协议升级与发布验收
+
+本节记录本次实现，前文第 2 节是旧版参考代码盘点；Phase 0 的 3.5 实测数据保留原样，不能作为 3.8 已验证的证据。
+
+| 范围 | 本次处理 | 验收重点 |
+| --- | --- | --- |
+| 会话参数 | 默认模型升级为 `qwen3.8-livetranslate-flash-realtime`；输入 16 kHz 单声道 PCM，输出 24 kHz PCM；使用嵌套音频配置 | 北京/新加坡 workspace 权限与会话握手 |
+| 文本流 | 原文与译文 delta 分开累加，限制文本长度和未完成项数；完整响应覆盖候选 | 中英双向、纯文本与译音模式、多片段交错、尾句与重复事件 |
+| 按住说话 | 服务端可能在按住期间分句输出；松开后结束本轮连接，等尾句消费完并为该方向重新握手后发 `turn_completed` | 不能在中间一句 `response.done` 时解锁下一轮；静音、连续两轮、切换方向、结束按钮、取消与握手失败 |
+| 计费与原文 | 按各 `response_completed` 累加真实 usage；`turn_completed` 不新增 token 用量；原生 ASR 不写入正式原文 | 译文不覆盖原文，无重复记账；缺失用量继续标记未知 |
+| 配置一致性 | 后端冻结配置、Agent 许可校验、录音 Web 协议、三个翻译 Worker 默认配置同步升级 | 旧运行记录不改模型名；新旧进程混用时拒绝配置不一致 |
+
+按键模式每轮新增一次供应商握手，会增加连接次数与等待时间；容量验收必须检查账户实际 RPM 限制。这里的“按键”指用户控制输入，不能宣称供应商仍使用旧版 Manual 模式。连续同传无需每句重连。
+
+发布步骤：
+
+1. 本地执行协议/网关/同传测试、后端翻译服务测试、前端协议与状态机测试、TypeScript 检查及 Helm 渲染；构建同一提交的 backend、frontend、agents 镜像。
+2. 生产先等待活动翻译结束，在无活动翻译的窗口联合发布这三个镜像。检查服务器自有 values/环境文件是否覆盖 `QWEN_TRANSLATION_MODEL` 为旧值；三个翻译 Worker 均应为 3.8。密钥继续使用已有 Secret，不修改历史配置快照。
+3. 部署后用已授权的短合成音频运行 `bin/meeting-ai-phase0.py --live-translation --region cn-beijing --audio <16k-mono-pcm16.wav> --translation-mode server_vad`，分别补测 `--text-only`、`--target zh`、`--translation-mode manual`。脚本使用生产适配器；manual 测试的是按键收尾，不会发送旧版 commit。凭据通过环境或 `--secrets-file` 本地读取，不放命令行或日志。
+4. Web 验收录音翻译、私人翻译、同传频道；特别检查按键连续两轮、尾句、静音、断网和撤权。失败不自动重放音频，不影响原录音。
+5. 出现模型权限、协议或质量问题时停止新翻译，协调回退 backend/frontend/agents 镜像与三个 Worker 模型配置；只回退模型字符串不能恢复旧协议。Work 功能沿用已有 overlay，无需再次执行 `enable-work.sh materials`。
+
+本地验证：Agent 协议/私人翻译/网关/同传共 96 项、后端翻译服务 31 项、前端协议与状态机 23 项测试通过；TypeScript 检查、Ruff 与三个翻译 Worker 的 Helm 模型渲染检查通过。探测脚本离线配置检查通过。
+
+本地尚未配置百炼实时翻译凭据，3.8 真实握手、译音、翻译质量与生产部署状态需以发布后的验收结果为准。
+
+协议依据：[客户端事件](https://help.aliyun.com/zh/model-studio/live-translator-client-events)、[服务端事件](https://help.aliyun.com/zh/model-studio/live-translator-server-events)、[3.8 模型说明](https://help.aliyun.com/zh/model-studio/qwen3-8-livetranslate-flash-realtime)。

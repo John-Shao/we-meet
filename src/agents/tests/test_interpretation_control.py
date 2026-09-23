@@ -35,7 +35,7 @@ def grant():
         "lease_seconds": 15,
         "configuration": {
             "scope": "meeting_channel",
-            "model": "qwen3.5-livetranslate-flash-realtime",
+            "model": "qwen3.8-livetranslate-flash-realtime",
             "source": None,
             "target": "en",
             "audio": True,

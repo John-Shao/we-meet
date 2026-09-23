@@ -18,7 +18,7 @@ from core.services.online_capture import can_control
 
 ACTIVE = ("starting", "translating", "stopping")
 LANGUAGES = ("zh", "en")
-MODEL = "qwen3.5-livetranslate-flash-realtime"
+MODEL = "qwen3.8-livetranslate-flash-realtime"
 
 
 def enabled():

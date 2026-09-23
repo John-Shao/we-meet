@@ -93,11 +93,64 @@ class EventTests(unittest.TestCase):
         value = TranslationConfig(
             "key", "workspace", "yue", audio=False, enabled_languages=("yue",)
         )
-        self.assertEqual(value.session()["modalities"], ["text"])
+        self.assertEqual(value.session()["output_modalities"], ["text"])
         self.assertNotIn("dummy-secret", repr(config()))
-        self.assertIsNone(config().session()["input_audio_transcription"]["model"])
-        self.assertIsNone(config(manual=True).session()["turn_detection"])
-        self.assertFalse(config().session()["enable_voice_clone"])
+        self.assertNotIn("input_audio_transcription", config().session())
+        self.assertNotIn("turn_detection", config(manual=True).session())
+        self.assertEqual(
+            config().session()["audio"]["input"]["turn_detection"]["type"], "server_vad"
+        )
+        self.assertEqual(config().session()["audio"]["output"]["voice"], "Tina")
+        self.assertIn("model=qwen3.8-livetranslate-flash-realtime", config().url)
+        with self.assertRaises(ValueError):
+            config(model="qwen3.5-livetranslate-flash-realtime")
+
+    def test_delta_accumulation_isolated_and_final_gated(self):
+        """3.8 chunks append per response/item and never become final early."""
+        for kind in ("response.text.delta", "response.audio_transcript.delta"):
+            events = TranslationEvents()
+            self.assertEqual(
+                events.accept(target(kind, delta="Hello"))[0]["text"], "Hello"
+            )
+            events.accept(target(kind, response_id="r2", delta="Other"))
+            self.assertEqual(
+                events.accept(target(kind, delta=" world"))[0]["text"], "Hello world"
+            )
+            final = events.accept(
+                done(output=[{"id": "i1", "content": [{"text": "Hello world!"}]}])
+            )
+            self.assertEqual(final[0]["text"], "Hello world!")
+            self.assertEqual(events.accept(target(kind, delta="late")), [])
+            self.assertEqual(events.pending["r2"]["i1"][0], "Other")
+
+    def test_source_delta_accumulation_and_completion(self):
+        """Native ASR remains a bounded source candidate, separate from translation."""
+        events = TranslationEvents()
+        prefix = "conversation.item.input_audio_transcription."
+        event = {"type": prefix + "delta", "item_id": "s1", "delta": "你"}
+        events.accept(event)
+        self.assertEqual(events.accept({**event, "delta": "好"})[0]["text"], "你好")
+        result = events.accept(
+            {"type": prefix + "completed", "item_id": "s1", "transcript": "你好。"}
+        )
+        self.assertTrue(result[0]["completed"])
+        self.assertEqual(events.source_pending, {})
+        self.assertEqual(events.accept(event), [])
+
+    def test_delta_accumulation_cannot_exceed_text_budget(self):
+        """Small chunks cannot bypass the retained text limit."""
+        events = TranslationEvents()
+        events.accept(target("response.text.delta", delta="x" * 20000))
+        with self.assertRaises(TranslationError):
+            events.accept(target("response.text.delta", delta="x"))
+        source = {
+            "type": "conversation.item.input_audio_transcription.delta",
+            "item_id": "s1",
+            "delta": "x" * 20000,
+        }
+        events.accept(source)
+        with self.assertRaises(TranslationError):
+            events.accept({**source, "delta": "x"})
 
     def test_text_requires_completed_response(self):
         """A done text segment from an interrupted response is never final."""
@@ -198,6 +251,8 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
         socket = FakeSocket(tail)
         consumer = consume or mock.AsyncMock()
         connector = mock.AsyncMock(return_value=socket)
+        if manual:
+            connector.side_effect = [socket, FakeSocket(tail)]
         session = TranslationSession(
             config(manual=manual), consumer, connector=connector
         )
@@ -227,9 +282,9 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(connector.call_args.kwargs["proxy"])
         self.assertEqual(connector.call_args.kwargs["max_queue"], 4)
 
-    async def test_manual_commit_nonempty_no_response_create(self):
-        """Do not duplicate provider responses or commit an empty buffer."""
-        session, socket, _, _ = await self.make_session(
+    async def test_manual_turn_drains_without_legacy_commit(self):
+        """Release waits for session.finished even for an all-silent turn."""
+        session, socket, consumer, connector = await self.make_session(
             manual=True, tail=[{"type": "session.finished"}]
         )
         await session.commit()
@@ -238,8 +293,84 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
         await session.commit()
         await session.finish()
         kinds = [event["type"] for event in socket.sent]
-        self.assertEqual(kinds.count("input_audio_buffer.commit"), 1)
+        self.assertEqual(kinds.count("session.finish"), 1)
+        self.assertNotIn("input_audio_buffer.commit", kinds)
         self.assertNotIn("response.create", kinds)
+        self.assertEqual(consumer.call_args.args[0]["type"], "turn_completed")
+        self.assertEqual(connector.await_count, 2)
+
+    async def test_manual_next_turn_prepares_session_without_replaying_audio(self):
+        """Prepare the next turn before unlocking input; never replay audio."""
+        sockets = [
+            FakeSocket(),
+            FakeSocket(),
+            FakeSocket([{"type": "session.finished"}]),
+        ]
+        consumer = mock.AsyncMock()
+        connector = mock.AsyncMock(side_effect=sockets)
+        session = TranslationSession(config(manual=True), consumer, connector=connector)
+        await session.start()
+        await session.send_audio(b"\x01\x02")
+        await session.commit()
+        self.assertEqual(connector.await_count, 2)
+        completed = [
+            call.args[0]
+            for call in consumer.call_args_list
+            if call.args[0]["type"] == "response_completed"
+        ]
+        self.assertFalse(completed[0]["turn_complete"])
+        self.assertEqual(consumer.call_args.args[0]["type"], "turn_completed")
+        await session.send_audio(b"\x03\x04")
+        await session.commit()
+        await session.finish()
+        self.assertEqual(connector.await_count, 3)
+        for socket, pcm in zip(sockets[:2], (b"\x01\x02", b"\x03\x04"), strict=True):
+            frames = [
+                frame
+                for frame in socket.sent
+                if frame["type"] == "input_audio_buffer.append"
+            ]
+            self.assertEqual(
+                [base64.b64decode(frame["audio"]) for frame in frames], [pcm]
+            )
+            self.assertEqual(socket.closes, 1)
+        self.assertFalse(
+            any(
+                frame["type"] == "input_audio_buffer.append"
+                for frame in sockets[2].sent
+            )
+        )
+
+    async def test_failed_manual_drain_never_reopens(self):
+        """A missing finish acknowledgement cannot become a new billable connection."""
+        session, _, _, connector = await self.make_session(manual=True, tail=[])
+        await session.send_audio(bytes(2560))
+        with mock.patch("plugins.qwen_live_translate.FINISH_TIMEOUT", 0.01):
+            with self.assertRaises(TranslationError):
+                await session.commit()
+        with self.assertRaises(TranslationError):
+            await session.send_audio(bytes(2560))
+        self.assertEqual(connector.await_count, 1)
+
+    async def test_manual_handshake_failure_does_not_unlock_next_turn(self):
+        """Do not accept microphone input until the replacement session is ready."""
+        socket = FakeSocket()
+        consumer = mock.AsyncMock()
+        connector = mock.AsyncMock(side_effect=[socket, OSError("isolated")])
+        session = TranslationSession(config(manual=True), consumer, connector=connector)
+        await session.start()
+        await session.send_audio(bytes(2560))
+        with self.assertRaisesRegex(TranslationError, "connect_failed"):
+            await session.commit()
+        self.assertFalse(
+            any(
+                call.args[0]["type"] == "turn_completed"
+                for call in consumer.call_args_list
+            )
+        )
+        with self.assertRaises(TranslationError):
+            await session.send_audio(bytes(2560))
+        self.assertEqual(connector.await_count, 2)
 
     async def test_finish_timeout_is_not_success(self):
         """A silent provider cannot make stop wait forever or claim completeness."""

@@ -75,7 +75,7 @@ try {
       const { key, ...payload } = request.postDataJSON()
       assert.equal(request.headers()['x-capture-lease'], source.leaseKey)
       assert.equal(payload.operation, 'start')
-      run = { id: '55555555-5555-4555-8555-555555555555', capture_id: source.captureId, generation: 1, source_revision: 2, status: 'starting', deadline: new Date(Date.now() + 30000).toISOString(), ended_at: null, error_code: '', configuration: { ...payload.configuration, model: 'qwen3.5-livetranslate-flash-realtime', region: 'cn-beijing' } }
+      run = { id: '55555555-5555-4555-8555-555555555555', capture_id: source.captureId, generation: 1, source_revision: 2, status: 'starting', deadline: new Date(Date.now() + 30000).toISOString(), ended_at: null, error_code: '', configuration: { ...payload.configuration, model: 'qwen3.8-livetranslate-flash-realtime', region: 'cn-beijing' } }
       return route.fulfill({ json: { command: { key, capture_id: source.captureId, payload, result: run }, current: snapshot(), replayed: false } })
     }
     return route.fulfill({ json: path.endsWith('/directory/me/') ? { id: source.viewerId } : {} })

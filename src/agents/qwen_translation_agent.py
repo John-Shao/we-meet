@@ -132,6 +132,9 @@ class PrivateTranslation:
                     self.usage[key] = None
                 elif key not in self.missing_usage:
                     self.usage[key] = (self.usage[key] or 0) + count
+            if not event.get("turn_complete", True):
+                return
+        if event["type"] in {"response_completed", "turn_completed"}:
             if self.input:
                 self.input.response_completed(direction)
             if self.allow_text:

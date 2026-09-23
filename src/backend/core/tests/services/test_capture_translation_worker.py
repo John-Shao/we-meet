@@ -196,7 +196,7 @@ def test_finish_is_idempotent_and_records_usage_once():
     assert finish(run, worker, audio_seconds=3).status_code == 409
     usage = models.AIUsageRecord.objects.get(ref_id=str(run.pk))
     assert usage.audio_seconds == 2
-    assert usage.model_code == "qwen3.5-livetranslate-flash-realtime"
+    assert usage.model_code == "qwen3.8-livetranslate-flash-realtime"
     assert advance(run, worker, "heartbeat").status_code == 409
 
 

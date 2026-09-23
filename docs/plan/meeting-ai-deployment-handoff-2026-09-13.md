@@ -57,7 +57,9 @@ Web 资料入口为 `/meeting/notes`、`/meeting/minutes`、`/meeting/records/:r
 
 线上原文 Worker 为 `multi_user_transcriber.py`，使用 `STT_PROVIDER=qwen`；`ROOM_SUBTITLE_AGENT_NAME` 与 `TRANSCRIBER_AGENT_NAME` 对齐。其余 5 类可选 Worker 分别为 `translation`、`interpretation`、`capture-asr`、`capture-live-asr`、`capture-translation`，不是一个通用进程替代全部能力。
 
-当前模型：ASR `qwen-audio-3.0-asr-flash-streaming`；总结 `qwen3.8-flash`；翻译 `qwen3.5-livetranslate-flash-realtime`。后端 `QWEN_ASR_REGION`、Worker 地域、总结 `MEETING_SUMMARY_BASE_URL` 和授权 workspace 保持一致。只开放已实现的中英语种，不按供应商全语种宣传清单扩展入口。
+当前模型：ASR `qwen-audio-3.0-asr-flash-streaming`；总结 `qwen3.8-flash`；翻译 `qwen3.8-livetranslate-flash-realtime`。后端 `QWEN_ASR_REGION`、Worker 地域、总结 `MEETING_SUMMARY_BASE_URL` 和授权 workspace 保持一致。只开放已实现的中英语种，不按供应商全语种宣传清单扩展入口。
+
+2026-09-23 翻译升级涉及 3.8 会话与 delta 协议，需 backend/frontend/agents 联合发布；不能只改模型字符串。按键模式改为本轮收尾后重建连接，部署与验收见 [翻译方案](meeting-ai-translation-qwen-2026-09-12.md)第 9 节。
 
 供应商与内部凭据通过 Secret 注入：`DASHSCOPE_API_KEY`、`DASHSCOPE_WORKSPACE_ID`、`AGENT_INTERNAL_API_TOKEN`；其中业务空间 ID 对当前 Qwen ASR 是必填项，仅不使用 ASR 的其他 Worker 可按需配置。在线 Worker 另需 LiveKit 凭据。不要把密钥放进前端、构建产物或文档。既有 Docs/IM 服务身份配置沿用部署系统，不与用户登录令牌混用。
 

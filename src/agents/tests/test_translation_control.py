@@ -174,6 +174,25 @@ class InputTests(unittest.IsolatedAsyncioTestCase):
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
     """Inspect privacy and cleanup boundaries using a mocked LiveKit room."""
 
+    async def test_38_intermediate_response_does_not_unlock_ptt(self):
+        """Account sentences separately and release only after the turn drains."""
+        runtime, _ = self.runtime()
+        runtime.input = mock.Mock()
+        runtime.publish = mock.AsyncMock()
+        await runtime.consume(
+            "forward",
+            {
+                "type": "response_completed",
+                "turn_complete": False,
+                "usage": {"input_tokens": 8, "output_tokens": 2},
+            },
+        )
+        runtime.input.response_completed.assert_not_called()
+        runtime.publish.assert_not_awaited()
+        await runtime.consume("forward", {"type": "turn_completed"})
+        runtime.input.response_completed.assert_called_once_with("forward")
+        self.assertEqual(runtime.usage["input_tokens"], 8)
+
     async def test_private_archive_retains_only_allowed_confirmed_direction(self):
         """Preview and revoked final text never reach durable storage."""
         runtime, _ = self.runtime()

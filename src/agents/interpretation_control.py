@@ -225,7 +225,7 @@ class GrantLease:
             if (
                 not isinstance(configuration, dict)
                 or configuration.get("scope") != "meeting_channel"
-                or configuration.get("model") != "qwen3.5-livetranslate-flash-realtime"
+                or configuration.get("model") != "qwen3.8-livetranslate-flash-realtime"
                 or configuration.get("target") not in {"zh", "en"}
                 or configuration.get("source") is not None
                 or configuration.get("audio") is not True

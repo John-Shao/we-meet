@@ -5,7 +5,7 @@ import { WebSocketServer } from 'ws'
 import { chromium } from '@playwright/test'
 
 const source = { viewerId: '11111111-1111-4111-8111-111111111111', captureId: '22222222-2222-4222-8222-222222222222', recordId: '33333333-3333-4333-8333-333333333333', deviceId: 'web', leaseKey: '44444444-4444-4444-8444-444444444444' }
-const config = { source_language: 'zh', target_language: 'en', mode: 'push_to_talk', audio: false, save_translations: false, model: 'qwen3.5-livetranslate-flash-realtime', region: 'cn-beijing' }
+const config = { source_language: 'zh', target_language: 'en', mode: 'push_to_talk', audio: false, save_translations: false, model: 'qwen3.8-livetranslate-flash-realtime', region: 'cn-beijing' }
 const runId = '55555555-5555-4555-8555-555555555555'
 const errors = []
 const stats = { opens: 0, frames: 0, turns: 0 }

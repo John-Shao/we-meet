@@ -95,8 +95,10 @@ class CaptureTranslationConnection:
             usage = data.get("usage", {})
             self.input_tokens += usage.get("input_tokens", 0)
             self.output_tokens += usage.get("output_tokens", 0)
-            if self.awaiting == direction:
+            if event.get("turn_complete", True) and self.awaiting == direction:
                 self.awaiting = None
+        if kind == "turn_completed" and self.awaiting == direction:
+            self.awaiting = None
         await self.emit(kind, direction=direction, **data)
 
     def prepare(self):
@@ -197,11 +199,15 @@ class CaptureTranslationConnection:
                 self.direction = direction
             elif kind == "end" and self.direction == direction:
                 self.direction, self.awaiting = None, direction
+                # Acknowledge accepted input before the bounded finish/handshake;
+                # turn_completed separately authorizes the next microphone turn.
+                await self.emit("ack", sequence=self.sequence)
                 if not await self.sessions[direction].commit():
                     self.awaiting = None
                     await self.emit(
                         "turn_empty", direction=direction, sequence=self.sequence
                     )
+                continue
             else:
                 raise TranslationError("invalid_translation_control")
             await self.emit("ack", sequence=self.sequence)

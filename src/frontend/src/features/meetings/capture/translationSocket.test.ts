@@ -185,6 +185,49 @@ describe('recording translation socket', () => {
     f.message({ ...completed, response_id: 'new' })
     expect(f.client.state.phase).toBe('ready')
   })
+  it('waits for the entire 3.8 speech turn after intermediate responses', () => {
+    const f = fixture(true)
+    f.emptyTail()
+    f.ready()
+    f.client.begin('forward')
+    f.message({ type: 'ack', sequence: 1 })
+    f.client.endTurn()
+    f.message({ type: 'ack', sequence: 2 })
+    f.message({
+      type: 'response_completed',
+      direction: 'forward',
+      response_id: 'sentence-1',
+      turn_complete: false,
+    })
+    expect(f.client.state.phase).toBe('awaiting')
+    const completed = {
+      type: 'turn_completed',
+      direction: 'forward',
+      response_id: 'turn-1',
+    }
+    f.message(completed)
+    expect(f.client.state.phase).toBe('ready')
+    f.client.begin('forward')
+    f.message({ type: 'ack', sequence: 3 })
+    f.client.endTurn()
+    f.message({ type: 'ack', sequence: 4 })
+    f.message(completed)
+    expect(f.client.state.phase).toBe('awaiting')
+  })
+  it('allows bounded provider drain before the queued finish acknowledgement', () => {
+    vi.useFakeTimers()
+    const f = fixture(true)
+    f.emptyTail()
+    f.ready()
+    f.client.begin('forward')
+    f.message({ type: 'ack', sequence: 1 })
+    f.client.finish()
+    f.message({ type: 'ack', sequence: 2 })
+    vi.advanceTimersByTime(6000)
+    expect(f.client.state.phase).toBe('finishing')
+    vi.advanceTimersByTime(40000)
+    expect(f.client.state.phase).toBe('unknown')
+  })
   it.each(['generation', 'configuration', 'ack', 'consent'])(
     'fails closed on invalid %s',
     (kind) => {

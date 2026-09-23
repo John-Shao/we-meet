@@ -64,7 +64,7 @@ export class CaptureTranslationSocket {
   private ended = false
   private ready = false
   private sequence = 0
-  private pending = new Map<number, { audio: boolean; at: number }>()
+  private pending = new Map<number, { audio: boolean; expires: number }>()
   private finalIds = new Set<string>()
   private completedResponses = new Set<string>()
   private afterDrain?: 'end' | 'finish'
@@ -137,7 +137,7 @@ export class CaptureTranslationSocket {
       if (!this.authorized()) return this.abort()
       if (
         (this.deadline && this.deadline < Date.now()) ||
-        [...this.pending.values()].some((item) => item.at + 5000 < Date.now())
+        [...this.pending.values()].some((item) => item.expires < Date.now())
       )
         this.end('unknown')
     }, 200)
@@ -210,7 +210,7 @@ export class CaptureTranslationSocket {
       }
       return
     }
-    if (value.type === 'response_completed') {
+    if (value.type === 'response_completed' || value.type === 'turn_completed') {
       if (!identity(value.response_id))
         throw new Error('invalid_translation_response')
       const responseKey = JSON.stringify([direction, value.response_id])
@@ -219,6 +219,7 @@ export class CaptureTranslationSocket {
         throw new Error('translation_response_limit')
       this.completedResponses.add(responseKey)
       if (
+        value.turn_complete !== false &&
         this.state.phase === 'awaiting' &&
         this.state.direction === direction
       ) {
@@ -294,7 +295,7 @@ export class CaptureTranslationSocket {
     }
   }
 
-  private send(data: string | ArrayBuffer, audio: boolean) {
+  private send(data: string | ArrayBuffer, audio: boolean, timeoutMs = 5000) {
     if (
       !this.authorized() ||
       !this.ready ||
@@ -305,7 +306,7 @@ export class CaptureTranslationSocket {
         [...this.pending.values()].filter((item) => item.audio).length >= 4)
     )
       throw new Error('translation_backpressure')
-    this.pending.set(this.sequence, { audio, at: Date.now() })
+    this.pending.set(this.sequence, { audio, expires: Date.now() + timeoutMs })
     this.socket.send(data)
   }
   private control(
@@ -318,7 +319,8 @@ export class CaptureTranslationSocket {
         sequence: ++this.sequence,
         ...(direction ? { direction } : {}),
       }),
-      false
+      false,
+      type === 'begin' ? 5000 : 45000
     )
   }
   private attach() {

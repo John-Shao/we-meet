@@ -53,7 +53,7 @@ class TranslationConfig:
     manual: bool = False
     source_transcription: bool = False
     region: str = "cn-beijing"
-    model: str = "qwen3.5-livetranslate-flash-realtime"
+    model: str = "qwen3.8-livetranslate-flash-realtime"
     enabled_languages: tuple[str, ...] = ("zh", "en")
 
     def __post_init__(self):
@@ -62,7 +62,7 @@ class TranslationConfig:
             raise ValueError("Invalid translation credentials configuration")
         if self.region not in {"cn-beijing", "ap-southeast-1"}:
             raise ValueError("Unsupported translation region")
-        if not re.fullmatch(r"[A-Za-z0-9._-]+", self.model):
+        if self.model != "qwen3.8-livetranslate-flash-realtime":
             raise ValueError("Invalid translation model")
         enabled = set(self.enabled_languages)
         if not enabled <= TEXT_LANGUAGES or self.target not in enabled:
@@ -81,24 +81,24 @@ class TranslationConfig:
         )
 
     def session(self):
-        """Build either server VAD or manual-commit configuration."""
-        transcription = {
-            "model": "qwen3-asr-flash-realtime" if self.source_transcription else None
-        }
-        if self.source:
-            transcription["language"] = self.source
+        """Use the 3.8 schema; native source ASR cannot be disabled upstream."""
         return {
-            "modalities": ["text", "audio"] if self.audio else ["text"],
-            "input_audio_format": "pcm",
-            "output_audio_format": "pcm",
-            "sample_rate": 16000,
-            "voice": "Tina",
-            "enable_voice_clone": False,
-            "input_audio_transcription": transcription,
+            "output_modalities": ["text", "audio"] if self.audio else ["text"],
+            "audio": {
+                "input": {
+                    "format": {"type": "pcm", "sample_rate": 16000},
+                    "turn_detection": {
+                        "type": "server_vad",
+                        "threshold": 0.2,
+                        "silence_duration_ms": 1000,
+                    },
+                },
+                "output": {
+                    "format": {"type": "pcm", "sample_rate": 24000},
+                    "voice": "Tina",
+                },
+            },
             "translation": {"language": self.target},
-            "turn_detection": None
-            if self.manual
-            else {"type": "server_vad", "threshold": 0.2, "silence_duration_ms": 1000},
         }
 
     @classmethod
@@ -151,6 +151,8 @@ class TranslationEvents:
         """Bound all retained response identities and pending text."""
         self.pending = {}
         self.completed = set()
+        self.source_pending = {}
+        self.source_completed = set()
 
     def accept(self, event):
         """Normalize ephemeral events without writing a formal source transcript."""
@@ -158,15 +160,7 @@ class TranslationEvents:
         if kind == "error" or kind.endswith("transcription.failed"):
             raise TranslationError("translation_provider_error")
         if kind.startswith("conversation.item.input_audio_transcription."):
-            return [
-                {
-                    "type": "source_candidate",
-                    "item_id": _identity(event.get("item_id")),
-                    "text": _text(event.get("transcript", event.get("text", ""))),
-                    "stash": _text(event.get("stash", "")),
-                    "completed": kind.endswith(".completed"),
-                }
-            ]
+            return self._source(event, kind)
         if kind == "response.done":
             return self._done(event)
         if kind == "conversation.item.created":
@@ -178,13 +172,47 @@ class TranslationEvents:
             return []
         if kind not in {
             "response.text.text",
+            "response.text.delta",
             "response.text.done",
             "response.audio_transcript.text",
+            "response.audio_transcript.delta",
             "response.audio_transcript.done",
             "response.audio.delta",
         }:
             return []
         return self._target(event, kind)
+
+    def _source(self, event, kind):
+        item_id = _identity(event.get("item_id"))
+        if item_id in self.source_completed:
+            return []
+        completed = kind.endswith(".completed")
+        if kind.endswith(".delta"):
+            if (
+                item_id not in self.source_pending
+                and len(self.source_pending) >= MAX_PENDING
+            ):
+                raise TranslationError("translation_buffer_limit")
+            text = _text(
+                self.source_pending.get(item_id, "") + _text(event.get("delta"))
+            )
+            self.source_pending[item_id] = text
+        else:
+            text = _text(event.get("transcript", event.get("text", "")))
+        if completed:
+            if len(self.source_completed) >= MAX_RESPONSES:
+                raise TranslationError("translation_session_limit")
+            self.source_pending.pop(item_id, None)
+            self.source_completed.add(item_id)
+        return [
+            {
+                "type": "source_candidate",
+                "item_id": item_id,
+                "text": text,
+                "stash": _text(event.get("stash", "")),
+                "completed": completed,
+            }
+        ]
 
     def _source_link(self, event):
         item = event["item"]
@@ -221,7 +249,13 @@ class TranslationEvents:
                     "audio": audio,
                 }
             ]
-        text = _text(event.get("transcript", event.get("text", "")))
+        if kind.endswith(".delta"):
+            previous, confirmed = items.get(item_id, ("", False))
+            if confirmed:
+                return []
+            text = _text(previous + _text(event.get("delta")))
+        else:
+            text = _text(event.get("transcript", event.get("text", "")))
         items[item_id] = (text, kind.endswith(".done"))
         return [
             {
@@ -301,12 +335,13 @@ class TranslationSession:
         self.error_code = None
         self._ending = False
         self._has_audio = False
+        self._closed = False
         self._send_lock = asyncio.Lock()
         self._close_lock = asyncio.Lock()
 
     async def start(self):
         """Wait for both handshake events before accepting microphone input."""
-        if self.socket is not None or self._ending:
+        if self.socket is not None or self._ending or self._closed:
             raise TranslationError("translation_already_started")
         try:
             self.socket = await self.connector(
@@ -364,24 +399,39 @@ class TranslationSession:
                 raise TranslationError(self.error_code) from None
 
     def _require_input(self):
-        if self._ending or not self.receiver or self.receiver.done() or self.error_code:
+        if (
+            self._closed
+            or self._ending
+            or not self.receiver
+            or self.receiver.done()
+            or self.error_code
+        ):
             raise TranslationError("translation_input_closed")
 
     async def commit(self):
-        """Manual commit produces a response automatically; never commit empty input."""
+        """Drain a 3.8 push-to-talk turn using the documented finish handshake."""
         async with self._send_lock:
-            self._require_input()
             if not self.config.manual:
                 raise TranslationError("translation_commit_requires_manual")
-            if self._has_audio:
-                try:
-                    await self._send("input_audio_buffer.commit")
-                    self._has_audio = False
-                    return True
-                except Exception:
-                    self.error_code = "translation_send_failed"
-                    raise TranslationError(self.error_code) from None
-            return False
+            self._require_input()
+            if not self._has_audio:
+                return False
+            await self._finish_locked()
+            if self._closed or self.error_code:
+                raise TranslationError("translation_input_closed")
+            self._has_audio = False
+            # Prepare the next turn before unblocking microphone input. A lazy
+            # handshake on its first frame would overflow the bounded audio FIFO.
+            self._ending = self.finished = False
+            self.events = TranslationEvents()
+            await self.start()
+            await asyncio.wait_for(
+                self.consume(
+                    {"type": "turn_completed", "response_id": f"turn-{uuid.uuid4()}"}
+                ),
+                IO_TIMEOUT,
+            )
+            return True
 
     async def _receive(self):
         try:
@@ -393,6 +443,13 @@ class TranslationSession:
                     self.finished = True
                     return
                 for normalized in self.events.accept(event):
+                    if (
+                        normalized["type"] == "source_candidate"
+                        and not self.config.source_transcription
+                    ):
+                        continue
+                    if normalized["type"] == "response_completed":
+                        normalized["turn_complete"] = not self.config.manual
                     await asyncio.wait_for(self.consume(normalized), IO_TIMEOUT)
         except TranslationError as exc:
             self.error_code = str(exc)
@@ -401,12 +458,18 @@ class TranslationSession:
 
     async def finish(self):
         """Wait for provider completion AND consumed tail events before closing."""
+        async with self._send_lock:
+            try:
+                await self._finish_locked()
+            finally:
+                self._closed = True
+
+    async def _finish_locked(self):
         try:
-            async with self._send_lock:
-                if not self._ending:
-                    self._require_input()
-                    self._ending = True
-                    await self._send("session.finish")
+            if not self._ending:
+                self._require_input()
+                self._ending = True
+                await self._send("session.finish")
             await asyncio.wait_for(asyncio.shield(self.receiver), FINISH_TIMEOUT)
             if not self.finished or self.error_code:
                 raise TranslationError(
@@ -418,10 +481,14 @@ class TranslationSession:
             self.error_code = "translation_finish_failed"
             raise TranslationError(self.error_code) from None
         finally:
-            await self.close()
+            await self._close_transport()
 
     async def close(self):
         """Idempotently release transport; abort is never a successful finish."""
+        self._closed = True
+        await self._close_transport()
+
+    async def _close_transport(self):
         async with self._close_lock:
             self._ending = True
             if self.receiver and not self.receiver.done():
