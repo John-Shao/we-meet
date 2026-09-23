@@ -290,44 +290,60 @@ export function useTranscriptFollow({
   }, [containerRef, containerReady, pauseFollowing])
 
   useEffect(() => {
-    if (!enabled || follow.enabled === false || target === null) return
+    if (
+      !containerReady ||
+      !enabled ||
+      follow.enabled === false ||
+      target === null
+    )
+      return
     if (follow.suppressed()) return
     const container = containerRef.current
     if (!container) return
-    // Only a rendered row can be scrolled to; a filtered list may omit it.
-    const row = container.querySelector<HTMLElement>(
-      `[data-segment-id="${CSS.escape(target)}"]`
-    )
-    if (typeof row?.scrollIntoView !== 'function') return
-    const word = row.querySelector<HTMLElement>('[data-playing-word]')
-    const scrollKey = word ? `${target}:${word.dataset.playingWord}` : target
-    if (scrolled.current === scrollKey) return
-    scrolled.current = scrollKey
-    let scrollParent: HTMLElement | null = container
-    while (
-      scrollParent.parentElement &&
-      !/(auto|scroll)/.test(getComputedStyle(scrollParent).overflowY)
-    )
-      scrollParent = scrollParent.parentElement
-    const bounds = scrollParent.getBoundingClientRect()
-    const rect = (word ?? row).getBoundingClientRect()
-    if (
-      word &&
-      bounds.height > 0 &&
-      rect.top >= Math.max(0, bounds.top) + 48 &&
-      rect.bottom <= Math.min(window.innerHeight, bounds.bottom) - 16
-    )
-      return
-    const reduced = window.matchMedia?.(
-      '(prefers-reduced-motion: reduce)'
-    ).matches
-    ;(word ?? row).scrollIntoView({
-      block: 'nearest',
-      behavior: reduced ? 'auto' : 'smooth',
-    })
+    const scrollToTarget = () => {
+      if (follow.suppressed()) return
+      // Only a rendered row can be scrolled to; a filtered list may omit it.
+      const row = container.querySelector<HTMLElement>(
+        `[data-segment-id="${CSS.escape(target)}"]`
+      )
+      if (typeof row?.scrollIntoView !== 'function') return
+      const word = row.querySelector<HTMLElement>('[data-playing-word]')
+      const scrollKey = word ? `${target}:${word.dataset.playingWord}` : target
+      if (scrolled.current === scrollKey) return
+      scrolled.current = scrollKey
+      let scrollParent: HTMLElement | null = container
+      while (
+        scrollParent.parentElement &&
+        !/(auto|scroll)/.test(getComputedStyle(scrollParent).overflowY)
+      )
+        scrollParent = scrollParent.parentElement
+      const bounds = scrollParent.getBoundingClientRect()
+      const rect = (word ?? row).getBoundingClientRect()
+      if (
+        word &&
+        bounds.height > 0 &&
+        rect.top >= Math.max(0, bounds.top) + 48 &&
+        rect.bottom <= Math.min(window.innerHeight, bounds.bottom) - 16
+      )
+        return
+      const reduced = window.matchMedia?.(
+        '(prefers-reduced-motion: reduce)'
+      ).matches
+      ;(word ?? row).scrollIntoView({
+        block: 'nearest',
+        behavior: reduced ? 'auto' : 'smooth',
+      })
+    }
+    // Word validation completes in a child after this effect has run. Observe
+    // its inserted spans too, so a paused clock can still reveal the current word.
+    const observer = new MutationObserver(scrollToTarget)
+    observer.observe(container, { childList: true, subtree: true })
+    scrollToTarget()
+    return () => observer.disconnect()
     // Explicitly returning to playback invalidates the previous scroll target.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    containerReady,
     target,
     enabled,
     follow.enabled,

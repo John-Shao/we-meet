@@ -87,6 +87,29 @@ function Harness({
 /** jsdom has no layout, so the scroll call is observed rather than its effect. */
 
 describe('useTranscriptFollow', () => {
+  it('reveals asynchronously inserted words with a paused clock, but respects manual browsing', async () => {
+    const scroll = vi.fn()
+    const view = render(<Harness activeId="a" />)
+    const row = view.container.querySelector<HTMLElement>(
+      '[data-segment-id="a"]'
+    )!
+    row.scrollIntoView = vi.fn()
+    const word = document.createElement('span')
+    word.dataset.playingWord = '90'
+    word.scrollIntoView = scroll
+    await act(async () => {
+      row.appendChild(word)
+    })
+    expect(scroll).toHaveBeenCalledTimes(1)
+    view.rerender(<Harness activeId="a" suppressed />)
+    const next = document.createElement('span')
+    next.dataset.playingWord = '91'
+    next.scrollIntoView = scroll
+    await act(async () => {
+      word.replaceWith(next)
+    })
+    expect(scroll).toHaveBeenCalledTimes(1)
+  })
   it('binds browsing to list readiness during silence and removes detached listeners', () => {
     const pause = vi.fn()
     function LoadingList({ ready }: { ready: boolean }) {

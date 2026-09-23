@@ -1,5 +1,6 @@
 import { webcrypto, createHash } from 'node:crypto'
-import { fireEvent, render, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, waitFor } from '@testing-library/react'
+import { WordPlaybackText } from './WordPlaybackText'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { TranscriptSegment } from './TranscriptSegment'
 import type { PlaybackAlignment } from '../wordAlignment'
@@ -44,7 +45,7 @@ it('tracks repeated words, preserves text and prevents selection/long-press seek
   const second = view.container.querySelector('[data-word-index="1"]')!
   fireEvent.pointerDown(second, { clientX: 10, clientY: 10 })
   fireEvent.pointerUp(second, { clientX: 10, clientY: 10 })
-  expect(onWordSeek).toHaveBeenCalledWith(500)
+  await waitFor(() => expect(onWordSeek).toHaveBeenCalledWith(500))
   const range = document.createRange()
   range.selectNodeContents(second)
   window.getSelection()!.addRange(range)
@@ -65,4 +66,44 @@ it('tracks repeated words, preserves text and prevents selection/long-press seek
   )
   expect(view.container.querySelector('[data-word-index]')).toBeNull()
   expect(view.container.querySelector('p')?.textContent).toBe('Corrected text')
+})
+
+it('ignores secondary clicks and cancels pending single clicks for selection or unmount', () => {
+  vi.useFakeTimers()
+  const onSeek = vi.fn()
+  const tokens = [
+    { start_offset: 0, end_offset: 5, start_ms: 500, end_ms: 1000 },
+  ]
+  const view = render(
+    <WordPlaybackText text="Hello" tokens={tokens} active={0} onSeek={onSeek} />
+  )
+  const word = view.getByText('Hello')
+  try {
+    for (const button of [1, 2]) {
+      fireEvent.pointerDown(word, { button })
+      fireEvent.pointerUp(word, { button })
+      act(() => vi.advanceTimersByTime(600))
+    }
+    expect(onSeek).not.toHaveBeenCalled()
+    fireEvent.pointerDown(word, { button: 0 })
+    fireEvent.pointerUp(word, { button: 0 })
+    act(() => vi.advanceTimersByTime(100))
+    fireEvent.pointerDown(word, { button: 0 })
+    const range = document.createRange()
+    range.selectNodeContents(word)
+    window.getSelection()!.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+    fireEvent.pointerUp(word, { button: 0 })
+    act(() => vi.advanceTimersByTime(600))
+    expect(onSeek).not.toHaveBeenCalled()
+    window.getSelection()!.removeAllRanges()
+    fireEvent.pointerDown(word, { button: 0 })
+    fireEvent.pointerUp(word, { button: 0 })
+    view.unmount()
+    act(() => vi.advanceTimersByTime(600))
+    expect(onSeek).not.toHaveBeenCalled()
+  } finally {
+    vi.useRealTimers()
+    window.getSelection()!.removeAllRanges()
+  }
 })

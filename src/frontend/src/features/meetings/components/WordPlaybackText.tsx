@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import { css } from '@/styled-system/css'
 import { type WordToken } from '../wordAlignment'
 
@@ -17,6 +17,24 @@ export const WordPlaybackText = memo(function WordPlaybackText({
   onSeek?: (ms: number) => void
 }) {
   const down = useRef<{ x: number; y: number; time: number }>()
+  const pending = useRef<ReturnType<typeof setTimeout>>()
+  const latestSeek = useRef(onSeek)
+  latestSeek.current = onSeek
+  const cancelSeek = () => {
+    clearTimeout(pending.current)
+    pending.current = undefined
+  }
+  useEffect(() => {
+    const selectionChanged = () => {
+      if (!window.getSelection()?.isCollapsed) cancelSeek()
+    }
+    document.addEventListener('selectionchange', selectionChanged)
+    return () => {
+      cancelSeek()
+      down.current = undefined
+      document.removeEventListener('selectionchange', selectionChanged)
+    }
+  }, [text, tokens])
   const pieces = useMemo(() => {
     const matches: Array<[number, number]> = []
     if (query.trim()) {
@@ -59,10 +77,22 @@ export const WordPlaybackText = memo(function WordPlaybackText({
   return (
     <span
       onPointerDown={(e) => {
+        cancelSeek()
+        down.current = undefined
+        if (
+          e.button !== 0 ||
+          e.isPrimary === false ||
+          e.ctrlKey ||
+          e.metaKey ||
+          e.altKey ||
+          e.shiftKey
+        )
+          return
         down.current = { x: e.clientX, y: e.clientY, time: Date.now() }
       }}
       // Pointer enhancement only: keyboard/AT retain the segment's seek button.
       onPointerCancel={() => {
+        cancelSeek()
         down.current = undefined
       }}
       onPointerUp={(e) => {
@@ -70,13 +100,21 @@ export const WordPlaybackText = memo(function WordPlaybackText({
         down.current = undefined
         if (
           !gesture ||
+          e.button !== 0 ||
           Date.now() - gesture.time > 450 ||
           Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) > 5 ||
           !window.getSelection()?.isCollapsed
         )
           return
         const index = (e.target as HTMLElement).dataset.wordIndex
-        if (index !== undefined) onSeek?.(tokens[Number(index)].start_ms)
+        const word = index === undefined ? undefined : tokens[Number(index)]
+        if (word) {
+          // Defer the first release so a second click/selection can cancel it.
+          pending.current = setTimeout(() => {
+            if (window.getSelection()?.isCollapsed)
+              latestSeek.current?.(word.start_ms)
+          }, 500)
+        }
       }}
     >
       {pieces.map(({ start, end, tokenIndex, found }) => {

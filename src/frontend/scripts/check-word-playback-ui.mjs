@@ -87,7 +87,7 @@ try {
         }
         window.wordSeeks = []
         function Harness() {
-          const [position, setPosition] = React.useState(600)
+          const [position, setPosition] = React.useState(150000)
           const [edited, setEdited] = React.useState(false)
           const container = React.useRef(null)
           const follow = usePlaybackFollow([])
@@ -136,10 +136,34 @@ try {
       { theme }
     )
     const active = page.locator('[data-playing-word]')
+    await expect(active).toHaveCount(1)
+    await expect
+      .poll(() =>
+        active.evaluate((el) => {
+          const word = el.getBoundingClientRect()
+          const box = document
+            .querySelector('#transcript')
+            .getBoundingClientRect()
+          return word.bottom > box.top && word.top < box.bottom
+        })
+      )
+      .toBe(true)
+    await page.evaluate(() => window.wordFixture.setPosition(600))
     await expect(active).toHaveText('Hello')
     await page.screenshot({ path: `${output}/${width}-${theme}.png` })
+    await page.locator('[data-word-index="2"]').click({ button: 'right' })
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(600)
+    assert.deepEqual(await page.evaluate(() => window.wordSeeks), [])
+    await page.locator('[data-word-index="1"]').dblclick()
+    await page.waitForTimeout(600)
+    assert.deepEqual(await page.evaluate(() => window.wordSeeks), [])
+    assert.ok(await page.evaluate(() => window.getSelection().toString()))
+    await page.evaluate(() => window.getSelection().removeAllRanges())
     await page.locator('[data-word-index="2"]').click()
-    assert.deepEqual(await page.evaluate(() => window.wordSeeks), [900])
+    await expect
+      .poll(() => page.evaluate(() => window.wordSeeks))
+      .toEqual([900])
     await expect(active).toHaveText('我们')
     await page.evaluate(() => window.wordFixture.setPosition(450))
     await expect(active).toHaveCount(0)
