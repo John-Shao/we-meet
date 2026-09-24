@@ -127,7 +127,8 @@ def storage_probe(storage):
     return result
 
 
-def inspect_runtime(*, probe_storage=False, require_worker=False, require_materials=False, cleanup_key=None):
+def inspect_runtime(*, probe_storage=False, require_worker=False, require_materials=False,
+                    require_model=False, require_communication=False, cleanup_key=None):
     from django.conf import settings
     from django.db import connection
     from django.db.migrations.executor import MigrationExecutor
@@ -163,6 +164,8 @@ def inspect_runtime(*, probe_storage=False, require_worker=False, require_materi
         checks["storage_probe"] = storage_probe(storage)
     checks["ok"] = bool(migrations_ok and (not require_worker or checks["work_consumers"] > 0)
                         and (not require_materials or (settings.WORK_ENABLED and settings.WORK_MATERIALS_ENABLED))
+                        and (not require_model or checks["model_configured"])
+                        and (not require_communication or checks["generation_available"])
                         and (not probe_storage or checks["storage_probe"]["ok"])
                         and (not cleanup_key or checks["probe_cleanup"]["ok"]))
     return checks
@@ -173,6 +176,8 @@ def main():
     parser.add_argument("--probe-storage", action="store_true")
     parser.add_argument("--require-worker", action="store_true")
     parser.add_argument("--require-materials", action="store_true")
+    parser.add_argument("--require-model", action="store_true")
+    parser.add_argument("--require-communication", action="store_true")
     parser.add_argument("--cleanup-probe", metavar="KEY", help="Delete only the exact synthetic probe key previously reported")
     args = parser.parse_args()
     try:
@@ -181,7 +186,9 @@ def main():
         install()
         import django
         django.setup()
-        result = inspect_runtime(probe_storage=args.probe_storage, require_worker=args.require_worker, require_materials=args.require_materials, cleanup_key=args.cleanup_probe)
+        result = inspect_runtime(probe_storage=args.probe_storage, require_worker=args.require_worker,
+                                 require_materials=args.require_materials, require_model=args.require_model,
+                                 require_communication=args.require_communication, cleanup_key=args.cleanup_probe)
     except Exception as exc:
         result = {"ok": False, "code": "work_runtime_check_failed", "error": safe_error(exc)}
     print(json.dumps(result, ensure_ascii=True))

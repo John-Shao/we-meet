@@ -27,6 +27,36 @@ bash deploy/aliyun/enable-work.sh materials
 
 材料上线后，在 overlay 的 `backend.envVars` 配置下表的独立 Work 模型，API key 使用已有 Kubernetes Secret 的 `secretKeyRef`。在受控验收时启用 `WORK_COMMUNICATION_ENABLED`，验证真实模型引用、实际用量与业务闭环后再开放使用；重新执行 `materials` 模式会将它重置为 `False`。
 
+### 沟通准备启用（2026-09-24）
+
+当天服务器只读回执确认：Work / 材料已开启、消费者 1、迁移通过，沟通关闭且 `model_configured=false`。以下流程复用正在运行的 backend 镜像，新增脚本通过 stdin 在现有容器内执行，**这次无需构建应用镜像**：
+
+```sh
+git pull --ff-only
+bash deploy/aliyun/enable-work.sh prepare-communication && \
+  bash deploy/aliyun/enable-work.sh communication
+```
+
+1. `prepare-communication`：要求材料与消费者已就绪；在服务器本地 overlay 三个模型字段均未设置时，绑定 `.dist` 中的 `qwen3.8-flash`、兼容地址和 `meet-ai-credentials/DASHSCOPE_API_KEY`。已有完整自定义配置保留；只有部分字段或使用明文 key 时拒绝，不混用供应商配置。发布后验证模型配置完整，沟通仍关闭。该步骤不调用模型。
+2. `communication`：要求 backend / Work Worker 的滚动更新已结束，且实际模型配置与本地 overlay 一致；先检查迁移、材料、消费者和私有存储，再在 **Work Worker 容器**内运行一次合成沟通调用。使用已部署的 `CommunicationExecutor`、提示词及引用校验，单次超时 45 秒、SDK 不重试、输出上限 1200 token。只有结构、非空来源、必要段落、精确引文和供应商用量均通过，才开启沟通、发布并验证 `generation_available=true`。预检失败不修改 overlay、不发布；供应商失败原因只输出白名单类型，不打印原始异常、源文或密钥。
+3. 接着使用 demo 账号做下方业务验收。**模型预检成功只说明合成调用可用，不等于 P0-1 或真实业务验收完成。** 当前生成开关作用于所有有权使用 Work 的账号，尚无组织白名单；不能将它描述成已实现单组织灰度。
+
+只检查模型、保持现有开关，可执行 `bash deploy/aliyun/enable-work.sh probe-model`。它和 `communication` 都会实际发起一次可能计费的模型请求，不必连着执行两者。预检只发送内置合成文本，不读取用户材料、不创建 WorkTask，也不写用户用量账本；输出的 `input_tokens / output_tokens / elapsed_ms` 属于部署探针记录，需保存服务器回执。业务调用的 WorkRun / AIUsageRecord 用量仍需单独验收。
+
+日常发布会沿用本地 overlay，**无需重复 prepare 或 materials**。修改模型配置后先运行 `prepare-communication`，再验收开启，避免用旧配置的探针结果给新配置放行。关闭生成但保留材料使用 `materials`；关闭全部新 Work 写入使用 `off`。若发布或发布后检查失败，当前配置可能已部分生效，应先 `check` 再修复或回退，不将脚本非零退出视为集群已自动回滚。
+
+本批新增的是宿主机配置与预检工具，尚未收到它们的生产执行回执。离线验证覆盖 23 项存储 / Chart / 启用脚本测试、12 项模型预检 / 配置一致性测试和 6 项既有发布回归，另通过 Ruff、Bash 语法及差异检查（模拟供应商，不是实际 Qwen 调用）：
+
+```sh
+PYTHONPATH=src/backend src/backend/.venv/bin/python deploy/aliyun/test_work_rollout.py
+src/backend/.venv/bin/python deploy/aliyun/test_work_model.py
+bash -n deploy/aliyun/enable-work.sh
+```
+
+Windows 将 Python 路径换为 `src/backend/.venv/Scripts/python.exe`，并设置 `PYTHONPATH` 指向 `src/backend`。下一步验收项统一记录在计划第 14.6 节，保持周报 / 表格批次未开始。
+
+### 材料部署历史与模型依据
+
 2026-09-23 首次线上启用检查：Work 迁移已通过，但存储探针和清理均失败，开关仍关闭、没有进入 Helm 发布。旧诊断只返回 `storage_probe_failed`，不足以确定根因。现已增加失败阶段、白名单异常类型 / S3 错误码 / HTTP 状态、独立清理结果，以及存储配置完整性和客户端配置差异（不输出凭证、地址或原始异常）。另修复已确认的源码问题：Work 的超时配置曾覆盖部署级 OSS 签名、寻址和 checksum 兼容配置，现在合并保留部署配置。该修复需重新构建并发布 **backend** 镜像；宿主机诊断脚本可在旧镜像上直接运行。更新镜像后先清理原探针，再重试 `materials`；真实存储结果仍以服务器输出为准。
 
 2026-09-23 生产回执更新：backend `c6d61ad7e` 已发布，Helm revision 401；旧探针清理成功，私有读写、匿名访问拒绝及新探针清理均通过。随后 revision 402 启用材料，`work_consumers=1`，Work / 材料开关为 true、沟通生成为 false，客户端配置差异为空。前端仍为 `e82d71f91`。这些结果覆盖了前述“尚未启用”的历史状态。

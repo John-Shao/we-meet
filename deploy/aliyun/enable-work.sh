@@ -4,7 +4,10 @@
 # off: disable new Work writes, preserving the worker for cleanup/history.
 set -euo pipefail
 MODE="${1:-check}"
-[[ "$MODE" == check || "$MODE" == materials || "$MODE" == off || "$MODE" == cleanup ]] || { echo "Usage: bash deploy/aliyun/enable-work.sh [check|materials|off|cleanup PROBE_KEY]" >&2; exit 2; }
+case "$MODE" in
+  check|materials|off|cleanup|prepare-communication|probe-model|communication) ;;
+  *) echo "Usage: bash deploy/aliyun/enable-work.sh [check|materials|off|cleanup PROBE_KEY|prepare-communication|probe-model|communication]" >&2; exit 2 ;;
+esac
 NAMESPACE="${NAMESPACE:-meet}"
 RELEASE="${RELEASE:-meet}"
 WORK_VALUES_FILE="${WORK_VALUES_FILE:-src/helm/env.d/aliyun-prod/values.work.yaml}"
@@ -15,6 +18,10 @@ python3 -c 'import yaml' || { echo "Install python3-yaml on the release host" >&
 runtime_check() {
   kubectl -n "$NAMESPACE" exec -i "deployment/$RELEASE-backend" -- python - "$@" < deploy/aliyun/check-work-runtime.py
 }
+model_probe() {
+  echo "==> One synthetic model call in the Work worker (provider may charge; no user data)"
+  kubectl -n "$NAMESPACE" exec -i "deployment/$RELEASE-celery-work" -- python - < deploy/aliyun/check-work-model.py
+}
 if [[ "$MODE" == check ]]; then
   runtime_check
   exit
@@ -24,6 +31,11 @@ if [[ "$MODE" == cleanup ]]; then
   runtime_check --cleanup-probe "$2"
   exit
 fi
+if [[ "$MODE" == probe-model ]]; then
+  runtime_check --require-worker --require-materials --require-model
+  model_probe
+  exit
+fi
 image=$(kubectl -n "$NAMESPACE" get "deployment/$RELEASE-backend" -o 'jsonpath={.spec.template.spec.containers[0].image}')
 tag="${image##*:}"
 [[ "$tag" != "$image" && "$image" != *@* && "$tag" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ && "$tag" != latest ]] || { echo "Backend must have an explicit immutable image tag" >&2; exit 1; }
@@ -31,32 +43,32 @@ if [[ "$MODE" == materials ]]; then
   # Stop before changing flags if DB migration or private storage is not ready.
   runtime_check --probe-storage
 fi
+if [[ "$MODE" == prepare-communication ]]; then
+  runtime_check --require-worker --require-materials
+fi
+if [[ "$MODE" == communication ]]; then
+  # Verify the deployed configuration and actual worker endpoint before opening.
+  kubectl -n "$NAMESPACE" get deployments "$RELEASE-backend" "$RELEASE-celery-work" -o json |
+    python3 deploy/aliyun/configure-work-overlay.py "$WORK_VALUES_FILE" communication --check-deployed
+  runtime_check --require-worker --require-materials --require-model --probe-storage
+  model_probe
+fi
 export WORK_VALUES_FILE NAMESPACE RELEASE
 # Persist only this feature's overlay, keeping any existing model Secret references.
 # release-meet.sh loads the same file on future upgrades, so flags are not lost.
-python3 - "$WORK_VALUES_FILE" "$MODE" <<'PY'
-import json, os, pathlib, sys
-import yaml
-path = pathlib.Path(sys.argv[1])
-data = yaml.safe_load(path.read_text()) if path.exists() else {}
-data = data or {}
-data.setdefault('workWorker', {})['enabled'] = True
-data.setdefault('celeryBeat', {})['enabled'] = True
-env = data.setdefault('backend', {}).setdefault('envVars', {})
-state = 'True' if sys.argv[2] == 'materials' else 'False'
-env.update(WORK_ENABLED=state, WORK_MATERIALS_ENABLED=state, WORK_COMMUNICATION_ENABLED='False')
-path.parent.mkdir(parents=True, exist_ok=True)
-temporary = path.with_name(path.name + '.tmp')
-fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-with os.fdopen(fd, 'w') as stream:
-    json.dump(data, stream, indent=2)
-    stream.write('\n')
-os.replace(temporary, path)
-PY
+python3 deploy/aliyun/configure-work-overlay.py "$WORK_VALUES_FILE" "$MODE"
 echo "==> Applying Work overlay with existing backend image: $tag"
-echo "==> Communication generation remains disabled"
+if [[ "$MODE" == communication ]]; then
+  echo "==> Enabling communication; complete application acceptance before declaring P0-1 released"
+else
+  echo "==> Communication generation remains disabled"
+fi
 bash deploy/aliyun/release-meet.sh --skip-git-pull --tag "$tag" backend
-if [[ "$MODE" == materials ]]; then
+if [[ "$MODE" == communication ]]; then
+  runtime_check --require-worker --require-materials --require-communication
+elif [[ "$MODE" == prepare-communication ]]; then
+  runtime_check --require-worker --require-materials --require-model
+elif [[ "$MODE" == materials ]]; then
   runtime_check --require-worker --require-materials
 else
   runtime_check --require-worker

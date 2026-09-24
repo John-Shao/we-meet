@@ -210,7 +210,7 @@ for provider in (deployment, deployment.merge(Config(s3={"addressing_style": "pa
 
 
 class WorkEnableScriptTest(unittest.TestCase):
-    def execute(self, mode, denied=False):
+    def execute(self, mode, denied=False, initial=None, model_denied=False):
         bash = shutil.which('bash')
         if os.name == 'nt':
             candidate = pathlib.Path(shutil.which('git')).parents[1] / 'bin/bash.exe'
@@ -228,12 +228,17 @@ class WorkEnableScriptTest(unittest.TestCase):
             (root / 'deploy/aliyun').mkdir(parents=True)
             (root / 'bin').mkdir()
             shutil.copyfile(ROOT / 'deploy/aliyun/enable-work.sh', root / 'deploy/aliyun/enable-work.sh')
+            shutil.copyfile(ROOT / 'deploy/aliyun/configure-work-overlay.py', root / 'deploy/aliyun/configure-work-overlay.py')
+            (root / 'src/helm/env.d/aliyun-prod').mkdir(parents=True)
+            shutil.copyfile(ROOT / 'src/helm/env.d/aliyun-prod/values.work.yaml.dist', root / 'src/helm/env.d/aliyun-prod/values.work.yaml.dist')
             (root / 'deploy/aliyun/check-work-runtime.py').write_text('# fixture only\n')
+            (root / 'deploy/aliyun/check-work-model.py').write_text('# fixture only\n')
             scripts = {
                 'bin/kubectl': '''#!/usr/bin/env bash
 echo "kubectl $*" >> "$FIXTURE_LOG"
 case "$*" in
-  *exec*) cat >/dev/null; if [[ "$FIXTURE_DENIED" == 1 && "$*" == *--probe-storage* ]]; then exit 1; fi; echo '{"ok":true}' ;;
+  *exec*) cat >/dev/null; if [[ "$FIXTURE_DENIED" == 1 && "$*" == *--probe-storage* ]]; then exit 1; fi; if [[ "$FIXTURE_MODEL_DENIED" == 1 && "$*" == *deployment/meet-celery-work* ]]; then exit 1; fi; echo '{"ok":true}' ;;
+  *'get deployments'*) echo "$FIXTURE_DEPLOYMENTS" ;;
   *get*) echo 'registry.example.invalid/backend:e82d71f91' ;;
 esac
 ''',
@@ -247,7 +252,15 @@ esac
                 file.chmod(0o755)
             log = root / 'calls.log'
             overlay = root / 'src/helm/env.d/aliyun-prod/values.work.yaml'
+            if initial is not None:
+                overlay.write_text(json.dumps(initial), encoding='utf8')
+            profile = yaml.safe_load((ROOT / 'src/helm/env.d/aliyun-prod/values.work.yaml.dist').read_text(encoding='utf8'))
+            entries = [{'name': key, 'valueFrom' if isinstance(value, dict) else 'value': value}
+                       for key, value in profile['backend']['envVars'].items()]
+            deployment = {'metadata': {'generation': 1}, 'spec': {'replicas': 1, 'template': {'spec': {'containers': [{'env': entries}]}}},
+                          'status': {'observedGeneration': 1, 'replicas': 1, 'updatedReplicas': 1, 'availableReplicas': 1}}
             env = dict(os.environ, FIXTURE_LOG=posix(log), FIXTURE_DENIED='1' if denied else '0',
+                       FIXTURE_MODEL_DENIED='1' if model_denied else '0', FIXTURE_DEPLOYMENTS=json.dumps({'items': [deployment, deployment]}),
                        WORK_VALUES_FILE='src/helm/env.d/aliyun-prod/values.work.yaml')
             command = f'export PATH="{posix(root / "bin")}:$PATH"; exec bash "{posix(root / "deploy/aliyun/enable-work.sh")}" {mode}'
             result = subprocess.run([bash, '-c', command], env=env, capture_output=True, text=True, encoding='utf8')
@@ -288,6 +301,48 @@ esac
         self.assertTrue(overlay['workWorker']['enabled'])
         self.assertEqual(overlay['backend']['envVars']['WORK_ENABLED'], 'False')
         self.assertNotIn('--probe-storage', log)
+
+    def profile(self):
+        return yaml.safe_load((ROOT / 'src/helm/env.d/aliyun-prod/values.work.yaml.dist').read_text(encoding='utf8'))
+
+    def test_prepare_binds_default_secret_without_enabling_or_calling_model(self):
+        result, log, overlay = self.execute('prepare-communication')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(overlay['backend']['envVars']['WORK_MODEL'], 'qwen3.8-flash')
+        self.assertEqual(overlay['backend']['envVars']['WORK_MODEL_API_KEY'], self.profile()['backend']['envVars']['WORK_MODEL_API_KEY'])
+        self.assertEqual(overlay['backend']['envVars']['WORK_COMMUNICATION_ENABLED'], 'False')
+        self.assertNotIn('exec -i deployment/meet-celery-work', log)
+        self.assertIn('--require-model', log)
+
+    def test_model_failure_keeps_communication_closed_without_release(self):
+        initial = self.profile()
+        result, log, overlay = self.execute('communication', initial=initial, model_denied=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(overlay, initial)
+        self.assertNotIn('release ', log)
+
+    def test_enable_requires_probe_before_release(self):
+        result, log, overlay = self.execute('communication', initial=self.profile())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertLess(log.index('exec -i deployment/meet-celery-work'), log.index('release '))
+        self.assertEqual(overlay['backend']['envVars']['WORK_COMMUNICATION_ENABLED'], 'True')
+        self.assertIn('--require-communication', log)
+
+    def test_edited_model_cannot_use_probe_of_previous_deployment(self):
+        initial = self.profile()
+        initial['backend']['envVars']['WORK_MODEL'] = 'different-model'
+        result, log, overlay = self.execute('communication', initial=initial)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('release ', log)
+        self.assertNotIn('exec -i deployment/meet-celery-work', log)
+        self.assertEqual(overlay, initial)
+
+    def test_probe_only_never_releases_or_writes(self):
+        result, log, overlay = self.execute('probe-model')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIsNone(overlay)
+        self.assertNotIn('release ', log)
+        self.assertIn('exec -i deployment/meet-celery-work', log)
 
 
 if __name__ == '__main__':
