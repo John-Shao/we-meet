@@ -1,6 +1,6 @@
 # Work 办公模块
 
-当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 `communication-v3` 已随 backend `30cab9491` / Helm revision 419 部署，本轮 19/20 契约通过，语义审阅 15 条通过 / 4 条需修正，S20 引用失败且原输出未保留。此前业务用量和材料清理回执通过；P0-1 尚未整体放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
+当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 `communication-v3` 已随 backend `30cab9491` / Helm revision 419 部署，完整轮次 19/20 契约通过，语义审阅 15 条通过 / 4 条需修正；独立 S20 诊断定位为模型自行插入省略号导致引用不匹配。v4 候选待真实评测。此前业务用量和材料清理回执通过；P0-1 尚未整体放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
 
 ## 启用与运行
 
@@ -57,14 +57,16 @@ Windows 将 Python 路径换为 `src/backend/.venv/Scripts/python.exe`，并设�
 
 ### 账本 / 清理核对与固定语义评测（2026-09-24）
 
-**当前下一步仅诊断已部署 v3 的 S20，无需再次构建或发布。** `20260924T063248Z-evaluate-cQavEL` 已返回 20 条记录，S20 引用校验失败，其他 19 条契约通过；完整审阅见主计划第 15.1 节。在发布服务器执行：
+**当前下一步评测 v4 候选，无需先构建或发布。** S20 独立诊断已定位为模型自行插入省略号，v4 补充逐字连续引用及 S02 / S05 / S09 / S10 的目标、日期、不确定性规则。生产仍为 v3。完整记录见主计划第 15.1–15.2 节。在发布服务器执行：
 
 ```sh
 git pull --ff-only &&
-bash deploy/aliyun/accept-work.sh evaluate --case S20
+bash deploy/aliyun/accept-work.sh evaluate-candidate
 ```
 
-该命令最多新增一次付费调用。新增诊断会在引用失败时保留结构与大小约束均合规的合成 `rejected_output`、`output_status=rejected` 及逐事实 `citation_diagnostics`，区分错误来源、越界行号、空引文和非原文片段；不输出正常 `output`，契约仍失败。无效 JSON / 超限 / 其他结构错误和供应商异常不回显。23 项工具回归及 Ruff 通过。新一轮不能恢复或覆盖原 S20 输出，也不与旧结果拼接宣布全套通过。本轮 18826 / 5285 token（含 S20），中位耗时 4.885 秒；S02 / S05 / S09 / S10 尚有语义问题，待引用诊断后统一修正，保持原样本与预期。
+该命令最多执行 20 次付费调用，保持原样本与预期，无自动重试。v4 系统哈希 `3a548e24de4488c4471b28f1827c60e40e7077c400e55c2f83a6deff470aec27`；与已部署 v3 的适配器源码指纹一致，23 项离线工具回归及 Ruff 通过，真实效果待本轮结果。不要先发布，也不要用本地 v4 直接执行 `evaluate`（它会因生产仍为 v3 而零调用拒绝）。
+
+诊断工具在引用失败时保留结构与大小约束均合规的合成 `rejected_output`、`output_status=rejected` 及逐事实 `citation_diagnostics`，区分错误来源、越界行号、空引文和非原文片段；不输出正常 `output`，契约仍失败。无效 JSON / 超限 / 其他结构错误和供应商异常不回显。`20260924T081657Z-evaluate-7uUtBB` 的独立 S20 调用为 952 / 550 token、10.447 秒，第一条引文自行插入 `...`，其余已知要素未发现含义偏差，仍按引用失败拒绝。新结果不恢复或覆盖原完整轮次 S20，也不与旧结果拼接宣布全套通过。
 
 后续尚未部署的提示词使用 `evaluate-candidate`。候选模式把仓库中的 `SYSTEM / EXECUTOR_VERSION` 字面量通过 Base64 JSON 送入单独的 `kubectl exec` 评测进程，仅在该进程内临时替换系统提示词，结束时恢复；不修改 Pod 文件、Celery Worker、功能开关或用户任务。它比较已部署执行器与本地执行器的源码指纹：统一换行，用 AST 定位并移除系统提示词和版本赋值后，对剩余 UTF-8 源码计算哈希，不使用依赖 Python 版本的 `ast.dump`。其他源码必须一致（包括格式和注释，保守拒绝），不同则 `candidate_adapter_mismatch / model_calls=0` 拒绝，不能用该模式跨越实际执行器 / Schema 代码变更。所有样本仍走现有 `CommunicationExecutor`、SDK、校验器及实际模型，最多 20 次付费调用，无自动重试。`evaluation_mode=candidate`、候选和已部署版本 / 系统哈希分别记录；不得把候选通过写成生产已升级。
 
