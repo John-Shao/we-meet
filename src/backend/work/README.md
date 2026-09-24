@@ -1,6 +1,6 @@
 # Work 办公模块
 
-当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 生产仍为 backend `30cab9491` / Helm revision 419 的 `communication-v3`。v5 候选 20/20 契约通过，语义审阅 18 条通过 / 2 条需修正，不发布；v6 候选待真实评测。此前业务用量和材料清理回执通过；P0-1 尚未整体放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
+当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 生产仍为 backend `30cab9491` / Helm revision 419 的 `communication-v3`。v6 候选固定 20 条契约检查及助手语义审阅均通过，进入构建发布与新版本业务复验。此前业务用量和材料清理回执通过；P0-1 尚未整体放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
 
 ## 启用与运行
 
@@ -57,14 +57,9 @@ Windows 将 Python 路径换为 `src/backend/.venv/Scripts/python.exe`，并设�
 
 ### 账本 / 清理核对与固定语义评测（2026-09-24）
 
-**当前下一步评测 v6 候选，无需先构建或发布。** v5 已纠正此前时间、阻碍、配额推断，但 S02 从称呼拆取项目名称、S08 在预算未提供时预设批准时间，因此不发布 v5。v6 只收紧项目名称来源与审批状态核实规则，生产仍为 v3。完整记录见主计划第 15.1–15.4 节。在发布服务器执行：
+**当前下一步构建并发布 v6，再验收一条新版本业务。** 完整候选回执 `20260924T084006Z-evaluate-candidate-oJOjxq` 对应源码 `20f9397a8a9948a2395c95bf52a60038b3400133`：20/20 契约通过，助手按既有五项标准逐条语义审阅 20/20 通过；S02 未再从称呼生成项目名，S08 先核实实际审批状态。27346 / 5424 输入 / 输出 token，中位耗时 4.927 秒、最大 8.261 秒。版本、集合 / 单例哈希、全部精确引文及汇总核对一致。完整记录见主计划第 15.5 节。
 
-```sh
-git pull --ff-only &&
-bash deploy/aliyun/accept-work.sh evaluate-candidate
-```
-
-该命令最多执行 20 次付费调用，保持原样本与预期，无自动重试。v6 系统哈希 `296a12bd77e915b66ccc6595c8b3d0a734eb50bd60f641b0fcea11ef0f6f3756`；与已部署 v3 的适配器源码指纹一致，23 项离线工具回归及 Ruff 通过，真实效果待本轮结果。不要先发布，也不要用本地 v6 直接执行 `evaluate`（它会因生产仍为 v3 而零调用拒绝）。
+v6 系统哈希 `296a12bd77e915b66ccc6595c8b3d0a734eb50bd60f641b0fcea11ef0f6f3756`；候选适配器与已部署 v3 一致，此前 23 项离线工具回归及 Ruff 通过。本轮仅补审阅记录，不再改提示词或默认重跑付费集合。原始输出中的 `semantic_passed=null / review_status=pending / release_gate_passed=false` 是采集工具保留的人工审阅占位，不改写原始证据；此处结论是助手对本轮固定合成集的独立审阅，不代表生产已升级、用户业务签收或模型普遍可靠性。
 
 v5 完整回执为 `20260924T083222Z-evaluate-candidate-ip6m7v`：版本、提示词 / 集合 / 单例哈希及汇总核对一致；25886 / 5361 输入 / 输出 token，中位耗时 4.914 秒，最大 6.755 秒。助手语义审阅 18/20，不作为已部署版本通过或用户业务签收；保留本次 2 个问题及原输出，不与下一版结果拼接。
 
@@ -84,10 +79,35 @@ WORK_RELEASE_SHA=$(git rev-parse HEAD) &&
 WORK_RELEASE_TAG="${WORK_RELEASE_SHA:0:9}" &&
 IMAGE_TAG="$WORK_RELEASE_TAG" bash deploy/aliyun/build-and-push.sh backend &&
 bash deploy/aliyun/release-meet.sh --skip-git-pull --tag "$WORK_RELEASE_TAG" backend &&
-bash deploy/aliyun/accept-work.sh evaluate
+bash deploy/aliyun/enable-work.sh check
 ```
 
-构建与发布分机时，构建机记录完整 `WORK_RELEASE_SHA` 和输出的镜像 tag；发布机使用同一源码版本和该 tag 执行 `release-meet.sh --skip-git-pull --tag <已推送的tag> backend`，再评测。不要在构建后让发布命令自动拉取新的 HEAD 并推导另一个尚不存在的镜像 tag。若出现 `image not found`，说明在 Helm 更新前停止；先补构建推送，不跳过镜像检查，也不以旧镜像代替 v2 验证。
+构建与发布分机时，构建机记录完整 `WORK_RELEASE_SHA` 和输出的镜像 tag；发布机使用同一源码版本和该 tag 执行 `release-meet.sh --skip-git-pull --tag <已推送的tag> backend`，再运行只读 `check`。构建前确认执行器与已评测提交一致：`git diff --exit-code 20f9397a8a9948a2395c95bf52a60038b3400133 -- src/backend/work/executor.py`；本轮后续文档提交不改变执行器。不要在构建后让发布命令自动拉取新的 HEAD 并推导另一个尚不存在的镜像 tag。若出现 `image not found`，说明在 Helm 更新前停止；先补构建推送，不跳过镜像检查，也不以旧镜像代替 v6 验证。
+
+`check` 通过还需核对 backend / Work Worker 的实际提示词，以下命令不调用模型、不写业务数据；任一断言失败则停止业务复验：
+
+```sh
+(
+set -e
+for deployment in meet-backend meet-celery-work; do
+  echo "$deployment"
+  kubectl -n meet exec -i "deploy/$deployment" -- python - <<'PY'
+import hashlib
+import os
+import django
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "meet.settings")
+django.setup()
+from work.executor import EXECUTOR_VERSION, SYSTEM
+actual_hash = hashlib.sha256(SYSTEM.encode()).hexdigest()
+assert EXECUTOR_VERSION == "communication-v6", EXECUTOR_VERSION
+assert actual_hash == "296a12bd77e915b66ccc6595c8b3d0a734eb50bd60f641b0fcea11ef0f6f3756", actual_hash
+print(EXECUTOR_VERSION, actual_hash)
+PY
+done
+)
+```
+
+待滚动更新、开关 / 消费者检查和两处版本核验通过后，用合成材料新建一次沟通准备：核对生成 / 引用 → 编辑、采纳、下载、刷新，以及新 `WorkRun.executor_version=communication-v6`、实际模型 / token、唯一关联 `AIUsageRecord` 和成果路径。旧 `audit` 固定核对的是此前五次业务，不能替代这条新业务的证据；合成评测也没有写入业务账本。若镜像、提示词、模型或实际输出出现差异，再针对差异决定是否重跑 `evaluate`，不默认重复整套付费评测。仅发布 backend 不会更新此前已提交的前端二级导航，也无需重打桌面安装包。
 
 - `audit`：使用 PostgreSQL 只读、可重复读事务，限定 9 月 24 日已授权的 3 次 Web / 2 次桌面生成及 6 份合成材料。逐笔检查成功状态、调用时间、来源、预期 token、唯一 `AIUsageRecord`、关联指针及 owner / organization / model 一致性；检查删除时间、清理完成时间、存储键与解析内容清空。缺记录、重复账本、归属或 token 不匹配、软删除未完成清理都返回非零。输出仅含样本 ID 和检查布尔值，不输出账号、材料正文、存储键或凭证。`purge_evidence=worker_database_acknowledgement` 是清理 worker 的数据库回执；不是独立的 OSS 对象不存在证明，也不代表供应商金额账单已对平。
 - `evaluate`：顺序执行 S01–S20 共 20 条**新增合成语义样本**，扩充 C01 / C05–C09，不替代产品计划中的 C01–C20 业务验收清单。使用已部署的 `CommunicationExecutor`、提示词与引用校验，每次输出最多 1600 token、SDK 超时 45 秒、无自动重试；首个契约 / 供应商错误后停止。会产生模型费用，只发送内置合成材料，不创建业务任务或写入用户用量账本。保存样本、预期标准、实际结构化输出、token、耗时及人工评审占位；不将精确引用或 JSON 正确当作语义通过。
