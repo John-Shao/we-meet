@@ -18,6 +18,7 @@ import {
 } from '../api/materials'
 import './work.css'
 import { Communication } from './Communication'
+import { WorkModulePage, WorkNavigation } from './WorkNavigation'
 
 const statusLabel: Record<Material['status'], string> = {
   uploaded: '等待解析',
@@ -42,14 +43,21 @@ interface UploadItem {
 export const WorkRoute = () => {
   const { user } = useUser()
   const [params] = useSearchParams()
+  const [location] = useLocation()
+  const view =
+    params.get('view') || (location === '/work/new' ? 'new' : 'materials')
   return (
     <RequireAuth>
       <Screen footer={false}>
-        {params.get('view') === 'communication' ? (
-          <Communication key={user?.id} ownerId={user?.id || ''} />
-        ) : (
-          <WorkMaterials key={user?.id} ownerId={user?.id || ''} />
-        )}
+        <WorkNavigation active={view}>
+          {view === 'communication' ? (
+            <Communication key={user?.id} ownerId={user?.id || ''} />
+          ) : view === 'materials' ? (
+            <WorkMaterials key={user?.id} ownerId={user?.id || ''} />
+          ) : (
+            <WorkModulePage view={view} />
+          )}
+        </WorkNavigation>
       </Screen>
     </RequireAuth>
   )
