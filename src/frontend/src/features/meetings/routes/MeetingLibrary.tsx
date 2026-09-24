@@ -1,4 +1,8 @@
 import { useState } from 'react'
+import {
+  readMeetingListState,
+  useMeetingListNavigation,
+} from '../hooks/useMeetingListNavigation'
 import { useTranslation } from 'react-i18next'
 import { Link, Redirect, useLocation, useSearch } from 'wouter'
 import {
@@ -645,6 +649,20 @@ function RecordList({
   )
 }
 
+type LibraryViewState = {
+  scope: MeetingRecordFilters['scope']
+  search: string
+  query: string
+  showFilters: boolean
+  grid: boolean
+  sort: SortDirection
+  dateDraft: { from: string; through: string }
+  dates: { created_from?: string; created_before?: string }
+  dateError: boolean
+  dateLabels: { from: string; through: string }
+  paging: { key: string; ongoing: string[]; archive: string[] }
+}
+
 export function Library({
   viewerId,
   minutes = false,
@@ -655,8 +673,12 @@ export function Library({
   const { t } = useTranslation('meetings')
   const { data: config } = useConfig()
   const [, navigate] = useLocation()
+  const listPath = minutes ? '/meeting/minutes' : '/meeting/notes'
+  const [saved] = useState(
+    () => readMeetingListState<LibraryViewState>(viewerId, listPath)?.value
+  )
   const [scope, setScope] = useState<MeetingRecordFilters['scope']>(
-    minutes ? 'owned' : 'recent'
+    saved?.scope ?? (minutes ? 'owned' : 'recent')
   )
   const routeSearch = useSearch()
   const candidate = new URLSearchParams(routeSearch).get('source_type')
@@ -677,18 +699,22 @@ export function Library({
       `${minutes ? '/meeting/minutes' : '/meeting/notes'}${params.size ? '?' + params : ''}`
     )
   }
-  const [search, setSearch] = useState('')
-  const [query, setQuery] = useState('')
-  const [showFilters, setShowFilters] = useState(!!source)
-  const [grid, setGrid] = useState(false)
-  const [sort, setSort] = useState<SortDirection>('desc')
-  const [dateDraft, setDateDraft] = useState({ from: '', through: '' })
+  const [search, setSearch] = useState(saved?.search ?? '')
+  const [query, setQuery] = useState(saved?.query ?? '')
+  const [showFilters, setShowFilters] = useState(saved?.showFilters ?? !!source)
+  const [grid, setGrid] = useState(saved?.grid ?? false)
+  const [sort, setSort] = useState<SortDirection>(saved?.sort ?? 'desc')
+  const [dateDraft, setDateDraft] = useState(
+    saved?.dateDraft ?? { from: '', through: '' }
+  )
   const [dates, setDates] = useState<{
     created_from?: string
     created_before?: string
-  }>({})
-  const [dateError, setDateError] = useState(false)
-  const [dateLabels, setDateLabels] = useState({ from: '', through: '' })
+  }>(saved?.dates ?? {})
+  const [dateError, setDateError] = useState(saved?.dateError ?? false)
+  const [dateLabels, setDateLabels] = useState(
+    saved?.dateLabels ?? { from: '', through: '' }
+  )
   const filters: MeetingRecordFilters = {
     ...dates,
     ordering: sort === 'asc' ? 'created_at' : '-created_at',
@@ -709,7 +735,20 @@ export function Library({
     key: string
     ongoing: string[]
     archive: string[]
-  }>({ key: filterKey, ongoing: [''], archive: [''] })
+  }>(saved?.paging ?? { key: filterKey, ongoing: [''], archive: [''] })
+  const navigation = useMeetingListNavigation(viewerId, listPath, {
+    scope,
+    search,
+    query,
+    showFilters,
+    grid,
+    sort,
+    dateDraft,
+    dates,
+    dateError,
+    dateLabels,
+    paging,
+  })
   const pages =
     paging.key === filterKey
       ? paging
@@ -746,7 +785,7 @@ export function Library({
   return (
     <MeetingModuleShell compactNavigation>
       {/* 页壳一律 canvas:钉住的页头在四个栏目页上都是同一档浅灰。 */}
-      <main className={canvasShell}>
+      <main className={canvasShell} onClickCapture={navigation.onClickCapture}>
         {/* 列表以上的一切(窄屏栏目行、页头、范围筛选、搜索/筛选)固定不滚 —— 与
             任务列表(TasksRoute 的 header + modeTabs + listRegion)同一套布局:
             页壳占满高度,只有列表区自己滚,滚到底也看得见当前筛选条件。 */}
@@ -979,6 +1018,7 @@ export function Library({
           )}
         </div>
         <div
+          ref={navigation.region}
           className={listRegion}
           data-grid={grid}
           data-testid="meeting-list-region"

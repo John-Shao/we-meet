@@ -75,14 +75,6 @@ export const contentRegion = css({
   paddingBottom: 'xl',
 })
 
-/** 详情 / 工作区页头：返回链接 + 标题 + 元信息，与列表页头同一档留白。 */
-export const detailHeaderStack = css({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 'sm',
-  marginBottom: 'lg',
-})
-
 /** 返回链接（详情 / 工作区页）：与列表页的「更多」同族 —— 蓝字 + hover 下划线。 */
 export const backLink = css({
   display: 'inline-flex',

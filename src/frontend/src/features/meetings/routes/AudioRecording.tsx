@@ -7,15 +7,13 @@ import { Button, Input } from '@/primitives'
 import { Checkbox } from '@/primitives/Checkbox'
 import { StateHint } from '@/components/StateHint'
 import { css, cx } from '@/styled-system/css'
+import { MeetingDetailHeader } from '../components/MeetingDetailHeader'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { formatDateTime } from '../recordDateTime'
 import {
-  backLink,
   pageFixedTop,
-  pageHeaderText,
   pageLead,
   pageShell,
-  pageTitle,
   scrollRegion,
   sectionTitle,
 } from '../components/libraryStyles'
@@ -184,14 +182,14 @@ export function Recorder({
   return (
     <MeetingModuleShell>
       <main className={canvasShell}>
-        {/* 页头(返回 + 标题)钉住;录音表单与各面板在滚动区里。 */}
+        {/* 层级标题钉住；录音表单与各面板在滚动区里。 */}
         <div className={pageFixedTop}>
-          <div className={pageHeaderText}>
-            <Link href="/meeting/recording" className={backLink}>
-              {t('backToOverview')}
-            </Link>
-            <h1 className={pageTitle}>{t('title')}</h1>
-          </div>
+          <MeetingDetailHeader
+            viewerId={viewerId}
+            listHref="/meeting/recording"
+            listLabel={t('library.record', { ns: 'meetings' })}
+            title={working ? local.create.title || t('untitled') : t('title')}
+          />
         </div>
         <div className={contentScroll}>
           <p className={pageLead}>

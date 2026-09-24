@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 
 import { ApiError } from '@/api/ApiError'
 import { Button } from '@/primitives'
+import { IconButton } from '@/primitives/IconButton'
+import { RiPencilLine } from '@remixicon/react'
 import { css } from '@/styled-system/css'
 
 import { useRenameMeetingRecord } from '../api/fetchMeetingRecord'
@@ -19,10 +21,12 @@ export function RecordRenameControl({
   recordId,
   title,
   onRenamed,
+  iconOnly = false,
 }: {
   viewerId: string
   recordId: string
   title: string
+  iconOnly?: boolean
   onRenamed?: (title: string) => void
 }) {
   const { t } = useTranslation('meetings')
@@ -47,16 +51,24 @@ export function RecordRenameControl({
     setDraft(title)
   }
 
+  const startEditing = () => {
+    setDraft(title)
+    setOpen(true)
+  }
+  if (!open && iconOnly)
+    return (
+      <IconButton
+        label={t('library.rename')}
+        size="icon32"
+        onPress={startEditing}
+      >
+        <RiPencilLine size={16} aria-hidden />
+      </IconButton>
+    )
+
   if (!open)
     return (
-      <Button
-        size="dense"
-        variant="secondaryText"
-        onPress={() => {
-          setDraft(title)
-          setOpen(true)
-        }}
-      >
+      <Button size="dense" variant="secondaryText" onPress={startEditing}>
         {t('library.rename')}
       </Button>
     )
@@ -68,6 +80,8 @@ export function RecordRenameControl({
         flexDirection: 'column',
         gap: 'sm',
         alignItems: 'flex-start',
+        maxWidth: '100%',
+        minWidth: 0,
       })}
       onSubmit={(event) => {
         event.preventDefault()
@@ -110,7 +124,9 @@ export function RecordRenameControl({
             paddingY: 'sm',
             paddingX: 'md',
             backgroundColor: 'transparent',
-            minWidth: '16rem',
+            minWidth: 0,
+            width: '100%',
+            maxWidth: '100%',
           })}
         />
       </label>

@@ -1,3 +1,4 @@
+import { useMeetingListNavigation } from '../hooks/useMeetingListNavigation'
 import { useTranslation } from 'react-i18next'
 import { Link, Redirect, useLocation } from 'wouter'
 import { RiMicLine, RiVideoLine } from '@remixicon/react'
@@ -158,13 +159,18 @@ export function RecordingOverview() {
   const { user, isLoggedIn } = useUser()
   const { data, isError } = useConfig()
   const { t } = useTranslation('meetings')
+  const navigation = useMeetingListNavigation(
+    user?.id ?? '',
+    '/meeting/recording',
+    null
+  )
   if (isLoggedIn === false) return <Redirect to="/" />
   if (!user || (!data && !isError))
     return <StateHint state="loading">{t('loading')}</StateHint>
   const enabled = !isError && !!data?.meeting_records?.capture_audio_enabled
   return (
     <MeetingModuleShell compactNavigation>
-      <main className={canvasShell}>
+      <main className={canvasShell} onClickCapture={navigation.onClickCapture}>
         {/* 入口块 + 页头是这一页的「工具区」:固定住,滚到底也还能点开始录音。 */}
         <div className={pageFixedTop}>
           <div className={css({ md: { display: 'none' } })}>
@@ -200,7 +206,11 @@ export function RecordingOverview() {
             )}
           </header>
         </div>
-        <div className={listRegion} data-testid="meeting-list-region">
+        <div
+          ref={navigation.region}
+          className={listRegion}
+          data-testid="meeting-list-region"
+        >
           {enabled ? (
             <RecordingHistory
               key={user.id}

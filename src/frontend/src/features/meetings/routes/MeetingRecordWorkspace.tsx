@@ -54,15 +54,14 @@ import {
 } from '../hooks/useTranscriptDraft'
 import { RecordRenameControl } from '../components/RecordRenameControl'
 import { RecordSplitLayout } from '../components/RecordSplitLayout'
+import { MeetingDetailHeader } from '../components/MeetingDetailHeader'
 import { StateHint } from '@/components/StateHint'
 import {
   backLink,
   contentRegion,
-  detailHeaderStack,
   metaLine,
   pageFixedTop,
   pageShell,
-  pageTitle,
 } from '../components/libraryStyles'
 import { OriginalSearch } from '../components/OriginalSearch'
 import { SpeakerFilter } from '../components/SpeakerFilter'
@@ -81,16 +80,13 @@ import {
   type TranscriptPlaybackFollow,
   type TimedRow,
 } from '../transcriptSync'
-import { RiArrowLeftLine, RiTimeLine } from '@remixicon/react'
+import { RiTimeLine } from '@remixicon/react'
 
 /** The workspace carries the clock only; each transcript derives its own rows. */
 const EMPTY_ROWS: readonly TimedRow[] = []
 
 /** 页壳与标题:与列表页同一套(铺满 + 阅读面底色)。 */
 const readerShell = pageShell('default')
-
-/** 记录标题:页面主标题一档,长标题换行到两行。 */
-const recordTitleCls = cx(pageTitle, css({ overflowWrap: 'anywhere' }))
 
 const privateOptions = { retry: false, gcTime: 0, staleTime: 0 }
 const textStyle = css({
@@ -956,62 +952,59 @@ export function RecordWorkspace({
   return (
     <Screen>
       <main className={readerShell}>
-        {/* 工作区页头(返回 + 标题 + 元信息)钉住;滚动交给内部各面板
+        {/* 工作区层级标题与操作区钉住；滚动交给内部各面板
             (Tabs 的 tabpanel 自己 overflow),所以内容区不带滚动。 */}
         <div className={pageFixedTop}>
-          <div className={detailHeaderStack}>
-            <Link
-              href={document ? '/meeting/minutes' : '/meeting/notes'}
-              className={backLink}
-            >
-              <RiArrowLeftLine size={20} aria-hidden />
-              {t(document ? 'minutesLibrary.back' : 'library.back')}
-            </Link>
-            {record && (
-              <div
-                className={css({
-                  display: 'flex',
-                  gap: 'md',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                })}
-              >
-                <h1 className={recordTitleCls}>
-                  {document
-                    ? t('recordOverview.documentTitle', {
-                        title: record.title || t('library.untitled'),
-                      })
-                    : record.title || t('library.untitled')}
-                </h1>
-                {!document && record.capabilities.rename && (
-                  <RecordRenameControl
-                    viewerId={viewerId}
-                    recordId={record.id}
-                    title={record.title}
-                  />
-                )}
-                {(document
-                  ? record.capabilities.read_summary
-                  : record.capabilities.read_transcript) && (
-                  <MaterialActions
-                    key={`${viewerId}:${record.id}:${document}`}
-                    recordId={record.id}
-                    viewerId={viewerId}
-                    scope={document ? 'minutes' : 'record'}
-                    title={record.title || t('library.untitled')}
-                    originAt={record.origin_at}
-                  />
-                )}
-              </div>
-            )}
-            {record && (
-              <p className={metaLine}>
-                <RiTimeLine size={16} aria-hidden />
-                {t(recordSourceKey(record))} ·{' '}
-                {formatDateTime(record.origin_at)}
-              </p>
-            )}
-          </div>
+          <MeetingDetailHeader
+            viewerId={viewerId}
+            listHref={document ? '/meeting/minutes' : '/meeting/notes'}
+            listLabel={t(document ? 'library.minutes' : 'library.notes')}
+            title={
+              record
+                ? document
+                  ? t('recordOverview.documentTitle', {
+                      title: record.title || t('library.untitled'),
+                    })
+                  : record.title || t('library.untitled')
+                : t(query.isError ? 'library.loadError' : 'loading')
+            }
+            titleAction={
+              record &&
+              !document &&
+              record.capabilities.rename && (
+                <RecordRenameControl
+                  viewerId={viewerId}
+                  recordId={record.id}
+                  title={record.title}
+                  iconOnly
+                />
+              )
+            }
+            metadata={
+              record && (
+                <p className={metaLine}>
+                  <RiTimeLine size={16} aria-hidden />
+                  {t(recordSourceKey(record))} ·{' '}
+                  {formatDateTime(record.origin_at)}
+                </p>
+              )
+            }
+            actions={
+              record &&
+              (document
+                ? record.capabilities.read_summary
+                : record.capabilities.read_transcript) && (
+                <MaterialActions
+                  key={`${viewerId}:${record.id}:${document}`}
+                  recordId={record.id}
+                  viewerId={viewerId}
+                  scope={document ? 'minutes' : 'record'}
+                  title={record.title || t('library.untitled')}
+                  originAt={record.origin_at}
+                />
+              )
+            }
+          />
         </div>
         <div className={contentRegion}>
           {query.isError ? (

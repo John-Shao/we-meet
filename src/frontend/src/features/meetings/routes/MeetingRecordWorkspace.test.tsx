@@ -347,9 +347,10 @@ it('opens a standalone document directly from the minutes library without select
   window.history.replaceState(null, '', '/meeting/records/record?tab=summary')
   show()
   await screen.findByText('summary-workspace')
-  expect(
-    screen.getByRole('link', { name: 'minutesLibrary.back' })
-  ).toHaveAttribute('href', '/meeting/minutes')
+  expect(screen.getByRole('link', { name: 'library.minutes' })).toHaveAttribute(
+    'href',
+    '/meeting/minutes'
+  )
   expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
   expect(screen.queryByText('protected-player')).not.toBeInTheDocument()
   expect(screen.queryByText('Shared original')).not.toBeInTheDocument()

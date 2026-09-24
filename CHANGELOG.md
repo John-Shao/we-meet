@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- Document the shared list-to-detail page header convention.
 - Add audited task-list ownership transfer and recovery, including owned
   lists in offboarding resource checks.
 - Preview unassigned tasks before deleting a list and reject stale deletion
@@ -33,6 +34,8 @@ and this project adheres to
 
 ### Changed
 
+- Unify meeting detail headers with list breadcrumbs and right-aligned actions;
+  restore list filters, pagination, and scroll position when returning.
 - Separate task editing, moving and deletion permissions; reserve list
   membership management for owners. Archived task lists can be opened and
   left directly, with consistent creation restrictions and access-change

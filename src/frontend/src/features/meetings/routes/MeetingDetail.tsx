@@ -12,7 +12,8 @@ import { ErrorScreen } from '@/components/ErrorScreen'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { StateHint } from '@/components/StateHint'
 import { Screen } from '@/layout/Screen'
-import { Button, Field, H, Text } from '@/primitives'
+import { Button, Field, Text } from '@/primitives'
+import { MeetingDetailHeader } from '../components/MeetingDetailHeader'
 import { Select } from '@/primitives/Select'
 import { Tabs, Tab, TabList, TabPanel } from '@/primitives/Tabs'
 import { UserAware, useUser } from '@/features/auth'
@@ -1007,6 +1008,30 @@ const MeetingInfoTab = ({ roomId }: { roomId: string }) => {
 // Route component
 // ---------------------------------------------------------------------------
 
+function MeetingPageHeader({
+  roomId,
+  viewerId,
+}: {
+  roomId: string
+  viewerId?: string
+}) {
+  const { t } = useTranslation('meetings')
+  const query = useMeetingRoom(roomId)
+  return (
+    <MeetingDetailHeader
+      viewerId={viewerId}
+      listHref="/meeting"
+      listLabel={t('library.video')}
+      title={
+        query.isError
+          ? t('error.loadFailed')
+          : query.data?.name ||
+            t(query.isPending ? 'loading' : 'library.untitled')
+      }
+    />
+  )
+}
+
 export const MeetingDetail = () => {
   const { t } = useTranslation('meetings')
   const { roomId } = useParams<{ roomId: string }>()
@@ -1038,7 +1063,7 @@ export const MeetingDetail = () => {
               padding: '1rem',
             })}
           >
-            <H lvl={1}>{t('pageTitle')}</H>
+            <MeetingPageHeader roomId={roomId} viewerId={user?.id} />
 
             <Tabs
               selectedKey={tabKey}

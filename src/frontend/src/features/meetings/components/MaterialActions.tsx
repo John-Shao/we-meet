@@ -84,18 +84,18 @@ export function MaterialActions({
   const heading = t(`collaboration.${scope}`)
   return (
     <div className={row}>
+      <Button size="sm" variant="tertiary" onPress={() => setPanel('members')}>
+        {t('collaboration.manage')}
+      </Button>
       <Button
         size="sm"
-        variant="tertiary"
+        variant="primary"
         onPress={() => {
           setMessage('')
           setPanel('share')
         }}
       >
         {t('collaboration.share')}
-      </Button>
-      <Button size="sm" variant="tertiary" onPress={() => setPanel('members')}>
-        {t('collaboration.manage')}
       </Button>
       {panel === 'share' && (
         <Modal

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Redirect, useParams } from 'wouter'
 import { useConfig } from '@/api/useConfig'
@@ -7,13 +8,12 @@ import { StateHint } from '@/components/StateHint'
 import { css, cx } from '@/styled-system/css'
 import { useMeetingRecord } from '../api/fetchMeetingRecord'
 import { formatDateTime, formatDecimal } from '../recordDateTime'
+import { MeetingDetailHeader } from '../components/MeetingDetailHeader'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { recordSourceKey } from '../recordSource'
 import {
-  backLink,
   pageFixedTop,
-  pageHeaderText,
   pageLead,
   pageShell,
   pageTitle,
@@ -60,9 +60,11 @@ const materialLinkCls = css({
 export function RecordingDetailContent({
   viewerId,
   recordId,
+  page = false,
 }: {
   viewerId: string
   recordId: string
+  page?: boolean
 }) {
   const { t } = useTranslation('meetings')
   const query = useMeetingRecord(viewerId, recordId, true)
@@ -72,8 +74,43 @@ export function RecordingDetailContent({
     ['audio_recording', 'upload'].includes(query.data.source_type)
       ? query.data
       : undefined
+  const metadata = record && (
+    <>
+      {t(recordSourceKey(record))} ·{' '}
+      <time dateTime={record.origin_at}>
+        {formatDateTime(record.origin_at)}
+      </time>
+    </>
+  )
+  const renderPage = (content: ReactNode) =>
+    page ? (
+      <>
+        <div className={pageFixedTop}>
+          <MeetingDetailHeader
+            viewerId={viewerId}
+            listHref="/meeting/recording"
+            listLabel={t('library.record')}
+            title={
+              record
+                ? record.title || t('library.untitled')
+                : t(
+                    query.isError || query.data
+                      ? 'library.loadError'
+                      : 'loading'
+                  )
+            }
+            metadata={metadata}
+          />
+        </div>
+        <div className={contentScroll} data-testid="meeting-list-region">
+          {content}
+        </div>
+      </>
+    ) : (
+      content
+    )
   if (query.isError || (query.data && !record))
-    return (
+    return renderPage(
       <StateHint
         state="error"
         action={
@@ -89,18 +126,18 @@ export function RecordingDetailContent({
         {t('library.loadError')}
       </StateHint>
     )
-  if (!record) return <StateHint state="loading">{t('loading')}</StateHint>
-  return (
+  if (!record)
+    return renderPage(<StateHint state="loading">{t('loading')}</StateHint>)
+  return renderPage(
     <div className={detailStack}>
-      <h2 className={cx(pageTitle, detailTitle)}>
-        {record.title || t('library.untitled')}
-      </h2>
-      <p className={pageLead}>
-        {t(recordSourceKey(record))} ·{' '}
-        <time dateTime={record.origin_at}>
-          {formatDateTime(record.origin_at)}
-        </time>
-      </p>
+      {!page && (
+        <>
+          <h2 className={cx(pageTitle, detailTitle)}>
+            {record.title || t('library.untitled')}
+          </h2>
+          <p className={pageLead}>{metadata}</p>
+        </>
+      )}
       {record.upload && (
         <p className={pageLead}>
           {record.upload.name} ·{' '}
@@ -168,26 +205,28 @@ export function RecordingDetail() {
   return (
     <MeetingModuleShell compactNavigation>
       <main className={canvasShell}>
-        {/* 详情页与列表页同一套:返回链接 + 标题钉住,内容区自己滚。 */}
-        <div className={pageFixedTop}>
-          <div className={pageHeaderText}>
-            <Link href="/meeting/recording" className={backLink}>
-              {t('recordingOverview.back')}
-            </Link>
-            <h1 className={pageTitle}>{t('recordingOverview.detail')}</h1>
-          </div>
-        </div>
-        <div className={contentScroll} data-testid="meeting-list-region">
-          {!isError && data?.meeting_records?.enabled && recordId ? (
-            <RecordingDetailContent
-              key={`${user.id}:${recordId}`}
-              viewerId={user.id}
-              recordId={recordId}
-            />
-          ) : (
-            <StateHint state="empty">{t('library.unavailable')}</StateHint>
-          )}
-        </div>
+        {!isError && data?.meeting_records?.enabled && recordId ? (
+          <RecordingDetailContent
+            key={`${user.id}:${recordId}`}
+            viewerId={user.id}
+            recordId={recordId}
+            page
+          />
+        ) : (
+          <>
+            <div className={pageFixedTop}>
+              <MeetingDetailHeader
+                viewerId={user.id}
+                listHref="/meeting/recording"
+                listLabel={t('library.record')}
+                title={t('library.unavailable')}
+              />
+            </div>
+            <div className={contentScroll}>
+              <StateHint state="empty">{t('library.unavailable')}</StateHint>
+            </div>
+          </>
+        )}
       </main>
     </MeetingModuleShell>
   )
