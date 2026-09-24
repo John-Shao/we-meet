@@ -148,6 +148,29 @@ class SemanticTest(unittest.TestCase):
         self.assertNotIn("fixture-secret", json.dumps(result))
         self.assertNotIn("signed-url", json.dumps(result))
 
+    def test_invalid_citation_keeps_bounded_synthetic_diagnostics_but_never_passes(self):
+        case = evaluation.CASES[-1]
+        for field, value, reason in (("source_id", "unknown", "source_not_found"),
+                                     ("line", 2, "line_out_of_range"),
+                                     ("quote", " ", "empty_quote"),
+                                     ("quote", "not a source quote", "quote_not_on_line")):
+            with self.subTest(reason=reason):
+                output = self.output_for(case)
+                output["facts"][0][field] = value
+                result = self.generate(case, raw=json.dumps(output))
+                self.assertFalse(result["contract_ok"])
+                self.assertIsNone(result["semantic_passed"])
+                self.assertEqual(result["output_status"], "rejected")
+                self.assertEqual(result["rejected_output"], output)
+                self.assertNotIn("output", result)
+                self.assertEqual(result["citation_diagnostics"], [{"fact_index": 1, "reason": reason}])
+
+    def test_invalid_schema_does_not_emit_unbounded_rejected_response(self):
+        for raw in ('{', json.dumps({"unexpected": "x" * 50000})):
+            result = self.generate(evaluation.CASES[-1], raw=raw)
+            self.assertEqual(result["code"], "invalid_model_output")
+            self.assertNotIn("rejected_output", result)
+
     def test_catalog_does_not_import_django_or_call_model(self):
         result = subprocess.run([sys.executable, str(Path(evaluation.__file__)), "--case", "S01"],
                                 capture_output=True, text=True, check=True)

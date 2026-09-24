@@ -153,6 +153,28 @@ def evaluate_case(case, settings):
         result["code"] = "review_required" if result["contract_ok"] else "provider_usage_missing"
     except MaterialError as exc:
         result["code"] = exc.code if exc.code in {"invalid_model_output", "invalid_citation", "context_too_large"} else "validation_failed"
+        if exc.code == "invalid_citation":
+            # The production validator has already accepted SCHEMA and its size
+            # bounds. Retain only this synthetic response, explicitly rejected;
+            # never turn it into an accepted output or retry a paid call.
+            rejected = json.loads(raw)
+            by_id = {str(item.pk): item for item in materials}
+            diagnostics = []
+            for index, fact in enumerate(rejected["facts"], 1):
+                material = by_id.get(fact["source_id"])
+                if material is None:
+                    reason = "source_not_found"
+                elif fact["line"] > material.line_count:
+                    reason = "line_out_of_range"
+                elif not fact["quote"].strip():
+                    reason = "empty_quote"
+                elif fact["quote"] not in material.text.splitlines()[fact["line"] - 1]:
+                    reason = "quote_not_on_line"
+                else:
+                    continue
+                diagnostics.append({"fact_index": index, "reason": reason})
+            result.update(structure_valid=True, rejected_output=rejected,
+                          output_status="rejected", citation_diagnostics=diagnostics)
     except Exception:
         result["code"] = "model_call_failed"
     result.update(usage, elapsed_ms=round((time.monotonic() - started) * 1000))
