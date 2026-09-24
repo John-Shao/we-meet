@@ -16,7 +16,7 @@ from core.factories import UserFactory
 from core.models import AIUsageRecord
 
 from work import runs, services
-from work.executor import validate_result
+from work.executor import EXECUTOR_VERSION, SYSTEM, prompt_for, validate_result
 from work.models import WorkArtifactVersion, WorkMaterial, WorkRun, WorkTask
 
 from .test_materials import (
@@ -318,3 +318,39 @@ def test_model_disabled_keeps_read_edit_cancel(client, settings):
         == 200
     )
     assert client.get(ROOT + "capabilities/").data["communication_enabled"] is False
+
+
+def test_prompt_upgrade_rejects_old_queue_without_paid_call_and_retry_uses_current(
+    client,
+):
+    task_id = submit(client).data["id"]
+    run = WorkRun.objects.get(task_id=task_id)
+    assert run.executor_version == EXECUTOR_VERSION
+    assert run.reserved_tokens == (
+        len(prompt_for(run.task, runs.sources_for(run.task)).encode())
+        + len(SYSTEM.encode())
+        + 1024
+        + run.max_output_tokens
+    )
+    WorkRun.objects.filter(pk=run.pk).update(executor_version="communication-v1")
+    with patch("work.runs.CommunicationExecutor.generate") as model:
+        runs.process_runs()
+    model.assert_not_called()
+    run.refresh_from_db()
+    assert run.status == "failed" and run.error_code == "generation_unavailable"
+    assert run.call_started_at is None and run.usage_record_id is None
+    response = client.post(
+        ROOT + f"tasks/{task_id}/retry/",
+        {},
+        format="json",
+        HTTP_IDEMPOTENCY_KEY=str(uuid.uuid4()),
+    )
+    assert response.status_code == 202
+    assert (
+        WorkRun.objects.filter(
+            task_id=task_id, executor_version=EXECUTOR_VERSION
+        ).count()
+        == 1
+    )
+    run.refresh_from_db()
+    assert run.executor_version == "communication-v1"

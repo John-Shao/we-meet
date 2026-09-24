@@ -2,6 +2,7 @@
 
 import contextlib
 import copy
+import hashlib
 import importlib.util
 import io
 import json
@@ -172,6 +173,15 @@ class SemanticTest(unittest.TestCase):
             self.assertEqual(evaluation.main(["--execute", "--case", "S01", "--case", "S01"]), 0)
         mock.assert_called_once()
 
+    def test_stale_deployed_prompt_blocks_all_paid_calls(self):
+        from django.test import override_settings
+        output = io.StringIO()
+        with override_settings(**vars(self.settings)), contextlib.redirect_stdout(output), \
+                patch.object(evaluation, "evaluate_case") as mock:
+            self.assertEqual(evaluation.main(["--execute", "--expected-system-hash", "old-prompt"]), 1)
+        mock.assert_not_called()
+        self.assertEqual(json.loads(output.getvalue())["code"], "deployed_prompt_mismatch")
+
 
 @unittest.skipUnless(os.environ.get("BASH_BIN") or shutil.which("bash"), "Bash required")
 class ShellTest(unittest.TestCase):
@@ -183,11 +193,17 @@ class ShellTest(unittest.TestCase):
         deploy.mkdir(parents=True)
         for name in ("accept-work.sh", "check-work-acceptance.py", "eval-work-communication.py"):
             shutil.copyfile(Path(__file__).with_name(name), deploy / name)
+        source = self.root / "src/backend/work"
+        source.mkdir(parents=True)
+        (source / "executor.py").write_text('SYSTEM = "fixture prompt"\n', encoding="utf8")
         subprocess.run(["git", "init", "-q", str(self.root)], check=True)
         subprocess.run(["git", "-C", str(self.root), "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
                         "commit", "--allow-empty", "-qm", "fixture"], check=True)
         binary = self.root / "bin"
         binary.mkdir()
+        python = binary / "python3"
+        python.write_text('#!/usr/bin/env bash\nexec "$WORK_EVAL_PYTHON" "$@"\n', encoding="utf8")
+        python.chmod(0o755)
         kubectl = binary / "kubectl"
         kubectl.write_text('#!/usr/bin/env bash\n'
                            'echo "$*" >> "$FAKE_KUBE_LOG"\n'
@@ -198,6 +214,7 @@ class ShellTest(unittest.TestCase):
                            'esac\n', encoding="utf8")
         kubectl.chmod(0o755)
         self.env = {**os.environ, "PATH": str(binary) + os.pathsep + os.environ["PATH"],
+                    "WORK_EVAL_PYTHON": Path(sys.executable).as_posix(),
                     "FAKE_KUBE_LOG": (self.root / "kubectl.log").as_posix()}
 
     def call(self, *args):
@@ -219,7 +236,8 @@ class ShellTest(unittest.TestCase):
         result = self.call("evaluate", "--case", "S01")
         self.assertNotEqual(result.returncode, 0)
         log = (self.root / "kubectl.log").read_text()
-        self.assertIn("exec -i deployment/meet-celery-work -- python - --execute --case S01", log)
+        expected = hashlib.sha256(b"fixture prompt").hexdigest()
+        self.assertIn(f"exec -i deployment/meet-celery-work -- python - --execute --expected-system-hash {expected} --case S01", log)
         self.assertEqual(log.count("exec -i"), 1)
         self.assertEqual(len(list((self.root / ".work-acceptance").glob("*/results.jsonl"))), 1)
 

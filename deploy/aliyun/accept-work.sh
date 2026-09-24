@@ -20,7 +20,18 @@ case "$MODE" in
     if [[ "$MODE" == catalog ]]; then
       exec python3 deploy/aliyun/eval-work-communication.py "${args[@]}"
     fi
-    set -- --execute "${args[@]}"
+    # Parse the local literal without importing Django or reading credentials.
+    EXPECTED_SYSTEM_HASH=$(python3 - <<'PY'
+import ast
+import hashlib
+from pathlib import Path
+tree = ast.parse(Path("src/backend/work/executor.py").read_text(encoding="utf8"))
+system = next(ast.literal_eval(node.value) for node in tree.body
+              if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "SYSTEM" for target in node.targets))
+print(hashlib.sha256(system.encode()).hexdigest())
+PY
+    )
+    set -- --execute --expected-system-hash "$EXPECTED_SYSTEM_HASH" "${args[@]}"
     SCRIPT=deploy/aliyun/eval-work-communication.py; TARGET=celery-work ;;
   *) echo "Usage: bash deploy/aliyun/accept-work.sh [audit|catalog|evaluate [--case S01 ...]]" >&2; exit 2 ;;
 esac

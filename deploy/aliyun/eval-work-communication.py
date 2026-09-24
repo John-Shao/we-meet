@@ -124,6 +124,7 @@ def emit(record):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execute", action="store_true", help="Make paid synthetic model calls")
+    parser.add_argument("--expected-system-hash", help="Refuse paid calls if the deployed prompt differs")
     parser.add_argument("--case", action="append", choices=[case["id"] for case in CASES], help="Select cases; default all 20")
     args = parser.parse_args(argv)
     selected = [case for case in CASES if not args.case or case["id"] in args.case]
@@ -139,6 +140,13 @@ def main(argv=None):
         django.setup()
         from django.conf import settings
         from work.executor import SYSTEM
+        from work import executor
+        system_hash = hashlib.sha256(SYSTEM.encode()).hexdigest()
+        if args.expected_system_hash and args.expected_system_hash != system_hash:
+            emit({"type": "error", "code": "deployed_prompt_mismatch",
+                  "expected_system_hash": args.expected_system_hash, "system_hash": system_hash,
+                  "model_calls": 0})
+            return 1
         if not all((settings.WORK_MODEL, settings.WORK_MODEL_BASE_URL, settings.WORK_MODEL_API_KEY)):
             emit({"type": "error", "code": "work_model_not_configured"})
             return 1
@@ -146,7 +154,8 @@ def main(argv=None):
         emit({"type": "error", "code": "evaluation_setup_failed"})
         return 1
     emit({"type": "start", "suite": VERSION, "suite_hash": digest(CASES), "selected": [case["id"] for case in selected],
-          "model": settings.WORK_MODEL, "system_hash": hashlib.sha256(SYSTEM.encode()).hexdigest(),
+          "model": settings.WORK_MODEL, "system_hash": system_hash,
+          "executor_version": getattr(executor, "EXECUTOR_VERSION", "communication-v1"),
           "endpoint_hash": hashlib.sha256(settings.WORK_MODEL_BASE_URL.encode()).hexdigest(),
           "started_at": datetime.now(timezone.utc).isoformat(), "usage_scope": "synthetic_evaluation",
           "business_acceptance": False, "review_criteria": REVIEW_CRITERIA})

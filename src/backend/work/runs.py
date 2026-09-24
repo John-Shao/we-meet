@@ -11,6 +11,7 @@ from core.models import User
 from core.services.ai_usage import record_usage
 
 from .executor import (
+    EXECUTOR_VERSION,
     MAX_ARTIFACT_CHARS,
     SYSTEM,
     CommunicationExecutor,
@@ -100,6 +101,7 @@ def new_run(task, key):
         base_url=settings.WORK_MODEL_BASE_URL,
         reserved_tokens=reservation,
         max_output_tokens=output,
+        executor_version=EXECUTOR_VERSION,
     )
     event(run, "queued")
     return run
@@ -161,6 +163,9 @@ def claim_run():
 def execute_run(run):
     """Cancellation wins output races; usage is retained even after cancellation."""
     try:
+        # Do not silently execute a queued request with a different prompt/budget.
+        if run.executor_version != EXECUTOR_VERSION:
+            raise MaterialError("generation_unavailable", 503)
         materials = sources_for(run.task)
         prompt = prompt_for(run.task, materials)
         with transaction.atomic():
