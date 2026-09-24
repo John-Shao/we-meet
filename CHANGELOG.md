@@ -34,6 +34,7 @@ and this project adheres to
 
 ### Changed
 
+- Align record information download and trash actions in a responsive toolbar.
 - Unify meeting detail headers with list breadcrumbs and right-aligned actions;
   restore list filters, pagination, and scroll position when returning.
 - Separate task editing, moving and deletion permissions; reserve list

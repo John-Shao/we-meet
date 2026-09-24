@@ -587,6 +587,10 @@ function WorkspaceContent({
     readableCapture &&
     ['saved', 'incomplete'].includes(source.media_status)
   const canReadText = record.capabilities.read_transcript
+  const canDownloadMedia =
+    record.source_type === 'upload' && record.capabilities.download_media
+  const canTrash =
+    record.capabilities.trash && record.lifecycle_revision !== undefined
   /**
    * One seek entry point for both players. The two sources differ in how the
    * bytes are fetched, not in what a transcript citation means: a millisecond
@@ -621,16 +625,33 @@ function WorkspaceContent({
         </TabPanel>
       )}
       <TabPanel id="info" padding="md">
-        <RecordTrashControl
-          key={`${viewerId}:${record.id}:trash`}
-          viewerId={viewerId}
-          record={record}
-        />
-        {record.capabilities.download_media && (
-          <RecordMediaDownload
-            key={`${viewerId}:${record.id}:${record.revision}`}
-            record={record}
-          />
+        {(canDownloadMedia || canTrash) && (
+          <div
+            className={css({
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'flex-start',
+              gap: 'sm',
+              marginBottom: 'xl',
+              '& > div': { minWidth: 0, maxWidth: '100%' },
+            })}
+          >
+            {canDownloadMedia && (
+              <RecordMediaDownload
+                key={`${viewerId}:${record.id}:${record.revision}`}
+                record={record}
+              />
+            )}
+            {canTrash && (
+              <div className={css({ marginLeft: 'auto' })}>
+                <RecordTrashControl
+                  key={`${viewerId}:${record.id}:trash`}
+                  viewerId={viewerId}
+                  record={record}
+                />
+              </div>
+            )}
+          </div>
         )}
         <dl
           className={css({
@@ -638,7 +659,7 @@ function WorkspaceContent({
             gridTemplateColumns: 'auto 1fr',
             columnGap: '2xl',
             rowGap: '1.25rem',
-            paddingY: 'lg',
+            paddingBottom: 'lg',
             paddingX: 0,
             '& dt': { color: 'text.secondary' },
           })}

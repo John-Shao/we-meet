@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { RiDownloadLine } from '@remixicon/react'
 import { fetchApi } from '@/api/fetchApi'
 import { Button, Text } from '@/primitives'
 import type { ApiMeetingRecord } from '../api/ApiMeetingRecord'
@@ -61,7 +62,9 @@ export function RecordMediaDownload({ record }: { record: ApiMeetingRecord }) {
     <div>
       <Button
         size="sm"
-        variant="tertiary"
+        variant="secondary"
+        icon={<RiDownloadLine size={16} aria-hidden />}
+        loading={busy}
         isDisabled={busy}
         onPress={() => void download()}
       >

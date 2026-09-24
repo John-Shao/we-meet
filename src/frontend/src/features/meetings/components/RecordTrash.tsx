@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { RiDeleteBinLine } from '@remixicon/react'
 import { useLocation } from 'wouter'
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
@@ -124,7 +125,10 @@ export function RecordTrashControl({
   return (
     <>
       <Button
-        variant="tertiary"
+        size="sm"
+        variant="quaternaryDanger"
+        className={css({ color: 'status.danger' })}
+        icon={<RiDeleteBinLine size={16} aria-hidden />}
         onPress={() =>
           setSelected({
             id: record.id,
