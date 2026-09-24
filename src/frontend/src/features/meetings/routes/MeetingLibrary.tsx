@@ -76,9 +76,12 @@ const toolbar = css({
 /** 两种页壳:纪要是白底阅读面,实录用 canvas,卡片才立得起来。 */
 const canvasShell = pageShell('canvas')
 
-/** 列表区补一档顶部内边距(固定区已经有自己的下边距)。 */
-/** 列表区:唯一的滚动区,内容铺白(一级页规则,见 libraryStyles.contentSurface)。 */
-const listRegion = cx(scrollRegion, contentSurface, css({ paddingTop: 'xs' }))
+/** 表格贴齐滚动区顶部,避免吸顶表头上方的内边距透出滚动行;卡片视图保留间距。 */
+const listRegion = cx(
+  scrollRegion,
+  contentSurface,
+  css({ '&[data-grid=true]': { paddingTop: 'xs' } })
+)
 
 /** 窄屏会横滚,不能被 flex 压扁。 */
 const toolbarScroll = css({
@@ -975,7 +978,11 @@ export function Library({
             </p>
           )}
         </div>
-        <div className={listRegion} data-testid="meeting-list-region">
+        <div
+          className={listRegion}
+          data-grid={grid}
+          data-testid="meeting-list-region"
+        >
           {grid ? (
             <>
               {!minutes && renderSection(true)}
