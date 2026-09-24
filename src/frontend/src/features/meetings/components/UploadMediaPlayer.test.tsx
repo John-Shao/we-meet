@@ -223,6 +223,30 @@ it('keeps the same video element and paused position when collapsing the preview
   expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled()
 })
 
+it.each(['audio', 'video', 'collapsed video'])(
+  'allows the first forward skip before metadata in %s mode',
+  async (mode) => {
+    mocks.fetchApi.mockResolvedValue({
+      ...media,
+      media_type: mode === 'audio' ? 'audio' : 'video',
+    })
+    const { container } = show()
+    await waitFor(() => expect(container.querySelector('audio, video')).not.toBeNull())
+    if (mode === 'collapsed video') {
+      fireEvent.click(screen.getByRole('button', { name: 'hideVideo' }))
+    }
+    const element = container.querySelector('audio, video') as HTMLMediaElement
+    expect(screen.getByRole('button', { name: 'skipBack' })).toBeDisabled()
+    const forward = screen.getByRole('button', { name: 'skipForward' })
+    expect(forward).toBeEnabled()
+    fireEvent.click(forward)
+    Object.defineProperty(element, 'duration', { value: 47 })
+    fireEvent.loadedMetadata(element)
+    expect(element.currentTime).toBe(15)
+    expect(screen.getByRole('button', { name: 'skipBack' })).toBeEnabled()
+  }
+)
+
 it('clamps timeline jumps to the known duration and preserves playback speed', async () => {
   mocks.fetchApi.mockResolvedValue(media)
   const { container } = show()
@@ -231,12 +255,16 @@ it('clamps timeline jumps to the known duration and preserves playback speed', a
   Object.defineProperty(audio, 'duration', { value: 25 })
   Object.defineProperty(audio, 'readyState', { value: 2 })
   fireEvent.loadedMetadata(audio)
+  expect(screen.getByRole('button', { name: 'skipBack' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'skipForward' })).toBeEnabled()
   fireEvent.change(screen.getByRole('combobox'), { target: { value: '1.5' } })
   fireEvent.change(screen.getByRole('slider', { name: 'audioPosition' }), {
     target: { value: '24000' },
   })
   fireEvent.click(screen.getByRole('button', { name: 'skipForward' }))
   expect(audio.currentTime).toBe(25)
+  expect(screen.getByRole('button', { name: 'skipForward' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'skipBack' })).toBeEnabled()
   expect(audio.playbackRate).toBe(1.5)
   fireEvent.change(screen.getByRole('slider', { name: 'audioPosition' }), {
     target: { value: '1000' },

@@ -210,7 +210,7 @@ export function RecordPlaybackControls({
           variant="quaternaryText"
           aria-label={t('skipBack')}
           tooltip={t('skipBack')}
-          isDisabled={disabled}
+          isDisabled={disabled || position <= 0}
           onPress={onBack}
           className={cx(action, css({ gridArea: 'back' }))}
         >
@@ -221,7 +221,7 @@ export function RecordPlaybackControls({
           variant="quaternaryText"
           aria-label={t('skipForward')}
           tooltip={t('skipForward')}
-          isDisabled={disabled || !end}
+          isDisabled={disabled || (end > 0 && position >= end)}
           onPress={onForward}
           className={cx(action, css({ gridArea: 'forward' }))}
         >
