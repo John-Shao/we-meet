@@ -34,7 +34,6 @@ def main():
     root = Path(__file__).resolve().parents[2]
     values_path = root / "src/helm/env.d/aliyun-prod/values.egress-demo.yaml"
     renderer = Path(__file__).with_name("recording-demo-post-renderer.py")
-    renderer.chmod(0o700)
     chart = yaml.safe_load(run(["helm", "show", "chart", str(args.chart)]))
     if chart["name"] != "egress" or str(chart["version"]) != "1.8.4":
         raise RuntimeError("Expected the official egress chart version 1.8.4")
@@ -94,11 +93,15 @@ print('IDLE' if configured and not capacity_full() and not asyncio.run(busy()) e
     run(["k3s", "kubectl", "apply", "-f", "-"], input=json.dumps(secret))
     values.setdefault("podAnnotations", {})["recording-config-checksum"] = hashlib.sha256(body.encode()).hexdigest()
     with tempfile.TemporaryDirectory(prefix="recording-demo-") as directory:
+        # Helm needs an executable; keep permission changes outside the checkout.
+        executable_renderer = Path(directory) / renderer.name
+        executable_renderer.write_bytes(renderer.read_bytes())
+        executable_renderer.chmod(0o700)
         output = Path(directory) / "values.yaml"
         output.write_text(yaml.safe_dump(values))
         run([
             "helm", "upgrade", "--install", "recording-egress", str(args.chart),
-            "-n", "meet", "-f", str(output), "--post-renderer", str(renderer),
+            "-n", "meet", "-f", str(output), "--post-renderer", str(executable_renderer),
             "--wait", "--timeout", "5m", "--history-max", "5",
         ])
     print("recording-egress ready: one worker, 720p15, one recording at a time")
