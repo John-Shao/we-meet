@@ -57,13 +57,18 @@ Windows 将 Python 路径换为 `src/backend/.venv/Scripts/python.exe`，并设�
 
 ### 账本 / 清理核对与固定语义评测（2026-09-24）
 
-桌面验收后，使用宿主机脚本继续收集 P0-1 剩余证据。脚本本身通过 stdin 在**已部署容器**中运行，不改变功能开关。首轮仅新增工具时无需重建镜像；本轮修改了后端提示词与执行版本，**必须先部署 backend（包含 Work Worker），再复验**。不要运行 `enable-work.sh materials`，它会关闭沟通生成。在生产服务器 `~/we-meet` 执行：
+桌面验收后，使用宿主机脚本继续收集 P0-1 剩余证据。脚本本身通过 stdin 在**已部署容器**中运行，不改变功能开关。首轮仅新增工具时无需重建镜像；本轮修改了后端提示词与执行版本，**必须先构建并推送 backend 镜像，再部署 backend（包含 Work Worker），最后复验**。`release-meet.sh` 只发布已存在的镜像，不负责构建。不要运行 `enable-work.sh materials`，它会关闭沟通生成。构建环境需具备 Docker 和镜像仓库凭据，推荐沿用已有构建机；发布在已有 kubectl / Helm 的生产服务器执行。若同一台机器具备两种环境，可按以下完整顺序运行：
 
 ```sh
-git pull --ff-only
-bash deploy/aliyun/release-meet.sh backend
+git pull --ff-only &&
+WORK_RELEASE_SHA=$(git rev-parse HEAD) &&
+WORK_RELEASE_TAG="${WORK_RELEASE_SHA:0:9}" &&
+IMAGE_TAG="$WORK_RELEASE_TAG" bash deploy/aliyun/build-and-push.sh backend &&
+bash deploy/aliyun/release-meet.sh --skip-git-pull --tag "$WORK_RELEASE_TAG" backend &&
 bash deploy/aliyun/accept-work.sh evaluate
 ```
+
+构建与发布分机时，构建机记录完整 `WORK_RELEASE_SHA` 和输出的镜像 tag；发布机使用同一源码版本和该 tag 执行 `release-meet.sh --skip-git-pull --tag <已推送的tag> backend`，再评测。不要在构建后让发布命令自动拉取新的 HEAD 并推导另一个尚不存在的镜像 tag。若出现 `image not found`，说明在 Helm 更新前停止；先补构建推送，不跳过镜像检查，也不以旧镜像代替 v2 验证。
 
 - `audit`：使用 PostgreSQL 只读、可重复读事务，限定 9 月 24 日已授权的 3 次 Web / 2 次桌面生成及 6 份合成材料。逐笔检查成功状态、调用时间、来源、预期 token、唯一 `AIUsageRecord`、关联指针及 owner / organization / model 一致性；检查删除时间、清理完成时间、存储键与解析内容清空。缺记录、重复账本、归属或 token 不匹配、软删除未完成清理都返回非零。输出仅含样本 ID 和检查布尔值，不输出账号、材料正文、存储键或凭证。`purge_evidence=worker_database_acknowledgement` 是清理 worker 的数据库回执；不是独立的 OSS 对象不存在证明，也不代表供应商金额账单已对平。
 - `evaluate`：顺序执行 S01–S20 共 20 条**新增合成语义样本**，扩充 C01 / C05–C09，不替代产品计划中的 C01–C20 业务验收清单。使用已部署的 `CommunicationExecutor`、提示词与引用校验，每次输出最多 1600 token、SDK 超时 45 秒、无自动重试；首个契约 / 供应商错误后停止。会产生模型费用，只发送内置合成材料，不创建业务任务或写入用户用量账本。保存样本、预期标准、实际结构化输出、token、耗时及人工评审占位；不将精确引用或 JSON 正确当作语义通过。
