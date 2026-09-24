@@ -1,6 +1,6 @@
 # Work 办公模块
 
-当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**材料已在生产启用并完成四种格式上传 / 解析验证；沟通准备仅通过本地隔离联调，真实模型与桌面办公验收待完成，P0-1 尚未正式放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
+当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 已在生产开启沟通准备，真实 `qwen3.8-flash` 的三组 Web 生成、引用、编辑 / 下载及跨账号隔离通过；用量账本 / 后台清理核对、完整验收集与桌面办公验收仍有待完成，P0-1 尚未整体放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
 
 ## 启用与运行
 
@@ -45,7 +45,7 @@ bash deploy/aliyun/enable-work.sh prepare-communication && \
 
 日常发布会沿用本地 overlay，**无需重复 prepare 或 materials**。修改模型配置后先运行 `prepare-communication`，再验收开启，避免用旧配置的探针结果给新配置放行。关闭生成但保留材料使用 `materials`；关闭全部新 Work 写入使用 `off`。若发布或发布后检查失败，当前配置可能已部分生效，应先 `check` 再修复或回退，不将脚本非零退出视为集群已自动回滚。
 
-本批新增的是宿主机配置与预检工具，尚未收到它们的生产执行回执。离线验证覆盖 23 项存储 / Chart / 启用脚本测试、12 项模型预检 / 配置一致性测试和 6 项既有发布回归，另通过 Ruff、Bash 语法及差异检查（模拟供应商，不是实际 Qwen 调用）：
+宿主机配置与预检工具的离线验证覆盖 23 项存储 / Chart / 启用脚本测试、12 项模型预检 / 配置一致性测试和 6 项既有发布回归，另通过 Ruff、Bash 语法及差异检查（模拟供应商，不是实际 Qwen 调用）；后续生产回执记录在下方：
 
 ```sh
 PYTHONPATH=src/backend src/backend/.venv/bin/python deploy/aliyun/test_work_rollout.py
@@ -56,6 +56,20 @@ bash -n deploy/aliyun/enable-work.sh
 Windows 将 Python 路径换为 `src/backend/.venv/Scripts/python.exe`，并设置 `PYTHONPATH` 指向 `src/backend`。下一步验收项统一记录在计划第 14.6 节，保持周报 / 表格批次未开始。
 
 ### 材料部署历史与模型依据
+
+2026-09-24 沟通准备生产回执（覆盖前述“新增工具尚待运行”状态）：服务器拉取脚本 `7a619f2ca`，复用 backend 镜像 `23b302061`；revision 412 配置模型但保持生成关闭，revision 413 开启沟通，最终 `model_configured=true / communication_enabled=true / generation_available=true / work_consumers=1`。私有存储探针及清理通过；Work Worker 的真实模型探针返回 2 条引用、315 输入 / 430 输出 token、8397 ms。该笔为部署探针用量，与下述业务运行分别记录。
+
+随后使用 Playwright 专用窗口、现有生产服务和两个授权 demo 账号完成三组真实业务调用，未 mock 网络或模型：
+
+| 合成样本 | 实际输入 / 输出 token | 提交至成功耗时 | 引用检查 |
+|---|---|---|---|
+| 中文 MD + TXT 日期冲突、未定预算及材料注入 | 529 / 858 | 17.0 秒 | 6 条；保留双方冲突，未确认背景未冒充事实，注入未被采纳 |
+| 文本型 PDF 发布评审材料 | 323 / 315 | 8.8 秒 | 1 条；第 1 页原文对应 |
+| DOCX 段落与预算表格 | 337 / 420 | 12.9 秒 | 2 条；段落和表 / 行 / 列对应 |
+
+三次同键重复提交均返回同一个任务且保持单个 Run；成功后刷新恢复同稿，事件游标无重复。中文样本人工编辑为 v2、旧版本保留、过期 base_version 返回 409、采纳成功，认证 Markdown 下载与 v2 正文一致；未保存时下载禁用。1440 / 1024 / 390 px 无横向溢出，页面错误 0；已查看桌面宽度与窄屏截图。第二账号访问三个任务、成果和下载共 9 个接口全部 404。界面删除来源后草稿不再渲染；四份合成材料全部删除，详情 404，三个关联成果均返回 409 拒读。任务 / 运行历史保留，未删除审计账本。
+
+本地证据：gitignored `src/desktop/test-results/work-communication-production.json`、`work-production-communication-{1440,1024,390}.png` 和 `work-production-communication-v2.md`。只有合成数据，没有登录 Cookie / Token。首次登录回跳等待超时，第二次登录及跨账号登录成功，未改动登录服务。实际 Run 已返回非零用量；AIUsageRecord 一致性与后台清理状态已请求服务器只读核对，当前不将应用层拒读等同于物理清理回执。三组样本通过不等于 20 条固定沟通评测全部完成，更不代表桌面安装包验收；稀疏 PDF 的建议仍出现“评审委员会 / 投票规则”等材料未涉及的扩展问题，需继续校准克制程度及人工核对。
 
 2026-09-23 首次线上启用检查：Work 迁移已通过，但存储探针和清理均失败，开关仍关闭、没有进入 Helm 发布。旧诊断只返回 `storage_probe_failed`，不足以确定根因。现已增加失败阶段、白名单异常类型 / S3 错误码 / HTTP 状态、独立清理结果，以及存储配置完整性和客户端配置差异（不输出凭证、地址或原始异常）。另修复已确认的源码问题：Work 的超时配置曾覆盖部署级 OSS 签名、寻址和 checksum 兼容配置，现在合并保留部署配置。该修复需重新构建并发布 **backend** 镜像；宿主机诊断脚本可在旧镜像上直接运行。更新镜像后先清理原探针，再重试 `materials`；真实存储结果仍以服务器输出为准。
 
