@@ -211,6 +211,15 @@ class SemanticTest(unittest.TestCase):
         self.assertEqual(evaluation.adapter_hash(base), evaluation.adapter_hash(base.replace('"old"', '"new"').replace('"v1"', '"v2"')))
         self.assertNotEqual(evaluation.adapter_hash(base), evaluation.adapter_hash(base.replace('12', '24')))
 
+    def test_adapter_fingerprint_is_source_based_and_preserves_adjacent_code(self):
+        source = 'SYSTEM = """中文\n提示词"""; LIMIT = 12\nEXECUTOR_VERSION = "v1"\ndef run():\n    return LIMIT\n'
+        expected = hashlib.sha256(b'; LIMIT = 12\n\ndef run():\n    return LIMIT\n').hexdigest()
+        with patch.object(evaluation.ast, "dump", side_effect=AssertionError("version-dependent AST dump")):
+            self.assertEqual(evaluation.adapter_hash(source), expected)
+            self.assertEqual(evaluation.adapter_hash(source.replace('\n', '\r\n')), expected)
+            self.assertEqual(evaluation.adapter_hash(source.replace('中文\n提示词', 'new')), expected)
+            self.assertNotEqual(evaluation.adapter_hash(source.replace('LIMIT = 12', 'LIMIT = 13')), expected)
+
     def test_candidate_with_different_adapter_or_invalid_profile_never_calls_model(self):
         from django.test import override_settings
         from work import executor

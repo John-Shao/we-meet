@@ -78,14 +78,27 @@ def digest(value):
 
 
 def adapter_hash(source):
-    """Candidate evaluation permits only literal prompt/version changes."""
-    tree = ast.parse(source)
-    tree.body = [node for node in tree.body if not (
-        isinstance(node, ast.Assign) and len(node.targets) == 1
-        and isinstance(node.targets[0], ast.Name)
-        and node.targets[0].id in {"SYSTEM", "EXECUTOR_VERSION"}
-    )]
-    return hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
+    """Hash source outside prompt/version assignments across Python versions.
+
+    ast.dump is interpreter-dependent (e.g. type_params and omitted empty lists).
+    AST is used only to locate assignments; offsets are UTF-8 byte positions.
+    Other source changes conservatively require a deployed adapter update.
+    """
+    source = source.replace("\r\n", "\n").replace("\r", "\n")
+    encoded = source.encode("utf8")
+    offsets = [0]
+    for line in encoded.split(b"\n"):
+        offsets.append(offsets[-1] + len(line) + 1)
+    spans = []
+    for node in ast.parse(source).body:
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id in {"SYSTEM", "EXECUTOR_VERSION"}):
+            spans.append((offsets[node.lineno - 1] + node.col_offset,
+                          offsets[node.end_lineno - 1] + node.end_col_offset))
+    for start, end in reversed(spans):
+        encoded = encoded[:start] + encoded[end:]
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def candidate_profile(encoded, executor):

@@ -1,6 +1,6 @@
 # Work 办公模块
 
-当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 `communication-v2` 已随 backend `2f2d1a443` / Helm revision 418 部署，完整 20 条结构通过、语义审阅 15 条通过 / 5 条需修正。此前业务用量和材料清理回执通过；v3 候选提示词待评测，P0-1 尚未整体放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
+当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 `communication-v3` 已随 backend `30cab9491` / Helm revision 419 部署，语义待评测；上一轮 v2 完整 20 条结构通过、语义审阅 15 条通过 / 5 条需修正。此前业务用量和材料清理回执通过；P0-1 尚未整体放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
 
 ## 启用与运行
 
@@ -57,16 +57,16 @@ Windows 将 Python 路径换为 `src/backend/.venv/Scripts/python.exe`，并设�
 
 ### 账本 / 清理核对与固定语义评测（2026-09-24）
 
-**当前下一步先评测 v3 候选，无需重新构建或发布。** 生产 v2 已成功部署（见下方最新回执），保持它运行。在发布服务器执行：
+**当前下一步评测已部署的 v3，无需再次构建或发布。** 最新回执确认 revision 419 已更新 backend / Work Worker。候选评测因指纹误报在模型调用前退出，尚无 v3 语义结果。在发布服务器执行：
 
 ```sh
 git pull --ff-only &&
-bash deploy/aliyun/accept-work.sh evaluate-candidate
+bash deploy/aliyun/accept-work.sh evaluate
 ```
 
-候选模式把仓库中的 `SYSTEM / EXECUTOR_VERSION` 字面量通过 Base64 JSON 送入单独的 `kubectl exec` 评测进程，仅在该进程内临时替换系统提示词，结束时恢复；不修改 Pod 文件、Celery Worker、功能开关或用户任务。它比较已部署执行器与本地执行器的 AST 哈希，除了系统提示词和版本声明外必须一致；不同则 `candidate_adapter_mismatch / model_calls=0` 拒绝，不能用该模式跨越实际执行器 / Schema 代码变更。所有样本仍走现有 `CommunicationExecutor`、SDK、校验器及实际模型，最多 20 次付费调用，无自动重试。`evaluation_mode=candidate`、候选和已部署版本 / 系统哈希分别记录；不得把候选通过写成生产已升级。
+后续尚未部署的提示词使用 `evaluate-candidate`。候选模式把仓库中的 `SYSTEM / EXECUTOR_VERSION` 字面量通过 Base64 JSON 送入单独的 `kubectl exec` 评测进程，仅在该进程内临时替换系统提示词，结束时恢复；不修改 Pod 文件、Celery Worker、功能开关或用户任务。它比较已部署执行器与本地执行器的源码指纹：统一换行，用 AST 定位并移除系统提示词和版本赋值后，对剩余 UTF-8 源码计算哈希，不使用依赖 Python 版本的 `ast.dump`。其他源码必须一致（包括格式和注释，保守拒绝），不同则 `candidate_adapter_mismatch / model_calls=0` 拒绝，不能用该模式跨越实际执行器 / Schema 代码变更。所有样本仍走现有 `CommunicationExecutor`、SDK、校验器及实际模型，最多 20 次付费调用，无自动重试。`evaluation_mode=candidate`、候选和已部署版本 / 系统哈希分别记录；不得把候选通过写成生产已升级。
 
-先收集并审阅相同 S01–S20 的候选结果，完整通过后才执行下述构建发布步骤。`evaluate` 仍表示测试**已部署版本**，会检查它是否与本地源码匹配；在本地 v3 / 生产 v2 时直接执行该模式会以 `deployed_prompt_mismatch` 零调用退出。候选也支持 `--case S01`，但放行须同一候选版本的完整集合，不能挑选跨版本结果。
+后续提示词迭代先收集并审阅相同 S01–S20 的候选结果，完整通过后才执行下述构建发布步骤。`evaluate` 表示测试**已部署版本**，会检查它是否与本地提示词匹配；本地与生产提示词不同时以 `deployed_prompt_mismatch` 零调用退出。候选也支持 `--case S01`，但放行须同一候选版本的完整集合，不能挑选跨版本结果。
 
 候选评测通过后的生产升级按以下步骤进行。评测脚本本身通过 stdin 在**已部署容器**中运行，不改变功能开关；要让正式业务使用新提示词与执行版本，**必须先构建并推送 backend 镜像，再部署 backend（包含 Work Worker），最后复验**。`release-meet.sh` 只发布已存在的镜像，不负责构建。不要运行 `enable-work.sh materials`，它会关闭沟通生成。构建环境需具备 Docker 和镜像仓库凭据，推荐沿用已有构建机；发布在已有 kubectl / Helm 的生产服务器执行。若同一台机器具备两种环境，可按以下完整顺序运行：
 
@@ -97,7 +97,9 @@ bash deploy/aliyun/accept-work.sh evaluate
 
 v2 最新真实回执：镜像 `2f2d1a443` 已构建推送（digest `sha256:c7cdac68a10821b4375655d6f1fa59f88ff1a58dbed7b4c142cf44a55e7b7850`），revision 418 的 backend / Work Worker / Beat 已滚动更新成功。`20260924T054840Z-evaluate-qJQZWF` 的 20 条结构及哈希核对通过，13586 / 5581 输入 / 输出 token，中位耗时 5.190 秒、最大 7.476 秒。S13、S16、S17、S20 已纠正；逐条语义审阅仍有 S01 / S02 / S10 / S11 / S15 五条问题，详见主计划 v1.19。
 
-v3 候选补充按“核对 / 说明 / 讨论”收敛输出、中性询问进度、背景或身份缺失不自动构成信息缺口；复验保持同一集合和模型。当前候选工具验证 20 项通过，覆盖候选与线上版本分开记录、只接受提示词变更、拒绝不同适配器和畸形 profile、临时替换后恢复、调用范围与证据保留；Work 后端 55 项通过。初次本地数据库尚在恢复时测试连接失败，就绪后复验通过，不视为代码失败或生产故障。另通过 Ruff / Bash 检查。新版真实候选结果仍待回执；通过后再构建部署，并复查新业务版本、用量和成果路径，最后决定周报开工。
+v3 补充按“核对 / 说明 / 讨论”收敛输出、中性询问进度、背景或身份缺失不自动构成信息缺口；复验保持同一集合和模型。此前 Work 后端 55 项通过。初次本地数据库尚在恢复时测试连接失败，就绪后复验通过，不视为代码失败或生产故障。
+
+revision 419 后的 `20260924T062332Z-evaluate-candidate-suVHZQ` 返回 `candidate_adapter_mismatch / model_calls=0`。本地复现相同源码在 Python 3.10.12 与镜像 Python 3.13.5 下的旧 AST 哈希不同；已改为上述源码指纹，两个环境与本地 `30cab9491` 镜像源码均得到 `9a8f787b8874cf293a9c7391bf7a4b7f47e07a08f6539d1e448b080240b6b962`。未读取生产宿主机 Python 版本，跨版本误报为本地复现结论。修复仅涉及宿主机传入的评测工具，21 项工具回归和 Ruff 通过，包含多行中文、CRLF、相邻代码保留及真实代码变化拒绝；无需重建镜像。v3 已部署，下一步用 `evaluate` 收集完整语义结果，通过后复查新业务版本、用量和成果路径，最后决定周报开工。
 
 语义人工评审维度：逐事实引用蕴含（含否定、条件、主体、单位）、不确定性保留、建议范围、指令边界、具体可用性。每条还须满足脚本中 `expected` 的专项要求；20 条全部评审通过，才完成该固定语义集。S01 / S02 / S18 / S19 / S20 重点检查稀疏或不匹配材料下是否无依据扩展流程或制造缺口；冲突、未批准预算、用户猜测、注入等由其余样本覆盖。`collection_ok=true` 只代表采集和契约通过；`semantic_passed=null / review_status=pending / release_gate_passed=false` 明确保留人工判断。出现失败时先定位并修改提示词或实现，部署后用同一固定集复验，不靠修改预期或挑选输出放行。
 
