@@ -1,6 +1,6 @@
 # Work 办公模块
 
-当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 已在生产开启沟通准备，真实 `qwen3.8-flash` 的三组 Web 生成、引用、编辑 / 下载及跨账号隔离通过；用量账本 / 后台清理核对、完整验收集与桌面办公验收仍有待完成，P0-1 尚未整体放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
+当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 已在生产开启沟通准备，三组 Web 验收及桌面 `d0.9` 的真实登录 / 上传 / 生成 / 下载 / 重启恢复通过；用量账本 / 后台清理核对和完整语义评测仍待完成，P0-1 尚未整体放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
 
 ## 启用与运行
 
@@ -56,6 +56,8 @@ bash -n deploy/aliyun/enable-work.sh
 Windows 将 Python 路径换为 `src/backend/.venv/Scripts/python.exe`，并设置 `PYTHONPATH` 指向 `src/backend`。下一步验收项统一记录在计划第 14.6 节，保持周报 / 表格批次未开始。
 
 ### 材料部署历史与模型依据
+
+2026-09-24 桌面补验：从固定提交 `6507434dc` 构建并安装 `0.2.0-d0.9`，真实 PKCE 登录、上传 / 生成、Markdown 下载、刷新和重启恢复同任务、退出登录通过，模型 `qwen3.8-flash`，344 / 455 输入 / 输出 token，约 15.2 秒。修复了初始加载被新导航取消时误报安装损坏的问题。此前 `d0.8` 生成的验收材料和本次材料均已删除，成果均拒读；账本保留。固定 worktree + 隔离 PostgreSQL 复验 54 项 Work 后端测试通过，覆盖 C09、C13–C15 的既有故障 / 边界场景；这些仍是隔离模型测试。安装包哈希、截图、原生交互边界和命令统一见 [桌面 README](../../desktop/README.md)。以下 Web 历史段落中的“桌面未验收”由本记录更新，不代表已满足 D0 全部发布门槛。
 
 2026-09-24 沟通准备生产回执（覆盖前述“新增工具尚待运行”状态）：服务器拉取脚本 `7a619f2ca`，复用 backend 镜像 `23b302061`；revision 412 配置模型但保持生成关闭，revision 413 开启沟通，最终 `model_configured=true / communication_enabled=true / generation_available=true / work_consumers=1`。私有存储探针及清理通过；Work Worker 的真实模型探针返回 2 条引用、315 输入 / 430 输出 token、8397 ms。该笔为部署探针用量，与下述业务运行分别记录。
 

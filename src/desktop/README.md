@@ -2,7 +2,7 @@
 
 Windows Electron 客户端复用 `src/frontend` 和现有 Django / LiveKit / IM / Docs 服务。D0 的完成标准见 [Work 主计划 §14.0](../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md#140-第一里程碑-d0桌面端从外壳到可用客户端)。
 
-**2026-09-22 状态：`0.2.0-d0.7` 已安装；真实登录 / 换号、会议进出、文档编辑与附件上传 / PDF 下载、版本回退和卸载重装已有证据。真实媒体设备、原生交互提示及干净 Windows 环境仍待验收，D0 未放行。**
+**2026-09-24 状态：`0.2.0-d0.9` 已安装；包含 Work 材料 / 沟通准备及启动导航取消修复，真实桌面登录、上传、生成、Markdown 下载、刷新 / 重启恢复通过。9 月 22 日的登录换号、会议进出、文档、升级回退证据保留。真实媒体设备、原生交互提示及干净 Windows 环境仍待验收，D0 未整体放行。**
 
 ## 已实现的运行方式
 
@@ -81,7 +81,30 @@ python deploy/aliyun/keycloak/bootstrap-desktop-client.py --apply
 | 手动升级 / 回退、卸载 | 原测试机通过 | 多次跨版本升级保留真实会话；退出后 `d0.7 → d0.6` 回退并通过安装包冒烟；卸载退出码 0、程序删除 / 数据保留 / 原生凭据已清除；重装 `d0.7` 后冒烟通过 |
 | 签名 | 未签名 | `Get-AuthenticodeSignature` 为 `NotSigned`；仅内部验收，未发布或上传安装包 |
 
-当前 `0.2.0-d0.7` 安装包 SHA-256：`4F359E22032BAEC4DA70E179274B067A0695831107BB2F8AFC0DDA130ABD1F10`。已退出验收账号并重装该包；所有候选包的独立哈希、配置和源码状态均保留在各自 manifest，不跨版本挪用结论。
+9 月 22 日 `0.2.0-d0.7` 安装包 SHA-256：`4F359E22032BAEC4DA70E179274B067A0695831107BB2F8AFC0DDA130ABD1F10`。当日已退出验收账号并重装该包；9 月 24 日已更新到下述 `d0.9`。所有候选包的独立哈希、配置和源码状态均保留在各自 manifest，不跨版本挪用结论。
+
+### 2026-09-24：办公候选包与启动修复
+
+`d0.8` 从固定提交 `86e4c9e4b` 的干净 worktree 完整构建，首次将当前 Work 前端装入桌面；安装成功。真实 PKCE 登录与办公生成通过，但验收器在重启时仅等待服务状态 online 就跳转任务页，取消了主进程尚未结束的初始 `loadURL`，触发“启动失败 / 请检查安装文件”弹窗。等待初始页面加载完成后，用同一个已生成任务验证了下载、刷新、重启恢复及清理，没有为恢复验收重复调用模型。
+
+`d0.9` 同时修正主进程行为：初始导航的 `ERR_ABORTED / -3` 属于取消，不再作为安装损坏进入错误弹窗；非取消错误仍交给启动失败处理。新增真实 Electron 回归以挂起的本地 HTML 加载被新导航取代来复现该路径，另有单元测试验证其他失败不被吞掉。验收器等待初始加载、记录检查点，并支持恢复自身上一轮任务，保留此前的 JSON 记录。
+
+当前安装包：`release/We-Meet-0.2.0-d0.9-setup.exe`，127615911 字节；SHA-256 `cb1507d6fb8b8e0270f2acccdbd8a3c3ccefdb15bc23b80315f41272230e1588`。manifest 的源码为 `6507434dc`、`workingTreeDirty=false`，Electron `44.4.3`；安装退出码 0，实际运行来自已安装 `resources/app.asar`，不是开发服务器。签名检查仍为 `NotSigned`，用于内部验收。
+
+`d0.9` 使用授权 demo 账号完成真实 `desktop` PKCE、文本上传 / Worker 解析、`qwen3.8-flash` 生成、刷新同稿、退出进程后重启同账号 / 同任务、1496 字节 Markdown 下载并逐字对照、退出登录。输入 / 输出用量为 344 / 455 token，提交至成功约 15.2 秒；页面错误 0，已查看重启成果截图。合成材料删除 204、随后详情 404、关联成果 409；测试账号已退出。`d0.8` 的合成材料也已清理，保留两次任务的运行账本供核对。
+
+验证：桌面 12 组回归、真实 Electron 导航取消测试通过；在同一固定提交的隔离 PostgreSQL 环境，Work 后端 54 项通过，覆盖取消晚到结果、显式重试 / 幂等、超限、错误引用、权限撤销和版本冲突。没有在生产制造供应商故障。完整构建仍有既有静态品牌资源 / 大 chunk 提示。
+
+证据：`test-results/work-installed-acceptance.json` 及带时间戳的前轮记录、`work-installed-generated.png`、`work-installed-restarted.png`、`work-installed-draft.md`、`work-d09-unit.log`、`work-d09-backend-tests.log` 和 `work-d09-package.log`；安装包、证据和登录凭证不入 Git。复验前需已获授权并设置 `WEMEET_INSTALLED_EXE / WEMEET_DEMO_PHONE / WEMEET_DEMO_OTP`，且桌面处于退出登录状态：
+
+```powershell
+node scripts/work-acceptance.cjs
+# 仅在上一轮自身任务因测试中断未清理、原测试账号会话仍在时：
+$env:WEMEET_RESUME_WORK = '1'
+node scripts/work-acceptance.cjs
+```
+
+该验收实际调用生产模型并创建合成材料；下载由测试程序指定保存路径，真实认证回调用第二实例转交，未覆盖原生文件选择器和系统浏览器的“打开应用”提示。它验证桌面办公路径，不将 D0 的真实媒体 / 干净 Windows / 签名门槛一并勾选完成。
 
 本轮版本顺序：`d0.1` 安装与 API 尾斜杠修复；`d0.2` 新登录代次隔离；`d0.3` 失效刷新清缓存并完成真实认证；`d0.4` 修复缺少 IM 构建配置导致的登录后白屏；`d0.5` 修复 Docs 来源丢失；`d0.6` 修复外部重定向隐藏最终地址；`d0.7` 限定请求超时到响应头并完成附件 / PDF 传输验证。`live-desktop-d0.3.json`、`live-desktop-d0.4.json` 保留早期失败项；后续修复证据分别见 `live-business-d0.4.json`、`live-desktop-d0.6.json`、`live-desktop-d0.7.json`，不能把早期失败记录改成全通过。
 
