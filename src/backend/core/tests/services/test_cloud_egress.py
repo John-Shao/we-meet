@@ -166,7 +166,17 @@ def test_start_timeout_remains_unknown_without_second_dispatch(fixture, monkeypa
     client.aclose.assert_awaited_once()
 
 
-def test_lookup_follows_pages_and_matches_original_output_only(fixture):
+def paginated_wire(monkeypatch):
+    """Exercise newer wire pagination even with the pinned pre-pagination SDK."""
+
+    class Request(SimpleNamespace):
+        DESCRIPTOR = SimpleNamespace(fields_by_name={"page_token": object()})
+
+    monkeypatch.setattr(api, "ListEgressRequest", Request)
+
+
+def test_lookup_follows_pages_and_matches_original_output_only(fixture, monkeypatch):
+    paginated_wire(monkeypatch)
     recording, transport, client = fixture
     unrelated = info(
         recording, transport, worker="EG_other", filename="recordings/other.mp4"
@@ -174,7 +184,7 @@ def test_lookup_follows_pages_and_matches_original_output_only(fixture):
     expected = info(recording, transport)
     expected.file_results.append(api.FileInfo(filename="/worker/local/temporary.mp4"))
     client.egress.list_egress.side_effect = [
-        api.ListEgressResponse(
+        SimpleNamespace(
             items=[unrelated], next_page_token=api.TokenPagination(token="page2")
         ),
         api.ListEgressResponse(items=[expected]),
@@ -243,12 +253,14 @@ def test_lookup_bounds_are_unknown_not_empty_success(fixture, monkeypatch, case)
             items=[info(recording, transport), info(recording, transport)]
         )
     elif case == "cycle":
-        client.egress.list_egress.return_value = api.ListEgressResponse(
-            next_page_token=api.TokenPagination(token="same")
+        paginated_wire(monkeypatch)
+        client.egress.list_egress.return_value = SimpleNamespace(
+            items=[], next_page_token=api.TokenPagination(token="same")
         )
     else:
+        paginated_wire(monkeypatch)
         client.egress.list_egress.side_effect = [
-            api.ListEgressResponse(next_page_token=api.TokenPagination(token=str(i)))
+            SimpleNamespace(items=[], next_page_token=api.TokenPagination(token=str(i)))
             for i in range(3)
         ]
     with pytest.raises(service.CloudEgressUnknown):

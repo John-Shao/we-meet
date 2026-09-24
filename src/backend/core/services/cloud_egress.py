@@ -11,6 +11,7 @@ from livekit import api
 
 from core import utils
 from core.recording.worker.factories import WorkerServiceConfig
+from core.recording.worker.storage import file_upload_options
 
 MAX_PAGES = 3
 MAX_ITEMS = 1000
@@ -137,7 +138,7 @@ class CloudEgressClient:
         output = api.EncodedFileOutput(
             file_type=api.EncodedFileType.MP4,
             filepath=self.filepath(recording),
-            s3=api.S3Upload(**self.config.bucket_args),
+            **file_upload_options(self.config.bucket_args),
         )
         options = {
             "room_name": str(recording.room_id),
@@ -176,14 +177,20 @@ class CloudEgressClient:
         try:
             async with asyncio.timeout(LOOKUP_TIMEOUT):
                 for _ in range(MAX_PAGES):
+                    request_options = {
+                        "room_name": str(recording.room_id),
+                        "egress_id": recording.worker_id or "",
+                    }
+                    if "page_token" in api.ListEgressRequest.DESCRIPTOR.fields_by_name:
+                        request_options["page_token"] = api.TokenPagination(token=token)
+                    elif token:
+                        raise CloudEgressUnknown(
+                            "Installed LiveKit SDK cannot follow egress pagination."
+                        )
                     response = await self._call(
                         "egress",
                         "list_egress",
-                        api.ListEgressRequest(
-                            room_name=str(recording.room_id),
-                            egress_id=recording.worker_id or "",
-                            page_token=api.TokenPagination(token=token),
-                        ),
+                        api.ListEgressRequest(**request_options),
                     )
                     count += len(response.items)
                     if count > MAX_ITEMS:
@@ -207,7 +214,9 @@ class CloudEgressClient:
                                 "Cloud recording lookup is inconsistent."
                             )
                         matches[observed.worker_id] = observed
-                    token = response.next_page_token.token
+                    token = getattr(
+                        getattr(response, "next_page_token", None), "token", ""
+                    )
                     if not token:
                         if len(matches) > 1:
                             raise CloudEgressUnknown(

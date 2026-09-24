@@ -28,6 +28,7 @@ from .meeting_sessions import (
     MeetingSessionService,
     webhook_event_time,
 )
+from .recording_finalization import finalize_video
 from .telephony import TelephonyException, TelephonyService
 
 logger = getLogger(__name__)
@@ -195,6 +196,7 @@ class LiveKitEventsService:
             ) from err
 
         if self._handle_cloud_egress(recording, data):
+            finalize_video(recording, data.egress_info)
             return
         self._bind_recording_session_from_egress(recording, data)
 
@@ -222,6 +224,8 @@ class LiveKitEventsService:
                 raise ActionFailedError(
                     f"Failed to process limit reached event for recording {recording}"
                 ) from e
+
+        finalize_video(recording, data.egress_info)
 
     @staticmethod
     def _handle_cloud_egress(recording, data):

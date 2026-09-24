@@ -1,0 +1,50 @@
+# Development/demo only. Install with chart egress 1.8.4 and the recording
+# post-renderer, which loads credentials from a Secret and mounts temp volumes.
+fullnameOverride: meet-livekit-egress
+replicaCount: 1
+image:
+  repository: jusi-cn-guangzhou.cr.volces.com/we-meet/livekit-egress
+  tag: v1.14.1
+  pullPolicy: IfNotPresent
+deploymentStrategy:
+  type: Recreate
+terminationGracePeriodSeconds: 1860
+autoscaling:
+  enabled: false
+resources:
+  requests:
+    cpu: "2"
+    memory: 4Gi
+    ephemeral-storage: 1Gi
+  limits:
+    cpu: "3"
+    memory: 6Gi
+    ephemeral-storage: 8Gi
+securityContext:
+  capabilities:
+    add: [SYS_ADMIN]
+podSecurityContext:
+  fsGroup: 1000
+egress:
+  log_level: info
+  health_port: 8080
+  prometheus_port: 9090
+  ws_url: ws://livekit-livekit-server.meet.svc.cluster.local:80
+  enable_chrome_sandbox: true
+  disallow_local_storage: true
+  session_limits:
+    file_output_max_duration: 30m
+    file_output_max_size: 536870912
+  # Admission costs are reservation units, not measured CPU usage. An idle
+  # instance can admit cost=3; once busy its ceiling is at most 4*0.5=2,
+  # so it cannot admit a second request, even if the first uses little CPU.
+  cpu_cost:
+    max_cpu_utilization: 0.5
+    room_composite_cpu_cost: 3
+    audio_room_composite_cpu_cost: 3
+    sdk_audio_room_composite_cpu_cost: 3
+    web_cpu_cost: 3
+    audio_web_cpu_cost: 3
+    participant_cpu_cost: 3
+    track_composite_cpu_cost: 3
+    track_cpu_cost: 3

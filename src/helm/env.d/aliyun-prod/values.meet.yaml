@@ -141,9 +141,17 @@ backend:
     MOBILE_AUTH_DEMO_PHONES: "13800000000,13800000001,13800000002,13800000003,13800000004,13800000005,13800000006,13800000007,13800000008,13800000009"
     MOBILE_AUTH_DEMO_OTP: "123456"
 
-    # Recording — 第一阶段关闭
+    # Development/demo recording: one Egress job, 720p15, maximum 30 minutes.
     RECORDING_ENABLE: "True"
     RECORDING_STORAGE_EVENT_ENABLE: "False"
+    RECORDING_ENCODING_ENABLED: "True"
+    RECORDING_ENCODING_WIDTH: "1280"
+    RECORDING_ENCODING_HEIGHT: "720"
+    RECORDING_ENCODING_FRAMERATE: "15"
+    RECORDING_ENCODING_VIDEO_BITRATE_KBPS: "900"
+    RECORDING_ENCODING_AUDIO_BITRATE_KBPS: "64"
+    RECORDING_MAX_DURATION: "1800000"
+    MEETING_CLOUD_RECORDING_MAX_CONCURRENT: "1"
 
     # Summary — 启用，调本地 meet-summary service
     SUMMARY_SERVICE_ENDPOINT: http://meet-summary:80/api/v1/tasks/
@@ -398,9 +406,28 @@ ingressAdmin:
     enabled: true
     secretName: meet-tls
 
-# Recording-related ingresses disabled (recording disabled v1)
+# Private recording downloads: authorize each request before proxying to OSS.
 ingressMedia:
-  enabled: false
+  enabled: true
+  className: nginx
+  host: meet.we-meet.online
+  path: /media/(recordings/.*)
+  tls:
+    enabled: true
+    secretName: meet-tls
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/auth-url: https://meet.we-meet.online/api/v1.0/recordings/media-auth/
+    nginx.ingress.kubernetes.io/auth-response-headers: "Authorization, X-Amz-Date, X-Amz-Content-SHA256"
+    nginx.ingress.kubernetes.io/upstream-vhost: we-meet-video.oss-cn-shenzhen.aliyuncs.com
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    nginx.ingress.kubernetes.io/proxy-ssl-server-name: "on"
+    nginx.ingress.kubernetes.io/proxy-ssl-name: we-meet-video.oss-cn-shenzhen.aliyuncs.com
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    nginx.ingress.kubernetes.io/configuration-snippet: null
+serviceMedia:
+  host: we-meet-video.oss-cn-shenzhen.aliyuncs.com
+  port: 443
 ingressMediaFiles:
   enabled: false
 ingressWebhook:

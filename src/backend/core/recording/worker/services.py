@@ -9,6 +9,7 @@ from ... import utils
 from ..enums import FileExtension
 from .exceptions import WorkerConnectionError, WorkerResponseError
 from .factories import WorkerServiceConfig, WorkerStartResult
+from .storage import file_upload_options
 
 
 class BaseEgressService:
@@ -117,7 +118,7 @@ class VideoCompositeEgressService(BaseEgressService):
         file_output = livekit_api.EncodedFileOutput(
             file_type=file_type,
             filepath=filepath,
-            s3=self._s3,
+            **file_upload_options(self._config.bucket_args),
         )
 
         request_kwargs = {
@@ -163,7 +164,7 @@ class AudioCompositeEgressService(BaseEgressService):
         file_output = livekit_api.EncodedFileOutput(
             file_type=file_type,
             filepath=filepath,
-            s3=self._s3,
+            **file_upload_options(self._config.bucket_args),
         )
 
         request = livekit_api.RoomCompositeEgressRequest(

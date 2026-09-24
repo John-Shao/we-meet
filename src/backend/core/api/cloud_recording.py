@@ -98,6 +98,14 @@ class CloudRecordingView(APIView):
             )
         except PermissionError:
             return Response(status=404)
+        except cloud_recording.RecordingCapacityError:
+            return Response(
+                {
+                    "detail": "Recording service is busy. Try again after the current recording finishes.",
+                    "code": "recording_capacity_reached",
+                },
+                status=409,
+            )
         except (RecordConflict, IntegrityError, ModelValidationError):
             return Response(
                 {"detail": "Cloud recording intent conflicts; refresh its state."},

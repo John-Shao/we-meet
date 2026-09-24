@@ -1,7 +1,11 @@
 """Exact-session cloud-video state, separate from AI transcript capture."""
 
+from datetime import timedelta
+
 from django.conf import settings
-from django.db import transaction
+from django.db import connection, transaction
+from django.db.models import Q
+from django.utils import timezone
 
 from core import models
 from core.services.meeting_records import RecordConflict
@@ -11,6 +15,22 @@ MODE = models.RecordingModeChoices.SCREEN_RECORDING
 VIDEO_WORKER = "core.recording.worker.services.VideoCompositeEgressService"
 BUSY = ("initiated", "active", "failed_to_stop")
 PENDING = ("accepted", "running", "unknown")
+
+
+class RecordingCapacityError(RecordConflict):
+    """The configured recording slots are occupied or still uploading."""
+
+
+def capacity_full():
+    """Reserve a short upload grace period without blocking on old stopped rows."""
+    limit = settings.MEETING_CLOUD_RECORDING_MAX_CONCURRENT
+    if not limit:
+        return False
+    occupied = models.Recording.objects.filter(mode=MODE).filter(
+        Q(status__in=BUSY)
+        | Q(status="stopped", updated_at__gte=timezone.now() - timedelta(minutes=5))
+    )
+    return occupied.count() >= limit
 
 
 def enabled():
@@ -45,6 +65,7 @@ def state(session):
     )
     busy = models.Recording.objects.filter(room_id=session.room_id, status__in=BUSY)
     blocker = busy.exclude(pk=current.pk).exists() if current else busy.exists()
+    blocker = blocker or capacity_full()
     available = enabled()
     pending = (
         models.CloudRecordingCommand.objects.filter(
@@ -110,9 +131,18 @@ def serialize_command(command):
     }
 
 
+def _lock_capacity(operation):
+    if operation == "start" and settings.MEETING_CLOUD_RECORDING_MAX_CONCURRENT:
+        # Cross-room starts must share a transaction fence. Stops never acquire
+        # this lock, so they remain available while the single demo slot is busy.
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(%s)", [734602409])
+
+
 @transaction.atomic
 def control(session_id, user, key, payload):
-    """Reserve exactly one intent under room -> session locks; never call a worker."""
+    """Reserve exactly one intent under capacity -> room -> session locks."""
+    _lock_capacity(payload["operation"])
     identity = models.MeetingSession.objects.get(pk=session_id)
     models.Room.objects.select_for_update().get(pk=identity.room_id)
     session = models.MeetingSession.objects.select_for_update().get(pk=session_id)
@@ -127,6 +157,8 @@ def control(session_id, user, key, payload):
         if prior.state in PENDING:
             transaction.on_commit(lambda command_id=str(prior.pk): dispatch(command_id))
         return prior, True
+    if payload["operation"] == "start" and capacity_full():
+        raise RecordingCapacityError("Recording service is busy. Try again later.")
     current_state = state(session)
     current = current_state["current"]
     if payload["expected_recording_id"] != (current["id"] if current else None):
