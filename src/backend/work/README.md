@@ -1,6 +1,6 @@
 # Work 办公模块
 
-当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 已完成 Web / 桌面办公闭环，5 次业务生成的用量账本及 6 份材料的后台清理回执通过；旧版完整 20 条语义采集通过结构检查，但逐条审阅仍未通过，存在日期基准、无依据承诺及建议越界问题。`communication-v2` 已调整规则，待部署与完整真实复验，P0-1 尚未整体放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
+当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 `communication-v2` 已随 backend `2f2d1a443` / Helm revision 418 部署，完整 20 条结构通过、语义审阅 15 条通过 / 5 条需修正。此前业务用量和材料清理回执通过；v3 候选提示词待评测，P0-1 尚未整体放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
 
 ## 启用与运行
 
@@ -57,7 +57,18 @@ Windows 将 Python 路径换为 `src/backend/.venv/Scripts/python.exe`，并设�
 
 ### 账本 / 清理核对与固定语义评测（2026-09-24）
 
-桌面验收后，使用宿主机脚本继续收集 P0-1 剩余证据。脚本本身通过 stdin 在**已部署容器**中运行，不改变功能开关。首轮仅新增工具时无需重建镜像；本轮修改了后端提示词与执行版本，**必须先构建并推送 backend 镜像，再部署 backend（包含 Work Worker），最后复验**。`release-meet.sh` 只发布已存在的镜像，不负责构建。不要运行 `enable-work.sh materials`，它会关闭沟通生成。构建环境需具备 Docker 和镜像仓库凭据，推荐沿用已有构建机；发布在已有 kubectl / Helm 的生产服务器执行。若同一台机器具备两种环境，可按以下完整顺序运行：
+**当前下一步先评测 v3 候选，无需重新构建或发布。** 生产 v2 已成功部署（见下方最新回执），保持它运行。在发布服务器执行：
+
+```sh
+git pull --ff-only &&
+bash deploy/aliyun/accept-work.sh evaluate-candidate
+```
+
+候选模式把仓库中的 `SYSTEM / EXECUTOR_VERSION` 字面量通过 Base64 JSON 送入单独的 `kubectl exec` 评测进程，仅在该进程内临时替换系统提示词，结束时恢复；不修改 Pod 文件、Celery Worker、功能开关或用户任务。它比较已部署执行器与本地执行器的 AST 哈希，除了系统提示词和版本声明外必须一致；不同则 `candidate_adapter_mismatch / model_calls=0` 拒绝，不能用该模式跨越实际执行器 / Schema 代码变更。所有样本仍走现有 `CommunicationExecutor`、SDK、校验器及实际模型，最多 20 次付费调用，无自动重试。`evaluation_mode=candidate`、候选和已部署版本 / 系统哈希分别记录；不得把候选通过写成生产已升级。
+
+先收集并审阅相同 S01–S20 的候选结果，完整通过后才执行下述构建发布步骤。`evaluate` 仍表示测试**已部署版本**，会检查它是否与本地源码匹配；在本地 v3 / 生产 v2 时直接执行该模式会以 `deployed_prompt_mismatch` 零调用退出。候选也支持 `--case S01`，但放行须同一候选版本的完整集合，不能挑选跨版本结果。
+
+候选评测通过后的生产升级按以下步骤进行。评测脚本本身通过 stdin 在**已部署容器**中运行，不改变功能开关；要让正式业务使用新提示词与执行版本，**必须先构建并推送 backend 镜像，再部署 backend（包含 Work Worker），最后复验**。`release-meet.sh` 只发布已存在的镜像，不负责构建。不要运行 `enable-work.sh materials`，它会关闭沟通生成。构建环境需具备 Docker 和镜像仓库凭据，推荐沿用已有构建机；发布在已有 kubectl / Helm 的生产服务器执行。若同一台机器具备两种环境，可按以下完整顺序运行：
 
 ```sh
 git pull --ff-only &&
@@ -76,7 +87,7 @@ bash deploy/aliyun/accept-work.sh evaluate
 
 每次服务器执行在 gitignored `.work-acceptance/<UTC>-<mode>-<随机后缀>/` 下保存 `environment.txt` 与逐行刷新的 `results.jsonl`；目录权限仅当前用户可读写，保留脚本提交 / 脏文件标记 / SHA-256、部署镜像，以及评测的模型 / 系统提示词 / 样本哈希。失败或中断保留已有输出，单次目录互不覆盖。把两份结果文件与对应环境记录返回后再核定验收结论。
 
-`evaluate` 会从宿主机 `src/backend/work/executor.py` 的字面量计算期望提示词哈希，容器实际哈希不匹配时返回 `deployed_prompt_mismatch / model_calls=0`，避免遗漏部署后仍付费测试旧规则。启动记录包含实际 `executor_version`。当前 v2 系统提示词 SHA-256 为 `043b4e0659950184de037d3b8242c9e59a63c49d6ae27c8ad0cc37942b503d5c`。发布完成、backend / Work Worker 滚动更新就绪后再新建业务或做评测；不把滚动更新中的混合版本当验收环境。
+`evaluate` 会从宿主机 `src/backend/work/executor.py` 的字面量计算期望提示词哈希，容器实际哈希不匹配时返回 `deployed_prompt_mismatch / model_calls=0`，避免遗漏部署后仍付费测试旧规则。启动记录包含实际 `executor_version`。已部署 v2 系统提示词 SHA-256 为 `043b4e0659950184de037d3b8242c9e59a63c49d6ae27c8ad0cc37942b503d5c`；v3 候选为 `21672877c8c89f5aabd6aa63ace9313aaab565554531da81f0f76c7efb6327b7`。发布完成、backend / Work Worker 滚动更新就绪后再新建业务或做评测；不把滚动更新中的混合版本当验收环境。
 
 已收到第一轮服务器回执：`20260924T034742Z-audit-nc9GaS` 核验全部通过；无需为同一批已完成业务重复运行 `audit`。`20260924T034804Z-evaluate-fdo3Ai` 返回 S01–S19 后 `^C`，无 S20 或 summary，19 条合计 5847 / 6740 输入 / 输出 token，耗时中位数 6.825 秒、最大 8.690 秒。S20 可能已发起调用但结果未知，不计入上述用量，也不自动补跑。样本 / 单例哈希均与固定集合吻合，系统哈希 `b56d26e5…c53bcf91` 与旧提示词一致；本次附件没有 `environment.txt`，不推定实际部署镜像版本。账本与清理通过不抵消语义问题。
 
@@ -84,7 +95,9 @@ bash deploy/aliyun/accept-work.sh evaluate
 
 这些是助手对合成结果的审阅，不代表用户业务签收。新版规则明确原记录日期基准、全字段不虚构承诺、问题不预设未知状态、围绕用户目标、允许空数组及每组建议最多 3 项。未修改固定样本或降低预期。新建 Run 显式记录 `communication-v2`；旧版排队项不能直接用新版提示词与旧预占执行，新 worker 在调用前以 `generation_unavailable` 结束该项，由用户显式重新生成创建新版 Run，旧记录保留。已生成的历史草稿不被改写。
 
-当前修正验证：55 项 Work 后端测试、16 项验收工具测试、12 项模型预检测试通过，另通过 Ruff 与 Bash 语法检查；这不证明 v2 的真实生成质量已通过。下一次是**新版完整 S01–S20 复验**，不拼接旧版本的通过项或仅补 S20。复验后仍需确认新建业务 Run 的 v2 标识、用量归因及原有编辑 / 下载路径正常，再决定周报开工。
+v2 最新真实回执：镜像 `2f2d1a443` 已构建推送（digest `sha256:c7cdac68a10821b4375655d6f1fa59f88ff1a58dbed7b4c142cf44a55e7b7850`），revision 418 的 backend / Work Worker / Beat 已滚动更新成功。`20260924T054840Z-evaluate-qJQZWF` 的 20 条结构及哈希核对通过，13586 / 5581 输入 / 输出 token，中位耗时 5.190 秒、最大 7.476 秒。S13、S16、S17、S20 已纠正；逐条语义审阅仍有 S01 / S02 / S10 / S11 / S15 五条问题，详见主计划 v1.19。
+
+v3 候选补充按“核对 / 说明 / 讨论”收敛输出、中性询问进度、背景或身份缺失不自动构成信息缺口；复验保持同一集合和模型。当前候选工具验证 20 项通过，覆盖候选与线上版本分开记录、只接受提示词变更、拒绝不同适配器和畸形 profile、临时替换后恢复、调用范围与证据保留；Work 后端 55 项通过。初次本地数据库尚在恢复时测试连接失败，就绪后复验通过，不视为代码失败或生产故障。另通过 Ruff / Bash 检查。新版真实候选结果仍待回执；通过后再构建部署，并复查新业务版本、用量和成果路径，最后决定周报开工。
 
 语义人工评审维度：逐事实引用蕴含（含否定、条件、主体、单位）、不确定性保留、建议范围、指令边界、具体可用性。每条还须满足脚本中 `expected` 的专项要求；20 条全部评审通过，才完成该固定语义集。S01 / S02 / S18 / S19 / S20 重点检查稀疏或不匹配材料下是否无依据扩展流程或制造缺口；冲突、未批准预算、用户猜测、注入等由其余样本覆盖。`collection_ok=true` 只代表采集和契约通过；`semantic_passed=null / review_status=pending / release_gate_passed=false` 明确保留人工判断。出现失败时先定位并修改提示词或实现，部署后用同一固定集复验，不靠修改预期或挑选输出放行。
 

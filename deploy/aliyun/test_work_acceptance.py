@@ -1,8 +1,10 @@
 """Offline acceptance-tool regression; no production DB, model or credentials."""
 
 import contextlib
+import base64
 import copy
 import hashlib
+import inspect
 import importlib.util
 import io
 import json
@@ -182,6 +184,45 @@ class SemanticTest(unittest.TestCase):
         mock.assert_not_called()
         self.assertEqual(json.loads(output.getvalue())["code"], "deployed_prompt_mismatch")
 
+    def test_candidate_runs_only_in_test_process_and_restores_deployed_prompt(self):
+        from django.test import override_settings
+        from work import executor
+        original = executor.SYSTEM
+        proposed = original + "\nCandidate fixture."
+        profile = {"system": proposed, "version": "candidate-fixture", "adapter_hash": evaluation.adapter_hash(inspect.getsource(executor))}
+        encoded = base64.b64encode(json.dumps(profile).encode()).decode()
+        output = io.StringIO()
+        def collect(case, settings):
+            self.assertEqual(executor.SYSTEM, proposed)
+            return {"contract_ok": True}
+        with override_settings(**vars(self.settings)), contextlib.redirect_stdout(output), \
+                patch.object(evaluation, "evaluate_case", side_effect=collect) as mock:
+            self.assertEqual(evaluation.main(["--execute", "--case", "S01", "--candidate-profile", encoded]), 0)
+        mock.assert_called_once()
+        self.assertEqual(executor.SYSTEM, original)
+        start = json.loads(output.getvalue().splitlines()[0])
+        self.assertEqual(start["evaluation_mode"], "candidate")
+        self.assertEqual(start["executor_version"], "candidate-fixture")
+        self.assertEqual(start["deployed_system_hash"], hashlib.sha256(original.encode()).hexdigest())
+        self.assertNotEqual(start["system_hash"], start["deployed_system_hash"])
+
+    def test_adapter_fingerprint_excludes_only_prompt_and_version(self):
+        base = 'SYSTEM = "old"\nEXECUTOR_VERSION = "v1"\nLIMIT = 12\n'
+        self.assertEqual(evaluation.adapter_hash(base), evaluation.adapter_hash(base.replace('"old"', '"new"').replace('"v1"', '"v2"')))
+        self.assertNotEqual(evaluation.adapter_hash(base), evaluation.adapter_hash(base.replace('12', '24')))
+
+    def test_candidate_with_different_adapter_or_invalid_profile_never_calls_model(self):
+        from django.test import override_settings
+        from work import executor
+        original = executor.SYSTEM
+        for profile in ({"system": "candidate", "version": "v3", "adapter_hash": "wrong"}, {"system": "candidate"}, []):
+            encoded = base64.b64encode(json.dumps(profile).encode()).decode()
+            with self.subTest(profile=profile), override_settings(**vars(self.settings)), \
+                    contextlib.redirect_stdout(io.StringIO()), patch.object(evaluation, "evaluate_case") as mock:
+                self.assertEqual(evaluation.main(["--execute", "--candidate-profile", encoded]), 1)
+            mock.assert_not_called()
+            self.assertEqual(executor.SYSTEM, original)
+
 
 @unittest.skipUnless(os.environ.get("BASH_BIN") or shutil.which("bash"), "Bash required")
 class ShellTest(unittest.TestCase):
@@ -195,7 +236,7 @@ class ShellTest(unittest.TestCase):
             shutil.copyfile(Path(__file__).with_name(name), deploy / name)
         source = self.root / "src/backend/work"
         source.mkdir(parents=True)
-        (source / "executor.py").write_text('SYSTEM = "fixture prompt"\n', encoding="utf8")
+        (source / "executor.py").write_text('SYSTEM = "fixture prompt"\nEXECUTOR_VERSION = "fixture-v3"\n', encoding="utf8")
         subprocess.run(["git", "init", "-q", str(self.root)], check=True)
         subprocess.run(["git", "-C", str(self.root), "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
                         "commit", "--allow-empty", "-qm", "fixture"], check=True)
@@ -246,6 +287,17 @@ class ShellTest(unittest.TestCase):
             with self.subTest(args=args):
                 self.assertEqual(self.call(*args).returncode, 2)
         self.assertFalse((self.root / "kubectl.log").exists())
+
+    def test_candidate_mode_passes_literal_profile_without_deployment_commands(self):
+        result = self.call("evaluate-candidate", "--case", "S01")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        log = (self.root / "kubectl.log").read_text()
+        self.assertIn("exec -i deployment/meet-celery-work", log)
+        encoded = log.split("--candidate-profile ")[1].strip()
+        profile = json.loads(base64.b64decode(encoded))
+        self.assertEqual(profile["system"], "fixture prompt")
+        self.assertEqual(profile["version"], "fixture-v3")
+        self.assertNotIn("apply", log)
 
 
 if __name__ == "__main__":

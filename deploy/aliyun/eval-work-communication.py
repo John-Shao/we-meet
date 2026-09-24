@@ -6,7 +6,10 @@ NDJSON is flushed after every case so interrupted evidence is retained.
 """
 
 import argparse
+import ast
+import base64
 import hashlib
+import inspect
 import json
 import os
 import sys
@@ -74,6 +77,32 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
 
+def adapter_hash(source):
+    """Candidate evaluation permits only literal prompt/version changes."""
+    tree = ast.parse(source)
+    tree.body = [node for node in tree.body if not (
+        isinstance(node, ast.Assign) and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id in {"SYSTEM", "EXECUTOR_VERSION"}
+    )]
+    return hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
+
+
+def candidate_profile(encoded, executor):
+    if len(encoded) > 40000:
+        raise ValueError("candidate_profile_invalid")
+    profile = json.loads(base64.b64decode(encoded, validate=True).decode("utf8"))
+    if not isinstance(profile, dict) or set(profile) != {"system", "version", "adapter_hash"}:
+        raise ValueError("candidate_profile_invalid")
+    if not all(isinstance(profile[key], str) and profile[key] for key in profile):
+        raise ValueError("candidate_profile_invalid")
+    if len(profile["system"].encode()) > 20000 or len(profile["version"]) > 40:
+        raise ValueError("candidate_profile_invalid")
+    if profile["adapter_hash"] != adapter_hash(inspect.getsource(executor)):
+        raise ValueError("candidate_adapter_mismatch")
+    return profile
+
+
 def make_materials(case):
     return [SimpleNamespace(
         pk=f"00000000-0000-4000-8000-{index:012d}", original_name=f"合成材料{index}.txt",
@@ -125,6 +154,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execute", action="store_true", help="Make paid synthetic model calls")
     parser.add_argument("--expected-system-hash", help="Refuse paid calls if the deployed prompt differs")
+    parser.add_argument("--candidate-profile", help="Base64 JSON of a prompt-only candidate; no deployment changes")
     parser.add_argument("--case", action="append", choices=[case["id"] for case in CASES], help="Select cases; default all 20")
     args = parser.parse_args(argv)
     selected = [case for case in CASES if not args.case or case["id"] in args.case]
@@ -139,9 +169,11 @@ def main(argv=None):
         import django
         django.setup()
         from django.conf import settings
-        from work.executor import SYSTEM
         from work import executor
-        system_hash = hashlib.sha256(SYSTEM.encode()).hexdigest()
+        deployed_system = executor.SYSTEM
+        profile = candidate_profile(args.candidate_profile, executor) if args.candidate_profile else None
+        evaluated_system = profile["system"] if profile else deployed_system
+        system_hash = hashlib.sha256(evaluated_system.encode()).hexdigest()
         if args.expected_system_hash and args.expected_system_hash != system_hash:
             emit({"type": "error", "code": "deployed_prompt_mismatch",
                   "expected_system_hash": args.expected_system_hash, "system_hash": system_hash,
@@ -150,23 +182,35 @@ def main(argv=None):
         if not all((settings.WORK_MODEL, settings.WORK_MODEL_BASE_URL, settings.WORK_MODEL_API_KEY)):
             emit({"type": "error", "code": "work_model_not_configured"})
             return 1
+    except ValueError as exc:
+        code = str(exc) if str(exc) in {"candidate_profile_invalid", "candidate_adapter_mismatch"} else "candidate_profile_invalid"
+        emit({"type": "error", "code": code, "model_calls": 0})
+        return 1
     except Exception:
         emit({"type": "error", "code": "evaluation_setup_failed"})
         return 1
     emit({"type": "start", "suite": VERSION, "suite_hash": digest(CASES), "selected": [case["id"] for case in selected],
           "model": settings.WORK_MODEL, "system_hash": system_hash,
-          "executor_version": getattr(executor, "EXECUTOR_VERSION", "communication-v1"),
+          "executor_version": profile["version"] if profile else getattr(executor, "EXECUTOR_VERSION", "communication-v1"),
+          "evaluation_mode": "candidate" if profile else "deployed",
+          "deployed_executor_version": getattr(executor, "EXECUTOR_VERSION", "communication-v1"),
+          "deployed_system_hash": hashlib.sha256(deployed_system.encode()).hexdigest(),
           "endpoint_hash": hashlib.sha256(settings.WORK_MODEL_BASE_URL.encode()).hexdigest(),
           "started_at": datetime.now(timezone.utc).isoformat(), "usage_scope": "synthetic_evaluation",
           "business_acceptance": False, "review_criteria": REVIEW_CRITERIA})
     results = []
-    for case in selected:
-        result = evaluate_case(case, settings)
-        results.append(result)
-        emit(result)
-        if not result["contract_ok"]:
-            # Fail fast, retain preceding evidence; never retry paid calls automatically.
-            break
+    try:
+        # This assignment exists only in this one-off process, not Celery workers.
+        executor.SYSTEM = evaluated_system
+        for case in selected:
+            result = evaluate_case(case, settings)
+            results.append(result)
+            emit(result)
+            if not result["contract_ok"]:
+                # Fail fast, retain preceding evidence; never retry paid calls automatically.
+                break
+    finally:
+        executor.SYSTEM = deployed_system
     collected = len(results) == len(selected) and all(result["contract_ok"] for result in results)
     emit({"type": "summary", "suite": VERSION, "collection_ok": collected,
           "completed_cases": len(results), "selected_cases": len(selected),
