@@ -55,6 +55,32 @@ bash -n deploy/aliyun/enable-work.sh
 
 Windows 将 Python 路径换为 `src/backend/.venv/Scripts/python.exe`，并设置 `PYTHONPATH` 指向 `src/backend`。下一步验收项统一记录在计划第 14.6 节，保持周报 / 表格批次未开始。
 
+### 账本 / 清理核对与固定语义评测（2026-09-24）
+
+桌面验收后，使用宿主机脚本继续收集 P0-1 剩余证据。脚本通过 stdin 在**已部署容器**中运行，使用当前 Work 实现与模型，无需重新构建镜像或运行 `enable-work.sh materials`，不改变功能开关。在生产服务器 `~/we-meet` 执行：
+
+```sh
+git pull --ff-only
+bash deploy/aliyun/accept-work.sh audit
+bash deploy/aliyun/accept-work.sh evaluate
+```
+
+- `audit`：使用 PostgreSQL 只读、可重复读事务，限定 9 月 24 日已授权的 3 次 Web / 2 次桌面生成及 6 份合成材料。逐笔检查成功状态、调用时间、来源、预期 token、唯一 `AIUsageRecord`、关联指针及 owner / organization / model 一致性；检查删除时间、清理完成时间、存储键与解析内容清空。缺记录、重复账本、归属或 token 不匹配、软删除未完成清理都返回非零。输出仅含样本 ID 和检查布尔值，不输出账号、材料正文、存储键或凭证。`purge_evidence=worker_database_acknowledgement` 是清理 worker 的数据库回执；不是独立的 OSS 对象不存在证明，也不代表供应商金额账单已对平。
+- `evaluate`：顺序执行 S01–S20 共 20 条**新增合成语义样本**，扩充 C01 / C05–C09，不替代产品计划中的 C01–C20 业务验收清单。使用已部署的 `CommunicationExecutor`、提示词与引用校验，每次输出最多 1600 token、SDK 超时 45 秒、无自动重试；首个契约 / 供应商错误后停止。会产生模型费用，只发送内置合成材料，不创建业务任务或写入用户用量账本。保存样本、预期标准、实际结构化输出、token、耗时及人工评审占位；不将精确引用或 JSON 正确当作语义通过。
+- `catalog`：仅列出固定样本和评审标准，不访问模型或集群；可先查看。`catalog / evaluate --case S01 --case S03` 可限定样本，重复 ID 不会重复调用。中断后按已留存回执选择未完成项，不自动重跑整个付费集合；是否重跑结果未知的那一项需明确判断。
+
+每次服务器执行在 gitignored `.work-acceptance/<UTC>-<mode>-<随机后缀>/` 下保存 `environment.txt` 与逐行刷新的 `results.jsonl`；目录权限仅当前用户可读写，保留脚本提交 / 脏文件标记 / SHA-256、部署镜像，以及评测的模型 / 系统提示词 / 样本哈希。失败或中断保留已有输出，单次目录互不覆盖。把两份结果文件与对应环境记录返回后再核定验收结论。
+
+语义人工评审维度：逐事实引用蕴含（含否定、条件、主体、单位）、不确定性保留、建议范围、指令边界、具体可用性。每条还须满足脚本中 `expected` 的专项要求；20 条全部评审通过，才完成该固定语义集。S01 / S02 / S18 / S19 / S20 重点检查稀疏或不匹配材料下是否无依据扩展流程或制造缺口；冲突、未批准预算、用户猜测、注入等由其余样本覆盖。`collection_ok=true` 只代表采集和契约通过；`semantic_passed=null / review_status=pending / release_gate_passed=false` 明确保留人工判断。出现失败时先定位并修改提示词或实现，部署后用同一固定集复验，不靠修改预期或挑选输出放行。
+
+工具验证：15 项离线测试覆盖账本缺失 / 重复 / 错配、软删除不等于清理、错误脱敏、20 条样本经过真实提示构造与结构校验、无依据但精确引文仍待人工评审、停止 / 去重及 Bash 证据保留；6 项独立 PostgreSQL 测试验证实际 ORM 核对、错误回执拒绝及数据库阻止意外写入。**本地工具测试不替代服务器回执或真实模型的 20 条评审结果**。复验命令：
+
+```sh
+python -m unittest discover -s deploy/aliyun -p test_work_acceptance.py -v
+# 使用隔离 PostgreSQL 与项目 Test 配置，PYTHONPATH 包含 src/backend：
+python -m pytest deploy/aliyun/test_work_acceptance_db.py --reuse-db
+```
+
 ### 材料部署历史与模型依据
 
 2026-09-24 桌面补验：从固定提交 `6507434dc` 构建并安装 `0.2.0-d0.9`，真实 PKCE 登录、上传 / 生成、Markdown 下载、刷新和重启恢复同任务、退出登录通过，模型 `qwen3.8-flash`，344 / 455 输入 / 输出 token，约 15.2 秒。修复了初始加载被新导航取消时误报安装损坏的问题。此前 `d0.8` 生成的验收材料和本次材料均已删除，成果均拒读；账本保留。固定 worktree + 隔离 PostgreSQL 复验 54 项 Work 后端测试通过，覆盖 C09、C13–C15 的既有故障 / 边界场景；这些仍是隔离模型测试。安装包哈希、截图、原生交互边界和命令统一见 [桌面 README](../../desktop/README.md)。以下 Web 历史段落中的“桌面未验收”由本记录更新，不代表已满足 D0 全部发布门槛。

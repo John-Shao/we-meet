@@ -98,3 +98,6 @@ docs/research/(deprecated)kira-voice-assistant.md
 # Host-local Work rollout configuration (contains Secret references only).
 src/helm/env.d/aliyun-prod/values.work.yaml
 src/helm/env.d/aliyun-prod/values.work.yaml.tmp
+
+# Host-local synthetic Work acceptance receipts.
+/.work-acceptance/
