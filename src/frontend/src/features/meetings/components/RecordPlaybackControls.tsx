@@ -192,7 +192,11 @@ export function RecordPlaybackControls({
           onPress={onPlayPause}
           className={cx(
             action,
-            css({ gridArea: 'play', color: 'text.primary' })
+            css({
+              gridArea: 'play',
+              color: 'action.primary.bg',
+              _disabled: { color: 'icon.disabled' },
+            })
           )}
         >
           {playing ? (
