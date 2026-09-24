@@ -480,7 +480,14 @@ export const UploadMediaPlayer = forwardRef<
                 setState('ready')
               }
             }}
-            onEnded={() => {
+            onEnded={(event) => {
+              const element = event.currentTarget
+              pending.current = null
+              setPosition(
+                (Number.isFinite(element.duration) && element.duration > 0
+                  ? element.duration
+                  : element.currentTime) * 1000
+              )
               playingRef.current = false
               setState('ready')
             }}

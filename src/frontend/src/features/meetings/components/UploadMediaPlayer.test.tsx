@@ -247,6 +247,32 @@ it.each(['audio', 'video', 'collapsed video'])(
   }
 )
 
+it.each(['audio', 'video', 'collapsed video'])(
+  'disables forward on natural completion with a short final clock sample in %s mode',
+  async (mode) => {
+    mocks.fetchApi.mockResolvedValue({ ...media, media_type: mode === 'audio' ? 'audio' : 'video' })
+    const { container } = show()
+    await waitFor(() => expect(container.querySelector('audio, video')).not.toBeNull())
+    if (mode === 'collapsed video') fireEvent.click(screen.getByRole('button', { name: 'hideVideo' }))
+    const element = container.querySelector('audio, video') as HTMLMediaElement
+    Object.defineProperty(element, 'duration', { value: 47 })
+    Object.defineProperty(element, 'readyState', { value: 2 })
+    fireEvent.loadedMetadata(element)
+    fireEvent.play(element)
+    element.currentTime = 46.96
+    fireEvent.timeUpdate(element)
+    fireEvent.ended(element)
+    expect(screen.getByRole('button', { name: 'skipForward' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'skipBack' }))
+    expect(element.currentTime).toBe(32)
+    expect(screen.getByRole('button', { name: 'skipForward' })).toBeEnabled()
+    fireEvent.ended(element)
+    fireEvent.click(screen.getByRole('button', { name: 'play' }))
+    expect(element.currentTime).toBe(0)
+    expect(screen.getByRole('button', { name: 'skipForward' })).toBeEnabled()
+  }
+)
+
 it('clamps timeline jumps to the known duration and preserves playback speed', async () => {
   mocks.fetchApi.mockResolvedValue(media)
   const { container } = show()
