@@ -4,6 +4,8 @@ Run through kubectl exec stdin; no model calls, cleanup writes or private conten
 The purge receipt is a DB worker acknowledgement, not an independent OSS HEAD.
 """
 
+import argparse
+import hashlib
 import json
 import os
 import sys
@@ -21,6 +23,51 @@ CASES = [
     ("desktop-d09", "e463170a-804b-471a-8d07-7d880645f805", "7d54ee63-a83a-47f9-8638-2eb2ca419a6b", 344, 455,
      ["d192dde8-69b2-4ee7-908f-b4e685b1bc23"]),
 ]
+
+V6_CASE = ("web-v6", "2bbb4d19-ec1d-496d-b785-c27e40c89e5a", "8c3821d8-c249-4ebe-aebc-610d7cca7eca", 1433, 500,
+           ["45e51f89-cf3d-4b8d-a500-6a54b5600fb1"])
+V6_SYSTEM_HASH = "296a12bd77e915b66ccc6595c8b3d0a734eb50bd60f641b0fcea11ef0f6f3756"
+V6_ARTIFACT_HASHES = ["7d2ae5d438084531bf55ac717d7ec5d4fbd0c08387c104844b5765239f0da56b",
+                      "38a02db526717a5778c50d934c7c3114dc0af1f2abcb973a5c280baec52eb76c"]
+
+
+def inspect_v6_artifacts(run, versions):
+    checks = {"executor_version_matches": bool(run and run.executor_version == "communication-v6"),
+              "two_artifact_versions": len(versions) == 2}
+    for index, expected in enumerate(V6_ARTIFACT_HASHES):
+        item = versions[index] if index < len(versions) else None
+        checks[f"artifact_v{index + 1}_matches"] = bool(
+            item and str(item.run_id) == V6_CASE[2] and item.version == index + 1
+            and hashlib.sha256(item.body.encode()).hexdigest() == expected)
+    checks["edited_version_adopted"] = bool(len(versions) == 2 and versions[1].adopted_at)
+    return checks
+
+
+def audit_v6(executor_only=False):
+    from work.executor import EXECUTOR_VERSION, SYSTEM
+
+    actual_hash = hashlib.sha256(SYSTEM.encode()).hexdigest()
+    result = {"check": "work-v6-executor" if executor_only else "work-v6-business",
+              "read_only": True, "model_calls": 0, "executor_version": EXECUTOR_VERSION,
+              "system_hash": actual_hash,
+              "ok": EXECUTOR_VERSION == "communication-v6" and actual_hash == V6_SYSTEM_HASH}
+    if executor_only or not result["ok"]:
+        return result
+    from django.db import connection, transaction
+    from core.models import AIUsageRecord
+    from work.models import WorkArtifactVersion, WorkRun
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+        run = WorkRun.objects.select_related("task").filter(pk=V6_CASE[2]).first()
+        records = list(AIUsageRecord.objects.filter(ref_type="work_run", ref_id=V6_CASE[2]).order_by("pk")[:2])
+        receipt = inspect_run(V6_CASE, run, records)
+        versions = list(WorkArtifactVersion.objects.filter(run_id=V6_CASE[2]).order_by("version")[:3])
+        receipt["checks"].update(inspect_v6_artifacts(run, versions))
+        receipt["ok"] = all(receipt["checks"].values())
+        result.update(run=receipt, ok=receipt["ok"], pricing_reconciled=False)
+    return result
 
 
 def inspect_run(case, run, records):
@@ -94,13 +141,16 @@ def audit():
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--mode", choices=("audit", "v6", "v6-executor"), default="audit")
+    args = parser.parse_args()
     try:
         os.environ.setdefault("DJANGO_SETTINGS_MODULE", "meet.settings")
         from configurations.importer import install
         install()
         import django
         django.setup()
-        result = audit()
+        result = audit() if args.mode == "audit" else audit_v6(executor_only=args.mode == "v6-executor")
     except Exception:
         # Do not disclose connection strings, SQL values or customer content.
         result = {"ok": False, "code": "acceptance_audit_failed"}

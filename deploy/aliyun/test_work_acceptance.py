@@ -35,6 +35,21 @@ evaluation = load("eval-work-communication")
 
 
 class AuditTest(unittest.TestCase):
+    def test_v6_artifacts_require_matching_run_body_version_and_adoption(self):
+        run = NS(executor_version="communication-v6")
+        versions = [NS(run_id=audit.V6_CASE[2], version=i + 1, body=str(i), adopted_at=True) for i in range(2)]
+        hashes = [hashlib.sha256(item.body.encode()).hexdigest() for item in versions]
+        with patch.object(audit, "V6_ARTIFACT_HASHES", hashes):
+            self.assertTrue(all(audit.inspect_v6_artifacts(run, versions).values()))
+            for key, value in (("body", "changed"), ("version", 1), ("run_id", "other"), ("adopted_at", None)):
+                changed = copy.deepcopy(versions)
+                setattr(changed[1], key, value)
+                self.assertFalse(all(audit.inspect_v6_artifacts(run, changed).values()))
+            for items in ([], versions[:1], versions + [versions[1]]):
+                self.assertFalse(all(audit.inspect_v6_artifacts(run, items).values()))
+            self.assertFalse(all(audit.inspect_v6_artifacts(NS(executor_version="communication-v3"), versions).values()))
+            self.assertFalse(all(audit.inspect_v6_artifacts(None, versions).values()))
+
     def setUp(self):
         self.case = audit.CASES[0]
         _, task_id, run_id, inputs, outputs, sources = self.case
@@ -91,6 +106,14 @@ class AuditTest(unittest.TestCase):
 
 
 class SemanticTest(unittest.TestCase):
+    def test_v6_executor_check_rejects_changed_prompt_or_version_without_model_calls(self):
+        with patch("work.executor.CommunicationExecutor.generate", side_effect=AssertionError("must not call model")):
+            self.assertTrue(audit.audit_v6(executor_only=True)["ok"])
+            with patch("work.executor.EXECUTOR_VERSION", "communication-v3"):
+                self.assertFalse(audit.audit_v6(executor_only=True)["ok"])
+            with patch("work.executor.SYSTEM", "changed"):
+                self.assertFalse(audit.audit_v6()["ok"])
+
     @classmethod
     def setUpClass(cls):
         os.environ.update(DJANGO_SETTINGS_MODULE="meet.settings", DJANGO_CONFIGURATION="Test",
@@ -280,6 +303,7 @@ class ShellTest(unittest.TestCase):
         kubectl = binary / "kubectl"
         kubectl.write_text('#!/usr/bin/env bash\n'
                            'echo "$*" >> "$FAKE_KUBE_LOG"\n'
+                           'if [[ "$*" == *"v6-executor"* && "${FAKE_WORKER_FAIL:-0}" == 1 ]]; then cat >/dev/null; echo \'{"ok":false}\'; exit 1; fi\n'
                            'case "$*" in\n'
                            '  *" get deployment "*) echo "fixture image:123" ;;\n'
                            '  *" exec -i "*) cat >/dev/null; echo \'{"fixture":true}\'; exit "${FAKE_FAIL:-0}" ;;\n'
@@ -304,6 +328,30 @@ class ShellTest(unittest.TestCase):
         self.assertEqual(len(receipts), 1)
         self.assertEqual(json.loads(receipts[0].read_text()), {"fixture": True})
 
+    def test_v6_audit_checks_backend_business_and_worker_executor(self):
+        result = self.call("audit-v6")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        log = (self.root / "kubectl.log").read_text()
+        self.assertIn("deployment/meet-backend -- python - --mode v6", log)
+        self.assertIn("deployment/meet-celery-work -- python - --mode v6-executor", log)
+        self.assertEqual(log.count("exec -i"), 2)
+        receipt = next((self.root / ".work-acceptance").glob("*/results.jsonl"))
+        self.assertEqual(len(receipt.read_text().splitlines()), 2)
+        self.assertNotIn("paid calls", result.stdout)
+
+    def test_v6_audit_stops_on_backend_failure_and_retains_evidence(self):
+        self.env["FAKE_FAIL"] = "1"
+        self.assertNotEqual(self.call("audit-v6").returncode, 0)
+        log = (self.root / "kubectl.log").read_text()
+        self.assertEqual(log.count("exec -i"), 1)
+        self.assertTrue(list((self.root / ".work-acceptance").glob("*/results.jsonl")))
+
+    def test_v6_audit_does_not_hide_worker_failure_after_backend_pass(self):
+        self.env["FAKE_WORKER_FAIL"] = "1"
+        self.assertNotEqual(self.call("audit-v6").returncode, 0)
+        receipt = next((self.root / ".work-acceptance").glob("*/results.jsonl"))
+        self.assertEqual(json.loads(receipt.read_text().splitlines()[-1]), {"ok": False})
+
     def test_evaluate_targets_worker_and_failure_retains_partial_evidence(self):
         self.env["FAKE_FAIL"] = "1"
         result = self.call("evaluate", "--case", "S01")
@@ -315,7 +363,7 @@ class ShellTest(unittest.TestCase):
         self.assertEqual(len(list((self.root / ".work-acceptance").glob("*/results.jsonl"))), 1)
 
     def test_catalog_cannot_be_escalated_to_execute(self):
-        for args in (("catalog", "--execute"), ("evaluate", "--case", "S21"), ("audit", "extra")):
+        for args in (("catalog", "--execute"), ("evaluate", "--case", "S21"), ("audit", "extra"), ("audit-v6", "extra")):
             with self.subTest(args=args):
                 self.assertEqual(self.call(*args).returncode, 2)
         self.assertFalse((self.root / "kubectl.log").exists())

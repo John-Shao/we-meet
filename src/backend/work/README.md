@@ -1,6 +1,6 @@
 # Work 办公模块
 
-当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 生产仍为 backend `30cab9491` / Helm revision 419 的 `communication-v3`。v6 候选固定 20 条契约检查及助手语义审阅均通过，进入构建发布与新版本业务复验。此前业务用量和材料清理回执通过；P0-1 尚未整体放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
+当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 已发布 backend `d45f7d634` / Helm revision 421，Work 运行检查通过；前端二级导航 `079db8e1d` 的 11 个入口已在线确认。v6 固定 20 条契约 / 语义审阅及新 Web 业务生成、编辑、采纳、下载、刷新通过；待服务器核对容器提示词与本次唯一用量记录。此前业务用量和材料清理回执通过；P0-1 尚未整体放行。** 周报和表格分析仍为后续批次。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
 
 ## 启用与运行
 
@@ -57,7 +57,18 @@ Windows 将 Python 路径换为 `src/backend/.venv/Scripts/python.exe`，并设�
 
 ### 账本 / 清理核对与固定语义评测（2026-09-24）
 
-**当前下一步构建并发布 v6，再验收一条新版本业务。** 完整候选回执 `20260924T084006Z-evaluate-candidate-oJOjxq` 对应源码 `20f9397a8a9948a2395c95bf52a60038b3400133`：20/20 契约通过，助手按既有五项标准逐条语义审阅 20/20 通过；S02 未再从称呼生成项目名，S08 先核实实际审批状态。27346 / 5424 输入 / 输出 token，中位耗时 4.927 秒、最大 8.261 秒。版本、集合 / 单例哈希、全部精确引文及汇总核对一致。完整记录见主计划第 15.5 节。
+**当前下一步执行 `audit-v6`，无需再次构建发布或生成。** 用户回执确认 revision 421 已发布 `d45f7d634`，backend / celery-backend / celery-work / beat 均滚动更新成功；`check` 返回 `ok=true`、`generation_available=true`、模型 `qwen3.8-flash`、消费者 1，存储配置无差异。随后使用已授权的 demo / Playwright 会话确认线上 11 个导航入口、周报待开放页，并新增一条 `communication-v6` 业务，生成 / 引用 / 编辑 / 采纳 / 下载 / 刷新均通过（1433 / 500 token）。下方构建发布命令保留供后续更新使用。
+
+在生产服务器执行：
+
+```sh
+git pull --ff-only &&
+bash deploy/aliyun/accept-work.sh audit-v6
+```
+
+该模式固定核对新 Run `8c3821d8-c249-4ebe-aebc-610d7cca7eca`：backend 实际 v6 版本及系统哈希、Run 的来源 / 版本 / 成功状态 / 调用时间、1433 / 500 token、唯一用量行及其指针 / 归属 / 模型；核对成果 v1 与已采纳 v2 的正文 SHA-256，确认与浏览器实际生成和下载内容相同。数据库采用只读可重复读事务。通过后再检查 Work Worker 的版本 / 系统哈希；任一步失败即非零退出，保留部分回执，无自动重试。模式只使用既有记录，**零模型调用、零业务修改、不清理材料、不打印正文或凭据**；不代表供应商金额对账完成。结果保存在 `.work-acceptance/<UTC>-audit-v6-<随机后缀>/`。28 项离线验收工具回归与 Ruff 通过，生产账本核验结果仍待服务器回执。
+
+完整候选回执 `20260924T084006Z-evaluate-candidate-oJOjxq` 对应源码 `20f9397a8a9948a2395c95bf52a60038b3400133`：20/20 契约通过，助手按既有五项标准逐条语义审阅 20/20 通过；S02 未再从称呼生成项目名，S08 先核实实际审批状态。27346 / 5424 输入 / 输出 token，中位耗时 4.927 秒、最大 8.261 秒。版本、集合 / 单例哈希、全部精确引文及汇总核对一致。完整记录见主计划第 15.5–15.6 节。
 
 v6 系统哈希 `296a12bd77e915b66ccc6595c8b3d0a734eb50bd60f641b0fcea11ef0f6f3756`；候选适配器与已部署 v3 一致，此前 23 项离线工具回归及 Ruff 通过。本轮仅补审阅记录，不再改提示词或默认重跑付费集合。原始输出中的 `semantic_passed=null / review_status=pending / release_gate_passed=false` 是采集工具保留的人工审阅占位，不改写原始证据；此处结论是助手对本轮固定合成集的独立审阅，不代表生产已升级、用户业务签收或模型普遍可靠性。
 
@@ -96,6 +107,8 @@ import hashlib
 import os
 import django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "meet.settings")
+from configurations.importer import install
+install()
 django.setup()
 from work.executor import EXECUTOR_VERSION, SYSTEM
 actual_hash = hashlib.sha256(SYSTEM.encode()).hexdigest()
@@ -107,7 +120,7 @@ done
 )
 ```
 
-待滚动更新、开关 / 消费者检查和两处版本核验通过后，用合成材料新建一次沟通准备：核对生成 / 引用 → 编辑、采纳、下载、刷新，以及新 `WorkRun.executor_version=communication-v6`、实际模型 / token、唯一关联 `AIUsageRecord` 和成果路径。旧 `audit` 固定核对的是此前五次业务，不能替代这条新业务的证据；合成评测也没有写入业务账本。若镜像、提示词、模型或实际输出出现差异，再针对差异决定是否重跑 `evaluate`，不默认重复整套付费评测。仅发布 backend 不会更新此前已提交的前端二级导航，也无需重打桌面安装包。
+待滚动更新、开关 / 消费者检查和两处版本核验通过后，用合成材料新建一次沟通准备：核对生成 / 引用 → 编辑、采纳、下载、刷新，以及新 `WorkRun.executor_version=communication-v6`、实际模型 / token、唯一关联 `AIUsageRecord` 和成果路径。旧 `audit` 固定核对的是此前五次业务，不能替代这条新业务的证据；合成评测也没有写入业务账本。若镜像、提示词、模型或实际输出出现差异，再针对差异决定是否重跑 `evaluate`，不默认重复整套付费评测。仅发布 backend 不会更新 frontend；revision 421 回执另已确认二级导航前端 `079db8e1d` 正在运行，无需重打桌面安装包。
 
 - `audit`：使用 PostgreSQL 只读、可重复读事务，限定 9 月 24 日已授权的 3 次 Web / 2 次桌面生成及 6 份合成材料。逐笔检查成功状态、调用时间、来源、预期 token、唯一 `AIUsageRecord`、关联指针及 owner / organization / model 一致性；检查删除时间、清理完成时间、存储键与解析内容清空。缺记录、重复账本、归属或 token 不匹配、软删除未完成清理都返回非零。输出仅含样本 ID 和检查布尔值，不输出账号、材料正文、存储键或凭证。`purge_evidence=worker_database_acknowledgement` 是清理 worker 的数据库回执；不是独立的 OSS 对象不存在证明，也不代表供应商金额账单已对平。
 - `evaluate`：顺序执行 S01–S20 共 20 条**新增合成语义样本**，扩充 C01 / C05–C09，不替代产品计划中的 C01–C20 业务验收清单。使用已部署的 `CommunicationExecutor`、提示词与引用校验，每次输出最多 1600 token、SDK 超时 45 秒、无自动重试；首个契约 / 供应商错误后停止。会产生模型费用，只发送内置合成材料，不创建业务任务或写入用户用量账本。保存样本、预期标准、实际结构化输出、token、耗时及人工评审占位；不将精确引用或 JSON 正确当作语义通过。

@@ -1,6 +1,6 @@
 # 工作（Work）模块：产品、架构与 Agent 选型方案
 
-日期：2026-09-21 · 更新：2026-09-24 · 修订：v1.25，v6 候选完整审阅通过，待发布与新业务复验 · 状态：Web / 桌面办公闭环及账本 / 清理回执已通过；生产仍为 backend `30cab9491` / Helm revision 419 的 v3；v6 候选完整 20 条契约检查及助手语义审阅均通过，P0-1 未整体放行；D0 剩余发布验收独立跟踪 · 原源码核查基线：we-meet `4c5ca713f`；办公第二批实施基线：`09a7841f9`
+日期：2026-09-21 · 更新：2026-09-24 · 修订：v1.26，v6 发布与新 Web 业务通过，待服务器账本核验 · 状态：backend `d45f7d634` / Helm revision 421 已发布、Work 运行检查通过；二级导航前端 `079db8e1d` 已部署，11 个入口已在线确认；v6 完整 20 条契约 / 语义审阅和新业务闭环通过，待容器哈希与新业务账本回执，P0-1 未整体放行；D0 剩余发布验收独立跟踪 · 原源码核查基线：we-meet `4c5ca713f`；办公第二批实施基线：`09a7841f9`
 
 v1.20 最新回执：revision 419 的 backend / celery-backend / celery-work / Beat 滚动更新成功。`20260924T062332Z-evaluate-candidate-suVHZQ` 在模型调用前以 `candidate_adapter_mismatch` 退出（0 次调用），不是语义失败。相同执行器源码在本地 Python 3.10.12 与镜像 Python 3.13.5 下生成不同的旧 AST 哈希，已复现这一误报路径；尚未直接确认生产宿主机 Python 版本。指纹改为统一换行后移除提示词 / 版本赋值，对剩余 UTF-8 源码计算哈希，保留其他源码差异的拒绝条件。两个解释器与本地 `30cab9491` 镜像源码的新指纹一致，工具回归 21 项及 Ruff 通过。本次无需重建或发布镜像；服务器拉取工具后执行 `bash deploy/aliyun/accept-work.sh evaluate`，评测已部署 v3 的完整 S01–S20，再审阅并验证新业务闭环。后续未部署的提示词仍先用 `evaluate-candidate`。以下 v1.19 及更早记录保留为历史证据，不能视为 v3 已通过语义验收。
 
@@ -1036,6 +1036,27 @@ v6 系统哈希 `296a12bd77e915b66ccc6595c8b3d0a734eb50bd60f641b0fcea11ef0f6f375
 2. **发布同一已推送 tag。** 生产用同一源码和 `release-meet.sh --skip-git-pull --tag <已推送的tag> backend` 更新后端及 Work Worker；等待滚动更新，只读 `enable-work.sh check`，分别核对 backend / Work Worker 实际 v6 版本与上述系统哈希。完整命令维护在 [Work README](../../src/backend/work/README.md#账本--清理核对与固定语义评测2026-09-24)。不重复执行会关闭沟通的 `materials`，不遗漏构建直接发布新 HEAD。
 3. **复验新版本业务并留证。** 使用新合成材料完成生成、引用核对、编辑、采纳、下载与刷新；核对新 Run 的 v6 版本、实际模型与 token、唯一关联用量记录和成果路径。此前固定旧业务的 `audit` 不能证明 v6 闭环，本轮合成评测没有写业务账本。P0-1 整体放行仍等待这份回执及既有独立门槛。
 4. **后续批次。** 发布验证完成后推进周报，再推进表格分析；已提交的二级导航另需 frontend 发布确认。桌面 D0 剩余发布验收按原清单独立跟踪，后端提示词升级无需重新打包桌面。
+
+### 15.6 v6 发布回执与剩余验收（2026-09-24，v1.26）
+
+用户生产回执确认：`release-meet.sh backend` 已找到并发布镜像 `d45f7d634`（源码 `d45f7d634f2858222532f95fcf362e47087fefc8`），Helm revision **421**、状态 `deployed`；`meet-backend / meet-celery-backend / meet-celery-work / meet-celery-beat` 全部滚动更新成功。运行镜像列表同时确认前端 **`079db8e1d`**，即已交付的 Work 二级导航版本，无需再因此前“待发布”记录重复发布前端。
+
+随后 `enable-work.sh check` 全部通过：迁移就绪，Work / 材料 / 沟通开关均开启，模型已配置，`generation_available=true`，模型 `qwen3.8-flash`，Work 消费者 1；私有存储 bucket / endpoint / 静态凭据均已配置，`deployment_config_differences=[]`。此结果验证运行条件，不包含实际容器提示词哈希或新业务账本的核对。
+
+随后使用已授权的 demo / Playwright 在真实站点完成一次新 Web 业务：上传一份合成 Markdown → 解析 / 选择 → 生成 → 四条精确引用核对 → 编辑保存 v2 → 采纳 → Markdown 下载内容一致 → 刷新保持已采纳 v2。Run API 返回 `communication-v6` / `qwen3.8-flash` / `succeeded`，1433 / 500 输入 / 输出 token，创建至完成约 8.904 秒；草稿复述已确认的时间、时长、主持、主题和参会人，未扩展预算 / 采购议程，问题 / 待补为空。线上导航包含 11 个入口，周报正确进入“待开放”页，无页面运行错误。浏览器早期启动失败发生在业务生成之前；本轮最终仅创建一个任务、一次模型调用，无自动模型重试。
+
+| 新业务证据 | 记录 |
+| --- | --- |
+| Task | `2bbb4d19-ec1d-496d-b785-c27e40c89e5a` |
+| Run | `8c3821d8-c249-4ebe-aebc-610d7cca7eca` |
+| 合成材料 | `45e51f89-cf3d-4b8d-a500-6a54b5600fb1`，暂保留供复核 |
+| 原始成果 v1 SHA-256 | `7d2ae5d438084531bf55ac717d7ec5d4fbd0c08387c104844b5765239f0da56b` |
+| 已采纳 / 下载成果 v2 SHA-256 | `38a02db526717a5778c50d934c7c3114dc0af1f2abcb973a5c280baec52eb76c` |
+| 本地证据 | gitignored `src/desktop/test-results/work-v6-production-attempt3.json`、`work-v6-production.png`、`work-v6-production-draft.md` |
+
+下一步在生产执行 `git pull --ff-only && bash deploy/aliyun/accept-work.sh audit-v6`。新模式复用现有审计工具，固定核对本次 Run 的版本、来源、成功状态、调用时间、1433 / 500 token、唯一用量行及关联归属，以及原始 / 编辑成果的精确正文哈希与采纳状态；并分别核对 backend / Work Worker 的 v6 版本与系统哈希。数据库采用只读可重复读事务，脚本通过 stdin 执行，不部署、不调用模型、不写入业务或删除材料；任一容器检查失败都保留证据、返回非零且不重试。28 项离线回归覆盖旧审计、候选评测及新模式的版本 / 成果错配、后端失败和 Worker 失败传播，Ruff 通过；实际生产账本核验仍待回执，不用本地模拟通过替代。完整说明见 [Work README](../../src/backend/work/README.md#账本--清理核对与固定语义评测2026-09-24)。
+
+收到这条新业务账本回执后，再核定沟通准备门槛并推进周报；后续仍为表格分析。无需重建镜像、重复启用材料或重跑整套付费集合，D0 的其余桌面发布门槛独立跟踪。
 
 ## 16. 三场景、工作模式与执行器设计
 

@@ -8,6 +8,9 @@ cd "$ROOT"
 case "$MODE" in
   audit) [[ $# == 0 ]] || { echo "audit accepts no arguments" >&2; exit 2; }
     SCRIPT=deploy/aliyun/check-work-acceptance.py; TARGET=backend ;;
+  audit-v6) [[ $# == 0 ]] || { echo "audit-v6 accepts no arguments" >&2; exit 2; }
+    SCRIPT=deploy/aliyun/check-work-acceptance.py; TARGET=backend
+    set -- --mode v6 ;;
   catalog|evaluate|evaluate-candidate)
     # Only explicit case IDs are accepted; no arbitrary Python or kubectl flags.
     args=("$@")
@@ -53,7 +56,7 @@ PY
       set -- "$@" --candidate-profile "$CANDIDATE_PROFILE"
     fi
     SCRIPT=deploy/aliyun/eval-work-communication.py; TARGET=celery-work ;;
-  *) echo "Usage: bash deploy/aliyun/accept-work.sh [audit|catalog|evaluate|evaluate-candidate] [--case S01 ...]" >&2; exit 2 ;;
+  *) echo "Usage: bash deploy/aliyun/accept-work.sh [audit|audit-v6|catalog|evaluate|evaluate-candidate] [--case S01 ...]" >&2; exit 2 ;;
 esac
 command -v kubectl >/dev/null || { echo "Missing kubectl" >&2; exit 1; }
 NAMESPACE="${NAMESPACE:-meet}"
@@ -77,7 +80,13 @@ fi
 if [[ "$MODE" == evaluate-candidate ]]; then
   echo "Candidate prompt only in this test process; deployed Work services remain unchanged."
 fi
-if kubectl -n "$NAMESPACE" exec -i "deployment/$RELEASE-$TARGET" -- python - "$@" < "$SCRIPT" | tee "$EVIDENCE/results.jsonl"; then
+collect() {
+  kubectl -n "$NAMESPACE" exec -i "deployment/$RELEASE-$TARGET" -- python - "$@" < "$SCRIPT" || return $?
+  if [[ "$MODE" == audit-v6 ]]; then
+    kubectl -n "$NAMESPACE" exec -i "deployment/$RELEASE-celery-work" -- python - --mode v6-executor < "$SCRIPT" || return $?
+  fi
+}
+if collect "$@" | tee "$EVIDENCE/results.jsonl"; then
   echo "Collection finished. Audit ok or evaluation collection_ok is not overall P0-1 release approval."
 else
   echo "Collection failed; partial evidence retained in $EVIDENCE. No automatic retry." >&2
