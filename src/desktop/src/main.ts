@@ -29,6 +29,7 @@ import {
 } from "./policy";
 import { installRenderer } from "./renderer";
 import { forwardRequest } from "./forward";
+import { loadInitialPage } from "./startup";
 
 if (!app.isPackaged && process.env.WEMEET_USER_DATA)
   app.setPath("userData", process.env.WEMEET_USER_DATA);
@@ -453,7 +454,7 @@ async function createWindow() {
       },
     ]),
   );
-  await win.loadURL(rendererOrigin);
+  await loadInitialPage(win, rendererOrigin);
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();
