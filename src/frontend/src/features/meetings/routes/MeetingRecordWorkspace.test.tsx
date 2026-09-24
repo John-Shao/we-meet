@@ -34,10 +34,10 @@ vi.mock('../components/UploadMediaPlayer', () => ({
       },
     }))
     return (
-      <>
+      <section data-video-expanded="true">
         <p>upload-player</p>
         <button onClick={() => onUserSeek?.(1500)}>seek-player</button>
-      </>
+      </section>
     )
   }),
 }))
@@ -84,6 +84,8 @@ vi.mock('../components/RecordSummaryPanel', () => ({
 let client: QueryClient
 let record: Record<string, unknown>
 let capture: Record<string, unknown>
+let wideScreen = false
+const screenListeners = new Set<() => void>()
 function show(viewerId = 'owner', recordId = 'record') {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -97,6 +99,17 @@ function show(viewerId = 'owner', recordId = 'record') {
   )
 }
 beforeEach(() => {
+  wideScreen = false
+  screenListeners.clear()
+  vi.stubGlobal('matchMedia', () => ({
+    get matches() {
+      return wideScreen
+    },
+    addEventListener: (_: string, listener: () => void) =>
+      screenListeners.add(listener),
+    removeEventListener: (_: string, listener: () => void) =>
+      screenListeners.delete(listener),
+  }))
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -126,6 +139,7 @@ beforeEach(() => {
     started_at: '2026-09-13T00:00:02Z',
   }
   vi.mocked(fetchApi).mockImplementation(async (path) => {
+    if (path.includes('/speakers/')) return { results: [], next_cursor: null }
     if (path.includes('/document-exports/')) return { results: [] }
     if (path.startsWith('capture-sessions/')) return capture
     if (path.includes('original-segments'))
@@ -801,4 +815,47 @@ it('return clears an unsubmitted search draft while paused at zero', async () =>
     screen.getByRole('button', { name: 'library.backToPlayback' })
   )
   expect(screen.getByLabelText('library.searchOriginal')).toHaveValue('')
+})
+
+it('splits video details from content only on wide screens and preserves both selections', async () => {
+  record.source_type = 'upload'
+  record.capture_id = null
+  wideScreen = true
+  show()
+  await screen.findByText('Shared original')
+  await waitFor(() => expect(screen.getAllByRole('tablist')).toHaveLength(2))
+  const player = screen.getByText('upload-player')
+  fireEvent.click(screen.getByRole('tab', { name: 'library.info' }))
+  expect(screen.getByText('Shared original')).toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: 'library.text' })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  expect(screen.getByRole('tab', { name: 'library.info' })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  await act(async () => {
+    wideScreen = false
+    screenListeners.forEach((listener) => listener())
+  })
+  expect(screen.getAllByRole('tablist')).toHaveLength(1)
+  expect(screen.getByRole('tab', { name: 'library.info' })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  await act(async () => {
+    wideScreen = true
+    screenListeners.forEach((listener) => listener())
+  })
+  expect(screen.getAllByRole('tablist')).toHaveLength(2)
+  expect(screen.getByRole('tab', { name: 'library.text' })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  expect(screen.getByRole('tab', { name: 'library.info' })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  expect(screen.getByText('upload-player')).toBe(player)
 })

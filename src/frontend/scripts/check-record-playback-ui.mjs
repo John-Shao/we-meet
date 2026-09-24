@@ -429,7 +429,37 @@ try {
     )
   }
   await checkVideoControlLayout()
-  const paneBox = await page.locator('[role=tablist]').boundingBox()
+  await expect(page.getByRole('tablist')).toHaveCount(2)
+  const detailsTabs = page.locator('[data-record-media]').getByRole('tablist')
+  await expect(detailsTabs.getByRole('tab')).toHaveText(['发言人', '记录信息'])
+  const contentTabs = page.getByRole('tablist', {
+    name: '记录内容',
+    exact: true,
+  })
+  await expect(contentTabs.getByRole('tab')).toHaveText([
+    '文字记录',
+    '概要',
+    '章节纪要',
+    '译文',
+  ])
+  const detailsBox = await detailsTabs.boundingBox()
+  const expandedBox = await surface.boundingBox()
+  assert.ok(
+    detailsBox.y >= expandedBox.y + expandedBox.height - 1,
+    'details tabs sit below video'
+  )
+  assert.ok(
+    Math.abs(detailsBox.x - expandedBox.x) < 1,
+    'details align with video'
+  )
+  await detailsTabs.getByRole('tab', { name: '记录信息', exact: true }).click()
+  await expect(
+    contentTabs.getByRole('tab', { name: '文字记录', exact: true })
+  ).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('tabpanel')).toHaveCount(2)
+  const paneBox = await page
+    .getByRole('tablist', { name: '记录内容', exact: true })
+    .boundingBox()
   const videoBox = await video.boundingBox()
   const divider = page.getByRole('separator', { name: '调整视频与内容宽度' })
   await expect(divider).toHaveAttribute('aria-valuenow', '50')
@@ -468,7 +498,11 @@ try {
   await divider.press('End')
   await checkVideoControlLayout()
   assert.ok(
-    (await page.locator('[role=tablist]').boundingBox()).width >= 319,
+    (
+      await page
+        .getByRole('tablist', { name: '记录内容', exact: true })
+        .boundingBox()
+    ).width >= 319,
     'text retains its minimum width'
   )
   await divider.press('Enter')
@@ -533,10 +567,31 @@ try {
     true
   )
   await page.screenshot({ path: `${output}/video-inline.png`, fullPage: true })
+  await page.setViewportSize({ width: 1280, height: 500 })
+  assert.ok(
+    (
+      await page
+        .locator('[data-record-media]')
+        .getByRole('tabpanel')
+        .boundingBox()
+    ).height > 100,
+    'details remain readable in short desktop windows'
+  )
   await page.setViewportSize({ width: 390, height: 900 })
   await expect(divider).toBeHidden()
+  await expect(page.getByRole('tablist')).toHaveCount(1)
+  await expect(page.getByRole('tablist').getByRole('tab')).toHaveText([
+    '文字记录',
+    '概要',
+    '章节纪要',
+    '发言人',
+    '记录信息',
+    '译文',
+  ])
   const mobileVideo = await video.boundingBox()
-  const mobileText = await page.locator('[role=tablist]').boundingBox()
+  const mobileText = await page
+    .getByRole('tablist', { name: '记录内容', exact: true })
+    .boundingBox()
   assert.ok(
     mobileVideo.y + mobileVideo.height <= mobileText.y,
     'mobile video sits above the text'

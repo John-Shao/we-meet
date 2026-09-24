@@ -478,6 +478,32 @@ function LegacySummary({
   )
 }
 
+const workspaceTabsStyle = css({
+  flex: '1 1 0',
+  minHeight: 0,
+  minWidth: 0,
+  '& [role=tablist]': {
+    overflowX: 'auto',
+    flexShrink: 0,
+    whiteSpace: 'nowrap',
+    borderBottom: '1px solid token(colors.border.subtle)',
+  },
+  '& [role=tab]': { flexShrink: 0 },
+  '& [role=tab][aria-selected=false]': {
+    borderBottomColor: 'transparent',
+    color: 'text.secondary',
+  },
+  '& [role=tab][aria-selected=true]': {
+    color: 'text.link',
+    fontWeight: 'semibold',
+  },
+  '& [role=tabpanel]': {
+    overflowY: 'auto',
+    minHeight: 0,
+    flex: '1 1 0',
+  },
+})
+
 /** This workspace only reads capture state; device control stays on the recorder. */
 function WorkspaceContent({
   record,
@@ -508,6 +534,13 @@ function WorkspaceContent({
             ? 'text'
             : 'summary'
   )
+  const [mainTab, setMainTab] = useState(tab)
+  const [detailsTab, setDetailsTab] = useState('speakers')
+  const selectTab = (key: string) => {
+    setTab(key)
+    if (key === 'speakers' || key === 'info') setDetailsTab(key)
+    else setMainTab(key)
+  }
   const player = useRef<CaptureAudioHandle>(null)
   const uploadMedia = useRef<UploadMediaHandle>(null)
   /** Imports are served whole; captures are served as verified chunks. */
@@ -575,300 +608,313 @@ function WorkspaceContent({
       : (tab === 'summary' || tab === 'chapters') && !canReadSummary
         ? 'info'
         : tab
-  return (
-    <RecordSplitLayout>
-      {source && !readableCapture && (
-        <div role="status" className={textStyle}>
-          <p>{t('library.originalDevice')}</p>
-          <Link href="/meeting/recording/capture">
-            {t('library.openRecorder')}
-          </Link>
-        </div>
+  const detailsPanels = (
+    <>
+      {canReadText && record.source_type !== 'meeting' && (
+        <TabPanel id="speakers" padding="md">
+          <p className={textStyle}>{t('library.speakersHint')}</p>
+          <p className={textStyle}>{t('speakerActivity.basis')}</p>
+          <OriginalRead
+            key={`${record.id}:${record.revision}:speakers`}
+            record={record}
+            viewerId={viewerId}
+            onSource={playable || canPlayUpload ? seekTo : undefined}
+            speakers
+            fullDuration={fullDuration}
+          />
+        </TabPanel>
       )}
-      {playable && (
-        <div
+      <TabPanel id="info" padding="md">
+        <RecordTrashControl
+          key={`${viewerId}:${record.id}:trash`}
+          viewerId={viewerId}
+          record={record}
+        />
+        {record.capabilities.download_media && (
+          <RecordMediaDownload
+            key={`${viewerId}:${record.id}:${record.revision}`}
+            record={record}
+          />
+        )}
+        <dl
           className={css({
-            flexShrink: 0,
-            backgroundColor: 'surface.default',
-            borderTop: '1px solid token(colors.border.subtle)',
+            display: 'grid',
+            gridTemplateColumns: 'auto 1fr',
+            columnGap: '2xl',
+            rowGap: '1.25rem',
+            paddingY: 'lg',
+            paddingX: 0,
+            '& dt': { color: 'text.secondary' },
           })}
         >
-          <CaptureAudioPlayer
-            key={`${viewerId}:${source.id}`}
-            ref={player}
-            captureId={source.id}
-            compact
-            onPosition={follow.report}
-            onUserSeek={(milliseconds) => {
-              follow.report(milliseconds)
-              follow.resumeFollowing()
-            }}
+          <dt>{t('library.table.owner')}</dt>
+          <dd>{record.owner?.trim() || t('library.ownerUnknown')}</dd>
+          <dt>{t('library.table.created')}</dt>
+          <dd>
+            {record.created_at
+              ? formatDateTime(record.created_at)
+              : t('library.ownerUnknown')}
+          </dd>
+          <dt>{t('mediaTiming.title')}</dt>
+          <dd>
+            {fullDuration ? time(fullDuration) : t('mediaTiming.unknown')}
+          </dd>
+          {record.media_timing?.basis === 'partial_audio' &&
+            validMediaDuration(record.media_timing.saved_duration_ms) && (
+              <>
+                <dt>{t('mediaTiming.saved')}</dt>
+                <dd>
+                  {time(record.media_timing.saved_duration_ms)} —{' '}
+                  {t('mediaTiming.partial')}
+                </dd>
+              </>
+            )}
+          <dt>{t('library.sourceLabel')}</dt>
+          <dd>{t(recordSourceKey(record))}</dd>
+          <dt>{t('library.date')}</dt>
+          <dd>{formatDateTime(record.origin_at)}</dd>
+          <dt>{t('library.retentionLabel')}</dt>
+          <dd>{t(`library.retention.${record.retention_mode}`)}</dd>
+        </dl>
+        {source && <p>{t(`library.captureStatus.${source.status}`)}</p>}
+        {!record.source_available && <p>{t('library.sourceMissing')}</p>}
+        {record.capabilities.read_summary && (
+          <RecordDocuments
+            key={`${viewerId}:${record.id}:documents`}
+            viewerId={viewerId}
+            recordId={record.id}
           />
-        </div>
-      )}
-      {/*
+        )}
+      </TabPanel>
+    </>
+  )
+  return (
+    <RecordSplitLayout
+      media={
+        <>
+          {source && !readableCapture && (
+            <div role="status" className={textStyle}>
+              <p>{t('library.originalDevice')}</p>
+              <Link href="/meeting/recording/capture">
+                {t('library.openRecorder')}
+              </Link>
+            </div>
+          )}
+          {playable && (
+            <div
+              className={css({
+                flexShrink: 0,
+                backgroundColor: 'surface.default',
+                borderTop: '1px solid token(colors.border.subtle)',
+              })}
+            >
+              <CaptureAudioPlayer
+                key={`${viewerId}:${source.id}`}
+                ref={player}
+                captureId={source.id}
+                compact
+                onPosition={follow.report}
+                onUserSeek={(milliseconds) => {
+                  follow.report(milliseconds)
+                  follow.resumeFollowing()
+                }}
+              />
+            </div>
+          )}
+          {/*
         An import has no capture playlist to read, so it gets its own player:
         the whole sealed object, with the browser's Range handling for seeking.
         The signed URL expires, which is why this mounts only with the transcript
         and re-resolves per record rather than being held for the page's life.
       */}
-      {canPlayUpload && canReadText && (
-        <UploadMediaPlayer
-          key={`${viewerId}:${record.id}`}
-          ref={uploadMedia}
-          recordId={record.id}
-          onDuration={setPlayerDuration}
-          onPosition={follow.report}
-          onUserSeek={(milliseconds) => {
-            follow.report(milliseconds)
-            follow.resumeFollowing()
-          }}
-        />
-      )}
-      <Tabs
-        className={css({
-          flex: '1 1 0',
-          minHeight: 0,
-          minWidth: 0,
-          '& [role=tablist]': {
-            overflowX: 'auto',
-            flexShrink: 0,
-            whiteSpace: 'nowrap',
-            borderBottom: '1px solid token(colors.border.subtle)',
-          },
-          '& [role=tab]': { flexShrink: 0 },
-          '& [role=tab][aria-selected=false]': {
-            borderBottomColor: 'transparent',
-            color: 'text.secondary',
-          },
-          '& [role=tab][aria-selected=true]': {
-            color: 'text.link',
-            fontWeight: 'semibold',
-          },
-          '& [role=tabpanel]': {
-            overflowY: 'auto',
-            minHeight: 0,
-            flex: '1 1 0',
-          },
-        })}
-        selectedKey={selectedTab}
-        onSelectionChange={(key) => setTab(String(key))}
-      >
-        <TabList aria-label={t('library.contentTabs')}>
-          {canReadText && <Tab id="text">{t('library.text')}</Tab>}
-          {canReadSummary && (
-            <Tab id="summary">{t('recordOverview.title')}</Tab>
-          )}
-          {canReadSummary && (
-            <Tab id="chapters">{t('recordAi.sections.chapters')}</Tab>
-          )}
-          {canReadText && record.source_type !== 'meeting' && (
-            <Tab id="speakers">{t('library.speakers')}</Tab>
-          )}
-          <Tab id="info">{t('library.info')}</Tab>
-          {canReadText &&
-            (record.source_type === 'meeting' ||
-              isUpload ||
-              (captureId && record.capabilities.control_capture)) && (
-              <Tab id="translations">{t('translationArchive.title')}</Tab>
-            )}
-        </TabList>
-        {canReadText && (
-          <TabPanel id="text" padding="md">
-            {/* Downloads belong with the transcript they export, not only in a
-                menu: the reader is looking at the text when they want the file. */}
-            <TranscriptExportControl recordId={record.id} />
-            {record.capabilities.batch_correct && (
-              <TranscriptReplacementControl
-                viewerId={viewerId}
-                recordId={record.id}
-              />
-            )}
-            {record.source_type === 'upload' && record.upload?.can_control && (
-              <UploadedRecordingStatus
-                recordId={record.id}
-                viewerId={viewerId}
-              />
-            )}
-            {readableCapture && record.capabilities.control_capture ? (
-              <CaptureTranscriptionPanel
-                key={`${viewerId}:${source.id}`}
-                viewerId={viewerId}
-                capture={source}
-                includeSummary={false}
-                compactControls
-                onSource={playable ? seekTo : undefined}
-                positionMs={playable ? follow.positionMs : undefined}
-                activeId={follow.activeId}
-                follow={playable ? follow : undefined}
-              />
-            ) : (
-              <OriginalRead
-                key={`${record.id}:${record.revision}`}
-                record={record}
-                viewerId={viewerId}
-                activeId={
-                  canPlayUpload || playable ? follow.activeId : undefined
-                }
-                follow={canPlayUpload || playable ? follow : undefined}
-                onSource={canPlayUpload || playable ? seekTo : undefined}
-              />
-            )}
-          </TabPanel>
-        )}
-        {canReadText && isUpload && (
-          <TabPanel id="translations" padding="md">
-            <UploadTranslationPanel
+          {canPlayUpload && canReadText && (
+            <UploadMediaPlayer
               key={`${viewerId}:${record.id}`}
-              viewerId={viewerId}
+              ref={uploadMedia}
               recordId={record.id}
-              onSource={canPlayUpload ? seekTo : undefined}
-            />
-          </TabPanel>
-        )}
-        {canReadText && record.source_type === 'meeting' && (
-          <TabPanel id="translations" padding="md">
-            <TranslationArchivePanel
-              key={`${viewerId}:${record.id}`}
-              viewerId={viewerId}
-              recordId={record.id}
-            />
-          </TabPanel>
-        )}
-        {canReadText &&
-          captureId &&
-          record.capabilities.control_capture &&
-          record.source_type === 'audio_recording' && (
-            <TabPanel id="translations" padding="md">
-              <CaptureTranslationArchives
-                viewerId={viewerId}
-                recordId={record.id}
-                captureId={captureId}
-              />
-            </TabPanel>
-          )}
-        {canReadSummary &&
-          ['summary', 'chapters'].map((contentTab) => (
-            <TabPanel
-              key={contentTab}
-              id={contentTab}
-              className={css({ padding: { base: '1rem 0', md: '2rem' } })}
-            >
-              {contentTab === 'summary' ? (
-                <RecordOverviewPanel
-                  viewerId={viewerId}
-                  recordId={record.id}
-                  onSourceAudio={
-                    canPlayUpload
-                      ? seekTo
-                      : playable && source
-                        ? (ms) =>
-                            seekTo(
-                              ms -
-                                (Date.parse(source.started_at) -
-                                  Date.parse(record.origin_at))
-                            )
-                        : undefined
-                  }
-                />
-              ) : (
-                <RecordOverviewPanel
-                  chaptersOnly
-                  viewerId={viewerId}
-                  recordId={record.id}
-                  onSourceAudio={
-                    canPlayUpload
-                      ? seekTo
-                      : playable && source
-                        ? (ms) =>
-                            seekTo(
-                              ms -
-                                (Date.parse(source.started_at) -
-                                  Date.parse(record.origin_at))
-                            )
-                        : undefined
-                  }
-                />
-              )}
-            </TabPanel>
-          ))}
-        {canReadText && record.source_type !== 'meeting' && (
-          <TabPanel id="speakers" padding="md">
-            <p className={textStyle}>{t('library.speakersHint')}</p>
-            <p className={textStyle}>{t('speakerActivity.basis')}</p>
-            <OriginalRead
-              key={`${record.id}:${record.revision}:speakers`}
-              record={record}
-              viewerId={viewerId}
-              onSource={playable || canPlayUpload ? seekTo : undefined}
-              speakers
-              fullDuration={fullDuration}
-            />
-          </TabPanel>
-        )}
-        <TabPanel id="info" padding="md">
-          <RecordTrashControl
-            key={`${viewerId}:${record.id}`}
-            viewerId={viewerId}
-            record={record}
-          />
-          {record.capabilities.download_media && (
-            <RecordMediaDownload
-              key={`${viewerId}:${record.id}:${record.revision}`}
-              record={record}
+              onDuration={setPlayerDuration}
+              onPosition={follow.report}
+              onUserSeek={(milliseconds) => {
+                follow.report(milliseconds)
+                follow.resumeFollowing()
+              }}
             />
           )}
-          <dl
-            className={css({
-              display: 'grid',
-              gridTemplateColumns: 'auto 1fr',
-              columnGap: '2xl',
-              rowGap: '1.25rem',
-              paddingY: 'lg',
-              paddingX: 0,
-              '& dt': { color: 'text.secondary' },
-            })}
+        </>
+      }
+    >
+      {(split) => ({
+        details: split ? (
+          <Tabs
+            data-record-details
+            className={workspaceTabsStyle}
+            selectedKey={
+              canReadText && record.source_type !== 'meeting'
+                ? detailsTab
+                : 'info'
+            }
+            onSelectionChange={(key) => selectTab(String(key))}
           >
-            <dt>{t('library.table.owner')}</dt>
-            <dd>{record.owner?.trim() || t('library.ownerUnknown')}</dd>
-            <dt>{t('library.table.created')}</dt>
-            <dd>
-              {record.created_at
-                ? formatDateTime(record.created_at)
-                : t('library.ownerUnknown')}
-            </dd>
-            <dt>{t('mediaTiming.title')}</dt>
-            <dd>
-              {fullDuration ? time(fullDuration) : t('mediaTiming.unknown')}
-            </dd>
-            {record.media_timing?.basis === 'partial_audio' &&
-              validMediaDuration(record.media_timing.saved_duration_ms) && (
-                <>
-                  <dt>{t('mediaTiming.saved')}</dt>
-                  <dd>
-                    {time(record.media_timing.saved_duration_ms)} —{' '}
-                    {t('mediaTiming.partial')}
-                  </dd>
-                </>
+            <TabList
+              aria-label={`${t('library.speakers')} / ${t('library.info')}`}
+            >
+              {canReadText && record.source_type !== 'meeting' && (
+                <Tab id="speakers">{t('library.speakers')}</Tab>
               )}
-            <dt>{t('library.sourceLabel')}</dt>
-            <dd>{t(recordSourceKey(record))}</dd>
-            <dt>{t('library.date')}</dt>
-            <dd>{formatDateTime(record.origin_at)}</dd>
-            <dt>{t('library.retentionLabel')}</dt>
-            <dd>{t(`library.retention.${record.retention_mode}`)}</dd>
-          </dl>
-          {source && <p>{t(`library.captureStatus.${source.status}`)}</p>}
-          {!record.source_available && <p>{t('library.sourceMissing')}</p>}
-          {record.capabilities.read_summary && (
-            <RecordDocuments
-              key={`${viewerId}:${record.id}`}
-              viewerId={viewerId}
-              recordId={record.id}
-            />
-          )}
-        </TabPanel>
-      </Tabs>
+              <Tab id="info">{t('library.info')}</Tab>
+            </TabList>
+            {detailsPanels}
+          </Tabs>
+        ) : null,
+        content: (
+          <Tabs
+            className={workspaceTabsStyle}
+            selectedKey={split ? mainTab : selectedTab}
+            onSelectionChange={(key) => selectTab(String(key))}
+          >
+            <TabList aria-label={t('library.contentTabs')}>
+              {canReadText && <Tab id="text">{t('library.text')}</Tab>}
+              {canReadSummary && (
+                <Tab id="summary">{t('recordOverview.title')}</Tab>
+              )}
+              {canReadSummary && (
+                <Tab id="chapters">{t('recordAi.sections.chapters')}</Tab>
+              )}
+              {!split && canReadText && record.source_type !== 'meeting' && (
+                <Tab id="speakers">{t('library.speakers')}</Tab>
+              )}
+              {!split && <Tab id="info">{t('library.info')}</Tab>}
+              {canReadText &&
+                (record.source_type === 'meeting' ||
+                  isUpload ||
+                  (captureId && record.capabilities.control_capture)) && (
+                  <Tab id="translations">{t('translationArchive.title')}</Tab>
+                )}
+            </TabList>
+            {canReadText && (
+              <TabPanel id="text" padding="md">
+                {/* Downloads belong with the transcript they export, not only in a
+                menu: the reader is looking at the text when they want the file. */}
+                <TranscriptExportControl recordId={record.id} />
+                {record.capabilities.batch_correct && (
+                  <TranscriptReplacementControl
+                    viewerId={viewerId}
+                    recordId={record.id}
+                  />
+                )}
+                {record.source_type === 'upload' &&
+                  record.upload?.can_control && (
+                    <UploadedRecordingStatus
+                      recordId={record.id}
+                      viewerId={viewerId}
+                    />
+                  )}
+                {readableCapture && record.capabilities.control_capture ? (
+                  <CaptureTranscriptionPanel
+                    key={`${viewerId}:${source.id}`}
+                    viewerId={viewerId}
+                    capture={source}
+                    includeSummary={false}
+                    compactControls
+                    onSource={playable ? seekTo : undefined}
+                    positionMs={playable ? follow.positionMs : undefined}
+                    activeId={follow.activeId}
+                    follow={playable ? follow : undefined}
+                  />
+                ) : (
+                  <OriginalRead
+                    key={`${record.id}:${record.revision}`}
+                    record={record}
+                    viewerId={viewerId}
+                    activeId={
+                      canPlayUpload || playable ? follow.activeId : undefined
+                    }
+                    follow={canPlayUpload || playable ? follow : undefined}
+                    onSource={canPlayUpload || playable ? seekTo : undefined}
+                  />
+                )}
+              </TabPanel>
+            )}
+            {canReadText && isUpload && (
+              <TabPanel id="translations" padding="md">
+                <UploadTranslationPanel
+                  key={`${viewerId}:${record.id}`}
+                  viewerId={viewerId}
+                  recordId={record.id}
+                  onSource={canPlayUpload ? seekTo : undefined}
+                />
+              </TabPanel>
+            )}
+            {canReadText && record.source_type === 'meeting' && (
+              <TabPanel id="translations" padding="md">
+                <TranslationArchivePanel
+                  key={`${viewerId}:${record.id}`}
+                  viewerId={viewerId}
+                  recordId={record.id}
+                />
+              </TabPanel>
+            )}
+            {canReadText &&
+              captureId &&
+              record.capabilities.control_capture &&
+              record.source_type === 'audio_recording' && (
+                <TabPanel id="translations" padding="md">
+                  <CaptureTranslationArchives
+                    viewerId={viewerId}
+                    recordId={record.id}
+                    captureId={captureId}
+                  />
+                </TabPanel>
+              )}
+            {canReadSummary &&
+              ['summary', 'chapters'].map((contentTab) => (
+                <TabPanel
+                  key={contentTab}
+                  id={contentTab}
+                  className={css({ padding: { base: '1rem 0', md: '2rem' } })}
+                >
+                  {contentTab === 'summary' ? (
+                    <RecordOverviewPanel
+                      viewerId={viewerId}
+                      recordId={record.id}
+                      onSourceAudio={
+                        canPlayUpload
+                          ? seekTo
+                          : playable && source
+                            ? (ms) =>
+                                seekTo(
+                                  ms -
+                                    (Date.parse(source.started_at) -
+                                      Date.parse(record.origin_at))
+                                )
+                            : undefined
+                      }
+                    />
+                  ) : (
+                    <RecordOverviewPanel
+                      chaptersOnly
+                      viewerId={viewerId}
+                      recordId={record.id}
+                      onSourceAudio={
+                        canPlayUpload
+                          ? seekTo
+                          : playable && source
+                            ? (ms) =>
+                                seekTo(
+                                  ms -
+                                    (Date.parse(source.started_at) -
+                                      Date.parse(record.origin_at))
+                                )
+                            : undefined
+                      }
+                    />
+                  )}
+                </TabPanel>
+              ))}
+            {!split && detailsPanels}
+          </Tabs>
+        ),
+      })}
     </RecordSplitLayout>
   )
 }
