@@ -1,4 +1,13 @@
 {
+  "transcriptToolbar": {
+    "label": "Transkriptwerkzeuge",
+    "export": "Exportieren",
+    "replace": "Suchen und ersetzen",
+    "locate": "Wiedergabeposition",
+    "matches": "Diese Seite: {{current}} / {{total}} Treffer",
+    "previousMatch": "Vorheriger Treffer auf dieser Seite",
+    "nextMatch": "Nächster Treffer auf dieser Seite"
+  },
   "speakerTimeline": {
     "basis": "Sprechverteilung · 0:00–{{end}} des erkannten Textes, nicht die gesamte Mediendauer.",
     "partial": "Abschnitte ohne gültige Endzeit werden ausgelassen.",

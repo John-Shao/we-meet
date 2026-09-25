@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { RiFindReplaceLine } from '@remixicon/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/api/ApiError'
@@ -51,6 +52,7 @@ function load(key: string): Intent | null {
 export function TranscriptReplacementControl(props: {
   viewerId: string
   recordId: string
+  render?: (trigger: ReactNode, panel: ReactNode) => ReactNode
 }) {
   return <Control key={`${props.viewerId}:${props.recordId}`} {...props} />
 }
@@ -58,11 +60,15 @@ export function TranscriptReplacementControl(props: {
 function Control({
   viewerId,
   recordId,
+  render,
 }: {
   viewerId: string
   recordId: string
+  render?: (trigger: ReactNode, panel: ReactNode) => ReactNode
 }) {
   const { t } = useTranslation('meetings')
+  const panelId = useId()
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const client = useQueryClient()
   const path = `meeting-records/${encodeURIComponent(recordId)}/transcript-replacements/`
   const storageKey = `transcript-replacement:${viewerId}:${recordId}`
@@ -183,16 +189,28 @@ function Control({
       if (active.current) setBusy(false)
     }
   }
-  if (!open)
-    return (
-      <Button
-        size="dense"
-        variant="secondaryText"
-        onPress={() => setOpen(true)}
-      >
-        {t('batchCorrection.title')}
-      </Button>
-    )
+  const close = () => {
+    setOpen(false)
+    setPreview(null)
+    setUndoId(null)
+    triggerRef.current?.focus()
+  }
+  const trigger = (
+    <Button
+      ref={triggerRef}
+      size="sm"
+      variant="secondaryText"
+      icon={<RiFindReplaceLine size={16} aria-hidden />}
+      aria-label={t('batchCorrection.title')}
+      aria-expanded={open}
+      aria-controls={open ? panelId : undefined}
+      isDisabled={busy}
+      onPress={() => (open ? close() : setOpen(true))}
+    >
+      {t(render ? 'transcriptToolbar.replace' : 'batchCorrection.title')}
+    </Button>
+  )
+  if (!open) return render ? render(trigger, null) : trigger
   const locked =
     busy ||
     !!intent ||
@@ -200,8 +218,12 @@ function Control({
     recovery.failed ||
     history.isError ||
     !history.data
-  return (
-    <section className={stack} aria-label={t('batchCorrection.title')}>
+  const panel = (
+    <section
+      id={panelId}
+      className={stack}
+      aria-label={t('batchCorrection.title')}
+    >
       <h3>{t('batchCorrection.title')}</h3>
       <p>{t('batchCorrection.hint')}</p>
       {/* 两个查找/替换框此前是裸 `<input>`(无 className) —— 浏览器默认外观在深色
@@ -339,17 +361,10 @@ function Control({
           </Button>
         </>
       )}
-      <Button
-        variant="secondaryText"
-        isDisabled={busy}
-        onPress={() => {
-          setOpen(false)
-          setPreview(null)
-          setUndoId(null)
-        }}
-      >
+      <Button variant="secondaryText" isDisabled={busy} onPress={close}>
         {t('batchCorrection.close')}
       </Button>
     </section>
   )
+  return render ? render(trigger, panel) : panel
 }

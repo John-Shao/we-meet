@@ -1,4 +1,13 @@
 {
+  "transcriptToolbar": {
+    "label": "Transcriptietools",
+    "export": "Exporteren",
+    "replace": "Zoeken en vervangen",
+    "locate": "Afspeelpositie",
+    "matches": "Deze pagina: {{current}} / {{total}} overeenkomsten",
+    "previousMatch": "Vorige overeenkomst op deze pagina",
+    "nextMatch": "Volgende overeenkomst op deze pagina"
+  },
   "speakerTimeline": {
     "basis": "Spreekverdeling · 0:00–{{end}} van herkende tekst, niet de volledige mediaduur.",
     "partial": "Segmenten zonder geldige eindtijd worden weggelaten.",

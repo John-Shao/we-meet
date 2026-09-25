@@ -34,7 +34,12 @@ import {
   UploadMediaPlayer,
   type UploadMediaHandle,
 } from '../components/UploadMediaPlayer'
-import { TranscriptExportControl } from '../components/TranscriptExportControl'
+import {
+  TranscriptToolbar,
+  TranscriptToolbarSlots,
+  TranscriptPlaybackButton,
+} from '../components/TranscriptToolbar'
+import { TranscriptSearchNavigation } from '../components/TranscriptSearchNavigation'
 import { CaptureTranscriptionPanel } from '../components/CaptureTranscriptionPanel'
 import { UploadedRecordingStatus } from '../components/RecordingUpload'
 import { HumanSummaryRevision } from '../components/HumanSummaryHistory'
@@ -46,7 +51,6 @@ import { SpeakerActivity } from '../components/SpeakerActivity'
 import { RecordMediaDownload } from '../components/RecordMediaDownload'
 import { RecordTrashControl } from '../components/RecordTrash'
 import { RecordDocuments } from '../components/RecordDocuments'
-import { TranscriptReplacementControl } from '../components/TranscriptReplacementControl'
 import { TranscriptDraftScope } from '../components/TranscriptDraftScope'
 import {
   useTranscriptDraftScope,
@@ -139,30 +143,18 @@ function OriginalRead({
       : 'original-segments'
   const path = `meeting-records/${record.id}/${endpoint}/?cursor=${encodeURIComponent(cursors.at(-1)!)}&q=${encodeURIComponent(search)}${speaker ? `&speaker=${encodeURIComponent(speaker)}` : ''}&expected_revision=${record.revision}${endpoint === 'original-segments' ? `&at_ms=${search || speaker ? 0 : anchorMs}` : ''}`
   const searchForm = !speakers && (
-    <>
-      <SpeakerFilter
-        viewerId={viewerId}
-        recordId={record.id}
-        revision={record.revision}
-        selected={speaker}
-        onSelect={(next) => {
-          setSpeaker(next)
-          setCursors([''])
-        }}
-      />
-      <OriginalSearch
-        value={searchDraft}
-        onChange={(value) => {
-          setSearchDraft(value)
-          setFollowing(false)
-        }}
-        onSearch={(query) => {
-          setSearchDraft(query)
-          setSearch(query)
-          setCursors([''])
-        }}
-      />
-    </>
+    <OriginalSearch
+      value={searchDraft}
+      onChange={(value) => {
+        setSearchDraft(value)
+        setFollowing(false)
+      }}
+      onSearch={(query) => {
+        setSearchDraft(query)
+        setSearch(query)
+        setCursors([''])
+      }}
+    />
   )
   const query = useQuery({
     ...privateOptions,
@@ -253,10 +245,81 @@ function OriginalRead({
     follow: follow ?? { suppressed: () => true, suppressionEpoch: 0 },
     enabled: followEnabled,
   })
+  const pagination = (
+    <div className={css({ display: 'flex', gap: 'sm' })}>
+      {cursors.length > 1 && (
+        <Button
+          variant="tertiary"
+          onPress={() => {
+            setFollowing(false)
+            setCursors((values) => values.slice(0, -1))
+          }}
+        >
+          {t('library.previous')}
+        </Button>
+      )}
+      {query.data?.next_cursor && (
+        <Button
+          variant="tertiary"
+          onPress={() => {
+            setFollowing(false)
+            setCursors((values) => [...values, query.data!.next_cursor!])
+          }}
+        >
+          {t('library.next')}
+        </Button>
+      )}
+    </div>
+  )
+  const tools = !speakers && (
+    <TranscriptToolbarSlots
+      search={searchForm}
+      playback={
+        <TranscriptPlaybackButton
+          available={positionMs !== undefined}
+          needed={!followEnabled || !!follow?.suppressed()}
+          editing={editing}
+          onResume={() => {
+            if (editing) return
+            setSearchDraft('')
+            setSearch('')
+            setSpeaker('')
+            setAnchorMs(Math.floor(positionMs ?? 0))
+            setCursors([''])
+            setFollowing(true)
+            follow?.resumeFollowing?.()
+          }}
+        />
+      }
+      filters={
+        <>
+          <SpeakerFilter
+            viewerId={viewerId}
+            recordId={record.id}
+            revision={record.revision}
+            selected={speaker}
+            onSelect={(next) => {
+              setSpeaker(next)
+              setCursors([''])
+            }}
+          />
+
+          {search && query.data && !query.isError && (
+            <TranscriptSearchNavigation
+              containerRef={listRef}
+              query={search}
+              version={query.data}
+              pagination={pagination}
+            />
+          )}
+        </>
+      }
+    />
+  )
   if (query.isError)
     return (
       <div>
-        {searchForm}
+        {tools}
         <p role="alert">
           {t(
             query.error instanceof ApiError && query.error.statusCode === 409
@@ -280,7 +343,7 @@ function OriginalRead({
   if (!query.data)
     return (
       <div>
-        {searchForm}
+        {tools}
         <p role="status">{t('loading')}</p>
       </div>
     )
@@ -298,33 +361,7 @@ function OriginalRead({
           setFollowing(false)
       }}
     >
-      {searchForm}
-      {positionMs !== undefined &&
-        !speakers &&
-        (!followEnabled || follow?.suppressed()) && (
-          <Button
-            variant="tertiary"
-            isDisabled={editing}
-            className={css({
-              position: 'sticky',
-              top: 'sm',
-              zIndex: 2,
-              marginBottom: 'sm',
-            })}
-            onPress={() => {
-              if (editing) return
-              setSearchDraft('')
-              setSearch('')
-              setSpeaker('')
-              setAnchorMs(Math.floor(positionMs))
-              setCursors([''])
-              setFollowing(true)
-              follow?.resumeFollowing?.()
-            }}
-          >
-            {t('library.backToPlayback')}
-          </Button>
-        )}
+      {tools}
       {!query.data.results.length && <p>{t('library.noContent')}</p>}
       {query.data.results.map((item) =>
         'identity_type' in item ? (
@@ -414,30 +451,7 @@ function OriginalRead({
           />
         )
       )}
-      <div className={css({ display: 'flex', gap: 'md', marginTop: 'lg' })}>
-        {cursors.length > 1 && (
-          <Button
-            variant="tertiary"
-            onPress={() => {
-              setFollowing(false)
-              setCursors((values) => values.slice(0, -1))
-            }}
-          >
-            {t('library.previous')}
-          </Button>
-        )}
-        {query.data.next_cursor && (
-          <Button
-            variant="tertiary"
-            onPress={() => {
-              setFollowing(false)
-              setCursors((values) => [...values, query.data!.next_cursor!])
-            }}
-          >
-            {t('library.next')}
-          </Button>
-        )}
-      </div>
+      {!search && pagination}
     </div>
   )
 }
@@ -478,6 +492,13 @@ const workspaceTabsStyle = css({
   flex: '1 1 0',
   minHeight: 0,
   minWidth: 0,
+  '& [role=tabpanel][data-transcript-panel]': {
+    overflow: 'hidden',
+    padding: 0,
+    marginTop: 0,
+    display: 'flex',
+    flexDirection: 'column',
+  },
   '& [role=tablist]': {
     overflowX: 'auto',
     flexShrink: 0,
@@ -809,47 +830,44 @@ function WorkspaceContent({
                 )}
             </TabList>
             {canReadText && (
-              <TabPanel id="text" padding="md">
-                {/* Downloads belong with the transcript they export, not only in a
-                menu: the reader is looking at the text when they want the file. */}
-                <TranscriptExportControl recordId={record.id} />
-                {record.capabilities.batch_correct && (
-                  <TranscriptReplacementControl
-                    viewerId={viewerId}
-                    recordId={record.id}
-                  />
-                )}
-                {record.source_type === 'upload' &&
-                  record.upload?.can_control && (
-                    <UploadedRecordingStatus
-                      recordId={record.id}
+              <TabPanel id="text" data-transcript-panel>
+                <TranscriptToolbar
+                  viewerId={viewerId}
+                  recordId={record.id}
+                  canReplace={record.capabilities.batch_correct}
+                >
+                  {record.source_type === 'upload' &&
+                    record.upload?.can_control && (
+                      <UploadedRecordingStatus
+                        recordId={record.id}
+                        viewerId={viewerId}
+                      />
+                    )}
+                  {readableCapture && record.capabilities.control_capture ? (
+                    <CaptureTranscriptionPanel
+                      key={`${viewerId}:${source.id}`}
                       viewerId={viewerId}
+                      capture={source}
+                      includeSummary={false}
+                      compactControls
+                      onSource={playable ? seekTo : undefined}
+                      positionMs={playable ? follow.positionMs : undefined}
+                      activeId={follow.activeId}
+                      follow={playable ? follow : undefined}
+                    />
+                  ) : (
+                    <OriginalRead
+                      key={`${record.id}:${record.revision}`}
+                      record={record}
+                      viewerId={viewerId}
+                      activeId={
+                        canPlayUpload || playable ? follow.activeId : undefined
+                      }
+                      follow={canPlayUpload || playable ? follow : undefined}
+                      onSource={canPlayUpload || playable ? seekTo : undefined}
                     />
                   )}
-                {readableCapture && record.capabilities.control_capture ? (
-                  <CaptureTranscriptionPanel
-                    key={`${viewerId}:${source.id}`}
-                    viewerId={viewerId}
-                    capture={source}
-                    includeSummary={false}
-                    compactControls
-                    onSource={playable ? seekTo : undefined}
-                    positionMs={playable ? follow.positionMs : undefined}
-                    activeId={follow.activeId}
-                    follow={playable ? follow : undefined}
-                  />
-                ) : (
-                  <OriginalRead
-                    key={`${record.id}:${record.revision}`}
-                    record={record}
-                    viewerId={viewerId}
-                    activeId={
-                      canPlayUpload || playable ? follow.activeId : undefined
-                    }
-                    follow={canPlayUpload || playable ? follow : undefined}
-                    onSource={canPlayUpload || playable ? seekTo : undefined}
-                  />
-                )}
+                </TranscriptToolbar>
               </TabPanel>
             )}
             {canReadText && isUpload && (

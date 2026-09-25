@@ -1,4 +1,13 @@
 {
+  "transcriptToolbar": {
+    "label": "文字记录工具条",
+    "export": "导出",
+    "replace": "查找替换",
+    "locate": "定位播放",
+    "matches": "本页 {{current}} / {{total}} 处匹配",
+    "previousMatch": "本页上一处匹配",
+    "nextMatch": "本页下一处匹配"
+  },
   "speakerTimeline": {
     "basis": "发言分布 · 0:00–{{end}} 为已识别原文范围，并非完整媒体时长。",
     "partial": "部分片段缺少有效结束时间，未绘入分布图。",

@@ -1,4 +1,13 @@
 {
+  "transcriptToolbar": {
+    "label": "Outils de transcription",
+    "export": "Exporter",
+    "replace": "Rechercher et remplacer",
+    "locate": "Position de lecture",
+    "matches": "Cette page : {{current}} / {{total}} résultats",
+    "previousMatch": "Résultat précédent sur cette page",
+    "nextMatch": "Résultat suivant sur cette page"
+  },
   "speakerTimeline": {
     "basis": "Répartition · 0:00–{{end}} du texte reconnu, pas la durée totale du média.",
     "partial": "Certains segments sans heure de fin valide sont omis.",

@@ -1,3 +1,4 @@
+import userEvent from '@testing-library/user-event'
 import { render, screen } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 
@@ -10,21 +11,30 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
+async function show() {
+  render(<TranscriptExportControl recordId={recordId} />)
+  await userEvent.click(
+    screen.getByRole('button', { name: 'transcriptExport.label' })
+  )
+}
+
 const recordId = '11111111-1111-4111-8111-111111111111'
 
-it('offers one download per supported format', () => {
-  render(<TranscriptExportControl recordId={recordId} />)
+it('offers one download per supported format', async () => {
+  await show()
   for (const format of ['TXT', 'SRT', 'VTT']) {
     expect(
-      screen.getByRole('link', { name: `transcriptExport.download:${format}` })
+      screen.getByRole('menuitem', {
+        name: `transcriptExport.download:${format}`,
+      })
     ).toBeInTheDocument()
   }
 })
 
-it('points each link at the export endpoint with the `as` selector', () => {
-  render(<TranscriptExportControl recordId={recordId} />)
+it('points each link at the export endpoint with the `as` selector', async () => {
+  await show()
   for (const format of ['txt', 'srt', 'vtt']) {
-    const link = screen.getByRole('link', {
+    const link = screen.getByRole('menuitem', {
       name: `transcriptExport.download:${format.toUpperCase()}`,
     })
     const href = link.getAttribute('href') ?? ''
@@ -35,17 +45,17 @@ it('points each link at the export endpoint with the `as` selector', () => {
   }
 })
 
-it('marks each link as a download so the browser saves rather than navigates', () => {
-  render(<TranscriptExportControl recordId={recordId} />)
-  for (const link of screen.getAllByRole('link')) {
+it('marks each link as a download so the browser saves rather than navigates', async () => {
+  await show()
+  for (const link of screen.getAllByRole('menuitem')) {
     expect(link).toHaveAttribute('download')
   }
 })
 
-it('names the format, not just the extension, for a screen reader', () => {
-  // "TXT" alone is ambiguous in a list of three bare labels.
-  render(<TranscriptExportControl recordId={recordId} />)
+it('names the format, not just the extension, for a screen reader', async () => {
+  // Accessible names include the selected format.
+  await show()
   expect(
-    screen.getByRole('link', { name: 'transcriptExport.download:TXT' })
+    screen.getByRole('menuitem', { name: 'transcriptExport.download:TXT' })
   ).toBeInTheDocument()
 })

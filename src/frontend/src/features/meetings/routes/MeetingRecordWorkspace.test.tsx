@@ -114,6 +114,7 @@ beforeEach(() => {
     'ResizeObserver',
     class {
       observe() {}
+      unobserve() {}
       disconnect() {}
     }
   )
@@ -527,7 +528,7 @@ it('protects an editor from player seeks and leaves return available after cance
   await waitFor(() =>
     expect(
       screen.queryByRole('button', { name: 'library.backToPlayback' })
-    ).not.toBeInTheDocument()
+    ).toBeDisabled()
   )
 })
 
@@ -772,7 +773,7 @@ it('lets the player resume transcript following after browsing and searching', a
   ).not.toBeInTheDocument()
   expect(
     screen.queryByRole('button', { name: 'library.backToPlayback' })
-  ).not.toBeInTheDocument()
+  ).toBeDisabled()
 })
 
 it('allows manual browsing before the first spoken segment', async () => {

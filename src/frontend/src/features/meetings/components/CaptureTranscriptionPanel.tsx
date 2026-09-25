@@ -17,6 +17,11 @@ import { isAudioRetention } from '../capture/retention'
 import { useCorrectOriginalSegment } from '../api/fetchMeetingRecord'
 import { RecordSummaryPanel } from './RecordSummaryPanel'
 import { OriginalSearch } from './OriginalSearch'
+import {
+  TranscriptToolbarSlots,
+  TranscriptPlaybackButton,
+} from './TranscriptToolbar'
+import { TranscriptSearchNavigation } from './TranscriptSearchNavigation'
 import { LiveCaptureTranscript } from './LiveCaptureTranscript'
 import { TranscriptSegment } from './TranscriptSegment'
 import {
@@ -591,10 +596,74 @@ function Originals({
       following &&
       follow?.enabled !== false,
   })
+  const pagination = (
+    <div className={css({ display: 'flex', gap: 'sm' })}>
+      {cursors.length > 1 && (
+        <Button
+          variant="secondary"
+          onPress={() => {
+            setFollowing(false)
+            setCursors((values) => values.slice(0, -1))
+          }}
+        >
+          {t('previous')}
+        </Button>
+      )}
+      {next && (
+        <Button
+          variant="secondary"
+          onPress={() => {
+            setFollowing(false)
+            setCursors((values) => [...values, next])
+          }}
+        >
+          {t('next')}
+        </Button>
+      )}
+    </div>
+  )
+  const tools = (
+    <TranscriptToolbarSlots
+      search={searchForm}
+      playback={
+        <TranscriptPlaybackButton
+          available={positionMs !== undefined}
+          needed={
+            !following ||
+            filtersActive ||
+            follow?.enabled === false ||
+            !!follow?.suppressed()
+          }
+          editing={editing}
+          onResume={() => {
+            if (editing) return
+            setSearchDraft('')
+            setSearch('')
+            setAnchorMs(Math.floor(positionMs ?? 0))
+            setCursors([''])
+            setFollowing(true)
+            follow?.resumeFollowing?.()
+          }}
+        />
+      }
+      filters={
+        search &&
+        query.data &&
+        !query.isError && (
+          <TranscriptSearchNavigation
+            containerRef={listRef}
+            query={search}
+            version={query.data}
+            pagination={pagination}
+          />
+        )
+      }
+    />
+  )
   if (query.isError)
     return (
       <div>
-        {searchForm}
+        {tools}
         <p role="alert">{t('asr.textError')}</p>
         <Button variant="secondary" onPress={() => void query.refetch()}>
           {t('asr.refresh')}
@@ -604,7 +673,7 @@ function Originals({
   if (!query.data)
     return (
       <div>
-        {searchForm}
+        {tools}
         <StateHint state="loading">{t('asr.loading')}</StateHint>
       </div>
     )
@@ -620,34 +689,7 @@ function Originals({
           setFollowing(false)
       }}
     >
-      {searchForm}
-      {positionMs !== undefined &&
-        (!following ||
-          filtersActive ||
-          follow?.enabled === false ||
-          follow?.suppressed()) && (
-          <Button
-            variant="tertiary"
-            isDisabled={editing}
-            className={css({
-              position: 'sticky',
-              top: 'sm',
-              zIndex: 2,
-              marginBottom: 'sm',
-            })}
-            onPress={() => {
-              if (editing) return
-              setSearchDraft('')
-              setSearch('')
-              setAnchorMs(Math.floor(positionMs))
-              setCursors([''])
-              setFollowing(true)
-              follow?.resumeFollowing?.()
-            }}
-          >
-            {t('library.backToPlayback', { ns: 'meetings' })}
-          </Button>
-        )}
+      {tools}
       <h3>{t('asr.originals')}</h3>
       <p>{t(onSource ? 'asr.unknownSpeaker' : 'retention.noPlayback')}</p>
       {!query.data.results.length && <p>{t('asr.noText')}</p>}
@@ -680,32 +722,10 @@ function Originals({
             time: `${Math.floor(row.start_ms / 60000)}:${String(Math.floor(row.start_ms / 1000) % 60).padStart(2, '0')}`,
           })}
           text={row.text}
+          highlight={search || undefined}
         />
       ))}
-      <div className={css({ display: 'flex', gap: '0.75rem' })}>
-        {cursors.length > 1 && (
-          <Button
-            variant="secondary"
-            onPress={() => {
-              setFollowing(false)
-              setCursors((values) => values.slice(0, -1))
-            }}
-          >
-            {t('previous')}
-          </Button>
-        )}
-        {next && (
-          <Button
-            variant="secondary"
-            onPress={() => {
-              setFollowing(false)
-              setCursors((values) => [...values, next])
-            }}
-          >
-            {t('next')}
-          </Button>
-        )}
-      </div>
+      {!search && pagination}
     </div>
   )
 }

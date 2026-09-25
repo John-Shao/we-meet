@@ -1,68 +1,58 @@
 import { useTranslation } from 'react-i18next'
-
+import { Menu as AriaMenu, MenuItem } from 'react-aria-components'
+import { RiArrowDownSLine, RiDownloadLine } from '@remixicon/react'
 import { apiUrl } from '@/api/apiUrl'
-import { css } from '@/styled-system/css'
+import { Button } from '@/primitives'
+import { Menu } from '@/primitives/Menu'
+import { menuRecipe } from '@/primitives/menuRecipe'
+import { css, cx } from '@/styled-system/css'
 
-/**
- * Download the transcript as a file.
- *
- * Plain `<a download>` rather than a fetch that rebuilds a blob: the response is
- * a file stream, and re-implementing it in JS would only redo what the browser
- * already does. The endpoint authorises from the session, so no header work is
- * needed here.
- *
- * The selector is `as`, not `format`: DRF reserves `?format=` for content
- * negotiation, and a URL using it never reaches the view.
- */
-const FORMATS = [
-  { id: 'txt', label: 'TXT' },
-  { id: 'srt', label: 'SRT' },
-  { id: 'vtt', label: 'VTT' },
-] as const
+const FORMATS = ['TXT', 'SRT', 'VTT'] as const
 
-const linkCls = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  paddingY: 'xs',
-  paddingX: 'sm',
-  borderRadius: 'control',
-  textStyle: 'labelMedium',
-  color: 'text.link',
-  textDecoration: 'none',
-  _hover: { backgroundColor: 'surface.canvas' },
-  _focusVisible: { outline: '2px solid token(colors.border.focus)' },
-})
-
+/** Native download links preserve streaming and server export permissions. */
 export function TranscriptExportControl({ recordId }: { recordId: string }) {
   const { t } = useTranslation('meetings')
+  const classes = menuRecipe({ variant: 'light' })
   return (
-    <div
-      className={css({
-        display: 'flex',
-        alignItems: 'center',
-        gap: 'xs',
-        flexWrap: 'wrap',
-      })}
-    >
-      <span
-        className={css({ color: 'text.secondary', textStyle: 'labelMedium' })}
+    <Menu placement="bottom">
+      <Button
+        size="sm"
+        variant="secondaryText"
+        icon={<RiDownloadLine size={16} aria-hidden />}
+        aria-label={t('transcriptExport.label')}
       >
-        {t('transcriptExport.label')}
-      </span>
-      {FORMATS.map((format) => (
-        <a
-          key={format.id}
-          className={linkCls}
-          href={apiUrl(
-            `meeting-records/${recordId}/transcript-export/?as=${format.id}`
-          )}
-          download
-          // The format is the accessible name; "TXT" alone is ambiguous in a list.
-          aria-label={t('transcriptExport.download', { format: format.label })}
-        >
-          {format.label}
-        </a>
-      ))}
-    </div>
+        {t('transcriptToolbar.export')}
+        <RiArrowDownSLine size={16} aria-hidden />
+      </Button>
+      <AriaMenu
+        className={classes.root}
+        aria-label={t('transcriptExport.label')}
+      >
+        {FORMATS.map((format) => (
+          <MenuItem
+            key={format}
+            id={format}
+            textValue={format}
+            className={cx(
+              classes.item,
+              css({
+                display: 'block',
+                textStyle: 'labelLarge',
+                paddingX: 'md',
+                paddingY: 'sm',
+                textDecoration: 'none',
+              })
+            )}
+            href={apiUrl(
+              `meeting-records/${encodeURIComponent(recordId)}/transcript-export/?as=${format.toLowerCase()}`
+            )}
+            download
+            aria-label={t('transcriptExport.download', { format })}
+          >
+            {format}
+          </MenuItem>
+        ))}
+      </AriaMenu>
+    </Menu>
   )
 }

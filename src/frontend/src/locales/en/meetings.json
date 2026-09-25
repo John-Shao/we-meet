@@ -1,4 +1,13 @@
 {
+  "transcriptToolbar": {
+    "label": "Transcript tools",
+    "export": "Export",
+    "replace": "Find and replace",
+    "locate": "Locate playback",
+    "matches": "This page: {{current}} / {{total}} matches",
+    "previousMatch": "Previous match on this page",
+    "nextMatch": "Next match on this page"
+  },
   "speakerTimeline": {
     "basis": "Speech distribution · 0:00–{{end}} of recognized text, not full media duration.",
     "partial": "Some segments have no valid end time and are omitted.",

@@ -34,6 +34,8 @@ and this project adheres to
 
 ### Changed
 
+- Pin transcript search, playback location, replacement and export tools above
+  the scrolling text; add navigation for matches on the current result page.
 - Align record information download and trash actions in a responsive toolbar.
 - Unify meeting detail headers with list breadcrumbs and right-aligned actions;
   restore list filters, pagination, and scroll position when returning.
