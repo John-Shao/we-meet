@@ -107,6 +107,11 @@ export function RecordSplitLayout({
           minWidth: 0,
           minHeight: 0,
         },
+        '&[data-split=false] > [data-record-media]': {
+          maxHeight: '45%',
+          overflowY: 'auto',
+          flexShrink: 1,
+        },
         '&[data-resizing=true]': { userSelect: 'none', cursor: 'col-resize' },
         '@media (min-width: 960px)': {
           '&[data-split=true]': {

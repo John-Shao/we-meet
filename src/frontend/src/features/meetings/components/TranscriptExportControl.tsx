@@ -10,7 +10,15 @@ import { css, cx } from '@/styled-system/css'
 const FORMATS = ['TXT', 'SRT', 'VTT'] as const
 
 /** Native download links preserve streaming and server export permissions. */
-export function TranscriptExportControl({ recordId }: { recordId: string }) {
+export function TranscriptExportControl({
+  recordId,
+  exportPath,
+  translation = false,
+}: {
+  recordId: string
+  exportPath?: string
+  translation?: boolean
+}) {
   const { t } = useTranslation('meetings')
   const classes = menuRecipe({ variant: 'light' })
   return (
@@ -19,14 +27,18 @@ export function TranscriptExportControl({ recordId }: { recordId: string }) {
         size="sm"
         variant="secondaryText"
         icon={<RiDownloadLine size={16} aria-hidden />}
-        aria-label={t('transcriptExport.label')}
+        aria-label={t(
+          translation ? 'uploadTranslation.export' : 'transcriptExport.label'
+        )}
       >
         {t('transcriptToolbar.export')}
         <RiArrowDownSLine size={16} aria-hidden />
       </Button>
       <AriaMenu
         className={classes.root}
-        aria-label={t('transcriptExport.label')}
+        aria-label={t(
+          translation ? 'uploadTranslation.export' : 'transcriptExport.label'
+        )}
       >
         {FORMATS.map((format) => (
           <MenuItem
@@ -44,10 +56,15 @@ export function TranscriptExportControl({ recordId }: { recordId: string }) {
               })
             )}
             href={apiUrl(
-              `meeting-records/${encodeURIComponent(recordId)}/transcript-export/?as=${format.toLowerCase()}`
+              `${exportPath ?? `meeting-records/${encodeURIComponent(recordId)}/transcript-export/`}?as=${format.toLowerCase()}`
             )}
             download
-            aria-label={t('transcriptExport.download', { format })}
+            aria-label={t(
+              translation
+                ? 'uploadTranslation.download'
+                : 'transcriptExport.download',
+              { format }
+            )}
           >
             {format}
           </MenuItem>

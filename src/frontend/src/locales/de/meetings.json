@@ -896,6 +896,7 @@
     "retentionHint": "Der Papierkorb wird nicht automatisch geleert. Stellen Sie eine Aufnahme wieder her oder löschen Sie sie ausdrücklich endgültig."
   },
   "uploadTranslation": {
+    "export": "Übersetzung exportieren",
     "title": "Vollständige Übersetzung",
     "description": "Das korrigierte Transkript übersetzen. Leser des Originals können Übersetzungen lesen. Die Erstellung verbraucht KI-Kontingent; Wiederholungen erfolgen manuell.",
     "language": "Zielsprache",

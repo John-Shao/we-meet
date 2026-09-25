@@ -896,6 +896,7 @@
     "retentionHint": "La corbeille ne se vide pas automatiquement. Restaurez un enregistrement ou choisissez sa suppression définitive."
   },
   "uploadTranslation": {
+    "export": "Exporter la traduction",
     "title": "Traduction intégrale",
     "description": "Traduisez la transcription corrigée. Les lecteurs du texte original peuvent lire la traduction. La génération consomme de l’IA ; les nouvelles tentatives sont manuelles.",
     "language": "Langue cible",

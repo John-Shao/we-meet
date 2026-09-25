@@ -80,6 +80,66 @@ try {
     const url = new URL(route.request().url())
     assert.equal(route.request().method(), 'GET')
     const reply = (json) => route.fulfill({ json })
+    if (url.pathname.endsWith('/overview/'))
+      return reply({
+        revision: 2,
+        available: true,
+        can_generate: true,
+        generation_ready: true,
+        job: null,
+        version: {
+          id: 'overview',
+          created_at: record.origin_at,
+          input_snapshot_id: 'snapshot',
+          input_revision: 2,
+          is_current: true,
+          asr_status: 'finished',
+          content: {
+            synopsis: 'Overview fixture',
+            topics: Array.from({ length: 40 }, (_, i) => ({
+              title: `Topic ${i}`,
+              text: 'Detailed discussion '.repeat(12),
+              source_refs: [ref],
+            })),
+          },
+        },
+      })
+    if (url.pathname.endsWith('/document-exports/'))
+      return reply({ results: [], next_cursor: null, available: true })
+    if (url.pathname.endsWith('/upload-translations/'))
+      return reply({
+        can_generate: true,
+        revision: 2,
+        results: [
+          {
+            id: 'translation',
+            record_id: record.id,
+            target: 'en',
+            status: 'succeeded',
+            stale: false,
+            input_revision: 2,
+            completed_chunks: 1,
+            total_chunks: 1,
+          },
+        ],
+      })
+    if (url.pathname.endsWith('/upload-translations/translation/'))
+      return reply({
+        id: 'translation',
+        record_id: record.id,
+        target: 'en',
+        status: 'succeeded',
+        stale: false,
+        input_revision: 2,
+        next_page: null,
+        results: Array.from({ length: 40 }, (_, i) => ({
+          segment_id: `translation-${i}`,
+          start_ms: i * 1000,
+          speaker_name: 'Speaker',
+          text: `Original ${i}`,
+          translated_text: `Translation ${i}`,
+        })),
+      })
     if (url.pathname.endsWith('/media/'))
       return reply({
         url: `${origin}/api/v1.0/fixture/audio/chunk/`,
@@ -391,6 +451,7 @@ try {
   assert.deepEqual(errors, [])
   // Exercise the uploaded-video split layout with locally generated media bytes.
   record.source_type = 'upload'
+  delete record.capture_id
   record.capabilities.control_capture = false
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.evaluate(() => {
@@ -420,8 +481,155 @@ try {
     fullPage: true,
   })
   assert.deepEqual(errors, [])
+  record.capabilities.download_media = true
+  record.capabilities.trash = true
+  record.lifecycle_revision = 2
+  await page.evaluate(() =>
+    window.libraryClient.invalidateQueries({
+      queryKey: ['meeting-records', 'owner'],
+    })
+  )
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 })
+    for (const name of [
+      labels.recordOverview.title,
+      labels.recordAi.sections.chapters,
+      labels.translationArchive.title,
+      labels.library.info,
+    ]) {
+      await page.getByRole('tab', { name, exact: true }).click()
+      const panel = page
+        .getByRole('tabpanel')
+        .filter({ has: page.locator('[data-record-toolbar]') })
+        .filter({ has: page.getByRole('group', { name, exact: true }) })
+      const tools = panel.locator('[data-record-toolbar]')
+      const body = panel.locator('[data-record-scroll]')
+      await expect(tools)
+        .toBeVisible()
+        .catch(async (error) => {
+          await page.screenshot({
+            path: 'test-results/record-tools-failure.png',
+          })
+          console.log(
+            width,
+            name,
+            await page.locator('[role=tabpanel]').evaluateAll((els) =>
+              els.map((el) => ({
+                text: el.textContent.slice(0, 120),
+                html: el.outerHTML.slice(0, 1300),
+              }))
+            )
+          )
+          throw error
+        })
+      if (
+        name === labels.recordOverview.title ||
+        name === labels.recordAi.sections.chapters
+      )
+        await panel.getByText('Topic 39', { exact: true }).waitFor()
+      if (name === labels.translationArchive.title) {
+        await panel.getByText('Translation 39', { exact: true }).waitFor()
+        await tools
+          .getByRole('button', { name: labels.uploadTranslation.export })
+          .click()
+        await expect(page.getByRole('menuitem').first()).toHaveAttribute(
+          'href',
+          /translation\/export\/\?as=txt/
+        )
+        await page.keyboard.press('Escape')
+        await expect(
+          tools.getByRole('button', { name: labels.uploadTranslation.export })
+        ).toBeFocused()
+      }
+      const top = (await tools.boundingBox()).y
+      await body.evaluate((el) => {
+        el.scrollTop = 700
+      })
+      assert.equal((await tools.boundingBox()).y, top)
+      assert.ok((await body.boundingBox()).height > 50)
+      assert.equal(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth
+        ),
+        true
+      )
+      await page.screenshot({
+        path: `test-results/record-tools-${width}-${[labels.recordOverview.title, labels.recordAi.sections.chapters, labels.translationArchive.title, labels.library.info].indexOf(name)}.png`,
+      })
+      if (name === labels.library.info) {
+        await expect(
+          tools.getByRole('button', { name: labels.mediaDownload.action })
+        ).toBeVisible()
+        await expect(
+          panel.getByText(labels.trash.remove, { exact: true })
+        ).toHaveCount(0)
+      }
+    }
+  }
+  await page
+    .getByRole('button', { name: labels.video.more, exact: true })
+    .click()
+  await page.getByRole('menuitem', { name: labels.trash.remove }).click()
+  await expect(
+    page.getByRole('dialog', { name: labels.trash.remove, exact: true })
+  ).toBeVisible()
+  await page
+    .getByRole('dialog', { name: labels.trash.remove, exact: true })
+    .getByRole('button', { name: labels.trash.cancel })
+    .click()
+  await page
+    .getByRole('tab', { name: labels.recordOverview.title, exact: true })
+    .click()
+  const overviewScroll = page
+    .getByRole('tabpanel')
+    .locator('[data-record-scroll]')
+  await expect
+    .poll(() => overviewScroll.evaluate((el) => el.scrollTop))
+    .toBeGreaterThan(100)
+  await page
+    .getByRole('tab', { name: labels.translationArchive.title, exact: true })
+    .click()
+  await page
+    .getByRole('combobox', { name: labels.uploadTranslation.language })
+    .selectOption('zh')
+  await page
+    .getByRole('tab', { name: labels.recordOverview.title, exact: true })
+    .click()
+  await page
+    .getByRole('tab', { name: labels.translationArchive.title, exact: true })
+    .click()
+  await expect(
+    page.getByRole('combobox', { name: labels.uploadTranslation.language })
+  ).toHaveValue('zh')
+  await page
+    .getByRole('tab', { name: labels.library.text, exact: true })
+    .click()
+  await page.getByRole('searchbox').fill('retained search')
+  await page.getByRole('searchbox').press('Enter')
+  await page
+    .getByRole('tab', { name: labels.recordOverview.title, exact: true })
+    .click()
+  await page
+    .getByRole('tab', { name: labels.library.text, exact: true })
+    .click()
+  await expect(page.getByRole('searchbox')).toHaveValue('retained search')
+  await page
+    .getByRole('tab', { name: labels.recordOverview.title, exact: true })
+    .click()
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = 'dark'
+    document.documentElement.style.fontSize = '200%'
+  })
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth
+    ),
+    true
+  )
+  await page.screenshot({ path: 'test-results/record-tools-dark-large.png' })
+  assert.deepEqual(errors, [])
   console.log(
-    'Transcript toolbar verified: fixed tools, scroll isolation, search matches, export links/keyboard, replace panel, 320/390px, dark theme, and both readers. Fixture GETs only.'
+    'Record panel toolbars verified: fixed tools, scroll isolation, tab state restoration, search, translation export, trash cancellation, 320/390/1440px, dark 200% text and both transcript readers. Fixture GETs only.'
   )
 } finally {
   await browser.close()

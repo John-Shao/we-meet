@@ -1,3 +1,4 @@
+import { RecordPanelTools } from './RecordPanel'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -98,9 +99,11 @@ function ArchiveSegments({
   })
   return (
     <section className={layout}>
-      <Button variant="tertiary" onPress={back}>
-        {t('back')}
-      </Button>
+      <RecordPanelTools>
+        <Button variant="tertiary" onPress={back}>
+          {t('back')}
+        </Button>
+      </RecordPanelTools>
       {query.isError || (query.data && query.data.archive_id !== archiveId) ? (
         <StateHint
           state="error"

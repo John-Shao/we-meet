@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Added
 
+- Unify record detail panel toolbars and retain browsing state across tabs.
+
 - Document the shared list-to-detail page header convention.
 - Add audited task-list ownership transfer and recovery, including owned
   lists in offboarding resource checks.

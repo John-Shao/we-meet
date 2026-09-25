@@ -74,10 +74,14 @@ it('reads aligned text, seeks the original clock, exports the selected translati
   expect(screen.getByText('original: Original')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'play' }))
   expect(seek).toHaveBeenCalledWith(1200)
-  expect(screen.getAllByRole('link')[0]).toHaveAttribute(
+  fireEvent.click(
+    screen.getByRole('button', { name: 'uploadTranslation.export' })
+  )
+  expect((await screen.findAllByRole('menuitem'))[0]).toHaveAttribute(
     'href',
     expect.stringContaining('translation/export/?as=txt')
   )
+  fireEvent.keyDown(screen.getAllByRole('menuitem')[0], { key: 'Escape' })
   fireEvent.click(screen.getByRole('button', { name: 'next' }))
   await screen.findByText('Last translation')
   expect(screen.queryByText('Translated')).not.toBeInTheDocument()

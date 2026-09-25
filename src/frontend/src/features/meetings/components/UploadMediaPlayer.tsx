@@ -380,6 +380,7 @@ export const UploadMediaPlayer = forwardRef<
               <PlayerButton
                 variant="quaternaryText"
                 size="dense"
+                className={css({ whiteSpace: 'nowrap', flexShrink: 0 })}
                 aria-expanded={videoExpanded}
                 onPress={() => setVideoExpanded((value) => !value)}
                 isDisabled={fullscreen}

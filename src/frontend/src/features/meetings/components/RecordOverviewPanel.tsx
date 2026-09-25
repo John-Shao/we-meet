@@ -1,3 +1,4 @@
+import { RecordPanelTools } from './RecordPanel'
 import { useTranslation } from 'react-i18next'
 import { useRef, useState } from 'react'
 import { Link } from 'wouter'
@@ -75,46 +76,52 @@ export function RecordOverviewPanel({
     <section
       className={css({ display: 'flex', flexDirection: 'column', gap: 'lg' })}
     >
-      <div>
-        <Text variant="note">{t('recordOverview.hint')}</Text>
+      <RecordPanelTools>
+        {state?.can_generate && (
+          <>
+            {recovery.pending ? (
+              <Button
+                isDisabled={!recovery.ready || mutation.isPending}
+                onPress={() => void submit(recovery.pending!.payload.operation)}
+              >
+                {t('recordOverview.resubmit')}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  isDisabled={
+                    !state.generation_ready ||
+                    busy ||
+                    mutation.isPending ||
+                    !recovery.ready
+                  }
+                  onPress={() => void submit(job ? 'regenerate' : 'generate')}
+                >
+                  {t(
+                    job
+                      ? 'recordOverview.regenerate'
+                      : 'recordOverview.generate'
+                  )}
+                </Button>
+                {job?.retryable && !busy && (
+                  <Button
+                    isDisabled={mutation.isPending || !recovery.ready}
+                    onPress={() => void submit('retry')}
+                  >
+                    {t('recordOverview.retry')}
+                  </Button>
+                )}
+              </>
+            )}
+          </>
+        )}
         <Link href={`/meeting/records/${recordId}?tab=summary`}>
           {t('recordOverview.openMinutes')}
         </Link>
-      </div>
+      </RecordPanelTools>
+      <Text variant="note">{t('recordOverview.hint')}</Text>
       {state?.can_generate && (
         <div>
-          {recovery.pending ? (
-            <Button
-              isDisabled={!recovery.ready || mutation.isPending}
-              onPress={() => void submit(recovery.pending!.payload.operation)}
-            >
-              {t('recordOverview.resubmit')}
-            </Button>
-          ) : (
-            <>
-              <Button
-                isDisabled={
-                  !state.generation_ready ||
-                  busy ||
-                  mutation.isPending ||
-                  !recovery.ready
-                }
-                onPress={() => void submit(job ? 'regenerate' : 'generate')}
-              >
-                {t(
-                  job ? 'recordOverview.regenerate' : 'recordOverview.generate'
-                )}
-              </Button>
-              {job?.retryable && !busy && (
-                <Button
-                  isDisabled={mutation.isPending || !recovery.ready}
-                  onPress={() => void submit('retry')}
-                >
-                  {t('recordOverview.retry')}
-                </Button>
-              )}
-            </>
-          )}
           {!state.generation_ready && (
             <Text variant="note">{t('recordOverview.waitSource')}</Text>
           )}

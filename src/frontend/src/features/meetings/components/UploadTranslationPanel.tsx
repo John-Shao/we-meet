@@ -1,8 +1,11 @@
+import { useRecordViewState } from '../hooks/useRecordViewState'
+import { RecordPanelTools } from './RecordPanel'
+import { TranscriptExportControl } from './TranscriptExportControl'
+import { selectChrome } from '@/primitives/selectChrome'
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { fetchApi } from '@/api/fetchApi'
-import { apiUrl } from '@/api/apiUrl'
 import { ApiError } from '@/api/ApiError'
 import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
@@ -39,8 +42,11 @@ export function UploadTranslationPanel({
 }) {
   const { t } = useTranslation('meetings', { keyPrefix: 'uploadTranslation' })
   const path = `meeting-records/${recordId}/upload-translations/`
-  const [target, setTarget] = useState<'zh' | 'en'>('en')
-  const [page, setPage] = useState(0)
+  const [target, setTarget] = useRecordViewState<'zh' | 'en'>(
+    'translation-language',
+    'en'
+  )
+  const [page, setPage] = useRecordViewState('translation-page', 0)
   const [intent, setIntent] = useState<Intent>()
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
@@ -163,31 +169,46 @@ export function UploadTranslationPanel({
   const stale = selected?.stale || detail.data?.stale
   return (
     <section className={stack} aria-label={t('title')}>
-      <Text>{t('description')}</Text>
-      <label>
-        {t('language')}{' '}
-        <select
-          value={target}
-          disabled={saving || !!intent}
-          onChange={(e) => {
-            setTarget(e.target.value as 'zh' | 'en')
-            setPage(0)
-            setMessage('')
-          }}
-        >
-          <option value="en">{t('en')}</option>
-          <option value="zh">{t('zh')}</option>
-        </select>
-      </label>
-      {listing.data.can_generate &&
-        (intent || !selected || selected.status !== 'succeeded' || stale) && (
-          <Button
-            isDisabled={saving || (!!active && !intent)}
-            onPress={() => void generate()}
+      <RecordPanelTools>
+        <label>
+          <span className={css({ display: { base: 'none', sm: 'inline' } })}>
+            {t('language')}{' '}
+          </span>
+          <select
+            aria-label={t('language')}
+            className={selectChrome}
+            value={target}
+            disabled={saving || !!intent}
+            onChange={(e) => {
+              setTarget(e.target.value as 'zh' | 'en')
+              setPage(0)
+              setMessage('')
+            }}
           >
-            {t(intent ? 'check' : selected ? 'regenerate' : 'generate')}
-          </Button>
-        )}
+            <option value="en">{t('en')}</option>
+            <option value="zh">{t('zh')}</option>
+          </select>
+        </label>
+        {listing.data.can_generate &&
+          (intent || !selected || selected.status !== 'succeeded' || stale) && (
+            <Button
+              isDisabled={saving || (!!active && !intent)}
+              onPress={() => void generate()}
+            >
+              {t(intent ? 'check' : selected ? 'regenerate' : 'generate')}
+            </Button>
+          )}
+        {selected?.status === 'succeeded' &&
+          detail.data?.id === selected.id &&
+          !stale && (
+            <TranscriptExportControl
+              translation
+              recordId={recordId}
+              exportPath={`${path}${selected.id}/export/`}
+            />
+          )}
+      </RecordPanelTools>
+      <Text>{t('description')}</Text>
       {message && <Text role="alert">{t(message)}</Text>}
       {!selected ? (
         <Text>{t('empty')}</Text>
@@ -204,20 +225,6 @@ export function UploadTranslationPanel({
           )}
           {detail.data && detail.data.id === selected.id && (
             <>
-              {!stale && (
-                <div className={css({ display: 'flex', gap: 'md' })}>
-                  {(['txt', 'srt', 'vtt'] as const).map((fmt) => (
-                    <a
-                      key={fmt}
-                      download
-                      href={apiUrl(`${path}${selected.id}/export/?as=${fmt}`)}
-                      aria-label={t('download', { format: fmt.toUpperCase() })}
-                    >
-                      {fmt.toUpperCase()}
-                    </a>
-                  ))}
-                </div>
-              )}
               {detail.data.results.map((row) => (
                 <article key={row.segment_id} className={stack}>
                   <Text>

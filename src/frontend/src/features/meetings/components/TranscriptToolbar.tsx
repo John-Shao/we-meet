@@ -1,3 +1,5 @@
+/* eslint-disable jsx-a11y/no-noninteractive-tabindex -- Named scroll regions need keyboard focus for scrolling and restoration cancellation. */
+import { useRecordPanelScroll } from '../hooks/useRecordPanelScroll'
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -27,6 +29,7 @@ export function TranscriptToolbar({
   children: ReactNode
 }) {
   const { t } = useTranslation('meetings')
+  const scroll = useRecordPanelScroll('transcript')
   const [search, setSearch] = useState<HTMLDivElement | null>(null)
   const [playback, setPlayback] = useState<HTMLDivElement | null>(null)
   const [filters, setFilters] = useState<HTMLDivElement | null>(null)
@@ -49,7 +52,14 @@ export function TranscriptToolbar({
           <div ref={setFilters} className={filtersStyle} />
           {panel && <div className={expandedStyle}>{panel}</div>}
         </div>
-        <div data-transcript-scroll className={scrollStyle}>
+        <div
+          {...scroll}
+          role="region"
+          aria-label={t('library.text')}
+          tabIndex={0}
+          data-transcript-scroll
+          className={scrollStyle}
+        >
           {children}
         </div>
       </div>

@@ -896,6 +896,7 @@
     "retentionHint": "De prullenbak wordt niet automatisch geleegd. Herstel een opname of kies expliciet voor definitief verwijderen."
   },
   "uploadTranslation": {
+    "export": "Vertaling exporteren",
     "title": "Volledige vertaling",
     "description": "Vertaal het gecorrigeerde transcript. Lezers van de originele tekst kunnen vertalingen lezen. Genereren verbruikt AI-tegoed; opnieuw proberen gebeurt handmatig.",
     "language": "Doeltaal",

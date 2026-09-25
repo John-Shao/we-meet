@@ -911,6 +911,7 @@
     "retentionHint": "回收站不会自动清空。你可以恢复记录，或明确选择永久删除。"
   },
   "uploadTranslation": {
+    "export": "导出译文",
     "title": "全文翻译",
     "description": "翻译校对后的完整原文。有全文阅读权限的人可查看译文；生成可能产生 AI 用量，失败后需手动重试。",
     "language": "译文语言",

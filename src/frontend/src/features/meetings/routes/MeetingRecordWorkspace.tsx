@@ -1,3 +1,5 @@
+import { RecordViewState } from '../components/RecordViewState'
+import { useRecordViewState } from '../hooks/useRecordViewState'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -59,6 +61,7 @@ import {
 import { RecordRenameControl } from '../components/RecordRenameControl'
 import { RecordSplitLayout } from '../components/RecordSplitLayout'
 import { MeetingDetailHeader } from '../components/MeetingDetailHeader'
+import { RecordPanel, RecordPanelTools } from '../components/RecordPanel'
 import { StateHint } from '@/components/StateHint'
 import {
   backLink,
@@ -125,13 +128,20 @@ function OriginalRead({
   const correction = useCorrectOriginalSegment(viewerId, record.id)
   const drafts = useTranscriptDraftScope()
   const editing = useTranscriptEditing()
-  const [cursors, setCursors] = useState<string[]>([''])
+  const [cursors, setCursors] = useRecordViewState<string[]>(
+    speakers ? 'speaker-cursors' : 'original-cursors',
+    ['']
+  )
   const routeSearch = useSearch()
-  const [search, setSearch] = useState(
+  const [search, setSearch] = useRecordViewState(
+    'original-search',
     () => new URLSearchParams(routeSearch).get('q')?.slice(0, 200) ?? ''
   )
-  const [searchDraft, setSearchDraft] = useState(search)
-  const [speaker, setSpeaker] = useState('')
+  const [searchDraft, setSearchDraft] = useRecordViewState(
+    'original-search-draft',
+    search
+  )
+  const [speaker, setSpeaker] = useRecordViewState('original-speaker', '')
   const [anchorMs, setAnchorMs] = useState(0)
   const [following, setFollowing] = useState(true)
   const listRef = useRef<HTMLDivElement>(null)
@@ -230,6 +240,7 @@ function OriginalRead({
     rowIds,
     anchorMs,
     query.data?.next_cursor,
+    setCursors,
   ])
   // The list scrolls the right row once per change, rather than every row asking
   // to be scrolled on the same commit.
@@ -492,13 +503,14 @@ const workspaceTabsStyle = css({
   flex: '1 1 0',
   minHeight: 0,
   minWidth: 0,
-  '& [role=tabpanel][data-transcript-panel]': {
-    overflow: 'hidden',
-    padding: 0,
-    marginTop: 0,
-    display: 'flex',
-    flexDirection: 'column',
-  },
+  '& [role=tabpanel][data-transcript-panel], & [role=tabpanel][data-record-panel]':
+    {
+      overflow: 'hidden',
+      padding: 0,
+      marginTop: 0,
+      display: 'flex',
+      flexDirection: 'column',
+    },
   '& [role=tablist]': {
     overflowX: 'auto',
     flexShrink: 0,
@@ -610,8 +622,6 @@ function WorkspaceContent({
   const canReadText = record.capabilities.read_transcript
   const canDownloadMedia =
     record.source_type === 'upload' && record.capabilities.download_media
-  const canTrash =
-    record.capabilities.trash && record.lifecycle_revision !== undefined
   /**
    * One seek entry point for both players. The two sources differ in how the
    * bytes are fetched, not in what a transcript citation means: a millisecond
@@ -632,97 +642,81 @@ function WorkspaceContent({
   const detailsPanels = (
     <>
       {canReadText && record.source_type !== 'meeting' && (
-        <TabPanel id="speakers" padding="md">
-          <p className={textStyle}>{t('library.speakersHint')}</p>
-          <p className={textStyle}>{t('speakerActivity.basis')}</p>
-          <OriginalRead
-            key={`${record.id}:${record.revision}:speakers`}
-            record={record}
-            viewerId={viewerId}
-            onSource={playable || canPlayUpload ? seekTo : undefined}
-            speakers
-            fullDuration={fullDuration}
-          />
+        <TabPanel id="speakers" data-record-panel>
+          <RecordPanel label={t('library.speakers')}>
+            <p className={textStyle}>{t('library.speakersHint')}</p>
+            <p className={textStyle}>{t('speakerActivity.basis')}</p>
+            <OriginalRead
+              key={`${record.id}:${record.revision}:speakers`}
+              record={record}
+              viewerId={viewerId}
+              onSource={playable || canPlayUpload ? seekTo : undefined}
+              speakers
+              fullDuration={fullDuration}
+            />
+          </RecordPanel>
         </TabPanel>
       )}
-      <TabPanel id="info" padding="md">
-        {(canDownloadMedia || canTrash) && (
-          <div
-            className={css({
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'flex-start',
-              gap: 'sm',
-              marginBottom: 'xl',
-              '& > div': { minWidth: 0, maxWidth: '100%' },
-            })}
-          >
-            {canDownloadMedia && (
+      <TabPanel id="info" data-record-panel>
+        <RecordPanel label={t('library.info')}>
+          {canDownloadMedia && (
+            <RecordPanelTools>
               <RecordMediaDownload
                 key={`${viewerId}:${record.id}:${record.revision}`}
                 record={record}
               />
-            )}
-            {canTrash && (
-              <div className={css({ marginLeft: 'auto' })}>
-                <RecordTrashControl
-                  key={`${viewerId}:${record.id}:trash`}
-                  viewerId={viewerId}
-                  record={record}
-                />
-              </div>
-            )}
-          </div>
-        )}
-        <dl
-          className={css({
-            display: 'grid',
-            gridTemplateColumns: 'auto 1fr',
-            columnGap: '2xl',
-            rowGap: '1.25rem',
-            paddingBottom: 'lg',
-            paddingX: 0,
-            '& dt': { color: 'text.secondary' },
-          })}
-        >
-          <dt>{t('library.table.owner')}</dt>
-          <dd>{record.owner?.trim() || t('library.ownerUnknown')}</dd>
-          <dt>{t('library.table.created')}</dt>
-          <dd>
-            {record.created_at
-              ? formatDateTime(record.created_at)
-              : t('library.ownerUnknown')}
-          </dd>
-          <dt>{t('mediaTiming.title')}</dt>
-          <dd>
-            {fullDuration ? time(fullDuration) : t('mediaTiming.unknown')}
-          </dd>
-          {record.media_timing?.basis === 'partial_audio' &&
-            validMediaDuration(record.media_timing.saved_duration_ms) && (
-              <>
-                <dt>{t('mediaTiming.saved')}</dt>
-                <dd>
-                  {time(record.media_timing.saved_duration_ms)} —{' '}
-                  {t('mediaTiming.partial')}
-                </dd>
-              </>
-            )}
-          <dt>{t('library.sourceLabel')}</dt>
-          <dd>{t(recordSourceKey(record))}</dd>
-          <dt>{t('library.date')}</dt>
-          <dd>{formatDateTime(record.origin_at)}</dd>
-          <dt>{t('library.retentionLabel')}</dt>
-          <dd>{t(`library.retention.${record.retention_mode}`)}</dd>
-        </dl>
-        {source && <p>{t(`library.captureStatus.${source.status}`)}</p>}
-        {!record.source_available && <p>{t('library.sourceMissing')}</p>}
-        {record.capabilities.read_summary && (
-          <RecordDocuments
-            key={`${viewerId}:${record.id}:documents`}
-            viewerId={viewerId}
-            recordId={record.id}
-          />
-        )}
+            </RecordPanelTools>
+          )}
+          <dl
+            className={css({
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr',
+              columnGap: '2xl',
+              rowGap: '1.25rem',
+              paddingBottom: 'lg',
+              paddingX: 0,
+              '& dt': { color: 'text.secondary' },
+            })}
+          >
+            <dt>{t('library.table.owner')}</dt>
+            <dd>{record.owner?.trim() || t('library.ownerUnknown')}</dd>
+            <dt>{t('library.table.created')}</dt>
+            <dd>
+              {record.created_at
+                ? formatDateTime(record.created_at)
+                : t('library.ownerUnknown')}
+            </dd>
+            <dt>{t('mediaTiming.title')}</dt>
+            <dd>
+              {fullDuration ? time(fullDuration) : t('mediaTiming.unknown')}
+            </dd>
+            {record.media_timing?.basis === 'partial_audio' &&
+              validMediaDuration(record.media_timing.saved_duration_ms) && (
+                <>
+                  <dt>{t('mediaTiming.saved')}</dt>
+                  <dd>
+                    {time(record.media_timing.saved_duration_ms)} —{' '}
+                    {t('mediaTiming.partial')}
+                  </dd>
+                </>
+              )}
+            <dt>{t('library.sourceLabel')}</dt>
+            <dd>{t(recordSourceKey(record))}</dd>
+            <dt>{t('library.date')}</dt>
+            <dd>{formatDateTime(record.origin_at)}</dd>
+            <dt>{t('library.retentionLabel')}</dt>
+            <dd>{t(`library.retention.${record.retention_mode}`)}</dd>
+          </dl>
+          {source && <p>{t(`library.captureStatus.${source.status}`)}</p>}
+          {!record.source_available && <p>{t('library.sourceMissing')}</p>}
+          {record.capabilities.read_summary && (
+            <RecordDocuments
+              key={`${viewerId}:${record.id}:documents`}
+              viewerId={viewerId}
+              recordId={record.id}
+            />
+          )}
+        </RecordPanel>
       </TabPanel>
     </>
   )
@@ -871,79 +865,89 @@ function WorkspaceContent({
               </TabPanel>
             )}
             {canReadText && isUpload && (
-              <TabPanel id="translations" padding="md">
-                <UploadTranslationPanel
-                  key={`${viewerId}:${record.id}`}
-                  viewerId={viewerId}
-                  recordId={record.id}
-                  onSource={canPlayUpload ? seekTo : undefined}
-                />
+              <TabPanel id="translations" data-record-panel>
+                <RecordPanel label={t('translationArchive.title')}>
+                  <UploadTranslationPanel
+                    key={`${viewerId}:${record.id}`}
+                    viewerId={viewerId}
+                    recordId={record.id}
+                    onSource={canPlayUpload ? seekTo : undefined}
+                  />
+                </RecordPanel>
               </TabPanel>
             )}
             {canReadText && record.source_type === 'meeting' && (
-              <TabPanel id="translations" padding="md">
-                <TranslationArchivePanel
-                  key={`${viewerId}:${record.id}`}
-                  viewerId={viewerId}
-                  recordId={record.id}
-                />
+              <TabPanel id="translations" data-record-panel>
+                <RecordPanel label={t('translationArchive.title')}>
+                  <TranslationArchivePanel
+                    key={`${viewerId}:${record.id}`}
+                    viewerId={viewerId}
+                    recordId={record.id}
+                  />
+                </RecordPanel>
               </TabPanel>
             )}
             {canReadText &&
               captureId &&
               record.capabilities.control_capture &&
               record.source_type === 'audio_recording' && (
-                <TabPanel id="translations" padding="md">
-                  <CaptureTranslationArchives
-                    viewerId={viewerId}
-                    recordId={record.id}
-                    captureId={captureId}
-                  />
+                <TabPanel id="translations" data-record-panel>
+                  <RecordPanel label={t('translationArchive.title')}>
+                    <CaptureTranslationArchives
+                      viewerId={viewerId}
+                      recordId={record.id}
+                      captureId={captureId}
+                    />
+                  </RecordPanel>
                 </TabPanel>
               )}
             {canReadSummary &&
               ['summary', 'chapters'].map((contentTab) => (
-                <TabPanel
-                  key={contentTab}
-                  id={contentTab}
-                  className={css({ padding: { base: '1rem 0', md: '2rem' } })}
-                >
-                  {contentTab === 'summary' ? (
-                    <RecordOverviewPanel
-                      viewerId={viewerId}
-                      recordId={record.id}
-                      onSourceAudio={
-                        canPlayUpload
-                          ? seekTo
-                          : playable && source
-                            ? (ms) =>
-                                seekTo(
-                                  ms -
-                                    (Date.parse(source.started_at) -
-                                      Date.parse(record.origin_at))
-                                )
-                            : undefined
-                      }
-                    />
-                  ) : (
-                    <RecordOverviewPanel
-                      chaptersOnly
-                      viewerId={viewerId}
-                      recordId={record.id}
-                      onSourceAudio={
-                        canPlayUpload
-                          ? seekTo
-                          : playable && source
-                            ? (ms) =>
-                                seekTo(
-                                  ms -
-                                    (Date.parse(source.started_at) -
-                                      Date.parse(record.origin_at))
-                                )
-                            : undefined
-                      }
-                    />
-                  )}
+                <TabPanel key={contentTab} id={contentTab} data-record-panel>
+                  <RecordPanel
+                    label={t(
+                      contentTab === 'summary'
+                        ? 'recordOverview.title'
+                        : 'recordAi.sections.chapters'
+                    )}
+                  >
+                    {contentTab === 'summary' ? (
+                      <RecordOverviewPanel
+                        viewerId={viewerId}
+                        recordId={record.id}
+                        onSourceAudio={
+                          canPlayUpload
+                            ? seekTo
+                            : playable && source
+                              ? (ms) =>
+                                  seekTo(
+                                    ms -
+                                      (Date.parse(source.started_at) -
+                                        Date.parse(record.origin_at))
+                                  )
+                              : undefined
+                        }
+                      />
+                    ) : (
+                      <RecordOverviewPanel
+                        chaptersOnly
+                        viewerId={viewerId}
+                        recordId={record.id}
+                        onSourceAudio={
+                          canPlayUpload
+                            ? seekTo
+                            : playable && source
+                              ? (ms) =>
+                                  seekTo(
+                                    ms -
+                                      (Date.parse(source.started_at) -
+                                        Date.parse(record.origin_at))
+                                  )
+                              : undefined
+                        }
+                      />
+                    )}
+                  </RecordPanel>
                 </TabPanel>
               ))}
             {!split && detailsPanels}
@@ -993,7 +997,12 @@ export function RecordWorkspace({
       <main className={readerShell}>
         {/* 工作区层级标题与操作区钉住；滚动交给内部各面板
             (Tabs 的 tabpanel 自己 overflow),所以内容区不带滚动。 */}
-        <div className={pageFixedTop}>
+        <div
+          className={cx(
+            pageFixedTop,
+            css({ maxHeight: '40%', overflowY: 'auto' })
+          )}
+        >
           <MeetingDetailHeader
             viewerId={viewerId}
             listHref={document ? '/meeting/minutes' : '/meeting/notes'}
@@ -1029,19 +1038,28 @@ export function RecordWorkspace({
               )
             }
             actions={
-              record &&
-              (document
-                ? record.capabilities.read_summary
-                : record.capabilities.read_transcript) && (
-                <MaterialActions
-                  key={`${viewerId}:${record.id}:${document}`}
-                  recordId={record.id}
-                  viewerId={viewerId}
-                  scope={document ? 'minutes' : 'record'}
-                  title={record.title || t('library.untitled')}
-                  originAt={record.origin_at}
-                />
-              )
+              <>
+                {record &&
+                  (document
+                    ? record.capabilities.read_summary
+                    : record.capabilities.read_transcript) && (
+                    <MaterialActions
+                      key={`${viewerId}:${record.id}:${document}`}
+                      recordId={record.id}
+                      viewerId={viewerId}
+                      scope={document ? 'minutes' : 'record'}
+                      title={record.title || t('library.untitled')}
+                      originAt={record.origin_at}
+                    />
+                  )}
+                {record && !document && (
+                  <RecordTrashControl
+                    viewerId={viewerId}
+                    record={record}
+                    menu
+                  />
+                )}
+              </>
             }
           />
         </div>
@@ -1123,14 +1141,16 @@ export function RecordWorkspace({
             <TranscriptDraftScope
               key={`${viewerId}:${recordId}:${record.capabilities.read_transcript}`}
             >
-              <WorkspaceContent
-                key={`${viewerId}:${recordId}:${translations}:${overview}:${chapters}`}
-                viewerId={viewerId}
-                record={record}
-                translations={translations}
-                overview={overview}
-                chapters={chapters}
-              />
+              <RecordViewState>
+                <WorkspaceContent
+                  key={`${viewerId}:${recordId}:${translations}:${overview}:${chapters}`}
+                  viewerId={viewerId}
+                  record={record}
+                  translations={translations}
+                  overview={overview}
+                  chapters={chapters}
+                />
+              </RecordViewState>
             </TranscriptDraftScope>
           )}
         </div>

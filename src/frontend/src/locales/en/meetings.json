@@ -911,6 +911,7 @@
     "retentionHint": "Trash is not cleared automatically. Restore a recording, or explicitly delete it permanently."
   },
   "uploadTranslation": {
+    "export": "Export translation",
     "title": "Full transcript translation",
     "description": "Translate the corrected full transcript. Readers with original-text access can view translations. Generation may incur AI usage; retries are manual.",
     "language": "Target language",

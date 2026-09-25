@@ -1,3 +1,4 @@
+import { useRecordViewState } from '../hooks/useRecordViewState'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -458,9 +459,15 @@ function Originals({
   follow?: TranscriptPlaybackFollow
 }) {
   const { t } = useTranslation('capture')
-  const [cursors, setCursors] = useState<string[]>([''])
-  const [search, setSearch] = useState('')
-  const [searchDraft, setSearchDraft] = useState('')
+  const [cursors, setCursors] = useRecordViewState<string[]>(
+    `capture-cursors:${jobId}`,
+    ['']
+  )
+  const [search, setSearch] = useRecordViewState(`capture-search:${jobId}`, '')
+  const [searchDraft, setSearchDraft] = useRecordViewState(
+    `capture-search-draft:${jobId}`,
+    ''
+  )
   const [anchorMs, setAnchorMs] = useState(0)
   const [following, setFollowing] = useState(true)
   const cursor = cursors.at(-1)!
@@ -573,6 +580,7 @@ function Originals({
     timedRows,
     anchorMs,
     next,
+    setCursors,
   ])
   /**
    * The list scrolls the active row once per change. Scrolling is off while a

@@ -64,6 +64,7 @@ const header = css({
 })
 const navigation = css({
   display: 'flex',
+  flexWrap: 'wrap',
   alignItems: 'flex-start',
   gap: 'sm',
   minWidth: 0,
@@ -89,7 +90,7 @@ const separator = css({
   color: 'icon.secondary',
   marginTop: 'xs',
 })
-const current = css({ minWidth: 0, flex: 1 })
+const current = css({ minWidth: 0, flex: '1 1 8rem' })
 const titleRow = css({
   display: 'flex',
   alignItems: 'center',

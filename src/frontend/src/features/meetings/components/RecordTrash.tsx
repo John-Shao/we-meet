@@ -1,3 +1,8 @@
+import { Menu as AriaMenu, MenuItem } from 'react-aria-components'
+import { Menu } from '@/primitives/Menu'
+import { menuRecipe } from '@/primitives/menuRecipe'
+import { IconButton } from '@/primitives/IconButton'
+import { RiMore2Line } from '@remixicon/react'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -113,33 +118,55 @@ function LifecycleConfirmation({
 export function RecordTrashControl({
   viewerId,
   record,
+  menu = false,
 }: {
   viewerId: string
   record: ApiMeetingRecord
+  menu?: boolean
 }) {
   const { t } = useTranslation('meetings')
   const [, navigate] = useLocation()
   const [selected, setSelected] = useState<TrashRecord>()
   if (!record.capabilities.trash || record.lifecycle_revision === undefined)
     return null
+  const select = () =>
+    setSelected({
+      id: record.id,
+      title: record.title,
+      deleted_at: null,
+      lifecycle_revision: record.lifecycle_revision!,
+    })
+  const classes = menuRecipe({ variant: 'light' })
   return (
     <>
-      <Button
-        size="sm"
-        variant="quaternaryDanger"
-        className={css({ color: 'status.danger' })}
-        icon={<RiDeleteBinLine size={16} aria-hidden />}
-        onPress={() =>
-          setSelected({
-            id: record.id,
-            title: record.title,
-            deleted_at: null,
-            lifecycle_revision: record.lifecycle_revision!,
-          })
-        }
-      >
-        {t('trash.remove')}
-      </Button>
+      {menu ? (
+        <Menu placement="bottom">
+          <IconButton label={t('video.more')} size="icon32">
+            <RiMore2Line size={20} aria-hidden />
+          </IconButton>
+          <AriaMenu className={classes.root} aria-label={t('video.more')}>
+            <MenuItem
+              className={classes.item}
+              textValue={t('trash.remove')}
+              onAction={select}
+            >
+              <span className={css({ color: 'status.danger' })}>
+                {t('trash.remove')}
+              </span>
+            </MenuItem>
+          </AriaMenu>
+        </Menu>
+      ) : (
+        <Button
+          size="sm"
+          variant="quaternaryDanger"
+          className={css({ color: 'status.danger' })}
+          icon={<RiDeleteBinLine size={16} aria-hidden />}
+          onPress={select}
+        >
+          {t('trash.remove')}
+        </Button>
+      )}
       <Dialog
         title={t('trash.remove')}
         isOpen={!!selected}

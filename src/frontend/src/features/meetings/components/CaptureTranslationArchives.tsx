@@ -1,3 +1,4 @@
+import { RecordPanelTools } from './RecordPanel'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -98,24 +99,26 @@ function Content({ source }: { source: Source }) {
     <section className={layout} aria-label={t('title')}>
       <h2 className={css({ textStyle: 'titleMedium' })}>{t('title')}</h2>
       <p>{t('scope')}</p>
-      {selected && (
+      <RecordPanelTools>
+        {selected && (
+          <Button
+            variant="tertiary"
+            onPress={() => {
+              setSelected(undefined)
+              setSegments([''])
+            }}
+          >
+            {t('back')}
+          </Button>
+        )}
         <Button
           variant="tertiary"
-          onPress={() => {
-            setSelected(undefined)
-            setSegments([''])
-          }}
+          isDisabled={pending.isFetching}
+          onPress={refresh}
         >
-          {t('back')}
+          {t('refresh')}
         </Button>
-      )}
-      <Button
-        variant="tertiary"
-        isDisabled={pending.isFetching}
-        onPress={refresh}
-      >
-        {t('refresh')}
-      </Button>
+      </RecordPanelTools>
       {error ? (
         // 恢复动作是上面那颗面板级的「刷新」，这里不再重复一颗（StateHint 的 action 槽
         // 留给没有其它恢复入口的地方）。
