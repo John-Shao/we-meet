@@ -43,6 +43,15 @@ export function RecordOverviewPanel({
   const version = state?.version
   const job = state?.job
   const busy = ['queued', 'running'].includes(job?.status ?? '')
+  // Keep recovery and retry details behind the single generation action.
+  const operation: SummaryRequestPayload['operation'] =
+    job?.retryable &&
+    ['failed', 'partial'].includes(job.status) &&
+    job.input_revision === state?.revision
+      ? 'retry'
+      : job
+        ? 'regenerate'
+        : 'generate'
   const submit = async (operation: SummaryRequestPayload['operation']) => {
     if (!state?.can_generate || inFlight.current || !recovery.ready) return
     inFlight.current = true
@@ -83,57 +92,34 @@ export function RecordOverviewPanel({
     >
       <RecordPanelTools>
         {state?.can_generate && (
-          <>
-            {recovery.pending ? (
-              <Button
-                size="sm"
-                variant="secondaryText"
-                icon={<RiRefreshLine size={16} aria-hidden />}
-                isDisabled={!recovery.ready || mutation.isPending}
-                onPress={() => void submit(recovery.pending!.payload.operation)}
-              >
-                {t('recordOverview.resubmit')}
-              </Button>
-            ) : (
-              <>
-                <Button
-                  size="sm"
-                  variant="secondaryText"
-                  icon={
-                    job ? (
-                      <RiRefreshLine size={16} aria-hidden />
-                    ) : (
-                      <RiSparklingLine size={16} aria-hidden />
-                    )
-                  }
-                  isDisabled={
-                    !state.generation_ready ||
-                    busy ||
-                    mutation.isPending ||
-                    !recovery.ready
-                  }
-                  onPress={() => void submit(job ? 'regenerate' : 'generate')}
-                >
-                  {t(
-                    job
-                      ? 'recordOverview.regenerate'
-                      : 'recordOverview.generate'
-                  )}
-                </Button>
-                {job?.retryable && !busy && (
-                  <Button
-                    size="sm"
-                    variant="secondaryText"
-                    icon={<RiRefreshLine size={16} aria-hidden />}
-                    isDisabled={mutation.isPending || !recovery.ready}
-                    onPress={() => void submit('retry')}
-                  >
-                    {t('recordOverview.retry')}
-                  </Button>
-                )}
-              </>
+          <Button
+            size="sm"
+            variant="secondaryText"
+            icon={
+              version ? (
+                <RiRefreshLine size={16} aria-hidden />
+              ) : (
+                <RiSparklingLine size={16} aria-hidden />
+              )
+            }
+            isDisabled={
+              (!recovery.pending && !state.generation_ready) ||
+              busy ||
+              mutation.isPending ||
+              !recovery.ready
+            }
+            onPress={() =>
+              void submit(recovery.pending?.payload.operation ?? operation)
+            }
+          >
+            {t(
+              busy || mutation.isPending
+                ? 'recordOverview.generating'
+                : version
+                  ? 'recordOverview.regenerate'
+                  : 'recordOverview.generate'
             )}
-          </>
+          </Button>
         )}
         <Link href={`/meeting/records/${recordId}?tab=summary`} asChild>
           <LinkButton size="sm" variant="secondaryText">
@@ -164,7 +150,11 @@ export function RecordOverviewPanel({
         </div>
       )}
       {state && job && ['failed', 'canceled'].includes(job.status) && (
-        <p role="alert">{t('recordOverview.failed')}</p>
+        <p role="alert">
+          {t(
+            version ? 'recordOverview.failedPreserved' : 'recordOverview.failed'
+          )}
+        </p>
       )}
       {state && message && (
         <p role={message === 'accepted' ? 'status' : 'alert'}>

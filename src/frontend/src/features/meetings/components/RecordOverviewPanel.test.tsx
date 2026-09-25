@@ -76,9 +76,8 @@ it('generates only on explicit action and renders its separate result', async ()
       .mock.calls.some(([, options]) => options?.method === 'POST')
   ).toBe(false)
   fireEvent.click(generate)
-  await screen.findByText('recordOverview.generating')
   expect(
-    screen.getByRole('button', { name: 'recordOverview.regenerate' })
+    await screen.findByRole('button', { name: 'recordOverview.generating' })
   ).toBeDisabled()
   state = { ...state, job: { ...job, status: 'succeeded' }, version }
   await act(async () => {
@@ -109,7 +108,7 @@ it('preserves the idempotency key after an uncertain response and a remount', as
   fail = false
   show()
   const recover = await screen.findByRole('button', {
-    name: 'recordOverview.resubmit',
+    name: 'recordOverview.generate',
   })
   await waitFor(() => expect(recover).toBeEnabled())
   fireEvent.click(recover)
@@ -122,7 +121,7 @@ it('preserves the idempotency key after an uncertain response and a remount', as
   expect(posts[0][1]?.body).toEqual(posts[1][1]?.body)
 })
 
-it('keeps the previous overview visible on generation failure and offers explicit retry', async () => {
+it('keeps the previous overview visible and retries through the single regenerate action', async () => {
   state = {
     ...state,
     job: { ...job, status: 'failed', retryable: true },
@@ -130,7 +129,15 @@ it('keeps the previous overview visible on generation failure and offers explici
   }
   show()
   await screen.findByText('Independent overview')
-  const retry = screen.getByRole('button', { name: 'recordOverview.retry' })
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'recordOverview.failedPreserved'
+  )
+  expect(
+    screen.queryByRole('button', { name: 'recordOverview.retry' })
+  ).toBeNull()
+  const retry = screen.getByRole('button', {
+    name: 'recordOverview.regenerate',
+  })
   await waitFor(() => expect(retry).toBeEnabled())
   fireEvent.click(retry)
   await screen.findByText('recordOverview.accepted')
@@ -143,6 +150,85 @@ it('keeps the previous overview visible on generation failure and offers explici
     expected_attempt: 1,
   })
 })
+
+it.each([
+  { status: 'failed', retryable: true, revision: 1, operation: 'retry' },
+  { status: 'failed', retryable: true, revision: 2, operation: 'regenerate' },
+  { status: 'failed', retryable: false, revision: 1, operation: 'regenerate' },
+  {
+    status: 'canceled',
+    retryable: false,
+    revision: 1,
+    operation: 'regenerate',
+  },
+])(
+  'offers generate without an overview after $status (revision $revision, retryable $retryable)',
+  async ({ status, retryable, revision, operation }) => {
+    state = { ...state, revision, job: { ...job, status, retryable } }
+    show()
+    const generate = await screen.findByRole('button', {
+      name: 'recordOverview.generate',
+    })
+    await waitFor(() => expect(generate).toBeEnabled())
+    expect(screen.getByRole('alert')).toHaveTextContent('recordOverview.failed')
+    expect(
+      screen.queryByRole('button', { name: 'recordOverview.regenerate' })
+    ).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'recordOverview.retry' })
+    ).toBeNull()
+    fireEvent.click(generate)
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(fetchApi)
+          .mock.calls.some(([, options]) => options?.method === 'POST')
+      ).toBe(true)
+    )
+    const body = vi
+      .mocked(fetchApi)
+      .mock.calls.find(([, options]) => options?.method === 'POST')![1]!.body
+    expect(JSON.parse(String(body))).toMatchObject({
+      operation,
+      expected_revision: revision,
+    })
+  }
+)
+
+it('starts a new generation when an overview already exists', async () => {
+  state = { ...state, job: { ...job, status: 'succeeded' }, version }
+  show()
+  const regenerate = await screen.findByRole('button', {
+    name: 'recordOverview.regenerate',
+  })
+  await waitFor(() => expect(regenerate).toBeEnabled())
+  fireEvent.click(regenerate)
+  await screen.findByText('recordOverview.accepted')
+  const body = vi
+    .mocked(fetchApi)
+    .mock.calls.find(([, options]) => options?.method === 'POST')![1]!.body
+  expect(JSON.parse(String(body))).toMatchObject({ operation: 'regenerate' })
+})
+
+it.each(['queued', 'running'])(
+  'disables generation while $status and retains the existing overview',
+  async (status) => {
+    state = { ...state, job: { ...job, status }, version }
+    show()
+    expect(
+      await screen.findByRole('button', { name: 'recordOverview.generating' })
+    ).toBeDisabled()
+    expect(screen.getByText('Independent overview')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'recordOverview.regenerate' })
+    ).toBeNull()
+    expect(
+      vi
+        .mocked(fetchApi)
+        .mock.calls.some(([, options]) => options?.method === 'POST')
+    ).toBe(false)
+  }
+)
 
 it('summary readers cannot generate and stale data disappears on a refused refresh', async () => {
   state = { ...state, can_generate: false, version }
