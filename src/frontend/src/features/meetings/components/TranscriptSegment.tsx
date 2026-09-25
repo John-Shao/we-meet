@@ -196,6 +196,8 @@ export function TranscriptSegment({
       data-corrected={isCorrected ? 'true' : undefined}
       className={cx(
         css({
+          contentVisibility: 'auto',
+          containIntrinsicSize: 'auto 160px',
           padding: '1.25rem 0',
           overflowWrap: 'anywhere',
           borderLeft: '3px solid transparent',

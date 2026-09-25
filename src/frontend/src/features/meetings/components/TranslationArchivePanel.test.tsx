@@ -80,13 +80,13 @@ describe('Retained translation reader', () => {
       calls().filter((path) => path.includes('translation-segments/'))[0]
     ).toContain('archive_id=archive')
   })
-  it('paginates inside the chosen archive and does not retain the previous page text', async () => {
+  it('appends segments inside the chosen archive and retains earlier text', async () => {
     show()
     fireEvent.click(await screen.findByRole('button', { name: 'open' }))
     await screen.findByText('Saved decision')
-    fireEvent.click(screen.getByRole('button', { name: 'next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'continuous.more' }))
     await screen.findByText('Last confirmed translation')
-    expect(screen.queryByText('Saved decision')).not.toBeInTheDocument()
+    expect(screen.queryByText('Saved decision')).toBeInTheDocument()
     expect(calls().at(-1)).toContain('archive_id=archive&cursor=next')
   })
   it('hides cached translations after permission revocation', async () => {

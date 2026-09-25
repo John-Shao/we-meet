@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- Add continuous record reading and toolbar refresh on Web and Android.
 - Unify record detail panel toolbars and retain browsing state across tabs.
 - Match all Web record panel toolbar buttons to transcript toolbar styling.
 

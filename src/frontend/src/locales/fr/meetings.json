@@ -1,4 +1,11 @@
 {
+  "continuous": {
+    "loading": "Chargement...",
+    "retry": "Échec du chargement. Réessayer",
+    "more": "Charger la suite",
+    "end": "Tout le contenu est affiché",
+    "start": "Lire depuis le début"
+  },
   "transcriptToolbar": {
     "label": "Outils de transcription",
     "export": "Exporter",

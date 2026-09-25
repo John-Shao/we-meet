@@ -1,4 +1,11 @@
 {
+  "continuous": {
+    "loading": "Laden...",
+    "retry": "Laden mislukt. Opnieuw proberen",
+    "more": "Meer laden",
+    "end": "Alle inhoud geladen",
+    "start": "Vanaf het begin lezen"
+  },
   "transcriptToolbar": {
     "label": "Transcriptietools",
     "export": "Exporteren",

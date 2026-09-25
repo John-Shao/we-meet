@@ -6,6 +6,9 @@ import { chromium, expect } from '@playwright/test'
 
 const labels = JSON.parse(readFileSync('src/locales/zh/meetings.json', 'utf8'))
 const errors = []
+let continuousFixture = false
+let failNextPage = false
+let nextRequests = 0
 const origin = process.env.CAPTURE_TEST_ORIGIN || 'http://127.0.0.1:3187'
 const browser = await chromium.launch({ headless: true })
 const record = {
@@ -151,18 +154,33 @@ try {
       })
     if (url.pathname.endsWith('/transcript-replacements/'))
       return reply({ results: [] })
-    if (url.pathname.endsWith('/original-segments/'))
+    if (url.pathname.endsWith('/original-segments/')) {
+      const next =
+        continuousFixture && url.searchParams.get('cursor') === 'next'
+      if (next) {
+        nextRequests++
+        if (failNextPage)
+          return route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: '{}',
+          })
+      }
       return reply({
-        results: Array.from({ length: 40 }, (_, index) => ({
-          id: `line-${index}`,
-          start_ms: index * 1000,
-          end_ms: index * 1000 + 900,
-          text: `Meeting transcript ${index}: project review and meeting notes.`,
-          can_correct: true,
-          correction_revision: 1,
-        })),
-        next_cursor: null,
+        results: Array.from({ length: 40 }, (_, offset) => {
+          const index = offset + (next ? 40 : 0)
+          return {
+            id: `line-${index}`,
+            start_ms: index * 1000,
+            end_ms: index * 1000 + 900,
+            text: `Meeting transcript ${index}: project review and meeting notes.`,
+            can_correct: true,
+            correction_revision: 1,
+          }
+        }),
+        next_cursor: continuousFixture && !next ? 'next' : null,
       })
+    }
     if (url.pathname.endsWith('/meeting-records/')) {
       if (url.searchParams.get('is_ongoing') === 'true')
         return reply({
@@ -627,6 +645,48 @@ try {
     true
   )
   await page.screenshot({ path: 'test-results/record-tools-dark-large.png' })
+  // A second page must append automatically, survive a failed read, and retain position on refresh.
+  continuousFixture = true
+  failNextPage = true
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = 'light'
+    document.documentElement.style.fontSize = ''
+  })
+  await page
+    .getByRole('tab', { name: labels.library.text, exact: true })
+    .click()
+  await search.fill('')
+  await search.press('Enter')
+  await toolbar
+    .getByRole('button', { name: labels.library.refresh, exact: true })
+    .click()
+  await expect(
+    toolbar.getByRole('button', { name: labels.library.refresh, exact: true })
+  ).toBeEnabled()
+  await scroller.evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+  })
+  await scroller
+    .getByRole('button', { name: labels.continuous.retry })
+    .waitFor()
+  await expect(scroller.locator('[data-segment-id="line-0"]')).toHaveCount(1)
+  failNextPage = false
+  await scroller.getByRole('button', { name: labels.continuous.retry }).click()
+  await expect(scroller.locator('[data-segment-id="line-79"]')).toHaveCount(1)
+  await expect(scroller.locator('[data-segment-id="line-0"]')).toHaveCount(1)
+  assert.equal(nextRequests, 2)
+  await scroller.locator('[data-segment-id="line-45"]').scrollIntoViewIfNeeded()
+  const retainedTop = await scroller.evaluate((el) => el.scrollTop)
+  await toolbar
+    .getByRole('button', { name: labels.library.refresh, exact: true })
+    .click()
+  await expect(
+    toolbar.getByRole('button', { name: labels.library.refresh, exact: true })
+  ).toBeEnabled()
+  assert.ok(
+    Math.abs((await scroller.evaluate((el) => el.scrollTop)) - retainedTop) < 3
+  )
+  await page.screenshot({ path: 'test-results/record-continuous-reading.png' })
   assert.deepEqual(errors, [])
   console.log(
     'Record panel toolbars verified: fixed tools, scroll isolation, tab state restoration, search, translation export, trash cancellation, 320/390/1440px, dark 200% text and both transcript readers. Fixture GETs only.'

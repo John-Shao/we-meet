@@ -77,7 +77,9 @@ beforeEach(() => {
         archive_status: 'incomplete',
         results: [
           {
-            id: segmentId,
+            id: path.includes('cursor=next')
+              ? '88888888-8888-4888-8888-888888888888'
+              : segmentId,
             sequence: path.includes('cursor=next') ? 51 : 1,
             source_capture_id: source.captureId,
             direction: 'forward',
@@ -148,18 +150,16 @@ it('unmounts private text on background and reauthorizes when returning', async 
   })
   await screen.findByRole('alert')
 })
-it('replaces pages without accumulating text and refuses wrong source envelopes', async () => {
+it('appends pages and clears all text on a wrong source envelope', async () => {
   more = true
   show()
   fireEvent.click(await screen.findByRole('button', { name: 'open' }))
   await screen.findByText('Confirmed translated text')
-  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  fireEvent.click(screen.getByRole('button', { name: 'continuous.more' }))
   await screen.findByText('Next translated page')
-  expect(
-    screen.queryByText('Confirmed translated text')
-  ).not.toBeInTheDocument()
+  expect(screen.queryByText('Confirmed translated text')).toBeInTheDocument()
   wrongSource = true
-  fireEvent.click(screen.getByRole('button', { name: 'previous' }))
+  fireEvent.click(screen.getByRole('button', { name: 'refresh' }))
   await waitFor(() =>
     expect(screen.getByRole('alert')).toHaveTextContent('error')
   )

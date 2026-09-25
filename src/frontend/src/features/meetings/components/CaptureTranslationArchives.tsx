@@ -1,6 +1,7 @@
 import { RecordPanelTools } from './RecordPanel'
 import { useEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useRecordInfiniteQuery } from '../hooks/useRecordInfiniteQuery'
+import { RecordLoadMore } from './RecordLoadMore'
 import { useTranslation } from 'react-i18next'
 import { RiArrowLeftLine, RiRefreshLine } from '@remixicon/react'
 import { Button } from '@/primitives'
@@ -13,43 +14,15 @@ import {
 import { formatDateTime } from '../recordDateTime'
 
 type Source = { viewerId: string; captureId: string; recordId: string }
-const options = { retry: false, gcTime: 0, staleTime: 0 }
 const layout = css({
   display: 'flex',
   flexDirection: 'column',
   gap: 'md',
   minWidth: 0,
 })
-function Pages({
-  history,
-  next,
-  change,
-}: {
-  history: string[]
-  next: string | null
-  change: (value: string[]) => void
-}) {
-  const { t } = useTranslation('capture')
-  return (
-    <div className={css({ display: 'flex', gap: 'md' })}>
-      {history.length > 1 && (
-        <Button variant="tertiary" onPress={() => change(history.slice(0, -1))}>
-          {t('previous')}
-        </Button>
-      )}
-      {next && !history.includes(next) && (
-        <Button variant="tertiary" onPress={() => change([...history, next])}>
-          {t('next')}
-        </Button>
-      )}
-    </div>
-  )
-}
 function Content({ source }: { source: Source }) {
   const { t } = useTranslation('capture', { keyPrefix: 'translation.archive' })
   const [selected, setSelected] = useState<CaptureArchive>()
-  const [archives, setArchives] = useState([''])
-  const [segments, setSegments] = useState([''])
   const alive = useRef(true)
   useEffect(() => {
     alive.current = true
@@ -58,8 +31,8 @@ function Content({ source }: { source: Source }) {
     }
   }, [])
   const current = () => alive.current && document.visibilityState === 'visible'
-  const list = useQuery({
-    ...options,
+  const list = useRecordInfiniteQuery({
+    initialPageParam: '',
     // The three IDs fully scope source. The mounted/visible predicate is a lifetime fence.
     // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: [
@@ -67,14 +40,13 @@ function Content({ source }: { source: Source }) {
       source.viewerId,
       source.recordId,
       source.captureId,
-      archives.at(-1),
     ],
     enabled: !selected,
-    queryFn: ({ signal }) =>
-      captureArchiveApi(source, current, signal).list(archives.at(-1)),
+    queryFn: ({ signal, pageParam }) =>
+      captureArchiveApi(source, current, signal).list(pageParam),
   })
-  const text = useQuery({
-    ...options,
+  const text = useRecordInfiniteQuery({
+    initialPageParam: '',
     // Scope IDs and frozen archive metadata determine the read; current only checks lifetime.
     // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: [
@@ -83,18 +55,14 @@ function Content({ source }: { source: Source }) {
       source.recordId,
       source.captureId,
       selected,
-      segments.at(-1),
     ],
     enabled: !!selected,
-    queryFn: ({ signal }) =>
-      captureArchiveApi(source, current, signal).segments(
-        selected!,
-        segments.at(-1)
-      ),
+    queryFn: ({ signal, pageParam }) =>
+      captureArchiveApi(source, current, signal).segments(selected!, pageParam),
   })
   const pending = selected ? text : list
   const error = pending.isError
-  const loading = pending.isFetching || !pending.data
+  const loading = !pending.data
   const refresh = () => void pending.refetch()
   return (
     <section className={layout} aria-label={t('title')}>
@@ -108,7 +76,6 @@ function Content({ source }: { source: Source }) {
             icon={<RiArrowLeftLine size={16} aria-hidden />}
             onPress={() => {
               setSelected(undefined)
-              setSegments([''])
             }}
           >
             {t('back')}
@@ -140,6 +107,10 @@ function Content({ source }: { source: Source }) {
           {!text.data.results.length && <p>{t('emptyText')}</p>}
           {text.data.results.map((row) => (
             <article
+              style={{
+                contentVisibility: 'auto',
+                containIntrinsicSize: 'auto 160px',
+              }}
               key={row.id}
               className={css({
                 borderBottom: '1px solid',
@@ -168,22 +139,24 @@ function Content({ source }: { source: Source }) {
               </p>
             </article>
           ))}
-          <Pages
-            history={segments}
-            next={text.data.next_cursor}
-            change={setSegments}
-          />
+          <RecordLoadMore query={text} />
         </>
       ) : list.data ? (
         <>
           {!list.data.results.length && <p>{t('empty')}</p>}
           {list.data.results.map((archive) => (
-            <article key={archive.id} className={layout}>
+            <article
+              style={{
+                contentVisibility: 'auto',
+                containIntrinsicSize: 'auto 160px',
+              }}
+              key={archive.id}
+              className={layout}
+            >
               <Button
                 variant="secondary"
                 onPress={() => {
                   setSelected(archive)
-                  setSegments([''])
                 }}
               >
                 {t('open', {
@@ -200,11 +173,7 @@ function Content({ source }: { source: Source }) {
               </p>
             </article>
           ))}
-          <Pages
-            history={archives}
-            next={list.data.next_cursor}
-            change={setArchives}
-          />
+          <RecordLoadMore query={list} />
         </>
       ) : null}
     </section>

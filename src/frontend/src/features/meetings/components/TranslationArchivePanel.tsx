@@ -1,6 +1,7 @@
 import { RecordPanelTools } from './RecordPanel'
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useRecordInfiniteQuery } from '../hooks/useRecordInfiniteQuery'
+import { RecordLoadMore, RecordRefreshButton } from './RecordLoadMore'
 import { useTranslation } from 'react-i18next'
 import { RiArrowLeftLine } from '@remixicon/react'
 import { fetchApi } from '@/api/fetchApi'
@@ -34,39 +35,12 @@ interface Page<T> {
   results: T[]
   next_cursor: string | null
 }
-const privateOptions = { retry: false, gcTime: 0, staleTime: 0 }
 const layout = css({
   display: 'flex',
   flexDirection: 'column',
   gap: 'md',
   minWidth: 0,
 })
-
-function PageButtons({
-  cursors,
-  next,
-  change,
-}: {
-  cursors: string[]
-  next?: string | null
-  change: (value: string[]) => void
-}) {
-  const { t } = useTranslation('meetings', { keyPrefix: 'library' })
-  return (
-    <div className={css({ display: 'flex', gap: 'md' })}>
-      {cursors.length > 1 && (
-        <Button variant="tertiary" onPress={() => change(cursors.slice(0, -1))}>
-          {t('previous')}
-        </Button>
-      )}
-      {next && (
-        <Button variant="tertiary" onPress={() => change([...cursors, next])}>
-          {t('next')}
-        </Button>
-      )}
-    </div>
-  )
-}
 
 function ArchiveSegments({
   viewerId,
@@ -80,13 +54,13 @@ function ArchiveSegments({
   back: () => void
 }) {
   const { t } = useTranslation('meetings', { keyPrefix: 'translationArchive' })
-  const [cursors, setCursors] = useState([''])
-  const path = `meeting-records/${recordId}/translation-segments/?${new URLSearchParams({ archive_id: archiveId, cursor: cursors.at(-1)! })}`
-  const query = useQuery({
-    ...privateOptions,
-    queryKey: ['translation-segments', viewerId, path],
-    queryFn: ({ signal }) =>
-      fetchApi<
+  const path = `meeting-records/${recordId}/translation-segments/?${new URLSearchParams({ archive_id: archiveId })}`
+  const query = useRecordInfiniteQuery({
+    initialPageParam: '',
+    queryKey: ['translation-segments', viewerId, path, archiveId],
+    refetchInterval: 10000,
+    queryFn: async ({ signal, pageParam }) => {
+      const page = await fetchApi<
         Page<Segment> & {
           archive_id: string
           archive_status: Archive['status']
@@ -95,12 +69,22 @@ function ArchiveSegments({
           mode?: Archive['mode']
           source?: Archive['source']
         }
-      >(path, { signal, cache: 'no-store' }),
-    refetchInterval: (query) => (query.state.error ? false : 10000),
+      >(`${path}&cursor=${encodeURIComponent(pageParam)}`, {
+        signal,
+        cache: 'no-store',
+      })
+      if (page.archive_id !== archiveId)
+        throw new Error('Invalid archive identity')
+      return page
+    },
   })
   return (
     <section className={layout}>
       <RecordPanelTools>
+        <RecordRefreshButton
+          busy={query.isFetching}
+          onRefresh={() => void query.refetch()}
+        />
         <Button
           size="sm"
           variant="secondaryText"
@@ -111,16 +95,7 @@ function ArchiveSegments({
         </Button>
       </RecordPanelTools>
       {query.isError || (query.data && query.data.archive_id !== archiveId) ? (
-        <StateHint
-          state="error"
-          action={
-            <Button variant="tertiary" onPress={() => void query.refetch()}>
-              {t('refresh')}
-            </Button>
-          }
-        >
-          {t('error')}
-        </StateHint>
+        <StateHint state="error">{t('error')}</StateHint>
       ) : !query.data ? (
         <StateHint state="loading">{t('loading')}</StateHint>
       ) : (
@@ -142,6 +117,10 @@ function ArchiveSegments({
           {!query.data.results.length && <Text>{t('empty')}</Text>}
           {query.data.results.map((row) => (
             <article
+              style={{
+                contentVisibility: 'auto',
+                containIntrinsicSize: 'auto 160px',
+              }}
               key={row.id}
               className={css({
                 borderBottomWidth: '1px',
@@ -166,11 +145,7 @@ function ArchiveSegments({
               </Text>
             </article>
           ))}
-          <PageButtons
-            cursors={cursors}
-            next={query.data.next_cursor}
-            change={setCursors}
-          />
+          <RecordLoadMore query={query} />
         </>
       )}
     </section>
@@ -185,30 +160,39 @@ export function TranslationArchivePanel({
   recordId: string
 }) {
   const { t } = useTranslation('meetings', { keyPrefix: 'translationArchive' })
-  const [cursors, setCursors] = useState([''])
   const [selected, setSelected] = useState<string>()
-  const path = `meeting-records/${recordId}/translation-archives/?cursor=${encodeURIComponent(cursors.at(-1)!)}`
-  const query = useQuery({
-    ...privateOptions,
+  const path = `meeting-records/${recordId}/translation-archives/?`
+  const query = useRecordInfiniteQuery({
+    initialPageParam: '',
     queryKey: ['translation-archives', viewerId, path],
-    queryFn: ({ signal }) =>
-      fetchApi<Page<Archive>>(path, { signal, cache: 'no-store' }),
-    refetchInterval: (query) => (query.state.error ? false : 10000),
+    queryFn: ({ signal, pageParam }) =>
+      fetchApi<Page<Archive>>(
+        `${path}&cursor=${encodeURIComponent(pageParam)}`,
+        { signal, cache: 'no-store' }
+      ),
   })
+  const refresh = (
+    <RecordPanelTools>
+      <RecordRefreshButton
+        busy={query.isFetching}
+        onRefresh={() => void query.refetch()}
+      />
+    </RecordPanelTools>
+  )
   if (query.isError)
     return (
-      <StateHint
-        state="error"
-        action={
-          <Button variant="tertiary" onPress={() => void query.refetch()}>
-            {t('refresh')}
-          </Button>
-        }
-      >
-        {t('error')}
-      </StateHint>
+      <>
+        {refresh}
+        <StateHint state="error">{t('error')}</StateHint>
+      </>
     )
-  if (!query.data) return <StateHint state="loading">{t('loading')}</StateHint>
+  if (!query.data)
+    return (
+      <>
+        {refresh}
+        <StateHint state="loading">{t('loading')}</StateHint>
+      </>
+    )
   if (selected)
     return (
       <ArchiveSegments
@@ -221,10 +205,18 @@ export function TranslationArchivePanel({
     )
   return (
     <section aria-label={t('title')} className={layout}>
+      {refresh}
       <Text variant="note">{t('scope')}</Text>
       {!query.data.results.length && <Text>{t('empty')}</Text>}
       {query.data.results.map((archive) => (
-        <article key={archive.id} className={layout}>
+        <article
+          style={{
+            contentVisibility: 'auto',
+            containIntrinsicSize: 'auto 160px',
+          }}
+          key={archive.id}
+          className={layout}
+        >
           <Text>
             {t('version', {
               language: t(`language.${archive.target}`),
@@ -250,11 +242,7 @@ export function TranslationArchivePanel({
           </Button>
         </article>
       ))}
-      <PageButtons
-        cursors={cursors}
-        next={query.data.next_cursor}
-        change={setCursors}
-      />
+      <RecordLoadMore query={query} />
     </section>
   )
 }

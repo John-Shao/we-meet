@@ -1,3 +1,8 @@
+import { useRecordInfiniteQuery } from '../hooks/useRecordInfiniteQuery'
+import {
+  RecordLoadMore,
+  RecordRefreshButton,
+} from '../components/RecordLoadMore'
 import { RecordViewState } from '../components/RecordViewState'
 import { useRecordViewState } from '../hooks/useRecordViewState'
 import { useEffect, useRef, useState } from 'react'
@@ -87,7 +92,7 @@ import {
   type TranscriptPlaybackFollow,
   type TimedRow,
 } from '../transcriptSync'
-import { RiTimeLine } from '@remixicon/react'
+import { RiTimeLine, RiArrowUpLine } from '@remixicon/react'
 
 /** The workspace carries the clock only; each transcript derives its own rows. */
 const EMPTY_ROWS: readonly TimedRow[] = []
@@ -128,10 +133,6 @@ function OriginalRead({
   const correction = useCorrectOriginalSegment(viewerId, record.id)
   const drafts = useTranscriptDraftScope()
   const editing = useTranscriptEditing()
-  const [cursors, setCursors] = useRecordViewState<string[]>(
-    speakers ? 'speaker-cursors' : 'original-cursors',
-    ['']
-  )
   const routeSearch = useSearch()
   const [search, setSearch] = useRecordViewState(
     'original-search',
@@ -151,7 +152,7 @@ function OriginalRead({
     : record.source_type === 'meeting'
       ? 'transcripts'
       : 'original-segments'
-  const path = `meeting-records/${record.id}/${endpoint}/?cursor=${encodeURIComponent(cursors.at(-1)!)}&q=${encodeURIComponent(search)}${speaker ? `&speaker=${encodeURIComponent(speaker)}` : ''}&expected_revision=${record.revision}${endpoint === 'original-segments' ? `&at_ms=${search || speaker ? 0 : anchorMs}` : ''}`
+  const path = `meeting-records/${record.id}/${endpoint}/?q=${encodeURIComponent(search)}${speaker ? `&speaker=${encodeURIComponent(speaker)}` : ''}&expected_revision=${record.revision}${endpoint === 'original-segments' ? `&at_ms=${search || speaker ? 0 : anchorMs}` : ''}`
   const searchForm = !speakers && (
     <OriginalSearch
       value={searchDraft}
@@ -162,20 +163,22 @@ function OriginalRead({
       onSearch={(query) => {
         setSearchDraft(query)
         setSearch(query)
-        setCursors([''])
       }}
     />
   )
-  const query = useQuery({
-    ...privateOptions,
+  const query = useRecordInfiniteQuery({
+    initialPageParam: '',
+    refetchInterval: record.is_ongoing && !editing ? 10000 : false,
     queryKey: ['record-library-content', viewerId, record.revision, path],
-    queryFn: ({ signal }) =>
+    queryFn: ({ signal, pageParam }) =>
       fetchApi<
         MeetingRecordPage<
           ApiRecordTranscript | ApiMeetingOriginalSegment | ApiMeetingSpeaker
         >
-      >(path, { signal, cache: 'no-store' }),
-    refetchInterval: (q) => (q.state.error ? false : 10000),
+      >(`${path}&cursor=${encodeURIComponent(pageParam)}`, {
+        signal,
+        cache: 'no-store',
+      }),
   })
   useEffect(() => {
     if (
@@ -205,7 +208,6 @@ function OriginalRead({
     setSearch('')
     setSpeaker('')
     setAnchorMs(Math.floor(positionMs ?? 0))
-    setCursors([''])
     setFollowing(true)
   })
   const pauseFollowing = follow?.pauseFollowing
@@ -231,7 +233,6 @@ function OriginalRead({
     )
     if (target !== null) {
       setAnchorMs(target)
-      setCursors([''])
     }
   }, [
     followEnabled,
@@ -240,7 +241,6 @@ function OriginalRead({
     rowIds,
     anchorMs,
     query.data?.next_cursor,
-    setCursors,
   ])
   // The list scrolls the right row once per change, rather than every row asking
   // to be scrolled on the same commit.
@@ -256,51 +256,51 @@ function OriginalRead({
     follow: follow ?? { suppressed: () => true, suppressionEpoch: 0 },
     enabled: followEnabled,
   })
-  const pagination = (
-    <div className={css({ display: 'flex', gap: 'sm' })}>
-      {cursors.length > 1 && (
-        <Button
-          variant="tertiary"
-          onPress={() => {
-            setFollowing(false)
-            setCursors((values) => values.slice(0, -1))
-          }}
-        >
-          {t('library.previous')}
-        </Button>
-      )}
-      {query.data?.next_cursor && (
-        <Button
-          variant="tertiary"
-          onPress={() => {
-            setFollowing(false)
-            setCursors((values) => [...values, query.data!.next_cursor!])
-          }}
-        >
-          {t('library.next')}
-        </Button>
-      )}
-    </div>
-  )
   const tools = !speakers && (
     <TranscriptToolbarSlots
       search={searchForm}
       playback={
-        <TranscriptPlaybackButton
-          available={positionMs !== undefined}
-          needed={!followEnabled || !!follow?.suppressed()}
-          editing={editing}
-          onResume={() => {
-            if (editing) return
-            setSearchDraft('')
-            setSearch('')
-            setSpeaker('')
-            setAnchorMs(Math.floor(positionMs ?? 0))
-            setCursors([''])
-            setFollowing(true)
-            follow?.resumeFollowing?.()
-          }}
-        />
+        <>
+          {anchorMs > 0 && (
+            <Button
+              size="sm"
+              variant="secondaryText"
+              icon={<RiArrowUpLine size={16} aria-hidden />}
+              isDisabled={editing}
+              onPress={() => {
+                setAnchorMs(0)
+                setFollowing(false)
+              }}
+            >
+              {t('continuous.start')}
+            </Button>
+          )}
+          <RecordRefreshButton
+            busy={query.isFetching}
+            disabled={editing}
+            onRefresh={() => {
+              if (query.isError)
+                void client.invalidateQueries({
+                  queryKey: ['meeting-records', viewerId, 'detail', record.id],
+                })
+              void query.refetch()
+            }}
+          />
+          <TranscriptPlaybackButton
+            available={positionMs !== undefined}
+            needed={!followEnabled || !!follow?.suppressed()}
+            editing={editing}
+            onResume={() => {
+              if (editing) return
+              setSearchDraft('')
+              setSearch('')
+              setSpeaker('')
+              setAnchorMs(Math.floor(positionMs ?? 0))
+              setFollowing(true)
+              follow?.resumeFollowing?.()
+            }}
+          />
+        </>
       }
       filters={
         <>
@@ -311,7 +311,6 @@ function OriginalRead({
             selected={speaker}
             onSelect={(next) => {
               setSpeaker(next)
-              setCursors([''])
             }}
           />
 
@@ -320,7 +319,6 @@ function OriginalRead({
               containerRef={listRef}
               query={search}
               version={query.data}
-              pagination={pagination}
             />
           )}
         </>
@@ -338,17 +336,12 @@ function OriginalRead({
               : 'library.loadError'
           )}
         </p>
-        <Button
-          variant="tertiary"
-          onPress={() => {
-            void client.invalidateQueries({
-              queryKey: ['meeting-records', viewerId, 'detail', record.id],
-            })
-            void query.refetch()
-          }}
-        >
-          {t('library.refresh')}
-        </Button>
+        {speakers && (
+          <RecordRefreshButton
+            busy={query.isFetching}
+            onRefresh={() => void query.refetch()}
+          />
+        )}
       </div>
     )
   if (!query.data)
@@ -462,7 +455,7 @@ function OriginalRead({
           />
         )
       )}
-      {!search && pagination}
+      <RecordLoadMore query={query} disabled={editing} />
     </div>
   )
 }

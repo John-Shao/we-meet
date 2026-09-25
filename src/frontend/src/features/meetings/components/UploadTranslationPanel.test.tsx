@@ -68,7 +68,7 @@ beforeEach(() => {
 })
 afterEach(() => client?.clear())
 
-it('reads aligned text, seeks the original clock, exports the selected translation and pages without retaining old text', async () => {
+it('reads aligned text, seeks the original clock, exports the selected translation and appends pages while retaining earlier text', async () => {
   const seek = show()
   await screen.findByText('Translated')
   expect(screen.getByText('original: Original')).toBeInTheDocument()
@@ -82,9 +82,9 @@ it('reads aligned text, seeks the original clock, exports the selected translati
     expect.stringContaining('translation/export/?as=txt')
   )
   fireEvent.keyDown(screen.getAllByRole('menuitem')[0], { key: 'Escape' })
-  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  fireEvent.click(screen.getByRole('button', { name: 'continuous.more' }))
   await screen.findByText('Last translation')
-  expect(screen.queryByText('Translated')).not.toBeInTheDocument()
+  expect(screen.queryByText('Translated')).toBeInTheDocument()
 })
 it('marks a stale snapshot and disables its export and seek', async () => {
   stale = true

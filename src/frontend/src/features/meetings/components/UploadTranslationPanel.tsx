@@ -1,3 +1,5 @@
+import { useRecordInfiniteQuery } from '../hooks/useRecordInfiniteQuery'
+import { RecordLoadMore, RecordRefreshButton } from './RecordLoadMore'
 import { useRecordViewState } from '../hooks/useRecordViewState'
 import { RecordPanelTools } from './RecordPanel'
 import { TranscriptExportControl } from './TranscriptExportControl'
@@ -47,7 +49,6 @@ export function UploadTranslationPanel({
     'translation-language',
     'en'
   )
-  const [page, setPage] = useRecordViewState('translation-page', 0)
   const [intent, setIntent] = useState<Intent>()
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
@@ -76,20 +77,19 @@ export function UploadTranslationPanel({
   const active = listing.data?.results.some((item) =>
     ['queued', 'running'].includes(item.status)
   )
-  const detail = useQuery({
-    ...options,
+  const detail = useRecordInfiniteQuery({
+    initialPageParam: 0,
     queryKey: [
       'upload-translation',
       viewerId,
       recordId,
       selected?.id,
       selected?.input_revision,
-      page,
       path,
       target,
     ],
     enabled: !!selected && selected.status === 'succeeded' && !listing.isError,
-    queryFn: async ({ signal }) => {
+    queryFn: async ({ signal, pageParam: page }) => {
       const result = await fetchApi<
         Translation & {
           next_page: number | null
@@ -114,7 +114,6 @@ export function UploadTranslationPanel({
         throw new Error('Invalid translation page')
       return result
     },
-    refetchInterval: (q) => (q.state.error ? false : 10000),
   })
   const generate = async () => {
     if (locked.current || !listing.data?.can_generate) return
@@ -134,7 +133,6 @@ export function UploadTranslationPanel({
         meetingCommand: { key: payload.key, scope: { record_id: recordId } },
       })
       setIntent(undefined)
-      setPage(0)
       await listing.refetch()
     } catch (error) {
       if (
@@ -150,27 +148,37 @@ export function UploadTranslationPanel({
       setSaving(false)
     }
   }
+  const refresh = (
+    <RecordRefreshButton
+      busy={listing.isFetching || detail.isFetching}
+      disabled={saving || !!intent}
+      onRefresh={() =>
+        void Promise.allSettled([
+          listing.refetch(),
+          ...(selected?.status === 'succeeded' ? [detail.refetch()] : []),
+        ])
+      }
+    />
+  )
   if (listing.isError || detail.isError)
     return (
-      <div className={stack}>
+      <>
+        <RecordPanelTools>{refresh}</RecordPanelTools>
         <Text role="alert">{t('unavailable')}</Text>
-        <Button
-          onPress={() =>
-            void Promise.allSettled([
-              listing.refetch(),
-              ...(selected?.status === 'succeeded' ? [detail.refetch()] : []),
-            ])
-          }
-        >
-          {t('refresh')}
-        </Button>
-      </div>
+      </>
     )
-  if (!listing.data) return <Text role="status">{t('loading')}</Text>
+  if (!listing.data)
+    return (
+      <>
+        <RecordPanelTools>{refresh}</RecordPanelTools>
+        <Text role="status">{t('loading')}</Text>
+      </>
+    )
   const stale = selected?.stale || detail.data?.stale
   return (
     <section className={stack} aria-label={t('title')}>
       <RecordPanelTools>
+        {refresh}
         <label>
           <span className={css({ display: { base: 'none', sm: 'inline' } })}>
             {t('language')}{' '}
@@ -182,7 +190,6 @@ export function UploadTranslationPanel({
             disabled={saving || !!intent}
             onChange={(e) => {
               setTarget(e.target.value as 'zh' | 'en')
-              setPage(0)
               setMessage('')
             }}
           >
@@ -236,7 +243,14 @@ export function UploadTranslationPanel({
           {detail.data && detail.data.id === selected.id && (
             <>
               {detail.data.results.map((row) => (
-                <article key={row.segment_id} className={stack}>
+                <article
+                  style={{
+                    contentVisibility: 'auto',
+                    containIntrinsicSize: 'auto 160px',
+                  }}
+                  key={row.segment_id}
+                  className={stack}
+                >
                   <Text>
                     {row.speaker_name} · {formatClock(row.start_ms)}
                   </Text>
@@ -255,21 +269,7 @@ export function UploadTranslationPanel({
                   <Text>{row.translated_text}</Text>
                 </article>
               ))}
-              <div className={css({ display: 'flex', gap: 'md' })}>
-                {page > 0 && (
-                  <Button variant="tertiary" onPress={() => setPage(page - 1)}>
-                    {t('previous')}
-                  </Button>
-                )}
-                {detail.data.next_page !== null && (
-                  <Button
-                    variant="tertiary"
-                    onPress={() => setPage(detail.data!.next_page!)}
-                  >
-                    {t('next')}
-                  </Button>
-                )}
-              </div>
+              <RecordLoadMore query={detail} disabled={saving} />
             </>
           )}
         </>

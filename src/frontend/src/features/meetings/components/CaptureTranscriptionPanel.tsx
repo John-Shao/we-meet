@@ -1,3 +1,6 @@
+import { useRecordInfiniteQuery } from '../hooks/useRecordInfiniteQuery'
+import { RiArrowUpLine } from '@remixicon/react'
+import { RecordLoadMore, RecordRefreshButton } from './RecordLoadMore'
 import { useRecordViewState } from '../hooks/useRecordViewState'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -459,10 +462,6 @@ function Originals({
   follow?: TranscriptPlaybackFollow
 }) {
   const { t } = useTranslation('capture')
-  const [cursors, setCursors] = useRecordViewState<string[]>(
-    `capture-cursors:${jobId}`,
-    ['']
-  )
   const [search, setSearch] = useRecordViewState(`capture-search:${jobId}`, '')
   const [searchDraft, setSearchDraft] = useRecordViewState(
     `capture-search-draft:${jobId}`,
@@ -470,8 +469,7 @@ function Originals({
   )
   const [anchorMs, setAnchorMs] = useState(0)
   const [following, setFollowing] = useState(true)
-  const cursor = cursors.at(-1)!
-  const path = `meeting-records/${capture.record_id}/original-segments/?transcription_job_id=${jobId}&cursor=${encodeURIComponent(cursor)}&q=${encodeURIComponent(search)}&at_ms=${search ? 0 : anchorMs}`
+  const path = `meeting-records/${capture.record_id}/original-segments/?transcription_job_id=${jobId}&q=${encodeURIComponent(search)}&at_ms=${search ? 0 : anchorMs}`
   const searchForm = (
     <OriginalSearch
       value={searchDraft}
@@ -482,20 +480,20 @@ function Originals({
       onSearch={(query) => {
         setSearchDraft(query)
         setSearch(query)
-        setCursors([''])
       }}
     />
   )
-  const query = useQuery({
+  const query = useRecordInfiniteQuery({
+    initialPageParam: '',
     queryKey: ['capture-originals', viewerId, path],
-    queryFn: ({ signal }) =>
+    queryFn: ({ signal, pageParam }) =>
       fetchApi<{
         results: ApiMeetingOriginalSegment[]
         next_cursor: string | null
-      }>(path, { signal, cache: 'no-store' }),
-    gcTime: 0,
-    retry: false,
-    staleTime: 0,
+      }>(`${path}&cursor=${encodeURIComponent(pageParam)}`, {
+        signal,
+        cache: 'no-store',
+      }),
   })
   const next = query.data?.next_cursor
   // Computed before the early returns below so hook order cannot change.
@@ -544,7 +542,6 @@ function Originals({
     setSearchDraft('')
     setSearch('')
     setAnchorMs(Math.floor(positionMs ?? 0))
-    setCursors([''])
     setFollowing(true)
   })
   const pauseFollowing = follow?.pauseFollowing
@@ -569,7 +566,6 @@ function Originals({
     )
     if (target !== null) {
       setAnchorMs(target)
-      setCursors([''])
     }
   }, [
     following,
@@ -580,7 +576,6 @@ function Originals({
     timedRows,
     anchorMs,
     next,
-    setCursors,
   ])
   /**
    * The list scrolls the active row once per change. Scrolling is off while a
@@ -604,55 +599,49 @@ function Originals({
       following &&
       follow?.enabled !== false,
   })
-  const pagination = (
-    <div className={css({ display: 'flex', gap: 'sm' })}>
-      {cursors.length > 1 && (
-        <Button
-          variant="secondary"
-          onPress={() => {
-            setFollowing(false)
-            setCursors((values) => values.slice(0, -1))
-          }}
-        >
-          {t('previous')}
-        </Button>
-      )}
-      {next && (
-        <Button
-          variant="secondary"
-          onPress={() => {
-            setFollowing(false)
-            setCursors((values) => [...values, next])
-          }}
-        >
-          {t('next')}
-        </Button>
-      )}
-    </div>
-  )
   const tools = (
     <TranscriptToolbarSlots
       search={searchForm}
       playback={
-        <TranscriptPlaybackButton
-          available={positionMs !== undefined}
-          needed={
-            !following ||
-            filtersActive ||
-            follow?.enabled === false ||
-            !!follow?.suppressed()
-          }
-          editing={editing}
-          onResume={() => {
-            if (editing) return
-            setSearchDraft('')
-            setSearch('')
-            setAnchorMs(Math.floor(positionMs ?? 0))
-            setCursors([''])
-            setFollowing(true)
-            follow?.resumeFollowing?.()
-          }}
-        />
+        <>
+          {anchorMs > 0 && (
+            <Button
+              size="sm"
+              variant="secondaryText"
+              icon={<RiArrowUpLine size={16} aria-hidden />}
+              isDisabled={editing}
+              onPress={() => {
+                setAnchorMs(0)
+                setFollowing(false)
+              }}
+            >
+              {t('meetings:continuous.start')}
+            </Button>
+          )}
+          <RecordRefreshButton
+            busy={query.isFetching}
+            disabled={editing}
+            onRefresh={() => void query.refetch()}
+          />
+          <TranscriptPlaybackButton
+            available={positionMs !== undefined}
+            needed={
+              !following ||
+              filtersActive ||
+              follow?.enabled === false ||
+              !!follow?.suppressed()
+            }
+            editing={editing}
+            onResume={() => {
+              if (editing) return
+              setSearchDraft('')
+              setSearch('')
+              setAnchorMs(Math.floor(positionMs ?? 0))
+              setFollowing(true)
+              follow?.resumeFollowing?.()
+            }}
+          />
+        </>
       }
       filters={
         search &&
@@ -662,7 +651,6 @@ function Originals({
             containerRef={listRef}
             query={search}
             version={query.data}
-            pagination={pagination}
           />
         )
       }
@@ -673,9 +661,6 @@ function Originals({
       <div>
         {tools}
         <p role="alert">{t('asr.textError')}</p>
-        <Button variant="secondary" onPress={() => void query.refetch()}>
-          {t('asr.refresh')}
-        </Button>
       </div>
     )
   if (!query.data)
@@ -733,7 +718,7 @@ function Originals({
           highlight={search || undefined}
         />
       ))}
-      {!search && pagination}
+      <RecordLoadMore query={query} disabled={editing} />
     </div>
   )
 }

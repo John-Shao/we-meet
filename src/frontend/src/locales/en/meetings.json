@@ -1,4 +1,11 @@
 {
+  "continuous": {
+    "loading": "Loading...",
+    "retry": "Loading failed. Retry",
+    "more": "Load more",
+    "end": "All content loaded",
+    "start": "Read from beginning"
+  },
   "transcriptToolbar": {
     "label": "Transcript tools",
     "export": "Export",

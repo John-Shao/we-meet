@@ -419,7 +419,7 @@ it('searches the published generation and resets its cursor when the query chang
   })
   show()
   await screen.findByText('First page')
-  fireEvent.click(screen.getByRole('button', { name: 'next' }))
+  fireEvent.click(screen.getByRole('button', { name: 'continuous.more' }))
   await screen.findByText('Second page')
   fireEvent.change(screen.getByLabelText('library.searchOriginal'), {
     target: { value: '全文' },
@@ -452,18 +452,23 @@ it('uses the backend cursor token while keeping the published version pinned', a
     return baseline(path, options, ...rest)
   })
   show()
-  fireEvent.click(await screen.findByRole('button', { name: 'next' }))
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'continuous.more' })
+  )
   await screen.findByText('Last page')
-  expect(screen.queryByText('First page')).not.toBeInTheDocument()
+  expect(screen.queryByText('First page')).toBeInTheDocument()
   expect(
     vi
       .mocked(fetchApi)
-      .mock.calls.some(([path]) =>
-        path.includes('transcription_job_id=published&cursor=page-two')
+      .mock.calls.some(
+        ([path]) =>
+          path.includes('transcription_job_id=published') &&
+          path.includes('cursor=page-two')
       )
   ).toBe(true)
-  fireEvent.click(screen.getByRole('button', { name: 'previous' }))
-  await screen.findByText('First page')
+  expect(
+    screen.queryByRole('button', { name: 'previous' })
+  ).not.toBeInTheDocument()
 })
 
 it('requires incomplete audio acknowledgement before a paid intent', async () => {

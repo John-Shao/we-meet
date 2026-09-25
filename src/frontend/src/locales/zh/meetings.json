@@ -1,4 +1,11 @@
 {
+  "continuous": {
+    "loading": "正在加载…",
+    "retry": "加载失败，点击重试",
+    "more": "加载更多",
+    "end": "已显示全部",
+    "start": "从头阅读"
+  },
   "transcriptToolbar": {
     "label": "文字记录工具条",
     "export": "导出",
