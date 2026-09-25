@@ -217,6 +217,10 @@
     }
   },
   "library": {
+    "resetFilters": "Filters wissen",
+    "applyFilters": "Filters toepassen",
+    "closeFilters": "Filters sluiten",
+    "noResults": "Geen overeenkomende opnamen",
     "createdFrom": "Aangemaakt vanaf",
     "createdThrough": "Aangemaakt tot en met",
     "applyDates": "Datums toepassen",

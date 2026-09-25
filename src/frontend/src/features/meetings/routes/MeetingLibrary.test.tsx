@@ -64,6 +64,54 @@ const submitSearch = () =>
     screen.getByLabelText('library.search').closest('form') as HTMLFormElement
   )
 
+it('discards filter drafts on dismiss and keeps invalid dates open without changing the list', async () => {
+  show()
+  await screen.findByText(archived.title)
+  fireEvent.click(screen.getByRole('button', { name: 'library.filters' }))
+  fireEvent.change(screen.getByLabelText('library.sourceLabel'), {
+    target: { value: 'upload' },
+  })
+  fireEvent.keyDown(document, { key: 'Escape' })
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(window.location.search).toBe('')
+  fireEvent.click(screen.getByRole('button', { name: 'library.filters' }))
+  expect(screen.getByLabelText('library.sourceLabel')).toHaveValue('')
+  fireEvent.change(screen.getByLabelText('library.createdFrom'), {
+    target: { value: '2026-09-22' },
+  })
+  fireEvent.change(screen.getByLabelText('library.createdThrough'), {
+    target: { value: '2026-09-20' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'library.applyFilters' }))
+  expect(screen.getByRole('alert')).toHaveTextContent('library.dateError')
+  expect(
+    vi
+      .mocked(fetchApi)
+      .mock.calls.some(([path]) => path.includes('created_from'))
+  ).toBe(false)
+})
+
+it('offers clear filters when a search has no results and restores the list', async () => {
+  vi.mocked(fetchApi).mockImplementation(async (path) => ({
+    results: path.includes('q=') ? [] : [archived],
+    next_cursor: null,
+  }))
+  show(true)
+  await screen.findByText(archived.title)
+  fireEvent.change(screen.getByLabelText('library.search'), {
+    target: { value: 'missing' },
+  })
+  submitSearch()
+  await screen.findByText('library.noResults')
+  fireEvent.click(
+    within(screen.getByTestId('meeting-list-region')).getByRole('button', {
+      name: 'library.resetFilters',
+    })
+  )
+  await screen.findByText(archived.title)
+  expect(screen.getByLabelText('library.search')).toHaveValue('')
+})
+
 it.each([true, false, undefined])(
   'shows trash only with server support, including an empty library: %s',
   async (available) => {
@@ -100,7 +148,7 @@ it('applies creation dates to both sections, resets pagination, and clears dates
   fireEvent.change(screen.getByLabelText('library.createdThrough'), {
     target: { value: '2026-09-20' },
   })
-  fireEvent.click(screen.getByRole('button', { name: 'library.applyDates' }))
+  fireEvent.click(screen.getByRole('button', { name: 'library.applyFilters' }))
   await waitFor(() => {
     const calls = vi
       .mocked(fetchApi)
@@ -119,7 +167,7 @@ it('applies creation dates to both sections, resets pagination, and clears dates
     ).toBe(true)
   })
   expect(screen.queryByRole('button', { name: 'library.previous' })).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'library.clearDates' }))
+  fireEvent.click(screen.getByRole('button', { name: 'library.resetFilters' }))
   await waitFor(() =>
     expect(
       vi
@@ -137,7 +185,7 @@ it('does not display unfiltered content when an older server ignores date filter
   fireEvent.change(screen.getByLabelText('library.createdFrom'), {
     target: { value: '2026-09-20' },
   })
-  fireEvent.click(screen.getByRole('button', { name: 'library.applyDates' }))
+  fireEvent.click(screen.getByRole('button', { name: 'library.applyFilters' }))
   await screen.findAllByText('library.loadError')
   expect(screen.queryByText(archived.title)).toBeNull()
   expect(screen.queryByText('Older paused recording')).toBeNull()
@@ -180,6 +228,7 @@ it('keeps upload and participation filters available and clears a submitted sear
     screen.getByLabelText('library.scopeLabel', { selector: 'select' }),
     { target: { value: 'participated' } }
   )
+  fireEvent.click(screen.getByRole('button', { name: 'library.applyFilters' }))
   fireEvent.change(screen.getByLabelText('library.search'), {
     target: { value: 'Project' },
   })

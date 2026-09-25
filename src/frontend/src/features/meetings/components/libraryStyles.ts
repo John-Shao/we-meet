@@ -27,6 +27,7 @@ export const pageShell = (surface: 'canvas' | 'default' = 'canvas') =>
     // 零尺寸、点不动(这个回归是被 scripts/check-meeting-library-ui.mjs 抓到的)。
     height: '100%',
     minHeight: 0,
+    minWidth: 0,
     width: '100%',
     display: 'flex',
     flexDirection: 'column',
@@ -361,11 +362,14 @@ export const rowMetaBlock = cx(
 export const moduleRow = css({
   display: 'flex',
   height: '100%',
+  minHeight: 0,
+  minWidth: 0,
 })
 
 export const moduleContent = css({
   flex: '1 1 0',
   minWidth: 0,
+  minHeight: 0,
   display: 'flex',
   flexDirection: 'column',
   overflowY: 'auto',

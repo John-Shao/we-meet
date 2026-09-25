@@ -26,7 +26,7 @@ import {
   SegmentedControl,
   SearchBox,
 } from '@/primitives'
-import { selectChrome } from '@/primitives/selectChrome'
+import { MeetingLibraryFilters } from '../components/MeetingLibraryFilters'
 import { PageState } from '@/components/PageState'
 import { StateHint } from '@/components/StateHint'
 import { css, cx } from '@/styled-system/css'
@@ -114,42 +114,7 @@ const searchBoxCls = css({
 /** 搜索词输入上限(沿用收口前那个 `<input maxLength={200}>`)。 */
 const SEARCH_MAX_LENGTH = 200
 
-/** 展开的筛选面板(独立于搜索表单,落在工具栏下方)。 */
-const filterPanel = css({
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 'lg',
-  marginBottom: 'lg',
-  padding: 'lg',
-  borderRadius: 'card',
-  backgroundColor: 'surface.default',
-  border: '1px solid token(colors.border.subtle)',
-})
-
-const filterLabel = css({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 'sm',
-  textStyle: 'labelLarge',
-  color: 'text.secondary',
-})
-
-/** 原生 select 走共享 chrome:自绘箭头、32px 钉高、option 跟随主题。 */
-const filterSelect = cx(selectChrome, css({ minWidth: '9rem' }))
-const dateInput = css({
-  border: '1px solid token(colors.border.subtle)',
-  borderRadius: 'control',
-  padding: 'sm',
-  color: 'text.primary',
-  backgroundColor: 'surface.default',
-  minWidth: 0,
-})
-
-/**
- * 一条记录(行)的外壳 —— 四个栏目页共用的**样板行**:不着卡、悬停一层浅底。
- * 「智能纪要」原先只是这一档的 `[data-minutes=true]` 变体,现在实录页也走同一套,
- * 两个页面只有内容与文案的差别,不再有「卡 / 无边框」两种列表形态。
- */
+/** Shared record card, with a constrained title column for long names. */
 const cardShell = css({
   display: 'flex',
   alignItems: 'center',
@@ -427,8 +392,10 @@ function RecordList({
   cursors,
   onCursors,
   minutes = false,
+  onReset,
 }: {
   viewerId: string
+  onReset?: () => void
   filters: MeetingRecordFilters
   ongoing: boolean
   grid: boolean
@@ -476,7 +443,20 @@ function RecordList({
       density="compact"
       surface="card"
       icon={<RiFileTextLine size={20} />}
-      title={t(minutes ? 'minutesLibrary.empty' : 'library.empty')}
+      title={t(
+        onReset
+          ? 'library.noResults'
+          : minutes
+            ? 'minutesLibrary.empty'
+            : 'library.empty'
+      )}
+      action={
+        onReset && (
+          <Button variant="secondary" onPress={onReset}>
+            {t('library.resetFilters')}
+          </Button>
+        )
+      }
       description={t(
         minutes ? 'minutesLibrary.emptyHint' : 'library.emptyHint'
       )}
@@ -653,12 +633,9 @@ type LibraryViewState = {
   scope: MeetingRecordFilters['scope']
   search: string
   query: string
-  showFilters: boolean
   grid: boolean
   sort: SortDirection
-  dateDraft: { from: string; through: string }
   dates: { created_from?: string; created_before?: string }
-  dateError: boolean
   dateLabels: { from: string; through: string }
   paging: { key: string; ongoing: string[]; archive: string[] }
 }
@@ -701,17 +678,13 @@ export function Library({
   }
   const [search, setSearch] = useState(saved?.search ?? '')
   const [query, setQuery] = useState(saved?.query ?? '')
-  const [showFilters, setShowFilters] = useState(saved?.showFilters ?? !!source)
+  const [showFilters, setShowFilters] = useState(false)
   const [grid, setGrid] = useState(saved?.grid ?? false)
   const [sort, setSort] = useState<SortDirection>(saved?.sort ?? 'desc')
-  const [dateDraft, setDateDraft] = useState(
-    saved?.dateDraft ?? { from: '', through: '' }
-  )
   const [dates, setDates] = useState<{
     created_from?: string
     created_before?: string
   }>(saved?.dates ?? {})
-  const [dateError, setDateError] = useState(saved?.dateError ?? false)
   const [dateLabels, setDateLabels] = useState(
     saved?.dateLabels ?? { from: '', through: '' }
   )
@@ -740,12 +713,9 @@ export function Library({
     scope,
     search,
     query,
-    showFilters,
     grid,
     sort,
-    dateDraft,
     dates,
-    dateError,
     dateLabels,
     paging,
   })
@@ -767,6 +737,21 @@ export function Library({
       key: filterKey,
       [ongoing ? 'ongoing' : 'archive']: next,
     })
+  const hasFilters = Boolean(
+    query ||
+    source ||
+    dates.created_from ||
+    dates.created_before ||
+    scope !== (minutes ? 'owned' : 'recent')
+  )
+  const resetFilters = () => {
+    setSearch('')
+    setQuery('')
+    setSource('')
+    setScope(minutes ? 'owned' : 'recent')
+    setDates({})
+    setDateLabels({ from: '', through: '' })
+  }
   const renderSection = (ongoing: boolean, isMinutes = false) => (
     <RecordList
       key={`${filterKey}:${ongoing ? 'ongoing' : 'archive'}`}
@@ -777,13 +762,14 @@ export function Library({
       cursors={sectionCursors(ongoing)}
       onCursors={(next) => setSectionCursors(ongoing, next)}
       minutes={isMinutes}
+      onReset={hasFilters ? resetFilters : undefined}
     />
   )
   const scopeValues = minutes
     ? (['owned', 'participated', 'shared'] as const)
     : (['recent', 'owned', 'shared'] as const)
   return (
-    <MeetingModuleShell compactNavigation>
+    <MeetingModuleShell>
       {/* 页壳一律 canvas:钉住的页头在四个栏目页上都是同一档浅灰。 */}
       <main className={canvasShell} onClickCapture={navigation.onClickCapture}>
         {/* 列表以上的一切(窄屏栏目行、页头、范围筛选、搜索/筛选)固定不滚 —— 与
@@ -869,9 +855,15 @@ export function Library({
               label={t('library.filters')}
               isSelected={
                 showFilters ||
-                Boolean(source || dates.created_from || dates.created_before)
+                Boolean(
+                  source ||
+                  dates.created_from ||
+                  dates.created_before ||
+                  scope === 'participated'
+                )
               }
-              onPress={() => setShowFilters(!showFilters)}
+              aria-haspopup="dialog"
+              onPress={() => setShowFilters(true)}
             >
               <RiFilter3Line size={20} aria-hidden />
             </IconToggleButton>
@@ -891,130 +883,47 @@ export function Library({
               </IconToggleButton>
             </div>
           </div>
-          {/* 筛选面板留在工具栏下面:它原先挂在搜索表单里(靠 flexBasis 占满一行),
-              搜索框搬进页头之后表单只剩一个输入,面板就跟着独立出来。 */}
+          {/* 筛选独立呈现，不挤占列表高度；关闭时丢弃未应用的修改。 */}
           {showFilters && (
-            <div className={filterPanel}>
-              <label className={filterLabel}>
-                {t('library.scopeLabel')}
-                <select
-                  className={filterSelect}
-                  value={scope}
-                  onChange={(event) =>
-                    setScope(
-                      event.target.value as MeetingRecordFilters['scope']
-                    )
-                  }
-                >
-                  {(['recent', 'owned', 'participated', 'shared'] as const)
-                    .filter((value) => !minutes || value !== 'recent')
-                    .map((value) => (
-                      <option key={value} value={value}>
-                        {t(
-                          `${minutes ? 'minutesLibrary.scope' : 'library.scope'}.${value}`
-                        )}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label className={filterLabel}>
-                {t('library.sourceLabel')}
-                <select
-                  className={filterSelect}
-                  value={source}
-                  onChange={(event) =>
-                    setSource(
-                      event.target.value as
-                        | NonNullable<MeetingRecordFilters['source_type']>
-                        | ''
-                    )
-                  }
-                >
-                  <option value="">{t('library.allSources')}</option>
-                  {(
-                    [
-                      'meeting',
-                      'recordings',
-                      'audio_recording',
-                      'upload',
-                    ] as const
-                  ).map((value) => (
-                    <option key={value} value={value}>
-                      {t(`library.source.${value}`)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <form
-                className={css({
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: 'md',
-                  alignItems: 'center',
-                  width: '100%',
-                })}
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  try {
-                    setDates(recordDateRange(dateDraft.from, dateDraft.through))
-                    setDateLabels(dateDraft)
-                    setDateError(false)
-                  } catch {
-                    setDateError(true)
-                  }
-                }}
-              >
-                <label className={filterLabel}>
-                  {t('library.createdFrom')}
-                  <input
-                    type="date"
-                    className={dateInput}
-                    value={dateDraft.from}
-                    onChange={(event) =>
-                      setDateDraft({ ...dateDraft, from: event.target.value })
-                    }
-                  />
-                </label>
-                <label className={filterLabel}>
-                  {t('library.createdThrough')}
-                  <input
-                    type="date"
-                    className={dateInput}
-                    value={dateDraft.through}
-                    onChange={(event) =>
-                      setDateDraft({
-                        ...dateDraft,
-                        through: event.target.value,
-                      })
-                    }
-                  />
-                </label>
-                <Button type="submit" size="sm">
-                  {t('library.applyDates')}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="tertiary"
-                  onPress={() => {
-                    setDateDraft({ from: '', through: '' })
-                    setDates({})
-                    setDateLabels({ from: '', through: '' })
-                    setDateError(false)
-                  }}
-                >
-                  {t('library.clearDates')}
-                </Button>
-                <p>{t('library.dateHint')}</p>
-                {dateError && <p role="alert">{t('library.dateError')}</p>}
-              </form>
-            </div>
+            <MeetingLibraryFilters
+              minutes={minutes}
+              initial={{
+                scope,
+                source,
+                from: dateLabels.from,
+                through: dateLabels.through,
+              }}
+              onClose={() => setShowFilters(false)}
+              onApply={(value) => {
+                setScope(value.scope)
+                setSource(value.source)
+                const next = { from: value.from, through: value.through }
+                setDates(recordDateRange(value.from, value.through))
+                setDateLabels(next)
+                setShowFilters(false)
+              }}
+            />
           )}
-          {(dates.created_from || dates.created_before) && (
-            <p>
-              {t('library.createdFrom')}: {dateLabels.from || '…'} ·{' '}
-              {t('library.createdThrough')}: {dateLabels.through || '…'}
-            </p>
+          {hasFilters && (
+            <div className={activeFilters}>
+              <span>
+                {[
+                  query,
+                  source && t(`library.source.${source}`),
+                  dates.created_from || dates.created_before
+                    ? `${dateLabels.from || '…'} – ${dateLabels.through || '…'}`
+                    : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ') ||
+                  t(
+                    `${minutes ? 'minutesLibrary.scope' : 'library.scope'}.${scope}`
+                  )}
+              </span>
+              <Button variant="secondaryText" size="sm" onPress={resetFilters}>
+                {t('library.resetFilters')}
+              </Button>
+            </div>
           )}
         </div>
         <div
@@ -1113,3 +1022,15 @@ export function MeetingNotes() {
 export function MeetingMinutes() {
   return <LibraryRoute minutes />
 }
+
+const activeFilters = css({
+  display: 'flex',
+  gap: 'sm',
+  alignItems: 'center',
+  minWidth: 0,
+  paddingBottom: 'sm',
+  textStyle: 'bodySmall',
+  color: 'text.secondary',
+  '& > span': { flex: 1, minWidth: 0, overflowWrap: 'anywhere' },
+  '& > button': { flexShrink: 0 },
+})

@@ -34,6 +34,9 @@ and this project adheres to
 
 ### Changed
 
+- Improve meeting library filters, empty-search recovery and narrow-screen
+  recording layouts; align filter interactions with the Android app.
+
 - Pin transcript search, playback location, replacement and export tools above
   the scrolling text; add navigation for matches on the current result page.
 - Align record information download and trash actions in a responsive toolbar.

@@ -217,6 +217,10 @@
     }
   },
   "library": {
+    "resetFilters": "Clear filters",
+    "applyFilters": "Apply filters",
+    "closeFilters": "Close filters",
+    "noResults": "No matching records",
     "createdFrom": "Created on or after",
     "createdThrough": "Created on or before",
     "applyDates": "Apply dates",

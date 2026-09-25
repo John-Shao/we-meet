@@ -217,6 +217,10 @@
     }
   },
   "library": {
+    "resetFilters": "Filter zurücksetzen",
+    "applyFilters": "Filter anwenden",
+    "closeFilters": "Filter schließen",
+    "noResults": "Keine passenden Aufzeichnungen",
     "createdFrom": "Erstellt ab",
     "createdThrough": "Erstellt bis",
     "applyDates": "Daten anwenden",

@@ -203,7 +203,7 @@ export function RecordingDetail() {
   if (!user || (!data && !isError))
     return <StateHint state="loading">{t('loading')}</StateHint>
   return (
-    <MeetingModuleShell compactNavigation>
+    <MeetingModuleShell>
       <main className={canvasShell}>
         {!isError && data?.meeting_records?.enabled && recordId ? (
           <RecordingDetailContent

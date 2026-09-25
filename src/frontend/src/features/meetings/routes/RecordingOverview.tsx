@@ -169,7 +169,7 @@ export function RecordingOverview() {
     return <StateHint state="loading">{t('loading')}</StateHint>
   const enabled = !isError && !!data?.meeting_records?.capture_audio_enabled
   return (
-    <MeetingModuleShell compactNavigation>
+    <MeetingModuleShell>
       <main className={canvasShell} onClickCapture={navigation.onClickCapture}>
         {/* 入口块 + 页头是这一页的「工具区」:固定住,滚到底也还能点开始录音。 */}
         <div className={pageFixedTop}>

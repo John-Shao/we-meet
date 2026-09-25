@@ -217,6 +217,10 @@
     }
   },
   "library": {
+    "resetFilters": "清除筛选",
+    "applyFilters": "应用筛选",
+    "closeFilters": "关闭筛选",
+    "noResults": "没有匹配的记录",
     "createdFrom": "创建日期从",
     "createdThrough": "创建日期至",
     "applyDates": "应用日期",
