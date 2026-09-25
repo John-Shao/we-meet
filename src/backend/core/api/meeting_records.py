@@ -54,6 +54,7 @@ from core.services.meeting_summary_requests import (
 )
 from core.services.meeting_summary_versions import source_payload, summary_readiness
 from core.services.record_media_timing import media_timing
+from core.services.summary_language import LANGUAGES
 from core.services.uploaded_recordings import (
     media_available,
     media_read_url,
@@ -652,10 +653,27 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             raise PermissionDenied("This material has not been shared with you.")
         return record
 
-    @action(detail=True, methods=["get"], url_path="overview")
+    @action(detail=True, methods=["get", "patch"], url_path="overview")
     def overview(self, request, pk=None):
         """Read only the independently generated overview and its own job."""
         record = self._content_record("read_transcript")
+        if request.method == "PATCH":
+            if not meeting_overviews.can_generate(record, request.user):
+                raise PermissionDenied(
+                    "Only source managers can set the overview language."
+                )
+            if set(request.data) != {"output_language", "expected_output_language"}:
+                raise ValidationError(
+                    "Expected output language and its previous value."
+                )
+            choice = serializers.ChoiceField(choices=["auto", *LANGUAGES])
+            language = choice.run_validation(request.data["output_language"])
+            previous = choice.run_validation(request.data["expected_output_language"])
+            if not models.MeetingRecord.objects.filter(
+                pk=record.pk, overview_language=previous
+            ).update(overview_language=language):
+                return Response({"code": "overview_language_conflict"}, status=409)
+            return Response({"output_language": language})
         job = (
             record.processing_jobs.filter(kind="overview")
             .order_by("-generation")
@@ -683,6 +701,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             {
                 "revision": record.revision,
                 "available": meeting_overviews.enabled(),
+                "output_language": record.overview_language,
                 "can_generate": meeting_overviews.enabled()
                 and meeting_overviews.can_generate(record, request.user),
                 "generation_ready": fingerprint is not None,

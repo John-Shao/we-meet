@@ -9,6 +9,8 @@ let denied = false
 let overviewResult = null
 let overviewJob = null
 let overviewPosts = 0
+let outputLanguage = 'auto'
+let languageWrites = 0
 const overviewText = '这段录音围绕企业管理思维展开，介绍了结果导向与过程监督两种方式，以及它们对员工自主性的不同看法。'
 const reference = { segment_id: 'source', segment_revision: 1, start_ms: 1000, end_ms: 5000 }
 const version = {
@@ -27,6 +29,13 @@ try {
   await context.route('**/api/v1.0/**', route => {
     const request = route.request(), path = new URL(request.url()).pathname
     calls.push(path)
+    if (request.method() === 'PATCH') {
+      assert.ok(path.endsWith('/overview/'))
+      assert.equal(request.postDataJSON().expected_output_language, outputLanguage)
+      outputLanguage = request.postDataJSON().output_language
+      languageWrites++
+      return route.fulfill({ json: { output_language: outputLanguage } })
+    }
     if (request.method() === 'POST') {
       assert.ok(path.endsWith('/overview-requests/'))
       assert.ok(request.headers()['idempotency-key'])
@@ -45,7 +54,7 @@ try {
     assert.equal(request.method(), 'GET')
     if (denied) return route.fulfill({ status: 403, json: {} })
     const reply = json => route.fulfill({ json })
-    if (path.endsWith('/overview/')) return reply({ revision: 1, available: true, can_generate: true, generation_ready: true, job: overviewJob, version: overviewResult })
+    if (path.endsWith('/overview/')) return reply({ revision: 1, available: true, can_generate: true, generation_ready: true, output_language: outputLanguage, job: overviewJob, version: overviewResult })
     if (path.endsWith('/summary-versions/')) return reply({ results: [version], next_cursor: null })
     if (path.endsWith('/summary-job/')) return reply({ revision: 1, generation_ready: false, job: null })
     if (path.endsWith('/summary-automation/')) return reply({ available: false })
@@ -88,6 +97,13 @@ try {
   assert.equal(await page.getByRole('group', { name: '纪要工具' }).count(), 0)
   assert.ok(calls.every(path => /\/(record|overview|overview-requests)\/$/.test(path)))
   assert.equal(await page.getByRole('link', { name: '打开智能纪要' }).getAttribute('href'), '/meeting/records/record?tab=summary')
+  await page.getByRole('button', { name: '更多操作', exact: true }).click()
+  await page.getByRole('menuitem', { name: '生成语言', exact: true }).click()
+  await page.getByRole('combobox', { name: '生成语言', exact: true }).selectOption('en')
+  await page.waitForFunction(() => document.querySelector('select')?.value === 'en')
+  assert.equal(languageWrites, 1)
+  assert.equal(overviewPosts, 1)
+  await page.getByText(overviewText, { exact: true }).waitFor()
   await page.screenshot({ path: 'test-results/record-overview-desktop.png', fullPage: true })
   await page.setViewportSize({ width: 390, height: 844 })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
@@ -104,7 +120,7 @@ try {
   denied = true
   await page.evaluate(() => window.overviewClient.invalidateQueries())
   await page.getByText(version.content.overview, { exact: true }).waitFor({ state: 'detached' })
-  assert.equal(await page.getByRole('heading').count(), 0)
+  assert.equal(await page.getByRole('heading', { name: '智能纪要：企业管理思维分享', exact: true }).count(), 0)
   assert.deepEqual(errors, [])
   assert.equal(overviewPosts, 1)
   console.log('Independent overview UI passed: explicit generation, separate endpoint and result, minutes navigation, desktop/mobile layout and revoked access. All HTTP intercepted.')

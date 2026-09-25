@@ -829,7 +829,12 @@
     "sourceChanged": "Het transcript is gewijzigd. Dit is het vorige overzicht.",
     "unavailable": "Genereren is momenteel niet beschikbaar.",
     "storageError": "De aanvraag kan niet worden opgeslagen. Sta sessieopslag toe en probeer opnieuw.",
-    "failedPreserved": "Het genereren is mislukt. Het vorige overzicht is bewaard. Probeer het opnieuw."
+    "failedPreserved": "Het genereren is mislukt. Het vorige overzicht is bewaard. Probeer het opnieuw.",
+    "more": "Meer acties",
+    "language": "Generatietaal",
+    "followSource": "Taal van transcript volgen",
+    "languageHint": "Geldt bij de volgende generatie voor het overzicht en de onderwerpen. Bestaande inhoud blijft bewaard totdat het genereren is gelukt.",
+    "languageSaveFailed": "De taalinstelling kon niet worden bevestigd. Vernieuw en probeer opnieuw."
   },
   "minutesReader": {
     "tools": "Notulengereedschap",

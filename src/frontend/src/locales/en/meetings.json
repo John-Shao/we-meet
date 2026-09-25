@@ -844,7 +844,12 @@
     "sourceChanged": "The transcript has changed. This is the previous overview.",
     "unavailable": "Overview generation is currently unavailable.",
     "storageError": "Cannot save the overview request. Allow session storage and try again.",
-    "failedPreserved": "Generation failed. Your previous overview has been preserved. Please try again."
+    "failedPreserved": "Generation failed. Your previous overview has been preserved. Please try again.",
+    "more": "More actions",
+    "language": "Generation language",
+    "followSource": "Follow transcript",
+    "languageHint": "Applies to the overview and topics on the next generation. Existing content is kept until generation succeeds.",
+    "languageSaveFailed": "Could not confirm the language setting. Refresh and try again."
   },
   "minutesReader": {
     "tools": "Minutes tools",

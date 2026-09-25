@@ -8,11 +8,29 @@ import type {
 } from './ApiMeetingRecord'
 import { summaryReceipt } from './summaryReceipts'
 
+export const overviewLanguages = {
+  auto: '',
+  zh: '中文',
+  en: 'English',
+  fr: 'Français',
+  de: 'Deutsch',
+  nl: 'Nederlands',
+  ja: '日本語',
+  ko: '한국어',
+  es: 'Español',
+  it: 'Italiano',
+  pt: 'Português',
+  ru: 'Русский',
+  ar: 'العربية',
+}
+export type OverviewLanguage = keyof typeof overviewLanguages
+
 export interface RecordOverviewState {
   revision: number
   available: boolean
   can_generate: boolean
   generation_ready: boolean
+  output_language?: OverviewLanguage
   job: ApiSummaryJob | null
   version: {
     id: string
@@ -30,6 +48,32 @@ export interface RecordOverviewState {
       }[]
     }
   } | null
+}
+
+export function useSetOverviewLanguage(viewerId: string, recordId: string) {
+  const client = useQueryClient()
+  const queryKey = ['meeting-records', viewerId, 'overview', recordId]
+  return useMutation({
+    mutationFn: (payload: {
+      output_language: OverviewLanguage
+      expected_output_language: OverviewLanguage
+    }) =>
+      fetchApi<{ output_language: OverviewLanguage }>(
+        `meeting-records/${encodeURIComponent(recordId)}/overview/`,
+        {
+          method: 'PATCH',
+          signal: AbortSignal.timeout(20000),
+          body: JSON.stringify(payload),
+          cache: 'no-store',
+        }
+      ),
+    retry: false,
+    onSuccess: (data) =>
+      client.setQueryData<RecordOverviewState>(queryKey, (old) =>
+        old ? { ...old, output_language: data.output_language } : old
+      ),
+    onSettled: () => client.invalidateQueries({ queryKey }),
+  })
 }
 
 export function useRecordOverview(viewerId: string, recordId: string) {

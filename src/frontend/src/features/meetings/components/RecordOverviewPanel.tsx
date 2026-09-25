@@ -6,12 +6,22 @@ import {
   RiFileTextLine,
   RiRefreshLine,
   RiSparklingLine,
+  RiMore2Line,
 } from '@remixicon/react'
+import { Menu as AriaMenu, MenuItem } from 'react-aria-components'
+import { Menu } from '@/primitives/Menu'
+import { menuRecipe } from '@/primitives/menuRecipe'
 import { StateHint } from '@/components/StateHint'
-import { Button, LinkButton, Text } from '@/primitives'
+import { Button, IconButton, LinkButton, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { ApiError } from '@/api/ApiError'
-import { useRecordOverview, useRequestOverview } from '../api/recordOverview'
+import {
+  overviewLanguages,
+  type OverviewLanguage,
+  useRecordOverview,
+  useRequestOverview,
+  useSetOverviewLanguage,
+} from '../api/recordOverview'
 import { isSummaryPayload, useSummaryIntent } from '../hooks/useSummaryIntent'
 import type { SummaryRequestPayload } from '../api/ApiMeetingRecord'
 import { formatDateTime } from '../recordDateTime'
@@ -31,6 +41,9 @@ export function RecordOverviewPanel({
   const { t } = useTranslation('meetings')
   const query = useRecordOverview(viewerId, recordId)
   const mutation = useRequestOverview(viewerId, recordId)
+  const languageMutation = useSetOverviewLanguage(viewerId, recordId)
+  const [languageOpen, setLanguageOpen] = useState(false)
+  const menu = menuRecipe({ variant: 'light' })
   const recovery = useSummaryIntent(
     'overview',
     viewerId,
@@ -106,6 +119,7 @@ export function RecordOverviewPanel({
               (!recovery.pending && !state.generation_ready) ||
               busy ||
               mutation.isPending ||
+              languageMutation.isPending ||
               !recovery.ready
             }
             onPress={() =>
@@ -127,7 +141,71 @@ export function RecordOverviewPanel({
             {t('recordOverview.openMinutes')}
           </LinkButton>
         </Link>
+        {state?.can_generate && (
+          <Menu placement="bottom">
+            <IconButton label={t('recordOverview.more')}>
+              <RiMore2Line size={16} aria-hidden />
+            </IconButton>
+            <AriaMenu
+              className={menu.root}
+              aria-label={t('recordOverview.more')}
+            >
+              <MenuItem
+                className={menu.item}
+                onAction={() => setLanguageOpen((value) => !value)}
+              >
+                {t('recordOverview.language')}
+              </MenuItem>
+            </AriaMenu>
+          </Menu>
+        )}
       </RecordPanelTools>
+      {state?.can_generate && languageOpen && (
+        <div
+          className={css({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'sm',
+          })}
+        >
+          <label>
+            {t('recordOverview.language')}{' '}
+            <select
+              value={state.output_language ?? 'auto'}
+              disabled={
+                busy ||
+                mutation.isPending ||
+                languageMutation.isPending ||
+                !!recovery.pending ||
+                !recovery.ready
+              }
+              className={css({
+                padding: 'sm',
+                border: '1px solid token(colors.border.subtle)',
+                borderRadius: 'field',
+                backgroundColor: 'surface.default',
+                color: 'text.primary',
+              })}
+              onChange={(event) =>
+                languageMutation.mutate({
+                  output_language: event.target.value as OverviewLanguage,
+                  expected_output_language: state.output_language ?? 'auto',
+                })
+              }
+            >
+              {Object.entries(overviewLanguages).map(([code, label]) => (
+                <option key={code} value={code}>
+                  {code === 'auto' ? t('recordOverview.followSource') : label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Text variant="note">{t('recordOverview.languageHint')}</Text>
+          {languageMutation.isError && (
+            <p role="alert">{t('recordOverview.languageSaveFailed')}</p>
+          )}
+        </div>
+      )}
       <Text variant="note">{t('recordOverview.hint')}</Text>
       {state?.can_generate && (
         <div>

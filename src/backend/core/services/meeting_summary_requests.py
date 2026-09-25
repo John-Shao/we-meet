@@ -75,6 +75,14 @@ def request_summary(record_id, user, key, payload, *, kind="summary"):
         raise RecordConflict("Summary job changed; refresh before requesting.")
     operation = payload["operation"]
     stage = payload.get("stage", "final")
+    # A different output language starts a fresh job; never mutate a frozen retry.
+    if (
+        kind == "overview"
+        and latest
+        and latest.configuration.get("output_language", "auto")
+        != record.overview_language
+    ):
+        operation = "regenerate"
     if operation == "retry":
         if (
             latest is None

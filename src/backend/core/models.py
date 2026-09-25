@@ -1002,6 +1002,7 @@ class MeetingRecord(BaseModel):
     )
     deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
     lifecycle_revision = models.PositiveIntegerField(default=0)
+    overview_language = models.CharField(max_length=12, default="auto")
     revision = models.PositiveIntegerField(default=1)
 
     class Meta:

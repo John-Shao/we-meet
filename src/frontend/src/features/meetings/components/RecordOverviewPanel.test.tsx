@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
 import { fetchApi } from '@/api/fetchApi'
 import { ApiError } from '@/api/ApiError'
 import { RecordOverviewPanel } from './RecordOverviewPanel'
@@ -45,10 +46,18 @@ beforeEach(() => {
     available: true,
     can_generate: true,
     generation_ready: true,
+    output_language: 'auto',
     job: null,
     version: null,
   }
   vi.mocked(fetchApi).mockImplementation(async (path, options) => {
+    if (options?.method === 'PATCH') {
+      expect(path).toBe('meeting-records/record/overview/')
+      const payload = JSON.parse(String(options.body))
+      expect(payload.expected_output_language).toBe(state.output_language)
+      state = { ...state, output_language: payload.output_language }
+      return { output_language: payload.output_language }
+    }
     if (options?.method === 'POST') {
       expect(path).toBe('meeting-records/record/overview-requests/')
       state = { ...state, job }
@@ -57,6 +66,57 @@ beforeEach(() => {
     expect(path).toBe('meeting-records/record/overview/')
     return state
   })
+})
+
+it('saves the shared generation language without generating or hiding existing content', async () => {
+  const user = userEvent.setup()
+  state = { ...state, version, job: { ...job, status: 'succeeded' } }
+  const first = show()
+  await user.click(
+    await screen.findByRole('button', { name: 'recordOverview.more' })
+  )
+  await user.click(
+    await screen.findByRole('menuitem', { name: 'recordOverview.language' })
+  )
+  const select = screen.getByRole('combobox', {
+    name: 'recordOverview.language',
+  })
+  expect(select).toHaveValue('auto')
+  await user.selectOptions(select, 'zh')
+  await waitFor(() => expect(select).toHaveValue('zh'))
+  expect(screen.getByText('Independent overview')).toBeVisible()
+  expect(
+    vi
+      .mocked(fetchApi)
+      .mock.calls.some(([, options]) => options?.method === 'POST')
+  ).toBe(false)
+  first.unmount()
+  client.clear()
+  show()
+  await user.click(
+    await screen.findByRole('button', { name: 'recordOverview.more' })
+  )
+  await user.click(
+    await screen.findByRole('menuitem', { name: 'recordOverview.language' })
+  )
+  expect(
+    screen.getByRole('combobox', { name: 'recordOverview.language' })
+  ).toHaveValue('zh')
+})
+
+it('disables language changes while a generation is running', async () => {
+  const user = userEvent.setup()
+  state = { ...state, job }
+  show()
+  await user.click(
+    await screen.findByRole('button', { name: 'recordOverview.more' })
+  )
+  await user.click(
+    await screen.findByRole('menuitem', { name: 'recordOverview.language' })
+  )
+  expect(
+    screen.getByRole('combobox', { name: 'recordOverview.language' })
+  ).toBeDisabled()
 })
 afterEach(() => {
   client?.clear()

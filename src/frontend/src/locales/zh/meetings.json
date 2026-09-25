@@ -844,7 +844,12 @@
     "sourceChanged": "原文已变化，这是之前生成的概要。",
     "unavailable": "概要生成暂不可用。",
     "storageError": "无法保存概要请求，请允许会话存储后重试。",
-    "failedPreserved": "生成失败，已保留原概要。请再试一次。"
+    "failedPreserved": "生成失败，已保留原概要。请再试一次。",
+    "more": "更多操作",
+    "language": "生成语言",
+    "followSource": "跟随原文",
+    "languageHint": "应用于概要和章节纪要，下次生成时生效；已有内容会保留至新结果生成成功。",
+    "languageSaveFailed": "语言设置未能确认，请刷新后再试。"
   },
   "minutesReader": {
     "tools": "纪要工具",

@@ -64,6 +64,83 @@ def output(job):
     )
 
 
+def set_language(user, record, language, previous="auto"):
+    return client_for(user).patch(
+        f"/api/v1.0/meeting-records/{record.pk}/overview/",
+        {"output_language": language, "expected_output_language": previous},
+        format="json",
+    )
+
+
+def test_language_preference_is_shared_without_generating_or_changing_source():
+    user, _, _, record = online_note()
+    revision = record.revision
+    assert set_language(user, record, "zh").status_code == 200
+    record.refresh_from_db()
+    assert record.overview_language == "zh"
+    assert record.revision == revision
+    assert not record.processing_jobs.exists()
+    state = (
+        client_for(user).get(f"/api/v1.0/meeting-records/{record.pk}/overview/").json()
+    )
+    assert state["output_language"] == "zh"
+    assert set_language(user, record, "en").status_code == 409
+    assert set_language(user, record, "arbitrary instructions", "zh").status_code == 400
+
+
+def test_read_only_collaborator_cannot_change_language():
+    _, _, _, record = online_note()
+    reader = UserFactory()
+    models.MeetingRecordAccess.objects.create(
+        record=record, user=reader, read_transcript=True
+    )
+    assert set_language(reader, record, "en").status_code == 403
+    record.refresh_from_db()
+    assert record.overview_language == "auto"
+
+
+def test_selected_language_is_frozen_and_changed_language_starts_new_job():
+    user, _, _, record = online_note(text="中文课堂讲解")
+    assert set_language(user, record, "zh").status_code == 200
+    key = uuid.uuid4()
+    assert request(user, record, key=key).status_code == 202
+    job = record.processing_jobs.get(kind="overview")
+    assert job.configuration["output_language"] == "zh"
+    assert set_language(user, record, "en", "zh").status_code == 200
+    # The same intent replays its frozen language, even after the preference changes.
+    assert request(user, record, key=key).json()["replayed"] is True
+    with patch("core.services.meeting_overviews.LLMClient") as llm:
+        llm.return_value.chat.return_value = output(job)
+        assert overview.execute(job.pk, job.attempt)
+        assert "in Chinese" in llm.return_value.chat.call_args.kwargs["system"]
+    record.processing_jobs.filter(pk=job.pk).update(status="failed", retryable=True)
+    job.refresh_from_db()
+    assert request(user, record, job, operation="retry").status_code == 202
+    latest = record.processing_jobs.filter(kind="overview").latest("generation")
+    assert latest.pk != job.pk
+    assert latest.configuration["output_language"] == "en"
+    assert record.overview_versions.count() == 1
+    with patch("core.services.meeting_overviews.LLMClient") as llm:
+        llm.return_value.chat.return_value = output(latest)
+        assert overview.execute(latest.pk, latest.attempt)
+        assert "in English" in llm.return_value.chat.call_args.kwargs["system"]
+
+
+def test_overview_without_language_metadata_still_requires_source_language():
+    user, _, row, record = online_note(text="同类项的字母和指数必须相同。")
+    row.language = ""
+    row.save()
+    assert request(user, record).status_code == 202
+    job = record.processing_jobs.get(kind="overview")
+    with patch("core.services.meeting_overviews.LLMClient") as llm:
+        llm.return_value.chat.return_value = output(job)
+        assert overview.execute(job.pk, job.attempt)
+        assert (
+            "primary language of the original transcript"
+            in llm.return_value.chat.call_args.kwargs["system"]
+        )
+
+
 def test_independent_job_prompt_storage_and_no_minutes_delivery():
     user, _, _, record = online_note(text="Original discussion about management")
     summary_job = prepare_summary_job(record.pk)

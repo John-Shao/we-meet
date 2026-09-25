@@ -829,7 +829,12 @@
     "sourceChanged": "Das Transkript wurde geändert. Dies ist der bisherige Überblick.",
     "unavailable": "Die Erstellung ist derzeit nicht verfügbar.",
     "storageError": "Die Anfrage konnte nicht gespeichert werden. Erlauben Sie Sitzungsspeicher und versuchen Sie es erneut.",
-    "failedPreserved": "Die Erstellung ist fehlgeschlagen. Der bisherige Überblick bleibt erhalten. Bitte versuchen Sie es erneut."
+    "failedPreserved": "Die Erstellung ist fehlgeschlagen. Der bisherige Überblick bleibt erhalten. Bitte versuchen Sie es erneut.",
+    "more": "Weitere Aktionen",
+    "language": "Ausgabesprache",
+    "followSource": "Transkriptsprache verwenden",
+    "languageHint": "Gilt beim nächsten Erstellen für Überblick und Themen. Bestehende Inhalte bleiben bis zur erfolgreichen Erstellung erhalten.",
+    "languageSaveFailed": "Die Spracheinstellung konnte nicht bestätigt werden. Bitte aktualisieren und erneut versuchen."
   },
   "minutesReader": {
     "tools": "Protokollwerkzeuge",

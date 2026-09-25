@@ -829,7 +829,12 @@
     "sourceChanged": "La transcription a changé. Ceci est l’aperçu précédent.",
     "unavailable": "La génération est actuellement indisponible.",
     "storageError": "Impossible d’enregistrer la demande. Autorisez le stockage de session puis réessayez.",
-    "failedPreserved": "La génération a échoué. L’aperçu précédent est conservé. Veuillez réessayer."
+    "failedPreserved": "La génération a échoué. L’aperçu précédent est conservé. Veuillez réessayer.",
+    "more": "Plus d’actions",
+    "language": "Langue de génération",
+    "followSource": "Suivre la transcription",
+    "languageHint": "S’applique à l’aperçu et aux sections lors de la prochaine génération. Le contenu existant est conservé jusqu’à la réussite.",
+    "languageSaveFailed": "Impossible de confirmer la langue. Actualisez puis réessayez."
   },
   "minutesReader": {
     "tools": "Outils du compte-rendu",
