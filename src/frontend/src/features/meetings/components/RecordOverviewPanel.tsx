@@ -2,8 +2,13 @@ import { RecordPanelTools } from './RecordPanel'
 import { useTranslation } from 'react-i18next'
 import { useRef, useState } from 'react'
 import { Link } from 'wouter'
+import {
+  RiFileTextLine,
+  RiRefreshLine,
+  RiSparklingLine,
+} from '@remixicon/react'
 import { StateHint } from '@/components/StateHint'
-import { Button, Text } from '@/primitives'
+import { Button, LinkButton, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { ApiError } from '@/api/ApiError'
 import { useRecordOverview, useRequestOverview } from '../api/recordOverview'
@@ -81,6 +86,9 @@ export function RecordOverviewPanel({
           <>
             {recovery.pending ? (
               <Button
+                size="sm"
+                variant="secondaryText"
+                icon={<RiRefreshLine size={16} aria-hidden />}
                 isDisabled={!recovery.ready || mutation.isPending}
                 onPress={() => void submit(recovery.pending!.payload.operation)}
               >
@@ -89,6 +97,15 @@ export function RecordOverviewPanel({
             ) : (
               <>
                 <Button
+                  size="sm"
+                  variant="secondaryText"
+                  icon={
+                    job ? (
+                      <RiRefreshLine size={16} aria-hidden />
+                    ) : (
+                      <RiSparklingLine size={16} aria-hidden />
+                    )
+                  }
                   isDisabled={
                     !state.generation_ready ||
                     busy ||
@@ -105,6 +122,9 @@ export function RecordOverviewPanel({
                 </Button>
                 {job?.retryable && !busy && (
                   <Button
+                    size="sm"
+                    variant="secondaryText"
+                    icon={<RiRefreshLine size={16} aria-hidden />}
                     isDisabled={mutation.isPending || !recovery.ready}
                     onPress={() => void submit('retry')}
                   >
@@ -115,8 +135,11 @@ export function RecordOverviewPanel({
             )}
           </>
         )}
-        <Link href={`/meeting/records/${recordId}?tab=summary`}>
-          {t('recordOverview.openMinutes')}
+        <Link href={`/meeting/records/${recordId}?tab=summary`} asChild>
+          <LinkButton size="sm" variant="secondaryText">
+            <RiFileTextLine size={16} aria-hidden />
+            {t('recordOverview.openMinutes')}
+          </LinkButton>
         </Link>
       </RecordPanelTools>
       <Text variant="note">{t('recordOverview.hint')}</Text>

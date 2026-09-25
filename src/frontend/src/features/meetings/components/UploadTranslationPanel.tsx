@@ -5,6 +5,7 @@ import { selectChrome } from '@/primitives/selectChrome'
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { RiRefreshLine, RiTranslate2 } from '@remixicon/react'
 import { fetchApi } from '@/api/fetchApi'
 import { ApiError } from '@/api/ApiError'
 import { Button, Text } from '@/primitives'
@@ -192,6 +193,15 @@ export function UploadTranslationPanel({
         {listing.data.can_generate &&
           (intent || !selected || selected.status !== 'succeeded' || stale) && (
             <Button
+              size="sm"
+              variant="secondaryText"
+              icon={
+                intent || selected ? (
+                  <RiRefreshLine size={16} aria-hidden />
+                ) : (
+                  <RiTranslate2 size={16} aria-hidden />
+                )
+              }
               isDisabled={saving || (!!active && !intent)}
               onPress={() => void generate()}
             >

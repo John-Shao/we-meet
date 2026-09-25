@@ -62,7 +62,7 @@ export function RecordMediaDownload({ record }: { record: ApiMeetingRecord }) {
     <div>
       <Button
         size="sm"
-        variant="secondary"
+        variant="secondaryText"
         icon={<RiDownloadLine size={16} aria-hidden />}
         loading={busy}
         isDisabled={busy}

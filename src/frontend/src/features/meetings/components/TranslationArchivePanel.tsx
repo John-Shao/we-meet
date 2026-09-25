@@ -2,6 +2,7 @@ import { RecordPanelTools } from './RecordPanel'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { RiArrowLeftLine } from '@remixicon/react'
 import { fetchApi } from '@/api/fetchApi'
 import { Button, Text } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
@@ -100,7 +101,12 @@ function ArchiveSegments({
   return (
     <section className={layout}>
       <RecordPanelTools>
-        <Button variant="tertiary" onPress={back}>
+        <Button
+          size="sm"
+          variant="secondaryText"
+          icon={<RiArrowLeftLine size={16} aria-hidden />}
+          onPress={back}
+        >
           {t('back')}
         </Button>
       </RecordPanelTools>

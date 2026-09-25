@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - Unify record detail panel toolbars and retain browsing state across tabs.
+- Match all Web record panel toolbar buttons to transcript toolbar styling.
 
 - Document the shared list-to-detail page header convention.
 - Add audited task-list ownership transfer and recovery, including owned

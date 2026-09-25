@@ -2,6 +2,7 @@ import { RecordPanelTools } from './RecordPanel'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { RiArrowLeftLine, RiRefreshLine } from '@remixicon/react'
 import { Button } from '@/primitives'
 import { StateHint } from '@/components/StateHint'
 import { css } from '@/styled-system/css'
@@ -102,7 +103,9 @@ function Content({ source }: { source: Source }) {
       <RecordPanelTools>
         {selected && (
           <Button
-            variant="tertiary"
+            size="sm"
+            variant="secondaryText"
+            icon={<RiArrowLeftLine size={16} aria-hidden />}
             onPress={() => {
               setSelected(undefined)
               setSegments([''])
@@ -112,7 +115,9 @@ function Content({ source }: { source: Source }) {
           </Button>
         )}
         <Button
-          variant="tertiary"
+          size="sm"
+          variant="secondaryText"
+          icon={<RiRefreshLine size={16} aria-hidden />}
           isDisabled={pending.isFetching}
           onPress={refresh}
         >
