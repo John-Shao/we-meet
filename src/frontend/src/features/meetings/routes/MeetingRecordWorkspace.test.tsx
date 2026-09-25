@@ -666,7 +666,8 @@ it('searches the complete original with a revision fence and hides stale results
   })
   show()
   await screen.findByText('Exact online source')
-  const searchInput = () => screen.getByLabelText('library.searchOriginal')
+  const searchInput = () =>
+    screen.getByRole('searchbox', { name: 'library.searchOriginal' })
   fireEvent.change(searchInput(), {
     target: { value: ' 中文 & % ' },
   })
@@ -754,7 +755,9 @@ it('lets the player resume transcript following after browsing and searching', a
   expect(
     screen.getByRole('button', { name: 'library.backToPlayback' })
   ).toBeInTheDocument()
-  const input = screen.getByLabelText('library.searchOriginal')
+  const input = screen.getByRole('searchbox', {
+    name: 'library.searchOriginal',
+  })
   fireEvent.change(input, { target: { value: 'release' } })
   fireEvent.submit(input.closest('form')!)
   await waitFor(() =>
@@ -766,7 +769,9 @@ it('lets the player resume transcript following after browsing and searching', a
   )
   fireEvent.click(screen.getByRole('button', { name: 'seek-player' }))
   await waitFor(() =>
-    expect(screen.getByLabelText('library.searchOriginal')).toHaveValue('')
+    expect(
+      screen.getByRole('searchbox', { name: 'library.searchOriginal' })
+    ).toHaveValue('')
   )
   expect(
     screen.queryByRole('button', { name: 'followPlayback' })
@@ -810,13 +815,17 @@ it('return clears an unsubmitted search draft while paused at zero', async () =>
   record.capture_id = null
   show()
   await screen.findByText('Shared original')
-  const input = screen.getByLabelText('library.searchOriginal')
+  const input = screen.getByRole('searchbox', {
+    name: 'library.searchOriginal',
+  })
   fireEvent.focus(input)
   fireEvent.change(input, { target: { value: 'unsubmitted' } })
   fireEvent.click(
     screen.getByRole('button', { name: 'library.backToPlayback' })
   )
-  expect(screen.getByLabelText('library.searchOriginal')).toHaveValue('')
+  expect(
+    screen.getByRole('searchbox', { name: 'library.searchOriginal' })
+  ).toHaveValue('')
 })
 
 it('splits video details from content only on wide screens and preserves both selections', async () => {

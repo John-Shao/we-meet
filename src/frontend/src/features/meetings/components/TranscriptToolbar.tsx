@@ -11,6 +11,8 @@ import { TranscriptReplacementControl } from './TranscriptReplacementControl'
 
 type Slots = {
   search: HTMLDivElement | null
+  searchToggle: HTMLDivElement | null
+  primary: HTMLDivElement | null
   playback: HTMLDivElement | null
   filters: HTMLDivElement | null
 }
@@ -31,10 +33,14 @@ export function TranscriptToolbar({
   const { t } = useTranslation('meetings')
   const scroll = useRecordPanelScroll('transcript')
   const [search, setSearch] = useState<HTMLDivElement | null>(null)
+  const [searchToggle, setSearchToggle] = useState<HTMLDivElement | null>(null)
+  const [primary, setPrimary] = useState<HTMLDivElement | null>(null)
   const [playback, setPlayback] = useState<HTMLDivElement | null>(null)
   const [filters, setFilters] = useState<HTMLDivElement | null>(null)
   const layout = (replacement: ReactNode, panel: ReactNode) => (
-    <ToolbarContext.Provider value={{ search, playback, filters }}>
+    <ToolbarContext.Provider
+      value={{ search, searchToggle, primary, playback, filters }}
+    >
       <div className={layoutStyle}>
         <div
           className={toolsStyle}
@@ -42,6 +48,8 @@ export function TranscriptToolbar({
           aria-label={t('transcriptToolbar.label')}
         >
           <div className={rowStyle}>
+            <div ref={setPrimary} className={primaryStyle} />
+            <div ref={setSearchToggle} className={toggleStyle} />
             <div ref={setSearch} className={searchStyle} />
             <div className={actionsStyle}>
               <div ref={setPlayback} className={slotStyle} />
@@ -74,6 +82,12 @@ export function TranscriptToolbar({
   ) : (
     layout(null, null)
   )
+}
+
+export function TranscriptSearchToggle({ children }: { children: ReactNode }) {
+  const slots = useContext(ToolbarContext)
+  if (!slots) return children
+  return slots.searchToggle ? createPortal(children, slots.searchToggle) : null
 }
 
 /** Portals preserve reader state and events while placing controls above its scroller. */
@@ -118,7 +132,7 @@ export function TranscriptPlaybackButton({
   const { t } = useTranslation('meetings')
   const toolbar = useContext(ToolbarContext)
   if (!available || (!toolbar && !needed)) return null
-  return (
+  const button = (
     <Button
       size="sm"
       variant="secondaryText"
@@ -128,9 +142,12 @@ export function TranscriptPlaybackButton({
       isDisabled={editing || !needed}
       onPress={onResume}
     >
-      {t(toolbar ? 'transcriptToolbar.locate' : 'library.backToPlayback')}
+      {t('library.backToPlayback')}
     </Button>
   )
+  return toolbar
+    ? toolbar.primary && createPortal(button, toolbar.primary)
+    : button
 }
 
 const layoutStyle = css({
@@ -161,17 +178,33 @@ const rowStyle = css({
   minWidth: 0,
 })
 const searchStyle = css({
-  flex: '1 1 12rem',
+  flex: { base: '1 1 100%', md: '1 1 12rem' },
+  order: { base: 4, md: 1 },
   minWidth: 0,
   '& > form': { margin: 0 },
+  '&:has(> form[data-search-expanded=false])': {
+    display: { base: 'none', md: 'block' },
+  },
+  _empty: { display: 'none' },
+})
+const primaryStyle = css({
+  order: { base: 1, md: 2 },
+  flexShrink: 0,
+  _empty: { display: 'none' },
+})
+const toggleStyle = css({
+  display: { base: 'flex', md: 'none' },
+  order: 2,
+  marginLeft: 'auto',
   _empty: { display: 'none' },
 })
 const actionsStyle = css({
+  order: 3,
   display: 'flex',
   flexWrap: 'wrap',
   alignItems: 'center',
   gap: 'sm',
-  marginLeft: 'auto',
+  marginLeft: { base: 0, md: 'auto' },
   minWidth: 0,
 })
 const slotStyle = css({ display: 'contents' })

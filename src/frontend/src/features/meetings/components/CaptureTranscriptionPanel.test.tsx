@@ -30,7 +30,8 @@ vi.mock('./RecordSummaryPanel', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
-vi.mock('@/primitives', () => ({
+vi.mock('@/primitives', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/primitives')>()),
   SearchBox: ({
     value,
     onChange,
@@ -421,12 +422,17 @@ it('searches the published generation and resets its cursor when the query chang
   await screen.findByText('First page')
   fireEvent.click(screen.getByRole('button', { name: 'continuous.more' }))
   await screen.findByText('Second page')
-  fireEvent.change(screen.getByLabelText('library.searchOriginal'), {
-    target: { value: '全文' },
-  })
+  fireEvent.change(
+    screen.getByRole('searchbox', { name: 'library.searchOriginal' }),
+    {
+      target: { value: '全文' },
+    }
+  )
   // The local button test double does not forward type; submit the form itself.
   fireEvent.submit(
-    screen.getByLabelText('library.searchOriginal').closest('form')!
+    screen
+      .getByRole('searchbox', { name: 'library.searchOriginal' })
+      .closest('form')!
   )
   await screen.findByText('Search match')
   expect(screen.queryByText('Second page')).not.toBeInTheDocument()
@@ -676,7 +682,9 @@ it('clears an unsubmitted search draft on return, including repeated browsing', 
   status.active_job_id = 'job'
   showWithPosition(0)
   await screen.findByText('First line')
-  const input = screen.getByLabelText('library.searchOriginal')
+  const input = screen.getByRole('searchbox', {
+    name: 'library.searchOriginal',
+  })
   fireEvent.focus(input)
   for (const value of ['unsubmitted', 'another draft']) {
     fireEvent.change(input, { target: { value } })
