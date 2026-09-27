@@ -224,6 +224,11 @@
     }
   },
   "library": {
+    "contextMenu": {
+      "actions": "More actions for {{title}}",
+      "open": "Open",
+      "openNewTab": "Open in new tab"
+    },
     "resetFilters": "Clear filters",
     "applyFilters": "Apply filters",
     "closeFilters": "Close filters",

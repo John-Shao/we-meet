@@ -224,6 +224,11 @@
     }
   },
   "library": {
+    "contextMenu": {
+      "actions": "{{title}} 的更多操作",
+      "open": "打开",
+      "openNewTab": "在新标签页打开"
+    },
     "resetFilters": "清除筛选",
     "applyFilters": "应用筛选",
     "closeFilters": "关闭筛选",

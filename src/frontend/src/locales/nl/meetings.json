@@ -224,6 +224,11 @@
     }
   },
   "library": {
+    "contextMenu": {
+      "actions": "Meer acties voor {{title}}",
+      "open": "Openen",
+      "openNewTab": "Openen in nieuw tabblad"
+    },
     "resetFilters": "Filters wissen",
     "applyFilters": "Filters toepassen",
     "closeFilters": "Filters sluiten",

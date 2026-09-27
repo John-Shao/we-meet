@@ -22,15 +22,19 @@ export function RecordRenameControl({
   title,
   onRenamed,
   iconOnly = false,
+  initiallyOpen = false,
+  onCancel,
 }: {
   viewerId: string
   recordId: string
   title: string
   iconOnly?: boolean
+  initiallyOpen?: boolean
+  onCancel?: () => void
   onRenamed?: (title: string) => void
 }) {
   const { t } = useTranslation('meetings')
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(initiallyOpen)
   const [draft, setDraft] = useState(title)
   const input = useRef<HTMLInputElement>(null)
   const rename = useRenameMeetingRecord(viewerId, recordId)
@@ -49,6 +53,7 @@ export function RecordRenameControl({
     rename.reset()
     setOpen(false)
     setDraft(title)
+    onCancel?.()
   }
 
   const startEditing = () => {

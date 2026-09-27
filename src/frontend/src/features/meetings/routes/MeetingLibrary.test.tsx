@@ -401,7 +401,7 @@ it('requests creation-time sorting from the server and preserves response order'
   show()
   await screen.findByText('Newer record')
   const table = screen.getByRole('table')
-  // 表头只出现一次,四列与飞书对齐;分组名是表内的行组标题。
+  // 表头只出现一次,末列留给行操作;分组名是表内的行组标题。
   expect(
     within(table)
       .getAllByRole('columnheader')
@@ -411,6 +411,7 @@ it('requests creation-time sorting from the server and preserves response order'
     'library.table.owner',
     'library.table.modified',
     'library.table.created',
+    'video.more',
   ])
   expect(within(table).getByText('library.archive')).toBeInTheDocument()
   const rowTitles = () =>
@@ -497,4 +498,178 @@ it('labels an imported file by its media type instead of a blanket upload label'
   expect(
     within(row).queryByText('library.source.upload')
   ).not.toBeInTheDocument()
+})
+
+it.each([false, true])(
+  'opens the context menu in table and grid without navigating (minutes=%s)',
+  async (minutes) => {
+    show(minutes)
+    const link = await screen.findByRole('link', { name: archived.title })
+    fireEvent.contextMenu(link, { clientX: 100, clientY: 120 })
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/meeting/notes')
+    expect(
+      screen.queryByRole('menuitem', { name: 'library.rename' })
+    ).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'trash.remove' })).toBeNull()
+    expect(
+      screen.getByRole('menuitem', { name: 'library.contextMenu.open' })
+    ).toHaveFocus()
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
+    expect(
+      screen.getByRole('menuitem', { name: 'library.contextMenu.openNewTab' })
+    ).toHaveFocus()
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(link).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'library.gridView' }))
+    const gridLink = screen.getByRole('link', { name: archived.title })
+    fireEvent.keyDown(gridLink, { key: 'F10', shiftKey: true })
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    fireEvent.scroll(screen.getByTestId('meeting-list-region'))
+    expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent.click(within(gridLink.closest('li')!).getByRole('button'))
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: 'library.contextMenu.open' })
+    )
+    expect(window.location.pathname).toBe('/meeting/records/archived')
+    expect(window.location.search).toBe(minutes ? '?tab=summary' : '')
+    expect(window.history.state.meetingList).toBeDefined()
+  }
+)
+
+it('copies the minutes URL and reports unavailable clipboard access', async () => {
+  show(true)
+  const link = await screen.findByRole('link', { name: archived.title })
+  const writeText = vi.fn().mockResolvedValue(undefined)
+  const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText },
+  })
+  try {
+    fireEvent.contextMenu(link)
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: 'summarySharing.copyLink' })
+    )
+    await screen.findByText('summarySharing.copied')
+    expect(writeText).toHaveBeenCalledWith(
+      `${window.location.origin}/meeting/records/archived?tab=summary`
+    )
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    })
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: 'summarySharing.copyLink' })
+    )
+    await screen.findByText('summarySharing.copyError')
+  } finally {
+    if (original) Object.defineProperty(navigator, 'clipboard', original)
+    else Reflect.deleteProperty(navigator, 'clipboard')
+  }
+})
+
+it('opens a new tab with the correct minutes URL without leaving the list', async () => {
+  const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+  try {
+    show(true)
+    fireEvent.contextMenu(
+      await screen.findByRole('link', { name: archived.title })
+    )
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: 'library.contextMenu.openNewTab' })
+    )
+    expect(open).toHaveBeenCalledWith(
+      `${window.location.origin}/meeting/records/archived?tab=summary`,
+      '_blank',
+      'noopener,noreferrer'
+    )
+    expect(window.location.pathname).toBe('/meeting/notes')
+  } finally {
+    open.mockRestore()
+  }
+})
+
+it('renames from the menu using the last seen title and refreshes the list', async () => {
+  let record = { ...archived, capabilities: { rename: true, trash: false } }
+  vi.mocked(fetchApi).mockImplementation(async (path, options) => {
+    if (path.endsWith('/title/')) {
+      expect(JSON.parse(options!.body as string)).toEqual({
+        title: 'Renamed record',
+        expected_title: archived.title,
+      })
+      record = { ...record, title: 'Renamed record' }
+      return record
+    }
+    return { results: [record], next_cursor: null }
+  })
+  show(true)
+  fireEvent.contextMenu(
+    await screen.findByRole('link', { name: archived.title })
+  )
+  fireEvent.click(screen.getByRole('menuitem', { name: 'library.rename' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'library.rename' }), {
+    target: { value: 'Renamed record' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'library.renameSave' }))
+  await screen.findByRole('link', { name: 'Renamed record' })
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+})
+
+it('confirms trash removal and keeps the minutes list and its filters', async () => {
+  window.history.replaceState({}, '', '/meeting/minutes?source_type=upload')
+  let removed = false
+  vi.mocked(fetchApi).mockImplementation(async (path, options) => {
+    if (path.endsWith('/lifecycle/')) {
+      expect(JSON.parse(options!.body as string)).toEqual({
+        target: 'trashed',
+        expected_revision: 3,
+      })
+      removed = true
+      return {
+        id: archived.id,
+        deleted_at: '2026-09-27T00:00:00Z',
+        lifecycle_revision: 4,
+      }
+    }
+    return {
+      results: removed
+        ? []
+        : [
+            {
+              ...archived,
+              lifecycle_revision: 3,
+              capabilities: { trash: true },
+            },
+          ],
+      next_cursor: null,
+    }
+  })
+  show(true)
+  fireEvent.contextMenu(
+    await screen.findByRole('link', { name: archived.title })
+  )
+  fireEvent.click(screen.getByRole('menuitem', { name: 'trash.remove' }))
+  expect(removed).toBe(false)
+  fireEvent.click(screen.getByRole('button', { name: 'trash.confirmRemove' }))
+  await waitFor(() =>
+    expect(screen.queryByRole('link', { name: archived.title })).toBeNull()
+  )
+  expect(window.location.pathname + window.location.search).toBe(
+    '/meeting/minutes?source_type=upload'
+  )
+})
+
+it('dismisses the menu on outside interaction and removes it after access is revoked', async () => {
+  show(true)
+  const link = await screen.findByRole('link', { name: archived.title })
+  fireEvent.contextMenu(link)
+  fireEvent.pointerDown(document.body)
+  expect(screen.queryByRole('menu')).toBeNull()
+  fireEvent.contextMenu(link)
+  vi.mocked(fetchApi).mockRejectedValue(new ApiError(403, {}))
+  await client.invalidateQueries({ queryKey: ['meeting-records', 'owner'] })
+  await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  expect(screen.queryByRole('link', { name: archived.title })).toBeNull()
 })

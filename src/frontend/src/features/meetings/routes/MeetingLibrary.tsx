@@ -50,6 +50,7 @@ import {
   sectionHeading,
   scrollRegion,
 } from '../components/libraryStyles'
+import { RecordLibraryActions } from '../components/RecordLibraryActions'
 import { RecordTrashLibrary } from '../components/RecordTrash'
 import { MeetingModuleNav } from '../components/MeetingModuleNav'
 import { MeetingModuleShell } from '../components/MeetingModuleShell'
@@ -65,7 +66,7 @@ import type {
 type SortDirection = 'asc' | 'desc'
 
 /** 表格列数:表头与每个整行单元格的 colSpan 都取它,以后加列只改这一处。 */
-const COLUMN_COUNT = 4
+const COLUMN_COUNT = 5
 
 /** 工具行:范围筛选在左,紧凑图标动作在右。 */
 const toolbar = css({
@@ -161,11 +162,11 @@ const listGrid = css({
 })
 
 /**
- * 列表视图(表格)。对齐飞书的四列:**表头只在列表最上方出现一次**,分组名走表内的
+ * 列表视图(表格)。四个信息列加行尾操作列:**表头只在列表最上方出现一次**,分组名走表内的
  * 行组标题单元格(见 `groupRowCell`),所以两段列表共用一份列宽、列名不会各来一遍。
  *
- * `table-layout: fixed` 只在 md 起步用:窄屏收起后三列,列表退回「标题 + 一行辅助
- * 信息」,auto 布局下单一列自然铺满,不会有定宽列留下的空档。
+ * `table-layout: fixed` 只在 md 起步用:窄屏收起三个元数据列,只留「标题 + 一行辅助
+ * 信息」与行尾操作,auto 布局下自然铺满,不会有定宽列留下的空档。
  */
 const tableCls = css({
   width: '100%',
@@ -203,7 +204,7 @@ const tableCls = css({
 const tableHead = css({ display: { base: 'none', md: 'table-header-group' } })
 
 /**
- * 后三列:内容短、定宽,md 以下整列收起(信息并进行尾的辅助信息一行)。列宽写在
+ * 三个元数据列:内容短、定宽,md 以下整列收起(信息并进行尾的辅助信息一行)。列宽写在
  * 单元格上:fixed 布局按**第一行**(也就是表头)定列宽;宽度各自独立成一条规则,
  * 不与上面的通用列样式抢同一个原子类(cx 叠同属性谁赢看样式表顺序)。
  */
@@ -497,46 +498,63 @@ function RecordList({
         {isEmpty && emptyState}
         <ul className={listGrid} data-grid={grid}>
           {records.map((record) => (
-            <li key={record.id} data-record-row>
-              <Link
-                href={`/meeting/records/${record.id}${minutes ? '?tab=summary' : ''}`}
-                aria-label={record.title || t('library.untitled')}
-                className={cardShell}
-              >
-                <span aria-hidden className={rowIconTile}>
-                  {recordIcon(record.source_type, minutes, 24)}
-                </span>
-                <div className={rowBody}>
-                  {/* 长标题(上传文件的原始名可能很长)被省略时,悬停可看全。 */}
-                  <h3
-                    className={cx(cardTitle, cardTitleCls)}
-                    title={record.title}
+            <RecordLibraryActions
+              key={record.id}
+              viewerId={viewerId}
+              record={record}
+            >
+              {({ handlers, action }) => (
+                <li
+                  data-record-row
+                  {...handlers}
+                  className={css({
+                    display: 'flex',
+                    alignItems: 'center',
+                    minWidth: 0,
+                  })}
+                >
+                  <Link
+                    href={`/meeting/records/${record.id}${minutes ? '?tab=summary' : ''}`}
+                    aria-label={record.title || t('library.untitled')}
+                    className={cx(cardShell, css({ flex: 1, minWidth: 0 }))}
                   >
-                    {record.title || t('library.untitled')}
-                  </h3>
-                  <p className={cardMeta}>
-                    <time dateTime={record.origin_at}>
-                      {minutes && `${t('minutesLibrary.recordedAt')} `}
-                      {formatRecordTime(record.origin_at)}
-                    </time>
-                    <span aria-hidden>·</span>
-                    <span>{t(recordSourceKey(record))}</span>
-                    {/* 上传的处理状态在两个列表页都要看得见 —— 否则「上传中/失败」
+                    <span aria-hidden className={rowIconTile}>
+                      {recordIcon(record.source_type, minutes, 24)}
+                    </span>
+                    <div className={rowBody}>
+                      {/* 长标题(上传文件的原始名可能很长)被省略时,悬停可看全。 */}
+                      <h3
+                        className={cx(cardTitle, cardTitleCls)}
+                        title={record.title}
+                      >
+                        {record.title || t('library.untitled')}
+                      </h3>
+                      <p className={cardMeta}>
+                        <time dateTime={record.origin_at}>
+                          {minutes && `${t('minutesLibrary.recordedAt')} `}
+                          {formatRecordTime(record.origin_at)}
+                        </time>
+                        <span aria-hidden>·</span>
+                        <span>{t(recordSourceKey(record))}</span>
+                        {/* 上传的处理状态在两个列表页都要看得见 —— 否则「上传中/失败」
                         只能在 AI 录音页看到,而这一页才是管理记录的入口。 */}
-                    {record.upload &&
-                      ` · ${t(`upload.status.${record.upload.status}`)}`}
-                  </p>
-                  {!minutes && (ongoing || record.has_summary) && (
-                    <p className={statusTag}>
-                      {ongoing && <span>{t('library.ongoing')}</span>}
-                      {record.has_summary && (
-                        <span>{t('library.minutesReady')}</span>
+                        {record.upload &&
+                          ` · ${t(`upload.status.${record.upload.status}`)}`}
+                      </p>
+                      {!minutes && (ongoing || record.has_summary) && (
+                        <p className={statusTag}>
+                          {ongoing && <span>{t('library.ongoing')}</span>}
+                          {record.has_summary && (
+                            <span>{t('library.minutesReady')}</span>
+                          )}
+                        </p>
                       )}
-                    </p>
-                  )}
-                </div>
-              </Link>
-            </li>
+                    </div>
+                  </Link>
+                  {action}
+                </li>
+              )}
+            </RecordLibraryActions>
           ))}
         </ul>
         <div className={pagerRow}>{pager}</div>
@@ -560,63 +578,86 @@ function RecordList({
         </tr>
       )}
       {records.map((record) => (
-        <tr key={record.id} data-record-row>
-          <td>
-            <Link
-              href={`/meeting/records/${record.id}${minutes ? '?tab=summary' : ''}`}
-              aria-label={record.title || t('library.untitled')}
-              className={tableRowLink}
-            >
-              <span aria-hidden className={rowIconTileCompact}>
-                {recordIcon(record.source_type, minutes, 18)}
-              </span>
-              <span className={rowBody}>
-                {/* 长标题(上传文件的原始名可能很长)被省略时,悬停可看全。 */}
-                <span className={tableTitle} title={record.title}>
-                  {record.title || t('library.untitled')}
-                </span>
-                <span className={tableMeta}>
-                  <time dateTime={record.origin_at}>
-                    {minutes && `${t('minutesLibrary.recordedAt')} `}
-                    {formatRecordTime(record.origin_at)}
-                  </time>
-                  <span aria-hidden>·</span>
-                  <span>{t(recordSourceKey(record))}</span>
-                  {/* 所有者那一列在窄屏收起,这一份信息跟着并进副行。 */}
-                  <span className={narrowOnly}>
-                    <span aria-hidden>·</span>
-                    {record.owner || t('library.ownerUnknown')}
-                  </span>
-                  {/* 上传的处理状态在两个列表页都要看得见 —— 否则「上传中/失败」
-                      只能在 AI 录音页看到,而这一页才是管理记录的入口。 */}
-                  {record.upload && (
-                    <span>{t(`upload.status.${record.upload.status}`)}</span>
-                  )}
-                  {!minutes && ongoing && (
-                    <span className={statusBadge}>{t('library.ongoing')}</span>
-                  )}
-                  {!minutes && record.has_summary && (
-                    <span className={statusBadge}>
-                      {t('library.minutesReady')}
+        <RecordLibraryActions
+          key={record.id}
+          viewerId={viewerId}
+          record={record}
+        >
+          {({ handlers, action }) => (
+            <tr data-record-row {...handlers}>
+              <td>
+                <div
+                  className={css({
+                    display: 'flex',
+                    alignItems: 'center',
+                    minWidth: 0,
+                  })}
+                >
+                  <Link
+                    href={`/meeting/records/${record.id}${minutes ? '?tab=summary' : ''}`}
+                    aria-label={record.title || t('library.untitled')}
+                    className={cx(tableRowLink, css({ flex: 1, minWidth: 0 }))}
+                  >
+                    <span aria-hidden className={rowIconTileCompact}>
+                      {recordIcon(record.source_type, minutes, 18)}
                     </span>
-                  )}
-                </span>
-              </span>
-            </Link>
-          </td>
-          <td
-            className={cx(tableMetaCell, ownerCell)}
-            title={record.owner ?? undefined}
-          >
-            {record.owner || t('library.ownerUnknown')}
-          </td>
-          <td className={cx(tableMetaCell, timeCell)}>
-            {formatRecordTime(record.updated_at) ?? '—'}
-          </td>
-          <td className={cx(tableMetaCell, timeCell)}>
-            {formatRecordTime(record.created_at) ?? '—'}
-          </td>
-        </tr>
+                    <span className={rowBody}>
+                      {/* 长标题(上传文件的原始名可能很长)被省略时,悬停可看全。 */}
+                      <span className={tableTitle} title={record.title}>
+                        {record.title || t('library.untitled')}
+                      </span>
+                      <span className={tableMeta}>
+                        <time dateTime={record.origin_at}>
+                          {minutes && `${t('minutesLibrary.recordedAt')} `}
+                          {formatRecordTime(record.origin_at)}
+                        </time>
+                        <span aria-hidden>·</span>
+                        <span>{t(recordSourceKey(record))}</span>
+                        {/* 所有者那一列在窄屏收起,这一份信息跟着并进副行。 */}
+                        <span className={narrowOnly}>
+                          <span aria-hidden>·</span>
+                          {record.owner || t('library.ownerUnknown')}
+                        </span>
+                        {/* 上传的处理状态在两个列表页都要看得见 —— 否则「上传中/失败」
+                      只能在 AI 录音页看到,而这一页才是管理记录的入口。 */}
+                        {record.upload && (
+                          <span>
+                            {t(`upload.status.${record.upload.status}`)}
+                          </span>
+                        )}
+                        {!minutes && ongoing && (
+                          <span className={statusBadge}>
+                            {t('library.ongoing')}
+                          </span>
+                        )}
+                        {!minutes && record.has_summary && (
+                          <span className={statusBadge}>
+                            {t('library.minutesReady')}
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                  </Link>
+                </div>
+              </td>
+              <td
+                className={cx(tableMetaCell, ownerCell)}
+                title={record.owner ?? undefined}
+              >
+                {record.owner || t('library.ownerUnknown')}
+              </td>
+              <td className={cx(tableMetaCell, timeCell)}>
+                {formatRecordTime(record.updated_at) ?? '—'}
+              </td>
+              <td className={cx(tableMetaCell, timeCell)}>
+                {formatRecordTime(record.created_at) ?? '—'}
+              </td>
+              <td className={css({ width: '3rem', textAlign: 'right' })}>
+                {action}
+              </td>
+            </tr>
+          )}
+        </RecordLibraryActions>
       ))}
       {(cursors.length > 1 || query.data?.next_cursor) && (
         <tr>
@@ -971,6 +1012,11 @@ export function Library({
                         <RiArrowUpSLine size={16} aria-hidden />
                       )}
                     </button>
+                  </th>
+                  <th scope="col" className={css({ width: '3rem' })}>
+                    <span className={css({ srOnly: true })}>
+                      {t('video.more')}
+                    </span>
                   </th>
                 </tr>
               </thead>

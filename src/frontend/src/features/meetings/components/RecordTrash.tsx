@@ -28,7 +28,7 @@ type TrashRecord = {
 }
 const stack = css({ display: 'flex', flexDirection: 'column', gap: 'md' })
 
-function LifecycleConfirmation({
+export function LifecycleConfirmation({
   viewerId,
   item,
   target,
