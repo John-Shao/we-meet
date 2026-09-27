@@ -57,7 +57,7 @@ class UploadTranslationView(MeetingCommandReceiptMixin, NoStore):
                 "results": [
                     service.serialize(job, record)
                     for job in record.upload_translations.defer(
-                        "source", "content", "configuration"
+                        "source", "content"
                     ).order_by("-created_at", "-id")[:30]
                 ],
             }

@@ -221,6 +221,143 @@ def test_complete_chunk_plan_and_budget_fail_closed():
         service.chunks(rows * 3)
 
 
+def test_full_batch_template_preserves_repeated_fragments_and_publication_order():
+    owner, record, _ = setup()
+    job = prepare(owner, record, target="en")
+    texts = ["对吧？", "那么这个", "x²y", "对吧？"] * 11
+    job.source = [
+        {**job.source[0], "segment_id": str(uuid.uuid4()), "text": text}
+        for text in texts
+    ]
+    job.segment_count, job.total_chunks = 44, 3
+    job.save()
+    assert job.configuration["prompt_version"] == 2
+    seen = []
+
+    def translate(**kwargs):
+        body = json.loads(kwargs["user"])
+        template = body["output_template"]
+        assert body["target"] == "English"
+        assert len(template["segments"]) == body["expected_segments"]
+        assert [row["id"] for row in template["segments"]] == [
+            row["id"] for row in body["segments"]
+        ]
+        seen.extend(body["segments"])
+        for row in template["segments"]:
+            assert row["text"] == ""
+            row["text"] = "Translation for " + row["id"]
+        return json.dumps(template)
+
+    with patch.object(service, "LLMClient") as llm:
+        llm.return_value.chat.side_effect = translate
+        service.execute(job.pk)
+        service.execute(job.pk)
+        requests = llm.return_value.chat.call_args_list
+    assert [
+        json.loads(call.kwargs["user"])["expected_segments"] for call in requests
+    ] == [20, 20, 4]
+    assert [row["text"] for row in seen] == texts
+    assert [row["id"] for row in seen] == [row["segment_id"] for row in job.source]
+    job.refresh_from_db()
+    assert job.status == "succeeded" and job.completed_chunks == 3
+    assert job.content == ["Translation for " + row["id"] for row in seen]
+
+
+@pytest.mark.parametrize("difference", [-1, 1])
+@pytest.mark.parametrize("failed_chunk", [1, 2])
+def test_batch_count_mismatch_discards_all_output_without_retry(
+    difference, failed_chunk, caplog
+):
+    owner, record, path = setup()
+    job = prepare(owner, record)
+    job.source = [{**job.source[0], "segment_id": str(uuid.uuid4())} for _ in range(44)]
+    job.segment_count, job.total_chunks = 44, 3
+    job.save()
+    calls = 0
+
+    def mismatch(**kwargs):
+        nonlocal calls
+        calls += 1
+        body = json.loads(output(**kwargs))
+        if calls == failed_chunk:
+            if difference < 0:
+                body["segments"].pop()
+            else:
+                body["segments"].append(body["segments"][0])
+        return json.dumps(body)
+
+    with patch.object(service, "LLMClient") as llm:
+        llm.return_value.chat.side_effect = mismatch
+        service.execute(job.pk)
+        service.execute(job.pk)
+    job.refresh_from_db()
+    assert job.status == "failed" and job.content == []
+    assert job.error_code == "output_segment_count_mismatch"
+    assert calls == failed_chunk and job.completed_chunks == failed_chunk - 1
+    logs = [r for r in caplog.records if r.name == service.__name__]
+    event = json.loads(logs[-1].getMessage().split(": ", 1)[1])
+    assert event["chunk_index"] == failed_chunk
+    assert event["expected_segments"] == 20
+    assert event["actual_segments"] == 20 + difference
+    expected = {
+        "prompt_version": 2,
+        "chunk_index": failed_chunk,
+        "expected_segments": 20,
+        "actual_segments": 20 + difference,
+    }
+    assert job.configuration["failure_diagnostics"] == expected
+    client = client_for(owner)
+    assert client.get(path).data["results"][0]["error_details"] == expected
+    assert client.get(path + str(job.pk) + "/").data["error_details"] == expected
+
+
+def test_error_details_exclude_arbitrary_configuration_and_non_numeric_values():
+    owner, record, path = setup()
+    job = prepare(owner, record)
+    job.status = "failed"
+    job.configuration["failure_diagnostics"] = {
+        "expected_segments": 20,
+        "actual_segments": 0,
+        "chunk_index": "private provider error",
+        "segment_index": -1,
+        "prompt_version": True,
+        "raw_output": "secret original text",
+        "api_key": "secret-token",
+    }
+    job.save()
+    response = client_for(owner).get(path).data["results"][0]
+    assert response["error_details"] == {"expected_segments": 20, "actual_segments": 0}
+    assert "secret" not in json.dumps(response)
+    assert "private provider" not in json.dumps(response)
+    job.configuration["failure_diagnostics"] = "private provider error"
+    job.save()
+    assert client_for(owner).get(path).data["results"][0]["error_details"] == {}
+
+
+def test_legacy_failed_job_has_no_invented_diagnostic_counts():
+    owner, record, path = setup()
+    job = prepare(owner, record)
+    job.status = "failed"
+    job.error_code = "invalid_output"
+    job.save()
+    assert client_for(owner).get(path).data["results"][0]["error_details"] == {}
+
+
+def test_already_queued_job_keeps_its_prompt_version():
+    owner, record, _ = setup()
+    job = prepare(owner, record)
+    job.configuration["prompt_version"] = 1
+    job.save()
+    with patch.object(service, "LLMClient") as llm:
+        llm.return_value.chat.side_effect = output
+        service.execute(job.pk)
+        request = llm.return_value.chat.call_args.kwargs
+    assert request["system"] == service.LEGACY_SYSTEM
+    assert set(json.loads(request["user"])) == {"target", "segments"}
+    job.refresh_from_db()
+    assert job.status == "succeeded"
+
+
 def test_dispatch_failure_is_recoverable_and_repeat_dispatch_is_bounded():
     owner, record, _ = setup()
     job = prepare(owner, record)
