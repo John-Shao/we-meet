@@ -865,6 +865,7 @@ function WorkspaceContent({
                     viewerId={viewerId}
                     recordId={record.id}
                     onSource={canPlayUpload ? seekTo : undefined}
+                    positionMs={canPlayUpload ? follow.positionMs : undefined}
                   />
                 </RecordPanel>
               </TabPanel>

@@ -1,16 +1,24 @@
 import { useRecordInfiniteQuery } from '../hooks/useRecordInfiniteQuery'
 import { RecordLoadMore, RecordRefreshButton } from './RecordLoadMore'
 import { useRecordViewState } from '../hooks/useRecordViewState'
+import { useTranslationViewPreferences } from '../hooks/useTranslationViewPreferences'
+import { activeRowId } from '../transcriptSync'
 import { RecordPanelTools } from './RecordPanel'
 import { TranscriptExportControl } from './TranscriptExportControl'
 import { selectChrome } from '@/primitives/selectChrome'
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { RiRefreshLine, RiTranslate2 } from '@remixicon/react'
+import {
+  RiCheckLine,
+  RiInformationLine,
+  RiPlayFill,
+  RiRefreshLine,
+  RiTranslate2,
+} from '@remixicon/react'
 import { fetchApi } from '@/api/fetchApi'
 import { ApiError } from '@/api/ApiError'
-import { Button, Text } from '@/primitives'
+import { Button, Popover, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
 
 interface Translation {
@@ -31,7 +39,6 @@ interface Translation {
 }
 type Intent = { key: string; target: 'zh' | 'en'; expected_revision: number }
 const options = { retry: false, gcTime: 0, staleTime: 0 }
-const stack = css({ display: 'flex', flexDirection: 'column', gap: 'md' })
 // Translation timestamps are offsets in the source media, not wall-clock dates.
 const time = (ms: number) =>
   `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`
@@ -40,13 +47,16 @@ export function UploadTranslationPanel({
   viewerId,
   recordId,
   onSource,
+  positionMs,
 }: {
   viewerId: string
   recordId: string
   onSource?: (milliseconds: number) => void
+  positionMs?: number
 }) {
   const { t } = useTranslation('meetings', { keyPrefix: 'uploadTranslation' })
   const path = `meeting-records/${recordId}/upload-translations/`
+  const [preferences, setPreferences] = useTranslationViewPreferences(viewerId)
   const [target, setTarget] = useRecordViewState<'zh' | 'en'>(
     'translation-language',
     'en'
@@ -108,6 +118,7 @@ export function UploadTranslationPanel({
             text: string
             translated_text: string
             start_ms: number
+            end_ms?: number | null
             speaker_name: string
           }[]
         }
@@ -185,8 +196,32 @@ export function UploadTranslationPanel({
       </>
     )
   const stale = selected?.stale || detail.data?.stale
+  const rows = detail.data?.results ?? []
+  const currentId =
+    !stale && onSource && positionMs !== undefined
+      ? activeRowId(
+          rows.map((row, index) => ({
+            id: row.segment_id,
+            start_ms: row.start_ms,
+            end_ms: row.end_ms ?? rows[index + 1]?.start_ms ?? row.start_ms,
+          })),
+          positionMs
+        )
+      : null
+  const canGenerate =
+    listing.data.can_generate &&
+    (intent || !selected || selected.status !== 'succeeded' || stale)
   return (
-    <section className={stack} aria-label={t('title')}>
+    <section
+      className={css({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'sm',
+        minWidth: 0,
+        containerType: 'inline-size',
+      })}
+      aria-label={t('title')}
+    >
       <RecordPanelTools>
         {refresh}
         <label>
@@ -207,6 +242,59 @@ export function UploadTranslationPanel({
             <option value="zh">{t('zh')}</option>
           </select>
         </label>
+        <Button
+          size="sm"
+          variant="secondaryText"
+          aria-pressed={preferences.showOriginal}
+          icon={
+            preferences.showOriginal ? (
+              <RiCheckLine size={16} aria-hidden />
+            ) : undefined
+          }
+          className={css({
+            '&[aria-pressed="true"]': { backgroundColor: 'action.selected.bg' },
+          })}
+          onPress={() =>
+            setPreferences({ showOriginal: !preferences.showOriginal })
+          }
+        >
+          {t('showOriginal')}
+        </Button>
+        {preferences.showOriginal && (
+          <Button
+            size="sm"
+            variant="secondaryText"
+            aria-pressed={preferences.sideBySide}
+            className={css({
+              display: 'none',
+              '&[aria-pressed="true"]': {
+                backgroundColor: 'action.selected.bg',
+              },
+              '@container (min-width: 48rem)': { display: 'inline-flex' },
+            })}
+            onPress={() =>
+              setPreferences({ sideBySide: !preferences.sideBySide })
+            }
+          >
+            {t('sideBySide')}
+          </Button>
+        )}
+        {selected?.status === 'succeeded' && (
+          <Text variant="note" role="status">
+            {t('status.succeeded')}
+          </Text>
+        )}
+        <Popover aria-label={t('info')}>
+          <Button
+            size="sm"
+            variant="secondaryText"
+            aria-label={t('info')}
+            icon={<RiInformationLine size={16} aria-hidden />}
+          />
+          <Text className={css({ maxWidth: 'min(20rem, 80vw)' })}>
+            {t('description')}
+          </Text>
+        </Popover>
         {listing.data.can_generate &&
           (intent || !selected || selected.status !== 'succeeded' || stale) && (
             <Button
@@ -235,17 +323,19 @@ export function UploadTranslationPanel({
             />
           )}
       </RecordPanelTools>
-      <Text>{t('description')}</Text>
+      {canGenerate && <Text variant="note">{t('generationHint')}</Text>}
       {message && <Text role="alert">{t(message)}</Text>}
       {!selected ? (
         <Text>{t('empty')}</Text>
       ) : (
         <>
-          <Text role="status">
-            {t(`status.${selected.status}`)}{' '}
-            {['queued', 'running'].includes(selected.status) &&
-              `${selected.completed_chunks}/${selected.total_chunks}`}
-          </Text>
+          {selected.status !== 'succeeded' && (
+            <Text role="status">
+              {t(`status.${selected.status}`)}{' '}
+              {['queued', 'running'].includes(selected.status) &&
+                `${selected.completed_chunks}/${selected.total_chunks}`}
+            </Text>
+          )}
           {stale && <Text role="status">{t('stale')}</Text>}
           {selected.status === 'succeeded' && !detail.data && (
             <Text>{t('loading')}</Text>
@@ -259,24 +349,99 @@ export function UploadTranslationPanel({
                     containIntrinsicSize: 'auto 160px',
                   }}
                   key={row.segment_id}
-                  className={stack}
+                  data-active={row.segment_id === currentId || undefined}
+                  aria-current={
+                    row.segment_id === currentId ? 'true' : undefined
+                  }
+                  className={css({
+                    paddingY: 'sm',
+                    paddingX: 'md',
+                    minWidth: 0,
+                    borderBottomWidth: '1px',
+                    borderColor: 'border.subtle',
+                    borderInlineStartWidth: '3px',
+                    borderInlineStartColor: 'transparent',
+                    '&[data-active]': {
+                      backgroundColor: 'action.selected.bg',
+                      borderInlineStartColor: 'text.link',
+                    },
+                  })}
                 >
-                  <Text>
-                    {row.speaker_name} · {time(row.start_ms)}
-                  </Text>
-                  {onSource && !stale && (
-                    <Button
-                      variant="tertiary"
-                      size="sm"
-                      onPress={() => onSource(row.start_ms)}
+                  <div
+                    className={css({
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'sm',
+                      minWidth: 0,
+                    })}
+                  >
+                    <Text
+                      variant="note"
+                      className={css({
+                        flex: 1,
+                        minWidth: 0,
+                        overflowWrap: 'anywhere',
+                      })}
                     >
-                      {t('play')}
-                    </Button>
-                  )}
-                  <Text variant="note">
-                    {t('original')}: {row.text}
-                  </Text>
-                  <Text>{row.translated_text}</Text>
+                      {!row.speaker_name.trim() ||
+                      row.speaker_name.trim().toLowerCase() === 'unknown'
+                        ? t('unknownSpeaker')
+                        : row.speaker_name}
+                      {row.segment_id === currentId && (
+                        <span> · {t('currentSegment')}</span>
+                      )}
+                    </Text>
+                    {onSource && !stale ? (
+                      <Button
+                        variant="secondaryText"
+                        size="sm"
+                        aria-label={`${t('play')} ${time(row.start_ms)}`}
+                        icon={<RiPlayFill size={16} aria-hidden />}
+                        className={css({
+                          flexShrink: 0,
+                          minHeight: '44px',
+                          fontVariantNumeric: 'tabular-nums',
+                        })}
+                        onPress={() => onSource(row.start_ms)}
+                      >
+                        {time(row.start_ms)}
+                      </Button>
+                    ) : (
+                      <Text variant="note">{time(row.start_ms)}</Text>
+                    )}
+                  </div>
+                  <div
+                    data-compare={
+                      (preferences.showOriginal && preferences.sideBySide) ||
+                      undefined
+                    }
+                    className={css({
+                      display: 'grid',
+                      gap: 'sm',
+                      paddingBottom: 'sm',
+                      '& p': {
+                        margin: 0,
+                        whiteSpace: 'pre-wrap',
+                        overflowWrap: 'anywhere',
+                        minWidth: 0,
+                        lineHeight: 1.7,
+                      },
+                      '@container (min-width: 48rem)': {
+                        '&[data-compare]': {
+                          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+                          columnGap: 'lg',
+                          '& [data-original]': { gridColumn: 1, gridRow: 1 },
+                        },
+                      },
+                    })}
+                  >
+                    <Text lang={target}>{row.translated_text}</Text>
+                    {preferences.showOriginal && (
+                      <Text variant="note" data-original>
+                        {row.text}
+                      </Text>
+                    )}
+                  </div>
                 </article>
               ))}
               <RecordLoadMore query={detail} disabled={saving} />

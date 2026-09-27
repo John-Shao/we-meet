@@ -915,6 +915,12 @@
     "retentionHint": "Der Papierkorb wird nicht automatisch geleert. Stellen Sie eine Aufnahme wieder her oder löschen Sie sie ausdrücklich endgültig."
   },
   "uploadTranslation": {
+    "showOriginal": "Original anzeigen",
+    "sideBySide": "Nebeneinander",
+    "info": "Über die Übersetzung",
+    "generationHint": "Übersetzungen können KI-Kontingent verbrauchen. Fehlgeschlagene Aufgaben können manuell wiederholt werden.",
+    "currentSegment": "Aktueller Abschnitt",
+    "unknownSpeaker": "Unbekannte Person",
     "export": "Übersetzung exportieren",
     "title": "Vollständige Übersetzung",
     "description": "Das korrigierte Transkript übersetzen. Leser des Originals können Übersetzungen lesen. Die Erstellung verbraucht KI-Kontingent; Wiederholungen erfolgen manuell.",

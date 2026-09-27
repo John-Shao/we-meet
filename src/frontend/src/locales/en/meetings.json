@@ -930,6 +930,12 @@
     "retentionHint": "Trash is not cleared automatically. Restore a recording, or explicitly delete it permanently."
   },
   "uploadTranslation": {
+    "showOriginal": "Show original",
+    "sideBySide": "Side by side",
+    "info": "About translation",
+    "generationHint": "Generating translations may incur AI usage. Failed tasks can be retried manually.",
+    "currentSegment": "Current segment",
+    "unknownSpeaker": "Unknown speaker",
     "export": "Export translation",
     "title": "Full transcript translation",
     "description": "Translate the corrected full transcript. Readers with original-text access can view translations. Generation may incur AI usage; retries are manual.",

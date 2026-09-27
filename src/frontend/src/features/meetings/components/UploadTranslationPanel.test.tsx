@@ -1,5 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { fetchApi } from '@/api/fetchApi'
 import { ApiError } from '@/api/ApiError'
@@ -25,7 +32,7 @@ const job = () => ({
   completed_chunks: 1,
   total_chunks: 1,
 })
-const show = (onSource = vi.fn()) => {
+const show = (onSource = vi.fn(), positionMs?: number) => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -33,6 +40,7 @@ const show = (onSource = vi.fn()) => {
         viewerId="owner"
         recordId="record"
         onSource={onSource}
+        positionMs={positionMs}
       />
     </QueryClientProvider>
   )
@@ -60,6 +68,7 @@ beforeEach(() => {
           {
             segment_id: next ? 'last' : 'first',
             start_ms: startMs,
+            end_ms: startMs + 2000,
             speaker_name: 'Speaker',
             text: next ? 'Last original' : 'Original',
             translated_text: next ? 'Last translation' : 'Translated',
@@ -85,8 +94,8 @@ it.each([
     startMs = milliseconds
     const seek = show()
     await screen.findByText('Translated')
-    expect(screen.getByText(`Speaker · ${expected}`)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'play' }))
+    expect(screen.getByText('Speaker')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: `play ${expected}` }))
     expect(seek).toHaveBeenCalledWith(milliseconds)
   }
 )
@@ -94,8 +103,8 @@ it.each([
 it('reads aligned text, seeks the original clock, exports the selected translation and appends pages while retaining earlier text', async () => {
   const seek = show()
   await screen.findByText('Translated')
-  expect(screen.getByText('original: Original')).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'play' }))
+  expect(screen.getByText('Original')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /^play / }))
   expect(seek).toHaveBeenCalledWith(1200)
   fireEvent.click(
     screen.getByRole('button', { name: 'uploadTranslation.export' })
@@ -109,13 +118,96 @@ it('reads aligned text, seeks the original clock, exports the selected translati
   await screen.findByText('Last translation')
   expect(screen.queryByText('Translated')).toBeInTheDocument()
 })
-it('marks a stale snapshot and disables its export and seek', async () => {
-  stale = true
+it('remembers original visibility and comparison layout across reopening', async () => {
   show()
   await screen.findByText('Translated')
+  expect(
+    screen
+      .getByText('Translated')
+      .compareDocumentPosition(screen.getByText('Original')) &
+      Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'sideBySide' }))
+  expect(screen.getByText('Translated').parentElement).toHaveAttribute(
+    'data-compare',
+    'true'
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'showOriginal' }))
+  expect(screen.queryByText('Original')).not.toBeInTheDocument()
+  expect(screen.getByText('Translated')).toBeInTheDocument()
+  cleanup()
+  client.clear()
+  show()
+  await screen.findByText('Translated')
+  expect(screen.getByRole('button', { name: 'showOriginal' })).toHaveAttribute(
+    'aria-pressed',
+    'false'
+  )
+  expect(screen.queryByText('Original')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'showOriginal' }))
+  expect(screen.getByRole('button', { name: 'sideBySide' })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  )
+})
+
+it('keeps the explanation behind an accessible information action', async () => {
+  show()
+  await screen.findByText('Translated')
+  expect(screen.queryByText('description')).not.toBeInTheDocument()
+  expect(screen.queryByText('generationHint')).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'info' }))
+  expect(await screen.findByText('description')).toBeInTheDocument()
+})
+
+it.each([
+  [1200, true],
+  [3199, true],
+  [3200, false],
+  [1000, false],
+])(
+  'highlights the source window at %i only when active (%s)',
+  async (position, active) => {
+    show(vi.fn(), position)
+    const text = await screen.findByText('Translated')
+    expect(text.closest('article')?.hasAttribute('aria-current')).toBe(active)
+  }
+)
+
+it.each(['Unknown', ' unknown ', ''])(
+  'localizes unknown speaker label %s',
+  async (speaker) => {
+    const read = vi.mocked(fetchApi).getMockImplementation()!
+    vi.mocked(fetchApi).mockImplementation(async (path, options) => {
+      const result = (await read(path, options)) as { results: object[] }
+      return path.includes('?page=')
+        ? {
+            ...result,
+            results: result.results.map((row) => ({
+              ...row,
+              speaker_name: speaker,
+            })),
+          }
+        : result
+    })
+    show()
+    await screen.findByText('Translated')
+    expect(screen.getByText('unknownSpeaker')).toBeInTheDocument()
+  }
+)
+
+it('marks a stale snapshot and disables its export and seek', async () => {
+  stale = true
+  show(vi.fn(), 1500)
+  await screen.findByText('Translated')
   expect(screen.getByText('stale')).toBeInTheDocument()
+  expect(screen.getByText('Translated').closest('article')).not.toHaveAttribute(
+    'aria-current'
+  )
   expect(screen.queryByRole('link')).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'play' })).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: /^play / })
+  ).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'regenerate' })).toBeEnabled()
 })
 it('removes protected text when access revalidation fails and hides generation for readers', async () => {

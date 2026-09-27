@@ -63,7 +63,20 @@ vi.mock('../components/CaptureTranslationArchives', () => ({
   }) => <p>{`capture-translations:${viewerId}:${recordId}:${captureId}`}</p>,
 }))
 vi.mock('../components/UploadTranslationPanel', () => ({
-  UploadTranslationPanel: () => <p>upload-full-translation</p>,
+  UploadTranslationPanel: ({
+    onSource,
+    positionMs,
+  }: {
+    onSource?: (ms: number) => void
+    positionMs?: number
+  }) => (
+    <div>
+      <p data-position={positionMs}>upload-full-translation</p>
+      {onSource && (
+        <button onClick={() => onSource(2200)}>seek-translation</button>
+      )}
+    </div>
+  ),
 }))
 vi.mock('../components/RecordSummaryPanel', () => ({
   RecordSummaryPanel: ({
@@ -342,6 +355,17 @@ it('opens upload full translation without a capture ID', async () => {
   expect(
     screen.getByRole('tab', { name: 'translationArchive.title' })
   ).toHaveAttribute('aria-selected', 'true')
+  fireEvent.click(screen.getByRole('button', { name: 'seek-player' }))
+  expect(screen.getByText('upload-full-translation')).toHaveAttribute(
+    'data-position',
+    '1500'
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'seek-translation' }))
+  expect(mocks.seek).toHaveBeenCalledWith(2200)
+  expect(screen.getByText('upload-full-translation')).toHaveAttribute(
+    'data-position',
+    '2200'
+  )
 })
 
 it('opens a standalone document directly from the minutes library without selecting a historical version', async () => {

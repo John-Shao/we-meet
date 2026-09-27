@@ -915,6 +915,12 @@
     "retentionHint": "De prullenbak wordt niet automatisch geleegd. Herstel een opname of kies expliciet voor definitief verwijderen."
   },
   "uploadTranslation": {
+    "showOriginal": "Origineel tonen",
+    "sideBySide": "Naast elkaar",
+    "info": "Over vertalingen",
+    "generationHint": "Vertalen kan AI-tegoed verbruiken. Mislukte taken kunnen handmatig opnieuw worden gestart.",
+    "currentSegment": "Huidig fragment",
+    "unknownSpeaker": "Onbekende spreker",
     "export": "Vertaling exporteren",
     "title": "Volledige vertaling",
     "description": "Vertaal het gecorrigeerde transcript. Lezers van de originele tekst kunnen vertalingen lezen. Genereren verbruikt AI-tegoed; opnieuw proberen gebeurt handmatig.",
