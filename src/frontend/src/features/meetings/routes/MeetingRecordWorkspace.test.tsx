@@ -477,10 +477,20 @@ it('reads an owner’s stopped cloud capture without any local journal or device
   fireEvent.click(screen.getByText('asr-controls'))
   expect(mocks.seek).toHaveBeenCalledWith(500)
   fireEvent.click(screen.getByRole('tab', { name: 'recordOverview.title' }))
+  expect(await screen.findByText('Recording overview')).toBeInTheDocument()
+  expect(screen.queryByText('Main talking point')).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: /recordAi.listenSource/ })
+  ).not.toBeInTheDocument()
+  fireEvent.click(
+    screen.getByRole('tab', { name: 'recordAi.sections.chapters' })
+  )
+  expect(await screen.findByText('Main talking point')).toBeInTheDocument()
+  expect(screen.queryByText('Recording overview')).not.toBeInTheDocument()
   fireEvent.click(
     await screen.findByRole('button', { name: 'recordAi.listenSource 0:03' })
   )
-  expect(mocks.seek).toHaveBeenCalledWith(1000) // Record time to capture time.
+  expect(mocks.seek).toHaveBeenLastCalledWith(1000) // Record time to capture time.
   expect(
     vi
       .mocked(fetchApi)
