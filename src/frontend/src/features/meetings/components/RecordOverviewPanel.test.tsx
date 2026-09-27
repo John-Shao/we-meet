@@ -31,11 +31,16 @@ const version = {
 }
 let client: QueryClient
 let state: Record<string, unknown>
-function show() {
+function show(chaptersOnly = false, onSourceAudio?: (ms: number) => void) {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <RecordOverviewPanel viewerId="owner" recordId="record" />
+      <RecordOverviewPanel
+        viewerId="owner"
+        recordId="record"
+        chaptersOnly={chaptersOnly}
+        onSourceAudio={onSourceAudio}
+      />
     </QueryClientProvider>
   )
 }
@@ -303,4 +308,78 @@ it('summary readers cannot generate and stale data disappears on a refused refre
   })
   await screen.findByText('library.loadError')
   expect(screen.queryByText('Independent overview')).toBeNull()
+})
+
+const topics = [
+  {
+    title: 'First chapter',
+    text: 'Chapter details',
+    source_refs: [5000, 1000, 3000].map((ms) => ({
+      segment_id: `source-${ms}`,
+      segment_revision: 1,
+      start_ms: ms,
+      end_ms: ms + 1000,
+    })),
+  },
+]
+
+it('shows only the synopsis in overview, even when saved chapters exist', async () => {
+  state = {
+    ...state,
+    version: { ...version, content: { ...version.content, topics } },
+  }
+  show(false, vi.fn())
+  await screen.findByText(version.content.synopsis)
+  expect(screen.queryByText('First chapter')).toBeNull()
+  expect(screen.queryByText('Chapter details')).toBeNull()
+  expect(screen.queryByText('recordOverview.moreSources')).toBeNull()
+  expect(screen.getByText('recordOverview.hint')).toBeVisible()
+})
+
+it('shows chapters without synopsis and expands references without changing their playback times', async () => {
+  state = {
+    ...state,
+    version: { ...version, content: { ...version.content, topics } },
+  }
+  const seek = vi.fn()
+  show(true, seek)
+  await screen.findByText('Chapter details')
+  expect(screen.queryByText(version.content.synopsis)).toBeNull()
+  expect(screen.getByText('recordOverview.chaptersHint')).toBeVisible()
+  expect(screen.getByText('recordAi.listenSource 0:03')).not.toBeVisible()
+  fireEvent.click(
+    screen.getByRole('button', { name: 'recordAi.listenSource 0:01' })
+  )
+  expect(seek).toHaveBeenLastCalledWith(1000)
+  await userEvent.click(screen.getByText('recordOverview.moreSources'))
+  expect(
+    screen.getAllByRole('button', { name: /recordAi.listenSource/ })
+  ).toHaveLength(3)
+  fireEvent.click(
+    screen.getByRole('button', { name: 'recordAi.listenSource 0:03' })
+  )
+  expect(seek).toHaveBeenLastCalledWith(3000)
+  await userEvent.click(screen.getByText('recordOverview.moreSources'))
+  expect(screen.getByText('recordAi.listenSource 0:03')).not.toBeVisible()
+  expect(
+    vi
+      .mocked(fetchApi)
+      .mock.calls.some(([, options]) => options?.method === 'POST')
+  ).toBe(false)
+})
+
+it('keeps chapter text without playback permission and handles an empty chapter list', async () => {
+  state = {
+    ...state,
+    version: { ...version, content: { ...version.content, topics } },
+  }
+  show(true)
+  await screen.findByText('Chapter details')
+  expect(screen.queryByText('recordOverview.moreSources')).toBeNull()
+  state = { ...state, version }
+  await act(async () => {
+    await client.invalidateQueries()
+  })
+  await screen.findByText('recordOverview.chaptersEmpty')
+  expect(screen.queryByText(version.content.synopsis)).toBeNull()
 })

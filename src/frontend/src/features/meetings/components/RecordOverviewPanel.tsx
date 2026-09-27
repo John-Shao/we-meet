@@ -23,7 +23,10 @@ import {
   useSetOverviewLanguage,
 } from '../api/recordOverview'
 import { isSummaryPayload, useSummaryIntent } from '../hooks/useSummaryIntent'
-import type { SummaryRequestPayload } from '../api/ApiMeetingRecord'
+import type {
+  RecordSourceReference,
+  SummaryRequestPayload,
+} from '../api/ApiMeetingRecord'
 import { formatDateTime } from '../recordDateTime'
 
 /** Independent original-text generation; never reads a minutes version. */
@@ -206,7 +209,11 @@ export function RecordOverviewPanel({
           )}
         </div>
       )}
-      <Text variant="note">{t('recordOverview.hint')}</Text>
+      <Text variant="note">
+        {t(
+          chaptersOnly ? 'recordOverview.chaptersHint' : 'recordOverview.hint'
+        )}
+      </Text>
       {state?.can_generate && (
         <div>
           {!state.generation_ready && (
@@ -278,7 +285,10 @@ export function RecordOverviewPanel({
             <Text variant="note">{t('recordAi.asr.incomplete')}</Text>
           )}
           {!chaptersOnly && <Text>{version.content.synopsis}</Text>}
-          {version.content.topics.length > 0 && (
+          {chaptersOnly && version.content.topics.length === 0 && (
+            <StateHint>{t('recordOverview.chaptersEmpty')}</StateHint>
+          )}
+          {chaptersOnly && version.content.topics.length > 0 && (
             <ul
               className={css({
                 listStyleType: 'disc',
@@ -290,25 +300,15 @@ export function RecordOverviewPanel({
               })}
             >
               {version.content.topics.map((point, index) => (
-                <li key={index}>
+                <li key={`${version.id}:${index}`}>
                   <strong>{point.title}</strong>
                   <Text>{point.text}</Text>
-                  {onSourceAudio &&
-                    point.source_refs.map((ref, i) => (
-                      <Button
-                        key={i}
-                        size="sm"
-                        variant="secondaryText"
-                        onPress={() => onSourceAudio(ref.start_ms)}
-                      >
-                        {t('recordAi.listenSource')}{' '}
-                        {Math.floor(ref.start_ms / 60000)}:
-                        {String(Math.floor(ref.start_ms / 1000) % 60).padStart(
-                          2,
-                          '0'
-                        )}
-                      </Button>
-                    ))}
+                  {onSourceAudio && (
+                    <ChapterSources
+                      sources={point.source_refs}
+                      onSourceAudio={onSourceAudio}
+                    />
+                  )}
                 </li>
               ))}
             </ul>
@@ -316,5 +316,58 @@ export function RecordOverviewPanel({
         </article>
       )}
     </section>
+  )
+}
+
+function ChapterSources({
+  sources,
+  onSourceAudio,
+}: {
+  sources: RecordSourceReference[]
+  onSourceAudio: (milliseconds: number) => void
+}) {
+  const { t } = useTranslation('meetings')
+  const ordered = [...sources].sort((a, b) => a.start_ms - b.start_ms)
+  const renderSource = (ref: RecordSourceReference, index: number) => (
+    <Button
+      key={index}
+      size="sm"
+      variant="secondaryText"
+      onPress={() => onSourceAudio(ref.start_ms)}
+    >
+      {t('recordAi.listenSource')} {Math.floor(ref.start_ms / 60000)}:
+      {String(Math.floor(ref.start_ms / 1000) % 60).padStart(2, '0')}
+    </Button>
+  )
+  return (
+    <>
+      {ordered[0] && renderSource(ordered[0], 0)}
+      {ordered.length > 1 && (
+        <details>
+          <summary
+            className={css({
+              cursor: 'pointer',
+              color: 'text.link',
+              textStyle: 'labelMedium',
+              paddingY: 'sm',
+              _focusVisible: {
+                outline: '2px solid token(colors.border.focus)',
+              },
+            })}
+          >
+            {t('recordOverview.moreSources', { count: ordered.length - 1 })}
+          </summary>
+          <div
+            className={css({
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+            })}
+          >
+            {ordered.slice(1).map(renderSource)}
+          </div>
+        </details>
+      )}
+    </>
   )
 }

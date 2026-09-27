@@ -816,6 +816,9 @@
     "recordedAt": "Vergadertijd"
   },
   "recordOverview": {
+    "chaptersHint": "Bekijk de inhoud per hoofdstuk en ga naar de bron.",
+    "chaptersEmpty": "Geen hoofdstuknotities beschikbaar.",
+    "moreSources": "Overige bronverwijzingen ({{count}})",
     "title": "Overzicht",
     "hint": "Een kort overzicht van de opname en de belangrijkste punten.",
     "openMinutes": "AI-notulen openen",

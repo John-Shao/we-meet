@@ -831,6 +831,9 @@
     "recordedAt": "会议时间"
   },
   "recordOverview": {
+    "chaptersHint": "按章节回顾详细内容，定位对应原文。",
+    "chaptersEmpty": "暂无章节纪要。",
+    "moreSources": "其他原文引用（{{count}}）",
     "title": "概要",
     "hint": "快速了解录音内容与主要观点。",
     "openMinutes": "打开智能纪要",

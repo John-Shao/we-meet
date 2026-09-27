@@ -831,6 +831,9 @@
     "recordedAt": "Meeting time"
   },
   "recordOverview": {
+    "chaptersHint": "Review the recording by chapter and jump to the source.",
+    "chaptersEmpty": "No chapter notes available.",
+    "moreSources": "Other source references ({{count}})",
     "title": "Overview",
     "hint": "A quick overview of the recording and its main points.",
     "openMinutes": "Open AI minutes",

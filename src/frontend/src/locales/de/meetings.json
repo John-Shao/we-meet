@@ -816,6 +816,9 @@
     "recordedAt": "Besprechungszeit"
   },
   "recordOverview": {
+    "chaptersHint": "Sehen Sie die Inhalte kapitelweise durch und springen Sie zur Quelle.",
+    "chaptersEmpty": "Keine Kapitelnotizen verfügbar.",
+    "moreSources": "Weitere Quellenverweise ({{count}})",
     "title": "Überblick",
     "hint": "Ein kurzer Überblick über die Aufnahme und ihre Kernaussagen.",
     "openMinutes": "KI-Protokoll öffnen",

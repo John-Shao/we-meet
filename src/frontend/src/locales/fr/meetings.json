@@ -816,6 +816,9 @@
     "recordedAt": "Date de la réunion"
   },
   "recordOverview": {
+    "chaptersHint": "Parcourez le contenu par chapitre et accédez à la source.",
+    "chaptersEmpty": "Aucune note de chapitre disponible.",
+    "moreSources": "Autres références à la source ({{count}})",
     "title": "Aperçu",
     "hint": "Un aperçu de l’enregistrement et de ses points clés.",
     "openMinutes": "Ouvrir le compte rendu IA",

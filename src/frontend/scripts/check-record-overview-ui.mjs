@@ -1,6 +1,6 @@
 // Local fixtures only: verify the recording digest and standalone minutes surfaces.
 import assert from 'node:assert/strict'
-import { chromium } from '@playwright/test'
+import { chromium, expect } from '@playwright/test'
 
 const origin = process.env.CAPTURE_TEST_ORIGIN || 'http://127.0.0.1:3187'
 const browser = await chromium.launch({ headless: true })
@@ -68,9 +68,9 @@ try {
   })
   const page = await context.newPage(), errors = []
   page.on('pageerror', error => errors.push(error.message))
-  const mount = async tab => {
+  const mount = async (tab, sourcesOnly = false) => {
     await page.goto(`${origin}/overview-ui-harness?tab=${tab}`)
-    await page.evaluate(async () => {
+    await page.evaluate(async sourcesOnly => {
       const runtime = (await import('/@react-refresh')).default
       runtime.injectIntoGlobalHook(window)
       window.$RefreshReg$ = () => undefined
@@ -82,9 +82,13 @@ try {
       const { createRoot } = (await import('/node_modules/.vite/deps/react-dom_client.js')).default
       const { QueryClient, QueryClientProvider } = await import('/node_modules/.vite/deps/@tanstack_react-query.js')
       const { RecordWorkspace } = await import('/src/features/meetings/routes/MeetingRecordWorkspace.tsx')
+      const { RecordOverviewPanel } = await import('/src/features/meetings/components/RecordOverviewPanel.tsx')
       window.overviewClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      createRoot(document.getElementById('root')).render(React.createElement(React.Suspense, { fallback: 'Loading…' }, React.createElement(QueryClientProvider, { client: window.overviewClient }, React.createElement(RecordWorkspace, { viewerId: 'viewer', recordId: 'record' }))))
-    })
+      const content = sourcesOnly
+        ? React.createElement(RecordOverviewPanel, { viewerId: 'viewer', recordId: 'record', chaptersOnly: true, onSourceAudio: ms => { window.lastSource = ms } })
+        : React.createElement(RecordWorkspace, { viewerId: 'viewer', recordId: 'record' })
+      createRoot(document.getElementById('root')).render(React.createElement(React.Suspense, { fallback: 'Loading…' }, React.createElement(QueryClientProvider, { client: window.overviewClient }, content)))
+    }, sourcesOnly)
   }
   await mount('overview')
   await page.getByRole('tab', { name: '概要', exact: true }).waitFor()
@@ -108,6 +112,11 @@ try {
   await page.setViewportSize({ width: 390, height: 844 })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
   await page.screenshot({ path: 'test-results/record-overview-mobile.png', fullPage: true })
+  await expect(page.getByText(version.content.chapters[0].text, { exact: true })).toHaveCount(0)
+  await page.getByRole('tab', { name: '章节纪要', exact: true }).click()
+  await expect(page.getByText(version.content.chapters[0].text, { exact: true })).toBeVisible()
+  await expect(page.getByText(overviewText, { exact: true })).toHaveCount(0)
+  await page.screenshot({ path: 'test-results/record-chapters-mobile.png', fullPage: true })
   await page.getByRole('link', { name: '打开智能纪要' }).click()
   await page.getByRole('heading', { name: '智能纪要：企业管理思维分享', level: 2 }).waitFor()
   await page.getByText(version.content.decisions[0].text, { exact: true }).waitFor()
@@ -123,5 +132,22 @@ try {
   assert.equal(await page.getByRole('heading', { name: '智能纪要：企业管理思维分享', exact: true }).count(), 0)
   assert.deepEqual(errors, [])
   assert.equal(overviewPosts, 1)
+  denied = false
+  overviewResult.content.topics = [{ title: 'Source fixture', text: 'Chapter source details', source_refs: [5000, 1000, 3000].map(ms => ({ ...reference, segment_id: `source-${ms}`, start_ms: ms, end_ms: ms + 1000 })) }]
+  for (const width of [1100, 390]) {
+    await page.setViewportSize({ width, height: 850 })
+    await mount('chapters', true)
+    await expect(page.getByText('Chapter source details')).toBeVisible()
+    await expect(page.getByRole('button', { name: '回听这段原音 0:01', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '回听这段原音 0:03', exact: true })).toHaveCount(0)
+    await page.locator('summary').click()
+    await page.getByRole('button', { name: '回听这段原音 0:03', exact: true }).click()
+    assert.equal(await page.evaluate(() => window.lastSource), 3000)
+    await page.locator('summary').click()
+    await expect(page.getByRole('button', { name: '回听这段原音 0:03', exact: true })).toHaveCount(0)
+    await page.screenshot({ path: `test-results/record-chapter-sources-${width}.png`, fullPage: true })
+  }
+  assert.equal(overviewPosts, 1)
+  assert.deepEqual(errors, [])
   console.log('Independent overview UI passed: explicit generation, separate endpoint and result, minutes navigation, desktop/mobile layout and revoked access. All HTTP intercepted.')
 } finally { await browser.close() }
