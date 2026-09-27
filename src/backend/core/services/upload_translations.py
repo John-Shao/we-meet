@@ -10,9 +10,11 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from openai import APIConnectionError, APIStatusError, APITimeoutError
+
 from core import models
 from core.services import ai_usage
-from core.services.llm_client import LLMClient
+from core.services.llm_client import LLMClient, LLMIncompleteOutput
 from core.services.meeting_records import RecordConflict, visible_records
 from core.services.upload_summary_source import source
 
@@ -183,28 +185,93 @@ def tick():
         dispatch(pk)
 
 
+class TranslationOutputError(ValueError):
+    """Internal validation code and numeric metadata; never retain model text."""
+
+    def __init__(self, code, **diagnostics):
+        self.code = code
+        self.diagnostics = diagnostics
+        super().__init__(code)
+
+
 def validate(raw, batch):
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise TranslationOutputError("output_invalid_json") from exc
     if (
         not isinstance(data, dict)
         or set(data) != {"segments"}
         or not isinstance(data["segments"], list)
     ):
-        raise ValueError("invalid_output")
+        raise TranslationOutputError("output_schema_mismatch")
     rows = data["segments"]
+
+    def invalid(code, **details):
+        return TranslationOutputError(code, actual_segments=len(rows), **details)
+
     if len(rows) != len(batch):
-        raise ValueError("incomplete_output")
-    for translated, original in zip(rows, batch, strict=True):
-        if (
-            not isinstance(translated, dict)
-            or set(translated) != {"id", "text"}
-            or translated["id"] != original["segment_id"]
-            or not isinstance(translated["text"], str)
-            or not translated["text"].strip()
-            or len(translated["text"].encode()) > 24000
-        ):
-            raise ValueError("invalid_output")
+        raise invalid("output_segment_count_mismatch")
+    for index, translated in enumerate(rows, 1):
+        if not isinstance(translated, dict) or set(translated) != {"id", "text"}:
+            raise invalid("output_schema_mismatch", segment_index=index)
+        if not isinstance(translated["id"], str):
+            raise invalid("output_segment_id_mismatch", segment_index=index)
+        if not isinstance(translated["text"], str) or not translated["text"].strip():
+            raise invalid("output_empty_text", segment_index=index)
+        if len(translated["text"].encode()) > 24000:
+            raise invalid("output_text_too_long", segment_index=index)
+    expected = [row["segment_id"] for row in batch]
+    actual = [row["id"] for row in rows]
+    if actual != expected:
+        code = (
+            "output_segment_order_mismatch"
+            if sorted(actual) == sorted(expected)
+            else "output_segment_id_mismatch"
+        )
+        raise invalid(
+            code,
+            segment_index=next(
+                i
+                for i, (a, b) in enumerate(zip(actual, expected, strict=True), 1)
+                if a != b
+            ),
+        )
     return [row["text"] for row in rows]
+
+
+def failure(exc, stage):
+    """Only allowlisted error codes and bounded metadata may reach logs or APIs."""
+    if isinstance(exc, TranslationOutputError):
+        return exc.code, exc.diagnostics
+    if isinstance(exc, LLMIncompleteOutput):
+        return (
+            "output_truncated"
+            if exc.finish_reason == "length"
+            else "output_not_complete",
+            {"finish_reason": exc.finish_reason},
+        )
+    if isinstance(exc, APIConnectionError):
+        return (
+            "provider_timeout"
+            if isinstance(exc, APITimeoutError)
+            else "provider_connection_failed",
+            {},
+        )
+    if isinstance(exc, APIStatusError):
+        status = exc.status_code
+        code = {
+            401: "provider_auth_failed",
+            403: "provider_auth_failed",
+            429: "provider_rate_limited",
+        }.get(status, "provider_http_error")
+        return code, {"http_status": status}
+    if stage == "source_plan" and isinstance(exc, ValueError):
+        return "source_budget_exceeded", {}
+    return (
+        "provider_unavailable" if stage == "provider_call" else "execution_failed",
+        {},
+    )
 
 
 def execute(job_id):
@@ -218,6 +285,7 @@ def execute(job_id):
         "record", "requested_by"
     ).get(pk=job_id)
     content, client, status, code = [], None, "succeeded", ""
+    stage, chunk_index, expected_segments = "client_setup", None, None
     try:
         client = LLMClient(
             api_key=settings.DASHSCOPE_API_KEY,
@@ -226,10 +294,15 @@ def execute(job_id):
             timeout=30,
             max_retries=0,
         )
-        for index, batch in enumerate(chunks(job.source)):
+        stage = "source_plan"
+        plan = chunks(job.source)
+        for index, batch in enumerate(plan):
+            chunk_index, expected_segments = index + 1, len(batch)
+            stage = "access_check"
             if not current(job):
                 status, code = "canceled", "source_or_access_changed"
                 break
+            stage = "provider_call"
             raw = client.chat(
                 system=SYSTEM,
                 user=json.dumps(
@@ -255,14 +328,32 @@ def execute(job_id):
                     infer_organization=False,
                 ),
             )
+            stage = "output_validation"
             content.extend(validate(raw, batch))
+            stage = "progress_save"
             models.UploadTranscriptTranslation.objects.filter(
                 pk=job.pk, status="running"
             ).update(completed_chunks=index + 1)
     except Exception as exc:  # noqa: BLE001 -- never expose provider data or quoted originals
-        status, code = (
-            "failed",
-            "invalid_output" if isinstance(exc, ValueError) else "provider_unavailable",
+        status = "failed"
+        code, details = failure(exc, stage)
+        # No exception message/traceback, source text, output text, URLs or headers.
+        logger.warning(
+            "Upload translation failed: %s",
+            json.dumps(
+                {
+                    "job_id": str(job.pk),
+                    "record_id": str(job.record_id),
+                    "error_code": code,
+                    "stage": stage,
+                    "chunk_index": chunk_index,
+                    "total_chunks": job.total_chunks,
+                    "expected_segments": expected_segments,
+                    "actual_segments": None,
+                    **details,
+                },
+                sort_keys=True,
+            ),
         )
     finally:
         if client:

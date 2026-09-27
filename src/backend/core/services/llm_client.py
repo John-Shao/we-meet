@@ -55,6 +55,19 @@ class LLMUnavailable(RuntimeError):
     """Raised when the LLM client cannot be constructed (missing config)."""
 
 
+class LLMIncompleteOutput(ValueError):
+    """A non-successful completion, with only a safe provider reason retained."""
+
+    def __init__(self, finish_reason):
+        self.finish_reason = (
+            finish_reason
+            if finish_reason
+            in ("length", "content_filter", "tool_calls", "function_call")
+            else "unknown"
+        )
+        super().__init__("The provider did not complete the requested output.")
+
+
 class LLMClient:
     """Thin wrapper around ``openai.OpenAI`` for chat completion + embedding."""
 
@@ -135,7 +148,9 @@ class LLMClient:
         if require_complete and (
             not resp.choices or resp.choices[0].finish_reason != "stop"
         ):
-            raise ValueError("The provider did not complete the requested output.")
+            raise LLMIncompleteOutput(
+                resp.choices[0].finish_reason if resp.choices else None
+            )
         return (resp.choices[0].message.content or "").strip()
 
     def _report_usage(self, usage_sink, response):

@@ -66,7 +66,10 @@ beforeEach(() => {
       }
     })
 })
-afterEach(() => client?.clear())
+afterEach(() => {
+  client?.clear()
+  vi.useRealTimers()
+})
 
 it('reads aligned text, seeks the original clock, exports the selected translation and appends pages while retaining earlier text', async () => {
   const seek = show()
@@ -157,4 +160,91 @@ it('rejects a response bound to another record', async () => {
   show()
   expect(await screen.findByRole('alert')).toHaveTextContent('unavailable')
   expect(screen.queryByText('Translated')).not.toBeInTheDocument()
+})
+
+const listReads = () =>
+  vi
+    .mocked(fetchApi)
+    .mock.calls.filter(
+      ([path, options]) =>
+        path.endsWith('upload-translations/') && options?.method !== 'POST'
+    ).length
+
+it.each(['failed', 'incomplete', 'canceled', 'succeeded'])(
+  'polls queued and running tasks, then stops after %s',
+  async (terminal) => {
+    vi.useFakeTimers()
+    let status = 'queued'
+    const read = vi.mocked(fetchApi).getMockImplementation()!
+    vi.mocked(fetchApi).mockImplementation(async (path, options) =>
+      path.endsWith('upload-translations/')
+        ? { can_generate: true, revision: 1, results: [{ ...job(), status }] }
+        : read(path, options)
+    )
+    show()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50)
+    })
+    expect(listReads()).toBe(1)
+    status = 'running'
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(listReads()).toBe(2)
+    status = terminal
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(listReads()).toBe(3)
+    expect(screen.getByText(`status.${terminal}`)).toBeInTheDocument()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20000)
+    })
+    expect(listReads()).toBe(3)
+  }
+)
+
+it('does not poll an empty list', async () => {
+  complete = false
+  vi.useFakeTimers()
+  show()
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(20000)
+  })
+  expect(listReads()).toBe(1)
+})
+
+it('resumes polling after an explicit retry of a failed translation', async () => {
+  vi.useFakeTimers()
+  let status = 'failed'
+  vi.mocked(fetchApi).mockImplementation(async (_path, options) => {
+    if (options?.method === 'POST') {
+      status = 'queued'
+      return { ...job(), status }
+    }
+    return { can_generate: true, revision: 1, results: [{ ...job(), status }] }
+  })
+  show()
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(50)
+  })
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15000)
+  })
+  expect(listReads()).toBe(1)
+  fireEvent.click(screen.getByRole('button', { name: 'regenerate' }))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(50)
+  })
+  expect(listReads()).toBe(2)
+  expect(screen.getByRole('status')).toHaveTextContent('status.queued')
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5000)
+  })
+  expect(listReads()).toBe(3)
+  expect(
+    vi
+      .mocked(fetchApi)
+      .mock.calls.filter(([, options]) => options?.method === 'POST')
+  ).toHaveLength(1)
 })

@@ -71,7 +71,15 @@ export function UploadTranslationPanel({
         throw new Error('Invalid translation identity')
       return result
     },
-    refetchInterval: (q) => (q.state.error ? false : 5000),
+    // HTTP success does not mean the translation is still active. Stop polling
+    // terminal jobs; an explicit retry refetches the list and resumes polling.
+    refetchInterval: (q) =>
+      !q.state.error &&
+      q.state.data?.results.some((item) =>
+        ['queued', 'running'].includes(item.status)
+      )
+        ? 5000
+        : false,
   })
   const selected = listing.data?.results.find((item) => item.target === target)
   const active = listing.data?.results.some((item) =>

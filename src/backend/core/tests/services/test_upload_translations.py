@@ -7,11 +7,14 @@ from unittest.mock import patch
 
 from django.utils import timezone
 
+import httpx
 import pytest
+from openai import APIConnectionError, APIStatusError, APITimeoutError
 
 from core import models
 from core.factories import UserFactory
 from core.services import upload_translations as service
+from core.services.llm_client import LLMIncompleteOutput
 from core.services.record_lifecycle import busy
 from core.tests.services.test_meeting_records import client_for
 from core.tests.services.test_upload_summary_source import published
@@ -151,10 +154,17 @@ def test_correction_snapshot_stale_export_and_new_version():
 
 
 @pytest.mark.parametrize(
-    "raw",
-    ['{"segments":[]}', '{"segments":[{"id":"invented","text":"hello"}]}', "not json"],
+    "raw,code",
+    [
+        ('{"segments":[]}', "output_segment_count_mismatch"),
+        (
+            '{"segments":[{"id":"invented","text":"hello"}]}',
+            "output_segment_id_mismatch",
+        ),
+        ("not json", "output_invalid_json"),
+    ],
 )
-def test_missing_or_forged_rows_never_publish_and_retry_is_explicit(raw):
+def test_missing_or_forged_rows_never_publish_and_retry_is_explicit(raw, code):
     owner, record, _ = setup()
     job = prepare(owner, record)
     with patch.object(service, "LLMClient") as llm:
@@ -163,11 +173,7 @@ def test_missing_or_forged_rows_never_publish_and_retry_is_explicit(raw):
         service.execute(job.pk)
         assert llm.return_value.chat.call_count == 1
     job.refresh_from_db()
-    assert (
-        job.status == "failed"
-        and job.content == []
-        and job.error_code == "invalid_output"
-    )
+    assert job.status == "failed" and job.content == [] and job.error_code == code
     assert prepare(owner, record, key=job.key).pk == job.pk
     assert prepare(owner, record).pk != job.pk
 
@@ -299,3 +305,120 @@ def test_new_request_cannot_overlap_an_active_translation():
     )
     assert response.status_code == 409
     assert record.upload_translations.count() == 1
+
+
+@pytest.mark.parametrize(
+    "segments,code",
+    [
+        (None, "output_schema_mismatch"),
+        ([], "output_segment_count_mismatch"),
+        (
+            [{"id": "b", "text": "B"}, {"id": "a", "text": "A"}],
+            "output_segment_order_mismatch",
+        ),
+        (
+            [{"id": "a", "text": "A"}, {"id": "a", "text": "B"}],
+            "output_segment_id_mismatch",
+        ),
+        (
+            [{"id": "a", "text": "A"}, {"id": "invented", "text": "B"}],
+            "output_segment_id_mismatch",
+        ),
+        ([{"id": "a", "text": ""}, {"id": "b", "text": "B"}], "output_empty_text"),
+        (
+            [{"id": "a", "text": "x" * 24001}, {"id": "b", "text": "B"}],
+            "output_text_too_long",
+        ),
+        (
+            [{"id": "a", "text": "A", "extra": "private"}, {"id": "b", "text": "B"}],
+            "output_schema_mismatch",
+        ),
+    ],
+)
+def test_precise_output_validation_codes(segments, code):
+    with pytest.raises(service.TranslationOutputError) as error:
+        service.validate(
+            json.dumps({"segments": segments}),
+            [{"segment_id": "a"}, {"segment_id": "b"}],
+        )
+    assert error.value.code == code
+    assert "private" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "reason,code",
+    [("length", "output_truncated"), ("content_filter", "output_not_complete")],
+)
+def test_completion_error_is_classified_without_partial_publication(
+    reason, code, caplog
+):
+    owner, record, path = setup()
+    job = prepare(owner, record)
+    job.source = [{**job.source[0], "segment_id": str(uuid.uuid4())} for _ in range(44)]
+    job.total_chunks = 3
+    job.segment_count = 44
+    job.save()
+    calls = 0
+
+    def partial(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise LLMIncompleteOutput(reason)
+        return output(**kwargs)
+
+    with patch.object(service, "LLMClient") as llm:
+        llm.return_value.chat.side_effect = partial
+        service.execute(job.pk)
+        service.execute(job.pk)
+    job.refresh_from_db()
+    assert job.completed_chunks == 1 and job.error_code == code and job.content == []
+    assert calls == 2
+    response = client_for(owner).get(path).data["results"][0]
+    assert response["error_code"] == code
+    logs = [r for r in caplog.records if r.name == service.__name__]
+    event = json.loads(logs[-1].getMessage().split(": ", 1)[1])
+    assert event["chunk_index"] == 2 and event["expected_segments"] == 20
+    assert event["finish_reason"] == reason
+    assert (
+        "Original words" not in caplog.text
+        and "Translated <content>" not in caplog.text
+    )
+    assert logs[-1].exc_info is None
+
+
+@pytest.mark.parametrize(
+    "kind,code",
+    [
+        ("timeout", "provider_timeout"),
+        ("connection", "provider_connection_failed"),
+        (401, "provider_auth_failed"),
+        (403, "provider_auth_failed"),
+        (429, "provider_rate_limited"),
+        (500, "provider_http_error"),
+        ("unexpected", "provider_unavailable"),
+    ],
+)
+def test_provider_errors_are_sanitized(kind, code, caplog):
+    owner, record, _ = setup()
+    job = prepare(owner, record)
+    request = httpx.Request("POST", "https://secret.invalid/?key=secret-token")
+    if kind == "timeout":
+        error = APITimeoutError(request=request)
+    elif kind == "connection":
+        error = APIConnectionError(request=request, message="private provider error")
+    elif isinstance(kind, int):
+        error = APIStatusError(
+            "private provider error",
+            response=httpx.Response(kind, request=request),
+            body={"secret": "secret-token"},
+        )
+    else:
+        error = ValueError("private provider error")
+    with patch.object(service, "LLMClient") as llm:
+        llm.return_value.chat.side_effect = error
+        service.execute(job.pk)
+    job.refresh_from_db()
+    assert job.error_code == code and job.content == []
+    assert "private provider" not in caplog.text and "secret-token" not in caplog.text
+    assert "secret.invalid" not in caplog.text
