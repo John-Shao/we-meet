@@ -12,7 +12,6 @@ import { fetchApi } from '@/api/fetchApi'
 import { ApiError } from '@/api/ApiError'
 import { Button, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
-import { formatClock } from '../recordDateTime'
 
 interface Translation {
   id: string
@@ -33,6 +32,9 @@ interface Translation {
 type Intent = { key: string; target: 'zh' | 'en'; expected_revision: number }
 const options = { retry: false, gcTime: 0, staleTime: 0 }
 const stack = css({ display: 'flex', flexDirection: 'column', gap: 'md' })
+// Translation timestamps are offsets in the source media, not wall-clock dates.
+const time = (ms: number) =>
+  `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`
 
 export function UploadTranslationPanel({
   viewerId,
@@ -260,7 +262,7 @@ export function UploadTranslationPanel({
                   className={stack}
                 >
                   <Text>
-                    {row.speaker_name} · {formatClock(row.start_ms)}
+                    {row.speaker_name} · {time(row.start_ms)}
                   </Text>
                   {onSource && !stale && (
                     <Button

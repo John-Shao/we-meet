@@ -14,6 +14,7 @@ let denied = false
 let stale = false
 let canGenerate = true
 let complete = true
+let startMs = 1200
 const job = () => ({
   id: 'translation',
   record_id: 'record',
@@ -40,6 +41,7 @@ const show = (onSource = vi.fn()) => {
 beforeEach(() => {
   denied = stale = false
   canGenerate = complete = true
+  startMs = 1200
   vi.mocked(fetchApi)
     .mockReset()
     .mockImplementation(async (path) => {
@@ -57,7 +59,7 @@ beforeEach(() => {
         results: [
           {
             segment_id: next ? 'last' : 'first',
-            start_ms: 1200,
+            start_ms: startMs,
             speaker_name: 'Speaker',
             text: next ? 'Last original' : 'Original',
             translated_text: next ? 'Last translation' : 'Translated',
@@ -70,6 +72,24 @@ afterEach(() => {
   client?.clear()
   vi.useRealTimers()
 })
+
+it.each([
+  [0, '0:00'],
+  [1200, '0:01'],
+  [59999, '0:59'],
+  [60000, '1:00'],
+  [3661000, '61:01'],
+])(
+  'shows %i milliseconds as elapsed time %s and seeks the same offset',
+  async (milliseconds, expected) => {
+    startMs = milliseconds
+    const seek = show()
+    await screen.findByText('Translated')
+    expect(screen.getByText(`Speaker · ${expected}`)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'play' }))
+    expect(seek).toHaveBeenCalledWith(milliseconds)
+  }
+)
 
 it('reads aligned text, seeks the original clock, exports the selected translation and appends pages while retaining earlier text', async () => {
   const seek = show()
