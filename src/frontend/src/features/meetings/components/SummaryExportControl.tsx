@@ -104,7 +104,6 @@ const Control = (props: Props) => {
         gap: 'md',
         minWidth: 0,
         paddingTop: 'lg',
-        borderTop: '1px solid token(colors.border.subtle)',
         '& > button': { alignSelf: 'flex-start', maxWidth: '100%' },
       })}
     >
