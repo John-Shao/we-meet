@@ -209,6 +209,17 @@ try {
     await mount('translation', 'translation')
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
     await expect(page.getByText('Translated content', { exact: true })).toBeVisible()
+    const originalButton = page.getByRole('button', { name: '显示原文', exact: true })
+    const exportButton = page.getByRole('button', { name: '导出译文', exact: true })
+    await expect(originalButton).toBeVisible()
+    await expect(exportButton).toBeVisible()
+    const actionGroup = originalButton.locator('..')
+    await expect(actionGroup.getByRole('button', { name: '导出译文', exact: true })).toHaveCount(1)
+    const actionGap = await actionGroup.evaluate(group => {
+      const toolbar = group.parentElement
+      return toolbar.getBoundingClientRect().right - parseFloat(getComputedStyle(toolbar).paddingRight) - group.getBoundingClientRect().right
+    })
+    assert.ok(Math.abs(actionGap) < 2, `Translation actions must align right: ${actionGap}`)
     const language = page.getByRole('button', { name: /译文语言$/ })
     await language.click()
     await expect(page.getByRole('listbox')).toBeVisible()

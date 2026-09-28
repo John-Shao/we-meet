@@ -250,47 +250,6 @@ export function UploadTranslationPanel({
             <option value="zh">{t('zh')}</option>
           </SelectCompat>
         </div>
-        {hasVisibleTranslation && (
-          <Button
-            size="sm"
-            variant="secondaryText"
-            aria-pressed={preferences.showOriginal}
-            icon={
-              preferences.showOriginal ? (
-                <RiCheckLine size={16} aria-hidden />
-              ) : undefined
-            }
-            className={css({
-              '&[aria-pressed="true"]': {
-                backgroundColor: 'action.selected.bg',
-              },
-            })}
-            onPress={() =>
-              setPreferences({ showOriginal: !preferences.showOriginal })
-            }
-          >
-            {t('showOriginal')}
-          </Button>
-        )}
-        {hasVisibleTranslation && preferences.showOriginal && (
-          <Button
-            size="sm"
-            variant="secondaryText"
-            aria-pressed={preferences.sideBySide}
-            className={css({
-              display: 'none',
-              '&[aria-pressed="true"]': {
-                backgroundColor: 'action.selected.bg',
-              },
-              '@container (min-width: 48rem)': { display: 'inline-flex' },
-            })}
-            onPress={() =>
-              setPreferences({ sideBySide: !preferences.sideBySide })
-            }
-          >
-            {t('sideBySide')}
-          </Button>
-        )}
         {selected?.status === 'succeeded' && (
           <Text variant="note" role="status">
             {t('status.succeeded')}
@@ -325,15 +284,68 @@ export function UploadTranslationPanel({
               {t(intent ? 'check' : selected ? 'regenerate' : 'generate')}
             </Button>
           )}
-        {selected?.status === 'succeeded' &&
-          detail.data?.id === selected.id &&
-          !stale && (
-            <TranscriptExportControl
-              translation
-              recordId={recordId}
-              exportPath={`${path}${selected.id}/export/`}
-            />
+        <div
+          className={css({
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 'sm',
+            marginInlineStart: 'auto',
+            '&:empty': { display: 'none' },
+          })}
+        >
+          {hasVisibleTranslation && (
+            <Button
+              size="sm"
+              variant="secondaryText"
+              aria-pressed={preferences.showOriginal}
+              icon={
+                preferences.showOriginal ? (
+                  <RiCheckLine size={16} aria-hidden />
+                ) : undefined
+              }
+              className={css({
+                '&[aria-pressed="true"]': {
+                  backgroundColor: 'action.selected.bg',
+                },
+              })}
+              onPress={() =>
+                setPreferences({ showOriginal: !preferences.showOriginal })
+              }
+            >
+              {t('showOriginal')}
+            </Button>
           )}
+          {hasVisibleTranslation && preferences.showOriginal && (
+            <Button
+              size="sm"
+              variant="secondaryText"
+              aria-pressed={preferences.sideBySide}
+              className={css({
+                display: 'none',
+                '&[aria-pressed="true"]': {
+                  backgroundColor: 'action.selected.bg',
+                },
+                '@container (min-width: 48rem)': { display: 'inline-flex' },
+              })}
+              onPress={() =>
+                setPreferences({ sideBySide: !preferences.sideBySide })
+              }
+            >
+              {t('sideBySide')}
+            </Button>
+          )}
+          {selected?.status === 'succeeded' &&
+            detail.data?.id === selected.id &&
+            !stale && (
+              <TranscriptExportControl
+                translation
+                recordId={recordId}
+                exportPath={`${path}${selected.id}/export/`}
+              />
+            )}
+        </div>
       </RecordPanelTools>
       {canGenerate && <Text variant="note">{t('generationHint')}</Text>}
       {message && <Text role="alert">{t(message)}</Text>}
