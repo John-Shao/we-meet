@@ -819,7 +819,6 @@
     "chaptersEmpty": "Keine Kapitelnotizen verfügbar.",
     "moreSources": "Weitere Quellenverweise ({{count}})",
     "title": "Besprechungsprotokoll",
-    "hint": "Überblick und Kapitel werden gemeinsam erstellt. Eine erneute Erstellung aktualisiert beide Abschnitte.",
     "openMinutes": "KI-Protokoll öffnen",
     "empty": "Noch kein Besprechungsprotokoll. Erstellen Sie es aus dem Transkript.",
     "documentTitle": "KI-Protokoll: {{title}}",

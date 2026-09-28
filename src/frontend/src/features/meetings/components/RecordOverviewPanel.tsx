@@ -207,7 +207,6 @@ export function RecordOverviewPanel({
           )}
         </div>
       )}
-      <Text variant="note">{t('recordOverview.hint')}</Text>
       {state?.can_generate && (
         <div>
           {!state.generation_ready && (
@@ -278,11 +277,11 @@ export function RecordOverviewPanel({
           {version.asr_status === 'incomplete' && (
             <Text variant="note">{t('recordAi.asr.incomplete')}</Text>
           )}
-          <h3 className={css({ textStyle: 'titleMedium', marginTop: 'lg' })}>
+          <h3 className={css({ textStyle: 'titleLarge', marginTop: 'lg' })}>
             {t('recordOverview.synopsisTitle')}
           </h3>
           <Text>{version.content.synopsis}</Text>
-          <h3 className={css({ textStyle: 'titleMedium', marginTop: 'xl' })}>
+          <h3 className={css({ textStyle: 'titleLarge', marginTop: 'xl' })}>
             {t('recordAi.sections.chapters')}
           </h3>
           {version.content.topics.length === 0 && (

@@ -834,7 +834,6 @@
     "chaptersEmpty": "No chapter notes available.",
     "moreSources": "Other source references ({{count}})",
     "title": "Meeting minutes",
-    "hint": "The overview and chapters are generated together. Regenerating updates both sections.",
     "openMinutes": "Open AI minutes",
     "empty": "No meeting minutes yet. Generate them from the transcript.",
     "documentTitle": "AI minutes: {{title}}",

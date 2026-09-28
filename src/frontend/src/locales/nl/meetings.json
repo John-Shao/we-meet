@@ -819,7 +819,6 @@
     "chaptersEmpty": "Geen hoofdstuknotities beschikbaar.",
     "moreSources": "Overige bronverwijzingen ({{count}})",
     "title": "Vergadernotulen",
-    "hint": "Het overzicht en de hoofdstukken worden samen gegenereerd. Opnieuw genereren werkt beide onderdelen bij.",
     "openMinutes": "AI-notulen openen",
     "empty": "Nog geen vergadernotulen. Genereer ze op basis van het transcript.",
     "documentTitle": "AI-notulen: {{title}}",

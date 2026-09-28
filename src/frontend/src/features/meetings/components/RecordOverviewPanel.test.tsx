@@ -341,7 +341,6 @@ it('shows the synopsis and chapters together under one generation action', async
   expect(
     screen.getByRole('heading', { name: 'recordAi.sections.chapters' })
   ).toBeVisible()
-  expect(screen.getByText('recordOverview.hint')).toBeVisible()
 })
 
 it('regenerates both sections with one request and preserves both until publication', async () => {
@@ -394,7 +393,6 @@ it('expands chapter references alongside the synopsis without changing playback 
   show(seek)
   await screen.findByText('Chapter details')
   expect(screen.getByText(version.content.synopsis)).toBeVisible()
-  expect(screen.getByText('recordOverview.hint')).toBeVisible()
   expect(screen.getByText('recordAi.listenSource 0:03')).not.toBeVisible()
   fireEvent.click(
     screen.getByRole('button', { name: 'recordAi.listenSource 0:01' })
