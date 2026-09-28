@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -161,22 +162,21 @@ export const HumanSummaryPanel = ({
           )}
           {versions.length > 0 && (
             <>
-              <label>
+              <div>
                 {t('humanReview.base')}
-                <select
-                  className={field}
+                <SelectCompat
+                  aria-label={t('humanReview.base')}
                   value={selected}
                   onChange={(event) => setSelected(event.target.value)}
                 >
                   <option value="">{t('humanReview.choose')}</option>
                   {versions.map((version) => (
                     <option key={version.id} value={version.id}>
-                      {t(`recordAi.stage.${version.stage}`)} ·{' '}
-                      {formatDateTime(version.created_at)}
+                      {`${t(`recordAi.stage.${version.stage}`)} · ${formatDateTime(version.created_at)}`}
                     </option>
                   ))}
-                </select>
-              </label>
+                </SelectCompat>
+              </div>
               <Button
                 size="sm"
                 isDisabled={

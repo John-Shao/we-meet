@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import {
   RiPauseFill,
   RiPlayFill,
@@ -296,38 +297,29 @@ export function RecordPlaybackControls({
             </span>
           </div>
         </div>
-        <select
-          aria-label={t('playbackRate')}
-          value={rate}
-          disabled={disabled}
-          onChange={(event) => onRate(Number(event.target.value))}
+        <div
           className={css({
             gridArea: 'speed',
             width: '100%',
             maxWidth: '5.5rem',
             minWidth: 0,
-            // Override the global compact form-select chrome for touch playback.
-            minHeight: '2.75rem !important',
             justifySelf: 'center',
-            padding: '0 !important',
-            backgroundImage: 'none !important',
-            border: '0 !important',
-            textAlign: 'center',
-            borderRadius: 'control',
-            color: 'text.primary',
-            backgroundColor: 'surface.default',
-            textStyle: 'labelLarge',
-            cursor: 'pointer',
-            _hover: { backgroundColor: 'surface.canvas' },
-            _focusVisible: { outline: '2px solid token(colors.border.focus)' },
+            '& button': { minHeight: '2.75rem', paddingX: 'xs' },
           })}
         >
-          {[0.75, 1, 1.25, 1.5, 2].map((speed) => (
-            <option key={speed} value={speed}>
-              {speed}×
-            </option>
-          ))}
-        </select>
+          <SelectCompat
+            aria-label={t('playbackRate')}
+            value={rate}
+            disabled={disabled}
+            onChange={(event) => onRate(Number(event.target.value))}
+          >
+            {[0.75, 1, 1.25, 1.5, 2].map((speed) => (
+              <option key={speed} value={speed}>
+                {speed}×
+              </option>
+            ))}
+          </SelectCompat>
+        </div>
         <PlaybackTime position={position} duration={end} />
       </div>
     </div>

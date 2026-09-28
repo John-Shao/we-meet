@@ -1,5 +1,8 @@
+import { selectName } from '@/test/selectOption'
+import { selectOption } from '@/test/selectOption'
+import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/ApiError'
@@ -46,11 +49,13 @@ beforeEach(() => {
 it('offers every speaker plus an explicit "all" option', async () => {
   mocks.fetchApi.mockResolvedValue(speakers)
   show()
-  const select = await screen.findByRole('combobox')
-  await waitFor(() => expect(select.querySelectorAll('option')).toHaveLength(4))
-  const options = Array.from(select.querySelectorAll('option')).map((o) => ({
-    value: (o as HTMLOptionElement).value,
-    label: o.textContent,
+  const select = await screen.findByRole('button', {
+    name: selectName('library.speakerFilter'),
+  })
+  await userEvent.click(select)
+  const options = screen.getAllByRole('option').map((o) => ({
+    value: o.getAttribute('data-key'),
+    label: o.textContent?.replace(', selected', ''),
   }))
   expect(options[0]).toEqual({ value: '', label: 'library.allSpeakers' })
   // The filter token is the stable id, never the display name.
@@ -65,15 +70,16 @@ it('offers every speaker plus an explicit "all" option', async () => {
 it('reports the chosen speaker token, not the label', async () => {
   mocks.fetchApi.mockResolvedValue(speakers)
   const onSelect = show()
-  const select = await screen.findByRole('combobox')
-  fireEvent.change(select, { target: { value: 'sp-b' } })
+  await selectOption('library.speakerFilter', 'sp-b')
   expect(onSelect).toHaveBeenCalledWith('sp-b')
 })
 
 it('reads speakers for the exact record revision', async () => {
   mocks.fetchApi.mockResolvedValue(speakers)
   show()
-  await screen.findByRole('combobox')
+  await screen.findByRole('button', {
+    name: selectName('library.speakerFilter'),
+  })
   expect(mocks.fetchApi.mock.calls[0][0]).toBe(
     'meeting-records/record/speakers/'
   )
@@ -88,7 +94,11 @@ it('stays out of the way when a record has a single speaker', async () => {
   await waitFor(() => expect(mocks.fetchApi).toHaveBeenCalled())
   // A filter over one option is noise; the transcript already shows one person.
   await waitFor(() =>
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', {
+        name: selectName('library.speakerFilter'),
+      })
+    ).not.toBeInTheDocument()
   )
 })
 
@@ -99,7 +109,11 @@ it('keeps an active filter visible even if the list is now short', async () => {
     next_cursor: null,
   })
   show('sp-b')
-  expect(await screen.findByRole('combobox')).toHaveValue('sp-b')
+  expect(
+    await screen.findByRole('button', {
+      name: selectName('library.speakerFilter'),
+    })
+  ).toHaveTextContent('library.unknownSpeaker')
 })
 
 it('renders nothing when the speaker read fails', async () => {
@@ -108,15 +122,21 @@ it('renders nothing when the speaker read fails', async () => {
   await waitFor(() => expect(mocks.fetchApi).toHaveBeenCalled())
   // A failed read must not look like "this record has no speakers".
   await waitFor(() =>
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', {
+        name: selectName('library.speakerFilter'),
+      })
+    ).not.toBeInTheDocument()
   )
 })
 
 it('clears the filter back to every speaker', async () => {
   mocks.fetchApi.mockResolvedValue(speakers)
   const onSelect = show('sp-a')
-  const select = await screen.findByRole('combobox')
-  await waitFor(() => expect(select).toHaveValue('sp-a'))
-  fireEvent.change(select, { target: { value: '' } })
+  const select = await screen.findByRole('button', {
+    name: selectName('library.speakerFilter'),
+  })
+  await waitFor(() => expect(select).toHaveTextContent('Speaker A'))
+  await selectOption('library.speakerFilter', '')
   expect(onSelect).toHaveBeenCalledWith('')
 })

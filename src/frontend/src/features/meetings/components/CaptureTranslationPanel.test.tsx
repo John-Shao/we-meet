@@ -1,3 +1,4 @@
+import { selectOption } from '@/test/selectOption'
 import {
   act,
   cleanup,
@@ -303,9 +304,7 @@ it('uses frozen current run identity when stopping a disconnected translation', 
 })
 it('supports accessible start/finish speech controls and isolates output mute', async () => {
   show()
-  fireEvent.change(screen.getByLabelText('translation.mode'), {
-    target: { value: 'push_to_talk' },
-  })
+  await selectOption('translation.mode', 'push_to_talk')
   fireEvent.click(screen.getByRole('checkbox', { name: 'translation.audio' }))
   await start()
   const forward = await screen.findByRole('button', {

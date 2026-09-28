@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { readRecovery } from '../hooks/readRecovery'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -101,9 +102,10 @@ const Control = (props: Props) => {
       </Button>
       {opened && (
         <>
-          <label>
+          <div>
             {t('summaryExport.language')}
-            <select
+            <SelectCompat
+              aria-label={t('summaryExport.language')}
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
             >
@@ -114,8 +116,8 @@ const Control = (props: Props) => {
                   原先写 `t('language.zh')` 只会把 key 原文渲染到下拉里。 */}
               <option value="zh">{t('translation.language.zh')}</option>
               <option value="en">{t('translation.language.en')}</option>
-            </select>
-          </label>
+            </SelectCompat>
+          </div>
           <Text variant="note">{t('summaryExport.languageHint')}</Text>
           <ExportCopy
             key={language}

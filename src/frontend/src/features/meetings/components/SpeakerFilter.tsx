@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/primitives'
@@ -50,7 +51,7 @@ export function SpeakerFilter({
         marginX: 0,
       })}
     >
-      <label
+      <div
         className={css({
           display: 'flex',
           gap: 'sm',
@@ -60,16 +61,10 @@ export function SpeakerFilter({
         <span className={css({ color: 'text.secondary' })}>
           {t('library.speakerFilter')}
         </span>
-        <select
+        <SelectCompat
+          aria-label={t('library.speakerFilter')}
           value={selected}
           onChange={(event) => onSelect(event.target.value)}
-          className={css({
-            border: '1px solid token(colors.border.subtle)',
-            borderRadius: 'card',
-            paddingY: 'sm',
-            paddingX: 'md',
-            backgroundColor: 'transparent',
-          })}
         >
           <option value="">{t('library.allSpeakers')}</option>
           {stale && (
@@ -82,8 +77,8 @@ export function SpeakerFilter({
                 : speaker.label}
             </option>
           ))}
-        </select>
-      </label>
+        </SelectCompat>
+      </div>
       {selected && (
         <Button
           size="dense"

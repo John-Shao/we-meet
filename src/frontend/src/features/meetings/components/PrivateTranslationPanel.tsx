@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useLocalParticipant } from '@livekit/components-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -117,9 +118,10 @@ export const PrivateTranslationPanel = () => {
       <Text>{t(`state.${current?.state ?? 'off'}`)}</Text>
       {!active ? (
         <>
-          <label>
+          <div>
             {t('mode')}
-            <select
+            <SelectCompat
+              aria-label={t('mode')}
               value={options.mode}
               disabled={state.pending || state.uncertain}
               onChange={(event) =>
@@ -131,11 +133,12 @@ export const PrivateTranslationPanel = () => {
             >
               <option value="simultaneous">{t('continuous')}</option>
               <option value="push_to_talk">{t('pushToTalk')}</option>
-            </select>
-          </label>
-          <label>
+            </SelectCompat>
+          </div>
+          <div>
             {t('source')}
-            <select
+            <SelectCompat
+              aria-label={t('source')}
               value={options.source}
               disabled={state.pending || state.uncertain}
               onChange={(event) =>
@@ -148,8 +151,8 @@ export const PrivateTranslationPanel = () => {
             >
               <option value="zh">{languages('zh')}</option>
               <option value="en">{languages('en')}</option>
-            </select>
-          </label>
+            </SelectCompat>
+          </div>
           <Text>{t('target', { language: languages(options.target) })}</Text>
           <Checkbox
             isSelected={options.audio}

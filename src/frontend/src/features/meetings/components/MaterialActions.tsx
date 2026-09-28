@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -198,8 +199,7 @@ function Card({
             (onRoleChange ? (
               // 改角色直接提交,不再问一次「确认修改?」:可逆、有回执,
               // 而且服务端会按 expected_revision 挡住过期写入。
-              <select
-                className={roleSelect}
+              <SelectCompat
                 aria-label={label}
                 value={role}
                 onChange={(event) => onRoleChange(event.target.value as Role)}
@@ -209,7 +209,7 @@ function Card({
                     {t(`collaboration.${value}`)}
                   </option>
                 ))}
-              </select>
+              </SelectCompat>
             ) : (
               role && (
                 <span className={ownerTag}>{t(`collaboration.${role}`)}</span>
@@ -682,10 +682,10 @@ function MaterialMembers({
               )}
               <hr />
               <strong>{t('collaboration.permissions')}</strong>
-              <label className={stack}>
+              <div className={stack}>
                 {t('collaboration.link')}
-                <select
-                  className={field}
+                <SelectCompat
+                  aria-label={t('collaboration.link')}
                   value={data.link_scope}
                   disabled={!data.can_manage}
                   onChange={(event) =>
@@ -701,8 +701,8 @@ function MaterialMembers({
                       {t(`collaboration.${value}`)}
                     </option>
                   ))}
-                </select>
-              </label>
+                </SelectCompat>
+              </div>
             </div>
             {message && <p role="status">{message}</p>}
           </ModalBody>
@@ -748,13 +748,4 @@ const ownerTag = css({
   backgroundColor: 'action.selected.bg',
   color: 'action.selected.text',
   textStyle: 'labelSmall',
-})
-
-const roleSelect = css({
-  flexShrink: 0,
-  padding: 'sm',
-  border: '1px solid token(colors.border.subtle)',
-  borderRadius: 'md',
-  background: 'transparent',
-  color: 'inherit',
 })

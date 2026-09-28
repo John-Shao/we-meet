@@ -221,13 +221,8 @@ it('keeps upload and participation filters available and clears a submitted sear
   show()
   await screen.findByText(archived.title)
   fireEvent.click(screen.getByRole('button', { name: 'library.filters' }))
-  fireEvent.change(screen.getByLabelText('library.sourceLabel'), {
-    target: { value: 'upload' },
-  })
-  fireEvent.change(
-    screen.getByLabelText('library.scopeLabel', { selector: 'select' }),
-    { target: { value: 'participated' } }
-  )
+  await selectOption('library.sourceLabel', 'upload')
+  await selectOption('library.scopeLabel', 'participated')
   fireEvent.click(screen.getByRole('button', { name: 'library.applyFilters' }))
   fireEvent.change(screen.getByLabelText('library.search'), {
     target: { value: 'Project' },
@@ -673,3 +668,4 @@ it('dismisses the menu on outside interaction and removes it after access is rev
   await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
   expect(screen.queryByRole('link', { name: archived.title })).toBeNull()
 })
+import { selectOption } from '@/test/selectOption'

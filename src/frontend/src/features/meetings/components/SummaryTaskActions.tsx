@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -203,10 +204,10 @@ export const SummaryTaskActions = ({
                 >
                   {t('summaryTasks.find')}
                 </Button>
-                <label>
+                <div>
                   {t('summaryTasks.assignee')}
-                  <select
-                    className={field}
+                  <SelectCompat
+                    aria-label={t('summaryTasks.assignee')}
                     value={assignee}
                     disabled={disabled}
                     onChange={(event) => setAssignee(event.target.value)}
@@ -217,8 +218,8 @@ export const SummaryTaskActions = ({
                         {user.name}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </SelectCompat>
+                </div>
                 <label>
                   {t('summaryTasks.due')}
                   <input

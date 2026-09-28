@@ -1,3 +1,5 @@
+import { selectOption } from '@/test/selectOption'
+import { selectName } from '@/test/selectOption'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -73,16 +75,17 @@ beforeEach(() => {
 })
 
 it('saves the shared generation language without generating or hiding existing content', async () => {
-  const user = userEvent.setup()
   state = { ...state, version, job: { ...job, status: 'succeeded' } }
   const first = show()
-  await screen.findByRole('combobox', { name: 'recordOverview.language' })
-  const select = screen.getByRole('combobox', {
-    name: 'recordOverview.language',
+  await screen.findByRole('button', {
+    name: selectName('recordOverview.language'),
   })
-  expect(select).toHaveValue('auto')
-  await user.selectOptions(select, 'zh')
-  await waitFor(() => expect(select).toHaveValue('zh'))
+  const select = screen.getByRole('button', {
+    name: selectName('recordOverview.language'),
+  })
+  expect(select).toHaveTextContent('recordOverview.followSource')
+  await selectOption('recordOverview.language', 'zh')
+  await waitFor(() => expect(select).toHaveTextContent('中文'))
   expect(screen.getByText('Independent overview')).toBeVisible()
   expect(
     vi
@@ -92,18 +95,22 @@ it('saves the shared generation language without generating or hiding existing c
   first.unmount()
   client.clear()
   show()
-  await screen.findByRole('combobox', { name: 'recordOverview.language' })
+  await screen.findByRole('button', {
+    name: selectName('recordOverview.language'),
+  })
   expect(
-    screen.getByRole('combobox', { name: 'recordOverview.language' })
-  ).toHaveValue('zh')
+    screen.getByRole('button', { name: selectName('recordOverview.language') })
+  ).toHaveTextContent('中文')
 })
 
 it('disables language changes while a generation is running', async () => {
   state = { ...state, job }
   show()
-  await screen.findByRole('combobox', { name: 'recordOverview.language' })
+  await screen.findByRole('button', {
+    name: selectName('recordOverview.language'),
+  })
   expect(
-    screen.getByRole('combobox', { name: 'recordOverview.language' })
+    screen.getByRole('button', { name: selectName('recordOverview.language') })
   ).toBeDisabled()
 })
 afterEach(() => {

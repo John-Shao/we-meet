@@ -1,3 +1,5 @@
+import { selectOption } from '@/test/selectOption'
+import { selectName } from '@/test/selectOption'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   act,
@@ -247,12 +249,14 @@ it('keeps exactly the same paid intent after response loss', async () => {
     .mocked(fetchApi)
     .mock.calls.filter(([, options]) => options?.method === 'POST')
   expect(calls[0][1]?.body).toBe(calls[1][1]?.body)
-  expect(screen.getByRole('combobox')).toBeDisabled()
+  expect(
+    screen.getByRole('button', { name: selectName('language') })
+  ).toBeDisabled()
 })
 it('changing language reads another product without issuing a paid request', async () => {
   show()
   await screen.findByText('Translated')
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'zh' } })
+  await selectOption('language', 'zh')
   await screen.findByText('empty')
   expect(screen.queryByRole('button', { name: 'showOriginal' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'sideBySide' })).toBeNull()
@@ -271,12 +275,12 @@ it.each([true, false])(
     localStorage.setItem('we-meet:translation-view:owner', saved)
     show()
     await screen.findByText('Translated')
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'zh' } })
+    await selectOption('language', 'zh')
     await screen.findByText('empty')
     expect(screen.queryByRole('button', { name: 'showOriginal' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'sideBySide' })).toBeNull()
     expect(localStorage.getItem('we-meet:translation-view:owner')).toBe(saved)
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'en' } })
+    await selectOption('language', 'en')
     await screen.findByText('Translated')
     expect(
       screen.getByRole('button', { name: 'showOriginal' })

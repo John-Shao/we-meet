@@ -1,3 +1,4 @@
+import { selectOption } from '@/test/selectOption'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -71,9 +72,7 @@ it('requires an explicit assignee and does not infer the date from prose', async
     screen.getByRole('button', { name: 'summaryTasks.confirm' })
   ).toBeDisabled()
   expect(posts()).toHaveLength(0)
-  fireEvent.change(screen.getByLabelText('summaryTasks.assignee'), {
-    target: { value: 'member' },
-  })
+  await selectOption('summaryTasks.assignee', 'member')
   fireEvent.click(screen.getByRole('button', { name: 'summaryTasks.confirm' }))
   await screen.findByText('summaryTasks.created')
   expect(JSON.parse(posts()[0][1].body)).toMatchObject({
@@ -102,9 +101,7 @@ it('retries the same frozen request after a lost response', async () => {
   fireEvent.click(
     await screen.findByRole('button', { name: 'summaryTasks.convert' })
   )
-  fireEvent.change(screen.getByLabelText('summaryTasks.assignee'), {
-    target: { value: 'member' },
-  })
+  await selectOption('summaryTasks.assignee', 'member')
   fireEvent.click(screen.getByRole('button', { name: 'summaryTasks.confirm' }))
   await screen.findByText('summaryTasks.uncertain')
   expect(screen.getByLabelText('summaryTasks.taskTitle')).toBeDisabled()

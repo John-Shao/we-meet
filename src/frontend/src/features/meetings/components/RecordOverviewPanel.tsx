@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { RecordPanelTools } from './RecordPanel'
 import { useTranslation } from 'react-i18next'
 import { useRef, useState } from 'react'
@@ -131,7 +132,7 @@ export function RecordOverviewPanel({
           </Button>
         )}
         {state?.can_generate && (
-          <label
+          <div
             className={css({
               display: 'flex',
               alignItems: 'center',
@@ -141,7 +142,8 @@ export function RecordOverviewPanel({
             })}
           >
             {t('recordOverview.language')}
-            <select
+            <SelectCompat
+              aria-label={t('recordOverview.language')}
               title={t('recordOverview.languageHint')}
               value={state.output_language ?? 'auto'}
               disabled={
@@ -151,16 +153,6 @@ export function RecordOverviewPanel({
                 !!recovery.pending ||
                 !recovery.ready
               }
-              className={css({
-                paddingX: 'sm',
-                paddingY: 'xs',
-                minWidth: 0,
-                maxWidth: '100%',
-                border: '1px solid token(colors.border.subtle)',
-                borderRadius: 'field',
-                backgroundColor: 'surface.default',
-                color: 'text.primary',
-              })}
               onChange={(event) =>
                 languageMutation.mutate({
                   output_language: event.target.value as OverviewLanguage,
@@ -173,8 +165,8 @@ export function RecordOverviewPanel({
                   {code === 'auto' ? t('recordOverview.followSource') : label}
                 </option>
               ))}
-            </select>
-          </label>
+            </SelectCompat>
+          </div>
         )}
         <div className={css({ marginLeft: 'auto' })}>
           <Link href={`/meeting/records/${recordId}?tab=summary`} asChild>

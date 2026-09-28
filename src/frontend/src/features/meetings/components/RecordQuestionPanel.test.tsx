@@ -1,3 +1,4 @@
+import { selectOption } from '@/test/selectOption'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -61,9 +62,7 @@ function show() {
   )
 }
 async function fill() {
-  fireEvent.change(await screen.findByLabelText('recordQuestion.source'), {
-    target: { value: 'snapshot' },
-  })
+  await selectOption('recordQuestion.source', 'snapshot')
   fireEvent.change(screen.getByLabelText('recordQuestion.question'), {
     target: { value: 'What happened?' },
   })

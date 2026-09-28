@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useRecordInfiniteQuery } from '../hooks/useRecordInfiniteQuery'
 import { RecordLoadMore, RecordRefreshButton } from './RecordLoadMore'
 import { useRecordViewState } from '../hooks/useRecordViewState'
@@ -5,7 +6,6 @@ import { useTranslationViewPreferences } from '../hooks/useTranslationViewPrefer
 import { activeRowId } from '../transcriptSync'
 import { RecordPanelTools } from './RecordPanel'
 import { TranscriptExportControl } from './TranscriptExportControl'
-import { selectChrome } from '@/primitives/selectChrome'
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -226,13 +226,19 @@ export function UploadTranslationPanel({
     >
       <RecordPanelTools>
         {refresh}
-        <label>
+        <div
+          className={css({
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'sm',
+            minWidth: 0,
+          })}
+        >
           <span className={css({ display: { base: 'none', sm: 'inline' } })}>
             {t('language')}{' '}
           </span>
-          <select
+          <SelectCompat
             aria-label={t('language')}
-            className={selectChrome}
             value={target}
             disabled={saving || !!intent}
             onChange={(e) => {
@@ -242,8 +248,8 @@ export function UploadTranslationPanel({
           >
             <option value="en">{t('en')}</option>
             <option value="zh">{t('zh')}</option>
-          </select>
-        </label>
+          </SelectCompat>
+        </div>
         {hasVisibleTranslation && (
           <Button
             size="sm"

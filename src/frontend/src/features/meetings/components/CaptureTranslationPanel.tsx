@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/api/ApiError'
@@ -323,9 +324,9 @@ export function CaptureTranslationPanel({
         })}
       >
         <legend>{t('translation.settings')}</legend>
-        <label>
+        <div>
           {t('translation.mode')}{' '}
-          <select
+          <SelectCompat
             aria-label={t('translation.mode')}
             value={choice.mode}
             onChange={(event) =>
@@ -339,11 +340,11 @@ export function CaptureTranslationPanel({
               {t('translation.simultaneous')}
             </option>
             <option value="push_to_talk">{t('translation.speech')}</option>
-          </select>
-        </label>{' '}
-        <label>
+          </SelectCompat>
+        </div>{' '}
+        <div>
           {t('translation.direction')}{' '}
-          <select
+          <SelectCompat
             aria-label={t('translation.direction')}
             value={choice.source_language}
             onChange={(event) =>
@@ -356,8 +357,8 @@ export function CaptureTranslationPanel({
           >
             <option value="zh">{t('translation.zhToEn')}</option>
             <option value="en">{t('translation.enToZh')}</option>
-          </select>
-        </label>
+          </SelectCompat>
+        </div>
         <div>
           <Checkbox
             isSelected={choice.audio}

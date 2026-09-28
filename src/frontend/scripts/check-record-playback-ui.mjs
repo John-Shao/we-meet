@@ -231,7 +231,7 @@ try {
   await mount()
   const controls = page.locator('[data-record-playback-controls]')
   const checkControlOrder = async () => {
-    const speed = await controls.getByRole('combobox').boundingBox()
+    const speed = await controls.getByRole('button', { name: /播放速度$/ }).boundingBox()
     const time = await controls.locator('[data-playback-time]').boundingBox()
     assert.ok(
       speed.x + speed.width <= time.x + 2,
@@ -400,7 +400,7 @@ try {
     await expect(
       surface.getByRole('button', { name: '跟随', exact: true })
     ).toHaveCount(0)
-    const speed = surface.getByRole('combobox')
+    const speed = surface.getByRole('button', { name: /播放速度$/ })
     const track = await speed.boundingBox()
     const play = await surface
       .getByRole('button', { name: '播放', exact: true })

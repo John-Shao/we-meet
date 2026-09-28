@@ -608,8 +608,9 @@ try {
     .getByRole('tab', { name: labels.translationArchive.title, exact: true })
     .click()
   await page
-    .getByRole('combobox', { name: labels.uploadTranslation.language })
-    .selectOption('zh')
+    .getByRole('button', { name: new RegExp(labels.uploadTranslation.language + '$') })
+    .click()
+  await page.getByRole('option', { name: labels.uploadTranslation.zh, exact: true }).click()
   await page
     .getByRole('tab', { name: labels.recordOverview.title, exact: true })
     .click()
@@ -617,8 +618,8 @@ try {
     .getByRole('tab', { name: labels.translationArchive.title, exact: true })
     .click()
   await expect(
-    page.getByRole('combobox', { name: labels.uploadTranslation.language })
-  ).toHaveValue('zh')
+    page.getByRole('button', { name: new RegExp(labels.uploadTranslation.language + '$') })
+  ).toContainText(labels.uploadTranslation.zh)
   await page
     .getByRole('tab', { name: labels.library.text, exact: true })
     .click()

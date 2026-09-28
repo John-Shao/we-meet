@@ -1,3 +1,4 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -183,10 +184,10 @@ export const RecordQuestionPanel = ({
           </div>
         </details>
       )}
-      <label>
+      <div>
         {t('recordQuestion.source')}
-        <select
-          className={field}
+        <SelectCompat
+          aria-label={t('recordQuestion.source')}
           value={snapshot}
           disabled={busy}
           onChange={(event) => {
@@ -213,12 +214,11 @@ export const RecordQuestionPanel = ({
               key={version.input_snapshot_id}
               value={version.input_snapshot_id}
             >
-              {t(`recordAi.stage.${version.stage}`)} ·{' '}
-              {formatDateTime(version.created_at)}
+              {`${t(`recordAi.stage.${version.stage}`)} · ${formatDateTime(version.created_at)}`}
             </option>
           ))}
-        </select>
-      </label>
+        </SelectCompat>
+      </div>
       <label>
         {t('recordQuestion.question')}
         <textarea

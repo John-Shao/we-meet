@@ -1,9 +1,9 @@
+import { SelectCompat } from '@/primitives/SelectCompat'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/Modal'
 import { Button, Input } from '@/primitives'
-import { selectChrome } from '@/primitives/selectChrome'
-import { css, cx } from '@/styled-system/css'
+import { css } from '@/styled-system/css'
 import type { MeetingRecordFilters } from '../api/ApiMeetingRecord'
 import { recordDateRange } from '../recordDateRange'
 
@@ -59,10 +59,10 @@ export function MeetingLibraryFilters({
             onApply(draft)
           }}
         >
-          <label className={field}>
+          <div className={field}>
             {t('library.scopeLabel')}
-            <select
-              className={control}
+            <SelectCompat
+              aria-label={t('library.scopeLabel')}
               value={draft.scope}
               onChange={(event) =>
                 update({
@@ -79,12 +79,12 @@ export function MeetingLibraryFilters({
                     )}
                   </option>
                 ))}
-            </select>
-          </label>
-          <label className={field}>
+            </SelectCompat>
+          </div>
+          <div className={field}>
             {t('library.sourceLabel')}
-            <select
-              className={control}
+            <SelectCompat
+              aria-label={t('library.sourceLabel')}
               value={draft.source}
               onChange={(event) =>
                 update({
@@ -100,8 +100,8 @@ export function MeetingLibraryFilters({
                   {t(`library.source.${value}`)}
                 </option>
               ))}
-            </select>
-          </label>
+            </SelectCompat>
+          </div>
           <label className={field}>
             {t('library.createdFrom')}
             <Input
@@ -165,13 +165,6 @@ const field = css({
   textStyle: 'labelLarge',
   color: 'text.secondary',
 })
-const control = cx(
-  selectChrome,
-  css({
-    width: '100%',
-    minWidth: 0,
-  })
-)
 const hint = css({ textStyle: 'bodySmall', color: 'text.secondary', margin: 0 })
 
 const dateControl = css({ width: '100%', minWidth: 0 })

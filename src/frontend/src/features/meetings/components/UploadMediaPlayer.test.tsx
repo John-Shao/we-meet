@@ -1,3 +1,4 @@
+import { selectOption } from '@/test/selectOption'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   act,
@@ -231,7 +232,9 @@ it.each(['audio', 'video', 'collapsed video'])(
       media_type: mode === 'audio' ? 'audio' : 'video',
     })
     const { container } = show()
-    await waitFor(() => expect(container.querySelector('audio, video')).not.toBeNull())
+    await waitFor(() =>
+      expect(container.querySelector('audio, video')).not.toBeNull()
+    )
     if (mode === 'collapsed video') {
       fireEvent.click(screen.getByRole('button', { name: 'hideVideo' }))
     }
@@ -250,10 +253,16 @@ it.each(['audio', 'video', 'collapsed video'])(
 it.each(['audio', 'video', 'collapsed video'])(
   'disables forward on natural completion with a short final clock sample in %s mode',
   async (mode) => {
-    mocks.fetchApi.mockResolvedValue({ ...media, media_type: mode === 'audio' ? 'audio' : 'video' })
+    mocks.fetchApi.mockResolvedValue({
+      ...media,
+      media_type: mode === 'audio' ? 'audio' : 'video',
+    })
     const { container } = show()
-    await waitFor(() => expect(container.querySelector('audio, video')).not.toBeNull())
-    if (mode === 'collapsed video') fireEvent.click(screen.getByRole('button', { name: 'hideVideo' }))
+    await waitFor(() =>
+      expect(container.querySelector('audio, video')).not.toBeNull()
+    )
+    if (mode === 'collapsed video')
+      fireEvent.click(screen.getByRole('button', { name: 'hideVideo' }))
     const element = container.querySelector('audio, video') as HTMLMediaElement
     Object.defineProperty(element, 'duration', { value: 47 })
     Object.defineProperty(element, 'readyState', { value: 2 })
@@ -283,7 +292,7 @@ it('clamps timeline jumps to the known duration and preserves playback speed', a
   fireEvent.loadedMetadata(audio)
   expect(screen.getByRole('button', { name: 'skipBack' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'skipForward' })).toBeEnabled()
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: '1.5' } })
+  await selectOption('playbackRate', '1.5')
   fireEvent.change(screen.getByRole('slider', { name: 'audioPosition' }), {
     target: { value: '24000' },
   })
@@ -318,7 +327,7 @@ it.each([false, true])(
     Object.defineProperty(audio, 'duration', { value: 120 })
     audio.currentTime = 42
     fireEvent.timeUpdate(audio)
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: '1.5' } })
+    await selectOption('playbackRate', '1.5')
     fireEvent.change(screen.getByRole('slider', { name: 'playbackVolume' }), {
       target: { value: '0.35' },
     })

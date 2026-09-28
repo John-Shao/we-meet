@@ -1,3 +1,5 @@
+import { selectOption } from '@/test/selectOption'
+import { selectName } from '@/test/selectOption'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -250,9 +252,7 @@ it('changing heading language invalidates the previous preview', async () => {
   show()
   await open()
   await inspect()
-  fireEvent.change(screen.getByLabelText('summaryExport.language'), {
-    target: { value: 'zh' },
-  })
+  await selectOption('summaryExport.language', 'zh')
   await screen.findByRole('button', { name: 'summaryExport.preview' })
   expect(screen.queryByText('Frozen meeting')).toBeNull()
   expect(
@@ -324,11 +324,14 @@ it('labels the language options through the shared translation keys', async () =
   // `language`,原先写 `t('language.zh')` 只会把 key 原文渲染进下拉。
   show()
   await open()
-  const select = screen.getByRole('combobox')
+  const select = screen.getByRole('button', {
+    name: selectName('summaryExport.language'),
+  })
+  fireEvent.click(select)
   expect(
-    Array.from(select.querySelectorAll('option')).map((option) => ({
-      value: (option as HTMLOptionElement).value,
-      label: option.textContent,
+    screen.getAllByRole('option').map((option) => ({
+      value: option.getAttribute('data-key'),
+      label: option.textContent?.replace(', selected', ''),
     }))
   ).toEqual([
     { value: 'zh', label: 'translation.language.zh' },
