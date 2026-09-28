@@ -274,6 +274,21 @@ const RecordSummaryPanelContent = ({
   const primaryVersion =
     versions.data?.results.find((version) => version.is_current) ??
     versions.data?.results[0]
+  const refreshControl = (
+    <Button
+      size="sm"
+      variant="secondaryText"
+      onPress={() =>
+        void Promise.allSettled([
+          detail.refetch(),
+          ...(!chaptersOnly ? [progress.refetch()] : []),
+          versions.refetch(),
+        ])
+      }
+    >
+      {t('recordAi.refresh')}
+    </Button>
+  )
   const otherVersions =
     versions.data?.results.filter(
       (version) => version.id !== primaryVersion?.id
@@ -306,7 +321,8 @@ const RecordSummaryPanelContent = ({
                 display: 'flex',
                 flexWrap: 'wrap',
                 gap: 'sm',
-                paddingBottom: 'md',
+                alignItems: 'center',
+                paddingY: 'sm',
                 borderBottom: '1px solid token(colors.border.subtle)',
               })}
             >
@@ -332,6 +348,9 @@ const RecordSummaryPanelContent = ({
                     {t(`minutesReader.${value}`)}
                   </Button>
                 ))}
+              <div className={css({ marginInlineStart: 'auto' })}>
+                {refreshControl}
+              </div>
             </div>
           )}
           <div hidden={!duringCapture && tool !== 'notify'}>
@@ -344,7 +363,19 @@ const RecordSummaryPanelContent = ({
             )}
           </div>
           <div
-            className={stack}
+            className={css({
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 'md',
+              padding: 'lg',
+              border: '1px solid token(colors.border.subtle)',
+              borderRadius: 'panel',
+              backgroundColor: 'surface.canvas',
+              '&[hidden]': { display: 'none' },
+              '& > section': { flexBasis: '100%' },
+              '& > [role="alert"]': { flexBasis: '100%' },
+            })}
             hidden={
               !duringCapture &&
               !!primaryVersion &&
@@ -363,7 +394,11 @@ const RecordSummaryPanelContent = ({
             {!pinned && job && (
               // 生成中:进度区声明 aria-busy,读屏才知道这里在持续更新
               // (§3「loading 同时设置 aria-busy」)。
-              <div role="status" aria-busy={busy || undefined}>
+              <div
+                className={css({ flex: '1 1 16rem', textStyle: 'bodyMedium' })}
+                role="status"
+                aria-busy={busy || undefined}
+              >
                 {t(`recordAi.status.${job.status}`)}
                 {job.dispatch_pending && ` · ${t('recordAi.dispatchPending')}`}
                 {busy &&
@@ -439,7 +474,18 @@ const RecordSummaryPanelContent = ({
             {/* `message` 既可能是「已接受」也可能是一条错误
                 (限流 / 权限 / 结果不确定),两类必须用不同的 live region:
                 成功用 polite 的 status,失败用 assertive 的 alert。 */}
-            {message && <div role={receiptRole(message)}>{t(message)}</div>}
+            {message && (
+              <div
+                className={css({
+                  flexBasis: '100%',
+                  textStyle: 'bodySmall',
+                  color: 'text.secondary',
+                })}
+                role={receiptRole(message)}
+              >
+                {t(message)}
+              </div>
+            )}
             {!pinned && canGenerate && recovery.failed && (
               <div role="alert">
                 <Text>{t('recordAi.recoveryError')}</Text>
@@ -575,19 +621,7 @@ const RecordSummaryPanelContent = ({
           )}
         </details>
       )}
-      <Button
-        size="sm"
-        variant="tertiary"
-        onPress={() =>
-          void Promise.allSettled([
-            detail.refetch(),
-            ...(!chaptersOnly ? [progress.refetch()] : []),
-            versions.refetch(),
-          ])
-        }
-      >
-        {t('recordAi.refresh')}
-      </Button>
+      {(duringCapture || chaptersOnly) && refreshControl}
       {citation && detail.data.capabilities.read_transcript && (
         <section className={stack} aria-label={t('recordAi.source')}>
           <H lvl={3}>{t('recordAi.source')}</H>
@@ -640,7 +674,7 @@ const Version = ({
       className={css({
         paddingY: 'sm',
         paddingX: 0,
-        '& p': { lineHeight: 1.85, overflowWrap: 'anywhere' },
+        '& p': { lineHeight: 1.8, overflowWrap: 'anywhere', margin: 0 },
       })}
     >
       <div className={stack}>
@@ -722,21 +756,29 @@ const Version = ({
               <details
                 key={kind}
                 open
-                className={css({ paddingY: 'md', paddingX: 0 })}
+                className={css({
+                  borderBottom: '1px solid token(colors.border.subtle)',
+                  paddingBottom: 'sm',
+                  '&[open] > summary': { marginBottom: 'md' },
+                })}
               >
                 <summary
                   className={css({
                     cursor: 'pointer',
-                    textStyle: 'titleMedium',
-                    marginBottom: 'lg',
+                    textStyle: 'titleLarge',
+                    paddingY: 'sm',
                   })}
                 >
                   {t(`recordAi.sections.${kind}`)}{' '}
                   <span
                     className={css({
-                      textStyle: 'bodyMedium',
+                      textStyle: 'labelMedium',
                       color: 'text.secondary',
                       marginLeft: 'sm',
+                      paddingX: 'sm',
+                      paddingY: 'xs',
+                      borderRadius: 'pill',
+                      backgroundColor: 'surface.canvas',
                     })}
                   >
                     {version.content[kind].length}
@@ -785,24 +827,19 @@ const Version = ({
             )
         )}
         {!chaptersOnly && !duringCapture && (
-          <details>
-            <summary
-              className={css({
-                cursor: 'pointer',
-                color: 'text.link',
-                paddingY: 'md',
-                paddingX: 0,
-              })}
-            >
-              {t('minutesReader.export')}
-            </summary>
+          <div
+            className={css({
+              paddingTop: 'md',
+              '&:empty': { display: 'none' },
+            })}
+          >
             <SummaryExportControl
               recordId={recordId}
               viewerId={viewerId}
               sourceId={version.id}
               sourceKind="ai"
             />
-          </details>
+          </div>
         )}
       </div>
     </article>

@@ -1050,52 +1050,86 @@ export function RecordWorkspace({
                 padding: { base: 'lg', md: '2xl' },
               })}
             >
-              <h2
+              <div
+                data-minutes-document
                 className={css({
-                  textStyle: 'headlineLarge',
-                  marginBottom: 'lg',
-                  overflowWrap: 'anywhere',
+                  width: '100%',
+                  maxWidth: '64rem',
+                  minWidth: 0,
+                  marginInline: 'auto',
                 })}
               >
-                {t('recordOverview.documentTitle', {
-                  title: record.title || t('library.untitled'),
-                })}
-              </h2>
-              <p className={metaLine}>
-                {record.owner?.trim() || t('library.ownerUnknown')} ·{' '}
-                {formatDateTime(record.origin_at)}
-              </p>
-              {record.capabilities.read_transcript && (
-                <Link href={`/meeting/records/${record.id}?tab=overview`}>
-                  {t('recordOverview.backToRecord')}
-                </Link>
-              )}
-              {!record.capabilities.read_summary ? (
-                <StateHint>{t('recordAi.unavailable')}</StateHint>
-              ) : humanId !== undefined ? (
-                <HumanSummaryRevision
-                  key={`${viewerId}:${record.id}:${humanId}`}
-                  viewerId={viewerId}
-                  recordId={record.id}
-                  versionId={humanId}
-                  canReadTranscript={record.capabilities.read_transcript}
-                  linked
-                />
-              ) : (
-                <>
-                  <RecordSummaryPanel
-                    key={`${viewerId}:${record.id}:${summaryId ?? 'latest'}:${search.get('review')}`}
-                    showHeading={false}
-                    selectedVersionId={summaryId}
+                <header className={css({ paddingBottom: 'lg' })}>
+                  <h2
+                    className={css({
+                      textStyle: {
+                        base: 'headlineSmall',
+                        md: 'headlineMedium',
+                      },
+                      marginBottom: 'sm',
+                      overflowWrap: 'anywhere',
+                    })}
+                  >
+                    {t('recordOverview.documentTitle', {
+                      title: record.title || t('library.untitled'),
+                    })}
+                  </h2>
+                  <div
+                    className={css({
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      gap: 'sm',
+                      justifyContent: 'space-between',
+                    })}
+                  >
+                    <p className={metaLine}>
+                      {record.owner?.trim() || t('library.ownerUnknown')} ·{' '}
+                      {formatDateTime(record.origin_at)}
+                    </p>
+                    {record.capabilities.read_transcript && (
+                      <Link
+                        className={css({
+                          color: 'text.link',
+                          textStyle: 'bodySmall',
+                        })}
+                        href={`/meeting/records/${record.id}?tab=overview`}
+                      >
+                        {t('recordOverview.backToRecord')}
+                      </Link>
+                    )}
+                  </div>
+                </header>
+                {!record.capabilities.read_summary ? (
+                  <StateHint>{t('recordAi.unavailable')}</StateHint>
+                ) : humanId !== undefined ? (
+                  <HumanSummaryRevision
+                    key={`${viewerId}:${record.id}:${humanId}`}
                     viewerId={viewerId}
                     recordId={record.id}
+                    versionId={humanId}
+                    canReadTranscript={record.capabilities.read_transcript}
+                    linked
                   />
-                  {summaryId === undefined &&
-                    record.source_type === 'meeting' && (
-                      <LegacySummary viewerId={viewerId} recordId={record.id} />
-                    )}
-                </>
-              )}
+                ) : (
+                  <>
+                    <RecordSummaryPanel
+                      key={`${viewerId}:${record.id}:${summaryId ?? 'latest'}:${search.get('review')}`}
+                      showHeading={false}
+                      selectedVersionId={summaryId}
+                      viewerId={viewerId}
+                      recordId={record.id}
+                    />
+                    {summaryId === undefined &&
+                      record.source_type === 'meeting' && (
+                        <LegacySummary
+                          viewerId={viewerId}
+                          recordId={record.id}
+                        />
+                      )}
+                  </>
+                )}
+              </div>
             </div>
           ) : (
             <TranscriptDraftScope

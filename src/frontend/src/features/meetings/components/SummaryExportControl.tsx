@@ -49,6 +49,7 @@ const stack = css({
   flexDirection: 'column',
   gap: 'md',
   minWidth: 0,
+  '& > button': { alignSelf: 'flex-start', maxWidth: '100%' },
 })
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
 function loadIntent(key: string): Intent | undefined {
@@ -96,13 +97,35 @@ const Control = (props: Props) => {
   if (root.isError || (!root.data?.available && !root.data?.results?.length))
     return null
   return (
-    <section className={stack}>
-      <Button size="sm" variant="tertiary" onPress={() => setOpened(!opened)}>
+    <section
+      className={css({
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'md',
+        minWidth: 0,
+        paddingTop: 'lg',
+        borderTop: '1px solid token(colors.border.subtle)',
+        '& > button': { alignSelf: 'flex-start', maxWidth: '100%' },
+      })}
+    >
+      <Button
+        size="sm"
+        variant="secondary"
+        aria-expanded={opened}
+        onPress={() => setOpened(!opened)}
+      >
         {t(opened ? 'summaryExport.close' : 'summaryExport.open')}
       </Button>
       {opened && (
         <>
-          <div>
+          <div
+            className={css({
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 'sm',
+            })}
+          >
             {t('summaryExport.language')}
             <SelectCompat
               aria-label={t('summaryExport.language')}
