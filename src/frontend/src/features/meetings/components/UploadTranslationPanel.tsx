@@ -197,6 +197,8 @@ export function UploadTranslationPanel({
     )
   const stale = selected?.stale || detail.data?.stale
   const rows = detail.data?.results ?? []
+  const hasVisibleTranslation =
+    !!selected && detail.data?.id === selected.id && rows.length > 0
   const currentId =
     !stale && onSource && positionMs !== undefined
       ? activeRowId(
@@ -242,25 +244,29 @@ export function UploadTranslationPanel({
             <option value="zh">{t('zh')}</option>
           </select>
         </label>
-        <Button
-          size="sm"
-          variant="secondaryText"
-          aria-pressed={preferences.showOriginal}
-          icon={
-            preferences.showOriginal ? (
-              <RiCheckLine size={16} aria-hidden />
-            ) : undefined
-          }
-          className={css({
-            '&[aria-pressed="true"]': { backgroundColor: 'action.selected.bg' },
-          })}
-          onPress={() =>
-            setPreferences({ showOriginal: !preferences.showOriginal })
-          }
-        >
-          {t('showOriginal')}
-        </Button>
-        {preferences.showOriginal && (
+        {hasVisibleTranslation && (
+          <Button
+            size="sm"
+            variant="secondaryText"
+            aria-pressed={preferences.showOriginal}
+            icon={
+              preferences.showOriginal ? (
+                <RiCheckLine size={16} aria-hidden />
+              ) : undefined
+            }
+            className={css({
+              '&[aria-pressed="true"]': {
+                backgroundColor: 'action.selected.bg',
+              },
+            })}
+            onPress={() =>
+              setPreferences({ showOriginal: !preferences.showOriginal })
+            }
+          >
+            {t('showOriginal')}
+          </Button>
+        )}
+        {hasVisibleTranslation && preferences.showOriginal && (
           <Button
             size="sm"
             variant="secondaryText"

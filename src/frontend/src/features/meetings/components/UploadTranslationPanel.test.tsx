@@ -209,6 +209,7 @@ it('marks a stale snapshot and disables its export and seek', async () => {
     screen.queryByRole('button', { name: /^play / })
   ).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'regenerate' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'showOriginal' })).toBeVisible()
 })
 it('removes protected text when access revalidation fails and hides generation for readers', async () => {
   canGenerate = false
@@ -253,12 +254,55 @@ it('changing language reads another product without issuing a paid request', asy
   await screen.findByText('Translated')
   fireEvent.change(screen.getByRole('combobox'), { target: { value: 'zh' } })
   await screen.findByText('empty')
+  expect(screen.queryByRole('button', { name: 'showOriginal' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'sideBySide' })).toBeNull()
   expect(screen.queryByText('Translated')).not.toBeInTheDocument()
   expect(
     vi
       .mocked(fetchApi)
       .mock.calls.some(([, options]) => options?.method === 'POST')
   ).toBe(false)
+})
+
+it.each([true, false])(
+  'restores original visibility (%s) and comparison preferences after an empty language',
+  async (showOriginal) => {
+    const saved = JSON.stringify({ showOriginal, sideBySide: true })
+    localStorage.setItem('we-meet:translation-view:owner', saved)
+    show()
+    await screen.findByText('Translated')
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'zh' } })
+    await screen.findByText('empty')
+    expect(screen.queryByRole('button', { name: 'showOriginal' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'sideBySide' })).toBeNull()
+    expect(localStorage.getItem('we-meet:translation-view:owner')).toBe(saved)
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'en' } })
+    await screen.findByText('Translated')
+    expect(
+      screen.getByRole('button', { name: 'showOriginal' })
+    ).toHaveAttribute('aria-pressed', String(showOriginal))
+    if (!showOriginal)
+      fireEvent.click(screen.getByRole('button', { name: 'showOriginal' }))
+    expect(screen.getByRole('button', { name: 'sideBySide' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+  }
+)
+
+it('hides reading controls when a completed translation contains no rows', async () => {
+  const read = vi.mocked(fetchApi).getMockImplementation()!
+  vi.mocked(fetchApi).mockImplementation(async (path, options) => {
+    const result = await read(path, options)
+    return path.includes('?page=')
+      ? { ...(result as object), results: [], next_page: null }
+      : result
+  })
+  show()
+  await screen.findByText('status.succeeded')
+  await waitFor(() => expect(screen.queryByText('loading')).toBeNull())
+  expect(screen.queryByRole('button', { name: 'showOriginal' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'sideBySide' })).toBeNull()
 })
 
 it('rejects a response bound to another record', async () => {
@@ -298,6 +342,8 @@ it.each(['failed', 'incomplete', 'canceled', 'succeeded'])(
       await vi.advanceTimersByTimeAsync(50)
     })
     expect(listReads()).toBe(1)
+    expect(screen.queryByRole('button', { name: 'showOriginal' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'sideBySide' })).toBeNull()
     status = 'running'
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000)
