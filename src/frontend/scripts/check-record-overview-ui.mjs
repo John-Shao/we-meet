@@ -101,8 +101,20 @@ try {
   assert.equal(await page.getByRole('group', { name: '纪要工具' }).count(), 0)
   assert.ok(calls.every(path => /\/(record|overview|overview-requests)\/$/.test(path)))
   assert.equal(await page.getByRole('link', { name: '打开智能纪要' }).getAttribute('href'), '/meeting/records/record?tab=summary')
-  await page.getByRole('button', { name: '更多操作', exact: true }).click()
-  await page.getByRole('menuitem', { name: '生成语言', exact: true }).click()
+  const assertToolbarLayout = async () => {
+    const language = page.getByRole('combobox', { name: '生成语言', exact: true })
+    await expect(language).toBeVisible()
+    await expect(page.getByRole('button', { name: '更多操作', exact: true })).toHaveCount(0)
+    const link = page.getByRole('link', { name: '打开智能纪要' })
+    const toolbar = link.locator('xpath=ancestor::*[@data-record-toolbar]')
+    const rightGap = await toolbar.evaluate((element) => {
+      const link = element.querySelector('a')
+      const style = getComputedStyle(element)
+      return element.getBoundingClientRect().right - parseFloat(style.paddingRight) - link.getBoundingClientRect().right
+    })
+    assert.ok(Math.abs(rightGap) < 2, `Minutes link must align with the toolbar right edge: ${rightGap}`)
+  }
+  await assertToolbarLayout()
   await expect(page.locator('[role="menu"]')).toHaveCount(0)
   await page.getByRole('combobox', { name: '生成语言', exact: true }).selectOption('en')
   await page.waitForFunction(() => document.querySelector('select')?.value === 'en')
@@ -111,6 +123,7 @@ try {
   await page.getByText(overviewText, { exact: true }).waitFor()
   await page.screenshot({ path: 'test-results/record-overview-desktop.png', fullPage: true })
   await page.setViewportSize({ width: 390, height: 844 })
+  await assertToolbarLayout()
   await page.screenshot({ path: 'test-results/record-overview-mobile.png', fullPage: true })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
   await expect(page.getByText(version.content.chapters[0].text, { exact: true })).toBeVisible()

@@ -2,7 +2,7 @@
 
 概要和章节纪要默认跟随原文语言（`auto`），不使用界面语言。原文语言标记缺失或混合时，提示词要求根据完整原文的主要语言生成，保留原文的简繁体和必要术语。概要、章节标题和正文使用同一生成规则。
 
-Web 与 Android 的“会议纪要”页面更多菜单提供“生成语言”。设置按实录保存：`PATCH /meeting-records/{id}/overview/` 接受 `output_language` 和 `expected_output_language`，仅当前实录管理者可修改；并发修改返回 409，设置本身不触发模型调用。`GET` 同路径返回当前设置。支持 `auto/zh/en/fr/de/nl/ja/ko/es/it/pt/ru/ar`。
+Web 与 Android 的“会议纪要”页面工具栏直接提供“生成语言”，并将“打开智能纪要”入口靠右显示。设置按实录保存：`PATCH /meeting-records/{id}/overview/` 接受 `output_language` 和 `expected_output_language`，仅当前实录管理者可修改；并发修改返回 409，设置本身不触发模型调用。`GET` 同路径返回当前设置。支持 `auto/zh/en/fr/de/nl/ja/ko/es/it/pt/ru/ar`。
 
 每次新生成将语言固定在任务配置中；相同请求的恢复不会改变语言。选择不同语言后，即使上次任务可重试，也创建新任务；已有概要保留至新结果成功发布。该设置仅控制实录概要和章节纪要，不改变文字记录或独立智能纪要的语言设置。已有英文结果需要用户重新生成。
 

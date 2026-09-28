@@ -76,12 +76,7 @@ it('saves the shared generation language without generating or hiding existing c
   const user = userEvent.setup()
   state = { ...state, version, job: { ...job, status: 'succeeded' } }
   const first = show()
-  await user.click(
-    await screen.findByRole('button', { name: 'recordOverview.more' })
-  )
-  await user.click(
-    await screen.findByRole('menuitem', { name: 'recordOverview.language' })
-  )
+  await screen.findByRole('combobox', { name: 'recordOverview.language' })
   const select = screen.getByRole('combobox', {
     name: 'recordOverview.language',
   })
@@ -97,27 +92,16 @@ it('saves the shared generation language without generating or hiding existing c
   first.unmount()
   client.clear()
   show()
-  await user.click(
-    await screen.findByRole('button', { name: 'recordOverview.more' })
-  )
-  await user.click(
-    await screen.findByRole('menuitem', { name: 'recordOverview.language' })
-  )
+  await screen.findByRole('combobox', { name: 'recordOverview.language' })
   expect(
     screen.getByRole('combobox', { name: 'recordOverview.language' })
   ).toHaveValue('zh')
 })
 
 it('disables language changes while a generation is running', async () => {
-  const user = userEvent.setup()
   state = { ...state, job }
   show()
-  await user.click(
-    await screen.findByRole('button', { name: 'recordOverview.more' })
-  )
-  await user.click(
-    await screen.findByRole('menuitem', { name: 'recordOverview.language' })
-  )
+  await screen.findByRole('combobox', { name: 'recordOverview.language' })
   expect(
     screen.getByRole('combobox', { name: 'recordOverview.language' })
   ).toBeDisabled()

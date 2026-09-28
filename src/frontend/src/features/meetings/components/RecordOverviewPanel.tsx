@@ -6,13 +6,9 @@ import {
   RiFileTextLine,
   RiRefreshLine,
   RiSparklingLine,
-  RiMore2Line,
 } from '@remixicon/react'
-import { Menu as AriaMenu, MenuItem } from 'react-aria-components'
-import { Menu } from '@/primitives/Menu'
-import { menuRecipe } from '@/primitives/menuRecipe'
 import { StateHint } from '@/components/StateHint'
-import { Button, IconButton, LinkButton, Text } from '@/primitives'
+import { Button, LinkButton, Text } from '@/primitives'
 import { css } from '@/styled-system/css'
 import { ApiError } from '@/api/ApiError'
 import {
@@ -43,8 +39,6 @@ export function RecordOverviewPanel({
   const query = useRecordOverview(viewerId, recordId)
   const mutation = useRequestOverview(viewerId, recordId)
   const languageMutation = useSetOverviewLanguage(viewerId, recordId)
-  const [languageOpen, setLanguageOpen] = useState(false)
-  const menu = menuRecipe({ variant: 'light' })
   const recovery = useSummaryIntent(
     'overview',
     viewerId,
@@ -136,42 +130,19 @@ export function RecordOverviewPanel({
             )}
           </Button>
         )}
-        <Link href={`/meeting/records/${recordId}?tab=summary`} asChild>
-          <LinkButton size="sm" variant="secondaryText">
-            <RiFileTextLine size={16} aria-hidden />
-            {t('recordOverview.openMinutes')}
-          </LinkButton>
-        </Link>
         {state?.can_generate && (
-          <Menu placement="bottom">
-            <IconButton label={t('recordOverview.more')}>
-              <RiMore2Line size={16} aria-hidden />
-            </IconButton>
-            <AriaMenu
-              className={menu.root}
-              aria-label={t('recordOverview.more')}
-            >
-              <MenuItem
-                className={menu.item}
-                onAction={() => setLanguageOpen((value) => !value)}
-              >
-                {t('recordOverview.language')}
-              </MenuItem>
-            </AriaMenu>
-          </Menu>
-        )}
-      </RecordPanelTools>
-      {state?.can_generate && languageOpen && (
-        <div
-          className={css({
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'sm',
-          })}
-        >
-          <label>
-            {t('recordOverview.language')}{' '}
+          <label
+            className={css({
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'sm',
+              textStyle: 'labelMedium',
+              flexWrap: 'wrap',
+            })}
+          >
+            {t('recordOverview.language')}
             <select
+              title={t('recordOverview.languageHint')}
               value={state.output_language ?? 'auto'}
               disabled={
                 busy ||
@@ -181,7 +152,10 @@ export function RecordOverviewPanel({
                 !recovery.ready
               }
               className={css({
-                padding: 'sm',
+                paddingX: 'sm',
+                paddingY: 'xs',
+                minWidth: 0,
+                maxWidth: '100%',
                 border: '1px solid token(colors.border.subtle)',
                 borderRadius: 'field',
                 backgroundColor: 'surface.default',
@@ -201,11 +175,18 @@ export function RecordOverviewPanel({
               ))}
             </select>
           </label>
-          <Text variant="note">{t('recordOverview.languageHint')}</Text>
-          {languageMutation.isError && (
-            <p role="alert">{t('recordOverview.languageSaveFailed')}</p>
-          )}
+        )}
+        <div className={css({ marginLeft: 'auto' })}>
+          <Link href={`/meeting/records/${recordId}?tab=summary`} asChild>
+            <LinkButton size="sm" variant="secondaryText">
+              <RiFileTextLine size={16} aria-hidden />
+              {t('recordOverview.openMinutes')}
+            </LinkButton>
+          </Link>
         </div>
+      </RecordPanelTools>
+      {state?.can_generate && languageMutation.isError && (
+        <p role="alert">{t('recordOverview.languageSaveFailed')}</p>
       )}
       {state?.can_generate && (
         <div>
