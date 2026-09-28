@@ -532,29 +532,25 @@ function WorkspaceContent({
   viewerId,
   translations = false,
   overview = false,
-  chapters = false,
 }: {
   record: ApiMeetingRecord
   viewerId: string
   translations?: boolean
   overview?: boolean
-  chapters?: boolean
 }) {
   const { t } = useTranslation('meetings')
   const [tab, setTab] = useState(
-    chapters
-      ? 'chapters'
-      : overview
-        ? 'summary'
-        : translations &&
-            (record.source_type === 'meeting' ||
-              record.source_type === 'upload' ||
-              record.capture_id) &&
-            record.capabilities.read_transcript
-          ? 'translations'
-          : record.capabilities.read_transcript
-            ? 'text'
-            : 'summary'
+    overview
+      ? 'summary'
+      : translations &&
+          (record.source_type === 'meeting' ||
+            record.source_type === 'upload' ||
+            record.capture_id) &&
+          record.capabilities.read_transcript
+        ? 'translations'
+        : record.capabilities.read_transcript
+          ? 'text'
+          : 'summary'
   )
   const [mainTab, setMainTab] = useState(tab)
   const [detailsTab, setDetailsTab] = useState('speakers')
@@ -629,7 +625,7 @@ function WorkspaceContent({
     (tab === 'text' || tab === 'speakers' || tab === 'translations') &&
     !canReadText
       ? 'info'
-      : (tab === 'summary' || tab === 'chapters') && !canReadSummary
+      : tab === 'summary' && !canReadSummary
         ? 'info'
         : tab
   const detailsPanels = (
@@ -802,9 +798,6 @@ function WorkspaceContent({
               {canReadSummary && (
                 <Tab id="summary">{t('recordOverview.title')}</Tab>
               )}
-              {canReadSummary && (
-                <Tab id="chapters">{t('recordAi.sections.chapters')}</Tab>
-              )}
               {!split && canReadText && record.source_type !== 'meeting' && (
                 <Tab id="speakers">{t('library.speakers')}</Tab>
               )}
@@ -895,55 +888,28 @@ function WorkspaceContent({
                   </RecordPanel>
                 </TabPanel>
               )}
-            {canReadSummary &&
-              ['summary', 'chapters'].map((contentTab) => (
-                <TabPanel key={contentTab} id={contentTab} data-record-panel>
-                  <RecordPanel
-                    label={t(
-                      contentTab === 'summary'
-                        ? 'recordOverview.title'
-                        : 'recordAi.sections.chapters'
-                    )}
-                  >
-                    {contentTab === 'summary' ? (
-                      <RecordOverviewPanel
-                        viewerId={viewerId}
-                        recordId={record.id}
-                        onSourceAudio={
-                          canPlayUpload
-                            ? seekTo
-                            : playable && source
-                              ? (ms) =>
-                                  seekTo(
-                                    ms -
-                                      (Date.parse(source.started_at) -
-                                        Date.parse(record.origin_at))
-                                  )
-                              : undefined
-                        }
-                      />
-                    ) : (
-                      <RecordOverviewPanel
-                        chaptersOnly
-                        viewerId={viewerId}
-                        recordId={record.id}
-                        onSourceAudio={
-                          canPlayUpload
-                            ? seekTo
-                            : playable && source
-                              ? (ms) =>
-                                  seekTo(
-                                    ms -
-                                      (Date.parse(source.started_at) -
-                                        Date.parse(record.origin_at))
-                                  )
-                              : undefined
-                        }
-                      />
-                    )}
-                  </RecordPanel>
-                </TabPanel>
-              ))}
+            {canReadSummary && (
+              <TabPanel id="summary" data-record-panel>
+                <RecordPanel label={t('recordOverview.title')}>
+                  <RecordOverviewPanel
+                    viewerId={viewerId}
+                    recordId={record.id}
+                    onSourceAudio={
+                      canPlayUpload
+                        ? seekTo
+                        : playable && source
+                          ? (ms) =>
+                              seekTo(
+                                ms -
+                                  (Date.parse(source.started_at) -
+                                    Date.parse(record.origin_at))
+                              )
+                          : undefined
+                    }
+                  />
+                </RecordPanel>
+              </TabPanel>
+            )}
             {!split && detailsPanels}
           </Tabs>
         ),
@@ -972,8 +938,8 @@ export function RecordWorkspace({
   const summaryId = summaryIds.length > 1 ? '' : summaryIds[0]
   const translations = search.get('tab') === 'translations'
   const summary = search.get('tab') === 'summary'
-  const chapters = search.get('tab') === 'chapters'
-  const overview = search.get('tab') === 'overview'
+  // Existing chapter links open the combined overview and chapters page.
+  const overview = ['overview', 'chapters'].includes(search.get('tab') ?? '')
   const document =
     summary ||
     summaryId !== undefined ||
@@ -1137,12 +1103,11 @@ export function RecordWorkspace({
             >
               <RecordViewState>
                 <WorkspaceContent
-                  key={`${viewerId}:${recordId}:${translations}:${overview}:${chapters}`}
+                  key={`${viewerId}:${recordId}:${translations}:${overview}`}
                   viewerId={viewerId}
                   record={record}
                   translations={translations}
                   overview={overview}
-                  chapters={chapters}
                 />
               </RecordViewState>
             </TranscriptDraftScope>

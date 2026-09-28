@@ -31,14 +31,13 @@ const version = {
 }
 let client: QueryClient
 let state: Record<string, unknown>
-function show(chaptersOnly = false, onSourceAudio?: (ms: number) => void) {
+function show(onSourceAudio?: (ms: number) => void) {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
       <RecordOverviewPanel
         viewerId="owner"
         recordId="record"
-        chaptersOnly={chaptersOnly}
         onSourceAudio={onSourceAudio}
       />
     </QueryClientProvider>
@@ -186,14 +185,15 @@ it('preserves the idempotency key after an uncertain response and a remount', as
   expect(posts[0][1]?.body).toEqual(posts[1][1]?.body)
 })
 
-it('keeps the previous overview visible and retries through the single regenerate action', async () => {
+it('keeps the previous overview and chapters visible after failure and retries through one action', async () => {
   state = {
     ...state,
     job: { ...job, status: 'failed', retryable: true },
-    version,
+    version: { ...version, content: { ...version.content, topics } },
   }
   show()
   await screen.findByText('Independent overview')
+  expect(screen.getByText('Chapter details')).toBeVisible()
   expect(screen.getByRole('alert')).toHaveTextContent(
     'recordOverview.failedPreserved'
   )
@@ -323,29 +323,78 @@ const topics = [
   },
 ]
 
-it('shows only the synopsis in overview, even when saved chapters exist', async () => {
+it('shows the synopsis and chapters together under one generation action', async () => {
   state = {
     ...state,
     version: { ...version, content: { ...version.content, topics } },
   }
-  show(false, vi.fn())
+  show(vi.fn())
   await screen.findByText(version.content.synopsis)
-  expect(screen.queryByText('First chapter')).toBeNull()
-  expect(screen.queryByText('Chapter details')).toBeNull()
-  expect(screen.queryByText('recordOverview.moreSources')).toBeNull()
+  expect(screen.getByText('First chapter')).toBeVisible()
+  expect(screen.getByText('Chapter details')).toBeVisible()
+  expect(
+    screen.getAllByRole('button', { name: 'recordOverview.regenerate' })
+  ).toHaveLength(1)
+  expect(
+    screen.getByRole('heading', { name: 'recordOverview.synopsisTitle' })
+  ).toBeVisible()
+  expect(
+    screen.getByRole('heading', { name: 'recordAi.sections.chapters' })
+  ).toBeVisible()
   expect(screen.getByText('recordOverview.hint')).toBeVisible()
 })
 
-it('shows chapters without synopsis and expands references without changing their playback times', async () => {
+it('regenerates both sections with one request and preserves both until publication', async () => {
+  state = {
+    ...state,
+    job: { ...job, status: 'succeeded' },
+    version: { ...version, content: { ...version.content, topics } },
+  }
+  show()
+  const regenerate = await screen.findByRole('button', {
+    name: 'recordOverview.regenerate',
+  })
+  await waitFor(() => expect(regenerate).toBeEnabled())
+  fireEvent.click(regenerate)
+  await screen.findByRole('button', { name: 'recordOverview.generating' })
+  expect(screen.getByText('Independent overview')).toBeVisible()
+  expect(screen.getByText('Chapter details')).toBeVisible()
+  const posts = vi
+    .mocked(fetchApi)
+    .mock.calls.filter(([, options]) => options?.method === 'POST')
+  expect(posts).toHaveLength(1)
+  expect(JSON.parse(String(posts[0][1]?.body)).operation).toBe('regenerate')
+  state = {
+    ...state,
+    job: { ...job, status: 'succeeded' },
+    version: {
+      ...version,
+      id: 'new-overview',
+      content: {
+        synopsis: 'Updated overview',
+        topics: [{ ...topics[0], text: 'Updated chapter details' }],
+      },
+    },
+  }
+  await act(async () => {
+    await client.invalidateQueries()
+  })
+  await screen.findByText('Updated overview')
+  expect(screen.getByText('Updated chapter details')).toBeVisible()
+  expect(screen.queryByText('Independent overview')).not.toBeInTheDocument()
+  expect(screen.queryByText('Chapter details')).not.toBeInTheDocument()
+})
+
+it('expands chapter references alongside the synopsis without changing playback times', async () => {
   state = {
     ...state,
     version: { ...version, content: { ...version.content, topics } },
   }
   const seek = vi.fn()
-  show(true, seek)
+  show(seek)
   await screen.findByText('Chapter details')
-  expect(screen.queryByText(version.content.synopsis)).toBeNull()
-  expect(screen.getByText('recordOverview.chaptersHint')).toBeVisible()
+  expect(screen.getByText(version.content.synopsis)).toBeVisible()
+  expect(screen.getByText('recordOverview.hint')).toBeVisible()
   expect(screen.getByText('recordAi.listenSource 0:03')).not.toBeVisible()
   fireEvent.click(
     screen.getByRole('button', { name: 'recordAi.listenSource 0:01' })
@@ -373,7 +422,7 @@ it('keeps chapter text without playback permission and handles an empty chapter 
     ...state,
     version: { ...version, content: { ...version.content, topics } },
   }
-  show(true)
+  show()
   await screen.findByText('Chapter details')
   expect(screen.queryByText('recordOverview.moreSources')).toBeNull()
   state = { ...state, version }
@@ -381,5 +430,5 @@ it('keeps chapter text without playback permission and handles an empty chapter 
     await client.invalidateQueries()
   })
   await screen.findByText('recordOverview.chaptersEmpty')
-  expect(screen.queryByText(version.content.synopsis)).toBeNull()
+  expect(screen.getByText(version.content.synopsis)).toBeVisible()
 })

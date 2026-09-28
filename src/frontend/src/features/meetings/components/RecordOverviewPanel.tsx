@@ -34,12 +34,10 @@ export function RecordOverviewPanel({
   viewerId,
   recordId,
   onSourceAudio,
-  chaptersOnly = false,
 }: {
   viewerId: string
   recordId: string
   onSourceAudio?: (milliseconds: number) => void
-  chaptersOnly?: boolean
 }) {
   const { t } = useTranslation('meetings')
   const query = useRecordOverview(viewerId, recordId)
@@ -209,11 +207,7 @@ export function RecordOverviewPanel({
           )}
         </div>
       )}
-      <Text variant="note">
-        {t(
-          chaptersOnly ? 'recordOverview.chaptersHint' : 'recordOverview.hint'
-        )}
-      </Text>
+      <Text variant="note">{t('recordOverview.hint')}</Text>
       {state?.can_generate && (
         <div>
           {!state.generation_ready && (
@@ -284,11 +278,17 @@ export function RecordOverviewPanel({
           {version.asr_status === 'incomplete' && (
             <Text variant="note">{t('recordAi.asr.incomplete')}</Text>
           )}
-          {!chaptersOnly && <Text>{version.content.synopsis}</Text>}
-          {chaptersOnly && version.content.topics.length === 0 && (
+          <h3 className={css({ textStyle: 'titleMedium', marginTop: 'lg' })}>
+            {t('recordOverview.synopsisTitle')}
+          </h3>
+          <Text>{version.content.synopsis}</Text>
+          <h3 className={css({ textStyle: 'titleMedium', marginTop: 'xl' })}>
+            {t('recordAi.sections.chapters')}
+          </h3>
+          {version.content.topics.length === 0 && (
             <StateHint>{t('recordOverview.chaptersEmpty')}</StateHint>
           )}
-          {chaptersOnly && version.content.topics.length > 0 && (
+          {version.content.topics.length > 0 && (
             <ul
               className={css({
                 listStyleType: 'disc',

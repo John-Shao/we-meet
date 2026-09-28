@@ -381,20 +381,27 @@ it('opens a standalone document directly from the minutes library without select
   expect(screen.queryByText('Shared original')).not.toBeInTheDocument()
 })
 
-it('opens chapter navigation directly and rebases its source time for capture playback', async () => {
-  window.history.replaceState(null, '', '/meeting/records/record?tab=chapters')
-  show()
-  await screen.findByText('Main talking point')
-  expect(
-    screen.getByRole('tab', { name: 'recordAi.sections.chapters' })
-  ).toHaveAttribute('aria-selected', 'true')
-  fireEvent.click(
-    await screen.findByRole('button', { name: 'recordAi.listenSource 0:03' })
-  )
-  expect(mocks.seek).toHaveBeenCalledWith(1000)
-})
+it.each(['overview', 'chapters'])(
+  'opens the combined page from a %s link and rebases source time for capture playback',
+  async (tab) => {
+    window.history.replaceState(null, '', `/meeting/records/record?tab=${tab}`)
+    show()
+    await screen.findByText('Main talking point')
+    expect(
+      screen.getByRole('tab', { name: 'recordOverview.title' })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Recording overview')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('tab', { name: 'recordAi.sections.chapters' })
+    ).not.toBeInTheDocument()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'recordAi.listenSource 0:03' })
+    )
+    expect(mocks.seek).toHaveBeenCalledWith(1000)
+  }
+)
 
-it('exposes recording chapters independently of minutes access', async () => {
+it('exposes the combined overview and chapters independently of minutes access', async () => {
   record.capabilities = {
     read_transcript: true,
     read_summary: false,
@@ -404,7 +411,7 @@ it('exposes recording chapters independently of minutes access', async () => {
   show()
   await screen.findByText('Main talking point')
   expect(
-    screen.queryByRole('tab', { name: 'recordAi.sections.chapters' })
+    screen.queryByRole('tab', { name: 'recordOverview.title' })
   ).toBeInTheDocument()
   expect(screen.queryByText('chapters-workspace')).not.toBeInTheDocument()
 })
@@ -478,15 +485,10 @@ it('reads an owner’s stopped cloud capture without any local journal or device
   expect(mocks.seek).toHaveBeenCalledWith(500)
   fireEvent.click(screen.getByRole('tab', { name: 'recordOverview.title' }))
   expect(await screen.findByText('Recording overview')).toBeInTheDocument()
-  expect(screen.queryByText('Main talking point')).not.toBeInTheDocument()
-  expect(
-    screen.queryByRole('button', { name: /recordAi.listenSource/ })
-  ).not.toBeInTheDocument()
-  fireEvent.click(
-    screen.getByRole('tab', { name: 'recordAi.sections.chapters' })
-  )
   expect(await screen.findByText('Main talking point')).toBeInTheDocument()
-  expect(screen.queryByText('Recording overview')).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('tab', { name: 'recordAi.sections.chapters' })
+  ).not.toBeInTheDocument()
   fireEvent.click(
     await screen.findByRole('button', { name: 'recordAi.listenSource 0:03' })
   )
