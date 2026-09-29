@@ -6,8 +6,7 @@ import { connectionObserverStore } from '@/stores/connectionObserver'
 import { HStack } from '@/styled-system/jsx'
 import { useEffect, useRef, useState } from 'react'
 import { navigateTo } from '@/navigation/navigateTo'
-import humanizeDuration from 'humanize-duration'
-import i18n from 'i18next'
+import { formatDuration } from '@/utils/formatDuration'
 import { useScreenReaderAnnounce } from '@/hooks/useScreenReaderAnnounce'
 import { useSettingsDialog } from '@/features/settings/hook/useSettingsDialog'
 import { SettingsDialogExtendedKey } from '@/features/settings/type'
@@ -22,7 +21,10 @@ export const IsIdleDisconnectModal = () => {
   const lastAnnouncementRef = useRef<number | null>(null)
   const { openSettingsDialog } = useSettingsDialog()
 
-  const { t } = useTranslation('rooms', { keyPrefix: 'isIdleDisconnectModal' })
+  const { t, i18n } = useTranslation('rooms', {
+    keyPrefix: 'isIdleDisconnectModal',
+  })
+  const language = i18n.resolvedLanguage || i18n.language
   const announce = useScreenReaderAnnounce()
 
   useEffect(() => {
@@ -64,8 +66,7 @@ export const IsIdleDisconnectModal = () => {
     if (shouldAnnounce && remainingSeconds !== lastAnnouncementRef.current) {
       lastAnnouncementRef.current = remainingSeconds
       const message = t('countdownAnnouncement', {
-        duration: humanizeDuration(remainingSeconds * 1000, {
-          language: i18n.language,
+        duration: formatDuration(remainingSeconds * 1000, language, {
           round: false,
           largest: 2,
         }),
@@ -76,6 +77,7 @@ export const IsIdleDisconnectModal = () => {
     announce,
     connectionObserverSnap.isIdleDisconnectModalOpen,
     remainingSeconds,
+    language,
     t,
   ])
 
@@ -115,9 +117,7 @@ export const IsIdleDisconnectModal = () => {
             </H>
             <P>
               {t('body', {
-                duration: humanizeDuration(IDLE_DISCONNECT_TIMEOUT_MS, {
-                  language: i18n.language,
-                }),
+                duration: formatDuration(IDLE_DISCONNECT_TIMEOUT_MS, language),
               })}
             </P>
             <P>
