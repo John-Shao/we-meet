@@ -24,6 +24,7 @@ import {
   type TranslationRun,
 } from '../translationEvents'
 import { useConnectedMeetingSid } from '../useConnectedMeetingSid'
+import { useMeetingSessionStatus } from '../useMeetingSessionStatus'
 import { useSummaryIntent } from '../hooks/useSummaryIntent'
 
 interface Status {
@@ -107,6 +108,8 @@ const PrivateTranslationSession = ({ children }: { children: ReactNode }) => {
   const sid = useConnectedMeetingSid()
   const { user, isLoggedIn } = useUser()
   const viewerId = isLoggedIn ? user?.id : undefined
+  const sessionStatus = useMeetingSessionStatus()
+  const canReadStatus = sessionStatus?.translation === true
   const client = useQueryClient()
   const queryKey = ['meeting-translations', viewerId, roomId, sid]
   const status = useQuery<Status, ApiError>({
@@ -119,7 +122,7 @@ const PrivateTranslationSession = ({ children }: { children: ReactNode }) => {
         })}`,
         { signal, cache: 'no-store' }
       ),
-    enabled: !!viewerId && !!roomId && !!sid,
+    enabled: !!viewerId && !!roomId && !!sid && canReadStatus,
     retry: false,
     gcTime: 0,
     staleTime: 0,
@@ -165,10 +168,11 @@ const PrivateTranslationSession = ({ children }: { children: ReactNode }) => {
   const heldRef = useRef<TranslationDirection | null>(null)
   const turnBusyRef = useRef(false)
   const outbound = useRef(Promise.resolve())
-  const current = status.data?.current
+  const value = canReadStatus ? status.data : undefined
+  const current = value?.current
   const active =
     !!current && ['starting', 'translating', 'stopping'].includes(current.state)
-  const source = status.data?.sources.find(
+  const source = value?.sources.find(
     (value) => value.participant_sid === room.localParticipant.sid
   )
   const ownConnection =
@@ -190,7 +194,7 @@ const PrivateTranslationSession = ({ children }: { children: ReactNode }) => {
       !muted &&
       !status.isError &&
       statusFresh &&
-      !!status.data?.available &&
+      !!value?.available &&
       audioGrant.viewer === viewerId &&
       audioGrant.room === roomId &&
       audioGrant.sid === sid &&
@@ -213,7 +217,7 @@ const PrivateTranslationSession = ({ children }: { children: ReactNode }) => {
       muted,
       status.isError,
       statusFresh,
-      status.data?.available,
+      value?.available,
     ]
   )
   const requests = useRef(new Set<AbortController>())
@@ -403,7 +407,7 @@ const PrivateTranslationSession = ({ children }: { children: ReactNode }) => {
     if (
       !pendingIntent &&
       ((status.isError && !active) ||
-        (!active && (!status.data?.available || !source || !options)))
+        (!active && (!value?.available || !source || !options)))
     )
       return
     busy.current = true
@@ -508,8 +512,8 @@ const PrivateTranslationSession = ({ children }: { children: ReactNode }) => {
           !!status.data &&
           ![401, 403, 404].includes(status.error?.statusCode ?? 0) &&
           (status.data.available || !!current),
-        available: status.data?.available ?? false,
-        archiveAvailable: status.data?.archive_available ?? false,
+        available: value?.available ?? false,
+        archiveAvailable: value?.archive_available ?? false,
         current,
         ownConnection,
         canStart: !!source && !status.isError && intents.ready,

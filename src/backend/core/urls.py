@@ -127,6 +127,7 @@ from core.api.meeting_summary_notifications import (
     SummaryNotificationRetryView,
     SummaryNotificationsView,
 )
+from core.api.meeting_session_status import MeetingSessionStatusView
 from core.api.meeting_summary_review import SummaryHistoryView, SummaryReviewView
 from core.api.meeting_summary_sharing import (
     SummarySharingCandidatesView,
@@ -397,6 +398,7 @@ urlpatterns = [
                     CalendarShareView.as_view(),
                     name="calendar_share",
                 ),
+                path("meeting-session-status/", MeetingSessionStatusView.as_view(), name="meeting-session-status"),
                 path("meeting-capture-status/", OnlineCaptureStatusView.as_view(), name="meeting-capture-status"),
                 path("cloud-recording/control/", CloudRecordingView.as_view(), name="cloud-recording-control"),
                 path("meeting-records/<uuid:record_id>/human-summary/", SummaryReviewView.as_view(), name="human-summary"),

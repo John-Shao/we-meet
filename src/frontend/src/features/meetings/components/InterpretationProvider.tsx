@@ -19,6 +19,7 @@ import {
   type InterpretationSubscription,
 } from '../interpretationEvents'
 import { useConnectedMeetingSid } from '../useConnectedMeetingSid'
+import { useMeetingSessionStatus } from '../useMeetingSessionStatus'
 
 const ROOT = 'meeting-interpretation/'
 type Intent = {
@@ -86,6 +87,8 @@ function InterpretationSession({
 }) {
   const room = useRoomContext()
   const storageKey = `meeting-interpretation-intent:${scope}`
+  const sessionStatus = useMeetingSessionStatus()
+  const canReadStatus = sessionStatus?.interpretation === true
   const [recovery] = useState(() =>
     readRecovery(storageKey, () => readIntent(storageKey))
   )
@@ -120,7 +123,7 @@ function InterpretationSession({
       )
       return { value, startedAt }
     },
-    enabled: !!viewer && !!roomId && !!sid,
+    enabled: !!viewer && !!roomId && !!sid && canReadStatus,
     retry: false,
     gcTime: 0,
     staleTime: 0,
@@ -129,7 +132,7 @@ function InterpretationSession({
         ? false
         : 5000,
   })
-  const value = status.data?.value
+  const value = canReadStatus ? status.data?.value : undefined
   const connection = value?.connections.find(
     (row) => row.participant_sid === connectionSid
   )
@@ -153,6 +156,7 @@ function InterpretationSession({
     room.localParticipant.sid === connectionSid &&
     !!viewer &&
     !!sid &&
+    canReadStatus &&
     !status.isError
 
   useEffect(() => {
@@ -193,7 +197,7 @@ function InterpretationSession({
     } else lease.current = { channel, subscription, deadline }
     // Each accepted status is a fresh authority snapshot, including revocations.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status.data, status.isError, desired, connectionSid])
+  }, [status.data, status.isError, desired, connectionSid, canReadStatus])
 
   useEffect(() => {
     if (!desired) return

@@ -31,7 +31,14 @@ interface RoomDouble {
   on: (event: string, fn: Listener) => void
   off: (event: string, fn: Listener) => void
 }
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), room: {} as RoomDouble }))
+const mocks = vi.hoisted(() => ({
+  fetch: vi.fn(),
+  room: {} as RoomDouble,
+  sessionStatus: vi.fn(),
+}))
+vi.mock('../useMeetingSessionStatus', () => ({
+  useMeetingSessionStatus: mocks.sessionStatus,
+}))
 vi.mock('@/api/fetchApi', () => ({ fetchApi: mocks.fetch }))
 vi.mock('@livekit/components-react', () => ({
   useRoomContext: () => mocks.room,
@@ -112,7 +119,24 @@ const ready = () =>
   })
 const posts = () =>
   mocks.fetch.mock.calls.filter(([, options]) => options?.method === 'POST')
+
+it('does not query host-only translation until the session grants access', async () => {
+  mocks.sessionStatus.mockReturnValue({ ready: true, translation: false })
+  const view = show()
+  expect(mocks.fetch).not.toHaveBeenCalled()
+  expect(latest.available).toBe(false)
+  mocks.sessionStatus.mockReturnValue({ ready: true, translation: true })
+  view.rerender(
+    <QueryClientProvider client={client}>
+      <PrivateTranslationProvider>
+        <Probe />
+      </PrivateTranslationProvider>
+    </QueryClientProvider>
+  )
+  await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1))
+})
 beforeEach(() => {
+  mocks.sessionStatus.mockReturnValue({ ready: true, translation: true })
   sessionStorage.clear()
   mocks.fetch.mockReset()
   current = null

@@ -16,9 +16,13 @@ import { InterpretationProvider } from './InterpretationProvider'
 type Listener = (...args: unknown[]) => void
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
+  sessionStatus: vi.fn(),
   room: {} as Record<string, unknown>,
 }))
 vi.mock('@/api/fetchApi', () => ({ fetchApi: mocks.fetch }))
+vi.mock('../useMeetingSessionStatus', () => ({
+  useMeetingSessionStatus: mocks.sessionStatus,
+}))
 vi.mock('@livekit/components-react', () => ({
   useRoomContext: () => mocks.room,
 }))
@@ -69,6 +73,22 @@ function show() {
     </QueryClientProvider>
   )
 }
+
+it('waits for session and participant projection before querying interpretation', async () => {
+  mocks.sessionStatus.mockReturnValue({ ready: false, interpretation: false })
+  const view = show()
+  expect(mocks.fetch).not.toHaveBeenCalled()
+  expect(latest.available).toBe(false)
+  mocks.sessionStatus.mockReturnValue({ ready: true, interpretation: true })
+  view.rerender(
+    <QueryClientProvider client={client}>
+      <InterpretationProvider>
+        <Probe />
+      </InterpretationProvider>
+    </QueryClientProvider>
+  )
+  await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1))
+})
 function emit(changed: object = {}, from = sender) {
   act(() =>
     listeners.get(RoomEvent.DataReceived)?.forEach((fn) =>
@@ -95,6 +115,7 @@ function emit(changed: object = {}, from = sender) {
   )
 }
 beforeEach(() => {
+  mocks.sessionStatus.mockReturnValue({ ready: true, interpretation: true })
   sessionStorage.clear()
   now = 1000
   vi.spyOn(performance, 'now').mockImplementation(() => now)

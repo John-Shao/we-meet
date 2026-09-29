@@ -7,10 +7,12 @@ import { useRoomData } from '@/features/rooms/livekit/hooks/useRoomData'
 import { css } from '@/styled-system/css'
 
 import { useConnectedMeetingSid } from '../useConnectedMeetingSid'
+import { useMeetingSessionStatus } from '../useMeetingSessionStatus'
 
 export const OnlineCaptureNotice = () => {
   const room = useRoomData()
   const sid = useConnectedMeetingSid()
+  const sessionStatus = useMeetingSessionStatus()
   if (!room?.livekit?.room || !room.livekit.token || !sid) return null
   return (
     <OnlineCaptureNoticeState
@@ -18,6 +20,7 @@ export const OnlineCaptureNotice = () => {
       roomId={room.livekit.room}
       token={room.livekit.token}
       sid={sid}
+      enabled={sessionStatus?.ready === true}
     />
   )
 }
@@ -26,10 +29,12 @@ export const OnlineCaptureNoticeState = ({
   roomId,
   sid,
   token,
+  enabled = true,
 }: {
   roomId: string
   sid: string
   token: string
+  enabled?: boolean
 }) => {
   const { t } = useTranslation('meetings')
   const status = useQuery<
@@ -52,9 +57,13 @@ export const OnlineCaptureNoticeState = ({
         { signal, headers: { Authorization: `Bearer ${token}` } }
       ),
     staleTime: 0,
+    enabled,
     gcTime: 0,
     retry: false,
-    refetchInterval: 5000,
+    refetchInterval: (query) =>
+      [401, 403, 404].includes(query.state.error?.statusCode ?? 0)
+        ? false
+        : 5000,
   })
   if (!status.data || status.data.state === 'off') return null
   return (
@@ -78,7 +87,7 @@ export const OnlineCaptureNoticeState = ({
     >
       {t('recordAi.capture.title')} ·{' '}
       {t(
-        status.isError
+        status.isError || !enabled
           ? 'recordAi.capture.unavailable'
           : `recordAi.capture.state.${status.data.state}`
       )}

@@ -3,18 +3,24 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/ApiError'
-import { OnlineCaptureNoticeState } from './OnlineCaptureNotice'
+import {
+  OnlineCaptureNotice,
+  OnlineCaptureNoticeState,
+} from './OnlineCaptureNotice'
 
-const mocks = vi.hoisted(() => ({ fetchApi: vi.fn() }))
+const mocks = vi.hoisted(() => ({ fetchApi: vi.fn(), sessionStatus: vi.fn() }))
+vi.mock('../useMeetingSessionStatus', () => ({
+  useMeetingSessionStatus: mocks.sessionStatus,
+}))
 vi.mock('@/api/fetchApi', () => ({ fetchApi: mocks.fetchApi }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 vi.mock('../useConnectedMeetingSid', () => ({
-  useConnectedMeetingSid: vi.fn(),
+  useConnectedMeetingSid: () => 'RM_current',
 }))
 vi.mock('@/features/rooms/livekit/hooks/useRoomData', () => ({
-  useRoomData: vi.fn(),
+  useRoomData: () => ({ livekit: { room: 'room', token: 'join-token' } }),
 }))
 let client: QueryClient
 function show() {
@@ -36,6 +42,34 @@ beforeEach(() => {
 afterEach(() => client?.clear())
 
 describe('Meeting capture notice', () => {
+  it('waits for session projection before polling capture status', async () => {
+    mocks.sessionStatus.mockReturnValue({ ready: false })
+    client = new QueryClient()
+    const view = render(
+      <QueryClientProvider client={client}>
+        <OnlineCaptureNotice />
+      </QueryClientProvider>
+    )
+    expect(mocks.fetchApi).not.toHaveBeenCalled()
+    mocks.sessionStatus.mockReturnValue({ ready: true })
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <OnlineCaptureNotice />
+      </QueryClientProvider>
+    )
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'recordAi.capture.state.recording'
+    )
+    mocks.sessionStatus.mockReturnValue(undefined)
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <OnlineCaptureNotice />
+      </QueryClientProvider>
+    )
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'recordAi.capture.unavailable'
+    )
+  })
   it('uses the join token for exact current-session status without requesting materials', async () => {
     show()
     expect(await screen.findByRole('status')).toHaveTextContent(
