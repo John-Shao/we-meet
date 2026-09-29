@@ -13,12 +13,12 @@ pytestmark = pytest.mark.django_db
 URL = "/api/v1.0/rooms/video-meetings/"
 
 
-def test_pending_includes_overdue_and_all_pages_but_excludes_started_closed_and_ai():
+def test_pending_includes_future_pages_but_excludes_started_closed_and_ai():
     user = factories.UserFactory()
     now = timezone.now()
     pending = [
         factories.RoomFactory(
-            users=[(user, "owner")], scheduled_at=now - timedelta(days=i)
+            users=[(user, "owner")], scheduled_at=now + timedelta(days=i)
         )
         for i in range(52)
     ]
@@ -35,7 +35,7 @@ def test_pending_includes_overdue_and_all_pages_but_excludes_started_closed_and_
     assert response.status_code == 200
     data = response.json()
     assert [r["id"] for r in data["scheduled"]] == [
-        str(r.id) for r in reversed(pending)
+        str(r.id) for r in pending
     ]
     assert all(r["is_owner"] and r["status"] == "pending" for r in data["scheduled"])
     assert data["recent"][0]["meeting_session_id"] == str(session.id)

@@ -1006,6 +1006,10 @@ class Base(Configuration):
             "task": "core.tasks.rooms.close_abandoned_rooms",
             "schedule": 3600.0,
         },
+        "close-expired-reservations": {
+            "task": "core.tasks.rooms.close_expired_reservations",
+            "schedule": 300.0,
+        },
     }
     LIVEKIT_FORCE_WSS_PROTOCOL = values.BooleanValue(
         False, environ_name="LIVEKIT_FORCE_WSS_PROTOCOL", environ_prefix=None
@@ -1275,6 +1279,10 @@ class Base(Configuration):
         86400,
         environ_name="MEETING_SESSION_STALE_AFTER_SECONDS",
         environ_prefix=None,
+    )
+    # Scheduled rooms expire after the final event's end plus this grace period.
+    ROOM_RESERVATION_GRACE_SECONDS = values.PositiveIntegerValue(
+        86400, environ_prefix=None
     )
     # Grace period before a room that was never joined and never scheduled is
     # closed by ``core.tasks.rooms.close_abandoned_rooms``. Appointments

@@ -271,6 +271,9 @@ class RoomSerializer(serializers.ModelSerializer):
         Add users only for administrator users.
         Add LiveKit credentials for public instance or related users/groups
         """
+        from core.services.room_reservations import reconcile_for_entry  # noqa: PLC0415
+
+        reconcile_for_entry(instance)
         output = super().to_representation(instance)
         request = self.context.get("request")
 

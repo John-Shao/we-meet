@@ -23,6 +23,21 @@ logger = getLogger(__name__)
 
 
 @task
+def close_expired_reservations():
+    """Reconcile old appointments and deferred cancellations, retaining all history."""
+    from core.services.room_reservations import reconcile_room  # noqa: PLC0415
+
+    closed = 0
+    room_ids = models.Room.objects.filter(ended_at__isnull=True).exclude(
+        scheduled_at__isnull=True, reservation_cancelled_at__isnull=True
+    ).values_list("pk", flat=True)
+    for room_id in room_ids.iterator(chunk_size=500):
+        room = reconcile_room(room_id)
+        closed += bool(room and room.ended_at)
+    return {"closed": closed}
+
+
+@task
 def close_abandoned_rooms():
     """Close rooms that were created, never joined and never scheduled.
 

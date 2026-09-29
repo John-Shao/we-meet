@@ -1,14 +1,15 @@
 """Lightweight video overview, classified by actual server-side sessions."""
 
 from core import models
+from core.services.room_reservations import reconcile_for_entry
 
 
 def overview(user):
     """Scheduled rooms and twenty latest sessions visible through membership.
 
     ``scheduled`` is **appointments only**: a room is listed while it has a
-    ``scheduled_at``, no session yet and is not closed. Delayed appointments
-    stay until a session starts, exactly as before.
+    ``scheduled_at``, no session yet and is not closed. Reservations past their
+    end plus the configured grace period are closed before classification.
 
     Rooms that were created without a schedule are deliberately not
     appointments and never appear here: a chat call creates its room with the
@@ -26,6 +27,8 @@ def overview(user):
         .exclude(name__startswith="__JUSI_AI_SESSION__-")
         .distinct()
     )
+    for room in rooms.filter(ended_at__isnull=True, scheduled_at__isnull=False):
+        reconcile_for_entry(room)
     pending = list(
         rooms.filter(
             meeting_sessions__isnull=True,

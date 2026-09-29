@@ -1269,6 +1269,21 @@ class CalendarEventViewSet(viewsets.ModelViewSet):
         room = event.room
         if room is None:
             return
+        if (
+            room.ended_at
+            and room.closure_reason in ("reservation_expired", "reservation_cancelled")
+            and event.end_at > django_timezone.now()
+        ):
+            # A rescheduled appointment gets a fresh number; old links stay closed.
+            previous_room_id = room.pk
+            attendees = models.User.objects.filter(event_attendances__event=event)
+            room = self._provision_video_room(event, event.organizer, attendees)
+            event.room = room
+            event.save(update_fields=["room", "updated_at"])
+            if event.recurrence:
+                event.occurrences.filter(
+                    room_id=previous_room_id, start_at__gte=django_timezone.now()
+                ).update(room=room)
         update_fields = []
         if room.name != event.title:
             room.name = event.title

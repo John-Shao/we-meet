@@ -661,7 +661,7 @@ def test_outsider_cannot_retrieve_event_by_id_alone():
 
 
 def test_private_event_details_are_redacted_for_outsider_but_not_attendee():
-    event_id, organizer, outsider = _event_for_share()
+    event_id, _, outsider = _event_for_share()
     event = models.CalendarEvent.objects.get(id=event_id)
     event.visibility = models.EventVisibilityChoices.PRIVATE
     event.description = "secret notes"
@@ -671,11 +671,10 @@ def test_private_event_details_are_redacted_for_outsider_but_not_attendee():
         .get()
         .user
     )
-    calendar = models.PersonalCalendar.objects.create(
-        organization=event.organization,
-        owner=organizer,
-        organization_default_access=models.CalendarAccessChoices.FREE_BUSY,
-    )
+    # Creating the event already provisions and links the organizer's primary calendar.
+    calendar = event.source_calendar
+    calendar.organization_default_access = models.CalendarAccessChoices.FREE_BUSY
+    calendar.save(update_fields=["organization_default_access"])
     models.CalendarSubscription.objects.create(
         calendar=calendar,
         subscriber=outsider,

@@ -21,3 +21,8 @@ class CoreConfig(AppConfig):
         )
 
         connect_translation_archives()
+        from core.services.room_reservations import (  # noqa: PLC0415
+            connect_handlers as connect_room_reservations,
+        )
+
+        connect_room_reservations()

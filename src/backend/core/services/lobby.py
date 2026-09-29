@@ -140,6 +140,12 @@ class LobbyService:
         5. If denied, do nothing.
         """
 
+        from rest_framework.exceptions import NotFound  # noqa: PLC0415
+
+        from core.services.room_reservations import reconcile_for_entry  # noqa: PLC0415
+
+        if reconcile_for_entry(room).is_ended:
+            raise NotFound("This room has ended.")
         participant_id = self._get_or_create_participant_id(request)
         participant = self._get_participant(room.id, participant_id)
 

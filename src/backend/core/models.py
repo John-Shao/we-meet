@@ -618,6 +618,8 @@ class Room(Resource):
         verbose_name=_("ended at"),
         help_text=_("Date and time at which the room owner ended the room."),
     )
+    reservation_cancelled_at = models.DateTimeField(null=True, blank=True)
+    closure_reason = models.CharField(max_length=24, blank=True, default="")
     scheduled_at = models.DateTimeField(
         blank=True,
         null=True,
