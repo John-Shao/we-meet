@@ -1331,6 +1331,8 @@ agentAIAssistant:
   ## @param agentAIAssistant.envVars Configure agentAIAssistant container environment variables
   ## @extra agentAIAssistant.envVars.AI_AGENT_NAME LiveKit agent_name registered by the worker (must match backend AI_AGENT_NAME)
   ## @extra agentAIAssistant.envVars.DASHSCOPE_API_KEY DashScope API key for Qwen-Omni-Realtime
+  ## @extra agentAIAssistant.envVars.DASHSCOPE_WORKSPACE_ID Workspace ID matching the Qwen Omni 3.8 API key
+  ## @extra agentAIAssistant.envVars.DASHSCOPE_REGION Qwen Omni region: cn-beijing (default) or ap-southeast-1
   ## @extra agentAIAssistant.envVars.DOUBAO_S2S_APP_ID Volcengine app id for Doubao S2S
   ## @extra agentAIAssistant.envVars.DOUBAO_S2S_ACCESS_KEY Volcengine access key for Doubao S2S
   ## @extra agentAIAssistant.envVars.DOUBAO_ASR_APP_ID Volcengine ASR app id for Doubao component pipeline

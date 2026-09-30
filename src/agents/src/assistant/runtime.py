@@ -178,7 +178,7 @@ class _ProviderBridge:
 def _model_name_from_code(code: str) -> str:
     """Strip the ``vendor/`` prefix to recover the SDK-level model name.
 
-    ``"aliyun/qwen3-omni-flash-realtime"`` → ``"qwen3-omni-flash-realtime"``.
+    ``"aliyun/qwen3.8-omni-flash-realtime"`` → ``"qwen3.8-omni-flash-realtime"``.
     """
     return code.split("/", 1)[1] if "/" in code else code
 
@@ -188,7 +188,6 @@ def _build_qwen_bridge(omni: dict, voice: str | None, prompt_content: str | None
     from plugins.qwen.omni import (
         DEFAULT_INSTRUCTIONS,
         DEFAULT_MODEL,
-        DEFAULT_VOICE,
         OUTPUT_SAMPLE_RATE,
         QwenOmniClient,
     )
@@ -203,7 +202,7 @@ def _build_qwen_bridge(omni: dict, voice: str | None, prompt_content: str | None
     client = QwenOmniClient(
         api_key=api_key,
         model=model_name,
-        voice=voice or DEFAULT_VOICE,
+        voice=voice,
         instructions=prompt_content or DEFAULT_INSTRUCTIONS,
     )
     client.output_sample_rate = OUTPUT_SAMPLE_RATE

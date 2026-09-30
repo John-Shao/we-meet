@@ -63,6 +63,15 @@ Compose 和 Helm 使用相同的模块入口。
 LiveKit worker 本地开发使用 `dev` 替代 `start`。录音 worker 与网关没有该参数。
 各入口仍是独立进程，需按能力分别部署。实际密钥通过运行环境或 Secret 注入。
 
+Qwen Omni 客户端默认使用 `qwen3.8-omni-flash-realtime` 和 `Tina` 音色，
+依赖 DashScope SDK ≥ 1.26.5。使用 3.8 时必须设置 `DASHSCOPE_WORKSPACE_ID`；
+`DASHSCOPE_REGION` 默认为 `cn-beijing`，也支持 `ap-southeast-1`。
+API Key 必须对应所选地域与业务空间。后端显式传入的模型和音色仍优先于客户端默认值。
+部署时同步发布后端并执行迁移 `0195_upgrade_qwen_omni_38`，将旧 Qwen profile
+切换到 3.8 及其 56 个音色。仍受支持的默认音色按名称保留，其余回退为 Tina；
+旧模型与音色记录保留但停用，客户端缓存的旧音色 ID 会回退到 profile 默认值。
+回滚数据库迁移会保留升级后的目录；回退模型需显式调整目录配置。
+
 原根目录的 `python <worker>.py` 已迁移为上述模块命令，自定义启动脚本需要同步更新。
 外部评估或探测脚本也使用同一 `PYTHONPATH`，不在代码中修改 `sys.path`。
 

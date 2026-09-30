@@ -11,16 +11,21 @@ implementation so future bug fixes can be back-ported either way.
 import asyncio
 import base64
 import logging
+import os
+import re
 
-import dashscope
 import numpy as np
-from dashscope.audio.qwen_omni import OmniRealtimeCallback, OmniRealtimeConversation
-from dashscope.audio.qwen_omni.omni_realtime import MultiModality
+from dashscope.audio.qwen_omni import (
+    AudioFormatConfig,
+    MultiModality,
+    OmniRealtimeCallback,
+    OmniRealtimeConversation,
+)
 
 logger = logging.getLogger("qwen-omni-client")
 
-DEFAULT_MODEL = "qwen3-omni-flash-realtime"
-DEFAULT_VOICE = "Cherry"
+DEFAULT_MODEL = "qwen3.8-omni-flash-realtime"
+DEFAULT_VOICE = "Tina"
 DEFAULT_INSTRUCTIONS = """##人设
 你是一个名叫【AI 助手】的全能智能体，具备强大的知识储备、情感理解能力和解决问题的能力。
 你的目标是高效、专业、友好地帮助用户完成各类任务，包括但不限于日常生活、工作安排、信息检索、
@@ -44,7 +49,7 @@ DEFAULT_INSTRUCTIONS = """##人设
 你可以在回复中加上用户的名字，比如「好的，xxx」「xxx，我知道了」。
 """
 
-API_URL = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
+LEGACY_API_URL = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
 OUTPUT_SAMPLE_RATE = 24000
 
 
@@ -114,12 +119,14 @@ class QwenOmniClient:
         *,
         api_key: str,
         model: str = DEFAULT_MODEL,
-        voice: str = DEFAULT_VOICE,
+        voice: str | None = None,
         instructions: str = DEFAULT_INSTRUCTIONS,
     ) -> None:
+        """Keep explicit model selections while defaulting new sessions to 3.8."""
         self._api_key = api_key
         self._model = model
-        self._voice = voice
+        self._is_v38 = model.startswith("qwen3.8-omni-")
+        self._voice = voice or (DEFAULT_VOICE if self._is_v38 else "Cherry")
         self._instructions = instructions
 
         self._conversation: OmniRealtimeConversation | None = None
@@ -129,24 +136,42 @@ class QwenOmniClient:
 
     async def connect(self) -> None:
         """Open the WebSocket connection and configure the session."""
-        self._event_loop = asyncio.get_running_loop()
+        url = LEGACY_API_URL
+        if self._is_v38:
+            workspace = os.getenv("DASHSCOPE_WORKSPACE_ID", "")
+            region = os.getenv("DASHSCOPE_REGION", "cn-beijing")
+            if not re.fullmatch(r"[A-Za-z0-9-]+", workspace):
+                raise ValueError("A valid DASHSCOPE_WORKSPACE_ID is required")
+            if region not in {"cn-beijing", "ap-southeast-1"}:
+                raise ValueError("Unsupported DASHSCOPE_REGION for Qwen Omni")
+            url = f"wss://{workspace}.{region}.maas.aliyuncs.com/api-ws/v1/realtime"
 
-        dashscope.api_key = self._api_key
+        self._event_loop = asyncio.get_running_loop()
         callback = _QwenCallback(self)
 
         self._conversation = OmniRealtimeConversation(
             model=self._model,
             callback=callback,
-            url=API_URL,
+            url=url,
+            api_key=self._api_key,
         )
 
         await self._event_loop.run_in_executor(None, self._conversation.connect)
         logger.info("Qwen session connected, configuring...")
 
+        audio_config = {}
+        if self._is_v38:
+            audio_config = {
+                "input_audio_config": AudioFormatConfig(sample_rate=16000),
+                "output_audio_config": AudioFormatConfig(
+                    sample_rate=OUTPUT_SAMPLE_RATE
+                ),
+            }
         self._conversation.update_session(
             output_modalities=[MultiModality.AUDIO, MultiModality.TEXT],
             voice=self._voice,
             instructions=self._instructions,
+            **audio_config,
         )
         logger.info(
             "Qwen session configured (model=%s, voice=%s)",
@@ -176,6 +201,7 @@ class QwenOmniClient:
                 break
 
     async def close(self) -> None:
+        """Close the provider connection without blocking the event loop."""
         if self._conversation:
             conv = self._conversation
             self._conversation = None
