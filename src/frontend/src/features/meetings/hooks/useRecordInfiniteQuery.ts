@@ -25,23 +25,25 @@ export function useRecordInfiniteQuery<
   initialPageParam,
   enabled = true,
   refetchInterval = false,
+  initialPageCount = 1,
 }: {
   queryKey: QueryKey
   queryFn: (context: { signal: AbortSignal; pageParam: P }) => Promise<T>
   initialPageParam: P
   enabled?: boolean
   refetchInterval?: number | false
+  initialPageCount?: number
 }) {
   const views = useContext(ViewState)
   const key = `pages:${JSON.stringify(queryKey)}`
   const restore = useRef({
     key,
-    count: (views?.get(key) as number | undefined) ?? 1,
+    count: (views?.get(key) as number | undefined) ?? initialPageCount,
   })
   if (restore.current.key !== key)
     restore.current = {
       key,
-      count: (views?.get(key) as number | undefined) ?? 1,
+      count: (views?.get(key) as number | undefined) ?? initialPageCount,
     }
   const query = useInfiniteQuery({
     queryKey: [...queryKey, 'infinite'],
@@ -109,6 +111,7 @@ export function useRecordInfiniteQuery<
     fetchNextPage,
   ])
   return {
+    pageCount: count,
     hasNextPage,
     isFetching,
     error,

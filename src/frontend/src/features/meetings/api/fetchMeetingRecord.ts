@@ -8,6 +8,7 @@ import {
 import { ApiError } from '@/api/ApiError'
 import { fetchApi } from '@/api/fetchApi'
 import { summaryReceipt } from './summaryReceipts'
+import { useRecordInfiniteQuery } from '../hooks/useRecordInfiniteQuery'
 
 import type {
   ApiMeetingRecord,
@@ -76,6 +77,43 @@ export const useResolveMeetingRecord = (
     enabled: enabled && !!viewerId && !!source,
   })
 
+const fetchMeetingRecords = async (
+  filters: MeetingRecordFilters,
+  signal: AbortSignal
+) => {
+  const params = new URLSearchParams()
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.set(key, value)
+  })
+  const page = await fetchApi<MeetingRecordPage<ApiMeetingRecord>>(
+    `meeting-records/?${params.toString()}`,
+    { signal }
+  )
+  if (
+    ['created_from', 'created_before'].some(
+      (key) => params.has(key) && !page.supported_filters?.includes(key)
+    )
+  )
+    throw new Error('The server does not support date filtering.')
+  return page
+}
+
+export const useInfiniteMeetingRecords = (
+  viewerId: string,
+  enabled: boolean,
+  filters: Omit<MeetingRecordFilters, 'cursor'>,
+  initialPageCount = 1
+) =>
+  useRecordInfiniteQuery({
+    queryKey: meetingRecordKeys.list(viewerId, filters),
+    queryFn: ({ signal, pageParam }) =>
+      fetchMeetingRecords({ ...filters, cursor: pageParam }, signal),
+    initialPageParam: '',
+    initialPageCount,
+    enabled: enabled && !!viewerId,
+    refetchInterval: 15000,
+  })
+
 export const useMeetingRecords = (
   viewerId: string | undefined,
   enabled: boolean,
@@ -86,23 +124,7 @@ export const useMeetingRecords = (
     queryKey: meetingRecordKeys.list(viewerId, filters),
     refetchInterval: (query) =>
       query.state.status === 'error' ? false : 15000,
-    queryFn: async ({ signal }) => {
-      const params = new URLSearchParams()
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value) params.set(key, value)
-      })
-      const page = await fetchApi<MeetingRecordPage<ApiMeetingRecord>>(
-        `meeting-records/?${params.toString()}`,
-        { signal }
-      )
-      if (
-        ['created_from', 'created_before'].some(
-          (key) => params.has(key) && !page.supported_filters?.includes(key)
-        )
-      )
-        throw new Error('The server does not support date filtering.')
-      return page
-    },
+    queryFn: ({ signal }) => fetchMeetingRecords(filters, signal),
     enabled: enabled && !!viewerId,
   })
 

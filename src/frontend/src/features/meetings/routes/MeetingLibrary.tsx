@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   readMeetingListState,
   useMeetingListNavigation,
@@ -30,7 +30,8 @@ import { MeetingLibraryFilters } from '../components/MeetingLibraryFilters'
 import { PageState } from '@/components/PageState'
 import { StateHint } from '@/components/StateHint'
 import { css, cx } from '@/styled-system/css'
-import { useMeetingRecords } from '../api/fetchMeetingRecord'
+import { useInfiniteMeetingRecords } from '../api/fetchMeetingRecord'
+import { RecordLoadMore } from '../components/RecordLoadMore'
 import {
   cardTitle,
   contentSurface,
@@ -318,14 +319,6 @@ const statusBadge = css({
   color: 'text.link',
 })
 
-/** 翻页行。 */
-const pagerRow = css({
-  display: 'flex',
-  gap: 'md',
-  alignItems: 'center',
-  marginTop: 'lg',
-})
-
 /** 栅格视图开关:窄屏隐藏。display 放外层,避免与基元 recipe 抢同一个原子类。 */
 const gridToggleWrap = css({ display: { base: 'none', md: 'inline-flex' } })
 
@@ -384,33 +377,23 @@ const recordIcon = (
     <RiMicLine size={size} />
   )
 
-/** Paged sections keep bounded private content and never merge another filter's cache. */
+/** Both views render the same accumulated pages, isolated by viewer and filters. */
 function RecordList({
   viewerId,
-  filters,
+  query,
   ongoing,
   grid,
-  cursors,
-  onCursors,
   minutes = false,
   onReset,
 }: {
   viewerId: string
   onReset?: () => void
-  filters: MeetingRecordFilters
+  query: ReturnType<typeof useInfiniteMeetingRecords>
   ongoing: boolean
   grid: boolean
-  /** 这一节的游标栈:末尾是本页游标,栈长 > 1 就说明翻过页。 */
-  cursors: string[]
-  onCursors: (cursors: string[]) => void
   minutes?: boolean
 }) {
   const { t } = useTranslation('meetings')
-  const query = useMeetingRecords(viewerId, true, {
-    ...filters,
-    is_ongoing: minutes ? undefined : ongoing ? 'true' : 'false',
-    cursor: cursors.at(-1),
-  })
   // 权限被收回后 react-query 仍留着上一次的数据,错误态必须一行都不渲染。
   const records = query.isError ? [] : (query.data?.results ?? [])
   const sectionLabel = t(
@@ -468,27 +451,8 @@ function RecordList({
   )
   // 进行中的分组没有内容时整组不出现(与卡片视图同一条规则)。
   if (ongoing && isEmpty) return null
-  const pager = (
-    <>
-      {cursors.length > 1 && (
-        <Button
-          variant="secondary"
-          size="action"
-          onPress={() => onCursors(cursors.slice(0, -1))}
-        >
-          {t('library.previous')}
-        </Button>
-      )}
-      {query.data?.next_cursor && (
-        <Button
-          variant="secondary"
-          size="action"
-          onPress={() => onCursors([...cursors, query.data!.next_cursor!])}
-        >
-          {t('library.next')}
-        </Button>
-      )}
-    </>
+  const loadMore = query.data && !query.isError && !isEmpty && (
+    <RecordLoadMore query={query} />
   )
   if (grid)
     return (
@@ -557,7 +521,7 @@ function RecordList({
             </RecordLibraryActions>
           ))}
         </ul>
-        <div className={pagerRow}>{pager}</div>
+        {loadMore}
       </section>
     )
   return (
@@ -659,11 +623,9 @@ function RecordList({
           )}
         </RecordLibraryActions>
       ))}
-      {(cursors.length > 1 || query.data?.next_cursor) && (
+      {loadMore && (
         <tr>
-          <td colSpan={COLUMN_COUNT}>
-            <div className={pagerRow}>{pager}</div>
-          </td>
+          <td colSpan={COLUMN_COUNT}>{loadMore}</td>
         </tr>
       )}
     </tbody>
@@ -678,7 +640,7 @@ type LibraryViewState = {
   sort: SortDirection
   dates: { created_from?: string; created_before?: string }
   dateLabels: { from: string; through: string }
-  paging: { key: string; ongoing: string[]; archive: string[] }
+  paging: { key: string; ongoing: number; archive: number }
 }
 
 export function Library({
@@ -738,18 +700,27 @@ export function Library({
     ...(minutes ? { has_summary: 'true' } : {}),
   }
   const filterKey = JSON.stringify([viewerId, filters])
-  /**
-   * 两段列表的游标栈放在这一层:视图开关只换渲染形态,不该把翻过的页丢掉
-   * (组件级 state 会随 `<section>` / `<tbody>` 换根而重挂)。
-   *
-   * 筛选条件一变就回到第一页 —— 与原先靠 `key` 重挂组件重置游标是同一效果,
-   * 只是这次是显式推导:旧 key 下的游标直接不采纳。
-   */
-  const [paging, setPaging] = useState<{
-    key: string
-    ongoing: string[]
-    archive: string[]
-  }>(saved?.paging ?? { key: filterKey, ongoing: [''], archive: [''] })
+  // Keep queries above the table/grid branches. History stores only how many
+  // pages to reload, never private record content or stale cursor tokens.
+  const restore = saved?.paging?.key === filterKey ? saved.paging : undefined
+  const ongoingQuery = useInfiniteMeetingRecords(
+    viewerId,
+    !minutes,
+    {
+      ...filters,
+      is_ongoing: 'true',
+    },
+    restore?.ongoing
+  )
+  const archive = useInfiniteMeetingRecords(
+    viewerId,
+    true,
+    {
+      ...filters,
+      is_ongoing: minutes ? undefined : 'false',
+    },
+    restore?.archive
+  )
   const navigation = useMeetingListNavigation(viewerId, listPath, {
     scope,
     search,
@@ -758,26 +729,18 @@ export function Library({
     sort,
     dates,
     dateLabels,
-    paging,
-  })
-  const pages =
-    paging.key === filterKey
-      ? paging
-      : { key: filterKey, ongoing: [''], archive: [''] }
-  // Share the archive query/cache with RecordList, including an empty library.
-  const archive = useMeetingRecords(viewerId, true, {
-    ...filters,
-    is_ongoing: minutes ? undefined : 'false',
-    cursor: pages.archive.at(-1),
-  })
-  const sectionCursors = (ongoing: boolean) =>
-    ongoing ? pages.ongoing : pages.archive
-  const setSectionCursors = (ongoing: boolean, next: string[]) =>
-    setPaging({
-      ...pages,
+    paging: {
       key: filterKey,
-      [ongoing ? 'ongoing' : 'archive']: next,
-    })
+      ongoing: ongoingQuery.pageCount,
+      archive: archive.pageCount,
+    },
+  })
+  const previousFilter = useRef(filterKey)
+  useEffect(() => {
+    if (previousFilter.current !== filterKey && navigation.region.current)
+      navigation.region.current.scrollTop = 0
+    previousFilter.current = filterKey
+  }, [filterKey, navigation.region])
   const hasFilters = Boolean(
     query ||
     source ||
@@ -797,11 +760,9 @@ export function Library({
     <RecordList
       key={`${filterKey}:${ongoing ? 'ongoing' : 'archive'}`}
       viewerId={viewerId}
-      filters={filters}
+      query={ongoing ? ongoingQuery : archive}
       ongoing={ongoing}
       grid={grid}
-      cursors={sectionCursors(ongoing)}
-      onCursors={(next) => setSectionCursors(ongoing, next)}
       minutes={isMinutes}
       onReset={hasFilters ? resetFilters : undefined}
     />

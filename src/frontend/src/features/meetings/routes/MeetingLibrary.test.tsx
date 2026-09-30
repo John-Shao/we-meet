@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -19,6 +20,16 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 let client: QueryClient
+const intersections = new Map<Element, () => void>()
+
+function reachListEnd() {
+  const sentinel = screen.getByRole('button', {
+    name: 'continuous.more',
+  }).parentElement!
+  const intersect = intersections.get(sentinel)
+  expect(intersect).toBeDefined()
+  act(() => intersect!())
+}
 const archived = {
   id: 'archived',
   title: 'Archived private record',
@@ -35,6 +46,31 @@ function show(minutes = false, viewerId = 'owner') {
   )
 }
 beforeEach(() => {
+  intersections.clear()
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      private nodes = new Set<Element>()
+      constructor(private callback: IntersectionObserverCallback) {}
+      observe(node: Element) {
+        this.nodes.add(node)
+        intersections.set(node, () =>
+          this.callback(
+            [
+              {
+                target: node,
+                isIntersecting: true,
+              } as IntersectionObserverEntry,
+            ],
+            this as unknown as IntersectionObserver
+          )
+        )
+      }
+      disconnect() {
+        this.nodes.forEach((node) => intersections.delete(node))
+      }
+    }
+  )
   window.history.replaceState({}, '', '/meeting/notes')
   vi.mocked(fetchApi).mockImplementation(async (path) => {
     const params = new URL(path, 'https://fixture.invalid').searchParams
@@ -54,6 +90,7 @@ beforeEach(() => {
   })
 })
 afterEach(() => {
+  vi.unstubAllGlobals()
   client.clear()
   vi.clearAllMocks()
 })
@@ -139,8 +176,8 @@ it('applies creation dates to both sections, resets pagination, and clears dates
   })
   show()
   await screen.findByText(archived.title)
-  fireEvent.click(screen.getByRole('button', { name: 'library.next' }))
-  await screen.findByRole('button', { name: 'library.previous' })
+  reachListEnd()
+  await screen.findByText('continuous.end')
   fireEvent.click(screen.getByRole('button', { name: 'library.filters' }))
   fireEvent.change(screen.getByLabelText('library.createdFrom'), {
     target: { value: '2026-09-20' },
@@ -199,9 +236,9 @@ it('pins ongoing records separately and follows the exact opaque archive cursor'
   expect(
     await screen.findByRole('link', { name: 'Older paused recording' })
   ).toHaveAttribute('href', '/meeting/records/active')
-  fireEvent.click(screen.getByRole('button', { name: 'library.next' }))
+  reachListEnd()
   expect(await screen.findByText('Second page')).toBeInTheDocument()
-  expect(screen.queryByText(archived.title)).not.toBeInTheDocument()
+  expect(screen.getByText(archived.title)).toBeInTheDocument()
   expect(screen.getByText('Older paused recording')).toBeInTheDocument()
   expect(
     vi
@@ -213,8 +250,9 @@ it('pins ongoing records separately and follows the exact opaque archive cursor'
           ) === 'a+/='
       )
   ).toBe(true)
-  fireEvent.click(screen.getByRole('button', { name: 'library.previous' }))
-  expect(await screen.findByText(archived.title)).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'library.previous' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'library.next' })).toBeNull()
+  expect(screen.getByText(archived.title)).toBeInTheDocument()
 })
 
 it('keeps upload and participation filters available and clears a submitted search', async () => {
@@ -276,7 +314,7 @@ it('minutes opens the summary reader and filters ownership on the server', async
     ).toBe(true)
   )
   await screen.findByText(archived.title)
-  fireEvent.click(screen.getByRole('button', { name: 'library.next' }))
+  reachListEnd()
   await screen.findByText('Second page')
   fireEvent.click(
     screen.getByRole('tab', { name: 'minutesLibrary.scope.shared' })
@@ -431,7 +469,7 @@ it('requests creation-time sorting from the server and preserves response order'
 it('drops both sections old cursors when switching global ordering', async () => {
   show()
   await screen.findByText(archived.title)
-  fireEvent.click(screen.getByRole('button', { name: 'library.next' }))
+  reachListEnd()
   await screen.findByText('Second page')
   vi.mocked(fetchApi).mockClear()
   fireEvent.click(screen.getByRole('button', { name: 'library.table.created' }))
@@ -452,7 +490,7 @@ it('drops both sections old cursors when switching global ordering', async () =>
 it('keeps the loaded page when switching between the table and the grid', async () => {
   show()
   await screen.findByText(archived.title)
-  fireEvent.click(screen.getByRole('button', { name: 'library.next' }))
+  reachListEnd()
   await screen.findByText('Second page')
   // 两个视图同一份数据:换视图不重挂列表组件,翻过的页不丢。
   fireEvent.click(screen.getByRole('button', { name: 'library.gridView' }))
@@ -461,6 +499,65 @@ it('keeps the loaded page when switching between the table and the grid', async 
   fireEvent.click(screen.getByRole('button', { name: 'library.listView' }))
   expect(screen.getByRole('table')).toBeInTheDocument()
   expect(screen.getByText('Second page')).toBeInTheDocument()
+  expect(screen.getByText(archived.title)).toBeInTheDocument()
+})
+
+it.each([false, true])(
+  'keeps loaded rows and retries a failed next page (minutes=%s)',
+  async (minutes) => {
+    show(minutes)
+    await screen.findByText(archived.title)
+    const read = vi.mocked(fetchApi).getMockImplementation()!
+    vi.mocked(fetchApi).mockImplementation((path, options) =>
+      path.includes('cursor=')
+        ? Promise.reject(new ApiError(503, {}))
+        : read(path, options)
+    )
+    reachListEnd()
+    const retry = await screen.findByRole('button', {
+      name: 'continuous.retry',
+    })
+    expect(screen.getByText(archived.title)).toBeInTheDocument()
+    vi.mocked(fetchApi).mockImplementation(read)
+    fireEvent.click(retry)
+    await screen.findByText('Second page')
+    expect(screen.getByText(archived.title)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'library.next' })).toBeNull()
+  }
+)
+
+it('reloads all previously read pages when returning from a record', async () => {
+  const view = show(true)
+  await screen.findByText(archived.title)
+  reachListEnd()
+  await screen.findByText('Second page')
+  const region = screen.getByTestId('meeting-list-region')
+  region.scrollTop = 400
+  fireEvent.click(screen.getByRole('link', { name: 'Second page' }))
+  const state = window.history.state
+  expect(state.meetingList.value.paging.archive).toBe(2)
+  expect(JSON.stringify(state)).not.toContain(archived.title)
+  view.rerender(
+    <QueryClientProvider client={client}>{null}</QueryClientProvider>
+  )
+  client.removeQueries()
+  vi.mocked(fetchApi).mockClear()
+  window.history.replaceState(state, '', '/meeting/minutes')
+  view.rerender(
+    <QueryClientProvider client={client}>
+      <Library viewerId="owner" minutes />
+    </QueryClientProvider>
+  )
+  await screen.findByText('Second page')
+  expect(screen.getByText(archived.title)).toBeInTheDocument()
+  expect(screen.getByTestId('meeting-list-region').scrollTop).toBe(400)
+  const cursors = vi
+    .mocked(fetchApi)
+    .mock.calls.filter(([path]) => path.startsWith('meeting-records/?'))
+    .map(([path]) =>
+      new URL(path, 'https://fixture.invalid').searchParams.get('cursor')
+    )
+  expect(cursors).toEqual([null, 'a+/='])
 })
 
 it('labels an imported file by its media type instead of a blanket upload label', async () => {
