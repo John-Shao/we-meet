@@ -33,6 +33,10 @@ from core.api.admin_roles import (
 from core.api.admin_stats import AdminStatsOverviewView
 from core.api.agent_internal import IngestTranscriptView, TranscriptDeliveryView
 from core.api.ai_call import AiCallSessionView
+from core.api.assistant_translation import (
+    AssistantTranslationClaimView,
+    AssistantTranslationTicketView,
+)
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.bot_webhook import BotWebhookView
 from core.api.calendar import CalendarEventViewSet
@@ -378,6 +382,8 @@ external_router.register(
 
 urlpatterns = [
     path("api/v1.0/ai-call/session/", AiCallSessionView.as_view(), name="ai-call-session"),
+    path("api/v1.0/assistant-translation/ticket/", AssistantTranslationTicketView.as_view(), name="assistant-translation-ticket"),
+    path("api/agent/assistant-translation/claim/", AssistantTranslationClaimView.as_view()),
     path("api/agent/capture-transcriptions/claim/", ClaimTranscriptionView.as_view()),
     path("api/agent/capture-translations/claim/", CaptureTranslationClaimView.as_view()),
     path("api/agent/capture-translations/<uuid:run_id>/control/", CaptureTranslationControlView.as_view()),

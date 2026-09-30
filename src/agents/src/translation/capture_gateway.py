@@ -15,6 +15,7 @@ from plugins.qwen.live_translate import (
     TranslationError,
     TranslationSession,
 )
+from translation.assistant_gateway import AssistantTranslationConnection
 from translation.capture_archive import CaptureArchiveDelivery
 from translation.capture_reporter import CaptureTranslationReporter, authentication
 
@@ -373,6 +374,9 @@ class CaptureTranslationGateway:
         self.active += 1
         try:
             raw = await asyncio.wait_for(socket.recv(), 5)
+            if isinstance(raw, str) and json.loads(raw).get("type") == "assistant_translation":
+                await AssistantTranslationConnection(socket).run(json.loads(raw))
+                return
             auth = authentication(raw)
             reporter = self.reporter_factory(auth)
             await self.connection_factory(socket, reporter).run()

@@ -211,6 +211,9 @@ class TranslationEvents:
                 "text": text,
                 "stash": _text(event.get("stash", "")),
                 "completed": completed,
+                "language": event.get("language")
+                if event.get("language") in TEXT_LANGUAGES
+                else None,
             }
         ]
 
