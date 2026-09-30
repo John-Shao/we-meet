@@ -159,6 +159,29 @@ jobs:
       - name: Lint code with ruff
         run: uv run ruff check .
 
+  test-agents:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: src/agents
+    env:
+      PYTHONPATH: src
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: Install the project
+        run: uv sync --locked --all-extras
+      - name: Run agent regression tests
+        run: uv run python -m unittest discover -s tests -t .
+
   lint-summary:
     runs-on: ubuntu-latest
     permissions:

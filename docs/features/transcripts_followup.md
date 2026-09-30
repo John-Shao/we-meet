@@ -37,7 +37,7 @@ RuntimeError: AgentSession isn't running
 `MultiUserTranscriber.aclose()` 又调 `sess.drain()`，第二次 drain 触发
 RuntimeError。框架版本升级（1.5+）应自然消失，但本期可吞掉。
 
-**修法**：在 [src/agents/multi_user_transcriber.py](../../src/agents/multi_user_transcriber.py)
+**修法**：在 [src/agents/multi_user_transcriber.py](../../src/agents/src/transcription/runtime.py)
 的 `_close_session()` 中包一层 try/except：
 
 ```python
@@ -66,7 +66,7 @@ async def _close_session(self, sess: AgentSession) -> None:
 真的写进去了，还是事件根本没被回调触发"。Sprint 2.0 上线时正是因为这个，
 排查 timeout / 500 / DB 是否落表多走了几步。
 
-**根因**：[src/agents/transcript_writer.py](../../src/agents/transcript_writer.py)
+**根因**：[src/agents/transcript_writer.py](../../src/agents/src/transcription/writer.py)
 中 `_post_sync()` 只在 HTTP ≥400 时 log warning，2xx 路径完全静默。
 
 **修法**：在 `_post_sync()` 成功路径加 `logger.debug("ingested transcript len=%d speaker=%s", len(payload['text']), payload['speaker_identity'])`。生产用
@@ -84,7 +84,7 @@ DEBUG 级别即可，避免高频 INFO 刷屏；联调时改 INFO。
 的 `speaker_identity`。下游做摘要 / TODO 提取时需要"谁说了什么"，光 UUID
 对人不可读。
 
-**根因**：[src/agents/multi_user_transcriber.py](../../src/agents/multi_user_transcriber.py)
+**根因**：[src/agents/multi_user_transcriber.py](../../src/agents/src/transcription/runtime.py)
 中读 `participant.name` 拿到的是 LiveKit 参与者 display name，而我们后端
 签发 LiveKit token 时**没把 user 的 full_name / nickname 注入**到
 `participant.name` 字段，导致它默认是空字符串。
@@ -145,7 +145,7 @@ DEBUG 级别即可，避免高频 INFO 刷屏；联调时改 INFO。
 
 字幕场景下这种"善意修正"是 anti-feature —— 用户想要的是逐字翻译。
 
-**根因**：[src/agents/plugins/doubao_translate.py](../../src/agents/plugins/doubao_translate.py)
+**根因**：[src/agents/plugins/doubao_translate.py](../../src/agents/src/plugins/doubao/translate.py)
 中的翻译 prompt 仅说 "Translate ... Reply with ONLY the translated text"，没禁
 止"纠错 / 解释 / 评论"。
 
@@ -172,7 +172,7 @@ prompt = (
 **现象**：实测 `Transcript.language` 字段在所有行里都是 `"zh"`，包括
 `"Hello, world."` 这种纯英文。
 
-**根因**：[src/agents/plugins/doubao_pipeline/stt.py](../../src/agents/plugins/doubao_pipeline/stt.py)
+**根因**：[src/agents/plugins/doubao_pipeline/stt.py](../../src/agents/src/plugins/doubao/pipeline/stt.py)
 中两处 ``language="zh"`` 是硬编码（L331、L415 附近），跟 STT 引擎实际识别
 出的语言无关。
 

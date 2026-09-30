@@ -27,6 +27,7 @@ dev = [
 package = false
 
 [tool.ruff]
+src = ["src", "."]
 target-version = "py313"
 
 [tool.ruff.lint]

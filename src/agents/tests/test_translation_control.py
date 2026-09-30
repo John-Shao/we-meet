@@ -9,13 +9,13 @@ from unittest import mock
 
 from livekit import rtc
 
-from plugins.qwen_live_translate import TranslationError
-from qwen_translation_agent import PrivateTranslation, entrypoint
-from translation_control import (
+from plugins.qwen.live_translate import TranslationError
+from translation.control import (
     TranslationInput,
     TranslationReporter,
     translation_metadata,
 )
+from translation.private import PrivateTranslation, entrypoint
 
 TEST_TOKEN = str(uuid.uuid4())
 
@@ -87,7 +87,7 @@ class ReporterTests(unittest.IsolatedAsyncioTestCase):
             response = mock.MagicMock(status=200)
             response.__enter__.return_value = response
             response.read.return_value = body
-            with mock.patch("translation_control._open", return_value=response):
+            with mock.patch("translation.control.open_backend", return_value=response):
                 self.assertIsNone(reporter._send({}))
 
     def test_metadata_rejects_overrides_and_boolean_generation(self):
@@ -328,17 +328,13 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             finished=True,
         )
         with (
+            mock.patch("translation.private.rtc.AudioSource", return_value=fake_source),
+            mock.patch("translation.private.rtc.LocalAudioTrack.create_audio_track"),
             mock.patch(
-                "qwen_translation_agent.rtc.AudioSource", return_value=fake_source
-            ),
-            mock.patch("qwen_translation_agent.rtc.LocalAudioTrack.create_audio_track"),
-            mock.patch(
-                "qwen_translation_agent.TranslationConfig.from_env",
+                "translation.private.TranslationConfig.from_env",
                 return_value=SimpleNamespace(model="test-model"),
             ),
-            mock.patch(
-                "qwen_translation_agent.TranslationSession", return_value=channel
-            ),
+            mock.patch("translation.private.TranslationSession", return_value=channel),
         ):
             await runtime.open()
             self.assertFalse(calls[0]["allow_all_participants"])
@@ -395,10 +391,10 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         )
         with (
             mock.patch(
-                "qwen_translation_agent.TranslationReporter.from_env",
+                "translation.private.TranslationReporter.from_env",
                 return_value=reporter,
             ),
-            mock.patch("qwen_translation_agent.PrivateTranslation") as runtime,
+            mock.patch("translation.private.PrivateTranslation") as runtime,
         ):
             await entrypoint(ctx)
         runtime.assert_not_called()

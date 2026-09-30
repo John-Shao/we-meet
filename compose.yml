@@ -251,7 +251,7 @@ services:
     build:
       context: ./src/agents
       target: development
-    command: ["python", "metadata_collector.py", "dev"]
+    command: ["python", "-m", "entrypoints.metadata_collector", "dev"]
     environment:
       - LIVEKIT_URL=ws://livekit:7880
       - LIVEKIT_API_KEY=devkey
@@ -287,7 +287,7 @@ services:
     build:
       context: ./src/agents
       target: development
-    command: ["python", "qwen_translation_agent.py", "dev"]
+    command: ["python", "-m", "entrypoints.qwen_translation_agent", "dev"]
     env_file:
       - env.d/development/meeting_translation
     volumes:
@@ -299,7 +299,7 @@ services:
     build:
       context: ./src/agents
       target: development
-    command: ["python", "qwen_interpretation_agent.py", "dev"]
+    command: ["python", "-m", "entrypoints.qwen_interpretation_agent", "dev"]
     env_file:
       - env.d/development/meeting_translation
     environment:
@@ -313,7 +313,7 @@ services:
     build:
       context: ./src/agents
       target: development
-    command: ["python", "capture_live_transcriber.py"]
+    command: ["python", "-m", "entrypoints.capture_live_transcriber"]
     env_file:
       - env.d/development/capture_transcriber
     volumes:
@@ -325,7 +325,7 @@ services:
     build:
       context: ./src/agents
       target: development
-    command: ["python", "capture_translation_gateway.py"]
+    command: ["python", "-m", "entrypoints.capture_translation_gateway"]
     env_file:
       - env.d/development/capture_translation
     environment:
@@ -342,7 +342,7 @@ services:
     build:
       context: ./src/agents
       target: development
-    command: ["python", "capture_transcriber.py"]
+    command: ["python", "-m", "entrypoints.capture_transcriber"]
     env_file:
       - env.d/development/capture_transcriber
     volumes:

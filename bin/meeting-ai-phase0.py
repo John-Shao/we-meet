@@ -2,6 +2,7 @@
 
 Default: validate synthetic fixture and show configuration presence only.
 Live summary uses urllib; audio probes additionally require websockets.
+Translation probes require PYTHONPATH pointing to src/agents/src.
 --secrets-file reads the user-selected Helm values with PyYAML, in memory only.
 """
 
@@ -12,7 +13,6 @@ import json
 import os
 from pathlib import Path
 import re
-import sys
 import time
 import urllib.error
 import urllib.parse
@@ -111,8 +111,7 @@ def pcm_audio(path):
 
 async def translation_probe(key, workspace, region, pcm, target, mode, text_only):
     # Exercise the production adapter, including 3.8 delta normalization and PTT drain.
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "agents"))
-    from plugins.qwen_live_translate import TranslationConfig, TranslationSession
+    from plugins.qwen.live_translate import TranslationConfig, TranslationSession
 
     result = {"model": TRANSLATION, "events": {}, "final_texts": [], "audio_bytes": 0,
               "input_seconds": len(pcm) / 32000, "usage": [], "mode": mode,

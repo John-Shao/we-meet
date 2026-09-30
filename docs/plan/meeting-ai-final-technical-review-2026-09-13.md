@@ -25,7 +25,7 @@
 - **音频与翻译**：翻译输入独立于正式原文；按来源、generation、参与连接、订阅修订及租约校验事件。停止/撤权/后台释放播放，队列有界；恢复不重播旧队列。独立录音翻译复用采集 PCM，不另开第二个麦克风。
 - **部署与关闭**：服务端、Android 和可选 Worker 默认关闭；内部令牌/模型密钥不进入 Web。按能力组合启用，关闭新任务与结束已有任务分开处理；升级时保留来源、版本和幂等记录。
 
-主要服务路径：[记录权限](../../src/backend/core/services/meeting_records.py)、[版本总结](../../src/backend/core/services/meeting_summary_versions.py)、[自动调度](../../src/backend/core/services/meeting_summary_automation.py)、[独立原文来源](../../src/backend/core/services/capture_summary_source.py)、[云录制传输](../../src/backend/core/services/cloud_egress.py)、[文档交付](../../src/backend/core/services/summary_export_delivery.py)、[通知交付](../../src/backend/core/services/summary_notification_delivery.py)、[录音翻译网关](../../src/agents/capture_translation_gateway.py)。
+主要服务路径：[记录权限](../../src/backend/core/services/meeting_records.py)、[版本总结](../../src/backend/core/services/meeting_summary_versions.py)、[自动调度](../../src/backend/core/services/meeting_summary_automation.py)、[独立原文来源](../../src/backend/core/services/capture_summary_source.py)、[云录制传输](../../src/backend/core/services/cloud_egress.py)、[文档交付](../../src/backend/core/services/summary_export_delivery.py)、[通知交付](../../src/backend/core/services/summary_notification_delivery.py)、[录音翻译网关](../../src/agents/src/translation/capture_gateway.py)。
 
 ## 3. 本轮最终验证
 

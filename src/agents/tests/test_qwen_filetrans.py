@@ -8,10 +8,10 @@ from datetime import timedelta
 from unittest import mock
 from urllib.parse import parse_qs, urlsplit
 
-from capture_live_transcriber import LiveCaptureAttempt
-from capture_transcriber import CaptureAttempt
-from plugins.qwen_asr import QwenASRSession
-from plugins.qwen_filetrans import (
+from capture.live import LiveCaptureAttempt
+from capture.sealed import CaptureAttempt
+from plugins.qwen.asr import QwenASRSession
+from plugins.qwen.filetrans import (
     MODEL,
     QwenFileASRConfig,
     QwenFileASRSession,
@@ -60,7 +60,7 @@ class FileTranscriptionTests(unittest.IsolatedAsyncioTestCase):
         """Virtual style alone still triggers an incompatible location query."""
         with (
             mock.patch.dict(os.environ, {}, clear=True),
-            mock.patch("plugins.qwen_filetrans.Minio") as client,
+            mock.patch("plugins.qwen.filetrans.Minio") as client,
         ):
             with self.assertRaisesRegex(ValueError, "oss_region_and_virtual"):
                 storage_client("oss-cn-shenzhen.aliyuncs.com")
@@ -138,7 +138,7 @@ class FileTranscriptionTests(unittest.IsolatedAsyncioTestCase):
                     "AWS_STORAGE_BUCKET_NAME": "private",
                 },
             ),
-            mock.patch("plugins.qwen_filetrans.Minio", return_value=storage),
+            mock.patch("plugins.qwen.filetrans.Minio", return_value=storage),
             mock.patch.object(session, "request", side_effect=responses) as request,
         ):
             await session.run(audio(), final)

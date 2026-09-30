@@ -5,17 +5,15 @@ import asyncio
 import hashlib
 import io
 import json
-import sys
 import time
 import wave
 import zipfile
 from pathlib import Path
 
-ROOT = Path(__file__).parent
-sys.path.insert(0, str(ROOT.parents[1]))
+from plugins.qwen.filetrans import QwenFileASRConfig, QwenFileASRSession
+from transcription.diagnostics import failures
 
-from asr_diagnostics import failures  # noqa: E402
-from plugins.qwen_filetrans import QwenFileASRConfig, QwenFileASRSession  # noqa: E402
+ROOT = Path(__file__).parent
 
 KNOWN_LANGUAGES = {"two-speakers-clean": "en", "terms-zh-clean": "zh"}
 TERM_LANGUAGES = {"terms-zh-clean": "zh", "terms-zh-noise10": "zh", "silence": "zh"}

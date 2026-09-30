@@ -1,107 +1,22 @@
 """Standalone worker delivery and cancellation with real Qwen protocol, no network."""
 
 import asyncio
-import hashlib
-import io
 import json
 import unittest
 import urllib.error
 import uuid
-import wave
 from unittest import mock
 
-from asr_diagnostics import StageError
-from capture_transcriber import (
-    CaptureAttempt,
-    CaptureBackend,
-    CaptureError,
-    run_worker,
-    serve,
-    verified_pcm,
-)
-from plugins.qwen_asr import QwenASRConfig, QwenASRSession
-from tests.test_qwen_asr import FakeSocket
-
-
-def audio():
-    """One real 100 ms PCM WAV, identical to browser/backend format."""
-    output = io.BytesIO()
-    with wave.open(output, "wb") as wav:
-        wav.setnchannels(1)
-        wav.setsampwidth(2)
-        wav.setframerate(16000)
-        wav.writeframes(bytes(3200))
-    return output.getvalue()
-
-
-class Backend:
-    """Record calls without granting success when begin or heartbeat fails."""
-
-    def __init__(self, job, data):
-        """Keep the claimed identity and immutable source bytes."""
-        self.job, self.data = job, data
-        self.calls, self.finals = [], []
-        self.fail = None
-
-    async def request(self, path, payload=None, **options):
-        """Mirror response envelopes while exposing exact attempted operations."""
-        self.calls.append((path, payload, options))
-        if path.endswith("audio/1/") or path.endswith("audio/2/"):
-            return self.data
-        if path.endswith("control/"):
-            if payload["operation"] == self.fail:
-                raise CaptureError("simulated_unknown_response")
-            return {"id": self.job["id"], "status": "running"}
-        if path.endswith("originals/"):
-            if self.fail == "originals":
-                raise CaptureError("simulated_unknown_response")
-            self.finals.append(payload)
-            return {"id": str(uuid.uuid4()), "created": True}
-        if path.endswith("finish/"):
-            if self.fail == "finish":
-                raise CaptureError("simulated_unknown_response")
-            return {
-                "id": self.job["id"],
-                "status": "succeeded" if payload["provider_finished"] else "incomplete",
-            }
-        raise AssertionError("Unexpected backend path")
+from capture.common import CaptureBackend, CaptureError, verified_pcm
+from capture.worker import run_worker, serve
+from tests.helpers.capture import CaptureFixture
+from transcription.diagnostics import StageError
 
 
 class CaptureWorkerTests(unittest.IsolatedAsyncioTestCase):
     """Exercise real async task groups, protocol finish and generation receipts."""
 
-    def setUp(self):
-        """Use synthetic PCM, fake sockets and non-production settings."""
-        self.config = QwenASRConfig(api_key="test-only", workspace="test")
-        self.data = audio()
-        chunk = {
-            "id": str(uuid.uuid4()),
-            "sequence": 1,
-            "start_ms": 0,
-            "duration_ms": 100,
-            "byte_size": len(self.data),
-            "checksum": hashlib.sha256(self.data).hexdigest(),
-            "stored": True,
-        }
-        self.job = {
-            "id": str(uuid.uuid4()),
-            "started": False,
-            "configuration": {"model": self.config.model, "region": self.config.region},
-            "inputs": {"chunks": [chunk], "runs": 1},
-        }
-        self.backend = Backend(self.job, self.data)
-        self.sockets = []
-        self.mode = "normal"
-
-        def session(config):
-            socket = FakeSocket()
-            socket.mode = self.mode
-            self.sockets.append(socket)
-            return QwenASRSession(config, connector=mock.Mock(return_value=socket))
-
-        self.attempt = CaptureAttempt(
-            self.backend, self.config, self.job, session_factory=session
-        )
+    setUp = CaptureFixture.setUp
 
     async def test_success_delivers_tail_before_frozen_finish(self):
         """Only FINAL text is acknowledged, then provider and input receipts publish."""
@@ -209,7 +124,7 @@ class CaptureHTTPTests(unittest.IsolatedAsyncioTestCase):
         with mock.patch.dict(
             "os.environ", {"DASHSCOPE_API_KEY": "private-fixture"}, clear=True
         ):
-            with mock.patch("capture_transcriber.CaptureBackend") as backend:
+            with mock.patch("capture.worker.CaptureBackend") as backend:
                 with self.assertRaisesRegex(
                     CaptureError, "dashscope_workspace_id_missing"
                 ):
@@ -226,7 +141,7 @@ class CaptureHTTPTests(unittest.IsolatedAsyncioTestCase):
             },
             clear=True,
         ):
-            with mock.patch("capture_transcriber.CaptureBackend") as backend:
+            with mock.patch("capture.worker.CaptureBackend") as backend:
                 with self.assertRaisesRegex(
                     CaptureError, "qwen_asr_configuration_invalid"
                 ):
@@ -267,7 +182,7 @@ class CaptureHTTPTests(unittest.IsolatedAsyncioTestCase):
         response = mock.MagicMock()
         response.__enter__.return_value = response
         response.read.return_value = json.dumps({"job": None}).encode()
-        with mock.patch("capture_transcriber._open", return_value=response) as opened:
+        with mock.patch("capture.common.open_backend", return_value=response) as opened:
             self.assertEqual(backend._send("claim/", {}, False), {"job": None})
             request = opened.call_args.args[0]
             self.assertNotIn("test-only", request.full_url)
@@ -300,7 +215,7 @@ class CaptureStartupTests(unittest.TestCase):
     def test_unknown_exception_never_logs_its_body(self):
         """Provider, transport and arbitrary exception content remain private."""
         for error in (RuntimeError("private-fixture"), CaptureError("private-fixture")):
-            with mock.patch("capture_transcriber.serve", side_effect=error):
+            with mock.patch("capture.worker.serve", side_effect=error):
                 with self.assertLogs("capture-transcriber", level="ERROR") as logs:
                     self.assertEqual(1, run_worker())
                 self.assertIn("worker_execution_failed", logs.output[0])

@@ -202,7 +202,7 @@ class MeetingAIChartTest(unittest.TestCase):
             if key == "capture-translation":
                 self.assertEqual("true", env["CAPTURE_TRANSLATION_GATEWAY_ENABLED"]["value"])
                 self.assertEqual("0.0.0.0", env["CAPTURE_TRANSLATION_BIND"]["value"])
-                self.assertEqual(["python", "capture_translation_gateway.py"], container["command"])
+                self.assertEqual(["python", "-m", "entrypoints.capture_translation_gateway"], container["command"])
         ingress = next(row for row in rows if row["kind"] == "Ingress" and row["metadata"]["name"] == "meet-agent-capture-translation")
         path = ingress["spec"]["rules"][0]["http"]["paths"][0]
         self.assertEqual("/capture-translation", path["path"])

@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest import mock
 
-from multi_user_transcriber import MultiUserTranscriber, _get_livekit_room_sid
-from transcript_writer import TranscriptWriter
+from transcription.runtime import MultiUserTranscriber, _get_livekit_room_sid
+from transcription.writer import TranscriptWriter
 
 
 class _AsyncSidRoom:
@@ -128,7 +128,7 @@ class DeliveryShutdownTest(unittest.IsolatedAsyncioTestCase):
         self.transcriber._sessions["s"] = session
         timeout = asyncio.timeout
         with mock.patch(
-            "multi_user_transcriber.asyncio.timeout",
+            "transcription.runtime.asyncio.timeout",
             side_effect=lambda _: timeout(0.01),
         ):
             await self.transcriber.aclose()
@@ -166,9 +166,9 @@ class DeliveryShutdownTest(unittest.IsolatedAsyncioTestCase):
         self.transcriber._target_langs = ["zh"]
         self.transcriber._publish_translation = mock.AsyncMock()
         with (
-            mock.patch("multi_user_transcriber.AgentSession", return_value=session),
-            mock.patch("multi_user_transcriber.RoomIO") as room_io,
-            mock.patch("multi_user_transcriber.Transcriber"),
+            mock.patch("transcription.runtime.AgentSession", return_value=session),
+            mock.patch("transcription.runtime.RoomIO") as room_io,
+            mock.patch("transcription.runtime.Transcriber"),
         ):
             room_io.return_value.start = mock.AsyncMock()
             await self.transcriber._start_session(
@@ -200,10 +200,10 @@ class DeliveryShutdownTest(unittest.IsolatedAsyncioTestCase):
             ingest_id=str(uuid.uuid4()), text="source final", language=""
         )
         with (
-            mock.patch("multi_user_transcriber.STT_PROVIDER", "qwen"),
-            mock.patch("multi_user_transcriber.AgentSession", return_value=session),
-            mock.patch("multi_user_transcriber.RoomIO") as room_io,
-            mock.patch("multi_user_transcriber.Transcriber") as agent,
+            mock.patch("transcription.runtime.STT_PROVIDER", "qwen"),
+            mock.patch("transcription.runtime.AgentSession", return_value=session),
+            mock.patch("transcription.runtime.RoomIO") as room_io,
+            mock.patch("transcription.runtime.Transcriber") as agent,
         ):
             room_io.return_value.start = mock.AsyncMock()
             await self.transcriber._start_session(

@@ -1,5 +1,7 @@
 # AI Worker 部署配置与联调入口
 
+当前目录结构、源码路径配置及完整启动命令见 [agents README](../../src/agents/README.md)。
+
 2026-09-14：本项目 `aliyun-prod` 已按用户指令开启下述 Worker，并增加独立 Beat 和现有凭据复用；Android 构建配置也已开启。当前发布步骤见[配置启用说明](meeting-ai-rollout-incidents-2026-09-14.md#meeting-ai-rollout)。通用 Chart 默认值仍关闭。
 
 这份说明供部署测试使用。代码和渲染检查已完成，不代表已部署或通过真实模型验收。所有新增 Worker、后端能力和 Android 入口默认关闭。
@@ -8,13 +10,13 @@
 
 | Helm worker key | 进程 | 对应能力 |
 | --- | --- | --- |
-| `translation` | `qwen_translation_agent.py start` | 线上私人翻译 |
-| `interpretation` | `qwen_interpretation_agent.py start` | 线上同传频道 |
-| `capture-asr` | `capture_transcriber.py` | 独立录音会后转写 |
-| `capture-live-asr` | `capture_live_transcriber.py` | 独立录音实时转写 |
-| `capture-translation` | `capture_translation_gateway.py` | 独立录音同传／双向语音翻译 |
+| `translation` | `python -m entrypoints.qwen_translation_agent start` | 线上私人翻译 |
+| `interpretation` | `python -m entrypoints.qwen_interpretation_agent start` | 线上同传频道 |
+| `capture-asr` | `python -m entrypoints.capture_transcriber` | 独立录音会后转写 |
+| `capture-live-asr` | `python -m entrypoints.capture_live_transcriber` | 独立录音实时转写 |
+| `capture-translation` | `python -m entrypoints.capture_translation_gateway` | 独立录音同传／双向语音翻译 |
 
-原有 `multi_user_transcriber.py` 负责线上正式原文。API、Celery Backend、Beat、总结 Worker、上述按需启用的 Agent 必须使用兼容版本。独立实时和会后 ASR 是不同进程，不能只部署其中一个却同时开启两类任务。
+原有 `python -m entrypoints.multi_user_transcriber` 负责线上正式原文。API、Celery Backend、Beat、总结 Worker、上述按需启用的 Agent 必须使用兼容版本。独立实时和会后 ASR 是不同进程，不能只部署其中一个却同时开启两类任务。
 
 ## Helm 配置
 

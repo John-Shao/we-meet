@@ -8,14 +8,15 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest import mock
 
-from multi_user_transcriber import (
+from transcription.online_capture import capture_metadata, watch_capture
+from transcription.runtime import (
     MultiUserTranscriber,
     entrypoint,
     handle_transcriber_job_request,
     rtc,
 )
-from online_capture import capture_metadata, watch_capture
-from transcript_writer import TranscriptWriter, _NoRedirect
+from transcription.writer import TranscriptWriter
+from transport.http import _NoRedirect
 
 
 class CaptureAgentTest(unittest.IsolatedAsyncioTestCase):
@@ -130,7 +131,7 @@ class CaptureAgentTest(unittest.IsolatedAsyncioTestCase):
             ({"status": "ok", "id": delivery, "state": "unknown"}, None),
             ([], None),
         ]:
-            with mock.patch("transcript_writer._open") as opener:
+            with mock.patch("transcription.writer.open_backend") as opener:
                 response = opener.return_value.__enter__.return_value
                 response.status = 200
                 response.read.return_value = json.dumps(body).encode()
@@ -162,16 +163,14 @@ class CaptureAgentTest(unittest.IsolatedAsyncioTestCase):
             )
             with (
                 mock.patch(
-                    "multi_user_transcriber.TranscriptWriter.from_env",
+                    "transcription.runtime.TranscriptWriter.from_env",
                     return_value=writer,
                 ),
                 mock.patch(
-                    "multi_user_transcriber._get_livekit_room_sid",
+                    "transcription.runtime._get_livekit_room_sid",
                     new=mock.AsyncMock(return_value=sid),
                 ),
-                mock.patch(
-                    "multi_user_transcriber.MultiUserTranscriber"
-                ) as transcriber,
+                mock.patch("transcription.runtime.MultiUserTranscriber") as transcriber,
             ):
                 await entrypoint(ctx)
                 transcriber.return_value.start.assert_not_called()
@@ -224,7 +223,7 @@ class CaptureAgentTest(unittest.IsolatedAsyncioTestCase):
             accept=mock.AsyncMock(),
             reject=mock.AsyncMock(),
         )
-        with mock.patch("multi_user_transcriber.api.LiveKitAPI") as api:
+        with mock.patch("transcription.runtime.api.LiveKitAPI") as api:
             client = api.return_value.__aenter__.return_value
             client.room.list_participants = mock.AsyncMock(
                 return_value=SimpleNamespace(

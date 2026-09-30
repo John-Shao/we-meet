@@ -10,48 +10,13 @@ from unittest import mock
 
 from livekit import rtc
 
-from qwen_interpretation_agent import (
-    SharedInterpretation,
+from tests.helpers.interpretation import grant
+from tests.helpers.interpretation_runtime import publication, runtime, source_for
+from translation.control import TranslationInput
+from translation.interpretation import (
     SourceTranslation,
     bounded_fanout,
 )
-from tests.test_interpretation_control import grant, metadata, room
-from translation_control import TranslationInput
-
-
-def runtime():
-    """Provide observable local publication and strict human grant fixtures."""
-    meeting = room()
-    meeting.local_participant = SimpleNamespace(
-        set_track_subscription_permissions=mock.Mock(),
-        publish_data=mock.AsyncMock(),
-        publish_track=mock.AsyncMock(return_value=SimpleNamespace(sid="TR_output")),
-        unpublish_track=mock.AsyncMock(),
-    )
-    for participant in meeting.remote_participants.values():
-        participant.track_publications = {}
-    reporter = SimpleNamespace(identity=metadata(), command=mock.AsyncMock())
-    return SharedInterpretation(SimpleNamespace(room=meeting), reporter, grant())
-
-
-def publication(sid="TR_input", source=rtc.TrackSource.SOURCE_MICROPHONE):
-    """Return a subscribed audio publication with an observable subscription call."""
-    return SimpleNamespace(
-        sid=sid,
-        kind=rtc.TrackKind.KIND_AUDIO,
-        source=source,
-        track=object(),
-        set_subscribed=mock.Mock(),
-    )
-
-
-def source_for(value):
-    """Expose a source output without allocating native RTC resources."""
-    source = SourceTranslation(
-        value, next(iter(value.lease.sources.values())), publication()
-    )
-    source.output = SimpleNamespace(sid="TR_output")
-    return source
 
 
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
@@ -173,7 +138,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             return reply
 
         value.reporter.command = heartbeat
-        with mock.patch("qwen_interpretation_agent.asyncio.sleep", mock.AsyncMock()):
+        with mock.patch("translation.interpretation.asyncio.sleep", mock.AsyncMock()):
             await value.watch()
         self.assertEqual(value.room.local_participant.publish_data.call_count, 2)
 
@@ -244,7 +209,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             raise OSError("fixture failure")
 
         value.reporter.command = unavailable
-        with mock.patch("qwen_interpretation_agent.asyncio.sleep", mock.AsyncMock()):
+        with mock.patch("translation.interpretation.asyncio.sleep", mock.AsyncMock()):
             await value.watch()
         self.assertTrue(value.failed)
         self.assertFalse(value.can_output())

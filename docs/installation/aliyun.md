@@ -610,7 +610,7 @@ kubectl label node <new-node-name> workload=egress
 
 ### 10.2 实时字幕（Subtitles / 火山豆包 STT）
 
-upstream [src/agents/multi_user_transcriber.py](../../src/agents/multi_user_transcriber.py) 当前只支持 deepgram / kyutai。要接火山豆包，两条路：
+upstream [src/agents/multi_user_transcriber.py](../../src/agents/src/transcription/runtime.py) 当前只支持 deepgram / kyutai。要接火山豆包，两条路：
 
 **方案 A：写一个 LiveKit STT plugin 继承 `livekit.agents.stt.STT`**，调火山豆包流式 ASR WebSocket。要把 `STT_PROVIDER` 加一个 `volcengine_doubao` 分支，类似:
 

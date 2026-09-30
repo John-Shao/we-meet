@@ -95,8 +95,8 @@ UX主框架适合会后复核：媒体、原文、纪要、章节、说话人、
 
 ## 7. 本轮关键代码与外部依据
 
-- 原生Unknown speaker：[capture_transcription.py](../../src/backend/core/services/capture_transcription.py) `final`；worker只传文字/语言：[capture_transcriber.py](../../src/agents/capture_transcriber.py)。
-- 原生提交配置：[qwen_filetrans.py](../../src/agents/plugins/qwen_filetrans.py) `parameters`；有限语言/热词候选见[专项](miaoji-asr-language-candidates-2026-09-21.md)。
+- 原生Unknown speaker：[capture_transcription.py](../../src/backend/core/services/capture_transcription.py) `final`；worker只传文字/语言：[capture_transcriber.py](../../src/agents/src/capture/sealed.py)。
+- 原生提交配置：[qwen_filetrans.py](../../src/agents/src/plugins/qwen/filetrans.py) `parameters`；有限语言/热词候选见[专项](miaoji-asr-language-candidates-2026-09-21.md)。
 - 来源/角色能力：[meeting_records.py](../../src/backend/core/services/meeting_records.py) `can_play_media`、`record_capabilities`、`can_edit_transcript`。
 - 两类检索：[meeting_search.py](../../src/backend/core/services/meeting_search.py) `recall_records`、[global_ask.py](../../src/backend/core/services/global_ask.py) `_prepare`/`_recall_transcripts`。
 - 质量结论：[第75批](miaoji-batch-75-bounded-evidence-context.md)、[第76批](miaoji-batch-76-answer-support-check.md)、[Helm395验收](miaoji-quality-acceptance-395.md)。

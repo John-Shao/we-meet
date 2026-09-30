@@ -1306,7 +1306,8 @@ agentAIAssistant:
   ## @param agentAIAssistant.command Override the agentAIAssistant container command
   command:
     - python
-    - ai_assistant.py
+    - "-m"
+    - "entrypoints.ai_assistant"
     - start
 
   ## @param agentAIAssistant.args Override the agentAIAssistant container args
@@ -1425,7 +1426,7 @@ meetingAIWorkers:
       replicas: 1
       imageTag: ""
       livekit: true
-      command: [python, qwen_translation_agent.py, start]
+      command: [python, -m, entrypoints.qwen_translation_agent, start]
       envVars:
         ROOM_TRANSLATION_AGENT_NAME: meeting-translation
         DASHSCOPE_REGION: cn-beijing
@@ -1437,7 +1438,7 @@ meetingAIWorkers:
       replicas: 1
       imageTag: ""
       livekit: true
-      command: [python, qwen_interpretation_agent.py, start]
+      command: [python, -m, entrypoints.qwen_interpretation_agent, start]
       envVars:
         ROOM_INTERPRETATION_AGENT_NAME: meeting-interpretation
         DASHSCOPE_REGION: cn-beijing
@@ -1449,7 +1450,7 @@ meetingAIWorkers:
       replicas: 1
       imageTag: ""
       livekit: false
-      command: [python, capture_transcriber.py]
+      command: [python, -m, entrypoints.capture_transcriber]
       envVars:
         QWEN_FILE_ASR_MODEL: qwen-audio-3.0-asr-flash-filetrans
         QWEN_FILE_ASR_REGION: cn-beijing
@@ -1462,7 +1463,7 @@ meetingAIWorkers:
       replicas: 1
       imageTag: ""
       livekit: false
-      command: [python, capture_live_transcriber.py]
+      command: [python, -m, entrypoints.capture_live_transcriber]
       envVars:
         QWEN_ASR_MODEL: qwen-audio-3.0-asr-flash-streaming
         QWEN_ASR_REGION: cn-beijing
@@ -1472,7 +1473,7 @@ meetingAIWorkers:
       replicas: 1
       imageTag: ""
       livekit: false
-      command: [python, capture_translation_gateway.py]
+      command: [python, -m, entrypoints.capture_translation_gateway]
       envVars:
         DASHSCOPE_REGION: cn-beijing
         QWEN_TRANSLATION_MODEL: qwen3.8-livetranslate-flash-realtime

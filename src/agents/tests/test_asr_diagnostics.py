@@ -7,9 +7,9 @@ import unittest
 import uuid
 from unittest import mock
 
-from asr_diagnostics import PREFIX, StageError, failures, stage
-from plugins.qwen_filetrans import QwenFileASRConfig, QwenFileASRSession
-from tests import test_capture_transcriber as worker_fixture
+from plugins.qwen.filetrans import QwenFileASRConfig, QwenFileASRSession
+from tests.helpers.capture import CaptureFixture
+from transcription.diagnostics import PREFIX, StageError, failures, stage
 
 
 class StageTests(unittest.TestCase):
@@ -36,7 +36,7 @@ class StageTests(unittest.TestCase):
 class WorkerDiagnosticTests(unittest.IsolatedAsyncioTestCase):
     """Use the existing async protocol fixture, including its regression cases."""
 
-    setUp = worker_fixture.CaptureWorkerTests.setUp
+    setUp = CaptureFixture.setUp
 
     async def test_no_speech_reason_requires_advertised_backend_and_no_text(self):
         """Old strict backends keep the old envelope; partial text stays generic."""
@@ -230,7 +230,7 @@ class ProviderDiagnosticTests(unittest.IsolatedAsyncioTestCase):
                     "AWS_STORAGE_BUCKET_NAME": "test",
                 },
             ),
-            mock.patch("plugins.qwen_filetrans.storage_client", return_value=storage),
+            mock.patch("plugins.qwen.filetrans.storage_client", return_value=storage),
             mock.patch.object(session, "request", side_effect=responses),
         ):
             try:

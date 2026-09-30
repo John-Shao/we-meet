@@ -6,11 +6,11 @@ import uuid
 from collections import deque
 from unittest import mock
 
-from capture_live_transcriber import LiveCaptureAttempt
-from capture_transcriber import CaptureError
-from plugins.qwen_asr import QwenASRSession
-from tests import test_capture_transcriber as sealed_tests
-from tests.test_qwen_asr import FakeSocket
+from capture.common import CaptureError
+from capture.live import LiveCaptureAttempt
+from plugins.qwen.asr import QwenASRSession
+from tests.helpers.capture import CaptureFixture
+from tests.helpers.qwen_asr import FakeSocket
 
 
 class LiveWorkerTests(unittest.IsolatedAsyncioTestCase):
@@ -18,7 +18,7 @@ class LiveWorkerTests(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
         """Reuse synthetic PCM and fake protocol transport from sealed ASR tests."""
-        self.fixture = sealed_tests.CaptureWorkerTests()
+        self.fixture = CaptureFixture()
         self.fixture.setUp()
         self.backend = self.fixture.backend
         self.job = self.fixture.job
@@ -137,7 +137,7 @@ class LiveWorkerTests(unittest.IsolatedAsyncioTestCase):
                 self.feed(index=2, start=100, closed=True, status="stopped"),
             ]
         )
-        with mock.patch("capture_live_transcriber.INPUT_IDLE_SECONDS", 0):
+        with mock.patch("capture.live.INPUT_IDLE_SECONDS", 0):
             await self.attempt.execute()
         self.assertEqual(len(self.fixture.sockets), 2)
         self.assertEqual([row["start_ms"] for row in self.backend.finals], [10, 110])
@@ -211,7 +211,7 @@ class LiveWorkerTests(unittest.IsolatedAsyncioTestCase):
     async def test_stop_without_seal_is_bounded(self):
         """A lost final upload cannot leave the live worker waiting indefinitely."""
         self.feeds.append(self.feed(index=0, empty=True, status="stopping"))
-        with mock.patch("capture_live_transcriber.STOP_SEAL_SECONDS", -1):
+        with mock.patch("capture.live.STOP_SEAL_SECONDS", -1):
             await self.attempt.execute()
         self.assertFalse(self.fixture.sockets)
         self.assertFalse(self.attempt.receipt["provider_finished"])

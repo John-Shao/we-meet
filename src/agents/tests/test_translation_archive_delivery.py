@@ -9,10 +9,10 @@ import uuid
 from types import SimpleNamespace
 from unittest import mock
 
-from tests.test_interpretation_control import grant, metadata
-from tests.test_interpretation_runtime import runtime, source_for
-from translation_archive_delivery import ArchiveDelivery
-from translation_control import TranslationReporter
+from tests.helpers.interpretation import grant, metadata
+from tests.helpers.interpretation_runtime import runtime, source_for
+from translation.archive import ArchiveDelivery
+from translation.control import TranslationReporter
 
 
 def sink():
@@ -81,7 +81,7 @@ class ArchiveTests(unittest.IsolatedAsyncioTestCase):
         }
         response.read.return_value = json.dumps(receipt).encode()
         with mock.patch(
-            "translation_archive_delivery._open", return_value=response
+            "translation.archive.open_backend", return_value=response
         ) as opened:
             self.assertTrue(value._send(payload, digest))
             self.assertEqual(
@@ -219,7 +219,7 @@ class ArchiveTests(unittest.IsolatedAsyncioTestCase):
             response.__enter__.return_value = response
             response.read.return_value = json.dumps({**valid, **changed}).encode()
             with mock.patch(
-                "translation_archive_delivery._open", return_value=response
+                "translation.archive.open_backend", return_value=response
             ) as opened:
                 self.assertEqual(value._send({}, "a" * 64), not changed)
                 self.assertEqual(

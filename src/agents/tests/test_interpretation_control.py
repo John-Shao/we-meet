@@ -4,74 +4,19 @@ import copy
 import json
 import unittest
 import uuid
-from types import SimpleNamespace
 from unittest import mock
 
 from livekit import rtc
 
-from interpretation_control import (
+from plugins.qwen.live_translate import TranslationError
+from tests.helpers.interpretation import grant, metadata, room
+from translation.interpretation_control import (
     GrantLease,
     InterpretationReporter,
     interpretation_metadata,
 )
-from plugins.qwen_live_translate import TranslationError
 
 TEST_TOKEN = str(uuid.uuid4())
-
-
-def metadata():
-    """Return a canonical channel identity."""
-    return {
-        "channel_id": str(uuid.uuid4()),
-        "generation": 1,
-        "livekit_room_sid": "RM_test",
-    }
-
-
-def grant():
-    """Return two independent human source/recipient identities."""
-    return {
-        "state": "translating",
-        "lease_seconds": 15,
-        "configuration": {
-            "scope": "meeting_channel",
-            "model": "qwen3.8-livetranslate-flash-realtime",
-            "source": None,
-            "target": "en",
-            "audio": True,
-            "max_sources": 16,
-            "max_listeners": 100,
-        },
-        "sources": [
-            {
-                "participation_id": str(uuid.uuid4()),
-                "identity": "speaker",
-                "participant_sid": "PA_source",
-            }
-        ],
-        "listeners": [
-            {
-                "subscription_id": str(uuid.uuid4()),
-                "identity": "listener",
-                "participant_sid": "PA_listener",
-                "revision": 1,
-            }
-        ],
-    }
-
-
-def room():
-    """Expose fake LiveKit participants with real SDK kind constants."""
-    return SimpleNamespace(
-        remote_participants={
-            name: SimpleNamespace(
-                identity=name,
-                sid=sid,
-                kind=rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD,
-            )
-            for name, sid in [("speaker", "PA_source"), ("listener", "PA_listener")]
-        }
-    )
 
 
 class LeaseTests(unittest.TestCase):
@@ -236,7 +181,9 @@ class ReporterTests(unittest.IsolatedAsyncioTestCase):
             response = mock.MagicMock(status=200)
             response.__enter__.return_value = response
             response.read.return_value = body
-            with mock.patch("interpretation_control._open", return_value=response):
+            with mock.patch(
+                "translation.interpretation_control.open_backend", return_value=response
+            ):
                 self.assertIsNone(reporter._send({}))
 
     def test_metadata_rejects_overrides_and_noncanonical_identity(self):

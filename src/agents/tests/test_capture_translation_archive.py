@@ -7,9 +7,7 @@ import unittest
 import uuid
 from unittest.mock import Mock
 
-from capture_translation_archive import CaptureArchiveDelivery
-from capture_translation_gateway import CaptureTranslationConnection
-from tests.test_capture_translation_gateway import (
+from tests.helpers.capture_translation import (
     Provider,
     Reporter,
     Socket,
@@ -19,6 +17,8 @@ from tests.test_capture_translation_gateway import (
     frame,
     provider_config,
 )
+from translation.capture_archive import CaptureArchiveDelivery
+from translation.capture_gateway import CaptureTranslationConnection
 
 
 class ArchiveReporter(Reporter):

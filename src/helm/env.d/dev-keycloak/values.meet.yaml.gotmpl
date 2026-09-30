@@ -297,7 +297,8 @@ agentMetadata:
 
   command:
     - "python"
-    - "metadata_collector.py"
+    - "-m"
+    - "entrypoints.metadata_collector"
     - "start"
 
   # Extra volume mounts to manage our local custom CA and avoid to disable ssl
@@ -334,7 +335,8 @@ agentSubtitles:
 
   command:
     - "python"
-    - "multi_user_transcriber.py"
+    - "-m"
+    - "entrypoints.multi_user_transcriber"
     - "start"
 
   # Extra volume mounts to manage our local custom CA and avoid to disable ssl

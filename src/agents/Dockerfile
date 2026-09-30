@@ -53,9 +53,10 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --all-extras
 
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH="/app/src"
 
-CMD ["python", "multi_user_transcriber.py", "dev"]
+CMD ["python", "-m", "entrypoints.multi_user_transcriber", "dev"]
 
 
 # ---- Production image ----
@@ -66,7 +67,8 @@ WORKDIR /app
 # Copy the pre-built virtualenv and application source
 COPY --from=builder /app /app
 
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH="/app/src"
 
 # Remove pip to reduce attack surface in production
 RUN pip uninstall -y pip
@@ -75,4 +77,4 @@ RUN pip uninstall -y pip
 ARG DOCKER_USER
 USER ${DOCKER_USER}
 
-CMD ["python", "multi_user_transcriber.py", "start"]
+CMD ["python", "-m", "entrypoints.multi_user_transcriber", "start"]

@@ -3,8 +3,8 @@
 import unittest
 from unittest import mock
 
-from asr_observer import ASRObserver
-from transcript_writer import TranscriptWriter
+from transcription.observer import ASRObserver
+from transcription.writer import TranscriptWriter
 
 
 def start(observer):
@@ -57,7 +57,7 @@ class ASRObserverTest(unittest.TestCase):
             {"type": "stream_started", "stream_id": "other", "model": "different"}
         )
         self.assertIn("asr_observation_conflict", observer.manifest()["errors"])
-        with mock.patch("asr_observer.MAX_OBSERVATIONS", 1):
+        with mock.patch("transcription.observer.MAX_OBSERVATIONS", 1):
             observer.observe(task(task_id="second"))
         self.assertIn("asr_observation_limit", observer.manifest()["errors"])
         self.assertEqual(observer.manifest()["tasks_started"], 1)

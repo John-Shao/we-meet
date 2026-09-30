@@ -6,7 +6,7 @@ import json
 import unittest
 from unittest import mock
 
-from plugins.qwen_live_translate import (
+from plugins.qwen.live_translate import (
     AUDIO_LANGUAGES,
     TEXT_LANGUAGES,
     DirectConnect,
@@ -230,7 +230,7 @@ class EventTests(unittest.TestCase):
     def test_pending_and_identity_limits(self):
         """Stop a stalled stream before unbounded response state can accumulate."""
         events = TranslationEvents()
-        with mock.patch("plugins.qwen_live_translate.MAX_PENDING", 1):
+        with mock.patch("plugins.qwen.live_translate.MAX_PENDING", 1):
             events.accept(target())
             with self.assertRaisesRegex(TranslationError, "buffer_limit"):
                 events.accept(target(response_id="second"))
@@ -345,7 +345,7 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
         """A missing finish acknowledgement cannot become a new billable connection."""
         session, _, _, connector = await self.make_session(manual=True, tail=[])
         await session.send_audio(bytes(2560))
-        with mock.patch("plugins.qwen_live_translate.FINISH_TIMEOUT", 0.01):
+        with mock.patch("plugins.qwen.live_translate.FINISH_TIMEOUT", 0.01):
             with self.assertRaises(TranslationError):
                 await session.commit()
         with self.assertRaises(TranslationError):
@@ -392,7 +392,7 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
     async def test_finish_timeout_is_not_success(self):
         """A silent provider cannot make stop wait forever or claim completeness."""
         session, socket, _, connector = await self.make_session(tail=[])
-        with mock.patch("plugins.qwen_live_translate.FINISH_TIMEOUT", 0.01):
+        with mock.patch("plugins.qwen.live_translate.FINISH_TIMEOUT", 0.01):
             with self.assertRaisesRegex(TranslationError, "finish_failed"):
                 await session.finish()
         self.assertFalse(session.finished)
@@ -416,7 +416,7 @@ class SessionTests(unittest.IsolatedAsyncioTestCase):
         session, socket, _, _ = await self.make_session(
             consume=lambda _: asyncio.sleep(10)
         )
-        with mock.patch("plugins.qwen_live_translate.IO_TIMEOUT", 0.01):
+        with mock.patch("plugins.qwen.live_translate.IO_TIMEOUT", 0.01):
             with self.assertRaisesRegex(TranslationError, "stream_failed"):
                 await session.finish()
         self.assertEqual(socket.closes, 1)

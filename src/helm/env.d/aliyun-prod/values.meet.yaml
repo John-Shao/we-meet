@@ -602,7 +602,8 @@ agentMetadata:
     AWS_S3_OUTPUT_FOLDER: metadata
   command:
     - "python"
-    - "metadata_collector.py"
+    - "-m"
+    - "entrypoints.metadata_collector"
     - "start"
 
 # ---- Subtitles / transcription agent (Qwen streaming ASR) ----
@@ -638,7 +639,8 @@ agentSubtitles:
     TRANSLATION_TARGET_LANGS: ""
   command:
     - "python"
-    - "multi_user_transcriber.py"
+    - "-m"
+    - "entrypoints.multi_user_transcriber"
     - "start"
 
 # ---- Meeting AI assistant agent (Qwen-Omni) ----
@@ -652,7 +654,8 @@ agentAIAssistant:
     tag: "latest"
   command:
     - "python"
-    - "ai_assistant.py"
+    - "-m"
+    - "entrypoints.ai_assistant"
     - "start"
   resources:
     requests:

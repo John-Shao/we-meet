@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from evaluations.asr_quality.run_provider import LanguageCandidateSession, run
-from plugins.qwen_filetrans import QwenFileASRConfig, QwenFileASRSession
+from plugins.qwen.filetrans import QwenFileASRConfig, QwenFileASRSession
 
 
 class LanguageCandidateTests(unittest.IsolatedAsyncioTestCase):

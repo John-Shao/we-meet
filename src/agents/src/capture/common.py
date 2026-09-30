@@ -1,0 +1,364 @@
+"""Shared capture validation, backend transport and execution lifecycle."""
+
+import asyncio
+import hashlib
+import io
+import json
+import logging
+import time
+import urllib.error
+import urllib.request
+import uuid
+import wave
+from abc import ABC, abstractmethod
+from http import HTTPStatus
+from urllib.parse import urlsplit
+
+from transcription.diagnostics import emit, failures, stage
+from transport.http import open_backend
+
+MAX_AUDIO_BYTES = 320044
+MAX_MANIFEST_BYTES = 2 * 1024 * 1024
+MAX_CHUNKS = 4320
+MAX_RUNS = 50
+MAX_DURATION_MS = 43200000
+MAX_CHUNK_MS = 10000
+MAX_SENTENCE_CHARS = 10000
+WAV_HEADER_BYTES = 44
+SHA256_HEX_LENGTH = 64
+MAX_FINALS = 20000
+MAX_TEXT_BYTES = 4000000
+MAX_DIAGNOSTIC_EVENTS = 20
+FRAME_BYTES = 3200  # 100 ms of mono PCM16/16k
+logger = logging.getLogger("capture-transcriber")
+
+
+class CaptureError(RuntimeError):
+    """Only fixed non-content diagnostics may leave this worker."""
+
+
+class CaptureBackend:
+    """Bounded backend calls; only idempotent receipts retry after lost responses."""
+
+    def __init__(self, base_url, token):
+        """Use one operator-owned origin and one identity for this process lifetime."""
+        parsed = urlsplit(base_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc or not token:
+            raise CaptureError("backend_configuration_required")
+        if parsed.query or parsed.fragment or parsed.username or parsed.password:
+            raise CaptureError("invalid_backend_origin")
+        if parsed.path not in {"", "/"}:
+            raise CaptureError("invalid_backend_origin")
+        self.url = base_url.rstrip("/") + "/api/agent/capture-transcriptions/"
+        self.token = token
+        self.worker_id = str(uuid.uuid4())
+
+    def _send(self, path, payload, binary):
+        request = urllib.request.Request(  # noqa: S310 -- operator-controlled origin
+            self.url + path,
+            data=json.dumps({"worker_id": self.worker_id, **payload}).encode()
+            if payload is not None
+            else None,
+            headers={
+                "X-Agent-Token": self.token,
+                "X-Worker-ID": self.worker_id,
+                "Content-Type": "application/json",
+            },
+            method="GET" if payload is None else "POST",
+        )
+        limit = MAX_AUDIO_BYTES if binary else MAX_MANIFEST_BYTES
+        with open_backend(request, timeout=3) as response:
+            body = response.read(limit + 1)
+            if len(body) > limit:
+                raise CaptureError("backend_response_too_large")
+            return body if binary else json.loads(body)
+
+    async def request(self, path, payload=None, *, binary=False, attempts=3):
+        """Never retry a begin gate; HTTP errors contain no reportable body content."""
+        for attempt in range(attempts):
+            try:
+                return await asyncio.to_thread(self._send, path, payload, binary)
+            except urllib.error.HTTPError as exc:
+                if (
+                    exc.code < HTTPStatus.INTERNAL_SERVER_ERROR
+                    and exc.code != HTTPStatus.TOO_MANY_REQUESTS
+                ):
+                    raise CaptureError("backend_execution_rejected") from None
+            except (OSError, ValueError):
+                pass
+            if attempt + 1 < attempts:
+                await asyncio.sleep(0.2 * (attempt + 1))
+        raise CaptureError("backend_receipt_unknown")
+
+
+def audio_runs(job, config):
+    """Validate bounded manifest identities before spending on a provider task."""
+    uuid.UUID(job["id"])
+    if job["configuration"] != {"model": config.model, "region": config.region}:
+        raise CaptureError("incompatible_provider_configuration")
+    chunks = job["inputs"]["chunks"]
+    if not isinstance(chunks, list) or not 1 <= len(chunks) <= MAX_CHUNKS:
+        raise CaptureError("invalid_input_manifest")
+    runs, previous = [], None
+    for index, chunk in enumerate(chunks, 1):
+        uuid.UUID(chunk["id"])
+        sequence, start, duration, size = (
+            chunk[name] for name in ("sequence", "start_ms", "duration_ms", "byte_size")
+        )
+        checksum = chunk["checksum"]
+        if (
+            any(type(value) is not int for value in (sequence, start, duration, size))
+            or not 1 <= sequence <= MAX_CHUNKS
+            or not 0 <= start < MAX_DURATION_MS
+            or not 1 <= duration <= MAX_CHUNK_MS
+            or start + duration > MAX_DURATION_MS
+            or not WAV_HEADER_BYTES < size <= MAX_AUDIO_BYTES
+            or chunk.get("stored") is not True
+            or not isinstance(checksum, str)
+            or len(checksum) != SHA256_HEX_LENGTH
+            or any(char not in "0123456789abcdef" for char in checksum)
+        ):
+            raise CaptureError("invalid_input_chunk")
+        if previous and (
+            sequence <= previous["sequence"]
+            or start < previous["start_ms"] + previous["duration_ms"]
+        ):
+            raise CaptureError("unordered_input_manifest")
+        contiguous = (
+            previous
+            and sequence == previous["sequence"] + 1
+            and (start == previous["start_ms"] + previous["duration_ms"])
+        )
+        if not contiguous:
+            runs.append([])
+        runs[-1].append((index, chunk))
+        previous = chunk
+    if len(runs) > MAX_RUNS or job["inputs"]["runs"] != len(runs):
+        raise CaptureError("invalid_input_runs")
+    return runs
+
+
+def verified_pcm(data, source):
+    """Check private bytes against the pinned identity before decoding a short WAV."""
+    if (
+        len(data) != source["byte_size"]
+        or hashlib.sha256(data).hexdigest() != source["checksum"]
+    ):
+        raise CaptureError("audio_checksum_mismatch")
+    try:
+        with wave.open(io.BytesIO(data), "rb") as wav:
+            if (
+                wav.getnchannels(),
+                wav.getsampwidth(),
+                wav.getframerate(),
+                wav.getcomptype(),
+            ) != (1, 2, 16000, "NONE"):
+                raise CaptureError("invalid_audio_format")
+            if wav.getnframes() != source["duration_ms"] * 16:
+                raise CaptureError("invalid_audio_duration")
+            pcm = wav.readframes(wav.getnframes())
+            if len(pcm) != source["duration_ms"] * 32:
+                raise CaptureError("truncated_audio")
+            return pcm
+    except (EOFError, wave.Error):
+        raise CaptureError("invalid_audio_container") from None
+
+
+class BaseCaptureAttempt(ABC):
+    """Own exactly one execution; cancellation cannot publish partial delivery."""
+
+    def __init__(self, backend, config, job, *, session_factory):
+        """Keep audio bounded to one short chunk and text to one bounded FIFO."""
+        self.backend, self.config, self.job = backend, config, job
+        self.path = str(uuid.UUID(job["id"])) + "/"
+        self.session_factory = session_factory
+        self.queue = asyncio.Queue(maxsize=64)
+        self.sessions = []
+        self.sequence = self.delivered = self.text_bytes = 0
+        self.done = asyncio.Event()
+        self.receipt = None
+
+    async def control(self, operation, **payload):
+        """Begin is deliberately non-replayable, even when its response is lost."""
+        with stage("control"):
+            result = await self.backend.request(
+                self.path + "control/",
+                {"operation": operation, **payload},
+                attempts=1 if operation in {"begin", "heartbeat"} else 3,
+            )
+            if result.get("id") != self.job["id"] or result.get("status") != "running":
+                raise CaptureError("execution_no_longer_running")
+            return result
+
+    async def download(self, index, source):
+        """Fetch only a source index from this job, never a supplied external URL."""
+        with stage("storage_read"):
+            data = await self.backend.request(
+                self.path + f"audio/{index}/", binary=True
+            )
+        with stage("audio_validate"):
+            return verified_pcm(data, source)
+
+    def final(self, sentence, start, end):
+        """Map task offsets to source time, preserving missing audio."""
+        size = len(sentence.text.encode("utf-8"))
+        if (
+            len(sentence.text) > MAX_SENTENCE_CHARS
+            or not sentence.text.strip()
+            or self.sequence >= MAX_FINALS
+            or self.text_bytes + size > MAX_TEXT_BYTES
+            or not 0 <= sentence.start_ms < end - start
+            or (
+                sentence.end_ms is not None
+                and not sentence.start_ms <= sentence.end_ms <= end - start
+            )
+        ):
+            raise CaptureError("invalid_final_source")
+        self.sequence += 1
+        self.text_bytes += size
+        try:
+            self.queue.put_nowait(
+                {
+                    "ingest_id": sentence.ingest_id,
+                    "sequence": self.sequence,
+                    "start_ms": start + sentence.start_ms,
+                    "end_ms": start + sentence.end_ms
+                    if sentence.end_ms is not None
+                    else None,
+                    "text": sentence.text,
+                    "language": sentence.language,
+                }
+            )
+        except asyncio.QueueFull:
+            raise CaptureError("final_delivery_overflow") from None
+
+    async def deliver(self):
+        """Retain provider UUIDs and sequence numbers across receipt retries."""
+        while (payload := await self.queue.get()) is not None:
+            with stage("delivery"):
+                result = await self.backend.request(self.path + "originals/", payload)
+                uuid.UUID(result["id"])
+                self.delivered = payload["sequence"]
+        self.done.set()
+
+    async def heartbeat(self):
+        """Permission loss cancels input, provider and pending text."""
+        while not self.done.is_set():
+            await self.control("heartbeat")
+            try:
+                await asyncio.wait_for(self.done.wait(), timeout=2)
+            except TimeoutError:
+                pass
+
+    @abstractmethod
+    async def process(self):
+        """Consume the inputs appropriate to this execution mode."""
+
+    async def persist_diagnostics(self, events):
+        """Best effort, bounded write; failures cannot replace the original outcome."""
+        if not events or self.job.get("supports_diagnostics") is not True:
+            return
+        try:
+            async with asyncio.timeout(4):
+                await self.backend.request(
+                    self.path + "diagnostics/", {"events": events}, attempts=1
+                )
+        except Exception:
+            logger.warning(
+                "capture_diagnostic_persistence_unavailable job_id=%s", self.job["id"]
+            )
+
+    async def execute(self):  # noqa: PLR0912 -- terminal receipt and cleanup remain one lifecycle
+        """Record one frozen terminal receipt even when cancellation interrupts work."""
+        success = False
+        started = time.monotonic()
+        reported = set()
+        events = []
+
+        def report(failure):
+            key = (failure.stage, failure.code)
+            if key in reported:
+                return
+            emit(self.job["id"], failure, started)
+            reported.add(key)
+            if len(events) < MAX_DIAGNOSTIC_EVENTS:
+                events.append(
+                    {
+                        "stage": failure.stage,
+                        "code": failure.code,
+                        "elapsed_ms": min(
+                            172800000,
+                            max(0, round((time.monotonic() - started) * 1000)),
+                        ),
+                    }
+                )
+
+        no_speech = False
+        try:
+            await self.process()
+            success = True
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            causes = failures(error)
+            no_speech = bool(causes) and all(
+                cause.stage == "transcription_poll" and cause.code == "no_speech"
+                for cause in causes
+            )
+            for failure in causes:
+                report(failure)
+        finally:
+            for session in self.sessions:
+                error = getattr(session, "cleanup_error", None)
+                if error is not None:
+                    no_speech = False
+                    for failure in failures(error):
+                        report(failure)
+            self.receipt = {
+                "provider_finished": success,
+                "final_sequence": self.delivered,
+                "tasks": [
+                    {
+                        "task_id": session.task_id,
+                        "finished": session.provider_finished,
+                        "input_samples": session.input_samples,
+                        "billed_seconds": session.billed_seconds
+                        if session.billing_observed
+                        else None,
+                    }
+                    for session in self.sessions
+                ],
+            }
+            # Old backends reject unknown receipt fields. Only a new backend
+            # that advertised support may receive the additive reason.
+            if (
+                no_speech
+                and self.sequence == self.delivered == 0
+                and self.job.get("supports_failure_code") is True
+            ):
+                self.receipt["failure_code"] = "no_speech_detected"
+            # Persist roots independently before finish so a lost terminal response
+            # does not erase the observed cause. Never replay the provider.
+            await self.persist_diagnostics(events)
+            # If finish remains unknown, fail the process rather than claim more work.
+            try:
+                with stage("finish"):
+                    result = await self.backend.request(
+                        self.path + "finish/", self.receipt
+                    )
+                    if result.get("id") != self.job["id"] or result.get(
+                        "status"
+                    ) not in {
+                        "succeeded",
+                        "incomplete",
+                        "canceled",
+                    }:
+                        raise CaptureError("terminal_receipt_unknown")
+            except Exception as error:
+                for failure in failures(error):
+                    report(failure)
+                await self.persist_diagnostics(events)
+                raise
+            finally:
+                while not self.queue.empty():
+                    self.queue.get_nowait()

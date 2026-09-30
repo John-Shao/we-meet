@@ -7,13 +7,13 @@ import uuid
 from datetime import datetime, timezone
 from unittest import mock
 
-from transcript_writer import TranscriptWriter
+from transcription.writer import TranscriptWriter
 
 
 class TranscriptWriterTest(unittest.IsolatedAsyncioTestCase):
     """Exercise retry identity without making network requests."""
 
-    @mock.patch("transcript_writer.asyncio.sleep", new_callable=mock.AsyncMock)
+    @mock.patch("transcription.writer.asyncio.sleep", new_callable=mock.AsyncMock)
     async def test_retry_reuses_ingest_id_and_livekit_sid(self, mock_sleep):
         """Transient retries reuse one payload identity and preserve the SID."""
         writer = TranscriptWriter(
@@ -91,7 +91,7 @@ class TranscriptWriterTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             writer.reserve_sequence()
 
-    @mock.patch("transcript_writer.asyncio.sleep", new_callable=mock.AsyncMock)
+    @mock.patch("transcription.writer.asyncio.sleep", new_callable=mock.AsyncMock)
     async def test_control_retries_keep_manifest_identity(self, _sleep):
         """Losing the registration response reuses the same delivery identity."""
         writer = TranscriptWriter(
@@ -113,13 +113,13 @@ class TranscriptWriterTest(unittest.IsolatedAsyncioTestCase):
         for body in (b"<html>ok</html>", b"{}", b"[]", b'{"status":"ok","id":"bad"}'):
             with (
                 self.subTest(body=body),
-                mock.patch("transcript_writer._open") as urlopen,
+                mock.patch("transcription.writer.open_backend") as urlopen,
             ):
                 response = urlopen.return_value.__enter__.return_value
                 response.status = 200
                 response.read.return_value = body
                 self.assertFalse(writer._post_sync({"text": "private text"}))
-        with mock.patch("transcript_writer._open") as urlopen:
+        with mock.patch("transcription.writer.open_backend") as urlopen:
             response = urlopen.return_value.__enter__.return_value
             response.status = 201
             response.read.return_value = json.dumps(
