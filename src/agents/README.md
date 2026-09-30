@@ -72,6 +72,14 @@ API Key 必须对应所选地域与业务空间。后端显式传入的模型和
 旧模型与音色记录保留但停用，客户端缓存的旧音色 ID 会回退到 profile 默认值。
 回滚数据库迁移会保留升级后的目录；回退模型需显式调整目录配置。
 
+Android「AI 助手 → 打电话」统一使用 Qwen 3.8，语音与视频共用音色、提示词配置。
+后端目录接口的 `model_code` 用于精确选择该模型，需与 Android 客户端同步发布。
+一对一电话使用 Android → Omni 的 WebRTC 音视频轨道，不创建 LiveKit 房间或 worker。
+后端 `POST /api/v1.0/ai-call/session/` 使用用户登录态鉴权、校验配置并代理 SDP 交换，
+需要配置 `DASHSCOPE_API_KEY`、`DASHSCOPE_WORKSPACE_ID` 和 `DASHSCOPE_REGION`。
+API Key 只保留在后端。摄像头开关不重建会话；关闭摄像头会解绑视频轨道并停止采集。
+会议内的 AI 助手仍通过 LiveKit worker 与 Omni WebSocket 通信。
+
 原根目录的 `python <worker>.py` 已迁移为上述模块命令，自定义启动脚本需要同步更新。
 外部评估或探测脚本也使用同一 `PYTHONPATH`，不在代码中修改 `sys.path`。
 

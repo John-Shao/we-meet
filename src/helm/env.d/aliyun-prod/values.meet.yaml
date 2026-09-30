@@ -243,6 +243,12 @@ backend:
     QWEN_ASR_REGION: "cn-beijing"
     MEETING_SUMMARY_MODEL: "qwen3.8-flash"
     MEETING_SUMMARY_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    DASHSCOPE_REGION: "cn-beijing"
+    DASHSCOPE_WORKSPACE_ID:
+      secretKeyRef:
+        name: meet-ai-credentials
+        key: DASHSCOPE_WORKSPACE_ID
+        optional: true
     DASHSCOPE_API_KEY:
       secretKeyRef:
         name: meet-ai-credentials

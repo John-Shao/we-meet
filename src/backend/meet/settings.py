@@ -1209,6 +1209,8 @@ class Base(Configuration):
     DASHSCOPE_API_KEY = SecretFileValue(
         None, environ_name="DASHSCOPE_API_KEY", environ_prefix=None
     )
+    DASHSCOPE_WORKSPACE_ID = values.Value("", environ_prefix=None)
+    DASHSCOPE_REGION = values.Value("cn-beijing", environ_prefix=None)
     DOUBAO_S2S_APP_ID = SecretFileValue(
         None, environ_name="DOUBAO_S2S_APP_ID", environ_prefix=None
     )

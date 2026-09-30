@@ -107,10 +107,9 @@ def get_ai_agent_config(*, meeting_only=False):
             profiles_payload.append({
                 "code": profile.code,
                 "display_name": profile.display_name,
-                # ``architecture`` is intentionally NOT exposed: it's an
-                # internal pipeline shape consumed by the agent worker via
-                # ``build_agent_metadata``. Clients pick profiles by
-                # ``agent_type`` (audio/video) only.
+                # Model identity lets clients use one multimodal profile
+                # regardless of whether the camera is currently enabled.
+                "model_code": profile.omni_model.code if profile.omni_model else None,
                 "agent_type": profile.agent_type,
                 "voices": [_voice_payload(v) for v in voices],
                 "default_voice_id": (

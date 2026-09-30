@@ -11,6 +11,7 @@ import pytest
 from core import models
 from core.services.ai_agent_providers import (
     build_agent_metadata,
+    get_ai_agent_config,
     resolve_profile_context,
 )
 
@@ -75,6 +76,10 @@ def test_upgrade_updates_model_and_voices_without_rewriting_history(legacy_catal
     assert not profiles["Ethan"].is_active
     assert current.voices.filter(is_active=True).count() == len(migration.VOICES)
     assert not current.voices.filter(value__in=("Cherry", "Ethan")).exists()
+    catalog = get_ai_agent_config(meeting_only=True)
+    entry = next(p for p in catalog["profiles"] if p["code"] == profiles["Cherry"].code)
+    assert entry["model_code"] == migration.MODEL_CODE
+    assert len(entry["voices"]) == len(migration.VOICES)
 
 
 def test_cached_legacy_voice_id_resolves_to_upgraded_dispatch(legacy_catalog):
