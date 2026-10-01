@@ -22,7 +22,13 @@ from plugins.qwen.live_translate import (
     audio_language_pair,
 )
 from plugins.qwen.omni.language_id import OmniLanguageDetector
+from plugins.qwen.omni.translation_repair import OmniTranslationRepair
 from translation.bilingual_audio import BilingualAudioInput, open_vad
+from translation.bilingual_direction import (
+    same_words,
+    source_language,
+    transcript_language,
+)
 from translation.bilingual_session import BilingualTranslationSession
 from translation.bilingual_settings import BilingualSettings
 from transport.http import open_backend
@@ -34,6 +40,7 @@ AUDIO_CHUNK_BYTES = 24000
 MAX_CLAIM = 4096
 MAX_TICKET = 2048
 MAX_SOURCES = 128
+MAX_REPAIRS = 2
 SOURCE_TIMEOUT = 45
 SESSION_TIMEOUT = 900
 FRAME_BYTES = 3200
@@ -103,16 +110,24 @@ def _claim(ticket):
 class BilingualResults:
     """Match original, translation and audio by ID in any arrival order."""
 
-    def __init__(self, target, emit, *, source):
+    def __init__(self, target, emit, *, source, repair=None):
         """Keep only bounded source and response associations."""
         self.target, self.emit = target, emit
         self.source = source
         self.sources = OrderedDict()
         self.items = {}
         self.done = set()
+        self.repair = repair
+        self.repairs = set()
+        self.closed = False
 
     async def accept(self, event):
         """Associate normalized output with the source selected by the audio router."""
+        if self.closed:
+            return
+        await self._accept(event)
+
+    async def _accept(self, event):
         kind = event["type"]
         if kind == "source_candidate":
             if event["completed"]:
@@ -123,7 +138,7 @@ class BilingualResults:
                 )
                 self.sources[event["item_id"]] = {
                     **event,
-                    "language": self.source,
+                    "language": source_language(event, self.source, self.target),
                 }
                 if len(self.sources) > MAX_SOURCES:
                     self.sources.popitem(last=False)
@@ -149,7 +164,7 @@ class BilingualResults:
                     item["complete"] = True
         await self._deliver()
 
-    async def _deliver(self):
+    async def _deliver(self):  # noqa: PLR0912 -- bounded normal and correction delivery paths
         if len(self.items) > MAX_PENDING:
             raise TranslationError("translation_buffer_limit")
         # Missing/late ASR must not accumulate unbounded audio. Preserve text and
@@ -163,8 +178,22 @@ class BilingualResults:
             if not source:
                 continue
             language = source.get("language")
-            selected = language in AUDIO_LANGUAGES and language != self.target
             identity = f"{self.target}:{item_id}"
+            if language in AUDIO_LANGUAGES and language != self.source:
+                # ASR evidence conflicts with the early routing choice. Do not
+                # play any of this response, even when its audio arrives first.
+                item["audio"].clear()
+                if not item.get("complete"):
+                    continue
+                await self._schedule_repair(
+                    identity=f"repair:{identity}", source=source
+                )
+                del self.items[item_id]
+                self.done.add(item_id)
+                if len(self.done) > MAX_RESPONSES:
+                    raise TranslationError("translation_session_limit")
+                continue
+            selected = language in AUDIO_LANGUAGES and language != self.target
             if selected:
                 for offset in range(0, len(item["audio"]), AUDIO_CHUNK_BYTES):
                     await self.emit(
@@ -209,11 +238,84 @@ class BilingualResults:
 
     def check(self):
         """Bound how long output can wait for its original-transcript association."""
+        for task in list(self.repairs):
+            if task.done():
+                self.repairs.remove(task)
+                task.result()
         if any(
             time.monotonic() - item["updated"] > SOURCE_TIMEOUT
             for item in self.items.values()
         ):
             raise TranslationError("translation_source_timeout")
+
+    async def _schedule_repair(self, *, identity, source):
+        self.check()
+        logger.info(
+            "translation_direction_conflict selected=%s actual=%s",
+            self.source,
+            source["language"],
+        )
+        if self.repair is None or len(self.repairs) >= MAX_REPAIRS:
+            await self.emit({"type": "language_unknown"})
+            return
+        self.repairs.add(asyncio.create_task(self._repair(identity, source)))
+
+    async def _repair(self, identity, source):
+        language, target = source["language"], self.source
+        try:
+            text, audio = await self.repair.translate(source["text"], language, target)
+            if (
+                same_words(text, source["text"])
+                or transcript_language(text, (language, target)) == language
+            ):
+                raise TranslationError("translation_repair_direction_failed")
+        except Exception:
+            logger.info(
+                "translation_direction_repair_failed source=%s target=%s",
+                language,
+                target,
+            )
+            await self.emit({"type": "language_unknown"})
+            return
+        for offset in range(0, len(audio), AUDIO_CHUNK_BYTES):
+            await self.emit(
+                {
+                    "type": "audio",
+                    "id": identity,
+                    "audio": base64.b64encode(
+                        audio[offset : offset + AUDIO_CHUNK_BYTES]
+                    ).decode(),
+                }
+            )
+        await self.emit(
+            {
+                "type": "translation",
+                "id": identity,
+                "source_language": language,
+                "target_language": target,
+                "source": source["text"],
+                "text": text,
+                "audio_omitted": not audio,
+            }
+        )
+        if audio:
+            await self.emit({"type": "audio_end", "id": identity})
+        logger.info(
+            "translation_direction_repaired source=%s target=%s", language, target
+        )
+
+    async def finish(self):
+        """Drain exceptional translations before acknowledging a client finish."""
+        await asyncio.gather(*self.repairs)
+        self.repairs.clear()
+
+    async def close(self):
+        """Cancel repairs on hangup so no provider socket outlives its client."""
+        self.closed = True
+        for task in self.repairs:
+            task.cancel()
+        await asyncio.gather(*self.repairs, return_exceptions=True)
+        self.repairs.clear()
 
 
 class AssistantTranslationConnection:
@@ -272,10 +374,17 @@ class AssistantTranslationConnection:
                     ),
                     source_transcription=True,
                 )
-                results = BilingualResults(target, self.emit, source=source)
+                results = BilingualResults(
+                    target,
+                    self.emit,
+                    source=source,
+                    repair=OmniTranslationRepair(config),
+                )
                 self.results.append(results)
                 session = self.session_factory(config, results.accept)
-                session.output_idle = lambda results=results: not results.items
+                session.output_idle = lambda results=results: (
+                    not (results.items or results.repairs)
+                )
                 self.sessions.append(session)
                 by_source[source] = session
                 await session.start()
@@ -301,6 +410,7 @@ class AssistantTranslationConnection:
             finally:
                 await asyncio.gather(
                     *([self.detector.aclose()] if self.detector else []),
+                    *(results.close() for results in self.results),
                     *(session.close() for session in self.sessions),
                     return_exceptions=True,
                 )
@@ -353,3 +463,4 @@ class AssistantTranslationConnection:
     async def _finish(self):
         await self.audio_input.finish()
         await asyncio.gather(*(session.finish() for session in self.sessions))
+        await asyncio.gather(*(results.finish() for results in self.results))
