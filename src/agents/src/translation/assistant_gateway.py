@@ -19,11 +19,12 @@ from plugins.qwen.live_translate import (
     MAX_RESPONSES,
     TranslationConfig,
     TranslationError,
-    TranslationSession,
     audio_language_pair,
 )
 from plugins.qwen.omni.language_id import OmniLanguageDetector
 from translation.bilingual_audio import BilingualAudioInput, open_vad
+from translation.bilingual_session import BilingualTranslationSession
+from translation.bilingual_settings import BilingualSettings
 from transport.http import open_backend
 
 # Output awaiting its original-transcript association is bounded. Once linked,
@@ -37,6 +38,33 @@ SOURCE_TIMEOUT = 45
 SESSION_TIMEOUT = 900
 FRAME_BYTES = 3200
 logger = logging.getLogger("assistant-translation")
+
+SAFE_ERROR_CODES = frozenset(
+    {
+        "language_detection_unavailable",
+        "language_detection_failed",
+        "language_connection_rejected",
+        "language_buffer_limit",
+        "translation_transport_closed",
+        "translation_send_failed",
+        "translation_stream_failed",
+        "translation_input_closed",
+        "translation_input_backlog",
+        "translation_input_timeout",
+        "translation_source_timeout",
+        "translation_buffer_limit",
+        "translation_connect_failed",
+        "translation_finish_failed",
+        "translation_finish_incomplete",
+        "translation_provider_failed",
+    }
+)
+
+
+def safe_error_code(error):
+    """Expose only fixed application codes, never provider or credential payloads."""
+    code = str(error) if isinstance(error, TranslationError) else ""
+    return code if code in SAFE_ERROR_CODES else "translation_failed"
 
 
 async def claim(ticket):
@@ -186,7 +214,7 @@ class AssistantTranslationConnection:
         *,
         claim_ticket=claim,
         config_factory=TranslationConfig.from_env,
-        session_factory=TranslationSession,
+        session_factory=BilingualTranslationSession,
         detector_factory=OmniLanguageDetector,
         vad_factory=open_vad,
     ):
@@ -221,6 +249,7 @@ class AssistantTranslationConnection:
             pair = audio_language_pair(
                 (grant["source_language"], grant["target_language"])
             )
+            settings = BilingualSettings.from_env()
             by_source = {}
             for source, target in (pair[::-1], pair):
                 config = replace(
@@ -235,20 +264,23 @@ class AssistantTranslationConnection:
                 results = BilingualResults(target, self.emit, source=source)
                 self.results.append(results)
                 session = self.session_factory(config, results.accept)
+                session.output_idle = lambda results=results: not results.items
                 self.sessions.append(session)
                 by_source[source] = session
                 await session.start()
             self.detector = self.detector_factory(config, languages=pair)
+            self.detector.timeout = settings.detection_timeout
             stream = await self.vad_factory()
             self.audio_input = BilingualAudioInput(
-                stream, self.detector, by_source, self.emit
+                stream, self.detector, by_source, self.emit, settings=settings
             )
             await self.emit({"type": "ready"})
             await self._stream()
         except Exception as error:
-            logger.info("Bilingual translation interrupted (%s)", type(error).__name__)
+            code = safe_error_code(error)
+            logger.info("Bilingual translation interrupted code=%s", code)
             try:
-                await self.emit({"type": "error"})
+                await self.emit({"type": "error", "code": code})
             except Exception:
                 logger.info("Translation client disconnected before error receipt")
         finally:
@@ -265,8 +297,9 @@ class AssistantTranslationConnection:
     async def _stream(self):
         started, total = time.monotonic(), 0
         while time.monotonic() - started < SESSION_TIMEOUT:
-            if any(session.error_code for session in self.sessions):
-                raise TranslationError("translation_provider_failed")
+            for session in self.sessions:
+                if session.error_code:
+                    raise TranslationError(session.error_code)
             for results in self.results:
                 results.check()
             receive = asyncio.create_task(self.socket.recv())

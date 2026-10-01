@@ -44,6 +44,30 @@ def events(language="zh"):
 
 
 class RoutingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_input_items_between_replies_do_not_accumulate_or_time_out(self):
+        normalizer = TranslationEvents()
+        emit = AsyncMock()
+        results = BilingualResults("en", emit, source="zh")
+        with patch("translation.assistant_gateway.time.monotonic") as clock:
+            clock.return_value = 0
+            for index in range(25):
+                for event in normalizer.accept(
+                    {
+                        "type": "conversation.item.created",
+                        "previous_item_id": f"reply-{index}",
+                        "item": {
+                            "id": f"source-{index}",
+                            "role": "assistant",
+                            "content": [{"type": "input_audio"}],
+                        },
+                    }
+                ):
+                    await results.accept(event)
+            clock.return_value = 60
+            results.check()
+            self.assertEqual(results.items, {})
+            emit.assert_not_awaited()
+
     async def test_source_and_link_can_arrive_after_translation(self):
         for source_position, link_position in itertools.permutations(range(5), 2):
             sequence = events()
@@ -99,7 +123,9 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
                     )
                     source = normalizer.accept(
                         {
-                            "type": "conversation.item.input_audio_transcription.completed",
+                            "type": (
+                                "conversation.item.input_audio_transcription.completed"
+                            ),
                             "item_id": "source",
                             "transcript": transcript,
                         }
@@ -284,7 +310,10 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_text_only_language_is_rejected_before_any_provider_connects(self):
         socket, providers = await self.connection([], pair=("zh", "yue"))
         self.assertEqual(providers, [])
-        self.assertEqual(json.loads(socket.send.call_args.args[0]), {"type": "error"})
+        self.assertEqual(
+            json.loads(socket.send.call_args.args[0]),
+            {"type": "error", "code": "translation_failed"},
+        )
 
     async def test_audio_is_admitted_to_router_and_finish_drains_both_providers(self):
         socket, providers = await self.connection([bytes(3200), '{"type":"finish"}'])
@@ -302,7 +331,10 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_rejected_ticket_does_not_open_provider(self):
         socket, providers = await self.connection([], admitted=False)
         self.assertEqual(providers, [])
-        self.assertEqual(json.loads(socket.send.call_args.args[0]), {"type": "error"})
+        self.assertEqual(
+            json.loads(socket.send.call_args.args[0]),
+            {"type": "error", "code": "translation_failed"},
+        )
 
     async def test_disconnect_releases_both_upstreams(self):
         _, providers = await self.connection([ConnectionError()])

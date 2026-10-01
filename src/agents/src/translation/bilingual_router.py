@@ -1,6 +1,13 @@
 """Audio-first routing adapted from jusi-meet-suite's utterance router."""
 
+import logging
+import time
+
 from plugins.qwen.live_translate import TranslationError, audio_language_pair
+from plugins.qwen.omni.language_id import TransientLanguageError
+from translation.bilingual_settings import BilingualSettings
+
+logger = logging.getLogger("bilingual-router")
 
 PROBE_BYTES = 800 * 32
 RETRY_BYTES = 400 * 32
@@ -11,11 +18,21 @@ PACKET_BYTES = 3200
 class BilingualUtteranceRouter:
     """Lock one direction per utterance; repeated decisions allow early streaming."""
 
-    def __init__(
-        self, detector, send_packet, end_turn, unknown, *, languages=("zh", "en")
+    def __init__(  # noqa: PLR0913 -- injected routing callbacks and per-session limits
+        self,
+        detector,
+        send_packet,
+        end_turn,
+        unknown,
+        *,
+        languages=("zh", "en"),
+        settings=None,
     ):
         """Inject classification and output; use agreement without invented scores."""
         self.detector = detector
+        self.settings = settings or BilingualSettings()
+        self.failures = 0
+        self.started = 0
         self.languages = frozenset(audio_language_pair(languages))
         self.send_packet = send_packet
         self.end_turn = end_turn
@@ -24,7 +41,7 @@ class BilingualUtteranceRouter:
         self.last = None
         self.buffer = bytearray()
         self.packet = bytearray()
-        self.next_probe = PROBE_BYTES
+        self.next_probe = self.settings.probe_ms * 32
         self.speaking = False
 
     async def start(self, pcm):
@@ -34,7 +51,8 @@ class BilingualUtteranceRouter:
         self.selected = self.last = None
         self.buffer = bytearray(pcm)
         self.packet.clear()
-        self.next_probe = PROBE_BYTES
+        self.next_probe = self.settings.probe_ms * 32
+        self.started = time.monotonic()
         self.speaking = True
 
     async def feed(self, pcm):
@@ -55,11 +73,20 @@ class BilingualUtteranceRouter:
                 await self.unknown({"type": "language_unknown"})
         elif len(self.buffer) >= self.next_probe:
             await self._probe(final=False)
-            self.next_probe += RETRY_BYTES
+            self.next_probe = len(self.buffer) + self.settings.retry_ms * 32
 
     async def _probe(self, *, final):
         previous = self.last
-        self.last = await self.detector.detect(bytes(self.buffer[:MAX_PROBE_BYTES]))
+        try:
+            self.last = await self.detector.detect(bytes(self.buffer[:MAX_PROBE_BYTES]))
+        except TransientLanguageError:
+            self.last = None
+            self.failures += 1
+            logger.info("language_probe_retry failures=%d", self.failures)
+            if self.failures >= self.settings.max_failures:
+                raise TranslationError("language_detection_unavailable") from None
+            return
+        self.failures = 0
         if self.last is not None and self.last not in self.languages:
             raise TranslationError("invalid_language_selection")
         if final or (self.last is not None and self.last == previous):
@@ -69,6 +96,11 @@ class BilingualUtteranceRouter:
         if language is None:
             return
         self.selected = language
+        logger.info(
+            "language_selected source=%s elapsed_ms=%d",
+            language,
+            round((time.monotonic() - self.started) * 1000),
+        )
         pcm = bytes(self.buffer)
         self.buffer.clear()
         await self._packetize(pcm)

@@ -4,18 +4,26 @@ import asyncio
 import base64
 import json
 import logging
+import time
 import uuid
+
+from websockets.exceptions import ConnectionClosed, InvalidStatus
 
 from plugins.qwen.live_translate import (
     DirectConnect,
     TranslationError,
     audio_language_pair,
+    retryable_transport,
 )
 
 MODEL = "qwen3.8-omni-flash-realtime"
 MAX_PCM = 10 * 32000
 MAX_TEXT = 64
 logger = logging.getLogger("omni-language-id")
+
+
+class TransientLanguageError(TranslationError):
+    """A transport failure that may recover on a later bounded probe."""
 
 
 class OmniLanguageDetector:
@@ -28,19 +36,38 @@ class OmniLanguageDetector:
         self.connector = connector
         self.socket = None
         self.closed = False
+        self.timeout = 4.0
 
     async def detect(self, pcm):
-        """Return a selected language code, or None, within twelve seconds."""
+        """Return a language or None; distinguish transient transport failures."""
         if self.closed or not pcm or len(pcm) % 2 or len(pcm) > MAX_PCM:
             raise TranslationError("invalid_language_probe")
+        started = time.monotonic()
+        outcome = "failed"
         try:
-            return await asyncio.wait_for(self._detect(pcm), 12)
+            result = await asyncio.wait_for(self._detect(pcm), self.timeout)
+            outcome = "classified" if result else "unknown"
+            return result
         except asyncio.CancelledError:
+            outcome = "cancelled"
             raise
+        except (TimeoutError, OSError, ConnectionClosed) as error:
+            if not retryable_transport(error):
+                raise TranslationError("language_connection_rejected") from None
+            raise TransientLanguageError("language_transport_failed") from None
+        except InvalidStatus as error:
+            if error.response.status_code in (429, 500, 502, 503, 504):
+                raise TransientLanguageError("language_service_unavailable") from None
+            raise TranslationError("language_connection_rejected") from None
         except Exception:
             raise TranslationError("language_detection_failed") from None
         finally:
             await self._close_socket()
+            logger.info(
+                "language_probe outcome=%s elapsed_ms=%d",
+                outcome,
+                round((time.monotonic() - started) * 1000),
+            )
 
     async def _detect(self, pcm):
         url = self.config.url.split("?", 1)[0] + f"?model={MODEL}"
@@ -116,7 +143,7 @@ class OmniLanguageDetector:
         socket, self.socket = self.socket, None
         if socket:
             try:
-                await asyncio.wait_for(socket.close(), 2)
+                await asyncio.wait_for(socket.close(), 0.5)
             except Exception:
                 logger.debug("Language classification socket close failed")
 

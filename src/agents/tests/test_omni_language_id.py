@@ -6,15 +6,57 @@ import json
 import unittest
 from unittest.mock import AsyncMock
 
+from websockets.datastructures import Headers
+from websockets.exceptions import InvalidStatus
+from websockets.http11 import Response
+
 from plugins.qwen.live_translate import (
     AUDIO_LANGUAGES,
     TranslationConfig,
     TranslationError,
 )
-from plugins.qwen.omni.language_id import MAX_PCM, OmniLanguageDetector
+from plugins.qwen.omni.language_id import (
+    MAX_PCM,
+    OmniLanguageDetector,
+    TransientLanguageError,
+)
 
 
 class DetectorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_auth_rejection_is_fatal_but_rate_limit_is_transient(self):
+        for status, retryable in [(401, False), (403, False), (429, True), (503, True)]:
+            detector, _, connector = self.make_detector()
+            connector.side_effect = InvalidStatus(
+                Response(status, "private", Headers())
+            )
+            with self.assertRaises(TranslationError) as raised:
+                await detector.detect(bytes(3200))
+            self.assertEqual(
+                isinstance(raised.exception, TransientLanguageError), retryable
+            )
+            self.assertNotIn("private", str(raised.exception))
+
+    async def test_transport_failure_is_retryable_without_exposing_payload(self):
+        detector, socket, _ = self.make_detector()
+        socket.recv.side_effect = OSError("private-provider-payload")
+        with self.assertRaisesRegex(
+            TransientLanguageError, "^language_transport_failed$"
+        ):
+            await detector.detect(bytes(3200))
+        socket.close.assert_awaited_once()
+
+    async def test_timeout_is_retryable_and_closes_connection(self):
+        detector, socket, _ = self.make_detector()
+        detector.timeout = 0.01
+
+        async def receive():
+            await asyncio.Future()
+
+        socket.recv.side_effect = receive
+        with self.assertRaises(TransientLanguageError):
+            await detector.detect(bytes(3200))
+        socket.close.assert_awaited_once()
+
     def make_detector(self, answer="zh", status="completed", languages=("zh", "en")):
         socket = AsyncMock()
         socket.recv.side_effect = [

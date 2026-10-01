@@ -31,7 +31,7 @@ async def open_vad():
 class BilingualAudioInput:
     """Acknowledge bounded input promptly while classification runs independently."""
 
-    def __init__(self, stream, detector, sessions, emit):
+    def __init__(self, stream, detector, sessions, emit, *, settings=None):
         """Own one VAD consumer and one serialized utterance router."""
         self.stream = stream
         self.sessions = sessions
@@ -40,17 +40,27 @@ class BilingualAudioInput:
         self.heartbeat = 0
         self.ending = False
         self.router = BilingualUtteranceRouter(
-            detector, self._send, self._end, emit, languages=tuple(sessions)
+            detector,
+            self._send_speech,
+            self._end,
+            emit,
+            languages=tuple(sessions),
+            settings=settings,
         )
         self.task = asyncio.create_task(self._run())
 
     async def _send(self, language, pcm):
         await self.sessions[language].send_audio(pcm)
 
+    async def _send_speech(self, language, pcm):
+        session = self.sessions[language]
+        await session.send_speech(pcm)
+
     async def _end(self, language):
         # 3.8 keeps server VAD enabled. Supply an explicit silence boundary,
         # rather than the 3.5 manual input_audio_buffer.commit protocol.
         await self._send(language, bytes(32000))
+        await self.sessions[language].end_turn()
 
     def push(self, pcm):
         """Bound all audio still waiting in the VAD/recognition pipeline."""

@@ -82,6 +82,40 @@ class FakeSocket:
 class EventTests(unittest.TestCase):
     """Separate provider capability, preview text and final delivery semantics."""
 
+    def test_assistant_role_input_audio_does_not_link_to_previous_reply(self):
+        """3.8 uses assistant role for some input items after the first turn."""
+        events = TranslationEvents()
+        self.assertEqual(
+            events.accept(
+                {
+                    "type": "conversation.item.created",
+                    "previous_item_id": "previous-reply",
+                    "item": {
+                        "id": "new-source",
+                        "role": "assistant",
+                        "content": [{"type": "input_audio"}],
+                    },
+                }
+            ),
+            [],
+        )
+        self.assertEqual(
+            events.accept(
+                {
+                    "type": "conversation.item.created",
+                    "previous_item_id": "new-source",
+                    "item": {"id": "new-reply", "role": "assistant", "content": []},
+                }
+            ),
+            [
+                {
+                    "type": "source_link",
+                    "item_id": "new-reply",
+                    "source_item_id": "new-source",
+                }
+            ],
+        )
+
     def test_capabilities_and_rollout(self):
         """Text-only targets cannot accidentally create audio sessions."""
         self.assertEqual(len(TEXT_LANGUAGES), 60)

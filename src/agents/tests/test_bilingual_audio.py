@@ -85,7 +85,10 @@ class InputTests(unittest.IsolatedAsyncioTestCase):
             await audio.finish()
             sessions["zh"].send_audio.assert_not_awaited()
             calls = [c.args[0] for c in sessions["en"].send_audio.call_args_list]
-            self.assertEqual(calls, [b"\1\0" * 1600, bytes(32000)])
+            self.assertEqual(calls, [bytes(32000)])
+            sessions["en"].send_speech.assert_awaited_once_with(b"\1\0" * 1600)
+            sessions["en"].end_turn.assert_awaited_once()
+            sessions["zh"].send_speech.assert_not_awaited()
             self.assertEqual(vad.frames[-1], bytes(32000))
         finally:
             await audio.aclose()

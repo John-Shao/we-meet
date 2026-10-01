@@ -9,6 +9,18 @@ import uuid
 from dataclasses import dataclass, field
 
 from websockets.asyncio.client import connect
+from websockets.exceptions import ConnectionClosed
+
+NON_RETRYABLE_CLOSE_CODES = frozenset({1002, 1003, 1007, 1008, 1009})
+
+
+def retryable_transport(error):
+    """Protocol/policy close frames are fatal even on an otherwise idle socket."""
+    return not isinstance(error, ConnectionClosed) or not any(
+        close is not None and close.code in NON_RETRYABLE_CLOSE_CODES
+        for close in (error.rcvd, error.sent)
+    )
+
 
 AUDIO_LANGUAGES = frozenset(
     "zh en ar de fr es pt id it ko ru th vi ja tr hi ms nl ur nb sv da he fi "
@@ -236,6 +248,10 @@ class TranslationEvents:
 
     def _source_link(self, event):
         item = event["item"]
+        # 3.8 can label input_audio items as assistant too. They point back to
+        # the preceding reply and must not create another pending translation.
+        if any(part.get("type") == "input_audio" for part in item.get("content", [])):
+            return []
         if item.get("role") == "assistant" and event.get("previous_item_id"):
             return [
                 {
@@ -415,6 +431,17 @@ class TranslationSession:
                     "input_audio_buffer.append", audio=base64.b64encode(pcm).decode()
                 )
                 self._has_audio = True
+            except (OSError, ConnectionClosed, TimeoutError) as error:
+                # Only silence can be discarded after an ambiguous send. Never
+                # replay speech, even when a transport replacement succeeds.
+                if (
+                    not any(pcm)
+                    and retryable_transport(error)
+                    and await self._recover_transport(self.socket, send_locked=True)
+                ):
+                    return
+                self.error_code = "translation_transport_closed"
+                raise TranslationError(self.error_code) from None
             except Exception:
                 self.error_code = "translation_send_failed"
                 raise TranslationError(self.error_code) from None
@@ -459,7 +486,16 @@ class TranslationSession:
     async def _receive(self):
         try:
             while True:
-                event = await self._read()
+                await self._wait_transport()
+                socket = self.socket
+                try:
+                    event = await self._read()
+                except (OSError, ConnectionClosed, TimeoutError) as error:
+                    if retryable_transport(error) and await self._recover_transport(
+                        socket
+                    ):
+                        continue
+                    raise TranslationError("translation_transport_closed") from None
                 if event.get("type") == "session.finished":
                     if not self._ending or self.events.pending:
                         raise TranslationError("translation_finish_incomplete")
@@ -478,6 +514,13 @@ class TranslationSession:
             self.error_code = str(exc)
         except Exception:
             self.error_code = "translation_stream_failed"
+
+    async def _recover_transport(self, socket, *, send_locked=False):
+        """Other translation products fail closed; bilingual can opt into recovery."""
+        return False
+
+    async def _wait_transport(self):
+        """Bilingual recovery may pause reads until its replacement handshake ends."""
 
     async def finish(self):
         """Wait for provider completion AND consumed tail events before closing."""

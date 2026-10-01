@@ -4,10 +4,53 @@ import unittest
 from unittest.mock import AsyncMock
 
 from plugins.qwen.live_translate import AUDIO_LANGUAGES, TranslationError
+from plugins.qwen.omni.language_id import TransientLanguageError
 from translation.bilingual_router import MAX_PROBE_BYTES, BilingualUtteranceRouter
 
 
 class RouterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_transient_final_failure_drops_only_one_utterance(self):
+        router, send, _, unknown = self.router(
+            [TransientLanguageError("language_transport_failed"), "en"]
+        )
+        await router.start(bytes(3200))
+        await router.end()
+        send.assert_not_awaited()
+        unknown.assert_awaited_once()
+        await router.start(bytes(3200))
+        await router.end()
+        send.assert_awaited_once_with("en", bytes(3200))
+        self.assertEqual(router.failures, 0)
+
+    async def test_three_consecutive_transport_failures_end_session(self):
+        router, send, _, unknown = self.router(
+            [TransientLanguageError("language_transport_failed") for _ in range(3)]
+        )
+        for _ in range(2):
+            await router.start(bytes(3200))
+            await router.end()
+        await router.start(bytes(3200))
+        with self.assertRaisesRegex(TranslationError, "language_detection_unavailable"):
+            await router.end()
+        self.assertFalse(router.speaking)
+        send.assert_not_awaited()
+        self.assertEqual(unknown.await_count, 2)
+
+    async def test_failed_probe_breaks_early_agreement_and_preserves_pcm(self):
+        router, send, _, _ = self.router(
+            ["en", TransientLanguageError("language_transport_failed"), "en", "en"]
+        )
+        await router.start(b"\1\0" * 12800)
+        await router.feed(b"")
+        for _ in range(2):
+            await router.feed(b"\1\0" * 6400)
+            send.assert_not_awaited()
+        await router.feed(b"\1\0" * 6400)
+        await router.end()
+        self.assertEqual(
+            b"".join(c.args[1] for c in send.call_args_list), b"\1\0" * 32000
+        )
+
     def router(self, predictions, languages=("zh", "en")):
         detector = AsyncMock()
         detector.detect.side_effect = predictions
