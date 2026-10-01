@@ -116,6 +116,11 @@ class BilingualResults:
         kind = event["type"]
         if kind == "source_candidate":
             if event["completed"]:
+                logger.info(
+                    "translation_source_final source=%s chars=%d",
+                    self.source,
+                    len(event["text"]),
+                )
                 self.sources[event["item_id"]] = {
                     **event,
                     "language": self.source,
@@ -176,6 +181,12 @@ class BilingualResults:
             if not item.get("complete"):
                 continue
             if selected and item.get("text"):
+                logger.info(
+                    "translation_result_ready source=%s target=%s chars=%d",
+                    language,
+                    self.target,
+                    len(item["text"]),
+                )
                 await self.emit(
                     {
                         "type": "translation",

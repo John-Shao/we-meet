@@ -1,6 +1,7 @@
 """Bounded ingress and local VAD for audio-first bilingual routing."""
 
 import asyncio
+import logging
 from functools import lru_cache
 
 from livekit import rtc
@@ -10,6 +11,7 @@ from plugins.qwen.live_translate import INPUT_BYTES_PER_SECOND, TranslationError
 from translation.bilingual_router import BilingualUtteranceRouter
 
 MAX_QUEUED_BYTES = 15 * 32000
+logger = logging.getLogger("bilingual-audio")
 
 
 @lru_cache(maxsize=1)
@@ -78,6 +80,7 @@ class BilingualAudioInput:
         async for event in self.stream:
             kind = event.type.value
             if kind == "start_of_speech":
+                logger.info("translation_speech_started")
                 await self.router.start(b"".join(bytes(f.data) for f in event.frames))
             elif kind == "inference_done":
                 if event.speaking:
@@ -91,6 +94,7 @@ class BilingualAudioInput:
                         if language != self.router.selected:
                             await self._send(language, bytes(32000))
             elif kind == "end_of_speech":
+                logger.info("translation_speech_ended")
                 await self.router.end()
         await self.router.end()
 

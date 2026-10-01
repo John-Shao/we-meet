@@ -9,14 +9,12 @@ from translation.bilingual_settings import BilingualSettings
 
 logger = logging.getLogger("bilingual-router")
 
-PROBE_BYTES = 800 * 32
-RETRY_BYTES = 400 * 32
 MAX_PROBE_BYTES = 10 * 32000
 PACKET_BYTES = 3200
 
 
 class BilingualUtteranceRouter:
-    """Lock one direction per utterance; repeated decisions allow early streaming."""
+    """Stream after the first explicit decision; retry only uncertain audio."""
 
     def __init__(  # noqa: PLR0913 -- injected routing callbacks and per-session limits
         self,
@@ -28,7 +26,7 @@ class BilingualUtteranceRouter:
         languages=("zh", "en"),
         settings=None,
     ):
-        """Inject classification and output; use agreement without invented scores."""
+        """Inject classification and output without guessing unknown languages."""
         self.detector = detector
         self.settings = settings or BilingualSettings()
         self.failures = 0
@@ -38,7 +36,6 @@ class BilingualUtteranceRouter:
         self.end_turn = end_turn
         self.unknown = unknown
         self.selected = None
-        self.last = None
         self.buffer = bytearray()
         self.packet = bytearray()
         self.next_probe = self.settings.probe_ms * 32
@@ -48,7 +45,7 @@ class BilingualUtteranceRouter:
         """Keep the VAD prefix, including the first speech frame."""
         if self.speaking:
             await self.end()
-        self.selected = self.last = None
+        self.selected = None
         self.buffer = bytearray(pcm)
         self.packet.clear()
         self.next_probe = self.settings.probe_ms * 32
@@ -66,31 +63,28 @@ class BilingualUtteranceRouter:
         if len(self.buffer) > MAX_PROBE_BYTES + PACKET_BYTES:
             raise TranslationError("language_buffer_limit")
         if len(self.buffer) >= MAX_PROBE_BYTES:
-            await self._probe(final=True)
+            await self._probe()
             if not self.selected:
                 self.speaking = False
                 self.buffer.clear()
                 await self.unknown({"type": "language_unknown"})
         elif len(self.buffer) >= self.next_probe:
-            await self._probe(final=False)
+            await self._probe()
             self.next_probe = len(self.buffer) + self.settings.retry_ms * 32
 
-    async def _probe(self, *, final):
-        previous = self.last
+    async def _probe(self):
         try:
-            self.last = await self.detector.detect(bytes(self.buffer[:MAX_PROBE_BYTES]))
+            language = await self.detector.detect(bytes(self.buffer[:MAX_PROBE_BYTES]))
         except TransientLanguageError:
-            self.last = None
             self.failures += 1
             logger.info("language_probe_retry failures=%d", self.failures)
             if self.failures >= self.settings.max_failures:
                 raise TranslationError("language_detection_unavailable") from None
             return
         self.failures = 0
-        if self.last is not None and self.last not in self.languages:
+        if language is not None and language not in self.languages:
             raise TranslationError("invalid_language_selection")
-        if final or (self.last is not None and self.last == previous):
-            await self._select(self.last)
+        await self._select(language)
 
     async def _select(self, language):
         if language is None:
@@ -111,7 +105,7 @@ class BilingualUtteranceRouter:
             return
         try:
             if not self.selected and self.buffer:
-                await self._probe(final=True)
+                await self._probe()
             if self.selected:
                 if self.packet:
                     await self.send_packet(self.selected, bytes(self.packet))
@@ -122,7 +116,7 @@ class BilingualUtteranceRouter:
             self.speaking = False
             self.buffer.clear()
             self.packet.clear()
-            self.selected = self.last = None
+            self.selected = None
 
     async def _packetize(self, pcm):
         self.packet.extend(pcm)

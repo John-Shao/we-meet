@@ -9,6 +9,17 @@ from translation.bilingual_router import MAX_PROBE_BYTES, BilingualUtteranceRout
 
 
 class RouterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_short_greeting_keeps_first_valid_decision_at_end(self):
+        router, send, end, unknown = self.router(["zh", None])
+        pcm = b"\1\0" * 12800
+        await router.start(pcm)
+        await router.feed(b"")
+        await router.end()
+        self.assertEqual(router.detector.detect.await_count, 1)
+        self.assertEqual(b"".join(c.args[1] for c in send.call_args_list), pcm)
+        end.assert_awaited_once_with("zh")
+        unknown.assert_not_awaited()
+
     async def test_transient_final_failure_drops_only_one_utterance(self):
         router, send, _, unknown = self.router(
             [TransientLanguageError("language_transport_failed"), "en"]
@@ -36,19 +47,19 @@ class RouterTests(unittest.IsolatedAsyncioTestCase):
         send.assert_not_awaited()
         self.assertEqual(unknown.await_count, 2)
 
-    async def test_failed_probe_breaks_early_agreement_and_preserves_pcm(self):
+    async def test_failed_probe_retries_and_preserves_pcm(self):
         router, send, _, _ = self.router(
-            ["en", TransientLanguageError("language_transport_failed"), "en", "en"]
+            [None, TransientLanguageError("language_transport_failed"), "en"]
         )
         await router.start(b"\1\0" * 12800)
         await router.feed(b"")
-        for _ in range(2):
-            await router.feed(b"\1\0" * 6400)
-            send.assert_not_awaited()
         await router.feed(b"\1\0" * 6400)
+        send.assert_not_awaited()
+        await router.feed(b"\1\0" * 6400)
+        self.assertEqual(router.selected, "en")
         await router.end()
         self.assertEqual(
-            b"".join(c.args[1] for c in send.call_args_list), b"\1\0" * 32000
+            b"".join(c.args[1] for c in send.call_args_list), b"\1\0" * 25600
         )
 
     def router(self, predictions, languages=("zh", "en")):
@@ -85,12 +96,13 @@ class RouterTests(unittest.IsolatedAsyncioTestCase):
         send.assert_not_awaited()
 
     async def test_turns_route_once_and_preserve_all_audio_including_prefix(self):
-        router, send, end, _ = self.router(["zh", "zh", "en", "en"])
+        router, send, end, _ = self.router(["zh", "en"])
         for language in ("zh", "en"):
             prefix, first, second = b"\1\0" * 1600, b"\2\0" * 11200, b"\3\0" * 6400
             await router.start(prefix)
             await router.feed(first)
-            send.assert_not_awaited()
+            self.assertEqual(router.selected, language)
+            self.assertGreater(send.await_count, 0)
             await router.feed(second)
             await router.end()
             self.assertEqual({call.args[0] for call in send.call_args_list}, {language})
@@ -101,8 +113,8 @@ class RouterTests(unittest.IsolatedAsyncioTestCase):
             end.assert_awaited_with(language)
             send.reset_mock()
 
-    async def test_disagreement_never_sends_audio_to_first_prediction(self):
-        router, send, _, _ = self.router(["zh", "en", "en"])
+    async def test_unknown_prefix_waits_for_more_audio_before_routing(self):
+        router, send, _, _ = self.router([None, None, "en"])
         await router.start(bytes(800 * 32))
         await router.feed(b"")
         await router.feed(bytes(400 * 32))
