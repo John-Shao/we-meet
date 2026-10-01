@@ -23,6 +23,104 @@ from plugins.qwen.omni.language_id import (
 
 
 class DetectorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_prepare_only_handshakes_and_each_sample_uses_a_fresh_session(self):
+        detector, first, connector = self.make_detector("zh")
+        _, second, _ = self.make_detector("en")
+        connector.side_effect = [first, second]
+        try:
+            await detector.prepare()
+            await detector._preparing
+            self.assertEqual(
+                [
+                    json.loads(call.args[0])["type"]
+                    for call in first.send.call_args_list
+                ],
+                ["session.update"],
+            )
+            self.assertEqual(await detector.detect(bytes(3200)), "zh")
+            await detector._preparing
+            self.assertEqual(await detector.detect(bytes(3200)), "en")
+            self.assertEqual(connector.await_count, 2)
+            first.close.assert_awaited_once()
+        finally:
+            await detector.aclose()
+        second.close.assert_awaited_once()
+
+    async def test_completed_decision_does_not_wait_for_close_handshake(self):
+        detector, socket, _ = self.make_detector()
+        release = asyncio.Event()
+
+        async def close():
+            await release.wait()
+
+        socket.close.side_effect = close
+        try:
+            await detector.prepare()
+            await detector._preparing
+            self.assertEqual(
+                await asyncio.wait_for(detector.detect(bytes(3200)), 0.2), "zh"
+            )
+        finally:
+            release.set()
+            await detector.aclose()
+
+    async def test_idle_socket_failure_retries_once_without_reusing_context(self):
+        detector, first, connector = self.make_detector()
+        _, fresh, _ = self.make_detector("en")
+        connector.side_effect = [first, fresh]
+        try:
+            await detector.prepare()
+            await detector._preparing
+            first.recv.side_effect = OSError("idle connection expired")
+            self.assertEqual(await detector.detect(bytes(3200)), "en")
+            self.assertEqual(connector.await_count, 2)
+            first.close.assert_awaited_once()
+        finally:
+            await detector.aclose()
+
+    async def test_old_prepared_socket_is_discarded_before_audio(self):
+        detector, first, connector = self.make_detector()
+        _, fresh, _ = self.make_detector("en")
+        connector.side_effect = [first, fresh]
+        try:
+            await detector.prepare()
+            await detector._preparing
+            detector._prepared_at -= 31
+            self.assertEqual(await detector.detect(bytes(3200)), "en")
+            self.assertEqual(first.send.await_count, 1)
+            first.close.assert_awaited_once()
+        finally:
+            await detector.aclose()
+
+    async def test_prepare_failure_does_not_block_next_detection(self):
+        detector, socket, connector = self.make_detector()
+        connector.side_effect = [OSError("private"), socket]
+        try:
+            await detector.prepare()
+            await detector._preparing
+            self.assertEqual(await detector.detect(bytes(3200)), "zh")
+        finally:
+            await detector.aclose()
+
+    async def test_hangup_cancels_preparation_even_when_detection_is_waiting(self):
+        detector, socket, _ = self.make_detector()
+        reading = asyncio.Event()
+
+        async def receive():
+            reading.set()
+            await asyncio.Future()
+
+        socket.recv.side_effect = receive
+        await detector.prepare()
+        await reading.wait()
+        detection = asyncio.create_task(detector.detect(bytes(3200)))
+        await asyncio.sleep(0)
+        await detector.aclose()
+        with self.assertRaises(asyncio.CancelledError):
+            await detection
+        self.assertIsNone(detector.socket)
+        self.assertIsNone(detector._preparing)
+
     async def test_auth_rejection_is_fatal_but_rate_limit_is_transient(self):
         for status, retryable in [(401, False), (403, False), (429, True), (503, True)]:
             detector, _, connector = self.make_detector()

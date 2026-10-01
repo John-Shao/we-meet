@@ -249,7 +249,7 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
         reporter.assert_not_called()
         self.assertEqual(gateway.active, 0)
 
-    async def connection(self, incoming, admitted=True, pair=("zh", "en")):
+    async def connection(self, incoming, admitted=True, pair=("zh", "en"), start=None):
         socket = AsyncMock()
         socket.recv.side_effect = incoming
         claim = AsyncMock(
@@ -263,6 +263,8 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
             provider = AsyncMock()
             provider.error_code = None
             provider.config = config
+            if start is not None:
+                provider.start.side_effect = start
             providers.append(provider)
             return provider
 
@@ -305,6 +307,36 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             json.loads(socket.send.call_args_list[-1].args[0])["type"], "finished"
+        )
+
+    async def test_both_translation_sessions_start_concurrently(self):
+        count = 0
+        both_started = asyncio.Event()
+
+        async def start():
+            nonlocal count
+            count += 1
+            if count == 2:
+                both_started.set()
+            await asyncio.wait_for(both_started.wait(), 1)
+
+        socket, providers = await self.connection(['{"type":"finish"}'], start=start)
+        self.assertEqual(count, 2)
+        self.assertEqual(
+            json.loads(socket.send.call_args_list[-1].args[0])["type"], "finished"
+        )
+        for provider in providers:
+            provider.close.assert_awaited_once()
+
+    async def test_failed_parallel_start_closes_both_sessions_without_admission(self):
+        socket, providers = await self.connection(
+            [], start=OSError("private-connect-error")
+        )
+        for provider in providers:
+            provider.close.assert_awaited_once()
+        self.assertEqual(
+            json.loads(socket.send.call_args.args[0]),
+            {"type": "error", "code": "translation_connect_failed"},
         )
 
     async def test_text_only_language_is_rejected_before_any_provider_connects(self):

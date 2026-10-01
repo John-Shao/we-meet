@@ -19,6 +19,7 @@ from plugins.qwen.live_translate import (
 MODEL = "qwen3.8-omni-flash-realtime"
 MAX_PCM = 10 * 32000
 MAX_TEXT = 64
+PREPARED_TTL = 30.0
 logger = logging.getLogger("omni-language-id")
 
 
@@ -37,6 +38,30 @@ class OmniLanguageDetector:
         self.socket = None
         self.closed = False
         self.timeout = 4.0
+        self._preparing = None
+        self._prepared_at = None
+        self._prewarm_enabled = False
+        self._retiring = None
+
+    async def prepare(self):
+        """Prepare one empty session, without sending audio or requesting inference."""
+        self._prewarm_enabled = True
+        if not self.closed and self._preparing is None and self.socket is None:
+            self._preparing = asyncio.create_task(self._prepare())
+
+    async def _prepare(self):
+        try:
+            async with asyncio.timeout(self.timeout):
+                await self._open_session()
+                self._prepared_at = time.monotonic()
+        except asyncio.CancelledError:
+            await self._close_socket()
+            raise
+        except Exception:
+            # An idle socket is speculative. A failed preparation must not stop
+            # microphone admission; detect still gets one fresh connection.
+            await self._close_socket()
+            logger.info("language_prepare_unavailable")
 
     async def detect(self, pcm):
         """Return a language or None; distinguish transient transport failures."""
@@ -62,14 +87,48 @@ class OmniLanguageDetector:
         except Exception:
             raise TranslationError("language_detection_failed") from None
         finally:
-            await self._close_socket()
+            if self._prewarm_enabled and outcome in {"classified", "unknown"}:
+                # Classification is complete. Closing its single-use socket is
+                # cleanup, not a prerequisite for forwarding the user's audio.
+                await self._retire_socket()
+            else:
+                await self._close_socket()
             logger.info(
                 "language_probe outcome=%s elapsed_ms=%d",
                 outcome,
                 round((time.monotonic() - started) * 1000),
             )
+            if self._prewarm_enabled and outcome != "cancelled":
+                await self.prepare()
 
     async def _detect(self, pcm):
+        preparing = self._preparing
+        if preparing is not None:
+            try:
+                await preparing
+            finally:
+                if self._preparing is preparing:
+                    self._preparing = None
+        prepared_at, self._prepared_at = self._prepared_at, None
+        if prepared_at is not None and time.monotonic() - prepared_at > PREPARED_TTL:
+            await self._close_socket()
+        warmed = self.socket is not None
+        if not warmed:
+            await self._open_session()
+        try:
+            return await self._classify(pcm)
+        except (OSError, ConnectionClosed) as error:
+            if self.closed or not warmed or not retryable_transport(error):
+                raise
+            # The provider may have closed an idle prepared socket. Retry the
+            # classification once within detect's original total time budget.
+            await self._close_socket()
+            await self._open_session()
+            return await self._classify(pcm)
+
+    async def _open_session(self):
+        if self.closed:
+            raise TranslationError("language_detector_closed")
         url = self.config.url.split("?", 1)[0] + f"?model={MODEL}"
         self.socket = await self.connector(
             url,
@@ -80,6 +139,9 @@ class OmniLanguageDetector:
             max_size=128000,
             max_queue=4,
         )
+        if self.closed:
+            await self._close_socket()
+            raise TranslationError("language_detector_closed")
         await self._expect("session.created")
         await self._send(
             "session.update",
@@ -102,6 +164,8 @@ class OmniLanguageDetector:
             },
         )
         await self._expect("session.updated")
+
+    async def _classify(self, pcm):
         for offset in range(0, len(pcm), 32000):
             await self._send(
                 "input_audio_buffer.append",
@@ -143,6 +207,16 @@ class OmniLanguageDetector:
 
     async def _close_socket(self):
         socket, self.socket = self.socket, None
+        await self._close_connection(socket)
+
+    async def _retire_socket(self):
+        if self._retiring is not None:
+            await self._retiring
+        socket, self.socket = self.socket, None
+        self._retiring = asyncio.create_task(self._close_connection(socket))
+
+    @staticmethod
+    async def _close_connection(socket):
         if socket:
             try:
                 await asyncio.wait_for(socket.close(), 0.5)
@@ -152,4 +226,11 @@ class OmniLanguageDetector:
     async def aclose(self):
         """Abort an in-flight classifier and release its transport."""
         self.closed = True
+        preparing, self._preparing = self._preparing, None
+        if preparing is not None:
+            preparing.cancel()
+            await asyncio.gather(preparing, return_exceptions=True)
         await self._close_socket()
+        if self._retiring is not None:
+            await self._retiring
+            self._retiring = None

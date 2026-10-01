@@ -387,9 +387,15 @@ class AssistantTranslationConnection:
                 )
                 self.sessions.append(session)
                 by_source[source] = session
-                await session.start()
             self.detector = self.detector_factory(config, languages=pair)
             self.detector.timeout = settings.detection_timeout
+            await self.detector.prepare()
+            try:
+                async with asyncio.TaskGroup() as startup:
+                    for session in self.sessions:
+                        startup.create_task(session.start())
+            except ExceptionGroup:
+                raise TranslationError("translation_connect_failed") from None
             stream = await self.vad_factory()
             self.audio_input = BilingualAudioInput(
                 stream, self.detector, by_source, self.emit, settings=settings
