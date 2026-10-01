@@ -93,13 +93,25 @@ class LLMClient:
         self._model = model
 
     @classmethod
-    def from_settings(cls) -> "LLMClient":
+    def from_settings(
+        cls, *, timeout: float = 60.0, max_retries: int | None = None
+    ) -> "LLMClient":
         api_key = getattr(settings, "DASHSCOPE_API_KEY", None) or ""
         model = getattr(settings, "MEETING_SUMMARY_MODEL", None) or "qwen3.8-flash"
-        base_url = getattr(settings, "MEETING_SUMMARY_BASE_URL", None) or _DEFAULT_BASE_URL
+        base_url = (
+            getattr(settings, "MEETING_SUMMARY_BASE_URL", None) or _DEFAULT_BASE_URL
+        )
         if not api_key or not model.startswith("qwen"):
-            raise LLMUnavailable("DASHSCOPE_API_KEY and a Qwen meeting model are required.")
-        return cls(api_key=api_key, model=model, base_url=base_url)
+            raise LLMUnavailable(
+                "DASHSCOPE_API_KEY and a Qwen meeting model are required."
+            )
+        return cls(
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
 
     @property
     def model(self) -> str:
