@@ -80,6 +80,34 @@ Android「AI 助手 → 打电话」统一使用 Qwen 3.8，语音与视频共�
 API Key 只保留在后端。摄像头开关不重建会话；关闭摄像头会解绑视频轨道并停止采集。
 会议内的 AI 助手仍通过 LiveKit worker 与 Omni WebSocket 通信。
 
+Android「AI 助手 → 双语互译」复用录音翻译网关，音频经网关处理，
+不创建会议。网关使用 Silero VAD 切分双方轮流说话的语音，先交给
+`qwen3.8-omni-flash-realtime` 在用户选择的两种语言之间判断方向，再将完整原始音频
+仅发送至对应目标语言的 `qwen3.8-livetranslate-flash-realtime` 会话。
+方向识别直接使用音频，不依赖 LiveTranslate 转写事件中的 `language` 字段。
+
+支持任意选择两种可输出「音频 + 文本」的语言，默认中文与英语：
+`zh en ar de fr es pt id it ko ru th vi ja tr hi ms nl ur nb sv da he fi pl is cs fil fa`。
+仅支持文本输出的语种（如粤语 `yue`）不出现在双语互译选项中。
+会话开始后锁定语言组合；选择另一侧的语言时交换两侧，避免同语种互译。
+Omni 只返回所选语种之一或 `unknown`，不会把其他语言强行归入该组合。
+双语助手使用独立的音频语言白名单，不改变录音翻译和会议翻译的
+`QWEN_TRANSLATION_LANGUAGES` 配置。
+
+每句话保留 250 ms 前缀；从约 800 ms 音频开始识别，每增加 400 ms 重试，
+连续两次结果一致后锁定方向并开始转发。短句在结束时允许一次最终判断；
+最多用前 10 秒音频识别，仍不确定则提示未识别语种，不猜测方向。
+Omni 分类使用独立的纯文本输出会话；LiveTranslate 3.8 保持服务端 VAD，
+每句话结束时补静音触发翻译。未选中的方向只接收静音保活。
+识别处理与手机上传 ACK 分离，待处理音频上限为 15 秒；超限或供应商失败
+会结束当前会话，避免积压。播放译音时暂停语音输入的现有行为保持不变。
+
+双语互译复用网关的 `DASHSCOPE_API_KEY`、`DASHSCOPE_WORKSPACE_ID`、
+`DASHSCOPE_REGION`，该空间需可调用上述两个模型。Silero 已包含在现有依赖中。
+启用 29 种语言选择需要先发布后端票据校验及 agents 镜像（更新
+`meet-agent-capture-translation`），再安装新版 Android APK；无需数据库迁移。
+旧版 APK 仍可继续使用默认中英互译。方向识别会增加模型调用和等待时间。
+
 原根目录的 `python <worker>.py` 已迁移为上述模块命令，自定义启动脚本需要同步更新。
 外部评估或探测脚本也使用同一 `PYTHONPATH`，不在代码中修改 `sys.path`。
 

@@ -27,6 +27,19 @@ MAX_ITEMS = 8
 MAX_ID_LENGTH = 128
 IO_TIMEOUT = 5
 FINISH_TIMEOUT = 20
+BILINGUAL_PAIR_SIZE = 2
+
+
+def audio_language_pair(languages):
+    """Validate two distinct languages with bidirectional speech output."""
+    pair = tuple(languages)
+    if (
+        len(pair) != BILINGUAL_PAIR_SIZE
+        or len(set(pair)) != BILINGUAL_PAIR_SIZE
+        or not set(pair) <= AUDIO_LANGUAGES
+    ):
+        raise ValueError("invalid_language_pair")
+    return pair
 
 
 class TranslationError(RuntimeError):
@@ -102,14 +115,18 @@ class TranslationConfig:
         }
 
     @classmethod
-    def from_env(cls, *, target, source=None, audio=True, manual=False):
-        """Keep credentials server-side and default the rollout to Chinese/English."""
+    def from_env(
+        cls, *, target, source=None, audio=True, manual=False, enabled_languages=None
+    ):
+        """Load credentials and use the caller's product-specific language policy."""
         return cls(
             api_key=os.getenv("DASHSCOPE_API_KEY", ""),
             workspace=os.getenv("DASHSCOPE_WORKSPACE_ID", ""),
             region=os.getenv("DASHSCOPE_REGION", "cn-beijing"),
             model=os.getenv("QWEN_TRANSLATION_MODEL", cls.model),
-            enabled_languages=tuple(
+            enabled_languages=tuple(enabled_languages)
+            if enabled_languages is not None
+            else tuple(
                 code.strip()
                 for code in os.getenv("QWEN_TRANSLATION_LANGUAGES", "zh,en").split(",")
                 if code.strip()

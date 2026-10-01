@@ -7,6 +7,7 @@ from django.core.cache import cache
 import pytest
 from rest_framework.test import APIClient
 
+from core.api.assistant_translation import LANGUAGES
 from core.factories import UserFactory
 
 pytestmark = pytest.mark.django_db
@@ -39,6 +40,30 @@ def test_ticket_claimed_once_without_provider_credentials(setup):
     assert claim.status_code == 200
     assert claim.data == PAIR
     assert agent.post(CLAIM, body, format="json").status_code == 403
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_all_speech_languages_survive_ticket_and_claim(setup, language):
+    client, agent, _ = setup
+    pair = {
+        "source_language": language,
+        "target_language": "en" if language != "en" else "zh",
+    }
+    result = client.post(URL, pair, format="json")
+    assert result.status_code == 200
+    claim = agent.post(CLAIM, {"ticket": result.data["ticket"]}, format="json")
+    assert claim.status_code == 200
+    assert claim.data == pair
+
+
+@pytest.mark.parametrize(
+    "language",
+    "yue el af ast be bg bn bs ca ceb et gl gu hr hu jv kk kn ky lv mk ml mr pa ro sk sl sw tg az uk".split(),
+)
+def test_text_only_languages_cannot_be_selected_on_either_side(setup, language):
+    for source, target in ((language, "en"), ("en", language)):
+        pair = {"source_language": source, "target_language": target}
+        assert setup[0].post(URL, pair, format="json").status_code == 400
 
 
 def test_anonymous_and_regular_users_cannot_claim(setup):

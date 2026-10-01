@@ -1,11 +1,12 @@
 """No paid calls: bilingual routing, authentication and transport lifecycle."""
 
+import asyncio
 import base64
 import itertools
 import json
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from plugins.qwen.live_translate import TranslationConfig, TranslationEvents
 from translation.assistant_gateway import (
@@ -52,7 +53,7 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
             rest = iter(sequence[2:])
             ordered = [item or next(rest) for item in ordered]
             emit = AsyncMock()
-            router = BilingualResults("en", emit)
+            router = BilingualResults("en", emit, source="zh")
             for event in ordered:
                 await router.accept(event)
             output = [call.args[0] for call in emit.call_args_list]
@@ -66,21 +67,61 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
         for source in ("zh", "en"):
             for target in ("zh", "en"):
                 emit = AsyncMock()
-                router = BilingualResults(target, emit)
+                router = BilingualResults(target, emit, source=source)
                 for event in events(source):
                     await router.accept(event)
                 self.assertEqual(emit.await_count, 3 if source != target else 0)
 
     async def test_unknown_language_is_not_guessed_or_played(self):
         emit = AsyncMock()
-        router = BilingualResults("en", emit)
+        router = BilingualResults("en", emit, source=None)
         for event in events(None):
+            if event["type"] == "source_candidate":
+                event["text"] = "123，..."
             await router.accept(event)
         self.assertEqual(emit.call_args.args[0], {"type": "language_unknown"})
 
+    async def test_38_transcript_without_language_routes_both_directions(self):
+        # The live 3.8 API returns delta/completed with transcript but no language.
+        for language, transcript in (
+            ("zh", "你好 请问去火车站应该怎么走 "),
+            ("en", "Hello. Could you tell me how to get to the train station? "),
+        ):
+            for target in ("zh", "en"):
+                with self.subTest(language=language, target=target):
+                    normalizer = TranslationEvents()
+                    normalizer.accept(
+                        {
+                            "type": "conversation.item.input_audio_transcription.delta",
+                            "item_id": "source",
+                            "delta": transcript,
+                        }
+                    )
+                    source = normalizer.accept(
+                        {
+                            "type": "conversation.item.input_audio_transcription.completed",
+                            "item_id": "source",
+                            "transcript": transcript,
+                        }
+                    )[0]
+                    emit = AsyncMock()
+                    router = BilingualResults(target, emit, source=language)
+                    for event in [*events()[1:], source]:
+                        await router.accept(event)
+                    output = [call.args[0] for call in emit.call_args_list]
+                    if target == language:
+                        self.assertEqual(output, [])
+                    else:
+                        self.assertEqual(
+                            [event["type"] for event in output],
+                            ["audio", "translation", "audio_end"],
+                        )
+                        self.assertEqual(output[1]["source_language"], language)
+                        self.assertEqual(output[1]["source"], transcript)
+
     async def test_audio_streams_after_final_source_before_response_completion(self):
         emit = AsyncMock()
-        router = BilingualResults("en", emit)
+        router = BilingualResults("en", emit, source="zh")
         for event in events()[:-1]:
             await router.accept(event)
         self.assertEqual(emit.call_args.args[0]["type"], "audio")
@@ -91,7 +132,7 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_late_source_overflow_preserves_text_and_next_sentence(self):
         emit = AsyncMock()
-        router = BilingualResults("en", emit)
+        router = BilingualResults("en", emit, source="zh")
         sequence = events()
         for _ in range(MAX_AUDIO // 48000 + 1):
             await router.accept({**sequence[2], "audio": bytes(48000)})
@@ -116,7 +157,7 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_late_source_releases_all_thirty_one_seconds_in_bounded_chunks(self):
         emit = AsyncMock()
-        router = BilingualResults("en", emit)
+        router = BilingualResults("en", emit, source="zh")
         sequence = events()
         await router.accept(sequence[1])
         for _ in range(31):
@@ -138,7 +179,7 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
         self,
     ):
         emit = AsyncMock()
-        router = BilingualResults("en", emit)
+        router = BilingualResults("en", emit, source="zh")
         sequence = events()
         with patch("translation.assistant_gateway.time.monotonic") as clock:
             clock.return_value = 0
@@ -182,11 +223,11 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
         reporter.assert_not_called()
         self.assertEqual(gateway.active, 0)
 
-    async def connection(self, incoming, admitted=True):
+    async def connection(self, incoming, admitted=True, pair=("zh", "en")):
         socket = AsyncMock()
         socket.recv.side_effect = incoming
         claim = AsyncMock(
-            return_value={"source_language": "zh", "target_language": "en"}
+            return_value={"source_language": pair[0], "target_language": pair[1]}
         )
         if not admitted:
             claim.side_effect = ValueError("invalid_ticket")
@@ -205,15 +246,52 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
             config_factory=lambda **kw: TranslationConfig("test", "workspace", **kw),
             session_factory=factory,
         )
-        await connection.run({"type": "assistant_translation", "ticket": "opaque"})
+        audio_input = Mock()
+        audio_input.task = asyncio.get_running_loop().create_future()
+        audio_input.finish = AsyncMock()
+        audio_input.aclose = AsyncMock()
+        connection.detector_factory = Mock(return_value=AsyncMock())
+        connection.vad_factory = AsyncMock()
+        with patch(
+            "translation.assistant_gateway.BilingualAudioInput",
+            return_value=audio_input,
+        ):
+            await connection.run({"type": "assistant_translation", "ticket": "opaque"})
+        if (
+            admitted
+            and incoming
+            and isinstance(incoming[0], bytes)
+            and len(incoming[0]) <= 3200
+        ):
+            audio_input.push.assert_called_once_with(incoming[0])
+        else:
+            audio_input.push.assert_not_called()
+        audio_input.task.cancel()
         return socket, providers
 
-    async def test_two_streams_share_audio_and_finish_before_receipt(self):
+    async def test_selected_non_chinese_pair_configures_only_two_directions(self):
+        socket, providers = await self.connection(
+            ['{"type":"finish"}'], pair=("ja", "fr")
+        )
+        self.assertEqual(
+            [(p.config.source, p.config.target) for p in providers],
+            [("fr", "ja"), ("ja", "fr")],
+        )
+        self.assertEqual(
+            json.loads(socket.send.call_args_list[-1].args[0])["type"], "finished"
+        )
+
+    async def test_text_only_language_is_rejected_before_any_provider_connects(self):
+        socket, providers = await self.connection([], pair=("zh", "yue"))
+        self.assertEqual(providers, [])
+        self.assertEqual(json.loads(socket.send.call_args.args[0]), {"type": "error"})
+
+    async def test_audio_is_admitted_to_router_and_finish_drains_both_providers(self):
         socket, providers = await self.connection([bytes(3200), '{"type":"finish"}'])
         self.assertEqual([p.config.target for p in providers], ["zh", "en"])
         for provider in providers:
             self.assertTrue(provider.config.source_transcription)
-            provider.send_audio.assert_awaited_once_with(bytes(3200))
+            provider.send_audio.assert_not_awaited()
             provider.finish.assert_awaited_once()
             provider.close.assert_awaited_once()
         self.assertEqual(

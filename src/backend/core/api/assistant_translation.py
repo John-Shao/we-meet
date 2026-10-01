@@ -15,7 +15,12 @@ from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
 from core.models import User
 
 SALT = "assistant-translation-v1"
-LANGUAGES = ("zh", "en")
+# LiveTranslate 3.8 languages supporting both audio and text output.
+# Keep aligned with agents.plugins.qwen.live_translate.AUDIO_LANGUAGES.
+LANGUAGES = tuple(
+    "zh en ar de fr es pt id it ko ru th vi ja tr hi ms nl ur nb sv da he fi "
+    "pl is cs fil fa".split()
+)
 
 
 class TranslationThrottle(throttling.UserRateThrottle):
