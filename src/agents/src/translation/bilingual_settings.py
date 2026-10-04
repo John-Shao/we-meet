@@ -12,6 +12,7 @@ class BilingualSettings:
     retry_ms: int = 400
     max_failures: int = 3
     detection_timeout: float = 4.0
+    turn_silence_ms: int = 1000
 
     @classmethod
     def from_env(cls):
@@ -21,6 +22,7 @@ class BilingualSettings:
             "retry_ms": ("TRANSLATION_LID_RETRY_MS", 400, 200, 2000),
             "max_failures": ("TRANSLATION_LID_MAX_FAILURES", 3, 1, 5),
             "detection_timeout": ("TRANSLATION_LID_TIMEOUT_MS", 4000, 1000, 5000),
+            "turn_silence_ms": ("TRANSLATION_TURN_SILENCE_MS", 1000, 300, 2000),
         }
         values = {}
         for field, (name, default, low, high) in limits.items():

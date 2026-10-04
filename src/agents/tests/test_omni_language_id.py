@@ -235,11 +235,27 @@ class DetectorTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await detector.detect(bytes(3200)), expected)
 
     async def test_failed_response_and_oversized_text_cannot_route_audio(self):
-        for answer, status in [("en", "failed"), ("x" * 65, "completed")]:
+        for answer, status in [("This is English", "failed"), ("x" * 65, "completed")]:
             detector, socket, _ = self.make_detector(answer, status)
             with self.assertRaises(TranslationError):
                 await detector.detect(bytes(3200))
             socket.close.assert_awaited_once()
+
+    async def test_decisive_code_returns_without_waiting_for_the_completion_tail(self):
+        detector, socket, _ = self.make_detector()
+        socket.recv.side_effect = [
+            json.dumps({"type": "session.created"}),
+            json.dumps({"type": "session.updated"}),
+            json.dumps({"type": "response.text.delta", "delta": "zh"}),
+        ]
+        try:
+            # No text.done and no response.done follow: a blocking read here
+            # would fail the probe instead of locking the direction.
+            self.assertEqual(
+                await asyncio.wait_for(detector.detect(bytes(3200)), 0.5), "zh"
+            )
+        finally:
+            await detector.aclose()
 
     async def test_invalid_pcm_never_opens_paid_connection(self):
         detector, _, connector = self.make_detector()

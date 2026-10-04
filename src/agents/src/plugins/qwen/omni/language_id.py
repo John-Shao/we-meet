@@ -165,6 +165,11 @@ class OmniLanguageDetector:
         )
         await self._expect("session.updated")
 
+    def _answer(self, text):
+        """Accept only a bare candidate code, matching the classifier contract."""
+        answer = text.strip().lower()
+        return answer if answer in self.languages else None
+
     async def _classify(self, pcm):
         for offset in range(0, len(pcm), 32000):
             await self._send(
@@ -184,10 +189,16 @@ class OmniLanguageDetector:
             elif kind == "response.done":
                 if event.get("response", {}).get("status") != "completed":
                     raise TranslationError("language_response_incomplete")
-                answer = text.strip().lower()
-                return answer if answer in self.languages else None
+                return self._answer(text)
             if not isinstance(text, str) or len(text) > MAX_TEXT:
                 raise TranslationError("invalid_language_response")
+            if kind == "response.text.delta":
+                answer = self._answer(text)
+                if answer is not None:
+                    # A candidate code already streamed. Its completion tail
+                    # only delays forwarding, and detect() retires the socket.
+                    logger.info("language_probe_decided early=true")
+                    return answer
         raise TranslationError("language_event_limit")
 
     async def _read(self):

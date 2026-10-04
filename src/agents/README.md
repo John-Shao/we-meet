@@ -96,6 +96,8 @@ Omni 只返回所选语种之一或 `unknown`，不会把其他语言强行归�
 
 每句话保留 250 ms 前缀；从约 800 ms 音频开始识别，每增加 400 ms 重试，
 首次明确识别出所选语种之一后即锁定方向并开始转发，不再等待第二次确认。
+分类器一旦输出完整候选语言代码就立即返回，不再等待该响应的
+`text.done` / `response.done` 尾部；输出其他内容时仍走原路径等待完成事件，保持不猜测方向。
 两个翻译通道并行建连；收音前提前准备一个空的 Omni 识别会话，
 将建连和会话配置移出每句识别的等待路径。每次识别仍使用独立会话，
 不复用上一句上下文；识别完成立即转发音频，旧连接在后台限时关闭，
@@ -119,9 +121,24 @@ HTTP 429/部分 5xx 可在后续探测中恢复，默认连续失败三次才结
 | `TRANSLATION_LID_RETRY_MS` | 400 | 200–2000 ms |
 | `TRANSLATION_LID_MAX_FAILURES` | 3 | 1–5 次 |
 | `TRANSLATION_LID_TIMEOUT_MS` | 4000 | 1000–5000 ms |
+| `TRANSLATION_TURN_SILENCE_MS` | 1000 | 300–2000 ms |
+
+首个探针从 `TRANSLATION_LID_PROBE_MS` 开始，重试间隔由 `TRANSLATION_LID_RETRY_MS` 决定。
+一句话短于该值时，方向识别整段落在句尾之后，所以短句（“好的”“谢谢”）的响应时间对这两个
+变量最敏感；调小能提前锁定，代价是单词级音频的分类准确率下降，需用中英短句回归后再上线。
+
+`TRANSLATION_TURN_SILENCE_MS` 同时决定 `session.update` 的
+`audio.input.turn_detection.silence_duration_ms` 和句尾补发的静音长度，两者始终一致。
+它直接落在「说完话到开始翻译」的关键路径上，但前提是 3.8 确实按该字段收尾：
+先用 600 ms 试跑并对比 `translation_first_audio`，确认生效后再下调；只缩短补发静音
+而不改会话字段不会让翻译提前开始。
+
+网关进程启动即预加载 Silero 权重，单次会话把 VAD 加载与两条翻译通道的握手放进同一个
+TaskGroup 并发完成，连接阶段不再串行等待模型初始化。
 
 网关仅对双语翻译相关 logger 开启 INFO 诊断：本地语音开始/结束、语种识别耗时、
-方向锁定、首段译音、原文完成和译文送达；不记录语音、文字内容或凭证。
+方向锁定、首段译音、交付门（`translation_audio_delivered`）和译文送达；
+不记录语音、文字内容或凭证。
 短句停在“正在聆听”时，可据此区分本地 VAD 未触发、上游未输出和结果关联未完成。
 此路由修复只需更新 agents 镜像并发布 `meet-agent-capture-translation`，兼容现有 APK。
 
@@ -145,11 +162,24 @@ HTTP 429/部分 5xx 可在后续探测中恢复，默认连续失败三次才结
 以及识别连续失败次数、连接恢复次数和固定错误码，不记录原音频、转写或密钥。
 客户端 `error` 事件附带安全白名单内的 `code`，保持旧版 APK 兼容。
 
+首段译音延迟按三段拼接，全部只有时长、语言代码和固定错误码：
+
+| 段 | 日志 | 口径 |
+| --- | --- | --- |
+| 上游首段译音 | `translation_first_audio elapsed_ms` | 本句首帧转发到收到首个译音事件 |
+| 方向交付门 | `translation_audio_delivered gate_ms` | 译音已到网关到真正发给手机 |
+| 手机播放 | App `translation_playback_started` | `queue_ms` 收到到首帧写入；`reply_ms` 本机最后一帧话音到首帧写入 |
+
+`since_speech_ms` 是同一句从本地 VAD 起点到发出的时长；下一句已开始或跨句重叠时会失真，
+此时以 `gate_ms` 与 App 侧 `reply_ms` 为准。上行往返见 App 每 100 帧采样一次的
+`translation_ack_rtt_ms`。播放预缓冲与回声保护尾的取值见 Android 侧 README。
+
 双语互译复用网关的 `DASHSCOPE_API_KEY`、`DASHSCOPE_WORKSPACE_ID`、
 `DASHSCOPE_REGION`，该空间需可调用上述两个模型。Silero 已包含在现有依赖中。
 启用 29 种语言选择需要先发布后端票据校验及 agents 镜像（更新
 `meet-agent-capture-translation`），再安装新版 Android APK；无需数据库迁移。
-旧版 APK 仍可继续使用默认中英互译。方向识别会增加模型调用和等待时间。
+旧版 APK 仍可继续使用默认中英互译。方向识别会增加模型调用和等待时间；
+识别耗时已通过首个完整语言代码即锁定、预连接和并发启动压缩。
 
 原根目录的 `python <worker>.py` 已迁移为上述模块命令，自定义启动脚本需要同步更新。
 外部评估或探测脚本也使用同一 `PYTHONPATH`，不在代码中修改 `sys.path`。

@@ -11,6 +11,8 @@ from plugins.qwen.live_translate import INPUT_BYTES_PER_SECOND, TranslationError
 from translation.bilingual_router import BilingualUtteranceRouter
 
 MAX_QUEUED_BYTES = 15 * 32000
+# One second of 16 kHz mono PCM: the historical server turn-detection window.
+DEFAULT_SILENCE_BYTES = 32000
 logger = logging.getLogger("bilingual-audio")
 
 
@@ -30,10 +32,28 @@ async def open_vad():
     return model.stream()
 
 
+async def prewarm_vad():
+    """Pay the one-off packaged weight load before the first session connects."""
+    try:
+        await asyncio.to_thread(_vad_model)
+    except Exception:
+        # A missing or unreadable model still surfaces per session on open_vad.
+        logger.info("Bilingual VAD preload unavailable")
+
+
 class BilingualAudioInput:
     """Acknowledge bounded input promptly while classification runs independently."""
 
-    def __init__(self, stream, detector, sessions, emit, *, settings=None):
+    def __init__(  # noqa: PLR0913 -- injected VAD, classifier, sessions and bounds
+        self,
+        stream,
+        detector,
+        sessions,
+        emit,
+        *,
+        settings=None,
+        silence_bytes=DEFAULT_SILENCE_BYTES,
+    ):
         """Own one VAD consumer and one serialized utterance router."""
         self.stream = stream
         self.sessions = sessions
@@ -41,6 +61,7 @@ class BilingualAudioInput:
         self.processed = 0
         self.heartbeat = 0
         self.ending = False
+        self.silence_bytes = silence_bytes
         self.router = BilingualUtteranceRouter(
             detector,
             self._send_speech,
@@ -59,10 +80,15 @@ class BilingualAudioInput:
         await session.send_speech(pcm)
 
     async def _end(self, language):
-        # 3.8 keeps server VAD enabled. Supply an explicit silence boundary,
-        # rather than the 3.5 manual input_audio_buffer.commit protocol.
-        await self._send(language, bytes(32000))
+        # 3.8 keeps server VAD enabled. Supply an explicit silence boundary
+        # rather than the 3.5 manual input_audio_buffer.commit protocol. Its
+        # length follows the configured server window so both stay aligned.
+        await self._send(language, bytes(self.silence_bytes))
         await self.sessions[language].end_turn()
+
+    def speech_started(self):
+        """Monotonic start of the utterance being routed, or zero before speech."""
+        return self.router.started
 
     def push(self, pcm):
         """Bound all audio still waiting in the VAD/recognition pipeline."""

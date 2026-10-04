@@ -16,6 +16,7 @@ from plugins.qwen.live_translate import (
     TranslationSession,
 )
 from translation.assistant_gateway import AssistantTranslationConnection
+from translation.bilingual_audio import prewarm_vad
 from translation.capture_archive import CaptureArchiveDelivery
 from translation.capture_reporter import CaptureTranslationReporter, authentication
 
@@ -399,17 +400,23 @@ async def main():
     if not origins:
         raise RuntimeError("Capture translation browser origins must be configured")
     gateway = CaptureTranslationGateway(origins=origins)
-    async with serve(
-        gateway.handle,
-        os.getenv("CAPTURE_TRANSLATION_BIND", "127.0.0.1"),
-        int(os.getenv("CAPTURE_TRANSLATION_PORT", "8093")),
-        max_size=8192,
-        max_queue=4,
-        write_limit=65536,
-        open_timeout=5,
-        close_timeout=3,
-        ping_interval=10,
-        ping_timeout=10,
-        compression=None,
-    ):
-        await asyncio.Future()
+    # Bilingual sessions share one packaged Silero model per process. Loading it
+    # up front keeps the first session's connect path free of model startup.
+    preload = asyncio.create_task(prewarm_vad())
+    try:
+        async with serve(
+            gateway.handle,
+            os.getenv("CAPTURE_TRANSLATION_BIND", "127.0.0.1"),
+            int(os.getenv("CAPTURE_TRANSLATION_PORT", "8093")),
+            max_size=8192,
+            max_queue=4,
+            write_limit=65536,
+            open_timeout=5,
+            close_timeout=3,
+            ping_interval=10,
+            ping_timeout=10,
+            compression=None,
+        ):
+            await asyncio.Future()
+    finally:
+        preload.cancel()

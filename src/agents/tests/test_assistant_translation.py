@@ -220,6 +220,22 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
             await router.accept(sequence[4])
         self.assertEqual(emit.await_count, 362)
 
+    async def test_delivery_logs_the_direction_gate_before_the_first_chunk(self):
+        emit = AsyncMock()
+        router = BilingualResults("en", emit, source="zh")
+        router.speech_clock = lambda: 0
+        sequence = events()
+        with (
+            patch("translation.assistant_gateway.time.monotonic", return_value=5),
+            self.assertLogs("assistant-translation", level="INFO") as captured,
+        ):
+            for event in [sequence[1], sequence[2], sequence[3], sequence[0]]:
+                await router.accept(event)
+        self.assertIn(
+            "translation_audio_delivered target=en gate_ms=0",
+            "\n".join(captured.output),
+        )
+
     def test_provider_source_language_survives_normalization(self):
         event = TranslationEvents().accept(
             {

@@ -22,12 +22,22 @@ class SettingsTests(unittest.TestCase):
                 "TRANSLATION_LID_RETRY_MS": "600",
                 "TRANSLATION_LID_MAX_FAILURES": "2",
                 "TRANSLATION_LID_TIMEOUT_MS": "3000",
+                "TRANSLATION_TURN_SILENCE_MS": "600",
             },
             clear=True,
         ):
             self.assertEqual(
-                BilingualSettings.from_env(), BilingualSettings(1000, 600, 2, 3)
+                BilingualSettings.from_env(), BilingualSettings(1000, 600, 2, 3, 600)
             )
+
+    def test_invalid_turn_silence_is_rejected(self):
+        """The server window stays inside the range the gateway can silence."""
+        for value in ("private", "299", "2001"):
+            with patch.dict("os.environ", {"TRANSLATION_TURN_SILENCE_MS": value}):
+                with self.assertRaisesRegex(
+                    ValueError, "^Invalid TRANSLATION_TURN_SILENCE_MS$"
+                ):
+                    BilingualSettings.from_env()
 
     def test_invalid_tuning_fails_without_echoing_value(self):
         """Do not echo arbitrary environment content in errors."""

@@ -92,3 +92,39 @@ class InputTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(vad.frames[-1], bytes(32000))
         finally:
             await audio.aclose()
+
+    async def test_configured_silence_boundary_replaces_the_default_window(self):
+        vad = FakeVad()
+        detector = AsyncMock()
+        detector.detect.return_value = "en"
+        sessions = {"zh": AsyncMock(), "en": AsyncMock()}
+        audio = BilingualAudioInput(
+            vad, detector, sessions, AsyncMock(), silence_bytes=19200
+        )
+        try:
+            audio.push(b"\1\0" * 1600)
+            vad.event("start_of_speech", b"\1\0" * 1600)
+            await audio.finish()
+            calls = [c.args[0] for c in sessions["en"].send_audio.call_args_list]
+            self.assertEqual(calls, [bytes(19200)])
+        finally:
+            await audio.aclose()
+
+    async def test_speech_start_is_exposed_for_latency_reporting(self):
+        """The gateway reports delivery against this local utterance start."""
+        vad = FakeVad()
+        detector = AsyncMock()
+        detector.detect.return_value = "zh"
+        audio = BilingualAudioInput(
+            vad, detector, {"zh": AsyncMock(), "en": AsyncMock()}, AsyncMock()
+        )
+        try:
+            self.assertEqual(audio.speech_started(), 0)
+            vad.event("start_of_speech", b"\1\0" * 1600)
+            for _ in range(100):
+                if audio.speech_started():
+                    break
+                await asyncio.sleep(0.01)
+            self.assertGreater(audio.speech_started(), 0)
+        finally:
+            await audio.aclose()

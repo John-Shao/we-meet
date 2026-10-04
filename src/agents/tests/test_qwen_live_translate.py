@@ -139,6 +139,21 @@ class EventTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             config(model="qwen3.5-livetranslate-flash-realtime")
 
+    def test_turn_silence_window_is_bounded_and_drives_the_boundary(self):
+        """The bilingual gateway aligns its explicit silence with this window."""
+        self.assertEqual(config().turn_silence_ms, 1000)
+        self.assertEqual(config().turn_silence_bytes, 32000)
+        self.assertEqual(config(turn_silence_ms=600).turn_silence_bytes, 19200)
+        self.assertEqual(
+            config(turn_silence_ms=600).session()["audio"]["input"]["turn_detection"][
+                "silence_duration_ms"
+            ],
+            600,
+        )
+        for value in (299, 2001):
+            with self.assertRaises(ValueError):
+                config(turn_silence_ms=value)
+
     def test_delta_accumulation_isolated_and_final_gated(self):
         """3.8 chunks append per response/item and never become final early."""
         for kind in ("response.text.delta", "response.audio_transcript.delta"):

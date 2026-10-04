@@ -40,6 +40,8 @@ MAX_ID_LENGTH = 128
 IO_TIMEOUT = 5
 FINISH_TIMEOUT = 20
 BILINGUAL_PAIR_SIZE = 2
+MIN_TURN_SILENCE_MS = 300
+MAX_TURN_SILENCE_MS = 2000
 
 
 def audio_language_pair(languages):
@@ -79,6 +81,10 @@ class TranslationConfig:
     source_transcription: bool = False
     region: str = "cn-beijing"
     model: str = "qwen3.8-livetranslate-flash-realtime"
+    # Server turn-detection window. The bilingual gateway keeps its explicit
+    # silence boundary aligned with this value, so a shorter window ends turns
+    # sooner without waiting for the upstream default.
+    turn_silence_ms: int = 1000
     enabled_languages: tuple[str, ...] = ("zh", "en")
 
     def __post_init__(self):
@@ -96,6 +102,13 @@ class TranslationConfig:
             raise ValueError("Translation source is not enabled")
         if self.audio and self.target not in AUDIO_LANGUAGES:
             raise ValueError("Translation target does not support audio")
+        if not MIN_TURN_SILENCE_MS <= self.turn_silence_ms <= MAX_TURN_SILENCE_MS:
+            raise ValueError("Unsupported translation turn silence")
+
+    @property
+    def turn_silence_bytes(self):
+        """One explicit silence boundary long enough for the server window."""
+        return self.turn_silence_ms * INPUT_BYTES_PER_SECOND // 1000
 
     @property
     def url(self):
@@ -115,7 +128,7 @@ class TranslationConfig:
                     "turn_detection": {
                         "type": "server_vad",
                         "threshold": 0.2,
-                        "silence_duration_ms": 1000,
+                        "silence_duration_ms": self.turn_silence_ms,
                     },
                 },
                 "output": {

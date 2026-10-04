@@ -120,6 +120,9 @@ class BilingualResults:
         self.repair = repair
         self.repairs = set()
         self.closed = False
+        # Set once the audio router exists: reports the local start of the
+        # utterance currently being routed, for end-to-end latency logs.
+        self.speech_clock = None
 
     async def accept(self, event):
         """Associate normalized output with the source selected by the audio router."""
@@ -156,6 +159,9 @@ class BilingualResults:
                 item["response"] = event["response_id"]
                 if kind == "audio" and not item.get("audio_omitted"):
                     item["audio"].extend(event["audio"])
+                    # Audio is held until its original transcript can confirm the
+                    # direction. Log how long that gate actually costs.
+                    item.setdefault("audio_at", time.monotonic())
                 elif kind == "target_final":
                     item["text"] = event["text"]
         elif kind == "response_completed":
@@ -195,6 +201,8 @@ class BilingualResults:
                 continue
             selected = language in AUDIO_LANGUAGES and language != self.target
             if selected:
+                if item["audio"] and not item.get("audio_started"):
+                    self._log_delivery(item)
                 for offset in range(0, len(item["audio"]), AUDIO_CHUNK_BYTES):
                     await self.emit(
                         {
@@ -235,6 +243,18 @@ class BilingualResults:
             self.done.add(item_id)
             if len(self.done) > MAX_RESPONSES:
                 raise TranslationError("translation_session_limit")
+
+    def _log_delivery(self, item):
+        """Report when audio that was already complete clears the direction gate."""
+        received = item.get("audio_at")
+        started = self.speech_clock() if self.speech_clock is not None else 0
+        elapsed = round((time.monotonic() - started) * 1000) if started else -1
+        logger.info(
+            "translation_audio_delivered target=%s gate_ms=%d since_speech_ms=%d",
+            self.target,
+            round((time.monotonic() - received) * 1000) if received else -1,
+            max(elapsed, -1),
+        )
 
     def check(self):
         """Bound how long output can wait for its original-transcript association."""
@@ -373,6 +393,7 @@ class AssistantTranslationConnection:
                         enabled_languages=tuple(sorted(AUDIO_LANGUAGES)),
                     ),
                     source_transcription=True,
+                    turn_silence_ms=settings.turn_silence_ms,
                 )
                 results = BilingualResults(
                     target,
@@ -391,15 +412,25 @@ class AssistantTranslationConnection:
             self.detector.timeout = settings.detection_timeout
             await self.detector.prepare()
             try:
+                # The packaged VAD weights do not depend on the provider
+                # handshakes, so loading them in the same group keeps the
+                # connect path at the slower of the two instead of their sum.
                 async with asyncio.TaskGroup() as startup:
                     for session in self.sessions:
                         startup.create_task(session.start())
+                    vad = startup.create_task(self.vad_factory())
             except ExceptionGroup:
                 raise TranslationError("translation_connect_failed") from None
-            stream = await self.vad_factory()
             self.audio_input = BilingualAudioInput(
-                stream, self.detector, by_source, self.emit, settings=settings
+                vad.result(),
+                self.detector,
+                by_source,
+                self.emit,
+                settings=settings,
+                silence_bytes=config.turn_silence_bytes,
             )
+            for results in self.results:
+                results.speech_clock = self.audio_input.speech_started
             await self.emit({"type": "ready"})
             await self._stream()
         except Exception as error:
