@@ -14,6 +14,31 @@ import pytest
 from core.services.llm_client import LLMClient
 
 
+@pytest.mark.parametrize("ending", ["complete", "disconnect", "error"])
+def test_upstream_connection_closed_on_every_exit(fake_openai, ending):
+    def events():
+        yield _chunk("first")
+        if ending == "error":
+            raise RuntimeError("provider disconnected")
+        yield _chunk("last")
+
+    response = mock.MagicMock()
+    response.__iter__.return_value = events()
+    fake_openai.chat.completions.create.return_value = response
+    stream = LLMClient(api_key="fixture", model="fixture").chat_stream(
+        messages=[{"role": "user", "content": "question"}]
+    )
+    assert next(stream) == "first"
+    if ending == "disconnect":
+        stream.close()
+    elif ending == "error":
+        with pytest.raises(RuntimeError, match="provider disconnected"):
+            list(stream)
+    else:
+        assert list(stream) == ["last"]
+    response.close.assert_called_once()
+
+
 def test_default_meeting_client_uses_qwen_without_ark_fallback(settings, fake_openai):
     from core.services.llm_client import LLMUnavailable
     settings.DASHSCOPE_API_KEY = "qwen-test-key"

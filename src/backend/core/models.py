@@ -4100,6 +4100,28 @@ class Summary(BaseModel):
             )
 
 
+class LegacySummaryRun(BaseModel):
+    """Fenced legacy generation; expired paid attempts require an explicit retry."""
+
+    session = models.OneToOneField(
+        MeetingSession, on_delete=models.CASCADE, related_name="legacy_summary_run"
+    )
+    token = models.UUIDField(default=uuid.uuid4)
+    status = models.CharField(
+        max_length=16,
+        choices=[
+            (value, value)
+            for value in ("running", "succeeded", "failed", "uncertain", "cancelled")
+        ],
+        default="running",
+    )
+    lease_until = models.DateTimeField()
+    source_state = models.JSONField(default=dict)
+
+    def __str__(self):
+        return f"LegacySummaryRun({self.session_id}, {self.status})"
+
+
 class SummaryImDelivery(BaseModel):
     """Per-recipient delivery ledger for Meeting Assistant direct messages.
 

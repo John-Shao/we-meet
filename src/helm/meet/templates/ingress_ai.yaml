@@ -1,0 +1,49 @@
+{{- if and .Values.ingress.enabled .Values.aiBackend.enabled }}
+{{- $fullName := include "meet.fullname" . }}
+{{- $annotations := omit (deepCopy (.Values.ingress.annotations | default dict)) "cert-manager.io/cluster-issuer" "cert-manager.io/issuer" "kubernetes.io/tls-acme" }}
+{{- $annotations = mergeOverwrite $annotations (dict "nginx.ingress.kubernetes.io/use-regex" "true" "nginx.ingress.kubernetes.io/proxy-buffering" "off" "nginx.ingress.kubernetes.io/proxy-read-timeout" "120" "nginx.ingress.kubernetes.io/proxy-send-timeout" "120" "nginx.ingress.kubernetes.io/proxy-next-upstream" "off") }}
+{{- $hosts := .Values.ingress.hosts | default list }}
+{{- if .Values.ingress.host }}
+{{- $hosts = prepend $hosts .Values.ingress.host }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}-ai
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "meet.labels" . | nindent 4 }}
+  annotations:
+    # A model call may already have been paid for; never retry on another pod.
+    {{- toYaml $annotations | nindent 4 }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    {{- if .Values.ingress.host }}
+    - secretName: {{ .Values.ingress.tls.secretName | default (printf "%s-tls" $fullName) | quote }}
+      hosts:
+        - {{ .Values.ingress.host | quote }}
+    {{- end }}
+    {{- with .Values.ingress.tls.additional }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range $hosts | uniq }}
+    - host: {{ . | quote }}
+      http:
+        paths:
+          {{- range list "/api/v1[.]0/users/me/ai/ask(-stream)?/$" "/api/v1[.]0/search/ask(-stream)?/$" "/api/v1[.]0/rooms/[^/]+/ask-ai(-stream)?/$" "/api/v1[.]0/meeting-records/[^/]+/questions/([^/]+/)?$" "/api/v1[.]0/assistant-summary/$" }}
+          - path: {{ . | quote }}
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "meet.backend.fullname" $ }}-ai
+                port:
+                  number: {{ ($.Values.aiBackend.service | default dict).port | default $.Values.backend.service.port }}
+          {{- end }}
+    {{- end }}
+{{- end }}

@@ -190,6 +190,32 @@ serviceMediaFiles:
 
 ## @section backend
 
+# Dedicated HTTP model/SSE pool. Requires ingress-nginx for regex route splitting.
+# Inherits backend environment/secret references and always its image.
+aiBackend:
+  enabled: false
+  replicas: 1
+  command:
+    - gunicorn
+    - -c
+    - /usr/local/etc/gunicorn/meet.py
+    - --worker-class=gthread
+    - --workers=2
+    - --threads=4
+    - meet.ai_wsgi:application
+  args: []
+  envVars:
+    AI_MAX_CONCURRENT_REQUESTS: "2"
+  pdb:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
 backend:
   ## @param backend.dpAnnotations Annotations to add to the backend Deployment
   dpAnnotations: {}

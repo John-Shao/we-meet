@@ -29,7 +29,7 @@ def test_auto_summary_requires_ended_session_and_human_transcript():
     ended = _ended_session()
 
     with mock.patch(
-        "core.services.meeting_summary.MeetingSummaryService.generate"
+        "core.services.meeting_summary.MeetingSummaryService._client"
     ) as generate:
         assert generate_meeting_summary(str(active.id)) is None
         assert generate_meeting_summary(str(ended.id)) is None
@@ -58,12 +58,13 @@ def test_auto_summary_uses_session_and_is_idempotent():
     )
 
     with mock.patch(
-        "core.services.meeting_summary.MeetingSummaryService.generate"
-    ) as generate:
+        "core.services.meeting_summary.MeetingSummaryService._client"
+    ) as generate, mock.patch("core.tasks.summary.embed_meeting_transcripts.apply_async") as embed:
         result = generate_meeting_summary(str(session.id))
 
     assert result == str(summary.id)
     generate.assert_not_called()
+    embed.assert_not_called()
 
 
 def test_manual_regeneration_can_record_no_transcript_outcome():
@@ -82,4 +83,4 @@ def test_manual_regeneration_can_record_no_transcript_outcome():
         result = generate_meeting_summary(str(session.id), True)
 
     assert result == str(failed.id)
-    generate.assert_called_once_with(session)
+    generate.assert_called_once_with(session, automatic=False)

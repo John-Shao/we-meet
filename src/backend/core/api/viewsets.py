@@ -167,6 +167,10 @@ def _sse_response(event_iter, *, error_label: str) -> StreamingHttpResponse:
             logger.exception("%s stream failed", error_label)
             payload = {"type": "error", "message": f"{error_label} failed: {exc}"}
             yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        finally:
+            close = getattr(event_iter, "close", None)
+            if close:
+                close()
 
     resp = StreamingHttpResponse(gen(), content_type="text/event-stream")
     resp["Cache-Control"] = "no-cache"
@@ -326,8 +330,8 @@ class UserViewSet(
         """Answer one question against the user's accessible meetings.
 
         Body: ``{"question": "..."}``. The service strictly filters to
-        rooms the current Django user is a member of and has a successful
-        Summary for — no cross-user leakage. Single-turn; no history.
+        readable records, retaining room grants only for unmigrated chunks.
+        Selected sources are rechecked after generation. No history.
         """
         serializer = serializers.AskPersonalAISerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -335,6 +339,8 @@ class UserViewSet(
 
         try:
             result = PersonalAIService().ask(user=request.user, question=question)
+        except drf_exceptions.PermissionDenied:
+            raise
         except (EmbeddingUnavailable, LLMUnavailable) as exc:
             return drf_response.Response(
                 {"error": str(exc)},
@@ -363,8 +369,8 @@ class UserViewSet(
 
         Body: ``{"question": "...", "history": [{role, content}, ...]}``.
         Response: ``text/event-stream`` — see ``docs/features/streaming_chat.md``.
-        Same privacy contract: every chunk that reaches the LLM context is
-        filtered through ``PersonalAIService._user_room_ids``.
+        Selected sources must remain readable before calling the provider
+        and before releasing each output event.
         """
         serializer = serializers.AskPersonalAIStreamSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

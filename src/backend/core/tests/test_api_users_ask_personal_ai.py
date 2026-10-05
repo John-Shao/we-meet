@@ -4,6 +4,7 @@
 from unittest import mock
 
 import pytest
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIClient
 
 from core.factories import UserFactory
@@ -91,3 +92,17 @@ def test_returns_503_when_embedding_unavailable():
         )
     assert response.status_code == 503
     assert "missing key" in response.json()["error"]
+
+
+def test_revoked_access_returns_403_instead_of_provider_failure():
+    client = APIClient()
+    client.force_login(UserFactory())
+    with mock.patch(
+        "core.services.personal_ai.PersonalAIService.ask",
+        side_effect=PermissionDenied("Meeting access changed. Search again."),
+    ):
+        response = client.post(
+            "/api/v1.0/users/me/ai/ask/", {"question": "budget"}, format="json"
+        )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Meeting access changed. Search again."

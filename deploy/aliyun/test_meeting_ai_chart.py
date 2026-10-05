@@ -66,11 +66,11 @@ class MeetingAIChartTest(unittest.TestCase):
         self.assertEqual(100 * 1024 * 1024, int(env["MEETING_FILE_ASR_MAX_BYTES"]))
         self.assertEqual("101m", config["ingress"]["annotations"]["nginx.ingress.kubernetes.io/proxy-body-size"])
 
-    def test_direct_upload_stays_off_until_clients_ship_it(self):
-        """The GB ceiling ships dark: signing it on early would strand old clients."""
+    def test_direct_upload_enabled_after_clients_shipped_with_legacy_fallback(self):
+        """Both clients now support direct upload; keep the multipart fallback."""
         config = yaml.safe_load((ROOT / "src/helm/env.d/aliyun-prod/values.meet.yaml").read_text(encoding="utf-8"))
         env = config["backend"]["envVars"]
-        self.assertEqual("False", env["MEETING_FILE_DIRECT_UPLOAD_ENABLED"])
+        self.assertEqual("True", env["MEETING_FILE_DIRECT_UPLOAD_ENABLED"])
         self.assertEqual(6 * 1024 * 1024 * 1024, int(env["MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES"]))
 
     def test_beat_inherits_backend_settings_without_worker_override_leak(self):
@@ -103,22 +103,15 @@ class MeetingAIChartTest(unittest.TestCase):
         rows = [row for row in yaml.safe_load_all(result.stdout) if row]
         deployments = {row["metadata"]["name"]: row for row in rows if row["kind"] == "Deployment"}
         config = yaml.safe_load((ROOT / "src/helm/env.d/aliyun-prod/values.meet.yaml").read_text(encoding="utf-8"))
-        # Shipped dark on purpose: presigned direct uploads only work once the
-        # clients adopt the two-step flow, so this flag is deliberately not part
-        # of the "every rolled-out flag is True" invariant below.
-        dark = {"MEETING_FILE_DIRECT_UPLOAD_ENABLED"}
         flags = [key for key in config["backend"]["envVars"]
-                 if key.startswith("MEETING_") and key.endswith("_ENABLED") and key not in dark]
+                 if key.startswith("MEETING_") and key.endswith("_ENABLED")]
         self.assertTrue({"MEETING_RECORDS_ENABLED", "MEETING_CAPTURE_AUDIO_ENABLED",
                          "MEETING_SUMMARY_REQUESTS_ENABLED", "MEETING_CAPTURE_TRANSLATION_ENABLED"}.issubset(flags))
-        for name in ("meet-backend", "meet-celery-backend", "meet-celery-beat"):
+        for name in ("meet-backend", "meet-backend-ai", "meet-celery-backend", "meet-celery-beat"):
             container = deployments[name]["spec"]["template"]["spec"]["containers"][0]
             env = {item["name"]: item for item in container["env"]}
             for flag in flags:
                 self.assertEqual("True", env[flag]["value"], f"{name}:{flag}")
-            # The dark flag must still be *wired*, just False.
-            for flag in dark:
-                self.assertEqual("False", env[flag]["value"], f"{name}:{flag}")
             self.assertEqual("qwen3.8-flash", env["MEETING_SUMMARY_MODEL"]["value"])
             self.assertEqual("meet-ai-credentials", env["DASHSCOPE_API_KEY"]["valueFrom"]["secretKeyRef"]["name"])
             self.assertEqual("text-embedding-v4", env["QWEN_EMBEDDING_MODEL"]["value"])
@@ -266,7 +259,7 @@ class MeetingAIReleaseTest(unittest.TestCase):
     # 40 位 fixture commit: 前 9 位是 123456789.
     FULL_SHA = "1234567890abcdef1234567890abcdef12345678"
 
-    def release(self, module, denied=False, tag="new-tag"):
+    def release(self, module, denied=False, tag="new-tag", ci_check=False, ci_denied=False, dry_run=True, old_backend=False):
         bash = shutil.which("bash")
         git = shutil.which("git")
         if os.name == "nt" and git:
@@ -286,10 +279,12 @@ class MeetingAIReleaseTest(unittest.TestCase):
                 # `--short` 故意只回 8 位 —— 复现发布机与构建机缩写位数不一致的事故.
                 "git": f"""#!/usr/bin/env bash
 case "$*" in
+  *cat-file*) [[ "$FIXTURE_OLD_BACKEND" != 1 ]]; exit $? ;;
   *rev-parse*--is-inside-work-tree*) echo true ;;
   *branch*--show-current*) echo aliyun-dev ;;
   *rev-parse*--short*) echo 12345678 ;;
   *rev-parse*HEAD*) echo {self.FULL_SHA} ;;
+  *rev-parse*--verify*) echo aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;;
 esac
 # 会打印 commit 缩写的命令必须固定位数, 否则日志里同一个 commit 会同时出现
 # 8 位和 9 位两个字符串.
@@ -310,6 +305,11 @@ esac
                 "helm": """#!/usr/bin/env bash
 printf '%s\\n' "$@" > "$FIXTURE_LOG"
 """,
+                "gh": "#!/usr/bin/env bash\nexit 0\n",
+                "python3": """#!/usr/bin/env bash
+echo "CI-CHECK: $*"
+[[ "$FIXTURE_CI_DENIED" != 1 ]]
+""",
             }
             for name, source in scripts.items():
                 path = root / name
@@ -319,9 +319,12 @@ printf '%s\\n' "$@" > "$FIXTURE_LOG"
             values.write_text("{}", encoding="utf-8")
             log = root / "helm.log"
             env = dict(os.environ, VALUES_FILE=posix(values), SECRETS_FILE=posix(values),
-                       FIXTURE_LOG=posix(log), FIXTURE_DENIED="1" if denied else "0")
+                       FIXTURE_LOG=posix(log), FIXTURE_DENIED="1" if denied else "0",
+                       FIXTURE_CI_DENIED="1" if ci_denied else "0",
+                       FIXTURE_OLD_BACKEND="1" if old_backend else "0")
             tag_arg = f"--tag {tag} " if tag else ""
-            command = f'export PATH="{posix(root)}:$PATH"; exec bash "{posix(ROOT / "deploy/aliyun/release-meet.sh")}" {tag_arg}--skip-git-pull --dry-run {module}'
+            options = ("--dry-run " if dry_run else "--skip-image-check ") + ("--ci-check " if ci_check else "")
+            command = f'export PATH="{posix(root)}:$PATH"; exec bash "{posix(ROOT / "deploy/aliyun/release-meet.sh")}" {tag_arg}--skip-git-pull {options}{module}'
             result = subprocess.run([bash, "-c", command], env=env, capture_output=True, text=True)
             return result, log.read_text(encoding="utf-8") if log.exists() else ""
 
@@ -332,6 +335,32 @@ printf '%s\\n' "$@" > "$FIXTURE_LOG"
             self.assertIn(f"meetingAIWorkers.workers.{key}.imageTag=new-tag", log)
         self.assertNotIn(".enabled=", log)
         self.assertIn("--dry-run", log)
+
+    def test_real_release_requires_ci_and_denial_prevents_helm(self):
+        result, log = self.release("backend", tag="aaaaaaaaa", ci_denied=True, dry_run=False)
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual("", log)
+        self.assertIn("required release CI did not pass", result.stderr)
+        self.assertIn(f"--commit {self.FULL_SHA} --commit {'a' * 40}", result.stdout)
+
+    def test_dry_run_can_verify_both_chart_and_rollback_image_commits(self):
+        result, log = self.release("backend", tag="aaaaaaaaa", ci_check=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(f"--commit {self.FULL_SHA} --commit {'a' * 40}", result.stdout)
+        self.assertIn("--dry-run", log)
+        self.assertIn("backend.image.tag=aaaaaaaaa", log)
+
+    def test_ci_rejects_non_commit_tags_before_helm(self):
+        result, log = self.release("backend", tag="arbitrary-label", ci_check=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual("", log)
+        self.assertNotIn("CI-CHECK:", result.stdout)
+
+    def test_partial_release_cannot_start_ai_pool_with_old_backend(self):
+        result, log = self.release("frontend", tag="aaaaaaaaa", ci_check=True, old_backend=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual("", log)
+        self.assertIn("effective backend predates the AI pool", result.stderr)
 
     def test_partial_release_preserves_only_existing_optional_worker(self):
         result, log = self.release("frontend")

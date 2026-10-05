@@ -46,6 +46,7 @@ SKIP_GIT_PULL=0
 IMAGE_TAG_LEN="${IMAGE_TAG_LEN:-9}"
 IMAGE_CHECK=1
 IMAGE_CHECK_EXPLICIT=0
+CI_CHECK_EXPLICIT=0
 # 预检的 curl 上限: 预检只是护栏, 网络卡住不该拖住发布.
 CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-5}"
 CURL_MAX_TIME="${CURL_MAX_TIME:-15}"
@@ -90,6 +91,7 @@ Options:
                        IMAGE_TAG_LEN defaults to 9)
   --skip-image-check   Do not verify the tag exists in the container registry
   --image-check        Verify the tag even with --dry-run (skipped by default)
+  --ci-check           Verify CI even with --dry-run (always required for release)
   --dry-run            Render the Helm upgrade without changing the cluster
   --skip-git-pull      Do not pull the configured branch before releasing
   -h, --help           Show this help
@@ -251,6 +253,10 @@ while (($#)); do
       IMAGE_CHECK_EXPLICIT=1
       shift
       ;;
+    --ci-check)
+      CI_CHECK_EXPLICIT=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -330,6 +336,19 @@ else
 fi
 echo "==> Modules: ${SELECTED[*]}"
 
+# Fail closed before any Helm operation. The chart checkout and image tag may
+# refer to different commits during rollback; both need successful CI evidence.
+if ((DRY_RUN == 0 || CI_CHECK_EXPLICIT)); then
+  require_command python3
+  require_command gh
+  [[ "$TAG" =~ ^[0-9a-fA-F]{7,40}$ ]] || die "CI requires a commit-SHA image tag"
+  git diff --quiet HEAD -- || die "tracked source changes must be committed before release"
+  image_commit=$(git rev-parse --verify "${TAG}^{commit}") || die "cannot resolve image tag to a unique local commit"
+  python3 deploy/aliyun/check-release-ci.py --commit "$head_full" --commit "$image_commit" || die "required release CI did not pass"
+else
+  echo "==> Dry run: skipping CI lookup (--ci-check forces it)"
+fi
+
 if ((IMAGE_CHECK)); then
   # --dry-run 只渲染 manifest (chart 测试也用假 tag 跑它), 默认不联网校验;
   # 想只做校验不发布, 用 --dry-run --image-check.
@@ -349,6 +368,13 @@ fi
 # live Deployments for all unselected families instead of falling back to the
 # tag embedded in values.meet.yaml.
 backend_tag=$(module_tag backend meet-backend)
+# This chart enables the HTTP AI pool in production. A frontend-only first
+# rollout (or an old backend rollback) must not start it with a pre-pool image.
+if ((DRY_RUN == 0 || CI_CHECK_EXPLICIT)); then
+  backend_commit=$(git rev-parse --verify "${backend_tag}^{commit}") || die "cannot resolve effective backend commit"
+  git cat-file -e "${backend_commit}:src/backend/meet/ai_wsgi.py" 2>/dev/null || die "effective backend predates the AI pool; include backend from this release (old rollbacks need the matching old chart)"
+  python3 deploy/aliyun/check-release-ci.py --commit "$backend_commit" || die "effective backend CI did not pass"
+fi
 frontend_tag=$(module_tag frontend meet-frontend)
 summary_tag=$(module_tag summary meet-summary)
 transcribe_tag=$(module_tag summary meet-celery-transcribe-default)
@@ -363,6 +389,7 @@ helm_args=(
   -f "$VALUES_FILE"
   -f "$SECRETS_FILE"
   --set-string "image.tag=$backend_tag"
+  --set-string "backend.image.tag=$backend_tag"
   --set-string "frontend.image.tag=$frontend_tag"
   --set-string "summary.image.tag=$summary_tag"
   --set-string "celeryTranscribe.image.tag=$transcribe_tag"
@@ -404,6 +431,10 @@ helm "${helm_args[@]}"
 
 if contains_module backend; then
   wait_for_deployment "$RELEASE-backend"
+  ai_backend=$(kubectl -n "$NAMESPACE" get deployment "$RELEASE-backend-ai" --ignore-not-found -o name)
+  if [[ -n "$ai_backend" ]]; then
+    wait_for_deployment "$RELEASE-backend-ai"
+  fi
   wait_for_deployment "$RELEASE-celery-backend"
   work_worker=$(kubectl -n "$NAMESPACE" get deployment "$RELEASE-celery-work" --ignore-not-found -o name)
   if [[ -n "$work_worker" ]]; then

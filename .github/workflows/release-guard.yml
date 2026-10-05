@@ -2,17 +2,14 @@ name: Release guard
 
 # 发布分支的护栏。
 #
-# deploy/aliyun/release-meet.sh 从 aliyun-dev 取 commit、打 tag 再构建镜像,但
-# meet.yml 的 push 触发**只写了 main** —— 也就是说发布路径在 CI 里是完全盲的。
-# 一批语言包就是带着 JSON 语法错误一路走到镜像构建才被发现,而当时的单元测试
-# 全绿:vitest 不会 import 你没用到的那个语言包,`vite build` 会。
-#
-# 这里**刻意只跑「这份 commit 能不能产出部署产物」**,而不是把整条 meet.yml 挂到
-# 发布分支上:那条流水线里有一批存量失败(lint-changelog 有 15 条超长行、lint-back
-# 的 ruff/pylint 也非全绿),推上去第一天就是一片红,只会让人学会忽略 CI。
-# 等那些存量清掉,再把 aliyun-dev 加进 meet.yml 的 push.branches 也不迟。
+# meet.yml 的完整 push 流水线仅覆盖 main。发布分支在这里检查前端产物、
+# AI 资料权限、流式资源释放、迁移一致性和真实 Celery 注册。
+# 模型/对象存储调用使用测试替身；数据库和 Redis 使用隔离的服务容器。
 on:
   push:
+    branches:
+      - aliyun-dev
+  pull_request:
     branches:
       - aliyun-dev
   workflow_dispatch:
@@ -21,6 +18,99 @@ permissions:
   contents: read
 
 jobs:
+  backend-boundaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: meet
+          POSTGRES_USER: dinum
+          POSTGRES_PASSWORD: pass
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DJANGO_SETTINGS_MODULE: meet.settings
+      DJANGO_CONFIGURATION: Test
+      DJANGO_SECRET_KEY: isolated-release-guard-test-key
+      OIDC_OP_JWKS_ENDPOINT: http://localhost/unused-test-jwks
+      DATABASE_URL: postgresql://dinum:pass@localhost:5432/meet
+      REDIS_URL: redis://localhost:6379/14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: Install locked dependencies
+        run: uv sync --locked --all-extras
+      - name: Check migration consistency
+        run: uv run python manage.py makemigrations --check --dry-run
+      - name: Check AI access, stream cleanup and task registration
+        run: >-
+          uv run pytest
+          core/tests/services/test_personal_ai.py
+          core/tests/services/test_personal_ai_access.py
+          core/tests/services/test_personal_ai_stream.py
+          core/tests/test_api_users_ask_personal_ai.py
+          core/tests/test_api_users_ask_personal_ai_stream.py
+          core/tests/services/test_room_ai_access.py
+          core/tests/services/test_meeting_collaboration.py
+          core/tests/services/test_unified_meeting_search.py
+          core/tests/test_api_search_ask.py
+          core/tests/services/test_hybrid_retrieval.py
+          core/tests/services/test_llm_client_stream.py
+          core/tests/services/test_llm_client_completion.py
+          core/tests/test_tasks_registration.py
+          core/tests/test_task_registry.py
+          core/tests/test_worker_registration.py
+          core/tests/test_ai_admission.py
+          core/tests/services/test_legacy_summary_runs.py
+          core/tests/services/test_online_meeting_notes.py
+          core/tests/tasks/test_summary.py
+          core/tests/services/test_embed_task.py
+          core/tests/services/test_meeting_summary_chapters.py
+          core/tests/services/test_meeting_summary_edit.py
+          core/tests/services/test_meeting_summary_doc_push.py
+          core/tests/services/test_meeting_summary_im_push.py
+
+  deployment-boundaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install Helm
+        uses: azure/setup-helm@v4.3.1
+        with:
+          version: v3.17.3
+      - name: Install render test dependency
+        run: python -m pip install PyYAML==6.0.2
+      - name: Check manifests and release gates without cluster access
+        run: >-
+          python -m unittest discover -s deploy/aliyun -p 'test_*ci.py' -v
+      - name: Check AI workload chart and release script
+        run: python -m unittest discover -s deploy/aliyun -p test_meeting_ai_chart.py -v
+      - name: Check HTTP AI pool isolation
+        run: python -m unittest discover -s deploy/aliyun -p test_ai_pool.py -v
+
   frontend-artifact:
     runs-on: ubuntu-latest
     defaults:

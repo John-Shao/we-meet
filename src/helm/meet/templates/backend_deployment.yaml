@@ -1,26 +1,39 @@
-{{- $envVars := include "meet.common.env" (list . .Values.backend) -}}
-{{- $fullName := include "meet.backend.fullname" . -}}
-{{- $component := "backend" -}}
+{{- $pools := list (dict "component" "backend" "name" (include "meet.backend.fullname" .) "config" .Values.backend) -}}
+{{- if .Values.aiBackend.enabled -}}
+{{- $ai := mergeOverwrite (deepCopy .Values.backend) (deepCopy .Values.aiBackend) -}}
+{{/* Both pools are one release artifact. Do not allow a stale separate image tag. */}}
+{{- $_ := set $ai "image" (.Values.backend.image | default dict) -}}
+{{/* AI HTTP does not use the backend PVCs. Explicit extraVolumes still inherit. */}}
+{{- $_ := set $ai "persistence" dict -}}
+{{- $pools = append $pools (dict "component" "backend-ai" "name" (printf "%s-ai" (include "meet.backend.fullname" .)) "config" $ai) -}}
+{{- end -}}
+{{- range $pool := $pools }}
+{{- with $ }}
+{{- $backend := $pool.config -}}
+{{- $envVars := include "meet.common.env" (list . $backend) -}}
+{{- $fullName := $pool.name -}}
+{{- $component := $pool.component }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ $fullName }}
   annotations:
-     {{- with .Values.backend.dpAnnotations }}
+     {{- with $backend.dpAnnotations }}
      {{- toYaml . | nindent 4 }}
      {{- end }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "meet.common.labels" (list . $component) | nindent 4 }}
 spec:
-  replicas: {{ .Values.backend.replicas }}
+  replicas: {{ $backend.replicas }}
   selector:
     matchLabels:
       {{- include "meet.common.selectorLabels" (list . $component) | nindent 6 }}
   template:
     metadata:
       annotations:
-        {{- with .Values.backend.podAnnotations }}
+        {{- with $backend.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
@@ -30,23 +43,23 @@ spec:
       imagePullSecrets:
         - name: {{ include "meet.secret.dockerconfigjson.name" (dict "fullname" (include "meet.fullname" .) "imageCredentials" $.Values.image.credentials) }}
       {{- end }}
-      shareProcessNamespace: {{ .Values.backend.shareProcessNamespace }}
-      {{- with .Values.backend.podSecurityContext }}
+      shareProcessNamespace: {{ $backend.shareProcessNamespace }}
+      {{- with $backend.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        {{- with .Values.backend.sidecars }}
+        {{- with $backend.sidecars }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
         - name: {{ .Chart.Name }}
-          image: "{{ (.Values.backend.image | default dict).repository | default .Values.image.repository }}:{{ (.Values.backend.image | default dict).tag | default .Values.image.tag }}"
-          imagePullPolicy: {{ (.Values.backend.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
-          {{- with .Values.backend.command }}
+          image: "{{ ($backend.image | default dict).repository | default .Values.image.repository }}:{{ ($backend.image | default dict).tag | default .Values.image.tag }}"
+          imagePullPolicy: {{ ($backend.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
+          {{- with $backend.command }}
           command:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.backend.args }}
+          {{- with $backend.args }}
           args:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -54,27 +67,27 @@ spec:
             {{- if $envVars }}
             {{- $envVars | indent 12 }}
             {{- end }}
-          {{- with .Values.backend.securityContext }}
+          {{- with $backend.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           ports:
             - name: http
-              containerPort: {{ .Values.backend.service.targetPort }}
+              containerPort: {{ $backend.service.targetPort }}
               protocol: TCP
-          {{- if .Values.backend.probes.liveness }}
+          {{- if $backend.probes.liveness }}
           livenessProbe:
-            {{- include "meet.probes.abstract" (merge .Values.backend.probes.liveness (dict "targetPort" .Values.backend.service.targetPort )) | nindent 12 }}
+            {{- include "meet.probes.abstract" (merge $backend.probes.liveness (dict "targetPort" $backend.service.targetPort )) | nindent 12 }}
           {{- end }}
-          {{- if .Values.backend.probes.readiness }}
+          {{- if $backend.probes.readiness }}
           readinessProbe:
-            {{- include "meet.probes.abstract" (merge .Values.backend.probes.readiness (dict "targetPort" .Values.backend.service.targetPort )) | nindent 12 }}
+            {{- include "meet.probes.abstract" (merge $backend.probes.readiness (dict "targetPort" $backend.service.targetPort )) | nindent 12 }}
           {{- end }}
-          {{- if .Values.backend.probes.startup }}
+          {{- if $backend.probes.startup }}
           startupProbe:
-            {{- include "meet.probes.abstract" (merge .Values.backend.probes.startup (dict "targetPort" .Values.backend.service.targetPort )) | nindent 12 }}
+            {{- include "meet.probes.abstract" (merge $backend.probes.startup (dict "targetPort" $backend.service.targetPort )) | nindent 12 }}
           {{- end }}
-          {{- with .Values.backend.resources }}
+          {{- with $backend.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -84,25 +97,25 @@ spec:
               mountPath: {{ $value.path }}
               subPath: content
             {{- end }}
-            {{- range $name, $volume := .Values.backend.persistence }}
+            {{- range $name, $volume := $backend.persistence }}
             - name: "{{ $name }}"
               mountPath: "{{ $volume.mountPath }}"
             {{- end }}
-            {{- range .Values.backend.extraVolumeMounts }}
+            {{- range $backend.extraVolumeMounts }}
             - name: {{ .name }}
               mountPath: {{ .mountPath }}
               subPath: {{ .subPath | default "" }}
               readOnly: {{ .readOnly }}
             {{- end }}
-      {{- with .Values.backend.nodeSelector }}
+      {{- with $backend.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.backend.affinity }}
+      {{- with $backend.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.backend.tolerations }}
+      {{- with $backend.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -112,7 +125,7 @@ spec:
           configMap:
             name: "{{ include "meet.fullname" $ }}-files-{{ $index }}"
         {{- end }}
-        {{- range $name, $volume := .Values.backend.persistence }}
+        {{- range $name, $volume := $backend.persistence }}
         - name: "{{ $name }}"
           {{- if eq $volume.type "emptyDir" }}
           emptyDir: {}
@@ -121,7 +134,7 @@ spec:
             claimName: "{{ $fullName }}-{{ $name }}"
           {{- end }}
         {{- end }}
-        {{- range .Values.backend.extraVolumes }}
+        {{- range $backend.extraVolumes }}
         - name: {{ .name }}
           {{- if .existingClaim }}
           persistentVolumeClaim:
@@ -143,7 +156,7 @@ spec:
           {{- end }}
         {{- end }}
 ---
-{{ if .Values.backend.pdb.enabled }}
+{{ if $backend.pdb.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -155,3 +168,6 @@ spec:
     matchLabels:
       {{- include "meet.common.selectorLabels" (list . $component) | nindent 6 }}
 {{ end }}
+
+{{- end }}
+{{- end }}

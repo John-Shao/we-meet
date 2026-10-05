@@ -1,104 +1,37 @@
-"""Generate session-scoped meeting summaries after LiveKit room completion."""
+"""Session-scoped legacy summaries, claimed without holding provider-time locks."""
 
 import logging
 
-from django.db import transaction
-
-from core.models import MeetingRecord, MeetingSession, Summary, Transcript
+from core.models import MeetingSession, Summary
 from core.services.meeting_summary import MeetingSummaryService
 from core.tasks._task import task
 from core.tasks.embeddings import embed_meeting_transcripts
 
 logger = logging.getLogger(__name__)
 
-_HUMAN_PARTICIPANT_KINDS = ("standard", "sip")
-
 
 @task
-def generate_meeting_summary(session_id, force=False):  # noqa: PLR0911 -- legacy and versioned routing have distinct exits
-    """Generate artifacts for one meeting session.
-
-    Automatic calls are idempotent and skip sessions without a transcript from
-    a known human participant. Manual regeneration sets ``force=True`` and lets
-    the service persist a failed outcome when no transcript is available.
-    """
+def generate_meeting_summary(session_id, force=False):
+    """Automatic duplicates are free; explicit regeneration can retry a failed run."""
     try:
-        with transaction.atomic():
-            session = (
-                MeetingSession.objects.select_for_update()
-                .select_related("room")
-                .get(id=session_id)
-            )
-
-            if not force:
-                # Once a record has explicit versioned-summary intent, disabling
-                # its automation must not silently fall back to legacy generation.
-                # Hold the record lock through any legacy call to serialize an
-                # opt-in racing the existing session-locked legacy worker.
-                record = MeetingRecord.objects.select_for_update().filter(meeting_session=session).first()
-                if record and (
-                    hasattr(record, "summary_automation")
-                    or record.online_captures.exists()
-                    or record.processing_jobs.filter(kind="summary", input_snapshot__isnull=False).exists()
-                ):
-                    return None
-                if session.status != MeetingSession.Status.ENDED:
-                    logger.info(
-                        "Auto summary skipped for active session %s (room %s)",
-                        session.id,
-                        session.room_id,
-                    )
-                    return None
-                existing = Summary.objects.filter(
-                    session=session,
-                    status=Summary.Status.SUCCESS,
-                ).first()
-                if existing is not None:
-                    logger.info(
-                        "Auto summary already complete for session %s (room %s)",
-                        session.id,
-                        session.room_id,
-                    )
-                    return str(existing.id)
-
-                human_identities = session.participations.filter(
-                    kind__in=_HUMAN_PARTICIPANT_KINDS
-                ).values("identity")
-                has_human_transcript = Transcript.objects.filter(
-                    session=session,
-                    speaker_identity__in=human_identities,
-                ).exists()
-                if not has_human_transcript:
-                    logger.info(
-                        "Auto summary skipped for session %s (room %s): "
-                        "no human transcript",
-                        session.id,
-                        session.room_id,
-                    )
-                    return None
-
-            summary = MeetingSummaryService().generate(session)
+        session = MeetingSession.objects.select_related("room").get(pk=session_id)
+        service = MeetingSummaryService()
+        summary = service.generate(session, automatic=not force)
     except MeetingSession.DoesNotExist:
-        logger.warning(
-            "Skip auto summary: session %s does not exist (deleted?)", session_id
-        )
+        logger.warning("Skip summary for deleted session %s", session_id)
         return None
     except Exception:
-        logger.exception("Auto summary failed for session %s", session_id)
+        logger.exception("Summary failed for session %s", session_id)
         return None
-
-    logger.info(
-        "Auto summary for session %s (room %s): status=%s transcripts=%d",
-        session.id,
-        session.room_id,
-        summary.status,
-        summary.transcripts_count,
-    )
-
-    if summary.status == Summary.Status.SUCCESS and summary.transcripts_count > 0:
+    if summary is None:
+        return None
+    if (
+        service.generated
+        and summary.status == Summary.Status.SUCCESS
+        and summary.transcripts_count > 0
+    ):
         try:
             embed_meeting_transcripts.apply_async(args=[str(session.id)])
         except Exception:
             logger.exception("Failed to schedule embedding for session %s", session.id)
-
     return str(summary.id)

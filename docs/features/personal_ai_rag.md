@@ -1,5 +1,17 @@
 # Sprint 2.4 — 跨会议 AI（"我所有会议"的 RAG 问答）
 
+## 当前实现更新（2026-10-06）
+
+下文保留初始方案；当前个人 AI 接口的访问与执行规则以本节为准：
+
+- 会议已有 `MeetingRecord` 时，字幕块只能通过 `visible_records(user, ability="read_transcript")` 进入模型上下文。记录级撤权、组织退出、账号停用和回收站状态即时生效；共享记录不要求接收者另有房间成员身份。
+- 仅未关联记录的旧字幕块保留房间授权规则。字幕块、会话和纪要必须归属一致；缺失会话却引用会话级纪要的块不作为旧数据放行。
+- 调用模型前、同步回答返回前，以及流式读取下一段前后重新检查所选来源。撤权后不再输出后续内容；无法追回此前已合法输出或已发送给供应商的数据。
+- 流式响应结束、异常、撤权或客户端断开时，关闭应用迭代器与供应商连接。
+- `PERSONAL_AI_MAX_CHUNKS` 默认 `2000`，在 SQL 中按字幕时间与 ID 倒序截取最近的可读块，再加载文本和向量。该上限限制应用内存，不保证检索覆盖所有历史会议，也不是数据库索引性能优化。
+- 发布分支的 `backend-boundaries` 检查权限回归、流式关闭、迁移一致性、真实 Celery 注册、纪要短事务及 AI 容量释放。`deployment-boundaries` 检查 Helm 路由和发布门禁；真实发布必须通过精确提交的三项 CI，详见[发布 Runbook](../installation/aliyun-release-runbook-cn.md)。
+- 生产 chart 已配置独立 `meet-backend-ai` HTTP 池，个人/会议/全局问答、资料提问和助手纪要按路由分流。默认每 Pod 两个 gthread 进程、每进程四个线程，最多同时接纳两个 AI 请求；SSE 结束或关闭后释放容量，超限返回 `503` 与 `Retry-After: 5`。认证与资料权限仍由原 Django 接口执行。此处描述代码配置，不代表已完成生产发布或负载验收。
+
 > 本文档是 Sprint 2.4 的设计与落地方案。前置：
 > - Sprint 2.0 [transcription.md](transcription.md) — 字幕落库
 > - Sprint 2.2 [summarization.md](summarization.md) — 纪要 / 行动项

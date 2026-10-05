@@ -12,6 +12,30 @@ from core.factories import UserFactory
 pytestmark = pytest.mark.django_db
 
 
+def test_response_disconnect_closes_upstream_iterator():
+    client = APIClient()
+    client.force_login(UserFactory())
+    closed = []
+
+    def events():
+        try:
+            yield {"type": "delta", "text": "allowed"}
+            yield {"type": "done"}
+        finally:
+            closed.append(True)
+
+    with mock.patch(
+        "core.services.personal_ai.PersonalAIService.ask_stream",
+        return_value=events(),
+    ):
+        response = client.post(
+            "/api/v1.0/users/me/ai/ask-stream/", {"question": "budget"}, format="json"
+        )
+    next(iter(response.streaming_content))
+    response.close()
+    assert closed == [True]
+
+
 def _parse_sse(body: bytes) -> list[dict]:
     out: list[dict] = []
     for frame in body.decode("utf-8").split("\n\n"):

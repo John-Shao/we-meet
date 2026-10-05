@@ -117,7 +117,7 @@ def test_versioned_intent_excludes_legacy_automatic_generation_even_when_rollout
         )
     settings.MEETING_VERSIONED_SUMMARY_ENABLED = False
     settings.MEETING_RECORDS_ENABLED = False
-    with patch("core.tasks.summary.MeetingSummaryService") as legacy:
+    with patch("core.services.meeting_summary.MeetingSummaryService._client") as legacy:
         assert generate_meeting_summary(str(session.pk)) is None
         legacy.assert_not_called()
 
@@ -133,4 +133,4 @@ def test_untouched_legacy_sessions_keep_the_existing_automatic_pipeline():
     with patch("core.tasks.summary.MeetingSummaryService") as legacy:
         legacy.return_value.generate.return_value = summary
         assert generate_meeting_summary(str(session.pk)) == str(summary.pk)
-        legacy.return_value.generate.assert_called_once_with(session)
+        legacy.return_value.generate.assert_called_once_with(session, automatic=True)

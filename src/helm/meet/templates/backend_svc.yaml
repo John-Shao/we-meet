@@ -1,6 +1,19 @@
-{{- $envVars := include "meet.common.env" (list . .Values.backend) -}}
-{{- $fullName := include "meet.backend.fullname" . -}}
-{{- $component := "backend" -}}
+{{- $pools := list (dict "component" "backend" "name" (include "meet.backend.fullname" .) "config" .Values.backend) -}}
+{{- if .Values.aiBackend.enabled -}}
+{{- $ai := mergeOverwrite (deepCopy .Values.backend) (deepCopy .Values.aiBackend) -}}
+{{/* Both pools are one release artifact. Do not allow a stale separate image tag. */}}
+{{- $_ := set $ai "image" (.Values.backend.image | default dict) -}}
+{{/* AI HTTP does not use the backend PVCs. Explicit extraVolumes still inherit. */}}
+{{- $_ := set $ai "persistence" dict -}}
+{{- $pools = append $pools (dict "component" "backend-ai" "name" (printf "%s-ai" (include "meet.backend.fullname" .)) "config" $ai) -}}
+{{- end -}}
+{{- range $pool := $pools }}
+{{- with $ }}
+{{- $backend := $pool.config -}}
+{{- $envVars := include "meet.common.env" (list . $backend) -}}
+{{- $fullName := $pool.name -}}
+{{- $component := $pool.component }}
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -9,13 +22,16 @@ metadata:
   labels:
     {{- include "meet.common.labels" (list . $component) | nindent 4 }}
   annotations:
-    {{- toYaml $.Values.backend.service.annotations | nindent 4 }}
+    {{- toYaml $backend.service.annotations | nindent 4 }}
 spec:
-  type: {{ .Values.backend.service.type }}
+  type: {{ $backend.service.type }}
   ports:
-    - port: {{ .Values.backend.service.port }}
-      targetPort: {{ .Values.backend.service.targetPort }}
+    - port: {{ $backend.service.port }}
+      targetPort: {{ $backend.service.targetPort }}
       protocol: TCP
       name: http
   selector:
     {{- include "meet.common.selectorLabels" (list . $component) | nindent 4 }}
+
+{{- end }}
+{{- end }}

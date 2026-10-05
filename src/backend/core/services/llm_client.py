@@ -235,11 +235,16 @@ class LLMClient:
         if self._model.startswith("qwen3"):
             kwargs["extra_body"] = {"enable_thinking": False}
         resp = self._client.chat.completions.create(**kwargs)
-        for event in resp:
-            choices = getattr(event, "choices", None) or []
-            if not choices:
-                continue
-            delta = getattr(choices[0], "delta", None)
-            text = getattr(delta, "content", None) if delta is not None else None
-            if text:
-                yield text
+        try:
+            for event in resp:
+                choices = getattr(event, "choices", None) or []
+                if not choices:
+                    continue
+                delta = getattr(choices[0], "delta", None)
+                text = getattr(delta, "content", None) if delta is not None else None
+                if text:
+                    yield text
+        finally:
+            close = getattr(resp, "close", None)
+            if close:
+                close()

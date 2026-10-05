@@ -24,6 +24,10 @@ image:
     registry: jusi-cn-guangzhou.cr.volces.com
     # username / password come from values.secrets.yaml
 
+# Isolate long-running HTTP model calls from ordinary API workers.
+aiBackend:
+  enabled: true
+
 backend:
   replicas: 1
 

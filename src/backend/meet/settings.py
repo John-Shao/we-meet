@@ -1268,6 +1268,8 @@ class Base(Configuration):
     RAG_CANDIDATE_N = values.IntegerValue(
         50, environ_name="RAG_CANDIDATE_N", environ_prefix=None
     )
+    # Bound legacy in-memory retrieval before loading text and JSON embeddings.
+    PERSONAL_AI_MAX_CHUNKS = values.PositiveIntegerValue(2000, environ_prefix=None)
     RAG_QUERY_EMBED_CACHE_TTL = values.IntegerValue(
         60 * 60 * 24 * 7,
         environ_name="RAG_QUERY_EMBED_CACHE_TTL",

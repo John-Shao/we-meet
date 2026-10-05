@@ -1,13 +1,12 @@
 """Cross-meeting RAG QA — "Personal AI" (Sprint 2.4).
 
-Reads ``TranscriptChunk`` rows across every room the requesting user
-has access to, ranks by cosine similarity against the embedded
+Reads a bounded set of authorized ``TranscriptChunk`` rows, ranks against the embedded
 question, hands the top-K to Qwen with a citation-friendly system
 prompt.
 
-Privacy: the *only* place we enforce the user-visibility boundary is
-:py:meth:`_user_room_ids`. Every test must exercise this — without the
-filter, one user's question could surface another user's transcripts.
+Privacy: record-scoped chunks use the canonical live record permissions.
+Only unmigrated chunks retain room permissions. Selected sources are checked
+again before calling the provider and before releasing any generated output.
 
 Path D (numpy in-memory cosine). See
 ``docs/features/personal_ai_rag.md`` §3 / §11.1 for why we're not using
@@ -20,8 +19,10 @@ import logging
 from typing import Iterator, Optional
 
 from django.conf import settings
-from django.db.models import Q
 from django.contrib.auth import get_user_model
+from django.db.models import Exists, F, Q
+
+from rest_framework.exceptions import PermissionDenied
 
 from core import models
 from core.models import Room, Summary, TranscriptChunk
@@ -35,13 +36,14 @@ from core.services.hybrid_retrieval import (
     vector_rank,
 )
 from core.services.llm_client import LLMClient, LLMUnavailable, sanitise_history
+from core.services.meeting_records import visible_records
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
 _SYSTEM_PROMPT_TEMPLATE = (
-    "你是一位会议助手，可访问下面这位用户**自己参与过**的多场会议的字幕"
+    "你是一位会议助手，可访问下面这位用户**有权读取**的多场会议的字幕"
     "片段（已按问题相关度排好序）。\n\n"
     "==== 字幕片段开始 ====\n"
     "{context}\n"
@@ -84,6 +86,7 @@ class PersonalAIService:
         if prep["empty_response"] is not None:
             return prep["empty_response"]
 
+        self._check_sources(user, prep)
         answer = prep["llm"].chat(
             usage_sink=ai_usage.make_sink(
                 user=user,
@@ -94,6 +97,7 @@ class PersonalAIService:
             temperature=0.3,
             max_tokens=1200,
         )
+        self._check_sources(user, prep)
         return {
             "answer": answer,
             "chunks_used": prep["chunks_used"],
@@ -135,6 +139,7 @@ class PersonalAIService:
             yield {"type": "done"}
             return
 
+        self._check_sources(user, prep)
         yield {
             "type": "meta",
             "rooms_referenced": prep["rooms_referenced"],
@@ -147,10 +152,24 @@ class PersonalAIService:
             *sanitise_history(history),
             {"role": "user", "content": prep["question"]},
         ]
-        for delta in llm.chat_stream(
-            messages=messages, temperature=0.3, max_tokens=1200
-        ):
-            yield {"type": "delta", "text": delta}
+        # The consumer may pause after meta; reauthorize before opening the provider.
+        self._check_sources(user, prep)
+        stream = llm.chat_stream(messages=messages, temperature=0.3, max_tokens=1200)
+        try:
+            while True:
+                self._check_sources(user, prep)
+                try:
+                    delta = next(stream)
+                except StopIteration:
+                    break
+                # Permissions may change while the provider blocks on its next token.
+                self._check_sources(user, prep)
+                yield {"type": "delta", "text": delta}
+        finally:
+            close = getattr(stream, "close", None)
+            if close:
+                close()
+        self._check_sources(user, prep)
         yield {"type": "done"}
 
     # ------------------------------------------------------------------
@@ -175,16 +194,10 @@ class PersonalAIService:
         llm_client = self._llm_client()
         question = question.strip()
 
-        room_ids = self._user_room_ids(user)
-        if not room_ids:
-            return self._empty_prep(
-                llm_client,
-                question,
-                answer="这些会议里没有相关记录（你目前还没参加过任何已生成纪要的会议）。",
-            )
-
+        limit = settings.PERSONAL_AI_MAX_CHUNKS
         chunks = list(
-            TranscriptChunk.objects.filter(room_id__in=room_ids)
+            self._visible_chunks(user)
+            .order_by("-started_at", "-id")
             .only(
                 "id",
                 "room_id",
@@ -197,7 +210,7 @@ class PersonalAIService:
                 "ended_at",
                 "embedding",
                 "embedding_model",
-            )
+            )[:limit]
         )
         if not chunks:
             return self._empty_prep(
@@ -206,7 +219,11 @@ class PersonalAIService:
                 answer="这些会议里没有相关记录（暂时还没有完成索引的会议）。",
             )
 
-        q_vec = cached_embed(embed_client, question) if any(c.embedding_model == embed_client.model for c in chunks) else None
+        q_vec = (
+            cached_embed(embed_client, question)
+            if any(c.embedding_model == embed_client.model for c in chunks)
+            else None
+        )
         top = self._retrieve(q_vec, question, chunks)
         if not top:
             return self._empty_prep(
@@ -214,8 +231,7 @@ class PersonalAIService:
             )
 
         rooms_map = {
-            r.id: r
-            for r in Room.objects.filter(id__in={c.room_id for c, _ in top})
+            r.id: r for r in Room.objects.filter(id__in={c.room_id for c, _ in top})
         }
         context = self._format_context(top, rooms_map)
         rooms_referenced = [
@@ -238,6 +254,7 @@ class PersonalAIService:
             "question": question,
             "system": _SYSTEM_PROMPT_TEMPLATE.format(context=context),
             "chunks_used": len(top),
+            "source_ids": [chunk.pk for chunk, _score in top],
             "rooms_referenced": rooms_referenced,
             "empty_response": None,
         }
@@ -272,9 +289,43 @@ class PersonalAIService:
             self._llm = LLMClient.from_settings()
         return self._llm
 
+    @classmethod
+    def _visible_chunks(cls, user):
+        """Never use a room grant to bypass a migrated record's access policy."""
+        rows = TranscriptChunk.objects.all()
+        if not user or not user.is_authenticated:
+            return rows.none()
+        # Reject mismatched provenance, including a NULL chunk session pointing
+        # to a session-scoped summary; it must not masquerade as legacy material.
+        rows = rows.filter(
+            Exists(User.objects.filter(pk=user.pk, is_active=True)),
+            Q(session__isnull=True) | Q(session__room_id=F("room_id")),
+            Q(summary__isnull=True)
+            | (
+                Q(summary__room_id=F("room_id"))
+                & (
+                    Q(summary__session_id=F("session_id"))
+                    | Q(summary__session__isnull=True, session__isnull=True)
+                )
+            ),
+        )
+        readable_sessions = visible_records(user, ability="read_transcript").values(
+            "meeting_session_id"
+        )
+        return rows.filter(
+            Q(session_id__in=readable_sessions)
+            | Q(session__record__isnull=True, room_id__in=cls._user_room_ids(user))
+        )
+
+    @classmethod
+    def _check_sources(cls, user, prep):
+        ids = prep["source_ids"]
+        if cls._visible_chunks(user).filter(pk__in=ids).count() != len(ids):
+            raise PermissionDenied("Meeting access changed. Search again.")
+
     @staticmethod
-    def _user_room_ids(user) -> list:
-        """Rooms the user can search across.
+    def _user_room_ids(user):
+        """Room grants for unmigrated material; insufficient for record-scoped data.
 
         Strict rule: only rooms the user has joined (recorded via the
         ``users`` M2M) **and** which have produced a successful Summary
@@ -282,14 +333,19 @@ class PersonalAIService:
         users see nothing.
         """
         if not user or not user.is_authenticated or not user.is_active:
-            return []
-        organizations = models.Membership.objects.filter(user=user,
-            status=models.MembershipStatusChoices.ACTIVE, organization__is_active=True).values("organization_id")
-        return list(
-            Room.objects.filter(Q(organization__isnull=True) | Q(organization_id__in=organizations),
+            return Room.objects.none().values_list("id", flat=True)
+        organizations = models.Membership.objects.filter(
+            user=user,
+            status=models.MembershipStatusChoices.ACTIVE,
+            organization__is_active=True,
+        ).values("organization_id")
+        return (
+            Room.objects.filter(
+                Q(organization__isnull=True) | Q(organization_id__in=organizations),
                 users=user,
                 summaries__status=Summary.Status.SUCCESS,
             )
+            .order_by()
             .distinct()
             .values_list("id", flat=True)
         )
@@ -306,14 +362,18 @@ class PersonalAIService:
         pure-vector behaviour.
         """
         candidate_n = getattr(settings, "RAG_CANDIDATE_N", DEFAULT_CANDIDATE_N)
-        compatible = [chunk for chunk in chunks if chunk.embedding_model == self._embed_client().model]
-        vec_ranked = vector_rank(q_vec, compatible, top_n=candidate_n) if compatible else []
+        compatible = [
+            chunk
+            for chunk in chunks
+            if chunk.embedding_model == self._embed_client().model
+        ]
+        vec_ranked = (
+            vector_rank(q_vec, compatible, top_n=candidate_n) if compatible else []
+        )
         if vec_ranked and not getattr(settings, "RAG_HYBRID_ENABLED", True):
             return vec_ranked[: self.TOP_K]
         bm25_ranked = bm25_rank(question, chunks, top_n=candidate_n)
-        return reciprocal_rank_fusion(
-            vec_ranked, bm25_ranked, top_k=self.TOP_K
-        )
+        return reciprocal_rank_fusion(vec_ranked, bm25_ranked, top_k=self.TOP_K)
 
     @staticmethod
     def _format_context(
@@ -327,9 +387,7 @@ class PersonalAIService:
             speaker = chunk.speaker_name or chunk.speaker_identity[:12] or "?"
             ts = chunk.started_at.strftime("%H:%M:%S")
             date = chunk.started_at.strftime("%Y-%m-%d")
-            lines.append(
-                f"[{date} {ts}] 《{room_name}》 {speaker}:\n{chunk.text}"
-            )
+            lines.append(f"[{date} {ts}] 《{room_name}》 {speaker}:\n{chunk.text}")
         return "\n\n".join(lines)
 
 

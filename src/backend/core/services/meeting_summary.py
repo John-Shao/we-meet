@@ -35,7 +35,7 @@ from core.models import (
     Transcript,
     User,
 )
-from core.services import ai_usage, im_bots, im_cards
+from core.services import ai_usage, im_bots, im_cards, legacy_summary_runs
 from core.services.llm_client import LLMClient, LLMUnavailable
 
 logger = logging.getLogger(__name__)
@@ -116,13 +116,32 @@ class MeetingSummaryService:
 
     def __init__(self, llm: Optional[LLMClient] = None) -> None:
         self._llm = llm
+        self.generated = False
 
     def _client(self) -> LLMClient:
         if self._llm is None:
             self._llm = LLMClient.from_settings()
         return self._llm
 
-    def generate(self, session: MeetingSession) -> Summary:
+    def generate(self, session: MeetingSession, *, automatic=False) -> Optional[Summary]:
+        """Claim briefly, call providers outside transactions, then fence the result."""
+        self.generated = False
+        session, run, existing = legacy_summary_runs.claim(session.pk, automatic=automatic)
+        if run is None:
+            return existing
+        try:
+            summary = self._generate(session, run)
+        except legacy_summary_runs.StaleSummaryRun:
+            legacy_summary_runs.finish(run, "cancelled")
+            return None
+        except Exception:
+            legacy_summary_runs.finish(run, "uncertain")
+            raise
+        legacy_summary_runs.finish(run, "succeeded" if summary.status == "success" else "failed")
+        self.generated = True
+        return summary
+
+    def _generate(self, session, run):
         """Run the full pipeline. Always returns a Summary row (status may
         be ``failed`` if the LLM call blew up)."""
         room = session.room
@@ -130,7 +149,7 @@ class MeetingSummaryService:
             client = self._client()
         except LLMUnavailable as exc:
             logger.warning("Skipping summary for room %s: %s", room.id, exc)
-            return self._mark_failed(session, str(exc), model_used="")
+            return self._mark_failed(session, str(exc), model_used="", run=run)
 
         transcripts = list(
             Transcript.objects.filter(session=session).order_by("started_at")
@@ -140,6 +159,7 @@ class MeetingSummaryService:
                 session,
                 "No transcripts for this meeting session — nothing to summarise.",
                 model_used=client.model,
+                run=run,
             )
 
         formatted = self._format_transcripts(transcripts)
@@ -154,6 +174,7 @@ class MeetingSummaryService:
             ref_id=str(session.id),
         )
 
+        legacy_summary_runs.check(run)
         try:
             summary_text = client.chat(
                 system=_SUMMARY_SYSTEM,
@@ -164,9 +185,10 @@ class MeetingSummaryService:
         except Exception as exc:
             logger.exception("LLM summary call failed for room %s", room.id)
             return self._mark_failed(
-                session, f"LLM summary call failed: {exc}", model_used=client.model
+                session, f"LLM summary call failed: {exc}", model_used=client.model, run=run
             )
 
+        legacy_summary_runs.check(run)
         try:
             items_raw = client.chat_json(
                 system=_ACTION_ITEMS_SYSTEM,
@@ -181,6 +203,7 @@ class MeetingSummaryService:
 
         # 纪要闭环 D1:第三次调用抽智能章节。同样软失败——章节抽取失败
         # 不影响摘要/行动项落库。
+        legacy_summary_runs.check(run)
         try:
             chapters_raw = client.chat_json(
                 system=_CHAPTERS_SYSTEM,
@@ -201,17 +224,20 @@ class MeetingSummaryService:
             chapters=chapters,
             transcripts=transcripts,
             model_used=client.model,
+            run=run,
         )
         # Create and authorize the Doc before the IM card. The rich card carries
         # its internal document action, so one meeting produces one IM message.
         try:
-            self._push_summary_to_doc(room, summary)
+            if legacy_summary_runs.can_deliver(run):
+                self._push_summary_to_doc(room, summary)
         except Exception:
             logger.exception("P3 summary doc push failed for room %s", room.id)
         # Best-effort IM nudge. A Docs failure must not roll back or suppress the
         # persisted summary; it simply yields a card without the document action.
         try:
-            self._push_summary_to_im(room, summary)
+            if legacy_summary_runs.can_deliver(run):
+                self._push_summary_to_im(room, summary)
         except Exception:
             logger.exception("P5 summary IM push failed for room %s", room.id)
         return summary
@@ -808,7 +834,7 @@ class MeetingSummaryService:
         )
 
     @transaction.atomic
-    def _persist(
+    def _persist(  # noqa: PLR0913 -- existing artifact fields plus the claim to validate atomically
         self,
         *,
         session: MeetingSession,
@@ -818,7 +844,10 @@ class MeetingSummaryService:
         transcripts: list[Transcript],
         model_used: str,
         chapters: Optional[list[dict]] = None,
+        run=None,
     ) -> Summary:
+        if run is not None:
+            legacy_summary_runs.validate(run)
         summary, _ = Summary.objects.update_or_create(
             session=session,
             defaults={
@@ -881,8 +910,10 @@ class MeetingSummaryService:
 
     @transaction.atomic
     def _mark_failed(
-        self, session: MeetingSession, message: str, *, model_used: str
+        self, session: MeetingSession, message: str, *, model_used: str, run=None
     ) -> Summary:
+        if run is not None:
+            legacy_summary_runs.validate(run)
         summary, _ = Summary.objects.update_or_create(
             session=session,
             defaults={

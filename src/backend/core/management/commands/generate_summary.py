@@ -65,6 +65,8 @@ class Command(BaseCommand):
     def _handle_one(self, service: MeetingSummaryService, ref: str):
         session = self._resolve_session(ref)
         summary = service.generate(session)
+        if summary is None:
+            raise CommandError("Generation is busy, superseded or unavailable for this session.")
         self.stdout.write(
             self.style.SUCCESS(
                 f"session={session.id} room={session.room_id} "
@@ -87,6 +89,9 @@ class Command(BaseCommand):
         for session in sessions:
             try:
                 summary = service.generate(session)
+                if summary is None:
+                    self.stdout.write(f"  {session.id} -> skipped (busy or superseded)")
+                    continue
                 if summary.status == "success":
                     ok += 1
                 self.stdout.write(f"  {session.id} -> {summary.status}")

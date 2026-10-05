@@ -215,6 +215,8 @@ def test_member_rows_carry_a_presigned_avatar_and_teams_fall_back_to_initials(
 ):
     record, owner, peer, third = material
     models.User.objects.filter(pk=owner.pk).update(avatar_key="avatar-key-1")
+    # Match a new request: the fixture cached record.owner before the DB update.
+    record.refresh_from_db()
     with mock.patch(
         "core.services.meeting_collaboration.utils.generate_profile_image_get_url",
         side_effect=lambda kind, key: f"https://oss/{kind}/{key}" if key else "",

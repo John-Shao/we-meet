@@ -1,71 +1,69 @@
 # 阿里云日常发布 Runbook（改代码后上线）
 
-面向**已经部署好**的生产环境（aliyun-sjy，命名空间 `meet`，镜像 tag = `latest`）。
-首次安装见 [`aliyun.md`](./aliyun.md);这份只讲「改完代码怎么安全上线」。
+面向已有生产环境（aliyun-sjy，命名空间 `meet`）。首次安装见 [`aliyun.md`](./aliyun.md)。
+日常发布统一使用 `deploy/aliyun/release-meet.sh`，镜像 tag 取完整 commit SHA 的前 9 位。
+values 中的 `latest` 只是默认占位；发布脚本拒绝它，并显式保留未选择模块的运行中标签。
 
-拓扑约定:
-- **构建机**:WSL / PC，仓库在 `/mnt/d/workspace/we-meet/we-meet`,build + push 镜像到火山 CR。
-- **生产 ECS**(aliyun-sjy):仓库在 `/opt/we-meet`,跑 `git pull` + `helm upgrade` + `kubectl rollout`。
-- 生产 values 用 `src/helm/env.d/aliyun-prod/values.meet.yaml`,里面 `image.tag: "latest"` + `pullPolicy: Always`。
+## 构建与发布
 
----
-
-## 先判断:这次改动属于哪种?
-
-| 改了什么 | 要不要 build 镜像 | 要不要 `helm upgrade` | 要不要 `rollout restart` | 要不要 `migrate` |
-|---|---|---|---|---|
-| 仅前端代码 | frontend | 否 | ✅ frontend | 否 |
-| 仅后端代码(无新迁移) | backend | 否 | ✅ backend | 否 |
-| 后端**有新迁移** | backend | ✅ **必须**(触发 migrate hook) | ✅ backend | ✅ hook 自动(附手动兜底) |
-| 改了 helm **values / 模板**(新增 CronJob、env、资源等) | 视情况 | ✅ **必须** | 若同时改了代码则 ✅ | 视情况 |
-
-> ⚠️ **关键坑**:因为生产是 `tag: latest`,`helm upgrade` **不会**因为镜像内容变了就重建 Deployment(tag 没变)。所以:
-> - **代码变更** → 必须 `rollout restart` 才能拉到新推的 `latest` 镜像。
-> - **values/模板变更**(如新增 CronJob)→ 必须 `helm upgrade` 才会生效,`rollout` 不会创建新对象。
-> - **有数据库迁移** → 必须 `helm upgrade`:迁移靠 chart 的 **migrate hook** 触发,而 helm hook **每次 `helm upgrade` 都会跑**(不是只在 values 变化时)。hook 的 Job 用 `latest` 标签 → 拉到刚推的新镜像跑迁移。只 `rollout` 不 `helm upgrade` 会漏迁移,访问相关表报 `relation "…" does not exist` 500。
-> - 顺序:**先 `helm upgrade`(迁移先跑)再 `rollout restart`(新代码才服务)** —— 保证迁移早于新代码,避免新代码查无表。
-
----
-
-## 阶段 A — 构建机:build + push
+1. 提交并推送到 `aliyun-dev`，等待该提交的 **Release guard** 完整通过。
+2. 构建机在同一提交执行 `bash deploy/aliyun/build-and-push.sh backend`（按需选模块）。
+3. 生产 ECS 安装 `python3`、`gh`，让 `gh` 可读取仓库的 Actions。凭据通过主机认证或环境管理，不写入仓库。
+4. 在 `/opt/we-meet` 运行发布脚本。首次引入 AI HTTP 池必须包含本批次 `backend` 镜像。
 
 ```bash
-cd /mnt/d/workspace/we-meet/we-meet
-git pull origin aliyun-dev
-# 按需选模块:frontend / backend / summary / agents,或全部
-bash deploy/aliyun/build-and-push.sh frontend backend
+cd /opt/we-meet
+# 只检查：仍会读取集群中现有标签，但不执行升级
+bash deploy/aliyun/release-meet.sh --dry-run --ci-check --image-check backend
+# 发布：自动更新分支、校验 CI、执行 Helm 迁移 hook、等待 rollout
+bash deploy/aliyun/release-meet.sh backend
 ```
-> Apple Silicon 需先 `export BUILDX_DEFAULT_PLATFORM=linux/amd64`(生产 ECS 是 x86_64)。
 
-## 阶段 B — 生产 ECS:pull → (helm upgrade) → rollout
+无模块参数会发布全部模块。每次发布都会执行 Helm，使迁移、路由和镜像一起更新；不再以
+`latest` + 手工 `rollout restart` 作为日常发布路径。本地 secrets / Work overlay 继续由脚本加载。
+
+## CI 门禁
+
+真实发布无 CI 跳过选项。`--dry-run` 默认离线跳过 CI；`--ci-check` 可显式启用查询。
+发布前要求 tracked 工作区干净，并校验当前 chart 提交、镜像标签解析出的完整提交，以及实际使用的
+backend 提交。仅接受同一 origin 仓库的 `push` 或 `workflow_dispatch` 记录，最新运行必须完成且成功；
+其当前 attempt 的 `backend-boundaries`、`frontend-artifact`、`deployment-boundaries` 必须全部成功。
+较早的绿色记录、PR 合成提交、跳过的 job、查询失败均不能放行；失败重跑请选择 **Re-run all jobs**。
+脚本只读 CI 状态，不触发工作流。Jobs 查询使用 GitHub 的[指定 attempt 接口](https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run-attempt)。
+
+回滚 `--tag <sha>` 同样需要目标提交的完整门禁。没有这三项检查的历史提交不能直接通过新脚本；
+应把需要恢复的代码作为新回退提交并完整跑 CI。早于 AI 池的 backend 不能配合本批 chart，
+脚本会在 Helm 前拒绝，防止仅发布 frontend 时用旧 backend 启动不存在的 WSGI 入口。
+使用历史 chart 的回退另按对应版本流程处理，并核对数据库兼容性。
+
+## 本批架构变更的部署与验收
+
+- 新增迁移 `0196_legacy_summary_run`。Helm 的 pre-upgrade hook 必须先完成，再启用新 backend / Celery。
+- 新增 `meet-backend-ai` Deployment、Service 和 `meet-ai` Ingress，与 backend 共享镜像、认证配置和 Secret 引用。
+  生产启用 `aiBackend.enabled`；通用 chart 默认关闭。路由依赖 ingress-nginx 的正则支持。
+- 每个 AI Pod 为 2 个 gthread 进程、每进程 4 线程，接纳上限每进程 2 个长请求，即每 Pod 最多 4 个。
+  这是进程本地容量限制，负载不均时可能提前返回 503；调整上限时须保留处理健康检查/拒绝请求的线程。
+  超限返回 `Retry-After: 5`，Ingress 不自动向其他上游重试模型请求。
+- 独立 Pod 新增资源请求 100m CPU / 256Mi 内存，上限 1 CPU / 1Gi 内存；发布前确认节点可调度，
+  rollout 期间还需容纳临时副本。隔离的是 HTTP 工作进程，数据库、Redis、节点和模型供应商仍共享。
+- 分流路径覆盖个人/房间/全局同步问答与 SSE、资料提问及助手纪要。内部直连 `meet-backend` 的调用仍走普通池。
+  生产验收应同时压测 SSE 与普通 API，观察 API 延迟、AI 503、数据库连接数、Pod 内存及客户端断连后的容量恢复。
 
 ```bash
-cd /opt/we-meet && git pull origin aliyun-dev
-
-# 仅当改了 values/模板时执行(如新增/开启 CronJob):
-helm upgrade --install meet ./src/helm/meet \
-  -n meet \
-  -f ./src/helm/env.d/common.yaml.gotmpl \
-  -f ./src/helm/env.d/aliyun-prod/values.meet.yaml \
-  -f ./src/helm/env.d/aliyun-prod/values.secrets.yaml \
-  --wait --timeout 15m
-
-# 拉新 latest 镜像(按本次实际改动的模块选)
-kubectl -n meet rollout restart deploy/meet-frontend deploy/meet-backend
-kubectl -n meet rollout status  deploy/meet-frontend --timeout=120s
-kubectl -n meet rollout status  deploy/meet-backend  --timeout=120s
+kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core
+kubectl -n meet rollout status deploy/meet-backend-ai --timeout=10m
+kubectl -n meet get ingress meet-ai
 ```
 
-### 若本次有新迁移(必读)
-迁移由上面的 **`helm upgrade` migrate hook 自动跑**(每次 upgrade 都触发,用 latest 新镜像)。所以有迁移时,阶段 B 的 `helm upgrade` 不是可选而是**必须**,且要排在 `rollout` 之前。
+旧纪要通过短事务领取 `LegacySummaryRun`，在事务外调用模型、Docs 和 IM，再用 token、10 分钟租约及来源状态
+校验写回。生成期间资料被删除、移入回收站、切换版本化纪要或租约过期时，不接受迟到结果。
+自动事件不重放已经失败或结果不确定的付费尝试；需人工检查后通过原重新生成入口或
+`python manage.py generate_summary <session-id>` 显式重试。版本化资料仍使用版本化生成入口，不能强制回到旧链路。
+Docs/IM 保持尽力投递：投递失败不回滚已保存纪要；外部成功但本地确认前崩溃仍可能存在不确定状态，
+本批不承诺跨系统 exactly-once 投递。升级期间应让旧 Celery 任务排空，避免旧代码不识别新领取记录。
 
-跑完 upgrade + rollout 后,**确认迁移已落**:
-```bash
-kubectl -n meet exec deploy/meet-backend -- python manage.py showmigrations core | tail -5
-#   期望目标迁移显示 [X];若仍是 [ ],说明 hook 没跑成,手动兜底:
-kubectl -n meet exec deploy/meet-backend -- python manage.py migrate --no-input
-```
-> 手动兜底要在**新后端 pod 就绪后**(pod 里已是含该迁移的新代码)执行 —— 所以兜底命令放在 rollout 之后。切勿在 `helm upgrade` 前用旧 pod 跑 migrate(旧代码没有该迁移文件)。
+以下保留历史专项迁移说明；涉及删除数据的迁移按各自顺序处理。
+
 
 ### 三方日历同步删除（迁移 0098）部署顺序
 
