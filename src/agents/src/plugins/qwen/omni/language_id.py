@@ -38,6 +38,8 @@ class OmniLanguageDetector:
         self.socket = None
         self.closed = False
         self.timeout = 4.0
+        # Diagnostic label shared with the gateway's latency logs.
+        self.key = ""
         self._preparing = None
         self._prepared_at = None
         self._prewarm_enabled = False
@@ -61,7 +63,7 @@ class OmniLanguageDetector:
             # An idle socket is speculative. A failed preparation must not stop
             # microphone admission; detect still gets one fresh connection.
             await self._close_socket()
-            logger.info("language_prepare_unavailable")
+            logger.info("language_prepare_unavailable session=%s", self.key)
 
     async def detect(self, pcm):
         """Return a language or None; distinguish transient transport failures."""
@@ -94,9 +96,10 @@ class OmniLanguageDetector:
             else:
                 await self._close_socket()
             logger.info(
-                "language_probe outcome=%s elapsed_ms=%d",
+                "language_probe outcome=%s elapsed_ms=%d session=%s",
                 outcome,
                 round((time.monotonic() - started) * 1000),
+                self.key,
             )
             if self._prewarm_enabled and outcome != "cancelled":
                 await self.prepare()
@@ -197,7 +200,9 @@ class OmniLanguageDetector:
                 if answer is not None:
                     # A candidate code already streamed. Its completion tail
                     # only delays forwarding, and detect() retires the socket.
-                    logger.info("language_probe_decided early=true")
+                    logger.info(
+                        "language_probe_decided early=true session=%s", self.key
+                    )
                     return answer
         raise TranslationError("language_event_limit")
 

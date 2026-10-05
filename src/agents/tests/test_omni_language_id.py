@@ -257,6 +257,16 @@ class DetectorTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await detector.aclose()
 
+    async def test_probe_log_carries_the_connection_key_without_content(self):
+        detector, _, _ = self.make_detector()
+        detector.key = "ab12cd34"
+        with self.assertLogs("omni-language-id", level="INFO") as captured:
+            self.assertEqual(await detector.detect(bytes(3200)), "zh")
+        output = "\n".join(captured.output)
+        self.assertIn("language_probe outcome=classified", output)
+        self.assertIn("session=ab12cd34", output)
+        self.assertNotIn("test-key", output)
+
     async def test_invalid_pcm_never_opens_paid_connection(self):
         detector, _, connector = self.make_detector()
         for pcm in [b"", b"x", bytes(MAX_PCM + 2)]:

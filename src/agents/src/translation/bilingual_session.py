@@ -25,6 +25,8 @@ class BilingualTranslationSession(TranslationSession):
         """Keep recovery isolated from capture and push-to-talk sessions."""
         super().__init__(config, self._consume, **kwargs)
         self._deliver = consume
+        # Diagnostic label shared with the gateway's latency logs.
+        self.key = ""
         self._speaking = False
         self._awaiting_response = False
         self._overlapping_turns = False
@@ -55,10 +57,11 @@ class BilingualTranslationSession(TranslationSession):
         await self._deliver(event)
         if event["type"] == "audio" and self._first_audio_at is not None:
             logger.info(
-                "translation_first_audio source=%s target=%s elapsed_ms=%d",
+                "translation_first_audio source=%s target=%s elapsed_ms=%d session=%s",
                 self.config.source,
                 self.config.target,
                 round((time.monotonic() - self._first_audio_at) * 1000),
+                self.key,
             )
             self._first_audio_at = None
         if event["type"] == "response_completed" and not self._speaking:
@@ -109,7 +112,11 @@ class BilingualTranslationSession(TranslationSession):
                     await asyncio.sleep(delay)
                     if not self._idle():
                         return False
-                    logger.info("translation_reconnecting attempt=%d", self._attempts)
+                    logger.info(
+                        "translation_reconnecting attempt=%d session=%s",
+                        self._attempts,
+                        self.key,
+                    )
                     try:
                         self.socket = await self.connector(
                             self.config.url,
@@ -140,10 +147,14 @@ class BilingualTranslationSession(TranslationSession):
                     except TranslationError:
                         return False
                     self.events = TranslationEvents()
-                    logger.info("translation_reconnected attempt=%d", self._attempts)
+                    logger.info(
+                        "translation_reconnected attempt=%d session=%s",
+                        self._attempts,
+                        self.key,
+                    )
                     return True
         except TimeoutError:
-            logger.info("translation_reconnect_timeout")
+            logger.info("translation_reconnect_timeout session=%s", self.key)
         finally:
             self._recovery_task = None
             self._transport_ready.set()

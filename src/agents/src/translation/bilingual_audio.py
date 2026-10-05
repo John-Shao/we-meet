@@ -53,6 +53,7 @@ class BilingualAudioInput:
         *,
         settings=None,
         silence_bytes=DEFAULT_SILENCE_BYTES,
+        key="",
     ):
         """Own one VAD consumer and one serialized utterance router."""
         self.stream = stream
@@ -62,6 +63,7 @@ class BilingualAudioInput:
         self.heartbeat = 0
         self.ending = False
         self.silence_bytes = silence_bytes
+        self.key = key
         self.router = BilingualUtteranceRouter(
             detector,
             self._send_speech,
@@ -69,6 +71,7 @@ class BilingualAudioInput:
             emit,
             languages=tuple(sessions),
             settings=settings,
+            key=key,
         )
         self.task = asyncio.create_task(self._run())
 
@@ -106,7 +109,7 @@ class BilingualAudioInput:
         async for event in self.stream:
             kind = event.type.value
             if kind == "start_of_speech":
-                logger.info("translation_speech_started")
+                logger.info("translation_speech_started session=%s", self.key)
                 await self.router.start(b"".join(bytes(f.data) for f in event.frames))
             elif kind == "inference_done":
                 if event.speaking:
@@ -120,7 +123,7 @@ class BilingualAudioInput:
                         if language != self.router.selected:
                             await self._send(language, bytes(32000))
             elif kind == "end_of_speech":
-                logger.info("translation_speech_ended")
+                logger.info("translation_speech_ended session=%s", self.key)
                 await self.router.end()
         await self.router.end()
 

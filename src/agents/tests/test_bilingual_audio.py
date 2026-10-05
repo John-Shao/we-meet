@@ -110,6 +110,32 @@ class InputTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await audio.aclose()
 
+    async def test_speech_markers_carry_the_connection_key(self):
+        vad = FakeVad()
+        detector = AsyncMock()
+        detector.detect.return_value = "zh"
+        audio = BilingualAudioInput(
+            vad,
+            detector,
+            {"zh": AsyncMock(), "en": AsyncMock()},
+            AsyncMock(),
+            key="ab12cd34",
+        )
+        try:
+            with self.assertLogs("bilingual-audio", level="INFO") as captured:
+                vad.event("start_of_speech", b"\1\0" * 1600)
+                for _ in range(100):
+                    if audio.speech_started():
+                        break
+                    await asyncio.sleep(0.01)
+                vad.event("end_of_speech")
+                await asyncio.sleep(0.05)
+            output = "\n".join(captured.output)
+            self.assertIn("translation_speech_started session=ab12cd34", output)
+            self.assertIn("translation_speech_ended session=ab12cd34", output)
+        finally:
+            await audio.aclose()
+
     async def test_speech_start_is_exposed_for_latency_reporting(self):
         """The gateway reports delivery against this local utterance start."""
         vad = FakeVad()

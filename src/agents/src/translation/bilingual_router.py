@@ -25,6 +25,7 @@ class BilingualUtteranceRouter:
         *,
         languages=("zh", "en"),
         settings=None,
+        key="",
     ):
         """Inject classification and output without guessing unknown languages."""
         self.detector = detector
@@ -40,6 +41,8 @@ class BilingualUtteranceRouter:
         self.packet = bytearray()
         self.next_probe = self.settings.probe_ms * 32
         self.speaking = False
+        # Diagnostic label shared with the gateway's latency logs.
+        self.key = key
 
     async def start(self, pcm):
         """Keep the VAD prefix, including the first speech frame."""
@@ -66,8 +69,9 @@ class BilingualUtteranceRouter:
             await self._probe()
             if not self.selected:
                 self.speaking = False
+                buffered = len(self.buffer)
                 self.buffer.clear()
-                await self.unknown({"type": "language_unknown"})
+                await self._report_unknown(buffered)
         elif len(self.buffer) >= self.next_probe:
             await self._probe()
             self.next_probe = len(self.buffer) + self.settings.retry_ms * 32
@@ -77,7 +81,9 @@ class BilingualUtteranceRouter:
             language = await self.detector.detect(bytes(self.buffer[:MAX_PROBE_BYTES]))
         except TransientLanguageError:
             self.failures += 1
-            logger.info("language_probe_retry failures=%d", self.failures)
+            logger.info(
+                "language_probe_retry failures=%d session=%s", self.failures, self.key
+            )
             if self.failures >= self.settings.max_failures:
                 raise TranslationError("language_detection_unavailable") from None
             return
@@ -91,9 +97,10 @@ class BilingualUtteranceRouter:
             return
         self.selected = language
         logger.info(
-            "language_selected source=%s elapsed_ms=%d",
+            "language_selected source=%s elapsed_ms=%d session=%s",
             language,
             round((time.monotonic() - self.started) * 1000),
+            self.key,
         )
         pcm = bytes(self.buffer)
         self.buffer.clear()
@@ -111,12 +118,21 @@ class BilingualUtteranceRouter:
                     await self.send_packet(self.selected, bytes(self.packet))
                 await self.end_turn(self.selected)
             else:
-                await self.unknown({"type": "language_unknown"})
+                await self._report_unknown(len(self.buffer))
         finally:
             self.speaking = False
             self.buffer.clear()
             self.packet.clear()
             self.selected = None
+
+    async def _report_unknown(self, buffered):
+        """Count utterances dropped for an undecided direction, without content."""
+        logger.info(
+            "translation_language_unknown session=%s buffered_ms=%d",
+            self.key,
+            buffered // 32,
+        )
+        await self.unknown({"type": "language_unknown"})
 
     async def _packetize(self, pcm):
         self.packet.extend(pcm)

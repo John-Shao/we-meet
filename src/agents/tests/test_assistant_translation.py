@@ -222,7 +222,7 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_delivery_logs_the_direction_gate_before_the_first_chunk(self):
         emit = AsyncMock()
-        router = BilingualResults("en", emit, source="zh")
+        router = BilingualResults("en", emit, source="zh", key="ab12cd34")
         router.speech_clock = lambda: 0
         sequence = events()
         with (
@@ -235,6 +235,7 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
             "translation_audio_delivered target=en gate_ms=0",
             "\n".join(captured.output),
         )
+        self.assertIn("session=ab12cd34", "\n".join(captured.output))
 
     def test_provider_source_language_survives_normalization(self):
         event = TranslationEvents().accept(
@@ -394,3 +395,46 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
         _, providers = await self.connection([bytes(3202)])
         for provider in providers:
             provider.send_audio.assert_not_awaited()
+
+    async def test_one_diagnostic_key_labels_every_provider_of_the_connection(self):
+        """Concurrency-safe latency logs need one label per foreground socket."""
+        socket = AsyncMock()
+        socket.recv.side_effect = ['{"type":"finish"}']
+        sessions, detectors = [], []
+
+        def session_factory(config, consume):
+            provider = AsyncMock()
+            provider.error_code = None
+            provider.config = config
+            sessions.append(provider)
+            return provider
+
+        def detector_factory(config, *, languages):
+            detector = AsyncMock()
+            detectors.append(detector)
+            return detector
+
+        connection = AssistantTranslationConnection(
+            socket,
+            claim_ticket=AsyncMock(
+                return_value={"source_language": "zh", "target_language": "en"}
+            ),
+            config_factory=lambda **kw: TranslationConfig("test", "workspace", **kw),
+            session_factory=session_factory,
+            detector_factory=detector_factory,
+        )
+        audio_input = Mock()
+        audio_input.task = asyncio.get_running_loop().create_future()
+        audio_input.finish = AsyncMock()
+        audio_input.aclose = AsyncMock()
+        connection.vad_factory = AsyncMock()
+        with patch(
+            "translation.assistant_gateway.BilingualAudioInput",
+            return_value=audio_input,
+        ) as audio_factory:
+            await connection.run({"type": "assistant_translation", "ticket": "opaque"})
+        self.assertRegex(connection.key, r"^[0-9a-f]{8}$")
+        self.assertEqual([session.key for session in sessions], [connection.key] * 2)
+        self.assertEqual(detectors[0].key, connection.key)
+        self.assertEqual(audio_factory.call_args.kwargs["key"], connection.key)
+        audio_input.task.cancel()

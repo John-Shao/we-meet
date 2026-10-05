@@ -137,8 +137,11 @@ HTTP 429/部分 5xx 可在后续探测中恢复，默认连续失败三次才结
 TaskGroup 并发完成，连接阶段不再串行等待模型初始化。
 
 网关仅对双语翻译相关 logger 开启 INFO 诊断：本地语音开始/结束、语种识别耗时、
-方向锁定、首段译音、交付门（`translation_audio_delivered`）和译文送达；
-不记录语音、文字内容或凭证。
+方向锁定、首段译音、交付门（`translation_audio_delivered`）、整句译文就绪和
+未识别语种的句数（`translation_language_unknown`）；不记录语音、文字内容或凭证。
+每条双语日志附带该前台连接的 `session=`（8 位随机十六进制，仅用于区分同一进程内
+的并发会话，与票据、账号和内容无关），因此多用户并发时也能按会话还原延迟；
+没有该字段的旧日志按顺序配对，并发下会失真。
 短句停在“正在聆听”时，可据此区分本地 VAD 未触发、上游未输出和结果关联未完成。
 此路由修复只需更新 agents 镜像并发布 `meet-agent-capture-translation`，兼容现有 APK。
 
@@ -174,6 +177,11 @@ TaskGroup 并发完成，连接阶段不再串行等待模型初始化。
 此时以 `gate_ms` 与 App 侧 `reply_ms` 为准。上行往返见 App 每 100 帧采样一次的
 `translation_ack_rtt_ms`。播放预缓冲与回声保护尾的取值见 Android 侧 README。
 
+网关日志换算成分位数、A/B 判定规则、已记录的生产基线及并发边界见
+[evaluations/bilingual_latency/README.md](evaluations/bilingual_latency/README.md)；
+汇总脚本只依赖标准库，可直接读 `kubectl logs`。判断句尾窗口是否生效要看
+`translation_first_audio` 的 p90/p95 与 `speech_end->result_ready`，不能只看 p50。
+
 双语互译复用网关的 `DASHSCOPE_API_KEY`、`DASHSCOPE_WORKSPACE_ID`、
 `DASHSCOPE_REGION`，该空间需可调用上述两个模型。Silero 已包含在现有依赖中。
 启用 29 种语言选择需要先发布后端票据校验及 agents 镜像（更新
@@ -197,5 +205,7 @@ uv run ruff check .
 单元测试使用合成音频和假供应商；网关测试会建立本机 WebSocket 连接。
 GitHub Actions 的 `test-agents` 作业执行同一测试命令，并独立于 lint 作业运行。
 
-质量语料与评分说明见 [evaluations/asr_quality/README.md](evaluations/asr_quality/README.md)。
+质量语料与评分说明见 [evaluations/asr_quality/README.md](evaluations/asr_quality/README.md)；
+双语互译的延迟基线与采集方式见
+[evaluations/bilingual_latency/README.md](evaluations/bilingual_latency/README.md)。
 评估目录不进入 Docker 镜像；供应商评估必须显式使用 `--execute`。

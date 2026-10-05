@@ -62,15 +62,31 @@ class RouterTests(unittest.IsolatedAsyncioTestCase):
             b"".join(c.args[1] for c in send.call_args_list), b"\1\0" * 25600
         )
 
-    def router(self, predictions, languages=("zh", "en")):
+    def router(self, predictions, languages=("zh", "en"), key=""):
         detector = AsyncMock()
         detector.detect.side_effect = predictions
         send, end, unknown = AsyncMock(), AsyncMock(), AsyncMock()
         return (
-            BilingualUtteranceRouter(detector, send, end, unknown, languages=languages),
+            BilingualUtteranceRouter(
+                detector, send, end, unknown, languages=languages, key=key
+            ),
             send,
             end,
             unknown,
+        )
+
+    async def test_undecided_utterance_is_counted_once_with_its_session_key(self):
+        """Operators need unknown-direction counts without any audio or text."""
+        router, send, _, unknown = self.router([None], key="ab12cd34")
+        pcm = b"\1\0" * 12800
+        with self.assertLogs("bilingual-router", level="INFO") as captured:
+            await router.start(pcm)
+            await router.end()
+        unknown.assert_awaited_once_with({"type": "language_unknown"})
+        send.assert_not_awaited()
+        self.assertIn(
+            "translation_language_unknown session=ab12cd34 buffered_ms=800",
+            "\n".join(captured.output),
         )
 
     async def test_every_pair_routes_both_sources_only_to_their_selected_stream(self):

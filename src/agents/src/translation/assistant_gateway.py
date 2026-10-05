@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 import os
+import secrets
 import time
 import urllib.request
 from collections import OrderedDict
@@ -110,7 +111,7 @@ def _claim(ticket):
 class BilingualResults:
     """Match original, translation and audio by ID in any arrival order."""
 
-    def __init__(self, target, emit, *, source, repair=None):
+    def __init__(self, target, emit, *, source, repair=None, key=""):
         """Keep only bounded source and response associations."""
         self.target, self.emit = target, emit
         self.source = source
@@ -120,6 +121,9 @@ class BilingualResults:
         self.repair = repair
         self.repairs = set()
         self.closed = False
+        # Short per-connection key so one conversation's diagnostics can be
+        # correlated without carrying any user, ticket or content material.
+        self.key = key
         # Set once the audio router exists: reports the local start of the
         # utterance currently being routed, for end-to-end latency logs.
         self.speech_clock = None
@@ -135,9 +139,10 @@ class BilingualResults:
         if kind == "source_candidate":
             if event["completed"]:
                 logger.info(
-                    "translation_source_final source=%s chars=%d",
+                    "translation_source_final source=%s chars=%d session=%s",
                     self.source,
                     len(event["text"]),
+                    self.key,
                 )
                 self.sources[event["item_id"]] = {
                     **event,
@@ -219,10 +224,11 @@ class BilingualResults:
                 continue
             if selected and item.get("text"):
                 logger.info(
-                    "translation_result_ready source=%s target=%s chars=%d",
+                    "translation_result_ready source=%s target=%s chars=%d session=%s",
                     language,
                     self.target,
                     len(item["text"]),
+                    self.key,
                 )
                 await self.emit(
                     {
@@ -250,10 +256,12 @@ class BilingualResults:
         started = self.speech_clock() if self.speech_clock is not None else 0
         elapsed = round((time.monotonic() - started) * 1000) if started else -1
         logger.info(
-            "translation_audio_delivered target=%s gate_ms=%d since_speech_ms=%d",
+            "translation_audio_delivered target=%s gate_ms=%d"
+            " since_speech_ms=%d session=%s",
             self.target,
             round((time.monotonic() - received) * 1000) if received else -1,
             max(elapsed, -1),
+            self.key,
         )
 
     def check(self):
@@ -271,9 +279,10 @@ class BilingualResults:
     async def _schedule_repair(self, *, identity, source):
         self.check()
         logger.info(
-            "translation_direction_conflict selected=%s actual=%s",
+            "translation_direction_conflict selected=%s actual=%s session=%s",
             self.source,
             source["language"],
+            self.key,
         )
         if self.repair is None or len(self.repairs) >= MAX_REPAIRS:
             await self.emit({"type": "language_unknown"})
@@ -291,9 +300,10 @@ class BilingualResults:
                 raise TranslationError("translation_repair_direction_failed")
         except Exception:
             logger.info(
-                "translation_direction_repair_failed source=%s target=%s",
+                "translation_direction_repair_failed source=%s target=%s session=%s",
                 language,
                 target,
+                self.key,
             )
             await self.emit({"type": "language_unknown"})
             return
@@ -321,7 +331,10 @@ class BilingualResults:
         if audio:
             await self.emit({"type": "audio_end", "id": identity})
         logger.info(
-            "translation_direction_repaired source=%s target=%s", language, target
+            "translation_direction_repaired source=%s target=%s session=%s",
+            language,
+            target,
+            self.key,
         )
 
     async def finish(self):
@@ -345,6 +358,7 @@ class AssistantTranslationConnection:
         self,
         socket,
         *,
+        key=None,
         claim_ticket=claim,
         config_factory=TranslationConfig.from_env,
         session_factory=BilingualTranslationSession,
@@ -353,6 +367,9 @@ class AssistantTranslationConnection:
     ):
         """Inject admission and provider transports for offline verification."""
         self.socket = socket
+        # One short random key per foreground connection. It only labels that
+        # conversation's diagnostics, never a ticket, account or content.
+        self.key = key or secrets.token_hex(4)
         self.claim_ticket = claim_ticket
         self.config_factory = config_factory
         self.session_factory = session_factory
@@ -400,15 +417,20 @@ class AssistantTranslationConnection:
                     self.emit,
                     source=source,
                     repair=OmniTranslationRepair(config),
+                    key=self.key,
                 )
                 self.results.append(results)
                 session = self.session_factory(config, results.accept)
+                # Injected factories keep their two-argument contract; the key is
+                # diagnostic only and never changes routing or limits.
+                session.key = self.key
                 session.output_idle = lambda results=results: (
                     not (results.items or results.repairs)
                 )
                 self.sessions.append(session)
                 by_source[source] = session
             self.detector = self.detector_factory(config, languages=pair)
+            self.detector.key = self.key
             self.detector.timeout = settings.detection_timeout
             await self.detector.prepare()
             try:
@@ -428,6 +450,7 @@ class AssistantTranslationConnection:
                 self.emit,
                 settings=settings,
                 silence_bytes=config.turn_silence_bytes,
+                key=self.key,
             )
             for results in self.results:
                 results.speech_clock = self.audio_input.speech_started
@@ -435,7 +458,9 @@ class AssistantTranslationConnection:
             await self._stream()
         except Exception as error:
             code = safe_error_code(error)
-            logger.info("Bilingual translation interrupted code=%s", code)
+            logger.info(
+                "Bilingual translation interrupted code=%s session=%s", code, self.key
+            )
             try:
                 await self.emit({"type": "error", "code": code})
             except Exception:
