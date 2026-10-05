@@ -82,6 +82,8 @@ jobs:
           core/tests/services/test_online_meeting_notes.py
           core/tests/tasks/test_summary.py
           core/tests/services/test_embed_task.py
+          core/tests/services/test_embedding_consistency.py
+          core/tests/services/test_embeddings.py
           core/tests/services/test_meeting_summary_chapters.py
           core/tests/services/test_meeting_summary_edit.py
           core/tests/services/test_meeting_summary_doc_push.py

@@ -79,6 +79,12 @@ class ReleaseCITest(unittest.TestCase):
             with self.assertRaises(ci.CheckFailed):
                 ci.api("repos/example/meet/actions/runs")
 
+    def test_github_output_uses_utf8_on_non_utf8_hosts(self):
+        result = subprocess.CompletedProcess(["gh"], 0, stdout='{"title":"纪要校验"}', stderr="")
+        with patch.object(ci.subprocess, "run", return_value=result) as process:
+            self.assertEqual(ci.api("repos/example/meet/actions/runs")["title"], "纪要校验")
+        self.assertEqual(process.call_args.kwargs["encoding"], "utf-8")
+
 
 if __name__ == "__main__":
     unittest.main()

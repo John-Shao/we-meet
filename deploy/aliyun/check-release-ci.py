@@ -28,7 +28,7 @@ def api(path):
     try:
         result = subprocess.run(
             ["gh", "api", "--hostname", "github.com", path],
-            capture_output=True, text=True, timeout=30, check=False,
+            capture_output=True, text=True, encoding="utf-8", timeout=30, check=False,
         )
         if result.returncode:
             raise CheckFailed("GitHub CI lookup failed; authenticate gh and retry")
@@ -76,7 +76,7 @@ def main():
     try:
         result = subprocess.run(
             ["git", "remote", "get-url", "origin"], capture_output=True,
-            text=True, timeout=10, check=True,
+            text=True, encoding="utf-8", timeout=10, check=True,
         )
         repo = repository(result.stdout)
         for commit in dict.fromkeys(args.commit):

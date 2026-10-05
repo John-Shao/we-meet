@@ -1,10 +1,9 @@
-"""Build session-scoped transcript chunks for cross-meeting retrieval."""
+"""Build session-scoped indexes without publishing provider-time stale results."""
 
 import logging
+import math
 
-from django.db import transaction
-
-from core.models import MeetingSession, Transcript, TranscriptChunk
+from core.services import transcript_index
 from core.services.chunk_builder import build_chunks
 from core.services.embeddings import EmbeddingClient, EmbeddingUnavailable
 from core.tasks._task import task
@@ -12,77 +11,58 @@ from core.tasks._task import task
 logger = logging.getLogger(__name__)
 
 
+def _validate_vectors(vectors, count):
+    if not isinstance(vectors, list) or len(vectors) != count:
+        raise ValueError("Embedding response count does not match chunks")
+    dimension = None
+    for vector in vectors:
+        if not isinstance(vector, list) or not vector:
+            raise ValueError("Embedding response has an empty or invalid vector")
+        dimension = dimension or len(vector)
+        if len(vector) != dimension or any(
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not math.isfinite(value)
+            for value in vector
+        ):
+            raise ValueError(
+                "Embedding response has inconsistent dimensions or invalid values"
+            )
+
+
 @task
 def embed_meeting_transcripts(session_id):
-    """Replace chunks and embeddings for one concrete meeting session."""
+    """Publish only if the input, record lifecycle and previous index still match."""
     try:
-        session = MeetingSession.objects.select_related("room").get(id=session_id)
-    except MeetingSession.DoesNotExist:
-        logger.warning(
-            "Skip embedding: session %s does not exist (deleted?)", session_id
-        )
+        snapshot = transcript_index.capture(session_id)
+        chunks = build_chunks(snapshot.transcripts)
+        if not chunks:
+            transcript_index.publish(snapshot, [], [], "")
+            return 0
+        try:
+            client = EmbeddingClient.from_settings()
+            vectors = client.batch_embed(
+                [chunk.text for chunk in chunks],
+                before_request=lambda: transcript_index.check(snapshot),
+            )
+            _validate_vectors(vectors, len(chunks))
+        except transcript_index.StaleIndex:
+            raise
+        except (EmbeddingUnavailable, ValueError):
+            logger.warning(
+                "Embedding unavailable or invalid for session %s", session_id
+            )
+            return None
+        except Exception:
+            logger.exception("Embedding provider failed for session %s", session_id)
+            return None
+        transcript_index.publish(snapshot, chunks, vectors, client.model)
+    except transcript_index.StaleIndex:
+        logger.info("Discarded stale embedding work for session %s", session_id)
         return None
-
-    transcripts = list(
-        Transcript.objects.filter(session=session).order_by("started_at")
-    )
-    if not transcripts:
-        logger.info("Embedding skipped: session %s has no transcripts", session_id)
-        TranscriptChunk.objects.filter(session=session).delete()
-        return 0
-
-    chunks = build_chunks(transcripts)
-    if not chunks:
-        logger.info(
-            "Embedding skipped: session %s yielded no chunks after building",
-            session_id,
-        )
-        TranscriptChunk.objects.filter(session=session).delete()
-        return 0
-
-    try:
-        client = EmbeddingClient.from_settings()
-    except EmbeddingUnavailable as exc:
-        logger.warning("Skip embedding for session %s: %s", session_id, exc)
-        return None
-
-    try:
-        vectors = client.batch_embed([chunk.text for chunk in chunks])
-    except Exception:
-        logger.exception(
-            "Embedding API failed for session %s (%d chunks)",
-            session_id,
-            len(chunks),
-        )
-        return None
-
-    summary = getattr(session, "summary", None)
-    with transaction.atomic():
-        TranscriptChunk.objects.filter(session=session).delete()
-        TranscriptChunk.objects.bulk_create(
-            [
-                TranscriptChunk(
-                    room=session.room,
-                    session=session,
-                    summary=summary,
-                    chunk_index=chunk.chunk_index,
-                    speaker_identity=chunk.speaker_identity,
-                    speaker_name=chunk.speaker_name,
-                    text=chunk.text,
-                    started_at=chunk.started_at,
-                    ended_at=chunk.ended_at,
-                    source_transcript_ids=chunk.source_transcript_ids,
-                    embedding=vector,
-                    embedding_model=client.model,
-                )
-                for chunk, vector in zip(chunks, vectors, strict=True)
-            ]
-        )
-
     logger.info(
-        "Embedded session %s (room %s): %d chunks via model=%s",
-        session.id,
-        session.room_id,
+        "Embedded session %s: %d chunks via model=%s",
+        session_id,
         len(chunks),
         client.model,
     )

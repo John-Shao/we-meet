@@ -36,7 +36,7 @@ def _stub_embedding_client(dim=4):
     """Patch ``EmbeddingClient.from_settings`` to return a fake client."""
     fake = mock.MagicMock()
     fake.model = "ep-test-embed"
-    fake.batch_embed.side_effect = lambda texts: [[0.1] * dim for _ in texts]
+    fake.batch_embed.side_effect = lambda texts, **_kwargs: [[0.1] * dim for _ in texts]
     return mock.patch(
         "core.tasks.embeddings.EmbeddingClient.from_settings",
         return_value=fake,

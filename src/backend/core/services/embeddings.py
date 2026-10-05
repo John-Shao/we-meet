@@ -64,7 +64,7 @@ class EmbeddingClient:
             raise ValueError("text must not be empty")
         return self._embed_one(text)
 
-    def batch_embed(self, texts: Iterable[str]) -> list[list[float]]:
+    def batch_embed(self, texts: Iterable[str], *, before_request=None) -> list[list[float]]:
         """Embed texts in input order with bounded per-request payloads."""
         items = list(texts)
         if not items:
@@ -74,6 +74,8 @@ class EmbeddingClient:
 
         results: list[list[float]] = []
         for t in items:
+            if before_request is not None:
+                before_request()
             results.append(self._embed_one(t))
         return results
 
