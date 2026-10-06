@@ -9,6 +9,7 @@ from capture.common import CaptureBackend, CaptureError
 from capture.sealed import CaptureAttempt
 from plugins.qwen.asr import QwenASRConfig
 from plugins.qwen.filetrans import QwenFileASRConfig
+from plugins.qwen.http_pool import filetrans_http_pool
 
 logger = logging.getLogger("capture-transcriber")
 
@@ -34,20 +35,21 @@ async def serve(*, live=False, attempt_type=CaptureAttempt):
             loop.add_signal_handler(sig, current.cancel)
         except NotImplementedError:
             pass  # Linux container uses handlers; Windows Runner handles Ctrl-C.
-    while True:
-        response = await backend.request(
-            "claim/",
-            {
-                "model": config.model,
-                "region": config.region,
-                **({"live": True} if live else {}),
-            },
-        )
-        job = response["job"]
-        if job:
-            await attempt_type(backend, config, job).execute()
-        else:
-            await asyncio.sleep(5)
+    async with filetrans_http_pool(enabled=not live):
+        while True:
+            response = await backend.request(
+                "claim/",
+                {
+                    "model": config.model,
+                    "region": config.region,
+                    **({"live": True} if live else {}),
+                },
+            )
+            job = response["job"]
+            if job:
+                await attempt_type(backend, config, job).execute()
+            else:
+                await asyncio.sleep(5)
 
 
 def run_worker(*, live=False, attempt_type=CaptureAttempt):

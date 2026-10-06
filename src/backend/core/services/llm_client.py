@@ -7,7 +7,7 @@ from typing import Iterator, Optional
 
 from django.conf import settings
 
-from core.services.provider_http import shared_transport
+from core.services.provider_llm import acquire
 
 logger = logging.getLogger(__name__)
 
@@ -84,14 +84,11 @@ class LLMClient:
     ) -> None:
         # Imported lazily so the rest of the app keeps booting even when
         # the openai package is unavailable in a partial dev setup.
-        from openai import DefaultHttpxClient, OpenAI
-
-        self._client = OpenAI(
+        self._client = acquire(
             api_key=api_key,
             base_url=base_url,
             timeout=timeout,
-            http_client=DefaultHttpxClient(transport=shared_transport(), timeout=timeout),
-            **({"max_retries": max_retries} if max_retries is not None else {}),
+            max_retries=max_retries,
         )
         self._model = model
 
@@ -121,7 +118,7 @@ class LLMClient:
         return self._model
 
     def close(self) -> None:
-        """Release the per-request HTTP client after a bounded one-shot operation."""
+        """Release this task's lease while other tasks retain the pooled SDK client."""
         self._client.close()
 
     def chat(

@@ -71,6 +71,7 @@ def fake_openai(monkeypatch):
             pass
 
         chat = instance.chat
+        close = instance.close
 
     monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
     return instance

@@ -366,52 +366,56 @@ def summarize_transcription_internals(
     )
     llm_service = LLMService(llm_observability=llm_observability)
 
-    tldr = llm_service.call(PROMPT_SYSTEM_TLDR, transcript, name="tldr")
+    try:
+        tldr = llm_service.call(PROMPT_SYSTEM_TLDR, transcript, name="tldr")
 
-    logger.info("TLDR generated")
+        logger.info("TLDR generated")
 
-    parts = llm_service.call(
-        PROMPT_SYSTEM_PLAN, transcript, name="parts", response_format=FORMAT_PLAN
-    )
-    logger.info("Plan generated")
+        parts = llm_service.call(
+            PROMPT_SYSTEM_PLAN, transcript, name="parts", response_format=FORMAT_PLAN
+        )
+        logger.info("Plan generated")
 
-    res = json.loads(parts)
-    parts = res.get("titles", [])
-    logger.info("Parts to summarize: %s", parts)
-    parts_summarized = []
-    for part in parts:
-        prompt_user_part = PROMPT_USER_PART.format(part=part, transcript=transcript)
-        logger.info("Summarizing part: %s", part)
-        parts_summarized.append(
-            llm_service.call(PROMPT_SYSTEM_PART, prompt_user_part, name="part")
+        res = json.loads(parts)
+        parts = res.get("titles", [])
+        logger.info("Parts to summarize: %s", parts)
+        parts_summarized = []
+        for part in parts:
+            prompt_user_part = PROMPT_USER_PART.format(part=part, transcript=transcript)
+            logger.info("Summarizing part: %s", part)
+            parts_summarized.append(
+                llm_service.call(PROMPT_SYSTEM_PART, prompt_user_part, name="part")
+            )
+
+        logger.info("Parts summarized")
+
+        raw_summary = "\n\n".join(parts_summarized)
+
+        next_steps = llm_service.call(
+            PROMPT_SYSTEM_NEXT_STEP,
+            transcript,
+            name="next-steps",
+            response_format=FORMAT_NEXT_STEPS,
         )
 
-    logger.info("Parts summarized")
+        next_steps = format_actions(json.loads(next_steps))
 
-    raw_summary = "\n\n".join(parts_summarized)
+        logger.info("Next steps generated")
 
-    next_steps = llm_service.call(
-        PROMPT_SYSTEM_NEXT_STEP,
-        transcript,
-        name="next-steps",
-        response_format=FORMAT_NEXT_STEPS,
-    )
+        cleaned_summary = llm_service.call(
+            PROMPT_SYSTEM_CLEANING, raw_summary, name="cleaning"
+        )
+        logger.info("Summary cleaned")
 
-    next_steps = format_actions(json.loads(next_steps))
+        summary = tldr + "\n\n" + cleaned_summary + "\n\n" + next_steps
 
-    logger.info("Next steps generated")
+        return summary
+    finally:
+        try:
+            llm_service.close()
+        finally:
+            llm_observability.flush()
 
-    cleaned_summary = llm_service.call(
-        PROMPT_SYSTEM_CLEANING, raw_summary, name="cleaning"
-    )
-    logger.info("Summary cleaned")
-
-    summary = tldr + "\n\n" + cleaned_summary + "\n\n" + next_steps
-
-    llm_observability.flush()
-    logger.debug("LLM observability flushed")
-
-    return summary
 
 
 @celery.task(

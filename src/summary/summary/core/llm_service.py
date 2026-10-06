@@ -7,6 +7,7 @@ import openai
 from langfuse import Langfuse
 
 from summary.core.config import get_settings
+from summary.core.provider_llm import acquire, sdk_http_client
 
 settings = get_settings()
 
@@ -83,7 +84,7 @@ class LLMObservability:
 
         if not self.is_enabled:
             logger.debug("Using regular OpenAI client (observability disabled)")
-            return openai.OpenAI(**base_args)
+            return acquire(**base_args, timeout=openai.DEFAULT_TIMEOUT)
 
         # Langfuse's OpenAI wrapper is imported here to avoid triggering client
         # init at module load, which would log a warning if LANGFUSE_PUBLIC_KEY
@@ -91,7 +92,12 @@ class LLMObservability:
         from langfuse.openai import openai as langfuse_openai  # noqa: PLC0415
 
         logger.debug("Using LangfuseOpenAI client (observability enabled)")
-        return langfuse_openai.OpenAI(**base_args)
+        # Traced SDK wrappers remain task-local, as does the user's masking rule.
+        # Only their HTTP transport is shared across tasks.
+        return langfuse_openai.OpenAI(
+            **base_args,
+            http_client=sdk_http_client(openai.DEFAULT_TIMEOUT),
+        )
 
     def flush(self):
         """Flush pending observability traces to Langfuse."""
@@ -110,6 +116,10 @@ class LLMService:
         """Init the LLMService once."""
         self._client = llm_observability.get_openai_client()
         self._observability = llm_observability
+
+    def close(self):
+        """Release the task's SDK lease or its private tracing wrapper."""
+        self._client.close()
 
     def call(
         self,

@@ -12,10 +12,10 @@ from datetime import timedelta
 from http import HTTPStatus
 from urllib.parse import urlsplit
 
-import aiohttp
 from minio import Minio
 
 from plugins.qwen.asr import ASRSentence
+from plugins.qwen.http_pool import filetrans_http_client
 from transcription.diagnostics import StageError, stage
 
 MODEL = "qwen-audio-3.1-asr-flash-filetrans"
@@ -184,9 +184,7 @@ class QwenFileASRSession:
 
     async def transcribe(self, url, on_final):
         """Submit one task and stream parsed finals without automatic resubmission."""
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=45)
-        ) as client:
+        async with filetrans_http_client() as client:
             with stage("transcription_submit"):
                 result = await self.request(
                     client,
