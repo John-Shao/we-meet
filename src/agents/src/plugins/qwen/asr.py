@@ -43,7 +43,7 @@ class QwenASRConfig:
     api_key: str = field(repr=False)
     workspace: str
     region: str = "cn-beijing"
-    model: str = "qwen-audio-3.0-asr-flash-streaming"
+    model: str = "qwen-audio-3.1-asr-flash-streaming"
     finish_timeout: float = 15
 
     def __post_init__(self):
@@ -67,7 +67,7 @@ class QwenASRConfig:
             api_key=os.getenv("DASHSCOPE_API_KEY", ""),
             workspace=os.getenv("DASHSCOPE_WORKSPACE_ID", ""),
             region=os.getenv("QWEN_ASR_REGION", "cn-beijing"),
-            model=os.getenv("QWEN_ASR_MODEL", "qwen-audio-3.0-asr-flash-streaming"),
+            model=os.getenv("QWEN_ASR_MODEL", "qwen-audio-3.1-asr-flash-streaming"),
         )
 
 

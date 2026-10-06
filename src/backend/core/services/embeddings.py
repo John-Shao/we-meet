@@ -11,6 +11,8 @@ from typing import Iterable, Optional
 
 from django.conf import settings
 
+from core.services import provider_http
+
 logger = logging.getLogger(__name__)
 
 
@@ -108,7 +110,7 @@ class EmbeddingClient:
             data=payload,
         )
         try:
-            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+            with provider_http.urlopen(req, timeout=self._timeout) as resp:
                 body = json.loads(resp.read())
         except urllib.error.HTTPError as e:
             raise RuntimeError(

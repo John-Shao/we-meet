@@ -1165,8 +1165,9 @@ class Base(Configuration):
         False, environ_prefix=None
     )
     ROOM_INTERPRETATION_AGENT_NAME = values.Value("", environ_prefix=None)
+    DASHSCOPE_ASR_CLIENT_API_KEY = values.Value("", environ_prefix=None)
     QWEN_ASR_MODEL = values.Value(
-        "qwen-audio-3.0-asr-flash-streaming", environ_prefix=None
+        "qwen-audio-3.1-asr-flash-streaming", environ_prefix=None
     )
     QWEN_ASR_REGION = values.Value("cn-beijing", environ_prefix=None)
     MEETING_FILE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
@@ -1194,7 +1195,7 @@ class Base(Configuration):
         3600, environ_prefix=None
     )
     QWEN_FILE_ASR_MODEL = values.Value(
-        "qwen-audio-3.0-asr-flash-filetrans", environ_prefix=None
+        "qwen-audio-3.1-asr-flash-filetrans", environ_prefix=None
     )
     QWEN_FILE_ASR_REGION = values.Value("cn-beijing", environ_prefix=None)
     QWEN_FILE_ASR_BASE_URL = values.Value("", environ_prefix=None)

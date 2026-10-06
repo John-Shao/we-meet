@@ -18,7 +18,7 @@ from minio import Minio
 from plugins.qwen.asr import ASRSentence
 from transcription.diagnostics import StageError, stage
 
-MODEL = "qwen-audio-3.0-asr-flash-filetrans"
+MODEL = "qwen-audio-3.1-asr-flash-filetrans"
 MAX_RESULT_BYTES = 32 * 1024 * 1024
 
 

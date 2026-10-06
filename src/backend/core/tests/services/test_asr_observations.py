@@ -29,7 +29,7 @@ def report(**overrides):
     return {
         "schema_version": 1,
         "provider": "qwen",
-        "model": "qwen-audio-3.0-asr-flash-streaming",
+        "model": "qwen-audio-3.1-asr-flash-streaming",
         "streams_started": 1,
         "streams_finished": 1,
         "tasks_started": 2,

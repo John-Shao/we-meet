@@ -400,7 +400,7 @@ def test_provider_payload_uses_file_urls_context_and_vocabulary(diarization):
             == "task"
         )
     payload = request.call_args.kwargs["payload"]
-    assert payload["model"] == "qwen-audio-3.0-asr-flash-filetrans"
+    assert payload["model"] == "qwen-audio-3.1-asr-flash-filetrans"
     assert payload["input"]["file_urls"] == ["https://audio.invalid/a.wav"]
     assert payload["input"]["context"][0]["content"][0] == {
         "type": "input_text",
@@ -448,7 +448,7 @@ def test_http_contract_and_credentials_do_not_follow_redirects():
     ]
     response.__enter__.return_value = response
     with mock.patch.object(
-        provider.requests, "request", return_value=response
+        provider.provider_http, "request", return_value=response
     ) as request:
         provider.submit("https://audio.invalid/a.wav", {})
     assert request.call_args.kwargs["headers"]["X-DashScope-Async"] == "enable"

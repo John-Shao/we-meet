@@ -22,7 +22,7 @@ import wave
 
 
 MODEL = "qwen3.8-flash"
-ASR = "qwen-audio-3.0-asr-flash-streaming"
+ASR = "qwen-audio-3.1-asr-flash-streaming"
 TRANSLATION = "qwen3.8-livetranslate-flash-realtime"
 SAMPLE = [
     {"id": "s1", "speaker": "主持人", "text": "这是合成会议。原计划周五上线。"},

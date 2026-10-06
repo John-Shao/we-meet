@@ -7,6 +7,8 @@ from typing import Iterator, Optional
 
 from django.conf import settings
 
+from core.services.provider_http import shared_transport
+
 logger = logging.getLogger(__name__)
 
 
@@ -82,12 +84,13 @@ class LLMClient:
     ) -> None:
         # Imported lazily so the rest of the app keeps booting even when
         # the openai package is unavailable in a partial dev setup.
-        from openai import OpenAI
+        from openai import DefaultHttpxClient, OpenAI
 
         self._client = OpenAI(
             api_key=api_key,
             base_url=base_url,
             timeout=timeout,
+            http_client=DefaultHttpxClient(transport=shared_transport(), timeout=timeout),
             **({"max_retries": max_retries} if max_retries is not None else {}),
         )
         self._model = model

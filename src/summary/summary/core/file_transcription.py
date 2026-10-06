@@ -5,11 +5,10 @@ import time
 import uuid
 from urllib.parse import urlsplit
 
-import requests
-
+from summary.core import provider_http
 from summary.core.shared_models import Segment, WhisperXResponse, WordSegment
 
-MODEL = "qwen-audio-3.0-asr-flash-filetrans"
+MODEL = "qwen-audio-3.1-asr-flash-filetrans"
 
 
 def request_json(method, url, *, api_key=None, payload=None):
@@ -17,7 +16,7 @@ def request_json(method, url, *, api_key=None, payload=None):
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     if method == "POST":
         headers["X-DashScope-Async"] = "enable"
-    with requests.request(
+    with provider_http.request(
         method,
         url,
         json=payload,

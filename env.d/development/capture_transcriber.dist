@@ -3,7 +3,7 @@ AGENT_BACKEND_API_URL=http://app-dev:8000
 AGENT_INTERNAL_API_TOKEN=
 DASHSCOPE_API_KEY=
 DASHSCOPE_WORKSPACE_ID=
-QWEN_FILE_ASR_MODEL=qwen-audio-3.0-asr-flash-filetrans
+QWEN_FILE_ASR_MODEL=qwen-audio-3.1-asr-flash-filetrans
 QWEN_FILE_ASR_REGION=cn-beijing
 QWEN_FILE_ASR_BASE_URL=
 # Private storage; public endpoint must be reachable by DashScope.

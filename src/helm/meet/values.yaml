@@ -1480,7 +1480,7 @@ meetingAIWorkers:
       livekit: false
       command: [python, -m, entrypoints.capture_transcriber]
       envVars:
-        QWEN_FILE_ASR_MODEL: qwen-audio-3.0-asr-flash-filetrans
+        QWEN_FILE_ASR_MODEL: qwen-audio-3.1-asr-flash-filetrans
         QWEN_FILE_ASR_REGION: cn-beijing
         # Set private S3/OSS credentials using Secret references and a provider-reachable endpoint.
         # AWS_S3_ENDPOINT_URL, AWS_S3_PUBLIC_ENDPOINT_URL, AWS_S3_ACCESS_KEY_ID,
@@ -1493,7 +1493,7 @@ meetingAIWorkers:
       livekit: false
       command: [python, -m, entrypoints.capture_live_transcriber]
       envVars:
-        QWEN_ASR_MODEL: qwen-audio-3.0-asr-flash-streaming
+        QWEN_ASR_MODEL: qwen-audio-3.1-asr-flash-streaming
         QWEN_ASR_REGION: cn-beijing
       resources: {}
     capture-translation:

@@ -1,6 +1,6 @@
 # 录音文件转写
 
-所有非实时音频转写使用阿里云百炼 `qwen-audio-3.0-asr-flash-filetrans`：
+所有非实时音频转写使用阿里云百炼 `qwen-audio-3.1-asr-flash-filetrans`：
 
 | 路径 | 执行方式 |
 | --- | --- |
@@ -8,7 +8,7 @@
 | 独立录音结束后转写 | `capture_transcriber.py` 将验证过的 WAV 分片按连续区间写入临时文件，分别提交 Filetrans |
 | 旧版会议录音 / summary 转写任务 | summary 服务通过 Filetrans 转写，转换为原有 webhook 的句子、词语和时间戳格式 |
 
-实时字幕、录音中的实时转写继续使用 `qwen-audio-3.0-asr-flash-streaming`。文件模型不读取 `QWEN_ASR_MODEL`，也不使用 WhisperX 回退。
+实时字幕、录音中的实时转写继续使用 `qwen-audio-3.1-asr-flash-streaming`。文件模型不读取 `QWEN_ASR_MODEL`，也不使用 WhisperX 回退。
 
 ## 用户操作
 
@@ -28,7 +28,7 @@
 MEETING_RECORDS_ENABLED=true
 MEETING_FILE_ASR_ENABLED=true
 MEETING_FILE_ASR_MAX_BYTES=104857600
-QWEN_FILE_ASR_MODEL=qwen-audio-3.0-asr-flash-filetrans
+QWEN_FILE_ASR_MODEL=qwen-audio-3.1-asr-flash-filetrans
 QWEN_FILE_ASR_REGION=cn-beijing
 # 可选：业务空间专属域名，必须包含 /api/v1
 QWEN_FILE_ASR_BASE_URL=https://<workspace-id>.cn-beijing.maas.aliyuncs.com/api/v1
@@ -50,7 +50,7 @@ QWEN_FILE_ASR_STORAGE_ENDPOINT_URL=https://<public-storage-endpoint>
 `capture-asr` 需要以下私有存储配置（支持 Kubernetes Secret 引用）：
 
 ```dotenv
-QWEN_FILE_ASR_MODEL=qwen-audio-3.0-asr-flash-filetrans
+QWEN_FILE_ASR_MODEL=qwen-audio-3.1-asr-flash-filetrans
 QWEN_FILE_ASR_REGION=cn-beijing
 AWS_S3_ENDPOINT_URL=<internal-host:port>
 AWS_S3_PUBLIC_ENDPOINT_URL=<public-host>

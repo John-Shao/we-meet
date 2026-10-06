@@ -34,6 +34,7 @@ from core.api.admin_stats import AdminStatsOverviewView
 from core.api.agent_internal import IngestTranscriptView, TranscriptDeliveryView
 from core.api.ai_call import AiCallSessionView
 from core.api.assistant_summary import AssistantSummaryView
+from core.api.assistant_transcription import AssistantTranscriptionSessionView
 from core.api.assistant_translation import (
     AssistantTranslationClaimView,
     AssistantTranslationSessionView,
@@ -385,6 +386,7 @@ external_router.register(
 urlpatterns = [
     path("api/v1.0/ai-call/session/", AiCallSessionView.as_view(), name="ai-call-session"),
     path("api/v1.0/assistant-summary/", AssistantSummaryView.as_view(), name="assistant-summary"),
+    path("api/v1.0/assistant-transcription/session/", AssistantTranscriptionSessionView.as_view(), name="assistant-transcription-session"),
     path("api/v1.0/assistant-translation/ticket/", AssistantTranslationTicketView.as_view(), name="assistant-translation-ticket"),
     path(
         "api/v1.0/assistant-translation/session/",

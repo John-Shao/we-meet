@@ -213,6 +213,12 @@ backend:
     # OkHttp reads any response header.
     MEETING_FILE_DIRECT_UPLOAD_ENABLED: "True"
     MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES: "6442450944"
+    DASHSCOPE_ASR_CLIENT_API_KEY:
+      secretKeyRef:
+        name: meet-ai-credentials
+        key: DASHSCOPE_ASR_CLIENT_API_KEY
+        optional: true
+    QWEN_FILE_ASR_MODEL: "qwen-audio-3.1-asr-flash-filetrans"
     QWEN_FILE_ASR_REGION: "cn-beijing"
     MEETING_CAPTURE_ASR_ENABLED: "True"
     MEETING_CAPTURE_LIVE_ASR_ENABLED: "True"
@@ -243,7 +249,7 @@ backend:
     ROOM_SUBTITLE_AGENT_NAME: "multi-user-transcriber"
     ROOM_TRANSLATION_AGENT_NAME: "meeting-translation"
     ROOM_INTERPRETATION_AGENT_NAME: "meeting-interpretation"
-    QWEN_ASR_MODEL: "qwen-audio-3.0-asr-flash-streaming"
+    QWEN_ASR_MODEL: "qwen-audio-3.1-asr-flash-streaming"
     QWEN_ASR_REGION: "cn-beijing"
     MEETING_SUMMARY_MODEL: "qwen3.8-flash"
     MEETING_SUMMARY_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -464,6 +470,7 @@ summary:
       memory: 384Mi
   envVars: &summaryEnvVars
     APP_NAME: meet-summary
+    QWEN_FILE_ASR_MODEL: "qwen-audio-3.1-asr-flash-filetrans"
     # APP_API_TOKEN 来自 values.secrets.yaml (= SUMMARY_SERVICE_API_TOKEN)
 
     AWS_STORAGE_BUCKET_NAME_VIDEO: we-meet-video
@@ -631,7 +638,7 @@ agentSubtitles:
     ENABLE_SILERO_VAD: "true"
     STT_PROVIDER: qwen
     TRANSCRIBER_AGENT_NAME: multi-user-transcriber
-    QWEN_ASR_MODEL: qwen-audio-3.0-asr-flash-streaming
+    QWEN_ASR_MODEL: qwen-audio-3.1-asr-flash-streaming
     QWEN_ASR_REGION: cn-beijing
     DASHSCOPE_WORKSPACE_ID:
       secretKeyRef:

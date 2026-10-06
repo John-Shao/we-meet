@@ -8,9 +8,9 @@ from django.conf import settings
 
 import requests
 
-from core.services import word_alignment
+from core.services import provider_http, word_alignment
 
-MODEL = "qwen-audio-3.0-asr-flash-filetrans"
+MODEL = "qwen-audio-3.1-asr-flash-filetrans"
 MAX_RESULT_BYTES = 32 * 1024 * 1024
 
 
@@ -50,7 +50,7 @@ def request_json(method, url, *, payload=None, authenticated=True):
         headers["Authorization"] = f"Bearer {settings.DASHSCOPE_API_KEY}"
     if method == "POST":
         headers["X-DashScope-Async"] = "enable"
-    with requests.request(
+    with provider_http.request(
         method,
         url,
         json=payload,

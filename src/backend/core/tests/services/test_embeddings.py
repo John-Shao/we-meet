@@ -53,7 +53,7 @@ def mock_urlopen(monkeypatch):
     """Patch ``urllib.request.urlopen`` inside the module under test."""
     m = mock.MagicMock()
     monkeypatch.setattr(
-        "core.services.embeddings.urllib.request.urlopen", m
+        "core.services.embeddings.provider_http.urlopen", m
     )
     return m
 

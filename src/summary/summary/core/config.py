@@ -93,7 +93,7 @@ class Settings(BaseSettings):
 
     # AI-related settings
     dashscope_api_key: SecretStr = SecretStr("")
-    qwen_file_asr_model: str = "qwen-audio-3.0-asr-flash-filetrans"
+    qwen_file_asr_model: str = "qwen-audio-3.1-asr-flash-filetrans"
     qwen_file_asr_region: str = "cn-beijing"
     qwen_file_asr_base_url: str = ""
     whisperx_api_key: SecretStr = SecretStr("")
