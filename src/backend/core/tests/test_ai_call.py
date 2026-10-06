@@ -1,5 +1,6 @@
 """Direct AI call signalling never exposes credentials or creates meeting rooms."""
 
+import json
 from unittest import mock
 
 from django.core.cache import cache
@@ -14,6 +15,56 @@ from core.factories import UserFactory
 pytestmark = pytest.mark.django_db
 URL = "/api/v1.0/ai-call/session/"
 SDP = "v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n"
+
+
+def test_aoq_allocation_uses_temporary_credentials(call_setup):
+    """AOQ shares catalog authorization but returns only connection credentials."""
+    client, profile, post, upstream = call_setup
+    allocation = {
+        "sid": "test-session",
+        "aoqTokenForClient": "temporary-token",
+        "clientRelayCertFingerprint": "sha256/test-fingerprint",
+        "clientRelayEndpoints": [{"endpoint": "192.0.2.1", "port": 8443}],
+        "extraInfo": {"workspaceIdHash": "test-workspace"},
+        "unexpected_secret": "must-not-be-returned",
+    }
+    upstream.iter_content.return_value = [json.dumps(allocation).encode()]
+    response = client.post(
+        URL, {"transport": "aoq", "profile_code": profile.code}, format="json"
+    )
+    assert response.status_code == 200
+    assert response.data["aoq"]["aoqTokenForClient"] == "temporary-token"
+    assert response.data["aoq"]["workspaceIdHash"] == "test-workspace"
+    assert "sdp" not in response.data
+    assert "must-not-be-returned" not in str(response.data)
+    assert "test-provider-key" not in str(response.data)
+    assert response["Cache-Control"] == "no-store"
+    _, kwargs = post.call_args
+    assert kwargs["headers"]["x-dashscope-rtc-transport"] == "moq"
+    assert kwargs["headers"]["Content-Type"] == "application/json"
+    assert kwargs["params"]["model"] == "qwen3.8-omni-flash-realtime"
+    assert kwargs["data"] == b"{}"
+    assert not kwargs["allow_redirects"]
+
+
+@pytest.mark.parametrize(
+    "allocation", ["not-json", "null", "{}", '{"clientRelayEndpoints": []}']
+)
+def test_invalid_aoq_allocation_is_rejected(call_setup, allocation):
+    client, profile, _, upstream = call_setup
+    upstream.iter_content.return_value = [allocation.encode()]
+    response = client.post(
+        URL, {"transport": "aoq", "profile_code": profile.code}, format="json"
+    )
+    assert response.status_code == 502
+
+
+@pytest.mark.parametrize("body", [{"transport": "unknown"}, {"transport": "webrtc"}])
+def test_invalid_transport_or_missing_offer_is_rejected(call_setup, body):
+    client, profile, post, _ = call_setup
+    response = client.post(URL, {"profile_code": profile.code, **body}, format="json")
+    assert response.status_code == 400
+    post.assert_not_called()
 
 
 @pytest.fixture

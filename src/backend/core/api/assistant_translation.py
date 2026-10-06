@@ -1,5 +1,6 @@
 """Short-lived, single-use admission for the standalone bilingual assistant."""
 
+import re
 import secrets
 from urllib.parse import urlsplit
 
@@ -7,11 +8,13 @@ from django.conf import settings
 from django.core import signing
 from django.core.cache import cache
 
+import requests
 from rest_framework import permissions, serializers, throttling
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
+from core.api.ai_call import MAX_SDP_LENGTH, parse_aoq_allocation
 from core.models import User
 
 SALT = "assistant-translation-v1"
@@ -105,4 +108,72 @@ class AssistantTranslationClaimView(APIView):
             return Response(status=403)
         return Response(
             serializer.validated_data, headers={"Cache-Control": "no-store"}
+        )
+
+
+class DirectTranslationSerializer(PairSerializer):
+    """Only permit the two models required by automatic bilingual translation."""
+
+    purpose = serializers.ChoiceField(
+        choices=("translation", "language_detection"), default="translation"
+    )
+
+
+class AssistantTranslationSessionView(APIView):
+    """Allocate model-scoped AOQ credentials; never proxy speech or expose API keys."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [TranslationThrottle]
+
+    def post(self, request):
+        serializer = DirectTranslationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        workspace = settings.DASHSCOPE_WORKSPACE_ID
+        region = settings.DASHSCOPE_REGION
+        api_key = settings.DASHSCOPE_API_KEY
+        if (
+            not api_key
+            or not re.fullmatch(r"[A-Za-z0-9-]+", workspace or "")
+            or region not in {"cn-beijing", "ap-southeast-1"}
+        ):
+            return Response({"detail": "Translation is not configured."}, status=503)
+        model = (
+            "qwen3.8-livetranslate-flash-realtime"
+            if data["purpose"] == "translation"
+            else "qwen3.8-omni-flash-realtime"
+        )
+        url = f"https://{workspace}.{region}.maas.aliyuncs.com/api/v1/webrtc/realtime"
+        try:
+            with requests.post(
+                url,
+                params={"model": model},
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "x-dashscope-rtc-transport": "moq",
+                },
+                data=b"{}",
+                timeout=(5, 20),
+                allow_redirects=False,
+                stream=True,
+            ) as upstream:
+                if upstream.status_code not in (200, 201):
+                    return Response(
+                        {"detail": "Direct translation connection was rejected."},
+                        status=502,
+                    )
+                chunks = bytearray()
+                for chunk in upstream.iter_content(8192):
+                    chunks.extend(chunk)
+                    if len(chunks) > MAX_SDP_LENGTH:
+                        raise ValueError("Allocation exceeds size limit")
+                credentials = parse_aoq_allocation(chunks.decode("utf-8"))
+        except (requests.RequestException, ValueError, KeyError, TypeError):
+            return Response(
+                {"detail": "Direct translation connection failed."}, status=502
+            )
+        return Response(
+            {"model": model, "aoq": credentials, **data},
+            headers={"Cache-Control": "no-store"},
         )
