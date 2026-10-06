@@ -6,8 +6,9 @@ import json
 from pathlib import Path
 import tarfile
 import tempfile
+import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 def load(name):
@@ -47,6 +48,26 @@ class Storage:
 
 
 class BackupSafetyTests(unittest.TestCase):
+    def test_object_client_supports_old_and_new_sdk_without_oss_trailers(self):
+        for supported in [False, True]:
+            constructor = MagicMock()
+            constructor.OPTION_DEFAULTS = ({"request_checksum_calculation": None,
+                                            "response_checksum_validation": None} if supported else {})
+            sdk = types.ModuleType("boto3")
+            sdk.client = MagicMock()
+            config_module = types.ModuleType("botocore.config")
+            config_module.Config = constructor
+            with patch.dict("sys.modules", {"boto3": sdk, "botocore.config": config_module}):
+                backup.object_client({"endpoint": "https://oss.example.com", "region": "region",
+                                      "access_key": "test-id", "secret_key": "test-only"})
+            options = constructor.call_args.kwargs
+            self.assertEqual(options["signature_version"], "s3v4")
+            for key in ["request_checksum_calculation", "response_checksum_validation"]:
+                if supported:
+                    self.assertEqual(options[key], "when_required")
+                else:
+                    self.assertNotIn(key, options)
+
     def test_plaintext_never_uploaded(self):
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / "data.age"

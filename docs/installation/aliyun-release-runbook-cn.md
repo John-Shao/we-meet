@@ -156,6 +156,8 @@ sudo journalctl -u 'meet-backup-notify*' -n 30 --no-pager
 
 三个前缀均位于已有 `jd-sjy/` 生命周期规则下，沿用 30 天保留。每次上传前使用现有 age 公钥加密，
 完整读回校验、私有 ACL 校验均成功后，才发布该服务自己的 `latest.json`。恢复私钥仍仅在本地。
+新版本 boto3 默认启用的 checksum trailer 上传格式可能被 OSS 拒绝（`STREAMING-UNSIGNED-PAYLOAD-TRAILER`）；
+备份客户端对支持该配置的 SDK 显式使用 `when_required`，兼容旧 SDK，并始终保留完整 SHA-256 读回校验。
 现阶段复用已有 OSS 身份；各节点需要能访问该桶，未来可分别替换为仅授权各自前缀的凭据。
 
 范围仅为数据库：Docs 文档正文/附件仍在原 OSS 桶；IM 外部附件、Redis、Keycloak 容器插件、

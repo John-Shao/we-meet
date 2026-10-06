@@ -62,13 +62,19 @@ def object_client(config):
 
     if not config["endpoint"].startswith("https://"):
         raise ValueError("Object storage must use HTTPS")
+    # New botocore defaults to aws-chunked checksum trailers, which OSS's S3
+    # endpoint rejects. Older distro SDKs do not accept these config keywords.
+    # Our full-object SHA-256 read-back remains mandatory on every upload.
+    checksum_options = {name: "when_required" for name in
+                        ("request_checksum_calculation", "response_checksum_validation")
+                        if name in Config.OPTION_DEFAULTS}
     return boto3.client(
         "s3", endpoint_url=config["endpoint"], region_name=config["region"],
         aws_access_key_id=config["access_key"],
         aws_secret_access_key=config["secret_key"],
         config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"},
                       connect_timeout=10, read_timeout=120,
-                      retries={"max_attempts": 3}),
+                      retries={"max_attempts": 3}, **checksum_options),
     )
 
 
