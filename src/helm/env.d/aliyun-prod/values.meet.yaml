@@ -218,6 +218,7 @@ backend:
         name: meet-ai-credentials
         key: DASHSCOPE_ASR_CLIENT_API_KEY
         optional: true
+    MEETING_CAPTURE_DIRECT_ASR_ENABLED: "True"
     QWEN_FILE_ASR_MODEL: "qwen-audio-3.1-asr-flash-filetrans"
     QWEN_FILE_ASR_REGION: "cn-beijing"
     MEETING_CAPTURE_ASR_ENABLED: "True"

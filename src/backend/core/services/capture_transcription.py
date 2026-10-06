@@ -95,9 +95,15 @@ def _expire(job):
     return job
 
 
+def locked_job(job_id):
+    """Shared record-lock boundary for owner/device direct-ASR receipts."""
+    return _locked(job_id)
+
+
 def serialize(job):
     """Public progress contains neither worker credentials nor unpublished text."""
     live = live_inputs.is_live(job)
+    direct = job.configuration.get("transport") == "client_ws"
     return {
         "id": str(job.pk),
         "generation": job.generation,
@@ -112,20 +118,29 @@ def serialize(job):
         if live
         else job.inputs["manifest"]["outcome"],
         "mode": "live" if live else "sealed",
-        "input_closed": not live or job.live_manifest is not None,
-        "coverage_status": "unverified",
+        "input_closed": bool(job.finish_hash)
+        if direct
+        else not live or job.live_manifest is not None,
+        "coverage_status": "partial" if direct else "unverified",
+        "transport": "direct" if direct else "cloud",
     }
 
 
 @transaction.atomic
-def prepare(capture_id, user, key, payload):
+def prepare(capture_id, user, key, payload, *, direct=None):
     """Persist an explicit generation before any dispatch or provider connection."""
     models.User.objects.select_for_update().get(pk=user.pk)
     capture = models.CaptureSession.objects.select_related("record").get(pk=capture_id)
     models.MeetingRecord.objects.select_for_update().get(pk=capture.record_id)
     capture.refresh_from_db()
     owned(capture, user)
-    request_hash = digest({"capture_id": str(capture.pk), **payload})
+    request_hash = digest(
+        {
+            "capture_id": str(capture.pk),
+            **payload,
+            **({"direct": direct} if direct else {}),
+        }
+    )
     previous = models.CaptureTranscriptionJob.objects.filter(
         requested_by=user, key=key
     ).first()
@@ -208,8 +223,23 @@ def prepare(capture_id, user, key, payload):
             if live
             else settings.QWEN_FILE_ASR_REGION,
             **({"mode": "live"} if live else {}),
+            **(
+                {
+                    "transport": "client_ws",
+                    "device_id": direct["device_id"],
+                    "lease_hash": capture.lease_hash,
+                }
+                if direct
+                else {}
+            ),
         },
-        deadline=timezone.now() + timedelta(minutes=5),
+        status="running" if direct else "queued",
+        worker_id=key if direct else None,
+        started_at=timezone.now() if direct else None,
+        lease_until=timezone.now() + timedelta(minutes=10) if direct else None,
+        deadline=timezone.now() + timedelta(seconds=43500)
+        if direct
+        else timezone.now() + timedelta(minutes=5),
     )
     return job, True
 
@@ -230,6 +260,12 @@ def state(capture_id, user):
         "live_available": available()
         and settings.MEETING_CAPTURE_LIVE_ASR_ENABLED
         and (capture.record.retention_mode != "text" or text_audio_enabled()),
+        "direct_available": available()
+        and settings.MEETING_CAPTURE_DIRECT_ASR_ENABLED
+        and capture.record.source_type == "audio_recording"
+        and capture.record.retention_mode == "media"
+        and bool(settings.DASHSCOPE_ASR_CLIENT_API_KEY)
+        and settings.MEETING_CAPTURE_LIVE_ASR_ENABLED,
         "staged_summary_available": capture_staged_enabled()
         and settings.MEETING_VERSIONED_SUMMARY_ENABLED,
         "summary_available": bool(
@@ -275,7 +311,9 @@ def preview(capture_id, job_id, user, after):
         "next_after_sequence": rows[49].source_sequence if len(rows) > 50 else None,
         "last_sequence": job.final_sequence,
         "published": job.capture.active_transcription_id == job.pk,
-        "coverage_status": "unverified",
+        "coverage_status": "partial"
+        if job.configuration.get("transport") == "client_ws"
+        else "unverified",
     }
 
 
@@ -310,9 +348,16 @@ def worker_state(job, *, include_inputs=True):
 @transaction.atomic
 def claim(worker_id, model, region, live=False):
     """A worker identity is unique to one process; expired jobs are never reclaimed."""
-    existing = models.CaptureTranscriptionJob.objects.filter(
-        worker_id=worker_id, status="running"
-    ).first()
+    existing = (
+        models.CaptureTranscriptionJob.objects.filter(
+            worker_id=worker_id, status="running"
+        )
+        .filter(
+            Q(configuration__transport__isnull=True)
+            | ~Q(configuration__transport="client_ws")
+        )
+        .first()
+    )
     if existing:
         job = _expire(_locked(existing.pk))
         return worker_state(job) if job.status == "running" else None
@@ -320,6 +365,9 @@ def claim(worker_id, model, region, live=False):
         return None
     candidates = models.CaptureTranscriptionJob.objects.filter(
         status="queued", configuration__model=model, configuration__region=region
+    ).filter(
+        Q(configuration__transport__isnull=True)
+        | ~Q(configuration__transport="client_ws")
     )
     candidates = (
         candidates.filter(configuration__mode="live")
@@ -348,8 +396,11 @@ def claim(worker_id, model, region, live=False):
     return None
 
 
-def _require(job, worker_id, *, begun=True):
-    _expire(job)
+def _require(job, worker_id, *, begun=True, direct=False):
+    if job.configuration.get("transport") == "client_ws" and not direct:
+        raise RecordConflict("Client execution cannot be controlled by a worker.")
+    if not direct:
+        _expire(job)
     if (
         job.status != "running"
         or job.worker_id != worker_id
@@ -412,6 +463,11 @@ def input_chunk(job_id, worker_id, index):
 
 def _source_interval(job, start, end):
     """A result may span adjacent chunks, but never invent time across missing audio."""
+    if job.configuration.get("transport") == "client_ws":
+        return end is not None and any(
+            r["start_ms"] <= start < r["end_ms"] and end <= r["end_ms"]
+            for r in job.report.get("ranges", [])
+        )
     runs = []
     previous = None
     for chunk in live_inputs.inputs(job)["chunks"]:
@@ -428,10 +484,10 @@ def _source_interval(job, start, end):
 
 
 @transaction.atomic
-def ingest(job_id, worker_id, payload):
+def ingest(job_id, worker_id, payload, *, direct=False):
     """Store provider-final originals privately until this complete generation publishes."""
     job = _locked(job_id)
-    _require(job, worker_id)
+    _require(job, worker_id, direct=direct)
     fingerprint = digest({**payload, "ingest_id": str(payload["ingest_id"])})
     previous = models.MeetingOriginalSegment.objects.filter(
         ingest_id=payload["ingest_id"]
@@ -488,6 +544,8 @@ def ingest(job_id, worker_id, payload):
 def finish(job_id, worker_id, payload):
     """Publish only after provider finish and all declared input/final receipts match."""
     job = _expire(_locked(job_id))
+    if job.configuration.get("transport") == "client_ws":
+        raise RecordConflict("Client receipts require owner authorization.")
     if job.worker_id != worker_id:
         raise RecordConflict("Worker identity changed.")
     fingerprint = digest(payload)

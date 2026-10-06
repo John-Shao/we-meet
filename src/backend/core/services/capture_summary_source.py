@@ -108,7 +108,9 @@ def source(record, *, allow_live=False, purpose="summary"):
                 "acknowledged_inputs": job.acknowledged_inputs,
                 "final_count": job.final_sequence,
                 "asr_status": "finished" if published else "in_progress",
-                "coverage_status": "unverified",
+                "coverage_status": "partial"
+                if job.configuration.get("transport") == "client_ws"
+                else "unverified",
             }
         ],
     }

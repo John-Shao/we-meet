@@ -35,6 +35,7 @@ from core.api.agent_internal import IngestTranscriptView, TranscriptDeliveryView
 from core.api.ai_call import AiCallSessionView
 from core.api.assistant_summary import AssistantSummaryView
 from core.api.assistant_transcription import AssistantTranscriptionSessionView
+from core.api.capture_direct_asr import CaptureDirectAsrStartView, CaptureDirectAsrSyncView
 from core.api.assistant_translation import (
     AssistantTranslationClaimView,
     AssistantTranslationSessionView,
@@ -455,6 +456,8 @@ urlpatterns = [
                 path("capture-sessions/<uuid:capture_id>/translation/archives/", CaptureTranslationArchivesView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/translation/archives/<uuid:archive_id>/", CaptureTranslationSegmentsView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/", CaptureTranscriptionView.as_view()),
+                path("capture-sessions/<uuid:capture_id>/transcription/direct/", CaptureDirectAsrStartView.as_view()),
+                path("capture-sessions/<uuid:capture_id>/transcription/direct/<uuid:job_id>/", CaptureDirectAsrSyncView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/preview/", LiveTranscriptionPreviewView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/cancel/", CancelTranscriptionView.as_view()),
                 path("recording-uploads/", UploadedRecordingView.as_view(), name="recording-uploads"),
