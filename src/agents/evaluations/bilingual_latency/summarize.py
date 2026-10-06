@@ -195,6 +195,8 @@ def render(summary):
             else ""
         )
     )
+    if summary.get("warning"):
+        lines.append("WARNING: " + summary["warning"])
     for name, values in summary["stages"].items():
         if not values["n"]:
             lines.append(f"{name:<28} n=0")
@@ -224,6 +226,16 @@ def render(summary):
     return lines
 
 
+def missing_stages(summary):
+    """Report an input that carries no bilingual stage line at all."""
+    if any(values["n"] for values in summary["stages"].values()):
+        return None
+    return (
+        "no bilingual stage line recognized in this input; pass the raw "
+        "`kubectl logs` output (or a saved copy of it), not a past summary"
+    )
+
+
 def main():
     """Read one log window and print its latency summary."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -236,6 +248,9 @@ def main():
     else:
         lines = sys.stdin.read().splitlines()
     summary = collect(lines)
+    warning = missing_stages(summary)
+    if warning:
+        summary["warning"] = warning
     if args.json:
         print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))  # noqa: T201
         return

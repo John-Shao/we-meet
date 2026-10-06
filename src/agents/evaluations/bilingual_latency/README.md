@@ -21,12 +21,14 @@
 
 ## 采集
 
-在能访问集群的机器上执行，`-n meet` 是发布用的命名空间：
+在能访问集群的机器上执行，`-n meet` 是发布用的命名空间。**先把网关日志原样落盘，
+再分析**；分析脚本的 `tee` 产物是汇总报告，不能当作下一次的输入（这种情况下脚本会
+打印 WARNING 而不是静默全 `n=0`）：
 
 ```bash
-kubectl -n meet logs deploy/meet-agent-capture-translation --since=10m \
-  | python src/agents/evaluations/bilingual_latency/summarize.py --json \
-  | tee baseline-1000ms.json
+kubectl -n meet logs deploy/meet-agent-capture-translation --since=10m > gateway-raw.log
+python src/agents/evaluations/bilingual_latency/summarize.py gateway-raw.log | tee baseline-1000ms.txt
+python src/agents/evaluations/bilingual_latency/summarize.py gateway-raw.log --json | tee baseline-1000ms.json
 ```
 
 脚本只用标准库，不需要 `PYTHONPATH` 或 agents 依赖。`--json` 便于两次运行直接对比；
