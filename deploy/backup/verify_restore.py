@@ -23,7 +23,9 @@ def run(args, input_data=None, timeout=600):
     result = subprocess.run(args, input=input_data, capture_output=True, timeout=timeout)
     if result.returncode:
         # No database content, credentials, or Docker env values in terminal logs.
-        raise RuntimeError(f"{Path(args[0]).name} failed (exit {result.returncode})")
+        error = RuntimeError(f"{Path(args[0]).name} failed (exit {result.returncode})")
+        error.diagnostics = result.stderr.decode("utf-8", "replace") + result.stdout.decode("utf-8", "replace")
+        raise error
     return result.stdout
 
 
@@ -58,7 +60,7 @@ from django.conf import settings
 settings.CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 settings.ALLOWED_HOSTS = ["testserver", "localhost"]
 settings.SESSION_ENGINE = "django.contrib.sessions.backends.db"
-settings.AUTHENTICATION_BACKENDS = ["django.contrib.auth.backends.ModelBackend"]
+settings.AUTHENTICATION_BACKENDS = [*settings.AUTHENTICATION_BACKENDS, "django.contrib.auth.backends.ModelBackend"]
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.contrib.auth import get_user_model
@@ -150,6 +152,12 @@ def drill(archive, identity, expected_sha, report_path, postgres_image):
                         "DJANGO_SETTINGS_MODULE=meet.settings", "DJANGO_CONFIGURATION=Base",
                         "DJANGO_SECRET_KEY=isolated-restore-drill-only",
                         "OIDC_OP_JWKS_ENDPOINT=http://unreachable.invalid/unused",
+                        # Avatar serializers sign URLs locally; dummy credentials
+                        # exercise serialization without exposing production keys.
+                        "AWS_S3_ACCESS_KEY_ID=restore-drill-only",
+                        "AWS_S3_SECRET_ACCESS_KEY=restore-drill-only",
+                        "AWS_S3_ENDPOINT_URL=http://unreachable.invalid",
+                        "AWS_EC2_METADATA_DISABLED=true",
                         f"DATABASE_URL=postgresql://drill:{password}@{pg}:5432/{dbname}",
                         "REDIS_URL=redis://unreachable.invalid:6379/15", "LANG=C.UTF-8", "",
                     ]))
@@ -172,6 +180,13 @@ def drill(archive, identity, expected_sha, report_path, postgres_image):
                       "scope": "Database and application read smoke; not a full host/SSO/media failover exercise"}
             Path(report_path).write_text(json.dumps(report, indent=2) + "\n")
             print(json.dumps(report))
+        except Exception as error:
+            # Protected local diagnostics only; never print database output.
+            details = getattr(error, "diagnostics", type(error).__name__)
+            if "password" in locals():
+                details = details.replace(password, "[redacted]")
+            Path(report_path).with_suffix(".failure.log").write_text(details)
+            raise
         finally:
             # A timed-out docker client does not necessarily stop its container.
             if created_network:
