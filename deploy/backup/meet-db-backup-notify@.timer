@@ -1,0 +1,10 @@
+[Unit]
+Description=Retry database backup notifications (%i)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+Unit=meet-db-backup-notify@%i.service
+
+[Install]
+WantedBy=timers.target

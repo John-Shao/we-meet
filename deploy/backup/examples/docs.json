@@ -1,0 +1,15 @@
+{
+  "service": "docs",
+  "databases": ["impress"],
+  "source": {
+    "kind": "kubernetes",
+    "namespace": "docs",
+    "resource": "deployment/postgres-docs",
+    "container": "postgresql",
+    "user": "dinum"
+  },
+  "config_dir": "/etc/meet-db-backup/docs",
+  "state_dir": "/var/lib/meet-db-backup/docs",
+  "work_dir": "/run/meet-db-backup-docs",
+  "recipient_file": "/etc/meet-db-backup/docs/recipient.txt"
+}

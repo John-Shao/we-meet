@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly independent database freshness check (%i)
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=3min
+Persistent=true
+Unit=meet-db-backup-check@%i.service
+
+[Install]
+WantedBy=timers.target

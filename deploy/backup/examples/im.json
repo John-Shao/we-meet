@@ -1,0 +1,9 @@
+{
+  "service": "im",
+  "databases": ["jusi_light_im"],
+  "source": {"kind": "local", "os_user": "postgres", "user": "postgres"},
+  "config_dir": "/etc/meet-db-backup/im",
+  "state_dir": "/var/lib/meet-db-backup/im",
+  "work_dir": "/run/meet-db-backup-im",
+  "recipient_file": "/etc/meet-db-backup/im/recipient.txt"
+}

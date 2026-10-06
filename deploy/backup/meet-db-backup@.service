@@ -1,0 +1,22 @@
+[Unit]
+Description=Encrypted independent PostgreSQL backup (%i)
+After=network-online.target
+Wants=network-online.target
+OnFailure=meet-db-backup-notify@%i.service
+OnSuccess=meet-db-backup-notify@%i.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+RuntimeDirectory=meet-db-backup-%i
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/python3 /opt/meet-db-backup/database_backup.py %i run
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+CPUQuota=100%
+MemoryMax=768M
+PrivateTmp=true
+NoNewPrivileges=true

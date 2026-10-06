@@ -1,0 +1,9 @@
+{
+  "service": "keycloak",
+  "databases": ["keycloak"],
+  "source": {"kind": "docker", "container": "keycloak-db", "user": "keycloak"},
+  "config_dir": "/etc/meet-db-backup/keycloak",
+  "state_dir": "/var/lib/meet-db-backup/keycloak",
+  "work_dir": "/run/meet-db-backup-keycloak",
+  "recipient_file": "/etc/meet-db-backup/keycloak/recipient.txt"
+}

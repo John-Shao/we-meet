@@ -51,7 +51,7 @@ backend 提交。仅接受同一 origin 仓库的 `push` 或 `workflow_dispatch`
   PostgreSQL 数据备份。恢复演练覆盖数据库和应用读取，尚不代表已验证整台 K3s 重建。
 - Redis 缓存和 broker 不作为恢复来源。重建时使用空 Redis，并核对持久化任务中的待执行、
   运行中状态，避免恢复旧队列后重复投递。媒体已在 OSS，本备份不复制媒体桶；独立
-  Docs、IM、Keycloak 节点的数据库也不在此节点的备份范围内。
+  Docs、IM、Keycloak 数据库由各自节点上的独立任务备份，见下方“独立数据库备份”，不包含在 Meet 包内。
 
 备份先用 age 公钥加密，再经 HTTPS 写入独立私有桶 `we-meet-backups-jd-sjy`
 （深圳），前缀 `jd-sjy/`。无需 CORS。桶生命周期保留该前缀下的对象 30 天。
@@ -86,7 +86,7 @@ sudo cat /var/lib/meet-backup/last-success.json
 ```
 
 新节点安装：先恢复所需的私有配置到 `/etc/meet-backup/`，安装依赖，再将仓库脚本复制到
-`/opt/meet-backup/`，将该目录全部 `.service`/`.timer` 文件安装到 `/etc/systemd/system/`。
+`/opt/meet-backup/`，将该目录 `meet-backup*.service` / `meet-backup*.timer` 文件安装到 `/etc/systemd/system/`。
 执行 `systemctl daemon-reload`，先成功执行一次 `meet-backup.service` 并验证机外对象，再启用备份和检查 timer。
 
 ### 备份主动邮件通知
@@ -137,7 +137,73 @@ sudo journalctl -u 'meet-backup-notify*' -n 30 --no-pager
 真实测试邮件被 SMTP 接受前，不能将发送通道标记为可用。若返回 `SMTPAuthenticationError`，
 先核对邮件服务控制台的发信地址、SMTP 密码和服务地域，不要把发送失败当作备份失败。
 
-### 在本地验证真实恢复
+### 独立数据库备份（Docs / IM / Keycloak）
+
+`database_backup.py` 在各数据库所在主机独立运行，代码统一由本仓库维护。它不依赖 Meet 节点、
+应用进程、Redis 或跨机 SSH 调度。三个任务各有配置、锁、成功记录、检查状态和邮件队列，
+任一服务的成功不能覆盖另一服务的失败。
+
+| 服务 | 数据源适配 | 数据库 | 同一私有桶中的独立前缀 |
+|---|---|---|---|
+| Docs | `kubectl exec` → PostgreSQL 本地 socket | `impress` | `jd-sjy/databases/docs/` |
+| IM | `runuser -u postgres` → 主机本地 socket | `jusi_light_im` | `jd-sjy/databases/im/` |
+| Keycloak | `docker exec` → PostgreSQL 本地 socket | `keycloak` | `jd-sjy/databases/keycloak/` |
+
+备份使用 PostgreSQL 的[导出快照与 pg_dump](https://www.postgresql.org/docs/16/app-pgdump.html)：
+逐表行数与导出使用同一数据库快照，源库并发写入不应造成恢复行数误报。包含完整逻辑数据库、
+全局角色和备份运行配置；角色文件可能含口令摘要，只存在加密包内。无跨库事务一致性保证。
+不复制运行中的 PG 数据目录，不增加数据库监听端口，也不在任务配置中保存远程 SSH 密码。
+
+三个前缀均位于已有 `jd-sjy/` 生命周期规则下，沿用 30 天保留。每次上传前使用现有 age 公钥加密，
+完整读回校验、私有 ACL 校验均成功后，才发布该服务自己的 `latest.json`。恢复私钥仍仅在本地。
+现阶段复用已有 OSS 身份；各节点需要能访问该桶，未来可分别替换为仅授权各自前缀的凭据。
+
+范围仅为数据库：Docs 文档正文/附件仍在原 OSS 桶；IM 外部附件、Redis、Keycloak 容器插件、
+完整主机配置及整机切换不在数据库恢复演练范围内。正式灾难恢复还需对应版本应用、外部对象存储和部署配置。
+
+安装依赖为 Python 3、`python3-boto3`、`age`；数据库客户端使用所在主机/容器自带版本。
+先将 `deploy/backup/examples/<服务>.json` 按实际部署核对后放到 `/etc/meet-db-backup/<服务>/config.json`，
+并放入 `storage.json`、`recipient.txt`（公钥）、`notification.json`。存储配置格式沿用 Meet，
+但 `prefix` 必须使用上表的对应服务前缀。邮件配置沿用已验证通道和收件人，`hostname` 要包含服务名称。
+目录权限 `0700`，配置 `0600`；私有配置不入 Git。
+
+```bash
+# 在对应数据库主机；此处以 Docs 为例，另两台将 docs 换为 im / keycloak。
+sudo bash deploy/backup/install-database-backup.sh docs
+sudo systemctl start meet-db-backup@docs.service
+sudo systemctl start meet-db-backup-check@docs.service
+sudo python3 /opt/meet-db-backup/database_notify.py docs status
+```
+
+首次真实加密包下载到本地，用 `latest.json` 中的 SHA-256 校验，再进行隔离恢复：
+
+```bash
+python3 deploy/backup/verify_database_restore.py --service docs \
+  --archive /secure/path/docs.tar.gz.age --identity /secure/path/identity.age \
+  --sha256 '<对应服务 latest.json 的 sha256>' --report /secure/path/docs-restore.json
+```
+
+恢复工具只创建临时 Docker 内部网络和数据库，不暴露端口，不加载生产角色/应用配置，不调用业务服务。
+要求本地 PostgreSQL 镜像主版本与源库一致，默认 `postgres:16-alpine`，可用 `--postgres-image` 指定。
+所有表逐一比对快照行数，成功清理容器/网络后才输出通过报告；该报告不等同于应用、SSO 或整机恢复验收。
+
+首次备份及恢复验收后启用三个 timer：
+
+```bash
+sudo systemctl enable --now meet-db-backup@docs.timer meet-db-backup-check@docs.timer meet-db-backup-notify@docs.timer
+sudo systemctl list-timers 'meet-db-backup*'
+sudo journalctl -u meet-db-backup@docs.service -n 30 --no-pager
+```
+
+备份为北京时间 00:35、06:35、12:35、18:35，加最多十分钟随机延迟。检查每小时执行，超过八小时
+或服务/数据库/对象校验信息不符即失败。告警及恢复复用现有邮件机制：正常不发信，持续异常每六小时提醒，
+每封最多五次发送尝试，每分钟检查待发送队列。服务中途终止时 systemd 会清理 `/run/meet-db-backup-<服务>`。
+整机宕机或完全断网仍需要正式运营前另行实施的机外监控。
+
+开发验收可运行 `python3 deploy/backup/integration_database_backup.py`：它用临时 PostgreSQL、临时公私钥、
+本地模拟对象存储验证全部三个服务，并在计数后、导出前插入新行以验证快照一致性；不连接真实数据库或 OSS。
+
+### 在本地验证 Meet 真实恢复
 
 从 OSS 下载 `latest.json` 指向的 `.tar.gz.age`，以该记录的 SHA-256 校验下载文件。
 准备本地 Docker、age、Python 3.10+、`postgres:16-alpine` 和备份记录中的后端镜像；

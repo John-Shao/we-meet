@@ -1,0 +1,11 @@
+[Unit]
+Description=Six-hour independent database backup (%i)
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:35:00 Asia/Shanghai
+RandomizedDelaySec=10min
+Persistent=true
+Unit=meet-db-backup@%i.service
+
+[Install]
+WantedBy=timers.target

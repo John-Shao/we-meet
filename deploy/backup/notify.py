@@ -165,7 +165,8 @@ class Notifications:
                 body.append("最近成功备份：" + dt.datetime.fromisoformat(completed).isoformat())
             except (ValueError, KeyError, TypeError, OSError):
                 pass
-        body += ["请查看 systemctl status meet-backup.service meet-backup-check.service。",
+        diagnostic_units = self.config.get("diagnostic_units", "meet-backup.service meet-backup-check.service")
+        body += [f"请查看 systemctl status {diagnostic_units}。",
                  "本通知由主机发出；整机宕机或完全断网需由独立机外监控覆盖。"]
         return subject, "\n".join(body)
 
@@ -204,7 +205,10 @@ class Notifications:
         return not failed
 
 
-def unit_event(unit, state_dir):
+def unit_event(unit, state_dir, units=None):
+    units = UNITS if units is None else units
+    if unit not in units:
+        raise ValueError("Unsupported notification unit")
     result = subprocess.run(["systemctl", "show", unit, "--property=Result",
                              "--property=ExecMainStatus", "--property=ExecMainExitTimestamp",
                              "--property=StateChangeTimestamp", "--property=ActiveState"],
@@ -217,7 +221,7 @@ def unit_event(unit, state_dir):
     timestamp = (props.get("StateChangeTimestamp") if failed else None) or props.get("ExecMainExitTimestamp")
     if not props.get("Result") or not timestamp:
         return None
-    category = UNITS[unit]
+    category = units[unit]
     reason = "备份任务执行失败" if category == "run" else "备份读取、时效或完整性检查未通过"
     if props["Result"] == "timeout":
         reason = "任务执行超时"
@@ -238,16 +242,19 @@ def unit_event(unit, state_dir):
     return category, failed, event_id, reason
 
 
-def main():
+def main(units=None, config_default="/etc/meet-backup/notification.json",
+         state_default="/var/lib/meet-backup"):
+    units = UNITS if units is None else units
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["observe", "flush", "test", "status"])
-    parser.add_argument("--unit", choices=list(UNITS))
-    parser.add_argument("--config", default="/etc/meet-backup/notification.json")
-    parser.add_argument("--state-dir", default="/var/lib/meet-backup")
+    parser.add_argument("--unit", choices=list(units))
+    parser.add_argument("--config", default=config_default)
+    parser.add_argument("--state-dir", default=state_default)
     args = parser.parse_args()
     os.umask(0o077)
     try:
         config = load_config(args.config)
+        config["diagnostic_units"] = " ".join(units)
         if args.action == "test":
             for recipient in config["recipients"]:
                 send_mail(config, recipient, "【测试】we-meet 备份主动通知",
@@ -265,13 +272,13 @@ def main():
             if args.action == "observe":
                 if not args.unit:
                     raise ValueError("--unit is required")
-                event = unit_event(args.unit, args.state_dir)
+                event = unit_event(args.unit, args.state_dir, units)
                 if event:
                     engine.observe(*event)
             elif args.action == "flush":
                 # Reconcile completed units in case a hook was missed or interrupted.
-                for unit in UNITS:
-                    event = unit_event(unit, args.state_dir)
+                for unit in units:
+                    event = unit_event(unit, args.state_dir, units)
                     if event:
                         engine.observe(*event)
             return 0 if engine.flush() else 1
