@@ -1,0 +1,11 @@
+[Unit]
+Description=we-meet offsite backup every six hours
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:15:00 Asia/Shanghai
+RandomizedDelaySec=120
+Persistent=true
+Unit=meet-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -1,6 +1,6 @@
 # 阿里云日常发布 Runbook（改代码后上线）
 
-面向已有生产环境（aliyun-sjy，命名空间 `meet`）。首次安装见 [`aliyun.md`](./aliyun.md)。
+面向已有生产环境（当前为京东云 `jd-sjy`，命名空间 `meet`；沿用 `deploy/aliyun` 脚本目录）。首次安装见 [`aliyun.md`](./aliyun.md)。
 日常发布统一使用 `deploy/aliyun/release-meet.sh`，镜像 tag 取完整 commit SHA 的前 9 位。
 values 中的 `latest` 只是默认占位；发布脚本拒绝它，并显式保留未选择模块的运行中标签。
 
@@ -9,10 +9,10 @@ values 中的 `latest` 只是默认占位；发布脚本拒绝它，并显式保
 1. 提交并推送到 `aliyun-dev`，等待该提交的 **Release guard** 完整通过。
 2. 构建机在同一提交执行 `bash deploy/aliyun/build-and-push.sh backend`（按需选模块）。
 3. 生产 ECS 安装 `python3`、`gh`，让 `gh` 可读取仓库的 Actions。凭据通过主机认证或环境管理，不写入仓库。
-4. 在 `/opt/we-meet` 运行发布脚本。首次引入 AI HTTP 池必须包含本批次 `backend` 镜像。
+4. 在生产仓库 `/root/we-meet` 运行发布脚本。首次引入 AI HTTP 池必须包含本批次 `backend` 镜像。
 
 ```bash
-cd /opt/we-meet
+cd /root/we-meet
 # 只检查：仍会读取集群中现有标签，但不执行升级
 bash deploy/aliyun/release-meet.sh --dry-run --ci-check --image-check backend
 # 发布：自动更新分支、校验 CI、执行 Helm 迁移 hook、等待 rollout
@@ -35,6 +35,82 @@ backend 提交。仅接受同一 origin 仓库的 `push` 或 `workflow_dispatch`
 应把需要恢复的代码作为新回退提交并完整跑 CI。早于 AI 池的 backend 不能配合本批 chart，
 脚本会在 Helm 前拒绝，防止仅发布 frontend 时用旧 backend 启动不存在的 WSGI 入口。
 使用历史 chart 的回退另按对应版本流程处理，并核对数据库兼容性。
+
+## 单节点机外备份与恢复演练
+
+本阶段目标是节点故障后有可恢复的数据，不承诺自动切换或不停机；不新增 ECS。
+实现位于 `deploy/backup/`，运行时安装到生产 `/opt/meet-backup/`。
+
+### 范围与存放位置
+
+- PostgreSQL 的可连接、非模板数据库及全局角色。每个库的 `pg_dump` 和逐表行数使用同一个
+  exported snapshot；不同数据库之间不承诺跨库事务一致性。导出不停止应用，不修改生产数据。
+- 所有 Helm release 的完整 values、manifest，以及 `meet` 的 Secret、ConfigMap、工作负载、
+  PVC 定义、证书配置、当前源码归档、运行镜像版本和备份工具/配置。
+- K3s SQLite 使用 SQLite backup API 获取一致副本，并保留对应 server token；这不能替代
+  PostgreSQL 数据备份。恢复演练覆盖数据库和应用读取，尚不代表已验证整台 K3s 重建。
+- Redis 缓存和 broker 不作为恢复来源。重建时使用空 Redis，并核对持久化任务中的待执行、
+  运行中状态，避免恢复旧队列后重复投递。媒体已在 OSS，本备份不复制媒体桶；独立
+  Docs、IM、Keycloak 节点的数据库也不在此节点的备份范围内。
+
+备份先用 age 公钥加密，再经 HTTPS 写入独立私有桶 `we-meet-backups-jd-sjy`
+（深圳），前缀 `jd-sjy/`。无需 CORS。桶生命周期保留该前缀下的对象 30 天。
+生产机只保存公钥，解密私钥在操作人员本地，**不能放入 Git、生产机或同一备份桶**。
+应另将私钥保存在独立密码库或离线介质；只有备份文件而没有私钥无法恢复。
+
+`/etc/meet-backup/config.json` 保存节点路径/数据库连接用户，`storage.json` 保存 OSS
+连接凭据，`recipient.txt` 保存公钥；目录 `0700`、配置 `0600`。当前沿用现有 OSS 身份，
+后续可换为仅授权此桶的专用 RAM 身份；它目前不提供抵御生产凭据被盗后的防删除保证。
+
+### 自动运行与检查
+
+依赖：`age`、PostgreSQL 16 客户端、`python3-boto3`、`python3-psycopg2`、Helm、kubectl。
+数据库角色导出走 PostgreSQL Pod 的本地 socket；数据快照通过仅绑定 `127.0.0.1` 的临时
+port-forward 连接，完成后关闭，不增加公网端口。
+
+- `meet-backup.timer`：北京时间 00:15、06:15、12:15、18:15，加最多两分钟随机延迟；
+  正常情况下备份间隔约六小时。主机离线、上传失败会扩大实际数据损失窗口。
+- `meet-backup-check.timer`：每小时核对 OSS 最新成功记录，超过八小时或对象校验信息不符则失败。
+- 上传后完整读回校验 SHA-256、检查私有 ACL，全部成功才更新 OSS `jd-sjy/latest.json`。
+  失败不覆盖上次成功记录。明文临时文件在任务退出时清理。
+- 检查失败体现在 systemd failed 状态及 journal；尚未接入邮件/IM，也没有节点外的独立告警探针。
+  同机检查无法在整机宕机时主动告警。
+
+```bash
+sudo systemctl start meet-backup.service
+sudo systemctl list-timers 'meet-backup*'
+sudo systemctl status meet-backup.service meet-backup-check.service
+sudo journalctl -u meet-backup.service -n 30 --no-pager
+sudo python3 /opt/meet-backup/backup.py check --max-age-hours 8
+sudo cat /var/lib/meet-backup/last-success.json
+```
+
+新节点安装：先恢复所需的私有配置到 `/etc/meet-backup/`，安装依赖，再将仓库脚本复制到
+`/opt/meet-backup/`，将四个 `.service`/`.timer` 文件安装到 `/etc/systemd/system/`。
+先成功执行一次 `meet-backup.service` 并验证机外对象，然后启用两个 timer。
+
+### 在本地验证真实恢复
+
+从 OSS 下载 `latest.json` 指向的 `.tar.gz.age`，以该记录的 SHA-256 校验下载文件。
+准备本地 Docker、age、Python 3.10+、`postgres:16-alpine` 和备份记录中的后端镜像；
+所有镜像拉取/构建均在本地完成。运行：
+
+```bash
+python3 deploy/backup/verify_restore.py \
+  --archive /secure/path/recovery.tar.gz.age \
+  --identity /secure/path/identity.age \
+  --sha256 '<latest.json 中的 sha256>' \
+  --report /secure/path/restore-report.json
+```
+
+脚本不接受外部数据库地址，只创建临时 Docker 内部网络和 PostgreSQL，且不映射主机端口。
+解密后验证包内文件摘要，使用 `pg_restore --exit-on-error --no-owner --no-privileges`
+实际恢复每个数据库，逐表比对源快照行数，再用对应生产镜像检查迁移、配置接口及恢复用户接口。
+演练不加载生产环境变量、不执行角色口令恢复，不启动 Worker，也不调用模型或外部业务服务。
+容器和明文工作目录在结束后清理，报告仅包含校验结果及计数。
+
+真实灾难恢复应先在隔离环境验收，再按数据库角色/权限、部署配置、外部依赖、任务恢复和入口切换
+顺序操作；不要直接把本地演练命令改成覆盖生产库。建议每月及数据库/部署结构变更后重做演练。
 
 ## 本批架构变更的部署与验收
 

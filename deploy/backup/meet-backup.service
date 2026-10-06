@@ -1,0 +1,20 @@
+[Unit]
+Description=Encrypted we-meet offsite recovery backup
+After=network-online.target k3s.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+RuntimeDirectory=meet-backup-work
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/python3 /opt/meet-backup/backup.py run
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+CPUQuota=100%
+MemoryMax=1G
+PrivateTmp=true
+NoNewPrivileges=true

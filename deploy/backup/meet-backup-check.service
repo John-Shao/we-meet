@@ -1,0 +1,12 @@
+[Unit]
+Description=Check offsite we-meet backup freshness (eight hours)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/meet-backup/backup.py check --max-age-hours 8
+TimeoutStartSec=5min
+PrivateTmp=true
+NoNewPrivileges=true
