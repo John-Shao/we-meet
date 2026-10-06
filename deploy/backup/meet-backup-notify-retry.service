@@ -1,0 +1,12 @@
+[Unit]
+Description=Retry pending we-meet notifications and send limited reminders
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/meet-backup/notify.py flush
+TimeoutStartSec=5min
+PrivateTmp=true
+NoNewPrivileges=true

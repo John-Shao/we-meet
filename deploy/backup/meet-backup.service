@@ -2,6 +2,8 @@
 Description=Encrypted we-meet offsite recovery backup
 After=network-online.target k3s.service
 Wants=network-online.target
+OnFailure=meet-backup-notify@%n.service
+OnSuccess=meet-backup-notify@%n.service
 
 [Service]
 Type=oneshot

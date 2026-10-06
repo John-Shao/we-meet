@@ -73,8 +73,8 @@ port-forward 连接，完成后关闭，不增加公网端口。
 - `meet-backup-check.timer`：每小时核对 OSS 最新成功记录，超过八小时或对象校验信息不符则失败。
 - 上传后完整读回校验 SHA-256、检查私有 ACL，全部成功才更新 OSS `jd-sjy/latest.json`。
   失败不覆盖上次成功记录。明文临时文件在任务退出时清理。
-- 检查失败体现在 systemd failed 状态及 journal；尚未接入邮件/IM，也没有节点外的独立告警探针。
-  同机检查无法在整机宕机时主动告警。
+- 备份和检查通过 systemd 的 `OnFailure` / `OnSuccess` 触发独立邮件脚本；正常成功不发信。
+  邮件通道须按下节完成真实发送验收。节点外独立监控留待正式运营前实施，同机通知不能覆盖整机宕机。
 
 ```bash
 sudo systemctl start meet-backup.service
@@ -86,8 +86,56 @@ sudo cat /var/lib/meet-backup/last-success.json
 ```
 
 新节点安装：先恢复所需的私有配置到 `/etc/meet-backup/`，安装依赖，再将仓库脚本复制到
-`/opt/meet-backup/`，将四个 `.service`/`.timer` 文件安装到 `/etc/systemd/system/`。
-先成功执行一次 `meet-backup.service` 并验证机外对象，然后启用两个 timer。
+`/opt/meet-backup/`，将该目录全部 `.service`/`.timer` 文件安装到 `/etc/systemd/system/`。
+执行 `systemctl daemon-reload`，先成功执行一次 `meet-backup.service` 并验证机外对象，再启用备份和检查 timer。
+
+### 备份主动邮件通知
+
+`notify.py` 由主机直接通过经过证书验证的 SMTP SSL / STARTTLS 发信，不依赖应用、Redis 或
+Celery。SMTP 错误只影响通知服务，不更改备份成功记录，也不使成功备份变成失败。
+
+- 备份任务失败（含进程启动失败、超时）和 OSS 检查异常分别建立事件；其中一项正常不能清除另一项异常。
+- 首次异常立即通知，持续异常每六小时提醒一次。恢复只通知此前已被 SMTP 接受过告警的收件人。
+- 每封邮件最多尝试五次，失败后的等待时间依次为 1、5、15、60 分钟。队列持久化到
+  `/var/lib/meet-backup/notifications.json`，按收件人记录发送结果；耗尽重试保留状态以便排查。
+  持续故障仍会在下一次六小时提醒时重新尝试。恢复后取消过时的待发送告警。
+- `meet-backup-notify-retry.timer` 每分钟检查重试队列，并读取已结束任务的 systemd 状态，补偿漏掉的触发。
+  脚本使用文件锁防止并发重复发送。SMTP 接受不等于进入收件箱；发送确认丢失或进程在确认后崩溃时，
+  重试仍可能产生重复邮件。
+- 邮件只含主机、固定错误分类、时间和排查命令，不发送日志、业务数据或密钥。
+
+在 `/etc/meet-backup/notification.json` 配置发送通道和明确的收件人（下列均为示例）：
+
+```json
+{
+  "hostname": "jd-sjy",
+  "from_address": "backup@example.com",
+  "recipients": ["operator@example.com"],
+  "smtp": {
+    "host": "smtpdm.aliyun.com",
+    "port": 465,
+    "security": "ssl",
+    "username": "backup@example.com",
+    "password": "<发信地址的 SMTP 密码>"
+  }
+}
+```
+
+该文件权限必须为 `0600`，目录为 `0700`；不提交到 Git。可复用已验证的业务 SMTP 发送身份，
+但运行时从该文件读取，不查询业务 Pod。配置随现有备份包加密存入 OSS；其中不包含恢复私钥。
+SMTP 密码变更后，需要同步更新该文件。
+
+```bash
+sudo python3 /opt/meet-backup/notify.py test
+# 返回 TEST_NOTIFICATION_SMTP_ACCEPTED 后，核对收件箱/垃圾邮件；标题包含“测试”。
+sudo systemctl enable --now meet-backup-notify-retry.timer
+sudo systemctl start meet-backup-check.service
+sudo python3 /opt/meet-backup/notify.py status
+sudo journalctl -u 'meet-backup-notify*' -n 30 --no-pager
+```
+
+真实测试邮件被 SMTP 接受前，不能将发送通道标记为可用。若返回 `SMTPAuthenticationError`，
+先核对邮件服务控制台的发信地址、SMTP 密码和服务地域，不要把发送失败当作备份失败。
 
 ### 在本地验证真实恢复
 

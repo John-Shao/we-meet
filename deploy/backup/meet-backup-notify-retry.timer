@@ -1,0 +1,10 @@
+[Unit]
+Description=Retry pending backup notifications every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+Unit=meet-backup-notify-retry.service
+
+[Install]
+WantedBy=timers.target

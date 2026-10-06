@@ -1,6 +1,8 @@
 [Unit]
 Description=Check offsite we-meet backup freshness (eight hours)
 After=network-online.target
+OnFailure=meet-backup-notify@%n.service
+OnSuccess=meet-backup-notify@%n.service
 
 [Service]
 Type=oneshot

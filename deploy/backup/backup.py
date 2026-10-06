@@ -303,12 +303,22 @@ def check_backup(config, max_age_hours):
     finally:
         body.close()
     age = (utcnow() - dt.datetime.fromisoformat(receipt["completed_at"])).total_seconds()
-    if age < -300 or age > max_age_hours * 3600:
-        raise RuntimeError("Offsite backup is stale or has a future timestamp")
+    if age < -300:
+        raise BackupCheckError("future")
+    if age > max_age_hours * 3600:
+        raise BackupCheckError("stale")
     head = client.head_object(Bucket=storage["bucket"], Key=receipt["key"])
     if head["ContentLength"] != receipt["bytes"] or head.get("Metadata", {}).get("sha256") != receipt["sha256"]:
-        raise RuntimeError("Offsite backup receipt does not match object")
+        raise BackupCheckError("mismatch")
+    write_json(Path(config["state_dir"]) / "last-check.json",
+               {"status": "success", "at": utcnow().isoformat(), "age_hours": age / 3600})
     print(f"OFFSITE_BACKUP_OK age_hours={age/3600:.2f}")
+
+
+class BackupCheckError(RuntimeError):
+    def __init__(self, reason):
+        self.reason = reason
+        super().__init__(reason)
 
 
 def main():
@@ -330,7 +340,8 @@ def main():
         state = Path(config["state_dir"])
         state.mkdir(parents=True, exist_ok=True, mode=0o700)
         write_json(state / ("last-attempt.json" if args.action == "run" else "last-check.json"),
-                   {"status": "failed", "at": utcnow().isoformat(), "error_type": type(error).__name__})
+                   {"status": "failed", "at": utcnow().isoformat(), "error_type": type(error).__name__,
+                    "reason": getattr(error, "reason", "operation_failed")})
         return 1
     return 0
 
