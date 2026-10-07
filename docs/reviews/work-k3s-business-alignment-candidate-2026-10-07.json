@@ -38,5 +38,1066 @@
     ]
   },
   "public_flags_changed": false,
-  "business_deployment_changed": false
+  "business_deployment_changed": false,
+  "database_baseline": {
+    "version": "PostgreSQL 16.4",
+    "migration_count": 220,
+    "work_applied": [
+      "0001_initial",
+      "0002_workmaterial_locations_worktask_workrun_and_more"
+    ],
+    "core_latest": "0196_legacy_summary_run",
+    "retired_core_0136_record_present": true,
+    "retired_table_absent": true,
+    "read_only_inventory": true
+  },
+  "release_candidate": {
+    "source_commit": "41dd33f0a923abd889612e9ac3baa30823a44ddc",
+    "published_tag": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:work-align-41dd33f0a",
+    "immutable_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+    "amd64_manifest_digest": "sha256:236ba81810004df633051f3ac196b99249844b0b3569499d0c7fa8ed3b818f05",
+    "registry_digest_verified": true,
+    "effective_default_user": "root",
+    "provenance": {
+      "candidate_commit": "41dd33f0a923abd889612e9ac3baa30823a44ddc",
+      "normalized_tracked_python_and_dependencies_match": true,
+      "python_dependencies_unchanged_from_api_image": true,
+      "generated_mail_and_static_assets_excluded": true
+    },
+    "source_scope": {
+      "production_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:05589638d0cee8c9fe6daa2424dbcf0408d3a183d7820c6c8367ce608d13d8d6",
+      "candidate_baseline_commit": "41dd33f0a923abd889612e9ac3baa30823a44ddc",
+      "changed": [
+        "core/api/assistant_translation.py",
+        "core/tests/services/test_asr_observations.py",
+        "core/tests/services/test_capture_live_transcription.py",
+        "core/tests/services/test_capture_transcription.py",
+        "core/tests/services/test_embeddings.py",
+        "core/tests/services/test_llm_client_stream.py",
+        "core/tests/services/test_uploaded_recordings.py",
+        "core/tests/test_ai_call.py",
+        "meet/settings.py",
+        "work/api.py",
+        "work/models.py",
+        "work/runs.py",
+        "work/services.py",
+        "work/task_api.py",
+        "work/tasks.py",
+        "work/urls.py"
+      ],
+      "added": [
+        "core/tests/services/test_capture_direct_asr.py",
+        "core/tests/services/test_provider_http.py",
+        "core/tests/services/test_provider_llm.py",
+        "core/tests/test_assistant_transcription.py",
+        "core/tests/test_assistant_translation_direct.py",
+        "work/agent_client.py",
+        "work/agent_runs.py",
+        "work/local_api.py",
+        "work/local_runs.py",
+        "work/management/commands/migrate_work_upgrade.py",
+        "work/migrations/0003_workrun_agent_deployment_workrun_agent_done_and_more.py",
+        "work/migrations/0004_workrun_artifact_manifest_workrun_execution_target_and_more.py",
+        "work/migrations/0005_workrun_remote_requested_workworkspace_and_more.py",
+        "work/migrations/0006_pi_readonly_review.py",
+        "work/migrations/0007_old_writer_defaults.py",
+        "work/remote_api.py",
+        "work/review_api.py",
+        "work/review_contract.py",
+        "work/review_runs.py",
+        "work/tests/test_agent_runs.py",
+        "work/tests/test_android_review_delivery.py",
+        "work/tests/test_cross_device_live.py",
+        "work/tests/test_local_coordination_live.py",
+        "work/tests/test_local_review_flow.py",
+        "work/tests/test_local_runs.py",
+        "work/tests/test_remote_runs.py",
+        "work/tests/test_reviews.py",
+        "work/tests/test_upgrade_compatibility.py"
+      ],
+      "deleted": [],
+      "normalization": "CRLF to LF; Python and dependency files only; excludes generated static/mail assets"
+    },
+    "old_image_source_differences_relative_to_api": {
+      "worker": {
+        "changed": [
+          "core/urls.py",
+          "core/api/ai_call.py",
+          "core/api/assistant_translation.py"
+        ],
+        "added": [],
+        "deleted": [
+          "core/api/capture_direct_asr.py",
+          "core/api/assistant_transcription.py"
+        ]
+      },
+      "cron": {
+        "changed": [
+          "core/urls.py",
+          "core/services/embeddings.py",
+          "core/services/qwen_filetrans.py",
+          "core/services/capture_transcription.py",
+          "core/services/capture_summary_source.py",
+          "core/services/llm_client.py",
+          "core/api/ai_call.py",
+          "core/api/assistant_translation.py",
+          "meet/settings.py"
+        ],
+        "added": [],
+        "deleted": [
+          "core/services/provider_llm.py",
+          "core/services/capture_direct_asr.py",
+          "core/services/provider_http.py",
+          "core/api/capture_direct_asr.py",
+          "core/api/assistant_transcription.py"
+        ]
+      }
+    },
+    "flags": {
+      "WORK_AGENT_ENABLED": "False",
+      "WORK_LOCAL_AGENT_ENABLED": "False",
+      "WORK_REMOTE_AGENT_ENABLED": "False",
+      "WORK_REVIEW_ENABLED": "False"
+    },
+    "migration_command": [
+      "python",
+      "manage.py",
+      "migrate_work_upgrade",
+      "--apply"
+    ],
+    "migration_plan": [
+      "0003_workrun_agent_deployment_workrun_agent_done_and_more",
+      "0004_workrun_artifact_manifest_workrun_execution_target_and_more",
+      "0005_workrun_remote_requested_workworkspace_and_more",
+      "0006_pi_readonly_review",
+      "0007_old_writer_defaults"
+    ],
+    "transactional_ddl_and_recorder": true,
+    "lock_timeout": "3s",
+    "statement_timeout_per_sql": "60s",
+    "migration_job_deadline_seconds": 180,
+    "migration_job_backoff_limit": 0,
+    "helm_revision_at_inventory": 457,
+    "execution_method": "scoped, freshly fenced patches; no generic Helm upgrade or rollback",
+    "controller_snapshots": [
+      {
+        "kind": "Deployment",
+        "name": "meet-backend",
+        "uid": "81e49171-7fe4-4cb1-b7ab-d969b02675d7",
+        "resource_version": "8887568",
+        "replicas": 1,
+        "strategy": {
+          "rollingUpdate": {
+            "maxSurge": "25%",
+            "maxUnavailable": "25%"
+          },
+          "type": "RollingUpdate"
+        },
+        "containers": [
+          {
+            "index": 0,
+            "name": "meet",
+            "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:05589638d0cee8c9fe6daa2424dbcf0408d3a183d7820c6c8367ce608d13d8d6",
+            "resources": {
+              "limits": {
+                "memory": "1Gi"
+              },
+              "requests": {
+                "cpu": "200m",
+                "memory": "512Mi"
+              }
+            },
+            "security_context": {},
+            "work_flags": {
+              "WORK_COMMUNICATION_ENABLED": "True",
+              "WORK_ENABLED": "True",
+              "WORK_MATERIALS_ENABLED": "True"
+            },
+            "database_env_names": [
+              "DB_HOST",
+              "DB_NAME",
+              "DB_PASSWORD",
+              "DB_PORT",
+              "DB_USER"
+            ],
+            "django_config_env_names": [
+              "DJANGO_ALLOWED_HOSTS",
+              "DJANGO_CONFIGURATION",
+              "DJANGO_CSRF_TRUSTED_ORIGINS",
+              "DJANGO_EMAIL_APP_BASE_URL",
+              "DJANGO_EMAIL_BRAND_NAME",
+              "DJANGO_EMAIL_DOMAIN",
+              "DJANGO_EMAIL_FROM",
+              "DJANGO_EMAIL_HOST",
+              "DJANGO_EMAIL_HOST_PASSWORD",
+              "DJANGO_EMAIL_HOST_USER",
+              "DJANGO_EMAIL_PORT",
+              "DJANGO_EMAIL_USE_SSL",
+              "DJANGO_SECRET_KEY",
+              "DJANGO_SETTINGS_MODULE",
+              "DJANGO_SILENCED_SYSTEM_CHECKS",
+              "DJANGO_SUPERUSER_EMAIL",
+              "DJANGO_SUPERUSER_PASSWORD"
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-backend-ai",
+        "uid": "53015eed-c8c7-4594-98f5-34626f1cf4c7",
+        "resource_version": "8887604",
+        "replicas": 1,
+        "strategy": {
+          "rollingUpdate": {
+            "maxSurge": "25%",
+            "maxUnavailable": "25%"
+          },
+          "type": "RollingUpdate"
+        },
+        "containers": [
+          {
+            "index": 0,
+            "name": "meet",
+            "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:05589638d0cee8c9fe6daa2424dbcf0408d3a183d7820c6c8367ce608d13d8d6",
+            "resources": {
+              "limits": {
+                "cpu": "1",
+                "memory": "1Gi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "256Mi"
+              }
+            },
+            "security_context": {},
+            "work_flags": {
+              "WORK_COMMUNICATION_ENABLED": "True",
+              "WORK_ENABLED": "True",
+              "WORK_MATERIALS_ENABLED": "True"
+            },
+            "database_env_names": [
+              "DB_HOST",
+              "DB_NAME",
+              "DB_PASSWORD",
+              "DB_PORT",
+              "DB_USER"
+            ],
+            "django_config_env_names": [
+              "DJANGO_ALLOWED_HOSTS",
+              "DJANGO_CONFIGURATION",
+              "DJANGO_CSRF_TRUSTED_ORIGINS",
+              "DJANGO_EMAIL_APP_BASE_URL",
+              "DJANGO_EMAIL_BRAND_NAME",
+              "DJANGO_EMAIL_DOMAIN",
+              "DJANGO_EMAIL_FROM",
+              "DJANGO_EMAIL_HOST",
+              "DJANGO_EMAIL_HOST_PASSWORD",
+              "DJANGO_EMAIL_HOST_USER",
+              "DJANGO_EMAIL_PORT",
+              "DJANGO_EMAIL_USE_SSL",
+              "DJANGO_SECRET_KEY",
+              "DJANGO_SETTINGS_MODULE",
+              "DJANGO_SILENCED_SYSTEM_CHECKS",
+              "DJANGO_SUPERUSER_EMAIL",
+              "DJANGO_SUPERUSER_PASSWORD"
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-celery-backend",
+        "uid": "d361a79c-f38c-4c35-a7eb-fce08d3a9577",
+        "resource_version": "8887386",
+        "replicas": 1,
+        "strategy": {
+          "rollingUpdate": {
+            "maxSurge": "25%",
+            "maxUnavailable": "25%"
+          },
+          "type": "RollingUpdate"
+        },
+        "containers": [
+          {
+            "index": 0,
+            "name": "meet",
+            "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:56741fb434bb38893cafaa64842b2ca627e7e4e29e3e482d4fca7a05b92e2c13",
+            "resources": {
+              "limits": {
+                "memory": "1Gi"
+              },
+              "requests": {
+                "cpu": "50m",
+                "memory": "128Mi"
+              }
+            },
+            "security_context": {},
+            "work_flags": {
+              "WORK_COMMUNICATION_ENABLED": "True",
+              "WORK_ENABLED": "True",
+              "WORK_MATERIALS_ENABLED": "True"
+            },
+            "database_env_names": [
+              "DB_HOST",
+              "DB_NAME",
+              "DB_PASSWORD",
+              "DB_PORT",
+              "DB_USER"
+            ],
+            "django_config_env_names": [
+              "DJANGO_ALLOWED_HOSTS",
+              "DJANGO_CONFIGURATION",
+              "DJANGO_CSRF_TRUSTED_ORIGINS",
+              "DJANGO_EMAIL_APP_BASE_URL",
+              "DJANGO_EMAIL_BRAND_NAME",
+              "DJANGO_EMAIL_DOMAIN",
+              "DJANGO_EMAIL_FROM",
+              "DJANGO_EMAIL_HOST",
+              "DJANGO_EMAIL_HOST_PASSWORD",
+              "DJANGO_EMAIL_HOST_USER",
+              "DJANGO_EMAIL_PORT",
+              "DJANGO_EMAIL_USE_SSL",
+              "DJANGO_SECRET_KEY",
+              "DJANGO_SETTINGS_MODULE",
+              "DJANGO_SILENCED_SYSTEM_CHECKS",
+              "DJANGO_SUPERUSER_EMAIL",
+              "DJANGO_SUPERUSER_PASSWORD"
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-celery-beat",
+        "uid": "3dc0ea4f-131e-4d31-9649-64da2270b8f5",
+        "resource_version": "8887433",
+        "replicas": 1,
+        "strategy": {
+          "type": "Recreate"
+        },
+        "containers": [
+          {
+            "index": 0,
+            "name": "celery-beat",
+            "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:56741fb434bb38893cafaa64842b2ca627e7e4e29e3e482d4fca7a05b92e2c13",
+            "resources": {
+              "limits": {
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "50m",
+                "memory": "128Mi"
+              }
+            },
+            "security_context": {},
+            "work_flags": {
+              "WORK_COMMUNICATION_ENABLED": "True",
+              "WORK_ENABLED": "True",
+              "WORK_MATERIALS_ENABLED": "True"
+            },
+            "database_env_names": [
+              "DB_HOST",
+              "DB_NAME",
+              "DB_PASSWORD",
+              "DB_PORT",
+              "DB_USER"
+            ],
+            "django_config_env_names": [
+              "DJANGO_ALLOWED_HOSTS",
+              "DJANGO_CONFIGURATION",
+              "DJANGO_CSRF_TRUSTED_ORIGINS",
+              "DJANGO_EMAIL_APP_BASE_URL",
+              "DJANGO_EMAIL_BRAND_NAME",
+              "DJANGO_EMAIL_DOMAIN",
+              "DJANGO_EMAIL_FROM",
+              "DJANGO_EMAIL_HOST",
+              "DJANGO_EMAIL_HOST_PASSWORD",
+              "DJANGO_EMAIL_HOST_USER",
+              "DJANGO_EMAIL_PORT",
+              "DJANGO_EMAIL_USE_SSL",
+              "DJANGO_SECRET_KEY",
+              "DJANGO_SETTINGS_MODULE",
+              "DJANGO_SILENCED_SYSTEM_CHECKS",
+              "DJANGO_SUPERUSER_EMAIL",
+              "DJANGO_SUPERUSER_PASSWORD"
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-celery-work",
+        "uid": "036ec126-4a51-4bcb-a69b-3979ef2e2684",
+        "resource_version": "8887614",
+        "replicas": 1,
+        "strategy": {
+          "rollingUpdate": {
+            "maxSurge": "25%",
+            "maxUnavailable": "25%"
+          },
+          "type": "RollingUpdate"
+        },
+        "containers": [
+          {
+            "index": 0,
+            "name": "work",
+            "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:56741fb434bb38893cafaa64842b2ca627e7e4e29e3e482d4fca7a05b92e2c13",
+            "resources": {
+              "limits": {
+                "cpu": "1",
+                "memory": "1Gi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "256Mi"
+              }
+            },
+            "security_context": {
+              "allowPrivilegeEscalation": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              },
+              "readOnlyRootFilesystem": true
+            },
+            "work_flags": {
+              "WORK_COMMUNICATION_ENABLED": "True",
+              "WORK_ENABLED": "True",
+              "WORK_MATERIALS_ENABLED": "True"
+            },
+            "database_env_names": [
+              "DB_HOST",
+              "DB_NAME",
+              "DB_PASSWORD",
+              "DB_PORT",
+              "DB_USER"
+            ],
+            "django_config_env_names": [
+              "DJANGO_ALLOWED_HOSTS",
+              "DJANGO_CONFIGURATION",
+              "DJANGO_CSRF_TRUSTED_ORIGINS",
+              "DJANGO_EMAIL_APP_BASE_URL",
+              "DJANGO_EMAIL_BRAND_NAME",
+              "DJANGO_EMAIL_DOMAIN",
+              "DJANGO_EMAIL_FROM",
+              "DJANGO_EMAIL_HOST",
+              "DJANGO_EMAIL_HOST_PASSWORD",
+              "DJANGO_EMAIL_HOST_USER",
+              "DJANGO_EMAIL_PORT",
+              "DJANGO_EMAIL_USE_SSL",
+              "DJANGO_SECRET_KEY",
+              "DJANGO_SETTINGS_MODULE",
+              "DJANGO_SILENCED_SYSTEM_CHECKS",
+              "DJANGO_SUPERUSER_EMAIL",
+              "DJANGO_SUPERUSER_PASSWORD"
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "CronJob",
+        "name": "meet-backend-docs-profiles",
+        "uid": "53b3b7ec-8554-49b5-b055-33f3225756c6",
+        "resource_version": "8907994",
+        "replicas": null,
+        "strategy": {},
+        "containers": [
+          {
+            "index": 0,
+            "name": "meet",
+            "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:d7478257e",
+            "resources": {
+              "limits": {
+                "memory": "1Gi"
+              },
+              "requests": {
+                "cpu": "200m",
+                "memory": "512Mi"
+              }
+            },
+            "security_context": {},
+            "work_flags": {
+              "WORK_COMMUNICATION_ENABLED": "True",
+              "WORK_ENABLED": "True",
+              "WORK_MATERIALS_ENABLED": "True"
+            },
+            "database_env_names": [
+              "DB_HOST",
+              "DB_NAME",
+              "DB_PASSWORD",
+              "DB_PORT",
+              "DB_USER"
+            ],
+            "django_config_env_names": [
+              "DJANGO_ALLOWED_HOSTS",
+              "DJANGO_CONFIGURATION",
+              "DJANGO_CSRF_TRUSTED_ORIGINS",
+              "DJANGO_EMAIL_APP_BASE_URL",
+              "DJANGO_EMAIL_BRAND_NAME",
+              "DJANGO_EMAIL_DOMAIN",
+              "DJANGO_EMAIL_FROM",
+              "DJANGO_EMAIL_HOST",
+              "DJANGO_EMAIL_HOST_PASSWORD",
+              "DJANGO_EMAIL_HOST_USER",
+              "DJANGO_EMAIL_PORT",
+              "DJANGO_EMAIL_USE_SSL",
+              "DJANGO_SECRET_KEY",
+              "DJANGO_SETTINGS_MODULE",
+              "DJANGO_SILENCED_SYSTEM_CHECKS",
+              "DJANGO_SUPERUSER_EMAIL",
+              "DJANGO_SUPERUSER_PASSWORD"
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "CronJob",
+        "name": "meet-backend-reminders",
+        "uid": "b74a91a7-54d0-4844-823e-c9d80e504af4",
+        "resource_version": "8907969",
+        "replicas": null,
+        "strategy": {},
+        "containers": [
+          {
+            "index": 0,
+            "name": "meet",
+            "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:d7478257e",
+            "resources": {
+              "limits": {
+                "memory": "1Gi"
+              },
+              "requests": {
+                "cpu": "200m",
+                "memory": "512Mi"
+              }
+            },
+            "security_context": {},
+            "work_flags": {
+              "WORK_COMMUNICATION_ENABLED": "True",
+              "WORK_ENABLED": "True",
+              "WORK_MATERIALS_ENABLED": "True"
+            },
+            "database_env_names": [
+              "DB_HOST",
+              "DB_NAME",
+              "DB_PASSWORD",
+              "DB_PORT",
+              "DB_USER"
+            ],
+            "django_config_env_names": [
+              "DJANGO_ALLOWED_HOSTS",
+              "DJANGO_CONFIGURATION",
+              "DJANGO_CSRF_TRUSTED_ORIGINS",
+              "DJANGO_EMAIL_APP_BASE_URL",
+              "DJANGO_EMAIL_BRAND_NAME",
+              "DJANGO_EMAIL_DOMAIN",
+              "DJANGO_EMAIL_FROM",
+              "DJANGO_EMAIL_HOST",
+              "DJANGO_EMAIL_HOST_PASSWORD",
+              "DJANGO_EMAIL_HOST_USER",
+              "DJANGO_EMAIL_PORT",
+              "DJANGO_EMAIL_USE_SSL",
+              "DJANGO_SECRET_KEY",
+              "DJANGO_SETTINGS_MODULE",
+              "DJANGO_SILENCED_SYSTEM_CHECKS",
+              "DJANGO_SUPERUSER_EMAIL",
+              "DJANGO_SUPERUSER_PASSWORD"
+            ]
+          }
+        ]
+      }
+    ],
+    "image_and_disabled_flag_patch_snapshots": [
+      {
+        "kind": "Deployment",
+        "namespace": "meet",
+        "name": "meet-backend",
+        "snapshot_only": true,
+        "json_patch": [
+          {
+            "op": "test",
+            "path": "/metadata/uid",
+            "value": "81e49171-7fe4-4cb1-b7ab-d969b02675d7"
+          },
+          {
+            "op": "test",
+            "path": "/metadata/resourceVersion",
+            "value": "8887568"
+          },
+          {
+            "op": "test",
+            "path": "/spec/template/spec/containers/0/name",
+            "value": "meet"
+          },
+          {
+            "op": "test",
+            "path": "/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:05589638d0cee8c9fe6daa2424dbcf0408d3a183d7820c6c8367ce608d13d8d6"
+          },
+          {
+            "op": "replace",
+            "path": "/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_LOCAL_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REMOTE_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REVIEW_ENABLED",
+              "value": "False"
+            }
+          }
+        ],
+        "rollback_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:05589638d0cee8c9fe6daa2424dbcf0408d3a183d7820c6c8367ce608d13d8d6"
+      },
+      {
+        "kind": "Deployment",
+        "namespace": "meet",
+        "name": "meet-backend-ai",
+        "snapshot_only": true,
+        "json_patch": [
+          {
+            "op": "test",
+            "path": "/metadata/uid",
+            "value": "53015eed-c8c7-4594-98f5-34626f1cf4c7"
+          },
+          {
+            "op": "test",
+            "path": "/metadata/resourceVersion",
+            "value": "8887604"
+          },
+          {
+            "op": "test",
+            "path": "/spec/template/spec/containers/0/name",
+            "value": "meet"
+          },
+          {
+            "op": "test",
+            "path": "/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:05589638d0cee8c9fe6daa2424dbcf0408d3a183d7820c6c8367ce608d13d8d6"
+          },
+          {
+            "op": "replace",
+            "path": "/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_LOCAL_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REMOTE_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REVIEW_ENABLED",
+              "value": "False"
+            }
+          }
+        ],
+        "rollback_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:05589638d0cee8c9fe6daa2424dbcf0408d3a183d7820c6c8367ce608d13d8d6"
+      },
+      {
+        "kind": "Deployment",
+        "namespace": "meet",
+        "name": "meet-celery-backend",
+        "snapshot_only": true,
+        "json_patch": [
+          {
+            "op": "test",
+            "path": "/metadata/uid",
+            "value": "d361a79c-f38c-4c35-a7eb-fce08d3a9577"
+          },
+          {
+            "op": "test",
+            "path": "/metadata/resourceVersion",
+            "value": "8887386"
+          },
+          {
+            "op": "test",
+            "path": "/spec/template/spec/containers/0/name",
+            "value": "meet"
+          },
+          {
+            "op": "test",
+            "path": "/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:56741fb434bb38893cafaa64842b2ca627e7e4e29e3e482d4fca7a05b92e2c13"
+          },
+          {
+            "op": "replace",
+            "path": "/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_LOCAL_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REMOTE_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REVIEW_ENABLED",
+              "value": "False"
+            }
+          }
+        ],
+        "rollback_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:56741fb434bb38893cafaa64842b2ca627e7e4e29e3e482d4fca7a05b92e2c13"
+      },
+      {
+        "kind": "Deployment",
+        "namespace": "meet",
+        "name": "meet-celery-beat",
+        "snapshot_only": true,
+        "json_patch": [
+          {
+            "op": "test",
+            "path": "/metadata/uid",
+            "value": "3dc0ea4f-131e-4d31-9649-64da2270b8f5"
+          },
+          {
+            "op": "test",
+            "path": "/metadata/resourceVersion",
+            "value": "8887433"
+          },
+          {
+            "op": "test",
+            "path": "/spec/template/spec/containers/0/name",
+            "value": "celery-beat"
+          },
+          {
+            "op": "test",
+            "path": "/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:56741fb434bb38893cafaa64842b2ca627e7e4e29e3e482d4fca7a05b92e2c13"
+          },
+          {
+            "op": "replace",
+            "path": "/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_LOCAL_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REMOTE_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REVIEW_ENABLED",
+              "value": "False"
+            }
+          }
+        ],
+        "rollback_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:56741fb434bb38893cafaa64842b2ca627e7e4e29e3e482d4fca7a05b92e2c13"
+      },
+      {
+        "kind": "Deployment",
+        "namespace": "meet",
+        "name": "meet-celery-work",
+        "snapshot_only": true,
+        "json_patch": [
+          {
+            "op": "test",
+            "path": "/metadata/uid",
+            "value": "036ec126-4a51-4bcb-a69b-3979ef2e2684"
+          },
+          {
+            "op": "test",
+            "path": "/metadata/resourceVersion",
+            "value": "8887614"
+          },
+          {
+            "op": "test",
+            "path": "/spec/template/spec/containers/0/name",
+            "value": "work"
+          },
+          {
+            "op": "test",
+            "path": "/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:56741fb434bb38893cafaa64842b2ca627e7e4e29e3e482d4fca7a05b92e2c13"
+          },
+          {
+            "op": "replace",
+            "path": "/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_LOCAL_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REMOTE_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REVIEW_ENABLED",
+              "value": "False"
+            }
+          }
+        ],
+        "rollback_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:56741fb434bb38893cafaa64842b2ca627e7e4e29e3e482d4fca7a05b92e2c13"
+      },
+      {
+        "kind": "CronJob",
+        "namespace": "meet",
+        "name": "meet-backend-docs-profiles",
+        "snapshot_only": true,
+        "json_patch": [
+          {
+            "op": "test",
+            "path": "/metadata/uid",
+            "value": "53b3b7ec-8554-49b5-b055-33f3225756c6"
+          },
+          {
+            "op": "test",
+            "path": "/metadata/resourceVersion",
+            "value": "8907994"
+          },
+          {
+            "op": "test",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/name",
+            "value": "meet"
+          },
+          {
+            "op": "test",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:d7478257e"
+          },
+          {
+            "op": "replace",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+          },
+          {
+            "op": "add",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_LOCAL_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REMOTE_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REVIEW_ENABLED",
+              "value": "False"
+            }
+          }
+        ],
+        "rollback_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:61ac48cecc32c20ff7d6309f25e207eb4344b71efb684ab2820c0c33b003b4a0"
+      },
+      {
+        "kind": "CronJob",
+        "namespace": "meet",
+        "name": "meet-backend-reminders",
+        "snapshot_only": true,
+        "json_patch": [
+          {
+            "op": "test",
+            "path": "/metadata/uid",
+            "value": "b74a91a7-54d0-4844-823e-c9d80e504af4"
+          },
+          {
+            "op": "test",
+            "path": "/metadata/resourceVersion",
+            "value": "8907969"
+          },
+          {
+            "op": "test",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/name",
+            "value": "meet"
+          },
+          {
+            "op": "test",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:d7478257e"
+          },
+          {
+            "op": "replace",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/image",
+            "value": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+          },
+          {
+            "op": "add",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_LOCAL_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REMOTE_AGENT_ENABLED",
+              "value": "False"
+            }
+          },
+          {
+            "op": "add",
+            "path": "/spec/jobTemplate/spec/template/spec/containers/0/env/-",
+            "value": {
+              "name": "WORK_REVIEW_ENABLED",
+              "value": "False"
+            }
+          }
+        ],
+        "rollback_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:61ac48cecc32c20ff7d6309f25e207eb4344b71efb684ab2820c0c33b003b4a0"
+      }
+    ],
+    "executed": false,
+    "backup_performed": false,
+    "existing_business_write_authorization_pending": true
+  },
+  "validation": {
+    "work": {
+      "passed": 78,
+      "skipped": 2,
+      "seconds": 53.89
+    },
+    "existing_call_and_translation_apis": {
+      "passed": 110,
+      "seconds": 35.61
+    },
+    "worker_provider_and_transcription_services": {
+      "passed": 73,
+      "seconds": 68.95
+    },
+    "total_passed": 261,
+    "total_skipped": 2,
+    "ruff": "passed",
+    "makemigrations_check": "no changes detected",
+    "supplier_calls": 0,
+    "production_database_writes": 0,
+    "business_workloads_updated": 0,
+    "acceptance_receipt": "work-k3s-business-upgrade-acceptance-2026-10-07.json"
+  }
 }

@@ -1,0 +1,1095 @@
+{
+  "baseline_applied_migrations": [
+    [
+      "admin",
+      "0001_initial"
+    ],
+    [
+      "admin",
+      "0002_logentry_remove_auto_add"
+    ],
+    [
+      "admin",
+      "0003_logentry_add_action_flag_choices"
+    ],
+    [
+      "auth",
+      "0001_initial"
+    ],
+    [
+      "auth",
+      "0002_alter_permission_name_max_length"
+    ],
+    [
+      "auth",
+      "0003_alter_user_email_max_length"
+    ],
+    [
+      "auth",
+      "0004_alter_user_username_opts"
+    ],
+    [
+      "auth",
+      "0005_alter_user_last_login_null"
+    ],
+    [
+      "auth",
+      "0006_require_contenttypes_0002"
+    ],
+    [
+      "auth",
+      "0007_alter_validators_add_error_messages"
+    ],
+    [
+      "auth",
+      "0008_alter_user_username_max_length"
+    ],
+    [
+      "auth",
+      "0009_alter_user_last_name_max_length"
+    ],
+    [
+      "auth",
+      "0010_alter_group_name_max_length"
+    ],
+    [
+      "auth",
+      "0011_update_proxy_permissions"
+    ],
+    [
+      "auth",
+      "0012_alter_user_first_name_max_length"
+    ],
+    [
+      "contenttypes",
+      "0001_initial"
+    ],
+    [
+      "contenttypes",
+      "0002_remove_content_type_name"
+    ],
+    [
+      "core",
+      "0001_initial"
+    ],
+    [
+      "core",
+      "0002_create_pg_trgm_extension"
+    ],
+    [
+      "core",
+      "0003_alter_room_configuration"
+    ],
+    [
+      "core",
+      "0004_alter_user_language"
+    ],
+    [
+      "core",
+      "0005_recording_recordingaccess_and_more"
+    ],
+    [
+      "core",
+      "0006_merge_duplicate_users"
+    ],
+    [
+      "core",
+      "0007_recording_mode"
+    ],
+    [
+      "core",
+      "0008_user_full_name_user_short_name"
+    ],
+    [
+      "core",
+      "0009_alter_recording_status"
+    ],
+    [
+      "core",
+      "0010_alter_resourceaccess_options_alter_user_options"
+    ],
+    [
+      "core",
+      "0011_remove_resource_is_public_room_access_level"
+    ],
+    [
+      "core",
+      "0012_alter_room_access_level"
+    ],
+    [
+      "core",
+      "0013_alter_user_language"
+    ],
+    [
+      "core",
+      "0014_room_pin_code"
+    ],
+    [
+      "core",
+      "0015_application_and_more"
+    ],
+    [
+      "core",
+      "0016_recording_options"
+    ],
+    [
+      "core",
+      "0017_file"
+    ],
+    [
+      "core",
+      "0018_rename_active_application_is_active"
+    ],
+    [
+      "core",
+      "0019_alter_user_language"
+    ],
+    [
+      "core",
+      "0020_room_meeting_code_ended_at"
+    ],
+    [
+      "core",
+      "0021_user_intro_avatar_cover"
+    ],
+    [
+      "core",
+      "0022_remove_room_meeting_code"
+    ],
+    [
+      "core",
+      "0023_aivoice_aiprompt"
+    ],
+    [
+      "core",
+      "0024_ai_catalog_schema"
+    ],
+    [
+      "core",
+      "0025_seed_ai_catalog"
+    ],
+    [
+      "core",
+      "0026_drop_legacy_ai_columns"
+    ],
+    [
+      "core",
+      "0027_transcript"
+    ],
+    [
+      "core",
+      "0028_rename_transcript_index"
+    ],
+    [
+      "core",
+      "0029_transcript_translations"
+    ],
+    [
+      "core",
+      "0030_summary_actionitem"
+    ],
+    [
+      "core",
+      "0031_transcriptchunk"
+    ],
+    [
+      "core",
+      "0032_alter_room_access_level_default_trusted"
+    ],
+    [
+      "core",
+      "0033_room_scheduled_at"
+    ],
+    [
+      "core",
+      "0034_drop_aiagentprofile_default_prompt"
+    ],
+    [
+      "core",
+      "0035_simplify_aiprompt"
+    ],
+    [
+      "core",
+      "0036_aiagentprofile_agent_type"
+    ],
+    [
+      "core",
+      "0037_seed_doubao_tts2_voices"
+    ],
+    [
+      "core",
+      "0038_seed_qwen_omni_voices"
+    ],
+    [
+      "core",
+      "0039_meetingconversation_and_more"
+    ],
+    [
+      "core",
+      "0040_rename_transcriptchunk_indexes"
+    ],
+    [
+      "core",
+      "0041_organization_department_membership"
+    ],
+    [
+      "core",
+      "0042_bootstrap_default_organization"
+    ],
+    [
+      "core",
+      "0043_user_im_uid"
+    ],
+    [
+      "core",
+      "0044_calendarevent_eventattendee"
+    ],
+    [
+      "core",
+      "0045_meetingdoc"
+    ],
+    [
+      "core",
+      "0046_approval"
+    ],
+    [
+      "core",
+      "0047_delete_useraipreference"
+    ],
+    [
+      "core",
+      "0048_approvaldelegation"
+    ],
+    [
+      "core",
+      "0049_approval_multi_task"
+    ],
+    [
+      "core",
+      "0050_auditlog"
+    ],
+    [
+      "core",
+      "0051_alter_auditlog_action"
+    ],
+    [
+      "core",
+      "0052_alter_auditlog_action"
+    ],
+    [
+      "core",
+      "0053_alter_auditlog_action_orginvitation"
+    ],
+    [
+      "core",
+      "0054_imlateritem"
+    ],
+    [
+      "core",
+      "0055_devicepushtoken"
+    ],
+    [
+      "core",
+      "0056_user_phone"
+    ],
+    [
+      "core",
+      "0057_pushpreference"
+    ],
+    [
+      "core",
+      "0058_calendarevent_recurrence_exdates_and_uniq"
+    ],
+    [
+      "core",
+      "0059_summarychapter"
+    ],
+    [
+      "core",
+      "0060_summary_editable"
+    ],
+    [
+      "core",
+      "0061_roominvitee"
+    ],
+    [
+      "core",
+      "0062_calendarevent_source_conversation_id"
+    ],
+    [
+      "core",
+      "0063_btree_gist_extension"
+    ],
+    [
+      "core",
+      "0064_meeting_rooms"
+    ],
+    [
+      "core",
+      "0065_alter_auditlog_action_meeting_rooms"
+    ],
+    [
+      "core",
+      "0066_starred_contacts"
+    ],
+    [
+      "core",
+      "0067_contact_preference"
+    ],
+    [
+      "core",
+      "0068_baseaccess_team_index"
+    ],
+    [
+      "core",
+      "0069_org_dictionary_and_work_fields"
+    ],
+    [
+      "core",
+      "0070_seed_employee_types"
+    ],
+    [
+      "core",
+      "0071_user_group"
+    ],
+    [
+      "core",
+      "0072_admin_roles"
+    ],
+    [
+      "core",
+      "0073_seed_admin_roles"
+    ],
+    [
+      "core",
+      "0074_import_job"
+    ],
+    [
+      "core",
+      "0075_ai_usage_and_activity"
+    ],
+    [
+      "core",
+      "0076_backfill_room_organization"
+    ],
+    [
+      "core",
+      "0077_invitation_phone"
+    ],
+    [
+      "core",
+      "0078_invite_link"
+    ],
+    [
+      "core",
+      "0079_im_bot"
+    ],
+    [
+      "core",
+      "0080_seed_builtin_bots"
+    ],
+    [
+      "core",
+      "0081_im_card_message"
+    ],
+    [
+      "core",
+      "0082_bot_callback"
+    ],
+    [
+      "core",
+      "0083_im_conversation"
+    ],
+    [
+      "core",
+      "0084_bot_governance_audit_actions"
+    ],
+    [
+      "core",
+      "0085_calendarevent_reminder_outcome_and_more"
+    ],
+    [
+      "core",
+      "0086_im_input_sync_and_custom_emojis"
+    ],
+    [
+      "core",
+      "0087_delete_imdraft"
+    ],
+    [
+      "core",
+      "0088_retire_legacy_meeting_room_hierarchy"
+    ],
+    [
+      "core",
+      "0089_meeting_room_floor_attribute"
+    ],
+    [
+      "core",
+      "0090_meeting_room_optional_name_required_code"
+    ],
+    [
+      "core",
+      "0091_calendar_recurrence_source_backfill"
+    ],
+    [
+      "core",
+      "0092_external_contacts"
+    ],
+    [
+      "core",
+      "0093_calendar_sharing_visibility"
+    ],
+    [
+      "core",
+      "0094_calendar_all_day_preferences"
+    ],
+    [
+      "core",
+      "0095_unified_calendars_exports_external_sync"
+    ],
+    [
+      "core",
+      "0096_alter_calendar_description_alter_calendar_name_and_more"
+    ],
+    [
+      "core",
+      "0097_require_event_source_calendar"
+    ],
+    [
+      "core",
+      "0098_remove_external_calendar_sync"
+    ],
+    [
+      "core",
+      "0099_meeting_session_foundation"
+    ],
+    [
+      "core",
+      "0100_recording_session_transcript_ingest_id_and_more"
+    ],
+    [
+      "core",
+      "0101_meetingdoc_session_summary_im_pushed_at_and_more"
+    ],
+    [
+      "core",
+      "0102_alter_summary_im_pushed_at_summaryimdelivery"
+    ],
+    [
+      "core",
+      "0103_action_item_lifecycle"
+    ],
+    [
+      "core",
+      "0104_task_foundation"
+    ],
+    [
+      "core",
+      "0105_task_dates"
+    ],
+    [
+      "core",
+      "0106_taskimdelivery"
+    ],
+    [
+      "core",
+      "0107_taskactivity"
+    ],
+    [
+      "core",
+      "0108_taskcomment"
+    ],
+    [
+      "core",
+      "0109_seed_task_assistant"
+    ],
+    [
+      "core",
+      "0110_task_comment_notifications"
+    ],
+    [
+      "core",
+      "0111_task_attachment"
+    ],
+    [
+      "core",
+      "0112_task_parent"
+    ],
+    [
+      "core",
+      "0113_file_storage_bucket"
+    ],
+    [
+      "core",
+      "0114_task_time_reminders"
+    ],
+    [
+      "core",
+      "0115_task_date_change_notifications"
+    ],
+    [
+      "core",
+      "0116_task_status_change_notifications"
+    ],
+    [
+      "core",
+      "0117_action_item_task_status_sync"
+    ],
+    [
+      "core",
+      "0118_task_priority"
+    ],
+    [
+      "core",
+      "0119_task_labels"
+    ],
+    [
+      "core",
+      "0120_task_lists_groups_statistics"
+    ],
+    [
+      "core",
+      "0121_remove_task_labels"
+    ],
+    [
+      "core",
+      "0122_task_list_groups"
+    ],
+    [
+      "core",
+      "0123_task_list_access"
+    ],
+    [
+      "core",
+      "0124_remove_task_parent"
+    ],
+    [
+      "core",
+      "0125_default_task_priority_medium"
+    ],
+    [
+      "core",
+      "0126_simplify_task_status"
+    ],
+    [
+      "core",
+      "0127_task_followers"
+    ],
+    [
+      "core",
+      "0128_task_conversation_share"
+    ],
+    [
+      "core",
+      "0129_task_assignees"
+    ],
+    [
+      "core",
+      "0130_task_parent"
+    ],
+    [
+      "core",
+      "0131_alter_taskactivity_event"
+    ],
+    [
+      "core",
+      "0132_task_recurrence_key_task_recurrence_sequence_and_more"
+    ],
+    [
+      "core",
+      "0133_task_preference"
+    ],
+    [
+      "core",
+      "0134_task_reminder_preferences"
+    ],
+    [
+      "core",
+      "0135_task_reminder_preference"
+    ],
+    [
+      "core",
+      "0136_task_saved_view"
+    ],
+    [
+      "core",
+      "0137_task_groups_orthogonal"
+    ],
+    [
+      "core",
+      "0138_task_reminder_wall_clock_options"
+    ],
+    [
+      "core",
+      "0139_remove_legacy_task_saved_view_table"
+    ],
+    [
+      "core",
+      "0140_task_message_source"
+    ],
+    [
+      "core",
+      "0141_imconversation_avatar_key"
+    ],
+    [
+      "core",
+      "0142_alter_task_parent"
+    ],
+    [
+      "core",
+      "0143_user_name_pinyin"
+    ],
+    [
+      "core",
+      "0144_pinyin_sort_key_bucket"
+    ],
+    [
+      "core",
+      "0145_user_search_key"
+    ],
+    [
+      "core",
+      "0146_alter_user_full_name_initial"
+    ],
+    [
+      "core",
+      "0147_task_list_ownership_audit"
+    ],
+    [
+      "core",
+      "0148_meeting_record_foundation"
+    ],
+    [
+      "core",
+      "0149_meeting_summary_versions"
+    ],
+    [
+      "core",
+      "0150_transcript_delivery"
+    ],
+    [
+      "core",
+      "0151_meeting_summary_requests"
+    ],
+    [
+      "core",
+      "0152_independent_capture_protocol"
+    ],
+    [
+      "core",
+      "0153_asr_source_observations"
+    ],
+    [
+      "core",
+      "0154_staged_summary_versions"
+    ],
+    [
+      "core",
+      "0155_summary_automation"
+    ],
+    [
+      "core",
+      "0156_summary_chunk_cache"
+    ],
+    [
+      "core",
+      "0157_online_capture_control"
+    ],
+    [
+      "core",
+      "0158_meeting_translation_control"
+    ],
+    [
+      "core",
+      "0159_human_summary_reviews"
+    ],
+    [
+      "core",
+      "0160_reviewed_summary_tasks"
+    ],
+    [
+      "core",
+      "0161_summary_task_request_receipts"
+    ],
+    [
+      "core",
+      "0162_record_questions"
+    ],
+    [
+      "core",
+      "0163_capture_audio_storage"
+    ],
+    [
+      "core",
+      "0164_capture_audio_interruption"
+    ],
+    [
+      "core",
+      "0165_capture_transcription_jobs"
+    ],
+    [
+      "core",
+      "0166_meeting_summary_exports"
+    ],
+    [
+      "core",
+      "0167_meeting_summary_notifications"
+    ],
+    [
+      "core",
+      "0168_summary_notification_retry"
+    ],
+    [
+      "core",
+      "0169_summary_share_receipts"
+    ],
+    [
+      "core",
+      "0170_interpretation_channels"
+    ],
+    [
+      "core",
+      "0171_interpretation_start_deadline"
+    ],
+    [
+      "core",
+      "0172_translation_archives"
+    ],
+    [
+      "core",
+      "0173_capture_live_transcription"
+    ],
+    [
+      "core",
+      "0174_capture_audio_cleanup"
+    ],
+    [
+      "core",
+      "0175_cloud_recording_commands"
+    ],
+    [
+      "core",
+      "0176_cloud_recording_worker_leases"
+    ],
+    [
+      "core",
+      "0177_capture_translation_control"
+    ],
+    [
+      "core",
+      "0178_capture_translation_archives"
+    ],
+    [
+      "core",
+      "0179_uploaded_recording_filetrans"
+    ],
+    [
+      "core",
+      "0180_meetingoriginalrevision"
+    ],
+    [
+      "core",
+      "0181_meetingspeaker_attributed_at_and_more"
+    ],
+    [
+      "core",
+      "0182_recording_upload_session"
+    ],
+    [
+      "core",
+      "0183_transcript_replacement"
+    ],
+    [
+      "core",
+      "0184_personal_hotwords"
+    ],
+    [
+      "core",
+      "0185_record_lifecycle"
+    ],
+    [
+      "core",
+      "0186_record_purge"
+    ],
+    [
+      "core",
+      "0187_upload_transcript_translation"
+    ],
+    [
+      "core",
+      "0188_capture_diagnostics"
+    ],
+    [
+      "core",
+      "0189_independent_record_overviews"
+    ],
+    [
+      "core",
+      "0190_independent_meeting_collaboration"
+    ],
+    [
+      "core",
+      "0191_collaboration_teams_and_notices"
+    ],
+    [
+      "core",
+      "0192_original_word_alignment"
+    ],
+    [
+      "core",
+      "0193_record_overview_language"
+    ],
+    [
+      "core",
+      "0194_room_reservation_lifecycle"
+    ],
+    [
+      "core",
+      "0195_upgrade_qwen_omni_38"
+    ],
+    [
+      "core",
+      "0196_legacy_summary_run"
+    ],
+    [
+      "easy_thumbnails",
+      "0001_initial"
+    ],
+    [
+      "easy_thumbnails",
+      "0002_thumbnaildimensions"
+    ],
+    [
+      "sessions",
+      "0001_initial"
+    ],
+    [
+      "sites",
+      "0001_initial"
+    ],
+    [
+      "sites",
+      "0002_alter_domain_unique"
+    ],
+    [
+      "work",
+      "0001_initial"
+    ],
+    [
+      "work",
+      "0002_workmaterial_locations_worktask_workrun_and_more"
+    ]
+  ],
+  "fixture": "WSL Docker internal network; isolated PostgreSQL 16 and Redis 7, synthetic materials only",
+  "old_image_interop": {
+    "old_before": {
+      "upload_status": 201,
+      "create_task_status": 201,
+      "historical_task_status": 200,
+      "run_id": "a40fc6f6-d96b-46a7-b756-61aff974391d",
+      "supplier_calls": 0,
+      "migration_count": 219,
+      "work_applied": [
+        "0001_initial",
+        "0002_workmaterial_locations_worktask_workrun_and_more"
+      ]
+    },
+    "retired_history": {
+      "fixture_only_metadata_seed": true,
+      "retired_table_absent": true,
+      "migration_count": 220,
+      "work_applied": [
+        "0001_initial",
+        "0002_workmaterial_locations_worktask_workrun_and_more"
+      ]
+    },
+    "candidate_upgrade": {
+      "plan": {
+        "phase": "plan",
+        "migrations": [
+          "0003_workrun_agent_deployment_workrun_agent_done_and_more",
+          "0004_workrun_artifact_manifest_workrun_execution_target_and_more",
+          "0005_workrun_remote_requested_workworkspace_and_more",
+          "0006_pi_readonly_review",
+          "0007_old_writer_defaults"
+        ],
+        "database_changed": false
+      },
+      "applied": {
+        "phase": "applied",
+        "migrations": [
+          "0003_workrun_agent_deployment_workrun_agent_done_and_more",
+          "0004_workrun_artifact_manifest_workrun_execution_target_and_more",
+          "0005_workrun_remote_requested_workworkspace_and_more",
+          "0006_pi_readonly_review",
+          "0007_old_writer_defaults"
+        ],
+        "atomic": true
+      },
+      "second_apply": {
+        "phase": "already_current",
+        "migrations": [],
+        "database_changed": false
+      },
+      "supplier_calls": 0
+    },
+    "old_after": {
+      "upload_status": 201,
+      "create_task_status": 201,
+      "historical_task_status": 200,
+      "run_id": "b034919b-f762-4907-b370-25a45713ac10",
+      "supplier_calls": 0,
+      "migration_count": 225,
+      "work_applied": [
+        "0001_initial",
+        "0002_workmaterial_locations_worktask_workrun_and_more",
+        "0003_workrun_agent_deployment_workrun_agent_done_and_more",
+        "0004_workrun_artifact_manifest_workrun_execution_target_and_more",
+        "0005_workrun_remote_requested_workworkspace_and_more",
+        "0006_pi_readonly_review",
+        "0007_old_writer_defaults"
+      ]
+    },
+    "candidate_api": {
+      "upload_status": 201,
+      "create_task_status": 201,
+      "historical_task_status": 200,
+      "run_id": "064b5b72-3fc7-4bd2-b43e-17a52e952fe4",
+      "supplier_calls": 0,
+      "migration_count": 225,
+      "work_applied": [
+        "0001_initial",
+        "0002_workmaterial_locations_worktask_workrun_and_more",
+        "0003_workrun_agent_deployment_workrun_agent_done_and_more",
+        "0004_workrun_artifact_manifest_workrun_execution_target_and_more",
+        "0005_workrun_remote_requested_workworkspace_and_more",
+        "0006_pi_readonly_review",
+        "0007_old_writer_defaults"
+      ]
+    },
+    "preserved_historical_runs": {
+      "old_image_rows_preserved": 2,
+      "old_image_artifacts_preserved": 2,
+      "supplier_calls": 0
+    },
+    "passed": true,
+    "exact_production_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:05589638d0cee8c9fe6daa2424dbcf0408d3a183d7820c6c8367ce608d13d8d6",
+    "candidate_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:work-align-41dd33f0a"
+  },
+  "secondary_image_interop": {
+    "worker": {
+      "upload_status": 201,
+      "create_task_status": 201,
+      "historical_task_status": 200,
+      "run_id": "8d300ec6-63d5-48c1-99d3-af2aacb68410",
+      "supplier_calls": 0,
+      "exact_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:56741fb434bb38893cafaa64842b2ca627e7e4e29e3e482d4fca7a05b92e2c13",
+      "migration_count": 225,
+      "work_applied": [
+        "0001_initial",
+        "0002_workmaterial_locations_worktask_workrun_and_more",
+        "0003_workrun_agent_deployment_workrun_agent_done_and_more",
+        "0004_workrun_artifact_manifest_workrun_execution_target_and_more",
+        "0005_workrun_remote_requested_workworkspace_and_more",
+        "0006_pi_readonly_review",
+        "0007_old_writer_defaults"
+      ]
+    },
+    "cron": {
+      "upload_status": 201,
+      "create_task_status": 201,
+      "historical_task_status": 200,
+      "run_id": "01563776-7d77-434b-a563-feaeada29c2d",
+      "supplier_calls": 0,
+      "exact_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:61ac48cecc32c20ff7d6309f25e207eb4344b71efb684ab2820c0c33b003b4a0",
+      "migration_count": 225,
+      "work_applied": [
+        "0001_initial",
+        "0002_workmaterial_locations_worktask_workrun_and_more",
+        "0003_workrun_agent_deployment_workrun_agent_done_and_more",
+        "0004_workrun_artifact_manifest_workrun_execution_target_and_more",
+        "0005_workrun_remote_requested_workworkspace_and_more",
+        "0006_pi_readonly_review",
+        "0007_old_writer_defaults"
+      ]
+    }
+  },
+  "baseline_reconciliation": {
+    "only_record_missing_from_fresh_image_schema": [
+      "core",
+      "0136_task_saved_view"
+    ],
+    "create_migration_commit": "7af3a2526",
+    "removal_commit": "2662ea21e",
+    "drop_table_migration": "0139_remove_legacy_task_saved_view_table",
+    "production_and_fixture_retired_table_absent": true,
+    "historical_record_seeded_in_fixture_only": true,
+    "production_history_modified": false
+  },
+  "initial_regression_failures": {
+    "old_writer_to_0006": "WorkTask.kind NOT NULL violation; fixed by migration 0007 database defaults and atomic multi-migration command",
+    "api_suite_fixture": "missing OIDC_OP_JWKS_ENDPOINT; isolated dummy URL supplied before passing rerun",
+    "image_fixture_rerun": "UserFactory sub sequence resets per process; changed to UUID for isolated repeated runs"
+  },
+  "checks": {
+    "work": {
+      "passed": 78,
+      "skipped": 2,
+      "seconds": 53.89
+    },
+    "existing_call_and_translation_apis": {
+      "passed": 110,
+      "seconds": 35.61
+    },
+    "worker_provider_and_transcription_services": {
+      "passed": 73,
+      "seconds": 68.95
+    },
+    "total_passed": 261,
+    "total_skipped": 2,
+    "ruff": "passed",
+    "makemigrations_check": "no changes detected",
+    "supplier_calls": 0,
+    "production_database_writes": 0,
+    "business_workloads_updated": 0,
+    "acceptance_receipt": "work-k3s-business-upgrade-acceptance-2026-10-07.json"
+  },
+  "image_user_metadata": [
+    {
+      "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:05589638d0cee8c9fe6daa2424dbcf0408d3a183d7820c6c8367ce608d13d8d6",
+      "configured_user": "root",
+      "effective_default_user": "root",
+      "revision": null,
+      "local_image_id": "sha256:05589638d0cee8c9fe6daa2424dbcf0408d3a183d7820c6c8367ce608d13d8d6"
+    },
+    {
+      "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:56741fb434bb38893cafaa64842b2ca627e7e4e29e3e482d4fca7a05b92e2c13",
+      "configured_user": "root",
+      "effective_default_user": "root",
+      "revision": null,
+      "local_image_id": "sha256:56741fb434bb38893cafaa64842b2ca627e7e4e29e3e482d4fca7a05b92e2c13"
+    },
+    {
+      "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:61ac48cecc32c20ff7d6309f25e207eb4344b71efb684ab2820c0c33b003b4a0",
+      "configured_user": "",
+      "effective_default_user": "root",
+      "revision": null,
+      "local_image_id": "sha256:61ac48cecc32c20ff7d6309f25e207eb4344b71efb684ab2820c0c33b003b4a0"
+    },
+    {
+      "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:work-align-41dd33f0a",
+      "configured_user": "root",
+      "effective_default_user": "root",
+      "revision": "41dd33f0a923abd889612e9ac3baa30823a44ddc",
+      "local_image_id": "sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+    }
+  ],
+  "scope_limitations": [
+    "No real dsh or Pi SDK integration rerun; two SDK opt-in tests skipped",
+    "No live business database backup or restore drill performed",
+    "Python/dependency provenance excludes generated mail/static assets",
+    "Old image semantic rollback validated only while new agent/local/remote/review task types remain disabled",
+    "CronJob old tag resolved from registry at review time; not proof of every historical Job runtime image"
+  ]
+}
