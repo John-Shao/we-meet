@@ -1,7 +1,7 @@
 {
   "name": "we-meet-desktop",
   "private": true,
-  "version": "0.4.0-delivery.1",
+  "version": "0.4.0-delivery.2",
   "description": "we-meet 桌面端 (Electron) — 复用 src/frontend 的 React 应用",
   "main": "dist/main.js",
   "scripts": {
@@ -13,12 +13,13 @@
     "test": "npm run build:main && node --test tests/*.test.cjs",
     "test:smoke": "npm run build:main && node scripts/smoke.cjs",
     "test:review-smoke": "npm run build:main && node scripts/work-review-smoke.cjs",
-    "package": "node scripts/verify-electron.mjs && npm run build:main && npm run build:renderer && npm run copy:renderer && node scripts/verify-runtime.mjs && electron-builder --win --x64 && node scripts/release-manifest.mjs",
-    "package:prepared": "node scripts/verify-electron.mjs && npm run build:main && node scripts/verify-runtime.mjs && electron-builder --win --x64 && node scripts/release-manifest.mjs",
+    "package": "node scripts/verify-electron.mjs && npm run build:main && npm run build:renderer && npm run copy:renderer && node scripts/verify-renderer.mjs && node scripts/verify-runtime.mjs && electron-builder --win --x64 && node scripts/release-manifest.mjs",
+    "package:prepared": "node scripts/verify-electron.mjs && npm run build:main && node scripts/verify-renderer.mjs && node scripts/verify-runtime.mjs && electron-builder --win --x64 && node scripts/release-manifest.mjs",
     "build:runtime": "python scripts/build-local-runtime.py",
-    "package:release": "npm run build:main && node scripts/release-gate.mjs && npm run build:renderer && npm run copy:renderer && node scripts/verify-runtime.mjs && electron-builder --config electron-builder.release.yml --win --x64 && node scripts/release-manifest.mjs --formal"
+    "package:release": "npm run build:main && node scripts/release-gate.mjs && npm run build:renderer && npm run copy:renderer && node scripts/verify-renderer.mjs && node scripts/verify-runtime.mjs && electron-builder --config electron-builder.release.yml --win --x64 && node scripts/release-manifest.mjs --formal"
   },
   "devDependencies": {
+    "@electron/asar": "3.4.1",
     "@types/node": "^22.0.0",
     "electron": "44.4.3",
     "electron-builder": "26.15.3",

@@ -179,3 +179,9 @@ npm run test:review-smoke
 ```
 
 验收经过真实 Electron 窗口、preload、IPC 和任务协调器，验证原生目录授权入口、显式同步、独立复核发送授权、响应丢失后复用请求键、状态与用量、仅取消复核、权限查询失败后隐藏缓存报告，以及恢复访问后重新授权。登录、云端 API、原生执行器传输及对话框选择均为合成 fixture；不需要供应商密钥，没有付费模型调用，不替代真实 dsh/Pi、登录、安装或部署验收。临时 profile 在结束时清理；脱敏回执和截图写入忽略目录 `test-results/work-review/`，执行前会清除旧的成功回执。详见 [窗口验收记录](../../docs/reviews/work-electron-review-2026-10-07.md)。
+
+### 内部候选包来源校验（0.4.0-delivery.2）
+
+`build:renderer` 记录生产源码、依赖锁、构建配置与产物的哈希；`copy:renderer` 和所有打包入口先检查来源。源码新增或修改、依赖或 Vite 环境变化、复制后的资源被修改时，`package:prepared` 会要求重新构建，不沿用旧页面。生成交付清单时，再读取实际 `app.asar` 内的 renderer 校验资源身份。清单中的 `rendererProvenance` 记录输入/输出哈希及包内校验结果；环境文件及 Vite 环境值只参与内部哈希，不写入明文清单。
+
+前端默认代码生成目录 `src/styled-system` 和产物 source maps 不参与生产身份。内部候选仍没有 Windows Authenticode 签名，不作为正式发布；运行时仍独立固定为 Agent `0.3.1`，本次仅更新桌面交付代码。
