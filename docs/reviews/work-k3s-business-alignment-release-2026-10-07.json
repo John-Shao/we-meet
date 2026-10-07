@@ -1,0 +1,313 @@
+{
+  "authorized_scope": "User explicitly approved reviewed backup, Work 0002 to 0007 migration, five Deployments and two CronJobs with four new flags closed",
+  "source_commit": "41dd33f0a923abd889612e9ac3baa30823a44ddc",
+  "operations_commit": "aacf52c50",
+  "backup": {
+    "phase": "prepared",
+    "backup_sha256": "6c7401037376f60afdb2a355ced8010defa88590e8a4637918ed73fa61d63699",
+    "backup_bytes": 1900669,
+    "backup_toc_and_full_payload_valid": true,
+    "backup_downloaded": false,
+    "restore_drill_performed": false,
+    "consumer_snapshots": 7
+  },
+  "migration": {
+    "phase": "migrated",
+    "job_uid": "429aa78b-0128-41e1-bdb4-a2f398c3cf69",
+    "applied": {
+      "phase": "applied",
+      "migrations": [
+        "0003_workrun_agent_deployment_workrun_agent_done_and_more",
+        "0004_workrun_artifact_manifest_workrun_execution_target_and_more",
+        "0005_workrun_remote_requested_workworkspace_and_more",
+        "0006_pi_readonly_review",
+        "0007_old_writer_defaults"
+      ],
+      "atomic": true
+    },
+    "non_work_history_unchanged": true
+  },
+  "rollouts": {
+    "rollouts": [
+      {
+        "phase": "resource_updated",
+        "name": "meet-celery-work",
+        "kind": "Deployment",
+        "uid": "036ec126-4a51-4bcb-a69b-3979ef2e2684",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "new_flags": {
+          "WORK_AGENT_ENABLED": false,
+          "WORK_LOCAL_AGENT_ENABLED": false,
+          "WORK_REMOTE_AGENT_ENABLED": false,
+          "WORK_REVIEW_ENABLED": false
+        }
+      },
+      {
+        "phase": "resource_updated",
+        "name": "meet-celery-backend",
+        "kind": "Deployment",
+        "uid": "d361a79c-f38c-4c35-a7eb-fce08d3a9577",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "new_flags": {
+          "WORK_AGENT_ENABLED": false,
+          "WORK_LOCAL_AGENT_ENABLED": false,
+          "WORK_REMOTE_AGENT_ENABLED": false,
+          "WORK_REVIEW_ENABLED": false
+        }
+      },
+      {
+        "phase": "resource_updated",
+        "name": "meet-celery-beat",
+        "kind": "Deployment",
+        "uid": "3dc0ea4f-131e-4d31-9649-64da2270b8f5",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "new_flags": {
+          "WORK_AGENT_ENABLED": false,
+          "WORK_LOCAL_AGENT_ENABLED": false,
+          "WORK_REMOTE_AGENT_ENABLED": false,
+          "WORK_REVIEW_ENABLED": false
+        }
+      },
+      {
+        "phase": "resource_updated",
+        "name": "meet-backend-ai",
+        "kind": "Deployment",
+        "uid": "53015eed-c8c7-4594-98f5-34626f1cf4c7",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "new_flags": {
+          "WORK_AGENT_ENABLED": false,
+          "WORK_LOCAL_AGENT_ENABLED": false,
+          "WORK_REMOTE_AGENT_ENABLED": false,
+          "WORK_REVIEW_ENABLED": false
+        }
+      },
+      {
+        "phase": "resource_updated",
+        "name": "meet-backend",
+        "kind": "Deployment",
+        "uid": "81e49171-7fe4-4cb1-b7ab-d969b02675d7",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "new_flags": {
+          "WORK_AGENT_ENABLED": false,
+          "WORK_LOCAL_AGENT_ENABLED": false,
+          "WORK_REMOTE_AGENT_ENABLED": false,
+          "WORK_REVIEW_ENABLED": false
+        }
+      },
+      {
+        "phase": "resource_updated",
+        "name": "meet-backend-docs-profiles",
+        "kind": "CronJob",
+        "uid": "53b3b7ec-8554-49b5-b055-33f3225756c6",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "new_flags": {
+          "WORK_AGENT_ENABLED": false,
+          "WORK_LOCAL_AGENT_ENABLED": false,
+          "WORK_REMOTE_AGENT_ENABLED": false,
+          "WORK_REVIEW_ENABLED": false
+        }
+      },
+      {
+        "phase": "resource_updated",
+        "name": "meet-backend-reminders",
+        "kind": "CronJob",
+        "uid": "b74a91a7-54d0-4844-823e-c9d80e504af4",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "new_flags": {
+          "WORK_AGENT_ENABLED": false,
+          "WORK_LOCAL_AGENT_ENABLED": false,
+          "WORK_REMOTE_AGENT_ENABLED": false,
+          "WORK_REVIEW_ENABLED": false
+        }
+      }
+    ],
+    "phase": "all_resources_updated"
+  },
+  "verification": {
+    "phase": "verified",
+    "controllers": [
+      {
+        "kind": "Deployment",
+        "name": "meet-backend",
+        "uid": "81e49171-7fe4-4cb1-b7ab-d969b02675d7",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-backend-ai",
+        "uid": "53015eed-c8c7-4594-98f5-34626f1cf4c7",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-celery-backend",
+        "uid": "d361a79c-f38c-4c35-a7eb-fce08d3a9577",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-celery-beat",
+        "uid": "3dc0ea4f-131e-4d31-9649-64da2270b8f5",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-celery-work",
+        "uid": "036ec126-4a51-4bcb-a69b-3979ef2e2684",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+      },
+      {
+        "kind": "CronJob",
+        "name": "meet-backend-docs-profiles",
+        "uid": "53b3b7ec-8554-49b5-b055-33f3225756c6",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+      },
+      {
+        "kind": "CronJob",
+        "name": "meet-backend-reminders",
+        "uid": "b74a91a7-54d0-4844-823e-c9d80e504af4",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+      }
+    ],
+    "http_checks": [
+      {
+        "deployment": "meet-backend",
+        "new_flags": {
+          "WORK_AGENT_ENABLED": false,
+          "WORK_LOCAL_AGENT_ENABLED": false,
+          "WORK_REMOTE_AGENT_ENABLED": false,
+          "WORK_REVIEW_ENABLED": false
+        },
+        "resolved_new_routes": 5,
+        "health": {
+          "/__heartbeat__": 200,
+          "/__lbheartbeat__": 200
+        }
+      },
+      {
+        "deployment": "meet-backend-ai",
+        "new_flags": {
+          "WORK_AGENT_ENABLED": false,
+          "WORK_LOCAL_AGENT_ENABLED": false,
+          "WORK_REMOTE_AGENT_ENABLED": false,
+          "WORK_REVIEW_ENABLED": false
+        },
+        "resolved_new_routes": 5,
+        "health": {
+          "/__heartbeat__": 200,
+          "/__lbheartbeat__": 200
+        }
+      }
+    ],
+    "celery_checks": {
+      "expected_worker_pods": [
+        "meet-celery-backend-5867b5c765-8fzl2",
+        "meet-celery-work-744bc9cc9f-wjgll"
+      ],
+      "expected_workers_pong": true,
+      "reply_count": 2
+    },
+    "business_non_job_pods_ready": 22,
+    "migration_job_cleanup_requested_with_uid": "429aa78b-0128-41e1-bdb4-a2f398c3cf69",
+    "backup_bytes": 1900669,
+    "backup_sha256": "6c7401037376f60afdb2a355ced8010defa88590e8a4637918ed73fa61d63699",
+    "supplier_calls_by_this_release": 0
+  },
+  "final_proof": {
+    "cluster_non_job_pods_ready": 30,
+    "gateway_uid": "d042e27f-608f-46a7-82d6-672ca2bc30f7",
+    "gateway_unchanged_and_ready": true,
+    "migration_job_and_pod_removed": true,
+    "backup_retained_root_only": true,
+    "backup_sha256": "6c7401037376f60afdb2a355ced8010defa88590e8a4637918ed73fa61d63699",
+    "backend_runtime_images": [
+      {
+        "pod": "meet-backend-54966479f9-wm7kh",
+        "images": [
+          {
+            "image": "sha256:00739c553d6cf7e8e3ea301674a11807908b282ff409373508fe7e1c4b6d5f7c",
+            "image_id": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+            "restarts": 0
+          }
+        ]
+      },
+      {
+        "pod": "meet-backend-ai-84b54dcbbb-dgfpq",
+        "images": [
+          {
+            "image": "sha256:00739c553d6cf7e8e3ea301674a11807908b282ff409373508fe7e1c4b6d5f7c",
+            "image_id": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+            "restarts": 0
+          }
+        ]
+      },
+      {
+        "pod": "meet-celery-backend-5867b5c765-8fzl2",
+        "images": [
+          {
+            "image": "sha256:00739c553d6cf7e8e3ea301674a11807908b282ff409373508fe7e1c4b6d5f7c",
+            "image_id": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+            "restarts": 0
+          }
+        ]
+      },
+      {
+        "pod": "meet-celery-beat-5fd69bb758-n4bz2",
+        "images": [
+          {
+            "image": "sha256:00739c553d6cf7e8e3ea301674a11807908b282ff409373508fe7e1c4b6d5f7c",
+            "image_id": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+            "restarts": 0
+          }
+        ]
+      },
+      {
+        "pod": "meet-celery-work-744bc9cc9f-wjgll",
+        "images": [
+          {
+            "image": "sha256:00739c553d6cf7e8e3ea301674a11807908b282ff409373508fe7e1c4b6d5f7c",
+            "image_id": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+            "restarts": 0
+          }
+        ]
+      }
+    ],
+    "helm_revision": 457,
+    "helm_status": "deployed",
+    "scoped_patch_drift_recorded": true,
+    "rollback_performed": false
+  },
+  "local_validation": {
+    "application_tests_passed": 261,
+    "sdk_opt_in_tests_skipped": 2,
+    "production_operation_guard_tests_passed": 8
+  },
+  "operational_findings": {
+    "postgresql_mounted_admin_password_authentication_failed": true,
+    "backup_uses_existing_working_application_database_credentials": true,
+    "database_password_or_secret_changed": false,
+    "stdin_archive_validation_timed_out_before_schema_change": true,
+    "successful_validation_method": "copy bounded tar stream to private PostgreSQL temporary directory, verify SHA256, pg_restore list and full archive to /dev/null, then remove temporary copy",
+    "initial_cpu_window_rejection_changed_no_workloads": true,
+    "subsequent_rollouts_waited_for_normal_requests_headroom": true,
+    "normal_requests_m_at_quiet_inventory": 3650,
+    "resources_or_scheduler_bypass_changed": false
+  },
+  "rollback_performed": false,
+  "new_feature_activation_performed": false,
+  "provider_calls_by_release": 0,
+  "helm_drift": {
+    "revision": 457,
+    "status": "deployed",
+    "existing_helm_template_drift_preserved_and_updated_by_scoped_patch": true,
+    "reconciliation_required_before_generic_helm_release": true,
+    "generic_helm_rollback_used": false
+  },
+  "limitations": [
+    "Archive integrity validation is not a full database restore drill",
+    "SDK integration skips remain skipped",
+    "New agent/local/remote/review admission remains disabled",
+    "No production test account or synthetic user task created",
+    "Existing CronJob history not rewritten"
+  ]
+}

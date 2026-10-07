@@ -1,44 +1,7 @@
 {
   "business_deployment_uid": "81e49171-7fe4-4cb1-b7ab-d969b02675d7",
-  "business_images": [
-    "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:05589638d0cee8c9fe6daa2424dbcf0408d3a183d7820c6c8367ce608d13d8d6"
-  ],
-  "runtime": {
-    "work_package_present": true,
-    "work_flags": {
-      "WORK_ENABLED": "True",
-      "WORK_AGENT_ENABLED": null,
-      "WORK_REVIEW_ENABLED": null
-    },
-    "files": {
-      "review_runs.py": {
-        "present": false,
-        "sha256": null
-      },
-      "review_contract.py": {
-        "present": false,
-        "sha256": null
-      },
-      "agent_client.py": {
-        "present": false,
-        "sha256": null
-      },
-      "models.py": {
-        "present": true,
-        "sha256": "b6606f1678ee77662ccd5bacee187bab75e14b9ef0b0e1c05bcc03afd15d7102"
-      },
-      "urls.py": {
-        "present": true,
-        "sha256": "8f0fcbbdde2abc71700309e080a8c6ae7f4606f10f2570488a4ce28a84d04fcf"
-      }
-    },
-    "migrations": [
-      "0001_initial.py",
-      "0002_workmaterial_locations_worktask_workrun_and_more.py"
-    ]
-  },
-  "public_flags_changed": false,
-  "business_deployment_changed": false,
+  "public_flags_changed": true,
+  "business_deployment_changed": true,
   "database_baseline": {
     "version": "PostgreSQL 16.4",
     "migration_count": 220,
@@ -1073,9 +1036,10 @@
         "rollback_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:61ac48cecc32c20ff7d6309f25e207eb4344b71efb684ab2820c0c33b003b4a0"
       }
     ],
-    "executed": false,
-    "backup_performed": false,
-    "existing_business_write_authorization_pending": true
+    "executed": true,
+    "backup_performed": true,
+    "existing_business_write_authorization_pending": false,
+    "execution_receipt": "work-k3s-business-alignment-release-2026-10-07.json"
   },
   "validation": {
     "work": {
@@ -1096,8 +1060,50 @@
     "ruff": "passed",
     "makemigrations_check": "no changes detected",
     "supplier_calls": 0,
-    "production_database_writes": 0,
-    "business_workloads_updated": 0,
-    "acceptance_receipt": "work-k3s-business-upgrade-acceptance-2026-10-07.json"
-  }
+    "production_database_writes": true,
+    "business_workloads_updated": 7,
+    "acceptance_receipt": "work-k3s-business-upgrade-acceptance-2026-10-07.json",
+    "production_migrations_applied": 5,
+    "operation_guard_tests_passed": 8
+  },
+  "baseline_runtime": {
+    "work_package_present": true,
+    "work_flags": {
+      "WORK_ENABLED": "True",
+      "WORK_AGENT_ENABLED": null,
+      "WORK_REVIEW_ENABLED": null
+    },
+    "files": {
+      "review_runs.py": {
+        "present": false,
+        "sha256": null
+      },
+      "review_contract.py": {
+        "present": false,
+        "sha256": null
+      },
+      "agent_client.py": {
+        "present": false,
+        "sha256": null
+      },
+      "models.py": {
+        "present": true,
+        "sha256": "b6606f1678ee77662ccd5bacee187bab75e14b9ef0b0e1c05bcc03afd15d7102"
+      },
+      "urls.py": {
+        "present": true,
+        "sha256": "8f0fcbbdde2abc71700309e080a8c6ae7f4606f10f2570488a4ce28a84d04fcf"
+      }
+    },
+    "migrations": [
+      "0001_initial.py",
+      "0002_workmaterial_locations_worktask_workrun_and_more.py"
+    ]
+  },
+  "baseline_business_images": [
+    "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:05589638d0cee8c9fe6daa2424dbcf0408d3a183d7820c6c8367ce608d13d8d6"
+  ],
+  "business_images": [
+    "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+  ]
 }
