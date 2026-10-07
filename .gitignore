@@ -35,6 +35,8 @@ MANIFEST
 
 # Environments
 .env
+/src/work-agent/.env.qwen-test
+/src/work-agent/.env.qwen-test.tmp
 .venv
 env/
 venv/

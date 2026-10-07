@@ -1,6 +1,12 @@
 # Work Agent 集成
 
+已增加按成果手动开启的 [Pi 只读复核 PoC](REVIEW.md)：冻结授权快照，禁用全部工具，单独记录证据、预算和复核状态；生产默认关闭。
+
 当前阶段增加自包含 Windows 本地运行环境、逐次命令审批、签名运行环境升级与回退、Android → 桌面待办派发。当前 Agent `0.3.1`，dsh 固定 `0.1.5rc1`，与 Django / Electron 保持独立协议；不改动上游仓库。使用和交付边界见 [产品交付](DELIVERY.md)。只开发 Android，iOS 暂不开发。
+
+Pi 只读复核支持 DeepSeek 与百炼 Qwen，通过独立网关配置供应商；默认执行仍为 dsh + DeepSeek。本轮 Qwen 使用现有 `qwen3.8-flash` 和百炼 API Key，无需另建 key。配置、预算和同样本对照见 [复核说明](REVIEW.md)。
+
+服务端独立 Helm release、生产密钥分配、私有 CA 和专用 Docker 节点准备见 [生产部署](DEPLOYMENT.md)。生产配置默认关闭；本地 PoC key 不复制到生产，桌面密钥继续保存在本机。
 
 2026-10-07 下一阶段已增加本地与服务端协调：统一 WorkTask / WorkRun、设备领取、持久化状态回报及用户主动成果同步，使用独立 `work-device/v1` 契约。详见 [客户端与服务端协调](COORDINATION.md)；服务端开关默认关闭，本次未部署线上。
 

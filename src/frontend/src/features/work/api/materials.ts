@@ -12,6 +12,9 @@ export interface WorkCapabilities {
   communication_enabled?: boolean
   agent_enabled?: boolean
   agent_model?: string
+  review_enabled?: boolean
+  review_model?: string
+  review_token_budget?: number
   model?: string
 }
 
@@ -83,6 +86,12 @@ export const deleteMaterial = (id: string) =>
 
 const errors: Record<string, string> = {
   agent_unavailable: '执行服务暂不可用，已登记的任务不会重复创建。',
+  review_unavailable: '复核服务暂不可用。',
+  review_requires_success: '请在任务成功完成后开启复核。',
+  review_active: '本次成果已有复核正在进行。',
+  review_limit: '本次成果已达 5 次复核上限。',
+  review_file_unavailable: '选定文件尚未同步或版本已变化，请重新选择。',
+  invalid_review_report: '复核结果未通过证据校验，请核对原始成果。',
   agent_contract_mismatch: '执行服务版本不兼容，请联系管理员更新。',
   agent_failed: '此次处理未完成，请查看执行记录后创建新任务。',
   deployment_changed: '执行配置已变化，此任务不会自动重跑。',

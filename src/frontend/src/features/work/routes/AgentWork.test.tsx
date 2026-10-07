@@ -6,6 +6,10 @@ import * as materials from '../api/materials'
 import * as tasks from '../api/tasks'
 import { AgentWork } from './AgentWork'
 
+vi.mock('../api/reviews', () => ({
+  listReviews: vi.fn().mockResolvedValue([]),
+}))
+
 vi.mock('./Communication', () => ({
   RunArtifacts: () => <div>成果编辑器</div>,
   RunProgress: () => <div>执行记录</div>,

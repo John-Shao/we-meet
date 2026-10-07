@@ -8,7 +8,6 @@ from datetime import timedelta
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
-from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -84,12 +83,7 @@ def admit(user, data, *, workspace=None):
     if data["model"] != settings.WORK_AGENT_MODEL:
         raise MaterialError("local_model_unavailable", 409)
     budget = min(settings.WORK_AGENT_TOKEN_BUDGET, 80000)
-    used = (
-        WorkRun.objects.filter(
-            task__owner=user, created_at__date=timezone.localdate()
-        ).aggregate(total=Sum("reserved_tokens"))["total"]
-        or 0
-    )
+    used = runs.daily_reserved(user.pk)
     if used + budget > settings.WORK_DAILY_TOKEN_BUDGET:
         raise MaterialError("budget_exceeded", 429)
     task = WorkTask(

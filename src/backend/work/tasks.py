@@ -3,6 +3,7 @@
 from celery import shared_task
 
 from .agent_runs import process_agent_runs
+from .review_runs import process_reviews
 from .runs import process_runs
 from .services import process_materials
 
@@ -26,3 +27,8 @@ def tick_agent_runs():
 
     expire_runs()
     return process_agent_runs()
+
+
+@shared_task(queue="work", soft_time_limit=55, time_limit=65)
+def tick_reviews():
+    return process_reviews(limit=2)

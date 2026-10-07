@@ -6,10 +6,12 @@ import os
 import subprocess
 from pathlib import Path
 
-from . import DSH_VERSION, PI_VERSION
+from . import DSH_VERSION, PI_VERSION, review
 
 
 def prompt_for(request):
+    if request.get("operation") == "review":
+        return review.prompt(request)
     if request.get("local_workspace"):
         return (
             "Work in the explicitly authorized local workspace (your cwd). "
@@ -79,24 +81,42 @@ def pi(request, workspace, home):
     package = json.loads((cli.parents[2] / "package.json").read_text())
     if package["version"] != PI_VERSION:
         raise RuntimeError("runtime_version_mismatch")
+    provider = os.environ.get("WORK_AGENT_PROVIDER", "deepseek")
+    if provider not in {"deepseek", "qwen"}:
+        raise RuntimeError("unsupported_provider")
+    endpoint = (
+        os.environ.get("WORK_AGENT_MODEL_BASE_URL") or os.environ["DEEPSEEK_BASE_URL"]
+    )
+    token_env = (
+        "WORK_AGENT_MODEL_TOKEN"
+        if "WORK_AGENT_MODEL_TOKEN" in os.environ
+        else "DEEPSEEK_API_KEY"
+    )
+    provider_config = {"baseUrl": endpoint, "apiKey": "$" + token_env}
+    if provider == "qwen":
+        provider_config.update(
+            api="openai-completions",
+            models=[
+                {
+                    "id": os.environ["WORK_AGENT_MODEL"],
+                    "name": os.environ["WORK_AGENT_MODEL"],
+                    "reasoning": False,
+                    "input": ["text"],
+                    "contextWindow": 32768,
+                    "maxTokens": 4096,
+                }
+            ],
+        )
+    else:
+        provider_config["modelOverrides"] = {
+            os.environ["WORK_AGENT_MODEL"]: {"maxTokens": 4096}
+        }
     os.environ["PI_CODING_AGENT_DIR"] = str(home)
     (home / "settings.json").write_text(
         json.dumps({"retry": {"enabled": False}}), encoding="utf-8"
     )
     (home / "models.json").write_text(
-        json.dumps(
-            {
-                "providers": {
-                    "deepseek": {
-                        "baseUrl": os.environ["DEEPSEEK_BASE_URL"],
-                        "apiKey": "$DEEPSEEK_API_KEY",
-                        "modelOverrides": {
-                            os.environ["WORK_AGENT_MODEL"]: {"maxTokens": 4096}
-                        },
-                    }
-                }
-            }
-        ),
+        json.dumps({"providers": {provider: provider_config}}),
         encoding="utf-8",
     )
     command = [
@@ -113,14 +133,16 @@ def pi(request, workspace, home):
         "--no-context-files",
         "--no-approve",
         "--provider",
-        "deepseek",
+        provider,
         "--model",
         os.environ["WORK_AGENT_MODEL"],
         "--thinking",
-        "low",
-        "--tools",
-        "read,bash,write,edit",
+        "off" if provider == "qwen" else "low",
     ]
+    if request.get("operation") == "review":
+        command += ["--no-tools", "--system-prompt", review.SYSTEM]
+    else:
+        command += ["--tools", "read,bash,write,edit"]
     child = subprocess.Popen(
         command,
         cwd=workspace,
@@ -145,6 +167,10 @@ def pi(request, workspace, home):
             if len(line) > 2_000_000 or not line.endswith(b"\n"):
                 raise RuntimeError("invalid_upstream_record")
             record = json.loads(line)
+            if request.get("operation") == "review" and record.get(
+                "type", ""
+            ).startswith("tool_execution_"):
+                raise RuntimeError("review_tool_forbidden")
             if record.get("type") == "response":
                 if record.get("success") is not True:
                     raise RuntimeError("upstream_command_failed")
@@ -181,8 +207,24 @@ def pi(request, workspace, home):
             elif record.get("type") == "agent_settled":
                 settled = True
                 send({"type": "get_session_stats", "id": "stats"})
+        if request.get("operation") == "review":
+            # Private job diagnostics are never artifacts or public errors.
+            candidate = {
+                "accepted": accepted,
+                "settled": settled,
+                "stop_reason": last_stop,
+                "response": summary,
+            }
+            encoded = json.dumps(candidate, ensure_ascii=False).encode()
+            secret = os.environ.get(token_env, "")
+            if len(encoded) <= 100000 and not (secret and secret.encode() in encoded):
+                (home / "review-candidate.json").write_bytes(encoded)
         if not accepted or not settled or last_stop not in {"stop", "end_turn"}:
             raise RuntimeError("incomplete_agent_result")
+        if request.get("operation") == "review":
+            summary = json.dumps(
+                review.parse_report(summary, request["files"]), ensure_ascii=False
+            )
         return {"summary": summary, "usage": usage}
     finally:
         child.stdin.close()
@@ -196,6 +238,19 @@ def pi(request, workspace, home):
 def fixture(request, workspace, home):
     """Explicit offline engine; never mistaken for live model evidence."""
     import time
+
+    if request.get("operation") == "review":
+        return {
+            "summary": json.dumps(
+                {
+                    "verdict": "inconclusive",
+                    "summary": "Offline fixture; no model call.",
+                    "findings": [],
+                    "missing_information": ["Real model review was not performed."],
+                }
+            ),
+            "usage": None,
+        }
 
     if request["goal"] == "fixture:slow":
         time.sleep(30)

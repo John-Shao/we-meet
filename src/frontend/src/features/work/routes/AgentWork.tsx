@@ -18,6 +18,7 @@ import {
   type WorkRun,
 } from '../api/tasks'
 import { RunArtifacts, RunProgress } from './Communication'
+import { PiReview } from './PiReview'
 
 const active = (run?: WorkRun) =>
   run?.status === 'queued' || run?.status === 'running'
@@ -395,6 +396,15 @@ export function AgentWork({
                       key={taskId}
                       runs={task.data.runs}
                       ownerId={ownerId}
+                    />
+                  )}
+                  {run.status === 'succeeded' && (
+                    <PiReview
+                      key={`review-${run.id}`}
+                      ownerId={ownerId}
+                      runId={run.id}
+                      enabled={capabilities.data?.review_enabled === true}
+                      tokenBudget={capabilities.data?.review_token_budget}
                     />
                   )}
                   {run.status === 'succeeded' && (

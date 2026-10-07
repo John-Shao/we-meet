@@ -41,6 +41,13 @@ class Store:
     def close(self):
         self.db.close()
 
+    def operation(self, run_id):
+        with self.lock:
+            row = self.db.execute(
+                "SELECT request FROM jobs WHERE id=?", (run_id,)
+            ).fetchone()
+            return json.loads(row["request"]).get("operation") if row else None
+
     def _event(self, run_id, state):
         self.db.execute(
             """INSERT INTO events VALUES (?,

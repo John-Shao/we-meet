@@ -1,0 +1,46 @@
+# This is a separate release, not a subchart of meet. Shared secrets values only
+# use the workAgent subtree; no business credentials enter the gateway Pod.
+workAgent:
+  enabled: false
+  fullname: meet-work-agent
+  engine: dsh
+  model: deepseek-flash
+  provider: deepseek # qwen requires engine: pi and an explicit Qwen model.
+  baseUrl: "" # Optional HTTPS regional/workspace endpoint; never a client input.
+  port: 8443 # Give a reviewer on the same dedicated node a different port.
+  credentialsRevision: "initial" # Bump after draining when rotating external Secrets/TLS.
+  image:
+    repository: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  runtime:
+    # hostNetwork preserves the existing host.docker.internal ModelBroker route.
+    # Docker socket access is host-level access: require an explicit isolated node.
+    dedicatedNodeAcknowledged: false
+    nodeHostname: ""
+    dockerSocket: /var/run/docker.sock
+    stateDirectory: /var/lib/we-meet-work-agent
+    workerImage: "" # Pre-pull an immutable repo@sha256 image on the Docker node.
+  tls:
+    existingSecret: "" # tls.crt, tls.key and ca.crt; SAN includes Service DNS.
+  secrets:
+    create: false
+    gatewaySecret: meet-work-agent-gateway
+    clientSecret: meet-work-agent-client
+    providerSecret: "" # Optional existing Secret with the provider key, e.g. meet-ai-credentials.
+    gatewayToken: ""
+    deepseekApiKey: ""
+    qwenApiKey: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  tolerations:
+    - key: work-agent
+      operator: Equal
+      value: dedicated
+      effect: NoSchedule

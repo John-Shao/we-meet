@@ -10,23 +10,33 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from .config import PROVIDERS
 from .contract import ContractError, canonical
 
 MAX_MODEL_REQUEST = 1_000_000
 MAX_MODEL_RESPONSE = 4_000_000
 
 
-def usage_from_provider(usage):
+def usage_from_provider(usage, provider="deepseek"):
     """Normalized input excludes separately reported cache hits; total is exact."""
     if not isinstance(usage, dict):
         return None
     prompt, output = usage.get("prompt_tokens"), usage.get("completion_tokens")
     if any(type(value) is not int or value < 0 for value in (prompt, output)):
         return None
-    cached = usage.get("prompt_cache_hit_tokens", 0)
+    if provider == "qwen":
+        details = usage.get("prompt_tokens_details", {})
+        if not isinstance(details, dict):
+            return None
+        cached = details.get("cached_tokens", 0)
+    elif provider == "deepseek":
+        cached = usage.get("prompt_cache_hit_tokens", 0)
+    else:
+        return None
     if type(cached) is not int or not 0 <= cached <= prompt:
         return None
-    if usage.get("total_tokens", prompt + output) != prompt + output:
+    total = usage.get("total_tokens", prompt + output)
+    if type(total) is not int or total != prompt + output:
         return None
     return {
         "input_tokens": prompt - cached,
@@ -46,6 +56,8 @@ class ModelBroker:
         self, config, store, provider=None, *, bind_host="0.0.0.0", approval_gate=None
     ):
         self.config = config
+        # The local desktop service and older test configs use DeepSeek implicitly.
+        self.provider_name = getattr(config, "provider", "deepseek")
         self.store = store
         self.approval_gate = approval_gate
         self.tokens = {}
@@ -88,7 +100,8 @@ class ModelBroker:
             self.config.base_url.rstrip("/") + "/chat/completions",
             data=body,
             headers={
-                "Authorization": "Bearer " + os.environ["DEEPSEEK_API_KEY"],
+                "Authorization": "Bearer "
+                + os.environ[PROVIDERS[self.provider_name][0]],
                 "Content-Type": "application/json",
             },
         )
@@ -156,6 +169,25 @@ class ModelBroker:
                         raise ContractError("invalid_request")
                     if body.get("n", 1) != 1:
                         raise ContractError("invalid_request")
+                    if broker.store.operation(run_id) == "review" and any(
+                        body.get(key)
+                        for key in (
+                            "tools",
+                            "functions",
+                            "tool_choice",
+                            "function_call",
+                        )
+                    ):
+                        raise ContractError("review_tool_forbidden", 403)
+                    if broker.store.operation(run_id) == "review":
+                        body["response_format"] = {"type": "json_object"}
+                    if broker.provider_name == "qwen":
+                        # This evaluation uses Qwen's JSON mode without thinking or
+                        # provider-side search. Client flags cannot widen the policy.
+                        body.pop("reasoning_effort", None)
+                        body.pop("thinking", None)
+                        body["enable_thinking"] = False
+                        body["enable_search"] = False
                     deadline = broker.store.request_deadline(run_id)
                     if broker.approval_gate:
                         deadline += broker.approval_gate.paused_seconds(run_id)
@@ -182,13 +214,14 @@ class ModelBroker:
                                         and line.strip() != b"data: [DONE]"
                                     ):
                                         reported = usage_from_provider(
-                                            json.loads(line[6:]).get("usage")
+                                            json.loads(line[6:]).get("usage"),
+                                            broker.provider_name,
                                         )
                                         if reported is not None:
                                             usage = reported
                             else:
                                 usage = usage_from_provider(
-                                    json.loads(data).get("usage")
+                                    json.loads(data).get("usage"), broker.provider_name
                                 )
                             if usage is not None:
                                 broker.store.record_model_usage(run_id, sequence, usage)
@@ -231,7 +264,9 @@ class ModelBroker:
                             data = response.read(MAX_MODEL_RESPONSE + 1)
                             if len(data) > MAX_MODEL_RESPONSE:
                                 raise ContractError("model_response_too_large", 502)
-                            usage = usage_from_provider(json.loads(data).get("usage"))
+                            usage = usage_from_provider(
+                                json.loads(data).get("usage"), broker.provider_name
+                            )
                             if usage is not None:
                                 broker.store.record_model_usage(run_id, sequence, usage)
                             self.wfile.write(data)
@@ -252,7 +287,9 @@ class ModelBroker:
                                     and line.strip() != b"data: [DONE]"
                                 ):
                                     chunk = json.loads(line[6:])
-                                    reported = usage_from_provider(chunk.get("usage"))
+                                    reported = usage_from_provider(
+                                        chunk.get("usage"), broker.provider_name
+                                    )
                                     if reported is not None:
                                         usage = reported
                                 if (

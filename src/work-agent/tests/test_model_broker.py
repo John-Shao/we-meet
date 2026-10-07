@@ -2,12 +2,14 @@
 
 import io
 import json
+import os
 import tempfile
 import unittest
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -142,6 +144,25 @@ class BrokerTests(unittest.TestCase):
         )
         self.assertEqual(self.requests, [])
 
+    def test_review_tool_schemas_are_rejected_before_provider(self):
+        # Update the test-only persisted job to exercise actual broker admission.
+        self.body["operation"] = "review"
+        with self.store.lock, self.store.db:
+            self.store.db.execute(
+                "UPDATE jobs SET request=? WHERE id=?",
+                (json.dumps(self.body), self.run_id),
+            )
+        for options in (
+            {"tools": [{"type": "function", "function": {"name": "write"}}]},
+            {"functions": [{"name": "bash"}]},
+            {"tool_choice": "required"},
+        ):
+            self.assertEqual(self.post(**options)[0], 403)
+        self.assertEqual(self.requests, [])
+        self.assertEqual(self.store.metering(self.run_id)["calls"], 0)
+        self.assertEqual(self.post()[0], 200)
+        self.assertEqual(self.requests[0]["response_format"], {"type": "json_object"})
+
 
 class UsageTests(unittest.TestCase):
     def test_malformed_usage_is_not_zero_cost(self):
@@ -153,3 +174,73 @@ class UsageTests(unittest.TestCase):
             {"prompt_tokens": 5, "completion_tokens": 3, "prompt_cache_hit_tokens": 6},
         ]:
             self.assertIsNone(usage_from_provider(value))
+
+    def test_qwen_cache_and_reasoning_are_not_double_counted(self):
+        value = {
+            "prompt_tokens": 100,
+            "completion_tokens": 30,
+            "total_tokens": 130,
+            "prompt_tokens_details": {"cached_tokens": 80},
+            "completion_tokens_details": {"reasoning_tokens": 20},
+        }
+        self.assertEqual(
+            usage_from_provider(value, "qwen"),
+            {
+                "input_tokens": 20,
+                "output_tokens": 30,
+                "cache_read_tokens": 80,
+                "cache_write_tokens": 0,
+            },
+        )
+        for details in (None, [], {"cached_tokens": True}, {"cached_tokens": 101}):
+            self.assertIsNone(
+                usage_from_provider({**value, "prompt_tokens_details": details}, "qwen")
+            )
+        self.assertIsNone(usage_from_provider({**value, "total_tokens": True}, "qwen"))
+
+
+class QwenBrokerTests(BrokerTests):
+    """Run the same admission/cancel/budget suite against Qwen's usage shape."""
+
+    def setUp(self):
+        super().setUp()
+        self.broker.provider_name = "qwen"
+        self.broker.config.provider = "qwen"
+        self.usage.pop("prompt_cache_hit_tokens")
+        self.usage["prompt_tokens_details"] = {"cached_tokens": 80}
+
+    def test_policy_cannot_be_widened_by_client_options(self):
+        self.assertEqual(
+            self.post(
+                enable_thinking=True,
+                enable_search=True,
+                reasoning_effort="high",
+                thinking={"type": "enabled"},
+            )[0],
+            200,
+        )
+        sent = self.requests[0]
+        self.assertIs(sent["enable_thinking"], False)
+        self.assertIs(sent["enable_search"], False)
+        self.assertNotIn("reasoning_effort", sent)
+        self.assertNotIn("thinking", sent)
+
+    def test_upstream_uses_qwen_credential_not_deepseek(self):
+        self.broker.config.base_url = "https://example.invalid/compatible-mode/v1"
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "DASHSCOPE_API_KEY": "qwen-test-only",
+                    "DEEPSEEK_API_KEY": "deepseek-test-only",
+                },
+            ),
+            patch("work_agent.model_broker.build_opener") as opener,
+        ):
+            self.broker.open_provider(b"{}", 2)
+        request = opener.return_value.open.call_args.args[0]
+        self.assertEqual(request.get_header("Authorization"), "Bearer qwen-test-only")
+        self.assertEqual(
+            request.full_url,
+            "https://example.invalid/compatible-mode/v1/chat/completions",
+        )

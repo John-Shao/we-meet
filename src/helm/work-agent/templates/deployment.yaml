@@ -1,0 +1,142 @@
+{{- if .Values.workAgent.enabled -}}
+{{- include "work-agent.validate" . -}}
+{{- $agent := .Values.workAgent -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "work-agent.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "work-agent.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "work-agent.labels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        work-agent/credentials-revision: {{ $agent.credentialsRevision | quote }}
+      labels:
+        {{- include "work-agent.labels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 45
+      nodeSelector:
+        kubernetes.io/hostname: {{ $agent.runtime.nodeHostname | quote }}
+        work-agent: dedicated
+      tolerations:
+        {{- toYaml $agent.tolerations | nindent 8 }}
+      {{- with $agent.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: gateway
+          image: {{ printf "%s@%s" $agent.image.repository $agent.image.digest | quote }}
+          imagePullPolicy: {{ $agent.image.pullPolicy }}
+          args:
+            - --engine
+            - {{ $agent.engine | quote }}
+            - --model
+            - {{ $agent.model | quote }}
+            - --provider
+            - {{ $agent.provider | quote }}
+            {{- if $agent.baseUrl }}
+            - --base-url
+            - {{ $agent.baseUrl | quote }}
+            {{- end }}
+            - --state-dir
+            - {{ $agent.runtime.stateDirectory | quote }}
+            - --image
+            - {{ $agent.runtime.workerImage | quote }}
+            - --host
+            - "0.0.0.0"
+            - --port
+            - {{ $agent.port | quote }}
+            - --tls-cert
+            - /etc/work-agent/tls/tls.crt
+            - --tls-key
+            - /etc/work-agent/tls/tls.key
+          env:
+            - name: {{ ternary "DASHSCOPE_API_KEY" "DEEPSEEK_API_KEY" (eq $agent.provider "qwen") }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default $agent.secrets.gatewaySecret $agent.secrets.providerSecret }}
+                  key: {{ ternary "DASHSCOPE_API_KEY" "DEEPSEEK_API_KEY" (eq $agent.provider "qwen") }}
+            - name: WORK_AGENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $agent.secrets.gatewaySecret }}
+                  key: WORK_AGENT_TOKEN
+          ports:
+            - name: https
+              containerPort: {{ $agent.port }}
+          securityContext:
+            runAsUser: 0 # Dedicated Docker socket is root-owned; never a business node.
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          startupProbe:
+            exec: &probe
+              command:
+                - python
+                - -m
+                - work_agent.health
+                - --port
+                - {{ $agent.port | quote }}
+                - --server-name
+                - {{ printf "%s.%s.svc.cluster.local" (include "work-agent.name" .) .Release.Namespace | quote }}
+                - --ca-file
+                - /etc/work-agent/tls/ca.crt
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            exec: *probe
+            periodSeconds: 10
+            timeoutSeconds: 5
+          # Failed readiness removes traffic; it must not restart paid executions.
+          resources:
+            {{- toYaml $agent.resources | nindent 12 }}
+          volumeMounts:
+            - name: state
+              mountPath: {{ $agent.runtime.stateDirectory | quote }}
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
+            - name: tls
+              mountPath: /etc/work-agent/tls
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: state
+          hostPath:
+            path: {{ $agent.runtime.stateDirectory | quote }}
+            type: Directory # Provision/back up explicitly; never silently create new state.
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+        - name: tls
+          secret:
+            secretName: {{ $agent.tls.existingSecret }}
+            defaultMode: 0400
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+              - key: ca.crt
+                path: ca.crt
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+{{- end }}

@@ -1,0 +1,40 @@
+# Reviewer is a separate release. The existing model Secret is referenced only;
+# the chart never creates or replaces meet-ai-credentials.
+workAgent:
+  enabled: false
+  fullname: meet-work-review
+  engine: pi
+  provider: qwen
+  model: qwen3.8-flash
+  baseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
+  port: 8444
+  image:
+    repository: REPLACE_GATEWAY_IMAGE_REPOSITORY
+    digest: REPLACE_GATEWAY_IMAGE_SHA256
+  runtime:
+    dedicatedNodeAcknowledged: false
+    nodeHostname: REPLACE_DEDICATED_DOCKER_NODE
+    stateDirectory: /var/lib/we-meet-work-review
+    workerImage: REPLACE_PI_IMAGE_REPOSITORY@sha256:REPLACE_PI_IMAGE_SHA256
+  tls:
+    existingSecret: meet-work-review-tls
+  secrets:
+    create: false
+    gatewaySecret: meet-work-review-gateway
+    clientSecret: meet-work-review-client
+    providerSecret: meet-ai-credentials
+backend:
+  envVars:
+    WORK_REVIEW_ENABLED: "False"
+    WORK_REVIEW_MODEL: qwen3.8-flash
+    WORK_REVIEW_URL: https://meet-work-review.meet.svc.cluster.local:8444
+    WORK_REVIEW_TOKEN:
+      secretKeyRef:
+        name: meet-work-review-client
+        key: WORK_AGENT_TOKEN
+        optional: true
+    WORK_REVIEW_CA_PEM:
+      secretKeyRef:
+        name: meet-work-review-tls
+        key: ca.crt
+        optional: true

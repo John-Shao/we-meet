@@ -955,10 +955,17 @@ class Base(Configuration):
     WORK_REMOTE_AGENT_ENABLED = values.BooleanValue(False, environ_prefix=None)
     WORK_AGENT_URL = values.Value("", environ_prefix=None)
     WORK_AGENT_TOKEN = SecretFileValue(None, environ_prefix=None)
+    WORK_AGENT_CA_PEM = values.Value("", environ_prefix=None)
     WORK_AGENT_MODEL = values.Value("deepseek-flash", environ_prefix=None)
     WORK_AGENT_TIMEOUT = values.PositiveIntegerValue(180, environ_prefix=None)
     WORK_AGENT_MAX_CALLS = values.PositiveIntegerValue(6, environ_prefix=None)
     WORK_AGENT_TOKEN_BUDGET = values.PositiveIntegerValue(80000, environ_prefix=None)
+    WORK_REVIEW_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    WORK_REVIEW_URL = values.Value("", environ_prefix=None)
+    WORK_REVIEW_TOKEN = SecretFileValue(None, environ_prefix=None)
+    WORK_REVIEW_CA_PEM = values.Value("", environ_prefix=None)
+    WORK_REVIEW_MODEL = values.Value("deepseek-flash", environ_prefix=None)
+    WORK_REVIEW_TOKEN_BUDGET = values.PositiveIntegerValue(20000, environ_prefix=None)
     WORK_MODEL = values.Value("", environ_prefix=None)
     WORK_MODEL_BASE_URL = values.Value("", environ_prefix=None)
     WORK_MODEL_API_KEY = SecretFileValue(None, environ_prefix=None)
@@ -969,6 +976,11 @@ class Base(Configuration):
     )
 
     CELERY_BEAT_SCHEDULE = {
+        "tick-work-reviews": {
+            "task": "work.tasks.tick_reviews",
+            "schedule": 5.0,
+            "options": {"queue": "work", "expires": 30},
+        },
         "tick-work-runs": {
             "task": "work.tasks.tick_runs",
             "schedule": 5.0,

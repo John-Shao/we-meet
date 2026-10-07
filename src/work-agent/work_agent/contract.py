@@ -45,7 +45,7 @@ def filename(value):
 
 
 def validate_request(body):
-    if not isinstance(body, dict) or set(body) - {"limits"} != {
+    if not isinstance(body, dict) or set(body) - {"limits", "operation"} != {
         "contract",
         "run_id",
         "goal",
@@ -55,6 +55,8 @@ def validate_request(body):
         raise ContractError("invalid_request")
     if body["contract"] != CONTRACT:
         raise ContractError("unsupported_contract", 409)
+    if "operation" in body and body["operation"] != "review":
+        raise ContractError("invalid_operation")
     if "limits" in body:
         limits = body["limits"]
         if not isinstance(limits, dict) or set(limits) != set(DEFAULT_LIMITS):

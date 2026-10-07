@@ -1,0 +1,30 @@
+# Copy to values.work-agent.yaml (gitignored). Both releases read this overlay;
+# meet ignores the workAgent subtree, work-agent ignores backend/workWorker.
+# Prepare the gateway first; enable business execution only after TLS/auth checks.
+workAgent:
+  enabled: false
+  fullname: meet-work-agent
+  image:
+    repository: REPLACE_GATEWAY_IMAGE_REPOSITORY
+    digest: REPLACE_GATEWAY_IMAGE_SHA256
+  runtime:
+    dedicatedNodeAcknowledged: false
+    nodeHostname: REPLACE_DEDICATED_DOCKER_NODE
+    workerImage: REPLACE_WORKER_IMAGE_REPOSITORY@sha256:REPLACE_WORKER_IMAGE_SHA256
+  tls:
+    existingSecret: meet-work-agent-tls
+backend:
+  envVars:
+    WORK_AGENT_ENABLED: "False"
+    WORK_AGENT_URL: "https://meet-work-agent.meet.svc.cluster.local:8443"
+    WORK_AGENT_MODEL: deepseek-flash
+    WORK_AGENT_TOKEN:
+      secretKeyRef:
+        name: meet-work-agent-client
+        key: WORK_AGENT_TOKEN
+        optional: true # False when admitting production agent runs.
+    WORK_AGENT_CA_PEM:
+      secretKeyRef:
+        name: meet-work-agent-tls
+        key: ca.crt
+        optional: true # False when admitting production agent runs.

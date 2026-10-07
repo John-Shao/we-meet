@@ -1,0 +1,6 @@
+apiVersion: v2
+name: work-agent
+description: Independent Work agent gateway on a dedicated Docker runner node
+type: application
+version: 0.1.0
+appVersion: "0.3.1"

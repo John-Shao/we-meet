@@ -83,6 +83,7 @@ class Worker:
         env.update(
             WORK_AGENT_ENGINE=config.engine,
             WORK_AGENT_MODEL=config.model,
+            WORK_AGENT_PROVIDER=getattr(config, "provider", "deepseek"),
             DEEPSEEK_BASE_URL=config.base_url,
         )
         if config.execution == "docker":
@@ -94,6 +95,10 @@ class Worker:
                 token, endpoint = self.broker.issue(run_id)
                 env["DEEPSEEK_API_KEY"] = token
                 env["DEEPSEEK_BASE_URL"] = endpoint
+            # Legacy names remain for dsh. Pi uses provider-neutral names; both
+            # contain the same short-lived broker credential, never a supplier key.
+            env["WORK_AGENT_MODEL_TOKEN"] = env["DEEPSEEK_API_KEY"]
+            env["WORK_AGENT_MODEL_BASE_URL"] = env["DEEPSEEK_BASE_URL"]
             command = [
                 "docker",
                 "create",
@@ -121,6 +126,12 @@ class Worker:
                 "WORK_AGENT_ENGINE",
                 "-e",
                 "WORK_AGENT_MODEL",
+                "-e",
+                "WORK_AGENT_PROVIDER",
+                "-e",
+                "WORK_AGENT_MODEL_TOKEN",
+                "-e",
+                "WORK_AGENT_MODEL_BASE_URL",
                 "-e",
                 "DEEPSEEK_BASE_URL",
                 config.image,

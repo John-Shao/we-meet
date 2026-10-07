@@ -8,7 +8,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import drivers
+from . import drivers, review
 from .contract import MAX_RESULT_BYTES, canonical, digest, filename, validate_request
 
 
@@ -53,12 +53,26 @@ def run(job_dir):
     for item in request["files"]:
         (workspace / item["name"]).write_text(item["text"], encoding="utf-8")
     driver = getattr(drivers, os.environ["WORK_AGENT_ENGINE"])
+    if request.get("operation") == "review" and os.environ["WORK_AGENT_ENGINE"] not in {
+        "pi",
+        "fixture",
+    }:
+        raise RuntimeError("unsupported_operation")
     result = driver(request, workspace, home)
+    if request.get("operation") == "review":
+        report = review.validate_report(json.loads(result["summary"]), request["files"])
+        (workspace / "output" / "pi-review.json").write_bytes(canonical(report))
+        result["summary"] = report["summary"]
     result["artifacts"] = collect_artifacts(workspace)
     result["elapsed_ms"] = round((time.monotonic() - started) * 1000)
     encoded = canonical(result)
-    secret = os.environ.get("DEEPSEEK_API_KEY", "")
-    if len(encoded) > MAX_RESULT_BYTES or (secret and secret.encode() in encoded):
+    secrets = [
+        os.environ.get(key, "")
+        for key in ("DEEPSEEK_API_KEY", "WORK_AGENT_MODEL_TOKEN")
+    ]
+    if len(encoded) > MAX_RESULT_BYTES or any(
+        secret and secret.encode() in encoded for secret in secrets
+    ):
         raise RuntimeError("invalid_result")
     temporary = job_dir / "result.tmp"
     temporary.write_bytes(encoded)

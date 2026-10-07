@@ -10,7 +10,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import Q
 from django.utils import timezone
 
 from core.services.ai_usage import record_usage
@@ -70,12 +70,7 @@ def new_agent_run(task, key):
     output = min(settings.WORK_MAX_OUTPUT_TOKENS, 4096)
     if budget < output + 1024:
         raise MaterialError("generation_unavailable", 503)
-    used = (
-        WorkRun.objects.filter(
-            task__owner_id=task.owner_id, created_at__date=timezone.localdate()
-        ).aggregate(total=Sum("reserved_tokens"))["total"]
-        or 0
-    )
+    used = runs.daily_reserved(task.owner_id)
     if used + budget > settings.WORK_DAILY_TOKEN_BUDGET:
         raise MaterialError("budget_exceeded", 429)
     run_id = uuid.uuid4()
@@ -134,6 +129,15 @@ def check_caps(caps, run):
         or not isinstance(caps.get("limits_ceiling"), dict)
     ):
         raise MaterialError("agent_contract_mismatch", 503)
+    if hasattr(run, "source_run_id") and (
+        caps.get("engine") != "pi"
+        and not (
+            getattr(settings, "WORK_AGENT_TEST_FIXTURE", False)
+            and caps.get("engine") == "fixture"
+        )
+        or "readonly_review_v1" not in caps.get("features", [])
+    ):
+        raise MaterialError("agent_contract_mismatch", 503)
     if (
         caps.get("contract") != CONTRACT
         or caps.get("engine") not in engines
@@ -181,7 +185,7 @@ def save_usage(run, meter):
             user=run.task.owner,
             organization=run.task.organization,
             model_code=run.model,
-            ref_type="work_run",
+            ref_type="work_review" if hasattr(run, "source_run_id") else "work_run",
             ref_id=run.pk,
             input_tokens=run.input_tokens,
             output_tokens=run.output_tokens,
@@ -190,6 +194,11 @@ def save_usage(run, meter):
 
 
 def import_result(run, result):
+    if hasattr(run, "source_run_id"):
+        from .review_runs import import_report  # noqa: PLC0415 -- separate result type
+
+        import_report(run, result)
+        return
     # The HTTP client checked hashes and flat names; retain generated files immutably.
     summary = result["summary"]
     if not summary or len(summary) > MAX_ARTIFACT_CHARS:
@@ -210,20 +219,41 @@ def import_result(run, result):
 
 
 def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cancel state machine
-    client = AgentClient(run.base_url, settings.WORK_AGENT_TOKEN, timeout=4)
+    model_class = type(run)
+    is_review = hasattr(run, "source_run_id")
+    if is_review:
+        from . import review_runs  # noqa: PLC0415 -- independent reviewer configuration
+
+        configured = review_runs.enabled
+        endpoint = settings.WORK_REVIEW_URL
+        token = settings.WORK_REVIEW_TOKEN
+        ca_pem = settings.WORK_REVIEW_CA_PEM
+        version = review_runs.VERSION
+    else:
+        configured = enabled
+        endpoint = settings.WORK_AGENT_URL
+        token = settings.WORK_AGENT_TOKEN
+        ca_pem = settings.WORK_AGENT_CA_PEM
+        version = VERSION
+    client = AgentClient(
+        run.base_url,
+        token,
+        timeout=4,
+        ca_pem=ca_pem,
+    )
     value = None
     try:
         with transaction.atomic():
-            current = WorkRun.objects.select_for_update().get(pk=run.pk)
+            current = model_class.objects.select_for_update().get(pk=run.pk)
             if current.agent_generation != run.agent_generation:
                 return
             if current.status in runs.ACTIVE:
                 try:
                     runs.sources_for(current.task)
                     if (
-                        not enabled()
-                        or settings.WORK_AGENT_URL != current.base_url
-                        or current.executor_version != VERSION
+                        not configured()
+                        or endpoint != current.base_url
+                        or current.executor_version != version
                     ):
                         raise MaterialError("generation_unavailable")
                 except MaterialError as exc:
@@ -248,7 +278,7 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
                 caps = client.capabilities()
                 check_caps(caps, run)
                 with transaction.atomic():
-                    current = WorkRun.objects.select_for_update().get(pk=run.pk)
+                    current = model_class.objects.select_for_update().get(pk=run.pk)
                     if (
                         current.status not in runs.ACTIVE
                         or current.agent_generation != run.agent_generation
@@ -265,7 +295,7 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
         check_caps(value.get("deployment", {}), run)
         meter = validate_metering(value)
         with transaction.atomic():
-            current = WorkRun.objects.select_for_update().get(pk=run.pk)
+            current = model_class.objects.select_for_update().get(pk=run.pk)
             if current.agent_generation != run.agent_generation:
                 return
             save_usage(current, meter)
@@ -273,7 +303,7 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
             if current.status in runs.ACTIVE:
                 try:
                     runs.sources_for(current.task)
-                    if not enabled():
+                    if not configured():
                         raise MaterialError("generation_unavailable")
                     if value["state"] == "succeeded":
                         import_result(current, value["result"])
@@ -316,7 +346,7 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
             current.save()
     except (AgentBoundaryError, MaterialError) as exc:
         with transaction.atomic():
-            current = WorkRun.objects.select_for_update().get(pk=run.pk)
+            current = model_class.objects.select_for_update().get(pk=run.pk)
             if current.agent_generation != run.agent_generation:
                 return
             # Transport ambiguity stays recoverable with the same run ID.

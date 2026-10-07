@@ -187,6 +187,60 @@ class WorkRunEvent(models.Model):
         return f"{self.run_id}:{self.seq}"
 
 
+class WorkReview(models.Model):
+    """Independent Pi outbox, with an immutable authorized input snapshot."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source_run = models.ForeignKey(
+        WorkRun, related_name="reviews", on_delete=models.PROTECT
+    )
+    request_key = models.UUIDField()
+    selection = models.JSONField()
+    status = models.CharField(max_length=16, default="queued")
+    error_code = models.CharField(max_length=40, blank=True)
+    model = models.CharField(max_length=200)
+    base_url = models.URLField(max_length=500)
+    executor_version = models.CharField(max_length=40, default="pi-review-v1")
+    reserved_tokens = models.PositiveIntegerField()
+    max_output_tokens = models.PositiveIntegerField()
+    input_tokens = models.PositiveIntegerField(null=True)
+    output_tokens = models.PositiveIntegerField(null=True)
+    usage_record = models.OneToOneField(
+        "core.AIUsageRecord", null=True, on_delete=models.PROTECT
+    )
+    lease_until = models.DateTimeField(null=True)
+    call_started_at = models.DateTimeField(null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True)
+    agent_payload = models.JSONField(default=dict)
+    agent_deployment = models.JSONField(default=dict)
+    agent_metering = models.JSONField(default=dict)
+    agent_done = models.BooleanField(default=False)
+    agent_generation = models.PositiveIntegerField(default=0)
+    report = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source_run", "request_key"], name="work_review_once"
+            )
+        ]
+
+        indexes = [
+            models.Index(
+                fields=["agent_done", "lease_until"], name="work_review_pending"
+            )
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+    @property
+    def task(self):
+        return self.source_run.task
+
+
 class WorkArtifactVersion(models.Model):
     """Append-only Markdown revisions; generated citations stay on revision one."""
 

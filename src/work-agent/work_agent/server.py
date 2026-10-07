@@ -4,6 +4,8 @@ import argparse
 import hmac
 import json
 import os
+import signal
+import ssl
 import subprocess
 import threading
 import uuid
@@ -20,8 +22,20 @@ from .store import Store
 from .worker import Worker
 
 
+class GatewayHTTPServer(ThreadingHTTPServer):
+    def get_request(self):
+        connection, address = super().get_request()
+        connection.settimeout(5)
+        return connection, address
+
+    def handle_error(self, request, client_address):
+        pass  # Handshake/request diagnostics must not bypass private logging.
+
+
 class Gateway:
-    def __init__(self, config, host="127.0.0.1", port=0):
+    def __init__(self, config, host="127.0.0.1", port=0, *, tls_context=None):
+        if host not in {"127.0.0.1", "localhost", "::1"} and tls_context is None:
+            raise ValueError("non-loopback listeners require TLS")
         if config.execution == "docker":
             image_id = (
                 subprocess.check_output(
@@ -60,7 +74,12 @@ class Gateway:
             ModelBroker(config, self.store) if config.engine != "fixture" else None
         )
         self.worker = Worker(config, self.store, self.broker)
-        self.http = ThreadingHTTPServer((host, port), self.handler())
+        self.http = GatewayHTTPServer((host, port), self.handler())
+        self.tls = tls_context is not None
+        if tls_context:
+            self.http.socket = tls_context.wrap_socket(
+                self.http.socket, server_side=True, do_handshake_on_connect=False
+            )
         self.http.daemon_threads = True
         self.thread = threading.Thread(target=self.http.serve_forever, daemon=True)
 
@@ -82,7 +101,8 @@ class Gateway:
 
     @property
     def url(self):
-        return f"http://127.0.0.1:{self.http.server_port}"
+        scheme = "https" if self.tls else "http"
+        return f"{scheme}://127.0.0.1:{self.http.server_port}"
 
     def handler(self):
         gateway = self
@@ -121,6 +141,13 @@ class Gateway:
                         if self.headers.get_content_type() != "application/json":
                             raise ContractError("invalid_content_type", 415)
                         body = validate_request(json.loads(self.rfile.read(size)))
+                        if body.get(
+                            "operation"
+                        ) == "review" and gateway.config.engine not in {
+                            "pi",
+                            "fixture",
+                        }:
+                            raise ContractError("unsupported_operation", 409)
                         fresh = gateway.store.admit(body, gateway.config.capabilities())
                         return self.reply(
                             202 if fresh else 200, gateway.store.get(body["run_id"])
@@ -166,24 +193,43 @@ def main():
     parser.add_argument("--state-dir", type=Path, required=True)
     parser.add_argument("--port", type=int, default=8881)
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--model", default="deepseek-flash")
+    parser.add_argument("--model")
+    parser.add_argument("--provider", choices=["deepseek", "qwen"], default="deepseek")
+    parser.add_argument("--base-url")
     parser.add_argument("--image")
     parser.add_argument("--env-file", type=Path)
+    parser.add_argument("--tls-cert", type=Path)
+    parser.add_argument("--tls-key", type=Path)
     args = parser.parse_args()
+    if bool(args.tls_cert) != bool(args.tls_key):
+        parser.error("--tls-cert and --tls-key must be supplied together")
+    if args.host not in {"127.0.0.1", "localhost", "::1"} and not args.tls_cert:
+        parser.error("non-loopback listeners require TLS")
+    context = None
+    if args.tls_cert:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(args.tls_cert, args.tls_key)
     if args.env_file:
         load_env(args.env_file)
     config = Config(
         engine=args.engine,
         root=args.state_dir.resolve(),
         token=os.environ.get("WORK_AGENT_TOKEN", ""),
-        model=args.model,
+        model=args.model
+        or ("qwen3.8-flash" if args.provider == "qwen" else "deepseek-flash"),
         execution="fixture" if args.engine == "fixture" else "docker",
         image=args.image or f"we-meet-work-agent:{args.engine}-poc",
+        provider=args.provider,
+        base_url=args.base_url,
     )
-    gateway = Gateway(config, args.host, args.port)
+    gateway = Gateway(config, args.host, args.port, tls_context=context)
+    stopped = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: stopped.set())
     gateway.start()
     try:
-        gateway.thread.join()
+        while gateway.thread.is_alive() and not stopped.wait(0.5):
+            pass
     except KeyboardInterrupt:
         pass
     finally:

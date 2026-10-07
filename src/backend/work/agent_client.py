@@ -3,10 +3,17 @@
 import hashlib
 import json
 import re
+import ssl
 import uuid
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import (
+    HTTPRedirectHandler,
+    HTTPSHandler,
+    ProxyHandler,
+    Request,
+    build_opener,
+)
 
 CONTRACT = "work-agent/v1"
 MAX_RESPONSE = 2_100_000
@@ -21,12 +28,12 @@ class AgentBoundaryError(Exception):
 
 
 class NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: PLR0913, PLR0917 -- stdlib override
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: PLR0913 -- stdlib override
         return None
 
 
 class AgentClient:
-    def __init__(self, endpoint, token, timeout=5):
+    def __init__(self, endpoint, token, timeout=5, ca_pem=""):
         parsed = urlsplit(endpoint)
         if (
             parsed.scheme not in {"http", "https"}
@@ -49,7 +56,14 @@ class AgentClient:
         self.endpoint = endpoint.rstrip("/")
         self.token = token
         self.timeout = timeout
-        self.opener = build_opener(NoRedirect())
+        context = ssl.create_default_context()
+        if ca_pem:
+            context.load_verify_locations(cadata=ca_pem)
+        # Job API credentials must go directly to the private gateway, rather
+        # than inherit an unrelated machine's HTTP(S)_PROXY configuration.
+        self.opener = build_opener(
+            ProxyHandler({}), NoRedirect(), HTTPSHandler(context=context)
+        )
 
     def _request(self, method, path, body=None):
         request = Request(  # noqa: S310 -- scheme checked at init; redirects disabled
@@ -141,7 +155,9 @@ class AgentClient:
             raise AgentBoundaryError("agent_invalid_response") from None
         return value
 
-    def submit(self, run_id, goal, files, timeout_seconds=120, *, limits=None):
+    def submit(  # noqa: PLR0913 -- bounded optional operation in our wire protocol
+        self, run_id, goal, files, timeout_seconds=120, *, limits=None, operation=None
+    ):
         run_id = str(uuid.UUID(str(run_id)))
         self.capabilities()  # Fail before admission if the contract is incompatible.
         body = {
@@ -160,6 +176,8 @@ class AgentClient:
         }
         if limits is not None:
             body["limits"] = limits
+        if operation is not None:
+            body["operation"] = operation
         value = self._request("POST", "/v1/jobs", body)
         return self._job(value, run_id)
 

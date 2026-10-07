@@ -68,7 +68,28 @@ def sources_for(task):
 
 def event(run, kind):
     # Caller holds run row lock, or has just inserted an uncommitted run.
+    if hasattr(run, "source_run_id"):
+        return  # Review lifecycle is exposed through its separate durable row.
     WorkRunEvent.objects.create(run=run, seq=run.events.count() + 1, type=kind)
+
+
+def daily_reserved(owner_id):
+    from .models import WorkReview  # noqa: PLC0415 -- independent review ledger
+
+    today = timezone.localdate()
+    total = (
+        WorkRun.objects.filter(
+            task__owner_id=owner_id, created_at__date=today
+        ).aggregate(total=Sum("reserved_tokens"))["total"]
+        or 0
+    )
+    reviews = (
+        WorkReview.objects.filter(
+            source_run__task__owner_id=owner_id, created_at__date=today
+        ).aggregate(total=Sum("reserved_tokens"))["total"]
+        or 0
+    )
+    return total + reviews
 
 
 def new_run(task, key):
@@ -91,13 +112,7 @@ def new_run(task, key):
     prompt = prompt_for(task, sources_for(task))
     output = min(settings.WORK_MAX_OUTPUT_TOKENS, 4000)
     reservation = len(prompt.encode()) + len(SYSTEM.encode()) + 1024 + output
-    today = timezone.localdate()
-    used = (
-        WorkRun.objects.filter(
-            task__owner_id=task.owner_id, created_at__date=today
-        ).aggregate(total=Sum("reserved_tokens"))["total"]
-        or 0
-    )
+    used = daily_reserved(task.owner_id)
     if used + reservation > settings.WORK_DAILY_TOKEN_BUDGET:
         raise MaterialError("budget_exceeded", 429)
     run = WorkRun.objects.create(

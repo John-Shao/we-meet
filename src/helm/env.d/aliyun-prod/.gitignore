@@ -1,3 +1,7 @@
 # Never commit filled-in secrets
 values.secrets.yaml
 *.local.yaml
+values.work-agent.yaml
+values.work-agent.yaml.tmp
+values.work-review.yaml
+values.work-review.yaml.tmp

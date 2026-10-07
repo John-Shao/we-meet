@@ -15,7 +15,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import agent_runs, runs, services
+from . import agent_runs, review_runs, runs, services
 from .models import WorkMaterial
 from .upload import BoundedMaterialUpload
 
@@ -76,6 +76,11 @@ class CapabilitiesView(APIView):
                 "skills": (["communication"] if runs.enabled() else [])
                 + (["office_agent"] if agent_runs.enabled() else []),
                 "agent_enabled": agent_runs.enabled(),
+                "review_enabled": review_runs.enabled(),
+                "review_model": settings.WORK_REVIEW_MODEL
+                if review_runs.enabled()
+                else "",
+                "review_token_budget": settings.WORK_REVIEW_TOKEN_BUDGET,
                 "local_agent_enabled": bool(
                     settings.WORK_ENABLED and settings.WORK_LOCAL_AGENT_ENABLED
                 ),

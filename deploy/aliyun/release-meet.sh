@@ -36,6 +36,7 @@ BRANCH="${BRANCH:-}"
 VALUES_FILE="${VALUES_FILE:-src/helm/env.d/aliyun-prod/values.meet.yaml}"
 SECRETS_FILE="${SECRETS_FILE:-src/helm/env.d/aliyun-prod/values.secrets.yaml}"
 WORK_VALUES_FILE="${WORK_VALUES_FILE:-src/helm/env.d/aliyun-prod/values.work.yaml}"
+WORK_AGENT_VALUES_FILE="${WORK_AGENT_VALUES_FILE:-src/helm/env.d/aliyun-prod/values.work-agent.yaml}"
 ALL_MODULES=(backend frontend summary agents)
 SELECTED=()
 TAG=""
@@ -384,6 +385,32 @@ metadata_tag=$(module_tag agents meet-agent-metadata)
 subtitles_tag=$(module_tag agents meet-agent-subtitles)
 assistant_tag=$(module_tag agents meet-agent-ai-assistant)
 
+# Keep independent agent credentials out of the business Helm release history.
+# The shared operator file is filtered into private temporary values first.
+work_agent_business_overlay=""
+if [[ -r "$SECRETS_FILE" ]]; then
+  require_command python3
+  work_agent_render_dir=$(mktemp -d)
+  cleanup_work_agent_values() {
+    rm -f -- "$work_agent_render_dir/business-secrets.json" "$work_agent_render_dir/business-overlay.json"
+    rmdir -- "$work_agent_render_dir"
+  }
+  trap cleanup_work_agent_values EXIT
+  agent_profile="$WORK_AGENT_VALUES_FILE"
+  if [[ ! -r "$agent_profile" ]]; then
+    agent_profile="src/helm/env.d/aliyun-prod/values.work-agent.yaml.dist"
+  fi
+  python3 deploy/aliyun/check-work-agent.py \
+    --namespace "$NAMESPACE" --secrets-file "$SECRETS_FILE" \
+    --values-file "$agent_profile" \
+    --export-business-secrets "$work_agent_render_dir/business-secrets.json" \
+    --export-business-overlay "$work_agent_render_dir/business-overlay.json"
+  SECRETS_FILE="$work_agent_render_dir/business-secrets.json"
+  if [[ -r "$WORK_AGENT_VALUES_FILE" ]]; then
+    work_agent_business_overlay="$work_agent_render_dir/business-overlay.json"
+  fi
+fi
+
 helm_args=(
   -n "$NAMESPACE" upgrade "$RELEASE" ./src/helm/meet
   -f "$VALUES_FILE"
@@ -404,6 +431,9 @@ helm_args=(
 # Preserve the host-local Work configuration across regular releases.
 if [[ -r "$WORK_VALUES_FILE" ]]; then
   helm_args+=(-f "$WORK_VALUES_FILE")
+fi
+if [[ -n "$work_agent_business_overlay" ]]; then
+  helm_args+=(-f "$work_agent_business_overlay")
 fi
 
 # Optional AI processes use the agents image family. Preserve each live tag on

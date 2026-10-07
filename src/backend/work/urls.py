@@ -5,9 +5,18 @@ from django.urls import path
 from .api import CapabilitiesView, MaterialViewSet
 from .local_api import DeviceView, LocalAdmissionView, LocalRunView
 from .remote_api import InboxView, RemoteTaskView, WorkspaceView
+from .review_api import ReviewView
 from .task_api import RunViewSet, TaskViewSet
 
 urlpatterns = [
+    path(
+        "runs/<uuid:pk>/reviews/",
+        ReviewView.as_view({"get": "reviews", "post": "reviews"}),
+    ),
+    path(
+        "runs/<uuid:pk>/reviews/<uuid:review_id>/cancel/",
+        ReviewView.as_view({"post": "cancel_review"}),
+    ),
     path("local/workspaces/", WorkspaceView.as_view()),
     path("local/remote-tasks/", RemoteTaskView.as_view()),
     path("local/inbox/", InboxView.as_view()),

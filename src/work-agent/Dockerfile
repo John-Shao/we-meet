@@ -2,6 +2,13 @@ FROM python:3.13.5-slim-bookworm@sha256:4c2cf9917bd1cbacc5e9b07320025bdb7cdf2df7
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/job/runtime-home
 WORKDIR /opt/gateway
 
+FROM docker:28.5.1-cli@sha256:9190b0613792e658a7783cf14b2d5ace5941bb68ede7276922ea36ee457d76ad AS docker-cli
+
+FROM base AS gateway
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
+COPY work_agent ./work_agent
+ENTRYPOINT ["python", "-m", "work_agent.server"]
+
 FROM base AS dsh
 COPY requirements-dsh.lock /tmp/requirements.lock
 RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements.lock
