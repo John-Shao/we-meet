@@ -344,46 +344,84 @@ print('BACKUP_CONFIG'+json.dumps({n:d[n] for n in ('NAME','USER','PASSWORD','HOS
     require(
         result.returncode == 0 and backup.stat().st_size > 0, "database_backup_failed"
     )
-    with backup.open("rb") as stream:
-        result = subprocess.run(
-            K
-            + [
-                "exec",
-                "-i",
-                "-n",
-                "meet",
-                "postgresql-0",
-                "--",
-                "pg_restore",
-                "--list",
-            ],
-            stdin=stream,
-            capture_output=True,
-            timeout=90,
-        )
+    return validate_backup()
+
+
+def validate_backup():
+    state = read_private("state.json")
     require(
-        result.returncode == 0 and b"TABLE DATA" in result.stdout, "backup_toc_invalid"
+        state["phase"] == "backup_started", "validation_requires_pre_migration_state"
+    )
+    require(
+        read_private("backup-result.json")["returncode"] == 0,
+        "successful_dump_required",
+    )
+    backup = ROOT / "database-before.dump"
+    require(not backup.is_symlink() and backup.stat().st_uid == 0, "unsafe_backup_path")
+    require(
+        0 < backup.stat().st_size < 256_000_000,
+        "backup_validation_size_exceeds_reviewed_limit",
     )
     with backup.open("rb") as stream:
-        result = subprocess.run(
-            K
-            + [
-                "exec",
-                "-i",
-                "-n",
-                "meet",
-                "postgresql-0",
-                "--",
-                "pg_restore",
-                "--file=/dev/null",
-            ],
-            stdin=stream,
-            capture_output=True,
-            timeout=180,
-        )
-    require(result.returncode == 0, "backup_payload_invalid")
-    with backup.open("rb") as stream:
         checksum = hashlib.file_digest(stream, "sha256").hexdigest()
+    folder = "/tmp/work-business-align-" + RELEASE
+    archive = folder + "/database-before.dump"
+    # tar's bounded archive stream avoids pg_restore waiting for stdin EOF.
+    run(
+        K
+        + [
+            "exec",
+            "-n",
+            "meet",
+            "postgresql-0",
+            "--",
+            "sh",
+            "-c",
+            'umask 077; test ! -e "$1" && mkdir -m 700 "$1"',
+            "validate",
+            folder,
+        ]
+    )
+    run(K + ["cp", "--no-preserve=true", str(backup), "meet/postgresql-0:" + archive], timeout=60)
+    output = run(K + ["exec", "-n", "meet", "postgresql-0", "--", "sha256sum", archive])
+    require(output.decode().split()[0] == checksum, "validation_copy_checksum_mismatch")
+    output = run(
+        K
+        + ["exec", "-n", "meet", "postgresql-0", "--", "pg_restore", "--list", archive],
+        timeout=30,
+    )
+    require(b"TABLE DATA" in output, "backup_toc_invalid")
+    run(
+        K
+        + [
+            "exec",
+            "-n",
+            "meet",
+            "postgresql-0",
+            "--",
+            "pg_restore",
+            "--file=/dev/null",
+            archive,
+        ],
+        timeout=60,
+    )
+    run(
+        K
+        + [
+            "exec",
+            "-n",
+            "meet",
+            "postgresql-0",
+            "--",
+            "sh",
+            "-c",
+            'set -eu; test "$(sha256sum "$1" | cut -d " " -f 1)" = "$3"; rm -- "$1"; rmdir -- "$2"',
+            "cleanup",
+            archive,
+            folder,
+            checksum,
+        ]
+    )
     state = read_private("state.json")
     state.update(
         phase="prepared", backup_sha256=checksum, backup_bytes=backup.stat().st_size
@@ -614,9 +652,199 @@ def rollout(name):
     }
 
 
+def verify():
+    state = read_private("state.json")
+    require(
+        state["phase"] == "rolling" and not state.get("in_flight"),
+        "verification_requires_finished_rollouts",
+    )
+    snapshots = read_private("snapshot.json")
+    require(
+        set(state["updated"]) == {s["metadata"]["name"] for s in snapshots},
+        "incomplete_rollout",
+    )
+    candidate = read_private("candidate.json")
+    controllers = []
+    worker_pods = []
+    http_pods = []
+    for old in snapshots:
+        name = old["metadata"]["name"]
+        current = api("get", old["kind"], name, "-n", "meet", "-o", "json")
+        require(
+            current["metadata"]["uid"] == old["metadata"]["uid"]
+            and normalized_spec(current)
+            == normalized_spec(changed_spec(old, candidate["immutable_image"])),
+            "post_release_drift",
+        )
+        if old["kind"] == "Deployment":
+            require(
+                current["status"].get("observedGeneration")
+                == current["metadata"]["generation"]
+                and current["status"].get("readyReplicas") == 1
+                and current["status"].get("updatedReplicas") == 1
+                and current["status"].get("availableReplicas") == 1,
+                "post_release_deployment_unready",
+            )
+            selector = ",".join(
+                k + "=" + v
+                for k, v in current["spec"]["selector"]["matchLabels"].items()
+            )
+            pods = api("get", "pods", "-n", "meet", "-l", selector, "-o", "json")[
+                "items"
+            ]
+            ready = [
+                p
+                for p in pods
+                if not p["metadata"].get("deletionTimestamp")
+                and any(
+                    c["type"] == "Ready" and c["status"] == "True"
+                    for c in p["status"].get("conditions", [])
+                )
+            ]
+            require(len(ready) == 1, "post_release_pod_ambiguous")
+            pod = ready[0]
+            if name in ("meet-celery-backend", "meet-celery-work"):
+                worker_pods.append(pod["metadata"]["name"])
+            if name in ("meet-backend", "meet-backend-ai"):
+                http_pods.append(
+                    (
+                        name,
+                        pod["metadata"]["name"],
+                        pod["spec"]["containers"][0]["ports"][0]["containerPort"],
+                    )
+                )
+        controllers.append(
+            {
+                "kind": old["kind"],
+                "name": name,
+                "uid": current["metadata"]["uid"],
+                "image": candidate["immutable_image"],
+            }
+        )
+    require(schema()["rows"] == state["schema"]["rows"], "post_release_schema_drift")
+    http_results = []
+    for name, pod, port in http_pods:
+        code = (
+            """import json,socket,urllib.request,configurations
+configurations.setup()
+from django.conf import settings
+from django.urls import resolve
+flags={n:getattr(settings,n) for n in """
+            + repr(FLAGS)
+            + """}
+assert not any(flags.values())
+routes=['local/devices/','local/workspaces/','local/remote-tasks/','local/inbox/','runs/00000000-0000-0000-0000-000000000000/reviews/']
+for route in routes:resolve('/api/'+settings.API_VERSION+'/work/'+route)
+health={}
+for endpoint in ('/__heartbeat__','/__lbheartbeat__'):
+ request=urllib.request.Request('http://127.0.0.1:"""
+            + str(port)
+            + """'+endpoint,headers={'Host':socket.gethostbyname(socket.gethostname())})
+ with urllib.request.urlopen(request,timeout=10) as response:health[endpoint]=response.status
+assert all(value==200 for value in health.values())
+print('VERIFY_HTTP'+json.dumps({'new_flags':flags,'resolved_new_routes':len(routes),'health':health}))
+"""
+        )
+        output = run(
+            K + ["exec", "-i", "-n", "meet", pod, "--", "python", "-"], code.encode()
+        )
+        value = json.loads(
+            next(
+                line[len("VERIFY_HTTP") :]
+                for line in output.decode().splitlines()
+                if line.startswith("VERIFY_HTTP")
+            )
+        )
+        http_results.append({"deployment": name, **value})
+    code = (
+        """import json,configurations
+configurations.setup()
+from meet.celery_app import app
+reply=app.control.inspect(timeout=5).ping() or {}
+expected="""
+        + repr(worker_pods)
+        + """
+assert all(any(name in key and value.get('ok')=='pong' for key,value in reply.items()) for name in expected)
+print('VERIFY_WORKERS'+json.dumps({'expected_worker_pods':expected,'expected_workers_pong':True,'reply_count':len(reply)}))
+"""
+    )
+    output = run(
+        K + ["exec", "-i", "-n", "meet", backend_pod(), "--", "python", "-"],
+        code.encode(),
+    )
+    workers = json.loads(
+        next(
+            line[len("VERIFY_WORKERS") :]
+            for line in output.decode().splitlines()
+            if line.startswith("VERIFY_WORKERS")
+        )
+    )
+    pods = api("get", "pods", "-n", "meet", "-o", "json")["items"]
+    business = [
+        p
+        for p in pods
+        if not p["metadata"].get("deletionTimestamp")
+        and not any(
+            o["kind"] == "Job" for o in p["metadata"].get("ownerReferences", [])
+        )
+    ]
+    require(
+        all(
+            any(
+                c["type"] == "Ready" and c["status"] == "True"
+                for c in p["status"].get("conditions", [])
+            )
+            for p in business
+        ),
+        "business_pod_unready",
+    )
+    job = api("get", "job", JOB, "-n", "meet", "-o", "json")
+    require(
+        job["metadata"]["uid"] == state["job_uid"]
+        and job["metadata"].get("labels", {}).get(OWNER) == RELEASE
+        and job["status"].get("succeeded") == 1,
+        "cleanup_ownership_mismatch",
+    )
+    body = json.dumps(
+        {
+            "apiVersion": "v1",
+            "kind": "DeleteOptions",
+            "propagationPolicy": "Foreground",
+            "preconditions": {"uid": state["job_uid"]},
+        }
+    ).encode()
+    run(
+        K + ["delete", "--raw=/apis/batch/v1/namespaces/meet/jobs/" + JOB, "-f", "-"],
+        body,
+    )
+    state["phase"] = "verified"
+    write_private("state.json", state)
+    return {
+        "phase": "verified",
+        "controllers": controllers,
+        "http_checks": http_results,
+        "celery_checks": workers,
+        "business_non_job_pods_ready": len(business),
+        "migration_job_cleanup_requested_with_uid": state["job_uid"],
+        "backup_bytes": state["backup_bytes"],
+        "backup_sha256": state["backup_sha256"],
+        "supplier_calls_by_this_release": 0,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("phase", choices=("prepare", "backup", "migrate", "rollout"))
+    parser.add_argument(
+        "phase",
+        choices=(
+            "prepare",
+            "backup",
+            "validate-backup",
+            "migrate",
+            "rollout",
+            "verify",
+        ),
+    )
     parser.add_argument("--candidate")
     parser.add_argument("--candidate-json", help="Public reviewed JSON; no credentials")
     parser.add_argument("--name")
@@ -642,8 +870,12 @@ def main():
                 result = prepare(candidate)
             elif args.phase == "backup":
                 result = backup_database()
+            elif args.phase == "validate-backup":
+                result = validate_backup()
             elif args.phase == "migrate":
                 result = migrate()
+            elif args.phase == "verify":
+                result = verify()
             else:
                 result = rollout(args.name)
         except (AlignmentError, subprocess.TimeoutExpired) as exc:
