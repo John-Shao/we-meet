@@ -16,7 +16,7 @@ PYTHON_URL = (
 PYTHON_SHA256 = "760875a79acd02de62d2408e6e2d242d85748c1fc28b72032dca486f8290442a"
 root = Path(__file__).resolve().parents[1]
 agent = root.parent / "work-agent"
-version = "0.3.1"
+version = "0.3.2"
 destination = root / ".agent-runtime" / version
 if destination.exists():
     raise SystemExit(

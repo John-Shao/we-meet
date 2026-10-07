@@ -242,8 +242,7 @@ class ModelBroker:
                     streaming = body.get("stream", False) is True
                     if streaming:
                         body["stream_options"] = {"include_usage": True}
-                    encoded = canonical(body)
-                    sequence = broker.store.reserve_model_call(run_id, encoded)
+                    sequence, encoded = broker.store.reserve_model_request(run_id, body)
                     with broker.provider(encoded, min(remaining, 20)) as response:
                         if broker.approval_gate:
                             data = response.read(MAX_MODEL_RESPONSE + 1)

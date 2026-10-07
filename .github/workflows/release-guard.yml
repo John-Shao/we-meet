@@ -114,6 +114,11 @@ jobs:
         run: python -m unittest discover -s deploy/aliyun -p test_meeting_ai_chart.py -v
       - name: Check HTTP AI pool isolation
         run: python -m unittest discover -s deploy/aliyun -p test_ai_pool.py -v
+      - name: Check account cohort production update fences
+        run: python -m unittest discover -s deploy/aliyun -p test_work_account_cohort.py -v
+      - name: Check agent budget and local lifecycle contracts without model calls
+        working-directory: src/work-agent
+        run: python -m unittest discover -s tests -v
       - name: Check offsite backup and restore safety boundaries
         run: python -m unittest discover -s deploy/backup -p 'test_*.py' -v
 

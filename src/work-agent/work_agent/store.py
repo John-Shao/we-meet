@@ -201,7 +201,30 @@ class Store:
                 raise ContractError("not_found", 404)
             return row["updated"] + json.loads(row["request"])["timeout_seconds"]
 
-    def reserve_model_call(self, run_id, request_bytes):
+    def reserve_model_request(self, run_id, body):
+        """Fit output to remaining credit without reducing the input reservation."""
+        with self.lock:
+            limits = self.limits(run_id)
+            body = dict(body)
+            body["max_tokens"] = limits["max_output_tokens"]
+            encoded = canonical(body)
+            room = (
+                limits["max_total_tokens"]
+                - self.metering(run_id)["held_tokens"]
+                - len(encoded)
+                - 1024
+            )
+            # The full-size encoding is a conservative bound: a smaller positive
+            # integer cannot lengthen it. Unknown calls still hold every byte.
+            if room > 0:
+                body["max_tokens"] = min(limits["max_output_tokens"], room)
+                encoded = canonical(body)
+            sequence = self.reserve_model_call(
+                run_id, encoded, output_tokens=body["max_tokens"]
+            )
+            return sequence, encoded
+
+    def reserve_model_call(self, run_id, request_bytes, *, output_tokens=None):
         """Unknown attempts retain a full reservation; no implicit model retry."""
         with self.lock, self.db:
             row = self.db.execute(
@@ -211,7 +234,14 @@ class Store:
                 raise ContractError("job_not_running", 409)
             limits = self.limits(run_id)
             meter = self.metering(run_id)
-            reservation = len(request_bytes) + 1024 + limits["max_output_tokens"]
+            if output_tokens is None:
+                output_tokens = limits["max_output_tokens"]
+            if (
+                type(output_tokens) is not int
+                or not 1 <= output_tokens <= limits["max_output_tokens"]
+            ):
+                raise ContractError("invalid_output_limit")
+            reservation = len(request_bytes) + 1024 + output_tokens
             if meter["calls"] >= limits["max_model_calls"] or (
                 meter["held_tokens"] + reservation > limits["max_total_tokens"]
             ):

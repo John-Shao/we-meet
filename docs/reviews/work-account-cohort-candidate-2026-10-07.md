@@ -1,5 +1,7 @@
 # Work 单账号受控联调候选（2026-10-07）
 
+本候选随后已按单账号授权执行；任务因预算守卫失败，入口关闭并完成镜像回退。实际结果见 [2026-10-08 回执](work-account-cohort-release-2026-10-08.md)。以下内容保留候选准备时的状态。
+
 状态：候选镜像及验证已准备，尚未更新生产工作负载或打开功能开关。此前授权清单要求四个新功能开关保持关闭；本清单的单账号开放阶段需另行确认。
 
 源码提交 `e92f9eec4540a9b16dc107a421523beefc87f681`，Release guard [37644693656](https://github.com/John-Shao/we-meet/actions/runs/37644693656) 成功。候选从干净 git archive 构建，target 为 backend-production，amd64、root 与现有业务运行方式一致：

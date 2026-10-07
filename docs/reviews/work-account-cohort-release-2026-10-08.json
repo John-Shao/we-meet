@@ -1,0 +1,381 @@
+{
+  "result": "single_task_failed_budget_guard_closed_and_rolled_back",
+  "authorization_candidate": "work-account-cohort-candidate-2026-10-07.md",
+  "authorization_received": true,
+  "execution_dates_local": [
+    "2026-10-07",
+    "2026-10-08"
+  ],
+  "timezone": "Asia/Shanghai",
+  "source_ci": {
+    "commit": "e92f9eec4540a9b16dc107a421523beefc87f681",
+    "run_id": 37644693656,
+    "conclusion": "success"
+  },
+  "plan_ci": {
+    "commit": "86d93b917333e54e0581b3f0dcb3f1df7a7ed206",
+    "run_id": 37645700837,
+    "conclusion": "success"
+  },
+  "account_uuid_sha256": "ada9bbbb960ea8fdc825a05b31265b5b9c9eab7334d677244ea555af491dc7e5",
+  "closed_stage": {
+    "phase": "closed",
+    "controllers_verified": 7,
+    "pods": [
+      {
+        "name": "meet-backend",
+        "pod": "meet-backend-ddbc4699d-57r4g",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      },
+      {
+        "name": "meet-backend-ai",
+        "pod": "meet-backend-ai-5dd5bc4f47-kjmdk",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      },
+      {
+        "name": "meet-celery-backend",
+        "pod": "meet-celery-backend-6669d7888d-zr7pp",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      },
+      {
+        "name": "meet-celery-beat",
+        "pod": "meet-celery-beat-6595df7bf5-hkhhp",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      },
+      {
+        "name": "meet-celery-work",
+        "pod": "meet-celery-work-659fd85978-99qfn",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      }
+    ],
+    "runtime": {
+      "mode": "closed",
+      "allowed_users": 0,
+      "flags": {
+        "WORK_AGENT_ENABLED": false,
+        "WORK_LOCAL_AGENT_ENABLED": false,
+        "WORK_REMOTE_AGENT_ENABLED": false,
+        "WORK_REVIEW_ENABLED": false
+      },
+      "owner_admitted": false,
+      "outsider_admitted": false,
+      "celery_pong_count": 2
+    },
+    "health": [
+      {
+        "deployment": "meet-backend",
+        "both_health_checks": 200
+      },
+      {
+        "deployment": "meet-backend-ai",
+        "both_health_checks": 200
+      }
+    ],
+    "gateway_unchanged": true,
+    "schema_unchanged": true,
+    "provider_calls_by_rollout": 0
+  },
+  "open_stage": {
+    "phase": "open",
+    "controllers_verified": 7,
+    "pods": [
+      {
+        "name": "meet-backend",
+        "pod": "meet-backend-7f57d75cf4-tb8nn",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      },
+      {
+        "name": "meet-backend-ai",
+        "pod": "meet-backend-ai-6cbf7d6f87-w5jjj",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      },
+      {
+        "name": "meet-celery-backend",
+        "pod": "meet-celery-backend-686d788f5b-rgqj8",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      },
+      {
+        "name": "meet-celery-beat",
+        "pod": "meet-celery-beat-7767fcd7f-t7skz",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      },
+      {
+        "name": "meet-celery-work",
+        "pod": "meet-celery-work-78b6474b6b-wrr8h",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      }
+    ],
+    "runtime": {
+      "mode": "allowlist",
+      "allowed_users": 1,
+      "flags": {
+        "WORK_AGENT_ENABLED": false,
+        "WORK_LOCAL_AGENT_ENABLED": true,
+        "WORK_REMOTE_AGENT_ENABLED": true,
+        "WORK_REVIEW_ENABLED": false
+      },
+      "owner_admitted": true,
+      "outsider_admitted": false,
+      "celery_pong_count": 2
+    },
+    "health": [
+      {
+        "deployment": "meet-backend",
+        "both_health_checks": 200
+      },
+      {
+        "deployment": "meet-backend-ai",
+        "both_health_checks": 200
+      }
+    ],
+    "gateway_unchanged": true,
+    "schema_unchanged": true,
+    "provider_calls_by_rollout": 0
+  },
+  "synthetic_task": {
+    "run_id": "670e0c28-edca-47c4-a355-37c03c5c859f",
+    "task_id": "e68052b4-6400-4e95-b3bd-167d5ecaf28f",
+    "status": "failed",
+    "error_code": "budget_exceeded",
+    "input_tokens": 4762,
+    "output_tokens": 1335,
+    "agent_metering": {
+      "calls": 4,
+      "usage": {
+        "input_tokens": 922,
+        "output_tokens": 1335,
+        "cache_read_tokens": 3840,
+        "cache_write_tokens": 0
+      },
+      "complete": true
+    },
+    "deployment": {
+      "model": "deepseek-flash",
+      "engine": "dsh",
+      "contract": "work-local/v1",
+      "adapter_version": "0.3.1",
+      "runtime_version": "0.1.5rc1"
+    },
+    "reserved_tokens": 20000,
+    "max_output_tokens": 3000,
+    "limits": {
+      "max_model_calls": 5,
+      "max_total_tokens": 20000,
+      "max_output_tokens": 3000
+    },
+    "artifact_manifest": [],
+    "synced_files": 0,
+    "execution_target": "local",
+    "remote_requested": true,
+    "usage_origin": "device_reported"
+  },
+  "manual_command_approvals": 4,
+  "paid_provider_calls_reported": 4,
+  "total_tokens_reported": 6097,
+  "metering_origin": "device_reported",
+  "cloud_gateway_calls_by_acceptance": 0,
+  "pi_qwen_calls_by_acceptance": 0,
+  "new_task_retries": 0,
+  "synthetic_tasks": 1,
+  "synced_artifact_files": 0,
+  "android_dispatch_to_desktop": true,
+  "desktop_explicit_claim": true,
+  "mobile_artifact_preview_verified": false,
+  "native_login_and_native_dialog_ux_verified": false,
+  "original_input_verified_before_last_approval": true,
+  "original_input_final_hash_verified": false,
+  "temporary_workspace_and_encrypted_profile_removed": true,
+  "owned_android_fixture_packages_removed": true,
+  "close_and_rollback": {
+    "closed": {
+      "phase": "close",
+      "controllers_verified": 7,
+      "pods": [
+        {
+          "name": "meet-backend",
+          "pod": "meet-backend-6f85ddcdcd-zv77g",
+          "image_ids": [
+            "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+          ]
+        },
+        {
+          "name": "meet-backend-ai",
+          "pod": "meet-backend-ai-66cbfdf979-6vndr",
+          "image_ids": [
+            "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+          ]
+        },
+        {
+          "name": "meet-celery-backend",
+          "pod": "meet-celery-backend-5cd5c69fc6-hw6rx",
+          "image_ids": [
+            "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+          ]
+        },
+        {
+          "name": "meet-celery-beat",
+          "pod": "meet-celery-beat-7d99568755-44d4d",
+          "image_ids": [
+            "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+          ]
+        },
+        {
+          "name": "meet-celery-work",
+          "pod": "meet-celery-work-c48cb5c48-rkqfn",
+          "image_ids": [
+            "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+          ]
+        }
+      ],
+      "runtime": {
+        "mode": "closed",
+        "allowed_users": 0,
+        "flags": {
+          "WORK_AGENT_ENABLED": false,
+          "WORK_LOCAL_AGENT_ENABLED": false,
+          "WORK_REMOTE_AGENT_ENABLED": false,
+          "WORK_REVIEW_ENABLED": false
+        },
+        "owner_admitted": false,
+        "outsider_admitted": false,
+        "celery_pong_count": 2
+      },
+      "health": [
+        {
+          "deployment": "meet-backend",
+          "both_health_checks": 200
+        },
+        {
+          "deployment": "meet-backend-ai",
+          "both_health_checks": 200
+        }
+      ],
+      "gateway_unchanged": true,
+      "schema_unchanged": true,
+      "provider_calls_by_rollout": 0
+    },
+    "rollback": {
+      "phase": "rollback",
+      "controllers_verified": 7,
+      "pods": [
+        {
+          "name": "meet-backend",
+          "pod": "meet-backend-76895648fc-ngsx6",
+          "image_ids": [
+            "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+          ]
+        },
+        {
+          "name": "meet-backend-ai",
+          "pod": "meet-backend-ai-55cd964b96-x6qc8",
+          "image_ids": [
+            "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+          ]
+        },
+        {
+          "name": "meet-celery-backend",
+          "pod": "meet-celery-backend-596994f77f-9qbrx",
+          "image_ids": [
+            "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+          ]
+        },
+        {
+          "name": "meet-celery-beat",
+          "pod": "meet-celery-beat-86c746d8c6-kj8gp",
+          "image_ids": [
+            "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+          ]
+        },
+        {
+          "name": "meet-celery-work",
+          "pod": "meet-celery-work-7596dd4c89-rl2q8",
+          "image_ids": [
+            "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d"
+          ]
+        }
+      ],
+      "runtime": {
+        "mode": "closed",
+        "allowed_users": 0,
+        "flags": {
+          "WORK_AGENT_ENABLED": false,
+          "WORK_LOCAL_AGENT_ENABLED": false,
+          "WORK_REMOTE_AGENT_ENABLED": false,
+          "WORK_REVIEW_ENABLED": false
+        },
+        "owner_admitted": false,
+        "outsider_admitted": false,
+        "celery_pong_count": 2
+      },
+      "health": [
+        {
+          "deployment": "meet-backend",
+          "both_health_checks": 200
+        },
+        {
+          "deployment": "meet-backend-ai",
+          "both_health_checks": 200
+        }
+      ],
+      "gateway_unchanged": true,
+      "schema_unchanged": true,
+      "provider_calls_by_rollout": 0
+    }
+  },
+  "post_rollback_real_account_http": {
+    "provider_calls": 0,
+    "new_tasks_created": 0,
+    "plaintext_credentials_persisted": false,
+    "closed_capabilities": true,
+    "new_dispatch_status": 503,
+    "reclaim_status": 409,
+    "terminal_cancel_status": 200,
+    "terminal_state_preserved": true,
+    "synced_files": 0,
+    "passed": true
+  },
+  "database_migrations": 0,
+  "database_schema": "work_0007_unchanged",
+  "generic_helm_history_reconciled": false,
+  "helm_revision_retained": 457,
+  "root_only_snapshot_directory": "/var/lib/we-meet-work-maintenance/cohort-e92f9eec4",
+  "root_only_private_overlay": "/var/lib/we-meet-work-maintenance/cohort-e92f9eec4/values.work-cohort.yaml",
+  "next_runtime_candidate": {
+    "version": "0.3.2",
+    "manifest_sha256": "6e7c9bc1f446d4ef2d11b8f8cd3bbdb55418e0ae9b11d5a8d90214d3ac18736f",
+    "files": 241,
+    "agent_unit_tests_run": 85,
+    "agent_unit_tests_skipped": 5,
+    "agent_unit_tests_passed": 80,
+    "embedded_runtime_broker_tests_passed": 26,
+    "runtime_inventory_verified": true,
+    "real_model_retest_performed": false,
+    "production_install_performed": false
+  },
+  "limitations": [
+    "No successful artifact sync or Android preview in this production trial.",
+    "Running cancel/revocation remains covered by offline contracts; only terminal cancel idempotency exercised here.",
+    "The failed next request was not retained; reduced output reservation is verified offline, not by another paid production task.",
+    "Legacy rollback image uses four disabled feature flags; it does not implement the new account rollout module."
+  ]
+}

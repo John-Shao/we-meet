@@ -13,6 +13,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from work_agent.contract import ContractError, canonical
 from work_agent.model_broker import ModelBroker, usage_from_provider
 from work_agent.store import Store
 
@@ -143,6 +144,52 @@ class BrokerTests(unittest.TestCase):
             self.post(messages=[{"role": "user", "content": "x" * 10000}])[0], 429
         )
         self.assertEqual(self.requests, [])
+
+    def test_output_shrinks_to_remaining_budget_without_input_discount(self):
+        # An earlier real response is settled, then only 100 output tokens fit.
+        self.assertEqual(self.post()[0], 200)
+        outgoing = {
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "test"}],
+            "max_tokens": 256,
+        }
+        if self.broker.provider_name == "qwen":
+            outgoing.update(enable_thinking=False, enable_search=False)
+        self.body["limits"]["max_total_tokens"] = (
+            130 + len(canonical(outgoing)) + 1024 + 100
+        )
+        with self.store.lock, self.store.db:
+            self.store.db.execute(
+                "UPDATE jobs SET request=? WHERE id=?",
+                (json.dumps(self.body), self.run_id),
+            )
+        self.usage = None  # An interrupted attempt must retain its full cap.
+        self.assertEqual(self.post()[0], 200)
+        self.assertEqual(self.requests[-1]["max_tokens"], 100)
+        meter = self.store.metering(self.run_id)
+        self.assertFalse(meter["complete"])
+        self.assertEqual(meter["held_tokens"], self.body["limits"]["max_total_tokens"])
+        self.assertEqual(self.post()[0], 429)
+        self.assertEqual(len(self.requests), 2)
+
+    def test_input_reservation_alone_can_exhaust_budget(self):
+        self.body["limits"]["max_total_tokens"] = 1024
+        with self.store.lock, self.store.db:
+            self.store.db.execute(
+                "UPDATE jobs SET request=? WHERE id=?",
+                (json.dumps(self.body), self.run_id),
+            )
+        self.assertEqual(self.post()[0], 429)
+        self.assertEqual(self.requests, [])
+        self.assertEqual(self.store.metering(self.run_id)["calls"], 0)
+
+    def test_output_reservation_cannot_widen_or_drop_task_limit(self):
+        for value in (0, -1, True, 257, "1"):
+            with self.assertRaises(ContractError):
+                self.store.reserve_model_call(
+                    self.run_id, b"request", output_tokens=value
+                )
+        self.assertEqual(self.store.metering(self.run_id)["calls"], 0)
 
     def test_review_tool_schemas_are_rejected_before_provider(self):
         # Update the test-only persisted job to exercise actual broker admission.
