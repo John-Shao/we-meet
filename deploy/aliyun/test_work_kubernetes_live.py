@@ -86,6 +86,17 @@ class LiveKubernetesTests(unittest.TestCase):
                 for mount in server["Mounts"]
             )
         )
+        nodes = json.loads(self.kubectl("get", "nodes", "-o", "json"))["items"]
+        self.assertEqual(len(nodes), 1)
+        kubelet = json.loads(
+            self.kubectl(
+                "get",
+                "--raw=/api/v1/nodes/"
+                + nodes[0]["metadata"]["name"]
+                + "/proxy/configz",
+            )
+        )
+        self.assertEqual(kubelet["kubeletconfig"]["podPidsLimit"], 512)
         registry_name = self.state["gateway_repository"].split(":")[0]
         registry = json.loads(self.docker("inspect", registry_name))[0]
         self.assertEqual(
@@ -401,6 +412,33 @@ with opener.open(request,timeout=5) as response: print(response.read().decode())
             "--timeout=60s",
             timeout=70,
         )
+        probe_uid = json.loads(
+            self.kubectl(
+                "get", "pod/network-probe", "-n", "fixture-tasks", "-o", "json"
+            )
+        )["metadata"]["uid"]
+        paths = []
+        for encoded_uid in {probe_uid, probe_uid.replace("-", "_")}:
+            paths += (
+                self.docker(
+                    "exec",
+                    self.state["server"],
+                    "find",
+                    "/sys/fs/cgroup",
+                    "-name",
+                    "pids.max",
+                    "-path",
+                    "*pod" + encoded_uid + "*",
+                )
+                .decode()
+                .splitlines()
+            )
+        self.assertTrue(paths)
+        pid_limits = [
+            self.docker("exec", self.state["server"], "cat", path).decode().strip()
+            for path in paths
+        ]
+        self.assertIn("512", pid_limits)
         client_ip = json.loads(
             self.kubectl("get", "pod/client", "-n", "fixture-business", "-o", "json")
         )["status"]["podIP"]
@@ -510,6 +548,8 @@ gateway.close()
             "rbac": "namespace scoped",
             "task_pods_after_jobs": 0,
             "sdk": sdk_receipts,
+            "pod_pids_limit": 512,
+            "actual_task_cgroup_pids_limit": 512,
         }
         self.state_path.with_name("acceptance.json").write_text(
             json.dumps(receipt, indent=2) + "\n", encoding="utf8", newline="\n"

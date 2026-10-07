@@ -1,0 +1,90 @@
+{
+  "environment": "disposable local K3s",
+  "model_calls": 0,
+  "worker_image": "sha256:21f8f9a9345762876b8b8e1e89fd6184fcda7f064cd78b6223ed02aededfc539",
+  "cases": [
+    {
+      "case": "delivery",
+      "run_id": "aa88a4ec-9c93-466f-b8b1-08c1735da3d5",
+      "state": "succeeded"
+    },
+    {
+      "case": "cancel",
+      "run_id": "ba7599be-f2cc-4d5c-b09b-9688d0534ee3",
+      "state": "cancelled",
+      "error_code": ""
+    },
+    {
+      "case": "deadline",
+      "run_id": "eeb6b70a-e326-42bf-90db-f794968fe584",
+      "state": "failed",
+      "error_code": "deadline_exceeded"
+    },
+    {
+      "case": "restart",
+      "run_id": "66c93074-5cee-4df1-8396-b4d12f17a23f",
+      "state": "failed",
+      "error_code": "execution_unknown"
+    }
+  ],
+  "network": {
+    "broker_tls": true,
+    "broker_unauthorized": 401,
+    "blocked_ports": [
+      8444,
+      8080,
+      5000
+    ],
+    "service_account_token": false
+  },
+  "rbac": "namespace scoped",
+  "task_pods_after_jobs": 0,
+  "sdk": [
+    {
+      "engine": "pi",
+      "runtime_version": "1.0.4",
+      "image": "sha256:8805c048f8787cf155958d4b699ed5daac0e9e1a7bf9dccfaf00b0a2ac391c22",
+      "run_id": "86816e95-d25e-4ce5-af02-5463f4481e45",
+      "state": "succeeded",
+      "usage": {
+        "input_tokens": 100,
+        "output_tokens": 30,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "supplier_calls": 0
+    },
+    {
+      "engine": "dsh",
+      "runtime_version": "0.1.5rc1",
+      "image": "sha256:61235bd973e098b176f2bc17992554c9311075cec4ddff9c0bc99f855622c9a7",
+      "run_id": "4a99d107-7074-4c30-b07e-28053c1c44be",
+      "state": "succeeded",
+      "usage": {
+        "input_tokens": 100,
+        "output_tokens": 30,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "supplier_calls": 0
+    }
+  ],
+  "pod_pids_limit": 512,
+  "actual_task_cgroup_pids_limit": 512,
+  "date": "2026-10-07",
+  "candidate_file": "deploy/aliyun/kubelet-work-pids.conf",
+  "candidate_sha256": "880b60efc8fee632e148ea4ed68a7629e8cf1819eeb258318e3d528324086dba",
+  "production_mutations": 0,
+  "cleanup": "owned K3s cluster, registry, volumes, network and fixture image aliases removed; label queries empty",
+  "test_scope": "actual disposable K3s with candidate kubelet drop-in, both real SDKs and synthetic SSE; no supplier calls",
+  "tests": {
+    "k3s_acceptance": {
+      "run": 1,
+      "passed": 1
+    },
+    "read_only_preflight": {
+      "run": 5,
+      "passed": 5
+    }
+  }
+}

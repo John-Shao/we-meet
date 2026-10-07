@@ -17,13 +17,13 @@ Gateway 使用独立 namespace 和持久 PVC。每个任务创建一个固定镜
 5. 指定已备份的独立 PVC；首次创建空状态必须显式设置 `newStateAcknowledged: true`。PVC 默认保留，不通过卸载删除历史。填写真实 API server IPv4 `/32` 与端口，验证 CNI 的实际 NetworkPolicy 执行；Helm 渲染不能证明网络隔离。
 6. Gateway 默认 requests 100m/128Mi、limits 1CPU/512Mi；每任务 requests 100m/128Mi、limits 1CPU/1Gi。任务配额最多 2 个 Pod，单 Gateway worker 串行执行，预留一个清理/检查槽位。上线前检查现有 requests、实际负载、磁盘和备份，不能据此宣称单节点具有强资源隔离。
 
-`check-work-agent.py` 根据 `runtime.execution` 选择 chart，并对 API server `/32`、固定镜像和跨 namespace 客户端引用做离线检查。旧 `preflight-work-review.py` 的专用 Docker 节点验收仍用于旧 chart；K3s 候选不使用该节点结论。
+`check-work-agent.py` 根据 `runtime.execution` 选择 chart，并对 API server `/32`、固定镜像和跨 namespace 客户端引用做离线检查。`preflight-work-k3s.py --context EXPLICIT_CONTEXT` 只读检查共用节点、三个 namespace、CPU requests 余量与不大于 512 的 Pod PID 上限；未知或无限上限拒绝放行。节点修改与回退见 [PID 变更候选](../../deploy/aliyun/WORK_K3S_PID_CHANGE.md)。旧 `preflight-work-review.py` 的专用 Docker 节点验收仍用于旧 chart；K3s 候选不使用该节点结论。
 
 独立 Gateway 验收通过后再开启业务 `WORK_REVIEW_ENABLED`。回退先关闭业务开关、取消/清理任务、确认没有活动 Pod，再回退 Gateway/worker 镜像及配置。镜像变更会使旧排队任务返回 `deployment_changed`，不会静默重放。不要直接跨版本回滚 SQLite 状态；备份与旧版本兼容性必须另行验证。
 
 ## 本地真实集群验收
 
-仓库提供可重复的本机 Docker Desktop/WSL2 隔离 K3s 夹具，使用固定 K3s `v1.36.2+k3s1` 镜像。它仅在专属 bridge、volume、registry 中运行，不读取现有 kubeconfig，不操作已有集群。临时控制面为 privileged 容器，生产 task Pod 无此权限。
+仓库提供可重复的本机 Docker Desktop/WSL2 隔离 K3s 夹具，使用固定 K3s `v1.36.2+k3s1` 镜像及候选 kubelet PID 配置。它仅在专属 bridge、volume、registry 中运行，不读取现有 kubeconfig，不操作已有集群。临时控制面为 privileged 容器，生产 task Pod 无此权限。
 
 从仓库根目录执行，`python` 使用带 PyYAML/cryptography 的测试环境；先构建三个 target 并通过 `docker image inspect` 取得完整源 digest。夹具的 registry 仅映射 Windows loopback；保存并重打包镜像 manifest 后重新固定 digest，核对 RootFS diff IDs，不能把该内部地址当作生产 registry。
 

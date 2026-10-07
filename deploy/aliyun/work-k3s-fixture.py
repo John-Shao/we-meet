@@ -249,6 +249,10 @@ try:
                 newline="\n",
             )
         else:
+            pid_config = OUT / ("kubelet-pids-" + marker + ".conf")
+            pid_config.write_bytes(
+                pathlib.Path(__file__).with_name("kubelet-work-pids.conf").read_bytes()
+            )
             options += [
                 "--privileged",
                 "--memory=4g",
@@ -257,6 +261,8 @@ try:
                 f"type=volume,source={volume},target=/var/lib/rancher/k3s",
                 "--mount",
                 f"type=bind,source={mirror},target=/etc/rancher/k3s/registries.yaml,readonly",
+                "--mount",
+                f"type=bind,source={pid_config},target=/var/lib/rancher/k3s/agent/etc/kubelet.conf.d/90-work-agent-pids.conf,readonly",
             ]
             docker(
                 "container",

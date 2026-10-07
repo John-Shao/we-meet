@@ -1,0 +1,63 @@
+{
+  "schema": "work-k3s-inventory/v1",
+  "passed": false,
+  "deployment_ready": false,
+  "deployment_performed": false,
+  "secrets_read": false,
+  "checks": [
+    {
+      "check": "namespace_inventory",
+      "passed": true
+    },
+    {
+      "check": "namespace:meet-work-review",
+      "passed": false,
+      "code": "namespace_not_provisioned"
+    },
+    {
+      "check": "namespace:meet-work-review-tasks",
+      "passed": false,
+      "code": "namespace_not_provisioned"
+    },
+    {
+      "check": "namespace:meet",
+      "passed": true
+    },
+    {
+      "check": "task_pod_security",
+      "passed": false
+    },
+    {
+      "check": "shared_node",
+      "passed": true
+    },
+    {
+      "check": "pod_pids_limit",
+      "passed": false,
+      "code": "bounded_pod_pids_required"
+    },
+    {
+      "check": "cpu_requests_capacity",
+      "passed": true
+    }
+  ],
+  "pending_acceptance": [
+    "immutable registry images and pull access",
+    "TLS chain, hostname and scoped credentials",
+    "PVC backup and restore",
+    "actual production NetworkPolicy probes",
+    "post-deploy synthetic task and provider/model access"
+  ],
+  "pod_pids_limit": -1,
+  "cpu": {
+    "allocatable_m": 4000.0,
+    "conservative_existing_requests_m": 3550.0,
+    "containers_without_cpu_request": 10,
+    "new_gateway_and_one_task_requests_m": 200
+  },
+  "date": "2026-10-07",
+  "scope": "actual production read-only SSH preflight",
+  "pod_pid_snapshot_max": 147,
+  "explicit_pod_max_pids_in_execstart_found": false,
+  "node_mutations": 0
+}
