@@ -305,3 +305,11 @@ Android 复用既有任务列表、详情、取消、成果列表及下载接口
 新增 `work/tests/test_cross_device_live.py`，只有 `WORK_CROSS_DEVICE_LIVE=1` 才执行真实付费模型调用；需要 `WORK_COORDINATION_LIVE_KEY_FILE` 指向本机密钥文件，`WORK_CROSS_DEVICE_SERIAL` 默认 `emulator-5556`，`WORK_CROSS_DEVICE_OUTPUT` 指向新的本机验收目录。Android 预先构建独立 `.fixturework` / `IsolatedRecordsRunner` 测试包，loopback URL 固定 `http://127.0.0.1:48761`；该端口与 adb reverse 必须未被其他任务使用。测试桥只在本机识别隔离 bearer，真实 Work 视图及数据库参与，不视为实际登录。
 
 测试会自动安装/卸载独立 Android fixture，启动独立 Electron profile，手机真实联网派发与取消，桌面领取/逐项审阅命令后生成并同步，手机校验正文。审批不自动放行；运行期间检查指定目录中的 `pending-approval.json`，确认本次命令后提供 ID / SHA-256 决策。不要在生产数据库运行 Test 配置。最新证据见 [联合验收](../../../docs/reviews/work-cross-device-acceptance-2026-10-07.md)。
+
+## 从旧业务镜像升级 schema
+
+生产只读盘点确认 Work 当前为 `0002`，core 已到 `0196`。`0003`–`0006` 新增的非空列只有 Python 默认值，旧镜像 INSERT 不包含这些列，直接升级后会失败。`0007_old_writer_defaults` 为这些列补充数据库默认值，保留旧镜像对基础通信任务的写入兼容；没有修改已提交的历史迁移。
+
+针对这个已确认的 PostgreSQL 基线，候选镜像提供 `python manage.py migrate_work_upgrade`：默认只输出计划，`--apply` 才应用，且要求计划恰为 Work `0003`–`0007`、没有其他 app 或逆向迁移。全部 DDL 和迁移记录在同一外层事务提交，避免旧进程看见中间缺少默认值的 schema；锁等待上限 3 秒，单条 SQL 上限 60 秒。中途故障整体回滚，已到 `0007` 时再次运行不改库。执行前仍需完成数据库备份及业务发布授权，不能用这个命令替代通用迁移流程。
+
+初始版本对齐保留 agent、local、remote、review 开关关闭。数据库保留在扩展后的兼容 schema，镜像回退至原版本；不要逆向删除新表和历史记录。后续若启用 agent/review 并产生新类型任务，需要先停用入口及 dispatch、处理活动任务，再评估旧镜像的功能兼容，这不属于基础旧读写的验证范围。

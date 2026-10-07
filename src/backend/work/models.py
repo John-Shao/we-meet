@@ -68,7 +68,9 @@ class WorkTask(models.Model):
         "core.Organization", null=True, on_delete=models.PROTECT
     )
     request_key = models.UUIDField()
-    kind = models.CharField(max_length=20, default="communication")
+    kind = models.CharField(
+        max_length=20, default="communication", db_default="communication"
+    )
     recipient = models.CharField(max_length=200)
     goal = models.TextField()
     background = models.TextField(blank=True)
@@ -138,21 +140,26 @@ class WorkRun(models.Model):
     call_started_at = models.DateTimeField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     finished_at = models.DateTimeField(null=True)
-    agent_payload = models.JSONField(default=dict, blank=True)
-    agent_deployment = models.JSONField(default=dict, blank=True)
-    agent_metering = models.JSONField(default=dict, blank=True)
-    agent_done = models.BooleanField(default=False)
-    agent_generation = models.PositiveIntegerField(default=0)
-    execution_target = models.CharField(max_length=16, default="cloud")
+    # Database defaults preserve INSERTs from the pre-agent image during rollback.
+    agent_payload = models.JSONField(default=dict, db_default={}, blank=True)
+    agent_deployment = models.JSONField(default=dict, db_default={}, blank=True)
+    agent_metering = models.JSONField(default=dict, db_default={}, blank=True)
+    agent_done = models.BooleanField(default=False, db_default=False)
+    agent_generation = models.PositiveIntegerField(default=0, db_default=0)
+    execution_target = models.CharField(
+        max_length=16, default="cloud", db_default="cloud"
+    )
     device = models.ForeignKey(WorkDevice, null=True, on_delete=models.PROTECT)
     workspace = models.ForeignKey(WorkWorkspace, null=True, on_delete=models.PROTECT)
-    remote_requested = models.BooleanField(default=False)
-    workspace_label = models.CharField(max_length=120, blank=True)
-    local_claimed = models.BooleanField(default=False)
-    local_report_seq = models.PositiveIntegerField(default=0)
-    local_report_hash = models.CharField(max_length=64, blank=True)
-    artifact_manifest = models.JSONField(default=list, blank=True)
-    usage_origin = models.CharField(max_length=24, default="provider")
+    remote_requested = models.BooleanField(default=False, db_default=False)
+    workspace_label = models.CharField(max_length=120, blank=True, db_default="")
+    local_claimed = models.BooleanField(default=False, db_default=False)
+    local_report_seq = models.PositiveIntegerField(default=0, db_default=0)
+    local_report_hash = models.CharField(max_length=64, blank=True, db_default="")
+    artifact_manifest = models.JSONField(default=list, db_default=[], blank=True)
+    usage_origin = models.CharField(
+        max_length=24, default="provider", db_default="provider"
+    )
 
     class Meta:
         ordering = ["created_at", "id"]
