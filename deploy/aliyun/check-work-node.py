@@ -247,6 +247,7 @@ def container_probe(docker, state, image_id, engine, runtime_version, port=0):
         docker.run(
             "container",
             "create",
+            "--pull=never",
             "--name",
             name,
             "--label",

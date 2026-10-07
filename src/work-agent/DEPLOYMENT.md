@@ -122,6 +122,27 @@ python3 deploy/aliyun/check-work-node.py \
 
 回归入口：`python -m unittest discover -s deploy/aliyun -p test_work_node_check.py -v`。
 
+### dsh / Pi 真实容器回归
+
+`deploy/aliyun/test_work_node_docker.py` 将上述真实镜像验证纳入仓库。默认跳过实际容器测试，不读取模型配置；显式设置 `WORK_NODE_DOCKER_TEST=1` 才执行。必须提供本地 Docker context、预期 daemon 名称、Gateway/dsh/Pi 三个已缓存的 `repo@sha256:` 镜像和包版本；拒绝远程 socket、daemon 不匹配、可变镜像 tag 或镜像内的供应商凭据。工具和夹具创建容器均使用 `--pull=never`，缓存丢失时失败，不自动拉取。
+
+```powershell
+$env:WORK_NODE_DOCKER_TEST='1'
+$env:WORK_NODE_TEST_CONTEXT='LOCAL_DOCKER_CONTEXT'
+$env:WORK_NODE_TEST_DAEMON='EXPECTED_DOCKER_DAEMON_NAME'
+$env:WORK_NODE_TEST_GATEWAY_IMAGE='GATEWAY_REPOSITORY@sha256:GATEWAY_DIGEST'
+$env:WORK_NODE_TEST_PI_IMAGE='PI_REPOSITORY@sha256:PI_DIGEST'
+$env:WORK_NODE_TEST_DSH_IMAGE='DSH_REPOSITORY@sha256:DSH_DIGEST'
+$env:WORK_NODE_TEST_PI_VERSION='1.0.4'
+$env:WORK_NODE_TEST_DSH_VERSION='0.1.5rc1'
+$env:WORK_NODE_TEST_REPORT_DIRECTORY='.work-acceptance/work-node-docker-regression'
+src/backend/.venv/Scripts/python.exe -m unittest discover -s deploy/aliyun -p 'test_work_node*.py' -v
+```
+
+Linux 可用同名环境变量和 `python3 -m unittest`。测试为每种 worker 创建唯一状态目录和合成 Inbox 标记，核验只读检查、正常运行版本、文件往返、鉴权和隔离，再注入错误版本，要求返回 `probe_failed_runtime`。最终核验 Inbox 标记未变、无额外文件，并清理所属目录与容器；不递归删除陌生文件，不处理任何已有业务容器。
+
+原生 Linux 要求 host-network 路由通过。Docker Desktop 的 host-network 结果单独记录；允许该阶段因路由失败而进入显式 loopback 端口转发测试，其他错误仍失败。Desktop 回执的 `native_linux_runtime_probe_verified=false`，测试通过不能用来宣称专用 Linux 节点已验收。可选报告目录生成每种 engine 的唯一 JSON，保留只读、host-network、正向和版本故障结果；成功回执在状态目录清理后才写入。实际回归证据见 [容器回归记录](../../docs/reviews/work-node-docker-regression-2026-10-07.md)。
+
 ```powershell
 src/backend/.venv/Scripts/python.exe -m unittest discover -s deploy/aliyun -p test_work_agent_delivery.py -v
 # 已构建 gateway 镜像时可额外执行真实容器的 HTTPS/CLI/只读根/SIGTERM 验证：

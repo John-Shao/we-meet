@@ -1,0 +1,40 @@
+{
+  "schema": "work-node-docker-regression-evidence/v1",
+  "date": "2026-10-07",
+  "baseline_commit": "f7131164a",
+  "context": "desktop-linux",
+  "daemon": "docker-desktop",
+  "tests_passed_with_docker_opt_in": 13,
+  "default_tests_passed": 11,
+  "default_opt_in_tests_skipped": 2,
+  "results": {
+    "dsh": {
+      "worker_image_id": "sha256:2bc6c0d3564961e3baac7482b136836e1fec2c7bd79e2eeda270b57494401031",
+      "runtime_version": "0.1.5rc1",
+      "readonly": "passed",
+      "desktop_host_network": "probe_failed_broker_route",
+      "desktop_loopback_published_port_fixture": "passed",
+      "runtime_mismatch": "probe_failed_runtime",
+      "fixture_state_removed": true,
+      "native_linux_runtime_probe_verified": false
+    },
+    "pi": {
+      "worker_image_id": "sha256:f4a6e12494cea11ce3cc0c1100ceb84a5742f83dcd0fd1dda09d7670df89c5cc",
+      "runtime_version": "1.0.4",
+      "readonly": "passed",
+      "desktop_host_network": "probe_failed_broker_route",
+      "desktop_loopback_published_port_fixture": "passed",
+      "runtime_mismatch": "probe_failed_runtime",
+      "fixture_state_removed": true,
+      "native_linux_runtime_probe_verified": false
+    }
+  },
+  "model_calls": 0,
+  "deployment_performed": false,
+  "production_configuration_changed": false,
+  "not_checked": [
+    "native Linux runner host-network route",
+    "target cluster dedicated scheduling and deployed HTTPS",
+    "state backup, host firewall, registry access and provider account access"
+  ]
+}

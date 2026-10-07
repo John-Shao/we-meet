@@ -165,6 +165,7 @@ class NodeCheckTests(unittest.TestCase):
             )
             self.assertIn("host.docker.internal:host-gateway", create)
             self.assertIn("--read-only", create)
+            self.assertIn("--pull=never", create)
             self.assertIn(ID, create)
             self.assertFalse(any(arg == "-e" for arg in create))
             self.assertIn(("container", "rm", "--force", CONTAINER), docker.calls)
