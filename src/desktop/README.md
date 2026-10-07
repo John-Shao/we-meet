@@ -139,7 +139,7 @@ node scripts/live-acceptance.cjs
 
 ## 2026-10-07：本地执行器交付与 Android 远程任务
 
-最新内部候选为 `0.4.0-delivery.1`，内置独立 Agent `0.3.1` / dsh `0.1.5rc1`。旧 D0 记录及安装路径是历史验收，当前候选使用每用户 NSIS 一键安装；本次未覆盖实际安装、干净 Windows 和原生选择器人工操作验收。详细记录见 [交付评审](../../docs/reviews/work-delivery-and-android-2026-10-07.md)。
+交付阶段候选为 `0.4.0-delivery.1`，内置独立 Agent `0.3.1` / dsh `0.1.5rc1`；最新内部构建为下述 `0.4.0-delivery.2`。旧 D0 记录及安装路径是历史验收，当前候选使用每用户 NSIS 一键安装；本次未覆盖原产品实际安装、干净 Windows 和原生选择器人工操作验收。详细记录见 [交付评审](../../docs/reviews/work-delivery-and-android-2026-10-07.md)。
 
 最终用户无需另装 Python、Node、pip 或 Docker。内置 Python 与 dsh 所需 Node/rg 由独立 `work-runtime/v1` 清单固定，启动及更新校验每个文件的长度和 SHA-256。首次在 Work 本地工作空间导入本机模型密钥文件；主进程加密保存，页面和移动端不接收密钥。模型请求仍会发送任务需要的内容给模型供应商。
 
@@ -185,3 +185,12 @@ npm run test:review-smoke
 `build:renderer` 记录生产源码、依赖锁、构建配置与产物的哈希；`copy:renderer` 和所有打包入口先检查来源。源码新增或修改、依赖或 Vite 环境变化、复制后的资源被修改时，`package:prepared` 会要求重新构建，不沿用旧页面。生成交付清单时，再读取实际 `app.asar` 内的 renderer 校验资源身份。清单中的 `rendererProvenance` 记录输入/输出哈希及包内校验结果；环境文件及 Vite 环境值只参与内部哈希，不写入明文清单。
 
 前端默认代码生成目录 `src/styled-system` 和产物 source maps 不参与生产身份。内部候选仍没有 Windows Authenticode 签名，不作为正式发布；运行时仍独立固定为 Agent `0.3.1`，本次仅更新桌面交付代码。
+
+`0.4.0-delivery.2` 已从干净提交 `49f374e20` 构建。安装包及清单位于 `release/`；本轮未安装替换现有客户端。可使用本机 7za 解包审计实际 NSIS 内容并探测内置适配器，过程不安装客户端、不读取真实模型密钥、不提交模型任务：
+
+```powershell
+$env:WEMEET_7ZA = 'C:\path\to\7za.exe'
+node scripts/verify-installer.mjs
+```
+
+成功回执写入忽略目录 `test-results/installer-0.4.0-delivery.2.json`；临时解包目录和原生授权目录在结束时清理。新候选包含桌面成果同步后的 Pi 复核入口及权限撤回时隐藏缓存的修复。完整验收范围、安装包 SHA-256 和正式发布待验项见 [候选包记录](../../docs/reviews/work-desktop-candidate-2026-10-07.md)。

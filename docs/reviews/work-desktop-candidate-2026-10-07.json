@@ -1,0 +1,116 @@
+{
+  "manifest": {
+    "version": "0.4.0-delivery.2",
+    "file": "We-Meet-0.4.0-delivery.2-setup.exe",
+    "bytes": 187042191,
+    "sha256": "9e35e476258436de657ddb278a18ddb3f781deb6e79a5c18762a0cc0fa29183e",
+    "signature": {
+      "status": "NotSigned",
+      "thumbprint": null
+    },
+    "bundledRuntime": {
+      "version": "0.3.1",
+      "manifest_sha256": "7abe65cf859d37dcf86ca6750942931fbdd458bfc6074218c47f2b8ac14e05b8"
+    },
+    "packagedAsarSha256": "5227ad13a6acafd9bfcaf1bdb01387ded9c12ce1fe89ef7bfc482030cc7ff26f",
+    "rendererProvenance": {
+      "contract": "we-meet-renderer-build/v1",
+      "input_sha256": "fd4afbe76146d8682f2214c76bcf520633173ea126d7ee111c981206b680f614",
+      "output_sha256": "360cb40488612784c31ca747df44468c8a01f10da6580107e8197be48059ae32",
+      "output_files": 186,
+      "packaged_assets_verified": true
+    },
+    "desktopLockSha256": "89716136407614b0ffb062a2d6f0c60f748ed23e23cd9d5f2b6e7bd3354c8b78",
+    "frontendLockSha256": "dd6597dbfc8514dbaaaa76f4d12280a6c16256d6b3a2a8c55f735d1a7a513338",
+    "sourceRevision": "49f374e20c008ab2b01845c80e9d0b924615a001",
+    "workingTreeDirty": false,
+    "electron": "44.4.3",
+    "builder": "26.15.3",
+    "runtimeConfig": {
+      "serviceOrigin": "https://meet.we-meet.online",
+      "issuer": "https://id.we-meet.online/realms/meet",
+      "clientId": "desktop",
+      "renderer": {
+        "serviceOrigin": "https://meet.we-meet.online",
+        "imBaseUrl": "https://im.we-meet.online",
+        "appTitle": "We-Meet"
+      }
+    },
+    "builtAt": "2026-10-07T08:43:16.945Z",
+    "intendedUse": "Internal acceptance; unsigned installers are not formal releases"
+  },
+  "installer_payload_acceptance": {
+    "passed": true,
+    "tested_at": "2026-10-07T08:45:07.481Z",
+    "version": "0.4.0-delivery.2",
+    "installer_sha256": "9e35e476258436de657ddb278a18ddb3f781deb6e79a5c18762a0cc0fa29183e",
+    "source_revision": "49f374e20c008ab2b01845c80e9d0b924615a001",
+    "source_tree_dirty_at_build": false,
+    "asar_sha256": "5227ad13a6acafd9bfcaf1bdb01387ded9c12ce1fe89ef7bfc482030cc7ff26f",
+    "compiled_dist_files_verified": 201,
+    "renderer": {
+      "contract": "we-meet-renderer-build/v1",
+      "input_sha256": "fd4afbe76146d8682f2214c76bcf520633173ea126d7ee111c981206b680f614",
+      "output_sha256": "360cb40488612784c31ca747df44468c8a01f10da6580107e8197be48059ae32",
+      "output_files": 186,
+      "packaged_assets_verified": true
+    },
+    "runtime": {
+      "version": "0.3.1",
+      "manifest_sha256": "7abe65cf859d37dcf86ca6750942931fbdd458bfc6074218c47f2b8ac14e05b8"
+    },
+    "native_probe": {
+      "ready": true,
+      "engine": "dsh",
+      "execution": "local",
+      "requests": [
+        "capabilities",
+        "grant",
+        "list"
+      ]
+    },
+    "supplier_calls": 0,
+    "limitation": "Actual NSIS payload extracted and checked; actual bundled native adapter handshake/grant with synthetic key. No installation, app login, paid execution, clean Windows VM, interactive picker or formal signing acceptance."
+  },
+  "electron_window_acceptance": {
+    "passed": true,
+    "tested_at": "2026-10-07T08:41:03.233Z",
+    "version": "0.4.0-delivery.2",
+    "checks": [
+      "isolated-window-and-real-preload-ipc",
+      "native-folder-grant-through-ipc",
+      "metadata-excludes-private-body-and-absolute-path",
+      "claim-ticket-hidden",
+      "no-automatic-file-sync-or-review",
+      "manual-selected-file-sync",
+      "review-lists-only-synced-identities",
+      "separate-review-sending-consent",
+      "lost-create-ack-reuses-idempotency-key",
+      "one-synthetic-review-after-manual-retry",
+      "polling-status-model-and-metering",
+      "review-evidence-rendered-as-text",
+      "cancel-review-preserves-original-local-job",
+      "permission-recheck-hides-cached-report-and-identities",
+      "restored-access-requires-new-selection-and-consent",
+      "logout-rejects-local-access"
+    ],
+    "review_create_attempts": 4,
+    "synthetic_review_count": 3,
+    "native_submissions": 1,
+    "supplier_calls": 0,
+    "security": {
+      "contextIsolation": true,
+      "nodeIntegration": false
+    },
+    "limitation": "Development Electron with bundled renderer and real preload/IPC/coordinator. Synthetic auth/API/native transport and automated native dialog choices. Does not certify OIDC login, real dsh/Pi/supplier, installer, interactive picker, signing or deployment."
+  },
+  "desktop_tests": {
+    "passed": 29,
+    "skipped": 1,
+    "failed": 0
+  },
+  "previous_installer_sha256": "a6aa971ab93dedb215843000b46a881801e2d2a98bd59c6d4bf815626caa36a0",
+  "installed_original_product": false,
+  "production_deployed": false,
+  "formal_release": false
+}
