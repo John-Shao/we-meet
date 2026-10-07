@@ -1,0 +1,98 @@
+{
+  "date": "2026-10-07",
+  "status": "local_review_flow_passed_candidate_ready_environment_unspecified",
+  "schema_commit": "696f4ab844daa00831c58018fd694d43d7535aa7",
+  "source_sha256": {
+    "src/frontend/src/features/work/routes/LocalWorkspaceWork.tsx": "435068f76ac30ed08a817e0f46f1ebf8dbc53429211cf7508a0285eab5c196cb",
+    "src/backend/work/tests/test_local_review_flow.py": "15a7581e0074f59b794c0a80aeff5fba6027a4b0a16fec74a37b535a10a5f467"
+  },
+  "verification": {
+    "frontend": {
+      "passed": 20,
+      "failed": 0
+    },
+    "desktop_main": {
+      "passed": 21,
+      "skipped": 1,
+      "failed": 0
+    },
+    "backend": {
+      "passed": 44,
+      "skipped": 1,
+      "failed": 0,
+      "database": "isolated PostgreSQL 16",
+      "temporary_container_removed": true
+    },
+    "gateway_delivery": {
+      "passed": 20,
+      "skipped": 0,
+      "failed": 0,
+      "real_gateway_container_smoke": true
+    },
+    "static_checks": [
+      "TypeScript",
+      "ESLint",
+      "Ruff",
+      "git diff --check"
+    ],
+    "renderer_build": "passed",
+    "renderer_copy_exact": true,
+    "disabled_review_profile_rendered_resources": 0
+  },
+  "flow": {
+    "device_execution": "synthetic device metadata fixture",
+    "business_api": "Django APIClient with real PostgreSQL",
+    "review_transport": "real private HTTP Gateway",
+    "review_execution": [
+      "fixture process",
+      "Pi 1.0.4 Docker RPC"
+    ],
+    "supplier_response": "offline SSE fixture",
+    "lost_admission_ack_reuses_uuid": true,
+    "model_calls_in_pi_fixture": 1,
+    "live_supplier_calls": 0,
+    "selected_result": "report.md",
+    "private_file_uploaded_or_reviewed": false,
+    "hash_and_source_validation": true,
+    "independent_review_usage_record": true,
+    "source_revocation_blocks_history": true
+  },
+  "candidate": {
+    "gateway": {
+      "local_tag": "we-meet-work-agent-gateway:qwen-schema-candidate",
+      "local_image_id": "sha256:852986495e3328a64bb9634a7b3dfc8fdf40e2fd50c128ba4448c3ac37f72cd0",
+      "repository_digests": [
+        "we-meet-work-agent-gateway@sha256:852986495e3328a64bb9634a7b3dfc8fdf40e2fd50c128ba4448c3ac37f72cd0"
+      ],
+      "published": false
+    },
+    "pi": {
+      "local_tag": "we-meet-work-agent:pi-review-schema-poc",
+      "local_image_id": "sha256:f4a6e12494cea11ce3cc0c1100ceb84a5742f83dcd0fd1dda09d7670df89c5cc",
+      "repository_digests": [
+        "we-meet-work-agent@sha256:f4a6e12494cea11ce3cc0c1100ceb84a5742f83dcd0fd1dda09d7670df89c5cc"
+      ],
+      "published": false
+    },
+    "renderer": {
+      "files": 187,
+      "sha256": "819a7b16b2dd92fb55091a7a022d4f4b0aa85e594b3775b2b46b33cacbe6862e"
+    },
+    "signed_installer_created": false
+  },
+  "deployment": {
+    "cluster_changed": false,
+    "production_review_enabled": false,
+    "missing_configuration": [
+      "test Kubernetes context and namespace",
+      "dedicated Docker node",
+      "image registry/repositories",
+      "TLS Secret"
+    ]
+  },
+  "limitations": [
+    "Browser login and native dsh paid execution were not re-run in this batch.",
+    "A synthetic device report is not proof of real device execution.",
+    "Cluster dedicated-node acceptance requires the target environment."
+  ]
+}

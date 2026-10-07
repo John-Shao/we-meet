@@ -39,6 +39,10 @@ Gateway 以 `--engine pi` 和固定 Pi 镜像启动，使用独立端口和状�
 
 部署新版本的 Work worker 和 Beat 后，`work.tasks.tick_reviews` 在既有 Work queue 中每 5 秒协调两条记录。关闭开关后已有历史可读，取消清理仍继续协调。
 
+桌面本地工作空间任务成功且成果已明确同步到云端后，同一页面显示“成果复核”。用户再次选择已同步文件并勾选发送授权，再开启复核；尚未同步的本地文件不会列入复核选项。复核只使用云端冻结材料，不遍历本地文件夹。新增同步成功或响应不确定时，页面重新查询云端文件身份；切换本地任务会清空原同步文件选择。
+
+完整流程的合成验收见 [桌面到 Pi 复核记录](../../docs/reviews/work-local-pi-flow-2026-10-07.md)。包含真实 PostgreSQL/API、HTTP Gateway 与 Pi Docker 的模拟供应商响应，未新增付费调用。
+
 - `GET /api/v1.0/work/runs/<run_id>/reviews/`：查看记录与报告，不返回输入正文、Gateway 地址或凭据。
 - `POST` 同一路径：正文 `{"files":[{"name":"report.md","sha256":"…"}]}`，UUID `Idempotency-Key`；同键同选择返回原记录，选择变化返回冲突。
 - `POST /api/v1.0/work/runs/<run_id>/reviews/<review_id>/cancel/`：只取消复核。

@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams, useLocation } from 'wouter'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { localError, type LocalJob, type LocalWorkspace } from '../api/local'
-import { listMaterials, type Material } from '../api/materials'
+import {
+  getWorkCapabilities,
+  listMaterials,
+  type Material,
+} from '../api/materials'
+import { PiReview } from './PiReview'
 
 const active = (job?: LocalJob) =>
   job?.state === 'queued' || job?.state === 'running'
@@ -59,6 +64,12 @@ export function LocalWorkspaceWork({
   })
   const ready = capabilities.data?.ready === true
   const coordinationEnabled = capabilities.data?.coordination_enabled === true
+  const cloudCapabilities = useQuery({
+    queryKey: ['work', ownerId, 'capabilities'],
+    queryFn: getWorkCapabilities,
+    enabled: coordinationEnabled,
+    retry: false,
+  })
   const remoteInbox = useQuery({
     queryKey: [...root, 'remote-inbox'],
     queryFn: () => bridge.remoteInbox(),
@@ -197,8 +208,16 @@ export function LocalWorkspaceWork({
         if (alive.current) void refresh()
       }
       if (kind === 'sync') {
-        await bridge.syncFiles(selected, shared)
-        if (alive.current) void refresh()
+        try {
+          await bridge.syncFiles(selected, shared)
+        } finally {
+          if (alive.current) {
+            void client.invalidateQueries({
+              queryKey: ['work', ownerId, 'files', selected],
+            })
+            void refresh()
+          }
+        }
       }
     },
     onError: (e) => {
@@ -213,6 +232,10 @@ export function LocalWorkspaceWork({
     onError: (e) => setError(localError(e)),
   })
   const [chosenFile, setChosenFile] = useState('')
+  useEffect(() => {
+    setShared([])
+    setChosenFile('')
+  }, [selected])
   const approvalReview = useMutation({
     mutationFn: (approval: { id: string; sha256: string }) =>
       bridge.reviewApproval(selected, approval.id, approval.sha256),
@@ -645,6 +668,17 @@ export function LocalWorkspaceWork({
                   )}
                 </section>
               )}
+              {job.data.state === 'succeeded' &&
+                job.data.coordination?.status === 'succeeded' &&
+                !!job.data.coordination.uploaded_files.length && (
+                  <PiReview
+                    key={`review-${selected}`}
+                    ownerId={ownerId}
+                    runId={selected}
+                    enabled={cloudCapabilities.data?.review_enabled === true}
+                    tokenBudget={cloudCapabilities.data?.review_token_budget}
+                  />
+                )}
             </>
           )}
         </main>
