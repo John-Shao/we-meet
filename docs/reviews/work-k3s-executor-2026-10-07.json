@@ -1,0 +1,129 @@
+{
+  "date": "2026-10-07",
+  "environment": "local WSL2/Docker Desktop disposable K3s",
+  "k3s_version": "v1.36.2+k3s1",
+  "supplier_model_calls": 0,
+  "source_gateway_image": "we-meet-work-agent-gateway@sha256:9d0ec059f8a5dd9e70935e5c0d40ba4b2605fce4e685c202ea21e216a7958adb",
+  "source_workers": {
+    "pi": {
+      "image": "we-meet-work-agent@sha256:5c460c1b1ef5e5d9ce0d70ba3c274bf05f08a5bbb730865c0b68d41662b9a033",
+      "rootfs_verified": true,
+      "fixture_manifest_digest": "sha256:8805c048f8787cf155958d4b699ed5daac0e9e1a7bf9dccfaf00b0a2ac391c22"
+    },
+    "dsh": {
+      "image": "we-meet-work-agent@sha256:70476d41a2269bb0436f469c8d50d090c21644ca33f83c47f1bd261111126ebb",
+      "rootfs_verified": true,
+      "fixture_manifest_digest": "sha256:61235bd973e098b176f2bc17992554c9311075cec4ddff9c0bc99f855622c9a7"
+    }
+  },
+  "cases": [
+    {
+      "case": "delivery",
+      "run_id": "339c9138-29d5-40a8-b654-0959d4ef38a5",
+      "state": "succeeded"
+    },
+    {
+      "case": "cancel",
+      "run_id": "e64737e9-c13f-434c-92cf-a5f37f798528",
+      "state": "cancelled",
+      "error_code": ""
+    },
+    {
+      "case": "deadline",
+      "run_id": "b6680103-42bc-4142-9998-62e38eb49ea6",
+      "state": "failed",
+      "error_code": "deadline_exceeded"
+    },
+    {
+      "case": "restart",
+      "run_id": "1e0980b2-4c7a-40e6-a980-a61c2eb15371",
+      "state": "failed",
+      "error_code": "execution_unknown"
+    }
+  ],
+  "network": {
+    "broker_tls": true,
+    "broker_unauthorized": 401,
+    "blocked_ports": [
+      8444,
+      8080,
+      5000
+    ],
+    "service_account_token": false
+  },
+  "rbac": "namespace scoped",
+  "sdk": [
+    {
+      "engine": "pi",
+      "runtime_version": "1.0.4",
+      "run_id": "3ab53818-7677-4d92-8301-9e337047a14a",
+      "state": "succeeded",
+      "usage": {
+        "input_tokens": 100,
+        "output_tokens": 30,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "supplier_calls": 0
+    },
+    {
+      "engine": "dsh",
+      "runtime_version": "0.1.5rc1",
+      "run_id": "64195ef2-9c17-450a-bfd5-bc03b854d4c0",
+      "state": "succeeded",
+      "usage": {
+        "input_tokens": 100,
+        "output_tokens": 30,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "supplier_calls": 0
+    }
+  ],
+  "task_pods_after_jobs": 0,
+  "production_mutations": 0,
+  "production_requests_snapshot": {
+    "allocatable_cpu_m": 4000,
+    "regular_container_cpu_requests_m": 3600,
+    "allocatable_memory_ki": 16373008,
+    "network_policy_chain_matches": 99
+  },
+  "limitations": [
+    "synthetic SSE responses, no paid model validation in this batch",
+    "local disposable control plane, production CNI and TLS deployment remain unverified",
+    "requests snapshot excludes init container and Pod overhead; not a scheduling or load guarantee",
+    "worker Pods have CPU/memory/ephemeral-storage limits; PID ceilings require node kubelet configuration"
+  ],
+  "tests": {
+    "agent_suite": {
+      "run": 78,
+      "passed": 73,
+      "skipped": 5
+    },
+    "kubernetes_suite_after_lease_regression": {
+      "run": 10,
+      "passed": 10
+    },
+    "legacy_delivery": {
+      "run": 20,
+      "passed": 19,
+      "skipped": 1
+    },
+    "kubernetes_chart": {
+      "run": 5,
+      "passed": 5
+    },
+    "k3s_acceptance": {
+      "run": 1,
+      "passed": 1
+    }
+  },
+  "cleanup": "owned containers, volumes, network and current fixture image aliases removed; label queries empty",
+  "production_usage_snapshot": {
+    "cpu_m": 1252,
+    "cpu_percent": 31,
+    "memory_mi": 7172,
+    "memory_percent": 44,
+    "scope": "single read-only metrics snapshot, not a sustained capacity test"
+  }
+}

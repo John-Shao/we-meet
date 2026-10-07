@@ -1,6 +1,7 @@
 """Deployment-owned settings; clients cannot select plugins, paths or credentials."""
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -25,6 +26,12 @@ class Config:
     image: str = "we-meet-work-agent:dsh-poc"
     base_url: str | None = None
     provider: str = "deepseek"
+    kubernetes_namespace: str = ""
+    kubernetes_service_account: str = ""
+    kubernetes_ca_config_map: str = ""
+    broker_url: str = ""
+    broker_port: int = 8445
+    kubernetes_pull_secrets: tuple = ()
 
     def __post_init__(self):
         if self.engine not in {"dsh", "pi", "fixture"}:
@@ -52,10 +59,48 @@ class Config:
             )
         if len(self.token) < 24:
             raise ValueError("gateway token must have at least 24 characters")
-        if self.execution not in {"docker", "fixture"}:
+        if self.execution not in {"docker", "kubernetes", "fixture"}:
             raise ValueError("unsupported execution")
-        if (self.engine == "fixture") != (self.execution == "fixture"):
-            raise ValueError("real engines require per-job Docker isolation")
+        if self.execution == "fixture" and self.engine != "fixture":
+            raise ValueError("real engines require per-job isolation")
+        if self.engine == "fixture" and self.execution == "docker":
+            raise ValueError(
+                "fixture Docker execution requires explicit test configuration"
+            )
+        if self.execution == "kubernetes":
+            if any(
+                not re.fullmatch(r"[a-z0-9]([-a-z0-9]*[a-z0-9])?", name)
+                or len(name) > 63
+                for name in self.kubernetes_pull_secrets
+            ):
+                raise ValueError("invalid task image pull Secret")
+            for name in (
+                self.kubernetes_namespace,
+                self.kubernetes_service_account,
+                self.kubernetes_ca_config_map,
+            ):
+                if (
+                    not re.fullmatch(r"[a-z0-9]([-a-z0-9]*[a-z0-9])?", name)
+                    or len(name) > 63
+                ):
+                    raise ValueError("invalid Kubernetes resource name")
+            if not re.fullmatch(r"[^\s@]+@sha256:[a-f0-9]{64}", self.image):
+                raise ValueError("Kubernetes workers require an immutable image")
+            broker = urlsplit(self.broker_url)
+            if (
+                broker.scheme != "https"
+                or not broker.hostname
+                or broker.username
+                or broker.password
+                or broker.path
+                or broker.query
+                or broker.fragment
+                or broker.port != self.broker_port
+                or not 1 <= self.broker_port <= 65535
+            ):
+                raise ValueError(
+                    "Kubernetes workers require a fixed HTTPS broker endpoint"
+                )
         if self.engine != "fixture" and not os.environ.get(self.api_key_env):
             raise ValueError("missing " + self.api_key_env)
 
@@ -85,8 +130,21 @@ class Config:
             if review_format["type"] == "json_schema"
             else None,
             "base_url": self.base_url,
-            "image": self.image if self.execution == "docker" else None,
+            "image": self.image if self.execution != "fixture" else None,
             "execution": self.execution,
+            **(
+                {
+                    "kubernetes_runtime": {
+                        "namespace": self.kubernetes_namespace,
+                        "service_account": self.kubernetes_service_account,
+                        "ca_config_map": self.kubernetes_ca_config_map,
+                        "broker_url": self.broker_url,
+                        "image_pull_secrets": list(self.kubernetes_pull_secrets),
+                    }
+                }
+                if self.execution == "kubernetes"
+                else {}
+            ),
             "policy_sha256": digest(policy),
             "features": (
                 ["readonly_review_v1"] if self.engine in {"pi", "fixture"} else []

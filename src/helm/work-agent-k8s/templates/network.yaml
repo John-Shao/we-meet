@@ -1,0 +1,60 @@
+{{- if .Values.workAgent.enabled -}}
+{{- include "work-agent-k8s.validate" . -}}
+{{- $a := .Values.workAgent -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: work-agent-tasks
+  namespace: {{ $a.tasks.namespace }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .Release.Namespace }}}
+          podSelector:
+            matchLabels:
+              {{- include "work-agent-k8s.labels" . | nindent 14 }}
+      ports: [{protocol: TCP, port: {{ $a.brokerPort }}}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $a.fullname }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "work-agent-k8s.labels" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ $a.businessNamespace }}}
+      ports: [{protocol: TCP, port: {{ $a.port }}}]
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ $a.tasks.namespace }}}
+          podSelector:
+            matchLabels: {app.kubernetes.io/component: agent-task}
+      ports: [{protocol: TCP, port: {{ $a.brokerPort }}}]
+  egress:
+    - to: [{ipBlock: {cidr: 0.0.0.0/0}}]
+      ports: [{protocol: TCP, port: 443}]
+    - to: [{ipBlock: {cidr: {{ $a.tasks.apiServerCIDR }}}}]
+      ports: [{protocol: TCP, port: {{ $a.tasks.apiServerPort }}}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+{{- end }}

@@ -11,7 +11,7 @@ from urllib.error import HTTPError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .config import PROVIDERS
-from .contract import ContractError, canonical
+from .contract import MAX_RESULT_BYTES, ContractError, canonical
 from .review import response_format
 
 MAX_MODEL_REQUEST = 1_000_000
@@ -54,17 +54,33 @@ class NoRedirect(HTTPRedirectHandler):
 
 class ModelBroker:
     def __init__(
-        self, config, store, provider=None, *, bind_host="0.0.0.0", approval_gate=None
+        self,
+        config,
+        store,
+        provider=None,
+        *,
+        bind_host="0.0.0.0",
+        approval_gate=None,
+        bind_port=0,
+        tls_context=None,
+        public_base_url=None,
+        task_transport=None,
     ):
         self.config = config
         # The local desktop service and older test configs use DeepSeek implicitly.
         self.provider_name = getattr(config, "provider", "deepseek")
         self.store = store
         self.approval_gate = approval_gate
+        self.public_base_url = public_base_url
+        self.task_transport = task_transport
         self.tokens = {}
         self.lock = threading.Lock()
         self.provider = provider or self.open_provider
-        self.server = ThreadingHTTPServer((bind_host, 0), self.handler())
+        self.server = ThreadingHTTPServer((bind_host, bind_port), self.handler())
+        if tls_context:
+            self.server.socket = tls_context.wrap_socket(
+                self.server.socket, server_side=True, do_handshake_on_connect=False
+            )
         self.server.daemon_threads = True
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
 
@@ -82,7 +98,11 @@ class ModelBroker:
             self.tokens[run_id] = token
         return (
             token,
-            f"http://host.docker.internal:{self.server.server_port}/model/{run_id}",
+            (
+                self.public_base_url
+                or f"http://host.docker.internal:{self.server.server_port}"
+            )
+            + f"/model/{run_id}",
         )
 
     def revoke(self, run_id):
@@ -140,6 +160,25 @@ class ModelBroker:
                 usage = None
                 try:
                     parts = self.path.split("/")
+                    if len(parts) == 4 and parts[1] == "task" and broker.task_transport:
+                        if self.headers.get("Transfer-Encoding"):
+                            raise ContractError("invalid_request")
+                        size = int(self.headers.get("Content-Length", "0"))
+                        if not 0 < size <= MAX_RESULT_BYTES + 10_000:
+                            raise ContractError("task_request_too_large", 413)
+                        result = broker.task_transport.exchange(
+                            parts[2],
+                            parts[3],
+                            self.headers.get("Authorization", ""),
+                            json.loads(self.rfile.read(size)),
+                        )
+                        payload = canonical(result)
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Content-Length", str(len(payload)))
+                        self.end_headers()
+                        self.wfile.write(payload)
+                        return
                     if len(parts) < 4 or parts[1] != "model":
                         raise ContractError("not_found", 404)
                     run_id = parts[2]

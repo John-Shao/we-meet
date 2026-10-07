@@ -9,19 +9,29 @@ import time
 from pathlib import Path
 
 from .contract import MAX_RESULT_BYTES, canonical, digest, validate_result
+from .pod_transport import TaskTransport
 from .process import kill_tree, spawn_options
 
 
 class Worker:
-    def __init__(self, config, store, broker=None):
+    def __init__(self, config, store, broker=None, *, tasks=None, kubernetes_api=None):
         self.config = config
         self.store = store
         self.broker = broker
         self.stop = threading.Event()
         self.thread = threading.Thread(target=self.loop, daemon=True)
         self.owner_label = "we-meet-work-owner=" + digest(str(config.root).encode())
+        self.tasks = tasks
+        self.pods = None
+        if config.execution == "kubernetes":
+            from .kubernetes import PodExecutor
+
+            self.tasks = tasks or TaskTransport(store)
+            self.pods = PodExecutor(config, kubernetes_api)
 
     def start(self):
+        if self.pods:
+            self.pods.recover()
         if self.config.execution == "docker":
             # Also catches a container whose cancellation was recorded before
             # the previous gateway process died during cleanup.
@@ -65,6 +75,8 @@ class Worker:
                 )
 
     def execute(self, request):
+        if self.pods:
+            return self.execute_kubernetes(request)
         config = self.config
         run_id = request["run_id"]
         deadline = time.monotonic() + request["timeout_seconds"]
@@ -213,3 +225,70 @@ class Worker:
                 )
             if process is not None:
                 kill_tree(process)
+
+    def execute_kubernetes(self, request):
+        config = self.config
+        run_id = request["run_id"]
+        deadline = time.monotonic() + request["timeout_seconds"]
+        if self.store.get(run_id)["deployment"] != config.capabilities():
+            self.store.finish(run_id, "failed", error="deployment_changed")
+            return
+        directory = config.root / "jobs" / run_id
+        directory.mkdir(parents=True, exist_ok=False)
+        (directory / "request.json").write_bytes(canonical(request))
+        token, endpoint = self.broker.issue(run_id)
+        environment = {
+            "WORK_AGENT_ENGINE": config.engine,
+            "WORK_AGENT_MODEL": config.model,
+            "WORK_AGENT_PROVIDER": config.provider,
+            "WORK_AGENT_MODEL_TOKEN": token,
+            "WORK_AGENT_MODEL_BASE_URL": endpoint,
+            "DEEPSEEK_API_KEY": token,
+            "DEEPSEEK_BASE_URL": endpoint,
+        }
+        uid = None
+        task_token = None
+        try:
+            task_token = self.tasks.register(request, environment)
+            uid = self.pods.create(request, task_token)
+            self.tasks.assign(run_id, uid)
+            while True:
+                if self.store.get(run_id)["state"] == "cancelled":
+                    return
+                if self.stop.is_set():
+                    self.store.finish(run_id, "failed", error="execution_unknown")
+                    return
+                if time.monotonic() >= deadline:
+                    self.store.finish(run_id, "failed", error="deadline_exceeded")
+                    return
+                pod = self.pods.get(run_id)
+                if (
+                    not pod
+                    or not self.pods.owned(pod, run_id)
+                    or pod["metadata"]["uid"] != uid
+                ):
+                    raise RuntimeError("kubernetes_execution_unknown")
+                phase = pod.get("status", {}).get("phase")
+                if phase == "Failed":
+                    meter = self.store.metering(run_id)
+                    self.store.finish(
+                        run_id, "failed", error=meter["denial_code"] or "agent_failed"
+                    )
+                    return
+                if phase == "Succeeded":
+                    result = self.tasks.result(run_id)
+                    if result is None:
+                        raise RuntimeError("kubernetes_result_missing")
+                    meter = self.store.metering(run_id)
+                    result["usage"] = meter["usage"] if meter["complete"] else None
+                    result["execution"] = config.capabilities()
+                    (directory / "result.json").write_bytes(canonical(result))
+                    self.store.finish(run_id, "succeeded", result=result)
+                    return
+                self.stop.wait(0.2)
+        finally:
+            # Revoke first: a partitioned node cannot make new model calls.
+            self.broker.revoke(run_id)
+            self.tasks.revoke(run_id)
+            if task_token:
+                self.pods.delete(run_id, uid, digest(task_token.encode()))

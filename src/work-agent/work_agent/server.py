@@ -18,6 +18,7 @@ from . import CONTRACT
 from .config import Config, load_env
 from .contract import MAX_REQUEST_BYTES, ContractError, validate_request
 from .model_broker import ModelBroker
+from .pod_transport import TaskTransport
 from .store import Store
 from .worker import Worker
 
@@ -33,9 +34,20 @@ class GatewayHTTPServer(ThreadingHTTPServer):
 
 
 class Gateway:
-    def __init__(self, config, host="127.0.0.1", port=0, *, tls_context=None):
+    def __init__(
+        self,
+        config,
+        host="127.0.0.1",
+        port=0,
+        *,
+        tls_context=None,
+        kubernetes_api=None,
+        broker_provider=None,
+    ):
         if host not in {"127.0.0.1", "localhost", "::1"} and tls_context is None:
             raise ValueError("non-loopback listeners require TLS")
+        if config.execution == "kubernetes" and tls_context is None:
+            raise ValueError("Kubernetes tasks require TLS")
         if config.execution == "docker":
             image_id = (
                 subprocess.check_output(
@@ -70,10 +82,23 @@ class Gateway:
             self.owner.close()
             raise RuntimeError("state directory already in use") from None
         self.store = Store(config.root / "jobs.sqlite3")
+        tasks = TaskTransport(self.store) if config.execution == "kubernetes" else None
         self.broker = (
-            ModelBroker(config, self.store) if config.engine != "fixture" else None
+            ModelBroker(
+                config,
+                self.store,
+                broker_provider,
+                bind_port=config.broker_port if tasks else 0,
+                tls_context=tls_context if tasks else None,
+                public_base_url=config.broker_url if tasks else None,
+                task_transport=tasks,
+            )
+            if config.engine != "fixture" or tasks
+            else None
         )
-        self.worker = Worker(config, self.store, self.broker)
+        self.worker = Worker(
+            config, self.store, self.broker, tasks=tasks, kubernetes_api=kubernetes_api
+        )
         self.http = GatewayHTTPServer((host, port), self.handler())
         self.tls = tls_context is not None
         if tls_context:
@@ -197,6 +222,13 @@ def main():
     parser.add_argument("--provider", choices=["deepseek", "qwen"], default="deepseek")
     parser.add_argument("--base-url")
     parser.add_argument("--image")
+    parser.add_argument("--execution", choices=["docker", "kubernetes"])
+    parser.add_argument("--task-namespace", default="")
+    parser.add_argument("--task-service-account", default="")
+    parser.add_argument("--task-ca-config-map", default="")
+    parser.add_argument("--broker-url", default="")
+    parser.add_argument("--broker-port", type=int, default=8445)
+    parser.add_argument("--task-image-pull-secret", action="append", default=[])
     parser.add_argument("--env-file", type=Path)
     parser.add_argument("--tls-cert", type=Path)
     parser.add_argument("--tls-key", type=Path)
@@ -218,10 +250,17 @@ def main():
         token=os.environ.get("WORK_AGENT_TOKEN", ""),
         model=args.model
         or ("qwen3.8-flash" if args.provider == "qwen" else "deepseek-flash"),
-        execution="fixture" if args.engine == "fixture" else "docker",
+        execution=args.execution
+        or ("fixture" if args.engine == "fixture" else "docker"),
         image=args.image or f"we-meet-work-agent:{args.engine}-poc",
         provider=args.provider,
         base_url=args.base_url,
+        kubernetes_namespace=args.task_namespace,
+        kubernetes_service_account=args.task_service_account,
+        kubernetes_ca_config_map=args.task_ca_config_map,
+        broker_url=args.broker_url,
+        broker_port=args.broker_port,
+        kubernetes_pull_secrets=tuple(args.task_image_pull_secret),
     )
     gateway = Gateway(config, args.host, args.port, tls_context=context)
     stopped = threading.Event()

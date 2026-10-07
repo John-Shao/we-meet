@@ -1,0 +1,74 @@
+{{- if .Values.workAgent.enabled -}}
+{{- include "work-agent-k8s.validate" . -}}
+{{- $a := .Values.workAgent -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $a.tasks.namespace }}
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.30
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $a.fullname }}
+  namespace: {{ .Release.Namespace }}
+automountServiceAccountToken: true
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $a.tasks.serviceAccount }}
+  namespace: {{ $a.tasks.namespace }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $a.fullname }}
+  namespace: {{ $a.tasks.namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [create, get, list, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $a.fullname }}
+  namespace: {{ $a.tasks.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $a.fullname }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $a.fullname }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $a.tasks.caConfigMap }}
+  namespace: {{ $a.tasks.namespace }}
+data:
+  ca.crt: {{ $a.tasks.publicCA | quote }}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: work-agent-task-budget
+  namespace: {{ $a.tasks.namespace }}
+spec:
+  hard:
+    pods: "2"
+    requests.cpu: 200m
+    requests.memory: 256Mi
+    limits.cpu: "2"
+    limits.memory: 2Gi
+    requests.ephemeral-storage: 128Mi
+    limits.ephemeral-storage: 512Mi
+{{- end }}

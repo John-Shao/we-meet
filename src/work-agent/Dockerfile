@@ -9,6 +9,10 @@ COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 COPY work_agent ./work_agent
 ENTRYPOINT ["python", "-m", "work_agent.server"]
 
+FROM base AS kubernetes-gateway
+COPY work_agent ./work_agent
+ENTRYPOINT ["python", "-m", "work_agent.server"]
+
 FROM base AS dsh
 COPY requirements-dsh.lock /tmp/requirements.lock
 RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements.lock

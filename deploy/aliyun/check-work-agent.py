@@ -3,6 +3,7 @@
 import argparse
 import copy
 import json
+import ipaddress
 import re
 import shutil
 import subprocess
@@ -19,6 +20,9 @@ def scoped_values(profile, credentials, credential_section="workAgent"):
     # Passing the entire business secrets YAML to the agent release would also
     # retain DB/OIDC/S3 credentials in its Helm release values. Filter first.
     agent = copy.deepcopy(profile.get("workAgent", {}))
+    if agent.get("runtime", {}).get("execution") == "kubernetes":
+        # Separate namespaces use pre-provisioned Secrets, never Helm literals.
+        return {"workAgent": agent}
     agent["secrets"] = {
         **copy.deepcopy(agent.get("secrets", {})),
         **copy.deepcopy(credentials.get(credential_section, {}).get("secrets", {})),
@@ -50,7 +54,11 @@ def check_client(profile, namespace):
             raise ValueError("client_endpoint_mismatch")
         for key, name, secret_key in (
             (prefix + "_TOKEN", agent["secrets"]["clientSecret"], "WORK_AGENT_TOKEN"),
-            (prefix + "_CA_PEM", agent["tls"]["existingSecret"], "ca.crt"),
+            (
+                prefix + "_CA_PEM",
+                agent["tls"].get("clientCASecret", agent["tls"]["existingSecret"]),
+                "ca.crt",
+            ),
         ):
             reference = env.get(key, {}).get("secretKeyRef", {})
             if reference != {"name": name, "key": secret_key, "optional": False}:
@@ -130,6 +138,12 @@ def main():
 
 
 def render_agent(values, namespace):
+    agent = values.get("workAgent", {})
+    kubernetes = agent.get("runtime", {}).get("execution") == "kubernetes"
+    if kubernetes and agent.get("enabled"):
+        network = ipaddress.ip_network(agent["tasks"]["apiServerCIDR"], strict=True)
+        if network.version != 4 or network.prefixlen != 32:
+            raise ValueError("single API server IPv4 address required")
     with tempfile.TemporaryDirectory(prefix="work-agent-chart-") as directory:
         path = Path(directory) / "scoped.local.yaml"
         # mkstemp-style permissions, including secrets rendered internally.
@@ -143,7 +157,11 @@ def render_agent(values, namespace):
                 shutil.which("helm") or "helm",
                 "template",
                 "work-agent",
-                str(ROOT / "src/helm/work-agent"),
+                str(
+                    ROOT
+                    / "src/helm"
+                    / ("work-agent-k8s" if kubernetes else "work-agent")
+                ),
                 "-n",
                 namespace,
                 "-f",

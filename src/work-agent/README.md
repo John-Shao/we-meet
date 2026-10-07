@@ -30,6 +30,8 @@ flowchart LR
   C --> A
 ```
 
+K3s 单节点部署新增独立 [任务 Pod 执行器](KUBERNETES.md)，不要求挂载 Docker socket 或专用 Docker runner，仍使用同一业务契约。生产开关默认关闭，必须完成该执行器的独立验收。
+
 ## 启动与接入
 
 需要 Python 3.13、Docker Linux engine。从本目录执行：

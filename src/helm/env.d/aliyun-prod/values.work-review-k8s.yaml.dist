@@ -1,0 +1,55 @@
+# Independent release in meet-work-review, never pass business values.secrets.yaml.
+# Disabled until immutable images, external Secrets, PVC, CA and CNI are verified.
+workAgent:
+  enabled: false
+  fullname: meet-work-review
+  businessNamespace: meet
+  engine: pi
+  provider: qwen
+  model: qwen3.8-flash
+  baseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
+  image:
+    repository: REPLACE_GATEWAY_REPOSITORY
+    digest: REPLACE_GATEWAY_SHA256
+  runtime:
+    execution: kubernetes
+    workerImage: REPLACE_PI_REPOSITORY_AND_SHA256
+    stateDirectory: /var/lib/we-meet-work-review
+  tasks:
+    namespace: meet-work-review-tasks
+    serviceAccount: work-agent-task
+    caConfigMap: work-agent-ca
+    publicCA: REPLACE_PUBLIC_CA_PEM
+    apiServerCIDR: REPLACE_ACTUAL_API_SERVER_IPV4_32
+    apiServerPort: 6443
+    imagePullSecrets: []
+  imagePullSecrets: []
+  persistence:
+    existingClaim: REPLACE_EXISTING_REVIEW_STATE_PVC
+    newStateAcknowledged: false
+  tls:
+    existingSecret: meet-work-review-tls
+    clientCASecret: meet-work-review-client-ca
+  secrets:
+    create: false
+    gatewaySecret: meet-work-review-gateway-token
+    providerSecret: meet-work-review-provider
+    clientSecret: meet-work-review-client
+
+# Separate business overlay: provision token + public CA in meet only.
+# These switches stay disabled until independent Gateway acceptance succeeds.
+backend:
+  envVars:
+    WORK_REVIEW_ENABLED: "False"
+    WORK_REVIEW_MODEL: qwen3.8-flash
+    WORK_REVIEW_URL: https://meet-work-review.meet-work-review.svc.cluster.local:8444
+    WORK_REVIEW_TOKEN:
+      secretKeyRef:
+        name: meet-work-review-client
+        key: WORK_AGENT_TOKEN
+        optional: false
+    WORK_REVIEW_CA_PEM:
+      secretKeyRef:
+        name: meet-work-review-client-ca
+        key: ca.crt
+        optional: false

@@ -1,0 +1,42 @@
+workAgent:
+  enabled: false
+  fullname: meet-work-review
+  businessNamespace: meet
+  engine: pi
+  provider: qwen
+  model: qwen3.8-flash
+  baseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
+  testFixtureAcknowledged: false
+  credentialsRevision: "1"
+  port: 8444
+  brokerPort: 8445
+  image:
+    repository: ""
+    digest: ""
+  imagePullSecrets: []
+  runtime:
+    execution: kubernetes
+    workerImage: ""
+    stateDirectory: /var/lib/we-meet-work-review
+  tasks:
+    namespace: ""
+    serviceAccount: work-agent-task
+    caConfigMap: work-agent-ca
+    publicCA: "" # Public ca.crt only, never a private key.
+    imagePullSecrets: []
+    apiServerCIDR: "" # Actual control-plane endpoint, e.g. 172.16.0.4/32.
+    apiServerPort: 6443
+  persistence:
+    existingClaim: ""
+    newStateAcknowledged: false
+    storageClass: ""
+    size: 2Gi
+  tls:
+    existingSecret: ""
+  secrets:
+    create: false
+    gatewaySecret: ""
+    providerSecret: ""
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}

@@ -492,7 +492,7 @@ class PreparationTests(unittest.TestCase):
             checker.check_client(wrong, "meet")
 
 
-def tls_fixture(directory):
+def tls_fixture(directory, dns_names=("localhost",)):
     """Throwaway CA/certificate generated in the test directory, never committed."""
     now = datetime.now(timezone.utc)
     ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -542,7 +542,8 @@ def tls_fixture(directory):
         .not_valid_before(now - timedelta(minutes=1))
         .not_valid_after(now + timedelta(days=1))
         .add_extension(
-            x509.SubjectAlternativeName([x509.DNSName("localhost")]), critical=False
+            x509.SubjectAlternativeName([x509.DNSName(name) for name in dns_names]),
+            critical=False,
         )
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
         .add_extension(
