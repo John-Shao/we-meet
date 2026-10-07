@@ -1,0 +1,323 @@
+{
+  "date_utc": "2026-10-07T11:37:21Z",
+  "node_count": 1,
+  "node": "lavm-emzsrnxdeh",
+  "node_uid": "6c67a844-37f0-4eff-85fe-0420137b6f5f",
+  "conditions": {
+    "MemoryPressure": "False",
+    "DiskPressure": "False",
+    "PIDPressure": "False",
+    "Ready": "True"
+  },
+  "pod_pids_limit": 512,
+  "services_count": 29,
+  "unready_services": [],
+  "probe_pods_remaining": [],
+  "candidate_sha256": "880b60efc8fee632e148ea4ed68a7629e8cf1819eeb258318e3d528324086dba",
+  "candidate_mode": "0o600",
+  "identity_pin": "node-name: lavm-emzsrnxdeh",
+  "business_flags_explicit": {},
+  "provider_secret_refs": [
+    {
+      "key": "DASHSCOPE_API_KEY",
+      "name": "meet-ai-credentials"
+    }
+  ],
+  "ingress_hosts": [
+    "livekit.we-meet.online",
+    "meet.we-meet.online"
+  ],
+  "profile_jobs": [
+    {
+      "name": "meet-backend-docs-profiles-29856217",
+      "created": "2026-10-07T11:37:00Z",
+      "active": 0,
+      "succeeded": 1,
+      "failed_pods": 0,
+      "conditions": [
+        {
+          "lastProbeTime": "2026-10-07T11:37:12Z",
+          "lastTransitionTime": "2026-10-07T11:37:12Z",
+          "message": "Reached expected number of succeeded pods",
+          "reason": "CompletionsReached",
+          "status": "True",
+          "type": "SuccessCriteriaMet"
+        },
+        {
+          "lastProbeTime": "2026-10-07T11:37:12Z",
+          "lastTransitionTime": "2026-10-07T11:37:12Z",
+          "message": "Reached expected number of succeeded pods",
+          "reason": "CompletionsReached",
+          "status": "True",
+          "type": "Complete"
+        }
+      ]
+    }
+  ],
+  "maintenance_receipts": [
+    {
+      "schema": "work-k3s-pid-maintenance/v1",
+      "id": "4629caaa559a47a19f8943caac87a375",
+      "node": "lavm-emzsrnxdeh",
+      "node_uid": "6c67a844-37f0-4eff-85fe-0420137b6f5f",
+      "old_limit": -1,
+      "target_limit": 512,
+      "candidate_sha256": "880b60efc8fee632e148ea4ed68a7629e8cf1819eeb258318e3d528324086dba",
+      "baseline_pid_max": 146,
+      "baseline_restart_count": 32,
+      "started_utc": "2026-10-07T11:31:54Z",
+      "phase": "rolled_back",
+      "restart_identity_pinned": true,
+      "sqlite_backup_bytes": 68866048,
+      "backup_integrity": "ok",
+      "synthetic_name": "work-agent-pid-check-4629caaa559a",
+      "synthetic_deleted": true,
+      "synthetic_uid": "aba8977e-d5bc-41b2-8482-5ec6dd8b7a0f",
+      "probe_before_change": {
+        "pod_pids_max": "max",
+        "pod_uid": "c625a67b-9568-4223-915f-5187c7c168bd"
+      },
+      "target_inode": 2362420,
+      "health_after_restart": {
+        "service_pods_ready": 29,
+        "baseline_uids_preserved": 29,
+        "container_restarts": 32
+      },
+      "failure": "probe_terminated",
+      "rollback_health": {
+        "service_pods_ready": 29,
+        "baseline_uids_preserved": 29,
+        "container_restarts": 32
+      },
+      "backup_directory": "/var/lib/we-meet-work-maintenance/pid-4629caaa559a47a19f8943caac87a375",
+      "private_backup_mode": "0o700",
+      "private_file_modes": {
+        "configuration-and-token.tar": "0o600",
+        "state.db": "0o600",
+        "receipt.json": "0o600"
+      }
+    },
+    {
+      "schema": "work-k3s-pid-maintenance/v1",
+      "id": "711c929592144665ab3f5b71181f6f57",
+      "node": "lavm-emzsrnxdeh",
+      "node_uid": "6c67a844-37f0-4eff-85fe-0420137b6f5f",
+      "old_limit": -1,
+      "target_limit": 512,
+      "candidate_sha256": "880b60efc8fee632e148ea4ed68a7629e8cf1819eeb258318e3d528324086dba",
+      "baseline_pid_max": 146,
+      "baseline_restart_count": 32,
+      "started_utc": "2026-10-07T11:28:28Z",
+      "phase": "rolled_back",
+      "restart_identity_pinned": true,
+      "sqlite_backup_bytes": 62001152,
+      "backup_integrity": "ok",
+      "target_inode": 2360806,
+      "health_after_restart": {
+        "service_pods_ready": 29,
+        "baseline_uids_preserved": 29,
+        "container_restarts": 32
+      },
+      "synthetic_name": "work-agent-pid-check-711c92959214",
+      "synthetic_uid": "2587ba33-6b63-49d1-87a7-98c6c21eeefc",
+      "synthetic_deleted": true,
+      "failure": "probe_start_timeout",
+      "rollback_health": {
+        "service_pods_ready": 29,
+        "baseline_uids_preserved": 29,
+        "container_restarts": 32
+      },
+      "backup_directory": "/var/lib/we-meet-work-maintenance/pid-711c929592144665ab3f5b71181f6f57",
+      "private_backup_mode": "0o700",
+      "private_file_modes": {
+        "configuration-and-token.tar": "0o600",
+        "state.db": "0o600",
+        "receipt.json": "0o600"
+      }
+    },
+    {
+      "schema": "work-k3s-pid-maintenance/v1",
+      "id": "7253c48eb70d455da41b3b2242c4c5c0",
+      "node": "lavm-emzsrnxdeh",
+      "node_uid": "6c67a844-37f0-4eff-85fe-0420137b6f5f",
+      "old_limit": -1,
+      "target_limit": 512,
+      "candidate_sha256": "880b60efc8fee632e148ea4ed68a7629e8cf1819eeb258318e3d528324086dba",
+      "baseline_pid_max": 147,
+      "baseline_restart_count": 32,
+      "started_utc": "2026-10-07T11:34:41Z",
+      "phase": "verified",
+      "restart_identity_pinned": true,
+      "sqlite_backup_bytes": 75751424,
+      "backup_integrity": "ok",
+      "synthetic_name": "work-agent-pid-check-7253c48eb70d-2baf903e",
+      "synthetic_deleted": true,
+      "synthetic_uid": "02723430-4a87-4a5f-9203-443ab029b71e",
+      "probe_before_change": {
+        "pod_pids_max": "max",
+        "pod_uid": "c464ab1b-357b-46cb-939b-b55b7c1ed4d1"
+      },
+      "target_inode": 2360842,
+      "health_after_restart": {
+        "service_pods_ready": 29,
+        "baseline_uids_preserved": 29,
+        "container_restarts": 32
+      },
+      "probe": {
+        "pod_pids_max": "512",
+        "pod_uid": "02723430-4a87-4a5f-9203-443ab029b71e"
+      },
+      "final_health": {
+        "service_pods_ready": 29,
+        "baseline_uids_preserved": 29,
+        "container_restarts": 32
+      },
+      "backup_directory": "/var/lib/we-meet-work-maintenance/pid-7253c48eb70d455da41b3b2242c4c5c0",
+      "private_backup_mode": "0o700",
+      "private_file_modes": {
+        "configuration-and-token.tar": "0o600",
+        "state.db": "0o600",
+        "receipt.json": "0o600"
+      }
+    },
+    {
+      "schema": "work-k3s-pid-maintenance/v1",
+      "id": "fb7b4ead07af4451b6f3b7c4e42a320e",
+      "node": "lavm-emzsrnxdeh",
+      "node_uid": "6c67a844-37f0-4eff-85fe-0420137b6f5f",
+      "old_limit": -1,
+      "target_limit": 512,
+      "candidate_sha256": "880b60efc8fee632e148ea4ed68a7629e8cf1819eeb258318e3d528324086dba",
+      "baseline_pid_max": 147,
+      "baseline_restart_count": 1,
+      "started_utc": "2026-10-07T11:22:42Z",
+      "phase": "rolled_back",
+      "sqlite_backup_bytes": 53399552,
+      "backup_integrity": "ok",
+      "target_inode": 2396554,
+      "failure": "health_verification_timeout",
+      "rollback_health": {
+        "service_pods_ready": 30,
+        "baseline_uids_preserved": 29,
+        "container_restarts": 33
+      },
+      "backup_directory": "/var/lib/we-meet-work-maintenance/pid-fb7b4ead07af4451b6f3b7c4e42a320e",
+      "private_backup_mode": "0o700",
+      "private_file_modes": {
+        "configuration-and-token.tar": "0o600",
+        "state.db": "0o600",
+        "receipt.json": "0o600"
+      }
+    }
+  ],
+  "schema": "work-k3s-pid-production-acceptance/v1",
+  "environment": "production JD Cloud",
+  "authorization": "explicit user authorization for PID configuration change and K3s restart",
+  "maintenance_script_sha256": "ffb49dc94d0e76363c9c3dd54b53953cedb1967828b54196525eb852d1d9ea15",
+  "supplier_calls": 0,
+  "gateway_deployed": false,
+  "business_configuration_changed": false,
+  "preflight_after": {
+    "schema": "work-k3s-inventory/v1",
+    "passed": false,
+    "deployment_ready": false,
+    "deployment_performed": false,
+    "secrets_read": false,
+    "checks": [
+      {
+        "check": "namespace_inventory",
+        "passed": true
+      },
+      {
+        "check": "namespace:meet-work-review",
+        "passed": false,
+        "code": "namespace_not_provisioned"
+      },
+      {
+        "check": "namespace:meet-work-review-tasks",
+        "passed": false,
+        "code": "namespace_not_provisioned"
+      },
+      {
+        "check": "namespace:meet",
+        "passed": true
+      },
+      {
+        "check": "task_pod_security",
+        "passed": false
+      },
+      {
+        "check": "shared_node",
+        "passed": true
+      },
+      {
+        "check": "pod_pids_limit",
+        "passed": true
+      },
+      {
+        "check": "cpu_requests_capacity",
+        "passed": true
+      }
+    ],
+    "pending_acceptance": [
+      "immutable registry images and pull access",
+      "TLS chain, hostname and scoped credentials",
+      "PVC backup and restore",
+      "actual production NetworkPolicy probes",
+      "post-deploy synthetic task and provider/model access"
+    ],
+    "pod_pids_limit": 512,
+    "cpu": {
+      "allocatable_m": 4000.0,
+      "conservative_existing_requests_m": 3550.0,
+      "containers_without_cpu_request": 10,
+      "new_gateway_and_one_task_requests_m": 200
+    }
+  },
+  "application_smoke": {
+    "runtime_work_flags": {
+      "WORK_AGENT_ENABLED": "unset",
+      "WORK_REVIEW_ENABLED": "unset"
+    },
+    "frontend_https": {
+      "host": "meet.we-meet.online",
+      "status": "200",
+      "curl_exit": 0,
+      "certificate_validation": true
+    }
+  },
+  "tests": {
+    "maintenance_unit": {
+      "run": 10,
+      "passed": 10
+    },
+    "ruff": "passed",
+    "diff_check": "passed"
+  },
+  "summary": {
+    "attempts": 4,
+    "automatic_rollbacks": 3,
+    "k3s_restarts": 7,
+    "initial_service_restart_count": 1,
+    "final_service_restart_count": 32,
+    "final_successful_attempt_restart_count_before": 32,
+    "final_successful_attempt_restart_count_after": 32,
+    "accidental_node_uid_deleted": "07cc2218-1535-4630-8379-af1f2b060a71",
+    "affected_cronjob_pods": 2,
+    "subsequent_cronjob_succeeded": true,
+    "actual_new_probe_pids_max": 512
+  },
+  "diagnostic_events": [
+    {
+      "reason": "ErrImageNeverPull",
+      "request_image": "existing immutable backend digest",
+      "pull_policy": "Never"
+    },
+    {
+      "reason": "OutOfcpu",
+      "requested_cpu_m": 100,
+      "used_cpu_m": 3950,
+      "capacity_cpu_m": 4000
+    }
+  ]
+}

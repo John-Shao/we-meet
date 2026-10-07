@@ -1,5 +1,7 @@
 # K3s 生产预检与 PID 候选验收
 
+此报告保留变更前只读基线。随后用户授权 PID 变更和 K3s 重启，实际执行、回退及最终结果见 [生产维护回执](work-k3s-pid-maintenance-2026-10-07.md)。
+
 K3s 执行器已提交推送 `c1a6a4994`，随后继续本批生产准备。通过交互 SSH/sudo 在生产直接以内存代码执行 [只读预检](../../deploy/aliyun/preflight-work-k3s.py)，只调用 Kubernetes get，未复制脚本到生产、未读取 Secret 数据、未部署或修改节点。预检和其他只读快照的公开结果见 [生产回执](work-k3s-production-preflight-2026-10-07.json)。
 
 本次 CPU requests 保守合计 3,550m，新增 Gateway 和单个任务请求共 200m，基础余量检查通过；10 个容器未声明 CPU requests，不能据此保证实际容量。节点 Ready，但 Gateway/任务 namespace 尚未创建，restricted 标签也未配置。真实 kubelet `podPidsLimit=-1`，因此预检拒绝放行。即使基础项通过，报告仍保持 `deployment_ready:false`，需要完成镜像、TLS、状态备份、实际 CNI 探测和合成任务验收。
