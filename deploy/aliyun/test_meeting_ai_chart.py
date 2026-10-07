@@ -332,8 +332,9 @@ echo "CI-CHECK: $*"
         result, log = self.release("agents")
         self.assertEqual(0, result.returncode, result.stderr)
         for key in WORKERS:
-            self.assertIn(f"meetingAIWorkers.workers.{key}.imageTag=new-tag", log)
-        self.assertNotIn(".enabled=", log)
+            self.assertIn(f"meetingAIWorkers.workers.{key}.imageReference=fixture/agents:new-tag", log)
+        self.assertFalse(any(line.startswith("meetingAIWorkers.workers.") and ".enabled=" in line for line in log.splitlines()))
+        self.assertIn("backend.jobs.enabled=false", log)
         self.assertIn("--dry-run", log)
 
     def test_real_release_requires_ci_and_denial_prevents_helm(self):
@@ -348,7 +349,7 @@ echo "CI-CHECK: $*"
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn(f"--commit {self.FULL_SHA} --commit {'a' * 40}", result.stdout)
         self.assertIn("--dry-run", log)
-        self.assertIn("backend.image.tag=aaaaaaaaa", log)
+        self.assertIn("backend.image.reference=fixture/agents:aaaaaaaaa", log)
 
     def test_ci_rejects_non_commit_tags_before_helm(self):
         result, log = self.release("backend", tag="arbitrary-label", ci_check=True)
@@ -365,8 +366,8 @@ echo "CI-CHECK: $*"
     def test_partial_release_preserves_only_existing_optional_worker(self):
         result, log = self.release("frontend")
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("meetingAIWorkers.workers.translation.imageTag=old-tag", log)
-        self.assertNotIn("meetingAIWorkers.workers.capture-asr.imageTag", log)
+        self.assertIn("meetingAIWorkers.workers.translation.imageReference=fixture/agents:old-tag", log)
+        self.assertNotIn("meetingAIWorkers.workers.capture-asr.imageReference", log)
 
     def test_failed_cluster_read_prevents_helm(self):
         result, log = self.release("frontend", denied=True)
@@ -379,8 +380,8 @@ echo "CI-CHECK: $*"
         # SHA 的前 9 位, 与 `--short` 的输出无关.
         result, log = self.release("frontend", tag=None)
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("frontend.image.tag=123456789", log)
-        self.assertNotIn("frontend.image.tag=12345678\n", log)
+        self.assertIn("frontend.image.reference=fixture/agents:123456789", log)
+        self.assertNotIn("frontend.image.reference=fixture/agents:12345678\n", log)
         # 日志里不能出现没固定缩写的 git 输出, 也要说明 tag 就是那个 commit 的前缀.
         self.assertNotIn("GIT-ABBREV-MISSING", result.stderr)
         self.assertIn("first 9 chars of the commit above", result.stdout)
@@ -394,7 +395,7 @@ echo "CI-CHECK: $*"
         result, log = self.release("frontend", tag="12345678")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("has 8 characters", result.stderr)
-        self.assertIn("frontend.image.tag=12345678", log)
+        self.assertIn("frontend.image.reference=fixture/agents:12345678", log)
         self.assertIn("(explicit --tag)", result.stdout)
 
 

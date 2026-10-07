@@ -36,7 +36,7 @@ spec:
           {{- end }}
           containers:
             - name: {{ .Chart.Name }}
-              image: "{{ (.Values.backend.image | default dict).repository | default .Values.image.repository }}:{{ (.Values.backend.image | default dict).tag | default .Values.image.tag }}"
+              image: "{{ include "meet.image.reference" (dict "image" .Values.backend.image "fallback" .Values.image) }}"
               imagePullPolicy: {{ (.Values.backend.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
               command:
                 {{- toYaml .Values.backend.reminders.command | nindent 16 }}

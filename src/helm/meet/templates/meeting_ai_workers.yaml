@@ -64,7 +64,7 @@ spec:
       {{- end }}
       containers:
         - name: {{ $component }}
-          image: "{{ $settings.image.repository }}:{{ $worker.imageTag | default $settings.image.tag }}"
+          image: "{{ include "meet.image.reference" (dict "image" (dict "reference" $worker.imageReference "tag" $worker.imageTag) "fallback" $settings.image) }}"
           imagePullPolicy: {{ $settings.image.pullPolicy }}
           command: {{ $worker.command | toJson }}
           env:

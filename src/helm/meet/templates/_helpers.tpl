@@ -5,6 +5,21 @@ Expand the name of the chart.
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{/* A full image reference preserves an existing digest exactly. Tag fallback
+remains compatible with existing values; callers own their repository defaults. */}}
+{{- define "meet.image.reference" -}}
+{{- $image := .image | default dict -}}
+{{- $fallback := .fallback | default dict -}}
+{{- if $image.reference -}}
+{{- if not (regexMatch "^[^[:space:]@]+(:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}|@sha256:[a-f0-9]{64})$" $image.reference) -}}
+{{- fail "image.reference must contain an explicit tag or sha256 digest" -}}
+{{- end -}}
+{{- $image.reference -}}
+{{- else -}}
+{{- printf "%s:%s" ($image.repository | default $fallback.repository) ($image.tag | default $fallback.tag) -}}
+{{- end -}}
+{{- end }}
+
 {{/*
 Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).

@@ -1,3 +1,4 @@
+{{- if .Values.backend.jobs.enabled }}
 {{- $envVars := include "meet.common.env" (list . .Values.backend) -}}
 {{- $fullName := include "meet.backend.fullname" . -}}
 {{- $component := "backend-migrate" -}}
@@ -43,7 +44,7 @@ spec:
           {{- toYaml . | nindent 8 }}
         {{- end }}
         - name: {{ .Chart.Name }}
-          image: "{{ (.Values.backend.image | default dict).repository | default .Values.image.repository }}:{{ (.Values.backend.image | default dict).tag | default .Values.image.tag }}"
+          image: "{{ include "meet.image.reference" (dict "image" .Values.backend.image "fallback" .Values.image) }}"
           imagePullPolicy: {{ (.Values.backend.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
           {{- with .Values.backend.migrate.command }}
           command:
@@ -126,3 +127,4 @@ spec:
           emptyDir: {}
           {{- end }}
         {{- end }}
+{{- end }}

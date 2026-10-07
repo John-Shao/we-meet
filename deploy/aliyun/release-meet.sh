@@ -10,7 +10,7 @@
 # A release always uses explicit image tags. When --tag is omitted, the current
 # checked-out commit is used after the selected branch is updated with
 # `git pull --ff-only`. For a partial release,
-# the script reads the running tag of every unselected module and passes it back
+# the script reads the exact running reference of every unselected module and passes it back
 # to Helm, preventing values.meet.yaml defaults from changing those modules.
 #
 # 镜像 tag 约定: 取完整 commit SHA 的前 IMAGE_TAG_LEN 位 (默认 9), 与
@@ -111,23 +111,21 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
 }
 
-deployment_tag() {
-  local deployment=$1 image tag
+deployment_image() {
+  local deployment=$1 image
   image=$(kubectl -n "$NAMESPACE" get deployment "$deployment" \
     -o jsonpath='{.spec.template.spec.containers[0].image}')
   [[ -n "$image" ]] || die "deployment $deployment has no container image"
-  [[ "$image" != *@* ]] || die "deployment $deployment uses an image digest, not a tag: $image"
-  tag=${image##*:}
-  [[ "$tag" != "$image" && -n "$tag" ]] || die "cannot extract tag from $deployment image: $image"
-  printf '%s' "$tag"
+  printf '%s' "$image"
 }
 
-module_tag() {
-  local module=$1 deployment=$2
+module_reference() {
+  local module=$1 deployment=$2 values_path=$3 repository
   if contains_module "$module"; then
-    printf '%s' "$TAG"
+    repository=$(module_image_repository "$values_path" "$deployment") || die "cannot resolve image repository for $deployment"
+    printf '%s:%s' "$repository" "$TAG"
   else
-    deployment_tag "$deployment"
+    deployment_image "$deployment"
   fi
 }
 
@@ -154,11 +152,24 @@ module_image_repository() {
     -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null) || image=""
   if [[ -n "$image" ]]; then
     image=${image%@*}   # 线上若被手改成 @sha256: digest, 先脱掉 digest 再脱 tag
-    printf '%s' "${image%:*}"
+    if [[ "${image##*/}" == *:* ]]; then image=${image%:*}; fi
+    printf '%s' "$image"
     return 0
   fi
-  command -v yq >/dev/null 2>&1 || return 1
-  image=$(yq -r "$values_path // \"\"" "$VALUES_FILE" 2>/dev/null) || image=""
+  # Python/PyYAML are already required by the scoped secret export. Use chart
+  # defaults for optional workers that have not been created yet.
+  image=$(python3 - "$values_path" "$VALUES_FILE" src/helm/meet/values.yaml <<'PY'
+import sys,yaml
+keys=sys.argv[1].strip('.').split('.')
+for filename in sys.argv[2:]:
+    value=yaml.safe_load(open(filename)) or {}
+    for key in keys:
+        value=value.get(key) if isinstance(value,dict) else None
+    if isinstance(value,str) and value:
+        print(value)
+        break
+PY
+  ) || image=""
   [[ -n "$image" && "$image" != "null" ]] || return 1
   printf '%s' "$image"
 }
@@ -289,6 +300,7 @@ done
 require_command git
 require_command helm
 require_command kubectl
+require_command python3
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "run from the we-meet repository"
 if [[ -z "$BRANCH" ]]; then
@@ -365,25 +377,25 @@ if ((IMAGE_CHECK)); then
   fi
 fi
 
-# Explicitly set every image family. A partial release preserves tags from the
+# Explicitly set every image family. A partial release preserves full image references from the
 # live Deployments for all unselected families instead of falling back to the
 # tag embedded in values.meet.yaml.
-backend_tag=$(module_tag backend meet-backend)
+backend_reference=$(module_reference backend "$RELEASE-backend" '.image.repository')
 # This chart enables the HTTP AI pool in production. A frontend-only first
 # rollout (or an old backend rollback) must not start it with a pre-pool image.
 if ((DRY_RUN == 0 || CI_CHECK_EXPLICIT)); then
-  backend_commit=$(git rev-parse --verify "${backend_tag}^{commit}") || die "cannot resolve effective backend commit"
+  backend_commit=$(python3 deploy/aliyun/resolve-image-commit.py --image "$backend_reference") || die "cannot resolve effective backend commit"
   git cat-file -e "${backend_commit}:src/backend/meet/ai_wsgi.py" 2>/dev/null || die "effective backend predates the AI pool; include backend from this release (old rollbacks need the matching old chart)"
   python3 deploy/aliyun/check-release-ci.py --commit "$backend_commit" || die "effective backend CI did not pass"
 fi
-frontend_tag=$(module_tag frontend meet-frontend)
-summary_tag=$(module_tag summary meet-summary)
-transcribe_tag=$(module_tag summary meet-celery-transcribe-default)
-summarize_tag=$(module_tag summary meet-celery-summarize)
-summary_backend_tag=$(module_tag summary meet-celery-summary-backend)
-metadata_tag=$(module_tag agents meet-agent-metadata)
-subtitles_tag=$(module_tag agents meet-agent-subtitles)
-assistant_tag=$(module_tag agents meet-agent-ai-assistant)
+frontend_reference=$(module_reference frontend "$RELEASE-frontend" '.frontend.image.repository')
+summary_reference=$(module_reference summary "$RELEASE-summary" '.summary.image.repository')
+transcribe_reference=$(module_reference summary "$RELEASE-celery-transcribe-default" '.celeryTranscribe.image.repository')
+summarize_reference=$(module_reference summary "$RELEASE-celery-summarize" '.celerySummarize.image.repository')
+summary_backend_reference=$(module_reference summary "$RELEASE-celery-summary-backend" '.celerySummaryBackend.image.repository')
+metadata_reference=$(module_reference agents "$RELEASE-agent-metadata" '.agentMetadata.image.repository')
+subtitles_reference=$(module_reference agents "$RELEASE-agent-subtitles" '.agentSubtitles.image.repository')
+assistant_reference=$(module_reference agents "$RELEASE-agent-ai-assistant" '.agentAIAssistant.image.repository')
 
 # Keep independent agent credentials out of the business Helm release history.
 # The shared operator file is filtered into private temporary values first.
@@ -393,6 +405,7 @@ if [[ -r "$SECRETS_FILE" ]]; then
   work_agent_render_dir=$(mktemp -d)
   cleanup_work_agent_values() {
     rm -f -- "$work_agent_render_dir/business-secrets.json" "$work_agent_render_dir/business-overlay.json"
+    rm -f -- "$work_agent_render_dir/backend-snapshot.json" "$work_agent_render_dir/backend-post-renderer"
     rmdir -- "$work_agent_render_dir"
   }
   trap cleanup_work_agent_values EXIT
@@ -415,16 +428,16 @@ helm_args=(
   -n "$NAMESPACE" upgrade "$RELEASE" ./src/helm/meet
   -f "$VALUES_FILE"
   -f "$SECRETS_FILE"
-  --set-string "image.tag=$backend_tag"
-  --set-string "backend.image.tag=$backend_tag"
-  --set-string "frontend.image.tag=$frontend_tag"
-  --set-string "summary.image.tag=$summary_tag"
-  --set-string "celeryTranscribe.image.tag=$transcribe_tag"
-  --set-string "celerySummarize.image.tag=$summarize_tag"
-  --set-string "celerySummaryBackend.image.tag=$summary_backend_tag"
-  --set-string "agentMetadata.image.tag=$metadata_tag"
-  --set-string "agentSubtitles.image.tag=$subtitles_tag"
-  --set-string "agentAIAssistant.image.tag=$assistant_tag"
+  --set-string "image.tag=$TAG"
+  --set-string "backend.image.reference=$backend_reference"
+  --set-string "frontend.image.reference=$frontend_reference"
+  --set-string "summary.image.reference=$summary_reference"
+  --set-string "celeryTranscribe.image.reference=$transcribe_reference"
+  --set-string "celerySummarize.image.reference=$summarize_reference"
+  --set-string "celerySummaryBackend.image.reference=$summary_backend_reference"
+  --set-string "agentMetadata.image.reference=$metadata_reference"
+  --set-string "agentSubtitles.image.reference=$subtitles_reference"
+  --set-string "agentAIAssistant.image.reference=$assistant_reference"
   --wait --timeout 10m
 )
 
@@ -436,20 +449,38 @@ if [[ -n "$work_agent_business_overlay" ]]; then
   helm_args+=(-f "$work_agent_business_overlay")
 fi
 
-# Optional AI processes use the agents image family. Preserve each live tag on
+# Optional AI processes use the agents image family. Preserve each live image reference on
 # partial releases, and leave absent workers at their explicitly configured tag.
 ai_workers=(translation interpretation capture-asr capture-live-asr capture-translation)
 for worker in "${ai_workers[@]}"; do
   deployment="$RELEASE-agent-$worker"
   if contains_module agents; then
-    helm_args+=(--set-string "meetingAIWorkers.workers.$worker.imageTag=$TAG")
+    repository=$(module_image_repository '.meetingAIWorkers.image.repository' "$deployment") || die "cannot resolve AI worker repository"
+    helm_args+=(--set-string "meetingAIWorkers.workers.$worker.imageReference=$repository:$TAG")
   else
     deployed=$(kubectl -n "$NAMESPACE" get deployment "$deployment" --ignore-not-found -o name)
     if [[ -n "$deployed" ]]; then
-      helm_args+=(--set-string "meetingAIWorkers.workers.$worker.imageTag=$(deployment_tag "$deployment")")
+      helm_args+=(--set-string "meetingAIWorkers.workers.$worker.imageReference=$(deployment_image "$deployment")")
     fi
   fi
 done
+
+# Preserve unselected backend specs and omit backend database hooks.
+if ! contains_module backend; then
+  # Helm separates hooks before invoking post-renderers; disable DB hooks here.
+  helm_args+=(--set "backend.jobs.enabled=false")
+  kubectl -n "$NAMESPACE" get deployment,cronjob -o json > "$work_agent_render_dir/backend-snapshot.json"
+  chmod 600 "$work_agent_render_dir/backend-snapshot.json"
+  python3 - "$PWD" "$work_agent_render_dir" "$RELEASE" "$NAMESPACE" "$backend_reference" <<'PY'
+import os,pathlib,shlex,sys
+repo,folder,release,namespace,image=sys.argv[1:]
+path=pathlib.Path(folder)/'backend-post-renderer'
+command=['python3',str(pathlib.Path(repo)/'deploy/aliyun/preserve-backend-release.py'),'--snapshot',str(pathlib.Path(folder)/'backend-snapshot.json'),'--release',release,'--namespace',namespace,'--expected-image',image,'--check-live']
+path.write_text('#!/bin/sh\nexec '+shlex.join(command)+'\n')
+os.chmod(path,0o700)
+PY
+  helm_args+=(--post-renderer "$work_agent_render_dir/backend-post-renderer")
+fi
 
 if ((DRY_RUN)); then
   echo "==> Dry run: no cluster changes will be made"
@@ -503,5 +534,5 @@ for deployment in \
   "$RELEASE-summary" "$RELEASE-celery-transcribe-default" "$RELEASE-celery-summarize" \
   "$RELEASE-celery-summary-backend" "$RELEASE-agent-metadata" \
   "$RELEASE-agent-subtitles" "$RELEASE-agent-ai-assistant"; do
-  printf '%-34s %s\n' "$deployment" "$(deployment_tag "$deployment")"
+  printf '%-34s %s\n' "$deployment" "$(deployment_image "$deployment")"
 done

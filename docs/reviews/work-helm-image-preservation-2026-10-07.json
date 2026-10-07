@@ -1,0 +1,25 @@
+{
+  "phase": "source_only_verified",
+  "production_release_receipt": "work-k3s-business-alignment-release-2026-10-07.json",
+  "production_writes_in_this_batch": false,
+  "provider_calls": 0,
+  "new_feature_flags_enabled": false,
+  "preserved_backend_consumers": 7,
+  "database_hooks_disabled_when_backend_unselected": true,
+  "backend_digest_provenance": "unique_committed_receipt_and_existing_ci_gate",
+  "drift_checks": ["expected_backend_image", "namespace", "live_uid", "live_spec", "consumer_addition_or_removal"],
+  "multi_resource_atomicity": false,
+  "verification": {
+    "image_reference_and_real_release_tests_passed": 16,
+    "existing_release_ci_tests_passed": 9,
+    "meeting_ai_chart_and_script_tests_passed": 26,
+    "http_ai_pool_tests_passed": 3,
+    "total_tests_passed": 54,
+    "helm_lint": "passed",
+    "bash_syntax": "passed",
+    "new_python_ruff": "passed",
+    "git_diff_check": "passed"
+  },
+  "production_helm_history_reconciled": false,
+  "controlled_test_account": "pending_user_selection"
+}

@@ -1,5 +1,41 @@
 # Meet helm chart
 
+## Immutable images and partial releases
+
+Components may set `image.reference` to a complete `repository:tag` or
+`repository@sha256:<64 lowercase hex characters>`. It takes precedence over
+that component's `image.repository` and `image.tag`. Supported components are
+`backend`, `frontend`, `summary`, `celeryTranscribe`, `celerySummarize`,
+`celerySummaryBackend`, `agentMetadata`, `agentSubtitles`, and `agentAIAssistant`.
+The backend reference is shared by its HTTP pools, Celery workers, CronJobs and
+database hooks. Legacy repository/tag values continue to work. A transcription
+instance's explicit image tag or repository overrides an inherited group
+reference; an instance's explicit reference takes precedence over its tag.
+Optional meeting AI workers use `meetingAIWorkers.workers.<name>.imageReference`
+with the same full-reference syntax; their existing `imageTag` fallback remains.
+
+`deploy/aliyun/release-meet.sh` reads the exact live references of unselected
+modules. When backend is unselected, it takes a private Deployment/CronJob
+snapshot and preserves the complete specs of the seven backend consumers using
+a Helm post-renderer, including environment order, resources and Work flags.
+It stops if a consumer would be added/removed, its namespace differs, its live
+UID/spec changes during rendering, or the snapshot backend image differs from
+the image checked for CI provenance. The snapshot is stored in a temporary
+directory with mode 0700, its file uses 0600, and it is removed on exit.
+
+`backend.jobs.enabled` defaults to `true`. Partial releases that omit backend
+explicitly set it to `false`, disabling migration and superuser hooks before
+Helm separates hooks from ordinary manifests. Selecting backend retains the
+normal hook behavior and requires review of the migration plan. Do not use
+`--no-hooks` globally: independent credential hooks may still be required.
+
+CI remains mandatory for real releases. A preserved backend digest is resolved
+to exactly one source commit from image receipts committed under `docs/reviews`;
+missing or conflicting provenance stops the release. Edited/untracked receipts
+are not used. The exact commit still passes the existing release CI and HTTP AI
+pool compatibility checks. A source update alone does not reconcile a live Helm
+release: review a dry run before any subsequent production upgrade or rollback.
+
 ## Parameters
 
 ### General configuration

@@ -2,7 +2,11 @@
 {{- $component := "celery-transcribe" -}}
 
 {{- range $idx, $instance := .Values.celeryTranscribe.instances }}
-{{- $instanceValues := merge $instance $.Values.celeryTranscribe }}
+{{- $explicitImage := deepCopy ($instance.image | default dict) }}
+{{- $instanceValues := merge (deepCopy $instance) (deepCopy $.Values.celeryTranscribe) }}
+{{- if and (not $explicitImage.reference) (or $explicitImage.tag $explicitImage.repository) }}
+{{- $_ := unset $instanceValues.image "reference" }}
+{{- end }}
 {{- $fullName := printf "%s-%s" (include "meet.celeryTranscribe.fullname" $) $instance.name }}
 {{- $extraInstanceEnvVars := default (dict) $instance.extraEnvVars -}}
 {{- $mergedInstanceEnvVars := merge $extraInstanceEnvVars $sharedEnvVars -}}
@@ -50,7 +54,7 @@ spec:
           {{- toYaml . | nindent 8 }}
         {{- end }}
         - name: {{ $.Chart.Name }}
-          image: "{{ ($instanceValues.image | default dict).repository | default $.Values.image.repository }}:{{ ($instanceValues.image | default dict).tag | default $.Values.image.tag }}"
+          image: "{{ include "meet.image.reference" (dict "image" $instanceValues.image "fallback" $.Values.image) }}"
           imagePullPolicy: {{ ($instanceValues.image | default dict).pullPolicy | default $.Values.image.pullPolicy }}
           {{- with $instanceValues.command }}
           command:
