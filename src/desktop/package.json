@@ -1,19 +1,21 @@
 {
   "name": "we-meet-desktop",
   "private": true,
-  "version": "0.2.0-d0.9",
+  "version": "0.4.0-delivery.1",
   "description": "we-meet 桌面端 (Electron) — 复用 src/frontend 的 React 应用",
   "main": "dist/main.js",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build:main": "tsc",
+    "build:main": "tsc && node scripts/prepare-runtime.mjs",
     "build:renderer": "node scripts/build-renderer.mjs",
     "copy:renderer": "node scripts/copy-renderer.mjs",
     "dev": "npm run build:main && electron .",
     "test": "npm run build:main && node --test tests/*.test.cjs",
     "test:smoke": "npm run build:main && node scripts/smoke.cjs",
-    "package": "node scripts/verify-electron.mjs && npm run build:main && npm run build:renderer && npm run copy:renderer && electron-builder --win --x64 && node scripts/release-manifest.mjs",
-    "package:prepared": "node scripts/verify-electron.mjs && npm run build:main && electron-builder --win --x64 && node scripts/release-manifest.mjs"
+    "package": "node scripts/verify-electron.mjs && npm run build:main && npm run build:renderer && npm run copy:renderer && node scripts/verify-runtime.mjs && electron-builder --win --x64 && node scripts/release-manifest.mjs",
+    "package:prepared": "node scripts/verify-electron.mjs && npm run build:main && node scripts/verify-runtime.mjs && electron-builder --win --x64 && node scripts/release-manifest.mjs",
+    "build:runtime": "python scripts/build-local-runtime.py",
+    "package:release": "npm run build:main && node scripts/release-gate.mjs && npm run build:renderer && npm run copy:renderer && node scripts/verify-runtime.mjs && electron-builder --config electron-builder.release.yml --win --x64 && node scripts/release-manifest.mjs --formal"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

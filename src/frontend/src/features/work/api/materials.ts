@@ -10,6 +10,8 @@ export interface WorkCapabilities {
   max_batch_bytes: number
   skills: string[]
   communication_enabled?: boolean
+  agent_enabled?: boolean
+  agent_model?: string
   model?: string
 }
 
@@ -80,6 +82,14 @@ export const deleteMaterial = (id: string) =>
   fetchApi<void>(`work/materials/${id}/`, { method: 'DELETE' })
 
 const errors: Record<string, string> = {
+  agent_unavailable: '执行服务暂不可用，已登记的任务不会重复创建。',
+  agent_contract_mismatch: '执行服务版本不兼容，请联系管理员更新。',
+  agent_failed: '此次处理未完成，请查看执行记录后创建新任务。',
+  deployment_changed: '执行配置已变化，此任务不会自动重跑。',
+  deadline_exceeded: '此次处理已超时，可核对本机文件后创建新任务。',
+  local_device_disconnected:
+    '执行设备已断线，等待原设备回报，不会自动转到云端重跑。',
+  local_retry_requires_new_task: '本地任务请在原执行设备上创建新任务。',
   unsupported_format: '请上传 TXT、Markdown、文本型 PDF 或 DOCX 文件。',
   invalid_document: '文件格式或内容无效，请重新导出后上传。',
   encrypted_document: '暂不支持加密文件，请上传未加密的材料。',

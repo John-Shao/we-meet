@@ -1,0 +1,174 @@
+{
+  "scope": "Unified task ledger, original-device claim, durable state reports, explicit selected artifact sync",
+  "status": "implemented-and-isolated-acceptance-passed; not-deployed-or-installed",
+  "contracts": [
+    "work-device/v1",
+    "work-local/v1",
+    "work-agent/v1"
+  ],
+  "versions": {
+    "desktop": "0.3.0-local-work.2",
+    "adapter": "0.2.0",
+    "dsh_sdk_runtime": "0.1.5rc1"
+  },
+  "tests": {
+    "backend_work": {
+      "passed": 73,
+      "skipped": 2
+    },
+    "backend_coordination_recheck": {
+      "passed": 8
+    },
+    "adapter_offline": {
+      "passed": 33,
+      "skipped": 4
+    },
+    "desktop_with_independent_adapter": {
+      "passed": 19,
+      "skipped": 0
+    },
+    "frontend_work_routes": {
+      "passed": 25
+    },
+    "real_django_api_deepseek": {
+      "passed": 1
+    },
+    "electron_ui": {
+      "passed": true
+    },
+    "ruff_eslint_typescript_build": "passed"
+  },
+  "live_api": {
+    "passed": true,
+    "tested_at": "2026-10-07T01:45:29.088Z",
+    "task_id": "6837a619-bd3e-4fb9-a680-37bdfffd9d13",
+    "run_id": "7422e13f-e5b5-4a28-98f9-2c44ec7c8e25",
+    "checks": [
+      "real-WorkTask-and-WorkRun",
+      "same-run-UUID",
+      "authorized-cloud-context",
+      "native-original-file-read",
+      "real-DeepSeek",
+      "device-reported-usage",
+      "no-automatic-body-upload",
+      "explicit-file-sync"
+    ],
+    "deployment": {
+      "adapter_version": "0.2.0",
+      "contract": "work-local/v1",
+      "engine": "dsh",
+      "execution": "local",
+      "features": [
+        "cloud_context",
+        "run_limits"
+      ],
+      "limits": {
+        "max_model_calls": 6,
+        "max_output_tokens": 4096,
+        "max_total_tokens": 80000
+      },
+      "model": "deepseek-flash",
+      "ready": true,
+      "runtime_version": "0.1.5rc1",
+      "workspace_is_sandbox": false
+    },
+    "metering": {
+      "calls": 5,
+      "complete": true,
+      "denial_code": "",
+      "held_tokens": 9084,
+      "usage": {
+        "cache_read_tokens": 6272,
+        "cache_write_tokens": 0,
+        "input_tokens": 1446,
+        "output_tokens": 1366
+      }
+    },
+    "files": [
+      {
+        "name": "report.md",
+        "sha256": "83d1be7d6612e9895b376c4438ec0998a2ce56f90dba1dbffdb7d445a4915476"
+      }
+    ],
+    "elapsed_ms": 30578
+  },
+  "electron": {
+    "passed": true,
+    "tested_at": "2026-10-07T01:51:17.673Z",
+    "version": "0.3.0-local-work.2",
+    "checks": [
+      "real-renderer-coordination",
+      "manual-selected-sync",
+      "metadata-excludes-private-body",
+      "ticket-not-in-renderer",
+      "real-renderer-native-config",
+      "native-folder-grant",
+      "real-dsh-file-read",
+      "local-deliverable",
+      "metered-DeepSeek",
+      "native-open-confined-file",
+      "cancel-before-admission",
+      "cancel-running-native-task",
+      "raw-path-request-rejected",
+      "logout-rejects-local-access",
+      "account-B-has-no-account-A-configuration"
+    ],
+    "limitation": "Development Electron with bundled renderer, synthetic business account/API and mocked native dialog selections. Actual dsh and DeepSeek. Not installer/interactive picker acceptance."
+  },
+  "electron_model_metering": {
+    "calls": 4,
+    "complete": true,
+    "denial_code": "",
+    "held_tokens": 6271,
+    "usage": {
+      "cache_read_tokens": 4224,
+      "cache_write_tokens": 0,
+      "input_tokens": 876,
+      "output_tokens": 1171
+    }
+  },
+  "installer": {
+    "version": "0.3.0-local-work.2",
+    "file": "We-Meet-0.3.0-local-work.2-setup.exe",
+    "bytes": 127653878,
+    "sha256": "5ea7a21bf1c6fb6c19d37e70ad97f5305adb8a4f9b7ad17647fbfcbdcd78ff22",
+    "packagedAsarSha256": "b46a7f4e9900a99b2575ee787cd202fe7784844e8ff0aade7f113a8382598f97",
+    "desktopLockSha256": "987a2fe80d9f05025ffca24143b483cdb1ee5dc4f7ad481990d881930296976a",
+    "frontendLockSha256": "dd6597dbfc8514dbaaaa76f4d12280a6c16256d6b3a2a8c55f735d1a7a513338",
+    "sourceRevision": "209b8e491c42260247126b6ce1392a7825b1cb41",
+    "workingTreeDirty": true,
+    "electron": "44.4.3",
+    "builder": "26.15.3",
+    "runtimeConfig": {
+      "serviceOrigin": "https://meet.we-meet.online",
+      "issuer": "https://id.we-meet.online/realms/meet",
+      "clientId": "desktop",
+      "renderer": {
+        "serviceOrigin": "https://meet.we-meet.online",
+        "imBaseUrl": "https://im.we-meet.online",
+        "appTitle": "We-Meet"
+      }
+    },
+    "builtAt": "2026-10-07T01:50:49.935Z",
+    "intendedUse": "Internal D0 acceptance; signing and acceptance are separate checks"
+  },
+  "authenticode": "NotSigned",
+  "wheel": {
+    "file": ".work-acceptance/work-coordination-20261007/artifacts/we_meet_work_agent-0.2.0-py3-none-any.whl",
+    "sha256": "87078a00081b611922000da8fef0e5d85d46e69d497b7cebad1da416d0621b6c",
+    "independent_install_tested": true
+  },
+  "usage_origin": "device_reported; no AIUsageRecord; conservative reservation retained",
+  "secret_scan": {
+    "files": 3449,
+    "leaks": 0
+  },
+  "limitations": [
+    "synthetic business identities and materials",
+    "Electron API and native dialog selections are fixtures",
+    "native folder is not an OS sandbox",
+    "no cross-device takeover or automatic organization sharing",
+    "no provider billing reconciliation",
+    "not production deployed; installer not installed"
+  ]
+}

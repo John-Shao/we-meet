@@ -62,6 +62,9 @@ export class DesktopAuth {
   get signedIn() {
     return !!this.tokens;
   }
+  get subject() {
+    return this.tokens?.subject;
+  }
   get loginPending() {
     return !!this.pending && this.pending.expiresAt > Date.now();
   }

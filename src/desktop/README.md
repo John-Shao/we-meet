@@ -1,5 +1,9 @@
 # We-Meet 桌面端：D0 可用客户端里程碑
 
+2026-10-07 最新候选版 `0.3.0-local-work.2` 增加统一云端任务登记、设备领取、状态回报和选定成果主动同步，独立适配器为 `0.2.0`。运行和故障边界见 [协调说明](../work-agent/COORDINATION.md)，实测见 [本轮评审](../../docs/reviews/work-device-coordination-2026-10-07.md)。尚未部署线上或安装替换现有客户端；下面保留此前阶段记录。
+
+2026-10-07 新增本地工作空间候选版 `0.3.0-local-work.1`：Work 页面经主进程原生目录授权，通过 `work-local/v1` stdio 连接独立安装的 dsh 适配器，直接读写本机文件夹。真实 DeepSeek 与 Electron 页面链路已验证，安装和独立升级见 [本地集成说明](../work-agent/LOCAL.md)，证据见 [评审记录](../../docs/reviews/work-local-agent-2026-10-07.md)。本候选包尚未安装替换已有客户端；以下 D0 历史安装状态仍保留。
+
 Windows Electron 客户端复用 `src/frontend` 和现有 Django / LiveKit / IM / Docs 服务。D0 的完成标准见 [Work 主计划 §14.0](../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md#140-第一里程碑-d0桌面端从外壳到可用客户端)。
 
 **2026-09-24 状态：`0.2.0-d0.9` 已安装；包含 Work 材料 / 沟通准备及启动导航取消修复，真实桌面登录、上传、生成、Markdown 下载、刷新 / 重启恢复通过。9 月 22 日的登录换号、会议进出、文档、升级回退证据保留。真实媒体设备、原生交互提示及干净 Windows 环境仍待验收，D0 未整体放行。**
@@ -132,3 +136,34 @@ node scripts/live-acceptance.cjs
 5. 卸载使用 Windows 应用列表或安装目录的卸载程序。配置为保留应用数据；要移除本机凭据先在客户端“退出账号”，不要以为卸载等于退出 SSO。干净安装 / 卸载验证必须使用专用测试 profile，避免删除真实录音和资料。
 
 对外分发前需配置组织的 Windows 签名证书、验证签名 / 安装 / 升级与干净环境，并确认稳定下载地址。当前无自动更新 feed，不声称可以自动更新。macOS 构建、公证、托盘、原生通知和本地 Agent 工具不在本次 D0 已验收范围内。
+
+## 2026-10-07：本地执行器交付与 Android 远程任务
+
+最新内部候选为 `0.4.0-delivery.1`，内置独立 Agent `0.3.1` / dsh `0.1.5rc1`。旧 D0 记录及安装路径是历史验收，当前候选使用每用户 NSIS 一键安装；本次未覆盖实际安装、干净 Windows 和原生选择器人工操作验收。详细记录见 [交付评审](../../docs/reviews/work-delivery-and-android-2026-10-07.md)。
+
+最终用户无需另装 Python、Node、pip 或 Docker。内置 Python 与 dsh 所需 Node/rg 由独立 `work-runtime/v1` 清单固定，启动及更新校验每个文件的长度和 SHA-256。首次在 Work 本地工作空间导入本机模型密钥文件；主进程加密保存，页面和移动端不接收密钥。模型请求仍会发送任务需要的内容给模型供应商。
+
+远程使用顺序：桌面选定本机目录 → 勾选“允许远程请求进入此工作空间待办” → Android 侧边抽屉“工作”选择工作空间并提交 → 桌面“审阅并领取” → 审阅每次命令 → 完成后选择文件主动同步 → Android 查看状态及已同步成果。目录原始文件和绝对路径不会随注册、待办或状态上传。离线桌面可接收排队请求；重新登录需要重新选定目录并允许远程待办，领取不会自动发生。
+
+命令批准绑定任务、工具参数和 SHA-256，一次批准只允许本次工具调用；原生弹窗默认拒绝，文件修改脚本同样审批。拒绝、超时、取消及重启使待批准调用失效。当前审批展示完整命令，不提供逐文件 diff；工作目录约定不是操作系统沙箱。
+
+构建（开发机需 Python、Node；不影响最终用户的自包含安装）：
+
+```powershell
+npm ci
+npm run build:runtime
+npm test
+npm run package
+```
+
+`build:runtime` 使用锁定依赖和固定 Python 下载校验，生成 `.agent-runtime/0.3.1` 与 `dist/bundled-runtime.json`。更新版本时先更新 Agent、launcher 和打包过滤器版本，禁止复用一个已发布版本号覆盖不同清单。
+
+Agent 独立升级使用原生文件选择器导入签名 ZIP，按固定 Ed25519 公钥验签、校验完整目录并握手探测后原子切换；保留上一版本，回退也重新校验和探测。存在活跃任务时拒绝更新/回退，切换后重新授权目录。整套 Electron 应用目前通过安装包手动升级/回退，没有后台自动更新源。
+
+发布准备：通过 `WEMEET_RUNTIME_TRUST_FILE` 指定外部 JSON 公钥列表（每项 `key_id` 和 PEM `public_key`），构建时固定到应用。签名机器设置 `WEMEET_RUNTIME_SIGNING_KEY_FILE`、`WEMEET_RUNTIME_SIGNING_KEY_ID`，执行 `python scripts/sign-runtime.py <payload目录> <输出.zip>`；私钥必须留在包外。Windows Authenticode 证书通过 builder 的 `CSC_LINK` / `WIN_CSC_LINK` 和相应环境配置提供，再运行 `npm run package:release`。正式流程缺少证书、公钥或最终有效 Authenticode 签名即失败。
+
+当前没有 Windows 发布证书，也没有产品发布的运行时信任公钥：候选为 `NotSigned`，签名升级入口关闭。签名升级/回退已有隔离测试密钥验证，不将测试密钥设为产品信任根；可先用内置运行时内部验收。上线还需后端迁移 `work.0005` 与显式开启远程开关，本次未部署生产。
+
+### 后续联合验收（2026-10-07）
+
+实际 Android Work 界面 → 同一 Django/PostgreSQL → 实际 Electron Work 界面 → 内置 Agent `0.3.1` / dsh / DeepSeek → 手机成果预览已通过。身份与原生对话框选择仍为隔离 fixture；四次工具调用逐项审阅后批准。另用不同 appId/名称、不注册登录协议的内部衍生安装包，实际验证安装、升级、回退、卸载和状态保留；安装后的完整运行环境签名 fixture 切换/篡改拒绝/原生回退通过。它们不替代真实登录、原产品安装包人工操作和干净 Windows 验收。完整范围与回执见 [联合验收](../../docs/reviews/work-cross-device-acceptance-2026-10-07.md)。

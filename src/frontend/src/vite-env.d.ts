@@ -23,6 +23,7 @@ interface Window {
     login(): Promise<void>
     logout(): Promise<void>
     retry(): Promise<void>
+    localWork?: import('./features/work/api/local').LocalWorkBridge
     onStatus(listener: (status: DesktopStatus) => void): () => void
   }
 }

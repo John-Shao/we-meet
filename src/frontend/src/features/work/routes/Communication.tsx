@@ -32,6 +32,7 @@ const states: Record<WorkRun['status'], string> = {
   succeeded: '草稿已完成',
   failed: '生成失败',
   canceled: '已取消',
+  disconnected: '设备断线，执行待确认',
 }
 
 export const Communication = ({ ownerId }: { ownerId: string }) => {
@@ -406,7 +407,13 @@ function CommunicationForm({
   )
 }
 
-function RunProgress({ runId, ownerId }: { runId: string; ownerId: string }) {
+export function RunProgress({
+  runId,
+  ownerId,
+}: {
+  runId: string
+  ownerId: string
+}) {
   const cursor = useRef(0)
   const seen = useRef<RunEvent[]>([])
   const progress = useQuery({
@@ -453,7 +460,13 @@ function RunProgress({ runId, ownerId }: { runId: string; ownerId: string }) {
   )
 }
 
-function RunArtifacts({ runs, ownerId }: { runs: WorkRun[]; ownerId: string }) {
+export function RunArtifacts({
+  runs,
+  ownerId,
+}: {
+  runs: WorkRun[]
+  ownerId: string
+}) {
   const successful = runs.filter((run) => run.status === 'succeeded')
   const [chosen, setChosen] = useState('')
   const runId = chosen || successful.at(-1)?.id || ''

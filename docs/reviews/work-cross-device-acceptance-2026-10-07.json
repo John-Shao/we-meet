@@ -1,0 +1,95 @@
+{
+  "recorded_at": "2026-10-07T04:05:53.681514+00:00",
+  "scope": "Actual Android Work UI -> actual Electron Work UI -> Django Work/PostgreSQL -> bundled Agent 0.3.1/dsh/DeepSeek -> actual Android result preview; fixture authentication only",
+  "passed": true,
+  "ios_developed": false,
+  "production_deployed": false,
+  "cross_device": {
+    "run_id": "b6d2dcbb-dea0-4990-9a07-8f3be72265ec",
+    "task_id": "92a45e78-b317-444b-ae34-2a4d8e38559b",
+    "workspace_id": "691774b9-4819-4721-b663-3f84d02b941d",
+    "canceled_run_id": "c067128d-fca3-45e9-b396-f77229aa2b62",
+    "duration_seconds": 205.98,
+    "android_instrumentation_seconds": 190.3,
+    "approved_operations": 4,
+    "adapter_version": "0.3.1",
+    "dsh": "0.1.5rc1",
+    "metering": {
+      "calls": 5,
+      "complete": true,
+      "denial_code": "",
+      "held_tokens": 7873,
+      "usage": {
+        "cache_read_tokens": 5504,
+        "cache_write_tokens": 0,
+        "input_tokens": 1196,
+        "output_tokens": 1173
+      }
+    },
+    "original_unchanged": true,
+    "no_automatic_body_upload": true,
+    "phone_SHA_preview_verified": true
+  },
+  "installer": {
+    "fixture_app_id": "online.we-meet.desktop.workacceptance",
+    "fixture_name": "We-Meet Work Acceptance",
+    "same_product_code": true,
+    "distinct_metadata_and_no_protocols": true,
+    "install_exit": 0,
+    "upgrade_exit": 0,
+    "rollback_exit": 0,
+    "uninstall": {
+      "passed": true,
+      "exit_code": 0,
+      "fixture_app_id": "online.we-meet.desktop.workacceptance",
+      "original_install_unchanged": null,
+      "program_removed": true,
+      "isolated_state_retained": true,
+      "baseline_note": "No uninstall registry entries matching exact We-Meet were found; no before snapshot was produced. Isolation is by a distinct fixture appId/name and no login protocol registration."
+    },
+    "signed_runtime_test": {
+      "passed": true,
+      "installed": "D:\\workspace\\jusi-meet\\we-meet\\.work-acceptance\\work-cross-device-20261007\\installed",
+      "checks": [
+        "installed-payload-inventory",
+        "native-ready-and-grant-without-system-Python-or-Node-in-PATH",
+        "signed-full-payload-switch",
+        "tamper-blocks-launch",
+        "verified-native-rollback"
+      ],
+      "initial_version": "0.3.1",
+      "test_version": "0.3.2-test.1",
+      "limitation": "Windows host already has development tools. PATH was restricted for the actual native child. Signed fixture reuses the same binary under a test manifest version; no production signing key."
+    },
+    "startup_receipts": [
+      "installed-0.4.0-delivery.1.json",
+      "installed-0.4.0-delivery.2.json",
+      "installed-rollback.json"
+    ],
+    "upgrade_version_note": "NSIS upgrade fixture changes package version only, not application code"
+  },
+  "artifacts": {
+    "production_candidate_installer_sha256": "a6aa971ab93dedb215843000b46a881801e2d2a98bd59c6d4bf815626caa36a0",
+    "normal_android_application_id": "com.we.meet",
+    "normal_android_version": "0.3.0-work.1",
+    "normal_android_sha256": "a2d7b2ba0d637d6d0f90b71ce0063b1bf34c344171d856bbff4a4d8bbe5c5c73"
+  },
+  "verification": {
+    "related_backend_tests": "11 passed, 1 opt-in skipped",
+    "joint_real_model_test": "1 passed",
+    "Android_fixture_package_removed": true,
+    "reverse_port_removed": true,
+    "screenshots_visually_checked": true,
+    "native_signing_test_keys": "memory-only fixture; not product roots"
+  },
+  "limitations": [
+    "Preloaded isolated authentication; no actual OTP/OIDC login or real user account acceptance",
+    "Native directory/key selection and confirmation responses controlled by harness; tool arguments manually inspected before individual approval",
+    "Existing Windows development host; no pristine Windows VM or SmartScreen downloaded-file acceptance",
+    "Installer is isolated derivative with different appId/name and no login protocol; original product installer not installed",
+    "Signed runtime fixture reuses 0.3.1 binaries with a test manifest version; no product keys configured",
+    "NSIS upgrade fixture changes version metadata only",
+    "No exact-name original We-Meet uninstall entries were found, so there is no original-install snapshot comparison proof",
+    "No iOS, store publishing, production flag activation or Windows formal signature"
+  ]
+}

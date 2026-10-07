@@ -15,7 +15,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import runs, services
+from . import agent_runs, runs, services
 from .models import WorkMaterial
 from .upload import BoundedMaterialUpload
 
@@ -67,13 +67,29 @@ class CapabilitiesView(APIView):
                 "enabled": settings.WORK_ENABLED,
                 "materials_enabled": settings.WORK_ENABLED
                 and settings.WORK_MATERIALS_ENABLED,
-                "formats": [".txt", ".md", ".markdown", ".pdf", ".docx"],
+                "formats": [".txt", ".md", ".markdown", ".csv", ".pdf", ".docx"],
                 "max_file_bytes": services.MAX_FILE_BYTES,
                 "max_owner_bytes": services.MAX_OWNER_BYTES,
                 "max_owner_files": services.MAX_OWNER_FILES,
                 "max_batch_files": 10,
                 "max_batch_bytes": 30 * 1024 * 1024,
-                "skills": ["communication"] if runs.enabled() else [],
+                "skills": (["communication"] if runs.enabled() else [])
+                + (["office_agent"] if agent_runs.enabled() else []),
+                "agent_enabled": agent_runs.enabled(),
+                "local_agent_enabled": bool(
+                    settings.WORK_ENABLED and settings.WORK_LOCAL_AGENT_ENABLED
+                ),
+                "coordination_contract": "work-device/v1",
+                "remote_agent_enabled": bool(
+                    settings.WORK_ENABLED
+                    and settings.WORK_LOCAL_AGENT_ENABLED
+                    and settings.WORK_REMOTE_AGENT_ENABLED
+                ),
+                "agent_model": settings.WORK_AGENT_MODEL
+                if agent_runs.enabled()
+                else "",
+                "agent_max_context_bytes": 400000,
+                "agent_token_budget": settings.WORK_AGENT_TOKEN_BUDGET,
                 "communication_enabled": runs.enabled(),
                 "model": settings.WORK_MODEL if runs.enabled() else "",
                 "daily_token_budget": settings.WORK_DAILY_TOKEN_BUDGET,

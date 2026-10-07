@@ -26,10 +26,18 @@ class SourceInput(serializers.Serializer):
 
 
 class TaskInput(serializers.Serializer):
-    recipient = serializers.CharField(max_length=200)
+    kind = serializers.ChoiceField(
+        choices=["communication", "office_agent"], default="communication"
+    )
+    recipient = serializers.CharField(max_length=200, allow_blank=True, default="")
     goal = serializers.CharField(max_length=2000)
     background = serializers.CharField(max_length=4000, allow_blank=True, default="")
     sources = SourceInput(many=True, min_length=1, max_length=10)
+
+    def validate(self, attrs):
+        if attrs["kind"] == "communication" and not attrs["recipient"]:
+            raise serializers.ValidationError({"recipient": "required"})
+        return attrs
 
     def validate_sources(self, value):
         if len({item["id"] for item in value}) != len(value):
@@ -54,12 +62,30 @@ def run_data(run):
         "output_tokens": run.output_tokens,
         "created_at": run.created_at,
         "finished_at": run.finished_at,
+        "agent_metering": run.agent_metering,
+        "execution_target": run.execution_target,
+        "device_id": str(run.device_id) if run.device_id else None,
+        "workspace_label": run.workspace_label,
+        "workspace_id": str(run.workspace_id) if run.workspace_id else None,
+        "remote_requested": run.remote_requested,
+        "usage_origin": run.usage_origin,
+        "artifact_manifest": run.artifact_manifest,
+        "synced_files": list(run.files.values_list("name", flat=True))
+        if run.execution_target == "local"
+        else [],
+        "agent_deployment": {
+            key: run.agent_deployment.get(key)
+            for key in ("engine", "runtime_version", "adapter_version", "model")
+        }
+        if run.agent_deployment
+        else None,
     }
 
 
 def task_data(task, detail=False):
     data = {
         "id": str(task.pk),
+        "kind": task.kind,
         "recipient": task.recipient,
         "goal": task.goal,
         "created_at": task.created_at,
@@ -101,7 +127,13 @@ class TaskViewSet(viewsets.GenericViewSet):
         return super().handle_exception(exc)
 
     def list(self, request):
-        page = self.paginate_queryset(self.get_queryset())
+        from .local_runs import expire_runs  # noqa: PLC0415
+
+        expire_runs(request.user)
+        query = self.get_queryset()
+        if request.query_params.get("kind"):
+            query = query.filter(kind=request.query_params["kind"])
+        page = self.paginate_queryset(query)
         return self.get_paginated_response([task_data(task) for task in page])
 
     def create(self, request):
@@ -113,6 +145,9 @@ class TaskViewSet(viewsets.GenericViewSet):
         return Response(task_data(task, True), status=201 if created else 200)
 
     def retrieve(self, request, pk=None):
+        from .local_runs import expire_runs  # noqa: PLC0415
+
+        expire_runs(request.user)
         return Response(task_data(self.get_object(), True))
 
     @action(detail=True, methods=["post"])
@@ -130,6 +165,29 @@ class RunViewSet(TaskViewSet):
 
     def get_queryset(self):
         return WorkRun.objects.filter(task__in=runs.visible_tasks(self.request.user))
+
+    @action(detail=True, methods=["get"])
+    def files(self, request, pk=None):
+        run = self.get_object()
+        runs.sources_for(run.task)
+        return Response(list(run.files.values("name", "sha256")))
+
+    @action(detail=True, methods=["get"], url_path="file-download")
+    def file_download(self, request, pk=None):
+        run = self.get_object()
+        runs.sources_for(run.task)
+        item = get_object_or_404(run.files, name=request.query_params.get("name", ""))
+        response = HttpResponse(
+            item.text.encode("utf-8"), content_type="application/octet-stream"
+        )
+        # Gateway validation permits only flat names; RFC 5987 supports Chinese names.
+        from urllib.parse import quote  # noqa: PLC0415 -- download-only helper
+
+        response["Content-Disposition"] = "attachment; filename*=UTF-8''" + quote(
+            item.name
+        )
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
 
     @action(detail=True, methods=["get"])
     def events(self, request, pk=None):
@@ -155,7 +213,9 @@ class RunViewSet(TaskViewSet):
     def cancel(self, request, pk=None):
         with transaction.atomic():
             run = get_object_or_404(self.get_queryset().select_for_update(), pk=pk)
-            if run.status in runs.ACTIVE:
+            if run.status in runs.ACTIVE or (
+                run.execution_target == "local" and run.status == "disconnected"
+            ):
                 runs.terminal(run, "canceled")
         return Response(run_data(run))
 

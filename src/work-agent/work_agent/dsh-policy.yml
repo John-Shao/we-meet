@@ -1,0 +1,9 @@
+# Invocation patch for the pinned sdk-minimal profile. No dynamic plugin install.
+- select: llm-retry
+  disabled: true
+- select: persistent-bash
+  config:
+    timeoutMs: 30000
+- select: persistent-pwsh
+  config:
+    timeoutMs: 30000

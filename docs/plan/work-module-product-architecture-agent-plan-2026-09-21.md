@@ -1,5 +1,19 @@
 # 工作（Work）模块：产品、架构与 Agent 选型方案
 
+2026-10-07 下一阶段实施补充：已补齐统一任务记录 → 客户端原设备领取 → 状态回报 → 用户主动成果同步，使用 `work-device/v1`、桌面 `0.3.0-local-work.2` 和独立适配器 `0.2.0`。设备断线不触发云端接管或自动重跑；本地原文件不自动上传，设备用量只作观测，不作为供应商确认的计费记录。服务端开关默认关闭，尚未部署线上。运行说明见 [任务协调](../../src/work-agent/COORDINATION.md)，证据见 [协调评审](../reviews/work-device-coordination-2026-10-07.md)。此段覆盖下方“云端任务同步后续另行建设”的历史状态。
+
+2026-10-07 客户端本地集成补充：当前工程采用 dsh 优先、Pi 对照。Windows 桌面新工作 / 周报 / 表格分析优先走原生本地目录授权 → 独立适配器 `work-local/v1` → 官方 dsh SDK / cwd；浏览器和桌面的云端材料入口保留 HTTP Agent 路径。业务与适配器均可独立更新。本机历史和模型用量当前存于本地，云端 WorkTask / 组织配额同步后续另行建设。运行说明见 [本地工作空间](../../src/work-agent/LOCAL.md)，证据见 [本地集成评审](../reviews/work-local-agent-2026-10-07.md)。本补充作为当前实施状态，下面保留各版规划与历史决策。
+
+**2026-10-07 动态内核决策更新：用户明确选择先做 dsh PoC、再用 Pi 对照，要求业务系统与
+Agent 松耦合、独立更新。已新增自有 `work-agent/v1` HTTP Job 契约、独立 Agent Gateway
+和按任务隔离的运行镜像；两套引擎均完成 DeepSeek 合成办公样例验证。当前选用 dsh 试点、Pi
+作为可替换对照；已接入 `office_agent` Work API/Outbox、预算用量、授权成果文件和 Web
+新工作/周报/表格分析入口，真实 Work API → dsh → DeepSeek → 用量账本/授权下载验证通过。
+`WORK_AGENT_ENABLED` 默认关闭，本次未发布线上，当前仅验证合成材料。接入与升级规则见
+[PoC 说明](../../src/work-agent/README.md)，实测证据见
+[评审记录](../reviews/work-agent-poc-2026-10-07.md)。此决策覆盖下文历史候选优先顺序；
+不代表已切换线上执行器、完成完整办公 MVP 或通过企业多租户放行。**
+
 日期：2026-09-21 · 更新：2026-09-24 · 修订：v1.27，v6 容器与新业务账本核验通过，进入周报批次 · 状态：backend `d45f7d634` / Helm revision 421，frontend `079db8e1d`；沟通准备本批工程验收完成，下一批 P0-2 周报；单组织试用范围限制、完整办公 MVP 验收和 D0 剩余发布门槛独立跟踪 · 原源码核查基线：we-meet `4c5ca713f`；办公第二批实施基线：`09a7841f9`
 
 v1.20 最新回执：revision 419 的 backend / celery-backend / celery-work / Beat 滚动更新成功。`20260924T062332Z-evaluate-candidate-suVHZQ` 在模型调用前以 `candidate_adapter_mismatch` 退出（0 次调用），不是语义失败。相同执行器源码在本地 Python 3.10.12 与镜像 Python 3.13.5 下生成不同的旧 AST 哈希，已复现这一误报路径；尚未直接确认生产宿主机 Python 版本。指纹改为统一换行后移除提示词 / 版本赋值，对剩余 UTF-8 源码计算哈希，保留其他源码差异的拒绝条件。两个解释器与本地 `30cab9491` 镜像源码的新指纹一致，工具回归 21 项及 Ruff 通过。本次无需重建或发布镜像；服务器拉取工具后执行 `bash deploy/aliyun/accept-work.sh evaluate`，评测已部署 v3 的完整 S01–S20，再审阅并验证新业务闭环。后续未部署的提示词仍先用 `evaluate-candidate`。以下 v1.19 及更早记录保留为历史证据，不能视为 v3 已通过语义验收。
@@ -1285,3 +1299,15 @@ OpenHands 的推荐对象是 Software Agent SDK / Agent Server，其官方定位
 5. Pi 达到要求且接入增量可控，优先采用 Pi；Goose 在任务覆盖与交付速度上显著降低工程量，且固定版本接口满足要求，则选 Goose。无法满足关键边界时继续评估 dsh 或原 LangGraph 方案，不为维持早期建议强行定版。
 
 后续需要动态 Agent 时，候选建议仍是：聚视这类已有产品优先验证 Pi；独立桌面助手可优先验证 Goose；云端开发代理优先验证 OpenHands SDK。此处是历史工程适配判断，不是已证明的任务性能排名，也不构成办公 MVP 的框架前置。
+
+## 20. 2026-10-07 用户确认的执行顺序与当前交付
+
+用户最新决定覆盖第 19 节的候选顺序：先做 dsh PoC，再用 Pi 对照；业务与执行器通过自有版本化协议保持独立更新。PoC 对照、本机工作空间及业务协调的前序证据见 `docs/reviews/work-*-2026-10-07.*`。
+
+本阶段先完善 Windows 自包含运行环境、一键安装、逐次命令/文件修改脚本审批、签名运行环境升级与回退，再新增设备/工作空间登记、Android 远程任务派发、桌面人工领取和手机状态/成果查看。Android 仓库为 `D:\workspace\jusi-meet\we-meet-android`；用户确认暂不开发 iOS。桌面与 Android、后端接口已实现并验证，版本与验收边界见 [交付评审](../reviews/work-delivery-and-android-2026-10-07.md)。
+
+当前 Windows 候选未签名，Android 为 debug 测试包。正式 Windows 签名证书和运行时更新信任根尚未提供，正式发布与签名升级入口均拒绝未配置状态。生产未部署，开关默认关闭；干净 Windows 安装、完整正式发布签名和真实账号 Android→桌面全链路 UI 验收仍需发布准备阶段完成。
+
+### 20.1 后续验收进展
+
+Android 实际联网与 Electron 实际 Work 页面已在同一隔离 Django/PostgreSQL 上完成派发、原 UUID 领取、四次逐项审批、最终 Agent `0.3.1` / DeepSeek 执行、主动同步及手机 SHA-256 预览，另验证手机取消待办。隔离 appId 的 Windows 衍生候选实际安装/升级/回退/卸载及已安装运行环境签名 fixture 验证通过。详见 [跨端验收](../reviews/work-cross-device-acceptance-2026-10-07.md)。真实账号登录、原产品真人选择器、干净 Windows 和正式发布证书仍待完成；生产未部署。

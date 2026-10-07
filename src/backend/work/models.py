@@ -4,6 +4,7 @@ import uuid
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class WorkMaterial(models.Model):
@@ -67,6 +68,7 @@ class WorkTask(models.Model):
         "core.Organization", null=True, on_delete=models.PROTECT
     )
     request_key = models.UUIDField()
+    kind = models.CharField(max_length=20, default="communication")
     recipient = models.CharField(max_length=200)
     goal = models.TextField()
     background = models.TextField(blank=True)
@@ -83,6 +85,35 @@ class WorkTask(models.Model):
 
     def __str__(self):
         return str(self.pk)
+
+
+class WorkDevice(models.Model):
+    """Account-scoped desktop identity; never an OS path or model credential."""
+
+    id = models.UUIDField(primary_key=True, editable=False)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    organization = models.ForeignKey(
+        "core.Organization", null=True, on_delete=models.PROTECT
+    )
+    name = models.CharField(max_length=80)
+    last_seen_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+
+class WorkWorkspace(models.Model):
+    """A desktop's opt-in folder alias. Absolute paths never leave the device."""
+
+    id = models.UUIDField(primary_key=True, editable=False)
+    device = models.ForeignKey(WorkDevice, on_delete=models.PROTECT)
+    label = models.CharField(max_length=120)
+    model = models.CharField(max_length=80)
+    enabled = models.BooleanField(default=False)
+    last_seen_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return self.label
 
 
 class WorkRun(models.Model):
@@ -107,6 +138,21 @@ class WorkRun(models.Model):
     call_started_at = models.DateTimeField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     finished_at = models.DateTimeField(null=True)
+    agent_payload = models.JSONField(default=dict, blank=True)
+    agent_deployment = models.JSONField(default=dict, blank=True)
+    agent_metering = models.JSONField(default=dict, blank=True)
+    agent_done = models.BooleanField(default=False)
+    agent_generation = models.PositiveIntegerField(default=0)
+    execution_target = models.CharField(max_length=16, default="cloud")
+    device = models.ForeignKey(WorkDevice, null=True, on_delete=models.PROTECT)
+    workspace = models.ForeignKey(WorkWorkspace, null=True, on_delete=models.PROTECT)
+    remote_requested = models.BooleanField(default=False)
+    workspace_label = models.CharField(max_length=120, blank=True)
+    local_claimed = models.BooleanField(default=False)
+    local_report_seq = models.PositiveIntegerField(default=0)
+    local_report_hash = models.CharField(max_length=64, blank=True)
+    artifact_manifest = models.JSONField(default=list, blank=True)
+    usage_origin = models.CharField(max_length=24, default="provider")
 
     class Meta:
         ordering = ["created_at", "id"]
@@ -162,3 +208,21 @@ class WorkArtifactVersion(models.Model):
 
     def __str__(self):
         return f"{self.run_id}:v{self.version}"
+
+
+class WorkArtifactFile(models.Model):
+    """Immutable generated files, accessible only through authorized Work APIs."""
+
+    run = models.ForeignKey(WorkRun, related_name="files", on_delete=models.PROTECT)
+    name = models.CharField(max_length=120)
+    text = models.TextField()
+    sha256 = models.CharField(max_length=64)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["run", "name"], name="work_run_file")
+        ]
+
+    def __str__(self):
+        return self.name

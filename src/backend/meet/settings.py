@@ -950,6 +950,15 @@ class Base(Configuration):
     WORK_ENABLED = values.BooleanValue(False, environ_prefix=None)
     WORK_MATERIALS_ENABLED = values.BooleanValue(False, environ_prefix=None)
     WORK_COMMUNICATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    WORK_AGENT_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    WORK_LOCAL_AGENT_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    WORK_REMOTE_AGENT_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    WORK_AGENT_URL = values.Value("", environ_prefix=None)
+    WORK_AGENT_TOKEN = SecretFileValue(None, environ_prefix=None)
+    WORK_AGENT_MODEL = values.Value("deepseek-flash", environ_prefix=None)
+    WORK_AGENT_TIMEOUT = values.PositiveIntegerValue(180, environ_prefix=None)
+    WORK_AGENT_MAX_CALLS = values.PositiveIntegerValue(6, environ_prefix=None)
+    WORK_AGENT_TOKEN_BUDGET = values.PositiveIntegerValue(80000, environ_prefix=None)
     WORK_MODEL = values.Value("", environ_prefix=None)
     WORK_MODEL_BASE_URL = values.Value("", environ_prefix=None)
     WORK_MODEL_API_KEY = SecretFileValue(None, environ_prefix=None)
@@ -964,6 +973,10 @@ class Base(Configuration):
             "task": "work.tasks.tick_runs",
             "schedule": 5.0,
             "options": {"queue": "work", "expires": 30},
+        },
+        "tick-work-agent-runs": {
+            "task": "work.tasks.tick_agent_runs",
+            "schedule": 5.0,
         },
         "tick-work-materials": {
             "task": "work.tasks.tick_materials",

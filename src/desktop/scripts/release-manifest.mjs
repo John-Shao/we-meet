@@ -13,16 +13,20 @@ const digest = async target => {
   return hash.digest('hex')
 }
 const artifact = path.join(root, 'release', file)
+const signature = JSON.parse(execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '$s = Get-AuthenticodeSignature -LiteralPath $env:WEMEET_RELEASE_ARTIFACT; @{ status = [string]$s.Status; thumbprint = $s.SignerCertificate.Thumbprint } | ConvertTo-Json -Compress'], { encoding: 'utf8', windowsHide: true, env: { ...process.env, WEMEET_RELEASE_ARTIFACT: artifact } }).trim())
+if (process.argv.includes('--formal') && signature.status !== 'Valid') throw new Error('Formal release installer Authenticode verification failed')
 const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim()
 const manifest = {
   version: pkg.version, file, bytes: (await stat(artifact)).size, sha256: await digest(artifact),
+  signature,
+  bundledRuntime: JSON.parse(await readFile(path.join(root, 'dist/bundled-runtime.json'), 'utf8')),
   packagedAsarSha256: await digest(path.join(root, 'release/win-unpacked/resources/app.asar')),
   desktopLockSha256: await digest(path.join(root, 'package-lock.json')),
   frontendLockSha256: await digest(path.join(root, '../frontend/package-lock.json')),
   sourceRevision: git(['rev-parse', 'HEAD']), workingTreeDirty: !!git(['status', '--porcelain']),
   electron: pkg.devDependencies.electron, builder: pkg.devDependencies['electron-builder'],
   runtimeConfig: JSON.parse(await readFile(path.join(root, 'dist/runtime-config.json'), 'utf8')),
-  builtAt: new Date().toISOString(), intendedUse: 'Internal D0 acceptance; signing and acceptance are separate checks',
+  builtAt: new Date().toISOString(), intendedUse: process.argv.includes('--formal') ? 'Signed release' : 'Internal acceptance; unsigned installers are not formal releases',
 }
 await writeFile(path.join(root, 'release', `We-Meet-${pkg.version}-manifest.json`), JSON.stringify(manifest, null, 2) + '\n')
 console.log(`${file} SHA256 ${manifest.sha256}; dirty source tree: ${manifest.workingTreeDirty}`)

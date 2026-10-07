@@ -1,5 +1,16 @@
 # Work 办公模块
 
+2026-10-07 增加桌面本地工作空间及服务端任务协调。`work-device/v1` 将本机执行登记为统一 WorkTask / WorkRun，支持原设备领取、连续序号状态回报和用户选定成果主动同步。`work.0004` 增加设备及协调字段，`WORK_LOCAL_AGENT_ENABLED` 默认关闭；本轮未部署线上。设备回报用量标记 `device_reported`，不写供应商计费记录。详见 [协调说明](../../work-agent/COORDINATION.md) 和 [本轮评审](../../../docs/reviews/work-device-coordination-2026-10-07.md)。本机 dsh 经独立适配器与 `work-local/v1` stdio 直接读写授权文件夹，见 [本地集成说明](../../work-agent/LOCAL.md)。
+
+2026-10-07 完成 dsh 优先、Pi 对照的独立 Agent 集成验证。`office_agent` 任务通过自有
+`work-agent/v1` HTTP 契约接入独立 Gateway，新增材料快照、短周期 Outbox、取消对账、
+模型预算和用量、不可变文件下载，并接入 Web 新工作/周报/表格分析入口。
+业务无 dsh/Pi SDK 依赖；运行、启用、独立升级和回滚见
+[Work Agent 集成](../../work-agent/README.md)，证据见
+[验证记录](../../../docs/reviews/work-agent-poc-2026-10-07.md)。
+新开关 `WORK_AGENT_ENABLED` 默认关闭，本次未发布线上，当前只验证合成材料。
+以下材料与原沟通准备的历史发布状态继续有效。
+
 当前实现私人材料上传与沟通准备：上传 → 解析预览 → 选择版本和沟通目标 → 后台生成 → 引用核对 → 编辑、采纳和 Markdown 下载。支持 TXT / Markdown、文本型 PDF 和受限 DOCX。**2026-09-24 已发布 backend `d45f7d634` / Helm revision 421，Work 运行检查通过；前端二级导航 `079db8e1d` 的 11 个入口已在线确认。v6 固定 20 条契约 / 语义审阅及新 Web 业务生成、编辑、采纳、下载、刷新通过；容器提示词与本次唯一用量记录核验亦通过，沟通准备本批工程验收完成。单组织试用范围限制与 D0 剩余发布门槛独立跟踪。** 下一批为周报，随后表格分析。产品范围统一维护在 [Work 计划](../../../docs/plan/work-module-product-architecture-agent-plan-2026-09-21.md)。
 
 ## 启用与运行
@@ -271,3 +282,26 @@ python manage.py makemigrations work --check --dry-run
 ```
 
 前端测试为 `src/features/work/routes/{WorkRoute,Communication}.test.tsx`。本地浏览器证据保留在 gitignored 的 `src/desktop/test-results/work-ui-local.json`、`work-communication-ui.json` 及对应截图；测试会话、合成文件和模型 fixture 服务均不提交。
+
+## Android → 桌面远程请求（2026-10-07）
+
+仅接入 Android，不开发 iOS。新增 `WorkWorkspace` 和 `WorkRun.workspace / remote_requested`，迁移为 `0005_workrun_remote_requested_workworkspace_and_more`。先执行项目既有数据库迁移流程，再配置 `WORK_ENABLED=true`、`WORK_LOCAL_AGENT_ENABLED=true`、`WORK_REMOTE_AGENT_ENABLED=true`、`WORK_AGENT_MODEL=deepseek-flash`；全部新增执行开关默认关闭。无需为桌面任务开启服务端 Agent Gateway；云端执行沿用独立开关。生产迁移和启用未执行。
+
+端点均使用已有账号认证、当前组织隔离和 `work-device/v1`：
+
+| 方法与路径（`/api/v1.0/work/` 下） | 用途 |
+| --- | --- |
+| GET / POST `local/workspaces/` | 同账号工作空间元数据列表 / 原设备登记或撤销；没有绝对路径和文件正文 |
+| POST `local/remote-tasks/` | 固定 `run_id`、`workspace_id`、`goal` 创建桌面待办；同 UUID 重试返回原任务，变更目标冲突 |
+| POST `local/inbox/` | 原设备用本次授权的工作空间 UUID 轮询待办并更新在线状态；不领取、不下发执行票据 |
+| POST `local/runs/<uuid>/claim/` | 桌面人工审阅领取后才获取票据，绑定原设备与已启用工作空间 |
+
+Android 复用既有任务列表、详情、取消、成果列表及下载接口。只有桌面主动选中并同步的受限 UTF-8 成果可以在手机预览；未同步的本机文件仍只在桌面。设备在线状态按 30 秒内当前工作空间心跳判断，执行租约沿用 90 秒；断线不移交云端，也不自动重跑。撤销工作空间会取消其未结束远程任务，离线执行器要恢复联络才能收到取消。
+
+用户账号和当前组织同时限制设备、工作空间、任务和成果，当前不支持跨账号设备共享。目标文字、目录显示名和设备名会进入业务元数据，输入这些字段时不要包含不必要的敏感正文。设备回报用量仅用于观测，不写入供应商计费记录。验证范围见 [交付评审](../../../docs/reviews/work-delivery-and-android-2026-10-07.md)。
+
+### 两端实际 HTTP/界面联合验收
+
+新增 `work/tests/test_cross_device_live.py`，只有 `WORK_CROSS_DEVICE_LIVE=1` 才执行真实付费模型调用；需要 `WORK_COORDINATION_LIVE_KEY_FILE` 指向本机密钥文件，`WORK_CROSS_DEVICE_SERIAL` 默认 `emulator-5556`，`WORK_CROSS_DEVICE_OUTPUT` 指向新的本机验收目录。Android 预先构建独立 `.fixturework` / `IsolatedRecordsRunner` 测试包，loopback URL 固定 `http://127.0.0.1:48761`；该端口与 adb reverse 必须未被其他任务使用。测试桥只在本机识别隔离 bearer，真实 Work 视图及数据库参与，不视为实际登录。
+
+测试会自动安装/卸载独立 Android fixture，启动独立 Electron profile，手机真实联网派发与取消，桌面领取/逐项审阅命令后生成并同步，手机校验正文。审批不自动放行；运行期间检查指定目录中的 `pending-approval.json`，确认本次命令后提供 ID / SHA-256 决策。不要在生产数据库运行 Test 配置。最新证据见 [联合验收](../../../docs/reviews/work-cross-device-acceptance-2026-10-07.md)。

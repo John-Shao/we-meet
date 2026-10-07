@@ -1,0 +1,207 @@
+{
+  "date": "2026-10-07",
+  "contract": "work-local/v1",
+  "execution": "client-local",
+  "workspace_is_sandbox": false,
+  "tests": {
+    "agent": {
+      "passed": 32,
+      "opt_in_skipped": 4
+    },
+    "desktop": {
+      "passed": 15
+    },
+    "frontend_work_routes": {
+      "passed": 21
+    },
+    "python_native_deepseek": {
+      "run_id": "78717b93-6af1-4c55-a195-3ccc3b3b28f8",
+      "state": "succeeded",
+      "deployment": {
+        "contract": "work-local/v1",
+        "adapter_version": "0.1.0",
+        "engine": "dsh",
+        "runtime_version": "0.1.5rc1",
+        "execution": "local",
+        "model": "deepseek-flash",
+        "ready": true,
+        "limits": {
+          "max_model_calls": 6,
+          "max_total_tokens": 80000,
+          "max_output_tokens": 4096
+        },
+        "workspace_is_sandbox": false
+      },
+      "elapsed_ms": 38821,
+      "wall_ms": 39232,
+      "metering": {
+        "calls": 4,
+        "complete": true,
+        "usage": {
+          "input_tokens": 912,
+          "output_tokens": 2572,
+          "cache_read_tokens": 5760,
+          "cache_write_tokens": 0
+        },
+        "held_tokens": 9244,
+        "denial_code": ""
+      },
+      "artifacts": [
+        {
+          "name": "report.md",
+          "sha256": "35efd06a895d9f6ddadb81bdd5ecc957232c40f8ed592452cf55b785785dd5aa",
+          "utf8_bytes": 1062
+        },
+        {
+          "name": "totals.json",
+          "sha256": "017f16cde4a9305e2e55ff79f485764d02001d5adacbf1dab8aeea3af4378df3",
+          "utf8_bytes": 43
+        }
+      ],
+      "checks": {
+        "native_workspace_read": true,
+        "original_preserved": true,
+        "totals": true
+      }
+    },
+    "main_stdio_native_deepseek": {
+      "run_id": "d0c46e14-68b3-433a-a37a-c30670b3ccf3",
+      "state": "succeeded",
+      "deployment": {
+        "adapter_version": "0.1.0",
+        "contract": "work-local/v1",
+        "engine": "dsh",
+        "execution": "local",
+        "limits": {
+          "max_model_calls": 6,
+          "max_output_tokens": 4096,
+          "max_total_tokens": 80000
+        },
+        "model": "deepseek-flash",
+        "ready": true,
+        "runtime_version": "0.1.5rc1",
+        "workspace_is_sandbox": false
+      },
+      "elapsed_ms": 30330,
+      "wall_ms": 30788,
+      "metering": {
+        "calls": 6,
+        "complete": true,
+        "denial_code": "",
+        "held_tokens": 8519,
+        "usage": {
+          "cache_read_tokens": 6144,
+          "cache_write_tokens": 0,
+          "input_tokens": 1271,
+          "output_tokens": 1104
+        }
+      },
+      "artifacts": [
+        {
+          "name": "report.md",
+          "sha256": "c10b35347d9655d761c34734c754e93564c087783ba1d82a659a93243cf8bac8",
+          "utf8_bytes": 34
+        }
+      ],
+      "checks": []
+    },
+    "electron_native_deepseek": {
+      "run_id": "8c76bfe1-a4c0-48a6-a09c-925f6f37b826",
+      "state": "succeeded",
+      "deployment": {
+        "adapter_version": "0.1.0",
+        "contract": "work-local/v1",
+        "engine": "dsh",
+        "execution": "local",
+        "limits": {
+          "max_model_calls": 6,
+          "max_output_tokens": 4096,
+          "max_total_tokens": 80000
+        },
+        "model": "deepseek-flash",
+        "ready": true,
+        "runtime_version": "0.1.5rc1",
+        "workspace_is_sandbox": false
+      },
+      "elapsed_ms": 28365,
+      "wall_ms": null,
+      "metering": {
+        "calls": 5,
+        "complete": true,
+        "denial_code": "",
+        "held_tokens": 8736,
+        "usage": {
+          "cache_read_tokens": 6016,
+          "cache_write_tokens": 0,
+          "input_tokens": 1231,
+          "output_tokens": 1489
+        }
+      },
+      "artifacts": [
+        {
+          "name": "report.md",
+          "sha256": "9e57663f6d7a2996d3d303fa8b8b3952fddc4f262dd0d3f3c3f762167c87f26c",
+          "utf8_bytes": 27
+        }
+      ],
+      "checks": [
+        "real-renderer-native-config",
+        "native-folder-grant",
+        "real-dsh-file-read",
+        "local-deliverable",
+        "metered-DeepSeek",
+        "native-open-confined-file",
+        "cancel-before-admission",
+        "cancel-running-native-task",
+        "raw-path-request-rejected",
+        "logout-rejects-local-access",
+        "account-B-has-no-account-A-configuration"
+      ]
+    }
+  },
+  "artifacts": {
+    "desktop": {
+      "version": "0.3.0-local-work.1",
+      "file": "We-Meet-0.3.0-local-work.1-setup.exe",
+      "bytes": 127643135,
+      "sha256": "878693e06caf01db4aafeb1d3387c14c001f3938ba52170dc538baaf7e1c9b48",
+      "packagedAsarSha256": "17ab05c7e02f425d0d53994d83745189b44b5ef95de033c324fe18a67ee6a066",
+      "desktopLockSha256": "9a75c327afc69c26d8f96b29d095260dde1ad783bbefc4a3ce04e2b5b8e09b46",
+      "frontendLockSha256": "dd6597dbfc8514dbaaaa76f4d12280a6c16256d6b3a2a8c55f735d1a7a513338",
+      "sourceRevision": "209b8e491c42260247126b6ce1392a7825b1cb41",
+      "workingTreeDirty": true,
+      "electron": "44.4.3",
+      "builder": "26.15.3",
+      "runtimeConfig": {
+        "serviceOrigin": "https://meet.we-meet.online",
+        "issuer": "https://id.we-meet.online/realms/meet",
+        "clientId": "desktop",
+        "renderer": {
+          "serviceOrigin": "https://meet.we-meet.online",
+          "imBaseUrl": "https://im.we-meet.online",
+          "appTitle": "We-Meet"
+        }
+      },
+      "builtAt": "2026-10-06T22:41:37.770Z",
+      "intendedUse": "Internal D0 acceptance; signing and acceptance are separate checks"
+    },
+    "adapter": {
+      "file": ".work-acceptance/local-work-20261007/artifacts/we_meet_work_agent-0.1.0-py3-none-any.whl",
+      "bytes": 28513,
+      "sha256": "b9a97b7fe0f2e12dc02b0807e76c8a9045f4f5ee77cfd86f1d4fac33dd96d0e4",
+      "editable": false,
+      "locked_dependency_install_verified": true
+    }
+  },
+  "limitations": [
+    "Local job and usage history are not synchronized to the cloud business ledger.",
+    "Windows x64 and Python 3.13 validated; no OS workspace sandbox.",
+    "Electron acceptance used synthetic business identity and runner-selected native dialogs; shell.openPath was intercepted.",
+    "Installer built, unsigned, not installed over the existing desktop.",
+    "No attachment to existing native dsh UI sessions.",
+    "Pi local execution is not part of this dsh integration."
+  ],
+  "signature": "NotSigned",
+  "installed": false,
+  "production_deployed": false
+}

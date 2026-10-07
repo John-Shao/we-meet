@@ -1,0 +1,993 @@
+{
+  "date": "2026-10-07",
+  "timezone": "Asia/Shanghai",
+  "model": "deepseek-flash",
+  "dsh_source_reference": "5badb15009ae1756c3afe0ae0cef1faafc290ccc",
+  "selected_runs": [
+    {
+      "evidence_path": ".work-acceptance/agent-poc-20261007-r1/dsh/evaluation.json",
+      "record": {
+        "case": "weekly-report",
+        "input_sha256": "d0775ec2816fc67da7ec0fca3645b488405d2dbcfade98c50a1fbe76cc1da854",
+        "wall_ms": 27717,
+        "capabilities": {
+          "contract": "work-agent/v1",
+          "adapter_version": "0.1.0",
+          "engine": "dsh",
+          "runtime_version": "0.1.5rc1",
+          "model": "deepseek-flash",
+          "base_url": "https://api.deepseek.com",
+          "image": "sha256:9d7d27a2beda326134eb54dd5307790a6f5e3128576307fdd5c8a4507ced7b69",
+          "execution": "docker",
+          "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+          "features": [
+            "submit",
+            "poll",
+            "cancel",
+            "idempotency",
+            "artifacts"
+          ],
+          "limitations": [
+            "no_resume",
+            "no_business_tools",
+            "usage_may_be_unknown",
+            "no_cumulative_token_budget",
+            "synthetic_materials_only"
+          ]
+        },
+        "job": {
+          "contract": "work-agent/v1",
+          "run_id": "fbb867dc-951b-41e1-ad86-1c6b48ad4240",
+          "state": "succeeded",
+          "deployment": {
+            "contract": "work-agent/v1",
+            "adapter_version": "0.1.0",
+            "engine": "dsh",
+            "runtime_version": "0.1.5rc1",
+            "model": "deepseek-flash",
+            "base_url": "https://api.deepseek.com",
+            "image": "sha256:9d7d27a2beda326134eb54dd5307790a6f5e3128576307fdd5c8a4507ced7b69",
+            "execution": "docker",
+            "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+            "features": [
+              "submit",
+              "poll",
+              "cancel",
+              "idempotency",
+              "artifacts"
+            ],
+            "limitations": [
+              "no_resume",
+              "no_business_tools",
+              "usage_may_be_unknown",
+              "no_cumulative_token_budget",
+              "synthetic_materials_only"
+            ]
+          },
+          "error_code": "",
+          "result": {
+            "artifacts": [
+              {
+                "name": "weekly.md",
+                "sha256": "eafc5716f8122dba5ec668506ab484bb4e9070537e4ce47f1964e3a1e4db0647",
+                "text": "# 客户门户项目周报\n\n## 进展\n- 2026-10-05：登录页面开发完成，尚未验收。（来源：progress.md）\n- 2026-10-06：导出功能仍在开发中，负责人为李明。（来源：progress.md）\n\n## 风险\n- 导出接口权限方案待审批，材料未说明审批完成时间。（来源：risks.md）\n- 未确定上线日期，材料未提供相关日期，因此不列具体上线时间。（来源：risks.md）\n\n## 下周计划\n- 联调导出功能；该事项为下周计划，不是已完成事项。（来源：risks.md）\n\n## 状态说明\n- 登录页面：开发完成，未验收。\n- 导出功能：开发中。\n- 导出接口权限方案：待审批。\n- 上线日期：未确定/材料未提供。\n"
+              }
+            ],
+            "elapsed_ms": 26519,
+            "summary": "已生成 `output/weekly.md`，包含进展、风险、下周计划，并引用 `progress.md`、`risks.md`。已保留“未验收”“待审批”状态，未编造上线日期。",
+            "usage": null,
+            "execution": {
+              "contract": "work-agent/v1",
+              "adapter_version": "0.1.0",
+              "engine": "dsh",
+              "runtime_version": "0.1.5rc1",
+              "model": "deepseek-flash",
+              "base_url": "https://api.deepseek.com",
+              "image": "sha256:9d7d27a2beda326134eb54dd5307790a6f5e3128576307fdd5c8a4507ced7b69",
+              "execution": "docker",
+              "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+              "features": [
+                "submit",
+                "poll",
+                "cancel",
+                "idempotency",
+                "artifacts"
+              ],
+              "limitations": [
+                "no_resume",
+                "no_business_tools",
+                "usage_may_be_unknown",
+                "no_cumulative_token_budget",
+                "synthetic_materials_only"
+              ]
+            }
+          },
+          "events": [
+            {
+              "seq": 1,
+              "type": "queued",
+              "created": 1791308621.852773
+            },
+            {
+              "seq": 2,
+              "type": "running",
+              "created": 1791308621.912929
+            },
+            {
+              "seq": 3,
+              "type": "succeeded",
+              "created": 1791308649.530229
+            }
+          ]
+        },
+        "checks": {
+          "artifact_present": true,
+          "deterministic_check": null
+        },
+        "semantic_review": "pending"
+      },
+      "independent_review": {
+        "status": "passed",
+        "basis": "Status qualifiers and source names preserved; no invented launch date.",
+        "scope": "Only this synthetic example; not business acceptance."
+      }
+    },
+    {
+      "evidence_path": ".work-acceptance/agent-poc-20261007-r3/pi/evaluation.json",
+      "record": {
+        "case": "weekly-report",
+        "input_sha256": "d0775ec2816fc67da7ec0fca3645b488405d2dbcfade98c50a1fbe76cc1da854",
+        "wall_ms": 5650,
+        "capabilities": {
+          "contract": "work-agent/v1",
+          "adapter_version": "0.1.0",
+          "engine": "pi",
+          "runtime_version": "1.0.4",
+          "model": "deepseek-flash",
+          "base_url": "https://api.deepseek.com",
+          "image": "sha256:51921b8e7431782e83ca56e28bc11ece7d67725f4ba2d82536356c17035c087c",
+          "execution": "docker",
+          "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+          "features": [
+            "submit",
+            "poll",
+            "cancel",
+            "idempotency",
+            "artifacts"
+          ],
+          "limitations": [
+            "no_resume",
+            "no_business_tools",
+            "usage_may_be_unknown",
+            "no_cumulative_token_budget",
+            "synthetic_materials_only"
+          ]
+        },
+        "job": {
+          "contract": "work-agent/v1",
+          "run_id": "64cf011e-a7bc-443e-adb4-a9e0d9abe01f",
+          "state": "succeeded",
+          "deployment": {
+            "contract": "work-agent/v1",
+            "adapter_version": "0.1.0",
+            "engine": "pi",
+            "runtime_version": "1.0.4",
+            "model": "deepseek-flash",
+            "base_url": "https://api.deepseek.com",
+            "image": "sha256:51921b8e7431782e83ca56e28bc11ece7d67725f4ba2d82536356c17035c087c",
+            "execution": "docker",
+            "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+            "features": [
+              "submit",
+              "poll",
+              "cancel",
+              "idempotency",
+              "artifacts"
+            ],
+            "limitations": [
+              "no_resume",
+              "no_business_tools",
+              "usage_may_be_unknown",
+              "no_cumulative_token_budget",
+              "synthetic_materials_only"
+            ]
+          },
+          "error_code": "",
+          "result": {
+            "artifacts": [
+              {
+                "name": "weekly.md",
+                "sha256": "4d14a508269310431bfdb868ed69bed6c8f9b232950d859c6160994f22cd4a16",
+                "text": "# 客户门户 项目周报\n\n> 依据材料：`progress.md`、`risks.md`\n> 说明：本报告仅整理上述材料内容；材料未提供的事实不作推断。\n\n## 一、本周进展\n\n- 登录页面开发完成，**尚未验收**。（来源：`progress.md`，2026-10-05）\n- 导出功能仍在开发中，负责人为李明。（来源：`progress.md`，2026-10-06）\n\n## 二、风险与待办状态\n\n- 导出接口权限方案**待审批**，目前没有确定上线日期。（来源：`risks.md`）\n- 导出功能开发尚未完成，需关注权限方案审批进度对后续工作的影响。（来源：`progress.md`、`risks.md`）\n\n## 三、下周计划\n\n- 联调导出功能。该事项为计划事项，**不是已完成事项**。（来源：`risks.md`）\n\n## 四、待确认事项\n\n- 登录页面的验收时间与验收结果：材料中未提供。\n- 导出接口权限方案的审批时间与审批结果：材料中未提供。\n- 导出功能的上线日期：材料中明确“没有确定上线日期”，故不填写具体日期。\n"
+              }
+            ],
+            "elapsed_ms": 4713,
+            "summary": "已生成 `output/weekly.md`。\n\n**摘要：**\n- **进展**：登录页面开发完成（未验收）；导出功能开发中（负责人李明）。\n- **风险**：导出接口权限方案待审批，无确定上线日期。\n- **下周计划**：联调导出功能（明确为计划、非已完成）。\n- 已引用 `progress.md`、`risks.md`，保留未验收/待审批状态，未编造上线日期；缺失的验收与审批时间已列入待确认事项。",
+            "usage": {
+              "cache_read_tokens": 4224,
+              "cache_write_tokens": 0,
+              "input_tokens": 2367,
+              "output_tokens": 596
+            },
+            "execution": {
+              "contract": "work-agent/v1",
+              "adapter_version": "0.1.0",
+              "engine": "pi",
+              "runtime_version": "1.0.4",
+              "model": "deepseek-flash",
+              "base_url": "https://api.deepseek.com",
+              "image": "sha256:51921b8e7431782e83ca56e28bc11ece7d67725f4ba2d82536356c17035c087c",
+              "execution": "docker",
+              "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+              "features": [
+                "submit",
+                "poll",
+                "cancel",
+                "idempotency",
+                "artifacts"
+              ],
+              "limitations": [
+                "no_resume",
+                "no_business_tools",
+                "usage_may_be_unknown",
+                "no_cumulative_token_budget",
+                "synthetic_materials_only"
+              ]
+            }
+          },
+          "events": [
+            {
+              "seq": 1,
+              "type": "queued",
+              "created": 1791308879.3383813
+            },
+            {
+              "seq": 2,
+              "type": "running",
+              "created": 1791308879.3986762
+            },
+            {
+              "seq": 3,
+              "type": "succeeded",
+              "created": 1791308884.9129882
+            }
+          ]
+        },
+        "checks": {
+          "artifact_present": true,
+          "deterministic_check": null
+        },
+        "semantic_review": "pending"
+      },
+      "independent_review": {
+        "status": "passed",
+        "basis": "Status qualifiers and source names preserved; no invented launch date.",
+        "scope": "Only this synthetic example; not business acceptance."
+      }
+    },
+    {
+      "evidence_path": ".work-acceptance/agent-poc-20261007-r4/dsh/evaluation.json",
+      "record": {
+        "case": "csv-analysis",
+        "input_sha256": "14e8a839d62e4ae766d505ad260f7f3c16d5d7b4abad0934368c96f35f18bfd5",
+        "wall_ms": 27418,
+        "capabilities": {
+          "contract": "work-agent/v1",
+          "adapter_version": "0.1.0",
+          "engine": "dsh",
+          "runtime_version": "0.1.5rc1",
+          "model": "deepseek-flash",
+          "base_url": "https://api.deepseek.com",
+          "image": "sha256:bbe70a29262ed726d4e025d3bf31832f75a438437fc560ce33642853cd10e504",
+          "execution": "docker",
+          "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+          "features": [
+            "submit",
+            "poll",
+            "cancel",
+            "idempotency",
+            "artifacts"
+          ],
+          "limitations": [
+            "no_resume",
+            "no_business_tools",
+            "usage_may_be_unknown",
+            "no_cumulative_token_budget",
+            "synthetic_materials_only"
+          ]
+        },
+        "job": {
+          "contract": "work-agent/v1",
+          "run_id": "73fef9b1-c482-4e52-be9f-1d234445c4c9",
+          "state": "succeeded",
+          "deployment": {
+            "contract": "work-agent/v1",
+            "adapter_version": "0.1.0",
+            "engine": "dsh",
+            "runtime_version": "0.1.5rc1",
+            "model": "deepseek-flash",
+            "base_url": "https://api.deepseek.com",
+            "image": "sha256:bbe70a29262ed726d4e025d3bf31832f75a438437fc560ce33642853cd10e504",
+            "execution": "docker",
+            "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+            "features": [
+              "submit",
+              "poll",
+              "cancel",
+              "idempotency",
+              "artifacts"
+            ],
+            "limitations": [
+              "no_resume",
+              "no_business_tools",
+              "usage_may_be_unknown",
+              "no_cumulative_token_budget",
+              "synthetic_materials_only"
+            ]
+          },
+          "error_code": "",
+          "result": {
+            "artifacts": [
+              {
+                "name": "analysis.md",
+                "sha256": "459fd000e38a4886d03cd26c8489b37b5e3d9ccb1212dcd03546caf64f17313d",
+                "text": "# sales.csv 分析说明\n\n## 数据范围\n- 数据来源：提供的 `sales.csv`。\n- 共 5 条记录，订单号为 A1、A2、A1、A3、A4。\n\n## 去重口径\n- 以 `order_id` 为唯一键去重。\n- A1 出现两次，两条记录的 `region`、`amount`、`status` 完全一致，因此保留一条，金额只计一次。\n- 未发现同一 `order_id` 对应不同地区、金额或状态的冲突记录。\n\n## 筛选口径\n- 仅统计 `status` 为 `paid` 的订单。\n- 被排除的记录：\n  - A3：`refunded`，不计入。\n  - A4：`pending`，不计入。\n\n## 汇总结果\n去重并筛选后，参与统计的订单为：\n- A1：华东，100\n- A2：华南，200\n\n按地区合计：\n- 华东：100\n- 华南：200\n\n## 输出文件\n- `output/totals.json`：地区名称到合计金额的 JSON 对象。\n- 金额单位为源文件中的数值单位；源文件未注明具体币种或单位。\n"
+              },
+              {
+                "name": "totals.json",
+                "sha256": "4b34567f5626de94c72c83e7f123d2993b312c4ae9bf3c33578747b6fe9a8049",
+                "text": "{\n  \"华东\": 100,\n  \"华南\": 200\n}\n"
+              }
+            ],
+            "elapsed_ms": 26175,
+            "summary": "已生成：\n\n- `output/totals.json`：`{\"华东\": 100, \"华南\": 200}`\n- `output/analysis.md`：说明按 `order_id` 去重、仅保留 `paid` 订单；A1 重复记录只计一次，A3（refunded）和 A4（pending）被排除。\n\n未发现同一 `order_id` 的冲突信息；源文件未注明金额币种或单位。",
+            "usage": null,
+            "execution": {
+              "contract": "work-agent/v1",
+              "adapter_version": "0.1.0",
+              "engine": "dsh",
+              "runtime_version": "0.1.5rc1",
+              "model": "deepseek-flash",
+              "base_url": "https://api.deepseek.com",
+              "image": "sha256:bbe70a29262ed726d4e025d3bf31832f75a438437fc560ce33642853cd10e504",
+              "execution": "docker",
+              "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+              "features": [
+                "submit",
+                "poll",
+                "cancel",
+                "idempotency",
+                "artifacts"
+              ],
+              "limitations": [
+                "no_resume",
+                "no_business_tools",
+                "usage_may_be_unknown",
+                "no_cumulative_token_budget",
+                "synthetic_materials_only"
+              ]
+            }
+          },
+          "events": [
+            {
+              "seq": 1,
+              "type": "queued",
+              "created": 1791309073.3440955
+            },
+            {
+              "seq": 2,
+              "type": "running",
+              "created": 1791309073.4213748
+            },
+            {
+              "seq": 3,
+              "type": "succeeded",
+              "created": 1791309100.461987
+            }
+          ]
+        },
+        "checks": {
+          "artifact_present": true,
+          "deterministic_check": true
+        },
+        "semantic_review": "pending"
+      },
+      "independent_review": {
+        "status": "passed",
+        "basis": "Deduplication/filtering explanation and numeric JSON match the independently computed result.",
+        "scope": "Only this synthetic example; not business acceptance."
+      }
+    },
+    {
+      "evidence_path": ".work-acceptance/agent-poc-20261007-r4/pi/evaluation.json",
+      "record": {
+        "case": "csv-analysis",
+        "input_sha256": "14e8a839d62e4ae766d505ad260f7f3c16d5d7b4abad0934368c96f35f18bfd5",
+        "wall_ms": 6862,
+        "capabilities": {
+          "contract": "work-agent/v1",
+          "adapter_version": "0.1.0",
+          "engine": "pi",
+          "runtime_version": "1.0.4",
+          "model": "deepseek-flash",
+          "base_url": "https://api.deepseek.com",
+          "image": "sha256:744463b2ac25d89e077d8406a52d0a9f596080304830a63d7cdd7a05612377d1",
+          "execution": "docker",
+          "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+          "features": [
+            "submit",
+            "poll",
+            "cancel",
+            "idempotency",
+            "artifacts"
+          ],
+          "limitations": [
+            "no_resume",
+            "no_business_tools",
+            "usage_may_be_unknown",
+            "no_cumulative_token_budget",
+            "synthetic_materials_only"
+          ]
+        },
+        "job": {
+          "contract": "work-agent/v1",
+          "run_id": "574baeca-5759-4d78-a9e6-ca8416e3f520",
+          "state": "succeeded",
+          "deployment": {
+            "contract": "work-agent/v1",
+            "adapter_version": "0.1.0",
+            "engine": "pi",
+            "runtime_version": "1.0.4",
+            "model": "deepseek-flash",
+            "base_url": "https://api.deepseek.com",
+            "image": "sha256:744463b2ac25d89e077d8406a52d0a9f596080304830a63d7cdd7a05612377d1",
+            "execution": "docker",
+            "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+            "features": [
+              "submit",
+              "poll",
+              "cancel",
+              "idempotency",
+              "artifacts"
+            ],
+            "limitations": [
+              "no_resume",
+              "no_business_tools",
+              "usage_may_be_unknown",
+              "no_cumulative_token_budget",
+              "synthetic_materials_only"
+            ]
+          },
+          "error_code": "",
+          "result": {
+            "artifacts": [
+              {
+                "name": "analysis.md",
+                "sha256": "381a69eb28a34446bf3ff92133fcc6fee56ebd4f2807a36ea9a48fc9dd5bf1e0",
+                "text": "# sales.csv 分析说明\n\n## 数据来源\n- 文件：`sales.csv`\n- 字段：`order_id, region, amount, status`\n- 共 5 条原始记录。\n\n## 处理口径\n\n### 1. 去重（按 order_id）\n- 以 `order_id` 为唯一键进行去重，同一 `order_id` 仅保留一条记录。\n- 重复记录：`A1` 出现两次（内容完全一致：华东 / 100 / paid），保留一条。\n- 去重后剩余 4 个订单：A1、A2、A3、A4。\n- 说明：本数据中被去除的重复记录字段完全一致，未出现同一 order_id 金额/地区冲突的情况；若未来出现冲突，需另行定义保留规则。\n\n### 2. 筛选（仅 paid 订单）\n- 仅统计 `status == \"paid\"` 的订单。\n- 被排除记录：\n  - `A3`（华东，50，refunded）\n  - `A4`（华南，300，pending）\n- 通过筛选的订单：`A1`（华东，100）、`A2`（华南，200）。\n\n### 3. 汇总\n- 按 `region` 分组对 `amount` 求和。\n\n| 地区 | 合计金额 |\n| --- | --- |\n| 华东 | 100 |\n| 华南 | 200 |\n\n## 结果\n- 输出文件：`output/totals.json`，内容为地区名称到合计金额的 JSON 对象。\n\n## 缺失与冲突\n- 未发现字段缺失或同一 order_id 的数据冲突。\n- 无外部信息补充；所有结论均来自提供的 `sales.csv`。\n"
+              },
+              {
+                "name": "totals.json",
+                "sha256": "4b34567f5626de94c72c83e7f123d2993b312c4ae9bf3c33578747b6fe9a8049",
+                "text": "{\n  \"华东\": 100,\n  \"华南\": 200\n}\n"
+              }
+            ],
+            "elapsed_ms": 5887,
+            "summary": "已完成。\n\n**处理口径**\n- 按 `order_id` 去重：`A1` 重复一次且内容完全一致，保留一条；去重后 4 个订单。\n- 仅统计 `status = paid`：排除 `A3`（refunded）、`A4`（pending）。\n- 有效订单：A1（华东 100）、A2（华南 200）。\n\n**结果**\n- `output/totals.json`：`{\"华东\": 100, \"华南\": 200}`\n- `output/analysis.md`：说明去重与筛选口径。\n\n**缺失/冲突**：未发现字段缺失或同一 order_id 的数据冲突；未使用任何外部信息。",
+            "usage": {
+              "cache_read_tokens": 8960,
+              "cache_write_tokens": 0,
+              "input_tokens": 864,
+              "output_tokens": 945
+            },
+            "execution": {
+              "contract": "work-agent/v1",
+              "adapter_version": "0.1.0",
+              "engine": "pi",
+              "runtime_version": "1.0.4",
+              "model": "deepseek-flash",
+              "base_url": "https://api.deepseek.com",
+              "image": "sha256:744463b2ac25d89e077d8406a52d0a9f596080304830a63d7cdd7a05612377d1",
+              "execution": "docker",
+              "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+              "features": [
+                "submit",
+                "poll",
+                "cancel",
+                "idempotency",
+                "artifacts"
+              ],
+              "limitations": [
+                "no_resume",
+                "no_business_tools",
+                "usage_may_be_unknown",
+                "no_cumulative_token_budget",
+                "synthetic_materials_only"
+              ]
+            }
+          },
+          "events": [
+            {
+              "seq": 1,
+              "type": "queued",
+              "created": 1791309101.4320242
+            },
+            {
+              "seq": 2,
+              "type": "running",
+              "created": 1791309101.5145676
+            },
+            {
+              "seq": 3,
+              "type": "succeeded",
+              "created": 1791309108.282573
+            }
+          ]
+        },
+        "checks": {
+          "artifact_present": true,
+          "deterministic_check": true
+        },
+        "semantic_review": "pending"
+      },
+      "independent_review": {
+        "status": "passed",
+        "basis": "Deduplication/filtering explanation and numeric JSON match the independently computed result.",
+        "scope": "Only this synthetic example; not business acceptance."
+      }
+    }
+  ],
+  "exclusions": [
+    "r1 CSV goal included expected values: exploratory only",
+    "r2 Pi authentication configuration failures: not harness quality evidence"
+  ],
+  "limitations": [
+    "Sample count too small for performance ranking",
+    "DSH aggregate usage unknown; no cost comparison",
+    "No production Work route or business usage ledger integration"
+  ],
+  "integration_stage": {
+    "selected_engine": "dsh",
+    "comparison_engine": "pi",
+    "scope": "local opt-in Work integration with synthetic materials; not deployed",
+    "contract": "work-agent/v1",
+    "model_broker_comparison": {
+      "dsh": {
+        "case": "csv-analysis",
+        "input_sha256": "14e8a839d62e4ae766d505ad260f7f3c16d5d7b4abad0934368c96f35f18bfd5",
+        "wall_ms": 26061,
+        "capabilities": {
+          "contract": "work-agent/v1",
+          "adapter_version": "0.1.0",
+          "engine": "dsh",
+          "runtime_version": "0.1.5rc1",
+          "model": "deepseek-flash",
+          "base_url": "https://api.deepseek.com",
+          "image": "sha256:d7326fa3157175a18c78cb8513cabef45ebb401db6a7e2158987780eff8d7c5f",
+          "execution": "docker",
+          "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+          "features": [
+            "submit",
+            "poll",
+            "cancel",
+            "idempotency",
+            "artifacts",
+            "model_broker",
+            "cumulative_budget",
+            "provider_metering"
+          ],
+          "limits_ceiling": {
+            "max_model_calls": 6,
+            "max_total_tokens": 80000,
+            "max_output_tokens": 4096
+          },
+          "limitations": [
+            "no_resume",
+            "no_business_tools",
+            "usage_may_be_unknown",
+            "synthetic_materials_only"
+          ]
+        },
+        "job": {
+          "contract": "work-agent/v1",
+          "run_id": "73f659ca-6cb0-4ef5-a663-619f400eb3a6",
+          "state": "succeeded",
+          "deployment": {
+            "contract": "work-agent/v1",
+            "adapter_version": "0.1.0",
+            "engine": "dsh",
+            "runtime_version": "0.1.5rc1",
+            "model": "deepseek-flash",
+            "base_url": "https://api.deepseek.com",
+            "image": "sha256:d7326fa3157175a18c78cb8513cabef45ebb401db6a7e2158987780eff8d7c5f",
+            "execution": "docker",
+            "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+            "features": [
+              "submit",
+              "poll",
+              "cancel",
+              "idempotency",
+              "artifacts",
+              "model_broker",
+              "cumulative_budget",
+              "provider_metering"
+            ],
+            "limits_ceiling": {
+              "max_model_calls": 6,
+              "max_total_tokens": 80000,
+              "max_output_tokens": 4096
+            },
+            "limitations": [
+              "no_resume",
+              "no_business_tools",
+              "usage_may_be_unknown",
+              "synthetic_materials_only"
+            ]
+          },
+          "error_code": "",
+          "result": {
+            "artifacts": [
+              {
+                "name": "analysis.md",
+                "sha256": "4134b00256027d744b5d42ffe4481c091aeb74ee74614d1702f1f379ce2c776f",
+                "text": "# sales.csv 分析说明\n\n## 去重口径\n- 以 `order_id` 作为订单唯一标识进行去重。\n- 重复的 `order_id` 只保留一条记录，避免重复计入金额。\n- 本数据中 `A1` 出现两次且内容一致，去重后仅保留一条。\n\n## 筛选口径\n- 仅统计 `status` 为 `paid` 的订单。\n- `refunded` 和 `pending` 状态的订单不计入合计金额。\n- 本数据中 `A3`（refunded）和 `A4`（pending）被排除。\n\n## 统计结果\n- 华东：100\n- 华南：200\n\n## 数据限制\n- 仅依据提供的 `sales.csv` 材料进行分析，未使用外部数据。\n- 如果同一 `order_id` 存在内容不一致的重复记录，当前材料未给出；本次按去重规则处理，未遇到该冲突。\n"
+              },
+              {
+                "name": "totals.json",
+                "sha256": "4b34567f5626de94c72c83e7f123d2993b312c4ae9bf3c33578747b6fe9a8049",
+                "text": "{\n  \"华东\": 100,\n  \"华南\": 200\n}\n"
+              }
+            ],
+            "elapsed_ms": 24641,
+            "summary": "已完成，生成文件：\n\n- `output/totals.json`：地区合计金额\n  - 华东：100\n  - 华南：200\n- `output/analysis.md`：说明按 `order_id` 去重、仅统计 `paid` 订单，排除 `refunded`/`pending`。\n\n未安装软件，未使用外部信息。",
+            "usage": {
+              "input_tokens": 759,
+              "output_tokens": 642,
+              "cache_read_tokens": 1408,
+              "cache_write_tokens": 0
+            },
+            "execution": {
+              "contract": "work-agent/v1",
+              "adapter_version": "0.1.0",
+              "engine": "dsh",
+              "runtime_version": "0.1.5rc1",
+              "model": "deepseek-flash",
+              "base_url": "https://api.deepseek.com",
+              "image": "sha256:d7326fa3157175a18c78cb8513cabef45ebb401db6a7e2158987780eff8d7c5f",
+              "execution": "docker",
+              "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+              "features": [
+                "submit",
+                "poll",
+                "cancel",
+                "idempotency",
+                "artifacts",
+                "model_broker",
+                "cumulative_budget",
+                "provider_metering"
+              ],
+              "limits_ceiling": {
+                "max_model_calls": 6,
+                "max_total_tokens": 80000,
+                "max_output_tokens": 4096
+              },
+              "limitations": [
+                "no_resume",
+                "no_business_tools",
+                "usage_may_be_unknown",
+                "synthetic_materials_only"
+              ]
+            }
+          },
+          "events": [
+            {
+              "seq": 1,
+              "type": "queued",
+              "created": 1791309726.5187638
+            },
+            {
+              "seq": 2,
+              "type": "running",
+              "created": 1791309726.5616562
+            },
+            {
+              "seq": 3,
+              "type": "model_started",
+              "created": 1791309735.9313624
+            },
+            {
+              "seq": 4,
+              "type": "model_started",
+              "created": 1791309747.368985
+            },
+            {
+              "seq": 5,
+              "type": "succeeded",
+              "created": 1791309752.2500367
+            }
+          ],
+          "metering": {
+            "calls": 2,
+            "complete": true,
+            "usage": {
+              "input_tokens": 759,
+              "output_tokens": 642,
+              "cache_read_tokens": 1408,
+              "cache_write_tokens": 0
+            },
+            "held_tokens": 2809,
+            "denial_code": ""
+          }
+        },
+        "checks": {
+          "artifact_present": true,
+          "deterministic_check": true
+        },
+        "semantic_review": "pending"
+      },
+      "pi": {
+        "case": "csv-analysis",
+        "input_sha256": "14e8a839d62e4ae766d505ad260f7f3c16d5d7b4abad0934368c96f35f18bfd5",
+        "wall_ms": 17955,
+        "capabilities": {
+          "contract": "work-agent/v1",
+          "adapter_version": "0.1.0",
+          "engine": "pi",
+          "runtime_version": "1.0.4",
+          "model": "deepseek-flash",
+          "base_url": "https://api.deepseek.com",
+          "image": "sha256:42760978303aa1d6e29464c1da1516e81dd164f03e4b15e0e44ed58c1e676b5d",
+          "execution": "docker",
+          "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+          "features": [
+            "submit",
+            "poll",
+            "cancel",
+            "idempotency",
+            "artifacts",
+            "model_broker",
+            "cumulative_budget",
+            "provider_metering"
+          ],
+          "limits_ceiling": {
+            "max_model_calls": 6,
+            "max_total_tokens": 80000,
+            "max_output_tokens": 4096
+          },
+          "limitations": [
+            "no_resume",
+            "no_business_tools",
+            "usage_may_be_unknown",
+            "synthetic_materials_only"
+          ]
+        },
+        "job": {
+          "contract": "work-agent/v1",
+          "run_id": "e1049f33-8924-4ce1-a8c1-a1be6292f2d6",
+          "state": "succeeded",
+          "deployment": {
+            "contract": "work-agent/v1",
+            "adapter_version": "0.1.0",
+            "engine": "pi",
+            "runtime_version": "1.0.4",
+            "model": "deepseek-flash",
+            "base_url": "https://api.deepseek.com",
+            "image": "sha256:42760978303aa1d6e29464c1da1516e81dd164f03e4b15e0e44ed58c1e676b5d",
+            "execution": "docker",
+            "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+            "features": [
+              "submit",
+              "poll",
+              "cancel",
+              "idempotency",
+              "artifacts",
+              "model_broker",
+              "cumulative_budget",
+              "provider_metering"
+            ],
+            "limits_ceiling": {
+              "max_model_calls": 6,
+              "max_total_tokens": 80000,
+              "max_output_tokens": 4096
+            },
+            "limitations": [
+              "no_resume",
+              "no_business_tools",
+              "usage_may_be_unknown",
+              "synthetic_materials_only"
+            ]
+          },
+          "error_code": "",
+          "result": {
+            "artifacts": [
+              {
+                "name": "analysis.md",
+                "sha256": "3e8ae2166a8917a4679d49c0773988201933dd26ccf088e0ac69b59bc0828497",
+                "text": "# sales.csv 分析说明\n\n## 数据来源\n仅使用提供的 `sales.csv`（5 行记录，含表头），未访问外部信息。\n\n## 口径\n\n### 1. 去重\n- 去重键：`order_id`。\n- 规则：同一 `order_id` 只保留首次出现的记录。\n- 原因：数据中 `A1` 出现两次，两行内容完全相同（华东 / 100 / paid），属于重复记录，应计一次。\n- 全表唯一 `order_id`：A1、A2、A3、A4。\n\n### 2. 筛选\n- 仅统计 `status = paid` 的订单。\n- `refunded`（A3）与 `pending`（A4）不计入合计。\n\n### 3. 合计\n- 按 `region` 分组，对 `amount` 求和。\n\n## 处理明细\n\n| order_id | region | amount | status | 是否计入 | 说明 |\n|----------|--------|--------|--------|----------|------|\n| A1 | 华东 | 100 | paid | 是（首次出现） | |\n| A2 | 华南 | 200 | paid | 是 | |\n| A1 | 华东 | 100 | paid | 否 | 重复 order_id |\n| A3 | 华东 | 50 | refunded | 否 | 非 paid |\n| A4 | 华南 | 300 | pending | 否 | 非 paid |\n\n## 结果\n| region | 合计金额 |\n|--------|----------|\n| 华东 | 100 |\n| 华南 | 200 |\n\n对应输出：`output/totals.json`。\n\n## 缺失或冲突事实\n- 无字段缺失。\n- 数据中 `A1` 两行完全一致，不存在同一 `order_id` 金额或状态冲突的情况，去重规则无歧义。\n- 若业务上存在\"同一 order_id 不同金额/状态\"的重复，需另行约定保留规则；本数据未出现该情况。\n"
+              },
+              {
+                "name": "totals.json",
+                "sha256": "4b34567f5626de94c72c83e7f123d2993b312c4ae9bf3c33578747b6fe9a8049",
+                "text": "{\n  \"华东\": 100,\n  \"华南\": 200\n}\n"
+              }
+            ],
+            "elapsed_ms": 16739,
+            "summary": "已完成。\n\n**处理口径**\n- 校验 `sales.csv` SHA-256 与给定值一致。\n- 按 `order_id` 去重（A1 有两条完全相同的重复记录，保留一条）。\n- 仅保留 `status = paid`，排除 `refunded`（A3）与 `pending`（A4）。\n- 按 `region` 汇总 `amount`。\n\n**结果**\n- 华东：100\n- 华南：200\n\n**交付文件**\n- `output/totals.json`\n- `output/analysis.md`\n\n**缺失/冲突**\n- 无字段缺失；重复的 A1 两行完全一致，去重无歧义。未发现同一 order_id 金额或状态冲突的情况。",
+            "usage": {
+              "input_tokens": 1844,
+              "output_tokens": 1218,
+              "cache_read_tokens": 11264,
+              "cache_write_tokens": 0
+            },
+            "execution": {
+              "contract": "work-agent/v1",
+              "adapter_version": "0.1.0",
+              "engine": "pi",
+              "runtime_version": "1.0.4",
+              "model": "deepseek-flash",
+              "base_url": "https://api.deepseek.com",
+              "image": "sha256:42760978303aa1d6e29464c1da1516e81dd164f03e4b15e0e44ed58c1e676b5d",
+              "execution": "docker",
+              "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+              "features": [
+                "submit",
+                "poll",
+                "cancel",
+                "idempotency",
+                "artifacts",
+                "model_broker",
+                "cumulative_budget",
+                "provider_metering"
+              ],
+              "limits_ceiling": {
+                "max_model_calls": 6,
+                "max_total_tokens": 80000,
+                "max_output_tokens": 4096
+              },
+              "limitations": [
+                "no_resume",
+                "no_business_tools",
+                "usage_may_be_unknown",
+                "synthetic_materials_only"
+              ]
+            }
+          },
+          "events": [
+            {
+              "seq": 1,
+              "type": "queued",
+              "created": 1791310463.9576848
+            },
+            {
+              "seq": 2,
+              "type": "running",
+              "created": 1791310464.00248
+            },
+            {
+              "seq": 3,
+              "type": "model_started",
+              "created": 1791310465.5564518
+            },
+            {
+              "seq": 4,
+              "type": "model_started",
+              "created": 1791310468.8848648
+            },
+            {
+              "seq": 5,
+              "type": "model_started",
+              "created": 1791310471.6659615
+            },
+            {
+              "seq": 6,
+              "type": "model_started",
+              "created": 1791310476.1700962
+            },
+            {
+              "seq": 7,
+              "type": "model_started",
+              "created": 1791310478.5967195
+            },
+            {
+              "seq": 8,
+              "type": "succeeded",
+              "created": 1791310481.8422256
+            }
+          ],
+          "metering": {
+            "calls": 5,
+            "complete": true,
+            "usage": {
+              "input_tokens": 1844,
+              "output_tokens": 1218,
+              "cache_read_tokens": 11264,
+              "cache_write_tokens": 0
+            },
+            "held_tokens": 14326,
+            "denial_code": ""
+          }
+        },
+        "checks": {
+          "artifact_present": true,
+          "deterministic_check": true
+        },
+        "semantic_review": "pending"
+      }
+    },
+    "work_api_live_receipt": {
+      "path": "Work upload API -> parsed selection -> Work task/outbox -> HTTP v1 -> Docker dsh -> scoped model broker -> DeepSeek -> authorized Work files",
+      "engine": "dsh",
+      "model": "deepseek-flash",
+      "state": "succeeded",
+      "wall_ms": 30630,
+      "deployment": {
+        "image": "sha256:2bc6c0d3564961e3baac7482b136836e1fec2c7bd79e2eeda270b57494401031",
+        "model": "deepseek-flash",
+        "engine": "dsh",
+        "base_url": "https://api.deepseek.com",
+        "contract": "work-agent/v1",
+        "features": [
+          "submit",
+          "poll",
+          "cancel",
+          "idempotency",
+          "artifacts",
+          "model_broker",
+          "cumulative_budget",
+          "provider_metering"
+        ],
+        "execution": "docker",
+        "limitations": [
+          "no_resume",
+          "no_business_tools",
+          "usage_may_be_unknown",
+          "synthetic_materials_only"
+        ],
+        "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+        "limits_ceiling": {
+          "max_model_calls": 6,
+          "max_total_tokens": 80000,
+          "max_output_tokens": 4096
+        },
+        "adapter_version": "0.1.0",
+        "runtime_version": "0.1.5rc1"
+      },
+      "metering": {
+        "calls": 2,
+        "usage": {
+          "input_tokens": 723,
+          "output_tokens": 627,
+          "cache_read_tokens": 1792,
+          "cache_write_tokens": 0
+        },
+        "complete": true,
+        "denial_code": "",
+        "held_tokens": 3142
+      },
+      "usage_recorded": true,
+      "checks": {
+        "totals": true,
+        "authenticated_download": true
+      },
+      "files": {
+        "report.md": "# Paid Order Totals by Region\n\n## Method\n1. Read the selected source `source-af8b6701-4036-4e19-9648-ec7386dac380.csv` (`orders.csv`).\n2. Deduplicated rows by `order_id`, treating the repeated `A1` row as one order.\n3. Excluded orders with `status` not equal to `paid`; this removed order `A3` (`refunded`).\n4. Summed `amount` for the remaining paid orders, grouped by `region`.\n5. Wrote the resulting flat region-to-total object to `output/totals.json`.\n\n## Result\n- east: 100\n- south: 200\n\n## Notes\n- `A1` appeared twice with identical values and was counted once.\n- `A3` was refunded, so it was not included.\n- No conflicting duplicate facts were present in the selected material.\n",
+        "totals.json": "{\"east\":100,\"south\":200}\n"
+      }
+    },
+    "checks": {
+      "backend_offline": 65,
+      "gateway_including_docker": 28,
+      "web": 17,
+      "live_work_api": 1
+    },
+    "limitations": [
+      "synthetic_materials_only",
+      "no_egress_allowlist",
+      "no_external_business_writes",
+      "no_binary_artifacts",
+      "no_resume",
+      "no_multireplica",
+      "provider_money_reconciliation_pending"
+    ]
+  }
+}

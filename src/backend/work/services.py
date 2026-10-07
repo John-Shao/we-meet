@@ -64,7 +64,7 @@ def read_upload(upload):
     """Enforce the limit on bytes read as well as the multipart declaration."""
     name = PurePath(upload.name.replace("\\", "/")).name
     extension = PurePath(name).suffix.lower()
-    if extension not in {".txt", ".md", ".markdown", ".pdf", ".docx"}:
+    if extension not in {".txt", ".md", ".markdown", ".csv", ".pdf", ".docx"}:
         raise MaterialError("unsupported_format")
     if not name or len(name) > 255:
         raise MaterialError("invalid_filename")
@@ -92,7 +92,11 @@ def read_upload(upload):
         or b"\x00" in data
     ):
         raise MaterialError("not_text")
-    return name, data, "text/markdown" if extension != ".txt" else "text/plain"
+    return (
+        name,
+        data,
+        {".csv": "text/csv", ".txt": "text/plain"}.get(extension, "text/markdown"),
+    )
 
 
 def create_material(user, upload, upload_key):

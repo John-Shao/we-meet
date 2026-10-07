@@ -1,0 +1,179 @@
+{
+  "recorded_at": "2026-10-07T03:26:51.774356+00:00",
+  "scope": "Windows desktop delivery and Android remote tasks; iOS excluded",
+  "production_deployed": false,
+  "existing_app_replaced": false,
+  "source": {
+    "backend_desktop_revision": "209b8e491c42260247126b6ce1392a7825b1cb41",
+    "backend_desktop_dirty": true,
+    "android_revision": "bc35e2dbe496416316a2a56649c81f95489d6b54",
+    "android_dirty": true
+  },
+  "artifacts": {
+    "desktop": {
+      "version": "0.4.0-delivery.1",
+      "file": "We-Meet-0.4.0-delivery.1-setup.exe",
+      "bytes": 187040257,
+      "sha256": "a6aa971ab93dedb215843000b46a881801e2d2a98bd59c6d4bf815626caa36a0",
+      "signature": {
+        "status": "NotSigned",
+        "thumbprint": null
+      },
+      "bundledRuntime": {
+        "version": "0.3.1",
+        "manifest_sha256": "7abe65cf859d37dcf86ca6750942931fbdd458bfc6074218c47f2b8ac14e05b8"
+      },
+      "packagedAsarSha256": "c418f6d4c89d047bb8487a1675b619a1d1b83f1b5ac63bd93c7ec24de674425d",
+      "desktopLockSha256": "88026258018131f655bff4312c8facd3bbbf5e306d9206acca4de8bd0ec310b8",
+      "frontendLockSha256": "dd6597dbfc8514dbaaaa76f4d12280a6c16256d6b3a2a8c55f735d1a7a513338",
+      "sourceRevision": "209b8e491c42260247126b6ce1392a7825b1cb41",
+      "workingTreeDirty": true,
+      "electron": "44.4.3",
+      "builder": "26.15.3",
+      "runtimeConfig": {
+        "serviceOrigin": "https://meet.we-meet.online",
+        "issuer": "https://id.we-meet.online/realms/meet",
+        "clientId": "desktop",
+        "renderer": {
+          "serviceOrigin": "https://meet.we-meet.online",
+          "imBaseUrl": "https://im.we-meet.online",
+          "appTitle": "We-Meet"
+        }
+      },
+      "builtAt": "2026-10-07T03:16:01.568Z",
+      "intendedUse": "Internal acceptance; unsigned installers are not formal releases"
+    },
+    "android": {
+      "file": "D:\\workspace\\jusi-meet\\we-meet-android\\app\\build\\outputs\\apk\\debug\\app-debug.apk",
+      "application_id": "com.we.meet",
+      "version": "0.3.0-work.1",
+      "version_code": 3,
+      "bytes": 168616637,
+      "sha256": "a2d7b2ba0d637d6d0f90b71ce0063b1bf34c344171d856bbff4a4d8bbe5c5c73",
+      "signature": "Android Debug; apksigner verify passed",
+      "internal_only": true
+    }
+  },
+  "runtime": {
+    "adapter": "0.3.1",
+    "dsh": "0.1.5rc1",
+    "python": "3.13.9",
+    "packaged_inventory_verified": true,
+    "packaged_native_handshake_and_grant_passed": true,
+    "public_trust_anchors_configured": false,
+    "signed_updates_available_in_candidate": false
+  },
+  "tests": {
+    "backend_work": {
+      "passed": 76,
+      "skipped": 3,
+      "database": "isolated PostgreSQL 16"
+    },
+    "local_agent": {
+      "passed": 37,
+      "skipped": 4
+    },
+    "desktop": {
+      "passed": 22,
+      "skipped": 0
+    },
+    "frontend_work": {
+      "passed": 27
+    },
+    "android_jvm": {
+      "tests": 547,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "android_work_instrumentation": {
+      "passed": 1,
+      "api": 29,
+      "fixture_application_id": "com.we.meet.fixturework",
+      "fixture_apps_uninstalled": true
+    },
+    "typescript_eslint_ruff": "passed",
+    "migration_consistency": "no changes detected",
+    "formal_release_gate": "expected rejection: Windows certificate missing",
+    "provider_key_scan": "absent from unpacked desktop payload and all decoded APK entries"
+  },
+  "real_model_acceptance": {
+    "model": "deepseek-flash",
+    "remote": {
+      "receipt": ".work-acceptance/work-delivery-20261007/remote/live.json",
+      "adapter_version": "0.3.0",
+      "run_id": "fe9bcc77-4f66-45ff-98da-d851385f68ab",
+      "checks": [
+        "real-WorkTask-and-WorkRun",
+        "same-run-UUID",
+        "remote-inbox-explicit-acceptance",
+        "native-original-file-read",
+        "real-DeepSeek",
+        "device-reported-usage",
+        "no-automatic-body-upload",
+        "explicit-file-sync"
+      ],
+      "metering": {
+        "calls": 3,
+        "complete": true,
+        "denial_code": "",
+        "held_tokens": 3699,
+        "usage": {
+          "cache_read_tokens": 2304,
+          "cache_write_tokens": 0,
+          "input_tokens": 708,
+          "output_tokens": 687
+        }
+      },
+      "elapsed_ms": 81377,
+      "manually_reviewed_operations": 2
+    },
+    "electron": {
+      "receipt": ".work-acceptance/work-delivery-20261007/electron/receipt.json",
+      "adapter_version": "0.3.0",
+      "checks": [
+        "real-renderer-coordination",
+        "manual-selected-sync",
+        "metadata-excludes-private-body",
+        "ticket-not-in-renderer",
+        "real-renderer-native-config",
+        "native-folder-grant",
+        "real-dsh-file-read",
+        "local-deliverable",
+        "metered-DeepSeek",
+        "native-open-confined-file",
+        "cancel-before-admission",
+        "cancel-running-native-task",
+        "raw-path-request-rejected",
+        "logout-rejects-local-access",
+        "account-B-has-no-account-A-configuration"
+      ],
+      "metering": {
+        "calls": 3,
+        "complete": true,
+        "denial_code": "",
+        "held_tokens": 4373,
+        "usage": {
+          "cache_read_tokens": 2688,
+          "cache_write_tokens": 0,
+          "input_tokens": 789,
+          "output_tokens": 896
+        }
+      },
+      "manually_reviewed_operations": 2
+    },
+    "identity": "Synthetic business accounts. Actual local Django bridge for remote flow; synthetic API/native dialog choices for Electron UI flow.",
+    "final_runtime_difference": "Real model receipts used bundled adapter 0.3.0. Final 0.3.1 moves response headers after approval/current-run checks and improves deployment readiness probe. Final packaged binary passed native handshake/grant and final approval regression tests; paid model calls were not repeated."
+  },
+  "limitations": [
+    "No Windows formal signing certificate or published Ed25519 update trust anchor",
+    "No actual install/upgrade/uninstall or clean Windows acceptance in this round",
+    "Android debug signing; no app-store release",
+    "Android UI fixture and real remote API/model acceptance are separate; not a full real-login cross-app UI test",
+    "Workspace cwd is not an OS sandbox; command approval is not a per-file diff",
+    "Whole desktop application uses installer update; no unattended update feed",
+    "Android SavedStateHandle supports system process restoration, not durable nonce storage across force-stop/reboot",
+    "Same owner/current organization/original device only; no cross-device takeover",
+    "Production migration and feature activation not performed"
+  ]
+}

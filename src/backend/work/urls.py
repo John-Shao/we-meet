@@ -3,9 +3,19 @@
 from django.urls import path
 
 from .api import CapabilitiesView, MaterialViewSet
+from .local_api import DeviceView, LocalAdmissionView, LocalRunView
+from .remote_api import InboxView, RemoteTaskView, WorkspaceView
 from .task_api import RunViewSet, TaskViewSet
 
 urlpatterns = [
+    path("local/workspaces/", WorkspaceView.as_view()),
+    path("local/remote-tasks/", RemoteTaskView.as_view()),
+    path("local/inbox/", InboxView.as_view()),
+    path("local/devices/", DeviceView.as_view()),
+    path("local/tasks/", LocalAdmissionView.as_view()),
+    path("local/runs/<uuid:pk>/claim/", LocalRunView.as_view(operation="claim")),
+    path("local/runs/<uuid:pk>/report/", LocalRunView.as_view(operation="report")),
+    path("local/runs/<uuid:pk>/sync/", LocalRunView.as_view(operation="sync")),
     path("tasks/", TaskViewSet.as_view({"get": "list", "post": "create"})),
     path("tasks/<uuid:pk>/", TaskViewSet.as_view({"get": "retrieve"})),
     path("tasks/<uuid:pk>/retry/", TaskViewSet.as_view({"post": "retry"})),
@@ -17,6 +27,8 @@ urlpatterns = [
     ),
     path("runs/<uuid:pk>/adopt/", RunViewSet.as_view({"post": "adopt"})),
     path("runs/<uuid:pk>/download/", RunViewSet.as_view({"get": "download"})),
+    path("runs/<uuid:pk>/files/", RunViewSet.as_view({"get": "files"})),
+    path("runs/<uuid:pk>/file-download/", RunViewSet.as_view({"get": "file_download"})),
     path("capabilities/", CapabilitiesView.as_view()),
     path("materials/", MaterialViewSet.as_view({"get": "list", "post": "create"})),
     path(

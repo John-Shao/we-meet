@@ -239,6 +239,14 @@
 .work-material-row > svg {
   flex-shrink: 0;
 }
+.work-local-workspace .work-material-row > span {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.work-local-workspace p {
+  overflow-wrap: anywhere;
+}
 .work-material-row strong {
   display: block;
   font-size: 14px;

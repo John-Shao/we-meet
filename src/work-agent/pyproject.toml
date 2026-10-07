@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "we-meet-work-agent"
+version = "0.3.1"
+requires-python = ">=3.13"
+dependencies = []
+
+[project.optional-dependencies]
+dsh = ["deepseek-harness-sdk==0.1.5rc1", "pydantic==2.13.5"]
+
+[project.scripts]
+work-agent = "work_agent.server:main"
+work-agent-evaluate = "work_agent.evaluate:main"
+work-agent-local = "work_agent.local:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["work_agent*"]
+
+[tool.setuptools.package-data]
+work_agent = ["*.yml"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]

@@ -13,12 +13,27 @@ protocols:
   - name: We-Meet Desktop Login
     schemes:
       - online.we-meet.desktop
+extraResources:
+  - from: .agent-runtime
+    to: local-agent
+    filter:
+      - '0.3.1/**/*'
 win:
   target: nsis
+  # Agent payloads are authenticated by the pinned manifest / detached signature.
+  # Re-signing them after manifest generation would invalidate their hashes.
+  signExts:
+    - '!python.exe'
+    - '!pythonw.exe'
+    - '!work-agent-local.exe'
+    - '!deepseek-harness-sdk-runtime-win-x64-rg.exe'
+    - '!deepseek-harness-sdk-runtime-win-x64.exe'
+    - '!dsh.exe'
   artifactName: ${productName}-${version}-setup.${ext}
 nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true
+  oneClick: true
+  allowToChangeInstallationDirectory: false
+  runAfterFinish: false
   deleteAppDataOnUninstall: false
 mac:
   target: dmg

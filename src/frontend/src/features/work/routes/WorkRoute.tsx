@@ -18,6 +18,8 @@ import {
 } from '../api/materials'
 import './work.css'
 import { Communication } from './Communication'
+import { AgentWork } from './AgentWork'
+import { LocalWorkspaceWork } from './LocalWorkspaceWork'
 import { WorkModulePage, WorkNavigation } from './WorkNavigation'
 
 const statusLabel: Record<Material['status'], string> = {
@@ -54,6 +56,21 @@ export const WorkRoute = () => {
             <Communication key={user?.id} ownerId={user?.id || ''} />
           ) : view === 'materials' ? (
             <WorkMaterials key={user?.id} ownerId={user?.id || ''} />
+          ) : ['new', 'weekly', 'spreadsheet'].includes(view) ? (
+            window.weMeetDesktop?.localWork &&
+            params.get('execution') !== 'cloud' ? (
+              <LocalWorkspaceWork
+                key={`${user?.id}-${view}`}
+                ownerId={user?.id || ''}
+                view={view}
+              />
+            ) : (
+              <AgentWork
+                key={`${user?.id}-${view}`}
+                ownerId={user?.id || ''}
+                view={view}
+              />
+            )
           ) : (
             <WorkModulePage view={view} />
           )}

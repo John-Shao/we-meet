@@ -3,7 +3,18 @@ import type { Material } from './materials'
 
 export interface WorkRun {
   id: string
-  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled'
+  status:
+    | 'queued'
+    | 'running'
+    | 'succeeded'
+    | 'failed'
+    | 'canceled'
+    | 'disconnected'
+  execution_target?: 'cloud' | 'local'
+  usage_origin?: 'provider' | 'device_reported'
+  synced_files?: string[]
+  workspace_label?: string
+  artifact_manifest?: { name: string; sha256: string; bytes: number }[]
   error_code: string
   model: string
   reserved_tokens: number
@@ -12,6 +23,7 @@ export interface WorkRun {
 }
 export interface WorkTask {
   id: string
+  kind?: 'communication' | 'office_agent'
   recipient: string
   goal: string
   background: string
@@ -44,15 +56,15 @@ export const getRunEvents = (id: string, after: number) =>
   fetchApi<{ run: WorkRun; events: RunEvent[]; next_after: number }>(
     `work/runs/${id}/events/?after=${after}`
   )
-export const listTasks = (page: number) =>
+export const listTasks = (page: number, kind = 'communication') =>
   fetchApi<{
     results: WorkTask[]
     next: string | null
     previous: string | null
-  }>(`work/tasks/?page=${page}`)
+  }>(`work/tasks/?page=${page}&kind=${kind}`)
 export const getTask = (id: string) => fetchApi<WorkTask>(`work/tasks/${id}/`)
 export const createTask = (
-  data: TaskInput,
+  data: TaskInput & { kind?: 'communication' | 'office_agent' },
   key: string,
   signal?: AbortSignal
 ) =>
@@ -62,6 +74,15 @@ export const createTask = (
     body: JSON.stringify(data),
     signal,
   })
+
+export const listRunFiles = (id: string) =>
+  fetchApi<{ name: string; sha256: string }[]>(`work/runs/${id}/files/`)
+export const downloadRunFile = (id: string, name: string) =>
+  fetchApiBlob(
+    `work/runs/${id}/file-download/?name=${encodeURIComponent(name)}`,
+    {},
+    400_000
+  )
 export const retryTask = (id: string, key: string) =>
   fetchApi<WorkRun>(`work/tasks/${id}/retry/`, {
     method: 'POST',

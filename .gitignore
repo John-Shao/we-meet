@@ -101,3 +101,4 @@ src/helm/env.d/aliyun-prod/values.work.yaml.tmp
 
 # Host-local synthetic Work acceptance receipts.
 /.work-acceptance/
+/src/desktop/.agent-runtime/

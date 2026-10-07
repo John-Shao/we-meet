@@ -76,6 +76,12 @@ def new_run(task, key):
     previous = task.runs.filter(request_key=key).first()
     if previous:
         return previous
+    if task.runs.filter(execution_target="local").exists():
+        raise MaterialError("local_retry_requires_new_task", 409)
+    if task.kind == "office_agent":
+        from .agent_runs import new_agent_run  # noqa: PLC0415 -- boundary module
+
+        return new_agent_run(task, key)
     if not enabled():
         raise MaterialError("generation_unavailable", 503)
     if task.runs.filter(status__in=ACTIVE).exists():
@@ -109,13 +115,14 @@ def new_run(task, key):
 
 @transaction.atomic
 def create_task(user, data, key):
+    data = {"kind": "communication", **data}
     User.objects.select_for_update().get(pk=user.pk)
     organization_id = organization_for(user)
     previous = WorkTask.objects.filter(owner=user, request_key=key).first()
     if previous:
         if previous.organization_id != organization_id or any(
             getattr(previous, field) != data[field]
-            for field in ("recipient", "goal", "background", "sources")
+            for field in ("kind", "recipient", "goal", "background", "sources")
         ):
             raise MaterialError("idempotency_conflict", 409)
         return previous, False
@@ -142,14 +149,14 @@ def claim_run():
     """Never replay an expired provider attempt whose billing outcome is unknown."""
     now = timezone.now()
     for expired in WorkRun.objects.select_for_update(skip_locked=True).filter(
-        status="running", lease_until__lt=now
+        task__kind="communication", status="running", lease_until__lt=now
     )[:20]:
         terminal(expired, "failed", "execution_unknown")
     if not enabled():
         return None
     run = (
         WorkRun.objects.select_for_update(skip_locked=True)
-        .filter(status="queued")
+        .filter(task__kind="communication", status="queued")
         .first()
     )
     if run:

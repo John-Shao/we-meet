@@ -2,6 +2,7 @@
 
 from celery import shared_task
 
+from .agent_runs import process_agent_runs
 from .runs import process_runs
 from .services import process_materials
 
@@ -16,3 +17,12 @@ def tick_materials():
 def tick_runs():
     """One fixed flow per tick; expired provider attempts are never replayed."""
     return process_runs()
+
+
+@shared_task(queue="work", soft_time_limit=55, time_limit=65)
+def tick_agent_runs():
+    """Short HTTP reconciliation; model/tool loops run in the separate service."""
+    from .local_runs import expire_runs  # noqa: PLC0415
+
+    expire_runs()
+    return process_agent_runs()
