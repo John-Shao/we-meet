@@ -32,6 +32,10 @@ Android 源码提交：`4313af8a`。SDK composite build 来源 `jusi-light-im` �
 
 正常包 `../we-meet-android/app/build/outputs/apk/debug/app-debug.apk`：`com.we.meet`，versionCode 4，168677437 字节，SHA-256 `d2ece0fca3f518cc7e253ce800c0d851a695005c6e097ff13cf17bc8a2f67711`。测试完成后恢复正常构建，未安装到用户原 App，未上传商店。
 
+后续一批新增可重复执行的 `scripts/package-work-candidate.py`，从干净 Android 提交 `123dc2eb5ee4458f319ff5ff02ca647954541c07` 与上述干净 SDK 提交执行规范检查、553 项 JVM 测试及正常构建，归档到 `../we-meet-android/release/0.3.0-work.2-123dc2eb5ee4/`。APK 哈希与前述一致，包含 `candidate.json` 与 `SHA256SUMS`，配置只记录哈希。脚本先冻结副本，再对实际交付副本校验原生 APK 身份、版本及 Debug 签名；源码或配置在打包时变化即拒绝，已有归档不覆盖。
+
+3 项打包边界回归通过。实际归档哈希复核通过；实际 `.fixturework.test` 仪器 APK 被身份校验拒绝；对 APK DEX 压缩内容翻转一个字节后，原生 apksigner 签名验证拒绝。篡改副本已删除，审计回执见本地 `archive-audit.json`。该完整性清单没有发布信任根，不能代替正式发布签名。
+
 ## 复验入口
 
 Android 使用 JDK 17 / SDK 34；隔离仪器测试使用 `.fixturework` 和 `com.we.meet.ui.records.IsolatedRecordsRunner`。实际后端联调先构建指定 `WE_MEET_BASE_URL=http://127.0.0.1:48761` 的隔离 APK/仪器 APK，然后在 backend 既有 Test 设置及独立 PostgreSQL 下设置：
