@@ -10,9 +10,12 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 
-ROOT = Path("/var/lib/we-meet-work-maintenance/cohort-e92f9eec4")
+STATE_PARENT = Path("/var/lib/we-meet-work-maintenance")
+DEFAULT_RELEASE_ID = "cohort-e92f9eec4"
+ROOT = STATE_PARENT / DEFAULT_RELEASE_ID
 FLAGS = (
     "WORK_AGENT_ENABLED",
     "WORK_LOCAL_AGENT_ENABLED",
@@ -34,6 +37,15 @@ ACCOUNT_HASH = "ada9bbbb960ea8fdc825a05b31265b5b9c9eab7334d677244ea555af491dc7e5
 def require(value, code):
     if not value:
         raise RuntimeError(code)
+
+
+def release_root(release_id):
+    require(
+        isinstance(release_id, str)
+        and re.fullmatch(r"cohort-[a-z0-9][a-z0-9-]{0,62}", release_id) is not None,
+        "invalid_release_id",
+    )
+    return STATE_PARENT / release_id
 
 
 def digest(spec):
@@ -177,7 +189,7 @@ def gateway(r):
 
 
 def prepare(r, candidate):
-    require(not (ROOT / "state.json").exists(), "release_state_exists")
+    require(not ROOT.exists(), "release_state_exists")
     r.node_check()
     account = account_check(r, candidate["verified_account_uuid"])
     baseline = r.schema()
@@ -535,6 +547,7 @@ print('COHORT_JSON'+json.dumps({'mode':getattr(settings,'WORK_AGENT_ROLLOUT_MODE
 
 
 def main():
+    global ROOT
     import fcntl
 
     parser = argparse.ArgumentParser()
@@ -543,12 +556,21 @@ def main():
         choices=("prepare", "closed", "open", "close", "rollback", "verify", "recover"),
     )
     parser.add_argument("--candidate")
+    parser.add_argument("--release-id", default=DEFAULT_RELEASE_ID)
     args = parser.parse_args()
     require(os.geteuid() == 0, "root_required")
+    ROOT = release_root(args.release_id)
+    require(
+        all(not path.is_symlink() for path in (ROOT, *ROOT.parents)),
+        "unsafe_state_parent",
+    )
     r = load_runtime()
     parent = ROOT.parent
     require(parent.is_dir() and not parent.is_symlink(), "unsafe_parent")
-    with (parent / "cohort-e92f9eec4.lock").open("a") as lock:
+    # Keep the legacy lock shared across releases; fresh snapshots cannot overlap.
+    lock_path = parent / "cohort-e92f9eec4.lock"
+    require(not lock_path.is_symlink(), "unsafe_lock")
+    with lock_path.open("a") as lock:
         os.chmod(lock.name, 0o600)
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if args.phase == "prepare":

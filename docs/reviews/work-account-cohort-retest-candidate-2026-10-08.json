@@ -1,0 +1,221 @@
+{
+  "phase": "retest_candidate_prepared_activation_not_authorized",
+  "release_id": "cohort-e92f9eec4-retest-032",
+  "snapshot_directory": "/var/lib/we-meet-work-maintenance/cohort-e92f9eec4-retest-032",
+  "snapshot_created": false,
+  "source_commit": "e92f9eec4540a9b16dc107a421523beefc87f681",
+  "release_candidate": {
+    "source_commit": "e92f9eec4540a9b16dc107a421523beefc87f681",
+    "immutable_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61",
+    "registry_digest_verified": true,
+    "digest": "sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61",
+    "amd64_manifest": "sha256:18f3af54cb1515c42a5385e63717591731eb99d5a122f58a2f311e8fab3f26a0",
+    "config_digest": "sha256:9ccdd9eabcf18502a6578d4737f4eaac6e36f777cb8eb3ab3f580ada2778fd57"
+  },
+  "source_ci": {
+    "run_id": 37644693656,
+    "conclusion": "success",
+    "url": "https://github.com/John-Shao/we-meet/actions/runs/37644693656"
+  },
+  "image_acceptance": {
+    "default_closed": true,
+    "allowlist_owner_only": true,
+    "remote_queue_and_claim": true,
+    "revocation_requests_stop": true,
+    "cloud_dispatches": 0,
+    "provider_calls": 0,
+    "source_commit": "e92f9eec4540a9b16dc107a421523beefc87f681",
+    "immutable_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61",
+    "revision_label_matches": true,
+    "python_source_and_dependencies_match_git_archive": true,
+    "architecture": "amd64",
+    "configured_user": "root",
+    "production_business_writes": 0
+  },
+  "client_source_commit": "9db9d2f71b395d5548301a54716c81a0edafa1a0",
+  "client_source_ci": {
+    "run_id": 37652070078,
+    "conclusion": "success",
+    "url": "https://github.com/John-Shao/we-meet/actions/runs/37652070078"
+  },
+  "client_runtime_candidate": {
+    "version": "0.3.2",
+    "manifest_sha256": "6e7c9bc1f446d4ef2d11b8f8cd3bbdb55418e0ae9b11d5a8d90214d3ac18736f",
+    "files": 241,
+    "agent_unit_tests_run": 85,
+    "agent_unit_tests_skipped": 5,
+    "agent_unit_tests_passed": 80,
+    "embedded_runtime_broker_tests_passed": 26,
+    "runtime_inventory_verified": true,
+    "real_model_retest_performed": false,
+    "production_install_performed": false
+  },
+  "account_identity": {
+    "uuid_sha256": "ada9bbbb960ea8fdc825a05b31265b5b9c9eab7334d677244ea555af491dc7e5",
+    "database_identity_reverified": true,
+    "credentials_in_public_plan": false
+  },
+  "production_baseline": {
+    "captured_at_utc": "2026-10-07T16:37:16.241251+00:00",
+    "read_only": true,
+    "production_workloads_changed": false,
+    "provider_calls": 0,
+    "account_uuid_sha256": "ada9bbbb960ea8fdc825a05b31265b5b9c9eab7334d677244ea555af491dc7e5",
+    "consumers": [
+      {
+        "kind": "Deployment",
+        "name": "meet-celery-work",
+        "uid": "036ec126-4a51-4bcb-a69b-3979ef2e2684",
+        "resource_version": "8921294",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "2ebecb9975f062c393c15930066576869d1b0580a1de750409bfca56f3f71cd6",
+        "flags_closed": true,
+        "rollout_mode": "closed",
+        "allowed_users": 0
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-celery-backend",
+        "uid": "d361a79c-f38c-4c35-a7eb-fce08d3a9577",
+        "resource_version": "8921329",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "889d7d4f7e2be5fd5facfbee122c4f6b1fd6601002a4718885f8fb4afb47b0ca",
+        "flags_closed": true,
+        "rollout_mode": "closed",
+        "allowed_users": 0
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-celery-beat",
+        "uid": "3dc0ea4f-131e-4d31-9649-64da2270b8f5",
+        "resource_version": "8921344",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "55b28dc75d392559a77b80071f6732fbf18eb33a280b0ae2e627340fddcb9f86",
+        "flags_closed": true,
+        "rollout_mode": "closed",
+        "allowed_users": 0
+      },
+      {
+        "kind": "CronJob",
+        "name": "meet-backend-docs-profiles",
+        "uid": "53b3b7ec-8554-49b5-b055-33f3225756c6",
+        "resource_version": "8924784",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "a39e56f0ab4c77c4bc2e284f5d8b0653ac65a4955b656560320dbad73de36a13",
+        "flags_closed": true,
+        "rollout_mode": "closed",
+        "allowed_users": 0
+      },
+      {
+        "kind": "CronJob",
+        "name": "meet-backend-reminders",
+        "uid": "b74a91a7-54d0-4844-823e-c9d80e504af4",
+        "resource_version": "8924728",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "73fa6e936f960306f9140bada79a1b6317e94002a3a141434bac3d68965cc712",
+        "flags_closed": true,
+        "rollout_mode": "closed",
+        "allowed_users": 0
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-backend-ai",
+        "uid": "53015eed-c8c7-4594-98f5-34626f1cf4c7",
+        "resource_version": "8921443",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "6fdc30a26a3c8a5597511a339cfdf23653ac2db5896a9fced0ba882ff3accfc4",
+        "flags_closed": true,
+        "rollout_mode": "closed",
+        "allowed_users": 0
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-backend",
+        "uid": "81e49171-7fe4-4cb1-b7ab-d969b02675d7",
+        "resource_version": "8921556",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "f363e491aad3bf9e8f1691c0d7d12f7cbae93e0ef8c9a7fbc0fdb38a2a14cdc3",
+        "flags_closed": true,
+        "rollout_mode": "closed",
+        "allowed_users": 0
+      }
+    ],
+    "helm_revision": 457,
+    "helm_status": "deployed",
+    "node_uid": "6c67a844-37f0-4eff-85fe-0420137b6f5f",
+    "node_kubelet_version": "v1.36.2+k3s1",
+    "gateway": {
+      "uid": "d042e27f-608f-46a7-82d6-672ca2bc30f7",
+      "spec_sha256": "a6bba9ac74c782fe597c5a06ae2affe59b45762b13ffef87a97d6bb024a7f837"
+    },
+    "work_migrations": 7,
+    "schema_rows_sha256": "987d14095d88f5b97dd162836c8c13cf735e5e958138d93e1b8298254d1b8a17",
+    "fresh_state_directory_absent": true
+  },
+  "planned_closed_stage": {
+    "deployments": 5,
+    "cronjobs": 2,
+    "new_database_migrations": 0,
+    "rollout_mode": "closed",
+    "all_four_new_flags": false
+  },
+  "planned_single_account_stage": {
+    "rollout_mode": "allowlist",
+    "allowed_users": 1,
+    "WORK_AGENT_ENABLED": false,
+    "WORK_REVIEW_ENABLED": false,
+    "WORK_LOCAL_AGENT_ENABLED": true,
+    "WORK_REMOTE_AGENT_ENABLED": true,
+    "WORK_AGENT_MAX_CALLS": 5,
+    "WORK_AGENT_TOKEN_BUDGET": 20000
+  },
+  "acceptance_budget": {
+    "synthetic_tasks": 1,
+    "deepseek_calls_ceiling": 5,
+    "total_tokens_ceiling": 20000,
+    "per_call_output_tokens_ceiling": 3000,
+    "pi_qwen_calls": 0,
+    "cloud_execution_calls": 0,
+    "automatic_new_task_retries": false,
+    "additional_to_prior_failed_task": true
+  },
+  "finish_state": {
+    "rollout_mode": "closed",
+    "all_four_new_flags": false,
+    "allowed_users": 0,
+    "restore_all_seven_snapshot_images_on_success_or_failure": true
+  },
+  "automatic_new_task_retries": false,
+  "executed": false,
+  "production_activation_performed": false,
+  "provider_calls_by_retest": 0,
+  "new_activation_authorization_pending": true,
+  "new_database_migrations": 0,
+  "generic_helm_history_reconciled": false,
+  "android_fixture_candidate": {
+    "source_commit": "5116140dc92b71dc05d5866ae4170e82e85d5034",
+    "application_id": "com.we.meet.fixturecohort",
+    "production_api_build_config_verified": true,
+    "debug_and_instrumentation_apk_build_passed": true,
+    "files": {
+      "app-debug.apk": {
+        "sha256": "de5c489bd816278bc1c97029f32cd94b2baf9c83770f88547765aac0dceffc02",
+        "bytes": 168677449
+      },
+      "app-debug-androidTest.apk": {
+        "sha256": "306933506e52d8350afea78cb2ee6b5bfb2053e2d6b0a4ff5d6d704be0e5b22a",
+        "bytes": 4949031
+      },
+      "output-metadata.json": {
+        "sha256": "12357ffc668e51d691a7b1a4e317aea03bfa94c5f437280589934dfabd1360d6",
+        "bytes": 416
+      }
+    },
+    "installed_on_emulator": false,
+    "instrumentation_executed": false
+  },
+  "operation_source_sha256": {
+    "align-work-business.py": "008cc759b8ae9f68221edccd60a611b826a94e41c694bc4b8191b71ba70f9099",
+    "work-account-cohort.py": "19227c375fa227cf6c7cb4684e253b4616673d773da0d886d323dcef627a88d6"
+  }
+}

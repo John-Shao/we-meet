@@ -4,6 +4,8 @@ import copy
 import importlib.util
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location(
     "cohort", Path(__file__).with_name("work-account-cohort.py")
@@ -67,6 +69,36 @@ class CohortTests(unittest.TestCase):
             self.assertEqual(values["ORDINARY"], "keep")
             self.assertTrue(all(values[n] == "False" for n in c.FLAGS))
             self.assertIsNone(values["WORK_AGENT_ALLOWED_USER_IDS"])
+
+    def test_release_roots_are_distinct_and_confined(self):
+        old = c.release_root(c.DEFAULT_RELEASE_ID)
+        fresh = c.release_root("cohort-e92f9eec4-retest-032")
+        self.assertEqual(old, c.STATE_PARENT / c.DEFAULT_RELEASE_ID)
+        self.assertEqual(fresh.parent, c.STATE_PARENT)
+        self.assertNotEqual(old, fresh)
+        for invalid in (
+            "../cohort-x",
+            "/tmp/cohort-x",
+            "cohort-x/y",
+            "cohort-x\\y",
+            "cohort-",
+            "cohort-X",
+            "cohort-" + "x" * 64,
+            None,
+        ):
+            with (
+                self.subTest(release_id=invalid),
+                self.assertRaisesRegex(RuntimeError, "invalid_release_id"),
+            ):
+                c.release_root(invalid)
+
+    def test_prepare_never_overwrites_an_existing_directory(self):
+        with (
+            TemporaryDirectory() as owned_dir,
+            patch.object(c, "ROOT", Path(owned_dir)),
+            self.assertRaisesRegex(RuntimeError, "release_state_exists"),
+        ):
+            c.prepare(None, {})
 
     def test_invalid_account_cannot_open(self):
         with self.assertRaisesRegex(RuntimeError, "account_not_reviewed"):

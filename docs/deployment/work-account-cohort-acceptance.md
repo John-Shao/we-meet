@@ -2,6 +2,8 @@
 
 该入口只用于已授权的演示账号生产联调。先完成账号核验、候选镜像/运行环境验证以及生产清单审批；不得因脚本存在就再次执行收费任务。操作助手 `deploy/aliyun/work-account-cohort.py` 的 root-only 状态目录不可覆盖重用；再次联调必须准备新的快照、目录和完整 spec 哈希清单。
 
+新清单为每次联调指定唯一的 `--release-id`（例如 `cohort-e92f9eec4-retest-032`），所有阶段必须使用相同值；省略时仍指向历史首轮目录，不得用来准备新一轮。目录只能位于 `/var/lib/we-meet-work-maintenance`，助手拒绝路径穿越、符号链接及已有状态；所有 release 共用原生产操作锁。准备阶段只在新授权后执行，完整快照及真实账号标识仍留在服务器 root-only 目录。
+
 Android 测试需要专用 emulator-5556，不能覆盖日常 App。按现有 Android 配置构建，仅覆盖测试包后缀及 runner（PowerShell 参数必须完整引用）：
 
 ```powershell
