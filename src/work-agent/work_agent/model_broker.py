@@ -12,6 +12,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .config import PROVIDERS
 from .contract import ContractError, canonical
+from .review import response_format
 
 MAX_MODEL_REQUEST = 1_000_000
 MAX_MODEL_RESPONSE = 4_000_000
@@ -180,7 +181,9 @@ class ModelBroker:
                     ):
                         raise ContractError("review_tool_forbidden", 403)
                     if broker.store.operation(run_id) == "review":
-                        body["response_format"] = {"type": "json_object"}
+                        body["response_format"] = response_format(
+                            broker.provider_name, broker.config.model
+                        )
                     if broker.provider_name == "qwen":
                         # This evaluation uses Qwen's JSON mode without thinking or
                         # provider-side search. Client flags cannot widen the policy.

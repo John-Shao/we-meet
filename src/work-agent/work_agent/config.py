@@ -6,7 +6,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from . import ADAPTER_VERSION, CONTRACT, DSH_VERSION, PI_VERSION
-from .contract import DEFAULT_LIMITS, digest
+from .contract import DEFAULT_LIMITS, canonical, digest
+from .review import response_format
 
 PROVIDERS = {
     "deepseek": ("DEEPSEEK_API_KEY", "https://api.deepseek.com"),
@@ -64,6 +65,7 @@ class Config:
 
     def capabilities(self):
         policy = Path(__file__).with_name("dsh-policy.yml").read_bytes()
+        review_format = response_format(self.provider, self.model)
         return {
             "contract": CONTRACT,
             "adapter_version": ADAPTER_VERSION,
@@ -76,6 +78,12 @@ class Config:
             "model": self.model,
             "provider": self.provider,
             "thinking": "off" if self.provider == "qwen" else "low",
+            "review_output_format": review_format["type"],
+            "review_schema_sha256": digest(
+                canonical(review_format["json_schema"]["schema"])
+            )
+            if review_format["type"] == "json_schema"
+            else None,
             "base_url": self.base_url,
             "image": self.image if self.execution == "docker" else None,
             "execution": self.execution,

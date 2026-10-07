@@ -225,6 +225,58 @@ class QwenBrokerTests(BrokerTests):
         self.assertNotIn("reasoning_effort", sent)
         self.assertNotIn("thinking", sent)
 
+    def prepare_flash_review(self):
+        self.broker.config.model = "qwen3.8-flash"
+        self.body["operation"] = "review"
+        self.body["limits"]["max_model_calls"] = 1
+        with self.store.lock, self.store.db:
+            self.store.db.execute(
+                "UPDATE jobs SET request=? WHERE id=?",
+                (json.dumps(self.body), self.run_id),
+            )
+
+    def test_flash_schema_overrides_client_format_and_forbids_extra_fields(self):
+        self.prepare_flash_review()
+        self.assertEqual(
+            self.post(
+                model="qwen3.8-flash",
+                response_format={"type": "text"},
+                stream=True,
+            )[0],
+            200,
+        )
+        fmt = self.requests[0]["response_format"]
+        self.assertEqual(fmt["type"], "json_schema")
+        self.assertIs(fmt["json_schema"]["strict"], True)
+        schema = fmt["json_schema"]["schema"]
+        finding = schema["properties"]["findings"]["items"]
+        evidence = finding["properties"]["evidence"]["items"]
+        self.assertEqual(set(evidence["required"]), {"file", "sha256", "quote"})
+        self.assertNotIn("fle", evidence["properties"])
+        for node in (schema, finding, evidence):
+            self.assertIs(node["additionalProperties"], False)
+            self.assertEqual(set(node["required"]), set(node["properties"]))
+        self.assertEqual(self.store.metering(self.run_id)["calls"], 1)
+
+    def test_schema_rejection_has_no_fallback_or_second_provider_call(self):
+        self.prepare_flash_review()
+
+        def reject(encoded, timeout):
+            self.requests.append(json.loads(encoded))
+            raise HTTPError("https://example.invalid", 400, "rejected", {}, None)
+
+        self.broker.provider = reject
+        options = {"model": "qwen3.8-flash"}
+        self.assertEqual(self.post(**options)[0], 400)
+        self.assertEqual(len(self.requests), 1)
+        self.assertEqual(self.requests[0]["response_format"]["type"], "json_schema")
+        meter = self.store.metering(self.run_id)
+        self.assertEqual(meter["calls"], 1)
+        self.assertFalse(meter["complete"])
+        self.assertGreater(meter["held_tokens"], 0)
+        self.assertEqual(self.post(**options)[0], 429)
+        self.assertEqual(len(self.requests), 1)
+
     def test_upstream_uses_qwen_credential_not_deepseek(self):
         self.broker.config.base_url = "https://example.invalid/compatible-mode/v1"
         with (

@@ -64,7 +64,9 @@ Gateway 增加 `--provider qwen --model qwen3.8-flash`，复用现有百炼 `DAS
 
 Pi 仍固定 1.0.4，Qwen 模型通过自建 `models.json` 登记，最多输出 4096 tokens，并按网关请求预算进一步收紧。默认网关模型保持 DeepSeek；dsh 仍仅接受 DeepSeek。业务端只需让 `WORK_REVIEW_MODEL` 与复核网关的模型名一致，继续使用原接口、权限、快照、取消和共享日预算，不增加上游 SDK 依赖。
 
-Qwen 复核强制 `enable_thinking=false`、`enable_search=false`、JSON Object，并剔除客户端传入的思考参数。它与 DeepSeek 的 `thinking=low` 不构成相同推理预算的性能实验。两种路径均禁止工具、自动重试和无效报告交付。
+Qwen 复核强制 `enable_thinking=false`、`enable_search=false`，并剔除客户端传入的思考参数。`qwen3.8-flash` 及其 `qwen3.8-flash-` 快照名使用 Gateway 固定的 JSON Schema，`strict=true`；所有嵌套对象声明必填字段并禁止额外字段，客户端不能覆盖该格式。其他 Qwen 模型与 DeepSeek 保留 JSON Object；不推定其他模型支持相同 schema。它与 DeepSeek 的 `thinking=low` 不构成相同推理预算的性能实验。两种路径均禁止工具、自动重试和无效报告交付。
+
+Schema 只约束字段、类型与枚举；字符串长度、数组数量、判定一致性、文件 SHA-256 和原文引用仍由 runner 与后端校验。`file` 误写为 `fle` 继续按无效报告拒绝，不自动改名或删掉错误证据。供应商拒绝 schema 时，不自动降级为 JSON Object 或创建第二次调用；已发起请求的用量未知时继续保守预留。capabilities 记录 `review_output_format` 和 `review_schema_sha256`，用于识别本次格式约束。
 
 Qwen 的 `prompt_tokens_details.cached_tokens` 计入输入缓存；非缓存输入为 `prompt_tokens-cached_tokens`。推理 tokens 已包含在 `completion_tokens` 中，不再次累加。缺失或无效用量保持未知和保守预留，不能当成免费调用。供应商 key 只在网关，容器收到的是限当前 job 的短期 token。
 
@@ -101,4 +103,19 @@ python scripts/compare_reviews.py --live --qwen-model qwen3.8-flash --deepseek-b
 
 2026-10-07 用户确认复用已有百炼凭据后，完成五次真实 Flash 调用：四份报告通过，一份因 `file` 字段误写为 `fle` 被结构校验阻断。计量完整，共 5,408 tokens；材料及 runtime 与 DeepSeek v2 基线一致，失败保留，无自动付费重试。详见 [本轮记录](../../docs/reviews/work-pi-qwen-poc-2026-10-07.md)。生产 Pi 复核仍关闭，尚未发布。
 
-供应商配置依据 [Pi 自定义模型文档](https://pi.dev/docs/latest/models)、[百炼 OpenAI 兼容调用](https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions) 和 [Qwen 结构化输出](https://www.alibabacloud.com/help/en/model-studio/qwen-structured-output)。JSON Object 保证语法格式，不保证字段 schema；当前继续严格校验，未自动纠正模型报告。
+供应商配置依据 [Pi 自定义模型文档](https://pi.dev/docs/latest/models)、[百炼 OpenAI 兼容调用](https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions) 和 [Qwen 结构化输出](https://help.aliyun.com/en/model-studio/qwen-structured-output)。2026-10-07 查阅的官方 JSON Schema 支持列表包含 Qwen3.8-Flash 系列；本次只为所选 Flash 系列启用。JSON Object 保证语法格式，不保证字段 schema；两种格式均继续严格校验，未自动纠正模型报告。
+
+### Schema 变更后的单样本回归
+
+先以新代码构建单独的 Pi 测试镜像，再把其本地 image ID 传入评测，保持旧镜像和原失败记录。当前进程已配置现有 `DASHSCOPE_API_KEY` 后，只复测原失败的 `missing_status` 合成样本：
+
+```powershell
+cd src/work-agent
+docker build --target pi -t we-meet-work-agent:pi-review-schema-poc .
+$reviewImageId = docker image inspect --format '{{.Id}}' we-meet-work-agent:pi-review-schema-poc
+python scripts/evaluate_reviews.py --live --review-only --review-provider qwen --review-model qwen3.8-flash --case missing_status --pi-image $reviewImageId --state ../../.work-acceptance/pi-qwen-schema-new --output ../../.work-acceptance/pi-qwen-schema-new/evaluation.json
+```
+
+最多一次模型调用、20,000 tokens 预留和 4096 tokens 输出，无自动重试。单样本回归不覆盖或改写原 4/5 对照；修改镜像和格式后不再宣称与旧 DeepSeek 基线具有相同 runtime。完整新对照需要两种模型均采用新镜像，并重新验证固定数据集。
+
+2026-10-07 单样本真实回归成功：1 次调用、1,281 tokens，`needs_changes` 报告通过 runner 与后端证据校验，输入未变且仅交付 `pi-review.json`。详见 [Schema 回归记录](../../docs/reviews/work-pi-qwen-schema-2026-10-07.md)。

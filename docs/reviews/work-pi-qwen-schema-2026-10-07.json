@@ -1,0 +1,161 @@
+{
+  "date": "2026-10-07",
+  "status": "single_failed_case_passed_with_qwen_json_schema",
+  "purpose": "Targeted structural-output regression; not a new five-case model comparison.",
+  "official_source": "https://help.aliyun.com/en/model-studio/qwen-structured-output",
+  "credential_source": "Existing Bailian DASHSCOPE_API_KEY; child-process memory only.",
+  "production_config_changed": false,
+  "image_published": false,
+  "prior_comparison_record": "work-pi-qwen-poc-2026-10-07.json",
+  "prior_failure": {
+    "name": "missing_status",
+    "snapshot_sha256": "7b678c885893aae1bdcfc5c8d94dd843339a4a9de8a8a20f646ff94bbc231950",
+    "state": "failed",
+    "error_code": "agent_failed",
+    "passed": false,
+    "metering": {
+      "calls": 1,
+      "complete": true,
+      "usage": {
+        "input_tokens": 801,
+        "output_tokens": 543,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "held_tokens": 1344,
+      "denial_code": ""
+    }
+  },
+  "same_frozen_sample": true,
+  "backend_report_validation_passed": true,
+  "historical_failure_preserved": true,
+  "same_runtime_as_prior_comparison": false,
+  "evaluation": {
+    "synthetic_only": true,
+    "dataset_version": "work-review-synthetic/v2",
+    "model": "qwen3.8-flash",
+    "cases": [
+      {
+        "name": "missing_status",
+        "snapshot_sha256": "7b678c885893aae1bdcfc5c8d94dd843339a4a9de8a8a20f646ff94bbc231950",
+        "limits": {
+          "max_model_calls": 1,
+          "max_total_tokens": 20000,
+          "max_output_tokens": 4096
+        },
+        "expected_verdict": "needs_changes",
+        "passed": true,
+        "state": "succeeded",
+        "error_code": "",
+        "report": {
+          "findings": [
+            {
+              "evidence": [
+                {
+                  "file": "result-01.md",
+                  "quote": "客户已签署验收单。",
+                  "sha256": "962c7896d8296cb52584eec67eab9a83e480135d6f50d701771f3b7c80651a0a"
+                }
+              ],
+              "message": "结果文件声称“客户已签署验收单”，这与 orders.csv 中订单 B 状态为 pending（待验收）的事实相矛盾，且未说明存在未验收项目，违反了仅依据材料的要求。",
+              "severity": "error"
+            },
+            {
+              "evidence": [
+                {
+                  "file": "orders.csv",
+                  "quote": "B,200,pending",
+                  "sha256": "cbd950d870728c7c1bc144ea9ed716f6a04991f1dcbc52875086a567d8ffb428"
+                },
+                {
+                  "file": "status-legend.md",
+                  "quote": "pending 表示待验收（尚未验收）",
+                  "sha256": "e415b491207264944080c91bd89ce29613d934fee8eb06e1a85d65142b6de912"
+                }
+              ],
+              "message": "结果文件遗漏了关于是否存在未验收项目的说明。根据 status-legend.md，pending 表示尚未验收，因此应明确指出存在未验收项目（订单 B）。",
+              "severity": "warning"
+            }
+          ],
+          "missing_information": [],
+          "summary": "计算总金额正确（300），但结论错误地声称所有项目均已验收，忽略了订单 B 处于 pending 状态这一事实，与源数据及图例定义冲突。",
+          "verdict": "needs_changes"
+        },
+        "input_unchanged": true,
+        "only_review_artifact": true,
+        "metering": {
+          "calls": 1,
+          "complete": true,
+          "usage": {
+            "input_tokens": 801,
+            "output_tokens": 480,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0
+          },
+          "held_tokens": 1281,
+          "denial_code": ""
+        },
+        "elapsed_ms": 9494
+      }
+    ],
+    "execution": {
+      "state": "synthetic_fixture",
+      "model_calls": 0
+    },
+    "review_deployment": {
+      "contract": "work-agent/v1",
+      "adapter_version": "0.3.1",
+      "engine": "pi",
+      "runtime_version": "1.0.4",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "thinking": "off",
+      "review_output_format": "json_schema",
+      "review_schema_sha256": "8857bdbf8d3f8dcb27d15dcaf0f5df141dc67ad2e14257785b67cd0146ae6741",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "image": "sha256:f4a6e12494cea11ce3cc0c1100ceb84a5742f83dcd0fd1dda09d7670df89c5cc",
+      "execution": "docker",
+      "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+      "features": [
+        "readonly_review_v1",
+        "submit",
+        "poll",
+        "cancel",
+        "idempotency",
+        "artifacts",
+        "model_broker",
+        "cumulative_budget",
+        "provider_metering"
+      ],
+      "limits_ceiling": {
+        "max_model_calls": 6,
+        "max_total_tokens": 80000,
+        "max_output_tokens": 4096
+      },
+      "limitations": [
+        "no_resume",
+        "no_business_tools",
+        "usage_may_be_unknown",
+        "synthetic_materials_only"
+      ]
+    }
+  },
+  "verification": {
+    "agent_suite": {
+      "total": 69,
+      "passed": 64,
+      "skipped": 5
+    },
+    "pinned_pi_docker_mock_sse": {
+      "passed": 1,
+      "replaces_one_opt_in_skip": true
+    },
+    "ruff": "passed"
+  },
+  "limitations": [
+    "Only missing_status was called with the new schema.",
+    "One successful call does not establish general reliability.",
+    "No schema fallback, automatic paid retry or evidence repair.",
+    "Full new comparison requires new matching runtime evidence."
+  ]
+}

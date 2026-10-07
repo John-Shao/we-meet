@@ -68,6 +68,15 @@ class ReviewTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_report(value, files)
 
+    def test_misspelled_evidence_field_is_rejected_without_repair(self):
+        value = report()
+        ref = value["findings"][0]["evidence"][0]
+        ref["fle"] = ref.pop("file")
+        original = json.dumps(value)
+        with self.assertRaisesRegex(ValueError, "invalid_review_report"):
+            parse_report(original, [{"name": "report.md", "text": "Total: 4"}])
+        self.assertEqual(json.dumps(value), original)
+
     def test_trusted_runner_writes_only_review_artifact(self):
         with (
             tempfile.TemporaryDirectory() as temp,

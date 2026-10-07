@@ -32,7 +32,7 @@ class QwenDockerTests(unittest.TestCase):
                     Path(directory),
                     "offline-gateway-token-123456789",
                     provider="qwen",
-                    model="qwen-plus",
+                    model="qwen3.8-flash",
                     image=os.environ["WORK_AGENT_PI_TEST_IMAGE"],
                 )
             )
@@ -64,14 +64,14 @@ class QwenDockerTests(unittest.TestCase):
                         "id": "chat-offline",
                         "object": "chat.completion.chunk",
                         "created": 1,
-                        "model": "qwen-plus",
+                        "model": "qwen3.8-flash",
                         "choices": [choice],
                     },
                     {
                         "id": "chat-offline",
                         "object": "chat.completion.chunk",
                         "created": 1,
-                        "model": "qwen-plus",
+                        "model": "qwen3.8-flash",
                         "choices": [end],
                         "usage": usage,
                     },
@@ -104,11 +104,15 @@ class QwenDockerTests(unittest.TestCase):
                     time.sleep(0.1)
                 self.assertEqual(job["state"], "succeeded", job["error_code"])
                 self.assertEqual(len(requests), 1)
-                self.assertEqual(requests[0]["model"], "qwen-plus")
+                self.assertEqual(requests[0]["model"], "qwen3.8-flash")
                 self.assertIs(requests[0]["enable_thinking"], False)
                 self.assertNotIn("tools", requests[0])
+                fmt = requests[0]["response_format"]
+                self.assertEqual(fmt["type"], "json_schema")
+                self.assertIs(fmt["json_schema"]["strict"], True)
                 self.assertEqual(
-                    requests[0]["response_format"], {"type": "json_object"}
+                    gateway.config.capabilities()["review_output_format"],
+                    "json_schema",
                 )
                 self.assertEqual(job["result"]["usage"]["cache_read_tokens"], 80)
                 self.assertEqual(job["result"]["usage"]["input_tokens"], 20)

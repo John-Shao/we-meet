@@ -8,11 +8,34 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from work_agent.config import Config, load_env
+from work_agent.contract import canonical, digest
+from work_agent.review import REPORT_SCHEMA
 from work_agent.store import Store
 from work_agent.worker import Worker
 
 
 class ProviderTests(unittest.TestCase):
+    def test_review_format_is_scoped_to_verified_model_family(self):
+        with patch.dict(os.environ, {"DASHSCOPE_API_KEY": "offline-only"}):
+            for model, expected in (
+                ("qwen3.8-flash", "json_schema"),
+                ("qwen3.8-flash-0902", "json_schema"),
+                ("qwen-plus", "json_object"),
+                ("qwen3.7-flash", "json_object"),
+                ("qwen3.8-flashish", "json_object"),
+            ):
+                config = Config(
+                    "pi", Path("."), "x" * 32, provider="qwen", model=model
+                )
+                caps = config.capabilities()
+                self.assertEqual(caps["review_output_format"], expected)
+                self.assertEqual(
+                    caps["review_schema_sha256"],
+                    digest(canonical(REPORT_SCHEMA))
+                    if expected == "json_schema"
+                    else None,
+                )
+
     def test_qwen_requires_its_own_credential_and_model(self):
         with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "test-deepseek"}, clear=True):
             with self.assertRaisesRegex(ValueError, "DASHSCOPE_API_KEY"):
