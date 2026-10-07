@@ -29,8 +29,8 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.mark.parametrize("engine", ["fixture", "pi"])
-def test_selected_local_files_to_review_with_lost_admission_ack(  # noqa: PLR0915 -- one cross-boundary acceptance trace
-    client, settings, tmp_path, monkeypatch, engine
+def test_selected_local_files_to_review_with_lost_admission_ack(  # noqa: PLR0913, PLR0915 -- one cross-boundary acceptance trace
+    client, settings, tmp_path, monkeypatch, engine, delivery_probe=None
 ):
     """No live supplier calls; Pi opt-in uses its real pinned Docker RPC runtime."""
     image = os.environ.get("WORK_AGENT_PI_TEST_IMAGE")
@@ -225,6 +225,8 @@ def test_selected_local_files_to_review_with_lost_admission_ack(  # noqa: PLR091
             ref_type="work_run", ref_id=str(run.pk)
         ).exists()
         assert admitted["task"]["id"] == str(run.task_id)
+        if delivery_probe:
+            delivery_probe(run, review)
         assert client.delete(ROOT + f"materials/{sources[0]['id']}/").status_code == 204
         assert client.get(review_url).status_code == 409
     finally:

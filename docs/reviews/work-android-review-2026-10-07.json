@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-07",
+  "android_commit": "4313af8a",
+  "sdk_commit": "f41f52e9ad696f56528b9903f90b0575dc4ded5c",
+  "version": "0.3.0-work.2",
+  "version_code": 4,
+  "application_id": "com.we.meet",
+  "apk_bytes": 168677437,
+  "apk_sha256": "d2ece0fca3f518cc7e253ce800c0d851a695005c6e097ff13cf17bc8a2f67711",
+  "signing": "Android Debug; APK Signature Scheme v2 verified; internal only",
+  "tests": {
+    "android_jvm_passed": 553,
+    "android_jvm_failed": 0,
+    "android_ui_passed": 2,
+    "work_backend_passed": 86,
+    "work_backend_skipped": 5,
+    "local_review_and_android_integration_passed": 3
+  },
+  "integration": {
+    "database": "isolated PostgreSQL 16",
+    "pi_image": "we-meet-work-agent:pi-review-schema-poc",
+    "pi_image_id": "sha256:f4a6e12494cea11ce3cc0c1100ceb84a5742f83dcd0fd1dda09d7670df89c5cc",
+    "auth": "synthetic business session; no production login",
+    "supplier": "synthetic SSE; no paid calls",
+    "desktop_device_report": "fixture",
+    "input_tokens": 100,
+    "output_tokens": 30,
+    "evidence_directory": ".work-acceptance/work-android-review-20261007"
+  },
+  "production_deployed": false,
+  "user_app_replaced": false,
+  "ios_in_scope": false
+}
