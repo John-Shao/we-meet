@@ -1,6 +1,6 @@
 # 独立 Gateway 发布候选
 
-PID 前置变更已完成。本候选只准备独立 Pi/Qwen Gateway，业务 `WORK_AGENT_ENABLED`、`WORK_REVIEW_ENABLED` 保持关闭；当前未发布镜像、创建 namespace/Secret/PVC 或部署 Gateway。实际发布是新的生产写操作，超出本次仅 PID 配置变更与 K3s 重启的明确授权范围。
+PID 前置变更已完成。以下是首次部署前的候选快照；用户随后明确“授权新增生产服务”，已按本范围发布独立 Pi/Qwen Gateway。实际部署、验收及首次标签不匹配见 [发布回执](work-k3s-gateway-release-2026-10-07.md)。业务 `WORK_AGENT_ENABLED`、`WORK_REVIEW_ENABLED` 继续保持关闭。
 
 | 项目 | 候选 |
 | --- | --- |

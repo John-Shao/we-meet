@@ -23,6 +23,8 @@ Gateway 使用独立 namespace 和持久 PVC。每个任务创建一个固定镜
 
 ## 本地真实集群验收
 
+2026-10-07 的独立 Pi/Qwen Gateway 已按“新增生产服务”授权在京东云现有 K3s 发布，业务开关继续关闭。实际镜像、隔离验证、4 次合成模型调用及首次标签不匹配的审阅见 [生产发布回执](../../docs/reviews/work-k3s-gateway-release-2026-10-07.md)。部署脚本是本轮有状态的首次发布工具，不能通过删除回执重复执行付费验收。
+
 仓库提供可重复的本机 Docker Desktop/WSL2 隔离 K3s 夹具，使用固定 K3s `v1.36.2+k3s1` 镜像及候选 kubelet PID 配置。它仅在专属 bridge、volume、registry 中运行，不读取现有 kubeconfig，不操作已有集群。临时控制面为 privileged 容器，生产 task Pod 无此权限。
 
 从仓库根目录执行，`python` 使用带 PyYAML/cryptography 的测试环境；先构建三个 target 并通过 `docker image inspect` 取得完整源 digest。夹具的 registry 仅映射 Windows loopback；保存并重打包镜像 manifest 后重新固定 digest，核对 RootFS diff IDs，不能把该内部地址当作生产 registry。

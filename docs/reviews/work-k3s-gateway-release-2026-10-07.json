@@ -1,0 +1,620 @@
+{
+  "schema": "work-k3s-gateway-release/v1",
+  "date": "2026-10-07",
+  "environment": "jdcloud-production",
+  "authorization": "用户明确授权新增生产服务；业务开关保持关闭",
+  "phase": "independent_gateway_verified_business_disabled",
+  "release_id": "3a2e9956301d4e6bbe095fd8e874c6a0",
+  "baseline_commit": "8cb716d5a",
+  "deployment": {
+    "gateway_namespace": "meet-work-review",
+    "task_namespace": "meet-work-review-tasks",
+    "business_namespace": "meet",
+    "engine": "pi",
+    "runtime_version": "1.0.4",
+    "model": "qwen3.8-flash",
+    "supplier": "dashscope",
+    "gateway_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-gateway@sha256:9d0ec059f8a5dd9e70935e5c0d40ba4b2605fce4e685c202ea21e216a7958adb",
+    "worker_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-pi@sha256:5c460c1b1ef5e5d9ce0d70ba3c274bf05f08a5bbb730865c0b68d41662b9a033",
+    "business_deployment_changed": false,
+    "k3s_restarted": false
+  },
+  "initial_acceptance": {
+    "schema": "work-k3s-production-acceptance/v1",
+    "release_id": "3a2e9956301d4e6bbe095fd8e874c6a0",
+    "phase": "failed",
+    "supplier_call_ceiling": 5,
+    "supplier_calls": 3,
+    "samples": [
+      {
+        "name": "clean",
+        "run_id": "30b332e4-8eb7-4582-a7e6-56157b01893f",
+        "expected_verdict": "no_issues",
+        "request_sha256": "a3dc0662689a3843530b7270cedf0b7f05e111dd8872e8000c587347b2cb09d2",
+        "limits": {
+          "max_model_calls": 1,
+          "max_total_tokens": 20000,
+          "max_output_tokens": 4096
+        },
+        "state": "succeeded",
+        "error_code": "",
+        "metering": {
+          "calls": 1,
+          "complete": true,
+          "usage": {
+            "input_tokens": 587,
+            "output_tokens": 48,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0
+          },
+          "held_tokens": 635,
+          "denial_code": ""
+        },
+        "verdict": "no_issues",
+        "artifact_sha256": "f3197d823d1179c1539f6f312250f5736e9cb113eca5c5b1d83ef7d9d4451879",
+        "usage": {
+          "input_tokens": 587,
+          "output_tokens": 48,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0
+        }
+      },
+      {
+        "name": "contradiction",
+        "run_id": "32816b02-b05d-4cce-99b2-b87f0bc92553",
+        "expected_verdict": "needs_changes",
+        "request_sha256": "4ecad7e98484051b2202e7f6f8fff4dbb422b725494f737a7130f20d2f005366",
+        "limits": {
+          "max_model_calls": 1,
+          "max_total_tokens": 20000,
+          "max_output_tokens": 4096
+        },
+        "state": "succeeded",
+        "error_code": "",
+        "metering": {
+          "calls": 1,
+          "complete": true,
+          "usage": {
+            "input_tokens": 589,
+            "output_tokens": 150,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0
+          },
+          "held_tokens": 739,
+          "denial_code": ""
+        },
+        "verdict": "needs_changes",
+        "artifact_sha256": "fb2cbbfa0368623de2ba918b5c0ad44c0de030c5827a1f304d192696bd018a34",
+        "usage": {
+          "input_tokens": 589,
+          "output_tokens": 150,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0
+        }
+      },
+      {
+        "name": "missing_evidence",
+        "run_id": "be905b15-13aa-427a-b540-fa8d0306dbf3",
+        "expected_verdict": "inconclusive",
+        "request_sha256": "47a65b9544341d9ae355d1c2dff675d1162cc2f8e2e28a5d16206201b4454694",
+        "limits": {
+          "max_model_calls": 1,
+          "max_total_tokens": 20000,
+          "max_output_tokens": 4096
+        },
+        "state": "succeeded",
+        "error_code": "",
+        "metering": {
+          "calls": 1,
+          "complete": true,
+          "usage": {
+            "input_tokens": 592,
+            "output_tokens": 167,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0
+          },
+          "held_tokens": 759,
+          "denial_code": ""
+        },
+        "verdict": "needs_changes",
+        "artifact_sha256": "20885bf575a47849fd9b626aa10978b3f8871502c7fe453dece7370a795b27fd",
+        "usage": {
+          "input_tokens": 592,
+          "output_tokens": 167,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0
+        }
+      }
+    ],
+    "probes": [
+      {
+        "name": "wa-client-3a2e9956",
+        "namespace": "meet",
+        "uid": "04d0d613-7fc2-432e-9238-bb8e3c295c1b"
+      },
+      {
+        "name": "wa-peer-3a2e9956",
+        "namespace": "meet",
+        "uid": "4056fbf7-211d-4c0d-af63-0e2ce7b520d5"
+      },
+      {
+        "name": "wa-network-3a2e9956",
+        "namespace": "meet-work-review-tasks",
+        "uid": "0456e87f-ac4c-4bc0-8d60-b4dfc28c3f92"
+      }
+    ],
+    "business_before": {
+      "preserved_pods": 29,
+      "restart_count_unchanged": true
+    },
+    "actual_probe_pids_max": 512,
+    "capabilities": {
+      "contract": "work-agent/v1",
+      "adapter_version": "0.3.1",
+      "engine": "pi",
+      "runtime_version": "1.0.4",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "thinking": "off",
+      "review_output_format": "json_schema",
+      "review_schema_sha256": "8857bdbf8d3f8dcb27d15dcaf0f5df141dc67ad2e14257785b67cd0146ae6741",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-pi@sha256:5c460c1b1ef5e5d9ce0d70ba3c274bf05f08a5bbb730865c0b68d41662b9a033",
+      "execution": "kubernetes",
+      "kubernetes_runtime": {
+        "namespace": "meet-work-review-tasks",
+        "service_account": "work-agent-task",
+        "ca_config_map": "work-agent-ca",
+        "broker_url": "https://meet-work-review.meet-work-review.svc.cluster.local:8445",
+        "image_pull_secrets": [
+          "work-agent-registry"
+        ]
+      },
+      "policy_sha256": "f668167a35974d57a8f0c3947133435db41e84063d766de7c3283da9b6ca1a5e",
+      "features": [
+        "readonly_review_v1",
+        "submit",
+        "poll",
+        "cancel",
+        "idempotency",
+        "artifacts",
+        "model_broker",
+        "cumulative_budget",
+        "provider_metering"
+      ],
+      "limits_ceiling": {
+        "max_model_calls": 6,
+        "max_total_tokens": 80000,
+        "max_output_tokens": 4096
+      },
+      "limitations": [
+        "no_resume",
+        "no_business_tools",
+        "usage_may_be_unknown",
+        "synthetic_materials_only"
+      ]
+    },
+    "network": {
+      "business_peer_tcp_positive": true,
+      "broker_tls": true,
+      "broker_unauthorized": 401,
+      "blocked_ports": [
+        8080,
+        8444,
+        443,
+        6443
+      ],
+      "service_account_token": false
+    },
+    "rbac": [
+      {
+        "verb": "create",
+        "resource": "pods",
+        "namespace": "meet-work-review-tasks",
+        "allowed": true
+      },
+      {
+        "verb": "create",
+        "resource": "pods",
+        "namespace": "meet",
+        "allowed": false
+      },
+      {
+        "verb": "get",
+        "resource": "secrets",
+        "namespace": "meet-work-review",
+        "allowed": false
+      },
+      {
+        "verb": "get",
+        "resource": "secrets",
+        "namespace": "meet-work-review-tasks",
+        "allowed": false
+      }
+    ],
+    "zero_call_run_id": "7c13a66b-1594-4d17-b7df-5cc58fe6a9c2",
+    "zero_supplier_guard": {
+      "state": "failed",
+      "error_code": "budget_exceeded",
+      "calls": 0
+    },
+    "cancelled_run_id": "b2cc7f29-9bee-4146-91f7-1ad4832175d4",
+    "backup": {
+      "restore_copy_quick_check": "ok",
+      "restored_jobs": 2,
+      "model_calls": 0,
+      "backup_sha256": "a2c9daf059ae009721deb2d7e63268677ba4ef2202702afe2485e4b14331620f"
+    },
+    "persistence": {
+      "gateway_pod_uid_before": "ada23038-ae36-475a-9bda-6847b0e66b20",
+      "gateway_pod_uid_after": "28310c5e-d2e2-4669-a3c7-def22e3fb229",
+      "cancelled_tombstone_preserved": true,
+      "supplier_calls_before_restart": 0
+    },
+    "failure": "synthetic_verdict_mismatch",
+    "probe_cleanup_requested": true
+  },
+  "initial_label_review": {
+    "run_id": "be905b15-13aa-427a-b540-fa8d0306dbf3",
+    "original_expected": "inconclusive",
+    "actual": "needs_changes",
+    "assessment": "目标要求提供完成验收的实测证据，文件明确尚未测试；判断已知未完成有引用依据。原始失败不改写。",
+    "original_receipt_preserved": true
+  },
+  "initial_sample_artifact_audit": {
+    "samples": [
+      {
+        "run_id": "30b332e4-8eb7-4582-a7e6-56157b01893f",
+        "state": "succeeded",
+        "goal": "检查文档内的算术是否正确。仅使用给定文件，无需外部材料。",
+        "files": [
+          {
+            "name": "result.md",
+            "sha256": "43fcd891a66d9125bb1f9c5a424ca56b809c4473112de0a9a2175cbd58afc476",
+            "text": "# 合计\n2 + 2 = 4。\n"
+          }
+        ],
+        "review": {
+          "findings": [],
+          "missing_information": [],
+          "summary": "文档中的算术表达式 '2 + 2 = 4' 是正确的，符合基本数学规则。没有发现事实矛盾、算术错误或遗漏。",
+          "verdict": "no_issues"
+        }
+      },
+      {
+        "run_id": "32816b02-b05d-4cce-99b2-b87f0bc92553",
+        "state": "succeeded",
+        "goal": "检查文档内的算术是否正确。仅使用给定文件，无需外部材料。",
+        "files": [
+          {
+            "name": "result.md",
+            "sha256": "6db6669770fad5a1480ecd92baf1909f7d6a7411e617513c9178926b2536f718",
+            "text": "# 合计\n2 + 2 = 5。\n"
+          }
+        ],
+        "review": {
+          "findings": [
+            {
+              "evidence": [
+                {
+                  "file": "result.md",
+                  "quote": "2 + 2 = 5。",
+                  "sha256": "6db6669770fad5a1480ecd92baf1909f7d6a7411e617513c9178926b2536f718"
+                }
+              ],
+              "message": "文档中的算术错误：2 + 2 应等于 4，而不是 5。",
+              "severity": "error"
+            }
+          ],
+          "missing_information": [],
+          "summary": "发现一处明显的算术错误。",
+          "verdict": "needs_changes"
+        }
+      },
+      {
+        "run_id": "be905b15-13aa-427a-b540-fa8d0306dbf3",
+        "state": "succeeded",
+        "goal": "验收目标为100人并发。检查文件是否提供了完成该目标的实测证据。",
+        "files": [
+          {
+            "name": "result.md",
+            "sha256": "11a8a92966451c8d57fa4ff66431382c280360f36478f14b09cf0ff45816d413",
+            "text": "# 状态\n尚未进行并发测试。\n"
+          }
+        ],
+        "review": {
+          "findings": [
+            {
+              "evidence": [
+                {
+                  "file": "result.md",
+                  "quote": "尚未进行并发测试。",
+                  "sha256": "11a8a92966451c8d57fa4ff66431382c280360f36478f14b09cf0ff45816d413"
+                }
+              ],
+              "message": "验收目标要求提供100人并发的实测证据，但文件中明确声明“尚未进行并发测试”，表明完全缺失所需的实测数据。",
+              "severity": "error"
+            }
+          ],
+          "missing_information": [],
+          "summary": "文件未满足验收目标。它明确指出没有进行并发测试，因此无法提供证明系统支持100人并发的任何实测证据。",
+          "verdict": "needs_changes"
+        }
+      }
+    ],
+    "supplier_calls_database": 3
+  },
+  "no_model_followup_attempts": [
+    {
+      "schema": "work-k3s-production-finalization/v1",
+      "release_id": "3a2e9956301d4e6bbe095fd8e874c6a0",
+      "initial_receipt_sha256": "27cdcca34c8fa9e31654e3e8c023b6d5c5404ce159ae4cddb24239e9e9086410",
+      "initial_phase": "failed",
+      "initial_failure": "synthetic_verdict_mismatch",
+      "additional_supplier_calls": 0,
+      "phase": "failed",
+      "probes": [
+        {
+          "name": "wa-final-peer-3a2e9956",
+          "namespace": "meet",
+          "uid": "6c7f7975-6219-4288-bdfc-30516ab6b3a6"
+        },
+        {
+          "name": "wa-final-network-3a2e9956",
+          "namespace": "meet-work-review-tasks",
+          "uid": "e35d9540-9a8c-4349-b00d-f03753e87839"
+        }
+      ],
+      "database_before": {
+        "model_calls": 3,
+        "jobs": [
+          [
+            "30b332e4-8eb7-4582-a7e6-56157b01893f",
+            "succeeded"
+          ],
+          [
+            "32816b02-b05d-4cce-99b2-b87f0bc92553",
+            "succeeded"
+          ],
+          [
+            "7c13a66b-1594-4d17-b7df-5cc58fe6a9c2",
+            "failed"
+          ],
+          [
+            "b2cc7f29-9bee-4146-91f7-1ad4832175d4",
+            "cancelled"
+          ],
+          [
+            "be905b15-13aa-427a-b540-fa8d0306dbf3",
+            "succeeded"
+          ]
+        ]
+      },
+      "failure": "command_failed:kubectl"
+    },
+    {
+      "schema": "work-k3s-production-finalization/v1",
+      "release_id": "3a2e9956301d4e6bbe095fd8e874c6a0",
+      "attempt": 2,
+      "initial_receipt_sha256": "27cdcca34c8fa9e31654e3e8c023b6d5c5404ce159ae4cddb24239e9e9086410",
+      "initial_phase": "failed",
+      "initial_failure": "synthetic_verdict_mismatch",
+      "additional_supplier_calls": 0,
+      "phase": "infrastructure_verified_model_label_review_required",
+      "probes": [
+        {
+          "name": "wa-final-2-peer-3a2e9956",
+          "namespace": "meet",
+          "uid": "d64433c6-2f09-4fe1-93f6-d85a15fb0974"
+        },
+        {
+          "name": "wa-final-2-network-3a2e9956",
+          "namespace": "meet-work-review-tasks",
+          "uid": "fd12eea5-9a9a-4a17-8ff1-813e950ed4b9"
+        }
+      ],
+      "stage": "final_health",
+      "database_before": {
+        "model_calls": 3,
+        "jobs": [
+          [
+            "30b332e4-8eb7-4582-a7e6-56157b01893f",
+            "succeeded"
+          ],
+          [
+            "32816b02-b05d-4cce-99b2-b87f0bc92553",
+            "succeeded"
+          ],
+          [
+            "7c13a66b-1594-4d17-b7df-5cc58fe6a9c2",
+            "failed"
+          ],
+          [
+            "b2cc7f29-9bee-4146-91f7-1ad4832175d4",
+            "cancelled"
+          ],
+          [
+            "be905b15-13aa-427a-b540-fa8d0306dbf3",
+            "succeeded"
+          ]
+        ]
+      },
+      "ingress": {
+        "task_port_8080_blocked_from_business": true,
+        "task_listener_positive": true
+      },
+      "database_after": {
+        "model_calls": 3,
+        "jobs": [
+          [
+            "30b332e4-8eb7-4582-a7e6-56157b01893f",
+            "succeeded"
+          ],
+          [
+            "32816b02-b05d-4cce-99b2-b87f0bc92553",
+            "succeeded"
+          ],
+          [
+            "7c13a66b-1594-4d17-b7df-5cc58fe6a9c2",
+            "failed"
+          ],
+          [
+            "b2cc7f29-9bee-4146-91f7-1ad4832175d4",
+            "cancelled"
+          ],
+          [
+            "be905b15-13aa-427a-b540-fa8d0306dbf3",
+            "succeeded"
+          ]
+        ]
+      },
+      "business_after": {
+        "preserved_pods": 29,
+        "restart_count_unchanged": true
+      },
+      "business_flags": {
+        "WORK_AGENT_ENABLED": null,
+        "WORK_REVIEW_ENABLED": null
+      },
+      "pvc": {
+        "name": "meet-work-review-state",
+        "phase": "Bound",
+        "capacity": {
+          "storage": "2Gi"
+        }
+      },
+      "gateway": {
+        "running": true,
+        "service_type": "ClusterIP",
+        "public_ingress": false
+      },
+      "frontend_https": {
+        "host": "meet.we-meet.online",
+        "status": 200,
+        "certificate_validation": true
+      },
+      "probe_cleanup_verified": false
+    }
+  ],
+  "unknown_evidence_new_sample": {
+    "release_id": "3a2e9956301d4e6bbe095fd8e874c6a0",
+    "phase": "verified",
+    "run_id": "e939c74f-ade1-40b4-a0c3-aa226270c0b4",
+    "name": "unknown_measurement",
+    "expected_verdict": "inconclusive",
+    "request": {
+      "contract": "work-agent/v1",
+      "run_id": "e939c74f-ade1-40b4-a0c3-aa226270c0b4",
+      "operation": "review",
+      "goal": "判断该系统的实际最大并发人数是否达到100人。只根据当前文件；文件未记载的实测参数不得推断。",
+      "files": [
+        {
+          "name": "result.md",
+          "text": "# 概况\n这是一个用于团队协作的测试系统。\n",
+          "sha256": "a231536f6833d83c0ded783e58eb0b98ee520de8fca63061e3081880f9d30ee6"
+        }
+      ],
+      "timeout_seconds": 120,
+      "limits": {
+        "max_model_calls": 1,
+        "max_total_tokens": 20000,
+        "max_output_tokens": 4096
+      }
+    },
+    "supplier_calls_before": 3,
+    "supplier_call_ceiling": 5,
+    "probe": {
+      "name": "wa-unknown-client-3a2e9956",
+      "namespace": "meet",
+      "uid": "2240080a-cecc-44d2-bd8d-9479cc8fab29"
+    },
+    "state": "succeeded",
+    "metering": {
+      "calls": 1,
+      "complete": true,
+      "usage": {
+        "input_tokens": 600,
+        "output_tokens": 214,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "held_tokens": 814,
+      "denial_code": ""
+    },
+    "error_code": "",
+    "review": {
+      "findings": [
+        {
+          "evidence": [
+            {
+              "file": "result.md",
+              "quote": "# 概况\n这是一个用于团队协作的测试系统。\n",
+              "sha256": "a231536f6833d83c0ded783e58eb0b98ee520de8fca63061e3081880f9d30ee6"
+            }
+          ],
+          "message": "提供的文件仅包含系统的简要概况描述，未记载任何关于最大并发人数的实测参数或数据。根据目标要求“只根据当前文件；文件未记载的实测参数不得推断”，无法判断该系统的实际最大并发人数是否达到100人。",
+          "severity": "error"
+        }
+      ],
+      "missing_information": [
+        "系统最大并发人数的实测数据、压力测试报告或相关性能指标"
+      ],
+      "summary": "由于文件中缺乏必要的性能参数记录，无法依据现有信息得出关于并发人数的结论。",
+      "verdict": "inconclusive"
+    },
+    "artifact_sha256": "a2f79c100a88e533ea3acaa77f87fcd81c6323f7bbf2402dda519016ef2cf843",
+    "supplier_calls_total": 4,
+    "business_after": {
+      "preserved_pods": 29,
+      "restart_count_unchanged": true
+    }
+  },
+  "final_confirmation": {
+    "probe_cleanup_verified": true,
+    "remaining_task_pods": 0,
+    "database": {
+      "model_calls": 4,
+      "active_jobs": 0
+    },
+    "business_pods_ready_unchanged": 29,
+    "business_total_restarts": 32,
+    "frontend_https": {
+      "status": 200,
+      "certificate_validation": true
+    },
+    "gateway_ready_replicas": 1,
+    "deployment_uid": "d042e27f-608f-46a7-82d6-672ca2bc30f7",
+    "gateway_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-gateway@sha256:9d0ec059f8a5dd9e70935e5c0d40ba4b2605fce4e685c202ea21e216a7958adb",
+    "tls_certificate": [
+      "notBefore=Oct  7 13:08:51 2026 GMT",
+      "notAfter=Oct  7 13:08:51 2027 GMT",
+      "sha256 Fingerprint=28:84:18:18:B3:5C:4C:D3:95:2F:DE:CB:58:34:58:5D:83:C5:3C:EF:DB:C7:F7:A6:57:36:E3:A5:9D:77:FB:BF"
+    ],
+    "initial_receipt_sha256": "27cdcca34c8fa9e31654e3e8c023b6d5c5404ce159ae4cddb24239e9e9086410"
+  },
+  "usage": {
+    "supplier_calls": 4,
+    "authorized_ceiling": 5,
+    "max_output_tokens_per_call": 4096,
+    "input_tokens": 2368,
+    "output_tokens": 579,
+    "paid_samples_replayed": false
+  },
+  "checks": {
+    "new_unit_tests": 15,
+    "unit_tests": "passed",
+    "ruff": "passed"
+  },
+  "limits": [
+    "synthetic_materials_only",
+    "no_business_tools",
+    "no_resume",
+    "not_a_real_business_quality_benchmark",
+    "restore_copy_checked_active_database_not_replaced"
+  ],
+  "executed_payload_sha256": {
+    "provision-payload.py": "11c0d8436ddc897d0a4fe129ec33929aeafbedb6be9c85ebdcfe8ad95dbb9262",
+    "finalization-payload.py": "4e335c0d63939f5529b2e120c4866b4b3cb1c14564a947aacddfadc7886fd6cf",
+    "unknown-sample-payload.py": "dd4c43e63c96673579ba5552d667b7fa4661275d59c0db227422965863d39297"
+  }
+}
