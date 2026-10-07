@@ -1,0 +1,148 @@
+{
+  "phase": "candidate_prepared_activation_not_authorized",
+  "source_commit": "e92f9eec4540a9b16dc107a421523beefc87f681",
+  "release_candidate": {
+    "source_commit": "e92f9eec4540a9b16dc107a421523beefc87f681",
+    "immutable_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61",
+    "registry_digest_verified": true,
+    "digest": "sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61",
+    "amd64_manifest": "sha256:18f3af54cb1515c42a5385e63717591731eb99d5a122f58a2f311e8fab3f26a0",
+    "config_digest": "sha256:9ccdd9eabcf18502a6578d4737f4eaac6e36f777cb8eb3ab3f580ada2778fd57"
+  },
+  "source_ci": {
+    "run_id": 37644693656,
+    "conclusion": "success",
+    "url": "https://github.com/John-Shao/we-meet/actions/runs/37644693656"
+  },
+  "image_acceptance": {
+    "default_closed": true,
+    "allowlist_owner_only": true,
+    "remote_queue_and_claim": true,
+    "revocation_requests_stop": true,
+    "cloud_dispatches": 0,
+    "provider_calls": 0,
+    "source_commit": "e92f9eec4540a9b16dc107a421523beefc87f681",
+    "immutable_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61",
+    "revision_label_matches": true,
+    "python_source_and_dependencies_match_git_archive": true,
+    "architecture": "amd64",
+    "configured_user": "root",
+    "production_business_writes": 0
+  },
+  "account_identity": {
+    "selected_demo_user_verified": true,
+    "uuid_sha256": "ada9bbbb960ea8fdc825a05b31265b5b9c9eab7334d677244ea555af491dc7e5",
+    "actual_https_otp_login_passed": true,
+    "credentials_persisted": false
+  },
+  "production_baseline": {
+    "consumers": [
+      {
+        "kind": "Deployment",
+        "name": "meet-backend",
+        "uid": "81e49171-7fe4-4cb1-b7ab-d969b02675d7",
+        "resource_version": "8912018",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "3769a9d22cfe359dbf1cdc7ca09658c530d2103e08e84cdb2feb6d8574489bd1",
+        "flags_closed": true
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-backend-ai",
+        "uid": "53015eed-c8c7-4594-98f5-34626f1cf4c7",
+        "resource_version": "8911942",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "f7a8dd934044e125558a7beb658f93ffda9f34b0bb5402ff9092c4181231c970",
+        "flags_closed": true
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-celery-backend",
+        "uid": "d361a79c-f38c-4c35-a7eb-fce08d3a9577",
+        "resource_version": "8911822",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "984d9b22017e6c7673c99dc94a730606454b54ee9e22a4c538f0396a54073dce",
+        "flags_closed": true
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-celery-beat",
+        "uid": "3dc0ea4f-131e-4d31-9649-64da2270b8f5",
+        "resource_version": "8911846",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "b72676ea7769886417dc07e189677d6b599115321f3d44c04d58e5926d8b4c24",
+        "flags_closed": true
+      },
+      {
+        "kind": "Deployment",
+        "name": "meet-celery-work",
+        "uid": "036ec126-4a51-4bcb-a69b-3979ef2e2684",
+        "resource_version": "8911770",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "249a235cbbf04a3fa2680e3370178e41366399aa5dea6d78350284df7c2e3b8b",
+        "flags_closed": true
+      },
+      {
+        "kind": "CronJob",
+        "name": "meet-backend-docs-profiles",
+        "uid": "53b3b7ec-8554-49b5-b055-33f3225756c6",
+        "resource_version": "8917292",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "6512a5d6f36463cba0a84b6f013ca97ba65eb7ace5eef89303b282fc24d95877",
+        "flags_closed": true
+      },
+      {
+        "kind": "CronJob",
+        "name": "meet-backend-reminders",
+        "uid": "b74a91a7-54d0-4844-823e-c9d80e504af4",
+        "resource_version": "8917291",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5ff2640ff755c22d02ccb4453541a976aba9330c1ecc19e177331eb8e231648d",
+        "spec_sha256": "c4c0d328179ca55d128923605d7da65b8a0f2e71565a133e742269d4ec42a1ff",
+        "flags_closed": true
+      }
+    ],
+    "helm_revision": 457,
+    "helm_status": "deployed",
+    "production_workloads_changed": false
+  },
+  "planned_closed_stage": {
+    "deployments": 5,
+    "cronjobs": 2,
+    "new_database_migrations": 0,
+    "rollout_mode": "closed",
+    "all_four_new_flags": false
+  },
+  "planned_single_account_stage": {
+    "rollout_mode": "allowlist",
+    "allowed_users": 1,
+    "WORK_AGENT_ENABLED": false,
+    "WORK_REVIEW_ENABLED": false,
+    "WORK_LOCAL_AGENT_ENABLED": true,
+    "WORK_REMOTE_AGENT_ENABLED": true,
+    "WORK_AGENT_MAX_CALLS": 5,
+    "WORK_AGENT_TOKEN_BUDGET": 20000
+  },
+  "acceptance_budget": {
+    "synthetic_tasks": 1,
+    "deepseek_calls_ceiling": 5,
+    "total_tokens_ceiling": 20000,
+    "per_call_output_tokens_ceiling": 4096,
+    "pi_qwen_calls": 0,
+    "cloud_execution_calls": 0,
+    "automatic_new_task_retries": false
+  },
+  "finish_state": {
+    "rollout_mode": "closed",
+    "all_four_new_flags": false
+  },
+  "executed": false,
+  "production_activation_performed": false,
+  "provider_calls": 0,
+  "new_activation_authorization_pending": true,
+  "generic_helm_history_reconciled": false,
+  "fixture_cleanup": {
+    "owned_fixture_containers_removed": 2,
+    "owned_internal_network_removed": true,
+    "unrelated_resources_touched": false
+  }
+}
