@@ -99,6 +99,29 @@ python deploy/aliyun/preflight-work-review.py \
 
 本机回归：`python -m unittest discover -s deploy/aliyun -p test_work_review_preflight.py -v`。TLS 使用真实抛弃式证书，集群资源是合成库存；实际集群部署必须另行验收。
 
+### 专用 Docker 节点检查
+
+集群预检之后，在目标 Linux runner 上运行 `deploy/aliyun/check-work-node.py`，它仅依赖 Python 标准库与 Docker CLI。显式指定本地 context、Docker daemon 的 `Name`、已有状态目录、已经预拉取的 worker `repo@sha256:` 和包版本。context 必须使用 `unix:///var/run/docker.sock`；不接受 SSH/TCP 远程 daemon、可变 tag、其他主机、错误平台或嵌入模型凭据的 worker 镜像，也不会自动拉取镜像。状态目录必须为已有的 `/var/lib/专用目录名`，无符号链接且不允许所有用户写入。
+
+```sh
+python3 deploy/aliyun/check-work-node.py \
+  --docker-context LOCAL_CONTEXT --expected-node DOCKER_DAEMON_NAME \
+  --state-directory /var/lib/we-meet-work-agent \
+  --worker-image WORKER_REPOSITORY@sha256:WORKER_DIGEST \
+  --engine pi --runtime-version 1.0.4 \
+  --report /RESTRICTED_REPORT_DIRECTORY/node-readonly.json
+```
+
+默认只读检查 daemon、镜像身份和目录权限。增加 `--probe-container` 才会启动一个合成 worker 和临时 HTTP 鉴权端点；报告写到新文件，拒绝覆盖已有回执。dsh 使用 `--engine dsh --runtime-version 0.1.5rc1`，实际版本须与待部署镜像匹配。
+
+容器探测固定为已核验的 image ID，复用当前 worker 的只读根目录、capabilities、资源上限、`host.docker.internal:host-gateway` 和任务目录挂载方式。它仅读取运行包版本，不启动 agent CLI、不调用模型；验证 `/job` 文件往返、匿名请求 401、临时 Bearer 请求 200 和根目录不可写。合成请求不含供应商 key。仅创建唯一子目录和带所属标记的容器，成功或失败后按容器所属标记、image ID 和绝对路径清理；不会清空已有 Inbox。诊断只包含固定阶段码，不输出 Docker 原始 stderr 或临时 token。
+
+必须从 Gateway 同样的网络和挂载环境运行：原生 Linux 使用主机网络；容器内执行时须挂载 Docker socket，并把节点状态目录映射到**相同绝对路径**。报告通过不代表备份、主机防火墙、Kubernetes 专用调度、模型账号或部署后 HTTPS 已验收，仍保留这些 `not_checked` 项。
+
+本机 Docker Desktop 实测：Pi 1.0.4 与 dsh 0.1.5rc1 的默认只读检查通过；host-network 容器均在 `broker_route` 阶段失败。改用仅绑定 `127.0.0.1` 的显式端口转发夹具，并通过 `--probe-port` 指定同一端口后，两种实际 worker 均通过。该转发仅用于本机验收，未修改生产网络配置，也不能替代原生 Linux runner 的主机网络验收。完整证据见 [节点检查回执](../../docs/reviews/work-node-check-2026-10-07.md)。
+
+回归入口：`python -m unittest discover -s deploy/aliyun -p test_work_node_check.py -v`。
+
 ```powershell
 src/backend/.venv/Scripts/python.exe -m unittest discover -s deploy/aliyun -p test_work_agent_delivery.py -v
 # 已构建 gateway 镜像时可额外执行真实容器的 HTTPS/CLI/只读根/SIGTERM 验证：

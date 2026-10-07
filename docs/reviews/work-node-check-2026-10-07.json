@@ -1,0 +1,32 @@
+{
+  "schema": "work-node-check-evidence/v1",
+  "date": "2026-10-07",
+  "environment": "Docker Desktop Linux daemon docker-desktop",
+  "gateway_image_id": "sha256:852986495e3328a64bb9634a7b3dfc8fdf40e2fd50c128ba4448c3ac37f72cd0",
+  "worker_images": {
+    "pi": "we-meet-work-agent@sha256:f4a6e12494cea11ce3cc0c1100ceb84a5742f83dcd0fd1dda09d7670df89c5cc",
+    "dsh": "we-meet-work-agent@sha256:2bc6c0d3564961e3baac7482b136836e1fec2c7bd79e2eeda270b57494401031"
+  },
+  "runtime_versions": {"pi": "1.0.4", "dsh": "0.1.5rc1"},
+  "results": {
+    "readonly": {"pi": "passed", "dsh": "passed"},
+    "desktop_host_network": {
+      "pi": "probe_failed_broker_route",
+      "dsh": "probe_failed_broker_route"
+    },
+    "desktop_loopback_published_port_fixture": {"pi": "passed", "dsh": "passed"}
+  },
+  "unit_tests_passed": 9,
+  "model_calls": 0,
+  "deployment_performed": false,
+  "production_configuration_changed": false,
+  "probe_resources_cleaned": true,
+  "remaining_probe_containers": 0,
+  "not_checked": [
+    "native Linux runner host-network ModelBroker route",
+    "dedicated Kubernetes node and workload prerequisites in the target environment",
+    "persistent state backup and host firewall",
+    "registry pullability and provider account access",
+    "deployed gateway HTTPS health and synthetic task acceptance"
+  ]
+}
