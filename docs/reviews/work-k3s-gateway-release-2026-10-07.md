@@ -51,4 +51,4 @@ NetworkPolicy 做了正负对照：业务可访问 Gateway 8444，任务可访�
 
 新增部署与验收脚本 15 项离线测试通过，Ruff 通过。单节点仍有容量限制：正常调度，不绕过 scheduler，不调整业务请求为 agent 腾空间。
 
-下一批先完善评测样本对“未完成”和“未知”的定义，并准备业务侧受控联调候选：明确测试账号、合成材料、调用预算、业务镜像来源和关闭步骤。当前 Gateway 标记 `synthetic_materials_only`、`no_business_tools`、`no_resume`；真实用户材料和业务开关启用属于后续范围，本回执未执行这些操作。
+下一批只读检查已发现生产业务镜像缺少 agent 客户端和 Pi 审查实现，打包迁移仅到 `0002`；不能只打开开关接通 Gateway。详见 [业务版本对齐候选](work-k3s-business-alignment-candidate-2026-10-07.md)，下一步先准备完整业务镜像、迁移验收和受控联调范围。当前 Gateway 标记 `synthetic_materials_only`、`no_business_tools`、`no_resume`；真实用户材料和业务开关启用属于后续范围，本回执未执行这些操作。

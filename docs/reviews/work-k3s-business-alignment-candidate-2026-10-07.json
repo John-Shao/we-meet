@@ -1,0 +1,42 @@
+{
+  "business_deployment_uid": "81e49171-7fe4-4cb1-b7ab-d969b02675d7",
+  "business_images": [
+    "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:05589638d0cee8c9fe6daa2424dbcf0408d3a183d7820c6c8367ce608d13d8d6"
+  ],
+  "runtime": {
+    "work_package_present": true,
+    "work_flags": {
+      "WORK_ENABLED": "True",
+      "WORK_AGENT_ENABLED": null,
+      "WORK_REVIEW_ENABLED": null
+    },
+    "files": {
+      "review_runs.py": {
+        "present": false,
+        "sha256": null
+      },
+      "review_contract.py": {
+        "present": false,
+        "sha256": null
+      },
+      "agent_client.py": {
+        "present": false,
+        "sha256": null
+      },
+      "models.py": {
+        "present": true,
+        "sha256": "b6606f1678ee77662ccd5bacee187bab75e14b9ef0b0e1c05bcc03afd15d7102"
+      },
+      "urls.py": {
+        "present": true,
+        "sha256": "8f0fcbbdde2abc71700309e080a8c6ae7f4606f10f2570488a4ce28a84d04fcf"
+      }
+    },
+    "migrations": [
+      "0001_initial.py",
+      "0002_workmaterial_locations_worktask_workrun_and_more.py"
+    ]
+  },
+  "public_flags_changed": false,
+  "business_deployment_changed": false
+}
