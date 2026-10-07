@@ -15,7 +15,7 @@ from django.utils import timezone
 
 from core.services.ai_usage import record_usage
 
-from . import runs
+from . import rollout, runs
 from .agent_client import CONTRACT, AgentBoundaryError, AgentClient
 from .executor import MAX_ARTIFACT_CHARS
 from .models import WorkArtifactFile, WorkArtifactVersion, WorkRun
@@ -31,19 +31,20 @@ USAGE_KEYS = {
 }
 
 
-def enabled():
+def enabled(user):
     return bool(
         settings.WORK_ENABLED
         and settings.WORK_AGENT_ENABLED
         and settings.WORK_AGENT_URL
         and settings.WORK_AGENT_TOKEN
         and settings.WORK_AGENT_MODEL
+        and rollout.allows(user)
     )
 
 
 def new_agent_run(task, key):
     """Caller holds owner/task locks. Freeze only explicitly selected text."""
-    if not enabled():
+    if not enabled(task.owner):
         raise MaterialError("generation_unavailable", 503)
     if task.runs.filter(status__in=runs.ACTIVE).exists():
         raise MaterialError("run_active", 409)
@@ -251,7 +252,7 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
                 try:
                     runs.sources_for(current.task)
                     if (
-                        not configured()
+                        not configured(current.task.owner)
                         or endpoint != current.base_url
                         or current.executor_version != version
                     ):
@@ -287,6 +288,8 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
                     if current.agent_deployment and current.agent_deployment != caps:
                         raise MaterialError("deployment_changed") from None
                     runs.sources_for(current.task)
+                    if not configured(current.task.owner):
+                        raise MaterialError("generation_unavailable") from None
                     current.agent_deployment = caps
                     # Commit before network admission; exact same UUID/payload on uncertainty.
                     current.call_started_at = current.call_started_at or timezone.now()
@@ -303,7 +306,7 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
             if current.status in runs.ACTIVE:
                 try:
                     runs.sources_for(current.task)
-                    if not configured():
+                    if not configured(current.task.owner):
                         raise MaterialError("generation_unavailable")
                     if value["state"] == "succeeded":
                         import_result(current, value["result"])

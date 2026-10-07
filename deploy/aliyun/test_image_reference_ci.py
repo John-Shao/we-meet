@@ -319,6 +319,7 @@ sys.exit(subprocess.run([os.environ['FIXTURE_REAL_HELM'],*out]).returncode)
                 SECRETS_FILE=str(secrets),
                 WORK_VALUES_FILE=str(root / "absent"),
                 WORK_AGENT_VALUES_FILE=str(profile),
+                WORK_COHORT_VALUES_FILE=str(root / "absent-cohort"),
                 FIXTURE_SNAPSHOT=str(snapshot_path),
                 FIXTURE_COUNTER=str(root / "counter"),
                 FIXTURE_IMAGE=IMAGE,

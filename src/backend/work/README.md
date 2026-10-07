@@ -1,5 +1,13 @@
 # Work 办公模块
 
+## 新 Agent 功能的账号准入
+
+`WORK_AGENT_ROLLOUT_MODE` 默认 `closed`，统一限制云端 Agent、本地协调、远程派发和 Pi 审查。受控联调设置 `allowlist`，并通过 `WORK_AGENT_ALLOWED_USER_IDS` 配置已有 `core.User` UUID，以逗号分隔，最多 100 项；手机号码和 OTP 不作为准入标识。空列表、未知模式或任何无效 UUID 都关闭整个准入组。`all` 是显式全量开放模式。账号必须仍为有效、活跃的真实用户；这层准入与原有功能开关、Gateway 连接及权限检查同时生效。普通材料和 communication 不经过此准入。
+
+能力接口按当前账号返回且禁止缓存；API、设备注册、工作空间派发、待办领取和服务端 Outbox 均检查账号。撤销准入后，未提交云端的任务停止；已提交任务只继续取消与用量对账。本地下一次状态回报返回停止要求，不能追溯撤销已经发生的本机操作。历史读取、取消和已成功成果的主动同步保留原权限检查。
+
+生产样例为 [values.work-cohort.yaml.dist](../../helm/env.d/aliyun-prod/values.work-cohort.yaml.dist)，默认关闭。私有 `values.work-cohort.yaml` 已加入 gitignore；发布脚本存在该文件时读取它。升级到本批代码后，仅把四个全局开关设为 True 不会开放功能，还需明确准入模式和账号。当前生产四个新开关仍关闭，账号准入代码尚未部署。测试账号手机号、OTP、登录 token 不进入提交或发布回执。
+
 2026-10-07 增加桌面本地工作空间及服务端任务协调。`work-device/v1` 将本机执行登记为统一 WorkTask / WorkRun，支持原设备领取、连续序号状态回报和用户选定成果主动同步。`work.0004` 增加设备及协调字段，`WORK_LOCAL_AGENT_ENABLED` 默认关闭；本轮未部署线上。设备回报用量标记 `device_reported`，不写供应商计费记录。详见 [协调说明](../../work-agent/COORDINATION.md) 和 [本轮评审](../../../docs/reviews/work-device-coordination-2026-10-07.md)。本机 dsh 经独立适配器与 `work-local/v1` stdio 直接读写授权文件夹，见 [本地集成说明](../../work-agent/LOCAL.md)。
 
 2026-10-07 完成 dsh 优先、Pi 对照的独立 Agent 集成验证。`office_agent` 任务通过自有

@@ -25,6 +25,7 @@ ROOT = "/api/v1.0/work/materials/"
 @pytest.fixture(autouse=True)
 def work_settings(settings, tmp_path):
     settings.WORK_ENABLED = True
+    settings.WORK_AGENT_ROLLOUT_MODE = "all"
     settings.WORK_MATERIALS_ENABLED = True
     settings.WORK_STORAGE = {
         "BACKEND": "django.core.files.storage.FileSystemStorage",

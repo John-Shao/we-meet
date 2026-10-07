@@ -36,6 +36,7 @@ BRANCH="${BRANCH:-}"
 VALUES_FILE="${VALUES_FILE:-src/helm/env.d/aliyun-prod/values.meet.yaml}"
 SECRETS_FILE="${SECRETS_FILE:-src/helm/env.d/aliyun-prod/values.secrets.yaml}"
 WORK_VALUES_FILE="${WORK_VALUES_FILE:-src/helm/env.d/aliyun-prod/values.work.yaml}"
+WORK_COHORT_VALUES_FILE="${WORK_COHORT_VALUES_FILE:-src/helm/env.d/aliyun-prod/values.work-cohort.yaml}"
 WORK_AGENT_VALUES_FILE="${WORK_AGENT_VALUES_FILE:-src/helm/env.d/aliyun-prod/values.work-agent.yaml}"
 ALL_MODULES=(backend frontend summary agents)
 SELECTED=()
@@ -447,6 +448,9 @@ if [[ -r "$WORK_VALUES_FILE" ]]; then
 fi
 if [[ -n "$work_agent_business_overlay" ]]; then
   helm_args+=(-f "$work_agent_business_overlay")
+fi
+if [[ -r "$WORK_COHORT_VALUES_FILE" ]]; then
+  helm_args+=(-f "$WORK_COHORT_VALUES_FILE")
 fi
 
 # Optional AI processes use the agents image family. Preserve each live image reference on

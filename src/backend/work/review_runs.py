@@ -9,7 +9,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from . import agent_runs, runs
+from . import agent_runs, rollout, runs
 from .models import WorkReview
 from .review_contract import validate_report
 from .services import MaterialError
@@ -17,13 +17,14 @@ from .services import MaterialError
 VERSION = "pi-review-v1"
 
 
-def enabled():
+def enabled(user):
     return bool(
         settings.WORK_ENABLED
         and settings.WORK_REVIEW_ENABLED
         and settings.WORK_REVIEW_URL
         and settings.WORK_REVIEW_TOKEN
         and settings.WORK_REVIEW_MODEL
+        and rollout.allows(user)
     )
 
 
@@ -34,7 +35,7 @@ def new_review(run, key, selection):
         if previous.selection != selection:
             raise MaterialError("idempotency_conflict", 409)
         return previous, False
-    if not enabled():
+    if not enabled(run.task.owner):
         raise MaterialError("review_unavailable", 503)
     if run.status != "succeeded":
         raise MaterialError("review_requires_success", 409)

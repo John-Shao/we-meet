@@ -19,12 +19,12 @@ from .services import MaterialError, organization_for
 from .task_api import run_data, task_data
 
 
-def enabled():
-    return local_runs.enabled() and settings.WORK_REMOTE_AGENT_ENABLED
+def enabled(user):
+    return local_runs.enabled(user) and settings.WORK_REMOTE_AGENT_ENABLED
 
 
-def ensure_enabled():
-    if not enabled():
+def ensure_enabled(user):
+    if not enabled(user):
         raise MaterialError("remote_coordination_disabled", 503)
 
 
@@ -67,7 +67,7 @@ class InboxInput(StrictInput):
 
 class WorkspaceView(DeviceView):
     def get(self, request):
-        ensure_enabled()
+        ensure_enabled(request.user)
         return Response(
             {
                 "contract": local_runs.CONTRACT,
@@ -82,7 +82,7 @@ class WorkspaceView(DeviceView):
 
     @transaction.atomic
     def post(self, request):
-        ensure_enabled()
+        ensure_enabled(request.user)
         form = WorkspaceInput(data=request.data)
         form.is_valid(raise_exception=True)
         data = form.validated_data
@@ -119,7 +119,7 @@ class WorkspaceView(DeviceView):
 class RemoteTaskView(DeviceView):
     @transaction.atomic
     def post(self, request):
-        ensure_enabled()
+        ensure_enabled(request.user)
         form = RemoteTaskInput(data=request.data)
         form.is_valid(raise_exception=True)
         data = form.validated_data
@@ -172,7 +172,7 @@ class RemoteTaskView(DeviceView):
 
 class InboxView(DeviceView):
     def post(self, request):
-        ensure_enabled()
+        ensure_enabled(request.user)
         form = InboxInput(data=request.data)
         form.is_valid(raise_exception=True)
         data = form.validated_data

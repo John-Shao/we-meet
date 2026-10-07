@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from core.models import User
 
-from . import agent_runs, runs
+from . import agent_runs, rollout, runs
 from .models import WorkArtifactFile, WorkArtifactVersion, WorkDevice, WorkRun, WorkTask
 from .services import MaterialError, organization_for
 
@@ -27,8 +27,12 @@ def encoded(body):
     ).encode()
 
 
-def enabled():
-    return bool(settings.WORK_ENABLED and settings.WORK_LOCAL_AGENT_ENABLED)
+def enabled(user):
+    return bool(
+        settings.WORK_ENABLED
+        and settings.WORK_LOCAL_AGENT_ENABLED
+        and rollout.allows(user)
+    )
 
 
 def device_for(user, identifier):
@@ -39,6 +43,8 @@ def device_for(user, identifier):
 
 @transaction.atomic
 def register(user, identifier, name):
+    if not enabled(user):
+        raise MaterialError("local_coordination_disabled", 503)
     User.objects.select_for_update().get(pk=user.pk)
     device = WorkDevice.objects.filter(pk=identifier).first()
     organization = organization_for(user)
@@ -55,7 +61,7 @@ def register(user, identifier, name):
 
 @transaction.atomic
 def admit(user, data, *, workspace=None):
-    if not enabled():
+    if not enabled(user):
         raise MaterialError("local_coordination_disabled", 503)
     User.objects.select_for_update().get(pk=user.pk)
     device = device_for(user, data["device_id"])
@@ -169,7 +175,7 @@ def control(run):
 @transaction.atomic
 def claim(user, identifier, device_id):
     run = locked(user, identifier, device_id)
-    if not enabled() or run.status in FINAL:
+    if not enabled(user) or run.status in FINAL:
         raise MaterialError("local_assignment_closed", 409)
     if run.remote_requested and (
         not settings.WORK_REMOTE_AGENT_ENABLED or not run.workspace.enabled
@@ -244,7 +250,7 @@ def report(user, identifier, data):  # noqa: PLR0912 -- fenced device state mach
     if run.status not in FINAL:
         try:
             runs.sources_for(run.task)
-            if not enabled():
+            if not enabled(user):
                 raise MaterialError("local_coordination_disabled")
         except MaterialError as exc:
             runs.terminal(run, "failed", exc.code)

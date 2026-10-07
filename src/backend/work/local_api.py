@@ -123,7 +123,7 @@ class DeviceView(APIView):
         return super().handle_exception(exc)
 
     def post(self, request):
-        if not local_runs.enabled():
+        if not local_runs.enabled(request.user):
             raise MaterialError("local_coordination_disabled", 503)
         form = DeviceInput(data=request.data)
         form.is_valid(raise_exception=True)

@@ -1,0 +1,11 @@
+# Private business overlay, reviewed before a production backend release.
+# closed is the default. For a controlled test use allowlist and the exact
+# existing active core.User UUID, never a phone number, OTP or provider key.
+backend:
+  envVars:
+    WORK_AGENT_ROLLOUT_MODE: closed
+    WORK_AGENT_ALLOWED_USER_IDS: ""
+    WORK_AGENT_ENABLED: "False"
+    WORK_LOCAL_AGENT_ENABLED: "False"
+    WORK_REMOTE_AGENT_ENABLED: "False"
+    WORK_REVIEW_ENABLED: "False"

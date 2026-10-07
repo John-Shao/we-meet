@@ -59,6 +59,8 @@ jobs:
         run: uv sync --locked --all-extras
       - name: Check migration consistency
         run: uv run python manage.py makemigrations --check --dry-run
+      - name: Check Work account admission and execution boundaries
+        run: uv run pytest work/tests
       - name: Check AI access, stream cleanup and task registration
         run: >-
           uv run pytest

@@ -1,0 +1,32 @@
+{
+  "phase": "account_admission_source_verified",
+  "default_rollout_mode": "closed",
+  "allowlist_identity": "existing_active_real_user_uuid",
+  "new_feature_flags_in_production": false,
+  "admission_code_deployed": false,
+  "production_business_tasks_created": 0,
+  "provider_calls": 0,
+  "credentials_persisted": false,
+  "account_preflight": {
+    "read_only_database_transaction": true,
+    "unique_active_real_identity": true,
+    "demo_otp_configured": true,
+    "actual_https_otp_login": true,
+    "authenticated_uuid_matches_preflight": true,
+    "capabilities_confirm_new_features_closed": true,
+    "actual_android_electron_login_ui_verified": false
+  },
+  "verification": {
+    "work_tests_passed": 106,
+    "work_explicit_opt_in_skipped": 6,
+    "new_cohort_tests_included": 19,
+    "deployment_tests_passed": 52,
+    "ruff": "passed",
+    "bash_syntax": "passed",
+    "migration_drift": "none",
+    "git_diff_check": "passed"
+  },
+  "new_database_migrations": 0,
+  "candidate_image_prepared": false,
+  "production_activation_performed": false
+}

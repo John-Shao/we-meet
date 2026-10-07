@@ -15,7 +15,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import agent_runs, review_runs, runs, services
+from . import agent_runs, local_runs, review_runs, runs, services
 from .models import WorkMaterial
 from .upload import BoundedMaterialUpload
 
@@ -61,6 +61,11 @@ class CapabilitiesView(APIView):
 
     permission_classes = [WorkUser]
 
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response["Cache-Control"] = "no-store"
+        return response
+
     def get(self, request):
         return Response(
             {
@@ -74,24 +79,21 @@ class CapabilitiesView(APIView):
                 "max_batch_files": 10,
                 "max_batch_bytes": 30 * 1024 * 1024,
                 "skills": (["communication"] if runs.enabled() else [])
-                + (["office_agent"] if agent_runs.enabled() else []),
-                "agent_enabled": agent_runs.enabled(),
-                "review_enabled": review_runs.enabled(),
+                + (["office_agent"] if agent_runs.enabled(request.user) else []),
+                "agent_enabled": agent_runs.enabled(request.user),
+                "review_enabled": review_runs.enabled(request.user),
                 "review_model": settings.WORK_REVIEW_MODEL
-                if review_runs.enabled()
+                if review_runs.enabled(request.user)
                 else "",
                 "review_token_budget": settings.WORK_REVIEW_TOKEN_BUDGET,
-                "local_agent_enabled": bool(
-                    settings.WORK_ENABLED and settings.WORK_LOCAL_AGENT_ENABLED
-                ),
+                "local_agent_enabled": local_runs.enabled(request.user),
                 "coordination_contract": "work-device/v1",
                 "remote_agent_enabled": bool(
-                    settings.WORK_ENABLED
-                    and settings.WORK_LOCAL_AGENT_ENABLED
+                    local_runs.enabled(request.user)
                     and settings.WORK_REMOTE_AGENT_ENABLED
                 ),
                 "agent_model": settings.WORK_AGENT_MODEL
-                if agent_runs.enabled()
+                if agent_runs.enabled(request.user)
                 else "",
                 "agent_max_context_bytes": 400000,
                 "agent_token_budget": settings.WORK_AGENT_TOKEN_BUDGET,
