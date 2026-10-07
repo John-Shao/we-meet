@@ -122,6 +122,34 @@ class BusinessAlignmentTests(unittest.TestCase):
                 module.backup_database()
             schema.assert_not_called()
 
+    def test_cpu_window_wait_never_retries_node_identity_failure(self):
+        with (
+            patch.object(
+                module,
+                "headroom",
+                side_effect=module.AlignmentError("node_identity_changed"),
+            ),
+            patch.object(module.time, "sleep") as sleep,
+        ):
+            with self.assertRaisesRegex(module.AlignmentError, "node_identity_changed"):
+                module.wait_headroom(200)
+            sleep.assert_not_called()
+
+    def test_cpu_window_wait_requires_sufficient_requests_headroom(self):
+        with (
+            patch.object(
+                module,
+                "headroom",
+                side_effect=[
+                    module.AlignmentError("cpu_requests_headroom_insufficient"),
+                    3650,
+                ],
+            ),
+            patch.object(module.time, "sleep"),
+            patch("builtins.print"),
+        ):
+            self.assertEqual(module.wait_headroom(200), 3650)
+
     def test_cronjob_patch_targets_future_template_only(self):
         old = deployment()
         old["kind"] = "CronJob"

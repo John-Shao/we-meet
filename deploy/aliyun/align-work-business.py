@@ -197,6 +197,24 @@ def headroom(required_m):
     return used
 
 
+def wait_headroom(required_m):
+    deadline = time.monotonic() + 90
+    while True:
+        try:
+            return headroom(required_m)
+        except AlignmentError as exc:
+            if (
+                str(exc) != "cpu_requests_headroom_insufficient"
+                or time.monotonic() >= deadline
+            ):
+                raise
+            print(
+                json.dumps({"event": "waiting_cpu_window", "required_m": required_m}),
+                flush=True,
+            )
+            time.sleep(3)
+
+
 def prepare(candidate):
     require(not ROOT.exists(), "release_state_already_exists")
     node_check()
@@ -382,7 +400,10 @@ def validate_backup():
             folder,
         ]
     )
-    run(K + ["cp", "--no-preserve=true", str(backup), "meet/postgresql-0:" + archive], timeout=60)
+    run(
+        K + ["cp", "--no-preserve=true", str(backup), "meet/postgresql-0:" + archive],
+        timeout=60,
+    )
     output = run(K + ["exec", "-n", "meet", "postgresql-0", "--", "sha256sum", archive])
     require(output.decode().split()[0] == checksum, "validation_copy_checksum_mismatch")
     output = run(
@@ -595,7 +616,7 @@ def rollout(name):
     if old["kind"] == "Deployment":
         require(old["spec"].get("replicas") == 1, "unexpected_replica_count")
         request = pod_spec(old)["containers"][0]["resources"]["requests"]["cpu"]
-        headroom(
+        wait_headroom(
             float(request[:-1]) if request.endswith("m") else float(request) * 1000
         )
     patch = fenced_patch(current, old, candidate["immutable_image"])
