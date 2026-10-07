@@ -46,20 +46,18 @@ const review: reviews.WorkReview = {
 }
 
 function mount(enabled = true) {
-  return render(
-    <QueryClientProvider
-      client={
-        new QueryClient({
-          defaultOptions: {
-            queries: { retry: false, gcTime: 0 },
-            mutations: { retry: false },
-          },
-        })
-      }
-    >
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  })
+  const view = render(
+    <QueryClientProvider client={client}>
       <PiReview ownerId="owner" runId="run-1" enabled={enabled} />
     </QueryClientProvider>
   )
+  return { ...view, client }
 }
 
 beforeEach(() => {
@@ -120,3 +118,37 @@ it('cancels only the review while its status is active', async () => {
   )
   expect(reviews.createReview).not.toHaveBeenCalled()
 })
+
+it.each(['files', 'reviews'] as const)(
+  'hides cached file identities and reports when the %s permission check fails',
+  async (resource) => {
+    vi.mocked(reviews.listReviews).mockResolvedValue([review])
+    const { client } = mount()
+    await screen.findByText('<script>unsafe()</script>')
+    fireEvent.click(screen.getByLabelText('report.md'))
+    fireEvent.click(
+      screen.getByLabelText('同意将选定成果和本任务已授权材料发送至复核模型')
+    )
+    const denied = new ApiError(409, { code: 'source_unavailable' })
+    if (resource === 'files')
+      vi.mocked(tasks.listRunFiles).mockRejectedValue(denied)
+    else vi.mocked(reviews.listReviews).mockRejectedValue(denied)
+    await client.invalidateQueries({
+      queryKey: ['work', 'owner', resource, 'run-1'],
+    })
+    await screen.findByRole('alert')
+    expect(screen.queryByText('<script>unsafe()</script>')).toBeNull()
+    expect(screen.queryByLabelText('report.md')).toBeNull()
+    expect(screen.getByRole('button', { name: '开启本次复核' })).toBeDisabled()
+
+    vi.mocked(tasks.listRunFiles).mockResolvedValue([file])
+    vi.mocked(reviews.listReviews).mockResolvedValue([review])
+    fireEvent.click(screen.getByRole('button', { name: '重新加载' }))
+    await screen.findByText('<script>unsafe()</script>')
+    // Restored access must require a new selection and sending consent.
+    expect(screen.getByLabelText('report.md')).not.toBeChecked()
+    expect(
+      screen.getByLabelText('同意将选定成果和本任务已授权材料发送至复核模型')
+    ).not.toBeChecked()
+  }
+)

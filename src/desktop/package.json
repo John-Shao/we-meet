@@ -12,6 +12,7 @@
     "dev": "npm run build:main && electron .",
     "test": "npm run build:main && node --test tests/*.test.cjs",
     "test:smoke": "npm run build:main && node scripts/smoke.cjs",
+    "test:review-smoke": "npm run build:main && node scripts/work-review-smoke.cjs",
     "package": "node scripts/verify-electron.mjs && npm run build:main && npm run build:renderer && npm run copy:renderer && node scripts/verify-runtime.mjs && electron-builder --win --x64 && node scripts/release-manifest.mjs",
     "package:prepared": "node scripts/verify-electron.mjs && npm run build:main && node scripts/verify-runtime.mjs && electron-builder --win --x64 && node scripts/release-manifest.mjs",
     "build:runtime": "python scripts/build-local-runtime.py",

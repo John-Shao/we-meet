@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { workError } from '../api/materials'
 import { cancelReview, createReview, listReviews } from '../api/reviews'
@@ -48,7 +48,18 @@ export function PiReview({
         ? 2000
         : false,
   })
-  const active = reviews.data?.find(
+  // A failed permission recheck must not leave previously cached material visible.
+  const unavailable = files.isError || reviews.isError
+  useEffect(() => {
+    if (unavailable) {
+      setSelected([])
+      setConsent(false)
+      key.current = { input: '', key: '' }
+    }
+  }, [unavailable])
+  const visibleFiles = unavailable ? [] : files.data
+  const visibleReviews = unavailable ? [] : reviews.data
+  const active = visibleReviews?.find(
     (r) => r.status === 'queued' || r.status === 'running'
   )
   const command = useMutation({
@@ -89,9 +100,9 @@ export function PiReview({
         </p>
       )}
       {enabled && (
-        <fieldset disabled={command.isPending || !!active}>
+        <fieldset disabled={command.isPending || !!active || unavailable}>
           <legend>选择复核文件（最多 8 个）</legend>
-          {files.data?.map((file) => (
+          {visibleFiles?.map((file) => (
             <label className="work-check" key={file.name}>
               <input
                 type="checkbox"
@@ -144,7 +155,7 @@ export function PiReview({
           取消复核
         </button>
       )}
-      {reviews.data?.map((review) => (
+      {visibleReviews?.map((review) => (
         <article key={review.id}>
           <h3>{states[review.status]}</h3>
           <p>

@@ -1,0 +1,59 @@
+{
+  "scope": "Electron bundled renderer acceptance with synthetic auth/API/native transport; no paid calls",
+  "base_commit": "6921df97164d8ec9d995d317bdbcdac2b0282de0",
+  "electron_version": "44.4.3",
+  "receipt": {
+    "passed": true,
+    "tested_at": "2026-10-07T08:29:31.515Z",
+    "version": "0.4.0-delivery.1",
+    "checks": [
+      "isolated-window-and-real-preload-ipc",
+      "native-folder-grant-through-ipc",
+      "metadata-excludes-private-body-and-absolute-path",
+      "claim-ticket-hidden",
+      "no-automatic-file-sync-or-review",
+      "manual-selected-file-sync",
+      "review-lists-only-synced-identities",
+      "separate-review-sending-consent",
+      "lost-create-ack-reuses-idempotency-key",
+      "one-synthetic-review-after-manual-retry",
+      "polling-status-model-and-metering",
+      "review-evidence-rendered-as-text",
+      "cancel-review-preserves-original-local-job",
+      "permission-recheck-hides-cached-report-and-identities",
+      "restored-access-requires-new-selection-and-consent",
+      "logout-rejects-local-access"
+    ],
+    "review_create_attempts": 4,
+    "synthetic_review_count": 3,
+    "native_submissions": 1,
+    "supplier_calls": 0,
+    "security": {
+      "contextIsolation": true,
+      "nodeIntegration": false
+    },
+    "limitation": "Development Electron with bundled renderer and real preload/IPC/coordinator. Synthetic auth/API/native transport and automated native dialog choices. Does not certify OIDC login, real dsh/Pi/supplier, installer, interactive picker, signing or deployment."
+  },
+  "renderer": {
+    "frontend_and_desktop_identical": true,
+    "file_count": 187,
+    "manifest_sha256": "a521cc199eb9dfdfb621eb8115b09e0152bf04a92a11db4c940e54c319b554b7"
+  },
+  "frontend_tests": {
+    "passed": 22,
+    "failed": 0
+  },
+  "desktop_tests": {
+    "passed": 21,
+    "skipped": 1,
+    "failed": 0,
+    "skip_reason": "Packaged native adapter opt-in not configured"
+  },
+  "production_deployed": false,
+  "deployment_configuration_pending": [
+    "Kubernetes context/namespace",
+    "dedicated Docker node",
+    "image registry",
+    "TLS Secret"
+  ]
+}

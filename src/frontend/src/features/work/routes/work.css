@@ -291,6 +291,10 @@
   min-height: 1.8em;
   font-family: inherit;
 }
+pre.work-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .work-text-line em {
   color: var(--colors-greyscale-600);
 }
@@ -371,7 +375,8 @@
   border-radius: 12px;
   padding: 16px;
 }
-.work-form .work-check {
+.work-form .work-check,
+.work-output .work-check {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -387,6 +392,7 @@
   margin-top: 32px;
   padding-top: 24px;
   border-top: 1px solid var(--colors-greyscale-200);
+  overflow-wrap: anywhere;
 }
 .work-history {
   white-space: pre-wrap;

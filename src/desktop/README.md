@@ -167,3 +167,15 @@ Agent 独立升级使用原生文件选择器导入签名 ZIP，按固定 Ed2551
 ### 后续联合验收（2026-10-07）
 
 实际 Android Work 界面 → 同一 Django/PostgreSQL → 实际 Electron Work 界面 → 内置 Agent `0.3.1` / dsh / DeepSeek → 手机成果预览已通过。身份与原生对话框选择仍为隔离 fixture；四次工具调用逐项审阅后批准。另用不同 appId/名称、不注册登录协议的内部衍生安装包，实际验证安装、升级、回退、卸载和状态保留；安装后的完整运行环境签名 fixture 切换/篡改拒绝/原生回退通过。它们不替代真实登录、原产品安装包人工操作和干净 Windows 验收。完整范围与回执见 [联合验收](../../docs/reviews/work-cross-device-acceptance-2026-10-07.md)。
+
+### 桌面成果到 Pi 复核的离线窗口验收（2026-10-07）
+
+从桌面目录运行以下命令，使用当前源码构建的 renderer：
+
+```powershell
+npm run build:renderer
+npm run copy:renderer
+npm run test:review-smoke
+```
+
+验收经过真实 Electron 窗口、preload、IPC 和任务协调器，验证原生目录授权入口、显式同步、独立复核发送授权、响应丢失后复用请求键、状态与用量、仅取消复核、权限查询失败后隐藏缓存报告，以及恢复访问后重新授权。登录、云端 API、原生执行器传输及对话框选择均为合成 fixture；不需要供应商密钥，没有付费模型调用，不替代真实 dsh/Pi、登录、安装或部署验收。临时 profile 在结束时清理；脱敏回执和截图写入忽略目录 `test-results/work-review/`，执行前会清除旧的成功回执。详见 [窗口验收记录](../../docs/reviews/work-electron-review-2026-10-07.md)。
