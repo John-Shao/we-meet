@@ -78,6 +78,27 @@ Kubernetes Secret 的 base64 不等于加密，生产还应配置 etcd 静态加
 
 ## 本机验证入口
 
+### Pi reviewer 的集群只读预检
+
+`deploy/aliyun/preflight-work-review.py` 检查候选 reviewer profile 与指定集群的实际前置资源。必须显式传入 context、namespace 和 values 文件；它只执行 `kubectl get`，不切换当前 context、不创建/修改资源，也不调用模型。成功返回 0，未满足条件返回 1，报告只有资源检查结果与公开错误码，不包含 Secret 内容或 kubectl 原始错误。
+
+先复制 `src/helm/env.d/aliyun-prod/values.work-review.yaml.dist` 到 Git 忽略的本机候选文件，填写已确认的节点、两个不可变镜像及 TLS/Secret 引用。该候选文件的 `workAgent.enabled` 和 `backend.envVars.WORK_REVIEW_ENABLED` 应为 true，客户端 token/CA 引用设 `optional: false`，endpoint 与候选 namespace 一致；这是待部署配置，不会改变正在运行的开关。当前关闭的 dist 不能通过预检。
+
+```sh
+python deploy/aliyun/preflight-work-review.py \
+  --context TEST_CONTEXT --namespace TEST_NAMESPACE \
+  --values-file PATH_TO_LOCAL_REVIEW_PROFILE \
+  --report .work-acceptance/reviewer-preflight/report.json
+```
+
+预检要求外部 Secret 模式，模型 Secret 继续引用现有百炼配置，不复制模型 key：gateway/client Secret 必须分开且只包含各自所需键，token 一致；独立 provider Secret 可保留现有供应商配置。TLS Secret 需要 `tls.crt`、`tls.key`、`ca.crt`。脚本用本机内存 TLS 握手核验实际证书链、SAN 服务名、有效期和私钥匹配，不接受仅 CN 匹配或需要交互口令的私钥。TLS 临时文件用后删除，报告保留公开到期时间；Windows 运维目录沿用上述 ACL 要求。
+
+节点必须 Ready、未 cordon，具有 `work-agent=dedicated` 标签和同名 NoSchedule 污点，且无未容忍的调度污点。节点上的活动业务 Pod 会阻止通过；允许必要的 kube-system DaemonSet 和同 namespace 的 agent gateway，仍检查其他 Pod 声明的 TCP 主机端口和状态目录冲突。终态 Pod 不作为正在运行的业务。
+
+报告的 `passed` 只表示本次 Kubernetes 前置检查通过；`not_checked` 明列仍需核验的节点 Docker daemon/固定 worker 镜像、持久状态目录与备份、registry 可拉取性、模型账号可用性，以及部署后的 HTTPS health/合成任务。先完成这些节点与镜像准备，再部署独立 reviewer；业务入口在 reviewer HTTPS 和合成任务验收后接入。预检成功不会自动升级任何 release。
+
+本机回归：`python -m unittest discover -s deploy/aliyun -p test_work_review_preflight.py -v`。TLS 使用真实抛弃式证书，集群资源是合成库存；实际集群部署必须另行验收。
+
 ```powershell
 src/backend/.venv/Scripts/python.exe -m unittest discover -s deploy/aliyun -p test_work_agent_delivery.py -v
 # 已构建 gateway 镜像时可额外执行真实容器的 HTTPS/CLI/只读根/SIGTERM 验证：

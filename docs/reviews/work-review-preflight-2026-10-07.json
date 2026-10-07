@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-07",
+  "scope": "read-only deployment prerequisites",
+  "new_tests_passed": 8,
+  "existing_delivery_tests_passed": 19,
+  "existing_delivery_tests_skipped": 1,
+  "actual_inventory": {
+    "context": "kind-suite",
+    "namespace": "meet",
+    "namespace_active": true,
+    "nodes": [{"name": "suite-control-plane", "ready": true, "dedicated_label": false, "dedicated_taint": false}],
+    "dedicated_nodes": 0,
+    "secrets_read": false
+  },
+  "disabled_profile": {"passed": false, "code": "reviewer_profile_required", "cluster_queries": 0},
+  "tls_testing": "real in-memory TLS with throwaway certificates; synthetic Secret inventory",
+  "evidence_directory": ".work-acceptance/work-review-preflight-20261007",
+  "cluster_mutated": false,
+  "model_calls": 0,
+  "production_deployed": false
+}
