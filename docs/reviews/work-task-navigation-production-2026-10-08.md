@@ -51,3 +51,5 @@ sudo python3 /var/lib/we-meet-work-maintenance/cohort-6de1358fa-layout/rollback.
 脚本先锁定现场，并校验当前资源 UID 和完整 spec 仍等于已发布快照，再恢复本轮发布前的前端 `sha256:266fa1b7d53869b35f348782496510b32fabfe13df0b0db9644927c892665021`，等待 Ready 并核验旧公网 index 摘要。现场已变更时拒绝覆盖；本轮未实际执行回退。回退仅涉及前端，不重放任务或修改成果。
 
 **此次没有重新分发 Windows 安装包或 Android APK。** 已安装的桌面 App 使用内置 renderer，更新生产网页不会自动更新该安装包中的布局。桌面用户需要安装包含新 renderer 的客户端版本；原生本地审批与工作空间行为已由本地回归验证，但本轮不声称完成新安装包交付或 Android 原生页面验收。
+
+随后按用户要求，已另外构建包含上述布局的 Windows `0.4.0-delivery.5` 内部安装包，见[桌面重构建记录](work-desktop-layout-delivery-2026-10-08.md)；这不改变本篇生产网页发布的验收范围。

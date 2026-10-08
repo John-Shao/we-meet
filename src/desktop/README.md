@@ -1,6 +1,6 @@
 # We-Meet 桌面端：D0 可用客户端里程碑
 
-**2026-10-08 Agent 架构入口**：[Work Agent 架构](../../docs/features/work-agent-architecture.md)。当前内部包为 `0.4.0-delivery.4`，内置独立适配器 `0.3.2` / dsh `0.1.5rc1`；服务端 Pi 适配器独立更新至 `0.3.5`，生产跨端链路见 [验收记录](../../docs/reviews/work-dual-agent-production-release-2026-10-08.md)。下方保留 D0 及各候选历史；生成最新包不等于替换用户已安装客户端。
+**2026-10-08 Agent 架构入口**：[Work Agent 架构](../../docs/features/work-agent-architecture.md)。当前内部包为 `0.4.0-delivery.5`，已包含新的 Work 输入布局、导航下半部分历史及窄屏修复，见[桌面重构建记录](../../docs/reviews/work-desktop-layout-delivery-2026-10-08.md)。内置独立适配器 `0.3.2` / dsh `0.1.5rc1`；服务端 Pi 适配器已独立更新至 `0.3.6`，见 [Broker 发布记录](../../docs/reviews/work-broker-pool-production-2026-10-08.md)。下方保留 D0 及各候选历史；生成最新包不等于替换用户已安装客户端。
 
 2026-10-07 最新候选版 `0.3.0-local-work.2` 增加统一云端任务登记、设备领取、状态回报和选定成果主动同步，独立适配器为 `0.2.0`。运行和故障边界见 [协调说明](../work-agent/COORDINATION.md)，实测见 [本轮评审](../../docs/reviews/work-device-coordination-2026-10-07.md)。尚未部署线上或安装替换现有客户端；下面保留此前阶段记录。
 
@@ -141,7 +141,7 @@ node scripts/live-acceptance.cjs
 
 ## 2026-10-08：本地执行器交付与 Android 远程任务
 
-当前内部候选为 `0.4.0-delivery.4`，固定独立 Agent `0.3.2` / dsh `0.1.5rc1`。旧 D0、delivery.1/.2/.3 记录及安装路径保留为历史验收。候选采用每用户 NSIS 一键安装；原产品实际安装、干净 Windows 和原生选择器人工操作保持独立验收范围。生产桌面 dsh、服务端 Pi 与 Android 的实际链路及限制见 [生产记录](../../docs/reviews/work-dual-agent-production-release-2026-10-08.md)。
+当前内部候选为 `0.4.0-delivery.5`，固定独立 Agent `0.3.2` / dsh `0.1.5rc1`。旧 D0、delivery.1/.2/.3/.4 记录及安装路径保留为历史验收。候选采用每用户 NSIS 一键安装；原产品实际安装、干净 Windows 和原生选择器人工操作保持独立验收范围。生产桌面 dsh、服务端 Pi 与 Android 的实际链路及限制见 [生产记录](../../docs/reviews/work-dual-agent-production-release-2026-10-08.md)。
 
 最终用户无需另装 Python、Node、pip 或 Docker。内置 Python 与 dsh 所需 Node/rg 由独立 `work-runtime/v1` 清单固定，启动及更新校验每个文件的长度和 SHA-256。首次在 Work 本地工作空间导入本机模型密钥文件；主进程加密保存，页面和移动端不接收密钥。模型请求仍会发送任务需要的内容给模型供应商。
 
