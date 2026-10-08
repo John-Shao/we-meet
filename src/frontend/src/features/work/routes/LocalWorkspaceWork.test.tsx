@@ -12,6 +12,11 @@ import * as materialsApi from '../api/materials'
 import * as reviewsApi from '../api/reviews'
 import * as tasksApi from '../api/tasks'
 import { LocalWorkspaceWork } from './LocalWorkspaceWork'
+import { WorkNavigation } from './WorkNavigation'
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}))
 
 vi.mock('../api/materials', async (original) => ({
   ...(await original<typeof import('../api/materials')>()),
@@ -94,8 +99,9 @@ beforeEach(() => {
 })
 afterEach(() => {
   delete window.weMeetDesktop
+  vi.unstubAllGlobals()
 })
-const mount = () =>
+const mount = (withNavigation = false) =>
   render(
     <QueryClientProvider
       client={
@@ -107,7 +113,13 @@ const mount = () =>
         })
       }
     >
-      <LocalWorkspaceWork ownerId="owner" view="new" />
+      {withNavigation ? (
+        <WorkNavigation active="new">
+          <LocalWorkspaceWork ownerId="owner" view="new" />
+        </WorkNavigation>
+      ) : (
+        <LocalWorkspaceWork ownerId="owner" view="new" />
+      )}
     </QueryClientProvider>
   )
 
@@ -123,6 +135,52 @@ it('requires native folder authorization before submission', async () => {
   expect(
     screen.getByRole('button', { name: '开始本地处理' })
   ).not.toBeDisabled()
+})
+
+it('keeps the authorized workspace and draft while navigation is collapsed and restores history selection', async () => {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((media: string) => ({
+      matches: false,
+      media,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }))
+  )
+  localStorage.removeItem('we-meet:work-nav-collapsed')
+  vi.mocked(bridge.list).mockResolvedValue([job])
+  mount(true)
+  const navigation = await screen.findByRole('complementary', {
+    name: '工作导航',
+  })
+  const history = await within(navigation).findByRole('region', {
+    name: '最近任务',
+  })
+  expect(
+    await within(history).findByRole('button', { name: /^核对本地文件/ })
+  ).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '选择本地文件夹' }))
+  await screen.findByText(/当前工作空间/)
+  fireEvent.change(screen.getByLabelText('工作目标'), {
+    target: { value: '保留草稿与目录授权' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: '收起工作导航' }))
+  expect(screen.queryByRole('region', { name: '最近任务' })).toBeNull()
+  expect(screen.getByLabelText('工作目标')).toHaveValue('保留草稿与目录授权')
+  expect(
+    screen.getByRole('button', { name: '开始本地处理' })
+  ).not.toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: '展开工作导航' }))
+  fireEvent.click(await screen.findByRole('button', { name: /^核对本地文件/ }))
+  await screen.findByRole('heading', { name: '核对本地文件' })
+  expect(screen.getByRole('button', { name: /^核对本地文件/ })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  )
+  expect(bridge.pickWorkspace).toHaveBeenCalledTimes(1)
+  expect(bridge.submit).not.toHaveBeenCalled()
 })
 
 it('fills a suggested goal without executing and keeps configuration separate from task submission', async () => {

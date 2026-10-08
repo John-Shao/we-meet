@@ -9,6 +9,7 @@ import {
 } from '../api/materials'
 import { PiReview } from './PiReview'
 import { TaskComposer } from './TaskComposer'
+import { WorkSidebarSection } from './WorkNavigation'
 import {
   RiFolderAddLine,
   RiSettings3Line,
@@ -57,6 +58,7 @@ export function LocalWorkspaceWork({
   const [materialPage, setMaterialPage] = useState(1)
   const [shared, setShared] = useState<string[]>([])
   const [remoteAllowed, setRemoteAllowed] = useState(false)
+  const [historyLimit, setHistoryLimit] = useState(8)
   const submission = useRef({ signature: '', id: '' })
   const alive = useRef(true)
   useEffect(() => {
@@ -257,6 +259,14 @@ export function LocalWorkspaceWork({
   const artifacts = job.data?.result?.artifacts || []
   const artifact =
     artifacts.find((item) => item.name === chosenFile) || artifacts[0]
+  const recentJobs =
+    history.data?.slice(
+      0,
+      Math.max(
+        historyLimit,
+        (history.data?.findIndex((item) => item.run_id === selected) ?? -1) + 1
+      )
+    ) || []
   return (
     <section
       className={`work-materials work-local-workspace work-task-page ${selected ? '' : 'work-task-create'}`}
@@ -290,60 +300,61 @@ export function LocalWorkspaceWork({
           {capabilities.data?.model}
         </p>
       )}
-      <div className="work-columns work-task-columns">
-        <aside
-          className="work-list work-task-history"
-          hidden={
-            !selected &&
-            !history.data?.length &&
-            !capabilities.data?.remote_enabled &&
-            !history.isError
-          }
-        >
+      <WorkSidebarSection>
+        {capabilities.data?.remote_enabled && (
+          <section className="work-sidebar-inbox" aria-label="远程待办">
+            <h2>
+              远程待办{' '}
+              <span className="work-inbox-count">
+                {remoteInbox.data?.length || 0}
+              </span>
+            </h2>
+            {remoteInbox.isError && (
+              <p role="alert">{localError(remoteInbox.error)}</p>
+            )}
+            {(remoteInbox.data || []).map((item) => (
+              <div key={item.run_id}>
+                <p>{item.goal}</p>
+                <small>{item.workspace_label}</small>
+                <button
+                  className="work-button"
+                  disabled={
+                    !workspace ||
+                    workspace.id !== item.workspace_id ||
+                    !remoteAllowed ||
+                    takeRemote.isPending
+                  }
+                  onClick={() => takeRemote.mutate(item.run_id)}
+                >
+                  审阅并领取
+                </button>
+              </div>
+            ))}
+            {!remoteInbox.data?.length && (
+              <p>授权工作空间后显示可领取的远程请求。</p>
+            )}
+          </section>
+        )}
+
+        <section className="work-sidebar-history" aria-label="最近任务">
           <button
-            className="work-button"
+            className="work-button work-history-new"
+            aria-label="新建本地工作"
+            data-work-open-task
             onClick={() => {
               submission.current = { signature: '', id: '' }
               setError('')
               open()
             }}
           >
-            新建本地工作
+            <span aria-hidden="true">＋</span>
           </button>
-          <h2>本机任务</h2>
-          {capabilities.data?.remote_enabled && (
-            <section>
-              <h2>远程待办</h2>
-              {remoteInbox.isError && (
-                <p role="alert">{localError(remoteInbox.error)}</p>
-              )}
-              {(remoteInbox.data || []).map((item) => (
-                <div key={item.run_id}>
-                  <p>{item.goal}</p>
-                  <small>{item.workspace_label}</small>
-                  <button
-                    className="work-button"
-                    disabled={
-                      !workspace ||
-                      workspace.id !== item.workspace_id ||
-                      !remoteAllowed ||
-                      takeRemote.isPending
-                    }
-                    onClick={() => takeRemote.mutate(item.run_id)}
-                  >
-                    审阅并领取
-                  </button>
-                </div>
-              ))}
-              {!remoteInbox.data?.length && (
-                <p>授权工作空间后显示可领取的远程请求。</p>
-              )}
-            </section>
-          )}
+          <h2>最近任务</h2>
           {history.isError && <p role="alert">{localError(history.error)}</p>}
-          {history.data?.map((item) => (
+          {recentJobs.map((item) => (
             <button
               className="work-material-row"
+              data-work-open-task
               key={item.run_id}
               aria-pressed={item.run_id === selected}
               onClick={() => {
@@ -356,13 +367,26 @@ export function LocalWorkspaceWork({
               <span>
                 <strong>{item.goal}</strong>
                 <small>
+                  <span className="work-history-source">本机</span>
                   {states[item.state]} · {item.workspace}
                 </small>
               </span>
             </button>
           ))}
+          {(history.data?.length || 0) > recentJobs.length && (
+            <button
+              className="work-history-more"
+              onClick={() => setHistoryLimit((limit) => limit + 8)}
+            >
+              显示更多任务
+            </button>
+          )}
+          {history.isPending && ready && <p role="status">正在加载任务…</p>}
+          {!ready && <p>配置本机执行器后查看本地任务。</p>}
           {ready && history.data?.length === 0 && <p>还没有本地任务。</p>}
-        </aside>
+        </section>
+      </WorkSidebarSection>
+      <div className="work-columns work-task-columns">
         <main className="work-detail work-task-main">
           {selected && (
             <>

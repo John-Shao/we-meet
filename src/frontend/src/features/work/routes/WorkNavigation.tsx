@@ -1,4 +1,11 @@
-import { useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'wouter'
 import {
   RiAddCircleLine,
@@ -123,6 +130,28 @@ const groups: { label: string; items: WorkModule[] }[] = [
 const hrefFor = (id: string) =>
   id === 'materials' ? '/work' : `/work?view=${id}`
 
+const SidebarContext = createContext<{
+  target: HTMLDivElement | null
+  closeMobile: () => void
+} | null>(null)
+
+// Keep task state and actions in the execution page while rendering in navigation.
+export function WorkSidebarSection({ children }: { children: ReactNode }) {
+  const sidebar = useContext(SidebarContext)
+  useEffect(() => {
+    const target = sidebar?.target
+    if (!target) return
+    const select = (event: MouseEvent) => {
+      if ((event.target as Element).closest('[data-work-open-task]'))
+        sidebar.closeMobile()
+    }
+    target.addEventListener('click', select)
+    return () => target.removeEventListener('click', select)
+  }, [sidebar])
+  if (!sidebar) return <div className="work-sidebar-tasks">{children}</div>
+  return sidebar.target ? createPortal(children, sidebar.target) : null
+}
+
 export const WorkNavigation = ({
   active,
   children,
@@ -135,23 +164,56 @@ export const WorkNavigation = ({
   )
   const compact = useMediaQuery('(max-width: 767px)')
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [sidebarTarget, setSidebarTarget] = useState<HTMLDivElement | null>(
+    null
+  )
   const expanded = compact ? mobileOpen : !collapsed
   const toggleNav = () =>
     compact ? setMobileOpen((value) => !value) : toggle()
   const sidebar = (
-    <aside className="work-sidebar">
+    <aside className="work-sidebar" aria-label="工作导航">
       <SubNavHeader
         title="工作"
         onCollapse={toggleNav}
         collapseLabel="收起工作导航"
       />
       <nav aria-label="工作模块" className="work-nav-groups">
-        {groups.map((group) => (
-          <div className="work-nav-group" key={group.label}>
-            {group.label !== '工作' && (
-              <p className="work-nav-label">{group.label}</p>
-            )}
-            {group.items.map(({ id, label, icon: Icon, planned }) => (
+        {groups
+          .filter((group) => group.items.some((item) => !item.planned))
+          .map((group) => (
+            <div className="work-nav-group" key={group.label}>
+              {group.label !== '工作' && (
+                <p className="work-nav-label">{group.label}</p>
+              )}
+              {group.items
+                .filter((item) => !item.planned)
+                .map(({ id, label, icon: Icon }) => (
+                  <Link
+                    key={id}
+                    href={hrefFor(id)}
+                    className="work-nav-link"
+                    aria-current={active === id ? 'page' : undefined}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <Icon size={19} aria-hidden="true" />
+                    <span>{label}</span>
+                  </Link>
+                ))}
+            </div>
+          ))}
+        <details
+          className="work-nav-more"
+          open={groups.some((group) =>
+            group.items.some((item) => item.id === active && item.planned)
+          )}
+        >
+          <summary>
+            更多<span>筹备中的功能</span>
+          </summary>
+          {groups
+            .flatMap((group) => group.items)
+            .filter((item) => item.planned)
+            .map(({ id, label, icon: Icon }) => (
               <Link
                 key={id}
                 href={hrefFor(id)}
@@ -161,34 +223,38 @@ export const WorkNavigation = ({
               >
                 <Icon size={19} aria-hidden="true" />
                 <span>{label}</span>
-                {planned && <small>待开放</small>}
+                <small>待开放</small>
               </Link>
             ))}
-          </div>
-        ))}
+        </details>
       </nav>
+      <div ref={setSidebarTarget} className="work-sidebar-tasks" />
     </aside>
   )
   return (
-    <div className="work-workspace">
-      {!expanded ? (
-        <SubNavStrip onExpand={toggleNav} expandLabel="展开工作导航" />
-      ) : compact ? (
-        sidebar
-      ) : (
-        <ResizablePanel
-          storageKey="we-meet:work-nav-width"
-          defaultWidth={250}
-          min={240}
-          max={320}
-        >
-          {sidebar}
-        </ResizablePanel>
-      )}
-      <div className="work-content" hidden={compact && mobileOpen}>
-        {children}
+    <SidebarContext.Provider
+      value={{ target: sidebarTarget, closeMobile: () => setMobileOpen(false) }}
+    >
+      <div className="work-workspace">
+        {!expanded ? (
+          <SubNavStrip onExpand={toggleNav} expandLabel="展开工作导航" />
+        ) : compact ? (
+          sidebar
+        ) : (
+          <ResizablePanel
+            storageKey="we-meet:work-nav-width"
+            defaultWidth={250}
+            min={240}
+            max={320}
+          >
+            {sidebar}
+          </ResizablePanel>
+        )}
+        <div className="work-content" hidden={compact && mobileOpen}>
+          {children}
+        </div>
       </div>
-    </div>
+    </SidebarContext.Provider>
   )
 }
 

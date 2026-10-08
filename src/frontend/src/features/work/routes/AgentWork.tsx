@@ -20,6 +20,7 @@ import {
 import { RunArtifacts, RunProgress } from './Communication'
 import { PiReview } from './PiReview'
 import { TaskComposer } from './TaskComposer'
+import { WorkSidebarSection } from './WorkNavigation'
 import { RiAttachment2, RiSparklingLine } from '@remixicon/react'
 
 const active = (run?: WorkRun) =>
@@ -61,6 +62,7 @@ export function AgentWork({
   const root = ['work', ownerId]
   const [page, setPage] = useState(1)
   const [materialPage, setMaterialPage] = useState(1)
+  const [historyLimit, setHistoryLimit] = useState(8)
   const [selected, setSelected] = useState<Material[]>([])
   const [goal, setGoal] = useState(templates[view].goal)
   const [background, setBackground] = useState('')
@@ -130,6 +132,14 @@ export function AgentWork({
     },
   })
   const run = task.data?.runs.at(-1)
+  const recentTasks =
+    tasks.data?.results.slice(
+      0,
+      Math.max(
+        historyLimit,
+        (tasks.data?.results.findIndex((item) => item.id === taskId) ?? -1) + 1
+      )
+    ) || []
   const command = useMutation({
     mutationFn: (kind: 'cancel' | 'retry') => {
       if (kind === 'cancel') return cancelRun(run!.id)
@@ -176,21 +186,20 @@ export function AgentWork({
         </p>
       )}
       {error && <p role="alert">{error}</p>}
-      <div className="work-columns work-task-columns">
-        <aside
-          className="work-list work-task-history"
-          hidden={!taskId && !tasks.data?.results.length && !tasks.isError}
-        >
+      <WorkSidebarSection>
+        <section className="work-sidebar-history" aria-label="最近任务">
           <button
-            className="work-button"
+            className="work-button work-history-new"
+            aria-label="新建工作"
+            data-work-open-task
             onClick={() => {
               setError('')
               open()
             }}
           >
-            新建工作
+            <span aria-hidden="true">＋</span>
           </button>
-          <h2>最近工作</h2>
+          <h2>最近任务</h2>
           {tasks.isPending && <p role="status">正在加载工作…</p>}
           {tasks.isError && (
             <p role="alert">
@@ -199,9 +208,10 @@ export function AgentWork({
             </p>
           )}
           {!tasks.isError &&
-            tasks.data?.results.map((t) => (
+            recentTasks.map((t) => (
               <button
                 className="work-material-row"
+                data-work-open-task
                 key={t.id}
                 aria-pressed={t.id === taskId}
                 onClick={() => {
@@ -212,11 +222,24 @@ export function AgentWork({
                 <span>
                   <strong>{t.goal}</strong>
                   <small>
+                    <span className="work-history-source">
+                      {t.runs.at(-1)?.execution_target === 'local'
+                        ? '本机'
+                        : '云端'}
+                    </span>
                     {t.runs.at(-1) && states[t.runs.at(-1)!.status]}
                   </small>
                 </span>
               </button>
             ))}
+          {(tasks.data?.results.length || 0) > recentTasks.length && (
+            <button
+              className="work-history-more"
+              onClick={() => setHistoryLimit((limit) => limit + 8)}
+            >
+              显示更多任务
+            </button>
+          )}
           {tasks.data?.results.length === 0 && (
             <p>还没有工作。先选择材料并填写目标。</p>
           )}
@@ -235,7 +258,9 @@ export function AgentWork({
               下一页
             </button>
           </nav>
-        </aside>
+        </section>
+      </WorkSidebarSection>
+      <div className="work-columns work-task-columns">
         <main className="work-detail work-task-main">
           {!taskId && (
             <form
