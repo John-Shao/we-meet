@@ -1,0 +1,198 @@
+{
+  "contract": "we-meet-dual-agent-production-acceptance/v1",
+  "date": "2026-10-08",
+  "completed": [
+    "production_deployment_and_synthetic_functional_acceptance",
+    "architecture_fixes",
+    "code_review_fixes"
+  ],
+  "scope": {
+    "rollout": "one_account_allowlist",
+    "allowed_account_sha256": "ada9bbbb960ea8fdc825a05b31265b5b9c9eab7334d677244ea555af491dc7e5",
+    "allowed_accounts": 1,
+    "flags": {
+      "WORK_AGENT_ENABLED": false,
+      "WORK_LOCAL_AGENT_ENABLED": true,
+      "WORK_REMOTE_AGENT_ENABLED": true,
+      "WORK_REVIEW_ENABLED": true
+    },
+    "other_accounts_denied": true,
+    "generic_cloud_dsh_deployed": false,
+    "mobile_platforms": [
+      "Android"
+    ]
+  },
+  "production": {
+    "business_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61",
+    "controllers_verified": 7,
+    "healthy_deployments": 5,
+    "schema_unchanged": true,
+    "gateway_adapter_version": "0.3.5",
+    "pi_version": "1.0.4",
+    "review_model": "qwen3.8-flash",
+    "gateway_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-gateway@sha256:87501e5fb151e859873cd0e1513de896916a986200414d75d3268377dabfb87d",
+    "worker_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-pi@sha256:1842512b12733f3d33be5f094472731d749954afc0f4c00fbe81c87bca1135fa",
+    "gateway_upgrade_backup": {
+      "quiescent": true,
+      "quick_check": "ok",
+      "sha256": "82171d3239a89bca7d1b7256312dfcc2ca9d27a5e83506cdae32ef1f199c3471"
+    },
+    "frontend": {
+      "source_commit": "1a316cdac5721c9ac2421322020e59e990861bbf",
+      "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-frontend@sha256:266fa1b7d53869b35f348782496510b32fabfe13df0b0db9644927c892665021",
+      "previous_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-frontend:241a87536",
+      "uid_unchanged": true,
+      "only_image_changed": true,
+      "ready": true,
+      "public_index_sha256": "ce7f0d955491d3403e6555fa44f928327c27e7db041ae171debef6e363b71c48",
+      "public_assets": [
+        {
+          "path": "/assets/material-icons-outlined-latin-400-normal-DZhiGvEA.woff2",
+          "sha256": "35dca8a7145a17c8d1306f25a3ca091578e15396f0b22d61eb8e73262ac75577"
+        },
+        {
+          "path": "/assets/material-symbols-outlined-latin-wght-normal-DKRrZ6AO.woff2",
+          "sha256": "2bb0c1f8095883def1ff00fe705c6c8d4842e2a68a8212a51517902c39882689"
+        },
+        {
+          "path": "/assets/index-D6ZyzBdX.js",
+          "sha256": "6992e898a3bba59cc4305cb1c610000e9b07e02ffdd0d49c95237ba51d934441"
+        },
+        {
+          "path": "/assets/index-CAHYmmm5.css",
+          "sha256": "e9623c8bc3f508ba69fa6621aae0cc45ccb22c121cce6b35b9c17a32312ed0d3"
+        },
+        {
+          "path": "/assets/index-D6ZyzBdX.js",
+          "sha256": "6992e898a3bba59cc4305cb1c610000e9b07e02ffdd0d49c95237ba51d934441"
+        }
+      ],
+      "uncertainty_ui_present": true,
+      "business_and_gateway_verified": true,
+      "model_calls": 0
+    },
+    "operator_config": {
+      "phase": "open",
+      "consumers": 7,
+      "missing_overlay_blocked": true,
+      "partial_overlay_blocked": true,
+      "rendered_and_live_settings_match": true,
+      "operator_overlay_sha256": "b7db385164d39aa4f962c02975b37359fbee9a637d14453fa1bfb1dcde10be47",
+      "operator_overlay_mode": "0600",
+      "operator_owner_verified": true,
+      "provider_keys_copied": false,
+      "cluster_mutations": 0,
+      "model_calls": 0
+    }
+  },
+  "execution": {
+    "run_id": "75a124ef-8959-47ed-bf26-15b34ee2fce3",
+    "task_id": "e78958af-3f76-471f-aa3d-927002469ba4",
+    "runtime_version": "0.3.2",
+    "dsh_version": "0.1.5rc1",
+    "model": "deepseek-flash",
+    "model_calls": 3,
+    "tokens": 5234,
+    "manual_command_approvals": 2,
+    "original_input_unchanged": true,
+    "files": [
+      {
+        "name": "report.md",
+        "sha256": "4df347fb2ff89f85e18ee1988332eb9a4594c7605e753598b847fee67061e8dd"
+      }
+    ],
+    "sync_explicitly_authorized": true
+  },
+  "review": {
+    "review_id": "14143096-6883-41a2-a1d5-aa25189b096a",
+    "status": "succeeded",
+    "model_calls": 1,
+    "input_tokens": 981,
+    "output_tokens": 584,
+    "raw_verdict": "needs_changes",
+    "display_verdict": "inconclusive",
+    "raw_verdict_preserved": true,
+    "source_result_unchanged": true,
+    "desktop_visible": true,
+    "android_visible": true,
+    "android_original_preview_verified": true,
+    "new_paid_reviews_after_success": 0,
+    "prior_failures": [
+      {
+        "review_id": "3810bd7a-4898-48da-aa8b-50abb52d0e45",
+        "reason": "budget_exceeded",
+        "model_calls": 0
+      },
+      {
+        "review_id": "f534aef9-5038-4350-ad89-6fdaa7b40d3f",
+        "reason": "agent_failed_unknown_cause",
+        "model_calls": 1,
+        "tokens": 960
+      },
+      {
+        "review_id": "04accc3a-d4ee-4554-a9df-22fc3d443207",
+        "reason": "agent_failed_invalid_quote",
+        "model_calls": 1,
+        "tokens": 1146
+      }
+    ]
+  },
+  "desktop_delivery": {
+    "version": "0.4.0-delivery.4",
+    "file": "We-Meet-0.4.0-delivery.4-setup.exe",
+    "sha256": "834fb0dd132bf6b44ddf2e362d17c836afed9d46a2f49cfbca9e6e0f1fc0fcc8",
+    "bytes": 187064038,
+    "signature_status": "NotSigned",
+    "source_commit": "99b64cd5bda9cdbae28418770b0b97ddf39c4947",
+    "source_clean": true,
+    "bundled_runtime": {
+      "version": "0.3.2",
+      "manifest_sha256": "6e7c9bc1f446d4ef2d11b8f8cd3bbdb55418e0ae9b11d5a8d90214d3ac18736f"
+    },
+    "nsis_audit_passed": true,
+    "compiled_files_verified": 201,
+    "renderer_files_verified": 186,
+    "model_calls": 0
+  },
+  "validation": {
+    "actual_pinned_pi_rpc_fixture_passed": true,
+    "pi_fixture_supplier_calls": 0,
+    "desktop_tests": {
+      "passed": 32,
+      "opt_in_skipped": 1
+    },
+    "web_report_tests_passed": 6,
+    "wsl_release_tests_passed": 16,
+    "closed_api_dispatch_status": 503,
+    "closed_api_terminal_claim_status": 409,
+    "desktop_and_android_owned_fixtures_cleaned": true,
+    "android_normal_package": "com.we.meet",
+    "ci": [
+      {
+        "repo": "John-Shao/we-meet",
+        "source": "1a316cdac5721c9ac2421322020e59e990861bbf",
+        "run": 37711324716,
+        "conclusion": "success"
+      },
+      {
+        "repo": "John-Shao/we-meet",
+        "source": "99b64cd5bda9cdbae28418770b0b97ddf39c4947",
+        "run": 37711888151,
+        "conclusion": "success"
+      },
+      {
+        "repo": "John-Shao/we-meet-android",
+        "source": "dd19008bbff4cbec515ccc5f325b3ba7436da073",
+        "run": 37711332562,
+        "conclusion": "success"
+      }
+    ]
+  },
+  "limitations": [
+    "Synthetic functional sample does not establish model judgement quality.",
+    "Native OAuth UX and a clean Windows VM were not part of this acceptance.",
+    "Windows installer is unsigned; production runtime trust keys are not yet configured.",
+    "Command approval is not an operating system sandbox.",
+    "No all-user rollout or iOS delivery."
+  ]
+}

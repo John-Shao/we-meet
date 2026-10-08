@@ -15,3 +15,5 @@
 成果引用约束仍检查文件名、哈希和所属文件原文，不能由模型请求覆盖 Gateway 的冻结快照。真实 Pi 容器中使用合成 SSE 响应验证“needs_changes + 缺失信息”保守转成 inconclusive，供应商调用为 0；现有生产报告只读复验后，桌面和 Android 显示信息不足，同时保留原始模型意见与源成果。该机制不会证明模型每条判断正确，也不会自动修改文件或重跑任务。
 
 相关回执、最终固定镜像与内部候选包信息见 [生产记录](work-dual-agent-production-release-2026-10-08.md)；架构分工与发布操作见 [架构整改](work-agent-architecture-review-2026-10-08.md)。
+
+走查修复源 `99b64cd5bda9cdbae28418770b0b97ddf39c4947` 的 [CI 37711888151](https://github.com/John-Shao/we-meet/actions/runs/37711888151) 四项通过。由该干净源构建的 `0.4.0-delivery.4` 已完成实际 NSIS 解包审计：201 个编译文件、186 个 renderer 资源及自包含运行环境清单匹配，包内原生适配器探测通过，模型调用为 0；安装包仍为未签名内部候选。

@@ -15,3 +15,5 @@
 联调结束先临时关闭全部入口，验证关闭后的派发/重领拒绝，登出并清理本次 profile、工作区、fixture 包和 ADB reverse。成功后可恢复已验证的**单演示账号灰度**：local/remote/review 开启，云端通用 Agent 保持关闭，其他账号不获准入。失败则优先关闭、取消本次活动执行，再依快照恢复镜像；不回退 schema，不通用 Helm rollback。私有 `values.work-dual.yaml` 保存完整 Agent 配置与 Secret 引用，不含模型密钥；后续发布必须显式携带并检查。
 
 随后按顺序审视业务/执行器契约、任务所有权与租约、计量/未知状态、身份/密钥边界、桌面审批、发布/回退与 Helm 现场差异；再走查相应代码，修复有证据的问题并完成离线回归。正式签名、干净 Windows VM 和真实用户材料的规模质量评估继续单独记录，不计作本轮合成样本的已通过结果。
+
+执行结果见 [生产记录](work-dual-agent-production-release-2026-10-08.md)、[架构整改](work-agent-architecture-review-2026-10-08.md) 和 [代码走查](work-agent-code-review-2026-10-08.md)。上文是初始范围与过程中预算修正的记录；随后发现结构化引用、诊断及材料不足时的结论问题，已按本轮自主修复授权独立升级 Gateway 至 0.3.5，保留各版数据库备份与 spec。业务数据库 schema 和供应商凭据始终未改。
