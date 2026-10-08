@@ -155,11 +155,11 @@ AOQ 只向客户端返回所需字段：`sid`、`aoqTokenForClient`、`clientRel
 flowchart LR
     Mic[手机麦克风] --> Capture[本机音频采集]
     Camera[手机摄像头] --> C2[Camera2 原始帧]
-    C2 --> Preview[本机预览]
+    C2 -->|15 fps 原始帧| Preview[本机预览]
     Capture --> AOQ[AOQ SDK 编码与媒体传输]
-    C2 -->|旋转后的 I420 外部输入| AOQ
+    C2 -->|2 fps 旋转后的 I420 外部输入| AOQ
     Capture --> RTC[WebRTC 音频轨道]
-    C2 --> Track[WebRTC 视频轨道]
+    C2 -->|2 fps 模型输入| Track[WebRTC 视频轨道]
     Track --> RTC
     AOQ -->|Opus 音频与 H264 画面，经 QUIC| Ali[百炼实时接入与 Omni]
     RTC -->|协商编码，RTP 与 SRTP| Ali
@@ -173,14 +173,18 @@ flowchart LR
 | 项目 | AOQ | WebRTC |
 | --- | --- | --- |
 | 音频处理 | SDK 采集、编解码与播放；当前输入 16 kHz 单声道、输出 24 kHz，网络使用 Opus | `JavaAudioDeviceModule` 与协商音轨；启用硬件回声消除／降噪选项 |
-| 视频处理 | Camera2 → 旋转、I420 → SDK 外部输入 → H264；目标 1280×720、2 fps、500 kbps | 预协商视频发送器，开启后附加摄像头轨道；当前发送上限目标 2 fps、1 Mbps |
+| 视频处理 | Camera2 以 15 fps 采集并直接预览；上传分支旋转、I420 → SDK → H264；目标 1280×720、2 fps、500 kbps | Camera2 以 15 fps 采集并直接预览；2 fps 分支进入模型 VideoSource；预协商发送器，当前发送上限目标 2 fps、1 Mbps |
 | 实时事件 | SDK 数据消息发送 JSON | `oai-events`／供应商实际事件 DataChannel 发送 JSON |
 | 音量控制 | Android “媒体”音量 | Android “通话”音量 |
 | 设备路由 | 沿用 AOQ SDK 的播放和路由管理 | AudioSwitch，支持蓝牙、有线耳机、扬声器与听筒选择 |
 
 上述分辨率、帧率和码率是当前配置目标，不代表每台设备、网络或服务端均达到该值。模型事件通道不承载手写 Base64 PCM 媒体；编解码和线路传输交给各自客户端栈。
 
-AOQ 使用已有 WebRTC 包中的 Camera2、纹理和 I420 工具完成本机采集，但不为此创建 WebRTC PeerConnection。硬件采集使用兼容的 15 fps，每 500 ms 最多向 AOQ 提交一帧；图像转换与复制只服务于 SDK 输入缓冲，不保存图像。此方案替代 SDK 1.3.0 内部 Camera1 在模拟器上停止后无法可靠重开的路径，编码及网络仍由 AOQ 完成。[AOQ 外部视频输入](https://www.alibabacloud.com/help/zh/model-studio/aoq-custom-video-input)。
+本地预览与模型上传帧率分别由 Android `gradle.properties` 的 `AI_CALL_LOCAL_PREVIEW_FPS=15` 和 `AI_CALL_MODEL_UPLOAD_FPS=2` 配置，也可使用 Gradle `-P` 覆盖，Debug／Release 与 AOQ／WebRTC 共用。预览允许 1–30 整数 fps，上传允许 1–预览 fps；构建时校验，重建安装后生效。硬件采集目标为 `max(15, 本地预览 fps)`，两条分支使用纳秒时钟独立限帧；上传参数同时设置 AOQ 编码 fps 与 WebRTC RTP maxFramerate。因此本文的 15／2 fps 是默认值，硬件输出超过请求值时预览仍按配置限制。参数不改变分辨率、码率或语音工具发布开关。
+
+AOQ 使用已有 WebRTC 包中的 Camera2、纹理和 I420 工具完成本机采集，但不为此创建 WebRTC PeerConnection。两种传输均以兼容的 15 fps 采集，`CameraFrameRouter` 将原始帧直接交给 `TextureViewRenderer` 本地预览，仅模型分支每 500 ms 最多提交一帧。AOQ 的方向旋转、I420 转换与复制只发生在 SDK 上传分支；WebRTC 原始帧预览也在模型 VideoSource 之前分流，避免原生轨道适配再次限制预览。实际预览帧率受设备、曝光和负载影响，不宣称固定达到 15 fps。
+
+AOQ 本地预览不再使用 SDK 的低帧率本地渲染；摄像头和采集纹理每次关闭时释放，共享 EGL 根上下文保留到当前通话结束，避免快速重开时渲染器和新帧处于不同共享上下文。停止和解除绑定构成帧回调屏障，先停止喂帧再释放渲染器。此方案继续使用 SDK 1.3.0 的外部视频输入替代无法可靠重开的内部 Camera1 路径，编码及网络仍由 AOQ 完成，不保存图像。[AOQ 外部视频输入](https://www.alibabacloud.com/help/zh/model-studio/aoq-custom-video-input)。
 
 两种系统音量分别保存，因此同一屏幕位置或先前设置不保证两条路径音量一致。用户曾观察到 AOQ 建连约为 WebRTC 的 2/3，这是单机体感，不能作为稳定性能指标；模型回复延迟还包含 VAD、推理和播放缓冲。
 
@@ -246,6 +250,8 @@ Opening／Closing 是操作过程的逻辑状态，对应界面的 `cameraPendin
 通话由前台服务持有，基础类型为 microphone／mediaPlayback，摄像头实际启用时增加 camera 类型。启动或类型切换等待服务确认，不能只发送 Intent 就视为准备完成。通话与独立互译共享排他所有权，避免两个工具同时占用实时音频。
 
 页面 RESUMED 且设备未锁屏才允许新开摄像头。Home、锁屏和旋转沿用现有后台通话生命周期；返回按钮／离开通话页面执行挂断。已经开启的视频在后台的行为不由此次工具功能另行改变；后台关闭摄像头可以执行。
+
+**视频通话屏幕常亮：**通话为 Active、实际 `isCameraEnabled=true` 且页面为 RESUMED 时设置窗口 `FLAG_KEEP_SCREEN_ON`，防止因闲置超时变暗、熄屏和自动锁屏。关闭摄像头、挂断、进入后台或离开页面后释放本页设置；返回前台且摄像头仍开启时重新启用。仅选中视频模式、连接中或等待授权不启用。AOQ、WebRTC 和按钮／语音入口共用该规则，不依赖摄像头语音工具开关。退出时恢复窗口原有标志，不修改系统屏幕超时、强制亮度或用户主动锁屏行为，不新增权限。前台服务的 `PARTIAL_WAKE_LOCK` 只维持 CPU 工作，屏幕常亮由页面管理。[Android 屏幕常亮说明](https://developer.android.com/develop/background-work/background-tasks/awake/screen-on?hl=zh-cn)。
 
 ## 7. 通过语音切换语音与视频
 
@@ -431,6 +437,9 @@ suspend fun requestCameraEnabled(
 | --- | --- |
 | 单元测试 | feature-assistant 57 项、app 561 项；其中新增摄像头测试 27 项 |
 | 构建 | Debug、默认 Release、显式启用语音控制的内部 Release 均已构建 |
+| 视频通话屏幕常亮增量 | 57 项相关单元测试、7 项页面回归及 1 项真实 AOQ 授权／摄像头探针通过；系统窗口确认摄像头开启时持有常亮，进入后台后释放；荣耀闲置超时与主动锁屏待真机确认 |
+| 预览与模型帧率分流增量 | 60 项相关单元测试、8 项原生预览／页面回归及真实 AOQ 生命周期探针通过；原生源／渲染器 3001ms 内实际渲染 81 帧、模型分支提交 6 帧；ARM 转译模拟器曾未达帧率目标，荣耀及 WebRTC 视频流畅度待真机确认 |
+| 独立帧率参数增量 | 默认 15／2 fps、30／3 fps 覆盖配置及 61 项单元测试通过，非法配置拒绝；8 项原生预览／页面回归通过，3002ms 实际渲染 41 帧、模型分支 6 帧；已给预览加配置上限，前一行 81 帧属于历史候选，本次未重跑真实模型／实机验收 |
 | 真实 AOQ／WebRTC 工具协议 | 无设备副作用查询工具完成调用、结果回传、文字续答及播放能量检测；每条连接仅分配一次 |
 | 内部 Release 权限及真实页面 | 两条查询探针、权限拒绝、授权／预览／镜头保持／后台限制，共 4 项通过 |
 | AOQ 真实媒体 10 轮开关 | 通过；同一引擎／租约，真实采集、非零编码与发送统计 |
