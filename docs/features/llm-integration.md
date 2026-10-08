@@ -22,7 +22,7 @@ AOQ、WebRTC、WebSocket 是传输方式，DashScope SDK、OpenAI SDK 是调用�
 | `qwen-audio-3.1-asr-flash-filetrans` | 上传文件、录后整段转写、旧 Summary 转写 | 后端／Agent／Summary 使用异步任务 HTTP API；分别复用 requests／aiohttp 连接 | 保留云端任务管理，已完成连接复用 |
 | `qwen3.8-flash` | 会议纪要、概览、录音问答、全局 AI 搜索、会话摘要、上传原文翻译 | 后端和旧 Summary 使用 OpenAI 兼容 SDK，HTTP／SSE | 复用 SDK 实例和 HTTP 连接，不为池化更换 SDK |
 | 同上（按任务配置） | Work 通信任务 | 后端 `WorkCommunicationExecutor` 使用 `LLMClient`／OpenAI SDK | 使用后端复用层；模型和地址取任务快照 |
-| 同上（Pi 灰度配置） | Work 云端 Pi Agent | Agent runtime → Model Broker → 百炼兼容 HTTP／SSE | Broker 独立持有 httpx 池，代码及候选镜像已验证，待生产发布 |
+| 同上（Pi 灰度配置） | Work 云端 Pi Agent | Agent runtime → Model Broker → 百炼兼容 HTTP／SSE | Broker 独立持有 httpx 池，已随云端适配器 0.3.6 发布并验证 |
 | `text-embedding-v4` | 字幕及搜索向量，1024 维 | 后端调用兼容 HTTP `/embeddings`，实际传输经 requests 连接池 | 已复用；不是 DashScope SDK，也不是 WebSocket |
 | `qwen3-asr-flash-realtime` | Omni WebRTC 会话中的输入文字 | `session.input_audio_transcription.model` 子配置 | 不是独立 ASR 3.1 转写任务，不应与其混为一谈 |
 
@@ -143,7 +143,7 @@ Filetrans 的收费提交不自动重复；提交结果不明时不能把 HTTP �
 当前还需区分以下边界：
 
 - Android 旧 `MeetingTranslationRepository`、`CaptureTranslationRepository` 仍校验 `qwen3.5-livetranslate-flash-realtime`，后端对应适配器已为 3.8。该路径应先对齐校验并验证，不能用独立双语 AOQ 的验收证明旧会议／录音翻译路径全部兼容。
-- Work/Pi Model Broker 已实现独立 httpx 连接池，保留逐任务鉴权、预算预占及用量账本；JSON／SSE 有界读取，异常／提前关闭释放连接，人工审批前释放上游响应，关闭时拒绝新借用并等待既有响应释放。凭证逐请求注入、拒绝 Cookie，不跨 Broker 或进程共享；fork 后需重新创建 Broker。此次代码及候选镜像已验证，尚未生产发布，也未扩大 Work 灰度账号范围；既有生产证据见[Work 双 Agent 发布记录](../reviews/work-dual-agent-production-release-2026-10-08.md)。
+- Work/Pi Model Broker 已实现独立 httpx 连接池，保留逐任务鉴权、预算预占及用量账本；JSON／SSE 有界读取，异常／提前关闭释放连接，人工审批前释放上游响应，关闭时拒绝新借用并等待既有响应释放。凭证逐请求注入、拒绝 Cookie，不跨 Broker 或进程共享；fork 后需重新创建 Broker。云端适配器 0.3.6 已生产发布，两次真实 Qwen 复核通过且复用同一 HTTPS socket；仍保持单演示账号灰度，桌面内置 0.3.2 运行环境独立固定。发布及回滚依据见[Broker 连接池发布记录](../reviews/work-broker-pool-production-2026-10-08.md)，既有跨端证据见[Work 双 Agent 发布记录](../reviews/work-dual-agent-production-release-2026-10-08.md)。
 - AOQ 会话分配的短 HTTP 请求尚未池化；实际模型并发限额、服务器容量及真实网络对比需另行测量。
 
 ## 实现位置

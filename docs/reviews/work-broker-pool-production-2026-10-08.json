@@ -1,0 +1,229 @@
+{
+  "recorded_at_utc": "2026-10-08T04:10:17.903959+00:00",
+  "status": "production_deployed_and_verified",
+  "scope": "cloud Work/Pi Gateway and worker; existing single-account rollout",
+  "verification_path": "production backend -> Gateway -> Pi task Pod -> Qwen",
+  "source_commit": "e46fe710f6b8c6ac779597b67e9eb1273bdcd619",
+  "release_guard": {
+    "id": 37724601844,
+    "html_url": "https://github.com/John-Shao/we-meet/actions/runs/37724601844",
+    "head_sha": "e46fe710f6b8c6ac779597b67e9eb1273bdcd619",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "images": {
+    "gateway": {
+      "tag": "jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-gateway:broker-pool-e46fe710f",
+      "reference": "jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-gateway@sha256:3d97bb6cdda064fdf1c3c0a9ee622e36da57762827f52469dd76ac0c2ea97295",
+      "id": "sha256:3d97bb6cdda064fdf1c3c0a9ee622e36da57762827f52469dd76ac0c2ea97295"
+    },
+    "pi": {
+      "tag": "jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-pi:broker-pool-e46fe710f",
+      "reference": "jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-pi@sha256:ba1d14128961b2d7e7eaa2c4d72adb4623f5ef8e0dfc9afa787152840eac3911",
+      "id": "sha256:ba1d14128961b2d7e7eaa2c4d72adb4623f5ef8e0dfc9afa787152840eac3911"
+    }
+  },
+  "source_hashes_match_release_archive": true,
+  "operator_overlay": {
+    "phase": "open",
+    "consumers": 7,
+    "missing_overlay_blocked": true,
+    "partial_overlay_blocked": true,
+    "rendered_and_live_settings_match": true,
+    "operator_overlay_sha256": "b7db385164d39aa4f962c02975b37359fbee9a637d14453fa1bfb1dcde10be47",
+    "operator_overlay_mode": "0600",
+    "operator_owner_verified": true,
+    "provider_keys_copied": false,
+    "cluster_mutations": 0,
+    "model_calls": 0
+  },
+  "rollback": {
+    "rollback_script_retained": true,
+    "mode": "0600",
+    "sha256": "0f18a441b04c7fc4b29f84bae6ab83f152e53c4582cea0e4c4b368d4ec25f9a7"
+  },
+  "offline_tests": {
+    "windows": {
+      "run": 104,
+      "passed": 99,
+      "skipped_opt_in": 5
+    },
+    "gateway_real_http_pool_tests": 13,
+    "published_pi_image_rpc_sse_report_metering": "passed",
+    "supplier_calls": 0
+  },
+  "acceptance": {
+    "phase": "open",
+    "controllers_verified": 7,
+    "pods": [
+      {
+        "name": "meet-backend",
+        "pod": "meet-backend-84c6d7d596-ntgjx",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      },
+      {
+        "name": "meet-backend-ai",
+        "pod": "meet-backend-ai-6cd5445697-lknwg",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      },
+      {
+        "name": "meet-celery-backend",
+        "pod": "meet-celery-backend-66768f7cf4-g95x4",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      },
+      {
+        "name": "meet-celery-beat",
+        "pod": "meet-celery-beat-5959b6d577-7pfdf",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      },
+      {
+        "name": "meet-celery-work",
+        "pod": "meet-celery-work-c98c97676-vjl8z",
+        "image_ids": [
+          "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:e80b10e82eebea449076901453cf0669838fbd33aaae5afd176f6ab44b948e61"
+        ]
+      }
+    ],
+    "runtime": {
+      "mode": "allowlist",
+      "allowed_users": 1,
+      "flags": {
+        "WORK_AGENT_ENABLED": false,
+        "WORK_LOCAL_AGENT_ENABLED": true,
+        "WORK_REMOTE_AGENT_ENABLED": true,
+        "WORK_REVIEW_ENABLED": true
+      },
+      "owner_admitted": true,
+      "outsider_admitted": false,
+      "celery_pong_count": 2
+    },
+    "health": [
+      {
+        "deployment": "meet-backend",
+        "both_health_checks": 200
+      },
+      {
+        "deployment": "meet-backend-ai",
+        "both_health_checks": 200
+      }
+    ],
+    "gateway_unchanged": true,
+    "schema_unchanged": true,
+    "provider_calls_by_rollout": 0,
+    "jobs": 13,
+    "active_jobs": 0,
+    "quick_check": "ok",
+    "adapter_version": "0.3.6",
+    "httpx_version": "0.28.1",
+    "source_sha256": {
+      "provider_http.py": "26ea151e137f0e2e2712275b0b3a58119437fd5a65e3889d2462ed904f8863cf",
+      "model_broker.py": "4c0c66d882fee5f0bd63a0f971137ecb810fd2c3f880c78c7edc87cc32a8b850",
+      "__init__.py": "9f58417d414e8a0aa2fbe45c63d41bd315f5fd82f524ce8513cad669f0fdf6e1"
+    },
+    "gateway_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-gateway@sha256:3d97bb6cdda064fdf1c3c0a9ee622e36da57762827f52469dd76ac0c2ea97295",
+    "worker_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-pi@sha256:ba1d14128961b2d7e7eaa2c4d72adb4623f5ef8e0dfc9afa787152840eac3911",
+    "historical_jobs_unchanged": true,
+    "historic_jobs": 10,
+    "task_pods_remaining": 0,
+    "gateway_uid_unchanged": true,
+    "gateway_ready": 1,
+    "gateway_image_ids": [
+      "jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-gateway@sha256:3d97bb6cdda064fdf1c3c0a9ee622e36da57762827f52469dd76ac0c2ea97295"
+    ],
+    "live_validation": {
+      "synthetic_reviews": [
+        {
+          "state": "succeeded",
+          "error_code": "",
+          "metering": {
+            "calls": 1,
+            "complete": true,
+            "usage": {
+              "input_tokens": 814,
+              "output_tokens": 51,
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0
+            },
+            "held_tokens": 865,
+            "denial_code": ""
+          },
+          "verdict": "inconclusive",
+          "artifacts": 1,
+          "usage": {
+            "input_tokens": 814,
+            "output_tokens": 51,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0
+          },
+          "elapsed_ms": 2316
+        },
+        {
+          "state": "succeeded",
+          "error_code": "",
+          "metering": {
+            "calls": 1,
+            "complete": true,
+            "usage": {
+              "input_tokens": 814,
+              "output_tokens": 38,
+              "cache_read_tokens": 0,
+              "cache_write_tokens": 0
+            },
+            "held_tokens": 852,
+            "denial_code": ""
+          },
+          "verdict": "inconclusive",
+          "artifacts": 1,
+          "usage": {
+            "input_tokens": 814,
+            "output_tokens": 38,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0
+          },
+          "elapsed_ms": 2087
+        }
+      ],
+      "supplier_calls": 2,
+      "https_socket_counts": [
+        0,
+        1,
+        1
+      ],
+      "same_live_https_socket_after_both_calls": true,
+      "automatic_paid_retries": 0,
+      "precall_timeout": {
+        "state": "failed",
+        "error_code": "deadline_exceeded",
+        "metering": {
+          "calls": 0,
+          "complete": true,
+          "usage": null,
+          "held_tokens": 0,
+          "denial_code": ""
+        },
+        "verdict": null,
+        "artifacts": 0,
+        "usage": null,
+        "elapsed_ms": null
+      }
+    },
+    "database_backup": {
+      "quiescent": true,
+      "quick_check": "ok",
+      "sha256": "82171d3239a89bca7d1b7256312dfcc2ca9d27a5e83506cdae32ef1f199c3471"
+    }
+  },
+  "actual_supplier_calls": 2,
+  "actual_usage_tokens": 1717,
+  "capacity_load_test_performed": false,
+  "desktop_bundled_runtime_updated": false,
+  "android_apk_updated": false
+}

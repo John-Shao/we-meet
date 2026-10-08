@@ -4,7 +4,7 @@
 
 统一说明见 [Work Agent 架构](../../docs/features/work-agent-architecture.md)：桌面 dsh 执行、服务端 Pi 只读复核、Android 派发与查看，通过 `work-local/v1`、`work-device/v1` 和 `work-agent/v1` 松耦合集成。
 
-生产 Pi 适配器为 `0.3.5` / Pi `1.0.4` / `qwen3.8-flash`，采用现有 K3s 的独立任务 Pod。桌面内部包 `0.4.0-delivery.4` 独立固定本地适配器 `0.3.2` / dsh `0.1.5rc1`，最终用户无需安装 Python、Node 或 Docker。生产仅向演示账号开启 local/remote/review，通用云端 Agent 关闭；示例配置默认关闭。
+生产 Pi 适配器为 `0.3.6` / Pi `1.0.4` / `qwen3.8-flash`，采用现有 K3s 的独立任务 Pod；Broker 连接池发布及验收见[生产发布记录](../../docs/reviews/work-broker-pool-production-2026-10-08.md)。桌面内部包 `0.4.0-delivery.4` 独立固定本地适配器 `0.3.2` / dsh `0.1.5rc1`，最终用户无需安装 Python、Node 或 Docker。生产仅向演示账号开启 local/remote/review，通用云端 Agent 关闭；示例配置默认关闭。
 
 精确镜像、安装包及实际验证范围见 [生产记录](../../docs/reviews/work-dual-agent-production-release-2026-10-08.md)。K3s 操作见 [任务 Pod 部署](KUBERNETES.md)，本机操作见 [产品交付](DELIVERY.md)。下文是早期 PoC 与可选 Docker/云端执行路径的记录，其中历史“未发布”不代表当前灰度状态。
 
@@ -138,7 +138,8 @@ JSON 和 SSE 使用有界字节读取，完整读取、异常及提前关闭都�
 `requirements-http.lock` 锁定 HTTP 依赖及 wheel 哈希，Docker 的公共基础阶段和桌面运行时构建均安装它。
 `test_provider_http.py` 使用本地 HTTP/1.1 假供应商验证实际 TCP 复用、并发上限、凭证隔离、SSE 分片、
 超时、禁止重试／重定向及关闭清理；Broker／审批回归另验证预算记账及审批前释放。
-该改动的候选 Gateway 镜像验证不等于生产发布；上线仍按上面的独立升级流程排空任务、保留 Inbox、替换镜像并验证。
+该改动已随云端适配器 0.3.6 发布，并通过真实 Pi／Qwen 调用及 HTTPS 连接复用验收；桌面内置 0.3.2 运行环境仍独立固定。
+后续上线仍按上面的独立升级流程排空任务、保留 Inbox、替换镜像并验证。
 池大小不是模型吞吐承诺，仍需结合供应商限额、任务排队和真实负载调整。
 
 ## 验证与当前范围
