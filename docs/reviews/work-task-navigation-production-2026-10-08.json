@@ -1,0 +1,123 @@
+{
+  "source_commit": "6de1358fa752360493878a99d18348db517df023",
+  "ci_run": 37754846680,
+  "build_location": "local WSL Ubuntu-22.04",
+  "architecture": "amd64",
+  "runtime_user": "nginx",
+  "release_method": "fenced frontend Deployment image patch; no remote build",
+  "deployment": {
+    "source_commit": "6de1358fa752360493878a99d18348db517df023",
+    "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-frontend@sha256:cd698bf771256e45ed697307dae2886aa5144ca2b0d11e1327763010ee804ad4",
+    "previous_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-frontend@sha256:58d90be25d282ebffaa6df4d9b00f5ad22ae84f4c7814dfb801baf78ed28883d",
+    "build_location": "local WSL Ubuntu-22.04",
+    "uid_unchanged": true,
+    "only_frontend_image_changed": true,
+    "ready": true,
+    "public_index_sha256": "916629ee98955db54b00c1073f15e8fcddf1aa723107f351b9e586e7c6ffa882",
+    "public_assets": [
+      {
+        "path": "/assets/index-CxXnBl9H.js",
+        "sha256": "949399d0e8c570bb0810690f8098936f4e68714e738ad264129f413e080ed13d"
+      },
+      {
+        "path": "/assets/index-YF_1IhsF.css",
+        "sha256": "49a5dc8fdb5417f909abef3e9578ff6a07e570e220438270c213385a9c1486a2"
+      },
+      {
+        "path": "/assets/material-icons-outlined-latin-400-normal-DZhiGvEA.woff2",
+        "sha256": "35dca8a7145a17c8d1306f25a3ca091578e15396f0b22d61eb8e73262ac75577"
+      },
+      {
+        "path": "/assets/material-symbols-outlined-latin-wght-normal-DKRrZ6AO.woff2",
+        "sha256": "2bb0c1f8095883def1ff00fe705c6c8d4842e2a68a8212a51517902c39882689"
+      }
+    ],
+    "unselected_workloads_unchanged": 22,
+    "model_calls": 0,
+    "backup_root": "/var/lib/we-meet-work-maintenance/cohort-6de1358fa-layout"
+  },
+  "ui": {
+    "passed": true,
+    "origin": "https://meet.we-meet.online",
+    "source_commit": "6de1358fa752360493878a99d18348db517df023",
+    "owner_hash_verified": true,
+    "real_production_api": true,
+    "mocked_requests": 0,
+    "history_rows_available": 2,
+    "viewports": [1600, 1024, 768, 390],
+    "composer_geometry": {
+      "width": 900,
+      "centerError": 0
+    },
+    "checks": [
+      "lower navigation history",
+      "collapsed planned features",
+      "centered composer",
+      "suggestion fills only",
+      "draft survives navigation collapse",
+      "Escape dismisses material menu",
+      "history active row and existing result",
+      "mobile navigation selection",
+      "generation remains disabled"
+    ],
+    "work_mutations": 0,
+    "supplier_calls": 0,
+    "page_errors": 0
+  },
+  "health": {
+    "passed": true,
+    "unselected_workloads_unchanged": 22,
+    "frontend_ready": 1,
+    "dependent_readiness": [
+      {
+        "namespace": "meet",
+        "name": "meet-backend",
+        "ready": 1
+      },
+      {
+        "namespace": "meet",
+        "name": "meet-backend-ai",
+        "ready": 1
+      },
+      {
+        "namespace": "meet",
+        "name": "meet-celery-backend",
+        "ready": 1
+      },
+      {
+        "namespace": "meet",
+        "name": "meet-celery-work",
+        "ready": 1
+      },
+      {
+        "namespace": "meet",
+        "name": "meet-celery-beat",
+        "ready": 1
+      },
+      {
+        "namespace": "meet-work-review",
+        "name": "meet-work-review",
+        "ready": 1
+      }
+    ],
+    "backend_health": {
+      "meet-backend": {
+        "/__heartbeat__": 200,
+        "/__lbheartbeat__": 200
+      },
+      "meet-backend-ai": {
+        "/__heartbeat__": 200,
+        "/__lbheartbeat__": 200
+      }
+    },
+    "rollback_script": "/var/lib/we-meet-work-maintenance/cohort-6de1358fa-layout/rollback.py",
+    "model_calls": 0
+  },
+  "original_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-frontend@sha256:266fa1b7d53869b35f348782496510b32fabfe13df0b0db9644927c892665021",
+  "local_work_tests": 39,
+  "work_database_migrations": 0,
+  "helm_upgrade": false,
+  "desktop_installer_updated": false,
+  "android_apk_updated": false,
+  "supplier_calls": 0
+}
