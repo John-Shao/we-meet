@@ -47,6 +47,9 @@
 .work-sidebar-tasks:empty {
   display: none;
 }
+.work-sidebar-section {
+  display: contents;
+}
 .work-sidebar-tasks h2 {
   margin: 0 10px 10px;
   font-size: 13px;

@@ -1,10 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
 import * as materials from '../api/materials'
 import * as tasks from '../api/tasks'
 import { AgentWork } from './AgentWork'
+import { WorkNavigation } from './WorkNavigation'
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}))
 
 vi.mock('../api/reviews', () => ({
   listReviews: vi.fn().mockResolvedValue([]),
@@ -72,7 +77,7 @@ const capabilities: materials.WorkCapabilities = {
   max_batch_bytes: 1000,
   skills: ['office_agent'],
 }
-function mount(view = 'new') {
+function mount(view = 'new', withNavigation = false) {
   return render(
     <QueryClientProvider
       client={
@@ -84,7 +89,13 @@ function mount(view = 'new') {
         })
       }
     >
-      <AgentWork ownerId="owner" view={view} />
+      {withNavigation ? (
+        <WorkNavigation active={view}>
+          <AgentWork ownerId="owner" view={view} />
+        </WorkNavigation>
+      ) : (
+        <AgentWork ownerId="owner" view={view} />
+      )}
     </QueryClientProvider>
   )
 }
@@ -106,8 +117,36 @@ beforeEach(() => {
   vi.mocked(tasks.getTask).mockResolvedValue(task)
   vi.mocked(tasks.listRunFiles).mockResolvedValue([])
 })
+afterEach(() => vi.unstubAllGlobals())
 
 describe('Agent Work integration', () => {
+  it('opens a cloud history task and closes compact navigation after the route changes', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((media: string) => ({
+        matches: media === '(max-width: 767px)',
+        media,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      }))
+    )
+    vi.mocked(tasks.listTasks).mockResolvedValue({
+      results: [task],
+      next: null,
+      previous: null,
+    })
+    mount('new', true)
+    fireEvent.click(screen.getByRole('button', { name: '展开工作导航' }))
+    fireEvent.click(await screen.findByRole('button', { name: /分析选定订单/ }))
+    expect(
+      await screen.findByRole('heading', { name: task.goal })
+    ).toBeVisible()
+    expect(tasks.getTask).toHaveBeenCalledWith(task.id)
+    expect(
+      screen.queryByRole('complementary', { name: '工作导航' })
+    ).not.toBeInTheDocument()
+    expect(tasks.createTask).not.toHaveBeenCalled()
+  })
   it('reuses admission key after an unknown response and sends selected material identity', async () => {
     vi.mocked(tasks.createTask).mockRejectedValue(
       new Error('unknown transport')

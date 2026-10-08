@@ -1,10 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from 'react'
+import { createContext, useContext, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'wouter'
 import {
@@ -138,18 +132,22 @@ const SidebarContext = createContext<{
 // Keep task state and actions in the execution page while rendering in navigation.
 export function WorkSidebarSection({ children }: { children: ReactNode }) {
   const sidebar = useContext(SidebarContext)
-  useEffect(() => {
-    const target = sidebar?.target
-    if (!target) return
-    const select = (event: MouseEvent) => {
-      if ((event.target as Element).closest('[data-work-open-task]'))
-        sidebar.closeMobile()
-    }
-    target.addEventListener('click', select)
-    return () => target.removeEventListener('click', select)
-  }, [sidebar])
   if (!sidebar) return <div className="work-sidebar-tasks">{children}</div>
-  return sidebar.target ? createPortal(children, sidebar.target) : null
+  return sidebar.target
+    ? createPortal(
+        <div
+          className="work-sidebar-section"
+          role="presentation"
+          onClick={(event) => {
+            if ((event.target as Element).closest('[data-work-open-task]'))
+              sidebar.closeMobile()
+          }}
+        >
+          {children}
+        </div>,
+        sidebar.target
+      )
+    : null
 }
 
 export const WorkNavigation = ({
