@@ -77,6 +77,8 @@ AOQ 默认使用媒体音量，WebRTC 使用通话音量，这是 Android 播放
 
 Android AI 电话新增摄像头 Function Calling 内部验收版本：Omni 理解自然语言，客户端核实权限及首帧、执行开关并回传实际状态，Omni 使用当前音色续答。AOQ 数据消息和 WebRTC DataChannel 共用协调器，不新增 ASR 连接、不改变会话分配 API，媒体和业务租约沿用当前连接。工具注册显式关闭联网搜索；不执行用户转写中的关键词，以避免重复操作。摄像头控制 Debug 默认开启，Release 在两条传输及真机验收完成前保持关闭；AOQ 传输方式本身的 Release 默认设置不受影响。协议、权限、失败清理、测试入口和回退说明见 [Android 摄像头语音控制](https://github.com/John-Shao/we-meet-android/blob/main/docs/ai-call-camera-voice-control.md)。
 
+“结束对话／停止对话”新增本地 `end_call` 工具：Omni 理解明确的结束请求，App 复用挂断按钮的清理流程关闭当前语音／视频通话、媒体资源、前台服务和业务租约；不等待告别语或请求续答，不增加 ASR、后端接口或新会话。`OmniCallTools` 对参数、重复事件、取消与当前实例归属统一检查。语音挂断独立受 `AI_CALL_VOICE_HANGUP` 控制，Debug／Release 默认开启，可用 `-PAI_CALL_VOICE_HANGUP=false` 构建回退；生产摄像头语音工具仍默认关闭。否定、用法问句、引用、假设与画面内容不应触发挂断，模型漏调用也不能算已结束。整体架构、生命周期与验收限制见 [AI 音视频互动方案](ai-audio-video-interaction.md)。
+
 该功能尚不具备生产默认开启条件：真实语音基本和连续开关探针仍观察到模型漏发工具调用、续答超时；不能用摄像头媒体开关或查询工具测试通过替代完整语音验收。发布门槛与实际证据见 [内部验收记录](https://github.com/John-Shao/we-meet-android/blob/main/docs/ai-call-camera-voice-verification.md)。
 
 ## Android 个人录音 ASR

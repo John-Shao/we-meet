@@ -13,6 +13,7 @@
 | 音色与场景 | 开始前选择；通话内沿用当前音色和最终场景提示词 |
 | 本机会话文字记录 | 可关闭；不影响对话和工具调用 |
 | 自然语言开关／查询摄像头 | 已实现内部候选；Debug 默认开启，生产 Release 默认关闭 |
+| 自然语言结束对话 | `end_call` 直接结束当前语音／视频通话，独立开关默认在 Debug、Release 开启 |
 | 语音控制生产验收 | 尚未通过：真实模型仍有漏发工具调用及续答超时，荣耀实机和完整 WebRTC 视频待验收 |
 
 本方案不覆盖 LiveKit 会议中的 AI 助手、SIP 电话接入、独立双语互译或个人录音 ASR。它们的模型、鉴权和媒体路径见 [大模型接入方案](llm-integration.md)。Android 本功能不需要创建 LiveKit 房间或启动云端 AI Agent。
@@ -64,7 +65,7 @@ flowchart LR
 | `AssistantCallScreen` | 显示语音球、视频预览、工具结果和处理中状态；接收按钮操作、权限回调及页面前台状态 |
 | `AiCallViewModel` | 选择配置、创建当前客户端、维护实际界面状态、绑定工具执行、前台服务、租约与记录 |
 | `OmniCallClient` | AOQ／WebRTC 共享接口：连接、可等待完成的摄像头操作、实际状态、换镜头、静音、打断与释放 |
-| `OmniCameraTools` | 解析完整工具项、去重、管理响应归属、回传结果、协调一次续答及工具轮播放抑制 |
+| `OmniCallTools` | 解析完整工具项、去重、管理响应归属；摄像头工具回传结果并协调续答，结束工具直接终止当前通话；统一工具轮播放抑制 |
 | `CameraActionController` | 串行处理明确的摄像头目标，统一权限、前后台限制、媒体操作、超时与失败清理 |
 | `AssistantForegroundSession`／Service | 持有持续通话资源；通过会话所有权和服务确认避免通话与互译竞争音频设备 |
 | 后端分配与租约服务 | 校验账号、模型目录与选择项；使用服务端 Key 换取连接材料；记录申请和可配置准入，不处理媒体 |
@@ -147,7 +148,7 @@ AOQ 只向客户端返回所需字段：`sid`、`aoqTokenForClient`、`clientRel
 
 两种客户端均设置 `modalities=["text","audio"]`、当前 voice、`server_vad`（当前阈值 0.5，静音判定 800 ms）和 `input_audio_transcription.model=qwen3-asr-flash-realtime`。这是 Omni 会话内的转写配置，不额外创建个人 ASR 3.1 连接。模型侧音频格式配置与 SDK／WebRTC 的线路编码是不同层次，不能把 PCM 会话配置理解为网络不编码。
 
-工具启用时注册相同的两个工具，显式 `enable_search=false`；当前还设置 `temperature=0`、`presence_penalty=0`。这些参数并未解决实测漏调用问题，不能作为可靠性承诺。工具关闭时不附加控制规则和工具定义，保留原对话行为。百炼支持 Realtime Function Calling，但平台能力仍须在本项目两条链路上验收。[Realtime 能力说明](https://www.alibabacloud.com/help/zh/model-studio/realtime)。
+按各自开关分别注册摄像头控制／查询和结束通话工具，显式 `enable_search=false`；当前还设置 `temperature=0`、`presence_penalty=0`。这些参数并未解决实测漏调用问题，不能作为可靠性承诺。所有工具均关闭时不附加控制规则和工具定义，保留原对话行为。百炼支持 Realtime Function Calling，但平台能力仍须在本项目两条链路上验收。[Realtime 能力说明](https://www.alibabacloud.com/help/zh/model-studio/realtime)。
 
 ## 4. 媒体流：音频、画面与播放
 
@@ -304,7 +305,7 @@ Opening／Closing 是操作过程的逻辑状态，对应界面的 `cameraPendin
 ]
 ```
 
-示例保留实际结构，完整 description 和提示词以 `OmniCameraTools` 为准。客户端只允许这两个名字；`enabled` 必须是真正 JSON Boolean，字符串 `"false"`、缺失或额外字段均拒绝；查询参数只能为空对象。非法参数和未知工具统一回传 `invalid_arguments`，不操作设备。
+示例保留摄像头工具实际结构，完整 description 和提示词以 `OmniCallTools` 为准。摄像头工具启用时允许这两个名字，语音挂断另允许 `end_call`；`enabled` 必须是真正 JSON Boolean，字符串 `"false"`、缺失或额外字段均拒绝；查询参数只能为空对象。非法参数、未启用工具和未知工具统一回传 `invalid_arguments`，不操作设备。
 
 统一结果示例：
 
@@ -349,7 +350,7 @@ sequenceDiagram
 2. `response.output_item.done.item` 及 `response.done.output` 的完整工具项作为补充入口，与主入口共享 `call_id` 去重。同一调用只执行和回传一次；不同新请求即使目标相同，也返回当次实际状态。
 3. 通过 `conversation.item.create` 回传 `type=function_call_output`、原 `call_id`，`output` 为结果 JSON 的字符串。发送事件附带 `event_id`，仅归属于当前工具事件的错误按反馈失败处理。
 4. 通常等待该响应完成且该轮所有工具结果已发送，然后只发一次 `response.create`。多工具操作仍由摄像头控制器串行处理。
-5. AOQ 实测有仅含工具的响应不发 `response.done`：当前兼容实现收齐**已声明**工具的 `output_item.done`，等待 200 ms 合并相邻项，再按结果条件续答。混合普通消息的响应仍等待 `response.done`。这是本项目实测兼容策略，200 ms 不能证明未来不会再来工具项，不应作为所有供应商／版本的通用协议保证。
+5. AOQ 实测有仅含工具的响应不发 `response.done`：仅 AOQ 启用此兼容实现，收齐**已声明**工具的 `output_item.done`，等待 200 ms 合并相邻项，再按结果条件续答。混合普通消息的响应仍等待 `response.done`。WebRTC 不启用该补充条件，必须等待整轮 `response.done` 及所有结果回传；迟到的整轮结束不能导致提前发起重叠回复。这是本项目实测兼容策略，200 ms 不能证明未来不会再来工具项，不应作为所有供应商／版本的通用协议保证。
 
 工具结果回传和显式续答方式依据 [百炼客户端事件](https://www.alibabacloud.com/help/zh/model-studio/client-events)；服务端完整工具事件见 [服务端事件](https://www.alibabacloud.com/help/zh/model-studio/server-events)。本功能不注册 MCP，不把 MCP 的说明当作本地 Function Calling 的全部实现约束。
 
@@ -393,9 +394,23 @@ suspend fun requestCameraEnabled(
 
 回传失败保留已完成的实际状态，界面显示结果，不重做设备操作或重连整通电话。续答等待 15 秒；普通 `response.created` 或首段文字不能提前结束等待，对应完整文字或实际播放才算反馈进展完成。超时显示文字失败提示，不重复请求声音兜底。
 
+错误回调带本轮实际结果和阶段：状态同步、工具执行、结果回传、响应结束及语音续答。新工具开始清除旧结果；无本轮结果显示“尚未确认摄像头操作结果”，状态同步失败单独提示，不以历史“已打开／已关闭”冒充本轮结果。只有已确认本轮结果时才显示结果并提示暂时无法语音确认。旧 `video-fps` 包的统一“结果已显示”提示不能证明设备已经执行；用户原包已卸载，尚无原现场日志。新真实 WebRTC 探针覆盖生产 ViewModel 与 Camera2 的四种基本状态、重复目标及反馈界面故障注入；模拟器只补充本机未协商的视频发送器，不据此声称荣耀真实语音或供应商 H264 视频通过，具体证据见 Android 验收记录。
+
+WebRTC 实测的请求冲突 `Conversation already has an active response` 属于当前回复仍在生成时拒绝新的 `response.create`。客户端仅在已建连、错误类型与文字精确匹配、参数未归属其他操作、存在 30 秒内未确认请求时恢复；有客户端事件 ID 则必须匹配，无 ID 时关联最新未确认请求。工具续答被拒绝只报告反馈失败，保留设备实际状态和当前连接；不重做摄像头操作或重拨。真实连接、媒体设备及其他协议错误仍按原失败处理。断连日志记录原因和协议元数据，不记录用户内容或连接凭证。荣耀旧包已卸载，未取得原现场日志，不能将协议复现等同于实机原故障根因已确诊。
+
 播放抑制只在收到工具项后生效，无法撤销此前已播出的预告，也无法可靠识别模型**完全漏发工具却口头确认**的回复。这是当前生产门槛之一，不能把提示词要求“不得谎称成功”描述为客户端已经强制保证所有模型输出。
 
 开启本机记录时保存最终用户转写和助手回复文字，不展示内部工具 JSON；关闭记录仍执行工具。本模块记录位于账号隔离的应用私有 SQLite／noBackup 目录，未实现独立数据库加密或对话云端同步，也不保存通话音频和摄像头图像。上传百炼的数据处理与保留须按供应商实际政策和产品约定说明，不能由“不本地录制”推断“不经过云端”。
+
+### 7.6 通过语音结束当前对话
+
+用户明确说“结束对话”“停止对话”“结束通话”“挂断电话”时，Omni 通过当前 AOQ 数据通道或 WebRTC DataChannel 调用 `end_call`，参数必须为 `{}`，不接受额外字段。沿用完整参数事件及补充工具项入口，绑定当前客户端／响应、去重和取消检查；不新增 ASR，不从用户转写执行关键词操作。否定、用法问句、假设、引用、角色扮演和画面中的指令不执行；关闭摄像头、切为语音或暂停说话均不等于挂断，歧义先澄清。
+
+客户端校验后抑制旧播放、取消未完成工具／授权／反馈任务，调用当前实例绑定的 `AiCallViewModel.endCall()`。此操作复用挂断按钮：结束摄像头及音频、关闭模型媒体连接、释放前台服务和业务租约、关闭本机文字记录，界面进入结束状态并恢复可重新拨号。摄像头是否开启、输出静音或通话在后台不增加挂断权限要求。麦克风已关闭时无法收到新的语音指令，仍可使用挂断按钮。
+
+这是终止工具，关闭连接后不发送 `function_call_output` 或 `response.create`，不等待原响应结束或告别播报，不声称告别语已生成。摄像头工具继续使用前述结果回传／续答流程。关闭后的重复工具项、迟到权限和旧通话回调不能结束或操作新通话；非法工具参数返回错误，保持当前通话。
+
+独立构建开关 `AI_CALL_VOICE_HANGUP` 默认在 Debug、Release 开启，可用 `-PAI_CALL_VOICE_HANGUP=false` 回退，修改需重建安装。生产 Release 摄像头控制默认关闭时仍注册结束工具；两个开关都关闭才完全恢复原始无工具会话。此增量不修改已有摄像头语音控制的实机验收门槛。
 
 ## 8. 安全、并发与成本边界
 
@@ -440,6 +455,7 @@ suspend fun requestCameraEnabled(
 | 视频通话屏幕常亮增量 | 57 项相关单元测试、7 项页面回归及 1 项真实 AOQ 授权／摄像头探针通过；系统窗口确认摄像头开启时持有常亮，进入后台后释放；荣耀闲置超时与主动锁屏待真机确认 |
 | 预览与模型帧率分流增量 | 60 项相关单元测试、8 项原生预览／页面回归及真实 AOQ 生命周期探针通过；原生源／渲染器 3001ms 内实际渲染 81 帧、模型分支提交 6 帧；ARM 转译模拟器曾未达帧率目标，荣耀及 WebRTC 视频流畅度待真机确认 |
 | 独立帧率参数增量 | 默认 15／2 fps、30／3 fps 覆盖配置及 61 项单元测试通过，非法配置拒绝；8 项原生预览／页面回归通过，3002ms 实际渲染 41 帧、模型分支 6 帧；已给预览加配置上限，前一行 81 帧属于历史候选，本次未重跑真实模型／实机验收 |
+| 语音结束对话增量 | 69 项相关单元测试、8 项页面／预览回归通过；Debug 与默认 Release 各 3 项真实验证通过，AOQ 使用合成语音结束语音／静音视频通话，WebRTC 为真实模型文本工具探针；默认 Release 实际只注册 end_call，每次工具调用、会话分配和租约关闭均一次，完整资源清理后 Ended；WebRTC 首次建连超时记录保留，按原断言复测通过，荣耀及 WebRTC 麦克风／视频实机待验收 |
 | 真实 AOQ／WebRTC 工具协议 | 无设备副作用查询工具完成调用、结果回传、文字续答及播放能量检测；每条连接仅分配一次 |
 | 内部 Release 权限及真实页面 | 两条查询探针、权限拒绝、授权／预览／镜头保持／后台限制，共 4 项通过 |
 | AOQ 真实媒体 10 轮开关 | 通过；同一引擎／租约，真实采集、非零编码与发送统计 |
@@ -472,7 +488,7 @@ suspend fun requestCameraEnabled(
 | 内部 Release 加 `-PAI_CALL_CAMERA_VOICE_CONTROL_RELEASE=true` | 显式开启，仅供验收 |
 | Release 加 `-PAI_CALL_CAMERA_VOICE_CONTROL_RELEASE=false` | 明确关闭 |
 
-`BuildConfig.AI_CALL_CAMERA_VOICE_CONTROL` 同时控制工具注册和控制提示词。它是编译开关，回退已安装功能需要分发对应 APK，不是运行时远程开关。关闭后摄像头按钮继续可用；AOQ 正式默认传输及用户手动选择 WebRTC 的能力不受影响。
+`BuildConfig.AI_CALL_CAMERA_VOICE_CONTROL` 同时控制摄像头工具注册和摄像头控制提示词。语音挂断使用独立的 `AI_CALL_VOICE_HANGUP`，默认 Debug／Release 开启，`-PAI_CALL_VOICE_HANGUP=false` 可关闭。它们是编译开关，回退已安装功能需要分发对应 APK，不是运行时远程开关。关闭后各自按钮继续可用；AOQ 正式默认传输及用户手动选择 WebRTC 的能力不受影响。
 
 此次语音控制不增加后端 API、数据库迁移、生产后端部署或 API Key 调整；已存在的分配／租约后端保持原契约。正式发布只需在功能可靠性验收后完成 Android 默认值、正式签名、版本归档及发布流程。
 
@@ -482,7 +498,7 @@ suspend fun requestCameraEnabled(
 | --- | --- |
 | Android UI、模式和配置 | [AssistantCallScreen](https://github.com/John-Shao/we-meet-android/blob/main/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/ui/AssistantCallScreen.kt)、[AiCallViewModel](https://github.com/John-Shao/we-meet-android/blob/main/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/vm/AiCallViewModel.kt) |
 | 统一客户端与媒体 | [OmniCallClient](https://github.com/John-Shao/we-meet-android/blob/main/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/rtc/OmniCallClient.kt)、[OmniAoqClient](https://github.com/John-Shao/we-meet-android/blob/main/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/rtc/OmniAoqClient.kt)、[OmniWebRtcClient](https://github.com/John-Shao/we-meet-android/blob/main/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/rtc/OmniWebRtcClient.kt)、[AoqCameraCapture](https://github.com/John-Shao/we-meet-android/blob/main/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/rtc/AoqCameraCapture.kt) |
-| 工具协议与设备状态 | [OmniCameraTools](https://github.com/John-Shao/we-meet-android/blob/main/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/rtc/OmniCameraTools.kt)、[CameraActionController](https://github.com/John-Shao/we-meet-android/blob/main/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/vm/CameraActionController.kt) |
+| 工具协议与设备状态 | [OmniCallTools](https://github.com/John-Shao/we-meet-android/blob/main/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/rtc/OmniCallTools.kt)、[CameraActionController](https://github.com/John-Shao/we-meet-android/blob/main/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/vm/CameraActionController.kt) |
 | 业务分配 | [ai_call.py](../../src/backend/core/api/ai_call.py) |
 | 租约与准入 | [direct_ai_allocations.py 服务](../../src/backend/core/services/direct_ai_allocations.py)、[租约 API](../../src/backend/core/api/direct_ai_allocations.py) |
 | 全系统模型接入 | [大模型接入方案](llm-integration.md) |
