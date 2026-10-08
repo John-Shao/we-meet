@@ -270,6 +270,24 @@ class Worker:
                     raise RuntimeError("kubernetes_execution_unknown")
                 phase = pod.get("status", {}).get("phase")
                 if phase == "Failed":
+                    from .diagnostics import validate  # trusted structural data only
+
+                    for status in pod.get("status", {}).get("containerStatuses", []):
+                        message = (
+                            status.get("state", {})
+                            .get("terminated", {})
+                            .get("message", "")
+                        )
+                        if len(message) > 4096:
+                            continue
+                        try:
+                            diagnostic = validate(json.loads(message))
+                        except (ValueError, TypeError):
+                            diagnostic = None
+                        if diagnostic:
+                            (directory / "failure.json").write_bytes(
+                                canonical(diagnostic)
+                            )
                     meter = self.store.metering(run_id)
                     self.store.finish(
                         run_id, "failed", error=meter["denial_code"] or "agent_failed"

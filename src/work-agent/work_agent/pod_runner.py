@@ -19,6 +19,7 @@ from .contract import (
     validate_request,
     validate_result,
 )
+from .diagnostics import failure
 from .model_broker import NoRedirect
 from .runner import run
 
@@ -123,5 +124,13 @@ def execute(directory, *, ca_path="/trust/ca.crt"):
 if __name__ == "__main__":
     try:
         execute(Path(sys.argv[1]))
-    except Exception:
+    except Exception as error:
+        # Kubernetes exposes the termination message to the trusted gateway.
+        # Persist only fixed codes and structural counts, never model text.
+        try:
+            Path("/dev/termination-log").write_bytes(
+                canonical(failure(error, Path(sys.argv[1])))
+            )
+        except Exception:
+            pass
         sys.exit(1)
