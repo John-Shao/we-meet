@@ -19,6 +19,8 @@ import {
 } from '../api/tasks'
 import { RunArtifacts, RunProgress } from './Communication'
 import { PiReview } from './PiReview'
+import { TaskComposer } from './TaskComposer'
+import { RiAttachment2, RiSparklingLine } from '@remixicon/react'
 
 const active = (run?: WorkRun) =>
   run?.status === 'queued' || run?.status === 'running'
@@ -145,13 +147,27 @@ export function AgentWork({
     },
   })
   return (
-    <section className="work-materials" aria-label={templates[view].title}>
-      <header className="work-heading">
+    <section
+      className={`work-materials work-task-page ${taskId ? '' : 'work-task-create'}`}
+      aria-label={templates[view].title}
+    >
+      <header className="work-heading work-task-heading">
         <div>
-          <p className="work-eyebrow">日常办公</p>
-          <h1>{templates[view].title}</h1>
+          <p className="work-eyebrow">
+            <RiSparklingLine size={18} aria-hidden="true" />
+            云端工作助理
+          </p>
+          <h1>{taskId ? templates[view].title : '今天想完成什么工作？'}</h1>
           <p>选择材料、说明目标，生成可核对和编辑的成果。</p>
         </div>
+        {window.weMeetDesktop?.localWork && (
+          <button
+            className="work-button"
+            onClick={() => navigate(`/work?view=${view}`)}
+          >
+            使用本地工作空间
+          </button>
+        )}
       </header>
       {capabilities.isError && (
         <p role="alert">
@@ -160,8 +176,11 @@ export function AgentWork({
         </p>
       )}
       {error && <p role="alert">{error}</p>}
-      <div className="work-columns">
-        <aside className="work-list">
+      <div className="work-columns work-task-columns">
+        <aside
+          className="work-list work-task-history"
+          hidden={!taskId && !tasks.data?.results.length && !tasks.isError}
+        >
           <button
             className="work-button"
             onClick={() => {
@@ -217,10 +236,10 @@ export function AgentWork({
             </button>
           </nav>
         </aside>
-        <main className="work-detail">
+        <main className="work-detail work-task-main">
           {!taskId && (
             <form
-              className="work-form"
+              className="work-form work-task-form"
               onSubmit={(e) => {
                 e.preventDefault()
                 if (selected.length && enabled && !submit.isPending) {
@@ -232,113 +251,129 @@ export function AgentWork({
               {!enabled && (
                 <p role="status">工作生成尚未启用。可以先上传并核对材料。</p>
               )}
-              <fieldset disabled={submit.isPending}>
-                <legend>选择材料（{selected.length} / 10）</legend>
-                <p>
-                  读取选定材料的完整文本，总计不超过 400
-                  KB。文件会上传至模型服务处理。
-                </p>
-                {materials.isError && (
-                  <p role="alert">
-                    材料加载失败。
-                    <button
-                      type="button"
-                      onClick={() => void materials.refetch()}
-                    >
-                      重试
-                    </button>
-                  </p>
-                )}
-                {!materials.isError &&
-                  materials.data?.results.map((item) => (
-                    <label className="work-check" key={item.id}>
-                      <input
-                        type="checkbox"
-                        checked={selected.some((m) => m.id === item.id)}
-                        disabled={
-                          item.status !== 'ready' ||
-                          (selected.length >= 10 &&
-                            !selected.some((m) => m.id === item.id))
-                        }
-                        onChange={() =>
-                          setSelected((old) =>
-                            old.some((m) => m.id === item.id)
-                              ? old.filter((m) => m.id !== item.id)
-                              : [...old, item]
-                          )
-                        }
-                      />
-                      {item.original_name}
-                      {item.status !== 'ready' && '（尚未就绪）'}
-                    </label>
-                  ))}
-                <nav className="work-pagination" aria-label="材料分页">
-                  <button
-                    type="button"
-                    disabled={!materials.data?.previous}
-                    onClick={() => setMaterialPage(materialPage - 1)}
-                  >
-                    上一页
-                  </button>
-                  <span>{materialPage}</span>
-                  <button
-                    type="button"
-                    disabled={!materials.data?.next}
-                    onClick={() => setMaterialPage(materialPage + 1)}
-                  >
-                    下一页
-                  </button>
-                </nav>
-                {selected.map((item) => (
-                  <p key={item.id}>
-                    {item.original_name}{' '}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSelected((old) =>
-                          old.filter((m) => m.id !== item.id)
-                        )
-                      }
-                    >
-                      移除
-                    </button>
-                  </p>
-                ))}
-              </fieldset>
-              <label>
-                工作目标
-                <textarea
-                  required
-                  maxLength={2000}
-                  value={goal}
-                  disabled={submit.isPending}
-                  onChange={(e) => setGoal(e.target.value)}
-                />
-              </label>
-              <label>
-                补充背景（可选）
-                <textarea
-                  maxLength={4000}
-                  value={background}
-                  disabled={submit.isPending}
-                  onChange={(e) => setBackground(e.target.value)}
-                />
-              </label>
-              <p className="work-muted">
-                使用 {capabilities.data?.agent_model || '已配置模型'}
-                。成果需核实后使用。
-              </p>
-              <button
-                className="work-button work-primary"
+              <TaskComposer
+                goal={goal}
+                onGoalChange={setGoal}
+                maxLength={2000}
+                busy={submit.isPending}
                 disabled={
                   !enabled ||
                   !selected.length ||
                   !goal.trim() ||
                   submit.isPending
                 }
-              >
-                {submit.isPending ? '正在提交…' : '开始处理'}
-              </button>
+                submitLabel={submit.isPending ? '正在提交…' : '开始处理'}
+                tools={
+                  <details className="work-composer-menu">
+                    <summary>
+                      <RiAttachment2 size={18} aria-hidden="true" />
+                      选择材料（{selected.length} / 10）
+                    </summary>
+                    <fieldset
+                      className="work-composer-popover"
+                      disabled={submit.isPending}
+                    >
+                      <legend>选择材料（{selected.length} / 10）</legend>
+                      <p>
+                        读取选定材料的完整文本，总计不超过 400
+                        KB。文件会上传至模型服务处理。
+                      </p>
+                      {materials.isError && (
+                        <p role="alert">
+                          材料加载失败。
+                          <button
+                            type="button"
+                            onClick={() => void materials.refetch()}
+                          >
+                            重试
+                          </button>
+                        </p>
+                      )}
+                      {!materials.isError &&
+                        materials.data?.results.map((item) => (
+                          <label className="work-check" key={item.id}>
+                            <input
+                              type="checkbox"
+                              checked={selected.some((m) => m.id === item.id)}
+                              disabled={
+                                item.status !== 'ready' ||
+                                (selected.length >= 10 &&
+                                  !selected.some((m) => m.id === item.id))
+                              }
+                              onChange={() =>
+                                setSelected((old) =>
+                                  old.some((m) => m.id === item.id)
+                                    ? old.filter((m) => m.id !== item.id)
+                                    : [...old, item]
+                                )
+                              }
+                            />
+                            {item.original_name}
+                            {item.status !== 'ready' && '（尚未就绪）'}
+                          </label>
+                        ))}
+                      <nav className="work-pagination" aria-label="材料分页">
+                        <button
+                          type="button"
+                          disabled={!materials.data?.previous}
+                          onClick={() => setMaterialPage(materialPage - 1)}
+                        >
+                          上一页
+                        </button>
+                        <span>{materialPage}</span>
+                        <button
+                          type="button"
+                          disabled={!materials.data?.next}
+                          onClick={() => setMaterialPage(materialPage + 1)}
+                        >
+                          下一页
+                        </button>
+                      </nav>
+                      {selected.map((item) => (
+                        <p key={item.id}>
+                          {item.original_name}{' '}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelected((old) =>
+                                old.filter((m) => m.id !== item.id)
+                              )
+                            }
+                          >
+                            移除
+                          </button>
+                        </p>
+                      ))}
+                    </fieldset>
+                  </details>
+                }
+                context={
+                  <span>
+                    {selected.length
+                      ? `已选择 ${selected.length} 份材料`
+                      : '从云端工作材料中选择本次任务需要的文件'}{' '}
+                    · {capabilities.data?.agent_model || '已配置模型'}
+                  </span>
+                }
+                options={
+                  <details className="work-task-options">
+                    <summary>补充背景（可选）</summary>
+                    <div className="work-task-options-body">
+                      {' '}
+                      <label>
+                        补充背景（可选）
+                        <textarea
+                          maxLength={4000}
+                          value={background}
+                          disabled={submit.isPending}
+                          onChange={(e) => setBackground(e.target.value)}
+                        />
+                      </label>
+                    </div>
+                  </details>
+                }
+                hint="选定材料会发送到模型服务处理，成果需核实后使用。"
+              />
             </form>
           )}
           {taskId && task.isPending && <p role="status">正在恢复工作…</p>}

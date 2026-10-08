@@ -8,6 +8,14 @@ import {
   type Material,
 } from '../api/materials'
 import { PiReview } from './PiReview'
+import { TaskComposer } from './TaskComposer'
+import {
+  RiFolderAddLine,
+  RiSettings3Line,
+  RiShieldCheckLine,
+  RiSparklingLine,
+  RiAttachment2,
+} from '@remixicon/react'
 
 const active = (job?: LocalJob) =>
   job?.state === 'queued' || job?.state === 'running'
@@ -251,14 +259,17 @@ export function LocalWorkspaceWork({
     artifacts.find((item) => item.name === chosenFile) || artifacts[0]
   return (
     <section
-      className="work-materials work-local-workspace"
+      className={`work-materials work-local-workspace work-task-page ${selected ? '' : 'work-task-create'}`}
       aria-label="本地工作空间"
     >
-      <header className="work-heading">
+      <header className="work-heading work-task-heading">
         <div>
-          <p className="work-eyebrow">本机执行</p>
-          <h1>本地工作空间</h1>
-          <p>选择电脑上的文件夹，由本机 dsh 读取材料并生成成果。</p>
+          <p className="work-eyebrow">
+            <RiSparklingLine size={18} aria-hidden="true" />
+            本机工作助理
+          </p>
+          <h1>{selected ? '本地工作空间' : '今天想完成什么工作？'}</h1>
+          <p>说说你的目标，让助理帮你整理材料、分析数据、生成成果。</p>
         </div>
         <button
           className="work-button"
@@ -273,65 +284,22 @@ export function LocalWorkspaceWork({
           <button onClick={() => void refresh()}>刷新查询</button>
         </p>
       )}
-      <details className="work-output" open={!ready}>
-        <summary>本机执行器配置</summary>
-        <p>
-          {capabilities.data?.bundled_runtime
-            ? '已内置本机执行器，只需选择模型密钥文件。'
-            : '选择本地执行器及模型密钥文件。'}
-          密钥保存在桌面安全存储中。
-        </p>
-        <label>
-          模型
-          <input
-            value={model}
-            maxLength={80}
-            onChange={(e) => setModel(e.target.value)}
-          />
-        </label>
-        <button
-          className="work-button"
-          disabled={operation.isPending}
-          onClick={() => operation.mutate('configure')}
-        >
-          {ready ? '更新本机配置' : '配置本机 dsh'}
-        </button>
-        {capabilities.data?.runtime && (
-          <div>
-            <p>执行器版本 {capabilities.data.runtime.version}</p>
-            <button
-              className="work-button"
-              disabled={
-                operation.isPending ||
-                !capabilities.data.runtime.signed_updates_enabled
-              }
-              onClick={() => operation.mutate('update')}
-            >
-              安装签名升级包
-            </button>
-            <button
-              className="work-button"
-              disabled={
-                operation.isPending || !capabilities.data.runtime.previous
-              }
-              onClick={() => operation.mutate('rollback')}
-            >
-              回退上一版本
-            </button>
-            {!capabilities.data.runtime.signed_updates_enabled && (
-              <p>内部测试版本；正式升级签名尚未配置。</p>
-            )}
-          </div>
-        )}
-      </details>
       {ready && (
-        <p>
+        <p className="work-task-connection">
           已连接 dsh {capabilities.data?.runtime_version} ·{' '}
           {capabilities.data?.model}
         </p>
       )}
-      <div className="work-columns">
-        <aside className="work-list">
+      <div className="work-columns work-task-columns">
+        <aside
+          className="work-list work-task-history"
+          hidden={
+            !selected &&
+            !history.data?.length &&
+            !capabilities.data?.remote_enabled &&
+            !history.isError
+          }
+        >
           <button
             className="work-button"
             onClick={() => {
@@ -395,126 +363,268 @@ export function LocalWorkspaceWork({
           ))}
           {ready && history.data?.length === 0 && <p>还没有本地任务。</p>}
         </aside>
-        <main className="work-detail">
-          <button
-            className="work-button"
-            disabled={!ready || operation.isPending}
-            onClick={() => operation.mutate('workspace')}
-          >
-            {workspace ? '更换或重新授权文件夹' : '选择本地文件夹'}
-          </button>
-          {workspace && <p>当前工作空间：{workspace.path}</p>}
-          {workspace && capabilities.data?.remote_enabled && (
-            <label>
-              <input
-                type="checkbox"
-                checked={remoteAllowed}
-                disabled={remoteRegistration.isPending}
-                onChange={(e) => remoteRegistration.mutate(e.target.checked)}
-              />
-              允许远程请求进入此工作空间待办
+        <main className="work-detail work-task-main">
+          {selected && (
+            <>
+              <button
+                className="work-button"
+                disabled={!ready || operation.isPending}
+                onClick={() => operation.mutate('workspace')}
+              >
+                {workspace ? '更换或重新授权文件夹' : '选择本地文件夹'}
+              </button>
+              {workspace && <p>当前工作空间：{workspace.path}</p>}
+              {workspace && capabilities.data?.remote_enabled && (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={remoteAllowed}
+                    disabled={remoteRegistration.isPending}
+                    onChange={(e) =>
+                      remoteRegistration.mutate(e.target.checked)
+                    }
+                  />
+                  允许远程请求进入此工作空间待办
+                  <p className="work-muted">
+                    手机提交的请求先进入待办；重新登录后需要重新授权目录才能领取。具体命令仍需逐次批准。
+                  </p>
+                </label>
+              )}
               <p className="work-muted">
-                手机提交的请求先进入待办；重新登录后需要重新授权目录才能领取。具体命令仍需逐次批准。
+                文件保留在本机；提供给模型的内容仍会通过 API
+                发送。工作空间不是操作系统沙箱。重新登录或执行器重启后，需要重新授权目录。
               </p>
-            </label>
+            </>
           )}
-          <p className="work-muted">
-            文件保留在本机；提供给模型的内容仍会通过 API
-            发送。工作空间不是操作系统沙箱。重新登录或执行器重启后，需要重新授权目录。
-          </p>
           {!selected && (
             <form
-              className="work-form"
+              className="work-form work-task-form"
               onSubmit={(e) => {
                 e.preventDefault()
                 if (workspace && ready && goal.trim() && !operation.isPending)
                   operation.mutate('submit')
               }}
             >
-              <label>
-                <input
-                  type="checkbox"
-                  checked={tracking}
-                  disabled={!coordinationEnabled || operation.isPending}
-                  onChange={(e) => setTracking(e.target.checked)}
-                />
-                登记到云端任务记录
-              </label>
-              <p className="work-muted">
-                {coordinationEnabled
-                  ? '登记目标、文件夹名称、进度和设备上报用量；本地成果正文由你选择后同步。'
-                  : '服务端登记暂不可用，本次仅在本机执行。'}
-              </p>
-              {tracking && (
-                <fieldset>
-                  <legend>可选云端材料</legend>
-                  {cloudMaterials.isError && (
-                    <p role="alert">云端材料暂不可用，可不选择材料继续。</p>
-                  )}
-                  {cloudMaterials.data?.results.map((item) => (
-                    <label key={item.id}>
-                      <input
-                        type="checkbox"
-                        disabled={
-                          item.status !== 'ready' ||
-                          operation.isPending ||
-                          (!materials.some((m) => m.id === item.id) &&
-                            materials.length >= 10)
-                        }
-                        checked={materials.some((m) => m.id === item.id)}
-                        onChange={(e) =>
-                          setMaterials((current) =>
-                            e.target.checked
-                              ? [...current, item]
-                              : current.filter((m) => m.id !== item.id)
-                          )
-                        }
-                      />
-                      {item.original_name}
-                    </label>
-                  ))}
-                  <button
-                    type="button"
-                    disabled={materialPage <= 1}
-                    onClick={() => setMaterialPage((p) => p - 1)}
-                  >
-                    上一页材料
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!cloudMaterials.data?.next}
-                    onClick={() => setMaterialPage((p) => p + 1)}
-                  >
-                    下一页材料
-                  </button>
-                  <p>
-                    已选择 {materials.length}{' '}
-                    份云端材料，仅将授权快照提供给本机执行器。
-                  </p>
-                </fieldset>
-              )}
-              <label>
-                工作目标
-                <textarea
-                  required
-                  maxLength={tracking ? 2000 : 8000}
-                  value={goal}
-                  disabled={operation.isPending}
-                  onChange={(e) => setGoal(e.target.value)}
-                />
-              </label>
-              <p>
-                成果保存到所选文件夹内的 WeMeet成果
-                目录。仅本机模式保留本地历史；登记模式同时回报云端任务状态。
-              </p>
-              <button
-                className="work-button work-primary"
+              <TaskComposer
+                goal={goal}
+                onGoalChange={setGoal}
+                maxLength={tracking ? 2000 : 8000}
+                busy={operation.isPending}
                 disabled={
                   !ready || !workspace || !goal.trim() || operation.isPending
                 }
-              >
-                开始本地处理
-              </button>
+                submitLabel={operation.isPending ? '正在提交…' : '开始本地处理'}
+                tools={
+                  <>
+                    <button
+                      type="button"
+                      className="work-tool-pill"
+                      disabled={!ready || operation.isPending}
+                      onClick={() => operation.mutate('workspace')}
+                    >
+                      <RiFolderAddLine size={18} aria-hidden="true" />
+                      {workspace ? '更换或重新授权文件夹' : '选择本地文件夹'}
+                    </button>
+                    {tracking && (
+                      <details className="work-composer-menu">
+                        <summary>
+                          <RiAttachment2 size={18} aria-hidden="true" />
+                          云端材料（{materials.length}）
+                        </summary>
+                        <fieldset className="work-composer-popover">
+                          <legend>可选云端材料</legend>
+                          {cloudMaterials.isError && (
+                            <p role="alert">
+                              云端材料暂不可用，可不选择材料继续。
+                            </p>
+                          )}
+                          {cloudMaterials.data?.results.map((item) => (
+                            <label className="work-check" key={item.id}>
+                              <input
+                                type="checkbox"
+                                disabled={
+                                  item.status !== 'ready' ||
+                                  operation.isPending ||
+                                  (!materials.some((m) => m.id === item.id) &&
+                                    materials.length >= 10)
+                                }
+                                checked={materials.some(
+                                  (m) => m.id === item.id
+                                )}
+                                onChange={(e) =>
+                                  setMaterials((current) =>
+                                    e.target.checked
+                                      ? [...current, item]
+                                      : current.filter((m) => m.id !== item.id)
+                                  )
+                                }
+                              />
+                              {item.original_name}
+                            </label>
+                          ))}
+                          <button
+                            type="button"
+                            disabled={materialPage <= 1}
+                            onClick={() => setMaterialPage((p) => p - 1)}
+                          >
+                            上一页材料
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!cloudMaterials.data?.next}
+                            onClick={() => setMaterialPage((p) => p + 1)}
+                          >
+                            下一页材料
+                          </button>
+                          <p>
+                            已选择 {materials.length}{' '}
+                            份云端材料，仅将授权快照提供给本机执行器。
+                          </p>
+                        </fieldset>
+                      </details>
+                    )}
+
+                    <details className="work-composer-menu">
+                      <summary>
+                        <RiShieldCheckLine size={18} aria-hidden="true" />
+                        逐次审批
+                      </summary>
+                      <div className="work-composer-popover">
+                        <h2>本机操作权限</h2>
+                        <p>
+                          具体命令执行前需要你逐次批准。文件保留在本机，提供给模型的内容会通过
+                          API 发送。
+                        </p>
+                        <p className="work-muted">
+                          工作空间不是操作系统沙箱；重新登录或执行器重启后需要重新授权目录。
+                        </p>
+                      </div>
+                    </details>
+                    <details className="work-composer-menu" open={!ready}>
+                      <summary>
+                        <RiSettings3Line size={18} aria-hidden="true" />
+                        本机执行器配置
+                      </summary>
+                      <div className="work-composer-popover">
+                        <p>
+                          {capabilities.data?.bundled_runtime
+                            ? '已内置本机执行器，只需选择模型密钥文件。'
+                            : '选择本地执行器及模型密钥文件。'}
+                          密钥保存在桌面安全存储中。
+                        </p>
+                        <label>
+                          模型
+                          <input
+                            value={model}
+                            maxLength={80}
+                            onChange={(e) => setModel(e.target.value)}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className="work-button"
+                          disabled={operation.isPending}
+                          onClick={() => operation.mutate('configure')}
+                        >
+                          {ready ? '更新本机配置' : '配置本机 dsh'}
+                        </button>
+                        {capabilities.data?.runtime && (
+                          <div>
+                            <p>
+                              执行器版本 {capabilities.data.runtime.version}
+                            </p>
+                            <button
+                              type="button"
+                              className="work-button"
+                              disabled={
+                                operation.isPending ||
+                                !capabilities.data.runtime
+                                  .signed_updates_enabled
+                              }
+                              onClick={() => operation.mutate('update')}
+                            >
+                              安装签名升级包
+                            </button>
+                            <button
+                              type="button"
+                              className="work-button"
+                              disabled={
+                                operation.isPending ||
+                                !capabilities.data.runtime.previous
+                              }
+                              onClick={() => operation.mutate('rollback')}
+                            >
+                              回退上一版本
+                            </button>
+                            {!capabilities.data.runtime
+                              .signed_updates_enabled && (
+                              <p>内部测试版本；正式升级签名尚未配置。</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  </>
+                }
+                context={
+                  workspace ? (
+                    <p>当前工作空间：{workspace.path}</p>
+                  ) : (
+                    <span>
+                      选择一个本地文件夹，作为本次工作的材料与成果目录
+                    </span>
+                  )
+                }
+                options={
+                  <details className="work-task-options">
+                    <summary>
+                      任务选项{tracking ? ' · 云端登记已开启' : ' · 仅本机记录'}
+                    </summary>
+                    <div className="work-task-options-body">
+                      <label className="work-check">
+                        <input
+                          type="checkbox"
+                          checked={tracking}
+                          disabled={!coordinationEnabled || operation.isPending}
+                          onChange={(e) => setTracking(e.target.checked)}
+                        />
+                        登记到云端任务记录
+                      </label>
+                      <p className="work-muted">
+                        {coordinationEnabled
+                          ? '登记目标、文件夹名称、进度和设备上报用量；本地成果正文由你选择后同步。'
+                          : '服务端登记暂不可用，本次仅在本机执行。'}
+                      </p>
+
+                      {workspace && capabilities.data?.remote_enabled && (
+                        <label className="work-check">
+                          <input
+                            type="checkbox"
+                            checked={remoteAllowed}
+                            disabled={remoteRegistration.isPending}
+                            onChange={(e) =>
+                              remoteRegistration.mutate(e.target.checked)
+                            }
+                          />
+                          允许远程请求进入此工作空间待办
+                        </label>
+                      )}
+                      {workspace && capabilities.data?.remote_enabled && (
+                        <p className="work-muted">
+                          手机请求先进入待办，领取前需要授权目录，具体命令仍需逐次批准。
+                        </p>
+                      )}
+                    </div>
+                  </details>
+                }
+                hint={
+                  !ready
+                    ? '先配置本机执行器，再选择工作空间即可开始。'
+                    : !workspace
+                      ? '请先选择并授权本地文件夹。成果将保存到该文件夹内的 WeMeet成果 目录。'
+                      : '成果保存到 WeMeet成果 目录；本地成果正文仅在你选择后同步到云端。'
+                }
+              />
             </form>
           )}
           {selected && job.isError && (

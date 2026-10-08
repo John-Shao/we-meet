@@ -125,6 +125,24 @@ it('requires native folder authorization before submission', async () => {
   ).not.toBeDisabled()
 })
 
+it('fills a suggested goal without executing and keeps configuration separate from task submission', async () => {
+  mount()
+  await screen.findByText(/已连接 dsh/)
+  fireEvent.click(screen.getByRole('button', { name: '周报' }))
+  expect(
+    (screen.getByLabelText('工作目标') as HTMLTextAreaElement).value
+  ).toContain('本周进展')
+  expect(bridge.submit).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '选择本地文件夹' }))
+  await screen.findByText(/当前工作空间/)
+  fireEvent.click(screen.getByText('本机执行器配置'))
+  fireEvent.click(screen.getByRole('button', { name: '更新本机配置' }))
+  await waitFor(() =>
+    expect(bridge.configure).toHaveBeenCalledWith('deepseek-flash')
+  )
+  expect(bridge.submit).not.toHaveBeenCalled()
+})
+
 it('reuses the same run UUID after a lost admission response, without passing a raw path', async () => {
   vi.mocked(bridge.submit).mockRejectedValue(
     new Error('local_transport_unknown')
