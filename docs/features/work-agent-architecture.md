@@ -274,6 +274,97 @@ Gateway 的供应商凭据在独立 namespace Secret；当前 Qwen 使用现有�
 
 运行环境切换有互斥保护，活跃任务拒绝升级/回退，切换后重新授权目录。正式发布需要 Windows Authenticode 证书和产品 Ed25519 信任公钥，私钥留在签名端。当前无正式证书或产品运行时公钥：delivery.4 为未签名内部包，外部签名更新入口关闭；隔离测试密钥验证不等同于产品信任配置。详细操作见 [产品交付](../../src/work-agent/DELIVERY.md)、[桌面 README](../../src/desktop/README.md)、[K3s 部署](../../src/work-agent/KUBERNETES.md) 和 [账号联调指南](../deployment/work-account-cohort-acceptance.md)。
 
+### 9.1 客户端 dsh 升级
+
+升级对象有两个版本：自有本地适配器/运行环境版本，以及上游 dsh SDK/runtime 版本。当前已交付的组合是适配器 `0.3.2` + dsh `0.1.5rc1`；仓库适配器源码现已推进至 `0.3.6`，源码版本不会自动替换已安装的运行环境。以下命令是发布操作示例，需先填写候选版本和签名路径。
+
+**发布端准备：**
+
+1. 从固定源码提交构建候选。仅更新适配器时可保持 dsh pin；升级上游 dsh 时，一起更新 [requirements-dsh.lock](../../src/work-agent/requirements-dsh.lock) 中的 SDK、runtime-bin 版本及 wheel 哈希，[pyproject.toml](../../src/work-agent/pyproject.toml) 的依赖 pin，以及 [__init__.py](../../src/work-agent/work_agent/__init__.py) 的 `DSH_VERSION`，验证启动 profile、审批和本地协议仍兼容。
+2. 为本次运行环境分配未发布的新版本，核对适配器的 `ADAPTER_VERSION`、Python 包版本以及 [build-local-runtime.py](../../src/desktop/scripts/build-local-runtime.py) 中的运行环境版本和 `dsh_sdk_runtime` 清单字段。构建脚本目前在源码中指定版本，没有 `--version` 参数；不要沿用已有 `0.3.2` 目录或给新源码套用旧清单。
+3. 在 Windows 构建机的 `src/desktop` 执行下列命令，生成 `.agent-runtime/<新版本>/manifest.json` 和 `dist/bundled-runtime.json`，检查实际包内依赖、能力握手、命令审批、失败不切换、篡改拒绝及回退。SDK 发生变化时另行验证真实本地 dsh；离线通过不算真实模型验收。
+
+   ```powershell
+   npm ci
+   npm run build:runtime
+   npm test
+   node scripts/verify-runtime.mjs
+   ```
+
+4. 独立 ZIP 升级要求客户端已经内置对应产品公钥。首次建立信任或更换信任根时，用外部 `WEMEET_RUNTIME_TRUST_FILE` 提供公钥列表，在桌面 App 构建中固定它；该文件包含 `key_id` 和 PEM `public_key`，不含私钥。保持 `work-local/v1` 及要求的能力兼容时，后续运行环境包可独立发布，不必同时更新业务服务或 Android。
+5. 在签名端对最终清单生成 Ed25519 签名和 ZIP。私钥必须在 payload 外；签名后不得修改清单或任一文件。先完成任何二进制签名或其他文件变更，再生成最终哈希清单和 descriptor；保存源码、清单哈希、ZIP 哈希、SDK pin 与上一包。
+
+   ```powershell
+   # 在 src/desktop；先将占位符替换为已验证发布值
+   $runtimeVersion = '<新运行环境版本>'
+   $env:WEMEET_RUNTIME_SIGNING_KEY_FILE = '<包外的 Ed25519 私钥文件>'
+   $env:WEMEET_RUNTIME_SIGNING_KEY_ID = '<客户端已信任的 key_id>'
+   python scripts/sign-runtime.py ".agent-runtime/$runtimeVersion" "release/work-runtime-$runtimeVersion.zip"
+   ```
+
+**用户安装与回退：**
+
+1. 结束本机活跃任务并保留需要的成果。登录桌面，在 Work 本地工作空间点击“安装签名升级包”，选择发布 ZIP；主进程验签、校验全目录、暂存探测、再次校验后原子切换，不自动重新执行旧任务。
+2. 在页面核对执行器版本，重新选择目录；需要手机派发时重新允许远程待办。确认新任务仍逐项审批、状态回报和选定成果同步正常。
+3. 要回退时先结束活跃任务，点击“回退上一版本”并确认。上一版本重新校验和探测后切换，随后再次授权目录；没有上一版本时入口不可用。探测失败保持原激活版本，合法同版本可以重试导入。
+
+**当前内部交付方法：**现有 delivery.4 未配置产品运行时信任公钥，“安装签名升级包”关闭。此时从新源码构建包含新运行环境的桌面安装包：完成上述构建与验证后运行 `npm run package`，核验 NSIS/ASAR/内置运行环境和交付 manifest；用户退出 App 后在相同安装范围、目录运行新的 `setup.exe`，登录并重新授权目录。保留旧安装包用于 App 回退。App 回退与独立运行环境回退是两个操作；已安装独立运行环境的设备应先确认所需的运行环境版本，再回退 App。正式分发使用已配置证书、公钥的 `npm run package:release`，缺少发布信任配置时不能用内部包代替正式签名包。
+
+### 9.2 服务端 Pi 升级
+
+升级对象同样分为自有 Gateway/worker 适配器与上游 Pi npm 包。当前生产基线是适配器 `0.3.5` + Pi `1.0.4`；仓库 `0.3.6` 是新的源码候选，需构建、验收、部署才成为生产版本。以下流程适用于已有单账号 cohort 和独立 Pi 服务，不执行首次创建或业务数据库迁移。
+
+**构建与发布候选：**
+
+1. 固定源码提交和新的适配器版本。只升级自有 broker/适配器时保持 Pi pin；升级 Pi 上游时更新 [package.json](../../src/work-agent/package.json)、npm lock 和 `PI_VERSION`，验证 RPC、settled 事件、只读参数、结构化报告及计量。当前 [update-work-gateway.py](../../deploy/aliyun/update-work-gateway.py) 固定校验 Pi `1.0.4` 和 `qwen3.8-flash`；更换上游版本或模型必须先修改并验证部署工具的候选校验，不能只更换镜像或跳过校验。
+2. 从同一候选构建 `kubernetes-gateway` 和 `pi` 两个 Docker target，推送到集群可访问的 registry。构建目录不得包含 `.env`、私有回执或供应商 key。以下 Bash 示例在仓库根目录、Linux/WSL 构建环境执行；填写发布标签，记录两个镜像的实际 `linux/amd64` digest 和源码来源。
+
+   ```bash
+   AGENT_REGISTRY='jusi-cn-guangzhou.cr.volces.com/we-meet'
+   AGENT_TAG='<候选源码提交或发布标签>'
+   docker buildx build --platform linux/amd64 --provenance=false \
+     --target kubernetes-gateway -t "$AGENT_REGISTRY/work-agent-gateway:$AGENT_TAG" \
+     --push src/work-agent
+   docker buildx build --platform linux/amd64 --provenance=false \
+     --target pi -t "$AGENT_REGISTRY/work-agent-pi:$AGENT_TAG" \
+     --push src/work-agent
+   docker buildx imagetools inspect "$AGENT_REGISTRY/work-agent-gateway:$AGENT_TAG"
+   docker buildx imagetools inspect "$AGENT_REGISTRY/work-agent-pi:$AGENT_TAG"
+   ```
+
+3. 通过候选 CI、适配器/部署围栏回归及实际 Pi RPC 的合成 SSE 验证，确认无工具执行、严格引用、预算/未知用量、TLS 和 Pod 清理行为。上游或容器安全设置变化时增加 WSL 隔离 K3s 验收；真实模型验收单独记录调用预算，不自动重试失败记录。
+
+**生产切换：**
+
+1. 在生产主机使用经审查、固定来源的维护工具及已有私有 cohort 状态；不要改写旧工具目录或删除历史标记。先 `disable` 关闭 local/remote/review 等新入口，等待/取消并核对活动执行已终止，保留每个未知调用的预占和失败记录。关闭开关不等于本机任务立即停止，也不能撤回供应商在途请求。
+2. 填写完整 `repository@sha256` 和候选适配器版本，执行升级。下面是 CLI 形状，命令在生产主机仓库根目录执行；维护工具的相邻模块、私有状态和 snapshot 必须来自本次验证组合。
+
+   ```bash
+   COHORT_RELEASE_ID='cohort-e92f9eec4-retest-032'
+   AGENT_GATEWAY_IMAGE='jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-gateway@sha256:<完整摘要>'
+   AGENT_WORKER_IMAGE='jusi-cn-guangzhou.cr.volces.com/we-meet/work-agent-pi@sha256:<完整摘要>'
+   AGENT_ADAPTER_VERSION='<候选适配器的 x.y.z>'
+   sudo python3 deploy/aliyun/configure-work-cohort-review.py disable --release-id "$COHORT_RELEASE_ID"
+   sudo python3 deploy/aliyun/update-work-gateway.py \
+     --release-id "$COHORT_RELEASE_ID" \
+     --gateway-image "$AGENT_GATEWAY_IMAGE" \
+     --worker-image "$AGENT_WORKER_IMAGE" \
+     --adapter-version "$AGENT_ADAPTER_VERSION"
+   ```
+
+3. 升级工具先检查 cohort 已关闭、完整 spec/UID 与基线一致及数据库静止状态，生成带版本名的 SQLite 备份并做 quick_check，再保存 before/target 快照；只替换 Gateway 容器镜像及其 `--image` 引用的 Pi worker。它等待 rollout，经过现有业务客户端验证私有 TLS、鉴权、契约、适配器版本、Pi/model/image 和 `readonly_review_v1`，通过后才更新维护状态中的 Gateway 基线和历史。保留原 PVC、CA/TLS、Secret、RBAC、NetworkPolicy、资源约束及业务 schema。
+4. 关闭期间核对 Ready Pod 的实际 imageID、业务健康、任务清理、历史报告读取和各版备份。新能力或 rollout 检查失败时，工具尝试按已应用 spec/UID 围栏反向 patch 回原 Gateway/worker，业务入口保持关闭；其他检查失败需检查私有状态再恢复，不盲目重跑升级命令。
+5. 验证通过后恢复原灰度并确认账号隔离；下面的 `enable` 恢复本地/远程/复核准入，通用云端 Agent 保持关闭，不能把它理解为全用户开放。
+
+   ```bash
+   sudo python3 deploy/aliyun/configure-work-cohort-review.py enable --release-id "$COHORT_RELEASE_ID"
+   sudo python3 deploy/aliyun/configure-work-cohort-review.py verify --release-id "$COHORT_RELEASE_ID"
+   ```
+
+6. 将现场完整 Work 设置重新导出到操作员文件，保留上一 overlay 并核对权限/所有者。作为操作员可在私有临时文件中保存当前 `deployment,cronjob` 快照，使用 [check-work-cohort.py](../../deploy/aliyun/check-work-cohort.py) 的 `--snapshot <私有快照> --export ~/.config/we-meet/values.work-cohort.yaml` 原子写入 0600 文件，再以 `--values-file` 检查完整设置；快照与实际 UUID 不提交。维护 root 目录中的导出文件和操作员目录文件是不同位置，需确认后者也已同步。
+
+**成功上线后的回退：**先关闭业务入口，停止活动执行，再使用本次保存的 `gateway-<版本>-runtime-before.json` 和历史 digest 生成专用回退 patch；核对当前 UID、resourceVersion、完整 spec 仍等于本次已应用对象，恢复原 Gateway 镜像及 Pi worker 引用。验证旧契约/能力、数据库兼容性和业务健康后，更新私有维护基线并重新导出配置，再恢复原灰度。当前工具没有独立 `--rollback` 参数；`work-account-cohort.py rollback` 是业务 cohort 回退，不能用来代替 Pi 回退。每个适配器版本的升级标记是单次记录，不能删除标记来重复使用旧版本命令，也不能直接 `kubectl rollout undo` 后留下失配的维护状态。通常保留当前兼容 Inbox；确需恢复 SQLite 时应停服务、备份当前状态并先核实旧库兼容性，不能覆盖新产生的用量和任务历史。
+
 ## 10. 代码入口与验证
 
 | 范围 | 入口 |
