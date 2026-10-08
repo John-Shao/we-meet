@@ -1,7 +1,7 @@
 {
   "name": "we-meet-desktop",
   "private": true,
-  "version": "0.4.0-delivery.3",
+  "version": "0.4.0-delivery.4",
   "description": "we-meet 桌面端 (Electron) — 复用 src/frontend 的 React 应用",
   "main": "dist/main.js",
   "scripts": {

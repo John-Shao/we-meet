@@ -104,6 +104,10 @@ test('lost admission survives restart as explicit confirmation, reuses UUID with
     await c.close(); c = new WorkCoordinator(f.client, f.root, f.deps)
     assert.equal((await c.list())[0].state, 'needs_confirmation')
     assert.throws(() => c.resume(f.id, crypto.randomUUID(), 'folder name'), /workspace_permission_required/)
+    const before = { native: f.calls.length, cloud: f.requests.length }
+    await assert.rejects(c.submit({ ...f.body, workspace_id: crypto.randomUUID() }, 'folder name'), /workspace_permission_required/)
+    assert.equal(f.calls.length, before.native)
+    assert.equal(f.requests.length, before.cloud)
     await c.resume(f.id, f.workspaceId, 'folder name')
     const admissions = f.requests.filter(r => r.endpoint === 'local/tasks/')
     assert.deepEqual(admissions[0].body, admissions[1].body)

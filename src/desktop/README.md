@@ -139,7 +139,7 @@ node scripts/live-acceptance.cjs
 
 ## 2026-10-07：本地执行器交付与 Android 远程任务
 
-交付阶段候选为 `0.4.0-delivery.1`，内置独立 Agent `0.3.1` / dsh `0.1.5rc1`；最新内部构建为下述 `0.4.0-delivery.2`。旧 D0 记录及安装路径是历史验收，当前候选使用每用户 NSIS 一键安装；本次未覆盖原产品实际安装、干净 Windows 和原生选择器人工操作验收。详细记录见 [交付评审](../../docs/reviews/work-delivery-and-android-2026-10-07.md)。
+当前内部候选为 `0.4.0-delivery.4`，固定独立 Agent `0.3.2` / dsh `0.1.5rc1`。旧 D0、delivery.1/.2/.3 记录及安装路径保留为历史验收。候选采用每用户 NSIS 一键安装；原产品实际安装、干净 Windows 和原生选择器人工操作保持独立验收范围。生产桌面 dsh、服务端 Pi 与 Android 的实际链路及限制见 [生产记录](../../docs/reviews/work-dual-agent-production-release-2026-10-08.md)。
 
 最终用户无需另装 Python、Node、pip 或 Docker。内置 Python 与 dsh 所需 Node/rg 由独立 `work-runtime/v1` 清单固定，启动及更新校验每个文件的长度和 SHA-256。首次在 Work 本地工作空间导入本机模型密钥文件；主进程加密保存，页面和移动端不接收密钥。模型请求仍会发送任务需要的内容给模型供应商。
 
@@ -156,7 +156,7 @@ npm test
 npm run package
 ```
 
-`build:runtime` 使用锁定依赖和固定 Python 下载校验，生成 `.agent-runtime/0.3.1` 与 `dist/bundled-runtime.json`。更新版本时先更新 Agent、launcher 和打包过滤器版本，禁止复用一个已发布版本号覆盖不同清单。
+`build:runtime` 使用锁定依赖和固定 Python 下载校验，生成版本化 `.agent-runtime/<version>` 与 `dist/bundled-runtime.json`；本候选继续使用已有 0.3.2 清单。打包配置从固定 descriptor 选择唯一的运行环境目录，清单生成时再次检查实际包内目录和哈希。禁止复用一个已发布版本号覆盖不同清单。服务端 Pi 适配器版本独立更新，不自动改变桌面的固定版本。
 
 Agent 独立升级使用原生文件选择器导入签名 ZIP，按固定 Ed25519 公钥验签、校验完整目录并握手探测后原子切换；保留上一版本，回退也重新校验和探测。存在活跃任务时拒绝更新/回退，切换后重新授权目录。整套 Electron 应用目前通过安装包手动升级/回退，没有后台自动更新源。
 

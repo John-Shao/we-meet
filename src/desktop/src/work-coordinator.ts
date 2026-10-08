@@ -121,10 +121,11 @@ export class WorkCoordinator {
   }
   async submit(body: Json, workspaceLabel: string) {
     return this.serial(body.run_id, async () => {
+      let binding = this.bindings[body.run_id];
+      if (binding && binding.workspaceId !== body.workspace_id) throw new Error("workspace_permission_required");
       const capabilities = await this.client.request("capabilities");
       if (!capabilities.features?.includes("command_approval") || !capabilities.features?.includes("cloud_context") || !capabilities.features?.includes("run_limits")) throw new Error("local_adapter_upgrade_required");
       const admission = { run_id: body.run_id, device_id: this.deviceId, goal: body.goal, workspace_label: workspaceLabel.slice(0, 120), model: capabilities.model, sources: body.sources || [] };
-      let binding = this.bindings[body.run_id];
       if (binding && JSON.stringify(binding.admission) !== JSON.stringify(admission)) throw new Error("idempotency_conflict");
       if (!binding) {
         binding = this.bindings[body.run_id] = { admission, workspaceId: body.workspace_id, started: false, seq: 0 };

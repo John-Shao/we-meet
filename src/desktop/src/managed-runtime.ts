@@ -14,6 +14,7 @@ const relativeFile = (name: unknown): name is string => typeof name === "string"
   name.split("/").every(p => /^[a-zA-Z0-9_.@+ -]+$/.test(p) && p !== "." && p !== ".." && !/[. ]$/.test(p) && !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(p));
 
 export class ManagedRuntime {
+  private switching = false;
   constructor(private bundled: string, private root: string, private initial: Descriptor, private trust: RuntimeTrust = []) {}
   private async pointer(): Promise<Pointer> {
     try { return JSON.parse(await fs.readFile(path.join(this.root, "active.json"), "utf8")); }
@@ -89,26 +90,58 @@ export class ManagedRuntime {
     await fs.writeFile(path.join(this.root, "active.json.tmp"), JSON.stringify(p), { mode: 0o600 });
     await fs.rename(path.join(this.root, "active.json.tmp"), path.join(this.root, "active.json"));
   }
+  private async switchRuntime<T>(action: () => Promise<T>): Promise<T> {
+    if (this.switching) throw new Error("runtime_update_busy");
+    this.switching = true;
+    try { return await action(); }
+    finally { this.switching = false; }
+  }
   async install(directory: string, probe: (executable: string) => Promise<void>) {
-    const d = await this.verify(directory, undefined, true);
-    const p = await this.pointer();
-    if (d.version === p.current.version || d.version === this.initial.version) throw new Error("runtime_version_conflict");
-    const target = path.join(this.root, "versions", d.version);
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    if (await fs.access(target).then(() => true, () => false)) throw new Error("runtime_version_conflict");
-    await fs.cp(directory, target, { recursive: true, errorOnExist: true, force: false, dereference: false });
-    await this.verify(target, d, true);
-    await probe(path.join(target, "work-agent-local.exe"));
-    await this.commit({ current: d, previous: p.current });
-    return this.status();
+    return this.switchRuntime(async () => {
+      const d = await this.verify(directory, undefined, true);
+      const p = await this.pointer();
+      if (d.version === p.current.version || d.version === this.initial.version) throw new Error("runtime_version_conflict");
+      const versionsPath = path.resolve(this.root, "versions");
+      await fs.mkdir(versionsPath, { recursive: true });
+      const vs = await fs.lstat(versionsPath);
+      if (!vs.isDirectory() || vs.isSymbolicLink()) throw new Error("runtime_state_invalid");
+      const versions = await fs.realpath(versionsPath);
+      const target = path.join(versions, d.version);
+      if (await fs.lstat(target).then(() => true, (e: any) => { if (e.code === "ENOENT") return false; throw e; })) throw new Error("runtime_version_conflict");
+      const stage = await fs.mkdtemp(path.join(versions, ".install-"));
+      const payload = path.join(stage, "payload");
+      const owner = await fs.lstat(stage);
+      try {
+        await fs.cp(directory, payload, { recursive: true, errorOnExist: true, force: false, dereference: false });
+        await this.verify(payload, d, true);
+        await probe(path.join(payload, "work-agent-local.exe"));
+        await this.verify(payload, d, true);
+        await fs.rename(payload, target);
+        await this.commit({ current: d, previous: p.current });
+        return this.status();
+      } finally {
+        if (stage) {
+          // Only remove the exact staging directory this attempt created.
+          const actual = await fs.realpath(stage);
+          const current = await fs.lstat(stage);
+          if (!current.isDirectory() || current.isSymbolicLink() || current.ino !== owner.ino ||
+            current.dev !== owner.dev || path.relative(stage, actual) !== "" ||
+            path.relative(versions, path.dirname(actual)) !== "" || !path.basename(actual).startsWith(".install-")) throw new Error("runtime_unsafe_cleanup");
+          await fs.rm(actual, { recursive: true, force: false });
+        }
+      }
+    });
   }
   async rollback(probe: (executable: string) => Promise<void>) {
-    const p = await this.pointer();
-    if (!p.previous) throw new Error("runtime_rollback_unavailable");
-    const directory = await this.directory(p.previous);
-    await this.verify(directory, p.previous, p.previous.manifest_sha256 !== this.initial.manifest_sha256);
-    await probe(path.join(directory, "work-agent-local.exe"));
-    await this.commit({ current: p.previous, previous: p.current });
-    return this.status();
+    return this.switchRuntime(async () => {
+      const p = await this.pointer();
+      if (!p.previous) throw new Error("runtime_rollback_unavailable");
+      const directory = await this.directory(p.previous);
+      await this.verify(directory, p.previous, p.previous.manifest_sha256 !== this.initial.manifest_sha256);
+      await probe(path.join(directory, "work-agent-local.exe"));
+      await this.verify(directory, p.previous, p.previous.manifest_sha256 !== this.initial.manifest_sha256);
+      await this.commit({ current: p.previous, previous: p.current });
+      return this.status();
+    });
   }
 }
