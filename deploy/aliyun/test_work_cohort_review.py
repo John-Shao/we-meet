@@ -17,6 +17,30 @@ spec.loader.exec_module(review)
 
 
 class ReviewWiringTests(unittest.TestCase):
+    def test_canonical_overlay_keeps_connection_and_secret_refs_when_closed(self):
+        from unittest.mock import Mock
+
+        r = c.load_runtime()
+        r.write_private = Mock()
+        item = review.with_review(fixture.CohortTests().resource())
+        entries = r.pod_spec(item)["containers"][0]["env"]
+        next(e for e in entries if e["name"] == "WORK_REVIEW_ENABLED")["value"] = (
+            "False"
+        )
+        state = {"expected": {"meet-backend": item}}
+        review.overlay(c, r, state)
+        self.assertEqual(r.write_private.call_count, 2)
+        first, alias = [call.args for call in r.write_private.call_args_list]
+        self.assertEqual(first[0], "values.work-cohort.yaml")
+        self.assertEqual(first[1], alias[1])
+        values = first[1]["backend"]["envVars"]
+        self.assertEqual(values["WORK_REVIEW_ENABLED"], "False")
+        self.assertEqual(values["WORK_REVIEW_URL"], review.URL)
+        self.assertEqual(
+            values["WORK_REVIEW_TOKEN"]["secretKeyRef"]["name"],
+            "meet-work-review-client",
+        )
+
     def test_preserves_image_secret_resources_and_original_spec(self):
         for kind in ("Deployment", "CronJob"):
             item = fixture.CohortTests().resource(kind)

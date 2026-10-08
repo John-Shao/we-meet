@@ -86,6 +86,13 @@ class ReviewTests(unittest.TestCase):
             "missing_information": ["No order records"],
         }
         self.assertEqual(parse_report(json.dumps(value), [])["verdict"], "inconclusive")
+        value = report()
+        value["missing_information"] = ["Original input was not supplied"]
+        parsed = parse_report(
+            json.dumps(value), [{"name": "report.md", "text": "Total: 4"}]
+        )
+        self.assertEqual(parsed["verdict"], "inconclusive")
+        self.assertEqual(parsed["findings"], value["findings"])
         # Malformed evidence is still rejected, never repaired or dropped.
         value = report()
         value["findings"][0]["evidence"][0]["quote"] = "invented"

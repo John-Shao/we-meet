@@ -88,7 +88,10 @@ const assert = require('node:assert/strict')
       review_id: review.id, model: review.model, input_tokens: review.input_tokens, output_tokens: review.output_tokens,
       verdict: review.report.verdict, files: selected, separate_consent: true, synced_result_unchanged: true,
       desktop_review_visible: true, prior_failed_review_retained: failed.id, native_login_ux: false }, null, 2))
-    await page.evaluate(() => window.weMeetDesktop.logout())
+    // Logout navigates away and destroys the invoking renderer context.
+    try { await page.evaluate(() => { void window.weMeetDesktop.logout().catch(() => {}); return true }) } catch (error) { if (!error.message.includes('Execution context was destroyed')) throw error }
+    await page.waitForFunction(async () => (await window.weMeetDesktop.getStatus()).auth === 'signed-out')
+    assert.equal(await app.evaluate(({ app }) => process.getBuiltinModule('fs').existsSync(process.getBuiltinModule('path').join(app.getPath('userData'), 'session-v1.enc'))), false)
     console.log('Production Pi report verified in desktop UI; prior failure retained')
   } finally {
     await close()

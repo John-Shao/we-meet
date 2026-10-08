@@ -345,19 +345,20 @@ def rollout(r, stage):
         )
     state["phase"] = stage
     r.write_private("state.json", state)
-    values = {name: "False" for name in FLAGS}
-    values.update(WORK_AGENT_ROLLOUT_MODE="closed", WORK_AGENT_ALLOWED_USER_IDS="")
-    if stage == "open":
-        values.update(
-            WORK_LOCAL_AGENT_ENABLED="True",
-            WORK_REMOTE_AGENT_ENABLED="True",
-            WORK_AGENT_ROLLOUT_MODE="allowlist",
-            WORK_AGENT_ALLOWED_USER_IDS=state["account"],
-            WORK_AGENT_MAX_CALLS="5",
-            WORK_AGENT_TOKEN_BUDGET="20000",
-        )
-    r.write_private("values.work-cohort.yaml", {"backend": {"envVars": values}})
+    export_values(r, state)
     return {"phase": stage, "controllers": 7, "cloud_and_pi_closed": True}
+
+
+def export_values(r, state):
+    env = r.pod_spec(state["expected"]["meet-backend"])["containers"][0]["env"]
+    values = {
+        e["name"]: e.get("valueFrom", e.get("value", ""))
+        for e in env
+        if e["name"].startswith(("WORK_AGENT_", "WORK_REVIEW_"))
+        or e["name"] in ("WORK_LOCAL_AGENT_ENABLED", "WORK_REMOTE_AGENT_ENABLED")
+    }
+    r.write_private("values.work-cohort.yaml", {"backend": {"envVars": values}})
+    return values
 
 
 def recover(r):

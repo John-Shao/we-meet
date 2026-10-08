@@ -171,7 +171,18 @@ export function PiReview({
           )}
           {review.report.verdict && (
             <>
-              <h4>{verdicts[review.report.verdict]}</h4>
+              <h4>
+                {
+                  verdicts[
+                    review.report.missing_information?.length
+                      ? 'inconclusive'
+                      : review.report.verdict
+                  ]
+                }
+              </h4>
+              {!!review.report.missing_information?.length && (
+                <p>材料不完整，复核意见仍需核实，不能据此确认任务结果错误。</p>
+              )}
               <p>{review.report.summary}</p>
               {review.report.findings?.map((finding, index) => (
                 <div key={index}>

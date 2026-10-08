@@ -108,7 +108,9 @@ were verified. Return one JSON object, without Markdown fences, using:
 Each finding needs evidence. no_issues means no issues found in supplied data,
 not proof of correctness, and requires empty missing_information and findings.
 needs_changes requires findings. If evidence is
-insufficient, use inconclusive and explain missing information. Use Chinese.
+insufficient, use inconclusive and explain missing information. Any nonempty
+missing_information requires inconclusive, even when you also found issues.
+Use Chinese.
 Missing original inputs, execution logs or test results belong in
 missing_information; their absence is not an evidence-backed finding. Evidence
 file names are the outer files[].name, never a display name mentioned inside a
@@ -129,9 +131,8 @@ def parse_report(summary, files):
     # do not invent findings, repair quotes, or relax any evidence validation.
     if (
         isinstance(value, dict)
-        and value.get("verdict") == "no_issues"
+        and value.get("verdict") in ("no_issues", "needs_changes")
         and isinstance(value.get("findings"), list)
-        and not value["findings"]
         and isinstance(value.get("missing_information"), list)
         and value["missing_information"]
     ):

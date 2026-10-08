@@ -36,7 +36,11 @@ BRANCH="${BRANCH:-}"
 VALUES_FILE="${VALUES_FILE:-src/helm/env.d/aliyun-prod/values.meet.yaml}"
 SECRETS_FILE="${SECRETS_FILE:-src/helm/env.d/aliyun-prod/values.secrets.yaml}"
 WORK_VALUES_FILE="${WORK_VALUES_FILE:-src/helm/env.d/aliyun-prod/values.work.yaml}"
-WORK_COHORT_VALUES_FILE="${WORK_COHORT_VALUES_FILE:-src/helm/env.d/aliyun-prod/values.work-cohort.yaml}"
+work_cohort_default="${XDG_CONFIG_HOME:-$HOME/.config}/we-meet/values.work-cohort.yaml"
+if [[ ! -r "$work_cohort_default" ]]; then
+  work_cohort_default="src/helm/env.d/aliyun-prod/values.work-cohort.yaml"
+fi
+WORK_COHORT_VALUES_FILE="${WORK_COHORT_VALUES_FILE:-$work_cohort_default}"
 WORK_AGENT_VALUES_FILE="${WORK_AGENT_VALUES_FILE:-src/helm/env.d/aliyun-prod/values.work-agent.yaml}"
 ALL_MODULES=(backend frontend summary agents)
 SELECTED=()
@@ -401,15 +405,15 @@ assistant_reference=$(module_reference agents "$RELEASE-agent-ai-assistant" '.ag
 # Keep independent agent credentials out of the business Helm release history.
 # The shared operator file is filtered into private temporary values first.
 work_agent_business_overlay=""
+require_command python3
+work_agent_render_dir=$(mktemp -d)
+cleanup_work_agent_values() {
+  rm -f -- "$work_agent_render_dir/business-secrets.json" "$work_agent_render_dir/business-overlay.json"
+  rm -f -- "$work_agent_render_dir/backend-snapshot.json" "$work_agent_render_dir/backend-post-renderer"
+  rmdir -- "$work_agent_render_dir"
+}
+trap cleanup_work_agent_values EXIT
 if [[ -r "$SECRETS_FILE" ]]; then
-  require_command python3
-  work_agent_render_dir=$(mktemp -d)
-  cleanup_work_agent_values() {
-    rm -f -- "$work_agent_render_dir/business-secrets.json" "$work_agent_render_dir/business-overlay.json"
-    rm -f -- "$work_agent_render_dir/backend-snapshot.json" "$work_agent_render_dir/backend-post-renderer"
-    rmdir -- "$work_agent_render_dir"
-  }
-  trap cleanup_work_agent_values EXIT
   agent_profile="$WORK_AGENT_VALUES_FILE"
   if [[ ! -r "$agent_profile" ]]; then
     agent_profile="src/helm/env.d/aliyun-prod/values.work-agent.yaml.dist"
@@ -453,6 +457,13 @@ if [[ -r "$WORK_COHORT_VALUES_FILE" ]]; then
   helm_args+=(-f "$WORK_COHORT_VALUES_FILE")
 fi
 
+# A missing/stale/partial overlay must fail before Helm can erase live settings.
+kubectl -n "$NAMESPACE" get deployment,cronjob -o json > "$work_agent_render_dir/backend-snapshot.json"
+chmod 600 "$work_agent_render_dir/backend-snapshot.json"
+python3 deploy/aliyun/check-work-cohort.py \
+  --snapshot "$work_agent_render_dir/backend-snapshot.json" \
+  --values-file "$WORK_COHORT_VALUES_FILE" --release "$RELEASE" --namespace "$NAMESPACE"
+
 # Optional AI processes use the agents image family. Preserve each live image reference on
 # partial releases, and leave absent workers at their explicitly configured tag.
 ai_workers=(translation interpretation capture-asr capture-live-asr capture-translation)
@@ -473,13 +484,21 @@ done
 if ! contains_module backend; then
   # Helm separates hooks before invoking post-renderers; disable DB hooks here.
   helm_args+=(--set "backend.jobs.enabled=false")
-  kubectl -n "$NAMESPACE" get deployment,cronjob -o json > "$work_agent_render_dir/backend-snapshot.json"
-  chmod 600 "$work_agent_render_dir/backend-snapshot.json"
   python3 - "$PWD" "$work_agent_render_dir" "$RELEASE" "$NAMESPACE" "$backend_reference" <<'PY'
 import os,pathlib,shlex,sys
 repo,folder,release,namespace,image=sys.argv[1:]
 path=pathlib.Path(folder)/'backend-post-renderer'
 command=['python3',str(pathlib.Path(repo)/'deploy/aliyun/preserve-backend-release.py'),'--snapshot',str(pathlib.Path(folder)/'backend-snapshot.json'),'--release',release,'--namespace',namespace,'--expected-image',image,'--check-live']
+path.write_text('#!/bin/sh\nexec '+shlex.join(command)+'\n')
+os.chmod(path,0o700)
+PY
+  helm_args+=(--post-renderer "$work_agent_render_dir/backend-post-renderer")
+else
+  python3 - "$PWD" "$work_agent_render_dir" "$RELEASE" "$NAMESPACE" "$WORK_COHORT_VALUES_FILE" <<'PY'
+import os,pathlib,shlex,sys
+repo,folder,release,namespace,values=sys.argv[1:]
+path=pathlib.Path(folder)/'backend-post-renderer'
+command=['python3',str(pathlib.Path(repo)/'deploy/aliyun/check-work-cohort.py'),'--snapshot',str(pathlib.Path(folder)/'backend-snapshot.json'),'--values-file',values,'--release',release,'--namespace',namespace,'--check-live','--render']
 path.write_text('#!/bin/sh\nexec '+shlex.join(command)+'\n')
 os.chmod(path,0o700)
 PY

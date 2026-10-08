@@ -119,6 +119,24 @@ it('cancels only the review while its status is active', async () => {
   expect(reviews.createReview).not.toHaveBeenCalled()
 })
 
+it('shows uncertainty for historical reports with findings and missing information', async () => {
+  const original = {
+    ...review,
+    report: { ...review.report, missing_information: ['缺少原始输入'] },
+  }
+  vi.mocked(reviews.listReviews).mockResolvedValue([original])
+  mount(false)
+  expect(
+    await screen.findByRole('heading', { name: '信息不足，仍需确认' })
+  ).toBeInTheDocument()
+  expect(
+    screen.queryByRole('heading', { name: '发现需要处理的问题' })
+  ).not.toBeInTheDocument()
+  expect(screen.getByText('缺少原始输入')).toBeInTheDocument()
+  expect(original.report.verdict).toBe('needs_changes')
+  expect(reviews.createReview).not.toHaveBeenCalled()
+})
+
 it.each(['files', 'reviews'] as const)(
   'hides cached file identities and reports when the %s permission check fails',
   async (resource) => {

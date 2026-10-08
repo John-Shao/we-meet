@@ -94,13 +94,7 @@ def probe(c, r):
 
 
 def overlay(c, r, state):
-    env = r.pod_spec(state["expected"]["meet-backend"])["containers"][0]["env"]
-    values = {
-        e["name"]: e.get("valueFrom", e.get("value", ""))
-        for e in env
-        if e["name"].startswith(("WORK_AGENT_", "WORK_REVIEW_"))
-        or e["name"] in ("WORK_LOCAL_AGENT_ENABLED", "WORK_REMOTE_AGENT_ENABLED")
-    }
+    values = c.export_values(r, state)
     r.write_private("values.work-dual.yaml", {"backend": {"envVars": values}})
 
 
