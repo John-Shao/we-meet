@@ -68,6 +68,8 @@ On the 25th of January 2026, David Amiel, France’s Minister for Civil Service 
 
 ## Docs
 
+大模型的当前接入方式、Android 直连、云端连接复用及验收边界见[大模型接入方案](docs/features/llm-integration.md)。
+
 We're currently working on both technical and user documentation for La Suite Meet. In the meantime, many of the essential aspects are already well covered by the [LiveKit documentation](https://docs.livekit.io/home/) and their [self-hosting guide](https://docs.livekit.io/home/self-hosting/deployment/). Stay tuned for more updates!
 
 ## Self-host
@@ -137,4 +139,3 @@ This project is tested with BrowserStack.
 
 Code in this repository is published under the MIT license by DINUM (Direction interministériel du numérique).
 Documentation (in the docs/) directory is released under the [Etalab-2.0 license](https://spdx.org/licenses/etalab-2.0.html).
-

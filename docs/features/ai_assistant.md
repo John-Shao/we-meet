@@ -1,5 +1,7 @@
 # AI 助手（音视频互动）
 
+> 本文保留早期设计和实施历史，其中 Doubao 等规划不代表当前开放能力。当前会议目录使用 Qwen 3.8 Omni；Android 个人通话默认 AOQ，加入 LiveKit 的会议助手仍通过云端 DashScope SDK／WebSocket 接入。当前方案见[大模型接入方案](llm-integration.md)。
+
 ## 背景
 
 we-meet 此前没有 AI 助手能力。本功能让会议参与者可以一键召唤一个"会听、会看、会说"的 AI 加入 LiveKit 房间——AI 通过 Doubao（豆包）或 Qwen（千问）多模态实时大模型，与用户进行音视频交互。

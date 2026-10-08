@@ -1,5 +1,7 @@
 # 录音文件转写
 
+接入方式及模型清单见[大模型接入方案](llm-integration.md)。2026-10-07 已完成后端／旧 Summary 的 requests 复用，以及封存 Filetrans Agent 在 worker 事件循环内的跨任务 aiohttp Session 复用；详情与验收见[连接复用报告](../reviews/provider-reuse-2026-10-07.md)。本功能继续使用异步 HTTP API，不为连接池迁移 DashScope SDK。
+
 所有非实时音频转写使用阿里云百炼 `qwen-audio-3.1-asr-flash-filetrans`：
 
 | 路径 | 执行方式 |
