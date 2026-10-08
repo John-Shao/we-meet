@@ -146,7 +146,65 @@ const assert = require('node:assert/strict');
     await page.screenshot({ path: path.join(output, 'desktop-result.png'), animations: 'disabled', fullPage: true });
     fs.writeFileSync(path.join(output, 'desktop-receipt.json'), JSON.stringify({ passed: true, run_id: runId, task_id: job.coordination.task_id, workspace_id: published.id, device_id: published.device_id, approval_count: approvalCount, deployment: job.deployment, metering: job.metering, original_unchanged: true, no_automatic_upload: true, auth: 'real HTTPS demo OTP session; native login UX excluded' }, null, 2));
     console.log('Desktop received Android request, reviewed tools and synced result');
-    while (!fs.existsSync(path.join(output, 'close-client')) && !fs.existsSync(path.join(output, 'abort-client'))) await page.waitForTimeout(500);
+    let reviewStarted = false;
+    while (!fs.existsSync(path.join(output, 'close-client')) && !fs.existsSync(path.join(output, 'abort-client'))) {
+      const reviewSignal = path.join(output, 'start-pi-review.json');
+      if (!reviewStarted && fs.existsSync(reviewSignal)) {
+        const approved = JSON.parse(fs.readFileSync(reviewSignal, 'utf8'));
+        const selected = [{ name: 'report.md', sha256: job.result.artifacts.find(f => f.name === 'report.md').sha256 }];
+        assert.equal(approved.source_run_id, runId);
+        assert.deepEqual(approved.files, selected);
+        assert.equal(approved.model, 'qwen3.8-flash');
+        assert.equal(approved.token_budget, 8000);
+        assert.equal(approved.max_model_calls, 1);
+        const caps = await request('capabilities/');
+        assert.equal(caps.review_enabled, true);
+        assert.equal(caps.review_model, approved.model);
+        assert.equal(caps.review_token_budget, approved.token_budget);
+        assert.equal(caps.agent_enabled, false);
+        assert.deepEqual(await request(`runs/${runId}/reviews/`), []);
+        // Persist the single attempt before clicking. Uncertain outcomes are queried,
+        // never converted into a second paid review by this acceptance entry point.
+        reviewStarted = true;
+        fs.writeFileSync(path.join(output, 'pi-review-started.json'), JSON.stringify(approved));
+        await page.reload();
+        const reviewUI = page.getByRole('region', { name: '成果复核', exact: true });
+        await reviewUI.waitFor();
+        await reviewUI.getByLabel('report.md', { exact: true }).check();
+        await reviewUI.getByLabel('同意将选定成果和本任务已授权材料发送至复核模型').check();
+        await reviewUI.getByRole('button', { name: '开启本次复核', exact: true }).click();
+        let review;
+        for (const deadline = Date.now() + 300000; Date.now() < deadline;) {
+          if (fs.existsSync(path.join(output, 'abort-client'))) throw Error('cohort_client_aborted');
+          const reviews = await request(`runs/${runId}/reviews/`);
+          assert.ok(reviews.length <= 1);
+          review = reviews[0];
+          if (review && !['queued', 'running'].includes(review.status)) break;
+          await page.waitForTimeout(1500);
+        }
+        fs.writeFileSync(path.join(output, 'pi-review-terminal.json'), JSON.stringify(review || { error: 'review_not_admitted' }, null, 2));
+        assert.equal(review?.status, 'succeeded', review?.error_code);
+        assert.equal(review.model, approved.model);
+        assert.deepEqual(review.selection, selected);
+        assert.ok(['no_issues', 'needs_changes', 'inconclusive'].includes(review.report.verdict));
+        assert.ok(Number.isInteger(review.input_tokens) && review.input_tokens >= 0);
+        assert.ok(Number.isInteger(review.output_tokens) && review.output_tokens >= 0);
+        assert.ok(review.input_tokens + review.output_tokens <= approved.token_budget);
+        await reviewUI.getByRole('heading', { name: '复核完成', exact: true }).waitFor();
+        await page.screenshot({ path: path.join(output, 'desktop-pi-review.png'), animations: 'disabled', fullPage: true });
+        const unchanged = await request(`runs/${runId}/files/`);
+        assert.deepEqual(unchanged.map(({name, sha256}) => ({name, sha256})), selected);
+        assert.equal(fs.readFileSync(path.join(workspace, 'input.txt'), 'utf8'), 'cross-device-marker-20261007\n');
+        fs.writeFileSync(path.join(output, 'pi-review-receipt.json'), JSON.stringify({
+          passed: true, source_run_id: runId, review_id: review.id, model: review.model,
+          input_tokens: review.input_tokens, output_tokens: review.output_tokens,
+          verdict: review.report.verdict, files: selected, separate_consent: true,
+          original_and_synced_result_unchanged: true, desktop_review_visible: true,
+        }, null, 2));
+        console.log('One separately authorized Pi review verified through the real desktop UI');
+      }
+      await page.waitForTimeout(500);
+    }
     await page.evaluate(() => window.weMeetDesktop.logout());
   } finally { await stop(); assert.equal(path.dirname(fs.realpathSync(root)), fs.realpathSync(os.tmpdir())); assert.ok(path.basename(root).startsWith('meet-cross-device-')); fs.rmSync(root, { recursive: true, force: true }); }
 })().catch(e => { fs.writeFileSync(path.join(path.resolve(process.env.WORK_CROSS_DEVICE_OUTPUT), 'desktop-error.txt'), String(e.name || 'client_failure')); console.error('Account cohort desktop acceptance failed'); process.exitCode = 1; });

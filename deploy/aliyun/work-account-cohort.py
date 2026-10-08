@@ -411,7 +411,8 @@ def recover(r):
     }
 
 
-def verify(r):
+def verify(r, *, review_enabled=False):
+    require(type(review_enabled) is bool, "invalid_review_verification")
     state = r.read_private("state.json")
     require(
         state["phase"] in ("closed", "open", "close", "rollback")
@@ -499,7 +500,8 @@ print('COHORT_JSON'+json.dumps({'mode':getattr(settings,'WORK_AGENT_ROLLOUT_MODE
     )
     require(
         value["flags"]["WORK_AGENT_ENABLED"] is False
-        and value["flags"]["WORK_REVIEW_ENABLED"] is False,
+        and value["flags"]["WORK_REVIEW_ENABLED"]
+        is (review_enabled and state["phase"] == "open"),
         "cloud_or_pi_enabled",
     )
     if state["phase"] != "open":
