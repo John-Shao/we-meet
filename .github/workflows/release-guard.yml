@@ -124,6 +124,27 @@ jobs:
       - name: Check offsite backup and restore safety boundaries
         run: python -m unittest discover -s deploy/backup -p 'test_*.py' -v
 
+  desktop-boundaries:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: src/desktop
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/desktop/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: npm ci --no-audit --no-fund
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm test
+
   frontend-artifact:
     runs-on: ubuntu-latest
     defaults:

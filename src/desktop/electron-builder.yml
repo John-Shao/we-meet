@@ -16,8 +16,8 @@ protocols:
 extraResources:
   - from: .agent-runtime
     to: local-agent
-    filter:
-      - '0.3.1/**/*'
+    # The config loader selects the version pinned by dist/bundled-runtime.json.
+    filter: []
 win:
   target: nsis
   # Agent payloads are authenticated by the pinned manifest / detached signature.

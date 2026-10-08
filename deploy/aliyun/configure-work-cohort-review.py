@@ -10,7 +10,9 @@ from pathlib import Path
 
 URL = "https://meet-work-review.meet-work-review.svc.cluster.local:8444"
 MODEL = "qwen3.8-flash"
-BUDGET = "8000"
+# The gateway reserves UTF-8 request bytes plus output before calling Qwen.
+# Pi adds RPC/system context; the tiny report alone is not the request size.
+BUDGET = "20000"
 
 
 def settings_entries():

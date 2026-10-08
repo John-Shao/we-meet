@@ -1,0 +1,7 @@
+const fs = require('node:fs')
+const path = require('node:path')
+const yaml = require('js-yaml')
+const { withRuntime } = require('./scripts/runtime-package.cjs')
+const config = yaml.load(fs.readFileSync(path.join(__dirname, 'electron-builder.yml'), 'utf8'))
+const runtime = JSON.parse(fs.readFileSync(path.join(__dirname, 'dist/bundled-runtime.json'), 'utf8'))
+module.exports = withRuntime(config, runtime)

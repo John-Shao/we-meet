@@ -155,7 +155,7 @@ const assert = require('node:assert/strict');
         assert.equal(approved.source_run_id, runId);
         assert.deepEqual(approved.files, selected);
         assert.equal(approved.model, 'qwen3.8-flash');
-        assert.equal(approved.token_budget, 8000);
+        assert.equal(approved.token_budget, 20000);
         assert.equal(approved.max_model_calls, 1);
         const caps = await request('capabilities/');
         assert.equal(caps.review_enabled, true);

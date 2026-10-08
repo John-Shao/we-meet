@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { rendererConfig } from './renderer-config.mjs'
 import { verifyRenderer, verifyPackagedRenderer } from './renderer-provenance.mjs'
+import runtimePackage from './runtime-package.cjs'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
 const file = `We-Meet-${pkg.version}-setup.exe`
@@ -17,13 +18,16 @@ const digest = async target => {
 const artifact = path.join(root, 'release', file)
 const renderer = await verifyRenderer(path.resolve(root, '../frontend'), root, path.join(root, 'dist/renderer'), rendererConfig())
 const rendererProvenance = verifyPackagedRenderer(path.join(root, 'release/win-unpacked/resources/app.asar'), renderer)
+const bundledRuntime = JSON.parse(await readFile(path.join(root, 'dist/bundled-runtime.json'), 'utf8'))
+const packagedRuntime = await runtimePackage.verifyPackagedRuntime(path.join(root, 'release/win-unpacked/resources'), bundledRuntime)
 const signature = JSON.parse(execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '$s = Get-AuthenticodeSignature -LiteralPath $env:WEMEET_RELEASE_ARTIFACT; @{ status = [string]$s.Status; thumbprint = $s.SignerCertificate.Thumbprint } | ConvertTo-Json -Compress'], { encoding: 'utf8', windowsHide: true, env: { ...process.env, WEMEET_RELEASE_ARTIFACT: artifact } }).trim())
 if (process.argv.includes('--formal') && signature.status !== 'Valid') throw new Error('Formal release installer Authenticode verification failed')
 const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim()
 const manifest = {
   version: pkg.version, file, bytes: (await stat(artifact)).size, sha256: await digest(artifact),
   signature,
-  bundledRuntime: JSON.parse(await readFile(path.join(root, 'dist/bundled-runtime.json'), 'utf8')),
+  bundledRuntime,
+  packagedRuntime,
   packagedAsarSha256: await digest(path.join(root, 'release/win-unpacked/resources/app.asar')),
   rendererProvenance,
   desktopLockSha256: await digest(path.join(root, 'package-lock.json')),
