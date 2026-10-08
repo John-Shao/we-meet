@@ -1,6 +1,6 @@
 # AI 助手（音视频互动）
 
-> 本文保留早期设计和实施历史，其中 Doubao 等规划不代表当前开放能力。当前会议目录使用 Qwen 3.8 Omni；Android 个人通话默认 AOQ，加入 LiveKit 的会议助手仍通过云端 DashScope SDK／WebSocket 接入。当前方案见[大模型接入方案](llm-integration.md)。
+> 本文保留早期设计和实施历史，其中 Doubao 等规划不代表当前开放能力。当前会议目录使用 Qwen 3.8 Omni；Android 个人通话默认 AOQ，加入 LiveKit 的会议助手仍通过云端 DashScope SDK／WebSocket 接入。全系统方案见[大模型接入方案](llm-integration.md)；Android “AI 工具 → 打电话”的当前架构、控制流、媒体流和语音摄像头切换见 [AI 音视频互动方案](ai-audio-video-interaction.md)。
 
 ## 背景
 

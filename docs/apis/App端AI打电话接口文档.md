@@ -1,8 +1,8 @@
 # App 端 AI 打电话 — 接口文档
 
-> Android 客户端 `feature-assistant` 模块（AI Call / 打电话）与 we-meet 后端的接口契约。
-> 模块代码：[`feature-assistant/.../aicall`](../../we-meet-android/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/)
-> 字段或行为变更时，请同步更新本文档、后端 viewset 与 Android DTO（`AiCallDtos.kt`）。
+> 历史接口文档：以下创建 LiveKit 房间、使用房间 Token 和启动 AI Agent 的步骤属于早期实现，不再是当前 Android “AI 工具 → 打电话”的接入契约。
+> 当前 App 使用 AOQ（默认）或 WebRTC 直连百炼，业务后端只参与配置、鉴权、会话分配与租约；完整架构、当前接口、控制流、媒体流及语音摄像头切换见 [AI 音视频互动方案](../features/ai-audio-video-interaction.md)。
+> 当前接口字段以 [后端 ai_call.py](../../src/backend/core/api/ai_call.py) 与 [Android AiCallDtos.kt](https://github.com/John-Shao/we-meet-android/blob/main/feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/model/AiCallDtos.kt) 为准。本页保留历史记录，不应按以下旧流程实现新客户端。
 
 ---
 
