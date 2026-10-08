@@ -81,7 +81,7 @@ Web `/work/new`、周报和表格分析复用同一 Agent 路径。上传支持 
 | 部署单元 | 固定依赖 | 兼容边界 |
 | --- | --- | --- |
 | Django Work | 标准库 HTTP 客户端、自有 Outbox | 无上游 SDK；只依赖 v1 契约 |
-| Gateway | 标准库、自有 SQLite Inbox | 独立安装/启动，不连接业务数据库 |
+| Gateway | httpx `0.28.1`（哈希锁）、自有 SQLite Inbox | 独立安装/启动，不连接业务数据库 |
 | dsh 镜像 | SDK/runtime `0.1.5rc1`、wheel 哈希锁 | `sdk-minimal`、关闭重试、受控 patch |
 | Pi 镜像 | `@earendil-works/pi-coding-agent` `1.0.4`、npm lock | RPC、关闭重试、等待 `agent_settled` |
 
@@ -123,6 +123,23 @@ Python 发布 pin 与仓库源码提交分别记录，不能视为验证了 mast
 
 容器仅挂载当前任务目录，不接收业务源码、S3/DB 凭证；只读根目录、无 capabilities、禁止提权，
 限制 CPU/内存/PID。取消和 deadline 删除整个容器；网关重启先清理所属遗留容器，容器还有独立 watchdog。
+
+## 模型上游连接复用
+
+ModelBroker 为本 Broker 的部署配置持有独立、线程共享的 httpx Client，不引入后端应用或完整模型 SDK。
+默认最多 16 条连接、8 条空闲连接，空闲保留 60 秒；池等待上限为 2 秒且不超过本次请求超时。
+连接池只复用 HTTP/TLS 连接，任务 Token、模型限制、预算和用量仍按请求校验；供应商 Key 逐请求注入，拒绝 Cookie。
+不自动重试收费 POST、不跟随重定向；请求失败且用量未知时仍保留原预算预占。
+
+JSON 和 SSE 使用有界字节读取，完整读取、异常及提前关闭都会释放连接；SSE 不缓冲整个响应。
+人工审批前关闭已读取的上游响应，避免占池等待用户。Broker 退出时停止新请求，待正在读取的响应释放后关闭池；
+不同 Broker 的关闭互不影响。Broker 必须在 fork 后创建，不能将已有线程服务和连接池继承到子进程。
+
+`requirements-http.lock` 锁定 HTTP 依赖及 wheel 哈希，Docker 的公共基础阶段和桌面运行时构建均安装它。
+`test_provider_http.py` 使用本地 HTTP/1.1 假供应商验证实际 TCP 复用、并发上限、凭证隔离、SSE 分片、
+超时、禁止重试／重定向及关闭清理；Broker／审批回归另验证预算记账及审批前释放。
+该改动的候选 Gateway 镜像验证不等于生产发布；上线仍按上面的独立升级流程排空任务、保留 Inbox、替换镜像并验证。
+池大小不是模型吞吐承诺，仍需结合供应商限额、任务排队和真实负载调整。
 
 ## 验证与当前范围
 

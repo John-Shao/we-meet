@@ -105,9 +105,12 @@ class ApprovalTests(unittest.TestCase):
         self.fail("no pending approval")
 
     def test_release_only_after_exact_one_shot_decision(self):
+        upstream = io.BytesIO(json.dumps(self.response).encode())
+        self.broker.provider = lambda *_: upstream
         with ThreadPoolExecutor(max_workers=1) as pool:
             result = pool.submit(self.consume)
             approval = self.pending()
+            self.assertTrue(upstream.closed)
             self.assertFalse(result.done())
             self.assertFalse(self.consumed.is_set())
             self.assertEqual(

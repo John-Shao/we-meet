@@ -50,6 +50,8 @@ with tempfile.TemporaryDirectory(
             str(site),
             "-r",
             str(agent / "requirements-dsh.lock"),
+            "-r",
+            str(agent / "requirements-http.lock"),
         ],
         check=True,
     )
@@ -105,7 +107,11 @@ with tempfile.TemporaryDirectory(
             "-I",
             "-B",
             "-c",
-            "import sqlite3,ssl,pydantic,deepseek_harness,work_agent; print('Self-contained runtime imports passed')",
+            (
+                "import sqlite3,ssl,pydantic,deepseek_harness,httpx; "
+                "from work_agent.local import LocalService; "
+                "print('Self-contained runtime imports passed')"
+            ),
         ],
         check=True,
     )
@@ -133,7 +139,7 @@ with tempfile.TemporaryDirectory(
         manifest, sort_keys=True, separators=(",", ":")
     ).encode()
     (stage / "manifest.json").write_bytes(manifest_bytes)
-    # Signing is done after binary Authenticode signing; no fabricated production identity.
+    # Sign after binary Authenticode signing; no fabricated production identity.
     stage.rename(destination)
     (root / "dist").mkdir(exist_ok=True)
     (root / "dist/bundled-runtime.json").write_text(

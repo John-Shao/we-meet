@@ -4,6 +4,7 @@ import io
 import json
 import os
 import tempfile
+import threading
 import unittest
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -13,8 +14,10 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from work_agent.config import PROVIDERS
 from work_agent.contract import ContractError, canonical
 from work_agent.model_broker import ModelBroker, usage_from_provider
+from work_agent.provider_http import ProviderHttpPool
 from work_agent.store import Store
 
 
@@ -109,6 +112,42 @@ class BrokerTests(unittest.TestCase):
                 "output_tokens": 30,
             },
         )
+
+    def test_pooled_json_and_sse_metering_through_real_broker_http(self):
+        from test_provider_http import CountingServer
+
+        upstream = CountingServer()
+        thread = threading.Thread(target=upstream.serve_forever, daemon=True)
+        thread.start()
+        self.broker.config.base_url = f"http://127.0.0.1:{upstream.server_port}"
+        self.broker.http_pool = ProviderHttpPool()
+        self.broker.provider = self.broker.open_provider
+        try:
+            with patch.dict(
+                os.environ, {PROVIDERS[self.broker.provider_name][0]: "offline-only"}
+            ):
+                for streaming in (False, True):
+                    status, data = self.post(stream=streaming)
+                    self.assertEqual(status, 200)
+                    if streaming:
+                        self.assertIn(b"data: [DONE]", data)
+                    else:
+                        self.assertEqual(json.loads(data)["usage"]["total_tokens"], 10)
+            meter = self.store.metering(self.run_id)
+            self.assertTrue(meter["complete"])
+            self.assertEqual(meter["calls"], 2)
+            self.assertEqual(meter["held_tokens"], 20)
+            self.assertEqual(upstream.connections, 1)
+            self.assertEqual(self.broker.http_pool.active, 0)
+            for _, headers, body in upstream.requests:
+                self.assertEqual(headers["Authorization"], "Bearer offline-only")
+                self.assertNotIn("Cookie", headers)
+                self.assertEqual(json.loads(body)["max_tokens"], 256)
+        finally:
+            self.broker.http_pool.close()
+            upstream.shutdown()
+            upstream.server_close()
+            thread.join(5)
 
     def test_call_limit_under_concurrent_model_requests(self):
         with ThreadPoolExecutor(max_workers=5) as pool:
@@ -339,12 +378,14 @@ class QwenBrokerTests(BrokerTests):
                     "DEEPSEEK_API_KEY": "deepseek-test-only",
                 },
             ),
-            patch("work_agent.model_broker.build_opener") as opener,
+            patch.object(self.broker, "http_pool") as pool,
         ):
             self.broker.open_provider(b"{}", 2)
-        request = opener.return_value.open.call_args.args[0]
-        self.assertEqual(request.get_header("Authorization"), "Bearer qwen-test-only")
+        request = pool.open.call_args
         self.assertEqual(
-            request.full_url,
+            request.kwargs["headers"]["Authorization"], "Bearer qwen-test-only"
+        )
+        self.assertEqual(
+            request.args[0],
             "https://example.invalid/compatible-mode/v1/chat/completions",
         )

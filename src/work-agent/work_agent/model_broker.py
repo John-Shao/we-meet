@@ -8,10 +8,11 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler
 
 from .config import PROVIDERS
 from .contract import MAX_RESULT_BYTES, ContractError, canonical
+from .provider_http import ProviderHttpPool
 from .review import response_format
 
 MAX_MODEL_REQUEST = 1_000_000
@@ -48,6 +49,8 @@ def usage_from_provider(usage, provider="deepseek"):
 
 
 class NoRedirect(HTTPRedirectHandler):
+    """Also used by the Kubernetes API client, which retains urllib transport."""
+
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
@@ -75,12 +78,20 @@ class ModelBroker:
         self.task_transport = task_transport
         self.tokens = {}
         self.lock = threading.Lock()
+        self.http_pool = None if provider is not None else ProviderHttpPool()
         self.provider = provider or self.open_provider
-        self.server = ThreadingHTTPServer((bind_host, bind_port), self.handler())
-        if tls_context:
-            self.server.socket = tls_context.wrap_socket(
-                self.server.socket, server_side=True, do_handshake_on_connect=False
-            )
+        try:
+            self.server = ThreadingHTTPServer((bind_host, bind_port), self.handler())
+            if tls_context:
+                self.server.socket = tls_context.wrap_socket(
+                    self.server.socket, server_side=True, do_handshake_on_connect=False
+                )
+        except Exception:
+            if hasattr(self, "server"):
+                self.server.server_close()
+            if self.http_pool:
+                self.http_pool.close()
+            raise
         self.server.daemon_threads = True
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
 
@@ -88,9 +99,14 @@ class ModelBroker:
         self.thread.start()
 
     def close(self):
-        self.server.shutdown()
-        self.server.server_close()
-        self.thread.join(timeout=5)
+        try:
+            if self.thread.is_alive():
+                self.server.shutdown()
+                self.thread.join(timeout=5)
+            self.server.server_close()
+        finally:
+            if self.http_pool:
+                self.http_pool.close()
 
     def issue(self, run_id):
         token = secrets.token_urlsafe(32)
@@ -117,16 +133,16 @@ class ModelBroker:
         )
 
     def open_provider(self, body, timeout):
-        request = Request(
+        return self.http_pool.open(
             self.config.base_url.rstrip("/") + "/chat/completions",
-            data=body,
+            body,
             headers={
                 "Authorization": "Bearer "
                 + os.environ[PROVIDERS[self.provider_name][0]],
                 "Content-Type": "application/json",
             },
+            timeout=timeout,
         )
-        return build_opener(NoRedirect()).open(request, timeout=timeout)
 
     def handler(self):
         broker = self
@@ -250,6 +266,7 @@ class ModelBroker:
                             data = response.read(MAX_MODEL_RESPONSE + 1)
                             if len(data) > MAX_MODEL_RESPONSE:
                                 raise ContractError("model_response_too_large", 502)
+                            response.close()
                             if streaming:
                                 for line in data.splitlines():
                                     if (
