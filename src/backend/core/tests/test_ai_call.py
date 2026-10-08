@@ -47,6 +47,17 @@ def test_aoq_allocation_uses_temporary_credentials(call_setup):
     assert not kwargs["allow_redirects"]
 
 
+def test_allocation_limit_rejects_before_another_paid_session(call_setup, settings):
+    settings.DIRECT_AI_MAX_ACTIVE_ALLOCATIONS = 1
+    client, profile, post, _ = call_setup
+    body = {"sdp": SDP, "profile_code": profile.code}
+    response = client.post(URL, body, format="json")
+    assert response.status_code == 200
+    assert response.data["session_lease"]["enforce"] is True
+    assert client.post(URL, body, format="json").status_code == 429
+    post.assert_called_once()
+
+
 @pytest.mark.parametrize(
     "allocation", ["not-json", "null", "{}", '{"clientRelayEndpoints": []}']
 )
@@ -97,7 +108,7 @@ def call_setup(settings):
     )
     client = APIClient()
     client.force_authenticate(UserFactory())
-    with mock.patch("core.api.ai_call.requests.post") as post:
+    with mock.patch("core.api.ai_call.provider_http.request") as post:
         upstream = post.return_value.__enter__.return_value
         upstream.status_code = 200
         upstream.iter_content.return_value = [SDP.encode()]
@@ -121,7 +132,7 @@ def test_authenticated_offer_uses_same_fixed_model_without_rooms(call_setup, vid
     assert models.Room.objects.count() == room_count
     args, kwargs = post.call_args
     assert (
-        args[0]
+        args[1]
         == "https://llm-test.cn-beijing.maas.aliyuncs.com/api/v1/webrtc/realtime"
     )
     assert kwargs["params"] == {"model": "qwen3.8-omni-flash-realtime"}
@@ -267,7 +278,7 @@ def test_selected_voice_prompt_and_region_are_used(call_setup, settings):
     assert response.status_code == 200
     assert response.data["voice"] == "Ryan"
     assert response.data["instructions"] == "Be concise."
-    assert "llm-test.ap-southeast-1.maas.aliyuncs.com" in post.call_args.args[0]
+    assert "llm-test.ap-southeast-1.maas.aliyuncs.com" in post.call_args.args[1]
 
 
 @pytest.mark.parametrize(

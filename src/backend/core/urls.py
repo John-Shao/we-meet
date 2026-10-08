@@ -33,6 +33,7 @@ from core.api.admin_roles import (
 from core.api.admin_stats import AdminStatsOverviewView
 from core.api.agent_internal import IngestTranscriptView, TranscriptDeliveryView
 from core.api.ai_call import AiCallSessionView
+from core.api.direct_ai_allocations import DirectAIAllocationView
 from core.api.assistant_summary import AssistantSummaryView
 from core.api.assistant_transcription import AssistantTranscriptionSessionView
 from core.api.capture_direct_asr import CaptureDirectAsrStartView, CaptureDirectAsrSyncView
@@ -386,6 +387,7 @@ external_router.register(
 
 urlpatterns = [
     path("api/v1.0/ai-call/session/", AiCallSessionView.as_view(), name="ai-call-session"),
+    path("api/v1.0/direct-ai/sessions/<uuid:allocation_id>/", DirectAIAllocationView.as_view(), name="direct-ai-session"),
     path("api/v1.0/assistant-summary/", AssistantSummaryView.as_view(), name="assistant-summary"),
     path("api/v1.0/assistant-transcription/session/", AssistantTranscriptionSessionView.as_view(), name="assistant-transcription-session"),
     path("api/v1.0/assistant-translation/ticket/", AssistantTranslationTicketView.as_view(), name="assistant-translation-ticket"),

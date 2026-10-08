@@ -96,24 +96,25 @@ def test_older_completion_cannot_replace_a_newer_published_index():
 
 def test_lifecycle_change_stops_remaining_paid_embedding_requests():
     session, _, record = source()
-    models.Transcript.objects.create(
-        session=session,
-        room=session.room,
-        speaker_identity="second",
-        text="second turn",
-        started_at=timezone.now(),
-    )
+    for i in range(10):
+        models.Transcript.objects.create(
+            session=session,
+            room=session.room,
+            speaker_identity=f"speaker-{i}",
+            text="second turn",
+            started_at=timezone.now(),
+        )
     client = EmbeddingClient(api_key="fixture", model="fixture")
 
-    def provider(_text):
+    def provider(texts):
         models.MeetingRecord.objects.filter(pk=record.pk).update(
             deleted_at=timezone.now()
         )
-        return [0.1, 0.2]
+        return [[0.1, 0.2] for _ in texts]
 
     with (
         patch.object(EmbeddingClient, "from_settings", return_value=client),
-        patch.object(client, "_embed_one", side_effect=provider) as request,
+        patch.object(client, "_embed_batch", side_effect=provider) as request,
     ):
         assert embed_meeting_transcripts(str(session.pk)) is None
     request.assert_called_once()

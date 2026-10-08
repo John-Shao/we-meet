@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-import math
 import logging
+import math
 import urllib.error
 import urllib.request
 from typing import Iterable, Optional
@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 _DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+_BATCH_SIZE = 10
+_DIMENSIONS = 1024
 
 
 class EmbeddingUnavailable(RuntimeError):
@@ -71,14 +73,14 @@ class EmbeddingClient:
         items = list(texts)
         if not items:
             return []
-        if any(not t for t in items):
+        if any(not isinstance(t, str) or not t for t in items):
             raise ValueError("batch_embed received an empty string")
 
         results: list[list[float]] = []
-        for t in items:
+        for offset in range(0, len(items), _BATCH_SIZE):
             if before_request is not None:
                 before_request()
-            results.append(self._embed_one(t))
+            results.extend(self._embed_batch(items[offset : offset + _BATCH_SIZE]))
         return results
 
     def embed_query(self, question: str) -> Optional[list[float]]:
@@ -92,15 +94,19 @@ class EmbeddingClient:
     # ------------------------------------------------------------------
 
     def _embed_one(self, text: str) -> list[float]:
+        return self._embed_batch([text])[0]
+
+    def _embed_batch(self, texts: list[str]) -> list[list[float]]:
         payload = json.dumps(
             {
                 "model": self._model,
-                "input": [text],
+                "input": texts,
                 "encoding_format": "float",
-                "dimensions": 1024,
+                "dimensions": _DIMENSIONS,
             }
         ).encode("utf-8")
-        req = urllib.request.Request(
+        # Request is a descriptor for the pooled HTTP adapter, not a URL opener.
+        req = urllib.request.Request(  # noqa: S310
             self._endpoint,
             method="POST",
             headers={
@@ -120,14 +126,21 @@ class EmbeddingClient:
             raise RuntimeError(f"Qwen embedding network error: {e.reason}") from e
 
         data = body.get("data")
-        if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], dict):
+        if not isinstance(data, list) or len(data) != len(texts):
             raise RuntimeError("Unexpected Qwen embedding response shape")
-        embedding = data[0].get("embedding")
-        if not isinstance(embedding, list) or not embedding:
-            raise RuntimeError("Qwen embedding response missing vector")
-        if any(not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) for value in embedding):
-            raise RuntimeError("Qwen embedding response contains invalid values")
-        return embedding
+        ordered = {}
+        for row in data:
+            if not isinstance(row, dict):
+                raise RuntimeError("Unexpected Qwen embedding response shape")
+            index, embedding = row.get("index"), row.get("embedding")
+            if type(index) is not int or not 0 <= index < len(texts) or index in ordered:
+                raise RuntimeError("Unexpected Qwen embedding response index")
+            if not isinstance(embedding, list) or len(embedding) != _DIMENSIONS:
+                raise RuntimeError("Qwen embedding response has invalid dimensions")
+            if any(not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) for value in embedding):
+                raise RuntimeError("Qwen embedding response contains invalid values")
+            ordered[index] = embedding
+        return [ordered[index] for index in range(len(texts))]
 
 
 __all__ = ("EmbeddingClient", "EmbeddingUnavailable")

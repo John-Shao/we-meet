@@ -15,16 +15,16 @@ AOQ、WebRTC、WebSocket 是传输方式，DashScope SDK、OpenAI SDK 是调用�
 | `qwen3.8-omni-flash-realtime` | Android AI 电话／视频通话 | 客户端 AOQ Client SDK；后端 HTTP 分配会话，媒体直达百炼 | 新版 Debug、Release 均默认 AOQ；设置中可手动选择 WebRTC |
 | 同上 | 加入 LiveKit 会议的 AI 助手 | 云端 Agent 使用 DashScope `OmniRealtimeConversation`，底层 WebSocket | 保留云端桥接，不随个人通话切换 |
 | 同上 | 双语互译语言识别及云端辅助处理 | Android AOQ 语言识别连接；云端路径使用 WebSocket 辅助适配器 | 属于互译链路的额外模型会话 |
-| `qwen3.8-livetranslate-flash-realtime` | Android 独立双语互译 | 客户端 AOQ；云端备选路径为业务网关／Agent 的 WebSocket | 新版 Debug、Release 均默认 AOQ；可手动选择云端 |
-| 同上 | 会议／录音翻译的云端适配器 | Agent 使用 Python `websockets`，连接百炼实时接口 | 保留既有生命周期；旧 Android 配置校验有待对齐，见兼容边界 |
+| `qwen3.8-livetranslate-flash-realtime` | Android 独立双语互译 | 客户端 AOQ；云端备选路径为业务网关／Agent 的 WebSocket | 新版 Debug、Release 均默认 AOQ；候选代码新增固定方向单连接；可手动选择云端 |
+| 同上 | 会议／录音翻译的云端适配器 | Agent 使用 Python `websockets`，连接百炼实时接口 | Android 候选代码接受 3.8 及历史 3.5 配置；保留既有云端生命周期 |
 | `qwen-audio-3.1-asr-flash-streaming` | 保留音频的 Android 个人录音实时转写 | OkHttp WebSocket 直连百炼；后端签发专用临时凭证并保存确认文字 | 已转正，用户真机测试通过 |
 | 同上 | 会议字幕、其他云端实时转写 | LiveKit／采集链路 → Agent → 百炼 WebSocket | 继续使用原生 WebSocket 适配器 |
 | `qwen-audio-3.1-asr-flash-filetrans` | 上传文件、录后整段转写、旧 Summary 转写 | 后端／Agent／Summary 使用异步任务 HTTP API；分别复用 requests／aiohttp 连接 | 保留云端任务管理，已完成连接复用 |
 | `qwen3.8-flash` | 会议纪要、概览、录音问答、全局 AI 搜索、会话摘要、上传原文翻译 | 后端和旧 Summary 使用 OpenAI 兼容 SDK，HTTP／SSE | 复用 SDK 实例和 HTTP 连接，不为池化更换 SDK |
 | 同上（按任务配置） | Work 通信任务 | 后端 `WorkCommunicationExecutor` 使用 `LLMClient`／OpenAI SDK | 使用后端复用层；模型和地址取任务快照 |
 | 同上（Pi 灰度配置） | Work 云端 Pi Agent | Agent runtime → Model Broker → 百炼兼容 HTTP／SSE | Broker 独立持有 httpx 池，已随云端适配器 0.3.6 发布并验证 |
-| `text-embedding-v4` | 字幕及搜索向量，1024 维 | 后端调用兼容 HTTP `/embeddings`，实际传输经 requests 连接池 | 已复用；不是 DashScope SDK，也不是 WebSocket |
-| `qwen3-asr-flash-realtime` | Omni WebRTC 会话中的输入文字 | `session.input_audio_transcription.model` 子配置 | 不是独立 ASR 3.1 转写任务，不应与其混为一谈 |
+| `text-embedding-v4` | 字幕及搜索向量，1024 维 | 后端调用兼容 HTTP `/embeddings`，实际传输经 requests 连接池 | 候选代码每请求最多 10 条，按索引恢复顺序并校验维度 |
+| `qwen3-asr-flash-realtime` | Omni AOQ／WebRTC 会话中的输入文字 | 两条客户端路径均使用 `session.input_audio_transcription.model` 子配置 | 不是独立 ASR 3.1 转写任务，不应与其混为一谈 |
 
 Work 的 DeepSeek 路径属于其他供应商，默认配置与 Pi 的 Qwen 灰度配置应分别理解。旧 `ARK_*`／`DOUBAO_*` 配置、历史 3.0／3.5 模型名和评估脚本不代表当前会议默认模型；当前会议 AI 目录拒绝旧 Doubao 配置。
 
@@ -63,9 +63,11 @@ Omni 原来的 WebRTC 媒体已经是客户端直连，切换 AOQ 主要改变�
 
 AOQ 分配由后端请求 `https://{workspace}.{region}.maas.aliyuncs.com/api/v1/webrtc/realtime?model={model}`，设置 `x-dashscope-rtc-transport: moq`。客户端只接收 `sid`、连接 Token、Relay、证书指纹和工作空间哈希，不接收永久 API Key。协议依据见[百炼 Token 鉴权](https://help.aliyun.com/zh/model-studio/realtime-token-authentication)。
 
-当前两个 AOQ 分配接口使用普通 `requests.post`，尚未改为共享 HTTP 池；此前的连接复用验收不包含它们。它们属于短期控制请求，不承载持续音频。目前请求体未提供选填的 `clientIp`；若后续优化 Relay 分配，应先正确解析可信代理传递的客户端公网地址。
+两个 AOQ 分配接口的候选代码已接入后端 `provider_http.request`，与其他 provider HTTP 请求复用线程内 Session；保留固定模型、响应大小限制、禁止重定向和不自动重试会话创建的行为。它们属于短期控制请求，不承载持续音频；此前的生产连接复用验收不包含本轮改动。目前请求体未提供选填的 `clientIp`；若后续优化 Relay 分配，应先正确解析可信代理传递的客户端公网地址。
 
-双语互译的 `AoqBilingualWire` 建立正向、反向翻译及 Omni 语言识别三条连接，使用本机采集及方向路由。模型会话数及其用量需要一起评估，不能将一次双语互译理解为仅有一条模型连接。
+双语互译的 `AoqBilingualWire` 默认自动双向模式建立正向、反向翻译及 Omni 语言识别三条连接，使用本机采集及方向路由。候选代码在设置中提供两个固定方向，固定方向仅分配并连接一个翻译模型，跳过 Omni 语言判断和另一条翻译连接；结束仍等待译音尾部、最后文本及 `session.finished`，支持译音回放。方向只能在会话开始前修改，切换语言对时恢复自动模式；云端备选仍使用自动双向模式。
+
+自动模式通常缓冲 25,600 字节的 16 kHz PCM（800 ms）后启动语言判断，候选代码记录判断输入时长、耗时及连接数，不记录原始讲话。固定方向减少模型连接与判断步骤，实际译文延迟、Token 费用和弱网表现仍需分别测量；连接数从三变一不等于费用降为三分之一。
 
 SDK 当前固定为 AOQ Client SDK 1.3.0，来源及校验记录在 Android `feature-assistant/libs/aoq-sdk.properties`。`app` 打包 AAR，`feature-assistant` 使用编译期依赖；AOQ／Opus 原生库沿用 ARM 版本，纯 x86 进程需手动选择备选路径。后台会话由前台服务持有；断网、取消及关闭沿用原生命周期。
 
@@ -94,7 +96,25 @@ AOQ 默认使用媒体音量，WebRTC 使用通话音量，这是 Android 播放
 
 Filetrans 保留“提交异步任务 → 查询原 task → 下载结果 → 发布原文”的云端管理。模型通过签名 URL 下载对象存储中的音频；提交／查询接口不持续转发实时 PCM。这样可以保留文件权限、任务账本、恢复和发布行为。结果存储下载不附带模型 Authorization，临时对象按生命周期清理。详见[录音文件转写](file-transcription.md)。
 
-文本模型继续使用 OpenAI 兼容 SDK，流式返回采用 HTTP SSE。问答、搜索和摘要需要服务端权限检索、提示词组装、用量及结果管理，不直接下放这些完整职责和永久 Key 到客户端。Embedding 使用兼容 HTTP，虽然构造 urllib Request，实际 `urlopen` 包装经 requests 共享连接；当前 `batch_embed` 是逐文本调用，连接池不会自动将其合并为批请求。向量及查询缓存按模型隔离，历史向量重建仍是显式付费操作。
+文本模型继续使用 OpenAI 兼容 SDK，流式返回采用 HTTP SSE。问答、搜索和摘要需要服务端权限检索、提示词组装、用量及结果管理，不直接下放这些完整职责和永久 Key 到客户端。Embedding 使用兼容 HTTP，虽然构造 urllib Request，实际 `urlopen` 包装经 requests 共享连接；候选代码的 `batch_embed` 每请求最多 10 条，按响应 `index` 恢复原顺序，拒绝重复／缺失／越界索引、非有限数值及非 1024 维向量。每批请求前检查来源快照，发布时再次验证，来源变化不继续提交下一批或发布部分结果。[官方批大小与维度](https://help.aliyun.com/zh/model-studio/text-embedding-synchronous-api)。向量及查询缓存按模型隔离，历史向量重建仍是显式付费操作。
+
+### 本轮选型评估
+
+当前个人实时音频直连、共同会议云端桥接、文件任务及权限检索云端管理的分工继续保留。Python SDK 的连接复用可通过自定义 Session 实现，现有 HTTP 层已经提供需要的复用；SDK 迁移以新增功能或降低维护成本为依据，不以 SDK 名称作为高并发能力判断。
+
+个人录音翻译仍通过业务网关转发，具备进一步直连的优化空间；本轮先修复 3.8 响应兼容。该路径还承担租约／代次校验、译文归档、播放时间及用户停止后的原子发布，不能直接复用独立双语互译的页面内回调替换。后续直连迁移应像正式 ASR 一样提供独立的文字同步与恢复契约，覆盖账号切换、部分结果、保存失败和最终句验收后再替换。
+
+### 直连分配记录与可配置准入
+
+候选后端新增 `DirectAIAllocation`（迁移 `0197`），记录账号、模型、传输方式、申请状态和时间；不保存永久 Key、会话 Token、音频或对话。Omni AOQ／WebRTC、互译 AOQ 和个人 ASR 临时凭证接口先预占申请记录，再在数据库事务外请求供应商；验证成功返回可选 `session_lease`，失败保留记录并释放活动申请槽，不自动重试收费创建。
+
+新版客户端向 `POST /api/v1.0/direct-ai/sessions/{id}/` 每 30 秒发送一次 `heartbeat`，停止、暂停 ASR 或关闭连接时发送 `close`。服务端按账号校验、逐账号数据库锁串行化准入，租约保留 120 秒；失联租约可在下次申请或执行 `python manage.py expire_direct_ai_allocations` 时回收。关闭／过期租约不能通过迟到心跳复活。单条声明最长 12 小时。
+
+`DIRECT_AI_MAX_ACTIVE_ALLOCATIONS`、`DIRECT_AI_MAX_DAILY_ALLOCATIONS` 默认均为 `0`，只观测，不改变当前可用范围；正数分别限制活动申请租约及 UTC 当日申请次数。自动双向互译占三个申请，固定方向和单个 ASR 任务占一个；日限额包含失败、关闭及已过期的申请，不能解释为成功模型调用次数或金额。活动限额开启时返回 `enforce=true`，客户端在租约被拒绝或连续三次心跳失败后结束连接；纯观测模式停止观测并等待租约过期，正常直连音频仍可继续。
+
+这些是应用侧准入和声明，不是供应商权威并发或账单：旧客户端不报告心跳，临时 API Key 也不是一次性、单任务凭证，租约过期不会由服务端强制断开上游。活动限额应在目标客户端升级后配置；强制消费限制仍需结合供应商权限／限流／额度及账单核对。当前直连 ASR 仍明确记录 `billing_observed=false`，不将客户端声明伪造成实际费用。
+
+本轮是候选代码，尚未生产部署。上线先发布后端并执行迁移 `0197`，保持两个限额为 0，再分发新版 APK 并验证记录与回收；新 APK 兼容不含 `session_lease` 的旧后端。供应商 Key 仍使用原有专用权限设置。
 
 ### 已完成的复用层
 
@@ -122,6 +142,7 @@ Filetrans 的收费提交不自动重复；提交结果不明时不能把 HTTP �
 | `DASHSCOPE_API_KEY` | 云端百炼调用及 Omni／互译 AOQ 分配，永久 Key 留在服务器 |
 | `DASHSCOPE_WORKSPACE_ID`、`DASHSCOPE_REGION` | 实时模型工作空间及接入区域，需与 Key 匹配 |
 | `DASHSCOPE_ASR_CLIENT_API_KEY` | 个人 ASR 临时凭证的专用源 Key，单独配置于 `meet-ai-credentials` |
+| `DIRECT_AI_MAX_ACTIVE_ALLOCATIONS`、`DIRECT_AI_MAX_DAILY_ALLOCATIONS` | 候选后端的应用侧申请限制；默认 0 只观测；按模型申请数计算，不是供应商硬并发或金额额度 |
 | `MEETING_CAPTURE_DIRECT_ASR_ENABLED` | 个人录音正式直连开关，代码默认关闭，既有生产部署已启用 |
 | `QWEN_ASR_MODEL`、`QWEN_ASR_REGION` | 云端实时 ASR，默认 3.1 streaming／北京；客户端签发接口固定 3.1 |
 | `QWEN_FILE_ASR_MODEL`、`QWEN_FILE_ASR_REGION`、`QWEN_FILE_ASR_BASE_URL` | 文件模型默认 3.1 filetrans，可显式指定区域／工作空间 HTTP 地址 |
@@ -142,9 +163,11 @@ Filetrans 的收费提交不自动重复；提交结果不明时不能把 HTTP �
 
 当前还需区分以下边界：
 
-- Android 旧 `MeetingTranslationRepository`、`CaptureTranslationRepository` 仍校验 `qwen3.5-livetranslate-flash-realtime`，后端对应适配器已为 3.8。该路径应先对齐校验并验证，不能用独立双语 AOQ 的验收证明旧会议／录音翻译路径全部兼容。
+- Android 候选 `MeetingTranslationRepository`、`CaptureTranslationRepository` 接受服务端 3.8 和历史 3.5 配置，拒绝未知模型；已安装旧 APK 的 3.5 校验须通过升级修复。独立双语 AOQ 的验收仍不能证明会议／录音翻译链路全部兼容。
 - Work/Pi Model Broker 已实现独立 httpx 连接池，保留逐任务鉴权、预算预占及用量账本；JSON／SSE 有界读取，异常／提前关闭释放连接，人工审批前释放上游响应，关闭时拒绝新借用并等待既有响应释放。凭证逐请求注入、拒绝 Cookie，不跨 Broker 或进程共享；fork 后需重新创建 Broker。云端适配器 0.3.6 已生产发布，两次真实 Qwen 复核通过且复用同一 HTTPS socket；仍保持单演示账号灰度，桌面内置 0.3.2 运行环境独立固定。发布及回滚依据见[Broker 连接池发布记录](../reviews/work-broker-pool-production-2026-10-08.md)，既有跨端证据见[Work 双 Agent 发布记录](../reviews/work-dual-agent-production-release-2026-10-08.md)。
-- AOQ 会话分配的短 HTTP 请求尚未池化；实际模型并发限额、服务器容量及真实网络对比需另行测量。
+- AOQ 分配池化、Embedding 批请求、固定方向及申请租约为本轮候选改动；实际模型并发限额、服务器容量及真实网络对比需另行测量。
+
+本轮候选改进通过后端 117 项、Android 两模块 591 项单元测试、48 项独立设备回归，以及一次真实固定方向单连接 AOQ 探针。Debug／Release 构建通过；新增迁移、默认只观测的限额、旧客户端兼容及发布顺序见[接入改进验收](../reviews/llm-integration-improvements-2026-10-08.md)。
 
 ## 实现位置
 
@@ -153,6 +176,7 @@ Filetrans 的收费提交不自动重复；提交结果不明时不能把 HTTP �
 | Omni 会话分配 | [ai_call.py](../../src/backend/core/api/ai_call.py) |
 | 互译会话／ticket | [assistant_translation.py](../../src/backend/core/api/assistant_translation.py) |
 | ASR 临时凭证 | [assistant_transcription.py](../../src/backend/core/api/assistant_transcription.py) |
+| 直连申请准入与回收 | [direct_ai_allocations.py](../../src/backend/core/services/direct_ai_allocations.py)、[租约接口](../../src/backend/core/api/direct_ai_allocations.py) |
 | 正式直连文字保存 | [capture_direct_asr.py](../../src/backend/core/services/capture_direct_asr.py) |
 | 后端 HTTP／SDK 复用 | [provider_http.py](../../src/backend/core/services/provider_http.py)、[provider_llm.py](../../src/backend/core/services/provider_llm.py) |
 | Agent 文件转写及连接池 | [filetrans.py](../../src/agents/src/plugins/qwen/filetrans.py)、[http_pool.py](../../src/agents/src/plugins/qwen/http_pool.py) |

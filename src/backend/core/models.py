@@ -8970,3 +8970,18 @@ class MeetingRoomBooking(BaseModel):
         # and callers inevitably catch only one of them.
         self.full_clean(validate_constraints=False)
         super(BaseModel, self).save(*args, **kwargs)  # pylint: disable=bad-super-call
+
+
+class DirectAIAllocation(BaseModel):
+    """Application-side admission lease; never stores provider credentials or content."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    model = models.CharField(max_length=100)
+    transport = models.CharField(max_length=16)
+    status = models.CharField(max_length=16, default="allocating")
+    lease_until = models.DateTimeField()
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["user", "status", "lease_until"]), models.Index(fields=["user", "created_at"])]

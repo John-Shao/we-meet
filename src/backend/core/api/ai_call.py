@@ -11,6 +11,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.models import AIAgentProfile, AIPrompt, AIVoice
+from core.services import provider_http
+from core.services.direct_ai_allocations import allocating
 
 MODEL = "qwen3.8-omni-flash-realtime"
 MAX_SDP_LENGTH = 131072
@@ -167,39 +169,41 @@ class AiCallSessionView(APIView):
         }
         if is_aoq:
             headers["x-dashscope-rtc-transport"] = "moq"
-        try:
-            with requests.post(
-                url,
-                params={"model": MODEL},
-                headers=headers,
-                data=b"{}" if is_aoq else data["sdp"].encode("utf-8"),
-                timeout=(5, 20),
-                allow_redirects=False,
-                stream=True,
-            ) as upstream:
-                if upstream.status_code not in (200, 201):
-                    return Response(
-                        {"detail": "AI call connection was rejected."}, status=502
-                    )
-                chunks = bytearray()
-                for chunk in upstream.iter_content(8192):
-                    chunks.extend(chunk)
-                    if len(chunks) > MAX_SDP_LENGTH:
-                        raise requests.RequestException("SDP answer exceeds size limit")
-                answer = chunks.decode("utf-8").strip()
-        except (requests.RequestException, UnicodeDecodeError):
-            return Response({"detail": "AI call connection failed."}, status=502)
-        try:
-            connection = parse_connection(answer, is_aoq)
-        except (ValueError, KeyError, TypeError):
-            return Response({"detail": "Invalid AI call allocation."}, status=502)
-        return Response(
-            {
-                **connection,
-                "voice": voice.value if voice else "Tina",
-                "instructions": prompt.content
-                if prompt
-                else "你是一个友好、简洁的 AI 助手。结合用户的语音与当前提供的画面回答问题。",
-            },
-            headers={"Cache-Control": "no-store"},
-        )
+        with allocating(request.user, MODEL, data["transport"]) as allocation:
+            try:
+                with provider_http.request(
+                    "POST", url,
+                    params={"model": MODEL},
+                    headers=headers,
+                    data=b"{}" if is_aoq else data["sdp"].encode("utf-8"),
+                    timeout=(5, 20),
+                    allow_redirects=False,
+                    stream=True,
+                ) as upstream:
+                    if upstream.status_code not in (200, 201):
+                        return Response(
+                            {"detail": "AI call connection was rejected."}, status=502
+                        )
+                    chunks = bytearray()
+                    for chunk in upstream.iter_content(8192):
+                        chunks.extend(chunk)
+                        if len(chunks) > MAX_SDP_LENGTH:
+                            raise requests.RequestException("SDP answer exceeds size limit")
+                    answer = chunks.decode("utf-8").strip()
+            except (requests.RequestException, UnicodeDecodeError):
+                return Response({"detail": "AI call connection failed."}, status=502)
+            try:
+                connection = parse_connection(answer, is_aoq)
+            except (ValueError, KeyError, TypeError):
+                return Response({"detail": "Invalid AI call allocation."}, status=502)
+            return Response(
+                {
+                    **connection,
+                    "session_lease": allocation.issue(),
+                    "voice": voice.value if voice else "Tina",
+                    "instructions": prompt.content
+                    if prompt
+                    else "你是一个友好、简洁的 AI 助手。结合用户的语音与当前提供的画面回答问题。",
+                },
+                headers={"Cache-Control": "no-store"},
+            )

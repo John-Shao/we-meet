@@ -16,6 +16,8 @@ from rest_framework.views import APIView
 from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
 from core.api.ai_call import MAX_SDP_LENGTH, parse_aoq_allocation
 from core.models import User
+from core.services import provider_http
+from core.services.direct_ai_allocations import allocating
 
 SALT = "assistant-translation-v1"
 # LiveTranslate 3.8 languages supporting both audio and text output.
@@ -144,36 +146,37 @@ class AssistantTranslationSessionView(APIView):
             else "qwen3.8-omni-flash-realtime"
         )
         url = f"https://{workspace}.{region}.maas.aliyuncs.com/api/v1/webrtc/realtime"
-        try:
-            with requests.post(
-                url,
-                params={"model": model},
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                    "x-dashscope-rtc-transport": "moq",
-                },
-                data=b"{}",
-                timeout=(5, 20),
-                allow_redirects=False,
-                stream=True,
-            ) as upstream:
-                if upstream.status_code not in (200, 201):
-                    return Response(
-                        {"detail": "Direct translation connection was rejected."},
-                        status=502,
-                    )
-                chunks = bytearray()
-                for chunk in upstream.iter_content(8192):
-                    chunks.extend(chunk)
-                    if len(chunks) > MAX_SDP_LENGTH:
-                        raise ValueError("Allocation exceeds size limit")
-                credentials = parse_aoq_allocation(chunks.decode("utf-8"))
-        except (requests.RequestException, ValueError, KeyError, TypeError):
+        with allocating(request.user, model, "aoq") as allocation:
+            try:
+                with provider_http.request(
+                    "POST", url,
+                    params={"model": model},
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                        "x-dashscope-rtc-transport": "moq",
+                    },
+                    data=b"{}",
+                    timeout=(5, 20),
+                    allow_redirects=False,
+                    stream=True,
+                ) as upstream:
+                    if upstream.status_code not in (200, 201):
+                        return Response(
+                            {"detail": "Direct translation connection was rejected."},
+                            status=502,
+                        )
+                    chunks = bytearray()
+                    for chunk in upstream.iter_content(8192):
+                        chunks.extend(chunk)
+                        if len(chunks) > MAX_SDP_LENGTH:
+                            raise ValueError("Allocation exceeds size limit")
+                    credentials = parse_aoq_allocation(chunks.decode("utf-8"))
+            except (requests.RequestException, ValueError, KeyError, TypeError):
+                return Response(
+                    {"detail": "Direct translation connection failed."}, status=502
+                )
             return Response(
-                {"detail": "Direct translation connection failed."}, status=502
+                {"model": model, "aoq": credentials, "session_lease": allocation.issue(), **data},
+                headers={"Cache-Control": "no-store"},
             )
-        return Response(
-            {"model": model, "aoq": credentials, **data},
-            headers={"Cache-Control": "no-store"},
-        )

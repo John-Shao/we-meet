@@ -22,7 +22,7 @@ def direct(settings):
     settings.DASHSCOPE_REGION = "cn-beijing"
     client = APIClient()
     client.force_authenticate(UserFactory())
-    with patch("core.api.assistant_translation.requests.post") as post:
+    with patch("core.api.assistant_translation.provider_http.request") as post:
         upstream = post.return_value.__enter__.return_value
         upstream.status_code = 200
         upstream.iter_content.return_value = [
@@ -60,6 +60,7 @@ def test_model_scoped_allocation_without_speech_proxy(direct, purpose, model):
     assert "private-provider-key" not in str(response.data)
     assert "not-allowed" not in str(response.data)
     assert response["Cache-Control"] == "no-store"
+    assert response.data["session_lease"]["enforce"] is False
     assert post.call_args.kwargs["params"] == {"model": model}
     assert post.call_args.kwargs["headers"]["x-dashscope-rtc-transport"] == "moq"
     assert post.call_args.kwargs["data"] == b"{}"

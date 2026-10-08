@@ -1193,6 +1193,9 @@ class Base(Configuration):
     )
     ROOM_INTERPRETATION_AGENT_NAME = values.Value("", environ_prefix=None)
     DASHSCOPE_ASR_CLIENT_API_KEY = values.Value("", environ_prefix=None)
+    # Zero observes existing usage without imposing a new product quota.
+    DIRECT_AI_MAX_ACTIVE_ALLOCATIONS = values.PositiveIntegerValue(0, environ_prefix=None)
+    DIRECT_AI_MAX_DAILY_ALLOCATIONS = values.PositiveIntegerValue(0, environ_prefix=None)
     MEETING_CAPTURE_DIRECT_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
     QWEN_ASR_MODEL = values.Value(
         "qwen-audio-3.1-asr-flash-streaming", environ_prefix=None

@@ -2,9 +2,9 @@
 # pylint: disable=W0621
 
 import json
+import urllib.error
 from io import BytesIO
 from unittest import mock
-import urllib.error
 
 import pytest
 
@@ -75,7 +75,7 @@ def test_endpoint_path_is_qwen_compatible():
     client = EmbeddingClient(api_key="k", model="ep-test")
     # _endpoint is internal but the test would silently regress if we
     # didn't pin the path.
-    assert client._endpoint.endswith("/compatible-mode/v1/embeddings")  # noqa: SLF001
+    assert client._endpoint.endswith("/compatible-mode/v1/embeddings")
 
 
 # ---------------------------------------------------------------------
@@ -84,28 +84,29 @@ def test_endpoint_path_is_qwen_compatible():
 
 
 def test_embed_returns_vector(mock_urlopen):
-    mock_urlopen.return_value = _FakeResp(_qwen_response([0.1, 0.2, 0.3, 0.4]))
+    expected = [0.1, 0.2, 0.3, 0.4] * 256
+    mock_urlopen.return_value = _FakeResp(_qwen_response(expected))
     client = EmbeddingClient(api_key="k", model="ep-test")
     vec = client.embed("hello")
-    assert vec == [0.1, 0.2, 0.3, 0.4]
+    assert vec == expected
     mock_urlopen.assert_called_once()
 
 
 def test_batch_embed_preserves_order(mock_urlopen):
-    """Each text → one HTTP call; results returned in the input order."""
-    responses = [
-        _FakeResp(_qwen_response([float(i)] * 4)) for i in range(3)
-    ]
-    mock_urlopen.side_effect = responses
+    """Provider indexes restore order even if the response is shuffled."""
+    mock_urlopen.return_value = _FakeResp(json.dumps({"data": [
+        {"index": i, "embedding": [float(i)] * 1024} for i in (2, 0, 1)
+    ]}).encode())
     client = EmbeddingClient(api_key="k", model="ep-test")
     vecs = client.batch_embed(["a", "b", "c"])
-    assert vecs == [[0.0] * 4, [1.0] * 4, [2.0] * 4]
-    assert mock_urlopen.call_count == 3
+    assert vecs == [[0.0] * 1024, [1.0] * 1024, [2.0] * 1024]
+    assert mock_urlopen.call_count == 1
+    assert json.loads(mock_urlopen.call_args.args[0].data)["input"] == ["a", "b", "c"]
 
 
 def test_batch_embed_request_shape(mock_urlopen):
     """Request body uses string inputs and a stable vector dimension."""
-    mock_urlopen.return_value = _FakeResp(_qwen_response([0.0] * 2))
+    mock_urlopen.return_value = _FakeResp(_qwen_response([0.0] * 1024))
     client = EmbeddingClient(api_key="k", model="ep-test")
     client.embed("你好")
 
@@ -141,9 +142,57 @@ def test_embed_query_returns_none_for_blank(mock_urlopen):
 
 
 def test_embed_query_returns_vector_for_real_question(mock_urlopen):
-    mock_urlopen.return_value = _FakeResp(_qwen_response([0.5, 0.6]))
+    mock_urlopen.return_value = _FakeResp(_qwen_response([0.5, 0.6] * 512))
     client = EmbeddingClient(api_key="k", model="ep-test")
-    assert client.embed_query("结论是什么？") == [0.5, 0.6]
+    assert client.embed_query("结论是什么？") == [0.5, 0.6] * 512
+
+
+def test_batches_have_ten_inputs_and_guard_each_paid_request(mock_urlopen):
+    """A 23-chunk index needs three requests; each still checks its snapshot."""
+    guard = mock.Mock()
+
+    def response(req, **_kwargs):
+        texts = json.loads(req.data)["input"]
+        return _FakeResp(json.dumps({"data": [
+            {"index": i, "embedding": [float(text)] * 1024}
+            for i, text in reversed(list(enumerate(texts)))
+        ]}).encode())
+
+    mock_urlopen.side_effect = response
+    client = EmbeddingClient(api_key="k", model="text-embedding-v4")
+    assert client.batch_embed(map(str, range(23)), before_request=guard) == [
+        [float(i)] * 1024 for i in range(23)
+    ]
+    assert [len(json.loads(call.args[0].data)["input"]) for call in mock_urlopen.call_args_list] == [10, 10, 3]
+    assert guard.call_count == 3
+
+
+def test_changed_snapshot_stops_the_next_batch(mock_urlopen):
+    guard = mock.Mock(side_effect=[None, RuntimeError("stale")])
+    mock_urlopen.return_value = _FakeResp(json.dumps({"data": [
+        {"index": i, "embedding": [0.0] * 1024} for i in range(10)
+    ]}).encode())
+    with pytest.raises(RuntimeError, match="stale"):
+        EmbeddingClient(api_key="k", model="text-embedding-v4").batch_embed(
+            ["text"] * 11, before_request=guard
+        )
+    mock_urlopen.assert_called_once()
+
+
+@pytest.mark.parametrize("rows", [
+    [{"index": 0, "embedding": [0.0] * 1024}] * 2,
+    [{"index": i, "embedding": [0.0] * 1024} for i in (0, 2)],
+    [{"index": i, "embedding": [0.0] * 1024} for i in (False, 1)],
+    [{"index": i, "embedding": [0.0] * 512} for i in (0, 1)],
+    [{"index": i, "embedding": [float("nan")] * 1024} for i in (0, 1)],
+    [{"index": i, "embedding": [True] * 1024} for i in (0, 1)],
+    [{"embedding": [0.0] * 1024}, {"index": 1, "embedding": [0.0] * 1024}],
+    [None, {"index": 1, "embedding": [0.0] * 1024}],
+])
+def test_invalid_batch_never_returns_partial_vectors(mock_urlopen, rows):
+    mock_urlopen.return_value = _FakeResp(json.dumps({"data": rows}).encode())
+    with pytest.raises(RuntimeError):
+        EmbeddingClient(api_key="k", model="text-embedding-v4").batch_embed(["a", "b"])
 
 
 # ---------------------------------------------------------------------

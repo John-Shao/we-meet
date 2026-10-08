@@ -46,6 +46,7 @@ def test_dedicated_key_and_fixed_model(direct):
         == "wss://asr-test.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference"
     )
     assert response["Cache-Control"] == "no-store"
+    assert response.data["session_lease"]["enforce"] is False
     options = request.call_args.kwargs
     assert options["headers"]["Authorization"] == "Bearer dedicated-asr-key"
     assert options["params"]["expire_in_seconds"] == 60
