@@ -78,6 +78,16 @@ class CohortReleaseTests(unittest.TestCase):
         guard.check_live(self.snapshot, live, "meet", "meet")
         guard.check_render(live["items"], self.snapshot, "meet", "meet")
 
+    def test_inactive_legacy_chart_with_null_env_does_not_require_overlay(self):
+        snapshot = copy.deepcopy(self.snapshot)
+        for row in snapshot["items"]:
+            spec = row["spec"]
+            if row["kind"] == "CronJob":
+                spec = spec["jobTemplate"]["spec"]
+            spec["template"]["spec"]["containers"][0]["env"] = None
+        _, env = guard.check(snapshot, None)
+        self.assertEqual(env, {})
+
     def test_missing_partial_stale_or_unrelated_overlay_cannot_disable_live_pi(self):
         variants = [None, {"backend": {"envVars": {"WORK_REVIEW_ENABLED": "False"}}}]
         for key in ("WORK_REVIEW_URL", "WORK_REVIEW_TOKEN", "WORK_REVIEW_CA_PEM"):

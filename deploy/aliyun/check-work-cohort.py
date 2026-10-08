@@ -56,7 +56,7 @@ def agent_env(resource):
     if len(containers) != 1:
         raise ValueError("cohort_unexpected_sidecar")
     result = {}
-    for entry in containers[0].get("env", []):
+    for entry in containers[0].get("env") or []:
         name = entry["name"]
         if controlled(name):
             if name in result:

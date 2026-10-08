@@ -13,7 +13,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 from work.agent_client import AgentClient  # noqa: E402
+
 from work_agent.config import Config  # noqa: E402
+from work_agent.contract import digest  # noqa: E402
 from work_agent.server import Gateway  # noqa: E402
 
 
@@ -38,10 +40,22 @@ class QwenDockerTests(unittest.TestCase):
             )
             requests = []
             report = {
-                "verdict": "no_issues",
-                "summary": "The total is correct.",
-                "findings": [],
-                "missing_information": [],
+                "verdict": "needs_changes",
+                "summary": "The original inputs were not supplied.",
+                "findings": [
+                    {
+                        "severity": "warning",
+                        "message": "Check against original inputs",
+                        "evidence": [
+                            {
+                                "file": "report.md",
+                                "sha256": digest(b"Total: 3"),
+                                "quote": "Total: 3",
+                            }
+                        ],
+                    }
+                ],
+                "missing_information": ["Original input records"],
             }
 
             def provider(encoded, timeout):
@@ -118,7 +132,10 @@ class QwenDockerTests(unittest.TestCase):
                 self.assertEqual(job["result"]["usage"]["input_tokens"], 20)
                 artifacts = job["result"]["artifacts"]
                 self.assertEqual([a["name"] for a in artifacts], ["pi-review.json"])
-                self.assertEqual(json.loads(artifacts[0]["text"]), report)
+                self.assertEqual(
+                    json.loads(artifacts[0]["text"]),
+                    {**report, "verdict": "inconclusive"},
+                )
                 workspace = Path(directory) / "jobs" / str(run_id) / "workspace"
                 self.assertEqual((workspace / "report.md").read_text(), "Total: 3")
             finally:
