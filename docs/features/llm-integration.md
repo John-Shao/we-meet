@@ -73,6 +73,10 @@ SDK 当前固定为 AOQ Client SDK 1.3.0，来源及校验记录在 Android `fea
 
 AOQ 默认使用媒体音量，WebRTC 使用通话音量，这是 Android 播放路径的选择，两种系统音量分别保存。此前用户观察到 AOQ 建连约为 WebRTC 的 2/3，是单机体感结果；尚无统一真实网络压测支持将该比例作为性能承诺。
 
+Android AI 电话新增摄像头 Function Calling 内部验收版本：Omni 理解自然语言，客户端核实权限及首帧、执行开关并回传实际状态，Omni 使用当前音色续答。AOQ 数据消息和 WebRTC DataChannel 共用协调器，不新增 ASR 连接、不改变会话分配 API，媒体和业务租约沿用当前连接。工具注册显式关闭联网搜索；不执行用户转写中的关键词，以避免重复操作。摄像头控制 Debug 默认开启，Release 在两条传输及真机验收完成前保持关闭；AOQ 传输方式本身的 Release 默认设置不受影响。协议、权限、失败清理、测试入口和回退说明见 [Android 摄像头语音控制](https://github.com/John-Shao/we-meet-android/blob/main/docs/ai-call-camera-voice-control.md)。
+
+该功能尚不具备生产默认开启条件：真实语音基本和连续开关探针仍观察到模型漏发工具调用、续答超时；不能用摄像头媒体开关或查询工具测试通过替代完整语音验收。发布门槛与实际证据见 [内部验收记录](https://github.com/John-Shao/we-meet-android/blob/main/docs/ai-call-camera-voice-verification.md)。
+
 ## Android 个人录音 ASR
 
 适用范围是保留音频的个人录音。用户点击“开始转写”后，客户端从已登录的 `POST /api/v1.0/assistant-transcription/session/` 获取 60 秒临时凭证，再连接工作空间 `wss://{workspace}.{region}.maas.aliyuncs.com/api-ws/v1/inference`。输入为 16 kHz、单声道、16 位 PCM，使用 `run-task`／`finish-task`，等待 `task-started` 后才发送音频，结束时等待最终句及 `task-finished`。
