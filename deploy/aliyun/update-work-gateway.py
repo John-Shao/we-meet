@@ -94,8 +94,10 @@ root=Path('/var/lib/we-meet-work-review')
 backup=root/'upgrade-033-before.db'
 assert not backup.exists()
 os.umask(0o077)
-with closing(sqlite3.connect('file:'+str(root/'jobs.sqlite3')+'?mode=ro',uri=True)) as db:
- assert db.execute("SELECT COUNT(*) FROM jobs WHERE state IN ('running','queued')").fetchone()[0]==0
+uri='file:'+str(root/'jobs.sqlite3')+'?mode=ro'
+with closing(sqlite3.connect(uri,uri=True)) as db:
+ active="SELECT COUNT(*) FROM jobs WHERE state IN ('running','queued')"
+ assert db.execute(active).fetchone()[0]==0
  with closing(sqlite3.connect(backup)) as destination:db.backup(destination)
 with closing(sqlite3.connect(backup)) as db:
  assert db.execute('PRAGMA quick_check').fetchone()[0]=='ok'
