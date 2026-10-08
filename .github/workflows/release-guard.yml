@@ -107,6 +107,8 @@ jobs:
           version: v3.17.3
       - name: Install render and agent certificate test dependencies
         run: python -m pip install PyYAML==6.0.2 cryptography==46.0.7
+      - name: Install locked Broker HTTP dependencies
+        run: python -m pip install --require-hashes -r src/work-agent/requirements-http.lock
       - name: Check manifests and release gates without cluster access
         run: >-
           python -m unittest discover -s deploy/aliyun -p 'test_*ci.py' -v
