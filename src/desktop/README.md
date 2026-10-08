@@ -1,5 +1,7 @@
 # We-Meet 桌面端：D0 可用客户端里程碑
 
+**2026-10-08 Agent 架构入口**：[Work Agent 架构](../../docs/features/work-agent-architecture.md)。当前内部包为 `0.4.0-delivery.4`，内置独立适配器 `0.3.2` / dsh `0.1.5rc1`；服务端 Pi 适配器独立更新至 `0.3.5`，生产跨端链路见 [验收记录](../../docs/reviews/work-dual-agent-production-release-2026-10-08.md)。下方保留 D0 及各候选历史；生成最新包不等于替换用户已安装客户端。
+
 2026-10-07 最新候选版 `0.3.0-local-work.2` 增加统一云端任务登记、设备领取、状态回报和选定成果主动同步，独立适配器为 `0.2.0`。运行和故障边界见 [协调说明](../work-agent/COORDINATION.md)，实测见 [本轮评审](../../docs/reviews/work-device-coordination-2026-10-07.md)。尚未部署线上或安装替换现有客户端；下面保留此前阶段记录。
 
 2026-10-07 新增本地工作空间候选版 `0.3.0-local-work.1`：Work 页面经主进程原生目录授权，通过 `work-local/v1` stdio 连接独立安装的 dsh 适配器，直接读写本机文件夹。真实 DeepSeek 与 Electron 页面链路已验证，安装和独立升级见 [本地集成说明](../work-agent/LOCAL.md)，证据见 [评审记录](../../docs/reviews/work-local-agent-2026-10-07.md)。本候选包尚未安装替换已有客户端；以下 D0 历史安装状态仍保留。
@@ -137,7 +139,7 @@ node scripts/live-acceptance.cjs
 
 对外分发前需配置组织的 Windows 签名证书、验证签名 / 安装 / 升级与干净环境，并确认稳定下载地址。当前无自动更新 feed，不声称可以自动更新。macOS 构建、公证、托盘、原生通知和本地 Agent 工具不在本次 D0 已验收范围内。
 
-## 2026-10-07：本地执行器交付与 Android 远程任务
+## 2026-10-08：本地执行器交付与 Android 远程任务
 
 当前内部候选为 `0.4.0-delivery.4`，固定独立 Agent `0.3.2` / dsh `0.1.5rc1`。旧 D0、delivery.1/.2/.3 记录及安装路径保留为历史验收。候选采用每用户 NSIS 一键安装；原产品实际安装、干净 Windows 和原生选择器人工操作保持独立验收范围。生产桌面 dsh、服务端 Pi 与 Android 的实际链路及限制见 [生产记录](../../docs/reviews/work-dual-agent-production-release-2026-10-08.md)。
 
@@ -162,7 +164,7 @@ Agent 独立升级使用原生文件选择器导入签名 ZIP，按固定 Ed2551
 
 发布准备：通过 `WEMEET_RUNTIME_TRUST_FILE` 指定外部 JSON 公钥列表（每项 `key_id` 和 PEM `public_key`），构建时固定到应用。签名机器设置 `WEMEET_RUNTIME_SIGNING_KEY_FILE`、`WEMEET_RUNTIME_SIGNING_KEY_ID`，执行 `python scripts/sign-runtime.py <payload目录> <输出.zip>`；私钥必须留在包外。Windows Authenticode 证书通过 builder 的 `CSC_LINK` / `WIN_CSC_LINK` 和相应环境配置提供，再运行 `npm run package:release`。正式流程缺少证书、公钥或最终有效 Authenticode 签名即失败。
 
-当前没有 Windows 发布证书，也没有产品发布的运行时信任公钥：候选为 `NotSigned`，签名升级入口关闭。签名升级/回退已有隔离测试密钥验证，不将测试密钥设为产品信任根；可先用内置运行时内部验收。上线还需后端迁移 `work.0005` 与显式开启远程开关，本次未部署生产。
+当前没有 Windows 发布证书，也没有产品发布的运行时信任公钥：候选为 `NotSigned`，签名升级入口关闭。签名升级/回退已有隔离测试密钥验证，不将测试密钥设为产品信任根；可先用内置运行时内部验收。后端已于 2026-10-08 迁移至 `work.0007` 并完成单演示账号灰度；独立配置和具体范围见上方架构及生产记录。
 
 ### 后续联合验收（2026-10-07）
 

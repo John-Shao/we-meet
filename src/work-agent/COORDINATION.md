@@ -1,6 +1,6 @@
 # 客户端执行与服务端任务协调
 
-当前客户端交付为桌面 `0.4.0-delivery.1` / Agent `0.3.1`，增加必须的 `command_approval` 能力及 Android 远程待办；旧适配器须升级后执行。部署还需 `work.0005`，远程请求需额外开启 `WORK_REMOTE_AGENT_ENABLED`。最新步骤见 [产品交付](DELIVERY.md)，下文保留前一协调阶段的协议与历史验证记录。
+2026-10-08 当前客户端交付为桌面 `0.4.0-delivery.4` / 独立 Agent `0.3.2`，要求 `command_approval` 能力并支持 Android 远程待办；旧适配器须升级后执行。生产已迁移至 `work.0007`，仅对演示账号开启本地/远程协调及 Pi 复核。分工、恢复语义和发布边界见 [架构文档](../../docs/features/work-agent-architecture.md)，安装步骤见 [产品交付](DELIVERY.md)；下文有日期的旧候选记录保留历史语义。
 
 2026-10-07：桌面候选版 `0.3.0-local-work.2` 与独立适配器 `0.2.0` 增加统一任务记录、设备领取、状态回报和主动成果同步。服务端开关默认关闭；当前未部署线上，也未安装替换已有客户端。
 
@@ -21,9 +21,9 @@ flowchart LR
 
 ## 启用和使用
 
-1. 先执行业务数据库迁移，包含 `work.0004`。测试数据库已验证迁移，生产迁移尚未执行。
-2. 业务配置 `WORK_ENABLED=true`、`WORK_LOCAL_AGENT_ENABLED=true`、`WORK_AGENT_MODEL=deepseek-flash`。选择云端材料还需 `WORK_MATERIALS_ENABLED=true`。本地协调不要求打开 `WORK_AGENT_ENABLED`，也不要求服务端 Agent Gateway 或 Docker；现有 Work 定时 worker 可处理过期设备，任务读取也会检查过期状态。
-3. 安装桌面候选版并按 [本地集成说明](LOCAL.md) 配置独立适配器 `0.2.0`。模型密钥仍由本机导入，后端和页面均不接收密钥。
+1. 确认 Work 数据库迁移和 worker 可用；当前生产基线为 `work.0007`。
+2. 本地协调要求 `WORK_ENABLED=true`、`WORK_LOCAL_AGENT_ENABLED=true`、`WORK_AGENT_MODEL=deepseek-flash` 及账号准入；远程待办另需 `WORK_REMOTE_AGENT_ENABLED=true`。选择云端材料还需 `WORK_MATERIALS_ENABLED=true`。本地协调不要求打开 `WORK_AGENT_ENABLED`，也不要求服务端执行 Gateway 或 Docker；现有 Work 定时 worker 可处理过期设备，任务读取也会检查过期状态。生产设置须通过 cohort 流程保持所有消费者一致并导出完整 overlay。
+3. 安装桌面候选版，使用其内置独立适配器 `0.3.2`；模型密钥仍由本机导入，后端和页面均不接收该密钥。旧手动安装记录见 [本地集成说明](LOCAL.md)。
 4. 在桌面本地工作空间中选定目录。服务端能力可用时，“登记到云端任务列表”默认勾选，可选择最多 10 份当前账号可访问的云端材料。目标、目录名称、任务状态及设备回报用量会登记；本地原始文件不因此上传到业务服务。
 5. 完成后查看本机成果，勾选希望同步的文件，点击同步按钮。服务端只接收本次选中的正文，并按任务所有者和当前组织权限提供已有 Work 成果下载。当前没有自动共享给组织其他成员的权限入口。
 
@@ -43,7 +43,7 @@ flowchart LR
 
 取消复用 `runs/<uuid>/cancel/`。Web 原有任务接口可读取同一任务、执行位置、目录名称和已同步文件。任务 run UUID 与本机执行 UUID 一致，领取绑定原设备 UUID；同 run UUID 的目标、模型、材料引用和目录名称不可变。重试登记或回报不会创建第二条执行。
 
-`work-local/v1` 保持原有 stdio 方法；`submit` 增加可选 `files` 和 `limits`。协调执行要求适配器通过能力声明提供 `cloud_context`、`run_limits`；老适配器仍可执行原有本机独立任务，启用协调时会提示升级。云端快照校验 SHA256，作为数据传入本机任务；预算只能低于适配器固定上限：6 次模型调用、80,000 tokens、每次输出 4,096 tokens、180 秒。传输和成果大小沿用受限 UTF-8 契约。
+`work-local/v1` 保持原有 stdio 方法；`submit` 增加可选 `files` 和 `limits`。协调执行要求适配器通过能力声明提供 `cloud_context`、`run_limits`、`command_approval`；旧适配器不进入当前受审批的执行入口。云端快照校验 SHA256，作为数据传入本机任务；预算只能低于适配器固定上限：6 次模型调用、80,000 tokens、每次输出 4,096 tokens、180 秒。生产任务进一步限制为最多 5 次调用、20,000 tokens；传输和成果大小沿用受限 UTF-8 契约。
 
 ## 断线、重启和取消
 
@@ -63,7 +63,7 @@ Electron 主进程按账号加密保存 `coordination.enc`，先写入登记意�
 
 ## 升级和验证
 
-新适配器使用独立目录安装，保留旧版本便于回退；当前候选 wheel 为 `.work-acceptance/work-coordination-20261007/artifacts/we_meet_work_agent-0.2.0-py3-none-any.whl`。上游 SDK/runtime 继续固定 `0.1.5rc1`。业务、桌面和适配器分别发布，以三个自有协议的兼容性为边界。升级前结束活跃任务，不自动重放未知模型调用。
+当前桌面包内置独立运行环境，升级/回退规则见 [产品交付](DELIVERY.md)。早期手动安装 wheel `.work-acceptance/work-coordination-20261007/artifacts/we_meet_work_agent-0.2.0-py3-none-any.whl` 保留为历史候选；当前上游 SDK/runtime 继续固定 `0.1.5rc1`。业务、桌面和适配器分别发布，以三个自有协议的兼容性为边界。升级前结束活跃任务，不自动重放未知模型调用。
 
 离线检查：后端 `python -m pytest work/tests --reuse-db`，适配器 `python -m unittest discover -s tests -v`，桌面 `npm test`，前端 Work 路由 Vitest 与 TypeScript。
 

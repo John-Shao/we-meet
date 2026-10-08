@@ -1,6 +1,6 @@
 # 方案与执行记录目录
 
-整理日期：2026-09-22。
+整理日期：2026-09-22；Agent 架构导航更新：2026-10-08。
 
 按主题查阅方案、实施契约、部署说明和历史执行记录。文档中的日期、代码版本、测试结果与部署状态保持原有语义；整理目录不代表重新测试或更新线上状态。
 
@@ -11,6 +11,7 @@
 | 文档 | 用途 |
 |---|---|
 | [work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md) | 工作（Work）：v1.10 首批私人材料上传 / 解析预览已本地验收，下一步沟通准备、周报、表格分析；会议集成和桌面 D0 独立跟踪；含范围、契约、步骤及实施证据 |
+| [Work Agent 架构](../features/work-agent-architecture.md) | 2026-10-08 当前实现：桌面 dsh、服务端 Pi、Android 分工，版本化契约、状态/计量、凭据边界、K3s 与客户端升级回退 |
 | [task-module-improvement-plan.md](task-module-improvement-plan.md) | 任务模块完善与实施范围 |
 | [chat-message-to-task-plan.md](chat-message-to-task-plan.md) | 聊天消息转任务 |
 | [docs-member-identity.md](docs-member-identity.md) | 云文档成员身份与授权；独立跨服务协议说明 |

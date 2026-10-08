@@ -1,6 +1,6 @@
 # 本地 Agent 产品交付
 
-当前桌面候选 `0.4.0-delivery.1` 内置 Agent `0.3.1`、Python `3.13.9`、dsh `0.1.5rc1` 及其 Node/rg，无需最终用户安装系统 Python、Node 或 Docker。原生 launcher 通过自有 `work-local/v1` stdio 接入；业务服务通过 `work-device/v1` 管理远程任务，与上游 SDK 互相独立更新。服务器 HTTP Gateway / Pi 对照仍沿用 `work-agent/v1`。
+2026-10-08 当前桌面内部候选 `0.4.0-delivery.4` 内置独立 Agent `0.3.2`、Python `3.13.9`、dsh `0.1.5rc1` 及其 Node/rg，无需最终用户安装系统 Python、Node 或 Docker。原生 launcher 通过自有 `work-local/v1` stdio 接入；业务服务通过 `work-device/v1` 管理远程任务，与上游 SDK 互相独立更新。服务端 Pi 适配器 `0.3.5` 使用 `work-agent/v1`。整体分工、协议和当前生产范围见 [架构文档](../../docs/features/work-agent-architecture.md)。
 
 ## 用户操作
 
@@ -15,12 +15,14 @@
 
 ## 更新和回退
 
-工作目录与状态位于账号专用加密/私有存储；运行环境位于应用包或独立版本目录。更新 ZIP 必须由产品固定的 Ed25519 公钥信任，所有文件均列入 `work-runtime/v1` 清单并校验；探测协议、SDK 及审批能力成功后原子切换指针，回退同样校验并探测。不覆盖已存在的版本目录，失败候选留作诊断，修复后使用新的版本号。活跃任务不允许切换，成功切换后目录需重新授权。
+工作目录授权与状态位于账号专用加密/私有存储；运行环境位于应用包或独立版本目录。更新 ZIP 必须由产品固定的 Ed25519 公钥信任，所有文件均列入 `work-runtime/v1` 清单并校验；在本次唯一暂存目录探测协议、SDK 及审批能力，再次校验后原子发布版本和切换指针，回退同样校验并探测。不覆盖已存在的正式版本目录，探测失败清理本次暂存，合法同版本可重试；切换操作互斥。活跃任务不允许切换，成功切换后目录需重新授权。
 
 当前没有正式签名证书和产品运行时公钥，内置运行环境可用于内部测试，升级功能保持拒绝状态；隔离签名 fixture 已验证升级、失败不切换、篡改拒绝和回退。整套桌面 App 使用安装包手动升级/回退，不含后台更新源。
 
-构建、外部签名环境变量与正式发布门槛见 [桌面说明](../desktop/README.md)。模型密钥、私钥、真实测试回执不入 Git、不进入桌面/Android 包。生产需要数据库迁移至 `work.0005` 并显式启用本地和远程开关；本次未部署。
+构建、外部签名环境变量与正式发布门槛见 [桌面说明](../desktop/README.md)。模型密钥、私钥、真实测试回执不入 Git、不进入桌面/Android 包。2026-10-08 生产已迁移至 `work.0007`，仅向演示账号启用 local/remote/review；通用云端 Agent 关闭。生产链路及安装包解包审计见 [生产记录](../../docs/reviews/work-dual-agent-production-release-2026-10-08.md)。
 
 ## 验收
+
+当前 delivery.4 已验证实际 NSIS 内容、renderer 和自包含运行环境，生产 dsh → 显式同步 → Pi → 桌面/Android 查看链路通过。原生 OAuth UX、干净 Windows VM 和产品正式签名仍独立记录；下段保留早期交付评审范围。
 
 [2026-10-07 交付评审](../../docs/reviews/work-delivery-and-android-2026-10-07.md) 区分离线安全测试、真实 DeepSeek 联调与 Android 界面 fixture。Windows 内部安装包未在本轮执行安装/升级/卸载；Android 使用单独测试 applicationId 验证界面，未覆盖真实账号登录到远程桌面的整条 App UI 联调。

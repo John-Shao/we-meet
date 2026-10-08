@@ -1,4 +1,6 @@
-# Pi 只读复核 PoC
+# Pi 只读复核
+
+2026-10-08 当前生产使用 Pi Gateway 适配器 `0.3.5` / Pi `1.0.4` / 百炼 `qwen3.8-flash`，在 K3s 任务 Pod 中只读执行，业务仅向演示账号开放。分工、时序、计量和回退边界见 [架构文档](../../docs/features/work-agent-architecture.md)，失败与成功证据见 [生产记录](../../docs/reviews/work-dual-agent-production-release-2026-10-08.md)。默认开关仍为关闭；下方 PoC 评测和 Docker 命令保留为开发验证入口。
 
 Work 业务层协调复核，dsh 仍是默认执行器。Pi 使用独立 Gateway、执行镜像与状态目录，通过 `work-agent/v1` 通信。执行与复核各自有 UUID、预算、状态和取消操作，两种执行器可独立更新。
 
@@ -6,7 +8,7 @@ Work 业务层协调复核，dsh 仍是默认执行器。Pi 使用独立 Gateway
 
 Web/Electron 共用 Work 页面，在成功完成的任务详情中显示“成果复核”。选择最多 8 个原始成果文件，确认将选定成果和本任务已授权材料发送给复核模型后，手动开启本次复核。默认额外预留 20,000 tokens，最多调用模型一次，同一成果最多复核 5 次，与原执行共享每日预算。
 
-桌面成果经原有显式同步流程进入服务端后才可选择；不读取桌面文件夹、不自动上传工作空间。Android 可复用新接口，当前 Android 页面尚未增加复核入口。
+桌面成果经原有显式同步流程进入服务端后才可选择；不读取桌面文件夹、不自动上传工作空间。Android 已实现报告及源成果只读查看，尚无复核创建/取消入口。
 
 创建时冻结任务目标、背景、选定成果和已授权材料。引用文件使用 `source-<id>.md/csv`、`result-01.<ext>` 等别名，`snapshot.json` 记录原始名称与文件映射。检查的是选定原始成果文件，不会读取编辑后的 Markdown 草稿代替它。
 
@@ -17,7 +19,7 @@ Web/Electron 共用 Work 页面，在成功完成的任务详情中显示“成�
 - runner 与后端分别验证报告结构。每条问题必须引用快照中的文件名、SHA-256 和精确非空原文。匹配证据来源不能证明模型推理正确，仍需人工核实。
 - 可信 runner 写入唯一成果 `pi-review.json`，保存到独立 `WorkReview`。复核不修改原成果版本、不改变原执行结果、不自动触发修复或发布。
 - `no_issues` 表示在提供的材料中未发现问题；`needs_changes` 必须有问题与证据；`inconclusive` 必须解释缺失信息。
-- 模型同时报告“未发现问题”和“缺失信息”时，由确定性规则保守提升为 `inconclusive`；不会丢弃缺失项或补造证据。
+- 适配器 `0.3.5` 将含有效缺失信息的 `no_issues` 或 `needs_changes` 保守标为 `inconclusive`，保留发现并继续严格校验引用；Web/Android 对历史报告也优先展示信息不足提示，不改写原记录、不补造证据。
 - 无效报告作为失败处理，不自动重试模型。私有 runtime-home 内的 `review-candidate.json` 用于定位失败，不作为成果、API 响应或公开日志；遵循 job 的私有数据保留策略。
 
 [DeepSeek JSON Output 文档](https://api-docs.deepseek.com/guides/json_mode/)说明了 JSON 模式及空内容、截断的可能性；空结果和无效证据仍会阻断交付。
@@ -35,7 +37,7 @@ Web/Electron 共用 Work 页面，在成功完成的任务详情中显示“成�
 | `WORK_REVIEW_MODEL` | 默认 `deepseek-flash`，需与 Gateway 匹配 |
 | `WORK_REVIEW_TOKEN_BUDGET` | 默认 20,000，计入 `WORK_DAILY_TOKEN_BUDGET` |
 
-Gateway 以 `--engine pi` 和固定 Pi 镜像启动，使用独立端口和状态目录，不能与 dsh Gateway 共用 SQLite。可复用独立 agent chart，但 reviewer 必须分别设置 release、服务、Gateway/client/TLS Secret 名、状态路径和端口。现有生产准备脚本只配置主执行器，尚未自动创建 reviewer 生产 profile；本轮没有发布镜像或启用生产复核。
+Gateway 以 `--engine pi` 和固定 Pi 镜像启动，使用独立端口和状态目录，不能与 dsh Gateway 共用 SQLite。reviewer 必须分别设置 release、服务、Gateway/client/TLS Secret 名、状态路径和端口。当前生产使用 [K3s chart 和部署流程](KUBERNETES.md)，已独立部署 Gateway，并通过 cohort 流程接入业务；完整配置导出和发布保护见架构文档。Docker chart 保留为另一种执行器路径。
 
 部署新版本的 Work worker 和 Beat 后，`work.tasks.tick_reviews` 在既有 Work queue 中每 5 秒协调两条记录。关闭开关后已有历史可读，取消清理仍继续协调。
 

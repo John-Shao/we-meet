@@ -1,5 +1,7 @@
 # K3s 任务执行
 
+2026-10-08 当前生产基线为私有 Pi Gateway 适配器 `0.3.5` / Pi `1.0.4` / `qwen3.8-flash`，仅向演示账号开放复核。整体拓扑、任务凭据、资源/网络边界和回退规则见 [架构文档](../../docs/features/work-agent-architecture.md)，实际验证见 [生产记录](../../docs/reviews/work-dual-agent-production-release-2026-10-08.md)；下方首次发布记录保留当时的业务开关状态。
+
 用户选定沿用现有单节点 K3s。新增 `--execution kubernetes` 和独立 chart `src/helm/work-agent-k8s`，业务仍通过 `work-agent/v1` 提交、查询、取消；dsh/Pi SDK 不进入业务镜像。桌面本地工作空间继续使用 `work-local/v1`，不受此执行器影响。
 
 Gateway 使用独立 namespace 和持久 PVC。每个任务创建一个固定镜像的 Pod：非 root、只读根目录、临时工作目录、无宿主机挂载、无 Docker socket、无 ServiceAccount token。任务通过验证私有 CA 的 HTTPS 一次性领取材料，再通过 ModelBroker 调用模型并回传成果。供应商 key 只在 Gateway；任务 namespace 只放公共 CA 和必要的镜像拉取凭据。

@@ -1,5 +1,9 @@
 # 独立 Work agent 生产配置
 
+2026-10-08 当前生产采用现有 K3s 的独立 Pi Gateway 和任务 Pod，部署单元、密钥与回退规则见 [架构文档](../../docs/features/work-agent-architecture.md) 和 [K3s 部署](KUBERNETES.md)，精确现场版本见 [生产记录](../../docs/reviews/work-dual-agent-production-release-2026-10-08.md)。业务只开启单账号 local/remote/review，通用云端 Agent 关闭；本篇下方专用 Docker runner 内容保留为另一条部署路径，不能用来判断当前生产拓扑。
+
+## Docker runner 部署路径与历史准备（2026-10-07）
+
 2026-10-07 增加独立 chart `src/helm/work-agent`，release 名建议 `work-agent`。它不是 `meet` 子 chart；业务发布脚本不升级它。Gateway 镜像使用 Dockerfile 的 `gateway` target，只含自有 HTTP/SQLite/ModelBroker 代码和 Docker CLI，不安装 dsh/Pi。每任务执行镜像分别使用 `dsh` / `pi` target，仍通过 `work-agent/v1` 与业务系统通信。
 
 本次只在本机准备配置、渲染模板和离线验证，未连接生产集群、发布镜像或启用任务。默认 `workAgent.enabled=false`、`WORK_AGENT_ENABLED=False`，本次没有调整桌面和 Android 开关。

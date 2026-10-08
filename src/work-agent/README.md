@@ -1,5 +1,15 @@
 # Work Agent 集成
 
+## 当前架构与生产基线（2026-10-08）
+
+统一说明见 [Work Agent 架构](../../docs/features/work-agent-architecture.md)：桌面 dsh 执行、服务端 Pi 只读复核、Android 派发与查看，通过 `work-local/v1`、`work-device/v1` 和 `work-agent/v1` 松耦合集成。
+
+生产 Pi 适配器为 `0.3.5` / Pi `1.0.4` / `qwen3.8-flash`，采用现有 K3s 的独立任务 Pod。桌面内部包 `0.4.0-delivery.4` 独立固定本地适配器 `0.3.2` / dsh `0.1.5rc1`，最终用户无需安装 Python、Node 或 Docker。生产仅向演示账号开启 local/remote/review，通用云端 Agent 关闭；示例配置默认关闭。
+
+精确镜像、安装包及实际验证范围见 [生产记录](../../docs/reviews/work-dual-agent-production-release-2026-10-08.md)。K3s 操作见 [任务 Pod 部署](KUBERNETES.md)，本机操作见 [产品交付](DELIVERY.md)。下文是早期 PoC 与可选 Docker/云端执行路径的记录，其中历史“未发布”不代表当前灰度状态。
+
+## 历史 PoC 与可选云端执行路径（2026-10-07）
+
 已增加按成果手动开启的 [Pi 只读复核 PoC](REVIEW.md)：冻结授权快照，禁用全部工具，单独记录证据、预算和复核状态；生产默认关闭。
 
 当前阶段增加自包含 Windows 本地运行环境、逐次命令审批、签名运行环境升级与回退、Android → 桌面待办派发。当前 Agent `0.3.1`，dsh 固定 `0.1.5rc1`，与 Django / Electron 保持独立协议；不改动上游仓库。使用和交付边界见 [产品交付](DELIVERY.md)。只开发 Android，iOS 暂不开发。
