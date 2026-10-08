@@ -1,5 +1,6 @@
 """Text-only review protocol. The trusted runner writes the report artifact."""
 
+import copy
 import json
 
 from .contract import digest
@@ -47,17 +48,47 @@ REPORT_SCHEMA = {
 }
 
 
-def response_format(provider, model):
+def evidence_quotes(files):
+    """Bounded literal excerpts, never generated or normalized source text."""
+    quotes = []
+    budget = 4096
+    for item in files:
+        text = item["text"]
+        candidates = [text[:500], *text.splitlines(keepends=True)[:40]]
+        for candidate in candidates:
+            quote = candidate[:500]
+            size = len(json.dumps(quote, ensure_ascii=False).encode())
+            if quote.strip() and quote not in quotes and size <= budget:
+                quotes.append(quote)
+                budget -= size
+            if len(quotes) >= 40:
+                return quotes
+    return quotes
+
+
+def response_format(provider, model, files=()):
     """Gateway-owned format; only the verified Qwen3.8-Flash family uses schema."""
     if provider == "qwen" and (
         model == "qwen3.8-flash" or model.startswith("qwen3.8-flash-")
     ):
+        schema = copy.deepcopy(REPORT_SCHEMA)
+        if files:
+            properties = schema["properties"]["findings"]["items"]["properties"][
+                "evidence"
+            ]["items"]["properties"]
+            properties["file"]["enum"] = [item["name"] for item in files]
+            properties["sha256"]["enum"] = list(
+                dict.fromkeys(digest(item["text"].encode()) for item in files)
+            )
+            quotes = evidence_quotes(files)
+            if quotes:
+                properties["quote"]["enum"] = quotes
         return {
             "type": "json_schema",
             "json_schema": {
                 "name": "work_readonly_review_v1",
                 "strict": True,
-                "schema": REPORT_SCHEMA,
+                "schema": schema,
             },
         }
     return {"type": "json_object"}
@@ -78,6 +109,12 @@ Each finding needs evidence. no_issues means no issues found in supplied data,
 not proof of correctness, and requires empty missing_information and findings.
 needs_changes requires findings. If evidence is
 insufficient, use inconclusive and explain missing information. Use Chinese.
+Missing original inputs, execution logs or test results belong in
+missing_information; their absence is not an evidence-backed finding. Evidence
+file names are the outer files[].name, never a display name mentioned inside a
+file. Copy its supplied hash and a literal quote from that same file. If the
+output schema provides quote choices, use only those exact strings, preserving
+whitespace. Never paraphrase, label or concatenate quoted text.
 """
 
 

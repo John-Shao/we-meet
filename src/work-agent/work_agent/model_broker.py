@@ -221,7 +221,9 @@ class ModelBroker:
                         raise ContractError("review_tool_forbidden", 403)
                     if broker.store.operation(run_id) == "review":
                         body["response_format"] = response_format(
-                            broker.provider_name, broker.config.model
+                            broker.provider_name,
+                            broker.config.model,
+                            broker.store.frozen_review_files(run_id),
                         )
                     if broker.provider_name == "qwen":
                         # This evaluation uses Qwen's JSON mode without thinking or

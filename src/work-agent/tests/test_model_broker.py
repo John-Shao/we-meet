@@ -283,11 +283,12 @@ class QwenBrokerTests(BrokerTests):
             )
 
     def test_flash_schema_overrides_client_format_and_forbids_extra_fields(self):
+        self.body["files"] = [{"name": "selected.md", "text": "actual frozen text"}]
         self.prepare_flash_review()
         self.assertEqual(
             self.post(
                 model="qwen3.8-flash",
-                response_format={"type": "text"},
+                response_format={"type": "text", "quote": "unselected text"},
                 stream=True,
             )[0],
             200,
@@ -300,6 +301,10 @@ class QwenBrokerTests(BrokerTests):
         evidence = finding["properties"]["evidence"]["items"]
         self.assertEqual(set(evidence["required"]), {"file", "sha256", "quote"})
         self.assertNotIn("fle", evidence["properties"])
+        self.assertEqual(evidence["properties"]["file"]["enum"], ["selected.md"])
+        self.assertEqual(
+            evidence["properties"]["quote"]["enum"], ["actual frozen text"]
+        )
         for node in (schema, finding, evidence):
             self.assertIs(node["additionalProperties"], False)
             self.assertEqual(set(node["required"]), set(node["properties"]))

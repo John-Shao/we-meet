@@ -48,6 +48,19 @@ class Store:
             ).fetchone()
             return json.loads(row["request"]).get("operation") if row else None
 
+    def frozen_review_files(self, run_id):
+        """Private admitted snapshot, independent of client model request fields."""
+        with self.lock:
+            row = self.db.execute(
+                "SELECT request FROM jobs WHERE id=?", (run_id,)
+            ).fetchone()
+            if not row:
+                raise ContractError("not_found", 404)
+            request = json.loads(row["request"])
+            if request.get("operation") != "review":
+                raise ContractError("invalid_request")
+            return request["files"]
+
     def _event(self, run_id, state):
         self.db.execute(
             """INSERT INTO events VALUES (?,

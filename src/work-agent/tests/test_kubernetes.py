@@ -2,6 +2,7 @@
 
 import copy
 import importlib.util
+import json
 import os
 import socket
 import ssl
@@ -358,6 +359,45 @@ class KubernetesTLSRunnerTests(unittest.TestCase):
         self.assertFalse(
             any(call.args[0][0] == "docker" for call in docker_path.call_args_list)
         )
+        self.assertEqual(self.gateway.broker.tokens, {})
+        self.assertEqual(self.gateway.worker.tasks.tasks, {})
+
+    def test_failed_pod_retains_only_safe_diagnostic_before_cleanup(self):
+        def fail_pod(pod):
+            pod["status"] = {
+                "phase": "Failed",
+                "containerStatuses": [
+                    {
+                        "state": {
+                            "terminated": {
+                                "message": json.dumps(
+                                    {
+                                        "contract": "work-task-failure/v1",
+                                        "code": "invalid_review_report",
+                                        "invalid_names": 1,
+                                        "raw_response": "private-secret-canary",
+                                    }
+                                )
+                            }
+                        }
+                    }
+                ],
+            }
+
+        self.api.on_create = fail_pod
+        request = task()
+        self.gateway.store.admit(request, self.config.capabilities())
+        job = self.poll(request["run_id"])
+        self.assertEqual(job["state"], "failed")
+        self.assertEqual(job["error_code"], "agent_failed")
+        diagnostic = json.loads(
+            (self.config.root / "jobs" / request["run_id"] / "failure.json").read_text()
+        )
+        self.assertEqual(diagnostic["code"], "invalid_review_report")
+        self.assertEqual(diagnostic["invalid_names"], 1)
+        self.assertNotIn("canary", json.dumps(diagnostic))
+        self.assertNotIn("failure", job)
+        self.assertEqual(job["metering"]["calls"], 0)
         self.assertEqual(self.gateway.broker.tokens, {})
         self.assertEqual(self.gateway.worker.tasks.tasks, {})
 

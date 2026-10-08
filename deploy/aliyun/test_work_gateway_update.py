@@ -62,6 +62,12 @@ class GatewayUpdateTests(unittest.TestCase):
 
     def test_mutable_images_and_unknown_environment_fail_before_patch(self):
         with self.assertRaisesRegex(RuntimeError, "immutable_agent_image_required"):
+            update.target_for(
+                {},
+                PREFIX + "pi@sha256:" + "a" * 64,
+                PREFIX + "gateway@sha256:" + "b" * 64,
+            )
+        with self.assertRaisesRegex(RuntimeError, "immutable_agent_image_required"):
             update.target_for({}, PREFIX + "gateway:latest", PREFIX + "pi:latest")
         with self.assertRaisesRegex(RuntimeError, "unexpected_worker_reference"):
             update.target_for(

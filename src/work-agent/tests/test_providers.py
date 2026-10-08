@@ -24,9 +24,7 @@ class ProviderTests(unittest.TestCase):
                 ("qwen3.7-flash", "json_object"),
                 ("qwen3.8-flashish", "json_object"),
             ):
-                config = Config(
-                    "pi", Path("."), "x" * 32, provider="qwen", model=model
-                )
+                config = Config("pi", Path("."), "x" * 32, provider="qwen", model=model)
                 caps = config.capabilities()
                 self.assertEqual(caps["review_output_format"], expected)
                 self.assertEqual(

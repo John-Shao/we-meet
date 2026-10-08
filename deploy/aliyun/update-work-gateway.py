@@ -10,9 +10,11 @@ from pathlib import Path
 
 
 def target_for(current, gateway_image, worker_image):
-    for image in (gateway_image, worker_image):
+    for family, image in (("gateway", gateway_image), ("pi", worker_image)):
         if not re.fullmatch(
-            r"jusi-cn-guangzhou\.cr\.volces\.com/we-meet/work-agent-(?:gateway|pi)@sha256:[a-f0-9]{64}",
+            r"jusi-cn-guangzhou\.cr\.volces\.com/we-meet/work-agent-"
+            + family
+            + r"@sha256:[a-f0-9]{64}",
             image,
         ):
             raise RuntimeError("immutable_agent_image_required")
@@ -38,7 +40,11 @@ def main():
     parser.add_argument("--release-id", required=True)
     parser.add_argument("--gateway-image", required=True)
     parser.add_argument("--worker-image", required=True)
+    parser.add_argument("--adapter-version", required=True)
     args = parser.parse_args()
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.adapter_version):
+        raise RuntimeError("invalid_adapter_version")
+    prefix = "gateway-" + args.adapter_version
     spec = importlib.util.spec_from_file_location(
         "cohort", Path(__file__).with_name("work-account-cohort.py")
     )
@@ -62,7 +68,7 @@ def main():
         )
         c.verify(r)
         c.require(
-            not (c.ROOT / "gateway-runtime-before.json").exists(),
+            not (c.ROOT / (prefix + "-runtime-before.json")).exists(),
             "gateway_upgrade_already_started",
         )
         current = r.api(
@@ -91,7 +97,7 @@ def main():
 from pathlib import Path
 from contextlib import closing
 root=Path('/var/lib/we-meet-work-review')
-backup=root/'upgrade-033-before.db'
+backup=root/BACKUP_NAME
 assert not backup.exists()
 os.umask(0o077)
 uri='file:'+str(root/'jobs.sqlite3')+'?mode=ro'
@@ -104,6 +110,9 @@ with closing(sqlite3.connect(backup)) as db:
 print('UPGRADE_JSON'+json.dumps({'quiescent':True,'quick_check':'ok',
  'sha256':hashlib.sha256(backup.read_bytes()).hexdigest()}))
 """
+        backup_code = backup_code.replace(
+            "BACKUP_NAME", repr("upgrade-" + args.adapter_version + "-before.db")
+        )
         output = r.run(
             r.K
             + [
@@ -126,9 +135,9 @@ print('UPGRADE_JSON'+json.dumps({'quiescent':True,'quick_check':'ok',
                 if line.startswith("UPGRADE_JSON")
             )
         )
-        r.write_private("gateway-database-backup.json", backup)
-        r.write_private("gateway-runtime-before.json", current)
-        r.write_private("gateway-runtime-target.json", target)
+        r.write_private(prefix + "-database-backup.json", backup)
+        r.write_private(prefix + "-runtime-before.json", current)
+        r.write_private(prefix + "-runtime-target.json", target)
         applied = r.api(
             "patch",
             "deployment",
@@ -168,7 +177,7 @@ print('COHORT_JSON'+json.dumps(x))
             )
             c.require(
                 caps["contract"] == "work-agent/v1"
-                and caps["adapter_version"] == "0.3.3"
+                and caps["adapter_version"] == args.adapter_version
                 and caps["runtime_version"] == "1.0.4"
                 and caps["engine"] == "pi"
                 and caps["model"] == "qwen3.8-flash"
@@ -212,11 +221,15 @@ print('COHORT_JSON'+json.dumps(x))
                 timeout=200,
             )
             raise
+        history = state.setdefault("gateway_history", [])
+        if not history and state.get("gateway_previous"):
+            history.append(state["gateway_previous"])
+        history.append(state["gateway"])
         state["gateway_previous"] = state["gateway"]
         state["gateway"] = c.gateway(r)
         r.write_private("state.json", state)
         r.write_private(
-            "gateway-runtime-upgrade.json",
+            prefix + "-runtime-upgrade.json",
             {
                 "gateway_image": args.gateway_image,
                 "worker_image": args.worker_image,

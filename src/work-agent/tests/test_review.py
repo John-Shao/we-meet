@@ -10,7 +10,13 @@ from unittest.mock import patch
 
 from work_agent import drivers
 from work_agent.contract import digest
-from work_agent.review import parse_report, validate_report
+from work_agent.review import (
+    REPORT_SCHEMA,
+    evidence_quotes,
+    parse_report,
+    response_format,
+    validate_report,
+)
 from work_agent.runner import run
 
 
@@ -36,6 +42,42 @@ def report():
 
 
 class ReviewTests(unittest.TestCase):
+    def test_schema_uses_bounded_literal_frozen_evidence_without_global_mutation(self):
+        files = [
+            {"name": "result-01.md", "text": "标题\n原文\r\n"},
+            {"name": "large.txt", "text": "long text\n" * 10000},
+        ]
+        quotes = evidence_quotes(files)
+        self.assertIn(files[0]["text"], quotes)
+        self.assertLessEqual(len(quotes), 40)
+        self.assertLessEqual(
+            sum(len(json.dumps(q, ensure_ascii=False).encode()) for q in quotes), 4096
+        )
+        self.assertTrue(all(0 < len(q) <= 500 for q in quotes))
+        self.assertTrue(all(any(q in f["text"] for f in files) for q in quotes))
+        fmt = response_format("qwen", "qwen3.8-flash", files)
+        properties = fmt["json_schema"]["schema"]["properties"]["findings"]["items"][
+            "properties"
+        ]["evidence"]["items"]["properties"]
+        self.assertEqual(properties["file"]["enum"], [f["name"] for f in files])
+        self.assertEqual(properties["quote"]["enum"], quotes)
+        self.assertNotIn(
+            "enum",
+            REPORT_SCHEMA["properties"]["findings"]["items"]["properties"]["evidence"][
+                "items"
+            ]["properties"]["quote"],
+        )
+        # Global quote choices cannot bypass the authoritative per-file check.
+        value = report()
+        value["findings"][0]["evidence"][0].update(
+            file=files[1]["name"],
+            sha256=digest(files[1]["text"].encode()),
+            quote=files[0]["text"],
+        )
+        with self.assertRaisesRegex(ValueError, "invalid_review_report"):
+            validate_report(value, files)
+        self.assertEqual(evidence_quotes([{"text": " \n\t"}]), [])
+
     def test_missing_information_always_blocks_clean_verdict(self):
         value = {
             "verdict": "no_issues",
