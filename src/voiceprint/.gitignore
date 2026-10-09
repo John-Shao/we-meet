@@ -1,0 +1,8 @@
+# Keep model weights, recordings and operator credentials out of source control.
+*.safetensors
+*.pt
+*.pth
+*.wav
+*.pem
+models/
+secrets/

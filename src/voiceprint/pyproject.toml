@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "we-meet-voiceprint"
+version = "0.1.0"
+requires-python = ">=3.13,<3.14"
+description = "Private, offline Qwen speaker encoder for authorized voiceprint jobs"
+dependencies = [
+  "aiohttp==3.13.4",
+  "librosa==0.11.0",
+  "numpy==2.2.6",
+  "PyJWT==2.12.1",
+  "safetensors==0.7.0",
+  "torch==2.10.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.0.3", "pytest-asyncio==1.3.0", "psutil==7.2.2", "ruff==0.15.6"]
+probe = ["psutil==7.2.2"]
+
+[project.scripts]
+meet-voiceprint = "voiceprint.server:main"
+meet-voiceprint-prepare = "voiceprint.prepare:main"
+meet-voiceprint-probe = "voiceprint.probe:main"
+
+[tool.setuptools.packages.find]
+include = ["voiceprint*"]
+
+[tool.setuptools.package-data]
+voiceprint = ["*.json", "_vendor/LICENSE*", "_vendor/NOTICE*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+extend-exclude = ["voiceprint/_vendor/qwen3tts.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "S", "ASYNC"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106"]
