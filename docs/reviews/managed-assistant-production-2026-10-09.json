@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-09",
+  "production_url": "https://meet.we-meet.online",
+  "backend_commit": "3fd572f6b773c1b4b506f9c2d71f9c142ef06d4a",
+  "backend_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:3fd572f6b",
+  "backend_image_digests": [
+    "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:9c55a24b52ed57ecdf6d4dd735477110860a927c4828b7c80756cd2530e83c4f"
+  ],
+  "android_implementation_commit": "7961947b",
+  "helm_revision_before": 460,
+  "helm_revision_after": 461,
+  "database": {
+    "old_prompts_removed": 5,
+    "managed_prompts": 12,
+    "selectable_scenes": 4,
+    "translation_voices": 47,
+    "default_voice": "Tina",
+    "migrations_applied": 2
+  },
+  "public_catalog_http": 200,
+  "unauthenticated_translation_config_http": 401,
+  "backend_deployments_updated": 5,
+  "backend_cronjobs_updated": 2,
+  "all_deployments_ready": 20,
+  "checks": {
+    "release_guard": "success",
+    "backend_tests": 145,
+    "android_unit_tests": 84,
+    "android_debug_device_tests": 45,
+    "android_release_preferences_tests": 15,
+    "production_release_live_tests": 7
+  },
+  "ci_url": "https://github.com/John-Shao/we-meet/actions/runs/37899484720",
+  "apk_filename": "we-meet-managed-assistant-release-internal.apk",
+  "apk_sha256": "80119e53dae6e444d4b495e0551cf61bb85dc751b1e7fc7026d580697c1be490",
+  "old_prompt_backup": "/home/johnshao/managed-assistant-3fd572f6b/old-prompts.json"
+}
