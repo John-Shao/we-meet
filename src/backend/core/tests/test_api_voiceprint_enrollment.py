@@ -69,6 +69,9 @@ def test_start_upload_poll_list_listen_reject_real_api(actor):
     page = client_for(actor).get(BASE + "samples/")
     assert page.data["results"] == [response.data]
     assert page.data["next_offset"] is None
+    detail = client_for(actor).get(BASE + f"samples/{sample.pk}/")
+    assert detail.status_code == 200 and detail.data == response.data
+    assert detail["Cache-Control"] == "private, no-store"
     audio = client_for(actor).get(BASE + f"samples/{sample.pk}/audio/")
     assert audio.status_code == 200 and audio.content == wav()
     assert audio["Content-Type"] == "audio/wav"
@@ -81,6 +84,8 @@ def test_start_upload_poll_list_listen_reject_real_api(actor):
     )
     assert result.status_code == 200 and result.data["status"] == "rejected"
     assert result.data["audio_available"] is False
+    detail = client_for(actor).get(BASE + f"samples/{sample.pk}/")
+    assert detail.data["audio_available"] is False
     assert (
         client_for(actor).get(BASE + f"samples/{sample.pk}/audio/").status_code == 410
     )
@@ -118,11 +123,29 @@ def test_primary_authentication_and_owner_are_required(actor):
     enrollment = begin(actor)
     sample = upload(actor, enrollment)
     other = UserFactory()
-    for suffix in [f"enrollments/{enrollment.pk}/", f"samples/{sample.pk}/audio/"]:
+    for suffix in [
+        f"enrollments/{enrollment.pk}/",
+        f"samples/{sample.pk}/audio/",
+        f"samples/{sample.pk}/",
+    ]:
         assert APIClient().get(BASE + suffix).status_code in (401, 403)
         assert client_for(other).get(BASE + suffix).status_code == 404
     assert client_for(other).get(BASE + "samples/").data["results"] == []
     assert put(other, enrollment).status_code == 404
+
+
+def test_sample_metadata_scope_and_deleted_generation_are_rechecked(actor):
+    enrollment = begin(actor)
+    sample = upload(actor, enrollment)
+    path = BASE + f"samples/{sample.pk}/"
+    client = client_for(actor)
+    assert client.get(path, {"organization_id": str(uuid4())}).status_code == 404
+    assert client.get(path, {"owner_id": str(actor.pk)}).status_code == 400
+    profile = sample.profile
+    consent.delete_profile(
+        actor, profile_id=profile.pk, expected_version=1, request_key=uuid4()
+    )
+    assert client.get(path).status_code == 404
 
 
 @pytest.mark.parametrize(

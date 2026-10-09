@@ -1,0 +1,105 @@
+{
+  "title": "Mijn stemprofiel",
+  "loginRequired": "Meld u aan om uw stemprofiel te beheren.",
+  "intro": "Registreer alleen uw eigen stem. Uw persoonlijke account en elke organisatie hebben afzonderlijke toestemmingen en stemprofielen.",
+  "scope": "Bereik van het stemprofiel",
+  "personal": "Persoonlijk account",
+  "scopeError": "Organisaties konden niet worden geladen.",
+  "moreScopes": "Meer organisaties",
+  "loading": "Steminstellingen laden…",
+  "reload": "Opnieuw laden",
+  "more": "Meer laden",
+  "disabled": "Stemprofielen zijn momenteel niet beschikbaar in dit bereik. U kunt nog wel toestemming intrekken of een bestaand profiel verwijderen.",
+  "organizationPolicy": "Stemprofielen voor deze organisatie inschakelen",
+  "organizationPolicyHint": "Dit maakt alleen de functie beschikbaar. Iedereen moet zelf toestemming geven.",
+  "permissions": {
+    "allow_enrollment": {
+      "title": "Mijn stem registreren en bevestigen toestaan",
+      "hint": "Registratie is vrijwillig. Uitschakelen trekt dit stemprofiel in en stopt openstaande registratietaken."
+    },
+    "allow_accumulation": {
+      "title": "Fragmenten van mijn microfoon tijdens gesprekken toestaan",
+      "hint": "Afzonderlijke toestemming voor kandidaatfragmenten van de microfoon van mijn account. Verzameling moet zichtbaar en pauzeerbaar zijn; er wordt geen stempatroon bevestigd."
+    },
+    "allow_identification": {
+      "title": "Identiteitssuggesties met mijn stemprofiel toestaan",
+      "hint": "Afzonderlijke toestemming binnen de toegestane kandidaten. Uitschakelen stopt nieuwe vergelijkingen en wijzigt geen al handmatig bevestigde namen."
+    }
+  },
+  "enrollmentTitle": "Mijn stem registreren",
+  "enrollmentHint": "Lees de tekst alleen in een rustige omgeving. Neem bij voorkeur vier fragmenten van ongeveer acht seconden op, samen minstens 30 seconden. Maximaal zes fragmenten per sessie, elk 3–10 seconden.",
+  "begin": "Registratie starten",
+  "enrollmentProgress": "Geüpload: {{count}} / {{maximum}} fragmenten",
+  "enrollmentExpires": "Uploadtoestemming verloopt: {{time}}",
+  "recording": {
+    "idle": "De microfoon start pas wanneer u Opnemen kiest.",
+    "requesting": "Wachten op microfoontoestemming…",
+    "preparing": "Microfoon gestopt. Uw fragment wordt voorbereid om te beluisteren…",
+    "recording": "Opnemen: {{seconds}} seconden (maximaal 10)"
+  },
+  "record": "Opnemen",
+  "stop": "Opname beëindigen",
+  "cancelRecording": "Fragment annuleren",
+  "endEnrollment": "Deze opnamesessie beëindigen",
+  "file": "Of mijn WAV-fragment kiezen",
+  "fileHint": "Alleen uw eigen stem die deze tekst leest: mono, PCM16, 24 kHz, 3–10 seconden. Geüploade fragmenten blijven beschikbaar voor beoordeling of verwijdering van het profiel.",
+  "localAudio": "Beluisteren vóór upload",
+  "upload": "Mijn fragment uploaden",
+  "discard": "Lokale opname weggooien",
+  "profiles": "Stemprofiel",
+  "noProfile": "Geen stemprofiel geregistreerd in dit bereik.",
+  "never": "Nog niet",
+  "profileStatus": {
+    "pending": "Nog niet klaar voor identificatie",
+    "active": "Stemprofiel actief",
+    "paused": "Stemprofiel gepauzeerd",
+    "deleted": "Stemprofiel ingetrokken"
+  },
+  "lastConfirmed": "Laatst bevestigd: {{time}}",
+  "lastUpdated": "Laatst bijgewerkt: {{time}}",
+  "delete": "Stemprofiel verwijderen",
+  "deleteConfirmation": "Uw stemprofiel in ‘{{scope}}’ verwijderen? Het gebruik wordt direct ingetrokken, openstaande taken stoppen en fragmenten en stempatronen worden klaargezet voor opruiming. Andere bereiken en bestaande namen in vergaderingen blijven behouden.",
+  "confirmDelete": "Stemprofiel van dit bereik verwijderen",
+  "cancel": "Annuleren",
+  "samples": "Mijn fragmenten",
+  "noSamples": "Geen fragmenten in dit bereik.",
+  "sampleTitle": "Fragment {{index}} · {{seconds}} seconden",
+  "audioExpires": "Privéaudio verloopt: {{time}}",
+  "qualityHint": "Codering bewijst niet dat maar één persoon spreekt. Bevestiging wacht op spraak- en sprekercontroles.",
+  "listen": "Beluisteren",
+  "reject": "Fragment afwijzen",
+  "sampleAudio": "Mijn geüploade fragment beluisteren",
+  "selfConfirmed": "Dit is alleen mijn stem",
+  "listenHint": "Beluister het hele fragment en bevestig dat het uw stem is voordat u het accepteert.",
+  "confirm": "Mijn fragment bevestigen",
+  "sampleStatus": {
+    "pending": "Wacht op codering",
+    "processing": "Wordt gecodeerd",
+    "quality_pending": "Wacht op kwaliteitscontrole",
+    "ready": "Wacht op uw bevestiging",
+    "confirmed": "Door u bevestigd",
+    "rejected": "Afgewezen",
+    "expired": "Verlopen",
+    "deleted": "Verwijderd"
+  },
+  "deletions": "Opruimingsbewijzen",
+  "deletionStatus": {
+    "queued": "Stemprofiel ingetrokken; opruiming ingepland",
+    "running": "Ingetrokken stemprofiel wordt opgeruimd",
+    "succeeded": "Opruiming voltooid",
+    "failed": "Stemprofiel blijft ingetrokken; opruiming mislukt. Neem contact op met uw beheerder."
+  },
+  "errors": {
+    "failed": "De bewerking is mislukt. Probeer opnieuw of herlaad de instellingen.",
+    "unavailable": "Account, bereik of toestemming is niet meer beschikbaar. Herlaad voordat u verdergaat.",
+    "conflict": "Instellingen zijn elders gewijzigd. Herlaad vóór een nieuwe wijziging.",
+    "microphone": "De microfoon is niet beschikbaar. Controleer browsertoestemming of kies uw eigen WAV-opname.",
+    "duration": "Een fragment moet 3–10 seconden duren.",
+    "voiceprint_enrollment_quota": "Registratielimiet bereikt. Probeer opnieuw na het quotavenster van 24 uur.",
+    "voiceprint_duplicate_audio": "Deze opname is al geregistreerd. Neem een ander fragment op.",
+    "voiceprint_audio_format_invalid": "Gebruik mono-WAV met PCM16 en 24 kHz.",
+    "voiceprint_quality_pending": "Dit fragment wacht op kwaliteitscontrole.",
+    "voiceprint_upload_expired": "Uploadtoestemming is verlopen. Start een nieuwe registratiesessie.",
+    "voiceprint_key_unavailable": "Stemopslag is tijdelijk niet beschikbaar. Probeer later opnieuw."
+  }
+}

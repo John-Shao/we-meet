@@ -162,10 +162,13 @@ from core.api.personal_calendars import (
 )
 from core.api.personal_hotwords import PersonalHotwordsView
 from core.api.voiceprint import (
+    VoiceprintScopesView,
+    VoiceprintDeletionsView,
     VoiceprintEnrollmentsView,
     VoiceprintEnrollmentView,
     VoiceprintEnrollmentClipView,
     VoiceprintSamplesView,
+    VoiceprintSampleView,
     VoiceprintSampleAudioView,
     VoiceprintSampleDecisionView,
     VoiceprintSettingsView,
@@ -432,10 +435,13 @@ urlpatterns = [
                     "voiceprint/settings/",
                     VoiceprintSettingsView.as_view(), name="voiceprint-settings",
                 ),
+                path("voiceprint/scopes/", VoiceprintScopesView.as_view(), name="voiceprint-scopes"),
+                path("voiceprint/deletions/", VoiceprintDeletionsView.as_view(), name="voiceprint-deletions"),
                 path("voiceprint/enrollments/", VoiceprintEnrollmentsView.as_view(), name="voiceprint-enrollments"),
                 path("voiceprint/enrollments/<uuid:enrollment_id>/", VoiceprintEnrollmentView.as_view(), name="voiceprint-enrollment"),
                 path("voiceprint/enrollments/<uuid:enrollment_id>/clips/<int:slot>/", VoiceprintEnrollmentClipView.as_view(), name="voiceprint-enrollment-clip"),
                 path("voiceprint/samples/", VoiceprintSamplesView.as_view(), name="voiceprint-samples"),
+                path("voiceprint/samples/<uuid:sample_id>/", VoiceprintSampleView.as_view(), name="voiceprint-sample"),
                 path("voiceprint/samples/<uuid:sample_id>/audio/", VoiceprintSampleAudioView.as_view(), name="voiceprint-sample-audio"),
                 path("voiceprint/samples/<uuid:sample_id>/decision/", VoiceprintSampleDecisionView.as_view(), name="voiceprint-sample-decision"),
                 path(

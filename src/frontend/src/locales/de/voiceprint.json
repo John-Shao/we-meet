@@ -1,0 +1,105 @@
+{
+  "title": "Mein Stimmprofil",
+  "loginRequired": "Melden Sie sich an, um Ihr Stimmprofil zu verwalten.",
+  "intro": "Registrieren Sie nur Ihre eigene Stimme. Für Ihr persönliches Konto und jede Organisation gelten getrennte Einwilligungen und Stimmprofile.",
+  "scope": "Geltungsbereich des Stimmprofils",
+  "personal": "Persönliches Konto",
+  "scopeError": "Organisationen konnten nicht geladen werden.",
+  "moreScopes": "Weitere Organisationen",
+  "loading": "Stimmeinstellungen werden geladen…",
+  "reload": "Neu laden",
+  "more": "Mehr laden",
+  "disabled": "Stimmprofile sind in diesem Bereich derzeit nicht verfügbar. Sie können Einwilligungen weiterhin widerrufen oder ein bestehendes Profil löschen.",
+  "organizationPolicy": "Stimmprofile für diese Organisation freigeben",
+  "organizationPolicyHint": "Dies stellt nur die Funktion bereit. Jede Person muss selbst einwilligen.",
+  "permissions": {
+    "allow_enrollment": {
+      "title": "Registrierung und Bestätigung meiner Stimme erlauben",
+      "hint": "Die Registrierung ist freiwillig. Das Ausschalten widerruft dieses Stimmprofil und beendet ausstehende Registrierungsvorgänge."
+    },
+    "allow_accumulation": {
+      "title": "Mikrofonausschnitte von mir in Anrufen erlauben",
+      "hint": "Separate Einwilligung für mögliche Ausschnitte vom Mikrofon meines Kontos. Die Sammlung muss sichtbar und pausierbar sein; sie bestätigt keine Stimmvorlage."
+    },
+    "allow_identification": {
+      "title": "Identitätsvorschläge mit meinem Stimmprofil erlauben",
+      "hint": "Separate Einwilligung innerhalb der zulässigen Kandidaten. Das Ausschalten stoppt neue Vergleiche und ändert keine bereits manuell bestätigten Namen."
+    }
+  },
+  "enrollmentTitle": "Meine Stimme registrieren",
+  "enrollmentHint": "Lesen Sie den Text allein in ruhiger Umgebung. Empfohlen sind vier Ausschnitte von etwa acht Sekunden, insgesamt mindestens 30 Sekunden. Höchstens sechs Ausschnitte pro Sitzung, jeweils 3–10 Sekunden.",
+  "begin": "Registrierung starten",
+  "enrollmentProgress": "Hochgeladen: {{count}} / {{maximum}} Ausschnitte",
+  "enrollmentExpires": "Upload erlaubt bis: {{time}}",
+  "recording": {
+    "idle": "Das Mikrofon startet erst mit Aufnahme.",
+    "requesting": "Mikrofonfreigabe wird erwartet…",
+    "preparing": "Mikrofon beendet. Der Ausschnitt wird zum Anhören vorbereitet…",
+    "recording": "Aufnahme: {{seconds}} Sekunden (höchstens 10)"
+  },
+  "record": "Aufnahme",
+  "stop": "Aufnahme beenden",
+  "cancelRecording": "Ausschnitt abbrechen",
+  "endEnrollment": "Diese Aufnahmesitzung beenden",
+  "file": "Oder meinen WAV-Ausschnitt auswählen",
+  "fileHint": "Nur Ihre Stimme beim Lesen dieses Textes: Mono, PCM16, 24 kHz, 3–10 Sekunden. Hochgeladene Ausschnitte bleiben zur Prüfung oder Profil-Löschung verfügbar.",
+  "localAudio": "Vor dem Upload anhören",
+  "upload": "Meinen Ausschnitt hochladen",
+  "discard": "Lokale Aufnahme verwerfen",
+  "profiles": "Stimmprofil",
+  "noProfile": "In diesem Bereich ist kein Stimmprofil registriert.",
+  "never": "Noch nicht",
+  "profileStatus": {
+    "pending": "Noch nicht zur Identifizierung bereit",
+    "active": "Stimmprofil aktiv",
+    "paused": "Stimmprofil pausiert",
+    "deleted": "Stimmprofil widerrufen"
+  },
+  "lastConfirmed": "Zuletzt bestätigt: {{time}}",
+  "lastUpdated": "Zuletzt aktualisiert: {{time}}",
+  "delete": "Stimmprofil löschen",
+  "deleteConfirmation": "Ihr Stimmprofil in „{{scope}}“ löschen? Die Nutzung wird sofort widerrufen, ausstehende Aufgaben beendet und die Bereinigung von Ausschnitten und Vorlagen eingeplant. Andere Bereiche und bestehende Besprechungsnamen bleiben erhalten.",
+  "confirmDelete": "Stimmprofil dieses Bereichs löschen",
+  "cancel": "Abbrechen",
+  "samples": "Meine Ausschnitte",
+  "noSamples": "Keine Ausschnitte in diesem Bereich.",
+  "sampleTitle": "Ausschnitt {{index}} · {{seconds}} Sekunden",
+  "audioExpires": "Privates Audio läuft ab: {{time}}",
+  "qualityHint": "Die Kodierung beweist nicht, dass nur eine Person spricht. Die Bestätigung wartet auf Sprach- und Sprecherprüfung.",
+  "listen": "Anhören",
+  "reject": "Ausschnitt ablehnen",
+  "sampleAudio": "Meinen hochgeladenen Ausschnitt anhören",
+  "selfConfirmed": "Das ist allein meine Stimme",
+  "listenHint": "Hören Sie den gesamten Ausschnitt an und bestätigen Sie Ihre eigene Stimme vor der Annahme.",
+  "confirm": "Meinen Ausschnitt bestätigen",
+  "sampleStatus": {
+    "pending": "Wartet auf Kodierung",
+    "processing": "Wird kodiert",
+    "quality_pending": "Wartet auf Qualitätsprüfung",
+    "ready": "Wartet auf Ihre Bestätigung",
+    "confirmed": "Von Ihnen bestätigt",
+    "rejected": "Abgelehnt",
+    "expired": "Abgelaufen",
+    "deleted": "Gelöscht"
+  },
+  "deletions": "Bereinigungsbelege",
+  "deletionStatus": {
+    "queued": "Stimmprofil widerrufen; Bereinigung eingeplant",
+    "running": "Widerrufenes Stimmprofil wird bereinigt",
+    "succeeded": "Bereinigung abgeschlossen",
+    "failed": "Stimmprofil bleibt widerrufen; Bereinigung fehlgeschlagen. Wenden Sie sich an die Administration."
+  },
+  "errors": {
+    "failed": "Vorgang fehlgeschlagen. Wiederholen oder Einstellungen neu laden.",
+    "unavailable": "Konto, Bereich oder Einwilligung nicht mehr verfügbar. Vor dem Fortfahren neu laden.",
+    "conflict": "Einstellungen wurden anderweitig geändert. Vor weiteren Änderungen neu laden.",
+    "microphone": "Mikrofon nicht verfügbar. Browserfreigabe prüfen oder Ihre eigene WAV-Aufnahme auswählen.",
+    "duration": "Ein Ausschnitt muss 3–10 Sekunden dauern.",
+    "voiceprint_enrollment_quota": "Registrierungslimit erreicht. Nach dem 24-Stunden-Zeitraum erneut versuchen.",
+    "voiceprint_duplicate_audio": "Diese Aufnahme ist bereits registriert. Einen anderen Ausschnitt aufnehmen.",
+    "voiceprint_audio_format_invalid": "Eine Mono-WAV-Datei mit PCM16 und 24 kHz verwenden.",
+    "voiceprint_quality_pending": "Dieser Ausschnitt wartet auf die Qualitätsprüfung.",
+    "voiceprint_upload_expired": "Uploadfreigabe abgelaufen. Eine neue Registrierung starten.",
+    "voiceprint_key_unavailable": "Stimmspeicher vorübergehend nicht verfügbar. Später erneut versuchen."
+  }
+}

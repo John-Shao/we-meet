@@ -1,0 +1,105 @@
+{
+  "title": "My voiceprint",
+  "loginRequired": "Sign in to manage your voiceprint.",
+  "intro": "Register only your own voice. Permissions and voiceprints are managed separately for your personal account and each organization.",
+  "scope": "Voiceprint scope",
+  "personal": "Personal account",
+  "scopeError": "Organizations could not be loaded.",
+  "moreScopes": "More organizations",
+  "loading": "Loading voiceprint settings…",
+  "reload": "Reload",
+  "more": "Load more",
+  "disabled": "Voiceprints are currently unavailable in this scope. You can still revoke permissions or delete an existing profile.",
+  "organizationPolicy": "Enable voiceprints for this organization",
+  "organizationPolicyHint": "This only makes the feature available. Each person must grant their own permissions.",
+  "permissions": {
+    "allow_enrollment": {
+      "title": "Allow me to register and confirm my voice",
+      "hint": "Registration is voluntary. Turning this off revokes this scope's voiceprint and stops outstanding registration tasks."
+    },
+    "allow_accumulation": {
+      "title": "Allow sampling of my microphone in calls",
+      "hint": "Separate permission for collecting candidate clips from my account's microphone. Sampling must be visible and can be paused; it does not confirm a template."
+    },
+    "allow_identification": {
+      "title": "Allow matching against my voiceprint",
+      "hint": "Separate permission to offer my identity as a suggestion within an allowed candidate group. Turning this off stops new matches; it does not change names already confirmed by people."
+    }
+  },
+  "enrollmentTitle": "Register my voice",
+  "enrollmentHint": "Read the displayed prompt alone in a quiet place. Aim for four clips of about eight seconds, with at least 30 seconds in total. No more than six clips per session; each clip must be 3–10 seconds.",
+  "begin": "Start registration",
+  "enrollmentProgress": "Uploaded: {{count}} / {{maximum}} clips",
+  "enrollmentExpires": "Upload permission expires: {{time}}",
+  "recording": {
+    "idle": "Recording starts only when you choose Record.",
+    "requesting": "Waiting for microphone permission…",
+    "preparing": "Microphone stopped. Preparing your clip for playback…",
+    "recording": "Recording: {{seconds}} seconds (maximum 10)"
+  },
+  "record": "Record",
+  "stop": "Finish recording",
+  "cancelRecording": "Cancel recording",
+  "endEnrollment": "End this recording session",
+  "file": "Or choose my recorded WAV clip",
+  "fileHint": "Your own recording of this prompt only: mono, PCM16, 24 kHz, 3–10 seconds. Already uploaded clips remain available for review or profile deletion.",
+  "localAudio": "Preview before upload",
+  "upload": "Upload my clip",
+  "discard": "Discard local recording",
+  "profiles": "Voiceprint profile",
+  "noProfile": "No voiceprint registered in this scope.",
+  "never": "Not yet",
+  "profileStatus": {
+    "pending": "Not ready for identification",
+    "active": "Voiceprint active",
+    "paused": "Voiceprint paused",
+    "deleted": "Voiceprint revoked"
+  },
+  "lastConfirmed": "Last confirmed: {{time}}",
+  "lastUpdated": "Last updated: {{time}}",
+  "delete": "Delete voiceprint",
+  "deleteConfirmation": "Delete your voiceprint in “{{scope}}”? This immediately revokes its use, stops pending tasks and queues cleanup of samples and templates. Other scopes and existing meeting names are unaffected.",
+  "confirmDelete": "Delete this scope's voiceprint",
+  "cancel": "Cancel",
+  "samples": "My clips",
+  "noSamples": "No clips in this scope.",
+  "sampleTitle": "Clip {{index}} · {{seconds}} seconds",
+  "audioExpires": "Private audio expires: {{time}}",
+  "qualityHint": "Encoding alone cannot establish that a clip contains one person speaking. Confirmation is unavailable until speech and speaker quality checks pass.",
+  "listen": "Listen",
+  "reject": "Reject clip",
+  "sampleAudio": "Listen to my uploaded clip",
+  "selfConfirmed": "This is my voice alone",
+  "listenHint": "Listen to the whole clip and confirm it is your voice before accepting it.",
+  "confirm": "Confirm my clip",
+  "sampleStatus": {
+    "pending": "Waiting for encoding",
+    "processing": "Encoding",
+    "quality_pending": "Awaiting quality review",
+    "ready": "Ready for your confirmation",
+    "confirmed": "Confirmed by you",
+    "rejected": "Rejected",
+    "expired": "Expired",
+    "deleted": "Deleted"
+  },
+  "deletions": "Cleanup receipts",
+  "deletionStatus": {
+    "queued": "Voiceprint revoked; cleanup queued",
+    "running": "Cleaning up revoked voiceprint",
+    "succeeded": "Cleanup completed",
+    "failed": "Voiceprint remains revoked; cleanup failed. Contact your administrator."
+  },
+  "errors": {
+    "failed": "The operation failed. Try again or reload the current settings.",
+    "unavailable": "The account, scope or authorization is no longer available. Reload before continuing.",
+    "conflict": "Settings changed elsewhere. Reload before making another change.",
+    "microphone": "The microphone could not be used. Check browser permissions, or choose your own WAV recording.",
+    "duration": "A clip must be 3–10 seconds.",
+    "voiceprint_enrollment_quota": "The registration limit has been reached. Try again after the 24-hour quota window.",
+    "voiceprint_duplicate_audio": "This recording is already registered. Record a different clip.",
+    "voiceprint_audio_format_invalid": "Use a mono PCM16 WAV at 24 kHz.",
+    "voiceprint_quality_pending": "This clip is awaiting quality review.",
+    "voiceprint_upload_expired": "Upload permission expired. Start a new registration session.",
+    "voiceprint_key_unavailable": "Voiceprint storage is temporarily unavailable. Try again later."
+  }
+}

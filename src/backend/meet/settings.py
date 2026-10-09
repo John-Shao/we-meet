@@ -709,7 +709,13 @@ class Base(Configuration):
     CORS_ALLOW_ALL_ORIGINS = values.BooleanValue(False)
     CORS_ALLOWED_ORIGINS = values.ListValue([])
     CORS_ALLOWED_ORIGIN_REGEXES = values.ListValue([])
-    CORS_ALLOW_HEADERS = [*default_headers, "idempotency-key", "x-capture-lease"]
+    CORS_ALLOW_HEADERS = [
+        *default_headers,
+        "idempotency-key",
+        "x-capture-lease",
+        "x-voiceprint-owner",
+        "x-voiceprint-upload-token",
+    ]
 
     # Sentry
     SENTRY_DSN = values.Value(None, environ_name="SENTRY_DSN")

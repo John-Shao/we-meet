@@ -77,6 +77,9 @@ class PrivateVoiceprintView(APIView):
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
         service.owner(request.user)
+        expected_owner = request.headers.get("X-Voiceprint-Owner")
+        if expected_owner is not None and expected_owner != str(request.user.pk):
+            raise service.VoiceprintError("voiceprint_account_changed", status=401)
 
     def handle_exception(self, exc):
         if isinstance(exc, VoiceprintCryptoError):
@@ -116,6 +119,45 @@ class VoiceprintSettingsView(PrivateVoiceprintView):
         )
 
 
+class VoiceprintScopesView(PrivateVoiceprintView):
+    """Only the actor's active memberships, never a searchable org directory."""
+
+    throttle_classes = [SettingsThrottle]
+    http_method_names = ["get", "options"]
+
+    def get(self, request):
+        payload = PaginationSerializer(data=request.query_params)
+        payload.is_valid(raise_exception=True)
+        offset = payload.validated_data["offset"]
+        rows = (
+            models.Membership.objects.filter(
+                user=request.user,
+                status=models.MembershipStatusChoices.ACTIVE,
+                organization__is_active=True,
+            )
+            .select_related("organization")
+            .order_by("organization__name", "organization_id")
+        )
+        page = list(rows[offset : offset + 26])
+        return Response(
+            {
+                "results": [
+                    {
+                        "id": str(row.organization_id),
+                        "name": row.organization.name,
+                        "can_manage_policy": row.org_role
+                        in {models.OrgRoleChoices.ADMIN, models.OrgRoleChoices.OWNER},
+                        "policy": service.organization_policy(row.organization),
+                    }
+                    for row in page[:25]
+                ],
+                "next_offset": offset + 25
+                if len(page) > 25 and offset + 25 <= 10000
+                else None,
+            }
+        )
+
+
 class VoiceprintProfileView(PrivateVoiceprintView):
     http_method_names = ["delete", "options"]
 
@@ -138,6 +180,32 @@ class VoiceprintDeletionView(PrivateVoiceprintView):
         if job is None:
             raise service.VoiceprintError("voiceprint_deletion_unavailable", status=404)
         return Response(service.deletion_snapshot(job))
+
+
+class VoiceprintDeletionsView(PrivateVoiceprintView):
+    http_method_names = ["get", "options"]
+
+    def get(self, request):
+        payload = SampleListSerializer(data=request.query_params)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        organization = service.scope(
+            service.owner(request.user), data["organization_id"]
+        )
+        offset = data["offset"]
+        rows = models.VoiceprintDeletionJob.objects.filter(
+            owner_id=request.user.pk,
+            organization_id=organization.pk if organization else None,
+        ).order_by("-created_at", "id")
+        page = list(rows[offset : offset + 26])
+        return Response(
+            {
+                "results": [service.deletion_snapshot(row) for row in page[:25]],
+                "next_offset": offset + 25
+                if len(page) > 25 and offset + 25 <= 10000
+                else None,
+            }
+        )
 
 
 class VoiceprintOrganizationPolicyView(PrivateVoiceprintView):
@@ -181,6 +249,10 @@ class EnrollmentSerializer(StrictSerializer):
 
 
 class SampleListSerializer(ScopeSerializer):
+    offset = serializers.IntegerField(min_value=0, max_value=10000, default=0)
+
+
+class PaginationSerializer(StrictSerializer):
     offset = serializers.IntegerField(min_value=0, max_value=10000, default=0)
 
 
@@ -259,6 +331,33 @@ class VoiceprintEnrollmentClipView(PrivateVoiceprintView):
         return Response(enrollment_service.sample_snapshot(row), status=202)
 
 
+def sample_metadata_rows(user, organization):
+    return (
+        models.VoiceprintSample.objects.filter(
+            profile__consent__user=user,
+            profile__consent__organization=organization,
+            generation=F("profile__consent__generation"),
+            profile__generation=F("generation"),
+        )
+        .exclude(profile__status="deleted")
+        .select_related("enrollment")
+        .annotate(
+            audio_present=Case(
+                When(encrypted_audio=b"", then=Value(False)),
+                default=Value(True),
+                output_field=BooleanField(),
+            ),
+            embedding_present=Case(
+                When(encrypted_embedding=b"", then=Value(False)),
+                default=Value(True),
+                output_field=BooleanField(),
+            ),
+        )
+        .defer("encrypted_audio", "encrypted_embedding")
+        .order_by("-created_at", "id")
+    )
+
+
 class VoiceprintSamplesView(PrivateVoiceprintView):
     http_method_names = ["get", "options"]
 
@@ -269,30 +368,7 @@ class VoiceprintSamplesView(PrivateVoiceprintView):
         organization = service.scope(
             service.owner(request.user), data["organization_id"]
         )
-        rows = (
-            models.VoiceprintSample.objects.filter(
-                profile__consent__user=request.user,
-                profile__consent__organization=organization,
-                generation=F("profile__consent__generation"),
-                profile__generation=F("generation"),
-            )
-            .exclude(profile__status="deleted")
-            .select_related("enrollment")
-            .annotate(
-                audio_present=Case(
-                    When(encrypted_audio=b"", then=Value(False)),
-                    default=Value(True),
-                    output_field=BooleanField(),
-                ),
-                embedding_present=Case(
-                    When(encrypted_embedding=b"", then=Value(False)),
-                    default=Value(True),
-                    output_field=BooleanField(),
-                ),
-            )
-            .defer("encrypted_audio", "encrypted_embedding")
-            .order_by("-created_at", "id")
-        )
+        rows = sample_metadata_rows(request.user, organization)
         offset = data["offset"]
         page = list(rows[offset : offset + 26])
         return Response(
@@ -305,6 +381,27 @@ class VoiceprintSamplesView(PrivateVoiceprintView):
                 else None,
             }
         )
+
+
+class VoiceprintSampleView(PrivateVoiceprintView):
+    """Refresh private metadata without loading audio or embeddings."""
+
+    http_method_names = ["get", "options"]
+
+    def get(self, request, sample_id):
+        payload = ScopeSerializer(data=request.query_params)
+        payload.is_valid(raise_exception=True)
+        organization = service.scope(
+            service.owner(request.user), payload.validated_data["organization_id"]
+        )
+        sample = (
+            sample_metadata_rows(request.user, organization)
+            .filter(pk=sample_id)
+            .first()
+        )
+        if sample is None:
+            raise service.VoiceprintError("voiceprint_sample_unavailable", status=404)
+        return Response(enrollment_service.sample_snapshot(sample))
 
 
 class VoiceprintSampleAudioView(PrivateVoiceprintView):

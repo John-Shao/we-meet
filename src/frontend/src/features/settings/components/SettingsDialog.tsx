@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSnapshot } from 'valtio'
 import { useQueryClient } from '@tanstack/react-query'
@@ -54,6 +54,7 @@ import { useReminderEntryEnabled } from '@/features/im/hooks/useReminderEntry'
 import { TaskSettingsPanel } from '@/features/tasks/components/TaskSettingsPanel'
 import { buildTimezoneOptions } from '@/utils/timezoneOptions'
 import { AvatarUploadDialog } from './AvatarUploadDialog'
+import { VoiceprintSettingsPanel } from '@/features/voiceprint/VoiceprintSettingsPanel'
 
 export type SettingsDialogProps = Pick<
   DialogProps,
@@ -70,15 +71,32 @@ export const SettingsDialog = ({
   onOpenChange,
   initialSection,
 }: SettingsDialogProps) => {
-  const { t } = useTranslation('settings')
+  const { t } = useTranslation(['settings', 'voiceprint'])
   const { isLoggedIn } = useUser()
   const [section, setSection] = useState<Section>('general')
   const [avatarOpen, setAvatarOpen] = useState(false)
+  const nav = useRef<HTMLElement>(null)
 
   // 快捷入口带节打开时定位;不带节保持上次/默认。
   useEffect(() => {
     if (initialSection) setSection(initialSection)
   }, [initialSection])
+
+  useEffect(() => {
+    if (!isOpen || !nav.current) return
+    const element = nav.current
+    const revealSelected = () =>
+      element
+        .querySelector<HTMLElement>('[aria-current="true"]')
+        ?.scrollIntoView({
+          block: 'nearest',
+          inline: 'nearest',
+        })
+    revealSelected()
+    const observer = new ResizeObserver(revealSelected)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [section, isOpen, isLoggedIn])
 
   if (!isOpen) return null
 
@@ -118,13 +136,19 @@ export const SettingsDialog = ({
       Icon: RiFileList3Line,
     },
   ]
+  if (isLoggedIn)
+    navItems.splice(3, 0, {
+      key: 'voiceprint',
+      label: t('voiceprint:title'),
+      Icon: RiUser3Line,
+    })
 
   return (
     <Modal
       onClose={() => onOpenChange?.(false)}
       ariaLabel={t('systemSettings.heading')}
       maxWidth="760px"
-      maxHeight="560px"
+      maxHeight="min(560px, calc(100dvh - 2rem))"
     >
       <div className={headerCls}>
         <h2 className={headerTitleCls}>{t('systemSettings.heading')}</h2>
@@ -135,7 +159,7 @@ export const SettingsDialog = ({
       </div>
 
       <div className={bodyCls}>
-        <nav className={navCls}>
+        <nav ref={nav} className={navCls}>
           {navItems.map(({ key, label, Icon }) => (
             <button
               key={key}
@@ -162,6 +186,7 @@ export const SettingsDialog = ({
             />
           )}
           {section === 'meeting' && <MeetingPanel />}
+          {section === 'voiceprint' && <VoiceprintSettingsPanel />}
           {section === 'calendar' && <CalendarPanel />}
           {section === 'tasks' && <TaskSettingsPanel />}
           {section === 'agreement' && <AgreementPanel />}
@@ -754,6 +779,10 @@ const bodyCls = css({
   flex: 1,
   minHeight: '22rem',
   overflow: 'hidden',
+  '@media (max-width: 640px)': {
+    flexDirection: 'column',
+    minHeight: 0,
+  },
 })
 const navCls = css({
   flexShrink: 0,
@@ -762,6 +791,12 @@ const navCls = css({
   flexDirection: 'column',
   gap: '0.25rem',
   padding: '0.5rem 0.75rem',
+  '@media (max-width: 640px)': {
+    width: 'auto',
+    flexDirection: 'row',
+    overflowX: 'auto',
+    '& button': { width: 'auto', flexShrink: 0, whiteSpace: 'nowrap' },
+  },
 })
 // 布局与状态背景拆开:cx 叠加同属性原子类按样式表顺序取胜,active 的
 // backgroundColor 曾与基类的 background 简写互撞靠顺序侥幸生效
@@ -791,6 +826,10 @@ const panelCls = css({
   minWidth: 0,
   padding: '1.25rem 1.5rem',
   overflowY: 'auto',
+  '@media (max-width: 640px)': {
+    minHeight: 0,
+    padding: 'md',
+  },
 })
 const fieldLabelCls = css({
   fontSize: '0.9375rem',

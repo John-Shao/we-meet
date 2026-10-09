@@ -153,6 +153,11 @@ def enrollment_snapshot(enrollment):
         "generation": enrollment.generation,
         "challenges": enrollment.challenges,
         "max_clips": MAX_CLIPS,
+        "uploaded_slots": list(
+            enrollment.samples.order_by("enrollment_slot").values_list(
+                "enrollment_slot", flat=True
+            )
+        ),
         "sample_rate": 24000,
         "channels": 1,
         "format": "pcm16_wav",

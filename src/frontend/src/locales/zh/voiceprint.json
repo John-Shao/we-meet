@@ -1,0 +1,105 @@
+{
+  "title": "我的声纹",
+  "loginRequired": "请登录后管理本人的声纹。",
+  "intro": "只能登记本人的声音。个人账号与每个组织分别管理授权和声纹，不会混用。",
+  "scope": "声纹作用域",
+  "personal": "个人账号",
+  "scopeError": "组织列表加载失败。",
+  "moreScopes": "更多组织",
+  "loading": "正在加载声纹设置…",
+  "reload": "重新加载",
+  "more": "加载更多",
+  "disabled": "此作用域的声纹功能当前不可用，仍可关闭授权或删除已有档案。",
+  "organizationPolicy": "为此组织开放声纹功能",
+  "organizationPolicyHint": "这里只开放功能，每位成员仍须独立授权，管理员不能代为登记。",
+  "permissions": {
+    "allow_enrollment": {
+      "title": "允许本人登记和确认声音",
+      "hint": "登记完全自愿。关闭后撤销此作用域的声纹，并停止未完成的登记任务。"
+    },
+    "allow_accumulation": {
+      "title": "允许通话中采集本人麦克风片段",
+      "hint": "独立授权，仅收集本人账号麦克风的候选片段。采样须可见且可暂停，不会直接确认模板。"
+    },
+    "allow_identification": {
+      "title": "允许使用本人声纹提供身份建议",
+      "hint": "独立授权，仅在许可的候选范围内匹配。关闭后停止新增识别，不改动已由人工确认的会议姓名。"
+    }
+  },
+  "enrollmentTitle": "登记本人的声音",
+  "enrollmentHint": "请在安静环境中独自朗读下方提示。建议录制四段、每段约八秒，累计至少 30 秒；每次登记最多六段，每段须为 3～10 秒。",
+  "begin": "开始登记",
+  "enrollmentProgress": "已上传：{{count}} / {{maximum}} 段",
+  "enrollmentExpires": "上传许可到期时间：{{time}}",
+  "recording": {
+    "idle": "点击“录音”后才会开启麦克风。",
+    "requesting": "正在等待麦克风授权…",
+    "preparing": "麦克风已关闭，正在准备试听片段…",
+    "recording": "正在录音：{{seconds}} 秒（最多 10 秒）"
+  },
+  "record": "录音",
+  "stop": "结束录音",
+  "cancelRecording": "取消本段录音",
+  "endEnrollment": "结束本次录制",
+  "file": "或选择本人录好的 WAV 片段",
+  "fileHint": "仅限本人朗读此提示的录音：单声道、PCM16、24 kHz、3～10 秒。已上传的片段会保留，可在下方审核或删除声纹档案。",
+  "localAudio": "上传前试听",
+  "upload": "上传本人片段",
+  "discard": "丢弃本地录音",
+  "profiles": "声纹档案",
+  "noProfile": "此作用域尚未登记声纹。",
+  "never": "尚无",
+  "profileStatus": {
+    "pending": "尚不能用于身份识别",
+    "active": "声纹已启用",
+    "paused": "声纹已暂停",
+    "deleted": "声纹已撤销"
+  },
+  "lastConfirmed": "最近确认：{{time}}",
+  "lastUpdated": "最近更新：{{time}}",
+  "delete": "删除声纹",
+  "deleteConfirmation": "删除“{{scope}}”中的本人声纹？将立即撤销其使用权限，停止待处理任务，并排队清理样本和模板。其他作用域及已有会议姓名不受影响。",
+  "confirmDelete": "删除此作用域的声纹",
+  "cancel": "取消",
+  "samples": "本人的片段",
+  "noSamples": "此作用域暂无片段。",
+  "sampleTitle": "片段 {{index}} · {{seconds}} 秒",
+  "audioExpires": "私有试听音频到期：{{time}}",
+  "qualityHint": "完成编码不能证明片段中只有一个人在说话。语音和说话人质量检查通过前不能确认。",
+  "listen": "试听",
+  "reject": "拒绝此片段",
+  "sampleAudio": "试听本人上传的片段",
+  "selfConfirmed": "这是本人独自说话的声音",
+  "listenHint": "请完整试听，并确认是本人的声音后再接受。",
+  "confirm": "确认本人片段",
+  "sampleStatus": {
+    "pending": "等待编码",
+    "processing": "正在编码",
+    "quality_pending": "质量待审核",
+    "ready": "等待本人确认",
+    "confirmed": "本人已确认",
+    "rejected": "已拒绝",
+    "expired": "已到期",
+    "deleted": "已删除"
+  },
+  "deletions": "清理回执",
+  "deletionStatus": {
+    "queued": "声纹已撤销，清理已排队",
+    "running": "正在清理已撤销的声纹",
+    "succeeded": "清理已完成",
+    "failed": "声纹仍已撤销，清理失败，请联系管理员。"
+  },
+  "errors": {
+    "failed": "操作失败，请重试或重新加载当前设置。",
+    "unavailable": "账号、作用域或授权已不可用，请重新加载后再操作。",
+    "conflict": "设置已在其他地方变更，请重新加载后再修改。",
+    "microphone": "无法使用麦克风，请检查浏览器授权，或选择本人录制的 WAV 文件。",
+    "duration": "每段录音须为 3～10 秒。",
+    "voiceprint_enrollment_quota": "已达到登记次数上限，请在 24 小时配额窗口后重试。",
+    "voiceprint_duplicate_audio": "此录音已登记，请重新录制不同的片段。",
+    "voiceprint_audio_format_invalid": "请使用单声道、PCM16、24 kHz 的 WAV 文件。",
+    "voiceprint_quality_pending": "此片段尚在等待质量审核。",
+    "voiceprint_upload_expired": "上传许可已到期，请开始新的登记。",
+    "voiceprint_key_unavailable": "声纹存储暂不可用，请稍后重试。"
+  }
+}

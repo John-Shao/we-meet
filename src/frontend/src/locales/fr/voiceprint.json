@@ -1,0 +1,105 @@
+{
+  "title": "Mon empreinte vocale",
+  "loginRequired": "Connectez-vous pour gérer votre empreinte vocale.",
+  "intro": "Enregistrez uniquement votre propre voix. Votre compte personnel et chaque organisation disposent d'autorisations et d'empreintes distinctes.",
+  "scope": "Périmètre de l'empreinte",
+  "personal": "Compte personnel",
+  "scopeError": "Impossible de charger les organisations.",
+  "moreScopes": "Autres organisations",
+  "loading": "Chargement des paramètres…",
+  "reload": "Recharger",
+  "more": "Afficher la suite",
+  "disabled": "Les empreintes vocales sont indisponibles dans ce périmètre. Vous pouvez toujours retirer vos autorisations ou supprimer un profil existant.",
+  "organizationPolicy": "Activer les empreintes pour cette organisation",
+  "organizationPolicyHint": "Cela rend la fonction disponible. Chaque personne doit encore donner ses propres autorisations.",
+  "permissions": {
+    "allow_enrollment": {
+      "title": "Autoriser l'enregistrement et la confirmation de ma voix",
+      "hint": "L'inscription est volontaire. Désactiver cette autorisation révoque l'empreinte de ce périmètre et arrête les inscriptions en cours."
+    },
+    "allow_accumulation": {
+      "title": "Autoriser des extraits de mon microphone en appel",
+      "hint": "Autorisation distincte pour recueillir des extraits candidats du microphone de mon compte. La collecte doit être visible et peut être suspendue ; elle ne confirme aucun modèle vocal."
+    },
+    "allow_identification": {
+      "title": "Autoriser les suggestions d'identité avec mon empreinte",
+      "hint": "Autorisation distincte, limitée aux candidats autorisés. La désactiver arrête les nouvelles comparaisons sans modifier les noms déjà confirmés manuellement."
+    }
+  },
+  "enrollmentTitle": "Enregistrer ma voix",
+  "enrollmentHint": "Lisez le texte seul, au calme. Prévoyez quatre extraits d'environ huit secondes, pour au moins 30 secondes au total. Six extraits maximum par session, chacun de 3 à 10 secondes.",
+  "begin": "Commencer l'inscription",
+  "enrollmentProgress": "Envoyés : {{count}} / {{maximum}} extraits",
+  "enrollmentExpires": "Autorisation d'envoi valable jusqu'au {{time}}",
+  "recording": {
+    "idle": "Le microphone ne démarre que lorsque vous choisissez Enregistrer.",
+    "requesting": "En attente de l'autorisation du microphone…",
+    "preparing": "Microphone arrêté. Préparation de l'extrait pour l'écoute…",
+    "recording": "Enregistrement : {{seconds}} secondes (maximum 10)"
+  },
+  "record": "Enregistrer",
+  "stop": "Terminer l'enregistrement",
+  "cancelRecording": "Annuler cet extrait",
+  "endEnrollment": "Terminer cette session",
+  "file": "Ou choisir mon extrait WAV",
+  "fileHint": "Uniquement votre voix lisant ce texte : mono, PCM16, 24 kHz, 3 à 10 secondes. Les extraits envoyés restent disponibles pour examen ou suppression du profil.",
+  "localAudio": "Écouter avant l'envoi",
+  "upload": "Envoyer mon extrait",
+  "discard": "Jeter l'enregistrement local",
+  "profiles": "Profil vocal",
+  "noProfile": "Aucune empreinte dans ce périmètre.",
+  "never": "Pas encore",
+  "profileStatus": {
+    "pending": "Pas encore utilisable pour identifier",
+    "active": "Empreinte active",
+    "paused": "Empreinte suspendue",
+    "deleted": "Empreinte révoquée"
+  },
+  "lastConfirmed": "Dernière confirmation : {{time}}",
+  "lastUpdated": "Dernière mise à jour : {{time}}",
+  "delete": "Supprimer l'empreinte",
+  "deleteConfirmation": "Supprimer votre empreinte dans « {{scope}} » ? Son utilisation sera immédiatement révoquée, les tâches en attente arrêtées et le nettoyage des extraits et modèles mis en file. Les autres périmètres et les noms existants ne changent pas.",
+  "confirmDelete": "Supprimer l'empreinte de ce périmètre",
+  "cancel": "Annuler",
+  "samples": "Mes extraits",
+  "noSamples": "Aucun extrait dans ce périmètre.",
+  "sampleTitle": "Extrait {{index}} · {{seconds}} secondes",
+  "audioExpires": "Audio privé disponible jusqu'au {{time}}",
+  "qualityHint": "L'encodage ne prouve pas qu'une seule personne parle. La confirmation attend les contrôles de parole et de locuteur.",
+  "listen": "Écouter",
+  "reject": "Rejeter l'extrait",
+  "sampleAudio": "Écouter mon extrait envoyé",
+  "selfConfirmed": "C'est uniquement ma voix",
+  "listenHint": "Écoutez l'extrait entier et vérifiez qu'il s'agit de votre voix avant de l'accepter.",
+  "confirm": "Confirmer mon extrait",
+  "sampleStatus": {
+    "pending": "En attente d'encodage",
+    "processing": "Encodage en cours",
+    "quality_pending": "En attente du contrôle qualité",
+    "ready": "En attente de votre confirmation",
+    "confirmed": "Confirmé par vous",
+    "rejected": "Rejeté",
+    "expired": "Expiré",
+    "deleted": "Supprimé"
+  },
+  "deletions": "Suivi du nettoyage",
+  "deletionStatus": {
+    "queued": "Empreinte révoquée ; nettoyage en attente",
+    "running": "Nettoyage de l'empreinte révoquée",
+    "succeeded": "Nettoyage terminé",
+    "failed": "L'empreinte reste révoquée ; nettoyage échoué. Contactez votre administrateur."
+  },
+  "errors": {
+    "failed": "Échec de l'opération. Réessayez ou rechargez les paramètres.",
+    "unavailable": "Le compte, le périmètre ou l'autorisation est indisponible. Rechargez avant de continuer.",
+    "conflict": "Les paramètres ont changé ailleurs. Rechargez avant toute modification.",
+    "microphone": "Microphone indisponible. Vérifiez les autorisations ou choisissez votre propre enregistrement WAV.",
+    "duration": "Chaque extrait doit durer de 3 à 10 secondes.",
+    "voiceprint_enrollment_quota": "Limite d'inscription atteinte. Réessayez après la période de quota de 24 heures.",
+    "voiceprint_duplicate_audio": "Cet enregistrement est déjà inscrit. Enregistrez un nouvel extrait.",
+    "voiceprint_audio_format_invalid": "Utilisez un WAV mono PCM16 à 24 kHz.",
+    "voiceprint_quality_pending": "Cet extrait attend le contrôle qualité.",
+    "voiceprint_upload_expired": "L'autorisation d'envoi a expiré. Commencez une nouvelle session.",
+    "voiceprint_key_unavailable": "Le stockage vocal est temporairement indisponible. Réessayez plus tard."
+  }
+}
