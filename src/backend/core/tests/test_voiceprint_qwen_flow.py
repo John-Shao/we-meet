@@ -19,6 +19,7 @@ from core import models
 from core.services.voiceprint_crypto import load_keyring
 from core.services.voiceprint_jobs import process_one
 from core.services.voiceprint_rpc_process import EncoderConfiguration
+from core.services.voiceprint_vectors import read_sample_vector
 from core.tests.services.test_meeting_records import client_for
 from core.tests.services.test_voiceprint_enrollment import actor, enabled
 
@@ -134,8 +135,8 @@ def test_registration_api_independent_worker_actual_qwen_and_private_poll(
         config = EncoderConfiguration(f"http://127.0.0.1:{port}", token, key)
         assert process_one(sample.encoding_job.pk, config) == "succeeded"
         sample.refresh_from_db()
-        vector = struct.unpack(
-            "<1024f",
+        vector = read_sample_vector(
+            sample,
             load_keyring().decrypt(
                 sample.profile,
                 sample.encrypted_embedding,

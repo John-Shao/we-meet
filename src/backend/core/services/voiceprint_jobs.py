@@ -1,7 +1,6 @@
 """Independent enrollment queue: lease, killable RPC, reauthorization, encrypted result."""
 
 import hashlib
-import struct
 from dataclasses import dataclass, field
 from uuid import uuid4
 
@@ -15,6 +14,7 @@ from core.services import voiceprint_rpc_process as rpc_process
 from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_crypto import VoiceprintCryptoError, load_keyring
 from core.services.voiceprint_encoder import FEATURE_SPACE, EncoderError, decode_result
+from core.services.voiceprint_vectors import sample_payload
 
 LEASE_SECONDS = rpc_process.MAX_PROCESS_SECONDS + 5
 
@@ -274,7 +274,7 @@ def authorized(lease):
 
 
 @transaction.atomic
-def finish(lease, *, result=None, error=None):  # noqa: PLR0911, PLR0912 -- Keep commit guards explicit.
+def finish(lease, *, result=None, error=None):  # noqa: PLR0911, PLR0912, PLR0915 -- Keep commit guards explicit.
     locked = lock_job(lease.job_id)
     if locked is None:
         return False
@@ -322,14 +322,17 @@ def finish(lease, *, result=None, error=None):  # noqa: PLR0911, PLR0912 -- Keep
             )
             if result.quality["duration_ms"] != lease.duration_ms:
                 raise EncoderError("encoder_response_invalid")
+            sample.quality = result.quality
             sample.encrypted_embedding = load_keyring().encrypt(
                 profile,
-                struct.pack("<1024f", *result.vector),
+                sample_payload(sample, result.vector),
                 kind="embedding",
                 object_id=sample.pk,
             )
         except EncoderError as failure:
             error, result = failure, None
+        except VoiceprintError:
+            error, result = EncoderError("encoder_response_invalid"), None
         except VoiceprintCryptoError:
             error, result = (
                 EncoderError("voiceprint_key_unavailable", retryable=True),

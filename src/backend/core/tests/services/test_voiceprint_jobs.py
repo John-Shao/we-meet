@@ -3,7 +3,6 @@
 import base64
 import io
 import json
-import struct
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
@@ -22,6 +21,7 @@ from core.services import voiceprint_rpc_process as process
 from core.services.voiceprint_crypto import load_keyring
 from core.services.voiceprint_encoder import EncoderError, decode_result
 from core.services.voiceprint_enrollment import sample_snapshot
+from core.services.voiceprint_vectors import read_sample_vector
 from core.tests.services.test_voiceprint_enrollment import (
     actor,
     begin,
@@ -62,7 +62,7 @@ def test_lease_is_exclusive_and_result_is_encrypted_signal_only(actor):
         kind="embedding",
         object_id=sample.pk,
     )
-    assert clear == struct.pack("<1024f", *result.vector)
+    assert read_sample_vector(sample, clear) == pytest.approx(result.vector)
     assert sample.encrypted_embedding != clear
     assert sample_snapshot(sample)["status"] == "quality_pending"
     assert not sample_snapshot(sample)["confirmable"]
@@ -225,14 +225,17 @@ def test_actual_subprocess_http_flow_keeps_signal_only_sample_quarantined(
     assert sample_snapshot(sample)["status"] == "quality_pending"
     assert (
         len(
-            load_keyring().decrypt(
-                sample.profile,
-                sample.encrypted_embedding,
-                kind="embedding",
-                object_id=sample.pk,
+            read_sample_vector(
+                sample,
+                load_keyring().decrypt(
+                    sample.profile,
+                    sample.encrypted_embedding,
+                    kind="embedding",
+                    object_id=sample.pk,
+                ),
             )
         )
-        == 4096
+        == 1024
     )
     assert upstream.requests == 1 and not sample.profile.templates.exists()
 

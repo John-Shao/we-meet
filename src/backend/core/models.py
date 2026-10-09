@@ -9135,6 +9135,8 @@ class VoiceprintProfile(BaseModel):
     confirmed_at = models.DateTimeField(null=True, blank=True)
     last_updated_at = models.DateTimeField(null=True, blank=True)
 
+    template_checked_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -9242,6 +9244,9 @@ class VoiceprintTemplate(BaseModel):
     generation = models.PositiveBigIntegerField()
     device_group = models.CharField(max_length=24, default="default")
     dimension = models.PositiveIntegerField()
+    revision = models.PositiveBigIntegerField(default=1)
+    policy_version = models.CharField(max_length=96, blank=True, default="")
+    support_digest = models.CharField(max_length=64, blank=True, default="")
     encrypted_vector = models.BinaryField(blank=True, default=bytes, max_length=32768)
     support_samples = models.ManyToManyField(VoiceprintSample, related_name="templates")
     status = models.CharField(

@@ -209,7 +209,10 @@ def template_ready(template, *, profile):
         "end_ms",
         "audio_sha256",
     )
-    for sample in samples.iterator(chunk_size=32):
+    samples = list(samples[:13])
+    if not MIN_REGISTRATION_CLIPS <= len(samples) <= 12:
+        return False
+    for sample in samples:
         quality = sample.quality
         if (
             sample.profile_id != profile.pk
@@ -235,6 +238,12 @@ def template_ready(template, *, profile):
 
 
 def profile_ready(profile):
+    # Matching cannot rely on status/booleans alone: validate the authenticated
+    # artifact against the current confirmed contributions and policy.
+    from core.services.voiceprint_templates import (  # noqa: PLC0415 -- Templates depend on consent guards.
+        valid_baseline,
+    )
+
     if profile.feature_space != FEATURE_SPACE:
         return False
     templates = list(
@@ -248,6 +257,7 @@ def profile_ready(profile):
         template.dimension == DIMENSION
         and bool(template.encrypted_vector)
         and template_ready(template, profile=profile)
+        and valid_baseline(template, profile)
         for template in templates
     )
 
@@ -323,6 +333,7 @@ def ensure_profile(actor, *, organization_id, expected_version):
         profile.status = "pending"
         profile.confirmed_at = None
         profile.last_updated_at = None
+        profile.template_checked_at = None
         profile.encrypted_key = b""
     if not profile.encrypted_key:
         profile.encrypted_key = load_keyring().create_profile_key(profile)

@@ -23,6 +23,7 @@ from core.services import voiceprint_enrollment as service
 from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_crypto import load_keyring
 from core.services.voiceprint_retention import expire_sample
+from core.services.voiceprint_vectors import sample_payload
 
 pytestmark = pytest.mark.django_db
 
@@ -99,10 +100,35 @@ def ready(sample):
         "valid_speech_ms": 3000,
     }
     sample.encrypted_embedding = load_keyring().encrypt(
-        sample.profile, b"synthetic embedding", kind="embedding", object_id=sample.pk
+        sample.profile,
+        sample_payload(sample, (1.0, *([0.0] * 1023))),
+        kind="embedding",
+        object_id=sample.pk,
     )
     sample.save()
     return sample
+
+
+@pytest.mark.parametrize("damage", ["quality", "source", "legacy_embedding"])
+def test_confirmation_rejects_unsigned_or_changed_feature_metadata(actor, damage):
+    sample = ready(upload(actor, begin(actor)))
+    if damage == "quality":
+        sample.quality["unchecked_override"] = True
+    elif damage == "source":
+        sample.audio_sha256 = uuid4().hex * 2
+    else:
+        sample.encrypted_embedding = load_keyring().encrypt(
+            sample.profile,
+            b"legacy raw embedding",
+            kind="embedding",
+            object_id=sample.pk,
+        )
+    sample.save()
+    with pytest.raises(VoiceprintError, match="voiceprint_quality_pending"):
+        service.decide(actor, sample.pk, expected_version=1, accepted=True)
+    sample.refresh_from_db()
+    assert sample.status == "ready" and sample.confirmed_at is None
+    assert not models.VoiceprintSampleDecision.objects.filter(sample=sample).exists()
 
 
 def test_non_ascii_upload_token_is_rejected_with_stable_error(actor):

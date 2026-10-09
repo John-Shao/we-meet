@@ -274,6 +274,10 @@ def test_accumulation_alone_cannot_confirm_call_candidate(actor, allow_enrollmen
     models.VoiceprintSample.objects.filter(pk=sample.pk).update(
         source_type="call", enrollment=None, consent_version=2, status="ready"
     )
+    sample.refresh_from_db()
+    ready(
+        sample
+    )  # A trusted producer seals the final call source, not enrollment metadata.
     page = client_for(actor).get(BASE + "samples/").data
     assert page["results"][0]["confirmable"] is allow_enrollment
     response = client_for(actor).post(

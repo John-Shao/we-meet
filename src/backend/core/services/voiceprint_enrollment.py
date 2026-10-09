@@ -18,8 +18,13 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from core import models
 from core.services import voiceprint_consent as consent_service
 from core.services.voiceprint_consent import VoiceprintError
-from core.services.voiceprint_crypto import load_keyring, scope_aad
+from core.services.voiceprint_crypto import (
+    VoiceprintCryptoError,
+    load_keyring,
+    scope_aad,
+)
 from core.services.voiceprint_encoder import MAX_AUDIO_BYTES
+from core.services.voiceprint_vectors import read_sample_vector
 
 MAX_CLIPS = 6
 MAX_ENROLLMENTS_PER_24H = 3
@@ -468,11 +473,23 @@ def decide(actor, identifier, *, expected_version, accepted):
             confirmation_authorized(sample)
         return sample
     if accepted:
-        confirmation_authorized(sample)
+        profile = confirmation_authorized(sample)
         if sample.expires_at <= timezone.now() or not sample.encrypted_audio:
             raise VoiceprintError("voiceprint_sample_expired", status=410)
         if sample.status != "ready" or not sample_quality_ready(sample):
             raise VoiceprintError("voiceprint_quality_pending", status=409)
+        try:
+            read_sample_vector(
+                sample,
+                load_keyring().decrypt(
+                    profile,
+                    sample.encrypted_embedding,
+                    kind="embedding",
+                    object_id=sample.pk,
+                ),
+            )
+        except (VoiceprintError, VoiceprintCryptoError):
+            raise VoiceprintError("voiceprint_quality_pending", status=409) from None
         sample.status = "confirmed"
         sample.confirmed_at = timezone.now()
     else:

@@ -21,6 +21,12 @@ from core.factories import MembershipFactory, OrganizationFactory, UserFactory
 from core.services import voiceprint_consent as service
 from core.services.voiceprint_crypto import VoiceprintCryptoError, load_keyring
 from core.services.voiceprint_retention import expire_sample
+from core.services.voiceprint_templates import (
+    POLICY_VERSION,
+    supports_digest,
+    template_payload,
+)
+from core.services.voiceprint_vectors import sample_payload
 from core.tests.services.test_meeting_records import client_for
 
 pytestmark = pytest.mark.django_db
@@ -97,14 +103,7 @@ def sample_for(profile, *, ready=False):
             kind="audio",
             object_id=identifier,
         ),
-        encrypted_embedding=load_keyring().encrypt(
-            profile,
-            b"synthetic embedding fixture",
-            kind="embedding",
-            object_id=identifier,
-        )
-        if ready
-        else b"",
+        encrypted_embedding=b"",
         quality={
             "speech_checked": ready,
             "speaker_consistency_checked": ready,
@@ -114,6 +113,41 @@ def sample_for(profile, *, ready=False):
         confirmed_at=timezone.now() if ready else None,
         expires_at=timezone.now() + timedelta(hours=24),
     )
+    if ready:
+        registration = models.VoiceprintEnrollment.objects.create(
+            owner_id=profile.consent.user_id,
+            organization_id=profile.consent.organization_id,
+            profile=profile,
+            request_key=uuid4(),
+            consent_version=profile.consent.version,
+            generation=profile.generation,
+            policy_version=service.organization_policy(profile.consent.organization)[
+                "version"
+            ]
+            if profile.consent.organization_id
+            else 0,
+            challenges=["synthetic prompt"] * 6,
+            expires_at=timezone.now() + timedelta(minutes=10),
+            status="closed",
+        )
+        sample.enrollment = registration
+        sample.enrollment_slot = 0
+        sample.permit_id = registration.pk
+        sample.confirmed_at = timezone.now()
+        sample.encrypted_embedding = load_keyring().encrypt(
+            profile,
+            sample_payload(sample, (1.0, *([0.0] * 1023))),
+            kind="embedding",
+            object_id=sample.pk,
+        )
+        sample.save()
+        models.VoiceprintSampleDecision.objects.create(
+            sample=sample,
+            owner_id=profile.consent.user_id,
+            accepted=True,
+            consent_version=sample.consent_version,
+            generation=sample.generation,
+        )
     return sample
 
 
@@ -125,11 +159,17 @@ def activate(profile):
         profile=profile,
         generation=profile.generation,
         dimension=1024,
-        encrypted_vector=load_keyring().encrypt(
-            profile, b"synthetic vector fixture", kind="template", object_id=identifier
-        ),
+        policy_version=POLICY_VERSION,
+        support_digest=supports_digest(samples),
     )
     template.support_samples.add(*samples)
+    template.encrypted_vector = load_keyring().encrypt(
+        profile,
+        template_payload(template, (1.0, *([0.0] * 1023))),
+        kind="template",
+        object_id=identifier,
+    )
+    template.save()
     profile.status = "active"
     profile.confirmed_at = profile.last_updated_at = timezone.now()
     profile.save()
