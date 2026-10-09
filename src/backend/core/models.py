@@ -9156,6 +9156,14 @@ class VoiceprintSample(BaseModel):
     generation = models.PositiveBigIntegerField()
     consent_version = models.PositiveBigIntegerField()
     permit_id = models.UUIDField()
+    enrollment = models.ForeignKey(
+        "VoiceprintEnrollment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="samples",
+    )
+    enrollment_slot = models.PositiveSmallIntegerField(null=True, blank=True)
     source_type = models.CharField(
         max_length=16, choices=[("enrollment", "enrollment"), ("call", "call")]
     )
@@ -9193,6 +9201,23 @@ class VoiceprintSample(BaseModel):
 
     class Meta:
         constraints = [
+            models.UniqueConstraint(
+                fields=["enrollment", "enrollment_slot"],
+                condition=models.Q(enrollment__isnull=False),
+                name="vp_enrollment_slot_unique",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(enrollment__isnull=True)
+                    | models.Q(
+                        enrollment__isnull=False,
+                        enrollment_slot__isnull=False,
+                        enrollment_slot__gte=0,
+                        enrollment_slot__lte=5,
+                    )
+                ),
+                name="vp_enrollment_slot_valid",
+            ),
             models.UniqueConstraint(
                 fields=["profile", "permit_id", "audio_sha256"],
                 name="vp_sample_permit_digest_unique",
@@ -9272,6 +9297,105 @@ class VoiceprintDeletionJob(BaseModel):
             models.Index(fields=["status", "created_at"]),
             models.Index(fields=["owner_id", "organization_id", "revoked_generation"]),
         ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintEnrollment(BaseModel):
+    """Owner request receipt and short-lived upload scope; no token/audio/vector."""
+
+    owner_id = models.UUIDField()
+    organization_id = models.UUIDField(null=True, blank=True)
+    profile = models.ForeignKey(
+        VoiceprintProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrollments",
+    )
+    request_key = models.UUIDField()
+    consent_version = models.PositiveBigIntegerField()
+    generation = models.PositiveBigIntegerField()
+    policy_version = models.PositiveBigIntegerField(default=0)
+    locale = models.CharField(max_length=8, default="en")
+    challenges = models.JSONField()
+    expires_at = models.DateTimeField(db_index=True)
+    status = models.CharField(
+        max_length=16,
+        default="open",
+        choices=[(state, state) for state in ("open", "closed", "expired", "canceled")],
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner_id", "request_key"],
+                name="vp_enrollment_request_unique",
+            ),
+        ]
+        indexes = [models.Index(fields=["owner_id", "created_at"])]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintEncodingJob(BaseModel):
+    """Independent encoding queue with a replaceable lease and bounded retries."""
+
+    sample = models.OneToOneField(
+        VoiceprintSample,
+        on_delete=models.CASCADE,
+        related_name="encoding_job",
+    )
+    status = models.CharField(
+        max_length=16,
+        default="queued",
+        db_index=True,
+        choices=[
+            (state, state)
+            for state in (
+                "queued",
+                "running",
+                "succeeded",
+                "failed",
+                "canceled",
+                "expired",
+            )
+        ],
+    )
+    lease_token = models.UUIDField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    retryable = models.BooleanField(default=False)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "lease_until", "created_at"])]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(attempts__lte=3), name="vp_encoding_attempt_limit"
+            ),
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintSampleDecision(BaseModel):
+    """The owner's one-way confirmation/rejection, independent of ASR/labels."""
+
+    sample = models.OneToOneField(
+        VoiceprintSample,
+        on_delete=models.CASCADE,
+        related_name="owner_decision",
+    )
+    owner_id = models.UUIDField()
+    accepted = models.BooleanField()
+    consent_version = models.PositiveBigIntegerField()
+    generation = models.PositiveBigIntegerField()
 
     def __str__(self):
         return str(self.pk)

@@ -188,6 +188,7 @@ def update_settings(actor, *, organization_id, expected_version, changes):
     if any(previous[name] and not following[name] for name in PERMISSIONS):
         consent.revoked_at = now
     consent.save()
+    cancel_pending_work(consent)
     event(consent, "settings")
     return snapshot(consent, user=user, organization=organization)
 
@@ -339,6 +340,29 @@ def deletion_snapshot(job):
     }
 
 
+def cancel_pending_work(consent):
+    """Changing a permission version invalidates already-issued work permits."""
+    now = timezone.now()
+    models.VoiceprintEnrollment.objects.filter(
+        owner_id=consent.user_id,
+        organization_id=consent.organization_id,
+        consent_version__lt=consent.version,
+        status__in=["open", "closed"],
+    ).update(status="canceled", updated_at=now)
+    models.VoiceprintEncodingJob.objects.filter(
+        sample__profile__consent=consent,
+        sample__consent_version__lt=consent.version,
+        status__in=["queued", "running", "failed"],
+    ).update(
+        status="canceled",
+        lease_token=None,
+        lease_until=None,
+        retryable=False,
+        finished_at=now,
+        updated_at=now,
+    )
+
+
 def revoke(
     consent,
     *,
@@ -360,6 +384,7 @@ def revoke(
         setattr(consent, name, False)
     consent.revoked_at = timezone.now()
     consent.save()
+    cancel_pending_work(consent)
     consent.profiles.filter(generation__lt=consent.generation).update(
         status="deleted",
         encrypted_key=b"",
