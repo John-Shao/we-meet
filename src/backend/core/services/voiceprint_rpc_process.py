@@ -120,14 +120,20 @@ def result_payload(result):
 class ProcessTransport:
     """Own the only child and bounded pipes, including cancellation cleanup."""
 
-    def __init__(self, payload, *, deadline):
+    def __init__(self, payload, *, deadline, purpose="encoder"):
+        modules = {
+            "encoder": "core.services.voiceprint_rpc_process",
+            "quality": "core.services.voiceprint_quality_process",
+        }
+        if purpose not in modules:
+            raise EncoderError("encoder_configuration_invalid")
         self.payload = payload
         self.output = b""
         self.read_done = threading.Event()
         self.expired = threading.Event()
         try:
             self.process = subprocess.Popen(  # noqa: S603 -- Fixed module, bounded stdin IPC.
-                [sys.executable, "-m", "core.services.voiceprint_rpc_process"],
+                [sys.executable, "-m", modules[purpose]],
                 cwd=str(Path(__file__).resolve().parents[2]),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,

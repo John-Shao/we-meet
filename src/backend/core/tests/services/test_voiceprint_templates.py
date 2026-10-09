@@ -496,12 +496,14 @@ def test_vector_decoder_does_not_silently_normalize_bad_encoded_results():
 def test_signal_only_quality_cannot_be_promoted_by_editing_booleans(profile):
     sample = sample_for(profile, ready=True)
     sample.quality = {
+        **sample.quality,
         "speech_checked": False,
         "speaker_consistency_checked": False,
         "valid_speech_ms": 0,
     }
     reseal(sample)
     sample.quality = {
+        **sample.quality,
         "speech_checked": True,
         "speaker_consistency_checked": True,
         "valid_speech_ms": 10000,

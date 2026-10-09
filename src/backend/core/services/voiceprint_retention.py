@@ -34,16 +34,17 @@ def expire_sample(identifier):
     current_generation = row.profile.consent.generation
     retain_feature = row.status == "confirmed" and row.generation == current_generation
     if not retain_feature:
-        models.VoiceprintEncodingJob.objects.filter(
-            sample=row, status__in=["queued", "running", "failed"]
-        ).update(
-            status="expired",
-            lease_token=None,
-            lease_until=None,
-            retryable=False,
-            finished_at=timezone.now(),
-            updated_at=timezone.now(),
-        )
+        for job_model in (models.VoiceprintEncodingJob, models.VoiceprintQualityJob):
+            job_model.objects.filter(
+                sample=row, status__in=["queued", "running", "failed"]
+            ).update(
+                status="expired",
+                lease_token=None,
+                lease_until=None,
+                retryable=False,
+                finished_at=timezone.now(),
+                updated_at=timezone.now(),
+            )
     changed = bool(row.encrypted_audio) or (
         not retain_feature and bool(row.encrypted_embedding)
     )

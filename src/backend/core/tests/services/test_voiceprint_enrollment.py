@@ -22,6 +22,9 @@ from core.services import voiceprint_consent as consent
 from core.services import voiceprint_enrollment as service
 from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_crypto import load_keyring
+from core.services.voiceprint_prompt import challenge_digest
+from core.services.voiceprint_quality import MODEL_ID as QUALITY_MODEL_ID
+from core.services.voiceprint_quality import POLICY_VERSION as QUALITY_POLICY
 from core.services.voiceprint_retention import expire_sample
 from core.services.voiceprint_vectors import sample_payload
 
@@ -98,6 +101,16 @@ def ready(sample):
         "speech_checked": True,
         "speaker_consistency_checked": True,
         "valid_speech_ms": 3000,
+        "speech_validation": QUALITY_POLICY,
+        "asr_model_id": QUALITY_MODEL_ID,
+        "speaker_count": 1,
+        "prompt_checked": True,
+        "prompt_sha256": challenge_digest(
+            sample.enrollment.locale,
+            sample.enrollment.challenges[sample.enrollment_slot],
+        )
+        if sample.enrollment_id
+        else "0" * 64,
     }
     sample.encrypted_embedding = load_keyring().encrypt(
         sample.profile,
@@ -275,7 +288,7 @@ def test_registration_private_encrypted_and_idempotent(actor):
     identifier = uuid4()
     enrollment = begin(actor, request_key=identifier, locale="zh-CN")
     assert len(enrollment.challenges) == 6
-    assert "当前账户" in enrollment.challenges[0]
+    assert "声纹样本" in enrollment.challenges[0]
     assert begin(actor, request_key=identifier, locale="zh-CN").pk == enrollment.pk
     body = wav()
     sample = upload(actor, enrollment, audio=body)

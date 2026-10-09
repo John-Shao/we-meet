@@ -24,6 +24,9 @@ from core.services.voiceprint_crypto import (
     scope_aad,
 )
 from core.services.voiceprint_encoder import MAX_AUDIO_BYTES
+from core.services.voiceprint_prompt import challenge_digest
+from core.services.voiceprint_quality import MODEL_ID as QUALITY_MODEL_ID
+from core.services.voiceprint_quality import POLICY_VERSION as QUALITY_POLICY
 from core.services.voiceprint_vectors import read_sample_vector
 
 MAX_CLIPS = 6
@@ -31,11 +34,11 @@ MAX_ENROLLMENTS_PER_24H = 3
 UPLOAD_MINUTES = 10
 CANDIDATE_HOURS = 24
 PROMPTS = {
-    "en": "Please read in your own voice: I am recording a voice sample for my account. The numbers for this recording are: {numbers}.",
-    "zh-CN": "请用自己的声音自然朗读：这是我为当前账户登记的语音样本。本次数字为：{numbers}。",
-    "fr": "Lisez avec votre propre voix : Je crée un échantillon vocal pour mon compte. Les nombres de cet enregistrement sont : {numbers}.",
-    "de": "Bitte mit deiner eigenen Stimme vorlesen: Ich nehme eine Stimmprobe für mein Konto auf. Die Zahlen dieser Aufnahme sind: {numbers}.",
-    "nl": "Lees met je eigen stem: Ik neem een stemvoorbeeld voor mijn account op. De getallen voor deze opname zijn: {numbers}.",
+    "en": "This is my voice sample. My numbers are: {numbers}.",
+    "zh-CN": "这是我的声纹样本。本次数字为：{numbers}。",
+    "fr": "Ceci est mon échantillon vocal. Voici mes nombres : {numbers}.",
+    "de": "Das ist meine Stimmprobe. Meine Zahlen sind: {numbers}.",
+    "nl": "Dit is mijn stemvoorbeeld. Mijn getallen zijn: {numbers}.",
 }
 
 
@@ -326,10 +329,32 @@ def sample_quality_ready(sample):
         and isinstance(quality, dict)
         and quality.get("speech_checked") is True
         and quality.get("speaker_consistency_checked") is True
+        and quality.get("speech_validation") == QUALITY_POLICY
+        and quality.get("asr_model_id") == QUALITY_MODEL_ID
+        and type(quality.get("speaker_count")) is int
+        and quality["speaker_count"] == 1
+        and (sample.source_type != "enrollment" or prompt_quality_ready(sample))
         and type(quality.get("valid_speech_ms")) is int
         and 3000
         <= quality["valid_speech_ms"]
         <= min(10000, sample.end_ms - sample.start_ms)
+    )
+
+
+def prompt_quality_ready(sample):
+    registration = sample.enrollment
+    return (
+        registration is not None
+        and type(sample.enrollment_slot) is int
+        and 0 <= sample.enrollment_slot < 6
+        and isinstance(registration.challenges, list)
+        and len(registration.challenges) == 6
+        and isinstance(registration.challenges[sample.enrollment_slot], str)
+        and sample.quality.get("prompt_checked") is True
+        and sample.quality.get("prompt_sha256")
+        == challenge_digest(
+            registration.locale, registration.challenges[sample.enrollment_slot]
+        )
     )
 
 
@@ -456,6 +481,19 @@ def sample_audio(actor, identifier):
     return clear
 
 
+def cancel_sample_work(sample):
+    now = timezone.now()
+    for job_model in (models.VoiceprintEncodingJob, models.VoiceprintQualityJob):
+        job_model.objects.filter(sample=sample).update(
+            status="canceled",
+            lease_token=None,
+            lease_until=None,
+            retryable=False,
+            finished_at=now,
+            updated_at=now,
+        )
+
+
 @transaction.atomic
 def decide(actor, identifier, *, expected_version, accepted):
     user, consent, sample = locked_sample(actor, identifier)
@@ -497,14 +535,7 @@ def decide(actor, identifier, *, expected_version, accepted):
             raise VoiceprintError("voiceprint_decision_conflict", status=409)
         sample.status = "rejected"
         sample.encrypted_audio = sample.encrypted_embedding = b""
-        models.VoiceprintEncodingJob.objects.filter(sample=sample).update(
-            status="canceled",
-            lease_token=None,
-            lease_until=None,
-            retryable=False,
-            finished_at=timezone.now(),
-            updated_at=timezone.now(),
-        )
+        cancel_sample_work(sample)
     sample.save()
     models.VoiceprintSampleDecision.objects.create(
         sample=sample,

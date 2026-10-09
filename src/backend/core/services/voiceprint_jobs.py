@@ -64,10 +64,11 @@ def pending_ids(limit):
     )
 
 
-def lock_job(identifier):  # noqa: PLR0911 -- Explicit ordered lock failures.
+def lock_job(identifier, *, quality=False):  # noqa: PLR0911 -- Explicit ordered lock failures.
     """Same lock order as owner edits; skip a busy scope instead of holding a queue lock."""
+    job_model = models.VoiceprintQualityJob if quality else models.VoiceprintEncodingJob
     initial = (
-        models.VoiceprintEncodingJob.objects.filter(pk=identifier)
+        job_model.objects.filter(pk=identifier)
         .values(
             "sample_id",
             "sample__profile_id",
@@ -122,7 +123,7 @@ def lock_job(identifier):  # noqa: PLR0911 -- Explicit ordered lock failures.
     if sample is None:
         return None
     job = (
-        models.VoiceprintEncodingJob.objects.select_for_update(skip_locked=True)
+        job_model.objects.select_for_update(skip_locked=True)
         .filter(pk=identifier, sample=sample)
         .first()
     )
@@ -365,6 +366,10 @@ def finish(lease, *, result=None, error=None):  # noqa: PLR0911, PLR0912, PLR091
         update_fields=["quality", "status", "encrypted_embedding", "updated_at"]
     )
     stop(job, status="succeeded")
+    if sample.source_type == "enrollment":
+        models.VoiceprintQualityJob.objects.get_or_create(
+            sample=sample, defaults={"expires_at": sample.expires_at}
+        )
     return True
 
 

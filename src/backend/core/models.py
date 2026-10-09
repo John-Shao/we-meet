@@ -9389,6 +9389,48 @@ class VoiceprintEncodingJob(BaseModel):
         return str(self.pk)
 
 
+class VoiceprintQualityJob(BaseModel):
+    """Independent short-ASR quality queue; no transcript or feature payload."""
+
+    sample = models.OneToOneField(
+        VoiceprintSample, on_delete=models.CASCADE, related_name="quality_job"
+    )
+    status = models.CharField(
+        max_length=16,
+        default="queued",
+        db_index=True,
+        choices=[
+            (state, state)
+            for state in (
+                "queued",
+                "running",
+                "succeeded",
+                "failed",
+                "canceled",
+                "expired",
+            )
+        ],
+    )
+    lease_token = models.UUIDField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    retryable = models.BooleanField(default=False)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "lease_until", "created_at"])]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(attempts__lte=3), name="vp_quality_attempt_limit"
+            )
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
 class VoiceprintSampleDecision(BaseModel):
     """The owner's one-way confirmation/rejection, independent of ASR/labels."""
 

@@ -20,6 +20,9 @@ from core import models
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
 from core.services import voiceprint_consent as service
 from core.services.voiceprint_crypto import VoiceprintCryptoError, load_keyring
+from core.services.voiceprint_prompt import challenge_digest
+from core.services.voiceprint_quality import MODEL_ID as QUALITY_MODEL_ID
+from core.services.voiceprint_quality import POLICY_VERSION as QUALITY_POLICY
 from core.services.voiceprint_retention import expire_sample
 from core.services.voiceprint_templates import (
     POLICY_VERSION,
@@ -126,7 +129,10 @@ def sample_for(profile, *, ready=False):
             ]
             if profile.consent.organization_id
             else 0,
-            challenges=["synthetic prompt"] * 6,
+            challenges=[
+                "Please read in your own voice: I am recording a voice sample for my account. The numbers for this recording are: 10 20 30 40 50 60."
+            ]
+            * 6,
             expires_at=timezone.now() + timedelta(minutes=10),
             status="closed",
         )
@@ -134,6 +140,17 @@ def sample_for(profile, *, ready=False):
         sample.enrollment_slot = 0
         sample.permit_id = registration.pk
         sample.confirmed_at = timezone.now()
+        sample.quality.update(
+            {
+                "speech_validation": QUALITY_POLICY,
+                "asr_model_id": QUALITY_MODEL_ID,
+                "speaker_count": 1,
+                "prompt_checked": True,
+                "prompt_sha256": challenge_digest(
+                    registration.locale, registration.challenges[0]
+                ),
+            }
+        )
         sample.encrypted_embedding = load_keyring().encrypt(
             profile,
             sample_payload(sample, (1.0, *([0.0] * 1023))),

@@ -360,18 +360,19 @@ def cancel_pending_work(consent):
         consent_version__lt=consent.version,
         status__in=["open", "closed"],
     ).update(status="canceled", updated_at=now)
-    models.VoiceprintEncodingJob.objects.filter(
-        sample__profile__consent=consent,
-        sample__consent_version__lt=consent.version,
-        status__in=["queued", "running", "failed"],
-    ).update(
-        status="canceled",
-        lease_token=None,
-        lease_until=None,
-        retryable=False,
-        finished_at=now,
-        updated_at=now,
-    )
+    for job_model in (models.VoiceprintEncodingJob, models.VoiceprintQualityJob):
+        job_model.objects.filter(
+            sample__profile__consent=consent,
+            sample__consent_version__lt=consent.version,
+            status__in=["queued", "running", "failed"],
+        ).update(
+            status="canceled",
+            lease_token=None,
+            lease_until=None,
+            retryable=False,
+            finished_at=now,
+            updated_at=now,
+        )
 
 
 def revoke(
