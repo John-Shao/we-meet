@@ -468,7 +468,7 @@
     "helpSign": "Signaturprüfung (optional)",
     "helpSignBody": "Wenn aktiviert, muss jede Anforderung timestamp und sign enthalten. Der Schlüssel ist der HMAC-Schlüssel, und die zu signierenden Daten sind leer – identisch mit Feishu.",
     "helpLimits": "Grenzwerte",
-    "helpLimitsBody": "100 Anforderungen pro Minute und 5 pro Sekunde pro Bot; Anforderungstexte bis 20 KB. Senden Sie bei Wiederholungen X-Request-Id, damit dieselbe ID nur einmal sendet.",
+    "helpLimitsBody": "100 Anforderungen pro Minute und 5 pro Sekunde pro Bot; Anforderungsinhalte bis 20 KB. Senden Sie bei Wiederholungen X-Request-Id, damit dieselbe ID nur eine Nachricht erzeugt.",
     "catalog": {
       "search": "Bots suchen",
       "custom": "Benutzerdefinierter Bot",
@@ -492,7 +492,7 @@
       "hint": "Senden Sie per POST an diese URL, um in diese Gruppe zu senden. Die URL ist ein Zugangsmittel – geben Sie sie nicht weiter."
     },
     "callback": {
-      "title": "Button-Callback",
+      "title": "Schaltflächen-Callback",
       "hint": "Benachrichtigen Sie diese Adresse, wenn ein Mitglied auf eine Schaltfläche in einer Karte klickt. Nur https; leer lassen, um es zu deaktivieren.",
       "urlPlaceholder": "https://ci.example.com/hook",
       "secret": "Verifizierungsschlüssel",

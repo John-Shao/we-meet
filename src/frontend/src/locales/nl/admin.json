@@ -231,7 +231,7 @@
     "disabledChip": "Uitgeschakeld",
     "callbackChip": "Callback",
     "unnamedGroup": "Naamloze groep",
-    "viewCredential": "Inloggegevens bekijken",
+    "viewCredential": "Referenties bekijken",
     "disable": "Uitschakelen",
     "enable": "Inschakelen",
     "disableConfirm": "Zodra {{name}} is uitgeschakeld, mislukken meldingen via zijn webhook onmiddellijk en krijgt het externe systeem daar geen enkele kennisgeving van. Toch uitschakelen?",
@@ -241,7 +241,7 @@
     "next": "Volgende",
     "error": "Actie mislukt: {{message}}",
     "credential": {
-      "title": "Inloggegevens voor {{name}}",
+      "title": "Referenties voor {{name}}",
       "webhook": "Webhook-URL",
       "secret": "Ondertekeningssleutel",
       "noWebhook": "Ingebouwde assistenten hebben geen webhook-URL",

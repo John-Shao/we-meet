@@ -339,7 +339,7 @@
       "tools": "Meer tools",
       "info": "Vergaderinformatie",
       "roomAI": "Vergader-AI",
-      "meetingNotes": "Vergaderverslag",
+      "meetingNotes": "Vergaderrecord",
       "translation": "Spraakvertaling",
       "interpretation": "Tolkvertaling"
     },
@@ -353,7 +353,7 @@
       "tools": "meer tools",
       "info": "vergaderinformatie",
       "roomAI": "vergader-AI",
-      "meetingNotes": "vergaderverslag",
+      "meetingNotes": "vergaderrecord",
       "translation": "spraakvertaling",
       "interpretation": "tolkvertaling"
     },
@@ -377,12 +377,12 @@
         "body": "Sla vergaderingen op als video."
       },
       "meetingNotes": {
-        "title": "Vergaderverslag",
+        "title": "Vergaderrecord",
         "body": "Het transcript, de live samenvatting en de notulen van deze sessie"
       },
       "translation": {
         "title": "Spraakvertaling",
-        "body": "Vertaal uw microfoon continu of met tweerichtings-push-to-talk."
+        "body": "Vertaal uw microfoon continu of met tweerichtingsvertaling via push-to-talk."
       }
     }
   },

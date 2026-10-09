@@ -10,7 +10,7 @@
     "retry": "Réessayer"
   },
   "sharing": {
-    "chat": "Partager dans la discussion",
+    "chat": "Partager dans une conversation",
     "role": "Autorisation",
     "chatRole": "Accorder l'accès aux membres de la conversation",
     "reader": "Peut lire",

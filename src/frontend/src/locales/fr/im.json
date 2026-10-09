@@ -472,7 +472,7 @@
     "catalog": {
       "search": "Rechercher des bots",
       "custom": "Bot personnalisé",
-      "customDesc": "Pousser les messages de votre propre service dans ce groupe via webhook"
+      "customDesc": "Envoyez les messages de votre propre service dans ce groupe via un webhook"
     },
     "form": {
       "title": "Bot personnalisé",

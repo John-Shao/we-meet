@@ -729,7 +729,7 @@
     "collaboration": "Zusammenarbeit (Mitglieder & Zugriff)",
     "collaborationHint": "Erteilen oder entziehen Sie den Protokollzugriff jederzeit pro Person. Der Zugriff auf den Originaltext wird hier nicht geändert.",
     "members": "Mitglieder & Zugriff verwalten",
-    "membersHint": "Sowohl die Teilnehmenden dieser Sitzung als auch berechtigte Mitglieder können direkt berechtigt werden.",
+    "membersHint": "Sowohl die Teilnehmenden dieser Sitzung als auch berechtigte Mitglieder können direkt Zugriff erhalten.",
     "done": "Fertig",
     "granted": "{{count}} Personen haben direkten Zugriff.",
     "noGrants": "Noch keine direkten Freigaben. Zugriff über Besprechungsrollen wird hier nicht aufgeführt.",

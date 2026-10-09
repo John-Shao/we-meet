@@ -489,11 +489,11 @@
       "title": "Webhook-URL",
       "copy": "Kopiëren",
       "copied": "Gekopieerd",
-      "hint": "POST naar deze URL om in deze groep te verzenden. De URL is een inloggegeven — deel hem niet."
+      "hint": "POST naar deze URL om in deze groep te verzenden. De URL is een referentie — deel hem niet."
     },
     "callback": {
       "title": "Knop-callback",
-      "hint": "Waarschuw dit adres wanneer een lid op een kaartknop klikt. Alleen https; laat leeg om het uit te schakelen.",
+      "hint": "Stuur een melding naar dit adres wanneer een lid op een kaartknop klikt. Alleen https; laat leeg om het uit te schakelen.",
       "urlPlaceholder": "https://ci.example.com/hook",
       "secret": "Verificatiesleutel",
       "secretHint": "Geef deze aan de externe dienst. Elke callback bevat een X-WeMeet-Signature-header; de dienst verifieert die met deze sleutel om te bevestigen dat het verzoek echt hiervandaan komt. Dit is een andere sleutel dan die onder Beveiliging hierboven — tegengestelde richting, onafhankelijk van elkaar.",

@@ -87,9 +87,9 @@
     "moveField": "Déplacer {{field}}",
     "showField": "Afficher {{field}}",
     "hideField": "Masquer {{field}}",
-    "fieldLocked": "{{field}} est fixé par cette vue",
+    "fieldLocked": "Champ « {{field}} » fixé par cette vue",
     "grouping": {
-      "label": "Groupe",
+      "label": "Regroupement",
       "none": "Aucun regroupement",
       "custom": "Groupe personnalisé",
       "task_list": "Liste de tâches",
@@ -538,13 +538,13 @@
     "add": "Ajouter un responsable",
     "select": "Sélectionner des responsables",
     "selected": "{{count}} sur 10 sélectionné(s)",
-    "limit": "Choisissez jusqu'à 10 personnes également responsables.",
+    "limit": "Choisissez jusqu'à 10 personnes, toutes responsables au même titre.",
     "remove": "Retirer le responsable {{name}}"
   },
   "share": {
     "action": "Partager la tâche",
     "title": "Partager la tâche « {{title}} »",
-    "toConversation": "Partager dans la discussion",
+    "toConversation": "Partager dans une conversation",
     "taskLink": "Lien de la tâche",
     "linkHint": "Toute personne ouvrant ce lien doit se connecter et disposer d'un accès en lecture.",
     "copy": "Copier",
@@ -552,9 +552,9 @@
     "failed": "Impossible de partager la tâche. Veuillez réessayer.",
     "cardTitle": "Tâche partagée",
     "viewDetails": "Voir les détails",
-    "conversationTitle": "Tâches de la discussion",
+    "conversationTitle": "Tâches de la conversation",
     "conversationEmpty": "Aucune tâche n'a encore été partagée dans cette conversation.",
     "viewMore": "Voir plus",
-    "loading": "Chargement des tâches de la discussion…"
+    "loading": "Chargement des tâches de la conversation…"
   }
 }

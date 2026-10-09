@@ -105,7 +105,7 @@
     "sendRequest": "Verzoek versturen",
     "alreadyContact": "Al een contact",
     "remove": "Verwijderen",
-    "removeConfirm": "Extern contact “{{name}}” verwijderen?",
+    "removeConfirm": "Extern contact “{{name}}” verwijderen? Beide partijen kunnen daarna niet meer via de contacten met elkaar communiceren.",
     "error": "Actie voor extern contact mislukt: {{message}}",
     "requestsLoadError": "Contactverzoeken konden niet worden geladen. Probeer het opnieuw.",
     "requestsLoading": "Contactverzoeken laden…",
