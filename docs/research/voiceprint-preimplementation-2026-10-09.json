@@ -1,0 +1,364 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-09",
+  "timezone": "Asia/Shanghai",
+  "scope": "code and public-source research; not implementation or full P0 sign-off",
+  "user_sample_availability": "No authorized human recordings available; user requested code and source research first",
+  "performed": [
+    "code review",
+    "public model metadata and pinned card/license/weight-list review",
+    "local installed SDK interface probe",
+    "synthetic vector-scoring microbenchmark"
+  ],
+  "not_performed": [
+    "production connection",
+    "user audio capture",
+    "real voiceprint inference",
+    "human recognition accuracy evaluation",
+    "paid ASR call",
+    "model weight download",
+    "business feature changes"
+  ],
+  "repo_head": "062b71feda297735661850310e9a429dfaf5af0f",
+  "code_sources": [
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/utils.py",
+      "sha256": "63caf15388e216e7414aa81a9ce7232ba49c8f7baba99c843bb68d245c4c7970",
+      "bytes": 41629
+    },
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/models.py",
+      "sha256": "0a62f73fcfaf32862c7b3030ea5ab2843e649ae26ec0fc17a3e16a0882b450d5",
+      "bytes": 341150
+    },
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/services/speaker_attribution.py",
+      "sha256": "59385167b679d941689c9a70d73ba78c888f3a149aff5ab784dd063ca0fb136c",
+      "bytes": 6055
+    },
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/services/transcript_corrections.py",
+      "sha256": "d6c04e696387e93f1a5cd805287924ab365adecc12002d85b307ac070ecea2e6",
+      "bytes": 6986
+    },
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/services/effective_transcripts.py",
+      "sha256": "4b819fefbcec6472a1aa9fe06552c72ceea0739993fbe436fef2aa9456e3da52",
+      "bytes": 1465
+    },
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/services/capture_transcription.py",
+      "sha256": "bb5f397667442719ec57aabdd21e64afca61b794b6bf4b1dabecf445c972188e",
+      "bytes": 25670
+    },
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/services/qwen_filetrans.py",
+      "sha256": "d86bba9c52134bdf400cae07c25c8575a9858efa215f11a4cc8593ec7307bbf0",
+      "bytes": 6926
+    },
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/services/capture_retention.py",
+      "sha256": "c220c53e301d941012d5dd83824421a9ba296e25b258b197b902dae38ffcd09c",
+      "bytes": 1634
+    },
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/services/meeting_records.py",
+      "sha256": "44fcfa457c6c0d6985847d16ac3c49a433a0bbbbf406e9ff114fb0b464463fea",
+      "bytes": 15741
+    },
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/services/upload_summary_source.py",
+      "sha256": "4390698385869097fde4dd5b306c7dfc7b79c0706b187256b0738f042a8a01b2",
+      "bytes": 2690
+    },
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/services/capture_summary_source.py",
+      "sha256": "063473ca30de38e1b92823f1edbff4d888be9f9af8fff9c56fd2f612a1bde97c",
+      "bytes": 4773
+    },
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/services/transcript_index.py",
+      "sha256": "e172dd076ceadf62a08492c0386dd900988ad2753558da6f329f9ae684ec8c48",
+      "bytes": 4439
+    },
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/api/meeting_records.py",
+      "sha256": "e0545e617cd6024fe2b75345136b3036bd0f31e8bfa673da9bee559eeae35aab",
+      "bytes": 60974
+    },
+    {
+      "workspace_relative_path": "we-meet/src/backend/core/api/directory.py",
+      "sha256": "1c8861314c11a55def7d0b3bbff5b8161d51b14bb0ad05531b4f9014a7799621",
+      "bytes": 48487
+    },
+    {
+      "workspace_relative_path": "we-meet/src/agents/src/translation/private.py",
+      "sha256": "6a11cf5df49b808818e37cf0de2da82e9573774d3a8bc1729a5e1d4793f0a25b",
+      "bytes": 19666
+    },
+    {
+      "workspace_relative_path": "we-meet/src/agents/src/transcription/runtime.py",
+      "sha256": "fa054d2862aa02f6a62f1ff95e41db7e0070b66d39e2594dbdb1a4533da5c86f",
+      "bytes": 21128
+    },
+    {
+      "workspace_relative_path": "we-meet/src/agents/pyproject.toml",
+      "sha256": "a8618aed590198e33c24b00233e8178daf5ea2a35b72b7be850ea8c4a6745953",
+      "bytes": 1219
+    },
+    {
+      "workspace_relative_path": "we-meet/src/agents/evaluations/asr_quality/README.md",
+      "sha256": "18285e2bdd60e4c22cbf40c1f421a0b10e1a5651f93610d281187d830acae67a",
+      "bytes": 6841
+    },
+    {
+      "workspace_relative_path": "we-meet/src/frontend/src/features/im/call/callController.ts",
+      "sha256": "22b454aea134bc506bb9964a29573da524d13bd28a74c7ebf791a89f34e6d9fa",
+      "bytes": 23175
+    },
+    {
+      "workspace_relative_path": "we-meet/src/frontend/src/features/rooms/components/Conference.tsx",
+      "sha256": "7de0575df928c54919aedf2d4525c2510de87768e9d7774abb34740b5be20ea7",
+      "bytes": 21477
+    },
+    {
+      "workspace_relative_path": "we-meet/src/frontend/src/features/meetings/components/SpeakerAttributionControl.tsx",
+      "sha256": "eb876397220895d41c341d284388a5ec21921a6e23d0a24e2b40adaba9547084",
+      "bytes": 6579
+    },
+    {
+      "workspace_relative_path": "we-meet/src/frontend/package.json",
+      "sha256": "b05fb397ddf423c6e23c90fef4ff85b778f8816fc894b81a958d6eb3cf98e2b5",
+      "bytes": 3569
+    },
+    {
+      "workspace_relative_path": "we-meet/src/helm/env.d/aliyun-prod/values.livekit.yaml",
+      "sha256": "b3562a749a3664cb01318f1f2f51171fb1bf56722b6a0a2a0de3ed1e9a90b46e",
+      "bytes": 3026
+    },
+    {
+      "workspace_relative_path": "we-meet/src/helm/meet/values.yaml",
+      "sha256": "c3b9de88d5dde8084b085c81697a81a3c83ee23e6060340c69acafdfa54a0951",
+      "bytes": 68748
+    },
+    {
+      "workspace_relative_path": "we-meet/docs/installation/aliyun-release-runbook-cn.md",
+      "sha256": "bd8aaf09c3c0940e994cea843a3a17c9c187994132dc53651e1868991d32743c",
+      "bytes": 26656
+    },
+    {
+      "workspace_relative_path": "we-meet-android/gradle/libs.versions.toml",
+      "sha256": "9e9d8e8d48d723df9c8586d0d943cb48dafcd67e0b20da1dce58941079e184b6",
+      "bytes": 5617
+    },
+    {
+      "workspace_relative_path": "we-meet-android/feature-im/src/main/java/com/we/meet/feature/im/call/CallController.kt",
+      "sha256": "0e7982bb20a79b60a42999cf33201da6fc9cb78c9206a3acd364d2a4731da2c2",
+      "bytes": 32308
+    },
+    {
+      "workspace_relative_path": "we-meet-android/app/src/main/java/com/we/meet/livekit/LiveKitController.kt",
+      "sha256": "4958d8d75974aeda131d62683b1c96d5aff81d7324d874405e8d7ff6d0b5b165",
+      "bytes": 10998
+    },
+    {
+      "workspace_relative_path": "we-meet-android/app/src/main/java/com/we/meet/data/api/MeetingRecordApi.kt",
+      "sha256": "27f7b0be01da11c22d848bb5d3a5dc06f979519e8572e3a75aecb284b3c56738",
+      "bytes": 9177
+    }
+  ],
+  "upstream": {
+    "commit": "065629c313eaf1a01c65c640c46d77e61e9607b4",
+    "source_url": "https://raw.githubusercontent.com/modelscope/3D-Speaker/065629c313eaf1a01c65c640c46d77e61e9607b4/speakerlab/bin/infer_sv.py",
+    "source_sha256": "f66089cba483491790613a18f5faae0cbb077b27de859f48a2f7ab86ce18e41d",
+    "verified_facts": {
+      "campplus_common_192": true,
+      "eres2netv2_common_192": true,
+      "campplus_revision_v1_0_0": true,
+      "eres2netv2_revision_v1_0_1": true
+    }
+  },
+  "model_revisions": [
+    {
+      "model_id": "iic/speech_campplus_sv_zh-cn_16k-common",
+      "revision": "v1.0.0",
+      "url": "https://modelscope.cn/api/v1/models/iic/speech_campplus_sv_zh-cn_16k-common/repo/files?Revision=v1.0.0&Recursive=true",
+      "code": 200,
+      "files": [
+        {
+          "Path": "README.md",
+          "Size": 5022,
+          "Sha256": "5961314f42e20bc19b64b3e062543ac0e3b90417fba2dfad029b737246a40a69",
+          "Revision": "7e452fc19c2b0c761d591a4241c332e02dfe10d3"
+        },
+        {
+          "Path": "campplus_cn_common.bin",
+          "Size": 28036335,
+          "Sha256": "3388cf5fd3493c9ac9c69851d8e7a8badcfb4f3dc631020c4961371646d5ada8",
+          "Revision": "013c18884dffb82846cf472dd06dd4a08d97e2cd"
+        },
+        {
+          "Path": "configuration.json",
+          "Size": 389,
+          "Sha256": "7203fc0b2b8cb37fdcfc67ebc9bbfde653f65f89efa0cfef36ad722aeb3aabf7",
+          "Revision": "013c18884dffb82846cf472dd06dd4a08d97e2cd"
+        }
+      ],
+      "downloaded_weights": false
+    },
+    {
+      "model_id": "iic/speech_eres2netv2_sv_zh-cn_16k-common",
+      "revision": "v1.0.1",
+      "url": "https://modelscope.cn/api/v1/models/iic/speech_eres2netv2_sv_zh-cn_16k-common/repo/files?Revision=v1.0.1&Recursive=true",
+      "code": 200,
+      "files": [
+        {
+          "Path": "README.md",
+          "Size": 4493,
+          "Sha256": "474094d2c054aed40996861ec8c6dc01f742604dc82807fe3409112513a7ed67",
+          "Revision": "1cf80d41fb3435bd3d8df185b5c423333b2db42a"
+        },
+        {
+          "Path": "configuration.json",
+          "Size": 384,
+          "Sha256": "f24d2dc6e34160a023520552e37aa6bd36d9ad471c56c91a167dad5f98a44bcf",
+          "Revision": "c0df10ae7e0dec76f922b2cd2dcef25f92225f09"
+        },
+        {
+          "Path": "pretrained_eres2netv2.ckpt",
+          "Size": 71768231,
+          "Sha256": "0eb4057106b2573dd7b132cf0c36273ab29afd192c1610f80baa9c556dbb963c",
+          "Revision": "1cf80d41fb3435bd3d8df185b5c423333b2db42a"
+        }
+      ],
+      "downloaded_weights": false
+    }
+  ],
+  "model_card_licenses": [
+    {
+      "model_id": "iic/speech_campplus_sv_zh-cn_16k-common",
+      "revision": "v1.0.0",
+      "url": "https://modelscope.cn/api/v1/models/iic/speech_campplus_sv_zh-cn_16k-common/repo?Revision=v1.0.0&FilePath=README.md",
+      "status": 200,
+      "sha256": "5961314f42e20bc19b64b3e062543ac0e3b90417fba2dfad029b737246a40a69",
+      "license_declaration": "Apache License 2.0"
+    },
+    {
+      "model_id": "iic/speech_eres2netv2_sv_zh-cn_16k-common",
+      "revision": "v1.0.1",
+      "url": "https://modelscope.cn/api/v1/models/iic/speech_eres2netv2_sv_zh-cn_16k-common/repo?Revision=v1.0.1&FilePath=README.md",
+      "status": 200,
+      "sha256": "474094d2c054aed40996861ec8c6dc01f742604dc82807fe3409112513a7ed67",
+      "license_declaration": "Apache License 2.0"
+    }
+  ],
+  "installed_sdk_probe": {
+    "kind": "local_sdk_probe",
+    "versions": {
+      "livekit": "1.1.19",
+      "livekit-agents": null,
+      "numpy": "2.4.4"
+    },
+    "audio_stream_signature": "(track: 'Track', loop: 'Optional[asyncio.AbstractEventLoop]' = None, capacity: 'int' = 0, sample_rate: 'int' = 48000, num_channels: 'int' = 1, frame_size_ms: 'int | None' = None, noise_cancellation: 'Optional[NoiseCancellationOptions | FrameProcessor[AudioFrame]]' = None, auto_close_noise_cancellation: 'bool' = True, **kwargs: 'Any') -> 'None'",
+    "subscription_method": true
+  },
+  "vector_scoring_probe": {
+    "scope": "local synthetic-vector scoring only; no audio, no model inference or recognition accuracy",
+    "numpy": "2.4.4",
+    "seed": 20261009,
+    "query_vectors": 50,
+    "template_vectors": 250,
+    "dimensions": 192,
+    "dtype": "float32",
+    "warmups": 20,
+    "runs": 200,
+    "p50_ms": 0.37474988494068384,
+    "p95_ms": 0.8096999954432248,
+    "input_vector_bytes": 230400,
+    "output_score_bytes": 50000
+  },
+  "reference_urls": [
+    "https://help.aliyun.com/zh/model-studio/asr-model",
+    "https://help.aliyun.com/zh/model-studio/non-realtime-speech-recognition-user-guide",
+    "https://docs.livekit.io/transport/encryption/agents/",
+    "https://docs.livekit.io/transport/media/subscribe/",
+    "https://docs.qwencloud.com/developer-guides/speech/qwen-audio-realtime",
+    "https://arxiv.org/html/2601.15621v1",
+    "https://raw.githubusercontent.com/QwenLM/Qwen3-TTS/022e286b98fbec7e1e916cb940cdf532cd9f488e/qwen_tts/core/models/modeling_qwen3_tts.py",
+    "https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base/resolve/5d83992436eae1d760afd27aff78a71d676296fc/config.json"
+  ],
+  "pending": [
+    "human samples and effect evaluation",
+    "real authorized track and revocation probe",
+    "frozen model dependency environment and inference profiling",
+    "deployed resources/encryption/backup policy verification",
+    "plan approval"
+  ],
+  "model_metadata_licenses": [
+    {
+      "model": "speech_campplus_sv_zh-cn_16k-common",
+      "url": "https://modelscope.cn/api/v1/models/iic/speech_campplus_sv_zh-cn_16k-common",
+      "http_status": 200,
+      "sha256": "684d1990e4a19ab7430cc4cf99d9bee89f4cbd1513ce18a91678e80c8fecba5a",
+      "license_fields": {
+        "License": "Apache License 2.0",
+        "LicenseLink": "",
+        "LicenseName": ""
+      }
+    },
+    {
+      "model": "speech_eres2netv2_sv_zh-cn_16k-common",
+      "url": "https://modelscope.cn/api/v1/models/iic/speech_eres2netv2_sv_zh-cn_16k-common",
+      "http_status": 200,
+      "sha256": "b1123fb90721c9248b2ecb004a4abaa1dac8164fd0610429c74abe1e6531b89a",
+      "license_fields": {
+        "License": "Apache License 2.0",
+        "LicenseLink": "",
+        "LicenseName": ""
+      }
+    }
+  ],
+  "plan_version": "1.3",
+  "qwen_preferred_candidate": {
+    "date": "2026-10-09",
+    "user_preference": "Prefer Qwen models; compare alternatives only as reference/fallback",
+    "model_id": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+    "model_revision": "5d83992436eae1d760afd27aff78a71d676296fc",
+    "metadata_url": "https://huggingface.co/api/models/Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+    "license_declaration": "apache-2.0",
+    "github_commit": "022e286b98fbec7e1e916cb940cdf532cd9f488e",
+    "source_url": "https://raw.githubusercontent.com/QwenLM/Qwen3-TTS/022e286b98fbec7e1e916cb940cdf532cd9f488e/qwen_tts/core/models/modeling_qwen3_tts.py",
+    "source_sha256": "25c42656bcf810f06ef6bc1839bd7083f3c8cfedac3a147c4060b4262b1c96a0",
+    "config": {
+      "url": "https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base/resolve/5d83992436eae1d760afd27aff78a71d676296fc/config.json",
+      "sha256": "2e714c787c8edb98b05432685cddb634add2de4d4e645f653d68251ef72ba011",
+      "speaker_encoder_config": {
+        "enc_dim": 1024,
+        "sample_rate": 24000
+      },
+      "tts_model_type": "base"
+    },
+    "extractor_present": true,
+    "weights_downloaded": false,
+    "model_executed": false,
+    "dedicated_identification_api_verified": false,
+    "speaker_identity_quality_verified": false,
+    "declared_task": "text-to-speech"
+  },
+  "qwen_dimension_vector_probe": {
+    "scope": "synthetic 1024-dimensional vector multiplication only; not Qwen model inference or identity evaluation",
+    "seed": 20261009,
+    "query_vectors": 50,
+    "template_vectors": 250,
+    "dimensions": 1024,
+    "numpy": "2.4.4",
+    "dtype": "float32",
+    "warmups": 20,
+    "runs": 200,
+    "p50_ms": 0.8427498396486044,
+    "p95_ms": 1.5662300516851244,
+    "input_vector_bytes": 1228800,
+    "output_score_bytes": 50000
+  },
+  "selection_policy": "Try Qwen first; consider private CAM++ deployment only if Qwen fails validated requirements. ERes2NetV2 and ECAPA remain research references."
+}

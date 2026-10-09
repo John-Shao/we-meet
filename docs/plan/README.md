@@ -16,6 +16,7 @@
 | [chat-message-to-task-plan.md](chat-message-to-task-plan.md) | 聊天消息转任务 |
 | [docs-member-identity.md](docs-member-identity.md) | 云文档成员身份与授权；独立跨服务协议说明 |
 | [meeting-ai-product-plan-v2-2026-09-12.md](meeting-ai-product-plan-v2-2026-09-12.md) | 会议 AI 产品规划 V2 |
+| [speaker-identity-voiceprint-plan-2026-10-09.md](speaker-identity-voiceprint-plan-2026-10-09.md) | 声纹身份识别方案 v1.5：先尝试 Qwen，未满足要求时再考虑 CAM++ 私有化部署；保留专用模型配置参考、人工通讯录选择／自定义标签与通话采样；[代码与资料调研](../research/voiceprint-preimplementation-2026-10-09.md)已完成，真人与生产实测待验证；待评审，未实施 |
 | [meeting-ai-redesign-2026-09-12.md](meeting-ai-redesign-2026-09-12.md) | 会议 AI 重设计提案与早期背景 |
 | [meeting-ai-translation-qwen-2026-09-12.md](meeting-ai-translation-qwen-2026-09-12.md) | 翻译模型选型与接入方案 |
 
