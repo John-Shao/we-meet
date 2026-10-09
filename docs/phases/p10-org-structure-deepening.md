@@ -742,9 +742,36 @@ GET  /admin/stats/activity/?days=30 · /admin/stats/ai-usage/ · GET/PUT /admin/
 | R16 | **双端协议漂移** | 今天 meeting-card/doc-card 三处独立实现零测试保护；`fields[]` 是动态 key 风险更高 | 金标准 fixture 契约测试（§4.4）；双端对未知 `field.type` / 未知 `content_type` 一律降级不崩；Kotlin 侧 `type` 用 `String` 不用 enum |
 | R17 | **`Department.path` 长度上限** | `CharField(1024)` / 每层 33 字符 → 最深 31 层；scope 过滤会产生 N 个 `path__startswith` OR | 建树深度硬限 ≤10（serializer 校验）；单 assignment 的 scope 部门数 ≤20 |
 | R18 | **活跃埋点写放大** | middleware 每请求写 DB → 高频 IM 轮询能把 DB 打爆 | Redis `cache.add` 5 分钟去重 + Celery 异步 + `F()` 原子自增 |
-| R19 | **i18n 债** | 新增 4 页 × 5 语言（fr/de/nl 是 La Suite Meet upstream 遗产） | 新增 admin 文案只保 **zh/en** 高质量，fr/de/nl 走 i18next fallback 到 en，**不做机翻**（会污染 upstream 人工翻译）。PR 说明中注明，避免 CI i18n 检查误判 |
+| R19 | **i18n 债** | 新增 4 页 × 5 语言（fr/de/nl 是 La Suite Meet upstream 遗产） | 原对策：新增 admin 文案只保 **zh/en** 高质量，fr/de/nl 走 i18next fallback 到 en，**不做机翻**（会污染 upstream 人工翻译），PR 说明中注明以免 CI i18n 检查误判。**该对策已于 2026-10-09 被推翻并还清**——它建立在一个不成立的前提上，详见下方「R19 落账」 |
 | R20 | **无 celery beat**（F5） | 活跃/审计保留期清理、`AIQuota.used_units` 校准都没有定时器 | 挂在写路径上概率触发（1/1000），符合项目既有现状零新增基础设施。真需要定时器时再独立决策引入 `django-celery-beat` |
 | R21 | **jusi 跨仓依赖**（F10） | 群管理员需要 jusi 新增 role 路由 | 该项独立可延，**不阻塞部门群**（部门群只用已有的 create/add/remove/update_meta） |
+
+### R19 落账：Web 端五语言文案补齐（2026-10-09）
+
+**原对策的前提不成立。** R19 写的是「fr/de/nl 走 i18next fallback 到 **en**」，但 `src/frontend/src/i18n/init.ts:6` 的 `fallbackLng` 实际是 **`zh`**。也就是说缺键时 fr/de/nl 用户看到的是**中文**，而不是「还没翻译的英文」——把缺口挂给翻译进度、指望英文兜底，在实际渲染路径上从未成立。叠加 fr/de/nl 存量本就大面积缺键（`docs.json` 整组 `sharing` 缺失、`tasks.json` 缺 51 组配置项），这个口径的后果是这三语用户直接看到中文界面。
+
+**改动范围**（`src/frontend/src/locales`，24 个命名空间 × 5 语言，41 个文件）：
+
+| 类别 | fr | de | nl | en |
+|---|---|---|---|---|
+| 缺失键（此前整条不存在） | 130 | 130 | 126 | 2 |
+| 英文残留（值与 en 逐字相同） | 274 | 255 | 301 | — |
+| 内含英文术语（`admin.audit.action.bot_*` 的 `Group bot`） | 7 | 7 | 7 | — |
+| 复数 `_one` 补全 | 1 | 1 | 1 | 1 |
+
+合计新增键 **392** 条、改写值 **851** 条。`zh`（基准语言）一个字节未改。
+
+**验收判据**（比 `scripts/check-locale-parity.mjs` 严：后者只看 meetings + capture 的顶层组）：以 `zh` 为基准逐叶子**双向**比对键树 + 跨 5 语言比对 `{{var}}` 占位符集合 + 复数族 `_one`/`_other` 完整性 + 空值/非字符串叶子检查。结果：3894 条基准键、15576 次占位符比对，全部 0 失败。引擎侧 `zh` 3904 叶子 vs 其余 3907，差的正是中文不需要的 3 个 `_one`。
+
+`check:json`、`check:locales`、`check:colors`、`check:foundations`、prettier `--check` 全绿；单元测试 1465 通过（`RecordingUpload.test.tsx` 的 1 项 5s 超时为机器争用 flake，单独重跑 18/18 通过）。
+
+改写链路本身先做过无损性验证（保序解析 + 还原单行小对象，120 个语言包逐字节还原成功）才落盘，因此 diff 内不含任何格式噪音。
+
+**Crowdin 现状**：本仓库当前不使用 Crowdin。原 `.github/workflows/crowdin-download.yml` 是从上游继承的死代码，**已于 2026-10-09 删除**（上游更早就在 `262b16841` 删掉了这个 workflow，`7454d4432` 一并删了 `meet.yml` 里的 Crowdin 步骤）。删除前逐条核过：它只能手动触发（`workflow_dispatch` 上挂的 `types:` 对该事件无意义）、只 `download_translations: true`（`upload_sources`/`upload_translations` 均为 false）、落成 PR 而非直接提交，另需 fork 里通常不存在的 `CROWDIN_*` secrets——也就是说它本来就不会自行覆盖任何东西，删它是为了断掉唯一的自动路径，并减少将来 merge upstream 的冲突。
+
+**`crowdin/config.yml` 暂留**（上游也仍保留这份），但启用前必须先决策：它把 **`fr` 当作 Crowdin 的 source**，而 `zh` 根本不在这份配置里。本 fork 的 fr 现已手工维护为完整语言包，一旦打开上传，这批法文会被当作源串推出、覆盖上游源串；执行下载则会把上游法文派生的 de/en/nl 覆盖本次补齐成果。启用前需先定「谁是源语言」——换成 zh，或把 fr 从 source 摘出、只保留下载目标。
+
+复现脚本、逐条译文产出与语义扫描报告留档在仓库外 `D:\workspace\jusi-meet\.i18n-scratch\`。
 
 ---
 
@@ -812,6 +839,7 @@ GET  /admin/stats/activity/?days=30 · /admin/stats/ai-usage/ · GET/PUT /admin/
 - `features/contacts/components/MemberDetailPanel.tsx:158-160` —— 配置驱动 + 补齐手机号 reveal
 - `features/contacts/api/fetchDirectoryMembers.ts:18` —— F6 分页 bug 根源，波及三个选人器
 - `layout/Header.tsx` —— M 端入口
+- `src/locales/{zh,en,fr,de,nl}/*.json` —— 5 语言 × 24 命名空间；R19 落账后已逐叶子对齐。新增文案**追加到所属组末尾**即可，不要整文件重排：`tasks.json` 有 `"360"` 这类整数样式键，`JSON.parse` → `JSON.stringify` 会把它们移到所有字符串键之前，键序被静默改写。改完跑 `npm run check:json && npm run check:locales`，并保持 prettier 干净
 - **新建**：`hooks/useOrgContext.ts`（从 admin 模块提出，保 lazy 分包）· `features/contacts/components/fieldRenderers.tsx` · `features/contacts/components/DepartmentDetailPanel.tsx`
 
 **Android**
