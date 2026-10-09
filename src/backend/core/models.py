@@ -7346,6 +7346,9 @@ class AuditActionChoices(models.TextChoices):
     # 真正要能被筛出来的事件,混进 bot.update(C 端改个名也是它)等于没做。
     BOT_DISABLE = "bot.disable", _("Group bot disabled")
     BOT_ENABLE = "bot.enable", _("Group bot enabled")
+    VOICEPRINT_POLICY_CHANGED = (
+        "voiceprint.policy_changed", _("Organization voiceprint policy changed")
+    )
 
 
 class AuditLog(BaseModel):
@@ -9040,3 +9043,235 @@ class DirectAIAllocation(BaseModel):
 
     class Meta:
         indexes = [models.Index(fields=["user", "status", "lease_until"]), models.Index(fields=["user", "created_at"])]
+
+
+class VoiceprintConsent(BaseModel):
+    """The person's independent permissions in one scope; never an admin grant."""
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="voiceprint_consents"
+    )
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, null=True, blank=True
+    )
+    allow_enrollment = models.BooleanField(default=False)
+    allow_accumulation = models.BooleanField(default=False)
+    allow_identification = models.BooleanField(default=False)
+    version = models.PositiveBigIntegerField(default=1)
+    generation = models.PositiveBigIntegerField(default=1)
+    granted_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "organization"],
+                condition=models.Q(organization__isnull=False),
+                name="vp_consent_user_org_unique",
+            ),
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(organization__isnull=True),
+                name="vp_consent_personal_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(version__gte=1, generation__gte=1),
+                name="vp_consent_positive_versions",
+            ),
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintConsentEvent(BaseModel):
+    """Append-only authorization history, private to the subject's scope."""
+
+    consent = models.ForeignKey(
+        VoiceprintConsent, on_delete=models.CASCADE, related_name="events"
+    )
+    version = models.PositiveBigIntegerField()
+    generation = models.PositiveBigIntegerField()
+    action = models.CharField(
+        max_length=24,
+        choices=[
+            ("settings", "settings"),
+            ("delete", "delete"),
+            ("invalidate", "invalidate"),
+        ],
+    )
+    permissions = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["consent", "version"], name="vp_consent_event_version_unique"
+            )
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintProfile(BaseModel):
+    """Scope-specific key and model namespace; no public vector projection."""
+
+    consent = models.ForeignKey(
+        VoiceprintConsent, on_delete=models.CASCADE, related_name="profiles"
+    )
+    feature_space = models.CharField(max_length=128)
+    generation = models.PositiveBigIntegerField()
+    status = models.CharField(
+        max_length=16,
+        default="pending",
+        choices=[
+            ("pending", "pending"),
+            ("active", "active"),
+            ("paused", "paused"),
+            ("deleted", "deleted"),
+        ],
+    )
+    encrypted_key = models.BinaryField(blank=True, default=bytes, max_length=256)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    last_updated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["consent", "feature_space"],
+                name="vp_profile_scope_model_unique",
+            )
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintSample(BaseModel):
+    """Bounded private ciphertext, with original authorization and expiry."""
+
+    profile = models.ForeignKey(
+        VoiceprintProfile, on_delete=models.CASCADE, related_name="samples"
+    )
+    generation = models.PositiveBigIntegerField()
+    consent_version = models.PositiveBigIntegerField()
+    permit_id = models.UUIDField()
+    source_type = models.CharField(
+        max_length=16, choices=[("enrollment", "enrollment"), ("call", "call")]
+    )
+    source_record = models.ForeignKey(
+        MeetingRecord, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    source_session_id = models.UUIDField(null=True, blank=True)
+    source_track = models.CharField(max_length=64, blank=True, default="")
+    start_ms = models.PositiveIntegerField(default=0)
+    end_ms = models.PositiveIntegerField()
+    audio_sha256 = models.CharField(max_length=64)
+    encrypted_audio = models.BinaryField(blank=True, default=bytes, max_length=484160)
+    encrypted_embedding = models.BinaryField(
+        blank=True, default=bytes, max_length=32768
+    )
+    quality = models.JSONField(blank=True, default=dict)
+    status = models.CharField(
+        max_length=16,
+        default="pending",
+        choices=[
+            (state, state)
+            for state in (
+                "pending",
+                "processing",
+                "ready",
+                "confirmed",
+                "rejected",
+                "expired",
+                "deleted",
+            )
+        ],
+    )
+    expires_at = models.DateTimeField(db_index=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["profile", "permit_id", "audio_sha256"],
+                name="vp_sample_permit_digest_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(end_ms__gt=models.F("start_ms")),
+                name="vp_sample_positive_interval",
+            ),
+        ]
+        indexes = [models.Index(fields=["profile", "generation", "status"])]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintTemplate(BaseModel):
+    """Only worker-validated, confirmed samples may support a matching template."""
+
+    profile = models.ForeignKey(
+        VoiceprintProfile, on_delete=models.CASCADE, related_name="templates"
+    )
+    generation = models.PositiveBigIntegerField()
+    device_group = models.CharField(max_length=24, default="default")
+    dimension = models.PositiveIntegerField()
+    encrypted_vector = models.BinaryField(blank=True, default=bytes, max_length=32768)
+    support_samples = models.ManyToManyField(VoiceprintSample, related_name="templates")
+    status = models.CharField(
+        max_length=16,
+        default="active",
+        choices=[("active", "active"), ("paused", "paused"), ("deleted", "deleted")],
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["profile", "generation", "device_group"],
+                name="vp_template_device_unique",
+            )
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintDeletionJob(BaseModel):
+    """Durable tombstone and cleanup receipt survive account/scope removal."""
+
+    consent = models.ForeignKey(
+        VoiceprintConsent, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    owner_id = models.UUIDField()
+    organization_id = models.UUIDField(null=True, blank=True)
+    profile_id = models.UUIDField(null=True, blank=True)
+    request_key = models.UUIDField()
+    expected_version = models.PositiveBigIntegerField()
+    revoked_generation = models.PositiveBigIntegerField()
+    reason = models.CharField(max_length=24, default="user_deleted")
+    status = models.CharField(
+        max_length=16,
+        default="queued",
+        choices=[
+            (state, state) for state in ("queued", "running", "succeeded", "failed")
+        ],
+    )
+    attempts = models.PositiveIntegerField(default=0)
+    receipt = models.JSONField(blank=True, default=dict)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner_id", "request_key"], name="vp_delete_request_unique"
+            )
+        ]
+        indexes = [
+            models.Index(fields=["status", "created_at"]),
+            models.Index(fields=["owner_id", "organization_id", "revoked_generation"]),
+        ]
+
+    def __str__(self):
+        return str(self.pk)

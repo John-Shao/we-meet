@@ -161,6 +161,12 @@ from core.api.personal_calendars import (
     PersonalCalendarViewSet,
 )
 from core.api.personal_hotwords import PersonalHotwordsView
+from core.api.voiceprint import (
+    VoiceprintSettingsView,
+    VoiceprintProfileView,
+    VoiceprintDeletionView,
+    VoiceprintOrganizationPolicyView,
+)
 from core.api.push import ImPushHookView, PushPreferenceView, PushTokenView
 from core.api.qr_login import (
     QrAuthenticatorStatusView,
@@ -416,6 +422,22 @@ urlpatterns = [
         include(
             [
                 path("im/preferences/", ImPreferenceView.as_view(), name="im_preferences"),
+                path(
+                    "voiceprint/settings/",
+                    VoiceprintSettingsView.as_view(), name="voiceprint-settings",
+                ),
+                path(
+                    "voiceprint/profiles/<uuid:profile_id>/",
+                    VoiceprintProfileView.as_view(), name="voiceprint-profile",
+                ),
+                path(
+                    "voiceprint/deletions/<uuid:job_id>/",
+                    VoiceprintDeletionView.as_view(), name="voiceprint-deletion",
+                ),
+                path(
+                    "voiceprint/organizations/<uuid:organization_id>/settings/",
+                    VoiceprintOrganizationPolicyView.as_view(), name="voiceprint-organization-policy",
+                ),
                 path(
                     "calendar-share/<str:token>/",
                     CalendarShareView.as_view(),

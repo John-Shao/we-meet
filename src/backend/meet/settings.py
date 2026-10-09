@@ -1151,6 +1151,9 @@ class Base(Configuration):
         False, environ_name="MEETING_RECORDS_ENABLED", environ_prefix=None
     )
     MEETING_VERSIONED_SUMMARY_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_VOICEPRINT_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    # Separate, rotatable mounted keyring; never fall back to DJANGO_SECRET_KEY.
+    MEETING_VOICEPRINT_KEYRING_FILE = values.Value("", environ_prefix=None)
     MEETING_TRANSCRIPT_DELIVERY_ENABLED = values.BooleanValue(
         False, environ_prefix=None
     )
