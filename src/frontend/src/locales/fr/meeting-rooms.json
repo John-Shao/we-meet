@@ -61,7 +61,7 @@
     "serverRejected": "Cette salle vient d'être prise. Choisissez-en une autre."
   },
   "status": {
-    "active": "Active",
+    "active": "Actif",
     "disabled": "Désactivée"
   },
   "unit": {

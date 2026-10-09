@@ -57,7 +57,9 @@
       "dueDate": "Échéance",
       "taskList": "Liste de tâches",
       "creator": "Créateur",
-      "createdAt": "Création"
+      "createdAt": "Création",
+      "customGroup": "Groupe personnalisé",
+      "completedAt": "Terminée"
     },
     "openTask": "Ouvrir la tâche : {{title}}",
     "quickComplete": "Terminer la tâche : {{title}}",
@@ -78,6 +80,30 @@
       "comments": "Commentaires",
       "attachments": "Pièces jointes",
       "history": "Historique"
+    },
+    "fieldSettings": "Paramètres des champs",
+    "displayAndOrdering": "Affichage et tri",
+    "resetFields": "Réinitialiser",
+    "moveField": "Déplacer {{field}}",
+    "showField": "Afficher {{field}}",
+    "hideField": "Masquer {{field}}",
+    "fieldLocked": "{{field}} est fixé par cette vue",
+    "grouping": {
+      "label": "Groupe",
+      "none": "Aucun regroupement",
+      "custom": "Groupe personnalisé",
+      "task_list": "Liste de tâches",
+      "start_date": "Date de début",
+      "due_date": "Échéance",
+      "creator": "Créateur",
+      "noDate": "Sans date",
+      "unknownCreator": "Créateur inconnu"
+    },
+    "ordering": {
+      "label": "Tri",
+      "smart": "Tri intelligent",
+      "ascending": "Trier {{field}} par ordre croissant",
+      "descending": "Trier {{field}} par ordre décroissant"
     }
   },
   "activity": {
@@ -143,9 +169,9 @@
     "create": "Créer une liste",
     "createHint": "Create a list to organize related tasks.",
     "name": "Nom de la liste",
-    "namePlaceholder": "For example: Product requirements",
+    "namePlaceholder": "Par exemple : cahier des charges",
     "description": "Description (facultatif)",
-    "descriptionPlaceholder": "Add the list's purpose or scope",
+    "descriptionPlaceholder": "Précisez l'usage ou le périmètre de la liste",
     "taskCount": "{{count}} tâches",
     "deleteTitle": "Supprimer la liste",
     "deleteDescription": "Supprimer définitivement « {{name}} » ? Les tâches sont conservées hors de la liste par défaut. Les membres dont l’accès dépend uniquement de la liste perdront cet accès.",
@@ -239,7 +265,17 @@
     "rename": "Renommer",
     "renameError": "Impossible de renommer le groupe. Veuillez réessayer.",
     "delete": "Supprimer le groupe",
-    "deleteDescription": "Supprimer « {{name}} » ? Seuls les groupes vides peuvent être supprimés."
+    "deleteDescription": "Supprimer « {{name}} » ? Seuls les groupes vides peuvent être supprimés.",
+    "navigationTitle": "Groupes personnalisés",
+    "emptyNavigation": "Aucun groupe personnalisé pour le moment",
+    "invalidSelection": "Le groupe personnalisé est indisponible. Toutes les tâches sont affichées.",
+    "taskCount": "{{count}} tâches",
+    "moveUpNamed": "Déplacer {{name}} vers le haut",
+    "moveDownNamed": "Déplacer {{name}} vers le bas",
+    "renameNamed": "Renommer {{name}}",
+    "deleteNamed": "Supprimer {{name}}",
+    "empty": "Faites glisser des tâches dans ce groupe ou utilisez le bouton ci-dessus pour en créer une",
+    "emptyReadOnly": "Faites glisser des tâches dans ce groupe"
   },
   "board": {
     "title": "Tableau des tâches",
@@ -497,5 +533,28 @@
       "source_action_item_task_aligned": "{{base}} ; la tâche liée était déjà « {{taskStatus}} »",
       "source_action_item_task_conflict": "{{base}} ; la tâche liée conserve le statut « {{taskStatus}} »"
     }
+  },
+  "assignees": {
+    "add": "Ajouter un responsable",
+    "select": "Sélectionner des responsables",
+    "selected": "{{count}} sur 10 sélectionné(s)",
+    "limit": "Choisissez jusqu'à 10 personnes également responsables.",
+    "remove": "Retirer le responsable {{name}}"
+  },
+  "share": {
+    "action": "Partager la tâche",
+    "title": "Partager la tâche « {{title}} »",
+    "toConversation": "Partager dans la discussion",
+    "taskLink": "Lien de la tâche",
+    "linkHint": "Toute personne ouvrant ce lien doit se connecter et disposer d'un accès en lecture.",
+    "copy": "Copier",
+    "copied": "Copié",
+    "failed": "Impossible de partager la tâche. Veuillez réessayer.",
+    "cardTitle": "Tâche partagée",
+    "viewDetails": "Voir les détails",
+    "conversationTitle": "Tâches de la discussion",
+    "conversationEmpty": "Aucune tâche n'a encore été partagée dans cette conversation.",
+    "viewMore": "Voir plus",
+    "loading": "Chargement des tâches de la discussion…"
   }
 }

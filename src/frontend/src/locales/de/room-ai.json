@@ -9,5 +9,11 @@
   "send": "Senden",
   "sending": "Wird gesendet…",
   "thinking": "Denkt nach…",
-  "error": "Anfrage fehlgeschlagen: {{message}}"
+  "error": "Anfrage fehlgeschlagen: {{message}}",
+  "materialsUnavailable": "Die Materialien für diese Sitzung sind nicht verfügbar oder Sie haben keinen Zugriff darauf. Der Beitritt zu einer Besprechung gewährt nicht automatisch Zugriff auf ihre Materialien.",
+  "prompts": {
+    "summary": "Fassen Sie die bisherige Diskussion zusammen",
+    "decisions": "Welche Entscheidungen wurden bisher getroffen?",
+    "actions": "Welche Maßnahmen stehen an?"
+  }
 }

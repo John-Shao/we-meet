@@ -47,7 +47,7 @@
   },
   "form": {
     "title": "Nouvelle demande",
-    "template": "Type",
+    "template": "Type de validation",
     "templatePlaceholder": "Sélectionner…",
     "submit": "Envoyer",
     "cancel": "Annuler",

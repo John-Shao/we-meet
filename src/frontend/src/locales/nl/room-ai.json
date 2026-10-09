@@ -9,5 +9,11 @@
   "send": "Verzenden",
   "sending": "Wordt verzonden…",
   "thinking": "Aan het nadenken…",
-  "error": "Aanvraag mislukt: {{message}}"
+  "error": "Aanvraag mislukt: {{message}}",
+  "materialsUnavailable": "De materialen voor deze sessie zijn niet beschikbaar of u hebt er geen toegang toe. Deelname aan een vergadering geeft niet automatisch toegang tot de materialen.",
+  "prompts": {
+    "summary": "Vat de discussie tot nu toe samen",
+    "decisions": "Wat is er tot nu toe besloten?",
+    "actions": "Wat zijn de actiepunten?"
+  }
 }

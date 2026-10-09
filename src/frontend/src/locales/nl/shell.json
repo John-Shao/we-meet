@@ -53,7 +53,13 @@
     "clearFilters": "Filters wissen",
     "taskError": "Taakzoeken is tijdelijk niet beschikbaar.",
     "retry": "Opnieuw proberen",
-    "loading": "Laden…"
+    "loading": "Laden…",
+    "aiScope": "Bereik van antwoorden",
+    "aiScopeAll": "Alle toegankelijke inhoud",
+    "aiScopeMeetings": "Vergaderingen en opnames",
+    "aiDateFrom": "Van",
+    "aiDateTo": "Tot",
+    "aiDatesInvalid": "De einddatum moet op of na de startdatum liggen."
   },
   "logout": "Afmelden",
   "confirm": "Bevestigen",

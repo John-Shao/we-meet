@@ -458,7 +458,9 @@
       "bot_secret_reset": "Group bot secret reset",
       "bot_webhook_view": "Group bot credentials viewed",
       "bot_disable": "Group bot disabled",
-      "bot_enable": "Group bot enabled"
+      "bot_enable": "Group bot enabled",
+      "task_list_transfer": "Task list transferred",
+      "task_list_takeover": "Task list taken over"
     },
     "group": {
       "department": "Department",

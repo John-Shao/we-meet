@@ -53,7 +53,13 @@
     "clearFilters": "Filter löschen",
     "taskError": "Die Aufgabensuche ist vorübergehend nicht verfügbar.",
     "retry": "Erneut versuchen",
-    "loading": "Wird geladen…"
+    "loading": "Wird geladen…",
+    "aiScope": "Antwortumfang",
+    "aiScopeAll": "Alle zugänglichen Inhalte",
+    "aiScopeMeetings": "Meetings und Aufnahmen",
+    "aiDateFrom": "Von",
+    "aiDateTo": "Bis",
+    "aiDatesInvalid": "Das Enddatum darf nicht vor dem Startdatum liegen."
   },
   "logout": "Abmelden",
   "confirm": "Bestätigen",

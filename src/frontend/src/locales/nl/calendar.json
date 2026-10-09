@@ -32,7 +32,7 @@
     "required": "Verplicht",
     "optional": "Optioneel",
     "attendeeRole": "Deelnametype voor {{name}}",
-    "externalContact": "External contact",
+    "externalContact": "Extern contact",
     "privateEvent": "Privéafspraak",
     "privateEventHint": "Niet-deelnemers zien alleen de bezette tijd, zonder details of deelnamelink",
     "selected": "{{count}} geselecteerd",

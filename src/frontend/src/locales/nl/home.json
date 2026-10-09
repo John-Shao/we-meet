@@ -59,5 +59,6 @@
     },
     "carouselLabel": "Introductie-diavoorstelling",
     "slidePosition": "Dia {{current}} van {{total}}"
-  }
+  },
+  "meetingAiSearch": "Vergader-AI doorzoeken"
 }

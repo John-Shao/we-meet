@@ -82,7 +82,8 @@
     "open": "Open chat",
     "info": "Group info",
     "members": "Members",
-    "selectHint": "Pick a group to see its info or open the chat"
+    "selectHint": "Pick a group to see its info or open the chat",
+    "memberCount_one": "{{count}} member"
   },
   "external": {
     "title": "External contacts",

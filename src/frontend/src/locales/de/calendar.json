@@ -32,7 +32,7 @@
     "required": "Erforderlich",
     "optional": "Optional",
     "attendeeRole": "Teilnahmetyp für {{name}}",
-    "externalContact": "External contact",
+    "externalContact": "Externer Kontakt",
     "privateEvent": "Privater Termin",
     "privateEventHint": "Nichtteilnehmer sehen nur die Belegungszeit, keine Details oder Einwahlinformationen",
     "selected": "{{count}} ausgewählt",

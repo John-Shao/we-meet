@@ -57,7 +57,9 @@
       "dueDate": "Deadline",
       "taskList": "Takenlijst",
       "creator": "Maker",
-      "createdAt": "Aangemaakt"
+      "createdAt": "Aangemaakt",
+      "customGroup": "Aangepaste groep",
+      "completedAt": "Voltooid"
     },
     "openTask": "Taak openen: {{title}}",
     "quickComplete": "Taak voltooien: {{title}}",
@@ -78,6 +80,30 @@
       "comments": "Opmerkingen",
       "attachments": "Bijlagen",
       "history": "Geschiedenis"
+    },
+    "fieldSettings": "Veldinstellingen",
+    "displayAndOrdering": "Weergave en sortering",
+    "resetFields": "Resetten",
+    "moveField": "{{field}} verplaatsen",
+    "showField": "{{field}} tonen",
+    "hideField": "{{field}} verbergen",
+    "fieldLocked": "{{field}} is vastgezet in deze weergave",
+    "grouping": {
+      "label": "Groeperen",
+      "none": "Niet groeperen",
+      "custom": "Aangepaste groep",
+      "task_list": "Takenlijst",
+      "start_date": "Startdatum",
+      "due_date": "Deadline",
+      "creator": "Maker",
+      "noDate": "Geen datum",
+      "unknownCreator": "Onbekende maker"
+    },
+    "ordering": {
+      "label": "Sorteren",
+      "smart": "Slimme volgorde",
+      "ascending": "{{field}} oplopend sorteren",
+      "descending": "{{field}} aflopend sorteren"
     }
   },
   "activity": {
@@ -143,9 +169,9 @@
     "create": "Takenlijst maken",
     "createHint": "Create a list to organize related tasks.",
     "name": "Lijstnaam",
-    "namePlaceholder": "For example: Product requirements",
+    "namePlaceholder": "Bijvoorbeeld: producteisen",
     "description": "Beschrijving (optioneel)",
-    "descriptionPlaceholder": "Add the list's purpose or scope",
+    "descriptionPlaceholder": "Voeg het doel of bereik van de lijst toe",
     "taskCount": "{{count}} taken",
     "deleteTitle": "Takenlijst verwijderen",
     "deleteDescription": "“{{name}}” definitief verwijderen? Taken blijven standaard buiten de lijst bestaan. Leden met toegang uitsluitend via deze lijst verliezen hun toegang.",
@@ -239,7 +265,17 @@
     "rename": "Hernoemen",
     "renameError": "De groep kon niet worden hernoemd. Probeer het opnieuw.",
     "delete": "Groep verwijderen",
-    "deleteDescription": "‘{{name}}’ verwijderen? Alleen lege groepen kunnen worden verwijderd."
+    "deleteDescription": "‘{{name}}’ verwijderen? Alleen lege groepen kunnen worden verwijderd.",
+    "navigationTitle": "Aangepaste groepen",
+    "emptyNavigation": "Nog geen aangepaste groepen",
+    "invalidSelection": "De aangepaste groep is niet beschikbaar. Alle taken worden getoond.",
+    "taskCount": "{{count}} taken",
+    "moveUpNamed": "{{name}} omhoog verplaatsen",
+    "moveDownNamed": "{{name}} omlaag verplaatsen",
+    "renameNamed": "{{name}} hernoemen",
+    "deleteNamed": "{{name}} verwijderen",
+    "empty": "Sleep taken naar deze groep of gebruik de actie hierboven om er een toe te voegen.",
+    "emptyReadOnly": "Sleep taken naar deze groep"
   },
   "board": {
     "title": "Takenbord",
@@ -497,5 +533,28 @@
       "source_action_item_task_aligned": "{{base}}; de gekoppelde taak was al ‘{{taskStatus}}’",
       "source_action_item_task_conflict": "{{base}}; de gekoppelde taak behoudt de status ‘{{taskStatus}}’"
     }
+  },
+  "assignees": {
+    "add": "Verantwoordelijke toevoegen",
+    "select": "Verantwoordelijken selecteren",
+    "selected": "{{count}} van 10 geselecteerd",
+    "limit": "Kies maximaal 10 personen die gezamenlijk verantwoordelijk zijn.",
+    "remove": "Verantwoordelijke {{name}} verwijderen"
+  },
+  "share": {
+    "action": "Taak delen",
+    "title": "Taak “{{title}}” delen",
+    "toConversation": "Delen naar gesprek",
+    "taskLink": "Taaklink",
+    "linkHint": "Wie deze link opent, moet inloggen en al leestoegang hebben.",
+    "copy": "Kopiëren",
+    "copied": "Gekopieerd",
+    "failed": "De taak kon niet worden gedeeld. Probeer het opnieuw.",
+    "cardTitle": "Gedeelde taak",
+    "viewDetails": "Details bekijken",
+    "conversationTitle": "Taken in dit gesprek",
+    "conversationEmpty": "Er zijn nog geen taken naar dit gesprek gedeeld.",
+    "viewMore": "Meer bekijken",
+    "loading": "Taken in dit gesprek laden…"
   }
 }

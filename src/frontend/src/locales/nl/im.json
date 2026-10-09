@@ -220,7 +220,8 @@
     "calendar": "Agenda delen",
     "doc": "[Document]",
     "richCard": "[Kaart]",
-    "richText": "[Rich text]"
+    "richText": "[Rijke tekst]",
+    "record": "[Vergaderrecord]"
   },
   "calendarCard": {
     "owner": "Eigenaar: {{name}}",
@@ -443,67 +444,67 @@
     "hint": "Deze persoon heeft de organisatie verlaten"
   },
   "bots": {
-    "entry": "Group bots",
-    "title": "Group bots",
-    "help": "How it works",
-    "add": "Add bot",
-    "addTitle": "Add a bot",
-    "empty": "No bots in this group yet",
-    "back": "Back",
+    "entry": "Groepsbots",
+    "title": "Groepsbots",
+    "help": "Hoe het werkt",
+    "add": "Bot toevoegen",
+    "addTitle": "Een bot toevoegen",
+    "empty": "Nog geen bots in deze groep",
+    "back": "Terug",
     "chip": "Bot",
-    "disabledChip": "Disabled",
-    "gone": "This bot no longer exists",
-    "edit": "Edit",
-    "enabled": "Active in this group",
-    "remove": "Remove bot",
-    "removeConfirm": "Remove “{{name}}” from this group? Its webhook URL stops working immediately.",
-    "ownerOnlyHint": "Only the group owner can add bots or view and change webhook settings.",
-    "builtinHint": "Built-in assistants ship with the product and cannot be removed; turning one off stops its notifications in this group.",
-    "error": "Failed: {{message}}",
-    "helpTitle": "Using group bots",
-    "helpIntro": "POST JSON to a bot's webhook URL and the message appears in this group under that bot's name. The request format matches Feishu custom bots, so an existing script only needs a new URL.",
-    "helpText": "Plain text",
-    "helpPost": "Rich text",
-    "helpSign": "Signature verification (optional)",
-    "helpSignBody": "When enabled every request must carry timestamp and sign. The secret is the HMAC key and the signed data is empty — identical to Feishu.",
-    "helpLimits": "Limits",
-    "helpLimitsBody": "100 requests/minute and 5/second per bot; request bodies up to 20 KB. Send X-Request-Id on retries so the same id only posts once.",
+    "disabledChip": "Uitgeschakeld",
+    "gone": "Deze bot bestaat niet meer",
+    "edit": "Bewerken",
+    "enabled": "Actief in deze groep",
+    "remove": "Bot verwijderen",
+    "removeConfirm": "“{{name}}” uit deze groep verwijderen? De webhook-URL werkt dan onmiddellijk niet meer.",
+    "ownerOnlyHint": "Alleen de groepseigenaar kan bots toevoegen of webhook-instellingen bekijken en wijzigen.",
+    "builtinHint": "Ingebouwde assistenten horen bij het product en kunnen niet worden verwijderd; ze uitschakelen stopt hun meldingen in deze groep.",
+    "error": "Mislukt: {{message}}",
+    "helpTitle": "Groepsbots gebruiken",
+    "helpIntro": "POST JSON naar de webhook-URL van een bot en het bericht verschijnt in deze groep onder de naam van die bot. Het verzoekformaat komt overeen met aangepaste Feishu-bots, dus een bestaand script heeft alleen een nieuwe URL nodig.",
+    "helpText": "Platte tekst",
+    "helpPost": "Rijke tekst",
+    "helpSign": "Handtekeningverificatie (optioneel)",
+    "helpSignBody": "Als dit aanstaat, moet elk verzoek timestamp en sign bevatten. De sleutel is de HMAC-sleutel en de te ondertekenen gegevens zijn een lege tekenreeks — precies zoals bij Feishu.",
+    "helpLimits": "Limieten",
+    "helpLimitsBody": "100 verzoeken per minuut en 5 per seconde per bot; verzoeken tot 20 KB. Stuur X-Request-Id mee bij nieuwe pogingen, zodat dezelfde id maar één keer wordt geplaatst.",
     "catalog": {
-      "search": "Search bots",
-      "custom": "Custom bot",
-      "customDesc": "Push messages from your own service into this group via webhook"
+      "search": "Bots zoeken",
+      "custom": "Aangepaste bot",
+      "customDesc": "Stuur berichten vanuit je eigen dienst via webhook naar deze groep"
     },
     "form": {
-      "title": "Custom bot",
-      "avatar": "Bot avatar",
-      "colorOption": "Preset colour {{index}}",
-      "name": "Bot name",
-      "namePlaceholder": "Enter a name",
-      "desc": "Description",
-      "descPlaceholder": "One line about what this bot does",
-      "submit": "Add",
-      "save": "Save"
+      "title": "Aangepaste bot",
+      "avatar": "Bot-avatar",
+      "colorOption": "Vooraf ingestelde kleur {{index}}",
+      "name": "Botnaam",
+      "namePlaceholder": "Voer een naam in",
+      "desc": "Beschrijving",
+      "descPlaceholder": "Eén regel over wat deze bot doet",
+      "submit": "Toevoegen",
+      "save": "Opslaan"
     },
     "webhook": {
-      "title": "Webhook URL",
-      "copy": "Copy",
-      "copied": "Copied",
-      "hint": "POST to this URL to send into this group. The URL is a credential — do not share it."
+      "title": "Webhook-URL",
+      "copy": "Kopiëren",
+      "copied": "Gekopieerd",
+      "hint": "POST naar deze URL om in deze groep te verzenden. De URL is een inloggegeven — deel hem niet."
     },
     "callback": {
-      "title": "Button callback",
-      "hint": "Notify this address when a member clicks a card button. https only; leave empty to turn it off.",
+      "title": "Knop-callback",
+      "hint": "Waarschuw dit adres wanneer een lid op een kaartknop klikt. Alleen https; laat leeg om het uit te schakelen.",
       "urlPlaceholder": "https://ci.example.com/hook",
-      "secret": "Verification key",
-      "secretHint": "Give this to the external service. Every callback carries an X-WeMeet-Signature header; the service verifies it with this key to confirm the request really came from here. This is a different key from the one under Security above — opposite direction, independent of each other.",
+      "secret": "Verificatiesleutel",
+      "secretHint": "Geef deze aan de externe dienst. Elke callback bevat een X-WeMeet-Signature-header; de dienst verifieert die met deze sleutel om te bevestigen dat het verzoek echt hiervandaan komt. Dit is een andere sleutel dan die onder Beveiliging hierboven — tegengestelde richting, onafhankelijk van elkaar.",
       "rotate": "Ondertekeningssleutel vervangen",
       "rotateConfirm": "De uitgaande ondertekeningssleutel vervangen? De ontvangende dienst moet de nieuwe sleutel overnemen, anders mislukt de handtekeningcontrole vanaf de volgende callback. Ook de pseudoniemen van klikkers (actor.id) veranderen, dus deduplicatie of rate limiting per actor aan hun kant begint opnieuw.",
       "rotateDone": "Vervangen. Stel de nieuwe ondertekeningssleutel in bij de ontvangende dienst.",
-      "save": "Save",
-      "identity": "Send the clicker's name",
-      "identityHint": "By default only an anonymous per-bot identifier is sent: the external service can tell whether it is the same person twice, but not who. Turning this on also sends the clicker's name.",
-      "disabled": "Turned off automatically after repeated failures. Save the address again to re-enable it.",
-      "lastError": "Last failure: {{reason}}",
+      "save": "Opslaan",
+      "identity": "Naam van de klikker meesturen",
+      "identityHint": "Standaard wordt alleen een anonieme, per bot unieke identificatie verstuurd: de externe dienst kan zien of het twee keer dezelfde persoon is, maar niet wie. Als je dit aanzet, wordt ook de naam van de klikker verstuurd.",
+      "disabled": "Automatisch uitgeschakeld na herhaalde fouten. Sla het adres opnieuw op om het weer in te schakelen.",
+      "lastError": "Laatste fout: {{reason}}",
       "urlError": {
         "empty": "Voer een callback-adres in.",
         "scheme": "Het callback-adres moet https gebruiken.",
@@ -512,28 +513,28 @@
         "address": "Dit adres is niet toegestaan: privé- en gereserveerde adressen kunnen geen callback-doel zijn."
       },
       "reason": {
-        "timeout": "The service did not answer in time",
-        "refused": "The service refused the request",
-        "unreachable": "The address could not be reached",
-        "blocked": "This address is not allowed"
+        "timeout": "De dienst antwoordde niet op tijd",
+        "refused": "De dienst weigerde het verzoek",
+        "unreachable": "Het adres was niet bereikbaar",
+        "blocked": "Dit adres is niet toegestaan"
       }
     },
     "security": {
-      "title": "Security",
-      "hint": "Turn on at least one — otherwise anyone with the URL can post here.",
-      "sign": "Verify signature",
-      "secret": "Secret",
-      "show": "Show secret",
-      "hide": "Hide secret",
-      "reset": "Rotate secret",
-      "resetConfirm": "Rotating invalidates the old secret immediately; services still using it will fail. Continue?",
-      "resetDone": "Secret rotated. Reveal the new value under “Secret” and update your service.",
-      "keywords": "Keywords",
-      "keywordPlaceholder": "Type and press Enter; click a keyword to remove it",
-      "keywordsHint": "A message must contain at least one keyword to be delivered. Leave empty for no restriction.",
-      "ipAllowlist": "IP allowlist",
-      "ipAllowlistHint": "One IP or CIDR per line. Leave empty for no restriction.",
-      "save": "Save"
+      "title": "Beveiliging",
+      "hint": "Schakel er minstens één in — anders kan iedereen met de URL hier berichten plaatsen.",
+      "sign": "Handtekening verifiëren",
+      "secret": "Sleutel",
+      "show": "Sleutel tonen",
+      "hide": "Sleutel verbergen",
+      "reset": "Sleutel vervangen",
+      "resetConfirm": "Vervangen maakt de oude sleutel onmiddellijk ongeldig; diensten die hem nog gebruiken, mislukken. Doorgaan?",
+      "resetDone": "Sleutel vervangen. Bekijk de nieuwe waarde onder “Sleutel” en werk je dienst bij.",
+      "keywords": "Trefwoorden",
+      "keywordPlaceholder": "Typ en druk op Enter; klik op een trefwoord om het te verwijderen",
+      "keywordsHint": "Een bericht moet minstens één trefwoord bevatten om te worden afgeleverd. Laat leeg voor geen beperking.",
+      "ipAllowlist": "IP-allowlist",
+      "ipAllowlistHint": "Eén IP of CIDR per regel. Laat leeg voor geen beperking.",
+      "save": "Opslaan"
     }
   },
   "emoji": {
@@ -541,5 +542,11 @@
     "system": "Systeem-emoji’s",
     "org": "Organisatie-emoji’s",
     "more": "Meer emoji’s"
+  },
+  "meetingRecordCard": {
+    "view": "Notulen bekijken"
+  },
+  "tasks": {
+    "open": "Taken"
   }
 }

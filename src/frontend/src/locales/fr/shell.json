@@ -53,7 +53,13 @@
     "clearFilters": "Effacer les filtres",
     "taskError": "La recherche de tâches est temporairement indisponible.",
     "retry": "Réessayer",
-    "loading": "Chargement…"
+    "loading": "Chargement…",
+    "aiScope": "Périmètre des réponses",
+    "aiScopeAll": "Tout le contenu accessible",
+    "aiScopeMeetings": "Réunions et enregistrements",
+    "aiDateFrom": "Du",
+    "aiDateTo": "Au",
+    "aiDatesInvalid": "La date de fin doit être postérieure ou égale à la date de début."
   },
   "logout": "Se déconnecter",
   "confirm": "Confirmer",

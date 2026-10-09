@@ -57,7 +57,9 @@
       "dueDate": "Fälligkeitsdatum",
       "taskList": "Aufgabenliste",
       "creator": "Erstellt von",
-      "createdAt": "Erstellt"
+      "createdAt": "Erstellt",
+      "customGroup": "Benutzerdefinierte Gruppe",
+      "completedAt": "Abgeschlossen"
     },
     "openTask": "Aufgabe öffnen: {{title}}",
     "quickComplete": "Aufgabe abschließen: {{title}}",
@@ -78,6 +80,30 @@
       "comments": "Kommentare",
       "attachments": "Anhänge",
       "history": "Verlauf"
+    },
+    "fieldSettings": "Feldeinstellungen",
+    "displayAndOrdering": "Anzeige und Reihenfolge",
+    "resetFields": "Zurücksetzen",
+    "moveField": "{{field}} verschieben",
+    "showField": "{{field}} anzeigen",
+    "hideField": "{{field}} ausblenden",
+    "fieldLocked": "{{field}} ist durch diese Ansicht festgelegt",
+    "grouping": {
+      "label": "Gruppierung",
+      "none": "Keine Gruppierung",
+      "custom": "Benutzerdefinierte Gruppe",
+      "task_list": "Aufgabenliste",
+      "start_date": "Startdatum",
+      "due_date": "Fälligkeitsdatum",
+      "creator": "Ersteller",
+      "noDate": "Kein Datum",
+      "unknownCreator": "Unbekannter Ersteller"
+    },
+    "ordering": {
+      "label": "Sortierung",
+      "smart": "Intelligente Reihenfolge",
+      "ascending": "{{field}} aufsteigend sortieren",
+      "descending": "{{field}} absteigend sortieren"
     }
   },
   "activity": {
@@ -143,9 +169,9 @@
     "create": "Aufgabenliste erstellen",
     "createHint": "Create a list to organize related tasks.",
     "name": "Listenname",
-    "namePlaceholder": "For example: Product requirements",
+    "namePlaceholder": "Zum Beispiel: Produktanforderungen",
     "description": "Beschreibung (optional)",
-    "descriptionPlaceholder": "Add the list's purpose or scope",
+    "descriptionPlaceholder": "Zweck oder Umfang der Liste ergänzen",
     "taskCount": "{{count}} Aufgaben",
     "deleteTitle": "Aufgabenliste löschen",
     "deleteDescription": "„{{name}}“ endgültig löschen? Aufgaben bleiben standardmäßig außerhalb der Liste erhalten. Mitglieder mit Zugriff nur über diese Liste verlieren ihren Zugriff.",
@@ -239,7 +265,17 @@
     "rename": "Umbenennen",
     "renameError": "Die Gruppe konnte nicht umbenannt werden. Bitte erneut versuchen.",
     "delete": "Gruppe löschen",
-    "deleteDescription": "„{{name}}“ löschen? Nur leere Gruppen können gelöscht werden."
+    "deleteDescription": "„{{name}}“ löschen? Nur leere Gruppen können gelöscht werden.",
+    "navigationTitle": "Benutzerdefinierte Gruppen",
+    "emptyNavigation": "Noch keine benutzerdefinierten Gruppen",
+    "invalidSelection": "Die benutzerdefinierte Gruppe ist nicht verfügbar. Es werden alle Aufgaben angezeigt.",
+    "taskCount": "{{count}} Aufgaben",
+    "moveUpNamed": "{{name}} nach oben verschieben",
+    "moveDownNamed": "{{name}} nach unten verschieben",
+    "renameNamed": "{{name}} umbenennen",
+    "deleteNamed": "{{name}} löschen",
+    "empty": "Ziehen Sie Aufgaben in diese Gruppe oder erstellen Sie mit der Aktion oben eine neue",
+    "emptyReadOnly": "Ziehen Sie Aufgaben in diese Gruppe"
   },
   "board": {
     "title": "Aufgabenboard",
@@ -497,5 +533,28 @@
       "source_action_item_task_aligned": "{{base}}; die verknüpfte Aufgabe war bereits „{{taskStatus}}“",
       "source_action_item_task_conflict": "{{base}}; die verknüpfte Aufgabe behält den Status „{{taskStatus}}“"
     }
+  },
+  "assignees": {
+    "add": "Verantwortliche Person hinzufügen",
+    "select": "Verantwortliche Personen auswählen",
+    "selected": "{{count}} von 10 ausgewählt",
+    "limit": "Wählen Sie bis zu 10 gemeinsam verantwortliche Personen.",
+    "remove": "Verantwortliche Person {{name}} entfernen"
+  },
+  "share": {
+    "action": "Aufgabe teilen",
+    "title": "Aufgabe „{{title}}“ teilen",
+    "toConversation": "In Unterhaltung teilen",
+    "taskLink": "Aufgabenlink",
+    "linkHint": "Wer diesen Link öffnet, muss sich anmelden und bereits Lesezugriff haben.",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "failed": "Die Aufgabe konnte nicht geteilt werden. Bitte erneut versuchen.",
+    "cardTitle": "Geteilte Aufgabe",
+    "viewDetails": "Details ansehen",
+    "conversationTitle": "Aufgaben im Chat",
+    "conversationEmpty": "In dieser Unterhaltung wurden noch keine Aufgaben geteilt.",
+    "viewMore": "Mehr anzeigen",
+    "loading": "Aufgaben im Chat werden geladen…"
   }
 }

@@ -220,7 +220,8 @@
     "calendar": "Partage de calendrier",
     "doc": "[Document]",
     "richCard": "[Carte]",
-    "richText": "[Rich text]"
+    "richText": "[Texte enrichi]",
+    "record": "[Compte rendu de réunion]"
   },
   "calendarCard": {
     "owner": "Propriétaire : {{name}}",
@@ -443,67 +444,67 @@
     "hint": "Cette personne a quitté l'organisation"
   },
   "bots": {
-    "entry": "Group bots",
-    "title": "Group bots",
-    "help": "How it works",
-    "add": "Add bot",
-    "addTitle": "Add a bot",
-    "empty": "No bots in this group yet",
-    "back": "Back",
+    "entry": "Bots de groupe",
+    "title": "Bots de groupe",
+    "help": "Comment ça marche",
+    "add": "Ajouter un bot",
+    "addTitle": "Ajouter un bot",
+    "empty": "Aucun bot dans ce groupe pour l'instant",
+    "back": "Retour",
     "chip": "Bot",
-    "disabledChip": "Disabled",
-    "gone": "This bot no longer exists",
-    "edit": "Edit",
-    "enabled": "Active in this group",
-    "remove": "Remove bot",
-    "removeConfirm": "Remove “{{name}}” from this group? Its webhook URL stops working immediately.",
-    "ownerOnlyHint": "Only the group owner can add bots or view and change webhook settings.",
-    "builtinHint": "Built-in assistants ship with the product and cannot be removed; turning one off stops its notifications in this group.",
-    "error": "Failed: {{message}}",
-    "helpTitle": "Using group bots",
-    "helpIntro": "POST JSON to a bot's webhook URL and the message appears in this group under that bot's name. The request format matches Feishu custom bots, so an existing script only needs a new URL.",
-    "helpText": "Plain text",
-    "helpPost": "Rich text",
-    "helpSign": "Signature verification (optional)",
-    "helpSignBody": "When enabled every request must carry timestamp and sign. The secret is the HMAC key and the signed data is empty — identical to Feishu.",
-    "helpLimits": "Limits",
-    "helpLimitsBody": "100 requests/minute and 5/second per bot; request bodies up to 20 KB. Send X-Request-Id on retries so the same id only posts once.",
+    "disabledChip": "Désactivé",
+    "gone": "Ce bot n'existe plus",
+    "edit": "Modifier",
+    "enabled": "Actif dans ce groupe",
+    "remove": "Retirer le bot",
+    "removeConfirm": "Retirer « {{name}} » de ce groupe ? Son URL de webhook cesse immédiatement de fonctionner.",
+    "ownerOnlyHint": "Seul le propriétaire du groupe peut ajouter des bots et consulter ou modifier la configuration du webhook.",
+    "builtinHint": "Les assistants intégrés sont fournis avec le produit et ne peuvent pas être retirés ; désactiver l'un d'eux arrête ses notifications dans ce groupe.",
+    "error": "Échec : {{message}}",
+    "helpTitle": "Utiliser les bots de groupe",
+    "helpIntro": "Publiez du JSON en POST sur l'URL de webhook d'un bot : le message apparaît dans ce groupe sous le nom de ce bot. Le format de requête est identique à celui des bots personnalisés Feishu ; un script existant n'a donc besoin que d'une nouvelle URL.",
+    "helpText": "Texte brut",
+    "helpPost": "Texte enrichi",
+    "helpSign": "Vérification de signature (facultatif)",
+    "helpSignBody": "Une fois activée, chaque requête doit comporter timestamp et sign. La clé est la clé HMAC et les données signées sont une chaîne vide — identique à Feishu.",
+    "helpLimits": "Limites",
+    "helpLimitsBody": "100 requêtes/minute et 5/seconde par bot ; corps de requête jusqu'à 20 Ko. Indiquez X-Request-Id lors des nouvelles tentatives pour qu'un même identifiant ne publie qu'une seule fois.",
     "catalog": {
-      "search": "Search bots",
-      "custom": "Custom bot",
-      "customDesc": "Push messages from your own service into this group via webhook"
+      "search": "Rechercher des bots",
+      "custom": "Bot personnalisé",
+      "customDesc": "Pousser les messages de votre propre service dans ce groupe via webhook"
     },
     "form": {
-      "title": "Custom bot",
-      "avatar": "Bot avatar",
-      "colorOption": "Preset colour {{index}}",
-      "name": "Bot name",
-      "namePlaceholder": "Enter a name",
+      "title": "Bot personnalisé",
+      "avatar": "Avatar du bot",
+      "colorOption": "Couleur prédéfinie {{index}}",
+      "name": "Nom du bot",
+      "namePlaceholder": "Saisissez un nom",
       "desc": "Description",
-      "descPlaceholder": "One line about what this bot does",
-      "submit": "Add",
-      "save": "Save"
+      "descPlaceholder": "Une ligne décrivant ce que fait ce bot",
+      "submit": "Ajouter",
+      "save": "Enregistrer"
     },
     "webhook": {
-      "title": "Webhook URL",
-      "copy": "Copy",
-      "copied": "Copied",
-      "hint": "POST to this URL to send into this group. The URL is a credential — do not share it."
+      "title": "URL du webhook",
+      "copy": "Copier",
+      "copied": "Copié",
+      "hint": "Publiez en POST sur cette URL pour envoyer dans ce groupe. L'URL est un identifiant d'accès — ne la partagez pas."
     },
     "callback": {
-      "title": "Button callback",
-      "hint": "Notify this address when a member clicks a card button. https only; leave empty to turn it off.",
+      "title": "Rappel de bouton",
+      "hint": "Notifier cette adresse lorsqu'un membre clique sur un bouton de carte. https uniquement ; laissez vide pour désactiver.",
       "urlPlaceholder": "https://ci.example.com/hook",
-      "secret": "Verification key",
-      "secretHint": "Give this to the external service. Every callback carries an X-WeMeet-Signature header; the service verifies it with this key to confirm the request really came from here. This is a different key from the one under Security above — opposite direction, independent of each other.",
+      "secret": "Clé de vérification",
+      "secretHint": "Fournissez cette clé au service externe. Chaque rappel porte un en-tête X-WeMeet-Signature ; le service le vérifie avec cette clé pour confirmer que la requête provient bien d'ici. C'est une clé différente de celle de la section « Sécurité » ci-dessus — sens inverse, indépendantes l'une de l'autre.",
       "rotate": "Renouveler la clé de signature",
       "rotateConfirm": "Renouveler la clé de signature sortante ? Le service destinataire doit être mis à jour avec la nouvelle clé, sinon la vérification échouera dès le prochain rappel. Les pseudonymes des personnes qui cliquent (actor.id) changent également : toute déduplication ou limitation par acteur de leur côté repart de zéro.",
       "rotateDone": "Renouvelée. Configurez la nouvelle clé sur le service destinataire.",
-      "save": "Save",
-      "identity": "Send the clicker's name",
-      "identityHint": "By default only an anonymous per-bot identifier is sent: the external service can tell whether it is the same person twice, but not who. Turning this on also sends the clicker's name.",
-      "disabled": "Turned off automatically after repeated failures. Save the address again to re-enable it.",
-      "lastError": "Last failure: {{reason}}",
+      "save": "Enregistrer",
+      "identity": "Envoyer le nom de la personne qui clique",
+      "identityHint": "Par défaut, seul un identifiant anonyme propre à chaque bot est envoyé : le service externe peut savoir s'il s'agit deux fois de la même personne, mais pas de qui il s'agit. Activez cette option pour envoyer aussi le nom de la personne qui clique.",
+      "disabled": "Désactivé automatiquement après plusieurs échecs. Enregistrez à nouveau l'adresse pour le réactiver.",
+      "lastError": "Dernier échec : {{reason}}",
       "urlError": {
         "empty": "Saisissez une adresse de rappel.",
         "scheme": "L'adresse de rappel doit utiliser https.",
@@ -512,28 +513,28 @@
         "address": "Cette adresse n'est pas autorisée : les adresses privées et réservées ne peuvent pas être des cibles de rappel."
       },
       "reason": {
-        "timeout": "The service did not answer in time",
-        "refused": "The service refused the request",
-        "unreachable": "The address could not be reached",
-        "blocked": "This address is not allowed"
+        "timeout": "Le service n'a pas répondu à temps",
+        "refused": "Le service a refusé la requête",
+        "unreachable": "L'adresse est injoignable",
+        "blocked": "Cette adresse n'est pas autorisée"
       }
     },
     "security": {
-      "title": "Security",
-      "hint": "Turn on at least one — otherwise anyone with the URL can post here.",
-      "sign": "Verify signature",
-      "secret": "Secret",
-      "show": "Show secret",
-      "hide": "Hide secret",
-      "reset": "Rotate secret",
-      "resetConfirm": "Rotating invalidates the old secret immediately; services still using it will fail. Continue?",
-      "resetDone": "Secret rotated. Reveal the new value under “Secret” and update your service.",
-      "keywords": "Keywords",
-      "keywordPlaceholder": "Type and press Enter; click a keyword to remove it",
-      "keywordsHint": "A message must contain at least one keyword to be delivered. Leave empty for no restriction.",
-      "ipAllowlist": "IP allowlist",
-      "ipAllowlistHint": "One IP or CIDR per line. Leave empty for no restriction.",
-      "save": "Save"
+      "title": "Sécurité",
+      "hint": "Activez au moins une option, sinon toute personne disposant de l'URL peut publier ici.",
+      "sign": "Vérifier la signature",
+      "secret": "Clé de signature",
+      "show": "Afficher la clé",
+      "hide": "Masquer la clé",
+      "reset": "Renouveler la clé",
+      "resetConfirm": "Le renouvellement invalide immédiatement l'ancienne clé ; les services qui l'utilisent encore échoueront. Continuer ?",
+      "resetDone": "Clé renouvelée. Affichez la nouvelle valeur sous « Clé de signature » puis mettez à jour votre service.",
+      "keywords": "Mots-clés",
+      "keywordPlaceholder": "Saisissez un mot puis appuyez sur Entrée ; cliquez sur un mot-clé pour le supprimer",
+      "keywordsHint": "Un message doit contenir au moins un mot-clé pour être envoyé. Laissez vide pour ne pas restreindre.",
+      "ipAllowlist": "Adresses IP autorisées",
+      "ipAllowlistHint": "Une IP ou un CIDR par ligne. Laissez vide pour ne pas restreindre.",
+      "save": "Enregistrer"
     }
   },
   "emoji": {
@@ -541,5 +542,11 @@
     "system": "Emojis système",
     "org": "Emojis de l’organisation",
     "more": "Plus d’emojis"
+  },
+  "meetingRecordCard": {
+    "view": "Voir le compte rendu"
+  },
+  "tasks": {
+    "open": "Tâches"
   }
 }

@@ -338,7 +338,10 @@
       "admin": "Admin-Einstellungen",
       "tools": "Weitere Tools",
       "info": "Meeting-Informationen",
-      "roomAI": "Meeting-KI"
+      "roomAI": "Meeting-KI",
+      "meetingNotes": "Besprechungsaufzeichnungen",
+      "translation": "Sprachübersetzung",
+      "interpretation": "Simultanverdolmetschung der Besprechung"
     },
     "content": {
       "participants": "Teilnehmende",
@@ -349,7 +352,10 @@
       "admin": "Admin-Einstellungen",
       "tools": "Weitere Tools",
       "info": "Meeting-Informationen",
-      "roomAI": "Meeting-KI"
+      "roomAI": "Meeting-KI",
+      "meetingNotes": "Besprechungsaufzeichnungen",
+      "translation": "Sprachübersetzung",
+      "interpretation": "Simultanverdolmetschung der Besprechung"
     },
     "closeButton": "{{content}} ausblenden"
   },
@@ -369,6 +375,14 @@
       "screenRecording": {
         "title": "Aufnehmen",
         "body": "Speichert Meetings als Video."
+      },
+      "meetingNotes": {
+        "title": "Besprechungsaufzeichnungen",
+        "body": "Transkript, Live-Zusammenfassung und intelligente Protokolle dieser Besprechung"
+      },
+      "translation": {
+        "title": "Sprachübersetzung",
+        "body": "Übersetzen Sie Ihr Mikrofon fortlaufend oder mit beidseitigem Push-to-Talk."
       }
     }
   },

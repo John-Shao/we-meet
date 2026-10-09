@@ -9,5 +9,11 @@
   "send": "Envoyer",
   "sending": "Envoi…",
   "thinking": "Réflexion…",
-  "error": "Échec de la requête : {{message}}"
+  "error": "Échec de la requête : {{message}}",
+  "materialsUnavailable": "Les documents de cette session sont indisponibles ou vous n'y avez pas accès. Rejoindre une réunion ne donne pas automatiquement accès à ses documents.",
+  "prompts": {
+    "summary": "Résumez la discussion jusqu'à présent",
+    "decisions": "Quelles décisions ont été prises jusqu'à présent ?",
+    "actions": "Quelles sont les actions à mener ?"
+  }
 }

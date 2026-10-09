@@ -32,7 +32,7 @@
     "required": "Requis",
     "optional": "Facultatif",
     "attendeeRole": "Type de participation de {{name}}",
-    "externalContact": "External contact",
+    "externalContact": "Contact externe",
     "privateEvent": "Événement privé",
     "privateEventHint": "Les non-participants voient uniquement la plage occupée, sans détails ni informations de connexion",
     "selected": "{{count}} sélectionné(s)",
