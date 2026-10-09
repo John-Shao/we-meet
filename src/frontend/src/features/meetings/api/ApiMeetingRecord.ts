@@ -204,6 +204,9 @@ export interface ApiRecordSpeaker {
   /** The bound person, or null while the track is still only "Speaker 1". */
   attributed_user_id?: string | null
   attributed_at?: string | null
+  manual_label?: string
+  attribution_kind?: 'none' | 'member' | 'contact' | 'custom'
+  record_revision?: number
   /**
    * Whether this reader may change the binding. Only capture-backed records
    * have tracks to bind, and only an editor may do it, so the control is
@@ -216,6 +219,29 @@ export interface ApiRecordSpeaker {
 export interface ApiAttributionCandidate {
   id: string
   name: string
+}
+
+export interface ApiSpeakerContact {
+  ref: string
+  kind: 'member' | 'external' | 'department'
+  name: string
+  organization_name: string
+  department_name: string
+  department_id: string | null
+}
+
+export interface ApiSpeakerContactPage {
+  results: ApiSpeakerContact[]
+  next_offset: number | null
+}
+
+export type SpeakerIdentityChoice =
+  | { action: 'select_contact'; contact_ref: string }
+  | { action: 'set_label'; label: string }
+  | { action: 'clear' }
+
+export type SpeakerIdentityDecisionPayload = SpeakerIdentityChoice & {
+  expected_revision: number
 }
 
 export interface ApiSummaryJob {

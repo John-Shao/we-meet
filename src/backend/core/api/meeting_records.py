@@ -25,6 +25,8 @@ from core.services import (
     record_purge,
     speaker_activity,
     speaker_attribution,
+    speaker_contacts,
+    speaker_identity_decisions,
     transcript_corrections,
     transcript_export,
 )
@@ -111,6 +113,40 @@ class SpeakerAttributionSerializer(serializers.Serializer):
     def validate(self, attrs):
         if set(self.initial_data) - set(self.fields):
             raise ValidationError("Unsupported attribution field.")
+        return attrs
+
+
+class SpeakerIdentityDecisionSerializer(serializers.Serializer):
+    """Strict action payload; clients cannot submit contact name snapshots."""
+
+    action = serializers.ChoiceField(choices=["select_contact", "set_label", "clear"])
+    expected_revision = serializers.IntegerField(min_value=1)
+    contact_ref = serializers.CharField(max_length=64, required=False)
+    label = serializers.CharField(max_length=64, required=False, trim_whitespace=False)
+
+    def validate(self, attrs):
+        if set(self.initial_data) - set(self.fields):
+            raise ValidationError("Unsupported identity decision field.")
+        required = {"select_contact": {"contact_ref"}, "set_label": {"label"},
+                    "clear": set()}[attrs["action"]]
+        optional = set(attrs) - {"action", "expected_revision"}
+        if optional != required:
+            raise ValidationError("Provide only the fields required by this action.")
+        return attrs
+
+
+class SpeakerContactQuerySerializer(serializers.Serializer):
+    q = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    kind = serializers.ChoiceField(
+        choices=["all", "member", "external", "departments"], default="all"
+    )
+    department_id = serializers.UUIDField(required=False)
+    offset = serializers.IntegerField(min_value=0, max_value=10000, default=0)
+    limit = serializers.IntegerField(min_value=1, max_value=50, default=25)
+
+    def validate(self, attrs):
+        if set(self.initial_data) - set(self.fields):
+            raise ValidationError("Unsupported contact filter.")
         return attrs
 
 
@@ -1334,6 +1370,44 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 ]
             }
         )
+
+    @action(detail=True, methods=["get"], url_path="speaker-contacts")
+    def speaker_contacts(self, request, pk=None):
+        record = self._content_record("read_transcript")
+        serializer = SpeakerContactQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        parameters = dict(serializer.validated_data)
+        parameters["query"] = parameters.pop("q", "")
+        try:
+            return Response(speaker_contacts.lookup(record, request.user, **parameters))
+        except PermissionError as error:
+            raise PermissionDenied(str(error)) from error
+
+    @action(
+        detail=True, methods=["post"],
+        url_path=r"speakers/(?P<speaker_id>[0-9a-f-]{36})/identity-decision",
+    )
+    def speaker_identity_decision(self, request, pk=None, speaker_id=None):
+        record = self._content_record("read_transcript")
+        identifier = serializers.UUIDField().run_validation(speaker_id)
+        serializer = SpeakerIdentityDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            speaker = speaker_identity_decisions.decide(
+                record, identifier, request.user, **serializer.validated_data
+            )
+        except PermissionError as error:
+            raise PermissionDenied(str(error)) from error
+        except RecordConflict as error:
+            return Response({"code": str(error)}, status=409)
+        except speaker_attribution.AttributionDenied as error:
+            return Response({"code": "contact_unavailable", "message": str(error)},
+                            status=400)
+        except LookupError as error:
+            raise Http404 from error
+        except ValueError as error:
+            raise ValidationError(str(error)) from error
+        return Response(speaker_attribution.serialize(speaker))
 
     @action(detail=True, methods=["get"])
     def media(self, request, pk=None):

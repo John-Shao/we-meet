@@ -1718,13 +1718,29 @@ class MeetingSpeaker(BaseModel):
         related_name="speaker_attributions",
     )
     attributed_at = models.DateTimeField(null=True, blank=True)
+    manual_label = models.CharField(max_length=128, blank=True, default="")
+    attribution_kind = models.CharField(
+        max_length=16,
+        choices=[("none", "None"), ("member", "Member"),
+                 ("contact", "Contact"), ("custom", "Custom")],
+        default="none",
+    )
+    # Private provenance: never included in reader-facing speaker metadata.
+    contact_source = models.ForeignKey(
+        "ExternalContact", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="speaker_snapshots",
+    )
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=["capture_session", "source_track_id", "source_key"],
                 name="unique_capture_track_speaker",
-            )
+            ),
+            models.CheckConstraint(
+                condition=models.Q(user__isnull=True) | models.Q(manual_label=""),
+                name="speaker_member_label_exclusive",
+            ),
         ]
 
     def __str__(self):
@@ -1737,6 +1753,8 @@ class MeetingSpeaker(BaseModel):
         Kept here rather than at each call site so the transcript, the export and
         the summary cannot disagree about what a speaker is called.
         """
+        if self.manual_label:
+            return self.manual_label
         if self.user_id:
             return (
                 self.user.full_name
@@ -1772,6 +1790,41 @@ class MeetingSpeaker(BaseModel):
             raise ValidationError("Speaker source is immutable.")
         if self.id and self.capture_session.record_id != self.record_id:
             raise ValidationError("Speaker must match its record.")
+
+
+class SpeakerIdentityDecision(BaseModel):
+    """Append-only editorial history; never voiceprint enrollment evidence."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="identity_decisions"
+    )
+    speaker = models.ForeignKey(
+        MeetingSpeaker, on_delete=models.CASCADE, related_name="identity_decisions"
+    )
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    action = models.CharField(max_length=32)
+    previous_user_id = models.UUIDField(null=True, blank=True)
+    selected_user_id = models.UUIDField(null=True, blank=True)
+    previous_label = models.CharField(max_length=128, blank=True)
+    selected_label = models.CharField(max_length=128, blank=True)
+    previous_kind = models.CharField(max_length=16)
+    selected_kind = models.CharField(max_length=16)
+    record_revision = models.PositiveIntegerField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=["record", "record_revision"], name="identity_decision_revision"
+        )]
+
+    def __str__(self):
+        return f"SpeakerIdentityDecision({self.pk})"
+
+    def clean(self):
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Identity decisions are immutable.")
+        if self.speaker.record_id != self.record_id:
+            raise ValidationError("Identity decision must match its record.")
 
 
 class MeetingOriginalSegment(BaseModel):

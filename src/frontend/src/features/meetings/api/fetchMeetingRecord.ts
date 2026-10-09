@@ -18,6 +18,8 @@ import type {
   ApiRecordTranscript,
   ApiRecordSpeaker,
   ApiAttributionCandidate,
+  ApiSpeakerContactPage,
+  SpeakerIdentityDecisionPayload,
   MeetingRecordFilters,
   MeetingRecordPage,
   LegacyMeetingRecordSource,
@@ -457,6 +459,79 @@ export const useAttributeSpeaker = (viewerId: string, recordId: string) => {
     retry: false,
     gcTime: 0,
     onSuccess: async () => {
+      await client.invalidateQueries({
+        queryKey: ['meeting-records', viewerId],
+      })
+    },
+  })
+}
+
+export const useSpeakerContacts = (
+  viewerId: string,
+  recordId: string,
+  filters: {
+    q?: string
+    kind?: 'all' | 'member' | 'external' | 'departments'
+    department_id?: string
+    offset?: number
+  },
+  enabled = true
+) =>
+  useQuery<ApiSpeakerContactPage, ApiError>({
+    queryKey: [
+      'meeting-records',
+      viewerId,
+      'speaker-contacts',
+      recordId,
+      filters,
+    ],
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams()
+      for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined && value !== '') params.set(key, String(value))
+      }
+      return fetchApi(`${recordPath(recordId)}speaker-contacts/?${params}`, {
+        signal,
+      })
+    },
+    enabled: enabled && !!viewerId && !!recordId,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  })
+
+export const useSpeakerIdentityDecision = (
+  viewerId: string,
+  recordId: string
+) => {
+  const client = useQueryClient()
+  return useMutation<
+    ApiRecordSpeaker,
+    ApiError,
+    {
+      speakerId: string
+      decision: SpeakerIdentityDecisionPayload
+    }
+  >({
+    mutationFn: ({ speakerId, decision }) =>
+      fetchApi<ApiRecordSpeaker>(
+        `${recordPath(recordId)}speakers/${encodeURIComponent(speakerId)}/identity-decision/`,
+        {
+          method: 'POST',
+          cache: 'no-store',
+          redirect: 'error',
+          signal: AbortSignal.timeout(20000),
+          body: JSON.stringify(decision),
+        }
+      ),
+    retry: false,
+    gcTime: 0,
+    onSuccess: async () => {
+      await client.invalidateQueries({
+        queryKey: ['meeting-records', viewerId],
+      })
+    },
+    onError: async () => {
       await client.invalidateQueries({
         queryKey: ['meeting-records', viewerId],
       })

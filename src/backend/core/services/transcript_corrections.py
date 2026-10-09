@@ -68,6 +68,7 @@ def attributed_name_subquery():
         MeetingSpeaker.objects.filter(pk=OuterRef("speaker_id"))
         .annotate(
             resolved=Coalesce(
+                NullIf("manual_label", Value("")),
                 NullIf("user__full_name", Value("")),
                 NullIf("user__short_name", Value("")),
                 NullIf("user__email", Value("")),
