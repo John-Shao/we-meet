@@ -5,17 +5,20 @@ import asyncio
 import hmac
 import os
 import ssl
+import time
 from pathlib import Path
 
 from aiohttp import web
 
 from voiceprint.audio import AudioRejected, decode_wav
+from voiceprint.isolated_encoder import IsolatedEncoder
 from voiceprint.permits import (
     PermitRejected,
     UsedPermits,
     validate_payload,
     validate_permit,
 )
+from voiceprint.process_protocol import EncoderProcessError
 from voiceprint.spec import MAX_BODY_BYTES
 
 
@@ -36,6 +39,33 @@ class EncoderService:
         self.nonces = UsedPermits()
         self.active: asyncio.Task | None = None
         self.uploads = 0
+        self.recovery: asyncio.Task | None = None
+        self.next_recovery = 0.0
+        self.closing = False
+
+    @property
+    def ready(self):
+        return not self.closing and (
+            not isinstance(self.encoder, IsolatedEncoder) or self.encoder.ready
+        )
+
+    async def warm(self):
+        try:
+            await asyncio.to_thread(self.encoder.start)
+        except Exception:
+            # Keep readiness false without logging model paths or native errors.
+            return
+
+    def restore(self):
+        if (
+            not self.closing
+            and isinstance(self.encoder, IsolatedEncoder)
+            and not self.encoder.ready
+            and (self.recovery is None or self.recovery.done())
+            and time.monotonic() >= self.next_recovery
+        ):
+            self.next_recovery = time.monotonic() + 10
+            self.recovery = asyncio.create_task(self.warm())
 
     def finished(self, task):
         # Release references even if the caller disconnected; never allow a
@@ -44,6 +74,7 @@ class EncoderService:
             self.active = None
         if not task.cancelled():
             task.exception()  # Consume abandoned errors without logging payloads.
+        self.restore()
 
 
 SERVICE = web.AppKey("encoder_service", EncoderService)
@@ -56,7 +87,33 @@ def response(body: dict, *, status: int = 200):
 
 
 async def health(_request):
-    return response({"status": "ready"})
+    ready = _request.app[SERVICE].ready
+    return response(
+        {"status": "ready" if ready else "warming"}, status=200 if ready else 503
+    )
+
+
+async def live(_request):
+    return response({"status": "alive"})
+
+
+async def startup(app):
+    if isinstance(app[SERVICE].encoder, IsolatedEncoder):
+        await asyncio.to_thread(app[SERVICE].encoder.start)
+
+
+async def cleanup(app):
+    service = app[SERVICE]
+    service.closing = True
+    if isinstance(service.encoder, IsolatedEncoder):
+        await asyncio.to_thread(service.encoder.close)
+        pending = [
+            task for task in (service.active, service.recovery) if task is not None
+        ]
+        if pending:
+            await asyncio.wait_for(
+                asyncio.gather(*pending, return_exceptions=True), timeout=4
+            )
 
 
 async def embedding(request: web.Request):
@@ -72,6 +129,9 @@ async def embedding(request: web.Request):
         claims = validate_permit(permit, service.permit_key, service.encoder.space)
     except PermitRejected as error:
         return response({"code": str(error)}, status=403)
+    if not service.ready:
+        service.restore()
+        return response({"code": "encoder_unavailable"}, status=503)
     if request.content_type != "audio/wav":
         return response({"code": "content_type_invalid"}, status=415)
     if request.content_length is not None and request.content_length != claims["bytes"]:
@@ -119,6 +179,13 @@ async def embedding(request: web.Request):
         return response({**result, "input_sha256": claims["sha256"]})
     except PermitRejected as error:
         return response({"code": str(error)}, status=403)
+    except EncoderProcessError as error:
+        code = (
+            "encoder_timeout"
+            if str(error) == "encoder_timeout"
+            else "encoder_unavailable"
+        )
+        return response({"code": code}, status=503)
     except Exception:  # Model errors must never include audio, vectors or names.
         return response({"code": "encoder_unavailable"}, status=503)
 
@@ -127,15 +194,20 @@ def create_app(encoder, *, token: bytes, permit_key: bytes):
     app = web.Application(client_max_size=MAX_BODY_BYTES)
     app[SERVICE] = EncoderService(encoder, token, permit_key)
     app.router.add_get("/health/ready", health)
+    app.router.add_get("/health/live", live)
     app.router.add_post("/v1/embeddings", embedding)
+    app.on_startup.append(startup)
+    app.on_cleanup.append(cleanup)
     return app
 
 
 def read_secret_file(variable: str) -> bytes:
     path = Path(os.environ[variable])
-    if path.stat().st_size > 4096:
+    with path.open("rb") as stream:
+        raw = stream.read(4097)
+    if len(raw) > 4096:
         raise ValueError("service_credentials_invalid")
-    value = path.read_bytes().strip()
+    value = raw.strip()
     if len(value) < 32:
         raise ValueError("service_credentials_invalid")
     return value
@@ -157,14 +229,12 @@ def server_tls(host: str):
 
 
 def main():
-    from voiceprint.encoder import QwenEncoder
-
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=8093, type=int)
     args = parser.parse_args()
     tls = server_tls(args.host)
-    encoder = QwenEncoder(
+    encoder = IsolatedEncoder(
         Path(os.environ["VOICEPRINT_MODEL_DIR"]),
         expected_sha256=os.environ["VOICEPRINT_ENCODER_SHA256"],
         threads=int(os.environ.get("VOICEPRINT_CPU_THREADS", "2")),
