@@ -262,7 +262,9 @@ def profile_ready(profile):
     )
 
 
-def authorize_profile(profile_id, *, permission, version=None, generation=None):
+def authorize_profile(
+    profile_id, *, permission, version=None, generation=None, expected_scope=None
+):
     """Always refresh authorization; a cached profile is never proof of access."""
     if permission not in PERMISSIONS:
         raise VoiceprintError("voiceprint_permission_invalid", status=400)
@@ -284,6 +286,10 @@ def authorize_profile(profile_id, *, permission, version=None, generation=None):
         or profile.generation
         < revocation_floor(consent.user_id, consent.organization_id)
         or profile.status == "deleted"
+        or (
+            expected_scope is not None
+            and expected_scope != (consent.user_id, consent.organization_id)
+        )
         or (version is not None and consent.version != version)
         or (generation is not None and consent.generation != generation)
     ):
