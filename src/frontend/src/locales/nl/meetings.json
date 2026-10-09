@@ -735,7 +735,8 @@
     "noGrants": "Er zijn nog geen directe machtigingen. Toegang via vergaderrollen staat niet in deze lijst.",
     "scopeSummary": "Notulen",
     "scopeTranscript": "Originele tekst",
-    "pendingResubmit": "Controleer eerst diezelfde actie; zodra die is bevestigd, kun je opnieuw personen kiezen."
+    "pendingResubmit": "Controleer eerst diezelfde actie; zodra die is bevestigd, kun je opnieuw personen kiezen.",
+    "granted_one": "{{count}} persoon heeft directe toegang."
   },
   "summaryNotice": {
     "title": "Meldingen van de notulenassistent",

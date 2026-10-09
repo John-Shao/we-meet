@@ -83,7 +83,8 @@
     "info": "Informations du groupe",
     "members": "Membres",
     "selectHint": "Sélectionnez un groupe pour voir ses informations ou ouvrir la discussion",
-    "memberCount_one": "{{count}} membre"
+    "memberCount_one": "{{count}} membre",
+    "unnamedFromMembers_one": "{{names}} ({{count}} membre)"
   },
   "external": {
     "title": "Contacts externes",
@@ -110,7 +111,8 @@
     "requestsLoadError": "Impossible de charger les demandes de contact. Réessayez.",
     "requestsLoading": "Chargement des demandes de contact…",
     "noMatch": "Aucun compte trouvé. Vérifiez le numéro complet ou l’adresse e-mail.",
-    "searchError": "La recherche a échoué. Réessayez."
+    "searchError": "La recherche a échoué. Réessayez.",
+    "pendingBadge_one": "{{count}} demande en attente"
   },
   "starred": {
     "title": "Contacts favoris",

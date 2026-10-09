@@ -275,7 +275,8 @@
     "rename": "Rename",
     "renameError": "The group could not be renamed. Please try again.",
     "delete": "Delete group",
-    "deleteDescription": "Delete “{{name}}”? Only empty groups can be deleted."
+    "deleteDescription": "Delete “{{name}}”? Only empty groups can be deleted.",
+    "taskCount_one": "{{count}} task"
   },
   "board": {
     "title": "Task board",

@@ -83,7 +83,8 @@
     "info": "Group info",
     "members": "Members",
     "selectHint": "Pick a group to see its info or open the chat",
-    "memberCount_one": "{{count}} member"
+    "memberCount_one": "{{count}} member",
+    "unnamedFromMembers_one": "{{names}} ({{count}} member)"
   },
   "external": {
     "title": "External contacts",
@@ -110,7 +111,8 @@
     "requestsLoadError": "Could not load contact requests. Please retry.",
     "requestsLoading": "Loading contact requests…",
     "noMatch": "No account found. Check the full phone number or email address.",
-    "searchError": "Search failed. Please retry."
+    "searchError": "Search failed. Please retry.",
+    "pendingBadge_one": "{{count}} pending request"
   },
   "starred": {
     "title": "Starred contacts",

@@ -275,7 +275,8 @@
     "renameNamed": "{{name}} umbenennen",
     "deleteNamed": "{{name}} löschen",
     "empty": "Ziehen Sie Aufgaben in diese Gruppe oder erstellen Sie mit der Aktion oben eine neue",
-    "emptyReadOnly": "Ziehen Sie Aufgaben in diese Gruppe"
+    "emptyReadOnly": "Ziehen Sie Aufgaben in diese Gruppe",
+    "taskCount_one": "{{count}} Aufgabe"
   },
   "board": {
     "title": "Aufgabenboard",

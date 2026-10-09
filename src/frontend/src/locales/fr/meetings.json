@@ -735,7 +735,8 @@
     "noGrants": "Aucune autorisation directe pour l'instant. Les accès liés aux rôles de la réunion ne figurent pas ici.",
     "scopeSummary": "Compte-rendu",
     "scopeTranscript": "Texte original",
-    "pendingResubmit": "Vérifiez d'abord cette même opération ; vous pourrez à nouveau sélectionner des personnes une fois qu'elle sera confirmée."
+    "pendingResubmit": "Vérifiez d'abord cette même opération ; vous pourrez à nouveau sélectionner des personnes une fois qu'elle sera confirmée.",
+    "granted_one": "{{count}} personne dispose d'un accès direct."
   },
   "summaryNotice": {
     "title": "Notifications de l’assistant de compte-rendu",

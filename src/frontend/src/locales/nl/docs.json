@@ -43,6 +43,7 @@
     "inviteHelp": "Verleen direct toegang aan de geselecteerde gebruikers. Bestaande machtigingen blijven behouden.",
     "inviteSuccess": "Toegang bevestigd voor {{count}} gebruikers.",
     "inviteResult": "Voltooid: {{done}}; mislukt: {{failed}}. Mislukte gebruikers blijven geselecteerd om het opnieuw te proberen.",
-    "confirm": "Bevestigen"
+    "confirm": "Bevestigen",
+    "inviteSuccess_one": "Toegang bevestigd voor {{count}} gebruiker."
   }
 }

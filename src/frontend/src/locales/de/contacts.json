@@ -83,7 +83,8 @@
     "info": "Gruppeninfo",
     "members": "Mitglieder",
     "selectHint": "Wählen Sie links eine Gruppe aus, um ihre Infos zu sehen oder den Chat zu öffnen",
-    "memberCount_one": "{{count}} Mitglied"
+    "memberCount_one": "{{count}} Mitglied",
+    "unnamedFromMembers_one": "{{names}} ({{count}} Mitglied)"
   },
   "external": {
     "title": "Externe Kontakte",
@@ -110,7 +111,8 @@
     "requestsLoadError": "Kontaktanfragen konnten nicht geladen werden. Bitte erneut versuchen.",
     "requestsLoading": "Kontaktanfragen werden geladen…",
     "noMatch": "Kein Konto gefunden. Prüfen Sie die vollständige Telefonnummer oder E-Mail-Adresse.",
-    "searchError": "Suche fehlgeschlagen. Bitte erneut versuchen."
+    "searchError": "Suche fehlgeschlagen. Bitte erneut versuchen.",
+    "pendingBadge_one": "{{count}} offene Anfrage"
   },
   "starred": {
     "title": "Markierte Kontakte",

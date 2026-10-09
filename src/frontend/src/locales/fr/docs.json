@@ -43,6 +43,7 @@
     "inviteHelp": "Accordez l'accès directement aux utilisateurs sélectionnés. Les autorisations existantes sont conservées.",
     "inviteSuccess": "Autorisation confirmée pour {{count}} utilisateurs.",
     "inviteResult": "Terminé : {{done}} ; échecs : {{failed}}. Les utilisateurs en échec restent sélectionnés pour un nouvel essai.",
-    "confirm": "Confirmer"
+    "confirm": "Confirmer",
+    "inviteSuccess_one": "Autorisation confirmée pour {{count}} utilisateur."
   }
 }

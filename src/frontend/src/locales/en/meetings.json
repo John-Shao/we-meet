@@ -735,7 +735,8 @@
     "accepted": "Operation confirmed and current grants refreshed. No notifications were sent.",
     "copyLink": "Copy record link",
     "copied": "Link copied. Recipients still need read access.",
-    "copyError": "Copy failed. Copy the record link from the browser address bar."
+    "copyError": "Copy failed. Copy the record link from the browser address bar.",
+    "granted_one": "{{count}} person has direct access."
   },
   "summaryNotice": {
     "title": "Minutes assistant notifications",

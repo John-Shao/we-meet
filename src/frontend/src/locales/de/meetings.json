@@ -735,7 +735,8 @@
     "noGrants": "Noch keine direkten Freigaben. Zugriff über Besprechungsrollen wird hier nicht aufgeführt.",
     "scopeSummary": "Protokoll",
     "scopeTranscript": "Originaltext",
-    "pendingResubmit": "Prüfen Sie zuerst denselben Vorgang; sobald er bestätigt ist, können Sie Personen erneut auswählen."
+    "pendingResubmit": "Prüfen Sie zuerst denselben Vorgang; sobald er bestätigt ist, können Sie Personen erneut auswählen.",
+    "granted_one": "{{count}} Person hat direkten Zugriff."
   },
   "summaryNotice": {
     "title": "Benachrichtigungen des Protokollassistenten",

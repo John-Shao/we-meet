@@ -83,7 +83,8 @@
     "info": "Groepsgegevens",
     "members": "Leden",
     "selectHint": "Kies een groep om de gegevens te bekijken of het gesprek te openen",
-    "memberCount_one": "{{count}} lid"
+    "memberCount_one": "{{count}} lid",
+    "unnamedFromMembers_one": "{{names}} ({{count}} lid)"
   },
   "external": {
     "title": "Externe contacten",
@@ -110,7 +111,8 @@
     "requestsLoadError": "Contactverzoeken konden niet worden geladen. Probeer het opnieuw.",
     "requestsLoading": "Contactverzoeken laden…",
     "noMatch": "Geen account gevonden. Controleer het volledige telefoonnummer of e-mailadres.",
-    "searchError": "Zoeken mislukt. Probeer het opnieuw."
+    "searchError": "Zoeken mislukt. Probeer het opnieuw.",
+    "pendingBadge_one": "{{count}} openstaand verzoek"
   },
   "starred": {
     "title": "Favoriete contacten",

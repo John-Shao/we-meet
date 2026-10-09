@@ -275,7 +275,8 @@
     "renameNamed": "{{name}} hernoemen",
     "deleteNamed": "{{name}} verwijderen",
     "empty": "Sleep taken naar deze groep of gebruik de actie hierboven om er een toe te voegen.",
-    "emptyReadOnly": "Sleep taken naar deze groep"
+    "emptyReadOnly": "Sleep taken naar deze groep",
+    "taskCount_one": "{{count}} taak"
   },
   "board": {
     "title": "Takenbord",

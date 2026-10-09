@@ -275,7 +275,8 @@
     "renameNamed": "Renommer {{name}}",
     "deleteNamed": "Supprimer {{name}}",
     "empty": "Faites glisser des tâches dans ce groupe ou utilisez le bouton ci-dessus pour en créer une",
-    "emptyReadOnly": "Faites glisser des tâches dans ce groupe"
+    "emptyReadOnly": "Faites glisser des tâches dans ce groupe",
+    "taskCount_one": "{{count}} tâche"
   },
   "board": {
     "title": "Tableau des tâches",
