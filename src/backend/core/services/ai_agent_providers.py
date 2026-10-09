@@ -48,6 +48,7 @@ def _prompt_payload(prompt):
         "id": str(prompt.id),
         "label": prompt.label,
         "content": prompt.content,
+        "code": prompt.code,
     }
 
 
@@ -133,7 +134,7 @@ def _all_prompts():
 
     return [
         _prompt_payload(p)
-        for p in AIPrompt.objects.filter(is_active=True).order_by(
+        for p in AIPrompt.objects.filter(is_active=True, scope="call").order_by(
             "sort_order", "label"
         )
     ]
@@ -196,7 +197,7 @@ def resolve_profile_context(
 
     prompt = None
     if prompt_id:
-        prompt = AIPrompt.objects.filter(id=prompt_id, is_active=True).first()
+        prompt = AIPrompt.objects.filter(id=prompt_id, is_active=True, scope="call").first()
     # No profile-level prompt fallback by design: model and prompt are
     # decoupled. When the request doesn't pick a prompt, the agent worker
     # receives empty prompt strings and falls back to its built-in behaviour.

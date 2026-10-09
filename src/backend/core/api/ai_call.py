@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 
 from core.models import AIAgentProfile, AIPrompt, AIVoice
 from core.services import provider_http
+from core.services.assistant_prompts import instruction
 from core.services.direct_ai_allocations import allocating
 
 MODEL = "qwen3.8-omni-flash-realtime"
@@ -142,8 +143,20 @@ class AiCallSessionView(APIView):
         if voice is None:
             voice = voices.filter(value="Tina").first()
         prompt = AIPrompt.objects.filter(
-            id=data.get("prompt_id"), is_active=True
+            id=data.get("prompt_id"), is_active=True, scope="call"
         ).first()
+
+        instructions = prompt.content if prompt else instruction("call.default")
+        tool_instructions = {
+            "camera": instruction("call.tool.camera"),
+            "end_call": instruction("call.tool.end_call"),
+        }
+
+        tool_instructions["camera_state"] = instruction("call.tool.camera_state")
+        for name in ("set_camera_enabled", "get_camera_state", "end_call"):
+            tool_instructions[f"{name}_description"] = instruction(
+                f"call.tool.description.{name}"
+            )
 
         workspace = settings.DASHSCOPE_WORKSPACE_ID
         region = settings.DASHSCOPE_REGION
@@ -172,7 +185,8 @@ class AiCallSessionView(APIView):
         with allocating(request.user, MODEL, data["transport"]) as allocation:
             try:
                 with provider_http.request(
-                    "POST", url,
+                    "POST",
+                    url,
                     params={"model": MODEL},
                     headers=headers,
                     data=b"{}" if is_aoq else data["sdp"].encode("utf-8"),
@@ -188,7 +202,9 @@ class AiCallSessionView(APIView):
                     for chunk in upstream.iter_content(8192):
                         chunks.extend(chunk)
                         if len(chunks) > MAX_SDP_LENGTH:
-                            raise requests.RequestException("SDP answer exceeds size limit")
+                            raise requests.RequestException(
+                                "SDP answer exceeds size limit"
+                            )
                     answer = chunks.decode("utf-8").strip()
             except (requests.RequestException, UnicodeDecodeError):
                 return Response({"detail": "AI call connection failed."}, status=502)
@@ -201,9 +217,8 @@ class AiCallSessionView(APIView):
                     **connection,
                     "session_lease": allocation.issue(),
                     "voice": voice.value if voice else "Tina",
-                    "instructions": prompt.content
-                    if prompt
-                    else "你是一个友好、简洁的 AI 助手。结合用户的语音与当前提供的画面回答问题。",
+                    "instructions": instructions,
+                    "tool_instructions": tool_instructions,
                 },
                 headers={"Cache-Control": "no-store"},
             )

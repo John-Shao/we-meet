@@ -59,6 +59,16 @@ jobs:
         run: uv sync --locked --all-extras
       - name: Check migration consistency
         run: uv run python manage.py makemigrations --check --dry-run
+      - name: Check managed assistant prompts and translation voices
+        run: >-
+          uv run pytest
+          core/tests/test_assistant_prompts.py
+          core/tests/test_ai_call.py
+          core/tests/test_assistant_translation_config.py
+          core/tests/test_assistant_translation_direct.py
+          core/tests/test_assistant_translation.py
+          core/tests/rooms/test_api_rooms_ai_agent.py
+          core/tests/services/test_ai_agent.py
       - name: Check Work account admission and execution boundaries
         run: uv run pytest work/tests
       - name: Check AI access, stream cleanup and task registration

@@ -292,3 +292,53 @@ def test_provider_answer_is_validated(call_setup, answer):
         URL, {"sdp": SDP, "profile_code": profile.code}, format="json"
     )
     assert response.status_code == 502
+
+
+@pytest.mark.parametrize("selected", [False, True])
+def test_backend_prompt_edits_are_used_without_client_overrides(call_setup, selected):
+    client, profile, post, _ = call_setup
+    default = models.AIPrompt.objects.get(code="call.default")
+    default.content = "Edited default"
+    default.save()
+    scene = models.AIPrompt.objects.get(code="call.scene.practice")
+    scene.content = "Edited practice"
+    scene.save()
+    camera = models.AIPrompt.objects.get(code="call.tool.camera")
+    camera.content = "Edited camera rules"
+    camera.save()
+    body = {"sdp": SDP, "profile_code": profile.code}
+    if selected:
+        body["prompt_id"] = str(scene.id)
+    response = client.post(URL, body, format="json")
+    assert response.status_code == 200
+    assert response.data["instructions"] == (
+        "Edited practice" if selected else "Edited default"
+    )
+    assert response.data["tool_instructions"]["camera"] == "Edited camera rules"
+    assert "end_call" in response.data["tool_instructions"]["end_call"]
+
+
+def test_system_prompt_cannot_be_selected_as_scene_and_disabled_rules_block_allocation(
+    call_setup,
+):
+    client, profile, post, _ = call_setup
+    system = models.AIPrompt.objects.get(code="translation.language_detection")
+    response = client.post(
+        URL,
+        {"sdp": SDP, "profile_code": profile.code, "prompt_id": str(system.id)},
+        format="json",
+    )
+    assert response.status_code == 200
+    assert (
+        response.data["instructions"]
+        == models.AIPrompt.objects.get(code="call.default").content
+    )
+    post.reset_mock()
+    models.AIPrompt.objects.filter(code="call.tool.camera").update(is_active=False)
+    assert (
+        client.post(
+            URL, {"sdp": SDP, "profile_code": profile.code}, format="json"
+        ).status_code
+        == 503
+    )
+    post.assert_not_called()

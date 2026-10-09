@@ -3712,6 +3712,9 @@ class AIPrompt(BaseModel):
     """
 
     label = models.CharField(_("label"), max_length=128, unique=True)
+    code = models.CharField(_("code"), max_length=64, unique=True, null=True, blank=True)
+    scope = models.CharField(_("scope"), max_length=16,
+        choices=(("call", _("Call scene")), ("system", _("System instructions"))), default="call")
     content = models.TextField(_("content"))
     sort_order = models.PositiveSmallIntegerField(_("sort order"), default=0)
     is_active = models.BooleanField(_("active"), default=True)

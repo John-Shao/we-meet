@@ -39,6 +39,7 @@ from core.api.assistant_transcription import AssistantTranscriptionSessionView
 from core.api.capture_direct_asr import CaptureDirectAsrStartView, CaptureDirectAsrSyncView
 from core.api.assistant_translation import (
     AssistantTranslationClaimView,
+    AssistantTranslationConfigView,
     AssistantTranslationSessionView,
     AssistantTranslationTicketView,
 )
@@ -390,6 +391,7 @@ urlpatterns = [
     path("api/v1.0/direct-ai/sessions/<uuid:allocation_id>/", DirectAIAllocationView.as_view(), name="direct-ai-session"),
     path("api/v1.0/assistant-summary/", AssistantSummaryView.as_view(), name="assistant-summary"),
     path("api/v1.0/assistant-transcription/session/", AssistantTranscriptionSessionView.as_view(), name="assistant-transcription-session"),
+    path("api/v1.0/assistant-translation/config/", AssistantTranslationConfigView.as_view(), name="assistant-translation-config"),
     path("api/v1.0/assistant-translation/ticket/", AssistantTranslationTicketView.as_view(), name="assistant-translation-ticket"),
     path(
         "api/v1.0/assistant-translation/session/",

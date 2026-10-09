@@ -15,8 +15,9 @@ from rest_framework.views import APIView
 
 from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
 from core.api.ai_call import MAX_SDP_LENGTH, parse_connection
-from core.models import User
+from core.models import AIModel, User
 from core.services import provider_http
+from core.services.assistant_prompts import language_detection
 from core.services.direct_ai_allocations import allocating
 
 SALT = "assistant-translation-v1"
@@ -41,6 +42,44 @@ class PairSerializer(serializers.Serializer):
         if attrs["source_language"] == attrs["target_language"]:
             raise serializers.ValidationError("Choose distinct languages.")
         return attrs
+
+
+TRANSLATION_MODEL = "qwen3.8-livetranslate-flash-realtime"
+
+
+class AssistantTranslationConfigView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        model = AIModel.objects.filter(
+            vendor__code="aliyun",
+            vendor__is_active=True,
+            code=f"aliyun/{TRANSLATION_MODEL}",
+            capability="omni",
+            is_active=True,
+        ).first()
+        voices = (
+            []
+            if model is None
+            else list(
+                model.voices.filter(is_active=True)
+                .order_by("sort_order", "label", "value")
+                .values("value", "label")
+            )
+        )
+        config = (
+            model.extra_config if model and isinstance(model.extra_config, dict) else {}
+        )
+        default = config.get("default_voice")
+        values = {voice["value"] for voice in voices}
+        if not isinstance(default, str) or default not in values:
+            default = (
+                "Tina" if "Tina" in values else (voices[0]["value"] if voices else None)
+            )
+        return Response(
+            {"model": TRANSLATION_MODEL, "default_voice": default, "voices": voices},
+            headers={"Cache-Control": "no-store"},
+        )
 
 
 class AssistantTranslationTicketView(APIView):
@@ -151,6 +190,11 @@ class AssistantTranslationSessionView(APIView):
         serializer = DirectTranslationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        instructions = (
+            language_detection(data["source_language"], data["target_language"])
+            if data["purpose"] == "language_detection"
+            else None
+        )
         workspace = settings.DASHSCOPE_WORKSPACE_ID
         region = settings.DASHSCOPE_REGION
         api_key = settings.DASHSCOPE_API_KEY
@@ -161,7 +205,7 @@ class AssistantTranslationSessionView(APIView):
         ):
             return Response({"detail": "Translation is not configured."}, status=503)
         model = (
-            "qwen3.8-livetranslate-flash-realtime"
+            TRANSLATION_MODEL
             if data["purpose"] == "translation"
             else "qwen3.8-omni-flash-realtime"
         )
@@ -209,6 +253,7 @@ class AssistantTranslationSessionView(APIView):
             return Response(
                 {
                     "model": model,
+                    "instructions": instructions,
                     **connection,
                     "session_lease": allocation.issue(),
                     "transport": data["transport"],

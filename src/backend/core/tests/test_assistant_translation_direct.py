@@ -8,6 +8,7 @@ import requests
 from rest_framework.test import APIClient
 
 from core.factories import UserFactory
+from core.models import AIPrompt
 
 pytestmark = pytest.mark.django_db
 URL = "/api/v1.0/assistant-translation/session/"
@@ -184,3 +185,26 @@ def test_webrtc_rejects_malformed_or_oversized_answer(direct, answer):
         .status_code
         == 502
     )
+
+
+def test_language_detection_uses_rendered_backend_template(direct):
+
+    client, post, _ = direct
+    prompt = AIPrompt.objects.get(code="translation.language_detection")
+    prompt.content = "Only {source_language} or {target_language}; unknown otherwise."
+    prompt.save()
+    response = client.post(
+        URL, {**PAIR, "purpose": "language_detection"}, format="json"
+    )
+    assert response.status_code == 200
+    assert response.data["instructions"] == "Only zh or en; unknown otherwise."
+    post.reset_mock()
+    prompt.is_active = False
+    prompt.save()
+    assert (
+        client.post(
+            URL, {**PAIR, "purpose": "language_detection"}, format="json"
+        ).status_code
+        == 503
+    )
+    post.assert_not_called()

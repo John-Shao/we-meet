@@ -389,10 +389,10 @@ class AIModelAdmin(admin.ModelAdmin):
 
 @admin.register(models.AIPrompt)
 class AIPromptAdmin(admin.ModelAdmin):
-    list_display = ("label", "sort_order", "is_active")
-    list_filter = ("is_active",)
+    list_display = ("label", "code", "scope", "sort_order", "is_active")
+    list_filter = ("scope", "is_active")
     list_editable = ("sort_order", "is_active")
-    search_fields = ("label", "content")
+    search_fields = ("label", "code", "content")
 
 
 @admin.register(models.AIVoice)
