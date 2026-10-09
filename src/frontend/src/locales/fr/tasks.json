@@ -167,7 +167,7 @@
     "navigationSettings": "Paramètres d’affichage des listes",
     "showArchived": "Afficher les listes de tâches archivées",
     "create": "Créer une liste",
-    "createHint": "Create a list to organize related tasks.",
+    "createHint": "Créez une liste pour organiser et retrouver rapidement les tâches associées.",
     "name": "Nom de la liste",
     "namePlaceholder": "Par exemple : cahier des charges",
     "description": "Description (facultatif)",

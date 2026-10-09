@@ -167,7 +167,7 @@
     "navigationSettings": "Anzeigeeinstellungen für Aufgabenlisten",
     "showArchived": "Archivierte Aufgabenlisten anzeigen",
     "create": "Aufgabenliste erstellen",
-    "createHint": "Create a list to organize related tasks.",
+    "createHint": "Erstellen Sie eine Liste, um zugehörige Aufgaben zu ordnen und schnell wiederzufinden.",
     "name": "Listenname",
     "namePlaceholder": "Zum Beispiel: Produktanforderungen",
     "description": "Beschreibung (optional)",
