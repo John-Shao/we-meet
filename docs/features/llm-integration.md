@@ -14,8 +14,8 @@ AOQ、WebRTC、WebSocket 是传输方式，DashScope SDK、OpenAI SDK 是调用�
 | --- | --- | --- | --- |
 | `qwen3.8-omni-flash-realtime` | Android AI 电话／视频通话 | 客户端 AOQ Client SDK；后端 HTTP 分配会话，媒体直达百炼 | 新版 Debug、Release 均默认 AOQ；设置中可手动选择 WebRTC |
 | 同上 | 加入 LiveKit 会议的 AI 助手 | 云端 Agent 使用 DashScope `OmniRealtimeConversation`，底层 WebSocket | 保留云端桥接，不随个人通话切换 |
-| 同上 | 双语互译语言识别及云端辅助处理 | Android AOQ 语言识别连接；云端路径使用 WebSocket 辅助适配器 | 属于互译链路的额外模型会话 |
-| `qwen3.8-livetranslate-flash-realtime` | Android 独立双语互译 | 客户端 AOQ；云端备选路径为业务网关／Agent 的 WebSocket | 新版 Debug、Release 均默认 AOQ；内部验证 APK 提供固定方向单连接；可手动选择云端 |
+| 同上 | 双语互译语言识别及云端辅助处理 | Android AOQ／WebRTC 独立语言识别连接；原网关保留 WebSocket 辅助适配器 | 自动方向判断的额外模型会话；不依赖业务网关 |
+| `qwen3.8-livetranslate-flash-realtime` | Android 独立双语互译 | 客户端 AOQ 或 WebRTC；后端只分配凭证／交换 SDP | 默认 AOQ；新增 WebRTC 替代 App 原云端网关选项，两种方式均支持自动及固定方向；代码需配套发布 |
 | 同上 | 会议／录音翻译的云端适配器 | Agent 使用 Python `websockets`，连接百炼实时接口 | 新版 Android 接受 3.8 及历史 3.5 配置；保留既有云端生命周期 |
 | `qwen-audio-3.1-asr-flash-streaming` | 保留音频的 Android 个人录音实时转写 | OkHttp WebSocket 直连百炼；后端签发专用临时凭证并保存确认文字 | 已转正，用户真机测试通过 |
 | 同上 | 会议字幕、其他云端实时转写 | LiveKit／采集链路 → Agent → 百炼 WebSocket | 继续使用原生 WebSocket 适配器 |
@@ -34,7 +34,7 @@ Work 的 DeepSeek 路径属于其他供应商，默认配置与 Pi 的 Qwen 灰�
 flowchart LR
     App[Android App] -->|登录态：分配会话或临时凭证| API[业务后端]
     API -->|服务端 Key：HTTP| Ali[百炼]
-    App -->|AOQ：通话与互译；WebSocket：个人 ASR| Ali
+    App -->|AOQ／WebRTC：通话与互译；WebSocket：个人 ASR| Ali
     App -->|确认文字同步／录音归档| API
     Room[共同会议 LiveKit] --> Agent[云端 Agent]
     Agent -->|独立 WebSocket| Ali
@@ -60,14 +60,14 @@ Android “AI 工具 → 打电话”的完整架构、业务控制流、实时�
 | 业务接口 | 请求用途 | 客户端收到的内容 |
 | --- | --- | --- |
 | `POST /api/v1.0/ai-call/session/` | Omni，`transport=aoq` 或 `webrtc` | AOQ 会话配置或 SDP answer，以及音色、提示词 |
-| `POST /api/v1.0/assistant-translation/session/` | `purpose=translation` 或 `language_detection` | 对应模型名和 AOQ 会话配置 |
+| `POST /api/v1.0/assistant-translation/session/` | `purpose=translation` 或 `language_detection`，`transport=aoq`（兼容默认）或 `webrtc`，后者附带音频及 DataChannel Offer SDP | 对应模型名、会话租约及 AOQ 会话配置或 WebRTC Answer SDP；不回显 Offer |
 | `POST /api/v1.0/assistant-translation/ticket/` | 手动选择云端互译 | 业务网关 URL 和短期 ticket |
 
 AOQ 分配由后端请求 `https://{workspace}.{region}.maas.aliyuncs.com/api/v1/webrtc/realtime?model={model}`，设置 `x-dashscope-rtc-transport: moq`。客户端只接收 `sid`、连接 Token、Relay、证书指纹和工作空间哈希，不接收永久 API Key。协议依据见[百炼 Token 鉴权](https://help.aliyun.com/zh/model-studio/realtime-token-authentication)。
 
 两个 AOQ 分配接口已在生产接入后端 `provider_http.request`，与其他 provider HTTP 请求复用线程内 Session；保留固定模型、响应大小限制、禁止重定向和不自动重试会话创建的行为。它们属于短期控制请求，不承载持续音频；本轮真实验证见[生产发布记录](../reviews/llm-integration-production-2026-10-08.md)。目前请求体未提供选填的 `clientIp`；若后续优化 Relay 分配，应先正确解析可信代理传递的客户端公网地址。
 
-双语互译的 `AoqBilingualWire` 默认自动双向模式建立正向、反向翻译及 Omni 语言识别三条连接，使用本机采集及方向路由。新版 Android 在设置中提供两个固定方向，固定方向仅分配并连接一个翻译模型，跳过 Omni 语言判断和另一条翻译连接；结束仍等待译音尾部、最后文本及 `session.finished`，支持译音回放。方向只能在会话开始前修改，切换语言对时恢复自动模式；云端备选仍使用自动双向模式。
+双语互译的共享路由默认建立正向、反向翻译及 Omni 语言识别三条连接，使用本机采集及方向路由。AOQ 与新增 WebRTC 都提供两个固定方向，固定方向仅分配并连接一个翻译模型，跳过 Omni 语言判断和另一条翻译连接；结束仍等待译音尾部、最后文本及 `session.finished`，支持译音回放。方向只能在会话开始前修改，切换语言对时恢复自动模式；切换两种直连协议保留方向。WebRTC 的原生外部音频输入通过 RTP 发送 PCM，DataChannel 只传模型配置／控制／文本事件；先等待 `session.updated` 再挂载发送轨道，关闭内部录音与播放声音，复用 App 的单一录音源及播放队列。模型支持见[LiveTranslate 3.8 模型说明](https://help.aliyun.com/zh/model-studio/qwen3-8-livetranslate-flash-realtime)及[WebRTC 接入](https://help.aliyun.com/zh/model-studio/realtime-webrtc-access)。
 
 自动模式通常缓冲 25,600 字节的 16 kHz PCM（800 ms）后启动语言判断，新版代码记录判断输入时长、耗时及连接数，不记录原始讲话。固定方向减少模型连接与判断步骤，实际译文延迟、Token 费用和弱网表现仍需分别测量；连接数从三变一不等于费用降为三分之一。
 

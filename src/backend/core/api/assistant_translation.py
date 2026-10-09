@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
-from core.api.ai_call import MAX_SDP_LENGTH, parse_aoq_allocation
+from core.api.ai_call import MAX_SDP_LENGTH, parse_connection
 from core.models import User
 from core.services import provider_http
 from core.services.direct_ai_allocations import allocating
@@ -119,10 +119,30 @@ class DirectTranslationSerializer(PairSerializer):
     purpose = serializers.ChoiceField(
         choices=("translation", "language_detection"), default="translation"
     )
+    transport = serializers.ChoiceField(choices=("aoq", "webrtc"), default="aoq")
+    sdp = serializers.CharField(
+        max_length=MAX_SDP_LENGTH, required=False, trim_whitespace=False
+    )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if attrs["transport"] == "webrtc":
+            offer = attrs.get("sdp", "")
+            if (
+                not offer.startswith("v=0")
+                or "\nm=audio " not in offer
+                or "\nm=application " not in offer
+            ):
+                raise serializers.ValidationError(
+                    {"sdp": "An audio and data SDP offer is required."}
+                )
+        elif attrs.get("sdp"):
+            raise serializers.ValidationError({"sdp": "AOQ does not use SDP."})
+        return attrs
 
 
 class AssistantTranslationSessionView(APIView):
-    """Allocate model-scoped AOQ credentials; never proxy speech or expose API keys."""
+    """Allocate AOQ or exchange WebRTC SDP; never proxy speech or expose API keys."""
 
     permission_classes = [permissions.IsAuthenticated]
     throttle_classes = [TranslationThrottle]
@@ -146,17 +166,21 @@ class AssistantTranslationSessionView(APIView):
             else "qwen3.8-omni-flash-realtime"
         )
         url = f"https://{workspace}.{region}.maas.aliyuncs.com/api/v1/webrtc/realtime"
-        with allocating(request.user, model, "aoq") as allocation:
+        is_aoq = data["transport"] == "aoq"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json" if is_aoq else "application/sdp",
+        }
+        if is_aoq:
+            headers["x-dashscope-rtc-transport"] = "moq"
+        with allocating(request.user, model, data["transport"]) as allocation:
             try:
                 with provider_http.request(
-                    "POST", url,
+                    "POST",
+                    url,
                     params={"model": model},
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                        "x-dashscope-rtc-transport": "moq",
-                    },
-                    data=b"{}",
+                    headers=headers,
+                    data=b"{}" if is_aoq else data["sdp"].encode("utf-8"),
                     timeout=(5, 20),
                     allow_redirects=False,
                     stream=True,
@@ -171,12 +195,26 @@ class AssistantTranslationSessionView(APIView):
                         chunks.extend(chunk)
                         if len(chunks) > MAX_SDP_LENGTH:
                             raise ValueError("Allocation exceeds size limit")
-                    credentials = parse_aoq_allocation(chunks.decode("utf-8"))
+                    # Provider answers may already end in CRLF. The shared parser
+                    # appends the final terminator; avoid an empty SDP line.
+                    connection = parse_connection(
+                        chunks.decode("utf-8").rstrip(), is_aoq
+                    )
+                    if not is_aoq and "\nm=application " not in connection["sdp"]:
+                        raise ValueError("Missing event channel")
             except (requests.RequestException, ValueError, KeyError, TypeError):
                 return Response(
                     {"detail": "Direct translation connection failed."}, status=502
                 )
             return Response(
-                {"model": model, "aoq": credentials, "session_lease": allocation.issue(), **data},
+                {
+                    "model": model,
+                    **connection,
+                    "session_lease": allocation.issue(),
+                    "transport": data["transport"],
+                    "purpose": data["purpose"],
+                    "source_language": data["source_language"],
+                    "target_language": data["target_language"],
+                },
                 headers={"Cache-Control": "no-store"},
             )
