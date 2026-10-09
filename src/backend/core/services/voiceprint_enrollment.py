@@ -115,6 +115,9 @@ def upload_token(enrollment, profile):
 
 
 def authorized_enrollment(enrollment):
+    enrollment = models.VoiceprintEnrollment.objects.filter(pk=enrollment.pk).first()
+    if enrollment is None:
+        raise VoiceprintError("voiceprint_enrollment_revoked")
     if enrollment.profile_id is None or enrollment.status == "canceled":
         raise VoiceprintError("voiceprint_enrollment_revoked")
     profile = consent_service.authorize_profile(
@@ -299,10 +302,17 @@ def upload(actor, *, enrollment_id, slot, token, wav):
     return sample
 
 
+def has_payload(sample, kind):
+    present = getattr(sample, f"{kind}_present", None)
+    return (
+        present if present is not None else bool(getattr(sample, f"encrypted_{kind}"))
+    )
+
+
 def sample_quality_ready(sample):
     quality = sample.quality
     return (
-        bool(sample.encrypted_embedding)
+        has_payload(sample, "embedding")
         and isinstance(quality, dict)
         and quality.get("speech_checked") is True
         and quality.get("speaker_consistency_checked") is True
@@ -316,7 +326,7 @@ def sample_quality_ready(sample):
 def sample_snapshot(sample):
     quality_pending = sample.status == "ready" and not sample_quality_ready(sample)
     try:
-        sample_authorized(sample)
+        profile = sample_authorized(sample)
     except VoiceprintError:
         accessible = False
     else:
@@ -325,6 +335,7 @@ def sample_snapshot(sample):
             "expired",
             "deleted",
         }
+    can_confirm = accessible and profile.consent.allow_enrollment
     return {
         "id": str(sample.pk),
         "profile_id": str(sample.profile_id),
@@ -332,11 +343,11 @@ def sample_snapshot(sample):
         "source_type": sample.source_type,
         "duration_ms": sample.end_ms - sample.start_ms,
         "expires_at": sample.expires_at.isoformat(),
-        "confirmable": accessible
-        and bool(sample.encrypted_audio)
+        "confirmable": can_confirm
+        and has_payload(sample, "audio")
         and sample.status == "ready"
         and sample_quality_ready(sample),
-        "audio_available": accessible and bool(sample.encrypted_audio),
+        "audio_available": accessible and has_payload(sample, "audio"),
     }
 
 
@@ -364,7 +375,22 @@ def sample_authorized(sample):
         generation=sample.generation,
     )
     if sample.enrollment_id:
-        authorized_enrollment(sample.enrollment)
+        admitted = authorized_enrollment(sample.enrollment)
+        if (
+            admitted.pk != profile.pk
+            or sample.source_type != "enrollment"
+            or sample.permit_id != sample.enrollment_id
+        ):
+            raise VoiceprintError("voiceprint_enrollment_revoked")
+    return profile
+
+
+def confirmation_authorized(sample):
+    profile = sample_authorized(sample)
+    # Accumulation may admit a call candidate, but it never grants permission
+    # to establish/confirm a voiceprint on its own.
+    if not profile.consent.allow_enrollment:
+        raise VoiceprintError("voiceprint_enrollment_denied")
     return profile
 
 
@@ -434,10 +460,10 @@ def decide(actor, identifier, *, expected_version, accepted):
         if previous.accepted != accepted:
             raise VoiceprintError("voiceprint_decision_conflict", status=409)
         if accepted:
-            sample_authorized(sample)
+            confirmation_authorized(sample)
         return sample
     if accepted:
-        sample_authorized(sample)
+        confirmation_authorized(sample)
         if sample.expires_at <= timezone.now() or not sample.encrypted_audio:
             raise VoiceprintError("voiceprint_sample_expired", status=410)
         if sample.status != "ready" or not sample_quality_ready(sample):

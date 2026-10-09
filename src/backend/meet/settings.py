@@ -1154,6 +1154,7 @@ class Base(Configuration):
     MEETING_VOICEPRINT_ENABLED = values.BooleanValue(False, environ_prefix=None)
     # Separate, rotatable mounted keyring; never fall back to DJANGO_SECRET_KEY.
     MEETING_VOICEPRINT_KEYRING_FILE = values.Value("", environ_prefix=None)
+    MEETING_VOICEPRINT_ENCODER_CONFIG_FILE = values.Value("", environ_prefix=None)
     MEETING_TRANSCRIPT_DELIVERY_ENABLED = values.BooleanValue(
         False, environ_prefix=None
     )
