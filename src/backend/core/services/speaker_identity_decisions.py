@@ -7,8 +7,9 @@ from django.utils import timezone
 
 from core import models
 from core.services import speaker_contacts
+from core.services.effective_transcripts import current_generation
 from core.services.meeting_records import RecordConflict, bump_record_source
-from core.services.speaker_attribution import authorize
+from core.services.speaker_attribution import AttributionDenied, authorize
 
 
 def clean_label(value):
@@ -18,7 +19,10 @@ def clean_label(value):
     if (
         not label
         or len(label) > 64
-        or any(unicodedata.category(char) in {"Cc", "Cf", "Zl", "Zp"} for char in value)
+        or any(
+            unicodedata.category(char) in {"Cc", "Cf", "Cs", "Zl", "Zp"}
+            for char in value
+        )
     ):
         raise ValueError("invalid_label")
     return label
@@ -42,12 +46,20 @@ def decide(  # noqa: PLR0913
         raise RecordConflict("identity_revision_changed")
     speaker = (
         models.MeetingSpeaker.objects.select_for_update()
-        .filter(pk=speaker_id, record_id=locked.pk)
+        .filter(
+            pk=speaker_id,
+            record_id=locked.pk,
+            pk__in=current_generation(locked.original_segments.all()).values(
+                "speaker_id"
+            ),
+        )
         .first()
     )
     if speaker is None:
         raise LookupError("No such speaker on this record.")
     speaker.record = locked
+    if action != "clear" and speaker.identity_type != "diarized":
+        raise AttributionDenied("Diarize the source before naming an unknown track.")
     if action == "set_label":
         user, manual_label, kind, source = None, clean_label(label), "custom", None
     elif action == "select_contact":

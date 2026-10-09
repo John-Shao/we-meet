@@ -141,7 +141,9 @@ class SpeakerContactQuerySerializer(serializers.Serializer):
         choices=["all", "member", "external", "departments"], default="all"
     )
     department_id = serializers.UUIDField(required=False)
-    offset = serializers.IntegerField(min_value=0, max_value=10000, default=0)
+    offset = serializers.IntegerField(
+        min_value=0, max_value=speaker_contacts.MAX_OFFSET, default=0
+    )
     limit = serializers.IntegerField(min_value=1, max_value=50, default=25)
 
     def validate(self, attrs):
@@ -1286,16 +1288,17 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         page = pager.paginate_queryset(
             record.speakers.filter(
                 pk__in=current_originals(record).values("speaker_id")
-            ),
+            ).select_related("user"),
             request,
             view=self,
         )
         stats, stats_status = speaker_activity.activity(record)
         self._check_original_revision(record, record.revision)
+        may_attribute = can_edit_transcript(record, request.user)
         return pager.get_paginated_response(
             [
                 {
-                    **speaker_attribution.serialize(row),
+                    **speaker_attribution.serialize(row, record_revision=record.revision),
                     "activity": speaker_activity.serialize(stats, stats_status, row.pk),
                     # Capture-backed reads also carry the source key, so a caller
                     # that only kept the raw track key can still filter.
@@ -1303,7 +1306,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "param": "speaker",
                     # Whether this reader may change the attribution, so the UI
                     # does not offer a control that would be refused.
-                    "can_attribute": can_edit_transcript(record, request.user),
+                    "can_attribute": may_attribute and row.identity_type == "diarized",
                 }
                 for row in page
             ]
@@ -1363,7 +1366,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(
             {
                 "results": [
-                    {"id": str(user.pk), "name": user.full_name or ""}
+                    {"id": str(user.pk), "name": speaker_contacts.name(user)}
                     for user in speaker_attribution.attribution_candidates(
                         record, request.user, query
                     )

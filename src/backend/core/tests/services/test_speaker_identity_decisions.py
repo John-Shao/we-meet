@@ -1,6 +1,8 @@
 """Editorial identity privacy, stale-write protection and reader projections."""
 
 import importlib
+import json
+import uuid
 from types import SimpleNamespace
 
 from django.apps import apps
@@ -194,6 +196,23 @@ def test_invalid_labels_do_not_change_the_record(label):
     assert not record.identity_decisions.exists()
 
 
+def test_an_unpaired_unicode_surrogate_is_rejected_before_database_encoding():
+    owner, record, speaker, _ = org_record()
+    response = client_for(owner).post(
+        DECISION.format(record.pk, speaker.pk),
+        data=json.dumps(
+            {
+                "action": "set_label",
+                "expected_revision": record.revision,
+                "label": "\ud800",
+            }
+        ),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    assert not record.identity_decisions.exists()
+
+
 def test_contact_snapshot_cannot_be_forged_in_the_request():
     owner, record, speaker, _ = org_record()
     response = decide(
@@ -283,6 +302,18 @@ def test_same_names_do_not_merge_source_speakers():
         label="Speaker 2",
         identity_type="diarized",
     )
+    models.MeetingOriginalSegment.objects.create(
+        record=record,
+        capture_session=speaker.capture_session,
+        speaker=other,
+        ingest_id=uuid.uuid4(),
+        source_track_id="track",
+        source_sequence=2,
+        start_ms=1000,
+        end_ms=2000,
+        text="Second speaker.",
+        payload_hash="1" * 64,
+    )
     speaker_identity_decisions.decide(
         record, speaker.pk, owner, action="set_label", label="Guest"
     )
@@ -348,3 +379,114 @@ def test_legacy_clear_removes_a_custom_label_and_restores_original_source():
     assert response.status_code == 200, response.data
     assert response.data["display_name"] == "Speaker 1"
     assert response.data["attribution_kind"] == "none"
+
+
+def test_binding_an_unnamed_member_does_not_share_their_email():
+    owner, record, speaker, organization = org_record()
+    member = MembershipFactory(
+        organization=organization, user__full_name="", user__short_name=""
+    ).user
+    response = decide(
+        owner, record, speaker, "select_contact", contact_ref=f"member:{member.pk}"
+    )
+    assert response.status_code == 200
+    assert response.data["display_name"] == speaker.label
+    speaker.refresh_from_db()
+    assert speaker.display_name == speaker.label
+    assert rows_for(record)[0].speaker == speaker.label
+
+
+@pytest.mark.parametrize("action", ["set_label", "select_contact"])
+def test_a_mixed_unknown_track_cannot_be_named_through_either_endpoint(action):
+    owner, record, segment = captured_segment()
+    speaker = segment.speaker
+    # This fixture represents the source's unknown track, before diarization.
+    models.MeetingSpeaker.objects.filter(pk=speaker.pk).update(identity_type="unknown")
+    fields = (
+        {"label": "Host"}
+        if action == "set_label"
+        else {"contact_ref": f"member:{owner.pk}"}
+    )
+    before = record.revision
+    assert decide(owner, record, speaker, action, **fields).status_code == 400
+    response = client_for(owner).patch(
+        LEGACY.format(record.pk, speaker.pk), {"user_id": str(owner.pk)}, format="json"
+    )
+    assert response.status_code == 400
+    page = client_for(owner).get(f"/api/v1.0/meeting-records/{record.pk}/speakers/")
+    assert page.data["results"][0]["can_attribute"] is False
+    record.refresh_from_db()
+    assert record.revision == before
+    assert not record.identity_decisions.exists()
+
+
+def test_a_speaker_in_an_unpublished_generation_cannot_be_edited():
+    owner, record, speaker, _ = org_record()
+    job = models.CaptureTranscriptionJob.objects.create(
+        capture=speaker.capture_session,
+        requested_by=owner,
+        key=uuid.uuid4(),
+        request_hash="0" * 64,
+        generation=1,
+        inputs={"fixture": True},
+        configuration={"fixture": True},
+        deadline=record.origin_at,
+        status="succeeded",
+    )
+    models.MeetingOriginalSegment.objects.filter(speaker=speaker).update(
+        transcription_job=job
+    )
+    before = record.revision
+    assert decide(owner, record, speaker, "set_label", label="Host").status_code == 404
+    assert (
+        client_for(owner)
+        .patch(
+            LEGACY.format(record.pk, speaker.pk),
+            {"user_id": str(owner.pk)},
+            format="json",
+        )
+        .status_code
+        == 404
+    )
+    record.refresh_from_db()
+    assert record.revision == before
+    assert not record.identity_decisions.exists()
+
+
+@pytest.mark.parametrize("deleted", [True, False])
+def test_directory_cards_do_not_expose_retired_departments(deleted):
+    owner, record, _, organization = org_record()
+    membership = MembershipFactory(organization=organization, user__full_name="Ada")
+    department = membership.department
+    models.Department.objects.filter(pk=department.pk).update(
+        deleted_at=record.origin_at if deleted else None, is_active=deleted
+    )
+    page = speaker_contacts.lookup(record, owner, query="Ada")
+    card = page["results"][0]
+    assert card["department_name"] == ""
+    assert card["department_id"] is None
+
+
+def test_directory_card_uses_the_department_that_was_filtered():
+    owner, record, _, organization = org_record()
+    primary = MembershipFactory(
+        organization=organization, is_primary=True, user__full_name="Ada"
+    )
+    secondary = MembershipFactory(organization=organization, user=primary.user)
+    card = speaker_contacts.lookup(
+        record, owner, department_id=secondary.department_id
+    )["results"][0]
+    assert card["department_id"] == str(secondary.department_id)
+    assert card["department_name"] == secondary.department.name
+
+
+@pytest.mark.parametrize("kind", ["member", "departments"])
+def test_directory_pagination_stops_at_the_permitted_offset(monkeypatch, kind):
+    owner, record, _, organization = org_record()
+    MembershipFactory(organization=organization)
+    monkeypatch.setattr(speaker_contacts, "MAX_OFFSET", 1)
+    first = speaker_contacts.lookup(record, owner, kind=kind, limit=1)
+    assert first["next_offset"] == 1
+    last = speaker_contacts.lookup(record, owner, kind=kind, limit=1, offset=1)
+    assert len(last["results"]) == 1
+    assert last["next_offset"] is None

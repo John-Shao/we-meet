@@ -127,7 +127,10 @@ function Picker({
     mode === 'contacts' && kind !== 'external'
   )
   const attribute = useSpeakerIdentityDecision(viewerId, recordId)
-  const disabled = attribute.isPending || expectedRevision === undefined
+  const disabled =
+    attribute.isPending ||
+    expectedRevision === undefined ||
+    (attribute.isError && attribute.error.statusCode === 409)
   const choose = (choice: SpeakerIdentityChoice) => {
     if (expectedRevision === undefined) return
     attribute.mutate(

@@ -118,6 +118,10 @@ it('offers the directory from the record endpoint', async () => {
   expect(await chooseButton('Ada Lovelace')).toBeInTheDocument()
   const url = mocks.fetchApi.mock.calls[0][0] as string
   expect(url).toContain('meeting-records/record/speaker-contacts/')
+  expect(mocks.fetchApi.mock.calls[0][1]).toMatchObject({
+    cache: 'no-store',
+    redirect: 'error',
+  })
 })
 
 it('re-searches the directory with the typed name', async () => {
@@ -204,6 +208,24 @@ it('reports a failed write instead of failing silently', async () => {
   expect(screen.getByLabelText('speakerAttribution.search')).toBeInTheDocument()
 })
 
+it('invalidates the viewer workspace content after naming a speaker', async () => {
+  show()
+  const workspaceKey = ['record-library-content', 'viewer', 3, 'originals']
+  const otherViewerKey = ['record-library-content', 'other', 3, 'originals']
+  client.setQueryData(workspaceKey, {
+    results: [{ speaker_label: 'Speaker 1' }],
+  })
+  client.setQueryData(otherViewerKey, {
+    results: [{ speaker_label: 'Speaker 1' }],
+  })
+  await open()
+  fireEvent.click(await chooseButton('Ada Lovelace'))
+  await vi.waitFor(() => {
+    expect(client.getQueryState(workspaceKey)?.isInvalidated).toBe(true)
+    expect(client.getQueryState(otherViewerKey)?.isInvalidated).toBe(false)
+  })
+})
+
 it('reports a directory that could not be read', async () => {
   mocks.fetchApi.mockImplementation(
     async (_url: string, init?: RequestInit) => {
@@ -263,6 +285,12 @@ it('keeps an outdated editor open and asks them to reopen after a conflict', asy
     await screen.findByText('speakerAttribution.changed')
   ).toBeInTheDocument()
   expect(screen.getByLabelText('speakerAttribution.search')).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'speakerAttribution.choose:Ada' })
+  ).toBeDisabled()
+  expect(
+    screen.getByRole('button', { name: 'speakerAttribution.clear' })
+  ).toBeDisabled()
 })
 
 it('submits an external contact reference without a user id or name snapshot', async () => {

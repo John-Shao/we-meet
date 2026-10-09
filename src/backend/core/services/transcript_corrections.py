@@ -71,10 +71,8 @@ def attributed_name_subquery():
                 NullIf("manual_label", Value("")),
                 NullIf("user__full_name", Value("")),
                 NullIf("user__short_name", Value("")),
-                NullIf("user__email", Value("")),
                 "label",
-                # The account's email column is an EmailField, so without an
-                # explicit target the coalesce mixes types and Django refuses it.
+                # Never share account contact details as a transcript name.
                 output_field=django_models.CharField(max_length=128),
             )
         )

@@ -492,6 +492,8 @@ export const useSpeakerContacts = (
       }
       return fetchApi(`${recordPath(recordId)}speaker-contacts/?${params}`, {
         signal,
+        cache: 'no-store',
+        redirect: 'error',
       })
     },
     enabled: enabled && !!viewerId && !!recordId,
@@ -505,6 +507,14 @@ export const useSpeakerIdentityDecision = (
   recordId: string
 ) => {
   const client = useQueryClient()
+  const refresh = async () => {
+    await Promise.all([
+      client.invalidateQueries({ queryKey: ['meeting-records', viewerId] }),
+      client.invalidateQueries({
+        queryKey: ['record-library-content', viewerId],
+      }),
+    ])
+  }
   return useMutation<
     ApiRecordSpeaker,
     ApiError,
@@ -526,16 +536,8 @@ export const useSpeakerIdentityDecision = (
       ),
     retry: false,
     gcTime: 0,
-    onSuccess: async () => {
-      await client.invalidateQueries({
-        queryKey: ['meeting-records', viewerId],
-      })
-    },
-    onError: async () => {
-      await client.invalidateQueries({
-        queryKey: ['meeting-records', viewerId],
-      })
-    },
+    onSuccess: refresh,
+    onError: refresh,
   })
 }
 

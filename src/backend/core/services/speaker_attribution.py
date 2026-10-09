@@ -64,7 +64,7 @@ def attribution_candidates(record, actor, query=""):
     return members(record, actor, query)[:MAX_CANDIDATES]
 
 
-def serialize(speaker):
+def serialize(speaker, *, record_revision=None):
     """Speaker metadata plus its attribution, without exposing the account row."""
     return {
         "id": str(speaker.pk),
@@ -78,5 +78,7 @@ def serialize(speaker):
         else None,
         "manual_label": speaker.manual_label,
         "attribution_kind": speaker.attribution_kind,
-        "record_revision": speaker.record.revision,
+        "record_revision": record_revision
+        if record_revision is not None
+        else speaker.record.revision,
     }

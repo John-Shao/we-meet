@@ -1759,7 +1759,6 @@ class MeetingSpeaker(BaseModel):
             return (
                 self.user.full_name
                 or self.user.short_name
-                or self.user.email
                 or self.label
             )
         return self.label

@@ -6,6 +6,13 @@ from core import models
 
 PAGE_SIZE = 25
 MAX_PAGE_SIZE = 50
+MAX_OFFSET = 10000
+
+
+def next_offset(offset, limit, total):
+    """Never offer a next page that the bounded lookup itself would reject."""
+    following = offset + limit
+    return following if following < total and following <= MAX_OFFSET else None
 
 
 def name(user):
@@ -84,7 +91,7 @@ def department_choices(record, actor, query="", offset=0, limit=PAGE_SIZE):
             }
             for row in rows[offset : offset + limit]
         ],
-        "next_offset": offset + limit if offset + limit < total else None,
+        "next_offset": next_offset(offset, limit, total),
     }
 
 
@@ -133,7 +140,7 @@ def lookup(  # noqa: PLR0913
         or not isinstance(limit, int)
         or not 1 <= limit <= MAX_PAGE_SIZE
         or not isinstance(offset, int)
-        or not 0 <= offset <= 10000
+        or not 0 <= offset <= MAX_OFFSET
     ):
         raise ValueError("invalid_contact_filters")
     if kind == "departments":
@@ -153,6 +160,8 @@ def lookup(  # noqa: PLR0913
             .filter(user=actor)
             .values("organization_id")
         )
+    if department_id:
+        scope = scope.filter(department_id=department_id)
     contexts = {}
     for membership in scope.select_related("department", "organization").order_by(
         "-is_primary", "created_at"
@@ -161,18 +170,17 @@ def lookup(  # noqa: PLR0913
     results = []
     for user in selected:
         context = contexts.get(user.pk)
+        department = context.department if context and context.department_id else None
+        if department and (not department.is_active or department.deleted_at):
+            department = None
         results.append(
             {
                 "ref": f"member:{user.pk}",
                 "kind": "member",
                 "name": name(user),
                 "organization_name": context.organization.name if context else "",
-                "department_name": context.department.name
-                if context and context.department_id
-                else "",
-                "department_id": str(context.department_id)
-                if context and context.department_id
-                else None,
+                "department_name": department.name if department else "",
+                "department_id": str(department.pk) if department else None,
             }
         )
     remaining = limit - len(results)
@@ -193,7 +201,7 @@ def lookup(  # noqa: PLR0913
     total = member_count + external_count
     return {
         "results": results,
-        "next_offset": offset + limit if offset + limit < total else None,
+        "next_offset": next_offset(offset, limit, total),
     }
 
 
