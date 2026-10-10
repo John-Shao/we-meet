@@ -2,7 +2,7 @@
 
 日期：2026-10-10（Asia/Shanghai）
 
-最新阶段：[AI 录音 Web 走查](../research/voiceprint-capture-web-review-2026-10-10.md)已接通显式付费分人／同请求恢复、当前派生版本分页、录音身份入口与连续区间试听，修复版本混用／编辑丢失、成功版本门禁、账号切换残留、试听越界及文本编码与过时提示。相关后端 65 项、前端 135 项回归及本地合成音频真实浏览器验证通过。后端派生版本、Qwen worker 与录音身份队列的证据见[worker 走查](../research/voiceprint-capture-diarization-review-2026-10-10.md)及[操作与查询走查](../research/voiceprint-capture-identity-api-review-2026-10-10.md)。Android 录音分人／分页／试听、可信通话采样、部署与获授权真人效果验收仍待完成；各阶段回归证据独立记录，不直接相加。
+最新阶段：[AI 录音 Android 走查](../research/voiceprint-capture-android-review-2026-10-10.md)已接通显式付费分人／同请求恢复、固定派生版本分页、身份入口与原生有界试听，修复 Compose 崩溃、状态收集线程、试听超时、取消失权残留、存储错误分类及旧版本草稿保存边界。120 项 JVM、35 项隔离模拟器回归、APK 构建与中文大字号走查通过。Web 的 65 项后端、135 项前端及本地真实浏览器证据见[Web 走查](../research/voiceprint-capture-web-review-2026-10-10.md)；派生版本、Qwen worker 与录音身份队列证据见[worker 走查](../research/voiceprint-capture-diarization-review-2026-10-10.md)及[操作与查询走查](../research/voiceprint-capture-identity-api-review-2026-10-10.md)。完整产品 Application／真实设备、可信通话采样、部署与获授权真人效果验收仍待完成；各阶段回归证据独立记录，不直接相加。
 
 用户已要求从 `aliyun-dev` 建 feature 分支完成开发，本次开发授权取代方案中的“尚未允许开始实施”状态。需求仍以[声纹方案 v1.5](speaker-identity-voiceprint-plan-2026-10-09.md)为准；模型按 Qwen 优先、未满足要求后再考虑 CAM++ 的顺序执行。开发授权不代表已通过真人效果或生产发布验收。
 
@@ -22,7 +22,7 @@
 | 多片段匹配、未知拒绝、门限版本与候选快照 | 内部匹配／查询、独立身份队列、持久建议、记录级 API、建议决定事务和 Web／Android 导入识别交互已实现；其他来源及校准待完成 | [匹配核心走查](../research/voiceprint-matching-core-review-2026-10-10.md)、[识别 API 走查](../research/voiceprint-identification-api-review-2026-10-10.md)、[Web 识别走查](../research/voiceprint-web-identification-review-2026-10-10.md)及本文件 Android 章节；合成验证不代表真人识别效果 |
 | 导入：显式候选、分人预检、有界媒体解码与多片段建议 | 可信下载／区间选择、本地有界解码、独立身份任务、多片段建议及 Web／Android 导入后确认已实现；收费 ASR 前预检、固定共同输入、两端导入前选择／失败决定与转写后持久身份调度已接通 | 合成多格式选段、实际 Qwen 到持久建议链路通过；预检证据见[后端走查](../research/voiceprint-import-preflight-review-2026-10-10.md)，界面证据见[Web 与调度走查](../research/voiceprint-import-web-dispatch-review-2026-10-10.md)及[Android 走查](../research/voiceprint-import-android-review-2026-10-10.md)；真人多人／跨端验收仍待完成 |
 | 通话：可信账户／participant／track 许可、选择性采样、暂停与共享设备排除 | 待开发 | LiveKit 采样与配额测试、授权撤销与跨端采样状态 |
-| AI 录音后分人：独立派生 generation、时间对齐和历史引用 | 后端派生版本、可信对齐、原子发布、修订继承、固定私有媒体、Qwen worker、操作 API 和录音身份队列已接通；Web 分人入口／当前版本分页／试听已接通，Android 待完成 | [派生版本与 worker](../research/voiceprint-capture-diarization-review-2026-10-10.md)、[操作与查询走查](../research/voiceprint-capture-identity-api-review-2026-10-10.md)、[Web 走查](../research/voiceprint-capture-web-review-2026-10-10.md)；合成多人建议须逐个人工确认，真人多人效果待验证 |
+| AI 录音后分人：独立派生 generation、时间对齐和历史引用 | 后端派生版本、可信对齐、原子发布、修订继承、固定私有媒体、Qwen worker、操作 API 和录音身份队列已接通；Web／Android 分人入口、固定版本分页、身份确认和区间试听已接通 | [派生版本与 worker](../research/voiceprint-capture-diarization-review-2026-10-10.md)、[操作与查询走查](../research/voiceprint-capture-identity-api-review-2026-10-10.md)、[Web 走查](../research/voiceprint-capture-web-review-2026-10-10.md)、[Android 走查](../research/voiceprint-capture-android-review-2026-10-10.md)；合成多人建议须逐个人工确认，真人多人效果、完整产品路由与真实设备仍待验证 |
 | Web／Android：设置、采样状态、身份建议与人工确认 | Web／Android 本人设置、登记、样本审核及导入后的候选／建议确认已接通；八态、更新原因及有效登记组投影已接通；跨端采样状态与真实设备分组待开发 | 本人设置相关回归与真实合成麦克风通过；状态投影及两端交互见[状态走查](../research/voiceprint-settings-status-review-2026-10-10.md)，其他界面继续验收 |
 | Helm／镜像：独立服务、默认关闭的开关、预算和观测 | 待开发 | 配置渲染、镜像／服务启动验证与运维文档 |
 | 真人效果、生产媒体条件、容量与发布验收 | 未完成 | 获授权真人数据及部署环境实测；暂无样本，不能宣称识别准确率达标 |
@@ -255,3 +255,11 @@ Android 提交 `abee2a10` 接通上传前显式个人／组织范围与候选选
 走查修复固定版本 HEAD 的重试分类、已上传输入重试不计数、元数据名称大小写、独立桶超时配置、重复分片 UUID 和结果格式门禁。新增 32 项专项，两轮兼容／原生媒体回归合计覆盖 287 个不同用例；原先缺少 FFmpeg 路径而跳过的用例已在末轮实际通过。详细行为、配置、回归和限制见[走查记录的后续阶段](../research/voiceprint-capture-diarization-review-2026-10-10.md#后续私有媒体与-qwen-worker-走查)。
 
 功能默认关闭，模型路线继续 Qwen 优先；操作 API、Web／Android 分人及分页、录音声纹匹配、可信通话采样、部署恢复和获授权真人／生产验收仍待完成，完整目标尚未完成。
+
+## AI 录音 Android 分人、分页与试听走查（2026-10-10）
+
+本节更新此前 Android 相应入口待完成的状态。Android 提交 `366df582` 已接通显式付费确认、加密意图／原 nonce 与 revision 恢复、关闭创建后的取消、固定 ASR／派生版本分页、录音身份候选与人工确认、最长 10 秒的连续区间试听。最后分块的 PCM 实际裁到试听末端，结束／失权／后台均释放音频；普通回放不会因未使用的身份面板关闭而中断。
+
+本轮修复六类产品问题：Compose 分组提前返回、状态收集线程导致持续加载、试听超时误归类取消、取消失权后私有历史残留、后续意图存储失败误报，以及旧派生草稿借用新记录 revision 保存。120 项 JVM、35 项 API 29 隔离模拟器回归、APK 构建、设计规范、五语言资源与中文暗色 1.5 倍字号走查通过。详情与复现见[Android 走查记录](../research/voiceprint-capture-android-review-2026-10-10.md)。
+
+仅使用独立应用包、本地接口契约和合成音频，录音权限保持未授予，没有收费 ASR、真人采样或生产部署。完整产品 Application／真实设备、可信通话采样／共享设备排除／实际设备分组、部署调度／清理／可信恢复，以及获授权真人和生产验收继续开发；完整目标尚未完成，Qwen 优先路线保持不变。
