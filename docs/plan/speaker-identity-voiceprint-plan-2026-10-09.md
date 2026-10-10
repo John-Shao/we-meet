@@ -1,10 +1,10 @@
 # 会议与通话声纹身份识别方案
 
-通话管线已接通独立 sampler、派发、加密候选入库和单人质检，见[采样管线走查](../research/voiceprint-call-pipeline-review-2026-10-10.md)。进一步接通本人确认的首次通话基准、跨会话设备组补充、加密来源证明、失效门禁及幸存贡献重建，见[设备组模板走查](../research/voiceprint-device-templates-review-2026-10-10.md)。来源删除后的数据库物理清理、持久意图、周期恢复和独立重建已接通，见[来源删除走查](../research/voiceprint-source-removal-review-2026-10-10.md)。候选、试听音频、许可及无引用轨道的周期回收已接通，保留滚动／长会话配额和有效特征来源，见[周期维护走查](../research/voiceprint-maintenance-review-2026-10-10.md)。派发持久租约、周期恢复与实际采样上报已接通，见[派发与状态走查](../research/voiceprint-dispatch-status-review-2026-10-11.md)。目前默认关闭；实际 RTC 联调、Web／Android 通话入口、部署及真人／生产验收继续推进，尚未完整交付。
+通话管线已接通独立 sampler、派发、加密候选入库和单人质检，见[采样管线走查](../research/voiceprint-call-pipeline-review-2026-10-10.md)。进一步接通本人确认的首次通话基准、跨会话设备组补充、加密来源证明、失效门禁及幸存贡献重建，见[设备组模板走查](../research/voiceprint-device-templates-review-2026-10-10.md)。来源删除后的数据库物理清理、持久意图、周期恢复和独立重建已接通，见[来源删除走查](../research/voiceprint-source-removal-review-2026-10-10.md)。候选、试听音频、许可及无引用轨道的周期回收已接通，保留滚动／长会话配额和有效特征来源，见[周期维护走查](../research/voiceprint-maintenance-review-2026-10-10.md)。派发持久租约、周期恢复与实际采样上报已接通，见[派发与状态走查](../research/voiceprint-dispatch-status-review-2026-10-11.md)。目前默认关闭；实际 RTC 联调、部署及真人／生产验收继续推进，尚未完整交付。
 
 通话后端的可信来源、短期许可、本人连接级控制及跨组织／设备配额已接通，基础阶段证据见[采样许可基础](../research/voiceprint-call-sampling-review-2026-10-10.md)。后续采样与模板进度以上段为准，完整范围不缩减。
 
-后续 Web 语音／视频／会议共用的采样告知、设备／共享声明、明确允许、本次暂停、当前作用域积累关闭、私有运行状态和设置入口已接通，详见[Web 通话走查](../research/voiceprint-call-web-review-2026-10-11.md)。99 项后端、126 项前端与本地 Chromium 无媒体契约验证通过；Android 通话入口、实际 RTC／设备联调、部署及真人／生产验收仍待完成。此更新取代上文 Web 通话入口待接入状态，功能继续默认关闭。
+后续 Web 语音／视频／会议共用的采样告知、设备／共享声明、明确允许、本次暂停、当前作用域积累关闭、私有运行状态和设置入口已接通，详见[Web 通话走查](../research/voiceprint-call-web-review-2026-10-11.md)。99 项后端、126 项前端与本地 Chromium 无媒体契约验证通过；Android 共用通话入口、原生设备元数据监听、后台／登录失效处理、当前组织设置和四组本地化标签已接通；89 项 JVM、28 项隔离 API 29 模拟器、APK 与五语言检查通过，详见[Android 通话走查](../research/voiceprint-call-android-review-2026-10-11.md)。实际 RTC／设备联调、部署及真人／生产验收仍待完成。两端入口更新取代此前待接入状态，功能继续默认关闭。
 
 日期：2026-10-09（Asia/Shanghai）\
 版本：v1.5，待评审；已确定先尝试 Qwen，未满足要求时再考虑私有化部署 CAM++\
