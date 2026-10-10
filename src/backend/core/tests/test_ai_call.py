@@ -33,6 +33,22 @@ def test_new_photo_session_reads_repeat_look_rules_without_server_restart(call_s
     assert after.data["tool_instructions"]["camera"] == before.data["tool_instructions"]["camera"]
 
 
+def test_new_session_reads_goodbye_end_call_rules_without_server_restart(call_setup):
+    client, profile, _, _ = call_setup
+    body = {"sdp": SDP, "profile_code": profile.code, "photo_qa": True}
+    before = client.post(URL, body, format="json")
+    assert before.status_code == 200
+    call_command("extend_end_call_commands")
+    after = client.post(URL, body, format="json")
+    assert after.status_code == 200
+    for key in ("end_call", "end_call_description"):
+        assert "再见了" in after.data["tool_instructions"][key]
+        assert "拜拜了" in after.data["tool_instructions"][key]
+        assert after.data["tool_instructions"][key].startswith(before.data["tool_instructions"][key])
+    for key in ("camera", "photo", "take_photo_description"):
+        assert after.data["tool_instructions"][key] == before.data["tool_instructions"][key]
+
+
 def test_photo_capability_resolves_managed_prompts_before_allocation(call_setup):
     client, profile, post, _ = call_setup
     body = {"sdp": SDP, "profile_code": profile.code, "photo_qa": True}
