@@ -1039,6 +1039,18 @@ class Base(Configuration):
             "schedule": 30.0,
             "options": {"queue": "voiceprint", "expires": 60},
         },
+        # Each stage selects at most one fresh DB item; no private config in beat.
+        # Keep slow encoding/quality/media work away from erasure and sampler recovery.
+        "process-voiceprint-batches": {
+            "task": "core.tasks.voiceprint_processing.process_voiceprint_batches",
+            "schedule": 15.0,
+            "options": {"queue": "voiceprint-processing", "expires": 30},
+        },
+        "identify-speakers": {
+            "task": "core.tasks.voiceprint_processing.identify_speakers",
+            "schedule": 15.0,
+            "options": {"queue": "voiceprint-identity", "expires": 30},
+        },
         "recover-voiceprint-samplers": {
             "task": "core.tasks.voiceprint_sampling.recover_voiceprint_samplers",
             "schedule": 15.0,

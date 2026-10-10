@@ -4,7 +4,7 @@ from core.services import capture_diarization_inputs, capture_diarization_worker
 from core.tasks._task import task
 
 
-@task(queue="voiceprint", time_limit=900, soft_time_limit=850)
+@task(queue="voiceprint-identity", time_limit=900, soft_time_limit=850)
 def process_capture_diarization(identifier):
     return capture_diarization_worker.process(identifier)
 

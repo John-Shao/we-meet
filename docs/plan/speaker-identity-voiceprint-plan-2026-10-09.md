@@ -489,6 +489,8 @@ P0 验证前置与预算：
 
 ## 21. 参考与证据
 
+- [2026-10-11 持续处理调度走查](../research/voiceprint-processing-scheduler-review-2026-10-11.md)：有界编码／质检／模板与身份周期任务、控制队列隔离和私有媒体路径接入已完成；69 项最终专项／注册／导入预检、292 项组合回归和单独三条实际 Qwen／FFmpeg 链路通过。注册／路由已验证，实际 Linux 消费者和部署验收仍继续完成。
+
 - [2026-10-11 Linux 编码器镜像与部署走查](../research/voiceprint-linux-encoder-review-2026-10-11.md)：Qwen CPU 哈希锁镜像、私有 HTTPS、非 root／只读挂载、预算、默认关闭的 Helm 编码器资源、网络隔离及聚合指标已实现；84 项 Linux 与 36 项 Helm 验证通过。冷启动和内存仅为单次合成信号技术数据；持续业务调度、sampler／后端私有配置、生产部署与真人效果验收仍待完成。
 
 - [3D-Speaker 官方项目](https://github.com/modelscope/3D-Speaker)：预训练声纹模型、特征提取和分人能力；本方案未复制其基准数字作为本项目验收结果。

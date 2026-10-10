@@ -36,9 +36,13 @@ def requested(job):
 def media_config():
     try:
         path = Path(settings.MEETING_VOICEPRINT_MEDIA_CONFIG_FILE)
-        if not path.is_absolute() or not 0 < path.stat().st_size <= 8192:
+        if not path.is_absolute():
             raise ValueError
-        value = json.loads(path.read_bytes())
+        with path.open("rb") as stream:
+            payload = stream.read(8193)
+        if not 0 < len(payload) <= 8192:
+            raise ValueError
+        value = json.loads(payload)
         if not isinstance(value, dict) or set(value) != {"ffmpeg", "ffprobe"}:
             raise ValueError
         return media.MediaConfiguration(**value).validate()

@@ -6,6 +6,9 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from core.services.capture_storage import audio_storage
+from core.services.recording_identity_preflight import (
+    media_config as private_media_config,
+)
 from core.services.speaker_identity_jobs import pending_ids, process_one
 from core.services.voiceprint_candidates import enabled
 from core.services.voiceprint_consent import VoiceprintError
@@ -41,7 +44,9 @@ class Command(BaseCommand):
             config = {
                 "media_config": MediaConfiguration(
                     options["ffmpeg"], options["ffprobe"]
-                ).validate(),
+                ).validate()
+                if options["ffmpeg"] or options["ffprobe"]
+                else private_media_config(),
                 "storage_config": from_storage(audio_storage()),
                 "encoder_config": encoder_configuration(
                     settings.MEETING_VOICEPRINT_ENCODER_CONFIG_FILE

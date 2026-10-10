@@ -16,6 +16,7 @@ from django.utils import timezone
 import pytest
 
 from core import models
+from core.management.commands import identify_speakers as identity_command
 from core.services import speaker_identity_decisions as decisions
 from core.services import speaker_identity_jobs as service
 from core.services import voiceprint_candidates as candidates
@@ -25,6 +26,7 @@ from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_media_process import MediaError
 from core.services.voiceprint_query_producer import ProducedQuery
 from core.services.voiceprint_rpc_process import extract as actual_extract
+from core.tasks import voiceprint_processing as processing_tasks
 from core.tests.services.test_meeting_records import client_for
 from core.tests.services.test_voiceprint_candidates import (
     matching_enabled,
@@ -719,9 +721,17 @@ def test_provider_is_called_outside_transaction_and_retry_class_is_preserved(
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.parametrize("entry", ["internal", "public"])
+@pytest.mark.parametrize("entry", ["internal", "public", "scheduled"])
 def test_actual_qwen_private_source_to_persisted_database_result(  # noqa: PLR0913 -- Actual DB, decoder, model and private HTTP fixtures.
-    case, pipeline, actual_encoder, short_asr, private_s3, monkeypatch, entry
+    case,
+    pipeline,
+    actual_encoder,
+    short_asr,
+    private_s3,
+    monkeypatch,
+    entry,
+    settings,
+    tmp_path,
 ):
     monkeypatch.setattr(sources, "authorized", REAL_SOURCE_AUTHORIZED)
     monkeypatch.setattr(sources, "revalidate", REAL_SOURCE_REVALIDATE)
@@ -759,16 +769,38 @@ def test_actual_qwen_private_source_to_persisted_database_result(  # noqa: PLR09
         )
     else:
         job = enqueue(case)
-    assert (
-        service.process_one(
-            job.pk,
-            media_config=pipeline.kwargs["media_config"],
-            storage_config=private_s3.config,
-            encoder_config=actual_encoder,
-            quality_config=short_asr.config,
+    if entry == "scheduled":
+        for setting, filename, config in (
+            (
+                "MEETING_VOICEPRINT_MEDIA_CONFIG_FILE",
+                "media.json",
+                pipeline.kwargs["media_config"],
+            ),
+            ("MEETING_VOICEPRINT_ENCODER_CONFIG_FILE", "encoder.json", actual_encoder),
+            (
+                "MEETING_VOICEPRINT_QUALITY_CONFIG_FILE",
+                "quality.json",
+                short_asr.config,
+            ),
+        ):
+            path = tmp_path / filename
+            path.write_text(json.dumps(config.payload()))
+            setattr(settings, setting, str(path))
+        monkeypatch.setattr(
+            identity_command, "from_storage", lambda _storage: private_s3.config
         )
-        == "succeeded"
-    )
+        assert processing_tasks.identify_speakers()["succeeded"] == 1
+    else:
+        assert (
+            service.process_one(
+                job.pk,
+                media_config=pipeline.kwargs["media_config"],
+                storage_config=private_s3.config,
+                encoder_config=actual_encoder,
+                quality_config=short_asr.config,
+            )
+            == "succeeded"
+        )
     assert len(encoded) == 3 and short_asr.requests == 3
     suggestion = models.SpeakerIdentitySuggestion.objects.get(job=job)
     assert suggestion.result in {"suggested", "unknown", "mixed_speaker", "ambiguous"}
