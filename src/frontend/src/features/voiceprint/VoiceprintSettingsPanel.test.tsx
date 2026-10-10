@@ -12,6 +12,7 @@ import { pcmWav } from './recording'
 import {
   ENROLLMENT,
   OWNER,
+  ORG,
   PROFILE,
   enrollment,
   sample,
@@ -104,6 +105,50 @@ const show = () =>
       </StrictMode>
     </I18nextProvider>
   )
+
+it('keeps the current call scope visible when it is outside the first directory page', async () => {
+  current = settings({ organization_id: ORG })
+  render(
+    <I18nextProvider i18n={i18n}>
+      <VoiceprintSettingsPanel
+        initialOrganizationId={ORG}
+        initialOrganizationName="Synthetic current organization"
+      />
+    </I18nextProvider>
+  )
+  expect(
+    await screen.findByRole('button', {
+      name: /Synthetic current organization/,
+    })
+  ).toBeInTheDocument()
+  await waitFor(() =>
+    expect(
+      mocks.fetch.mock.calls.some(
+        ([path]) => path === `voiceprint/settings/?organization_id=${ORG}`
+      )
+    ).toBe(true)
+  )
+  expect(mocks.fetch.mock.calls.every(([, options]) => !options?.method)).toBe(
+    true
+  )
+})
+
+it('displays all verified call-device templates instead of rejecting the settings response', async () => {
+  current.display_state = 'established'
+  current.profiles[0] = {
+    ...current.profiles[0],
+    status: 'active',
+    display_state: 'established',
+    confirmed_at: new Date().toISOString(),
+    last_updated_at: new Date().toISOString(),
+    effective_device_groups: ['default', 'headset', 'handset', 'computer'],
+  }
+  show()
+  const labels = ['default', 'headset', 'handset', 'computer']
+    .map((group) => zh.deviceGroup[group as keyof typeof zh.deviceGroup])
+    .join('、')
+  expect(await screen.findByText(new RegExp(labels))).toBeInTheDocument()
+})
 
 it('loads in React StrictMode without initiating registration, recording or implicit permissions', async () => {
   current = settings({

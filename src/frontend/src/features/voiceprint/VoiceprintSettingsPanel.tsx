@@ -15,7 +15,13 @@ import { css } from '@/styled-system/css'
 import { VoiceprintClient, permissions, type Scope } from './api'
 import { VoiceprintController } from './controller'
 
-export function VoiceprintSettingsPanel() {
+export function VoiceprintSettingsPanel({
+  initialOrganizationId,
+  initialOrganizationName,
+}: {
+  initialOrganizationId?: string | null
+  initialOrganizationName?: string | null
+} = {}) {
   const { user, isLoggedIn, refetch } = useUser()
   const { t } = useTranslation('voiceprint')
   const [session, setSession] = useState(() => getAuthSnapshot().session)
@@ -28,6 +34,8 @@ export function VoiceprintSettingsPanel() {
     <ScopeChooser
       key={`${user.id}:${session}`}
       ownerId={user.id}
+      initialOrganizationId={initialOrganizationId}
+      initialOrganizationName={initialOrganizationName}
       onReloadUser={() => void refetch()}
     />
   )
@@ -35,16 +43,20 @@ export function VoiceprintSettingsPanel() {
 
 function ScopeChooser({
   ownerId,
+  initialOrganizationId,
+  initialOrganizationName,
   onReloadUser,
 }: {
   ownerId: string
+  initialOrganizationId?: string | null
+  initialOrganizationName?: string | null
   onReloadUser: () => void
 }) {
   const { t } = useTranslation('voiceprint')
   const [client] = useState(() => new VoiceprintClient(null, ownerId))
   const [scopes, setScopes] = useState<Scope[]>([])
   const [next, setNext] = useState<number | null>(null)
-  const [scope, setScope] = useState('personal')
+  const [scope, setScope] = useState(initialOrganizationId ?? 'personal')
   const [selectedSnapshot, setSelectedSnapshot] = useState<Scope>()
   const [error, setError] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -108,6 +120,17 @@ function ScopeChooser({
           ...scopes.map((row) => ({ value: row.id, label: row.name })),
           ...(selected && !scopes.some((row) => row.id === selected.id)
             ? [{ value: selected.id, label: selected.name }]
+            : []),
+          ...(initialOrganizationId &&
+          !scopes.some((row) => row.id === initialOrganizationId) &&
+          selected?.id !== initialOrganizationId
+            ? [
+                {
+                  value: initialOrganizationId,
+                  label:
+                    initialOrganizationName || t('call.currentOrganization'),
+                },
+              ]
             : []),
         ]}
         onSelectionChange={(value) => {
@@ -412,7 +435,9 @@ function ScopeView({
                   <p>
                     {t('effectiveGroups', {
                       groups: profile.effective_device_groups?.length
-                        ? t('defaultGroup')
+                        ? profile.effective_device_groups
+                            .map((group) => t(`deviceGroup.${group}`))
+                            .join(locale === 'zh-CN' ? '、' : ', ')
                         : t('noEffectiveGroups'),
                     })}
                   </p>

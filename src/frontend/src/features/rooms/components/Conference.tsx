@@ -56,6 +56,7 @@ import {
   useRoomContext,
 } from '@livekit/components-react'
 import { useSnapshot } from 'valtio'
+import { VoiceprintCallControl } from '@/features/voiceprint/VoiceprintCallControl'
 
 export const Conference = ({
   roomId,
@@ -381,6 +382,7 @@ export const Conference = ({
               />
             </InterpretationProvider>
           </PrivateTranslationProvider>
+          <VoiceprintCallControl />
           {showInviteDialog && !isMobile && (
             <InviteDialog
               isOpen={showInviteDialog}

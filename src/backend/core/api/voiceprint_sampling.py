@@ -37,6 +37,23 @@ class ControlSerializer(ConnectionSerializer):
     device_group = serializers.ChoiceField(choices=("", *service.DEVICE_GROUPS))
 
 
+class ConnectedSourceSerializer(StrictSerializer):
+    room_sid = serializers.RegexField(r"^[A-Za-z0-9_-]{1,64}$", trim_whitespace=False)
+    participant_sid = serializers.RegexField(
+        r"^[A-Za-z0-9_-]{1,64}$", trim_whitespace=False
+    )
+
+
+class SamplingConnectionView(PrivateVoiceprintView):
+    throttle_classes = [SettingsThrottle]
+    http_method_names = ["get", "options"]
+
+    def get(self, request):
+        payload = ConnectedSourceSerializer(data=request.query_params)
+        payload.is_valid(raise_exception=True)
+        return Response(service.read_connection(request.user, **payload.validated_data))
+
+
 class SamplingControlView(PrivateVoiceprintView):
     throttle_classes = [SettingsThrottle]
     http_method_names = ["get", "patch", "options"]

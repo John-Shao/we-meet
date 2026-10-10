@@ -36,13 +36,13 @@ it('accepts verified display states and rejects fake active groups or unknown pr
     confirmed_at: new Date().toISOString(),
     last_updated_at: new Date().toISOString(),
     display_state: 'established',
-    effective_device_groups: ['default'],
+    effective_device_groups: ['default', 'headset', 'handset', 'computer'],
   }
   mocks.fetch.mockResolvedValue(value)
   expect(
     (await new VoiceprintClient(null, OWNER).settings()).profiles[0]
       .effective_device_groups
-  ).toEqual(['default'])
+  ).toEqual(['default', 'headset', 'handset', 'computer'])
   for (const patch of [
     {
       display_state: 'needs_update',

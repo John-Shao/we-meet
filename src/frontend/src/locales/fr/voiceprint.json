@@ -122,5 +122,61 @@
     "voiceprint_quality_pending": "Cet extrait attend le contrôle qualité.",
     "voiceprint_upload_expired": "L'autorisation d'envoi a expiré. Commencez une nouvelle session.",
     "voiceprint_key_unavailable": "Le stockage vocal est temporairement indisponible. Réessayez plus tard."
+  },
+  "deviceGroup": {
+    "default": "Référence d'inscription",
+    "headset": "Casque personnel",
+    "handset": "Téléphone personnel",
+    "computer": "Microphone d'ordinateur personnel"
+  },
+  "call": {
+    "open": "Voir mon échantillonnage vocal",
+    "title": "Échantillonnage vocal de cet appel",
+    "status": "Empreinte vocale : {{state}}",
+    "scope": "Périmètre d'autorisation : {{scope}}",
+    "notice": "Seul votre microphone individuel autorisé sert à créer ou améliorer votre empreinte. Limites : {{clip}} secondes par extrait, {{session}} secondes par session et {{daily}} secondes sur 24 heures glissantes. L'audio non confirmé est conservé au maximum {{hours}} heures, puis supprimé rapidement après confirmation et extraction. Supprimez les extraits et l'empreinte de ce périmètre dans les paramètres.",
+    "confirmation": "Un extrait peut contenir d'autres voix. Écoutez et confirmez vos propres extraits avant leur ajout à la bibliothèque. L'échantillonnage vocal et l'enregistrement de tout l'appel nécessitent des autorisations distinctes.",
+    "shared": "Microphone partagé (sans échantillonnage)",
+    "device": "Appareil utilisé pour cet appel",
+    "chooseDevice": "Choisir le type d'appareil",
+    "declaration": "Déclarez l'appareil réellement utilisé. Enregistrer un appareil ou modifier le partage met l'échantillonnage en pause ; son autorisation nécessite une action distincte.",
+    "saveDevice": "Enregistrer et mettre en pause",
+    "resume": "Autoriser pour cet appel",
+    "pause": "Mettre cet appel en pause",
+    "remaining": "Restant : {{session}} secondes pour cette session, {{daily}} secondes sur 24 heures glissantes",
+    "disableAccumulation": "Désactiver les futurs appels pour {{scope}}",
+    "settings": "Autorisations, extraits et paramètres",
+    "mixedSpeaker": "Plusieurs voix ont été détectées : l'échantillonnage est en pause. Vérifiez que vous seul utilisez ce microphone et examinez les extraits avant de l'autoriser à nouveau.",
+    "currentOrganization": "Organisation de cet appel",
+    "phase": {
+      "stopped": "Sans échantillonnage",
+      "waiting": "En attente d'un extrait autorisé",
+      "starting": "Démarrage",
+      "sampling": "Échantillonnage en cours",
+      "uploading": "Envoi d'un extrait",
+      "unavailable": "État indisponible",
+      "changing": "Mise à jour de la déclaration",
+      "device_changed": "Appareil modifié : à redéclarer",
+      "muted": "Microphone coupé"
+    },
+    "reason": {
+      "ready": "L'appareil est déclaré ; l'activité est signalée séparément.",
+      "disabled": "L'échantillonnage des appels est désactivé dans ce périmètre.",
+      "disconnected": "Cette connexion est terminée.",
+      "source_removed": "La source a été supprimée.",
+      "authorization_required": "Autorisez séparément les futurs appels dans les paramètres vocaux.",
+      "paused": "L'échantillonnage de cet appel est en pause.",
+      "shared_microphone": "Les microphones partagés sont exclus par défaut. Confirmez que vous seul l'utilisez avant de modifier ce réglage.",
+      "device_required": "Déclarez l'appareil utilisé pour cet appel.",
+      "microphone_unavailable": "Aucun microphone personnel admissible n'est disponible.",
+      "quota_exhausted": "La limite de la session ou des 24 heures glissantes est atteinte.",
+      "sampling_dispatch_unavailable": "Le service est indisponible ; une reprise sera tentée."
+    },
+    "error": {
+      "unavailable": "Impossible de confirmer l'état. Rechargez pour réessayer.",
+      "conflict": "La déclaration ou l'autorisation a changé. Rechargez avant de décider.",
+      "authentication_changed": "Votre connexion a changé. Rejoignez avec votre compte actuel.",
+      "connection_pending": "Synchronisation de la connexion de cet appel en cours."
+    }
   }
 }

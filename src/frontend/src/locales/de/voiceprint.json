@@ -122,5 +122,61 @@
     "voiceprint_quality_pending": "Dieser Ausschnitt wartet auf die Qualitätsprüfung.",
     "voiceprint_upload_expired": "Uploadfreigabe abgelaufen. Eine neue Registrierung starten.",
     "voiceprint_key_unavailable": "Stimmspeicher vorübergehend nicht verfügbar. Später erneut versuchen."
+  },
+  "deviceGroup": {
+    "default": "Registrierungsbasis",
+    "headset": "Persönliches Headset",
+    "handset": "Persönliches Telefon",
+    "computer": "Persönliches Computermikrofon"
+  },
+  "call": {
+    "open": "Meine Stimmprobenerfassung anzeigen",
+    "title": "Stimmprobenerfassung in diesem Anruf",
+    "status": "Stimmprofil: {{state}}",
+    "scope": "Berechtigungsbereich: {{scope}}",
+    "notice": "Nur Ihr genehmigtes persönliches Mikrofon dient zur Erstellung oder Ergänzung Ihres Stimmprofils. Grenzen: {{clip}} Sekunden pro Ausschnitt, {{session}} Sekunden pro Sitzung und {{daily}} Sekunden innerhalb von 24 Stunden. Unbestätigtes Audio bleibt höchstens {{hours}} Stunden gespeichert und wird nach Bestätigung und Merkmalsextraktion zeitnah gelöscht. Ausschnitte und das Profil dieses Bereichs können Sie in den Einstellungen löschen.",
+    "confirmation": "Ein Ausschnitt kann andere Stimmen enthalten. Hören und bestätigen Sie Ihre eigenen Ausschnitte vor der Aufnahme in die Stimmbibliothek. Stimmproben und die Aufnahme des gesamten Anrufs erfordern getrennte Genehmigungen.",
+    "shared": "Gemeinsames Mikrofon (keine Erfassung)",
+    "device": "Gerät in diesem Anruf",
+    "chooseDevice": "Gerätetyp auswählen",
+    "declaration": "Geben Sie das tatsächlich verwendete Gerät an. Speichern oder Ändern der gemeinsamen Nutzung pausiert die Erfassung; für diesen Anruf ist eine separate Freigabe nötig.",
+    "saveDevice": "Gerät speichern und pausieren",
+    "resume": "Erfassung für diesen Anruf erlauben",
+    "pause": "Erfassung dieses Anrufs pausieren",
+    "remaining": "Verbleibend: {{session}} Sekunden in dieser Sitzung, {{daily}} Sekunden innerhalb von 24 Stunden",
+    "disableAccumulation": "Künftige Anrufproben in {{scope}} deaktivieren",
+    "settings": "Berechtigungen, Ausschnitte und Einstellungen",
+    "mixedSpeaker": "Mehrere Stimmen wurden erkannt. Die Erfassung ist pausiert. Prüfen Sie, dass nur Sie das Mikrofon verwenden, und kontrollieren Sie Ihre Ausschnitte vor einer erneuten Freigabe.",
+    "currentOrganization": "Organisation dieses Anrufs",
+    "phase": {
+      "stopped": "Keine Erfassung",
+      "waiting": "Warten auf genehmigten Ausschnitt",
+      "starting": "Wird gestartet",
+      "sampling": "Erfassung läuft",
+      "uploading": "Ausschnitt wird gesendet",
+      "unavailable": "Status nicht verfügbar",
+      "changing": "Angabe wird aktualisiert",
+      "device_changed": "Gerät geändert; erneut angeben",
+      "muted": "Mikrofon stumm"
+    },
+    "reason": {
+      "ready": "Das Gerät ist angegeben; die Aktivität wird separat gemeldet.",
+      "disabled": "Anrufproben sind in diesem Bereich deaktiviert.",
+      "disconnected": "Diese Verbindung ist beendet.",
+      "source_removed": "Die Quelle wurde gelöscht.",
+      "authorization_required": "Genehmigen Sie künftige Anrufproben separat in den Einstellungen.",
+      "paused": "Die Erfassung dieses Anrufs ist pausiert.",
+      "shared_microphone": "Gemeinsame Mikrofone sind standardmäßig ausgeschlossen. Bestätigen Sie vor einer Änderung, dass nur Sie es verwenden.",
+      "device_required": "Geben Sie das Gerät dieses Anrufs an.",
+      "microphone_unavailable": "Kein geeignetes persönliches Mikrofon verfügbar.",
+      "quota_exhausted": "Die Sitzungsgrenze oder die Grenze für 24 Stunden ist erreicht.",
+      "sampling_dispatch_unavailable": "Der Dienst ist nicht verfügbar; eine Wiederherstellung wird versucht."
+    },
+    "error": {
+      "unavailable": "Der Status lässt sich nicht bestätigen. Bitte neu laden.",
+      "conflict": "Angabe oder Genehmigung geändert. Vor einer neuen Entscheidung neu laden.",
+      "authentication_changed": "Ihre Anmeldung hat sich geändert. Mit dem aktuellen Konto erneut beitreten.",
+      "connection_pending": "Die aktuelle Anrufverbindung wird synchronisiert."
+    }
   }
 }

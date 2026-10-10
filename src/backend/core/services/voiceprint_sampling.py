@@ -223,6 +223,51 @@ def read_control(actor, *, session_id, participant_sid):
     return state(owned_participation(actor, session_id, participant_sid))
 
 
+def read_connection(actor, *, room_sid, participant_sid):
+    """Resolve only the caller's exact trusted RTC occurrence; allocate nothing."""
+    user = consent.owner(actor)
+    participation = (
+        models.MeetingParticipation.objects.select_related(
+            "user", "session__room__organization"
+        )
+        .filter(
+            session__livekit_room_sid=sid(room_sid),
+            livekit_participant_sid=sid(participant_sid),
+            user=user,
+        )
+        .first()
+    )
+    if participation is None:
+        raise VoiceprintError("voiceprint_sampling_connection_unavailable", status=404)
+    mapped_owner(participation)
+    connected(participation)
+    organization = participation.session.room.organization
+    permission = models.VoiceprintConsent.objects.filter(
+        user=user, organization=organization
+    ).first()
+    clip, session, daily = budget()
+    control = state(participation)
+    return {
+        "room_sid": participation.session.livekit_room_sid,
+        "organization_id": str(organization.pk) if organization else None,
+        "organization_name": organization.name if organization else None,
+        "observed_at": timezone.now().isoformat(),
+        "limits": {
+            "clip_ms": clip,
+            "session_ms": session,
+            "daily_ms": daily,
+            "candidate_retention_seconds": enrollment.CANDIDATE_HOURS * 3600,
+        },
+        "permission": {
+            "available": consent.available(user, organization),
+            "version": permission.version if permission else 0,
+            "allow_enrollment": bool(permission and permission.allow_enrollment),
+            "allow_accumulation": bool(permission and permission.allow_accumulation),
+        },
+        "control": control,
+    }
+
+
 @transaction.atomic
 def update_control(  # noqa: PLR0913 -- One versioned owner microphone declaration.
     actor,

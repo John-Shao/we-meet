@@ -122,5 +122,61 @@
     "voiceprint_quality_pending": "Dit fragment wacht op kwaliteitscontrole.",
     "voiceprint_upload_expired": "Uploadtoestemming is verlopen. Start een nieuwe registratiesessie.",
     "voiceprint_key_unavailable": "Stemopslag is tijdelijk niet beschikbaar. Probeer later opnieuw."
+  },
+  "deviceGroup": {
+    "default": "Registratiebasis",
+    "headset": "Persoonlijke headset",
+    "handset": "Persoonlijke telefoon",
+    "computer": "Persoonlijke computermicrofoon"
+  },
+  "call": {
+    "open": "Mijn stemopnames bekijken",
+    "title": "Stemopnames in dit gesprek",
+    "status": "Stemprofiel: {{state}}",
+    "scope": "Toestemmingsbereik: {{scope}}",
+    "notice": "Alleen uw toegestane persoonlijke microfoon wordt gebruikt om uw stemprofiel op te bouwen of aan te vullen. Limieten: {{clip}} seconden per fragment, {{session}} seconden per sessie en {{daily}} seconden in een voortschrijdende periode van 24 uur. Onbevestigde audio blijft maximaal {{hours}} uur bewaard en wordt na bevestiging en kenmerkextractie snel verwijderd. Verwijder fragmenten en het profiel voor dit bereik in de instellingen.",
+    "confirmation": "Een fragment kan andere stemmen bevatten. Beluister en bevestig uw eigen fragmenten voordat ze aan de stembibliotheek worden toegevoegd. Stemopnames en het opnemen van het hele gesprek vereisen afzonderlijke toestemming.",
+    "shared": "Gedeelde microfoon (geen opnames)",
+    "device": "Apparaat in dit gesprek",
+    "chooseDevice": "Kies een apparaattype",
+    "declaration": "Geef het werkelijk gebruikte apparaat aan. Opslaan of het delen wijzigen pauzeert opnames; toestaan voor dit gesprek vereist een aparte handeling.",
+    "saveDevice": "Apparaat opslaan en pauzeren",
+    "resume": "Opnames in dit gesprek toestaan",
+    "pause": "Opnames van dit gesprek pauzeren",
+    "remaining": "Resterend: {{session}} seconden in deze sessie, {{daily}} seconden per voortschrijdende 24 uur",
+    "disableAccumulation": "Toekomstige gespreksopnames in {{scope}} uitschakelen",
+    "settings": "Toestemming, fragmenten en instellingen",
+    "mixedSpeaker": "Er zijn meerdere stemmen gedetecteerd. Opnames zijn gepauzeerd. Controleer dat alleen u de microfoon gebruikt en beoordeel de fragmenten voordat u opnieuw toestemming geeft.",
+    "currentOrganization": "Organisatie van dit gesprek",
+    "phase": {
+      "stopped": "Geen opnames",
+      "waiting": "Wachten op toegestaan fragment",
+      "starting": "Bezig met starten",
+      "sampling": "Opnames actief",
+      "uploading": "Fragment wordt verstuurd",
+      "unavailable": "Status niet beschikbaar",
+      "changing": "Verklaring wordt bijgewerkt",
+      "device_changed": "Apparaat gewijzigd; geef het opnieuw aan",
+      "muted": "Microfoon gedempt"
+    },
+    "reason": {
+      "ready": "Het apparaat is aangegeven; activiteit wordt apart gemeld.",
+      "disabled": "Gespreksopnames zijn uitgeschakeld voor dit bereik.",
+      "disconnected": "Deze verbinding is beëindigd.",
+      "source_removed": "De bron is verwijderd.",
+      "authorization_required": "Geef afzonderlijk toestemming voor toekomstige gesprekken in de instellingen.",
+      "paused": "Opnames van dit gesprek zijn gepauzeerd.",
+      "shared_microphone": "Gedeelde microfoons zijn standaard uitgesloten. Bevestig dat alleen u de microfoon gebruikt voordat u dit wijzigt.",
+      "device_required": "Geef het apparaat voor dit gesprek aan.",
+      "microphone_unavailable": "Geen geschikte persoonlijke microfoon beschikbaar.",
+      "quota_exhausted": "De sessielimiet of de limiet voor 24 uur is bereikt.",
+      "sampling_dispatch_unavailable": "De dienst is niet beschikbaar; herstel wordt geprobeerd."
+    },
+    "error": {
+      "unavailable": "De status kan niet worden bevestigd. Laad opnieuw.",
+      "conflict": "Verklaring of toestemming gewijzigd. Laad opnieuw voordat u beslist.",
+      "authentication_changed": "Uw aanmelding is gewijzigd. Neem opnieuw deel met uw huidige account.",
+      "connection_pending": "De verbinding van het huidige gesprek wordt gesynchroniseerd."
+    }
   }
 }

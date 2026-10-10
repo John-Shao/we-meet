@@ -70,6 +70,8 @@ def get_frontend_configuration(request):
             "enabled": settings.MEETING_VOICEPRINT_ENABLED,
             "matching_enabled": settings.MEETING_VOICEPRINT_ENABLED
             and settings.MEETING_VOICEPRINT_MATCHING_ENABLED,
+            "sampling_enabled": settings.MEETING_VOICEPRINT_ENABLED
+            and settings.MEETING_VOICEPRINT_SAMPLING_ENABLED,
         },
         # P1-4 全局搜索 AI 问答:false ⇒ 前端隐藏 AI 标签/快捷行(端点侧
         # 另有 FeatureFlag 404,双端 gate)。

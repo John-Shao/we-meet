@@ -122,5 +122,61 @@
     "voiceprint_quality_pending": "This clip is awaiting quality review.",
     "voiceprint_upload_expired": "Upload permission expired. Start a new registration session.",
     "voiceprint_key_unavailable": "Voiceprint storage is temporarily unavailable. Try again later."
+  },
+  "deviceGroup": {
+    "default": "Registration baseline",
+    "headset": "Personal headset",
+    "handset": "Personal handset",
+    "computer": "Personal computer microphone"
+  },
+  "call": {
+    "open": "View my voiceprint sampling",
+    "title": "Voiceprint sampling in this call",
+    "status": "Voiceprint: {{state}}",
+    "scope": "Authorization scope: {{scope}}",
+    "notice": "Only your authorized individual microphone is used to create or improve your voiceprint. Limits: {{clip}} seconds per clip, {{session}} seconds per session and {{daily}} seconds per rolling 24 hours. Unconfirmed audio is kept for at most {{hours}} hours; after confirmation and feature extraction, audio is removed promptly. Delete samples and your voiceprint for this scope in voiceprint settings.",
+    "confirmation": "A clip may contain other people's voices. Listen and confirm your own clips before they enter the voiceprint library. Voiceprint sampling and full-call recording require separate authorization.",
+    "shared": "Shared microphone (no sampling)",
+    "device": "Device used in this call",
+    "chooseDevice": "Choose a device type",
+    "declaration": "Declare the device you actually use. Saving a device or changing sharing pauses sampling; allowing this call requires a separate action.",
+    "saveDevice": "Save device and pause",
+    "resume": "Allow sampling in this call",
+    "pause": "Pause this call's sampling",
+    "remaining": "Remaining: {{session}} seconds in this session, {{daily}} seconds per rolling 24 hours",
+    "disableAccumulation": "Disable future call sampling in {{scope}}",
+    "settings": "Authorization, clips and voiceprint settings",
+    "mixedSpeaker": "More than one voice was detected, so sampling is paused. Check that only you use this microphone and review your clips before allowing sampling again.",
+    "currentOrganization": "Current call organization",
+    "phase": {
+      "stopped": "Not sampling",
+      "waiting": "Waiting for a permitted clip",
+      "starting": "Starting",
+      "sampling": "Sampling",
+      "uploading": "Submitting a clip",
+      "unavailable": "Status unavailable",
+      "changing": "Updating declaration",
+      "device_changed": "Device changed; declare it again",
+      "muted": "Microphone muted"
+    },
+    "reason": {
+      "ready": "The device is declared; current activity is reported separately.",
+      "disabled": "Call sampling is disabled in this scope.",
+      "disconnected": "This connection has ended.",
+      "source_removed": "The sampling source was deleted.",
+      "authorization_required": "Authorize future call sampling separately in voiceprint settings.",
+      "paused": "Sampling in this call is paused.",
+      "shared_microphone": "Shared microphones are excluded by default. Confirm that only you use it before changing this setting.",
+      "device_required": "Declare the device used in this call.",
+      "microphone_unavailable": "No eligible personal microphone is available.",
+      "quota_exhausted": "The session or rolling 24-hour sampling limit was reached.",
+      "sampling_dispatch_unavailable": "The sampling service is unavailable; recovery will be attempted."
+    },
+    "error": {
+      "unavailable": "Sampling status cannot be confirmed. Reload to try again.",
+      "conflict": "The declaration or authorization changed. Reload before deciding again.",
+      "authentication_changed": "Your login changed. Rejoin with your current account.",
+      "connection_pending": "Waiting for the current call connection to synchronize."
+    }
   }
 }

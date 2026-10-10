@@ -7,6 +7,12 @@ import {
 } from '@/features/auth/utils/tokenStorage'
 
 export const MAX_WAV_BYTES = 484096
+export const effectiveDeviceGroups = [
+  'default',
+  'headset',
+  'handset',
+  'computer',
+] as const
 export const permissions = [
   'allow_enrollment',
   'allow_accumulation',
@@ -213,7 +219,10 @@ export class VoiceprintClient {
               p.effective_device_groups.length > 5 ||
               new Set(p.effective_device_groups).size !==
                 p.effective_device_groups.length ||
-              p.effective_device_groups.some((group) => group !== 'default') ||
+              p.effective_device_groups.some(
+                (group) =>
+                  !effectiveDeviceGroups.some((value) => value === group)
+              ) ||
               (p.display_state === 'needs_update'
                 ? p.update_reasons.length === 0
                 : p.update_reasons.length !== 0) ||

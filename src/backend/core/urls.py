@@ -247,6 +247,7 @@ from core.api.voiceprint import (
 )
 from core.api.voiceprint_sampling import (
     SamplingClipView,
+    SamplingConnectionView,
     SamplingControlView,
     SamplingPermitView,
     SamplingValidationView,
@@ -469,6 +470,7 @@ urlpatterns = [
                     VoiceprintSettingsView.as_view(), name="voiceprint-settings",
                 ),
                 path("voiceprint/sampling-control/", SamplingControlView.as_view(), name="voiceprint-sampling-control"),
+                path("voiceprint/sampling-connection/", SamplingConnectionView.as_view(), name="voiceprint-sampling-connection"),
                 path("voiceprint/scopes/", VoiceprintScopesView.as_view(), name="voiceprint-scopes"),
                 path("voiceprint/deletions/", VoiceprintDeletionsView.as_view(), name="voiceprint-deletions"),
                 path("voiceprint/enrollments/", VoiceprintEnrollmentsView.as_view(), name="voiceprint-enrollments"),

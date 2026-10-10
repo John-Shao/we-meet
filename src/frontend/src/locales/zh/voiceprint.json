@@ -122,5 +122,61 @@
     "voiceprint_quality_pending": "此片段尚在等待质量审核。",
     "voiceprint_upload_expired": "上传许可已到期，请开始新的登记。",
     "voiceprint_key_unavailable": "声纹存储暂不可用，请稍后重试。"
+  },
+  "deviceGroup": {
+    "default": "登记基线",
+    "headset": "个人耳机",
+    "handset": "本人手机",
+    "computer": "个人电脑麦克风"
+  },
+  "call": {
+    "open": "查看本人声纹采样",
+    "title": "本次通话声纹采样",
+    "status": "声纹：{{state}}",
+    "scope": "授权作用域：{{scope}}",
+    "notice": "仅处理已授权的本人独立麦克风，用于建立或完善本人声纹。每片段最多 {{clip}} 秒，本次会话最多 {{session}} 秒，滚动 24 小时最多 {{daily}} 秒。待确认音频最多保留 {{hours}} 小时，确认完成特征后尽快删除音频。可在声纹设置中删除此作用域的样本和声纹。",
+    "confirmation": "片段可能录入其他人的声音，需本人试听确认后才能进入声纹库。声纹采样授权与整场通话录音授权分别处理。",
+    "shared": "多人共用麦克风（不采样）",
+    "device": "本次使用的设备",
+    "chooseDevice": "请选择设备类型",
+    "declaration": "请按实际设备声明，不根据设备名称推断。保存设备或修改共享状态会先暂停，需要再次明确允许本次采样。",
+    "saveDevice": "保存设备并暂停",
+    "resume": "允许本次采样",
+    "pause": "暂停本次采样",
+    "remaining": "剩余可采样量：本次 {{session}} 秒，滚动 24 小时 {{daily}} 秒",
+    "disableAccumulation": "关闭“{{scope}}”后续通话采样",
+    "settings": "授权、片段与声纹设置",
+    "mixedSpeaker": "检测到片段含多种声音，已暂停。请确认麦克风仅由本人使用，审核片段后再明确开启。",
+    "currentOrganization": "当前通话组织",
+    "phase": {
+      "stopped": "未采样",
+      "waiting": "等待授权片段",
+      "starting": "正在启动",
+      "sampling": "正在采样",
+      "uploading": "正在提交片段",
+      "unavailable": "状态暂不可用",
+      "changing": "正在更新声明",
+      "device_changed": "设备已变化，等待重新声明",
+      "muted": "麦克风已静音"
+    },
+    "reason": {
+      "ready": "设备声明已就绪，实际采样以短期状态为准。",
+      "disabled": "此作用域的通话采样未启用。",
+      "disconnected": "此连接已结束。",
+      "source_removed": "采样来源已删除。",
+      "authorization_required": "请在声纹设置中单独开启后续通话采样授权。",
+      "paused": "本次采样已暂停。",
+      "shared_microphone": "共享麦克风默认排除，请确认仅由本人使用后再修改。",
+      "device_required": "请声明本次使用的设备类型。",
+      "microphone_unavailable": "尚无可采样的本人麦克风。",
+      "quota_exhausted": "已达到本次会话或滚动 24 小时采样上限。",
+      "sampling_dispatch_unavailable": "采样服务暂不可用，系统会尝试恢复。"
+    },
+    "error": {
+      "unavailable": "暂时无法确认采样状态，请重新加载。",
+      "conflict": "声明或授权已变化，请重新加载后再决定。",
+      "authentication_changed": "登录已变化，请使用当前账号重新进入。",
+      "connection_pending": "正在等待当前通话连接同步，请稍候。"
+    }
   }
 }
