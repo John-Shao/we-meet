@@ -7,6 +7,8 @@
 
 最新进度：人工标记、本人授权／登记、模板、内部匹配／查询生产、身份队列、持久建议、记录级识别 API、建议确认／拒绝及多人版本协调已有阶段实现；Web／Android 导入后的候选选择、请求状态、试听和人工确认已接通，见[Web 识别走查](../research/voiceprint-web-identification-review-2026-10-10.md)及[Android 阶段记录](speaker-identity-implementation-2026-10-10.md#android-导入识别与跨端走查2026-10-10)。Android 本人设置、主动登记和样本审核已接通，见[设置与登记阶段记录](speaker-identity-implementation-2026-10-10.md#android-本人设置主动登记与走查2026-10-10)。本人设置八态、更新原因及有效登记组已完成两端投影，见[状态走查](../research/voiceprint-settings-status-review-2026-10-10.md)。收费 ASR 前的导入预检、通话采样／实际设备分组、AI 录音分人和部署仍待完成。上传源须具备内容证明；直传／分片还须固定转写和查询共同使用的 VersionId。来源边界见[查询源代码走查](../research/voiceprint-source-query-review-2026-10-10.md)，任务／候选协调见[独立身份队列走查](../research/voiceprint-identity-jobs-review-2026-10-10.md)，API 和决定事务见[识别 API 走查](../research/voiceprint-identification-api-review-2026-10-10.md)。模型路线继续 Qwen 优先，完整验收范围不缩减。
 
+后续本人设置走查已修复试听响应到期竞争、撤权后私有状态残留、Android 缓存期限同步及 Web 旧删除状态误展示，验证见[私有状态与试听期限走查](../research/voiceprint-private-state-review-2026-10-10.md)。
+
 调研状态：[实施前代码与资料调研](../research/voiceprint-preimplementation-2026-10-09.md)已完成；用户确认暂无获授权真人样本，模型效果、实际音轨采样和生产容量仍待验证，P0 尚未整体通过。
 
 代码走查补齐 `0207` 上下文迁移，修复人工标记与 worker 的锁顺序、停用账号复核、人工编辑后旧建议失效及任务预算；多建议稳定上下文只放行展示 revision 变化，其余来源／授权／目标状态保持绑定。具体问题与证据见[代码走查修复](../research/voiceprint-identity-review-fixes-2026-10-10.md)。确认／拒绝 API、Web 与 Android 导入识别客户端已在后续阶段接通，其他来源及生产验收继续开发。

@@ -513,7 +513,8 @@ export function errorKey(error: unknown) {
     if (
       error.statusCode === 401 ||
       error.statusCode === 403 ||
-      error.statusCode === 404
+      error.statusCode === 404 ||
+      error.statusCode === 410
     )
       return 'unavailable'
   }

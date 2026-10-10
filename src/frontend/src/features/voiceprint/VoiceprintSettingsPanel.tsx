@@ -403,7 +403,7 @@ function ScopeView({
                 <div>
                   <p>
                     {t(
-                      `displayState.${profile.display_state || (profile.status === 'active' ? 'needs_update' : profile.status === 'paused' ? 'paused' : profile.status === 'deleted' ? 'deleted' : 'not_enabled')}`
+                      `displayState.${profile.display_state || (profile.status === 'active' ? 'needs_update' : profile.status === 'paused' ? 'paused' : profile.status === 'deleted' ? 'deleting' : 'not_enabled')}`
                     )}
                   </p>
                   {profile.update_reasons?.map((reason) => (

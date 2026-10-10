@@ -148,6 +148,19 @@ export class VoiceprintController {
       this.clearMedia()
       this.publish({ enrollment: undefined, conflict: true })
     }
+    if (code === 'unavailable') {
+      this.beginKey = undefined
+      this.removal = undefined
+      this.firstPageIds.clear()
+      this.publish({
+        settings: undefined,
+        samples: [],
+        nextOffset: null,
+        deletions: [],
+        deletionOffset: null,
+        deleteTarget: undefined,
+      })
+    }
     this.publish({ error: code, loading: false })
   }
   async refresh(manual = false, force = false) {
@@ -491,12 +504,23 @@ export class VoiceprintController {
       }
       const blob = await this.client.audio(sample.id, this.lifetime.signal)
       if (!this.valid()) return
+      const latest = this.state.samples.find((row) => row.id === current.id)
+      const expiresAt = Math.min(
+        Date.parse(current.expires_at),
+        latest ? Date.parse(latest.expires_at) : 0
+      )
+      if (
+        !latest?.audio_available ||
+        latest.profile_id !== current.profile_id ||
+        expiresAt <= Date.now()
+      )
+        return
       if (this.state.preview) URL.revokeObjectURL(this.state.preview.url)
       this.publish({
         preview: {
           id: sample.id,
           url: URL.createObjectURL(blob),
-          expiresAt: Date.parse(current.expires_at),
+          expiresAt,
           listened: false,
           selfConfirmed: false,
         },

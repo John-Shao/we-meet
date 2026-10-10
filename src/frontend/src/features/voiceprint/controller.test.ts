@@ -193,6 +193,44 @@ it('expires cached audio and registration grants without waiting for another HTT
   expect(controller.getSnapshot().enrollment).toBeUndefined()
 })
 
+it('does not publish audio that expires while the response is in flight', async () => {
+  const { controller, client, clip } = setup()
+  await controller.refresh()
+  vi.mocked(client.audio).mockImplementation(async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse(clip.expires_at))
+    return pcmWav(new Float32Array(24000 * 3))
+  })
+  await controller.preview(clip)
+  expect(controller.getSnapshot().preview).toBeUndefined()
+  expect(URL.createObjectURL).not.toHaveBeenCalled()
+})
+
+it.each([401, 403, 404, 410])(
+  'clears private metadata when refresh rejects access with %s',
+  async (status) => {
+    const { controller, client } = setup()
+    vi.mocked(client.deletions).mockResolvedValue({
+      results: [
+        {
+          id: OWNER,
+          status: 'queued',
+          revoked_generation: 1,
+          finished_at: null,
+          error_code: null,
+        },
+      ],
+      next_offset: null,
+    })
+    await controller.refresh()
+    vi.mocked(client.settings).mockRejectedValue(new ApiError(status, {}))
+    await controller.refresh()
+    expect(controller.getSnapshot().settings).toBeUndefined()
+    expect(controller.getSnapshot().samples).toEqual([])
+    expect(controller.getSnapshot().deletions).toEqual([])
+    expect(controller.getSnapshot().conflict).toBe(true)
+  }
+)
+
 it('requires a concrete delete target and reuses its idempotency key after a lost response', async () => {
   const { controller, client } = setup()
   const remove = vi

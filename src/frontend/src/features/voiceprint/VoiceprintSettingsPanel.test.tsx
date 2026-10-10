@@ -225,3 +225,17 @@ it('shows server verified device groups and update reasons instead of raw active
   expect(screen.getByText('有效设备组：无')).toBeInTheDocument()
   expect(screen.queryByText('已建立')).not.toBeInTheDocument()
 })
+
+it('does not claim physical deletion from legacy revoked profile metadata', async () => {
+  delete current.display_state
+  current.profiles[0] = {
+    ...current.profiles[0],
+    status: 'deleted',
+  }
+  delete current.profiles[0].display_state
+  delete current.profiles[0].update_reasons
+  delete current.profiles[0].effective_device_groups
+  show()
+  expect(await screen.findByText('删除中')).toBeInTheDocument()
+  expect(screen.queryByText('已删除')).not.toBeInTheDocument()
+})
