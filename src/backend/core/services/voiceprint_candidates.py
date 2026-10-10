@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 from django.conf import settings
+from django.db.models import F, Max
+from django.utils import timezone
 
 from core import models
 from core.services import voiceprint_consent as consent
@@ -31,6 +33,7 @@ class CandidatePool:
     candidates: tuple = field(repr=False)
     record_revision: int
     fingerprint: str
+    authorization_digest: str = ""
 
 
 @dataclass(frozen=True)
@@ -166,12 +169,116 @@ def artifact(profile, *, user_id, organization_id):
     return candidate, proof
 
 
+def authorization_digest(identifiers, organization_id):
+    """Only current permission/profile/template metadata; no plaintext decryption.
+
+    Full contribution proofs are still validated at claim and publication. This
+    fast gate stops revoked in-flight work without loading audio or features.
+    """
+    permissions = list(
+        models.VoiceprintConsent.objects.filter(
+            user_id__in=identifiers, organization_id=organization_id
+        )
+        .order_by("user_id")
+        .values("id", "user_id", "version", "generation", "allow_identification")
+    )
+    profiles = list(
+        models.VoiceprintProfile.objects.filter(
+            consent__user_id__in=identifiers,
+            consent__organization_id=organization_id,
+            feature_space=FEATURE_SPACE,
+        )
+        .order_by("id")
+        .values(
+            "id",
+            "consent_id",
+            "status",
+            "generation",
+            "confirmed_at",
+            "last_updated_at",
+        )
+    )
+    templates = list(
+        models.VoiceprintTemplate.objects.filter(
+            profile_id__in=[row["id"] for row in profiles],
+            status="active",
+            generation=F("profile__generation"),
+        )
+        .order_by("id")
+        .values(
+            "id",
+            "profile_id",
+            "status",
+            "generation",
+            "revision",
+            "policy_version",
+            "support_digest",
+        )[: matching.MAX_CANDIDATES * matching.MAX_DEVICE_GROUPS + 1]
+    )
+    floors = list(
+        models.VoiceprintDeletionJob.objects.filter(
+            owner_id__in=identifiers, organization_id=organization_id
+        )
+        .values("owner_id")
+        .annotate(generation=Max("revoked_generation"))
+        .order_by("owner_id")
+    )
+    for profile in profiles:
+        profile["fresh"] = bool(
+            profile["last_updated_at"]
+            and profile["last_updated_at"]
+            > timezone.now() - timezone.timedelta(days=365)
+        )
+    organization = (
+        models.Organization.objects.filter(pk=organization_id).first()
+        if organization_id
+        else None
+    )
+    return hashlib.sha256(
+        json.dumps(
+            {
+                "permissions": permissions,
+                "profiles": profiles,
+                "templates": templates,
+                "floors": floors,
+                "organization_policy": consent.organization_policy(organization)
+                if organization
+                else None,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+            allow_nan=False,
+        ).encode("ascii")
+    ).hexdigest()
+
+
+def authorized(pool):
+    if not isinstance(pool, CandidatePool) or not pool.authorization_digest:
+        return False
+    try:
+        scope(
+            pool.record_id,
+            pool.actor_id,
+            pool.organization_id,
+            pool.requested,
+            pool.record_revision,
+        )
+        return (
+            authorization_digest(pool.requested, pool.organization_id)
+            == pool.authorization_digest
+        )
+    except (VoiceprintError, PermissionError):
+        return False
+
+
 def load_pool(record, actor, *, organization_id, user_ids, expected_revision):
     organization_id = explicit_scope(organization_id)
     identifiers = explicit_ids(user_ids)
     actor, record, organization = scope(
         record.pk, actor.pk, organization_id, identifiers, expected_revision
     )
+    gate = authorization_digest(identifiers, organization_id)
     profiles = {
         profile.consent.user_id: profile
         for profile in models.VoiceprintProfile.objects.filter(
@@ -239,6 +346,8 @@ def load_pool(record, actor, *, organization_id, user_ids, expected_revision):
             context, sort_keys=True, separators=(",", ":"), allow_nan=False
         ).encode("ascii")
     ).hexdigest()
+    if authorization_digest(identifiers, organization_id) != gate:
+        raise VoiceprintError("voiceprint_matching_context_changed", status=409)
     return CandidatePool(
         record.pk,
         actor.pk,
@@ -247,6 +356,7 @@ def load_pool(record, actor, *, organization_id, user_ids, expected_revision):
         tuple(candidates),
         record.revision,
         fingerprint,
+        gate,
     )
 
 

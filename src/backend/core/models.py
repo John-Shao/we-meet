@@ -1826,6 +1826,119 @@ class SpeakerIdentityDecision(BaseModel):
             raise ValidationError("Identity decision must match its record.")
 
 
+class SpeakerIdentityJob(BaseModel):
+    """One source speaker's bounded identity task; never contains query vectors."""
+
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE)
+    speaker = models.ForeignKey(MeetingSpeaker, on_delete=models.CASCADE)
+    requester = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    organization = models.ForeignKey(
+        "Organization", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    request_key = models.UUIDField()
+    requested_users = models.JSONField(default=list)
+    record_revision = models.PositiveIntegerField()
+    intent_digest = models.CharField(max_length=64)
+    source_digest = models.CharField(max_length=64)
+    candidate_digest = models.CharField(max_length=64)
+    threshold_digest = models.CharField(max_length=64)
+    threshold_version = models.CharField(max_length=128)
+    feature_space = models.CharField(max_length=128)
+    status = models.CharField(
+        max_length=16,
+        default="queued",
+        db_index=True,
+        choices=[
+            (state, state)
+            for state in (
+                "queued",
+                "running",
+                "succeeded",
+                "failed",
+                "canceled",
+                "expired",
+            )
+        ],
+    )
+    lease_token = models.UUIDField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    retryable = models.BooleanField(default=False)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "lease_until", "created_at"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record", "speaker", "request_key"], name="identity_job_request"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(attempts__lte=3), name="identity_job_attempt_limit"
+            ),
+        ]
+
+    def __str__(self):
+        return f"SpeakerIdentityJob({self.pk})"
+
+
+class SpeakerIdentitySuggestion(BaseModel):
+    """A versioned result independent of the speaker's human attribution."""
+
+    job = models.OneToOneField(
+        SpeakerIdentityJob, on_delete=models.CASCADE, related_name="suggestion"
+    )
+    candidate = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    result = models.CharField(max_length=32)
+    reason = models.CharField(max_length=64)
+    clip_count = models.PositiveSmallIntegerField(default=0)
+    speech_ms = models.PositiveIntegerField(default=0)
+    score = models.FloatField(null=True, blank=True)
+    margin = models.FloatField(null=True, blank=True)
+    state = models.CharField(
+        max_length=16,
+        default="pending",
+        choices=[
+            (state, state)
+            for state in ("pending", "confirmed", "rejected", "invalidated")
+        ],
+    )
+    decided_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="identity_suggestion_decisions",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(clip_count__lte=12),
+                name="identity_suggestion_clip_limit",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(score__isnull=True)
+                | (models.Q(score__gte=-1) & models.Q(score__lte=1)),
+                name="identity_suggestion_score_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(margin__isnull=True)
+                | (models.Q(margin__gte=0) & models.Q(margin__lte=2)),
+                name="identity_suggestion_margin_range",
+            ),
+        ]
+
+    def __str__(self):
+        return f"SpeakerIdentitySuggestion({self.pk})"
+
+
 class MeetingOriginalSegment(BaseModel):
     """Immutable final text for independent captures, without a placeholder Room."""
 

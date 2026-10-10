@@ -20,6 +20,7 @@ class ProducedQuery:
     source_digest: str
     clips: tuple = field(default=(), repr=False)
     media_sha256: str = field(default="", repr=False)
+    speaker_id: UUID | None = field(default=None, repr=False)
 
 
 def produce(  # noqa: PLR0913 -- Explicit trusted source, providers, policy and one current job lease.
@@ -52,7 +53,12 @@ def produce(  # noqa: PLR0913 -- Explicit trusted source, providers, policy and 
         raise VoiceprintError("voiceprint_query_invalid", status=400)
     policy.validate()
     if not policy.calibrated:
-        return ProducedQuery("unavailable", "calibration_required", source.fingerprint)
+        return ProducedQuery(
+            "unavailable",
+            "calibration_required",
+            source.fingerprint,
+            speaker_id=speaker_id,
+        )
     media_config.validate()
     storage_config.validate()
     encoder_config.client()
@@ -73,7 +79,10 @@ def produce(  # noqa: PLR0913 -- Explicit trusted source, providers, policy and 
         )
         if info.channels != 1:
             return ProducedQuery(
-                "unavailable", "source_channels_unsupported", source.fingerprint
+                "unavailable",
+                "source_channels_unsupported",
+                source.fingerprint,
+                speaker_id=speaker_id,
             )
         selected = intervals.select(
             source.intervals,
@@ -82,7 +91,10 @@ def produce(  # noqa: PLR0913 -- Explicit trusted source, providers, policy and 
         ).get(speaker_id, ())
         if len(selected) < policy.min_query_clips:
             return ProducedQuery(
-                "insufficient_audio", "clean_intervals_required", source.fingerprint
+                "insufficient_audio",
+                "clean_intervals_required",
+                source.fingerprint,
+                speaker_id=speaker_id,
             )
         clips = []
         for interval in selected:
@@ -106,7 +118,12 @@ def produce(  # noqa: PLR0913 -- Explicit trusted source, providers, policy and 
                 authorized=live,
             )
             if result.status == "mixed_speaker":
-                return ProducedQuery("mixed_speaker", result.reason, source.fingerprint)
+                return ProducedQuery(
+                    "mixed_speaker",
+                    result.reason,
+                    source.fingerprint,
+                    speaker_id=speaker_id,
+                )
             if result.status == "ready":
                 clips.append(result.clip)
         matching.validate_clips(clips)
@@ -114,7 +131,12 @@ def produce(  # noqa: PLR0913 -- Explicit trusted source, providers, policy and 
         if not live() or not sources.revalidate(source):
             raise VoiceprintError("voiceprint_source_changed", status=409)
         if rejection:
-            return ProducedQuery(*rejection, source.fingerprint)
+            return ProducedQuery(*rejection, source.fingerprint, speaker_id=speaker_id)
         return ProducedQuery(
-            "ready", "quality_passed", source.fingerprint, tuple(clips), local.sha256
+            "ready",
+            "quality_passed",
+            source.fingerprint,
+            tuple(clips),
+            local.sha256,
+            speaker_id,
         )

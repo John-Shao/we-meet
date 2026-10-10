@@ -359,6 +359,9 @@ def deletion_snapshot(job):
 
 def cancel_pending_work(consent):
     """Changing a permission version invalidates already-issued work permits."""
+    from core.services import speaker_identity_jobs  # noqa: PLC0415
+
+    speaker_identity_jobs.invalidate_consent_work(consent)
     now = timezone.now()
     models.VoiceprintEnrollment.objects.filter(
         owner_id=consent.user_id,

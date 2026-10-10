@@ -45,6 +45,9 @@ def membership_changed(sender, instance, **kwargs):
 def consent_removed(sender, instance, **kwargs):
     # The deletion collector has already enumerated its FK actions. New
     # tombstones deliberately have no consent FK and survive the whole cascade.
+    from core.services import speaker_identity_jobs  # noqa: PLC0415
+
+    speaker_identity_jobs.invalidate_consent_work(instance)
     maximum = instance.profiles.aggregate(value=Max("generation"))["value"] or 0
     models.VoiceprintDeletionJob.objects.create(
         consent=None,
