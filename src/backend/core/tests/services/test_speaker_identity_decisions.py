@@ -3,11 +3,13 @@
 import importlib
 import json
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from types import SimpleNamespace
 
 from django.apps import apps
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, close_old_connections, connection, transaction
 
 import pytest
 
@@ -490,3 +492,82 @@ def test_directory_pagination_stops_at_the_permitted_offset(monkeypatch, kind):
     last = speaker_contacts.lookup(record, owner, kind=kind, limit=1, offset=1)
     assert len(last["results"]) == 1
     assert last["next_offset"] is None
+
+
+@pytest.mark.parametrize("revision", [True, 1.0, "1", 0, -1])
+def test_domain_decision_requires_an_integer_revision(revision):
+    owner, record, speaker, _ = org_record()
+    with pytest.raises(ValueError, match="invalid_revision"):
+        speaker_identity_decisions.decide(
+            record,
+            speaker.pk,
+            owner,
+            action="set_label",
+            label="Host",
+            expected_revision=revision,
+        )
+    assert not record.identity_decisions.exists()
+
+
+def test_actor_deactivated_after_request_authentication_cannot_write():
+    owner, record, speaker, _ = org_record()
+    models.User.objects.filter(pk=owner.pk).update(is_active=False)
+    assert owner.is_active  # Deliberately retain the request's stale object.
+    with pytest.raises(PermissionError):
+        speaker_identity_decisions.decide(
+            record,
+            speaker.pk,
+            owner,
+            action="set_label",
+            label="Host",
+            expected_revision=record.revision,
+        )
+    assert not record.identity_decisions.exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_editor_and_subject_first_worker_do_not_deadlock(monkeypatch):
+    owner, record, speaker, _ = org_record()
+    subject_locked, editor_authorized = Event(), Event()
+    original = speaker_identity_decisions.authorize
+
+    def observed_authorize(current_record, actor):
+        editor_authorized.set()
+        return original(current_record, actor)
+
+    monkeypatch.setattr(speaker_identity_decisions, "authorize", observed_authorize)
+
+    def worker():
+        close_old_connections()
+        try:
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute("SET LOCAL lock_timeout = '4s'")
+                models.User.objects.select_for_update().get(pk=owner.pk)
+                subject_locked.set()
+                assert editor_authorized.wait(5)
+                models.MeetingRecord.objects.select_for_update().get(pk=record.pk)
+        finally:
+            close_old_connections()
+
+    def editor():
+        close_old_connections()
+        try:
+            assert subject_locked.wait(5)
+            return speaker_identity_decisions.decide(
+                record,
+                speaker.pk,
+                owner,
+                action="set_label",
+                label="Host",
+                expected_revision=record.revision,
+            )
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        job = workers.submit(worker)
+        edit = workers.submit(editor)
+        job.result(timeout=10)
+        assert edit.result(timeout=10).display_name == "Host"
+    assert record.identity_decisions.count() == 1

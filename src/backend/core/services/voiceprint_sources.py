@@ -40,6 +40,7 @@ class SourceSnapshot:
     receipt: object = field(repr=False)
     intervals: tuple = field(repr=False)
     expires_at: object = field(repr=False)
+    generation_digest: str = ""
 
 
 def header(record_id, actor_id, expected_revision):
@@ -139,11 +140,14 @@ def header(record_id, actor_id, expected_revision):
         "configuration": digest(job.configuration),
         "object": receipt.payload(),
     }
-    return record, job, receipt, expiry, digest(proof)
+    generation = digest(
+        {key: value for key, value in proof.items() if key != "revision"}
+    )
+    return record, job, receipt, expiry, generation, digest(proof)
 
 
 def snapshot(record, actor, *, expected_revision):
-    record, job, receipt, expiry, header_digest = header(
+    record, job, receipt, expiry, generation_header, header_digest = header(
         record.pk, actor.pk, expected_revision
     )
     rows = list(
@@ -216,6 +220,7 @@ def snapshot(record, actor, *, expected_revision):
         receipt,
         tuple(intervals),
         expiry,
+        digest({"header": generation_header, "segments": proof}),
     )
 
 

@@ -16,6 +16,7 @@ from django.utils import timezone
 import pytest
 
 from core import models
+from core.services import speaker_identity_decisions as decisions
 from core.services import speaker_identity_jobs as service
 from core.services import voiceprint_candidates as candidates
 from core.services import voiceprint_consent as consent
@@ -97,6 +98,18 @@ def test_publication_is_separate_from_attribution_and_voiceprint_storage(case):
     suggestion = job.suggestion
     assert suggestion.state == "pending" and suggestion.candidate_id == case.actor.pk
     assert suggestion.result == "suggested" and suggestion.clip_count == 3
+    assert suggestion.query_intervals == [
+        {"start_ms": clip.start_ms, "end_ms": clip.end_ms}
+        for clip in ready(lease).clips
+    ]
+    assert all(
+        len(value) == 64
+        for value in (
+            job.source_generation_digest,
+            job.candidate_context_digest,
+            job.presentation_digest,
+        )
+    )
     case.speaker.refresh_from_db()
     case.record.refresh_from_db()
     assert case.speaker.user_id is None and case.speaker.attribution_kind == "none"
@@ -106,6 +119,138 @@ def test_publication_is_separate_from_attribution_and_voiceprint_storage(case):
     )
     assert "vector" not in repr(lease) and str(case.actor.pk) not in str(suggestion)
     assert not service.finish(lease, query=ready(lease))
+
+
+def test_semantic_context_survives_only_a_display_revision_change(case):
+    job = enqueue(case)
+    old_source, old_pool, _ = service.context(job)
+    models.MeetingRecord.objects.filter(pk=case.record.pk).update(revision=2)
+    with pytest.raises(VoiceprintError, match="record_changed"):
+        service.context(job)
+    source, pool, _ = service.context(job, current_revision=2)
+    assert source.generation_digest == old_source.generation_digest
+    assert pool.context_digest == old_pool.context_digest
+    assert source.fingerprint != old_source.fingerprint
+    assert pool.fingerprint != old_pool.fingerprint
+
+
+@pytest.mark.parametrize(
+    "change", ["source", "lifecycle", "candidate", "presentation", "legacy", "expired"]
+)
+def test_semantic_context_does_not_relax_source_or_identity_guards(case, change):
+    job = enqueue(case)
+    models.MeetingRecord.objects.filter(pk=case.record.pk).update(revision=2)
+    if change == "source":
+        models.MeetingOriginalSegment.objects.filter(record=case.record).update(
+            payload_hash="b" * 64
+        )
+    elif change == "lifecycle":
+        models.MeetingRecord.objects.filter(pk=case.record.pk).update(
+            lifecycle_revision=F("lifecycle_revision") + 1
+        )
+    elif change == "candidate":
+        case.profile.templates.update(revision=F("revision") + 1)
+    elif change == "presentation":
+        models.MeetingSpeaker.objects.filter(pk=case.speaker.pk).update(
+            manual_label="Human", attribution_kind="custom"
+        )
+    elif change == "expired":
+        job.expires_at = timezone.now() - timezone.timedelta(seconds=1)
+    else:
+        job.source_generation_digest = ""
+    with pytest.raises(
+        VoiceprintError, match="context_changed|templates_unavailable|identity_expired"
+    ) as error:
+        service.context(job, current_revision=2)
+    assert error.value.status == (503 if change == "candidate" else 409)
+
+
+@pytest.mark.parametrize("moment", ["queued", "running", "published"])
+def test_manual_identity_edit_cancels_target_and_removes_pending_name(case, moment):
+    job = enqueue(case)
+    lease = service.claim(job.pk) if moment != "queued" else None
+    if moment == "published":
+        assert service.finish(lease, query=ready(lease))
+    decisions.decide(
+        case.record,
+        case.speaker.pk,
+        case.actor,
+        action="set_label",
+        expected_revision=1,
+        label="Human choice",
+    )
+    job.refresh_from_db()
+    assert job.status == "canceled" and job.lease_token is None
+    if lease is not None:
+        assert not service.authorized(lease)
+        assert not service.finish(lease, query=ready(lease))
+    if moment == "published":
+        suggestion = job.suggestion
+        assert suggestion.state == "invalidated" and suggestion.candidate_id is None
+        assert suggestion.score is None and suggestion.margin is None
+    assert case.record.identity_decisions.count() == 1
+    assert case.profile.templates.count() == 1
+
+
+def test_manual_target_change_without_record_bump_still_blocks_worker(case):
+    job = enqueue(case)
+    lease = service.claim(job.pk)
+    models.MeetingSpeaker.objects.filter(pk=case.speaker.pk).update(
+        manual_label="Human", attribution_kind="custom"
+    )
+    assert not service.authorized(lease)
+    assert not service.finish(lease, query=ready(lease))
+    assert not models.SpeakerIdentitySuggestion.objects.exists()
+
+
+def test_retryable_failures_still_consume_submission_budget(case):
+    first = enqueue(case)
+    models.SpeakerIdentityJob.objects.bulk_create(
+        [replace_job(first, request_key=uuid4()) for _ in range(99)]
+    )
+    models.SpeakerIdentityJob.objects.filter(requester=case.actor).update(
+        status="failed",
+        retryable=True,
+        attempts=1,
+    )
+    with pytest.raises(VoiceprintError, match="budget_exceeded"):
+        enqueue(case)
+    assert enqueue(case, request_key=first.request_key).pk == first.pk
+
+
+def test_expired_jobs_do_not_block_new_submission_before_worker_sweep(case):
+    first = enqueue(case)
+    models.SpeakerIdentityJob.objects.bulk_create(
+        [replace_job(first, request_key=uuid4()) for _ in range(99)]
+    )
+    models.SpeakerIdentityJob.objects.filter(requester=case.actor).update(
+        expires_at=timezone.now() - timezone.timedelta(seconds=1),
+    )
+    assert enqueue(case).status == "queued"
+
+
+def replace_job(job, *, request_key):
+    # Copy persisted public job fields without running the same submit transaction.
+    fields = {
+        field.attname: getattr(job, field.attname)
+        for field in job._meta.concrete_fields
+        if field.name not in {"id", "created_at", "updated_at", "request_key"}
+    }
+    return models.SpeakerIdentityJob(request_key=request_key, **fields)
+
+
+def test_unregistered_candidate_deletion_floor_invalidates_frozen_context(published):
+    actor, record, _, speaker = published
+    case = SimpleNamespace(actor=actor, record=record, speaker=speaker)
+    job = enqueue(case)
+    models.VoiceprintDeletionJob.objects.create(
+        owner_id=actor.pk,
+        request_key=uuid4(),
+        expected_version=0,
+        revoked_generation=1,
+    )
+    with pytest.raises(VoiceprintError, match="context_changed"):
+        service.context(job)
 
 
 def test_identical_request_replays_but_changed_source_conflicts(case):

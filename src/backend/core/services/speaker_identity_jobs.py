@@ -45,7 +45,7 @@ def policy():
     return value
 
 
-def lock_scope(actor_id, identifiers, organization_id):
+def lock_scope(actor_id, identifiers, organization_id, *, extra_actors=()):
     """Use the enrollment/template order: subjects, organization, consent, profile.
 
     Subject locks prevent consent creation phantoms as well as concurrent
@@ -54,7 +54,7 @@ def lock_scope(actor_id, identifiers, organization_id):
     """
     list(
         models.User.objects.select_for_update()
-        .filter(pk__in=set(identifiers) | {actor_id})
+        .filter(pk__in=set(identifiers) | {actor_id} | set(extra_actors))
         .order_by("pk")
         .values_list("pk", flat=True)
     )
@@ -78,7 +78,23 @@ def lock_scope(actor_id, identifiers, organization_id):
     )
 
 
-def context(job):
+def presentation_digest(speaker):
+    return sources.digest(
+        {
+            "user": str(speaker.user_id),
+            "label": speaker.manual_label,
+            "kind": speaker.attribution_kind,
+            "contact": str(speaker.contact_source_id),
+            "actor": str(speaker.attributed_by_id),
+            "at": speaker.attributed_at.isoformat() if speaker.attributed_at else None,
+            "updated": speaker.updated_at.isoformat(),
+        }
+    )
+
+
+def context(job, *, current_revision=None):
+    if job.expires_at <= timezone.now():
+        raise VoiceprintError("voiceprint_identity_expired", status=409)
     if job.requester_id is None or job.feature_space != FEATURE_SPACE:
         raise VoiceprintError("voiceprint_identity_context_changed", status=409)
     frozen_policy = policy()
@@ -86,19 +102,42 @@ def context(job):
         raise VoiceprintError("voiceprint_identity_context_changed", status=409)
     record = models.MeetingRecord(pk=job.record_id)
     actor = models.User(pk=job.requester_id)
-    source = sources.snapshot(record, actor, expected_revision=job.record_revision)
+    revision = job.record_revision if current_revision is None else current_revision
+    source = sources.snapshot(record, actor, expected_revision=revision)
     pool = candidates.load_pool(
         record,
         actor,
         organization_id=job.organization_id,
         user_ids=job.requested_users,
-        expected_revision=job.record_revision,
+        expected_revision=revision,
     )
+    changed = (
+        (
+            source.fingerprint != job.source_digest
+            or pool.fingerprint != job.candidate_digest
+        )
+        if current_revision is None
+        else (
+            not job.source_generation_digest
+            or not job.candidate_context_digest
+            or source.generation_digest != job.source_generation_digest
+            or pool.context_digest != job.candidate_context_digest
+        )
+    )
+    if changed:
+        raise VoiceprintError("voiceprint_identity_context_changed", status=409)
     if (
-        source.fingerprint != job.source_digest
-        or pool.fingerprint != job.candidate_digest
-        or job.speaker_id not in {row.speaker_id for row in source.intervals}
+        job.speaker_id not in {row.speaker_id for row in source.intervals}
         or len(pool.requested) > frozen_policy.max_candidates
+    ):
+        raise VoiceprintError("voiceprint_identity_context_changed", status=409)
+    speaker = models.MeetingSpeaker.objects.filter(
+        pk=job.speaker_id, record_id=job.record_id
+    ).first()
+    if (
+        speaker is None
+        or not job.presentation_digest
+        or presentation_digest(speaker) != job.presentation_digest
     ):
         raise VoiceprintError("voiceprint_identity_context_changed", status=409)
     return source, pool, frozen_policy
@@ -138,6 +177,10 @@ def enqueue(  # noqa: PLR0913 -- Explicit record/speaker, source revision and se
     )
     if speaker_id not in {row.speaker_id for row in source.intervals}:
         raise VoiceprintError("voiceprint_source_speaker_unavailable", status=404)
+    speaker = models.MeetingSpeaker.objects.select_for_update().get(
+        pk=speaker_id, record=locked
+    )
+    presentation = presentation_digest(speaker)
     intent = sources.digest(
         {
             "actor": str(actor.pk),
@@ -146,6 +189,7 @@ def enqueue(  # noqa: PLR0913 -- Explicit record/speaker, source revision and se
             "candidate": pool.fingerprint,
             "threshold": frozen_policy.digest,
             "space": FEATURE_SPACE,
+            "presentation": presentation,
         }
     )
     previous = models.SpeakerIdentityJob.objects.filter(
@@ -157,7 +201,10 @@ def enqueue(  # noqa: PLR0913 -- Explicit record/speaker, source revision and se
         return previous
     if (
         models.SpeakerIdentityJob.objects.filter(
-            requester=actor, status__in=["queued", "running"]
+            Q(status__in=["queued", "running"])
+            | Q(status="failed", retryable=True, attempts__lt=MAX_ATTEMPTS),
+            requester=actor,
+            expires_at__gt=timezone.now(),
         ).count()
         >= 100
     ):
@@ -176,6 +223,9 @@ def enqueue(  # noqa: PLR0913 -- Explicit record/speaker, source revision and se
         record_revision=expected_revision,
         intent_digest=intent,
         source_digest=source.fingerprint,
+        source_generation_digest=source.generation_digest,
+        candidate_context_digest=pool.context_digest,
+        presentation_digest=presentation,
         candidate_digest=pool.fingerprint,
         threshold_digest=frozen_policy.digest,
         threshold_version=frozen_policy.threshold_version,
@@ -304,17 +354,32 @@ def claim(identifier):  # noqa: PLR0911 -- State, time and context guards preced
 def authorized(lease):
     if not isinstance(lease, IdentityLease) or lease.expires_at <= timezone.now():
         return False
-    if not models.SpeakerIdentityJob.objects.filter(
-        pk=lease.job_id,
-        status="running",
-        lease_token=lease.token,
-        lease_until=lease.expires_at,
-        lease_until__gt=timezone.now(),
-        expires_at__gt=timezone.now(),
-        source_digest=lease.source.fingerprint,
-        candidate_digest=lease.pool.fingerprint,
-        threshold_digest=lease.policy.digest,
-    ).exists():
+    current = (
+        models.SpeakerIdentityJob.objects.filter(
+            pk=lease.job_id,
+            status="running",
+            lease_token=lease.token,
+            lease_until=lease.expires_at,
+            lease_until__gt=timezone.now(),
+            expires_at__gt=timezone.now(),
+            source_digest=lease.source.fingerprint,
+            candidate_digest=lease.pool.fingerprint,
+            threshold_digest=lease.policy.digest,
+        )
+        .values("presentation_digest", "speaker_id")
+        .first()
+    )
+    if current is None or current["speaker_id"] != lease.speaker_id:
+        return False
+    speaker = models.MeetingSpeaker.objects.filter(
+        pk=lease.speaker_id,
+        record_id=lease.source.record_id,
+    ).first()
+    if (
+        speaker is None
+        or not current["presentation_digest"]
+        or presentation_digest(speaker) != current["presentation_digest"]
+    ):
         return False
     try:
         return (
@@ -421,6 +486,9 @@ def finish(lease, *, query=None, error=None):  # noqa: PLR0911 -- Reject late/co
         reason=result.reason,
         clip_count=result.clip_count,
         speech_ms=result.valid_speech_ms,
+        query_intervals=[
+            {"start_ms": clip.start_ms, "end_ms": clip.end_ms} for clip in query.clips
+        ],
         score=result.score,
         margin=result.margin,
     )
@@ -501,6 +569,34 @@ def invalidate_consent_work(consent):
     jobs.filter(status__in=["queued", "running", "failed", "succeeded"]).update(
         status="canceled",
         error_code="identity_context_changed",
+        retryable=False,
+        lease_token=None,
+        lease_until=None,
+        finished_at=now,
+        updated_at=now,
+    )
+
+
+def invalidate_target(record_id, speaker_id):
+    """Called under editorial subject/record locks after a human changes a target."""
+    now = timezone.now()
+    jobs = models.SpeakerIdentityJob.objects.filter(
+        record_id=record_id,
+        speaker_id=speaker_id,
+    )
+    models.SpeakerIdentitySuggestion.objects.filter(
+        job__in=jobs,
+        state="pending",
+    ).update(
+        state="invalidated",
+        candidate=None,
+        score=None,
+        margin=None,
+        updated_at=now,
+    )
+    jobs.filter(status__in=["queued", "running", "failed", "succeeded"]).update(
+        status="canceled",
+        error_code="identity_presentation_changed",
         retryable=False,
         lease_token=None,
         lease_until=None,

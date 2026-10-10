@@ -1809,11 +1809,20 @@ class SpeakerIdentityDecision(BaseModel):
     previous_kind = models.CharField(max_length=16)
     selected_kind = models.CharField(max_length=16)
     record_revision = models.PositiveIntegerField()
+    suggestion = models.ForeignKey(
+        "SpeakerIdentitySuggestion",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="identity_decisions",
+    )
 
     class Meta:
-        constraints = [models.UniqueConstraint(
-            fields=["record", "record_revision"], name="identity_decision_revision"
-        )]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record", "record_revision"], name="identity_decision_revision"
+            )
+        ]
 
     def __str__(self):
         return f"SpeakerIdentityDecision({self.pk})"
@@ -1824,6 +1833,13 @@ class SpeakerIdentityDecision(BaseModel):
             raise ValidationError("Identity decisions are immutable.")
         if self.speaker.record_id != self.record_id:
             raise ValidationError("Identity decision must match its record.")
+        if self.suggestion_id and (
+            self.suggestion.job.record_id != self.record_id
+            or self.suggestion.job.speaker_id != self.speaker_id
+        ):
+            raise ValidationError(
+                "Identity suggestion must match its record and speaker."
+            )
 
 
 class SpeakerIdentityJob(BaseModel):
@@ -1842,6 +1858,9 @@ class SpeakerIdentityJob(BaseModel):
     record_revision = models.PositiveIntegerField()
     intent_digest = models.CharField(max_length=64)
     source_digest = models.CharField(max_length=64)
+    source_generation_digest = models.CharField(max_length=64, blank=True, default="")
+    candidate_context_digest = models.CharField(max_length=64, blank=True, default="")
+    presentation_digest = models.CharField(max_length=64, blank=True, default="")
     candidate_digest = models.CharField(max_length=64)
     threshold_digest = models.CharField(max_length=64)
     threshold_version = models.CharField(max_length=128)
@@ -1898,6 +1917,7 @@ class SpeakerIdentitySuggestion(BaseModel):
     reason = models.CharField(max_length=64)
     clip_count = models.PositiveSmallIntegerField(default=0)
     speech_ms = models.PositiveIntegerField(default=0)
+    query_intervals = models.JSONField(default=list, blank=True)
     score = models.FloatField(null=True, blank=True)
     margin = models.FloatField(null=True, blank=True)
     state = models.CharField(

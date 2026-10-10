@@ -34,6 +34,7 @@ class CandidatePool:
     record_revision: int
     fingerprint: str
     authorization_digest: str = ""
+    context_digest: str = ""
 
 
 @dataclass(frozen=True)
@@ -340,6 +341,7 @@ def load_pool(record, actor, *, organization_id, user_ids, expected_revision):
         if organization
         else None,
         "candidates": proofs,
+        "authorization": gate,
     }
     fingerprint = hashlib.sha256(
         json.dumps(
@@ -357,6 +359,14 @@ def load_pool(record, actor, *, organization_id, user_ids, expected_revision):
         record.revision,
         fingerprint,
         gate,
+        hashlib.sha256(
+            json.dumps(
+                {key: value for key, value in context.items() if key != "revision"},
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("ascii")
+        ).hexdigest(),
     )
 
 
