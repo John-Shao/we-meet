@@ -9922,6 +9922,7 @@ class VoiceprintSamplingControl(BaseModel):
     )
     revision = models.PositiveBigIntegerField(default=1)
     paused = models.BooleanField(default=False)
+    stop_reason = models.CharField(max_length=32, blank=True, default="")
     # Unknown/shared devices are excluded until the owner explicitly declares them.
     shared_microphone = models.BooleanField(default=True)
     device_group = models.CharField(max_length=16, blank=True, default="")

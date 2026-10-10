@@ -101,7 +101,9 @@ def ready(sample):
         "speech_checked": True,
         "speaker_consistency_checked": True,
         "valid_speech_ms": 3000,
-        "speech_validation": QUALITY_POLICY,
+        "speech_validation": "qwen-short-asr-call-v1"
+        if sample.source_type == "call"
+        else QUALITY_POLICY,
         "asr_model_id": QUALITY_MODEL_ID,
         "speaker_count": 1,
         "prompt_checked": True,

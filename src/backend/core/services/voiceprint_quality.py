@@ -18,6 +18,7 @@ from core.services.voiceprint_prompt import challenge_digest, prompt_matches
 
 MODEL_ID = "qwen-audio-3.1-asr-flash"
 POLICY_VERSION = "qwen-short-asr-enrollment-v1"
+CALL_POLICY_VERSION = "qwen-short-asr-call-v1"
 QUERY_POLICY_VERSION = "qwen-short-asr-query-v1"
 API_PATH = "/api/v1/services/aigc/multimodal-generation/generation"
 MAX_RESPONSE_BYTES = 65536

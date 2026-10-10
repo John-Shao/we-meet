@@ -482,6 +482,11 @@ class LiveKitEventsService:
                 published=published,
                 event_at=event_at,
             )
+            if published:
+                from core.services.voiceprint_sampling_dispatch import (  # noqa: PLC0415 -- Optional sampler dispatch.
+                    schedule,
+                )
+                schedule(session.pk)
         except Exception:  # noqa: BLE001 -- Optional projection must not reject signed lifecycle events.
             # Optional biometric work must not interrupt calls, ASR or webhook acknowledgement.
             logger.warning("Voiceprint track projection unavailable", exc_info=False)

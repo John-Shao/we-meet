@@ -16,6 +16,7 @@ agents/
 │   ├── translation/       # 私人翻译、共享同传、录音翻译及译文归档
 │   ├── assistant/         # 多模态助手与音视频编排
 │   ├── metadata/          # 会议元数据采集
+│   ├── voiceprint/        # 取得逐轨许可后短时采样，独立加密候选入库
 │   ├── transport/         # 后端 HTTP 传输，禁止携带凭据重定向
 │   ├── identity.py        # 公共身份校验
 │   └── plugins/
@@ -29,6 +30,24 @@ agents/
 
 业务模块不依赖 `entrypoints/` 或测试。供应商协议放在 `plugins/`；后端控制、
 权限与交付留在业务模块。共享功能应放在明确的公共模块，避免跨业务导入私有函数。
+
+## 声纹采样入口
+
+独立入口为 `python -m entrypoints.voiceprint_sampler start`，使用下文的
+`PYTHONPATH` 配置及已有 LiveKit 连接配置。后端与 worker 同时配置
+`MEETING_VOICEPRINT_SAMPLING_ENABLED=true`、相同的
+`MEETING_VOICEPRINT_SAMPLING_AGENT_NAME`（例如 `meeting-voiceprint`）及独立
+`MEETING_VOICEPRINT_SAMPLING_AGENT_TOKEN`；worker 的
+`AGENT_BACKEND_API_URL` 指向受控内部后端根地址。
+
+功能、agent name 和 token 在后端均默认关闭或为空。后端只为本人授权和
+连接声明符合条件的真实房间实例派发；worker 默认不订阅音轨，每条源必须
+取得并持续复验短期许可。参与者可见，禁止发布媒体／数据。PCM 仅在内存
+保留当前短片段，超过队列、字节、时间或授权边界整段丢弃。
+
+采样、候选入库和单人质检代码已接通；设备组模板贡献、两端通话界面、
+完整 RTC 联调与 Helm 部署继续开发，当前不在生产启用。兼容性与验证见
+[采样管线走查](../../docs/research/voiceprint-call-pipeline-review-2026-10-10.md)。
 
 ## 本地环境与启动
 

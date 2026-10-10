@@ -19,6 +19,7 @@ from core.api.voiceprint import (
 from core.services import voiceprint_sampling as service
 from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_crypto import VoiceprintCryptoError
+from core.services.voiceprint_encoder import MAX_AUDIO_BYTES
 
 
 class ConnectionSerializer(StrictSerializer):
@@ -118,3 +119,38 @@ class SamplingValidationView(PrivateSamplerView):
         payload = ValidateSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
         return Response(service.validate(permit_id, **payload.validated_data))
+
+
+class SamplingClipView(PrivateSamplerView):
+    """One authenticated binary clip; no URLs, metadata or inferred identities."""
+
+    http_method_names = ["put", "options"]
+    parser_classes = []
+
+    def put(self, request, permit_id):
+        payload = TrackSerializer(data=request.query_params)
+        payload.is_valid(raise_exception=True)
+        if request.content_type != "audio/wav":
+            raise VoiceprintError("voiceprint_content_type_invalid", status=415)
+        raw_length = request.headers.get("Content-Length", "")
+        if not raw_length:
+            raise VoiceprintError("voiceprint_length_required", status=411)
+        if (
+            not raw_length.isascii()
+            or not raw_length.isdecimal()
+            or len(raw_length) > 6
+        ):
+            raise VoiceprintError("voiceprint_audio_size_invalid", status=413)
+        length = int(raw_length)
+        if not 1 <= length <= MAX_AUDIO_BYTES:
+            raise VoiceprintError("voiceprint_audio_size_invalid", status=413)
+        body = request.stream.read(length + 1)
+        if len(body) != length:
+            raise VoiceprintError("voiceprint_audio_size_invalid", status=413)
+        receipt = service.ingest(
+            permit_id,
+            **payload.validated_data,
+            token=request.headers.get("X-Voiceprint-Permit-Token", ""),
+            wav=body,
+        )
+        return Response(receipt, status=202)

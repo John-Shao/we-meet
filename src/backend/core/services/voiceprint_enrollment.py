@@ -25,6 +25,7 @@ from core.services.voiceprint_crypto import (
 )
 from core.services.voiceprint_encoder import MAX_AUDIO_BYTES
 from core.services.voiceprint_prompt import challenge_digest
+from core.services.voiceprint_quality import CALL_POLICY_VERSION
 from core.services.voiceprint_quality import MODEL_ID as QUALITY_MODEL_ID
 from core.services.voiceprint_quality import POLICY_VERSION as QUALITY_POLICY
 from core.services.voiceprint_vectors import read_sample_vector
@@ -329,7 +330,8 @@ def sample_quality_ready(sample):
         and isinstance(quality, dict)
         and quality.get("speech_checked") is True
         and quality.get("speaker_consistency_checked") is True
-        and quality.get("speech_validation") == QUALITY_POLICY
+        and quality.get("speech_validation")
+        == (CALL_POLICY_VERSION if sample.source_type == "call" else QUALITY_POLICY)
         and quality.get("asr_model_id") == QUALITY_MODEL_ID
         and type(quality.get("speaker_count")) is int
         and quality["speaker_count"] == 1

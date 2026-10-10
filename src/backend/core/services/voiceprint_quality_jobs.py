@@ -63,7 +63,7 @@ def enqueue_ready(limit):
     rows = (
         models.VoiceprintSample.objects.filter(
             status="ready",
-            source_type="enrollment",
+            source_type__in=["enrollment", "call"],
             expires_at__gt=timezone.now(),
             generation=F("profile__consent__generation"),
             consent_version=F("profile__consent__version"),
@@ -86,6 +86,8 @@ def enqueue_ready(limit):
 
 
 def challenge(sample):
+    if sample.source_type == "call" and sample.enrollment_id is None:
+        return "", ""
     registration = sample.enrollment
     if (
         sample.source_type != "enrollment"
@@ -285,7 +287,7 @@ def unavailable(job, sample, code, *, retryable=False):
 
 
 @transaction.atomic
-def finish(lease, *, result=None, error=None):  # noqa: PLR0911 -- Prevent stale quality evidence from changing a sample.
+def finish(lease, *, result=None, error=None):  # noqa: PLR0911, PLR0912 -- Explicit locked guards and source variants.
     locked = encoding.lock_job(lease.job_id, quality=True)
     if locked is None:
         return False
@@ -325,12 +327,17 @@ def finish(lease, *, result=None, error=None):  # noqa: PLR0911 -- Prevent stale
             retryable=isinstance(error, quality.QualityError) and error.retryable,
         )
     try:
-        result = quality.decode_result(
-            result,
-            digest=lease.audio_digest,
-            prompt_digest=challenge_digest(lease.locale, lease.prompt),
-            duration=lease.duration_ms,
-        )
+        if sample.source_type == "call":
+            result = quality.decode_query_result(
+                result, digest=lease.audio_digest, duration=lease.duration_ms
+            )
+        else:
+            result = quality.decode_result(
+                result,
+                digest=lease.audio_digest,
+                prompt_digest=challenge_digest(lease.locale, lease.prompt),
+                duration=lease.duration_ms,
+            )
         keyring = load_keyring()
         vector = signal_vector(sample, profile, keyring)
     except VoiceprintCryptoError:
@@ -338,6 +345,12 @@ def finish(lease, *, result=None, error=None):  # noqa: PLR0911 -- Prevent stale
     except (VoiceprintError, EncoderError, quality.QualityError):
         return unavailable(job, sample, "quality_response_invalid")
     if not result["passed"]:
+        if sample.source_type == "call" and result["reason"] == "mixed_speaker":
+            from core.services.voiceprint_sampling import (  # noqa: PLC0415 -- Separate sampling source guards.
+                stop_contaminated_source,
+            )
+
+            stop_contaminated_source(sample)
         sample.quality = {**sample.quality, "quality_rejection": result["reason"]}
         encoding.discard_sample(sample, "rejected")
         sample.save(update_fields=["quality", "updated_at"])
@@ -348,10 +361,15 @@ def finish(lease, *, result=None, error=None):  # noqa: PLR0911 -- Prevent stale
         "speech_checked": True,
         "speaker_consistency_checked": True,
         "valid_speech_ms": result["valid_speech_ms"],
-        "speech_validation": quality.POLICY_VERSION,
+        "speech_validation": quality.CALL_POLICY_VERSION
+        if sample.source_type == "call"
+        else quality.POLICY_VERSION,
         "asr_model_id": quality.MODEL_ID,
-        "prompt_checked": True,
-        "prompt_sha256": result["prompt_sha256"],
+        **(
+            {"prompt_checked": True, "prompt_sha256": result["prompt_sha256"]}
+            if sample.source_type == "enrollment"
+            else {}
+        ),
         "speaker_count": 1,
     }
     try:
@@ -377,14 +395,22 @@ def process_one(identifier, config):
     lease = claim(identifier)
     if lease:
         try:
-            result = process.extract(
-                lease.wav,
-                config=config,
-                locale=lease.locale,
-                prompt=lease.prompt,
-                expires=int(lease.expires_at.timestamp()),
-                authorized=lambda: authorized(lease),
-            )
+            if lease.source_key[2] == "call":
+                result = process.extract_query(
+                    lease.wav,
+                    config=config,
+                    expires=int(lease.expires_at.timestamp()),
+                    authorized=lambda: authorized(lease),
+                )
+            else:
+                result = process.extract(
+                    lease.wav,
+                    config=config,
+                    locale=lease.locale,
+                    prompt=lease.prompt,
+                    expires=int(lease.expires_at.timestamp()),
+                    authorized=lambda: authorized(lease),
+                )
         except quality.QualityError as error:
             finish(lease, error=error)
         except Exception:  # noqa: BLE001 -- Persist only a fixed failure code after child cleanup.

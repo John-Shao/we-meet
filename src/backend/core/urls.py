@@ -246,6 +246,7 @@ from core.api.voiceprint import (
     VoiceprintSettingsView,
 )
 from core.api.voiceprint_sampling import (
+    SamplingClipView,
     SamplingControlView,
     SamplingPermitView,
     SamplingValidationView,
@@ -428,6 +429,7 @@ external_router.register(
 )
 
 urlpatterns = [
+    path("api/agent/voiceprint-sampling/permits/<uuid:permit_id>/clip/", SamplingClipView.as_view(), name="voiceprint-sampling-clip"),
     path("api/agent/voiceprint-sampling/permits/", SamplingPermitView.as_view(), name="voiceprint-sampling-permit"),
     path("api/agent/voiceprint-sampling/permits/<uuid:permit_id>/validate/", SamplingValidationView.as_view(), name="voiceprint-sampling-validate"),
     path("api/v1.0/ai-call/session/", AiCallSessionView.as_view(), name="ai-call-session"),

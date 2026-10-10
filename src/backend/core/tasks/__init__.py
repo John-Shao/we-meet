@@ -36,3 +36,4 @@ from core.tasks import summary_versions as _summary_versions
 from core.tasks import task_notifications as _task_notifications
 from core.tasks import upload_translations as _upload_translations
 from core.tasks import uploaded_recordings as _uploaded_recordings
+from core.tasks import voiceprint_sampling as _voiceprint_sampling

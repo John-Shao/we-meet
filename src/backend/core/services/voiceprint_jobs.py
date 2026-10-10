@@ -366,7 +366,7 @@ def finish(lease, *, result=None, error=None):  # noqa: PLR0911, PLR0912, PLR091
         update_fields=["quality", "status", "encrypted_embedding", "updated_at"]
     )
     stop(job, status="succeeded")
-    if sample.source_type == "enrollment":
+    if sample.source_type in {"enrollment", "call"}:
         models.VoiceprintQualityJob.objects.get_or_create(
             sample=sample, defaults={"expires_at": sample.expires_at}
         )

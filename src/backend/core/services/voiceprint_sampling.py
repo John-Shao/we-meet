@@ -5,9 +5,10 @@ permit before subscribing; a connection identity alone never proves a voice.
 """
 
 import base64
+import hashlib
 import hmac
 import re
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from django.conf import settings
 from django.db import transaction
@@ -20,6 +21,7 @@ from livekit import api
 
 from core import models
 from core.services import voiceprint_consent as consent
+from core.services import voiceprint_enrollment as enrollment
 from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_crypto import load_keyring, scope_aad
 from core.services.voiceprint_encoder import FEATURE_SPACE
@@ -162,6 +164,7 @@ def state(participation, control=None):
         "shared_microphone": shared,
         "device_group": group,
         "state": reason,
+        "stop_reason": control.stop_reason if control else "",
     }
 
 
@@ -206,11 +209,19 @@ def update_control(  # noqa: PLR0913 -- One versioned owner microphone declarati
         shared_microphone,
         device_group,
     )
+    control.stop_reason = ""
     control.save()
     models.VoiceprintSamplingPermit.objects.filter(
         track__participation=participation, status="issued"
     ).update(status="canceled", updated_at=timezone.now())
-    return state(participation, control)
+    result = state(participation, control)
+    if result["state"] == "ready":
+        from core.services.voiceprint_sampling_dispatch import (  # noqa: PLC0415 -- Dispatch follows the declaration commit.
+            schedule,
+        )
+
+        schedule(participation.session_id)
+    return result
 
 
 def budget():
@@ -482,6 +493,7 @@ def authorized_sample(sample, profile):
     )
     if permit is None or permit.track_id is None or sample.enrollment_id is not None:
         raise VoiceprintError("voiceprint_sampling_source_unavailable")
+
     participation = permit.track.participation
     user = mapped_owner(participation)
     organization = participation.session.room.organization
@@ -503,3 +515,117 @@ def authorized_sample(sample, profile):
         != permit.policy_version
     ):
         raise VoiceprintError("voiceprint_sampling_source_unavailable")
+
+
+def clip_receipt(sample):
+    """Return only a durable candidate reference, never quality or plaintext."""
+    return {
+        "id": str(sample.pk),
+        "status": sample.status,
+        "expires_at": sample.expires_at.isoformat(),
+    }
+
+
+def stop_contaminated_source(sample):
+    """Called while quality completion holds the owner's lock; no implicit restart."""
+    permit = models.VoiceprintSamplingPermit.objects.filter(
+        sample=sample, status="consumed"
+    ).first()
+    if permit is None or permit.track_id is None:
+        return
+    control = (
+        models.VoiceprintSamplingControl.objects.select_for_update()
+        .filter(
+            participation=permit.track.participation,
+        )
+        .first()
+    )
+    if control is not None and control.revision == permit.control_revision:
+        control.revision += 1
+        control.paused = True
+        control.stop_reason = "mixed_speaker"
+        control.save(update_fields=["revision", "paused", "stop_reason", "updated_at"])
+    permit.track.permits.filter(
+        status="issued", control_revision=permit.control_revision
+    ).update(status="canceled", updated_at=timezone.now())
+
+
+@transaction.atomic
+def ingest(identifier, *, token, room_sid, participant_sid, track_sid, wav):  # noqa: PLR0913 -- Exact origin plus one bounded binary body.
+    """Consume one permit atomically; replay the same bytes after ambiguous delivery."""
+    initial = models.VoiceprintSamplingPermit.objects.filter(pk=identifier).first()
+    if initial is None:
+        raise VoiceprintError("voiceprint_sampling_permit_unavailable", status=404)
+    user = consent.owner(models.User(pk=initial.owner_id), lock=True)
+    profile = consent.authorize_profile(
+        initial.profile_id,
+        permission="allow_accumulation",
+        version=initial.consent_version,
+        generation=initial.generation,
+    )
+    consent.scope(user, profile.consent.organization_id, lock=True)
+    models.VoiceprintConsent.objects.select_for_update().get(pk=profile.consent_id)
+    models.MeetingSession.objects.select_for_update().filter(
+        pk=initial.source_session_id
+    ).first()
+    models.VoiceprintSamplingTrack.objects.select_for_update().filter(
+        pk=initial.track_id
+    ).first()
+    permit = models.VoiceprintSamplingPermit.objects.select_for_update().get(
+        pk=initial.pk
+    )
+    if (
+        room_sid != permit.livekit_room_sid
+        or participant_sid != permit.participant_sid
+        or track_sid != permit.source_track_sid
+        or not isinstance(token, str)
+        or len(token) != 43
+        or not token.isascii()
+        or not hmac.compare_digest(token_for(permit, profile), token)
+    ):
+        raise VoiceprintError("voiceprint_sampling_permit_invalid")
+    if permit.status == "consumed" and permit.sample_id:
+        sample = permit.sample
+        profile = enrollment.sample_authorized(sample)
+    else:
+        profile = authorize(permit)
+        sample = None
+    wav, duration = enrollment.normalize_wav(wav)
+    if duration > permit.max_duration_ms:
+        raise VoiceprintError("voiceprint_sampling_clip_too_long", status=422)
+    digest = hashlib.sha256(wav).hexdigest()
+    if sample:
+        if sample.audio_sha256 != digest:
+            raise VoiceprintError("voiceprint_request_conflict", status=409)
+        return clip_receipt(sample)
+    if profile.samples.filter(
+        generation=profile.generation, audio_sha256=digest
+    ).exists():
+        raise VoiceprintError("voiceprint_duplicate_audio", status=409)
+    identifier = uuid4()
+    sample = models.VoiceprintSample.objects.create(
+        id=identifier,
+        profile=profile,
+        generation=permit.generation,
+        consent_version=permit.consent_version,
+        permit_id=permit.pk,
+        source_type="call",
+        source_session_id=permit.source_session_id,
+        source_track=permit.source_track_sid,
+        end_ms=duration,
+        audio_sha256=digest,
+        encrypted_audio=load_keyring().encrypt(
+            profile, wav, kind="audio", object_id=identifier
+        ),
+        expires_at=timezone.now()
+        + timezone.timedelta(hours=enrollment.CANDIDATE_HOURS),
+    )
+    permit.sample = sample
+    permit.status = "consumed"
+    permit.save(update_fields=["sample", "status", "updated_at"])
+    # Final recheck makes the stored candidate unusable if any source changed.
+    enrollment.sample_authorized(sample)
+    models.VoiceprintEncodingJob.objects.create(
+        sample=sample, expires_at=sample.expires_at
+    )
+    return clip_receipt(sample)
