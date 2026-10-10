@@ -8,7 +8,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from core import models
-from core.factories import UserFactory
+from core.factories import MeetingSessionFactory, RoomFactory, UserFactory
 from core.services import voiceprint_consent as consent
 from core.services.voiceprint_crypto import load_keyring
 from core.services.voiceprint_enrollment import enrollment_snapshot
@@ -269,10 +269,54 @@ def test_accumulation_alone_cannot_confirm_call_candidate(actor, allow_enrollmen
         expected_version=1,
         changes={"allow_accumulation": True, "allow_enrollment": allow_enrollment},
     )
-    # Technical fixture for the upcoming trusted call producer; clients cannot
-    # create call samples or claim quality through the registration endpoint.
+    # Internal receipt fixture only; no public endpoint admits call audio.
+    session = MeetingSessionFactory(
+        room=RoomFactory(organization=None), livekit_room_sid="RM_call_fixture"
+    )
+    participant = models.MeetingParticipation.objects.create(
+        session=session,
+        user=actor,
+        identity=str(actor.sub),
+        kind="standard",
+        livekit_participant_sid="PA_call_fixture",
+        joined_at=timezone.now(),
+    )
+    track = models.VoiceprintSamplingTrack.objects.create(
+        participation=participant,
+        livekit_track_sid="TR_call_fixture",
+        source="microphone",
+        media_type="audio",
+        published_at=timezone.now(),
+    )
+    permit = models.VoiceprintSamplingPermit.objects.create(
+        track=track,
+        profile=sample.profile,
+        owner=actor,
+        request_key=uuid4(),
+        source_session_id=session.pk,
+        source_track_sid=track.livekit_track_sid,
+        livekit_room_sid=session.livekit_room_sid,
+        participant_sid=participant.livekit_participant_sid,
+        participant_identity=participant.identity,
+        consent_version=2,
+        generation=sample.generation,
+        policy_version=0,
+        control_revision=1,
+        device_group="headset",
+        max_duration_ms=10000,
+        expires_at=timezone.now() + timezone.timedelta(seconds=30),
+        status="consumed",
+        sample=sample,
+    )
     models.VoiceprintSample.objects.filter(pk=sample.pk).update(
-        source_type="call", enrollment=None, consent_version=2, status="ready"
+        source_type="call",
+        enrollment=None,
+        consent_version=2,
+        status="ready",
+        source_session_id=session.pk,
+        source_track=track.livekit_track_sid,
+        permit_id=permit.pk,
+        created_at=timezone.now(),
     )
     sample.refresh_from_db()
     ready(

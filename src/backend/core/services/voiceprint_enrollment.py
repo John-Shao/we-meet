@@ -409,6 +409,12 @@ def sample_authorized(sample):
         version=sample.consent_version,
         generation=sample.generation,
     )
+    if sample.source_type == "call":
+        from core.services.voiceprint_sampling import (  # noqa: PLC0415 -- Trusted call provenance is separate from registration.
+            authorized_sample,
+        )
+
+        authorized_sample(sample, profile)
     if sample.enrollment_id:
         admitted = authorized_enrollment(sample.enrollment)
         if (

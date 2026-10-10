@@ -453,3 +453,35 @@ class LiveKitEventsService:
             )
         except MeetingSessionProjectionError as err:
             raise ActionFailedError("Failed to process participant left event") from err
+
+    def _handle_track_published(self, data):
+        """Project a microphone origin only from the verified webhook path."""
+        self._sampling_track(data, published=True)
+
+    def _handle_track_unpublished(self, data):
+        """Close this exact origin; delayed publications cannot reopen it."""
+        self._sampling_track(data, published=False)
+
+    def _sampling_track(self, data, *, published):
+        from core.services import (  # noqa: PLC0415 -- Optional isolated projection.
+            voiceprint_sampling,
+        )
+
+        if not voiceprint_sampling.enabled():
+            return
+        try:
+            session, event_at = self._resolve_participant_event_session(data)
+            participation = self.meeting_sessions.record_participant_join(
+                session=session,
+                participant=data.participant,
+                event_at=event_at,
+            )
+            voiceprint_sampling.record_track(
+                participation=participation,
+                track=data.track,
+                published=published,
+                event_at=event_at,
+            )
+        except Exception:  # noqa: BLE001 -- Optional projection must not reject signed lifecycle events.
+            # Optional biometric work must not interrupt calls, ASR or webhook acknowledgement.
+            logger.warning("Voiceprint track projection unavailable", exc_info=False)

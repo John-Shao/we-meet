@@ -33,17 +33,15 @@ from core.api.admin_roles import (
 from core.api.admin_stats import AdminStatsOverviewView
 from core.api.agent_internal import IngestTranscriptView, TranscriptDeliveryView
 from core.api.ai_call import AiCallSessionView
-from core.api.direct_ai_allocations import DirectAIAllocationView
+from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.assistant_summary import AssistantSummaryView
 from core.api.assistant_transcription import AssistantTranscriptionSessionView
-from core.api.capture_direct_asr import CaptureDirectAsrStartView, CaptureDirectAsrSyncView
 from core.api.assistant_translation import (
     AssistantTranslationClaimView,
     AssistantTranslationConfigView,
     AssistantTranslationSessionView,
     AssistantTranslationTicketView,
 )
-from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.bot_webhook import BotWebhookView
 from core.api.calendar import CalendarEventViewSet
 from core.api.calendar_exports import CalendarExportJobViewSet
@@ -55,18 +53,25 @@ from core.api.capture_audio import (
     CaptureAudioUploadView,
     CaptureAudioView,
 )
+from core.api.capture_diarization import (
+    CancelCaptureDiarizationView,
+    CaptureDiarizationView,
+)
+from core.api.capture_direct_asr import (
+    CaptureDirectAsrStartView,
+    CaptureDirectAsrSyncView,
+)
 from core.api.capture_transcription import (
     CancelTranscriptionView,
     CaptureTranscriptionView,
     ClaimTranscriptionView,
     ControlTranscriptionView,
-    FinishTranscriptionView,
     DiagnosticTranscriptionView,
+    FinishTranscriptionView,
     IngestTranscriptionView,
     LiveTranscriptionPreviewView,
     TranscriptionInputView,
 )
-from core.api.capture_diarization import CaptureDiarizationView, CancelCaptureDiarizationView
 from core.api.capture_translation import CaptureTranslationView
 from core.api.capture_translation_archive import (
     CaptureTranslationArchivesView,
@@ -80,6 +85,7 @@ from core.api.capture_translation_worker import (
     CaptureTranslationTicketView,
 )
 from core.api.cloud_recording import CloudRecordingView
+from core.api.direct_ai_allocations import DirectAIAllocationView
 from core.api.directory import (
     ContactPreferenceViewSet,
     DepartmentViewSet,
@@ -117,6 +123,12 @@ from core.api.meeting_captures import (
     CaptureWriterGrantView,
     IngestRecordOriginalView,
 )
+from core.api.meeting_collaboration import (
+    CollaborationCandidatesView,
+    CollaborationNotificationRetryView,
+    CollaborationView,
+    MaterialPreviewView,
+)
 from core.api.meeting_interpretation import (
     InterpretationChannelsView,
     InterpretationRenewalView,
@@ -130,6 +142,7 @@ from core.api.meeting_rooms import (
     MeetingRoomNodeViewSet,
     MeetingRoomViewSet,
 )
+from core.api.meeting_session_status import MeetingSessionStatusView
 from core.api.meeting_summary_exports import (
     SummaryExportPreviewView,
     SummaryExportRetryView,
@@ -139,14 +152,12 @@ from core.api.meeting_summary_notifications import (
     SummaryNotificationRetryView,
     SummaryNotificationsView,
 )
-from core.api.meeting_session_status import MeetingSessionStatusView
 from core.api.meeting_summary_review import SummaryHistoryView, SummaryReviewView
 from core.api.meeting_summary_sharing import (
     SummarySharingCandidatesView,
     SummarySharingPreviewView,
     SummarySharingView,
 )
-from core.api.meeting_collaboration import CollaborationView, CollaborationCandidatesView, MaterialPreviewView, CollaborationNotificationRetryView
 from core.api.meeting_summary_tasks import SummaryTaskView
 from core.api.meeting_translation import MeetingTranslationViewSet, TranslationAgentView
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
@@ -162,26 +173,6 @@ from core.api.personal_calendars import (
     PersonalCalendarViewSet,
 )
 from core.api.personal_hotwords import PersonalHotwordsView
-from core.api.speaker_identification import (
-    SpeakerIdentificationView,
-    SpeakerIdentificationOptionsView,
-    SpeakerIdentificationCandidatesView,
-)
-from core.api.voiceprint import (
-    VoiceprintScopesView,
-    VoiceprintDeletionsView,
-    VoiceprintEnrollmentsView,
-    VoiceprintEnrollmentView,
-    VoiceprintEnrollmentClipView,
-    VoiceprintSamplesView,
-    VoiceprintSampleView,
-    VoiceprintSampleAudioView,
-    VoiceprintSampleDecisionView,
-    VoiceprintSettingsView,
-    VoiceprintProfileView,
-    VoiceprintDeletionView,
-    VoiceprintOrganizationPolicyView,
-)
 from core.api.push import ImPushHookView, PushPreferenceView, PushTokenView
 from core.api.qr_login import (
     QrAuthenticatorStatusView,
@@ -193,6 +184,10 @@ from core.api.qr_login import (
     QrScanView,
 )
 from core.api.recording_accesses import RecordingAccessViewSet
+from core.api.recording_identity_preflight import (
+    RecordingIdentityCandidatesView,
+    RecordingIdentityPreflightView,
+)
 from core.api.recording_upload_multipart import (
     MultipartBeginView,
     MultipartPartsView,
@@ -203,6 +198,11 @@ from core.api.search import (
     DocsSearchView,
     GlobalAskStreamView,
     GlobalAskView,
+)
+from core.api.speaker_identification import (
+    SpeakerIdentificationCandidatesView,
+    SpeakerIdentificationOptionsView,
+    SpeakerIdentificationView,
 )
 from core.api.tasks import (
     TaskGroupViewSet,
@@ -230,7 +230,26 @@ from core.api.uploaded_recordings import (
     DirectUploadPresignView,
     UploadedRecordingView,
 )
-from core.api.recording_identity_preflight import RecordingIdentityCandidatesView, RecordingIdentityPreflightView
+from core.api.voiceprint import (
+    VoiceprintDeletionsView,
+    VoiceprintDeletionView,
+    VoiceprintEnrollmentClipView,
+    VoiceprintEnrollmentsView,
+    VoiceprintEnrollmentView,
+    VoiceprintOrganizationPolicyView,
+    VoiceprintProfileView,
+    VoiceprintSampleAudioView,
+    VoiceprintSampleDecisionView,
+    VoiceprintSamplesView,
+    VoiceprintSampleView,
+    VoiceprintScopesView,
+    VoiceprintSettingsView,
+)
+from core.api.voiceprint_sampling import (
+    SamplingControlView,
+    SamplingPermitView,
+    SamplingValidationView,
+)
 from core.external_api import viewsets as external_viewsets
 
 # - Main endpoints
@@ -409,6 +428,8 @@ external_router.register(
 )
 
 urlpatterns = [
+    path("api/agent/voiceprint-sampling/permits/", SamplingPermitView.as_view(), name="voiceprint-sampling-permit"),
+    path("api/agent/voiceprint-sampling/permits/<uuid:permit_id>/validate/", SamplingValidationView.as_view(), name="voiceprint-sampling-validate"),
     path("api/v1.0/ai-call/session/", AiCallSessionView.as_view(), name="ai-call-session"),
     path("api/v1.0/direct-ai/sessions/<uuid:allocation_id>/", DirectAIAllocationView.as_view(), name="direct-ai-session"),
     path("api/v1.0/assistant-summary/", AssistantSummaryView.as_view(), name="assistant-summary"),
@@ -445,6 +466,7 @@ urlpatterns = [
                     "voiceprint/settings/",
                     VoiceprintSettingsView.as_view(), name="voiceprint-settings",
                 ),
+                path("voiceprint/sampling-control/", SamplingControlView.as_view(), name="voiceprint-sampling-control"),
                 path("voiceprint/scopes/", VoiceprintScopesView.as_view(), name="voiceprint-scopes"),
                 path("voiceprint/deletions/", VoiceprintDeletionsView.as_view(), name="voiceprint-deletions"),
                 path("voiceprint/enrollments/", VoiceprintEnrollmentsView.as_view(), name="voiceprint-enrollments"),

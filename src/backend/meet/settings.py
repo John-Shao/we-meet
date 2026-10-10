@@ -1168,6 +1168,11 @@ class Base(Configuration):
     )
     MEETING_VERSIONED_SUMMARY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_VOICEPRINT_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_VOICEPRINT_SAMPLING_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_VOICEPRINT_SAMPLING_AGENT_TOKEN = values.Value("", environ_prefix=None)
+    MEETING_VOICEPRINT_SAMPLING_CLIP_MS = values.PositiveIntegerValue(10000, environ_prefix=None)
+    MEETING_VOICEPRINT_SAMPLING_SESSION_MS = values.PositiveIntegerValue(60000, environ_prefix=None)
+    MEETING_VOICEPRINT_SAMPLING_DAILY_MS = values.PositiveIntegerValue(120000, environ_prefix=None)
     # Separate, rotatable mounted keyring; never fall back to DJANGO_SECRET_KEY.
     MEETING_VOICEPRINT_KEYRING_FILE = values.Value("", environ_prefix=None)
     MEETING_VOICEPRINT_ENCODER_CONFIG_FILE = values.Value("", environ_prefix=None)

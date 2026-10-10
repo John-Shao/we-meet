@@ -377,6 +377,11 @@ def cancel_pending_work(consent):
 
     speaker_identity_jobs.invalidate_consent_work(consent)
     now = timezone.now()
+    models.VoiceprintSamplingPermit.objects.filter(
+        profile__consent=consent,
+        consent_version__lt=consent.version,
+        status="issued",
+    ).update(status="canceled", updated_at=now)
     models.VoiceprintEnrollment.objects.filter(
         owner_id=consent.user_id,
         organization_id=consent.organization_id,
@@ -500,6 +505,20 @@ def purge_deleted(job_id):
         profile__in=profiles, generation__lt=job.revoked_generation
     )
     sample_count, template_count = samples.count(), templates.count()
+    # Retain only quota reservations: deleting a profile must not refund them.
+    models.VoiceprintSamplingPermit.objects.filter(
+        profile__in=profiles, generation__lt=job.revoked_generation
+    ).update(
+        track=None,
+        sample=None,
+        livekit_room_sid="",
+        participant_sid="",
+        participant_identity="",
+        source_track_sid="",
+        device_group="",
+        status="canceled",
+        updated_at=timezone.now(),
+    )
     templates.delete()
     samples.delete()
     profiles.filter(generation__lt=job.revoked_generation).update(

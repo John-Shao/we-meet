@@ -9910,3 +9910,135 @@ class VoiceprintSampleDecision(BaseModel):
 
     def __str__(self):
         return str(self.pk)
+
+
+class VoiceprintSamplingControl(BaseModel):
+    """Owner's current microphone declaration for one verified connection."""
+
+    participation = models.OneToOneField(
+        MeetingParticipation,
+        on_delete=models.CASCADE,
+        related_name="voiceprint_control",
+    )
+    revision = models.PositiveBigIntegerField(default=1)
+    paused = models.BooleanField(default=False)
+    # Unknown/shared devices are excluded until the owner explicitly declares them.
+    shared_microphone = models.BooleanField(default=True)
+    device_group = models.CharField(max_length=16, blank=True, default="")
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(revision__gte=1), name="vp_control_revision_positive"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    device_group__in=["", "headset", "handset", "computer"]
+                ),
+                name="vp_control_device_valid",
+            ),
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintSamplingTrack(BaseModel):
+    """Append-only track origin observed through a verified LiveKit webhook."""
+
+    participation = models.ForeignKey(
+        MeetingParticipation, on_delete=models.CASCADE, related_name="voiceprint_tracks"
+    )
+    livekit_track_sid = models.CharField(max_length=64, unique=True)
+    source = models.CharField(max_length=24)
+    media_type = models.CharField(max_length=8)
+    published_at = models.DateTimeField()
+    unpublished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(unpublished_at__isnull=True)
+                | models.Q(unpublished_at__gte=models.F("published_at")),
+                name="vp_track_end_after_start",
+            ),
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintSamplingPermit(BaseModel):
+    """One bounded clip reservation; never portable to another connection/track."""
+
+    track = models.ForeignKey(
+        VoiceprintSamplingTrack,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="permits",
+    )
+    profile = models.ForeignKey(
+        VoiceprintProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="sampling_permits",
+    )
+    owner = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="sampling_permits"
+    )
+    source_session_id = models.UUIDField()
+    source_track_sid = models.CharField(max_length=64)
+    livekit_room_sid = models.CharField(max_length=64)
+    participant_sid = models.CharField(max_length=64)
+    participant_identity = models.CharField(max_length=255)
+    request_key = models.UUIDField()
+    consent_version = models.PositiveBigIntegerField()
+    generation = models.PositiveBigIntegerField()
+    policy_version = models.PositiveBigIntegerField()
+    control_revision = models.PositiveBigIntegerField()
+    device_group = models.CharField(max_length=16)
+    max_duration_ms = models.PositiveIntegerField()
+    expires_at = models.DateTimeField(db_index=True)
+    status = models.CharField(
+        max_length=16,
+        default="issued",
+        choices=[
+            ("issued", "issued"),
+            ("canceled", "canceled"),
+            ("expired", "expired"),
+            ("consumed", "consumed"),
+        ],
+    )
+    sample = models.OneToOneField(
+        VoiceprintSample,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sampling_permit",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["track", "request_key"], name="vp_sampling_request_unique"
+            ),
+            models.UniqueConstraint(
+                fields=["track", "profile"],
+                condition=models.Q(status="issued"),
+                name="vp_sampling_one_issued",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    max_duration_ms__gte=3000, max_duration_ms__lte=10000
+                ),
+                name="vp_sampling_clip_bound",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["owner", "created_at"], name="vp_sampling_owner_time_idx"
+            )
+        ]
+
+    def __str__(self):
+        return str(self.pk)

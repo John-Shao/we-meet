@@ -26,7 +26,14 @@ class VoiceprintCryptoError(ValueError):
 
 def scope_aad(profile, *, kind, object_id=None):
     """Changing owner, scope, generation, model or purpose invalidates ciphertext."""
-    if kind not in {"key", "audio", "embedding", "template", "enrollment"}:
+    if kind not in {
+        "key",
+        "audio",
+        "embedding",
+        "template",
+        "enrollment",
+        "call-permit",
+    }:
         raise VoiceprintCryptoError("voiceprint_context_invalid")
     return json.dumps(
         {
