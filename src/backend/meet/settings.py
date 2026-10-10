@@ -983,7 +983,7 @@ class Base(Configuration):
         {"BACKEND": "work.storage.PrivateMaterialStorage"}, environ_prefix=None
     )
 
-    CELERY_BEAT_SCHEDULE = {
+    celery_beat_entries = {
         "tick-work-reviews": {
             "task": "work.tasks.tick_reviews",
             "schedule": 5.0,
@@ -1783,6 +1783,20 @@ class Base(Configuration):
                 "hide_untranslated": False,
             },
         }
+
+    @property
+    def CELERY_BEAT_SCHEDULE(self):
+        # Redis keeps expired messages until a consumer receives them. Avoid
+        # publishing disabled work to optional queues with no consumers.
+        schedule = self.celery_beat_entries.copy()
+        if not self.MEETING_VOICEPRINT_ENABLED:
+            schedule.pop("process-voiceprint-batches", None)
+        if not (
+            self.MEETING_VOICEPRINT_ENABLED and self.MEETING_VOICEPRINT_MATCHING_ENABLED
+        ):
+            schedule.pop("identify-speakers", None)
+        # Erasure and lease recovery must survive collection/matching shutdown.
+        return schedule
 
     @classmethod
     def post_setup(cls):

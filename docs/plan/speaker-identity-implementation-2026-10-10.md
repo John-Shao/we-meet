@@ -2,7 +2,9 @@
 
 日期：2026-10-10（Asia/Shanghai）；最近更新：2026-10-11。
 
-持续编码／质检／模板与身份批次、控制／处理／身份队列隔离及私有媒体配置已接通，见[调度走查](../research/voiceprint-processing-scheduler-review-2026-10-11.md)。最终 69 项专项／注册／导入预检、292 项组合回归及另外三条实际 Qwen／FFmpeg 链路通过；生产 Celery 注册／路由已验证，Linux broker 消费和消费者部署仍待完成。
+消费者、API／Beat 私有配置和同 Pod 临时文件清理后续已接通，见[消费者运行走查](../research/voiceprint-consumer-runtime-review-2026-10-11.md)。新增三个固定 prefork 角色、镜像内 FFmpeg／FFprobe、共享 Secret／UID／平台与配置一致性校验，关闭业务时不发布处理／身份扫描；267 项后端回归及 46 项 Helm 回归通过。最终 Linux 镜像已完成实际 Redis／prefork／Qwen／加密模板／SIGKILL 租约恢复／原始音频与残留清理验证。基础设施及业务开关仍默认关闭，生产 sampler／集群／RTC／实际设备及真人验收继续推进。
+
+持续编码／质检／模板与身份批次、控制／处理／身份队列隔离及私有媒体配置已接通，见[调度走查](../research/voiceprint-processing-scheduler-review-2026-10-11.md)。该阶段 69 项专项／注册／导入预检、292 项组合回归及另外三条实际 Qwen／FFmpeg 链路通过；生产 Celery 注册／路由已验证。后续消费者资源及 Linux broker 验证以上述运行走查为准。
 
 Linux 编码器镜像与私有部署资源已接通，见[Linux 走查](../research/voiceprint-linux-encoder-review-2026-10-11.md)：84 项完整 Linux 编码器测试和 36 项 Helm 回归通过，精简非 root 生产镜像完成实际模型 HTTPS／后端 RPC／重放／退出回收验证。业务队列、采样服务及后端私有配置的部署接入继续推进，未发布生产或获得真人效果结论。
 
@@ -32,7 +34,7 @@ Linux 编码器镜像与私有部署资源已接通，见[Linux 走查](../resea
 | 通话：可信账户／participant／track 许可、选择性采样、暂停与共享设备排除 | 可信来源、许可、声明、配额、独立 sampler／派发、一次性加密入库、单人质检、污染暂停、本人确认的首次及跨会话设备组、来源删除清理、派发持久租约／恢复和实际采样状态已接通；Web／Android 通话控制与状态已接通，完整 RTC 联调待完成 | [许可基础](../research/voiceprint-call-sampling-review-2026-10-10.md)、[采样管线](../research/voiceprint-call-pipeline-review-2026-10-10.md)、[设备组模板](../research/voiceprint-device-templates-review-2026-10-10.md)、[来源清理](../research/voiceprint-source-removal-review-2026-10-10.md)、[派发与状态](../research/voiceprint-dispatch-status-review-2026-10-11.md)；合成证据不代表实际会议或真人验收 |
 | AI 录音后分人：独立派生 generation、时间对齐和历史引用 | 后端派生版本、可信对齐、原子发布、修订继承、固定私有媒体、Qwen worker、操作 API 和录音身份队列已接通；Web／Android 分人入口、固定版本分页、身份确认和区间试听已接通 | [派生版本与 worker](../research/voiceprint-capture-diarization-review-2026-10-10.md)、[操作与查询走查](../research/voiceprint-capture-identity-api-review-2026-10-10.md)、[Web 走查](../research/voiceprint-capture-web-review-2026-10-10.md)、[Android 走查](../research/voiceprint-capture-android-review-2026-10-10.md)；合成多人建议须逐个人工确认，真人多人效果、完整产品路由与真实设备仍待验证 |
 | Web／Android：设置、采样状态、身份建议与人工确认 | 两端本人设置、登记、样本审核、导入后候选／建议确认及八态投影已接通；Web 三类通话的告知、声明、允许／暂停、积累关闭和私有状态已接通；Android 共用通话控制／设备监听／私有状态已接通，实际 RTC／真实设备验证待完成 | 设置／状态证据见[状态走查](../research/voiceprint-settings-status-review-2026-10-10.md)；本轮 99 项后端、126 项前端和无媒体 Chromium 契约证据见[Web 通话走查](../research/voiceprint-call-web-review-2026-10-11.md)；Android 89 项 JVM、28 项隔离模拟器与 APK 证据见[Android 通话走查](../research/voiceprint-call-android-review-2026-10-11.md) |
-| Helm／镜像：独立服务、默认关闭的开关、预算和观测 | Qwen Linux AMD64 CPU 哈希锁镜像、私有 HTTPS 编码器、非 root／只读挂载、预算、NetworkPolicy、默认关闭的 Helm 资源及聚合指标已实现；业务队列／sampler／后端私有配置与生产部署待完成 | 84 项 Linux 回归、精简镜像真实模型／TLS／后端 RPC／重放／退出回收，以及 36 项 Helm 回归通过；见[Linux 编码器走查](../research/voiceprint-linux-encoder-review-2026-10-11.md)，CNI／PVC／轮换／压力验收待完成 |
+| Helm／镜像：独立服务、默认关闭的开关、预算和观测 | Qwen Linux AMD64 CPU 哈希锁镜像、私有 HTTPS 编码器、三个固定消费者、后端媒体制品、统一 Secret／UID、独立清理、预算、NetworkPolicy、默认关闭的资源及聚合指标已实现；sampler 制品／凭证及生产部署待完成 | 编码器的 84 项 Linux 回归及精简制品实际模型／TLS／RPC／重放／回收见[编码器走查](../research/voiceprint-linux-encoder-review-2026-10-11.md)；后续 267 项后端、46 项 Helm 和实际消费者证据见[运行走查](../research/voiceprint-consumer-runtime-review-2026-10-11.md)；CNI／PVC／轮换／压力验收待完成 |
 | 真人效果、生产媒体条件、容量与发布验收 | 未完成 | 获授权真人数据及部署环境实测；暂无样本，不能宣称识别准确率达标 |
 
 受控自动更新、自动归属和实时身份展示依原方案继续作为后续独立阶段，不随首期默认启用。全量开发完成与正式开放识别能力分别验收，不能用少量通过的测试替代完整验收。

@@ -39,6 +39,8 @@ from core.tests.services.test_voiceprint_templates import contributions
 from core.tests.test_services_voiceprint_encoder import output
 from core.tests.test_services_voiceprint_quality_process import short_asr
 
+from meet.settings import Base
+
 pytestmark = pytest.mark.django_db
 
 
@@ -258,7 +260,7 @@ def test_periodic_jobs_have_fresh_bounded_messages_and_separate_processing_queue
         "process-voiceprint-batches",
         "identify-speakers",
     ):
-        item = settings.CELERY_BEAT_SCHEDULE[name]
+        item = Base.celery_beat_entries[name]
         assert item["schedule"] == 15.0 and item["options"]["expires"] == 30
         assert not item.get("args") and not item.get("kwargs")
         expected = (

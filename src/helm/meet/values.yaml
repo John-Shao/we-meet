@@ -1550,3 +1550,30 @@ voiceprintEncoder:
     enabled: true
     # Additional explicit peers, e.g. one metrics collector namespace/pod selector.
     additionalPeers: []
+
+# Runtime wiring does not enable business flags in backend.envVars.
+voiceprintRuntime:
+  enabled: false
+  configurationSecret: "" # Private JSON files and encoder-ca.crt, supplied externally.
+  configurationRevision: ""
+  userId: 10001 # API, consumers and local janitors must share this non-root UID.
+  tmpSizeLimit: 2Gi
+  janitorResources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {cpu: 100m, memory: 64Mi}
+
+# Three separate prefork consumers, each limited to one concurrent job.
+voiceprintWorkers:
+  enabled: false
+  replicas: 1 # Per role; requires runtime wiring and singleton Beat.
+  nodeSelector: {kubernetes.io/os: linux, kubernetes.io/arch: amd64}
+  tolerations: []
+  controlResources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 500m, memory: 512Mi, ephemeral-storage: 3Gi}
+  processingResources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 1, memory: 1Gi, ephemeral-storage: 3Gi}
+  identityResources:
+    requests: {cpu: 500m, memory: 512Mi}
+    limits: {cpu: 2, memory: 2Gi, ephemeral-storage: 3Gi}

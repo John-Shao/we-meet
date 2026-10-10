@@ -38,7 +38,7 @@ Linux 测试和生产探针均使用非 root、只读根文件系统、断网、
 3. **TLS Secret**：键为 `tls.crt`、`tls.key`，SAN 匹配实际 Service DNS，最低 TLS 1.2。TLS Secret 与凭证 Secret 名称必须不同；后端验证 CA 和主机名。
 4. **后端私有配置**：另行 Secret 挂载精确 JSON 字段 `url`、`api_token`、`permit_key`、`ca_bundle`，通过 `MEETING_VOICEPRINT_ENCODER_CONFIG_FILE` 指向它。`url` 为私有 HTTPS Service，`permit_key` 是编码器实际读取密钥字节的 Base64 表示，`ca_bundle` 为可信 CA 文件绝对路径或 `true`。CA 只读挂载；不关闭证书验证或使用环境代理／重定向。
 
-不要将凭证写入 Helm values、命令行、ConfigMap、日志或 Git。Chart 只接收资源名称；资源供应及业务 worker 接入留待后续部署阶段。
+不要将凭证写入 Helm values、命令行、ConfigMap、日志或 Git。Chart 只接收资源名称。后续业务消费者与私有配置接入见[消费者运行走查](voiceprint-consumer-runtime-review-2026-10-11.md)；外部资源供应和生产发布仍需部署验收。
 
 以下仅为 **values 示例**，占位镜像和资源不存在，不能直接发布：
 
@@ -65,6 +65,6 @@ voiceprintEncoder:
 
 ## 剩余工作
 
-独立编码器镜像／资源及基础指标已完成，整个部署尚未完成。持续处理定义后续已接通，见[调度走查](voiceprint-processing-scheduler-review-2026-10-11.md)；还需消费者部署／恢复、采样 agent 部署与私有凭证、后端 ffmpeg／ffprobe 镜像、统一 Secret 挂载／开关、生产指标／告警、实际 RTC／设备、历史版本／搜索、外部可信墓碑的备份恢复验证。目标集群的 CNI、PVC、轮换、硬限额及压力测试尚未验收。
+独立编码器镜像／资源及基础指标已完成，整个生产部署尚未完成。持续处理见[调度走查](voiceprint-processing-scheduler-review-2026-10-11.md)；消费者资源、后端 ffmpeg／ffprobe 制品、统一 Secret 挂载及独立临时文件清理后续见[消费者运行走查](voiceprint-consumer-runtime-review-2026-10-11.md)。仍需采样 agent 制品与私有凭证、生产指标／告警、实际 RTC／设备、历史版本／搜索、外部可信墓碑的备份恢复验证。目标集群的 CNI、PVC、轮换、硬限额及压力测试尚未验收。
 
 暂无获授权真人样本，不宣称准确率达标或开启自动身份归属；Qwen 不满足既定效果要求时再考虑 CAM++。这些限制不改变继续完成代码与技术验证的授权。

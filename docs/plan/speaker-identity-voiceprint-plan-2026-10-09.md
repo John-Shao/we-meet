@@ -15,6 +15,8 @@
 
 后续本人设置走查已修复试听响应到期竞争、撤权后私有状态残留、Android 缓存期限同步及 Web 旧删除状态误展示，验证见[私有状态与试听期限走查](../research/voiceprint-private-state-review-2026-10-10.md)。
 
+部署代码后续已接通三个固定 prefork 消费者、后端 FFmpeg／FFprobe 制品、API／Beat／消费者一致的私有 Secret／UID／平台及每 Pod 独立临时文件清理，见[消费者运行走查](../research/voiceprint-consumer-runtime-review-2026-10-11.md)。267 项后端及 46 项 Helm 回归通过，最终 Linux 制品完成实际队列消费、Qwen 编码／加密模板、异常退出租约恢复和清理验证；关闭业务时不发布处理／身份扫描，保留删除／恢复任务。业务默认关闭，sampler 制品／凭证、生产集群、完整 RTC／实际设备及真人效果验收仍待完成。
+
 导入预检已补齐本地单声道准备及后端接入，包含实际两小时合成媒体边界、上传任务门禁、明确继续决定、转写／查询共同固定版本回执与持久清理；见[媒体准备记录](../research/voiceprint-import-media-preparation-2026-10-10.md)和[后端接入走查](../research/voiceprint-import-preflight-review-2026-10-10.md)。Web 与 Android 导入前显式选择、失败决定界面和转写后的持久身份请求调度已接通，见[Web 与调度走查](../research/voiceprint-import-web-dispatch-review-2026-10-10.md)及[Android 导入走查](../research/voiceprint-import-android-review-2026-10-10.md)；AI 录音分人的后续进度见下文；通话采样、部署及真人验收仍待完成，尚未完整交付或上线。
 
 AI 录音后续阶段已接通独立派生版本、原文时间对齐、原子发布、人工修订继承、保留缺口的私有媒体准备和一次 Qwen 提交／持久轮询，见[派生版本与 worker 走查](../research/voiceprint-capture-diarization-review-2026-10-10.md)。分人操作 API、取消回执及固定版本录音身份查询的后端已接通，含派生 JSON 预算、内容 SHA-256 和独立存储校验，见[操作与查询走查](../research/voiceprint-capture-identity-api-review-2026-10-10.md)。Web／Android 分人入口、同请求恢复、固定派生版本分页、身份确认及录音区间试听已接通并走查，见[Web 走查](../research/voiceprint-capture-web-review-2026-10-10.md)和[Android 走查](../research/voiceprint-capture-android-review-2026-10-10.md)。Android 本轮 120 项 JVM、35 项隔离模拟器回归与构建通过；完整产品路由／真实设备、真人效果及生产验收仍待完成。
