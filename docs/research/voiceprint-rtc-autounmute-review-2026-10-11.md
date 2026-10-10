@@ -1,5 +1,7 @@
 # RTC 解除静音与许可终态走查
 
+后续[空闲退出与首次订阅走查](voiceprint-rtc-idle-exit-review-2026-10-11.md)已验证长时间静音导致任务自然退出后的重新派发，并修复首次订阅前漏发停止回执的竞争。本文保留先前运行的独立证据；网络软重连及实际设备仍需继续。
+
 日期：2026-10-11（Asia/Shanghai）。接续[媒体边界走查](voiceprint-rtc-media-boundaries-review-2026-10-11.md)，将静音后的探针改为仅执行原生 `unmute()`，不再调用本人暂停／恢复接口。仍使用合成音频及用户、真实 LiveKit／HTTPS 后端／Beat／消费者／Qwen encoder，ASR 为本地协议 fixture。
 
 ## 失败证据与修复

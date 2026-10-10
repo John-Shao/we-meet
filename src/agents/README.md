@@ -79,6 +79,8 @@ Helm 资源已接通，完整后端 RTC 合成链路已通过，实际设备及�
 [媒体边界走查](../../docs/research/voiceprint-rtc-media-boundaries-review-2026-10-11.md)。
 后续许可终态、单次自动恢复与清理证据见
 [自动解除静音走查](../../docs/research/voiceprint-rtc-autounmute-review-2026-10-11.md)。
+长时间静音的自然空闲退出恢复、首次订阅竞争、制品及扩展复现见
+[空闲退出走查](../../docs/research/voiceprint-rtc-idle-exit-review-2026-10-11.md)。
 当前不在生产启用。兼容性与验证见
 [采样管线走查](../../docs/research/voiceprint-call-pipeline-review-2026-10-10.md)及
 [设备组模板走查](../../docs/research/voiceprint-device-templates-review-2026-10-10.md)及

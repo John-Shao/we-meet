@@ -324,6 +324,87 @@ class SamplingRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 publication.set_subscribed.assert_not_called()
                 client.upload.assert_not_awaited()
 
+    async def test_source_change_during_initial_authorization_closes_permit(self):
+        """An issued grant always gets a terminal report, even before subscription."""
+        for change in ("issue_mute", "validate_mute", "validate_reconnect"):
+            with self.subTest(change=change):
+                await self.initial_source_change(change)
+
+    async def initial_source_change(self, change):
+        """Freeze each asynchronous fixture before mutating its RTC metadata."""
+        ctx, participant, publication, client, grant, origin = fixture()
+        phases = []
+
+        async def progress(_grant, _origin, phase, _sequence):
+            self.assertEqual((_grant, _origin), (grant, origin))
+            phases.append(phase)
+            if phase == "waiting":
+                if change == "validate_reconnect":
+                    ctx.room.remote_participants[participant.identity] = object()
+                else:
+                    publication.muted = True
+            return True
+
+        async def issue(_origin):
+            publication.muted = True
+            return grant
+
+        client.progress = mock.AsyncMock(side_effect=progress)
+        if change == "issue_mute":
+            client.issue.side_effect = issue
+        runtime = sampler.Sampler(ctx, client, ctx.room.sid)
+        original_idle = runtime.last_authorized
+        with mock.patch.object(sampler, "audio_stream", mock.AsyncMock()) as audio:
+            await runtime.attempt(participant, publication)
+        self.assertEqual(
+            phases, ["stopped"] if change == "issue_mute" else ["waiting", "stopped"]
+        )
+        publication.set_subscribed.assert_not_called()
+        client.upload.assert_not_awaited()
+        audio.assert_not_awaited()
+        self.assertEqual(runtime.last_authorized, original_idle)
+
+    async def test_initial_progress_failure_still_reports_terminal_state(self):
+        """Transport loss before subscription cannot leave a locally usable grant."""
+        ctx, participant, publication, client, _, _ = fixture()
+        client.progress = mock.AsyncMock(
+            side_effect=[SamplingError("sampling_unavailable"), True]
+        )
+        runtime = sampler.Sampler(ctx, client, ctx.room.sid)
+        with self.assertRaisesRegex(SamplingError, "sampling_unavailable"):
+            await runtime.attempt(participant, publication)
+        self.assertEqual(
+            [call.args[2] for call in client.progress.call_args_list],
+            ["waiting", "stopped"],
+        )
+        publication.set_subscribed.assert_not_called()
+        client.upload.assert_not_awaited()
+
+    async def test_cancel_during_initial_authorization_closes_permit(self):
+        """Cancellation remains observable after the terminal cleanup request."""
+        ctx, participant, publication, client, _, _ = fixture()
+        entered = asyncio.Event()
+
+        async def progress(_grant, _origin, phase, _sequence):
+            if phase == "waiting":
+                entered.set()
+                await asyncio.Future()
+            return True
+
+        client.progress = mock.AsyncMock(side_effect=progress)
+        runtime = sampler.Sampler(ctx, client, ctx.room.sid)
+        task = asyncio.create_task(runtime.attempt(participant, publication))
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertEqual(
+            [call.args[2] for call in client.progress.call_args_list],
+            ["waiting", "stopped"],
+        )
+        publication.set_subscribed.assert_not_called()
+        client.upload.assert_not_awaited()
+
     async def test_mid_clip_revocation_discards_every_byte_and_closes(self):
         """A failed heartbeat cannot be treated as a successful partial capture."""
         ctx, participant, publication, client, _, _ = fixture()

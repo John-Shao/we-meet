@@ -366,7 +366,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                     )
                     if boundaries:
                         require(
-                            result["canceled_permits"] >= 7 and result["permits"] >= 10,
+                            result["canceled_permits"] >= 8 and result["permits"] >= 11,
                             "native_media_boundaries",
                         )
                     print(json.dumps({"status": "passed", **result}), flush=True)

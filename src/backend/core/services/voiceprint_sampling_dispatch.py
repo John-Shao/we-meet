@@ -41,15 +41,44 @@ class SamplingDispatchError(ValueError):
     """Retryable fixed error without media, credentials or participant identities."""
 
 
-def reusable(dispatch):
-    """An empty provider receipt is a brief launch window, not a live job."""
+def launch_grace(created):
+    """Unknown/future timestamps cannot prove that startup has expired."""
+    return created <= 0 or time_ns() - created < RECHECK_SECONDS * 1_000_000_000
+
+
+def reusable(dispatch, identities=None):
+    """Preserve launches; an aged running snapshot needs a connected participant."""
     jobs = dispatch.state.jobs
     if jobs:
-        return any(job.state.status in {JS_PENDING, JS_RUNNING} for job in jobs)
+        return any(
+            job.state.status == JS_PENDING
+            or job.state.status == JS_RUNNING
+            and (
+                launch_grace(job.state.started_at)
+                or not job.state.participant_identity
+                or identities is None
+                or job.state.participant_identity in identities
+            )
+            for job in jobs
+        )
     # LiveKit 1.13.1 uses UnixNano here. Unknown/future timestamps fail closed:
     # do not terminate an unproven launch, including during clock skew.
-    created = dispatch.state.created_at
-    return created <= 0 or time_ns() - created < RECHECK_SECONDS * 1_000_000_000
+    return launch_grace(dispatch.state.created_at)
+
+
+def presence_needed(dispatch):
+    """Only a wholly aged, identified running receipt can be proven abandoned."""
+    active = [
+        job
+        for job in dispatch.state.jobs
+        if job.state.status in {JS_PENDING, JS_RUNNING}
+    ]
+    return bool(active) and all(
+        job.state.status == JS_RUNNING
+        and job.state.participant_identity
+        and not launch_grace(job.state.started_at)
+        for job in active
+    )
 
 
 def same_dispatch(dispatch, room_sid, agent_name):
@@ -81,23 +110,47 @@ async def send(room_name, room_sid, agent_name):
                     for dispatch in dispatches
                     if same_dispatch(dispatch, room_sid, agent_name)
                 ]
-                if any(reusable(dispatch) for dispatch in matching):
+
+                async def any_reusable(receipts):
+                    if any(
+                        reusable(item) and not presence_needed(item)
+                        for item in receipts
+                    ):
+                        return True
+                    if not any(presence_needed(item) for item in receipts):
+                        return False
+                    # Room dispatch jobs are provider snapshots. Query actual
+                    # participants before trusting an aged running job receipt.
+                    response = await client.room.list_participants(
+                        api.ListParticipantsRequest(room=room_name)
+                    )
+                    identities = {
+                        participant.identity for participant in response.participants
+                    }
+                    return any(reusable(item, identities) for item in receipts)
+
+                if await any_reusable(matching):
                     return "existing"
-                # Replace at most one aged, empty receipt per bounded RPC batch.
-                # Re-read it first: LaunchJob may have completed since the list.
-                empty = next(
-                    (dispatch for dispatch in matching if not dispatch.state.jobs), None
+                # Replace at most one empty/abandoned receipt per RPC batch.
+                # Re-read both job state and presence before deleting anything.
+                retired = next(
+                    (
+                        dispatch
+                        for dispatch in matching
+                        if not dispatch.state.jobs or presence_needed(dispatch)
+                    ),
+                    None,
                 )
-                if empty is not None:
+                if retired is not None:
                     current = await client.agent_dispatch.get_dispatch(
-                        empty.id, room_name
+                        retired.id, room_name
                     )
                     if current is not None and same_dispatch(
                         current, room_sid, agent_name
                     ):
-                        if reusable(current):
+                        if await any_reusable([current]):
                             return "existing"
-                        if not current.state.jobs:
+                        if not reusable(current, set()) or presence_needed(current):
                             # A reusable business name can now refer to a new room.
                             rooms = await client.room.list_rooms(
                                 api.ListRoomsRequest(names=[room_name])
@@ -107,6 +160,11 @@ async def send(room_name, room_sid, agent_name):
                             await client.agent_dispatch.delete_dispatch(
                                 current.id, room_name
                             )
+                rooms = await client.room.list_rooms(
+                    api.ListRoomsRequest(names=[room_name])
+                )
+                if not any(room.sid == room_sid for room in rooms.rooms):
+                    return "ended"
                 await client.agent_dispatch.create_dispatch(
                     api.CreateAgentDispatchRequest(
                         agent_name=agent_name,

@@ -28,11 +28,12 @@ def prepared(settings, monkeypatch):
     settings.MEETING_VOICEPRINT_SAMPLING_AGENT_NAME = "synthetic-voiceprint-worker"
     client = SimpleNamespace(
         room=SimpleNamespace(
+            list_participants=AsyncMock(return_value=api.ListParticipantsResponse()),
             list_rooms=AsyncMock(
                 return_value=api.ListRoomsResponse(
                     rooms=[api.Room(sid=fixture.session.livekit_room_sid)]
                 )
-            )
+            ),
         ),
         agent_dispatch=SimpleNamespace(
             list_dispatch=AsyncMock(return_value=[]),
@@ -185,6 +186,245 @@ def test_live_job_wins_over_an_earlier_empty_receipt(prepared, monkeypatch):
     assert service.dispatch(fixture.session.pk) == "existing"
     client.agent_dispatch.delete_dispatch.assert_not_awaited()
     client.agent_dispatch.create_dispatch.assert_not_awaited()
+
+
+def running_receipt(fixture):
+    receipt = api.AgentDispatch(
+        id="AD_retired",
+        agent_name="synthetic-voiceprint-worker",
+        metadata=json.dumps(
+            {"voiceprint": {"livekit_room_sid": fixture.session.livekit_room_sid}}
+        ),
+    )
+    receipt.state.created_at = 1
+    job = receipt.state.jobs.add(id="AJ_retired")
+    job.state.status = 1
+    job.state.started_at = 1
+    job.state.participant_identity = "synthetic-sampler"
+    return receipt
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "present",
+        "absent",
+        "fresh",
+        "boundary",
+        "unknown_time",
+        "future",
+        "missing_identity",
+        "pending",
+        "mixed_pending",
+        "other_participant",
+    ],
+)
+def test_running_receipt_requires_presence_only_after_known_startup_grace(
+    prepared, monkeypatch, case
+):
+    fixture, client = prepared
+    monkeypatch.setattr(service, "time_ns", lambda: 100_000_000_000)
+    receipt = running_receipt(fixture)
+    client.agent_dispatch.list_dispatch.return_value = [receipt]
+    client.agent_dispatch.get_dispatch.return_value = receipt
+    if case in {"present", "other_participant"}:
+        client.room.list_participants.return_value = api.ListParticipantsResponse(
+            participants=[
+                api.ParticipantInfo(
+                    identity="synthetic-sampler"
+                    if case == "present"
+                    else "other-sampler"
+                )
+            ]
+        )
+    elif case == "fresh":
+        receipt.state.jobs[0].state.started_at = 71_000_000_000
+    elif case == "boundary":
+        receipt.state.jobs[0].state.started_at = 70_000_000_000
+    elif case == "unknown_time":
+        receipt.state.jobs[0].state.started_at = 0
+    elif case == "future":
+        receipt.state.jobs[0].state.started_at = 101_000_000_000
+    elif case == "missing_identity":
+        receipt.state.jobs[0].state.participant_identity = ""
+    elif case == "pending":
+        receipt.state.jobs[0].state.status = 0
+    elif case == "mixed_pending":
+        receipt.state.jobs.add().state.status = 0
+    replaced = case in {"absent", "other_participant", "boundary"}
+    assert service.dispatch(fixture.session.pk) == (
+        "created" if replaced else "existing"
+    )
+    if replaced:
+        client.agent_dispatch.delete_dispatch.assert_awaited_once_with(
+            receipt.id, str(fixture.room.pk)
+        )
+        assert client.room.list_participants.await_count == 2
+    else:
+        client.agent_dispatch.delete_dispatch.assert_not_awaited()
+        client.agent_dispatch.create_dispatch.assert_not_awaited()
+        assert client.room.list_participants.await_count == (
+            1 if case == "present" else 0
+        )
+
+
+@pytest.mark.parametrize(
+    "race",
+    [
+        "returning",
+        "fresh_job",
+        "unknown_job",
+        "pending",
+        "different_scope",
+        "room",
+        "provider_failure",
+    ],
+)
+def test_retired_job_and_presence_are_reread_before_deletion(
+    prepared, monkeypatch, race
+):
+    fixture, client = prepared
+    monkeypatch.setattr(service, "time_ns", lambda: 100_000_000_000)
+    receipt = running_receipt(fixture)
+    refreshed = api.AgentDispatch()
+    refreshed.CopyFrom(receipt)
+    client.agent_dispatch.list_dispatch.return_value = [receipt]
+    client.agent_dispatch.get_dispatch.return_value = refreshed
+    if race == "returning":
+        client.room.list_participants.side_effect = [
+            api.ListParticipantsResponse(),
+            api.ListParticipantsResponse(
+                participants=[api.ParticipantInfo(identity="synthetic-sampler")]
+            ),
+        ]
+    elif race == "fresh_job":
+        refreshed.state.jobs[0].state.started_at = 100_000_000_000
+    elif race == "unknown_job":
+        refreshed.state.jobs[0].state.started_at = 0
+    elif race == "pending":
+        refreshed.state.jobs.add().state.status = 0
+    elif race == "different_scope":
+        refreshed.metadata = "{}"
+    elif race == "room":
+        client.room.list_rooms.side_effect = [
+            client.room.list_rooms.return_value,
+            api.ListRoomsResponse(rooms=[api.Room(sid="RM_replaced")]),
+        ]
+    else:
+        client.room.list_participants.side_effect = [
+            api.ListParticipantsResponse(),
+            RuntimeError("private provider diagnostic"),
+        ]
+    if race == "provider_failure":
+        with pytest.raises(
+            service.SamplingDispatchError, match="^sampling_dispatch_unavailable$"
+        ):
+            service.dispatch(fixture.session.pk)
+    else:
+        assert service.dispatch(fixture.session.pk) == (
+            "ended"
+            if race == "room"
+            else "created"
+            if race == "different_scope"
+            else "existing"
+        )
+    client.agent_dispatch.delete_dispatch.assert_not_awaited()
+    if race != "different_scope":
+        client.agent_dispatch.create_dispatch.assert_not_awaited()
+    client.aclose.assert_awaited_once()
+
+
+def test_present_job_wins_over_earlier_retired_receipt(prepared, monkeypatch):
+    fixture, client = prepared
+    monkeypatch.setattr(service, "time_ns", lambda: 100_000_000_000)
+    receipt = running_receipt(fixture)
+    live = api.AgentDispatch()
+    live.CopyFrom(receipt)
+    live.id = "AD_live"
+    live.state.jobs[0].state.participant_identity = "live-sampler"
+    client.agent_dispatch.list_dispatch.return_value = [receipt, live]
+    client.room.list_participants.return_value = api.ListParticipantsResponse(
+        participants=[api.ParticipantInfo(identity="live-sampler")]
+    )
+    assert service.dispatch(fixture.session.pk) == "existing"
+    client.agent_dispatch.get_dispatch.assert_not_awaited()
+    client.agent_dispatch.delete_dispatch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("receipt_state", ["missing", "scope", "empty"])
+def test_room_is_rechecked_before_creating_after_receipt_change(
+    prepared, monkeypatch, receipt_state
+):
+    fixture, client = prepared
+    monkeypatch.setattr(service, "time_ns", lambda: 100_000_000_000)
+    receipt = running_receipt(fixture)
+    client.agent_dispatch.list_dispatch.return_value = [receipt]
+    client.agent_dispatch.get_dispatch.return_value = None
+    if receipt_state == "scope":
+        refreshed = api.AgentDispatch()
+        refreshed.CopyFrom(receipt)
+        refreshed.metadata = "{}"
+        client.agent_dispatch.get_dispatch.return_value = refreshed
+    elif receipt_state == "empty":
+        client.agent_dispatch.list_dispatch.return_value = []
+    client.room.list_rooms.side_effect = [
+        client.room.list_rooms.return_value,
+        api.ListRoomsResponse(rooms=[api.Room(sid="RM_new")]),
+    ]
+    assert service.dispatch(fixture.session.pk) == "ended"
+    client.agent_dispatch.delete_dispatch.assert_not_awaited()
+    client.agent_dispatch.create_dispatch.assert_not_awaited()
+
+
+def test_retired_running_receipts_replace_at_most_one_per_batch(prepared, monkeypatch):
+    fixture, client = prepared
+    monkeypatch.setattr(service, "time_ns", lambda: 100_000_000_000)
+    receipt = running_receipt(fixture)
+    other = api.AgentDispatch()
+    other.CopyFrom(receipt)
+    other.id = "AD_other"
+    other.state.jobs[0].state.participant_identity = "other-retired-sampler"
+    client.agent_dispatch.list_dispatch.return_value = [receipt, other]
+    client.agent_dispatch.get_dispatch.return_value = receipt
+    assert service.dispatch(fixture.session.pk) == "created"
+    client.agent_dispatch.get_dispatch.assert_awaited_once_with(
+        receipt.id, str(fixture.room.pk)
+    )
+    client.agent_dispatch.delete_dispatch.assert_awaited_once_with(
+        receipt.id, str(fixture.room.pk)
+    )
+
+
+@pytest.mark.parametrize("stage", ["initial", "reread"])
+def test_presence_timeout_cancels_rpc_without_deleting_receipt(
+    prepared, monkeypatch, stage
+):
+    fixture, client = prepared
+    monkeypatch.setattr(service, "time_ns", lambda: 100_000_000_000)
+    monkeypatch.setattr(service, "RPC_SECONDS", 0.02)
+    receipt = running_receipt(fixture)
+    client.agent_dispatch.list_dispatch.return_value = [receipt]
+    client.agent_dispatch.get_dispatch.return_value = receipt
+    called, canceled = [], []
+
+    async def stalled(_request):
+        called.append(True)
+        if stage == "reread" and len(called) == 1:
+            return api.ListParticipantsResponse()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            canceled.append(True)
+
+    client.room.list_participants.side_effect = stalled
+    with pytest.raises(
+        service.SamplingDispatchError, match="^sampling_dispatch_unavailable$"
+    ):
+        service.dispatch(fixture.session.pk)
+    assert canceled == [True]
+    client.agent_dispatch.delete_dispatch.assert_not_awaited()
+    client.agent_dispatch.create_dispatch.assert_not_awaited()
+    client.aclose.assert_awaited_once()
 
 
 @pytest.mark.parametrize(

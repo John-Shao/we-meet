@@ -234,11 +234,11 @@ class Sampler:
                 and self.current(participant, publication, origin, identity)
             )
 
-        if not await authorized():
-            return
-        self.last_authorized = asyncio.get_running_loop().time()
         wav = None
         try:
+            if not await authorized():
+                return
+            self.last_authorized = asyncio.get_running_loop().time()
             try:
                 self.publication = publication
                 publication.set_subscribed(True)

@@ -726,12 +726,184 @@ async def run():  # noqa: PLR0912, PLR0915 -- Keep this single ordered media sce
                 fourth = await client.room.create_room(
                     api.CreateRoomRequest(name=room_name)
                 )
-                first_connection, _publication = await publisher(0, owner)
+                first_connection, first_publication = await publisher(0, owner)
                 first_query, control = await connected(
                     fourth.sid, first_connection.local_participant.sid
                 )
                 control = await change(control, first_query)
-                await runtime(control, first_query, "sampling")
+                control = await runtime(control, first_query, "sampling")
+                first_publication.track.mute()
+                control = await runtime(control, first_query, "waiting")
+                async with asyncio.timeout(8):
+                    while True:
+                        dispatches = await client.agent_dispatch.list_dispatch(
+                            room_name
+                        )
+                        previous_dispatch = next(
+                            (
+                                item
+                                for item in dispatches
+                                if item.agent_name == "fixture-sampler"
+                                and not item.state.deleted_at
+                                and any(
+                                    job.state.status in {0, 1}
+                                    for job in item.state.jobs
+                                )
+                                and json.loads(item.metadata)
+                                == {"voiceprint": {"livekit_room_sid": fourth.sid}}
+                            ),
+                            None,
+                        )
+                        if previous_dispatch is not None:
+                            break
+                        await asyncio.sleep(0.2)
+                async with asyncio.timeout(55):
+                    while True:
+                        async with http.get("http://sampler:8094/metrics") as response:
+                            metrics = await response.text()
+                        if "voiceprint_sampler_active_rooms 0\n" in metrics:
+                            break
+                        await asyncio.sleep(1)
+                stopped_dispatch = await client.agent_dispatch.get_dispatch(
+                    previous_dispatch.id, room_name
+                )
+                print(
+                    json.dumps(
+                        {
+                            "event": "rtc_media_probe_phase",
+                            "phase": "long_mute_sampler_idle",
+                            "jobs": [
+                                job.state.status for job in stopped_dispatch.state.jobs
+                            ]
+                            if stopped_dispatch is not None
+                            else [],
+                            "sampler_ready": "voiceprint_sampler_ready 1\n" in metrics,
+                        }
+                    ),
+                    flush=True,
+                )
+                before_resume = await fixture_request("/state")
+                frozen_revision = control["revision"]
+                idle_resume_started = asyncio.get_running_loop().time()
+                first_publication.track.unmute()
+                control = await runtime(
+                    control,
+                    first_query,
+                    "sampling",
+                    minimum_permits=before_resume["permits"] + 1,
+                )
+                # Stop this proof clip before waiting for asynchronously attached
+                # dispatch job metadata; recovery must not add a fourth sample.
+                first_publication.track.mute()
+
+                def fresh_dispatch(item):
+                    return (
+                        item.id != previous_dispatch.id
+                        and item.agent_name == "fixture-sampler"
+                        and any(job.state.status in {0, 1} for job in item.state.jobs)
+                        and json.loads(item.metadata)
+                        == {"voiceprint": {"livekit_room_sid": fourth.sid}}
+                    )
+
+                async with asyncio.timeout(8):
+                    inspected = False
+                    while True:
+                        dispatches = await client.agent_dispatch.list_dispatch(
+                            room_name
+                        )
+                        if not inspected:
+                            print(
+                                json.dumps(
+                                    {
+                                        "event": "rtc_media_probe_phase",
+                                        "phase": "new_dispatch_job_observation",
+                                        "control_revision_unchanged": control[
+                                            "revision"
+                                        ]
+                                        == frozen_revision,
+                                        "receipts": [
+                                            {
+                                                "different_id": item.id
+                                                != previous_dispatch.id,
+                                                "sampler_agent": item.agent_name
+                                                == "fixture-sampler",
+                                                "same_scope": json.loads(item.metadata)
+                                                == {
+                                                    "voiceprint": {
+                                                        "livekit_room_sid": fourth.sid
+                                                    }
+                                                }
+                                                if item.agent_name == "fixture-sampler"
+                                                else False,
+                                                "jobs": [
+                                                    job.state.status
+                                                    for job in item.state.jobs
+                                                ],
+                                            }
+                                            for item in dispatches
+                                        ],
+                                    }
+                                ),
+                                flush=True,
+                            )
+                            inspected = True
+                        if any(fresh_dispatch(item) for item in dispatches):
+                            break
+                        await asyncio.sleep(0.2)
+                retired_dispatch = await client.agent_dispatch.get_dispatch(
+                    previous_dispatch.id, room_name
+                )
+                retired_jobs = (
+                    [job.state.status for job in retired_dispatch.state.jobs]
+                    if retired_dispatch is not None
+                    else []
+                )
+                old_ended = (
+                    retired_dispatch is None
+                    or bool(retired_dispatch.state.deleted_at)
+                    or bool(retired_jobs)
+                    and all(status in {2, 3} for status in retired_jobs)
+                )
+                print(
+                    json.dumps(
+                        {
+                            "event": "rtc_media_probe_phase",
+                            "phase": "idle_recovery_dispatch_evidence",
+                            "old_receipt_present": retired_dispatch is not None,
+                            "old_jobs": retired_jobs,
+                            "old_ended": old_ended,
+                            "control_revision_unchanged": control["revision"]
+                            == frozen_revision,
+                            "new_active_dispatch": any(
+                                fresh_dispatch(item) for item in dispatches
+                            ),
+                            "candidate_count": (await fixture_request("/state"))[
+                                "candidates"
+                            ],
+                        }
+                    ),
+                    flush=True,
+                )
+                require(
+                    control["revision"] == frozen_revision
+                    and old_ended
+                    and any(fresh_dispatch(item) for item in dispatches)
+                    and (await fixture_request("/state"))["candidates"] == 3,
+                    "idle_exit_replaced_without_control_change",
+                )
+                print(
+                    json.dumps(
+                        {
+                            "event": "rtc_media_probe_phase",
+                            "phase": "long_mute_idle_exit_recovered",
+                            "elapsed_seconds": round(
+                                asyncio.get_running_loop().time() - idle_resume_started,
+                                2,
+                            ),
+                        }
+                    ),
+                    flush=True,
+                )
                 await first_connection.disconnect()
                 await stop_feeds()
                 reconnected, new_publication = await publisher(0, owner)
@@ -788,6 +960,7 @@ async def run():  # noqa: PLR0912, PLR0915 -- Keep this single ordered media sce
                         "automatic_unmute_recovered": bool(
                             fixture.get("media_boundaries")
                         ),
+                        "idle_exit_recovered": bool(fixture.get("media_boundaries")),
                     }
                 ),
                 flush=True,
@@ -813,9 +986,21 @@ if __name__ == "__main__":
             and str(error).startswith("rtc_media_probe_")
             else "rtc_media_probe_failed"
         )
+        probe_line = None
+        for failure in (error, error.__cause__):
+            trace = failure.__traceback__ if failure is not None else None
+            while trace is not None:
+                if trace.tb_frame.f_code.co_filename == __file__:
+                    probe_line = trace.tb_lineno
+                trace = trace.tb_next
         print(
             json.dumps(
-                {"status": "failed", "code": code, "failure": type(error).__name__}
+                {
+                    "status": "failed",
+                    "code": code,
+                    "failure": type(error).__name__,
+                    "probe_line": probe_line,
+                }
             ),
             file=sys.stderr,
         )

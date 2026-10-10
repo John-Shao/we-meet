@@ -81,10 +81,10 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
     parser.add_argument("--model-pack", required=True, type=Path)
     parser.add_argument("--diagnostics-dir", required=True, type=Path)
     parser.add_argument(
-        "--backend-image", default="we-meet-backend:voiceprint-stop-20261011"
+        "--backend-image", default="we-meet-backend:voiceprint-idle-20261011"
     )
     parser.add_argument(
-        "--sampler-image", default="we-meet-voiceprint-sampler:feature-20261011"
+        "--sampler-image", default="we-meet-voiceprint-sampler:idle-20261011"
     )
     parser.add_argument(
         "--encoder-image", default="we-meet-voiceprint:feature-20261011"
@@ -93,7 +93,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
     parser.add_argument(
         "--media-boundaries",
         action="store_true",
-        help="Also verify native mute, track replacement and participant reconnect.",
+        help="Also verify native mute, idle exit recovery, track replacement and reconnect.",
     )
     args = parser.parse_args()
     pack, diagnostics = args.model_pack.resolve(), args.diagnostics_dir.resolve()
