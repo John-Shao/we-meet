@@ -6,11 +6,30 @@ from django.db.models import Max
 from django.db.models.signals import post_delete, post_save, pre_delete
 
 from core import models
+from core.services import voiceprint_source_removal as removal
 from core.services.voiceprint_consent import (
     active_member,
     invalidate_subject,
     revocation_floor,
 )
+
+
+def source_removed(sender, instance, **kwargs):
+    kind = {
+        models.MeetingSession: "session",
+        models.VoiceprintSamplingTrack: "track",
+        models.MeetingRecord: "record",
+    }[sender]
+    removal.remove_source(kind, instance)
+
+
+def record_removed(sender, instance, **kwargs):
+    if instance.deleted_at is not None:
+        removal.remove_source("record", instance)
+
+
+def sample_removed(sender, instance, **kwargs):
+    removal.remove_sample(instance)
 
 
 def account_changed(sender, instance, **kwargs):
@@ -65,6 +84,29 @@ def consent_removed(sender, instance, **kwargs):
 
 
 def connect_handlers():
+    for sender in (
+        models.MeetingSession,
+        models.VoiceprintSamplingTrack,
+        models.MeetingRecord,
+    ):
+        pre_delete.connect(
+            source_removed,
+            sender=sender,
+            dispatch_uid=f"vp_source_removed_{sender.__name__}",
+            weak=False,
+        )
+    post_save.connect(
+        record_removed,
+        sender=models.MeetingRecord,
+        dispatch_uid="vp_record_trashed",
+        weak=False,
+    )
+    pre_delete.connect(
+        sample_removed,
+        sender=models.VoiceprintSample,
+        dispatch_uid="vp_sample_removed",
+        weak=False,
+    )
     post_save.connect(
         account_changed,
         sender=models.User,

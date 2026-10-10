@@ -23,6 +23,7 @@ from livekit import api
 from core import models
 from core.services import voiceprint_consent as consent
 from core.services import voiceprint_enrollment as enrollment
+from core.services import voiceprint_source_removal as removal
 from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_crypto import load_keyring, scope_aad
 from core.services.voiceprint_encoder import FEATURE_SPACE
@@ -68,6 +69,8 @@ def connected(participation):
         or not session.livekit_room_sid
     ):
         raise VoiceprintError("voiceprint_sampling_connection_ended")
+    if removal.session_removed(session.pk):
+        raise VoiceprintError("voiceprint_sampling_source_removed")
 
 
 @transaction.atomic
@@ -76,7 +79,21 @@ def record_track(*, participation, track, published, event_at):
     if not enabled():
         return None
     identifier = sid(track.sid)
-    models.MeetingSession.objects.select_for_update().get(pk=participation.session_id)
+    session = (
+        models.MeetingSession.objects.select_for_update()
+        .filter(pk=participation.session_id)
+        .first()
+    )
+    if session is None:
+        raise VoiceprintError("voiceprint_sampling_connection_ended")
+    # The fence must be read after the lock: deletion may have committed while
+    # this webhook was waiting for the same session row.
+    if models.VoiceprintSourceRemoval.objects.filter(
+        kind="track", track_digest=removal.track_digest(identifier)
+    ).exists():
+        raise VoiceprintError("voiceprint_sampling_track_removed", status=409)
+    if removal.session_removed(session.pk):
+        raise VoiceprintError("voiceprint_sampling_source_removed")
     origin = (
         models.VoiceprintSamplingTrack.objects.select_for_update()
         .filter(livekit_track_sid=identifier)
@@ -149,6 +166,8 @@ def state(participation, control=None):
         reason = "disabled"
     elif participation.left_at is not None or participation.session.status != "active":
         reason = "disconnected"
+    elif removal.session_removed(participation.session_id):
+        reason = "source_removed"
     elif permission is None or not permission.allow_accumulation:
         reason = "authorization_required"
     elif paused:
@@ -381,9 +400,13 @@ def issue(*, room_sid, participant_sid, track_sid, request_key):
     )
     user = consent.owner(mapped_owner(track.participation), lock=True)
     # Serialize session termination with issuance; user lock serializes all scopes/devices' budgets.
-    models.MeetingSession.objects.select_for_update().get(
-        pk=track.participation.session_id
+    session = (
+        models.MeetingSession.objects.select_for_update()
+        .filter(pk=track.participation.session_id)
+        .first()
     )
+    if session is None:
+        raise VoiceprintError("voiceprint_sampling_connection_ended")
     track = (
         models.VoiceprintSamplingTrack.objects.select_for_update(of=("self",))
         .select_related(
@@ -479,6 +502,10 @@ def authorized_sample(sample, profile):
     this one-clip permit. Normal session end/pause does not erase a valid past
     capture; deletion of its origin or current consent revocation does.
     """
+    if removal.sample_removed(sample.pk) or removal.session_removed(
+        sample.source_session_id
+    ):
+        raise VoiceprintError("voiceprint_sampling_source_unavailable")
     permit = (
         models.VoiceprintSamplingPermit.objects.select_related(
             "track__participation__session__room", "track__participation__user"

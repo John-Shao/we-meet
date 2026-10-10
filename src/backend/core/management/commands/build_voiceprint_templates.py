@@ -40,7 +40,9 @@ class Command(BaseCommand):
         if enabled:
             ids = (
                 models.VoiceprintProfile.objects.filter(
-                    Q(consent__allow_enrollment=True) | Q(status="active"),
+                    Q(consent__allow_enrollment=True)
+                    | Q(status="active")
+                    | Q(status="paused", confirmed_at__isnull=False),
                     generation=F("consent__generation"),
                     feature_space=FEATURE_SPACE,
                     status__in=["pending", "paused", "active"],

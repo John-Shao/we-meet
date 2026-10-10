@@ -10044,3 +10044,51 @@ class VoiceprintSamplingPermit(BaseModel):
 
     def __str__(self):
         return str(self.pk)
+
+
+class VoiceprintSourceRemoval(BaseModel):
+    """Source tombstones survive deletion and block restored biometric work."""
+
+    kind = models.CharField(
+        max_length=16, choices=[(value, value) for value in ("session", "track", "record")]
+    )
+    source_uuid = models.UUIDField()
+    source_session_id = models.UUIDField(null=True, blank=True, db_index=True)
+    track_digest = models.CharField(max_length=64, blank=True, default="", db_index=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["kind", "source_uuid"], name="vp_source_removal_unique"
+            ),
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintContributionRemoval(BaseModel):
+    """Durable physical cleanup and rebuild intent, independent of deleted FKs."""
+
+    sample_uuid = models.UUIDField(unique=True)
+    profile_uuid = models.UUIDField()
+    owner_uuid = models.UUIDField()
+    organization_uuid = models.UUIDField(null=True, blank=True)
+    generation = models.PositiveBigIntegerField()
+    templates = models.JSONField(default=dict)
+    status = models.CharField(
+        max_length=16,
+        default="queued",
+        choices=[(value, value) for value in ("queued", "purged", "complete")],
+    )
+    attempts = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+    purged_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "next_attempt_at"])]
+
+    def __str__(self):
+        return str(self.pk)

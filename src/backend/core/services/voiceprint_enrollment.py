@@ -401,6 +401,10 @@ def owned_sample(actor, identifier):
 
 
 def sample_authorized(sample):
+    if models.VoiceprintContributionRemoval.objects.filter(
+        sample_uuid=sample.pk
+    ).exists():
+        raise VoiceprintError("voiceprint_sample_unavailable")
     if sample.source_type == "enrollment" and sample.enrollment_id is None:
         raise VoiceprintError("voiceprint_enrollment_revoked")
     profile = consent_service.authorize_profile(

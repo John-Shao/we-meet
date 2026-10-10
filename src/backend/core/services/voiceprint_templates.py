@@ -84,6 +84,9 @@ def eligible(profile, *, identifiers=None, after=None):
             owner_decision__generation=profile.generation,
             owner_decision__consent_version=F("consent_version"),
         )
+        .exclude(
+            pk__in=models.VoiceprintContributionRemoval.objects.values("sample_uuid")
+        )
         .select_related("enrollment", "owner_decision")
         .defer("encrypted_audio")
         .order_by("-confirmed_at", "id")
@@ -183,7 +186,7 @@ def build(identifier):  # noqa: PLR0911 -- Keep authorization and contribution r
     profile.template_checked_at = timezone.now()
     profile.save(update_fields=["template_checked_at"])
     templates = list(
-        profile.templates.select_for_update().filter(generation=profile.generation)
+        profile.templates.select_for_update().filter(generation=profile.generation)[:6]
     )
     if (
         not consent.available(user, organization)
