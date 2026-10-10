@@ -1165,6 +1165,7 @@ class Base(Configuration):
     MEETING_VOICEPRINT_QUALITY_CONFIG_FILE = values.Value("", environ_prefix=None)
     MEETING_VOICEPRINT_MATCHING_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_VOICEPRINT_THRESHOLD_CONFIG_FILE = values.Value("", environ_prefix=None)
+    MEETING_VOICEPRINT_MEDIA_CONFIG_FILE = values.Value("", environ_prefix=None)
     MEETING_VOICEPRINT_TEMPLATES_ENABLED = values.BooleanValue(
         False, environ_prefix=None
     )

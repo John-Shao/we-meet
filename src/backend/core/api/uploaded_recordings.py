@@ -11,10 +11,12 @@ from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
 from core import models
+from core.services import recording_identity_preflight as preflight
 from core.services import recording_upload_sessions
 from core.services import uploaded_recordings as service
 from core.services.hotwords import parse_hotwords
 from core.services.meeting_records import RecordConflict, visible_records
+from core.services.voiceprint_consent import VoiceprintError
 
 
 class UploadSerializer(serializers.Serializer):
@@ -25,6 +27,7 @@ class UploadSerializer(serializers.Serializer):
     context = serializers.CharField(max_length=400, allow_blank=True, default="")
     hotwords = serializers.CharField(max_length=4000, allow_blank=True, default="")
     diarization = serializers.BooleanField(default=False)
+    identity = serializers.JSONField(required=False, allow_null=True)
 
     def validate_hotwords(self, value):
         """One temporary vocabulary per recording, with bounded word lengths."""
@@ -48,6 +51,7 @@ class DirectUploadPresignSerializer(serializers.Serializer):
     context = serializers.CharField(max_length=400, allow_blank=True, default="")
     hotwords = serializers.CharField(max_length=4000, allow_blank=True, default="")
     diarization = serializers.BooleanField(default=False)
+    identity = serializers.JSONField(required=False, allow_null=True)
 
     def validate_hotwords(self, value):
         return UploadSerializer().validate_hotwords(value)
@@ -68,6 +72,7 @@ class DirectUploadCompleteSerializer(serializers.Serializer):
     context = serializers.CharField(max_length=400, allow_blank=True, default="")
     hotwords = serializers.CharField(max_length=4000, allow_blank=True, default="")
     diarization = serializers.BooleanField(default=False)
+    identity = serializers.JSONField(required=False, allow_null=True)
 
     def validate_hotwords(self, value):
         return UploadSerializer().validate_hotwords(value)
@@ -178,9 +183,16 @@ class UploadedRecordingView(APIView):
                 upload = data.pop("audio")
                 if upload.size > settings.MEETING_FILE_ASR_MAX_BYTES:
                     return Response(status=413)
+                preflight.expected_owner(
+                    request.user,
+                    request.headers.get("X-Voiceprint-Owner"),
+                    data.get("identity"),
+                )
                 job = service.create(request.user, data.pop("key"), upload, data)
         except RecordConflict:
             return Response({"code": "transcription_conflict"}, status=409)
+        except VoiceprintError as error:
+            return Response({"code": str(error)}, status=error.status)
         except ValueError:
             return Response({"code": "invalid_audio_file"}, status=400)
         # Beat is the durable dispatcher: a broker outage cannot lose this request.
@@ -211,10 +223,19 @@ class DirectUploadBase(APIView):
             "hotwords": data.pop("hotwords"),
             "diarization": data.pop("diarization"),
         }
+        if "identity" in data:
+            options["identity"] = data.pop("identity")
         try:
+            preflight.expected_owner(
+                request.user,
+                request.headers.get("X-Voiceprint-Owner"),
+                options.get("identity"),
+            )
             return self.handle(request.user, data, options)
         except RecordConflict:
             return Response({"code": "transcription_conflict"}, status=409)
+        except VoiceprintError as error:
+            return Response({"code": str(error)}, status=error.status)
         except ValueError:
             return Response({"code": "invalid_audio_file"}, status=400)
 

@@ -27,6 +27,7 @@ class MediaTransport:
             "decoder": "core.services.voiceprint_media_worker",
             "storage": "core.services.voiceprint_storage_worker",
             "import": "core.services.voiceprint_import_worker",
+            "import_upload": "core.services.voiceprint_import_upload",
         }
         if purpose not in modules:
             raise MediaError("media_configuration_invalid")
@@ -123,7 +124,7 @@ class MediaTransport:
 
 
 def invoke(payload, *, maximum, expires, authorized, seconds, purpose="decoder"):  # noqa: PLR0912, PLR0913 -- One bounded lifecycle with authorization on every exit.
-    if purpose not in {"decoder", "storage", "import"}:
+    if purpose not in {"decoder", "storage", "import", "import_upload"}:
         raise MediaError("media_configuration_invalid")
     if type(maximum) is not int or not 0 < maximum <= 480000:
         raise MediaError("media_configuration_invalid")
@@ -134,7 +135,7 @@ def invoke(payload, *, maximum, expires, authorized, seconds, purpose="decoder")
     except (ValueError, TypeError, RecursionError):
         raise MediaError("media_input_invalid") from None
     if (
-        len(encoded) > (32768 if purpose == "storage" else 8192)
+        len(encoded) > (32768 if purpose in {"storage", "import_upload"} else 8192)
         or type(expires) is not int
         or expires <= time.time()
     ):

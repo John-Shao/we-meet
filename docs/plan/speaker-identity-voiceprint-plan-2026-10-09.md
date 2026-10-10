@@ -9,7 +9,7 @@
 
 后续本人设置走查已修复试听响应到期竞争、撤权后私有状态残留、Android 缓存期限同步及 Web 旧删除状态误展示，验证见[私有状态与试听期限走查](../research/voiceprint-private-state-review-2026-10-10.md)。
 
-导入预检的完整单声道派生已补齐独立本地准备器，包含实际两小时合成媒体边界、时间映射与到期清理验证，见[媒体准备阶段记录](../research/voiceprint-import-media-preparation-2026-10-10.md)。上传状态机、收费提交前门禁、共同派生对象回执和跨端选择仍需接入；不将该基础实现视为预检完整交付。
+导入预检已补齐本地单声道准备及后端接入，包含实际两小时合成媒体边界、上传任务门禁、明确继续决定、转写／查询共同固定版本回执与持久清理；见[媒体准备记录](../research/voiceprint-import-media-preparation-2026-10-10.md)和[后端接入走查](../research/voiceprint-import-preflight-review-2026-10-10.md)。跨端导入前选择、失败决定界面和转写后的身份请求调度仍待接入；尚未完整交付或上线。
 
 调研状态：[实施前代码与资料调研](../research/voiceprint-preimplementation-2026-10-09.md)已完成；用户确认暂无获授权真人样本，模型效果、实际音轨采样和生产容量仍待验证，P0 尚未整体通过。
 

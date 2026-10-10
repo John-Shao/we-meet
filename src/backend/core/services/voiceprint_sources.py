@@ -43,7 +43,7 @@ class SourceSnapshot:
     generation_digest: str = ""
 
 
-def header(record_id, actor_id, expected_revision):
+def header(record_id, actor_id, expected_revision):  # noqa: PLR0912 -- Immutable upload and capture authority gates.
     if not (
         settings.MEETING_RECORDS_ENABLED
         and settings.MEETING_VOICEPRINT_ENABLED
@@ -82,6 +82,7 @@ def header(record_id, actor_id, expected_revision):
         or job.capture.active_transcription_id is not None
         or not isinstance(job.configuration, dict)
         or job.configuration.get("diarization") is not True
+        or job.configuration.get("_diarization_disabled") is True
         or models.CaptureAudioCleanup.objects.filter(capture_id=job.capture_id).exists()
     ):
         raise VoiceprintError("voiceprint_source_unavailable")
@@ -119,6 +120,18 @@ def header(record_id, actor_id, expected_revision):
         and receipt.sha256 != job.checksum
     ):
         raise VoiceprintError("voiceprint_source_integrity_unavailable")
+    parent_receipt = receipt
+    from core.services import (  # noqa: PLC0415 -- Inputs use this module's canonical digest.
+        recording_import_inputs,
+    )
+
+    try:
+        selected = recording_import_inputs.selected(job)
+    except ValueError:
+        raise VoiceprintError("voiceprint_source_integrity_unavailable") from None
+    if selected:
+        artifact, receipt = selected
+        expiry = min(expiry, artifact.expires_at) if expiry else artifact.expires_at
     proof = {
         "record": str(record.pk),
         "revision": record.revision,
@@ -139,6 +152,7 @@ def header(record_id, actor_id, expected_revision):
         "checksum": job.checksum,
         "configuration": digest(job.configuration),
         "object": receipt.payload(),
+        **({"parent_object": parent_receipt.payload()} if selected else {}),
     }
     generation = digest(
         {key: value for key, value in proof.items() if key != "revision"}

@@ -1298,6 +1298,8 @@ class UploadedRecording(BaseModel):
     checksum = models.CharField(max_length=64)
     size = models.PositiveBigIntegerField()
     configuration = models.JSONField(default=dict)
+    identity_state = models.CharField(max_length=32, blank=True, default="")
+    identity_error = models.CharField(max_length=64, blank=True, default="")
     status = models.CharField(max_length=16, default="queued", choices=[(s, s) for s in ("queued", "submitting", "running", "succeeded", "failed")])
     provider_task_id = models.CharField(max_length=128, blank=True)
     error_code = models.CharField(max_length=64, blank=True)
@@ -1323,6 +1325,28 @@ class UploadedRecording(BaseModel):
             or self.capture.status != CaptureSession.Status.STOPPED
         ):
             raise ValidationError("Uploaded recording must match its owner and source.")
+
+
+class RecordingImportInput(BaseModel):
+    """A private derivative with deletion work surviving removal of its upload."""
+
+    upload = models.ForeignKey(UploadedRecording, null=True, blank=True, on_delete=models.SET_NULL, related_name="identity_inputs")
+    record_uuid = models.UUIDField()
+    attempt = models.PositiveIntegerField()
+    lease_token = models.UUIDField()
+    source_digest = models.CharField(max_length=64)
+    receipt = models.JSONField(default=dict, blank=True)
+    sha256 = models.CharField(max_length=64, blank=True)
+    duration_ms = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=16, default="preparing")
+    expires_at = models.DateTimeField()
+    write_until = models.DateTimeField()
+    next_cleanup_at = models.DateTimeField()
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "next_cleanup_at"], name="import_input_cleanup_idx")]
 
 
 class RecordingUploadSession(BaseModel):

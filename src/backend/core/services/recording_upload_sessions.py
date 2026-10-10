@@ -30,6 +30,7 @@ from django.db import transaction
 from botocore.exceptions import ClientError
 
 from core import models
+from core.services import recording_identity_preflight as preflight
 from core.services.capture_storage import audio_storage
 from core.services.meeting_records import RecordConflict
 from core.services.uploaded_recordings import (
@@ -211,6 +212,7 @@ def begin(user, *, name, size, content_type, key, options):  # noqa: PLR0913 -- 
     """
     if not direct_upload_available() or not user.is_active:
         raise PermissionError("direct_upload_unavailable")
+    options = preflight.normalize(user, options)
     extension = _extension(name)
     if not 0 < size <= settings.MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES:
         raise ValueError("invalid_file")
