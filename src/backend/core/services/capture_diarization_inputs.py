@@ -82,6 +82,7 @@ def _adopt(row, worker, result, checksum):
     if (
         receipt.kind != "s3_object"
         or not receipt.version_id
+        or receipt.version_id == "null"
         or receipt.key != name(current)
         or receipt.size != 44 + current.duration_ms * 32
         or result.get("sha256") != checksum
@@ -193,7 +194,7 @@ def _cleanup_rows():
         Q(expires_at__lte=now)
         | Q(job__isnull=True)
         | Q(job__capture__record__deleted_at__isnull=False)
-        | Q(job__status="failed")
+        | Q(job__status__in=["failed", "canceled"])
         | Q(status="deleting")
         | (Q(job__deadline__lte=now) & ~Q(job__status="succeeded"))
         | (

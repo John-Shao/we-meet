@@ -17,9 +17,11 @@ from core.services import voiceprint_matching as matching
 from core.services import voiceprint_query_producer as producer
 from core.services import voiceprint_source_intervals as intervals
 from core.services import voiceprint_sources as sources
+from core.services.capture_diarization_objects import storage as capture_storage
 from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_encoder import FEATURE_SPACE
 from core.services.voiceprint_media_process import MediaError
+from core.services.voiceprint_source_storage import from_storage
 
 MAX_ATTEMPTS = 3
 LEASE_SECONDS = 900
@@ -468,6 +470,8 @@ def finish(lease, *, query=None, error=None):  # noqa: PLR0911 -- Reject late/co
         return True
     if (
         not isinstance(query, producer.ProducedQuery)
+        or not isinstance(query.status, str)
+        or not isinstance(query.reason, str)
         or query.source_digest != source.fingerprint
         or query.speaker_id != job.speaker_id
     ):
@@ -478,11 +482,13 @@ def finish(lease, *, query=None, error=None):  # noqa: PLR0911 -- Reject late/co
             matching.validate_clips(query.clips)
             spans = intervals.clean_ranges(source.intervals).get(job.speaker_id, ())
             if (
-                not query.media_sha256
+                not isinstance(query.media_sha256, str)
                 or len(query.media_sha256) != 64
                 or any(char not in "0123456789abcdef" for char in query.media_sha256)
                 or source.receipt.kind == "content_sha256"
                 and query.media_sha256 != source.receipt.sha256
+                or source.media_sha256
+                and query.media_sha256 != source.media_sha256
                 or any(
                     not any(
                         start <= clip.start_ms < clip.end_ms <= end
@@ -575,6 +581,8 @@ def process_one(
             )
             return job_status(identifier)
         try:
+            if lease.source.storage_kind == "capture":
+                storage_config = from_storage(capture_storage())
             result = producer.produce(
                 lease.source,
                 lease.speaker_id,

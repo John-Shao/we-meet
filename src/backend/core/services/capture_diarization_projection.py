@@ -37,9 +37,13 @@ def row_receipt(row):
 def validate_publication(job, rows=None):
     if rows is None:
         rows = list(
-            job.originals.select_related("parent_original").order_by("source_sequence")[
-                : MAX_ROWS + 1
-            ]
+            job.originals.select_related("parent_original")
+            .defer(
+                "parent_original__text",
+                "parent_original__word_alignment",
+                "parent_original__derivation",
+            )
+            .order_by("source_sequence")[: MAX_ROWS + 1]
         )
     hashes = []
     for index, row in enumerate(rows, 1):

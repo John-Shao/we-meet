@@ -11,7 +11,7 @@
 
 导入预检已补齐本地单声道准备及后端接入，包含实际两小时合成媒体边界、上传任务门禁、明确继续决定、转写／查询共同固定版本回执与持久清理；见[媒体准备记录](../research/voiceprint-import-media-preparation-2026-10-10.md)和[后端接入走查](../research/voiceprint-import-preflight-review-2026-10-10.md)。Web 与 Android 导入前显式选择、失败决定界面和转写后的持久身份请求调度已接通，见[Web 与调度走查](../research/voiceprint-import-web-dispatch-review-2026-10-10.md)及[Android 导入走查](../research/voiceprint-import-android-review-2026-10-10.md)；通话采样、AI 录音分人及部署验收仍待完成，尚未完整交付或上线。
 
-AI 录音后续阶段已完成独立派生版本、原文时间对齐、原子发布和人工修订继承的后端基础，走查修复行锁／账号竞争、来源预算、发布完整性及删除边界；见[派生版本走查](../research/voiceprint-capture-diarization-review-2026-10-10.md)。实际媒体准备、收费分人 worker、两端操作及录音身份匹配仍待接入，不代表 AI 录音分人功能已完整交付。
+AI 录音后续阶段已接通独立派生版本、原文时间对齐、原子发布、人工修订继承、保留缺口的私有媒体准备和一次 Qwen 提交／持久轮询，见[派生版本与 worker 走查](../research/voiceprint-capture-diarization-review-2026-10-10.md)。分人操作 API、取消回执及固定版本录音身份查询的后端已接通，本轮补齐派生 JSON 预算、内容 SHA-256 和独立存储校验，见[操作与查询走查](../research/voiceprint-capture-identity-api-review-2026-10-10.md)。Web／Android 分人入口、派生版本分页和录音试听仍待接入，不代表 AI 录音分人功能已完整交付；真人效果及生产验收仍未通过。
 
 调研状态：[实施前代码与资料调研](../research/voiceprint-preimplementation-2026-10-09.md)已完成；用户确认暂无获授权真人样本，模型效果、实际音轨采样和生产容量仍待验证，P0 尚未整体通过。
 

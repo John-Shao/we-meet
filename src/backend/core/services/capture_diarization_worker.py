@@ -134,13 +134,13 @@ def acknowledge(identifier, worker, task_id):
         if job.provider_task_id != task_id:
             raise RecordConflict("Diarization task receipt changed.")
         return job
-    if job.phase not in {"submitting", "failed"}:
+    if job.phase not in {"submitting", "failed", "canceled"}:
         raise RecordConflict("Diarization task receipt changed.")
     active = job.phase == "submitting" and live(job)
     job.provider_task_id = task_id
     if active:
         job.phase, job.next_poll_at = "polling", timezone.now() + timedelta(seconds=15)
-    else:
+    elif job.status != "canceled":
         job.status, job.phase, job.error_code = (
             "failed",
             "failed",

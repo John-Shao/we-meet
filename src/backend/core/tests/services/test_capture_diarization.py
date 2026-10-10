@@ -447,10 +447,14 @@ def test_foreign_owners_and_malformed_commands_cannot_create_jobs():
     assert not capture.diarization_jobs.exists()
 
 
-@pytest.mark.parametrize("budget", ["original", "correction", "alignment"])
+@pytest.mark.parametrize(
+    "budget", ["original", "correction", "alignment", "derivation"]
+)
 def test_oversized_sources_are_rejected_before_creating_a_job(monkeypatch, budget):
     owner, capture, parent = source(timed=True)
-    if budget == "alignment":
+    if budget == "derivation":
+        monkeypatch.setattr(service, "MAX_DERIVATION_BYTES", 1)
+    elif budget == "alignment":
         monkeypatch.setattr(service, "MAX_ALIGNMENT_BYTES", 1)
     else:
         monkeypatch.setattr(

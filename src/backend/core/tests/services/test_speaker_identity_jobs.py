@@ -380,7 +380,18 @@ def test_context_changes_prevent_publication(case, settings, change):
 
 
 @pytest.mark.parametrize(
-    "bad", ["source", "speaker", "media", "interval", "feature", "reason"]
+    "bad",
+    [
+        "source",
+        "speaker",
+        "media",
+        "media_type",
+        "status_type",
+        "reason_type",
+        "interval",
+        "feature",
+        "reason",
+    ],
 )
 def test_invalid_query_evidence_is_not_published(case, bad):
     job = enqueue(case)
@@ -392,6 +403,12 @@ def test_invalid_query_evidence_is_not_published(case, bad):
         query = replace(query, speaker_id=uuid4())
     elif bad == "media":
         query = replace(query, media_sha256="b" * 64)
+    elif bad == "media_type":
+        query = replace(query, media_sha256=1)
+    elif bad == "status_type":
+        query = replace(query, status=["ready"], clips=())
+    elif bad == "reason_type":
+        query = replace(query, status="unavailable", reason=[], clips=())
     elif bad == "interval":
         query = replace(
             query,

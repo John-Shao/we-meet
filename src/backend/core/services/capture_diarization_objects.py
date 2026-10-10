@@ -48,6 +48,10 @@ def storage():
 
 def storage_digest(value):
     config = from_storage(value)
+    return configuration_digest(config)
+
+
+def configuration_digest(config):
     return digest(
         {
             key: config.payload()[key]
@@ -61,7 +65,7 @@ def name(row):
     return f"record-uploads/identity-input-{row.pk}.wav"
 
 
-def selected(job):
+def selected(job, *, duration_ms=None):
     try:
         row = models.CaptureDiarizationInput.objects.get(
             pk=job.input_id, job=job, record_uuid=job.capture.record_id, status="ready"
@@ -70,11 +74,17 @@ def selected(job):
         if (
             row.source_digest != job.source_fingerprint
             or row.storage_digest != storage_digest(storage())
-            or row.duration_ms != job.inputs["manifest"]["duration_ms"]
+            or row.duration_ms
+            != (
+                job.inputs["manifest"]["duration_ms"]
+                if duration_ms is None
+                else duration_ms
+            )
             or row.expires_at
             and row.expires_at <= timezone.now()
             or receipt.kind != "s3_object"
             or not receipt.version_id
+            or receipt.version_id == "null"
             or receipt.key != name(row)
             or receipt.size != 44 + row.duration_ms * 32
             or re.fullmatch(r"[0-9a-f]{64}", row.sha256) is None

@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 import wave
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,6 +21,7 @@ import requests
 
 from core.services import voiceprint_query_producer as service
 from core.services import voiceprint_source_intervals as intervals
+from core.services.capture_diarization_objects import configuration_digest
 from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_encoder import EncoderResult
 from core.services.voiceprint_media import MediaConfiguration
@@ -151,6 +153,55 @@ def test_real_private_multi_clip_producer_cleans_source_and_returns_no_identity(
         not path.exists() and not path.parent.exists() for path in pipeline.decoded
     )
     assert "vector" not in repr(result) and str(pipeline.speaker) not in repr(result)
+
+
+def test_capture_expected_sha_rejects_download_before_decoder_or_providers(
+    pipeline, private_s3, short_asr, monkeypatch
+):
+    pipeline.source = replace(
+        pipeline.source,
+        receipt=proof(private_s3, kind="s3_object"),
+        storage_kind="capture",
+        storage_digest=configuration_digest(private_s3.config),
+        media_sha256="0" * 64,
+    )
+    paths = []
+    download = service.storage.download
+
+    @contextmanager
+    def observe_download(*args, **kwargs):
+        with download(*args, **kwargs) as local:
+            paths.append(Path(local.media.path))
+            yield local
+
+    monkeypatch.setattr(service.storage, "download", observe_download)
+    monkeypatch.setattr(
+        service.media,
+        "probe",
+        lambda *args, **kwargs: pytest.fail("Changed media must not reach the decoder"),
+    )
+    with pytest.raises(VoiceprintError, match="integrity_unavailable"):
+        run(pipeline)
+    assert private_s3.requests and not short_asr.requests and not pipeline.requests
+    assert paths and all(
+        not path.exists() and not path.parent.exists() for path in paths
+    )
+
+
+def test_capture_storage_change_is_refused_before_any_private_or_provider_io(
+    pipeline, private_s3, short_asr
+):
+    pipeline.source = replace(
+        pipeline.source,
+        storage_kind="capture",
+        storage_digest=configuration_digest(private_s3.config),
+    )
+    with pytest.raises(VoiceprintError, match="storage_changed"):
+        run(
+            pipeline,
+            storage_config=replace(private_s3.config, bucket="different-bucket"),
+        )
+    assert not private_s3.requests and not short_asr.requests and not pipeline.requests
 
 
 @pytest.mark.parametrize(

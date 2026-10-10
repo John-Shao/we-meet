@@ -10,6 +10,7 @@ from core.services import voiceprint_query as query
 from core.services import voiceprint_source_intervals as intervals
 from core.services import voiceprint_source_storage as storage
 from core.services import voiceprint_sources as sources
+from core.services.capture_diarization_objects import configuration_digest
 from core.services.voiceprint_consent import VoiceprintError
 
 
@@ -21,6 +22,15 @@ class ProducedQuery:
     clips: tuple = field(default=(), repr=False)
     media_sha256: str = field(default="", repr=False)
     speaker_id: UUID | None = field(default=None, repr=False)
+
+
+def check_storage(source, config):
+    config.validate()
+    if (
+        source.storage_kind == "capture"
+        and configuration_digest(config) != source.storage_digest
+    ):
+        raise VoiceprintError("voiceprint_source_storage_changed", status=409)
 
 
 def produce(  # noqa: PLR0913 -- Explicit trusted source, providers, policy and one current job lease.
@@ -60,7 +70,7 @@ def produce(  # noqa: PLR0913 -- Explicit trusted source, providers, policy and 
             speaker_id=speaker_id,
         )
     media_config.validate()
-    storage_config.validate()
+    check_storage(source, storage_config)
     encoder_config.client()
     quality_config.validate()
     if source.expires_at is not None:
@@ -74,6 +84,8 @@ def produce(  # noqa: PLR0913 -- Explicit trusted source, providers, policy and 
     with storage.download(
         source.receipt, config=storage_config, expires=expires, authorized=live
     ) as local:
+        if source.media_sha256 and local.sha256 != source.media_sha256:
+            raise VoiceprintError("voiceprint_source_integrity_unavailable")
         info = media.probe(
             local.media, config=media_config, expires=expires, authorized=live
         )

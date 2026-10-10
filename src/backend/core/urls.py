@@ -66,6 +66,7 @@ from core.api.capture_transcription import (
     LiveTranscriptionPreviewView,
     TranscriptionInputView,
 )
+from core.api.capture_diarization import CaptureDiarizationView, CancelCaptureDiarizationView
 from core.api.capture_translation import CaptureTranslationView
 from core.api.capture_translation_archive import (
     CaptureTranslationArchivesView,
@@ -509,6 +510,8 @@ urlpatterns = [
                 path("capture-sessions/<uuid:capture_id>/translation/archives/", CaptureTranslationArchivesView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/translation/archives/<uuid:archive_id>/", CaptureTranslationSegmentsView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/", CaptureTranscriptionView.as_view()),
+                path("capture-sessions/<uuid:capture_id>/diarization/", CaptureDiarizationView.as_view()),
+                path("capture-sessions/<uuid:capture_id>/diarization/<uuid:job_id>/cancel/", CancelCaptureDiarizationView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/direct/", CaptureDirectAsrStartView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/direct/<uuid:job_id>/", CaptureDirectAsrSyncView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/preview/", LiveTranscriptionPreviewView.as_view()),

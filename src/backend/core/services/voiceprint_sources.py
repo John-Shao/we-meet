@@ -1,4 +1,4 @@
-"""Fresh editorial/media authority and immutable published upload source snapshots."""
+"""Fresh editorial/media authority and immutable upload or capture snapshots."""
 
 import hashlib
 import json
@@ -41,6 +41,9 @@ class SourceSnapshot:
     intervals: tuple = field(repr=False)
     expires_at: object = field(repr=False)
     generation_digest: str = ""
+    storage_kind: str = "upload"
+    storage_digest: str = ""
+    media_sha256: str = field(default="", repr=False)
 
 
 def header(record_id, actor_id, expected_revision):  # noqa: PLR0912 -- Immutable upload and capture authority gates.
@@ -59,14 +62,21 @@ def header(record_id, actor_id, expected_revision):  # noqa: PLR0912 -- Immutabl
     )
     if record is None:
         raise VoiceprintError("voiceprint_media_access_unavailable", status=404)
-    if record.source_type != "upload" or not consent.available(
-        actor, record.organization
-    ):
+    if record.source_type not in {
+        models.MeetingRecord.Source.UPLOAD,
+        models.MeetingRecord.Source.AUDIO,
+    } or not consent.available(actor, record.organization):
         raise VoiceprintError("voiceprint_source_unavailable")
     if type(expected_revision) is not int or expected_revision < 1:
         raise VoiceprintError("voiceprint_revision_invalid", status=400)
     if record.revision != expected_revision:
         raise VoiceprintError("voiceprint_record_changed", status=409)
+    if record.source_type == models.MeetingRecord.Source.AUDIO:
+        from core.services import (  # noqa: PLC0415 -- Keep capture publication independent.
+            capture_voiceprint_sources,
+        )
+
+        return capture_voiceprint_sources.header(record, actor)
     job = (
         models.UploadedRecording.objects.select_related("capture")
         .filter(record=record)
@@ -161,9 +171,14 @@ def header(record_id, actor_id, expected_revision):  # noqa: PLR0912 -- Immutabl
 
 
 def snapshot(record, actor, *, expected_revision):
-    record, job, receipt, expiry, generation_header, header_digest = header(
-        record.pk, actor.pk, expected_revision
-    )
+    evidence = header(record.pk, actor.pk, expected_revision)
+    record, job, receipt, expiry, generation_header, header_digest = evidence
+    if record.source_type == models.MeetingRecord.Source.AUDIO:
+        from core.services import (  # noqa: PLC0415 -- Keep the source adapter lazily loaded.
+            capture_voiceprint_sources,
+        )
+
+        return capture_voiceprint_sources.snapshot(evidence, actor)
     rows = list(
         record.original_segments.order_by("source_sequence", "id").values(
             "id",

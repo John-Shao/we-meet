@@ -36,6 +36,7 @@ LEASE_SECONDS = 300
 PREPARATION_LEASE_SECONDS = 900
 MAX_TEXT_BYTES = 4000000
 MAX_ALIGNMENT_BYTES = 32 * 1024 * 1024
+MAX_DERIVATION_BYTES = 32 * 1024 * 1024
 
 
 def available():
@@ -58,7 +59,7 @@ def _capture(identifier):
     return capture
 
 
-def _check_budget(rows):
+def check_source_budget(rows):
     """Reject oversized persisted sources before loading text and JSON into Python."""
 
     def size(value):
@@ -69,12 +70,14 @@ def _check_budget(rows):
         text_bytes=Sum(size("text")),
         corrected_bytes=Sum(size(corrected_text_subquery())),
         alignment_bytes=Sum(size(Cast("word_alignment", output_field=TextField()))),
+        derivation_bytes=Sum(size(Cast("derivation", output_field=TextField()))),
     )
     if (
         totals["count"] > alignment.MAX_ROWS
         or (totals["text_bytes"] or 0) > MAX_TEXT_BYTES
         or (totals["corrected_bytes"] or 0) > MAX_TEXT_BYTES
         or (totals["alignment_bytes"] or 0) > MAX_ALIGNMENT_BYTES
+        or (totals["derivation_bytes"] or 0) > MAX_DERIVATION_BYTES
     ):
         raise RecordConflict("Diarization source exceeds its budget.")
 
@@ -133,7 +136,7 @@ def _snapshot(capture, actor):
         raise CaptureDenied
     expected = capture_live_inputs.inputs(job)
     base_rows = job.originals.filter(diarization_job__isnull=True)
-    _check_budget(base_rows)
+    check_source_budget(base_rows)
     base = list(base_rows.order_by("source_sequence")[: alignment.MAX_ROWS + 1])
     if len(base) != job.final_sequence or not 1 <= len(base) <= alignment.MAX_ROWS:
         raise RecordConflict("Capture ASR originals are incomplete.")
@@ -161,9 +164,14 @@ def _snapshot(capture, actor):
     ):
         raise RecordConflict("Capture audio source changed.")
     parent_rows = current_generation(job.originals.all())
-    _check_budget(parent_rows)
+    check_source_budget(parent_rows)
     parents = list(
         parent_rows.select_related("inherited_correction", "parent_original")
+        .defer(
+            "parent_original__text",
+            "parent_original__word_alignment",
+            "parent_original__derivation",
+        )
         .prefetch_related(
             Prefetch(
                 "revisions",

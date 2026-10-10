@@ -33,8 +33,8 @@ def worker_options(enabled, settings):
     settings.MEETING_CAPTURE_DIARIZATION_DAILY_LIMIT = 3
 
 
-def pipeline(state, monkeypatch, *, text=False):
-    owner, capture, parent = source(timed=True)
+def pipeline(state, monkeypatch, *, text=False, timed=True):
+    owner, capture, parent = source(timed=timed)
     if text:
         models.MeetingRecord.objects.filter(pk=capture.record_id).update(
             retention_mode="text"
@@ -86,6 +86,46 @@ def result():
         ],
         "billed_seconds": 0.5,
     }
+
+
+@pytest.mark.parametrize("stage", ["adopt", "selected"])
+def test_null_version_receipt_cannot_be_adopted_or_selected(
+    private_s3, monkeypatch, stage
+):
+    _, _, _, job, submit = pipeline(private_s3, monkeypatch)
+    identifier = uuid4()
+    control.claim(job.pk, identifier)
+    row = inputs.reserve(job.pk, identifier)
+    receipt = {
+        "schema": 1,
+        "kind": "s3_object",
+        "key": objects.name(row),
+        "size": 44 + row.duration_ms * 32,
+        "sha256": "",
+        "etag": '"fixed-token"',
+        "version_id": "null",
+    }
+    if stage == "adopt":
+        with pytest.raises(MediaError, match="storage_response_invalid"):
+            inputs._adopt(
+                row, identifier, {"receipt": receipt, "sha256": "a" * 64}, "a" * 64
+            )
+        row.refresh_from_db()
+        job.refresh_from_db()
+        assert row.status == "preparing" and job.input_id is None
+    else:
+        inputs._adopt(
+            row,
+            identifier,
+            {"receipt": {**receipt, "version_id": "fixed-version"}, "sha256": "a" * 64},
+            "a" * 64,
+        )
+        models.CaptureDiarizationInput.objects.filter(pk=row.pk).update(receipt=receipt)
+        job.refresh_from_db()
+        with pytest.raises(MediaError, match="source_integrity_unavailable"):
+            objects.selected(job)
+    assert not private_s3.requests
+    submit.assert_not_called()
 
 
 def test_real_preparation_pins_version_and_polls_without_repeating_post(
