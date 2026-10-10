@@ -18,15 +18,21 @@ class MediaError(ValueError):
 
 
 class MediaTransport:
-    def __init__(self, payload, *, deadline, maximum):
+    def __init__(self, payload, *, deadline, maximum, purpose="decoder"):
         self.output, self.payload = b"", payload
         self.maximum = maximum
         self.done = threading.Event()
         self.expired = threading.Event()
+        modules = {
+            "decoder": "core.services.voiceprint_media_worker",
+            "storage": "core.services.voiceprint_storage_worker",
+        }
+        if purpose not in modules:
+            raise MediaError("media_configuration_invalid")
         args = [
             sys.executable,
             "-m",
-            "core.services.voiceprint_media_worker",
+            modules[purpose],
             str(os.getpid()),
         ]
         self.job = None
@@ -111,7 +117,9 @@ class MediaTransport:
             raise MediaError("media_worker_unavailable", retryable=True)
 
 
-def invoke(payload, *, maximum, expires, authorized, seconds):  # noqa: PLR0912 -- One bounded lifecycle with authorization on every exit.
+def invoke(payload, *, maximum, expires, authorized, seconds, purpose="decoder"):  # noqa: PLR0912, PLR0913 -- One bounded lifecycle with authorization on every exit.
+    if purpose not in {"decoder", "storage"}:
+        raise MediaError("media_configuration_invalid")
     if type(maximum) is not int or not 0 < maximum <= 480000:
         raise MediaError("media_configuration_invalid")
     try:
@@ -120,14 +128,22 @@ def invoke(payload, *, maximum, expires, authorized, seconds):  # noqa: PLR0912 
         )
     except (ValueError, TypeError, RecursionError):
         raise MediaError("media_input_invalid") from None
-    if len(encoded) > 8192 or type(expires) is not int or expires <= time.time():
+    if (
+        len(encoded) > (8192 if purpose == "decoder" else 32768)
+        or type(expires) is not int
+        or expires <= time.time()
+    ):
         raise MediaError("media_input_invalid")
-    if type(seconds) not in (int, float) or not 0 < seconds <= 25:
+    if type(seconds) not in (int, float) or not 0 < seconds <= (
+        25 if purpose == "decoder" else 90
+    ):
         raise MediaError("media_configuration_invalid")
     if not authorized():
         raise MediaError("media_authorization_revoked")
     deadline = time.monotonic() + min(seconds, expires - time.time())
-    with MediaTransport(encoded, deadline=deadline, maximum=maximum) as transport:
+    with MediaTransport(
+        encoded, deadline=deadline, maximum=maximum, purpose=purpose
+    ) as transport:
         next_check = 0
         while True:
             now = time.monotonic()

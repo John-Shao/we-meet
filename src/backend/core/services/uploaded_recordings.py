@@ -23,6 +23,7 @@ from core.services import qwen_filetrans as provider
 from core.services.capture_storage import audio_storage
 from core.services.meeting_records import RecordConflict, visible_records
 from core.services.record_media_timing import provider_audio_duration
+from core.services.voiceprint_source_objects import ObjectReceipt, from_head, parse
 
 EXTENSIONS = {
     "aac",
@@ -157,13 +158,14 @@ def active_upload_exists(user):
     ).exists()
 
 
-def _record_job(user, key, *, storage_name, checksum, size, configuration, metadata):
+def _record_job(user, key, *, storage_name, checksum, size, configuration, metadata):  # noqa: PLR0913 -- Stable shared adoption contract.
     """Create the record/capture/job triple for an object already in storage.
 
     Caller owns the transaction and recovery of ``storage_name`` if this raises.
     Both upload paths (multipart spool and direct presigned PUT) share this so
     they cannot drift on idempotency, the single-active-job rule, or metadata.
-    ``metadata`` is ``{"title": <record title>, "file": <public _file payload>}``.
+    ``metadata`` carries title, public file fields and an optional server-issued
+    source receipt. The receipt is private and excluded from replay intent.
     """
     from core.services.record_purge import guard_adoption  # noqa: PLC0415
 
@@ -191,7 +193,15 @@ def _record_job(user, key, *, storage_name, checksum, size, configuration, metad
         storage_name=storage_name,
         checksum=checksum,
         size=size,
-        configuration={**configuration, "_file": metadata["file"]},
+        configuration={
+            **configuration,
+            "_file": metadata["file"],
+            **(
+                {"_identity_source": metadata["source"]}
+                if metadata.get("source")
+                else {}
+            ),
+        },
         deadline=now + timedelta(hours=24),
         next_poll_at=now,
     )
@@ -210,7 +220,13 @@ def _replay_guard(user, key, checksum, configuration):
         or {
             k: v
             for k, v in previous.configuration.items()
-            if k not in {"_file", "_published", "_original_audio_duration_ms"}
+            if k
+            not in {
+                "_file",
+                "_published",
+                "_original_audio_duration_ms",
+                "_identity_source",
+            }
         }
         != configuration
     ):
@@ -273,6 +289,11 @@ def create(user, key, upload, options):
                     # Preserve the original filename verbatim; it is what the
                     # record list shows for an import.
                     "file": metadata,
+                    "source": ObjectReceipt(
+                        "content_sha256", name, size, sha256=checksum.hexdigest()
+                    )
+                    .validate()
+                    .payload(),
                 },
             )
         except Exception:
@@ -337,10 +358,7 @@ def media_read_url(job, *, download=False):
     storage = audio_storage()
     metadata = job.configuration.get("_file", {})
     extension = Path(job.storage_name).suffix.lower().lstrip(".")
-    params = {
-        "Bucket": storage.bucket_name,
-        "Key": posixpath.join(storage.location, job.storage_name),
-    }
+    params = source_read_params(job, storage)
     if download:
         # Metadata is user supplied: remove path components and all controls.
         raw_name = str(metadata.get("name", "")).replace("\\", "/").rsplit("/", 1)[-1]
@@ -366,8 +384,27 @@ def media_read_url(job, *, download=False):
     }
 
 
+def source_read_params(job, storage):
+    """ASR, playback and identity reads use the same adopted object version."""
+    params = {
+        "Bucket": storage.bucket_name,
+        "Key": posixpath.join(storage.location, job.storage_name),
+    }
+    try:
+        receipt = parse(job.configuration.get("_identity_source"))
+    except (ValueError, TypeError):
+        return params  # Existing ordinary uploads do not have identity receipts.
+    if (
+        receipt.key == job.storage_name
+        and receipt.size == job.size
+        and receipt.version_id is not None
+    ):
+        params["VersionId"] = receipt.version_id
+    return params
+
+
 @transaction.atomic
-def presign_direct_upload(user, *, name, size, content_type, key, options):
+def presign_direct_upload(user, *, name, size, content_type, key, options):  # noqa: PLR0913 -- Explicit signed upload fields.
     """Sign one PUT for an exact byte count and return where to send it.
 
     ``ContentLength`` is signed, so a client that declares a small size and then
@@ -410,7 +447,9 @@ def presign_direct_upload(user, *, name, size, content_type, key, options):
     }
 
 
-def complete_direct_upload(user, *, key, name, storage_name, size, content_type, options):
+def complete_direct_upload(  # noqa: PLR0913 -- Preserve the existing upload completion contract.
+    user, *, key, name, storage_name, size, content_type, options
+):
     """Adopt an object the client already PUT, after verifying it server-side.
 
     The client's claims are never trusted: the object must exist in our private
@@ -464,7 +503,11 @@ def complete_direct_upload(user, *, key, name, storage_name, size, content_type,
             checksum=checksum,
             size=size,
             configuration=configuration,
-            metadata={"title": Path(original_name).stem, "file": metadata},
+            metadata={
+                "title": Path(original_name).stem,
+                "file": metadata,
+                "source": from_head(storage_name, size, head),
+            },
         )
 
 
@@ -646,10 +689,7 @@ def process(job_id):
             # Force signing against the private bucket even when a CDN domain is configured.
             url = client.generate_presigned_url(
                 "get_object",
-                Params={
-                    "Bucket": storage.bucket_name,
-                    "Key": posixpath.join(storage.location, job.storage_name),
-                },
+                Params=source_read_params(job, storage),
                 ExpiresIn=86400,
             )
             updates.update(
@@ -660,7 +700,12 @@ def process(job_id):
             result = provider.poll(job.provider_task_id)
             if result is not None:
                 rows = provider.sentences(result)
-                finish(job, rows, result.get("billed_seconds"), provider_audio_duration(result, rows))
+                finish(
+                    job,
+                    rows,
+                    result.get("billed_seconds"),
+                    provider_audio_duration(result, rows),
+                )
                 return
     except provider.FileTranscriptionError as exc:
         updates.update(

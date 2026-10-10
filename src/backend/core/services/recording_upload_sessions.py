@@ -44,6 +44,7 @@ from core.services.uploaded_recordings import (
     active_upload_exists,
     direct_upload_available,
 )
+from core.services.voiceprint_source_objects import from_head
 
 #: Object storage requires every part except the last to be at least 5 MiB, and
 #: caps one upload at 10,000 parts. 64 MiB keeps a 6 GiB import to ~96 parts
@@ -417,6 +418,12 @@ def adopt(user, session):
         "name": Path(session.storage_name).name[:255],
         "media_type": "video" if session.extension in VIDEO_EXTENSIONS else "audio",
     }
+    storage = audio_storage()
+    head = storage.connection.meta.client.head_object(
+        Bucket=storage.bucket_name, Key=_object_key(storage, session.storage_name)
+    )
+    if head.get("ContentLength") != session.size:
+        raise ValueError("upload_size_mismatch")
     job = _record_job(
         user,
         session.key,
@@ -428,6 +435,7 @@ def adopt(user, session):
             "title": Path(session.declared_name).stem
             or Path(session.storage_name).stem,
             "file": metadata,
+            "source": from_head(session.storage_name, session.size, head),
         },
     )
     session.status = models.RecordingUploadSession.Status.COMPLETED
