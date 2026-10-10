@@ -19,6 +19,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 
 from core import models
+from core.api.voiceprint import StrictVersion
 from core.services import (
     meeting_overviews,
     record_lifecycle,
@@ -62,6 +63,7 @@ from core.services.uploaded_recordings import (
     media_read_url,
     public_metadata,
 )
+from core.services.voiceprint_consent import VoiceprintError
 from core.services.word_alignment import for_reader as playback_alignment
 
 
@@ -119,16 +121,30 @@ class SpeakerAttributionSerializer(serializers.Serializer):
 class SpeakerIdentityDecisionSerializer(serializers.Serializer):
     """Strict action payload; clients cannot submit contact name snapshots."""
 
-    action = serializers.ChoiceField(choices=["select_contact", "set_label", "clear"])
-    expected_revision = serializers.IntegerField(min_value=1)
+    action = serializers.ChoiceField(
+        choices=[
+            "select_contact",
+            "set_label",
+            "clear",
+            "confirm_suggestion",
+            "reject_suggestion",
+        ]
+    )
+    expected_revision = StrictVersion(min_value=1)
+    suggestion_id = serializers.UUIDField(required=False)
     contact_ref = serializers.CharField(max_length=64, required=False)
     label = serializers.CharField(max_length=64, required=False, trim_whitespace=False)
 
     def validate(self, attrs):
         if set(self.initial_data) - set(self.fields):
             raise ValidationError("Unsupported identity decision field.")
-        required = {"select_contact": {"contact_ref"}, "set_label": {"label"},
-                    "clear": set()}[attrs["action"]]
+        required = {
+            "select_contact": {"contact_ref"},
+            "set_label": {"label"},
+            "clear": set(),
+            "confirm_suggestion": {"suggestion_id"},
+            "reject_suggestion": {"suggestion_id"},
+        }[attrs["action"]]
         optional = set(attrs) - {"action", "expected_revision"}
         if optional != required:
             raise ValidationError("Provide only the fields required by this action.")
@@ -1387,7 +1403,8 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             raise PermissionDenied(str(error)) from error
 
     @action(
-        detail=True, methods=["post"],
+        detail=True,
+        methods=["post"],
         url_path=r"speakers/(?P<speaker_id>[0-9a-f-]{36})/identity-decision",
     )
     def speaker_identity_decision(self, request, pk=None, speaker_id=None):
@@ -1395,22 +1412,44 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         identifier = serializers.UUIDField().run_validation(speaker_id)
         serializer = SpeakerIdentityDecisionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        expected_owner = request.headers.get("X-Voiceprint-Owner")
+        if (
+            serializer.validated_data["action"]
+            in {"confirm_suggestion", "reject_suggestion"}
+            and expected_owner is not None
+            and expected_owner != str(request.user.pk)
+        ):
+            return Response(
+                {"code": "voiceprint_account_changed"},
+                status=401,
+                headers={"Cache-Control": "private, no-store"},
+            )
         try:
             speaker = speaker_identity_decisions.decide(
                 record, identifier, request.user, **serializer.validated_data
             )
         except PermissionError as error:
             raise PermissionDenied(str(error)) from error
+        except VoiceprintError as error:
+            return Response(
+                {"code": str(error)},
+                status=error.status,
+                headers={"Cache-Control": "private, no-store"},
+            )
         except RecordConflict as error:
             return Response({"code": str(error)}, status=409)
         except speaker_attribution.AttributionDenied as error:
-            return Response({"code": "contact_unavailable", "message": str(error)},
-                            status=400)
+            return Response(
+                {"code": "contact_unavailable", "message": str(error)}, status=400
+            )
         except LookupError as error:
             raise Http404 from error
         except ValueError as error:
             raise ValidationError(str(error)) from error
-        return Response(speaker_attribution.serialize(speaker))
+        return Response(
+            speaker_attribution.serialize(speaker),
+            headers={"Cache-Control": "private, no-store"},
+        )
 
     @action(detail=True, methods=["get"])
     def media(self, request, pk=None):

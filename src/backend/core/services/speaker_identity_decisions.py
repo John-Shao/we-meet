@@ -56,7 +56,6 @@ def lock_subjects(record, speaker_id, actor, action, contact_ref):
     return subjects
 
 
-@transaction.atomic
 def decide(  # noqa: PLR0913
     record,
     speaker_id,
@@ -66,6 +65,37 @@ def decide(  # noqa: PLR0913
     expected_revision=None,
     contact_ref=None,
     label=None,
+    suggestion_id=None,
+):
+    if action in {"confirm_suggestion", "reject_suggestion"}:
+        if contact_ref is not None or label is not None:
+            raise ValueError("invalid_action_payload")
+        from core.services import speaker_identification  # noqa: PLC0415
+
+        return speaker_identification.decide(
+            record.pk,
+            speaker_id,
+            actor,
+            action=action,
+            suggestion_id=suggestion_id,
+            expected_revision=expected_revision,
+        )
+    if suggestion_id is not None:
+        raise ValueError("invalid_action_payload")
+    return decide_manual(
+        record,
+        speaker_id,
+        actor,
+        action=action,
+        expected_revision=expected_revision,
+        contact_ref=contact_ref,
+        label=label,
+    )
+
+
+@transaction.atomic
+def decide_manual(  # noqa: PLR0913 -- Existing manual action payload.
+    record, speaker_id, actor, *, action, expected_revision, contact_ref, label
 ):
     """Lock and recheck both permission and version before changing presentation."""
     if expected_revision is not None and (

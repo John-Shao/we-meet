@@ -1842,10 +1842,45 @@ class SpeakerIdentityDecision(BaseModel):
             )
 
 
+class SpeakerIdentityRequest(BaseModel):
+    """A bounded, idempotent record request; never contains audio or embeddings."""
+
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE)
+    requester = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    organization = models.ForeignKey(
+        "Organization", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    request_key = models.UUIDField()
+    input_digest = models.CharField(max_length=64)
+    target_ids = models.JSONField()
+    requested_users = models.JSONField()
+    record_revision = models.PositiveIntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record", "request_key"], name="identity_record_request"
+            )
+        ]
+        indexes = [models.Index(fields=["record", "created_at"])]
+
+    def __str__(self):
+        return f"SpeakerIdentityRequest({self.pk})"
+
+
 class SpeakerIdentityJob(BaseModel):
     """One source speaker's bounded identity task; never contains query vectors."""
 
     record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE)
+    batch = models.ForeignKey(
+        SpeakerIdentityRequest,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="jobs",
+    )
     speaker = models.ForeignKey(MeetingSpeaker, on_delete=models.CASCADE)
     requester = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True
@@ -1902,6 +1937,20 @@ class SpeakerIdentityJob(BaseModel):
 
     def __str__(self):
         return f"SpeakerIdentityJob({self.pk})"
+
+    def clean(self):
+        super().clean()
+        if self.speaker.record_id != self.record_id:
+            raise ValidationError("Identity job must match its record.")
+        if self.batch_id and (
+            self.batch.record_id != self.record_id
+            or self.batch.requester_id != self.requester_id
+            or self.batch.organization_id != self.organization_id
+            or self.batch.request_key != self.request_key
+            or self.batch.requested_users != self.requested_users
+            or str(self.speaker_id) not in self.batch.target_ids
+        ):
+            raise ValidationError("Identity job must match its request.")
 
 
 class SpeakerIdentitySuggestion(BaseModel):

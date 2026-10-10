@@ -161,6 +161,7 @@ from core.api.personal_calendars import (
     PersonalCalendarViewSet,
 )
 from core.api.personal_hotwords import PersonalHotwordsView
+from core.api.speaker_identification import SpeakerIdentificationView
 from core.api.voiceprint import (
     VoiceprintScopesView,
     VoiceprintDeletionsView,
@@ -431,6 +432,7 @@ urlpatterns = [
         include(
             [
                 path("im/preferences/", ImPreferenceView.as_view(), name="im_preferences"),
+                path("meeting-records/<uuid:record_id>/speaker-identification/", SpeakerIdentificationView.as_view(), name="speaker-identification"),
                 path(
                     "voiceprint/settings/",
                     VoiceprintSettingsView.as_view(), name="voiceprint-settings",

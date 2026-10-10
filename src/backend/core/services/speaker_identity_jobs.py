@@ -39,7 +39,10 @@ class IdentityLease:
 def policy():
     from django.conf import settings  # noqa: PLC0415 -- Runtime configuration.
 
-    value = matching.load_policy(settings.MEETING_VOICEPRINT_THRESHOLD_CONFIG_FILE)
+    try:
+        value = matching.load_policy(settings.MEETING_VOICEPRINT_THRESHOLD_CONFIG_FILE)
+    except VoiceprintError as error:
+        raise VoiceprintError(str(error), status=503) from None
     if not value.calibrated:
         raise VoiceprintError("voiceprint_calibration_required", status=503)
     return value
@@ -95,6 +98,16 @@ def presentation_digest(speaker):
 def context(job, *, current_revision=None):
     if job.expires_at <= timezone.now():
         raise VoiceprintError("voiceprint_identity_expired", status=409)
+    source, pool, frozen_policy = load_context(job, current_revision=current_revision)
+    validate_context(
+        job, source, pool, frozen_policy, current_revision=current_revision
+    )
+    validate_presentation(job)
+    return source, pool, frozen_policy
+
+
+def load_context(job, *, current_revision=None):
+    """Read shared full proofs once per bounded batch, under its scope locks."""
     if job.requester_id is None or job.feature_space != FEATURE_SPACE:
         raise VoiceprintError("voiceprint_identity_context_changed", status=409)
     frozen_policy = policy()
@@ -111,6 +124,23 @@ def context(job, *, current_revision=None):
         user_ids=job.requested_users,
         expected_revision=revision,
     )
+    return source, pool, frozen_policy
+
+
+def validate_context(job, source, pool, frozen_policy, *, current_revision=None):
+    if job.expires_at <= timezone.now():
+        raise VoiceprintError("voiceprint_identity_expired", status=409)
+    if (
+        job.requester_id != source.actor_id
+        or job.requester_id != pool.actor_id
+        or job.record_id != source.record_id
+        or job.record_id != pool.record_id
+        or job.organization_id != pool.organization_id
+        or tuple(job.requested_users) != tuple(str(value) for value in pool.requested)
+        or job.threshold_digest != frozen_policy.digest
+        or job.feature_space != FEATURE_SPACE
+    ):
+        raise VoiceprintError("voiceprint_identity_context_changed", status=409)
     changed = (
         (
             source.fingerprint != job.source_digest
@@ -131,16 +161,21 @@ def context(job, *, current_revision=None):
         or len(pool.requested) > frozen_policy.max_candidates
     ):
         raise VoiceprintError("voiceprint_identity_context_changed", status=409)
-    speaker = models.MeetingSpeaker.objects.filter(
-        pk=job.speaker_id, record_id=job.record_id
-    ).first()
+
+
+def validate_presentation(job, speaker=None):
+    speaker = (
+        speaker
+        or models.MeetingSpeaker.objects.filter(
+            pk=job.speaker_id, record_id=job.record_id
+        ).first()
+    )
     if (
         speaker is None
         or not job.presentation_digest
         or presentation_digest(speaker) != job.presentation_digest
     ):
         raise VoiceprintError("voiceprint_identity_context_changed", status=409)
-    return source, pool, frozen_policy
 
 
 @transaction.atomic
@@ -180,6 +215,16 @@ def enqueue(  # noqa: PLR0913 -- Explicit record/speaker, source revision and se
     speaker = models.MeetingSpeaker.objects.select_for_update().get(
         pk=speaker_id, record=locked
     )
+    return enqueue_prepared(
+        locked, actor, speaker, source, pool, frozen_policy, request_key
+    )
+
+
+def enqueue_prepared(  # noqa: PLR0913 -- Caller supplies a verified shared batch context.
+    record, actor, speaker, source, pool, frozen_policy, request_key, *, batch=None
+):
+    """Internal; caller holds the actor/scope/record locks and verified full proofs."""
+    speaker_id = speaker.pk
     presentation = presentation_digest(speaker)
     intent = sources.digest(
         {
@@ -193,7 +238,7 @@ def enqueue(  # noqa: PLR0913 -- Explicit record/speaker, source revision and se
         }
     )
     previous = models.SpeakerIdentityJob.objects.filter(
-        record=locked, speaker_id=speaker_id, request_key=request_key
+        record=record, speaker_id=speaker_id, request_key=request_key
     ).first()
     if previous:
         if previous.intent_digest != intent:
@@ -214,13 +259,14 @@ def enqueue(  # noqa: PLR0913 -- Explicit record/speaker, source revision and se
     if source.expires_at:
         expires = min(expires, source.expires_at)
     return models.SpeakerIdentityJob.objects.create(
-        record=locked,
+        record=record,
+        batch=batch,
         speaker_id=speaker_id,
         requester=actor,
-        organization_id=organization_id,
+        organization_id=pool.organization_id,
         request_key=request_key,
-        requested_users=[str(identifier) for identifier in identifiers],
-        record_revision=expected_revision,
+        requested_users=[str(identifier) for identifier in pool.requested],
+        record_revision=source.record_revision,
         intent_digest=intent,
         source_digest=source.fingerprint,
         source_generation_digest=source.generation_digest,
@@ -577,13 +623,15 @@ def invalidate_consent_work(consent):
     )
 
 
-def invalidate_target(record_id, speaker_id):
+def invalidate_target(record_id, speaker_id, *, exclude_job_id=None):
     """Called under editorial subject/record locks after a human changes a target."""
     now = timezone.now()
     jobs = models.SpeakerIdentityJob.objects.filter(
         record_id=record_id,
         speaker_id=speaker_id,
     )
+    if exclude_job_id is not None:
+        jobs = jobs.exclude(pk=exclude_job_id)
     models.SpeakerIdentitySuggestion.objects.filter(
         job__in=jobs,
         state="pending",

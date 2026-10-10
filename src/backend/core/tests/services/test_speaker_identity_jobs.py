@@ -25,6 +25,7 @@ from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_media_process import MediaError
 from core.services.voiceprint_query_producer import ProducedQuery
 from core.services.voiceprint_rpc_process import extract as actual_extract
+from core.tests.services.test_meeting_records import client_for
 from core.tests.services.test_voiceprint_candidates import (
     matching_enabled,
     member_profile,
@@ -701,8 +702,9 @@ def test_provider_is_called_outside_transaction_and_retry_class_is_preserved(
 
 
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("entry", ["internal", "public"])
 def test_actual_qwen_private_source_to_persisted_database_result(  # noqa: PLR0913 -- Actual DB, decoder, model and private HTTP fixtures.
-    case, pipeline, actual_encoder, short_asr, private_s3, monkeypatch
+    case, pipeline, actual_encoder, short_asr, private_s3, monkeypatch, entry
 ):
     monkeypatch.setattr(sources, "authorized", REAL_SOURCE_AUTHORIZED)
     monkeypatch.setattr(sources, "revalidate", REAL_SOURCE_REVALIDATE)
@@ -722,7 +724,24 @@ def test_actual_qwen_private_source_to_persisted_database_result(  # noqa: PLR09
         return result
 
     monkeypatch.setattr(service.producer.query.encoder_process, "extract", encode)
-    job = enqueue(case)
+    url = f"/api/v1.0/meeting-records/{case.record.pk}/speaker-identification/"
+    if entry == "public":
+        response = client_for(case.actor).post(
+            url,
+            {
+                "request_key": str(uuid4()),
+                "expected_revision": case.record.revision,
+                "organization_id": None,
+                "user_ids": [str(case.actor.pk)],
+            },
+            format="json",
+        )
+        assert response.status_code == 202, response.data
+        job = models.SpeakerIdentityJob.objects.get(
+            pk=response.data["request"]["jobs"][0]["id"]
+        )
+    else:
+        job = enqueue(case)
     assert (
         service.process_one(
             job.pk,
@@ -736,6 +755,13 @@ def test_actual_qwen_private_source_to_persisted_database_result(  # noqa: PLR09
     assert len(encoded) == 3 and short_asr.requests == 3
     suggestion = models.SpeakerIdentitySuggestion.objects.get(job=job)
     assert suggestion.result in {"suggested", "unknown", "mixed_speaker", "ambiguous"}
+    if entry == "public":
+        response = client_for(case.actor).get(url)
+        assert response.status_code == 200
+        assert response.data["request"]["jobs"][0]["suggestion"]["id"] == str(
+            suggestion.pk
+        )
+        assert not response.data["request"]["processing"]
     case.speaker.refresh_from_db()
     assert case.speaker.user_id is None and case.record.identity_decisions.count() == 0
     assert case.profile.samples.count() == 3
