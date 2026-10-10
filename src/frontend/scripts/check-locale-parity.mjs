@@ -38,6 +38,7 @@ const REQUIRED_NAMESPACES = [
   'capture',
   'voiceprint',
   'speakerIdentification',
+  'importIdentity',
 ]
 const PLACEHOLDER = /\{\{\s*[\w.]+\s*\}\}/g
 

@@ -18,7 +18,7 @@ import magic
 from storages.backends.s3 import S3Storage
 
 from core import models
-from core.services import ai_usage
+from core.services import ai_usage, recording_identity_dispatch
 from core.services import qwen_filetrans as provider
 from core.services import recording_identity_preflight as preflight
 from core.services import recording_import_inputs as identity_inputs
@@ -154,6 +154,12 @@ def serialize(job):
             "can_continue_without_identity": job.identity_state == "awaiting_choice"
             and job.status == "failed",
         }
+        dispatch = models.RecordingIdentityDispatch.objects.filter(upload=job).first()
+        if dispatch:
+            result["identity_request"] = {
+                "status": dispatch.status,
+                "reason": dispatch.error_code,
+            }
     return result
 
 
@@ -694,6 +700,7 @@ def finish(job, rows, billed_seconds=None, original_audio_duration_ms=None):
     record = current.record
     record.revision += 1
     record.save(update_fields=["revision", "updated_at"])
+    recording_identity_dispatch.enqueue(current, record.revision)
     if (
         type(billed_seconds) in {int, float}
         and math.isfinite(billed_seconds)

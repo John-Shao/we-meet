@@ -834,6 +834,24 @@
       "running": "Transcribing. You can return to this record later.",
       "succeeded": "Transcription complete",
       "failed": "Transcription failed"
+    },
+    "identity": "Identify speakers",
+    "identityHint": "Also enable speaker separation. Check the media before transcription and suggest identities after it completes.",
+    "identityLimit": "Identity recognition currently supports files up to 512 MiB and two hours. Ordinary transcription remains available.",
+    "identityUnavailable": "Identity recognition is unavailable. Turn this option off to continue with ordinary transcription.",
+    "preflightStopped": "Identity preflight stopped",
+    "preflightPending": "Checking identity input. Transcription has not been submitted.",
+    "preflightReady": "Identity input checked. Waiting for transcription.",
+    "preflightFailed": "The media, library or authorization did not pass the identity check. Transcription has not been submitted. Choose how to continue.",
+    "preflightDecision": {
+      "retry_identity": "Check identity input again",
+      "continue_without_identity": "Continue with ordinary transcription"
+    },
+    "identityRequest": {
+      "queued": "Transcription completed. Preparing identity suggestions.",
+      "running": "Transcription completed. Preparing identity suggestions.",
+      "submitted": "Identity recognition requested. Open Identify speakers to review its progress and suggestions.",
+      "unavailable": "Transcription completed. Identity recognition is unavailable; you can label speakers manually."
     }
   },
   "minutesLibrary": {

@@ -833,6 +833,24 @@
       "running": "正在转写，可稍后回到此记录查看结果",
       "succeeded": "转写完成",
       "failed": "转写失败"
+    },
+    "identity": "识别说话人身份",
+    "identityHint": "同时开启说话人区分。转写前检查音频，完成后提供身份建议。",
+    "identityLimit": "身份识别目前支持 512 MiB 以内且不超过两小时的文件；仍可使用普通转写。",
+    "identityUnavailable": "身份识别暂不可用，可关闭此选项后继续普通转写。",
+    "preflightStopped": "身份预检已停止",
+    "preflightPending": "正在进行身份预检，尚未提交转写。",
+    "preflightReady": "身份预检完成，等待转写。",
+    "preflightFailed": "音频、声纹库或授权未通过身份预检，尚未提交转写。请选择继续方式。",
+    "preflightDecision": {
+      "retry_identity": "重新进行身份预检",
+      "continue_without_identity": "继续普通转写"
+    },
+    "identityRequest": {
+      "queued": "转写已完成，正在安排身份识别。",
+      "running": "转写已完成，正在安排身份识别。",
+      "submitted": "已提交身份识别，可在“识别身份”中查看进度和建议。",
+      "unavailable": "转写已完成，身份识别暂不可用，可人工标记说话人。"
     }
   },
   "minutesLibrary": {

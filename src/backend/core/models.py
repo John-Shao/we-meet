@@ -1349,6 +1349,28 @@ class RecordingImportInput(BaseModel):
         indexes = [models.Index(fields=["status", "next_cleanup_at"], name="import_input_cleanup_idx")]
 
 
+class RecordingIdentityDispatch(BaseModel):
+    """Post-ASR request recovery is independent from the paid upload task."""
+
+    upload = models.OneToOneField(UploadedRecording, on_delete=models.CASCADE, related_name="identity_dispatch")
+    request_key = models.UUIDField(default=uuid.uuid4, unique=True)
+    record_revision = models.PositiveIntegerField()
+    configuration_digest = models.CharField(max_length=64)
+    status = models.CharField(max_length=16, default="queued")
+    attempts = models.PositiveIntegerField(default=0)
+    lease_id = models.UUIDField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
+    next_attempt_at = models.DateTimeField()
+    expires_at = models.DateTimeField()
+    error_code = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "next_attempt_at"], name="identity_dispatch_due_idx")]
+
+    def __str__(self):
+        return str(self.pk)
+
+
 class RecordingUploadSession(BaseModel):
     """A resumable direct upload, before any record or transcription job exists.
 

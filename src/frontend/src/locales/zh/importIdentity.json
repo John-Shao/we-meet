@@ -1,0 +1,16 @@
+{
+  "scope": "声纹库范围",
+  "personal": "本人个人库",
+  "moreScopes": "更多组织",
+  "search": "搜索成员",
+  "searchAction": "搜索",
+  "selected": "已选 {{count}} 人（最多 {{limit}} 人）",
+  "remove": "移除 {{name}}",
+  "directoryError": "成员列表暂不可用，请刷新后继续。",
+  "refresh": "刷新",
+  "loading": "正在加载成员…",
+  "empty": "没有匹配的成员",
+  "previous": "上一页",
+  "next": "下一页",
+  "hint": "请选择参与匹配的成员。仅使用他们当前有效授权的声纹，结果需由你复核确认。"
+}

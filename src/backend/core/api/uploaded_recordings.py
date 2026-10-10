@@ -11,8 +11,8 @@ from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
 from core import models
+from core.services import recording_identity_directory, recording_upload_sessions
 from core.services import recording_identity_preflight as preflight
-from core.services import recording_upload_sessions
 from core.services import uploaded_recordings as service
 from core.services.hotwords import parse_hotwords
 from core.services.meeting_records import RecordConflict, visible_records
@@ -142,6 +142,9 @@ class UploadedRecordingView(APIView):
             {
                 "available": service.available(),
                 "personal_hotwords_available": settings.MEETING_RECORDS_ENABLED,
+                "identity_preflight": recording_identity_directory.capability(
+                    request.user
+                ),
                 "max_bytes": settings.MEETING_FILE_ASR_MAX_BYTES,
                 # When direct uploads are on, callers should use the larger
                 # presigned path; the multipart ceiling still applies to the

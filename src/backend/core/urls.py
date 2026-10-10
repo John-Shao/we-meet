@@ -229,7 +229,7 @@ from core.api.uploaded_recordings import (
     DirectUploadPresignView,
     UploadedRecordingView,
 )
-from core.api.recording_identity_preflight import RecordingIdentityPreflightView
+from core.api.recording_identity_preflight import RecordingIdentityCandidatesView, RecordingIdentityPreflightView
 from core.external_api import viewsets as external_viewsets
 
 # - Main endpoints
@@ -517,6 +517,7 @@ urlpatterns = [
                 path("recording-hotwords/", PersonalHotwordsView.as_view(), name="recording-hotwords"),
                 path("recording-uploads/<uuid:record_id>/", UploadedRecordingView.as_view(), name="recording-upload-state"),
                 path("recording-uploads/<uuid:record_id>/identity-preflight/", RecordingIdentityPreflightView.as_view(), name="recording-identity-preflight"),
+                path("recording-uploads/identity-candidates/", RecordingIdentityCandidatesView.as_view(), name="recording-identity-candidates"),
                 # Two-step presigned upload: sign an exact byte count, then adopt
                 # the object. Bytes never pass through the application.
                 path("recording-uploads/upload-url/", DirectUploadPresignView.as_view(), name="recording-upload-url"),

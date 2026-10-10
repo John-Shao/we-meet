@@ -1,8 +1,7 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'wouter'
-import { fetchApi } from '@/api/fetchApi'
 import { uploadFetch } from '@/api/uploadFetch'
 import { Button, Dialog, TextArea } from '@/primitives'
 import { Checkbox } from '@/primitives/Checkbox'
@@ -13,11 +12,24 @@ import { rowMeta } from './libraryStyles'
 import { PersonalHotwords } from './PersonalHotwords'
 import {
   CHUNKED_THRESHOLD,
+  forgetSession,
   putPartWithProgress,
   UploadCancelled,
   uploadInParts,
 } from '../chunkedUpload'
 import { formatDecimal } from '../recordDateTime'
+import {
+  getAuthSnapshot,
+  sameAuthSession,
+} from '@/features/auth/utils/tokenStorage'
+import { ImportIdentityChoices } from '@/features/voiceprint/ImportIdentityChoices'
+import {
+  boundImportRequest,
+  ImportIdentityClient,
+  type ImportIdentity,
+  type ImportIdentityCapability,
+  type ImportRequest,
+} from '@/features/voiceprint/importIdentity'
 
 type UploadState = {
   record_id: string
@@ -25,6 +37,15 @@ type UploadState = {
   attempt: number
   retryable: boolean
   error_code: string
+  identity_preflight?: {
+    status: string
+    reason: string
+    can_continue_without_identity: boolean
+  }
+  identity_request?: {
+    status: 'queued' | 'running' | 'submitted' | 'unavailable'
+    reason: string
+  }
 }
 
 /** What the server can accept, and by which of the two paths. */
@@ -38,6 +59,7 @@ type UploadCapabilities = {
   direct_upload_available?: boolean
   /** The direct branch's ceiling, 0 when direct uploads are off. */
   direct_max_bytes?: number
+  identity_preflight?: ImportIdentityCapability
 }
 
 type DirectUploadTicket = {
@@ -66,11 +88,17 @@ const COMPLETE = 'recording-uploads/upload-complete/'
 async function importRecording(
   file: File,
   key: string,
-  options: { context: string; hotwords: string; diarization: boolean },
+  options: {
+    context: string
+    hotwords: string
+    diarization: boolean
+    identity?: ImportIdentity
+  },
   direct: { maxBytes: number } | null,
   ticket: { current: DirectUploadTicket | null },
   signal: AbortSignal,
-  onProgress: (sent: number, total: number) => void
+  onProgress: (sent: number, total: number) => void,
+  request: ImportRequest
 ): Promise<UploadState> {
   const content_type = file.type || 'application/octet-stream'
   if (!direct || file.size > direct.maxBytes) {
@@ -80,7 +108,8 @@ async function importRecording(
     body.set('context', options.context)
     body.set('hotwords', options.hotwords)
     body.set('diarization', String(options.diarization))
-    return fetchApi<UploadState>('recording-uploads/', {
+    if (options.identity) body.set('identity', JSON.stringify(options.identity))
+    return request<UploadState>('recording-uploads/', {
       method: 'POST',
       body,
       signal,
@@ -88,7 +117,7 @@ async function importRecording(
     })
   }
 
-  ticket.current ??= await fetchApi<DirectUploadTicket>(DIRECT, {
+  ticket.current ??= await request<DirectUploadTicket>(DIRECT, {
     method: 'POST',
     cache: 'no-store',
     redirect: 'error',
@@ -135,7 +164,7 @@ async function importRecording(
   signal.throwIfAborted()
   onProgress(file.size, file.size)
 
-  return fetchApi<UploadState>(COMPLETE, {
+  return request<UploadState>(COMPLETE, {
     method: 'POST',
     cache: 'no-store',
     redirect: 'error',
@@ -158,6 +187,7 @@ const textAreaCls = css({ marginTop: 'xs' })
 const formCls = css({
   display: 'grid',
   gap: 'md',
+  minWidth: 0,
   maxHeight: '70dvh',
   overflowY: 'auto',
 })
@@ -192,13 +222,30 @@ const fieldLabelCls = css({
 /** 上传进度/重试区块:与详情页内容留出一档间距。 */
 const statusSectionCls = css({ marginBottom: 'lg' })
 
-export function RecordingUpload({
-  viewerId,
-  onRecord,
-}: {
-  viewerId: string
-  onRecord?: (id: string) => void
-}) {
+type UploadProps = { viewerId: string; onRecord?: (id: string) => void }
+
+function useLoginKey() {
+  const [session, setSession] = useState(() => getAuthSnapshot().session)
+  useEffect(() => {
+    const check = () => setSession(getAuthSnapshot().session)
+    const timer = setInterval(check, 250)
+    window.addEventListener('storage', check)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('storage', check)
+    }
+  }, [])
+  return session
+}
+
+export function RecordingUpload(props: UploadProps) {
+  const session = useLoginKey()
+  return (
+    <RecordingUploadSession key={`${props.viewerId}:${session}`} {...props} />
+  )
+}
+
+function RecordingUploadSession({ viewerId, onRecord }: UploadProps) {
   const { t } = useTranslation('meetings')
   const [, navigate] = useLocation()
   const input = useRef<HTMLInputElement>(null)
@@ -210,6 +257,13 @@ export function RecordingUpload({
   const [context, setContext] = useState('')
   const [hotwords, setHotwords] = useState('')
   const [diarization, setDiarization] = useState(false)
+  const [identity, setIdentity] = useState<ImportIdentity | null>(null)
+  const [identityReady, setIdentityReady] = useState(false)
+  const auth = useRef(getAuthSnapshot()).current
+  const request = useMemo(
+    () => boundImportRequest(viewerId, auth, identity !== null),
+    [viewerId, auth, identity]
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
   const [open, setOpen] = useState(false)
@@ -221,17 +275,25 @@ export function RecordingUpload({
   const [uploaded, setUploaded] = useState(0)
   const [cancelled, setCancelled] = useState(false)
   const controller = useRef<AbortController | null>(null)
+  useEffect(
+    () => () => {
+      controller.current?.abort()
+      ticket.current = null
+      forgetSession(key)
+    },
+    [key]
+  )
   const capabilities = useQuery({
-    queryKey: ['recording-upload-capabilities', viewerId],
+    queryKey: ['recording-upload-capabilities', viewerId, auth.session],
     queryFn: ({ signal }) =>
-      fetchApi<UploadCapabilities>('recording-uploads/', {
+      request<UploadCapabilities>('recording-uploads/', {
         signal,
         cache: 'no-store',
       }),
     retry: false,
     gcTime: 0,
   })
-  if (!capabilities.data?.available) return null
+  if (!capabilities.data?.available || !sameAuthSession(auth)) return null
   const config = capabilities.data
   // When the server offers direct uploads, that path's ceiling is the real one;
   // the multipart ceiling only still applies to the legacy branch.
@@ -248,11 +310,24 @@ export function RecordingUpload({
   const percent = uploadTotal
     ? Math.min(100, Math.floor((uploaded / uploadTotal) * 100))
     : 0
-  const valid =
+  const validFile =
     !!file &&
     file.size > 0 &&
     file.size <= limit &&
     config.extensions.includes(extension)
+  const identityEligible =
+    config.identity_preflight?.available === true &&
+    !!file &&
+    file.size <= (config.identity_preflight.max_bytes ?? 0)
+  const valid =
+    validFile &&
+    (identity === null ||
+      submitted ||
+      (identityReady &&
+        identityEligible &&
+        identity.candidate_user_ids.length > 0 &&
+        identity.candidate_user_ids.length <=
+          (config.identity_preflight?.max_candidates ?? 0)))
   const video = [
     'avi',
     'flv',
@@ -276,6 +351,7 @@ export function RecordingUpload({
           const selected = event.target.files?.[0]
           if (!selected) return
           setFile(selected)
+          setIdentity(null)
           setKey(crypto.randomUUID())
           // A ticket belongs to one file's bytes; a different file needs its own.
           ticket.current = null
@@ -314,6 +390,7 @@ export function RecordingUpload({
             if (!file || busy) return
             setError(false)
             if (
+              !valid ||
               !file.size ||
               file.size > limit ||
               !config.extensions.includes(
@@ -348,8 +425,9 @@ export function RecordingUpload({
                       context,
                       hotwords,
                       diarization,
+                      ...(identity ? { identity } : {}),
                     },
-                    { request: fetchApi, putPart: putPartWithProgress },
+                    { request, putPart: putPartWithProgress },
                     abort.signal,
                     progress
                   )) as UploadState
@@ -367,14 +445,21 @@ export function RecordingUpload({
                 const result = await importRecording(
                   file,
                   key,
-                  { context, hotwords, diarization },
+                  {
+                    context,
+                    hotwords,
+                    diarization,
+                    ...(identity ? { identity } : {}),
+                  },
                   directAllowed ? { maxBytes: limit } : null,
                   ticket,
                   abort.signal,
-                  progress
+                  progress,
+                  request
                 )
                 recordId = result.record_id
               }
+              if (!sameAuthSession(auth) || abort.signal.aborted) return
               setOpen(false)
               if (onRecord) onRecord(recordId)
               else navigate(`/meeting/records/${recordId}?tab=text`)
@@ -411,7 +496,52 @@ export function RecordingUpload({
           >
             {t('upload.choose')}
           </Button>
-          {!valid && <p role="alert">{t('upload.error')}</p>}
+          {!validFile && <p role="alert">{t('upload.error')}</p>}
+          {(config.identity_preflight?.available || identity) && (
+            <>
+              <Checkbox
+                isSelected={identity !== null}
+                isDisabled={
+                  busy || submitted || (identity === null && !identityEligible)
+                }
+                onChange={(checked) => {
+                  setIdentity(
+                    checked
+                      ? { organization_id: null, candidate_user_ids: [] }
+                      : null
+                  )
+                  if (checked) setDiarization(true)
+                  setKey(crypto.randomUUID())
+                }}
+                description={t('upload.identityHint')}
+              >
+                {t('upload.identity')}
+              </Checkbox>
+              {!identityEligible && (
+                <p>
+                  {t(
+                    config.identity_preflight?.available
+                      ? 'upload.identityLimit'
+                      : 'upload.identityUnavailable'
+                  )}
+                </p>
+              )}
+              {identity && (
+                <ImportIdentityChoices
+                  viewerId={viewerId}
+                  value={identity}
+                  disabled={busy || submitted}
+                  onReady={setIdentityReady}
+                  maxCandidates={config.identity_preflight?.max_candidates ?? 0}
+                  onChange={(value) => {
+                    if (busy || submitted) return
+                    setIdentity(value)
+                    setKey(crypto.randomUUID())
+                  }}
+                />
+              )}
+            </>
+          )}
           <details>
             <summary className={advancedSummaryCls}>
               {t('upload.advanced')}
@@ -422,6 +552,7 @@ export function RecordingUpload({
                 isDisabled={busy || submitted}
                 onChange={(value) => {
                   setDiarization(value)
+                  if (!value) setIdentity(null)
                   setKey(crypto.randomUUID())
                 }}
                 description={t('upload.diarizationHint')}
@@ -523,7 +654,20 @@ export function RecordingUpload({
   )
 }
 
-export function UploadedRecordingStatus({
+export function UploadedRecordingStatus(props: {
+  recordId: string
+  viewerId: string
+}) {
+  const session = useLoginKey()
+  return (
+    <UploadedRecordingStatusSession
+      key={`${props.viewerId}:${props.recordId}:${session}`}
+      {...props}
+    />
+  )
+}
+
+function UploadedRecordingStatusSession({
   recordId,
   viewerId,
 }: {
@@ -534,10 +678,21 @@ export function UploadedRecordingStatus({
   const client = useQueryClient()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
+  const auth = useRef(getAuthSnapshot()).current
+  const request = useMemo(
+    () => boundImportRequest(viewerId, auth, false),
+    [viewerId, auth]
+  )
+  const lifetime = useRef(new AbortController())
+  useEffect(() => {
+    const controller = new AbortController()
+    lifetime.current = controller
+    return () => controller.abort()
+  }, [])
   const query = useQuery({
-    queryKey: ['recording-upload-state', viewerId, recordId],
+    queryKey: ['recording-upload-state', viewerId, recordId, auth.session],
     queryFn: async ({ signal }) => {
-      const state = await fetchApi<UploadState>(
+      const state = await request<UploadState>(
         `recording-uploads/${recordId}/`,
         { signal, cache: 'no-store' }
       )
@@ -551,18 +706,96 @@ export function UploadedRecordingStatus({
     gcTime: 0,
     refetchInterval: (q) =>
       q.state.error ||
-      ['succeeded', 'failed'].includes(q.state.data?.status ?? '')
+      q.state.data?.status === 'failed' ||
+      (q.state.data?.status === 'succeeded' &&
+        !['queued', 'running'].includes(
+          q.state.data.identity_request?.status ?? ''
+        ))
         ? false
         : 5000,
   })
+  if (!sameAuthSession(auth)) return null
   if (query.isError)
     return <StateHint state="error">{t('upload.stateError')}</StateHint>
   if (!query.data) return <StateHint state="loading">{t('loading')}</StateHint>
   const state = query.data
-  if (state.status === 'succeeded') return null
+  const dispatch = state.identity_request
+  if (state.status === 'succeeded')
+    return dispatch ? (
+      <p role="status">{t(`upload.identityRequest.${dispatch.status}`)}</p>
+    ) : null
   return (
     <section className={statusSectionCls}>
-      <p role="status">{t(`upload.status.${state.status}`)}</p>
+      <p role="status">
+        {t(
+          state.identity_preflight?.can_continue_without_identity
+            ? 'upload.preflightStopped'
+            : `upload.status.${state.status}`
+        )}
+      </p>
+      {state.status === 'queued' &&
+        state.identity_preflight &&
+        ['pending', 'preflighting', 'ready'].includes(
+          state.identity_preflight.status
+        ) && (
+          <p role="status">
+            {t(
+              state.identity_preflight.status === 'ready'
+                ? 'upload.preflightReady'
+                : 'upload.preflightPending'
+            )}
+          </p>
+        )}
+      {state.identity_preflight?.can_continue_without_identity && (
+        <>
+          <p>{t('upload.preflightFailed')}</p>
+          <div
+            className={css({ display: 'flex', flexWrap: 'wrap', gap: 'sm' })}
+          >
+            {(['retry_identity', 'continue_without_identity'] as const).map(
+              (action) => (
+                <Button
+                  key={action}
+                  size="action"
+                  loading={busy}
+                  isDisabled={busy}
+                  onPress={async () => {
+                    setBusy(true)
+                    setError(false)
+                    try {
+                      await new ImportIdentityClient(viewerId, auth).decide(
+                        recordId,
+                        state.attempt,
+                        action,
+                        lifetime.current.signal
+                      )
+                      if (
+                        sameAuthSession(auth) &&
+                        !lifetime.current.signal.aborted
+                      )
+                        await query.refetch()
+                    } catch {
+                      if (
+                        sameAuthSession(auth) &&
+                        !lifetime.current.signal.aborted
+                      )
+                        setError(true)
+                    } finally {
+                      if (
+                        sameAuthSession(auth) &&
+                        !lifetime.current.signal.aborted
+                      )
+                        setBusy(false)
+                    }
+                  }}
+                >
+                  {t(`upload.preflightDecision.${action}`)}
+                </Button>
+              )
+            )}
+          </div>
+        </>
+      )}
       {state.retryable && (
         <>
           <p>
@@ -579,7 +812,7 @@ export function UploadedRecordingStatus({
               setBusy(true)
               setError(false)
               try {
-                await fetchApi(`recording-uploads/${recordId}/`, {
+                await request(`recording-uploads/${recordId}/`, {
                   method: 'POST',
                   body: JSON.stringify({ attempt: state.attempt }),
                 })
@@ -595,7 +828,18 @@ export function UploadedRecordingStatus({
           </Button>
         </>
       )}
-      {error && <StateHint state="error">{t('upload.error')}</StateHint>}
+      {error && (
+        <StateHint
+          state="error"
+          action={
+            <Button size="dense" onPress={() => void query.refetch()}>
+              {t('library.refresh')}
+            </Button>
+          }
+        >
+          {t('upload.error')}
+        </StateHint>
+      )}
     </section>
   )
 }
