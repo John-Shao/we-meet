@@ -1,5 +1,7 @@
 # 人工纪要身份更新与权限走查
 
+后续固定分享链路已补齐，见[固定纪要分享走查](voiceprint-summary-sharing-review-2026-10-11.md)：两端手动分享保留 AI／人工版本，真实浏览器路由及 Android 导航／HTTP 已验证；生产 IM 投递和完整 Application 等验收仍继续。
+
 日期：2026-10-11（Asia/Shanghai）。后端／Web 及 Android 分支：`feature/speaker-identity-voiceprint`。Android 提交：`ec616a8f`。本记录接续[AI 历史纪要身份走查](voiceprint-summary-identity-history-review-2026-10-11.md)。
 
 ## 问题与修复

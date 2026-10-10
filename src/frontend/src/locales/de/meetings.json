@@ -774,7 +774,7 @@
     "paused": "Benachrichtigungen sind derzeit nicht verfügbar. Bestehende Zustellergebnisse bleiben erhalten.",
     "loadError": "Der Benachrichtigungsstatus ist nicht verfügbar. Aktualisieren Sie die Seite und versuchen Sie es erneut.",
     "openVersion": "Dieses Protokoll anzeigen",
-    "pinned": "Sie sehen die genaue Protokollversion, auf die sich diese Benachrichtigung bezieht.",
+    "pinned": "Sie sehen eine feste Protokollversion.",
     "allVersions": "Zurück zur Besprechungsaufzeichnung",
     "versionUnavailable": "Diese Protokollversion existiert nicht oder Sie haben keinen Zugriff mehr.",
     "retry": "Benachrichtigung erneut versuchen",

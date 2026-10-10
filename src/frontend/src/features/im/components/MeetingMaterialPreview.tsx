@@ -13,26 +13,54 @@ import { css } from '@/styled-system/css'
 export function MeetingMaterialPreview({
   recordId,
   scope,
+  summaryId,
+  humanId,
 }: {
   recordId: string
   scope: 'record' | 'minutes'
+  summaryId?: string
+  humanId?: string
 }) {
   const { t } = useTranslation('meetings')
   const { user } = useUser()
   const query = useQuery({
-    queryKey: ['meeting-material-preview', user?.id, recordId, scope],
+    queryKey: [
+      'meeting-material-preview',
+      user?.id,
+      recordId,
+      scope,
+      summaryId,
+      humanId,
+    ],
     enabled: !!user,
-    queryFn: ({ signal }) =>
-      fetchApi<{
+    queryFn: async ({ signal }) => {
+      const selector =
+        humanId !== undefined
+          ? `?human_id=${encodeURIComponent(humanId)}`
+          : summaryId !== undefined
+            ? `?summary_id=${encodeURIComponent(summaryId)}`
+            : ''
+      const value = await fetchApi<{
         role: 'reader' | 'editor' | 'manager'
         excerpt: string
         media_type: string
         media_url: string | null
         duration_ms?: number
+        summary_id?: string
+        human_id?: string
+        identity_updated?: boolean
       }>(
-        `meeting-records/${encodeURIComponent(recordId)}/collaboration/${scope}/preview/`,
+        `meeting-records/${encodeURIComponent(recordId)}/collaboration/${scope}/preview/${selector}`,
         { signal, cache: 'no-store' }
-      ),
+      )
+      if (
+        (summaryId !== undefined && value.summary_id !== summaryId) ||
+        (humanId !== undefined && value.human_id !== humanId)
+      ) {
+        throw new Error('The requested minutes version is unavailable.')
+      }
+      return value
+    },
     retry: false,
     gcTime: 0,
     staleTime: 0,
@@ -78,6 +106,9 @@ export function MeetingMaterialPreview({
             <span className={css({ fontSize: 'sm', lineHeight: 1.6 })}>
               {data?.excerpt || t('collaboration.minutes')}
             </span>
+            {data?.identity_updated && (
+              <span>{t('recordAi.identityUpdated')}</span>
+            )}
           </>
         ) : (
           <>

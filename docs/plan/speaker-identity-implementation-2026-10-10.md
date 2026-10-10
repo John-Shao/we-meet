@@ -1,5 +1,7 @@
 # 声纹身份识别开发记录
 
+后续[固定纪要分享走查](../research/voiceprint-summary-sharing-review-2026-10-11.md)已贯通 AI／人工固定页面的复制链接、聊天卡片选择器、精确预览与 Android 人工版本导航，保持冻结正文、身份提示和原权限。49 项后端、90 项 Web、12 项 Android JVM、22 项隔离模拟器及四组真实浏览器路由流程通过；生产 IM 投递／完整 Application、真实设备及真人／生产验收继续推进。
+
 后续[人工纪要身份与权限走查](../research/voiceprint-human-summary-identity-review-2026-10-11.md)已接通两端人工纪要当前／固定历史版提示及确认身份后的刷新，保留人工草稿、冻结正文和引用；补齐禁止缓存头及读取途中撤权复核，Android 补回行动项原负责人和截止时间展示。84 项后端组合、64 项 Web、3 项 Android JVM、13 项隔离模拟器及制品构建／静态检查完成；完整产品、真实设备和生产历史分享链路继续验收。
 
 后续[历史纪要身份更新走查](../research/voiceprint-summary-identity-history-review-2026-10-11.md)已补齐 Web／Android 的“身份已更新，可重新生成”提示：依据最终决定与冻结输入比较，排除拒绝建议，覆盖成员改名与当前来源不可用；旧纪要、snapshot、导出回执及已确认任务保持不变，明确再生成才采用当前姓名。67 项后端、24 项 Web、2 项 Android JVM、2 项隔离模拟器回归及制品构建／中文大字号暗色走查通过；完整产品、人工纪要提示联动与历史分享链路继续验证。
@@ -40,7 +42,7 @@ Linux 编码器镜像与私有部署资源已接通，见[Linux 走查](../resea
 |---|---|---|
 | 人工标记：通讯录／部门检索、外部联系人姓名快照、自定义标签、清除 | 后端、Web 与 Android 已接入 | API 权限／隐私、Web 交互已验证；Android 72 项相关 JVM 回归、13 项模拟器交互／时间线测试及中文大字体／暗色界面走查通过 |
 | 归属互斥、原始来源不可变、记录 revision 与并发冲突、人工审计 | 后端实现及针对性测试已通过 | 数据约束、迁移回填、事务、并发冲突与旧接口回归测试 |
-| 转写／导出／新纪要姓名一致，历史版本与搜索刷新 | 姓名投影及有效原文／导出／纪要来源回归已通过；当前身份搜索与引用、两端 AI／人工纪要身份提示、确认后的人工纪要刷新、冻结 snapshot／导出回执／任务不改写已验证；读取途中撤权与禁止缓存已补齐；完整产品、真实设备及生产历史分享链路继续验证 | 有效原文、导出、纪要与搜索回归测试；见[当前身份搜索走查](../research/voiceprint-identity-search-review-2026-10-11.md)、[AI 历史身份提示走查](../research/voiceprint-summary-identity-history-review-2026-10-11.md)及[人工纪要走查](../research/voiceprint-human-summary-identity-review-2026-10-11.md) |
+| 转写／导出／新纪要姓名一致，历史版本与搜索刷新 | 姓名投影及有效原文／导出／纪要来源回归已通过；当前身份搜索与引用、两端 AI／人工纪要提示及确认后刷新、冻结 snapshot／导出回执／任务不改写、读取中撤权和禁止缓存已验证；固定历史分享／预览／原生导航及真实浏览器路由已接通；生产 IM 投递／完整 Application、真实设备及生产联合分享继续验证 | 有效原文、导出、纪要与搜索回归测试；见[当前身份搜索走查](../research/voiceprint-identity-search-review-2026-10-11.md)、[AI 历史提示走查](../research/voiceprint-summary-identity-history-review-2026-10-11.md)、[人工纪要走查](../research/voiceprint-human-summary-identity-review-2026-10-11.md)及[固定分享走查](../research/voiceprint-summary-sharing-review-2026-10-11.md) |
 | Qwen encoder 固定版本加载、特征空间、质量分析、拒绝与评测工具 | 编码器、信号边界、私有 RPC 及登记语音／单人／随机朗读质检管线已验证；真实云端质量和真人评测待完成 | [固定模型与资源报告](../research/voiceprint-qwen-technical-probe-2026-10-10.md)、[登记质检走查](../research/voiceprint-qwen-quality-review-2026-10-10.md)；合成输入仅证明技术链路 |
 | 本人三类授权、组织隔离、登记上传、试听确认与拒绝 | 本人设置／组织开关、登记上传／试听／决定 API、独立登记质检及 Web／Android 登记界面已接通 | 声纹后端 386 项回归、50 项 Web／设置回归及真实合成麦克风浏览器验证通过；Android 本轮 86 项 JVM 与 14 项模拟器回归通过；实际 Qwen encoder 通过，云端 ASR 契约使用本地模拟响应验证，信号质量样本仍须完成真实质检 |
 | 加密样本／模板、撤销 generation、来源删除、清理回执与恢复墓碑 | 独立档案密钥、加密来源／质检证明、登记及通话设备组模板、贡献失效门禁及重建、撤销墓碑、DB 清理、来源删除物理清理／持久恢复、候选／音频／许可／轨道周期回收已实现；生产恢复部署待完成 | 62 项登记模板回归、加密隔离、密钥轮换、撤销／重新登记／旧清理、级联删除和到期已验证；后续 614 项后端组合回归见[维护走查](../research/voiceprint-maintenance-review-2026-10-10.md)，运维调度／外部墓碑源待验证 |

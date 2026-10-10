@@ -1020,12 +1020,14 @@ export function RecordWorkspace({
                     ? record.capabilities.read_summary
                     : record.capabilities.read_transcript) && (
                     <MaterialActions
-                      key={`${viewerId}:${record.id}:${document}`}
+                      key={`${viewerId}:${record.id}:${document}:${summaryId}:${humanId}`}
                       recordId={record.id}
                       viewerId={viewerId}
                       scope={document ? 'minutes' : 'record'}
                       title={record.title || t('library.untitled')}
                       originAt={record.origin_at}
+                      summaryId={humanId === undefined ? summaryId : undefined}
+                      humanId={humanId}
                     />
                   )}
                 {record && !document && (

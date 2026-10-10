@@ -774,7 +774,7 @@
     "paused": "Meldingen zijn momenteel niet beschikbaar. Bestaande afleverresultaten blijven behouden.",
     "loadError": "De meldingsstatus is niet beschikbaar. Vernieuw de pagina en probeer het opnieuw.",
     "openVersion": "Deze notulenversie bekijken",
-    "pinned": "Je bekijkt de exacte notulenversie waar deze melding naar verwijst.",
+    "pinned": "Je bekijkt een vaste notulenversie.",
     "allVersions": "Terug naar het vergaderrecord",
     "versionUnavailable": "Deze notulenversie bestaat niet of je hebt er geen toegang meer toe.",
     "retry": "Melding opnieuw naar mij sturen",

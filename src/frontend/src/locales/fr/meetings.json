@@ -774,7 +774,7 @@
     "paused": "Les notifications sont indisponibles. Les livraisons existantes sont conservées.",
     "loadError": "L’état des notifications est indisponible. Actualisez pour réessayer.",
     "openVersion": "Voir cette version du compte-rendu",
-    "pinned": "Vous consultez la version exacte du compte-rendu liée à cette notification.",
+    "pinned": "Vous consultez une version fixe du compte-rendu.",
     "allVersions": "Retour aux archives de réunion",
     "versionUnavailable": "Cette version du compte-rendu n’existe pas ou vous n’y avez plus accès.",
     "retry": "Me notifier à nouveau",

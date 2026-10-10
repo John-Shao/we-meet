@@ -10,6 +10,7 @@
     "test": "panda codegen && npm run check:json && npm run check:locales && vitest run",
     "test:watch": "panda codegen && vitest",
     "test:e2e": "playwright test",
+    "review:speaker-summary-sharing": "node scripts/review-speaker-identity-summary-sharing.mjs",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:responsive": "playwright test --project=responsive-chromium",
     "test:e2e:update-responsive": "playwright test --project=responsive-chromium --update-snapshots",

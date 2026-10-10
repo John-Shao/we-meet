@@ -773,7 +773,7 @@
     "paused": "通知服务暂不可用，已有交付结果仍保留。",
     "loadError": "暂时无法读取通知状态，请刷新重试。",
     "openVersion": "查看这版纪要",
-    "pinned": "正在查看通知所对应的固定纪要版本。",
+    "pinned": "正在查看固定纪要版本。",
     "allVersions": "返回会议记录",
     "versionUnavailable": "这版纪要不存在或你已无权查看。",
     "retry": "再次尝试通知我",

@@ -44,3 +44,58 @@ it('loads viewer-specific minutes and removes the body and role on revocation', 
   view.unmount()
   client.clear()
 })
+
+it.each(['summary', 'human'] as const)(
+  'fetches the fixed %s preview and rejects missing or substituted versions',
+  async (kind) => {
+    const version = '22222222-2222-4222-8222-222222222222'
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    vi.mocked(fetchApi).mockResolvedValue({
+      excerpt: 'Frozen old minutes',
+      role: 'reader',
+      [`${kind}_id`]: version,
+      identity_updated: true,
+    })
+    const view = render(
+      <QueryClientProvider client={client}>
+        <MeetingMaterialPreview
+          recordId="record"
+          scope="minutes"
+          {...(kind === 'summary'
+            ? { summaryId: version }
+            : { humanId: version })}
+        />
+      </QueryClientProvider>
+    )
+    await screen.findByText('Frozen old minutes')
+    expect(screen.getByText('recordAi.identityUpdated')).toBeInTheDocument()
+    expect(vi.mocked(fetchApi).mock.lastCall?.[0]).toBe(
+      `meeting-records/record/collaboration/minutes/preview/?${kind}_id=${version}`
+    )
+    for (const wrong of [undefined, '33333333-3333-4333-8333-333333333333']) {
+      vi.mocked(fetchApi).mockResolvedValue({
+        excerpt: 'Newer private minutes',
+        role: 'manager',
+        [`${kind}_id`]: wrong,
+      })
+      await act(async () => {
+        await client.invalidateQueries({
+          queryKey: ['meeting-material-preview'],
+        })
+      })
+      await waitFor(() =>
+        expect(screen.queryByText('Frozen old minutes')).not.toBeInTheDocument()
+      )
+      expect(
+        screen.queryByText('Newer private minutes')
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByText('collaboration.previewUnavailable')
+      ).toBeInTheDocument()
+    }
+    view.unmount()
+    client.clear()
+  }
+)

@@ -774,7 +774,7 @@
     "paused": "Notifications are currently unavailable. Existing delivery results are retained.",
     "loadError": "Notification status is unavailable. Refresh to try again.",
     "openVersion": "View these minutes",
-    "pinned": "Viewing the exact minutes version linked in this notification.",
+    "pinned": "Viewing a fixed minutes version.",
     "allVersions": "Back to meeting record",
     "versionUnavailable": "This minutes version does not exist or you no longer have access.",
     "retry": "Try notifying me again",

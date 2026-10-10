@@ -13,6 +13,7 @@ from core import models, utils
 from core.services import meeting_collaboration as service
 from core.services.meeting_records import RecordConflict, visible_records
 from core.services.meeting_summary_sharing import eligible_users
+from core.services.summary_identity_state import read_state
 
 # One page of candidates == one page of the shared picker.
 CANDIDATES_PAGE = 50
@@ -213,11 +214,51 @@ class MaterialPreviewView(CollaborationView):
             "media_url": None,
         }
         if scope == "minutes":
-            review = record.summary_reviews.first()
-            version = record.summary_versions.first()
-            content = review.content if review else version.content if version else {}
+            selectors = [
+                key for key in ("summary_id", "human_id") if key in request.query_params
+            ]
+            if selectors:
+                if (
+                    len(selectors) != 1
+                    or len(request.query_params.getlist(selectors[0])) != 1
+                ):
+                    raise serializers.ValidationError(
+                        "Select one immutable minutes version."
+                    )
+                key = selectors[0]
+                version_id = serializers.UUIDField().run_validation(
+                    request.query_params[key]
+                )
+                rows = (
+                    record.summary_versions.select_related("input_snapshot")
+                    if key == "summary_id"
+                    else record.summary_reviews.select_related(
+                        "base_summary__input_snapshot"
+                    )
+                )
+                version = get_object_or_404(rows, pk=version_id)
+                snapshot = (
+                    version.input_snapshot
+                    if key == "summary_id"
+                    else version.base_summary.input_snapshot
+                )
+                result.update(
+                    **{key: str(version.pk)},
+                    identity_updated=read_state(record).updated(snapshot),
+                )
+                content = version.content
+            else:
+                review = record.summary_reviews.first()
+                version = record.summary_versions.first()
+                content = (
+                    review.content if review else version.content if version else {}
+                )
             result["excerpt"] = str(content.get("overview", ""))[:800]
         else:
+            if any(key in request.query_params for key in ("summary_id", "human_id")):
+                raise serializers.ValidationError(
+                    "Minutes versions cannot select a record preview."
+                )
             from core.services.record_media_timing import media_timing  # noqa: PLC0415
             from core.services.uploaded_recordings import (  # noqa: PLC0415
                 media_available,
