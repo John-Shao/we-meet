@@ -1,5 +1,6 @@
 import { ApiError } from '@/api/ApiError'
-import { assertAuthSession, fetchApi, fetchApiBlob } from '@/api/fetchApi'
+import { fetchApi, fetchApiBlob } from '@/api/fetchApi'
+import { privateVoiceprintRequest } from './privateRequest'
 import {
   getAuthSnapshot,
   type AuthSnapshot,
@@ -120,41 +121,7 @@ export class VoiceprintClient {
     action: (signal: AbortSignal) => Promise<T>,
     external?: AbortSignal | null
   ): Promise<T> {
-    assertAuthSession(this.auth)
-    external?.throwIfAborted()
-    const controller = new AbortController()
-    let timer: ReturnType<typeof setTimeout> | undefined
-    let cancel: (() => void) | undefined
-    try {
-      return await new Promise<T>((resolve, reject) => {
-        cancel = () => {
-          controller.abort()
-          reject(new Error('canceled'))
-        }
-        external?.addEventListener('abort', cancel, { once: true })
-        timer = setTimeout(() => {
-          controller.abort()
-          reject(new Error('voiceprint_request_timeout'))
-        }, 15000)
-        Promise.resolve()
-          .then(() => {
-            controller.signal.throwIfAborted()
-            assertAuthSession(this.auth)
-            return action(controller.signal)
-          })
-          .then((value) => {
-            try {
-              assertAuthSession(this.auth)
-              resolve(value)
-            } catch (error) {
-              reject(error)
-            }
-          }, reject)
-      })
-    } finally {
-      clearTimeout(timer)
-      if (cancel) external?.removeEventListener('abort', cancel)
-    }
+    return privateVoiceprintRequest(this.auth, action, external)
   }
   private scopeQuery(offset = 0) {
     if (!integer(offset) || offset > 10000) throw invalid()

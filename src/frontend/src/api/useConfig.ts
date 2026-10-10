@@ -6,6 +6,7 @@ import { Track } from 'livekit-client'
 import Source = Track.Source
 
 export interface ApiConfig {
+  speaker_identity?: { enabled: boolean; matching_enabled?: boolean }
   work?: { enabled: boolean }
   meeting_records?: {
     enabled: boolean

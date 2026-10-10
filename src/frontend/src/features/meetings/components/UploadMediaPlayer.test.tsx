@@ -43,6 +43,114 @@ const media = {
   content_type: 'audio/mp4',
 }
 
+async function previewPlayer() {
+  mocks.fetchApi.mockResolvedValue(media)
+  const handle = createRef<UploadMediaHandle>()
+  const view = show(handle)
+  await waitFor(() =>
+    expect(view.container.querySelector('audio')).not.toBeNull()
+  )
+  const audio = view.container.querySelector('audio')!
+  Object.defineProperty(audio, 'duration', { configurable: true, value: 40 })
+  Object.defineProperty(audio, 'readyState', { configurable: true, value: 1 })
+  fireEvent.loadedMetadata(audio)
+  vi.mocked(HTMLMediaElement.prototype.pause).mockClear()
+  return { handle, audio }
+}
+
+it('plays a verified clip and stops at its end using the real media clock', async () => {
+  const { handle, audio } = await previewPlayer()
+  await act(async () => {
+    expect(await handle.current!.preview(1000, 5000)).toBe(true)
+  })
+  expect(audio.currentTime).toBe(1)
+  audio.currentTime = 5.6
+  fireEvent.timeUpdate(audio)
+  expect(audio.currentTime).toBe(5)
+  expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledOnce()
+})
+
+it('rejects invalid, oversized, out-of-source and not-ready clip playback', async () => {
+  const { handle, audio } = await previewPlayer()
+  for (const [start, end] of [
+    [-1, 5000],
+    [1000, 2000],
+    [0, 12000],
+    [39000, 43000],
+    [0.1, 4000],
+  ]) {
+    expect(await handle.current!.preview(start, end)).toBe(false)
+  }
+  Object.defineProperty(audio, 'readyState', { configurable: true, value: 0 })
+  expect(await handle.current!.preview(1000, 5000)).toBe(false)
+  expect(HTMLMediaElement.prototype.play).not.toHaveBeenCalled()
+})
+
+it('stops a clip from animation-frame clock samples without waiting for timeupdate', async () => {
+  let callback: FrameRequestCallback | undefined
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((fn) => {
+    callback = fn
+    return 123
+  })
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+  const { handle, audio } = await previewPlayer()
+  await act(async () => {
+    await handle.current!.preview(1000, 5000)
+  })
+  fireEvent.play(audio)
+  audio.currentTime = 5.06
+  act(() => callback?.(100))
+  expect(audio.currentTime).toBe(5)
+  expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledOnce()
+})
+
+it('stops an audition on panel close and lets an ordinary seek replace its range', async () => {
+  const { handle, audio } = await previewPlayer()
+  await act(async () => {
+    await handle.current!.preview(1000, 5000)
+    handle.current!.stopPreview()
+  })
+  expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledOnce()
+  await act(async () => {
+    await handle.current!.preview(1000, 5000)
+    handle.current!.seek(10000)
+  })
+  vi.mocked(HTMLMediaElement.prototype.pause).mockClear()
+  audio.currentTime = 10.5
+  fireEvent.timeUpdate(audio)
+  expect(audio.currentTime).toBe(10.5)
+  expect(HTMLMediaElement.prototype.pause).not.toHaveBeenCalled()
+})
+
+it('does not let a failed old audition cancel a newer one', async () => {
+  const { handle, audio } = await previewPlayer()
+  let reject!: (reason: Error) => void
+  vi.mocked(HTMLMediaElement.prototype.play)
+    .mockImplementationOnce(
+      () =>
+        new Promise((_resolve, failure) => {
+          reject = failure
+        })
+    )
+    .mockResolvedValueOnce(undefined)
+  let old!: Promise<boolean>
+  act(() => {
+    old = handle.current!.preview(1000, 5000)
+  })
+  await act(async () => {
+    expect(await handle.current!.preview(6000, 10000)).toBe(true)
+  })
+  await act(async () => {
+    reject(new Error('old playback failed'))
+    expect(await old).toBe(false)
+  })
+  expect(HTMLMediaElement.prototype.pause).not.toHaveBeenCalled()
+  audio.currentTime = 10.5
+  fireEvent.timeUpdate(audio)
+  expect(audio.currentTime).toBe(10)
+  expect(HTMLMediaElement.prototype.pause).toHaveBeenCalledOnce()
+})
+
 function show(handle?: React.RefObject<UploadMediaHandle | null>) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },

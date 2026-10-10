@@ -78,6 +78,7 @@ import {
 import { OriginalSearch } from '../components/OriginalSearch'
 import { SpeakerFilter } from '../components/SpeakerFilter'
 import { SpeakerAttributionControl } from '../components/SpeakerAttributionControl'
+import { SpeakerIdentificationPanel } from '@/features/voiceprint/SpeakerIdentificationPanel'
 import { TranslationArchivePanel } from '../components/TranslationArchivePanel'
 import { UploadTranslationPanel } from '../components/UploadTranslationPanel'
 import { CaptureTranslationArchives } from '../components/CaptureTranslationArchives'
@@ -635,6 +636,15 @@ function WorkspaceContent({
           <RecordPanel label={t('library.speakers')}>
             <p className={textStyle}>{t('library.speakersHint')}</p>
             <p className={textStyle}>{t('speakerActivity.basis')}</p>
+            <SpeakerIdentificationPanel
+              key={`${viewerId}:${record.id}:identification`}
+              record={record}
+              viewerId={viewerId}
+              onPreview={async (start, end) =>
+                uploadMedia.current?.preview(start, end) ?? false
+              }
+              onPreviewStop={() => uploadMedia.current?.stopPreview()}
+            />
             <OriginalRead
               key={`${record.id}:${record.revision}:speakers`}
               record={record}

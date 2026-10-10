@@ -6,6 +6,7 @@ from rest_framework.throttling import UserRateThrottle
 
 from core.api.voiceprint import PrivateVoiceprintView, StrictSerializer, StrictVersion
 from core.services import speaker_identification as service
+from core.services import speaker_identification_directory as directory
 from core.services.meeting_records import RecordConflict
 
 
@@ -67,3 +68,50 @@ class SpeakerIdentificationView(PrivateVoiceprintView):
         return Response(
             service.cancel(record_id, request.user, **serializer.validated_data)
         )
+
+
+class OptionsQuery(StrictSerializer):
+    expected_revision = serializers.IntegerField(min_value=1)
+    offset = serializers.IntegerField(
+        min_value=0, max_value=directory.MAX_OFFSET, default=0
+    )
+
+
+class CandidateQuery(OptionsQuery):
+    organization_id = serializers.CharField()
+    q = serializers.CharField(max_length=80, allow_blank=True, default="")
+
+    def validate_organization_id(self, value):
+        return (
+            None
+            if value == "personal"
+            else serializers.UUIDField().run_validation(value)
+        )
+
+
+class DirectoryThrottle(UserRateThrottle):
+    scope = "speaker_identification_directory"
+    rate = "60/min"
+
+
+class SpeakerIdentificationOptionsView(SpeakerIdentificationView):
+    http_method_names = ["get", "options"]
+
+    def get_throttles(self):
+        return [DirectoryThrottle()]
+
+    def get(self, request, record_id):
+        serializer = OptionsQuery(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        return Response(
+            directory.options(record_id, request.user, **serializer.validated_data)
+        )
+
+
+class SpeakerIdentificationCandidatesView(SpeakerIdentificationOptionsView):
+    def get(self, request, record_id):
+        serializer = CandidateQuery(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        parameters = dict(serializer.validated_data)
+        parameters["query"] = parameters.pop("q")
+        return Response(directory.lookup(record_id, request.user, **parameters))

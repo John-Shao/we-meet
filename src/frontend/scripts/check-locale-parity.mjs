@@ -33,7 +33,12 @@ import process from 'node:process'
 const localesDir = fileURLToPath(new URL('../src/locales', import.meta.url))
 const BASE_LANG = 'zh'
 /** 基准语言必须存在这些命名空间；其余语言也必须全部具备。 */
-const REQUIRED_NAMESPACES = ['meetings', 'capture', 'voiceprint']
+const REQUIRED_NAMESPACES = [
+  'meetings',
+  'capture',
+  'voiceprint',
+  'speakerIdentification',
+]
 const PLACEHOLDER = /\{\{\s*[\w.]+\s*\}\}/g
 
 const read = (lang, ns) =>
