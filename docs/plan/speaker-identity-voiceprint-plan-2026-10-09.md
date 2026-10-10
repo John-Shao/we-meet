@@ -1,6 +1,8 @@
 # 会议与通话声纹身份识别方案
 
-独立 sampler 运行与 Helm 已接通，详见[采样运行走查](../research/voiceprint-sampler-runtime-review-2026-10-11.md)：精简依赖镜像、Secret 文件、双开关、房间／内存预算、日志脱敏、私有健康接口和受控网络出口已验证；本地最终 Linux 制品通过原生合成 RTC 上传、撤权丢弃、拒绝订阅、容量与正常退出。许可服务器使用隔离 fixture，完整后端授权／Qwen／加密候选 RTC 联调、真实设备、集群与真人验收继续推进，完整目标不缩减。
+后续完整 RTC 合成链路已通过，见[完整 RTC 走查](../research/voiceprint-full-rtc-review-2026-10-11.md)：真实 HTTPS／CSRF 本人 API、签名 webhook、派发、Beat／prefork、逐轨许可、Qwen 编码、三个加密候选及本人确认后的加密基准模板在同一隔离环境贯通。未授权发布者未被订阅；新房间实例重新声明，采样中暂停丢弃缓冲，原始音频和自建环境实际清理。ASR 质检使用本地协议 fixture，真人识别效果、真实设备与生产验收尚未通过；Qwen 优先和完整目标保持不变。
+
+独立 sampler 运行与 Helm 已接通，详见[采样运行走查](../research/voiceprint-sampler-runtime-review-2026-10-11.md)：精简依赖镜像、Secret 文件、双开关、房间／内存预算、日志脱敏、私有健康接口和受控网络出口已验证；本地最终 Linux 制品通过原生合成 RTC 上传、撤权丢弃、拒绝订阅、容量与正常退出。该独立 sampler 验证的许可服务器使用隔离 fixture，后续真实后端联调证据见上段；真实设备、集群与真人验收继续推进，完整目标不缩减。
 
 通话管线已接通独立 sampler、派发、加密候选入库和单人质检，见[采样管线走查](../research/voiceprint-call-pipeline-review-2026-10-10.md)。进一步接通本人确认的首次通话基准、跨会话设备组补充、加密来源证明、失效门禁及幸存贡献重建，见[设备组模板走查](../research/voiceprint-device-templates-review-2026-10-10.md)。来源删除后的数据库物理清理、持久意图、周期恢复和独立重建已接通，见[来源删除走查](../research/voiceprint-source-removal-review-2026-10-10.md)。候选、试听音频、许可及无引用轨道的周期回收已接通，保留滚动／长会话配额和有效特征来源，见[周期维护走查](../research/voiceprint-maintenance-review-2026-10-10.md)。派发持久租约、周期恢复与实际采样上报已接通，见[派发与状态走查](../research/voiceprint-dispatch-status-review-2026-10-11.md)。目前默认关闭；实际 RTC 联调、部署及真人／生产验收继续推进，尚未完整交付。
 

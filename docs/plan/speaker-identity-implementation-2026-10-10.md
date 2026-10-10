@@ -2,7 +2,9 @@
 
 日期：2026-10-10（Asia/Shanghai）；最近更新：2026-10-11。
 
-独立采样运行与部署本阶段已接通，见[采样运行走查](../research/voiceprint-sampler-runtime-review-2026-10-11.md)。新增精简 Linux 镜像及哈希依赖锁、Secret 文件与令牌隔离、双开关、无预热有界子进程、信号清理、脱敏日志与健康指标、默认关闭的 Helm／同源后端凭据／网络策略。28 项 Windows、28 项 Linux、28 项 Helm 组合与原生合成 RTC 验证通过，最终生产镜像正常退出。原生许可使用本地 fixture；完整后端 RTC、真实设备、集群／监控、历史搜索／备份恢复及获授权真人验收仍继续推进。
+后续真实后端 RTC 合成链路已通过，见[完整 RTC 走查](../research/voiceprint-full-rtc-review-2026-10-11.md)。新增可复现的隔离 Docker 入口，贯通真实 HTTPS／CSRF、签名 webhook、派发、Beat／prefork、RTC 许可、Qwen 编码及本人确认后的加密模板；三个候选共 30 秒，新房间实例重新声明，采样中暂停丢弃缓冲，音频与环境实际清理。ASR 为本地协议 fixture，完整效果与生产验收仍需继续；未采集真人或启用生产。
+
+独立采样运行与部署本阶段已接通，见[采样运行走查](../research/voiceprint-sampler-runtime-review-2026-10-11.md)。新增精简 Linux 镜像及哈希依赖锁、Secret 文件与令牌隔离、双开关、无预热有界子进程、信号清理、脱敏日志与健康指标、默认关闭的 Helm／同源后端凭据／网络策略。28 项 Windows、28 项 Linux、28 项 Helm 组合与原生合成 RTC 验证通过，最终生产镜像正常退出。该独立 sampler 验证的原生许可使用本地 fixture；后续真实后端联调见上段，真实设备、集群／监控、历史搜索／备份恢复及获授权真人验收仍继续推进。
 
 消费者、API／Beat 私有配置和同 Pod 临时文件清理后续已接通，见[消费者运行走查](../research/voiceprint-consumer-runtime-review-2026-10-11.md)。新增三个固定 prefork 角色、镜像内 FFmpeg／FFprobe、共享 Secret／UID／平台与配置一致性校验，关闭业务时不发布处理／身份扫描；267 项后端回归及 46 项 Helm 回归通过。最终 Linux 镜像已完成实际 Redis／prefork／Qwen／加密模板／SIGKILL 租约恢复／原始音频与残留清理验证。基础设施及业务开关仍默认关闭，生产 sampler／集群／RTC／实际设备及真人验收继续推进。
 

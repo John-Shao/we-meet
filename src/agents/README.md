@@ -67,11 +67,13 @@ LiveKit 密钥及普通 agent token 分离。后端 HTTPS 私有 CA 可用
 需同时运行；可用 `dispatch_voiceprint_samplers --limit 20` 手工恢复派发。
 agent 在有效第一帧后报告采样，关闭订阅后报告上传，缓冲擦除后报告停止；
 状态上报逾 5 秒不更新即失效。Web／Android 通话界面、独立消费者与 sampler
-Helm 资源已接通，完整后端 RTC、实际设备及生产验收继续开发。
+Helm 资源已接通，完整后端 RTC 合成链路已通过，实际设备及生产验收继续开发。
 `voiceprintSampler.enabled` 默认关闭，要求消费者和私有配置已接通，
 并显式声明 LiveKit 信令／RTC／TURN 网络出口；业务双开关仍须另行启用。
 构建及原生合成 RTC 证据见
 [采样运行走查](../../docs/research/voiceprint-sampler-runtime-review-2026-10-11.md)。
+真实后端、签名 webhook、Beat、本人声明和加密模板的可复现合成联调见
+[完整 RTC 走查](../../docs/research/voiceprint-full-rtc-review-2026-10-11.md)；ASR 为本地协议 fixture，不能据此判断真人声纹效果。
 当前不在生产启用。兼容性与验证见
 [采样管线走查](../../docs/research/voiceprint-call-pipeline-review-2026-10-10.md)及
 [设备组模板走查](../../docs/research/voiceprint-device-templates-review-2026-10-10.md)及

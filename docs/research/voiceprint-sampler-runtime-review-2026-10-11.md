@@ -49,4 +49,4 @@ Pod 固定 Linux amd64、UID／GID／fsGroup 10001、无 ServiceAccount token、
 - 原生探针 `deploy/aliyun/voiceprint_sampler_probe.py` 使用本地 LiveKit server 1.13.1、Redis、真实 sampler 与两个合成发布者，专用 Docker internal 网络、无宿主端口。许可服务器为受控 fixture；音频真实经过 RTC／Opus／PCM，验证 3 秒、72,000 帧、24 kHz 单声道 16 bit WAV 上传；无许可发布者未被订阅，第二段在实际 PCM 开始后撤权且未上传；第二房间未突破容量 1，房间结束后活跃任务归零。
 - 检查 sampler 可见且不发布媒体／数据／metadata、HTTP 无 SDK 枚举、父子 SDK 日志只有固定事件与级别、SIGTERM 正常退出。前两次 fixture 禁用发布者 `can_subscribe`，失败于 RTC 连接；允许正常参与者订阅权限、仍关闭自动订阅后通过。只调整测试发布者，未放宽 sampler 逐轨许可。
 
-上述原生合成证据不等于可信 webhook、本人声明、派发恢复、加密候选、Qwen 质检及设备模板的完整 RTC 端到端同时通过。下一步仍需连接这些已有组件，并完成真实 Web／Android 设备、静音／轨道替换／重连／中断、私有 TLS／CNI／集群资源、监控与容量、历史版本／搜索、可信外部删除墓碑备份恢复和获授权真人校准。当前无真人样本；完整目标保持不变，不宣告完成或生产启用。
+上述独立 sampler 的原生合成证据使用许可 fixture。后续真实后端、签名 webhook、本人声明、派发／Beat、RTC／加密候选、Qwen 编码及设备模板已在同一合成链路验证，见[完整 RTC 走查](voiceprint-full-rtc-review-2026-10-11.md)；ASR 仍为本地协议 fixture。仍需完成真实 Web／Android 设备、静音／轨道替换／重连／中断、私有 TLS／CNI／集群资源、监控与容量、历史版本／搜索、可信外部删除墓碑备份恢复和获授权真人校准。当前无真人样本；完整目标保持不变，不宣告完成或生产启用。
