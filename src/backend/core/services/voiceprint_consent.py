@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import Max, Q
 from django.utils import timezone
 
 from core import models
@@ -17,6 +17,16 @@ PERMISSIONS = ("allow_enrollment", "allow_accumulation", "allow_identification")
 MIN_REGISTRATION_CLIPS = 3
 MIN_REGISTRATION_SPEECH_MS = 30000
 MAX_ACTIVE_TEMPLATES = 5
+PERMIT_CONTEXT = (
+    Q(status="issued")
+    | Q(track__isnull=False)
+    | Q(sample__isnull=False)
+    | ~Q(livekit_room_sid="")
+    | ~Q(participant_sid="")
+    | ~Q(participant_identity="")
+    | ~Q(source_track_sid="")
+    | ~Q(device_group="")
+)
 
 
 class VoiceprintError(ValueError):
@@ -504,13 +514,17 @@ def invalidate_subject(user, organization_id=None, *, all_scopes=False, reason):
 def purge_deleted(job_id):
     initial = models.VoiceprintDeletionJob.objects.get(pk=job_id)
     models.User.objects.select_for_update().filter(pk=initial.owner_id).first()
-    if initial.consent_id:
-        models.VoiceprintConsent.objects.select_for_update().filter(
-            pk=initial.consent_id
+    if initial.organization_id:
+        models.Organization.objects.select_for_update().filter(
+            pk=initial.organization_id
         ).first()
+    # A restored/recreated consent may have another ID than the original FK.
+    consent = (
+        models.VoiceprintConsent.objects.select_for_update()
+        .filter(user_id=initial.owner_id, organization_id=initial.organization_id)
+        .first()
+    )
     job = models.VoiceprintDeletionJob.objects.select_for_update().get(pk=job_id)
-    if job.status == "succeeded":
-        return job
     profiles = models.VoiceprintProfile.objects.filter(
         consent__user_id=job.owner_id, consent__organization_id=job.organization_id
     )
@@ -520,11 +534,52 @@ def purge_deleted(job_id):
     templates = models.VoiceprintTemplate.objects.filter(
         profile__in=profiles, generation__lt=job.revoked_generation
     )
+    old_profiles = profiles.filter(generation__lt=job.revoked_generation)
+    permits = models.VoiceprintSamplingPermit.objects.filter(
+        profile__in=profiles, generation__lt=job.revoked_generation
+    )
+    enrollments = models.VoiceprintEnrollment.objects.filter(
+        owner_id=job.owner_id,
+        organization_id=job.organization_id,
+        generation__lt=job.revoked_generation,
+        status__in=["open", "closed"],
+    )
+    floor = revocation_floor(job.owner_id, job.organization_id)
+    stale_consent = consent is not None and consent.generation < floor
+    if job.status == "succeeded" and not (
+        stale_consent
+        or samples.exists()
+        or templates.exists()
+        or old_profiles.exclude(status="deleted", encrypted_key=b"").exists()
+        or permits.filter(PERMIT_CONTEXT).exists()
+        or enrollments.exists()
+    ):
+        return job
+    if stale_consent:
+        consent.generation = floor
+        event_version = (
+            models.VoiceprintConsentEvent.objects.filter(consent=consent).aggregate(
+                value=Max("version")
+            )["value"]
+            or 0
+        )
+        deletion_version = (
+            models.VoiceprintDeletionJob.objects.filter(
+                owner_id=job.owner_id, organization_id=job.organization_id
+            ).aggregate(value=Max("expected_version"))["value"]
+            or 0
+        )
+        consent.version = max(consent.version, event_version, deletion_version) + 1
+        for name in PERMISSIONS:
+            setattr(consent, name, False)
+        consent.revoked_at = timezone.now()
+        consent.save()
+        cancel_pending_work(consent)
+        event(consent, "invalidate")
     sample_count, template_count = samples.count(), templates.count()
     # Retain only quota reservations: deleting a profile must not refund them.
-    models.VoiceprintSamplingPermit.objects.filter(
-        profile__in=profiles, generation__lt=job.revoked_generation
-    ).update(
+    permits.update(
+        profile=None,
         track=None,
         sample=None,
         livekit_room_sid="",
@@ -535,11 +590,10 @@ def purge_deleted(job_id):
         status="canceled",
         updated_at=timezone.now(),
     )
+    enrollments.update(status="canceled", updated_at=timezone.now())
     templates.delete()
     samples.delete()
-    profiles.filter(generation__lt=job.revoked_generation).update(
-        encrypted_key=b"", status="deleted", updated_at=timezone.now()
-    )
+    old_profiles.update(encrypted_key=b"", status="deleted", updated_at=timezone.now())
     job.status = "succeeded"
     job.attempts += 1
     job.receipt = {

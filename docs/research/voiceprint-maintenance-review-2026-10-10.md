@@ -1,5 +1,7 @@
 # 声纹候选、许可与轨道周期回收走查
 
+账号／组织作用域的成功回执复核和删除周期任务后续已补齐，见[账号级清理与恢复走查](voiceprint-scope-erasure-review-2026-10-11.md)。245 项组合及实际 Linux Beat／prefork 清理通过；本记录与后续记录均不代替完整备份和外部可信墓碑重放验收。
+
 日期：2026-10-10（Asia/Shanghai）。分支：`feature/speaker-identity-voiceprint`。
 
 在[来源删除清理](voiceprint-source-removal-review-2026-10-10.md)上补齐周期维护，继续 Qwen 优先，功能默认关闭。只用隔离数据库、合成 WAV 和合成模型结果；没有真人采样、收费 ASR 或生产部署。

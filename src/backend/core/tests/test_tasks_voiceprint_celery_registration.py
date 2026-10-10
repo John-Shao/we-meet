@@ -43,11 +43,21 @@ try:
     stage = "queue_isolation"
     assert app.tasks["core.tasks.capture_diarization.process_capture_diarization"].queue == "voiceprint-identity"
     assert app.tasks["core.tasks.voiceprint_maintenance.maintain_voiceprints"].queue == "voiceprint"
+    stage = "erasure_registration"
+    erasure = app.tasks["core.tasks.voiceprint_erasure.purge_voiceprints"]
+    assert isinstance(erasure, Task) and erasure.ignore_result
+    assert (erasure.queue, erasure.time_limit, erasure.soft_time_limit) == ("voiceprint", 180, 150)
+    route = app.amqp.router.route(erasure._get_exec_options(), erasure.name, args=(), kwargs={})
+    assert route["queue"].name == "voiceprint"
     stage = "disabled_periodic_publication"
     schedule = app.conf.beat_schedule
     assert ("process-voiceprint-batches" in schedule) is settings.MEETING_VOICEPRINT_ENABLED
     assert ("identify-speakers" in schedule) is (settings.MEETING_VOICEPRINT_ENABLED and settings.MEETING_VOICEPRINT_MATCHING_ENABLED)
     assert "maintain-voiceprints" in schedule and "recover-voiceprint-samplers" in schedule
+    assert schedule["purge-voiceprints"] == {
+        "task": "core.tasks.voiceprint_erasure.purge_voiceprints",
+        "schedule": 30.0, "options": {"queue": "voiceprint", "expires": 60},
+    }
     print(json.dumps({"status": "passed", "registered_batches": 2}))
 except Exception:
     print(json.dumps({"status": "failed", "stage": stage}))

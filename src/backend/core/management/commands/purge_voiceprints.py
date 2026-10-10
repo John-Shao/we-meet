@@ -7,6 +7,7 @@ from django.db.models import F
 
 from core import models
 from core.services.voiceprint_consent import purge_deleted
+from core.services.voiceprint_erasure import pending_ids
 
 
 class Command(BaseCommand):
@@ -19,14 +20,7 @@ class Command(BaseCommand):
         limit = options["limit"]
         if not 1 <= limit <= 1000:
             raise CommandError("Limit must be between 1 and 1000.")
-        identifiers = list(
-            models.VoiceprintDeletionJob.objects.filter(
-                status__in=["queued", "failed"],
-                attempts__lt=3,
-            )
-            .order_by("created_at", "id")
-            .values_list("pk", flat=True)[:limit]
-        )
+        identifiers = pending_ids(limit)
         counts = {"succeeded": 0, "failed": 0}
         for identifier in identifiers:
             try:

@@ -1034,6 +1034,11 @@ class Base(Configuration):
             "schedule": 30.0,
             "options": {"queue": "voiceprint", "expires": 60},
         },
+        "purge-voiceprints": {
+            "task": "core.tasks.voiceprint_erasure.purge_voiceprints",
+            "schedule": 30.0,
+            "options": {"queue": "voiceprint", "expires": 60},
+        },
         "maintain-voiceprints": {
             "task": "core.tasks.voiceprint_maintenance.maintain_voiceprints",
             "schedule": 30.0,
