@@ -231,6 +231,27 @@ it('does not carry unacknowledged commands to a different login', () => {
   expect(() => identityIntent(old)).toThrow('authentication_changed')
 })
 
+it('preserves the original command when another panel attempts a different submission', () => {
+  const first = new IdentificationClient(RECORD, OWNER)
+  const second = new IdentificationClient(RECORD, OWNER)
+  rememberIdentityIntent(first, submission())
+  expect(() =>
+    rememberIdentityIntent(second, { ...submission(), request_key: ORG })
+  ).toThrow('voiceprint_pending_request_exists')
+  expect(() =>
+    rememberIdentityIntent(second, { ...submission(), expected_revision: 2 })
+  ).toThrow('voiceprint_pending_request_exists')
+  expect(() =>
+    rememberIdentityIntent(second, { ...submission(), user_ids: [ORG] })
+  ).toThrow('voiceprint_pending_request_exists')
+  const snapshot = identityIntent(second)!
+  snapshot.user_ids.push(ORG)
+  expect(identityIntent(first)).toEqual(submission())
+  expect(() => rememberIdentityIntent(second, submission())).not.toThrow()
+  acknowledgeIdentityIntent(second, ORG)
+  expect(identityIntent(first)).toEqual(submission())
+})
+
 it('bounds uncertain commands without evicting an older unacknowledged request', () => {
   const clients = Array.from(
     { length: 21 },

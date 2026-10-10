@@ -167,6 +167,8 @@ function IdentificationBody({
     if (status === 409 && remembered) {
       acknowledgeIdentityIntent(client, remembered.request_key)
       requestKey.current = undefined
+    } else if (remembered) {
+      requestKey.current = remembered.request_key
     }
     setRetry(status === 409 ? undefined : remembered)
     const unknownSubmission =

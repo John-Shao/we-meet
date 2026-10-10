@@ -5,7 +5,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
 import { setTokens } from '@/features/auth/utils/tokenStorage'
 import type { ApiMeetingRecord } from '@/features/meetings/api/ApiMeetingRecord'
-import { clearIdentityIntents } from './identificationIntent'
+import {
+  clearIdentityIntents,
+  identityIntent,
+  rememberIdentityIntent,
+} from './identificationIntent'
 import { SpeakerIdentificationPanel } from './SpeakerIdentificationPanel'
 import { IdentificationClient } from './identificationApi'
 import {
@@ -17,6 +21,7 @@ import {
   SUGGESTION,
   options,
   response,
+  submission,
 } from './identificationFixtures.test-utils'
 
 const mocks = vi.hoisted(() => ({
@@ -293,6 +298,31 @@ it('keeps an uncertain exact request when the panel closes and reopens', async (
   fireEvent.click(retry)
   await waitFor(() => expect(mocks.submit).toHaveBeenCalledTimes(2))
   expect(mocks.submit.mock.calls[1][0]).toEqual(command)
+})
+
+it("recovers another panel's uncertain command without sending or reading a new request key", async () => {
+  const client = new IdentificationClient(RECORD, OWNER)
+  show()
+  fireEvent.click(await open())
+  rememberIdentityIntent(client, submission())
+  mocks.read.mockImplementation(async (key?: string) => {
+    if (key === KEY)
+      throw new ApiError(404, {
+        code: 'voiceprint_identity_request_unavailable',
+      })
+    return { record_revision: 1, request: null }
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'submit' }))
+  await screen.findByRole('button', { name: 'retrySame' })
+  expect(mocks.submit).not.toHaveBeenCalled()
+  expect(identityIntent(client)).toEqual(submission())
+  fireEvent.click(screen.getByRole('button', { name: 'refresh' }))
+  await waitFor(() => expect(mocks.read.mock.calls.at(-1)![0]).toBe(KEY))
+  const retry = screen.getByRole('button', { name: 'retrySame' })
+  await waitFor(() => expect(retry).not.toBeDisabled())
+  fireEvent.click(retry)
+  await waitFor(() => expect(mocks.submit).toHaveBeenCalledOnce())
+  expect(mocks.submit.mock.calls[0][0]).toEqual(submission())
 })
 
 it('stops showing private data and closes the panel after a login change', async () => {

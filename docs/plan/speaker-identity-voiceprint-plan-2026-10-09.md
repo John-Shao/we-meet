@@ -5,11 +5,11 @@
 范围：语音通话、视频通话、视频会议的授权声纹积累，以及 AI 录音／导入的说话人身份识别。\
 状态：需求方案基线；用户后续已授权在 feature 分支开发，当前进度和验证见[实施记录](speaker-identity-implementation-2026-10-10.md)。尚未部署或采集真人声音；开发授权不代表已通过效果及生产发布验收。本方案中的数量、时限、性能和效果指标均为建议值，不代表已测得的能力。
 
-最新进度：人工标记、本人授权／登记、模板、内部匹配／查询生产、身份队列、持久建议、记录级识别 API、建议确认／拒绝及多人版本协调已有阶段实现；Web 导入后的候选选择、请求状态、试听和人工确认已接通，见[Web 识别走查](../research/voiceprint-web-identification-review-2026-10-10.md)。收费 ASR 前的导入预检、通话采样、AI 录音分人、Android 声纹交互和部署仍待完成。上传源须具备内容证明；直传／分片还须固定转写和查询共同使用的 VersionId。来源边界见[查询源代码走查](../research/voiceprint-source-query-review-2026-10-10.md)，任务／候选协调见[独立身份队列走查](../research/voiceprint-identity-jobs-review-2026-10-10.md)，API 和决定事务见[识别 API 走查](../research/voiceprint-identification-api-review-2026-10-10.md)。模型路线继续 Qwen 优先，完整验收范围不缩减。
+最新进度：人工标记、本人授权／登记、模板、内部匹配／查询生产、身份队列、持久建议、记录级识别 API、建议确认／拒绝及多人版本协调已有阶段实现；Web／Android 导入后的候选选择、请求状态、试听和人工确认已接通，见[Web 识别走查](../research/voiceprint-web-identification-review-2026-10-10.md)及[Android 阶段记录](speaker-identity-implementation-2026-10-10.md#android-导入识别与跨端走查2026-10-10)。收费 ASR 前的导入预检、通话采样、AI 录音分人、Android 设置／登记和部署仍待完成。上传源须具备内容证明；直传／分片还须固定转写和查询共同使用的 VersionId。来源边界见[查询源代码走查](../research/voiceprint-source-query-review-2026-10-10.md)，任务／候选协调见[独立身份队列走查](../research/voiceprint-identity-jobs-review-2026-10-10.md)，API 和决定事务见[识别 API 走查](../research/voiceprint-identification-api-review-2026-10-10.md)。模型路线继续 Qwen 优先，完整验收范围不缩减。
 
 调研状态：[实施前代码与资料调研](../research/voiceprint-preimplementation-2026-10-09.md)已完成；用户确认暂无获授权真人样本，模型效果、实际音轨采样和生产容量仍待验证，P0 尚未整体通过。
 
-代码走查补齐 `0207` 上下文迁移，修复人工标记与 worker 的锁顺序、停用账号复核、人工编辑后旧建议失效及任务预算；多建议稳定上下文只放行展示 revision 变化，其余来源／授权／目标状态保持绑定。具体问题与证据见[代码走查修复](../research/voiceprint-identity-review-fixes-2026-10-10.md)。确认／拒绝 API 和 Web 客户端已在后续阶段接通，Android 识别界面仍待开发。
+代码走查补齐 `0207` 上下文迁移，修复人工标记与 worker 的锁顺序、停用账号复核、人工编辑后旧建议失效及任务预算；多建议稳定上下文只放行展示 revision 变化，其余来源／授权／目标状态保持绑定。具体问题与证据见[代码走查修复](../research/voiceprint-identity-review-fixes-2026-10-10.md)。确认／拒绝 API、Web 与 Android 导入识别客户端已在后续阶段接通，其他来源及生产验收继续开发。
 
 后续走查已复现并修复人工标记的账号切换缺口：通讯录读取与全部身份决定校验预期账号，Web 固定登录会话、丢弃迟到结果并关闭旧面板、清理联系人缓存。验证见[账号会话走查](../research/voiceprint-account-session-review-2026-10-10.md)。
 
