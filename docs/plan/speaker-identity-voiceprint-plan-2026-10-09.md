@@ -1,8 +1,8 @@
 # 会议与通话声纹身份识别方案
 
-通话管线进一步接通独立 sampler、派发、加密候选入库和单人质检，见[采样管线走查](../research/voiceprint-call-pipeline-review-2026-10-10.md)。目前默认关闭；实际 RTC 联调、设备组模板贡献、Web／Android 通话入口、恢复／清理部署及真人／生产验收继续推进，尚未完整交付。
+通话管线已接通独立 sampler、派发、加密候选入库和单人质检，见[采样管线走查](../research/voiceprint-call-pipeline-review-2026-10-10.md)。进一步接通本人确认的首次通话基准、跨会话设备组补充、加密来源证明、失效门禁及幸存贡献重建，见[设备组模板走查](../research/voiceprint-device-templates-review-2026-10-10.md)。目前默认关闭；实际 RTC 联调、Web／Android 通话入口、来源物理清理、恢复／部署及真人／生产验收继续推进，尚未完整交付。
 
-通话后端的可信来源、短期许可、本人连接级控制及跨组织／设备配额已接通，走查修复和验证见[采样许可基础](../research/voiceprint-call-sampling-review-2026-10-10.md)。当前默认关闭，不接收音频；采样 agent、设备组模板贡献、跨端通话入口、部署及真人效果验收继续开发，完整范围不缩减。
+通话后端的可信来源、短期许可、本人连接级控制及跨组织／设备配额已接通，基础阶段证据见[采样许可基础](../research/voiceprint-call-sampling-review-2026-10-10.md)。后续采样与模板进度以上段为准，完整范围不缩减。
 
 日期：2026-10-09（Asia/Shanghai）\
 版本：v1.5，待评审；已确定先尝试 Qwen，未满足要求时再考虑私有化部署 CAM++\

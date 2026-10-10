@@ -64,6 +64,15 @@ def sample_prefix(sample):
     Confirmation status/time are deliberately excluded: an owner decision does
     not change an encoder's source or promote its signal-only quality result.
     """
+    receipt = {}
+    if sample.source_type == "call":
+        from core.services.voiceprint_sampling import (  # noqa: PLC0415 -- Call provenance is independently owned.
+            receipt_evidence,
+        )
+
+        receipt = receipt_evidence(sample)
+        if receipt is None:
+            raise VoiceprintError("voiceprint_vector_invalid")
     try:
         header = json.dumps(
             {
@@ -83,6 +92,7 @@ def sample_prefix(sample):
                 "enrollment": str(sample.enrollment_id),
                 "slot": sample.enrollment_slot,
                 "quality": sample.quality,
+                **({"call_receipt": receipt} if receipt else {}),
             },
             sort_keys=True,
             separators=(",", ":"),
@@ -92,7 +102,8 @@ def sample_prefix(sample):
         raise VoiceprintError("voiceprint_vector_invalid") from None
     if len(header) > 4096:
         raise VoiceprintError("voiceprint_vector_invalid")
-    return b"VPS1" + len(header).to_bytes(2, "little") + header
+    version = b"VPS2" if receipt else b"VPS1"
+    return version + len(header).to_bytes(2, "little") + header
 
 
 def sample_payload(sample, vector):

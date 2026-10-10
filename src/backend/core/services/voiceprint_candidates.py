@@ -128,7 +128,9 @@ def artifact(profile, *, user_id, organization_id):
     )
     templates = list(
         profile.templates.filter(
-            status="active", generation=profile.generation
+            status="active",
+            generation=profile.generation,
+            device_group__in=consent.ready_device_groups(profile),
         ).order_by("device_group", "id")[: matching.MAX_DEVICE_GROUPS + 1]
     )
     if not 1 <= len(templates) <= matching.MAX_DEVICE_GROUPS:
@@ -214,6 +216,8 @@ def authorization_digest(identifiers, organization_id):
             "revision",
             "policy_version",
             "support_digest",
+            "device_group",
+            "basis",
         )[: matching.MAX_CANDIDATES * matching.MAX_DEVICE_GROUPS + 1]
     )
     floors = list(

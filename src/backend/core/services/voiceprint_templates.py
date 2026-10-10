@@ -1,4 +1,4 @@
-"""Bounded encrypted enrollment baselines built only from the owner's decisions.
+"""Bounded encrypted baselines and devices built only from the owner's decisions.
 
 Initial consistency thresholds are engineering defaults, not calibrated identity
 thresholds. Matching remains subject to its separate calibration/release gate.
@@ -64,7 +64,7 @@ def supports_digest(samples):
     ).hexdigest()
 
 
-def eligible(profile, *, identifiers=None):
+def eligible(profile, *, identifiers=None, after=None):
     # Call contributions need the trusted sampling-permit contract; they are not
     # admitted by this enrollment builder merely because their status was edited.
     rows = (
@@ -90,6 +90,8 @@ def eligible(profile, *, identifiers=None):
     )
     if identifiers is not None:
         rows = rows.filter(pk__in=identifiers)
+    if after is not None:
+        rows = rows.filter(created_at__gt=after)
     # Bound old-data work as well as the number of contributions. A subsequent
     # enrollment can supply six new clips without accepting unbounded history.
     selected, digests = [], set()
@@ -133,7 +135,7 @@ def pause(profile, templates, status):
 
 
 @transaction.atomic
-def build(identifier):  # noqa: PLR0911, PLR0912 -- Keep authorization and contribution rejection guards explicit.
+def build(identifier):  # noqa: PLR0911 -- Keep authorization and contribution rejection guards explicit.
     if (
         not settings.MEETING_VOICEPRINT_ENABLED
         or not settings.MEETING_VOICEPRINT_TEMPLATES_ENABLED
@@ -192,74 +194,27 @@ def build(identifier):  # noqa: PLR0911, PLR0912 -- Keep authorization and contr
         or profile.status == "deleted"
     ):
         return pause(profile, templates, "unavailable")
-    # Keep a valid existing baseline stable; new confirmations do not silently
-    # roll it forward. Invalid contributions require rebuilding from survivors.
-    active = [row for row in templates if row.status == "active"]
-    if active:
-        if len(active) == 1 and valid_baseline(active[0], profile):
-            return BuildResult("unchanged", active[0].pk, active[0].revision)
-        pause(profile, templates, "rebuilding")
-    if not permission.allow_enrollment:
-        return pause(profile, templates, "unavailable")
-    samples = eligible(profile)
-    if (
-        len(samples) < 3
-        or sum(sample.quality["valid_speech_ms"] for sample in samples) < 30000
-    ):
-        return pause(profile, templates, "insufficient_audio")
-    try:
-        keyring = load_keyring()
-        vectors = [
-            read_sample_vector(
-                sample,
-                keyring.decrypt(
-                    profile,
-                    sample.encrypted_embedding,
-                    kind="embedding",
-                    object_id=sample.pk,
-                ),
-            )
-            for sample in samples
-        ]
-        if any(
-            cosine(left, right) < MIN_PAIR_COSINE
-            for i, left in enumerate(vectors)
-            for right in vectors[i + 1 :]
-        ):
-            return pause(profile, templates, "mixed_speaker")
-        vector = aggregate(vectors)
-        digest = supports_digest(samples)
-    except (consent.VoiceprintError, VoiceprintCryptoError, ValueError, TypeError):
-        return pause(profile, templates, "invalid_contributions")
-    template = next((row for row in templates if row.device_group == "default"), None)
-    if template is None:
-        template = models.VoiceprintTemplate(
-            profile=profile, generation=profile.generation, dimension=DIMENSION
-        )
-    else:
-        template.revision += 1
-    template.status = "active"
-    template.dimension = DIMENSION
-    template.policy_version = POLICY_VERSION
-    template.support_digest = digest
-    template.encrypted_vector = keyring.encrypt(
-        profile,
-        template_payload(template, vector),
-        kind="template",
-        object_id=template.pk,
+    from core.services.voiceprint_devices import (  # noqa: PLC0415 -- The locked coordinator owns device contributions.
+        build as build_devices,
     )
-    template.save()
-    template.support_samples.set(samples)
-    profile.status = "active"
-    profile.confirmed_at = max(sample.confirmed_at for sample in samples)
-    profile.last_updated_at = timezone.now()
-    profile.save(
-        update_fields=["status", "confirmed_at", "last_updated_at", "updated_at"]
-    )
-    return BuildResult("built", template.pk, template.revision)
+
+    return build_devices(profile, templates)
 
 
 def valid_baseline(template, profile):
+    if template.policy_version == POLICY_VERSION:
+        return valid_enrollment_baseline(template, profile)
+    from core.services.voiceprint_devices import (  # noqa: PLC0415 -- Validate new artifacts without changing enrollment v1.
+        valid,
+    )
+
+    try:
+        return valid(template, profile)
+    except (consent.VoiceprintError, ValueError, TypeError):
+        return False
+
+
+def valid_enrollment_baseline(template, profile):
     if (
         template.policy_version != POLICY_VERSION
         or template.profile_id != profile.pk
@@ -267,6 +222,7 @@ def valid_baseline(template, profile):
         or not template.encrypted_vector
         or template.generation != profile.generation
         or template.device_group != "default"
+        or template.basis != {}
         or template.revision < 1
     ):
         return False
@@ -307,11 +263,20 @@ def template_prefix(template):
             "generation": template.generation,
             "space": template.profile.feature_space,
             "dimension": template.dimension,
+            **(
+                {"device_group": template.device_group, "basis": template.basis}
+                if template.policy_version != POLICY_VERSION
+                else {}
+            ),
         },
         sort_keys=True,
         separators=(",", ":"),
+        allow_nan=False,
     ).encode("ascii")
-    return b"VPT1" + len(header).to_bytes(2, "little") + header
+    if len(header) > 4096:
+        raise consent.VoiceprintError("voiceprint_template_invalid")
+    version = b"VPT1" if template.policy_version == POLICY_VERSION else b"VPT2"
+    return version + len(header).to_bytes(2, "little") + header
 
 
 def template_payload(template, vector):

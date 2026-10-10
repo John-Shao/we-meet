@@ -248,6 +248,12 @@ def template_ready(template, *, profile):
 def ready_device_groups(profile):
     # Matching cannot rely on status/booleans alone: validate the authenticated
     # artifact against the current confirmed contributions and policy.
+    from core.services.voiceprint_devices import (  # noqa: PLC0415 -- Supplements require one independently valid anchor.
+        POLICY_VERSION as DEVICE_POLICY,
+    )
+    from core.services.voiceprint_devices import (  # noqa: PLC0415 -- Validate the anchored device role.
+        is_baseline,
+    )
     from core.services.voiceprint_templates import (  # noqa: PLC0415 -- Templates depend on consent guards.
         valid_baseline,
     )
@@ -261,15 +267,25 @@ def ready_device_groups(profile):
     )
     if len(templates) > MAX_ACTIVE_TEMPLATES:
         return []
-    if not templates or not all(
-        template.dimension == DIMENSION
-        and bool(template.encrypted_vector)
-        and template_ready(template, profile=profile)
-        and valid_baseline(template, profile)
-        for template in templates
+    anchors = [row for row in templates if is_baseline(row)]
+    if len(anchors) != 1 or not valid_baseline(anchors[0], profile):
+        return []
+    if any(
+        row is not anchors[0]
+        and (
+            row.policy_version != DEVICE_POLICY
+            or not isinstance(row.basis, dict)
+            or row.basis.get("role") != "supplement"
+        )
+        for row in templates
     ):
         return []
-    return sorted(template.device_group for template in templates)
+    # Invalid/deleted supplemental sources never poison the still-valid anchor.
+    return sorted(
+        row.device_group
+        for row in templates
+        if template_ready(row, profile=profile) and valid_baseline(row, profile)
+    )
 
 
 def profile_ready(profile):

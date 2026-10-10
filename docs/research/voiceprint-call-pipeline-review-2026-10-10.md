@@ -2,7 +2,7 @@
 
 日期：2026-10-10（Asia/Shanghai）。分支：`feature/speaker-identity-voiceprint`。
 
-在[采样许可基础](voiceprint-call-sampling-review-2026-10-10.md)上接通独立 sampler、后端派发、一次性加密候选入库、编码和通话单人质检。默认关闭，没有部署服务、连接实际会议、采集真人声音或调用付费 ASR。模型路线仍为 Qwen 优先。通话样本已能进入本人审核，但通话设备组模板贡献尚未接通，确认候选不代表已建立可匹配的通话模板。
+在[采样许可基础](voiceprint-call-sampling-review-2026-10-10.md)上接通独立 sampler、后端派发、一次性加密候选入库、编码和通话单人质检。默认关闭，没有部署服务、连接实际会议、采集真人声音或调用付费 ASR。模型路线仍为 Qwen 优先。本阶段接通本人审核；后续[设备组模板走查](voiceprint-device-templates-review-2026-10-10.md)进一步接通经本人确认的通话贡献、首次基准、跨会话补充与失效重建，单个候选确认仍不等于模板已具备全部构建条件。
 
 ## 链路与边界
 
@@ -38,4 +38,4 @@
 
 后端 `MEETING_VOICEPRINT_SAMPLING_ENABLED` 默认 `False`，`MEETING_VOICEPRINT_SAMPLING_AGENT_NAME` 和独立 token 默认空。agent 需同名配置、同一独立凭证、LiveKit 连接配置及内部后端地址；只有 `MEETING_VOICEPRINT_SAMPLING_ENABLED=true` 才接受派发。入口及开发环境说明见 [agents README](../../src/agents/README.md#声纹采样入口)。这些配置没有在生产启用。
 
-后续仍需：通话设备组模板构建／贡献失效重建、首次及后续跨会话条件、Web／Android 通话声明和可见采样状态；派发与采样状态的持久恢复、来源删除的物理清理、许可／来源周期清理；Helm／镜像／独立服务、监控及容量验证。实际 LiveKit 房间的合成参与者联调也未完成，原生本地音轨测试不能替代完整 RTC 链路。完整产品路由、历史版本／搜索、真实设备、获授权真人效果和生产验收继续推进，完整目标保持不变。
+设备组模板、贡献失效重建及跨会话条件的后续证据见[设备组模板走查](voiceprint-device-templates-review-2026-10-10.md)。仍需 Web／Android 通话声明和可见采样状态；派发与采样状态的持久恢复、来源删除的物理清理、许可／来源周期清理；Helm／镜像／独立服务、监控及容量验证。实际 LiveKit 房间的合成参与者联调也未完成，原生本地音轨测试不能替代完整 RTC 链路。完整产品路由、历史版本／搜索、真实设备、获授权真人效果和生产验收继续推进，完整目标保持不变。

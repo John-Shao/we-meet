@@ -45,9 +45,11 @@ agents/
 取得并持续复验短期许可。参与者可见，禁止发布媒体／数据。PCM 仅在内存
 保留当前短片段，超过队列、字节、时间或授权边界整段丢弃。
 
-采样、候选入库和单人质检代码已接通；设备组模板贡献、两端通话界面、
-完整 RTC 联调与 Helm 部署继续开发，当前不在生产启用。兼容性与验证见
-[采样管线走查](../../docs/research/voiceprint-call-pipeline-review-2026-10-10.md)。
+采样、候选入库和单人质检代码已接通；后端也已接通本人确认的通话基准、
+跨会话设备组和贡献失效重建。两端通话界面、来源物理清理、完整 RTC 联调
+与 Helm 部署继续开发，当前不在生产启用。兼容性与验证见
+[采样管线走查](../../docs/research/voiceprint-call-pipeline-review-2026-10-10.md)及
+[设备组模板走查](../../docs/research/voiceprint-device-templates-review-2026-10-10.md)。
 
 ## 本地环境与启动
 

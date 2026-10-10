@@ -1,7 +1,8 @@
 """Trusted microphone origins, owner controls and bounded clip reservations.
 
-No PCM is accepted here. The sampler must obtain and repeatedly validate a
-permit before subscribing; a connection identity alone never proves a voice.
+The sampler obtains and repeatedly validates a permit before subscribing.
+Only a bounded WAV with its exact consumed receipt enters the encrypted queue;
+a connection identity alone never proves a voice.
 """
 
 import base64
@@ -291,6 +292,8 @@ def authorize(permit):
         permit.track.unpublished_at is not None
         or permit.track.source != "microphone"
         or permit.track.media_type != "audio"
+        or permit.device_group not in DEVICE_GROUPS
+        or permit.control_revision < 1
     ):
         raise VoiceprintError("voiceprint_sampling_track_unavailable")
     control = models.VoiceprintSamplingControl.objects.filter(
@@ -472,7 +475,7 @@ def validate(identifier, *, token, room_sid, participant_sid, track_sid):
 def authorized_sample(sample, profile):
     """A forged source_type/permit UUID is not a captured-source receipt.
 
-    Only the future bounded sampler ingestion transaction can consume and link
+    Only the bounded sampler ingestion transaction can consume and link
     this one-clip permit. Normal session end/pause does not erase a valid past
     capture; deletion of its origin or current consent revocation does.
     """
@@ -509,12 +512,45 @@ def authorized_sample(sample, profile):
         or permit.participant_identity != participation.identity
         or permit.track.source != "microphone"
         or permit.track.media_type != "audio"
+        or permit.device_group not in DEVICE_GROUPS
+        or permit.control_revision < 1
         or not 3000 <= sample.end_ms - sample.start_ms <= permit.max_duration_ms
         or not permit.created_at <= sample.created_at <= permit.expires_at
         or (consent.organization_policy(organization)["version"] if organization else 0)
         != permit.policy_version
     ):
         raise VoiceprintError("voiceprint_sampling_source_unavailable")
+
+
+def receipt_evidence(sample):
+    """Immutable admission fields, sealed into the call feature and job lease.
+
+    Eligibility is separately rechecked against the current source and scope.
+    This snapshot detects edits to a receipt while work is running or afterwards.
+    """
+    permit = models.VoiceprintSamplingPermit.objects.filter(
+        pk=sample.permit_id, sample=sample, status="consumed"
+    ).first()
+    if permit is None:
+        return None
+    return {
+        "profile": str(permit.profile_id),
+        "owner": str(permit.owner_id),
+        "track_id": str(permit.track_id),
+        "session": str(permit.source_session_id),
+        "track": permit.source_track_sid,
+        "room": permit.livekit_room_sid,
+        "participant": permit.participant_sid,
+        "identity": permit.participant_identity,
+        "consent_version": permit.consent_version,
+        "generation": permit.generation,
+        "policy_version": permit.policy_version,
+        "control_revision": permit.control_revision,
+        "device_group": permit.device_group,
+        "max_duration_ms": permit.max_duration_ms,
+        "created_at": permit.created_at.isoformat(),
+        "expires_at": permit.expires_at.isoformat(),
+    }
 
 
 def clip_receipt(sample):

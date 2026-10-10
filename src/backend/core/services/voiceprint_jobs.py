@@ -1,6 +1,7 @@
-"""Independent enrollment queue: lease, killable RPC, reauthorization, encrypted result."""
+"""Independent sample queue: lease, killable RPC, reauthorization, encrypted result."""
 
 import hashlib
+import json
 from dataclasses import dataclass, field
 from uuid import uuid4
 
@@ -35,6 +36,13 @@ class EncodingLease:
 
 
 def source_key(sample):
+    receipt = None
+    if sample.source_type == "call":
+        from core.services.voiceprint_sampling import (  # noqa: PLC0415 -- Freeze the exact trusted call receipt in the lease.
+            receipt_evidence,
+        )
+
+        receipt = json.dumps(receipt_evidence(sample), sort_keys=True)
     return (
         sample.profile_id,
         sample.profile.consent_id,
@@ -47,6 +55,7 @@ def source_key(sample):
         sample.enrollment_id,
         sample.enrollment_slot,
         sample.permit_id,
+        receipt,
     )
 
 

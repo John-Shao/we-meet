@@ -2,9 +2,9 @@
 
 日期：2026-10-10（Asia/Shanghai）
 
-通话管线后续已接通独立可见 sampler、精确房间派发、一次性加密候选入库、Qwen 单人质检及污染暂停；402 项后端和 43 项 agent 回归、SDK 原生合成音轨验证通过，见[采样管线走查](../research/voiceprint-call-pipeline-review-2026-10-10.md)。默认关闭，未采集真人声音；通话设备组模板贡献、跨端通话界面、恢复／清理部署和完整 RTC 联调仍待完成。
+通话管线后续已接通独立可见 sampler、精确房间派发、一次性加密候选入库、Qwen 单人质检及污染暂停，见[采样管线走查](../research/voiceprint-call-pipeline-review-2026-10-10.md)。进一步接通首次通话基准、本人确认的跨会话设备组、加密回执与基准绑定、贡献失效门禁和重建，见[设备组模板走查](../research/voiceprint-device-templates-review-2026-10-10.md)。默认关闭，未采集真人声音；跨端通话界面、来源物理清理、恢复／部署和完整 RTC 联调仍待完成。
 
-通话阶段新增[采样许可基础与走查](../research/voiceprint-call-sampling-review-2026-10-10.md)：后端已接通签名 webhook 来源、本人连接级暂停／共享设备声明、短期绑定许可、跨组织／设备配额、撤销及删除来源标识清理。实际采样 agent、音频入库／质检、设备组模板贡献、跨端通话界面与部署仍待完成；当前默认关闭，不采集声音。
+通话阶段的签名 webhook 来源、本人连接级暂停／共享设备声明、短期绑定许可、跨组织／设备配额、撤销及删除来源标识清理已接通，基础证据见[采样许可走查](../research/voiceprint-call-sampling-review-2026-10-10.md)。后续采样与模板进度以上段为准。
 
 最新阶段：[AI 录音 Android 走查](../research/voiceprint-capture-android-review-2026-10-10.md)已接通显式付费分人／同请求恢复、固定派生版本分页、身份入口与原生有界试听，修复 Compose 崩溃、状态收集线程、试听超时、取消失权残留、存储错误分类及旧版本草稿保存边界。120 项 JVM、35 项隔离模拟器回归、APK 构建与中文大字号走查通过。Web 的 65 项后端、135 项前端及本地真实浏览器证据见[Web 走查](../research/voiceprint-capture-web-review-2026-10-10.md)；派生版本、Qwen worker 与录音身份队列证据见[worker 走查](../research/voiceprint-capture-diarization-review-2026-10-10.md)及[操作与查询走查](../research/voiceprint-capture-identity-api-review-2026-10-10.md)。完整产品 Application／真实设备、可信通话采样、部署与获授权真人效果验收仍待完成；各阶段回归证据独立记录，不直接相加。
 
@@ -21,11 +21,11 @@
 | 转写／导出／新纪要姓名一致，历史版本与搜索刷新 | 姓名投影及有效原文／导出／纪要来源回归已通过，历史版本与搜索整体待验证 | 有效原文、导出、纪要与搜索回归测试 |
 | Qwen encoder 固定版本加载、特征空间、质量分析、拒绝与评测工具 | 编码器、信号边界、私有 RPC 及登记语音／单人／随机朗读质检管线已验证；真实云端质量和真人评测待完成 | [固定模型与资源报告](../research/voiceprint-qwen-technical-probe-2026-10-10.md)、[登记质检走查](../research/voiceprint-qwen-quality-review-2026-10-10.md)；合成输入仅证明技术链路 |
 | 本人三类授权、组织隔离、登记上传、试听确认与拒绝 | 本人设置／组织开关、登记上传／试听／决定 API、独立登记质检及 Web／Android 登记界面已接通 | 声纹后端 386 项回归、50 项 Web／设置回归及真实合成麦克风浏览器验证通过；Android 本轮 86 项 JVM 与 14 项模拟器回归通过；实际 Qwen encoder 通过，云端 ASR 契约使用本地模拟响应验证，信号质量样本仍须完成真实质检 |
-| 加密样本／模板、撤销 generation、来源删除、清理回执与恢复墓碑 | 独立档案密钥、加密来源／质检证明、登记模板构建及贡献失效重建、撤销墓碑、DB 清理和 TTL 扫描已实现；通话来源贡献与恢复部署待开发 | 62 项模板回归、加密隔离、密钥轮换读取、撤销／重新登记／旧清理、级联删除、到期回归已通过；运维调度／外部墓碑源待验证 |
+| 加密样本／模板、撤销 generation、来源删除、清理回执与恢复墓碑 | 独立档案密钥、加密来源／质检证明、登记及通话设备组模板、贡献失效门禁及重建、撤销墓碑、DB 清理和 TTL 扫描已实现；通话来源物理清理与恢复部署待完成 | 62 项登记模板回归、加密隔离、密钥轮换、撤销／重新登记／旧清理、级联删除和到期已验证；通话贡献证据见[设备组模板走查](../research/voiceprint-device-templates-review-2026-10-10.md)，运维调度／外部墓碑源待验证 |
 | 独立 worker、租约、有限重试、幂等与结果提交复核 | 登记编码／质检独立批处理、租约、各最多三次尝试、可终止 RPC 子进程、Qwen 原生推理进程隔离及写入复核已实现；部署调度待完成 | worker／RPC／质检取消边界、实际 Qwen 完整登记链路、故障恢复及父进程异常退出保护通过；部署与其他来源任务待验证 |
 | 多片段匹配、未知拒绝、门限版本与候选快照 | 内部匹配／查询、独立身份队列、持久建议、记录级 API、建议决定事务和 Web／Android 导入识别交互已实现；其他来源及校准待完成 | [匹配核心走查](../research/voiceprint-matching-core-review-2026-10-10.md)、[识别 API 走查](../research/voiceprint-identification-api-review-2026-10-10.md)、[Web 识别走查](../research/voiceprint-web-identification-review-2026-10-10.md)及本文件 Android 章节；合成验证不代表真人识别效果 |
 | 导入：显式候选、分人预检、有界媒体解码与多片段建议 | 可信下载／区间选择、本地有界解码、独立身份任务、多片段建议及 Web／Android 导入后确认已实现；收费 ASR 前预检、固定共同输入、两端导入前选择／失败决定与转写后持久身份调度已接通 | 合成多格式选段、实际 Qwen 到持久建议链路通过；预检证据见[后端走查](../research/voiceprint-import-preflight-review-2026-10-10.md)，界面证据见[Web 与调度走查](../research/voiceprint-import-web-dispatch-review-2026-10-10.md)及[Android 走查](../research/voiceprint-import-android-review-2026-10-10.md)；真人多人／跨端验收仍待完成 |
-| 通话：可信账户／participant／track 许可、选择性采样、暂停与共享设备排除 | 可信来源、许可、声明、配额、独立 sampler／派发、一次性加密入库、单人质检及污染暂停已接通；设备组贡献、跨端界面及完整 RTC 联调待完成 | [许可基础](../research/voiceprint-call-sampling-review-2026-10-10.md)、[采样管线](../research/voiceprint-call-pipeline-review-2026-10-10.md)；本地原生合成音轨不代表实际会议或真人验收 |
+| 通话：可信账户／participant／track 许可、选择性采样、暂停与共享设备排除 | 可信来源、许可、声明、配额、独立 sampler／派发、一次性加密入库、单人质检、污染暂停、本人确认的首次及跨会话设备组已接通；跨端界面及完整 RTC 联调待完成 | [许可基础](../research/voiceprint-call-sampling-review-2026-10-10.md)、[采样管线](../research/voiceprint-call-pipeline-review-2026-10-10.md)、[设备组模板](../research/voiceprint-device-templates-review-2026-10-10.md)；合成证据不代表实际会议或真人验收 |
 | AI 录音后分人：独立派生 generation、时间对齐和历史引用 | 后端派生版本、可信对齐、原子发布、修订继承、固定私有媒体、Qwen worker、操作 API 和录音身份队列已接通；Web／Android 分人入口、固定版本分页、身份确认和区间试听已接通 | [派生版本与 worker](../research/voiceprint-capture-diarization-review-2026-10-10.md)、[操作与查询走查](../research/voiceprint-capture-identity-api-review-2026-10-10.md)、[Web 走查](../research/voiceprint-capture-web-review-2026-10-10.md)、[Android 走查](../research/voiceprint-capture-android-review-2026-10-10.md)；合成多人建议须逐个人工确认，真人多人效果、完整产品路由与真实设备仍待验证 |
 | Web／Android：设置、采样状态、身份建议与人工确认 | Web／Android 本人设置、登记、样本审核及导入后的候选／建议确认已接通；八态、更新原因及有效登记组投影已接通；跨端采样状态与真实设备分组待开发 | 本人设置相关回归与真实合成麦克风通过；状态投影及两端交互见[状态走查](../research/voiceprint-settings-status-review-2026-10-10.md)，其他界面继续验收 |
 | Helm／镜像：独立服务、默认关闭的开关、预算和观测 | 待开发 | 配置渲染、镜像／服务启动验证与运维文档 |

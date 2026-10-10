@@ -9711,6 +9711,7 @@ class VoiceprintTemplate(BaseModel):
     revision = models.PositiveBigIntegerField(default=1)
     policy_version = models.CharField(max_length=96, blank=True, default="")
     support_digest = models.CharField(max_length=64, blank=True, default="")
+    basis = models.JSONField(blank=True, default=dict)
     encrypted_vector = models.BinaryField(blank=True, default=bytes, max_length=32768)
     support_samples = models.ManyToManyField(VoiceprintSample, related_name="templates")
     status = models.CharField(

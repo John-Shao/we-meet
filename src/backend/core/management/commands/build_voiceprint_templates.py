@@ -12,9 +12,7 @@ from core.services.voiceprint_templates import build
 
 
 class Command(BaseCommand):
-    help = (
-        "Build encrypted enrollment baselines from quality-checked owner confirmations."
-    )
+    help = "Build encrypted baselines and device groups from quality-checked owner confirmations."
 
     def add_arguments(self, parser):
         parser.add_argument("--limit", type=int, default=10)
