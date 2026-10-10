@@ -240,7 +240,9 @@ AOQ 只向客户端返回所需字段：`sid`、`aoqTokenForClient`、`clientRel
 
 最终场景取用户选择：本地场景可替换后端基础提示词，未选择本地场景时使用后端返回的提示词。开启语音摄像头功能后，再在最终场景之后追加统一控制规则和实际摄像头状态，避免某个场景漏掉工具约束。
 
-两种客户端均设置 `modalities=["text","audio"]`、当前 voice、`server_vad`（当前阈值 0.5，静音判定 800 ms）和 `input_audio_transcription.model=qwen3-asr-flash-realtime`。这是 Omni 会话内的转写配置，不额外创建个人 ASR 3.1 连接。模型侧音频格式配置与 SDK／WebRTC 的线路编码是不同层次，不能把 PCM 会话配置理解为网络不编码。
+两种客户端均设置 `modalities=["text","audio"]`、当前 voice、用户选择的 VAD 模式和 `input_audio_transcription.model=qwen3-asr-flash-realtime`。通话设置中的“语音轮次检测（VAD）”可选择声学检测 `server_vad` 或语义检测 `semantic_vad`，默认保持 `server_vad`；选择以 `call_vad_mode` 保存于 App 偏好，统一用于 AOQ／WebRTC、语音／视频通话。它是运行时设置，不是编译选项：通话前选择，客户端创建时固定本通电话的模式，连接中及通话中不修改。两种模式共用阈值 0.5、静音判定 800 ms，通过 `session.update.session.turn_detection` 配置，不增加业务后端字段。官方 [AOQ 实时通话示例](https://help.aliyun.com/zh/model-studio/best-practice-aoq-omni-realtime)支持并推荐语义检测；本项目保留声学基线供对比，实际误打断和延迟效果须在相同设备、音色、音量及网络条件下验证，语义检测不替代回声消除。
+
+这是 Omni 会话内的转写配置，不额外创建个人 ASR 3.1 连接。模型侧音频格式配置与 SDK／WebRTC 的线路编码是不同层次，不能把 PCM 会话配置理解为网络不编码。
 
 按各自开关分别注册摄像头控制／查询和结束通话工具，显式 `enable_search=false`；当前还设置 `temperature=0`、`presence_penalty=0`。这些参数并未解决实测漏调用问题，不能作为可靠性承诺。所有工具均关闭时不附加控制规则和工具定义，保留原对话行为。百炼支持 Realtime Function Calling，但平台能力仍须在本项目两条链路上验收。[Realtime 能力说明](https://www.alibabacloud.com/help/zh/model-studio/realtime)。
 
