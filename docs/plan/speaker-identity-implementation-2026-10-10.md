@@ -2,6 +2,8 @@
 
 日期：2026-10-10（Asia/Shanghai）；最近更新：2026-10-11。
 
+独立采样运行与部署本阶段已接通，见[采样运行走查](../research/voiceprint-sampler-runtime-review-2026-10-11.md)。新增精简 Linux 镜像及哈希依赖锁、Secret 文件与令牌隔离、双开关、无预热有界子进程、信号清理、脱敏日志与健康指标、默认关闭的 Helm／同源后端凭据／网络策略。28 项 Windows、28 项 Linux、28 项 Helm 组合与原生合成 RTC 验证通过，最终生产镜像正常退出。原生许可使用本地 fixture；完整后端 RTC、真实设备、集群／监控、历史搜索／备份恢复及获授权真人验收仍继续推进。
+
 消费者、API／Beat 私有配置和同 Pod 临时文件清理后续已接通，见[消费者运行走查](../research/voiceprint-consumer-runtime-review-2026-10-11.md)。新增三个固定 prefork 角色、镜像内 FFmpeg／FFprobe、共享 Secret／UID／平台与配置一致性校验，关闭业务时不发布处理／身份扫描；267 项后端回归及 46 项 Helm 回归通过。最终 Linux 镜像已完成实际 Redis／prefork／Qwen／加密模板／SIGKILL 租约恢复／原始音频与残留清理验证。基础设施及业务开关仍默认关闭，生产 sampler／集群／RTC／实际设备及真人验收继续推进。
 
 持续编码／质检／模板与身份批次、控制／处理／身份队列隔离及私有媒体配置已接通，见[调度走查](../research/voiceprint-processing-scheduler-review-2026-10-11.md)。该阶段 69 项专项／注册／导入预检、292 项组合回归及另外三条实际 Qwen／FFmpeg 链路通过；生产 Celery 注册／路由已验证。后续消费者资源及 Linux broker 验证以上述运行走查为准。

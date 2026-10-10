@@ -1577,3 +1577,26 @@ voiceprintWorkers:
   identityResources:
     requests: {cpu: 500m, memory: 512Mi}
     limits: {cpu: 2, memory: 2Gi, ephemeral-storage: 3Gi}
+
+# Visible, subscription-only RTC sampler. This does not enable collection.
+voiceprintSampler:
+  enabled: false
+  imageReference: "" # Independent Dockerfile.sampler image, repository@sha256:digest.
+  imagePullPolicy: IfNotPresent
+  credentialsSecret: "" # External api-key, api-secret, sampling-token; no ordinary agent token.
+  configurationRevision: ""
+  agentName: meeting-voiceprint
+  backendUrl: "" # Defaults to this release's backend Service root.
+  livekitUrl: "" # Explicit trusted ws/wss root; no credentials or paths.
+  backendCASecret: "" # Optional ca.crt; only for HTTPS backendUrl, never disables verification.
+  maxRooms: 1 # Per replica, bounded to 1..8; pending SDK offers count toward capacity.
+  jobMemoryMb: 256 # Per child process, 128..2048; pod limit = 512 + maxRooms*jobMemoryMb Mi.
+  replicas: 1 # 1..8; Recreate avoids extra capacity during updates.
+  nodeSelector: {kubernetes.io/os: linux, kubernetes.io/arch: amd64}
+  tolerations: []
+  networkPolicy:
+    enabled: true
+    additionalPeers: [] # Explicit monitoring ingress on TCP 8094 only.
+    # Required when enabled: exact LiveKit signaling/RTC/TURN destinations and ports.
+    # Custom backend gateways also need explicit rules. No blanket internet egress.
+    additionalEgress: []

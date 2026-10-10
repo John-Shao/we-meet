@@ -48,6 +48,19 @@
 {{- $_ := set $env "TMPDIR" "/tmp" -}}
 {{- $_ := set $env "PYTHONDONTWRITEBYTECODE" "1" -}}
 {{- end -}}
+{{- if $root.Values.voiceprintSampler.enabled -}}
+{{- $nameKey := "MEETING_VOICEPRINT_SAMPLING_AGENT_NAME" -}}
+{{- $tokenKey := "MEETING_VOICEPRINT_SAMPLING_AGENT_TOKEN" -}}
+{{- $name := $root.Values.voiceprintSampler.agentName -}}
+{{- $token := dict "secretKeyRef" (dict "name" $root.Values.voiceprintSampler.credentialsSecret "key" "sampling-token") -}}
+{{- range $source := list $env $root.Values.backend.envVars $root.Values.celeryBeat.envVars -}}
+{{- if hasKey $source (printf "%s_FILE" $tokenKey) -}}{{ fail "voiceprintSampler backend token must use the shared sampling-token Secret reference" }}{{- end -}}
+{{- if and (hasKey $source $nameKey) (ne (toJson (get $source $nameKey)) (toJson $name)) -}}{{ fail "voiceprintSampler agent name must match backend and Beat" }}{{- end -}}
+{{- if and (hasKey $source $tokenKey) (ne (toJson (get $source $tokenKey)) (toJson $token)) -}}{{ fail "voiceprintSampler token must use the shared sampling-token Secret reference" }}{{- end -}}
+{{- end -}}
+{{- $_ := set $env $nameKey $name -}}
+{{- $_ := set $env $tokenKey $token -}}
+{{- end -}}
 {{- include "meet.env.transformDict" $env -}}
 {{- end -}}
 

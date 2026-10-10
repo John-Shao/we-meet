@@ -17,7 +17,6 @@ class EntrypointTests(unittest.TestCase):
             "qwen_translation_agent": "translation.private",
             "qwen_interpretation_agent": "translation.interpretation",
             "metadata_collector": "metadata.collector",
-            "voiceprint_sampler": "voiceprint.sampler",
         }
         for entrypoint, module in workers.items():
             with self.subTest(entrypoint=entrypoint):

@@ -3,7 +3,9 @@
 import json
 import os
 import re
+import ssl
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 from uuid import UUID, uuid4
 
@@ -17,6 +19,10 @@ SAMPLE_RATE = 24000
 MAX_PERMIT_TTL = 31
 MIN_TOKEN_LENGTH = 32
 MAX_TOKEN_LENGTH = 512
+MAX_PORT = 65535
+MAX_CA_BYTES = 1048576
+ASCII_FIRST = 33
+ASCII_LAST = 126
 
 
 class SamplingError(ValueError):
@@ -63,9 +69,14 @@ def grant_valid(grant, origin, identity):
 class SamplingClient:
     """Use only the distinct sampler credential, never an ordinary agent token."""
 
-    def __init__(self, base_url, token):
+    def __init__(self, base_url, token, *, ca_bundle=None):
         """Validate operator configuration before any connection or request."""
-        parsed = urlsplit(base_url)
+        try:
+            parsed = urlsplit(base_url)
+            if parsed.port is not None and not 1 <= parsed.port <= MAX_PORT:
+                raise ValueError
+        except (ValueError, TypeError):
+            raise SamplingError("sampling_configuration_invalid") from None
         if (
             parsed.scheme not in {"http", "https"}
             or not parsed.hostname
@@ -78,18 +89,34 @@ class SamplingClient:
             or not isinstance(token, str)
             or not token.isascii()
             or not MIN_TOKEN_LENGTH <= len(token) <= MAX_TOKEN_LENGTH
-            or any(char.isspace() for char in token)
+            or any(not ASCII_FIRST <= ord(char) <= ASCII_LAST for char in token)
         ):
             raise SamplingError("sampling_configuration_invalid")
         self.endpoint = base_url.rstrip("/") + "/api/agent/voiceprint-sampling/permits/"
         self._token = token
+        self.ssl_context = None
+        if ca_bundle is not None:
+            try:
+                if parsed.scheme != "https" or not Path(ca_bundle).is_absolute():
+                    raise ValueError
+                with Path(ca_bundle).open("rb") as stream:
+                    raw = stream.read(MAX_CA_BYTES + 1)
+                if len(raw) > MAX_CA_BYTES:
+                    raise ValueError
+                self.ssl_context = ssl.create_default_context()
+                self.ssl_context.load_verify_locations(cadata=raw.decode("ascii"))
+            except (OSError, ValueError, TypeError):
+                raise SamplingError("sampling_configuration_invalid") from None
 
     @classmethod
     def from_env(cls):
         """Missing separate configuration fails closed."""
+        from voiceprint.configuration import secret  # noqa: PLC0415
+
         return cls(
             os.getenv("AGENT_BACKEND_API_URL", ""),
-            os.getenv("MEETING_VOICEPRINT_SAMPLING_AGENT_TOKEN", ""),
+            secret("MEETING_VOICEPRINT_SAMPLING_AGENT_TOKEN"),
+            ca_bundle=os.getenv("VOICEPRINT_SAMPLER_BACKEND_CA_FILE"),
         )
 
     async def _send(self, method, path, body, *, headers=None):
@@ -107,6 +134,7 @@ class SamplingClient:
                     self.endpoint + path,
                     data=body,
                     allow_redirects=False,
+                    ssl=self.ssl_context or True,
                     headers={
                         "X-Voiceprint-Agent-Token": self._token,
                         "Accept-Encoding": "identity",

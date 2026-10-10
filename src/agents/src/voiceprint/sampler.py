@@ -4,12 +4,11 @@ import asyncio
 import inspect
 import io
 import json
-import os
 import wave
 from collections import deque
 
 from livekit import rtc
-from livekit.agents import AutoSubscribe, WorkerOptions, WorkerPermissions, cli
+from livekit.agents import AutoSubscribe
 
 from voiceprint.client import (
     MAX_CLIP_MS,
@@ -360,7 +359,12 @@ async def entrypoint(ctx):
 async def accept_job(request):
     """Reject disabled or malformed jobs before connecting to any room."""
     try:
-        if os.getenv("MEETING_VOICEPRINT_SAMPLING_ENABLED") != "true":
+        from voiceprint.configuration import switch  # noqa: PLC0415
+
+        if not (
+            switch("MEETING_VOICEPRINT_ENABLED")
+            and switch("MEETING_VOICEPRINT_SAMPLING_ENABLED")
+        ):
             raise SamplingError("sampling_disabled")
         metadata(request.job.metadata)
         SamplingClient.from_env()
@@ -374,18 +378,6 @@ async def accept_job(request):
 
 def main():
     """Run an independent visible worker without media/data publication permissions."""
-    cli.run_app(
-        WorkerOptions(
-            entrypoint_fnc=entrypoint,
-            request_fnc=accept_job,
-            agent_name=os.getenv(
-                "MEETING_VOICEPRINT_SAMPLING_AGENT_NAME", "meeting-voiceprint"
-            ),
-            permissions=WorkerPermissions(
-                can_publish=False,
-                can_publish_data=False,
-                can_update_metadata=False,
-                hidden=False,
-            ),
-        )
-    )
+    from voiceprint.runtime import main as run  # noqa: PLC0415
+
+    run()
