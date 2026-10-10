@@ -4,6 +4,7 @@ import json
 from unittest import mock
 
 from django.core.cache import cache
+from django.core.management import call_command
 
 import pytest
 import requests
@@ -15,6 +16,21 @@ from core.factories import UserFactory
 pytestmark = pytest.mark.django_db
 URL = "/api/v1.0/ai-call/session/"
 SDP = "v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n"
+
+
+def test_new_photo_session_reads_repeat_look_rules_without_server_restart(call_setup):
+    client, profile, _, _ = call_setup
+    body = {"sdp": SDP, "profile_code": profile.code, "photo_qa": True}
+    before = client.post(URL, body, format="json")
+    assert before.status_code == 200
+    call_command("extend_photo_qa_commands")
+    after = client.post(URL, body, format="json")
+    assert after.status_code == 200
+    for key in ("photo", "take_photo_description"):
+        assert "再看看" in after.data["tool_instructions"][key]
+        assert "再看一下嘛" in after.data["tool_instructions"][key]
+        assert after.data["tool_instructions"][key].startswith(before.data["tool_instructions"][key])
+    assert after.data["tool_instructions"]["camera"] == before.data["tool_instructions"]["camera"]
 
 
 def test_photo_capability_resolves_managed_prompts_before_allocation(call_setup):
