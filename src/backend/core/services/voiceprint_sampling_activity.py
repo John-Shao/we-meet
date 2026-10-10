@@ -81,6 +81,12 @@ def report(identifier, *, token, room_sid, participant_sid, track_sid, phase, se
             "expires_at": timezone.now() + timezone.timedelta(seconds=ACTIVITY_SECONDS),
         },
     )
+    if phase == "stopped":
+        # The sampler has released the media and wiped its capture buffers.
+        # A terminal receipt must also release the single active permit slot;
+        # its duration reservation remains counted, including failed captures.
+        permit.status = "canceled"
+        permit.save(update_fields=["status", "updated_at"])
     return result
 
 

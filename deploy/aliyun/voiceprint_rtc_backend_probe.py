@@ -32,6 +32,38 @@ def require(value, code):
         raise RuntimeError("rtc_fixture_" + code)
 
 
+def permit_binding_valid(permit):
+    """A janitor may scrub terminal context, never its quota/nonce origin."""
+    if permit.track is None:
+        return False
+    participation = permit.track.participation
+    if (
+        permit.source_session_id != participation.session_id
+        or permit.owner_id != participation.user_id
+    ):
+        return False
+    if permit.profile_id is None:
+        return (
+            permit.status in {"canceled", "expired"}
+            and permit.sample_id is None
+            and not any(
+                (
+                    permit.livekit_room_sid,
+                    permit.participant_sid,
+                    permit.participant_identity,
+                    permit.source_track_sid,
+                    permit.device_group,
+                )
+            )
+        )
+    return (
+        permit.livekit_room_sid == participation.session.livekit_room_sid
+        and permit.participant_sid == participation.livekit_participant_sid
+        and permit.participant_identity == participation.identity
+        and permit.source_track_sid == permit.track.livekit_track_sid
+    )
+
+
 def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned processes in one lifetime.
     """Launch genuine services, exposing only authenticated fixture observations."""
     require(sys.platform == "linux" and os.getuid() == 10001, "linux_uid")
@@ -230,16 +262,12 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                 status="canceled"
             ).count(),
             "permits": len(permits),
-            "permit_bindings_consistent": all(
-                permit.source_session_id == permit.track.participation.session_id
-                and permit.livekit_room_sid
-                == permit.track.participation.session.livekit_room_sid
-                and permit.participant_sid
-                == permit.track.participation.livekit_participant_sid
-                and permit.participant_identity == permit.track.participation.identity
-                and permit.source_track_sid == permit.track.livekit_track_sid
-                and permit.owner_id == permit.track.participation.user_id
+            "scrubbed_terminal_permits": sum(
+                permit.profile_id is None and permit_binding_valid(permit)
                 for permit in permits
+            ),
+            "permit_bindings_consistent": all(
+                permit_binding_valid(permit) for permit in permits
             ),
             "ended_sessions": models.MeetingSession.objects.filter(
                 ended_at__isnull=False

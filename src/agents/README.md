@@ -75,8 +75,10 @@ Helm 资源已接通，完整后端 RTC 合成链路已通过，实际设备及�
 真实后端、签名 webhook、Beat、本人声明和加密模板的可复现合成联调见
 [完整 RTC 走查](../../docs/research/voiceprint-full-rtc-review-2026-10-11.md)；ASR 为本地协议 fixture，不能据此判断真人声纹效果。
 使用 `--media-boundaries` 可复现实际容量不足后的空派发恢复、原生静音、
-显式恢复、轨道替换和新 participant SID 重建，见
+自动解除静音恢复、轨道替换和新 participant SID 重建，见
 [媒体边界走查](../../docs/research/voiceprint-rtc-media-boundaries-review-2026-10-11.md)。
+后续许可终态、单次自动恢复与清理证据见
+[自动解除静音走查](../../docs/research/voiceprint-rtc-autounmute-review-2026-10-11.md)。
 当前不在生产启用。兼容性与验证见
 [采样管线走查](../../docs/research/voiceprint-call-pipeline-review-2026-10-10.md)及
 [设备组模板走查](../../docs/research/voiceprint-device-templates-review-2026-10-10.md)及

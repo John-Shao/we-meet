@@ -673,10 +673,33 @@ async def run():  # noqa: PLR0912, PLR0915 -- Keep this single ordered media sce
                     "mute_discards_capture",
                 )
                 phase("native_mute_discarded")
-                control = await change(control, media_query, paused=True)
+                muted_revision = control["revision"]
+                unmute_started = asyncio.get_running_loop().time()
                 original.track.unmute()
-                control = await change(control, media_query)
-                control = await runtime(control, media_query, "sampling")
+                control = await runtime(
+                    control,
+                    media_query,
+                    "sampling",
+                    minimum_permits=state["permits"] + 1,
+                )
+                require(
+                    control["revision"] == muted_revision
+                    and not control["paused"]
+                    and (await fixture_request("/state"))["candidates"] == 3,
+                    "unmute_recovers_without_control_change",
+                )
+                print(
+                    json.dumps(
+                        {
+                            "event": "rtc_media_probe_phase",
+                            "phase": "native_unmute_automatically_recovered",
+                            "elapsed_seconds": round(
+                                asyncio.get_running_loop().time() - unmute_started, 2
+                            ),
+                        }
+                    ),
+                    flush=True,
+                )
                 before_replacement = await fixture_request("/state")
                 await media_room.local_participant.unpublish_track(original.sid)
                 replacement = await publish_microphone(media_room)
@@ -760,6 +783,9 @@ async def run():  # noqa: PLR0912, PLR0915 -- Keep this single ordered media sce
                             fixture.get("media_boundaries")
                         ),
                         "native_media_boundaries": bool(
+                            fixture.get("media_boundaries")
+                        ),
+                        "automatic_unmute_recovered": bool(
                             fixture.get("media_boundaries")
                         ),
                     }

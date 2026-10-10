@@ -81,7 +81,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
     parser.add_argument("--model-pack", required=True, type=Path)
     parser.add_argument("--diagnostics-dir", required=True, type=Path)
     parser.add_argument(
-        "--backend-image", default="we-meet-backend:voiceprint-dispatch-20261011"
+        "--backend-image", default="we-meet-backend:voiceprint-stop-20261011"
     )
     parser.add_argument(
         "--sampler-image", default="we-meet-voiceprint-sampler:feature-20261011"

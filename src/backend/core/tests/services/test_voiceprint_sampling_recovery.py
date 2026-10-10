@@ -338,12 +338,90 @@ def test_phase_cannot_go_backwards_or_restart_same_permit(prepared, before, afte
     grant = fixture.issue()
     progress(fixture, grant)
     progress(fixture, grant, before, 2)
-    with pytest.raises(consent.VoiceprintError, match="activity_changed"):
+    with pytest.raises(
+        consent.VoiceprintError,
+        match="permit_unavailable" if before == "stopped" else "activity_changed",
+    ):
         progress(fixture, grant, after, 3)
     assert (
         models.VoiceprintSamplingActivity.objects.get(track=fixture.track).phase
         == before
     )
+
+
+def test_stopped_capture_releases_slot_without_refunding_quota(prepared):
+    fixture, _ = prepared
+    grant = fixture.issue()
+    progress(fixture, grant)
+    progress(fixture, grant, "sampling", 2)
+    before = sampling.remaining(fixture.participant)
+    control = fixture.participant.voiceprint_control
+    assert progress(fixture, grant, "stopped", 3) == grant
+    permit = models.VoiceprintSamplingPermit.objects.get(pk=grant["id"])
+    assert permit.status == "canceled" and permit.sample_id is None
+    assert sampling.remaining(fixture.participant) == before
+    with pytest.raises(consent.VoiceprintError, match="permit_unavailable"):
+        fixture.validate(grant)
+    fresh = fixture.issue()
+    assert fresh["id"] != grant["id"]
+    assert fresh["control_revision"] == grant["control_revision"]
+    control.refresh_from_db()
+    assert not control.paused and control.revision == grant["control_revision"]
+    progress(fixture, fresh)
+    progress(fixture, fresh, "sampling", 2)
+    assert runtime(fixture)["state"] == "sampling"
+
+
+@pytest.mark.parametrize("failure", ["token", "scope", "sequence", "consent"])
+def test_invalid_stop_cannot_release_a_live_permit(prepared, failure):
+    fixture, _ = prepared
+    grant = fixture.issue()
+    progress(fixture, grant)
+    values = dict(grant)
+    changes = {}
+    if failure == "token":
+        values["token"] = "x" * 43
+    elif failure == "scope":
+        changes["track_sid"] = "TR_other"
+    elif failure == "sequence":
+        changes["sequence"] = -1
+    else:
+        consent.update_settings(
+            fixture.user,
+            organization_id=None,
+            expected_version=1,
+            changes={"allow_accumulation": False},
+        )
+    with pytest.raises(consent.VoiceprintError):
+        activity.report(
+            UUID(values["id"]),
+            token=values["token"],
+            **(fixture.wire() | {"phase": "stopped", "sequence": 2} | changes),
+        )
+    permit = models.VoiceprintSamplingPermit.objects.get(pk=grant["id"])
+    if failure != "consent":
+        assert permit.status == "issued"
+    assert (
+        models.VoiceprintSamplingActivity.objects.get(track=fixture.track).phase
+        == "waiting"
+    )
+
+
+def test_repeated_terminal_captures_cannot_bypass_reservation_budget(
+    prepared, settings
+):
+    fixture, _ = prepared
+    settings.MEETING_VOICEPRINT_SAMPLING_CLIP_MS = 10000
+    settings.MEETING_VOICEPRINT_SAMPLING_SESSION_MS = 30000
+    for _ in range(3):
+        grant = fixture.issue()
+        progress(fixture, grant)
+        progress(fixture, grant, "stopped", 2)
+    assert sampling.remaining(fixture.participant)["session_ms"] == 0
+    assert not models.VoiceprintSamplingPermit.objects.filter(status="issued").exists()
+    with pytest.raises(consent.VoiceprintError, match="sampling_quota"):
+        fixture.issue()
+    assert not models.VoiceprintSample.objects.exists()
 
 
 @pytest.mark.parametrize("phase", ["sampling", "uploading"])
