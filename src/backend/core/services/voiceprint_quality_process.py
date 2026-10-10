@@ -27,6 +27,43 @@ def extract(  # noqa: PLR0913 -- Explicit request context and live authorization
         prompt, locale=locale, prompt=prompt
     ):
         raise quality.QualityError("quality_input_invalid")
+    body = run(
+        wav,
+        config=config,
+        context={"locale": locale, "prompt": prompt},
+        expires=expires,
+        authorized=authorized,
+        seconds=seconds,
+    )
+    return quality.decode_result(
+        body,
+        digest=hashlib.sha256(wav).hexdigest(),
+        prompt_digest=challenge_digest(locale, prompt),
+        duration=duration,
+    )
+
+
+def extract_query(wav, *, config, expires, authorized, seconds=MAX_PROCESS_SECONDS):
+    config.validate()
+    duration = quality.audio_duration(wav)
+    body = run(
+        wav,
+        config=config,
+        context={"purpose": "query"},
+        expires=expires,
+        authorized=authorized,
+        seconds=seconds,
+    )
+    return quality.decode_query_result(
+        body,
+        digest=hashlib.sha256(wav).hexdigest(),
+        duration=duration,
+    )
+
+
+def run(  # noqa: PLR0913 -- Explicit bounded request, authorization and deadline.
+    wav, *, config, context, expires, authorized, seconds
+):
     if type(seconds) not in (float, int) or not 0 < seconds <= MAX_PROCESS_SECONDS:
         raise quality.QualityError("quality_configuration_invalid")
     if type(expires) is not int or expires <= time.time():
@@ -38,8 +75,7 @@ def extract(  # noqa: PLR0913 -- Explicit request context and live authorization
         {
             "wav": base64.b64encode(wav).decode("ascii"),
             "config": config.payload(),
-            "locale": locale,
-            "prompt": prompt,
+            **context,
             "expires": expires,
         },
         separators=(",", ":"),
@@ -75,11 +111,29 @@ def extract(  # noqa: PLR0913 -- Explicit request context and live authorization
         if isinstance(error, quality.QualityError):
             raise
         raise quality.QualityError("quality_response_invalid") from None
-    return quality.decode_result(
-        body,
-        digest=hashlib.sha256(wav).hexdigest(),
-        prompt_digest=challenge_digest(locale, prompt),
-        duration=duration,
+    return body
+
+
+def dispatch(value):
+    if not isinstance(value, dict) or not isinstance(value.get("wav"), str):
+        raise ValueError
+    if (
+        set(value) == {"wav", "config", "expires", "purpose"}
+        and value["purpose"] == "query"
+    ):
+        return quality.check_query(
+            base64.b64decode(value["wav"], validate=True),
+            config=quality.configuration(value["config"]),
+            expires=value["expires"],
+        )
+    if set(value) != {"wav", "config", "locale", "prompt", "expires"}:
+        raise ValueError
+    return quality.check(
+        base64.b64decode(value["wav"], validate=True),
+        config=quality.configuration(value["config"]),
+        locale=value["locale"],
+        prompt=value["prompt"],
+        expires=value["expires"],
     )
 
 
@@ -88,20 +142,7 @@ def main():
         encoded = sys.stdin.buffer.read(MAX_INPUT_BYTES + 1)
         if len(encoded) > MAX_INPUT_BYTES:
             raise ValueError
-        value = json.loads(encoded)
-        if (
-            not isinstance(value, dict)
-            or set(value) != {"wav", "config", "locale", "prompt", "expires"}
-            or not isinstance(value["wav"], str)
-        ):
-            raise ValueError
-        body = quality.check(
-            base64.b64decode(value["wav"], validate=True),
-            config=quality.configuration(value["config"]),
-            locale=value["locale"],
-            prompt=value["prompt"],
-            expires=value["expires"],
-        )
+        body = dispatch(json.loads(encoded))
     except quality.QualityError as error:
         body = {
             "error": str(error)

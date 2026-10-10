@@ -18,10 +18,12 @@ import requests
 from core import models
 from core.services.voiceprint_crypto import load_keyring
 from core.services.voiceprint_jobs import process_one
+from core.services.voiceprint_query import extract_clip
 from core.services.voiceprint_rpc_process import EncoderConfiguration
 from core.services.voiceprint_vectors import read_sample_vector
 from core.tests.services.test_meeting_records import client_for
 from core.tests.services.test_voiceprint_enrollment import actor, enabled
+from core.tests.test_services_voiceprint_quality_process import short_asr
 
 pytestmark = [
     pytest.mark.django_db,
@@ -54,8 +56,8 @@ def synthetic_tones():
     return output.getvalue()
 
 
-def test_registration_api_independent_worker_actual_qwen_and_private_poll(
-    actor, tmp_path
+def test_registration_api_independent_worker_actual_qwen_and_private_poll(  # noqa: PLR0915 -- One real server lifecycle verifies registration and query isolation.
+    actor, tmp_path, short_asr
 ):
     token = os.urandom(32).hex().encode("ascii")
     key = os.urandom(32)
@@ -150,6 +152,32 @@ def test_registration_api_independent_worker_actual_qwen_and_private_poll(
         assert page["results"][0]["status"] == "quality_pending"
         assert page["results"][0]["confirmable"] is False
         assert not sample.profile.templates.exists()
+        # The real fixed encoder also serves ephemeral query features. The ASR
+        # response is synthetic, so this proves transport, never voice accuracy.
+        before = (
+            models.VoiceprintSample.objects.count(),
+            models.VoiceprintTemplate.objects.count(),
+        )
+        short_asr.prompt = (
+            "This is synthetic query quality evidence without a registration challenge."
+        )
+        result = extract_clip(
+            synthetic_tones(),
+            start_ms=1000,
+            end_ms=4000,
+            encoder_config=config,
+            quality_config=short_asr.config,
+            job_id=uuid4(),
+            expires=int(time.time()) + 40,
+            authorized=lambda: True,
+        )
+        assert result.status == "ready" and result.clip.valid_speech_ms == 3000
+        assert len(result.clip.vector) == 1024 and result.clip.speaker_count == 1
+        assert short_asr.requests == 1
+        assert before == (
+            models.VoiceprintSample.objects.count(),
+            models.VoiceprintTemplate.objects.count(),
+        )
     finally:
         process.kill()
         process.wait(timeout=3)

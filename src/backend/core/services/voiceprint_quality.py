@@ -18,6 +18,7 @@ from core.services.voiceprint_prompt import challenge_digest, prompt_matches
 
 MODEL_ID = "qwen-audio-3.1-asr-flash"
 POLICY_VERSION = "qwen-short-asr-enrollment-v1"
+QUERY_POLICY_VERSION = "qwen-short-asr-query-v1"
 API_PATH = "/api/v1/services/aigc/multimodal-generation/generation"
 MAX_RESPONSE_BYTES = 65536
 REASONS = {"passed", "insufficient_audio", "mixed_speaker", "prompt_mismatch"}
@@ -164,7 +165,7 @@ def interval(value, duration):
     return begin, end
 
 
-def interpret(body, *, duration, locale, prompt):  # noqa: PLR0912 -- Validate each provider field before admitting evidence.
+def speech_evidence(body, *, duration):
     if not isinstance(body, dict) or not isinstance(body.get("output"), dict):
         raise QualityError("quality_response_invalid")
     sentences = body["output"].get("sentences")
@@ -222,10 +223,17 @@ def interpret(body, *, duration, locale, prompt):  # noqa: PLR0912 -- Validate e
         speech_ms += max(0, end - max(previous_end, start))
         previous_end = max(previous_end, end)
     words = [row[2] for row in sorted(texts, key=lambda row: (row[0], row[1]))]
+    if sum(len(word) for word in words) > 4096:
+        raise QualityError("quality_response_invalid")
+    return speech_ms, len(speakers), words
+
+
+def interpret(body, *, duration, locale, prompt):
+    speech_ms, speaker_count, words = speech_evidence(body, duration=duration)
     text = "".join(words) if locale == "zh-CN" else " ".join(words)
     if len(text) > 4096:
         raise QualityError("quality_response_invalid")
-    if len(speakers) > 1:
+    if speaker_count > 1:
         reason = "mixed_speaker"
     elif speech_ms < 3000:
         reason = "insufficient_audio"
@@ -239,8 +247,27 @@ def interpret(body, *, duration, locale, prompt):  # noqa: PLR0912 -- Validate e
         "passed": reason == "passed",
         "reason": reason,
         "valid_speech_ms": speech_ms,
-        "speaker_count": len(speakers),
+        "speaker_count": speaker_count,
         "prompt_sha256": challenge_digest(locale, prompt),
+    }
+
+
+def interpret_query(body, *, duration):
+    speech_ms, speaker_count, _words = speech_evidence(body, duration=duration)
+    reason = (
+        "mixed_speaker"
+        if speaker_count > 1
+        else "insufficient_audio"
+        if speech_ms < 3000
+        else "passed"
+    )
+    return {
+        "policy": QUERY_POLICY_VERSION,
+        "model_id": MODEL_ID,
+        "passed": reason == "passed",
+        "reason": reason,
+        "valid_speech_ms": speech_ms,
+        "speaker_count": speaker_count,
     }
 
 
@@ -251,6 +278,24 @@ def decode_result(body, *, digest, prompt_digest, duration):
         "input_sha256": digest,
         "prompt_sha256": prompt_digest,
     }
+    return decode_evidence(body, expected=expected, duration=duration, reasons=REASONS)
+
+
+def decode_query_result(body, *, digest, duration):
+    expected = {
+        "policy": QUERY_POLICY_VERSION,
+        "model_id": MODEL_ID,
+        "input_sha256": digest,
+    }
+    return decode_evidence(
+        body,
+        expected=expected,
+        duration=duration,
+        reasons=REASONS - {"prompt_mismatch"},
+    )
+
+
+def decode_evidence(body, *, expected, duration, reasons):
     if (
         not isinstance(body, dict)
         or set(body)
@@ -258,7 +303,7 @@ def decode_result(body, *, digest, prompt_digest, duration):
         or any(body.get(key) != value for key, value in expected.items())
         or type(body.get("passed")) is not bool
         or not isinstance(body.get("reason"), str)
-        or body["reason"] not in REASONS
+        or body["reason"] not in reasons
         or type(body.get("valid_speech_ms")) is not int
         or not 0 <= body["valid_speech_ms"] <= duration
         or type(body.get("speaker_count")) is not int
@@ -307,12 +352,35 @@ def read_response(response, *, deadline, expires):
 
 
 def check(wav, *, config, locale, prompt, expires):
-    config.validate()
-    duration = audio_duration(wav)
     if not isinstance(prompt, str) or not prompt_matches(
         prompt, locale=locale, prompt=prompt
     ):
         raise QualityError("quality_input_invalid")
+    body, duration, expires, deadline = request_evidence(
+        wav, config=config, expires=expires
+    )
+    result = interpret(body, duration=duration, locale=locale, prompt=prompt)
+    return bind_evidence(result, wav=wav, expires=expires, deadline=deadline)
+
+
+def check_query(wav, *, config, expires):
+    body, duration, expires, deadline = request_evidence(
+        wav, config=config, expires=expires
+    )
+    result = interpret_query(body, duration=duration)
+    return bind_evidence(result, wav=wav, expires=expires, deadline=deadline)
+
+
+def bind_evidence(result, *, wav, expires, deadline):
+    result["input_sha256"] = hashlib.sha256(wav).hexdigest()
+    if time.time() >= expires or time.monotonic() >= deadline:
+        raise QualityError("quality_deadline_exceeded", retryable=True)
+    return result
+
+
+def request_evidence(wav, *, config, expires):
+    config.validate()
+    duration = audio_duration(wav)
     if type(expires) is not int or expires <= time.time():
         raise QualityError("quality_lease_expired")
     expires = min(expires, int(time.time()) + 30)
@@ -370,8 +438,6 @@ def check(wav, *, config, locale, prompt, expires):
                 body = read_response(response, deadline=deadline, expires=expires)
     except (requests.RequestException, Urllib3HTTPError):
         raise QualityError("quality_transport_unavailable", retryable=True) from None
-    result = interpret(body, duration=duration, locale=locale, prompt=prompt)
     if time.time() >= expires or time.monotonic() >= deadline:
         raise QualityError("quality_deadline_exceeded", retryable=True)
-    result["input_sha256"] = hashlib.sha256(wav).hexdigest()
-    return result
+    return body, duration, expires, deadline
