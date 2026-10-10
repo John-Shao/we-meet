@@ -17,6 +17,7 @@ from core.api.voiceprint import (
     StrictVersion,
 )
 from core.services import voiceprint_sampling as service
+from core.services import voiceprint_sampling_activity as activity
 from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_crypto import VoiceprintCryptoError
 from core.services.voiceprint_encoder import MAX_AUDIO_BYTES
@@ -87,6 +88,15 @@ class PermitSerializer(TrackSerializer):
 
 class ValidateSerializer(TrackSerializer):
     token = serializers.RegexField(r"^[A-Za-z0-9_-]{43}$", trim_whitespace=False)
+    activity_phase = serializers.ChoiceField(choices=activity.PHASES, required=False)
+    activity_sequence = StrictVersion(min_value=0, max_value=2**31 - 1, required=False)
+
+    def validate(self, attrs):
+        if ("activity_phase" in attrs) != ("activity_sequence" in attrs):
+            raise serializers.ValidationError(
+                "Activity phase and sequence must be supplied together."
+            )
+        return attrs
 
 
 class PrivateSamplerView(APIView):
@@ -118,7 +128,14 @@ class SamplingValidationView(PrivateSamplerView):
     def post(self, request, permit_id):
         payload = ValidateSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        return Response(service.validate(permit_id, **payload.validated_data))
+        values = dict(payload.validated_data)
+        if "activity_phase" in values:
+            phase = values.pop("activity_phase")
+            sequence = values.pop("activity_sequence")
+            return Response(
+                activity.report(permit_id, phase=phase, sequence=sequence, **values)
+            )
+        return Response(service.validate(permit_id, **values))
 
 
 class SamplingClipView(PrivateSamplerView):

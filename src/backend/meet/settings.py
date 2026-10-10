@@ -1039,6 +1039,11 @@ class Base(Configuration):
             "schedule": 30.0,
             "options": {"queue": "voiceprint", "expires": 60},
         },
+        "recover-voiceprint-samplers": {
+            "task": "core.tasks.voiceprint_sampling.recover_voiceprint_samplers",
+            "schedule": 15.0,
+            "options": {"queue": "voiceprint", "expires": 30},
+        },
         "purge-requested-records": {
             "task": "core.tasks.record_purge.purge_requested_records",
             "schedule": 30.0,

@@ -106,7 +106,7 @@ def wipe(value):
     value.clear()
 
 
-async def collect(stream, maximum, authorized):
+async def collect(stream, maximum, authorized, *, on_frame=None):
     """Capture a bounded continuous interval and independently recheck authority."""
     if type(maximum) is not int or not MIN_CLIP_MS <= maximum <= MAX_CLIP_MS:
         raise SamplingError("sampling_budget_invalid")
@@ -127,6 +127,8 @@ async def collect(stream, maximum, authorized):
             ):
                 raise SamplingError("sampling_frame_invalid")
             pcm.extend(bytes(frame.data)[: limit - len(pcm)])
+            if on_frame is not None:
+                on_frame()
         return bytearray(wav_bytes(pcm))
 
     async def watch():
@@ -179,6 +181,20 @@ class Sampler:
         self.stream = None
         self.cursor = 0
         self.last_authorized = asyncio.get_running_loop().time()
+        self.phase = "waiting"
+        self.sequence = 0
+
+    async def validate(self, grant, origin):
+        """Bounded, ordered progress carries no frames, text or user labels."""
+        progress = getattr(self.client, "progress", None)
+        if progress is None:
+            return await self.client.validate(grant, origin)
+        self.sequence += 1
+        return await progress(grant, origin, self.phase, self.sequence)
+
+    def received_frame(self):
+        """Do not claim sampling until a validated PCM frame was received."""
+        self.phase = "sampling"
 
     def current(self, participant, publication, origin, identity):
         """Reject reconnects, replacements, mute and agent tracks."""
@@ -209,12 +225,13 @@ class Sampler:
         if grant is None:
             return
         grant_valid(grant, origin, identity)
+        self.phase = "waiting"
 
         async def authorized():
             # Validation yields; mute/reconnect can change the source in flight.
             return (
                 self.current(participant, publication, origin, identity)
-                and await self.client.validate(grant, origin)
+                and await self.validate(grant, origin)
                 and self.current(participant, publication, origin, identity)
             )
 
@@ -232,14 +249,28 @@ class Sampler:
                             raise SamplingError("sampling_source_changed")
                         await asyncio.sleep(0.02)
                 self.stream = await audio_stream(publication.track)
-                wav = await collect(self.stream, grant["max_duration_ms"], authorized)
+                wav = await collect(
+                    self.stream,
+                    grant["max_duration_ms"],
+                    authorized,
+                    on_frame=self.received_frame,
+                )
             finally:
                 await self.release()
+            self.phase = "uploading"
             if wav is not None and await authorized():
                 await self.client.upload(grant, origin, wav)
         finally:
             if wav is not None:
                 wipe(wav)
+            self.phase = "stopped"
+            progress = getattr(self.client, "progress", None)
+            if progress is not None:
+                self.sequence += 1
+                try:
+                    await progress(grant, origin, self.phase, self.sequence)
+                except (SamplingError, OSError, TimeoutError):
+                    pass  # Never extend stale progress after losing its authority.
 
     async def release(self):
         """Always stop receiving before closing media resources or sending a receipt."""

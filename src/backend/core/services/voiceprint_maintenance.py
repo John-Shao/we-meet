@@ -299,6 +299,43 @@ def clean_track(identifier):
     return "track_purged"
 
 
+def activity_ids(limit):
+    return list(
+        models.VoiceprintSamplingActivity.objects.filter(expires_at__lte=timezone.now())
+        .filter(Q(permit__isnull=True) | Q(permit__expires_at__lte=timezone.now()))
+        .order_by("expires_at", "id")
+        .values_list("pk", flat=True)[:limit]
+    )
+
+
+@transaction.atomic
+def clean_activity(identifier):
+    initial = models.VoiceprintSamplingActivity.objects.filter(pk=identifier).first()
+    if initial is None:
+        return "missing"
+    track = (
+        models.VoiceprintSamplingTrack.objects.select_for_update(skip_locked=True)
+        .filter(pk=initial.track_id)
+        .first()
+    )
+    if track is None:
+        return "busy"
+    row = (
+        models.VoiceprintSamplingActivity.objects.select_for_update(of=("self",))
+        .filter(
+            pk=identifier,
+            expires_at__lte=timezone.now(),
+        )
+        .filter(Q(permit__isnull=True) | Q(permit__expires_at__lte=timezone.now()))
+        .first()
+    )
+    if row is None:
+        return "retained"
+    # Keep sequence/terminal fences until the permit itself can no longer report.
+    row.delete()
+    return "activity_purged"
+
+
 def tick(limit=20):
     if type(limit) is not int or not 1 <= limit <= 100:
         raise ValueError("voiceprint_maintenance_limit_invalid")
@@ -310,6 +347,7 @@ def tick(limit=20):
             "permit_scrubbed",
             "permit_purged",
             "track_purged",
+            "activity_purged",
             "retained",
             "busy",
             "missing",
@@ -322,6 +360,7 @@ def tick(limit=20):
         (sample_ids, clean_sample),
         (permit_ids, clean_permit),
         (track_ids, clean_track),
+        (activity_ids, clean_activity),
     ):
         for identifier in select(limit):
             try:

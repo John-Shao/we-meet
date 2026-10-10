@@ -147,7 +147,7 @@ def owned_participation(actor, session_id, participant_sid):
     return participation
 
 
-def state(participation, control=None):
+def state(participation, control=None, *, runtime=True):
     control = (
         control
         or models.VoiceprintSamplingControl.objects.filter(
@@ -176,7 +176,7 @@ def state(participation, control=None):
         reason = "shared_microphone"
     elif group not in DEVICE_GROUPS:
         reason = "device_required"
-    return {
+    result = {
         "session_id": str(participation.session_id),
         "participant_sid": participation.livekit_participant_sid,
         "revision": control.revision if control else 0,
@@ -185,6 +185,37 @@ def state(participation, control=None):
         "device_group": group,
         "state": reason,
         "stop_reason": control.stop_reason if control else "",
+    }
+    if runtime:
+        from core.services.voiceprint_sampling_activity import (  # noqa: PLC0415 -- Avoid the progress/authorization cycle.
+            projection,
+        )
+
+        result["runtime"] = projection(participation, result, permission)
+    return result
+
+
+def remaining(participation):
+    """Reserved duration, including failed/deleted captures, across all scopes."""
+    _clip, session_limit, daily_limit = budget()
+    rows = models.VoiceprintSamplingPermit.objects.filter(
+        owner_id=participation.user_id
+    )
+    session = (
+        rows.filter(source_session_id=participation.session_id).aggregate(
+            value=Sum("max_duration_ms")
+        )["value"]
+        or 0
+    )
+    daily = (
+        rows.filter(
+            created_at__gte=timezone.now() - timezone.timedelta(hours=24)
+        ).aggregate(value=Sum("max_duration_ms"))["value"]
+        or 0
+    )
+    return {
+        "session_ms": max(0, session_limit - session),
+        "daily_ms": max(0, daily_limit - daily),
     }
 
 
@@ -399,6 +430,9 @@ def issue(*, room_sid, participant_sid, track_sid, request_key):
         room_sid=room_sid, participant_sid=participant_sid, track_sid=track_sid
     )
     user = consent.owner(mapped_owner(track.participation), lock=True)
+    # Match progress/ingestion: organization precedes the shared session lock.
+    # Another owner in the same room may already hold the organization lock.
+    consent.scope(user, track.participation.session.room.organization_id, lock=True)
     # Serialize session termination with issuance; user lock serializes all scopes/devices' budgets.
     session = (
         models.MeetingSession.objects.select_for_update()

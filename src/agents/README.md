@@ -46,10 +46,15 @@ agents/
 保留当前短片段，超过队列、字节、时间或授权边界整段丢弃。
 
 采样、候选入库和单人质检代码已接通；后端也已接通本人确认的通话基准、
-跨会话设备组和贡献失效重建。两端通话界面、来源物理清理、完整 RTC 联调
+跨会话设备组和贡献失效重建；来源物理清理、候选维护、派发持久恢复与
+许可绑定的短期采样上报也已接通。后端独立 `voiceprint` worker 与 Celery Beat
+需同时运行；可用 `dispatch_voiceprint_samplers --limit 20` 手工恢复派发。
+agent 在有效第一帧后报告采样，关闭订阅后报告上传，缓冲擦除后报告停止；
+状态上报逾 5 秒不更新即失效。两端通话界面、完整 RTC 联调
 与 Helm 部署继续开发，当前不在生产启用。兼容性与验证见
 [采样管线走查](../../docs/research/voiceprint-call-pipeline-review-2026-10-10.md)及
-[设备组模板走查](../../docs/research/voiceprint-device-templates-review-2026-10-10.md)。
+[设备组模板走查](../../docs/research/voiceprint-device-templates-review-2026-10-10.md)及
+[派发与状态走查](../../docs/research/voiceprint-dispatch-status-review-2026-10-11.md)。
 
 ## 本地环境与启动
 

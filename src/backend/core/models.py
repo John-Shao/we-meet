@@ -10092,3 +10092,56 @@ class VoiceprintContributionRemoval(BaseModel):
 
     def __str__(self):
         return str(self.pk)
+
+
+class VoiceprintSamplingDispatch(BaseModel):
+    """One durable dispatch lease for a concrete, trusted room occurrence."""
+
+    session = models.OneToOneField(
+        MeetingSession, on_delete=models.CASCADE, related_name="voiceprint_dispatch"
+    )
+    revision = models.PositiveBigIntegerField(default=1)
+    status = models.CharField(
+        max_length=16,
+        default="queued",
+        choices=[
+            (value, value)
+            for value in ("queued", "running", "ready", "idle", "failed", "ended")
+        ],
+    )
+    room_sid = models.CharField(max_length=64, blank=True, default="")
+    agent_name = models.CharField(max_length=128, blank=True, default="")
+    lease_token = models.UUIDField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
+    failures = models.PositiveSmallIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    outcome = models.CharField(max_length=32, blank=True, default="")
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "next_attempt_at"])]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintSamplingActivity(BaseModel):
+    """Short-lived, permit-bound progress, containing no media or speaker label."""
+
+    track = models.OneToOneField(
+        VoiceprintSamplingTrack, on_delete=models.CASCADE, related_name="activity"
+    )
+    permit = models.ForeignKey(
+        VoiceprintSamplingPermit, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    sequence = models.PositiveBigIntegerField(default=0)
+    phase = models.CharField(
+        max_length=16,
+        choices=[
+            (value, value) for value in ("waiting", "sampling", "uploading", "stopped")
+        ],
+    )
+    expires_at = models.DateTimeField(db_index=True)
+
+    def __str__(self):
+        return str(self.pk)

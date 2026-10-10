@@ -148,7 +148,24 @@ class SamplingClient:
 
     async def validate(self, grant, origin):
         """An unavailable authorization check always stops sampling."""
+        return await self._validate(grant, origin)
+
+    async def progress(self, grant, origin, phase, sequence):
+        """Report a short-lived phase using the same current authorization check."""
+        if (
+            phase not in {"waiting", "sampling", "uploading", "stopped"}
+            or type(sequence) is not int
+            or not 0 <= sequence <= 2**31 - 1
+        ):
+            return False
+        return await self._validate(
+            grant, origin, activity_phase=phase, activity_sequence=sequence
+        )
+
+    async def _validate(self, grant, origin, **activity):
         body = json.dumps({**origin, "token": grant["token"]}).encode()
+        if activity:
+            body = json.dumps({**origin, "token": grant["token"], **activity}).encode()
         result = await self._send(
             "POST",
             str(UUID(grant["id"])) + "/validate/",

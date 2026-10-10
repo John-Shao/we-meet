@@ -85,6 +85,117 @@ class Stream:
 class SamplingRuntimeTests(unittest.IsolatedAsyncioTestCase):
     """Exercise selective subscription, authorization loss and bounded media."""
 
+    async def test_progress_tracks_real_frames_release_and_buffer_wipe(self):
+        """Waiting is reported before capture; upload/stop follow media release."""
+        ctx, participant, publication, client, grant, origin = fixture()
+        runtime = sampler.Sampler(ctx, client, ctx.room.sid)
+        stream = Stream()
+        phases = []
+        retained = []
+
+        async def progress(actual_grant, actual_origin, phase, sequence):
+            self.assertEqual((actual_grant, actual_origin), (grant, origin))
+            self.assertEqual(sequence, len(phases) + 1)
+            if phase == "waiting":
+                self.assertEqual(stream.count, 0)
+            elif phase == "sampling":
+                self.assertGreater(stream.count, 0)
+            elif phase == "uploading":
+                self.assertIsNone(runtime.stream)
+                self.assertEqual(publication.set_subscribed.call_args, mock.call(False))
+                stream.aclose.assert_awaited_once()
+            elif phase == "stopped":
+                self.assertEqual(retained, [bytearray()])
+            phases.append(phase)
+            return True
+
+        client.progress = mock.AsyncMock(side_effect=progress)
+        client.upload.side_effect = lambda _grant, _origin, wav: retained.append(wav)
+        with mock.patch.object(
+            sampler, "audio_stream", mock.AsyncMock(return_value=stream)
+        ):
+            await runtime.attempt(participant, publication)
+        self.assertEqual(phases, ["waiting", "sampling", "uploading", "stopped"])
+        client.validate.assert_not_awaited()
+
+    async def test_invalid_frame_never_reports_sampling_or_uploads(self):
+        """SDK subscription without valid PCM cannot claim active capture."""
+        ctx, participant, publication, client, _, _ = fixture()
+        runtime = sampler.Sampler(ctx, client, ctx.room.sid)
+        stream = Stream()
+        stream.__class__ = type(
+            "InvalidStream",
+            (Stream,),
+            {
+                "__anext__": mock.AsyncMock(
+                    return_value=SimpleNamespace(
+                        frame=rtc.AudioFrame(b"\x00\x00" * 480, 16000, 1, 480)
+                    )
+                )
+            },
+        )
+        client.progress = mock.AsyncMock(return_value=True)
+        with mock.patch.object(
+            sampler, "audio_stream", mock.AsyncMock(return_value=stream)
+        ):
+            with self.assertRaises(SamplingError):
+                await runtime.attempt(participant, publication)
+        self.assertEqual(
+            [call.args[2] for call in client.progress.call_args_list],
+            ["waiting", "stopped"],
+        )
+        client.upload.assert_not_awaited()
+        self.assertEqual(publication.set_subscribed.call_args, mock.call(False))
+
+    async def test_failed_heartbeat_discards_clip_and_shutdown_is_bounded(self):
+        """Lost authorization/progress cannot leave audio pending for upload."""
+        ctx, participant, publication, client, _, _ = fixture()
+        runtime = sampler.Sampler(ctx, client, ctx.room.sid)
+        stream = Stream()
+        client.progress = mock.AsyncMock(side_effect=[True, False, OSError("private")])
+        with mock.patch.object(
+            sampler, "audio_stream", mock.AsyncMock(return_value=stream)
+        ):
+            with self.assertRaises(SamplingError):
+                await runtime.attempt(participant, publication)
+        self.assertEqual(
+            [call.args[2] for call in client.progress.call_args_list],
+            ["waiting", "sampling", "stopped"],
+        )
+        self.assertEqual(runtime.phase, "stopped")
+        self.assertIsNone(runtime.stream)
+        client.upload.assert_not_awaited()
+
+    async def test_progress_client_binds_phase_sequence_and_exact_grant(self):
+        """No labels/audio are sent; malformed or unavailable progress is denied."""
+        _, _, _, _, grant, origin = fixture()
+        client = SamplingClient("http://localhost:9", "A" * 32)
+        client._send = mock.AsyncMock(return_value=grant)
+        self.assertTrue(await client.progress(grant, origin, "waiting", 1))
+        call = client._send.call_args
+        self.assertEqual(call.args[:2], ("POST", grant["id"] + "/validate/"))
+        self.assertEqual(
+            json.loads(call.args[2]),
+            {
+                **origin,
+                "token": grant["token"],
+                "activity_phase": "waiting",
+                "activity_sequence": 1,
+            },
+        )
+        for phase, sequence in (
+            ("invalid", 1),
+            ("waiting", True),
+            ("waiting", -1),
+            ("waiting", 2**31),
+        ):
+            self.assertFalse(await client.progress(grant, origin, phase, sequence))
+        client._send.assert_awaited_once()
+        client._send.return_value = {**grant, "identity": "replacement"}
+        self.assertFalse(await client.progress(grant, origin, "sampling", 2))
+        client._send.return_value = None
+        self.assertFalse(await client.progress(grant, origin, "stopped", 3))
+
     async def test_source_change_during_validation_never_subscribes_or_uploads(self):
         """RTC state can change while the backend validation response is in flight."""
         for stage in ("before_subscribe", "before_upload"):

@@ -1,6 +1,6 @@
 # 会议与通话声纹身份识别方案
 
-通话管线已接通独立 sampler、派发、加密候选入库和单人质检，见[采样管线走查](../research/voiceprint-call-pipeline-review-2026-10-10.md)。进一步接通本人确认的首次通话基准、跨会话设备组补充、加密来源证明、失效门禁及幸存贡献重建，见[设备组模板走查](../research/voiceprint-device-templates-review-2026-10-10.md)。来源删除后的数据库物理清理、持久意图、周期恢复和独立重建已接通，见[来源删除走查](../research/voiceprint-source-removal-review-2026-10-10.md)。候选、试听音频、许可及无引用轨道的周期回收已接通，保留滚动／长会话配额和有效特征来源，见[周期维护走查](../research/voiceprint-maintenance-review-2026-10-10.md)。目前默认关闭；实际 RTC 联调、Web／Android 通话入口、派发恢复／部署及真人／生产验收继续推进，尚未完整交付。
+通话管线已接通独立 sampler、派发、加密候选入库和单人质检，见[采样管线走查](../research/voiceprint-call-pipeline-review-2026-10-10.md)。进一步接通本人确认的首次通话基准、跨会话设备组补充、加密来源证明、失效门禁及幸存贡献重建，见[设备组模板走查](../research/voiceprint-device-templates-review-2026-10-10.md)。来源删除后的数据库物理清理、持久意图、周期恢复和独立重建已接通，见[来源删除走查](../research/voiceprint-source-removal-review-2026-10-10.md)。候选、试听音频、许可及无引用轨道的周期回收已接通，保留滚动／长会话配额和有效特征来源，见[周期维护走查](../research/voiceprint-maintenance-review-2026-10-10.md)。派发持久租约、周期恢复与实际采样上报已接通，见[派发与状态走查](../research/voiceprint-dispatch-status-review-2026-10-11.md)。目前默认关闭；实际 RTC 联调、Web／Android 通话入口、部署及真人／生产验收继续推进，尚未完整交付。
 
 通话后端的可信来源、短期许可、本人连接级控制及跨组织／设备配额已接通，基础阶段证据见[采样许可基础](../research/voiceprint-call-sampling-review-2026-10-10.md)。后续采样与模板进度以上段为准，完整范围不缩减。
 

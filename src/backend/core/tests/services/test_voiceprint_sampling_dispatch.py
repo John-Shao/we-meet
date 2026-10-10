@@ -202,7 +202,8 @@ def test_source_cursor_closes_before_dispatch_transaction_exits(
             service.dispatch(fixture.session.pk)
     else:
         assert service.dispatch(fixture.session.pk) == "created"
-    assert len(closed) == 1 and closed[0] > depth
+    # Claim and completion each recheck sources, in separate short transactions.
+    assert len(closed) == 2 and all(level > depth for level in closed)
 
 
 def test_broker_failure_preserves_committed_owner_declaration(
