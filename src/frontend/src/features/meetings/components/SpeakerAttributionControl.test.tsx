@@ -3,12 +3,16 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/ApiError'
+import { setTokens } from '@/features/auth/utils/tokenStorage'
 
 import type { ApiRecordSpeaker } from '../api/ApiMeetingRecord'
 import { SpeakerAttributionControl } from './SpeakerAttributionControl'
 
 const mocks = vi.hoisted(() => ({ fetchApi: vi.fn() }))
-vi.mock('@/api/fetchApi', () => ({ fetchApi: mocks.fetchApi }))
+vi.mock('@/api/fetchApi', async (original) => ({
+  ...(await original<typeof import('@/api/fetchApi')>()),
+  fetchApi: mocks.fetchApi,
+}))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: { name?: string }) =>
@@ -110,6 +114,34 @@ it('does not read the directory until the picker is opened', () => {
   // Most readers never attribute anyone, so an unused request is not worth one.
   show()
   expect(mocks.fetchApi).not.toHaveBeenCalled()
+})
+
+it('closes a populated picker and drops private directory data after another login', async () => {
+  setTokens({ accessToken: 'original-login' })
+  show()
+  await open()
+  await chooseButton('Ada Lovelace')
+  setTokens({ accessToken: 'another-login' })
+  await vi.waitFor(() => {
+    expect(
+      screen.queryByLabelText('speakerAttribution.search')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', {
+        name: 'speakerAttribution.choose:Ada Lovelace',
+      })
+    ).not.toBeInTheDocument()
+  })
+  await vi.waitFor(() => {
+    expect(
+      client.getQueryCache().findAll({
+        queryKey: ['meeting-records', 'viewer', 'speaker-contacts'],
+      })
+    ).toHaveLength(0)
+  })
+  expect(
+    mocks.fetchApi.mock.calls.some(([, options]) => options.method === 'POST')
+  ).toBe(false)
 })
 
 it('offers the directory from the record endpoint', async () => {

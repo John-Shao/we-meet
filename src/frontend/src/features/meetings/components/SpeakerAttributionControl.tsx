@@ -1,8 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
+import {
+  getAuthSnapshot,
+  sameAuthSession,
+} from '@/features/auth/utils/tokenStorage'
 
 import type {
   ApiRecordSpeaker,
@@ -106,6 +110,19 @@ function Picker({
   const [offset, setOffset] = useState(0)
   const [label, setLabel] = useState(speaker.manual_label || '')
   const [expectedRevision] = useState(speaker.record_revision)
+  const [auth] = useState(getAuthSnapshot)
+  useEffect(() => {
+    const check = () => {
+      if (!sameAuthSession(auth)) onDone()
+    }
+    check()
+    const timer = setInterval(check, 250)
+    window.addEventListener('storage', check)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('storage', check)
+    }
+  }, [auth, onDone])
   const candidates = useSpeakerContacts(
     viewerId,
     recordId,

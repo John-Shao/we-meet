@@ -51,6 +51,55 @@ def external(actor, other, status="accepted"):
     )
 
 
+@pytest.mark.parametrize("action", ["set_label", "select_contact", "clear"])
+def test_manual_decision_rejects_a_different_panel_owner(action):
+    owner, record, speaker, _ = org_record()
+    revision = record.revision
+    payload = {"action": action, "expected_revision": revision}
+    if action == "set_label":
+        payload["label"] = "Guest"
+    elif action == "select_contact":
+        payload["contact_ref"] = f"member:{owner.pk}"
+    response = client_for(owner).post(
+        DECISION.format(record.pk, speaker.pk),
+        payload,
+        format="json",
+        HTTP_X_VOICEPRINT_OWNER=str(uuid.uuid4()),
+    )
+    assert response.status_code == 401, response.data
+    assert response.data["code"] == "voiceprint_account_changed"
+    assert response["Cache-Control"] == "private, no-store"
+    record.refresh_from_db()
+    assert record.revision == revision and not record.identity_decisions.exists()
+
+
+def test_contact_lookup_rejects_a_different_panel_owner():
+    owner, record, _, _ = org_record()
+    response = client_for(owner).get(
+        CONTACTS.format(record.pk), HTTP_X_VOICEPRINT_OWNER=str(uuid.uuid4())
+    )
+    assert response.status_code == 401, response.data
+    assert response.data["code"] == "voiceprint_account_changed"
+    assert response["Cache-Control"] == "private, no-store"
+    assert "results" not in response.data
+
+
+def test_matching_panel_owner_can_read_contacts_and_name_a_speaker():
+    owner, record, speaker, _ = org_record()
+    client = client_for(owner)
+    headers = {"HTTP_X_VOICEPRINT_OWNER": str(owner.pk)}
+    assert client.get(CONTACTS.format(record.pk), **headers).status_code == 200
+    response = client.post(
+        DECISION.format(record.pk, speaker.pk),
+        {"action": "set_label", "label": "Guest", "expected_revision": record.revision},
+        format="json",
+        **headers,
+    )
+    assert response.status_code == 200, response.data
+    assert response.data["display_name"] == "Guest"
+    assert record.identity_decisions.get().actor_id == owner.pk
+
+
 def test_custom_label_updates_python_sql_and_revision_without_changing_source():
     owner, record, speaker, _ = org_record()
     old_revision = record.revision

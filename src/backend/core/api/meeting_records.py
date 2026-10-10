@@ -1390,8 +1390,21 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             }
         )
 
+    def _speaker_identity_account_error(self, request):
+        expected_owner = request.headers.get("X-Voiceprint-Owner")
+        if expected_owner is not None and expected_owner != str(request.user.pk):
+            return Response(
+                {"code": "voiceprint_account_changed"},
+                status=401,
+                headers={"Cache-Control": "private, no-store"},
+            )
+        return None
+
     @action(detail=True, methods=["get"], url_path="speaker-contacts")
     def speaker_contacts(self, request, pk=None):
+        account_error = self._speaker_identity_account_error(request)
+        if account_error is not None:
+            return account_error
         record = self._content_record("read_transcript")
         serializer = SpeakerContactQuerySerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
@@ -1408,22 +1421,13 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         url_path=r"speakers/(?P<speaker_id>[0-9a-f-]{36})/identity-decision",
     )
     def speaker_identity_decision(self, request, pk=None, speaker_id=None):
+        account_error = self._speaker_identity_account_error(request)
+        if account_error is not None:
+            return account_error
         record = self._content_record("read_transcript")
         identifier = serializers.UUIDField().run_validation(speaker_id)
         serializer = SpeakerIdentityDecisionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        expected_owner = request.headers.get("X-Voiceprint-Owner")
-        if (
-            serializer.validated_data["action"]
-            in {"confirm_suggestion", "reject_suggestion"}
-            and expected_owner is not None
-            and expected_owner != str(request.user.pk)
-        ):
-            return Response(
-                {"code": "voiceprint_account_changed"},
-                status=401,
-                headers={"Cache-Control": "private, no-store"},
-            )
         try:
             speaker = speaker_identity_decisions.decide(
                 record, identifier, request.user, **serializer.validated_data

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import {
   keepPreviousData,
   useMutation,
@@ -6,7 +7,11 @@ import {
 } from '@tanstack/react-query'
 
 import { ApiError } from '@/api/ApiError'
-import { fetchApi } from '@/api/fetchApi'
+import { assertAuthSession, fetchApi } from '@/api/fetchApi'
+import {
+  getAuthSnapshot,
+  sameAuthSession,
+} from '@/features/auth/utils/tokenStorage'
 import { summaryReceipt } from './summaryReceipts'
 import { useRecordInfiniteQuery } from '../hooks/useRecordInfiniteQuery'
 
@@ -466,6 +471,37 @@ export const useAttributeSpeaker = (viewerId: string, recordId: string) => {
   })
 }
 
+// A directory or naming operation belongs to the login that opened it. The
+// transport also checks the expected viewer on the server (including cookies).
+const useIdentitySession = (viewerId: string, recordId: string) =>
+  useMemo(
+    () => ({
+      viewerId,
+      recordId,
+      // Only a session fence goes in query keys; credentials stay in the
+      // transport. A same-login token refresh does not change this fence.
+      auth: { session: getAuthSnapshot().session, access: null, refresh: null },
+    }),
+    [viewerId, recordId]
+  )
+
+const identityFetch = async <T>(
+  session: ReturnType<typeof useIdentitySession>,
+  path: string,
+  options: RequestInit
+) => {
+  assertAuthSession(session.auth)
+  const result = await fetchApi<T>(path, {
+    ...options,
+    headers: {
+      ...Object.fromEntries(new Headers(options.headers)),
+      'X-Voiceprint-Owner': session.viewerId,
+    },
+  })
+  assertAuthSession(session.auth)
+  return result
+}
+
 export const useSpeakerContacts = (
   viewerId: string,
   recordId: string,
@@ -476,13 +512,15 @@ export const useSpeakerContacts = (
     offset?: number
   },
   enabled = true
-) =>
-  useQuery<ApiSpeakerContactPage, ApiError>({
+) => {
+  const session = useIdentitySession(viewerId, recordId)
+  return useQuery<ApiSpeakerContactPage, ApiError>({
     queryKey: [
       'meeting-records',
       viewerId,
       'speaker-contacts',
       recordId,
+      session,
       filters,
     ],
     queryFn: ({ signal }) => {
@@ -490,24 +528,29 @@ export const useSpeakerContacts = (
       for (const [key, value] of Object.entries(filters)) {
         if (value !== undefined && value !== '') params.set(key, String(value))
       }
-      return fetchApi(`${recordPath(recordId)}speaker-contacts/?${params}`, {
-        signal,
-        cache: 'no-store',
-        redirect: 'error',
-      })
+      return identityFetch<ApiSpeakerContactPage>(
+        session,
+        `${recordPath(recordId)}speaker-contacts/?${params}`,
+        { signal, cache: 'no-store', redirect: 'error' }
+      )
     },
     enabled: enabled && !!viewerId && !!recordId,
     staleTime: 0,
     gcTime: 0,
     retry: false,
   })
+}
 
 export const useSpeakerIdentityDecision = (
   viewerId: string,
   recordId: string
 ) => {
   const client = useQueryClient()
+  const session = useIdentitySession(viewerId, recordId)
   const refresh = async () => {
+    // Refetching old viewer keys with a new account would populate the wrong
+    // cache. The account transition owns replacing/removing those views.
+    if (!sameAuthSession(session.auth)) return
     await Promise.all([
       client.invalidateQueries({ queryKey: ['meeting-records', viewerId] }),
       client.invalidateQueries({
@@ -524,7 +567,8 @@ export const useSpeakerIdentityDecision = (
     }
   >({
     mutationFn: ({ speakerId, decision }) =>
-      fetchApi<ApiRecordSpeaker>(
+      identityFetch<ApiRecordSpeaker>(
+        session,
         `${recordPath(recordId)}speakers/${encodeURIComponent(speakerId)}/identity-decision/`,
         {
           method: 'POST',
