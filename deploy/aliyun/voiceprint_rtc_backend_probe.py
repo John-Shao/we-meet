@@ -88,6 +88,12 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
         settings.MEETING_VOICEPRINT_QUALITY_CONFIG_FILE
     ).api_key.decode()
     driver_token = os.environ["VOICEPRINT_PROBE_DRIVER_TOKEN"]
+    boundaries = os.environ.get("VOICEPRINT_RTC_MEDIA_BOUNDARIES") == "1"
+    capacity_room = (
+        models.Room.objects.create(name="Synthetic capacity fixture")
+        if boundaries
+        else None
+    )
     observations = {"local_asr": 0, "webhook_requests": 0, "webhook_success": 0}
     lock = threading.Lock()
 
@@ -195,6 +201,11 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
             ]
         with lock:
             stats = dict(observations)
+        permits = list(
+            models.VoiceprintSamplingPermit.objects.select_related(
+                "track__participation__session"
+            )
+        )
         return {
             **stats,
             "sessions": models.MeetingSession.objects.count(),
@@ -218,6 +229,18 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
             "canceled_permits": models.VoiceprintSamplingPermit.objects.filter(
                 status="canceled"
             ).count(),
+            "permits": len(permits),
+            "permit_bindings_consistent": all(
+                permit.source_session_id == permit.track.participation.session_id
+                and permit.livekit_room_sid
+                == permit.track.participation.session.livekit_room_sid
+                and permit.participant_sid
+                == permit.track.participation.livekit_participant_sid
+                and permit.participant_identity == permit.track.participation.identity
+                and permit.source_track_sid == permit.track.livekit_track_sid
+                and permit.owner_id == permit.track.participation.user_id
+                for permit in permits
+            ),
             "ended_sessions": models.MeetingSession.objects.filter(
                 ended_at__isnull=False
             ).count(),
@@ -263,6 +286,9 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                 if self.path == "/fixture" and not mutation:
                     result = {
                         "room": str(room.pk),
+                        "capacity_room": str(capacity_room.pk)
+                        if capacity_room
+                        else None,
                         "users": users,
                         "cookie_name": settings.SESSION_COOKIE_NAME,
                         "csrf_cookie_name": settings.CSRF_COOKIE_NAME,
@@ -302,10 +328,19 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                     )
                     require(
                         result["canceled_permits"] >= 1
-                        and result["ended_sessions"] == 2
+                        and result["ended_sessions"] == (5 if boundaries else 2)
                         and result["beat_running"],
                         "beat_occurrence_pause",
                     )
+                    require(
+                        result["permit_bindings_consistent"],
+                        "immutable_source_bindings",
+                    )
+                    if boundaries:
+                        require(
+                            result["canceled_permits"] >= 7 and result["permits"] >= 10,
+                            "native_media_boundaries",
+                        )
                     print(json.dumps({"status": "passed", **result}), flush=True)
                     stopped.set()
                 else:
@@ -432,7 +467,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                 )
                 time.sleep(0.1)
         print(json.dumps({"event": "rtc_backend_fixture_ready"}), flush=True)
-        require(stopped.wait(420), "driver_deadline")
+        require(stopped.wait(660), "driver_deadline")
     finally:
         diagnostic_path = Path("/probe-diagnostics")
         try:

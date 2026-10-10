@@ -2,6 +2,8 @@
 
 日期：2026-10-11（Asia/Shanghai）。本轮将可信来源、本人声明、真实 RTC、独立队列与 Qwen 编码接在同一条隔离链路上。只使用合成用户和合成音频，无真人录音、收费 ASR、镜像仓库上传或生产部署；识别匹配开关关闭。
 
+后续原生媒体边界及空派发恢复已通过，见[媒体边界走查](voiceprint-rtc-media-boundaries-review-2026-10-11.md)。下文 20 次 webhook 等数据为前一轮基础模式的证据；扩展模式使用 `--media-boundaries`，最终为五实例、50 次 webhook 和 10 个许可，ASR 仍是本地协议 fixture。
+
 ## 可复现的验证入口
 
 三个脚本分别负责隔离环境、真实后端与原生发布者：
@@ -15,13 +17,13 @@
 python deploy/aliyun/run_voiceprint_rtc_probe.py `
   --model-pack D:/private/encoder-pack-v1 `
   --diagnostics-dir D:/private/voiceprint-rtc-diagnostics `
-  --backend-image we-meet-backend:voiceprint-20261011 `
+  --backend-image we-meet-backend:voiceprint-dispatch-20261011 `
   --sampler-image we-meet-voiceprint-sampler:feature-20261011 `
   --encoder-image we-meet-voiceprint:feature-20261011 `
   --livekit-image livekit/livekit-server:latest
 ```
 
-默认镜像标签是本地验证入口，不是发布用不可变引用。脚本启动前检查所有镜像已缓存，不拉取仓库。实际验证使用 LiveKit server 1.13.1、Python 3.13.13；sampler 制品身份及依赖锁见[采样运行走查](voiceprint-sampler-runtime-review-2026-10-11.md)。后端、encoder 均采用已通过[消费者运行走查](voiceprint-consumer-runtime-review-2026-10-11.md)的本地制品。
+默认镜像标签是本地验证入口，不是发布用不可变引用。脚本启动前检查所有镜像已缓存，不拉取仓库。实际验证使用 LiveKit server 1.13.1；sampler／encoder 为 Python 3.13.13，后端为 Python 3.13.5。sampler 制品身份及依赖锁见[采样运行走查](voiceprint-sampler-runtime-review-2026-10-11.md)。后端、encoder 的基础验证见[消费者运行走查](voiceprint-consumer-runtime-review-2026-10-11.md)；后续重建后端已包含空派发修复，制品身份见[媒体边界走查](voiceprint-rtc-media-boundaries-review-2026-10-11.md)。
 
 ## 验证边界
 
@@ -53,4 +55,4 @@ Qwen speaker encoder 实际读取模型包、处理 RTC 音频并返回向量；
 
 ## 后续验收
 
-仍需真实 Web／Android 设备、静音／轨道替换／网络重连／中断、生产私有 TLS／CNI／资源／监控／容量、历史版本／搜索、可信外部删除墓碑的备份恢复，以及获授权真人的 Qwen 效果校准。当前没有获授权真人样本。完整目标不变；上述合成链路通过不代表整体 P0、真实设备或生产发布验收完成。继续 Qwen 优先，只有效果不满足要求时才评估 CAM++ 私有部署。
+原生静音、显式恢复、轨道替换、新 participant SID 重建及房间中断已补充，边界见[媒体边界走查](voiceprint-rtc-media-boundaries-review-2026-10-11.md)。仍需真实 Web／Android 设备、仅解除静音的自动恢复、网络软重连／故障注入、多端与系统音轨、生产私有 TLS／CNI／资源／监控／容量、历史版本／搜索、可信外部删除墓碑的备份恢复，以及获授权真人的 Qwen 效果校准。当前没有获授权真人样本。完整目标不变；上述合成链路通过不代表整体 P0、真实设备或生产发布验收完成。继续 Qwen 优先，只有效果不满足要求时才评估 CAM++ 私有部署。

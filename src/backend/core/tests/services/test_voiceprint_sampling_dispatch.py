@@ -35,7 +35,10 @@ def prepared(settings, monkeypatch):
             )
         ),
         agent_dispatch=SimpleNamespace(
-            list_dispatch=AsyncMock(return_value=[]), create_dispatch=AsyncMock()
+            list_dispatch=AsyncMock(return_value=[]),
+            create_dispatch=AsyncMock(),
+            get_dispatch=AsyncMock(),
+            delete_dispatch=AsyncMock(),
         ),
         aclose=AsyncMock(),
     )
@@ -79,6 +82,111 @@ def test_same_occurrence_dispatch_reuses_pending_or_running_jobs(prepared, state
     )
 
 
+@pytest.mark.parametrize("age", [None, -60, 0, 29, 30, 90])
+def test_empty_receipt_launch_grace_is_bounded(prepared, monkeypatch, age):
+    fixture, client = prepared
+    now = 1_800_000_000_000_000_000
+    monkeypatch.setattr(service, "time_ns", lambda: now)
+    receipt = api.AgentDispatch(
+        id="AD_empty",
+        agent_name="synthetic-voiceprint-worker",
+        metadata=json.dumps(
+            {"voiceprint": {"livekit_room_sid": fixture.session.livekit_room_sid}}
+        ),
+    )
+    receipt.state.created_at = 0 if age is None else now - age * 1_000_000_000
+    client.agent_dispatch.list_dispatch.return_value = [receipt]
+    client.agent_dispatch.get_dispatch.return_value = receipt
+    expired = age is not None and age >= 30
+    assert service.dispatch(fixture.session.pk) == (
+        "created" if expired else "existing"
+    )
+    if expired:
+        client.agent_dispatch.delete_dispatch.assert_awaited_once_with(
+            receipt.id, str(fixture.room.pk)
+        )
+        client.agent_dispatch.create_dispatch.assert_awaited_once()
+    else:
+        client.agent_dispatch.get_dispatch.assert_not_awaited()
+        client.agent_dispatch.delete_dispatch.assert_not_awaited()
+        client.agent_dispatch.create_dispatch.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "race", ["pending", "running", "scope", "room", "missing", "failure"]
+)
+def test_empty_receipt_rechecks_live_job_and_scope_before_replacement(
+    prepared, monkeypatch, race
+):
+    fixture, client = prepared
+    monkeypatch.setattr(service, "time_ns", lambda: 100_000_000_000)
+    receipt = api.AgentDispatch(
+        id="AD_empty",
+        agent_name="synthetic-voiceprint-worker",
+        metadata=json.dumps(
+            {"voiceprint": {"livekit_room_sid": fixture.session.livekit_room_sid}}
+        ),
+    )
+    receipt.state.created_at = 1
+    refreshed = api.AgentDispatch()
+    refreshed.CopyFrom(receipt)
+    client.agent_dispatch.list_dispatch.return_value = [receipt]
+    client.agent_dispatch.get_dispatch.return_value = refreshed
+    if race in {"pending", "running"}:
+        refreshed.state.jobs.add().state.status = 0 if race == "pending" else 1
+    elif race == "scope":
+        refreshed.metadata = json.dumps(
+            {"voiceprint": {"livekit_room_sid": "RM_other"}}
+        )
+    elif race == "missing":
+        client.agent_dispatch.get_dispatch.return_value = None
+    elif race == "room":
+        client.room.list_rooms.side_effect = [
+            client.room.list_rooms.return_value,
+            api.ListRoomsResponse(rooms=[api.Room(sid="RM_other")]),
+        ]
+    else:
+        client.agent_dispatch.delete_dispatch.side_effect = RuntimeError(
+            "private provider failure"
+        )
+        with pytest.raises(
+            service.SamplingDispatchError, match="^sampling_dispatch_unavailable$"
+        ):
+            service.dispatch(fixture.session.pk)
+        client.agent_dispatch.create_dispatch.assert_not_awaited()
+        return
+    outcome = service.dispatch(fixture.session.pk)
+    assert outcome == (
+        "existing"
+        if race in {"pending", "running"}
+        else "ended"
+        if race == "room"
+        else "created"
+    )
+    client.agent_dispatch.delete_dispatch.assert_not_awaited()
+
+
+def test_live_job_wins_over_an_earlier_empty_receipt(prepared, monkeypatch):
+    fixture, client = prepared
+    monkeypatch.setattr(service, "time_ns", lambda: 100_000_000_000)
+    receipt = api.AgentDispatch(
+        id="AD_empty",
+        agent_name="synthetic-voiceprint-worker",
+        metadata=json.dumps(
+            {"voiceprint": {"livekit_room_sid": fixture.session.livekit_room_sid}}
+        ),
+    )
+    receipt.state.created_at = 1
+    running = api.AgentDispatch()
+    running.CopyFrom(receipt)
+    running.id = "AD_running"
+    running.state.jobs.add().state.status = 1
+    client.agent_dispatch.list_dispatch.return_value = [receipt, running]
+    assert service.dispatch(fixture.session.pk) == "existing"
+    client.agent_dispatch.delete_dispatch.assert_not_awaited()
+    client.agent_dispatch.create_dispatch.assert_not_awaited()
+
+
 @pytest.mark.parametrize(
     "change", ["disabled", "pause", "shared", "session", "room", "kind"]
 )
@@ -108,6 +216,92 @@ def test_unavailable_or_stale_sources_never_dispatch(prepared, change, settings)
         "no_authorized_source",
     }
     client.agent_dispatch.create_dispatch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("change", ["agent", "scope", "deleted", "metadata"])
+def test_unrelated_empty_receipts_are_never_deleted(prepared, monkeypatch, change):
+    fixture, client = prepared
+    monkeypatch.setattr(service, "time_ns", lambda: 100_000_000_000)
+    receipt = api.AgentDispatch(
+        id="AD_unrelated",
+        agent_name="synthetic-voiceprint-worker",
+        metadata=json.dumps(
+            {"voiceprint": {"livekit_room_sid": fixture.session.livekit_room_sid}}
+        ),
+    )
+    receipt.state.created_at = 1
+    if change == "agent":
+        receipt.agent_name = "another-agent"
+    elif change == "scope":
+        receipt.metadata = json.dumps({"voiceprint": {"livekit_room_sid": "RM_other"}})
+    elif change == "deleted":
+        receipt.state.deleted_at = 1
+    else:
+        receipt.metadata = "invalid-json"
+    client.agent_dispatch.list_dispatch.return_value = [receipt]
+    assert service.dispatch(fixture.session.pk) == "created"
+    client.agent_dispatch.get_dispatch.assert_not_awaited()
+    client.agent_dispatch.delete_dispatch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("stage", ["get_dispatch", "delete_dispatch"])
+def test_empty_receipt_replacement_timeout_is_bounded_and_private(
+    prepared, monkeypatch, stage
+):
+    fixture, client = prepared
+    monkeypatch.setattr(service, "time_ns", lambda: 100_000_000_000)
+    monkeypatch.setattr(service, "RPC_SECONDS", 0.02)
+    receipt = api.AgentDispatch(
+        id="AD_empty",
+        agent_name="synthetic-voiceprint-worker",
+        metadata=json.dumps(
+            {"voiceprint": {"livekit_room_sid": fixture.session.livekit_room_sid}}
+        ),
+    )
+    receipt.state.created_at = 1
+    client.agent_dispatch.list_dispatch.return_value = [receipt]
+    client.agent_dispatch.get_dispatch.return_value = receipt
+    canceled = []
+
+    async def stalled(*_args):
+        try:
+            await asyncio.sleep(1)
+        finally:
+            canceled.append(True)
+
+    getattr(client.agent_dispatch, stage).side_effect = stalled
+    with pytest.raises(
+        service.SamplingDispatchError, match="^sampling_dispatch_unavailable$"
+    ):
+        service.dispatch(fixture.session.pk)
+    assert canceled == [True]
+    client.agent_dispatch.create_dispatch.assert_not_awaited()
+    client.aclose.assert_awaited_once()
+
+
+def test_empty_receipt_cleanup_replaces_at_most_one_per_batch(prepared, monkeypatch):
+    fixture, client = prepared
+    monkeypatch.setattr(service, "time_ns", lambda: 100_000_000_000)
+    first = api.AgentDispatch(
+        id="AD_first",
+        agent_name="synthetic-voiceprint-worker",
+        metadata=json.dumps(
+            {"voiceprint": {"livekit_room_sid": fixture.session.livekit_room_sid}}
+        ),
+    )
+    first.state.created_at = 1
+    second = api.AgentDispatch()
+    second.CopyFrom(first)
+    second.id = "AD_second"
+    client.agent_dispatch.list_dispatch.return_value = [first, second]
+    client.agent_dispatch.get_dispatch.return_value = first
+    assert service.dispatch(fixture.session.pk) == "created"
+    client.agent_dispatch.get_dispatch.assert_awaited_once_with(
+        first.id, str(fixture.room.pk)
+    )
+    client.agent_dispatch.delete_dispatch.assert_awaited_once_with(
+        first.id, str(fixture.room.pk)
+    )
 
 
 def test_sdk_failure_is_fixed_retryable_and_closes_client(prepared):

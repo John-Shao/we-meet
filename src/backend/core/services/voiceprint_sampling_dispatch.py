@@ -5,6 +5,7 @@ import json
 import logging
 from contextlib import closing
 from dataclasses import dataclass
+from time import time_ns
 from uuid import uuid4
 
 from django.conf import settings
@@ -40,6 +41,29 @@ class SamplingDispatchError(ValueError):
     """Retryable fixed error without media, credentials or participant identities."""
 
 
+def reusable(dispatch):
+    """An empty provider receipt is a brief launch window, not a live job."""
+    jobs = dispatch.state.jobs
+    if jobs:
+        return any(job.state.status in {JS_PENDING, JS_RUNNING} for job in jobs)
+    # LiveKit 1.13.1 uses UnixNano here. Unknown/future timestamps fail closed:
+    # do not terminate an unproven launch, including during clock skew.
+    created = dispatch.state.created_at
+    return created <= 0 or time_ns() - created < RECHECK_SECONDS * 1_000_000_000
+
+
+def same_dispatch(dispatch, room_sid, agent_name):
+    """Only this agent and immutable room occurrence can be reused or replaced."""
+    if dispatch.agent_name != agent_name or dispatch.state.deleted_at:
+        return False
+    try:
+        return json.loads(dispatch.metadata) == {
+            "voiceprint": {"livekit_room_sid": room_sid}
+        }
+    except (ValueError, TypeError):
+        return False
+
+
 @async_to_sync
 async def send(room_name, room_sid, agent_name):
     try:
@@ -52,23 +76,37 @@ async def send(room_name, room_sid, agent_name):
                 if not any(room.sid == room_sid for room in rooms.rooms):
                     return "ended"
                 dispatches = await client.agent_dispatch.list_dispatch(room_name)
-                for dispatch in dispatches:
-                    if dispatch.agent_name != agent_name or dispatch.state.deleted_at:
-                        continue
-                    try:
-                        exact = json.loads(dispatch.metadata) == {
-                            "voiceprint": {"livekit_room_sid": room_sid}
-                        }
-                    except (ValueError, TypeError):
-                        continue
-                    jobs = dispatch.state.jobs
-                    if exact and (
-                        not jobs
-                        or any(
-                            job.state.status in {JS_PENDING, JS_RUNNING} for job in jobs
-                        )
+                matching = [
+                    dispatch
+                    for dispatch in dispatches
+                    if same_dispatch(dispatch, room_sid, agent_name)
+                ]
+                if any(reusable(dispatch) for dispatch in matching):
+                    return "existing"
+                # Replace at most one aged, empty receipt per bounded RPC batch.
+                # Re-read it first: LaunchJob may have completed since the list.
+                empty = next(
+                    (dispatch for dispatch in matching if not dispatch.state.jobs), None
+                )
+                if empty is not None:
+                    current = await client.agent_dispatch.get_dispatch(
+                        empty.id, room_name
+                    )
+                    if current is not None and same_dispatch(
+                        current, room_sid, agent_name
                     ):
-                        return "existing"
+                        if reusable(current):
+                            return "existing"
+                        if not current.state.jobs:
+                            # A reusable business name can now refer to a new room.
+                            rooms = await client.room.list_rooms(
+                                api.ListRoomsRequest(names=[room_name])
+                            )
+                            if not any(room.sid == room_sid for room in rooms.rooms):
+                                return "ended"
+                            await client.agent_dispatch.delete_dispatch(
+                                current.id, room_name
+                            )
                 await client.agent_dispatch.create_dispatch(
                     api.CreateAgentDispatchRequest(
                         agent_name=agent_name,

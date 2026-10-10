@@ -81,7 +81,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
     parser.add_argument("--model-pack", required=True, type=Path)
     parser.add_argument("--diagnostics-dir", required=True, type=Path)
     parser.add_argument(
-        "--backend-image", default="we-meet-backend:voiceprint-20261011"
+        "--backend-image", default="we-meet-backend:voiceprint-dispatch-20261011"
     )
     parser.add_argument(
         "--sampler-image", default="we-meet-voiceprint-sampler:feature-20261011"
@@ -90,6 +90,11 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
         "--encoder-image", default="we-meet-voiceprint:feature-20261011"
     )
     parser.add_argument("--livekit-image", default="livekit/livekit-server:latest")
+    parser.add_argument(
+        "--media-boundaries",
+        action="store_true",
+        help="Also verify native mute, track replacement and participant reconnect.",
+    )
     args = parser.parse_args()
     pack, diagnostics = args.model_pack.resolve(), args.diagnostics_dir.resolve()
     if not pack.is_dir() or diagnostics.is_relative_to(ROOT):
@@ -169,6 +174,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                     "api_key": api_key,
                     "api_secret": api_secret,
                     "driver_token": driver_token,
+                    "media_boundaries": args.media_boundaries,
                 }
             ),
             encoding="utf-8",
@@ -208,6 +214,9 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 "CELERY_ENABLED": "true",
                 "CELERY_TASK_ALWAYS_EAGER": "false",
                 "VOICEPRINT_SYNTHETIC_PROBE": "1",
+                "VOICEPRINT_RTC_MEDIA_BOUNDARIES": "1"
+                if args.media_boundaries
+                else "0",
                 "VOICEPRINT_PROBE_DRIVER_TOKEN": driver_token,
                 "LIVEKIT_API_KEY": api_key,
                 "LIVEKIT_API_SECRET": api_secret,
@@ -440,7 +449,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                     "python",
                 ),
             )
-            exit_code = int(docker("wait", driver_id, timeout=390).stdout.strip())
+            exit_code = int(docker("wait", driver_id, timeout=570).stdout.strip())
             if exit_code:
                 raise RuntimeError("rtc_native_driver_failed")
             driver_log = docker("logs", driver_id)
