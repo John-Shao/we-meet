@@ -2,7 +2,7 @@
 
 日期：2026-10-10（Asia/Shanghai）
 
-最新阶段：[AI 录音派生版本与 worker](../research/voiceprint-capture-diarization-review-2026-10-10.md)已完成可信对齐、原子发布、修订继承、保留时间缺口的媒体准备、固定 VersionId、一次 Qwen 提交／持久轮询与清理。[操作 API 与身份查询走查](../research/voiceprint-capture-identity-api-review-2026-10-10.md)接通拥有者显式请求／读取／取消、固定当前派生版本的身份队列，以及多人建议逐个人工确认，修复录音来源枚举、取消后晚到回执／清理、私有桶选择、内容 SHA-256 和派生 JSON 预算。Web／Android 分人入口、派生版本分页、录音身份试听、可信通话采样、部署与获授权真人效果验收仍待完成；各阶段回归证据独立记录，不直接相加。
+最新阶段：[AI 录音 Web 走查](../research/voiceprint-capture-web-review-2026-10-10.md)已接通显式付费分人／同请求恢复、当前派生版本分页、录音身份入口与连续区间试听，修复版本混用／编辑丢失、成功版本门禁、账号切换残留、试听越界及文本编码与过时提示。相关后端 65 项、前端 135 项回归及本地合成音频真实浏览器验证通过。后端派生版本、Qwen worker 与录音身份队列的证据见[worker 走查](../research/voiceprint-capture-diarization-review-2026-10-10.md)及[操作与查询走查](../research/voiceprint-capture-identity-api-review-2026-10-10.md)。Android 录音分人／分页／试听、可信通话采样、部署与获授权真人效果验收仍待完成；各阶段回归证据独立记录，不直接相加。
 
 用户已要求从 `aliyun-dev` 建 feature 分支完成开发，本次开发授权取代方案中的“尚未允许开始实施”状态。需求仍以[声纹方案 v1.5](speaker-identity-voiceprint-plan-2026-10-09.md)为准；模型按 Qwen 优先、未满足要求后再考虑 CAM++ 的顺序执行。开发授权不代表已通过真人效果或生产发布验收。
 
@@ -22,7 +22,7 @@
 | 多片段匹配、未知拒绝、门限版本与候选快照 | 内部匹配／查询、独立身份队列、持久建议、记录级 API、建议决定事务和 Web／Android 导入识别交互已实现；其他来源及校准待完成 | [匹配核心走查](../research/voiceprint-matching-core-review-2026-10-10.md)、[识别 API 走查](../research/voiceprint-identification-api-review-2026-10-10.md)、[Web 识别走查](../research/voiceprint-web-identification-review-2026-10-10.md)及本文件 Android 章节；合成验证不代表真人识别效果 |
 | 导入：显式候选、分人预检、有界媒体解码与多片段建议 | 可信下载／区间选择、本地有界解码、独立身份任务、多片段建议及 Web／Android 导入后确认已实现；收费 ASR 前预检、固定共同输入、两端导入前选择／失败决定与转写后持久身份调度已接通 | 合成多格式选段、实际 Qwen 到持久建议链路通过；预检证据见[后端走查](../research/voiceprint-import-preflight-review-2026-10-10.md)，界面证据见[Web 与调度走查](../research/voiceprint-import-web-dispatch-review-2026-10-10.md)及[Android 走查](../research/voiceprint-import-android-review-2026-10-10.md)；真人多人／跨端验收仍待完成 |
 | 通话：可信账户／participant／track 许可、选择性采样、暂停与共享设备排除 | 待开发 | LiveKit 采样与配额测试、授权撤销与跨端采样状态 |
-| AI 录音后分人：独立派生 generation、时间对齐和历史引用 | 后端派生版本、可信对齐、原子发布、修订继承、固定私有媒体、Qwen worker、操作 API 和录音身份队列已接通；两端分人入口／分页／试听待完成 | [派生版本与 worker](../research/voiceprint-capture-diarization-review-2026-10-10.md)、[操作与查询走查](../research/voiceprint-capture-identity-api-review-2026-10-10.md)；合成多人建议须逐个人工确认，真人多人效果待验证 |
+| AI 录音后分人：独立派生 generation、时间对齐和历史引用 | 后端派生版本、可信对齐、原子发布、修订继承、固定私有媒体、Qwen worker、操作 API 和录音身份队列已接通；Web 分人入口／当前版本分页／试听已接通，Android 待完成 | [派生版本与 worker](../research/voiceprint-capture-diarization-review-2026-10-10.md)、[操作与查询走查](../research/voiceprint-capture-identity-api-review-2026-10-10.md)、[Web 走查](../research/voiceprint-capture-web-review-2026-10-10.md)；合成多人建议须逐个人工确认，真人多人效果待验证 |
 | Web／Android：设置、采样状态、身份建议与人工确认 | Web／Android 本人设置、登记、样本审核及导入后的候选／建议确认已接通；八态、更新原因及有效登记组投影已接通；跨端采样状态与真实设备分组待开发 | 本人设置相关回归与真实合成麦克风通过；状态投影及两端交互见[状态走查](../research/voiceprint-settings-status-review-2026-10-10.md)，其他界面继续验收 |
 | Helm／镜像：独立服务、默认关闭的开关、预算和观测 | 待开发 | 配置渲染、镜像／服务启动验证与运维文档 |
 | 真人效果、生产媒体条件、容量与发布验收 | 未完成 | 获授权真人数据及部署环境实测；暂无样本，不能宣称识别准确率达标 |

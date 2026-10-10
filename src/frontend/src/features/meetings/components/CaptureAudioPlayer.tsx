@@ -17,9 +17,17 @@ import {
 } from '../capture/playback'
 
 import { RecordPlaybackControls } from './RecordPlaybackControls'
+import {
+  getAuthSnapshot,
+  sameAuthSession,
+} from '@/features/auth/utils/tokenStorage'
 
 /** Mount with viewer/capture key. Only one small, verified audio blob is retained at a time. */
-export type CaptureAudioHandle = { seek: (milliseconds: number) => void }
+export type CaptureAudioHandle = {
+  seek: (milliseconds: number) => void
+  preview: (start: number, end: number) => Promise<boolean>
+  stopPreview: () => void
+}
 export const CaptureAudioPlayer = forwardRef<
   CaptureAudioHandle,
   {
@@ -54,6 +62,12 @@ export const CaptureAudioPlayer = forwardRef<
   const rateRef = useRef(1)
   const positionRef = useRef(0)
   const seeking = useRef<{ playing: boolean }>()
+  const auth = useRef(getAuthSnapshot())
+  const previewRange = useRef<{
+    end: number
+    deadline: ReturnType<typeof setTimeout>
+  }>()
+  const boundary = useRef<ReturnType<typeof setTimeout>>()
   // Kept in a ref so a new callback identity never re-runs the load effects.
   const onPositionRef = useRef(onPosition)
   onPositionRef.current = onPosition
@@ -66,6 +80,7 @@ export const CaptureAudioPlayer = forwardRef<
   }
 
   const clear = () => {
+    clearTimeout(boundary.current)
     activeRequest.current?.abort()
     audio.current?.pause()
     if (audio.current) {
@@ -77,8 +92,34 @@ export const CaptureAudioPlayer = forwardRef<
     current.current = undefined
   }
 
-  const load = async () => {
+  const forgetPreview = () => {
+    clearTimeout(previewRange.current?.deadline)
+    previewRange.current = undefined
+  }
+  const stopPreview = () => {
+    if (!previewRange.current) return
+    forgetPreview()
     clear()
+    if (mounted.current) setState('ready')
+  }
+  const scheduleBoundary = () => {
+    clearTimeout(boundary.current)
+    const chunk = playlistRef.current?.chunks[current.current ?? -1]
+    if (!previewRange.current || !chunk || !audio.current) return
+    const remaining =
+      previewRange.current.end -
+      chunk.start_ms -
+      audio.current.currentTime * 1000
+    boundary.current = setTimeout(
+      stopPreview,
+      Math.max(0, remaining / rateRef.current)
+    )
+  }
+
+  const load = async () => {
+    forgetPreview()
+    clear()
+    auth.current = getAuthSnapshot()
     setPlaylist(undefined)
     playlistRef.current = undefined
     setState('loading')
@@ -86,7 +127,12 @@ export const CaptureAudioPlayer = forwardRef<
     activeRequest.current = request
     try {
       const data = await audioPlaylist(captureId, request.signal)
-      if (request.signal.aborted || !mounted.current) return
+      if (
+        request.signal.aborted ||
+        !mounted.current ||
+        !sameAuthSession(auth.current)
+      )
+        return
       playlistRef.current = data
       setPlaylist(data)
       setPosition(0)
@@ -101,34 +147,79 @@ export const CaptureAudioPlayer = forwardRef<
     void load()
     return () => {
       mounted.current = false
+      forgetPreview()
       clear()
     }
     // The parent remounts this component for every viewer/capture identity change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [captureId])
 
+  useEffect(() => {
+    const check = () => {
+      if (sameAuthSession(auth.current)) return
+      forgetPreview()
+      clear()
+      playlistRef.current = undefined
+      setPlaylist(undefined)
+      setPosition(0)
+      setState('error')
+    }
+    const timer = setInterval(check, 250)
+    window.addEventListener('storage', check)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('storage', check)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Refs fence the current load session.
+  }, [])
+
   const play = async (index: number, offset = 0) => {
     clear()
     const chunk = playlistRef.current?.chunks[index]
-    if (!chunk) return
+    if (!chunk || !sameAuthSession(auth.current)) return false
     setState('loading')
     const request = new AbortController()
     activeRequest.current = request
     try {
       const blob = await audioChunk(captureId, chunk, request.signal)
-      if (request.signal.aborted || !mounted.current || !audio.current) return
+      if (
+        request.signal.aborted ||
+        !mounted.current ||
+        !audio.current ||
+        !sameAuthSession(auth.current)
+      )
+        return false
       url.current = URL.createObjectURL(blob)
       current.current = index
       audio.current.src = url.current
       audio.current.currentTime = offset
       audio.current.playbackRate = rateRef.current
       await audio.current.play()
-      if (!request.signal.aborted && mounted.current) setState('playing')
+      if (
+        request.signal.aborted ||
+        !mounted.current ||
+        !sameAuthSession(auth.current)
+      ) {
+        if (
+          !sameAuthSession(auth.current) &&
+          activeRequest.current === request
+        ) {
+          clear()
+          forgetPreview()
+          setState('error')
+        }
+        return false
+      }
+      setState('playing')
+      scheduleBoundary()
+      return true
     } catch {
       if (!request.signal.aborted && mounted.current) {
         clear()
+        forgetPreview()
         setState('error')
       }
+      return false
     }
   }
 
@@ -144,6 +235,7 @@ export const CaptureAudioPlayer = forwardRef<
         .catch(() => {
           if (!check.signal.aborted) {
             clear()
+            forgetPreview()
             setPlaylist(undefined)
             playlistRef.current = undefined
             setPosition(0)
@@ -161,6 +253,7 @@ export const CaptureAudioPlayer = forwardRef<
   }, [captureId, state])
 
   const seek = (milliseconds: number, resume = true, userInitiated = true) => {
+    forgetPreview()
     if (!Number.isFinite(milliseconds)) return
     const entries = playlistRef.current?.chunks ?? []
     const last = entries.at(-1)
@@ -187,11 +280,48 @@ export const CaptureAudioPlayer = forwardRef<
   const beginSeek = () => {
     if (seeking.current) return
     seeking.current = { playing: state === 'playing' }
+    forgetPreview()
     clear()
     setState('ready')
   }
   useImperativeHandle(ref, () => ({
     seek: (milliseconds) => seek(milliseconds),
+    stopPreview,
+    preview: async (start, end) => {
+      stopPreview()
+      if (
+        !Number.isSafeInteger(start) ||
+        !Number.isSafeInteger(end) ||
+        start < 0 ||
+        end <= start ||
+        end - start > 10000 ||
+        end > 7200000 ||
+        !sameAuthSession(auth.current)
+      )
+        return false
+      const entries = playlistRef.current?.chunks ?? []
+      const target = locateAudio(entries, start)
+      if (!target) return false
+      let covered = start
+      for (let i = target.index; covered < end; i++) {
+        const chunk = entries[i]
+        if (
+          !chunk ||
+          chunk.start_ms > covered ||
+          (i > target.index && chunk.sequence !== entries[i - 1].sequence + 1)
+        )
+          return false
+        covered = chunk.start_ms + chunk.duration_ms
+      }
+      const range = { end, deadline: setTimeout(stopPreview, 30000) }
+      previewRange.current = range
+      setPosition(start)
+      onUserSeek?.(start)
+      const ok = await play(target.index, target.offset)
+      if (previewRange.current !== range) return false
+      if (!ok) stopPreview()
+      return ok
+    },
   }))
   const endSeek = () => {
     if (!seeking.current) return
@@ -294,6 +424,7 @@ export const CaptureAudioPlayer = forwardRef<
             }}
             onPlayPause={() => {
               if (state === 'playing') {
+                forgetPreview()
                 clear()
                 setState('ready')
               } else
@@ -305,6 +436,7 @@ export const CaptureAudioPlayer = forwardRef<
               setRate(value)
               rateRef.current = value
               if (audio.current) audio.current.playbackRate = value
+              scheduleBoundary()
             }}
           />
           {state === 'gap' && next >= 0 && (
@@ -333,12 +465,18 @@ export const CaptureAudioPlayer = forwardRef<
         }}
         onTimeUpdate={() => {
           const chunk = chunks[current.current ?? -1]
-          if (chunk && audio.current)
-            setPosition(chunk.start_ms + audio.current.currentTime * 1000)
+          if (chunk && audio.current) {
+            const position = chunk.start_ms + audio.current.currentTime * 1000
+            if (previewRange.current && position >= previewRange.current.end) {
+              setPosition(previewRange.current.end)
+              stopPreview()
+            } else setPosition(position)
+          }
         }}
         onError={() => {
           if (url.current) {
             clear()
+            forgetPreview()
             setState('error')
           }
         }}
@@ -348,6 +486,10 @@ export const CaptureAudioPlayer = forwardRef<
           const chunk = chunks[index]
           const end = chunk.start_ms + chunk.duration_ms
           setPosition(end)
+          if (previewRange.current && end >= previewRange.current.end) {
+            stopPreview()
+            return
+          }
           const following = chunks[index + 1]
           if (!following) {
             clear()

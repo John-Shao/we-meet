@@ -30,6 +30,7 @@ type Props = {
   viewerId: string
   onPreview: (start: number, end: number) => Promise<boolean>
   onPreviewStop: () => void
+  captureDiarizationId?: string | null
 }
 const column = css({
   display: 'flex',
@@ -84,8 +85,10 @@ export function SpeakerIdentificationPanel(props: Props) {
   const { record } = props
   if (
     !data?.speaker_identity?.matching_enabled ||
-    record.source_type !== 'upload' ||
-    record.upload?.status !== 'succeeded' ||
+    !['upload', 'audio_recording'].includes(record.source_type) ||
+    (record.source_type === 'audio_recording' && !props.captureDiarizationId) ||
+    (record.source_type === 'upload' &&
+      record.upload?.status !== 'succeeded') ||
     !record.capabilities.edit ||
     !record.capabilities.read_transcript ||
     !record.capabilities.play_media
@@ -106,7 +109,7 @@ export function SpeakerIdentificationPanel(props: Props) {
       </div>
       {opened && (
         <IdentificationBody
-          key={`${props.viewerId}:${record.id}:${session}`}
+          key={`${props.viewerId}:${record.id}:${session}:${props.captureDiarizationId ?? 'upload'}`}
           {...props}
         />
       )}

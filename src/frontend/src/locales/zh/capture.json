@@ -200,5 +200,32 @@
   "openSummary": "查看智能纪要",
   "recoverable": "待处理录音",
   "recoverableHint": "这里只显示未结束或仍有本地音频待处理的录音，已保存的资料可在会议实录中查看。",
-  "backToOverview": "返回 AI 录音"
+  "backToOverview": "返回 AI 录音",
+  "diarization": {
+    "resultHint": "说话人已分离。点击时间戳试听原音，可在说话人页标记并确认身份。",
+    "unknownSpeaker": "未知说话人",
+    "title": "录音说话人分离",
+    "hint": "生成独立的说话人版本，保留原文及人工修订。完成后可在说话人页识别并确认身份。新版本需重新确认身份，不会自动登记声纹。",
+    "accept": "我确认进行说话人处理，可能产生费用。取消任务不保证退费。",
+    "start": "开始分人",
+    "retry": "重新分人",
+    "recover": "恢复同一请求",
+    "cancel": "取消处理",
+    "refresh": "刷新状态",
+    "history": "分人版本",
+    "version": "分人版本 {{number}}",
+    "uncertain": "请求结果尚未确认，请恢复同一请求，避免重复计费。",
+    "conflict": "记录已变化，请刷新后重新确认。",
+    "denied": "暂时无法处理，请确认访问权限及音频保留状态后刷新。",
+    "recoveryError": "无法安全保存请求，请重新加载页面后再试。",
+    "cancelUnknown": "取消结果尚未确认，请刷新状态核实。",
+    "editing": "请先保存或取消当前的文本编辑。",
+    "status": {
+      "queued": "等待处理",
+      "running": "处理中",
+      "succeeded": "已完成",
+      "failed": "失败",
+      "canceled": "已取消"
+    }
+  }
 }

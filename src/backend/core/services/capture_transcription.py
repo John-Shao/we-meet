@@ -16,6 +16,7 @@ from core.services.capture_audio import (
     serialize_chunk,
     serialize_manifest,
 )
+from core.services.capture_generation_state import current_diarization_id
 from core.services.capture_storage import text_audio_enabled
 from core.services.capture_summary_source import (
     staged_enabled as capture_staged_enabled,
@@ -254,7 +255,15 @@ def state(capture_id, user):
     jobs = [
         _expire(job) for job in capture.transcription_jobs.order_by("-generation")[:10]
     ]
+    from core.services.capture_diarization_worker import (  # noqa: PLC0415 -- Avoid the ASR/control cycle.
+        enabled as diarization_enabled,
+    )
+
+    derivation = current_diarization_id(capture)
     return {
+        "diarization_available": diarization_enabled()
+        or capture.diarization_jobs.exists(),
+        "active_diarization_job_id": str(derivation) if derivation else None,
         "available": available()
         and (capture.record.retention_mode != "text" or text_audio_enabled()),
         "live_available": available()

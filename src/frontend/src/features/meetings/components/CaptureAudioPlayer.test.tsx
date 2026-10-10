@@ -1,6 +1,7 @@
 import { createRef } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
+import { setTokens } from '@/features/auth/utils/tokenStorage'
 import {
   CaptureAudioPlayer,
   type CaptureAudioHandle,
@@ -37,6 +38,7 @@ vi.mock('@/primitives', () => ({
 }))
 
 beforeEach(() => {
+  setTokens({ accessToken: 'synthetic-capture' })
   vi.mocked(audioPlaylist).mockResolvedValue({
     manifest: null,
     chunks: [
@@ -179,4 +181,113 @@ it('treats the exact end of the timeline as completed, not as missing audio', as
   fireEvent.click(screen.getByRole('button', { name: 'play' }))
   await screen.findByRole('button', { name: 'pausePlayback' })
   expect(vi.mocked(audioChunk).mock.calls[0][1].id).toBe('a')
+})
+
+it('previews only a bounded source interval and clears bytes at its end', async () => {
+  const ref = createRef<CaptureAudioHandle>()
+  const { container } = render(
+    <CaptureAudioPlayer ref={ref} captureId="capture" />
+  )
+  await screen.findByRole('button', { name: 'play' })
+  let ok = false
+  await act(async () => {
+    ok = await ref.current!.preview(100, 700)
+  })
+  expect(ok).toBe(true)
+  const audio = container.querySelector('audio')!
+  expect(audio.currentTime).toBe(0.1)
+  audio.currentTime = 0.75
+  fireEvent.timeUpdate(audio)
+  expect(audio).not.toHaveAttribute('src')
+  expect(URL.revokeObjectURL).toHaveBeenCalled()
+})
+it('refuses missing audio and oversized preview ranges before downloading', async () => {
+  const ref = createRef<CaptureAudioHandle>()
+  render(<CaptureAudioPlayer ref={ref} captureId="capture" />)
+  await screen.findByRole('button', { name: 'play' })
+  await act(async () => {
+    expect(await ref.current!.preview(900, 2100)).toBe(false)
+    expect(await ref.current!.preview(0, 10001)).toBe(false)
+    expect(await ref.current!.preview(NaN, 500)).toBe(false)
+  })
+  expect(audioChunk).not.toHaveBeenCalled()
+})
+it('continues a preview across consecutive chunks and stops before loading the next speaker', async () => {
+  vi.mocked(audioPlaylist).mockResolvedValue({
+    manifest: null,
+    chunks: [0, 1, 2].map((index) => ({
+      id: String(index),
+      sequence: index + 1,
+      start_ms: index * 1000,
+      duration_ms: 1000,
+      byte_size: 32044,
+      checksum: 'sha',
+      stored: true,
+    })),
+  })
+  const ref = createRef<CaptureAudioHandle>()
+  const { container } = render(
+    <CaptureAudioPlayer ref={ref} captureId="capture" />
+  )
+  await screen.findByRole('button', { name: 'play' })
+  await act(async () => {
+    expect(await ref.current!.preview(500, 1500)).toBe(true)
+  })
+  const audio = container.querySelector('audio')!
+  fireEvent.ended(audio)
+  await waitFor(() => expect(audioChunk).toHaveBeenCalledTimes(2))
+  await screen.findByRole('button', { name: 'pausePlayback' })
+  audio.currentTime = 0.6
+  fireEvent.timeUpdate(audio)
+  expect(audio).not.toHaveAttribute('src')
+  expect(audioChunk).toHaveBeenCalledTimes(2)
+})
+it('does not stop ordinary playback when an unused identification panel closes', async () => {
+  const ref = createRef<CaptureAudioHandle>()
+  const { container } = render(
+    <CaptureAudioPlayer ref={ref} captureId="capture" />
+  )
+  await screen.findByRole('button', { name: 'play' })
+  fireEvent.click(screen.getByRole('button', { name: 'play' }))
+  await screen.findByRole('button', { name: 'pausePlayback' })
+  act(() => ref.current!.stopPreview())
+  expect(container.querySelector('audio')).toHaveAttribute('src')
+})
+it('aborts a late preview download when preview is stopped', async () => {
+  let resolve!: (value: Blob) => void
+  vi.mocked(audioChunk).mockImplementation(
+    () =>
+      new Promise((done) => {
+        resolve = done
+      })
+  )
+  const ref = createRef<CaptureAudioHandle>()
+  render(<CaptureAudioPlayer ref={ref} captureId="capture" />)
+  await screen.findByRole('button', { name: 'play' })
+  let result!: Promise<boolean>
+  act(() => {
+    result = ref.current!.preview(100, 600)
+  })
+  act(() => ref.current!.stopPreview())
+  await act(async () => {
+    resolve(new Blob(['late']))
+    expect(await result).toBe(false)
+  })
+  expect(URL.createObjectURL).not.toHaveBeenCalled()
+})
+it('clears a preview and cached playlist on account change', async () => {
+  const ref = createRef<CaptureAudioHandle>()
+  const { container } = render(
+    <CaptureAudioPlayer ref={ref} captureId="capture" />
+  )
+  await screen.findByRole('button', { name: 'play' })
+  await act(async () => {
+    expect(await ref.current!.preview(100, 700)).toBe(true)
+  })
+  act(() => {
+    setTokens({ accessToken: 'another-synthetic' })
+    window.dispatchEvent(new Event('storage'))
+  })
+  await screen.findByText('audioError')
+  expect(container.querySelector('audio')).not.toHaveAttribute('src')
 })

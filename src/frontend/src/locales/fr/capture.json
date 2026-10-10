@@ -200,5 +200,32 @@
   "openSummary": "Voir le compte-rendu IA",
   "recoverable": "Enregistrements à traiter",
   "recoverableHint": "Seuls les enregistrements non terminés ou comportant encore de l’audio local à traiter apparaissent ici. Le contenu conservé est consultable dans les archives de réunion.",
-  "backToOverview": "Retour à l’enregistrement IA"
+  "backToOverview": "Retour à l’enregistrement IA",
+  "diarization": {
+    "resultHint": "Les voix sont séparées. Sélectionner un horodatage pour écouter l’audio original et confirmer les identités dans l’onglet Locuteurs.",
+    "unknownSpeaker": "Locuteur inconnu",
+    "title": "Distinguer les voix enregistrées",
+    "hint": "Créer une version des locuteurs en conservant le texte original et les corrections. Identifier et confirmer ensuite les noms dans l’onglet Locuteurs. Chaque nouvelle version nécessite une nouvelle confirmation ; aucune empreinte vocale n’est enregistrée automatiquement.",
+    "accept": "Je confirme ce traitement, qui peut entraîner des frais. L’annulation ne garantit pas de remboursement.",
+    "start": "Distinguer les voix",
+    "retry": "Distinguer à nouveau",
+    "recover": "Reprendre la même demande",
+    "cancel": "Annuler le traitement",
+    "refresh": "Actualiser le statut",
+    "history": "Historique des versions",
+    "version": "Version des locuteurs {{number}}",
+    "uncertain": "Le résultat est incertain. Reprendre la même demande pour éviter une double facturation.",
+    "conflict": "Le document a changé. Actualiser et confirmer à nouveau.",
+    "denied": "Traitement indisponible. Vérifier l’accès et la conservation audio, puis actualiser.",
+    "recoveryError": "Impossible d’enregistrer la demande en sécurité. Recharger avant de réessayer.",
+    "cancelUnknown": "L’annulation est incertaine. Actualiser pour vérifier.",
+    "editing": "Enregistrer ou annuler d’abord les modifications du texte.",
+    "status": {
+      "queued": "En attente",
+      "running": "En cours",
+      "succeeded": "Terminé",
+      "failed": "Échec",
+      "canceled": "Annulé"
+    }
+  }
 }

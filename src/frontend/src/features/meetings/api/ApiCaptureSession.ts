@@ -8,6 +8,8 @@ export type CaptureCommand =
   | 'finalize'
 
 export interface ApiCaptureSession {
+  /** Only a successful version belonging to the current published ASR. */
+  active_diarization_job_id?: string | null
   id: string
   record_id: string
   device_id: string
@@ -100,6 +102,16 @@ export interface ApiMeetingSpeaker {
 
 /** /meeting-records/{id}/original-segments/, separately authorized from summaries. */
 export interface ApiMeetingOriginalSegment {
+  parent_original_id?: string | null
+  diarization_job_id?: string | null
+  speaker_mapping?: {
+    protocol: number
+    start_offset: number
+    end_offset: number
+    offset_unit: 'utf16'
+    status: 'known' | 'ambiguous'
+    reason: string
+  } | null
   playback_alignment?: import('../wordAlignment').PlaybackAlignment
   correction_revision?: number
   can_correct?: boolean

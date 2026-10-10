@@ -200,5 +200,32 @@
   "openSummary": "View smart minutes",
   "recoverable": "Recordings to finish",
   "recoverableHint": "Unfinished recordings and recordings with pending local audio appear here. Saved material is available in meeting records.",
-  "backToOverview": "Back to AI recording"
+  "backToOverview": "Back to AI recording",
+  "diarization": {
+    "resultHint": "Speakers are separated. Select a timestamp to check the original audio and confirm identities in the Speakers tab.",
+    "unknownSpeaker": "Unknown speaker",
+    "title": "Separate recorded speakers",
+    "hint": "Create a separate speaker version while preserving the original text and corrections. Then identify and confirm names in the Speakers tab. Names need confirmation again for a new version; no voiceprint is enrolled automatically.",
+    "accept": "I confirm speaker processing, which may incur charges. Cancellation cannot guarantee a refund.",
+    "start": "Separate speakers",
+    "retry": "Separate again",
+    "recover": "Resume same request",
+    "cancel": "Cancel processing",
+    "refresh": "Refresh status",
+    "history": "Speaker version history",
+    "version": "Speaker version {{number}}",
+    "uncertain": "The result is uncertain. Resume the same request to avoid duplicate charges.",
+    "conflict": "The record changed. Refresh and confirm again.",
+    "denied": "Processing is unavailable. Check access and audio retention, then refresh.",
+    "recoveryError": "The request cannot be saved safely. Reload before retrying.",
+    "cancelUnknown": "Cancellation is uncertain. Refresh to verify.",
+    "editing": "Save or cancel text editing first.",
+    "status": {
+      "queued": "Queued",
+      "running": "Processing",
+      "succeeded": "Completed",
+      "failed": "Failed",
+      "canceled": "Canceled"
+    }
+  }
 }

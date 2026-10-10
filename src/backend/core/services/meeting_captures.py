@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from core import models
 from core.services import capture_retention
+from core.services.capture_generation_state import current_diarization_id
 from core.services.capture_storage import capabilities as audio_capabilities
 from core.services.capture_storage import text_audio_enabled
 from core.services.meeting_records import RecordConflict, visible_records
@@ -112,7 +113,9 @@ def capture_state(capture):
         if sequence != contiguous + 1:
             break
         contiguous = sequence
+    derivation = current_diarization_id(capture)
     return {
+        "active_diarization_job_id": str(derivation) if derivation else None,
         "id": str(capture.pk),
         "record_id": str(capture.record_id),
         "device_id": capture.device_id,

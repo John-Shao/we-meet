@@ -90,12 +90,17 @@ const record: ApiMeetingRecord = {
   },
 }
 const workspaceKey = ['record-library-content', OWNER, 1, 'originals']
-function show(overrides: Partial<ApiMeetingRecord> = {}, strict = false) {
+function show(
+  overrides: Partial<ApiMeetingRecord> = {},
+  strict = false,
+  derivationId?: string | null
+) {
   const panel = (
     <QueryClientProvider client={cache}>
       <SpeakerIdentificationPanel
         record={{ ...record, ...overrides }}
         viewerId={OWNER}
+        captureDiarizationId={derivationId}
         onPreview={preview}
         onPreviewStop={stopPreview}
       />
@@ -497,4 +502,17 @@ it('preserves explicit choices across pages and caps the candidate pool at fifty
   await waitFor(() => expect(mocks.submit).toHaveBeenCalledOnce())
   expect(mocks.submit.mock.calls[0][0].user_ids).toHaveLength(50)
   expect(mocks.submit.mock.calls[0][0].organization_id).toBe(ORG)
+})
+
+it('allows an authorized recording to use the same explicit identity controls', async () => {
+  show({ source_type: 'audio_recording', upload: null }, false, KEY)
+  await open()
+  expect(mocks.options).toHaveBeenCalled()
+  expect(mocks.submit).not.toHaveBeenCalled()
+})
+
+it('hides recording identity operations until a current derived version is published', () => {
+  show({ source_type: 'audio_recording', upload: null })
+  expect(screen.queryByRole('button', { name: 'open' })).not.toBeInTheDocument()
+  expect(mocks.options).not.toHaveBeenCalled()
 })

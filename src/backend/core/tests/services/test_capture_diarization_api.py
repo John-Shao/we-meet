@@ -9,6 +9,8 @@ from uuid import uuid4
 
 from django.core.cache import cache
 from django.core.files.storage import default_storage
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 import pytest
@@ -582,3 +584,32 @@ def test_capture_identity_rejects_changed_media_and_uses_its_own_storage_configu
     )
     producing.assert_called_once()
     assert not capture.record.identity_decisions.exists()
+
+
+def test_asr_state_exposes_current_derivation_without_loading_its_large_proof(
+    private_s3, monkeypatch, settings
+):
+    owner, capture, job, _ = published(private_s3, monkeypatch)
+    endpoint = f"/api/v1.0/capture-sessions/{capture.pk}/transcription/"
+    with CaptureQueriesContext(connection) as queries:
+        response = client_for(owner).get(endpoint)
+    assert response.status_code == 200
+    assert response.data["diarization_available"]
+    assert response.data["active_diarization_job_id"] == str(job.pk)
+    capture_endpoint = f"/api/v1.0/capture-sessions/{capture.pk}/"
+    assert client_for(owner).get(capture_endpoint).data[
+        "active_diarization_job_id"
+    ] == str(job.pk)
+    assert all(
+        '"core_capturediarizationjob"."inputs"' not in item["sql"] for item in queries
+    )
+    settings.MEETING_CAPTURE_DIARIZATION_ENABLED = False
+    assert client_for(owner).get(endpoint).data["diarization_available"]
+    models.CaptureSession.objects.filter(pk=capture.pk).update(
+        active_transcription=None
+    )
+    assert client_for(owner).get(endpoint).data["active_diarization_job_id"] is None
+    assert (
+        client_for(owner).get(capture_endpoint).data["active_diarization_job_id"]
+        is None
+    )

@@ -640,10 +640,16 @@ function WorkspaceContent({
               key={`${viewerId}:${record.id}:identification`}
               record={record}
               viewerId={viewerId}
+              captureDiarizationId={source?.active_diarization_job_id}
               onPreview={async (start, end) =>
-                uploadMedia.current?.preview(start, end) ?? false
+                (isUpload ? uploadMedia.current : player.current)?.preview(
+                  start,
+                  end
+                ) ?? false
               }
-              onPreviewStop={() => uploadMedia.current?.stopPreview()}
+              onPreviewStop={() =>
+                (isUpload ? uploadMedia.current : player.current)?.stopPreview()
+              }
             />
             <OriginalRead
               key={`${record.id}:${record.revision}:speakers`}
