@@ -11,7 +11,10 @@ from ctypes import wintypes
 class ParentDeathJob:
     """Closing the Windows job kills the decoder and all its descendants."""
 
-    def __init__(self):
+    def __init__(self, *, cpu_seconds=25):
+        if type(cpu_seconds) is not int or not 1 <= cpu_seconds <= 180:
+            raise OSError("media_configuration_invalid")
+        self.cpu_seconds = cpu_seconds
         self.handle = None
         self.lock = threading.Lock()
         if sys.platform == "win32":
@@ -84,7 +87,7 @@ class ParentDeathJob:
             raise OSError("media_job_unavailable")
         limits = ExtendedLimits()
         limits.basic.flags = 0x2000 | 0x0200 | 0x0400 | 0x0004
-        limits.basic.job_time = 25 * 10_000_000
+        limits.basic.job_time = self.cpu_seconds * 10_000_000
         limits.process_memory = 512 * 1024 * 1024
         limits.job_memory = 768 * 1024 * 1024
         if not self.kernel.SetInformationJobObject(

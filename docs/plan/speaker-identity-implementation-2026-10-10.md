@@ -2,6 +2,8 @@
 
 日期：2026-10-10（Asia/Shanghai）
 
+最新阶段：[导入预检媒体准备](../research/voiceprint-import-media-preparation-2026-10-10.md)已实现本地完整单声道派生，实际两小时合成边界、时间映射和清理通过验证。它尚未接入上传／ASR／查询共同对象世代或跨端导入选择，预检端到端状态机和完整目标继续开发。
+
 用户已要求从 `aliyun-dev` 建 feature 分支完成开发，本次开发授权取代方案中的“尚未允许开始实施”状态。需求仍以[声纹方案 v1.5](speaker-identity-voiceprint-plan-2026-10-09.md)为准；模型按 Qwen 优先、未满足要求后再考虑 CAM++ 的顺序执行。开发授权不代表已通过真人效果或生产发布验收。
 
 分支：`feature/speaker-identity-voiceprint`；基线：`origin/aliyun-dev`，`cd18782df`。独立 worktree：`D:/workspace/jusi-meet/.worktrees/we-meet-speaker-identity`。

@@ -26,6 +26,7 @@ class MediaTransport:
         modules = {
             "decoder": "core.services.voiceprint_media_worker",
             "storage": "core.services.voiceprint_storage_worker",
+            "import": "core.services.voiceprint_import_worker",
         }
         if purpose not in modules:
             raise MediaError("media_configuration_invalid")
@@ -37,7 +38,11 @@ class MediaTransport:
         ]
         self.job = None
         try:
-            self.job = ParentDeathJob()
+            self.job = (
+                ParentDeathJob(cpu_seconds=180)
+                if purpose == "import"
+                else ParentDeathJob()
+            )
             if sys.platform == "win32":
                 from core.services.voiceprint_media_windows import (  # noqa: PLC0415 -- Windows-only process creation.
                     WindowsJobProcess,
@@ -118,7 +123,7 @@ class MediaTransport:
 
 
 def invoke(payload, *, maximum, expires, authorized, seconds, purpose="decoder"):  # noqa: PLR0912, PLR0913 -- One bounded lifecycle with authorization on every exit.
-    if purpose not in {"decoder", "storage"}:
+    if purpose not in {"decoder", "storage", "import"}:
         raise MediaError("media_configuration_invalid")
     if type(maximum) is not int or not 0 < maximum <= 480000:
         raise MediaError("media_configuration_invalid")
@@ -129,13 +134,13 @@ def invoke(payload, *, maximum, expires, authorized, seconds, purpose="decoder")
     except (ValueError, TypeError, RecursionError):
         raise MediaError("media_input_invalid") from None
     if (
-        len(encoded) > (8192 if purpose == "decoder" else 32768)
+        len(encoded) > (32768 if purpose == "storage" else 8192)
         or type(expires) is not int
         or expires <= time.time()
     ):
         raise MediaError("media_input_invalid")
     if type(seconds) not in (int, float) or not 0 < seconds <= (
-        25 if purpose == "decoder" else 90
+        25 if purpose == "decoder" else 180 if purpose == "import" else 90
     ):
         raise MediaError("media_configuration_invalid")
     if not authorized():

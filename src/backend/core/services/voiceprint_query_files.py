@@ -49,12 +49,14 @@ def leased_directory(expires):
             # lease boundary. Allow only the existing bounded drain to retry.
             end = time.monotonic() + DRAIN_SECONDS
             while not stopped.is_set():
-                try:
-                    (path / "source.media").unlink(missing_ok=True)
+                pending = False
+                for name in ("source.media", "diarization.wav"):
+                    try:
+                        (path / name).unlink(missing_ok=True)
+                    except OSError:
+                        pending = True
+                if not pending or time.monotonic() >= end or stopped.wait(0.25):
                     return
-                except OSError:
-                    if time.monotonic() >= end or stopped.wait(0.25):
-                        return
 
         timer = threading.Timer(max(0, expires - time.time()), remove_audio)
         timer.daemon = True
