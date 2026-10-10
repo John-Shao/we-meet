@@ -85,6 +85,43 @@ class Stream:
 class SamplingRuntimeTests(unittest.IsolatedAsyncioTestCase):
     """Exercise selective subscription, authorization loss and bounded media."""
 
+    async def test_source_change_during_validation_never_subscribes_or_uploads(self):
+        """RTC state can change while the backend validation response is in flight."""
+        for stage in ("before_subscribe", "before_upload"):
+            for change in ("mute", "replacement"):
+                with self.subTest(stage=stage, change=change):
+                    await self._check_source_change(stage, change)
+
+    async def _check_source_change(self, stage, change):
+        ctx, participant, publication, client, _, _ = fixture()
+        runtime = sampler.Sampler(ctx, client, ctx.room.sid)
+        stream = Stream()
+
+        async def validate(_grant, _origin):
+            await asyncio.sleep(0)
+            unsubscribed = publication.set_subscribed.call_args == mock.call(False)
+            if stage == "before_subscribe" or unsubscribed:
+                if change == "mute":
+                    publication.muted = True
+                else:
+                    ctx.room.remote_participants[participant.identity] = object()
+            return True
+
+        client.validate.side_effect = validate
+        with mock.patch.object(
+            sampler, "audio_stream", mock.AsyncMock(return_value=stream)
+        ):
+            await runtime.attempt(participant, publication)
+        client.upload.assert_not_awaited()
+        if stage == "before_subscribe":
+            publication.set_subscribed.assert_not_called()
+        else:
+            self.assertEqual(
+                publication.set_subscribed.call_args_list,
+                [mock.call(True), mock.call(False)],
+            )
+            stream.aclose.assert_awaited_once()
+
     async def test_native_sdk_source_guard_and_close_with_synthetic_pcm(self):
         """Use native FFI audio only; no microphone or cloud connection."""
         source = rtc.AudioSource(24000, 1, queue_size_ms=20)

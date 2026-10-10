@@ -211,9 +211,12 @@ class Sampler:
         grant_valid(grant, origin, identity)
 
         async def authorized():
-            return self.current(
-                participant, publication, origin, identity
-            ) and await self.client.validate(grant, origin)
+            # Validation yields; mute/reconnect can change the source in flight.
+            return (
+                self.current(participant, publication, origin, identity)
+                and await self.client.validate(grant, origin)
+                and self.current(participant, publication, origin, identity)
+            )
 
         if not await authorized():
             return
