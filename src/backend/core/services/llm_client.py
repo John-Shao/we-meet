@@ -94,10 +94,10 @@ class LLMClient:
 
     @classmethod
     def from_settings(
-        cls, *, timeout: float = 60.0, max_retries: int | None = None
+        cls, *, timeout: float = 60.0, max_retries: int | None = None, model: str | None = None
     ) -> "LLMClient":
         api_key = getattr(settings, "DASHSCOPE_API_KEY", None) or ""
-        model = getattr(settings, "MEETING_SUMMARY_MODEL", None) or "qwen3.8-flash"
+        model = model or getattr(settings, "MEETING_SUMMARY_MODEL", None) or "qwen3.8-flash"
         base_url = (
             getattr(settings, "MEETING_SUMMARY_BASE_URL", None) or _DEFAULT_BASE_URL
         )
@@ -125,7 +125,7 @@ class LLMClient:
         self,
         *,
         system: str,
-        user: str,
+        user: str | list[dict],
         temperature: float = 0.3,
         max_tokens: Optional[int] = None,
         response_format: Optional[dict] = None,

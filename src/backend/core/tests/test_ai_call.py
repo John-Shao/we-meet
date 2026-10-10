@@ -17,6 +17,19 @@ URL = "/api/v1.0/ai-call/session/"
 SDP = "v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n"
 
 
+def test_photo_capability_resolves_managed_prompts_before_allocation(call_setup):
+    client, profile, post, _ = call_setup
+    body = {"sdp": SDP, "profile_code": profile.code, "photo_qa": True}
+    response = client.post(URL, body, format="json")
+    assert response.status_code == 200
+    assert response.data["tool_instructions"]["photo"] == models.AIPrompt.objects.get(code="call.tool.photo").content
+    assert response.data["tool_instructions"]["take_photo_description"]
+    post.reset_mock()
+    models.AIPrompt.objects.filter(code="call.photo_qa").update(is_active=False)
+    assert client.post(URL, body, format="json").status_code == 503
+    post.assert_not_called()
+
+
 def test_aoq_allocation_uses_temporary_credentials(call_setup):
     """AOQ shares catalog authorization but returns only connection credentials."""
     client, profile, post, upstream = call_setup

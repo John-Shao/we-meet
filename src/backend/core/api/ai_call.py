@@ -90,6 +90,7 @@ class CallOfferSerializer(serializers.Serializer):
         allow_blank=True,
     )
     transport = serializers.ChoiceField(choices=("webrtc", "aoq"), default="webrtc")
+    photo_qa = serializers.BooleanField(default=False)
     profile_code = serializers.CharField(max_length=100)
     voice_id = serializers.UUIDField(required=False, allow_null=True)
     prompt_id = serializers.UUIDField(required=False, allow_null=True)
@@ -157,6 +158,10 @@ class AiCallSessionView(APIView):
             tool_instructions[f"{name}_description"] = instruction(
                 f"call.tool.description.{name}"
             )
+        if data["photo_qa"]:
+            tool_instructions["photo"] = instruction("call.tool.photo")
+            tool_instructions["take_photo_description"] = instruction("call.tool.description.take_photo")
+            instruction("call.photo_qa")  # Fail before allocating a paid connection if photo QA is disabled.
 
         workspace = settings.DASHSCOPE_WORKSPACE_ID
         region = settings.DASHSCOPE_REGION

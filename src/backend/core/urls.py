@@ -33,6 +33,7 @@ from core.api.admin_roles import (
 from core.api.admin_stats import AdminStatsOverviewView
 from core.api.agent_internal import IngestTranscriptView, TranscriptDeliveryView
 from core.api.ai_call import AiCallSessionView
+from core.api.ai_call_photo import AiCallPhotoView
 from core.api.direct_ai_allocations import DirectAIAllocationView
 from core.api.assistant_summary import AssistantSummaryView
 from core.api.assistant_transcription import AssistantTranscriptionSessionView
@@ -387,6 +388,7 @@ external_router.register(
 )
 
 urlpatterns = [
+    path("api/v1.0/ai-call/photo/", AiCallPhotoView.as_view(), name="ai-call-photo"),
     path("api/v1.0/ai-call/session/", AiCallSessionView.as_view(), name="ai-call-session"),
     path("api/v1.0/direct-ai/sessions/<uuid:allocation_id>/", DirectAIAllocationView.as_view(), name="direct-ai-session"),
     path("api/v1.0/assistant-summary/", AssistantSummaryView.as_view(), name="assistant-summary"),

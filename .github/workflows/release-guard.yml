@@ -64,6 +64,7 @@ jobs:
           uv run pytest
           core/tests/test_assistant_prompts.py
           core/tests/test_ai_call.py
+          core/tests/test_ai_call_photo.py
           core/tests/test_assistant_translation_config.py
           core/tests/test_assistant_translation_direct.py
           core/tests/test_assistant_translation.py
