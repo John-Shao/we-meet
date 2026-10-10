@@ -16,13 +16,15 @@ def text_hash(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _ignorable(text):
+def ignorable(text):
+    """Characters allowed between lexical tokens without losing source text."""
     return all(
         char.isspace() or unicodedata.category(char).startswith("P") for char in text
     )
 
 
-def _boundary(text, index):
+def boundary(text, index):
+    """A source split must preserve grapheme and supplementary-codepoint boundaries."""
     if index in {0, len(text)}:
         return True
     before, after = text[index - 1], text[index]
@@ -41,9 +43,9 @@ def _boundary(text, index):
 
 def _lexical(value):
     left, right = 0, len(value)
-    while left < right and _ignorable(value[left]):
+    while left < right and ignorable(value[left]):
         left += 1
-    while right > left and _ignorable(value[right - 1]):
+    while right > left and ignorable(value[right - 1]):
         right -= 1
     return value[left:right]
 
@@ -79,9 +81,9 @@ def from_sentence(sentence, provider, media_end_ms=None):
             stop = found + len(value)
             if (
                 found < 0
-                or not _ignorable(text[cursor:found])
-                or not _boundary(text, found)
-                or not _boundary(text, stop)
+                or not ignorable(text[cursor:found])
+                or not boundary(text, found)
+                or not boundary(text, stop)
                 or type(start) is not int
                 or type(end) is not int
                 or not previous_end <= start < end <= end_limit
@@ -96,7 +98,7 @@ def from_sentence(sentence, provider, media_end_ms=None):
                 }
             )
             cursor, previous_end = stop, end
-        if not tokens or not _ignorable(text[cursor:]):
+        if not tokens or not ignorable(text[cursor:]):
             return None, "invalid"
         alignment = {
             "version": 1,

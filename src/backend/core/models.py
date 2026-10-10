@@ -1238,6 +1238,10 @@ class CaptureSession(BaseModel):
         "CaptureTranscriptionJob", on_delete=models.RESTRICT,
         null=True, blank=True, related_name="published_captures",
     )
+    active_diarization = models.ForeignKey(
+        "CaptureDiarizationJob", on_delete=models.RESTRICT,
+        null=True, blank=True, related_name="published_captures",
+    )
     # Client-generated random lease; only its digest is persisted. Legacy rows
     # have no lease and cannot use the new public control protocol.
     lease_hash = models.CharField(max_length=64, blank=True)
@@ -1704,6 +1708,102 @@ class CaptureTranscriptionJob(BaseModel):
                 raise ValidationError("Transcription source and intent are immutable.")
 
 
+class CaptureDiarizationJob(BaseModel):
+    """A separate immutable attribution generation; never an ASR retry."""
+
+    capture = models.ForeignKey(
+        CaptureSession, on_delete=models.CASCADE, related_name="diarization_jobs"
+    )
+    requested_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    key = models.UUIDField()
+    request_hash = models.CharField(max_length=64)
+    generation = models.PositiveIntegerField()
+    source_transcription = models.ForeignKey(
+        CaptureTranscriptionJob, on_delete=models.RESTRICT
+    )
+    source_derivation = models.ForeignKey(
+        "self", on_delete=models.RESTRICT, null=True, blank=True
+    )
+    source_revision = models.PositiveIntegerField()
+    source_fingerprint = models.CharField(max_length=64)
+    inputs = models.JSONField()
+    configuration = models.JSONField()
+    status = models.CharField(max_length=16, default="queued")
+    worker_id = models.UUIDField(null=True, blank=True)
+    deadline = models.DateTimeField()
+    lease_until = models.DateTimeField(null=True, blank=True)
+    result_hash = models.CharField(max_length=64, blank=True)
+    publication_hash = models.CharField(max_length=64, blank=True)
+    published_count = models.PositiveIntegerField(default=0)
+    error_code = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["requested_by", "key"], name="unique_capture_diarize_intent"
+            ),
+            models.UniqueConstraint(
+                fields=["capture", "generation"], name="unique_capture_diarize_gen"
+            ),
+            models.UniqueConstraint(
+                fields=["capture"],
+                condition=models.Q(status__in=["queued", "running"]),
+                name="one_active_capture_diarize",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(generation__gte=1, source_revision__gte=1),
+                name="capture_diarize_positive",
+            ),
+        ]
+
+    def __str__(self):
+        return f"CaptureDiarizationJob({self.pk}, {self.status})"
+
+    def clean(self):
+        super().clean()
+        if self.source_transcription.capture_id != self.capture_id or (
+            self.source_derivation_id
+            and (
+                self.source_derivation.capture_id != self.capture_id
+                or self.source_derivation.source_transcription_id
+                != self.source_transcription_id
+                or self.source_derivation.status != "succeeded"
+                or self.source_derivation.generation >= self.generation
+            )
+        ):
+            raise ValidationError("Diarization source belongs to another capture.")
+        if not self._state.adding:
+            previous = type(self).objects.get(pk=self.pk)
+            frozen = (
+                "capture_id",
+                "requested_by_id",
+                "key",
+                "request_hash",
+                "generation",
+                "source_transcription_id",
+                "source_derivation_id",
+                "source_revision",
+                "source_fingerprint",
+                "inputs",
+                "configuration",
+                "deadline",
+            )
+            if any(getattr(previous, name) != getattr(self, name) for name in frozen):
+                raise ValidationError("Diarization source and intent are immutable.")
+            if previous.result_hash and any(
+                getattr(previous, name) != getattr(self, name)
+                for name in (
+                    "result_hash",
+                    "publication_hash",
+                    "published_count",
+                    "status",
+                )
+            ):
+                raise ValidationError("Diarization publication is immutable.")
+
+
 class CaptureTranscriptionInput(BaseModel):
     """Append-only verified audio identity offered to one live ASR attempt."""
 
@@ -2080,6 +2180,19 @@ class MeetingOriginalSegment(BaseModel):
         CaptureTranscriptionJob, on_delete=models.RESTRICT,
         null=True, blank=True, related_name="originals",
     )
+    diarization_job = models.ForeignKey(
+        CaptureDiarizationJob, on_delete=models.RESTRICT,
+        null=True, blank=True, related_name="originals",
+    )
+    parent_original = models.ForeignKey(
+        "self", on_delete=models.RESTRICT,
+        null=True, blank=True, related_name="diarization_children",
+    )
+    inherited_correction = models.ForeignKey(
+        "MeetingOriginalRevision", on_delete=models.RESTRICT,
+        null=True, blank=True, related_name="inheriting_originals",
+    )
+    derivation = models.JSONField(default=dict, blank=True)
 
     class Meta:
         constraints = [
@@ -2099,6 +2212,11 @@ class MeetingOriginalSegment(BaseModel):
                 | models.Q(end_ms__gte=models.F("start_ms")),
                 name="original_end_after_start",
             ),
+            models.CheckConstraint(
+                condition=models.Q(diarization_job__isnull=True, parent_original__isnull=True, inherited_correction__isnull=True, derivation={})
+                | models.Q(diarization_job__isnull=False, parent_original__isnull=False, transcription_job__isnull=False),
+                name="original_derivation_has_source",
+            ),
         ]
 
     def __str__(self):
@@ -2111,6 +2229,21 @@ class MeetingOriginalSegment(BaseModel):
             raise ValidationError("Original segments are immutable.")
         if self.transcription_job_id and self.transcription_job.capture_id != self.capture_session_id:
             raise ValidationError("Original must belong to its transcription capture.")
+        if self.diarization_job_id and (
+            not self.parent_original_id
+            or self.diarization_job.capture_id != self.capture_session_id
+            or self.diarization_job.source_transcription_id != self.transcription_job_id
+            or self.parent_original.capture_session_id != self.capture_session_id
+            or self.parent_original.record_id != self.record_id
+            or self.parent_original.transcription_job_id != self.transcription_job_id
+            or self.inherited_correction_id and (
+                self.inherited_correction.record_id != self.record_id
+                or self.inherited_correction.original_id != self.parent_original_id
+                and self.inherited_correction_id != self.parent_original.inherited_correction_id
+                or self.text != self.parent_original.text
+            )
+        ):
+            raise ValidationError("Derived original must retain its source lineage.")
         if (
             self.capture_session.record_id != self.record_id
             or self.speaker.record_id != self.record_id

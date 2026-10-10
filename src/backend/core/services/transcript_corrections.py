@@ -43,6 +43,7 @@ def corrected_text_subquery():
     )
     return Coalesce(
         Subquery(latest, output_field=django_models.TextField()),
+        F("inherited_correction__text"),
         F("text"),
         output_field=django_models.TextField(),
     )
@@ -51,7 +52,13 @@ def corrected_text_subquery():
 def corrected_text(segment):
     """The reader's text for one segment: the newest revision, else the original."""
     revision = segment.revisions.order_by("-revision").first()
-    return revision.text if revision else segment.text
+    return (
+        revision.text
+        if revision
+        else segment.inherited_correction.text
+        if segment.inherited_correction_id
+        else segment.text
+    )
 
 
 def attributed_name_subquery():
@@ -131,8 +138,13 @@ def _append(record, original_id, user, text, expected_revision):
         raise LookupError("No such segment on this record.")
 
     previous = original.revisions.order_by("-revision").first()
-    actual = previous.revision if previous else 0
-    current = previous.text if previous else original.text
+    inherited = (
+        original.inherited_correction if original.inherited_correction_id else None
+    )
+    actual = previous.revision if previous else inherited.revision if inherited else 0
+    current = (
+        previous.text if previous else inherited.text if inherited else original.text
+    )
     cleaned = original.text if text is None else text
     original.correction_revision = actual
     original.record_revision = locked.revision
@@ -148,7 +160,7 @@ def _append(record, original_id, user, text, expected_revision):
     revision = models.MeetingOriginalRevision.objects.create(
         record_id=locked.pk,
         original=original,
-        revision=(previous.revision if previous else 0) + 1,
+        revision=actual + 1,
         text=cleaned,
         edited_by=user,
     )

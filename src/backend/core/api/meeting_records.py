@@ -33,7 +33,7 @@ from core.services import (
 )
 from core.services.asr_observations import observation_status, snapshot_asr_status
 from core.services.capture_transcription import current_originals
-from core.services.effective_transcripts import project
+from core.services.effective_transcripts import current_generation, project
 from core.services.meeting_records import (
     RecordConflict,
     can_edit_transcript,
@@ -1100,8 +1100,29 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             if not job:
                 raise Http404
             rows = record.original_segments.filter(
-                transcription_job=job
+                transcription_job=job, diarization_job__isnull=True
             ).select_related("speaker", "capture_session")
+        diarization_id = request.query_params.get("diarization_job_id")
+        if diarization_id:
+            derived = models.CaptureDiarizationJob.objects.filter(
+                pk=serializers.UUIDField().run_validation(diarization_id),
+                capture__record=record,
+                status="succeeded",
+            ).first()
+            if (
+                not derived
+                or job_id
+                and str(derived.source_transcription_id) != str(job.pk)
+            ):
+                raise Http404
+            rows = derived.originals.select_related("speaker", "capture_session")
+        rows = rows.annotate(
+            is_current=Exists(
+                current_generation(
+                    models.MeetingOriginalSegment.objects.filter(pk=OuterRef("pk"))
+                )
+            )
+        )
         rows = self._filter_speaker(rows, identity_field="speaker_id")
         rows, expected = self._filter_original_text(
             record, project(rows), text_field="corrected_text"
@@ -1132,12 +1153,14 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "id": str(row.pk),
                     "revision": row.revision,
                     "correction_revision": row.correction_revision,
-                    "can_correct": can_correct
-                    and (
-                        row.transcription_job_id is None
-                        or row.transcription_job_id
-                        == row.capture_session.active_transcription_id
-                    ),
+                    "can_correct": can_correct and row.is_current,
+                    "diarization_job_id": str(row.diarization_job_id)
+                    if row.diarization_job_id
+                    else None,
+                    "parent_original_id": str(row.parent_original_id)
+                    if row.parent_original_id
+                    else None,
+                    "speaker_mapping": row.derivation or None,
                     "capture_session_id": str(row.capture_session_id),
                     "source_track_id": row.source_track_id,
                     "source_sequence": row.source_sequence,
@@ -1153,7 +1176,8 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     # and an edit never looks like it was always there.
                     "original_text": row.text,
                     "playback_alignment": (
-                        playback_alignment(row) if settings.MEETING_WORD_ALIGNMENT_READ_ENABLED
+                        playback_alignment(row)
+                        if settings.MEETING_WORD_ALIGNMENT_READ_ENABLED
                         else {"status": "missing"}
                     ),
                     "is_corrected": row.corrected_text != row.text,

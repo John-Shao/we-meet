@@ -11,6 +11,8 @@
 
 导入预检已补齐本地单声道准备及后端接入，包含实际两小时合成媒体边界、上传任务门禁、明确继续决定、转写／查询共同固定版本回执与持久清理；见[媒体准备记录](../research/voiceprint-import-media-preparation-2026-10-10.md)和[后端接入走查](../research/voiceprint-import-preflight-review-2026-10-10.md)。Web 与 Android 导入前显式选择、失败决定界面和转写后的持久身份请求调度已接通，见[Web 与调度走查](../research/voiceprint-import-web-dispatch-review-2026-10-10.md)及[Android 导入走查](../research/voiceprint-import-android-review-2026-10-10.md)；通话采样、AI 录音分人及部署验收仍待完成，尚未完整交付或上线。
 
+AI 录音后续阶段已完成独立派生版本、原文时间对齐、原子发布和人工修订继承的后端基础，走查修复行锁／账号竞争、来源预算、发布完整性及删除边界；见[派生版本走查](../research/voiceprint-capture-diarization-review-2026-10-10.md)。实际媒体准备、收费分人 worker、两端操作及录音身份匹配仍待接入，不代表 AI 录音分人功能已完整交付。
+
 调研状态：[实施前代码与资料调研](../research/voiceprint-preimplementation-2026-10-09.md)已完成；用户确认暂无获授权真人样本，模型效果、实际音轨采样和生产容量仍待验证，P0 尚未整体通过。
 
 代码走查补齐 `0207` 上下文迁移，修复人工标记与 worker 的锁顺序、停用账号复核、人工编辑后旧建议失效及任务预算；多建议稳定上下文只放行展示 revision 变化，其余来源／授权／目标状态保持绑定。具体问题与证据见[代码走查修复](../research/voiceprint-identity-review-fixes-2026-10-10.md)。确认／拒绝 API、Web 与 Android 导入识别客户端已在后续阶段接通，其他来源及生产验收继续开发。

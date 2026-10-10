@@ -4,8 +4,9 @@ from django.conf import settings
 from django.utils import timezone
 
 from core import models
+from core.services.capture_diarization_projection import validate_publication
 from core.services.capture_live_inputs import inputs, is_live
-from core.services.effective_transcripts import project
+from core.services.effective_transcripts import current_generation, project
 from core.services.meeting_captures import digest
 from core.services.meeting_records import RecordConflict, can_generate_summary
 
@@ -65,11 +66,12 @@ def source(record, *, allow_live=False, purpose="summary"):
     offset = int((capture.started_at - record.origin_at).total_seconds() * 1000)
     if offset < 0:
         raise RecordConflict("Source origin changed.")
-    rows = list(project(job.originals.all()).order_by("source_sequence"))
-    if len(rows) != job.final_sequence:
+    base = list(
+        job.originals.filter(diarization_job__isnull=True).order_by("source_sequence")
+    )
+    if len(base) != job.final_sequence:
         raise RecordConflict("Published originals are missing.")
-    segments = []
-    for sequence, row in enumerate(rows, 1):
+    for sequence, row in enumerate(base, 1):
         payload = {
             "ingest_id": str(row.ingest_id),
             "sequence": sequence,
@@ -80,6 +82,23 @@ def source(record, *, allow_live=False, purpose="summary"):
         }
         if row.source_sequence != sequence or row.payload_hash != digest(payload):
             raise RecordConflict("Published original content changed.")
+    effective = (
+        current_generation(job.originals.all())
+        if published
+        else job.originals.filter(diarization_job__isnull=True)
+    )
+    rows = list(project(effective).order_by("source_sequence"))
+    derived = capture.active_diarization
+    if (
+        published
+        and derived
+        and derived.status == "succeeded"
+        and derived.source_transcription_id == job.pk
+    ):
+        # An empty result can mean all published rows disappeared, not silence.
+        validate_publication(derived, rows)
+    segments = []
+    for row in rows:
         segments.append(
             {
                 "segment_id": str(row.pk),

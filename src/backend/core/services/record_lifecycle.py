@@ -29,6 +29,11 @@ def busy(record):
         or models.CaptureTranscriptionJob.objects.filter(
             capture__record=record, status__in=["queued", "running"]
         ).exists()
+        or models.CaptureDiarizationJob.objects.filter(
+            capture__record=record,
+            status__in=["queued", "running"],
+            deadline__gt=timezone.now(),
+        ).exists()
         or models.CaptureTranslationRun.objects.filter(capture__record=record)
         .exclude(status__in=["stopped", "incomplete"])
         .exists()

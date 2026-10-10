@@ -1195,6 +1195,7 @@ class Base(Configuration):
     MEETING_CAPTURE_TRANSLATION_REGION = values.Value("cn-beijing", environ_prefix=None)
     MEETING_CAPTURE_TEXT_ONLY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_CAPTURE_DIARIZATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_LIVE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_SUMMARY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_STAGED_SUMMARY_ENABLED = values.BooleanValue(

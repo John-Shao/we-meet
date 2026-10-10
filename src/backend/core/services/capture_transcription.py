@@ -290,7 +290,9 @@ def preview(capture_id, job_id, user, after):
         raise CaptureDenied
     _expire(job)
     rows = list(
-        job.originals.filter(source_sequence__gt=after).order_by("source_sequence")[:51]
+        job.originals.filter(
+            diarization_job__isnull=True, source_sequence__gt=after
+        ).order_by("source_sequence")[:51]
     )
     result = [
         {
