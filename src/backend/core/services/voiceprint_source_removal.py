@@ -29,7 +29,7 @@ def is_baseline(template):
 
 def track_digest(identifier):
     return hashlib.sha256(
-        b"we-meet-track-removal-v1\x00" + identifier.encode("ascii")
+        b"we-meet-track-removal-v1\x00" + identifier.encode("utf-8")
     ).hexdigest()
 
 
@@ -314,8 +314,6 @@ def purge(identifier):
     )
     if job is None:
         return "busy"
-    if job.status != "queued":
-        return job.status
     sample = (
         models.VoiceprintSample.objects.select_for_update(skip_locked=True)
         .filter(pk=job.sample_uuid)
@@ -330,6 +328,13 @@ def purge(identifier):
         sample.profile_id != job.profile_uuid or sample.generation != job.generation
     ):
         raise ValueError("source_cleanup_scope_changed")
+    if job.status != "queued":
+        if sample is None:
+            return job.status
+        # A restored sample must be erased again even when the trusted cleanup
+        # receipt already says purged/complete. Keep the original scope proof.
+        job.status = "queued"
+        job.completed_at = None
     if profile:
         affected, baseline_lost = affected_templates(job, profile)
         affected.update(
@@ -365,7 +370,14 @@ def purge(identifier):
     job.attempts += 1
     job.error_code = ""
     job.save(
-        update_fields=["status", "purged_at", "attempts", "error_code", "updated_at"]
+        update_fields=[
+            "status",
+            "purged_at",
+            "completed_at",
+            "attempts",
+            "error_code",
+            "updated_at",
+        ]
     )
     return job.status
 
@@ -436,6 +448,25 @@ def tick(limit=20):
 
 def reconcile(limit=20):
     """Recover bulk-save bypasses and origins lost before signals were installed."""
+    restored = list(
+        models.VoiceprintContributionRemoval.objects.exclude(status="queued")
+        .annotate(
+            sample_exists=Exists(
+                models.VoiceprintSample.objects.filter(pk=OuterRef("sample_uuid"))
+            )
+        )
+        .filter(sample_exists=True)
+        .order_by("id")
+        .values_list("pk", flat=True)[:limit]
+    )
+    models.VoiceprintContributionRemoval.objects.filter(pk__in=restored).exclude(
+        status="queued"
+    ).update(
+        status="queued",
+        completed_at=None,
+        next_attempt_at=timezone.now(),
+        updated_at=timezone.now(),
+    )
     removed_records = models.VoiceprintSourceRemoval.objects.filter(
         kind="record"
     ).values("source_uuid")

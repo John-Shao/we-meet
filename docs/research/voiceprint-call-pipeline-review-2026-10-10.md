@@ -38,4 +38,4 @@
 
 后端 `MEETING_VOICEPRINT_SAMPLING_ENABLED` 默认 `False`，`MEETING_VOICEPRINT_SAMPLING_AGENT_NAME` 和独立 token 默认空。agent 需同名配置、同一独立凭证、LiveKit 连接配置及内部后端地址；只有 `MEETING_VOICEPRINT_SAMPLING_ENABLED=true` 才接受派发。入口及开发环境说明见 [agents README](../../src/agents/README.md#声纹采样入口)。这些配置没有在生产启用。
 
-设备组模板、贡献失效重建及跨会话条件的后续证据见[设备组模板走查](voiceprint-device-templates-review-2026-10-10.md)；来源删除后的数据库物理清理、持久意图与周期恢复见[来源删除走查](voiceprint-source-removal-review-2026-10-10.md)。仍需 Web／Android 通话声明和可见采样状态；派发与采样状态的持久恢复、许可／无引用轨道周期回收；Helm／镜像／独立服务、监控及容量验证。实际 LiveKit 房间的合成参与者联调也未完成，原生本地音轨测试不能替代完整 RTC 链路。完整产品路由、历史版本／搜索、真实设备、获授权真人效果和生产验收继续推进，完整目标保持不变。
+设备组模板、贡献失效重建及跨会话条件的后续证据见[设备组模板走查](voiceprint-device-templates-review-2026-10-10.md)；来源删除后的数据库物理清理、持久意图与周期恢复见[来源删除走查](voiceprint-source-removal-review-2026-10-10.md)，许可／无引用轨道周期回收见[维护走查](voiceprint-maintenance-review-2026-10-10.md)。仍需 Web／Android 通话声明和可见采样状态；派发与采样状态的持久恢复；Helm／镜像／独立服务、监控及容量验证。实际 LiveKit 房间的合成参与者联调也未完成，原生本地音轨测试不能替代完整 RTC 链路。完整产品路由、历史版本／搜索、真实设备、获授权真人效果和生产验收继续推进，完整目标保持不变。
