@@ -20,12 +20,33 @@ export type Scope = {
   policy: Policy
 }
 export type Policy = { enabled: boolean; version: number }
+export const displayStates = [
+  'not_enabled',
+  'collecting',
+  'awaiting_confirmation',
+  'established',
+  'needs_update',
+  'paused',
+  'deleting',
+  'deleted',
+] as const
+export type DisplayState = (typeof displayStates)[number]
+export const updateReasons = [
+  'expired',
+  'model_changed',
+  'contributions_changed',
+  'storage_unavailable',
+] as const
+export type UpdateReason = (typeof updateReasons)[number]
 export type Profile = {
   id: string
   status: 'pending' | 'active' | 'paused' | 'deleted'
   generation: number
   confirmed_at: string | null
   last_updated_at: string | null
+  display_state?: DisplayState
+  update_reasons?: UpdateReason[]
+  effective_device_groups?: string[]
 }
 export type Settings = Record<Permission, boolean> & {
   organization_id: string | null
@@ -33,6 +54,7 @@ export type Settings = Record<Permission, boolean> & {
   version: number
   generation: number
   profiles: Profile[]
+  display_state?: DisplayState
 }
 export type Page<T> = { results: T[]; next_offset: number | null }
 export type Enrollment = {
@@ -166,6 +188,12 @@ export class VoiceprintClient {
       !integer(value.generation) ||
       permissions.some((key) => typeof value[key] !== 'boolean') ||
       !Array.isArray(value.profiles) ||
+      (value.display_state !== undefined &&
+        !displayStates.includes(value.display_state)) ||
+      (value.display_state === 'established' &&
+        !value.profiles.some(
+          (profile) => profile.display_state === 'established'
+        )) ||
       value.profiles.some(
         (p) =>
           !p ||
@@ -173,7 +201,33 @@ export class VoiceprintClient {
           !integer(p.generation) ||
           !optionalDate(p.confirmed_at) ||
           !optionalDate(p.last_updated_at) ||
-          !['pending', 'active', 'paused', 'deleted'].includes(p.status)
+          !['pending', 'active', 'paused', 'deleted'].includes(p.status) ||
+          (p.display_state !== undefined &&
+            (!displayStates.includes(p.display_state) ||
+              !Array.isArray(p.update_reasons) ||
+              p.update_reasons.some(
+                (reason) => !updateReasons.includes(reason)
+              ) ||
+              new Set(p.update_reasons).size !== p.update_reasons.length ||
+              !Array.isArray(p.effective_device_groups) ||
+              p.effective_device_groups.length > 5 ||
+              new Set(p.effective_device_groups).size !==
+                p.effective_device_groups.length ||
+              p.effective_device_groups.some((group) => group !== 'default') ||
+              (p.display_state === 'needs_update'
+                ? p.update_reasons.length === 0
+                : p.update_reasons.length !== 0) ||
+              (p.display_state === 'established'
+                ? p.effective_device_groups.length === 0 ||
+                  p.status !== 'active' ||
+                  p.generation !== value.generation ||
+                  !p.confirmed_at ||
+                  !p.last_updated_at ||
+                  !value.available
+                : p.effective_device_groups.length !== 0))) ||
+          (p.display_state === undefined &&
+            (p.update_reasons !== undefined ||
+              p.effective_device_groups !== undefined))
       )
     )
       throw invalid()

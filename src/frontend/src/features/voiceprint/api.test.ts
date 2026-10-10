@@ -28,6 +28,56 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+it('accepts verified display states and rejects fake active groups or unknown projection fields', async () => {
+  const value = settings({ display_state: 'established' })
+  value.profiles[0] = {
+    ...value.profiles[0],
+    status: 'active',
+    confirmed_at: new Date().toISOString(),
+    last_updated_at: new Date().toISOString(),
+    display_state: 'established',
+    effective_device_groups: ['default'],
+  }
+  mocks.fetch.mockResolvedValue(value)
+  expect(
+    (await new VoiceprintClient(null, OWNER).settings()).profiles[0]
+      .effective_device_groups
+  ).toEqual(['default'])
+  for (const patch of [
+    {
+      display_state: 'needs_update',
+      update_reasons: ['expired'],
+      effective_device_groups: ['default'],
+    },
+    { display_state: 'needs_update', update_reasons: [] },
+    { effective_device_groups: ['default', 'default'] },
+    { effective_device_groups: ['raw private device ID'] },
+    { update_reasons: ['internal_secret'] },
+    { display_state: 'fake' },
+  ]) {
+    mocks.fetch.mockResolvedValue({
+      ...value,
+      profiles: [{ ...value.profiles[0], ...patch }],
+    })
+    await expect(new VoiceprintClient(null, OWNER).settings()).rejects.toThrow(
+      'voiceprint_response_invalid'
+    )
+  }
+})
+
+it('accepts legacy metadata without treating it as verified established state', async () => {
+  const value = settings()
+  delete value.display_state
+  delete value.profiles[0].display_state
+  delete value.profiles[0].effective_device_groups
+  delete value.profiles[0].update_reasons
+  mocks.fetch.mockResolvedValue(value)
+  expect(
+    (await new VoiceprintClient(null, OWNER).settings()).profiles[0]
+      .display_state
+  ).toBeUndefined()
+})
+
 it('binds each request to the displayed account and scope without caching', async () => {
   mocks.fetch.mockResolvedValue(settings({ organization_id: ORG }))
   await new VoiceprintClient(ORG, OWNER).settings()

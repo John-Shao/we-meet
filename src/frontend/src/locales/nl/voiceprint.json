@@ -47,6 +47,27 @@
   "upload": "Mijn fragment uploaden",
   "discard": "Lokale opname weggooien",
   "profiles": "Stemprofiel",
+  "scopeState": "Huidige status: {{state}}",
+  "displayState": {
+    "not_enabled": "Niet gestart",
+    "collecting": "Fragmenten verzamelen",
+    "awaiting_confirmation": "Wacht op jouw bevestiging",
+    "established": "Opgebouwd",
+    "needs_update": "Bijwerken nodig",
+    "paused": "Gepauzeerd",
+    "deleting": "Wordt verwijderd",
+    "deleted": "Verwijderd"
+  },
+  "updateReason": {
+    "expired": "Het stemprofiel is ouder dan een jaar. Registreer nieuwe fragmenten.",
+    "model_changed": "Het stemmodel is gewijzigd. Registreer opnieuw.",
+    "contributions_changed": "De oorspronkelijke fragmenten of sjabloon zijn niet meer geldig. Registreer nieuwe fragmenten.",
+    "storage_unavailable": "Het privé-stemprofiel kan niet worden gelezen. Neem contact op met je beheerder."
+  },
+  "effectiveGroups": "Geldige apparaatgroepen: {{groups}}",
+  "defaultGroup": "Registratiebasis",
+  "noEffectiveGroups": "Geen",
+  "statusUnavailable": "Deze server biedt geen gecontroleerde stemprofielstatus. Werk bij en laad opnieuw.",
   "noProfile": "Geen stemprofiel geregistreerd in dit bereik.",
   "never": "Nog niet",
   "profileStatus": {

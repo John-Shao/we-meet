@@ -47,6 +47,27 @@
   "upload": "上传本人片段",
   "discard": "丢弃本地录音",
   "profiles": "声纹档案",
+  "scopeState": "当前状态：{{state}}",
+  "displayState": {
+    "not_enabled": "未开启",
+    "collecting": "采样中",
+    "awaiting_confirmation": "待本人确认",
+    "established": "已建立",
+    "needs_update": "需要更新",
+    "paused": "已暂停",
+    "deleting": "删除中",
+    "deleted": "已删除"
+  },
+  "updateReason": {
+    "expired": "声纹已超过一年未更新，请重新登记新片段。",
+    "model_changed": "声纹模型已变更，请重新登记。",
+    "contributions_changed": "原始片段或模板已失效，请重新登记新片段。",
+    "storage_unavailable": "无法读取私有声纹，请联系管理员。"
+  },
+  "effectiveGroups": "有效设备组：{{groups}}",
+  "defaultGroup": "登记基线",
+  "noEffectiveGroups": "无",
+  "statusUnavailable": "此服务未提供有效性状态，请更新后重新加载。",
   "noProfile": "此作用域尚未登记声纹。",
   "never": "尚无",
   "profileStatus": {

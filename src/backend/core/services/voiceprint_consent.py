@@ -90,6 +90,10 @@ def scope(user, organization_id, *, lock=False):
 
 
 def snapshot(consent, *, user, organization):
+    from core.services.voiceprint_status import (  # noqa: PLC0415 -- Status projection imports the consent guards.
+        project_settings,
+    )
+
     result = {
         "organization_id": str(organization.pk) if organization else None,
         "available": available(user, organization),
@@ -98,6 +102,7 @@ def snapshot(consent, *, user, organization):
         **{name: getattr(consent, name) if consent else False for name in PERMISSIONS},
         "profiles": [],
     }
+    profiles = list(consent.profiles.order_by("created_at", "id")) if consent else []
     if consent:
         result["profiles"] = [
             {
@@ -111,8 +116,11 @@ def snapshot(consent, *, user, organization):
                 if row.last_updated_at
                 else None,
             }
-            for row in consent.profiles.order_by("created_at", "id")
+            for row in profiles
         ]
+    project_settings(
+        result, consent=consent, profiles=profiles, user=user, organization=organization
+    )
     return result
 
 
@@ -237,7 +245,7 @@ def template_ready(template, *, profile):
     )
 
 
-def profile_ready(profile):
+def ready_device_groups(profile):
     # Matching cannot rely on status/booleans alone: validate the authenticated
     # artifact against the current confirmed contributions and policy.
     from core.services.voiceprint_templates import (  # noqa: PLC0415 -- Templates depend on consent guards.
@@ -245,21 +253,27 @@ def profile_ready(profile):
     )
 
     if profile.feature_space != FEATURE_SPACE:
-        return False
+        return []
     templates = list(
         profile.templates.filter(generation=profile.generation, status="active")[
             : MAX_ACTIVE_TEMPLATES + 1
         ]
     )
     if len(templates) > MAX_ACTIVE_TEMPLATES:
-        return False
-    return bool(templates) and all(
+        return []
+    if not templates or not all(
         template.dimension == DIMENSION
         and bool(template.encrypted_vector)
         and template_ready(template, profile=profile)
         and valid_baseline(template, profile)
         for template in templates
-    )
+    ):
+        return []
+    return sorted(template.device_group for template in templates)
+
+
+def profile_ready(profile):
+    return bool(ready_device_groups(profile))
 
 
 def authorize_profile(

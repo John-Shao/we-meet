@@ -47,6 +47,27 @@
   "upload": "Upload my clip",
   "discard": "Discard local recording",
   "profiles": "Voiceprint profile",
+  "scopeState": "Current status: {{state}}",
+  "displayState": {
+    "not_enabled": "Not started",
+    "collecting": "Collecting samples",
+    "awaiting_confirmation": "Awaiting your confirmation",
+    "established": "Established",
+    "needs_update": "Update needed",
+    "paused": "Paused",
+    "deleting": "Deleting",
+    "deleted": "Deleted"
+  },
+  "updateReason": {
+    "expired": "The voiceprint is over a year old. Register fresh samples.",
+    "model_changed": "The voice model has changed. Register again.",
+    "contributions_changed": "The original samples or template are no longer valid. Register fresh samples.",
+    "storage_unavailable": "The private voiceprint cannot be read. Contact your administrator."
+  },
+  "effectiveGroups": "Effective device groups: {{groups}}",
+  "defaultGroup": "Registration baseline",
+  "noEffectiveGroups": "None",
+  "statusUnavailable": "This server does not provide verified voiceprint status. Update it and reload.",
   "noProfile": "No voiceprint registered in this scope.",
   "never": "Not yet",
   "profileStatus": {

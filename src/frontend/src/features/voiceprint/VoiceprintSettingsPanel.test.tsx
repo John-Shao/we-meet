@@ -207,3 +207,21 @@ it('does not request private settings or scope metadata for a signed-out viewer'
   expect(screen.getByText('请登录后管理本人的声纹。')).toBeInTheDocument()
   expect(mocks.fetch).not.toHaveBeenCalled()
 })
+
+it('shows server verified device groups and update reasons instead of raw active status', async () => {
+  current = settings({ display_state: 'needs_update' })
+  current.profiles[0] = {
+    ...current.profiles[0],
+    status: 'active',
+    display_state: 'needs_update',
+    update_reasons: ['expired'],
+    effective_device_groups: [],
+  }
+  show()
+  expect(await screen.findByText('当前状态：需要更新')).toBeInTheDocument()
+  expect(
+    screen.getByText('声纹已超过一年未更新，请重新登记新片段。')
+  ).toBeInTheDocument()
+  expect(screen.getByText('有效设备组：无')).toBeInTheDocument()
+  expect(screen.queryByText('已建立')).not.toBeInTheDocument()
+})

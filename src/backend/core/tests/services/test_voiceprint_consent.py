@@ -218,6 +218,7 @@ def test_default_read_is_private_noncreating_and_independent_of_asr(settings):
         "generation": 0,
         **dict.fromkeys(service.PERMISSIONS, False),
         "profiles": [],
+        "display_state": "not_enabled",
     }
     assert not models.VoiceprintConsent.objects.exists()
     assert change(user, allow_enrollment=False).data == response.data

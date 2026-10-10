@@ -47,6 +47,27 @@
   "upload": "Meinen Ausschnitt hochladen",
   "discard": "Lokale Aufnahme verwerfen",
   "profiles": "Stimmprofil",
+  "scopeState": "Aktueller Status: {{state}}",
+  "displayState": {
+    "not_enabled": "Nicht begonnen",
+    "collecting": "Proben werden gesammelt",
+    "awaiting_confirmation": "Bestätigung ausstehend",
+    "established": "Erstellt",
+    "needs_update": "Aktualisierung erforderlich",
+    "paused": "Pausiert",
+    "deleting": "Wird gelöscht",
+    "deleted": "Gelöscht"
+  },
+  "updateReason": {
+    "expired": "Das Stimmprofil ist über ein Jahr alt. Registrieren Sie neue Proben.",
+    "model_changed": "Das Stimmmodell hat sich geändert. Registrieren Sie sich erneut.",
+    "contributions_changed": "Die ursprünglichen Proben oder die Vorlage sind ungültig. Registrieren Sie neue Proben.",
+    "storage_unavailable": "Das private Stimmprofil ist nicht lesbar. Kontaktieren Sie Ihren Administrator."
+  },
+  "effectiveGroups": "Gültige Gerätegruppen: {{groups}}",
+  "defaultGroup": "Registrierungsbasis",
+  "noEffectiveGroups": "Keine",
+  "statusUnavailable": "Dieser Server liefert keinen geprüften Stimmprofilstatus. Aktualisieren und neu laden.",
   "noProfile": "In diesem Bereich ist kein Stimmprofil registriert.",
   "never": "Noch nicht",
   "profileStatus": {

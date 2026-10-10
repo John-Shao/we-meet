@@ -47,6 +47,27 @@
   "upload": "Envoyer mon extrait",
   "discard": "Jeter l'enregistrement local",
   "profiles": "Profil vocal",
+  "scopeState": "État actuel : {{state}}",
+  "displayState": {
+    "not_enabled": "Non commencé",
+    "collecting": "Collecte en cours",
+    "awaiting_confirmation": "En attente de votre confirmation",
+    "established": "Établi",
+    "needs_update": "Mise à jour nécessaire",
+    "paused": "En pause",
+    "deleting": "Suppression en cours",
+    "deleted": "Supprimé"
+  },
+  "updateReason": {
+    "expired": "L’empreinte vocale a plus d’un an. Enregistrez de nouveaux extraits.",
+    "model_changed": "Le modèle vocal a changé. Inscrivez-vous à nouveau.",
+    "contributions_changed": "Les extraits ou le modèle ne sont plus valides. Enregistrez de nouveaux extraits.",
+    "storage_unavailable": "L’empreinte vocale privée est illisible. Contactez votre administrateur."
+  },
+  "effectiveGroups": "Groupes d’appareils valides : {{groups}}",
+  "defaultGroup": "Référence d’inscription",
+  "noEffectiveGroups": "Aucun",
+  "statusUnavailable": "Ce serveur ne fournit pas d’état vocal vérifié. Mettez-le à jour puis rechargez.",
   "noProfile": "Aucune empreinte dans ce périmètre.",
   "never": "Pas encore",
   "profileStatus": {

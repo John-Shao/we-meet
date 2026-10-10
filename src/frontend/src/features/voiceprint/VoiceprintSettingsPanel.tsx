@@ -390,11 +390,32 @@ function ScopeView({
           </section>
           <section className={cardCss}>
             <h4>{t('profiles')}</h4>
+            <p>
+              {state.settings.display_state
+                ? t('scopeState', {
+                    state: t(`displayState.${state.settings.display_state}`),
+                  })
+                : t('statusUnavailable')}
+            </p>
             {!state.settings.profiles.length && <p>{t('noProfile')}</p>}
             {state.settings.profiles.map((profile) => (
-              <div key={profile.id} className={rowCss}>
+              <div key={profile.id} className={`${rowCss} ${profileLayoutCss}`}>
                 <div>
-                  <p>{t(`profileStatus.${profile.status}`)}</p>
+                  <p>
+                    {t(
+                      `displayState.${profile.display_state || (profile.status === 'active' ? 'needs_update' : profile.status === 'paused' ? 'paused' : profile.status === 'deleted' ? 'deleted' : 'not_enabled')}`
+                    )}
+                  </p>
+                  {profile.update_reasons?.map((reason) => (
+                    <p key={reason}>{t(`updateReason.${reason}`)}</p>
+                  ))}
+                  <p>
+                    {t('effectiveGroups', {
+                      groups: profile.effective_device_groups?.length
+                        ? t('defaultGroup')
+                        : t('noEffectiveGroups'),
+                    })}
+                  </p>
                   <p>
                     {t('lastConfirmed', {
                       time: formatDate(profile.confirmed_at),
@@ -625,6 +646,12 @@ const cardCss = css({
   border: '1px solid token(colors.border.default)',
   borderRadius: 'panel',
   minWidth: 0,
+})
+const profileLayoutCss = css({
+  flexWrap: 'wrap',
+  alignItems: 'flex-start',
+  '& > div': { flex: '1 1 14rem', minWidth: 0 },
+  '& > button': { flexShrink: 0, whiteSpace: 'nowrap' },
 })
 const actionsCss = css({
   display: 'flex',

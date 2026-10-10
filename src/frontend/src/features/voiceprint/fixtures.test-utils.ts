@@ -22,8 +22,12 @@ export const settings = (patch: Partial<Settings> = {}): Settings => ({
       generation: 1,
       confirmed_at: null,
       last_updated_at: null,
+      display_state: 'not_enabled',
+      update_reasons: [],
+      effective_device_groups: [],
     },
   ],
+  display_state: 'not_enabled',
   ...patch,
 })
 export const enrollment = (patch: Partial<Enrollment> = {}): Enrollment => ({
