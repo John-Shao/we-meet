@@ -23,6 +23,7 @@ type Review = {
   revision: number
   base_summary_id: string
   input_snapshot_id: string
+  identity_updated?: boolean
   content: Content
 }
 type Draft = {
@@ -153,6 +154,9 @@ export const HumanSummaryPanel = ({
         {current ? ` · ${current.revision}` : ''}
       </H>
       <Text variant="note">{t('humanReview.explanation')}</Text>
+      {current?.identity_updated && (
+        <Text variant="note">{t('recordAi.identityUpdated')}</Text>
+      )}
       {!draft && query.data.can_edit && (
         <>
           {current && (

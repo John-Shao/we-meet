@@ -8,6 +8,7 @@ import {
   sameAuthSession,
 } from '@/features/auth/utils/tokenStorage'
 import type { ApiMeetingRecord } from '@/features/meetings/api/ApiMeetingRecord'
+import { refreshHumanSummaryIdentity } from '@/features/meetings/api/refreshHumanSummaryIdentity'
 import { Button } from '@/primitives'
 import { css } from '@/styled-system/css'
 import {
@@ -283,6 +284,7 @@ function IdentificationBody({
   const refreshWorkspace = async () => {
     if (!sameAuthSession(client.auth)) return
     await Promise.all([
+      refreshHumanSummaryIdentity(cache, viewerId, record.id),
       cache.invalidateQueries({ queryKey: ['meeting-records', viewerId] }),
       cache.invalidateQueries({
         queryKey: ['record-library-content', viewerId],

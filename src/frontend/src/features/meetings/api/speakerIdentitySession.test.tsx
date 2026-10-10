@@ -31,6 +31,20 @@ const decision = {
   },
 }
 const key = ['record-library-content', 'viewer', 3, 'originals']
+const humanKeys = [
+  ['human-summary', 'viewer', 'record'],
+  [
+    'human-summary-history',
+    'viewer',
+    'meeting-records/record/human-summary/history/',
+  ],
+  [
+    'human-summary-history-detail',
+    'viewer',
+    'meeting-records/record/human-summary/history/',
+    'old',
+  ],
+]
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -40,6 +54,10 @@ beforeEach(() => {
   })
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   client.setQueryData(key, { results: [] })
+  humanKeys.forEach((key) => client.setQueryData(key, { frozen: true }))
+  client.setQueryData(['human-summary', 'other-viewer', 'record'], {
+    frozen: true,
+  })
 })
 afterEach(() => client.clear())
 
@@ -58,6 +76,9 @@ it('refuses a decision opened in a previous login before sending it', async () =
   })
   expect(mocks.fetchApi).not.toHaveBeenCalled()
   expect(client.getQueryState(key)?.isInvalidated).toBe(false)
+  expect(
+    humanKeys.every((key) => !client.getQueryState(key)?.isInvalidated)
+  ).toBe(true)
 })
 
 it('rejects a late write response and avoids refreshing the previous viewer', async () => {
@@ -86,6 +107,9 @@ it('rejects a late write response and avoids refreshing the previous viewer', as
     await rejected
   })
   expect(client.getQueryState(key)?.isInvalidated).toBe(false)
+  expect(
+    humanKeys.every((key) => !client.getQueryState(key)?.isInvalidated)
+  ).toBe(true)
 })
 
 it('discards late directory data after the login changes', async () => {
@@ -144,4 +168,11 @@ it('keeps same-session token refresh and ordinary workspace invalidation working
   })
   expect(mocks.fetchApi).toHaveBeenCalledOnce()
   expect(client.getQueryState(key)?.isInvalidated).toBe(true)
+  expect(
+    humanKeys.every((key) => client.getQueryState(key)?.isInvalidated)
+  ).toBe(true)
+  expect(
+    client.getQueryState(['human-summary', 'other-viewer', 'record'])
+      ?.isInvalidated
+  ).toBe(false)
 })

@@ -13,6 +13,7 @@ import {
   sameAuthSession,
 } from '@/features/auth/utils/tokenStorage'
 import { summaryReceipt } from './summaryReceipts'
+import { refreshHumanSummaryIdentity } from './refreshHumanSummaryIdentity'
 import { useRecordInfiniteQuery } from '../hooks/useRecordInfiniteQuery'
 
 import type {
@@ -552,6 +553,7 @@ export const useSpeakerIdentityDecision = (
     // cache. The account transition owns replacing/removing those views.
     if (!sameAuthSession(session.auth)) return
     await Promise.all([
+      refreshHumanSummaryIdentity(client, viewerId, recordId),
       client.invalidateQueries({ queryKey: ['meeting-records', viewerId] }),
       client.invalidateQueries({
         queryKey: ['record-library-content', viewerId],

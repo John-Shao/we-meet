@@ -153,6 +153,7 @@ function HumanSummaryRevisionContent({
         Header & {
           content: ApiRecordSummaryVersion['content']
           input_snapshot_id: string
+          identity_updated?: boolean
         }
       >(`${path}${encodeURIComponent(versionId!)}/`, { signal }),
     enabled: !!versionId,
@@ -198,6 +199,9 @@ function HumanSummaryRevisionContent({
               {t('humanReview.historyVersion', { revision: value.revision })}
             </h4>
             <Text variant="note">{t('humanReview.historyReadOnly')}</Text>
+            {value.identity_updated && (
+              <Text variant="note">{t('recordAi.identityUpdated')}</Text>
+            )}
             <Text>{value.content.overview}</Text>
             <SummaryExportControl
               recordId={recordId}

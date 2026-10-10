@@ -90,6 +90,13 @@ const record: ApiMeetingRecord = {
   },
 }
 const workspaceKey = ['record-library-content', OWNER, 1, 'originals']
+const humanKey = ['human-summary', OWNER, RECORD]
+const humanHistoryKey = [
+  'human-summary-history-detail',
+  OWNER,
+  'record-path',
+  'old-review',
+]
 function show(
   overrides: Partial<ApiMeetingRecord> = {},
   strict = false,
@@ -137,6 +144,8 @@ beforeEach(() => {
   mocks.config.data.speaker_identity.matching_enabled = true
   cache = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   cache.setQueryData(workspaceKey, { results: [] })
+  cache.setQueryData(humanKey, { frozen: true })
+  cache.setQueryData(humanHistoryKey, { frozen: true })
   preview = vi.fn().mockResolvedValue(true)
   stopPreview = vi.fn()
   mocks.options.mockImplementation(async (revision: number) => ({
@@ -258,6 +267,8 @@ it('listens to the verified source window then confirms and refreshes reader pro
     1,
   ])
   expect(cache.getQueryState(workspaceKey)?.isInvalidated).toBe(true)
+  expect(cache.getQueryState(humanKey)?.isInvalidated).toBe(true)
+  expect(cache.getQueryState(humanHistoryKey)?.isInvalidated).toBe(true)
   expect(screen.queryByText('suggested:Ada')).not.toBeInTheDocument()
   expect(stopPreview).toHaveBeenCalled()
 })

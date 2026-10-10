@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/ApiError'
 import type { ApiRecordSummaryVersion } from '../api/ApiMeetingRecord'
@@ -68,6 +68,33 @@ beforeEach(() => {
   )
 })
 afterEach(() => client?.clear())
+
+it('refreshes the identity notice while retaining an in-progress human draft', async () => {
+  show()
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'humanReview.edit' })
+  )
+  fireEvent.change(screen.getByLabelText('humanReview.overview'), {
+    target: { value: 'Unsaved human draft' },
+  })
+  mocks.fetchApi.mockResolvedValue({
+    current: { ...current, identity_updated: true },
+    can_edit: true,
+  })
+  await act(async () => {
+    await client.invalidateQueries({
+      queryKey: ['human-summary', 'viewer', 'record'],
+    })
+  })
+  expect(
+    await screen.findByText('recordAi.identityUpdated')
+  ).toBeInTheDocument()
+  expect(screen.getByLabelText('humanReview.overview')).toHaveValue(
+    'Unsaved human draft'
+  )
+  expect(posts()).toHaveLength(0)
+  expect(content.overview).toBe('Original overview')
+})
 
 it('saves a separate human revision with the captured optimistic revision', async () => {
   show()

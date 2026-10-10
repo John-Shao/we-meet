@@ -2,6 +2,8 @@
 
 日期：2026-10-11（Asia/Shanghai）。Web／后端及 Android 分支：`feature/speaker-identity-voiceprint`。Android 提交：`65268900`。
 
+后续人工纪要当前／固定历史版提示、确认后刷新及读取权限／缓存修复已接通，见[人工纪要身份与权限走查](voiceprint-human-summary-identity-review-2026-10-11.md)。下文记录本阶段当时的证据与边界，后续进度以新记录为准。
+
 ## 问题与实现
 
 原有 API 的 `is_current` 能把身份更新后的纪要标为历史版本，但 Web／Android 没有说明身份已变更。仅凭 `is_current=false` 不能判断原因：正文修订、版本切换和拒绝识别建议也可能让纪要成为历史版本。
