@@ -42,6 +42,8 @@ class EncoderService:
         self.recovery: asyncio.Task | None = None
         self.next_recovery = 0.0
         self.closing = False
+        self.request_counts = dict.fromkeys(["2xx", "4xx", "5xx", "canceled"], 0)
+        self.request_seconds = 0.0
 
     @property
     def ready(self):
@@ -95,6 +97,58 @@ async def health(_request):
 
 async def live(_request):
     return response({"status": "alive"})
+
+
+@web.middleware
+async def observe_requests(request, handler):
+    if request.method != "POST" or request.path != "/v1/embeddings":
+        return await handler(request)
+    started = time.monotonic()
+    outcome = "5xx"
+    try:
+        result = await handler(request)
+        outcome = (
+            "2xx" if result.status < 300 else "4xx" if result.status < 500 else "5xx"
+        )
+        return result
+    except asyncio.CancelledError:
+        outcome = "canceled"
+        raise
+    except web.HTTPException as error:
+        outcome = "4xx" if error.status < 500 else "5xx"
+        raise
+    finally:
+        service = request.app[SERVICE]
+        service.request_counts[outcome] += 1
+        service.request_seconds += max(0.0, time.monotonic() - started)
+
+
+async def metrics(request):
+    """Fixed aggregate labels only: never inspect payloads, grants or identities."""
+    service = request.app[SERVICE]
+    active = int(service.active is not None and not service.active.done())
+    rows = [
+        "# TYPE voiceprint_encoder_ready gauge",
+        f"voiceprint_encoder_ready {int(service.ready)}",
+        "# TYPE voiceprint_encoder_active gauge",
+        f"voiceprint_encoder_active {active}",
+        "# TYPE voiceprint_encoder_uploads gauge",
+        f"voiceprint_encoder_uploads {service.uploads}",
+        "# TYPE voiceprint_encoder_requests_total counter",
+    ]
+    rows.extend(
+        f'voiceprint_encoder_requests_total{{outcome="{outcome}"}} {count}'
+        for outcome, count in service.request_counts.items()
+    )
+    rows += [
+        "# TYPE voiceprint_encoder_request_seconds_total counter",
+        f"voiceprint_encoder_request_seconds_total {service.request_seconds:.6f}",
+    ]
+    return web.Response(
+        text="\n".join(rows) + "\n",
+        content_type="text/plain",
+        headers={"Cache-Control": "private, no-store"},
+    )
 
 
 async def startup(app):
@@ -191,10 +245,13 @@ async def embedding(request: web.Request):
 
 
 def create_app(encoder, *, token: bytes, permit_key: bytes):
-    app = web.Application(client_max_size=MAX_BODY_BYTES)
+    app = web.Application(
+        client_max_size=MAX_BODY_BYTES, middlewares=[observe_requests]
+    )
     app[SERVICE] = EncoderService(encoder, token, permit_key)
     app.router.add_get("/health/ready", health)
     app.router.add_get("/health/live", live)
+    app.router.add_get("/metrics", metrics)
     app.router.add_post("/v1/embeddings", embedding)
     app.on_startup.append(startup)
     app.on_cleanup.append(cleanup)

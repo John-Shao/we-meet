@@ -489,6 +489,8 @@ P0 验证前置与预算：
 
 ## 21. 参考与证据
 
+- [2026-10-11 Linux 编码器镜像与部署走查](../research/voiceprint-linux-encoder-review-2026-10-11.md)：Qwen CPU 哈希锁镜像、私有 HTTPS、非 root／只读挂载、预算、默认关闭的 Helm 编码器资源、网络隔离及聚合指标已实现；84 项 Linux 与 36 项 Helm 验证通过。冷启动和内存仅为单次合成信号技术数据；持续业务调度、sampler／后端私有配置、生产部署与真人效果验收仍待完成。
+
 - [3D-Speaker 官方项目](https://github.com/modelscope/3D-Speaker)：预训练声纹模型、特征提取和分人能力；本方案未复制其基准数字作为本项目验收结果。
 - [3D-Speaker 官方 ONNX Runtime 测试](https://github.com/modelscope/3D-Speaker/blob/main/runtime/onnxruntime/README.md)：CAM++／ERes2NetV2 的 CPU 实时率参考；条件与限制见第 6.4 节。
 - [SpeechBrain ECAPA-TDNN 官方模型卡](https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb)及[参数配置](https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb/blob/main/hyperparams.yaml)：特征提取、验证、CPU／GPU 使用方式、16 kHz 输入与 192 维输出。

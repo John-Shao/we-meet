@@ -1520,3 +1520,33 @@ celeryBeat:
       memory: 128Mi
     limits:
       memory: 512Mi
+
+# Infrastructure only; this does not authorize collection or enable backend flags.
+# Mount an already prepared public Qwen encoder pack and independently managed Secrets.
+voiceprintEncoder:
+  enabled: false
+  imageReference: "" # Required immutable repository@sha256:digest when enabled.
+  imagePullPolicy: IfNotPresent
+  replicas: 1
+  cpuThreads: 2
+  credentialsSecret: "" # api-token and permit-key keys; different credentials.
+  tlsSecret: "" # tls.crt and tls.key; must match the internal service DNS name.
+  modelClaim: "" # Read-only pack: encoder.safetensors and manifest.json.
+  modelSubPath: ""
+  configurationRevision: "" # Bump after rotating externally managed credentials/TLS.
+  tmpSizeLimit: 64Mi
+  resources:
+    requests:
+      cpu: 1
+      memory: 1Gi
+    limits:
+      cpu: 2
+      memory: 2Gi
+  nodeSelector:
+    kubernetes.io/os: linux
+    kubernetes.io/arch: amd64
+  tolerations: []
+  networkPolicy:
+    enabled: true
+    # Additional explicit peers, e.g. one metrics collector namespace/pod selector.
+    additionalPeers: []

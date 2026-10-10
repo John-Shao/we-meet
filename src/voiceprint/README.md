@@ -1,6 +1,6 @@
 # Qwen 私有编码器技术基础
 
-这是供后端已授权任务调用的独立 CPU 编码器。本人登记 API 与独立编码 worker 已接入；候选身份匹配、跨端登记界面和生产部署仍待完成。已验证固定 Qwen 模型加载、特征提取和进程故障恢复；没有真人声纹准确率、语音检测或混合说话人检测结论。
+这是供后端已授权任务调用的独立 CPU 编码器。本人登记、候选身份匹配和 Web／Android 界面已阶段接入；Linux 镜像、私有 HTTPS、资源预算和 Helm 编码器资源已验证，生产部署仍待完成。已验证固定 Qwen 模型加载、特征提取和进程故障恢复；没有真人声纹准确率或真实混合说话人检测效果结论。
 
 ## 模型与特征空间
 
@@ -28,7 +28,21 @@ $env:VOICEPRINT_TEST_ENCODER_SHA256='f8b8aa2a5a7e7ddc9043b4979a07bbefca13bfd402a
 & .venv/Scripts/meet-voiceprint-probe.exe --model-dir $env:VOICEPRINT_TEST_MODEL_DIR --encoder-sha256 $env:VOICEPRINT_TEST_ENCODER_SHA256 --output 'probe.json'
 ```
 
-制备工具要求完整来源文件的固定 SHA-256，目标目录须不存在。普通测试无需模型；实际模型测试必须显式提供上述环境变量，否则会跳过。约束文件记录本次 Windows 环境的依赖版本，尚未提供 wheel 哈希锁或 Linux 镜像验证。资源报告只包含合成信号指标，不输出向量、音频或身份。
+制备工具要求完整来源文件的固定 SHA-256，目标目录须不存在。普通测试无需模型；实际模型测试必须显式提供上述环境变量，否则会跳过。Windows 约束文件记录本次依赖版本；Linux AMD64 另有 CPU 依赖及测试依赖哈希锁，已完成镜像验证。资源报告只包含合成信号指标，不输出向量、音频或身份。
+
+## Linux CPU 镜像
+
+在本目录构建；运行时不包含模型、凭证或测试依赖。镜像仅支持已验证的 Linux AMD64，Python 3.13.13、uv 0.10.9、Torch 2.10.0+cpu；构建校验依赖哈希，运行 UID/GID 为 10001，模型离线加载。
+
+```sh
+docker build --platform linux/amd64 --target production -t we-meet-voiceprint:local .
+docker build --platform linux/amd64 --target verification -t we-meet-voiceprint:verification .
+docker run --rm --network none --read-only --cap-drop ALL \
+  --security-opt no-new-privileges --pids-limit 64 --memory 2g --cpus 2 \
+  --tmpfs /tmp:rw,size=64m we-meet-voiceprint:verification
+```
+
+该命令执行无模型测试；完整模型测试另需只读挂载公开 encoder pack、设置 `VOICEPRINT_TEST_MODEL_DIR` 与上述固定摘要，后端互操作测试需将后端源目录只读挂载到 `/backend`。完整测试和生产镜像的 TLS／后端 RPC／重放／子进程回收证据见 [Linux 编码器走查](../../docs/research/voiceprint-linux-encoder-review-2026-10-11.md)。`meet-voiceprint-probe` 的资源诊断需要可选 `probe` 依赖，精简生产镜像不包含 psutil；应在独立验证环境使用。
 
 ## 私有服务配置与调用
 
@@ -43,7 +57,7 @@ $env:VOICEPRINT_TEST_ENCODER_SHA256='f8b8aa2a5a7e7ddc9043b4979a07bbefca13bfd402a
 | `VOICEPRINT_PERMIT_KEY_FILE` | 与 token 不同的 HS256 密钥文件，32–4096 字节 |
 | `VOICEPRINT_TLS_CERT_FILE` / `VOICEPRINT_TLS_KEY_FILE` | 服务端证书和私钥，必须同时配置 |
 
-`meet-voiceprint` 默认监听 `127.0.0.1:8093`。非回环监听必须启用 TLS，最低 TLS 1.2；仅回环技术测试允许 HTTP。证书、密钥、录音和权重不提交仓库。生产隔离网络、只读挂载、资源限制、证书轮换与 Helm 开关仍需后续部署工作验证。
+`meet-voiceprint` 命令默认监听 `127.0.0.1:8093`；生产镜像默认监听 `0.0.0.0:8093`，非回环监听必须启用 TLS，最低 TLS 1.2。仅回环技术测试允许 HTTP。证书、密钥、录音和权重不提交仓库。Helm 编码器开关默认关闭；只读模型／Secret 挂载、资源限制、HTTPS 探针和拒绝出口的 NetworkPolicy 已提供。真实 CNI、PVC 权限、证书轮换与生产容量仍需部署环境验证，操作说明见上述 Linux 走查。
 
 `POST /v1/embeddings` 要求 bearer token 与 `X-Voiceprint-Permit`：由后端签发的 HS256 JWT，固定 issuer/audience/scope，绑定 job UUID、唯一 jti、WAV 字节数／SHA-256、特征空间，最长 120 秒且不得超过任务租约。`Content-Type` 必须是 `audio/wav`；不接受 URL、用户姓名或任意模型参数。凭证和正文读取后、结果返回前均校验授权有效期。每服务最多两个正在读取的正文，10 秒读取上限；单次推理，繁忙返回 503，客户端取消后仍保持预算直到实际完成或推理子进程被回收。
 
@@ -57,4 +71,4 @@ Windows 10／Server 2016 及以上在创建进程时原子加入 Job Object，�
 
 ## 当前证据与剩余工作
 
-见[技术报告](../../docs/research/voiceprint-qwen-technical-probe-2026-10-10.md)、[登记 API 与 worker](../../docs/research/voiceprint-enrollment-api-worker-2026-10-10.md)、[进程隔离走查](../../docs/research/voiceprint-qwen-process-review-2026-10-10.md)和[开发记录](../../docs/plan/speaker-identity-implementation-2026-10-10.md)。授权、登记 API、加密样本与撤销、独立编码 worker 已验证；真正的分人质量、模板激活、多人匹配门限、跨端界面和生产部署仍待完成，技术探测向量不能登记为真人模板。Linux 本轮只验证父进程退出保护，尚未验证完整模型镜像；加入 HTTP 父进程后，容量应重新实测。
+见[技术报告](../../docs/research/voiceprint-qwen-technical-probe-2026-10-10.md)、[登记 API 与 worker](../../docs/research/voiceprint-enrollment-api-worker-2026-10-10.md)、[进程隔离走查](../../docs/research/voiceprint-qwen-process-review-2026-10-10.md)、[Linux 镜像走查](../../docs/research/voiceprint-linux-encoder-review-2026-10-11.md)和[开发记录](../../docs/plan/speaker-identity-implementation-2026-10-10.md)。授权、登记、加密样本与撤销、独立编码、质量管线、模板、候选匹配及跨端入口已有阶段验证。Linux 全套 84 项测试和精简生产镜像的实际模型调用通过；多人匹配门限、真实媒体效果、生产部署和容量仍待验收，合成信号的技术探测向量不能登记为真人模板。
