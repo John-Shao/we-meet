@@ -17,6 +17,7 @@ from core.services.capture_audio import (
     serialize_chunk,
     serialize_manifest,
 )
+from core.services.capture_diarization_objects import selected
 from core.services.capture_diarization_projection import (
     row_receipt,
     validate_publication,
@@ -32,6 +33,7 @@ from core.services.meeting_records import (
 from core.services.transcript_corrections import corrected_text_subquery
 
 LEASE_SECONDS = 300
+PREPARATION_LEASE_SECONDS = 900
 MAX_TEXT_BYTES = 4000000
 MAX_ALIGNMENT_BYTES = 32 * 1024 * 1024
 
@@ -204,6 +206,9 @@ def _snapshot(capture, actor):
         "origin": capture.record.origin_at.isoformat(),
         "capture": str(capture.pk),
         "capture_revision": capture.revision,
+        "capture_active_diarization": str(capture.active_diarization_id)
+        if capture.active_diarization_id
+        else None,
         "started": capture.started_at.isoformat(),
         "ended": capture.ended_at.isoformat(),
         "asr": str(job.pk),
@@ -247,6 +252,16 @@ def prepare(capture_id, actor, key, *, expected_revision):
         _expire(pending, capture)
     if capture.diarization_jobs.filter(status__in=["queued", "running"]).exists():
         raise RecordConflict("Another diarization is active.")
+    limit = settings.MEETING_CAPTURE_DIARIZATION_DAILY_LIMIT
+    if (
+        type(limit) is not int
+        or not 1 <= limit <= 10
+        or capture.diarization_jobs.filter(
+            created_at__gte=timezone.now() - timedelta(hours=24)
+        ).count()
+        >= limit
+    ):
+        raise RecordConflict("Diarization request budget is exhausted.")
     proof, _, source, prior = _snapshot(capture, actor)
     _, expiry = capture_retention.deadlines(capture)
     deadline = (
@@ -279,6 +294,8 @@ def prepare(capture_id, actor, key, *, expected_revision):
             "model": qwen_filetrans.MODEL,
             "region": region,
             "diarization": True,
+            "base_url": qwen_filetrans.base_url(),
+            "input_bucket": settings.MEETING_CAPTURE_DIARIZATION_BUCKET_NAME,
         },
         deadline=deadline,
     )
@@ -290,11 +307,15 @@ def _expire(job, capture):
         job.deadline <= timezone.now() or capture_retention.expired(capture)
     ):
         job.status, job.error_code = "failed", "capture_diarization_expired"
+        job.phase = "failed"
         job.lease_until = None
-        job.save(update_fields=["status", "error_code", "lease_until", "updated_at"])
+        job.save(
+            update_fields=["status", "phase", "error_code", "lease_until", "updated_at"]
+        )
 
 
-def _job(identifier):
+def locked_job(identifier):
+    """Lock requester, record and job in the order shared by every worker stage."""
     identifier_capture, requester_id = models.CaptureDiarizationJob.objects.values_list(
         "capture_id", "requested_by_id"
     ).get(pk=identifier)
@@ -311,7 +332,8 @@ def _job(identifier):
     return job, capture
 
 
-def _fresh(job, capture):
+def fresh_source(job, capture):
+    """Revalidate the full frozen source before a new operation or publication."""
     proof, parents, _, _ = _snapshot(capture, job.requested_by)
     if (
         proof != job.inputs
@@ -326,23 +348,48 @@ def _fresh(job, capture):
 def claim(identifier, worker_id):
     if not isinstance(worker_id, UUID):
         raise ValueError("capture_diarization_worker_invalid")
-    job, capture = _job(identifier)
+    job, capture = locked_job(identifier)
     _expire(job, capture)
     if (
         job.status not in {"queued", "running"}
+        or job.next_poll_at > timezone.now()
         or job.lease_until
         and job.lease_until > timezone.now()
     ):
         return None
+    if job.phase == "submitting":
+        job.status, job.phase, job.error_code = "failed", "failed", "submission_unknown"
+        job.lease_until = None
+        job.save(
+            update_fields=["status", "phase", "error_code", "lease_until", "updated_at"]
+        )
+        return None
     try:
-        _fresh(job, capture)
-    except (CaptureDenied, RecordConflict):
-        job.status, job.error_code = "failed", "capture_diarization_source_changed"
-        job.save(update_fields=["status", "error_code", "updated_at"])
+        fresh_source(job, capture)
+        if (
+            job.configuration.get("base_url") != qwen_filetrans.base_url()
+            or job.configuration["region"] != settings.QWEN_FILE_ASR_REGION
+            or job.configuration.get("input_bucket")
+            != settings.MEETING_CAPTURE_DIARIZATION_BUCKET_NAME
+        ):
+            raise RecordConflict("Diarization provider configuration changed.")
+    except (CaptureDenied, RecordConflict, qwen_filetrans.FileTranscriptionError):
+        job.status, job.phase, job.error_code = (
+            "failed",
+            "failed",
+            "capture_diarization_source_changed",
+        )
+        job.save(update_fields=["status", "phase", "error_code", "updated_at"])
         return None
     job.status, job.worker_id = "running", worker_id
     job.lease_until = min(
-        job.deadline, timezone.now() + timedelta(seconds=LEASE_SECONDS)
+        job.deadline,
+        timezone.now()
+        + timedelta(
+            seconds=PREPARATION_LEASE_SECONDS
+            if job.phase == "preparing"
+            else LEASE_SECONDS
+        ),
     )
     job.save(update_fields=["status", "worker_id", "lease_until", "updated_at"])
     return job
@@ -351,7 +398,7 @@ def claim(identifier, worker_id):
 @transaction.atomic
 def publish(identifier, worker_id, turns):
     """A replay never changes pointers, originals, manual decisions or record revision."""
-    job, capture = _job(identifier)
+    job, capture = locked_job(identifier)
     if job.requested_by is None:
         raise CaptureDenied
     owned(capture, job.requested_by)
@@ -380,7 +427,11 @@ def publish(identifier, worker_id, turns):
         and job.deadline > timezone.now()
     ):
         raise RecordConflict("Diarization lease changed.")
-    parents = _fresh(job, capture)
+    parents = fresh_source(job, capture)
+    if job.provider_task_id:
+        if job.phase != "polling":
+            raise RecordConflict("Diarization provider phase changed.")
+        selected(job)
     track, sequence, text_bytes, hashes, speakers = (
         f"diarization:{job.pk}",
         0,
@@ -460,9 +511,11 @@ def publish(identifier, worker_id, turns):
         digest(hashes),
         sequence,
     )
+    job.phase = "completed"
     job.save(
         update_fields=[
             "status",
+            "phase",
             "result_hash",
             "publication_hash",
             "published_count",

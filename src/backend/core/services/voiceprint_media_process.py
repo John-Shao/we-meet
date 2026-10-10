@@ -28,6 +28,7 @@ class MediaTransport:
             "storage": "core.services.voiceprint_storage_worker",
             "import": "core.services.voiceprint_import_worker",
             "import_upload": "core.services.voiceprint_import_upload",
+            "capture_pcm": "core.services.capture_diarization_pcm_worker",
         }
         if purpose not in modules:
             raise MediaError("media_configuration_invalid")
@@ -41,7 +42,7 @@ class MediaTransport:
         try:
             self.job = (
                 ParentDeathJob(cpu_seconds=180)
-                if purpose == "import"
+                if purpose in {"import", "capture_pcm"}
                 else ParentDeathJob()
             )
             if sys.platform == "win32":
@@ -124,7 +125,7 @@ class MediaTransport:
 
 
 def invoke(payload, *, maximum, expires, authorized, seconds, purpose="decoder"):  # noqa: PLR0912, PLR0913 -- One bounded lifecycle with authorization on every exit.
-    if purpose not in {"decoder", "storage", "import", "import_upload"}:
+    if purpose not in {"decoder", "storage", "import", "import_upload", "capture_pcm"}:
         raise MediaError("media_configuration_invalid")
     if type(maximum) is not int or not 0 < maximum <= 480000:
         raise MediaError("media_configuration_invalid")
@@ -135,13 +136,26 @@ def invoke(payload, *, maximum, expires, authorized, seconds, purpose="decoder")
     except (ValueError, TypeError, RecursionError):
         raise MediaError("media_input_invalid") from None
     if (
-        len(encoded) > (32768 if purpose in {"storage", "import_upload"} else 8192)
+        len(encoded)
+        > (
+            2 * 1024 * 1024
+            if purpose == "capture_pcm"
+            else 32768
+            if purpose in {"storage", "import_upload"}
+            else 8192
+        )
         or type(expires) is not int
         or expires <= time.time()
     ):
         raise MediaError("media_input_invalid")
     if type(seconds) not in (int, float) or not 0 < seconds <= (
-        25 if purpose == "decoder" else 180 if purpose == "import" else 90
+        600
+        if purpose == "capture_pcm"
+        else 25
+        if purpose == "decoder"
+        else 180
+        if purpose == "import"
+        else 90
     ):
         raise MediaError("media_configuration_invalid")
     if not authorized():

@@ -63,6 +63,9 @@ def _eligible(capture):
         and not capture.transcription_jobs.filter(
             status__in=["queued", "running"]
         ).exists()
+        and not capture.diarization_jobs.filter(
+            status__in=["queued", "running"], deadline__gt=now
+        ).exists()
     )
 
 

@@ -19,6 +19,7 @@ from core.tasks import bot_callback as _bot_callback
 from core.tasks import calendar_exports as _calendar_exports
 from core.tasks import calendar_maintenance as _calendar_maintenance
 from core.tasks import capture_audio as _capture_audio
+from core.tasks import capture_diarization as _capture_diarization
 from core.tasks import cloud_recording as _cloud_recording
 from core.tasks import collaboration_notifications as _collaboration_notifications
 from core.tasks import embeddings as _embeddings

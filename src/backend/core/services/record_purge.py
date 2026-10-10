@@ -12,6 +12,7 @@ from django.db.models.deletion import ProtectedError, RestrictedError
 from django.utils import timezone
 
 from core import models
+from core.services import capture_diarization_inputs
 from core.services.capture_audio_cleanup import _delete_verified
 from core.services.capture_storage import audio_storage
 from core.services.meeting_records import RecordConflict, visible_records
@@ -221,6 +222,9 @@ def step(job_id):  # noqa: PLR0911 -- each failure preserves the same durable in
         job.save(update_fields=["error_code", "state", "updated_at"])
         return job
     if record:
+        pending = _purge_derivative(job, record, now)
+        if pending:
+            return pending
         # These links point *to* captures with PROTECT; their data is owned by
         # this record. Tasks and Docs are external destinations, never deleted.
         try:
@@ -247,6 +251,25 @@ def step(job_id):  # noqa: PLR0911 -- each failure preserves the same durable in
             "updated_at",
         ]
     )
+    return job
+
+
+def _purge_derivative(job, record, now):
+    derivative = models.CaptureDiarizationInput.objects.filter(
+        record_uuid=record.pk
+    ).exclude(status="deleted").order_by("id").first()
+    if derivative is None:
+        return None
+    if derivative.write_until > now:
+        job.next_attempt_at = derivative.write_until
+        job.save(update_fields=["next_attempt_at", "updated_at"])
+        return job
+    try:
+        result = capture_diarization_inputs.purge(derivative.pk)
+    except Exception:  # noqa: BLE001 -- Physical erasure must precede record deletion.
+        return _failure(job, "diarization_input_cleanup_unavailable")
+    if result.status != "deleted":
+        return _failure(job, "diarization_input_cleanup_unconfirmed")
     return job
 
 

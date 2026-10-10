@@ -1019,6 +1019,16 @@ class Base(Configuration):
             "task": "core.tasks.capture_audio.cleanup_capture_audio",
             "schedule": 30.0,
         },
+        "tick-capture-diarization": {
+            "task": "core.tasks.capture_diarization.tick_capture_diarization",
+            "schedule": 15.0,
+            "options": {"queue": "voiceprint", "expires": 30},
+        },
+        "purge-capture-diarization-inputs": {
+            "task": "core.tasks.capture_diarization.purge_capture_diarization_inputs",
+            "schedule": 30.0,
+            "options": {"queue": "voiceprint", "expires": 60},
+        },
         "purge-requested-records": {
             "task": "core.tasks.record_purge.purge_requested_records",
             "schedule": 30.0,
@@ -1196,6 +1206,8 @@ class Base(Configuration):
     MEETING_CAPTURE_TEXT_ONLY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_DIARIZATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_CAPTURE_DIARIZATION_BUCKET_NAME = values.Value("", environ_prefix=None)
+    MEETING_CAPTURE_DIARIZATION_DAILY_LIMIT = values.PositiveIntegerValue(3, environ_prefix=None)
     MEETING_CAPTURE_LIVE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_SUMMARY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_STAGED_SUMMARY_ENABLED = values.BooleanValue(

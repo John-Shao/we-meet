@@ -1,8 +1,6 @@
 """Private verified audio chunks and sealed, gap-aware upload manifests."""
 
 import hashlib
-import io
-import wave
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -10,7 +8,7 @@ from django.db import transaction
 from django.db.models import F
 
 from core import models
-from core.services import capture_retention
+from core.services import capture_pcm, capture_retention
 from core.services.capture_storage import (
     audio_storage,
     text_audio_enabled,
@@ -19,7 +17,7 @@ from core.services.capture_storage import (
 from core.services.meeting_captures import CaptureDenied, authorize, check_lease
 from core.services.meeting_records import RecordConflict
 
-MAX_BYTES = 320044
+MAX_BYTES = capture_pcm.MAX_BYTES
 MAX_CHUNKS = 4320
 
 
@@ -32,24 +30,7 @@ def ensure_audio_not_cleaning(capture):
 
 def validate_wave(data):
     """At most 10 seconds of uncompressed mono 16 kHz PCM16, no client MIME trust."""
-    if not isinstance(data, bytes) or len(data) > MAX_BYTES:
-        raise ValueError("Audio chunk exceeds the byte limit.")
-    try:
-        with wave.open(io.BytesIO(data), "rb") as audio:
-            if (
-                audio.getnchannels(),
-                audio.getsampwidth(),
-                audio.getframerate(),
-                audio.getcomptype(),
-            ) != (1, 2, 16000, "NONE"):
-                raise ValueError("Unsupported PCM audio format.")
-            frames = audio.getnframes()
-            pcm = audio.readframes(frames)
-            if frames < 16 or frames > 160000 or frames % 16 or len(pcm) != frames * 2:
-                raise ValueError("Invalid or incomplete audio frames.")
-            return frames // 16
-    except (wave.Error, EOFError) as exc:
-        raise ValueError("Invalid WAV file.") from exc
+    return len(capture_pcm.frames(data)) // 32
 
 
 def locked_capture(capture_id, user, lease, device, *, finishing=False):

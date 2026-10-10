@@ -1738,8 +1738,25 @@ class CaptureDiarizationJob(BaseModel):
     publication_hash = models.CharField(max_length=64, blank=True)
     published_count = models.PositiveIntegerField(default=0)
     error_code = models.CharField(max_length=64, blank=True)
+    phase = models.CharField(max_length=16, default="preparing")
+    provider_task_id = models.CharField(max_length=128, blank=True)
+    provider_report = models.JSONField(default=dict, blank=True)
+    next_poll_at = models.DateTimeField(default=timezone.now)
+    begun_at = models.DateTimeField(null=True, blank=True)
+    preparation_attempts = models.PositiveIntegerField(default=0)
+    poll_failures = models.PositiveIntegerField(default=0)
+    input = models.ForeignKey(
+        "CaptureDiarizationInput",
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True,
+        related_name="selected_jobs",
+    )
 
     class Meta:
+        indexes = [
+            models.Index(fields=["status", "next_poll_at"], name="capture_diarize_due_idx")
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["requested_by", "key"], name="unique_capture_diarize_intent"
@@ -1799,9 +1816,95 @@ class CaptureDiarizationJob(BaseModel):
                     "publication_hash",
                     "published_count",
                     "status",
+                    "phase",
+                    "provider_report",
                 )
             ):
                 raise ValidationError("Diarization publication is immutable.")
+            if (
+                previous.provider_task_id
+                and previous.provider_task_id != self.provider_task_id
+            ):
+                raise ValidationError("Diarization provider receipt is immutable.")
+            if previous.input_id and previous.input_id != self.input_id:
+                raise ValidationError("Diarization input selection is immutable.")
+            if previous.begun_at and previous.begun_at != self.begun_at:
+                raise ValidationError("Diarization paid attempt is immutable.")
+        if self.input_id and (
+            self.input.job_id != self.pk
+            or self.input.record_uuid != self.capture.record_id
+            or self.input.source_digest != self.source_fingerprint
+        ):
+            raise ValidationError(
+                "Diarization selected input belongs to another source."
+            )
+
+
+class CaptureDiarizationInput(BaseModel):
+    """Fixed private media and cleanup work surviving removal of its source job."""
+
+    job = models.ForeignKey(
+        CaptureDiarizationJob,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="media_inputs",
+    )
+    record_uuid = models.UUIDField(db_index=True)
+    lease_token = models.UUIDField()
+    source_digest = models.CharField(max_length=64)
+    storage_digest = models.CharField(max_length=64)
+    receipt = models.JSONField(default=dict, blank=True)
+    sha256 = models.CharField(max_length=64, blank=True)
+    duration_ms = models.PositiveIntegerField()
+    status = models.CharField(max_length=16, default="preparing")
+    expires_at = models.DateTimeField(null=True, blank=True)
+    write_until = models.DateTimeField()
+    next_cleanup_at = models.DateTimeField(default=timezone.now)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["job", "lease_token"], name="unique_capture_input_lease"
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["status", "next_cleanup_at"], name="capture_input_cleanup_idx"
+            )
+        ]
+
+    def __str__(self):
+        return f"CaptureDiarizationInput({self.pk}, {self.status})"
+
+    def clean(self):
+        super().clean()
+        if self.job_id and (
+            self.job.capture.record_id != self.record_uuid
+            or self.source_digest != self.job.source_fingerprint
+            or self.duration_ms != self.job.inputs["manifest"]["duration_ms"]
+        ):
+            raise ValidationError("Diarization input must match its frozen source.")
+        if not self._state.adding:
+            previous = type(self).objects.get(pk=self.pk)
+            frozen = (
+                "job_id",
+                "record_uuid",
+                "lease_token",
+                "source_digest",
+                "storage_digest",
+                "duration_ms",
+                "expires_at",
+                "write_until",
+            )
+            if any(getattr(previous, name) != getattr(self, name) for name in frozen):
+                raise ValidationError("Diarization input identity is immutable.")
+            if previous.receipt and (
+                previous.receipt != self.receipt or previous.sha256 != self.sha256
+            ):
+                raise ValidationError("Diarization object receipt is immutable.")
 
 
 class CaptureTranscriptionInput(BaseModel):
