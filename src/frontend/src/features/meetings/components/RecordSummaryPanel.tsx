@@ -686,6 +686,9 @@ const Version = ({
         {version.stage && version.stage !== 'final' && (
           <Text variant="note">{t('recordAi.provisional')}</Text>
         )}
+        {version.identity_updated && (
+          <Text variant="note">{t('recordAi.identityUpdated')}</Text>
+        )}
         {version.asr_status === 'incomplete' && (
           <Text variant="note">{t('recordAi.asr.incomplete')}</Text>
         )}

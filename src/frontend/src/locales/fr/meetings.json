@@ -452,6 +452,7 @@
     "latest": "Dernières versions",
     "current": "Version actuelle",
     "historical": "Version historique",
+    "identityUpdated": "Les identités des intervenants ont changé. Vous pouvez régénérer le compte rendu ; cette version conserve son contenu initial.",
     "source": "Voir l’original",
     "closeSource": "Fermer l’original",
     "listenSource": "Écouter l’audio d’origine",

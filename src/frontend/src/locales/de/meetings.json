@@ -452,6 +452,7 @@
     "latest": "Neueste Versionen",
     "current": "Aktuelle Version",
     "historical": "Ältere Version",
+    "identityUpdated": "Die Sprecheridentitäten wurden aktualisiert. Sie können das Protokoll neu erstellen; diese Version behält ihren ursprünglichen Inhalt.",
     "source": "Original anzeigen",
     "closeSource": "Original schließen",
     "listenSource": "Originalaudio anhören",

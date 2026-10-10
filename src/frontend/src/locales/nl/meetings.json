@@ -452,6 +452,7 @@
     "latest": "Nieuwste versies",
     "current": "Huidige versie",
     "historical": "Historische versie",
+    "identityUpdated": "De sprekeridentiteiten zijn gewijzigd. U kunt de notulen opnieuw genereren; deze versie behoudt de oorspronkelijke inhoud.",
     "source": "Brontekst bekijken",
     "closeSource": "Brontekst sluiten",
     "listenSource": "Bronaudio beluisteren",

@@ -914,9 +914,13 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         """Expose immutable AI versions without disclosing the input transcript."""
         record = self._content_record("read_summary")
         try:
-            fingerprint = source_payload(record, require_ended=False)[1]
+            source, fingerprint = source_payload(record, require_ended=False)
+            current_names = {
+                row["segment_id"]: row.get("speaker_name", "") for row in source
+            }
         except RecordConflict:
             fingerprint = None
+            current_names = {}
         latest = (
             record.processing_jobs.filter(kind="summary")
             .order_by("-generation")
@@ -940,7 +944,15 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         pager = RecordPagination()
         pager.ordering = ("-created_at", "-id")
         page = pager.paginate_queryset(rows, request, view=self)
-        self._content_record("read_summary")
+        record = self._content_record("read_summary")
+        # Final decisions invalidate older names even if the current source is
+        # unavailable. Rejected suggestions advance revision without naming anyone.
+        identity_revision = (
+            record.identity_decisions.exclude(action="reject_suggestion")
+            .order_by("-record_revision")
+            .values_list("record_revision", flat=True)
+            .first()
+        ) or 0
         return pager.get_paginated_response(
             [
                 {
@@ -957,6 +969,15 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "model_used": version.model_used,
                     "created_at": version.created_at,
                     "input_revision": version.input_snapshot.revision,
+                    "identity_updated": bool(
+                        identity_revision > version.input_snapshot.revision
+                        or any(
+                            row["segment_id"] in current_names
+                            and row.get("speaker_name", "")
+                            != current_names[row["segment_id"]]
+                            for row in version.input_snapshot.segments
+                        )
+                    ),
                     "input_snapshot_id": str(version.input_snapshot_id),
                     "source_observed_at": version.input_snapshot.created_at,
                     "source_segment_count": len(version.input_snapshot.segments),
@@ -968,6 +989,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                         latest
                         and latest.pk == version.job_id
                         and record.revision == version.input_snapshot.revision
+                        and identity_revision <= version.input_snapshot.revision
                         and fingerprint == version.input_snapshot.fingerprint
                     ),
                 }

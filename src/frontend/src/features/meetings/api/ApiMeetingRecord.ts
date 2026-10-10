@@ -144,6 +144,8 @@ export interface ApiRecordSummaryVersion {
   input_snapshot_id: string
   input_revision: number
   is_current: boolean
+  /** Final identity changed after this frozen summary; content remains historical. */
+  identity_updated?: boolean
   model_used: string
   created_at: string
   content: {

@@ -452,6 +452,7 @@
     "latest": "Latest versions",
     "current": "Current version",
     "historical": "Historical version",
+    "identityUpdated": "Speaker identities have changed. You can regenerate the minutes; this version keeps its original content.",
     "source": "View source",
     "closeSource": "Close source",
     "listenSource": "Listen to source audio",
