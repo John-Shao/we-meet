@@ -1008,7 +1008,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 room_id=record.meeting_session.room_id,
             )
         rows = self._filter_speaker(rows, identity_field="speaker_identity")
-        rows, expected = self._filter_original_text(record, rows)
+        rows, expected = self._filter_original_text(
+            record, rows, speaker_field="speaker_name"
+        )
         pager = TranscriptPagination()
         order = request.query_params.get("order", "oldest")
         if order not in {"oldest", "latest"}:
@@ -1020,7 +1022,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         self._check_original_revision(record, expected)
         return pager.get_paginated_response(data)
 
-    def _filter_original_text(self, record, rows, *, text_field="text"):
+    def _filter_original_text(
+        self, record, rows, *, text_field="text", speaker_field=None
+    ):
         """Search only authorized original rows, before cursor pagination."""
         query = self.request.query_params.get("q", "").strip()
         if len(query) > 200:
@@ -1032,9 +1036,12 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             else None
         )
         self._check_original_revision(record, expected)
-        return (
-            rows.filter(**{f"{text_field}__icontains": query}) if query else rows
-        ), expected
+        if query:
+            matches = Q(**{f"{text_field}__icontains": query})
+            if speaker_field:
+                matches |= Q(**{f"{speaker_field}__icontains": query})
+            rows = rows.filter(matches)
+        return rows, expected
 
     def _filter_speaker(self, rows, *, identity_field):
         """Narrow to one speaker, using the identifier the `speakers` action returned.
@@ -1125,7 +1132,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         )
         rows = self._filter_speaker(rows, identity_field="speaker_id")
         rows, expected = self._filter_original_text(
-            record, project(rows), text_field="corrected_text"
+            record, project(rows), text_field="corrected_text", speaker_field="display_name"
         )
         # Locate inside the authorized, generation-pinned and filtered source.
         # Keep the predecessor for gap context; cursor pagination continues from
