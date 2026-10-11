@@ -10,6 +10,7 @@ import importlib.metadata
 import inspect
 import io
 import json
+import math
 import os
 import platform
 import resource
@@ -61,6 +62,7 @@ def main():
     parser.add_argument("--model-dir", type=Path, required=True)
     parser.add_argument("--encoder-sha256", required=True)
     parser.add_argument("--threads", type=int, choices=[1, 2], required=True)
+    parser.add_argument("--runs", type=int, choices=[4, 31], default=31)
     args = parser.parse_args()
     if platform.system() != "Linux" or os.getuid() != 10001:
         raise SystemExit("A Linux container with UID 10001 is required.")
@@ -77,11 +79,13 @@ def main():
     loaded = time.perf_counter()
     timings = []
     repeat_error = 0.0
-    for seconds in [3, 10]:
+    for seconds in [3, 5, 10]:
+        decode_started = time.perf_counter()
         clip = decode_wav(synthetic_wav(seconds, np))
+        decode_seconds = time.perf_counter() - decode_started
         reference = None
         elapsed = []
-        for _ in range(4):
+        for _ in range(args.runs):
             before = time.perf_counter()
             encoded = encoder.extract(clip)
             elapsed.append(time.perf_counter() - before)
@@ -100,9 +104,16 @@ def main():
         timings.append(
             {
                 "clip_seconds": seconds,
-                "runs": 4,
+                "runs": args.runs,
+                "warm_runs": len(elapsed) - 1,
+                "synthetic_generation_and_pcm_decode_seconds": decode_seconds,
                 "first_seconds": elapsed[0],
                 "warm_median_seconds": statistics.median(elapsed[1:]),
+                "warm_p95_seconds": (
+                    sorted(elapsed[1:])[math.ceil(0.95 * (len(elapsed) - 1)) - 1]
+                    if args.runs == 31
+                    else None
+                ),
                 "warm_max_seconds": max(elapsed[1:]),
             }
         )
@@ -112,6 +123,8 @@ def main():
                 "scope": "synthetic_encoder_resource_only",
                 "human_audio_used": False,
                 "identity_accuracy_verified": False,
+                "percentile_method": "nearest_rank",
+                "batch_size": 1,
                 "uid": os.getuid(),
                 "python": platform.python_version(),
                 "machine": platform.machine(),

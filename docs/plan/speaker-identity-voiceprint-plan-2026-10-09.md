@@ -204,7 +204,7 @@ Qwen encoder 已完成固定权重的 Windows／Linux 合成加载及特征契�
 
 ### 6.4 配置依据与 P0 容量验证
 
-[ECS 实际资源走查](../research/voiceprint-ecs-resource-review-2026-10-11.md)已验证固定 Qwen encoder 在 2 CPU／2 GiB 限额下的单任务提取及只读 PVC。2 Torch 线程的 3 秒／10 秒预热中位耗时约 51／133 ms，进程峰值 RSS 约 501 MiB；这里只是合成工程数据，未包含分人、ASR、业务队列或真人效果。该节点现有请求为 3.65／4 CPU，500m 测试请求不能调度，最终短期探针使用 250m 请求；当前 encoder 的生产 1 CPU／1 GiB 请求及完整消费者预算仍需额外安排，不能把低即时利用率或探针通过作为整体可部署证明。下述 5 秒／并发／P95 等完整容量验证继续保留。
+[ECS 实际资源走查](../research/voiceprint-ecs-resource-review-2026-10-11.md)已验证固定 Qwen encoder 在 2 CPU／2 GiB 限额下的单任务提取及只读 PVC。补验 1／2 Torch 线程、3／5／10 秒输入共 186 次通过；2 线程的预热中位约 50／63／156 ms，经验 P95 约 70／70／187 ms，进程峰值 RSS 约 515 MiB。每种长度 30 次预热使用 nearest-rank 计算 P95，仅为合成单任务描述统计，未包含分人、ASR、业务队列或真人效果。该节点现有请求为 3.65／4 CPU，500m 测试请求不能调度，短期探针使用 250m 请求；当前 encoder 的生产 1 CPU／1 GiB 请求及完整消费者预算仍需额外安排，不能把低即时利用率或探针通过作为整体可部署证明。并发、不同模板规模、持续资源增长及端到端 P95 等完整容量验证继续保留。
 
 [3D-Speaker 官方 ONNX CPU 测试](https://github.com/modelscope/3D-Speaker/blob/main/runtime/onnxruntime/README.md)在 Intel Xeon Platinum 8163 上处理 3 秒音频，包含 FBank 特征计算及声纹提取，给出以下实时率（RTF＝处理耗时／音频时长）：
 

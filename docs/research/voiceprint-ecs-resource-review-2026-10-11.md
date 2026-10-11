@@ -13,7 +13,7 @@
 
 探针 [voiceprint_encoder_resource_probe.py](../../deploy/aliyun/voiceprint_encoder_resource_probe.py)无需生产镜像中不存在的 psutil。它只生成合成 PCM、验证有限 1024 维单位向量并输出聚合资源结果，向量及 WAV 不进入日志。通过 `/proc/self/cgroup` 定位自身 v2 层级，兼容 Docker 私有层级与 Kubernetes 挂载布局；实际 `cpu.max=200000 100000`、`memory.max=2147483648`。
 
-## 实际结果
+## 首轮实际结果（16 次）
 
 ECS 4 个逻辑 CPU、Linux x86_64；Python 3.13.13、Torch 2.10.0+cpu、numpy 2.2.6、librosa 0.11.0。每个线程设置为独立 Pod，每种 3 秒／10 秒片段执行 4 次：首次单列，其余 3 次计算中位数／最大值。两个 Pod 共 16 次提取，重复输出最大绝对差为 0，有限单位向量检查全部通过。
 
@@ -24,9 +24,33 @@ ECS 4 个逻辑 CPU、Linux x86_64；Python 3.13.13、Torch 2.10.0+cpu、numpy 2
 
 1 线程 Pod 的模块导入 6.592 秒、encoder 加载 7.281 秒、探针总计 15.531 秒；2 线程分别为 3.867／3.759／8.498 秒。加载计时排除模块导入。线程设置还保留生产镜像中原有 BLAS 环境预算，不表示整个进程仅有 1／2 个系统线程。
 
-进程 RSS 与 cgroup 计费峰值口径不同，不能互换为生产内存限额。第二个 Pod 运行在第一个之后，页面／文件缓存、共享页归属及背景负载会影响数值；没有清空节点缓存，不能称为可重复的冷启动对照。当前样本仅为短期单任务描述统计，不提供 P95、稳态吞吐或安全并发数。
+进程 RSS 与 cgroup 计费峰值口径不同，不能互换为生产内存限额。第二个 Pod 运行在第一个之后，页面／文件缓存、共享页归属及背景负载会影响数值；没有清空节点缓存，不能称为可重复的冷启动对照。首轮每种长度仅 3 次预热，不计算 P95、稳态吞吐或安全并发数。
 
 节点 `top` 测量前为 409m CPU／7,200 MiB，后为 947m／7,364 MiB；这些有时延的节点采样包含其他工作负载，不能证明现有转写在竞争情况下仍满足 SLA。
+
+## 3／5／10 秒补验（186 次）
+
+同日使用相同生产镜像、模型、资源限额和隔离方式，在新 namespace `vp-encoder-bench-1b39f7cf837f` 中串行运行 1／2 线程 Pod。新传输归档为 368,647,766 字节，SHA-256 `ed4a10cffb2085de716b77bcc3137f95a51015037b313c922c6f303a5ab7df44`；两个 Pod 的运行镜像 ID 与首轮相同。新版探针源码 SHA-256 为 `101a5a7ec15a0882318a8f46b02b8bb824d45e509bd21309a6dee39ccf892094`，encoder 源码及权重摘要保持不变。
+
+每种长度执行 31 次（首次加 30 次预热），batch size 为 1，共 186 次。全部输出为有限 1024 维单位向量，重复最大绝对差为 0；UID 10001、模型只读及实际 2 CPU／2 GiB 限额均通过检查。预热 P95 使用 nearest-rank，即 30 次耗时排序后的第 29 项。这是同一合成输入的短期经验分位数，不是业务端到端 P95、置信上界或真人泛化证据。
+
+| Torch 推理线程 | 输入长度 | 首次提取 | 预热中位 | 预热 P95 | 预热最大 | 合成生成＋PCM 解码 |
+|---|---|---|---|---|---|---|
+| 1 | 3 秒 | 166.28 ms | 83.93 ms | 86.29 ms | 86.71 ms | 8.40 ms |
+| 1 | 5 秒 | 133.74 ms | 121.85 ms | 124.23 ms | 124.34 ms | 12.92 ms |
+| 1 | 10 秒 | 249.95 ms | 203.37 ms | 224.14 ms | 233.56 ms | 27.11 ms |
+| 2 | 3 秒 | 88.88 ms | 49.55 ms | 70.31 ms | 70.46 ms | 7.83 ms |
+| 2 | 5 秒 | 75.72 ms | 62.84 ms | 69.59 ms | 75.56 ms | 9.61 ms |
+| 2 | 10 秒 | 174.75 ms | 156.36 ms | 186.97 ms | 192.28 ms | 19.30 ms |
+
+合成生成＋PCM 解码每种长度只测一次，与提取计时分开；不代表 FFmpeg 或导入媒体解码耗时。首次提取是各长度的第一次调用；5／10 秒之前编码器已处理更短输入，不代表独立冷启动。
+
+| Torch 推理线程 | 模块导入 | encoder 加载（排除导入） | 探针总计 | 进程峰值 RSS | cgroup memory.peak |
+|---|---|---|---|---|---|
+| 1 | 7.293 秒 | 5.782 秒 | 26.047 秒 | 485.78 MiB | 358.71 MiB |
+| 2 | 3.668 秒 | 4.142 秒 | 16.505 秒 | 514.66 MiB | 358.77 MiB |
+
+节点采样前为 981m CPU／7,241 MiB，后为 1,113m／7,445 MiB，继续受采样时延和其他负载影响。未清空页面缓存；此次补验没有测量持续并发、队列或现有 ASR 的延迟变化。测试资源清理回执全部通过。
 
 ## 调度失败与部署预算
 
@@ -36,19 +60,19 @@ ECS 4 个逻辑 CPU、Linux x86_64；Python 3.13.13、Torch 2.10.0+cpu、numpy 2
 
 最后仅将短期测试请求改为 250m，仍保持原 2 CPU／2 GiB 上限，并串行运行，得到上述结果。**250m 是本次短期探针请求，不是生产资源建议。** 当前 Helm encoder 的 1 CPU／1 GiB 请求及 2 CPU／2 GiB 上限继续保留；编码器再加三个消费者／sampler 的完整预算需要安排可用节点或经负责人批准重新分配，不能在现有 350m 剩余额度下宣布可以部署。
 
-这次验证支持继续使用 CPU Qwen 路线，尚无转向 CAM++ 的模型效果依据。它没有覆盖 5 秒输入、GPU、多人实际音频、模板规模、并发排队、长时间资源增长、HTTP／TLS 服务预热或真实 ASR 链路；第 6.4／15 节剩余准入继续保留。
+两轮验证支持继续使用 CPU Qwen 路线，尚无转向 CAM++ 的模型效果依据。3／5／10 秒单任务提取和短期经验 P95 已覆盖；GPU、多人实际音频、模板规模、并发排队、长时间资源增长、HTTP／TLS 服务预热及真实 ASR 链路尚未覆盖，第 6.4／15 节剩余准入继续保留。
 
 ## 清理与复验
 
 实际回执确认测试 namespace、专属模型 PV、导入的测试镜像引用及私有传输目录均已删除。没有全局 prune 或删除共享缓存层；没有修改既有业务 namespace／PVC／资源请求。
 
-私有产物：`work/voiceprint-ecs-resource-bench-final-2026-10-11.json`、`voiceprint-ecs-resource-bench-{initial,pvc}-2026-10-11.json`、`voiceprint-ecs-cpu-allocation-2026-10-11.json`。测试密码与对象存储凭据不进入这些产物或 Git。
+私有产物：`work/voiceprint-ecs-resource-bench-final-2026-10-11.json`、`voiceprint-ecs-resource-bench-{initial,pvc}-2026-10-11.json`、`voiceprint-ecs-resource-distribution-2026-10-11.json`、`voiceprint-ecs-cpu-allocation-2026-10-11.json`。测试密码与对象存储凭据不进入这些产物或 Git。
 
 在已核准的隔离 Linux 容器中复验，挂载审核过的模型目录与本仓库探针：
 
 ```text
-python /probe.py --model-dir /model --encoder-sha256 f8b8aa2a5a7e7ddc9043b4979a07bbefca13bfd402a0464a19c1974ea1f6a71a --threads 1
-python /probe.py --model-dir /model --encoder-sha256 f8b8aa2a5a7e7ddc9043b4979a07bbefca13bfd402a0464a19c1974ea1f6a71a --threads 2
+python /probe.py --model-dir /model --encoder-sha256 f8b8aa2a5a7e7ddc9043b4979a07bbefca13bfd402a0464a19c1974ea1f6a71a --threads 1 --runs 31
+python /probe.py --model-dir /model --encoder-sha256 f8b8aa2a5a7e7ddc9043b4979a07bbefca13bfd402a0464a19c1974ea1f6a71a --threads 2 --runs 31
 ```
 
-每条命令使用新的 UID 10001 容器，模型只读、无网络、CPU／内存有界。线程比较需注明执行顺序、资源请求、运行上限及节点背景负载。身份效果准入仍需要授权真人样本、设备／会话隔离评测与门限校准。
+每条命令使用新的 UID 10001 容器，模型只读、无网络、CPU／内存有界。默认 `--runs 31`；快速检查可用 `--runs 4`，此时仅 3 次预热，P95 输出为 null。线程比较需注明执行顺序、资源请求、运行上限及节点背景负载。身份效果准入仍需要授权真人样本、设备／会话隔离评测与门限校准。
