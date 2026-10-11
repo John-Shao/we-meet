@@ -11,6 +11,7 @@ import io
 import json
 import math
 import os
+import re
 import statistics
 import subprocess
 import sys
@@ -51,7 +52,7 @@ def distribution(values):
     }
 
 
-def main(soak_seconds=0):  # noqa: PLR0915 -- One bounded process/fixture lifetime.
+def main(soak_seconds=0, require_result_metrics=False):  # noqa: PLR0915 -- One bounded process/fixture lifetime.
     assert soak_seconds in (0, 300, 900)
     sys.path.insert(0, "/backend")
     from core.services.voiceprint_encoder import FEATURE_SPACE, decode_result
@@ -288,6 +289,56 @@ def main(soak_seconds=0):  # noqa: PLR0915 -- One bounded process/fixture lifeti
                 "final_rss_bytes": samples["rss_last_bytes"],
                 "unexpected_busy_or_error": 0,
             }
+        if require_result_metrics:
+            stage = "result_metrics"
+            with session() as client:
+                response = client.get(base + "/metrics", timeout=2)
+                assert response.status_code == 200
+                metrics_body = response.text
+            counters = {
+                name: int(count)
+                for name, count in re.findall(
+                    r'^voiceprint_encoder_results_total\{result="([a-z_]+)"\} ([0-9]+)$',
+                    metrics_body,
+                    re.MULTILINE,
+                )
+            }
+            assert set(counters) == {
+                "success",
+                "busy",
+                "permit_capacity",
+                "unavailable",
+                "timeout",
+                "rejected",
+                "canceled",
+            }
+            assert counters["success"] == sum(
+                case["admitted"]["n"] + case["serial_recovery"]["n"]
+                for case in result["cases"]
+            ) + result.get("paced_soak", {}).get("latencies", {}).get("n", 0)
+            assert counters["busy"] == sum(
+                case["busy"]["n"] for case in result["cases"]
+            )
+            assert all(
+                counters[name] == 0
+                for name in counters
+                if name not in ("success", "busy")
+            )
+            entries = gauge(metrics_body, "voiceprint_encoder_permit_entries")
+            active_permits = gauge(metrics_body, "voiceprint_encoder_permits_active")
+            capacity = gauge(metrics_body, "voiceprint_encoder_permit_capacity")
+            assert 0 <= active_permits <= entries <= capacity == 1024
+            assert (
+                token.decode() not in metrics_body and key.decode() not in metrics_body
+            )
+            assert "vector" not in metrics_body and "sha256" not in metrics_body
+            result["result_metrics"] = {
+                "verified": True,
+                "counts": counters,
+                "permit_entries": entries,
+                "permits_active": active_permits,
+                "permit_capacity": capacity,
+            }
         stop.set()
         monitor.join(timeout=5)
         assert not monitor.is_alive() and not monitor_errors and samples["n"] > 0
@@ -347,4 +398,6 @@ def main(soak_seconds=0):  # noqa: PLR0915 -- One bounded process/fixture lifeti
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--soak-seconds", type=int, choices=(0, 300, 900), default=0)
-    raise SystemExit(main(parser.parse_args().soak_seconds))
+    parser.add_argument("--require-result-metrics", action="store_true")
+    args = parser.parse_args()
+    raise SystemExit(main(args.soak_seconds, args.require_result_metrics))

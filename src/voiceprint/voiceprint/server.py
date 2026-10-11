@@ -21,6 +21,22 @@ from voiceprint.permits import (
 from voiceprint.process_protocol import EncoderProcessError
 from voiceprint.spec import MAX_BODY_BYTES
 
+RESULTS = (
+    "success",
+    "busy",
+    "permit_capacity",
+    "unavailable",
+    "timeout",
+    "rejected",
+    "canceled",
+)
+ERROR_RESULTS = {
+    "encoder_busy": "busy",
+    "permit_capacity_exceeded": "permit_capacity",
+    "encoder_unavailable": "unavailable",
+    "encoder_timeout": "timeout",
+}
+
 
 class EncoderService:
     def __init__(self, encoder, token: bytes, permit_key: bytes):
@@ -43,6 +59,7 @@ class EncoderService:
         self.next_recovery = 0.0
         self.closing = False
         self.request_counts = dict.fromkeys(["2xx", "4xx", "5xx", "canceled"], 0)
+        self.result_counts = dict.fromkeys(RESULTS, 0)
         self.request_seconds = 0.0
 
     @property
@@ -83,9 +100,21 @@ SERVICE = web.AppKey("encoder_service", EncoderService)
 
 
 def response(body: dict, *, status: int = 200):
-    return web.json_response(
+    reply = web.json_response(
         body, status=status, headers={"Cache-Control": "private, no-store"}
     )
+    fallback = (
+        "success" if status < 300 else "rejected" if status < 500 else "unavailable"
+    )
+    # Internal metadata only; never parse a response vector or reflect a code as
+    # a metric label. Unrecognized model errors retain a fixed category.
+    code = body.get("code")
+    reply["voiceprint_result"] = (
+        ERROR_RESULTS.get(code, fallback)
+        if status == 503 and isinstance(code, str)
+        else fallback
+    )
+    return reply
 
 
 async def health(_request):
@@ -105,21 +134,35 @@ async def observe_requests(request, handler):
         return await handler(request)
     started = time.monotonic()
     outcome = "5xx"
+    reason = "unavailable"
     try:
         result = await handler(request)
         outcome = (
             "2xx" if result.status < 300 else "4xx" if result.status < 500 else "5xx"
         )
+        fallback = (
+            "success"
+            if outcome == "2xx"
+            else "rejected"
+            if outcome == "4xx"
+            else "unavailable"
+        )
+        reason = result.get("voiceprint_result", fallback)
+        if reason not in RESULTS:
+            reason = fallback
         return result
     except asyncio.CancelledError:
         outcome = "canceled"
+        reason = "canceled"
         raise
     except web.HTTPException as error:
         outcome = "4xx" if error.status < 500 else "5xx"
+        reason = "rejected" if error.status < 500 else "unavailable"
         raise
     finally:
         service = request.app[SERVICE]
         service.request_counts[outcome] += 1
+        service.result_counts[reason] += 1
         service.request_seconds += max(0.0, time.monotonic() - started)
 
 
@@ -127,6 +170,8 @@ async def metrics(request):
     """Fixed aggregate labels only: never inspect payloads, grants or identities."""
     service = request.app[SERVICE]
     active = int(service.active is not None and not service.active.done())
+    now = time.time()
+    active_permits = sum(expires > now for expires in service.nonces.used.values())
     rows = [
         "# TYPE voiceprint_encoder_ready gauge",
         f"voiceprint_encoder_ready {int(service.ready)}",
@@ -134,11 +179,24 @@ async def metrics(request):
         f"voiceprint_encoder_active {active}",
         "# TYPE voiceprint_encoder_uploads gauge",
         f"voiceprint_encoder_uploads {service.uploads}",
+        "# TYPE voiceprint_encoder_permit_entries gauge",
+        f"voiceprint_encoder_permit_entries {len(service.nonces.used)}",
+        "# TYPE voiceprint_encoder_permits_active gauge",
+        f"voiceprint_encoder_permits_active {active_permits}",
+        "# TYPE voiceprint_encoder_permit_capacity gauge",
+        f"voiceprint_encoder_permit_capacity {service.nonces.capacity}",
         "# TYPE voiceprint_encoder_requests_total counter",
     ]
     rows.extend(
         f'voiceprint_encoder_requests_total{{outcome="{outcome}"}} {count}'
         for outcome, count in service.request_counts.items()
+    )
+    rows += [
+        "# TYPE voiceprint_encoder_results_total counter",
+    ]
+    rows.extend(
+        f'voiceprint_encoder_results_total{{result="{result}"}} {count}'
+        for result, count in service.result_counts.items()
     )
     rows += [
         "# TYPE voiceprint_encoder_request_seconds_total counter",

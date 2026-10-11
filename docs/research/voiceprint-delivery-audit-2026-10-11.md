@@ -32,6 +32,7 @@
 | ECS encoder HTTPS／轮换 | [实际 Qwen RPC 与 Secret 核验](voiceprint-ecs-https-review-2026-10-11.md)：Service DNS／ClusterIP、CA／主机名、真实后端 transport、重放、0440/fsGroup/只读 PVC 及 A／B Recreate 轮换通过，旧 token／key 拒绝，资源全部清理 | 合成独立 transport，不初始化 Django／队列／业务授权；单次 RPC 非 P95，零停机／HA、完整业务链路及真人效果仍未准入 |
 | encoder 短时 HTTP 并发 | [本地生产镜像过载／恢复](voiceprint-encoder-load-review-2026-10-11.md)：3／10 秒、1／2／4／8 路，共 1,140 次请求；481 次有效向量、659 次 busy 拒绝、240 次波次后恢复成功；健康／子进程退出正常 | 合成短时负载，服务与 caller 共享 2 CPU／2 GiB，约 34 秒；不含消费者、排队、公平性、长时增长、ASR 竞争或真人效果 |
 | encoder 五分钟定速运行 | [许可自然过期周期／进程与内存补验](voiceprint-encoder-soak-review-2026-10-11.md)：1,499 次十秒音频提取均通过，经验 HTTP P95 94.60 ms；ready/live、固定子进程与正常退出、临时凭证清理通过 | 施加约 5 请求／秒、无业务消费者／排队；不是最大吞吐或长期增长证明，指标／告警平台尚待接入 |
+| encoder 结果分类／许可指标 | [七类结果与只读缓存占用](voiceprint-encoder-result-metrics-review-2026-10-11.md)：新镜像 Linux 87 项回归与实际 HTTPS 通过，1,140 次并发指标与回执精确一致；模型故障不再与正常 busy 混为同一指标 | 原 5xx 汇总仍保留；尚未部署监控／告警，新镜像未上传或安装到 ECS，旧镜像的五分钟结果不迁移到本制品 |
 
 本轮完整回归的警告主要涉及测试静态目录及既有依赖行为，未出现测试失败。补验计数与完整回归存在重叠，不相加为“独立测试总数”。
 

@@ -162,6 +162,13 @@ def main():
         body = response.text
         assert 'voiceprint_encoder_requests_total{outcome="2xx"} 2' in body
         assert 'voiceprint_encoder_requests_total{outcome="4xx"} 2' in body
+        assert 'voiceprint_encoder_results_total{result="success"} 2' in body
+        assert 'voiceprint_encoder_results_total{result="rejected"} 2' in body
+        assert 'voiceprint_encoder_results_total{result="busy"} 0' in body
+        assert 'voiceprint_encoder_results_total{result="unavailable"} 0' in body
+        assert "voiceprint_encoder_permit_entries 2\n" in body
+        assert "voiceprint_encoder_permits_active 2\n" in body
+        assert "voiceprint_encoder_permit_capacity 1024\n" in body
         assert token.decode() not in body and permit not in body
         assert "vector" not in body and "sha256" not in body
         stage = "shutdown"
@@ -179,6 +186,7 @@ def main():
             tls_verified=True,
             backend_rpc=True,
             replay_rejected=True,
+            result_and_permit_metrics_verified=True,
             model_process_stopped=True,
             dimension=1024,
             uid=10001,
