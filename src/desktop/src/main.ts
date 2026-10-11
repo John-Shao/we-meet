@@ -317,6 +317,10 @@ async function createWindow() {
     minHeight: 600,
     title: "We-Meet",
     backgroundColor: "#ffffff",
+    titleBarStyle: "hidden",
+    ...(process.platform !== "darwin" ? {
+      titleBarOverlay: { color: "#f6f6f6", symbolColor: "#555555", height: 40 },
+    } : {}),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       session: ses,
@@ -454,7 +458,7 @@ async function createWindow() {
     "did-fail-load",
     (_event, code, _description, _url, isMainFrame) => {
       if (isMainFrame && code !== -3)
-        report("页面加载失败，请从“窗口 → 重新加载”重试。");
+        report("页面加载失败，请从标题栏“更多 → 窗口 → 重新加载”重试。");
     },
   );
   win.on("close", (event) => {
@@ -663,8 +667,17 @@ async function createWindow() {
         throw new Error("Invalid desktop request");
       return action();
     });
-  Menu.setApplicationMenu(
-    Menu.buildFromTemplate([
+  const reloadWithConfirmation = () => {
+    void dialog.showMessageBox(win, {
+      message: "重新加载会断开本机会议与采集，请先保存录音。",
+      buttons: ["取消", "重新加载"],
+      defaultId: 0,
+      cancelId: 0,
+    }).then((result) => {
+      if (result.response === 1 && !win.isDestroyed()) win.reload();
+    });
+  };
+  const desktopMenu = Menu.buildFromTemplate([
       {
         label: "We-Meet",
         submenu: [
@@ -711,18 +724,7 @@ async function createWindow() {
           {
             label: "重新加载",
             accelerator: "Ctrl+R",
-            click: () => {
-              void dialog
-                .showMessageBox(win, {
-                  message: "重新加载会断开本机会议与采集，请先保存录音。",
-                  buttons: ["取消", "重新加载"],
-                  defaultId: 0,
-                  cancelId: 0,
-                })
-                .then((result) => {
-                  if (result.response === 1) win.reload();
-                });
-            },
+            click: reloadWithConfirmation,
           },
           { role: "minimize" },
           { role: "resetZoom" },
@@ -730,8 +732,43 @@ async function createWindow() {
           { role: "zoomOut" },
         ],
       },
-    ]),
-  );
+    ]);
+  // Keep the macOS application menu; Windows/Linux use the title-bar popup.
+  Menu.setApplicationMenu(process.platform === "darwin" ? desktopMenu : null);
+  ipcMain.handle("desktop:menu", (event, ...args) => {
+    if (!senderAllowed(event) || args.length) throw new Error("Invalid desktop request");
+    desktopMenu.popup({ window: win });
+  });
+  ipcMain.handle("desktop:window-state", (event, ...args) => {
+    if (!senderAllowed(event) || args.length) throw new Error("Invalid desktop request");
+    return { fullscreen: win.isFullScreen() };
+  });
+  ipcMain.handle("desktop:titlebar-theme", (event, theme, ...args) => {
+    if (!senderAllowed(event) || args.length || !["light", "dark"].includes(theme))
+      throw new Error("Invalid desktop request");
+    if (process.platform !== "darwin") win.setTitleBarOverlay({
+      color: theme === "dark" ? "#1e2024" : "#f6f6f6",
+      symbolColor: theme === "dark" ? "#e5e5e5" : "#555555",
+      height: 40,
+    });
+  });
+  // Windows can emit the transition before isFullScreen() reflects it.
+  win.on("enter-full-screen", () => win.webContents.send("desktop:window-state", { fullscreen: true }));
+  win.on("leave-full-screen", () => win.webContents.send("desktop:window-state", { fullscreen: false }));
+  // Hidden menus don't register accelerators on Windows/Linux. Preserve the
+  // guarded reload and zoom shortcuts without taking over text editing.
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown" || input.alt) return;
+    const key = input.key.toLowerCase();
+    if (key === "f5" || (key === "r" && (input.control || input.meta))) {
+      event.preventDefault();
+      reloadWithConfirmation();
+    } else if ((input.control || input.meta) && ["0", "+", "=", "-"].includes(key)) {
+      event.preventDefault();
+      const zoom = win.webContents.getZoomLevel();
+      win.webContents.setZoomLevel(key === "0" ? 0 : Math.max(-3, Math.min(3, zoom + (key === "-" ? -0.5 : 0.5))));
+    }
+  });
   await loadInitialPage(win, rendererOrigin);
 }
 

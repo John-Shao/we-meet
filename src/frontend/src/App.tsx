@@ -19,6 +19,7 @@ import { useApplyA11yFonts } from '@/hooks/useApplyA11yFonts'
 import { useApplyTheme } from '@/hooks/useApplyTheme'
 import { useUser } from '@/features/auth'
 import { HomeRoute } from '@/features/home'
+import { DesktopTitleBar } from '@/layout/DesktopTitleBar'
 
 // M 端(运营管理端)—— 独立 shell + org_role 守卫,懒加载,普通员工不加载其 bundle。
 const AdminApp = lazy(() => import('@/features/admin'))
@@ -47,6 +48,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      {window.weMeetDesktop?.shell && <DesktopTitleBar />}
       {!isSDKContext && <AppInitialization />}
       <Suspense fallback={null}>
         <I18nProvider locale={i18n.language}>

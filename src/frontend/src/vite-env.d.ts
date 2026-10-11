@@ -19,6 +19,14 @@ interface Window {
   weMeetDesktop?: {
     isDesktop: true
     platform: string
+    shell?: {
+      openMenu(): Promise<void>
+      setTheme(theme: 'light' | 'dark'): Promise<void>
+      getWindowState(): Promise<{ fullscreen: boolean }>
+      onWindowState(
+        listener: (state: { fullscreen: boolean }) => void
+      ): () => void
+    }
     getStatus(): Promise<DesktopStatus>
     login(): Promise<void>
     logout(): Promise<void>

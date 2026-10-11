@@ -1,5 +1,7 @@
 # We-Meet 桌面端：D0 可用客户端里程碑
 
+**2026-10-11 桌面外壳更新**：当前内部候选为 `0.4.0-delivery.6`。自定义可拖动标题栏保留原生窗口按钮；Windows/Linux 顶部菜单栏收进“更多”，一级导航与标题栏采用统一中性灰背景，并支持深色主题。导航折叠和全局搜索移至标题栏，重载与退出确认保留。`npm run test:shell-smoke` 使用隔离用户目录和模拟 API 验证登录页、搜索、导航折叠、菜单、缩放、最大化、全屏及会议预览；真实会议、原生拖动和安装升级仍需实机验收。浏览器版保持原有布局。
+
 **2026-10-08 Agent 架构入口**：[Work Agent 架构](../../docs/features/work-agent-architecture.md)。当前内部包为 `0.4.0-delivery.5`，已包含新的 Work 输入布局、导航下半部分历史及窄屏修复，见[桌面重构建记录](../../docs/reviews/work-desktop-layout-delivery-2026-10-08.md)。内置独立适配器 `0.3.2` / dsh `0.1.5rc1`；服务端 Pi 适配器已独立更新至 `0.3.6`，见 [Broker 发布记录](../../docs/reviews/work-broker-pool-production-2026-10-08.md)。下方保留 D0 及各候选历史；生成最新包不等于替换用户已安装客户端。
 
 2026-10-07 最新候选版 `0.3.0-local-work.2` 增加统一云端任务登记、设备领取、状态回报和选定成果主动同步，独立适配器为 `0.2.0`。运行和故障边界见 [协调说明](../work-agent/COORDINATION.md)，实测见 [本轮评审](../../docs/reviews/work-device-coordination-2026-10-07.md)。尚未部署线上或安装替换现有客户端；下面保留此前阶段记录。

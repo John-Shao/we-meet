@@ -11,6 +11,18 @@ from core.services.ai_agent_providers import _all_prompts
 pytestmark = pytest.mark.django_db
 
 
+def test_photo_migration_preserves_admin_edits_and_does_not_add_selectable_scenes():
+    migration = importlib.import_module("core.migrations.0200_photo_qa_prompts")
+    AIPrompt.objects.filter(code="call.tool.photo").update(content="admin rule", is_active=False)
+    with connection.schema_editor() as editor:
+        migration.seed(apps, editor)
+    prompt = AIPrompt.objects.get(code="call.tool.photo")
+    assert prompt.content == "admin rule"
+    assert not prompt.is_active
+    assert len(_all_prompts()) == 4
+    assert all(AIPrompt.objects.get(code=code).scope == "system" for code, _, _ in migration.PROMPTS)
+
+
 def test_catalog_replacement_removes_old_rows_and_isolates_system_instructions():
     legacy = AIPrompt.objects.create(label="Legacy", content="old")
     migration = importlib.import_module("core.migrations.0199_manage_assistant_prompts")

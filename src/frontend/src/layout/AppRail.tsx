@@ -123,6 +123,7 @@ interface Props {
 }
 
 export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
+  const desktopShell = !!window.weMeetDesktop?.shell
   const { t } = useTranslation('shell')
   const { user, logout } = useUser()
   const { data: config } = useConfig()
@@ -229,6 +230,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
   return (
     <nav
       aria-label={t('railLabel')}
+      data-desktop-rail={desktopShell || undefined}
       className={css({
         width: '100%',
         height: '100%',
@@ -252,24 +254,27 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
           flexDirection: collapsed ? 'column' : 'row',
         })}
       >
-        {!collapsed && (
-          <img
-            src="/assets/logo.svg"
-            alt=""
-            className={css({
-              height: '28px',
-              // 窄轨(可拖到 180px)时让 logo 收缩/左裁,而不是把右侧按钮组顶出界。
-              minWidth: 0,
-              flexShrink: 1,
-              maxWidth: '100%',
-              objectFit: 'contain',
-              objectPosition: 'left',
-              // logo.svg 字形近黑固定色,深色底上不可见;反相翻亮度 + hue-rotate
-              // 补偿保留淡红(与 Header 一致)。
-              _dark: { filter: 'invert(1) hue-rotate(180deg)' },
-            })}
-          />
-        )}
+        {!collapsed &&
+          (desktopShell ? (
+            <span className="desktop-rail-brand">We-Meet</span>
+          ) : (
+            <img
+              src="/assets/logo.svg"
+              alt=""
+              className={css({
+                height: '28px',
+                // 窄轨(可拖到 180px)时让 logo 收缩/左裁,而不是把右侧按钮组顶出界。
+                minWidth: 0,
+                flexShrink: 1,
+                maxWidth: '100%',
+                objectFit: 'contain',
+                objectPosition: 'left',
+                // logo.svg 字形近黑固定色,深色底上不可见;反相翻亮度 + hue-rotate
+                // 补偿保留淡红(与 Header 一致)。
+                _dark: { filter: 'invert(1) hue-rotate(180deg)' },
+              })}
+            />
+          ))}
         <div
           className={css({
             display: 'flex',
@@ -280,9 +285,9 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
           })}
         >
           {/* 收起态(竖排):面板按钮排第一个;展开态(横排):留在搜索右侧。 */}
-          {collapsed && panelToggle}
-          <GlobalSearch collapsed />
-          {!collapsed && panelToggle}
+          {!desktopShell && collapsed && panelToggle}
+          <GlobalSearch collapsed hideTrigger={desktopShell} />
+          {!desktopShell && !collapsed && panelToggle}
         </div>
       </div>
 

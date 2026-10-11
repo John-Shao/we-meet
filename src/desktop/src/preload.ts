@@ -7,6 +7,17 @@ import { contextBridge, ipcRenderer } from "electron";
 contextBridge.exposeInMainWorld("weMeetDesktop", {
   isDesktop: true,
   platform: process.platform,
+  shell: {
+    openMenu: () => ipcRenderer.invoke("desktop:menu"),
+    setTheme: (theme: "light" | "dark") => ipcRenderer.invoke("desktop:titlebar-theme", theme),
+    getWindowState: () => ipcRenderer.invoke("desktop:window-state"),
+    onWindowState: (listener: (state: { fullscreen: boolean }) => void) => {
+      if (typeof listener !== "function") throw new TypeError("Expected a listener");
+      const handler = (_event: unknown, state: { fullscreen: boolean }) => listener(state);
+      ipcRenderer.on("desktop:window-state", handler);
+      return () => ipcRenderer.removeListener("desktop:window-state", handler);
+    },
+  },
   getStatus: () => ipcRenderer.invoke("desktop:status"),
   login: () => ipcRenderer.invoke("desktop:login"),
   logout: () => ipcRenderer.invoke("desktop:logout"),

@@ -240,7 +240,9 @@ AOQ 只向客户端返回所需字段：`sid`、`aoqTokenForClient`、`clientRel
 
 最终场景取用户选择：本地场景可替换后端基础提示词，未选择本地场景时使用后端返回的提示词。开启语音摄像头功能后，再在最终场景之后追加统一控制规则和实际摄像头状态，避免某个场景漏掉工具约束。
 
-两种客户端均设置 `modalities=["text","audio"]`、当前 voice、`server_vad`（当前阈值 0.5，静音判定 800 ms）和 `input_audio_transcription.model=qwen3-asr-flash-realtime`。这是 Omni 会话内的转写配置，不额外创建个人 ASR 3.1 连接。模型侧音频格式配置与 SDK／WebRTC 的线路编码是不同层次，不能把 PCM 会话配置理解为网络不编码。
+两种客户端均设置 `modalities=["text","audio"]`、当前 voice、用户选择的 VAD 模式和 `input_audio_transcription.model=qwen3-asr-flash-realtime`。通话设置中的“语音轮次检测（VAD）”可选择声学检测 `server_vad` 或语义检测 `semantic_vad`，默认保持 `server_vad`；选择以 `call_vad_mode` 保存于 App 偏好，统一用于 AOQ／WebRTC、语音／视频通话。它是运行时设置，不是编译选项：通话前选择，客户端创建时固定本通电话的模式，连接中及通话中不修改。两种模式共用阈值 0.5、静音判定 800 ms，通过 `session.update.session.turn_detection` 配置，不增加业务后端字段。官方 [AOQ 实时通话示例](https://help.aliyun.com/zh/model-studio/best-practice-aoq-omni-realtime)支持并推荐语义检测；本项目保留声学基线供对比，实际误打断和延迟效果须在相同设备、音色、音量及网络条件下验证，语义检测不替代回声消除。
+
+这是 Omni 会话内的转写配置，不额外创建个人 ASR 3.1 连接。模型侧音频格式配置与 SDK／WebRTC 的线路编码是不同层次，不能把 PCM 会话配置理解为网络不编码。
 
 按各自开关分别注册摄像头控制／查询和结束通话工具，显式 `enable_search=false`；当前还设置 `temperature=0`、`presence_penalty=0`。这些参数并未解决实测漏调用问题，不能作为可靠性承诺。所有工具均关闭时不附加控制规则和工具定义，保留原对话行为。百炼支持 Realtime Function Calling，但平台能力仍须在本项目两条链路上验收。[Realtime 能力说明](https://www.alibabacloud.com/help/zh/model-studio/realtime)。
 
@@ -346,9 +348,9 @@ flowchart LR
 
 上述分辨率、帧率和码率是当前配置目标，不代表每台设备、网络或服务端均达到该值。模型事件通道不承载手写 Base64 PCM 媒体；编解码和线路传输交给各自客户端栈。
 
-本地预览与模型上传帧率分别由 Android `gradle.properties` 的 `AI_CALL_LOCAL_PREVIEW_FPS=15` 和 `AI_CALL_MODEL_UPLOAD_FPS=2` 配置，也可使用 Gradle `-P` 覆盖，Debug／Release 与 AOQ／WebRTC 共用。预览允许 1–30 整数 fps，上传允许 1–预览 fps；构建时校验，重建安装后生效。硬件采集目标为 `max(15, 本地预览 fps)`，两条分支使用纳秒时钟独立限帧；上传参数同时设置 AOQ 编码 fps 与 WebRTC RTP maxFramerate。因此本文的 15／2 fps 是默认值，硬件输出超过请求值时预览仍按配置限制。参数不改变分辨率、码率或语音工具发布开关。
+本地预览与模型上传帧率在 Android「AI 工具 → 打电话 → 设置」分别选择，默认 15／2 fps，Debug／Release 与 AOQ／WebRTC 共用。预览允许 10–30 整数 fps，上传允许 1–10 整数 fps，两项独立选择；修改预览不改变上传。`AiCallPreferences` 在 `we_meet_ai_call_prefs` 保存 `call_local_preview_fps`／`call_model_upload_fps`，通过 `AiCallSelection.videoSettings` 将不可变设置传给每次创建的客户端。缺失或非法偏好恢复有效值，连接中和通话中禁止修改，下次通话生效，无需重建 APK。原 `AI_CALL_LOCAL_PREVIEW_FPS`／`AI_CALL_MODEL_UPLOAD_FPS` Gradle 属性及 BuildConfig 字段已移除。硬件采集目标为 `max(15, 本地预览 fps)`，两条分支使用纳秒时钟独立限帧；上传参数同时设置 AOQ 编码 fps 与 WebRTC RTP maxFramerate。帧率是目标上限，实际值受设备和网络影响；不改变分辨率、码率或语音工具发布开关。
 
-AOQ 使用已有 WebRTC 包中的 Camera2、纹理和 I420 工具完成本机采集，但不为此创建 WebRTC PeerConnection。两种传输均以兼容的 15 fps 采集，`CameraFrameRouter` 将原始帧直接交给 `TextureViewRenderer` 本地预览，仅模型分支每 500 ms 最多提交一帧。AOQ 的方向旋转、I420 转换与复制只发生在 SDK 上传分支；WebRTC 原始帧预览也在模型 VideoSource 之前分流，避免原生轨道适配再次限制预览。实际预览帧率受设备、曝光和负载影响，不宣称固定达到 15 fps。
+AOQ 使用已有 WebRTC 包中的 Camera2、纹理和 I420 工具完成本机采集，但不为此创建 WebRTC PeerConnection。`CameraFrameRouter` 将原始帧直接交给 `TextureViewRenderer` 本地预览，模型分支按上传设置提交；默认配置下以兼容的 15 fps 采集，每 500 ms 最多上传一帧。AOQ 的方向旋转、I420 转换与复制只发生在 SDK 上传分支；WebRTC 原始帧预览也在模型 VideoSource 之前分流，避免原生轨道适配再次限制预览。实际预览帧率受设备、曝光和负载影响，不宣称固定达到 15 fps。
 
 AOQ 本地预览不再使用 SDK 的低帧率本地渲染；摄像头和采集纹理每次关闭时释放，共享 EGL 根上下文保留到当前通话结束，避免快速重开时渲染器和新帧处于不同共享上下文。停止和解除绑定构成帧回调屏障，先停止喂帧再释放渲染器。此方案继续使用 SDK 1.3.0 的外部视频输入替代无法可靠重开的内部 Camera1 路径，编码及网络仍由 AOQ 完成，不保存图像。[AOQ 外部视频输入](https://www.alibabacloud.com/help/zh/model-studio/aoq-custom-video-input)。
 
@@ -384,6 +386,8 @@ sequenceDiagram
 麦克风静音控制上行采集／音轨；“静音播报”控制下行播放，两者独立。输出静音时仍处理工具事件：成功通过摄像头预览及语音／视频模式变化体现，处理中和设备操作失败时显示文字提示，不会为了语音提示临时解除用户静音。成功的开关、重复目标及状态查询不额外显示结果短句；静音查询也不临时播放语音。通话页没有实时转写或助手回复字幕区域，最终文字按设置写入本机会话记录。用户可随时讲话打断，不为摄像头提示关闭麦克风。
 
 设置中的 transport、音色、场景在通话开始前确定，Active／Connecting 时不修改。通话中摄像头开关和换镜头沿用当前业务申请、租约、SDK 引擎或 PeerConnection，不重建模型会话；切换 AOQ／WebRTC 则需用户结束后重新开始。
+
+标题栏右上角的设置图标打开独立的“通话设置”页面，使用与双语互译设置一致的顶栏、分组卡片及滚动布局。页面保留场景、连接方式、模型、音色、VAD、预览／上传帧率和本机会话文字保存选项；选择即时保存。顶栏返回箭头和系统返回键都先回到通话页，不挂断或退出该模块。`AiCallSettingsScreen` 复用通话页的 `AiCallViewModel` 与偏好，不创建新会话；Connecting／Active 时设置入口仍禁用。
 
 连接失败不自动分配另一通电话或自动切换传输。当前断线恢复仅保留约 10 秒的原连接恢复窗口，恢复失败结束通话；不把重试当作免费、无副作用的操作。
 
@@ -625,7 +629,9 @@ WebRTC 实测的请求冲突 `Conversation already has an active response` 属�
 | 荣耀 AOQ 音量／偶现中断反馈 | 2026-10-09，本次会话用户反馈 | 用户确认媒体模式诊断包“声音恢复，问题没有复现”；此前 VoIP 对照包的音量回归不作为默认方案。此反馈补充于归档之后，未改写原候选元数据；未取得偶现故障日志，不能认定声学回声或网络拥塞根因已解决 |
 | 尚未完成的生产门槛 | 截至 2026-10-09 | 连续 10 轮真实语音控制的历史漏工具／续答超时仍待完整复测；荣耀两条路径的全套语音、权限与生命周期、完整 WebRTC H264 视频及正式签名 Release 验收未完成 |
 
-当前内部测试包为 Android 仓库工作区 `release/0.3.0-work.2-aoq-media-diagnostics-20261008/we-meet-aoq-media-diagnostics-release-internal.apk`。配置为 `AOQ_MEDIA_PLAYBACK=true`、`AI_CALL_CAMERA_VOICE_CONTROL_RELEASE=true`，语音挂断开启，默认预览／上传帧率为 15／2 fps；内部摄像头语音开关不改变生产 Release 默认值。SHA-256 为 `880f650cc17e577b91556ac848683a4a6e8300ef1609619b35072f861aa6f10c`。目录内包含 Debug／内部 Release APK、`candidate.json`、源码快照／补丁、BuildConfig、构建与测试日志、签名及 `SHA256SUMS`；候选在提交前构建，来源以归档快照和补丁为准，不仅凭当前 Git HEAD 判断。目录忽略于 Git，内部 Release 使用 Android 调试证书，不等于正式生产签名发行包。
+2026-10-08 媒体模式诊断包为 Android 仓库工作区 `release/0.3.0-work.2-aoq-media-diagnostics-20261008/we-meet-aoq-media-diagnostics-release-internal.apk`。配置为 `AOQ_MEDIA_PLAYBACK=true`、`AI_CALL_CAMERA_VOICE_CONTROL_RELEASE=true`，语音挂断开启，默认预览／上传帧率为 15／2 fps；内部摄像头语音开关不改变生产 Release 默认值。SHA-256 为 `880f650cc17e577b91556ac848683a4a6e8300ef1609619b35072f861aa6f10c`。目录内包含 Debug／内部 Release APK、`candidate.json`、源码快照／补丁、BuildConfig、构建与测试日志、签名及 `SHA256SUMS`；候选在提交前构建，来源以归档快照和补丁为准，不仅凭当前 Git HEAD 判断。目录忽略于 Git，内部 Release 使用 Android 调试证书，不等于正式生产签名发行包。
+
+2026-10-11 帧率运行时设置候选为 `release/0.3.0-work.2-video-settings-20261011/we-meet-video-settings-release-internal.apk`，SHA-256 为 `72e35aeabf4509c02500a5911c3f3f5a747976112a98f7f83e9b0acfe4f4d33b`。默认预览／上传仍为 15／2 fps，可分别选择 10–30／1–10 fps，VAD 设置保留。117 项单元测试、6 项 Debug 模拟器测试、2 项实际内部 Release 偏好测试、两种构建和签名核验通过；10／3 fps 原生采集分支在 3002 ms 内预览／渲染各 24 帧、模型输入分支 8 帧，WebRTC 连续 10 轮开关且 RTP 上限为所选的 3 fps。本轮没有分配付费模型会话，帧分支计数及本地 RTP 参数不代替真实模型接收帧率或荣耀实机流畅度验收。候选目录记录构建、测试日志和工作区来源，使用相同内部测试签名，可覆盖安装；不改变生产语音工具默认开关。
 
 **早期摄像头候选及功能增量的历史证据：**
 
