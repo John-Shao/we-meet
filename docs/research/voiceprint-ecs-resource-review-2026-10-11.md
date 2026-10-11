@@ -13,6 +13,8 @@
 
 探针 [voiceprint_encoder_resource_probe.py](../../deploy/aliyun/voiceprint_encoder_resource_probe.py)无需生产镜像中不存在的 psutil。它只生成合成 PCM、验证有限 1024 维单位向量并输出聚合资源结果，向量及 WAV 不进入日志。通过 `/proc/self/cgroup` 定位自身 v2 层级，兼容 Docker 私有层级与 Kubernetes 挂载布局；实际 `cpu.max=200000 100000`、`memory.max=2147483648`。
 
+后续另行完成[默认 encoder NetworkPolicy 的实际 CNI 正反对照](voiceprint-ecs-network-review-2026-10-11.md)：22 个场景、66 次 TCP 检查通过。该后续探针使用独立合成 listener，不改变本报告模型资源测量的范围。
+
 ## 首轮实际结果（16 次）
 
 ECS 4 个逻辑 CPU、Linux x86_64；Python 3.13.13、Torch 2.10.0+cpu、numpy 2.2.6、librosa 0.11.0。每个线程设置为独立 Pod，每种 3 秒／10 秒片段执行 4 次：首次单列，其余 3 次计算中位数／最大值。两个 Pod 共 16 次提取，重复输出最大绝对差为 0，有限单位向量检查全部通过。
