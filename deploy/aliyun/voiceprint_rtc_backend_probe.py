@@ -84,6 +84,8 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
     from core import models  # noqa: PLC0415
     from core.services import voiceprint_devices as devices  # noqa: PLC0415
     from core.services import voiceprint_quality as quality  # noqa: PLC0415
+    from core.services import voiceprint_journal_runtime as journal_runtime  # noqa: PLC0415
+    from core.services import voiceprint_recovery as recovery  # noqa: PLC0415
     from core.services import voiceprint_vectors as vectors  # noqa: PLC0415
     from core.services.voiceprint_crypto import load_keyring  # noqa: PLC0415
     from core.tasks.voiceprint_maintenance import maintain_voiceprints  # noqa: PLC0415
@@ -98,6 +100,31 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
     )
     call_command("migrate", verbosity=0, interactive=False)
     require(not models.User.objects.exists(), "empty_database")
+    require(settings.MEETING_VOICEPRINT_JOURNAL_REQUIRED, "journal_mandatory")
+    recovery.write_private(
+        settings.MEETING_VOICEPRINT_JOURNAL_CONFIG_FILE,
+        json.loads(os.environ.pop("VOICEPRINT_JOURNAL_FIXTURE")),
+    )
+    flags = {
+        key: getattr(settings, key)
+        for key in (
+            "MEETING_VOICEPRINT_ENABLED",
+            "MEETING_VOICEPRINT_SAMPLING_ENABLED",
+            "MEETING_VOICEPRINT_MATCHING_ENABLED",
+        )
+    }
+    try:
+        for key in flags:
+            setattr(settings, key, False)
+        call_command(
+            "initialize_voiceprint_journal",
+            config=settings.MEETING_VOICEPRINT_JOURNAL_CONFIG_FILE,
+            stdout=io.StringIO(),
+        )
+    finally:
+        for key, value in flags.items():
+            setattr(settings, key, value)
+    require(journal_runtime.allowed(), "journal_initialized")
     users = []
     for _index in range(2):
         user = models.User(sub=str(uuid4()), full_name="Synthetic RTC fixture")
@@ -269,6 +296,10 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
             "permit_bindings_consistent": all(
                 permit_binding_valid(permit) for permit in permits
             ),
+            "journal_current": journal_runtime.allowed(),
+            "journal_sequence": models.VoiceprintJournalCheckpoint.objects.get(
+                pk=1
+            ).sequence,
             "ended_sessions": models.MeetingSession.objects.filter(
                 ended_at__isnull=False
             ).count(),
@@ -328,6 +359,10 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                     result = {"status": "queued"}
                 elif self.path == "/finish" and mutation:
                     result = inspect()
+                    require(
+                        result["journal_current"] and result["journal_sequence"] > 1,
+                        "journal_published_and_current",
+                    )
                     require(
                         result["candidates"]
                         == result["confirmed"]

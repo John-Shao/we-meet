@@ -946,6 +946,7 @@ async def run():  # noqa: PLR0912, PLR0915 -- Keep this single ordered media sce
                         "owner_https_csrf": True,
                         "real_dispatch": True,
                         "real_beat": True,
+                        "real_independent_journal": True,
                         "new_occurrence_bound": True,
                         "active_pause_discarded": True,
                         "rtc_candidates": 3,

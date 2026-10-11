@@ -98,7 +98,17 @@ class CleanupTests(unittest.TestCase):
     def exercise(self, failure):
         """Force independent diagnostics failures, preserving the original error."""
         calls = []
-        owned = ["postgres", "redis", "livekit", "encoder", "backend", "sampler"]
+        owned = [
+            "postgres",
+            "authority",
+            "redis",
+            "livekit",
+            "encoder",
+            "backend",
+            "sampler",
+        ]
+        if failure == "schema":
+            owned = owned[:2]
 
         def docker(*arguments, **_keywords):
             calls.append(arguments)
@@ -135,6 +145,14 @@ class CleanupTests(unittest.TestCase):
 
             with (
                 patch.object(probe, "docker", side_effect=docker),
+                patch.object(probe.journal_fixture, "wait_database"),
+                patch.object(
+                    probe.journal_fixture,
+                    "private_sql",
+                    return_value=subprocess.CompletedProcess(
+                        "fixture-sql", 1 if failure == "schema" else 0, "", ""
+                    ),
+                ),
                 patch.object(Path, "write_text", write_text),
                 patch.object(
                     probe.sys,
@@ -148,10 +166,16 @@ class CleanupTests(unittest.TestCase):
                     ],
                 ),
                 contextlib.redirect_stderr(io.StringIO()) as output,
-                self.assertRaisesRegex(RuntimeError, "^rtc_backend_startup_failed$"),
+                self.assertRaisesRegex(
+                    RuntimeError,
+                    "^rtc_journal_install_failed$"
+                    if failure == "schema"
+                    else "^rtc_backend_startup_failed$",
+                ),
             ):
                 probe.main()
-            self.assertIn("rtc_fixture_cleanup_incomplete", output.getvalue())
+            if failure != "schema":
+                self.assertIn("rtc_fixture_cleanup_incomplete", output.getvalue())
             self.assertEqual(list(diagnostics.glob("vp-full-rtc-*-*/")), [])
         removals = [arguments[-1] for arguments in calls if arguments[0] == "rm"]
         self.assertCountEqual(removals, ["owned-" + alias for alias in owned])
@@ -162,6 +186,9 @@ class CleanupTests(unittest.TestCase):
 
     def test_docker_log_timeout_still_removes_every_owned_resource(self):
         self.exercise("docker")
+
+    def test_journal_schema_failure_removes_both_databases_and_credentials(self):
+        self.exercise("schema")
 
 
 if __name__ == "__main__":

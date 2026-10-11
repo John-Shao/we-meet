@@ -1,5 +1,7 @@
 # 声纹独立日志提交、恢复门禁与麦克风声明走查
 
+后续[强制日志门禁下的完整 RTC 走查](voiceprint-journal-rtc-review-2026-10-11.md)已补齐完整合成 RTC 回归；生产拓扑、实际设备、容量／HA 与真人效果仍待验收。
+
 日期：2026-10-11（Asia/Shanghai）。分支：`feature/speaker-identity-voiceprint`。接续[独立日志库基础](voiceprint-journal-authority-review-2026-10-11.md)，本阶段接通业务提交、主库检查点及恢复门禁。功能继续默认关闭；Qwen 优先、效果不满足再考虑私有化 CAM++ 的选型不变。
 
 ## 修复的问题

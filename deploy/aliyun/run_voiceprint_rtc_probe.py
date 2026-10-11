@@ -20,9 +20,13 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from uuid import uuid4
+
+import run_voiceprint_journal_probe as journal_fixture
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
@@ -81,7 +85,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
     parser.add_argument("--model-pack", required=True, type=Path)
     parser.add_argument("--diagnostics-dir", required=True, type=Path)
     parser.add_argument(
-        "--backend-image", default="we-meet-backend:voiceprint-idle-20261011"
+        "--backend-image", default="we-meet-backend:voiceprint-journal-control-20261011"
     )
     parser.add_argument(
         "--sampler-image", default="we-meet-voiceprint-sampler:idle-20261011"
@@ -116,7 +120,8 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
         if not private.is_relative_to(diagnostics) or private == diagnostics:
             raise ValueError("rtc_fixture_cleanup_path_invalid")
         directories = {
-            name: private / name for name in ("backend", "encoder", "sampler", "driver")
+            name: private / name
+            for name in ("backend", "encoder", "sampler", "driver", "authority")
         }
         for directory in directories.values():
             directory.mkdir()
@@ -138,6 +143,32 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
         ) = [secrets.token_hex(32) for _ in range(7)]
         backend_ca = certificate("backend", backend)
         encoder_ca = certificate("encoder", encoder)
+        authority = directories["authority"]
+        authority_ca = certificate("authority", authority)
+        (backend / "journal-ca.crt").write_bytes(authority_ca)
+        deployment = str(uuid4())
+        journal_password = secrets.token_hex(32)
+        signing = Ed25519PrivateKey.generate()
+        journal_configuration = {
+            "v": 1,
+            "deployment_id": deployment,
+            "encryption_key": base64.b64encode(os.urandom(32)).decode(),
+            "signing_key": base64.b64encode(
+                signing.private_bytes(
+                    serialization.Encoding.Raw,
+                    serialization.PrivateFormat.Raw,
+                    serialization.NoEncryption(),
+                )
+            ).decode(),
+            "database": {
+                "host": "authority",
+                "port": 5432,
+                "name": "voiceprint_authority_fixture",
+                "user": "voiceprint_journal_writer",
+                "password": journal_password,
+                "ca_file": "/run/voiceprint-backend/journal-ca.crt",
+            },
+        }
         (backend / "encoder-ca.crt").write_bytes(encoder_ca)
         (sampler / "backend-ca.crt").write_bytes(backend_ca)
         (driver / "backend-ca.crt").write_bytes(backend_ca)
@@ -196,6 +227,14 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 "POSTGRES_DB": "voiceprint_rtc_fixture",
             },
         )
+        authority_env = environment(
+            "authority.env",
+            {
+                "POSTGRES_USER": "fixture",
+                "POSTGRES_PASSWORD": secrets.token_hex(32),
+                "POSTGRES_DB": "voiceprint_authority_fixture",
+            },
+        )
         backend_env = environment(
             "backend.env",
             {
@@ -214,6 +253,9 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 "CELERY_ENABLED": "true",
                 "CELERY_TASK_ALWAYS_EAGER": "false",
                 "VOICEPRINT_SYNTHETIC_PROBE": "1",
+                "VOICEPRINT_JOURNAL_FIXTURE": json.dumps(
+                    journal_configuration, separators=(",", ":")
+                ),
                 "VOICEPRINT_RTC_MEDIA_BOUNDARIES": "1"
                 if args.media_boundaries
                 else "0",
@@ -234,6 +276,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 "MEETING_VOICEPRINT_ENCODER_CONFIG_FILE": "/run/voiceprint-backend/encoder.json",
                 "MEETING_VOICEPRINT_QUALITY_CONFIG_FILE": "/run/voiceprint-backend/quality.json",
                 "MEETING_VOICEPRINT_MEDIA_CONFIG_FILE": "/run/voiceprint-backend/media.json",
+                "MEETING_VOICEPRINT_JOURNAL_CONFIG_FILE": "/tmp/voiceprint-journal-writer.json",
                 "HOME": "/tmp",
                 "TMPDIR": "/tmp",
                 "PYTHONDONTWRITEBYTECODE": "1",
@@ -316,6 +359,48 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 if time.monotonic() > deadline:
                     raise RuntimeError("rtc_postgres_unready")
                 time.sleep(0.2)
+            setup = (
+                "install -o postgres -g postgres -m 600 /ssl/authority.key /tmp/journal.key\n"
+                "install -o postgres -g postgres -m 600 /ssl/authority.crt /tmp/journal.crt\n"
+                "printf 'local all all trust\\nhostssl all all all scram-sha-256\\n' >/tmp/journal.hba\n"
+                "chown postgres:postgres /tmp/journal.hba\nchmod 600 /tmp/journal.hba\n"
+                "exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/tmp/journal.crt "
+                "-c ssl_key_file=/tmp/journal.key -c hba_file=/tmp/journal.hba"
+            )
+            authority_id = start(
+                "authority",
+                "postgres:16-alpine",
+                "-c",
+                setup,
+                extra=(
+                    "--env-file",
+                    authority_env,
+                    "--memory",
+                    "1g",
+                    "--mount",
+                    f"type=bind,source={authority.as_posix()},target=/ssl,readonly",
+                    "--entrypoint",
+                    "/bin/sh",
+                ),
+            )
+            journal_fixture.wait_database(authority_id)
+            schema = (ROOT / "deploy/aliyun/voiceprint_journal_schema.sql").read_text(
+                encoding="utf-8"
+            )
+            sql = (
+                "CREATE ROLE voiceprint_journal_reader LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE "
+                "NOREPLICATION NOBYPASSRLS NOINHERIT;\n"
+                "CREATE ROLE voiceprint_journal_writer LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE "
+                "NOREPLICATION NOBYPASSRLS NOINHERIT PASSWORD '"
+                + journal_password
+                + "';\n"
+                + schema
+                + "\nINSERT INTO voiceprint_journal.heads(deployment) VALUES ('"
+                + deployment
+                + "');\n"
+            )
+            if journal_fixture.private_sql(authority_id, sql).returncode:
+                raise RuntimeError("rtc_journal_install_failed")
             start(
                 "redis",
                 "redis:7-alpine",
