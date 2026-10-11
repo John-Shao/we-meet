@@ -47,3 +47,5 @@ python3 deploy/aliyun/voiceprint_network_policy_probe.py --task-file /private-pr
 需具有创建和清理独立测试 namespace 的受控 kubeconfig／k3s 权限及足够的短期调度额度。探针创建自己的 Pod、配额和 Service／NetworkPolicy，输出聚合 JSON，并在失败路径核对归属后清理；不能把 CLI 运行权限授予普通业务用户。
 
 5 项探针安全回归覆盖名称冲突、归属改变、部分创建后的失败清理、非法 task ID 和其他可变／外来 task 镜像拒绝，全部通过；10 项实际 Helm encoder 渲染回归通过。完整资源预算、实际 HTTPS 业务链路、Secret 轮换、持续并发、真人效果与真实终端验收继续保留。
+
+后续[独立 HTTPS 编码器与 Secret 轮换走查](voiceprint-ecs-https-review-2026-10-11.md)已完成真实 transport、证书／主机名、权限和 A／B Recreate 验证；它补充上述 TCP 证据，完整业务授权／队列／RTC、HA、容量和真人准入仍待完成。

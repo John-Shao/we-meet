@@ -221,6 +221,8 @@ P0 资源验证需冻结 CPU 型号／vCPU 配额、GPU 型号、依赖、模型
 
 [ECS 默认编码器网络策略走查](../research/voiceprint-ecs-network-review-2026-10-11.md)已用实际 Chart 策略在独立 namespace 完成 22 个场景、66 次 TCP 连通／拒绝核验，并清理全部测试资源。PodIP／ClusterIP 的合法调用者、跨 namespace、错误标签、其他端口及出口符合预期；仅证明该单节点上的合成 TCP 路径，不替代实际 HTTPS 链路、附加监控 peer、生产叠加策略、容量或真人效果准入。
 
+[ECS 私有 HTTPS／Secret 轮换走查](../research/voiceprint-ecs-https-review-2026-10-11.md)已补验实际 Service DNS／ClusterIP、可信 CA／主机名、当前后端 `EncoderClient` 的 Qwen RPC、重放拒绝、0440/fsGroup 10001 和模型只读，以及 A／B 凭证／证书更新后的 Recreate。新凭证可用、旧 token／签名 key 拒绝，全部测试资源清理；不替代完整 Django／消费者／独立日志、持续容量、零停机／HA 或真人效果准入。
+
 容量按“同时提交的记录数 × 每条记录 speaker 数 × 每 speaker 选取片段数”及完成时限计算，结合实测吞吐和保留余量选择实例数。声纹库登记人数主要影响模板存储和检索量，不能单凭库人数确定 GPU 配置。达到效果与延迟门槛后，再确定 CPU 起步、增加 GPU 或扩容副本；不以本表替代生产压测。
 
 ## 7. 通话／会议采样协议
