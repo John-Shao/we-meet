@@ -252,6 +252,7 @@ class Journal:
                     user=database["user"],
                     password=database["password"],
                     sslmode="verify-full",
+                    target_session_attrs="primary",
                     sslrootcert=database["ca_file"],
                     connect_timeout=3,
                     autocommit=True,

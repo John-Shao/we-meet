@@ -265,6 +265,7 @@ def test_transport_always_uses_verified_tls_and_fixed_timeouts(keys, monkeypatch
         and kwargs["sslrootcert"] == "/fixture/ca.crt"
     )
     assert kwargs["connect_timeout"] == 3 and kwargs["autocommit"] is True
+    assert kwargs["target_session_attrs"] == "primary"
     assert "statement_timeout=3000" in kwargs["options"]
     for error in (
         psycopg.OperationalError("private password body"),

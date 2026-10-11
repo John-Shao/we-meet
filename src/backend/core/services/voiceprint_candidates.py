@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from core import models
 from core.services import voiceprint_consent as consent
+from core.services import voiceprint_journal_runtime as journal_runtime
 from core.services import voiceprint_matching as matching
 from core.services.speaker_attribution import authorize
 from core.services.voiceprint_consent import VoiceprintError
@@ -50,6 +51,7 @@ def enabled():
     return (
         settings.MEETING_VOICEPRINT_ENABLED
         and settings.MEETING_VOICEPRINT_MATCHING_ENABLED
+        and journal_runtime.allowed()
     )
 
 

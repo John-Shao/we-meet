@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from core import models
 from core.services import voiceprint_consent as consent_service
+from core.services import voiceprint_journal_runtime as journal_runtime
 from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_crypto import (
     VoiceprintCryptoError,
@@ -506,7 +507,7 @@ def cancel_sample_work(sample):
         )
 
 
-@transaction.atomic
+@journal_runtime.mutation()
 def decide(actor, identifier, *, expected_version, accepted):
     user, consent, sample = locked_sample(actor, identifier)
     if type(accepted) is not bool:

@@ -1,5 +1,7 @@
 # 声纹独立日志库基础与主库故障导出走查
 
+后续进展：业务提交、主库检查点与最新头门禁已接通，见[提交与恢复门禁走查](voiceprint-journal-gate-review-2026-10-11.md)。下文保留本阶段基础验证的历史边界；当前主库故障请求使用 `request_voiceprint_journal_recovery`。
+
 日期：2026-10-11（Asia/Shanghai）。分支：`feature/speaker-identity-voiceprint`。接续[完整备份恢复与当前来源交接](voiceprint-backup-recovery-review-2026-10-11.md)。本阶段实现独立日志库的存储协议、权限安装脚本和离线导出命令，验证主库完全不可用时仍可取得已发布的撤销元数据。业务事务尚未自动发布这些元数据，主库检查点及自动恢复门禁仍待接入；本报告不作为启用识别的生产验收结论。
 
 ## 选型依据
@@ -31,7 +33,7 @@
 
 运维先建立独立空数据库及不拥有数据库／业务对象的两个受限 LOGIN 账号，使用单独的 owner 安装 SQL，再为唯一部署初始化 sequence 0／全零 digest 的头。安装脚本故意不是重复执行的“修复／重置”脚本。基线必须从当前可信且已冻结相关写入的状态建立；业务发布尚未接入，不能宣称运行导出命令就已经涵盖后续所有撤销。
 
-关闭总开关、采样开关和匹配开关之后，用已有 `prepare_voiceprint_recovery` 生成请求，再在持有私钥的离线来源运行：
+关闭总开关、采样开关和匹配开关之后，用 `request_voiceprint_journal_recovery` 生成请求，再在持有私钥的离线来源运行：
 
 ```sh
 python manage.py export_voiceprint_journal_recovery \

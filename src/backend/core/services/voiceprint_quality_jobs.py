@@ -12,6 +12,7 @@ from django.utils import timezone
 from core import models
 from core.services import voiceprint_enrollment as enrollment
 from core.services import voiceprint_jobs as encoding
+from core.services import voiceprint_journal_runtime as journal_runtime
 from core.services import voiceprint_quality as quality
 from core.services import voiceprint_quality_process as process
 from core.services.voiceprint_consent import VoiceprintError
@@ -108,6 +109,7 @@ def enabled():
     return (
         settings.MEETING_VOICEPRINT_ENABLED
         and settings.MEETING_VOICEPRINT_QUALITY_ENABLED
+        and journal_runtime.allowed()
     )
 
 

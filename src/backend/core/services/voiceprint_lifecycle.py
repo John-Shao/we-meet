@@ -6,10 +6,12 @@ from django.db.models import Max
 from django.db.models.signals import post_delete, post_save, pre_delete
 
 from core import models
+from core.services import voiceprint_journal_runtime as journal_runtime
 from core.services import voiceprint_source_removal as removal
 from core.services.voiceprint_consent import (
     active_member,
     invalidate_subject,
+    organization_policy,
     revocation_floor,
 )
 
@@ -61,6 +63,29 @@ def membership_changed(sender, instance, **kwargs):
         )
 
 
+def organization_changed(sender, instance, **kwargs):
+    if (
+        instance.is_active
+        or not models.VoiceprintConsent.objects.filter(organization=instance).exists()
+    ):
+        return
+    policy = organization_policy(instance)
+    if policy["enabled"]:
+        instance.settings = {
+            **instance.settings,
+            "voiceprint": {"enabled": False, "version": policy["version"] + 1},
+        }
+        instance.save(update_fields=["settings", "updated_at"])
+    owners = (
+        models.User.objects.filter(voiceprint_consents__organization=instance)
+        .distinct()
+        .order_by("pk")
+    )
+    for user in owners.iterator(chunk_size=64):
+        invalidate_subject(user, instance.pk, reason="organization_unavailable")
+
+
+@journal_runtime.mutation()
 def consent_removed(sender, instance, **kwargs):
     # The deletion collector has already enumerated its FK actions. New
     # tombstones deliberately have no consent FK and survive the whole cascade.
@@ -84,6 +109,12 @@ def consent_removed(sender, instance, **kwargs):
 
 
 def connect_handlers():
+    post_save.connect(
+        organization_changed,
+        sender=models.Organization,
+        dispatch_uid="vp_organization_changed",
+        weak=False,
+    )
     for sender in (
         models.MeetingSession,
         models.VoiceprintSamplingTrack,

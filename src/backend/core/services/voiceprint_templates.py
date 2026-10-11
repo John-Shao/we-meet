@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from core import models
 from core.services import voiceprint_consent as consent
+from core.services import voiceprint_journal_runtime as journal_runtime
 from core.services.voiceprint_crypto import VoiceprintCryptoError, load_keyring
 from core.services.voiceprint_encoder import DIMENSION, FEATURE_SPACE
 from core.services.voiceprint_enrollment import sample_quality_ready
@@ -142,6 +143,7 @@ def build(identifier):  # noqa: PLR0911 -- Keep authorization and contribution r
     if (
         not settings.MEETING_VOICEPRINT_ENABLED
         or not settings.MEETING_VOICEPRINT_TEMPLATES_ENABLED
+        or not journal_runtime.allowed()
     ):
         return BuildResult("disabled")
     initial = (

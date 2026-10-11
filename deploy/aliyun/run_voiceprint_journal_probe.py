@@ -113,6 +113,7 @@ def main():  # noqa: PLR0915 -- Keep owned resources, TLS and temporary credenti
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--backend-image", required=True)
     parser.add_argument("--diagnostics-dir", type=Path, required=True)
+    parser.add_argument("--mode", choices=("storage", "recovery"), default="storage")
     args = parser.parse_args()
     for image in (args.backend_image, "postgres:16-alpine"):
         docker("image", "inspect", image)
@@ -133,6 +134,7 @@ def main():  # noqa: PLR0915 -- Keep owned resources, TLS and temporary credenti
         certificate(ssl)
         deployment = str(uuid4())
         password = secrets.token_hex(24)
+        primary_password = secrets.token_hex(24)
         role_passwords = {role: secrets.token_hex(24) for role in ("reader", "writer")}
         pg_env = private / "postgres.env"
         pg_env.write_text(
@@ -191,6 +193,16 @@ def main():  # noqa: PLR0915 -- Keep owned resources, TLS and temporary credenti
             "PYTHONPATH": "/app",
             "PYTHONDONTWRITEBYTECODE": "1",
         }
+        primary_env = private / "primary.env"
+        if args.mode == "recovery":
+            primary_env.write_text(
+                f"POSTGRES_USER=fixture\nPOSTGRES_PASSWORD={primary_password}\nPOSTGRES_DB=voiceprint_journal_primary_fixture\n",
+                encoding="utf-8",
+            )
+            os.chmod(primary_env, 0o600)
+            values["DATABASE_URL"] = (
+                f"postgresql://fixture:{primary_password}@primary:5432/voiceprint_journal_primary_fixture"
+            )
         app_env = private / "backend.env"
         app_env.write_text(
             "".join(f"{key}={value}\n" for key, value in values.items()),
@@ -286,6 +298,35 @@ def main():  # noqa: PLR0915 -- Keep owned resources, TLS and temporary credenti
             if installed.returncode:
                 raise RuntimeError("journal_fixture_schema_failed")
             PHASE = "schema_installed"
+            if args.mode == "recovery":
+                primary_volume = docker(
+                    "volume", "create", "--label", label, prefix + "-primary-data"
+                ).stdout.strip()
+                primary = docker(
+                    "create",
+                    "--name",
+                    prefix + "-primary",
+                    "--network",
+                    network,
+                    "--network-alias",
+                    "primary",
+                    "--label",
+                    label,
+                    "--env-file",
+                    primary_env,
+                    "--memory",
+                    "1g",
+                    "--mount",
+                    f"type=volume,source={primary_volume},target=/var/lib/postgresql/data",
+                    "postgres:16-alpine",
+                ).stdout.strip()
+                docker("start", primary)
+                wait_database(primary)
+            driver = (
+                "voiceprint_journal_recovery_probe.py"
+                if args.mode == "recovery"
+                else "voiceprint_journal_probe.py"
+            )
             probe = docker(
                 "create",
                 "--name",
@@ -308,15 +349,16 @@ def main():  # noqa: PLR0915 -- Keep owned resources, TLS and temporary credenti
                 "--mount",
                 f"type=bind,source={ssl / 'server.crt'},target=/ca.crt,readonly",
                 "--mount",
-                f"type=bind,source={Path(__file__).with_name('voiceprint_journal_probe.py').resolve()},target=/probe.py,readonly",
+                f"type=bind,source={Path(__file__).with_name(driver).resolve()},target=/probe.py,readonly",
                 args.backend_image,
                 "python",
                 "/probe.py",
             ).stdout.strip()
             docker("start", probe)
             PHASE = "backend_running"
-            deadline = time.monotonic() + 60
+            deadline = time.monotonic() + (180 if args.mode == "recovery" else 60)
             restarted = False
+            completed = set()
             while True:
                 state = json.loads(docker("inspect", probe).stdout)[0]["State"]
                 if not state["Running"]:
@@ -324,6 +366,76 @@ def main():  # noqa: PLR0915 -- Keep owned resources, TLS and temporary credenti
                 if time.monotonic() >= deadline:
                     raise RuntimeError("journal_fixture_timeout")
                 phase = docker("exec", probe, "cat", "/tmp/journal/phase", check=False)
+                phase_name = phase.stdout.strip()
+                if args.mode == "recovery" and phase_name not in completed:
+                    signal = None
+                    if phase_name == "seeded":
+                        docker(
+                            "exec",
+                            primary,
+                            "pg_dump",
+                            "-U",
+                            "fixture",
+                            "-d",
+                            "voiceprint_journal_primary_fixture",
+                            "--format=custom",
+                            "--file=/var/lib/postgresql/data/journal-primary.dump",
+                        )
+                        signal = "backed_up"
+                    elif phase_name == "revoked":
+                        docker("stop", primary)
+                        signal = "primary_stopped"
+                    elif phase_name == "exported":
+                        docker("start", primary)
+                        wait_database(primary)
+                        docker(
+                            "exec",
+                            primary,
+                            "pg_restore",
+                            "--clean",
+                            "--if-exists",
+                            "--exit-on-error",
+                            "-U",
+                            "fixture",
+                            "-d",
+                            "voiceprint_journal_primary_fixture",
+                            "/var/lib/postgresql/data/journal-primary.dump",
+                        )
+                        signal = "primary_restored"
+                    elif phase_name == "check_outage":
+                        docker("stop", pg)
+                        signal = "authority_stopped"
+                    elif phase_name == "outage_checked":
+                        docker("start", pg)
+                        wait_database(pg)
+                        signal = "authority_started"
+                    elif phase_name == "check_standby":
+                        docker(
+                            "exec",
+                            pg,
+                            "touch",
+                            "/var/lib/postgresql/data/standby.signal",
+                        )
+                        docker("restart", pg)
+                        wait_database(pg)
+                        signal = "standby_ready"
+                    elif phase_name == "standby_checked":
+                        docker(
+                            "exec", pg, "rm", "/var/lib/postgresql/data/standby.signal"
+                        )
+                        docker("restart", pg)
+                        wait_database(pg)
+                        signal = "authority_primary"
+                    if signal is not None:
+                        PHASE = phase_name
+                        docker(
+                            "exec",
+                            probe,
+                            "python",
+                            "-c",
+                            f"from pathlib import Path; Path('/tmp/journal/{signal}').touch()",
+                        )
+                        completed.add(phase_name)
                 if phase.stdout.strip() == "published" and not restarted:
                     docker("restart", pg)
                     wait_database(pg)
@@ -364,7 +476,9 @@ def main():  # noqa: PLR0915 -- Keep owned resources, TLS and temporary credenti
                 docker("volume", "rm", identifier)
         result["owned_containers_removed"] = len(owned)
         result["owned_network_removed"] = len(networks) == 1
-        result["owned_volume_removed"] = len(volumes) == 1
+        result["owned_volume_removed"] = len(volumes) == (
+            2 if args.mode == "recovery" else 1
+        )
     result["temporary_credentials_removed"] = True
     (root / "result.json").write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"

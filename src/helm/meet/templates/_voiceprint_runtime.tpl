@@ -38,8 +38,9 @@
 {{- if or (not (kindIs "string" $value)) (not (hasPrefix "/run/voiceprint-backend/" $value)) (ne (clean $value) $value) -}}{{ fail "voiceprintRuntime shared credential files must be mounted under /run/voiceprint-backend or use Secret environment references" }}{{- end -}}
 {{- end -}}
 {{- end -}}
-{{- range $key, $filename := dict "MEETING_VOICEPRINT_KEYRING_FILE" "keyring.json" "MEETING_VOICEPRINT_ENCODER_CONFIG_FILE" "encoder.json" "MEETING_VOICEPRINT_QUALITY_CONFIG_FILE" "quality.json" "MEETING_VOICEPRINT_MEDIA_CONFIG_FILE" "media.json" "MEETING_VOICEPRINT_THRESHOLD_CONFIG_FILE" "threshold.json" -}}
+{{- range $key, $filename := dict "MEETING_VOICEPRINT_KEYRING_FILE" "keyring.json" "MEETING_VOICEPRINT_ENCODER_CONFIG_FILE" "encoder.json" "MEETING_VOICEPRINT_QUALITY_CONFIG_FILE" "quality.json" "MEETING_VOICEPRINT_MEDIA_CONFIG_FILE" "media.json" "MEETING_VOICEPRINT_THRESHOLD_CONFIG_FILE" "threshold.json" "MEETING_VOICEPRINT_JOURNAL_CONFIG_FILE" "journal-writer.json" -}}
 {{- $path := printf "/run/voiceprint-backend/%s" $filename -}}
+{{- if eq $key "MEETING_VOICEPRINT_JOURNAL_CONFIG_FILE" -}}{{- $path = "/run/voiceprint-journal/writer.json" -}}{{- end -}}
 {{- if and (hasKey $env $key) (ne (toString (get $env $key)) $path) -}}{{ fail "voiceprintRuntime private file paths must use /run/voiceprint-backend" }}{{- end -}}
 {{- $_ := set $env $key $path -}}
 {{- end -}}
@@ -78,7 +79,7 @@
 {{- range $mounts -}}
 {{- if has (.name | default "") (list "voiceprint-private" "voiceprint-tmp") -}}{{ fail "voiceprintRuntime volume names are reserved" }}{{- end -}}
 {{- $path := clean (toString (.mountPath | default .path)) -}}
-{{- range $base := list "/tmp" "/run/voiceprint-backend" -}}
+{{- range $base := list "/tmp" "/run/voiceprint-backend" "/run/voiceprint-journal" -}}
 {{- if or (eq $path "/") (eq $path $base) (hasPrefix (printf "%s/" $base) $path) (hasPrefix (printf "%s/" $path) $base) -}}{{ fail "voiceprintRuntime private and temporary mount paths are reserved" }}{{- end -}}
 {{- end -}}
 {{- end -}}
@@ -129,6 +130,10 @@
 
 {{- define "meet.voiceprint.volumeMounts" -}}
 - {name: voiceprint-private, mountPath: /run/voiceprint-backend, readOnly: true}
+# Individual subPath binds expose regular files, not projected Secret symlinks.
+# Secret rotation requires the existing configurationRevision Pod rollout.
+- {name: voiceprint-private, mountPath: /run/voiceprint-journal/writer.json, subPath: journal-writer.json, readOnly: true}
+- {name: voiceprint-private, mountPath: /run/voiceprint-journal/ca.crt, subPath: journal-ca.crt, readOnly: true}
 - {name: voiceprint-tmp, mountPath: /tmp}
 {{- end -}}
 

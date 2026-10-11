@@ -1554,7 +1554,7 @@ voiceprintEncoder:
 # Runtime wiring does not enable business flags in backend.envVars.
 voiceprintRuntime:
   enabled: false
-  configurationSecret: "" # Private JSON files and encoder-ca.crt, supplied externally.
+  configurationSecret: "" # Private JSON files, encoder-ca.crt, journal-writer.json and journal-ca.crt; supplied externally.
   configurationRevision: ""
   userId: 10001 # API, consumers and local janitors must share this non-root UID.
   tmpSizeLimit: 2Gi

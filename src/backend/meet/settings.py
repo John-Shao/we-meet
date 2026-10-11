@@ -1200,6 +1200,9 @@ class Base(Configuration):
     )
     MEETING_VERSIONED_SUMMARY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_VOICEPRINT_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    # Mandatory in runtime configurations; only isolated unit tests bypass it.
+    MEETING_VOICEPRINT_JOURNAL_REQUIRED = True
+    MEETING_VOICEPRINT_JOURNAL_CONFIG_FILE = values.Value("", environ_prefix=None)
     MEETING_VOICEPRINT_SAMPLING_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_VOICEPRINT_SAMPLING_AGENT_TOKEN = values.Value("", environ_prefix=None)
     MEETING_VOICEPRINT_SAMPLING_AGENT_NAME = values.Value("", environ_prefix=None)
@@ -1869,6 +1872,8 @@ class Development(Base):
 
 class Test(Base):
     """Test environment settings"""
+
+    MEETING_VOICEPRINT_JOURNAL_REQUIRED = False
 
     LOGGING = values.DictValue(
         {

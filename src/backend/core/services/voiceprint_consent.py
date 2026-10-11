@@ -8,6 +8,7 @@ from django.db.models import Max, Q
 from django.utils import timezone
 
 from core import models
+from core.services import voiceprint_journal_runtime as journal_runtime
 from core.services.audit import record_audit
 from core.services.voiceprint_crypto import load_keyring
 from core.services.voiceprint_encoder import DIMENSION, FEATURE_SPACE
@@ -73,7 +74,12 @@ def organization_policy(organization):
 
 
 def available(user, organization):
-    if not settings.MEETING_VOICEPRINT_ENABLED or not user.is_active or user.is_device:
+    if (
+        not settings.MEETING_VOICEPRINT_ENABLED
+        or not user.is_active
+        or user.is_device
+        or not journal_runtime.allowed()
+    ):
         return False
     return organization is None or (
         active_member(user, organization)
@@ -163,7 +169,7 @@ def revocation_floor(user_id, organization_id):
     )
 
 
-@transaction.atomic
+@journal_runtime.mutation()
 def update_settings(actor, *, organization_id, expected_version, changes):
     user = owner(actor, lock=True)
     organization = scope(user, organization_id, lock=True)
@@ -469,7 +475,7 @@ def revoke(
     )
 
 
-@transaction.atomic
+@journal_runtime.mutation()
 def delete_profile(actor, *, profile_id, expected_version, request_key):
     user = owner(actor, lock=True)
     previous = models.VoiceprintDeletionJob.objects.filter(
@@ -495,7 +501,7 @@ def delete_profile(actor, *, profile_id, expected_version, request_key):
     return revoke(consent, request_key=request_key, profile_id=profile.pk)
 
 
-@transaction.atomic
+@journal_runtime.mutation()
 def invalidate_subject(user, organization_id=None, *, all_scopes=False, reason):
     """Internal offboarding/deactivation path; never grants a person's permission."""
     models.User.objects.select_for_update().filter(pk=user.pk).first()
@@ -609,7 +615,7 @@ def purge_deleted(job_id):
     return job
 
 
-@transaction.atomic
+@journal_runtime.mutation()
 def update_organization_policy(actor, organization_id, *, enabled, expected_version):
     user = owner(actor, lock=True)
     organization = (

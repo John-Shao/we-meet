@@ -11,6 +11,7 @@ from django.utils import timezone
 from core import models
 from core.services import capture_retention
 from core.services import voiceprint_consent as consent
+from core.services import voiceprint_journal_runtime as journal_runtime
 from core.services.meeting_records import visible_records
 from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_media import MAX_SOURCE_BYTES
@@ -51,6 +52,7 @@ def header(record_id, actor_id, expected_revision):  # noqa: PLR0912 -- Immutabl
         settings.MEETING_RECORDS_ENABLED
         and settings.MEETING_VOICEPRINT_ENABLED
         and settings.MEETING_VOICEPRINT_MATCHING_ENABLED
+        and journal_runtime.allowed()
     ):
         raise VoiceprintError("voiceprint_matching_disabled")
     actor = consent.owner(models.User(pk=actor_id))

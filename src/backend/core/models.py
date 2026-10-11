@@ -35,6 +35,7 @@ from timezone_field import TimeZoneField
 
 from . import fields, utils
 from .recording.enums import FileExtension
+from .voiceprint_queryset import VoiceprintManager, VoiceprintUserManager
 
 # 只 import 这一个叶子模块:services/__init__ 是空的,而 services.pinyin 不碰
 # models,所以没有循环导入风险。别在这里 import 别的 services 子模块。
@@ -123,6 +124,8 @@ class BaseModel(models.Model):
     Includes fields common to all models: a UUID primary key and creation/update timestamps.
     """
 
+    objects = VoiceprintManager()
+
     id = models.UUIDField(
         verbose_name=_("id"),
         help_text=_("primary key for the record as UUID"),
@@ -148,8 +151,17 @@ class BaseModel(models.Model):
 
     def save(self, *args, **kwargs):
         """Call `full_clean` before saving."""
-        self.full_clean()
-        super().save(*args, **kwargs)
+        from core.services.voiceprint_journal_runtime import save_context  # noqa: PLC0415 -- Runtime imports models only after app initialization.
+
+        with save_context(self, kwargs.get("update_fields")):
+            self.full_clean()
+            super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from core.services.voiceprint_journal_runtime import delete_context  # noqa: PLC0415
+
+        with delete_context(self):
+            return super().delete(*args, **kwargs)
 
 
 class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
@@ -323,7 +335,7 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         help_text=_("Object storage key of the user's profile cover image."),
     )
 
-    objects = auth_models.UserManager()
+    objects = VoiceprintUserManager()
 
     USERNAME_FIELD = "admin_email"
     REQUIRED_FIELDS = []
@@ -9507,6 +9519,22 @@ class DirectAIAllocation(BaseModel):
 
     class Meta:
         indexes = [models.Index(fields=["user", "status", "lease_until"]), models.Index(fields=["user", "created_at"])]
+
+
+class VoiceprintJournalCheckpoint(models.Model):
+    """Primary mirror of the independent authority; never an authority itself."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    deployment_id = models.UUIDField()
+    sequence = models.PositiveBigIntegerField()
+    digest = models.CharField(max_length=64)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(id=1), name="vp_checkpoint_singleton"),
+            models.CheckConstraint(condition=models.Q(sequence__gte=1), name="vp_checkpoint_positive"),
+            models.CheckConstraint(condition=models.Q(digest__regex=r"^[0-9a-f]{64}$"), name="vp_checkpoint_digest"),
+        ]
 
 
 class VoiceprintConsent(BaseModel):

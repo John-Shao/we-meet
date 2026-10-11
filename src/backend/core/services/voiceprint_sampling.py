@@ -23,6 +23,7 @@ from livekit import api
 from core import models
 from core.services import voiceprint_consent as consent
 from core.services import voiceprint_enrollment as enrollment
+from core.services import voiceprint_journal_runtime as journal_runtime
 from core.services import voiceprint_source_removal as removal
 from core.services.voiceprint_consent import VoiceprintError
 from core.services.voiceprint_crypto import load_keyring, scope_aad
@@ -36,6 +37,7 @@ def enabled():
     return (
         settings.MEETING_VOICEPRINT_ENABLED
         and settings.MEETING_VOICEPRINT_SAMPLING_ENABLED
+        and journal_runtime.allowed()
     )
 
 
@@ -268,6 +270,7 @@ def read_connection(actor, *, room_sid, participant_sid):
     }
 
 
+@journal_runtime.mutation()
 @transaction.atomic
 def update_control(  # noqa: PLR0913 -- One versioned owner microphone declaration.
     actor,

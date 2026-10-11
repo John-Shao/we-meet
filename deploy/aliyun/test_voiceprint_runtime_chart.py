@@ -22,6 +22,39 @@ class VoiceprintRuntimeChartTest(unittest.TestCase):
     def deployments(self, *settings):
         return [row for row in render(*settings) if row["kind"] == "Deployment"]
 
+    def test_journal_configuration_and_ca_are_regular_subpath_binds_in_every_pool(self):
+        seen = set()
+        for deployment in self.deployments(*self.workers):
+            for container in deployment["spec"]["template"]["spec"]["containers"]:
+                env = {
+                    item["name"]: item.get("value") for item in (container.get("env") or [])
+                }
+                if "MEETING_VOICEPRINT_JOURNAL_CONFIG_FILE" not in env:
+                    continue
+                seen.add(container["name"])
+                self.assertEqual(
+                    "/run/voiceprint-journal/writer.json",
+                    env["MEETING_VOICEPRINT_JOURNAL_CONFIG_FILE"],
+                )
+                mounts = {item["mountPath"]: item for item in container["volumeMounts"]}
+                for filename, source in (
+                    ("writer.json", "journal-writer.json"),
+                    ("ca.crt", "journal-ca.crt"),
+                ):
+                    mount = mounts["/run/voiceprint-journal/" + filename]
+                    self.assertEqual(source, mount["subPath"])
+                    self.assertTrue(mount["readOnly"])
+                self.assertNotEqual("voiceprint-query-janitor", container["name"])
+        self.assertTrue({"meet", "voiceprint-worker", "celery-beat"}.issubset(seen))
+        self.assertIn(
+            "private file paths",
+            render(
+                *self.settings,
+                "backend.envVars.MEETING_VOICEPRINT_JOURNAL_CONFIG_FILE=/other",
+                success=False,
+            ),
+        )
+
     def test_default_has_no_runtime_mounts_janitors_workers_or_business_flags(self):
         for row in self.deployments():
             spec = row["spec"]["template"]["spec"]

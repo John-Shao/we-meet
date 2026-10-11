@@ -14,6 +14,7 @@ from django.db.models import Exists, F, OuterRef, Q
 from django.utils import timezone
 
 from core import models
+from core.services import voiceprint_journal_runtime as journal_runtime
 
 logger = logging.getLogger(__name__)
 MAX_TEMPLATES = 5
@@ -149,7 +150,7 @@ def enroll(rows, *, dispatch=True):
         schedule()
 
 
-@transaction.atomic
+@journal_runtime.mutation()
 def remove_source(kind, instance, *, dispatch=True):
     """Called by deletion/save signals before origin FKs are lost."""
     session_id = None
@@ -201,8 +202,11 @@ def remove_source(kind, instance, *, dispatch=True):
 @transaction.atomic
 def remove_sample(instance):
     """Freeze dependency revisions before an ORM cascade removes M2M links."""
-    if instance.source_type == "call" or instance.templates.exists():
-        enroll(models.VoiceprintSample.objects.filter(pk=instance.pk))
+    if not sample_removed(instance.pk) and (
+        instance.source_type == "call" or instance.templates.exists()
+    ):
+        with journal_runtime.mutation():
+            enroll(models.VoiceprintSample.objects.filter(pk=instance.pk))
 
 
 def lock_scope(initial):

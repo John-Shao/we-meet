@@ -216,123 +216,127 @@ def read_current():
     )
     with transaction.atomic(), connection.cursor() as cursor:
         cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
-        floors = rows(
-            models.VoiceprintDeletionJob.objects.values("owner_id", "organization_id")
-            .annotate(
-                generation=Max("revoked_generation"), version=Max("expected_version")
-            )
-            .order_by("owner_id", "organization_id")
+        return capture_current()
+
+
+def capture_current():
+    """Capture within a caller-held journal transaction or read-only snapshot."""
+    require(
+        connection.in_atomic_block and connection.vendor == "postgresql",
+        "snapshot_transaction_required",
+    )
+    floors = rows(
+        models.VoiceprintDeletionJob.objects.values("owner_id", "organization_id")
+        .annotate(generation=Max("revoked_generation"), version=Max("expected_version"))
+        .order_by("owner_id", "organization_id")
+    )
+    sources = rows(
+        models.VoiceprintSourceRemoval.objects.order_by("id").values(
+            "kind", "source_uuid", "source_session_id", "track_digest"
         )
-        sources = rows(
-            models.VoiceprintSourceRemoval.objects.order_by("id").values(
-                "kind", "source_uuid", "source_session_id", "track_digest"
-            )
+    )
+    contributions = rows(
+        models.VoiceprintContributionRemoval.objects.order_by("id").values(
+            "sample_uuid",
+            "profile_uuid",
+            "owner_uuid",
+            "organization_uuid",
+            "generation",
+            "templates",
         )
-        contributions = rows(
-            models.VoiceprintContributionRemoval.objects.order_by("id").values(
-                "sample_uuid",
-                "profile_uuid",
-                "owner_uuid",
-                "organization_uuid",
-                "generation",
-                "templates",
-            )
+    )
+    blocked = rows(
+        models.VoiceprintSample.objects.filter(
+            status__in=["rejected", "expired", "deleted"]
         )
-        blocked = rows(
-            models.VoiceprintSample.objects.filter(
-                status__in=["rejected", "expired", "deleted"]
-            )
-            .order_by("id")
-            .values(
-                "id",
-                "profile_id",
-                "profile__consent__user_id",
-                "profile__consent__organization_id",
-                "generation",
-            )
+        .order_by("id")
+        .values(
+            "id",
+            "profile_id",
+            "profile__consent__user_id",
+            "profile__consent__organization_id",
+            "generation",
         )
-        members = models.Membership.objects.filter(
-            user_id=OuterRef("user_id"),
-            organization_id=OuterRef("organization_id"),
-            status=models.MembershipStatusChoices.ACTIVE,
+    )
+    members = models.Membership.objects.filter(
+        user_id=OuterRef("user_id"),
+        organization_id=OuterRef("organization_id"),
+        status=models.MembershipStatusChoices.ACTIVE,
+    )
+    maximum = (
+        models.VoiceprintProfile.objects.filter(consent_id=OuterRef("pk"))
+        .values("consent_id")
+        .annotate(value=Max("generation"))
+        .values("value")[:1]
+    )
+    live = models.VoiceprintProfile.objects.filter(consent_id=OuterRef("pk")).exclude(
+        status="deleted", encrypted_key=b""
+    )
+    scopes = rows(
+        models.VoiceprintConsent.objects.annotate(
+            member_active=Exists(members),
+            maximum_generation=Subquery(maximum),
+            live_profile=Exists(live),
         )
-        maximum = (
-            models.VoiceprintProfile.objects.filter(consent_id=OuterRef("pk"))
-            .values("consent_id")
-            .annotate(value=Max("generation"))
-            .values("value")[:1]
+        .select_related("user", "organization")
+        .only(
+            "user__id",
+            "user__is_active",
+            "user__is_device",
+            "organization__id",
+            "organization__is_active",
+            "organization__settings",
+            "generation",
+            "version",
+            *consent.PERMISSIONS,
         )
-        live = models.VoiceprintProfile.objects.filter(
-            consent_id=OuterRef("pk")
-        ).exclude(status="deleted", encrypted_key=b"")
-        scopes = rows(
-            models.VoiceprintConsent.objects.annotate(
-                member_active=Exists(members),
-                maximum_generation=Subquery(maximum),
-                live_profile=Exists(live),
-            )
-            .select_related("user", "organization")
-            .only(
-                "user__id",
-                "user__is_active",
-                "user__is_device",
-                "organization__id",
-                "organization__is_active",
-                "organization__settings",
-                "generation",
-                "version",
-                *consent.PERMISSIONS,
-            )
-            .order_by("id")
-        )
-        permissions = []
-        unavailable = []
-        for row in scopes:
-            active = row.user.is_active and not row.user.is_device
-            if row.organization_id:
-                active = active and row.member_active and row.organization.is_active
-            if not active and (
-                row.live_profile
-                or any(getattr(row, key) for key in consent.PERMISSIONS)
-            ):
-                unavailable.append(
-                    {
-                        "owner_id": row.user_id,
-                        "organization_id": row.organization_id,
-                        "generation": max(row.generation, row.maximum_generation or 0)
-                        + 1,
-                        "version": row.version,
-                    }
-                )
-            permissions.append(
+        .order_by("id")
+    )
+    permissions = []
+    unavailable = []
+    for row in scopes:
+        active = row.user.is_active and not row.user.is_device
+        if row.organization_id:
+            active = active and row.member_active and row.organization.is_active
+        if not active and (
+            row.live_profile or any(getattr(row, key) for key in consent.PERMISSIONS)
+        ):
+            unavailable.append(
                 {
-                    "owner": string(row.user_id),
-                    "organization": string(row.organization_id),
-                    "generation": row.generation,
+                    "owner_id": row.user_id,
+                    "organization_id": row.organization_id,
+                    "generation": max(row.generation, row.maximum_generation or 0) + 1,
                     "version": row.version,
-                    "flags": {
-                        key: active and getattr(row, key) for key in consent.PERMISSIONS
-                    },
                 }
             )
-        organizations = rows(
-            models.Organization.objects.filter(
-                pk__in=models.VoiceprintConsent.objects.exclude(
-                    organization_id=None
-                ).values("organization_id")
-            )
-            .only("id", "is_active", "settings")
-            .order_by("id")
-        )
-        policies = [
+        permissions.append(
             {
-                "id": str(row.pk),
-                "enabled": row.is_active
-                and consent.organization_policy(row)["enabled"],
-                "version": consent.organization_policy(row)["version"],
+                "owner": string(row.user_id),
+                "organization": string(row.organization_id),
+                "generation": row.generation,
+                "version": row.version,
+                "flags": {
+                    key: active and getattr(row, key) for key in consent.PERMISSIONS
+                },
             }
-            for row in organizations
-        ]
+        )
+    organizations = rows(
+        models.Organization.objects.filter(
+            pk__in=models.VoiceprintConsent.objects.exclude(
+                organization_id=None
+            ).values("organization_id")
+        )
+        .only("id", "is_active", "settings")
+        .order_by("id")
+    )
+    policies = [
+        {
+            "id": str(row.pk),
+            "enabled": row.is_active and consent.organization_policy(row)["enabled"],
+            "version": consent.organization_policy(row)["version"],
+        }
+        for row in organizations
+    ]
     by_scope = {(row["owner_id"], row["organization_id"]): row for row in floors}
     for row in unavailable:
         previous = by_scope.get((row["owner_id"], row["organization_id"]))
