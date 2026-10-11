@@ -64,6 +64,31 @@ def permit_binding_valid(permit):
     )
 
 
+def identity_evidence_valid(identity):
+    """Verify completion and cleanup without equating transcript rows to clips."""
+    if not identity:
+        return False
+    clips, speech = identity["query_clips"], identity["query_speech_ms"]
+    return (
+        identity["jobs"]
+        == identity["jobs_succeeded"]
+        == identity["suggestions"]
+        == identity["suggested"]
+        == identity["confirmed"]
+        == identity["decisions"]
+        == 1
+        and identity["attempts"] == [1]
+        and identity["attributed_to_owner"]
+        and identity["support_samples"] == 3
+        and len(clips) == len(speech) == 1
+        and 3 <= clips[0] <= 12
+        and 9000 <= speech[0] <= 30000
+        and identity["query_temp_children"] == 0
+        and identity["storage"]["gets"] >= 1
+        and identity["storage"]["heads"] >= 1
+    )
+
+
 def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned processes in one lifetime.
     """Launch genuine services, exposing only authenticated fixture observations."""
     require(sys.platform == "linux" and os.getuid() == 10001, "linux_uid")
@@ -83,8 +108,10 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
 
     from core import models  # noqa: PLC0415
     from core.services import voiceprint_devices as devices  # noqa: PLC0415
+    from core.services import (  # noqa: PLC0415
+        voiceprint_journal_runtime as journal_runtime,
+    )
     from core.services import voiceprint_quality as quality  # noqa: PLC0415
-    from core.services import voiceprint_journal_runtime as journal_runtime  # noqa: PLC0415
     from core.services import voiceprint_recovery as recovery  # noqa: PLC0415
     from core.services import voiceprint_vectors as vectors  # noqa: PLC0415
     from core.services.voiceprint_crypto import load_keyring  # noqa: PLC0415
@@ -94,7 +121,11 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
         settings.DATABASES["default"]["NAME"] == "voiceprint_rtc_fixture", "database"
     )
     require(settings.CELERY_ENABLED and not settings.CELERY_TASK_ALWAYS_EAGER, "async")
-    require(not settings.MEETING_VOICEPRINT_MATCHING_ENABLED, "matching_disabled")
+    synthetic_identity = os.environ.get("VOICEPRINT_SYNTHETIC_IDENTITY") == "1"
+    require(
+        settings.MEETING_VOICEPRINT_MATCHING_ENABLED == synthetic_identity,
+        "matching_fixture_scope",
+    )
     require(
         settings.LIVEKIT_CONFIGURATION["url"] == "http://livekit:7880", "local_livekit"
     )
@@ -155,6 +186,12 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
     )
     observations = {"local_asr": 0, "webhook_requests": 0, "webhook_success": 0}
     lock = threading.Lock()
+    identity_fixture = None
+    roles = (
+        ("control", "processing", "identity", "beat")
+        if synthetic_identity
+        else ("control", "processing", "beat")
+    )
 
     class AsrHandler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -174,7 +211,10 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
             uri = body["input"]["messages"][0]["content"][0]["input_audio"]["data"]
             audio = base64.b64decode(uri.split(",", 1)[1], validate=True)
             duration = quality.audio_duration(audio)
-            require(duration == 10000, "asr_duration")
+            require(
+                3000 <= duration <= 10000 if synthetic_identity else duration == 10000,
+                "asr_duration",
+            )
             words = "Synthetic local speech evidence has one speaker and bounded timestamps".split()
             response = {
                 "output": {
@@ -303,7 +343,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
             "ended_sessions": models.MeetingSession.objects.filter(
                 ended_at__isnull=False
             ).count(),
-            "beat_running": len(processes) == 3
+            "beat_running": len(processes) == len(roles)
             and all(process.poll() is None for process in processes),
             "dispatch_started": models.VoiceprintSamplingDispatch.objects.filter(
                 outcome__in=("created", "existing")
@@ -330,6 +370,9 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
             "denied_owner_candidates": models.VoiceprintSample.objects.filter(
                 profile__consent__user_id=users[1]["id"]
             ).count(),
+            "identity": identity_fixture.evidence()
+            if identity_fixture and identity_fixture.record is not None
+            else None,
         }
 
     class FixtureHandler(BaseHTTPRequestHandler):
@@ -351,12 +394,21 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                         "users": users,
                         "cookie_name": settings.SESSION_COOKIE_NAME,
                         "csrf_cookie_name": settings.CSRF_COOKIE_NAME,
+                        "synthetic_identification": synthetic_identity,
                     }
                 elif self.path == "/state" and not mutation:
                     result = inspect()
                 elif self.path == "/maintain" and mutation:
                     maintain_voiceprints.apply_async()
                     result = {"status": "queued"}
+                elif self.path == "/identity-source" and mutation and identity_fixture:
+                    result = identity_fixture.setup()
+                elif (
+                    self.path == "/identity-evidence"
+                    and not mutation
+                    and identity_fixture
+                ):
+                    result = identity_fixture.evidence()
                 elif self.path == "/finish" and mutation:
                     result = inspect()
                     require(
@@ -385,7 +437,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                         "cleanup_and_denial",
                     )
                     require(
-                        3 <= result["local_asr"] <= 9
+                        3 <= result["local_asr"] <= (21 if synthetic_identity else 9)
                         and result["webhook_success"] >= 5,
                         "real_protocol",
                     )
@@ -403,6 +455,11 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                         require(
                             result["canceled_permits"] >= 8 and result["permits"] >= 11,
                             "native_media_boundaries",
+                        )
+                    if synthetic_identity:
+                        require(
+                            identity_evidence_valid(result["identity"]),
+                            "identity_queue_and_human_confirmation",
                         )
                     print(json.dumps({"status": "passed", **result}), flush=True)
                     stopped.set()
@@ -464,6 +521,12 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
 
     servers, processes, streams = [], [], []
     try:
+        if synthetic_identity:
+            from voiceprint_rtc_identity_probe import IdentityFixture  # noqa: PLC0415
+
+            identity_fixture = IdentityFixture(
+                models.User.objects.get(pk=users[0]["id"])
+            )
         for port in (8000, 8001):
             server = make_server(
                 "0.0.0.0",
@@ -490,7 +553,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
         for server in servers:
             server.daemon_threads = True
             threading.Thread(target=server.serve_forever, daemon=True).start()
-        for role in ("control", "processing", "beat"):
+        for role in roles:
             path = Path("/tmp") / (role + ".log")
             stream = path.open("wb")
             streams.append(stream)
@@ -534,7 +597,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
     finally:
         diagnostic_path = Path("/probe-diagnostics")
         try:
-            for role in ("control", "processing", "beat"):
+            for role in roles:
                 path = Path("/tmp") / (role + ".log")
                 if path.exists():
                     (diagnostic_path / (role + ".log")).write_bytes(path.read_bytes())
@@ -557,6 +620,8 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                 for server in servers:
                     server.shutdown()
                     server.server_close()
+                if identity_fixture is not None:
+                    identity_fixture.close()
 
 
 if __name__ == "__main__":

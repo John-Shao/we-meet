@@ -134,10 +134,72 @@ class PermitEvidenceTests(unittest.TestCase):
             self.assertFalse(backend.permit_binding_valid(value))
 
 
+class IdentityEvidenceTests(unittest.TestCase):
+    """Accept native query segmentation while rejecting incomplete or dirty runs."""
+
+    @staticmethod
+    def receipt():
+        return {
+            "jobs": 1,
+            "jobs_succeeded": 1,
+            "suggestions": 1,
+            "suggested": 1,
+            "confirmed": 1,
+            "decisions": 1,
+            "attempts": [1],
+            "attributed_to_owner": True,
+            "support_samples": 3,
+            "query_clips": [5],
+            "query_speech_ms": [25000],
+            "query_temp_children": 0,
+            "storage": {"heads": 1, "gets": 1},
+        }
+
+    def test_real_segment_count_can_differ_from_transcript_row_count(self):
+        self.assertTrue(backend.identity_evidence_valid(self.receipt()))
+
+    def test_incomplete_identity_or_temp_cleanup_is_rejected(self):
+        self.assertFalse(backend.identity_evidence_valid(None))
+        for field, value in (
+            ("jobs_succeeded", 0),
+            ("confirmed", 0),
+            ("decisions", 2),
+            ("attributed_to_owner", False),
+            ("support_samples", 4),
+            ("query_temp_children", None),
+            ("query_temp_children", 1),
+            ("storage", {"heads": 1, "gets": 0}),
+        ):
+            with self.subTest(field=field, value=value):
+                self.assertFalse(
+                    backend.identity_evidence_valid({**self.receipt(), field: value})
+                )
+
+    def test_unbounded_or_insufficient_query_is_rejected(self):
+        for clips, speech in (
+            ([], []),
+            ([2], [10000]),
+            ([13], [25000]),
+            ([5], [8999]),
+            ([5], [30001]),
+            ([5, 5], [25000, 25000]),
+        ):
+            with self.subTest(clips=clips, speech=speech):
+                self.assertFalse(
+                    backend.identity_evidence_valid(
+                        {
+                            **self.receipt(),
+                            "query_clips": clips,
+                            "query_speech_ms": speech,
+                        }
+                    )
+                )
+
+
 class CleanupTests(unittest.TestCase):
     """Simulate a startup failure without contacting Docker or a registry."""
 
-    def exercise(self, failure):
+    def exercise(self, failure, *, synthetic_identification=False):
         """Force independent diagnostics failures, preserving the original error."""
         calls = []
         owned = [
@@ -173,12 +235,15 @@ class CleanupTests(unittest.TestCase):
             return subprocess.CompletedProcess("fixture-docker", 0, output, "")
 
         original_write = Path.write_text
+        written = {}
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             pack, diagnostics = root / "pack", root / "diagnostics"
             pack.mkdir()
 
             def write_text(path, *arguments, **keywords):
+                if path.name in ("backend.env", "threshold.json", "driver.json"):
+                    written[path.name] = arguments[0]
                 if (
                     failure == "write"
                     and path.parent == diagnostics
@@ -207,6 +272,11 @@ class CleanupTests(unittest.TestCase):
                         str(pack),
                         "--diagnostics-dir",
                         str(diagnostics),
+                        *(
+                            ["--synthetic-identification"]
+                            if synthetic_identification
+                            else []
+                        ),
                     ],
                 ),
                 contextlib.redirect_stderr(io.StringIO()) as output,
@@ -225,6 +295,7 @@ class CleanupTests(unittest.TestCase):
         self.assertCountEqual(removals, ["owned-" + alias for alias in owned])
         self.assertEqual(calls[-1], ("network", "rm", "owned-network"))
         creations = [arguments for arguments in calls if arguments[0] == "create"]
+        self.assert_identity_scope(written, synthetic_identification)
         for arguments in creations:
             self.assertIn("--pull=never", arguments)
             self.assertIn("sha256:" + "a" * 64, arguments)
@@ -232,6 +303,35 @@ class CleanupTests(unittest.TestCase):
                 self.assertEqual(arguments.count(option), 1)
             self.assertNotIn("--publish", arguments)
             self.assertNotIn("-p", arguments)
+
+    def assert_identity_scope(self, written, synthetic_identification):
+        """Matching stays disabled unless the operator explicitly opts in."""
+        environment = dict(
+            line.split("=", 1) for line in written["backend.env"].splitlines()
+        )
+        self.assertEqual(
+            environment["MEETING_VOICEPRINT_MATCHING_ENABLED"],
+            "true" if synthetic_identification else "false",
+        )
+        self.assertEqual(
+            environment["VOICEPRINT_SYNTHETIC_IDENTITY"],
+            "1" if synthetic_identification else "0",
+        )
+        self.assertEqual(
+            json.loads(written["driver.json"])["synthetic_identification"],
+            synthetic_identification,
+        )
+        if synthetic_identification:
+            self.assertEqual(
+                json.loads(written["threshold.json"])["threshold_version"],
+                "rtc-synthetic-test-only-v1",
+            )
+            self.assertTrue(environment["MEETING_VOICEPRINT_THRESHOLD_CONFIG_FILE"])
+        else:
+            self.assertNotIn("threshold.json", written)
+            self.assertEqual(
+                environment["MEETING_VOICEPRINT_THRESHOLD_CONFIG_FILE"], ""
+            )
 
     def test_diagnostic_write_failure_still_removes_every_owned_resource(self):
         self.exercise("write")
@@ -241,6 +341,9 @@ class CleanupTests(unittest.TestCase):
 
     def test_journal_schema_failure_removes_both_databases_and_credentials(self):
         self.exercise("schema")
+
+    def test_identification_is_explicit_and_cleans_up_on_startup_failure(self):
+        self.exercise("write", synthetic_identification=True)
 
 
 if __name__ == "__main__":

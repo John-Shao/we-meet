@@ -11,6 +11,7 @@ removed. Credentials and diagnostics stay outside the repository.
 import argparse
 import base64
 import datetime
+import hashlib
 import ipaddress
 import json
 import os
@@ -124,6 +125,11 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
         action="store_true",
         help="Also verify native mute, idle exit recovery, track replacement and reconnect.",
     )
+    parser.add_argument(
+        "--synthetic-identification",
+        action="store_true",
+        help="Also run the real identity queue using a disposable synthetic-only policy and source fixture.",
+    )
     args = parser.parse_args()
     pack, diagnostics = args.model_pack.resolve(), args.diagnostics_dir.resolve()
     if not pack.is_dir() or diagnostics.is_relative_to(ROOT):
@@ -217,6 +223,28 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
             "media.json": {"ffmpeg": "/usr/bin/ffmpeg", "ffprobe": "/usr/bin/ffprobe"},
         }.items():
             (backend / filename).write_text(json.dumps(content), encoding="utf-8")
+        if args.synthetic_identification:
+            (backend / "threshold.json").write_text(
+                json.dumps(
+                    {
+                        "threshold_version": "rtc-synthetic-test-only-v1",
+                        "feature_space": "qwen3tts-speaker:2ce8c66530f607837b8cdb4f95ce4a359bfee604dc2a2731adc46b89866c5df5",
+                        "score_policy": "qwen-cosine-template-mean-v1",
+                        "accept": 0.85,
+                        "margin": 0.05,
+                        "min_pair_cosine": 0.85,
+                        "min_query_clips": 3,
+                        "min_query_speech_ms": 9000,
+                        "max_candidates": 50,
+                        "max_device_groups": 5,
+                        "calibration_sha256": hashlib.sha256(
+                            b"Synthetic RTC protocol fixture; not human calibration"
+                        ).hexdigest(),
+                        "calibrated": True,
+                    }
+                ),
+                encoding="utf-8",
+            )
         (encoder / "api-token").write_text(encoder_token, encoding="ascii")
         (encoder / "permit-key").write_text(permit_key, encoding="ascii")
         for filename, value in (
@@ -232,6 +260,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                     "api_secret": api_secret,
                     "driver_token": driver_token,
                     "media_boundaries": args.media_boundaries,
+                    "synthetic_identification": args.synthetic_identification,
                 }
             ),
             encoding="utf-8",
@@ -270,15 +299,20 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 "DJANGO_ALLOWED_HOSTS": "backend,127.0.0.1",
                 "DATABASE_URL": f"postgresql://fixture:{db_password}@postgres:5432/voiceprint_rtc_fixture",
                 "AWS_S3_ENDPOINT_URL": "http://127.0.0.1:9000",
-                "AWS_S3_ACCESS_KEY_ID": "fixture",
-                "AWS_S3_SECRET_ACCESS_KEY": "fixture",
+                "AWS_S3_ACCESS_KEY_ID": secrets.token_hex(16),
+                "AWS_S3_SECRET_ACCESS_KEY": secrets.token_hex(32),
                 "AWS_S3_REGION_NAME": "local",
+                "AWS_STORAGE_BUCKET_NAME_VIDEO": "voiceprint-rtc-fixture",
+                "AWS_S3_ADDRESSING_STYLE": "path",
                 "OIDC_OP_JWKS_ENDPOINT": "http://127.0.0.1:9999/unused",
                 "REDIS_URL": "redis://redis:6379/13",
                 "CELERY_BROKER_URL": "redis://redis:6379/0",
                 "CELERY_ENABLED": "true",
                 "CELERY_TASK_ALWAYS_EAGER": "false",
                 "VOICEPRINT_SYNTHETIC_PROBE": "1",
+                "VOICEPRINT_SYNTHETIC_IDENTITY": "1"
+                if args.synthetic_identification
+                else "0",
                 "VOICEPRINT_JOURNAL_FIXTURE": json.dumps(
                     journal_configuration, separators=(",", ":")
                 ),
@@ -293,7 +327,13 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 "MEETING_VOICEPRINT_SAMPLING_ENABLED": "true",
                 "MEETING_VOICEPRINT_QUALITY_ENABLED": "true",
                 "MEETING_VOICEPRINT_TEMPLATES_ENABLED": "true",
-                "MEETING_VOICEPRINT_MATCHING_ENABLED": "false",
+                "MEETING_VOICEPRINT_MATCHING_ENABLED": "true"
+                if args.synthetic_identification
+                else "false",
+                "MEETING_RECORDS_ENABLED": "true",
+                "MEETING_VOICEPRINT_THRESHOLD_CONFIG_FILE": "/run/voiceprint-backend/threshold.json"
+                if args.synthetic_identification
+                else "",
                 "MEETING_VOICEPRINT_SAMPLING_AGENT_NAME": "fixture-sampler",
                 "MEETING_VOICEPRINT_SAMPLING_AGENT_TOKEN": sampling_token,
                 "MEETING_VOICEPRINT_SAMPLING_SESSION_MS": "30000",
@@ -502,6 +542,8 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                     f"type=bind,source={probe_diagnostics.as_posix()},target=/probe-diagnostics",
                     "--mount",
                     f"type=bind,source={(ROOT / 'deploy/aliyun/voiceprint_rtc_backend_probe.py').as_posix()},target=/probe.py,readonly",
+                    "--mount",
+                    f"type=bind,source={(ROOT / 'deploy/aliyun/voiceprint_rtc_identity_probe.py').as_posix()},target=/voiceprint_rtc_identity_probe.py,readonly",
                     "--entrypoint",
                     "python",
                 ),
@@ -578,7 +620,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                     "redis": images["redis:7-alpine"],
                 },
                 "component_resource_limits": RESOURCE_LIMITS,
-                "matching_enabled": False,
+                "matching_enabled": args.synthetic_identification,
                 "asr_protocol_fixture": True,
             }
             print(json.dumps(evidence), flush=True)
@@ -599,7 +641,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 parsed = attempt(json.loads, inspected.stdout) if inspected else None
                 backend_state = parsed[0]["State"] if parsed else None
                 if backend_state and backend_state["Running"]:
-                    for role in ("control", "processing", "beat"):
+                    for role in ("control", "processing", "identity", "beat"):
                         output = attempt(
                             docker,
                             "exec",
@@ -635,7 +677,13 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                             encoding="utf-8",
                         )
                     attempt(docker, "stop", "--timeout", "15", identifier)
-            for filename in ("control.log", "processing.log", "beat.log", "state.json"):
+            for filename in (
+                "control.log",
+                "processing.log",
+                "identity.log",
+                "beat.log",
+                "state.json",
+            ):
                 path = probe_diagnostics / filename
                 if path.exists():
                     captured = attempt(path.read_bytes)
