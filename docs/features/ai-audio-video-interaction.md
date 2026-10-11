@@ -150,6 +150,7 @@ sequenceDiagram
 | `POST /api/v1.0/ai-call/session/` | 开始通话，App → 后端 | `profile_code`、`transport`、`sdp`，可选 `voice_id`、`prompt_id` | `200`，AOQ 连接材料或 SDP answer，以及 `voice`、`instructions`、`session_lease` | 登录鉴权；每用户 6 次／分钟；固定 Omni 模型；返回 `Cache-Control: no-store` |
 | `POST /api/v1.0/direct-ai/sessions/{id}/`，`operation=heartbeat` | 分配后租约存续期间，App → 后端 | `{"operation":"heartbeat"}` | `200`，`{"status":"active"}` | 登录鉴权，仅本人租约；与 close 共用每用户 120 次／分钟限流 |
 | 同一租约 POST，`operation=close` | 挂断或清理，App → 后端 | `{"operation":"close"}` | 通常 `200`，`{"status":"closed"}`；已终结申请返回现有状态 | best-effort 声明，不承担供应商令牌撤销或媒体断连；过期状态返回 `410` |
+| `POST /api/v1.0/ai-call/photo/` | “帮我看”，App → 后端 → 图片理解模型 | `session_id`、`question`、Base64 JPEG `image` | `200`，`{"answer":"…"}` | 登录鉴权、本人有效 Omni 租约，每用户 6 次／分钟；JPEG ≤512,000 字节、长边 ≤1920、像素 ≤2,100,000；不缓存图片 |
 
 **配置字段：**`profiles[]` 包含 `code`、`display_name`、`agent_type`、`model_code`、`default_voice_id` 和 `voices[]`；每个 voice 包含 UUID `id`、模型音色 `value` 和展示 `label`。`prompts[]` 包含 UUID `id`、`label`、`content`。空目录应按无可用配置处理，不能改为客户端任意指定模型。本地场景选择与提示词替换发生在 App，不属于这些 HTTP 请求字段。
 
@@ -355,6 +356,20 @@ AOQ 使用已有 WebRTC 包中的 Camera2、纹理和 I420 工具完成本机采
 AOQ 本地预览不再使用 SDK 的低帧率本地渲染；摄像头和采集纹理每次关闭时释放，共享 EGL 根上下文保留到当前通话结束，避免快速重开时渲染器和新帧处于不同共享上下文。停止和解除绑定构成帧回调屏障，先停止喂帧再释放渲染器。此方案继续使用 SDK 1.3.0 的外部视频输入替代无法可靠重开的内部 Camera1 路径，编码及网络仍由 AOQ 完成，不保存图像。[AOQ 外部视频输入](https://www.alibabacloud.com/help/zh/model-studio/aoq-custom-video-input)。
 
 两种系统音量分别保存，因此同一屏幕位置或先前设置不保证两条路径音量一致。用户曾观察到 AOQ 建连约为 WebRTC 的 2/3，这是单机体感，不能作为稳定性能指标；模型回复延迟还包含 VAD、推理和播放缓冲。
+
+### 5.1 “帮我看”的静态照片
+
+“帮我看”通过 Omni 的 `take_photo(question)` 工具触发，由 App 拍摄静态照片，再经业务后端调用 `AI_CALL_PHOTO_MODEL`（当前 `qwen3.8-flash`）理解图片。后端验证图片及租约后原样转发 Base64 JPEG，不重新压缩；返回的回答作为工具结果交还当前 Omni 会话续答。这是单次照片请求，区别于持续视频流；持续音视频仍直接连接百炼。
+
+自 2026-10-11 本地候选实现起，`CallPhotoCapture` 使用 Camera2 的 `TEMPLATE_STILL_CAPTURE` 和原生 JPEG 输出，不再把 1280×720 视频帧转换成照片。按设备支持选择最高不超过约 12 MP／4096 长边的拍照尺寸，自动对焦、曝光及白平衡先进行测光：等待至少 500 ms 并检查 3A 状态，最多等 4 秒；无法完全收敛时继续原生拍照并在日志标记 `metered=false`，不宣称所有设备均已合焦。原生 HDR 场景模式仅在 Camera2 声明支持时启用；本次未接入厂商 Camera Extensions，不保证与系统相机的多帧计算摄影效果相同。
+
+**本地与模型共用同一份图片。** 原生照片仅在内存中暂存，`CallPhotoImage` 统一转成方向正确的 sRGB JPEG，去掉相机元数据，长边和总像素受现有接口限制；编码质量固定 92，超过 512,000 字节时按比例缩小尺寸，不再降到 70／55／40 质量。最终的同一字节数组用于本机展示、会话记录和模型请求，不保留更清晰的本地原图或另做较差的上传图。聊天缩略图只是显示采样，点击查看完整的共享 JPEG。图片仍受接口大小限制，复杂场景可能降低分辨率。
+
+语音模式临时打开后置摄像头，拍完确认设备关闭，再撤销临时摄像头前台服务类型；不打开模型视频轨道。视频模式沿用当前镜头，暂停视频发送、停止视频采集并确认设备关闭，让静态拍照独占摄像头，完成后恢复原来的采集与发送。预览会短暂冻结，页面模式不切换，音频、AOQ 引擎／WebRTC PeerConnection 和业务租约不重建；关闭或挂断不会由迟到的拍照回调重新打开摄像头。无法确认静态拍照设备释放或视频恢复时，由原有安全清理路径结束当前通话。
+
+拍照与摄像头开关／换镜头共用 `CameraActionController` 串行入口。拍照与视频让出／恢复整体最多 35 秒，静态拍照内部最多 15 秒，设备释放最多 5 秒，视频暂停与恢复各最多 10 秒；授权仍单独最多 60 秒，图片理解仍最多 35 秒。测试应检查共享图片字节一致、方向与边界、重复拍照后设备释放、拍照中挂断、原连接和镜头保持，以及 AOQ／WebRTC 视频恢复；这些检查不能代替用户同场景画质对照验收。
+
+本次 121 项单元测试、Pixel／模拟器原生相机及两条真实模型链路的结果与验收边界见[2026-10-11 静态拍照验证](https://github.com/John-Shao/we-meet-android/blob/main/docs/ai-call-still-photo-verification-20261011.md)。
 
 ## 6. 控制流二：日常对话、打断与结束
 
