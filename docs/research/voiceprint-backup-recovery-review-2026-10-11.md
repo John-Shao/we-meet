@@ -1,5 +1,7 @@
 # 声纹完整备份恢复与当前来源交接走查
 
+后续[独立日志库基础走查](voiceprint-journal-authority-review-2026-10-11.md)已实现独立 PostgreSQL 的加密签名状态、最新头原子比较追加及主库不可用导出；实际 TLS、并发、角色权限和重启验证通过。业务持续发布、主库检查点及自动恢复门禁仍待接入，下文记录的旧协议边界保持适用。
+
 日期：2026-10-11（Asia/Shanghai）。分支：`feature/speaker-identity-voiceprint`。本记录接续[账号级清理走查](voiceprint-scope-erasure-review-2026-10-11.md)，补齐独立于旧数据库备份的当前撤销信息交接、离线校验和重放工具。
 
 ## 问题与实现
