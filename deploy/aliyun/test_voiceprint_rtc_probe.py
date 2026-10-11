@@ -14,6 +14,48 @@ import run_voiceprint_rtc_probe as probe
 import voiceprint_rtc_backend_probe as backend
 
 
+class ImageIdentityTests(unittest.TestCase):
+    """Reject missing identities and retain the image seen before a tag changes."""
+
+    def test_cached_references_are_resolved_once_to_full_image_ids(self):
+        first, second = "sha256:" + "a" * 64, "sha256:" + "b" * 64
+        with patch.object(
+            probe,
+            "docker",
+            side_effect=[
+                subprocess.CompletedProcess("docker", 0, first + "\n", ""),
+                subprocess.CompletedProcess("docker", 0, second + "\n", ""),
+            ],
+        ) as docker:
+            result = probe.resolve_images(["backend:tag", "backend:tag", "encoder:tag"])
+        self.assertEqual(result, {"backend:tag": first, "encoder:tag": second})
+        self.assertEqual(docker.call_count, 2)
+        self.assertTrue(
+            all(call.args[:2] == ("image", "inspect") for call in docker.call_args_list)
+        )
+
+    def test_invalid_or_ambiguous_cached_identity_is_rejected(self):
+        for output in (
+            "",
+            "latest",
+            "sha256:abcd",
+            "sha256:" + "A" * 64,
+            "sha256:" + "a" * 64 + "\nsha256:" + "b" * 64,
+        ):
+            with (
+                self.subTest(output=output),
+                patch.object(
+                    probe,
+                    "docker",
+                    return_value=subprocess.CompletedProcess("docker", 0, output, ""),
+                ),
+                self.assertRaisesRegex(
+                    RuntimeError, "^rtc_cached_image_identity_invalid$"
+                ),
+            ):
+                probe.resolve_images(["backend:tag"])
+
+
 class PermitEvidenceTests(unittest.TestCase):
     """Reject inconsistent live origins and incomplete janitor erasure."""
 
@@ -112,7 +154,9 @@ class CleanupTests(unittest.TestCase):
 
         def docker(*arguments, **_keywords):
             calls.append(arguments)
-            if arguments[:2] == ("network", "create"):
+            if arguments[:2] == ("image", "inspect"):
+                output = "sha256:" + "a" * 64
+            elif arguments[:2] == ("network", "create"):
                 output = "owned-network"
             elif arguments[:2] == ("network", "inspect"):
                 output = json.dumps(
@@ -180,6 +224,14 @@ class CleanupTests(unittest.TestCase):
         removals = [arguments[-1] for arguments in calls if arguments[0] == "rm"]
         self.assertCountEqual(removals, ["owned-" + alias for alias in owned])
         self.assertEqual(calls[-1], ("network", "rm", "owned-network"))
+        creations = [arguments for arguments in calls if arguments[0] == "create"]
+        for arguments in creations:
+            self.assertIn("--pull=never", arguments)
+            self.assertIn("sha256:" + "a" * 64, arguments)
+            for option in ("--cpus", "--memory", "--pids-limit"):
+                self.assertEqual(arguments.count(option), 1)
+            self.assertNotIn("--publish", arguments)
+            self.assertNotIn("-p", arguments)
 
     def test_diagnostic_write_failure_still_removes_every_owned_resource(self):
         self.exercise("write")

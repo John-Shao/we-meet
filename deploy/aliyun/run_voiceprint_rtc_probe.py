@@ -14,6 +14,7 @@ import datetime
 import ipaddress
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -23,14 +24,25 @@ from pathlib import Path
 from uuid import uuid4
 
 import run_voiceprint_journal_probe as journal_fixture
-
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.x509.oid import NameOID
 
 ROOT = Path(__file__).resolve().parents[2]
+
+# Component limits apply only to this owned synthetic fixture, not production.
+RESOURCE_LIMITS = {
+    "postgres": ("0.5", "512m"),
+    "authority": ("0.5", "512m"),
+    "redis": ("0.25", "128m"),
+    "livekit": ("0.5", "512m"),
+    "encoder": ("2", "2g"),
+    "backend": ("2", "2g"),
+    "sampler": ("1", "768m"),
+    "driver": ("1", "768m"),
+}
 
 
 def docker(*arguments, check=True, timeout=180):
@@ -46,6 +58,19 @@ def docker(*arguments, check=True, timeout=180):
     if check and result.returncode:
         raise RuntimeError("rtc_docker_fixture_step_failed")
     return result
+
+
+def resolve_images(references):
+    """Pin cached images before creating private files or any running resource."""
+    resolved = {}
+    for reference in dict.fromkeys(references):
+        identifier = docker(
+            "image", "inspect", reference, "--format", "{{.Id}}"
+        ).stdout.strip()
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", identifier):
+            raise RuntimeError("rtc_cached_image_identity_invalid")
+        resolved[reference] = identifier
+    return resolved
 
 
 def certificate(name, directory):
@@ -104,15 +129,16 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
     if not pack.is_dir() or diagnostics.is_relative_to(ROOT):
         raise ValueError("rtc_fixture_paths_invalid")
     diagnostics.mkdir(parents=True, exist_ok=True)
-    for image in (
-        args.backend_image,
-        args.sampler_image,
-        args.encoder_image,
-        args.livekit_image,
-        "postgres:16-alpine",
-        "redis:7-alpine",
-    ):
-        docker("image", "inspect", image)
+    images = resolve_images(
+        (
+            args.backend_image,
+            args.sampler_image,
+            args.encoder_image,
+            args.livekit_image,
+            "postgres:16-alpine",
+            "redis:7-alpine",
+        )
+    )
     prefix = "vp-full-rtc-" + secrets.token_hex(5)
     containers, network = [], None
     with tempfile.TemporaryDirectory(prefix=prefix + "-", dir=diagnostics) as temporary:
@@ -301,8 +327,16 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
         )
 
         def start(alias, image, *arguments, extra=()):
+            cpus, memory = RESOURCE_LIMITS[alias]
             identifier = docker(
                 "create",
+                "--pull=never",
+                "--cpus",
+                cpus,
+                "--memory",
+                memory,
+                "--pids-limit",
+                "256",
                 "--name",
                 prefix + "-" + alias,
                 "--network",
@@ -310,7 +344,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 "--network-alias",
                 alias,
                 *extra,
-                image,
+                images[image],
                 *arguments,
             ).stdout.strip()
             containers.append((alias, identifier))
@@ -375,8 +409,6 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 extra=(
                     "--env-file",
                     authority_env,
-                    "--memory",
-                    "1g",
                     "--mount",
                     f"type=bind,source={authority.as_posix()},target=/ssl,readonly",
                     "--entrypoint",
@@ -434,10 +466,6 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 args.encoder_image,
                 extra=(
                     *secure,
-                    "--memory",
-                    "2g",
-                    "--cpus",
-                    "2",
                     "--tmpfs",
                     "/tmp:rw,size=64m",
                     "--mount",
@@ -464,10 +492,6 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 "/probe.py",
                 extra=(
                     *secure,
-                    "--memory",
-                    "2g",
-                    "--cpus",
-                    "2",
                     "--tmpfs",
                     "/tmp:rw,size=256m",
                     "--env-file",
@@ -487,10 +511,6 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 args.sampler_image,
                 extra=(
                     *secure,
-                    "--memory",
-                    "768m",
-                    "--cpus",
-                    "1",
                     "--tmpfs",
                     "/tmp:rw,noexec,nosuid,size=64m,uid=10001,gid=10001,mode=0700",
                     "--env-file",
@@ -518,10 +538,6 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 "/probe.py",
                 extra=(
                     *secure,
-                    "--memory",
-                    "768m",
-                    "--cpus",
-                    "1",
                     "--tmpfs",
                     "/tmp:rw,size=64m,uid=10001,gid=10001,mode=0700",
                     "--mount",
@@ -551,7 +567,21 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
             state = json.loads(docker("inspect", sampler_id).stdout)[0]["State"]
             if state["ExitCode"] or state["OOMKilled"]:
                 raise RuntimeError("rtc_sampler_shutdown_failed")
-            print(json.dumps(results[0]), flush=True)
+            evidence = {
+                **results[0],
+                "image_ids": {
+                    "backend": images[args.backend_image],
+                    "sampler": images[args.sampler_image],
+                    "encoder": images[args.encoder_image],
+                    "livekit": images[args.livekit_image],
+                    "postgres": images["postgres:16-alpine"],
+                    "redis": images["redis:7-alpine"],
+                },
+                "component_resource_limits": RESOURCE_LIMITS,
+                "matching_enabled": False,
+                "asr_protocol_fixture": True,
+            }
+            print(json.dumps(evidence), flush=True)
         finally:
             cleanup_errors = []
 
