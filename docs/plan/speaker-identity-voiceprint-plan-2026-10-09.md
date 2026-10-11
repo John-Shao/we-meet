@@ -200,9 +200,11 @@ CAM++／ERes2NetV2 的模型版本及预处理证据见[实施前调研](../rese
 
 本表覆盖专用声纹特征提取服务及其预处理，不包含本地 ASR、完整说话人分离、Qwen TTS encoder 或大模型摘要服务。现有 Qwen 云端转写／分人继续沿用；若增加本地分人或与其他模型共享 GPU，必须单独测量资源竞争并调整预算。
 
-当前先验证 Qwen encoder 的加载方式与资源需求，优先利用现有研究机器；此前本机检查发现的 RTX 4070 SUPER 12 GB 可作为 GPU 评测候选，目前尚未实际运行模型，是否满足 Qwen encoder 需要实测。上述专用模型配置保留作预算参考，不代表现在购买或部署。若进入 CAM++ 备选验证，可从 2 vCPU／4 GB 功能验证起步，效果达标后参考 4 vCPU／8 GB 的生产配置并压测；不预先采购三个模型的服务器。整体业务实施仍遵循方案评审后开始的安排。
+Qwen encoder 已完成固定权重的 Windows／Linux 合成加载及特征契约验证，并在用户提供的 4 vCPU／16 GB ECS 上完成[CPU 与只读模型卷探测](../research/voiceprint-ecs-resource-review-2026-10-11.md)。当前 CPU 路线未使用 GPU；此前本机 RTX 4070 SUPER 12 GB 仅为后续 GPU 候选，不是已验证配置。上述专用模型配置保留作预算参考，不代表现在购买或部署。若 Qwen 的实际效果不满足要求，再进入 CAM++ 备选验证；可从 2 vCPU／4 GB 功能验证起步，效果达标后参考 4 vCPU／8 GB 的生产配置并压测，不预先采购三个模型的服务器。
 
 ### 6.4 配置依据与 P0 容量验证
+
+[ECS 实际资源走查](../research/voiceprint-ecs-resource-review-2026-10-11.md)已验证固定 Qwen encoder 在 2 CPU／2 GiB 限额下的单任务提取及只读 PVC。2 Torch 线程的 3 秒／10 秒预热中位耗时约 51／133 ms，进程峰值 RSS 约 501 MiB；这里只是合成工程数据，未包含分人、ASR、业务队列或真人效果。该节点现有请求为 3.65／4 CPU，500m 测试请求不能调度，最终短期探针使用 250m 请求；当前 encoder 的生产 1 CPU／1 GiB 请求及完整消费者预算仍需额外安排，不能把低即时利用率或探针通过作为整体可部署证明。下述 5 秒／并发／P95 等完整容量验证继续保留。
 
 [3D-Speaker 官方 ONNX CPU 测试](https://github.com/modelscope/3D-Speaker/blob/main/runtime/onnxruntime/README.md)在 Intel Xeon Platinum 8163 上处理 3 秒音频，包含 FBank 特征计算及声纹提取，给出以下实时率（RTF＝处理耗时／音频时长）：
 
