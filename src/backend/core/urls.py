@@ -245,6 +245,7 @@ from core.api.voiceprint import (
     VoiceprintScopesView,
     VoiceprintSettingsView,
 )
+from core.api.voiceprint_operations import VoiceprintOperationsView
 from core.api.voiceprint_sampling import (
     SamplingClipView,
     SamplingConnectionView,
@@ -491,6 +492,10 @@ urlpatterns = [
                 path(
                     "voiceprint/organizations/<uuid:organization_id>/settings/",
                     VoiceprintOrganizationPolicyView.as_view(), name="voiceprint-organization-policy",
+                ),
+                path(
+                    "voiceprint/organizations/<uuid:organization_id>/operations/",
+                    VoiceprintOperationsView.as_view(), name="voiceprint-operations",
                 ),
                 path(
                     "calendar-share/<str:token>/",

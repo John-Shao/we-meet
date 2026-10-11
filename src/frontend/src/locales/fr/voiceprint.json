@@ -1,4 +1,25 @@
 {
+  "operations": {
+    "outcomes": "Résultats en 24 h : inconnus {{unknown}} ; ambigus {{ambiguous}} ; audio insuffisant {{insufficient_audio}} ; voix mélangées {{mixed_speaker}} ; indisponibles {{unavailable}}",
+    "title": "État des empreintes vocales de l’organisation",
+    "hint": "Tâches en attente et échecs conservés. Volumes et durées des dernières 24 heures. Les durées incluent l’attente, pas le délai entre transcription et suggestion visible.",
+    "load": "Afficher / actualiser l’état",
+    "loading": "Chargement de l’état agrégé…",
+    "error": "État indisponible ou droits administrateur modifiés. Rechargez l’organisation.",
+    "noData": "Aucune donnée",
+    "seconds": "{{value}} secondes",
+    "observed": "Observation : {{date}}",
+    "queueCounts": "En attente {{pending}} ; échecs {{failed}} ; terminées en 24 h {{completed}}",
+    "queueTimes": "Attente la plus longue {{oldest}} ; demande à fin P95 {{p95}}",
+    "otherCounts": "Nettoyages en attente {{cleanup}} ; profils suspendus {{paused}} ; suggestions refusées en 24 h {{rejected}}",
+    "speech": "Parole valide déclarée par les métadonnées en 24 h : {{value}}",
+    "queues": {
+      "encoding": "Encodage",
+      "quality": "Qualité vocale",
+      "identification": "Identification",
+      "deletion": "Suppression"
+    }
+  },
   "title": "Mon empreinte vocale",
   "loginRequired": "Connectez-vous pour gérer votre empreinte vocale.",
   "intro": "Enregistrez uniquement votre propre voix. Votre compte personnel et chaque organisation disposent d'autorisations et d'empreintes distinctes.",

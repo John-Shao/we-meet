@@ -1,5 +1,26 @@
 {
   "title": "我的声纹",
+  "operations": {
+    "outcomes": "近 24 小时结果：未知 {{unknown}}；难以区分 {{ambiguous}}；音频不足 {{insufficient_audio}}；多人混合 {{mixed_speaker}}；不可用 {{unavailable}}",
+    "title": "组织声纹运行状态",
+    "hint": "当前积压及保留任务的失败总数；完成量、语音量和耗时取最近 24 小时。耗时包含排队，并非转写结束至建议可见的延迟。",
+    "load": "查看／刷新运行状态",
+    "loading": "正在读取聚合状态…",
+    "error": "状态读取失败或管理权限已变化，请重新加载组织。",
+    "noData": "暂无数据",
+    "seconds": "{{value}} 秒",
+    "observed": "统计时间：{{date}}",
+    "queueCounts": "待处理 {{pending}}；失败 {{failed}}；近 24 小时完成 {{completed}}",
+    "queueTimes": "最早积压时长 {{oldest}}；请求至完成 P95 {{p95}}",
+    "otherCounts": "贡献清理积压 {{cleanup}}；暂停档案 {{paused}}；近 24 小时人工拒绝建议 {{rejected}}",
+    "speech": "近 24 小时质量元数据中的有效语音：{{value}}",
+    "queues": {
+      "encoding": "声纹编码",
+      "quality": "语音质检",
+      "identification": "身份识别",
+      "deletion": "声纹删除"
+    }
+  },
   "loginRequired": "请登录后管理本人的声纹。",
   "intro": "只能登记本人的声音。个人账号与每个组织分别管理授权和声纹，不会混用。",
   "scope": "声纹作用域",

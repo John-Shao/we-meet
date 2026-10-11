@@ -14,6 +14,7 @@ import { Select } from '@/primitives/Select'
 import { css } from '@/styled-system/css'
 import { VoiceprintClient, permissions, type Scope } from './api'
 import { VoiceprintController } from './controller'
+import { VoiceprintOperationsPanel } from './VoiceprintOperationsPanel'
 
 export function VoiceprintSettingsPanel({
   initialOrganizationId,
@@ -271,6 +272,12 @@ function ScopeView({
                 }
               />
             </div>
+          )}
+          {scope?.can_manage_policy && (
+            <VoiceprintOperationsPanel
+              key={controller.client.organizationId}
+              client={controller.client}
+            />
           )}
           {permissions.map((permission) => (
             <div className={rowCss} key={permission}>

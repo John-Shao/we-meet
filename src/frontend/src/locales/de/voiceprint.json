@@ -1,4 +1,25 @@
 {
+  "operations": {
+    "outcomes": "Ergebnisse in 24 Std.: unbekannt {{unknown}}; mehrdeutig {{ambiguous}}; Audio unzureichend {{insufficient_audio}}; gemischte Stimmen {{mixed_speaker}}; nicht verfügbar {{unavailable}}",
+    "title": "Betriebsstatus der Organisationsstimmprofile",
+    "hint": "Aktueller Rückstand und Fehler gespeicherter Aufträge. Mengen und Laufzeiten der letzten 24 Stunden. Laufzeiten enthalten Wartezeiten, nicht die Zeit vom Transkript bis zum sichtbaren Vorschlag.",
+    "load": "Status anzeigen / aktualisieren",
+    "loading": "Aggregierten Status laden…",
+    "error": "Status nicht verfügbar oder Administratorrechte geändert. Organisation neu laden.",
+    "noData": "Keine Daten",
+    "seconds": "{{value}} Sekunden",
+    "observed": "Erfasst: {{date}}",
+    "queueCounts": "Ausstehend {{pending}}; fehlgeschlagen {{failed}}; in 24 Std. abgeschlossen {{completed}}",
+    "queueTimes": "Älteste Wartezeit {{oldest}}; Anfrage bis Abschluss P95 {{p95}}",
+    "otherCounts": "Bereinigungen ausstehend {{cleanup}}; pausierte Profile {{paused}}; in 24 Std. abgelehnte Vorschläge {{rejected}}",
+    "speech": "Laut Qualitätsmetadaten gültige Sprache in 24 Std.: {{value}}",
+    "queues": {
+      "encoding": "Kodierung",
+      "quality": "Sprachqualität",
+      "identification": "Identifizierung",
+      "deletion": "Löschung"
+    }
+  },
   "title": "Mein Stimmprofil",
   "loginRequired": "Melden Sie sich an, um Ihr Stimmprofil zu verwalten.",
   "intro": "Registrieren Sie nur Ihre eigene Stimme. Für Ihr persönliches Konto und jede Organisation gelten getrennte Einwilligungen und Stimmprofile.",

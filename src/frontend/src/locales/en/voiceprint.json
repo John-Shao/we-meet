@@ -1,5 +1,26 @@
 {
   "title": "My voiceprint",
+  "operations": {
+    "outcomes": "24h results: unknown {{unknown}}; ambiguous {{ambiguous}}; insufficient audio {{insufficient_audio}}; mixed speakers {{mixed_speaker}}; unavailable {{unavailable}}",
+    "title": "Organization voiceprint operations",
+    "hint": "Current backlog and failures among retained jobs. Completions, speech and timings cover the last 24 hours. Timings include queues and do not measure ASR completion to visible suggestions.",
+    "load": "View / refresh operations",
+    "loading": "Loading aggregate status…",
+    "error": "Status is unavailable or administrator access changed. Reload the organization.",
+    "noData": "No data",
+    "seconds": "{{value}} seconds",
+    "observed": "Observed: {{date}}",
+    "queueCounts": "Pending {{pending}}; failed {{failed}}; completed in 24h {{completed}}",
+    "queueTimes": "Oldest pending {{oldest}}; request to finish P95 {{p95}}",
+    "otherCounts": "Contribution cleanup pending {{cleanup}}; paused profiles {{paused}}; suggestions rejected in 24h {{rejected}}",
+    "speech": "Valid speech declared by quality metadata in 24h: {{value}}",
+    "queues": {
+      "encoding": "Encoding",
+      "quality": "Speech quality",
+      "identification": "Identification",
+      "deletion": "Voiceprint deletion"
+    }
+  },
   "loginRequired": "Sign in to manage your voiceprint.",
   "intro": "Register only your own voice. Permissions and voiceprints are managed separately for your personal account and each organization.",
   "scope": "Voiceprint scope",

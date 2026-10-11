@@ -1,6 +1,7 @@
 import { ApiError } from '@/api/ApiError'
 import { fetchApi, fetchApiBlob } from '@/api/fetchApi'
 import { privateVoiceprintRequest } from './privateRequest'
+import { parseOperations } from './operations'
 import {
   getAuthSnapshot,
   type AuthSnapshot,
@@ -156,6 +157,15 @@ export class VoiceprintClient {
     const query = new URLSearchParams({ offset: String(offset) })
     if (this.organizationId) query.set('organization_id', this.organizationId)
     return query.toString()
+  }
+  async operations(signal?: AbortSignal) {
+    if (!this.organizationId) throw invalid()
+    return parseOperations(
+      await this.send<unknown>(
+        `organizations/${pathId(this.organizationId)}/operations/`,
+        { signal }
+      )
+    )
   }
   async scopes(offset = 0, signal?: AbortSignal) {
     if (!integer(offset) || offset > 10000) throw invalid()

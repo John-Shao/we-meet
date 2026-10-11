@@ -1,4 +1,25 @@
 {
+  "operations": {
+    "outcomes": "Resultaten in 24 uur: onbekend {{unknown}}; dubbelzinnig {{ambiguous}}; onvoldoende audio {{insufficient_audio}}; gemengde stemmen {{mixed_speaker}}; niet beschikbaar {{unavailable}}",
+    "title": "Status van organisatiestemprofielen",
+    "hint": "Huidige achterstand en fouten van bewaarde taken. Volumes en tijden over de laatste 24 uur. Tijden bevatten wachttijd, niet de tijd tussen transcriptie en zichtbare suggesties.",
+    "load": "Status bekijken / vernieuwen",
+    "loading": "Geaggregeerde status laden…",
+    "error": "Status niet beschikbaar of beheerdersrechten gewijzigd. Laad de organisatie opnieuw.",
+    "noData": "Geen gegevens",
+    "seconds": "{{value}} seconden",
+    "observed": "Gemeten: {{date}}",
+    "queueCounts": "In behandeling {{pending}}; mislukt {{failed}}; voltooid in 24 uur {{completed}}",
+    "queueTimes": "Langste wachttijd {{oldest}}; aanvraag tot voltooiing P95 {{p95}}",
+    "otherCounts": "Opschoningen in behandeling {{cleanup}}; gepauzeerde profielen {{paused}}; afgewezen suggesties in 24 uur {{rejected}}",
+    "speech": "Geldige spraak volgens kwaliteitsmetadata in 24 uur: {{value}}",
+    "queues": {
+      "encoding": "Codering",
+      "quality": "Spraakkwaliteit",
+      "identification": "Identificatie",
+      "deletion": "Verwijdering"
+    }
+  },
   "title": "Mijn stemprofiel",
   "loginRequired": "Meld u aan om uw stemprofiel te beheren.",
   "intro": "Registreer alleen uw eigen stem. Uw persoonlijke account en elke organisatie hebben afzonderlijke toestemmingen en stemprofielen.",

@@ -93,6 +93,48 @@ beforeEach(async () => {
     }
   )
 })
+it.each([true, false])(
+  'shows organization operations only for administrators: %s',
+  async (admin) => {
+    current = settings({ organization_id: ORG })
+    const original = mocks.fetch.getMockImplementation()
+    mocks.fetch.mockImplementation(
+      async (path: string, options?: RequestInit) => {
+        if (path.startsWith('voiceprint/scopes/'))
+          return {
+            results: [
+              {
+                id: ORG,
+                name: 'Fixture organization',
+                can_manage_policy: admin,
+                policy: { enabled: false, version: 1 },
+              },
+            ],
+            next_offset: null,
+          }
+        return original?.(path, options)
+      }
+    )
+    render(
+      <I18nextProvider i18n={i18n}>
+        <VoiceprintSettingsPanel initialOrganizationId={ORG} />
+      </I18nextProvider>
+    )
+    await screen.findByRole('button', { name: '重新加载' })
+    await waitFor(() =>
+      expect(mocks.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('voiceprint/scopes/'),
+        expect.anything()
+      )
+    )
+    if (admin) await screen.findByRole('region', { name: '组织声纹运行状态' })
+    else
+      expect(
+        screen.queryByRole('region', { name: '组织声纹运行状态' })
+      ).toBeNull()
+  }
+)
+
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
