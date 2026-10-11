@@ -30,6 +30,7 @@
 | 匹配核心模板规模 | [本地 Linux 生产镜像基准](voiceprint-matching-resource-review-2026-10-11.md)：1／10／50 人、1／5 设备组、3／12 查询段共 372 次通过，上限组合经验 P95 约 1.32 秒 | 合成向量、断网、开关关闭；不含授权／解密／持久化／排队，不提供真人效果或端到端容量结论 |
 | ECS encoder 默认网络策略 | [实际 CNI 连通／拒绝走查](voiceprint-ecs-network-review-2026-10-11.md)：22 个场景、66 次 TCP 检查符合预期，覆盖 PodIP／ClusterIP、三类合法调用者、跨 namespace、错误标签、其他端口及出口；测试资源清理通过 | 单节点合成 listener；未覆盖业务 HTTPS、UDP／IPv6／跨节点、监控附加 peer 或生产叠加策略 |
 | ECS encoder HTTPS／轮换 | [实际 Qwen RPC 与 Secret 核验](voiceprint-ecs-https-review-2026-10-11.md)：Service DNS／ClusterIP、CA／主机名、真实后端 transport、重放、0440/fsGroup/只读 PVC 及 A／B Recreate 轮换通过，旧 token／key 拒绝，资源全部清理 | 合成独立 transport，不初始化 Django／队列／业务授权；单次 RPC 非 P95，零停机／HA、完整业务链路及真人效果仍未准入 |
+| encoder 短时 HTTP 并发 | [本地生产镜像过载／恢复](voiceprint-encoder-load-review-2026-10-11.md)：3／10 秒、1／2／4／8 路，共 1,140 次请求；481 次有效向量、659 次 busy 拒绝、240 次波次后恢复成功；健康／子进程退出正常 | 合成短时负载，服务与 caller 共享 2 CPU／2 GiB，约 34 秒；不含消费者、排队、公平性、长时增长、ASR 竞争或真人效果 |
 
 本轮完整回归的警告主要涉及测试静态目录及既有依赖行为，未出现测试失败。补验计数与完整回归存在重叠，不相加为“独立测试总数”。
 
