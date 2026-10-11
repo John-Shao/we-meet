@@ -40,6 +40,8 @@
 
 后续[离线评测执行器制品补验](voiceprint-evaluation-runner-2026-10-11.md)已构建 `we-meet-backend:evaluation-20261011`，ID `sha256:c7a41fd330b95dd9c214c045086804c2fcc65c74c882e5dc1c0fb36cffe6abae`。镜像内五个匹配／评测文件摘要与当前源码一致，不挂载源码的 Production 配置、真实 Qwen HTTPS 15 次合成提取与禁止数据库访问检查通过；173 项关联回归、9 项兼容报告测试通过。两份后端镜像均未上传 registry，不能将上一轮完整回归改称对新镜像重新执行。
 
+最新[按人／会话区间走查](voiceprint-cluster-uncertainty-review-2026-10-11.md)制品为 `we-meet-backend:cluster-evaluation-20261011`，ID `sha256:789ec902ea0247d842aa786f7e0cf10d9beb25e09ebe07d366cb2ecc8a32fadc`。五个文件与最终源码一致，Windows／Linux 各 15 项报告、23 项执行器及镜像内报告 CLI／真实 Qwen 合成联调通过；新边际区间与统计阶段时限已接通，仍未上传 registry 或安装到 ECS。前两轮镜像摘要只代表当次源码，不代表最新制品。
+
 私有原始产物保存在工作区 `work/`：`voiceprint-completion-backend-2026-10-11.log`、`voiceprint-integration-{backend,media,web,image,image-check,migrate,check}-2026-10-11.log`、`voiceprint-completion-{encoder,android-jvm}-2026-10-11.log`。真实双库备份／恢复、完整 RTC 及容量产物见对应阶段报告。该目录不纳入 Git。
 
 ## 方案要求与现有证据
@@ -55,7 +57,7 @@
 | P3：录音后识别 | 结束后分人 generation、字词安全投影、时间范围与来源证明；搜索／引用／分享历史不回写旧姓名；[身份搜索](voiceprint-identity-search-review-2026-10-11.md)、[纪要历史](voiceprint-summary-identity-history-review-2026-10-11.md) | 真实 ASR 字词时间戳与多人分人效果、整体回放／导出 |
 | D11：撤销／删除／恢复 | 在线来源清理、周期重扫、独立日志提交前门禁及旧备份重放；[周期擦除](voiceprint-scope-erasure-review-2026-10-11.md)、[日志门禁](voiceprint-journal-gate-review-2026-10-11.md)；本轮核验现有 OSS 备份 30 天过期规则 | 生产增长预算、日志 HA／自身恢复／可信最新头、密钥管理、物理到期时限及声纹生产恢复 |
 | 第 18 节：运行状态与资源 | 三类隔离消费者／配额／超时、组织只读汇总；[运行状态入口](voiceprint-operations-review-2026-10-11.md)、[容量测量](voiceprint-journal-capacity-review-2026-10-11.md) | 目标查询成本、长期并发、告警及清理时限；当前 P95 包含排队，不是身份建议 SLA |
-| D9／D12：效果与授权准入 | [离线报告](voiceprint-evaluation-report-2026-10-11.md)与[Qwen 实际执行器](voiceprint-evaluation-runner-2026-10-11.md)：预处理 PCM、真实提取／生产核心、校准网格、冻结后独立测试及聚合汇总已实现；22 项执行器／9 项汇总回归、15 次真实 Qwen 合成提取通过；不写生产门限，`release_ready` 始终为 false | 目前暂无获授权真人样本或参与者，真实效果、分人／污染／独立人员不确定性与完整业务准入尚未通过 |
+| D9／D12：效果与授权准入 | [Qwen 执行器](voiceprint-evaluation-runner-2026-10-11.md)与[分组区间](voiceprint-cluster-uncertainty-review-2026-10-11.md)：预处理 PCM、真实提取／生产核心、校准网格、冻结后独立测试、聚合汇总及分别按人／会话的有界 bootstrap 已实现；当前 23 项执行器、Windows／Linux 各 15 项报告和新镜像真实 Qwen 合成联调通过；不写生产门限，`release_ready` 始终为 false | 目前暂无获授权真人样本或参与者，真实效果、分人／污染／联合相关性及完整业务准入尚未通过 |
 
 P0 的真实媒体／授权真人／门限部分尚未结束，P1～P3 已有代码与合成工程证据，不据此宣布各阶段生产验收通过。P4 自动更新／自动最终归属与 P5 实时身份为另行评审的后续阶段。
 

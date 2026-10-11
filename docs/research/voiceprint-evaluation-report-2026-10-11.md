@@ -6,6 +6,8 @@
 
 后续[Qwen 离线执行器](voiceprint-evaluation-runner-2026-10-11.md)已实现预处理 PCM 的真实提取、生产核心匹配、校准网格与独立测试。该执行器复用此汇总契约；本文件所述 CLI 仍只汇总外部结果。标准库实现移至 `src/backend/core/services/voiceprint_evaluation_report.py`，原 deploy 路径保留兼容入口。两个工具均不批准生产发布或生成生产门限。
 
+最新[按人／会话区间走查](voiceprint-cluster-uncertainty-review-2026-10-11.md)已补充各指标两种整组 bootstrap 敏感性区间，少组、零分母、无组间变化或超预算返回 null；Windows／Linux 各 15 项报告测试、23 项执行器回归及新镜像 CLI／真实 Qwen 合成联调通过。以下原始阶段的“仅分组描述、尚无分组区间”是历史边界；当前输出、假设与制品以上述走查为准，联合人／会话相关性仍未估计。
+
 ## 执行
 
 从 `we-meet` 根目录运行，无第三方依赖：

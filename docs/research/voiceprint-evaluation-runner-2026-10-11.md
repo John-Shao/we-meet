@@ -6,6 +6,8 @@
 
 目前没有获授权真人录音。此次验证只使用程序生成的正弦信号，证明流程和拒绝边界可运行；不能得出 Qwen 身份准确率、远场效果或切换 CAM++ 的结论。报告始终 `release_ready=false`，不会写数据库、登记真实用户或生成可供生产加载的门限文件。
 
+后续[按人／会话区间与统计时限走查](voiceprint-cluster-uncertainty-review-2026-10-11.md)已在 test 报告中加入有界整组重采样区间，并在统计结束后检查执行时限。当前执行器 23 项、报告 Windows／Linux 各 15 项测试及新发布镜像 Qwen 联调通过；本文件的 22／9 项和旧镜像／源码摘要保留为当次历史证据，最新制品和区间假设见后续报告。
+
 ## 执行环境与命令
 
 在独立后端环境执行，三个业务开关必须全部关闭：`MEETING_VOICEPRINT_ENABLED`、`MEETING_VOICEPRINT_SAMPLING_ENABLED`、`MEETING_VOICEPRINT_MATCHING_ENABLED`。命令不回退到业务的 encoder 配置；必须显式传入专用于此次评测的私有配置。使用独立 token、permit key、CA 和 Qwen 实例，不复用生产许可缓存或额度。

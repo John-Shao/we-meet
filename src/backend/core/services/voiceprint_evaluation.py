@@ -655,7 +655,7 @@ def execute(dataset, extractor, *, deadline_seconds=3600):  # noqa: PLR0915 -- F
             "consent_and_ground_truth_are_reviewed_declarations_not_authenticated",
             "empirical_grid_selection_is_not_release_acceptance",
             "prepared_pcm_only_not_diarization_or_business_end_to_end",
-            "no_clustered_uncertainty_or_pollution_assessment",
+            "joint_cluster_dependence_and_pollution_not_assessed",
             "synthetic_execution_is_not_human_accuracy",
         ],
     }
@@ -744,5 +744,6 @@ def execute(dataset, extractor, *, deadline_seconds=3600):  # noqa: PLR0915 -- F
         "p95_nearest_rank": sorted(latencies)[math.ceil(len(latencies) * 0.95) - 1],
         "max": max(latencies),
     }
+    require(time.monotonic() - began < deadline_seconds, "evaluation_deadline_exceeded")
     report["elapsed_seconds"] = time.monotonic() - began
     return report

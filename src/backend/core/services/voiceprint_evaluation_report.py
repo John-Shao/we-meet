@@ -9,6 +9,7 @@ import hashlib
 import json
 import math
 import os
+import random
 import re
 import sys
 from collections import defaultdict
@@ -194,9 +195,91 @@ def ratio(successes, total):
     }
 
 
-def grouped_metric(rows, success):
+BOOTSTRAP_REPLICATES = 999
+BOOTSTRAP_SEED = 20261011
+BOOTSTRAP_MIN_METRIC_CLUSTERS = 30
+BOOTSTRAP_MAX_COHORT_CLUSTERS = 1000
+
+
+def cluster_bootstrap(counts):
+    """Whole-cluster percentile sensitivity interval, one dimension at a time.
+
+    Counts include cohort clusters with zero metric denominator. This does not
+    estimate crossed person/session dependence or unseen rare-error risk.
+    The 30-cluster floor is an engineering guard, not a validity theorem.
+    """
+    counts = sorted(counts)
+    positive = [(numerator, total) for numerator, total in counts if total]
+    result = {
+        "method": "whole_cluster_percentile_v1",
+        "confidence_level": 0.95,
+        "interval": None,
+        "cohort_clusters": len(counts),
+        "metric_clusters": len(positive),
+        "minimum_metric_clusters": BOOTSTRAP_MIN_METRIC_CLUSTERS,
+        "maximum_cohort_clusters": BOOTSTRAP_MAX_COHORT_CLUSTERS,
+        "replicates_requested": BOOTSTRAP_REPLICATES,
+        "replicates_valid": 0,
+        "replicates_zero_denominator": 0,
+        "seed": BOOTSTRAP_SEED,
+        "assumptions": [
+            "independent_clusters_in_this_dimension",
+            "marginal_not_joint_person_session_inference",
+            "empirical_bootstrap_not_unseen_error_bound",
+        ],
+    }
+    if not positive:
+        reason = "no_denominator"
+    elif len(counts) > BOOTSTRAP_MAX_COHORT_CLUSTERS:
+        reason = "cohort_cluster_budget_exceeded"
+    elif len(positive) < BOOTSTRAP_MIN_METRIC_CLUSTERS:
+        reason = "too_few_metric_clusters"
+    elif all(
+        numerator * positive[0][1] == positive[0][0] * total
+        for numerator, total in positive
+    ):
+        reason = "no_observed_cluster_variation"
+    else:
+        rng = random.Random(BOOTSTRAP_SEED)  # noqa: S311 -- Reproducible research, not security.
+        values = []
+        for _ in range(BOOTSTRAP_REPLICATES):
+            numerator, denominator = 0, 0
+            for successes, total in rng.choices(counts, k=len(counts)):
+                numerator += successes
+                denominator += total
+            if denominator:
+                values.append(numerator / denominator)
+        result["replicates_valid"] = len(values)
+        result["replicates_zero_denominator"] = BOOTSTRAP_REPLICATES - len(values)
+        if len(values) < math.ceil(BOOTSTRAP_REPLICATES * 0.95):
+            reason = "unstable_bootstrap_denominator"
+        else:
+            values.sort()
+
+            def percentile(probability):
+                position = (len(values) - 1) * probability
+                lower, upper = math.floor(position), math.ceil(position)
+                return values[lower] + (values[upper] - values[lower]) * (
+                    position - lower
+                )
+
+            interval = [percentile(0.025), percentile(0.975)]
+            if interval[0] == interval[1]:
+                reason = "degenerate_bootstrap_percentiles"
+            else:
+                reason = "estimated_under_declared_assumptions"
+                result["interval"] = interval
+    result["status"] = reason
+    return result
+
+
+def grouped_metric(rows, success, *, cohort=None, included=None):
+    require((cohort is None) == (included is None), "metric_cohort_invalid")
+    if cohort is None:
+        cohort = rows
+        included = lambda row: True
     result = ratio(sum(success(row) for row in rows), len(rows))
-    # Descriptive dispersion, not an independence claim or clustered CI.
+    # Ranges remain descriptive; the separately named bootstrap declares assumptions.
     for field, label in (("subject_id", "by_person"), ("session_id", "by_session")):
         groups = defaultdict(list)
         for row in rows:
@@ -211,6 +294,18 @@ def grouped_metric(rows, success):
             "rate_range": [min(rates), max(rates)] if rates else None,
             "query_count_range": [min(sizes), max(sizes)] if sizes else None,
         }
+        counts = defaultdict(lambda: [0, 0])
+        for row in cohort:
+            count = counts[row[field]]
+            if included(row):
+                count[0] += bool(success(row))
+                count[1] += 1
+        require(
+            sum(count[0] for count in counts.values()) == result["numerator"]
+            and sum(count[1] for count in counts.values()) == result["denominator"],
+            "metric_cohort_invalid",
+        )
+        result[label]["cluster_bootstrap95"] = cluster_bootstrap(counts.values())
     return result
 
 
@@ -260,9 +355,17 @@ def summarize(data):
             for status in sorted(STATUSES)
         },
         "suggestion_precision": grouped_metric(
-            [row for row in rows if accepted(row)], correct
+            [row for row in rows if accepted(row)],
+            correct,
+            cohort=rows,
+            included=accepted,
         ),
-        "unknown_false_acceptance": grouped_metric(unknown, accepted),
+        "unknown_false_acceptance": grouped_metric(
+            unknown,
+            accepted,
+            cohort=rows,
+            included=lambda row: not known(row),
+        ),
         "coverage": {
             condition: grouped_metric(
                 [
@@ -271,6 +374,10 @@ def summarize(data):
                     if known(row) and row["eligible"] and row["condition"] == condition
                 ],
                 correct,
+                cohort=rows,
+                included=lambda row, condition=condition: (
+                    known(row) and row["eligible"] and row["condition"] == condition
+                ),
             )
             for condition in ("near", "far")
         },
@@ -281,7 +388,7 @@ def summarize(data):
             "supplied_results_only_not_encoder_or_end_to_end_execution",
             "consent_ground_truth_hashes_and_split_provenance_require_external_review",
             "wilson95_assumes_independent_queries_group_summaries_are_descriptive",
-            "clustered_uncertainty_not_estimated",
+            "marginal_cluster_bootstrap_requires_independent_clusters_joint_dependence_not_estimated",
             "pollution_diarization_latency_and_authorization_gates_not_measured",
             "synthetic_results_are_not_human_accuracy_evidence",
         ],

@@ -306,6 +306,24 @@ def test_deadline_after_slicing_prevents_rpc(tmp_path, monkeypatch):
     assert client.tags == []
 
 
+def test_deadline_after_statistics_prevents_report_publication(tmp_path, monkeypatch):
+    dataset = evaluation.Dataset(corpus(tmp_path), tmp_path)
+    clock = [0.0]
+    original = evaluation.summarize
+
+    def delayed_summary(data):
+        result = original(data)
+        clock[0] = 121.0
+        return result
+
+    monkeypatch.setattr(evaluation, "summarize", delayed_summary)
+    monkeypatch.setattr(evaluation.time, "monotonic", lambda: clock[0])
+    client = FixtureClient()
+    with pytest.raises(evaluation.EvaluationError, match="deadline_exceeded"):
+        evaluation.execute(dataset, client, deadline_seconds=120)
+    assert client.tags == [1] * 3 + [2] * 6 + [3] * 6
+
+
 def test_command_private_output_no_overwrite_and_errors_do_not_echo_secret(
     tmp_path, settings, monkeypatch
 ):
