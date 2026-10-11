@@ -5,6 +5,7 @@ public model weights and the actual backend transport under /backend. No human
 audio, credentials, permits, vectors or request IDs are emitted.
 """
 
+import argparse
 import hashlib
 import io
 import json
@@ -50,7 +51,8 @@ def distribution(values):
     }
 
 
-def main():  # noqa: PLR0915 -- One bounded process/fixture lifetime.
+def main(soak_seconds=0):  # noqa: PLR0915 -- One bounded process/fixture lifetime.
+    assert soak_seconds in (0, 300, 900)
     sys.path.insert(0, "/backend")
     from core.services.voiceprint_encoder import FEATURE_SPACE, decode_result
 
@@ -63,7 +65,13 @@ def main():  # noqa: PLR0915 -- One bounded process/fixture lifetime.
     children = []
     stop = threading.Event()
     monitor = None
-    samples = {"rss_peak_bytes": 0, "active_peak": 0, "uploads_peak": 0, "n": 0}
+    samples = {
+        "rss_peak_bytes": 0,
+        "rss_last_bytes": 0,
+        "active_peak": 0,
+        "uploads_peak": 0,
+        "n": 0,
+    }
     monitor_errors = []
     stage = "startup"
     last_readiness = "not_attempted"
@@ -111,6 +119,7 @@ def main():  # noqa: PLR0915 -- One bounded process/fixture lifetime.
                             * 1024
                         )
                     samples["rss_peak_bytes"] = max(samples["rss_peak_bytes"], rss)
+                    samples["rss_last_bytes"] = rss
                     samples["active_peak"] = max(samples["active_peak"], active)
                     samples["uploads_peak"] = max(samples["uploads_peak"], uploads)
                     samples["n"] += 1
@@ -235,6 +244,50 @@ def main():  # noqa: PLR0915 -- One bounded process/fixture lifetime.
                 result["cases"].append(case)
                 print(json.dumps({"case_completed": case}), flush=True)
         assert any(c["busy"]["n"] > 0 for c in result["cases"])
+        if soak_seconds:
+            stage = "paced_soak"
+            began = time.monotonic()
+            deadline = began + soak_seconds
+            next_request = began
+            next_checkpoint = began
+            latencies = []
+            checkpoints = []
+            while time.monotonic() < deadline:
+                if time.monotonic() >= next_checkpoint:
+                    with session() as client:
+                        assert (
+                            client.get(base + "/health/ready", timeout=2).status_code
+                            == 200
+                        )
+                        assert (
+                            client.get(base + "/health/live", timeout=2).status_code
+                            == 200
+                        )
+                    checkpoint = {
+                        "elapsed_seconds": round(time.monotonic() - began, 3),
+                        "rss_bytes": samples["rss_last_bytes"],
+                        "successful_requests": len(latencies),
+                    }
+                    checkpoints.append(checkpoint)
+                    print(json.dumps({"soak_checkpoint": checkpoint}), flush=True)
+                    next_checkpoint += 60
+                status, elapsed = submit()
+                assert status == 200
+                latencies.append(elapsed)
+                assert len(latencies) <= soak_seconds * 5 + 1
+                assert not monitor_errors and server.poll() is None
+                next_request = max(next_request + 0.2, time.monotonic())
+                time.sleep(max(0, min(next_request, deadline) - time.monotonic()))
+            result["paced_soak"] = {
+                "requested_seconds": soak_seconds,
+                "elapsed_seconds": round(time.monotonic() - began, 3),
+                "audio_seconds": 10,
+                "target_requests_per_second": 5,
+                "latencies": distribution(latencies),
+                "checkpoints": checkpoints,
+                "final_rss_bytes": samples["rss_last_bytes"],
+                "unexpected_busy_or_error": 0,
+            }
         stop.set()
         monitor.join(timeout=5)
         assert not monitor.is_alive() and not monitor_errors and samples["n"] > 0
@@ -292,4 +345,6 @@ def main():  # noqa: PLR0915 -- One bounded process/fixture lifetime.
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--soak-seconds", type=int, choices=(0, 300, 900), default=0)
+    raise SystemExit(main(parser.parse_args().soak_seconds))
