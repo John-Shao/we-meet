@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useMediaQuery } from '@/features/rooms/livekit/hooks/useMediaQuery'
 import { css } from '@/styled-system/css'
@@ -51,7 +51,12 @@ export const Layout = ({ children }: { children: ReactNode }) => {
     ? !compactRailExpanded
     : railCollapsed
 
-  const toggleRail = () => {
+  useEffect(() => {
+    if (window.weMeetDesktop?.shell)
+      layoutStore.appRailCollapsed = effectiveRailCollapsed
+  }, [effectiveRailCollapsed])
+
+  const toggleRail = useCallback(() => {
     if (compactContacts) {
       setCompactRailExpanded((value) => !value)
       return
@@ -65,7 +70,14 @@ export const Layout = ({ children }: { children: ReactNode }) => {
       }
       return next
     })
-  }
+  }, [compactContacts])
+
+  useEffect(() => {
+    if (!window.weMeetDesktop?.shell) return
+    window.addEventListener('we-meet:toggle-app-rail', toggleRail)
+    return () =>
+      window.removeEventListener('we-meet:toggle-app-rail', toggleRail)
+  }, [toggleRail])
 
   // P6: logged-in workspace routes get the Feishu-style left rail (column 1).
   //
@@ -84,6 +96,9 @@ export const Layout = ({ children }: { children: ReactNode }) => {
       <ImUnreadProvider>
         {showHeader && <SkipLink />}
         <div
+          data-desktop-workspace={
+            (!!window.weMeetDesktop?.shell && showHeader) || undefined
+          }
           className={css({
             display: 'flex',
             height: '100%',

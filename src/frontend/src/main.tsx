@@ -6,6 +6,11 @@ import { DesktopStatusBar } from './components/DesktopStatusBar'
 // Supports weights 100-700
 import '@fontsource-variable/material-symbols-outlined'
 
+if (window.weMeetDesktop?.shell) {
+  document.documentElement.dataset.desktopPlatform =
+    window.weMeetDesktop.platform
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <DesktopStatusBar />

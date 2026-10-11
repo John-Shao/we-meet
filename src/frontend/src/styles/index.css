@@ -6,6 +6,110 @@ body,
   height: 100%;
 }
 
+/* Desktop chrome shares one surface with the primary navigation. The root's
+   content box excludes the title bar, so 100%-height routes keep their size. */
+html[data-desktop-platform] {
+  --fonts-sans:
+    'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC',
+    system-ui, sans-serif;
+  --desktop-titlebar-height: env(titlebar-area-height, 40px);
+  --desktop-shell-bg: #f6f6f6;
+  --desktop-shell-fg: #555555;
+}
+html[data-desktop-platform][data-theme='dark'] {
+  --desktop-shell-bg: #1e2024;
+  --desktop-shell-fg: #e5e5e5;
+}
+html[data-desktop-fullscreen] {
+  --desktop-titlebar-height: 0px;
+}
+html[data-desktop-platform] #root {
+  box-sizing: border-box;
+  padding-top: var(--desktop-titlebar-height);
+}
+html[data-desktop-platform] body {
+  font-family: var(--fonts-sans, ui-sans-serif, system-ui, sans-serif);
+}
+.desktop-titlebar {
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--desktop-titlebar-height);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  padding-right: max(150px, calc(100vw - env(titlebar-area-width, 100vw)));
+  background: var(--desktop-shell-bg);
+  color: var(--desktop-shell-fg);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+html[data-desktop-platform='darwin'] .desktop-titlebar {
+  padding-left: 84px;
+  padding-right: 12px;
+}
+html[data-desktop-fullscreen] .desktop-titlebar {
+  display: none;
+}
+.desktop-titlebar-actions {
+  display: flex;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+.desktop-titlebar-actions button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+.desktop-titlebar-actions button:hover {
+  background: var(--colors-greyscale-200);
+}
+.desktop-titlebar-name {
+  font-size: 12px;
+  opacity: 0.7;
+}
+.desktop-titlebar-error {
+  font-size: 12px;
+  -webkit-app-region: no-drag;
+}
+nav[data-desktop-rail] {
+  background: var(--desktop-shell-bg);
+  border-right: 0;
+  padding: 16px 10px 12px;
+}
+[data-desktop-workspace] {
+  background: var(--desktop-shell-bg);
+}
+[data-desktop-workspace] > main {
+  border-top-left-radius: 12px;
+  border-top: 1px solid var(--colors-greyscale-200);
+  border-left: 1px solid var(--colors-greyscale-200);
+}
+.desktop-rail-brand {
+  font-size: 21px;
+  line-height: 32px;
+  font-weight: 650;
+  letter-spacing: -0.5px;
+  color: var(--colors-greyscale-900);
+  padding: 0 8px 8px;
+}
+nav[data-desktop-rail] > div:first-child:has(.desktop-rail-brand) {
+  margin-bottom: 20px;
+}
+nav[data-desktop-rail] a {
+  min-height: 40px;
+  border-radius: 8px;
+}
+
 html.font-lexend {
   --fonts-sans: 'Lexend Variable', ui-sans-serif, system-ui, sans-serif;
 }

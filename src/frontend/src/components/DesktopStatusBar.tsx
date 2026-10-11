@@ -36,7 +36,7 @@ export function DesktopStatusBar() {
       aria-live="polite"
       style={{
         position: 'fixed',
-        top: 8,
+        top: bridge.shell ? 48 : 8,
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 10000,

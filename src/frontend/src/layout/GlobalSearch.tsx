@@ -65,9 +65,10 @@ import { taskAssignees, taskDisplayName } from '@/features/tasks/taskUi'
 
 interface TriggerProps {
   collapsed?: boolean
+  hideTrigger?: boolean
 }
 
-export const GlobalSearch = ({ collapsed }: TriggerProps) => {
+export const GlobalSearch = ({ collapsed, hideTrigger }: TriggerProps) => {
   const { t } = useTranslation('shell')
   const [open, setOpen] = useState(false)
   const [initialAiScope, setInitialAiScope] = useState<'all' | 'meetings'>(
@@ -98,7 +99,7 @@ export const GlobalSearch = ({ collapsed }: TriggerProps) => {
 
   return (
     <>
-      {collapsed ? (
+      {hideTrigger ? null : collapsed ? (
         <button
           type="button"
           aria-label={t('search.trigger')}
