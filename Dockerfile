@@ -137,7 +137,7 @@ ENV DB_HOST=postgresql \
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
 # ---- Production image ----
-FROM core AS backend-production
+FROM core AS backend-production-base
 
 ARG MEET_STATIC_ROOT=/data/static
 
@@ -160,3 +160,13 @@ COPY --from=mail-builder /mail/backend/core/templates/mail /app/core/templates/m
 
 # The default command runs gunicorn WSGI server in Meet's main module
 CMD ["gunicorn", "-c", "/usr/local/etc/gunicorn/meet.py", "meet.wsgi:application"]
+
+# Optional artifact shared by voiceprint HTTP/consumers. No model or credentials.
+FROM backend-production-base AS backend-voiceprint
+USER root:root
+RUN apk --no-cache add ffmpeg
+ARG DOCKER_USER
+USER ${DOCKER_USER}
+
+# Keep the ordinary default target and its runtime unchanged.
+FROM backend-production-base AS backend-production

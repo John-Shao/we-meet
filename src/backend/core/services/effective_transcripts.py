@@ -11,11 +11,23 @@ from core.services.transcript_corrections import (
 
 
 def current_generation(rows):
-    """Keep imports and the published ASR generation, never a partial retry."""
-    return rows.filter(
+    """Select one complete derived generation or its ASR parents, never both."""
+    published = Q(
+        capture_session__active_diarization__status="succeeded",
+        capture_session__active_diarization__source_transcription_id=F(
+            "capture_session__active_transcription_id"
+        ),
+    )
+    base = Q(diarization_job__isnull=True) & (
         Q(transcription_job__isnull=True)
         | Q(transcription_job_id=F("capture_session__active_transcription_id"))
     )
+    replaced = published & Q(transcription_job__isnull=False)
+    derived = published & Q(
+        diarization_job_id=F("capture_session__active_diarization_id"),
+        transcription_job_id=F("capture_session__active_transcription_id"),
+    )
+    return rows.filter((base & ~replaced) | derived)
 
 
 def project(rows):
@@ -31,6 +43,7 @@ def project(rows):
         corrected_text=corrected_text_subquery(),
         correction_revision=Coalesce(
             Subquery(latest.values("revision")[:1]),
+            F("inherited_correction__revision"),
             Value(0),
             output_field=IntegerField(),
         ),

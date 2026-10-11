@@ -6,6 +6,24 @@ export interface MeetingRecordCardBody {
   /** 会议发生时间(ISO)。卡片上只作副标题,点开按 record_id 跳转。 */
   origin_at?: string | null
   scope?: 'record' | 'minutes'
+  summary_id?: string
+  human_id?: string
+}
+
+export type MeetingRecordTarget = Pick<
+  MeetingRecordCardBody,
+  'record_id' | 'scope' | 'summary_id' | 'human_id'
+>
+
+/** A pinned selector is never discarded in favor of the latest minutes. */
+export const meetingRecordLink = (card: MeetingRecordTarget) => {
+  const query =
+    card.human_id !== undefined
+      ? `human=${encodeURIComponent(card.human_id)}`
+      : card.summary_id !== undefined
+        ? `summary=${encodeURIComponent(card.summary_id)}`
+        : `tab=${card.scope === 'record' ? 'overview' : 'summary'}`
+  return `/meeting/records/${encodeURIComponent(card.record_id)}?${query}`
 }
 
 export const buildMeetingRecordCardBody = (card: {
@@ -13,6 +31,8 @@ export const buildMeetingRecordCardBody = (card: {
   title: string
   originAt?: string | null
   scope?: 'record' | 'minutes'
+  summaryId?: string
+  humanId?: string
 }) =>
   JSON.stringify({
     v: 1,
@@ -20,6 +40,8 @@ export const buildMeetingRecordCardBody = (card: {
     title: card.title,
     ...(card.scope ? { scope: card.scope } : {}),
     ...(card.originAt ? { origin_at: card.originAt } : {}),
+    ...(card.summaryId !== undefined ? { summary_id: card.summaryId } : {}),
+    ...(card.humanId !== undefined ? { human_id: card.humanId } : {}),
   } satisfies MeetingRecordCardBody)
 
 export const parseMeetingRecordCard = (
@@ -39,6 +61,19 @@ export const parseMeetingRecordCard = (
         value.scope !== 'minutes')
     )
       return null
+    const uuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+    if (
+      (value.summary_id !== undefined &&
+        (typeof value.summary_id !== 'string' ||
+          !uuid.test(value.summary_id))) ||
+      (value.human_id !== undefined &&
+        (typeof value.human_id !== 'string' || !uuid.test(value.human_id))) ||
+      (value.summary_id !== undefined && value.human_id !== undefined) ||
+      ((value.summary_id !== undefined || value.human_id !== undefined) &&
+        value.scope !== 'minutes')
+    )
+      return null
     return {
       v: 1,
       record_id: value.record_id,
@@ -47,6 +82,10 @@ export const parseMeetingRecordCard = (
       ...(value.scope === 'record' || value.scope === 'minutes'
         ? { scope: value.scope }
         : {}),
+      ...(value.summary_id !== undefined
+        ? { summary_id: value.summary_id }
+        : {}),
+      ...(value.human_id !== undefined ? { human_id: value.human_id } : {}),
     }
   } catch {
     return null

@@ -60,6 +60,33 @@ beforeEach(() => {
 })
 afterEach(() => client?.clear())
 
+it.each([true, false, undefined])(
+  'marks an exact human revision from identity metadata (%s)',
+  async (updated) => {
+    const fallback = mocks.fetchApi.getMockImplementation()!
+    mocks.fetchApi.mockImplementation(async (url, options) => ({
+      ...(await fallback(url, options)),
+      identity_updated: updated,
+    }))
+    client = new QueryClient()
+    render(exact())
+    await screen.findByText('Old human text')
+    expect(!!screen.queryByText('recordAi.identityUpdated')).toBe(
+      updated === true
+    )
+    expect(
+      mocks.fetchApi.mock.calls.some(
+        ([, options]) => options?.method === 'POST'
+      )
+    ).toBe(false)
+    expect(
+      mocks.fetchApi.mock.calls.every(
+        ([url]) => !url.endsWith('/human-summary/')
+      )
+    ).toBe(true)
+  }
+)
+
 function exact(
   viewerId = 'user',
   versionId = 'old',

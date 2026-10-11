@@ -10,7 +10,10 @@ import { fetchApi } from '@/api/fetchApi'
 import { ApiError } from '@/api/ApiError'
 import { DirectoryMultiPicker, MemberAvatar } from '@/features/contacts'
 import { ShareToChatDialog } from '@/features/im/components/ShareToChatDialog'
-import { buildMeetingRecordCardBody } from '@/features/im/components/meetingRecordCard'
+import {
+  buildMeetingRecordCardBody,
+  meetingRecordLink,
+} from '@/features/im/components/meetingRecordCard'
 
 export type MaterialScope = 'record' | 'minutes'
 type Role = 'reader' | 'editor' | 'manager'
@@ -63,8 +66,18 @@ const field = css({
   maxWidth: '100%',
 })
 
-export const materialLink = (recordId: string, scope: MaterialScope) =>
-  `/meeting/records/${encodeURIComponent(recordId)}?tab=${scope === 'minutes' ? 'summary' : 'overview'}`
+const materialLink = (
+  recordId: string,
+  scope: MaterialScope,
+  summaryId?: string,
+  humanId?: string
+) =>
+  meetingRecordLink({
+    record_id: recordId,
+    scope,
+    summary_id: summaryId,
+    human_id: humanId,
+  })
 
 export function MaterialActions({
   recordId,
@@ -72,12 +85,16 @@ export function MaterialActions({
   scope,
   title,
   originAt,
+  summaryId,
+  humanId,
 }: {
   recordId: string
   viewerId: string
   scope: MaterialScope
   title: string
   originAt?: string
+  summaryId?: string
+  humanId?: string
 }) {
   const { t } = useTranslation('meetings')
   const [panel, setPanel] = useState<'share' | 'members' | 'chat' | null>(null)
@@ -120,7 +137,7 @@ export function MaterialActions({
                 onPress={() => {
                   void navigator.clipboard
                     .writeText(
-                      `${location.origin}${materialLink(recordId, scope)}`
+                      `${location.origin}${materialLink(recordId, scope, summaryId, humanId)}`
                     )
                     .then(
                       () => setMessage(t('collaboration.copied')),
@@ -143,6 +160,8 @@ export function MaterialActions({
             title,
             originAt,
             scope,
+            summaryId,
+            humanId,
           })}
           contentType="meeting-record-card"
           previewText={`${heading} · ${title}`}

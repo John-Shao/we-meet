@@ -1,0 +1,178 @@
+{{- if .Values.voiceprintSampler.enabled -}}
+{{- include "meet.voiceprint.validateRuntime" . -}}
+{{- if not .Values.voiceprintWorkers.enabled -}}{{ fail "voiceprintSampler requires voiceprintWorkers.enabled" }}{{- end -}}
+{{- $sampler := .Values.voiceprintSampler -}}
+{{- $name := printf "%s-voiceprint-sampler" (include "meet.fullname" . | trunc 43 | trimSuffix "-") -}}
+{{- $image := required "voiceprintSampler.imageReference requires an immutable image digest" $sampler.imageReference -}}
+{{- if not (regexMatch "^[^[:space:]@]+@sha256:[a-f0-9]{64}$" $image) -}}{{ fail "voiceprintSampler.imageReference must use repository@sha256:digest" }}{{- end -}}
+{{- $credentials := required "voiceprintSampler.credentialsSecret is required" $sampler.credentialsSecret -}}
+{{- if or (eq $credentials .Values.voiceprintRuntime.configurationSecret) (eq $credentials .Values.voiceprintEncoder.credentialsSecret) -}}{{ fail "voiceprintSampler requires a separate credentialsSecret" }}{{- end -}}
+{{- if not (regexMatch "^[A-Za-z0-9_-]{1,128}$" $sampler.agentName) -}}{{ fail "voiceprintSampler.agentName is invalid" }}{{- end -}}
+{{- range $key := list "maxRooms" "replicas" -}}
+{{- if not (regexMatch "^[1-8]$" (toString (get $sampler $key))) -}}{{ fail (printf "voiceprintSampler.%s must be an integer from 1 to 8" $key) }}{{- end -}}
+{{- end -}}
+{{- $memory := toString $sampler.jobMemoryMb -}}
+{{- if or (not (regexMatch "^[0-9]{3,4}$" $memory)) (lt (int $memory) 128) (gt (int $memory) 2048) -}}{{ fail "voiceprintSampler.jobMemoryMb must be an integer from 128 to 2048" }}{{- end -}}
+{{- if or (ne (get $sampler.nodeSelector "kubernetes.io/os") "linux") (ne (get $sampler.nodeSelector "kubernetes.io/arch") "amd64") -}}{{ fail "voiceprintSampler requires Linux amd64 node selectors" }}{{- end -}}
+{{- $livekit := required "voiceprintSampler.livekitUrl is required" $sampler.livekitUrl -}}
+{{- $backend := $sampler.backendUrl | default (printf "http://%s:%v" (include "meet.backend.fullname" .) .Values.backend.service.port) -}}
+{{- if not (regexMatch "^wss?://[^[:space:]/?@#]+/?$" $livekit) -}}{{ fail "voiceprintSampler.livekitUrl must be a trusted ws/wss root" }}{{- end -}}
+{{- if not (regexMatch "^https?://[^[:space:]/?@#]+/?$" $backend) -}}{{ fail "voiceprintSampler.backendUrl must be a trusted http/https root" }}{{- end -}}
+{{- if and $sampler.backendCASecret (not (hasPrefix "https://" $backend)) -}}{{ fail "voiceprintSampler.backendCASecret requires HTTPS backendUrl" }}{{- end -}}
+{{- if and $sampler.networkPolicy.enabled (not $sampler.networkPolicy.additionalEgress) -}}{{ fail "voiceprintSampler requires explicit LiveKit signaling/RTC/TURN additionalEgress rules" }}{{- end -}}
+{{- range $key := list "MEETING_VOICEPRINT_ENABLED" "MEETING_VOICEPRINT_SAMPLING_ENABLED" -}}
+{{- if and (hasKey $.Values.backend.envVars $key) (not (has (toString (get $.Values.backend.envVars $key)) (list "true" "false"))) -}}{{ fail "voiceprintSampler business flags must be literal true/false" }}{{- end -}}
+{{- end -}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list . "voiceprint-sampler") | nindent 4 }}
+spec:
+  replicas: {{ $sampler.replicas }}
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      {{- include "meet.common.selectorLabels" (list . "voiceprint-sampler") | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        meet.voiceprint/configuration-revision: {{ $sampler.configurationRevision | quote }}
+      labels:
+        {{- include "meet.common.selectorLabels" (list . "voiceprint-sampler") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      {{- if .Values.image.credentials }}
+      imagePullSecrets:
+        - name: {{ include "meet.secret.dockerconfigjson.name" (dict "fullname" (include "meet.fullname" .) "imageCredentials" .Values.image.credentials) }}
+      {{- end }}
+      containers:
+        - name: voiceprint-sampler
+          image: {{ $image | quote }}
+          imagePullPolicy: {{ $sampler.imagePullPolicy }}
+          command: [python, -m, entrypoints.voiceprint_sampler, start]
+          ports: [{name: health, containerPort: 8094}]
+          env:
+            - {name: HOME, value: /tmp}
+            - {name: TMPDIR, value: /tmp}
+            - {name: MEETING_VOICEPRINT_SAMPLING_AGENT_NAME, value: {{ $sampler.agentName | quote }}}
+            - {name: AGENT_BACKEND_API_URL, value: {{ $backend | quote }}}
+            - {name: LIVEKIT_URL, value: {{ $livekit | quote }}}
+            - {name: LIVEKIT_API_KEY_FILE, value: /run/voiceprint-sampler/api-key}
+            - {name: LIVEKIT_API_SECRET_FILE, value: /run/voiceprint-sampler/api-secret}
+            - {name: MEETING_VOICEPRINT_SAMPLING_AGENT_TOKEN_FILE, value: /run/voiceprint-sampler/sampling-token}
+            - {name: VOICEPRINT_SAMPLER_MAX_ROOMS, value: {{ $sampler.maxRooms | quote }}}
+            - {name: VOICEPRINT_SAMPLER_JOB_MEMORY_MB, value: {{ $sampler.jobMemoryMb | quote }}}
+            {{- range $key := list "MEETING_VOICEPRINT_ENABLED" "MEETING_VOICEPRINT_SAMPLING_ENABLED" }}
+            - name: {{ $key }}
+              value: {{ if hasKey $.Values.backend.envVars $key }}{{ get $.Values.backend.envVars $key | quote }}{{ else }}"false"{{ end }}
+            {{- end }}
+            {{- if $sampler.backendCASecret }}
+            - {name: VOICEPRINT_SAMPLER_BACKEND_CA_FILE, value: /run/voiceprint-backend-ca/ca.crt}
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 1, memory: {{ printf "%dMi" (add 512 (mul (int $sampler.maxRooms) (int $sampler.jobMemoryMb))) }}}
+          startupProbe:
+            httpGet: {path: /health/live, port: health}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 12
+          readinessProbe:
+            httpGet: {path: /health/ready, port: health}
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet: {path: /health/live, port: health}
+            periodSeconds: 10
+            timeoutSeconds: 2
+          volumeMounts:
+            - {name: private-credentials, mountPath: /run/voiceprint-sampler, readOnly: true}
+            - {name: temporary, mountPath: /tmp}
+            {{- if $sampler.backendCASecret }}
+            - {name: backend-ca, mountPath: /run/voiceprint-backend-ca, readOnly: true}
+            {{- end }}
+      nodeSelector:
+        {{- toYaml $sampler.nodeSelector | nindent 8 }}
+      {{- with $sampler.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: private-credentials
+          secret:
+            secretName: {{ $credentials | quote }}
+            defaultMode: 0440
+            items:
+              - {key: api-key, path: api-key}
+              - {key: api-secret, path: api-secret}
+              - {key: sampling-token, path: sampling-token}
+        - name: temporary
+          emptyDir: {medium: Memory, sizeLimit: 64Mi}
+        {{- if $sampler.backendCASecret }}
+        - name: backend-ca
+          secret:
+            secretName: {{ $sampler.backendCASecret | quote }}
+            defaultMode: 0440
+            items: [{key: ca.crt, path: ca.crt}]
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "meet.common.selectorLabels" (list . "voiceprint-sampler") | nindent 4 }}
+  ports: [{name: health, port: 8094, targetPort: health}]
+{{- if $sampler.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "meet.common.selectorLabels" (list . "voiceprint-sampler") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  {{- if $sampler.networkPolicy.additionalPeers }}
+  ingress:
+    - from:
+        {{- toYaml $sampler.networkPolicy.additionalPeers | nindent 8 }}
+      ports: [{protocol: TCP, port: 8094}]
+  {{- else }}
+  ingress: []
+  {{- end }}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "meet.common.selectorLabels" (list . "backend") | nindent 14 }}
+      ports: [{protocol: TCP, port: {{ .Values.backend.service.targetPort }}}]
+    {{- toYaml $sampler.networkPolicy.additionalEgress | nindent 4 }}
+{{- end }}
+{{- end }}

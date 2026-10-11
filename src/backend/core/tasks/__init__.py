@@ -19,6 +19,7 @@ from core.tasks import bot_callback as _bot_callback
 from core.tasks import calendar_exports as _calendar_exports
 from core.tasks import calendar_maintenance as _calendar_maintenance
 from core.tasks import capture_audio as _capture_audio
+from core.tasks import capture_diarization as _capture_diarization
 from core.tasks import cloud_recording as _cloud_recording
 from core.tasks import collaboration_notifications as _collaboration_notifications
 from core.tasks import embeddings as _embeddings
@@ -35,3 +36,8 @@ from core.tasks import summary_versions as _summary_versions
 from core.tasks import task_notifications as _task_notifications
 from core.tasks import upload_translations as _upload_translations
 from core.tasks import uploaded_recordings as _uploaded_recordings
+from core.tasks import voiceprint_erasure as _voiceprint_erasure
+from core.tasks import voiceprint_maintenance as _voiceprint_maintenance
+from core.tasks import voiceprint_processing as _voiceprint_processing
+from core.tasks import voiceprint_sampling as _voiceprint_sampling
+from core.tasks import voiceprint_source_removal as _voiceprint_source_removal

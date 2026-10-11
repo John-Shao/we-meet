@@ -21,6 +21,7 @@ import { isAudioRetention } from '../capture/retention'
 import { useCorrectOriginalSegment } from '../api/fetchMeetingRecord'
 import { RecordSummaryPanel } from './RecordSummaryPanel'
 import { OriginalSearch } from './OriginalSearch'
+import { CaptureDiarizationControls } from './CaptureDiarizationControls'
 import {
   TranscriptToolbarSlots,
   TranscriptPlaybackButton,
@@ -54,6 +55,8 @@ type Job = {
   input_closed?: boolean
 }
 type State = {
+  diarization_available?: boolean
+  active_diarization_job_id?: string | null
   audio_retention?: CaptureAudioRetention
   available: boolean
   live_available?: boolean
@@ -146,6 +149,14 @@ export function CaptureTranscriptionPanel({
     refetchInterval: (query) => (query.state.error ? false : 5000),
   })
   const latest = state.data?.results[0]
+  const editing = useTranscriptEditing()
+  const asrId = state.data?.active_job_id ?? null
+  const derivationId = state.data?.active_diarization_job_id ?? null
+  const [reading, setReading] = useState({ asrId, derivationId })
+  useEffect(() => {
+    if (!editing) setReading({ asrId, derivationId })
+  }, [editing, asrId, derivationId])
+  const displayed = editing ? reading : { asrId, derivationId }
   const retention = state.data?.audio_retention
   const textMode = capture.audio_retention?.mode === 'text'
   const retryOpen = () =>
@@ -390,16 +401,28 @@ export function CaptureTranscriptionPanel({
           lastSequence={latest.final_count}
         />
       )}
-      {!openCapture && state.data.active_job_id && (
+      {!openCapture && displayed.asrId && (
         <Originals
-          key={`${viewerId}:${state.data.active_job_id}`}
+          key={`${viewerId}:${displayed.asrId}:${displayed.derivationId ?? 'base'}`}
           viewerId={viewerId}
           capture={capture}
-          jobId={state.data.active_job_id}
+          jobId={displayed.asrId}
+          derivationId={displayed.derivationId}
           onSource={textMode ? undefined : onSource}
           positionMs={positionMs}
           activeId={activeId}
           follow={follow}
+        />
+      )}
+      {!openCapture && state.data.diarization_available && (
+        <CaptureDiarizationControls
+          key={`${viewerId}:${capture.id}`}
+          viewerId={viewerId}
+          captureId={capture.id}
+          editing={editing}
+          onPublished={() => {
+            void state.refetch()
+          }}
         />
       )}
       {!!state.data.results.length && (
@@ -447,6 +470,7 @@ function Originals({
   viewerId,
   capture,
   jobId,
+  derivationId,
   onSource,
   positionMs,
   activeId,
@@ -455,6 +479,7 @@ function Originals({
   viewerId: string
   capture: ApiCaptureSession
   jobId: string
+  derivationId: string | null
   onSource?: (milliseconds: number) => void
   /** Playback position in the source clock; undefined when nothing is playing. */
   positionMs?: number
@@ -469,7 +494,7 @@ function Originals({
   )
   const [anchorMs, setAnchorMs] = useState(0)
   const [following, setFollowing] = useState(true)
-  const path = `meeting-records/${capture.record_id}/original-segments/?transcription_job_id=${jobId}&q=${encodeURIComponent(search)}&at_ms=${search ? 0 : anchorMs}`
+  const path = `meeting-records/${capture.record_id}/original-segments/?transcription_job_id=${jobId}${derivationId ? `&diarization_job_id=${derivationId}` : ''}&q=${encodeURIComponent(search)}&at_ms=${search ? 0 : anchorMs}`
   const searchForm = (
     <OriginalSearch
       value={searchDraft}
@@ -684,7 +709,15 @@ function Originals({
     >
       {tools}
       <h3>{t('asr.originals')}</h3>
-      <p>{t(onSource ? 'asr.unknownSpeaker' : 'retention.noPlayback')}</p>
+      <p>
+        {t(
+          onSource
+            ? derivationId
+              ? 'diarization.resultHint'
+              : 'asr.unknownSpeaker'
+            : 'retention.noPlayback'
+        )}
+      </p>
       {!query.data.results.length && <p>{t('asr.noText')}</p>}
       {query.data.results.map((row) => (
         <TranscriptSegment
@@ -708,7 +741,12 @@ function Originals({
               : undefined
           }
           correcting={correction.isPending}
-          speaker={row.speaker_label || t('asr.unknownSpeaker')}
+          speaker={
+            row.speaker_label ||
+            t(
+              derivationId ? 'diarization.unknownSpeaker' : 'asr.unknownSpeaker'
+            )
+          }
           time={`${Math.floor(row.start_ms / 60000)}:${String(Math.floor(row.start_ms / 1000) % 60).padStart(2, '0')}`}
           onSeek={onSource ? () => onSource(row.start_ms) : undefined}
           seekLabel={t('asr.source', {

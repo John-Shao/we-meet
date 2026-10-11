@@ -16,6 +16,7 @@ agents/
 │   ├── translation/       # 私人翻译、共享同传、录音翻译及译文归档
 │   ├── assistant/         # 多模态助手与音视频编排
 │   ├── metadata/          # 会议元数据采集
+│   ├── voiceprint/        # 取得逐轨许可后短时采样，独立加密候选入库
 │   ├── transport/         # 后端 HTTP 传输，禁止携带凭据重定向
 │   ├── identity.py        # 公共身份校验
 │   └── plugins/
@@ -29,6 +30,61 @@ agents/
 
 业务模块不依赖 `entrypoints/` 或测试。供应商协议放在 `plugins/`；后端控制、
 权限与交付留在业务模块。共享功能应放在明确的公共模块，避免跨业务导入私有函数。
+
+## 声纹采样入口
+
+独立入口为 `python -m entrypoints.voiceprint_sampler start`，使用下文的
+`PYTHONPATH` 配置及已有 LiveKit 连接配置。后端与 worker 同时配置
+`MEETING_VOICEPRINT_ENABLED=true`、`MEETING_VOICEPRINT_SAMPLING_ENABLED=true`、相同的
+`MEETING_VOICEPRINT_SAMPLING_AGENT_NAME`（例如 `meeting-voiceprint`）及独立
+`MEETING_VOICEPRINT_SAMPLING_AGENT_TOKEN`；worker 的
+`AGENT_BACKEND_API_URL` 指向受控内部后端根地址。
+
+采样服务使用独立 `Dockerfile.sampler` 和带哈希的 Linux Python 3.13 依赖锁；
+不安装转写插件、Torch、Silero 或模型权重。支持 `start`（也是默认模式）
+和离线 `--check`，拒绝 `dev`、`console`、`connect`，不调用通用 SDK CLI。
+`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET`、采样 token 可用同名 `*_FILE`
+读取绝对路径的 Secret 文件，不能同时提供值和文件。采样 token 必须与
+LiveKit 密钥及普通 agent token 分离。后端 HTTPS 私有 CA 可用
+`VOICEPRINT_SAMPLER_BACKEND_CA_FILE`；LiveKit WSS 使用系统信任链，
+不能把此变量当作 LiveKit 私有 CA 配置。
+
+`VOICEPRINT_SAMPLER_MAX_ROOMS` 默认 1（1–8），
+`VOICEPRINT_SAMPLER_JOB_MEMORY_MB` 默认 256（128–2048）。无预热池，
+每房间独立进程，待接收任务也计入容量。SIGTERM 排空 45 秒，关闭最多
+10 秒。私有 TCP 8094 只提供 `/health/live`、`/health/ready`、`/metrics`；
+日志只有固定事件与严重级别，指标只有总数，没有房间／用户标签；SDK HTTP
+仅绑定 loopback。就绪表示已注册 LiveKit，不代表已获准采样。
+
+功能、agent name 和 token 在后端均默认关闭或为空。后端只为本人授权和
+连接声明符合条件的真实房间实例派发；worker 默认不订阅音轨，每条源必须
+取得并持续复验短期许可。参与者可见，禁止发布媒体／数据。PCM 仅在内存
+保留当前短片段，超过队列、字节、时间或授权边界整段丢弃。
+
+采样、候选入库和单人质检代码已接通；后端也已接通本人确认的通话基准、
+跨会话设备组和贡献失效重建；来源物理清理、候选维护、派发持久恢复与
+许可绑定的短期采样上报也已接通。后端独立 `voiceprint` worker 与 Celery Beat
+需同时运行；可用 `dispatch_voiceprint_samplers --limit 20` 手工恢复派发。
+agent 在有效第一帧后报告采样，关闭订阅后报告上传，缓冲擦除后报告停止；
+状态上报逾 5 秒不更新即失效。Web／Android 通话界面、独立消费者与 sampler
+Helm 资源已接通，完整后端 RTC 合成链路已通过，实际设备及生产验收继续开发。
+`voiceprintSampler.enabled` 默认关闭，要求消费者和私有配置已接通，
+并显式声明 LiveKit 信令／RTC／TURN 网络出口；业务双开关仍须另行启用。
+构建及原生合成 RTC 证据见
+[采样运行走查](../../docs/research/voiceprint-sampler-runtime-review-2026-10-11.md)。
+真实后端、签名 webhook、Beat、本人声明和加密模板的可复现合成联调见
+[完整 RTC 走查](../../docs/research/voiceprint-full-rtc-review-2026-10-11.md)；ASR 为本地协议 fixture，不能据此判断真人声纹效果。
+使用 `--media-boundaries` 可复现实际容量不足后的空派发恢复、原生静音、
+自动解除静音恢复、轨道替换和新 participant SID 重建，见
+[媒体边界走查](../../docs/research/voiceprint-rtc-media-boundaries-review-2026-10-11.md)。
+后续许可终态、单次自动恢复与清理证据见
+[自动解除静音走查](../../docs/research/voiceprint-rtc-autounmute-review-2026-10-11.md)。
+长时间静音的自然空闲退出恢复、首次订阅竞争、制品及扩展复现见
+[空闲退出走查](../../docs/research/voiceprint-rtc-idle-exit-review-2026-10-11.md)。
+当前不在生产启用。兼容性与验证见
+[采样管线走查](../../docs/research/voiceprint-call-pipeline-review-2026-10-10.md)及
+[设备组模板走查](../../docs/research/voiceprint-device-templates-review-2026-10-10.md)及
+[派发与状态走查](../../docs/research/voiceprint-dispatch-status-review-2026-10-11.md)。
 
 ## 本地环境与启动
 

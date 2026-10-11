@@ -32,7 +32,11 @@ import { css } from '@/styled-system/css'
  * precisely.
  */
 
-export type UploadMediaHandle = { seek: (milliseconds: number) => void }
+export type UploadMediaHandle = {
+  seek: (milliseconds: number) => void
+  preview: (start: number, end: number) => Promise<boolean>
+  stopPreview: () => void
+}
 
 type MediaRead = {
   url: string
@@ -110,6 +114,8 @@ export const UploadMediaPlayer = forwardRef<
   const audio = useRef<HTMLMediaElement | null>(null)
   const positionRef = useRef(0)
   const playingRef = useRef(false)
+  const previewEnd = useRef<number>()
+  const previewToken = useRef<symbol>()
   const pending = useRef<{ seconds: number; resume: boolean } | null>(null)
   const [retry, setRetry] = useState(0)
   const attachMedia = useCallback((element: HTMLMediaElement | null) => {
@@ -128,10 +134,22 @@ export const UploadMediaPlayer = forwardRef<
 
   /** Single writer for the source clock, so a follower cannot miss a change. */
   const setPosition = (milliseconds: number) => {
+    const end = previewEnd.current
+    if (end !== undefined && milliseconds >= end) {
+      previewEnd.current = undefined
+      previewToken.current = undefined
+      milliseconds = end
+      playingRef.current = false
+      audio.current?.pause()
+      if (audio.current) audio.current.currentTime = end / 1000
+      setState('ready')
+    }
     positionRef.current = milliseconds
     setPositionState(milliseconds)
     if (scrubbing.current === undefined) onPositionRef.current?.(milliseconds)
   }
+  const setPositionRef = useRef(setPosition)
+  setPositionRef.current = setPosition
 
   // Read the real media clock, including stalls/rate changes. Background tabs
   // suspend RAF; foreground resumes from currentTime, never an elapsed counter.
@@ -151,9 +169,7 @@ export const UploadMediaPlayer = forwardRef<
         last = now
         const ms = element.currentTime * 1000
         if (Number.isFinite(ms) && ms !== positionRef.current) {
-          positionRef.current = ms
-          setPositionState(ms)
-          onPositionRef.current?.(ms)
+          setPositionRef.current(ms)
         }
       }
       frame = requestAnimationFrame(sample)
@@ -208,6 +224,8 @@ export const UploadMediaPlayer = forwardRef<
 
   const seek = (milliseconds: number) => {
     if (!Number.isFinite(milliseconds)) return
+    previewEnd.current = undefined
+    previewToken.current = undefined
     const bounded = Math.max(
       0,
       duration > 0 ? Math.min(duration * 1000, milliseconds) : milliseconds
@@ -229,7 +247,41 @@ export const UploadMediaPlayer = forwardRef<
     setPosition(bounded)
     if (scrubbing.current === undefined) onUserSeek?.(bounded)
   }
-  useImperativeHandle(ref, () => ({ seek }))
+  const stopPreview = () => {
+    if (previewEnd.current === undefined) return
+    previewEnd.current = undefined
+    previewToken.current = undefined
+    playingRef.current = false
+    audio.current?.pause()
+    setState('ready')
+  }
+  const preview = async (start: number, end: number) => {
+    const element = audio.current
+    if (
+      !Number.isSafeInteger(start) ||
+      !Number.isSafeInteger(end) ||
+      start < 0 ||
+      end - start < 3000 ||
+      end - start > 10000 ||
+      !element ||
+      element.readyState === 0 ||
+      !Number.isFinite(element.duration) ||
+      end > Math.round(element.duration * 1000)
+    )
+      return false
+    seek(start)
+    const token = Symbol('source preview')
+    previewToken.current = token
+    previewEnd.current = end
+    try {
+      await element.play()
+      return previewToken.current === token
+    } catch {
+      if (previewToken.current === token) stopPreview()
+      return false
+    }
+  }
+  useImperativeHandle(ref, () => ({ seek, preview, stopPreview }))
 
   const toggle = () => {
     const element = audio.current

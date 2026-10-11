@@ -154,6 +154,43 @@ it('keeps sharing separate from permissions and sends the recording scope withou
   expect(posts()).toHaveLength(0)
 })
 
+it.each(['summary', 'human'] as const)(
+  'copies and forwards the selected %s version without granting access',
+  async (kind) => {
+    const version = '33333333-3333-4333-8333-333333333333'
+    const copy = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText: copy } })
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MaterialActions
+          viewerId="viewer"
+          recordId="record"
+          scope="minutes"
+          title="Old minutes"
+          {...(kind === 'summary'
+            ? { summaryId: version }
+            : { humanId: version })}
+        />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'collaboration.share' }))
+    fireEvent.click(screen.getByRole('button', { name: 'collaboration.copy' }))
+    await waitFor(() =>
+      expect(copy).toHaveBeenCalledWith(
+        `${location.origin}/meeting/records/record?${kind}=${version}`
+      )
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'collaboration.send' }))
+    expect(JSON.parse(screen.getByRole('status').textContent!)).toMatchObject({
+      scope: 'minutes',
+      [`${kind}_id`]: version,
+    })
+    expect(posts()).toHaveLength(0)
+    vi.unstubAllGlobals()
+  }
+)
+
 it('invites the picked people in one step, with one role for the batch', async () => {
   show()
   await openInvite()

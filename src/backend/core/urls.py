@@ -34,17 +34,15 @@ from core.api.admin_stats import AdminStatsOverviewView
 from core.api.agent_internal import IngestTranscriptView, TranscriptDeliveryView
 from core.api.ai_call import AiCallSessionView
 from core.api.ai_call_photo import AiCallPhotoView
-from core.api.direct_ai_allocations import DirectAIAllocationView
+from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.assistant_summary import AssistantSummaryView
 from core.api.assistant_transcription import AssistantTranscriptionSessionView
-from core.api.capture_direct_asr import CaptureDirectAsrStartView, CaptureDirectAsrSyncView
 from core.api.assistant_translation import (
     AssistantTranslationClaimView,
     AssistantTranslationConfigView,
     AssistantTranslationSessionView,
     AssistantTranslationTicketView,
 )
-from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.bot_webhook import BotWebhookView
 from core.api.calendar import CalendarEventViewSet
 from core.api.calendar_exports import CalendarExportJobViewSet
@@ -56,13 +54,21 @@ from core.api.capture_audio import (
     CaptureAudioUploadView,
     CaptureAudioView,
 )
+from core.api.capture_diarization import (
+    CancelCaptureDiarizationView,
+    CaptureDiarizationView,
+)
+from core.api.capture_direct_asr import (
+    CaptureDirectAsrStartView,
+    CaptureDirectAsrSyncView,
+)
 from core.api.capture_transcription import (
     CancelTranscriptionView,
     CaptureTranscriptionView,
     ClaimTranscriptionView,
     ControlTranscriptionView,
-    FinishTranscriptionView,
     DiagnosticTranscriptionView,
+    FinishTranscriptionView,
     IngestTranscriptionView,
     LiveTranscriptionPreviewView,
     TranscriptionInputView,
@@ -80,6 +86,7 @@ from core.api.capture_translation_worker import (
     CaptureTranslationTicketView,
 )
 from core.api.cloud_recording import CloudRecordingView
+from core.api.direct_ai_allocations import DirectAIAllocationView
 from core.api.directory import (
     ContactPreferenceViewSet,
     DepartmentViewSet,
@@ -117,6 +124,12 @@ from core.api.meeting_captures import (
     CaptureWriterGrantView,
     IngestRecordOriginalView,
 )
+from core.api.meeting_collaboration import (
+    CollaborationCandidatesView,
+    CollaborationNotificationRetryView,
+    CollaborationView,
+    MaterialPreviewView,
+)
 from core.api.meeting_interpretation import (
     InterpretationChannelsView,
     InterpretationRenewalView,
@@ -130,6 +143,7 @@ from core.api.meeting_rooms import (
     MeetingRoomNodeViewSet,
     MeetingRoomViewSet,
 )
+from core.api.meeting_session_status import MeetingSessionStatusView
 from core.api.meeting_summary_exports import (
     SummaryExportPreviewView,
     SummaryExportRetryView,
@@ -139,14 +153,12 @@ from core.api.meeting_summary_notifications import (
     SummaryNotificationRetryView,
     SummaryNotificationsView,
 )
-from core.api.meeting_session_status import MeetingSessionStatusView
 from core.api.meeting_summary_review import SummaryHistoryView, SummaryReviewView
 from core.api.meeting_summary_sharing import (
     SummarySharingCandidatesView,
     SummarySharingPreviewView,
     SummarySharingView,
 )
-from core.api.meeting_collaboration import CollaborationView, CollaborationCandidatesView, MaterialPreviewView, CollaborationNotificationRetryView
 from core.api.meeting_summary_tasks import SummaryTaskView
 from core.api.meeting_translation import MeetingTranslationViewSet, TranslationAgentView
 from core.api.mobile_auth import RefreshTokenView, SendOtpView, VerifyOtpView
@@ -173,6 +185,10 @@ from core.api.qr_login import (
     QrScanView,
 )
 from core.api.recording_accesses import RecordingAccessViewSet
+from core.api.recording_identity_preflight import (
+    RecordingIdentityCandidatesView,
+    RecordingIdentityPreflightView,
+)
 from core.api.recording_upload_multipart import (
     MultipartBeginView,
     MultipartPartsView,
@@ -183,6 +199,11 @@ from core.api.search import (
     DocsSearchView,
     GlobalAskStreamView,
     GlobalAskView,
+)
+from core.api.speaker_identification import (
+    SpeakerIdentificationCandidatesView,
+    SpeakerIdentificationOptionsView,
+    SpeakerIdentificationView,
 )
 from core.api.tasks import (
     TaskGroupViewSet,
@@ -209,6 +230,29 @@ from core.api.uploaded_recordings import (
     DirectUploadCompleteView,
     DirectUploadPresignView,
     UploadedRecordingView,
+)
+from core.api.voiceprint import (
+    VoiceprintDeletionsView,
+    VoiceprintDeletionView,
+    VoiceprintEnrollmentClipView,
+    VoiceprintEnrollmentsView,
+    VoiceprintEnrollmentView,
+    VoiceprintOrganizationPolicyView,
+    VoiceprintProfileView,
+    VoiceprintSampleAudioView,
+    VoiceprintSampleDecisionView,
+    VoiceprintSamplesView,
+    VoiceprintSampleView,
+    VoiceprintScopesView,
+    VoiceprintSettingsView,
+)
+from core.api.voiceprint_operations import VoiceprintOperationsView
+from core.api.voiceprint_sampling import (
+    SamplingClipView,
+    SamplingConnectionView,
+    SamplingControlView,
+    SamplingPermitView,
+    SamplingValidationView,
 )
 from core.external_api import viewsets as external_viewsets
 
@@ -388,6 +432,9 @@ external_router.register(
 )
 
 urlpatterns = [
+    path("api/agent/voiceprint-sampling/permits/<uuid:permit_id>/clip/", SamplingClipView.as_view(), name="voiceprint-sampling-clip"),
+    path("api/agent/voiceprint-sampling/permits/", SamplingPermitView.as_view(), name="voiceprint-sampling-permit"),
+    path("api/agent/voiceprint-sampling/permits/<uuid:permit_id>/validate/", SamplingValidationView.as_view(), name="voiceprint-sampling-validate"),
     path("api/v1.0/ai-call/photo/", AiCallPhotoView.as_view(), name="ai-call-photo"),
     path("api/v1.0/ai-call/session/", AiCallSessionView.as_view(), name="ai-call-session"),
     path("api/v1.0/direct-ai/sessions/<uuid:allocation_id>/", DirectAIAllocationView.as_view(), name="direct-ai-session"),
@@ -418,6 +465,40 @@ urlpatterns = [
         include(
             [
                 path("im/preferences/", ImPreferenceView.as_view(), name="im_preferences"),
+                path("meeting-records/<uuid:record_id>/speaker-identification/", SpeakerIdentificationView.as_view(), name="speaker-identification"),
+                path("meeting-records/<uuid:record_id>/speaker-identification-options/", SpeakerIdentificationOptionsView.as_view(), name="speaker-identification-options"),
+                path("meeting-records/<uuid:record_id>/speaker-identification-candidates/", SpeakerIdentificationCandidatesView.as_view(), name="speaker-identification-candidates"),
+                path(
+                    "voiceprint/settings/",
+                    VoiceprintSettingsView.as_view(), name="voiceprint-settings",
+                ),
+                path("voiceprint/sampling-control/", SamplingControlView.as_view(), name="voiceprint-sampling-control"),
+                path("voiceprint/sampling-connection/", SamplingConnectionView.as_view(), name="voiceprint-sampling-connection"),
+                path("voiceprint/scopes/", VoiceprintScopesView.as_view(), name="voiceprint-scopes"),
+                path("voiceprint/deletions/", VoiceprintDeletionsView.as_view(), name="voiceprint-deletions"),
+                path("voiceprint/enrollments/", VoiceprintEnrollmentsView.as_view(), name="voiceprint-enrollments"),
+                path("voiceprint/enrollments/<uuid:enrollment_id>/", VoiceprintEnrollmentView.as_view(), name="voiceprint-enrollment"),
+                path("voiceprint/enrollments/<uuid:enrollment_id>/clips/<int:slot>/", VoiceprintEnrollmentClipView.as_view(), name="voiceprint-enrollment-clip"),
+                path("voiceprint/samples/", VoiceprintSamplesView.as_view(), name="voiceprint-samples"),
+                path("voiceprint/samples/<uuid:sample_id>/", VoiceprintSampleView.as_view(), name="voiceprint-sample"),
+                path("voiceprint/samples/<uuid:sample_id>/audio/", VoiceprintSampleAudioView.as_view(), name="voiceprint-sample-audio"),
+                path("voiceprint/samples/<uuid:sample_id>/decision/", VoiceprintSampleDecisionView.as_view(), name="voiceprint-sample-decision"),
+                path(
+                    "voiceprint/profiles/<uuid:profile_id>/",
+                    VoiceprintProfileView.as_view(), name="voiceprint-profile",
+                ),
+                path(
+                    "voiceprint/deletions/<uuid:job_id>/",
+                    VoiceprintDeletionView.as_view(), name="voiceprint-deletion",
+                ),
+                path(
+                    "voiceprint/organizations/<uuid:organization_id>/settings/",
+                    VoiceprintOrganizationPolicyView.as_view(), name="voiceprint-organization-policy",
+                ),
+                path(
+                    "voiceprint/organizations/<uuid:organization_id>/operations/",
+                    VoiceprintOperationsView.as_view(), name="voiceprint-operations",
+                ),
                 path(
                     "calendar-share/<str:token>/",
                     CalendarShareView.as_view(),
@@ -462,6 +543,8 @@ urlpatterns = [
                 path("capture-sessions/<uuid:capture_id>/translation/archives/", CaptureTranslationArchivesView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/translation/archives/<uuid:archive_id>/", CaptureTranslationSegmentsView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/", CaptureTranscriptionView.as_view()),
+                path("capture-sessions/<uuid:capture_id>/diarization/", CaptureDiarizationView.as_view()),
+                path("capture-sessions/<uuid:capture_id>/diarization/<uuid:job_id>/cancel/", CancelCaptureDiarizationView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/direct/", CaptureDirectAsrStartView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/direct/<uuid:job_id>/", CaptureDirectAsrSyncView.as_view()),
                 path("capture-sessions/<uuid:capture_id>/transcription/<uuid:job_id>/preview/", LiveTranscriptionPreviewView.as_view()),
@@ -469,6 +552,8 @@ urlpatterns = [
                 path("recording-uploads/", UploadedRecordingView.as_view(), name="recording-uploads"),
                 path("recording-hotwords/", PersonalHotwordsView.as_view(), name="recording-hotwords"),
                 path("recording-uploads/<uuid:record_id>/", UploadedRecordingView.as_view(), name="recording-upload-state"),
+                path("recording-uploads/<uuid:record_id>/identity-preflight/", RecordingIdentityPreflightView.as_view(), name="recording-identity-preflight"),
+                path("recording-uploads/identity-candidates/", RecordingIdentityCandidatesView.as_view(), name="recording-identity-candidates"),
                 # Two-step presigned upload: sign an exact byte count, then adopt
                 # the object. Bytes never pass through the application.
                 path("recording-uploads/upload-url/", DirectUploadPresignView.as_view(), name="recording-upload-url"),

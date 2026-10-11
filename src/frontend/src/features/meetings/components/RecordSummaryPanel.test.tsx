@@ -142,6 +142,46 @@ beforeEach(() => {
 afterEach(() => client?.clear())
 
 describe('Versioned summary requests', () => {
+  it.each([true, false, undefined])(
+    'shows identity changes from server metadata (%s) while keeping frozen content',
+    async (identityUpdated) => {
+      withVersion = true
+      const fallback = mocks.fetchApi.getMockImplementation()!
+      mocks.fetchApi.mockImplementation((url, options) =>
+        url.includes('summary-versions/')
+          ? {
+              results: [
+                {
+                  ...version,
+                  is_current: false,
+                  identity_updated: identityUpdated,
+                },
+              ],
+              next_cursor: null,
+            }
+          : fallback(url, options)
+      )
+      show()
+      await screen.findByText('Protected minutes')
+      expect(!!screen.queryByText('recordAi.identityUpdated')).toBe(
+        identityUpdated === true
+      )
+      expect(
+        mocks.fetchApi.mock.calls.some(
+          ([, options]) => options?.method === 'POST'
+        )
+      ).toBe(false)
+      fireEvent.click(
+        screen.getByRole('button', { name: 'recordAi.source 0:00' })
+      )
+      await screen.findByText('Historical original text')
+      expect(
+        mocks.fetchApi.mock.calls.some(([url]) =>
+          url.includes('transcript-versions/snapshot-1/')
+        )
+      ).toBe(true)
+    }
+  )
   it('distinguishes missing summary from an empty chapter list without guessing a reason', async () => {
     show(false, undefined, false, true)
     await screen.findByText('chapterReader.noVersion')

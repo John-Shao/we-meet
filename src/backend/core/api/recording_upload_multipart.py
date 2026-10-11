@@ -15,10 +15,12 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
+from core.services import recording_identity_preflight as preflight
 from core.services import recording_upload_sessions as sessions
 from core.services import uploaded_recordings as service
 from core.services.hotwords import parse_hotwords
 from core.services.meeting_records import RecordConflict
+from core.services.voiceprint_consent import VoiceprintError
 
 
 class MultipartThrottle(UserRateThrottle):
@@ -49,6 +51,7 @@ class BeginSerializer(serializers.Serializer):
     context = serializers.CharField(max_length=400, allow_blank=True, default="")
     hotwords = serializers.CharField(max_length=4000, allow_blank=True, default="")
     diarization = serializers.BooleanField(default=False)
+    identity = serializers.JSONField(required=False, allow_null=True)
 
     def validate_hotwords(self, value):
         try:
@@ -106,6 +109,8 @@ class MultipartBase(APIView):
             return Response({"code": "transcription_conflict"}, status=409)
         except LookupError:
             raise Http404 from None
+        except VoiceprintError as error:
+            return Response({"code": str(error)}, status=error.status)
         except ValueError as error:
             return Response({"code": str(error) or "invalid_upload"}, status=400)
 
@@ -122,8 +127,15 @@ class MultipartBeginView(MultipartBase):
             "hotwords": data.pop("hotwords"),
             "diarization": data.pop("diarization"),
         }
+        if "identity" in data:
+            options["identity"] = data.pop("identity")
 
         def action():
+            preflight.expected_owner(
+                request.user,
+                request.headers.get("X-Voiceprint-Owner"),
+                options.get("identity"),
+            )
             result = sessions.begin(request.user, **data, options=options)
             session, uploaded = result
             # A resumed or replayed `begin` may hand back a finished job, which

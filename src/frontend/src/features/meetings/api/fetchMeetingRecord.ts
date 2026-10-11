@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import {
   keepPreviousData,
   useMutation,
@@ -6,8 +7,13 @@ import {
 } from '@tanstack/react-query'
 
 import { ApiError } from '@/api/ApiError'
-import { fetchApi } from '@/api/fetchApi'
+import { assertAuthSession, fetchApi } from '@/api/fetchApi'
+import {
+  getAuthSnapshot,
+  sameAuthSession,
+} from '@/features/auth/utils/tokenStorage'
 import { summaryReceipt } from './summaryReceipts'
+import { refreshHumanSummaryIdentity } from './refreshHumanSummaryIdentity'
 import { useRecordInfiniteQuery } from '../hooks/useRecordInfiniteQuery'
 
 import type {
@@ -18,6 +24,8 @@ import type {
   ApiRecordTranscript,
   ApiRecordSpeaker,
   ApiAttributionCandidate,
+  ApiSpeakerContactPage,
+  SpeakerIdentityDecisionPayload,
   MeetingRecordFilters,
   MeetingRecordPage,
   LegacyMeetingRecordSource,
@@ -461,6 +469,121 @@ export const useAttributeSpeaker = (viewerId: string, recordId: string) => {
         queryKey: ['meeting-records', viewerId],
       })
     },
+  })
+}
+
+// A directory or naming operation belongs to the login that opened it. The
+// transport also checks the expected viewer on the server (including cookies).
+const useIdentitySession = (viewerId: string, recordId: string) =>
+  useMemo(
+    () => ({
+      viewerId,
+      recordId,
+      // Only a session fence goes in query keys; credentials stay in the
+      // transport. A same-login token refresh does not change this fence.
+      auth: { session: getAuthSnapshot().session, access: null, refresh: null },
+    }),
+    [viewerId, recordId]
+  )
+
+const identityFetch = async <T>(
+  session: ReturnType<typeof useIdentitySession>,
+  path: string,
+  options: RequestInit
+) => {
+  assertAuthSession(session.auth)
+  const result = await fetchApi<T>(path, {
+    ...options,
+    headers: {
+      ...Object.fromEntries(new Headers(options.headers)),
+      'X-Voiceprint-Owner': session.viewerId,
+    },
+  })
+  assertAuthSession(session.auth)
+  return result
+}
+
+export const useSpeakerContacts = (
+  viewerId: string,
+  recordId: string,
+  filters: {
+    q?: string
+    kind?: 'all' | 'member' | 'external' | 'departments'
+    department_id?: string
+    offset?: number
+  },
+  enabled = true
+) => {
+  const session = useIdentitySession(viewerId, recordId)
+  return useQuery<ApiSpeakerContactPage, ApiError>({
+    queryKey: [
+      'meeting-records',
+      viewerId,
+      'speaker-contacts',
+      recordId,
+      session,
+      filters,
+    ],
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams()
+      for (const [key, value] of Object.entries(filters)) {
+        if (value !== undefined && value !== '') params.set(key, String(value))
+      }
+      return identityFetch<ApiSpeakerContactPage>(
+        session,
+        `${recordPath(recordId)}speaker-contacts/?${params}`,
+        { signal, cache: 'no-store', redirect: 'error' }
+      )
+    },
+    enabled: enabled && !!viewerId && !!recordId,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  })
+}
+
+export const useSpeakerIdentityDecision = (
+  viewerId: string,
+  recordId: string
+) => {
+  const client = useQueryClient()
+  const session = useIdentitySession(viewerId, recordId)
+  const refresh = async () => {
+    // Refetching old viewer keys with a new account would populate the wrong
+    // cache. The account transition owns replacing/removing those views.
+    if (!sameAuthSession(session.auth)) return
+    await Promise.all([
+      refreshHumanSummaryIdentity(client, viewerId, recordId),
+      client.invalidateQueries({ queryKey: ['meeting-records', viewerId] }),
+      client.invalidateQueries({
+        queryKey: ['record-library-content', viewerId],
+      }),
+    ])
+  }
+  return useMutation<
+    ApiRecordSpeaker,
+    ApiError,
+    {
+      speakerId: string
+      decision: SpeakerIdentityDecisionPayload
+    }
+  >({
+    mutationFn: ({ speakerId, decision }) =>
+      identityFetch<ApiRecordSpeaker>(
+        session,
+        `${recordPath(recordId)}speakers/${encodeURIComponent(speakerId)}/identity-decision/`,
+        {
+          method: 'POST',
+          cache: 'no-store',
+          redirect: 'error',
+          signal: AbortSignal.timeout(20000),
+          body: JSON.stringify(decision),
+        }
+      ),
+    retry: false,
+    gcTime: 0,
+    onSuccess: refresh,
+    onError: refresh,
   })
 }
 

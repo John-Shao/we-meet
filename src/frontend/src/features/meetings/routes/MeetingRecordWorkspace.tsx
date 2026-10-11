@@ -78,6 +78,7 @@ import {
 import { OriginalSearch } from '../components/OriginalSearch'
 import { SpeakerFilter } from '../components/SpeakerFilter'
 import { SpeakerAttributionControl } from '../components/SpeakerAttributionControl'
+import { SpeakerIdentificationPanel } from '@/features/voiceprint/SpeakerIdentificationPanel'
 import { TranslationArchivePanel } from '../components/TranslationArchivePanel'
 import { UploadTranslationPanel } from '../components/UploadTranslationPanel'
 import { CaptureTranslationArchives } from '../components/CaptureTranslationArchives'
@@ -635,6 +636,21 @@ function WorkspaceContent({
           <RecordPanel label={t('library.speakers')}>
             <p className={textStyle}>{t('library.speakersHint')}</p>
             <p className={textStyle}>{t('speakerActivity.basis')}</p>
+            <SpeakerIdentificationPanel
+              key={`${viewerId}:${record.id}:identification`}
+              record={record}
+              viewerId={viewerId}
+              captureDiarizationId={source?.active_diarization_job_id}
+              onPreview={async (start, end) =>
+                (isUpload ? uploadMedia.current : player.current)?.preview(
+                  start,
+                  end
+                ) ?? false
+              }
+              onPreviewStop={() =>
+                (isUpload ? uploadMedia.current : player.current)?.stopPreview()
+              }
+            />
             <OriginalRead
               key={`${record.id}:${record.revision}:speakers`}
               record={record}
@@ -1004,12 +1020,14 @@ export function RecordWorkspace({
                     ? record.capabilities.read_summary
                     : record.capabilities.read_transcript) && (
                     <MaterialActions
-                      key={`${viewerId}:${record.id}:${document}`}
+                      key={`${viewerId}:${record.id}:${document}:${summaryId}:${humanId}`}
                       recordId={record.id}
                       viewerId={viewerId}
                       scope={document ? 'minutes' : 'record'}
                       title={record.title || t('library.untitled')}
                       originAt={record.origin_at}
+                      summaryId={humanId === undefined ? summaryId : undefined}
+                      humanId={humanId}
                     />
                   )}
                 {record && !document && (

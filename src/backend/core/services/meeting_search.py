@@ -42,17 +42,21 @@ class Candidate:
     summary_id: object = None
     start_ms: int | None = None
     reviewed: bool = False
+    speaker_name: str = ""
 
 
-def _score_expression(field, keywords):
+def _score_expression(field, keywords, *, speaker_field=None):
     return sum(
         (
             Case(
                 When(
-                    **{
-                        f"{field}__icontains": word,
-                        "then": Value(len(keywords) - index),
-                    }
+                    Q(**{f"{field}__icontains": word})
+                    | (
+                        Q(**{f"{speaker_field}__icontains": word})
+                        if speaker_field
+                        else Q()
+                    ),
+                    then=Value(len(keywords) - index),
                 ),
                 default=Value(0),
                 output_field=IntegerField(),
@@ -63,12 +67,20 @@ def _score_expression(field, keywords):
     )
 
 
-def _pool(rows, keywords, *, field, record_field="record", time_field="start_ms"):
+def _pool(  # noqa: PLR0913 -- Source-specific text, speaker and ordering fields.
+    rows,
+    keywords,
+    *,
+    field,
+    record_field="record",
+    time_field="start_ms",
+    speaker_field=None,
+):
     """Apply per-record quota in SQL BEFORE the bounded global pool is materialized."""
     title = f"{record_field}__title"
     return (
         rows.annotate(
-            _body_score=_score_expression(field, keywords),
+            _body_score=_score_expression(field, keywords, speaker_field=speaker_field),
             _title_score=_score_expression(title, keywords),
         )
         .filter(Q(_body_score__gt=0) | Q(_title_score__gt=0))
@@ -148,7 +160,11 @@ def _select(candidates):
     )
     groups, seen = {}, set()
     for candidate in ranked:
-        key = (candidate.record_id, candidate.text.strip().casefold())
+        key = (
+            candidate.record_id,
+            candidate.speaker_name.casefold(),
+            candidate.text.strip().casefold(),
+        )
         if key in seen:
             continue
         seen.add(key)
@@ -169,7 +185,7 @@ def _select(candidates):
         count = counts.get(candidate.record_id, 0)
         if count >= CITATIONS_PER_RECORD:
             continue
-        key = candidate.text.strip().casefold()
+        key = (candidate.speaker_name.casefold(), candidate.text.strip().casefold())
         if key in texts:
             repeated.append(candidate)
             continue
@@ -210,7 +226,7 @@ def recall_records(user, keywords, citations, *, date_from=None, date_to=None):
         )
     )
     rows = (
-        _pool(originals, keywords, field="corrected_text")
+        _pool(originals, keywords, field="corrected_text", speaker_field="display_name")
         .annotate(_context=_window_expression("corrected_text", keywords))
         .values(
             "id",
@@ -218,6 +234,7 @@ def recall_records(user, keywords, citations, *, date_from=None, date_to=None):
             "record__title",
             "record__origin_at",
             "start_ms",
+            "display_name",
             "_context",
             "_body_score",
             "_title_score",
@@ -235,6 +252,7 @@ def recall_records(user, keywords, citations, *, date_from=None, date_to=None):
                 row["_title_score"],
                 str(row["id"]),
                 start_ms=row["start_ms"],
+                speaker_name=row["display_name"] or "",
             )
         )
     online = models.Transcript.objects.filter(
@@ -247,6 +265,7 @@ def recall_records(user, keywords, citations, *, date_from=None, date_to=None):
             field="text",
             record_field="session__record",
             time_field="started_at",
+            speaker_field="speaker_name",
         )
         .annotate(_context=_window_expression("text", keywords))
         .values(
@@ -255,6 +274,7 @@ def recall_records(user, keywords, citations, *, date_from=None, date_to=None):
             "session__record__title",
             "session__record__origin_at",
             "started_at",
+            "speaker_name",
             "_context",
             "_body_score",
             "_title_score",
@@ -273,6 +293,7 @@ def recall_records(user, keywords, citations, *, date_from=None, date_to=None):
                 row["_title_score"],
                 str(row["id"]),
                 start_ms=max(0, int((row["started_at"] - at).total_seconds() * 1000)),
+                speaker_name=row["speaker_name"] or "",
             )
         )
     readable_summary = records.filter(can_read_summary=True)
@@ -332,6 +353,8 @@ def recall_records(user, keywords, citations, *, date_from=None, date_to=None):
         prefix = (
             ("人工纪要：" if candidate.reviewed else "智能纪要：")
             if candidate.ability == "read_summary"
+            else f"{candidate.speaker_name[:128]}："
+            if candidate.speaker_name
             else ""
         )
         text = prefix + (

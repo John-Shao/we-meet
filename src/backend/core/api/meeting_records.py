@@ -19,18 +19,21 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 
 from core import models
+from core.api.voiceprint import StrictVersion
 from core.services import (
     meeting_overviews,
     record_lifecycle,
     record_purge,
     speaker_activity,
     speaker_attribution,
+    speaker_contacts,
+    speaker_identity_decisions,
     transcript_corrections,
     transcript_export,
 )
 from core.services.asr_observations import observation_status, snapshot_asr_status
 from core.services.capture_transcription import current_originals
-from core.services.effective_transcripts import project
+from core.services.effective_transcripts import current_generation, project
 from core.services.meeting_records import (
     RecordConflict,
     can_edit_transcript,
@@ -52,14 +55,16 @@ from core.services.meeting_summary_requests import (
     requests_enabled,
     serialize_summary_job,
 )
-from core.services.meeting_summary_versions import source_payload, summary_readiness
+from core.services.meeting_summary_versions import summary_readiness
 from core.services.record_media_timing import media_timing
+from core.services.summary_identity_state import read_state as summary_identity_state
 from core.services.summary_language import LANGUAGES
 from core.services.uploaded_recordings import (
     media_available,
     media_read_url,
     public_metadata,
 )
+from core.services.voiceprint_consent import VoiceprintError
 from core.services.word_alignment import for_reader as playback_alignment
 
 
@@ -111,6 +116,56 @@ class SpeakerAttributionSerializer(serializers.Serializer):
     def validate(self, attrs):
         if set(self.initial_data) - set(self.fields):
             raise ValidationError("Unsupported attribution field.")
+        return attrs
+
+
+class SpeakerIdentityDecisionSerializer(serializers.Serializer):
+    """Strict action payload; clients cannot submit contact name snapshots."""
+
+    action = serializers.ChoiceField(
+        choices=[
+            "select_contact",
+            "set_label",
+            "clear",
+            "confirm_suggestion",
+            "reject_suggestion",
+        ]
+    )
+    expected_revision = StrictVersion(min_value=1)
+    suggestion_id = serializers.UUIDField(required=False)
+    contact_ref = serializers.CharField(max_length=64, required=False)
+    label = serializers.CharField(max_length=64, required=False, trim_whitespace=False)
+
+    def validate(self, attrs):
+        if set(self.initial_data) - set(self.fields):
+            raise ValidationError("Unsupported identity decision field.")
+        required = {
+            "select_contact": {"contact_ref"},
+            "set_label": {"label"},
+            "clear": set(),
+            "confirm_suggestion": {"suggestion_id"},
+            "reject_suggestion": {"suggestion_id"},
+        }[attrs["action"]]
+        optional = set(attrs) - {"action", "expected_revision"}
+        if optional != required:
+            raise ValidationError("Provide only the fields required by this action.")
+        return attrs
+
+
+class SpeakerContactQuerySerializer(serializers.Serializer):
+    q = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    kind = serializers.ChoiceField(
+        choices=["all", "member", "external", "departments"], default="all"
+    )
+    department_id = serializers.UUIDField(required=False)
+    offset = serializers.IntegerField(
+        min_value=0, max_value=speaker_contacts.MAX_OFFSET, default=0
+    )
+    limit = serializers.IntegerField(min_value=1, max_value=50, default=25)
+
+    def validate(self, attrs):
+        if set(self.initial_data) - set(self.fields):
+            raise ValidationError("Unsupported contact filter.")
         return attrs
 
 
@@ -859,10 +914,6 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
     def summary_versions(self, request, pk=None):
         """Expose immutable AI versions without disclosing the input transcript."""
         record = self._content_record("read_summary")
-        try:
-            fingerprint = source_payload(record, require_ended=False)[1]
-        except RecordConflict:
-            fingerprint = None
         latest = (
             record.processing_jobs.filter(kind="summary")
             .order_by("-generation")
@@ -886,7 +937,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         pager = RecordPagination()
         pager.ordering = ("-created_at", "-id")
         page = pager.paginate_queryset(rows, request, view=self)
-        self._content_record("read_summary")
+        record = self._content_record("read_summary")
+        identity_state = summary_identity_state(record)
+        record = self._content_record("read_summary")
         return pager.get_paginated_response(
             [
                 {
@@ -903,6 +956,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "model_used": version.model_used,
                     "created_at": version.created_at,
                     "input_revision": version.input_snapshot.revision,
+                    "identity_updated": identity_state.updated(version.input_snapshot),
                     "input_snapshot_id": str(version.input_snapshot_id),
                     "source_observed_at": version.input_snapshot.created_at,
                     "source_segment_count": len(version.input_snapshot.segments),
@@ -914,7 +968,10 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                         latest
                         and latest.pk == version.job_id
                         and record.revision == version.input_snapshot.revision
-                        and fingerprint == version.input_snapshot.fingerprint
+                        and identity_state.latest_revision
+                        <= version.input_snapshot.revision
+                        and identity_state.fingerprint
+                        == version.input_snapshot.fingerprint
                     ),
                 }
                 for version in page
@@ -954,7 +1011,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 room_id=record.meeting_session.room_id,
             )
         rows = self._filter_speaker(rows, identity_field="speaker_identity")
-        rows, expected = self._filter_original_text(record, rows)
+        rows, expected = self._filter_original_text(
+            record, rows, speaker_field="speaker_name"
+        )
         pager = TranscriptPagination()
         order = request.query_params.get("order", "oldest")
         if order not in {"oldest", "latest"}:
@@ -966,7 +1025,9 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         self._check_original_revision(record, expected)
         return pager.get_paginated_response(data)
 
-    def _filter_original_text(self, record, rows, *, text_field="text"):
+    def _filter_original_text(
+        self, record, rows, *, text_field="text", speaker_field=None
+    ):
         """Search only authorized original rows, before cursor pagination."""
         query = self.request.query_params.get("q", "").strip()
         if len(query) > 200:
@@ -978,9 +1039,12 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             else None
         )
         self._check_original_revision(record, expected)
-        return (
-            rows.filter(**{f"{text_field}__icontains": query}) if query else rows
-        ), expected
+        if query:
+            matches = Q(**{f"{text_field}__icontains": query})
+            if speaker_field:
+                matches |= Q(**{f"{speaker_field}__icontains": query})
+            rows = rows.filter(matches)
+        return rows, expected
 
     def _filter_speaker(self, rows, *, identity_field):
         """Narrow to one speaker, using the identifier the `speakers` action returned.
@@ -1046,11 +1110,32 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
             if not job:
                 raise Http404
             rows = record.original_segments.filter(
-                transcription_job=job
+                transcription_job=job, diarization_job__isnull=True
             ).select_related("speaker", "capture_session")
+        diarization_id = request.query_params.get("diarization_job_id")
+        if diarization_id:
+            derived = models.CaptureDiarizationJob.objects.filter(
+                pk=serializers.UUIDField().run_validation(diarization_id),
+                capture__record=record,
+                status="succeeded",
+            ).first()
+            if (
+                not derived
+                or job_id
+                and str(derived.source_transcription_id) != str(job.pk)
+            ):
+                raise Http404
+            rows = derived.originals.select_related("speaker", "capture_session")
+        rows = rows.annotate(
+            is_current=Exists(
+                current_generation(
+                    models.MeetingOriginalSegment.objects.filter(pk=OuterRef("pk"))
+                )
+            )
+        )
         rows = self._filter_speaker(rows, identity_field="speaker_id")
         rows, expected = self._filter_original_text(
-            record, project(rows), text_field="corrected_text"
+            record, project(rows), text_field="corrected_text", speaker_field="display_name"
         )
         # Locate inside the authorized, generation-pinned and filtered source.
         # Keep the predecessor for gap context; cursor pagination continues from
@@ -1078,12 +1163,14 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "id": str(row.pk),
                     "revision": row.revision,
                     "correction_revision": row.correction_revision,
-                    "can_correct": can_correct
-                    and (
-                        row.transcription_job_id is None
-                        or row.transcription_job_id
-                        == row.capture_session.active_transcription_id
-                    ),
+                    "can_correct": can_correct and row.is_current,
+                    "diarization_job_id": str(row.diarization_job_id)
+                    if row.diarization_job_id
+                    else None,
+                    "parent_original_id": str(row.parent_original_id)
+                    if row.parent_original_id
+                    else None,
+                    "speaker_mapping": row.derivation or None,
                     "capture_session_id": str(row.capture_session_id),
                     "source_track_id": row.source_track_id,
                     "source_sequence": row.source_sequence,
@@ -1099,7 +1186,8 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     # and an edit never looks like it was always there.
                     "original_text": row.text,
                     "playback_alignment": (
-                        playback_alignment(row) if settings.MEETING_WORD_ALIGNMENT_READ_ENABLED
+                        playback_alignment(row)
+                        if settings.MEETING_WORD_ALIGNMENT_READ_ENABLED
                         else {"status": "missing"}
                     ),
                     "is_corrected": row.corrected_text != row.text,
@@ -1250,16 +1338,17 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         page = pager.paginate_queryset(
             record.speakers.filter(
                 pk__in=current_originals(record).values("speaker_id")
-            ),
+            ).select_related("user"),
             request,
             view=self,
         )
         stats, stats_status = speaker_activity.activity(record)
         self._check_original_revision(record, record.revision)
+        may_attribute = can_edit_transcript(record, request.user)
         return pager.get_paginated_response(
             [
                 {
-                    **speaker_attribution.serialize(row),
+                    **speaker_attribution.serialize(row, record_revision=record.revision),
                     "activity": speaker_activity.serialize(stats, stats_status, row.pk),
                     # Capture-backed reads also carry the source key, so a caller
                     # that only kept the raw track key can still filter.
@@ -1267,7 +1356,7 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
                     "param": "speaker",
                     # Whether this reader may change the attribution, so the UI
                     # does not offer a control that would be refused.
-                    "can_attribute": can_edit_transcript(record, request.user),
+                    "can_attribute": may_attribute and row.identity_type == "diarized",
                 }
                 for row in page
             ]
@@ -1327,12 +1416,77 @@ class MeetingRecordViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(
             {
                 "results": [
-                    {"id": str(user.pk), "name": user.full_name or ""}
+                    {"id": str(user.pk), "name": speaker_contacts.name(user)}
                     for user in speaker_attribution.attribution_candidates(
                         record, request.user, query
                     )
                 ]
             }
+        )
+
+    def _speaker_identity_account_error(self, request):
+        expected_owner = request.headers.get("X-Voiceprint-Owner")
+        if expected_owner is not None and expected_owner != str(request.user.pk):
+            return Response(
+                {"code": "voiceprint_account_changed"},
+                status=401,
+                headers={"Cache-Control": "private, no-store"},
+            )
+        return None
+
+    @action(detail=True, methods=["get"], url_path="speaker-contacts")
+    def speaker_contacts(self, request, pk=None):
+        account_error = self._speaker_identity_account_error(request)
+        if account_error is not None:
+            return account_error
+        record = self._content_record("read_transcript")
+        serializer = SpeakerContactQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        parameters = dict(serializer.validated_data)
+        parameters["query"] = parameters.pop("q", "")
+        try:
+            return Response(speaker_contacts.lookup(record, request.user, **parameters))
+        except PermissionError as error:
+            raise PermissionDenied(str(error)) from error
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path=r"speakers/(?P<speaker_id>[0-9a-f-]{36})/identity-decision",
+    )
+    def speaker_identity_decision(self, request, pk=None, speaker_id=None):
+        account_error = self._speaker_identity_account_error(request)
+        if account_error is not None:
+            return account_error
+        record = self._content_record("read_transcript")
+        identifier = serializers.UUIDField().run_validation(speaker_id)
+        serializer = SpeakerIdentityDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            speaker = speaker_identity_decisions.decide(
+                record, identifier, request.user, **serializer.validated_data
+            )
+        except PermissionError as error:
+            raise PermissionDenied(str(error)) from error
+        except VoiceprintError as error:
+            return Response(
+                {"code": str(error)},
+                status=error.status,
+                headers={"Cache-Control": "private, no-store"},
+            )
+        except RecordConflict as error:
+            return Response({"code": str(error)}, status=409)
+        except speaker_attribution.AttributionDenied as error:
+            return Response(
+                {"code": "contact_unavailable", "message": str(error)}, status=400
+            )
+        except LookupError as error:
+            raise Http404 from error
+        except ValueError as error:
+            raise ValidationError(str(error)) from error
+        return Response(
+            speaker_attribution.serialize(speaker),
+            headers={"Cache-Control": "private, no-store"},
         )
 
     @action(detail=True, methods=["get"])

@@ -17,6 +17,7 @@
  */
 
 /** Bytes of one part. Mirrors the server's plan; the server's value wins. */
+import type { ImportIdentity } from '@/features/voiceprint/importIdentity'
 export const DEFAULT_PART_SIZE = 64 * 1024 * 1024
 
 /** Above this, a single PUT is no longer worth the all-or-nothing risk. */
@@ -123,6 +124,7 @@ export async function uploadInParts(
     context: string
     hotwords: string
     diarization?: boolean
+    identity?: ImportIdentity
   },
   deps: ChunkedDeps,
   signal: AbortSignal,

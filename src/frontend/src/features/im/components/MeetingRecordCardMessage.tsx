@@ -7,7 +7,10 @@ import { SenderLabel } from './SenderLabel'
 
 import { Avatar } from './Avatar'
 import { chatCardColumn, chatCardSize } from './chatCardSize'
-import { parseMeetingRecordCard } from './meetingRecordCard'
+import {
+  parseMeetingRecordCard,
+  type MeetingRecordTarget,
+} from './meetingRecordCard'
 import { MeetingMaterialPreview } from './MeetingMaterialPreview'
 
 /**
@@ -41,7 +44,7 @@ export const MeetingRecordCardMessage = ({
   showSender?: boolean
   onAvatarClick?: () => void
   onContextMenu?: (e: React.MouseEvent) => void
-  onOpen?: (card: { record_id: string; scope?: 'record' | 'minutes' }) => void
+  onOpen?: (card: MeetingRecordTarget) => void
 }) => {
   const { t, i18n } = useTranslation('im')
   const card = parseMeetingRecordCard(body)
@@ -117,6 +120,8 @@ export const MeetingRecordCardMessage = ({
           <MeetingMaterialPreview
             recordId={card.record_id}
             scope={card.scope}
+            summaryId={card.summary_id}
+            humanId={card.human_id}
           />
         )}
         {clickable && !card.scope && (

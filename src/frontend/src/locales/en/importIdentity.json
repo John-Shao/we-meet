@@ -1,0 +1,16 @@
+{
+  "scope": "Voiceprint library",
+  "personal": "My personal library",
+  "moreScopes": "More organizations",
+  "search": "Search members",
+  "searchAction": "Search",
+  "selected": "{{count}} selected (up to {{limit}})",
+  "remove": "Remove {{name}}",
+  "directoryError": "The member list is unavailable. Refresh before continuing.",
+  "refresh": "Refresh",
+  "loading": "Loading members...",
+  "empty": "No matching members",
+  "previous": "Previous page",
+  "next": "Next page",
+  "hint": "Select the people to compare. Only their currently authorized voiceprints can be used. Results are suggestions for your review."
+}

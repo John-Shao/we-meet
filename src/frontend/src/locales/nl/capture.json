@@ -200,5 +200,32 @@
   "openSummary": "AI-notulen bekijken",
   "recoverable": "Opnamen om af te ronden",
   "recoverableHint": "Onvoltooide opnamen en opnamen met openstaande lokale audio verschijnen hier. Opgeslagen materiaal is beschikbaar in de vergaderrecords.",
-  "backToOverview": "Terug naar AI-opname"
+  "backToOverview": "Terug naar AI-opname",
+  "diarization": {
+    "resultHint": "De sprekers zijn gescheiden. Selecteer een tijdstip om de oorspronkelijke audio te beluisteren en bevestig de identiteit op het tabblad Sprekers.",
+    "unknownSpeaker": "Onbekende spreker",
+    "title": "Opgenomen sprekers onderscheiden",
+    "hint": "Maak een aparte sprekerversie en behoud de oorspronkelijke tekst en correcties. Herken en bevestig daarna namen op het tabblad Sprekers. Bij een nieuwe versie moeten namen opnieuw worden bevestigd; er wordt niet automatisch een stemprofiel geregistreerd.",
+    "accept": "Ik bevestig de verwerking, waarvoor kosten kunnen gelden. Annulering garandeert geen terugbetaling.",
+    "start": "Sprekers onderscheiden",
+    "retry": "Opnieuw onderscheiden",
+    "recover": "Dezelfde aanvraag hervatten",
+    "cancel": "Verwerking annuleren",
+    "refresh": "Status vernieuwen",
+    "history": "Sprekerversies",
+    "version": "Sprekerversie {{number}}",
+    "uncertain": "Het resultaat is onzeker. Hervat dezelfde aanvraag om dubbele kosten te voorkomen.",
+    "conflict": "Het document is gewijzigd. Vernieuw en bevestig opnieuw.",
+    "denied": "Verwerking niet beschikbaar. Controleer toegang en audiobewaring en vernieuw.",
+    "recoveryError": "De aanvraag kan niet veilig worden opgeslagen. Herlaad voordat je opnieuw probeert.",
+    "cancelUnknown": "Annulering is onzeker. Vernieuw om te controleren.",
+    "editing": "Sla tekstwijzigingen eerst op of annuleer ze.",
+    "status": {
+      "queued": "In wachtrij",
+      "running": "In verwerking",
+      "succeeded": "Voltooid",
+      "failed": "Mislukt",
+      "canceled": "Geannuleerd"
+    }
+  }
 }

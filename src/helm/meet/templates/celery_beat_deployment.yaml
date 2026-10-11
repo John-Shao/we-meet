@@ -1,5 +1,6 @@
 {{- if .Values.celeryBeat.enabled }}
 {{- $component := "celery-beat" }}
+{{- $env := mergeOverwrite (deepCopy .Values.backend.envVars) .Values.celeryBeat.envVars }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,9 +17,21 @@ spec:
       {{- include "meet.common.selectorLabels" (list . $component) | nindent 6 }}
   template:
     metadata:
+      {{- if .Values.voiceprintRuntime.enabled }}
+      annotations:
+        meet.voiceprint/configuration-revision: {{ .Values.voiceprintRuntime.configurationRevision | quote }}
+      {{- end }}
       labels:
         {{- include "meet.common.selectorLabels" (list . $component) | nindent 8 }}
     spec:
+      {{- if .Values.voiceprintRuntime.enabled }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "meet.voiceprint.podSecurity" (dict "root" . "context" dict) | nindent 8 }}
+        seccompProfile: {type: RuntimeDefault}
+      nodeSelector:
+        {{- include "meet.voiceprint.nodeSelector" (dict "root" . "config" .Values.backend) | nindent 8 }}
+      {{- end }}
       {{- if .Values.image.credentials }}
       imagePullSecrets:
         - name: {{ include "meet.secret.dockerconfigjson.name" (dict "fullname" (include "meet.fullname" .) "imageCredentials" .Values.image.credentials) }}
@@ -29,7 +42,17 @@ spec:
           imagePullPolicy: {{ (.Values.backend.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
           command: [celery, -A, meet.celery_app, beat, --loglevel=info, --schedule=/tmp/celerybeat-schedule]
           env:
-            {{- include "meet.env.transformDict" (mergeOverwrite (deepCopy .Values.backend.envVars) .Values.celeryBeat.envVars) | nindent 12 }}
+            {{- include "meet.voiceprint.backendEnv" (dict "root" . "env" $env) | nindent 12 }}
+          {{- if .Values.voiceprintRuntime.enabled }}
+          securityContext:
+            {{- include "meet.voiceprint.containerSecurity" (dict "root" . "context" (dict "readOnlyRootFilesystem" true)) | nindent 12 }}
+          volumeMounts:
+            {{- include "meet.voiceprint.volumeMounts" . | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.celeryBeat.resources | nindent 12 }}
+      {{- if .Values.voiceprintRuntime.enabled }}
+      volumes:
+        {{- include "meet.voiceprint.volumes" . | nindent 8 }}
+      {{- end }}
 {{- end }}

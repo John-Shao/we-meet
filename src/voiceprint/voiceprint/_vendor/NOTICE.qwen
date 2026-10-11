@@ -1,0 +1,23 @@
+Qwen3-TTS speaker encoder subset
+Copyright 2026 The Qwen team, Alibaba Group and the HuggingFace Inc. team.
+License: Apache-2.0; the complete license is in LICENSE.qwen.
+
+Upstream: https://github.com/QwenLM/Qwen3-TTS
+Source revision: 022e286b98fbec7e1e916cb940cdf532cd9f488e
+Original modeling_qwen3_tts.py SHA256:
+25c42656bcf810f06ef6bc1839bd7083f3c8cfedac3a147c4060b4262b1c96a0
+Original configuration_qwen3_tts.py SHA256:
+f52867f14fde06a416dd14864d503ce6d13d0a08d5f5da30191e1c80c13f5d18
+
+Changes by We Meet (2026-10-10):
+- Retained only six encoder classes and two mel preprocessing functions.
+- Removed all language-model, tokenizer, network and speech-generation code.
+- Replaced the configuration type with an immutable local dataclass containing
+  the pinned official speaker encoder defaults.
+- Removed waveform-derived warning prints; acceptance is checked separately.
+- Imports are limited to Torch, librosa mel and the local configuration.
+
+No encoder forward or mel formula was changed. Float32 inference and subsequent
+L2 normalization are explicit We Meet feature-space rules. Qwen's model card
+declares Apache-2.0 for the pinned model weights; the artifact manifest records
+the exact upstream revision and whole-file checksum independently of this code.

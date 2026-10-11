@@ -1,0 +1,69 @@
+{{- if .Values.voiceprintWorkers.enabled -}}
+{{- include "meet.voiceprint.validateRuntime" . -}}
+{{- $root := . -}}
+{{- range $role, $resources := dict "control" .Values.voiceprintWorkers.controlResources "processing" .Values.voiceprintWorkers.processingResources "identity" .Values.voiceprintWorkers.identityResources }}
+{{- with $root }}
+{{- $name := printf "%s-voiceprint-%s" (include "meet.fullname" . | trunc 40 | trimSuffix "-") $role }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list . "celery-voiceprint") | nindent 4 }}
+    meet.voiceprint/role: {{ $role }}
+spec:
+  replicas: {{ .Values.voiceprintWorkers.replicas }}
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      {{- include "meet.common.selectorLabels" (list . "celery-voiceprint") | nindent 6 }}
+      meet.voiceprint/role: {{ $role }}
+  template:
+    metadata:
+      annotations:
+        meet.voiceprint/configuration-revision: {{ .Values.voiceprintRuntime.configurationRevision | quote }}
+      labels:
+        {{- include "meet.common.selectorLabels" (list . "celery-voiceprint") | nindent 8 }}
+        meet.voiceprint/role: {{ $role }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ if eq $role "identity" }}930{{ else if eq $role "control" }}210{{ else }}150{{ end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.voiceprintRuntime.userId }}
+        runAsGroup: {{ .Values.voiceprintRuntime.userId }}
+        fsGroup: {{ .Values.voiceprintRuntime.userId }}
+        seccompProfile: {type: RuntimeDefault}
+      {{- if .Values.image.credentials }}
+      imagePullSecrets:
+        - name: {{ include "meet.secret.dockerconfigjson.name" (dict "fullname" (include "meet.fullname" .) "imageCredentials" .Values.image.credentials) }}
+      {{- end }}
+      containers:
+        - name: voiceprint-worker
+          image: {{ include "meet.voiceprint.backendImage" . | quote }}
+          imagePullPolicy: {{ (.Values.backend.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
+          command: [python, manage.py, run_voiceprint_worker, --role, {{ $role }}]
+          env:
+            {{- include "meet.voiceprint.backendEnv" (dict "root" . "env" .Values.backend.envVars) | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            {{- toYaml $resources | nindent 12 }}
+          volumeMounts:
+            {{- include "meet.voiceprint.volumeMounts" . | nindent 12 }}
+        {{- include "meet.voiceprint.janitor" . | nindent 8 }}
+      volumes:
+        {{- include "meet.voiceprint.volumes" . | nindent 8 }}
+      nodeSelector:
+        {{- toYaml .Values.voiceprintWorkers.nodeSelector | nindent 8 }}
+      {{- with .Values.voiceprintWorkers.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

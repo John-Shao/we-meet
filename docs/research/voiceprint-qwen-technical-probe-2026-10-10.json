@@ -1,0 +1,50 @@
+{
+  "scope": "synthetic_technical_only",
+  "human_samples_used": false,
+  "identity_accuracy_verified": false,
+  "speech_detection_verified": false,
+  "mixed_speaker_detection_verified": false,
+  "feature_space": "qwen3tts-speaker:2ce8c66530f607837b8cdb4f95ce4a359bfee604dc2a2731adc46b89866c5df5",
+  "encoder_sha256": "f8b8aa2a5a7e7ddc9043b4979a07bbefca13bfd402a0464a19c1974ea1f6a71a",
+  "dimension": 1024,
+  "sample_rate": 24000,
+  "device": "cpu",
+  "cpu_threads": 2,
+  "environment": {
+    "system": "Windows",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "python": "3.13.9",
+    "logical_cpus": 32,
+    "physical_cpus": 24
+  },
+  "dependencies": {
+    "torch": "2.10.0+cpu",
+    "numpy": "2.2.6",
+    "librosa": "0.11.0",
+    "safetensors": "0.7.0",
+    "scipy": "1.18.1",
+    "numba": "0.68.0"
+  },
+  "encoder_load_seconds_excluding_imports": 0.07816209993325174,
+  "sampled_peak_rss_bytes": 449110016,
+  "rss_sampling_interval_ms": 20,
+  "repeat_max_absolute_difference": 0.0,
+  "finite_unit_vector_verified": true,
+  "timings": [
+    {
+      "clip_seconds": 3,
+      "runs": 4,
+      "first_seconds": 0.10902870004065335,
+      "warm_median_seconds": 0.02616350003518164,
+      "warm_max_seconds": 0.03309909999370575
+    },
+    {
+      "clip_seconds": 10,
+      "runs": 4,
+      "first_seconds": 0.1132994000799954,
+      "warm_median_seconds": 0.10992809990420938,
+      "warm_max_seconds": 0.12558370013721287
+    }
+  ]
+}

@@ -26,3 +26,8 @@ class CoreConfig(AppConfig):
         )
 
         connect_room_reservations()
+        from core.services.voiceprint_lifecycle import (  # noqa: PLC0415
+            connect_handlers as connect_voiceprint_lifecycle,
+        )
+
+        connect_voiceprint_lifecycle()

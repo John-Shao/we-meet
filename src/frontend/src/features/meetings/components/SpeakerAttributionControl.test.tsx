@@ -2,11 +2,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
+import { ApiError } from '@/api/ApiError'
+import { setTokens } from '@/features/auth/utils/tokenStorage'
+
 import type { ApiRecordSpeaker } from '../api/ApiMeetingRecord'
 import { SpeakerAttributionControl } from './SpeakerAttributionControl'
 
 const mocks = vi.hoisted(() => ({ fetchApi: vi.fn() }))
-vi.mock('@/api/fetchApi', () => ({ fetchApi: mocks.fetchApi }))
+vi.mock('@/api/fetchApi', async (original) => ({
+  ...(await original<typeof import('@/api/fetchApi')>()),
+  fetchApi: mocks.fetchApi,
+}))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: { name?: string }) =>
@@ -41,6 +47,7 @@ const speaker: ApiRecordSpeaker = {
   display_name: 'Speaker 1',
   attributed_user_id: null,
   can_attribute: true,
+  record_revision: 3,
 }
 
 function show(overrides: Partial<ApiRecordSpeaker> = {}) {
@@ -69,9 +76,23 @@ const chooseButton = (name: string) =>
 
 beforeEach(() => {
   vi.resetAllMocks()
-  mocks.fetchApi.mockResolvedValue({
-    results: [{ id: 'user-1', name: 'Ada Lovelace' }],
-  })
+  mocks.fetchApi.mockImplementation(async (url: string) =>
+    url.includes('kind=departments')
+      ? { results: [], next_offset: null }
+      : {
+          results: [
+            {
+              ref: 'member:user-1',
+              kind: 'member',
+              name: 'Ada Lovelace',
+              organization_name: '',
+              department_name: '',
+              department_id: null,
+            },
+          ],
+          next_offset: null,
+        }
+  )
 })
 afterEach(() => client?.clear())
 
@@ -95,12 +116,44 @@ it('does not read the directory until the picker is opened', () => {
   expect(mocks.fetchApi).not.toHaveBeenCalled()
 })
 
+it('closes a populated picker and drops private directory data after another login', async () => {
+  setTokens({ accessToken: 'original-login' })
+  show()
+  await open()
+  await chooseButton('Ada Lovelace')
+  setTokens({ accessToken: 'another-login' })
+  await vi.waitFor(() => {
+    expect(
+      screen.queryByLabelText('speakerAttribution.search')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', {
+        name: 'speakerAttribution.choose:Ada Lovelace',
+      })
+    ).not.toBeInTheDocument()
+  })
+  await vi.waitFor(() => {
+    expect(
+      client.getQueryCache().findAll({
+        queryKey: ['meeting-records', 'viewer', 'speaker-contacts'],
+      })
+    ).toHaveLength(0)
+  })
+  expect(
+    mocks.fetchApi.mock.calls.some(([, options]) => options.method === 'POST')
+  ).toBe(false)
+})
+
 it('offers the directory from the record endpoint', async () => {
   show()
   await open()
   expect(await chooseButton('Ada Lovelace')).toBeInTheDocument()
   const url = mocks.fetchApi.mock.calls[0][0] as string
-  expect(url).toContain('meeting-records/record/attribution-candidates/')
+  expect(url).toContain('meeting-records/record/speaker-contacts/')
+  expect(mocks.fetchApi.mock.calls[0][1]).toMatchObject({
+    cache: 'no-store',
+    redirect: 'error',
+  })
 })
 
 it('re-searches the directory with the typed name', async () => {
@@ -127,14 +180,16 @@ it('binds the track to the chosen person', async () => {
   fireEvent.click(await chooseButton('Ada Lovelace'))
   await vi.waitFor(() => {
     const call = mocks.fetchApi.mock.calls.find(
-      ([, init]) => (init as RequestInit | undefined)?.method === 'PATCH'
+      ([, init]) => (init as RequestInit | undefined)?.method === 'POST'
     )
     expect(call).toBeTruthy()
     // The speaker is addressed by its own id, not by the label a reader sees:
     // two tracks can share a name.
     expect(call![0]).toContain(`meeting-records/record/speakers/${speaker.id}/`)
     expect(JSON.parse((call![1] as RequestInit).body as string)).toEqual({
-      user_id: 'user-1',
+      action: 'select_contact',
+      contact_ref: 'member:user-1',
+      expected_revision: 3,
     })
   })
 })
@@ -148,10 +203,11 @@ it('clears an attribution instead of refusing to', async () => {
   )
   await vi.waitFor(() => {
     const call = mocks.fetchApi.mock.calls.find(
-      ([, init]) => (init as RequestInit | undefined)?.method === 'PATCH'
+      ([, init]) => (init as RequestInit | undefined)?.method === 'POST'
     )
     expect(JSON.parse((call![1] as RequestInit).body as string)).toEqual({
-      user_id: null,
+      action: 'clear',
+      expected_revision: 3,
     })
   })
 })
@@ -170,8 +226,8 @@ it('reports a failed write instead of failing silently', async () => {
   // like a success: the reader would go on believing the track was bound.
   mocks.fetchApi.mockImplementation(
     async (_url: string, init?: RequestInit) => {
-      if (init?.method === 'PATCH') throw new Error('refused')
-      return { results: [{ id: 'user-1', name: 'Ada' }] }
+      if (init?.method === 'POST') throw new Error('refused')
+      return { results: [{ ref: 'member:user-1', name: 'Ada' }] }
     }
   )
   show()
@@ -184,10 +240,28 @@ it('reports a failed write instead of failing silently', async () => {
   expect(screen.getByLabelText('speakerAttribution.search')).toBeInTheDocument()
 })
 
+it('invalidates the viewer workspace content after naming a speaker', async () => {
+  show()
+  const workspaceKey = ['record-library-content', 'viewer', 3, 'originals']
+  const otherViewerKey = ['record-library-content', 'other', 3, 'originals']
+  client.setQueryData(workspaceKey, {
+    results: [{ speaker_label: 'Speaker 1' }],
+  })
+  client.setQueryData(otherViewerKey, {
+    results: [{ speaker_label: 'Speaker 1' }],
+  })
+  await open()
+  fireEvent.click(await chooseButton('Ada Lovelace'))
+  await vi.waitFor(() => {
+    expect(client.getQueryState(workspaceKey)?.isInvalidated).toBe(true)
+    expect(client.getQueryState(otherViewerKey)?.isInvalidated).toBe(false)
+  })
+})
+
 it('reports a directory that could not be read', async () => {
   mocks.fetchApi.mockImplementation(
     async (_url: string, init?: RequestInit) => {
-      if (init?.method === 'PATCH') return null
+      if (init?.method === 'POST') return null
       throw new Error('offline')
     }
   )
@@ -196,4 +270,155 @@ it('reports a directory that could not be read', async () => {
   expect(
     await screen.findByText('speakerAttribution.loadError')
   ).toBeInTheDocument()
+})
+
+it('saves a custom label independently of voiceprint enrollment', async () => {
+  show()
+  await open()
+  fireEvent.click(
+    screen.getByRole('button', { name: 'speakerAttribution.custom' })
+  )
+  const input = screen.getByLabelText('speakerAttribution.label')
+  expect(input).toHaveAttribute('maxlength', '64')
+  const save = screen.getByRole('button', {
+    name: 'speakerAttribution.saveLabel',
+  })
+  expect(save).toBeDisabled()
+  fireEvent.change(input, { target: { value: '  Guest A  ' } })
+  fireEvent.click(save)
+  await vi.waitFor(() => {
+    const call = mocks.fetchApi.mock.calls.find(
+      ([, init]) => init?.method === 'POST'
+    )!
+    expect(JSON.parse(call[1].body)).toEqual({
+      action: 'set_label',
+      label: 'Guest A',
+      expected_revision: 3,
+    })
+    expect(call[0]).toContain('/identity-decision/')
+  })
+  expect(
+    mocks.fetchApi.mock.calls.some(([url]) => url.includes('voiceprint'))
+  ).toBe(false)
+})
+
+it('keeps an outdated editor open and asks them to reopen after a conflict', async () => {
+  mocks.fetchApi.mockImplementation(async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST')
+      throw new ApiError(409, { code: 'identity_revision_changed' })
+    return url.includes('kind=departments')
+      ? { results: [], next_offset: null }
+      : { results: [{ ref: 'member:user-1', name: 'Ada' }], next_offset: null }
+  })
+  show()
+  await open()
+  fireEvent.click(await chooseButton('Ada'))
+  expect(
+    await screen.findByText('speakerAttribution.changed')
+  ).toBeInTheDocument()
+  expect(screen.getByLabelText('speakerAttribution.search')).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'speakerAttribution.choose:Ada' })
+  ).toBeDisabled()
+  expect(
+    screen.getByRole('button', { name: 'speakerAttribution.clear' })
+  ).toBeDisabled()
+})
+
+it('submits an external contact reference without a user id or name snapshot', async () => {
+  mocks.fetchApi.mockImplementation(async (url: string) =>
+    url.includes('kind=departments')
+      ? { results: [], next_offset: null }
+      : {
+          results: [
+            {
+              ref: 'external:relationship',
+              name: 'External Ada',
+              kind: 'external',
+            },
+          ],
+          next_offset: null,
+        }
+  )
+  show()
+  await open()
+  expect(
+    screen.getByText('speakerAttribution.externalNotice')
+  ).toBeInTheDocument()
+  fireEvent.click(await chooseButton('External Ada'))
+  await vi.waitFor(() => {
+    const call = mocks.fetchApi.mock.calls.find(
+      ([, init]) => init?.method === 'POST'
+    )!
+    expect(JSON.parse(call[1].body)).toEqual({
+      action: 'select_contact',
+      contact_ref: 'external:relationship',
+      expected_revision: 3,
+    })
+  })
+})
+
+it('paginates contacts and resets pagination when searching', async () => {
+  mocks.fetchApi.mockImplementation(async (url: string) =>
+    url.includes('kind=departments')
+      ? { results: [], next_offset: null }
+      : {
+          results: [{ ref: 'member:user-1', name: 'Ada' }],
+          next_offset: url.includes('offset=25') ? null : 25,
+        }
+  )
+  show()
+  const field = await open()
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'speakerAttribution.next' })
+  )
+  await vi.waitFor(() =>
+    expect(
+      mocks.fetchApi.mock.calls.some(([url]) => url.includes('offset=25'))
+    ).toBe(true)
+  )
+  fireEvent.change(field, { target: { value: 'ada' } })
+  fireEvent.click(
+    screen.getByRole('button', { name: 'speakerAttribution.find' })
+  )
+  await vi.waitFor(() => {
+    expect(mocks.fetchApi.mock.calls.at(-1)![0]).toContain('q=ada')
+    expect(mocks.fetchApi.mock.calls.at(-1)![0]).toContain('offset=0')
+  })
+})
+
+it('searches within a selected record-bound department', async () => {
+  mocks.fetchApi.mockImplementation(async (url: string) =>
+    url.includes('kind=departments')
+      ? {
+          results: [
+            { ref: 'department-1', name: 'Research', organization_name: 'Org' },
+          ],
+          next_offset: null,
+        }
+      : { results: [{ ref: 'member:user-1', name: 'Ada' }], next_offset: null }
+  )
+  show()
+  await open()
+  await screen.findByRole('option', { name: 'Org / Research' })
+  fireEvent.change(screen.getByLabelText('speakerAttribution.department'), {
+    target: { value: 'department-1' },
+  })
+  await vi.waitFor(() =>
+    expect(
+      mocks.fetchApi.mock.calls.some(([url]) =>
+        url.includes('department_id=department-1')
+      )
+    ).toBe(true)
+  )
+})
+
+it('does not send an unversioned decision while speaker metadata is stale', async () => {
+  show({ record_revision: undefined })
+  await open()
+  expect(await chooseButton('Ada Lovelace')).toBeDisabled()
+  expect(
+    screen.getByRole('button', { name: 'speakerAttribution.clear' })
+  ).toBeDisabled()
+  expect(screen.getByText('speakerAttribution.changed')).toBeInTheDocument()
 })

@@ -35,6 +35,7 @@ from timezone_field import TimeZoneField
 
 from . import fields, utils
 from .recording.enums import FileExtension
+from .voiceprint_queryset import VoiceprintManager, VoiceprintUserManager
 
 # 只 import 这一个叶子模块:services/__init__ 是空的,而 services.pinyin 不碰
 # models,所以没有循环导入风险。别在这里 import 别的 services 子模块。
@@ -123,6 +124,8 @@ class BaseModel(models.Model):
     Includes fields common to all models: a UUID primary key and creation/update timestamps.
     """
 
+    objects = VoiceprintManager()
+
     id = models.UUIDField(
         verbose_name=_("id"),
         help_text=_("primary key for the record as UUID"),
@@ -148,8 +151,17 @@ class BaseModel(models.Model):
 
     def save(self, *args, **kwargs):
         """Call `full_clean` before saving."""
-        self.full_clean()
-        super().save(*args, **kwargs)
+        from core.services.voiceprint_journal_runtime import save_context  # noqa: PLC0415 -- Runtime imports models only after app initialization.
+
+        with save_context(self, kwargs.get("update_fields")):
+            self.full_clean()
+            super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from core.services.voiceprint_journal_runtime import delete_context  # noqa: PLC0415
+
+        with delete_context(self):
+            return super().delete(*args, **kwargs)
 
 
 class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
@@ -323,7 +335,7 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         help_text=_("Object storage key of the user's profile cover image."),
     )
 
-    objects = auth_models.UserManager()
+    objects = VoiceprintUserManager()
 
     USERNAME_FIELD = "admin_email"
     REQUIRED_FIELDS = []
@@ -1238,6 +1250,10 @@ class CaptureSession(BaseModel):
         "CaptureTranscriptionJob", on_delete=models.RESTRICT,
         null=True, blank=True, related_name="published_captures",
     )
+    active_diarization = models.ForeignKey(
+        "CaptureDiarizationJob", on_delete=models.RESTRICT,
+        null=True, blank=True, related_name="published_captures",
+    )
     # Client-generated random lease; only its digest is persisted. Legacy rows
     # have no lease and cannot use the new public control protocol.
     lease_hash = models.CharField(max_length=64, blank=True)
@@ -1298,6 +1314,8 @@ class UploadedRecording(BaseModel):
     checksum = models.CharField(max_length=64)
     size = models.PositiveBigIntegerField()
     configuration = models.JSONField(default=dict)
+    identity_state = models.CharField(max_length=32, blank=True, default="")
+    identity_error = models.CharField(max_length=64, blank=True, default="")
     status = models.CharField(max_length=16, default="queued", choices=[(s, s) for s in ("queued", "submitting", "running", "succeeded", "failed")])
     provider_task_id = models.CharField(max_length=128, blank=True)
     error_code = models.CharField(max_length=64, blank=True)
@@ -1323,6 +1341,50 @@ class UploadedRecording(BaseModel):
             or self.capture.status != CaptureSession.Status.STOPPED
         ):
             raise ValidationError("Uploaded recording must match its owner and source.")
+
+
+class RecordingImportInput(BaseModel):
+    """A private derivative with deletion work surviving removal of its upload."""
+
+    upload = models.ForeignKey(UploadedRecording, null=True, blank=True, on_delete=models.SET_NULL, related_name="identity_inputs")
+    record_uuid = models.UUIDField()
+    attempt = models.PositiveIntegerField()
+    lease_token = models.UUIDField()
+    source_digest = models.CharField(max_length=64)
+    receipt = models.JSONField(default=dict, blank=True)
+    sha256 = models.CharField(max_length=64, blank=True)
+    duration_ms = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=16, default="preparing")
+    expires_at = models.DateTimeField()
+    write_until = models.DateTimeField()
+    next_cleanup_at = models.DateTimeField()
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "next_cleanup_at"], name="import_input_cleanup_idx")]
+
+
+class RecordingIdentityDispatch(BaseModel):
+    """Post-ASR request recovery is independent from the paid upload task."""
+
+    upload = models.OneToOneField(UploadedRecording, on_delete=models.CASCADE, related_name="identity_dispatch")
+    request_key = models.UUIDField(default=uuid.uuid4, unique=True)
+    record_revision = models.PositiveIntegerField()
+    configuration_digest = models.CharField(max_length=64)
+    status = models.CharField(max_length=16, default="queued")
+    attempts = models.PositiveIntegerField(default=0)
+    lease_id = models.UUIDField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
+    next_attempt_at = models.DateTimeField()
+    expires_at = models.DateTimeField()
+    error_code = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "next_attempt_at"], name="identity_dispatch_due_idx")]
+
+    def __str__(self):
+        return str(self.pk)
 
 
 class RecordingUploadSession(BaseModel):
@@ -1658,6 +1720,205 @@ class CaptureTranscriptionJob(BaseModel):
                 raise ValidationError("Transcription source and intent are immutable.")
 
 
+class CaptureDiarizationJob(BaseModel):
+    """A separate immutable attribution generation; never an ASR retry."""
+
+    capture = models.ForeignKey(
+        CaptureSession, on_delete=models.CASCADE, related_name="diarization_jobs"
+    )
+    requested_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    key = models.UUIDField()
+    request_hash = models.CharField(max_length=64)
+    generation = models.PositiveIntegerField()
+    source_transcription = models.ForeignKey(
+        CaptureTranscriptionJob, on_delete=models.RESTRICT
+    )
+    source_derivation = models.ForeignKey(
+        "self", on_delete=models.RESTRICT, null=True, blank=True
+    )
+    source_revision = models.PositiveIntegerField()
+    source_fingerprint = models.CharField(max_length=64)
+    inputs = models.JSONField()
+    configuration = models.JSONField()
+    status = models.CharField(max_length=16, default="queued")
+    worker_id = models.UUIDField(null=True, blank=True)
+    deadline = models.DateTimeField()
+    lease_until = models.DateTimeField(null=True, blank=True)
+    result_hash = models.CharField(max_length=64, blank=True)
+    publication_hash = models.CharField(max_length=64, blank=True)
+    published_count = models.PositiveIntegerField(default=0)
+    error_code = models.CharField(max_length=64, blank=True)
+    phase = models.CharField(max_length=16, default="preparing")
+    provider_task_id = models.CharField(max_length=128, blank=True)
+    provider_report = models.JSONField(default=dict, blank=True)
+    next_poll_at = models.DateTimeField(default=timezone.now)
+    begun_at = models.DateTimeField(null=True, blank=True)
+    preparation_attempts = models.PositiveIntegerField(default=0)
+    poll_failures = models.PositiveIntegerField(default=0)
+    input = models.ForeignKey(
+        "CaptureDiarizationInput",
+        on_delete=models.RESTRICT,
+        null=True,
+        blank=True,
+        related_name="selected_jobs",
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status", "next_poll_at"], name="capture_diarize_due_idx")
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["requested_by", "key"], name="unique_capture_diarize_intent"
+            ),
+            models.UniqueConstraint(
+                fields=["capture", "generation"], name="unique_capture_diarize_gen"
+            ),
+            models.UniqueConstraint(
+                fields=["capture"],
+                condition=models.Q(status__in=["queued", "running"]),
+                name="one_active_capture_diarize",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(generation__gte=1, source_revision__gte=1),
+                name="capture_diarize_positive",
+            ),
+        ]
+
+    def __str__(self):
+        return f"CaptureDiarizationJob({self.pk}, {self.status})"
+
+    def clean(self):
+        super().clean()
+        if self.source_transcription.capture_id != self.capture_id or (
+            self.source_derivation_id
+            and (
+                self.source_derivation.capture_id != self.capture_id
+                or self.source_derivation.source_transcription_id
+                != self.source_transcription_id
+                or self.source_derivation.status != "succeeded"
+                or self.source_derivation.generation >= self.generation
+            )
+        ):
+            raise ValidationError("Diarization source belongs to another capture.")
+        if not self._state.adding:
+            previous = type(self).objects.get(pk=self.pk)
+            frozen = (
+                "capture_id",
+                "requested_by_id",
+                "key",
+                "request_hash",
+                "generation",
+                "source_transcription_id",
+                "source_derivation_id",
+                "source_revision",
+                "source_fingerprint",
+                "inputs",
+                "configuration",
+                "deadline",
+            )
+            if any(getattr(previous, name) != getattr(self, name) for name in frozen):
+                raise ValidationError("Diarization source and intent are immutable.")
+            if previous.result_hash and any(
+                getattr(previous, name) != getattr(self, name)
+                for name in (
+                    "result_hash",
+                    "publication_hash",
+                    "published_count",
+                    "status",
+                    "phase",
+                    "provider_report",
+                )
+            ):
+                raise ValidationError("Diarization publication is immutable.")
+            if (
+                previous.provider_task_id
+                and previous.provider_task_id != self.provider_task_id
+            ):
+                raise ValidationError("Diarization provider receipt is immutable.")
+            if previous.input_id and previous.input_id != self.input_id:
+                raise ValidationError("Diarization input selection is immutable.")
+            if previous.begun_at and previous.begun_at != self.begun_at:
+                raise ValidationError("Diarization paid attempt is immutable.")
+        if self.input_id and (
+            self.input.job_id != self.pk
+            or self.input.record_uuid != self.capture.record_id
+            or self.input.source_digest != self.source_fingerprint
+        ):
+            raise ValidationError(
+                "Diarization selected input belongs to another source."
+            )
+
+
+class CaptureDiarizationInput(BaseModel):
+    """Fixed private media and cleanup work surviving removal of its source job."""
+
+    job = models.ForeignKey(
+        CaptureDiarizationJob,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="media_inputs",
+    )
+    record_uuid = models.UUIDField(db_index=True)
+    lease_token = models.UUIDField()
+    source_digest = models.CharField(max_length=64)
+    storage_digest = models.CharField(max_length=64)
+    receipt = models.JSONField(default=dict, blank=True)
+    sha256 = models.CharField(max_length=64, blank=True)
+    duration_ms = models.PositiveIntegerField()
+    status = models.CharField(max_length=16, default="preparing")
+    expires_at = models.DateTimeField(null=True, blank=True)
+    write_until = models.DateTimeField()
+    next_cleanup_at = models.DateTimeField(default=timezone.now)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["job", "lease_token"], name="unique_capture_input_lease"
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["status", "next_cleanup_at"], name="capture_input_cleanup_idx"
+            )
+        ]
+
+    def __str__(self):
+        return f"CaptureDiarizationInput({self.pk}, {self.status})"
+
+    def clean(self):
+        super().clean()
+        if self.job_id and (
+            self.job.capture.record_id != self.record_uuid
+            or self.source_digest != self.job.source_fingerprint
+            or self.duration_ms != self.job.inputs["manifest"]["duration_ms"]
+        ):
+            raise ValidationError("Diarization input must match its frozen source.")
+        if not self._state.adding:
+            previous = type(self).objects.get(pk=self.pk)
+            frozen = (
+                "job_id",
+                "record_uuid",
+                "lease_token",
+                "source_digest",
+                "storage_digest",
+                "duration_ms",
+                "expires_at",
+                "write_until",
+            )
+            if any(getattr(previous, name) != getattr(self, name) for name in frozen):
+                raise ValidationError("Diarization input identity is immutable.")
+            if previous.receipt and (
+                previous.receipt != self.receipt or previous.sha256 != self.sha256
+            ):
+                raise ValidationError("Diarization object receipt is immutable.")
+
+
 class CaptureTranscriptionInput(BaseModel):
     """Append-only verified audio identity offered to one live ASR attempt."""
 
@@ -1718,13 +1979,29 @@ class MeetingSpeaker(BaseModel):
         related_name="speaker_attributions",
     )
     attributed_at = models.DateTimeField(null=True, blank=True)
+    manual_label = models.CharField(max_length=128, blank=True, default="")
+    attribution_kind = models.CharField(
+        max_length=16,
+        choices=[("none", "None"), ("member", "Member"),
+                 ("contact", "Contact"), ("custom", "Custom")],
+        default="none",
+    )
+    # Private provenance: never included in reader-facing speaker metadata.
+    contact_source = models.ForeignKey(
+        "ExternalContact", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="speaker_snapshots",
+    )
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=["capture_session", "source_track_id", "source_key"],
                 name="unique_capture_track_speaker",
-            )
+            ),
+            models.CheckConstraint(
+                condition=models.Q(user__isnull=True) | models.Q(manual_label=""),
+                name="speaker_member_label_exclusive",
+            ),
         ]
 
     def __str__(self):
@@ -1737,11 +2014,12 @@ class MeetingSpeaker(BaseModel):
         Kept here rather than at each call site so the transcript, the export and
         the summary cannot disagree about what a speaker is called.
         """
+        if self.manual_label:
+            return self.manual_label
         if self.user_id:
             return (
                 self.user.full_name
                 or self.user.short_name
-                or self.user.email
                 or self.label
             )
         return self.label
@@ -1774,6 +2052,223 @@ class MeetingSpeaker(BaseModel):
             raise ValidationError("Speaker must match its record.")
 
 
+class SpeakerIdentityDecision(BaseModel):
+    """Append-only editorial history; never voiceprint enrollment evidence."""
+
+    record = models.ForeignKey(
+        MeetingRecord, on_delete=models.CASCADE, related_name="identity_decisions"
+    )
+    speaker = models.ForeignKey(
+        MeetingSpeaker, on_delete=models.CASCADE, related_name="identity_decisions"
+    )
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    action = models.CharField(max_length=32)
+    previous_user_id = models.UUIDField(null=True, blank=True)
+    selected_user_id = models.UUIDField(null=True, blank=True)
+    previous_label = models.CharField(max_length=128, blank=True)
+    selected_label = models.CharField(max_length=128, blank=True)
+    previous_kind = models.CharField(max_length=16)
+    selected_kind = models.CharField(max_length=16)
+    record_revision = models.PositiveIntegerField()
+    suggestion = models.ForeignKey(
+        "SpeakerIdentitySuggestion",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="identity_decisions",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record", "record_revision"], name="identity_decision_revision"
+            )
+        ]
+
+    def __str__(self):
+        return f"SpeakerIdentityDecision({self.pk})"
+
+    def clean(self):
+        super().clean()
+        if not self._state.adding:
+            raise ValidationError("Identity decisions are immutable.")
+        if self.speaker.record_id != self.record_id:
+            raise ValidationError("Identity decision must match its record.")
+        if self.suggestion_id and (
+            self.suggestion.job.record_id != self.record_id
+            or self.suggestion.job.speaker_id != self.speaker_id
+        ):
+            raise ValidationError(
+                "Identity suggestion must match its record and speaker."
+            )
+
+
+class SpeakerIdentityRequest(BaseModel):
+    """A bounded, idempotent record request; never contains audio or embeddings."""
+
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE)
+    requester = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    organization = models.ForeignKey(
+        "Organization", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    request_key = models.UUIDField()
+    input_digest = models.CharField(max_length=64)
+    target_ids = models.JSONField()
+    requested_users = models.JSONField()
+    record_revision = models.PositiveIntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record", "request_key"], name="identity_record_request"
+            )
+        ]
+        indexes = [models.Index(fields=["record", "created_at"])]
+
+    def __str__(self):
+        return f"SpeakerIdentityRequest({self.pk})"
+
+
+class SpeakerIdentityJob(BaseModel):
+    """One source speaker's bounded identity task; never contains query vectors."""
+
+    record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE)
+    batch = models.ForeignKey(
+        SpeakerIdentityRequest,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="jobs",
+    )
+    speaker = models.ForeignKey(MeetingSpeaker, on_delete=models.CASCADE)
+    requester = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    organization = models.ForeignKey(
+        "Organization", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    request_key = models.UUIDField()
+    requested_users = models.JSONField(default=list)
+    record_revision = models.PositiveIntegerField()
+    intent_digest = models.CharField(max_length=64)
+    source_digest = models.CharField(max_length=64)
+    source_generation_digest = models.CharField(max_length=64, blank=True, default="")
+    candidate_context_digest = models.CharField(max_length=64, blank=True, default="")
+    presentation_digest = models.CharField(max_length=64, blank=True, default="")
+    candidate_digest = models.CharField(max_length=64)
+    threshold_digest = models.CharField(max_length=64)
+    threshold_version = models.CharField(max_length=128)
+    feature_space = models.CharField(max_length=128)
+    status = models.CharField(
+        max_length=16,
+        default="queued",
+        db_index=True,
+        choices=[
+            (state, state)
+            for state in (
+                "queued",
+                "running",
+                "succeeded",
+                "failed",
+                "canceled",
+                "expired",
+            )
+        ],
+    )
+    lease_token = models.UUIDField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    retryable = models.BooleanField(default=False)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "lease_until", "created_at"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["record", "speaker", "request_key"], name="identity_job_request"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(attempts__lte=3), name="identity_job_attempt_limit"
+            ),
+        ]
+
+    def __str__(self):
+        return f"SpeakerIdentityJob({self.pk})"
+
+    def clean(self):
+        super().clean()
+        if self.speaker.record_id != self.record_id:
+            raise ValidationError("Identity job must match its record.")
+        if self.batch_id and (
+            self.batch.record_id != self.record_id
+            or self.batch.requester_id != self.requester_id
+            or self.batch.organization_id != self.organization_id
+            or self.batch.request_key != self.request_key
+            or self.batch.requested_users != self.requested_users
+            or str(self.speaker_id) not in self.batch.target_ids
+        ):
+            raise ValidationError("Identity job must match its request.")
+
+
+class SpeakerIdentitySuggestion(BaseModel):
+    """A versioned result independent of the speaker's human attribution."""
+
+    job = models.OneToOneField(
+        SpeakerIdentityJob, on_delete=models.CASCADE, related_name="suggestion"
+    )
+    candidate = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    result = models.CharField(max_length=32)
+    reason = models.CharField(max_length=64)
+    clip_count = models.PositiveSmallIntegerField(default=0)
+    speech_ms = models.PositiveIntegerField(default=0)
+    query_intervals = models.JSONField(default=list, blank=True)
+    score = models.FloatField(null=True, blank=True)
+    margin = models.FloatField(null=True, blank=True)
+    state = models.CharField(
+        max_length=16,
+        default="pending",
+        choices=[
+            (state, state)
+            for state in ("pending", "confirmed", "rejected", "invalidated")
+        ],
+    )
+    decided_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="identity_suggestion_decisions",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(clip_count__lte=12),
+                name="identity_suggestion_clip_limit",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(score__isnull=True)
+                | (models.Q(score__gte=-1) & models.Q(score__lte=1)),
+                name="identity_suggestion_score_range",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(margin__isnull=True)
+                | (models.Q(margin__gte=0) & models.Q(margin__lte=2)),
+                name="identity_suggestion_margin_range",
+            ),
+        ]
+
+    def __str__(self):
+        return f"SpeakerIdentitySuggestion({self.pk})"
+
+
 class MeetingOriginalSegment(BaseModel):
     """Immutable final text for independent captures, without a placeholder Room."""
 
@@ -1800,6 +2295,19 @@ class MeetingOriginalSegment(BaseModel):
         CaptureTranscriptionJob, on_delete=models.RESTRICT,
         null=True, blank=True, related_name="originals",
     )
+    diarization_job = models.ForeignKey(
+        CaptureDiarizationJob, on_delete=models.RESTRICT,
+        null=True, blank=True, related_name="originals",
+    )
+    parent_original = models.ForeignKey(
+        "self", on_delete=models.RESTRICT,
+        null=True, blank=True, related_name="diarization_children",
+    )
+    inherited_correction = models.ForeignKey(
+        "MeetingOriginalRevision", on_delete=models.RESTRICT,
+        null=True, blank=True, related_name="inheriting_originals",
+    )
+    derivation = models.JSONField(default=dict, blank=True)
 
     class Meta:
         constraints = [
@@ -1819,6 +2327,11 @@ class MeetingOriginalSegment(BaseModel):
                 | models.Q(end_ms__gte=models.F("start_ms")),
                 name="original_end_after_start",
             ),
+            models.CheckConstraint(
+                condition=models.Q(diarization_job__isnull=True, parent_original__isnull=True, inherited_correction__isnull=True, derivation={})
+                | models.Q(diarization_job__isnull=False, parent_original__isnull=False, transcription_job__isnull=False),
+                name="original_derivation_has_source",
+            ),
         ]
 
     def __str__(self):
@@ -1831,6 +2344,21 @@ class MeetingOriginalSegment(BaseModel):
             raise ValidationError("Original segments are immutable.")
         if self.transcription_job_id and self.transcription_job.capture_id != self.capture_session_id:
             raise ValidationError("Original must belong to its transcription capture.")
+        if self.diarization_job_id and (
+            not self.parent_original_id
+            or self.diarization_job.capture_id != self.capture_session_id
+            or self.diarization_job.source_transcription_id != self.transcription_job_id
+            or self.parent_original.capture_session_id != self.capture_session_id
+            or self.parent_original.record_id != self.record_id
+            or self.parent_original.transcription_job_id != self.transcription_job_id
+            or self.inherited_correction_id and (
+                self.inherited_correction.record_id != self.record_id
+                or self.inherited_correction.original_id != self.parent_original_id
+                and self.inherited_correction_id != self.parent_original.inherited_correction_id
+                or self.text != self.parent_original.text
+            )
+        ):
+            raise ValidationError("Derived original must retain its source lineage.")
         if (
             self.capture_session.record_id != self.record_id
             or self.speaker.record_id != self.record_id
@@ -7294,6 +7822,9 @@ class AuditActionChoices(models.TextChoices):
     # 真正要能被筛出来的事件,混进 bot.update(C 端改个名也是它)等于没做。
     BOT_DISABLE = "bot.disable", _("Group bot disabled")
     BOT_ENABLE = "bot.enable", _("Group bot enabled")
+    VOICEPRINT_POLICY_CHANGED = (
+        "voiceprint.policy_changed", _("Organization voiceprint policy changed")
+    )
 
 
 class AuditLog(BaseModel):
@@ -8988,3 +9519,657 @@ class DirectAIAllocation(BaseModel):
 
     class Meta:
         indexes = [models.Index(fields=["user", "status", "lease_until"]), models.Index(fields=["user", "created_at"])]
+
+
+class VoiceprintJournalCheckpoint(models.Model):
+    """Primary mirror of the independent authority; never an authority itself."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    deployment_id = models.UUIDField()
+    sequence = models.PositiveBigIntegerField()
+    digest = models.CharField(max_length=64)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(id=1), name="vp_checkpoint_singleton"),
+            models.CheckConstraint(condition=models.Q(sequence__gte=1), name="vp_checkpoint_positive"),
+            models.CheckConstraint(condition=models.Q(digest__regex=r"^[0-9a-f]{64}$"), name="vp_checkpoint_digest"),
+        ]
+
+
+class VoiceprintConsent(BaseModel):
+    """The person's independent permissions in one scope; never an admin grant."""
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="voiceprint_consents"
+    )
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, null=True, blank=True
+    )
+    allow_enrollment = models.BooleanField(default=False)
+    allow_accumulation = models.BooleanField(default=False)
+    allow_identification = models.BooleanField(default=False)
+    version = models.PositiveBigIntegerField(default=1)
+    generation = models.PositiveBigIntegerField(default=1)
+    granted_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "organization"],
+                condition=models.Q(organization__isnull=False),
+                name="vp_consent_user_org_unique",
+            ),
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(organization__isnull=True),
+                name="vp_consent_personal_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(version__gte=1, generation__gte=1),
+                name="vp_consent_positive_versions",
+            ),
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintConsentEvent(BaseModel):
+    """Append-only authorization history, private to the subject's scope."""
+
+    consent = models.ForeignKey(
+        VoiceprintConsent, on_delete=models.CASCADE, related_name="events"
+    )
+    version = models.PositiveBigIntegerField()
+    generation = models.PositiveBigIntegerField()
+    action = models.CharField(
+        max_length=24,
+        choices=[
+            ("settings", "settings"),
+            ("delete", "delete"),
+            ("invalidate", "invalidate"),
+        ],
+    )
+    permissions = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["consent", "version"], name="vp_consent_event_version_unique"
+            )
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintProfile(BaseModel):
+    """Scope-specific key and model namespace; no public vector projection."""
+
+    consent = models.ForeignKey(
+        VoiceprintConsent, on_delete=models.CASCADE, related_name="profiles"
+    )
+    feature_space = models.CharField(max_length=128)
+    generation = models.PositiveBigIntegerField()
+    status = models.CharField(
+        max_length=16,
+        default="pending",
+        choices=[
+            ("pending", "pending"),
+            ("active", "active"),
+            ("paused", "paused"),
+            ("deleted", "deleted"),
+        ],
+    )
+    encrypted_key = models.BinaryField(blank=True, default=bytes, max_length=256)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    last_updated_at = models.DateTimeField(null=True, blank=True)
+
+    template_checked_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["consent", "feature_space"],
+                name="vp_profile_scope_model_unique",
+            )
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintSample(BaseModel):
+    """Bounded private ciphertext, with original authorization and expiry."""
+
+    profile = models.ForeignKey(
+        VoiceprintProfile, on_delete=models.CASCADE, related_name="samples"
+    )
+    generation = models.PositiveBigIntegerField()
+    consent_version = models.PositiveBigIntegerField()
+    permit_id = models.UUIDField()
+    enrollment = models.ForeignKey(
+        "VoiceprintEnrollment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="samples",
+    )
+    enrollment_slot = models.PositiveSmallIntegerField(null=True, blank=True)
+    source_type = models.CharField(
+        max_length=16, choices=[("enrollment", "enrollment"), ("call", "call")]
+    )
+    source_record = models.ForeignKey(
+        MeetingRecord, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    source_session_id = models.UUIDField(null=True, blank=True)
+    source_track = models.CharField(max_length=64, blank=True, default="")
+    start_ms = models.PositiveIntegerField(default=0)
+    end_ms = models.PositiveIntegerField()
+    audio_sha256 = models.CharField(max_length=64)
+    encrypted_audio = models.BinaryField(blank=True, default=bytes, max_length=484160)
+    encrypted_embedding = models.BinaryField(
+        blank=True, default=bytes, max_length=32768
+    )
+    quality = models.JSONField(blank=True, default=dict)
+    status = models.CharField(
+        max_length=16,
+        default="pending",
+        choices=[
+            (state, state)
+            for state in (
+                "pending",
+                "processing",
+                "ready",
+                "confirmed",
+                "rejected",
+                "expired",
+                "deleted",
+            )
+        ],
+    )
+    expires_at = models.DateTimeField(db_index=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["enrollment", "enrollment_slot"],
+                condition=models.Q(enrollment__isnull=False),
+                name="vp_enrollment_slot_unique",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(enrollment__isnull=True)
+                    | models.Q(
+                        enrollment__isnull=False,
+                        enrollment_slot__isnull=False,
+                        enrollment_slot__gte=0,
+                        enrollment_slot__lte=5,
+                    )
+                ),
+                name="vp_enrollment_slot_valid",
+            ),
+            models.UniqueConstraint(
+                fields=["profile", "permit_id", "audio_sha256"],
+                name="vp_sample_permit_digest_unique",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(end_ms__gt=models.F("start_ms")),
+                name="vp_sample_positive_interval",
+            ),
+        ]
+        indexes = [models.Index(fields=["profile", "generation", "status"])]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintTemplate(BaseModel):
+    """Only worker-validated, confirmed samples may support a matching template."""
+
+    profile = models.ForeignKey(
+        VoiceprintProfile, on_delete=models.CASCADE, related_name="templates"
+    )
+    generation = models.PositiveBigIntegerField()
+    device_group = models.CharField(max_length=24, default="default")
+    dimension = models.PositiveIntegerField()
+    revision = models.PositiveBigIntegerField(default=1)
+    policy_version = models.CharField(max_length=96, blank=True, default="")
+    support_digest = models.CharField(max_length=64, blank=True, default="")
+    basis = models.JSONField(blank=True, default=dict)
+    encrypted_vector = models.BinaryField(blank=True, default=bytes, max_length=32768)
+    support_samples = models.ManyToManyField(VoiceprintSample, related_name="templates")
+    status = models.CharField(
+        max_length=16,
+        default="active",
+        choices=[("active", "active"), ("paused", "paused"), ("deleted", "deleted")],
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["profile", "generation", "device_group"],
+                name="vp_template_device_unique",
+            )
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintDeletionJob(BaseModel):
+    """Durable tombstone and cleanup receipt survive account/scope removal."""
+
+    consent = models.ForeignKey(
+        VoiceprintConsent, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    owner_id = models.UUIDField()
+    organization_id = models.UUIDField(null=True, blank=True)
+    profile_id = models.UUIDField(null=True, blank=True)
+    request_key = models.UUIDField()
+    expected_version = models.PositiveBigIntegerField()
+    revoked_generation = models.PositiveBigIntegerField()
+    reason = models.CharField(max_length=24, default="user_deleted")
+    status = models.CharField(
+        max_length=16,
+        default="queued",
+        choices=[
+            (state, state) for state in ("queued", "running", "succeeded", "failed")
+        ],
+    )
+    attempts = models.PositiveIntegerField(default=0)
+    receipt = models.JSONField(blank=True, default=dict)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner_id", "request_key"], name="vp_delete_request_unique"
+            )
+        ]
+        indexes = [
+            models.Index(fields=["status", "created_at"]),
+            models.Index(fields=["owner_id", "organization_id", "revoked_generation"]),
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintEnrollment(BaseModel):
+    """Owner request receipt and short-lived upload scope; no token/audio/vector."""
+
+    owner_id = models.UUIDField()
+    organization_id = models.UUIDField(null=True, blank=True)
+    profile = models.ForeignKey(
+        VoiceprintProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrollments",
+    )
+    request_key = models.UUIDField()
+    consent_version = models.PositiveBigIntegerField()
+    generation = models.PositiveBigIntegerField()
+    policy_version = models.PositiveBigIntegerField(default=0)
+    locale = models.CharField(max_length=8, default="en")
+    challenges = models.JSONField()
+    expires_at = models.DateTimeField(db_index=True)
+    status = models.CharField(
+        max_length=16,
+        default="open",
+        choices=[(state, state) for state in ("open", "closed", "expired", "canceled")],
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner_id", "request_key"],
+                name="vp_enrollment_request_unique",
+            ),
+        ]
+        indexes = [models.Index(fields=["owner_id", "created_at"])]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintEncodingJob(BaseModel):
+    """Independent encoding queue with a replaceable lease and bounded retries."""
+
+    sample = models.OneToOneField(
+        VoiceprintSample,
+        on_delete=models.CASCADE,
+        related_name="encoding_job",
+    )
+    status = models.CharField(
+        max_length=16,
+        default="queued",
+        db_index=True,
+        choices=[
+            (state, state)
+            for state in (
+                "queued",
+                "running",
+                "succeeded",
+                "failed",
+                "canceled",
+                "expired",
+            )
+        ],
+    )
+    lease_token = models.UUIDField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    retryable = models.BooleanField(default=False)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "lease_until", "created_at"])]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(attempts__lte=3), name="vp_encoding_attempt_limit"
+            ),
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintQualityJob(BaseModel):
+    """Independent short-ASR quality queue; no transcript or feature payload."""
+
+    sample = models.OneToOneField(
+        VoiceprintSample, on_delete=models.CASCADE, related_name="quality_job"
+    )
+    status = models.CharField(
+        max_length=16,
+        default="queued",
+        db_index=True,
+        choices=[
+            (state, state)
+            for state in (
+                "queued",
+                "running",
+                "succeeded",
+                "failed",
+                "canceled",
+                "expired",
+            )
+        ],
+    )
+    lease_token = models.UUIDField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    retryable = models.BooleanField(default=False)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "lease_until", "created_at"])]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(attempts__lte=3), name="vp_quality_attempt_limit"
+            )
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintSampleDecision(BaseModel):
+    """The owner's one-way confirmation/rejection, independent of ASR/labels."""
+
+    sample = models.OneToOneField(
+        VoiceprintSample,
+        on_delete=models.CASCADE,
+        related_name="owner_decision",
+    )
+    owner_id = models.UUIDField()
+    accepted = models.BooleanField()
+    consent_version = models.PositiveBigIntegerField()
+    generation = models.PositiveBigIntegerField()
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintSamplingControl(BaseModel):
+    """Owner's current microphone declaration for one verified connection."""
+
+    participation = models.OneToOneField(
+        MeetingParticipation,
+        on_delete=models.CASCADE,
+        related_name="voiceprint_control",
+    )
+    revision = models.PositiveBigIntegerField(default=1)
+    paused = models.BooleanField(default=False)
+    stop_reason = models.CharField(max_length=32, blank=True, default="")
+    # Unknown/shared devices are excluded until the owner explicitly declares them.
+    shared_microphone = models.BooleanField(default=True)
+    device_group = models.CharField(max_length=16, blank=True, default="")
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(revision__gte=1), name="vp_control_revision_positive"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    device_group__in=["", "headset", "handset", "computer"]
+                ),
+                name="vp_control_device_valid",
+            ),
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintSamplingTrack(BaseModel):
+    """Append-only track origin observed through a verified LiveKit webhook."""
+
+    participation = models.ForeignKey(
+        MeetingParticipation, on_delete=models.CASCADE, related_name="voiceprint_tracks"
+    )
+    livekit_track_sid = models.CharField(max_length=64, unique=True)
+    source = models.CharField(max_length=24)
+    media_type = models.CharField(max_length=8)
+    published_at = models.DateTimeField()
+    unpublished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(unpublished_at__isnull=True)
+                | models.Q(unpublished_at__gte=models.F("published_at")),
+                name="vp_track_end_after_start",
+            ),
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintSamplingPermit(BaseModel):
+    """One bounded clip reservation; never portable to another connection/track."""
+
+    track = models.ForeignKey(
+        VoiceprintSamplingTrack,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="permits",
+    )
+    profile = models.ForeignKey(
+        VoiceprintProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="sampling_permits",
+    )
+    owner = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="sampling_permits"
+    )
+    source_session_id = models.UUIDField()
+    source_track_sid = models.CharField(max_length=64)
+    livekit_room_sid = models.CharField(max_length=64)
+    participant_sid = models.CharField(max_length=64)
+    participant_identity = models.CharField(max_length=255)
+    request_key = models.UUIDField()
+    consent_version = models.PositiveBigIntegerField()
+    generation = models.PositiveBigIntegerField()
+    policy_version = models.PositiveBigIntegerField()
+    control_revision = models.PositiveBigIntegerField()
+    device_group = models.CharField(max_length=16)
+    max_duration_ms = models.PositiveIntegerField()
+    expires_at = models.DateTimeField(db_index=True)
+    status = models.CharField(
+        max_length=16,
+        default="issued",
+        choices=[
+            ("issued", "issued"),
+            ("canceled", "canceled"),
+            ("expired", "expired"),
+            ("consumed", "consumed"),
+        ],
+    )
+    sample = models.OneToOneField(
+        VoiceprintSample,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sampling_permit",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["track", "request_key"], name="vp_sampling_request_unique"
+            ),
+            models.UniqueConstraint(
+                fields=["track", "profile"],
+                condition=models.Q(status="issued"),
+                name="vp_sampling_one_issued",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    max_duration_ms__gte=3000, max_duration_ms__lte=10000
+                ),
+                name="vp_sampling_clip_bound",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["owner", "created_at"], name="vp_sampling_owner_time_idx"
+            )
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintSourceRemoval(BaseModel):
+    """Source tombstones survive deletion and block restored biometric work."""
+
+    kind = models.CharField(
+        max_length=16, choices=[(value, value) for value in ("session", "track", "record")]
+    )
+    source_uuid = models.UUIDField()
+    source_session_id = models.UUIDField(null=True, blank=True, db_index=True)
+    track_digest = models.CharField(max_length=64, blank=True, default="", db_index=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["kind", "source_uuid"], name="vp_source_removal_unique"
+            ),
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintContributionRemoval(BaseModel):
+    """Durable physical cleanup and rebuild intent, independent of deleted FKs."""
+
+    sample_uuid = models.UUIDField(unique=True)
+    profile_uuid = models.UUIDField()
+    owner_uuid = models.UUIDField()
+    organization_uuid = models.UUIDField(null=True, blank=True)
+    generation = models.PositiveBigIntegerField()
+    templates = models.JSONField(default=dict)
+    status = models.CharField(
+        max_length=16,
+        default="queued",
+        choices=[(value, value) for value in ("queued", "purged", "complete")],
+    )
+    attempts = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+    purged_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    error_code = models.CharField(max_length=64, blank=True, default="")
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "next_attempt_at"])]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintSamplingDispatch(BaseModel):
+    """One durable dispatch lease for a concrete, trusted room occurrence."""
+
+    session = models.OneToOneField(
+        MeetingSession, on_delete=models.CASCADE, related_name="voiceprint_dispatch"
+    )
+    revision = models.PositiveBigIntegerField(default=1)
+    status = models.CharField(
+        max_length=16,
+        default="queued",
+        choices=[
+            (value, value)
+            for value in ("queued", "running", "ready", "idle", "failed", "ended")
+        ],
+    )
+    room_sid = models.CharField(max_length=64, blank=True, default="")
+    agent_name = models.CharField(max_length=128, blank=True, default="")
+    lease_token = models.UUIDField(null=True, blank=True)
+    lease_until = models.DateTimeField(null=True, blank=True)
+    failures = models.PositiveSmallIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    outcome = models.CharField(max_length=32, blank=True, default="")
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "next_attempt_at"])]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class VoiceprintSamplingActivity(BaseModel):
+    """Short-lived, permit-bound progress, containing no media or speaker label."""
+
+    track = models.OneToOneField(
+        VoiceprintSamplingTrack, on_delete=models.CASCADE, related_name="activity"
+    )
+    permit = models.ForeignKey(
+        VoiceprintSamplingPermit, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    sequence = models.PositiveBigIntegerField(default=0)
+    phase = models.CharField(
+        max_length=16,
+        choices=[
+            (value, value) for value in ("waiting", "sampling", "uploading", "stopped")
+        ],
+    )
+    expires_at = models.DateTimeField(db_index=True)
+
+    def __str__(self):
+        return str(self.pk)

@@ -200,5 +200,32 @@
   "openSummary": "Intelligente Protokolle anzeigen",
   "recoverable": "Aufnahmen zum Abschließen",
   "recoverableHint": "Hier erscheinen unvollendete Aufnahmen und Aufnahmen mit ausstehendem lokalem Audio. Gespeichertes Material finden Sie in den Besprechungsaufzeichnungen.",
-  "backToOverview": "Zurück zur KI-Aufnahme"
+  "backToOverview": "Zurück zur KI-Aufnahme",
+  "diarization": {
+    "resultHint": "Sprechende sind getrennt. Über einen Zeitstempel Originalaudio prüfen und im Tab Sprechende die Identität bestätigen.",
+    "unknownSpeaker": "Unbekannte Person",
+    "title": "Sprechende der Aufnahme trennen",
+    "hint": "Eine eigene Sprecherversion erstellen und Originaltext sowie Korrekturen erhalten. Danach Namen im Tab Sprechende erkennen und bestätigen. Namen müssen bei einer neuen Version erneut bestätigt werden; keine automatische Stimmregistrierung.",
+    "accept": "Ich bestätige die Sprecherverarbeitung, die Kosten verursachen kann. Ein Abbruch garantiert keine Erstattung.",
+    "start": "Sprechende trennen",
+    "retry": "Erneut trennen",
+    "recover": "Dieselbe Anfrage fortsetzen",
+    "cancel": "Verarbeitung abbrechen",
+    "refresh": "Status aktualisieren",
+    "history": "Sprecherversionen",
+    "version": "Sprecherversion {{number}}",
+    "uncertain": "Das Ergebnis ist unklar. Dieselbe Anfrage fortsetzen, um doppelte Kosten zu vermeiden.",
+    "conflict": "Der Datensatz wurde geändert. Aktualisieren und erneut bestätigen.",
+    "denied": "Verarbeitung nicht verfügbar. Zugriff und Audioaufbewahrung prüfen und aktualisieren.",
+    "recoveryError": "Die Anfrage kann nicht sicher gespeichert werden. Vor einem neuen Versuch die Seite neu laden.",
+    "cancelUnknown": "Der Abbruch ist unklar. Zur Prüfung aktualisieren.",
+    "editing": "Textbearbeitung zuerst speichern oder abbrechen.",
+    "status": {
+      "queued": "Wartend",
+      "running": "In Bearbeitung",
+      "succeeded": "Abgeschlossen",
+      "failed": "Fehlgeschlagen",
+      "canceled": "Abgebrochen"
+    }
+  }
 }

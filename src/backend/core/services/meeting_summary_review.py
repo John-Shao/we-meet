@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from core import models
 from core.services.meeting_records import RecordConflict, visible_records
 from core.services.meeting_summary_versions import SourceReference
+from core.services.summary_identity_state import read_state
 
 
 class HumanPoint(BaseModel):
@@ -50,10 +51,12 @@ def can_edit(record, user):
     )
 
 
-def serialize(review):
+def serialize(review, *, identity_state=None):
     """Explicit provenance prevents reviewed text from appearing as untouched AI output."""
     if review is None:
         return None
+    if identity_state is None:
+        identity_state = read_state(review.record)
     return {
         "id": str(review.pk),
         "revision": review.revision,
@@ -65,6 +68,7 @@ def serialize(review):
         "content": review.content,
         "origin": "human",
         "source_revision": review.base_summary.input_snapshot.revision,
+        "identity_updated": identity_state.updated(review.base_summary.input_snapshot),
     }
 
 

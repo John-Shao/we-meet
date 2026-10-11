@@ -18,11 +18,15 @@ import magic
 from storages.backends.s3 import S3Storage
 
 from core import models
-from core.services import ai_usage
+from core.services import ai_usage, recording_identity_dispatch
 from core.services import qwen_filetrans as provider
+from core.services import recording_identity_preflight as preflight
+from core.services import recording_import_inputs as identity_inputs
 from core.services.capture_storage import audio_storage
 from core.services.meeting_records import RecordConflict, visible_records
 from core.services.record_media_timing import provider_audio_duration
+from core.services.voiceprint_media_process import MediaError
+from core.services.voiceprint_source_objects import ObjectReceipt, from_head, parse
 
 EXTENSIONS = {
     "aac",
@@ -135,14 +139,28 @@ def available():
 
 def serialize(job):
     """Do not expose object keys, signed URLs, context, or provider identifiers."""
-    return {
+    result = {
         "record_id": str(job.record_id),
         "status": job.status,
         "attempt": job.attempt,
         "error_code": job.error_code,
         "model": provider.MODEL,
-        "retryable": job.status == "failed",
+        "retryable": job.status == "failed" and job.identity_state != "awaiting_choice",
     }
+    if job.configuration.get("identity") is not None:
+        result["identity_preflight"] = {
+            "status": job.identity_state,
+            "reason": job.identity_error,
+            "can_continue_without_identity": job.identity_state == "awaiting_choice"
+            and job.status == "failed",
+        }
+        dispatch = models.RecordingIdentityDispatch.objects.filter(upload=job).first()
+        if dispatch:
+            result["identity_request"] = {
+                "status": dispatch.status,
+                "reason": dispatch.error_code,
+            }
+    return result
 
 
 def active_upload_exists(user):
@@ -157,13 +175,14 @@ def active_upload_exists(user):
     ).exists()
 
 
-def _record_job(user, key, *, storage_name, checksum, size, configuration, metadata):
+def _record_job(user, key, *, storage_name, checksum, size, configuration, metadata):  # noqa: PLR0913 -- Stable shared adoption contract.
     """Create the record/capture/job triple for an object already in storage.
 
     Caller owns the transaction and recovery of ``storage_name`` if this raises.
     Both upload paths (multipart spool and direct presigned PUT) share this so
     they cannot drift on idempotency, the single-active-job rule, or metadata.
-    ``metadata`` is ``{"title": <record title>, "file": <public _file payload>}``.
+    ``metadata`` carries title, public file fields and an optional server-issued
+    source receipt. The receipt is private and excluded from replay intent.
     """
     from core.services.record_purge import guard_adoption  # noqa: PLC0415
 
@@ -191,7 +210,16 @@ def _record_job(user, key, *, storage_name, checksum, size, configuration, metad
         storage_name=storage_name,
         checksum=checksum,
         size=size,
-        configuration={**configuration, "_file": metadata["file"]},
+        identity_state="pending" if configuration.get("identity") is not None else "",
+        configuration={
+            **configuration,
+            "_file": metadata["file"],
+            **(
+                {"_identity_source": metadata["source"]}
+                if metadata.get("source")
+                else {}
+            ),
+        },
         deadline=now + timedelta(hours=24),
         next_poll_at=now,
     )
@@ -210,7 +238,17 @@ def _replay_guard(user, key, checksum, configuration):
         or {
             k: v
             for k, v in previous.configuration.items()
-            if k not in {"_file", "_published", "_original_audio_duration_ms"}
+            if k
+            not in {
+                "_file",
+                "_published",
+                "_original_audio_duration_ms",
+                "_identity_source",
+                "_preflight",
+                "_identity_disabled",
+                "_diarization_disabled",
+                "_identity_decision",
+            }
         }
         != configuration
     ):
@@ -236,6 +274,7 @@ def _job_configuration(options):
 
 def create(user, key, upload, options):
     """Hash and store incrementally; a repeated intent never creates another paid job."""
+    options = preflight.normalize(user, options)
     extension = _parse_extension(upload.name)
     if not 0 < upload.size <= settings.MEETING_FILE_ASR_MAX_BYTES:
         raise ValueError("invalid_file")
@@ -273,6 +312,11 @@ def create(user, key, upload, options):
                     # Preserve the original filename verbatim; it is what the
                     # record list shows for an import.
                     "file": metadata,
+                    "source": ObjectReceipt(
+                        "content_sha256", name, size, sha256=checksum.hexdigest()
+                    )
+                    .validate()
+                    .payload(),
                 },
             )
         except Exception:
@@ -337,10 +381,7 @@ def media_read_url(job, *, download=False):
     storage = audio_storage()
     metadata = job.configuration.get("_file", {})
     extension = Path(job.storage_name).suffix.lower().lstrip(".")
-    params = {
-        "Bucket": storage.bucket_name,
-        "Key": posixpath.join(storage.location, job.storage_name),
-    }
+    params = source_read_params(job, storage)
     if download:
         # Metadata is user supplied: remove path components and all controls.
         raw_name = str(metadata.get("name", "")).replace("\\", "/").rsplit("/", 1)[-1]
@@ -366,13 +407,47 @@ def media_read_url(job, *, download=False):
     }
 
 
+def source_read_params(job, storage):
+    """ASR, playback and identity reads use the same adopted object version."""
+    params = {
+        "Bucket": storage.bucket_name,
+        "Key": posixpath.join(storage.location, job.storage_name),
+    }
+    try:
+        receipt = parse(job.configuration.get("_identity_source"))
+    except (ValueError, TypeError):
+        return params  # Existing ordinary uploads do not have identity receipts.
+    if (
+        receipt.key == job.storage_name
+        and receipt.size == job.size
+        and receipt.version_id is not None
+    ):
+        params["VersionId"] = receipt.version_id
+    return params
+
+
+def asr_read_params(job, storage):
+    """Playback retains the original; ASR pins the same private input as identity."""
+    if preflight.requested(job):
+        selected = identity_inputs.selected(job)
+        if selected:
+            receipt = selected[1]
+            return {
+                "Bucket": storage.bucket_name,
+                "Key": posixpath.join(storage.location, receipt.key),
+                "VersionId": receipt.version_id,
+            }
+    return source_read_params(job, storage)
+
+
 @transaction.atomic
-def presign_direct_upload(user, *, name, size, content_type, key, options):
+def presign_direct_upload(user, *, name, size, content_type, key, options):  # noqa: PLR0913 -- Explicit signed upload fields.
     """Sign one PUT for an exact byte count and return where to send it.
 
     ``ContentLength`` is signed, so a client that declares a small size and then
     streams more has its request rejected by object storage rather than by us.
     """
+    options = preflight.normalize(user, options)
     extension = _parse_extension(name)
     if not 0 < size <= settings.MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES:
         raise ValueError("invalid_file")
@@ -410,13 +485,16 @@ def presign_direct_upload(user, *, name, size, content_type, key, options):
     }
 
 
-def complete_direct_upload(user, *, key, name, storage_name, size, content_type, options):
+def complete_direct_upload(  # noqa: PLR0913 -- Preserve the existing upload completion contract.
+    user, *, key, name, storage_name, size, content_type, options
+):
     """Adopt an object the client already PUT, after verifying it server-side.
 
     The client's claims are never trusted: the object must exist in our private
     bucket at the expected key and its stored length must equal what was signed.
     Only the header is fetched, so a GB-scale object costs a bounded read.
     """
+    options = preflight.normalize(user, options, admit=False)
     if not 0 < size <= settings.MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES:
         raise ValueError("invalid_file")
     extension = _parse_extension(storage_name)
@@ -464,7 +542,11 @@ def complete_direct_upload(user, *, key, name, storage_name, size, content_type,
             checksum=checksum,
             size=size,
             configuration=configuration,
-            metadata={"title": Path(original_name).stem, "file": metadata},
+            metadata={
+                "title": Path(original_name).stem,
+                "file": metadata,
+                "source": from_head(storage_name, size, head),
+            },
         )
 
 
@@ -477,6 +559,8 @@ def retry(record_id, user, attempt):
         raise RecordConflict("Transcription is unavailable for this requester.")
     if job.attempt != attempt or job.status != "failed":
         raise RecordConflict("Transcription attempt changed.")
+    if job.identity_state == "awaiting_choice":
+        raise RecordConflict("An explicit preflight decision is required.")
     if models.UploadedRecording.objects.filter(
         record__owner=user, status__in=ACTIVE
     ).exists():
@@ -489,6 +573,9 @@ def retry(record_id, user, attempt):
     job.deadline = timezone.now() + timedelta(hours=24)
     job.next_poll_at = timezone.now()
     job.lease_id = job.lease_until = None
+    if preflight.requested(job):
+        job.configuration.pop("_preflight", None)
+        job.identity_state, job.identity_error = "pending", ""
     job.save()
     return job
 
@@ -529,9 +616,20 @@ def claim(job_id):
         job.status, job.error_code = "failed", error
         job.save()
         return None
-    job.lease_id, job.lease_until = uuid.uuid4(), now + timedelta(minutes=5)
+    preparing = (
+        job.status == "queued"
+        and preflight.requested(job)
+        and job.identity_state != "ready"
+    )
+    job.lease_id, job.lease_until = (
+        uuid.uuid4(),
+        now + timedelta(minutes=10 if preparing else 5),
+    )
     if job.status == "queued":
-        job.status = "submitting"
+        if preparing:
+            job.identity_state = "preflighting"
+        else:
+            job.status = "submitting"
     job.save()
     return job
 
@@ -602,6 +700,7 @@ def finish(job, rows, billed_seconds=None, original_audio_duration_ms=None):
     record = current.record
     record.revision += 1
     record.save(update_fields=["revision", "updated_at"])
+    recording_identity_dispatch.enqueue(current, record.revision)
     if (
         type(billed_seconds) in {int, float}
         and math.isfinite(billed_seconds)
@@ -619,55 +718,126 @@ def finish(job, rows, billed_seconds=None, original_audio_duration_ms=None):
         )
 
 
+def _prepare_identity(job):
+    try:
+        proof = preflight.run(job)
+        changed = models.UploadedRecording.objects.filter(
+            pk=job.pk, lease_id=job.lease_id
+        ).update(
+            configuration={**job.configuration, "_preflight": proof},
+            identity_state="ready",
+            identity_error="",
+            lease_id=None,
+            lease_until=None,
+            next_poll_at=timezone.now(),
+            updated_at=timezone.now(),
+        )
+        if not changed:
+            identity_inputs.abandon(job)
+    except Exception as error:  # noqa: BLE001 -- Preflight cannot initiate or auto-retry paid work.
+        preflight.failure(job, error)
+
+
+def _submission_input_url(job):
+    identity = preflight.requested(job)
+    if identity:
+        preflight.verify(job)
+    storage = audio_storage()
+    client = storage.connection.meta.client
+    if settings.QWEN_FILE_ASR_STORAGE_ENDPOINT_URL:
+        client = boto3.client(
+            "s3",
+            endpoint_url=settings.QWEN_FILE_ASR_STORAGE_ENDPOINT_URL,
+            aws_access_key_id=storage.access_key,
+            aws_secret_access_key=storage.secret_key,
+            aws_session_token=storage.security_token,
+            region_name=storage.region_name,
+            config=storage.client_config,
+        )
+    # Sign the private bucket even when playback uses a CDN domain.
+    params = asr_read_params(job, storage)
+    expires = 86400
+    if identity:
+        receipt = preflight.parent_source(job)
+        selected = identity_inputs.selected(job)
+        deadline = job.deadline
+        if selected:
+            receipt = selected[1]
+            deadline = min(deadline, selected[0].expires_at)
+        head = storage.connection.meta.client.head_object(**params)
+        if (
+            head.get("ContentLength") != receipt.size
+            or receipt.kind == "s3_object"
+            and (
+                head.get("ETag") != receipt.etag
+                or head.get("VersionId") != receipt.version_id
+            )
+        ):
+            raise MediaError("media_source_integrity_unavailable")
+        expires = max(1, min(86400, int((deadline - timezone.now()).total_seconds())))
+    url = client.generate_presigned_url("get_object", Params=params, ExpiresIn=expires)
+    # HEAD and signing may block while authority, policy or the lease changes.
+    if identity:
+        preflight.verify(job)
+    return url
+
+
 def process(job_id):
     """One short provider operation per delivery; Beat recovers lost queue messages."""
     job = claim(job_id)
     if job is None:
+        return
+    if job.status == "queued":
+        _prepare_identity(job)
         return
     updates = {
         "lease_id": None,
         "lease_until": None,
         "next_poll_at": timezone.now() + timedelta(seconds=15),
     }
+    post_attempted = False
     try:
         if job.status == "submitting":
-            storage = audio_storage()
-            client = storage.connection.meta.client
-            if settings.QWEN_FILE_ASR_STORAGE_ENDPOINT_URL:
-                client = boto3.client(
-                    "s3",
-                    endpoint_url=settings.QWEN_FILE_ASR_STORAGE_ENDPOINT_URL,
-                    aws_access_key_id=storage.access_key,
-                    aws_secret_access_key=storage.secret_key,
-                    aws_session_token=storage.security_token,
-                    region_name=storage.region_name,
-                    config=storage.client_config,
-                )
-            # Force signing against the private bucket even when a CDN domain is configured.
-            url = client.generate_presigned_url(
-                "get_object",
-                Params={
-                    "Bucket": storage.bucket_name,
-                    "Key": posixpath.join(storage.location, job.storage_name),
-                },
-                ExpiresIn=86400,
-            )
+            url = _submission_input_url(job)
+            options = job.configuration
+            if options.get("_diarization_disabled") is True:
+                options = {**options, "diarization": False}
+            post_attempted = True
             updates.update(
-                provider_task_id=provider.submit(url, job.configuration),
+                provider_task_id=provider.submit(url, options),
                 status="running",
             )
         else:
             result = provider.poll(job.provider_task_id)
             if result is not None:
                 rows = provider.sentences(result)
-                finish(job, rows, result.get("billed_seconds"), provider_audio_duration(result, rows))
+                finish(
+                    job,
+                    rows,
+                    result.get("billed_seconds"),
+                    provider_audio_duration(result, rows),
+                )
                 return
     except provider.FileTranscriptionError as exc:
+        if (
+            job.status == "submitting"
+            and preflight.requested(job)
+            and not post_attempted
+        ):
+            preflight.failure(job, exc)
+            return
         updates.update(
             status="failed",
             error_code="submission_unknown" if job.status == "submitting" else str(exc),
         )
     except Exception:  # noqa: BLE001 -- GET retry retains task identity; POST remains uncertain
+        if (
+            job.status == "submitting"
+            and preflight.requested(job)
+            and not post_attempted
+        ):
+            preflight.failure(job, MediaError("media_source_integrity_unavailable"))
+            return
         if job.status == "submitting":
             updates.update(status="failed", error_code="submission_unknown")
     models.UploadedRecording.objects.filter(pk=job.pk, lease_id=job.lease_id).update(

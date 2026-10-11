@@ -8,6 +8,8 @@ from rest_framework import views as drf_views
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from core.services import voiceprint_journal_runtime
+
 
 def exception_handler(exc, context):
     """Handle Django ValidationError as an accepted exception.
@@ -35,6 +37,9 @@ def exception_handler(exc, context):
 @api_view(["GET"])
 def get_frontend_configuration(request):
     """Returns the frontend configuration dict as configured in settings."""
+    voiceprint_available = (
+        settings.MEETING_VOICEPRINT_ENABLED and voiceprint_journal_runtime.allowed()
+    )
     frontend_configuration = {
         "LANGUAGE_CODE": settings.LANGUAGE_CODE,
         "recording": {
@@ -66,6 +71,13 @@ def get_frontend_configuration(request):
             "default_country": settings.ROOM_TELEPHONY_DEFAULT_COUNTRY,
         },
         "subtitle": {"enabled": settings.ROOM_SUBTITLE_ENABLED},
+        "speaker_identity": {
+            "enabled": voiceprint_available,
+            "matching_enabled": voiceprint_available
+            and settings.MEETING_VOICEPRINT_MATCHING_ENABLED,
+            "sampling_enabled": voiceprint_available
+            and settings.MEETING_VOICEPRINT_SAMPLING_ENABLED,
+        },
         # P1-4 全局搜索 AI 问答:false ⇒ 前端隐藏 AI 标签/快捷行(端点侧
         # 另有 FeatureFlag 404,双端 gate)。
         "search_ai": {"enabled": settings.GLOBAL_SEARCH_AI_ENABLED},

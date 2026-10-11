@@ -5,6 +5,7 @@ export type SystemSettingsSection =
   | 'general'
   | 'account'
   | 'meeting'
+  | 'voiceprint'
   | 'calendar'
   | 'tasks'
   | 'agreement'

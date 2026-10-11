@@ -1,0 +1,189 @@
+{{- if .Values.voiceprintEncoder.enabled }}
+{{- $encoder := .Values.voiceprintEncoder }}
+{{- $name := include "meet.voiceprint.encoderName" . }}
+{{- $image := required "voiceprintEncoder.imageReference requires an immutable image digest" $encoder.imageReference }}
+{{- if not (regexMatch "^[^[:space:]@]+@sha256:[a-f0-9]{64}$" $image) }}
+{{- fail "voiceprintEncoder.imageReference must use repository@sha256:digest" }}
+{{- end }}
+{{- if not (regexMatch "^[1-8]$" (toString $encoder.cpuThreads)) }}
+{{- fail "voiceprintEncoder.cpuThreads must be an integer from 1 to 8" }}
+{{- end }}
+{{- if not (regexMatch "^[1-8]$" (toString $encoder.replicas)) }}
+{{- fail "voiceprintEncoder.replicas must be an integer from 1 to 8" }}
+{{- end }}
+{{- if or (ne (get $encoder.nodeSelector "kubernetes.io/os") "linux") (ne (get $encoder.nodeSelector "kubernetes.io/arch") "amd64") }}
+{{- fail "voiceprintEncoder requires Linux amd64 node selectors for the locked CPU image" }}
+{{- end }}
+{{- $credentials := required "voiceprintEncoder.credentialsSecret is required" $encoder.credentialsSecret }}
+{{- $tls := required "voiceprintEncoder.tlsSecret is required" $encoder.tlsSecret }}
+{{- $model := required "voiceprintEncoder.modelClaim is required" $encoder.modelClaim }}
+{{- if eq $credentials $tls }}
+{{- fail "voiceprintEncoder credentials and TLS must use separate Secrets" }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list . "voiceprint-encoder") | nindent 4 }}
+spec:
+  replicas: {{ $encoder.replicas }}
+  # Keep the declared inference resource budget during an image or credential rollout.
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      {{- include "meet.common.selectorLabels" (list . "voiceprint-encoder") | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        meet.voiceprint/configuration-revision: {{ $encoder.configurationRevision | quote }}
+      labels:
+        {{- include "meet.common.selectorLabels" (list . "voiceprint-encoder") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      {{- if .Values.image.credentials }}
+      imagePullSecrets:
+        - name: {{ include "meet.secret.dockerconfigjson.name" (dict "fullname" (include "meet.fullname" .) "imageCredentials" .Values.image.credentials) }}
+      {{- end }}
+      containers:
+        - name: voiceprint-encoder
+          image: {{ $image | quote }}
+          imagePullPolicy: {{ $encoder.imagePullPolicy }}
+          command: [meet-voiceprint]
+          args: [--host, "0.0.0.0", --port, "8093"]
+          ports:
+            - name: https
+              containerPort: 8093
+          env:
+            - name: VOICEPRINT_MODEL_DIR
+              value: /models/qwen
+            - name: VOICEPRINT_ENCODER_SHA256
+              value: f8b8aa2a5a7e7ddc9043b4979a07bbefca13bfd402a0464a19c1974ea1f6a71a
+            - name: VOICEPRINT_CPU_THREADS
+              value: {{ $encoder.cpuThreads | quote }}
+            - name: VOICEPRINT_API_TOKEN_FILE
+              value: /run/voiceprint-private/api-token
+            - name: VOICEPRINT_PERMIT_KEY_FILE
+              value: /run/voiceprint-private/permit-key
+            - name: VOICEPRINT_TLS_CERT_FILE
+              value: /run/voiceprint-tls/tls.crt
+            - name: VOICEPRINT_TLS_KEY_FILE
+              value: /run/voiceprint-tls/tls.key
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            {{- toYaml $encoder.resources | nindent 12 }}
+          startupProbe:
+            httpGet: {path: /health/ready, port: https, scheme: HTTPS}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 12
+          readinessProbe:
+            httpGet: {path: /health/ready, port: https, scheme: HTTPS}
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet: {path: /health/live, port: https, scheme: HTTPS}
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          volumeMounts:
+            - name: qwen-model
+              mountPath: /models/qwen
+              readOnly: true
+              {{- with $encoder.modelSubPath }}
+              subPath: {{ . | quote }}
+              {{- end }}
+            - name: private-credentials
+              mountPath: /run/voiceprint-private
+              readOnly: true
+            - name: private-tls
+              mountPath: /run/voiceprint-tls
+              readOnly: true
+            - name: temporary
+              mountPath: /tmp
+      {{- with $encoder.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $encoder.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: qwen-model
+          persistentVolumeClaim:
+            claimName: {{ $model | quote }}
+            readOnly: true
+        - name: private-credentials
+          secret:
+            secretName: {{ $credentials | quote }}
+            defaultMode: 0440
+            items:
+              - {key: api-token, path: api-token}
+              - {key: permit-key, path: permit-key}
+        - name: private-tls
+          secret:
+            secretName: {{ $tls | quote }}
+            defaultMode: 0440
+            items:
+              - {key: tls.crt, path: tls.crt}
+              - {key: tls.key, path: tls.key}
+        - name: temporary
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ required "voiceprintEncoder.tmpSizeLimit is required" $encoder.tmpSizeLimit }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "meet.common.labels" (list . "voiceprint-encoder") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "meet.common.selectorLabels" (list . "voiceprint-encoder") | nindent 4 }}
+  ports:
+    - {name: https, port: 8093, targetPort: https}
+{{- if $encoder.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "meet.common.selectorLabels" (list . "voiceprint-encoder") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name | quote }}
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values: [backend, backend-ai, celery-voiceprint]
+        {{- with $encoder.networkPolicy.additionalPeers }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports: [{protocol: TCP, port: 8093}]
+  # Runtime is offline: no model downloads, DNS, ASR/provider access or object storage.
+  egress: []
+{{- end }}
+{{- end }}

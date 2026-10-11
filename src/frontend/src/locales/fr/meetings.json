@@ -153,6 +153,23 @@
     "conflict": "La transcription a changé. Votre brouillon est conservé. Copiez-le, annulez puis rouvrez l’éditeur pour vérifier le texte avant de sauvegarder."
   },
   "speakerAttribution": {
+    "contacts": "Contacts",
+    "custom": "Libellé personnalisé",
+    "label": "Libellé du locuteur",
+    "saveLabel": "Enregistrer le libellé",
+    "contactType": "Type de contact",
+    "allContacts": "Tous les contacts",
+    "members": "Membres de l’organisation",
+    "external": "Contacts externes",
+    "externalNotice": "Le nom du contact externe sélectionné sera visible par les lecteurs de cet enregistrement.",
+    "department": "Département",
+    "allDepartments": "Tous les départements",
+    "previousDepartments": "Départements précédents",
+    "moreDepartments": "Départements suivants",
+    "previous": "Page précédente",
+    "next": "Page suivante",
+    "loading": "Chargement des contacts…",
+    "changed": "L’identité a changé. Fermez puis rouvrez le panneau avant de modifier à nouveau.",
     "change": "Qui est-ce ?",
     "changeFor": "Indiquer qui est réellement {{name}}",
     "cancel": "Fermer",
@@ -435,6 +452,7 @@
     "latest": "Dernières versions",
     "current": "Version actuelle",
     "historical": "Version historique",
+    "identityUpdated": "Les identités des intervenants ont changé. Vous pouvez régénérer le compte rendu ; cette version conserve son contenu initial.",
     "source": "Voir l’original",
     "closeSource": "Fermer l’original",
     "listenSource": "Écouter l’audio d’origine",
@@ -756,7 +774,7 @@
     "paused": "Les notifications sont indisponibles. Les livraisons existantes sont conservées.",
     "loadError": "L’état des notifications est indisponible. Actualisez pour réessayer.",
     "openVersion": "Voir cette version du compte-rendu",
-    "pinned": "Vous consultez la version exacte du compte-rendu liée à cette notification.",
+    "pinned": "Vous consultez une version fixe du compte-rendu.",
     "allVersions": "Retour aux archives de réunion",
     "versionUnavailable": "Cette version du compte-rendu n’existe pas ou vous n’y avez plus accès.",
     "retry": "Me notifier à nouveau",
@@ -817,6 +835,24 @@
       "running": "Transcription en cours. Vous pouvez revenir à cet enregistrement plus tard.",
       "succeeded": "Transcription terminée",
       "failed": "Échec de la transcription"
+    },
+    "identity": "Identify speakers",
+    "identityHint": "Also enable speaker separation. Check the media before transcription and suggest identities after it completes.",
+    "identityLimit": "Identity recognition currently supports files up to 512 MiB and two hours. Ordinary transcription remains available.",
+    "identityUnavailable": "Identity recognition is unavailable. Turn this option off to continue with ordinary transcription.",
+    "preflightStopped": "Identity preflight stopped",
+    "preflightPending": "Checking identity input. Transcription has not been submitted.",
+    "preflightReady": "Identity input checked. Waiting for transcription.",
+    "preflightFailed": "The media, library or authorization did not pass the identity check. Transcription has not been submitted. Choose how to continue.",
+    "preflightDecision": {
+      "retry_identity": "Check identity input again",
+      "continue_without_identity": "Continue with ordinary transcription"
+    },
+    "identityRequest": {
+      "queued": "Transcription completed. Preparing identity suggestions.",
+      "running": "Transcription completed. Preparing identity suggestions.",
+      "submitted": "Identity recognition requested. Open Identify speakers to review its progress and suggestions.",
+      "unavailable": "Transcription completed. Identity recognition is unavailable; you can label speakers manually."
     }
   },
   "minutesLibrary": {

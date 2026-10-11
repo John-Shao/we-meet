@@ -709,7 +709,13 @@ class Base(Configuration):
     CORS_ALLOW_ALL_ORIGINS = values.BooleanValue(False)
     CORS_ALLOWED_ORIGINS = values.ListValue([])
     CORS_ALLOWED_ORIGIN_REGEXES = values.ListValue([])
-    CORS_ALLOW_HEADERS = [*default_headers, "idempotency-key", "x-capture-lease"]
+    CORS_ALLOW_HEADERS = [
+        *default_headers,
+        "idempotency-key",
+        "x-capture-lease",
+        "x-voiceprint-owner",
+        "x-voiceprint-upload-token",
+    ]
 
     # Sentry
     SENTRY_DSN = values.Value(None, environ_name="SENTRY_DSN")
@@ -977,7 +983,7 @@ class Base(Configuration):
         {"BACKEND": "work.storage.PrivateMaterialStorage"}, environ_prefix=None
     )
 
-    CELERY_BEAT_SCHEDULE = {
+    celery_beat_entries = {
         "tick-work-reviews": {
             "task": "work.tasks.tick_reviews",
             "schedule": 5.0,
@@ -1012,6 +1018,48 @@ class Base(Configuration):
         "cleanup-capture-audio": {
             "task": "core.tasks.capture_audio.cleanup_capture_audio",
             "schedule": 30.0,
+        },
+        "tick-capture-diarization": {
+            "task": "core.tasks.capture_diarization.tick_capture_diarization",
+            "schedule": 15.0,
+            "options": {"queue": "voiceprint", "expires": 30},
+        },
+        "purge-capture-diarization-inputs": {
+            "task": "core.tasks.capture_diarization.purge_capture_diarization_inputs",
+            "schedule": 30.0,
+            "options": {"queue": "voiceprint", "expires": 60},
+        },
+        "purge-voiceprint-sources": {
+            "task": "core.tasks.voiceprint_source_removal.drain_voiceprint_source_removals",
+            "schedule": 30.0,
+            "options": {"queue": "voiceprint", "expires": 60},
+        },
+        "purge-voiceprints": {
+            "task": "core.tasks.voiceprint_erasure.purge_voiceprints",
+            "schedule": 30.0,
+            "options": {"queue": "voiceprint", "expires": 60},
+        },
+        "maintain-voiceprints": {
+            "task": "core.tasks.voiceprint_maintenance.maintain_voiceprints",
+            "schedule": 30.0,
+            "options": {"queue": "voiceprint", "expires": 60},
+        },
+        # Each stage selects at most one fresh DB item; no private config in beat.
+        # Keep slow encoding/quality/media work away from erasure and sampler recovery.
+        "process-voiceprint-batches": {
+            "task": "core.tasks.voiceprint_processing.process_voiceprint_batches",
+            "schedule": 15.0,
+            "options": {"queue": "voiceprint-processing", "expires": 30},
+        },
+        "identify-speakers": {
+            "task": "core.tasks.voiceprint_processing.identify_speakers",
+            "schedule": 15.0,
+            "options": {"queue": "voiceprint-identity", "expires": 30},
+        },
+        "recover-voiceprint-samplers": {
+            "task": "core.tasks.voiceprint_sampling.recover_voiceprint_samplers",
+            "schedule": 15.0,
+            "options": {"queue": "voiceprint", "expires": 30},
         },
         "purge-requested-records": {
             "task": "core.tasks.record_purge.purge_requested_records",
@@ -1151,6 +1199,27 @@ class Base(Configuration):
         False, environ_name="MEETING_RECORDS_ENABLED", environ_prefix=None
     )
     MEETING_VERSIONED_SUMMARY_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_VOICEPRINT_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    # Mandatory in runtime configurations; only isolated unit tests bypass it.
+    MEETING_VOICEPRINT_JOURNAL_REQUIRED = True
+    MEETING_VOICEPRINT_JOURNAL_CONFIG_FILE = values.Value("", environ_prefix=None)
+    MEETING_VOICEPRINT_SAMPLING_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_VOICEPRINT_SAMPLING_AGENT_TOKEN = values.Value("", environ_prefix=None)
+    MEETING_VOICEPRINT_SAMPLING_AGENT_NAME = values.Value("", environ_prefix=None)
+    MEETING_VOICEPRINT_SAMPLING_CLIP_MS = values.PositiveIntegerValue(10000, environ_prefix=None)
+    MEETING_VOICEPRINT_SAMPLING_SESSION_MS = values.PositiveIntegerValue(60000, environ_prefix=None)
+    MEETING_VOICEPRINT_SAMPLING_DAILY_MS = values.PositiveIntegerValue(120000, environ_prefix=None)
+    # Separate, rotatable mounted keyring; never fall back to DJANGO_SECRET_KEY.
+    MEETING_VOICEPRINT_KEYRING_FILE = values.Value("", environ_prefix=None)
+    MEETING_VOICEPRINT_ENCODER_CONFIG_FILE = values.Value("", environ_prefix=None)
+    MEETING_VOICEPRINT_QUALITY_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_VOICEPRINT_QUALITY_CONFIG_FILE = values.Value("", environ_prefix=None)
+    MEETING_VOICEPRINT_MATCHING_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_VOICEPRINT_THRESHOLD_CONFIG_FILE = values.Value("", environ_prefix=None)
+    MEETING_VOICEPRINT_MEDIA_CONFIG_FILE = values.Value("", environ_prefix=None)
+    MEETING_VOICEPRINT_TEMPLATES_ENABLED = values.BooleanValue(
+        False, environ_prefix=None
+    )
     MEETING_TRANSCRIPT_DELIVERY_ENABLED = values.BooleanValue(
         False, environ_prefix=None
     )
@@ -1177,6 +1246,9 @@ class Base(Configuration):
     MEETING_CAPTURE_TRANSLATION_REGION = values.Value("cn-beijing", environ_prefix=None)
     MEETING_CAPTURE_TEXT_ONLY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_CAPTURE_DIARIZATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_CAPTURE_DIARIZATION_BUCKET_NAME = values.Value("", environ_prefix=None)
+    MEETING_CAPTURE_DIARIZATION_DAILY_LIMIT = values.PositiveIntegerValue(3, environ_prefix=None)
     MEETING_CAPTURE_LIVE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_SUMMARY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_STAGED_SUMMARY_ENABLED = values.BooleanValue(
@@ -1721,6 +1793,20 @@ class Base(Configuration):
             },
         }
 
+    @property
+    def CELERY_BEAT_SCHEDULE(self):
+        # Redis keeps expired messages until a consumer receives them. Avoid
+        # publishing disabled work to optional queues with no consumers.
+        schedule = self.celery_beat_entries.copy()
+        if not self.MEETING_VOICEPRINT_ENABLED:
+            schedule.pop("process-voiceprint-batches", None)
+        if not (
+            self.MEETING_VOICEPRINT_ENABLED and self.MEETING_VOICEPRINT_MATCHING_ENABLED
+        ):
+            schedule.pop("identify-speakers", None)
+        # Erasure and lease recovery must survive collection/matching shutdown.
+        return schedule
+
     @classmethod
     def post_setup(cls):
         """Post setup configuration.
@@ -1787,6 +1873,8 @@ class Development(Base):
 
 class Test(Base):
     """Test environment settings"""
+
+    MEETING_VOICEPRINT_JOURNAL_REQUIRED = False
 
     LOGGING = values.DictValue(
         {

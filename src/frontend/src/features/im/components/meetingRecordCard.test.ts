@@ -2,14 +2,60 @@ import { describe, expect, it } from 'vitest'
 import {
   buildMeetingRecordCardBody,
   parseMeetingRecordCard,
+  meetingRecordLink,
 } from './meetingRecordCard'
 
 /**
- * 卡片契约:body 是**静态快照**,跨端只认 record_id / title / origin_at。
+ * 卡片契约:body 是**静态快照**,可附带固定 AI／人工纪要版本选择器。
  * 与 doc-card/meeting-card 同一套规矩 —— 解析器对未知/坏 JSON 一律返回 null,
  * 让调用方降级成一句占位文案,而不是把裸 JSON 渲染出来。
  */
 describe('meeting-record-card', () => {
+  const version = '22222222-2222-4222-8222-222222222222'
+  it.each(['summary', 'human'] as const)(
+    'keeps an exact %s version across forwards and navigation',
+    (kind) => {
+      const raw = buildMeetingRecordCardBody({
+        recordId: 'record',
+        scope: 'minutes',
+        title: 'Old title',
+        ...(kind === 'summary' ? { summaryId: version } : { humanId: version }),
+      })
+      const card = parseMeetingRecordCard(raw)!
+      expect(meetingRecordLink(card)).toBe(
+        `/meeting/records/record?${kind}=${version}`
+      )
+      expect(parseMeetingRecordCard(JSON.stringify(card))).toEqual(card)
+      expect(raw).not.toContain('excerpt')
+    }
+  )
+  it.each([
+    { summary_id: '' },
+    { human_id: null },
+    { summary_id: 'bad' },
+    { human_id: 'ABCDEFAB-2222-4222-8222-222222222222' },
+    { summary_id: version, human_id: version },
+    { scope: 'record', summary_id: version },
+  ])(
+    'rejects invalid selectors instead of converting them to latest: %o',
+    (selector) => {
+      expect(
+        parseMeetingRecordCard(
+          JSON.stringify({
+            record_id: 'record',
+            title: 'Title',
+            scope: 'minutes',
+            ...selector,
+          })
+        )
+      ).toBeNull()
+    }
+  )
+  it('preserves an empty URL selector so the destination rejects it', () => {
+    expect(
+      meetingRecordLink({ record_id: 'record', scope: 'minutes', human_id: '' })
+    ).toBe('/meeting/records/record?human=')
+  })
   it('round-trips a shared record snapshot', () => {
     const body = buildMeetingRecordCardBody({
       recordId: '11111111-1111-4111-8111-111111111111',

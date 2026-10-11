@@ -1,0 +1,4 @@
+# Standalone sampler only; versions match the audited project uv.lock.
+aiohttp==3.13.5
+livekit==1.1.2
+livekit-agents==1.4.5

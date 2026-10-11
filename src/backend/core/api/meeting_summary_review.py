@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from core.api.meeting_command_receipt import MeetingCommandReceiptMixin
 from core.services import meeting_summary_review as service
 from core.services.meeting_records import RecordConflict, visible_records
+from core.services.summary_identity_state import read_state
 
 
 class ReviewSerializer(serializers.Serializer):
@@ -34,6 +35,11 @@ class SummaryReviewView(MeetingCommandReceiptMixin, APIView):
 
     permission_classes = [permissions.IsAuthenticated]
 
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response["Cache-Control"] = "private, no-store"
+        return response
+
     def record(self, request, record_id):
         return get_object_or_404(
             visible_records(request.user, ability="read_summary"), pk=record_id
@@ -41,12 +47,16 @@ class SummaryReviewView(MeetingCommandReceiptMixin, APIView):
 
     def get(self, request, record_id):
         record = self.record(request, record_id)
-        return Response(
-            {
-                "current": service.serialize(record.summary_reviews.first()),
-                "can_edit": service.can_edit(record, request.user),
-            }
-        )
+        current = record.summary_reviews.select_related(
+            "base_summary__input_snapshot"
+        ).first()
+        identity_state = read_state(record) if current else None
+        data = {
+            "current": service.serialize(current, identity_state=identity_state),
+            "can_edit": service.can_edit(record, request.user),
+        }
+        self.record(request, record_id)
+        return Response(data)
 
     def post(self, request, record_id):
         record = self.record(request, record_id)
@@ -66,13 +76,15 @@ class SummaryReviewView(MeetingCommandReceiptMixin, APIView):
             return Response(
                 {"detail": "Invalid summary structure or citations."}, status=400
             )
-        return Response(
-            {
-                "saved": service.serialize(saved),
-                "current": service.serialize(current),
-                "replayed": replayed,
-            }
-        )
+        record = self.record(request, record_id)
+        identity_state = read_state(record)
+        data = {
+            "saved": service.serialize(saved, identity_state=identity_state),
+            "current": service.serialize(current, identity_state=identity_state),
+            "replayed": replayed,
+        }
+        self.record(request, record_id)
+        return Response(data)
 
 
 class SummaryHistoryView(SummaryReviewView):
@@ -87,7 +99,10 @@ class SummaryHistoryView(SummaryReviewView):
                 record.summary_reviews.select_related("base_summary__input_snapshot"),
                 pk=review_id,
             )
-            return Response(service.serialize(review))
+            identity_state = read_state(record)
+            data = service.serialize(review, identity_state=identity_state)
+            self.record(request, record_id)
+            return Response(data)
         rows = record.summary_reviews.all()
         before = request.query_params.get("before")
         if before is not None:
@@ -100,6 +115,7 @@ class SummaryHistoryView(SummaryReviewView):
                 return Response({"detail": "Invalid history cursor."}, status=400)
             rows = rows.filter(revision__lt=int(before))
         page = list(rows.values("id", "revision", "base_summary_id", "created_at")[:11])
+        self.record(request, record_id)
         return Response(
             {
                 "results": page[:10],

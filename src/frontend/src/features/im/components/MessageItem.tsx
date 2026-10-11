@@ -24,6 +24,7 @@ import { chatCardColumn } from './chatCardSize'
 import { EventCardMessage } from './EventCardMessage'
 import { MeetingCardMessage } from './MeetingCardMessage'
 import { MeetingRecordCardMessage } from './MeetingRecordCardMessage'
+import type { MeetingRecordTarget } from './meetingRecordCard'
 import { IM_SYSTEM_UID } from './eventCard'
 import type { MergedBody } from './MergedRecordDialog'
 
@@ -75,7 +76,7 @@ interface Props {
   /** 分享云文档卡片:点「查看文档」跳转到该文档(content_type='doc-card')。 */
   onOpenDoc?: (card: { doc_id: string; url: string }) => void
   /** 分享会议记录卡片:点「查看纪要」打开记录工作区(content_type='meeting-record-card')。 */
-  onOpenRecord?: (card: { record_id: string; scope?: 'record' | 'minutes' }) => void
+  onOpenRecord?: (card: MeetingRecordTarget) => void
   /** P4.1 群语音卡片:点「加入」进入进行中的语音宫格(content_type='group-call')。 */
   onJoinGroupCall?: () => void
   /** P4.1 群语音卡片:该场通话已结束(同流存在同 slug 的结束记录)→ 灰态不可点。 */

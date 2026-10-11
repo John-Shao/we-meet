@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -14,6 +15,7 @@ import type {
   CaptureAudioRetention,
 } from '../api/ApiCaptureSession'
 import { CaptureTranscriptionPanel } from './CaptureTranscriptionPanel'
+import { createDraftStore, DraftContext } from '../hooks/useTranscriptDraft'
 
 vi.mock('@/api/fetchApi', () => ({ fetchApi: vi.fn() }))
 vi.mock('./RecordSummaryPanel', () => ({
@@ -65,6 +67,7 @@ vi.mock('@/primitives', async (importOriginal) => ({
 }))
 let client: QueryClient
 let status: {
+  active_diarization_job_id?: string | null
   audio_retention?: CaptureAudioRetention
   available: boolean
   live_available?: boolean
@@ -823,4 +826,121 @@ it('fetches the playback window beyond page one and can seek back', async () => 
   expect(
     (await screen.findByText('Opening')).closest('article')
   ).toHaveAttribute('aria-current', 'true')
+})
+
+it('pins pagination to the exact ASR and derived version and never reuses old cursors', async () => {
+  status = {
+    ...status,
+    active_job_id: 'asr-version',
+    active_diarization_job_id: 'derived-one',
+  }
+  vi.mocked(fetchApi).mockImplementation(async (path) => {
+    if (path.includes('original-segments'))
+      return {
+        results: [
+          {
+            id: path.includes('derived-two') ? 'new' : 'old',
+            start_ms: 0,
+            text: path.includes('derived-two')
+              ? 'Second derived version'
+              : 'First derived version',
+          },
+        ],
+        next_cursor: path.includes('derived-two') ? null : 'old-cursor',
+      }
+    return status
+  })
+  show()
+  await screen.findByText('First derived version')
+  expect(screen.getByText('diarization.resultHint')).toBeInTheDocument()
+  expect(screen.getByText('diarization.unknownSpeaker')).toBeInTheDocument()
+  expect(screen.queryByText('asr.unknownSpeaker')).not.toBeInTheDocument()
+  expect(
+    vi
+      .mocked(fetchApi)
+      .mock.calls.some(([path]) =>
+        path.includes(
+          'transcription_job_id=asr-version&diarization_job_id=derived-one'
+        )
+      )
+  ).toBe(true)
+  status = { ...status, active_diarization_job_id: 'derived-two' }
+  fireEvent.click(screen.getByRole('button', { name: 'asr.refresh' }))
+  await screen.findByText('Second derived version')
+  expect(screen.queryByText('First derived version')).not.toBeInTheDocument()
+  expect(
+    vi
+      .mocked(fetchApi)
+      .mock.calls.filter(([path]) =>
+        path.includes('diarization_job_id=derived-two')
+      )
+      .every(([path]) => !path.includes('old-cursor'))
+  ).toBe(true)
+})
+
+it('keeps the reading version and unsaved draft until editing finishes', async () => {
+  status = {
+    ...status,
+    active_job_id: 'asr-version',
+    active_diarization_job_id: 'derived-one',
+  }
+  vi.mocked(fetchApi).mockImplementation(async (path) => {
+    if (!path.includes('original-segments')) return status
+    const newer = path.includes('derived-two')
+    return {
+      results: [
+        {
+          id: newer ? 'new' : 'old',
+          start_ms: 0,
+          text: newer ? 'New published text' : 'Old reading text',
+        },
+      ],
+      next_cursor: null,
+    }
+  })
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const drafts = createDraftStore()
+  render(
+    <QueryClientProvider client={client}>
+      <DraftContext.Provider value={drafts}>
+        <CaptureTranscriptionPanel
+          viewerId="owner"
+          capture={capture}
+          onSource={onSource}
+        />
+      </DraftContext.Provider>
+    </QueryClientProvider>
+  )
+  await screen.findByText('Old reading text')
+  act(() =>
+    drafts.set('old', {
+      editing: true,
+      text: 'Unsaved correction',
+      revision: 1,
+      pending: false,
+      failure: null,
+    })
+  )
+  status = { ...status, active_diarization_job_id: 'derived-two' }
+  fireEvent.click(screen.getByRole('button', { name: 'asr.refresh' }))
+  await waitFor(() =>
+    expect(
+      client.getQueryData([
+        'capture-asr',
+        'owner',
+        'capture-sessions/capture/transcription/',
+      ])
+    ).toMatchObject({ active_diarization_job_id: 'derived-two' })
+  )
+  expect(drafts.get('old')?.text).toBe('Unsaved correction')
+  expect(screen.queryByText('New published text')).not.toBeInTheDocument()
+  expect(
+    vi
+      .mocked(fetchApi)
+      .mock.calls.some(([path]) =>
+        path.includes('diarization_job_id=derived-two')
+      )
+  ).toBe(false)
+  act(() => drafts.clear())
+  await screen.findByText('New published text')
 })

@@ -1,0 +1,203 @@
+{
+  "title": "我的声纹",
+  "operations": {
+    "outcomes": "近 24 小时结果：未知 {{unknown}}；难以区分 {{ambiguous}}；音频不足 {{insufficient_audio}}；多人混合 {{mixed_speaker}}；不可用 {{unavailable}}",
+    "title": "组织声纹运行状态",
+    "hint": "当前积压及保留任务的失败总数；完成量、语音量和耗时取最近 24 小时。耗时包含排队，并非转写结束至建议可见的延迟。",
+    "load": "查看／刷新运行状态",
+    "loading": "正在读取聚合状态…",
+    "error": "状态读取失败或管理权限已变化，请重新加载组织。",
+    "noData": "暂无数据",
+    "seconds": "{{value}} 秒",
+    "observed": "统计时间：{{date}}",
+    "queueCounts": "待处理 {{pending}}；失败 {{failed}}；近 24 小时完成 {{completed}}",
+    "queueTimes": "最早积压时长 {{oldest}}；请求至完成 P95 {{p95}}",
+    "otherCounts": "贡献清理积压 {{cleanup}}；暂停档案 {{paused}}；近 24 小时人工拒绝建议 {{rejected}}",
+    "speech": "近 24 小时质量元数据中的有效语音：{{value}}",
+    "queues": {
+      "encoding": "声纹编码",
+      "quality": "语音质检",
+      "identification": "身份识别",
+      "deletion": "声纹删除"
+    }
+  },
+  "loginRequired": "请登录后管理本人的声纹。",
+  "intro": "只能登记本人的声音。个人账号与每个组织分别管理授权和声纹，不会混用。",
+  "scope": "声纹作用域",
+  "personal": "个人账号",
+  "scopeError": "组织列表加载失败。",
+  "moreScopes": "更多组织",
+  "loading": "正在加载声纹设置…",
+  "reload": "重新加载",
+  "more": "加载更多",
+  "disabled": "此作用域的声纹功能当前不可用，仍可关闭授权或删除已有档案。",
+  "organizationPolicy": "为此组织开放声纹功能",
+  "organizationPolicyHint": "这里只开放功能，每位成员仍须独立授权，管理员不能代为登记。",
+  "permissions": {
+    "allow_enrollment": {
+      "title": "允许本人登记和确认声音",
+      "hint": "登记完全自愿。关闭后撤销此作用域的声纹，并停止未完成的登记任务。"
+    },
+    "allow_accumulation": {
+      "title": "允许通话中采集本人麦克风片段",
+      "hint": "独立授权，仅收集本人账号麦克风的候选片段。采样须可见且可暂停，不会直接确认模板。"
+    },
+    "allow_identification": {
+      "title": "允许使用本人声纹提供身份建议",
+      "hint": "独立授权，仅在许可的候选范围内匹配。关闭后停止新增识别，不改动已由人工确认的会议姓名。"
+    }
+  },
+  "enrollmentTitle": "登记本人的声音",
+  "enrollmentHint": "请在安静环境中独自朗读下方提示。建议录制四段、每段约八秒，累计至少 30 秒；每次登记最多六段，每段须为 3～10 秒。",
+  "begin": "开始登记",
+  "enrollmentProgress": "已上传：{{count}} / {{maximum}} 段",
+  "enrollmentExpires": "上传许可到期时间：{{time}}",
+  "recording": {
+    "idle": "点击“录音”后才会开启麦克风。",
+    "requesting": "正在等待麦克风授权…",
+    "preparing": "麦克风已关闭，正在准备试听片段…",
+    "recording": "正在录音：{{seconds}} 秒（最多 10 秒）"
+  },
+  "record": "录音",
+  "stop": "结束录音",
+  "cancelRecording": "取消本段录音",
+  "endEnrollment": "结束本次录制",
+  "file": "或选择本人录好的 WAV 片段",
+  "fileHint": "仅限本人朗读此提示的录音：单声道、PCM16、24 kHz、3～10 秒。已上传的片段会保留，可在下方审核或删除声纹档案。",
+  "localAudio": "上传前试听",
+  "upload": "上传本人片段",
+  "discard": "丢弃本地录音",
+  "profiles": "声纹档案",
+  "scopeState": "当前状态：{{state}}",
+  "displayState": {
+    "not_enabled": "未开启",
+    "collecting": "采样中",
+    "awaiting_confirmation": "待本人确认",
+    "established": "已建立",
+    "needs_update": "需要更新",
+    "paused": "已暂停",
+    "deleting": "删除中",
+    "deleted": "已删除"
+  },
+  "updateReason": {
+    "expired": "声纹已超过一年未更新，请重新登记新片段。",
+    "model_changed": "声纹模型已变更，请重新登记。",
+    "contributions_changed": "原始片段或模板已失效，请重新登记新片段。",
+    "storage_unavailable": "无法读取私有声纹，请联系管理员。"
+  },
+  "effectiveGroups": "有效设备组：{{groups}}",
+  "defaultGroup": "登记基线",
+  "noEffectiveGroups": "无",
+  "statusUnavailable": "此服务未提供有效性状态，请更新后重新加载。",
+  "noProfile": "此作用域尚未登记声纹。",
+  "never": "尚无",
+  "profileStatus": {
+    "pending": "尚不能用于身份识别",
+    "active": "声纹已启用",
+    "paused": "声纹已暂停",
+    "deleted": "声纹已撤销"
+  },
+  "lastConfirmed": "最近确认：{{time}}",
+  "lastUpdated": "最近更新：{{time}}",
+  "delete": "删除声纹",
+  "deleteConfirmation": "删除“{{scope}}”中的本人声纹？将立即撤销其使用权限，停止待处理任务，并排队清理样本和模板。其他作用域及已有会议姓名不受影响。",
+  "confirmDelete": "删除此作用域的声纹",
+  "cancel": "取消",
+  "samples": "本人的片段",
+  "noSamples": "此作用域暂无片段。",
+  "sampleTitle": "片段 {{index}} · {{seconds}} 秒",
+  "audioExpires": "私有试听音频到期：{{time}}",
+  "qualityHint": "完成编码不能证明片段中只有一个人在说话。语音和说话人质量检查通过前不能确认。",
+  "listen": "试听",
+  "reject": "拒绝此片段",
+  "sampleAudio": "试听本人上传的片段",
+  "selfConfirmed": "这是本人独自说话的声音",
+  "listenHint": "请完整试听，并确认是本人的声音后再接受。",
+  "confirm": "确认本人片段",
+  "sampleStatus": {
+    "pending": "等待编码",
+    "processing": "正在编码",
+    "quality_pending": "质量待审核",
+    "ready": "等待本人确认",
+    "confirmed": "本人已确认",
+    "rejected": "已拒绝",
+    "expired": "已到期",
+    "deleted": "已删除"
+  },
+  "deletions": "清理回执",
+  "deletionStatus": {
+    "queued": "声纹已撤销，清理已排队",
+    "running": "正在清理已撤销的声纹",
+    "succeeded": "清理已完成",
+    "failed": "声纹仍已撤销，清理失败，请联系管理员。"
+  },
+  "errors": {
+    "failed": "操作失败，请重试或重新加载当前设置。",
+    "unavailable": "账号、作用域或授权已不可用，请重新加载后再操作。",
+    "conflict": "设置已在其他地方变更，请重新加载后再修改。",
+    "microphone": "无法使用麦克风，请检查浏览器授权，或选择本人录制的 WAV 文件。",
+    "duration": "每段录音须为 3～10 秒。",
+    "voiceprint_enrollment_quota": "已达到登记次数上限，请在 24 小时配额窗口后重试。",
+    "voiceprint_duplicate_audio": "此录音已登记，请重新录制不同的片段。",
+    "voiceprint_audio_format_invalid": "请使用单声道、PCM16、24 kHz 的 WAV 文件。",
+    "voiceprint_quality_pending": "此片段尚在等待质量审核。",
+    "voiceprint_upload_expired": "上传许可已到期，请开始新的登记。",
+    "voiceprint_key_unavailable": "声纹存储暂不可用，请稍后重试。"
+  },
+  "deviceGroup": {
+    "default": "登记基线",
+    "headset": "个人耳机",
+    "handset": "本人手机",
+    "computer": "个人电脑麦克风"
+  },
+  "call": {
+    "open": "查看本人声纹采样",
+    "title": "本次通话声纹采样",
+    "status": "声纹：{{state}}",
+    "scope": "授权作用域：{{scope}}",
+    "notice": "仅处理已授权的本人独立麦克风，用于建立或完善本人声纹。每片段最多 {{clip}} 秒，本次会话最多 {{session}} 秒，滚动 24 小时最多 {{daily}} 秒。待确认音频最多保留 {{hours}} 小时，确认完成特征后尽快删除音频。可在声纹设置中删除此作用域的样本和声纹。",
+    "confirmation": "片段可能录入其他人的声音，需本人试听确认后才能进入声纹库。声纹采样授权与整场通话录音授权分别处理。",
+    "shared": "多人共用麦克风（不采样）",
+    "device": "本次使用的设备",
+    "chooseDevice": "请选择设备类型",
+    "declaration": "请按实际设备声明，不根据设备名称推断。保存设备或修改共享状态会先暂停，需要再次明确允许本次采样。",
+    "saveDevice": "保存设备并暂停",
+    "resume": "允许本次采样",
+    "pause": "暂停本次采样",
+    "remaining": "剩余可采样量：本次 {{session}} 秒，滚动 24 小时 {{daily}} 秒",
+    "disableAccumulation": "关闭“{{scope}}”后续通话采样",
+    "settings": "授权、片段与声纹设置",
+    "mixedSpeaker": "检测到片段含多种声音，已暂停。请确认麦克风仅由本人使用，审核片段后再明确开启。",
+    "currentOrganization": "当前通话组织",
+    "phase": {
+      "stopped": "未采样",
+      "waiting": "等待授权片段",
+      "starting": "正在启动",
+      "sampling": "正在采样",
+      "uploading": "正在提交片段",
+      "unavailable": "状态暂不可用",
+      "changing": "正在更新声明",
+      "device_changed": "设备已变化，等待重新声明",
+      "muted": "麦克风已静音"
+    },
+    "reason": {
+      "ready": "设备声明已就绪，实际采样以短期状态为准。",
+      "disabled": "此作用域的通话采样未启用。",
+      "disconnected": "此连接已结束。",
+      "source_removed": "采样来源已删除。",
+      "authorization_required": "请在声纹设置中单独开启后续通话采样授权。",
+      "paused": "本次采样已暂停。",
+      "shared_microphone": "共享麦克风默认排除，请确认仅由本人使用后再修改。",
+      "device_required": "请声明本次使用的设备类型。",
+      "microphone_unavailable": "尚无可采样的本人麦克风。",
+      "quota_exhausted": "已达到本次会话或滚动 24 小时采样上限。",
+      "sampling_dispatch_unavailable": "采样服务暂不可用，系统会尝试恢复。"
+    },
+    "error": {
+      "unavailable": "暂时无法确认采样状态，请重新加载。",
+      "conflict": "声明或授权已变化，请重新加载后再决定。",
+      "authentication_changed": "登录已变化，请使用当前账号重新进入。",
+      "connection_pending": "正在等待当前通话连接同步，请稍候。"
+    }
+  }
+}

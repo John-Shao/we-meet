@@ -1,0 +1,203 @@
+{
+  "operations": {
+    "outcomes": "Résultats en 24 h : inconnus {{unknown}} ; ambigus {{ambiguous}} ; audio insuffisant {{insufficient_audio}} ; voix mélangées {{mixed_speaker}} ; indisponibles {{unavailable}}",
+    "title": "État des empreintes vocales de l’organisation",
+    "hint": "Tâches en attente et échecs conservés. Volumes et durées des dernières 24 heures. Les durées incluent l’attente, pas le délai entre transcription et suggestion visible.",
+    "load": "Afficher / actualiser l’état",
+    "loading": "Chargement de l’état agrégé…",
+    "error": "État indisponible ou droits administrateur modifiés. Rechargez l’organisation.",
+    "noData": "Aucune donnée",
+    "seconds": "{{value}} secondes",
+    "observed": "Observation : {{date}}",
+    "queueCounts": "En attente {{pending}} ; échecs {{failed}} ; terminées en 24 h {{completed}}",
+    "queueTimes": "Attente la plus longue {{oldest}} ; demande à fin P95 {{p95}}",
+    "otherCounts": "Nettoyages en attente {{cleanup}} ; profils suspendus {{paused}} ; suggestions refusées en 24 h {{rejected}}",
+    "speech": "Parole valide déclarée par les métadonnées en 24 h : {{value}}",
+    "queues": {
+      "encoding": "Encodage",
+      "quality": "Qualité vocale",
+      "identification": "Identification",
+      "deletion": "Suppression"
+    }
+  },
+  "title": "Mon empreinte vocale",
+  "loginRequired": "Connectez-vous pour gérer votre empreinte vocale.",
+  "intro": "Enregistrez uniquement votre propre voix. Votre compte personnel et chaque organisation disposent d'autorisations et d'empreintes distinctes.",
+  "scope": "Périmètre de l'empreinte",
+  "personal": "Compte personnel",
+  "scopeError": "Impossible de charger les organisations.",
+  "moreScopes": "Autres organisations",
+  "loading": "Chargement des paramètres…",
+  "reload": "Recharger",
+  "more": "Afficher la suite",
+  "disabled": "Les empreintes vocales sont indisponibles dans ce périmètre. Vous pouvez toujours retirer vos autorisations ou supprimer un profil existant.",
+  "organizationPolicy": "Activer les empreintes pour cette organisation",
+  "organizationPolicyHint": "Cela rend la fonction disponible. Chaque personne doit encore donner ses propres autorisations.",
+  "permissions": {
+    "allow_enrollment": {
+      "title": "Autoriser l'enregistrement et la confirmation de ma voix",
+      "hint": "L'inscription est volontaire. Désactiver cette autorisation révoque l'empreinte de ce périmètre et arrête les inscriptions en cours."
+    },
+    "allow_accumulation": {
+      "title": "Autoriser des extraits de mon microphone en appel",
+      "hint": "Autorisation distincte pour recueillir des extraits candidats du microphone de mon compte. La collecte doit être visible et peut être suspendue ; elle ne confirme aucun modèle vocal."
+    },
+    "allow_identification": {
+      "title": "Autoriser les suggestions d'identité avec mon empreinte",
+      "hint": "Autorisation distincte, limitée aux candidats autorisés. La désactiver arrête les nouvelles comparaisons sans modifier les noms déjà confirmés manuellement."
+    }
+  },
+  "enrollmentTitle": "Enregistrer ma voix",
+  "enrollmentHint": "Lisez le texte seul, au calme. Prévoyez quatre extraits d'environ huit secondes, pour au moins 30 secondes au total. Six extraits maximum par session, chacun de 3 à 10 secondes.",
+  "begin": "Commencer l'inscription",
+  "enrollmentProgress": "Envoyés : {{count}} / {{maximum}} extraits",
+  "enrollmentExpires": "Autorisation d'envoi valable jusqu'au {{time}}",
+  "recording": {
+    "idle": "Le microphone ne démarre que lorsque vous choisissez Enregistrer.",
+    "requesting": "En attente de l'autorisation du microphone…",
+    "preparing": "Microphone arrêté. Préparation de l'extrait pour l'écoute…",
+    "recording": "Enregistrement : {{seconds}} secondes (maximum 10)"
+  },
+  "record": "Enregistrer",
+  "stop": "Terminer l'enregistrement",
+  "cancelRecording": "Annuler cet extrait",
+  "endEnrollment": "Terminer cette session",
+  "file": "Ou choisir mon extrait WAV",
+  "fileHint": "Uniquement votre voix lisant ce texte : mono, PCM16, 24 kHz, 3 à 10 secondes. Les extraits envoyés restent disponibles pour examen ou suppression du profil.",
+  "localAudio": "Écouter avant l'envoi",
+  "upload": "Envoyer mon extrait",
+  "discard": "Jeter l'enregistrement local",
+  "profiles": "Profil vocal",
+  "scopeState": "État actuel : {{state}}",
+  "displayState": {
+    "not_enabled": "Non commencé",
+    "collecting": "Collecte en cours",
+    "awaiting_confirmation": "En attente de votre confirmation",
+    "established": "Établi",
+    "needs_update": "Mise à jour nécessaire",
+    "paused": "En pause",
+    "deleting": "Suppression en cours",
+    "deleted": "Supprimé"
+  },
+  "updateReason": {
+    "expired": "L’empreinte vocale a plus d’un an. Enregistrez de nouveaux extraits.",
+    "model_changed": "Le modèle vocal a changé. Inscrivez-vous à nouveau.",
+    "contributions_changed": "Les extraits ou le modèle ne sont plus valides. Enregistrez de nouveaux extraits.",
+    "storage_unavailable": "L’empreinte vocale privée est illisible. Contactez votre administrateur."
+  },
+  "effectiveGroups": "Groupes d’appareils valides : {{groups}}",
+  "defaultGroup": "Référence d’inscription",
+  "noEffectiveGroups": "Aucun",
+  "statusUnavailable": "Ce serveur ne fournit pas d’état vocal vérifié. Mettez-le à jour puis rechargez.",
+  "noProfile": "Aucune empreinte dans ce périmètre.",
+  "never": "Pas encore",
+  "profileStatus": {
+    "pending": "Pas encore utilisable pour identifier",
+    "active": "Empreinte active",
+    "paused": "Empreinte suspendue",
+    "deleted": "Empreinte révoquée"
+  },
+  "lastConfirmed": "Dernière confirmation : {{time}}",
+  "lastUpdated": "Dernière mise à jour : {{time}}",
+  "delete": "Supprimer l'empreinte",
+  "deleteConfirmation": "Supprimer votre empreinte dans « {{scope}} » ? Son utilisation sera immédiatement révoquée, les tâches en attente arrêtées et le nettoyage des extraits et modèles mis en file. Les autres périmètres et les noms existants ne changent pas.",
+  "confirmDelete": "Supprimer l'empreinte de ce périmètre",
+  "cancel": "Annuler",
+  "samples": "Mes extraits",
+  "noSamples": "Aucun extrait dans ce périmètre.",
+  "sampleTitle": "Extrait {{index}} · {{seconds}} secondes",
+  "audioExpires": "Audio privé disponible jusqu'au {{time}}",
+  "qualityHint": "L'encodage ne prouve pas qu'une seule personne parle. La confirmation attend les contrôles de parole et de locuteur.",
+  "listen": "Écouter",
+  "reject": "Rejeter l'extrait",
+  "sampleAudio": "Écouter mon extrait envoyé",
+  "selfConfirmed": "C'est uniquement ma voix",
+  "listenHint": "Écoutez l'extrait entier et vérifiez qu'il s'agit de votre voix avant de l'accepter.",
+  "confirm": "Confirmer mon extrait",
+  "sampleStatus": {
+    "pending": "En attente d'encodage",
+    "processing": "Encodage en cours",
+    "quality_pending": "En attente du contrôle qualité",
+    "ready": "En attente de votre confirmation",
+    "confirmed": "Confirmé par vous",
+    "rejected": "Rejeté",
+    "expired": "Expiré",
+    "deleted": "Supprimé"
+  },
+  "deletions": "Suivi du nettoyage",
+  "deletionStatus": {
+    "queued": "Empreinte révoquée ; nettoyage en attente",
+    "running": "Nettoyage de l'empreinte révoquée",
+    "succeeded": "Nettoyage terminé",
+    "failed": "L'empreinte reste révoquée ; nettoyage échoué. Contactez votre administrateur."
+  },
+  "errors": {
+    "failed": "Échec de l'opération. Réessayez ou rechargez les paramètres.",
+    "unavailable": "Le compte, le périmètre ou l'autorisation est indisponible. Rechargez avant de continuer.",
+    "conflict": "Les paramètres ont changé ailleurs. Rechargez avant toute modification.",
+    "microphone": "Microphone indisponible. Vérifiez les autorisations ou choisissez votre propre enregistrement WAV.",
+    "duration": "Chaque extrait doit durer de 3 à 10 secondes.",
+    "voiceprint_enrollment_quota": "Limite d'inscription atteinte. Réessayez après la période de quota de 24 heures.",
+    "voiceprint_duplicate_audio": "Cet enregistrement est déjà inscrit. Enregistrez un nouvel extrait.",
+    "voiceprint_audio_format_invalid": "Utilisez un WAV mono PCM16 à 24 kHz.",
+    "voiceprint_quality_pending": "Cet extrait attend le contrôle qualité.",
+    "voiceprint_upload_expired": "L'autorisation d'envoi a expiré. Commencez une nouvelle session.",
+    "voiceprint_key_unavailable": "Le stockage vocal est temporairement indisponible. Réessayez plus tard."
+  },
+  "deviceGroup": {
+    "default": "Référence d'inscription",
+    "headset": "Casque personnel",
+    "handset": "Téléphone personnel",
+    "computer": "Microphone d'ordinateur personnel"
+  },
+  "call": {
+    "open": "Voir mon échantillonnage vocal",
+    "title": "Échantillonnage vocal de cet appel",
+    "status": "Empreinte vocale : {{state}}",
+    "scope": "Périmètre d'autorisation : {{scope}}",
+    "notice": "Seul votre microphone individuel autorisé sert à créer ou améliorer votre empreinte. Limites : {{clip}} secondes par extrait, {{session}} secondes par session et {{daily}} secondes sur 24 heures glissantes. L'audio non confirmé est conservé au maximum {{hours}} heures, puis supprimé rapidement après confirmation et extraction. Supprimez les extraits et l'empreinte de ce périmètre dans les paramètres.",
+    "confirmation": "Un extrait peut contenir d'autres voix. Écoutez et confirmez vos propres extraits avant leur ajout à la bibliothèque. L'échantillonnage vocal et l'enregistrement de tout l'appel nécessitent des autorisations distinctes.",
+    "shared": "Microphone partagé (sans échantillonnage)",
+    "device": "Appareil utilisé pour cet appel",
+    "chooseDevice": "Choisir le type d'appareil",
+    "declaration": "Déclarez l'appareil réellement utilisé. Enregistrer un appareil ou modifier le partage met l'échantillonnage en pause ; son autorisation nécessite une action distincte.",
+    "saveDevice": "Enregistrer et mettre en pause",
+    "resume": "Autoriser pour cet appel",
+    "pause": "Mettre cet appel en pause",
+    "remaining": "Restant : {{session}} secondes pour cette session, {{daily}} secondes sur 24 heures glissantes",
+    "disableAccumulation": "Désactiver les futurs appels pour {{scope}}",
+    "settings": "Autorisations, extraits et paramètres",
+    "mixedSpeaker": "Plusieurs voix ont été détectées : l'échantillonnage est en pause. Vérifiez que vous seul utilisez ce microphone et examinez les extraits avant de l'autoriser à nouveau.",
+    "currentOrganization": "Organisation de cet appel",
+    "phase": {
+      "stopped": "Sans échantillonnage",
+      "waiting": "En attente d'un extrait autorisé",
+      "starting": "Démarrage",
+      "sampling": "Échantillonnage en cours",
+      "uploading": "Envoi d'un extrait",
+      "unavailable": "État indisponible",
+      "changing": "Mise à jour de la déclaration",
+      "device_changed": "Appareil modifié : à redéclarer",
+      "muted": "Microphone coupé"
+    },
+    "reason": {
+      "ready": "L'appareil est déclaré ; l'activité est signalée séparément.",
+      "disabled": "L'échantillonnage des appels est désactivé dans ce périmètre.",
+      "disconnected": "Cette connexion est terminée.",
+      "source_removed": "La source a été supprimée.",
+      "authorization_required": "Autorisez séparément les futurs appels dans les paramètres vocaux.",
+      "paused": "L'échantillonnage de cet appel est en pause.",
+      "shared_microphone": "Les microphones partagés sont exclus par défaut. Confirmez que vous seul l'utilisez avant de modifier ce réglage.",
+      "device_required": "Déclarez l'appareil utilisé pour cet appel.",
+      "microphone_unavailable": "Aucun microphone personnel admissible n'est disponible.",
+      "quota_exhausted": "La limite de la session ou des 24 heures glissantes est atteinte.",
+      "sampling_dispatch_unavailable": "Le service est indisponible ; une reprise sera tentée."
+    },
+    "error": {
+      "unavailable": "Impossible de confirmer l'état. Rechargez pour réessayer.",
+      "conflict": "La déclaration ou l'autorisation a changé. Rechargez avant de décider.",
+      "authentication_changed": "Votre connexion a changé. Rejoignez avec votre compte actuel.",
+      "connection_pending": "Synchronisation de la connexion de cet appel en cours."
+    }
+  }
+}

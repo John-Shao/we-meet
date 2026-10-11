@@ -21,6 +21,7 @@ import { useCardStates } from '../hooks/useCardStates'
 import { clickCardButton } from '../api/cardStates'
 import { IM_SYSTEM_UID } from '../components/eventCard'
 import { buildDocCardBody } from '../components/docCard'
+import { meetingRecordLink } from '../components/meetingRecordCard'
 import { DocPickerDialog } from '../components/DocPickerDialog'
 import { grantDocAccess } from '../api/grantDocAccess'
 import type { MyDocumentHit } from '../api/fetchMyDocuments'
@@ -1458,10 +1459,7 @@ export const ChatPane = ({
                         onOpenRecord={
                           selectMode
                             ? undefined
-                            : (card) =>
-                                navigate(
-                                  `/meeting/records/${encodeURIComponent(card.record_id)}?tab=${card.scope === 'record' ? 'overview' : 'summary'}`
-                                )
+                            : (card) => navigate(meetingRecordLink(card))
                         }
                         onJoinGroupCall={
                           m.content_type === 'group-call' && groupCallSlugOf(m)

@@ -1,0 +1,19 @@
+{
+  "dimension": 1024,
+  "encoder_bytes": 17716496,
+  "encoder_sha256": "f8b8aa2a5a7e7ddc9043b4979a07bbefca13bfd402a0464a19c1974ea1f6a71a",
+  "feature_space": "qwen3tts-speaker:2ce8c66530f607837b8cdb4f95ce4a359bfee604dc2a2731adc46b89866c5df5",
+  "inference_dtype": "float32",
+  "model_id": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+  "model_revision": "5d83992436eae1d760afd27aff78a71d676296fc",
+  "normalization": "l2",
+  "parameters": 8854336,
+  "preprocess_version": "qwen3tts-24k-mel128-fp32-l2-v1",
+  "sample_rate": 24000,
+  "source_revision": "022e286b98fbec7e1e916cb940cdf532cd9f488e",
+  "source_sha256": "25c42656bcf810f06ef6bc1839bd7083f3c8cfedac3a147c4060b4262b1c96a0",
+  "tensor_count": 76,
+  "upstream_config_sha256": "2e714c787c8edb98b05432685cddb634add2de4d4e645f653d68251ef72ba011",
+  "upstream_weights_bytes": 1829344272,
+  "upstream_weights_sha256": "180b3b10eb1c9f1b4db7806d5475bae3071c0243c299d49926bab1da3b6946f6"
+}
