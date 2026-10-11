@@ -326,6 +326,7 @@
       "bot_webhook_view": "Groepsbot-referenties bekeken",
       "bot_disable": "Groepsbot uitgeschakeld",
       "bot_enable": "Groepsbot ingeschakeld",
+      "voiceprint_policy_changed": "Stemafdrukbeleid van de organisatie gewijzigd",
       "task_list_transfer": "Takenlijst overgedragen",
       "task_list_takeover": "Takenlijst overgenomen"
     },

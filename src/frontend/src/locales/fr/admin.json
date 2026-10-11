@@ -322,6 +322,7 @@
       "bot_webhook_view": "Identifiants du bot de groupe consultés",
       "bot_disable": "Bot de groupe désactivé",
       "bot_enable": "Bot de groupe activé",
+      "voiceprint_policy_changed": "Politique d’empreinte vocale de l’organisation modifiée",
       "task_list_transfer": "Liste de tâches transférée",
       "task_list_takeover": "Liste de tâches reprise"
     },

@@ -459,6 +459,7 @@
       "bot_webhook_view": "Group bot credentials viewed",
       "bot_disable": "Group bot disabled",
       "bot_enable": "Group bot enabled",
+      "voiceprint_policy_changed": "Organization voiceprint policy changed",
       "task_list_transfer": "Task list transferred",
       "task_list_takeover": "Task list taken over"
     },
