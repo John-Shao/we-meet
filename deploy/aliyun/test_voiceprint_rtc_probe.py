@@ -11,6 +11,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import run_voiceprint_rtc_probe as probe
+import voiceprint_filetrans_fixture as filetrans
+import voiceprint_import_fixture as imported
 import voiceprint_rtc_backend_probe as backend
 
 
@@ -199,7 +201,9 @@ class IdentityEvidenceTests(unittest.TestCase):
 class CleanupTests(unittest.TestCase):
     """Simulate a startup failure without contacting Docker or a registry."""
 
-    def exercise(self, failure, *, synthetic_identification=False):
+    def exercise(  # noqa: PLR0915 -- One owned-resource failure scenario and its assertions.
+        self, failure, *, synthetic_identification=False, import_web_review=False
+    ):
         """Force independent diagnostics failures, preserving the original error."""
         calls = []
         owned = [
@@ -211,6 +215,12 @@ class CleanupTests(unittest.TestCase):
             "backend",
             "sampler",
         ]
+        if import_web_review:
+            synthetic_identification = True
+            owned.insert(owned.index("backend"), "filetrans")
+            owned.insert(owned.index("sampler"), "minio")
+            if failure == "relay":
+                owned.append("relay")
         if failure == "schema":
             owned = owned[:2]
 
@@ -225,9 +235,27 @@ class CleanupTests(unittest.TestCase):
                     [{"IPAM": {"Config": [{"Subnet": "10.44.0.0/24"}]}}]
                 )
             elif arguments[0] == "create":
-                output = "owned-" + arguments[arguments.index("--network-alias") + 1]
+                if failure == "relay" and arguments[
+                    arguments.index("--name") + 1
+                ].endswith("-driver"):
+                    raise RuntimeError("rtc_relay_fixture_failure")
+                output = (
+                    "owned-"
+                    + arguments[arguments.index("--name") + 1].rsplit("-", 1)[-1]
+                )
             elif arguments[0] == "inspect":
-                output = json.dumps([{"State": {"Running": False}}])
+                output = json.dumps(
+                    [
+                        {
+                            "State": {"Running": failure == "relay"},
+                            "NetworkSettings": {
+                                "Networks": {"owned": {"IPAddress": "10.44.0.7"}}
+                            },
+                        }
+                    ]
+                )
+            elif failure == "relay" and arguments == ("logs", "owned-backend"):
+                output = '{"event": "rtc_backend_fixture_ready"}'
             elif failure == "docker" and arguments == ("logs", "owned-postgres"):
                 raise subprocess.TimeoutExpired("fixture-docker", 1)
             else:
@@ -245,7 +273,7 @@ class CleanupTests(unittest.TestCase):
                 if path.name in ("backend.env", "threshold.json", "driver.json"):
                     written[path.name] = arguments[0]
                 if (
-                    failure == "write"
+                    failure in ("write", "relay")
                     and path.parent == diagnostics
                     and path.suffix == ".log"
                 ):
@@ -272,6 +300,7 @@ class CleanupTests(unittest.TestCase):
                         str(pack),
                         "--diagnostics-dir",
                         str(diagnostics),
+                        *(["--import-web-review"] if import_web_review else []),
                         *(
                             ["--synthetic-identification"]
                             if synthetic_identification
@@ -284,6 +313,8 @@ class CleanupTests(unittest.TestCase):
                     RuntimeError,
                     "^rtc_journal_install_failed$"
                     if failure == "schema"
+                    else "^rtc_relay_fixture_failure$"
+                    if failure == "relay"
                     else "^rtc_backend_startup_failed$",
                 ),
             ):
@@ -301,8 +332,26 @@ class CleanupTests(unittest.TestCase):
             self.assertIn("sha256:" + "a" * 64, arguments)
             for option in ("--cpus", "--memory", "--pids-limit"):
                 self.assertEqual(arguments.count(option), 1)
-            self.assertNotIn("--publish", arguments)
+            if import_web_review and arguments[arguments.index("--name") + 1].endswith(
+                "-relay"
+            ):
+                self.assertEqual(
+                    arguments[arguments.index("--publish") + 1], "127.0.0.1:5318:8000"
+                )
+            else:
+                self.assertNotIn("--publish", arguments)
+            if import_web_review and arguments[arguments.index("--name") + 1].endswith(
+                "-minio"
+            ):
+                self.assertEqual(
+                    arguments[arguments.index("--network") + 1],
+                    "container:owned-backend",
+                )
+                self.assertNotIn("--network-alias", arguments)
             self.assertNotIn("-p", arguments)
+
+    def test_real_storage_web_opt_in_keeps_ports_local_and_cleans_owned_resources(self):
+        self.exercise("relay", import_web_review=True)
 
     def assert_identity_scope(self, written, synthetic_identification):
         """Matching stays disabled unless the operator explicitly opts in."""
@@ -344,6 +393,119 @@ class CleanupTests(unittest.TestCase):
 
     def test_identification_is_explicit_and_cleans_up_on_startup_failure(self):
         self.exercise("write", synthetic_identification=True)
+
+
+class FiletransBoundaryTests(unittest.TestCase):
+    def test_untrusted_or_unsigned_origins_are_rejected_before_fetch(self):
+        urls = [
+            "https://example.com/a.wav",
+            "http://backend:9000/a.wav?x=1",
+            "http://backend:9000/voiceprint-rtc-fixture/record-uploads/identity-input-a.wav",
+            "http://backend:9000/voiceprint-rtc-fixture/record-uploads/identity-input-a.wav?x=1#fragment",
+            "http://user@backend:9000/voiceprint-rtc-fixture/record-uploads/identity-input-a.wav?x=1",
+        ]
+        with patch.object(filetrans, "build_opener") as opener:
+            for url in urls:
+                with self.subTest(url=url), self.assertRaises(ValueError):
+                    filetrans.read_audio(url)
+            opener.assert_not_called()
+
+    def test_signed_source_cannot_redirect_to_another_origin(self):
+        with self.assertRaisesRegex(ValueError, "filetrans_fixture_redirect_rejected"):
+            filetrans.NoRedirect().redirect_request(
+                None, None, 302, None, None, "https://example.com"
+            )
+
+
+class WebProcessCleanupTests(unittest.TestCase):
+    @unittest.skipUnless(probe.os.name == "nt", "Windows process tree cleanup")
+    def test_browser_deadline_terminates_only_the_owned_node_tree(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            artifacts = Path(temporary)
+            with (
+                patch.object(probe.subprocess, "Popen") as launch,
+                patch.object(probe.subprocess, "run") as terminate,
+            ):
+                process = launch.return_value
+                process.pid = 424242
+                process.poll.return_value = None
+                process.wait.side_effect = [
+                    subprocess.TimeoutExpired("owned-node", 600),
+                    0,
+                ]
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    probe.web_review(artifacts / "private-web.json", artifacts)
+                self.assertEqual(
+                    terminate.call_args.args[0],
+                    ["taskkill", "/PID", "424242", "/T", "/F"],
+                )
+                self.assertEqual(
+                    launch.call_args.args[0],
+                    ["node", "scripts/review-local-import-identity.mjs"],
+                )
+
+
+class ImportCompletionTests(unittest.TestCase):
+    @staticmethod
+    def receipt():
+        return {
+            **IdentityEvidenceTests.receipt(),
+            "jobs_succeeded": 0,
+            "jobs_canceled_for_presentation": 1,
+            "decisions": 5,
+            "upload_status": "succeeded",
+            "preflight_status": "ready",
+            "dispatch_status": "submitted",
+            "upload_attempt": 1,
+            "dispatch_attempts": 1,
+            "original_segments": 3,
+            "original_speakers": 1,
+            "attribution_kind": "custom",
+            "manual_label": "Synthetic final label",
+            "decision_actions": [
+                "confirm_suggestion",
+                "select_contact",
+                "set_label",
+                "set_label",
+                "set_label",
+            ],
+            "provider": {
+                "submissions": 1,
+                "signed_audio_reads": 1,
+                "polls": 1,
+                "result_reads": 1,
+            },
+            "versioned_prepared_inputs": 1,
+            "unsigned_source_status": 403,
+        }
+
+    def test_successful_request_may_be_canceled_after_human_override(self):
+        fixture = object.__new__(imported.ImportFixture)
+        with patch.object(fixture, "evidence", return_value=self.receipt()):
+            self.assertEqual(fixture.complete(), {"status": "passed"})
+        self.assertTrue(fixture.web_complete)
+
+    def test_duplicate_work_or_lost_manual_decision_never_completes(self):
+        for field, value in (
+            ("jobs_canceled_for_presentation", 0),
+            ("decisions", 6),
+            ("manual_label", "Synthetic stale label"),
+            ("versioned_prepared_inputs", 0),
+            ("unsigned_source_status", 200),
+        ):
+            with self.subTest(field=field):
+                fixture = object.__new__(imported.ImportFixture)
+                fixture.web_complete = False
+                with (
+                    patch.object(
+                        fixture,
+                        "evidence",
+                        return_value={**self.receipt(), field: value},
+                    ),
+                    self.assertRaises(RuntimeError),
+                ):
+                    fixture.complete()
+                self.assertFalse(fixture.web_complete)
 
 
 if __name__ == "__main__":

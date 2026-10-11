@@ -1,6 +1,7 @@
 """Reproducible isolated Docker RTC integration, cached images and synthetic users.
 
-Never connects to a cluster or registry, exposes host ports, or reads human media.
+Never connects to a cluster or registry or reads human media. The optional Web
+review publishes only its backend TLS port on 127.0.0.1; defaults publish none.
 Only owned container IDs, anonymous volumes and the unique internal network are
 removed. Credentials and diagnostics stay outside the repository.
 """
@@ -12,15 +13,18 @@ import argparse
 import base64
 import datetime
 import hashlib
+import io
 import ipaddress
 import json
 import os
 import re
 import secrets
+import signal
 import subprocess
 import sys
 import tempfile
 import time
+import wave
 from pathlib import Path
 from uuid import uuid4
 
@@ -74,6 +78,34 @@ def resolve_images(references):
     return resolved
 
 
+def web_review(configuration, artifacts):
+    """Keep browser/Node descendants owned even if the outer deadline expires."""
+    with (artifacts / "review.log").open("w", encoding="utf-8") as output:
+        process = subprocess.Popen(
+            ["node", "scripts/review-local-import-identity.mjs"],  # noqa: S607
+            cwd=ROOT / "src/frontend",
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            env={**os.environ, "VOICEPRINT_LOCAL_WEB_CONFIG": str(configuration)},
+            start_new_session=os.name != "nt",
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+        try:
+            return process.wait(timeout=600)
+        finally:
+            if process.poll() is None:
+                if os.name == "nt":
+                    subprocess.run(  # noqa: S603 -- Only the known owned Node process tree is terminated.
+                        ["taskkill", "/PID", str(process.pid), "/T", "/F"],  # noqa: S607
+                        capture_output=True,
+                        timeout=15,
+                        check=False,
+                    )
+                else:
+                    os.killpg(process.pid, signal.SIGKILL)
+                process.wait(timeout=15)
+
+
 def certificate(name, directory):
     """Ephemeral self-signed fixture CA with an exact service DNS SAN."""
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -105,6 +137,23 @@ def certificate(name, directory):
     return encoded
 
 
+def stereo_import_audio():
+    """Exercise real mono preparation/versioned storage with synthetic stereo PCM."""
+    from voiceprint_rtc_identity_probe import synthetic_audio  # noqa: PLC0415
+
+    with wave.open(io.BytesIO(synthetic_audio()), "rb") as reader:
+        pcm = reader.readframes(reader.getnframes())
+    output = io.BytesIO()
+    with wave.open(output, "wb") as writer:
+        writer.setnchannels(2)
+        writer.setsampwidth(2)
+        writer.setframerate(24000)
+        writer.writeframes(
+            b"".join(pcm[index : index + 2] * 2 for index in range(0, len(pcm), 2))
+        )
+    return output.getvalue()
+
+
 def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its owned resource lifetime together.
     """Create a genuine media/application/model path without external connectivity."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -130,7 +179,23 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
         action="store_true",
         help="Also run the real identity queue using a disposable synthetic-only policy and source fixture.",
     )
+    parser.add_argument(
+        "--import-web-review",
+        action="store_true",
+        help="Real MinIO/upload/dispatch and browser decisions; local ASR protocol fixture.",
+    )
+    parser.add_argument("--web-port", type=int, default=5318)
+    parser.add_argument("--minio-image", default="minio/minio:latest")
     args = parser.parse_args()
+    if args.import_web_review:
+        if not 1024 <= args.web_port <= 65535:
+            raise ValueError("rtc_loopback_web_port_invalid")
+        args.synthetic_identification = True
+    limits = dict(RESOURCE_LIMITS)
+    if args.import_web_review:
+        limits.update(
+            minio=("0.5", "768m"), filetrans=("0.25", "256m"), relay=("0.25", "128m")
+        )
     pack, diagnostics = args.model_pack.resolve(), args.diagnostics_dir.resolve()
     if not pack.is_dir() or diagnostics.is_relative_to(ROOT):
         raise ValueError("rtc_fixture_paths_invalid")
@@ -143,6 +208,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
             args.livekit_image,
             "postgres:16-alpine",
             "redis:7-alpine",
+            *((args.minio_image,) if args.import_web_review else ()),
         )
     )
     prefix = "vp-full-rtc-" + secrets.token_hex(5)
@@ -153,7 +219,14 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
             raise ValueError("rtc_fixture_cleanup_path_invalid")
         directories = {
             name: private / name
-            for name in ("backend", "encoder", "sampler", "driver", "authority")
+            for name in (
+                "backend",
+                "encoder",
+                "sampler",
+                "driver",
+                "authority",
+                "filetrans",
+            )
         }
         for directory in directories.values():
             directory.mkdir()
@@ -173,11 +246,31 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
             db_password,
             quality_key,
         ) = [secrets.token_hex(32) for _ in range(7)]
+        s3_access, s3_secret, filetrans_token = (
+            secrets.token_hex(16),
+            secrets.token_hex(32),
+            secrets.token_hex(32),
+        )
         backend_ca = certificate("backend", backend)
         encoder_ca = certificate("encoder", encoder)
         authority = directories["authority"]
         authority_ca = certificate("authority", authority)
         (backend / "journal-ca.crt").write_bytes(authority_ca)
+        if args.import_web_review:
+            filetrans_dir = directories["filetrans"]
+            (backend / "filetrans-ca.crt").write_bytes(
+                certificate("filetrans.aliyuncs.com", filetrans_dir)
+            )
+            (filetrans_dir / "config.json").write_text(
+                json.dumps(
+                    {
+                        "token": filetrans_token,
+                        "certificate": "/private/filetrans.aliyuncs.com.crt",
+                        "key": "/private/filetrans.aliyuncs.com.key",
+                    }
+                ),
+                encoding="utf-8",
+            )
         deployment = str(uuid4())
         journal_password = secrets.token_hex(32)
         signing = Ed25519PrivateKey.generate()
@@ -261,6 +354,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                     "driver_token": driver_token,
                     "media_boundaries": args.media_boundaries,
                     "synthetic_identification": args.synthetic_identification,
+                    "synthetic_import": args.import_web_review,
                 }
             ),
             encoding="utf-8",
@@ -299,8 +393,8 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 "DJANGO_ALLOWED_HOSTS": "backend,127.0.0.1",
                 "DATABASE_URL": f"postgresql://fixture:{db_password}@postgres:5432/voiceprint_rtc_fixture",
                 "AWS_S3_ENDPOINT_URL": "http://127.0.0.1:9000",
-                "AWS_S3_ACCESS_KEY_ID": secrets.token_hex(16),
-                "AWS_S3_SECRET_ACCESS_KEY": secrets.token_hex(32),
+                "AWS_S3_ACCESS_KEY_ID": s3_access,
+                "AWS_S3_SECRET_ACCESS_KEY": s3_secret,
                 "AWS_S3_REGION_NAME": "local",
                 "AWS_STORAGE_BUCKET_NAME_VIDEO": "voiceprint-rtc-fixture",
                 "AWS_S3_ADDRESSING_STYLE": "path",
@@ -310,6 +404,19 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 "CELERY_ENABLED": "true",
                 "CELERY_TASK_ALWAYS_EAGER": "false",
                 "VOICEPRINT_SYNTHETIC_PROBE": "1",
+                "VOICEPRINT_SYNTHETIC_IMPORT": "1" if args.import_web_review else "0",
+                **(
+                    {
+                        "DASHSCOPE_API_KEY": filetrans_token,
+                        "QWEN_FILE_ASR_BASE_URL": "https://filetrans.aliyuncs.com/api/v1",
+                        "QWEN_FILE_ASR_STORAGE_ENDPOINT_URL": "http://backend:9000",
+                        "MEETING_FILE_ASR_ENABLED": "true",
+                        "MEETING_FILE_DIRECT_UPLOAD_ENABLED": "false",
+                        "REQUESTS_CA_BUNDLE": "/run/voiceprint-backend/filetrans-ca.crt",
+                    }
+                    if args.import_web_review
+                    else {}
+                ),
                 "VOICEPRINT_SYNTHETIC_IDENTITY": "1"
                 if args.synthetic_identification
                 else "0",
@@ -366,8 +473,24 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
             },
         )
 
-        def start(alias, image, *arguments, extra=()):
-            cpus, memory = RESOURCE_LIMITS[alias]
+        minio_env = (
+            environment(
+                "minio.env",
+                {
+                    "MINIO_ROOT_USER": s3_access,
+                    "MINIO_ROOT_PASSWORD": s3_secret,
+                    "MINIO_BROWSER": "off",
+                    "HOME": "/tmp",
+                },
+            )
+            if args.import_web_review
+            else None
+        )
+
+        def start(
+            alias, image, *arguments, extra=(), shared_network=None, host_ingress=False
+        ):
+            cpus, memory = limits[alias]
             identifier = docker(
                 "create",
                 "--pull=never",
@@ -380,14 +503,23 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 "--name",
                 prefix + "-" + alias,
                 "--network",
-                network,
-                "--network-alias",
-                alias,
+                "bridge"
+                if host_ingress
+                else "container:" + shared_network
+                if shared_network
+                else network,
+                *(
+                    ("--network-alias", alias)
+                    if not shared_network and not host_ingress
+                    else ()
+                ),
                 *extra,
                 images[image],
                 *arguments,
             ).stdout.strip()
             containers.append((alias, identifier))
+            if host_ingress:
+                docker("network", "connect", network, identifier)
             docker("start", identifier)
             return identifier
 
@@ -526,12 +658,45 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                     "VOICEPRINT_TLS_KEY_FILE=/run/encoder/encoder.key",
                 ),
             )
+            if args.import_web_review:
+                start(
+                    "filetrans",
+                    args.backend_image,
+                    "/probe.py",
+                    extra=(
+                        *secure,
+                        "--user",
+                        "10001:10001",
+                        "--tmpfs",
+                        "/tmp:rw,size=32m",
+                        "--network-alias",
+                        "filetrans.aliyuncs.com",
+                        "--sysctl",
+                        "net.ipv4.ip_unprivileged_port_start=0",
+                        "--mount",
+                        f"type=bind,source={directories['filetrans'].as_posix()},target=/private,readonly",
+                        "--mount",
+                        f"type=bind,source={(ROOT / 'deploy/aliyun/voiceprint_filetrans_fixture.py').as_posix()},target=/probe.py,readonly",
+                        "--env",
+                        "FILETRANS_FIXTURE_CONFIG=/private/config.json",
+                        "--entrypoint",
+                        "python",
+                    ),
+                )
             backend_id = start(
                 "backend",
                 args.backend_image,
                 "/probe.py",
                 extra=(
                     *secure,
+                    *(
+                        (
+                            "--mount",
+                            f"type=bind,source={(ROOT / 'deploy/aliyun/voiceprint_import_fixture.py').as_posix()},target=/voiceprint_import_fixture.py,readonly",
+                        )
+                        if args.import_web_review
+                        else ()
+                    ),
                     "--tmpfs",
                     "/tmp:rw,size=256m",
                     "--env-file",
@@ -548,6 +713,31 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                     "python",
                 ),
             )
+            if args.import_web_review:
+                start(
+                    "minio",
+                    args.minio_image,
+                    "server",
+                    "/data",
+                    "--address",
+                    ":9000",
+                    "--console-address",
+                    "127.0.0.1:9001",
+                    "--certs-dir",
+                    "/tmp/certs",
+                    shared_network=backend_id,
+                    extra=(
+                        *secure,
+                        "--user",
+                        "10001:10001",
+                        "--env-file",
+                        minio_env,
+                        "--tmpfs",
+                        "/data:rw,size=512m,uid=10001,gid=10001,mode=0700",
+                        "--tmpfs",
+                        "/tmp:rw,size=64m,uid=10001,gid=10001,mode=0700",
+                    ),
+                )
             sampler_id = start(
                 "sampler",
                 args.sampler_image,
@@ -574,6 +764,34 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 if time.monotonic() > startup_deadline:
                     raise RuntimeError("rtc_backend_startup_timeout")
                 time.sleep(0.2)
+            if args.import_web_review:
+                networks = json.loads(docker("inspect", backend_id).stdout)[0][
+                    "NetworkSettings"
+                ]["Networks"]
+                backend_ip = next(iter(networks.values()))["IPAddress"]
+                if ipaddress.ip_address(backend_ip) not in subnet:
+                    raise RuntimeError("rtc_relay_destination_not_owned")
+                start(
+                    "relay",
+                    args.backend_image,
+                    "/probe.py",
+                    host_ingress=True,
+                    extra=(
+                        *secure,
+                        "--user",
+                        "10001:10001",
+                        "--tmpfs",
+                        "/tmp:rw,size=32m",
+                        "--publish",
+                        f"127.0.0.1:{args.web_port}:8000",
+                        "--mount",
+                        f"type=bind,source={(ROOT / 'deploy/aliyun/voiceprint_web_relay.py').as_posix()},target=/probe.py,readonly",
+                        "--env",
+                        "VOICEPRINT_WEB_BACKEND_IP=" + backend_ip,
+                        "--entrypoint",
+                        "python",
+                    ),
+                )
             driver_id = start(
                 "driver",
                 args.sampler_image,
@@ -592,6 +810,52 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                     "python",
                 ),
             )
+            if args.import_web_review:
+                ready = time.monotonic() + 300
+                while (
+                    '"phase": "ready_for_web_import"'
+                    not in docker("logs", driver_id).stdout
+                ):
+                    running = json.loads(docker("inspect", driver_id).stdout)[0][
+                        "State"
+                    ]["Running"]
+                    if not running or time.monotonic() >= ready:
+                        raise RuntimeError("rtc_import_driver_unready")
+                    time.sleep(1)
+
+                def fixture_call(path, mutation=False):
+                    code = (
+                        "import os,urllib.request; r=urllib.request.Request('http://127.0.0.1:8766/"
+                        + path
+                        + "',headers={'X-Fixture-Driver-Token':os.environ['VOICEPRINT_PROBE_DRIVER_TOKEN']},"
+                        + ("method='POST'" if mutation else "method='GET'")
+                        + "); print(urllib.request.urlopen(r,timeout=10).read().decode())"
+                    )
+                    return json.loads(
+                        docker("exec", backend_id, "python", "-c", code).stdout
+                    )
+
+                seed = fixture_call("fixture")
+                media_path = driver / "synthetic-import.wav"
+                media_path.write_bytes(stereo_import_audio())
+                web_artifacts = diagnostics / (prefix + "-web")
+                web_artifacts.mkdir()
+                web_config = driver / "web.json"
+                web_config.write_text(
+                    json.dumps(
+                        {
+                            **seed,
+                            "backend_port": args.web_port,
+                            "ca_path": str(backend / "backend.crt"),
+                            "audio_path": str(media_path),
+                            "artifacts": str(web_artifacts),
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                if web_review(web_config, web_artifacts):
+                    raise RuntimeError("rtc_real_import_web_failed")
+                fixture_call("import-web-complete", mutation=True)
             exit_code = int(docker("wait", driver_id, timeout=570).stdout.strip())
             if exit_code:
                 raise RuntimeError("rtc_native_driver_failed")
@@ -619,7 +883,8 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                     "postgres": images["postgres:16-alpine"],
                     "redis": images["redis:7-alpine"],
                 },
-                "component_resource_limits": RESOURCE_LIMITS,
+                "component_resource_limits": limits,
+                "real_minio_public_upload": args.import_web_review,
                 "matching_enabled": args.synthetic_identification,
                 "asr_protocol_fixture": True,
             }
@@ -641,7 +906,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 parsed = attempt(json.loads, inspected.stdout) if inspected else None
                 backend_state = parsed[0]["State"] if parsed else None
                 if backend_state and backend_state["Running"]:
-                    for role in ("control", "processing", "identity", "beat"):
+                    for role in ("control", "processing", "identity", "beat", "import"):
                         output = attempt(
                             docker,
                             "exec",
@@ -682,6 +947,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
                 "processing.log",
                 "identity.log",
                 "beat.log",
+                "import.log",
                 "state.json",
             ):
                 path = probe_diagnostics / filename

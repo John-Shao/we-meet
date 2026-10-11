@@ -156,9 +156,16 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
         for key, value in flags.items():
             setattr(settings, key, value)
     require(journal_runtime.allowed(), "journal_initialized")
+    synthetic_import = os.environ.get("VOICEPRINT_SYNTHETIC_IMPORT") == "1"
+    require(not synthetic_import or synthetic_identity, "import_requires_identity")
     users = []
     for _index in range(2):
-        user = models.User(sub=str(uuid4()), full_name="Synthetic RTC fixture")
+        user = models.User(
+            sub=str(uuid4()),
+            full_name="Synthetic external contact"
+            if synthetic_import and _index == 1
+            else "Synthetic RTC fixture",
+        )
         user.set_unusable_password()
         user.save()
         client = Client()
@@ -192,6 +199,9 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
         if synthetic_identity
         else ("control", "processing", "beat")
     )
+
+    if synthetic_import:
+        roles = (*roles, "import")
 
     class AsrHandler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -371,7 +381,8 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                 profile__consent__user_id=users[1]["id"]
             ).count(),
             "identity": identity_fixture.evidence()
-            if identity_fixture and identity_fixture.record is not None
+            if identity_fixture
+            and (synthetic_import or identity_fixture.record is not None)
             else None,
         }
 
@@ -379,7 +390,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
         def log_message(self, *_args):
             pass
 
-        def handle_request(self, mutation=False):
+        def handle_request(self, mutation=False):  # noqa: PLR0912 -- Fixed, authenticated fixture routes share a cleanup lifetime.
             if self.headers.get("X-Fixture-Driver-Token") != driver_token:
                 self.send_error(403)
                 return
@@ -395,6 +406,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                         "cookie_name": settings.SESSION_COOKIE_NAME,
                         "csrf_cookie_name": settings.CSRF_COOKIE_NAME,
                         "synthetic_identification": synthetic_identity,
+                        "synthetic_import": synthetic_import,
                     }
                 elif self.path == "/state" and not mutation:
                     result = inspect()
@@ -409,6 +421,12 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                     and identity_fixture
                 ):
                     result = identity_fixture.evidence()
+                elif (
+                    self.path == "/import-web-complete"
+                    and mutation
+                    and synthetic_import
+                ):
+                    result = identity_fixture.complete()
                 elif self.path == "/finish" and mutation:
                     result = inspect()
                     require(
@@ -458,7 +476,9 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                         )
                     if synthetic_identity:
                         require(
-                            identity_evidence_valid(result["identity"]),
+                            result["identity"]["web_complete"]
+                            if synthetic_import
+                            else identity_evidence_valid(result["identity"]),
                             "identity_queue_and_human_confirmation",
                         )
                     print(json.dumps({"status": "passed", **result}), flush=True)
@@ -524,9 +544,17 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
         if synthetic_identity:
             from voiceprint_rtc_identity_probe import IdentityFixture  # noqa: PLC0415
 
-            identity_fixture = IdentityFixture(
-                models.User.objects.get(pk=users[0]["id"])
-            )
+            if synthetic_import:
+                from voiceprint_import_fixture import ImportFixture  # noqa: PLC0415
+
+                identity_fixture = ImportFixture(
+                    models.User.objects.get(pk=users[0]["id"]),
+                    models.User.objects.get(pk=users[1]["id"]),
+                )
+            else:
+                identity_fixture = IdentityFixture(
+                    models.User.objects.get(pk=users[0]["id"])
+                )
         for port in (8000, 8001):
             server = make_server(
                 "0.0.0.0",
@@ -577,6 +605,24 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                     role,
                 ]
             )
+            if role == "import":
+                command = [
+                    sys.executable,
+                    "-m",
+                    "celery",
+                    "-A",
+                    "meet.celery_app",
+                    "worker",
+                    "--queues",
+                    settings.CELERY_TASK_DEFAULT_QUEUE,
+                    "--concurrency=1",
+                    "--prefetch-multiplier=1",
+                    "--pool=prefork",
+                    "--without-gossip",
+                    "--without-mingle",
+                    "--hostname=fixture-import@%h",
+                    "--loglevel=info",
+                ]
             process = subprocess.Popen(  # noqa: S603 -- Only the fixed consumer/beat argv above is executed.
                 command,
                 stdout=stream,
@@ -593,7 +639,7 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep servers, fixture guards and owned 
                 )
                 time.sleep(0.1)
         print(json.dumps({"event": "rtc_backend_fixture_ready"}), flush=True)
-        require(stopped.wait(660), "driver_deadline")
+        require(stopped.wait(1200 if synthetic_import else 660), "driver_deadline")
     finally:
         diagnostic_path = Path("/probe-diagnostics")
         try:

@@ -953,88 +953,98 @@ async def run():  # noqa: PLR0912, PLR0915 -- Keep this single ordered media sce
                     "/identity-source", mutation=True
                 )
 
-                async def identity_request(
-                    method, path, *, data=None, actor=owner, allowed=(200,)
-                ):
-                    headers = {
-                        "X-Voiceprint-Owner": actor["id"],
-                        "X-CSRFToken": actor["csrf"],
-                        "Origin": "https://backend:8000",
-                        "Cookie": f"{seed['cookie_name']}={actor['cookie']}; {seed['csrf_cookie_name']}={actor['csrf']}",
-                    }
-                    async with http.request(
-                        method,
-                        "https://backend:8000/api/v1.0/meeting-records/" + path,
-                        json=data,
-                        headers=headers,
-                        ssl=ca,
-                        allow_redirects=False,
-                    ) as response:
-                        require(
-                            response.status in allowed,
-                            "identity_http_" + str(response.status),
-                        )
-                        return await response.json()
+                if seed.get("synthetic_import"):
+                    phase("ready_for_web_import")
+                    async with asyncio.timeout(600):
+                        while not (await fixture_request("/identity-evidence")).get(
+                            "web_complete"
+                        ):
+                            await asyncio.sleep(1)
+                    phase("real_import_upload_storage_and_web_confirmation")
+                else:
 
-                record_id = identity_source["record_id"]
-                identity_path = record_id + "/speaker-identification/"
-                await identity_request(
-                    "GET", identity_path, actor=denied, allowed=(403, 404)
-                )
-                submitted = await identity_request(
-                    "POST",
-                    identity_path,
-                    data={
-                        "organization_id": None,
-                        "expected_revision": identity_source["record_revision"],
-                        "request_key": str(uuid4()),
-                        "user_ids": [owner["id"]],
-                    },
-                    allowed=(202,),
-                )
-                require(len(submitted["request"]["jobs"]) == 1, "identity_one_job")
-                async with asyncio.timeout(90):
-                    while True:
-                        identified = await identity_request("GET", identity_path)
-                        if not identified["request"]["processing"]:
-                            break
-                        await asyncio.sleep(0.5)
-                job = identified["request"]["jobs"][0]
-                suggestion = job["suggestion"]
-                require(
-                    job["status"] == "succeeded"
-                    and suggestion
-                    and suggestion["result"] == "suggested"
-                    and suggestion["can_confirm"]
-                    and suggestion["candidate"]["id"] == owner["id"],
-                    "synthetic_identity_suggestion",
-                )
-                evidence = await fixture_request("/identity-evidence")
-                require(
-                    not evidence["has_attribution"] and evidence["decisions"] == 0,
-                    "no_automatic_identity_write",
-                )
-                decision_path = (
-                    record_id
-                    + "/speakers/"
-                    + identity_source["speaker_id"]
-                    + "/identity-decision/"
-                )
-                decision = {
-                    "action": "confirm_suggestion",
-                    "expected_revision": identified["record_revision"],
-                    "suggestion_id": suggestion["id"],
-                }
-                await identity_request("POST", decision_path, data=decision)
-                await identity_request(
-                    "POST", decision_path, data=decision, allowed=(409,)
-                )
-                evidence = await fixture_request("/identity-evidence")
-                require(
-                    evidence["attributed_to_owner"] and evidence["decisions"] == 1,
-                    "human_confirmation_once",
-                )
-                phase("real_identity_queue_suggestion_and_confirmation")
+                    async def identity_request(
+                        method, path, *, data=None, actor=owner, allowed=(200,)
+                    ):
+                        headers = {
+                            "X-Voiceprint-Owner": actor["id"],
+                            "X-CSRFToken": actor["csrf"],
+                            "Origin": "https://backend:8000",
+                            "Cookie": f"{seed['cookie_name']}={actor['cookie']}; {seed['csrf_cookie_name']}={actor['csrf']}",
+                        }
+                        async with http.request(
+                            method,
+                            "https://backend:8000/api/v1.0/meeting-records/" + path,
+                            json=data,
+                            headers=headers,
+                            ssl=ca,
+                            allow_redirects=False,
+                        ) as response:
+                            require(
+                                response.status in allowed,
+                                "identity_http_" + str(response.status),
+                            )
+                            return await response.json()
+
+                    record_id = identity_source["record_id"]
+                    identity_path = record_id + "/speaker-identification/"
+                    await identity_request(
+                        "GET", identity_path, actor=denied, allowed=(403, 404)
+                    )
+                    submitted = await identity_request(
+                        "POST",
+                        identity_path,
+                        data={
+                            "organization_id": None,
+                            "expected_revision": identity_source["record_revision"],
+                            "request_key": str(uuid4()),
+                            "user_ids": [owner["id"]],
+                        },
+                        allowed=(202,),
+                    )
+                    require(len(submitted["request"]["jobs"]) == 1, "identity_one_job")
+                    async with asyncio.timeout(90):
+                        while True:
+                            identified = await identity_request("GET", identity_path)
+                            if not identified["request"]["processing"]:
+                                break
+                            await asyncio.sleep(0.5)
+                    job = identified["request"]["jobs"][0]
+                    suggestion = job["suggestion"]
+                    require(
+                        job["status"] == "succeeded"
+                        and suggestion
+                        and suggestion["result"] == "suggested"
+                        and suggestion["can_confirm"]
+                        and suggestion["candidate"]["id"] == owner["id"],
+                        "synthetic_identity_suggestion",
+                    )
+                    evidence = await fixture_request("/identity-evidence")
+                    require(
+                        not evidence["has_attribution"] and evidence["decisions"] == 0,
+                        "no_automatic_identity_write",
+                    )
+                    decision_path = (
+                        record_id
+                        + "/speakers/"
+                        + identity_source["speaker_id"]
+                        + "/identity-decision/"
+                    )
+                    decision = {
+                        "action": "confirm_suggestion",
+                        "expected_revision": identified["record_revision"],
+                        "suggestion_id": suggestion["id"],
+                    }
+                    await identity_request("POST", decision_path, data=decision)
+                    await identity_request(
+                        "POST", decision_path, data=decision, allowed=(409,)
+                    )
+                    evidence = await fixture_request("/identity-evidence")
+                    require(
+                        evidence["attributed_to_owner"] and evidence["decisions"] == 1,
+                        "human_confirmation_once",
+                    )
+                    phase("real_identity_queue_suggestion_and_confirmation")
             await fixture_request("/finish", mutation=True)
             print(
                 json.dumps(
@@ -1060,6 +1070,7 @@ async def run():  # noqa: PLR0912, PLR0915 -- Keep this single ordered media sce
                             fixture.get("media_boundaries")
                         ),
                         "idle_exit_recovered": bool(fixture.get("media_boundaries")),
+                        "public_upload_web_chain": bool(seed.get("synthetic_import")),
                         "synthetic_identity_chain": bool(
                             seed.get("synthetic_identification")
                         ),
