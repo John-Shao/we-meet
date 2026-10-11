@@ -1,5 +1,7 @@
 # 账号级声纹清理与旧行恢复走查
 
+后续[完整备份恢复与当前来源交接走查](voiceprint-backup-recovery-review-2026-10-11.md)已完成当前主库可用且全部相关写入冻结时的独立加密签名包、离线重放及实际 Linux 整库备份／恢复；141 项相关测试通过，旧墓碑随备份回退后仍恢复撤销。持续外部日志／最新头、自动恢复门禁与生产切换仍待验收，不改变本记录原测试的边界。
+
 日期：2026-10-11（Asia/Shanghai）。分支：`feature/speaker-identity-voiceprint`。本记录接续[来源删除走查](voiceprint-source-removal-review-2026-10-10.md)及[周期维护走查](voiceprint-maintenance-review-2026-10-10.md)，补齐账号／组织作用域级删除的自动执行和已完成回执复核。
 
 ## 问题与修复

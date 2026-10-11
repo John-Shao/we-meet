@@ -1,4 +1,4 @@
-"""Run current erasure code on disposable local Docker/Beat/prefork/PostgreSQL.
+"""Run erasure or full-backup recovery on disposable local Docker/PostgreSQL.
 
 Only cached images, an owned internal network and synthetic rows are used.
 No existing database, queue, cluster, human voice or model service is accessed.
@@ -36,7 +36,11 @@ def main():  # noqa: PLR0915 -- Keep owned resources and private temporary crede
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--backend-image", required=True)
     parser.add_argument("--diagnostics-dir", required=True, type=Path)
+    parser.add_argument("--mode", choices=("erasure", "recovery"), default="erasure")
     args = parser.parse_args()
+    recovery = args.mode == "recovery"
+    database = "voiceprint_" + args.mode + "_fixture"
+    driver = "voiceprint_" + args.mode + "_probe.py"
     images = (args.backend_image, "postgres:16-alpine", "redis:7-alpine")
     for name in images:
         docker("image", "inspect", name)
@@ -45,7 +49,7 @@ def main():  # noqa: PLR0915 -- Keep owned resources and private temporary crede
         raise RuntimeError("erasure_fixture_requires_nonroot_image")
     root = args.diagnostics_dir.resolve()
     root.mkdir(parents=True, exist_ok=True)
-    prefix = "voiceprint-erasure-" + uuid4().hex[:12]
+    prefix = "voiceprint-" + args.mode + "-" + uuid4().hex[:12]
     containers, network = [], None
     with tempfile.TemporaryDirectory(prefix="private-", dir=root) as directory:
         private = Path(directory).resolve()
@@ -55,7 +59,7 @@ def main():  # noqa: PLR0915 -- Keep owned resources and private temporary crede
         password = secrets.token_hex(24)
         pg_env = private / "postgres.env"
         pg_env.write_text(
-            f"POSTGRES_USER=fixture\nPOSTGRES_PASSWORD={password}\nPOSTGRES_DB=voiceprint_erasure_fixture\n",
+            f"POSTGRES_USER=fixture\nPOSTGRES_PASSWORD={password}\nPOSTGRES_DB={database}\n",
             encoding="utf-8",
         )
         app_env = private / "backend.env"
@@ -64,7 +68,7 @@ def main():  # noqa: PLR0915 -- Keep owned resources and private temporary crede
             "DJANGO_CONFIGURATION": "Production",
             "DJANGO_SECRET_KEY": secrets.token_hex(32),
             "DJANGO_ALLOWED_HOSTS": "127.0.0.1",
-            "DATABASE_URL": f"postgresql://fixture:{password}@postgres:5432/voiceprint_erasure_fixture",
+            "DATABASE_URL": f"postgresql://fixture:{password}@postgres:5432/{database}",
             "AWS_S3_ENDPOINT_URL": "http://127.0.0.1:9000",
             "AWS_S3_ACCESS_KEY_ID": "fixture",
             "AWS_S3_SECRET_ACCESS_KEY": "fixture",
@@ -75,8 +79,10 @@ def main():  # noqa: PLR0915 -- Keep owned resources and private temporary crede
             "CELERY_ENABLED": "true",
             "CELERY_TASK_ALWAYS_EAGER": "false",
             "MEETING_VOICEPRINT_ENABLED": "false",
+            "MEETING_VOICEPRINT_SAMPLING_ENABLED": "false",
             "MEETING_VOICEPRINT_MATCHING_ENABLED": "false",
             "VOICEPRINT_ERASURE_PROBE": "1",
+            "VOICEPRINT_RECOVERY_PROBE": "1" if recovery else "0",
             "PYTHONPATH": "/app",
             "PYTHONDONTWRITEBYTECODE": "1",
         }
@@ -123,7 +129,7 @@ def main():  # noqa: PLR0915 -- Keep owned resources and private temporary crede
                 "1g",
                 images[1],
             )
-            create(
+            redis = create(
                 "redis",
                 "--network-alias",
                 "redis",
@@ -157,18 +163,65 @@ def main():  # noqa: PLR0915 -- Keep owned resources and private temporary crede
                 "--tmpfs",
                 "/tmp:rw,nosuid,size=128m,uid=10001,gid=0,mode=0700",
                 "--mount",
-                f"type=bind,source={Path(__file__).with_name('voiceprint_erasure_probe.py').resolve()},target=/probe.py,readonly",
+                f"type=bind,source={Path(__file__).with_name(driver).resolve()},target=/probe.py,readonly",
                 args.backend_image,
                 "python",
                 "/probe.py",
             )
             deadline = time.monotonic() + 180
+            backed_up = restored = False
             while True:
                 state = json.loads(docker("inspect", probe).stdout)[0]["State"]
                 if not state["Running"]:
                     break
                 if time.monotonic() >= deadline:
                     raise RuntimeError("erasure_fixture_runtime_timeout")
+                if recovery:
+                    phase = docker(
+                        "exec", redis, "redis-cli", "--raw", "GET", "recovery:phase"
+                    ).stdout.strip()
+                    if phase == "seeded" and not backed_up:
+                        docker(
+                            "exec",
+                            pg,
+                            "pg_dump",
+                            "--format=custom",
+                            "--username=fixture",
+                            "--dbname=" + database,
+                            "--file=/tmp/before.dump",
+                        )
+                        backed_up = True
+                        docker(
+                            "exec",
+                            redis,
+                            "redis-cli",
+                            "SET",
+                            "recovery:command",
+                            "backed_up",
+                        )
+                    elif phase == "exported" and not restored:
+                        docker(
+                            "exec",
+                            pg,
+                            "pg_restore",
+                            "--clean",
+                            "--if-exists",
+                            "--exit-on-error",
+                            "--no-owner",
+                            "--no-privileges",
+                            "--username=fixture",
+                            "--dbname=" + database,
+                            "/tmp/before.dump",
+                        )
+                        restored = True
+                        docker(
+                            "exec",
+                            redis,
+                            "redis-cli",
+                            "SET",
+                            "recovery:command",
+                            "restored",
+                        )
                 time.sleep(0.5)
             lines = docker("logs", probe).stdout.splitlines()
             result = json.loads(lines[-1])
@@ -178,6 +231,10 @@ def main():  # noqa: PLR0915 -- Keep owned resources and private temporary crede
                 )
                 raise RuntimeError("erasure_fixture_runtime_failed")
             result["backend_image_id"] = image["Id"]
+            if recovery:
+                if not (backed_up and restored):
+                    raise RuntimeError("recovery_fixture_full_restore_missing")
+                result["full_pg_dump_and_restore"] = True
         finally:
             # A Docker timeout may have created a resource before returning its ID.
             owned = docker(

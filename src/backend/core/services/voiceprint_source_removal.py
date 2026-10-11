@@ -299,6 +299,13 @@ def affected_templates(job, profile):
     ) or clear_all
 
 
+def restored_vectors(job, profile):
+    if not profile:
+        return False
+    restored, _baseline_lost = affected_templates(job, profile)
+    return restored.exclude(encrypted_vector=b"").exists()
+
+
 @transaction.atomic
 def purge(identifier):
     initial = models.VoiceprintContributionRemoval.objects.filter(pk=identifier).first()
@@ -329,10 +336,11 @@ def purge(identifier):
     ):
         raise ValueError("source_cleanup_scope_changed")
     if job.status != "queued":
-        if sample is None:
+        if sample is None and not restored_vectors(job, profile):
             return job.status
         # A restored sample must be erased again even when the trusted cleanup
-        # receipt already says purged/complete. Keep the original scope proof.
+        # receipt already says purged/complete. A restored vector may survive
+        # without its sample row; the original proof identifies it as well.
         job.status = "queued"
         job.completed_at = None
     if profile:
