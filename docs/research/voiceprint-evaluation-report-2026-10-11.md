@@ -4,6 +4,8 @@
 
 新增 `deploy/aliyun/voiceprint_evaluation_report.py`，为方案第 15 节提供离线、可复现的指标汇总。它读取已经取得的查询结果，不读取数据库、不执行 Qwen 编码、不生成门限、不修改任何生产开关。暂无获授权真人样本；本轮验证全部使用合成结果，不能证明 Qwen 的身份识别效果。
 
+后续[Qwen 离线执行器](voiceprint-evaluation-runner-2026-10-11.md)已实现预处理 PCM 的真实提取、生产核心匹配、校准网格与独立测试。该执行器复用此汇总契约；本文件所述 CLI 仍只汇总外部结果。标准库实现移至 `src/backend/core/services/voiceprint_evaluation_report.py`，原 deploy 路径保留兼容入口。两个工具均不批准生产发布或生成生产门限。
+
 ## 执行
 
 从 `we-meet` 根目录运行，无第三方依赖：
