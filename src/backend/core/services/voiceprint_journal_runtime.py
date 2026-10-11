@@ -381,7 +381,7 @@ def mutation():
             return
         try:
             authority = client()
-            captured, previous = authority.read_current()
+            captured, publish = authority.prepare_publication()
             if not matching(row, authority, captured):
                 fail("recovery_required")
             with marked():
@@ -390,14 +390,13 @@ def mutation():
                 retain_source_and_profile_fences()
                 retain_terminal_proofs()
                 state = recovery.capture_current()
-                following = journal.merge(previous, state)
                 with connection.cursor() as cursor:
                     cursor.execute(
                         "SELECT current_setting('we_meet.voiceprint_control_dirty', true)"
                     )
                     control_changed = cursor.fetchone()[0] == "1"
-                if following != previous or control_changed:
-                    following_head = authority.publish(captured, state)
+                following_head = publish(state, force=control_changed)
+                if following_head is not None:
                     checkpoint(authority, following_head)
         except (journal.JournalError, recovery.RecoveryError):
             fail("publication_unavailable")

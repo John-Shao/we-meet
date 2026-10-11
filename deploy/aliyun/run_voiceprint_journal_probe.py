@@ -113,7 +113,9 @@ def main():  # noqa: PLR0915 -- Keep owned resources, TLS and temporary credenti
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--backend-image", required=True)
     parser.add_argument("--diagnostics-dir", type=Path, required=True)
-    parser.add_argument("--mode", choices=("storage", "recovery"), default="storage")
+    parser.add_argument(
+        "--mode", choices=("storage", "recovery", "capacity"), default="storage"
+    )
     args = parser.parse_args()
     for image in (args.backend_image, "postgres:16-alpine"):
         docker("image", "inspect", image)
@@ -322,11 +324,11 @@ def main():  # noqa: PLR0915 -- Keep owned resources, TLS and temporary credenti
                 ).stdout.strip()
                 docker("start", primary)
                 wait_database(primary)
-            driver = (
-                "voiceprint_journal_recovery_probe.py"
-                if args.mode == "recovery"
-                else "voiceprint_journal_probe.py"
-            )
+            driver = {
+                "storage": "voiceprint_journal_probe.py",
+                "recovery": "voiceprint_journal_recovery_probe.py",
+                "capacity": "voiceprint_journal_capacity_probe.py",
+            }[args.mode]
             probe = docker(
                 "create",
                 "--name",
@@ -356,7 +358,7 @@ def main():  # noqa: PLR0915 -- Keep owned resources, TLS and temporary credenti
             ).stdout.strip()
             docker("start", probe)
             PHASE = "backend_running"
-            deadline = time.monotonic() + (180 if args.mode == "recovery" else 60)
+            deadline = time.monotonic() + (180 if args.mode != "storage" else 60)
             restarted = False
             completed = set()
             while True:
@@ -458,6 +460,17 @@ def main():  # noqa: PLR0915 -- Keep owned resources, TLS and temporary credenti
             result["misconfigured_role_schema_rejected"] = True
             if not restarted:
                 raise RuntimeError("journal_fixture_restart_missing")
+            if args.mode == "capacity":
+                measured = private_sql(
+                    pg,
+                    "SELECT count(*), pg_total_relation_size('voiceprint_journal.entries') "
+                    "FROM voiceprint_journal.entries;",
+                )
+                if measured.returncode:
+                    raise RuntimeError("journal_fixture_capacity_measurement_failed")
+                count, size = measured.stdout.strip().split("|")
+                result["retained_records"] = int(count)
+                result["entries_relation_bytes"] = int(size)
         finally:
             owned = docker(
                 "ps", "--all", "--quiet", "--filter", "label=" + label

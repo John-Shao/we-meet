@@ -296,6 +296,28 @@ class Journal:
             current, previous = self.read_current()
             require(current == expected, "conflict")
         state = merge(previous, delta)
+        return self._append(expected, state)
+
+    def prepare_publication(self):
+        """One authenticated snapshot; its CAS can be used once, never refreshed.
+
+        Previous state stays private to the closure so callers cannot drop proofs
+        or pair an unrelated state with a newer head. Concurrent publication is
+        still rejected by the authority's append transaction.
+        """
+        require("signing_key" in self.configuration, "writer_required")
+        expected, previous = self.read_current()
+
+        def publish(delta, *, force=False):
+            require(type(force) is bool)
+            state = merge(previous, delta)
+            if state == previous and not force:
+                return None
+            return self._append(expected, state)
+
+        return dict(expected), publish
+
+    def _append(self, expected, state):
         blob = seal(self.configuration, expected, state)
         digest = hashlib.sha256(blob).hexdigest()
         result = self.call(

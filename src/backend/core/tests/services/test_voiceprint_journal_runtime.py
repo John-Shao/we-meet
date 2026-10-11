@@ -65,7 +65,8 @@ class Transport:
             return [self.record] if self.record else []
         assert "append_record" in statement
         _deployment, sequence, previous, blob, digest = parameters
-        assert sequence == self.head["sequence"] and previous == self.head["digest"]
+        if sequence != self.head["sequence"] or previous != self.head["digest"]:
+            raise journal.JournalError("voiceprint_journal_conflict")
         if self.fail_before_append:
             raise journal.JournalError("voiceprint_journal_unavailable")
         assert hashlib.sha256(blob).hexdigest() == digest
@@ -146,6 +147,54 @@ def closed(profile):
         consent.VoiceprintError, match="voiceprint_authorization_revoked"
     ):
         consent.authorize_profile(profile.pk, permission="allow_enrollment")
+
+
+def test_prepared_publication_cannot_pair_edited_head_with_old_proofs(authority):
+    _owner, _profile, transport, paths = authority
+    writer = journal.Journal(journal.load_configuration(paths["writer"], "writer"))
+    observed, publish = writer.prepare_publication()
+    observed["sequence"] = 999
+    observed["digest"] = "f" * 64
+    delta = journal.empty()
+    delta["floors"] = [
+        {"owner": str(uuid4()), "organization": None, "generation": 2, "version": 2}
+    ]
+    captured = publish(delta)
+    assert captured == transport.head and captured["sequence"] == 2
+    state = writer.read_current()[1]
+    assert len(state["floors"]) == 1 and len(state["permissions"]) == 1
+    with pytest.raises(journal.JournalError, match="conflict"):
+        publish(delta)
+
+
+def test_prepared_publication_rejects_newer_external_head_without_replacing_it(
+    authority,
+):
+    _owner, _profile, transport, paths = authority
+    writer = journal.Journal(journal.load_configuration(paths["writer"], "writer"))
+    observed, publish = writer.prepare_publication()
+    first = journal.empty()
+    first["floors"] = [
+        {"owner": str(uuid4()), "organization": None, "generation": 2, "version": 2}
+    ]
+    newer = writer.publish(observed, first)
+    second = journal.empty()
+    second["floors"] = [
+        {"owner": str(uuid4()), "organization": None, "generation": 3, "version": 3}
+    ]
+    with pytest.raises(journal.JournalError, match="conflict"):
+        publish(second)
+    assert transport.head == newer
+    assert writer.read_current()[1]["floors"] == first["floors"]
+
+
+def test_prepared_noop_does_not_append_but_ephemeral_change_must_append(authority):
+    _owner, _profile, transport, paths = authority
+    writer = journal.Journal(journal.load_configuration(paths["writer"], "writer"))
+    observed, publish = writer.prepare_publication()
+    assert publish(journal.empty()) is None
+    assert transport.head == observed
+    assert publish(journal.empty(), force=True)["sequence"] == observed["sequence"] + 1
 
 
 def test_paused_microphone_advances_authority_and_restore_requires_new_declaration(
