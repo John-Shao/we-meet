@@ -39,6 +39,7 @@ const REQUIRED_NAMESPACES = [
   'voiceprint',
   'speakerIdentification',
   'importIdentity',
+  'apps',
 ]
 const PLACEHOLDER = /\{\{\s*[\w.]+\s*\}\}/g
 
