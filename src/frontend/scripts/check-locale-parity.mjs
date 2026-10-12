@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url'
 const localesDir = fileURLToPath(new URL('../src/locales', import.meta.url))
 const BASE_LANG = 'zh'
 /** 基准语言必须存在这些命名空间；其余语言也必须全部具备。 */
-const REQUIRED_NAMESPACES = ['meetings', 'capture']
+const REQUIRED_NAMESPACES = ['meetings', 'capture', 'apps']
 const PLACEHOLDER = /\{\{\s*[\w.]+\s*\}\}/g
 
 const read = (lang, ns) =>
