@@ -316,6 +316,77 @@ it('keeps an uncertain exact request when the panel closes and reopens', async (
   expect(mocks.submit.mock.calls[1][0]).toEqual(command)
 })
 
+it.each([401, 403, 404, 410])(
+  'blocks writes after access fails with %s while retaining the uncertain command',
+  async (status) => {
+    mocks.submit.mockRejectedValue(new Error('connection lost'))
+    show()
+    fireEvent.click(await open())
+    fireEvent.click(screen.getByRole('button', { name: 'submit' }))
+    const retry = await screen.findByRole('button', { name: 'retrySame' })
+    await waitFor(() => expect(retry).not.toBeDisabled())
+    const command = mocks.submit.mock.calls[0][0]
+    mocks.read.mockRejectedValue(new ApiError(status, {}))
+    fireEvent.click(screen.getByRole('button', { name: 'refresh' }))
+    await screen.findByText('accessError')
+    expect(screen.getByRole('button', { name: 'retrySame' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'cancel' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'retrySame' }))
+    expect(mocks.submit).toHaveBeenCalledOnce()
+    expect(identityIntent(new IdentificationClient(RECORD, OWNER))).toEqual(
+      command
+    )
+    expect(
+      screen.queryByRole('checkbox', { name: 'Ada' })
+    ).not.toBeInTheDocument()
+  }
+)
+
+it('discards a command definitively rejected as invalid instead of offering exact retries', async () => {
+  mocks.submit.mockRejectedValue(new ApiError(400, {}))
+  show()
+  fireEvent.click(await open())
+  fireEvent.click(screen.getByRole('button', { name: 'submit' }))
+  await screen.findByText('requestError')
+  expect(
+    screen.queryByRole('button', { name: 'retrySame' })
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'cancel' })
+  ).not.toBeInTheDocument()
+  expect(
+    identityIntent(new IdentificationClient(RECORD, OWNER))
+  ).toBeUndefined()
+  mocks.submit.mockResolvedValue(response(true))
+  fireEvent.click(screen.getByRole('button', { name: 'refresh' }))
+  fireEvent.click(await screen.findByRole('checkbox', { name: 'Ada' }))
+  fireEvent.click(screen.getByRole('button', { name: 'submit' }))
+  await waitFor(() => expect(mocks.submit).toHaveBeenCalledTimes(2))
+  expect(mocks.submit.mock.calls[1][0].request_key).not.toBe(
+    mocks.submit.mock.calls[0][0].request_key
+  )
+})
+
+it('keeps an uncertain submission when an unrelated refresh receives 400', async () => {
+  mocks.submit.mockRejectedValue(new Error('connection lost'))
+  show()
+  fireEvent.click(await open())
+  fireEvent.click(screen.getByRole('button', { name: 'submit' }))
+  const retry = await screen.findByRole('button', { name: 'retrySame' })
+  await waitFor(() => expect(retry).not.toBeDisabled())
+  const command = mocks.submit.mock.calls[0][0]
+  mocks.read.mockRejectedValue(new ApiError(400, {}))
+  fireEvent.click(screen.getByRole('button', { name: 'refresh' }))
+  await waitFor(() => expect(mocks.read).toHaveBeenCalledTimes(2))
+  await waitFor(() => expect(retry).not.toBeDisabled())
+  expect(identityIntent(new IdentificationClient(RECORD, OWNER))).toEqual(
+    command
+  )
+  fireEvent.click(retry)
+  await waitFor(() => expect(mocks.submit).toHaveBeenCalledTimes(2))
+  expect(mocks.submit.mock.calls[1][0]).toEqual(command)
+})
+
 it("recovers another panel's uncertain command without sending or reading a new request key", async () => {
   const client = new IdentificationClient(RECORD, OWNER)
   show()

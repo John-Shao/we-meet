@@ -216,14 +216,17 @@ def test_candidate_pagination_is_bounded_stable_and_does_not_expand_scope(case):
     "feature_enabled,matching",
     [(False, False), (False, True), (True, False), (True, True)],
 )
+@pytest.mark.parametrize("sampling", [False, True])
 def test_frontend_matching_flag_requires_both_feature_switches(
-    case, settings, feature_enabled, matching
+    case, settings, feature_enabled, matching, sampling
 ):
     settings.MEETING_VOICEPRINT_ENABLED = feature_enabled
     settings.MEETING_VOICEPRINT_MATCHING_ENABLED = matching
+    settings.MEETING_VOICEPRINT_SAMPLING_ENABLED = sampling
     response = client_for(case.actor).get("/api/v1.0/config/")
     assert response.status_code == 200
     assert response.data["speaker_identity"] == {
         "enabled": feature_enabled,
         "matching_enabled": feature_enabled and matching,
+        "sampling_enabled": feature_enabled and sampling,
     }

@@ -516,6 +516,76 @@ def test_unavailable_keys_retry_before_audio_and_recover_with_current_context(
     assert lease and service.authorized(lease)
 
 
+@pytest.mark.parametrize("resource", ["keyring", "policy"])
+def test_temporary_context_failure_at_finish_retries_without_publication(
+    case, settings, resource
+):
+    job = enqueue(case)
+    lease = service.claim(job.pk)
+    path = Path(
+        settings.MEETING_VOICEPRINT_KEYRING_FILE
+        if resource == "keyring"
+        else settings.MEETING_VOICEPRINT_THRESHOLD_CONFIG_FILE
+    )
+    original = path.read_bytes()
+    path.write_bytes(b"temporarily unavailable synthetic configuration")
+    assert not service.finish(lease, query=ready(lease))
+    job.refresh_from_db()
+    assert job.status == "failed" and job.retryable and job.attempts == 1
+    assert job.error_code == "identity_templates_unavailable"
+    assert job.lease_token is None and job.pk in service.pending_ids(100)
+    assert not models.SpeakerIdentitySuggestion.objects.exists()
+    case.speaker.refresh_from_db()
+    assert case.speaker.user_id is None
+    path.write_bytes(original)
+    new = service.claim(job.pk)
+    assert new and new.token != lease.token
+    assert not service.finish(lease, query=ready(lease))
+    assert service.finish(new, query=ready(new))
+    job.refresh_from_db()
+    assert job.status == "succeeded" and job.attempts == 2
+
+
+def test_temporary_policy_failure_during_scoring_retries(case, settings, monkeypatch):
+    job = enqueue(case)
+    lease = service.claim(job.pk)
+    path = Path(settings.MEETING_VOICEPRINT_THRESHOLD_CONFIG_FILE)
+    original = path.read_bytes()
+    match = service.matching.match
+
+    def unavailable(*args, **kwargs):
+        result = match(*args, **kwargs)
+        path.write_bytes(b"temporarily unavailable synthetic policy")
+        return result
+
+    with monkeypatch.context() as patch:
+        patch.setattr(service.matching, "match", unavailable)
+        assert not service.finish(lease, query=ready(lease))
+    job.refresh_from_db()
+    assert job.status == "failed" and job.retryable and job.attempts == 1
+    assert not models.SpeakerIdentitySuggestion.objects.exists()
+    path.write_bytes(original)
+    new = service.claim(job.pk)
+    assert new and service.finish(new, query=ready(new))
+
+
+def test_temporary_finish_failure_exhausts_three_attempts(case, settings):
+    job = enqueue(case)
+    path = Path(settings.MEETING_VOICEPRINT_KEYRING_FILE)
+    original = path.read_bytes()
+    for attempt in range(1, 4):
+        lease = service.claim(job.pk)
+        assert lease
+        path.write_bytes(b"temporarily unavailable synthetic keyring")
+        assert not service.finish(lease, query=ready(lease))
+        job.refresh_from_db()
+        assert job.attempts == attempt and job.status == "failed"
+        assert job.retryable == (attempt < 3)
+        path.write_bytes(original)
+    assert service.claim(job.pk) is None and not service.pending_ids(100)
+    assert not models.SpeakerIdentitySuggestion.objects.exists()
+
+
 def test_queue_scan_is_ordered_bounded_and_rejects_boolean_limit(case):
     first, second = enqueue(case), enqueue(case)
     assert service.pending_ids(1) == [first.pk]

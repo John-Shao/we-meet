@@ -310,6 +310,19 @@ def stop(job, *, status, code="", retryable=False):
         )
 
 
+def stop_context_error(job, error):
+    """Unavailable artifacts must not be confused with revoked authorization."""
+    if isinstance(error, VoiceprintError) and error.status == 503:
+        stop(
+            job,
+            status="failed",
+            code="identity_templates_unavailable",
+            retryable=job.attempts < MAX_ATTEMPTS,
+        )
+    else:
+        stop(job, status="canceled", code="identity_context_changed")
+
+
 def pending_ids(limit):
     if type(limit) is not int or not 1 <= limit <= 100:
         raise VoiceprintError("voiceprint_identity_limit_invalid", status=400)
@@ -371,14 +384,7 @@ def claim(identifier):  # noqa: PLR0911 -- State, time and context guards preced
         if isinstance(error, VoiceprintError) and error.status == 503:
             job.attempts += 1
             job.save(update_fields=["attempts", "updated_at"])
-            stop(
-                job,
-                status="failed",
-                code="identity_templates_unavailable",
-                retryable=job.attempts < MAX_ATTEMPTS,
-            )
-        else:
-            stop(job, status="canceled", code="identity_context_changed")
+        stop_context_error(job, error)
         return None
     job.status, job.retryable, job.error_code = "running", False, ""
     job.attempts += 1
@@ -400,6 +406,14 @@ def claim(identifier):  # noqa: PLR0911 -- State, time and context guards preced
 
 
 def authorized(lease):
+    """Fail closed for audio I/O; publication handles temporary outages separately."""
+    try:
+        return _authorized(lease)
+    except (VoiceprintError, PermissionError):
+        return False
+
+
+def _authorized(lease):
     if not isinstance(lease, IdentityLease) or lease.expires_at <= timezone.now():
         return False
     current = (
@@ -429,14 +443,28 @@ def authorized(lease):
         or presentation_digest(speaker) != current["presentation_digest"]
     ):
         return False
+    return (
+        policy().digest == lease.policy.digest
+        and sources.authorized(lease.source)
+        and candidates.authorized(lease.pool)
+    )
+
+
+def authorize_publication(job, lease):
+    """Stop unauthorized results while preserving bounded outage retries."""
     try:
-        return (
-            policy().digest == lease.policy.digest
-            and sources.authorized(lease.source)
-            and candidates.authorized(lease.pool)
-        )
-    except (VoiceprintError, PermissionError):
+        if _authorized(lease):
+            return True
+    except (VoiceprintError, PermissionError) as error:
+        stop_context_error(job, error)
         return False
+    expired = min(job.expires_at, lease.expires_at) <= timezone.now()
+    stop(
+        job,
+        status="expired" if expired else "canceled",
+        code="identity_context_changed",
+    )
+    return False
 
 
 @transaction.atomic
@@ -456,8 +484,8 @@ def finish(lease, *, query=None, error=None):  # noqa: PLR0911 -- Reject late/co
             lease.policy.digest,
         ):
             raise VoiceprintError("voiceprint_identity_context_changed")
-    except (VoiceprintError, PermissionError):
-        stop(job, status="canceled", code="identity_context_changed")
+    except (VoiceprintError, PermissionError) as context_error:
+        stop_context_error(job, context_error)
         return False
     if error is not None:
         stop(
@@ -523,13 +551,7 @@ def finish(lease, *, query=None, error=None):  # noqa: PLR0911 -- Reject late/co
             stop(job, status="failed", code="identity_query_invalid")
             return False
         result = matching.MatchResult(query.status, query.reason)
-    if not authorized(lease):
-        expired = min(job.expires_at, lease.expires_at) <= timezone.now()
-        stop(
-            job,
-            status="expired" if expired else "canceled",
-            code="identity_context_changed",
-        )
+    if not authorize_publication(job, lease):
         return False
     models.SpeakerIdentitySuggestion.objects.create(
         job=job,

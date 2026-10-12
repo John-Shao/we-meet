@@ -161,20 +161,21 @@ function IdentificationBody({
 
   const live = (signal: AbortSignal) =>
     !signal.aborted && sameAuthSession(client.auth)
-  const fail = (reason: unknown) => {
+  const fail = (reason: unknown, rejectedSubmission = false) => {
     previewStop.current()
     setResponse(undefined)
     setPeople(undefined)
     setSelected({})
     const status = reason instanceof ApiError ? reason.statusCode : 0
     const remembered = identityIntent(client)
-    if (status === 409 && remembered) {
-      acknowledgeIdentityIntent(client, remembered.request_key)
+    const rejected = status === 409 || (rejectedSubmission && status === 400)
+    if (rejected) {
+      if (remembered) acknowledgeIdentityIntent(client, remembered.request_key)
       requestKey.current = undefined
     } else if (remembered) {
       requestKey.current = remembered.request_key
     }
-    setRetry(status === 409 ? undefined : remembered)
+    setRetry(rejected ? undefined : remembered)
     const unknownSubmission =
       remembered &&
       reason instanceof ApiError &&
@@ -186,7 +187,7 @@ function IdentificationBody({
     setError(
       status === 409
         ? 'conflict'
-        : [401, 403, 404].includes(status) && !unknownSubmission
+        : [401, 403, 404, 410].includes(status) && !unknownSubmission
           ? 'accessError'
           : 'requestError'
     )
@@ -357,6 +358,7 @@ function IdentificationBody({
   ])
 
   const submit = (input?: IdentitySubmission) => {
+    if (error === 'accessError') return
     void run(async (signal) => {
       const command = input ?? {
         request_key: crypto.randomUUID(),
@@ -375,7 +377,7 @@ function IdentificationBody({
         setError(undefined)
       } catch (reason) {
         if (!live(signal)) return
-        fail(reason)
+        fail(reason, true)
         if (!(reason instanceof ApiError) || reason.statusCode >= 500)
           setRetry(command)
       }
@@ -459,7 +461,7 @@ function IdentificationBody({
           <Button
             size="dense"
             variant="secondaryText"
-            isDisabled={busy}
+            isDisabled={busy || error === 'accessError'}
             onPress={() => submit(retry)}
           >
             {t('retrySame')}
