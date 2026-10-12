@@ -1,0 +1,64 @@
+{
+  "title": "应用",
+  "favorites": "常用应用",
+  "allApps": "全部应用",
+  "addFavorites": "添加常用",
+  "manage": "管理常用",
+  "done": "完成",
+  "back": "返回",
+  "addedCount": "已添加（{{count}}）",
+  "search": "搜索应用",
+  "categories": "应用分类",
+  "add": "添加",
+  "added": "已添加",
+  "remove": "移除",
+  "addName": "添加{{name}}",
+  "addedName": "已添加{{name}}",
+  "removeName": "移除{{name}}",
+  "dragName": "拖动{{name}}排序",
+  "moveUp": "上移{{name}}",
+  "moveDown": "下移{{name}}",
+  "reorderHint": "拖动右侧手柄调整顺序，也可使用上下箭头。修改自动保存。",
+  "orderSaved": "常用应用顺序已保存",
+  "emptyFavorites": "添加常用应用，方便下次快速打开。",
+  "emptySearch": "未找到匹配的应用",
+  "emptyRecent": "使用过的应用会显示在这里。",
+  "emptyApps": "此分类暂无应用。",
+  "groups": {
+    "all": "全部",
+    "recent": "最近使用",
+    "time": "时间与待办",
+    "organization": "组织与流程",
+    "ai": "AI 工具"
+  },
+  "items": {
+    "calendar": {
+      "name": "日历",
+      "description": "查看日程，安排会议与时间。"
+    },
+    "tasks": {
+      "name": "任务",
+      "description": "管理待办事项，跟进任务进度。"
+    },
+    "contacts": {
+      "name": "通讯录",
+      "description": "查找同事、部门与组织联系人。"
+    },
+    "approval": {
+      "name": "审批",
+      "description": "发起申请，处理待审批事项。"
+    },
+    "communication": {
+      "name": "沟通准备",
+      "description": "根据材料整理背景、议程和建议话术。"
+    },
+    "weekly": {
+      "name": "周报",
+      "description": "整理工作进展，生成周报。"
+    },
+    "spreadsheet": {
+      "name": "表格分析",
+      "description": "分析表格数据，提取统计结果与结论。"
+    }
+  }
+}

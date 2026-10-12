@@ -43,6 +43,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
   const compactContacts =
     smallScreen &&
     (location === '/contacts' ||
+      location === '/apps' ||
       location === '/work' ||
       location === '/work/new')
   const [compactRailExpanded, setCompactRailExpanded] = useState(false)

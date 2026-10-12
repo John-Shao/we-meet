@@ -1,4 +1,5 @@
-import { Link, useLocation } from 'wouter'
+import { useEffect } from 'react'
+import { Link, useLocation, useSearch } from 'wouter'
 import { useTranslation } from 'react-i18next'
 import {
   Button as RACButton,
@@ -9,10 +10,7 @@ import {
   RiMessage3Line,
   RiBriefcaseLine,
   RiVidiconLine,
-  RiCalendarLine,
-  RiCheckboxCircleLine,
-  RiTaskLine,
-  RiContactsBookLine,
+  RiApps2Line,
   RiFileTextLine,
   RiRobot2Line,
   RiLayoutLeftLine,
@@ -36,6 +34,12 @@ import {
 import { useImUnread } from '@/features/im/components/ImUnreadProvider'
 import { fetchApprovals } from '@/features/approval/api/fetchApproval'
 import { GlobalSearch } from './GlobalSearch'
+import {
+  appAtLocation,
+  availableApps,
+  isModulePath,
+} from '@/features/apps/catalog'
+import { useAppPreferences } from '@/features/apps/useAppPreferences'
 
 /**
  * P6 global primary navigation rail — DeepSeek-style light shell (column 1).
@@ -53,12 +57,10 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: '/im', labelKey: 'nav.messages', Icon: RiMessage3Line },
   { to: '/assistant', labelKey: 'nav.assistant', Icon: RiRobot2Line },
-  { to: '/work', labelKey: 'nav.work', Icon: RiBriefcaseLine },
   { to: '/meeting', labelKey: 'nav.meeting', Icon: RiVidiconLine },
-  { to: '/calendar', labelKey: 'nav.calendar', Icon: RiCalendarLine },
-  { to: '/approval', labelKey: 'nav.approval', Icon: RiCheckboxCircleLine },
-  { to: '/tasks', labelKey: 'nav.tasks', Icon: RiTaskLine },
-  { to: '/contacts', labelKey: 'nav.contacts', Icon: RiContactsBookLine },
+  { to: '/work', labelKey: 'nav.work', Icon: RiBriefcaseLine },
+  { to: '/docs', labelKey: 'nav.docs', Icon: RiFileTextLine },
+  { to: '/apps', labelKey: 'nav.apps', Icon: RiApps2Line },
 ]
 
 /** 单 css() 内联条件 —— cx 叠加同属性原子类按样式表顺序取胜(非书写
@@ -127,15 +129,35 @@ interface Props {
 export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
   const desktopShell = !!window.weMeetDesktop?.shell
   const { t } = useTranslation('shell')
+  const { t: appText } = useTranslation('apps')
   const { user, logout } = useUser()
   const { data: config } = useConfig()
   const [location] = useLocation()
+  const search = useSearch()
+  const preferences = useAppPreferences(user?.id ?? '')
+  const { opened } = preferences
+  const catalog = availableApps(config?.work?.enabled === true)
+  const favorites = preferences.favorites.flatMap((id) => {
+    const app = catalog.find((item) => item.id === id)
+    return app ? [app] : []
+  })
+  const currentApp = appAtLocation(location, search)
+  const currentAppId = catalog.find((app) => app.id === currentApp?.id)?.id
+  useEffect(() => {
+    if (currentAppId) opened(currentAppId)
+  }, [currentAppId, opened])
+  const activePrimary = (to: string) =>
+    isModulePath(location, to) ||
+    (to === '/apps' && currentApp?.group !== 'ai' && !!currentApp) ||
+    (to === '/meeting' && location.startsWith('/meetings/'))
   // P8 设置收敛:弹窗开关走全局 store,模块快捷入口(日历页齿轮等)也能打开。
   const { open: settingsOpen, section: settingsSection } =
     useSnapshot(systemSettingsStore)
   const docsUrl = config?.docs?.url
   const visibleNav = NAV.filter(
-    (item) => item.to !== '/work' || config?.work?.enabled
+    (item) =>
+      (item.to !== '/work' || config?.work?.enabled) &&
+      (item.to !== '/docs' || docsUrl)
   )
   const initial = (user?.full_name || user?.email || '?')
     .slice(0, 1)
@@ -157,7 +179,7 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
   const badgeFor = (to: string): number =>
     to === '/im'
       ? unreadMessages
-      : to === '/approval'
+      : to === '/approval' || to === '/apps'
         ? pendingApprovals.length
         : 0
 
@@ -299,6 +321,9 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
           display: 'flex',
           flexDirection: 'column',
           gap: '0.125rem',
+          overflowY: 'auto',
+          minHeight: 0,
+          flex: 1,
         })}
       >
         {visibleNav.map((item) => {
@@ -309,7 +334,8 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
               to={item.to}
               data-testid={`rail-${item.to}`}
               title={collapsed ? t(item.labelKey) : undefined}
-              className={itemCls(location === item.to, collapsed)}
+              className={itemCls(activePrimary(item.to), collapsed)}
+              aria-current={activePrimary(item.to) ? 'page' : undefined}
             >
               <span
                 className={css({
@@ -361,16 +387,62 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
             </Link>
           )
         })}
-        {docsUrl && (
-          <Link
-            to="/docs"
-            data-testid="rail-/docs"
-            title={collapsed ? t('nav.docs') : undefined}
-            className={itemCls(location === '/docs', collapsed)}
+        {favorites.length > 0 && (
+          <div
+            role="group"
+            aria-label={appText('favorites')}
+            className={css({
+              marginTop: 'lg',
+              paddingTop: 'sm',
+              borderTop: '1px solid token(colors.border.subtle)',
+            })}
           >
-            <RiFileTextLine size={18} />
-            {!collapsed && <span>{t('nav.docs')}</span>}
-          </Link>
+            {!collapsed && (
+              <p
+                className={css({
+                  textStyle: 'labelSmall',
+                  color: 'text.secondary',
+                  paddingX: 'md',
+                  paddingY: 'sm',
+                })}
+              >
+                {appText('favorites')}
+              </p>
+            )}
+            {favorites.map((app) => (
+              <Link
+                key={app.id}
+                href={app.href}
+                data-testid={`rail-shortcut-${app.id}`}
+                title={collapsed ? appText(`items.${app.id}.name`) : undefined}
+                className={itemCls(currentAppId === app.id, collapsed)}
+                aria-current={currentAppId === app.id ? 'page' : undefined}
+              >
+                <app.Icon size={18} aria-hidden="true" />
+                <span
+                  className={
+                    collapsed ? css({ srOnly: true }) : css({ flex: 1 })
+                  }
+                >
+                  {appText(`items.${app.id}.name`)}
+                </span>
+                {!collapsed &&
+                  app.id === 'approval' &&
+                  pendingApprovals.length > 0 && (
+                    <span
+                      className={css({
+                        textStyle: 'labelSmall',
+                        color: 'text.secondary',
+                      })}
+                    >
+                      {pendingApprovals.length > 99
+                        ? '99+'
+                        : pendingApprovals.length}
+                    </span>
+                  )}
+              </Link>
+            ))}
+          </div>
         )}
       </div>
 
