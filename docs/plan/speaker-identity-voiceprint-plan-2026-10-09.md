@@ -1,5 +1,7 @@
 # 会议与通话声纹身份识别方案
 
+2026-10-12 后续 [Android 16 隔离验收](https://github.com/John-Shao/we-meet-android/blob/main/docs/speaker-identity-api36-validation-2026-10-12.md)在修复提交 `f5b81c72` 上完成 API 36 的 66 项仪器回归及五张中文暗色／大字号截图检查。实际进入 API 31 以上的通信路由监听注册与释放分支，麦克风、相机和蓝牙连接权限保持关闭；独立测试包已卸载。该证据补齐一个新系统版本的隔离交互覆盖，不替代真实手机／耳机换路由、生产 Application、真人效果或真实云端 ASR 验收。
+
 2026-10-12 后续[参会者身份识别走查](../research/voiceprint-participant-identity-code-review-2026-10-12.md)修复任务临时故障重试、两端未知提交与访问拒绝处理、Android 导入私有状态残留；后端 356 项（含四项实际固定 Qwen encoder 补验）、Web 173 项、Android 136 项通过。代码已进入后端 `aliyun-dev` 与 Android `main` 的交付整理；本轮不重新部署或替换内部 APK，不改变生产声纹开关。真实 Qwen 云端 ASR、获授权真人效果／校准、真实设备与 ECS／监控等仍按下述用户安排后补，完整目标尚未通过验收。
 
 当前实现、基线合并修复、跨端回归及用户提供 ECS 的只读核验统一见[交付走查与验收边界](../research/voiceprint-delivery-audit-2026-10-11.md)。该报告区分合成工程验证与尚缺的真人／设备／生产准入证据，作为下列阶段报告的当前索引。
