@@ -201,7 +201,7 @@
     "file": "本地文件",
     "voice": "语音",
     "emoji": "发送表情",
-    "doc": "云文档",
+    "doc": "文档",
     "schedule": "日程",
     "dropHint": "松开发送图片或文件"
   },
@@ -218,7 +218,7 @@
     "phoneViewed": "手机号码查看提醒",
     "event": "[日程]",
     "calendar": "日历分享",
-    "doc": "[云文档]",
+    "doc": "[文档]",
     "record": "[会议记录]",
     "richCard": "[卡片]",
     "richText": "[富文本]"
@@ -239,7 +239,7 @@
     "join": "加入会议"
   },
   "docPicker": {
-    "title": "分享云文档",
+    "title": "分享文档",
     "search": "搜索文档",
     "selected": "已选 {{count}} 项",
     "send": "发送 ({{count}})",
