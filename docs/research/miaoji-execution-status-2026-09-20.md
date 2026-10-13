@@ -1,22 +1,24 @@
 # 妙记差距整改：执行状态
 
+> 归档说明（2026-10-13）：本页保留原日期的盘点、执行或验收历史。阅读入口见[状态摘要](miaoji-status-summary.md)，逐批记录见[归档索引](../archive/miaoji/README.md)。历史“待部署／下一步”不作为当前实施指令。
+
 > **当前功能状态与优先级以[2026-09-22重新盘点](miaoji-current-gaps-2026-09-22.md)为准。** 本页保留批次历史，不把下方早期“未实现/待部署”当作当前状态。跨记录候选质量未通过不阻塞所有产品建设；建议下一实施项为原生源语言/个人热词，再补自动分人。
 
-> [第76批](miaoji-batch-76-answer-support-check.md)：28次真实自动核查，控制风险检出5/6，但第75批真实回答风险检出0/5，全部被误放行。13项测试通过，21,895 tokens；同模型核查不能作为上线门槛，当前生成/核查组合有质量阻塞，停止该候选推广。人工继续跳过，生产不变，无需部署。
+> [第76批](../archive/miaoji/miaoji-batch-76-answer-support-check.md)：28次真实自动核查，控制风险检出5/6，但第75批真实回答风险检出0/5，全部被误放行。13项测试通过，21,895 tokens；同模型核查不能作为上线门槛，当前生成/核查组合有质量阻塞，停止该候选推广。人工继续跳过，生产不变，无需部署。
 
-> [第75批](miaoji-batch-75-bounded-evidence-context.md)：补充同来源相邻原文后，输入事实组完整性15/20→20/20；16次真实生成发现5条语义风险（含“10秒之后”变“10秒内”），候选不推广。24项测试通过，18,204 tokens，完整保留输入/响应/审读。继续自动验证逐事实支撑，不等待人工，无需部署。
+> [第75批](../archive/miaoji/miaoji-batch-75-bounded-evidence-context.md)：补充同来源相邻原文后，输入事实组完整性15/20→20/20；16次真实生成发现5条语义风险（含“10秒之后”变“10秒内”），候选不推广。24项测试通过，18,204 tokens，完整保留输入/响应/审读。继续自动验证逐事实支撑，不等待人工，无需部署。
 
-> [第74批](miaoji-batch-74-answer-faithfulness.md)：自动比较两版通用回答约束；第一版因果风险5→2但遗漏已知延期，第二版恢复已知信息却仍有5个因果风险输出。两版均未采用，生产提示已恢复原状。42个不同测试通过，完整保留56个响应及一次超时接续记录。人工复核继续跳过；无需部署，下一方向为证据上下文与逐事实支撑。
+> [第74批](../archive/miaoji/miaoji-batch-74-answer-faithfulness.md)：自动比较两版通用回答约束；第一版因果风险5→2但遗漏已知延期，第二版恢复已知信息却仍有5个因果风险输出。两版均未采用，生产提示已恢复原状。42个不同测试通过，完整保留56个响应及一次超时接续记录。人工复核继续跳过；无需部署，下一方向为证据上下文与逐事实支撑。
 
-> [第73批](miaoji-batch-73-automatic-answer-audit.md)：16次真实答案生成＋4次空证据文案，20个结果引用编号均合法；自动审读发现5个因果表达风险、5个上游遗漏导致的不完整答案，未发现编造责任人/日期或声称改动已完成。16项测试通过。自动进入因果表达约束修复，不等待人工复核；本批无需部署。
+> [第73批](../archive/miaoji/miaoji-batch-73-automatic-answer-audit.md)：16次真实答案生成＋4次空证据文案，20个结果引用编号均合法；自动审读发现5个因果表达风险、5个上游遗漏导致的不完整答案，未发现编造责任人/日期或声称改动已完成。16项测试通过。自动进入因果表达约束修复，不等待人工复核；本批无需部署。
 
-> [第72批](miaoji-batch-72-automatic-media-evaluation.md)：用户已要求跳过人工复核，后续不等待填题。五个媒体问题正反序/两方案共20次请求，自动决策均10/10一致，完整证据参考一致性为8/10与7/10，暴露协议理由遗漏和倒序指代对象丢失。23项测试通过；助手参考单独保存，不伪造人工标注。自动继续答案核验，未推广、无需部署。
+> [第72批](../archive/miaoji/miaoji-batch-72-automatic-media-evaluation.md)：用户已要求跳过人工复核，后续不等待填题。五个媒体问题正反序/两方案共20次请求，自动决策均10/10一致，完整证据参考一致性为8/10与7/10，暴露协议理由遗漏和倒序指代对象丢失。23项测试通过；助手参考单独保存，不伪造人工标注。自动继续答案核验，未推广、无需部署。
 
-> [第71批](miaoji-batch-71-authorized-media-review.md)：从既有授权音视频读取26段真实原文，连同时间/回听链接及5个助手拟题整理为人工复核包；不是用户查询日志，未填写期望答案。30项测试通过，M01–M05全部pending，等待人工判断后进入校准；原第68批待定不变。无模型调用、业务写入或部署要求。
+> [第71批](../archive/miaoji/miaoji-batch-71-authorized-media-review.md)：从既有授权音视频读取26段真实原文，连同时间/回听链接及5个助手拟题整理为人工复核包；不是用户查询日志，未填写期望答案。30项测试通过，M01–M05全部pending，等待人工判断后进入校准；原第68批待定不变。无模型调用、业务写入或部署要求。
 
-> [第70批](miaoji-batch-70-human-subset-replay.md)：用5题已定人工结论只读重放第66批冻结输出，决策＋证据集合一致性为基础3/5、场景2/5；R01/R04/R05待定并显式排除，不改变第68批整套准入。30项测试通过、无新模型调用。新题高分不能替代自然问法验证；当前等待真实业务问题/原文/期望样本，不推广、无需部署。
+> [第70批](../archive/miaoji/miaoji-batch-70-human-subset-replay.md)：用5题已定人工结论只读重放第66批冻结输出，决策＋证据集合一致性为基础3/5、场景2/5；R01/R04/R05待定并显式排除，不改变第68批整套准入。30项测试通过、无新模型调用。新题高分不能替代自然问法验证；当前等待真实业务问题/原文/期望样本，不推广、无需部署。
 
-> [第69批](miaoji-batch-69-explicit-context-evaluation.md)：另建10个明确上下文合成场景及候选倒序，共40次模型响应；沿用第66批提示词，基础方案18/20、场景方案20/20，成对通过9/10与10/10。43项契约测试通过，原第68批三题待定及历史gold不变。只测固定候选证据选择，未验收最终答案或线上召回，未推广、无需部署。
+> [第69批](../archive/miaoji/miaoji-batch-69-explicit-context-evaluation.md)：另建10个明确上下文合成场景及候选倒序，共40次模型响应；沿用第66批提示词，基础方案18/20、场景方案20/20，成对通过9/10与10/10。43项契约测试通过，原第68批三题待定及历史gold不变。只测固定候选证据选择，未验收最终答案或线上召回，未推广、无需部署。
 
 > [ASR 无语音分类与提示](miaoji-asr-no-speech-2026-09-21.md)：真实静音复测确认 ASR_RESPONSE_HAVE_NO_WORDS；新增严格分类、受保护的结束回执、Web/Android 提示。后端/双端回归通过；待部署 backend/frontend/agents 并更新 Android 后验收新任务。历史失败不改写，真实人声及纪要质量仍待补。
 
@@ -26,33 +28,33 @@
 
 > [ASR 质量基线与阶段诊断专项](miaoji-asr-quality-diagnostics-2026-09-21.md)：六个冻结合成音频已完成真实 filetrans 测量（5/6 成功，静音轮询失败）；新增白名单阶段日志及只读查询，62 项相关测试通过。仅 agents 待发布，真实多人/纪要质量与生产 Pod 验收仍保留；本专项不占用批次号。
 
-> [第68批](miaoji-batch-68-human-intent-review.md)：2026-09-22 已收到八题人工填写并整理入JSON：R02/R03/R06/R08回答，R07经会话确认保持澄清并补充追问；R01/R04/R05保留需补上下文。结构校验通过、无漏填，因三题待定，ready_for_scoring=false（CLI退出2）。既有工具32项测试为历史结果；本轮只校验标注与源一致性，不改旧gold、不启用模型、无需部署。
+> [第68批](../archive/miaoji/miaoji-batch-68-human-intent-review.md)：2026-09-22 已收到八题人工填写并整理入JSON：R02/R03/R06/R08回答，R07经会话确认保持澄清并补充追问；R01/R04/R05保留需补上下文。结构校验通过、无漏填，因三题待定，ready_for_scoring=false（CLI退出2）。既有工具32项测试为历史结果；本轮只校验标注与源一致性，不改旧gold、不启用模型、无需部署。
 
-> [第67批](miaoji-batch-67-dedicated-reranker.md)：专用qwen3-rerank完成36次冻结请求，Top 1干扰证据4/6、Top 2为5/6，但退货空态失败且多证据会丢失；排序不提供拒答/澄清。281项测试通过，用户确定多项目指代不清时先追问。未推广，无需部署；自动进入人工意图复核包准备。
+> [第67批](../archive/miaoji/miaoji-batch-67-dedicated-reranker.md)：专用qwen3-rerank完成36次冻结请求，Top 1干扰证据4/6、Top 2为5/6，但退货空态失败且多证据会丢失；排序不提供拒答/澄清。281项测试通过，用户确定多项目指代不清时先追问。未推广，无需部署；自动进入人工意图复核包准备。
 
-> [第66批](miaoji-batch-66-structured-scenario-reranking.md)：严格Schema两方案72次请求均通过结构/原文校验；格式方案旧题23/25、8/8、干扰4/6，场景方案22/25、7/8、3/6。新增控制分别12/14、14/14，但旧控制均5/6，未过推广门槛；279项测试通过。下一步先独立复核歧义与明确任务上下文，不继续堆提示词。仅评测/文档，无需部署。
+> [第66批](../archive/miaoji/miaoji-batch-66-structured-scenario-reranking.md)：严格Schema两方案72次请求均通过结构/原文校验；格式方案旧题23/25、8/8、干扰4/6，场景方案22/25、7/8、3/6。新增控制分别12/14、14/14，但旧控制均5/6，未过推广门槛；279项测试通过。下一步先独立复核歧义与明确任务上下文，不继续堆提示词。仅评测/文档，无需部署。
 
-> [第65批](miaoji-batch-65-entity-evidence-reranking.md)：完成编号过滤与真实证据重排四方案对照。重排原题23/25、第63批正例8/8，全部应为空题恢复；但干扰正例由语义6/6降到3/6，含上线错配快递和一次输出结构失败，候选不推广。104项测试通过；下一项处理结构可靠性、场景歧义与独立复核。仅评测/文档，无需部署。
+> [第65批](../archive/miaoji/miaoji-batch-65-entity-evidence-reranking.md)：完成编号过滤与真实证据重排四方案对照。重排原题23/25、第63批正例8/8，全部应为空题恢复；但干扰正例由语义6/6降到3/6，含上线错配快递和一次输出结构失败，候选不推广。104项测试通过；下一项处理结构可靠性、场景歧义与独立复核。仅评测/文档，无需部署。
 
-> [第64批](miaoji-batch-64-semantic-retrieval-evaluation.md)：真实1024维语义向量完成三套题库/五档阈值对照。0.55原题库23/25、旧新增5/8，但新干扰题仍错配项目实体；0.65空态恢复却丢失多数目标证据。105项测试通过，候选不推广；下一步先评测实体约束/重排。仅评测与文档，无需部署，生产仍为字面基线。
+> [第64批](../archive/miaoji/miaoji-batch-64-semantic-retrieval-evaluation.md)：真实1024维语义向量完成三套题库/五档阈值对照。0.55原题库23/25、旧新增5/8，但新干扰题仍错配项目实体；0.65空态恢复却丢失多数目标证据。105项测试通过，候选不推广；下一步先评测实体约束/重排。仅评测与文档，无需部署，生产仍为字面基线。
 
-> [第63批](miaoji-batch-63-query-expansion-evaluation.md)：完成空结果同义/跨语言改写离线对照，原31题21/25→22/25，新14题正例1/8→3/8，空态保持；15次真实改写，中位2.471秒，90项测试通过。收益有限，暂不接入生产；生产质量基线仍21/25。仅评测/文档，无镜像或部署要求。
+> [第63批](../archive/miaoji/miaoji-batch-63-query-expansion-evaluation.md)：完成空结果同义/跨语言改写离线对照，原31题21/25→22/25，新14题正例1/8→3/8，空态保持；15次真实改写，中位2.471秒，90项测试通过。收益有限，暂不接入生产；生产质量基线仍21/25。仅评测/文档，无镜像或部署要求。
 
-> [第62批](miaoji-batch-62-production-qa-acceptance.md)：Helm388/backend `4c5ca713f`已部署。四题生产API通过，明确短语旧候选8→0，自然回答无额外成本解释，5条已用引用与当前原文/时间一致，非空SSE完整通过。App本轮因共享模拟器自动化占用待补；重复出处及R8其他质量缺口继续保留。本批仅文档，无需再部署。
+> [第62批](../archive/miaoji/miaoji-batch-62-production-qa-acceptance.md)：Helm388/backend `4c5ca713f`已部署。四题生产API通过，明确短语旧候选8→0，自然回答无额外成本解释，5条已用引用与当前原文/时间一致，非空SSE完整通过。App本轮因共享模拟器自动化占用待补；重复出处及R8其他质量缺口继续保留。本批仅文档，无需再部署。
 
-> [第61批](miaoji-batch-61-quoted-search-and-answer-support.md)：短语不再拆词，旧会议候选先检查完整短语；保留引号外查询词兼容修订。116项通过，两套冻结题库逐题无退化；6题实际生成核心事实均正确，新规则下未出现额外成本解释，冲突日期表达仍缺。仅backend待发布和生产重问，R8未关闭。
+> [第61批](../archive/miaoji/miaoji-batch-61-quoted-search-and-answer-support.md)：短语不再拆词，旧会议候选先检查完整短语；保留引号外查询词兼容修订。116项通过，两套冻结题库逐题无退化；6题实际生成核心事实均正确，新规则下未出现额外成本解释，冲突日期表达仍缺。仅backend待发布和生产重问，R8未关闭。
 
-> 最新批次：[第60批生产与App复测](miaoji-batch-60-production-and-app-sse.md)：Helm387/backend `8452f82de`已部署，自然问题恢复核心答案/引用、该题旧噪声8→0；短语噪声及附加解释支撑不足仍待处理。Android `5f330902`修复SSE Accept被鉴权覆盖造成406，6项仪器测试及生产回答/历史纪要引用导航通过，debug已安装。无需重发后端/Web，Android正式分发待办。
+> 最新批次：[第60批生产与App复测](../archive/miaoji/miaoji-batch-60-production-and-app-sse.md)：Helm387/backend `8452f82de`已部署，自然问题恢复核心答案/引用、该题旧噪声8→0；短语噪声及附加解释支撑不足仍待处理。Android `5f330902`修复SSE Accept被鉴权覆盖造成406，6项仪器测试及生产回答/历史纪要引用导航通过，debug已安装。无需重发后端/Web，Android正式分发待办。
 
-> 第59批：[第59批证据补位](miaoji-batch-59-evidence-diversity.md)：混合来源12题，完整证据8/9→9/9、应为空1/3→3/3；原31题无退化。重复证据延后、候选/引用配额分离、旧BM25内容词检索；中文原问题回归通过。仅backend需发布，生产重问及App验收待完成。
+> 第59批：[第59批证据补位](../archive/miaoji/miaoji-batch-59-evidence-diversity.md)：混合来源12题，完整证据8/9→9/9、应为空1/3→3/3；原31题无退化。重复证据延后、候选/引用配额分离、旧BM25内容词检索；中文原问题回归通过。仅backend需发布，生产重问及App验收待完成。
 
-> 第58批：[第58批生产问答抽查](miaoji-batch-58-production-qa-acceptance.md)：Helm386/backend `58e1b8bec`已部署。真实问答发现多记录重复证据及旧会议无关片段，自然问法漏证据、明确短语对照成功；空查询/日期空态通过。下一步先补混合来源和内容重复评测。第55批服务端删除收据complete，源对象独立核对保留。无新部署要求。
+> 第58批：[第58批生产问答抽查](../archive/miaoji/miaoji-batch-58-production-qa-acceptance.md)：Helm386/backend `58e1b8bec`已部署。真实问答发现多记录重复证据及旧会议无关片段，自然问法漏证据、明确短语对照成功；空查询/日期空态通过。下一步先补混合来源和内容重复评测。第55批服务端删除收据complete，源对象独立核对保留。无新部署要求。
 
-> 第 57 批：[第 57 批跨记录召回](miaoji-batch-57-cross-record-retrieval.md)：正文优先、每记录配额、命中窗口和英文抽词；同一题库完整证据 15/25→21/25，逐题无退化，95 项通过。仅 backend 变更，生产待发布/验收；仍有四道语义题，真实回答和大库性能未验收。
+> 第 57 批：[第 57 批跨记录召回](../archive/miaoji/miaoji-batch-57-cross-record-retrieval.md)：正文优先、每记录配额、命中窗口和英文抽词；同一题库完整证据 15/25→21/25，逐题无退化，95 项通过。仅 backend 变更，生产待发布/验收；仍有四道语义题，真实回答和大库性能未验收。
 
-> 第 56 批：[第 56 批跨记录问答评测](miaoji-batch-56-cross-record-qa-evaluation.md)：31 题基线，25 道有证据题完整覆盖 15/25；发现候选挤占、字面同义缺失、截断及英文抽词问题。新评测/工具 46 项和既有 35 项通过，无运行策略改动，无需部署。
+> 第 56 批：[第 56 批跨记录问答评测](../archive/miaoji/miaoji-batch-56-cross-record-qa-evaluation.md)：31 题基线，25 道有证据题完整覆盖 15/25；发现候选挤占、字面同义缺失、截断及英文抽词问题。新评测/工具 46 项和既有 35 项通过，无运行策略改动，无需部署。
 
-> 第 55 批：[第 55 批生产验收](miaoji-batch-55-upload-translation-acceptance.md)：Helm 385 / backend、frontend `a616ec42e` 已部署；App 真实翻译、对照/回听、三格式导出、修订失效及 API 跨账号/回收恢复通过。专用样本永久删除已受理，须北京时间 2026-09-21 13:21:35 后复核最终清理。线上统一录像待 Egress/ECS 条件，原生分人/热词仍待办。
+> 第 55 批：[第 55 批生产验收](../archive/miaoji/miaoji-batch-55-upload-translation-acceptance.md)：Helm 385 / backend、frontend `a616ec42e` 已部署；App 真实翻译、对照/回听、三格式导出、修订失效及 API 跨账号/回收恢复通过。专用样本永久删除已受理，须北京时间 2026-09-21 13:21:35 后复核最终清理。线上统一录像待 Egress/ECS 条件，原生分人/热词仍待办。
 
 > 第 53 批后重新盘点见[当前缺口（2026-09-21）](miaoji-current-gaps-2026-09-21.md)。当前重点是原生分人/热词、共享回听和原生完整下载；手动永久删除已具备所列生产证据。此前第 54–58 批仅为建议；实际第 54 批为上传全文翻译，以顶部更新为准。
 
@@ -129,78 +131,78 @@
 | 67 | 专用排序与Top N对照；缺少拒答/澄清及多证据完整性，未推广 | 本批评测/文档，无需部署 | 无改动 |
 | 68 | 人工意图复核包及校验工具已完成；R01–R08人工结论待提供 | 工具/文档无需部署，质量评估等待复核 | 无改动 |
 
-[第五十三批](miaoji-batch-53-purge-final-acceptance.md) 的历史结论：第 50 批上传等待、第 51 批 ASR 阻塞、第 52 批发布复测已闭环。原生 6 段/AI 1 版/人工 2 版/导出 1 份后删除，源站三个 WAV 404，独立 Docs 正文保留且权限不变；未覆盖场景单独保留。下方各批“待构建/部署/回传”等为历史。
+[第五十三批](../archive/miaoji/miaoji-batch-53-purge-final-acceptance.md) 的历史结论：第 50 批上传等待、第 51 批 ASR 阻塞、第 52 批发布复测已闭环。原生 6 段/AI 1 版/人工 2 版/导出 1 份后删除，源站三个 WAV 404，独立 Docs 正文保留且权限不变；未覆盖场景单独保留。下方各批“待构建/部署/回传”等为历史。
 
-[第五十二批](miaoji-batch-52-capture-oss-storage.md)：生产回执确认采样完整；存储兼容性问题已复现并修复，需 agents 发布后验收，尚未确认转写和非空历史删除恢复。
+[第五十二批](../archive/miaoji/miaoji-batch-52-capture-oss-storage.md)：生产回执确认采样完整；存储兼容性问题已复现并修复，需 agents 发布后验收，尚未确认转写和非空历史删除恢复。
 
-[第五十一批](miaoji-batch-51-capture-asr-diagnostic.md)：本批新建 30 秒原生录音已保存，sealed ASR 确认三个输入但无原文，非空纪要历史删除尚未执行。生产只读诊断待回传；此前通过的原生删除与上传等待保护结论不变。
-[第五十批](miaoji-batch-50-purge-production-acceptance.md)：用户确认 Helm 383 及启用后预检 PASS。新建原生媒体样本已通过 App 确认/取消、API 权限/版本、完成收据及源站对象不存在检查。另一个有 18 段原文的专用上传样本已受理删除，3600 秒等待与不可恢复保护通过；北京时间 2026-09-21 10:49:50 后继续核验最终清理和旧上传键不能复建，尚未记为通过。旧回归样本保留，无新增部署。自动保留期限继续延后，以下记录保留历史范围。
+[第五十一批](../archive/miaoji/miaoji-batch-51-capture-asr-diagnostic.md)：本批新建 30 秒原生录音已保存，sealed ASR 确认三个输入但无原文，非空纪要历史删除尚未执行。生产只读诊断待回传；此前通过的原生删除与上传等待保护结论不变。
+[第五十批](../archive/miaoji/miaoji-batch-50-purge-production-acceptance.md)：用户确认 Helm 383 及启用后预检 PASS。新建原生媒体样本已通过 App 确认/取消、API 权限/版本、完成收据及源站对象不存在检查。另一个有 18 段原文的专用上传样本已受理删除，3600 秒等待与不可恢复保护通过；北京时间 2026-09-21 10:49:50 后继续核验最终清理和旧上传键不能复建，尚未记为通过。旧回归样本保留，无新增部署。自动保留期限继续延后，以下记录保留历史范围。
 
-每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](miaoji-batch-2-upload-summary.md)、[定位](miaoji-batch-3-playback-navigation.md)、[媒体](miaoji-batch-4-media-playback.md)、[能力](miaoji-batch-5-capabilities.md)、[上传恢复](miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
+每批均在验证后独立提交并推送。分批说明：[首批](miaoji-first-batch-2026-09-20.md)、[上传纪要](../archive/miaoji/miaoji-batch-2-upload-summary.md)、[定位](../archive/miaoji/miaoji-batch-3-playback-navigation.md)、[媒体](../archive/miaoji/miaoji-batch-4-media-playback.md)、[能力](../archive/miaoji/miaoji-batch-5-capabilities.md)、[上传恢复](../archive/miaoji/miaoji-batch-6-upload-recovery.md)。不同批次回归有交集，不将测试数简单相加。
 
 ## 发布与验收
 
-[第四十五批](miaoji-batch-45-history-restore-acceptance.md)：旧专用样本完整回收/恢复后，原文、AI 版本、6 版人工历史及两页 12 份导出元数据与基线相同，媒体访问恢复、分享没有复活；三个测试样本最终均处于正常库。补足第 43 批空纪要样本的覆盖边界，无新服务端部署需求。永久清理策略待确定，自动过期清理未实现。
+[第四十五批](../archive/miaoji/miaoji-batch-45-history-restore-acceptance.md)：旧专用样本完整回收/恢复后，原文、AI 版本、6 版人工历史及两页 12 份导出元数据与基线相同，媒体访问恢复、分享没有复活；三个测试样本最终均处于正常库。补足第 43 批空纪要样本的覆盖边界，无新服务端部署需求。永久清理策略待确定，自动过期清理未实现。
 
-[第四十四批](miaoji-batch-44-trash-navigation.md)：Android `0e40b65e` 已推送并安装，9 项仪器测试及原始生产嵌套详情路径复测通过。回收后进入记录库，返回不再出现失效详情；样本再次恢复，最终上传生命周期版本 4、授权为空，原生采集自动纪要关闭。无需 backend/frontend 再发布，正式 App 分发仍待完成。
+[第四十四批](../archive/miaoji/miaoji-batch-44-trash-navigation.md)：Android `0e40b65e` 已推送并安装，9 项仪器测试及原始生产嵌套详情路径复测通过。回收后进入记录库，返回不再出现失效详情；样本再次恢复，最终上传生命周期版本 4、授权为空，原生采集自动纪要关闭。无需 backend/frontend 再发布，正式 App 分发仍待完成。
 
-[第四十三批](miaoji-batch-43-trash-production-acceptance.md)：backend `b4bd230e4`、Helm 380 已启用回收。App/API 所列逻辑回收、恢复、撤权和原生采集自动纪要不重启通过；两条专用样本均恢复，临时授权清理完毕。发现从录音详情进入后回收返回已不可读详情的问题，进入第 44 批修复。永久清理尚未实现；其余未覆盖生产场景见本批边界。
+[第四十三批](../archive/miaoji/miaoji-batch-43-trash-production-acceptance.md)：backend `b4bd230e4`、Helm 380 已启用回收。App/API 所列逻辑回收、恢复、撤权和原生采集自动纪要不重启通过；两条专用样本均恢复，临时授权清理完毕。发现从录音详情进入后回收返回已不可读详情的问题，进入第 44 批修复。永久清理尚未实现；其余未覆盖生产场景见本批边界。
 
-[第四十二批](miaoji-batch-42-trash-rollout.md)：生产 values 已准备启用回收，Helm 渲染并断言 backend、celery-backend、celery-beat 均为 True。待用户仅发布 backend；现网仍关闭，下一项为专用样本逻辑回收/恢复及权限边界验收。无需新增迁移、frontend 或 summary/agents 发布。
+[第四十二批](../archive/miaoji/miaoji-batch-42-trash-rollout.md)：生产 values 已准备启用回收，Helm 渲染并断言 backend、celery-backend、celery-beat 均为 True。待用户仅发布 backend；现网仍关闭，下一项为专用样本逻辑回收/恢复及权限边界验收。无需新增迁移、frontend 或 summary/agents 发布。
 
-[第四十一批](miaoji-batch-41-production-acceptance.md)：backend/frontend `bd16ac487`、Helm revision 379 已部署。新音频原始时长 93461ms 与 App 未播放前显示、旧音频/视频播放器补充时长、人工历史 5 不回退当前 6、仅纪要分享及撤权 API 均通过所列检查；临时分享已清理。回收关闭契约通过，逻辑回收仍未开启/验收；下一步准备启用配置并发布 backend。完整/部分原生采集、Web 页面及正式 App 分发不在本批生产覆盖内。
+[第四十一批](../archive/miaoji/miaoji-batch-41-production-acceptance.md)：backend/frontend `bd16ac487`、Helm revision 379 已部署。新音频原始时长 93461ms 与 App 未播放前显示、旧音频/视频播放器补充时长、人工历史 5 不回退当前 6、仅纪要分享及撤权 API 均通过所列检查；临时分享已清理。回收关闭契约通过，逻辑回收仍未开启/验收；下一步准备启用配置并发布 backend。完整/部分原生采集、Web 页面及正式 App 分发不在本批生产覆盖内。
 
-[第四十批](miaoji-batch-40-record-trash-ui.md)：Web 47、Android 29 项单元与 6 项仪器测试通过。需 backend/frontend 发布、迁移 0185 和新版 App；核对镜像后确认无需重发 summary/agents。生产 values 显式关闭回收站，待 backend 所有进程更新后再开启并验收。下一步是第 37–40 批生产验收；永久清理未交付。
+[第四十批](../archive/miaoji/miaoji-batch-40-record-trash-ui.md)：Web 47、Android 29 项单元与 6 项仪器测试通过。需 backend/frontend 发布、迁移 0185 和新版 App；核对镜像后确认无需重发 summary/agents。生产 values 显式关闭回收站，待 backend 所有进程更新后再开启并验收。下一步是第 37–40 批生产验收；永久清理未交付。
 
 第 40 批现网只读核对通过旧后端隐藏入口和单个人工导出来源打开只读版本 6；发现并修正双端来源按钮误写 AI 的文案。完整历史/撤权验证仍待完成，不将单例检查计为第 38 批全部验收。
 
-[第三十九批](miaoji-batch-39-record-lifecycle.md)：124 个不同后端用例通过。新增迁移 0185，回收站开关默认关闭；须统一部署记录读取者后启用，双端入口进入下一批。逻辑回收保留内容、撤销分享并停用自动纪要；永久清理未实现，G7 未整体完成。
+[第三十九批](../archive/miaoji/miaoji-batch-39-record-lifecycle.md)：124 个不同后端用例通过。新增迁移 0185，回收站开关默认关闭；须统一部署记录读取者后启用，双端入口进入下一批。逻辑回收保留内容、撤销分享并停用自动纪要；永久清理未实现，G7 未整体完成。
 
-[第三十八批](miaoji-batch-38-human-export-source.md)：后端既有 8、Web 45、Android 8 项单元与 21 项仪器测试通过。无后端变更，本批需 frontend 和新版 App；连同第 37 批发布 backend/frontend。生产人工历史导航尚待验收，下一开发项为 G7 回收站。
+[第三十八批](../archive/miaoji/miaoji-batch-38-human-export-source.md)：后端既有 8、Web 45、Android 8 项单元与 21 项仪器测试通过。无后端变更，本批需 frontend 和新版 App；连同第 37 批发布 backend/frontend。生产人工历史导航尚待验收，下一开发项为 G7 回收站。
 
-[第三十七批](miaoji-batch-37-media-duration.md)：后端 77、Web 52、Android 29 项单元及 16 项仪器测试通过。需发布 backend/frontend 和新版 App，无迁移、无 summary/agents 变更；生产验收待部署。完整时长只覆盖有可信来源的产物，历史/视频可由授权播放器补充；其余明确未知。
+[第三十七批](../archive/miaoji/miaoji-batch-37-media-duration.md)：后端 77、Web 52、Android 29 项单元及 16 项仪器测试通过。需发布 backend/frontend 和新版 App，无迁移、无 summary/agents 变更；生产验收待部署。完整时长只覆盖有可信来源的产物，历史/视频可由授权播放器补充；其余明确未知。
 
-[第三十六批](miaoji-batch-36-android-production-ordering.md)：使用 `ce1fcead` 连接生产 `85c0291d6`，App 记录库/纪要库的两个排序方向以及日期错误完整显示通过所列场景。没有生产写入。生产多页/进行中样本、正式 Android 分发、物理设备和 Web 页面仍待验收；下文第 35 批“App 生产页面待验收”已由本批更新。
+[第三十六批](../archive/miaoji/miaoji-batch-36-android-production-ordering.md)：使用 `ce1fcead` 连接生产 `85c0291d6`，App 记录库/纪要库的两个排序方向以及日期错误完整显示通过所列场景。没有生产写入。生产多页/进行中样本、正式 Android 分发、物理设备和 Web 页面仍待验收；下文第 35 批“App 生产页面待验收”已由本批更新。
 
-[第三十五批](miaoji-batch-35-android-ordering.md)：Android `ce1fcead` 已补齐 G4 可选创建时间排序；30 项单元测试、31 个不同仪器用例、截图和设计检查通过。生产 API 两条既有样本的组合条件下升降序通过；App 生产排序页面、多页/进行中样本和正式分发仍待验收。无 backend/frontend 新部署要求。
+[第三十五批](../archive/miaoji/miaoji-batch-35-android-ordering.md)：Android `ce1fcead` 已补齐 G4 可选创建时间排序；30 项单元测试、31 个不同仪器用例、截图和设计检查通过。生产 API 两条既有样本的组合条件下升降序通过；App 生产排序页面、多页/进行中样本和正式分发仍待验收。无 backend/frontend 新部署要求。
 
-[第三十四批](miaoji-batch-34-filter-sheet.md)：Android `8d8e8bc3` 修正日期错误后的面板和键盘遮挡，三项仪器回归、截图检查及设计规范检查通过。仅需新版 App 分发，无后端/Web 部署；第 33 批发现的布局问题已修复。
+[第三十四批](../archive/miaoji/miaoji-batch-34-filter-sheet.md)：Android `8d8e8bc3` 修正日期错误后的面板和键盘遮挡，三项仪器回归、截图检查及设计规范检查通过。仅需新版 App 分发，无后端/Web 部署；第 33 批发现的布局问题已修复。
 
-[第三十三批](miaoji-batch-33-date-production-acceptance.md)：用户已发布 backend/frontend `85c0291d6`（revision 378），第 31/32 批部署阻塞解除。生产 API 日期边界/组合筛选/权限，App 单日筛选、未来空态、清除日期、只读导出提示通过所列场景，临时分享撤销。发现日期错误导致筛选面板缩回半屏，进入第 34 批修正。下方各批“待部署”保留历史，当前以本段为准。
+[第三十三批](../archive/miaoji/miaoji-batch-33-date-production-acceptance.md)：用户已发布 backend/frontend `85c0291d6`（revision 378），第 31/32 批部署阻塞解除。生产 API 日期边界/组合筛选/权限，App 单日筛选、未来空态、清除日期、只读导出提示通过所列场景，临时分享撤销。发现日期错误导致筛选面板缩回半屏，进入第 34 批修正。下方各批“待部署”保留历史，当前以本段为准。
 
-[第三十二批](miaoji-batch-32-date-filters.md)补齐创建日期组合筛选；后端 48 项、Web 16 项、Android 28 项单元及 36 项仪器测试全部通过。第 31 批资源整理的重复字符串和本轮发现的导出 Toast 线程问题已修正，以本批最终源码构建为准。debug APK 已安装，Android `d5796c85` 已推送。需发布 **backend + frontend**，无新迁移、无需发布 summary/agents；新日期功能生产验收等待部署，Android 正式分发另行完成。当前生产仍为用户部署的 `ad06f3e8a`（revision 377）。G4 剩余指定任意所有者/标签/保存筛选/Android 可选排序；G6 可靠时长和人工历史精确导航、G7 回收站仍未完成。
+[第三十二批](../archive/miaoji/miaoji-batch-32-date-filters.md)补齐创建日期组合筛选；后端 48 项、Web 16 项、Android 28 项单元及 36 项仪器测试全部通过。第 31 批资源整理的重复字符串和本轮发现的导出 Toast 线程问题已修正，以本批最终源码构建为准。debug APK 已安装，Android `d5796c85` 已推送。需发布 **backend + frontend**，无新迁移、无需发布 summary/agents；新日期功能生产验收等待部署，Android 正式分发另行完成。当前生产仍为用户部署的 `ad06f3e8a`（revision 377）。G4 剩余指定任意所有者/标签/保存筛选/Android 可选排序；G6 可靠时长和人工历史精确导航、G7 回收站仍未完成。
 
-[第三十一批](miaoji-batch-31-export-empty-state.md)修正第 30 批发现的只读账号空态误导。Web 12 项、Android 11 项仪器测试及类型/语言/设计检查通过；debug APK 已安装。无后端/迁移变更，需 frontend 发布和新版 App 正式分发；更新后的生产 UI 提示仍待复测。下一个产品开发项为 G4 组合筛选。
+[第三十一批](../archive/miaoji/miaoji-batch-31-export-empty-state.md)修正第 30 批发现的只读账号空态误导。Web 12 项、Android 11 项仪器测试及类型/语言/设计检查通过；debug APK 已安装。无后端/迁移变更，需 frontend 发布和新版 App 正式分发；更新后的生产 UI 提示仍待复测。下一个产品开发项为 G4 组合筛选。
 
-[第三十批联合验收](miaoji-batch-30-deployment-preflight.md)：用户已部署 backend/frontend `ad06f3e8a`（revision 377），部署阻塞解除；summary/agents 仍为 `f2e7f3cd4`。Android `a2a9a5b0` debug APK 配合生产 API，验证批量校对/撤回/冲突、个人热词显式合并与冲突草稿、短音频上传、发言区间回听、12 份私有导出分页、只读账号和撤权内容清理。临时文字/词表恢复、分享撤销。具体证据和未覆盖边界见链接；Web 页面、正式 App 分发、物理设备仍待完成。第 31 批继续修正只读用户的空文档提示。
+[第三十批联合验收](../archive/miaoji/miaoji-batch-30-deployment-preflight.md)：用户已部署 backend/frontend `ad06f3e8a`（revision 377），部署阻塞解除；summary/agents 仍为 `f2e7f3cd4`。Android `a2a9a5b0` debug APK 配合生产 API，验证批量校对/撤回/冲突、个人热词显式合并与冲突草稿、短音频上传、发言区间回听、12 份私有导出分页、只读账号和撤权内容清理。临时文字/词表恢复、分享撤销。具体证据和未覆盖边界见链接；Web 页面、正式 App 分发、物理设备仍待完成。第 31 批继续修正只读用户的空文档提示。
 
 下列为各批提交时的历史验证记录，其中“待部署/待生产验收”已由上方第 30 批更新，不再表示当前部署阻塞。
 
-[第二十九批](miaoji-batch-29-export-history.md)实现信息页个人导出历史分页。后端 16 项、Web 9 项、Android 11 项单元及 10 项 Pixel 8 仪器测试通过，debug APK 已安装。无新迁移，需 backend/frontend 部署及新版 App；生产待验收。G6 的更多导出历史已实现，可靠媒体时长与人工历史版本精确导航仍未完成。
+[第二十九批](../archive/miaoji/miaoji-batch-29-export-history.md)实现信息页个人导出历史分页。后端 16 项、Web 9 项、Android 11 项单元及 10 项 Pixel 8 仪器测试通过，debug APK 已安装。无新迁移，需 backend/frontend 部署及新版 App；生产待验收。G6 的更多导出历史已实现，可靠媒体时长与人工历史版本精确导航仍未完成。
 
-[第二十八批](miaoji-batch-28-speaker-timeline.md)实现双端片段级发言分布与回听，后端 22 项、Web 34 项、Android 3 项单元及 3 项仪器测试通过。无新迁移，需配套 backend/frontend 和新版 Android；生产验收等待部署。第 26/27 批也仍待部署确认，勿与本地回归混同。
+[第二十八批](../archive/miaoji/miaoji-batch-28-speaker-timeline.md)实现双端片段级发言分布与回听，后端 22 项、Web 34 项、Android 3 项单元及 3 项仪器测试通过。无新迁移，需配套 backend/frontend 和新版 Android；生产验收等待部署。第 26/27 批也仍待部署确认，勿与本地回归混同。
 
-[第二十七批](miaoji-batch-27-personal-hotwords.md)补齐个人热词复用：后端 82 项、Web 41 项、Android 38 项单元及 6 项仪器测试通过。新增迁移 `0184`，需发布 **backend + frontend** 及新版 Android；第 26 批若尚未部署，可一起发布，Helm hook 会先按顺序应用 `0183`、`0184`。尚未收到第 26/27 批生产部署证据，两批生产验收均待完成。正式 Android 分发仍待完成。
+[第二十七批](../archive/miaoji/miaoji-batch-27-personal-hotwords.md)补齐个人热词复用：后端 82 项、Web 41 项、Android 38 项单元及 6 项仪器测试通过。新增迁移 `0184`，需发布 **backend + frontend** 及新版 Android；第 26 批若尚未部署，可一起发布，Helm hook 会先按顺序应用 `0183`、`0184`。尚未收到第 26/27 批生产部署证据，两批生产验收均待完成。正式 Android 分发仍待完成。
 
-[第二十六批](miaoji-batch-26-transcript-replacements.md)补齐批量校对：后端 74 个不同用例、Web 32 项、Android 45 项单元及 5 项 Pixel 8 仪器测试通过。本批新增数据库迁移 `0183`，本地已应用；需发布 **backend + frontend**，Helm 的迁移 hook 会先执行迁移。生产仍是下述第二十五批版本，本批未进行生产写入验收。Android 已安装本批 debug APK 到 Pixel 8，正式分发仍待完成。
+[第二十六批](../archive/miaoji/miaoji-batch-26-transcript-replacements.md)补齐批量校对：后端 74 个不同用例、Web 32 项、Android 45 项单元及 5 项 Pixel 8 仪器测试通过。本批新增数据库迁移 `0183`，本地已应用；需发布 **backend + frontend**，Helm 的迁移 hook 会先执行迁移。生产仍是下述第二十五批版本，本批未进行生产写入验收。Android 已安装本批 debug APK 到 Pixel 8，正式分发仍待完成。
 
-[第二十五批](miaoji-batch-25-record-information.md)补齐 G6 的信息和文档导航部分：Web 38 项、Android 9 项仪器测试及类型/语言检查通过；用户已部署 frontend `d6c7de6c7`（revision 376），backend `66b3e3bb3`、summary/agents `f2e7f3cd4` 保持不变。Android `98a20dba` 仅安装 debug APK。生产 App 信息页、导出私有 Docs、正文打开和指定 AI 版本回查通过；第二账号获得纪要权限后仍不能读取所有者文档，临时授权已撤回。Web 页面、物理设备、较旧导出版本的对照场景仍待验收。此次验收没有新增运行改动，无需重新部署。
+[第二十五批](../archive/miaoji/miaoji-batch-25-record-information.md)补齐 G6 的信息和文档导航部分：Web 38 项、Android 9 项仪器测试及类型/语言检查通过；用户已部署 frontend `d6c7de6c7`（revision 376），backend `66b3e3bb3`、summary/agents `f2e7f3cd4` 保持不变。Android `98a20dba` 仅安装 debug APK。生产 App 信息页、导出私有 Docs、正文打开和指定 AI 版本回查通过；第二账号获得纪要权限后仍不能读取所有者文档，临时授权已撤回。Web 页面、物理设备、较旧导出版本的对照场景仍待验收。此次验收没有新增运行改动，无需重新部署。
 
-[第二十三批](miaoji-batch-23-speakers-and-ordering.md)已完成上传分人选项和服务端全局排序。后端 80 项、Web 42 项、Android 上传相关 36 项及 3 项模拟器仪器测试通过。用户已先后发布 backend/frontend `66b3e3bb3`（revision 374/375）；Android 尚待正式分发。无数据库迁移，summary/agents 无运行变更。本地回归不代替真实多人质量验收和 Web UI 验收。
+[第二十三批](../archive/miaoji/miaoji-batch-23-speakers-and-ordering.md)已完成上传分人选项和服务端全局排序。后端 80 项、Web 42 项、Android 上传相关 36 项及 3 项模拟器仪器测试通过。用户已先后发布 backend/frontend `66b3e3bb3`（revision 374/375）；Android 尚待正式分发。无数据库迁移，summary/agents 无运行变更。本地回归不代替真实多人质量验收和 Web UI 验收。
 
-[第二十二批](miaoji-batch-22-upload-controls.md)已完成 G1/G2 实现和针对性回归：Web 68 项、Android 上传相关 34 项通过。Web 已随上述版本部署。新版 Android 仅安装 debug APK，未正式分发。
+[第二十二批](../archive/miaoji/miaoji-batch-22-upload-controls.md)已完成 G1/G2 实现和针对性回归：Web 68 项、Android 上传相关 34 项通过。Web 已随上述版本部署。新版 Android 仅安装 debug APK，未正式分发。
 
-正在进行[目标环境验收](miaoji-release-acceptance.md)。当前 backend `66b3e3bb3`、frontend `d6c7de6c7`，summary/agents `f2e7f3cd4`。[第二十四批](miaoji-batch-24-production-acceptance.md)完成生产排序 API、未分享身份隔离，以及 App 普通上传进度、等待响应时停止重试、分人标签与统计展示验收；仅新增一条测试记录。修复高级设置展开时进度/停止按钮不可见的问题，3 项模拟器测试通过。Web UI、生产跨页排序、真实多人质量仍待验收。此前两个样本真实直传及下载哈希结论保留。
+正在进行[目标环境验收](miaoji-release-acceptance.md)。当前 backend `66b3e3bb3`、frontend `d6c7de6c7`，summary/agents `f2e7f3cd4`。[第二十四批](../archive/miaoji/miaoji-batch-24-production-acceptance.md)完成生产排序 API、未分享身份隔离，以及 App 普通上传进度、等待响应时停止重试、分人标签与统计展示验收；仅新增一条测试记录。修复高级设置展开时进度/停止按钮不可见的问题，3 项模拟器测试通过。Web UI、生产跨页排序、真实多人质量仍待验收。此前两个样本真实直传及下载哈希结论保留。
 
 先更新后端，再配套发布 Web/Android。前二十五批的上述改动无需迁移；第二十六、二十七批新增 `0183`、`0184`，不能沿用“无需迁移”的结论。本轮没有执行生产部署，后续结果以验收清单为准。
 
 Android Pixel 8 / Android 16：此前播放器 13 项、详情页 23 项仪器测试及 1 项显式生产过期签名仪器测试通过。真实生产音视频解码、竖屏视觉、暂停/倍速/定位、导入转写、视频纪要与章节引用、两样本下载哈希、TXT/SRT/VTT 系统保存均已实测。最新运行修复 `a5edbcd9`；修复版仅以 debug APK 安装到模拟器，尚未正式分发。
 
-[第十九批](miaoji-batch-19-cross-account.md)通过生产上传记录的纪要/全文独立分享、撤权、幂等请求重放及 App 内容清理验收，并修复只读页面误报不可用。23 项详情页仪器测试通过，Android `88934269` 已推送并安装到模拟器，尚未正式分发。
+[第十九批](../archive/miaoji/miaoji-batch-19-cross-account.md)通过生产上传记录的纪要/全文独立分享、撤权、幂等请求重放及 App 内容清理验收，并修复只读页面误报不可用。23 项详情页仪器测试通过，Android `88934269` 已推送并安装到模拟器，尚未正式分发。
 
-当前用户优先要求的签名续期、跨账号权限已完成；[第二十一批](miaoji-batch-21-production-lease.md)记录一小时自然过期后的 403、新签名 206 及原生恢复。用户明确将超过 30 段长录音、大于 100 MiB 分片恢复延后。Web/物理设备仍待补测。先前一次视频纪要供应商错误原因待脱敏日志；新 App 视频生成成功不能抹去该失败记录。第十六至二十一批没有后端/Web 运行变更，无需重新部署这些模块。
+当前用户优先要求的签名续期、跨账号权限已完成；[第二十一批](../archive/miaoji/miaoji-batch-21-production-lease.md)记录一小时自然过期后的 403、新签名 206 及原生恢复。用户明确将超过 30 段长录音、大于 100 MiB 分片恢复延后。Web/物理设备仍待补测。先前一次视频纪要供应商错误原因待脱敏日志；新 App 视频生成成功不能抹去该失败记录。第十六至二十一批没有后端/Web 运行变更，无需重新部署这些模块。
 
-[第二十批](miaoji-batch-20-android-lease-timeout.md)进一步发现并修复原生播放器对过期 URL 的 HTTP 403 长时间停留在准备态的问题。13 项播放器仪器测试通过；生产自然到期与原生恢复已经第二十一批验证。本批仍只有 Android 变更。
+[第二十批](../archive/miaoji/miaoji-batch-20-android-lease-timeout.md)进一步发现并修复原生播放器对过期 URL 的 HTTP 403 长时间停留在准备态的问题。13 项播放器仪器测试通过；生产自然到期与原生恢复已经第二十一批验证。本批仍只有 Android 变更。
 
 ## 仍未实现的产品项
 
@@ -208,6 +210,6 @@ Android Pixel 8 / Android 16：此前播放器 13 项、详情页 23 项仪器�
 
 重新盘点见[当前真实缺口](miaoji-current-gaps-2026-09-20.md)。盘点中的 Web 只读上传状态保护、非分片上传取消/进度已由第二十二批修复，上传分人开关和全局排序已由第二十三批补齐实现；backend/frontend 已部署，Android 正式分发及剩余验收见第二十四批。第二十五批补齐所有者/创建时间及个人文档导航，Web 已发布、App 生产主流程通过；G6 的可靠时长、更多历史导出和人工历史版本定位仍未补齐。第二十六、二十七批已实现批量校对及个人上传热词，生产待验收；组织词表、记录级删除/恢复、组合筛选等仍待实施。原有签名续期、跨账号权限验收结论保留；长原文和大文件恢复继续按用户要求延后。
 
-[第十六批](miaoji-batch-16-android-preparation.md)修复准备阶段播放失败，[第十七批](miaoji-batch-17-android-video-layout.md)修复竖屏溢出并改善原文阅读，[第十八批](miaoji-batch-18-android-export.md)修复系统选择器返回后导出为空，并记录 App 核心流程验收。普通上传进度/取消语义与分人选项已在第二十二、二十三批继续完善。
+[第十六批](../archive/miaoji/miaoji-batch-16-android-preparation.md)修复准备阶段播放失败，[第十七批](../archive/miaoji/miaoji-batch-17-android-video-layout.md)修复竖屏溢出并改善原文阅读，[第十八批](../archive/miaoji/miaoji-batch-18-android-export.md)修复系统选择器返回后导出为空，并记录 App 核心流程验收。普通上传进度/取消语义与分人选项已在第二十二、二十三批继续完善。
 
-本轮关闭了优先级最高的正确性及回看链路缺口。[第七批](miaoji-batch-7-chapters.md)补齐独立章节导航及空态，[第八批](miaoji-batch-8-drafts.md)与[第九批](miaoji-batch-9-android-drafts.md)补齐列表重建时的草稿保护，[第十批](miaoji-batch-10-speaker-activity.md)补齐录音与上传件的发言时长占比。[第十一批](miaoji-batch-11-sharing-scopes.md)补齐纪要/全文独立授权。[第十二批](miaoji-batch-12-original-download.md)补齐上传所有者原文件下载。媒体共享、原生录音分片下载/拼接、精细发言时间轴、组织热词库、实时录音热词、关键词、组合筛选仍属于后续产品批次；线上会议完整录像回放另需实际录制产物和媒体时间映射。不要把这些批次理解为已全量对齐飞书妙记。
+本轮关闭了优先级最高的正确性及回看链路缺口。[第七批](../archive/miaoji/miaoji-batch-7-chapters.md)补齐独立章节导航及空态，[第八批](../archive/miaoji/miaoji-batch-8-drafts.md)与[第九批](../archive/miaoji/miaoji-batch-9-android-drafts.md)补齐列表重建时的草稿保护，[第十批](../archive/miaoji/miaoji-batch-10-speaker-activity.md)补齐录音与上传件的发言时长占比。[第十一批](../archive/miaoji/miaoji-batch-11-sharing-scopes.md)补齐纪要/全文独立授权。[第十二批](../archive/miaoji/miaoji-batch-12-original-download.md)补齐上传所有者原文件下载。媒体共享、原生录音分片下载/拼接、精细发言时间轴、组织热词库、实时录音热词、关键词、组合筛选仍属于后续产品批次；线上会议完整录像回放另需实际录制产物和媒体时间映射。不要把这些批次理解为已全量对齐飞书妙记。

@@ -1,68 +1,70 @@
 # 妙记对标：整改后的真实缺口盘点
 
+> 归档说明（2026-10-13）：本页保留原日期的盘点、执行或验收历史。阅读入口见[状态摘要](miaoji-status-summary.md)，逐批记录见[归档索引](../archive/miaoji/README.md)。历史“待部署／下一步”不作为当前实施指令。
+
 > [ASR 无语音分类与提示](miaoji-asr-no-speech-2026-09-21.md)：真实静音复测确认 ASR_RESPONSE_HAVE_NO_WORDS；新增严格分类、受保护的结束回执、Web/Android 提示。后端/双端回归通过；待部署 backend/frontend/agents 并更新 Android 后验收新任务。历史失败不改写，真实人声及纪要质量仍待补。
 
 > 当前排期请以[第 53 批后重新盘点（2026-09-21）](miaoji-current-gaps-2026-09-21.md)为准。本文保留历史，不再将其中已补齐的功能描述用作当前缺口。
 
-> 当前以 [第五十三批](miaoji-batch-53-purge-final-acceptance.md) 为准：Helm 384 agents 已部署，原生同样本第二代转写成功并生成 6 段原文；上传到期删除/旧上传键 409、非空 AI/人工历史删除、三个原生源对象不存在、独立 Docs 正文保留和权限均已生产核验。手动永久删除主流程具备生产证据，旧直传凭证重放/故障注入/Web/正式 App 等继续保留为验收待办，自动保留期/管理员治理仍是开发范围。以下第 22–52 批段落保留当时状态，未部署/等待表述不代表当前阻塞。
+> 当前以 [第五十三批](../archive/miaoji/miaoji-batch-53-purge-final-acceptance.md) 为准：Helm 384 agents 已部署，原生同样本第二代转写成功并生成 6 段原文；上传到期删除/旧上传键 409、非空 AI/人工历史删除、三个原生源对象不存在、独立 Docs 正文保留和权限均已生产核验。手动永久删除主流程具备生产证据，旧直传凭证重放/故障注入/Web/正式 App 等继续保留为验收待办，自动保留期/管理员治理仍是开发范围。以下第 22–52 批段落保留当时状态，未部署/等待表述不代表当前阻塞。
 
-> [第五十二批](miaoji-batch-52-capture-oss-storage.md)：第 51 批回执确认输入采样完整；已复现并修复原生 filetrans 临时对象的 OSS 路径式访问/区域发现错误，34 项测试及实际存储探针通过。需构建并发布 agents 后重试原样本，原生转写与非空历史删除尚未记为恢复。
+> [第五十二批](../archive/miaoji/miaoji-batch-52-capture-oss-storage.md)：第 51 批回执确认输入采样完整；已复现并修复原生 filetrans 临时对象的 OSS 路径式访问/区域发现错误，34 项测试及实际存储探针通过。需构建并发布 agents 后重试原样本，原生转写与非空历史删除尚未记为恢复。
 
-> [第五十一批](miaoji-batch-51-capture-asr-diagnostic.md)：补验非空历史删除时，新建 30 秒原生媒体样本的 sealed ASR 结束为 incomplete，三个输入已确认但无原文，纪要未就绪；本场景被前置转写失败阻塞，保留样本并准备只读回执诊断。不能据此判定永久删除回归。第 50 批上传最终清理仍待 10:49:50 后复核。
+> [第五十一批](../archive/miaoji/miaoji-batch-51-capture-asr-diagnostic.md)：补验非空历史删除时，新建 30 秒原生媒体样本的 sealed ASR 结束为 incomplete，三个输入已确认但无原文，纪要未就绪；本场景被前置转写失败阻塞，保留样本并准备只读回执诊断。不能据此判定永久删除回归。第 50 批上传最终清理仍待 10:49:50 后复核。
 
-> [第五十批](miaoji-batch-50-purge-production-acceptance.md)：手动永久删除已在 Helm 383 启用，原生媒体样本的 App/API/源站实际删除闭环通过。上传样本有 18 段转写，受理和等待保护通过，最终清理及旧上传键重放须北京时间 2026-09-21 10:49:50 后复核。剩余未测场景与自动保留期开发缺口分别记录，不再把手动永久删除统称未启用。
+> [第五十批](../archive/miaoji/miaoji-batch-50-purge-production-acceptance.md)：手动永久删除已在 Helm 383 启用，原生媒体样本的 App/API/源站实际删除闭环通过。上传样本有 18 段转写，受理和等待保护通过，最终清理及旧上传键重放须北京时间 2026-09-21 10:49:50 后复核。剩余未测场景与自动保留期开发缺口分别记录，不再把手动永久删除统称未启用。
 
-> [第四十九批](miaoji-batch-49-purge-rollout.md)：生产迁移、全部后端实例、live worker/beat 和实际存储探针已通过预检。手动永久删除启用配置已提交，剩余是配置发布及专用记录生产验收；上传件需等待实际 3600 秒签名窗口。自动保留期/管理员治理仍未实现。
+> [第四十九批](../archive/miaoji/miaoji-batch-49-purge-rollout.md)：生产迁移、全部后端实例、live worker/beat 和实际存储探针已通过预检。手动永久删除启用配置已提交，剩余是配置发布及专用记录生产验收；上传件需等待实际 3600 秒签名窗口。自动保留期/管理员治理仍未实现。
 
-> [第四十八批](miaoji-batch-48-purge-storage-preflight.md)：永久删除后端/Web 已部署，生产入口保持关闭；实际媒体桶的无版本控制、无 WORM、私有访问与随机探针删除已核验。剩余启用前置是生产 Pod 的迁移、镜像/保护逻辑和 live worker/beat 核验，随后启用并用新建可销毁记录验收。不能再统称“后端未部署”，也不能记为“永久删除已上线验收”。
+> [第四十八批](../archive/miaoji/miaoji-batch-48-purge-storage-preflight.md)：永久删除后端/Web 已部署，生产入口保持关闭；实际媒体桶的无版本控制、无 WORM、私有访问与随机探针删除已核验。剩余启用前置是生产 Pod 的迁移、镜像/保护逻辑和 live worker/beat 核验，随后启用并用新建可销毁记录验收。不能再统称“后端未部署”，也不能记为“永久删除已上线验收”。
 
-> [第四十七批](miaoji-batch-47-permanent-deletion-ui.md)：G7 手动永久删除的 Web/App 入口、确认与后台状态闭环已经实现并通过所列本地回归；部署、启用及生产验收仍待完成。自动保留期和管理员治理仍是真实开发缺口，不把“已实现、待启用”误写成“已上线”。
+> [第四十七批](../archive/miaoji/miaoji-batch-47-permanent-deletion-ui.md)：G7 手动永久删除的 Web/App 入口、确认与后台状态闭环已经实现并通过所列本地回归；部署、启用及生产验收仍待完成。自动保留期和管理员治理仍是真实开发缺口，不把“已实现、待启用”误写成“已上线”。
 
-> [第四十六批](miaoji-batch-46-permanent-deletion-backend.md)：G7 手动永久删除后端已实现，125 项针对性回归通过；双端入口、部署启用及生产验收尚待完成，不能记为已上线。自动保留期治理仍未实施。外部 Docs、任务和已交付副本保留。
+> [第四十六批](../archive/miaoji/miaoji-batch-46-permanent-deletion-backend.md)：G7 手动永久删除后端已实现，125 项针对性回归通过；双端入口、部署启用及生产验收尚待完成，不能记为已上线。自动保留期治理仍未实施。外部 Docs、任务和已交付副本保留。
 
-> [第四十五批](miaoji-batch-45-history-restore-acceptance.md)：G7 非空历史恢复已补充生产 API 证据，原文、1 个 AI 版本、6 个人工版本、12 份导出记录均与基线相同。永久清理/保留期治理仍是真实开发缺口；真实回收站多页、部分忙态、Web/正式 App 等保留为验收待办，不再把非空历史恢复统称为未测。
+> [第四十五批](../archive/miaoji/miaoji-batch-45-history-restore-acceptance.md)：G7 非空历史恢复已补充生产 API 证据，原文、1 个 AI 版本、6 个人工版本、12 份导出记录均与基线相同。永久清理/保留期治理仍是真实开发缺口；真实回收站多页、部分忙态、Web/正式 App 等保留为验收待办，不再把非空历史恢复统称为未测。
 
-> [第四十四批](miaoji-batch-44-trash-navigation.md)：Android `0e40b65e` 修复回收后的嵌套详情返回路径，9 项仪器与现网复测通过。G7 逻辑回收/恢复主流程已具备生产证据；剩余为永久清理/保留期治理，以及真实分页、非空历史产物、正式分发等未覆盖验收项。
+> [第四十四批](../archive/miaoji/miaoji-batch-44-trash-navigation.md)：Android `0e40b65e` 修复回收后的嵌套详情返回路径，9 项仪器与现网复测通过。G7 逻辑回收/恢复主流程已具备生产证据；剩余为永久清理/保留期治理，以及真实分页、非空历史产物、正式分发等未覆盖验收项。
 
-> [第四十三批](miaoji-batch-43-trash-production-acceptance.md)：G7 逻辑回收/恢复已在 backend `b4bd230e4` 启用并完成所列 App/API 生产验收，不能再列为“没有回收站”。嵌套录音详情回收后的 App 返回路径有缺陷，进入第 44 批；永久清理、保留期治理及未覆盖生产场景仍分别记录。
+> [第四十三批](../archive/miaoji/miaoji-batch-43-trash-production-acceptance.md)：G7 逻辑回收/恢复已在 backend `b4bd230e4` 启用并完成所列 App/API 生产验收，不能再列为“没有回收站”。嵌套录音详情回收后的 App 返回路径有缺陷，进入第 44 批；永久清理、保留期治理及未覆盖生产场景仍分别记录。
 
-> [第四十二批](miaoji-batch-42-trash-rollout.md)：启用 G7 逻辑回收的配置已准备并通过 Helm 校验，需一次 backend 发布后进入生产回收/恢复验收；现网仍关闭。永久清理与保留期治理尚未实现，不能将启用开关当作 G7 全部完成。
+> [第四十二批](../archive/miaoji/miaoji-batch-42-trash-rollout.md)：启用 G7 逻辑回收的配置已准备并通过 Helm 校验，需一次 backend 发布后进入生产回收/恢复验收；现网仍关闭。永久清理与保留期治理尚未实现，不能将启用开关当作 G7 全部完成。
 
-> [第四十一批](miaoji-batch-41-production-acceptance.md)：`bd16ac487` 已部署，G6 新音频原始时长、旧上传音视频播放器补充时长、人工导出旧版本导航完成所列 App/API 生产验收；G8 新音频完整标尺实测通过。G7 目前确认关闭契约，尚未启用逻辑回收；下一项为启用后的回收/恢复验收。完整/部分采集与各端未测场景继续列为验收待办，不重新计为未实现。
+> [第四十一批](../archive/miaoji/miaoji-batch-41-production-acceptance.md)：`bd16ac487` 已部署，G6 新音频原始时长、旧上传音视频播放器补充时长、人工导出旧版本导航完成所列 App/API 生产验收；G8 新音频完整标尺实测通过。G7 目前确认关闭契约，尚未启用逻辑回收；下一项为启用后的回收/恢复验收。完整/部分采集与各端未测场景继续列为验收待办，不重新计为未实现。
 
-> [第四十批](miaoji-batch-40-record-trash-ui.md)补齐 G7 Web/App 回收与恢复入口，旧后端/关闭开关不显示入口，分页、确认和未知结果重试已回归。逻辑回收实现齐备但生产未启用/验收；永久清理及保留期限治理仍是真实缺口。当前进入第 37–40 批发布验收阶段，避免将未发布功能记为已上线。
+> [第四十批](../archive/miaoji/miaoji-batch-40-record-trash-ui.md)补齐 G7 Web/App 回收与恢复入口，旧后端/关闭开关不显示入口，分页、确认和未知结果重试已回归。逻辑回收实现齐备但生产未启用/验收；永久清理及保留期限治理仍是真实缺口。当前进入第 37–40 批发布验收阶段，避免将未发布功能记为已上线。
 
-> [第三十九批](miaoji-batch-39-record-lifecycle.md)实现 G7 后端逻辑回收/恢复、统一可见性、任务忙态和分享撤销。开关默认关闭，双端入口、统一部署验收、永久清理仍未完成；不将后端基础记为完整产品交付。
+> [第三十九批](../archive/miaoji/miaoji-batch-39-record-lifecycle.md)实现 G7 后端逻辑回收/恢复、统一可见性、任务忙态和分享撤销。开关默认关闭，双端入口、统一部署验收、永久清理仍未完成；不将后端基础记为完整产品交付。
 
-> [第三十八批](miaoji-batch-38-human-export-source.md)实现 G6 人工纪要导出来源的精确历史导航。G6 信息页、导出分页、AI/人工来源导航以及有依据的时长均有实现，剩余为部署验收和第 37 批说明的未覆盖时长来源，不能再统称“没有记录信息/文档关联”。G7 回收站进入下一开发批次。
+> [第三十八批](../archive/miaoji/miaoji-batch-38-human-export-source.md)实现 G6 人工纪要导出来源的精确历史导航。G6 信息页、导出分页、AI/人工来源导航以及有依据的时长均有实现，剩余为部署验收和第 37 批说明的未覆盖时长来源，不能再统称“没有记录信息/文档关联”。G7 回收站进入下一开发批次。
 
-> [第三十七批](miaoji-batch-37-media-duration.md)补齐 G6 有依据的时长显示及 G8 完整媒体标尺：新音频供应商元数据、授权播放器整文件长度和完整采集回执；部分/未知来源明确降级。尚待部署验收，历史后台回填、视频后台探测、多时钟完整映射不在本批。G6 下一项是人工纪要历史精确导航，G4/G7 其余范围保持。
+> [第三十七批](../archive/miaoji/miaoji-batch-37-media-duration.md)补齐 G6 有依据的时长显示及 G8 完整媒体标尺：新音频供应商元数据、授权播放器整文件长度和完整采集回执；部分/未知来源明确降级。尚待部署验收，历史后台回填、视频后台探测、多时钟完整映射不在本批。G6 下一项是人工纪要历史精确导航，G4/G7 其余范围保持。
 
-> [第三十六批](miaoji-batch-36-android-production-ordering.md)：第 34/35 批的日期错误面板、App 记录库/纪要库升降序已在生产连接下验收所列场景；未新增功能缺口。真实列表多页/进行中、正式 App 分发、物理设备与 Web 页面继续作为验收待办，G4/G6/G7 的剩余开发范围不变。
+> [第三十六批](../archive/miaoji/miaoji-batch-36-android-production-ordering.md)：第 34/35 批的日期错误面板、App 记录库/纪要库升降序已在生产连接下验收所列场景；未新增功能缺口。真实列表多页/进行中、正式 App 分发、物理设备与 Web 页面继续作为验收待办，G4/G6/G7 的剩余开发范围不变。
 
-> 当前以第 35 批为准：[Android 可选创建时间排序](miaoji-batch-35-android-ordering.md)已实现（`ce1fcead`），日期/来源/归属/标题组合筛选和 Web 全局排序也已具备。G4 剩余开发缺口为任意所有者筛选、标签/文件夹、保存筛选；App 生产排序页面、真实列表多页、正式分发等属于验收待办。下方逐批记录和第 21 批基线保留历史，不将已完成项重新列为未实现。
+> 当前以第 35 批为准：[Android 可选创建时间排序](../archive/miaoji/miaoji-batch-35-android-ordering.md)已实现（`ce1fcead`），日期/来源/归属/标题组合筛选和 Web 全局排序也已具备。G4 剩余开发缺口为任意所有者筛选、标签/文件夹、保存筛选；App 生产排序页面、真实列表多页、正式分发等属于验收待办。下方逐批记录和第 21 批基线保留历史，不将已完成项重新列为未实现。
 
-> [第三十四批](miaoji-batch-34-filter-sheet.md)：Android `8d8e8bc3` 修正日期错误后的面板和键盘遮挡，三项仪器回归、截图检查及设计规范检查通过。仅需新版 App 分发，无后端/Web 部署；第 33 批发现的布局问题已修复。
+> [第三十四批](../archive/miaoji/miaoji-batch-34-filter-sheet.md)：Android `8d8e8bc3` 修正日期错误后的面板和键盘遮挡，三项仪器回归、截图检查及设计规范检查通过。仅需新版 App 分发，无后端/Web 部署；第 33 批发现的布局问题已修复。
 
-> [第三十三批](miaoji-batch-33-date-production-acceptance.md)：backend/frontend `85c0291d6`（revision 378）已部署，App/API 日期组合筛选和只读导出空态已验收所列场景。日期错误时面板半屏隐藏提示的问题进入第 34 批。真实多页/进行中样本、Web 页面、物理设备及正式 App 分发仍待验收，G4/G6/G7 的其余开发缺口保持不变。
+> [第三十三批](../archive/miaoji/miaoji-batch-33-date-production-acceptance.md)：backend/frontend `85c0291d6`（revision 378）已部署，App/API 日期组合筛选和只读导出空态已验收所列场景。日期错误时面板半屏隐藏提示的问题进入第 34 批。真实多页/进行中样本、Web 页面、物理设备及正式 App 分发仍待验收，G4/G6/G7 的其余开发缺口保持不变。
 
-> [第三十二批](miaoji-batch-32-date-filters.md)已实现 G4 的创建日期范围与既有归属/来源/标题组合筛选，服务端分页前执行、双端清空旧游标，旧后端未确认能力时不误显未筛选结果。指定任意所有者、标签/文件夹、保存筛选及 Android 可选排序仍未覆盖。需 backend/frontend 发布和新版 App，生产未验收；下方历史“组合筛选未实现”现应按这些具体边界理解。
+> [第三十二批](../archive/miaoji/miaoji-batch-32-date-filters.md)已实现 G4 的创建日期范围与既有归属/来源/标题组合筛选，服务端分页前执行、双端清空旧游标，旧后端未确认能力时不误显未筛选结果。指定任意所有者、标签/文件夹、保存筛选及 Android 可选排序仍未覆盖。需 backend/frontend 发布和新版 App，生产未验收；下方历史“组合筛选未实现”现应按这些具体边界理解。
 
-> [第三十一批](miaoji-batch-31-export-empty-state.md)已修正只读/导出不可用时的空态引导，Web 12 项与 Android 11 项仪器测试通过；需 frontend 部署及新版 App 正式分发。下一产品开发项仍为 G4 时间范围/所有者组合筛选，不将此文案修复算作 G4/G6/G7 已完成。
+> [第三十一批](../archive/miaoji/miaoji-batch-31-export-empty-state.md)已修正只读/导出不可用时的空态引导，Web 12 项与 Android 11 项仪器测试通过；需 frontend 部署及新版 App 正式分发。下一产品开发项仍为 G4 时间范围/所有者组合筛选，不将此文案修复算作 G4/G6/G7 已完成。
 
-> 最新进展：[第三十批](miaoji-batch-30-deployment-preflight.md)记录 backend/frontend `ad06f3e8a`（revision 377）部署后的 App/API 联合验收：批量校对、个人词表冲突与显式合并、短音频上传、发言区间回听、12 份私有导出分页、跨账号隔离和撤权清理通过所列场景。下方第 26–29 批提交时的“待部署/待验收”已更新，不能据此继续判断阻塞。正式 Android 分发、Web 页面、物理设备和复杂边界仍待验收；大文件/长原文继续延后。G4 组合筛选、G6 可靠时长/人工历史精确导航、G7 回收站仍未实现。只读用户的导出空态误导将在第 31 批修正。
+> 最新进展：[第三十批](../archive/miaoji/miaoji-batch-30-deployment-preflight.md)记录 backend/frontend `ad06f3e8a`（revision 377）部署后的 App/API 联合验收：批量校对、个人词表冲突与显式合并、短音频上传、发言区间回听、12 份私有导出分页、跨账号隔离和撤权清理通过所列场景。下方第 26–29 批提交时的“待部署/待验收”已更新，不能据此继续判断阻塞。正式 Android 分发、Web 页面、物理设备和复杂边界仍待验收；大文件/长原文继续延后。G4 组合筛选、G6 可靠时长/人工历史精确导航、G7 回收站仍未实现。只读用户的导出空态误导将在第 31 批修正。
 
-> [第二十九批](miaoji-batch-29-export-history.md)补齐 G6 的个人导出历史分页，双端可查阅超过 10 份的旧副本，保留账号、记录、Docs 独立权限。需配套部署，生产待验收；可靠媒体总时长和人工纪要历史精确跳转仍待实施。
+> [第二十九批](../archive/miaoji/miaoji-batch-29-export-history.md)补齐 G6 的个人导出历史分页，双端可查阅超过 10 份的旧副本，保留账号、记录、Docs 独立权限。需配套部署，生产待验收；可靠媒体总时长和人工纪要历史精确跳转仍待实施。
 
-> [第二十八批](miaoji-batch-28-speaker-timeline.md)已实现 G8 的单时钟片段级发言分布和双端回听，静音/重叠、无效时间、统一跨页比例和只读权限有明确语义。后端 22 项、Web 34 项、Android 3 项单元及 3 项仪器测试通过。需部署 backend/frontend，生产待验收；多时钟映射、超预算渐进加载、全媒体时长标尺及词级时间仍未实现。
+> [第二十八批](../archive/miaoji/miaoji-batch-28-speaker-timeline.md)已实现 G8 的单时钟片段级发言分布和双端回听，静音/重叠、无效时间、统一跨页比例和只读权限有明确语义。后端 22 项、Web 34 项、Android 3 项单元及 3 项仪器测试通过。需部署 backend/frontend，生产待验收；多时钟映射、超预算渐进加载、全媒体时长标尺及词级时间仍未实现。
 
-> [第二十七批](miaoji-batch-27-personal-hotwords.md)已实现 G5 的个人热词：每账号私有词表，双端明确合并到文件上传，版本冲突保护，任务配置独立冻结。后端 82 项、Web 41 项、Android 38 项单元及 6 项仪器测试通过；新增迁移 `0184`，部署和生产验收待完成。G5 的批量校对与个人上传热词已具备实现；组织词表、多词表与实时录音热词仍未覆盖。
+> [第二十七批](../archive/miaoji/miaoji-batch-27-personal-hotwords.md)已实现 G5 的个人热词：每账号私有词表，双端明确合并到文件上传，版本冲突保护，任务配置独立冻结。后端 82 项、Web 41 项、Android 38 项单元及 6 项仪器测试通过；新增迁移 `0184`，部署和生产验收待完成。G5 的批量校对与个人上传热词已具备实现；组织词表、多词表与实时录音热词仍未覆盖。
 
-> [第二十六批](miaoji-batch-26-transcript-replacements.md)已实现 G5 的单记录全量批量查找替换：预览、整批冲突拒绝、幂等重试、安全撤回及双端入口。后端 74 个不同用例、Web 32 项、Android 45 项单元及 5 项仪器测试通过；需迁移 `0183` 并发布 backend/frontend 和新版 App，生产待验收。**G5 当前剩余为个人/组织热词复用**；原下表单段校对限制是盘点时状态，不再计作未实现。
+> [第二十六批](../archive/miaoji/miaoji-batch-26-transcript-replacements.md)已实现 G5 的单记录全量批量查找替换：预览、整批冲突拒绝、幂等重试、安全撤回及双端入口。后端 74 个不同用例、Web 32 项、Android 45 项单元及 5 项仪器测试通过；需迁移 `0183` 并发布 backend/frontend 和新版 App，生产待验收。**G5 当前剩余为个人/组织热词复用**；原下表单段校对限制是盘点时状态，不再计作未实现。
 
-> 实施更新：[第二十二批](miaoji-batch-22-upload-controls.md)已修复 G1/G2，并通过 Web 68 项、Android 34 项相关回归；Web 已发布，实际 Web UI 仍待验收。下文保留盘点时证据，其余缺口继续有效。
-> [第二十三批](miaoji-batch-23-speakers-and-ordering.md)已实现 G3 分人选项和 G4 全局排序，后端 80 项、Web 42 项、Android 36 项及 3 项模拟器 UI 测试通过。backend/frontend `66b3e3bb3` 已部署；[第二十四批](miaoji-batch-24-production-acceptance.md)记录生产排序 API、App 上传停止重试与分人链路验收及进一步 UX 修复。Android 正式分发、Web UI、真实多人质量仍待完成；G4 的组合筛选仍待实施。
-> [第二十五批](miaoji-batch-25-record-information.md)补齐 G6 的所有者、创建时间、个人最近 10 次导出文档及 AI 来源版本导航，Web 38 项、Android 9 项回归通过；frontend `d6c7de6c7` 已部署。App 生产信息页、私有文档导出/打开、指定版本回查及跨系统独立权限通过，临时分享已撤回。Web 页面、Android 正式分发等仍待完成。可靠总时长、更多导出历史及人工纪要历史版本定位仍待补齐；G5/G7/G8 等其余缺口继续有效。
+> 实施更新：[第二十二批](../archive/miaoji/miaoji-batch-22-upload-controls.md)已修复 G1/G2，并通过 Web 68 项、Android 34 项相关回归；Web 已发布，实际 Web UI 仍待验收。下文保留盘点时证据，其余缺口继续有效。
+> [第二十三批](../archive/miaoji/miaoji-batch-23-speakers-and-ordering.md)已实现 G3 分人选项和 G4 全局排序，后端 80 项、Web 42 项、Android 36 项及 3 项模拟器 UI 测试通过。backend/frontend `66b3e3bb3` 已部署；[第二十四批](../archive/miaoji/miaoji-batch-24-production-acceptance.md)记录生产排序 API、App 上传停止重试与分人链路验收及进一步 UX 修复。Android 正式分发、Web UI、真实多人质量仍待完成；G4 的组合筛选仍待实施。
+> [第二十五批](../archive/miaoji/miaoji-batch-25-record-information.md)补齐 G6 的所有者、创建时间、个人最近 10 次导出文档及 AI 来源版本导航，Web 38 项、Android 9 项回归通过；frontend `d6c7de6c7` 已部署。App 生产信息页、私有文档导出/打开、指定版本回查及跨系统独立权限通过，临时分享已撤回。Web 页面、Android 正式分发等仍待完成。可靠总时长、更多导出历史及人工纪要历史版本定位仍待补齐；G5/G7/G8 等其余缺口继续有效。
 
 > 盘点日期：2026-09-20。代码基线：Web/后端 `03f7d913a`，Android `b80d5e21`。这是第 1–21 批整改后的清单，取代旧报告作为后续排期依据；旧报告保留历史证据。
 > 方法：重新核对双端与服务端实现、[执行状态](miaoji-execution-status-2026-09-20.md)、[生产验收记录](miaoji-release-acceptance.md)、用户提供的 1–9.jpg，以及本日可访问的飞书官方资料。本次没有重新执行生产验收，也没有修改运行代码。
