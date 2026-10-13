@@ -1,0 +1,16 @@
+flowchart LR
+    User["用户<br/>说需求<br/>提供画面"]
+    Host["Electron Host<br/>本机设备宿主<br/>界面 · 权限<br/>采集 · 播放"]
+    Daemon["Node.js daemon<br/>本机协调服务<br/>对话 · 工具<br/>任务 · 记忆"]
+    Omni["Qwen Omni<br/>云端模型<br/>理解音视频<br/>生成回复"]
+    Backend["后台 Agent<br/>可选执行器<br/>编码 · 文件<br/>命令执行"]
+    User <--> Host
+    Host <-->|"本机 WebSocket"| Daemon
+    Daemon <-->|"模型 API"| Omni
+    Daemon <-->|"ACP / Qwen Serve"| Backend
+    classDef local fill:#eef2ff,stroke:#818cf8,color:#1e1b4b
+    classDef cloud fill:#ecfdf5,stroke:#34d399,color:#064e3b
+    classDef actor fill:#f8fafc,stroke:#94a3b8,color:#0f172a
+    class Host,Daemon local
+    class Omni cloud
+    class User,Backend actor
