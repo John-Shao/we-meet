@@ -12,6 +12,7 @@
     "test:remote-input": "npm run build:remote-input && npm run test:remote-input:cleanup && tsc && node --test tests/remote-control-native.integration.cjs && python native/remote-input/test_runtime.py -v",
     "test:remote-control": "npm run build:remote-input && npm run test:remote-input:cleanup && tsc && node --test tests/remote-control-*.integration.cjs tests/remote-control-*.test.cjs && python native/remote-input/test_runtime.py -v",
     "probe:remote-control:displays": "npm run build:remote-input && tsc && electron scripts/remote-control-display-probe.cjs",
+    "probe:remote-control:frames": "node scripts/remote-control-frame-cadence.cjs",
     "test:remote-input:package": "npm run build:main && npm run build:remote-input && node scripts/remote-control-package-smoke.cjs",
     "test:remote-input:injection": "npm run build:remote-input && python native/remote-input/test_runtime.py --inject -v",
     "test:remote-input:locked": "npm run build:remote-input && python native/remote-input/test_locked_session.py -v",

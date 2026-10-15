@@ -16,6 +16,8 @@ npm run package
 
 `test:remote-input:package` 创建隔离最小应用，验证真实打包 helper 的只读探测及 EXE/外部清单同时篡改的拒绝，不等于完整会议或安装验收。完整包构建后，可设置 `WEMEET_REMOTE_PACKAGE_EXE` 为 `release/win-unpacked/We-Meet.exe` 的绝对路径，运行 `node scripts/remote-control-app-smoke.cjs`；该脚本使用独立 profile 和 `--no-default-protocol-registration`，避免改写已安装客户端的登录协议注册，检查应用启动、沙箱与包内 helper 只读探测，不登录、不发起会议、不注入输入。报告保存在 `test-results`。
 
+`npm run probe:remote-control:frames` 会创建两个测试窗口，只采集程序自己拥有的静态窗口，经本机 VP8 WebRTC 统计 60 秒的解码帧间隔，并在关闭媒体前保存该测试画面的截图。Node 启动器会处理 `ELECTRON_RUN_AS_NODE` 并等待 Electron 实际退出；无需关闭当前应用或停止键鼠操作。报告和截图写入 `test-results/static-frame-*/`。它不加入会议、不使用 SFU、不采集其他窗口，不证明双机整屏、控制焦点或弱网验收；先检查退出码、报告与解码截图，再使用其统计结果。
+
 原生 staging 先签名再生成摘要，正式文件排除后续重签；摘要固定在 `app.asar` 中，启动时验证资源与清单。`npm run package:release` 还要求既有 Windows 签名证书、运行时更新信任配置、helper 的有效 Authenticode，以及安装器/helper 的一致证书。缺失签名只允许内部候选，不算正式发布。真实输入测试 `test:remote-input:injection` 会短暂占用自己的测试窗口，需事先安排无本地键鼠操作的时间；本地接管保护始终保留。
 
 **2026-10-11 桌面外壳更新**：当前内部候选为 `0.4.0-delivery.6`。自定义可拖动标题栏保留原生窗口按钮；Windows/Linux 顶部菜单栏收进“更多”，一级导航与标题栏采用统一中性灰背景，并支持深色主题。导航折叠和全局搜索移至标题栏，重载与退出确认保留。`npm run test:shell-smoke` 使用隔离用户目录和模拟 API 验证登录页、搜索、导航折叠、菜单、缩放、最大化、全屏及会议预览；真实会议、原生拖动和安装升级仍需实机验收。浏览器版保持原有布局。
@@ -59,7 +61,7 @@ npm run package
 
 `package` 校验并准备 npm 锁定的 Electron 二进制，构建前端、复制资源、写入公共配置并生成 Windows x64 NSIS。首次需要下载 Electron 与 NSIS 组件；重试可复用缓存。`package:prepared` 只用于已有完整 `dist/renderer` 和 `dist/runtime-config.json`、仅调整主进程时重打包，正式发行应执行完整 `package`。
 
-产物：`release/We-Meet-<version>-setup.exe`，配套 `We-Meet-<version>-manifest.json` 记录 SHA-256、包内 asar / 依赖锁哈希、版本、配置与源码提交及 dirty 标记；运行测试产物在 `test-results/`，两者均不入 Git。当前包来自存在其他并行工作改动的工作区，包含当时的共享前端，不能声称仅凭 HEAD 即可复现；正式交付需在明确提交基线上完整构建。前端源码构建时强制 `VITE_API_BASE_URL` 为空，使业务请求使用客户端配置的服务 origin，避免打入开发者的本地 API 地址。
+产物：`release/We-Meet-<version>-setup.exe`，配套 `We-Meet-<version>-manifest.json` 记录 SHA-256、包内 asar / 依赖锁哈希、版本、配置与源码提交及 dirty 标记；运行测试产物在 `test-results/`，两者均不入 Git。历史 Work 候选曾包含并行工作区修改，不能仅凭当时 HEAD 复现；远控分支已在明确提交的独立工作树完成完整构建，具体源码、摘要和未签名状态见持续验收记录。前端源码构建时强制 `VITE_API_BASE_URL` 为空，使业务请求使用客户端配置的服务 origin，避免打入开发者的本地 API 地址。
 
 默认公共配置：
 
