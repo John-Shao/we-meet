@@ -29,6 +29,7 @@ win:
     - '!deepseek-harness-sdk-runtime-win-x64-rg.exe'
     - '!deepseek-harness-sdk-runtime-win-x64.exe'
     - '!dsh.exe'
+    - '!httpx.exe'
   artifactName: ${productName}-${version}-setup.${ext}
 nsis:
   oneClick: true

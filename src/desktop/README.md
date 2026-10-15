@@ -1,5 +1,23 @@
 # We-Meet 桌面端：D0 可用客户端里程碑
 
+**2026-10-15 远程控制分支**：PC Chrome/Edge/Electron 控制端与 Windows x64 被控端已接入会议流程，使用包内独立 helper/guardian；B 必须在原生窗口确认整屏授权。功能默认关闭，尚未达到正式发布门槛，见[设计](../../docs/plan/meeting-remote-control-design-2026-10-14.md)和[持续验收记录](../../docs/reviews/meeting-remote-control-implementation-2026-10-15.md)。`feature/meeting-remote-control` 的构建产物仅供隔离验收，不替换当前用户安装。
+
+远控原生构建需要 Windows x64、Visual Studio C++ 工具链和 Python。桌面与前端目录各自执行 `npm ci` 后，使用以下检查：
+
+```powershell
+# 在 src/desktop 执行；默认原生测试不注入键鼠。
+npm test
+npm run test:remote-control
+npm run test:remote-input:package
+# 完整桌面产物：首次构建内置 Work 运行时，再构建安装器。
+npm run build:runtime
+npm run package
+```
+
+`test:remote-input:package` 创建隔离最小应用，验证真实打包 helper 的只读探测及 EXE/外部清单同时篡改的拒绝，不等于完整会议或安装验收。完整包构建后，可设置 `WEMEET_REMOTE_PACKAGE_EXE` 为 `release/win-unpacked/We-Meet.exe` 的绝对路径，运行 `node scripts/remote-control-app-smoke.cjs`；该脚本使用独立 profile 和 `--no-default-protocol-registration`，避免改写已安装客户端的登录协议注册，检查应用启动、沙箱与包内 helper 只读探测，不登录、不发起会议、不注入输入。报告保存在 `test-results`。
+
+原生 staging 先签名再生成摘要，正式文件排除后续重签；摘要固定在 `app.asar` 中，启动时验证资源与清单。`npm run package:release` 还要求既有 Windows 签名证书、运行时更新信任配置、helper 的有效 Authenticode，以及安装器/helper 的一致证书。缺失签名只允许内部候选，不算正式发布。真实输入测试 `test:remote-input:injection` 会短暂占用自己的测试窗口，需事先安排无本地键鼠操作的时间；本地接管保护始终保留。
+
 **2026-10-11 桌面外壳更新**：当前内部候选为 `0.4.0-delivery.6`。自定义可拖动标题栏保留原生窗口按钮；Windows/Linux 顶部菜单栏收进“更多”，一级导航与标题栏采用统一中性灰背景，并支持深色主题。导航折叠和全局搜索移至标题栏，重载与退出确认保留。`npm run test:shell-smoke` 使用隔离用户目录和模拟 API 验证登录页、搜索、导航折叠、菜单、缩放、最大化、全屏及会议预览；真实会议、原生拖动和安装升级仍需实机验收。浏览器版保持原有布局。
 
 **2026-10-08 Agent 架构入口**：[Work Agent 架构](../../docs/features/work-agent-architecture.md)。当前内部包为 `0.4.0-delivery.5`，已包含新的 Work 输入布局、导航下半部分历史及窄屏修复，见[桌面重构建记录](../../docs/reviews/work-desktop-layout-delivery-2026-10-08.md)。内置独立适配器 `0.3.2` / dsh `0.1.5rc1`；服务端 Pi 适配器已独立更新至 `0.3.6`，见 [Broker 发布记录](../../docs/reviews/work-broker-pool-production-2026-10-08.md)。下方保留 D0 及各候选历史；生成最新包不等于替换用户已安装客户端。
@@ -22,7 +40,7 @@ Windows Electron 客户端复用 `src/frontend` 和现有 Django / LiveKit / IM 
 - API 转发使用 Node fetch 的手动重定向能力，把 30x 返回 Chromium；下一跳重新按 origin 判断，主进程 bearer 不随跨站跳转外传。已修复 Electron `net.fetch(..., redirect: 'manual')` 对 Django 补尾斜杠跳转报 `Redirect was cancelled` 的兼容问题。代理环境仍需在目标网络实测，不能将系统浏览器可联网直接等同于主进程可联网。
 - 外部站点通过 Electron `net.request` 保留专用 session 的 Cookie、原始 `Referer` 和 CSRF 头，并把重定向返回 Chromium；修复 Docs 写入 403 及票据地址未跳转造成的文档刷新错误。不会向外部站点注入 Meet 原生 token，也不为缺少来源的请求构造可信来源。API 的 120 秒等待上限止于响应头，长流继续受页面取消信号控制。
 - 单实例、最小化 / 恢复、退出确认、页面崩溃提示、服务连接失败提示与手动重连。退出 / 重载提示本机会议和采集中断，云端任务保持独立；不暗示关闭后仍在录音。
-- 麦克风 / 摄像头限主窗口可信 origin，按本次运行授权；屏幕共享需用户手势并选择来源。首版来源列表最多展示 20 项，不默认共享系统音频；真实设备、实际屏幕共享和录音保存仍需验收。
+- 麦克风 / 摄像头限主窗口可信 origin，按本次运行授权；屏幕共享需用户手势并选择来源。当前来源选择器分页展示全部合法屏幕与窗口，每页六项；远控准备仅允许整屏。屏幕标识、尺寸、缩放和位置用于区分同名显示器，不默认共享系统音频；真实设备、实际屏幕共享和录音保存仍需验收。
 
 实现入口：[main.ts](src/main.ts)、[auth.ts](src/auth.ts)、[renderer.ts](src/renderer.ts)、[forward.ts](src/forward.ts)、[policy.ts](src/policy.ts)、[preload.ts](src/preload.ts)。协议接口依据 [Electron protocol](https://www.electronjs.org/docs/latest/api/protocol)、[net](https://www.electronjs.org/docs/latest/api/net) 与 [ClientRequest](https://www.electronjs.org/docs/latest/api/client-request)，凭据存储边界见 [safeStorage](https://www.electronjs.org/docs/latest/api/safe-storage)，原生登录遵循 [RFC 8252](https://www.rfc-editor.org/rfc/rfc8252.html)。
 

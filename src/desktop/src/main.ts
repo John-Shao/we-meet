@@ -868,7 +868,9 @@ else {
         try { managedExecutable = (await managedRuntime.resolve()).executable; }
         catch { managedError = "runtime_integrity_failed"; }
       }
-      if (app.isPackaged)
+      // Portable acceptance runs must not replace the installed app's login
+      // protocol registration. Normal installed startup keeps its behavior.
+      if (app.isPackaged && !app.commandLine.hasSwitch("no-default-protocol-registration"))
         app.setAsDefaultProtocolClient("online.we-meet.desktop");
       await createWindow();
       await receiveCallback(
