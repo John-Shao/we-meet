@@ -72,6 +72,15 @@ jobs:
           core/tests/services/test_ai_agent.py
       - name: Check Work account admission and execution boundaries
         run: uv run pytest work/tests
+      - name: Check remote-control authorization, policy, audit and key rotation
+        run: >-
+          uv run pytest
+          core/tests/services/test_remote_control.py
+          core/tests/services/test_remote_control_boundaries.py
+          core/tests/services/test_remote_control_crypto.py
+          core/tests/services/test_remote_control_audit.py
+          core/tests/services/test_remote_control_policy.py
+          core/tests/services/test_remote_control_keys.py
       - name: Check AI access, stream cleanup and task registration
         run: >-
           uv run pytest
@@ -161,6 +170,35 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - run: npm test
+
+      # These native harnesses replace SendInput and do not open consent UI.
+      # Real keyboard/mouse and interactive desktop tests remain separate.
+      - name: Build the Windows remote-input runtime
+        run: npm run build:remote-input
+      - name: Check native cleanup, crash windows and reserved key combinations
+        run: |
+          npm run test:remote-input:cleanup
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:remote-input:keys
+          exit $LASTEXITCODE
+      - name: Install frontend dependencies for the fixed SDK integration
+        working-directory: src/frontend
+        run: npm ci --no-audit --no-fund
+      - name: Check installed LiveKit SDK receive semantics
+        run: npm run test:remote-control:sdk
+      - name: Preserve remote-control native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-control-native-evidence
+          path: |
+            src/desktop/dist/remote-input/manifest.json
+            src/desktop/test-results/remote-cleanup/report.json
+            src/desktop/test-results/remote-cleanup/stdout.log
+            src/desktop/test-results/remote-keys/report.json
+            src/desktop/test-results/remote-keys/stdout.log
+          if-no-files-found: warn
+          retention-days: 14
 
   frontend-artifact:
     runs-on: ubuntu-latest

@@ -10,7 +10,7 @@
     "build:remote-input": "python scripts/build-remote-input.py",
     "test:remote-input:cleanup": "python scripts/test-remote-cleanup.py",
     "test:remote-input:keys": "python scripts/test-remote-keys.py",
-    "test:remote-control:sdk": "tsc && node --test tests/remote-control-sdk.test.cjs",
+    "test:remote-control:sdk": "tsc && node --test tests/remote-control-sdk.integration.cjs",
     "test:remote-input": "npm run build:remote-input && npm run test:remote-input:cleanup && npm run test:remote-input:keys && tsc && node --test tests/remote-control-native.integration.cjs && python native/remote-input/test_runtime.py -v",
     "test:remote-control": "npm run build:remote-input && npm run test:remote-input:cleanup && npm run test:remote-input:keys && tsc && node --test tests/remote-control-*.integration.cjs tests/remote-control-*.test.cjs && python native/remote-input/test_runtime.py -v",
     "probe:remote-control:displays": "npm run build:remote-input && tsc && electron scripts/remote-control-display-probe.cjs",

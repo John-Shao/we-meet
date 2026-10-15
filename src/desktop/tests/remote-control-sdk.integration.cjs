@@ -1,3 +1,4 @@
+// Requires the separately installed frontend dependencies (integration suite).
 // Exercise the installed browser ESM SDK's real protobuf decoder and Room
 // callback. No connect(), SFU, PeerConnection, native helper or input injection.
 const assert = require("node:assert/strict");
