@@ -93,6 +93,23 @@ def screen_track(entry, track_sid):
         raise RemoteControlError("screen_share_unavailable")
 
 
+def screen_tracks(entry):
+    """Current account's eligible track SIDs, not a claim about capture pixels."""
+    try:
+        screen_allowed(entry)
+    except RemoteControlError:
+        return []
+    return sorted(
+        {
+            track.sid
+            for track in entry.tracks
+            if track.sid
+            and track.source == TrackSource.SCREEN_SHARE
+            and not track.muted
+        }
+    )
+
+
 @async_to_sync
 async def notify(room_id, identities, notice):
     """A wake-up hint only. Receivers must fetch and verify the current state."""

@@ -27,7 +27,7 @@ export function base64url(bytes: Uint8Array): string {
   let binary = ""; for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-export function decodeBase64url(value: string, length?: number): Uint8Array {
+export function decodeBase64url(value: string, length?: number): Uint8Array<ArrayBuffer> {
   if (!/^[A-Za-z0-9_-]+$/.test(value) || value.length > 4096) throw new Error("invalid_base64");
   const bytes = Uint8Array.from(atob(value.replace(/-/g, "+").replace(/_/g, "/")), (char) => char.charCodeAt(0));
   if ((length !== undefined && bytes.length !== length) || base64url(bytes) !== value) throw new Error("invalid_base64");

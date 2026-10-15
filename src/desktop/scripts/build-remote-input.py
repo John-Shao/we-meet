@@ -42,12 +42,13 @@ def build() -> None:
     subprocess.run(
         [str(compiler), "/nologo", "/std:c++17", "/EHsc", "/W4", "/WX", "/O2", "/MT", "/guard:cf", "/utf-8",
          str(SOURCE / "main.cpp"), f"/Fe:{output}", f"/Fo:{DEST / 'main.obj'}",
-         "/link", "/DYNAMICBASE", "/NXCOMPAT", "/HIGHENTROPYVA"],
+         "/link", "/DYNAMICBASE", "/NXCOMPAT", "/HIGHENTROPYVA", "/MANIFEST:EMBED",
+         f"/MANIFESTINPUT:{SOURCE / 'runtime.manifest'}"],
         cwd=DEST, env=env, check=True,
     )
     manifest = {"protocolVersion": 1, "platform": "win32", "arch": "x64", "file": output.name,
                 "sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
-                "sourceSha256": {name: hashlib.sha256((SOURCE / name).read_bytes()).hexdigest() for name in ("main.cpp", "protocol.h", "trusted-ui.h")}}
+                "sourceSha256": {name: hashlib.sha256((SOURCE / name).read_bytes()).hexdigest() for name in ("main.cpp", "protocol.h", "trusted-ui.h", "session-state.h", "runtime.manifest")}}
     (DEST / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"Built {output.name}; protocol v1; manifest written")
 

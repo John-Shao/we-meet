@@ -192,6 +192,28 @@ def active(m):
     return prove(m, row, "approve")
 
 
+def test_capabilities_provide_only_current_accounts_eligible_screen_tracks(meeting):
+    m = meeting
+    own = m.people[str(m.b.sub)]
+    own.tracks.extend(
+        [
+            TrackInfo(sid="TR_camera", source=TrackSource.CAMERA),
+            TrackInfo(sid="TR_muted", source=TrackSource.SCREEN_SHARE, muted=True),
+        ]
+    )
+    response = client(m.b).get(m.url + "capabilities/")
+    assert response.status_code == 200
+    assert response.data["self"] == {
+        "identity": str(m.b.sub),
+        "participantSid": "PA_1",
+        "screenTrackSids": ["TR_1"],
+    }
+    own.permission.can_publish = False
+    response = client(m.b).get(m.url + "capabilities/")
+    assert response.status_code == 200
+    assert response.data["self"]["screenTrackSids"] == []
+
+
 def test_signed_lifecycle_pause_resume_and_terminal_replay(meeting):
     m = meeting
     result = active(m)

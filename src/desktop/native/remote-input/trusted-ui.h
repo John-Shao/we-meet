@@ -55,19 +55,23 @@ public:
             else if(item.newProposal)callback_(Event::Shown,proposal_);
         }
     }
-    bool ready() const {
+    bool ready() const { return readinessFailure()==nullptr; }
+    const char* readinessFailure() const {
         const auto mode=mode_.load();
         HWND window=hwnd_;
-        if((mode!=Mode::Waiting && mode!=Mode::Active) || !window || !trayReady_ ||
-            GetTickCount64()-beat_.load()>1000 || !IsWindowVisible(window) || IsIconic(window) ||
-            !(GetWindowLongPtrW(window,GWL_EXSTYLE)&WS_EX_TOPMOST))return false;
-        RECT rect{};if(!GetWindowRect(window,&rect))return false;
-        if(rect.left!=left_ || rect.top!=top_ || rect.right!=right_ || rect.bottom!=bottom_)return false;
+        if(mode!=Mode::Waiting && mode!=Mode::Active)return "native_ui_not_active";
+        if(!window)return "native_ui_missing";
+        if(!trayReady_)return "native_tray_unavailable";
+        if(GetTickCount64()-beat_.load()>1000)return "native_ui_unresponsive";
+        if(!IsWindowVisible(window) || IsIconic(window))return "native_ui_hidden";
+        if(!(GetWindowLongPtrW(window,GWL_EXSTYLE)&WS_EX_TOPMOST))return "native_ui_not_topmost";
+        RECT rect{};if(!GetWindowRect(window,&rect))return "native_ui_geometry_unavailable";
+        if(rect.left!=left_ || rect.top!=top_ || rect.right!=right_ || rect.bottom!=bottom_)return "native_ui_geometry_changed";
         // The stop button must remain exposed, not merely have WS_EX_TOPMOST.
-        RECT stop{};if(!GetWindowRect(primary_,&stop))return false;
+        RECT stop{};if(!GetWindowRect(primary_,&stop))return "native_ui_geometry_unavailable";
         POINT center{(stop.left+stop.right)/2,(stop.top+stop.bottom)/2};
         HWND hit=WindowFromPoint(center);
-        return hit && GetAncestor(hit,GA_ROOT)==window;
+        return hit && GetAncestor(hit,GA_ROOT)==window?nullptr:"native_ui_covered";
     }
     bool allowsPointer(int x,int y) const {
         if(!ready())return false;

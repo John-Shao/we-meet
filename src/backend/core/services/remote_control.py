@@ -212,7 +212,7 @@ def list_presence(room_id, user):
     policy(room)
     _member(room, user)
     evidence = livekit.snapshot(room_id)
-    livekit.participant(evidence, user)
+    own = livekit.participant(evidence, user)
     items = []
     for row in models.RemoteControlPresence.objects.select_related("user").filter(
         room=room, room_sid=evidence.room_sid, expires_at__gt=timezone.now()
@@ -232,7 +232,16 @@ def list_presence(room_id, user):
                 "protocolVersions": row.protocol_versions,
             }
         )
-    return {"enabled": True, "roomSid": evidence.room_sid, "participants": items}
+    return {
+        "enabled": True,
+        "roomSid": evidence.room_sid,
+        "participants": items,
+        "self": {
+            "identity": str(user.sub),
+            "participantSid": own.sid,
+            "screenTrackSids": livekit.screen_tracks(own),
+        },
+    }
 
 
 def _capability(room, evidence, user, *, target=False):

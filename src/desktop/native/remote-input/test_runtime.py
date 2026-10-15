@@ -45,7 +45,7 @@ class Client:
         self.hello = self.wait("hello")
         if not self.hello["ready"]:
             self.close()
-            raise RuntimeError("Native hooks/hotkey unavailable: close other runtime tests first")
+            raise RuntimeError("Native controls or unlocked desktop unavailable: unlock Windows and close other runtime tests first")
         self.pulse = threading.Thread(target=self._pulse, daemon=True)
         self.pulse.start()
         self.send(1)
@@ -224,6 +224,10 @@ class NativeRuntimeTests(unittest.TestCase):
         for _ in range(2):
             self.c.send(10)
             self.assertEqual(self.c.wait("closed")["reason"], "parent_pause")
+        self.c.send(9)
+        self.assertEqual(self.c.wait("closed")["reason"], "local_takeover")
+        self.c.send(2, self.c.arm_body())
+        self.assertEqual(self.c.wait("closed")["reason"], "arm_denied")
 
     def test_hidden_control_bar_closes_gate(self):
         self.c.arm()

@@ -10,6 +10,7 @@ import { type CloudResult, type RemoteControlCloud, type RemoteAuth } from "./cl
 import { type NativeEvent, type RemoteInputHelper } from "./native-helper";
 import { type CaptureBindingStore, type SourceBinding } from "./source-binding";
 import { bytesFromUuid } from "./wire";
+import { signalPayload, signSignal, type SignalBinding, type TargetSignal } from "./signals";
 
 type Json = Record<string, unknown>;
 type Purpose = "prepare" | "approve" | "resume" | "lease";
@@ -151,6 +152,28 @@ export class TargetAuthorization extends EventEmitter {
       remainingMs, source: this.source!, controllerPublicKey: publicKeyBytes(this.row.request.controllerPublicKey as PublicKey) };
   }
 
+  /** Main-only transport metadata. PAUSED and local pausing may send health
+   * signals, but inputGrant() remains unavailable until fresh native consent. */
+  transportState() {
+    this.check(this.serial);
+    if (!this.everApproved || !this.key || !this.binding || !this.row || !["ACTIVE", "PAUSED"].includes(this.row.state)) throw new Error("local_consent_required");
+    return { binding: JSON.parse(JSON.stringify(this.binding)) as SignalBinding & { controllerPublicKey: PublicKey },
+      epoch: this.row.epoch, state: this.phase === "active" ? "ACTIVE" as const : "PAUSED" as const };
+  }
+
+  /** No Renderer signing entry point. Transport revisions discard stale drafts.
+   * A PAUSED renewal/resume proof may change the authorization operation serial
+   * while a health response is being signed; that alone must not kill the link. */
+  async targetSignal(type: TargetSignal, body: Record<string, unknown>, generation: string | null, seq: number) {
+    const state = this.transportState(), key = this.key!;
+    const result = await signSignal(signalPayload(state.binding, "target", state.epoch, generation, seq, type, body), key.privateKey);
+    this.check(this.serial);
+    if (this.key !== key) throw new Error("authorization_cancelled");
+    return result;
+  }
+
+  block(reason = "cleanup_unconfirmed") { this.cleanupBlocked = true; this.stop(reason); }
+
   /** Immediate local closure precedes all asynchronous network work. */
   stop(reason = "local_stop", notify = true) {
     if (this.phase === "ended" || this.phase === "blocked") return;
@@ -273,7 +296,7 @@ export class TargetAuthorization extends EventEmitter {
       } catch (error) { this.stop(this.errorCode(error)); }
     } else if (event.event === "closed") {
       this.inputOpen = false;
-      if (event.reason === "capture_suspended" && this.phase === "active") return;
+      if (event.reason === "capture_suspended" && ["active", "pausing", "paused"].includes(this.phase)) return;
       if (["parent_pause", "local_takeover"].includes(event.reason || "") && this.phase === "pausing") {
         // A local takeover can race our queued Pause command. Wait for that
         // command's own acknowledgement before offering another native resume.

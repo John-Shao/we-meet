@@ -34,7 +34,7 @@
 
 ### 尚待完成（不视为已通过）
 
-1. 原生 P0：混合 DPI/热插拔/旋转的完整矩阵、完整安全桌面竞态、守护/工作线程卡死以及全部台账窗口故障注入。双屏 150%/负坐标映射及受信 UI 已有第三批证据；现有 21 项完整实机测试已在用户提供的空闲窗口通过，尚不覆盖以上完整矩阵。
+1. 原生 P0：混合 DPI/热插拔/旋转的完整矩阵、完整安全桌面竞态、守护/工作线程卡死以及全部台账窗口故障注入。双屏 150%/负坐标映射及受信 UI 已有第三批证据；基线 `200620538` 的 21 项完整实机测试已在用户提供的空闲窗口通过，尚不覆盖以上完整矩阵。第五批 WTS 锁屏检查加入后的解锁状态回归仍待完成。
 2. 后端后续：真实 LiveKit 房间联调、管理配置与密钥轮换、过期/保留任务验收（包括房间删除时审计保留）、审计分页及完整跨租户/限流验收；本轮已补接口与数据库测试，见下文。
 3. 桌面：采集 handler、会议上下文与主进程启动装配、换号/锁屏/退出事件接线、preload 最小桥、签名 transport 与输入握手。主进程同意记录、许可验证与续租协调模块已在第四批实现并单独验证，尚未从 main.ts 进入用户流程。
 4. 前端：会议 Provider、能力发现、申请/同意状态、专用控制视图、焦点暂停握手、文本隔离、定向 transport、输入 ACK/心跳与后台处理。
@@ -135,3 +135,33 @@
 | 新增原生 Pause 专项 | 增加重复 close-only Pause 的验证后，重新以 /W4 /WX 构建，1 项通过，0.703 秒；未注入键鼠 |
 
 本批没有重新运行真实键鼠注入；第三批实机证据与本批无输入专项分别记录。尚需接通主进程生命周期与采集 handler、可靠定向签名信令、控制视图和两机联调；不得将 `inputGrant()` 直接暴露给 Renderer，也不得以服务端 ACTIVE 代替 B 原生 READY。
+
+## 第五批：签名信令与被控端 transport
+
+本批推进主进程接线的前置通道，尚未修改 `main.ts`/preload 和会议页面；仍不能宣称用户可端到端远程操作。新增 `signals.ts` 与 `target-transport.ts`，并为授权协调器提供仅主进程可用的固定信令构造/签名方法，B 私钥仍不离开主进程。
+
+- 固定字段、独立 audience 的 P-256 信令覆盖房间/SID、会话、共享实例/轨道、双方 identity、epoch、输入代次和序号；大小/未知字段/方向严格检查。接收端同时约束 SDK participant identity/SID 与控制者签名，不依赖 SDK 未提供的 destination 字段。
+- B 定向发出存活挑战，A 的已签名 HELLO 表明视频和输入焦点就绪后才调用原生 Arm；收到原生 challenge/armed 后签名 READY。HTTP ACTIVE 或普通 heartbeat 均不能开放输入。
+- A 焦点挂起立即关闭输入，等待 native cleanup=1 才发 SUSPEND_ACK 和一次性恢复挑战；恢复分配新 inputGeneration，旧代次输入丢弃。B 业务暂停与这一捕获状态分开，A 不能自行清除业务 PAUSED。
+- 信令与原生输入具有独立挑战/序号/ACK；只有 native inputAck 能生成执行 INPUT_ACK。健康 heartbeat 不冒充执行回执。业务 epoch 更新时重建信令游标、输入代次与挑战；普通暂停不重置信令序号。
+- 收发队列有数量、250 ms 等待预算和独立计时检查，连永不返回的 publish Promise 也会导致关门；3 秒无有效 A 存活结束，原生暂停/Arm 回执缺失则阻断。未交给 transport 的陈旧 READY 不消费可见序号。
+- 原生补充处理“本地接管后，已在途的 A Suspend 才到达”竞态：保持 B 的暂停和同意失效，不恢复输入；原生专项覆盖暂停后迟到 Suspend 与再次 Arm 拒绝。
+- 服务端能力响应新增 `self.identity/participantSid/screenTrackSids`，只取可信 LiveKit 当前连接、有效共享权限和未静音屏幕轨道，供下一步 main 在发布回执时验证归属。该证据不证明像素来自某显示器；主进程仍须保留采集实例、原生源选择和发布生命周期的完整绑定。
+- 最后一次组合回归期间 Windows 进入锁屏。诊断发现 `LockScreenBackstopFrame` 遮挡停止按钮；原 UI 门已拒绝同意，但仅检查输入桌面名称为 Default 不足以识别这一状态。现补充当前进程所属 WTS 会话的 Active/Unlocked 检查，贯穿启动 ready、同意、Arm、输入前后、监督及非空台账释放；未知/断开/锁屏均关闭。仅空台账可在锁屏时无注入地确认清理，已出现负值的 cleanup 不升级为成功。
+- helper 内嵌 Windows 10/11、asInvoker/uiAccess=false manifest，版本不支持则拒绝；避免 Windows 7 锁定标志反转问题。新增只读 `--session-state` 探针和明确要求已锁屏的负向用例。UI 拒绝原因现在区分同意到期、桌面不可用与控制条被遮挡等原因；诊断不记录其他应用文本或输入。
+
+### 本批验证
+
+| 检查 | 结果及边界 |
+| --- | --- |
+| 后端远控/API/签名回归 | 39 项通过，56.06 秒；新增当前账号轨道归属、摄像头/静音轨道排除和共享权限撤回；独立 PostgreSQL/Redis，LiveKit IO 仍为替身 |
+| `npm run test:remote-control` | C++ /W4 /WX、tsc 通过；当时 35 项 Node 测试通过，原生 22 项中 19 通过、3 项真实注入按默认参数跳过，17.688 秒 |
+| 补充挂起 publish、视频丢失和 60 秒空闲后 transport 专项 | 11 项通过；真实 WebCrypto 验签，但原生与网络为受控端口；60 秒为模拟单调时钟，仅证明此模块不会因缺少输入 ACK 误停，不等同于两机/原生实机空闲验收 |
+| 最终授权 + transport 专项 | 26 项通过，含恢复证明与在途签名心跳竞争；tsc 通过 |
+| 最后一次全 Node 组合回归（WTS 补丁前） | 39 项中 38 通过、1 项原生确认超时；补诊断后确认因 Windows 锁屏层遮挡，未记为全绿。普通置顶窗口的初始推测被只读 HWND 类诊断否定，相关推测性 z-order 修改已撤去 |
+| WTS 补丁后 C++ 构建、锁屏只读探针与负向测试 | /W4 /WX 通过；探针返回 `locked/defaultDesktop=false`；`python native/remote-input/test_locked_session.py -v` 1 项通过，0.254 秒，实际锁屏时不报告 ready、不接受 Arm，空台账 guardian cleanup=1，无键鼠注入 |
+| 修改后端模块/测试的 Ruff | 本机 Ruff 0.16.4 全部通过；验证容器未安装 Ruff，未把该容器命令失败写为通过 |
+
+WTS 字段语义依据 [WTSINFOEX_LEVEL1_W](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/ns-wtsapi32-wtsinfoex_level1_w)，查询与缓冲区释放依据 [WTSQuerySessionInformationW](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsquerysessioninformationw)，版本检查依赖 [IsWindows10OrGreater 的 manifest 要求](https://learn.microsoft.com/en-us/windows/win32/api/versionhelpers/nf-versionhelpers-iswindows10orgreater)。本次只证明当前已锁屏条件下的拒绝；切换瞬间竞态、WTS 服务故障/调用阻塞、每次输入查询的性能及解锁后的正常操作尚待矩阵验证。
+
+下一步仍需把上述模块装配到 Electron 生命周期与受限 IPC，接通可信采集/轨道发布确认、A 浏览器控制视图及 LiveKit 定向适配器，再完成两台独立设备、三参会者路由和完整故障矩阵。现有绿色测试不替代这些交付条件；本机解锁前继续不依赖交互桌面的实现。

@@ -273,6 +273,10 @@ LiveKit reliable 属于 best effort，不保证断线期间交付，不在服务
 
 2026-10-15 实施选定：高频输入使用固定小端二进制编码，签名覆盖前 640 字节，追加 64 字节 P1363 签名；上方 JSON 仅说明字段语义，不作为实际输入签名格式。布局见 `src/desktop/native/remote-input/protocol.h`，编码器为 `src/desktop/src/remote-control/wire.ts`；已完成 WebCrypto→Windows CNG 验签测试。批准/租约绑定仍使用限制域的规范 JSON（ASCII 对象键、无浮点数、拒绝非良构 Unicode）和独立用途签名。
 
+信令的实际 v1 编码见 `src/desktop/src/remote-control/signals.ts`，同样使用限制域规范 JSON，独立 audience 为 `we-meet.remote-control.signal.v1`。A 的初始视频/焦点就绪消息命名为 `HELLO`，与 B 在原生 Arm 成功后发送的 `READY` 区分；其余 A 消息为 `HEARTBEAT/INPUT_SUSPEND/INPUT_RESUME/END`，B 消息为 `CHALLENGE/READY/HEARTBEAT_ACK/INPUT_ACK/SUSPEND_ACK/STATE`。固定信封包含房间实例、会话、共享实例、轨道、双方 identity、epoch、输入代次及独立 signal seq，未知字段拒绝。首次接入时 A 只可用已验签 CHALLENGE 建立 B 的信令序号起点，随后必须连续；B 从 A 的 seq=1 开始检查。该首次信令同步不开放输入，仍须完成有时效挑战的 HELLO/原生 READY 握手。
+
+信令存活挑战与原生输入挑战分别生成、分别验证。正常捕获暂停保留尚未到期的信令存活挑战，使已在途的健康 heartbeat 能继续确认连接；原生输入挑战立即作废。一次性恢复挑战只有在清理确认后签发，使用后失去恢复资格，不能因普通 heartbeat 重新开放；进入业务 PAUSED 时同样取消其恢复资格。B 的签名队列仅在消息实际交给 transport 时提交 seq，签名期间取消、尚未交付的旧 READY 不会留下可见序号缺口；已经交付后的发送失败则结束会话。
+
 控制者临时私钥在当前会话内存中持有，浏览器使用不可导出的 CryptoKey，终止后丢弃；B 临时私钥仅主进程/原生执行器持有。公钥在批准前固定，改变即重新申请。能力广播不携带私钥、许可或可复用凭据。
 
 输入、A 的 heartbeat/READY 使用 A 会话密钥签名；B 的 challenge、ACK、READY 和执行状态使用 B 原生会话密钥签名，均包含 sessionId、epoch、递增消息序号及必要绑定。A→B input、A→B signal、B→A signal 分别使用独立序号空间，不能用 heartbeat 序号推进输入 ACK。B 的有效 READY 必须同时具备已验证的许可、采集实例、轨道绑定、安全守护进程就绪及本次 inputGeneration。单纯广播 ACTIVE 或调用转发 IPC 不能激活 helper。

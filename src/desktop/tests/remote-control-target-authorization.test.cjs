@@ -247,3 +247,12 @@ test('request digest, local identity and device are checked before any prepare s
     assert.deepEqual(f.verified, []); assert.equal(f.nativeCalls.some(c => c.action === 'consent'), false);
   }
 });
+
+test('native resume does not cancel an in-flight signed health response on the same session key', async t => {
+  const f = await fixture(); t.after(() => f.target.dispose()); await f.start();
+  f.target.pause(); await until(() => f.target.status().phase === 'paused');
+  const response = f.target.targetSignal('HEARTBEAT_ACK', { heartbeatSeq: 1 }, null, 1);
+  f.helper.emit('state', { event: 'resumeRequested' });
+  await assert.doesNotReject(response); await until(() => f.target.status().phase === 'active');
+  assert.equal(f.target.status().epoch, 2);
+});

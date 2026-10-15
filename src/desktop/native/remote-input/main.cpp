@@ -23,6 +23,7 @@
 #include <vector>
 #include "protocol.h"
 #include "trusted-ui.h"
+#include "session-state.h"
 
 #pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "user32.lib")
@@ -57,6 +58,7 @@ void reply(const std::string& body) {
     std::cout << body << '\n' << std::flush;
 }
 bool defaultDesktop() {
+    if(rc::currentSessionState()!=rc::DesktopSession::Unlocked)return false;
     HDESK desk=OpenInputDesktop(0,FALSE,DESKTOP_READOBJECTS);
     if(!desk) return false;
     wchar_t name[256]{}; DWORD needed=0;
@@ -71,6 +73,10 @@ bool emptyLedger(Ledger* l) {
 }
 bool release(Ledger* l) {
     InterlockedExchange(&l->gate,0);
+    if(InterlockedCompareExchange(&l->cleanup,0,0)<0)return false;
+    // No candidate was ever left down. Confirming an empty ledger needs no
+    // input on the lock screen; negative/uncertain cleanup is still sticky.
+    if(emptyLedger(l)){InterlockedExchange(&l->cleanup,1);return true;}
     if(!defaultDesktop()) { InterlockedExchange(&l->cleanup,-2); return false; }
     bool ok=true;
     LONG unicode=InterlockedCompareExchange(&l->unicodeCandidate,0,0);
@@ -285,9 +291,12 @@ public:
                 if(emergencyStop_.exchange(false)){close("emergency_stop");continue;}
                 if(consentPending_ && now()>=consentExpires_){close("consent_expired");continue;}
                 if(consentApproved_ && now()>=consentExpires_){close("consent_expired");continue;}
+                if((active_ || consentPending_ || consentApproved_) && !defaultDesktop()) {
+                    if(active_)InterlockedExchange(&ledger_->cleanup,-2);
+                    close(active_?"desktop_uncertain":"desktop_unavailable");continue;
+                }
                 if(!active_)continue;
-                if(!defaultDesktop()) {InterlockedExchange(&ledger_->cleanup,-2);close("desktop_uncertain");}
-                else if(localStop_.exchange(false))close("local_takeover",true,false,TrustedUi::Mode::Paused);
+                if(localStop_.exchange(false))close("local_takeover",true,false,TrustedUi::Mode::Paused);
                 else if(!ui_.ready())close("native_ui_unavailable");
                 else if(now()>=deadline_)close("lease_expired");
                 else if(now()-controllerBeat_>=3000)close("controller_timeout");
@@ -298,13 +307,18 @@ public:
             }
         });
         reply("{\"event\":\"hello\",\"version\":1,\"pid\":"+std::to_string(GetCurrentProcessId())+
-            ",\"guardianPid\":"+std::to_string(GetProcessId(guard_))+",\"ready\":"+(hooksReady_?"true":"false")+"}");
+            ",\"guardianPid\":"+std::to_string(GetProcessId(guard_))+",\"ready\":"+(hooksReady_ && defaultDesktop()?"true":"false")+"}");
     }
     void handle(rc::Command cmd,const std::vector<uint8_t>& data) {
         std::lock_guard<std::mutex> lock(mutex_);
         if(cmd==rc::Command::ParentAlive && data.empty()){InterlockedExchange64(&ledger_->parentBeat,now());return;}
         if(cmd==rc::Command::Close && data.empty()){close("parent_stop");return;}
         if(cmd==rc::Command::Suspend && data.empty() && consentApproved_){close("capture_suspended",true,true,TrustedUi::Mode::Waiting);return;}
+        if(cmd==rc::Command::Suspend && data.empty() && consentUsed_) {
+            // A capture-suspend already in the pipe may follow local takeover.
+            // It cannot restore consent or replace the B-owned paused state.
+            close("local_takeover",true,false,TrustedUi::Mode::Paused);return;
+        }
         if(cmd==rc::Command::Pause && data.empty() && (active_ || consentApproved_ || consentUsed_)) {
             close("parent_pause",true,false,TrustedUi::Mode::Paused);return;
         }
@@ -338,8 +352,13 @@ private:
             if(consentPending_)reply("{\"event\":\"consentShown\",\"consentId\":\""+hex(consent_.id,16)+"\"}");return;
         }
         if(item.event==TrustedUi::Event::Allowed) {
-            if(!consentPending_ || now()>=consentExpires_ || !defaultDesktop() || !ui_.ready()) {
+            if(!consentPending_ || now()>=consentExpires_) {
                 close("consent_expired");return;
+            }
+            if(!defaultDesktop()){close("desktop_unavailable");return;}
+            if(const char* reason=ui_.readinessFailure()) {
+                reply(std::string("{\"event\":\"uiUnavailable\",\"reason\":\"")+reason+"\"}");
+                close("native_ui_unavailable");return;
             }
             consentPending_=false;consentApproved_=true;
             reply("{\"event\":\"consentAllowed\",\"consentId\":\""+hex(consent_.id,16)+"\"}");return;
@@ -567,6 +586,10 @@ bool readAll(HANDLE pipe,void* buffer,DWORD count) {
 }
 int wmain(int argc,wchar_t** argv) {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    if(argc==2 && wcscmp(argv[1],L"--session-state")==0) {
+        reply(std::string("{\"event\":\"sessionState\",\"state\":\"")+rc::sessionStateName(rc::currentSessionState())+
+            "\",\"defaultDesktop\":"+(defaultDesktop()?"true":"false")+"}");return 0;
+    }
     if(argc==6 && wcscmp(argv[1],L"--guardian")==0)
         return guardian(reinterpret_cast<HANDLE>(_wcstoui64(argv[2],nullptr,10)),reinterpret_cast<HANDLE>(_wcstoui64(argv[3],nullptr,10)),reinterpret_cast<HANDLE>(_wcstoui64(argv[4],nullptr,10)),reinterpret_cast<HANDLE>(_wcstoui64(argv[5],nullptr,10)));
     if(argc!=3 || wcscmp(argv[1],L"--parent")!=0)return 2;

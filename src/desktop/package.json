@@ -12,6 +12,7 @@
     "test:remote-control": "npm run build:remote-input && tsc && node --test tests/remote-control-*.integration.cjs tests/remote-control-*.test.cjs && python native/remote-input/test_runtime.py -v",
     "probe:remote-control:displays": "npm run build:remote-input && tsc && electron scripts/remote-control-display-probe.cjs",
     "test:remote-input:injection": "npm run build:remote-input && python native/remote-input/test_runtime.py --inject -v",
+    "test:remote-input:locked": "npm run build:remote-input && python native/remote-input/test_locked_session.py -v",
     "build:renderer": "node scripts/build-renderer.mjs",
     "copy:renderer": "node scripts/copy-renderer.mjs",
     "dev": "npm run build:main && electron .",

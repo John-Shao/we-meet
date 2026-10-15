@@ -9,8 +9,11 @@ const { Kind, encodeInput, encodeArm, encodeConsent, signInput } = require('../d
 const binding = () => ({ sessionId: randomUUID(), shareInstanceId: randomUUID(), inputGeneration: randomUUID(), epoch: 1 })
 function wait(helper, name) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { helper.off('state', listener); reject(new Error(`Timeout waiting for ${name}`)) }, 5000)
+    const seen = []
+    const timer = setTimeout(() => { helper.off('state', listener); reject(new Error(`Timeout waiting for ${name}: ${JSON.stringify(seen)}`)) }, 5000)
     const listener = (event) => {
+      seen.push({ event: event.event, reason: event.reason, cleanup: event.cleanup })
+      if (seen.length > 8) seen.shift()
       if (event.event === name) { clearTimeout(timer); helper.off('state', listener); resolve(event) }
     }
     helper.on('state', listener)
