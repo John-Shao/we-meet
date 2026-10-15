@@ -144,6 +144,7 @@ public:
         if(!ready_)return;
         InterlockedExchange(ready_,0);
         if(hook_)UnhookWinEvent(hook_);
+        if(power_)UnregisterSuspendResumeNotification(power_);
         if(registered_)WTSUnRegisterSessionNotification(window_);
         if(window_)DestroyWindow(window_);
         current_=nullptr;ready_=nullptr;
@@ -157,8 +158,11 @@ public:
         window_=CreateWindowExW(0,type.lpszClassName,L"",0,0,0,0,0,HWND_MESSAGE,nullptr,type.hInstance,this);
         if(!window_)return false;
         registered_=WTSRegisterSessionNotification(window_,NOTIFY_FOR_THIS_SESSION)!=0;
+        // Message-only windows do not rely on top-level broadcast delivery.
+        // Both processes subscribe independently of Electron's powerMonitor.
+        power_=RegisterSuspendResumeNotification(window_,DEVICE_NOTIFY_WINDOW_HANDLE);
         hook_=SetWinEventHook(EVENT_SYSTEM_DESKTOPSWITCH,EVENT_SYSTEM_DESKTOPSWITCH,nullptr,desktopEvent,0,0,WINEVENT_OUTOFCONTEXT);
-        if(!registered_ || !hook_)return false;
+        if(!registered_ || !power_ || !hook_)return false;
         InterlockedExchange64(beat_,now());InterlockedExchange(ready_,1);
         return true;
     }
@@ -189,10 +193,17 @@ private:
             // invalidate the old execution context; none implicitly resumes it.
             invalidateDesktop(self->ledger_);return 0;
         }
+        if(message==WM_POWERBROADCAST && self &&
+            (w==PBT_APMSUSPEND || w==PBT_APMRESUMEAUTOMATIC || w==PBT_APMRESUMESUSPEND)) {
+            // A wake notification also invalidates the old context if suspend
+            // delivery was missed; waking never restores an earlier permission.
+            invalidateDesktop(self->ledger_);return TRUE;
+        }
         return DefWindowProcW(window,message,w,l);
     }
     Ledger* ledger_;volatile LONG* ready_;volatile LONG64* beat_;
-    HWND window_=nullptr;HWINEVENTHOOK hook_=nullptr;DWORD session_=0;bool registered_=false;
+    HWND window_=nullptr;HWINEVENTHOOK hook_=nullptr;HPOWERNOTIFY power_=nullptr;
+    DWORD session_=0;bool registered_=false;
     static thread_local DesktopObserver* current_;
 };
 thread_local DesktopObserver* DesktopObserver::current_=nullptr;

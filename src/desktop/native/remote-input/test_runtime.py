@@ -147,9 +147,10 @@ class NativeRuntimeTests(unittest.TestCase):
     def tearDown(self):
         self.c.close()
 
-    def notify_test_observer(self, pid, *, foreign_session=False):
+    def notify_test_observer(self, pid, *, foreign_session=False, power_event=None):
         # Post only to this test worker/guardian's own message-only window.
-        # No actual Windows session change, broadcast or input injection occurs.
+        # No actual session/power change, broadcast or input injection occurs.
+        self.assertIn(pid, (self.c.process.pid, self.c.hello["guardianPid"]))
         user = ctypes.WinDLL("user32", use_last_error=True)
         kernel = ctypes.WinDLL("kernel32", use_last_error=True)
         user.FindWindowExW.argtypes = [wintypes.HWND, wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR]
@@ -167,7 +168,44 @@ class NativeRuntimeTests(unittest.TestCase):
             user.GetWindowThreadProcessId(window, ctypes.byref(owner))
             if owner.value == pid:
                 break
-        self.assertTrue(user.PostMessageW(window, 0x02B1, 0x8, session.value + int(foreign_session)))
+        if power_event is None:
+            self.assertTrue(user.PostMessageW(window, 0x02B1, 0x8, session.value + int(foreign_session)))
+        else:
+            self.assertTrue(user.PostMessageW(window, 0x0218, power_event, 0))
+
+    def assert_power_closes(self, guardian, event):
+        self.c.arm()
+        pid = self.c.hello["guardianPid"] if guardian else self.c.process.pid
+        self.notify_test_observer(pid, power_event=event)
+        self.assertEqual(self.c.wait("guardianClosed")["cleanup"], -2)
+        self.c.process.wait(timeout=3)
+        self.assertFalse(any(item["event"] == "inputAck" for item in self.c.observed))
+
+    def test_worker_suspend_notification_closes_without_input(self):
+        self.assert_power_closes(False, 0x4)
+
+    def test_guardian_suspend_notification_closes_without_input(self):
+        self.assert_power_closes(True, 0x4)
+
+    def test_worker_automatic_resume_notification_closes_without_input(self):
+        self.assert_power_closes(False, 0x12)
+
+    def test_guardian_automatic_resume_notification_closes_without_input(self):
+        self.assert_power_closes(True, 0x12)
+
+    def test_worker_user_resume_notification_closes_without_input(self):
+        self.assert_power_closes(False, 0x7)
+
+    def test_guardian_user_resume_notification_closes_without_input(self):
+        self.assert_power_closes(True, 0x7)
+
+    def test_power_status_change_does_not_invalidate_test_helper(self):
+        self.notify_test_observer(self.c.process.pid, power_event=0xA)
+        self.notify_test_observer(self.c.hello["guardianPid"], power_event=0xA)
+        time.sleep(.1)
+        self.c.send(1)
+        self.assertTrue(self.c.wait("displays")["displays"])
+        self.assertIsNone(self.c.process.poll())
 
     def test_worker_session_notification_closes_without_input(self):
         self.notify_test_observer(self.c.process.pid)
