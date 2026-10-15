@@ -4,6 +4,8 @@
 
 ## 配置与职责
 
+参会者的本机授权、控制与停止流程见[远程控制使用说明](../features/meeting-remote-control-user-guide.md)。管理员的策略或密钥操作不能代替 B 的本机确认。
+
 远控短许可采用独立的 ES256 / P-256 密钥。它与 LiveKit API secret、A/B 临时会话密钥、Windows Authenticode 代码签名证书分别管理；本手册的换钥命令不能签署 Windows 安装器。
 
 后端使用以下配置：

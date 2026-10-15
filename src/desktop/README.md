@@ -2,6 +2,8 @@
 
 **2026-10-15 远程控制分支**：PC Chrome/Edge/Electron 控制端与 Windows x64 被控端已接入会议流程，使用包内独立 helper/guardian；B 必须在原生窗口确认整屏授权。功能默认关闭，尚未达到正式发布门槛，见[设计](../../docs/plan/meeting-remote-control-design-2026-10-14.md)和[持续验收记录](../../docs/reviews/meeting-remote-control-implementation-2026-10-15.md)。`feature/meeting-remote-control` 的构建产物仅供隔离验收，不替换当前用户安装。
 
+参会者的申请、整屏授权、中文输入、暂停恢复和紧急停止步骤见[远程控制使用说明](../../docs/features/meeting-remote-control-user-guide.md)；管理员启用、密钥轮换和故障处理见[运维说明](../../docs/installation/meeting-remote-control-operations.md)。
+
 远控原生构建需要 Windows x64、Visual Studio C++ 工具链和 Python。桌面与前端目录各自执行 `npm ci` 后，使用以下检查：
 
 ```powershell
