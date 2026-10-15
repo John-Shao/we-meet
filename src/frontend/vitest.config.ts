@@ -4,6 +4,7 @@ import tsconfigPaths from 'vite-tsconfig-paths'
 // 前端单测(vitest + jsdom):别名 @/ 复用 tsconfig paths。刻意不复用
 // vite.config 的 dev server/proxy 与 env 加载,保持测试配置纯净、启动快。
 export default defineConfig({
+  resolve: { dedupe: ['jose'] },
   plugins: [tsconfigPaths()],
   test: {
     environment: 'jsdom',

@@ -27,6 +27,8 @@ const SEMI_FONT_STACK =
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd())
   return {
+    // Shared sources outside this root use the frontend's locked dependency.
+    resolve: { dedupe: ['jose'] },
     plugins: [
       react(),
       tsconfigPaths(),
