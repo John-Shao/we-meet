@@ -10225,7 +10225,9 @@ class RemoteControlSession(BaseModel):
     """Immutable participants/binding and short-lived, revocable permission."""
 
     organization = models.ForeignKey(Organization, on_delete=models.PROTECT)
-    room = models.ForeignKey(Room, on_delete=models.CASCADE)
+    room = models.ForeignKey(Room, on_delete=models.SET_NULL, null=True, blank=True)
+    # Immutable lookup survives room deletion for the configured audit retention.
+    room_reference = models.UUIDField(editable=False, db_index=True)
     controller = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name="remote_controls"
     )

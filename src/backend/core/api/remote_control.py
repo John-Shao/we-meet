@@ -77,6 +77,11 @@ class ActionSerializer(StrictSerializer):
     stateVersion = serializers.IntegerField(min_value=1, max_value=2**31 - 1)
 
 
+class AuditQuerySerializer(StrictSerializer):
+    after = serializers.UUIDField(required=False)
+    limit = serializers.IntegerField(min_value=1, max_value=200, default=100)
+
+
 def public_signing_key():
     key = (
         crypto.signing_key(settings.REMOTE_CONTROL_SIGNING_KEY)
@@ -139,8 +144,12 @@ class RemoteControlView(APIView):
         if operation == "session":
             return Response(service.get_session(room_id, session_id, request.user))
         if operation == "audit":
+            query = AuditQuerySerializer(data=request.query_params)
+            query.is_valid(raise_exception=True)
             return Response(
-                {"events": service.audit_history(room_id, session_id, request.user)}
+                service.audit_history(
+                    room_id, session_id, request.user, **query.validated_data
+                )
             )
         return Response(status=405)
 

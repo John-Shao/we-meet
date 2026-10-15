@@ -31,3 +31,8 @@ class CoreConfig(AppConfig):
         )
 
         connect_voiceprint_lifecycle()
+        from core.services.remote_control import (  # noqa: PLC0415
+            connect_handlers as connect_remote_control,
+        )
+
+        connect_remote_control()

@@ -9,8 +9,10 @@ from datetime import timedelta
 from uuid import UUID
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 from django.db.models import Q
+from django.db.models.signals import pre_delete
 from django.utils import timezone
 
 from core import models
@@ -359,6 +361,7 @@ def create_request(room_id, user, data):
     request = _request_body(room, evidence, (user, target), (a, b), data)
     row = models.RemoteControlSession.objects.create(
         room=room,
+        room_reference=room.pk,
         organization=room.organization,
         controller=user,
         target=target,
@@ -722,6 +725,9 @@ def revoke_by_room_action(room_id, *, identity=None, reason="room_ended"):
 
 def prune_history():
     """Receipt/input-free lifecycle retention; never delete an open session."""
+    days = settings.REMOTE_CONTROL_AUDIT_RETENTION_DAYS
+    if type(days) is not int or not 1 <= days <= 3650:
+        raise ImproperlyConfigured("Invalid remote-control audit retention")
     now = timezone.now()
     models.RemoteControlPresence.objects.filter(
         expires_at__lt=now - timedelta(minutes=5)
@@ -730,26 +736,67 @@ def prune_history():
         expires_at__lt=now - timedelta(minutes=5)
     ).delete()
     models.RemoteControlSession.objects.exclude(state__in=OPEN).filter(
-        ended_at__lt=now - timedelta(days=90)
+        ended_at__lt=now - timedelta(days=days)
     ).delete()
 
 
-def audit_history(room_id, session_id, user):
+def audit_history(room_id, session_id, user, *, after=None, limit=100):
     human(user)
-    room = _room(room_id)
+    try:
+        session = models.RemoteControlSession.objects.get(
+            pk=session_id, room_reference=room_id
+        )
+    except models.RemoteControlSession.DoesNotExist as exc:
+        raise RemoteControlError("not_found", 404) from exc
     if not models.Membership.objects.filter(
         user=user,
-        organization_id=room.organization_id,
+        organization_id=session.organization_id,
+        organization__is_active=True,
         status=models.MembershipStatusChoices.ACTIVE,
         org_role__in=(models.OrgRoleChoices.OWNER, models.OrgRoleChoices.ADMIN),
     ).exists():
         raise RemoteControlError("audit_access_denied", 403)
-    return list(
-        models.RemoteControlAudit.objects.filter(
-            session_id=session_id, session__room=room
+    if type(limit) is not int or not 1 <= limit <= 200:
+        raise RemoteControlError("invalid_page_size", 400)
+    events = models.RemoteControlAudit.objects.filter(session=session)
+    if after is not None:
+        cursor = events.filter(pk=after).values("id", "created_at").first()
+        if cursor is None:
+            raise RemoteControlError("invalid_audit_cursor", 400)
+        events = events.filter(
+            Q(created_at__gt=cursor["created_at"])
+            | Q(created_at=cursor["created_at"], pk__gt=cursor["id"])
         )
-        .order_by("created_at")
-        .values(
+    page = list(
+        events.order_by("created_at", "id").values(
             "id", "actor_id", "event", "state", "state_version", "reason", "created_at"
-        )[:200]
+        )[: limit + 1]
+    )
+    return {
+        "events": page[:limit],
+        "nextCursor": str(page[limit - 1]["id"]) if len(page) > limit else None,
+        "session": {
+            "id": str(session.pk),
+            "roomId": str(session.room_reference),
+            "roomSid": session.room_sid,
+            "controllerId": str(session.controller_id),
+            "targetId": str(session.target_id),
+            "targetDeviceSessionId": str(session.target_device_session_id),
+            "protocolVersion": session.protocol_version,
+        },
+    }
+
+
+def _room_deleted(sender, instance, **kwargs):
+    # Runs for model and queryset deletion in the deletion transaction. The
+    # nullable room link is cleared afterwards; audit rows remain retained.
+    revoke_by_room_action(instance.pk, reason="room_deleted")
+
+
+def connect_handlers():
+    pre_delete.connect(
+        _room_deleted,
+        sender=models.Room,
+        dispatch_uid="remote_control_room_deleted",
+        weak=False,
     )

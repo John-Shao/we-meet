@@ -502,6 +502,7 @@ class Base(Configuration):
     REMOTE_CONTROL_ENABLED = values.BooleanValue(False)
     REMOTE_CONTROL_SIGNING_KEY = SecretFileValue("")
     REMOTE_CONTROL_SIGNING_KID = values.Value("remote-control-v1")
+    REMOTE_CONTROL_AUDIT_RETENTION_DAYS = values.IntegerValue(90)
 
     REST_FRAMEWORK = {
         "DEFAULT_AUTHENTICATION_CLASSES": (
