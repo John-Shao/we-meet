@@ -2,17 +2,19 @@
 
 日期：2026-10-15。状态：实施中，未完成、未部署。用户已授权从 aliyun-dev 新建分支完成方案实现。
 
-## 当前交付状态（截至第二十一批）
+## 当前交付状态（截至第二十二批）
 
 | 范围 | 已有证据 | 尚未完成的门槛 |
 | --- | --- | --- |
 | 原生执行与释放 | 既有版本三项实际 Ctrl/拖拽释放通过；双进程桌面及电源通知、47 项故障检查、58 个台账崩溃用例、572 种组合键序列及真实热键注册冲突检查通过；默认回归两项被本地接管中断后专项复核通过 | 修改后原生版本的实际释放复验、实际输入与台账故障窗口、混合物理键与紧急热键触发、安全桌面/休眠竞态、混合 DPI/热插拔/旋转、中文实际输入和性能/压力矩阵 |
 | 会议控制闭环 | A/B 前端与主进程接入、真实签名和受控 transport/API 测试通过；两次本机静态窗口 60 秒解码帧时效探针通过；不可用及结束原因、显式重新申请通过组件与浏览器回归 | 两台独立设备的真实 LiveKit 会议、A/B/C 定向隔离、双机整屏静态画面 60 秒、常用应用与原会议回归 |
 | 授权与管理 | 同会议权限、短租约、原子状态转换、审计保留及分页；组织策略、紧急关闭、签名密钥轮换与撤销及数据库并发验证 | 真实多副本部署换钥、双机续租与撤销停止时延验收 |
-| 桌面交付 | 锁文件独立安装；干净提交 `62ce45263` 的完整未签名安装器、包内资源校验及完整应用启动通过，已含休眠通知、组合键修复和本批界面提示 | 正式 Authenticode、既有运行时更新信任配置、真实安装/升级/卸载；未替换用户现有安装 |
+| 桌面交付 | 锁文件独立安装；干净提交 `ba444e024` 的完整未签名安装器、包内资源校验及完整应用启动通过，已含休眠通知、组合键、界面提示和凭据等待截止修复 | 正式 Authenticode、既有运行时更新信任配置、真实安装/升级/卸载；未替换用户现有安装 |
 | 使用与运维文档 | 已提供与当前中文界面对照的参会者使用说明、组织启用与许可密钥运维步骤 | 双机实际操作、异常处理和部署换钥过程中核验文档步骤 |
 
 用户已说明暂时没有第二台测试机，准备好后另行通知；签名证书可在本机构建环境配置，但尚未确认配置完成。独立设备和签名证据保持待完成，其余实现继续推进。下文各批次保留当时状态，后续证据不会把此前失败或跳过改写为通过。
+
+设计要求与当前证据的逐项关联见[验收矩阵](meeting-remote-control-acceptance-matrix-2026-10-15.md)，包含 §14.1 自动项、§14.2 实机矩阵及发布门槛；存在待补证据的条目均不视为整体完成。
 
 ## 基线与范围
 
@@ -523,3 +525,20 @@ A 端结束后隐藏输入区域和文本/快捷键工具，关闭按钮使用�
 最新内部验收包为验证工作树 `src/desktop/release/We-Meet-0.4.0-delivery.6-setup.exe`，**187,782,345 字节**，SHA-256 **`9251379e352fb000089e84ba4d1fd0c5c28f4109b266c54c580a0a9ac24202ee`**。最终清单 `workingTreeDirty=false`；包内 helper SHA-256 为 `48f1d3885171fbba32184945359a9683c85f6feef1e5c420dfd0b5411c29994f`，原生清单的五项源码摘要与检出文件一致。安装器和 helper 均为 **NotSigned**。本轮只读检查本机用户和计算机个人证书库，当前有效且带私钥的代码签名证书数量均为 0；这不排除尚未导入的证书或其他签名服务，也不代表证书已配置完成。
 
 完整应用冒烟退出码 0，报告及截图在验证工作树 `src/desktop/test-results/remote-app-profile-uoRfL5/`：实际包、独立 profile、在线且未登录，登录页截图已检查；sandbox/contextIsolation=true、nodeIntegration=false，无页面异常；包内 helper 只读探测 ready=true、两个显示器。测试后无该包的应用进程残留，HKCU 登录协议注册前后摘要一致，见 `test-results/remote-app-protocol-62ce4526393a.json`。未执行安装、登录、会议或输入注入，不能据此宣称完成双机或安装升级卸载验收。
+
+## 第二十二批：SDK 实际去重契约与请求总截止
+
+按设计 §7.1/§14.1 补充 `remote-control-sdk.test.cjs`：直接加载前端锁定的 `livekit-client@2.17.1` 浏览器 ESM 构建及其 protobuf 编码器，从实际 `RTCEngine.handleDataMessage` 到 `RoomEvent.DataReceived` 执行。覆盖重复/较旧 SDK sequence 被丢弃、跨 topic 共用 SID 序号、不同 SID 独立、零序号/缺 SID 不去重、30 秒历史过期、Blob 异步解析不重排后续 ArrayBuffer、五参数回调不提供 destination。真实 WebCrypto 签名输入 seq=1/3/1 使用递增 SDK sequence 后均原样交给应用，说明应用缺口/重放校验不能依赖 SDK 代替。7 项通过；该测试不连接 SFU、不调用 native，不证明 A/B/C 实际路由或键鼠释放。新增 `npm run test:remote-control:sdk`，并由既有远控测试文件模式纳入组合回归。
+
+核对 §9.2/§14.1 的请求超时时发现，`cloud.ts` 原来取到凭据后才创建 8 秒 AbortSignal；凭据等待无界。新增用例先在原实现运行，期限触发后仍为 `still-pending`，退出码 1。现为整个异步请求创建同一个截止信号，覆盖凭据、HTTP 和流式读取；到期不再继续后续阶段，迟到凭据不能启动 HTTP。取凭据和发送前在实际执行微任务中再次核对登录 epoch，避免等待调度期间换号。保留稳定错误码、固定 origin/路径、禁止重定向和实际读取字节上限。
+
+| 验证 | 结果 |
+| --- | --- |
+| 最终相关回归 | TypeScript 通过；SDK 7 项、cloud 4 项、authorization integration 7 项、A session 8 项、B authorization 16 项、runtime 9 项，共 **51 项通过**，8.157 秒；日志 `src/desktop/test-results/sdk-cloud-regression.log` |
+| 凭据与换号 | 凭据已进入等待后触发测试截止，立即返回固定失败；随后完成凭据 Promise，HTTP 调用仍为 0；调度间隙换号不获取凭据 |
+| 真实 HTTP | 仅访问测试自己创建的 loopback 服务；302 不跟随，停滞响应头在 **8003 ms**、持续未结束响应体在 **8004 ms** 失败；测试服务最终关闭 |
+| 完整包 | 独立验证工作树干净提交 **`ba444e024512e7a8083adf9c7f0e308acfee8994`**；`npm run package` 退出码 0、Vite 37.90 秒、202 项前端资源和运行时/原生清单通过；沿用独立依赖目录，未重新执行 npm ci |
+
+最新内部验收安装器为验证工作树 `src/desktop/release/We-Meet-0.4.0-delivery.6-setup.exe`，**187,781,717 字节**，SHA-256 **`b1a2d78be75807030356cfc9af956f8f5a0ab2610a1a838f6fdfac96ea06bb19`**；manifest 的 `workingTreeDirty=false`，原生五项源码摘要与检出文件一致。helper SHA-256 为 `fcd18b5432e829e34e6a7dd8de8bb7187c4aebf0d91dfc668cbcc2804f561947`。安装器/helper 均为 **NotSigned**。上一批 `62ce45263` 的包、清单和 blockmap 已归档至 `release/archive/62ce4526393a/`，逐项摘要一致。
+
+完整应用冒烟通过，报告/截图为验证工作树 `src/desktop/test-results/remote-app-profile-TkDXFU/`，登录页截图已检查；独立 profile、实际 ASAR、在线且未登录，sandbox/contextIsolation=true、nodeIntegration=false，无页面异常，helper ready=true、两个显示器。该包进程已退出，HKCU 登录协议注册前后摘要一致，见 `test-results/remote-app-protocol-ba444e024512.json`。没有安装、登录、发起会议或注入键鼠。新增验收矩阵保留全部未验证范围，并修正设计 §16.4 中仍把已接入的协调器/界面列为未实现的过时描述；未改变首期范围或验收门槛。

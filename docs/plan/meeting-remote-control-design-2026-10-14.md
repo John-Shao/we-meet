@@ -656,7 +656,7 @@ P1 技术准入须确认 §6.2 的保证范围、本机 consent 匹配与不可�
 
 独立分支：`feature/meeting-remote-control`；起点为拉取后的 `origin/aliyun-dev`，commit `d9e81a9ea`；工作目录为 `D:/workspace/jusi-meet/.worktrees/we-meet-remote-control`。只复制本方案与对应评审报告，未带入原 enterprise-ai-platform 工作区的业务修改。此基线 desktop 为 0.4.0-delivery.6，存在 0222_merge_photo_qa_voiceprint 迁移；后续迁移需基于该分支分配。
 
-已新增原生执行基础、服务端授权状态机/API、桌面许可校验、Win32 受信确认/控制条及显示器映射模块，并完成实施记录所列隔离测试；主进程授权协调器、会议界面、采集/轨道绑定闭环、完整实机验收与部署仍未完成。持续跟踪[实施记录](../reviews/meeting-remote-control-implementation-2026-10-15.md)，不得把本节作为整项功能验收完成的证明。
+已实现原生执行器与 guardian、服务端授权状态机/API、桌面许可校验和主进程协调器、Win32 受信确认/控制条、显示器/采集轨道绑定及 A/B 会议界面，并完成实施记录所列隔离测试。完整双机闭环、最新原生实际输入及系统竞态、签名安装、性能稳定性与部署验收仍未完成。逐项要求和证据范围见[验收矩阵](../reviews/meeting-remote-control-acceptance-matrix-2026-10-15.md)，详细执行记录见[实施记录](../reviews/meeting-remote-control-implementation-2026-10-15.md)；源码已接入不代表技术验收已通过。
 
 ## 17. 参考资料与结论边界
 
