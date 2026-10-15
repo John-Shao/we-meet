@@ -71,23 +71,33 @@ bool emptyLedger(Ledger* l) {
     for(size_t i=0;i<CandidateCount;++i) if(InterlockedCompareExchange(&l->candidates[i],0,0)) return false;
     return true;
 }
-bool release(Ledger* l) {
+// Function parameters permit isolated fault tests; neither callback is exposed
+// through the runtime protocol. Production callers always use the Win32 APIs.
+bool release(Ledger* l,bool (*safeDesktop)()=defaultDesktop,
+             UINT (WINAPI *insert)(UINT,LPINPUT,int)=SendInput) {
     InterlockedExchange(&l->gate,0);
     if(InterlockedCompareExchange(&l->cleanup,0,0)<0)return false;
     // No candidate was ever left down. Confirming an empty ledger needs no
     // input on the lock screen; negative/uncertain cleanup is still sticky.
     if(emptyLedger(l)){InterlockedExchange(&l->cleanup,1);return true;}
-    if(!defaultDesktop()) { InterlockedExchange(&l->cleanup,-2); return false; }
+    auto uncertain=[&](){InterlockedExchange(&l->cleanup,-2);return false;};
+    if(!safeDesktop())return uncertain();
     bool ok=true;
     LONG unicode=InterlockedCompareExchange(&l->unicodeCandidate,0,0);
+    // Do not commit any candidate removal until the complete cleanup pass has
+    // been checked. An uncertain later up must retain the conservative ledger.
+    std::array<bool,CandidateCount> candidates{};
+    for(size_t i=0;i<CandidateCount;++i)candidates[i]=InterlockedCompareExchange(&l->candidates[i],0,0)!=0;
     if(unicode) {
+        if(!safeDesktop())return uncertain();
         INPUT e{};e.type=INPUT_KEYBOARD;e.ki.wScan=WORD(unicode-1);
         e.ki.dwFlags=KEYEVENTF_UNICODE|KEYEVENTF_KEYUP;e.ki.dwExtraInfo=InputTag;
-        if(SendInput(1,&e,sizeof(e))==1 && defaultDesktop())InterlockedExchange(&l->unicodeCandidate,0);
-        else ok=false;
+        if(insert(1,&e,sizeof(e))!=1)ok=false;
+        if(!safeDesktop())return uncertain();
     }
     for(size_t i=0;i<CandidateCount;++i) {
-        if(!InterlockedCompareExchange(&l->candidates[i],0,0)) continue;
+        if(!candidates[i])continue;
+        if(!safeDesktop())return uncertain();
         INPUT e{};
         if(i<KeyCount) {
             e.type=INPUT_KEYBOARD; e.ki.wScan=WORD(i%256);
@@ -98,11 +108,15 @@ bool release(Ledger* l) {
             e.mi.dwFlags=i==ButtonBase?MOUSEEVENTF_LEFTUP:i==ButtonBase+1?MOUSEEVENTF_RIGHTUP:MOUSEEVENTF_MIDDLEUP;
             e.mi.dwExtraInfo=InputTag;
         }
-        if(SendInput(1,&e,sizeof(e))==1 && defaultDesktop()) InterlockedExchange(&l->candidates[i],0);
-        else ok=false;
+        if(insert(1,&e,sizeof(e))!=1)ok=false;
+        if(!safeDesktop())return uncertain();
     }
-    InterlockedExchange(&l->cleanup,ok?1:-1);
-    return ok;
+    if(!safeDesktop())return uncertain();
+    if(!ok){InterlockedExchange(&l->cleanup,-1);return false;}
+    if(unicode)InterlockedExchange(&l->unicodeCandidate,0);
+    for(size_t i=0;i<CandidateCount;++i)if(candidates[i])InterlockedExchange(&l->candidates[i],0);
+    InterlockedExchange(&l->cleanup,1);
+    return true;
 }
 
 // Guardian receives only inherited handles, not commands, keys, URLs or code.

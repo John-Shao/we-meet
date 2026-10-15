@@ -12,7 +12,7 @@ SOURCE = ROOT / "native" / "remote-input"
 DEST = ROOT / "dist" / "remote-input"
 
 
-def build() -> None:
+def toolchain() -> tuple[Path, dict[str, str]]:
     if os.name != "nt":
         raise SystemExit("The remote input runtime must be built on Windows x64")
     vswhere = Path(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")) / "Microsoft Visual Studio/Installer/vswhere.exe"
@@ -37,6 +37,11 @@ def build() -> None:
     compiler = next((Path(item) / "cl.exe" for item in env["PATH"].split(";") if (Path(item) / "cl.exe").is_file()), None)
     if not compiler:
         raise SystemExit("C++ compiler not found after toolchain setup")
+    return compiler, env
+
+
+def build() -> None:
+    compiler, env = toolchain()
     DEST.mkdir(parents=True, exist_ok=True)
     output = DEST / "we-meet-remote-input.exe"
     subprocess.run(
