@@ -11,7 +11,8 @@
       "emojis": "Émojis personnalisés",
       "groups": "Groupes d'utilisateurs",
       "roles": "Rôles et permissions",
-      "invites": "Inviter des membres"
+      "invites": "Inviter des membres",
+      "remoteControl": "Contrôle à distance en réunion"
     },
     "navGroup": {
       "org": "Organisation",
@@ -324,7 +325,9 @@
       "bot_enable": "Bot de groupe activé",
       "voiceprint_policy_changed": "Politique d’empreinte vocale de l’organisation modifiée",
       "task_list_transfer": "Liste de tâches transférée",
-      "task_list_takeover": "Liste de tâches reprise"
+      "task_list_takeover": "Liste de tâches reprise",
+      "remote_control_policy_changed": "Politique de contrôle à distance modifiée",
+      "remote_control_emergency_closed": "Contrôle à distance arrêté par un administrateur"
     },
     "group": {
       "department": "Service",
@@ -571,5 +574,37 @@
   "feedback": {
     "loadFailed": "Impossible de charger les données. Veuillez réessayer.",
     "retry": "Réessayer"
+  },
+  "remoteControl": {
+    "description": "Les participants peuvent contrôler un appareil Windows après accord donné localement par son utilisateur.",
+    "loading": "Chargement…",
+    "members": "Membres de l’organisation",
+    "openSessions": "Demandes et sessions en cours : {{count}}",
+    "globalDisabled": "Le contrôle à distance est désactivé dans le déploiement. Vous pouvez préparer la politique de l’organisation ici.",
+    "invalidStored": "La politique enregistrée est invalide. Enregistrez une politique valide ou utilisez l’arrêt d’urgence.",
+    "enabled": "Autoriser le contrôle à distance dans cette organisation",
+    "max_seconds": "Durée maximale d’une session (30–1800 secondes)",
+    "requests_per_minute": "Demandes par paire de comptes et par minute (1–10)",
+    "rejection_cooldown_seconds": "Délai après un refus (1–600 secondes)",
+    "controllers": "Qui peut demander le contrôle",
+    "targets": "Quels utilisateurs peuvent autoriser le contrôle de leur appareil",
+    "allMembers": "Tous les membres actifs de l’organisation",
+    "selectedMembers": "Membres sélectionnés uniquement",
+    "allowlistHelp": "{{count}} / 64 sélectionnés. Une liste vide n’autorise personne.",
+    "search": "Rechercher des membres par nom",
+    "selected": "Sélectionnés : {{count}}",
+    "empty": "Aucun membre admissible",
+    "loadMore": "Charger plus",
+    "unavailableMember": "Membre indisponible ({{id}})",
+    "save": "Enregistrer la politique",
+    "saveConfirm": "Cette modification termine toutes les demandes et sessions de contrôle à distance de l’organisation. Une nouvelle demande et un nouvel accord seront nécessaires.",
+    "emergencyClose": "Arrêt d’urgence",
+    "closeConfirm": "Désactiver le contrôle à distance de cette organisation et terminer toutes les demandes et sessions en cours ?",
+    "closeHelp": "L’arrêt d’urgence bloque aussi les nouvelles demandes. Les appareils s’arrêtent à réception du changement d’état ; en cas d’échec de livraison, l’autorisation expire sous 15 secondes.",
+    "conflict": "Un autre administrateur a modifié la politique. Rechargez-la avant de la modifier.",
+    "invalidMembersOrPolicy": "Vérifiez les valeurs et les membres choisis. Seuls les comptes personnels actifs de cette organisation sont admis.",
+    "saveFailed": "Échec de l’enregistrement. Rechargez l’état actuel avant de réessayer.",
+    "reload": "Recharger la politique actuelle",
+    "saved": "Politique enregistrée."
   }
 }

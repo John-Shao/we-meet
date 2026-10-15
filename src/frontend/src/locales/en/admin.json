@@ -11,7 +11,8 @@
       "meetingRooms": "Meeting rooms",
       "groups": "User groups",
       "roles": "Roles and permissions",
-      "invites": "Invite members"
+      "invites": "Invite members",
+      "remoteControl": "Meeting remote control"
     },
     "navGroup": {
       "org": "Organization",
@@ -461,7 +462,9 @@
       "bot_enable": "Group bot enabled",
       "voiceprint_policy_changed": "Organization voiceprint policy changed",
       "task_list_transfer": "Task list transferred",
-      "task_list_takeover": "Task list taken over"
+      "task_list_takeover": "Task list taken over",
+      "remote_control_policy_changed": "Remote-control policy changed",
+      "remote_control_emergency_closed": "Remote control closed by administrator"
     },
     "group": {
       "department": "Department",
@@ -571,5 +574,37 @@
     "moveUp": "Move up",
     "disable": "Disable",
     "enable": "Enable"
+  },
+  "remoteControl": {
+    "description": "Participants can control a Windows device after its user gives local consent.",
+    "loading": "Loading…",
+    "members": "Organization members",
+    "openSessions": "Open requests and sessions: {{count}}",
+    "globalDisabled": "Remote control is disabled in the deployment settings. You can prepare the organization policy here.",
+    "invalidStored": "The stored policy is invalid. Save a valid policy or use emergency close to repair it.",
+    "enabled": "Enable remote control for this organization",
+    "max_seconds": "Maximum session duration (30–1800 seconds)",
+    "requests_per_minute": "Requests per account pair per minute (1–10)",
+    "rejection_cooldown_seconds": "Cooldown after rejection (1–600 seconds)",
+    "controllers": "Who can request control",
+    "targets": "Whose device can be controlled",
+    "allMembers": "All active organization members",
+    "selectedMembers": "Selected members only",
+    "allowlistHelp": "{{count}} / 64 selected. An empty list allows nobody.",
+    "search": "Search members by name",
+    "selected": "Selected: {{count}}",
+    "empty": "No eligible members",
+    "loadMore": "Load more",
+    "unavailableMember": "Unavailable member ({{id}})",
+    "save": "Save policy",
+    "saveConfirm": "Changing this policy ends all open remote-control requests and sessions in this organization. Participants must request and consent again.",
+    "emergencyClose": "Emergency close",
+    "closeConfirm": "Disable remote control for this organization and end all open requests and sessions?",
+    "closeHelp": "Emergency close blocks new requests. Devices stop after receiving the state update; if delivery fails, their current authorization expires within 15 seconds.",
+    "conflict": "Another administrator changed the policy. Reload before applying your changes.",
+    "invalidMembersOrPolicy": "Check the values and selected members. Only active human accounts in this organization are eligible.",
+    "saveFailed": "Could not save. Reload to check the current state before retrying.",
+    "reload": "Reload current policy",
+    "saved": "Policy saved."
   }
 }

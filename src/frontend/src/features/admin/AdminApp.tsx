@@ -13,6 +13,7 @@ import { AdminMeetingRooms } from './pages/MeetingRooms'
 import { AdminAudit } from './pages/Audit'
 import { AdminBots } from './pages/Bots'
 import { AdminEmojis } from './pages/Emojis'
+import { AdminRemoteControl } from './pages/RemoteControl'
 
 /**
  * Root of the management console (M 端). Mounted under `/admin` via wouter's
@@ -88,6 +89,9 @@ const AdminApp = () => (
         </Route>
         <Route path="/audit">
           <AdminAudit />
+        </Route>
+        <Route path="/remote-control">
+          <AdminRemoteControl />
         </Route>
         <Route>
           <AdminHome />

@@ -11,7 +11,8 @@
       "emojis": "Organisatie-emoji's",
       "groups": "Gebruikersgroepen",
       "roles": "Rollen en machtigingen",
-      "invites": "Leden uitnodigen"
+      "invites": "Leden uitnodigen",
+      "remoteControl": "Bediening op afstand in vergaderingen"
     },
     "navGroup": {
       "org": "Organisatiebeheer",
@@ -328,7 +329,9 @@
       "bot_enable": "Groepsbot ingeschakeld",
       "voiceprint_policy_changed": "Stemafdrukbeleid van de organisatie gewijzigd",
       "task_list_transfer": "Takenlijst overgedragen",
-      "task_list_takeover": "Takenlijst overgenomen"
+      "task_list_takeover": "Takenlijst overgenomen",
+      "remote_control_policy_changed": "Beleid voor bediening op afstand gewijzigd",
+      "remote_control_emergency_closed": "Bediening op afstand beëindigd door beheerder"
     },
     "group": {
       "department": "Afdeling",
@@ -571,5 +574,37 @@
     "moveUp": "Omhoog verplaatsen",
     "disable": "Uitschakelen",
     "enable": "Inschakelen"
+  },
+  "remoteControl": {
+    "description": "Deelnemers mogen een Windows-apparaat pas bedienen nadat de gebruiker lokaal toestemming geeft.",
+    "loading": "Laden…",
+    "members": "Organisatieleden",
+    "openSessions": "Openstaande aanvragen en sessies: {{count}}",
+    "globalDisabled": "Bediening op afstand is uitgeschakeld in de implementatie. U kunt hier alvast het organisatiebeleid instellen.",
+    "invalidStored": "Het opgeslagen beleid is ongeldig. Sla geldig beleid op of gebruik de noodstop.",
+    "enabled": "Bediening op afstand voor deze organisatie inschakelen",
+    "max_seconds": "Maximale sessieduur (30–1800 seconden)",
+    "requests_per_minute": "Aanvragen per accountpaar per minuut (1–10)",
+    "rejection_cooldown_seconds": "Wachttijd na afwijzing (1–600 seconden)",
+    "controllers": "Wie bediening mag aanvragen",
+    "targets": "Wiens apparaat bediend mag worden",
+    "allMembers": "Alle actieve organisatieleden",
+    "selectedMembers": "Alleen geselecteerde leden",
+    "allowlistHelp": "{{count}} / 64 geselecteerd. Een lege lijst staat niemand toe.",
+    "search": "Leden zoeken op naam",
+    "selected": "Geselecteerd: {{count}}",
+    "empty": "Geen geschikte leden",
+    "loadMore": "Meer laden",
+    "unavailableMember": "Niet beschikbaar lid ({{id}})",
+    "save": "Beleid opslaan",
+    "saveConfirm": "Een wijziging beëindigt alle openstaande aanvragen en sessies binnen deze organisatie. Er zijn een nieuwe aanvraag en toestemming nodig.",
+    "emergencyClose": "Noodstop",
+    "closeConfirm": "Bediening op afstand uitschakelen en alle openstaande aanvragen en sessies beëindigen?",
+    "closeHelp": "De noodstop blokkeert nieuwe aanvragen. Apparaten stoppen na de statuswijziging; bij bezorgproblemen verloopt de huidige toestemming binnen 15 seconden.",
+    "conflict": "Een andere beheerder heeft het beleid gewijzigd. Laad het opnieuw voordat u wijzigingen aanbrengt.",
+    "invalidMembersOrPolicy": "Controleer de waarden en leden. Alleen actieve persoonlijke accounts binnen deze organisatie zijn toegestaan.",
+    "saveFailed": "Opslaan mislukt. Laad de huidige status opnieuw voordat u het nogmaals probeert.",
+    "reload": "Huidig beleid opnieuw laden",
+    "saved": "Beleid opgeslagen."
   }
 }

@@ -1,7 +1,8 @@
 """Meeting remote-control authorization. A signed lease never replaces local consent.
 
-All transitions lock the two account rows in stable order, then the session. This
-serializes inverse requests and cross-role chains across application processes.
+Grant paths lock accounts in stable order, then share-lock the organization and
+lock the session. This serializes policy shutdown, inverse requests and
+cross-role chains across application processes without serializing all grants.
 LiveKit is queried independently of client assertions before a grant is renewed.
 """
 
@@ -18,6 +19,7 @@ from django.utils import timezone
 from core import models
 from core.services import remote_control_crypto as crypto
 from core.services import remote_control_livekit as livekit
+from core.services import remote_control_policy as policies
 from core.services.remote_control_livekit import RemoteControlError
 
 OPEN = models.REMOTE_CONTROL_OPEN_STATES
@@ -57,14 +59,8 @@ def policy(room, controller=None, target=None):
         or not room.organization.is_active
     ):
         raise RemoteControlError("remote_control_disabled", 403)
-    organization = room.organization.settings.get("remote_control", {})
-    local = room.configuration.get("remote_control", {})
-    if (
-        not isinstance(organization, dict)
-        or organization.get("enabled") is not True
-        or not isinstance(local, dict)
-        or local.get("enabled") is False
-    ):
+    organization, local = policies.configurations(room)
+    if not organization["enabled"] or not local["enabled"]:
         raise RemoteControlError("remote_control_disabled", 403)
     for user, role in ((controller, "controllers"), (target, "targets")):
         if user is None:
@@ -82,10 +78,9 @@ def policy(room, controller=None, target=None):
                 not isinstance(allowed, list) or str(user.pk) not in allowed
             ):
                 raise RemoteControlError("remote_control_not_allowed", 403)
-    durations = [organization.get("max_seconds", 1800), local.get("max_seconds", 1800)]
-    if any(type(n) is not int or not 30 <= n <= 1800 for n in durations):
-        raise RemoteControlError("invalid_remote_control_policy", 503)
-    return min(durations), crypto.digest({"organization": organization, "room": local})
+    return min(organization["max_seconds"], local["max_seconds"]), policies.digest(
+        organization, local
+    )
 
 
 def _room(room_id):
@@ -97,11 +92,22 @@ def _room(room_id):
 
 def _lock_users(*ids):
     users = list(
-        models.User.objects.select_for_update().filter(pk__in=ids).order_by("pk")
+        models.User.objects.select_for_update(no_key=True)
+        .filter(pk__in=ids)
+        .order_by("pk")
     )
     if len(users) != len(set(ids)):
         raise RemoteControlError("human_account_required", 403)
     return {user.pk: user for user in users}
+
+
+def _lock_room_policy(room_id):
+    initial = _room(room_id)
+    policies.share_organization(initial.organization_id)
+    room = _room(room_id)
+    if room.organization_id != initial.organization_id:
+        raise RemoteControlError("organization_access_denied", 403)
+    return room
 
 
 def _audit(row, event, actor=None, reason=""):
@@ -131,7 +137,16 @@ def _finish(row, state, reason, actor=None):
     row.ended_at = timezone.now()
     row.end_reason = reason
     row.lease_expires_at = row.ended_at
-    row.save()
+    row.save(
+        update_fields=[
+            "state",
+            "state_version",
+            "ended_at",
+            "end_reason",
+            "lease_expires_at",
+            "updated_at",
+        ]
+    )
     _audit(row, "ended", actor, reason)
 
 
@@ -163,7 +178,7 @@ def publish_presence(room_id, user, data):
     evidence = livekit.snapshot(room_id)
     user = _lock_users(user.pk)[user.pk]
     human(user)
-    room = _room(room_id)
+    room = _lock_room_policy(room_id)
     policy(
         room,
         user if data["canControl"] else None,
@@ -297,7 +312,7 @@ def create_request(room_id, user, data):
     evidence = livekit.snapshot(room_id)
     users = _lock_users(user.pk, data["targetUserId"])
     user, target = users[user.pk], users[data["targetUserId"]]
-    room = _room(room_id)
+    room = _lock_room_policy(room_id)
     _, policy_digest = policy(room, user, target)
     previous = (
         models.RemoteControlSession.objects.select_for_update()
@@ -328,15 +343,22 @@ def create_request(room_id, user, data):
     ):
         raise RemoteControlError("connection_changed")
     livekit.screen_allowed(livekit.participant(evidence, target))
-    recent = models.RemoteControlSession.objects.filter(
+    organization, local = policies.configurations(room)
+    request_limit = min(
+        organization["requests_per_minute"], local["requests_per_minute"]
+    )
+    cooldown = max(
+        organization["rejection_cooldown_seconds"], local["rejection_cooldown_seconds"]
+    )
+    pair = models.RemoteControlSession.objects.filter(
         controller=user,
         target=target,
-        created_at__gte=timezone.now() - timedelta(seconds=60),
     )
     if (
-        recent.count() >= 3
-        or recent.filter(
-            state="REJECTED", ended_at__gte=timezone.now() - timedelta(seconds=60)
+        pair.filter(created_at__gte=timezone.now() - timedelta(seconds=60)).count()
+        >= request_limit
+        or pair.filter(
+            state="REJECTED", ended_at__gte=timezone.now() - timedelta(seconds=cooldown)
         ).exists()
     ):
         raise RemoteControlError("request_rate_limited", 429)
@@ -414,6 +436,7 @@ def _locked(room_id, session_id, user, *, target_only=False, admin_end=False):
         raise RemoteControlError("not_found", 404)
     users = _lock_users(initial.controller_id, initial.target_id, user.pk)
     human(users[user.pk])
+    policies.share_organization(initial.organization_id)
     return (
         models.RemoteControlSession.objects.select_for_update(of=("self",))
         .select_related("room__organization", "controller", "target")

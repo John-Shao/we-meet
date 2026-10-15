@@ -7825,6 +7825,12 @@ class AuditActionChoices(models.TextChoices):
     VOICEPRINT_POLICY_CHANGED = (
         "voiceprint.policy_changed", _("Organization voiceprint policy changed")
     )
+    REMOTE_CONTROL_POLICY_CHANGED = (
+        "remote_control.policy_changed", _("Remote-control policy changed")
+    )
+    REMOTE_CONTROL_EMERGENCY_CLOSED = (
+        "remote_control.emergency_closed", _("Remote control closed by administrator")
+    )
 
 
 class AuditLog(BaseModel):

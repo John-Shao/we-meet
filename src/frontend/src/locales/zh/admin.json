@@ -11,7 +11,8 @@
       "meetingRooms": "会议室",
       "groups": "用户组",
       "roles": "角色与权限",
-      "invites": "邀请成员"
+      "invites": "邀请成员",
+      "remoteControl": "会议远程控制"
     },
     "navGroup": {
       "org": "组织管理",
@@ -472,7 +473,9 @@
       "meeting_room_create": "新建会议室",
       "meeting_room_update": "更新会议室",
       "meeting_room_delete": "删除会议室",
-      "summary_edit": "编辑会议纪要"
+      "summary_edit": "编辑会议纪要",
+      "remote_control_policy_changed": "修改远控策略",
+      "remote_control_emergency_closed": "管理员紧急关闭远控"
     }
   },
   "meetingRooms": {
@@ -571,5 +574,37 @@
     "moveUp": "上移",
     "disable": "停用",
     "enable": "启用"
+  },
+  "remoteControl": {
+    "description": "参会者申请后，须由设备使用者在 Windows 本机同意，才能远程操作。",
+    "loading": "加载中…",
+    "members": "组织成员",
+    "openSessions": "待处理申请及进行中会话：{{count}}",
+    "globalDisabled": "部署配置尚未开启远程控制，可先在此准备组织策略。",
+    "invalidStored": "当前存储的策略无效，远控已不可用。请保存有效策略，或使用紧急关闭进行修复。",
+    "enabled": "允许本组织使用远程控制",
+    "max_seconds": "单次最长时长（30–1800 秒）",
+    "requests_per_minute": "同一对账号每分钟最多申请次数（1–10）",
+    "rejection_cooldown_seconds": "被拒绝后的冷却时间（1–600 秒）",
+    "controllers": "谁可以申请控制",
+    "targets": "谁的设备可以被控制",
+    "allMembers": "全部在职组织成员",
+    "selectedMembers": "仅指定成员",
+    "allowlistHelp": "已选 {{count}} / 64 人；空名单表示无人可用。",
+    "search": "按姓名搜索成员",
+    "selected": "已选 {{count}} 人",
+    "empty": "没有符合条件的成员",
+    "loadMore": "加载更多",
+    "unavailableMember": "已不可用的成员（{{id}}）",
+    "save": "保存策略",
+    "saveConfirm": "修改策略将结束本组织所有待处理的远控申请和进行中的会话。双方需要重新申请并同意。",
+    "emergencyClose": "紧急关闭远控",
+    "closeConfirm": "关闭本组织远控，并结束所有待处理申请和进行中的会话？",
+    "closeHelp": "紧急关闭同时禁止新的申请。设备收到状态更新后停止控制；通知未送达时，当前授权最迟在 15 秒内到期。",
+    "conflict": "策略已被其他管理员修改，请重新加载后再修改。",
+    "invalidMembersOrPolicy": "请检查策略数值和所选成员。仅支持本组织在职的真实用户账号。",
+    "saveFailed": "保存失败。请先重新加载，确认当前状态后再重试。",
+    "reload": "重新加载当前策略",
+    "saved": "策略已保存。"
   }
 }

@@ -11,7 +11,8 @@
       "emojis": "Organisations-Emojis",
       "groups": "Benutzergruppen",
       "roles": "Rollen & Berechtigungen",
-      "invites": "Mitglieder einladen"
+      "invites": "Mitglieder einladen",
+      "remoteControl": "Meeting-Fernsteuerung"
     },
     "navGroup": {
       "org": "Organisationsverwaltung",
@@ -324,7 +325,9 @@
       "bot_enable": "Gruppen-Bot aktiviert",
       "voiceprint_policy_changed": "Stimmabdruckrichtlinie der Organisation geändert",
       "task_list_transfer": "Aufgabenliste übertragen",
-      "task_list_takeover": "Aufgabenliste übernommen"
+      "task_list_takeover": "Aufgabenliste übernommen",
+      "remote_control_policy_changed": "Fernsteuerungsrichtlinie geändert",
+      "remote_control_emergency_closed": "Fernsteuerung durch Administrator beendet"
     },
     "group": {
       "department": "Abteilung",
@@ -571,5 +574,37 @@
   "feedback": {
     "loadFailed": "Die Daten konnten nicht geladen werden. Bitte versuchen Sie es erneut.",
     "retry": "Erneut versuchen"
+  },
+  "remoteControl": {
+    "description": "Teilnehmende dürfen ein Windows-Gerät erst nach lokaler Zustimmung der nutzenden Person fernsteuern.",
+    "loading": "Wird geladen…",
+    "members": "Organisationsmitglieder",
+    "openSessions": "Offene Anfragen und Sitzungen: {{count}}",
+    "globalDisabled": "Fernsteuerung ist in der Bereitstellung deaktiviert. Sie können die Organisationsrichtlinie hier vorbereiten.",
+    "invalidStored": "Die gespeicherte Richtlinie ist ungültig. Speichern Sie eine gültige Richtlinie oder verwenden Sie die Notabschaltung.",
+    "enabled": "Fernsteuerung für diese Organisation aktivieren",
+    "max_seconds": "Maximale Sitzungsdauer (30–1800 Sekunden)",
+    "requests_per_minute": "Anfragen pro Kontenpaar und Minute (1–10)",
+    "rejection_cooldown_seconds": "Wartezeit nach Ablehnung (1–600 Sekunden)",
+    "controllers": "Wer Steuerung anfordern darf",
+    "targets": "Wessen Gerät gesteuert werden darf",
+    "allMembers": "Alle aktiven Organisationsmitglieder",
+    "selectedMembers": "Nur ausgewählte Mitglieder",
+    "allowlistHelp": "{{count}} / 64 ausgewählt. Eine leere Liste erlaubt niemanden.",
+    "search": "Mitglieder nach Namen suchen",
+    "selected": "Ausgewählt: {{count}}",
+    "empty": "Keine berechtigten Mitglieder",
+    "loadMore": "Mehr laden",
+    "unavailableMember": "Nicht verfügbares Mitglied ({{id}})",
+    "save": "Richtlinie speichern",
+    "saveConfirm": "Eine Änderung beendet alle offenen Fernsteuerungsanfragen und Sitzungen dieser Organisation. Anfrage und Zustimmung müssen erneut erfolgen.",
+    "emergencyClose": "Notabschaltung",
+    "closeConfirm": "Fernsteuerung dieser Organisation deaktivieren und alle offenen Anfragen und Sitzungen beenden?",
+    "closeHelp": "Die Notabschaltung verhindert neue Anfragen. Geräte stoppen nach der Statusmeldung; bei Zustellfehlern läuft die bestehende Berechtigung innerhalb von 15 Sekunden ab.",
+    "conflict": "Ein anderer Administrator hat die Richtlinie geändert. Laden Sie sie vor weiteren Änderungen neu.",
+    "invalidMembersOrPolicy": "Prüfen Sie Werte und Mitglieder. Nur aktive persönliche Konten dieser Organisation sind zulässig.",
+    "saveFailed": "Speichern fehlgeschlagen. Laden Sie den aktuellen Stand vor einem erneuten Versuch neu.",
+    "reload": "Aktuelle Richtlinie neu laden",
+    "saved": "Richtlinie gespeichert."
   }
 }

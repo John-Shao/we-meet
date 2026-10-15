@@ -31,7 +31,8 @@ interface NavItem {
    * 只是**导航过滤**,不是权限本身 —— 真正的门在服务端每个端点上。这里少显示
    * 一项是为了别让人点进一个必定 403 的页面。
    */
-  permission: string
+  permission?: string
+  orgAdminOnly?: boolean
 }
 
 interface NavGroup {
@@ -98,6 +99,12 @@ const NAV: NavGroup[] = [
     labelKey: 'shell.navGroup.governance',
     items: [
       {
+        to: '/remote-control',
+        labelKey: 'shell.nav.remoteControl',
+        Icon: RiShieldKeyholeLine,
+        orgAdminOnly: true,
+      },
+      {
         to: '/bots',
         labelKey: 'shell.nav.bots',
         Icon: RiRobot2Line,
@@ -137,7 +144,11 @@ export const AdminShell = ({ children }: { children: ReactNode }) => {
   // 整组都没权限就连组标题一起不渲染 —— 一个空的「组织管理」标题比没有更费解。
   const visibleGroups = NAV.map((group) => ({
     ...group,
-    items: group.items.filter((item) => has(item.permission)),
+    items: group.items.filter((item) =>
+      item.orgAdminOnly
+        ? me?.is_org_admin === true
+        : !!item.permission && has(item.permission)
+    ),
   })).filter((group) => group.items.length > 0)
 
   return (

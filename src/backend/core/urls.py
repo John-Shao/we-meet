@@ -195,6 +195,7 @@ from core.api.recording_upload_multipart import (
     MultipartSessionView,
 )
 from core.api.remote_control import RemoteControlView
+from core.api.remote_control_admin import RemoteControlAdminView
 from core.api.search import (
     DocsMyDocumentsView,
     DocsSearchView,
@@ -433,6 +434,7 @@ external_router.register(
 )
 
 urlpatterns = [
+    path("api/v1.0/admin/remote-control/<str:operation>/", RemoteControlAdminView.as_view(), name="remote-control-admin"),
     path("api/v1.0/rooms/<uuid:room_id>/remote-control/<uuid:session_id>/", RemoteControlView.as_view(), name="remote-control-session"),
     path("api/v1.0/rooms/<uuid:room_id>/remote-control/<uuid:session_id>/<str:operation>/", RemoteControlView.as_view(), name="remote-control-action"),
     path("api/v1.0/rooms/<uuid:room_id>/remote-control/<str:operation>/", RemoteControlView.as_view(), name="remote-control-collection"),
