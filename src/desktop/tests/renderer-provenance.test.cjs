@@ -16,7 +16,8 @@ async function fixture(t) {
   const frontend = path.join(root, 'frontend'), desktop = path.join(root, 'desktop')
   const output = path.join(root, 'app', 'dist', 'renderer')
   const config = { serviceOrigin: 'https://meet.test', imBaseUrl: 'https://im.test', appTitle: 'We-Meet' }
-  for (const directory of [path.join(frontend, 'src'), path.join(frontend, 'public'), path.join(desktop, 'scripts'), path.join(output, 'assets')]) await fs.mkdir(directory, { recursive: true })
+  for (const directory of [path.join(frontend, 'src'), path.join(frontend, 'public'), path.join(desktop, 'scripts'), path.join(desktop, 'src/remote-control'), path.join(output, 'assets')]) await fs.mkdir(directory, { recursive: true })
+  await fs.writeFile(path.join(desktop, 'src/remote-control', 'controller-session.ts'), 'shared-controller-source')
   await fs.writeFile(path.join(frontend, 'src', 'page.tsx'), 'original-page')
   await fs.writeFile(path.join(frontend, 'package-lock.json'), 'original-lock')
   await fs.writeFile(path.join(frontend, '.env.production'), 'VITE_PRIVATE_TEST=synthetic-sensitive-value')
@@ -55,6 +56,12 @@ test('renderer provenance rejects config, process Vite environment and build scr
   await assert.rejects(f.api.verifyRenderer(f.frontend, f.desktop, f.output, { ...f.config, imBaseUrl: 'https://other.test' }, {}), /configuration changed/)
   await assert.rejects(f.api.verifyRenderer(f.frontend, f.desktop, f.output, f.config, { VITE_EXTRA: 'new' }), /build inputs changed/)
   await fs.writeFile(path.join(f.desktop, 'scripts', 'build-renderer.mjs'), 'changed')
+  await assert.rejects(f.verify(), /build inputs changed/)
+})
+
+test('renderer provenance rejects changed shared desktop controller sources', async t => {
+  const f = await fixture(t)
+  await fs.writeFile(path.join(f.desktop, 'src/remote-control', 'controller-session.ts'), 'new-controller-source')
   await assert.rejects(f.verify(), /build inputs changed/)
 })
 

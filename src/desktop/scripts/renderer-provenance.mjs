@@ -31,6 +31,11 @@ export async function rendererInputHash(frontend, desktop, config, env = process
   for (const name of ['build-renderer.mjs', 'renderer-config.mjs', 'renderer-provenance.mjs']) {
     files.push({ path: `desktop/scripts/${name}`, sha256: sha256(await readFile(path.join(desktop, 'scripts', name))) })
   }
+  // The browser controller imports this source tree directly. A frontend-only
+  // digest would accept a stale bundle after changing the shared protocol.
+  for (const entry of await tree(path.join(desktop, 'src/remote-control'))) {
+    files.push({ ...entry, path: `desktop/src/remote-control/${entry.path}` })
+  }
   // Only opaque hashes leave the build process; .env contents and VITE values
   // are never written to metadata. Explicit desktop overrides match the child.
   const effective = { ...env, VITE_API_BASE_URL: '', VITE_JUSI_IM_BASE_URL: config.imBaseUrl, VITE_APP_TITLE: config.appTitle }
