@@ -1,12 +1,13 @@
 /** Human controller authorization, suitable for PC browsers and Electron Renderer. */
-import { canonical, publicKeyBytes, sessionKey, verifyLease, type PublicKey, type SigningKey } from "./authorization";
+import { canonical, publicKeyBytes, sessionKey, type PublicKey } from "./authorization";
+import { SigningTrust, type SigningKeyRing } from "./signing-trust";
 import { ControllerTransport, type ControllerInput, type ControllerStatus } from "./controller-transport";
 import { bytesFromUuid } from "./wire";
 import { SIGNAL_TOPIC, type SignalBinding } from "./signals";
 
 type Json = Record<string, unknown>;
 type Row = { id: string; requestId: string; requestDigest: string; request: Json; binding: Json;
-  state: string; stateVersion: number; epoch: number; deadline: number; lease?: string };
+  state: string; stateVersion: number; epoch: number; signingGeneration: number; deadline: number; lease?: string };
 type Result = { data: Json; serverTime: number; startedAt: number; receivedAt: number };
 export type ControllerContext = { roomId: string; roomSid: string; identity: string; participantSid: string; userId: string };
 export type ControllerPeer = { identity: string; participantSid: string; userId: string; name: string };
@@ -14,7 +15,7 @@ export type ControllerSessionStatus = { phase: "requesting" | "pending" | "prepa
   target: ControllerPeer; sessionId?: string; trackSid?: string; input?: ControllerStatus; reason?: string; deliveredText: number;
   textOutcome: "idle" | "pending" | "applied" | "unconfirmed" };
 type Dependencies = {
-  context: ControllerContext; target: ControllerPeer; signingKey: SigningKey;
+  context: ControllerContext; target: ControllerPeer; keyRing: SigningKeyRing;
   request: (action: "requests" | "session" | "cancel" | "end", options: { sessionId?: string; body?: Json }) => Promise<Result>;
   send: ConstructorParameters<typeof ControllerTransport>[0]["send"];
   isCurrent: () => boolean; onState: (state: ControllerSessionStatus) => void; now?: () => number; automaticTimer?: boolean;
@@ -25,6 +26,7 @@ const terminal = new Set(["ENDED", "FAILED", "EXPIRED", "CANCELLED", "REJECTED"]
 
 export class ControllerSession {
   private readonly now: () => number;
+  private readonly trust: SigningTrust;
   private readonly requestId = crypto.randomUUID();
   private key?: Awaited<ReturnType<typeof sessionKey>>;
   private row?: Row;
@@ -49,9 +51,7 @@ export class ControllerSession {
   constructor(private readonly deps: Dependencies) {
     this.now = deps.now ?? (() => performance.now());
     bytesFromUuid(deps.context.roomId); bytesFromUuid(deps.context.userId); bytesFromUuid(deps.target.userId);
-    const trusted = deps.signingKey;
-    if (!trusted || Object.keys(trusted).sort().join(",") !== "alg,crv,kid,kty,x,y" || trusted.alg !== "ES256") throw new Error("invalid_signing_key");
-    publicKeyBytes({ kty: trusted.kty, crv: trusted.crv, x: trusted.x, y: trusted.y });
+    this.trust = new SigningTrust(deps.keyRing);
     if (deps.context.identity === deps.target.identity || deps.context.userId === deps.target.userId ||
         !/^RM_[A-Za-z0-9_-]{1,100}$/.test(deps.context.roomSid) ||
         ![deps.context.participantSid, deps.target.participantSid].every(sid => /^PA_[A-Za-z0-9_-]{1,100}$/.test(sid))) throw new Error("invalid_controller_context");
@@ -117,6 +117,7 @@ export class ControllerSession {
     if (!this.row) await this.validateRequest(row);
     this.check();
     if (terminal.has(row.state)) { this.row = row; this.stop(`remote_${row.state.toLowerCase()}`, false); return; }
+    this.trust.update(response.data.keyRing, row.signingGeneration);
     if (!["PENDING", "PREPARING", "ACTIVE", "PAUSED"].includes(row.state)) throw new Error("invalid_session");
     if (this.row && ((row.state === "PENDING" && this.row.state !== "PENDING") ||
         (row.state === "PREPARING" && ["ACTIVE", "PAUSED"].includes(this.row.state)))) throw new Error("state_conflict");
@@ -132,7 +133,7 @@ export class ControllerSession {
         if (row.state !== "PAUSED") throw new Error("invalid_lease");
         this.phase = "paused"; this.publish(); return;
       }
-      const verified = await verifyLease(row.lease, this.deps.signingKey, {
+      const verified = await this.trust.verify(row.lease, {
         binding: this.binding!, epoch: row.epoch, state: row.state as "ACTIVE" | "PAUSED", maximumDeadline: this.maximumDeadline,
       }, { serverTime: response.serverTime, startedAt: response.startedAt, now: this.now() });
       this.check();

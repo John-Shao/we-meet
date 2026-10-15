@@ -16,6 +16,7 @@ async function fixture(autoConsent = true) {
   const { SignJWT } = await import('jose');
   const controller = await sessionKey(), signing = await sessionKey();
   const trusted = { ...signing.publicKey, kid: 'coordinator-test', alg: 'ES256' };
+  const keyRing = { v: 1, revision: 1, generation: 1, activeKid: trusted.kid, keys: [{ ...trusted, verifyUntil: null }] };
   let time = 1000;
   const now = () => time, seconds = () => 1800000000 + Math.floor(time / 1000);
   const context = { roomId: randomUUID(), roomSid: 'RM_test', participantSid: 'PA_target', identity: 'target-user', deviceSessionId: randomUUID(), authEpoch: 7 };
@@ -30,7 +31,7 @@ async function fixture(autoConsent = true) {
     targetDeviceSessionId: context.deviceSessionId, controllerPublicKey: controller.publicKey,
     controllerName: '测试参会者', targetName: '被控参会者', scope: ['pointer', 'keyboard', 'text'], expiresAt: seconds() + 30 };
   const row = { id: randomUUID(), requestId: randomUUID(), requestDigest: createHash('sha256').update(canonical(request)).digest('hex'),
-    request, binding: {}, state: 'PENDING', stateVersion: 1, epoch: 1, deadline: seconds() + 30, endReason: '', serverTime: seconds() };
+    request, binding: {}, state: 'PENDING', stateVersion: 1, epoch: 1, signingGeneration: 1, deadline: seconds() + 30, endReason: '', serverTime: seconds() };
   const helper = new EventEmitter(), nativeCalls = [];
   helper.showConsent = (...args) => {
     nativeCalls.push({ action: 'consent', args }); helper.lastConsent = args;
@@ -79,11 +80,12 @@ async function fixture(autoConsent = true) {
       data = clone(row);
     } else if (action === 'end' || action === 'reject') { row.state = action === 'end' ? 'ENDED' : 'REJECTED'; row.stateVersion++; data = clone(row); }
     else throw new Error('unexpected_test_action');
+    data.keyRing = clone(keyRing);
     await hooks.after(action, data);
     return { data: { ...data, serverTime: seconds() }, serverTime: seconds(), startedAt, receivedAt: now() };
   } };
   const target = new TargetAuthorization({ context, auth, captures, helper, cloud, now });
-  return { target, context, auth, captures, source, helper, nativeCalls, row, calls, verified, hooks,
+  return { target, context, auth, captures, source, helper, nativeCalls, row, calls, verified, hooks, signing, trusted, keyRing, seconds,
     advance: ms => { time += ms; }, tick: () => target.tick(), start: () => target.start(row.id, source.shareInstanceId, 'TR_screen') };
 }
 
@@ -102,6 +104,23 @@ test('prepare, native confirmation and exact signed lease precede an input grant
   assert.equal(f.nativeCalls.filter(c => c.action !== 'consent').length, 0);
   grant.binding.trackSid = 'TR_mutated';
   assert.equal(f.target.inputGrant().binding.trackSid, 'TR_screen');
+});
+
+test('B renews across planned key rotation without a second consent, then closes on key revocation', async t => {
+  const f = await fixture(); t.after(() => f.target.dispose()); await f.start();
+  const old = { ...f.trusted, verifyUntil: f.seconds() + 15 };
+  const next = await sessionKey(); Object.assign(f.signing, next);
+  Object.assign(f.trusted, next.publicKey, { kid: 'rotated-key' });
+  Object.assign(f.keyRing, { revision: 2, activeKid: 'rotated-key', keys: [old, { ...f.trusted, verifyUntil: null }] });
+  f.advance(5000); f.tick(); await until(() => f.verified.includes('lease'));
+  await until(() => !f.target.busy);
+  assert.equal(f.target.status().phase, 'active');
+  assert.equal(f.nativeCalls.filter(call => call.action === 'consent').length, 1);
+  assert.equal(f.target.inputGrant().epoch, 1);
+  f.keyRing.generation = 2; f.keyRing.revision++;
+  f.advance(5000); f.tick(); await until(() => f.target.status().phase === 'ended');
+  assert.throws(() => f.target.inputGrant());
+  assert.ok(f.nativeCalls.some(call => call.action === 'close'));
 });
 
 test('tampered proof purpose, version, key, scope or extra field is never signed', async t => {

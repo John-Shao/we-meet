@@ -15,7 +15,7 @@ import {
   ControllerSession,
   type ControllerSessionStatus,
 } from '../../../../desktop/src/remote-control/controller-session'
-import { type SigningKey } from '../../../../desktop/src/remote-control/authorization'
+import { type SigningKeyRing } from '../../../../desktop/src/remote-control/signing-trust'
 import { ControllerContext } from './ControllerContext'
 import { ControllerView } from './ControllerView'
 import { timedRemoteRequest } from './api'
@@ -24,7 +24,7 @@ import { REMOTE_SIGNAL_TOPIC } from './relay'
 type Capability = {
   enabled: boolean
   roomSid: string
-  signingKey: SigningKey
+  keyRing: SigningKeyRing
   self: { identity: string; participantSid: string }
   participants: {
     userId: string
@@ -214,7 +214,7 @@ export function ControllerProvider({
           userId,
         },
         target: { ...target, name: participant.name || participant.identity },
-        signingKey: capabilities.signingKey,
+        keyRing: capabilities.keyRing,
         request: (action, options) =>
           timedRemoteRequest(roomId, action, options),
         isCurrent: () =>

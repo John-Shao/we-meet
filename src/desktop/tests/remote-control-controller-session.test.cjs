@@ -14,6 +14,7 @@ async function fixture(t) {
   const { SignJWT } = await import('jose');
   const signing = await sessionKey(), targetKey = await sessionKey();
   const signingKey = { ...signing.publicKey, alg: 'ES256', kid: 'controller-session-test' };
+  const keyRing = { v: 1, revision: 1, generation: 1, activeKid: signingKey.kid, keys: [{ ...signingKey, verifyUntil: null }] };
   const context = { roomId: randomUUID(), roomSid: 'RM_test', identity: 'controller', participantSid: 'PA_a', userId: randomUUID() };
   const target = { identity: 'target', participantSid: 'PA_b', userId: randomUUID(), name: 'Target' };
   let time = 1000, current = true, row;
@@ -30,12 +31,12 @@ async function fixture(t) {
         scope: ['pointer', 'keyboard', 'text'], expiresAt: seconds() + 30 };
       hooks.request(r);
       row = { id: randomUUID(), requestId: options.body.requestId, request: r, requestDigest: createHash('sha256').update(canonical(r)).digest('hex'),
-        binding: {}, state: 'PENDING', stateVersion: 1, epoch: 1, deadline: seconds() + 30 };
+        binding: {}, state: 'PENDING', stateVersion: 1, epoch: 1, signingGeneration: 1, deadline: seconds() + 30 };
     }
-    const data = clone(row); await hooks.reply(action, data);
+    const data = { ...clone(row), keyRing: clone(keyRing) }; await hooks.reply(action, data);
     return { data, serverTime: seconds(), startedAt, receivedAt: time };
   };
-  const session = new ControllerSession({ context, target, signingKey, request: api, send: async m => { sent.push(m); },
+  const session = new ControllerSession({ context, target, keyRing, request: api, send: async m => { sent.push(m); },
     isCurrent: () => current, onState: s => states.push(s), now: () => time, automaticTimer: false });
   t.after(() => session.stop());
   const prepare = () => {
@@ -50,7 +51,7 @@ async function fixture(t) {
       .setAudience(AUDIENCE).setIssuedAt(seconds()).setExpirationTime(seconds() + 15).sign(signing.privateKey);
   };
   const poll = async () => { time += 500; session.wake(); session.tick(); await until(() => !session.polling); };
-  return { session, context, target, signingKey, calls, sent, states, hooks, prepare, lease, poll,
+  return { session, context, target, signingKey, signing, keyRing, seconds, calls, sent, states, hooks, prepare, lease, poll,
     row: () => row, advance: ms => { time += ms; }, setCurrent: value => { current = value; } };
 }
 
@@ -63,6 +64,22 @@ test('A creates a nonexportable fresh session key, binds the exact peer/track, a
   await f.lease(); await f.poll();
   assert.equal(f.session.status().phase, 'active'); assert.equal(f.session.status().input.phase, 'waiting');
   assert.equal(f.sent.length, 0); assert.throws(() => f.session.capture(), /capture_unavailable/);
+});
+
+test('A accepts a planned signer switch but a generation change ends the controller', async t => {
+  const f = await fixture(t); await f.session.start(); f.prepare(); await f.poll();
+  await f.lease(); await f.poll();
+  const old = { ...f.signingKey, verifyUntil: f.seconds() + 15 };
+  const next = await sessionKey(); Object.assign(f.signing, next);
+  Object.assign(f.signingKey, next.publicKey, { kid: 'rotated-key' });
+  Object.assign(f.keyRing, { revision: 2, activeKid: 'rotated-key', keys: [old, { ...f.signingKey, verifyUntil: null }] });
+  await f.lease(); await f.poll();
+  assert.equal(f.session.status().phase, 'active');
+  f.keyRing.generation = 2; f.keyRing.revision++;
+  await f.poll();
+  assert.equal(f.session.status().phase, 'ended');
+  assert.equal(f.session.status().reason, 'signing_generation_revoked');
+  assert.equal(f.session.input({ kind: 'move', x: 0, y: 0 }), false);
 });
 
 test('wrong request peer or own key is rejected even if its server digest is self-consistent', async t => {

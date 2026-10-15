@@ -4,8 +4,8 @@
  */
 import { createHash, randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { AUDIENCE, canonical, publicKeyBytes, sessionKey, signProof, verifyLease,
-  type PublicKey, type SigningKey } from "./authorization";
+import { AUDIENCE, canonical, publicKeyBytes, sessionKey, signProof, type PublicKey } from "./authorization";
+import { SigningTrust } from "./signing-trust";
 import { type CloudResult, type RemoteControlCloud, type RemoteAuth } from "./cloud";
 import { type NativeEvent, type RemoteInputHelper } from "./native-helper";
 import { type CaptureBindingStore, type SourceBinding } from "./source-binding";
@@ -17,7 +17,7 @@ type Purpose = "prepare" | "approve" | "resume" | "lease";
 type Phase = "idle" | "preparing" | "confirming" | "active" | "pausing" | "paused" | "ended" | "blocked";
 type Session = {
   id: string; requestId: string; requestDigest: string; request: Json; binding: Json;
-  state: string; stateVersion: number; epoch: number; deadline: number;
+  state: string; stateVersion: number; epoch: number; signingGeneration: number; deadline: number;
 };
 export type TargetContext = Readonly<{
   roomId: string; roomSid: string; participantSid: string; identity: string;
@@ -59,7 +59,7 @@ export class TargetAuthorization extends EventEmitter {
   private trackSid = "";
   private binding?: Json;
   private key?: Awaited<ReturnType<typeof sessionKey>>;
-  private signingKey?: SigningKey;
+  private trust?: SigningTrust;
   private deadline = 0;
   private maximumDeadline = 0;
   private approvedEpoch = 0;
@@ -118,11 +118,8 @@ export class TargetAuthorization extends EventEmitter {
       this.row = row;
       this.deadline = this.remoteDeadline(Math.min(row.deadline, row.request.expiresAt as number), response, 30000);
       if (capability.data.enabled !== true || capability.data.roomSid !== this.context.roomSid) throw new Error("remote_control_disabled");
-      const trusted = record(capability.data.signingKey);
-      if (trusted.alg !== "ES256" || !/^[A-Za-z0-9_-]{1,64}$/.test(String(trusted.kid)) ||
-        Object.keys(trusted).sort().join(",") !== "alg,crv,kid,kty,x,y") throw new Error("invalid_signing_key");
-      publicKeyBytes({ kty: trusted.kty, crv: trusted.crv, x: trusted.x, y: trusted.y } as PublicKey);
-      this.signingKey = JSON.parse(JSON.stringify(trusted)) as SigningKey;
+      this.trust = new SigningTrust(capability.data.keyRing);
+      this.trust.update(response.data.keyRing, row.signingGeneration);
       const key = await sessionKey(); this.check(serial); this.key = key;
       this.binding = { ...row.request, targetPublicKey: this.key.publicKey,
         shareInstanceId, trackSid, displayBindingHash: this.source.displayBindingHash,
@@ -247,10 +244,11 @@ export class TargetAuthorization extends EventEmitter {
     const row = session(response.data.session); this.matchRow(row);
     const expectedState = purpose === "prepare" ? "PREPARING" : purpose === "lease" ? previous.state : "ACTIVE";
     if (row.state !== expectedState || row.epoch !== expectedEpoch || row.stateVersion !== previous.stateVersion + 1) throw new Error("state_conflict");
+    this.trust!.update(response.data.keyRing, row.signingGeneration);
     let deadline = this.remoteDeadline(row.deadline, response, purpose === "prepare" ? 60000 : 15000);
     if (purpose !== "prepare") {
       const maximumDeadline = this.maximumDeadline || this.now() + 1800000;
-      const verified = await verifyLease(String(response.data.lease), this.signingKey!, {
+      const verified = await this.trust!.verify(String(response.data.lease), {
         binding, epoch: expectedEpoch, state: expectedState as "ACTIVE" | "PAUSED", maximumDeadline,
       }, { serverTime: response.serverTime, startedAt: response.startedAt, now: this.now() });
       this.check(serial);
@@ -370,6 +368,7 @@ export class TargetAuthorization extends EventEmitter {
       this.polling = true; this.nextPoll = this.now() + 2000;
       void this.call("session", serial).then(response => {
         const row = session(response.data); this.matchRow(row);
+        if (!terminal.has(row.state)) this.trust!.update(response.data.keyRing, row.signingGeneration);
         if (row.stateVersion < this.row!.stateVersion) return; // Older concurrent read.
         if (row.stateVersion !== this.row!.stateVersion || row.state !== this.row!.state || row.epoch !== this.row!.epoch || terminal.has(row.state)) this.stop("authorization_changed");
       }).catch(error => { if (serial === this.serial) this.stop(this.errorCode(error)); }).finally(() => { this.polling = false; });

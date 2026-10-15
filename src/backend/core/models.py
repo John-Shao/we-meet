@@ -10227,6 +10227,52 @@ class RemoteControlPresence(BaseModel):
         return str(self.pk)
 
 
+class RemoteControlSigningKey(models.Model):
+    """Public verification material and permanent kid/fingerprint tombstones."""
+
+    kid = models.CharField(max_length=64, primary_key=True)
+    public_key = models.JSONField()
+    fingerprint = models.CharField(max_length=64, unique=True)
+    status = models.CharField(max_length=12, choices=[
+        (value, value) for value in ("staged", "active", "retired", "expired", "revoked")
+    ])
+    verify_until = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.kid
+
+
+class RemoteControlSigningState(models.Model):
+    """One cross-worker signing fence, independent of organization policy."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    active_key = models.ForeignKey(RemoteControlSigningKey, on_delete=models.PROTECT, null=True)
+    revision = models.PositiveIntegerField(default=1)
+    generation = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(id=1), name="remote_signing_singleton")]
+
+    def __str__(self):
+        return f"remote-control:{self.revision}:{self.generation}"
+
+
+class RemoteControlSigningEvent(models.Model):
+    """Operator audit without private keys, user input or bearer credentials."""
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    revision = models.PositiveIntegerField(unique=True)
+    generation = models.PositiveIntegerField()
+    action = models.CharField(max_length=16)
+    kid = models.CharField(max_length=64)
+    operator = models.CharField(max_length=80)
+    ended_sessions = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.revision} {self.action} {self.kid}"
+
+
 class RemoteControlSession(BaseModel):
     """Immutable participants/binding and short-lived, revocable permission."""
 
@@ -10257,6 +10303,9 @@ class RemoteControlSession(BaseModel):
     state_version = models.PositiveIntegerField(default=1)
     epoch = models.PositiveIntegerField(default=1)
     policy_digest = models.CharField(max_length=64)
+    # Zero denotes pre-keyring sessions, which must be freshly consented after
+    # the signing fence is initialized. Never rewrite an existing generation.
+    signing_generation = models.PositiveIntegerField(default=0)
     deadline = models.DateTimeField(db_index=True)
     approved_at = models.DateTimeField(null=True, blank=True)
     max_expires_at = models.DateTimeField(null=True, blank=True)

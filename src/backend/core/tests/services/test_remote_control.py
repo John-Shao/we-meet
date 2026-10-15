@@ -32,6 +32,7 @@ from core.factories import (
 )
 from core.services import remote_control as service
 from core.services import remote_control_crypto as crypto
+from core.services import remote_control_keys as keys
 from core.services.remote_control_livekit import RemoteControlError, Snapshot
 
 pytestmark = pytest.mark.django_db
@@ -80,6 +81,8 @@ def meeting(settings):
         serialization.PrivateFormat.PKCS8,
         serialization.NoEncryption(),
     ).decode()
+    settings.REMOTE_CONTROL_SIGNING_KEYS = ""
+    keys.initialize(settings.REMOTE_CONTROL_SIGNING_KID, operator="isolated-test")
     organization = OrganizationFactory(settings={"remote_control": {"enabled": True}})
     users = [UserFactory() for _ in range(3)]
     for user in users:

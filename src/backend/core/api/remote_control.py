@@ -1,6 +1,5 @@
 """Human-account-only HTTP control plane; no operating-system input endpoint."""
 
-from django.conf import settings
 from django.utils import timezone
 
 from rest_framework import permissions, serializers, throttling
@@ -9,6 +8,7 @@ from rest_framework.views import APIView
 
 from core.services import remote_control as service
 from core.services import remote_control_crypto as crypto
+from core.services import remote_control_keys as keys
 from core.services.remote_control_livekit import RemoteControlError
 
 
@@ -82,20 +82,12 @@ class AuditQuerySerializer(StrictSerializer):
     limit = serializers.IntegerField(min_value=1, max_value=200, default=100)
 
 
-def public_signing_key():
-    key = (
-        crypto.signing_key(settings.REMOTE_CONTROL_SIGNING_KEY)
-        .public_key()
-        .public_numbers()
-    )
-    return {
-        "kid": settings.REMOTE_CONTROL_SIGNING_KID,
-        "alg": "ES256",
-        "kty": "EC",
-        "crv": "P-256",
-        "x": crypto.encode64(key.x.to_bytes(32, "big")),
-        "y": crypto.encode64(key.y.to_bytes(32, "big")),
-    }
+def with_keys(data):
+    """Fresh HTTPS trust metadata, never a public-key URL from a JWT header."""
+    row = data.get("session", data)
+    if row.get("state") in service.OPEN:
+        return {**data, "keyRing": keys.public_ring()}
+    return data
 
 
 class RemoteControlView(APIView):
@@ -137,12 +129,28 @@ class RemoteControlView(APIView):
         if operation == "capabilities":
             data = service.list_presence(room_id, request.user)
             if data["enabled"]:
-                data["signingKey"] = public_signing_key()
+                ring = keys.public_ring()
+                if ring["activeKid"] is None:
+                    data = {"enabled": False, "participants": []}
+                else:
+                    current = next(
+                        key for key in ring["keys"] if key["kid"] == ring["activeKid"]
+                    )
+                    data["keyRing"] = ring
+                    # Legacy clients stop safely on a kid switch; updated clients
+                    # consume the bounded keyRing supplied on each grant read.
+                    data["signingKey"] = {
+                        name: value
+                        for name, value in current.items()
+                        if name != "verifyUntil"
+                    }
             return Response(data)
         if operation == "requests":
             return Response({"sessions": service.list_requests(room_id, request.user)})
         if operation == "session":
-            return Response(service.get_session(room_id, session_id, request.user))
+            return Response(
+                with_keys(service.get_session(room_id, session_id, request.user))
+            )
         if operation == "audit":
             query = AuditQuerySerializer(data=request.query_params)
             query.is_valid(raise_exception=True)
@@ -181,4 +189,4 @@ class RemoteControlView(APIView):
             result = service.action(
                 room_id, session_id, request.user, operation, data["stateVersion"]
             )
-        return Response(result)
+        return Response(with_keys(result))

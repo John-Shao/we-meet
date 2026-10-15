@@ -40,4 +40,5 @@ Currently, no cloud providers are listed for deploying La Suite Meet.
 - [通讯录拼音搜索部署步骤](../extensions/通讯录拼音搜索_部署步骤.md) —— 再后续：`0145` 加 `User.search_key`（全拼 + 首字母缩写），`q=ye` / `q=ylx` / `q=夜` 都命中「夜来香」；无新依赖、无索引（实测 5000 人名册 ~11 ms，与老查询同量级），前端/App 只改占位文案
 - [京东云迁移 Runbook(meet 迁云 + 旧机改 Docs)](./jdcloud-migration-runbook-cn.md) —— 把 aliyun.md §十四 + docs-server.md 合成的连贯执行清单,含备案接入 / PG 迁移 / DNS 切换 / 回滚预案
 - [本地开发(Windows + 国内,Tilt/kind)](./local-dev-tilt-windows-cn.md)
+- [会议远程控制运维手册](./meeting-remote-control-operations.md) —— 组织开关、许可签名初始化/轮换/撤销及服务滚动更新；实际发布验收仍见实施记录
 - [IM 跨仓发布「三波曲」](./im-release-three-waves-cn.md) —— 改动同时涉及 jusi-light-im(IM 后端)+ `@jusi/light-im-sdk` + we-meet 时的协调发布流程(① jusi → ② SDK → ③ we-meet),含 lockfile integrity / `tsc -b` / 镜像缓存等踩坑清单

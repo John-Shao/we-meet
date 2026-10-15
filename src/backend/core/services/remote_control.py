@@ -1,7 +1,8 @@
 """Meeting remote-control authorization. A signed lease never replaces local consent.
 
-Grant paths lock accounts in stable order, then share-lock the organization and
-lock the session. This serializes policy shutdown, inverse requests and
+Grant paths share-lock the global signing fence, lock accounts in stable order,
+then share-lock the organization and lock the session. This serializes policy
+shutdown, inverse requests and
 cross-role chains across application processes without serializing all grants.
 LiveKit is queried independently of client assertions before a grant is renewed.
 """
@@ -18,6 +19,7 @@ from django.utils import timezone
 
 from core import models
 from core.services import remote_control_crypto as crypto
+from core.services import remote_control_keys as keys
 from core.services import remote_control_livekit as livekit
 from core.services import remote_control_policy as policies
 from core.services.remote_control_livekit import RemoteControlError
@@ -44,11 +46,7 @@ def human(user):
 
 
 def enabled():
-    return bool(
-        settings.REMOTE_CONTROL_ENABLED
-        and settings.REMOTE_CONTROL_SIGNING_KEY
-        and settings.REMOTE_CONTROL_SIGNING_KID
-    )
+    return keys.available()
 
 
 def policy(room, controller=None, target=None):
@@ -166,6 +164,7 @@ def _serialize(row):
         "state": row.state,
         "stateVersion": row.state_version,
         "epoch": row.epoch,
+        "signingGeneration": row.signing_generation,
         "deadline": int(row.deadline.timestamp()),
         "endReason": row.end_reason,
         "serverTime": int(timezone.now().timestamp()),
@@ -310,6 +309,8 @@ def create_request(room_id, user, data):
     if user.pk == data["targetUserId"]:
         raise RemoteControlError("different_accounts_required", 400)
     evidence = livekit.snapshot(room_id)
+    signing = keys.lock_state()
+    keys.signer(signing)
     users = _lock_users(user.pk, data["targetUserId"])
     user, target = users[user.pk], users[data["targetUserId"]]
     room = _lock_room_policy(room_id)
@@ -395,6 +396,7 @@ def create_request(room_id, user, data):
         target_sid=b.participant_sid,
         target_device_session_id=b.device_session_id,
         policy_digest=policy_digest,
+        signing_generation=signing.generation,
         deadline=timezone.now() + timedelta(seconds=30),
     )
     _audit(row, "requested", user)
@@ -434,14 +436,22 @@ def _locked(room_id, session_id, user, *, target_only=False, admin_end=False):
     )
     if user.pk not in allowed and not admin:
         raise RemoteControlError("not_found", 404)
+    signing = keys.lock_state(required=False)
     users = _lock_users(initial.controller_id, initial.target_id, user.pk)
     human(users[user.pk])
     policies.share_organization(initial.organization_id)
-    return (
+    row = (
         models.RemoteControlSession.objects.select_for_update(of=("self",))
         .select_related("room__organization", "controller", "target")
         .get(pk=session_id)
     )
+    if (
+        not signing
+        or not signing.active_key_id
+        or row.signing_generation != signing.generation
+    ):
+        _finish(row, "ENDED", "signing_generation_revoked")
+    return row
 
 
 def _current(row, evidence):
@@ -568,10 +578,14 @@ def _lease(row, duration):
         "policyDigest": row.policy_digest,
         "maxExpiresAt": int(row.max_expires_at.timestamp()),
     }
+    state = keys.lock_state()
+    if row.signing_generation != state.generation:
+        raise RemoteControlError("signing_generation_revoked", 409)
+    kid, pem = keys.signer(state)
     return crypto.issue_lease(
         binding,
-        pem=settings.REMOTE_CONTROL_SIGNING_KEY,
-        kid=settings.REMOTE_CONTROL_SIGNING_KID,
+        pem=pem,
+        kid=kid,
         issued_at=issued,
         expires_at=expires,
     )
@@ -718,7 +732,7 @@ def invalidate(
         )
     if track_sid:
         rows = rows.filter(binding__trackSid=track_sid)
-    for row in rows:
+    for row in rows.order_by("pk"):
         _finish(row, "ENDED", reason)
 
 
@@ -742,8 +756,25 @@ def revoke_by_room_action(room_id, *, identity=None, reason="room_ended"):
             Q(request__controllerIdentity=identity)
             | Q(request__targetIdentity=identity)
         )
-    for row in rows:
+    for row in rows.order_by("pk"):
         _finish(row, "ENDED", reason)
+
+
+def revoke_by_signing_generation(generation):
+    """Operator holds the signing fence exclusively before this terminal sweep."""
+    if not transaction.get_connection().in_atomic_block:
+        raise RuntimeError("Signing revocation requires a transaction")
+    rows = (
+        models.RemoteControlSession.objects.select_for_update()
+        .filter(state__in=OPEN)
+        .exclude(signing_generation=generation)
+        .order_by("pk")
+    )
+    count = 0
+    for row in rows:
+        _finish(row, "ENDED", "signing_generation_revoked")
+        count += 1
+    return count
 
 
 def prune_history():

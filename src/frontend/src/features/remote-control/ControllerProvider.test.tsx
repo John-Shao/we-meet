@@ -83,7 +83,7 @@ function fixture(enabled = true) {
       enabled,
       roomSid: 'RM_room',
       self: { identity: 'A', participantSid: 'PA_a' },
-      signingKey: {},
+      keyRing: {},
       participants: [
         {
           userId: 'target-user',
