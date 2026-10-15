@@ -10,7 +10,7 @@ constexpr uint32_t Magic = 0x31435257; // WRC1
 constexpr uint32_t MaxFrame = 4096;
 constexpr uint64_t ChallengeMs = 3000;
 constexpr uint64_t WatchdogMs = 2500;
-enum class Command : uint32_t { Hello=1, Arm=2, Challenge=3, ParentAlive=4, Close=5, Lease=6, Input=7, Consent=8, Suspend=9 };
+enum class Command : uint32_t { Hello=1, Arm=2, Challenge=3, ParentAlive=4, Close=5, Lease=6, Input=7, Consent=8, Suspend=9, Pause=10 };
 enum class Kind : uint16_t { Move=1, Button=2, Wheel=3, Key=4, Text=5, Release=6, Heartbeat=7 };
 #pragma pack(push, 1)
 struct Arm {

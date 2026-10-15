@@ -66,6 +66,7 @@ export class RemoteInputHelper extends EventEmitter {
   listDisplays() { this.send(Command.Hello); }
   closeGate() { this.active = false;this.send(Command.Close); }
   suspendCapture() { this.active = false;this.send(Command.Suspend); }
+  pause() { this.active = false;this.send(Command.Pause); }
   stop() {
     if (this.closed) return;
     this.active = false; this.closed = true; this.clearTimers();

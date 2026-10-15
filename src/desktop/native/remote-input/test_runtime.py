@@ -23,7 +23,7 @@ import uuid
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
-from consent_test_driver import LABEL, approve, window_for, user as ui_user
+from consent_test_driver import LABEL, approve, window_for, text as ui_text, user as ui_user
 
 EXE = Path(__file__).resolve().parents[2] / "dist/remote-input/we-meet-remote-input.exe"
 INJECT = False
@@ -192,6 +192,38 @@ class NativeRuntimeTests(unittest.TestCase):
         self.c.wait("closed")
         self.c.send(2,self.c.arm_body())
         self.assertEqual(self.c.wait("closed")["reason"], "generation_reused")
+
+    def test_parent_pause_requires_fresh_native_confirmation(self):
+        # No SendInput: confirm then pause before Arm. The resume button is only
+        # a request event, and cannot restore the revoked native consent itself.
+        self.c.consent()
+        self.c.send(10)
+        closed = self.c.wait("closed")
+        self.assertEqual(closed["reason"], "parent_pause")
+        self.assertEqual(closed["cleanup"], 1)
+        deadline = time.monotonic() + 1
+        button = None
+        while time.monotonic() < deadline:
+            try:
+                button = ui_user.GetDlgItem(window_for(self.c.process.pid), 2)
+                if ui_text(button) == "恢复控制…":
+                    break
+            except RuntimeError:
+                pass
+            time.sleep(.01)
+        self.assertEqual(ui_text(button), "恢复控制…")
+        ui_user.SendMessageW(button, 0xF5, 0, 0)
+        self.assertEqual(self.c.wait("resumeRequested")["consentId"], self.c.consent_id.hex())
+        self.c.send(2, self.c.arm_body())
+        self.assertEqual(self.c.wait("closed")["reason"], "arm_denied")
+        self.c.epoch += 1
+        self.c.consent()
+        self.c.arm(consent=False)
+        # A parent Pause queued just after native local closure must remain a
+        # close-only operation; it must not turn a paused bar into a fatal error.
+        for _ in range(2):
+            self.c.send(10)
+            self.assertEqual(self.c.wait("closed")["reason"], "parent_pause")
 
     def test_hidden_control_bar_closes_gate(self):
         self.c.arm()

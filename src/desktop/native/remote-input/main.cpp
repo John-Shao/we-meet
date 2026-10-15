@@ -305,6 +305,9 @@ public:
         if(cmd==rc::Command::ParentAlive && data.empty()){InterlockedExchange64(&ledger_->parentBeat,now());return;}
         if(cmd==rc::Command::Close && data.empty()){close("parent_stop");return;}
         if(cmd==rc::Command::Suspend && data.empty() && consentApproved_){close("capture_suspended",true,true,TrustedUi::Mode::Waiting);return;}
+        if(cmd==rc::Command::Pause && data.empty() && (active_ || consentApproved_ || consentUsed_)) {
+            close("parent_pause",true,false,TrustedUi::Mode::Paused);return;
+        }
         if(cmd==rc::Command::Consent && data.size()==sizeof(rc::Consent)){consent(data);return;}
         if(cmd==rc::Command::Hello && data.empty()) {
             std::ostringstream out;out<<"{\"event\":\"displays\",\"displays\":[";
