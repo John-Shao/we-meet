@@ -29,6 +29,14 @@
         "suspended": "Input paused; click Start to continue",
         "paused": "Paused by the other participant; waiting for their approval to resume",
         "ended": "Remote control ended"
+      },
+      "close": "Close",
+      "retry": "Request again",
+      "retryHint": "To continue, send a new request and wait for approval. Previous input will not resume automatically.",
+      "unavailable": {
+        "busy": "End the current remote-control session before sending another request.",
+        "desktopRequired": "This participant cannot currently accept control. Ask them to join with a supported desktop app and check their device status.",
+        "versionMismatch": "Remote-control versions are incompatible. Update the clients and try again."
       }
     },
     "title": "Remote control",
@@ -50,6 +58,18 @@
       "paused": "Paused. Confirm again from the local control bar to resume.",
       "ending": "Stopping and checking input release…",
       "blocked": "Input release could not be confirmed. Check this device's keys and buttons. New remote access is blocked."
+    },
+    "dismiss": "Dismiss",
+    "endReason": {
+      "declined": "This request was not approved.",
+      "cancelled": "This request was cancelled.",
+      "stopped": "Remote control has ended. Screen sharing may still be active; stop it separately if needed.",
+      "expired": "This request or authorization has expired.",
+      "connection": "The meeting connection changed or the remote participant stopped responding. Control has ended.",
+      "screen": "The shared screen stopped, changed or became unavailable. Control has ended.",
+      "unconfirmed": "The remote response could not be confirmed, so control has ended. Actions may already have occurred; check the device before retrying.",
+      "device": "The controlled device’s sign-in or desktop state changed. Control has ended.",
+      "generic": "Remote control cannot continue. Check screen sharing, the connection and the device status."
     }
   },
   "feedback": {

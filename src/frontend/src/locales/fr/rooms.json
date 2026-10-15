@@ -29,6 +29,14 @@
         "suspended": "Saisie suspendue ; cliquez sur Démarrer pour continuer",
         "paused": "L’autre participant a suspendu le contrôle ; son accord est requis pour reprendre",
         "ended": "Contrôle à distance terminé"
+      },
+      "close": "Fermer",
+      "retry": "Redemander",
+      "retryHint": "Pour continuer, envoyez une nouvelle demande et attendez l’accord. Les actions précédentes ne reprennent pas automatiquement.",
+      "unavailable": {
+        "busy": "Terminez le contrôle à distance en cours avant de faire une autre demande.",
+        "desktopRequired": "Ce participant ne peut pas accepter le contrôle pour le moment. Demandez-lui de rejoindre avec une application de bureau compatible et de vérifier son appareil.",
+        "versionMismatch": "Les versions du contrôle à distance sont incompatibles. Mettez les applications à jour et réessayez."
       }
     },
     "title": "Contrôle à distance",
@@ -50,6 +58,18 @@
       "paused": "En pause. Confirmez à nouveau depuis la barre locale pour reprendre.",
       "ending": "Arrêt et vérification du relâchement…",
       "blocked": "Le relâchement n'a pas pu être confirmé. Vérifiez les touches et boutons de cet appareil. Tout nouvel accès est bloqué."
+    },
+    "dismiss": "Fermer",
+    "endReason": {
+      "declined": "Cette demande n’a pas été acceptée.",
+      "cancelled": "Cette demande a été annulée.",
+      "stopped": "Le contrôle à distance est terminé. Le partage d’écran peut continuer ; arrêtez-le séparément si nécessaire.",
+      "expired": "Cette demande ou autorisation a expiré.",
+      "connection": "La connexion à la réunion a changé ou le participant distant ne répond plus. Le contrôle est terminé.",
+      "screen": "Le partage d’écran a cessé, changé ou est devenu indisponible. Le contrôle est terminé.",
+      "unconfirmed": "La réponse distante n’a pas pu être confirmée. Le contrôle est terminé. Des actions ont peut-être déjà été exécutées ; vérifiez l’appareil avant de réessayer.",
+      "device": "La session ou le bureau de l’appareil contrôlé a changé. Le contrôle est terminé.",
+      "generic": "Le contrôle à distance ne peut pas continuer. Vérifiez le partage d’écran, la connexion et l’état de l’appareil."
     }
   },
   "feedback": {

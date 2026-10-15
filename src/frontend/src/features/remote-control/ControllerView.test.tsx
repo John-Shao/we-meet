@@ -55,7 +55,7 @@ afterEach(() => {
   callback = undefined
 })
 
-function fixture() {
+function fixture(onRetry?: () => void) {
   const track = {
     attach: vi.fn(),
     detach: vi.fn(),
@@ -104,6 +104,7 @@ function fixture() {
       session={session as unknown as ControllerSession}
       state={state}
       onClose={onClose}
+      onRetry={onRetry}
     />
   )
   const result = render(view())
@@ -169,6 +170,32 @@ function fixture() {
 }
 
 describe('controller input view', () => {
+  it('shows the ending reason and requires explicit retry without forwarding ended input', () => {
+    const retry = vi.fn()
+    const f = fixture(retry)
+    f.frame()
+    f.open()
+    f.update({ phase: 'ended', reason: 'input_ack_timeout' })
+    expect(screen.getByText('endReason.unconfirmed')).toBeInTheDocument()
+    expect(screen.getByText('retryHint')).toBeInTheDocument()
+    expect(screen.getByText('start')).toBeDisabled()
+    fireEvent.keyDown(f.region, { code: 'KeyA' })
+    expect(f.session.input).not.toHaveBeenCalled()
+    expect(retry).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByText('retry'))
+    expect(retry).toHaveBeenCalledOnce()
+    expect(f.session.capture).not.toHaveBeenCalled()
+  })
+  it('uses a generic explanation for unknown reasons without exposing raw errors or offering an unavailable retry', () => {
+    const f = fixture()
+    f.update({ phase: 'ended', reason: 'private-token-or-server-detail' })
+    expect(screen.getByText('endReason.generic')).toBeInTheDocument()
+    expect(
+      screen.queryByText('private-token-or-server-detail')
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('retry')).not.toBeInTheDocument()
+    expect(screen.getByText('close')).toBeInTheDocument()
+  })
   it('requires a decoded bound screen and an explicit start; clicking focus alone never arms', () => {
     const f = fixture()
     expect(screen.getByText('start')).toBeDisabled()

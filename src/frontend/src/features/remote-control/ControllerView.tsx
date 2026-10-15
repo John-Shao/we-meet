@@ -10,21 +10,25 @@ import {
 } from '../../../../desktop/src/remote-control/controller-session'
 import { Kind } from '../../../../desktop/src/remote-control/wire'
 import { forbiddenChord, keyInput, shortcutKeys, videoPoint } from './input'
+import { endReasonKey } from './presentation'
 
 export function ControllerView({
   room,
   session,
   state,
   onClose,
+  onRetry,
 }: {
   room: Room
   session: ControllerSession
   state: ControllerSessionStatus
   onClose: () => void
+  onRetry?: () => void
 }) {
   const { t } = useTranslation('rooms', {
     keyPrefix: 'remoteControl.controller',
   })
+  const { t: tStatus } = useTranslation('rooms', { keyPrefix: 'remoteControl' })
   const videoRef = useRef<HTMLVideoElement>(null),
     regionRef = useRef<HTMLDivElement>(null)
   const latest = useRef(state)
@@ -195,6 +199,7 @@ export function ControllerView({
       video = videoRef.current!
     let pendingMove: { x: number; y: number; generation: string } | undefined
     const capturing = () =>
+      latest.current.phase !== 'ended' &&
       latest.current.input?.phase === 'open' &&
       !latest.current.input.oneShot &&
       document.activeElement === region &&
@@ -394,7 +399,12 @@ export function ControllerView({
       aria-label={t('title', { name: state.target.name })}
       style={{
         width: minimized ? '380px' : 'min(1200px, calc(100vw - 32px))',
-        height: minimized ? '280px' : 'min(84vh, 1000px)',
+        height:
+          state.phase === 'ended'
+            ? 'auto'
+            : minimized
+              ? '280px'
+              : 'min(84vh, 1000px)',
       }}
       className={css({
         position: 'fixed',
@@ -439,7 +449,7 @@ export function ControllerView({
             {t(minimized ? 'expand' : 'minimize')}
           </Button>
           <Button variant="secondary" size="dense" onPress={onClose}>
-            {t('stop')}
+            {t(state.phase === 'ended' ? 'close' : 'stop')}
           </Button>
         </div>
         <p role="status">
@@ -447,8 +457,16 @@ export function ControllerView({
             `phase.${state.phase === 'ended' ? 'ended' : (inputPhase ?? state.phase)}`
           )}
         </p>
+        {state.phase === 'ended' && (
+          <div role="status">
+            <p>{tStatus(`endReason.${endReasonKey(state.reason)}`)}</p>
+            <p>{t('retryHint')}</p>
+            {onRetry && <Button onPress={onRetry}>{t('retry')}</Button>}
+          </div>
+        )}
         <div
           ref={regionRef}
+          hidden={state.phase === 'ended'}
           tabIndex={minimized ? -1 : 0}
           role="application"
           aria-label={t('screen')}
@@ -483,7 +501,7 @@ export function ControllerView({
             })}
           />
         </div>
-        <div hidden={minimized}>
+        <div hidden={minimized || state.phase === 'ended'}>
           <p id="remote-control-help">{t('help')}</p>
           <div
             className={css({

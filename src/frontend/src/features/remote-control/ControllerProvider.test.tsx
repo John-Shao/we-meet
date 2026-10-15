@@ -25,7 +25,12 @@ vi.mock('@/features/auth/utils/tokenStorage', () => ({
 }))
 vi.mock('./api', () => ({ timedRemoteRequest: mocks.api }))
 vi.mock('./ControllerView', () => ({
-  ControllerView: () => <div>controller-view</div>,
+  ControllerView: ({ onRetry }: { onRetry?: () => void }) => (
+    <div>
+      controller-view
+      {onRetry && <button onClick={onRetry}>retry</button>}
+    </div>
+  ),
 }))
 vi.mock('../../../../desktop/src/remote-control/controller-session', () => ({
   ControllerSession: class {
@@ -55,17 +60,20 @@ import { useRemoteController } from './ControllerContext'
 import { REMOTE_SIGNAL_TOPIC } from './relay'
 
 function RequestButton({ participant }: { participant: Participant }) {
-  const { canRequest, request } = useRemoteController()
+  const { canRequest, request, requestAvailability } = useRemoteController()
   return (
-    <button
-      disabled={!canRequest(participant)}
-      onClick={() => request(participant)}
-    >
-      request
-    </button>
+    <>
+      <span data-testid="availability">{requestAvailability(participant)}</span>
+      <button
+        disabled={!canRequest(participant)}
+        onClick={() => request(participant)}
+      >
+        request
+      </button>
+    </>
   )
 }
-function fixture(enabled = true) {
+function fixture(enabled = true, peerCapability: Record<string, unknown> = {}) {
   const peer = { identity: 'B', sid: 'PA_b', isLocal: false, name: 'Target' }
   const room = Object.assign(new EventEmitter(), {
     state: ConnectionState.Connected,
@@ -91,6 +99,7 @@ function fixture(enabled = true) {
           participantSid: 'PA_b',
           canBeControlled: true,
           protocolVersions: [1],
+          ...peerCapability,
         },
       ],
     },
@@ -126,6 +135,43 @@ afterEach(() => {
 })
 
 describe('controller meeting adapter', () => {
+  it.each([
+    [{ canBeControlled: false }, 'desktopRequired'],
+    [{ participantSid: 'PA_previous' }, 'desktopRequired'],
+    [{ protocolVersions: [2] }, 'versionMismatch'],
+  ])(
+    'explains unavailable target capability without creating a request: %j',
+    async (capability, reason) => {
+      fixture(true, capability)
+      await flush()
+      expect(screen.getByTestId('availability')).toHaveTextContent(reason)
+      fireEvent.click(screen.getByText('request'))
+      expect(mocks.session).toBeNull()
+    }
+  )
+  it('creates a new session only after explicit retry and hides retry after disconnection', async () => {
+    const f = fixture()
+    await flush()
+    fireEvent.click(screen.getByText('request'))
+    const previous = mocks.session as ControllerSession
+    expect(screen.getByTestId('availability')).toHaveTextContent('busy')
+    expect(screen.queryByText('retry')).not.toBeInTheDocument()
+    act(() => {
+      previous.stop('authorization_expired')
+      mocks.deps!.onState({
+        ...previous.status(),
+        phase: 'ended',
+        reason: 'authorization_expired',
+      })
+    })
+    expect(mocks.session).toBe(previous)
+    fireEvent.click(screen.getByText('retry'))
+    expect(mocks.session).not.toBe(previous)
+    expect((mocks.session as ControllerSession).start).toHaveBeenCalledOnce()
+    act(() => f.room.emit(RoomEvent.Reconnecting))
+    expect(screen.queryByText('retry')).not.toBeInTheDocument()
+    expect(screen.getByTestId('availability')).toHaveTextContent('hidden')
+  })
   it('enables only an eligible target and posts browser presence without native control capability', async () => {
     const f = fixture()
     await flush()

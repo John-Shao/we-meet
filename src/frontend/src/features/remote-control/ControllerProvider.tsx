@@ -16,7 +16,10 @@ import {
   type ControllerSessionStatus,
 } from '../../../../desktop/src/remote-control/controller-session'
 import { type SigningKeyRing } from '../../../../desktop/src/remote-control/signing-trust'
-import { ControllerContext } from './ControllerContext'
+import {
+  ControllerContext,
+  type RequestAvailability,
+} from './ControllerContext'
 import { ControllerView } from './ControllerView'
 import { timedRemoteRequest } from './api'
 import { REMOTE_SIGNAL_TOPIC } from './relay'
@@ -182,18 +185,28 @@ export function ControllerProvider({
     }
   }, [room, roomId, userId, supported])
 
-  const canRequest = (participant: Participant) =>
-    !!capability?.enabled &&
-    !!context.current?.current() &&
-    !participant.isLocal &&
-    (!session.current || session.current.status().phase === 'ended') &&
-    capability.participants.some(
+  const requestAvailability = (
+    participant: Participant
+  ): RequestAvailability => {
+    if (
+      !capability?.enabled ||
+      !context.current?.current() ||
+      participant.isLocal ||
+      room.remoteParticipants.get(participant.identity)?.sid !== participant.sid
+    )
+      return 'hidden'
+    if (session.current && session.current.status().phase !== 'ended')
+      return 'busy'
+    const target = capability.participants.find(
       (p) =>
         p.identity === participant.identity &&
-        p.participantSid === participant.sid &&
-        p.canBeControlled &&
-        p.protocolVersions.includes(1)
+        p.participantSid === participant.sid
     )
+    if (!target?.canBeControlled) return 'desktopRequired'
+    return target.protocolVersions.includes(1) ? 'available' : 'versionMismatch'
+  }
+  const canRequest = (participant: Participant) =>
+    requestAvailability(participant) === 'available'
   const request = (participant: Participant) => {
     if (!roomId || !userId || !canRequest(participant)) return
     const c = context.current!,
@@ -250,13 +263,27 @@ export function ControllerProvider({
     void active.start()
   }
   return (
-    <ControllerContext.Provider value={{ canRequest, request }}>
+    <ControllerContext.Provider
+      value={{ canRequest, requestAvailability, request }}
+    >
       {children}
       {state && session.current && (
         <ControllerView
           room={room}
           session={session.current}
           state={state}
+          onRetry={
+            state.phase === 'ended' &&
+            room.remoteParticipants.has(state.target.identity) &&
+            canRequest(room.remoteParticipants.get(state.target.identity)!)
+              ? () => {
+                  const peer = room.remoteParticipants.get(
+                    state.target.identity
+                  )
+                  if (peer) request(peer)
+                }
+              : undefined
+          }
           onClose={() => {
             session.current?.stop('local_stop')
             setState(undefined)

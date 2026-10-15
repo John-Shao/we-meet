@@ -20,6 +20,7 @@ import type {
 import { remoteRequest, type RemoteRequest } from './api'
 import { RemoteControlContext } from './RemoteControlContext'
 import { ControllerProvider } from './ControllerProvider'
+import { endReasonKey } from './presentation'
 import {
   REMOTE_INPUT_TOPIC,
   REMOTE_SIGNAL_TOPIC,
@@ -44,6 +45,7 @@ export function RemoteControlProvider({
   const [needsScreen, setNeedsScreen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(false)
+  const [dismissedEnd, setDismissedEnd] = useState<string>()
   const current = useRef<RemoteCapabilities>()
   const refresh = useRef<() => void>(() => undefined)
 
@@ -316,6 +318,9 @@ export function RemoteControlProvider({
     }
   }
   const sharing = room.localParticipant.isScreenShareEnabled
+  const endNotice = `${capability?.contextId}:${capability?.status.sessionId}:${capability?.status.reason}`
+  const showEnd =
+    capability?.status.phase === 'ended' && dismissedEnd !== endNotice
   const active =
     capability &&
     [
@@ -341,7 +346,7 @@ export function RemoteControlProvider({
     >
       <ControllerProvider roomId={roomId}>{children}</ControllerProvider>
       {capability?.enabled &&
-        (requests.length > 0 || active || error || needsScreen) && (
+        (requests.length > 0 || active || error || needsScreen || showEnd) && (
           <aside
             aria-label={t('title')}
             className={css({
@@ -359,6 +364,16 @@ export function RemoteControlProvider({
             })}
           >
             <strong>{t('title')}</strong>
+            {showEnd && (
+              <div>
+                <p role="status">
+                  {t(`endReason.${endReasonKey(capability.status.reason)}`)}
+                </p>
+                <Button onPress={() => setDismissedEnd(endNotice)}>
+                  {t('dismiss')}
+                </Button>
+              </div>
+            )}
             {active ? (
               <p role="status">{t(`phase.${capability.status.phase}`)}</p>
             ) : (

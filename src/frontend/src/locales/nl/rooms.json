@@ -29,6 +29,14 @@
         "suspended": "Invoer gepauzeerd; klik op Start om door te gaan",
         "paused": "Gepauzeerd door de andere deelnemer; diens toestemming is nodig om verder te gaan",
         "ended": "Afstandsbediening beëindigd"
+      },
+      "close": "Sluiten",
+      "retry": "Opnieuw aanvragen",
+      "retryHint": "Stuur een nieuwe aanvraag en wacht op toestemming om verder te gaan. Eerdere invoer wordt niet automatisch hervat.",
+      "unavailable": {
+        "busy": "Beëindig de huidige bediening op afstand voordat u een nieuwe aanvraag verstuurt.",
+        "desktopRequired": "Deze deelnemer kan momenteel geen bediening toestaan. Vraag om met een ondersteunde desktop-app deel te nemen en de apparaatstatus te controleren.",
+        "versionMismatch": "De versies voor bediening op afstand zijn niet compatibel. Werk de apps bij en probeer opnieuw."
       }
     },
     "title": "Bediening op afstand",
@@ -50,6 +58,18 @@
       "paused": "Gepauzeerd. Bevestig opnieuw via de lokale bedieningsbalk om door te gaan.",
       "ending": "Stoppen en loslaten van invoer controleren…",
       "blocked": "Het loslaten kon niet worden bevestigd. Controleer de toetsen en knoppen op dit apparaat. Nieuwe toegang is geblokkeerd."
+    },
+    "dismiss": "Sluiten",
+    "endReason": {
+      "declined": "Deze aanvraag is niet goedgekeurd.",
+      "cancelled": "Deze aanvraag is geannuleerd.",
+      "stopped": "De bediening op afstand is beëindigd. Het scherm kan nog worden gedeeld; stop dit zo nodig afzonderlijk.",
+      "expired": "Deze aanvraag of toestemming is verlopen.",
+      "connection": "De vergaderverbinding is gewijzigd of de andere deelnemer reageert niet meer. De bediening is beëindigd.",
+      "screen": "Het gedeelde scherm is gestopt, gewijzigd of niet beschikbaar. De bediening is beëindigd.",
+      "unconfirmed": "De reactie van het andere apparaat kon niet worden bevestigd. De bediening is beëindigd. Handelingen kunnen al zijn uitgevoerd; controleer het apparaat voordat u opnieuw probeert.",
+      "device": "De aanmelding of bureaubladstatus van het bediende apparaat is gewijzigd. De bediening is beëindigd.",
+      "generic": "De bediening op afstand kan niet doorgaan. Controleer de schermdeling, verbinding en apparaatstatus."
     }
   },
   "feedback": {

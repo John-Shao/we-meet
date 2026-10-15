@@ -29,6 +29,14 @@
         "suspended": "Eingabe pausiert; zum Fortsetzen auf Starten klicken",
         "paused": "Vom anderen Teilnehmer pausiert; warten auf dessen Zustimmung zum Fortsetzen",
         "ended": "Fernsteuerung beendet"
+      },
+      "close": "Schließen",
+      "retry": "Erneut anfragen",
+      "retryHint": "Senden Sie zum Fortfahren eine neue Anfrage und warten Sie auf die Zustimmung. Frühere Eingaben werden nicht automatisch fortgesetzt.",
+      "unavailable": {
+        "busy": "Beenden Sie die aktuelle Fernsteuerung, bevor Sie eine neue Anfrage senden.",
+        "desktopRequired": "Diese Person kann derzeit keine Fernsteuerung zulassen. Sie muss mit einer unterstützten Desktop-App teilnehmen und den Gerätestatus prüfen.",
+        "versionMismatch": "Die Versionen der Fernsteuerung sind nicht kompatibel. Aktualisieren Sie die Anwendungen und versuchen Sie es erneut."
       }
     },
     "title": "Fernsteuerung",
@@ -50,6 +58,18 @@
       "paused": "Pausiert. Bestätigen Sie erneut über die lokale Steuerleiste, um fortzufahren.",
       "ending": "Beenden und Prüfen der Eingabefreigabe…",
       "blocked": "Das Loslassen konnte nicht bestätigt werden. Prüfen Sie die Tasten auf diesem Gerät. Neuer Fernzugriff ist gesperrt."
+    },
+    "dismiss": "Schließen",
+    "endReason": {
+      "declined": "Diese Anfrage wurde nicht genehmigt.",
+      "cancelled": "Diese Anfrage wurde abgebrochen.",
+      "stopped": "Die Fernsteuerung wurde beendet. Die Bildschirmfreigabe kann weiterhin aktiv sein; beenden Sie diese bei Bedarf separat.",
+      "expired": "Diese Anfrage oder Berechtigung ist abgelaufen.",
+      "connection": "Die Besprechungsverbindung hat sich geändert oder die Gegenstelle antwortet nicht mehr. Die Fernsteuerung wurde beendet.",
+      "screen": "Die Bildschirmfreigabe wurde beendet, geändert oder ist nicht verfügbar. Die Fernsteuerung wurde beendet.",
+      "unconfirmed": "Die Antwort der Gegenstelle konnte nicht bestätigt werden. Die Fernsteuerung wurde beendet. Aktionen können bereits ausgeführt worden sein; prüfen Sie das Gerät vor einem neuen Versuch.",
+      "device": "Die Anmeldung oder der Desktopzustand des gesteuerten Geräts hat sich geändert. Die Fernsteuerung wurde beendet.",
+      "generic": "Die Fernsteuerung kann nicht fortgesetzt werden. Prüfen Sie Bildschirmfreigabe, Verbindung und Gerätestatus."
     }
   },
   "feedback": {

@@ -139,6 +139,50 @@ afterEach(() => {
 })
 
 describe('target meeting lifecycle', () => {
+  it('shows and dismisses an end notice without hiding new requests or clearing a cleanup block', async () => {
+    const f = fixture()
+    await settle()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(screen.getByText('review')).toBeInTheDocument()
+    const ended = {
+      phase: 'ended' as const,
+      sessionId: 'previous',
+      inputOpen: false,
+      cleanupBlocked: false,
+      reason: 'share_stopped',
+    }
+    act(() => f.emit({ type: 'state', contextId: 'context', status: ended }))
+    expect(screen.getByText('endReason.screen')).toBeInTheDocument()
+    expect(screen.getByText('review')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('dismiss'))
+    expect(screen.queryByText('endReason.screen')).not.toBeInTheDocument()
+    expect(screen.getByText('review')).toBeInTheDocument()
+    act(() =>
+      f.emit({
+        type: 'state',
+        contextId: 'context',
+        status: {
+          ...ended,
+          sessionId: 'next',
+          reason: 'private-server-detail',
+        },
+      })
+    )
+    expect(screen.getByText('endReason.generic')).toBeInTheDocument()
+    expect(screen.queryByText('private-server-detail')).not.toBeInTheDocument()
+    act(() =>
+      f.emit({
+        type: 'state',
+        contextId: 'context',
+        status: { ...ended, phase: 'blocked', cleanupBlocked: true },
+      })
+    )
+    expect(screen.getByText('phase.blocked')).toBeInTheDocument()
+    expect(screen.queryByText('dismiss')).not.toBeInTheDocument()
+    expect(f.bridge.showRequest).not.toHaveBeenCalled()
+  })
   it('requests local gate closure before the share button waits for SDK unpublication', async () => {
     const f = fixture()
     await settle()
