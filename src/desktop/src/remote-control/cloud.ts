@@ -28,6 +28,24 @@ export class RemoteCloudError extends Error {
   constructor(public readonly code: string) { super(code); this.name = "RemoteCloudError"; }
 }
 
+/** One deadline includes credentials, headers and the entire response stream. */
+async function beforeDeadline<T>(signal: AbortSignal, operation: () => Promise<T>): Promise<T> {
+  signal.throwIfAborted();
+  let onAbort!: () => void;
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    const value = await Promise.race([Promise.resolve().then(() => {
+      signal.throwIfAborted();
+      return operation();
+    }), aborted]);
+    signal.throwIfAborted();
+    return value;
+  } finally { signal.removeEventListener("abort", onAbort); }
+}
+
 export class RemoteControlCloud {
   private readonly origin: string;
   constructor(serviceOrigin: string, private readonly auth: RemoteAuth,
@@ -47,24 +65,32 @@ export class RemoteControlCloud {
     if (body && Buffer.byteLength(body, "utf8") > 16384) throw new RemoteCloudError("invalid_remote_request");
     const epoch = this.auth.epoch;
     this.checkEpoch(epoch);
+    const deadline = AbortSignal.timeout(8000);
     let token: string | undefined;
-    try { token = await this.auth.access(); } catch { throw new RemoteCloudError("remote_auth_unavailable"); }
+    try { token = await beforeDeadline(deadline, () => { this.checkEpoch(epoch); return this.auth.access(); }); }
+    catch {
+      this.checkEpoch(epoch);
+      throw new RemoteCloudError(deadline.aborted ? "remote_request_failed" : "remote_auth_unavailable");
+    }
     this.checkEpoch(epoch);
     if (!token) throw new RemoteCloudError("remote_auth_unavailable");
     const startedAt = this.now();
     const url = `${this.origin}/api/v1.0/rooms/${roomId}/remote-control/${route.session ? options.sessionId + "/" : ""}${route.suffix}`;
     try {
-      const response = await this.fetcher(url, { method: route.method, redirect: "error", signal: AbortSignal.timeout(8000),
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body });
+      const response = await beforeDeadline(deadline, () => {
+        this.checkEpoch(epoch);
+        return this.fetcher(url, { method: route.method, redirect: "error", signal: deadline,
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body });
+      });
       const reader = response.body?.getReader();
       let size = 0;
       const chunks: Uint8Array[] = [];
       if (reader) {
         for (;;) {
-          const { value, done } = await reader.read();
+          const { value, done } = await beforeDeadline(deadline, () => reader.read());
           if (done) break;
           size += value.length;
-          if (size > 2_100_000) { await reader.cancel(); throw new RemoteCloudError("remote_response_oversize"); }
+          if (size > 2_100_000) { await beforeDeadline(deadline, () => reader.cancel()); throw new RemoteCloudError("remote_response_oversize"); }
           chunks.push(value);
         }
       }
