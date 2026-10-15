@@ -45,6 +45,7 @@ import { RemoteControlCloud } from "./remote-control/cloud";
 import { RemoteDesktopRuntime, publicRemoteError } from "./remote-control/runtime";
 import { bindScreenSource } from "./remote-control/source-binding";
 import { chooseCaptureSource } from "./remote-control/source-picker";
+import { nativeDescriptor } from "./remote-control/native-resources";
 import type { RemoteDesktopEvent } from "./remote-control/bridge";
 
 if (!app.isPackaged && process.env.WEMEET_USER_DATA)
@@ -345,7 +346,12 @@ async function createWindow() {
   });
   const win = window;
   remoteControl = new RemoteDesktopRuntime({ auth, cloud: new RemoteControlCloud(config.serviceOrigin, auth),
-    resourceRoot: path.join(app.isPackaged ? process.resourcesPath : __dirname, "remote-input") });
+    resourceRoot: path.join(app.isPackaged ? process.resourcesPath : __dirname, "remote-input"),
+    nativeDescriptor: (() => {
+      if (!app.isPackaged) return undefined;
+      try { return nativeDescriptor(JSON.parse(readFileSync(path.join(__dirname, "bundled-remote-input.json"), "utf8"))); }
+      catch { return null; }
+    })() });
   const remote = remoteControl;
   remote.on("state", (event: RemoteDesktopEvent) => {
     if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("remote-control:state", event);

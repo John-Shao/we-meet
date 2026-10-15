@@ -7,6 +7,7 @@ import path from 'node:path'
 import { rendererConfig } from './renderer-config.mjs'
 import { verifyRenderer, verifyPackagedRenderer } from './renderer-provenance.mjs'
 import runtimePackage from './runtime-package.cjs'
+import nativePackage from './remote-input-package.cjs'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
 const file = `We-Meet-${pkg.version}-setup.exe`
@@ -20,14 +21,18 @@ const renderer = await verifyRenderer(path.resolve(root, '../frontend'), root, p
 const rendererProvenance = verifyPackagedRenderer(path.join(root, 'release/win-unpacked/resources/app.asar'), renderer)
 const bundledRuntime = JSON.parse(await readFile(path.join(root, 'dist/bundled-runtime.json'), 'utf8'))
 const packagedRuntime = await runtimePackage.verifyPackagedRuntime(path.join(root, 'release/win-unpacked/resources'), bundledRuntime)
+const bundledRemoteInput = JSON.parse(await readFile(path.join(root, 'dist/bundled-remote-input.json'), 'utf8'))
+const packagedRemoteInput = await nativePackage.verifyPackagedRemoteInput(path.join(root, 'release/win-unpacked/resources'), bundledRemoteInput, { formal: process.argv.includes('--formal') })
 const signature = JSON.parse(execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '$s = Get-AuthenticodeSignature -LiteralPath $env:WEMEET_RELEASE_ARTIFACT; @{ status = [string]$s.Status; thumbprint = $s.SignerCertificate.Thumbprint } | ConvertTo-Json -Compress'], { encoding: 'utf8', windowsHide: true, env: { ...process.env, WEMEET_RELEASE_ARTIFACT: artifact } }).trim())
 if (process.argv.includes('--formal') && signature.status !== 'Valid') throw new Error('Formal release installer Authenticode verification failed')
+if (process.argv.includes('--formal') && signature.thumbprint !== packagedRemoteInput.signature.thumbprint) throw new Error('Installer and native helper signing certificates differ')
 const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim()
 const manifest = {
   version: pkg.version, file, bytes: (await stat(artifact)).size, sha256: await digest(artifact),
   signature,
   bundledRuntime,
   packagedRuntime,
+  packagedRemoteInput,
   packagedAsarSha256: await digest(path.join(root, 'release/win-unpacked/resources/app.asar')),
   rendererProvenance,
   desktopLockSha256: await digest(path.join(root, 'package-lock.json')),

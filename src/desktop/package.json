@@ -11,6 +11,7 @@
     "test:remote-input": "npm run build:remote-input && tsc && node --test tests/remote-control-native.integration.cjs && python native/remote-input/test_runtime.py -v",
     "test:remote-control": "npm run build:remote-input && tsc && node --test tests/remote-control-*.integration.cjs tests/remote-control-*.test.cjs && python native/remote-input/test_runtime.py -v",
     "probe:remote-control:displays": "npm run build:remote-input && tsc && electron scripts/remote-control-display-probe.cjs",
+    "test:remote-input:package": "npm run build:main && npm run build:remote-input && node scripts/remote-control-package-smoke.cjs",
     "test:remote-input:injection": "npm run build:remote-input && python native/remote-input/test_runtime.py --inject -v",
     "test:remote-input:locked": "npm run build:remote-input && python native/remote-input/test_locked_session.py -v",
     "build:renderer": "node scripts/build-renderer.mjs",
@@ -20,10 +21,10 @@
     "test:smoke": "npm run build:main && node scripts/smoke.cjs",
     "test:shell-smoke": "npm run build:main && node scripts/shell-smoke.cjs",
     "test:review-smoke": "npm run build:main && node scripts/work-review-smoke.cjs",
-    "package": "node scripts/verify-electron.mjs && npm run build:main && npm run build:renderer && npm run copy:renderer && node scripts/verify-renderer.mjs && node scripts/verify-runtime.mjs && electron-builder --config electron-builder.config.cjs --win --x64 && node scripts/release-manifest.mjs",
-    "package:prepared": "node scripts/verify-electron.mjs && npm run build:main && node scripts/verify-renderer.mjs && node scripts/verify-runtime.mjs && electron-builder --config electron-builder.config.cjs --win --x64 && node scripts/release-manifest.mjs",
+    "package": "node scripts/verify-electron.mjs && npm run build:main && npm run build:remote-input && npm run build:renderer && npm run copy:renderer && node scripts/verify-renderer.mjs && node scripts/verify-runtime.mjs && electron-builder --config electron-builder.config.cjs --win --x64 && node scripts/release-manifest.mjs",
+    "package:prepared": "node scripts/verify-electron.mjs && npm run build:main && npm run build:remote-input && node scripts/verify-renderer.mjs && node scripts/verify-runtime.mjs && electron-builder --config electron-builder.config.cjs --win --x64 && node scripts/release-manifest.mjs",
     "build:runtime": "python scripts/build-local-runtime.py",
-    "package:release": "npm run build:main && node scripts/release-gate.mjs && npm run build:renderer && npm run copy:renderer && node scripts/verify-renderer.mjs && node scripts/verify-runtime.mjs && electron-builder --config electron-builder.release.config.cjs --win --x64 && node scripts/release-manifest.mjs --formal"
+    "package:release": "npm run build:main && node scripts/release-gate.mjs && npm run build:remote-input && npm run build:renderer && npm run copy:renderer && node scripts/verify-renderer.mjs && node scripts/verify-runtime.mjs && electron-builder --config electron-builder.release.config.cjs --win --x64 && node scripts/release-manifest.mjs --formal"
   },
   "devDependencies": {
     "@electron/asar": "3.4.1",

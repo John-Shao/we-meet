@@ -1,21 +1,13 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { EventEmitter } from "node:events";
 import { promisify } from "node:util";
 import { Command, encodeArm, encodeConsent, INPUT_BYTES, type Binding, type Display, type NativeDisplay } from "./wire";
+import { verifyNativeResources, type NativeDescriptor } from "./native-resources";
 
 export type NativeEvent = { event: string; reason?: string; ready?: boolean; cleanup?: number; seq?: number; nonce?: string; ttlMs?: number; displays?: NativeDisplay[]; consentId?: string; pid?: number; guardianPid?: number };
-async function verifiedExecutable(resourceRoot: string) {
+async function verifiedExecutable(resourceRoot: string, descriptor?: NativeDescriptor | null) {
   if (process.platform !== "win32" || process.arch !== "x64") throw new Error("native_unavailable");
-  const root = path.resolve(resourceRoot);
-  const manifest = JSON.parse(await readFile(path.join(root, "manifest.json"), "utf8"));
-  if (manifest.protocolVersion !== 1 || manifest.platform !== "win32" || manifest.arch !== "x64" ||
-      manifest.file !== "we-meet-remote-input.exe" || !/^[0-9a-f]{64}$/.test(manifest.sha256)) throw new Error("native_manifest_invalid");
-  const executable = path.join(root, manifest.file);
-  if (createHash("sha256").update(await readFile(executable)).digest("hex") !== manifest.sha256) throw new Error("native_integrity_failed");
-  return executable;
+  return (await verifyNativeResources(resourceRoot, descriptor, descriptor !== undefined)).executable;
 }
 /** Internal main-process adapter. Not a preload API; caller must establish native consent. */
 export class RemoteInputHelper extends EventEmitter {
@@ -29,8 +21,10 @@ export class RemoteInputHelper extends EventEmitter {
   private exitCleanup: number | undefined;
   private stopping?: Promise<number>;
 
-  static async probe(resourceRoot: string): Promise<{ ready: boolean; displays: NativeDisplay[] }> {
-    const executable = await verifiedExecutable(resourceRoot);
+  constructor(private readonly descriptor?: NativeDescriptor | null) { super(); }
+
+  static async probe(resourceRoot: string, descriptor?: NativeDescriptor | null): Promise<{ ready: boolean; displays: NativeDisplay[] }> {
+    const executable = await verifiedExecutable(resourceRoot, descriptor);
     const { stdout } = await promisify(execFile)(executable, ["--probe"], { windowsHide: true, timeout: 5000, maxBuffer: 65536 });
     const value = JSON.parse(stdout);
     if (value.event !== "probe" || value.version !== 1 || typeof value.ready !== "boolean" ||
@@ -42,7 +36,7 @@ export class RemoteInputHelper extends EventEmitter {
 
   async start(resourceRoot: string): Promise<void> {
     if (process.platform !== "win32" || process.arch !== "x64" || this.child || this.closed) throw new Error("native_unavailable");
-    const executable = await verifiedExecutable(resourceRoot);
+    const executable = await verifiedExecutable(resourceRoot, this.descriptor);
     if (this.closed) throw new Error("native_unavailable");
     this.child = spawn(executable, ["--parent", String(process.pid)], { stdio: "pipe", windowsHide: true });
     this.child.stdout.setEncoding("utf8");

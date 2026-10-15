@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { type RemoteAuth, type RemoteControlCloud } from "./cloud";
 import { RemoteInputHelper, type NativeEvent } from "./native-helper";
+import type { NativeDescriptor } from "./native-resources";
 import { CaptureBindingStore, type SourceBinding } from "./source-binding";
 import { TargetAuthorization, type TargetContext } from "./target-authorization";
 import { TargetTransport, type OutgoingRemoteMessage } from "./target-transport";
@@ -13,6 +14,7 @@ type Context = TargetContext & { contextId: string };
 type Native = Pick<RemoteInputHelper, "start" | "stop" | "shutdown" | "on" | "off" | "showConsent" | "closeGate" | "pause" | "renew" | "arm" | "input" | "suspendCapture">;
 type Dependencies = {
   auth: RemoteAuth & { readonly subject?: string }; cloud: Pick<RemoteControlCloud, "request">; resourceRoot: string;
+  nativeDescriptor?: NativeDescriptor | null;
   probe?: typeof RemoteInputHelper.probe; helper?: () => Native; now?: () => number;
 };
 type Running = { helper: Native; auth?: TargetAuthorization; transport?: TargetTransport; retiring: boolean };
@@ -89,7 +91,7 @@ export class RemoteDesktopRuntime extends EventEmitter {
       const response = await this.deps.cloud.request("capabilities", c.roomId); this.check(c);
       if (response.data.enabled !== true) { await this.close("remote_control_disabled"); return this.snapshot(false); }
       this.checkSelf(c, response.data);
-      const probe = await (this.deps.probe ?? RemoteInputHelper.probe)(this.deps.resourceRoot).catch(() => ({ ready: false, displays: [] }));
+      const probe = await this.probeCapture().catch(() => ({ ready: false, displays: [] }));
       this.check(c); this.supported = probe.ready && probe.displays.length > 0 && !this.blocked;
       await this.deps.cloud.request("publishPresence", c.roomId, { body: {
         roomSid: c.roomSid, participantSid: c.participantSid, deviceSessionId: c.deviceSessionId,
@@ -146,7 +148,7 @@ export class RemoteDesktopRuntime extends EventEmitter {
     if (!this.captureCurrent(ticket) || !ticket.context || !ticket.baselineVerified) throw new Error("capture_binding_mismatch");
     this.captures.selected(source, ticket.context.authEpoch); this.publish(this.status);
   }
-  async probeCapture() { return (this.deps.probe ?? RemoteInputHelper.probe)(this.deps.resourceRoot); }
+  async probeCapture() { return (this.deps.probe ?? RemoteInputHelper.probe)(this.deps.resourceRoot, this.deps.nativeDescriptor); }
 
   async bindPublishedTrack(value: { contextId: string; shareInstanceId: string; trackSid: string }) {
     const args = object(value, "contextId,shareInstanceId,trackSid"), c = this.requireContext(args.contextId); id(args.shareInstanceId);
@@ -206,7 +208,7 @@ export class RemoteDesktopRuntime extends EventEmitter {
 
   private startTarget(c: Context, sessionId: string, source: SourceBinding, trackSid: string) {
     if (this.running || this.blocked || !this.intent || this.now() >= this.intent.deadline) throw new Error("remote_busy");
-    const entry: Running = { helper: this.deps.helper?.() ?? new RemoteInputHelper(), retiring: false };
+    const entry: Running = { helper: this.deps.helper?.() ?? new RemoteInputHelper(this.deps.nativeDescriptor), retiring: false };
     this.running = entry; this.intent = undefined;
     entry.helper.on("state", (event: NativeEvent) => {
       if (["closed", "guardianClosed", "terminated"].includes(event.event) && event.cleanup !== 1) {
