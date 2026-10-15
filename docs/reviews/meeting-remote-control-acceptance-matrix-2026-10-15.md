@@ -8,12 +8,14 @@
 
 | 编号 | 可定位证据 | 范围与限制 |
 | --- | --- | --- |
-| E1 | `src/desktop/test-results/sdk-cloud-regression.log`；对应 `tests/remote-control-{cloud,sdk,runtime,controller-session,target-authorization}.test.cjs` 和 `remote-control-authorization.integration.cjs` | 本轮 51 项通过，8.157 秒；实际 SDK ESM/protobuf、WebCrypto/Python 签名互验、loopback HTTP，业务 HTTP/native 其余为受控替身；无原生键鼠注入 |
+| E1 | `src/desktop/test-results/sdk-cloud-regression.log`；对应 `tests/remote-control-{cloud,runtime,controller-session,target-authorization}.test.cjs`、`remote-control-sdk.integration.cjs` 和 `remote-control-authorization.integration.cjs` | 第二十二批 51 项通过，8.157 秒；实际 SDK ESM/protobuf、WebCrypto/Python 签名互验、loopback HTTP，业务 HTTP/native 其余为受控替身；无原生键鼠注入。SDK 文件原为 `.test.cjs`，第二十三批移入集成集 |
 | E2 | 实施记录第二十一批；前端六个远控测试文件；`src/frontend/test-results/remote-control-status-6176np/` | 35 项组件/输入测试及真实 Chromium 中文提示；合成会话状态，无真实会议 |
 | E3 | 实施记录第十三～二十批；`native/remote-input/test_runtime.py`、`test_cleanup.cpp`、`test_keys.cpp` 及相关构建脚本 | 47 项释放故障、58 个真实子进程崩溃窗口、1,830 次组合键判断；前两类输入 API 为替身，不能证明实际键状态。最终默认原生 33 项中 28 通过、3 跳过、2 被本地接管打断；后两项单独复核通过 |
-| E4 | 实施记录第九、十一、十二批；`src/backend/core/tests/services/test_remote_control*.py` | 隔离 PostgreSQL/P-256，最终组合 89 项通过，后补换钥专项 15 项通过；LiveKit IO 为替身，不能推定部署服务行为 |
+| E4 | 实施记录第九、十一、十二、二十三批；`src/backend/core/tests/services/test_remote_control*.py` | 第二十三批按新增 CI 六文件入口完整执行，91 项通过、113.07 秒；隔离 PostgreSQL/P-256，LiveKit IO 为替身，不能推定部署服务行为 |
 | E5 | 实施记录第十七批，`src/desktop/test-results/static-frame-TZ794z/`、`static-frame-UaPmuI/` | 两次本机自有静态窗口经真实 VP8 WebRTC 解码 60 秒；没有 SFU、整屏和双机，最差帧间隔距 3 秒门槛仅约 75 ms |
 | E6 | 独立验证工作树的 `src/desktop/release/*manifest.json`、`test-results/remote-app-profile-*/report.json`；具体当前包见实施记录 | 完整包资源摘要与独立 profile 启动，只读 native probe；未签名、未实际安装。每份报告只对应其自身 sourceRevision，不能代替之后的源码 |
+| E7 | 第二十三批；独立 `we-meet-remote-control-ci` 工作树的 `src/desktop/test-results/ci-*.log` | 无前端依赖时桌面 109 通过、1 个 Work 包测试跳过；随后原生无输入 harness 和独立安装前端后的 SDK 7 项通过。Windows 步骤在本机重现，托管 GitHub Actions 尚未运行 |
+| E8 | `src/desktop/test-results/remote-ipc-OV7ZJq/report.json`、`scripts/remote-control-ipc-smoke.cjs` | 实际 Electron 主进程、生产 preload 正向调用和真实 IPC；独立 profile，合成登录/cloud，loopback 页面。7 组检查、2 次合成 cloud、0 次 native；默认子 frame 无 preload，未直接触发其 IPC handler |
 
 测试结果文件在忽略目录，本机路径均相对于开发工作树；E6 位于 `D:/workspace/jusi-meet/.worktrees/we-meet-remote-control-verify`。可持续复查的测试源码、命令和结论在 Git 中。源码或测试文件存在本身不算通过证据。
 
@@ -43,7 +45,7 @@
 | §8.2：禁用安全组合和紧急组合所有顺序，保留正常 F10；释放仅处理会话候选 | native `forbiddenKeyDown`/ledger、input tests | E3 合成状态矩阵及真实热键注册冲突；混合物理修饰键、系统热键实际触发仍待验 |
 | §9、§9.1：包内固定 helper/guardian、无裸输入接口、先记候选再 down、确认 worker 退出后释放、失败阻断 | native main/session-state、native-helper/resources、release journal | E3 故障与真实子进程窗口证据；当前原生源码实际按键释放复验、系统拒绝与安全桌面竞态未完成 |
 | §9.2：原生 UI 保留区域、键盘提交隔离、独立监听/托盘、销毁时卸载 | `trusted-ui.h`、native observer/runtime | E3 控制条命中、隐藏条、负坐标与通知处理；UI 移动/DPI、拖拽穿越及真实 Tab/Enter 尝试待验 |
-| §9.2：最小 IPC、frame/origin/参数/登录 epoch；退出/重载/崩溃清理；Work 独立 | `main.ts`、`preload.ts`、`runtime.ts` | E1 参数及 context 检查，源码可定位生命周期挂接；真实 Renderer/主进程异常与 Work 回归待验 |
+| §9.2：最小 IPC、frame/origin/参数/登录 epoch；退出/重载/崩溃清理；Work 独立 | `main.ts`、`preload.ts`、`runtime.ts` | E1 参数/context 检查；E8 验证主窗口、来源、参数、未登录及错误脱敏，默认子 frame 无桥。有效远控中的 Renderer/主进程异常清理与完整 Work 回归待验 |
 | §9.2：固定 HTTP origin/路径、禁止重定向、8 秒总截止、2.1 MB 流上限、稳定错误码 | `cloud.ts`、authorization integration、cloud tests | E1 本轮补齐凭据等待截止；真实 loopback 重定向及停滞请求分别约 8 秒失败；无线上服务请求 |
 | §10：拒绝/过期/失焦/媒体停止/断线/踢出/房间结束/服务异常/锁屏/电源变化，不恢复旧授权 | 前后端生命周期接入、native worker/guardian observer | 模块与向测试 HWND 投递通知有证据；真实系统通知时序、旧连接替换及媒体故障矩阵未完成 |
 | §11、§11.1：组织/房间默认关闭、范围交集、限流冷却、管理 CAS、紧急关闭与审计同事务 | policy/admin service、管理页面、policy 测试 | E4 真实 PostgreSQL 提交顺序；实际部署下组织关闭通知及租约停止分布待验 |
@@ -51,7 +53,7 @@
 | §11.2：kid/材料不复用、revision/generation、正常重叠及紧急撤销、全局锁、操作命令 | signing trust、remote_control_keys、migration 0226、CLI | E1/E4 的真签名/数据库证据；真实多副本滚动换钥与客户端连续续租待验 |
 | §12：协议版本交集、单会话单版本、旧客户端可普通入会、不对未知广播回执 | presence/schema、signals、Provider；当前仅 v1 | 版本拒绝有模块证据；真实不同版本共会及老客户端音视频回归待验 |
 | §12 文档：启用、客户端授权、故障排查、验收、最终协议 | 运维说明、使用说明、设计 §7/§9、`protocol.h`/wire/signals、实施记录及本表 | 文档已提供；真实双机与部署步骤需实走核验。拟定前端路径实际落在 `src/frontend/src/features/remote-control/`，浏览器共享协议在 desktop 的无 Node 模块中 |
-| §13/§16.4：aliyun-dev 新分支、可复现基线、工具链/锁摘要、保留原工作区 | 分支与完整 SHA；E6 manifest；实施记录基线 | 已有隔离工作树与干净包来源，工具链已记录；CI 环境记录仍需复核，不能以本机编译代替 CI 结果 |
+| §13/§16.4：aliyun-dev 新分支、可复现基线、工具链/锁摘要、保留原工作区 | 分支与完整 SHA；E6 manifest；实施记录基线 | 已有隔离工作树与干净包来源；CI 已接入远控并有 E7 本机步骤验证，尚缺托管 runner 运行证据 |
 
 ## 3. §14.1 自动验收逐项状态
 
@@ -63,7 +65,7 @@
 | 4 生命周期与故障 | E1/E2/E3，原生通知处理 | 真锁屏/安全桌面/休眠及完整应用崩溃后的释放 |
 | 5 黑边/CSS/DPI/负坐标/旋转 | E2 与 source binding 模拟 | 实际 100/125/150/200% 全矩阵、热插拔与旋转 |
 | 6 键盘/文本/双击/拖拽/releaseAll/紧急组合 | E1/E2/E3 的部分用例 | 双击、中文、混合物理输入及释放实机证据 |
-| 7 IPC/frame/origin/epoch/路径/长度/EOF/异步撤销 | runtime/main 接入、E1/E3 | 完整应用中的非法 frame 与真实退出故障矩阵，不能只凭函数替身关闭 |
+| 7 IPC/frame/origin/epoch/路径/长度/EOF/异步撤销 | runtime/main 接入、E1/E3/E8；实际错误来源主 frame、其他 WebContents、参数/未登录拒绝 | 默认子 frame 没有 preload，仅证实无法调用；有效原生许可下的完整退出故障矩阵仍待验 |
 | 补充：helper 在 Ctrl/拖拽 down 后 kill、各台账窗口、卡死、guardian/主进程失效 | E3；历史较早版本三项实际输入通过 | 当前版本实际输入与完整崩溃窗口重新验证 |
 | 补充：限流/过期精确命中 up、部分成功、后续 heartbeat 不能继续 | 原生故障 harness 与队列测试 | 实际 SendInput、键状态和完整失败矩阵 |
 | 补充：60 秒空闲、heartbeat/重复 ACK 不掩盖输入超时、累计 ACK 不改原截止 | controller/transport 的假时钟断言；E5 局部媒体探针 | 双机整屏与真实控制会话空闲 |
@@ -103,4 +105,4 @@
 
 F-01 对应本机授权匹配；F-02/F-03 对应 SDK 路由/序号；F-04 对应组合键与受信 UI；F-05 对应期限；F-06/F-10 对应系统输入和释放边界；F-07 对应源映射；F-08 对应两层暂停；F-09 对应不可用/结束提示；F-11 对应专用 HTTP/真人账号；F-12 对应文本；F-13 对应版本；F-14 对应基线。各项仍按本表和设计 §16.3 的证据要求关闭，不能仅因已修改文案就登记复审通过。历史评审报告保留，未代填评审人或批准结论。
 
-当前可复查的新增改动为 SDK 收包契约测试和请求总截止修复；本轮未安排实际输入、系统休眠/锁屏或安装。第二台设备与证书配置沿用用户答复，不重复追问。后续应优先完成仍未实证的原生释放/系统竞态、双机矩阵、正式签名和隔离安装验收；涉及真实多副本与周期任务的部署证据另行记录。任何一项未完成，整体目标保持未完成。
+当前已补 SDK 收包契约、请求总截止、CI 集成及真实 IPC 边界证据；未安排实际输入、系统休眠/锁屏或安装。第二台设备与证书配置沿用用户答复，不重复追问。后续应优先完成仍未实证的原生释放/系统竞态、双机矩阵、正式签名和隔离安装验收；涉及真实多副本与周期任务的部署证据另行记录。任何一项未完成，整体目标保持未完成。

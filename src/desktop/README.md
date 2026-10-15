@@ -26,6 +26,8 @@ npm run package
 
 `release-guard.yml` 的 Windows 作业先只安装桌面依赖运行 `npm test`，随后构建原生程序，运行无实际输入的释放/崩溃/组合键 harness，再安装前端依赖执行 SDK 集成。SDK 文件为 `.integration.cjs`，普通桌面单测不隐式要求前端安装。Linux 后端作业使用锁定依赖和隔离 PostgreSQL/Redis 执行远控权限、策略、审计、签名及换钥用例。原生报告以 14 天保留期上传；正式签名、实际输入和双机验收仍独立执行，流水线配置存在不等于托管 runner 已运行通过。
 
+`npm run test:remote-control:ipc` 启动真实开发版主进程和沙箱窗口，使用独立 profile、loopback 页面、合成登录与 cloud 结果，验证主窗口/来源/参数/未登录拒绝和错误脱敏。临时测试 preload 仅注册在该测试进程的 session 中，结束后注销；应用的 main/preload/IPC 注册代码不替换。默认子 frame 没有 preload 时只记录该事实，不冒充已触发子 frame 的 IPC 拒绝路径。native probe/start 设为失败探针并要求调用数为 0；不登录真实账号、不加入会议或注入键鼠。该 GUI 测试需完整 Electron 二进制，未纳入跳过 Electron 下载的 CI 作业。
+
 原生 staging 先签名再生成摘要，正式文件排除后续重签；摘要固定在 `app.asar` 中，启动时验证资源与清单。`npm run package:release` 还要求既有 Windows 签名证书、运行时更新信任配置、helper 的有效 Authenticode，以及安装器/helper 的一致证书。缺失签名只允许内部候选，不算正式发布。真实输入测试 `test:remote-input:injection` 会短暂占用自己的测试窗口，需事先安排无本地键鼠操作的时间；本地接管保护始终保留。
 
 **2026-10-11 桌面外壳更新**：当前内部候选为 `0.4.0-delivery.6`。自定义可拖动标题栏保留原生窗口按钮；Windows/Linux 顶部菜单栏收进“更多”，一级导航与标题栏采用统一中性灰背景，并支持深色主题。导航折叠和全局搜索移至标题栏，重载与退出确认保留。`npm run test:shell-smoke` 使用隔离用户目录和模拟 API 验证登录页、搜索、导航折叠、菜单、缩放、最大化、全屏及会议预览；真实会议、原生拖动和安装升级仍需实机验收。浏览器版保持原有布局。

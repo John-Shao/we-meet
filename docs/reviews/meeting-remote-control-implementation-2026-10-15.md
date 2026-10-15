@@ -2,7 +2,7 @@
 
 日期：2026-10-15。状态：实施中，未完成、未部署。用户已授权从 aliyun-dev 新建分支完成方案实现。
 
-## 当前交付状态（截至第二十二批）
+## 当前交付状态（截至第二十三批）
 
 | 范围 | 已有证据 | 尚未完成的门槛 |
 | --- | --- | --- |
@@ -542,3 +542,25 @@ A 端结束后隐藏输入区域和文本/快捷键工具，关闭按钮使用�
 最新内部验收安装器为验证工作树 `src/desktop/release/We-Meet-0.4.0-delivery.6-setup.exe`，**187,781,717 字节**，SHA-256 **`b1a2d78be75807030356cfc9af956f8f5a0ab2610a1a838f6fdfac96ea06bb19`**；manifest 的 `workingTreeDirty=false`，原生五项源码摘要与检出文件一致。helper SHA-256 为 `fcd18b5432e829e34e6a7dd8de8bb7187c4aebf0d91dfc668cbcc2804f561947`。安装器/helper 均为 **NotSigned**。上一批 `62ce45263` 的包、清单和 blockmap 已归档至 `release/archive/62ce4526393a/`，逐项摘要一致。
 
 完整应用冒烟通过，报告/截图为验证工作树 `src/desktop/test-results/remote-app-profile-TkDXFU/`，登录页截图已检查；独立 profile、实际 ASAR、在线且未登录，sandbox/contextIsolation=true、nodeIntegration=false，无页面异常，helper ready=true、两个显示器。该包进程已退出，HKCU 登录协议注册前后摘要一致，见 `test-results/remote-app-protocol-ba444e024512.json`。没有安装、登录、发起会议或注入键鼠。新增验收矩阵保留全部未验证范围，并修正设计 §16.4 中仍把已接入的协调器/界面列为未实现的过时描述；未改变首期范围或验收门槛。
+
+## 第二十三批：干净依赖的 CI 接入与真实 Electron IPC
+
+核对 `.github/workflows/release-guard.yml` 后确认，原 Windows 作业只安装桌面依赖，第二十二批新增 SDK 测试却需要前端依赖，原文件名会使普通 `npm test` 在该环境失败。现改名为 `remote-control-sdk.integration.cjs`，保留专用命令及远控组合入口。Windows 作业先运行独立桌面测试，再编译原生程序、运行不调用真实 SendInput 的清理/崩溃/组合键 harness，随后安装前端依赖运行 SDK 集成；原生摘要和报告上传并保留 14 天。Linux 后端作业补入六个远控测试文件，复用原有锁定依赖、PostgreSQL 与 Redis 服务。
+
+CI 配置提交为 `9317ab1d5b6d41dc94f9cd714fae8f3fdaebc56b`。新建独立工作树 `D:/workspace/jusi-meet/.worktrees/we-meet-remote-control-ci`，按 Windows 作业的安装顺序执行验证；两个 node_modules 均由 npm ci 独立产生，没有使用链接。
+
+| 检查 | 实际结果与范围 |
+| --- | --- |
+| 桌面独立依赖 | 跳过 Electron 二进制下载，npm ci 安装 288 包；断言前端 node_modules 不存在后执行 npm test，109 项通过、1 项既有 Work 实际打包 stdio/grant 测试跳过，8.230 秒 |
+| 原生 CI 步骤 | 当前本机 VS18 `/W4 /WX` 构建通过；47 项释放故障、58 个真实子进程崩溃窗口、572 种组合/1,830 次策略判断通过，真实输入调用数均为 0 |
+| SDK 集成 | 再于前端执行 npm ci 安装 1,119 包，7 项通过，约 0.186 秒；不要求 Electron 二进制或原生 UI |
+| 后端新 CI 入口 | 相同六文件在既有隔离 PostgreSQL/Redis 容器执行，91 项通过、1 条 warning、113.07 秒；LiveKit IO 仍为替身，本轮没有重新安装容器依赖 |
+| 工作流检查 | YAML 解析、六个测试路径、产物保留配置及 diff 检查通过；未推送分支、未触发托管 runner，不登记为 GitHub Actions 已通过 |
+
+上述日志在 CI 验证工作树 `src/desktop/test-results/ci-desktop-install.log`、`ci-desktop-tests.log`、`ci-native.log`、`ci-frontend-install.log`、`ci-sdk.log`、`ci-backend-regression.log`。最初本地安装包装命令在 Windows PowerShell 的 Stop 模式下把 npm 弃用警告转为异常；确认该命令已结束且无 npm ci 子进程后，调整为按实际退出码判定并重新安装。最终安装及测试结果为上表，不把第一次异常计为成功。
+
+另新增 `npm run test:remote-control:ipc`。在实际 Electron 44.4.3 开发版中使用生产 main/preload/IPC 注册代码，合成登录/cloud 及两个 loopback 来源；生产 preload 的正常 capabilities 调用可抵达 runtime，测试 preload 用于发送异常参数及错误来源请求。真实验证参数数量/结构、未登录时全部五个 handler 拒绝、其他 WebContents 即使同源也拒绝、主 frame 在另一来源拒绝，以及未知错误脱敏。测试进程的 sandbox/contextIsolation=true、nodeIntegration/nodeIntegrationInSubFrames=false；页面没有 require。子 frame 在默认配置下没有 preload IPC，只登记无法调用，不声称已通过其直接 IPC 拒绝分支。
+
+临时 preload 的注册与注销使用 [Electron session API](https://www.electronjs.org/docs/latest/api/session#sesregisterpreloadscriptscript)，仅作用于新测试进程的 session，应用发布代码未增加调试桥。native probe/start 设为失败探针并断言零调用；最后报告共有 7 组检查、2 次合成 cloud 调用、0 次 native，见开发工作树 `src/desktop/test-results/remote-ipc-OV7ZJq/report.json`。首次 `remote-ipc-k1hv5N` 因测试未等待 iframe 挂载失败，修正为等待实际 frameattached/URL 后重跑；后续最终脚本通过并退出。没有真实登录、会议、键鼠输入或安装。
+
+本批只改 CI、测试入口/脚本和文档，应用运行时代码仍为第二十二批，继续使用 `ba444e024` 内部未签名安装器。有效远控许可下的进程崩溃清理、最新原生实机释放、独立双机、签名安装和性能稳定性等仍按验收矩阵保留。
