@@ -207,6 +207,27 @@ class NativeRuntimeTests(unittest.TestCase):
         self.assertTrue(self.c.wait("displays")["displays"])
         self.assertIsNone(self.c.process.poll())
 
+    def test_reserved_hotkey_conflict_rejects_runtime_start(self):
+        # Relinquish the test helper's own hotkey, then claim the same chord in
+        # this test thread. No key press is generated and no system setting is
+        # changed; the registration is always released before this test exits.
+        self.c.close()
+        user = ctypes.WinDLL("user32", use_last_error=True)
+        user.RegisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.UINT, wintypes.UINT]
+        user.RegisterHotKey.restype = wintypes.BOOL
+        user.UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
+        user.UnregisterHotKey.restype = wintypes.BOOL
+        hotkey_id = 0x574D
+        self.assertTrue(user.RegisterHotKey(None, hotkey_id, 0x4007, 0x79), ctypes.get_last_error())
+        try:
+            with self.assertRaisesRegex(RuntimeError, "Native controls or unlocked desktop unavailable"):
+                unavailable = Client()
+                unavailable.close()
+        finally:
+            self.assertTrue(user.UnregisterHotKey(None, hotkey_id), ctypes.get_last_error())
+        restored = Client()
+        restored.close()
+
     def test_worker_session_notification_closes_without_input(self):
         self.notify_test_observer(self.c.process.pid)
         self.assertEqual(self.c.wait("guardianClosed")["cleanup"], -2)

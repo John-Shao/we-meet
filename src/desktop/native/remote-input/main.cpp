@@ -420,8 +420,7 @@ std::string displaysJson() {
     }out<<"]";return out.str();
 }
 // Scan-code allowlist: printable keys, editing/navigation, modifiers and F1..F12.
-// No power/sleep/application launch keys; Windows key combinations are further
-// limited by the caller's published key map and the stateful forbidden chords.
+// Windows, application launch, power and sleep keys are not allowlisted.
 bool allowedScan(uint32_t code,bool extended) {
     if(extended) switch(code) {
         case 0x1c: case 0x1d: case 0x35: case 0x38: case 0x47: case 0x48:
@@ -430,6 +429,17 @@ bool allowedScan(uint32_t code,bool extended) {
         default:return false;
     }
     return (code>=1 && code<=0x53 && code!=0x54) || code==0x57 || code==0x58;
+}
+// Called only for validated key-down events. Tests supply physical key state
+// without consulting or changing the user's keyboard; production uses Win32.
+template<class KeyState=decltype(&GetAsyncKeyState)>
+bool forbiddenKeyDown(Ledger* ledger,uint32_t scan,bool ext,KeyState keyState=GetAsyncKeyState) {
+    const bool ctrl=scan==0x1d || ledger->candidates[0x1d] || ledger->candidates[256+0x1d] || (keyState(VK_CONTROL)&0x8000);
+    const bool alt=scan==0x38 || ledger->candidates[0x38] || ledger->candidates[256+0x38] || (keyState(VK_MENU)&0x8000);
+    const bool shift=scan==0x2a || scan==0x36 || ledger->candidates[0x2a] || ledger->candidates[0x36] || (keyState(VK_SHIFT)&0x8000);
+    const bool f10=scan==0x44 || ledger->candidates[0x44] || (keyState(VK_F10)&0x8000);
+    const bool del=(scan==0x53 && ext) || ledger->candidates[256+0x53] || (keyState(VK_DELETE)&0x8000);
+    return (ctrl && alt && shift && f10) || (ctrl && alt && del);
 }
 class Runtime {
 public:
@@ -715,12 +725,7 @@ private:
         size_t index=scan+(ext?256:0);
         if(down && ledger_->candidates[index] && !repeat)return false;
         if(!down && !ledger_->candidates[index])return false;
-        bool ctrl=(scan==0x1d&&down)||ledger_->candidates[0x1d]||ledger_->candidates[256+0x1d]||(GetAsyncKeyState(VK_CONTROL)&0x8000);
-        bool alt=(scan==0x38&&down)||ledger_->candidates[0x38]||ledger_->candidates[256+0x38]||(GetAsyncKeyState(VK_MENU)&0x8000);
-        bool shift=((scan==0x2a||scan==0x36)&&down)||ledger_->candidates[0x2a]||ledger_->candidates[0x36]||(GetAsyncKeyState(VK_SHIFT)&0x8000);
-        bool f10=(scan==0x44&&down)||ledger_->candidates[0x44]||(GetAsyncKeyState(VK_F10)&0x8000);
-        bool del=(scan==0x53&&ext&&down)||ledger_->candidates[256+0x53];
-        if(down && ((ctrl&&alt&&shift&&f10)||(ctrl&&alt&&del)))return false;
+        if(down && forbiddenKeyDown(ledger_,scan,ext))return false;
         INPUT e{};e.type=INPUT_KEYBOARD;e.ki.wScan=WORD(scan);e.ki.dwExtraInfo=InputTag;
         e.ki.dwFlags=KEYEVENTF_SCANCODE|(ext?KEYEVENTF_EXTENDEDKEY:0)|(down?0:KEYEVENTF_KEYUP);
         const auto generation=desktopGeneration(ledger_);

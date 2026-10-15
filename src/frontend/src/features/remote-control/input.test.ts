@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { forbiddenChord, keyInput, shortcutKeys, videoPoint } from './input'
 
+function permutations(keys: string[]): string[][] {
+  if (keys.length < 2) return [keys]
+  return keys.flatMap((key, index) =>
+    permutations(keys.filter((_, at) => at !== index)).map((tail) => [
+      key,
+      ...tail,
+    ])
+  )
+}
+
 describe('remote input coordinates and keys', () => {
   it('uses CSS coordinates with contain letterboxes, negative positions and no DPR multiplication', () => {
     const rect = { left: -800, top: 20, width: 800, height: 600 }
@@ -46,14 +56,44 @@ describe('remote input coordinates and keys', () => {
       [0x1d, 0],
     ])
   })
-  it('rejects system and emergency chords in any key order', () => {
-    for (const chord of [
-      ['Delete', 'AltRight', 'ControlLeft'],
-      ['F10', 'ShiftRight', 'AltLeft', 'ControlRight'],
-    ]) {
-      expect(forbiddenChord(new Set(chord))).toBe(true)
-      expect(() => shortcutKeys(chord)).toThrow('invalid_shortcut')
+  it('rejects all 216 reserved-chord orders and modifier side combinations only when completed', () => {
+    let sequences = 0
+    for (const ctrl of ['ControlLeft', 'ControlRight']) {
+      for (const alt of ['AltLeft', 'AltRight']) {
+        const chords = [
+          [ctrl, alt, 'Delete'],
+          [ctrl, alt, 'ShiftLeft', 'F10'],
+          [ctrl, alt, 'ShiftRight', 'F10'],
+        ]
+        for (const chord of chords) {
+          for (const order of permutations(chord)) {
+            for (let length = 1; length <= order.length; length++) {
+              const prefix = order.slice(0, length)
+              expect(forbiddenChord(new Set(prefix))).toBe(
+                length === order.length
+              )
+              if (length < order.length)
+                expect(() => shortcutKeys(prefix)).not.toThrow()
+              else
+                expect(() => shortcutKeys(prefix)).toThrow('invalid_shortcut')
+            }
+            sequences++
+          }
+        }
+      }
     }
+    expect(sequences).toBe(216)
+  })
+  it('keeps standalone F10, repeat, numpad decimal and ordinary shortcuts available', () => {
+    expect(shortcutKeys(['F10']).map((key) => key.action)).toEqual([1, 0])
+    expect(keyInput('F10', true, true)).toMatchObject({
+      code: 0x44,
+      extended: false,
+      repeat: true,
+    })
+    expect(() =>
+      shortcutKeys(['ControlLeft', 'AltRight', 'NumpadDecimal'])
+    ).not.toThrow()
     expect(forbiddenChord(new Set(['ControlLeft', 'KeyC']))).toBe(false)
   })
 })
