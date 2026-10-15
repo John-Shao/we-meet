@@ -44,6 +44,8 @@ struct Ledger {
     volatile LONG candidates[CandidateCount];
     volatile LONG unicodeCandidate; // UTF-16 code unit + 1, recorded before pair
     volatile LONG64 workerBeat, parentBeat;
+    volatile LONG desktopInvalid, workerObserverReady, guardianObserverReady;
+    volatile LONG64 desktopGeneration, workerObserverBeat, guardianObserverBeat;
 };
 std::mutex outputMutex;
 uint64_t now() { return GetTickCount64(); }
@@ -71,17 +73,126 @@ bool emptyLedger(Ledger* l) {
     for(size_t i=0;i<CandidateCount;++i) if(InterlockedCompareExchange(&l->candidates[i],0,0)) return false;
     return true;
 }
+LONG64 desktopGeneration(Ledger* l){return InterlockedCompareExchange64(&l->desktopGeneration,0,0);}
+void invalidateDesktop(Ledger* l) {
+    // A transition is irreversible for this helper, even if Default has already
+    // returned when the asynchronous notification reaches its observer.
+    InterlockedExchange(&l->desktopInvalid,1);
+    InterlockedIncrement64(&l->desktopGeneration);
+    InterlockedExchange(&l->gate,0);
+    InterlockedExchange(&l->cleanup,-2);
+}
+void failCleanup(Ledger* l) {
+    LONG previous=InterlockedCompareExchange(&l->cleanup,0,0);
+    while(previous>=0) {
+        const LONG observed=InterlockedCompareExchange(&l->cleanup,-1,previous);
+        if(observed==previous)return;
+        previous=observed;
+    }
+}
+bool sameDesktopGeneration(Ledger* l,LONG64 generation) {
+    return !InterlockedCompareExchange(&l->desktopInvalid,0,0) && desktopGeneration(l)==generation;
+}
+bool observerHealthy(Ledger* l,bool worker) {
+    const auto t=now();
+    auto* ready=worker?&l->workerObserverReady:&l->guardianObserverReady;
+    auto* beat=worker?&l->workerObserverBeat:&l->guardianObserverBeat;
+    return InterlockedCompareExchange(ready,0,0)==1 &&
+        t-static_cast<uint64_t>(InterlockedCompareExchange64(beat,0,0))<=rc::WatchdogMs;
+}
+bool observersHealthy(Ledger* l,bool worker=true) {
+    return observerHealthy(l,false) && (!worker || observerHealthy(l,true));
+}
+bool cleanupObserverHealthy(Ledger* l) {
+    // Stop new input when either observer is lost, but allow the surviving
+    // observer to supervise candidate ups after a single-process failure.
+    return observerHealthy(l,true) || observerHealthy(l,false);
+}
+bool executionDesktop(Ledger* l,LONG64 generation) {
+    if(!sameDesktopGeneration(l,generation) || !defaultDesktop() || !sameDesktopGeneration(l,generation)) {
+        invalidateDesktop(l);return false;
+    }
+    return observersHealthy(l);
+}
+class DesktopObserver {
+public:
+    DesktopObserver(Ledger* ledger,bool worker):ledger_(ledger),
+        ready_(worker?&ledger->workerObserverReady:&ledger->guardianObserverReady),
+        beat_(worker?&ledger->workerObserverBeat:&ledger->guardianObserverBeat){}
+    ~DesktopObserver(){dispose();}
+    void dispose() {
+        if(!ready_)return;
+        InterlockedExchange(ready_,0);
+        if(hook_)UnhookWinEvent(hook_);
+        if(registered_)WTSUnRegisterSessionNotification(window_);
+        if(window_)DestroyWindow(window_);
+        current_=nullptr;ready_=nullptr;
+    }
+    bool initialize() {
+        if(current_ || !ProcessIdToSessionId(GetCurrentProcessId(),&session_))return false;
+        current_=this;
+        WNDCLASSW type{};type.lpfnWndProc=windowProc;type.hInstance=GetModuleHandleW(nullptr);
+        type.lpszClassName=L"WeMeetDesktopObserver";
+        if(!RegisterClassW(&type) && GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)return false;
+        window_=CreateWindowExW(0,type.lpszClassName,L"",0,0,0,0,0,HWND_MESSAGE,nullptr,type.hInstance,this);
+        if(!window_)return false;
+        registered_=WTSRegisterSessionNotification(window_,NOTIFY_FOR_THIS_SESSION)!=0;
+        hook_=SetWinEventHook(EVENT_SYSTEM_DESKTOPSWITCH,EVENT_SYSTEM_DESKTOPSWITCH,nullptr,desktopEvent,0,0,WINEVENT_OUTOFCONTEXT);
+        if(!registered_ || !hook_)return false;
+        InterlockedExchange64(beat_,now());InterlockedExchange(ready_,1);
+        return true;
+    }
+    template<class Handler> bool pump(Handler handle) {
+        MSG message{};unsigned count=0;
+        while(count++<64 && PeekMessageW(&message,nullptr,0,0,PM_REMOVE)) {
+            if(message.message==WM_QUIT)return false;
+            if(!handle(message)){TranslateMessage(&message);DispatchMessageW(&message);}
+        }
+        // Do not advertise a live observer while an unbounded backlog prevents
+        // desktop notifications from being inspected.
+        if(PeekMessageW(&message,nullptr,0,0,PM_NOREMOVE)){invalidateDesktop(ledger_);return false;}
+        InterlockedExchange64(beat_,now());return true;
+    }
+    bool pump(){return pump([](const MSG&){return false;});}
+private:
+    static void CALLBACK desktopEvent(HWINEVENTHOOK,DWORD event,HWND,LONG,LONG,DWORD,DWORD) {
+        if(current_ && event==EVENT_SYSTEM_DESKTOPSWITCH)invalidateDesktop(current_->ledger_);
+    }
+    static LRESULT CALLBACK windowProc(HWND window,UINT message,WPARAM w,LPARAM l) {
+        auto* self=reinterpret_cast<DesktopObserver*>(GetWindowLongPtrW(window,GWLP_USERDATA));
+        if(message==WM_NCCREATE) {
+            self=static_cast<DesktopObserver*>(reinterpret_cast<CREATESTRUCTW*>(l)->lpCreateParams);
+            SetWindowLongPtrW(window,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(self));
+        }
+        if(message==WM_WTSSESSION_CHANGE && self && DWORD(l)==self->session_) {
+            // Lock, unlock, disconnect, reconnect and other session changes all
+            // invalidate the old execution context; none implicitly resumes it.
+            invalidateDesktop(self->ledger_);return 0;
+        }
+        return DefWindowProcW(window,message,w,l);
+    }
+    Ledger* ledger_;volatile LONG* ready_;volatile LONG64* beat_;
+    HWND window_=nullptr;HWINEVENTHOOK hook_=nullptr;DWORD session_=0;bool registered_=false;
+    static thread_local DesktopObserver* current_;
+};
+thread_local DesktopObserver* DesktopObserver::current_=nullptr;
 // Function parameters permit isolated fault tests; neither callback is exposed
 // through the runtime protocol. Production callers always use the Win32 APIs.
-bool release(Ledger* l,bool (*safeDesktop)()=defaultDesktop,
-             UINT (WINAPI *insert)(UINT,LPINPUT,int)=SendInput) {
+template<class DesktopCheck=bool(*)(),class Insert=UINT(WINAPI*)(UINT,LPINPUT,int)>
+bool release(Ledger* l,DesktopCheck safeDesktop=defaultDesktop,Insert insert=SendInput) {
     InterlockedExchange(&l->gate,0);
     if(InterlockedCompareExchange(&l->cleanup,0,0)<0)return false;
+    if(l->desktopInvalid){InterlockedExchange(&l->cleanup,-2);return false;}
     // No candidate was ever left down. Confirming an empty ledger needs no
     // input on the lock screen; negative/uncertain cleanup is still sticky.
-    if(emptyLedger(l)){InterlockedExchange(&l->cleanup,1);return true;}
+    if(emptyLedger(l)) {
+        InterlockedCompareExchange(&l->cleanup,1,0);
+        return !l->desktopInvalid && InterlockedCompareExchange(&l->cleanup,0,0)==1;
+    }
     auto uncertain=[&](){InterlockedExchange(&l->cleanup,-2);return false;};
-    if(!safeDesktop())return uncertain();
+    const auto generation=desktopGeneration(l);
+    auto unchanged=[&](){return sameDesktopGeneration(l,generation) && safeDesktop() && sameDesktopGeneration(l,generation);};
+    if(!unchanged())return uncertain();
     bool ok=true;
     LONG unicode=InterlockedCompareExchange(&l->unicodeCandidate,0,0);
     // Do not commit any candidate removal until the complete cleanup pass has
@@ -89,15 +200,15 @@ bool release(Ledger* l,bool (*safeDesktop)()=defaultDesktop,
     std::array<bool,CandidateCount> candidates{};
     for(size_t i=0;i<CandidateCount;++i)candidates[i]=InterlockedCompareExchange(&l->candidates[i],0,0)!=0;
     if(unicode) {
-        if(!safeDesktop())return uncertain();
+        if(!unchanged())return uncertain();
         INPUT e{};e.type=INPUT_KEYBOARD;e.ki.wScan=WORD(unicode-1);
         e.ki.dwFlags=KEYEVENTF_UNICODE|KEYEVENTF_KEYUP;e.ki.dwExtraInfo=InputTag;
         if(insert(1,&e,sizeof(e))!=1)ok=false;
-        if(!safeDesktop())return uncertain();
+        if(!unchanged())return uncertain();
     }
     for(size_t i=0;i<CandidateCount;++i) {
         if(!candidates[i])continue;
-        if(!safeDesktop())return uncertain();
+        if(!unchanged())return uncertain();
         INPUT e{};
         if(i<KeyCount) {
             e.type=INPUT_KEYBOARD; e.ki.wScan=WORD(i%256);
@@ -109,13 +220,19 @@ bool release(Ledger* l,bool (*safeDesktop)()=defaultDesktop,
             e.mi.dwExtraInfo=InputTag;
         }
         if(insert(1,&e,sizeof(e))!=1)ok=false;
-        if(!safeDesktop())return uncertain();
+        if(!unchanged())return uncertain();
     }
-    if(!safeDesktop())return uncertain();
-    if(!ok){InterlockedExchange(&l->cleanup,-1);return false;}
+    if(!unchanged())return uncertain();
+    if(!ok){failCleanup(l);return false;}
     if(unicode)InterlockedExchange(&l->unicodeCandidate,0);
     for(size_t i=0;i<CandidateCount;++i)if(candidates[i])InterlockedExchange(&l->candidates[i],0);
-    InterlockedExchange(&l->cleanup,1);
+    auto restore=[&](){
+        if(unicode)InterlockedExchange(&l->unicodeCandidate,unicode);
+        for(size_t i=0;i<CandidateCount;++i)if(candidates[i])InterlockedExchange(&l->candidates[i],1);
+    };
+    if(!unchanged()){restore();return uncertain();}
+    InterlockedCompareExchange(&l->cleanup,1,0);
+    if(!sameDesktopGeneration(l,generation) || l->cleanup<0){restore();return uncertain();}
     return true;
 }
 
@@ -125,28 +242,35 @@ bool release(Ledger* l,bool (*safeDesktop)()=defaultDesktop,
 int guardian(HANDLE mapping,HANDLE worker,HANDLE parent,HANDLE report) {
     auto* l=static_cast<Ledger*>(MapViewOfFile(mapping,FILE_MAP_ALL_ACCESS,0,0,sizeof(Ledger)));
     if(!l || l->magic!=rc::Magic) return 2;
+    DesktopObserver observer(l,false);
+    const bool initialized=observer.initialize();
     auto finish=[&](int code){
         std::string message="{\"event\":\"guardianClosed\",\"cleanup\":"+std::to_string(l->cleanup)+"}\n";
         DWORD written=0;WriteFile(report,message.data(),DWORD(message.size()),&written,nullptr);
+        observer.dispose();
         UnmapViewOfFile(l);CloseHandle(mapping);CloseHandle(worker);CloseHandle(parent);CloseHandle(report);
         return code;
     };
     for(;;) {
+        if(!initialized || !observer.pump())invalidateDesktop(l);
         const auto t=now();
         bool exited=WaitForSingleObject(worker,0)==WAIT_OBJECT_0;
         bool parentGone=WaitForSingleObject(parent,0)==WAIT_OBJECT_0;
         bool stale=t-static_cast<uint64_t>(InterlockedCompareExchange64(&l->workerBeat,0,0))>rc::WatchdogMs;
         bool parentStale=t-static_cast<uint64_t>(InterlockedCompareExchange64(&l->parentBeat,0,0))>rc::WatchdogMs;
-        if(exited || parentGone || stale || parentStale) {
+        const auto observerBeat=InterlockedCompareExchange64(&l->workerObserverBeat,0,0);
+        bool observerStale=observerBeat && t-static_cast<uint64_t>(observerBeat)>rc::WatchdogMs;
+        bool desktopLost=InterlockedCompareExchange(&l->desktopInvalid,0,0)!=0;
+        if(exited || parentGone || stale || parentStale || desktopLost || observerStale) {
             InterlockedExchange(&l->gate,0);
             if(!exited) {
                 if(!TerminateProcess(worker,3) || WaitForSingleObject(worker,500)!=WAIT_OBJECT_0) {
-                    InterlockedExchange(&l->cleanup,-1); return finish(3);
+                    failCleanup(l);return finish(3);
                 }
             }
             // A previous uncertain cleanup is sticky, even if desktop returned.
             if(InterlockedCompareExchange(&l->cleanup,0,0)<0) return finish(4);
-            const bool ok=release(l);
+            const bool ok=release(l,[&](){return observer.pump() && observersHealthy(l,false) && defaultDesktop();});
             return finish(ok?0:4);
         }
         Sleep(20);
@@ -244,8 +368,8 @@ public:
     ~Runtime() {
         running_=false;
         if(watch_.joinable())watch_.join();
-        if(hookThread_.joinable()){PostThreadMessageW(hookId_,WM_QUIT,0,0);hookThread_.join();}
         {std::lock_guard<std::mutex> lock(mutex_);close("exit",false);}
+        if(hookThread_.joinable()){PostThreadMessageW(hookId_,WM_QUIT,0,0);hookThread_.join();}
         if(key_)BCryptDestroyKey(key_);
         if(ecdsa_)BCryptCloseAlgorithmProvider(ecdsa_,0);
         // Guardian owns its inherited mapping handle until this process exits.
@@ -282,6 +406,8 @@ public:
         hookThread_=std::thread([this]{
             hookId_=GetCurrentThreadId();
             MSG msg{};PeekMessageW(&msg,nullptr,0,0,PM_NOREMOVE);
+            DesktopObserver observer(ledger_,true);
+            const bool observerReady=observer.initialize();
             HHOOK keyboard=SetWindowsHookExW(WH_KEYBOARD_LL,keyboardHook,GetModuleHandleW(nullptr),0);
             HHOOK mouse=SetWindowsHookExW(WH_MOUSE_LL,mouseHook,GetModuleHandleW(nullptr),0);
             bool hotkey=RegisterHotKey(nullptr,1,MOD_CONTROL|MOD_ALT|MOD_SHIFT|MOD_NOREPEAT,VK_F10)!=0;
@@ -290,12 +416,14 @@ public:
                 if(uiEvents_.size()<32)uiEvents_.push_back({event,proposal});
                 else emergencyStop_=true;
             });
-            hooksReady_=keyboard && mouse && hotkey && uiReady;
+            hooksReady_=keyboard && mouse && hotkey && uiReady && observerReady;
             hooksStarted_=true;
-            while(GetMessageW(&msg,nullptr,0,0)>0) {
-                if(msg.message==WM_HOTKEY) {emergencyStop_=true;InterlockedExchange(&ledger_->gate,0);}
-                if(msg.message==TrustedUi::Update){ui_.drain();continue;}
-                TranslateMessage(&msg);DispatchMessageW(&msg);
+            while(observer.pump([&](const MSG& event){
+                if(event.message==WM_HOTKEY){emergencyStop_=true;InterlockedExchange(&ledger_->gate,0);return true;}
+                if(event.message==TrustedUi::Update){ui_.drain();return true;}
+                return false;
+            })) {
+                if(MsgWaitForMultipleObjects(0,nullptr,FALSE,20,QS_ALLINPUT)==WAIT_FAILED){invalidateDesktop(ledger_);break;}
             }
             ui_.dispose();
             if(keyboard)UnhookWindowsHookEx(keyboard);
@@ -303,6 +431,8 @@ public:
             if(hotkey)UnregisterHotKey(nullptr,1);
         });
         while(!hooksStarted_)Sleep(1);
+        const auto observerWait=now();
+        while(!ledger_->guardianObserverReady && now()-observerWait<1000 && WaitForSingleObject(guard_,0)==WAIT_TIMEOUT)Sleep(1);
         watch_=std::thread([this]{
             while(running_) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
@@ -312,6 +442,9 @@ public:
                 {std::lock_guard<std::mutex> uiLock(uiEventsMutex_);events.swap(uiEvents_);}
                 for(const auto& event:events)uiEvent(event);
                 if(WaitForSingleObject(guard_,0)!=WAIT_TIMEOUT) {close("guardian_lost");return;}
+                if(!observersHealthy(ledger_) || ledger_->desktopInvalid) {
+                    close("desktop_observation_lost");return;
+                }
                 if(emergencyStop_.exchange(false)){close("emergency_stop");continue;}
                 if(consentPending_ && now()>=consentExpires_){close("consent_expired");continue;}
                 if(consentApproved_ && now()>=consentExpires_){close("consent_expired");continue;}
@@ -331,7 +464,7 @@ public:
             }
         });
         reply("{\"event\":\"hello\",\"version\":1,\"pid\":"+std::to_string(GetCurrentProcessId())+
-            ",\"guardianPid\":"+std::to_string(GetProcessId(guard_))+",\"ready\":"+(hooksReady_ && defaultDesktop()?"true":"false")+"}");
+            ",\"guardianPid\":"+std::to_string(GetProcessId(guard_))+",\"ready\":"+(hooksReady_ && observersHealthy(ledger_) && !ledger_->desktopInvalid && defaultDesktop()?"true":"false")+"}");
     }
     void handle(rc::Command cmd,const std::vector<uint8_t>& data) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -365,6 +498,7 @@ private:
     struct UiEvent {TrustedUi::Event event;rc::Consent proposal;};
     void uiEvent(const UiEvent& item) {
         if(memcmp(item.proposal.id,consent_.id,16))return;
+        if(ledger_->desktopInvalid || !observersHealthy(ledger_)){close("desktop_observation_lost");return;}
         if(item.event==TrustedUi::Event::Shown) {
             if(consentPending_)reply("{\"event\":\"consentShown\",\"consentId\":\""+hex(consent_.id,16)+"\"}");return;
         }
@@ -390,7 +524,7 @@ private:
             item.event==TrustedUi::Event::Stop?"local_stop":"native_ui_unavailable");
     }
     void consent(const std::vector<uint8_t>& data) {
-        if(active_ || consentPending_ || consentApproved_ || !hooksReady_ || ledger_->cleanup<0 || !emptyLedger(ledger_)) {
+        if(active_ || consentPending_ || consentApproved_ || !hooksReady_ || ledger_->cleanup<0 || ledger_->desktopInvalid || !observersHealthy(ledger_) || !emptyLedger(ledger_)) {
             close("consent_denied");return;
         }
         rc::Consent proposal{};memcpy(&proposal,data.data(),sizeof(proposal));
@@ -426,7 +560,7 @@ private:
     void close(const char* reason,bool emit=true,bool keepConsent=false,TrustedUi::Mode mode=TrustedUi::Mode::Hidden) {
         const bool was=active_;active_=false;activeFlag_=false;
         InterlockedExchange(&ledger_->active,0);InterlockedExchange(&ledger_->gate,0);
-        if(ledger_->cleanup>=0)release(ledger_);
+        if(ledger_->cleanup>=0)release(ledger_,[&](){return cleanupObserverHealthy(ledger_) && defaultDesktop();});
         challenges_.clear();
         if(!keepConsent){consentPending_=false;consentApproved_=false;}
         ui_.setMode(mode);
@@ -434,7 +568,7 @@ private:
             (was?"true":"false")+",\"cleanup\":"+std::to_string(ledger_->cleanup)+"}");
     }
     void arm(const std::vector<uint8_t>& data) {
-        if(active_ || !hooksReady_ || !consentApproved_ || now()>=consentExpires_ || !ui_.ready() || ledger_->cleanup<0 || !emptyLedger(ledger_) ||
+        if(active_ || !hooksReady_ || !consentApproved_ || now()>=consentExpires_ || !ui_.ready() || ledger_->cleanup<0 || ledger_->desktopInvalid || !observersHealthy(ledger_) || !emptyLedger(ledger_) ||
            WaitForSingleObject(guard_,0)!=WAIT_TIMEOUT || !defaultDesktop()) {close("arm_denied");return;}
         rc::Arm a{};memcpy(&a,data.data(),sizeof(a));
         auto monitor=selectedMonitor(a);
@@ -453,8 +587,10 @@ private:
         rateWindow_=displayChecked_=now();rateCount_=textCount_=0;localStop_=false;
         if(!consentUsed_){consentExpires_=now()+1800000;consentUsed_=true;}
         if(!ui_.setMode(TrustedUi::Mode::Active)){close("native_ui_unavailable");return;}
-        active_=true;activeFlag_=true;ledger_->cleanup=0;
+        active_=true;activeFlag_=true;
+        if(InterlockedCompareExchange(&ledger_->cleanup,0,1)!=1){close("desktop_uncertain");return;}
         InterlockedExchange(&ledger_->active,1);InterlockedExchange(&ledger_->gate,1);
+        if(!executionDesktop(ledger_,0)){close("desktop_uncertain");return;}
         challenge();reply("{\"event\":\"armed\"}");
     }
     struct Challenge {std::array<uint8_t,16> nonce;uint64_t expires;};
@@ -477,9 +613,10 @@ private:
     bool send(INPUT e) {
         if(!active_ || ledger_->gate!=1 || localStop_ || now()>=deadline_ || !ui_.ready() ||
             (e.type==INPUT_KEYBOARD && ui_.ownsForeground()))return false;
-        if(!defaultDesktop()){InterlockedExchange(&ledger_->cleanup,-2);return false;}
+        const auto generation=desktopGeneration(ledger_);
+        if(!executionDesktop(ledger_,generation))return false;
         const bool ok=SendInput(1,&e,sizeof(e))==1;
-        if(!defaultDesktop()){InterlockedExchange(&ledger_->cleanup,-2);return false;}
+        if(!executionDesktop(ledger_,generation))return false;
         return ok;
     }
     bool move(double x,double y) {
@@ -508,9 +645,13 @@ private:
         if(down && ((ctrl&&alt&&shift&&f10)||(ctrl&&alt&&del)))return false;
         INPUT e{};e.type=INPUT_KEYBOARD;e.ki.wScan=WORD(scan);e.ki.dwExtraInfo=InputTag;
         e.ki.dwFlags=KEYEVENTF_SCANCODE|(ext?KEYEVENTF_EXTENDEDKEY:0)|(down?0:KEYEVENTF_KEYUP);
+        const auto generation=desktopGeneration(ledger_);
         if(down)InterlockedExchange(&ledger_->candidates[index],1);
         if(!send(e))return false;
-        if(!down)InterlockedExchange(&ledger_->candidates[index],0);
+        if(!down) {
+            InterlockedExchange(&ledger_->candidates[index],0);
+            if(!sameDesktopGeneration(ledger_,generation)){InterlockedExchange(&ledger_->candidates[index],1);return false;}
+        }
         return true;
     }
     void input(const std::vector<uint8_t>& data) {
@@ -546,8 +687,14 @@ private:
             DWORD down[]={MOUSEEVENTF_LEFTDOWN,MOUSEEVENTF_RIGHTDOWN,MOUSEEVENTF_MIDDLEDOWN};
             DWORD up[]={MOUSEEVENTF_LEFTUP,MOUSEEVENTF_RIGHTUP,MOUSEEVENTF_MIDDLEUP};
             n.mi.dwFlags=e.action?down[e.code]:up[e.code];
+            const auto generation=desktopGeneration(ledger_);
             if(e.action)InterlockedExchange(&ledger_->candidates[index],1);
-            ok=send(n);if(ok&&!e.action)InterlockedExchange(&ledger_->candidates[index],0);break;
+            ok=send(n);
+            if(ok&&!e.action) {
+                InterlockedExchange(&ledger_->candidates[index],0);
+                if(!sameDesktopGeneration(ledger_,generation)){InterlockedExchange(&ledger_->candidates[index],1);ok=false;}
+            }
+            break;
         }
         case rc::Kind::Wheel: {
             if(std::abs(int64_t(e.delta))>1200||!move(e.x,e.y))break;
@@ -561,14 +708,18 @@ private:
                 INPUT pair[2]{};for(auto& n:pair){n.type=INPUT_KEYBOARD;n.ki.wScan=e.text[i];n.ki.dwFlags=KEYEVENTF_UNICODE;n.ki.dwExtraInfo=InputTag;}
                 pair[1].ki.dwFlags|=KEYEVENTF_KEYUP;
                 if(!active_ || ledger_->gate!=1 || localStop_ || now()>=deadline_ || !ui_.ready() || ui_.ownsForeground()){ok=false;break;}
-                if(!defaultDesktop()){ledger_->cleanup=-2;ok=false;break;}
+                const auto generation=desktopGeneration(ledger_);
+                if(!executionDesktop(ledger_,generation)){ok=false;break;}
                 InterlockedExchange(&ledger_->unicodeCandidate,LONG(e.text[i])+1);
                 ok=SendInput(2,pair,sizeof(INPUT))==2;
-                if(!defaultDesktop()){ledger_->cleanup=-2;ok=false;}
-                if(ok)InterlockedExchange(&ledger_->unicodeCandidate,0);
+                if(!executionDesktop(ledger_,generation))ok=false;
+                if(ok) {
+                    InterlockedExchange(&ledger_->unicodeCandidate,0);
+                    if(!sameDesktopGeneration(ledger_,generation)){InterlockedExchange(&ledger_->unicodeCandidate,LONG(e.text[i])+1);ok=false;}
+                }
             }break;
         }
-        case rc::Kind::Release:ok=release(ledger_);break;
+        case rc::Kind::Release:ok=release(ledger_,[&](){return cleanupObserverHealthy(ledger_) && defaultDesktop();});break;
         default:break;
         }
         if(!ok){
@@ -577,6 +728,7 @@ private:
             else close("input_failed");
             return;
         }
+        if(ledger_->desktopInvalid || ledger_->cleanup<0){close("desktop_uncertain");return;}
         lastSeq_=e.seq;ack();
         if(e.kind==rc::Kind::Release)close("input_released");
     }

@@ -147,6 +147,48 @@ class NativeRuntimeTests(unittest.TestCase):
     def tearDown(self):
         self.c.close()
 
+    def notify_test_observer(self, pid, *, foreign_session=False):
+        # Post only to this test worker/guardian's own message-only window.
+        # No actual Windows session change, broadcast or input injection occurs.
+        user = ctypes.WinDLL("user32", use_last_error=True)
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        user.FindWindowExW.argtypes = [wintypes.HWND, wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR]
+        user.FindWindowExW.restype = wintypes.HWND
+        user.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+        user.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        kernel.ProcessIdToSessionId.argtypes = [wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+        session = wintypes.DWORD()
+        self.assertTrue(kernel.ProcessIdToSessionId(pid, ctypes.byref(session)))
+        window = None
+        while True:
+            window = user.FindWindowExW(wintypes.HWND(-3), window, "WeMeetDesktopObserver", None)
+            self.assertTrue(window, "Registered test desktop observer window is missing")
+            owner = wintypes.DWORD()
+            user.GetWindowThreadProcessId(window, ctypes.byref(owner))
+            if owner.value == pid:
+                break
+        self.assertTrue(user.PostMessageW(window, 0x02B1, 0x8, session.value + int(foreign_session)))
+
+    def test_worker_session_notification_closes_without_input(self):
+        self.notify_test_observer(self.c.process.pid)
+        self.assertEqual(self.c.wait("guardianClosed")["cleanup"], -2)
+        self.c.process.wait(timeout=3)
+        self.assertFalse(any(item["event"] in ("armed", "inputAck") for item in self.c.observed))
+
+    def test_guardian_session_notification_closes_without_input(self):
+        self.notify_test_observer(self.c.hello["guardianPid"])
+        self.assertEqual(self.c.wait("guardianClosed")["cleanup"], -2)
+        self.c.process.wait(timeout=3)
+        self.assertFalse(any(item["event"] in ("armed", "inputAck") for item in self.c.observed))
+
+    def test_foreign_session_notification_does_not_invalidate_test_helper(self):
+        self.notify_test_observer(self.c.process.pid, foreign_session=True)
+        self.notify_test_observer(self.c.hello["guardianPid"], foreign_session=True)
+        time.sleep(.1)
+        self.c.send(1)
+        self.assertTrue(self.c.wait("displays")["displays"])
+        self.assertIsNone(self.c.process.poll())
+
     def test_arm_requires_local_native_consent(self):
         self.c.send(2, self.c.arm_body())
         self.assertEqual(self.c.wait("closed")["reason"], "arm_denied")

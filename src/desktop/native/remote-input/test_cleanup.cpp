@@ -33,6 +33,10 @@ void retained(Ledger* ledger) {
 int wmain() {
     try {
         unsigned cases=0;
+        for(LONG prior:{LONG(0),LONG(1),LONG(-1),LONG(-2)}) {
+            Ledger ledger{};ledger.cleanup=prior;failCleanup(&ledger);
+            expect(ledger.cleanup==(prior<0?prior:-1),"failed termination did not preserve negative cleanup");++cases;
+        }
         // Empty ledgers are safe without any OS input or desktop query, while
         // a prior failed/uncertain result remains sticky even after unlock.
         for(LONG prior:{LONG(0),LONG(-1),LONG(-2)}) {
@@ -68,6 +72,29 @@ int wmain() {
             expect(observed.size()==emitted && checks==point,"sticky uncertainty retried input");
             ++cases;
         }
+        // Both desktop samples still report Default, but a delivered transition
+        // increments the shared generation. Never erase that intervening event.
+        for(unsigned point=1;point<=checkpoints;++point) {
+            reset();auto ledger=held();
+            auto transition=[&](){if(++checks==point)invalidateDesktop(&ledger);return true;};
+            expect(!release(&ledger,transition,insertTest),"desktop round trip reported clean");
+            expect(ledger.cleanup==-2 && ledger.desktopInvalid==1 && desktopGeneration(&ledger)==1,"transition latch lost");
+            retained(&ledger);++cases;
+        }
+        reset();auto earlier=held();invalidateDesktop(&earlier);
+        expect(!release(&earlier,desktopCheck,insertTest) && observed.empty(),"earlier transition allowed cleanup");
+        retained(&earlier);++cases;
+        // Observation liveness is separate from the worker's command heartbeat.
+        Ledger health{};health.workerObserverReady=health.guardianObserverReady=1;
+        health.workerObserverBeat=health.guardianObserverBeat=now();
+        expect(observersHealthy(&health),"fresh observers unavailable");
+        health.workerObserverBeat=static_cast<LONG64>(now()-rc::WatchdogMs-1);
+        expect(!observersHealthy(&health) && observersHealthy(&health,false),"stalled worker observer accepted");
+        expect(cleanupObserverHealthy(&health),"surviving guardian cannot supervise cleanup");
+        health.guardianObserverBeat=static_cast<LONG64>(now()-rc::WatchdogMs-1);
+        expect(!observersHealthy(&health,false) && !cleanupObserverHealthy(&health),"two stalled observers accepted");
+        health.workerObserverBeat=now();
+        expect(!observersHealthy(&health) && cleanupObserverHealthy(&health),"surviving worker cannot supervise cleanup");++cases;
         for(unsigned rejected=1;rejected<=6;++rejected) {
             reset();auto ledger=held();rejectedAt=rejected;
             expect(!release(&ledger,desktopCheck,insertTest) && ledger.cleanup==-1,"API rejection reported clean");
