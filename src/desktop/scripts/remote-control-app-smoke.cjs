@@ -41,9 +41,10 @@ async function main() {
     })
     assert.deepEqual(prefs, { sandbox: true, contextIsolation: true, nodeIntegration: false })
     const probe = await app.evaluate(async ({ app }) => {
-      const path = require('node:path'), fs = require('node:fs')
       const root = app.getAppPath()
-      const { RemoteInputHelper } = require(path.join(root, 'dist/remote-control/native-helper.js'))
+      const nativeRequire = process.getBuiltinModule('module').createRequire(root + '/package.json')
+      const path = nativeRequire('node:path'), fs = nativeRequire('node:fs')
+      const { RemoteInputHelper } = nativeRequire(path.join(root, 'dist/remote-control/native-helper.js'))
       const descriptor = JSON.parse(fs.readFileSync(path.join(root, 'dist/bundled-remote-input.json'), 'utf8'))
       const result = await RemoteInputHelper.probe(path.join(process.resourcesPath, 'remote-input'), descriptor)
       return { ready: result.ready, displays: result.displays.length, descriptor }
