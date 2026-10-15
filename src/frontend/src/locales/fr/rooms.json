@@ -1,4 +1,26 @@
 {
+  "remoteControl": {
+    "title": "Contrôle à distance",
+    "request": "{{name}} demande à contrôler votre appareil.",
+    "scope": "L'accès comprend la souris, le clavier et la saisie de texte sur l'écran entier sélectionné. Confirmez sur cet appareil ; vous pouvez arrêter à tout moment.",
+    "review": "Examiner la demande",
+    "reject": "Refuser",
+    "chooseScreen": "Sélectionnez un écran entier, puis confirmez l'accès sur cet appareil.",
+    "replaceShare": "Arrêtez le partage actuel avant de sélectionner un écran entier.",
+    "chooseScreenButton": "Choisir l'écran et continuer",
+    "stopShare": "Arrêter le partage actuel",
+    "stop": "Arrêter le contrôle à distance",
+    "error": "Impossible de terminer cette action. Vérifiez le partage d'écran et la connexion, puis réessayez.",
+    "phase": {
+      "preparing": "Vérification de la demande et de l'écran partagé…",
+      "confirming": "Confirmez dans la fenêtre d'autorisation de cet appareil.",
+      "active": "L'accès est autorisé. Vous pouvez l'arrêter depuis la barre de contrôle locale.",
+      "pausing": "Mise en pause et relâchement des touches et boutons…",
+      "paused": "En pause. Confirmez à nouveau depuis la barre locale pour reprendre.",
+      "ending": "Arrêt et vérification du relâchement…",
+      "blocked": "Le relâchement n'a pas pu être confirmé. Vérifiez les touches et boutons de cet appareil. Tout nouvel accès est bloqué."
+    }
+  },
   "feedback": {
     "heading": {
       "normal": "Vous avez quitté la réunion",

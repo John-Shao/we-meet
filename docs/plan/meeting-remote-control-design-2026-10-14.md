@@ -381,6 +381,8 @@ SendInput 返回的是成功插入输入流的事件数量，不证明目标应�
 
 拟定 preload 最小 API：`capabilities()`、`showRequest(requestId)`、`bindPublishedTrack(bindingRef)`、`forwardSignedMessage(message)`、`stop(reason)`、`onState(listener)`。只有主进程在可信服务读取申请并取得原生用户确认后才能激活；不得提供 Renderer 可直接调用的 `approve=true`、任意坐标点击或任意命令接口。
 
+落地接口的引用参数固定为：`capabilities({roomId, roomSid, participantSid})` 验证本机真实登录与服务端当前连接，返回主进程生成的 `contextId`；其余操作均须携带该 ID。`showRequest({contextId, sessionId})` 只进入核验/原生确认流程；`bindPublishedTrack({contextId, shareInstanceId, trackSid})` 只引用主进程已有整屏记录，不接受 sourceId 或 rect。选择新采集源前记录并淘汰现存共享 SID，之后核对当前连接唯一有效的新屏幕 SID，拒绝旧共享复用；LiveKit 轨道标签与 Renderer 发布引用本身不证明像素来源。定向出站消息由主进程生成 messageId、topic、唯一 destinationIdentity，页面等待 SDK publish Promise 后通过 `forwardSignedMessage` 回报对应成功/失败，不能把 IPC 到达当作网络发送或输入执行成功。上下文关闭后的迟到发布、消息 ACK 和 picker 结果全部失效。
+
 全部 IPC 校验 sender/frame/origin、参数个数、schema、当前登录 epoch、会议及本机共享实例。登录退出、换号、重载、窗口关闭、render-process-gone、主进程退出均先使许可失效并触发原生 closeAndRelease。helper 父进程 EOF 路径覆盖主进程故障，guardian 路径覆盖 helper 故障；退出顺序须等待清理结果或显式报告无法确认，不能仅依赖 JavaScript finally。
 
 主进程新增专用 `remoteControlCloudRequest`，仅接受枚举动作、经校验的 room/session UUID 和对应 schema 数据，由内部固定模板生成 §6.2 路径与方法；不接收任意 URL、路径片段或请求头。请求固定到受信 service origin，禁止重定向，在取凭据前、发送前及响应后核对登录 epoch。总请求超时上限 8 秒，流式读取响应时执行 2,100,000 字节硬上限；远控可采用更严格的限制，不以 Content-Length 代替实际读取计数。错误只向 Renderer 返回白名单化的稳定 code，未知错误统一映射为通用失败，不返回服务端原始正文、堆栈或凭据。退出/换号后到达的响应不得激活或续租许可。

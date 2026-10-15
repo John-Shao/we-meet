@@ -20,6 +20,36 @@ function wait(helper, name) {
   })
 }
 
+test('readonly probe returns physical displays without opening a control session', { skip: process.platform !== 'win32' }, async () => {
+  const result = await RemoteInputHelper.probe(path.join(__dirname, '../dist/remote-input'));
+  assert.equal(typeof result.ready, 'boolean');
+  assert.ok(result.displays.length > 0);
+  assert.deepEqual(Object.keys(result).sort(), ['displays', 'ready']);
+  for (const display of result.displays) {
+    assert.ok(display.width > 0 && display.height > 0);
+    assert.equal(Number.isSafeInteger(display.left), true);
+  }
+});
+
+test('helper shutdown waits for guardian termination and is idempotent', { skip: process.platform !== 'win32' }, async () => {
+  const helper = new RemoteInputHelper(), events = [];
+  helper.on('state', event => events.push(event));
+  try {
+    try { await helper.start(path.join(__dirname, '../dist/remote-input')); }
+    catch (error) {
+      // This lifecycle test also covers an unavailable/locked desktop. It never
+      // grants consent or injects; positive ready/Arm remains a separate test.
+      assert.equal(error.message, 'native_controls_unavailable');
+      assert.equal(events.find(event => event.event === 'hello')?.ready, false);
+    }
+    assert.equal(await helper.shutdown(), 1);
+    assert.ok(events.some(event => event.event === 'guardianClosed' && event.cleanup === 1));
+    assert.equal(events.at(-1).event, 'terminated');
+    assert.equal(await helper.shutdown(), 1);
+    assert.equal(events.some(event => ['armed', 'consentShown', 'inputAck'].includes(event.event)), false);
+  } finally { await helper.shutdown(); }
+});
+
 test('input encoding rejects invalid coordinates, sequence and Unicode before signing', () => {
   const event = { ...binding(), seq: 1, kind: Kind.Move, challenge: '00'.repeat(16), x: 0.5, y: 0.5 }
   for (const x of [-1, 2, NaN, Infinity]) assert.throws(() => encodeInput({ ...event, x }), /coordinate/)

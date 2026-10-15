@@ -6,7 +6,9 @@ import {
   ipcMain,
   Menu,
   net,
+  powerMonitor,
   safeStorage,
+  screen,
   session,
   shell,
 } from "electron";
@@ -39,6 +41,10 @@ import {
 import { installRenderer } from "./renderer";
 import { forwardRequest } from "./forward";
 import { loadInitialPage } from "./startup";
+import { RemoteControlCloud } from "./remote-control/cloud";
+import { RemoteDesktopRuntime, publicRemoteError } from "./remote-control/runtime";
+import { bindScreenSource } from "./remote-control/source-binding";
+import type { RemoteDesktopEvent } from "./remote-control/bridge";
 
 if (!app.isPackaged && process.env.WEMEET_USER_DATA)
   app.setPath("userData", process.env.WEMEET_USER_DATA);
@@ -78,6 +84,8 @@ let localConfiguring = false;
 let managedRuntime: ManagedRuntime | undefined;
 let managedExecutable = "";
 let managedError = "";
+let remoteControl: RemoteDesktopRuntime | undefined;
+const closeRemoteControl = (reason: string) => remoteControl?.close(reason) ?? Promise.resolve();
 
 async function closeLocalWork() {
   const client = localWork;
@@ -203,6 +211,7 @@ async function receiveCallback(raw?: string) {
   focus();
   if (!auth.loginPending && auth.signedIn) return; // Duplicate callback cannot disturb a completed login.
   try {
+    await closeRemoteControl("account_changed");
     await auth.complete(raw);
     clearTimeout(loginTimer);
     await closeLocalWork();
@@ -226,7 +235,9 @@ async function resetWebSession() {
 
 async function logout(message = "") {
   clearTimeout(loginTimer);
+  const remoteCleanup = closeRemoteControl("account_changed");
   auth.clear();
+  await remoteCleanup;
   await closeLocalWork();
   status.auth = "signed-out";
   status.message = message;
@@ -251,6 +262,7 @@ async function confirmExit() {
   closing = false;
   if (result.response === 1) {
     quitting = true;
+    await closeRemoteControl("app_quit");
     await closeLocalWork();
     app.quit();
   }
@@ -331,6 +343,19 @@ async function createWindow() {
     },
   });
   const win = window;
+  remoteControl = new RemoteDesktopRuntime({ auth, cloud: new RemoteControlCloud(config.serviceOrigin, auth),
+    resourceRoot: path.join(app.isPackaged ? process.resourcesPath : __dirname, "remote-input") });
+  const remote = remoteControl;
+  remote.on("state", (event: RemoteDesktopEvent) => {
+    if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("remote-control:state", event);
+    if (event.type === "state" && event.status.cleanupBlocked) report("远程控制已停止，但按键释放结果未能确认。请在本机检查键鼠状态；重新启动客户端前不能再次接受远控。");
+  });
+  powerMonitor.on("lock-screen", () => { void remote.close("desktop_locked"); });
+  powerMonitor.on("suspend", () => { void remote.close("system_suspend"); });
+  powerMonitor.on("user-did-resign-active", () => { void remote.close("session_changed"); });
+  screen.on("display-added", () => { void remote.close("display_changed"); });
+  screen.on("display-removed", () => { void remote.close("display_changed"); });
+  screen.on("display-metrics-changed", () => { void remote.close("display_changed"); });
   const trusted = (contents: Electron.WebContents | null, origin: string) =>
     !!contents &&
     contents.id === win.webContents.id &&
@@ -391,24 +416,46 @@ async function createWindow() {
       callback({});
       return;
     }
+    const ticket = remote.beginCapture();
     void (async () => {
+      if (ticket.context) {
+        try { await remote.captureBaseline(ticket); }
+        catch { if (ticket.fullScreenOnly) { callback({}); return; } }
+      }
       const sources = await desktopCapturer.getSources({
-        types: ["screen", "window"],
+        types: ticket.fullScreenOnly ? ["screen"] : ["screen", "window"],
         thumbnailSize: { width: 0, height: 0 },
       });
-      const available = sources.slice(0, 20);
+      // Keep every monitor selectable. Preserve a bounded ordinary window list.
+      const available = ticket.fullScreenOnly ? sources : [
+        ...sources.filter(source => source.id.startsWith("screen:")),
+        ...sources.filter(source => !source.id.startsWith("screen:")).slice(0, 20),
+      ];
+      if (!remote.captureCurrent(ticket) || win.isDestroyed()) { callback({}); return; }
       const result = await dialog.showMessageBox(win, {
-        title: "选择要共享的屏幕或窗口",
-        message: "仅共享你选择的内容。停止共享请使用会议页面中的按钮。",
+        title: ticket.fullScreenOnly ? "选择允许远程操作的整个屏幕" : "选择要共享的屏幕或窗口",
+        message: ticket.fullScreenOnly ? "请选择一个完整屏幕。共享成功后，还需要在本机确认是否授权远程操作。" : "仅共享你选择的内容。停止共享请使用会议页面中的按钮。",
         buttons: ["取消", ...available.map((source) => source.name)],
         cancelId: 0,
         defaultId: 0,
       });
       const source = available[result.response - 1];
-      if (!source || win.isDestroyed()) {
+      if (!source || win.isDestroyed() || !remote.captureCurrent(ticket)) {
         callback({});
         return;
       }
+      if (ticket.context && source.id.startsWith("screen:")) {
+        try {
+          const probe = await remote.probeCapture();
+          if (!probe.ready) throw new Error("native_unavailable");
+          const binding = bindScreenSource(source, screen.getAllDisplays(), probe.displays,
+            rect => screen.dipToScreenRect(null, rect));
+          remote.selectedCapture(ticket, binding);
+        } catch {
+          if (ticket.fullScreenOnly) { callback({}); return; }
+        }
+      } else if (ticket.fullScreenOnly) { callback({}); return; }
+      if (!remote.captureCurrent(ticket) || win.isDestroyed() || request.frame !== win.webContents.mainFrame) { callback({}); return; }
       callback({ video: source });
     })().catch(() => callback({}));
   });
@@ -421,6 +468,9 @@ async function createWindow() {
     return { action: "deny" };
   });
   win.webContents.on("will-attach-webview", (event) => event.preventDefault());
+  win.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) void remote.close("page_navigation");
+  });
   win.webContents.on("will-navigate", (event, url) => {
     if (!sameOrigin(url, rendererOrigin)) {
       event.preventDefault();
@@ -440,12 +490,13 @@ async function createWindow() {
     if (isMainFrame && !sameOrigin(url, rendererOrigin)) event.preventDefault();
   });
   win.webContents.on("render-process-gone", () => {
-    void dialog
+    const cleanup = remote.close("renderer_gone");
+    void cleanup.then(() => dialog
       .showMessageBox(win, {
         type: "error",
         message: "页面进程已停止，本机音视频采集已中断。",
         buttons: ["重新打开", "退出"],
-      })
+      }))
       .then((result) => {
         if (!result.response) void win.loadURL(rendererOrigin);
         else {
@@ -471,6 +522,18 @@ async function createWindow() {
     event.sender === win.webContents &&
     event.senderFrame === win.webContents.mainFrame &&
     sameOrigin(event.senderFrame.url, rendererOrigin);
+  const remoteHandlers = {
+    capabilities: remote.capabilities.bind(remote), showRequest: remote.showRequest.bind(remote),
+    bindPublishedTrack: remote.bindPublishedTrack.bind(remote), forwardSignedMessage: remote.forwardSignedMessage.bind(remote),
+    stop: remote.stop.bind(remote),
+  };
+  for (const [name, action] of Object.entries(remoteHandlers)) {
+    ipcMain.handle(`remote-control:${name}`, async (event, ...args) => {
+      if (!senderAllowed(event) || args.length !== 1 || !auth.signedIn || quitting) throw new Error("invalid_remote_request");
+      try { return await action(args[0]); }
+      catch (error) { throw new Error(publicRemoteError(error)); }
+    });
+  }
   const localHandlers: Record<string, (...args: any[]) => Promise<unknown>> = {
     status: async () => {
       const paths = localPaths();
@@ -657,8 +720,9 @@ async function createWindow() {
     status: () => ({ ...status }),
     login: beginLogin,
     logout,
-    retry: () => {
+    retry: async () => {
       status.message = "";
+      await remote.close("page_reload");
       return win.loadURL(rendererOrigin);
     },
   }))
@@ -673,8 +737,11 @@ async function createWindow() {
       buttons: ["取消", "重新加载"],
       defaultId: 0,
       cancelId: 0,
-    }).then((result) => {
-      if (result.response === 1 && !win.isDestroyed()) win.reload();
+    }).then(async (result) => {
+      if (result.response === 1 && !win.isDestroyed()) {
+        await remote.close("page_reload");
+        if (!win.isDestroyed()) win.reload();
+      }
     });
   };
   const desktopMenu = Menu.buildFromTemplate([
@@ -816,6 +883,6 @@ else {
     });
   app.on("window-all-closed", () => {
     quitting = true;
-    void closeLocalWork().finally(() => app.quit());
+    void closeRemoteControl("window_closed").then(() => closeLocalWork()).finally(() => app.quit());
   });
 }

@@ -193,6 +193,16 @@ std::string jsonText(const std::wstring& value) {
     for(wchar_t unit:value)out<<"\\u"<<std::setw(4)<<static_cast<unsigned>(unit);
     out<<'"';return out.str();
 }
+std::string displaysJson() {
+    std::ostringstream out;out<<"[";
+    bool first=true;for(const auto& m:monitors()) {
+        if(!first)out<<",";first=false;
+        out<<"{\"left\":"<<m.rect.left<<",\"top\":"<<m.rect.top<<",\"width\":"<<m.rect.right-m.rect.left
+           <<",\"height\":"<<m.rect.bottom-m.rect.top<<",\"deviceName\":"<<jsonText(m.name)
+           <<",\"devicePath\":"<<jsonText(m.devicePath)<<",\"rotation\":"<<m.rotation
+           <<",\"dpiX\":"<<m.dpiX<<",\"dpiY\":"<<m.dpiY<<"}";
+    }out<<"]";return out.str();
+}
 // Scan-code allowlist: printable keys, editing/navigation, modifiers and F1..F12.
 // No power/sleep/application launch keys; Windows key combinations are further
 // limited by the caller's published key map and the stateful forbidden chords.
@@ -324,14 +334,7 @@ public:
         }
         if(cmd==rc::Command::Consent && data.size()==sizeof(rc::Consent)){consent(data);return;}
         if(cmd==rc::Command::Hello && data.empty()) {
-            std::ostringstream out;out<<"{\"event\":\"displays\",\"displays\":[";
-            bool first=true;for(const auto& m:monitors()) {
-                if(!first)out<<",";first=false;
-                out<<"{\"left\":"<<m.rect.left<<",\"top\":"<<m.rect.top<<",\"width\":"<<m.rect.right-m.rect.left
-                   <<",\"height\":"<<m.rect.bottom-m.rect.top<<",\"deviceName\":"<<jsonText(m.name)
-                   <<",\"devicePath\":"<<jsonText(m.devicePath)<<",\"rotation\":"<<m.rotation
-                   <<",\"dpiX\":"<<m.dpiX<<",\"dpiY\":"<<m.dpiY<<"}";
-            }out<<"]}";reply(out.str());return;
+            reply("{\"event\":\"displays\",\"displays\":"+displaysJson()+"}");return;
         }
         if(cmd==rc::Command::Arm && data.size()==sizeof(rc::Arm)){arm(data);return;}
         if(cmd==rc::Command::Challenge && data.empty() && active_){challenge();return;}
@@ -586,6 +589,11 @@ bool readAll(HANDLE pipe,void* buffer,DWORD count) {
 }
 int wmain(int argc,wchar_t** argv) {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    // Capability discovery must not leave hooks, a guardian or a trusted UI alive.
+    if(argc==2 && wcscmp(argv[1],L"--probe")==0) {
+        reply(std::string("{\"event\":\"probe\",\"version\":1,\"ready\":")+(defaultDesktop()?"true":"false")+
+            ",\"displays\":"+displaysJson()+"}");return 0;
+    }
     if(argc==2 && wcscmp(argv[1],L"--session-state")==0) {
         reply(std::string("{\"event\":\"sessionState\",\"state\":\"")+rc::sessionStateName(rc::currentSessionState())+
             "\",\"defaultDesktop\":"+(defaultDesktop()?"true":"false")+"}");return 0;

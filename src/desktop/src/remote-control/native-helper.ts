@@ -1,11 +1,22 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { EventEmitter } from "node:events";
+import { promisify } from "node:util";
 import { Command, encodeArm, encodeConsent, INPUT_BYTES, type Binding, type Display, type NativeDisplay } from "./wire";
 
 export type NativeEvent = { event: string; reason?: string; ready?: boolean; cleanup?: number; seq?: number; nonce?: string; ttlMs?: number; displays?: NativeDisplay[]; consentId?: string; pid?: number; guardianPid?: number };
+async function verifiedExecutable(resourceRoot: string) {
+  if (process.platform !== "win32" || process.arch !== "x64") throw new Error("native_unavailable");
+  const root = path.resolve(resourceRoot);
+  const manifest = JSON.parse(await readFile(path.join(root, "manifest.json"), "utf8"));
+  if (manifest.protocolVersion !== 1 || manifest.platform !== "win32" || manifest.arch !== "x64" ||
+      manifest.file !== "we-meet-remote-input.exe" || !/^[0-9a-f]{64}$/.test(manifest.sha256)) throw new Error("native_manifest_invalid");
+  const executable = path.join(root, manifest.file);
+  if (createHash("sha256").update(await readFile(executable)).digest("hex") !== manifest.sha256) throw new Error("native_integrity_failed");
+  return executable;
+}
 /** Internal main-process adapter. Not a preload API; caller must establish native consent. */
 export class RemoteInputHelper extends EventEmitter {
   private child?: ChildProcessWithoutNullStreams;
@@ -15,15 +26,24 @@ export class RemoteInputHelper extends EventEmitter {
   private active = false;
   private closed = false;
   private guardianCleanup: number | undefined;
+  private exitCleanup: number | undefined;
+  private stopping?: Promise<number>;
+
+  static async probe(resourceRoot: string): Promise<{ ready: boolean; displays: NativeDisplay[] }> {
+    const executable = await verifiedExecutable(resourceRoot);
+    const { stdout } = await promisify(execFile)(executable, ["--probe"], { windowsHide: true, timeout: 5000, maxBuffer: 65536 });
+    const value = JSON.parse(stdout);
+    if (value.event !== "probe" || value.version !== 1 || typeof value.ready !== "boolean" ||
+        !Array.isArray(value.displays) || value.displays.length > 64 || value.displays.some((d: NativeDisplay) =>
+          !d || ![d.left, d.top, d.width, d.height, d.rotation, d.dpiX, d.dpiY].every(Number.isSafeInteger) ||
+          d.width < 1 || d.height < 1 || typeof d.deviceName !== "string" || typeof d.devicePath !== "string")) throw new Error("native_response_invalid");
+    return { ready: value.ready, displays: value.displays };
+  }
 
   async start(resourceRoot: string): Promise<void> {
     if (process.platform !== "win32" || process.arch !== "x64" || this.child || this.closed) throw new Error("native_unavailable");
-    const root = path.resolve(resourceRoot);
-    const manifest = JSON.parse(await readFile(path.join(root, "manifest.json"), "utf8"));
-    if (manifest.protocolVersion !== 1 || manifest.platform !== "win32" || manifest.arch !== "x64" ||
-        manifest.file !== "we-meet-remote-input.exe" || !/^[0-9a-f]{64}$/.test(manifest.sha256)) throw new Error("native_manifest_invalid");
-    const executable = path.join(root, manifest.file);
-    if (createHash("sha256").update(await readFile(executable)).digest("hex") !== manifest.sha256) throw new Error("native_integrity_failed");
+    const executable = await verifiedExecutable(resourceRoot);
+    if (this.closed) throw new Error("native_unavailable");
     this.child = spawn(executable, ["--parent", String(process.pid)], { stdio: "pipe", windowsHide: true });
     this.child.stdout.setEncoding("utf8");
     this.child.stdout.on("data", (chunk: string) => this.receive(chunk));
@@ -33,7 +53,8 @@ export class RemoteInputHelper extends EventEmitter {
     // after worker death and reports the independent ledger cleanup outcome.
     this.child.on("close", () => {
       this.clearTimers(); this.active = false;
-      this.emit("state", { event: "terminated", cleanup: this.guardianCleanup ?? -1 });
+      this.exitCleanup = this.guardianCleanup ?? -1;
+      this.emit("state", { event: "terminated", cleanup: this.exitCleanup });
     });
     this.pulse = setInterval(() => this.send(Command.ParentAlive), 200);
     this.challenges = setInterval(() => { if (this.active) this.send(Command.Challenge); }, 1000);
@@ -77,6 +98,20 @@ export class RemoteInputHelper extends EventEmitter {
     // EOF enables orderly cleanup. If it hangs the guardian's parent heartbeat
     // deadline kills the worker before issuing the conservative release.
     if (stdin && !stdin.destroyed && !stdin.writableEnded) stdin.end();
+  }
+  /** Wait for guardian stdout to close, never just the worker exit event. */
+  shutdown(): Promise<number> {
+    this.stop();
+    if (this.stopping) return this.stopping;
+    if (!this.child) return Promise.resolve(1);
+    if (this.exitCleanup !== undefined) return Promise.resolve(this.exitCleanup);
+    this.stopping = new Promise(resolve => {
+      const finish = (cleanup: number) => { clearTimeout(timer); this.off("state", listener); resolve(cleanup); };
+      const listener = (event: NativeEvent) => { if (event.event === "terminated") finish(event.cleanup === 1 ? 1 : -1); };
+      const timer = setTimeout(() => finish(-1), 5000);
+      this.on("state", listener);
+    });
+    return this.stopping;
   }
   private clearTimers() { clearInterval(this.pulse);clearInterval(this.challenges); }
   private fail(reason: string) { if (this.closed) return;this.emit("state", {event:"failed",reason});this.stop(); }

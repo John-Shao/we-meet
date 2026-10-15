@@ -1,4 +1,26 @@
 {
+  "remoteControl": {
+    "title": "Remote control",
+    "request": "{{name}} is requesting control of your device.",
+    "scope": "Access covers the mouse, keyboard and text input on the selected full screen. Confirm on this device; you can stop at any time.",
+    "review": "Review request",
+    "reject": "Decline",
+    "chooseScreen": "Select one full screen, then confirm access on this device.",
+    "replaceShare": "Stop the current share before selecting a full screen.",
+    "chooseScreenButton": "Select screen and continue",
+    "stopShare": "Stop current share",
+    "stop": "Stop remote control",
+    "error": "Unable to complete this action. Check your screen share and connection, then try again.",
+    "phase": {
+      "preparing": "Checking the request and shared screen…",
+      "confirming": "Confirm in the authorization window on this device.",
+      "active": "Remote access is authorized. You can stop from the local control bar.",
+      "pausing": "Pausing and releasing keys and buttons…",
+      "paused": "Paused. Confirm again from the local control bar to resume.",
+      "ending": "Stopping and checking input release…",
+      "blocked": "Input release could not be confirmed. Check this device's keys and buttons. New remote access is blocked."
+    }
+  },
   "feedback": {
     "heading": {
       "normal": "You have left the meeting",

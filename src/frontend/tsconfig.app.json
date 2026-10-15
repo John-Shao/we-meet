@@ -27,5 +27,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "@types"]
+  "include": ["src", "@types", "../desktop/src/remote-control/bridge.ts"]
 }

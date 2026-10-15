@@ -8,6 +8,7 @@ import { type ButtonRecipeProps } from '@/primitives/buttonRecipe'
 import { ToggleButtonProps } from '@/primitives/ToggleButton'
 import { TrackSource } from '@livekit/protocol'
 import { useCanPublishTrack } from '@/features/rooms/livekit/hooks/useCanPublishTrack'
+import { useRemoteControl } from '@/features/remote-control/RemoteControlContext'
 
 type Props = Omit<
   UseTrackToggleProps<Track.Source.ScreenShare>,
@@ -32,6 +33,7 @@ export const ScreenShareToggle = ({
   const Icon = enabled ? RiCloseFill : RiArrowUpLine
 
   const canShareScreen = useCanPublishTrack(TrackSource.SCREEN_SHARE)
+  const { beforeStopSharing } = useRemoteControl()
 
   // fixme - remove ToggleButton custom styles when we design a proper icon
   return (
@@ -43,6 +45,7 @@ export const ScreenShareToggle = ({
       aria-label={t(tooltipLabel)}
       tooltip={t(tooltipLabel)}
       onPress={(e) => {
+        if (enabled) beforeStopSharing()
         buttonProps.onClick?.(
           e as unknown as React.MouseEvent<HTMLButtonElement, MouseEvent>
         )

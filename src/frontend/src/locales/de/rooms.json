@@ -1,4 +1,26 @@
 {
+  "remoteControl": {
+    "title": "Fernsteuerung",
+    "request": "{{name}} möchte Ihr Gerät steuern.",
+    "scope": "Der Zugriff umfasst Maus, Tastatur und Texteingabe auf dem ausgewählten ganzen Bildschirm. Bestätigen Sie auf diesem Gerät; Sie können jederzeit stoppen.",
+    "review": "Anfrage prüfen",
+    "reject": "Ablehnen",
+    "chooseScreen": "Wählen Sie einen ganzen Bildschirm und bestätigen Sie den Zugriff auf diesem Gerät.",
+    "replaceShare": "Beenden Sie die aktuelle Freigabe, bevor Sie einen ganzen Bildschirm auswählen.",
+    "chooseScreenButton": "Bildschirm wählen und fortfahren",
+    "stopShare": "Aktuelle Freigabe beenden",
+    "stop": "Fernsteuerung beenden",
+    "error": "Die Aktion konnte nicht abgeschlossen werden. Prüfen Sie Bildschirmfreigabe und Verbindung und versuchen Sie es erneut.",
+    "phase": {
+      "preparing": "Anfrage und Bildschirmfreigabe werden geprüft…",
+      "confirming": "Bestätigen Sie im Berechtigungsfenster auf diesem Gerät.",
+      "active": "Der Zugriff ist genehmigt. Sie können ihn über die lokale Steuerleiste beenden.",
+      "pausing": "Pausieren und Loslassen der Tasten…",
+      "paused": "Pausiert. Bestätigen Sie erneut über die lokale Steuerleiste, um fortzufahren.",
+      "ending": "Beenden und Prüfen der Eingabefreigabe…",
+      "blocked": "Das Loslassen konnte nicht bestätigt werden. Prüfen Sie die Tasten auf diesem Gerät. Neuer Fernzugriff ist gesperrt."
+    }
+  },
   "feedback": {
     "heading": {
       "normal": "Du hast das Meeting verlassen",

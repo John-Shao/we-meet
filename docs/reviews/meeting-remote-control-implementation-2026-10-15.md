@@ -36,8 +36,8 @@
 
 1. 原生 P0：混合 DPI/热插拔/旋转的完整矩阵、完整安全桌面竞态、守护/工作线程卡死以及全部台账窗口故障注入。双屏 150%/负坐标映射及受信 UI 已有第三批证据；基线 `200620538` 的 21 项完整实机测试已在用户提供的空闲窗口通过，尚不覆盖以上完整矩阵。第五批 WTS 锁屏检查加入后的解锁状态回归仍待完成。
 2. 后端后续：真实 LiveKit 房间联调、管理配置与密钥轮换、过期/保留任务验收（包括房间删除时审计保留）、审计分页及完整跨租户/限流验收；本轮已补接口与数据库测试，见下文。
-3. 桌面：采集 handler、会议上下文与主进程启动装配、换号/锁屏/退出事件接线、preload 最小桥、签名 transport 与输入握手。主进程同意记录、许可验证与续租协调模块已在第四批实现并单独验证，尚未从 main.ts 进入用户流程。
-4. 前端：会议 Provider、能力发现、申请/同意状态、专用控制视图、焦点暂停握手、文本隔离、定向 transport、输入 ACK/心跳与后台处理。
+3. 桌面：第六批已接入采集 handler、会议上下文、main/preload、换号/锁屏/退出清理、签名 transport 与守护退出确认；仍需真实 Electron/LiveKit 会话联调、打包资源和完整生命周期实机验收，不能仅凭模块测试判定交付。
+4. 前端：第六批已有被控端会议 Provider、申请查看/拒绝、整屏发布绑定、定向 SDK 转发和停止共享前关门；控制端 A 的能力发现/申请入口、专用视图、焦点暂停握手、文本隔离、输入 ACK/心跳与后台处理仍待实现。
 5. 联调：两台独立 Windows 设备、Chrome/Edge/Electron、A/B/C 定向消息、弱网、30 分钟/100 次循环、原会议回归。
 6. 交付：原生资源打包/签名、固定摘要、安装升级验证、配置/运维说明、完整需求验收；未经证据证明不得标为完成或开启生产功能。
 
@@ -47,7 +47,7 @@
 - 第一批固定顶部 64 像素区域已在第三批替换为真实 HWND 区域与安全边距；UI 隐藏、位置不符、停止按钮被遮挡或消息循环失去响应时拒绝继续输入。
 - 本地接管目前使 helper 关闭并释放；协调层应将其映射为业务 PAUSED，只能经 B 本地恢复、更新 epoch/输入代次后重新装载。
 - 资源摘要用于包内完整性检查，不等于 Windows 代码签名。正式交付需先签名再生成最终摘要，并验证打包后字节一致。
-- 开发阶段 desktop/node_modules 使用已安装依赖的本地 junction，以便验证；最终须以此分支锁文件独立安装/构建，不能把共享依赖目录视作可复现交付证据。
+- 开发阶段 desktop/node_modules、frontend/node_modules 使用已安装依赖的本地 junction，以便验证；最终须以此分支锁文件独立安装/构建，不能把共享依赖目录视作可复现交付证据。
 
 ## 第二批：服务端授权与桌面许可校验
 
@@ -165,3 +165,33 @@
 WTS 字段语义依据 [WTSINFOEX_LEVEL1_W](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/ns-wtsapi32-wtsinfoex_level1_w)，查询与缓冲区释放依据 [WTSQuerySessionInformationW](https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsquerysessioninformationw)，版本检查依赖 [IsWindows10OrGreater 的 manifest 要求](https://learn.microsoft.com/en-us/windows/win32/api/versionhelpers/nf-versionhelpers-iswindows10orgreater)。本次只证明当前已锁屏条件下的拒绝；切换瞬间竞态、WTS 服务故障/调用阻塞、每次输入查询的性能及解锁后的正常操作尚待矩阵验证。
 
 下一步仍需把上述模块装配到 Electron 生命周期与受限 IPC，接通可信采集/轨道发布确认、A 浏览器控制视图及 LiveKit 定向适配器，再完成两台独立设备、三参会者路由和完整故障矩阵。现有绿色测试不替代这些交付条件；本机解锁前继续不依赖交互桌面的实现。
+
+## 第六批：Electron 与被控端会议页面接入
+
+本批已经修改 `main.ts`、preload 和实际 `Conference` 组件。被控端 B 的代码调用链已连接：会议能力登记 → 申请提示 → 主进程读取申请 → 整屏选择与新轨道归属验证 → 原生确认/短租约 → 签名 transport → 定向 LiveKit 转发。控制端 A 的完整入口和输入视图尚未实现，因此这仍是实施中的一部分，不是两机端到端验收通过。
+
+- 新增每窗口 `RemoteDesktopRuntime`，主进程生成会议上下文 ID、设备会话 ID；使用固定服务的 `self.identity/participantSid` 对照本机登录 subject/epoch。IPC 仅接受规定字段及当前上下文，不接收授权布尔值、任意坐标、原生句柄或私钥。
+- `capabilities` 同时维持页面与主进程上下文；页面约每 6 秒刷新一次，主进程 12 秒未收到有效刷新则清理。能力探测新增原生只读 `--probe`，不启动 UI、hooks 或 guardian。真正处理申请时才启动 worker，结束后等待 guardian 管道关闭，最多 5 秒；不确认或失败的 cleanup 在同一主进程跨新会话保持阻断。
+- 采集 handler 在媒体回调之前记录所选全屏的真实显示器绑定。远控准备只显示整屏；普通共享仍可选窗口，全部显示器均保留，普通窗口列表保留数量上限。选择前读取已有服务端屏幕 SID 并淘汰，阻止旧窗口/旧共享轨道复用；发布后必须是当前账号/连接唯一有效的新屏幕轨道。关闭、换号、替换采集或迟到 HTTP 返回均不能恢复旧绑定。
+- 上述轨道验证证明当前连接归属和采集生命周期关联，不把 Renderer 提供的发布引用或 LiveKit 的 SCREEN_SHARE 标签当成像素来源证明，也不把自报原生能力当作原生设备证明。真实两机的所选显示器/视频/输入一致性仍须验收。
+- preload 提供 `capabilities`、`showRequest`、`bindPublishedTrack`、`forwardSignedMessage`、`stop`、`onState`；每项经主 frame、来源、账号、参数数量及字段检查。B 的签名出站消息只允许送到固定目标 identity，只有 Renderer 等到 SDK `publishData` Promise 完成并回传对应消息 ID 才算交给 transport；250 ms 超时或失败结束，不能用 IPC 投递成功冒充 SDK 完成，更不能冒充输入执行 ACK。
+- main 已接入退出账号/换号、重载/导航、Renderer 崩溃、离会/重连、锁屏/休眠/会话切换、显示器增删与属性变化。退出/重载显式等待 guardian 结果；前端停止共享按钮先发关门请求，另监听 track ended、unpublished、muted 作为生命周期回收。
+- `RemoteControlProvider` 安装在 `LiveKitRoom` 内，覆盖会议和通话布局。B 可查看/拒绝申请；未共享整屏时另一次用户点击触发屏幕选择，以保留真实手势。最终同意与恢复仍仅发生在原生窗口/状态条。UI 展示准备、待确认、已授权、暂停、释放确认和阻断，补齐中英法德荷五种文案。
+- SDK 的无 participant 服务端通知只触发 HTTP 刷新；普通数据包保留实际 participant identity/SID，经主进程签名检查才进入 native。重连立即丢弃旧上下文，不能自动续上旧许可。
+
+### 本批验证与未通过记录
+
+| 检查 | 结果及边界 |
+| --- | --- |
+| 用户提供约 20 秒、已解锁时运行原生 `--inject` | 22 项运行 17.195 秒，17 通过、5 失败：2 项出现 `local_takeover`，3 项未取得测试前台窗口，未进入实际按下验证；未关闭本地接管保护。本轮不认定当前 WTS 版本的实际释放验收通过，保留 `200620538` 基线的既有通过记录但不替代新版本验收 |
+| 原生新增只读 probe 与 C++ /W4 /WX 构建 | 构建通过；只读探测可返回物理显示器和当前 ready；不启动控制会话、无输入注入 |
+| 桌面授权、信令、采集绑定、云端互验和新 runtime 测试 | 44 项通过；新增 8 项覆盖换号迟到响应、旧轨道复用、多屏幕轨道歧义、换源竞态、旧 picker、原生启动期间关闭、cleanup 跨会话阻断和恶意额外 IPC 字段 |
+| 桌面普通 `npm test` | build:main 通过；70 项中 69 通过、1 项既有 packaged stdio adapter 实机用例按默认条件跳过，3.828 秒；未将该跳过项或远控 native 集成计入普通测试通过数 |
+| 最后补充 IPC 错误码白名单后 `tsc` 与 runtime 专项 | 9 项通过；未知错误即便仅含小写字母也不直接返回 Renderer，固定映射为 `remote_unavailable` |
+| 原生 probe/shutdown 两项集成测试 | 2 项通过。运行时系统已再次锁屏，shutdown 用例明确覆盖 `hello.ready=false` 的拒绝初始化后 guardian cleanup=1 与重复 shutdown；未尝试同意/Arm/输入，不算解锁后的正常操作证据。首次把该用例限制成 ready 成功时因锁屏失败，现按其“关闭等待”目的分别断言拒绝初始化与最终清理，既有正向 ready/Arm 测试仍保留 |
+| 前端被控 Provider 与定向 SDK adapter | 9 项通过；覆盖功能关闭时不显示、查看申请不自动捕获、独立手势、发布/媒体停止、停止共享前关门、无签名通知仅刷新、重连/卸载回收、固定单目标、SDK 完成前不 ACK 以及发送失败。使用 SDK/桥替身，非真实网络 |
+| 前端 TypeScript / 新文件与共享按钮 ESLint | 通过；补全测试桥类型与 effect 的账号 ID 依赖后通过 |
+| 前端 `npm run build` | 通过（Panda codegen、tsc -b、Vite；Vite 34.22 秒）；仍有项目大 chunk 提示。复用了已安装依赖的 junction，不是锁文件独立安装的可复现交付证据 |
+| JSON / 语言结构校验 | 135 个 JSON 可解析；五种语言结构校验通过 |
+
+原生资源打包/签名尚未接入正式安装流程，dev 使用 `dist/remote-input`，打包版固定查找 `resources/remote-input`，缺失或摘要错误则不声明可被控。后续继续实现 A 的专用控制视图、临时签名密钥、输入编码/队列、视频与焦点健康、ACK/心跳/挂起恢复；再完成真实双机/三参会者、原生全部故障窗口及安装升级等首期门禁。功能配置仍默认关闭，未部署。

@@ -57,6 +57,7 @@ import {
 } from '@livekit/components-react'
 import { useSnapshot } from 'valtio'
 import { VoiceprintCallControl } from '@/features/voiceprint/VoiceprintCallControl'
+import { RemoteControlProvider } from '@/features/remote-control/RemoteControlProvider'
 
 export const Conference = ({
   roomId,
@@ -369,20 +370,22 @@ export const Conference = ({
             }
           }}
         >
-          <PrivateTranslationProvider>
-            <InterpretationProvider>
-              <CallOrMeeting
-                callPeer={callPeer}
-                callMeet={callMeet}
-                audioOnly={audioOnly}
-                roomSlug={roomId}
-                selfName={joinUsername}
-                // queryFn's 404-fallback catch types `data` as ApiRoom | void.
-                roomData={data ?? undefined}
-              />
-            </InterpretationProvider>
-          </PrivateTranslationProvider>
-          <VoiceprintCallControl />
+          <RemoteControlProvider roomId={data?.id}>
+            <PrivateTranslationProvider>
+              <InterpretationProvider>
+                <CallOrMeeting
+                  callPeer={callPeer}
+                  callMeet={callMeet}
+                  audioOnly={audioOnly}
+                  roomSlug={roomId}
+                  selfName={joinUsername}
+                  // queryFn's 404-fallback catch types `data` as ApiRoom | void.
+                  roomData={data ?? undefined}
+                />
+              </InterpretationProvider>
+            </PrivateTranslationProvider>
+            <VoiceprintCallControl />
+          </RemoteControlProvider>
           {showInviteDialog && !isMobile && (
             <InviteDialog
               isOpen={showInviteDialog}

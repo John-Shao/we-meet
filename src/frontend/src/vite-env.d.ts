@@ -19,6 +19,7 @@ interface Window {
   weMeetDesktop?: {
     isDesktop: true
     platform: string
+    remoteControl?: import('../../desktop/src/remote-control/bridge').RemoteControlBridge
     shell?: {
       openMenu(): Promise<void>
       setTheme(theme: 'light' | 'dark'): Promise<void>

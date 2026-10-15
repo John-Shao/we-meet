@@ -1,4 +1,26 @@
 {
+  "remoteControl": {
+    "title": "Bediening op afstand",
+    "request": "{{name}} vraagt om uw apparaat te bedienen.",
+    "scope": "Toegang omvat muis, toetsenbord en tekstinvoer op het geselecteerde volledige scherm. Bevestig op dit apparaat; u kunt op elk moment stoppen.",
+    "review": "Verzoek bekijken",
+    "reject": "Weigeren",
+    "chooseScreen": "Selecteer één volledig scherm en bevestig daarna de toegang op dit apparaat.",
+    "replaceShare": "Stop het huidige delen voordat u een volledig scherm selecteert.",
+    "chooseScreenButton": "Scherm kiezen en doorgaan",
+    "stopShare": "Huidig delen stoppen",
+    "stop": "Bediening op afstand stoppen",
+    "error": "Deze actie kon niet worden voltooid. Controleer het delen en uw verbinding en probeer het opnieuw.",
+    "phase": {
+      "preparing": "Verzoek en gedeeld scherm controleren…",
+      "confirming": "Bevestig in het toestemmingsvenster op dit apparaat.",
+      "active": "Toegang is toegestaan. U kunt stoppen via de lokale bedieningsbalk.",
+      "pausing": "Pauzeren en toetsen en knoppen loslaten…",
+      "paused": "Gepauzeerd. Bevestig opnieuw via de lokale bedieningsbalk om door te gaan.",
+      "ending": "Stoppen en loslaten van invoer controleren…",
+      "blocked": "Het loslaten kon niet worden bevestigd. Controleer de toetsen en knoppen op dit apparaat. Nieuwe toegang is geblokkeerd."
+    }
+  },
   "feedback": {
     "heading": {
       "normal": "Je hebt de vergadering verlaten",
