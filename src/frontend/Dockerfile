@@ -12,6 +12,17 @@ RUN npm ci
 COPY .dockerignore ./.dockerignore
 COPY --chown=node:node ./src/frontend/ .
 COPY --chown=node:node ./src/design-tokens/ /home/design-tokens/
+# Browser-safe remote-control modules live beside the frontend in the checkout.
+# Preserve that layout for TypeScript and Vite without copying the native runtime.
+COPY --chown=node:node \
+    ./src/desktop/src/remote-control/bridge.ts \
+    ./src/desktop/src/remote-control/wire.ts \
+    ./src/desktop/src/remote-control/signals.ts \
+    ./src/desktop/src/remote-control/authorization.ts \
+    ./src/desktop/src/remote-control/signing-trust.ts \
+    ./src/desktop/src/remote-control/controller-transport.ts \
+    ./src/desktop/src/remote-control/controller-session.ts \
+    /home/desktop/src/remote-control/
 
 ### ---- Front-end builder image ----
 FROM frontend-deps AS meet

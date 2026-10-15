@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - aliyun-dev
+      - feature/meeting-remote-control
   pull_request:
     branches:
       - aliyun-dev
@@ -232,3 +233,14 @@ jobs:
       # 失败 —— 前端镜像就曾因此完全构建不出来。
       - name: Build the frontend bundle
         run: npm run build
+
+      # A checkout build also sees sibling sources which can be omitted from COPY.
+      # Build the deployable image so its isolated filesystem is checked as well.
+      - name: Build the production frontend image
+        working-directory: .
+        run: >-
+          docker build
+          --build-arg VITE_JUSI_IM_BASE_URL=https://im.we-meet.online
+          --file src/frontend/Dockerfile
+          --target frontend-production
+          --tag meet-frontend:release-guard .
