@@ -1,8 +1,11 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
+#define UNICODE
+#define _UNICODE
 #include <windows.h>
 #include <bcrypt.h>
 #include <shellapi.h>
+#include <shellscalingapi.h>
 #include <atomic>
 #include <algorithm>
 #include <array>
@@ -12,16 +15,20 @@
 #include <iomanip>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
 #include "protocol.h"
+#include "trusted-ui.h"
 
 #pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "shcore.lib")
 
 namespace {
 constexpr ULONG_PTR InputTag = 0x574d5243;
@@ -126,20 +133,59 @@ int guardian(HANDLE mapping,HANDLE worker,HANDLE parent,HANDLE report) {
     }
 }
 
-struct Monitor { RECT rect; std::wstring name; };
+struct Monitor {
+    RECT rect;std::wstring name,devicePath;DWORD rotation=0;UINT dpiX=0,dpiY=0;
+    bool operator==(const Monitor& other) const {
+        return EqualRect(&rect,&other.rect) && name==other.name && devicePath==other.devicePath &&
+            rotation==other.rotation && dpiX==other.dpiX && dpiY==other.dpiY;
+    }
+};
+std::wstring displayPath(const std::wstring& sourceName) {
+    UINT32 pathCount=0,modeCount=0;
+    if(GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS,&pathCount,&modeCount)!=ERROR_SUCCESS || pathCount>128 || modeCount>512)return {};
+    std::vector<DISPLAYCONFIG_PATH_INFO> paths(pathCount);std::vector<DISPLAYCONFIG_MODE_INFO> modes(modeCount);
+    if(QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS,&pathCount,paths.data(),&modeCount,modes.data(),nullptr)!=ERROR_SUCCESS)return {};
+    std::wstring found;unsigned matches=0;
+    for(UINT32 i=0;i<pathCount;++i) {
+        DISPLAYCONFIG_SOURCE_DEVICE_NAME source{};
+        source.header={DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME,sizeof(source),paths[i].sourceInfo.adapterId,paths[i].sourceInfo.id};
+        if(DisplayConfigGetDeviceInfo(&source.header)!=ERROR_SUCCESS || sourceName!=source.viewGdiDeviceName)continue;
+        ++matches;
+        DISPLAYCONFIG_TARGET_DEVICE_NAME target{};
+        target.header={DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,sizeof(target),paths[i].targetInfo.adapterId,paths[i].targetInfo.id};
+        if(DisplayConfigGetDeviceInfo(&target.header)==ERROR_SUCCESS)found=target.monitorDevicePath;
+    }
+    // Mirrored outputs with one GDI source are ambiguous for a single-monitor grant.
+    return matches==1?found:std::wstring{};
+}
 std::vector<Monitor> monitors() {
     std::vector<Monitor> result;
     EnumDisplayMonitors(nullptr,nullptr,[](HMONITOR h,HDC,LPRECT,LPARAM data)->BOOL {
         MONITORINFOEXW mi{};mi.cbSize=sizeof(mi);
-        if(GetMonitorInfoW(h,&mi)) reinterpret_cast<std::vector<Monitor>*>(data)->push_back({mi.rcMonitor,mi.szDevice});
+        if(GetMonitorInfoW(h,&mi)) {
+            Monitor monitor{};monitor.rect=mi.rcMonitor;monitor.name=mi.szDevice;monitor.devicePath=displayPath(monitor.name);
+            DEVMODEW mode{};mode.dmSize=sizeof(mode);
+            if(EnumDisplaySettingsExW(mi.szDevice,ENUM_CURRENT_SETTINGS,&mode,0))monitor.rotation=mode.dmDisplayOrientation*90;
+            GetDpiForMonitor(h,MDT_EFFECTIVE_DPI,&monitor.dpiX,&monitor.dpiY);
+            reinterpret_cast<std::vector<Monitor>*>(data)->push_back(monitor);
+        }
         return TRUE;
     },reinterpret_cast<LPARAM>(&result));
     return result;
 }
-bool monitorExists(const rc::Arm& a) {
+std::optional<Monitor> selectedMonitor(const rc::Arm& a) {
+    std::optional<Monitor> result;
     for(const auto& m:monitors()) if(m.rect.left==a.left && m.rect.top==a.top &&
-        m.rect.right-m.rect.left==a.width && m.rect.bottom-m.rect.top==a.height) return true;
-    return false;
+        m.rect.right-m.rect.left==a.width && m.rect.bottom-m.rect.top==a.height) {
+        if(result || m.devicePath.empty() || !m.dpiX || !m.dpiY)return {};
+        result=m;
+    }
+    return result;
+}
+std::string jsonText(const std::wstring& value) {
+    std::ostringstream out;out<<'"'<<std::hex<<std::setfill('0');
+    for(wchar_t unit:value)out<<"\\u"<<std::setw(4)<<static_cast<unsigned>(unit);
+    out<<'"';return out.str();
 }
 // Scan-code allowlist: printable keys, editing/navigation, modifiers and F1..F12.
 // No power/sleep/application launch keys; Windows key combinations are further
@@ -209,12 +255,19 @@ public:
             HHOOK keyboard=SetWindowsHookExW(WH_KEYBOARD_LL,keyboardHook,GetModuleHandleW(nullptr),0);
             HHOOK mouse=SetWindowsHookExW(WH_MOUSE_LL,mouseHook,GetModuleHandleW(nullptr),0);
             bool hotkey=RegisterHotKey(nullptr,1,MOD_CONTROL|MOD_ALT|MOD_SHIFT|MOD_NOREPEAT,VK_F10)!=0;
-            hooksReady_=keyboard && mouse && hotkey;
+            bool uiReady=ui_.initialize([this](TrustedUi::Event event,const rc::Consent& proposal){
+                std::lock_guard<std::mutex> lock(uiEventsMutex_);
+                if(uiEvents_.size()<32)uiEvents_.push_back({event,proposal});
+                else emergencyStop_=true;
+            });
+            hooksReady_=keyboard && mouse && hotkey && uiReady;
             hooksStarted_=true;
             while(GetMessageW(&msg,nullptr,0,0)>0) {
-                if(msg.message==WM_HOTKEY) localStop_=true;
+                if(msg.message==WM_HOTKEY) {emergencyStop_=true;InterlockedExchange(&ledger_->gate,0);}
+                if(msg.message==TrustedUi::Update){ui_.drain();continue;}
                 TranslateMessage(&msg);DispatchMessageW(&msg);
             }
+            ui_.dispose();
             if(keyboard)UnhookWindowsHookEx(keyboard);
             if(mouse)UnhookWindowsHookEx(mouse);
             if(hotkey)UnregisterHotKey(nullptr,1);
@@ -225,13 +278,23 @@ public:
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
                 std::lock_guard<std::mutex> lock(mutex_);
                 InterlockedExchange64(&ledger_->workerBeat,now());
+                std::deque<UiEvent> events;
+                {std::lock_guard<std::mutex> uiLock(uiEventsMutex_);events.swap(uiEvents_);}
+                for(const auto& event:events)uiEvent(event);
                 if(WaitForSingleObject(guard_,0)!=WAIT_TIMEOUT) {close("guardian_lost");return;}
+                if(emergencyStop_.exchange(false)){close("emergency_stop");continue;}
+                if(consentPending_ && now()>=consentExpires_){close("consent_expired");continue;}
+                if(consentApproved_ && now()>=consentExpires_){close("consent_expired");continue;}
                 if(!active_)continue;
                 if(!defaultDesktop()) {InterlockedExchange(&ledger_->cleanup,-2);close("desktop_uncertain");}
-                else if(localStop_.exchange(false))close("local_takeover");
+                else if(localStop_.exchange(false))close("local_takeover",true,false,TrustedUi::Mode::Paused);
+                else if(!ui_.ready())close("native_ui_unavailable");
                 else if(now()>=deadline_)close("lease_expired");
                 else if(now()-controllerBeat_>=3000)close("controller_timeout");
-                else if(!monitorExists(arm_))close("display_changed");
+                else if(now()-displayChecked_>=500) {
+                    displayChecked_=now();auto current=selectedMonitor(arm_);
+                    if(!current || !(*current==consentMonitor_))close("display_changed");
+                }
             }
         });
         reply("{\"event\":\"hello\",\"version\":1,\"pid\":"+std::to_string(GetCurrentProcessId())+
@@ -241,12 +304,16 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         if(cmd==rc::Command::ParentAlive && data.empty()){InterlockedExchange64(&ledger_->parentBeat,now());return;}
         if(cmd==rc::Command::Close && data.empty()){close("parent_stop");return;}
+        if(cmd==rc::Command::Suspend && data.empty() && consentApproved_){close("capture_suspended",true,true,TrustedUi::Mode::Waiting);return;}
+        if(cmd==rc::Command::Consent && data.size()==sizeof(rc::Consent)){consent(data);return;}
         if(cmd==rc::Command::Hello && data.empty()) {
             std::ostringstream out;out<<"{\"event\":\"displays\",\"displays\":[";
             bool first=true;for(const auto& m:monitors()) {
                 if(!first)out<<",";first=false;
                 out<<"{\"left\":"<<m.rect.left<<",\"top\":"<<m.rect.top<<",\"width\":"<<m.rect.right-m.rect.left
-                   <<",\"height\":"<<m.rect.bottom-m.rect.top<<"}";
+                   <<",\"height\":"<<m.rect.bottom-m.rect.top<<",\"deviceName\":"<<jsonText(m.name)
+                   <<",\"devicePath\":"<<jsonText(m.devicePath)<<",\"rotation\":"<<m.rotation
+                   <<",\"dpiX\":"<<m.dpiX<<",\"dpiY\":"<<m.dpiY<<"}";
             }out<<"]}";reply(out.str());return;
         }
         if(cmd==rc::Command::Arm && data.size()==sizeof(rc::Arm)){arm(data);return;}
@@ -261,40 +328,92 @@ public:
     }
 private:
     static Runtime* instance_;
+    struct UiEvent {TrustedUi::Event event;rc::Consent proposal;};
+    void uiEvent(const UiEvent& item) {
+        if(memcmp(item.proposal.id,consent_.id,16))return;
+        if(item.event==TrustedUi::Event::Shown) {
+            if(consentPending_)reply("{\"event\":\"consentShown\",\"consentId\":\""+hex(consent_.id,16)+"\"}");return;
+        }
+        if(item.event==TrustedUi::Event::Allowed) {
+            if(!consentPending_ || now()>=consentExpires_ || !defaultDesktop() || !ui_.ready()) {
+                close("consent_expired");return;
+            }
+            consentPending_=false;consentApproved_=true;
+            reply("{\"event\":\"consentAllowed\",\"consentId\":\""+hex(consent_.id,16)+"\"}");return;
+        }
+        if(item.event==TrustedUi::Event::Resume) {
+            // Only a local button creates this event. It does not arm or renew
+            // anything; main must obtain a fresh local consent and new epoch.
+            reply("{\"event\":\"resumeRequested\",\"consentId\":\""+hex(consent_.id,16)+"\"}");return;
+        }
+        close(item.event==TrustedUi::Event::Expired?"consent_expired":
+            item.event==TrustedUi::Event::Denied?"consent_denied":
+            item.event==TrustedUi::Event::Stop?"local_stop":"native_ui_unavailable");
+    }
+    void consent(const std::vector<uint8_t>& data) {
+        if(active_ || consentPending_ || consentApproved_ || !hooksReady_ || ledger_->cleanup<0 || !emptyLedger(ledger_)) {
+            close("consent_denied");return;
+        }
+        rc::Consent proposal{};memcpy(&proposal,data.data(),sizeof(proposal));
+        bool textOk=proposal.controller[0]!=0 && proposal.controller[159]==0;
+        for(size_t i=0;i<159 && proposal.controller[i];++i) {
+            const auto c=proposal.controller[i];
+            if(c<32 || (c>=0x7f&&c<=0x9f) || (c>=0x202a&&c<=0x202e) || (c>=0x2066&&c<=0x2069))textOk=false;
+            if(c>=0xd800&&c<=0xdbff) {const auto next=proposal.controller[++i];if(next<0xdc00||next>0xdfff)textOk=false;}
+            else if(c>=0xdc00&&c<=0xdfff)textOk=false;
+        }
+        auto monitor=selectedMonitor(proposal.binding);
+        if(!textOk || !proposal.timeoutMs || proposal.timeoutMs>60000 || !proposal.binding.epoch ||
+           !defaultDesktop() || !monitor) {close("invalid_consent");return;}
+        consentMonitor_=*monitor;
+        consent_=proposal;consentPending_=true;consentApproved_=false;consentUsed_=false;
+        consentExpires_=now()+proposal.timeoutMs;
+        if(!ui_.present(proposal))close("native_ui_unavailable");
+    }
     static LRESULT CALLBACK keyboardHook(int n,WPARAM w,LPARAM l) {
         if(n>=0 && instance_ && instance_->activeFlag_) {
             auto* e=reinterpret_cast<KBDLLHOOKSTRUCT*>(l);
-            if(!(e->flags&LLKHF_INJECTED))instance_->localStop_=true;
+            if(!(e->flags&LLKHF_INJECTED)) {instance_->localStop_=true;InterlockedExchange(&instance_->ledger_->gate,0);}
         }
         return CallNextHookEx(nullptr,n,w,l);
     }
     static LRESULT CALLBACK mouseHook(int n,WPARAM w,LPARAM l) {
         if(n>=0 && instance_ && instance_->activeFlag_) {
             auto* e=reinterpret_cast<MSLLHOOKSTRUCT*>(l);
-            if(!(e->flags&LLMHF_INJECTED))instance_->localStop_=true;
+            if(!(e->flags&LLMHF_INJECTED)) {instance_->localStop_=true;InterlockedExchange(&instance_->ledger_->gate,0);}
         }
         return CallNextHookEx(nullptr,n,w,l);
     }
-    void close(const char* reason,bool emit=true) {
+    void close(const char* reason,bool emit=true,bool keepConsent=false,TrustedUi::Mode mode=TrustedUi::Mode::Hidden) {
         const bool was=active_;active_=false;activeFlag_=false;
         InterlockedExchange(&ledger_->active,0);InterlockedExchange(&ledger_->gate,0);
         if(ledger_->cleanup>=0)release(ledger_);
         challenges_.clear();
+        if(!keepConsent){consentPending_=false;consentApproved_=false;}
+        ui_.setMode(mode);
         if(emit)reply(std::string("{\"event\":\"closed\",\"reason\":\"")+reason+"\",\"wasActive\":"+
             (was?"true":"false")+",\"cleanup\":"+std::to_string(ledger_->cleanup)+"}");
     }
     void arm(const std::vector<uint8_t>& data) {
-        if(active_ || !hooksReady_ || ledger_->cleanup<0 || !emptyLedger(ledger_) ||
+        if(active_ || !hooksReady_ || !consentApproved_ || now()>=consentExpires_ || !ui_.ready() || ledger_->cleanup<0 || !emptyLedger(ledger_) ||
            WaitForSingleObject(guard_,0)!=WAIT_TIMEOUT || !defaultDesktop()) {close("arm_denied");return;}
         rc::Arm a{};memcpy(&a,data.data(),sizeof(a));
-        if(a.epoch==0 || a.leaseMs==0 || a.leaseMs>15000 || !monitorExists(a)){close("invalid_binding");return;}
+        auto monitor=selectedMonitor(a);
+        if(a.epoch==0 || a.leaseMs==0 || a.leaseMs>15000 || !monitor || !(*monitor==consentMonitor_)){close("invalid_binding");return;}
+        const auto& approved=consent_.binding;
+        if(memcmp(a.session,approved.session,16) || memcmp(a.share,approved.share,16) || a.epoch!=approved.epoch ||
+           a.left!=approved.left || a.top!=approved.top || a.width!=approved.width || a.height!=approved.height ||
+           memcmp(a.publicKey,approved.publicKey,64)) {close("consent_binding_mismatch");return;}
+        if(consentUsed_ && !memcmp(a.generation,arm_.generation,16)){close("generation_reused");return;}
         struct PublicBlob {BCRYPT_ECCKEY_BLOB header;uint8_t xy[64];} blob{};
         blob.header={BCRYPT_ECDSA_PUBLIC_P256_MAGIC,32};memcpy(blob.xy,a.publicKey,64);
         BCRYPT_KEY_HANDLE key=nullptr;
         if(BCryptImportKeyPair(ecdsa_,nullptr,BCRYPT_ECCPUBLIC_BLOB,&key,reinterpret_cast<PUCHAR>(&blob),sizeof(blob),0)<0){close("invalid_key");return;}
         if(key_)BCryptDestroyKey(key_);key_=key;
         arm_=a;lastSeq_=lastHeartbeat_=0;deadline_=now()+a.leaseMs;controllerBeat_=now();
-        rateWindow_=now();rateCount_=textCount_=0;localStop_=false;
+        rateWindow_=displayChecked_=now();rateCount_=textCount_=0;localStop_=false;
+        if(!consentUsed_){consentExpires_=now()+1800000;consentUsed_=true;}
+        if(!ui_.setMode(TrustedUi::Mode::Active)){close("native_ui_unavailable");return;}
         active_=true;activeFlag_=true;ledger_->cleanup=0;
         InterlockedExchange(&ledger_->active,1);InterlockedExchange(&ledger_->gate,1);
         challenge();reply("{\"event\":\"armed\"}");
@@ -317,7 +436,8 @@ private:
         return status>=0 && BCryptVerifySignature(key_,nullptr,hash.data(),32,const_cast<PUCHAR>(e.signature),64,0)>=0;
     }
     bool send(INPUT e) {
-        if(!active_ || ledger_->gate!=1 || localStop_ || now()>=deadline_)return false;
+        if(!active_ || ledger_->gate!=1 || localStop_ || now()>=deadline_ || !ui_.ready() ||
+            (e.type==INPUT_KEYBOARD && ui_.ownsForeground()))return false;
         if(!defaultDesktop()){InterlockedExchange(&ledger_->cleanup,-2);return false;}
         const bool ok=SendInput(1,&e,sizeof(e))==1;
         if(!defaultDesktop()){InterlockedExchange(&ledger_->cleanup,-2);return false;}
@@ -325,8 +445,8 @@ private:
     }
     bool move(double x,double y) {
         int px=arm_.left+int(std::round(x*(arm_.width-1))),py=arm_.top+int(std::round(y*(arm_.height-1)));
-        // Reserve a fixed, native-owned top strip for the control bar.
-        if(py<arm_.top+64)return false;
+        // The actual native HWND region is checked for every move/click/wheel.
+        if(!ui_.allowsPointer(px,py))return false;
         int vx=GetSystemMetrics(SM_XVIRTUALSCREEN),vy=GetSystemMetrics(SM_YVIRTUALSCREEN);
         int vw=GetSystemMetrics(SM_CXVIRTUALSCREEN),vh=GetSystemMetrics(SM_CYVIRTUALSCREEN);
         if(vw<=1 || vh<=1)return false;
@@ -356,6 +476,8 @@ private:
     }
     void input(const std::vector<uint8_t>& data) {
         if(!active_){reply("{\"event\":\"rejected\",\"reason\":\"inactive\"}");return;}
+        if(emergencyStop_){close("emergency_stop");return;}
+        if(localStop_){close("local_takeover",true,false,TrustedUi::Mode::Paused);return;}
         rc::Input e{};memcpy(&e,data.data(),sizeof(e));
         if(e.magic!=rc::Magic || e.version!=rc::Version || e.epoch!=arm_.epoch ||
            memcmp(e.session,arm_.session,16)||memcmp(e.share,arm_.share,16)||memcmp(e.generation,arm_.generation,16) ||
@@ -399,7 +521,7 @@ private:
             for(uint32_t i=0;i<e.textLength && ok;++i) {
                 INPUT pair[2]{};for(auto& n:pair){n.type=INPUT_KEYBOARD;n.ki.wScan=e.text[i];n.ki.dwFlags=KEYEVENTF_UNICODE;n.ki.dwExtraInfo=InputTag;}
                 pair[1].ki.dwFlags|=KEYEVENTF_KEYUP;
-                if(!active_ || ledger_->gate!=1 || localStop_ || now()>=deadline_){ok=false;break;}
+                if(!active_ || ledger_->gate!=1 || localStop_ || now()>=deadline_ || !ui_.ready() || ui_.ownsForeground()){ok=false;break;}
                 if(!defaultDesktop()){ledger_->cleanup=-2;ok=false;break;}
                 InterlockedExchange(&ledger_->unicodeCandidate,LONG(e.text[i])+1);
                 ok=SendInput(2,pair,sizeof(INPUT))==2;
@@ -410,7 +532,12 @@ private:
         case rc::Kind::Release:ok=release(ledger_);break;
         default:break;
         }
-        if(!ok){close("input_failed");return;}
+        if(!ok){
+            if(emergencyStop_)close("emergency_stop");
+            else if(localStop_)close("local_takeover",true,false,TrustedUi::Mode::Paused);
+            else close("input_failed");
+            return;
+        }
         lastSeq_=e.seq;ack();
         if(e.kind==rc::Kind::Release)close("input_released");
     }
@@ -420,7 +547,11 @@ private:
     BCRYPT_ALG_HANDLE ecdsa_=nullptr;BCRYPT_KEY_HANDLE key_=nullptr;
     std::mutex mutex_;
     std::thread watch_,hookThread_;DWORD hookId_=0;
-    std::atomic<bool> running_{true},hooksStarted_{false},hooksReady_{false},activeFlag_{false},localStop_{false};
+    std::atomic<bool> running_{true},hooksStarted_{false},hooksReady_{false},activeFlag_{false},localStop_{false},emergencyStop_{false};
+    TrustedUi ui_;std::mutex uiEventsMutex_;std::deque<UiEvent> uiEvents_;
+    rc::Consent consent_{};bool consentPending_=false,consentApproved_=false,consentUsed_=false;
+    Monitor consentMonitor_{};uint64_t displayChecked_=0;
+    uint64_t consentExpires_=0;
     bool active_=false;rc::Arm arm_{};
     uint64_t deadline_=0,controllerBeat_=0,lastSeq_=0,lastHeartbeat_=0,rateWindow_=0;
     unsigned rateCount_=0,textCount_=0;

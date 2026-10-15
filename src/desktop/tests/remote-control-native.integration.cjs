@@ -2,8 +2,9 @@ const assert = require('node:assert/strict')
 const { test } = require('node:test')
 const { randomUUID, webcrypto } = require('node:crypto')
 const path = require('node:path')
+const { execFileSync } = require('node:child_process')
 const { RemoteInputHelper } = require('../dist/remote-control/native-helper.js')
-const { Kind, encodeInput, encodeArm, signInput } = require('../dist/remote-control/wire.js')
+const { Kind, encodeInput, encodeArm, encodeConsent, signInput } = require('../dist/remote-control/wire.js')
 
 const binding = () => ({ sessionId: randomUUID(), shareInstanceId: randomUUID(), inputGeneration: randomUUID(), epoch: 1 })
 function wait(helper, name) {
@@ -27,6 +28,11 @@ test('input encoding rejects invalid coordinates, sequence and Unicode before si
   assert.equal(new DataView(bytes.buffer).getUint32(116, true), 4)
   assert.equal(new DataView(bytes.buffer).getUint16(120, true), '中'.charCodeAt(0))
   assert.throws(() => encodeArm(event, { left: 0, top: 0, width: 1, height: 1 }, 15001, new Uint8Array(65).fill(4)), /integer/)
+  const display = { left: 0, top: 0, width: 1920, height: 1080 }, key = new Uint8Array(65).fill(4)
+  for (const name of ['', 'x'.repeat(160), 'Name\u202e', 'Name\n', '\ud800']) {
+    assert.throws(() => encodeConsent(randomUUID(),event,display,key,name,30000))
+  }
+  assert.equal(encodeConsent(randomUUID(),event,display,key,'名字 🙂',30000).length,476)
 })
 
 test('WebCrypto signature covers all native binding and input bytes', async () => {
@@ -52,6 +58,11 @@ test('WebCrypto to CNG native heartbeat, gap rejection and guardian cleanup', { 
     const keys = await webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign', 'verify'])
     const publicKey = new Uint8Array(await webcrypto.subtle.exportKey('raw', keys.publicKey))
     const session = binding()
+    const shown = wait(helper, 'consentShown'), allowed = wait(helper, 'consentAllowed')
+    helper.showConsent(randomUUID(),session,displays[0],publicKey,'We-Meet native consent test',5000)
+    await shown
+    execFileSync('python',[path.join(__dirname,'../native/remote-input/consent_test_driver.py'),String(events.find(event=>event.event==='hello').pid)])
+    await allowed
     const challengeResult = wait(helper, 'challenge'), armed = wait(helper, 'armed')
     helper.arm(session, displays[0], 15000, publicKey)
     const challenge = (await challengeResult).nonce

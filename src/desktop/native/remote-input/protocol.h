@@ -10,7 +10,7 @@ constexpr uint32_t Magic = 0x31435257; // WRC1
 constexpr uint32_t MaxFrame = 4096;
 constexpr uint64_t ChallengeMs = 3000;
 constexpr uint64_t WatchdogMs = 2500;
-enum class Command : uint32_t { Hello=1, Arm=2, Challenge=3, ParentAlive=4, Close=5, Lease=6, Input=7 };
+enum class Command : uint32_t { Hello=1, Arm=2, Challenge=3, ParentAlive=4, Close=5, Lease=6, Input=7, Consent=8, Suspend=9 };
 enum class Kind : uint16_t { Move=1, Button=2, Wheel=3, Key=4, Text=5, Release=6, Heartbeat=7 };
 #pragma pack(push, 1)
 struct Arm {
@@ -19,6 +19,14 @@ struct Arm {
     int32_t left, top, width, height;
     uint32_t leaseMs;
     uint8_t publicKey[64]; // P-256 uncompressed X || Y, unsigned big endian
+};
+// Main-process-only consent proposal. Generation/lease are ignored here;
+// execution still requires a separately validated server lease in Arm.
+struct Consent {
+    Arm binding;
+    uint32_t timeoutMs;
+    uint8_t id[16];
+    uint16_t controller[160]; // NUL terminated UTF-16, no control/bidi characters
 };
 struct Input {
     uint32_t magic, version;
@@ -38,6 +46,7 @@ struct Input {
 };
 #pragma pack(pop)
 static_assert(sizeof(Arm) == 136);
+static_assert(sizeof(Consent) == 476);
 static_assert(offsetof(Input, signature) == 640);
 static_assert(sizeof(Input) == 704);
 }

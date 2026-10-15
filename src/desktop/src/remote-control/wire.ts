@@ -3,7 +3,7 @@ export const INPUT_BYTES = 704;
 export const SIGNED_BYTES = 640;
 export const PROTOCOL_VERSION = 1;
 export const INPUT_MAGIC = 0x31435257;
-export const Command = { Hello: 1, Arm: 2, Challenge: 3, ParentAlive: 4, Close: 5, Lease: 6, Input: 7 } as const;
+export const Command = { Hello: 1, Arm: 2, Challenge: 3, ParentAlive: 4, Close: 5, Lease: 6, Input: 7, Consent: 8, Suspend: 9 } as const;
 export const Kind = { Move: 1, Button: 2, Wheel: 3, Key: 4, Text: 5, Release: 6, Heartbeat: 7 } as const;
 export type InputKind = (typeof Kind)[keyof typeof Kind];
 export type Binding = { sessionId: string; shareInstanceId: string; inputGeneration: string; epoch: number };
@@ -13,6 +13,7 @@ export type InputEvent = Binding & {
   x?: number; y?: number; delta?: number; text?: string;
 };
 export type Display = { left: number; top: number; width: number; height: number };
+export type NativeDisplay = Display & { deviceName: string; devicePath: string; rotation: number; dpiX: number; dpiY: number };
 
 export function bytesFromUuid(value: string): Uint8Array {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) throw new Error("invalid_uuid");
@@ -83,4 +84,16 @@ export function encodeArm(binding: Binding, display: Display, leaseMs: number, p
   view.setInt32(56, integer(display.top, -0x7fffffff, 0x7fffffff), true);
   view.setInt32(60, integer(display.width, 1, 65536), true); view.setInt32(64, integer(display.height, 1, 65536), true);
   view.setUint32(68, integer(leaseMs, 1, 15000), true); bytes.set(publicKey.subarray(1), 72); return bytes;
+}
+
+/** Never exposed as a renderer method: name and binding come from trusted main state. */
+export function encodeConsent(id: string, binding: Binding, display: Display, publicKey: Uint8Array, controller: string, timeoutMs: number): Uint8Array {
+  if (!controller.trim() || controller.length > 159 || /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/.test(controller)) throw new Error("invalid_controller_name");
+  // Reuse the Unicode validation of the input encoder without sending input.
+  encodeInput({ ...binding, kind: Kind.Text, text: controller, seq: 1, challenge: "00".repeat(16) });
+  const bytes = new Uint8Array(476), view = new DataView(bytes.buffer);
+  bytes.set(encodeArm(binding, display, 1, publicKey));
+  view.setUint32(136, integer(timeoutMs, 1, 60000), true);bytes.set(bytesFromUuid(id), 140);
+  for(let i=0;i<controller.length;++i)view.setUint16(156+i*2,controller.charCodeAt(i),true);
+  return bytes;
 }

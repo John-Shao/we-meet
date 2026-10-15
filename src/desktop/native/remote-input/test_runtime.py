@@ -23,6 +23,7 @@ import uuid
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+from consent_test_driver import LABEL, approve, window_for, user as ui_user
 
 EXE = Path(__file__).resolve().parents[2] / "dist/remote-input/we-meet-remote-input.exe"
 INJECT = False
@@ -33,6 +34,7 @@ class Client:
         self.process = subprocess.Popen([str(EXE), "--parent", str(os.getpid())], stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=subprocess.CREATE_NO_WINDOW)
         self.events = queue.Queue()
+        self.observed = []
         self.lock = threading.Lock()
         self.done = threading.Event()
         self.key = ec.generate_private_key(ec.SECP256R1())
@@ -47,11 +49,14 @@ class Client:
         self.pulse = threading.Thread(target=self._pulse, daemon=True)
         self.pulse.start()
         self.send(1)
-        self.display = self.wait("displays")["displays"][0]
+        self.displays = self.wait("displays")["displays"]
+        self.display = self.displays[0]
 
     def _read(self):
         for line in self.process.stdout:
-            self.events.put(json.loads(line))
+            event = json.loads(line)
+            self.observed.append(event)
+            self.events.put(event)
 
     def _pulse(self):
         while not self.done.wait(.2):
@@ -69,18 +74,35 @@ class Client:
         deadline = time.monotonic() + timeout
         seen = []
         while time.monotonic() < deadline:
-            item = self.events.get(timeout=max(.01, deadline-time.monotonic()))
+            try:
+                item = self.events.get(timeout=max(.01, deadline-time.monotonic()))
+            except queue.Empty:
+                break
             if item["event"] == event:
                 return item
             seen.append(item)
         raise AssertionError((event, seen))
 
-    def arm(self, lease=15000):
+    def arm_body(self, lease=15000):
         p = self.key.public_key().public_numbers()
         d = self.display
-        body = self.session + self.share + self.generation + struct.pack("<IiiiiI", self.epoch,
+        return self.session + self.share + self.generation + struct.pack("<IiiiiI", self.epoch,
             d["left"], d["top"], d["width"], d["height"], lease) + p.x.to_bytes(32,"big") + p.y.to_bytes(32,"big")
-        self.send(2, body)
+
+    def consent(self, timeout=5000, accept=True, label=LABEL):
+        self.consent_id = uuid.uuid4().bytes
+        body = self.arm_body() + struct.pack("<I", timeout) + self.consent_id + label.encode("utf-16-le").ljust(320, b"\0")
+        self.send(8, body)
+        self.wait("consentShown")
+        if accept:
+            approve(self.process.pid)
+            accepted = self.wait("consentAllowed")
+            assert accepted["consentId"] == self.consent_id.hex()
+
+    def arm(self, lease=15000, consent=True):
+        if consent:
+            self.consent()
+        self.send(2, self.arm_body(lease))
         self.challenge = bytes.fromhex(self.wait("challenge")["nonce"])
         self.wait("armed")
 
@@ -124,6 +146,71 @@ class NativeRuntimeTests(unittest.TestCase):
 
     def tearDown(self):
         self.c.close()
+
+    def test_arm_requires_local_native_consent(self):
+        self.c.send(2, self.c.arm_body())
+        self.assertEqual(self.c.wait("closed")["reason"], "arm_denied")
+
+    def test_consent_timeout_cannot_be_approved_late(self):
+        self.c.consent(timeout=200, accept=False)
+        self.assertEqual(self.c.wait("closed")["reason"], "consent_expired")
+        self.c.send(2, self.c.arm_body())
+        self.assertEqual(self.c.wait("closed")["reason"], "arm_denied")
+
+    def test_native_confirmation_does_not_allow_changed_binding(self):
+        self.c.consent()
+        self.c.share = uuid.uuid4().bytes
+        self.c.send(2, self.c.arm_body())
+        self.assertEqual(self.c.wait("closed")["reason"], "consent_binding_mismatch")
+
+    def test_suspend_keeps_consent_but_stop_revokes_it(self):
+        self.c.arm()
+        self.c.send(9)
+        self.assertEqual(self.c.wait("closed")["reason"], "capture_suspended")
+        self.c.generation = uuid.uuid4().bytes
+        self.c.arm(consent=False)
+        self.c.send(5)
+        self.assertEqual(self.c.wait("closed")["reason"], "parent_stop")
+        self.c.send(2, self.c.arm_body())
+        self.assertEqual(self.c.wait("closed")["reason"], "arm_denied")
+
+    def test_control_bar_hit_is_rejected_before_mouse_injection(self):
+        self.c.arm()
+        rect = wintypes.RECT()
+        self.assertTrue(ui_user.GetWindowRect(window_for(self.c.process.pid), ctypes.byref(rect)))
+        body = bytearray(self.c.event(kind=1)[:640])
+        d = self.c.display
+        struct.pack_into("<dd", body, 96, ((rect.left+rect.right)/2-d["left"])/(d["width"]-1),
+                         ((rect.top+rect.bottom)/2-d["top"])/(d["height"]-1))
+        r, s = decode_dss_signature(self.c.key.sign(bytes(body), ec.ECDSA(hashes.SHA256())))
+        self.c.send(7, bytes(body)+r.to_bytes(32,"big")+s.to_bytes(32,"big"))
+        self.assertEqual(self.c.wait("closed")["reason"], "input_failed")
+
+    def test_capture_resume_requires_new_input_generation(self):
+        self.c.arm()
+        self.c.send(9)
+        self.c.wait("closed")
+        self.c.send(2,self.c.arm_body())
+        self.assertEqual(self.c.wait("closed")["reason"], "generation_reused")
+
+    def test_hidden_control_bar_closes_gate(self):
+        self.c.arm()
+        ui_user.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+        ui_user.ShowWindow(window_for(self.c.process.pid),0)
+        self.assertEqual(self.c.wait("closed")["reason"], "native_ui_unavailable")
+
+    def test_native_confirmation_is_on_selected_negative_monitor(self):
+        display = next((d for d in self.c.displays if d["left"]<0 or d["top"]<0),None)
+        if display is None:
+            self.skipTest("No monitor with a negative origin connected")
+        self.c.display=display
+        self.c.consent(accept=False)
+        rect=wintypes.RECT()
+        self.assertTrue(ui_user.GetWindowRect(window_for(self.c.process.pid),ctypes.byref(rect)))
+        self.assertGreaterEqual(rect.left,display["left"])
+        self.assertGreaterEqual(rect.top,display["top"])
+        self.assertLessEqual(rect.right,display["left"]+display["width"])
+        self.assertLessEqual(rect.bottom,display["top"]+display["height"])
 
     def test_valid_signed_heartbeat_and_replay(self):
         self.c.arm()
@@ -194,6 +281,13 @@ class NativeRuntimeTests(unittest.TestCase):
     def test_guardian_releases_drag_after_worker_kill(self):
         self._assert_guardian_release(kind=2, code=0, virtual_key=0x01)
 
+    def test_real_drag_and_release_on_negative_monitor(self):
+        display = next((d for d in self.c.displays if d["left"]<0 or d["top"]<0),None)
+        if display is None:
+            self.skipTest("No monitor with a negative origin connected")
+        self.c.display=display
+        self._assert_guardian_release(kind=2, code=0, virtual_key=0x01)
+
     def _assert_guardian_release(self, kind, code, virtual_key):
         if not INJECT:
             self.skipTest("Use --inject for an isolated foreground window and real input")
@@ -207,19 +301,55 @@ class NativeRuntimeTests(unittest.TestCase):
         display=self.c.display
         x=display["left"]+display["width"]//2-240
         y=display["top"]+display["height"]//2-90
-        window = user.CreateWindowExW(0,"STATIC","We-Meet input safety test",0x10CF0000,x,y,480,180,None,None,None,None)
+        ready, finish = threading.Event(), threading.Event()
+        surface = []
+        # A real foreground target needs its own pumping UI thread. Blocking
+        # the owning thread on the helper pipe can stall cross-thread activation
+        # after consent and make SendInput's insertion ACK look like delivery.
+        user.PeekMessageW.argtypes=[ctypes.POINTER(wintypes.MSG),wintypes.HWND,wintypes.UINT,wintypes.UINT,wintypes.UINT]
+        user.TranslateMessage.argtypes=[ctypes.POINTER(wintypes.MSG)]
+        user.DispatchMessageW.argtypes=[ctypes.POINTER(wintypes.MSG)]
+        user.DispatchMessageW.restype=wintypes.LPARAM
+
+        def ui_loop():
+            window = user.CreateWindowExW(0x8,"STATIC","We-Meet input safety test",0x10CF0000,x,y,480,180,None,None,None,None)
+            surface.append(window)
+            user.SetForegroundWindow(window)
+            ready.set()
+            message=wintypes.MSG()
+            while not finish.is_set():
+                while user.PeekMessageW(ctypes.byref(message),None,0,0,1):
+                    user.TranslateMessage(ctypes.byref(message))
+                    user.DispatchMessageW(ctypes.byref(message))
+                finish.wait(.005)
+            user.DestroyWindow(window)
+
+        thread=threading.Thread(target=ui_loop,daemon=True)
+        thread.start()
+        self.assertTrue(ready.wait(3))
+        window=surface[0]
         self.assertTrue(window)
         try:
             user.SetForegroundWindow(window)
+            deadline=time.monotonic()+1
+            while user.GetForegroundWindow()!=window and time.monotonic()<deadline:
+                time.sleep(.01)
             self.assertEqual(user.GetForegroundWindow(), window)
             self.assertFalse(user.GetAsyncKeyState(virtual_key) & 0x8000, "Test key already held locally")
             self.c.arm()
+            self.assertEqual(user.GetForegroundWindow(), window,"Foreground target changed during native consent")
             self.c.send(7,self.c.event(kind=kind,action=1,code=code))
             self.assertEqual(self.c.wait("inputAck")["seq"],1)
             deadline=time.monotonic()+1
             while not (user.GetAsyncKeyState(virtual_key)&0x8000) and time.monotonic()<deadline:
                 time.sleep(.01)
-            self.assertTrue(user.GetAsyncKeyState(virtual_key)&0x8000,"Native down did not take effect")
+            self.assertTrue(user.GetAsyncKeyState(virtual_key)&0x8000,
+                            f"Native down did not stay held: {self.c.observed[-3:]}")
+            if kind==2:
+                point=wintypes.POINT()
+                self.assertTrue(user.GetCursorPos(ctypes.byref(point)))
+                self.assertLessEqual(abs(point.x-(display["left"]+display["width"]//2)),2)
+                self.assertLessEqual(abs(point.y-(display["top"]+display["height"]//2)),2)
             self.c.process.kill()
             self.c.process.wait(timeout=2)
             deadline=time.monotonic()+3
@@ -228,7 +358,8 @@ class NativeRuntimeTests(unittest.TestCase):
             self.assertFalse(user.GetAsyncKeyState(virtual_key)&0x8000,"Guardian failed to release input")
             self.assertEqual(self.c.wait("guardianClosed")["cleanup"],1)
         finally:
-            user.DestroyWindow(window)
+            finish.set()
+            thread.join(timeout=3)
 
 
 if __name__ == "__main__":

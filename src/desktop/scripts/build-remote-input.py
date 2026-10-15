@@ -47,7 +47,7 @@ def build() -> None:
     )
     manifest = {"protocolVersion": 1, "platform": "win32", "arch": "x64", "file": output.name,
                 "sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
-                "sourceSha256": {name: hashlib.sha256((SOURCE / name).read_bytes()).hexdigest() for name in ("main.cpp", "protocol.h")}}
+                "sourceSha256": {name: hashlib.sha256((SOURCE / name).read_bytes()).hexdigest() for name in ("main.cpp", "protocol.h", "trusted-ui.h")}}
     (DEST / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"Built {output.name}; protocol v1; manifest written")
 

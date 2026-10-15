@@ -3,9 +3,9 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { EventEmitter } from "node:events";
-import { Command, encodeArm, INPUT_BYTES, type Binding, type Display } from "./wire";
+import { Command, encodeArm, encodeConsent, INPUT_BYTES, type Binding, type Display, type NativeDisplay } from "./wire";
 
-export type NativeEvent = { event: string; reason?: string; ready?: boolean; cleanup?: number; seq?: number; nonce?: string; ttlMs?: number; displays?: Display[] };
+export type NativeEvent = { event: string; reason?: string; ready?: boolean; cleanup?: number; seq?: number; nonce?: string; ttlMs?: number; displays?: NativeDisplay[]; consentId?: string; pid?: number; guardianPid?: number };
 /** Internal main-process adapter. Not a preload API; caller must establish native consent. */
 export class RemoteInputHelper extends EventEmitter {
   private child?: ChildProcessWithoutNullStreams;
@@ -51,6 +51,10 @@ export class RemoteInputHelper extends EventEmitter {
     if (this.active || this.closed) throw new Error("native_busy");
     this.send(Command.Arm, encodeArm(binding, display, leaseMs, publicKey));
   }
+  showConsent(id: string, binding: Binding, display: Display, publicKey: Uint8Array, controller: string, timeoutMs: number) {
+    if(this.active || this.closed)throw new Error("native_busy");
+    this.send(Command.Consent,encodeConsent(id,binding,display,publicKey,controller,timeoutMs));
+  }
   input(packet: Uint8Array) {
     if (!this.active || packet.length !== INPUT_BYTES) throw new Error("native_not_active");
     this.send(Command.Input, packet);
@@ -61,6 +65,7 @@ export class RemoteInputHelper extends EventEmitter {
   }
   listDisplays() { this.send(Command.Hello); }
   closeGate() { this.active = false;this.send(Command.Close); }
+  suspendCapture() { this.active = false;this.send(Command.Suspend); }
   stop() {
     if (this.closed) return;
     this.active = false; this.closed = true; this.clearTimers();
