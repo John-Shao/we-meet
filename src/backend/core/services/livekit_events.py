@@ -159,7 +159,35 @@ class LiveKitEventsService:
         )
 
         # pylint: disable=not-callable
+        self._revoke_remote_control(data)
         handler(data)
+
+    @staticmethod
+    def _revoke_remote_control(data):
+        """Exact-instance revocation occurs before optional meeting projections."""
+        if (
+            data.event not in ("room_finished", "participant_left", "track_unpublished")
+            or not data.room.sid
+        ):
+            return
+        try:
+            room_id = uuid.UUID(data.room.name)
+        except (TypeError, ValueError):
+            return
+        from core.services.remote_control import (  # noqa: PLC0415 -- Avoid a service import cycle.
+            invalidate,
+        )
+
+        arguments = {}
+        if data.event == "participant_left":
+            if not data.participant.sid:
+                return
+            arguments["participant_sid"] = data.participant.sid
+        elif data.event == "track_unpublished":
+            if not data.track.sid:
+                return
+            arguments["track_sid"] = data.track.sid
+        invalidate(room_id, data.room.sid, reason=data.event, **arguments)
 
     def _handle_egress_started(self, data):
         """Use the same verified evidence path for an initial Egress notification."""

@@ -121,6 +121,7 @@ def test_unknown_event_type(client, mock_livekit_config):
 @mock.patch.object(LiveKitEventsService, "_handle_room_finished")
 def test_handled_event_type(
     mock_handler,
+    db,
     client,
     serialized_event_data,
     auth_token,

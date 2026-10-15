@@ -10173,3 +10173,152 @@ class VoiceprintSamplingActivity(BaseModel):
 
     def __str__(self):
         return str(self.pk)
+
+
+class RemoteControlState(models.TextChoices):
+    """Business authorization, separate from a desktop's local input gate."""
+
+    PENDING = "PENDING"
+    PREPARING = "PREPARING"
+    ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
+    REJECTED = "REJECTED"
+    CANCELLED = "CANCELLED"
+    EXPIRED = "EXPIRED"
+    FAILED = "FAILED"
+    ENDED = "ENDED"
+
+
+REMOTE_CONTROL_OPEN_STATES = ("PENDING", "PREPARING", "ACTIVE", "PAUSED")
+
+
+class RemoteControlPresence(BaseModel):
+    """Expiring capability declaration bound to a verified LiveKit connection.
+
+    This is discovery information, never proof of native origin or consent.
+    """
+
+    room = models.ForeignKey(Room, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    room_sid = models.CharField(max_length=128)
+    participant_sid = models.CharField(max_length=128)
+    device_session_id = models.UUIDField()
+    can_control = models.BooleanField(default=False)
+    can_be_controlled = models.BooleanField(default=False)
+    protocol_versions = models.JSONField(default=list)
+    platform = models.CharField(max_length=32)
+    helper_version = models.CharField(max_length=32, blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["room", "user"], name="remote_presence_user_room"
+            )
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class RemoteControlSession(BaseModel):
+    """Immutable participants/binding and short-lived, revocable permission."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.PROTECT)
+    room = models.ForeignKey(Room, on_delete=models.CASCADE)
+    controller = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="remote_controls"
+    )
+    target = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="remote_control_requests"
+    )
+    request_id = models.UUIDField()
+    request_digest = models.CharField(max_length=64)
+    request = models.JSONField()
+    room_sid = models.CharField(max_length=128)
+    controller_sid = models.CharField(max_length=128)
+    target_sid = models.CharField(max_length=128)
+    target_device_session_id = models.UUIDField()
+    protocol_version = models.PositiveSmallIntegerField(default=1)
+    binding = models.JSONField(default=dict, blank=True)
+    state = models.CharField(
+        max_length=16,
+        choices=RemoteControlState.choices,
+        default=RemoteControlState.PENDING,
+    )
+    state_version = models.PositiveIntegerField(default=1)
+    epoch = models.PositiveIntegerField(default=1)
+    policy_digest = models.CharField(max_length=64)
+    deadline = models.DateTimeField(db_index=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    max_expires_at = models.DateTimeField(null=True, blank=True)
+    lease_expires_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    end_reason = models.CharField(max_length=48, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["controller", "request_id"], name="remote_request_idempotency"
+            ),
+            models.UniqueConstraint(
+                fields=["room_sid", "controller_sid"],
+                condition=models.Q(state__in=REMOTE_CONTROL_OPEN_STATES),
+                name="remote_controller_one_open",
+            ),
+            models.UniqueConstraint(
+                fields=["room_sid", "target_sid"],
+                condition=models.Q(state__in=REMOTE_CONTROL_OPEN_STATES),
+                name="remote_target_one_open",
+            ),
+            models.UniqueConstraint(
+                fields=["target_device_session_id"],
+                condition=models.Q(state__in=REMOTE_CONTROL_OPEN_STATES),
+                name="remote_device_one_open",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(controller=models.F("target")),
+                name="remote_different_accounts",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["room_sid", "state"], name="remote_room_state_idx")
+        ]
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class RemoteControlChallenge(BaseModel):
+    """One-use, server-constructed proof, with a bounded idempotent receipt."""
+
+    session = models.ForeignKey(
+        RemoteControlSession, on_delete=models.CASCADE, related_name="challenges"
+    )
+    purpose = models.CharField(max_length=16)
+    state_version = models.PositiveIntegerField()
+    epoch = models.PositiveIntegerField()
+    payload = models.JSONField()
+    expires_at = models.DateTimeField(db_index=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    proof_digest = models.CharField(max_length=64, blank=True)
+    result = models.JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return str(self.pk)
+
+
+class RemoteControlAudit(BaseModel):
+    """Lifecycle only. Never retain input packets, text, or signed leases."""
+
+    session = models.ForeignKey(
+        RemoteControlSession, on_delete=models.CASCADE, related_name="audit"
+    )
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    event = models.CharField(max_length=24)
+    state = models.CharField(max_length=16)
+    state_version = models.PositiveIntegerField()
+    reason = models.CharField(max_length=48, blank=True)
+
+    def __str__(self):
+        return str(self.pk)

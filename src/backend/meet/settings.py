@@ -498,6 +498,11 @@ class Base(Configuration):
         },
     }
 
+    # Signed remote-control permissions are independent of LiveKit secrets.
+    REMOTE_CONTROL_ENABLED = values.BooleanValue(False)
+    REMOTE_CONTROL_SIGNING_KEY = SecretFileValue("")
+    REMOTE_CONTROL_SIGNING_KID = values.Value("remote-control-v1")
+
     REST_FRAMEWORK = {
         "DEFAULT_AUTHENTICATION_CLASSES": (
             "mozilla_django_oidc.contrib.drf.OIDCAuthentication",
@@ -984,6 +989,14 @@ class Base(Configuration):
     )
 
     celery_beat_entries = {
+        "expire-remote-control-sessions": {
+            "task": "core.tasks.remote_control.expire_remote_control_sessions",
+            "schedule": 5.0,
+        },
+        "prune-remote-control-history": {
+            "task": "core.tasks.remote_control.prune_remote_control_history",
+            "schedule": 3600.0,
+        },
         "tick-work-reviews": {
             "task": "work.tasks.tick_reviews",
             "schedule": 5.0,

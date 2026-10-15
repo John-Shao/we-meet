@@ -82,6 +82,7 @@ from core.services.participants_management import (
     ParticipantsManagement,
     ParticipantsManagementException,
 )
+from core.services.remote_control import revoke_by_room_action
 from core.services.room_creation import RoomCreation
 from core.services.room_management import (
     RoomManagement,
@@ -1917,6 +1918,13 @@ class RoomViewSet(
 
         permission = serializer.validated_data.get("permission")
 
+        if permission is not None:
+            revoke_by_room_action(
+                room.pk,
+                identity=str(serializer.validated_data["participant_identity"]),
+                reason="permission_changed",
+            )
+
         try:
             ParticipantsManagement().update(
                 room_name=str(room.pk),
@@ -1957,6 +1965,12 @@ class RoomViewSet(
 
         serializer = serializers.BaseParticipantsManagementSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        revoke_by_room_action(
+            room.pk,
+            identity=str(serializer.validated_data["participant_identity"]),
+            reason="participant_removed",
+        )
 
         try:
             ParticipantsManagement().remove(
@@ -2094,6 +2108,7 @@ class RoomViewSet(
         ended_at = timezone.now()
         with transaction.atomic():
             models.Room.objects.filter(pk=room.pk).update(ended_at=ended_at)
+            revoke_by_room_action(room.pk, reason="room_ended")
             active_session = (
                 models.MeetingSession.objects.select_for_update()
                 .filter(room=room, status=models.MeetingSession.Status.ACTIVE)
