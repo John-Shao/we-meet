@@ -27,5 +27,14 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "@types", "../desktop/src/remote-control/bridge.ts"]
+  "include": [
+    "src",
+    "@types",
+    "../desktop/src/remote-control/bridge.ts",
+    "../desktop/src/remote-control/wire.ts",
+    "../desktop/src/remote-control/signals.ts",
+    "../desktop/src/remote-control/authorization.ts",
+    "../desktop/src/remote-control/controller-transport.ts",
+    "../desktop/src/remote-control/controller-session.ts"
+  ]
 }

@@ -1,5 +1,36 @@
 {
   "remoteControl": {
+    "controller": {
+      "request": "Fernsteuerung anfragen",
+      "title": "Fernsteuerung: {{name}}",
+      "stop": "Beenden",
+      "minimize": "Verkleinern",
+      "expand": "Vergrößern",
+      "screen": "Eingabebereich des entfernten Bildschirms",
+      "help": "Klicken Sie auf Starten, um Maus und Tastatur in diesem Bereich zu verwenden. Esc oder ein Fokuswechsel pausiert die Eingabe. Zum Fortsetzen erneut auf Starten klicken.",
+      "start": "Starten",
+      "pause": "Pausieren",
+      "videoUnavailable": "Warten auf den geteilten Bildschirm",
+      "remoteKey": "{{key}} an das entfernte Gerät senden",
+      "textLabel": "Text auf dem entfernten Gerät eingeben",
+      "sendText": "Text senden",
+      "textHint": "Sendet nur diesen Text, ohne die Eingabetaste zu drücken",
+      "actionUnavailable": "Aktion nicht verfügbar. Warten Sie auf Bild und Freigabe und versuchen Sie es erneut.",
+      "textUnconfirmed": "Keine Ausführungsbestätigung erhalten. Der Text wurde möglicherweise bereits eingegeben. Der Entwurf bleibt erhalten; prüfen Sie den entfernten Bildschirm vor erneutem Senden.",
+      "phase": {
+        "requesting": "Anfrage wird gesendet",
+        "pending": "Warten auf eine Antwort",
+        "preparing": "Warten auf die Freigabe des gesamten Bildschirms und die Zustimmung",
+        "active": "Genehmigt; warten auf den Eingabekanal",
+        "waiting": "Genehmigt; klicken Sie auf Starten",
+        "arming": "Warten auf die Freigabe der entfernten Eingabe",
+        "open": "Entferntes Gerät wird gesteuert",
+        "suspending": "Eingabe pausieren und Tasten loslassen",
+        "suspended": "Eingabe pausiert; zum Fortsetzen auf Starten klicken",
+        "paused": "Vom anderen Teilnehmer pausiert; warten auf dessen Zustimmung zum Fortsetzen",
+        "ended": "Fernsteuerung beendet"
+      }
+    },
     "title": "Fernsteuerung",
     "request": "{{name}} möchte Ihr Gerät steuern.",
     "scope": "Der Zugriff umfasst Maus, Tastatur und Texteingabe auf dem ausgewählten ganzen Bildschirm. Bestätigen Sie auf diesem Gerät; Sie können jederzeit stoppen.",

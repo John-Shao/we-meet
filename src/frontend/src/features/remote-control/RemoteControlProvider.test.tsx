@@ -19,6 +19,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 vi.mock('./api', () => ({ remoteRequest: mocks.api }))
+vi.mock('./ControllerProvider', () => ({
+  ControllerProvider: ({ children }: { children: import('react').ReactNode }) =>
+    children,
+}))
 vi.mock('@/primitives', () => ({
   Button: ({
     children,

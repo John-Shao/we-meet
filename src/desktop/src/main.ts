@@ -44,6 +44,7 @@ import { loadInitialPage } from "./startup";
 import { RemoteControlCloud } from "./remote-control/cloud";
 import { RemoteDesktopRuntime, publicRemoteError } from "./remote-control/runtime";
 import { bindScreenSource } from "./remote-control/source-binding";
+import { chooseCaptureSource } from "./remote-control/source-picker";
 import type { RemoteDesktopEvent } from "./remote-control/bridge";
 
 if (!app.isPackaged && process.env.WEMEET_USER_DATA)
@@ -426,24 +427,20 @@ async function createWindow() {
         types: ticket.fullScreenOnly ? ["screen"] : ["screen", "window"],
         thumbnailSize: { width: 0, height: 0 },
       });
-      // Keep every monitor selectable. Preserve a bounded ordinary window list.
-      const available = ticket.fullScreenOnly ? sources : [
-        ...sources.filter(source => source.id.startsWith("screen:")),
-        ...sources.filter(source => !source.id.startsWith("screen:")).slice(0, 20),
-      ];
-      if (!remote.captureCurrent(ticket) || win.isDestroyed()) { callback({}); return; }
-      const result = await dialog.showMessageBox(win, {
-        title: ticket.fullScreenOnly ? "选择允许远程操作的整个屏幕" : "选择要共享的屏幕或窗口",
-        message: ticket.fullScreenOnly ? "请选择一个完整屏幕。共享成功后，还需要在本机确认是否授权远程操作。" : "仅共享你选择的内容。停止共享请使用会议页面中的按钮。",
-        buttons: ["取消", ...available.map((source) => source.name)],
-        cancelId: 0,
-        defaultId: 0,
+      const source = await chooseCaptureSource({
+        sources, displays: screen.getAllDisplays(), fullScreenOnly: ticket.fullScreenOnly,
+        isCurrent: () => remote.captureCurrent(ticket) && !win.isDestroyed(),
+        ask: options => dialog.showMessageBox(win, options),
       });
-      const source = available[result.response - 1];
       if (!source || win.isDestroyed() || !remote.captureCurrent(ticket)) {
         callback({});
         return;
       }
+      const currentSources = await desktopCapturer.getSources({
+        types: ticket.fullScreenOnly ? ["screen"] : ["screen", "window"], thumbnailSize: { width: 0, height: 0 },
+      });
+      if (!currentSources.some(current => current.id === source.id && current.display_id === source.display_id) ||
+          !remote.captureCurrent(ticket) || win.isDestroyed()) { callback({}); return; }
       if (ticket.context && source.id.startsWith("screen:")) {
         try {
           const probe = await remote.probeCapture();

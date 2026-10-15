@@ -1,5 +1,36 @@
 {
   "remoteControl": {
+    "controller": {
+      "request": "Request remote control",
+      "title": "Remote control: {{name}}",
+      "stop": "End",
+      "minimize": "Minimize",
+      "expand": "Expand",
+      "screen": "Remote screen input area",
+      "help": "Click Start control to use your mouse and keyboard in this area. Esc or moving focus pauses input; click Start again to resume.",
+      "start": "Start control",
+      "pause": "Pause control",
+      "videoUnavailable": "Waiting for the shared screen",
+      "remoteKey": "Send {{key}} to the remote device",
+      "textLabel": "Type text on the remote device",
+      "sendText": "Send text",
+      "textHint": "Sends this text only, without pressing Enter",
+      "actionUnavailable": "This action is unavailable. Wait for the screen and authorization, then try again.",
+      "textUnconfirmed": "No text execution receipt arrived. The text may already have been entered. Your draft is kept; check the remote screen before sending again.",
+      "phase": {
+        "requesting": "Submitting request",
+        "pending": "Waiting for a response",
+        "preparing": "Waiting for full-screen sharing and approval",
+        "active": "Authorized; waiting for the input channel",
+        "waiting": "Authorized; click Start control",
+        "arming": "Waiting for remote input to open",
+        "open": "Controlling the remote device",
+        "suspending": "Pausing and releasing held keys",
+        "suspended": "Input paused; click Start to continue",
+        "paused": "Paused by the other participant; waiting for their approval to resume",
+        "ended": "Remote control ended"
+      }
+    },
     "title": "Remote control",
     "request": "{{name}} is requesting control of your device.",
     "scope": "Access covers the mouse, keyboard and text input on the selected full screen. Confirm on this device; you can stop at any time.",

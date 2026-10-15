@@ -100,7 +100,13 @@ export class TargetTransport {
 
   private handle(signal: SignalPayload) {
     if (signal.type === "END") { this.fail("controller_end"); return; }
-    if (signal.body.videoReady === false) { this.auth.pause(); return; }
+    if (signal.body.videoReady === false) {
+      this.auth.pause();
+      // Video loss closes input, but healthy PAUSED peers still acknowledge
+      // liveness. Queue after pause so its revision cannot discard this ACK.
+      if (signal.type === "HEARTBEAT") this.enqueue("HEARTBEAT_ACK", { heartbeatSeq: signal.seq });
+      return;
+    }
     const state = this.auth.transportState();
     if (signal.type === "HEARTBEAT") {
       this.enqueue("HEARTBEAT_ACK", { heartbeatSeq: signal.seq });

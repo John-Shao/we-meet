@@ -73,3 +73,24 @@ export async function remoteRequest<T>(
   if (!response.ok) throw new ApiError(response.status, data)
   return data as T
 }
+
+export async function timedRemoteRequest(
+  roomId: string,
+  action: Parameters<typeof remoteRequest>[1],
+  options: Parameters<typeof remoteRequest>[2] = {}
+) {
+  const startedAt = performance.now()
+  const data = await remoteRequest<Record<string, unknown>>(
+    roomId,
+    action,
+    options
+  )
+  if (!Number.isSafeInteger(data.serverTime))
+    throw new Error('remote_response_invalid')
+  return {
+    data,
+    serverTime: data.serverTime as number,
+    startedAt,
+    receivedAt: performance.now(),
+  }
+}

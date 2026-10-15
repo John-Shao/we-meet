@@ -1,5 +1,36 @@
 {
   "remoteControl": {
+    "controller": {
+      "request": "申请远程操作",
+      "title": "远程操作：{{name}}",
+      "stop": "结束",
+      "minimize": "缩小",
+      "expand": "展开",
+      "screen": "远程屏幕操作区",
+      "help": "点击“开始操作”后，键鼠仅在此区域内生效。Esc 或移开焦点会暂停；返回后需再次点击开始。",
+      "start": "开始操作",
+      "pause": "暂停操作",
+      "videoUnavailable": "等待可用的共享画面",
+      "remoteKey": "向远端发送 {{key}}",
+      "textLabel": "向远端输入文本",
+      "sendText": "发送文本",
+      "textHint": "仅发送本次文本，不自动按回车",
+      "actionUnavailable": "当前无法执行，请等待画面和授权就绪后重试。",
+      "textUnconfirmed": "未收到文本执行回执，文本可能已经输入。草稿已保留，请核对远端画面后再决定是否重发。",
+      "phase": {
+        "requesting": "正在提交申请",
+        "pending": "等待对方处理申请",
+        "preparing": "等待对方共享整屏并确认",
+        "active": "已获授权，等待输入通道就绪",
+        "waiting": "已获授权，点击开始操作",
+        "arming": "正在等待远端开放输入",
+        "open": "正在操作远端",
+        "suspending": "正在暂停并释放按键",
+        "suspended": "操作已暂停，点击开始可继续",
+        "paused": "对方已暂停，请等待对方确认恢复",
+        "ended": "远程操作已结束"
+      }
+    },
     "title": "远程控制",
     "request": "{{name}} 申请操作你的设备。",
     "scope": "授权范围包括所选整屏的鼠标、键盘和文字输入。最终授权需要在本机确认，可随时停止。",

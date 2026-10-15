@@ -1,5 +1,36 @@
 {
   "remoteControl": {
+    "controller": {
+      "request": "Demander le contrôle à distance",
+      "title": "Contrôle à distance : {{name}}",
+      "stop": "Terminer",
+      "minimize": "Réduire",
+      "expand": "Agrandir",
+      "screen": "Zone de saisie sur l’écran distant",
+      "help": "Cliquez sur Démarrer pour utiliser la souris et le clavier dans cette zone. Échap ou un changement de focus suspend la saisie. Cliquez à nouveau sur Démarrer pour reprendre.",
+      "start": "Démarrer",
+      "pause": "Suspendre",
+      "videoUnavailable": "En attente de l’écran partagé",
+      "remoteKey": "Envoyer {{key}} à l’appareil distant",
+      "textLabel": "Saisir du texte sur l’appareil distant",
+      "sendText": "Envoyer le texte",
+      "textHint": "Envoie uniquement ce texte, sans appuyer sur Entrée",
+      "actionUnavailable": "Action indisponible. Attendez l’image et l’autorisation, puis réessayez.",
+      "textUnconfirmed": "Aucun accusé d’exécution reçu. Le texte a peut-être déjà été saisi. Le brouillon est conservé : vérifiez l’écran distant avant de renvoyer.",
+      "phase": {
+        "requesting": "Envoi de la demande",
+        "pending": "En attente de réponse",
+        "preparing": "En attente du partage de l’écran entier et de l’accord",
+        "active": "Autorisé ; en attente du canal de saisie",
+        "waiting": "Autorisé ; cliquez sur Démarrer",
+        "arming": "En attente de l’ouverture de la saisie distante",
+        "open": "Contrôle de l’appareil distant en cours",
+        "suspending": "Suspension et relâchement des touches",
+        "suspended": "Saisie suspendue ; cliquez sur Démarrer pour continuer",
+        "paused": "L’autre participant a suspendu le contrôle ; son accord est requis pour reprendre",
+        "ended": "Contrôle à distance terminé"
+      }
+    },
     "title": "Contrôle à distance",
     "request": "{{name}} demande à contrôler votre appareil.",
     "scope": "L'accès comprend la souris, le clavier et la saisie de texte sur l'écran entier sélectionné. Confirmez sur cet appareil ; vous pouvez arrêter à tout moment.",

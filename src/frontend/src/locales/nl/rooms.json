@@ -1,5 +1,36 @@
 {
   "remoteControl": {
+    "controller": {
+      "request": "Afstandsbediening aanvragen",
+      "title": "Afstandsbediening: {{name}}",
+      "stop": "Beëindigen",
+      "minimize": "Verkleinen",
+      "expand": "Vergroten",
+      "screen": "Invoergebied van het externe scherm",
+      "help": "Klik op Start om muis en toetsenbord in dit gebied te gebruiken. Esc of een focuswijziging pauzeert de invoer. Klik opnieuw op Start om door te gaan.",
+      "start": "Start",
+      "pause": "Pauzeren",
+      "videoUnavailable": "Wachten op het gedeelde scherm",
+      "remoteKey": "{{key}} naar het externe apparaat sturen",
+      "textLabel": "Tekst op het externe apparaat invoeren",
+      "sendText": "Tekst verzenden",
+      "textHint": "Verstuurt alleen deze tekst, zonder op Enter te drukken",
+      "actionUnavailable": "Deze actie is niet beschikbaar. Wacht op het beeld en de toestemming en probeer het opnieuw.",
+      "textUnconfirmed": "Geen uitvoeringsbevestiging ontvangen. De tekst is mogelijk al ingevoerd. Je concept blijft bewaard; controleer het externe scherm voordat je opnieuw verzendt.",
+      "phase": {
+        "requesting": "Aanvraag verzenden",
+        "pending": "Wachten op een antwoord",
+        "preparing": "Wachten op het delen van het volledige scherm en toestemming",
+        "active": "Toegestaan; wachten op het invoerkanaal",
+        "waiting": "Toegestaan; klik op Start",
+        "arming": "Wachten tot externe invoer beschikbaar is",
+        "open": "Het externe apparaat wordt bestuurd",
+        "suspending": "Invoer pauzeren en toetsen loslaten",
+        "suspended": "Invoer gepauzeerd; klik op Start om door te gaan",
+        "paused": "Gepauzeerd door de andere deelnemer; diens toestemming is nodig om verder te gaan",
+        "ended": "Afstandsbediening beëindigd"
+      }
+    },
     "title": "Bediening op afstand",
     "request": "{{name}} vraagt om uw apparaat te bedienen.",
     "scope": "Toegang omvat muis, toetsenbord en tekstinvoer op het geselecteerde volledige scherm. Bevestig op dit apparaat; u kunt op elk moment stoppen.",

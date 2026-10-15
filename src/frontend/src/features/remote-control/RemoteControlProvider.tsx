@@ -19,6 +19,7 @@ import type {
 } from '../../../../desktop/src/remote-control/bridge'
 import { remoteRequest, type RemoteRequest } from './api'
 import { RemoteControlContext } from './RemoteControlContext'
+import { ControllerProvider } from './ControllerProvider'
 import {
   REMOTE_INPUT_TOPIC,
   REMOTE_SIGNAL_TOPIC,
@@ -338,7 +339,7 @@ export function RemoteControlProvider({
         },
       }}
     >
-      {children}
+      <ControllerProvider roomId={roomId}>{children}</ControllerProvider>
       {capability?.enabled &&
         (requests.length > 0 || active || error || needsScreen) && (
           <aside
