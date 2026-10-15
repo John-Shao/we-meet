@@ -32,8 +32,11 @@ async function main() {
     const errors = []
     page.on('pageerror', error => errors.push(error.name))
     await page.waitForFunction(() => !!document.querySelector('#root')?.textContent?.trim(), { timeout: 45000 })
+    await page.waitForFunction(async () => (await window.weMeetDesktop?.getStatus())?.connection !== 'connecting', { timeout: 45000 })
     const status = await page.evaluate(() => window.weMeetDesktop.getStatus())
     assert.equal(status.auth, 'signed-out')
+    if (status.connection === 'online') await page.locator('[data-attr="login"]:visible').first().waitFor({ timeout: 30000 })
+    else await page.getByRole('status').filter({ hasText: '无法连接服务' }).waitFor({ timeout: 30000 })
     assert.equal(await page.evaluate(() => typeof window.require), 'undefined')
     const prefs = await app.evaluate(({ BrowserWindow }) => {
       const p = BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences()
