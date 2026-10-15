@@ -1,9 +1,12 @@
 """Compile and run the production cleanup algorithm with no system input calls."""
 from __future__ import annotations
 
+import hashlib
 import importlib.util
-from pathlib import Path
+import json
 import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("remote_input_build", Path(__file__).with_name("build-remote-input.py"))
@@ -22,7 +25,19 @@ def main() -> None:
          "/link", "/DYNAMICBASE", "/NXCOMPAT", "/HIGHENTROPYVA"],
         cwd=output, env=env, check=True,
     )
-    subprocess.run([str(executable)], cwd=output, check=True, timeout=10)
+    result = subprocess.run([str(executable)], cwd=output, capture_output=True, text=True, encoding="utf-8", timeout=10)
+    (output / "stdout.log").write_text(result.stdout + result.stderr, encoding="utf-8")
+    sources = [ROOT / "native/remote-input" / name for name in
+               ("main.cpp", "protocol.h", "trusted-ui.h", "session-state.h", "test_cleanup.cpp")]
+    report = {"version": 1, "timestamp": datetime.now(timezone.utc).isoformat(), "exitCode": result.returncode,
+              "executableSha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+              "sourceSha256": {str(path.relative_to(ROOT)).replace("\\", "/"): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources},
+              "stdout": result.stdout, "stderr": result.stderr}
+    (output / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="")
+    result.check_returncode()
 
 
 if __name__ == "__main__":

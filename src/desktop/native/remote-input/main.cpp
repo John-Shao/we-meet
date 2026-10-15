@@ -46,6 +46,11 @@ struct Ledger {
     volatile LONG64 workerBeat, parentBeat;
     volatile LONG desktopInvalid, workerObserverReady, guardianObserverReady;
     volatile LONG64 desktopGeneration, workerObserverBeat, guardianObserverBeat;
+    // Write-ahead release snapshot survives a crash during candidate removal.
+    // 0 committed/unused, 1 pending, 2 invalidated by a desktop transition.
+    volatile LONG releaseJournalState;
+    volatile LONG releaseCandidates[CandidateCount], releaseUnicode;
+    volatile LONG64 releaseGeneration;
 };
 std::mutex outputMutex;
 uint64_t now() { return GetTickCount64(); }
@@ -77,6 +82,8 @@ LONG64 desktopGeneration(Ledger* l){return InterlockedCompareExchange64(&l->desk
 void invalidateDesktop(Ledger* l) {
     // A transition is irreversible for this helper, even if Default has already
     // returned when the asynchronous notification reaches its observer.
+    // Competes with the cleanup commit before publishing the transition latch.
+    InterlockedCompareExchange(&l->releaseJournalState,2,1);
     InterlockedExchange(&l->desktopInvalid,1);
     InterlockedIncrement64(&l->desktopGeneration);
     InterlockedExchange(&l->gate,0);
@@ -92,6 +99,19 @@ void failCleanup(Ledger* l) {
 }
 bool sameDesktopGeneration(Ledger* l,LONG64 generation) {
     return !InterlockedCompareExchange(&l->desktopInvalid,0,0) && desktopGeneration(l)==generation;
+}
+void recoverReleaseJournal(Ledger* l) {
+    const LONG state=InterlockedCompareExchange(&l->releaseJournalState,0,0);
+    if(!state)return;
+    const LONG unicode=InterlockedCompareExchange(&l->releaseUnicode,0,0);
+    if(unicode)InterlockedExchange(&l->unicodeCandidate,unicode);
+    for(size_t i=0;i<CandidateCount;++i)
+        if(InterlockedCompareExchange(&l->releaseCandidates[i],0,0))InterlockedExchange(&l->candidates[i],1);
+    const auto generation=InterlockedCompareExchange64(&l->releaseGeneration,0,0);
+    if(state==2 || !sameDesktopGeneration(l,generation)) {
+        invalidateDesktop(l);return;
+    }
+    if(InterlockedCompareExchange(&l->releaseJournalState,0,1)!=1)invalidateDesktop(l);
 }
 bool observerHealthy(Ledger* l,bool worker) {
     const auto t=now();
@@ -178,9 +198,22 @@ private:
 thread_local DesktopObserver* DesktopObserver::current_=nullptr;
 // Function parameters permit isolated fault tests; neither callback is exposed
 // through the runtime protocol. Production callers always use the Win32 APIs.
-template<class DesktopCheck=bool(*)(),class Insert=UINT(WINAPI*)(UINT,LPINPUT,int)>
-bool release(Ledger* l,DesktopCheck safeDesktop=defaultDesktop,Insert insert=SendInput) {
+enum class ReleaseStep { BeforeJournal, JournalPublished, Inserted, CandidateCleared, BeforeCommit, Committed };
+struct ReleaseCheckpoint {void operator()(ReleaseStep)const{}};
+template<class Checkpoint>
+void publishReleaseJournal(Ledger* l,const std::array<bool,CandidateCount>& candidates,LONG unicode,LONG64 generation,Checkpoint checkpoint) {
+    if(InterlockedCompareExchange(&l->releaseJournalState,0,0)!=0){invalidateDesktop(l);return;}
+    for(size_t i=0;i<CandidateCount;++i)InterlockedExchange(&l->releaseCandidates[i],candidates[i]?1:0);
+    InterlockedExchange(&l->releaseUnicode,unicode);
+    InterlockedExchange64(&l->releaseGeneration,generation);
+    checkpoint(ReleaseStep::BeforeJournal);
+    if(InterlockedCompareExchange(&l->releaseJournalState,1,0)!=0){invalidateDesktop(l);return;}
+    checkpoint(ReleaseStep::JournalPublished);
+}
+template<class DesktopCheck=bool(*)(),class Insert=UINT(WINAPI*)(UINT,LPINPUT,int),class Checkpoint=ReleaseCheckpoint>
+bool release(Ledger* l,DesktopCheck safeDesktop=defaultDesktop,Insert insert=SendInput,Checkpoint checkpoint={}) {
     InterlockedExchange(&l->gate,0);
+    recoverReleaseJournal(l);
     if(InterlockedCompareExchange(&l->cleanup,0,0)<0)return false;
     if(l->desktopInvalid){InterlockedExchange(&l->cleanup,-2);return false;}
     // No candidate was ever left down. Confirming an empty ledger needs no
@@ -199,11 +232,13 @@ bool release(Ledger* l,DesktopCheck safeDesktop=defaultDesktop,Insert insert=Sen
     // been checked. An uncertain later up must retain the conservative ledger.
     std::array<bool,CandidateCount> candidates{};
     for(size_t i=0;i<CandidateCount;++i)candidates[i]=InterlockedCompareExchange(&l->candidates[i],0,0)!=0;
+    publishReleaseJournal(l,candidates,unicode,generation,checkpoint);
     if(unicode) {
         if(!unchanged())return uncertain();
         INPUT e{};e.type=INPUT_KEYBOARD;e.ki.wScan=WORD(unicode-1);
         e.ki.dwFlags=KEYEVENTF_UNICODE|KEYEVENTF_KEYUP;e.ki.dwExtraInfo=InputTag;
         if(insert(1,&e,sizeof(e))!=1)ok=false;
+        checkpoint(ReleaseStep::Inserted);
         if(!unchanged())return uncertain();
     }
     for(size_t i=0;i<CandidateCount;++i) {
@@ -220,19 +255,48 @@ bool release(Ledger* l,DesktopCheck safeDesktop=defaultDesktop,Insert insert=Sen
             e.mi.dwExtraInfo=InputTag;
         }
         if(insert(1,&e,sizeof(e))!=1)ok=false;
+        checkpoint(ReleaseStep::Inserted);
         if(!unchanged())return uncertain();
     }
     if(!unchanged())return uncertain();
     if(!ok){failCleanup(l);return false;}
-    if(unicode)InterlockedExchange(&l->unicodeCandidate,0);
-    for(size_t i=0;i<CandidateCount;++i)if(candidates[i])InterlockedExchange(&l->candidates[i],0);
+    if(unicode){InterlockedExchange(&l->unicodeCandidate,0);checkpoint(ReleaseStep::CandidateCleared);}
+    for(size_t i=0;i<CandidateCount;++i)if(candidates[i]) {
+        InterlockedExchange(&l->candidates[i],0);checkpoint(ReleaseStep::CandidateCleared);
+    }
     auto restore=[&](){
         if(unicode)InterlockedExchange(&l->unicodeCandidate,unicode);
         for(size_t i=0;i<CandidateCount;++i)if(candidates[i])InterlockedExchange(&l->candidates[i],1);
     };
     if(!unchanged()){restore();return uncertain();}
+    checkpoint(ReleaseStep::BeforeCommit);
+    if(InterlockedCompareExchange(&l->releaseJournalState,0,1)!=1){restore();return uncertain();}
+    checkpoint(ReleaseStep::Committed);
     InterlockedCompareExchange(&l->cleanup,1,0);
     if(!sameDesktopGeneration(l,generation) || l->cleanup<0){restore();return uncertain();}
+    return true;
+}
+// A normal up has the same crash window as closeAndRelease. Keep its undo
+// record in shared memory until the candidate removal is atomically committed.
+template<class Checkpoint=ReleaseCheckpoint>
+bool completeUp(Ledger* l,size_t index,LONG unicode,LONG64 generation,Checkpoint checkpoint={}) {
+    std::array<bool,CandidateCount> candidates{};
+    if(index<CandidateCount)candidates[index]=true;
+    publishReleaseJournal(l,candidates,unicode,generation,checkpoint);
+    auto restore=[&](){
+        if(index<CandidateCount)InterlockedExchange(&l->candidates[index],1);
+        if(unicode)InterlockedExchange(&l->unicodeCandidate,unicode);
+        invalidateDesktop(l);return false;
+    };
+    if(!sameDesktopGeneration(l,generation))return restore();
+    if(index<CandidateCount)InterlockedExchange(&l->candidates[index],0);
+    if(unicode)InterlockedExchange(&l->unicodeCandidate,0);
+    checkpoint(ReleaseStep::CandidateCleared);
+    if(!sameDesktopGeneration(l,generation))return restore();
+    checkpoint(ReleaseStep::BeforeCommit);
+    if(InterlockedCompareExchange(&l->releaseJournalState,0,1)!=1)return restore();
+    checkpoint(ReleaseStep::Committed);
+    if(!sameDesktopGeneration(l,generation))return restore();
     return true;
 }
 
@@ -268,6 +332,9 @@ int guardian(HANDLE mapping,HANDLE worker,HANDLE parent,HANDLE report) {
                     failCleanup(l);return finish(3);
                 }
             }
+            // Restore a worker's interrupted metadata commit even when an
+            // earlier uncertainty prevents any further OS input.
+            recoverReleaseJournal(l);
             // A previous uncertain cleanup is sticky, even if desktop returned.
             if(InterlockedCompareExchange(&l->cleanup,0,0)<0) return finish(4);
             const bool ok=release(l,[&](){return observer.pump() && observersHealthy(l,false) && defaultDesktop();});
@@ -648,10 +715,7 @@ private:
         const auto generation=desktopGeneration(ledger_);
         if(down)InterlockedExchange(&ledger_->candidates[index],1);
         if(!send(e))return false;
-        if(!down) {
-            InterlockedExchange(&ledger_->candidates[index],0);
-            if(!sameDesktopGeneration(ledger_,generation)){InterlockedExchange(&ledger_->candidates[index],1);return false;}
-        }
+        if(!down && !completeUp(ledger_,index,0,generation))return false;
         return true;
     }
     void input(const std::vector<uint8_t>& data) {
@@ -690,10 +754,7 @@ private:
             const auto generation=desktopGeneration(ledger_);
             if(e.action)InterlockedExchange(&ledger_->candidates[index],1);
             ok=send(n);
-            if(ok&&!e.action) {
-                InterlockedExchange(&ledger_->candidates[index],0);
-                if(!sameDesktopGeneration(ledger_,generation)){InterlockedExchange(&ledger_->candidates[index],1);ok=false;}
-            }
+            if(ok&&!e.action)ok=completeUp(ledger_,index,0,generation);
             break;
         }
         case rc::Kind::Wheel: {
@@ -713,10 +774,7 @@ private:
                 InterlockedExchange(&ledger_->unicodeCandidate,LONG(e.text[i])+1);
                 ok=SendInput(2,pair,sizeof(INPUT))==2;
                 if(!executionDesktop(ledger_,generation))ok=false;
-                if(ok) {
-                    InterlockedExchange(&ledger_->unicodeCandidate,0);
-                    if(!sameDesktopGeneration(ledger_,generation)){InterlockedExchange(&ledger_->unicodeCandidate,LONG(e.text[i])+1);ok=false;}
-                }
+                if(ok)ok=completeUp(ledger_,CandidateCount,LONG(e.text[i])+1,generation);
             }break;
         }
         case rc::Kind::Release:ok=release(ledger_,[&](){return cleanupObserverHealthy(ledger_) && defaultDesktop();});break;
