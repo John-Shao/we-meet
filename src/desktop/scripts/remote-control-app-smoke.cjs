@@ -18,6 +18,7 @@ async function main() {
   delete env.ELECTRON_RUN_AS_NODE
   delete env.WEMEET_USER_DATA
   const app = await _electron.launch({ executablePath: executable, args: [`--user-data-dir=${profile}`, '--no-default-protocol-registration'], env, timeout: 30000 })
+  let page
   try {
     const runtime = await app.evaluate(({ app }) => ({
       packaged: app.isPackaged, version: app.getVersion(), appPath: app.getAppPath(),
@@ -28,15 +29,10 @@ async function main() {
     assert.equal(runtime.packaged, true)
     assert.equal(runtime.protocolRegistrationSuppressed, true)
     assert.match(runtime.appPath, /resources[\\/]app\.asar$/)
-    const page = await app.firstWindow()
+    page = await app.firstWindow()
     const errors = []
     page.on('pageerror', error => errors.push(error.name))
     await page.waitForFunction(() => !!document.querySelector('#root')?.textContent?.trim(), { timeout: 45000 })
-    await page.waitForFunction(async () => (await window.weMeetDesktop?.getStatus())?.connection !== 'connecting', { timeout: 45000 })
-    const status = await page.evaluate(() => window.weMeetDesktop.getStatus())
-    assert.equal(status.auth, 'signed-out')
-    if (status.connection === 'online') await page.locator('[data-attr="login"]:visible').first().waitFor({ timeout: 30000 })
-    else await page.getByRole('status').filter({ hasText: '无法连接服务' }).waitFor({ timeout: 30000 })
     assert.equal(await page.evaluate(() => typeof window.require), 'undefined')
     const prefs = await app.evaluate(({ BrowserWindow }) => {
       const p = BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences()
@@ -53,14 +49,31 @@ async function main() {
       return { ready: result.ready, displays: result.displays.length, descriptor }
     })
     assert.ok(probe.displays > 0)
+    // Network state can change while React renders; wait on the actual visible
+    // outcome rather than choosing a branch from an earlier IPC snapshot.
+    const login = page.locator('[data-attr="login"]:visible').first()
+    const offline = page.getByRole('status').filter({ hasText: '无法连接服务' })
+    await login.or(offline).first().waitFor({ timeout: 45000 })
+    const startupView = await login.isVisible() ? 'login' : 'offline'
+    const status = await page.evaluate(() => window.weMeetDesktop.getStatus())
+    assert.equal(status.auth, 'signed-out')
     assert.deepEqual(errors, [])
     await page.screenshot({ path: path.join(profile, 'startup.png'), animations: 'disabled' })
     await fs.writeFile(path.join(profile, 'report.json'), JSON.stringify({
       passed: true, testedAt: new Date().toISOString(), runtime, prefs, probe,
-      auth: status.auth, connection: status.connection,
+      auth: status.auth, connection: status.connection, startupView,
       scope: 'Complete unpacked app, fresh profile, public startup and native read-only probe; no installation, login, meeting or input injection',
     }, null, 2) + '\n')
     console.log(`Complete app smoke passed. Report: ${path.join(profile, 'report.json')}`)
+  } catch (error) {
+    await page?.screenshot({ path: path.join(profile, 'failure.png') }).catch(() => {})
+    const status = await page?.evaluate(async () => {
+      const s = await window.weMeetDesktop?.getStatus()
+      return { auth: s?.auth, connection: s?.connection }
+    }).catch(() => undefined)
+    await fs.writeFile(path.join(profile, 'failure.json'), JSON.stringify({ passed: false, error: error.name, status }, null, 2) + '\n')
+    console.error(`Failure evidence: ${profile}`)
+    throw error
   } finally {
     await app.evaluate(({ app }) => app.exit(0)).catch(() => {})
     await app.close().catch(() => {})
