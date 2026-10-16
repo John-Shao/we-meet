@@ -36,6 +36,7 @@ constexpr ULONG_PTR InputTag = 0x574d5243;
 constexpr size_t KeyCount = 512;
 constexpr size_t ButtonBase = KeyCount;
 constexpr size_t CandidateCount = KeyCount + 3;
+enum class DesktopFault : LONG { None, Other, MessageBacklog, DesktopSwitch, SessionChange, PowerChange, ObserverWaitFailed, GuardianObserverUnavailable };
 struct Ledger {
     uint32_t magic;
     volatile LONG gate; // one-way close until a parent-authorized fresh Arm
@@ -45,6 +46,7 @@ struct Ledger {
     volatile LONG unicodeCandidate; // UTF-16 code unit + 1, recorded before pair
     volatile LONG64 workerBeat, parentBeat;
     volatile LONG desktopInvalid, workerObserverReady, guardianObserverReady;
+    volatile LONG desktopFault;
     volatile LONG64 desktopGeneration, workerObserverBeat, guardianObserverBeat;
     // Write-ahead release snapshot survives a crash during candidate removal.
     // 0 committed/unused, 1 pending, 2 invalidated by a desktop transition.
@@ -79,7 +81,20 @@ bool emptyLedger(Ledger* l) {
     return true;
 }
 LONG64 desktopGeneration(Ledger* l){return InterlockedCompareExchange64(&l->desktopGeneration,0,0);}
-void invalidateDesktop(Ledger* l) {
+const char* desktopFaultName(Ledger* l) {
+    switch(static_cast<DesktopFault>(InterlockedCompareExchange(&l->desktopFault,0,0))) {
+    case DesktopFault::None:return "none";
+    case DesktopFault::MessageBacklog:return "message_backlog";
+    case DesktopFault::DesktopSwitch:return "desktop_switch";
+    case DesktopFault::SessionChange:return "session_change";
+    case DesktopFault::PowerChange:return "power_change";
+    case DesktopFault::ObserverWaitFailed:return "observer_wait_failed";
+    case DesktopFault::GuardianObserverUnavailable:return "guardian_observer_unavailable";
+    default:return "other";
+    }
+}
+void invalidateDesktop(Ledger* l,DesktopFault fault=DesktopFault::Other) {
+    InterlockedCompareExchange(&l->desktopFault,static_cast<LONG>(fault),0);
     // A transition is irreversible for this helper, even if Default has already
     // returned when the asynchronous notification reaches its observer.
     // Competes with the cleanup commit before publishing the transition latch.
@@ -166,21 +181,26 @@ public:
         InterlockedExchange64(beat_,now());InterlockedExchange(ready_,1);
         return true;
     }
-    template<class Handler> bool pump(Handler handle) {
-        MSG message{};unsigned count=0;
-        while(count++<64 && PeekMessageW(&message,nullptr,0,0,PM_REMOVE)) {
+    template<class Handler,class Peek=decltype(&PeekMessageW)> bool pump(Handler handle,Peek peek=&PeekMessageW) {
+        MSG message{};
+        for(unsigned count=0;count<64;++count) {
+            // An empty observation completes this pass. A second peek could
+            // see a newly arrived message and mistake it for a full backlog.
+            if(!peek(&message,nullptr,0,0,PM_REMOVE)) {
+                InterlockedExchange64(beat_,now());return true;
+            }
             if(message.message==WM_QUIT)return false;
             if(!handle(message)){TranslateMessage(&message);DispatchMessageW(&message);}
         }
         // Do not advertise a live observer while an unbounded backlog prevents
         // desktop notifications from being inspected.
-        if(PeekMessageW(&message,nullptr,0,0,PM_NOREMOVE)){invalidateDesktop(ledger_);return false;}
+        if(peek(&message,nullptr,0,0,PM_NOREMOVE)){invalidateDesktop(ledger_,DesktopFault::MessageBacklog);return false;}
         InterlockedExchange64(beat_,now());return true;
     }
     bool pump(){return pump([](const MSG&){return false;});}
 private:
     static void CALLBACK desktopEvent(HWINEVENTHOOK,DWORD event,HWND,LONG,LONG,DWORD,DWORD) {
-        if(current_ && event==EVENT_SYSTEM_DESKTOPSWITCH)invalidateDesktop(current_->ledger_);
+        if(current_ && event==EVENT_SYSTEM_DESKTOPSWITCH)invalidateDesktop(current_->ledger_,DesktopFault::DesktopSwitch);
     }
     static LRESULT CALLBACK windowProc(HWND window,UINT message,WPARAM w,LPARAM l) {
         auto* self=reinterpret_cast<DesktopObserver*>(GetWindowLongPtrW(window,GWLP_USERDATA));
@@ -191,13 +211,13 @@ private:
         if(message==WM_WTSSESSION_CHANGE && self && DWORD(l)==self->session_) {
             // Lock, unlock, disconnect, reconnect and other session changes all
             // invalidate the old execution context; none implicitly resumes it.
-            invalidateDesktop(self->ledger_);return 0;
+            invalidateDesktop(self->ledger_,DesktopFault::SessionChange);return 0;
         }
         if(message==WM_POWERBROADCAST && self &&
             (w==PBT_APMSUSPEND || w==PBT_APMRESUMEAUTOMATIC || w==PBT_APMRESUMESUSPEND)) {
             // A wake notification also invalidates the old context if suspend
             // delivery was missed; waking never restores an earlier permission.
-            invalidateDesktop(self->ledger_);return TRUE;
+            invalidateDesktop(self->ledger_,DesktopFault::PowerChange);return TRUE;
         }
         return DefWindowProcW(window,message,w,l);
     }
@@ -320,14 +340,15 @@ int guardian(HANDLE mapping,HANDLE worker,HANDLE parent,HANDLE report) {
     DesktopObserver observer(l,false);
     const bool initialized=observer.initialize();
     auto finish=[&](int code){
-        std::string message="{\"event\":\"guardianClosed\",\"cleanup\":"+std::to_string(l->cleanup)+"}\n";
+        std::string message="{\"event\":\"guardianClosed\",\"cleanup\":"+std::to_string(l->cleanup)+
+            ",\"desktopCause\":\""+desktopFaultName(l)+"\"}\n";
         DWORD written=0;WriteFile(report,message.data(),DWORD(message.size()),&written,nullptr);
         observer.dispose();
         UnmapViewOfFile(l);CloseHandle(mapping);CloseHandle(worker);CloseHandle(parent);CloseHandle(report);
         return code;
     };
     for(;;) {
-        if(!initialized || !observer.pump())invalidateDesktop(l);
+        if(!initialized || !observer.pump())invalidateDesktop(l,DesktopFault::GuardianObserverUnavailable);
         const auto t=now();
         bool exited=WaitForSingleObject(worker,0)==WAIT_OBJECT_0;
         bool parentGone=WaitForSingleObject(parent,0)==WAIT_OBJECT_0;
@@ -511,7 +532,7 @@ public:
                 if(event.message==TrustedUi::Update){ui_.drain();return true;}
                 return false;
             })) {
-                if(MsgWaitForMultipleObjects(0,nullptr,FALSE,20,QS_ALLINPUT)==WAIT_FAILED){invalidateDesktop(ledger_);break;}
+                if(MsgWaitForMultipleObjects(0,nullptr,FALSE,20,QS_ALLINPUT)==WAIT_FAILED){invalidateDesktop(ledger_,DesktopFault::ObserverWaitFailed);break;}
             }
             ui_.dispose();
             if(keyboard)UnhookWindowsHookEx(keyboard);
@@ -653,7 +674,8 @@ private:
         if(!keepConsent){consentPending_=false;consentApproved_=false;}
         ui_.setMode(mode);
         if(emit)reply(std::string("{\"event\":\"closed\",\"reason\":\"")+reason+"\",\"wasActive\":"+
-            (was?"true":"false")+",\"cleanup\":"+std::to_string(ledger_->cleanup)+"}");
+            (was?"true":"false")+",\"cleanup\":"+std::to_string(ledger_->cleanup)+
+            ",\"desktopCause\":\""+desktopFaultName(ledger_)+"\"}");
     }
     void arm(const std::vector<uint8_t>& data) {
         if(active_ || !hooksReady_ || !consentApproved_ || now()>=consentExpires_ || !ui_.ready() || ledger_->cleanup<0 || ledger_->desktopInvalid || !observersHealthy(ledger_) || !emptyLedger(ledger_) ||

@@ -12,7 +12,7 @@ test('diagnostics retain native lifecycle evidence without credentials, identifi
   sink.record('native', { event: 'consentAllowed', consentId: 'private-id', nonce: 'private-nonce', token: 'private-token', text: 'private-input' });
   sink.record('native', { event: 'inputAck', seq: 1, text: 'private-input' });
   sink.record('failure', { reason: 'privatecredential', sessionId: 'private-session', error: 'private-error' });
-  sink.record('native', { event: 'closed', reason: 'desktop_observation_lost', cleanup: -2, wasActive: false });
+  sink.record('native', { event: 'closed', reason: 'desktop_observation_lost', desktopCause: 'message_backlog', cleanup: -2, wasActive: false });
   sink.record('native', { event: 'terminated', cleanup: -2, exitCode: 3 });
   sink.record('state', { phase: 'blocked', cleanupBlocked: true, sessionId: 'private-session' });
   sink.record('state', { phase: 'blocked', cleanupBlocked: true, sessionId: 'another-private-session' });
@@ -25,6 +25,7 @@ test('diagnostics retain native lifecycle evidence without credentials, identifi
   assert.equal(rows[1].reason, 'unknown');
   assert.equal(rows[2].reason, 'desktop_observation_lost');
   assert.equal(rows[2].cleanup, -2);
+  assert.equal(rows[2].desktopCause, 'message_backlog');
   assert.equal(rows[3].exitCode, 3);
   assert.equal(rows[4].phase, 'blocked');
 });

@@ -98,6 +98,45 @@ int wmain(int argc,wchar_t** argv) {
     if(argc>1 && wcscmp(argv[1],L"--crash-release")==0)return crashChild(argc,argv);
     try {
         unsigned cases=0;
+        // A normal message arriving after an empty queue observation belongs to
+        // the next pump iteration; it does not prove observer starvation.
+        {
+            Ledger ledger{};ledger.cleanup=1;DesktopObserver observer(&ledger,true);
+            unsigned peeks=0;
+            auto arriving=[&](MSG* message,HWND,UINT,UINT,UINT)->BOOL {
+                ++peeks;message->message=WM_NULL;return peeks>1;
+            };
+            expect(observer.pump([](const MSG&){return true;},arriving),"new message after idle falsely invalidates desktop");
+            expect(peeks==1 && ledger.cleanup==1 && !ledger.desktopInvalid,"idle observation performed a racy second peek");
+            ++cases;
+        }
+        for(unsigned queued:{1u,63u,64u,65u}) {
+            Ledger ledger{};ledger.cleanup=1;DesktopObserver observer(&ledger,true);
+            unsigned removed=0,handled=0;
+            auto queue=[&](MSG* message,HWND,UINT,UINT,UINT flags)->BOOL {
+                message->message=WM_NULL;
+                if(removed>=queued)return FALSE;
+                if(flags==PM_REMOVE)++removed;
+                return TRUE;
+            };
+            const bool healthy=observer.pump([&](const MSG&){++handled;return true;},queue);
+            expect(healthy==(queued<=64),"observer message budget changed");
+            expect(handled==std::min(queued,64u),"observer skipped queued messages");
+            expect(ledger.desktopInvalid==(queued>64?1:0),"backlog protection changed");
+            expect(std::string(desktopFaultName(&ledger))==(queued>64?"message_backlog":"none"),"backlog diagnostic missing");
+            ++cases;
+        }
+        // A delivered desktop transition remains sticky even if the queue is
+        // empty immediately afterwards; a heartbeat must never reset it.
+        {
+            Ledger ledger{};ledger.cleanup=1;DesktopObserver observer(&ledger,true);
+            unsigned peeks=0;
+            observer.pump([&](const MSG&){invalidateDesktop(&ledger,DesktopFault::DesktopSwitch);return true;},
+                [&](MSG* message,HWND,UINT,UINT,UINT)->BOOL {message->message=WM_NULL;return ++peeks==1;});
+            expect(ledger.cleanup==-2 && ledger.desktopInvalid==1,"pump cleared a delivered desktop transition");++cases;
+            invalidateDesktop(&ledger,DesktopFault::MessageBacklog);
+            expect(std::string(desktopFaultName(&ledger))=="desktop_switch","later fault overwrote the first diagnostic cause");
+        }
         for(LONG prior:{LONG(0),LONG(1),LONG(-1),LONG(-2)}) {
             Ledger ledger{};ledger.cleanup=prior;failCleanup(&ledger);
             expect(ledger.cleanup==(prior<0?prior:-1),"failed termination did not preserve negative cleanup");++cases;

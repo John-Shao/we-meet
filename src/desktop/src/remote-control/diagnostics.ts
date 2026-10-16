@@ -4,6 +4,7 @@ import path from "node:path";
 export type DiagnosticSink = (kind: "native" | "state" | "failure" | "shutdown", value: Record<string, unknown>) => void;
 const events = new Set(["hello", "displays", "consentShown", "consentAllowed", "uiUnavailable", "closed", "guardianClosed", "terminated", "failed", "fatal", "armed", "resumeRequested"]);
 const phases = new Set(["idle", "preparing", "confirming", "active", "pausing", "paused", "ending", "ended", "blocked"]);
+const desktopCauses = new Set(["none", "other", "message_backlog", "desktop_switch", "session_change", "power_change", "observer_wait_failed", "guardian_observer_unavailable"]);
 // Keep data from errors and native events on a fixed vocabulary. No arbitrary
 // error text, account/session IDs, tokens, signatures, nonces or input payloads.
 const reasons = new Set((
@@ -27,6 +28,7 @@ export function diagnosticFields(value: Record<string, unknown>) {
   if (typeof value.event === "string" && events.has(value.event)) safe.event = value.event;
   if (typeof value.phase === "string" && phases.has(value.phase)) safe.phase = value.phase;
   if (typeof value.reason === "string") safe.reason = reasons.has(value.reason) ? value.reason : "unknown";
+  if (typeof value.desktopCause === "string") safe.desktopCause = desktopCauses.has(value.desktopCause) ? value.desktopCause : "unknown";
   for (const key of ["ready", "inputOpen", "cleanupBlocked", "wasActive"])
     if (typeof value[key] === "boolean") safe[key] = value[key];
   for (const key of ["cleanup", "exitCode", "pid", "guardianPid"])

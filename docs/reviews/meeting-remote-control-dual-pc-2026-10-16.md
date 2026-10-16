@@ -52,6 +52,22 @@ B 返回的 `native-consent-20261016-175832-368.jsonl` 显示：北京时间 17:
 
 delivery.9 候选仅补充客户端主进程脱敏事件日志，并包含上述已登录横幅按钮修正。记录原生生命周期、授权状态变化、失败原因白名单、退出码与清理结果；不记录会话标识、账号、令牌、签名、nonce、屏幕或输入内容，不记录逐条输入/心跳。日志异步落盘、失败不影响控制决策，最多两个 128 KiB 文件及 128 条待写记录。没有变更原生授权、守护进程、释放保护、申请期限或服务器。新增脱敏/去重/轮转/写入失败回归；桌面测试 113 通过、1 跳过，安装包及 B 会议内复测待完成。
 
+已由干净提交 `eca7a8a4517d27be9b15ed8b26af7bfdefcbeee4` 构建 `We-Meet-0.4.0-delivery.9-setup.exe`，187,806,859 字节，SHA-256 `e817c5ce28d12a10b0be81a89bb6acb83b0b7448dd84d1ed7e1cef0c1e46441f`，签名状态 NotSigned（内部测试）。包内四项主进程/诊断 JS 与构建逐字节一致，202 项页面资源、原生清单及交接复制后摘要校验通过。交接目录 `work/remote-control-dual-pc-2026-10-16/update-delivery9`；日志位于 B 的 `%APPDATA%\we-meet-desktop\diagnostics`。真实 helper 关闭/守护清理用例通过。该提交的 [Release guard 38884994462](https://github.com/John-Shao/we-meet/actions/runs/38884994462) Windows desktop-boundaries 和 deployment-boundaries 已成功，完整 workflow 待完成；B 更新及会议内复测待反馈。
+
+B 随后确认更新、重新入会及共享整屏，能力登记正常。同步等待约 10 秒后发起申请 `d4c52b0a-778f-4362-92b7-567f3fec3539`，北京时间 18:27:50 A 观察到 PREPARING，18:27:52 变为 ENDED / local_stop、stateVersion=3；共享画面再次显示清理结果未确认的保护提示。已登录横幅不再显示“重新登录”按钮。A 未点击开始、未发送键鼠或文本。已请求 B 停止共享并复制本版诊断日志，原生原因待分析，T03 仍未通过。
+
+随后从 GitHub 公开 API 核对同一提交 eca7a8a45 的 Release guard 38884994462：完整 workflow 已完成且成功。CI 成功不改变上述实机异常仍未解决的结论。
+
+### delivery.9 日志定位与 delivery.10 竞态修复候选
+
+B 返回 `update-delivery9/remote-control.jsonl`，没有轮转文件。北京时间 18:27:49.834 记录 consentShown，18:27:51.681 原生首先报告 `closed / desktop_observation_lost / wasActive=false / cleanup=-2`，之后主进程进入 blocked，守护进程确认 cleanup=-2，worker exitCode=3。没有 consentAllowed、armed 或任何输入。`shutdown` 将非成功结果规范为 -1，原始 -2 已在 native 记录保留。该事件说明桌面观察失效触发保护，尚不能区分具体桌面通知或消息循环故障；不能归因为用户申请超时或后端 approve 错误。
+
+检查发现 DesktopObserver 的确定性竞态：`PeekMessage(PM_REMOVE)` 已返回空后，仍执行第二次 `PeekMessage(PM_NOREMOVE)`；两次之间到达的单条普通消息会被当作超过 64 条处理预算的积压，设置不可逆 desktopInvalid / cleanup=-2。使用生产 pump 的可注入 Peek 适配器新增回归，旧逻辑实际失败（`new message after idle falsely invalidates desktop`）。修复在首次观察为空时直接完成本轮；只有确实处理满 64 条后才检查积压，保留原处理预算和所有桌面变化锁存保护。
+
+新增空队列到达竞态、1/63/64/65 条边界、桌面变化锁存及首因保留检查。释放故障 53 项、真实子进程崩溃 58 项通过，真实输入调用为 0。原生 closed/guardianClosed 事件增加固定枚举 desktopCause，主进程仅记录其白名单；用以区分 B 后续的消息积压、桌面切换、会话、电源或观察线程故障。候选版本为 delivery.10；该竞态已复现并修复，但是否是 B 此次异常的实际触发条件仍需升级复测，暂不登记 T03 通过。
+
+本地完整远控检查通过：99 项 Node 集成/单元测试通过，原生运行时 33 项中 30 通过、3 项真实输入用例按默认模式跳过；572 种保留快捷键组合、1830 次策略判断通过。随后桌面普通测试 113 通过、1 跳过。原生回归覆盖 worker/guardian 的会话变化、休眠/唤醒关闭、原生确认、暂停/重新确认及清理；没有执行真实按键/拖拽注入测试。下一步构建并交接 delivery.10，再验证 B 会议内授权。
+
 - 用户已准备第二台 Windows 10/11，可安装测试客户端，由用户操作。先安排本机为 A（操作方），第二台电脑为 B（被控方）。具体 Windows 版本、账号、组织和网络待记录。
 - 目标站点：`https://meet.we-meet.online`；认证 issuer：`https://id.we-meet.online/realms/meet`。
 - 公开 HTTP 实测：主页、配置接口、OIDC discovery 均为 200；OIDC 支持 S256。
