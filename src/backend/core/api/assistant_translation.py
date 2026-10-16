@@ -1,24 +1,19 @@
 """Short-lived, single-use admission for the standalone bilingual assistant."""
 
-import re
-import secrets
 from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.core import signing
-from django.core.cache import cache
+from django.utils import timezone
 
-import requests
 from rest_framework import permissions, serializers, throttling
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.api.agent_internal import AgentTokenAuthentication, HasAgentToken
-from core.api.ai_call import MAX_SDP_LENGTH, parse_connection
-from core.models import AIModel, User
-from core.services import provider_http
-from core.services.assistant_prompts import language_detection
-from core.services.direct_ai_allocations import allocating
+from core.models import AIModel, BilingualSession
+from core.services import bilingual_sessions
 
 SALT = "assistant-translation-v1"
 # LiveTranslate 3.8 languages supporting both audio and text output.
@@ -45,6 +40,26 @@ class PairSerializer(serializers.Serializer):
 
 
 TRANSLATION_MODEL = "qwen3.8-livetranslate-flash-realtime"
+
+
+class TicketSerializer(PairSerializer):
+    """Freeze all product choices before the gateway can open paid connections."""
+
+    protocol_version = serializers.IntegerField(min_value=2, max_value=2)
+    fixed_source = serializers.ChoiceField(
+        choices=LANGUAGES, allow_null=True, default=None
+    )
+    voice = serializers.CharField(max_length=128, required=False)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if attrs["fixed_source"] not in (
+            None,
+            attrs["source_language"],
+            attrs["target_language"],
+        ):
+            raise serializers.ValidationError("Invalid fixed direction.")
+        return attrs
 
 
 class AssistantTranslationConfigView(APIView):
@@ -77,7 +92,25 @@ class AssistantTranslationConfigView(APIView):
                 "Tina" if "Tina" in values else (voices[0]["value"] if voices else None)
             )
         return Response(
-            {"model": TRANSLATION_MODEL, "default_voice": default, "voices": voices},
+            {
+                "model": TRANSLATION_MODEL,
+                "default_voice": default,
+                "voices": voices,
+                "protocol_version": 2,
+                "languages": list(LANGUAGES),
+                "enabled": bool(
+                    settings.ASSISTANT_TRANSLATION_ENABLED and model and voices
+                ),
+                "reason": (
+                    "feature_disabled"
+                    if not settings.ASSISTANT_TRANSLATION_ENABLED
+                    else "model_unavailable"
+                    if model is None
+                    else "voices_disabled"
+                    if not voices
+                    else None
+                ),
+            },
             headers={"Cache-Control": "no-store"},
         )
 
@@ -87,8 +120,13 @@ class AssistantTranslationTicketView(APIView):
     throttle_classes = [TranslationThrottle]
 
     def post(self, request):
-        serializer = PairSerializer(data=request.data)
+        if not isinstance(request.data, dict):
+            raise serializers.ValidationError("Expected a JSON object.")
+        if request.data.get("protocol_version") != 2:
+            return Response({"code": "client_upgrade_required"}, status=426)
+        serializer = TicketSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        bilingual_sessions.policy()
         url = settings.MEETING_CAPTURE_TRANSLATION_URL
         try:
             parsed = urlsplit(url)
@@ -108,16 +146,48 @@ class AssistantTranslationTicketView(APIView):
             valid = False
         if not valid or not settings.AGENT_INTERNAL_API_TOKEN:
             return Response({"detail": "Translation is not configured."}, status=503)
+        model = AIModel.objects.filter(
+            code=f"aliyun/{TRANSLATION_MODEL}",
+            is_active=True,
+            vendor__is_active=True,
+            capability="omni",
+        ).first()
+        if model is None:
+            return Response({"code": "model_unavailable"}, status=503)
+        voices = list(
+            model.voices.filter(is_active=True)
+            .order_by("sort_order", "label", "value")
+            .values_list("value", flat=True)
+        )
+        if not voices:
+            return Response({"code": "voices_disabled"}, status=503)
+        data = serializer.validated_data
+        config = model.extra_config if isinstance(model.extra_config, dict) else {}
+        default = config.get("default_voice")
+        voice = data.get(
+            "voice",
+            default
+            if default in voices
+            else ("Tina" if "Tina" in voices else voices[0]),
+        )
+        if voice not in voices:
+            return Response({"code": "voice_unavailable"}, status=400)
+        session = bilingual_sessions.reserve(request.user)
+        limits = bilingual_sessions.policy()
         ticket = signing.dumps(
             {
                 "user": str(request.user.pk),
-                "nonce": secrets.token_hex(16),
-                **serializer.validated_data,
+                "session_id": str(session.pk),
+                **data,
+                "voice": voice,
+                "max_seconds": limits["max_seconds"],
+                "idle_seconds": limits["idle_seconds"],
             },
             salt=SALT,
         )
         return Response(
-            {"url": url, "ticket": ticket}, headers={"Cache-Control": "no-store"}
+            {"url": url, "ticket": ticket, "protocol_version": 2},
+            headers={"Cache-Control": "no-store"},
         )
 
 
@@ -131,135 +201,66 @@ class AssistantTranslationClaimView(APIView):
         )
         try:
             grant = signing.loads(ticket, salt=SALT, max_age=30)
-            serializer = PairSerializer(data=grant)
+            serializer = TicketSerializer(data=grant)
             serializer.is_valid(raise_exception=True)
-            if not User.objects.filter(pk=grant["user"], is_active=True).exists():
-                raise ValueError
-            # Atomic add also prevents concurrent claims across gateway replicas.
-            if not cache.add(
-                f"assistant-translation-used:{grant['nonce']}", True, timeout=60
-            ):
-                raise ValueError
+            session = bilingual_sessions.claim(grant["session_id"], grant["user"])
         except (
             signing.BadSignature,
             KeyError,
             ValueError,
             serializers.ValidationError,
+            PermissionDenied,
+            BilingualSession.DoesNotExist,
         ):
             return Response(status=403)
         return Response(
-            serializer.validated_data, headers={"Cache-Control": "no-store"}
+            {
+                **serializer.validated_data,
+                "session_id": str(session.pk),
+                "max_seconds": grant["max_seconds"],
+                "remaining_seconds": max(
+                    1, int((session.deadline - timezone.now()).total_seconds())
+                ),
+                "idle_seconds": grant["idle_seconds"],
+                "heartbeat_seconds": bilingual_sessions.HEARTBEAT_SECONDS,
+            },
+            headers={"Cache-Control": "no-store"},
         )
 
 
-class DirectTranslationSerializer(PairSerializer):
-    """Only permit the two models required by automatic bilingual translation."""
+class AssistantTranslationLeaseView(APIView):
+    """Gateway-only lifetime enforcement and cleanup, independent of client heartbeats."""
 
-    purpose = serializers.ChoiceField(
-        choices=("translation", "language_detection"), default="translation"
-    )
-    transport = serializers.ChoiceField(choices=("aoq", "webrtc"), default="aoq")
-    sdp = serializers.CharField(
-        max_length=MAX_SDP_LENGTH, required=False, trim_whitespace=False
-    )
+    authentication_classes = [AgentTokenAuthentication]
+    permission_classes = [HasAgentToken]
 
-    def validate(self, attrs):
-        attrs = super().validate(attrs)
-        if attrs["transport"] == "webrtc":
-            offer = attrs.get("sdp", "")
-            if (
-                not offer.startswith("v=0")
-                or "\nm=audio " not in offer
-                or "\nm=application " not in offer
-            ):
-                raise serializers.ValidationError(
-                    {"sdp": "An audio and data SDP offer is required."}
-                )
-        elif attrs.get("sdp"):
-            raise serializers.ValidationError({"sdp": "AOQ does not use SDP."})
-        return attrs
+    def post(self, request):
+        session_id = serializers.UUIDField().run_validation(
+            request.data.get("session_id")
+        )
+        operation = serializers.ChoiceField(
+            choices=("heartbeat", "close")
+        ).run_validation(request.data.get("operation"))
+        try:
+            state = bilingual_sessions.update(session_id, operation)
+        except BilingualSession.DoesNotExist:
+            return Response(status=404)
+        return Response({"status": state}, headers={"Cache-Control": "no-store"})
 
 
 class AssistantTranslationSessionView(APIView):
-    """Allocate AOQ or exchange WebRTC SDP; never proxy speech or expose API keys."""
+    """Retired direct endpoint: old clients must upgrade before starting a session."""
 
     permission_classes = [permissions.IsAuthenticated]
     throttle_classes = [TranslationThrottle]
 
     def post(self, request):
-        serializer = DirectTranslationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        instructions = (
-            language_detection(data["source_language"], data["target_language"])
-            if data["purpose"] == "language_detection"
-            else None
+        return Response(
+            {
+                "code": "client_upgrade_required",
+                "detail": "Upgrade to use WebSocket translation.",
+                "protocol_version": 2,
+            },
+            status=426,
+            headers={"Cache-Control": "no-store"},
         )
-        workspace = settings.DASHSCOPE_WORKSPACE_ID
-        region = settings.DASHSCOPE_REGION
-        api_key = settings.DASHSCOPE_API_KEY
-        if (
-            not api_key
-            or not re.fullmatch(r"[A-Za-z0-9-]+", workspace or "")
-            or region not in {"cn-beijing", "ap-southeast-1"}
-        ):
-            return Response({"detail": "Translation is not configured."}, status=503)
-        model = (
-            TRANSLATION_MODEL
-            if data["purpose"] == "translation"
-            else "qwen3.8-omni-flash-realtime"
-        )
-        url = f"https://{workspace}.{region}.maas.aliyuncs.com/api/v1/webrtc/realtime"
-        is_aoq = data["transport"] == "aoq"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json" if is_aoq else "application/sdp",
-        }
-        if is_aoq:
-            headers["x-dashscope-rtc-transport"] = "moq"
-        with allocating(request.user, model, data["transport"]) as allocation:
-            try:
-                with provider_http.request(
-                    "POST",
-                    url,
-                    params={"model": model},
-                    headers=headers,
-                    data=b"{}" if is_aoq else data["sdp"].encode("utf-8"),
-                    timeout=(5, 20),
-                    allow_redirects=False,
-                    stream=True,
-                ) as upstream:
-                    if upstream.status_code not in (200, 201):
-                        return Response(
-                            {"detail": "Direct translation connection was rejected."},
-                            status=502,
-                        )
-                    chunks = bytearray()
-                    for chunk in upstream.iter_content(8192):
-                        chunks.extend(chunk)
-                        if len(chunks) > MAX_SDP_LENGTH:
-                            raise ValueError("Allocation exceeds size limit")
-                    # Provider answers may already end in CRLF. The shared parser
-                    # appends the final terminator; avoid an empty SDP line.
-                    connection = parse_connection(
-                        chunks.decode("utf-8").rstrip(), is_aoq
-                    )
-                    if not is_aoq and "\nm=application " not in connection["sdp"]:
-                        raise ValueError("Missing event channel")
-            except (requests.RequestException, ValueError, KeyError, TypeError):
-                return Response(
-                    {"detail": "Direct translation connection failed."}, status=502
-                )
-            return Response(
-                {
-                    "model": model,
-                    "instructions": instructions,
-                    **connection,
-                    "session_lease": allocation.issue(),
-                    "transport": data["transport"],
-                    "purpose": data["purpose"],
-                    "source_language": data["source_language"],
-                    "target_language": data["target_language"],
-                },
-                headers={"Cache-Control": "no-store"},
-            )

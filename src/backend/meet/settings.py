@@ -1260,6 +1260,12 @@ class Base(Configuration):
         False, environ_prefix=None
     )
     MEETING_CAPTURE_TRANSLATION_URL = values.Value("", environ_prefix=None)
+    # Standalone bilingual sessions have their own enforced product quota.
+    ASSISTANT_TRANSLATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    ASSISTANT_TRANSLATION_MAX_ACTIVE = values.PositiveIntegerValue(1, environ_prefix=None)
+    ASSISTANT_TRANSLATION_MAX_DAILY = values.PositiveIntegerValue(100, environ_prefix=None)
+    ASSISTANT_TRANSLATION_MAX_SECONDS = values.PositiveIntegerValue(900, environ_prefix=None)
+    ASSISTANT_TRANSLATION_IDLE_SECONDS = values.PositiveIntegerValue(300, environ_prefix=None)
     MEETING_CAPTURE_TRANSLATION_REGION = values.Value("cn-beijing", environ_prefix=None)
     MEETING_CAPTURE_TEXT_ONLY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)

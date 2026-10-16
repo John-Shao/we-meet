@@ -10379,3 +10379,19 @@ class RemoteControlAudit(BaseModel):
 
     def __str__(self):
         return str(self.pk)
+
+
+class BilingualSession(BaseModel):
+    """One gateway conversation, independent of its provider connection count."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    status = models.CharField(max_length=16, default="issued")
+    deadline = models.DateTimeField()
+    lease_until = models.DateTimeField()
+    ended_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "status", "lease_until"], name="bilingual_user_lease"),
+            models.Index(fields=["user", "created_at"], name="bilingual_user_created"),
+        ]

@@ -1,6 +1,7 @@
 import pytest
 from rest_framework.test import APIClient
 
+from core.api.assistant_translation import LANGUAGES
 from core.factories import UserFactory
 from core.models import AIModel, AIVoice
 
@@ -24,6 +25,10 @@ def test_translation_catalog_is_model_scoped_and_admin_managed():
     assert response.status_code == 200
     assert response.data == {
         "model": "qwen3.8-livetranslate-flash-realtime",
+        "enabled": False,
+        "reason": "feature_disabled",
+        "protocol_version": 2,
+        "languages": list(LANGUAGES),
         "default_voice": "FutureVoice",
         "voices": [{"value": "FutureVoice", "label": "New voice"}],
     }

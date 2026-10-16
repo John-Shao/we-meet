@@ -85,6 +85,7 @@ class TranslationConfig:
     # silence boundary aligned with this value, so a shorter window ends turns
     # sooner without waiting for the upstream default.
     turn_silence_ms: int = 1000
+    voice: str = "Tina"
     enabled_languages: tuple[str, ...] = ("zh", "en")
 
     def __post_init__(self):
@@ -104,6 +105,8 @@ class TranslationConfig:
             raise ValueError("Translation target does not support audio")
         if not MIN_TURN_SILENCE_MS <= self.turn_silence_ms <= MAX_TURN_SILENCE_MS:
             raise ValueError("Unsupported translation turn silence")
+        if not isinstance(self.voice, str) or not 0 < len(self.voice) <= MAX_ID_LENGTH:
+            raise ValueError("Invalid translation voice")
 
     @property
     def turn_silence_bytes(self):
@@ -133,7 +136,7 @@ class TranslationConfig:
                 },
                 "output": {
                     "format": {"type": "pcm", "sample_rate": 24000},
-                    "voice": "Tina",
+                    "voice": self.voice,
                 },
             },
             "translation": {"language": self.target},

@@ -11,6 +11,7 @@ logger = logging.getLogger("bilingual-router")
 
 MAX_PROBE_BYTES = 10 * 32000
 PACKET_BYTES = 3200
+UNKNOWN_BACKOFF_THRESHOLD = 3
 
 
 class BilingualUtteranceRouter:
@@ -26,13 +27,20 @@ class BilingualUtteranceRouter:
         languages=("zh", "en"),
         settings=None,
         key="",
+        fixed_source=None,
     ):
         """Inject classification and output without guessing unknown languages."""
         self.detector = detector
         self.settings = settings or BilingualSettings()
         self.failures = 0
+        self.unknown_streak = 0
+        self.probe_after = 0.0
+        self.probed_bytes = 0
         self.started = 0
         self.languages = frozenset(audio_language_pair(languages))
+        if fixed_source is not None and fixed_source not in self.languages:
+            raise ValueError("invalid_fixed_source")
+        self.fixed_source = fixed_source
         self.send_packet = send_packet
         self.end_turn = end_turn
         self.unknown = unknown
@@ -53,10 +61,13 @@ class BilingualUtteranceRouter:
         self.packet.clear()
         self.next_probe = self.settings.probe_ms * 32
         self.started = time.monotonic()
+        self.probed_bytes = 0
         self.speaking = True
+        if self.fixed_source is not None:
+            await self._select(self.fixed_source)
 
     async def feed(self, pcm):
-        """Probe 800 ms, then every additional 400 ms until the direction is clear."""
+        """Probe a speech prefix, backing off when more audio remains undecidable."""
         if not self.speaking:
             return
         if self.selected:
@@ -74,9 +85,15 @@ class BilingualUtteranceRouter:
                 await self._report_unknown(buffered)
         elif len(self.buffer) >= self.next_probe:
             await self._probe()
-            self.next_probe = len(self.buffer) + self.settings.retry_ms * 32
+            delay = self.settings.retry_ms * 2 ** min(
+                max(self.unknown_streak - 2, 0), 4
+            )
+            self.next_probe = len(self.buffer) + delay * 32
 
     async def _probe(self):
+        if time.monotonic() < self.probe_after or len(self.buffer) <= self.probed_bytes:
+            return
+        self.probed_bytes = len(self.buffer)
         try:
             language = await self.detector.detect(bytes(self.buffer[:MAX_PROBE_BYTES]))
         except TransientLanguageError:
@@ -90,6 +107,15 @@ class BilingualUtteranceRouter:
         self.failures = 0
         if language is not None and language not in self.languages:
             raise TranslationError("invalid_language_selection")
+        if language is None:
+            self.unknown_streak = min(self.unknown_streak + 1, 8)
+            if self.unknown_streak >= UNKNOWN_BACKOFF_THRESHOLD:
+                self.probe_after = time.monotonic() + min(
+                    30, 2 ** (self.unknown_streak - 3)
+                )
+        else:
+            self.unknown_streak = 0
+            self.probe_after = 0.0
         await self._select(language)
 
     async def _select(self, language):

@@ -10,6 +10,7 @@ on:
     branches:
       - aliyun-dev
       - feature/meeting-remote-control
+      - release/bilingual-websocket-*
   pull_request:
     branches:
       - aliyun-dev
@@ -69,6 +70,7 @@ jobs:
           core/tests/test_assistant_translation_config.py
           core/tests/test_assistant_translation_direct.py
           core/tests/test_assistant_translation.py
+          core/tests/test_bilingual_sessions.py
           core/tests/rooms/test_api_rooms_ai_agent.py
           core/tests/services/test_ai_agent.py
       - name: Check Work account admission and execution boundaries

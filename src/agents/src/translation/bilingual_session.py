@@ -36,6 +36,7 @@ class BilingualTranslationSession(TranslationSession):
         self._transport_ready = asyncio.Event()
         self._transport_ready.set()
         self.output_idle = lambda: True
+        self.allow_recovery = True
 
     async def send_speech(self, pcm):
         """Mark speech before writing, including all-zero frames in an utterance."""
@@ -81,6 +82,8 @@ class BilingualTranslationSession(TranslationSession):
         )
 
     async def _recover_transport(self, socket, *, send_locked=False):
+        if not self.allow_recovery:
+            return False
         if self._closed or self._ending or self._finish_requested:
             return False
         if send_locked:

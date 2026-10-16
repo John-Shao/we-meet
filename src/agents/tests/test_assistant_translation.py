@@ -4,6 +4,7 @@ import asyncio
 import base64
 import itertools
 import json
+import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
@@ -15,6 +16,21 @@ from translation.assistant_gateway import (
     BilingualResults,
 )
 from translation.capture_gateway import CaptureTranslationGateway
+
+
+def grant(source="zh", target="en", **overrides):
+    return {
+        "source_language": source,
+        "target_language": target,
+        "protocol_version": 2,
+        "session_id": "session",
+        "voice": "Tina",
+        "max_seconds": 900,
+        "remaining_seconds": 900,
+        "idle_seconds": 300,
+        "heartbeat_seconds": 20,
+        **overrides,
+    }
 
 
 def events(language="zh"):
@@ -269,9 +285,7 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
     async def connection(self, incoming, admitted=True, pair=("zh", "en"), start=None):
         socket = AsyncMock()
         socket.recv.side_effect = incoming
-        claim = AsyncMock(
-            return_value={"source_language": pair[0], "target_language": pair[1]}
-        )
+        claim = AsyncMock(return_value=grant(*pair))
         if not admitted:
             claim.side_effect = ValueError("invalid_ticket")
         providers = []
@@ -288,10 +302,12 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
         connection = AssistantTranslationConnection(
             socket,
             claim_ticket=claim,
+            update_lease=AsyncMock(return_value={"status": "active"}),
             config_factory=lambda **kw: TranslationConfig("test", "workspace", **kw),
             session_factory=factory,
         )
         audio_input = Mock()
+        audio_input.last_activity = time.monotonic()
         audio_input.task = asyncio.get_running_loop().create_future()
         audio_input.finish = AsyncMock()
         audio_input.aclose = AsyncMock()
@@ -416,14 +432,14 @@ class ConnectionTests(unittest.IsolatedAsyncioTestCase):
 
         connection = AssistantTranslationConnection(
             socket,
-            claim_ticket=AsyncMock(
-                return_value={"source_language": "zh", "target_language": "en"}
-            ),
+            update_lease=AsyncMock(return_value={"status": "active"}),
+            claim_ticket=AsyncMock(return_value=grant()),
             config_factory=lambda **kw: TranslationConfig("test", "workspace", **kw),
             session_factory=session_factory,
             detector_factory=detector_factory,
         )
         audio_input = Mock()
+        audio_input.last_activity = time.monotonic()
         audio_input.task = asyncio.get_running_loop().create_future()
         audio_input.finish = AsyncMock()
         audio_input.aclose = AsyncMock()

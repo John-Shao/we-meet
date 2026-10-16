@@ -246,6 +246,12 @@ backend:
     MEETING_TRANSLATION_ARCHIVE_ENABLED: "True"
     MEETING_CAPTURE_TRANSLATION_ENABLED: "True"
     MEETING_CAPTURE_TRANSLATION_URL: "wss://meet.we-meet.online/capture-translation"
+    # Enable only after the V2 gateway and internal Android candidate pass admission.
+    ASSISTANT_TRANSLATION_ENABLED: "False"
+    ASSISTANT_TRANSLATION_MAX_ACTIVE: "1"
+    ASSISTANT_TRANSLATION_MAX_DAILY: "100"
+    ASSISTANT_TRANSLATION_MAX_SECONDS: "900"
+    ASSISTANT_TRANSLATION_IDLE_SECONDS: "300"
     MEETING_CAPTURE_TRANSLATION_REGION: "cn-beijing"
     ROOM_SUBTITLE_AGENT_NAME: "multi-user-transcriber"
     ROOM_TRANSLATION_AGENT_NAME: "meeting-translation"

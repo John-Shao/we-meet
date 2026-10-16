@@ -23,7 +23,6 @@ from plugins.qwen.live_translate import (
     audio_language_pair,
 )
 from plugins.qwen.omni.language_id import OmniLanguageDetector
-from plugins.qwen.omni.translation_repair import OmniTranslationRepair
 from translation.bilingual_audio import BilingualAudioInput, open_vad
 from translation.bilingual_direction import (
     same_words,
@@ -44,11 +43,19 @@ MAX_SOURCES = 128
 MAX_REPAIRS = 2
 SOURCE_TIMEOUT = 45
 SESSION_TIMEOUT = 900
+PROTOCOL_VERSION = 2
+MIN_IDLE_SECONDS = 30
+MAX_SESSION_SECONDS = 3600
+MIN_HEARTBEAT_SECONDS = 5
+MAX_HEARTBEAT_SECONDS = 30
 FRAME_BYTES = 3200
+FINISH_SECONDS = 25
+FINISH_RESERVE_SECONDS = FINISH_SECONDS + 5
 logger = logging.getLogger("assistant-translation")
 
 SAFE_ERROR_CODES = frozenset(
     {
+        "translation_session_revoked",
         "language_detection_unavailable",
         "language_detection_failed",
         "language_connection_rejected",
@@ -81,6 +88,20 @@ async def claim(ticket):
 
 
 def _claim(ticket):
+    return _backend("claim", {"ticket": ticket})
+
+
+async def lease(session_id, operation):
+    """Renew or close a business session through the internal authenticated API."""
+    return await asyncio.wait_for(
+        asyncio.to_thread(
+            _backend, "lease", {"session_id": session_id, "operation": operation}
+        ),
+        4,
+    )
+
+
+def _backend(action, payload):
     base = os.getenv("AGENT_BACKEND_API_URL", "")
     token = os.getenv("AGENT_INTERNAL_API_TOKEN", "")
     parsed = urlsplit(base)
@@ -96,8 +117,8 @@ def _claim(ticket):
     ):
         raise ValueError("invalid_backend_configuration")
     request = urllib.request.Request(  # noqa: S310 -- operator-configured backend origin
-        base.rstrip("/") + "/api/agent/assistant-translation/claim/",
-        data=json.dumps({"ticket": ticket}).encode(),
+        base.rstrip("/") + f"/api/agent/assistant-translation/{action}/",
+        data=json.dumps(payload).encode(),
         method="POST",
         headers={"Content-Type": "application/json", "X-Agent-Token": token},
     )
@@ -364,6 +385,7 @@ class AssistantTranslationConnection:
         session_factory=BilingualTranslationSession,
         detector_factory=OmniLanguageDetector,
         vad_factory=open_vad,
+        update_lease=lease,
     ):
         """Inject admission and provider transports for offline verification."""
         self.socket = socket
@@ -378,84 +400,50 @@ class AssistantTranslationConnection:
         self.sessions = []
         self.results = []
         self.send_lock = asyncio.Lock()
+        self.update_lease = update_lease
+        self.session_id = None
+        self.lease_task = None
+        self.max_seconds = SESSION_TIMEOUT
+        self.idle_seconds = 300
+        self.last_activity = time.monotonic()
+        self.deadline = self.last_activity + self.max_seconds
+        self.started_at = self.last_activity
+        self.input_bytes = self.output_bytes = self.translations = 0
 
     async def emit(self, event):
         """Serialize both directions over the same bounded socket."""
+        payload = json.dumps(event)
         async with self.send_lock:
-            await asyncio.wait_for(self.socket.send(json.dumps(event)), 5)
+            await asyncio.wait_for(self.socket.send(payload), 5)
+        self.output_bytes += len(payload)
+        if event["type"] == "translation":
+            self.translations += 1
+        if event["type"] in {"translation", "audio"}:
+            self.last_activity = time.monotonic()
+
+    async def _heartbeat(self, interval):
+        while True:
+            result = await self.update_lease(self.session_id, "heartbeat")
+            if result.get("status") != "active":
+                raise TranslationError("translation_session_revoked")
+            await asyncio.sleep(interval)
 
     async def run(self, auth):
-        """Admit once, configure both targets and always close both providers."""
+        """Supervise startup and streaming with a fail-closed gateway lease."""
+        worker = None
         try:
-            if (
-                not isinstance(auth, dict)
-                or set(auth) != {"type", "ticket"}
-                or auth["type"] != "assistant_translation"
-                or not isinstance(auth["ticket"], str)
-                or not 0 < len(auth["ticket"]) <= MAX_TICKET
-            ):
-                raise ValueError("invalid_authentication")
-            grant = await self.claim_ticket(auth["ticket"])
-            pair = audio_language_pair(
-                (grant["source_language"], grant["target_language"])
+            grant = await self._admit(auth)
+            self.lease_task = asyncio.create_task(
+                self._heartbeat(grant["heartbeat_seconds"])
             )
-            settings = BilingualSettings.from_env()
-            by_source = {}
-            for source, target in (pair[::-1], pair):
-                config = replace(
-                    self.config_factory(
-                        target=target,
-                        source=source,
-                        audio=True,
-                        enabled_languages=tuple(sorted(AUDIO_LANGUAGES)),
-                    ),
-                    source_transcription=True,
-                    turn_silence_ms=settings.turn_silence_ms,
-                )
-                results = BilingualResults(
-                    target,
-                    self.emit,
-                    source=source,
-                    repair=OmniTranslationRepair(config),
-                    key=self.key,
-                )
-                self.results.append(results)
-                session = self.session_factory(config, results.accept)
-                # Injected factories keep their two-argument contract; the key is
-                # diagnostic only and never changes routing or limits.
-                session.key = self.key
-                session.output_idle = lambda results=results: (
-                    not (results.items or results.repairs)
-                )
-                self.sessions.append(session)
-                by_source[source] = session
-            self.detector = self.detector_factory(config, languages=pair)
-            self.detector.key = self.key
-            self.detector.timeout = settings.detection_timeout
-            await self.detector.prepare()
-            try:
-                # The packaged VAD weights do not depend on the provider
-                # handshakes, so loading them in the same group keeps the
-                # connect path at the slower of the two instead of their sum.
-                async with asyncio.TaskGroup() as startup:
-                    for session in self.sessions:
-                        startup.create_task(session.start())
-                    vad = startup.create_task(self.vad_factory())
-            except ExceptionGroup:
-                raise TranslationError("translation_connect_failed") from None
-            self.audio_input = BilingualAudioInput(
-                vad.result(),
-                self.detector,
-                by_source,
-                self.emit,
-                settings=settings,
-                silence_bytes=config.turn_silence_bytes,
-                key=self.key,
+            worker = asyncio.create_task(self._serve(grant))
+            done, _ = await asyncio.wait(
+                [worker, self.lease_task], return_when=asyncio.FIRST_COMPLETED
             )
-            for results in self.results:
-                results.speech_clock = self.audio_input.speech_started
-            await self.emit({"type": "ready"})
-            await self._stream()
+            if self.lease_task in done:
+                self.lease_task.result()
+                raise TranslationError("translation_session_revoked")
+            await worker
         except Exception as error:
             code = safe_error_code(error)
             logger.info(
@@ -466,25 +454,197 @@ class AssistantTranslationConnection:
             except Exception:
                 logger.info("Translation client disconnected before error receipt")
         finally:
-            try:
-                if self.audio_input:
-                    await self.audio_input.aclose()
-            finally:
-                await asyncio.gather(
-                    *([self.detector.aclose()] if self.detector else []),
-                    *(results.close() for results in self.results),
-                    *(session.close() for session in self.sessions),
-                    return_exceptions=True,
-                )
+            tasks = [task for task in (worker, self.lease_task) if task is not None]
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            await self._close()
+
+    async def _admit(self, auth):
+        if (
+            not isinstance(auth, dict)
+            or set(auth) != {"type", "ticket"}
+            or auth["type"] != "assistant_translation"
+            or not isinstance(auth["ticket"], str)
+            or not 0 < len(auth["ticket"]) <= MAX_TICKET
+        ):
+            raise ValueError("invalid_authentication")
+        admission_started = time.monotonic()
+        grant = await self.claim_ticket(auth["ticket"])
+        if grant.get("protocol_version") != PROTOCOL_VERSION or not isinstance(
+            grant.get("session_id"), str
+        ):
+            raise ValueError("invalid_translation_grant")
+        self.session_id = grant["session_id"]
+        self.max_seconds = grant["max_seconds"]
+        self.idle_seconds = grant["idle_seconds"]
+        if (
+            type(self.max_seconds) is not int
+            or type(self.idle_seconds) is not int
+            or not MIN_IDLE_SECONDS
+            <= self.idle_seconds
+            <= self.max_seconds
+            <= MAX_SESSION_SECONDS
+        ):
+            raise ValueError("invalid_translation_limits")
+        remaining = grant["remaining_seconds"]
+        if type(remaining) is not int or not 0 < remaining <= self.max_seconds:
+            raise ValueError("invalid_translation_lifetime")
+        # Include ticket age and startup in the hard paid-session lifetime.
+        # Reserve the final utterance's drain plus a downstream send timeout.
+        self.deadline = admission_started + remaining
+        interval = grant["heartbeat_seconds"]
+        if (
+            type(interval) is not int
+            or not MIN_HEARTBEAT_SECONDS <= interval <= MAX_HEARTBEAT_SECONDS
+        ):
+            raise ValueError("invalid_heartbeat_interval")
+        return grant
+
+    async def _serve(self, grant):
+        startup_seconds = min(
+            35, self.deadline - time.monotonic() - FINISH_RESERVE_SECONDS
+        )
+        if startup_seconds <= 0:
+            raise TranslationError("translation_session_revoked")
+        async with asyncio.timeout(startup_seconds):
+            await self._connect(grant)
+        await self._stream()
+
+    async def _connect(self, grant):
+        pair = audio_language_pair((grant["source_language"], grant["target_language"]))
+        fixed_source = grant.get("fixed_source")
+        if fixed_source is not None and fixed_source not in pair:
+            raise ValueError("invalid_fixed_source")
+        # A transport failure requires an explicit user restart, including LID.
+        settings = replace(BilingualSettings.from_env(), max_failures=1)
+        by_source = {}
+        directions = (
+            (pair[::-1], pair)
+            if fixed_source is None
+            else (
+                (
+                    fixed_source,
+                    next(language for language in pair if language != fixed_source),
+                ),
+            )
+        )
+        for source, target in directions:
+            config = replace(
+                self.config_factory(
+                    target=target,
+                    source=source,
+                    audio=True,
+                    enabled_languages=tuple(sorted(AUDIO_LANGUAGES)),
+                ),
+                source_transcription=True,
+                turn_silence_ms=settings.turn_silence_ms,
+                voice=grant["voice"],
+            )
+            results = BilingualResults(
+                target,
+                self.emit,
+                source=source,
+                repair=None,
+                key=self.key,
+            )
+            self.results.append(results)
+            session = self.session_factory(config, results.accept)
+            # Injected factories keep their two-argument contract; the key is
+            # diagnostic only and never changes routing or limits.
+            session.key = self.key
+            session.allow_recovery = False
+            session.output_idle = lambda results=results: (
+                not (results.items or results.repairs)
+            )
+            self.sessions.append(session)
+            by_source[source] = session
+        if fixed_source is None:
+            self.detector = self.detector_factory(config, languages=pair)
+            self.detector.key = self.key
+            self.detector.timeout = settings.detection_timeout
+            # Open a classifier only for admitted speech; no speculative paid
+            # connection is kept alive while the user or room is silent.
+        try:
+            # The packaged VAD weights do not depend on the provider
+            # handshakes, so loading them in the same group keeps the
+            # connect path at the slower of the two instead of their sum.
+            async with asyncio.TaskGroup() as startup:
+                for session in self.sessions:
+                    startup.create_task(session.start())
+                vad = startup.create_task(self.vad_factory())
+        except ExceptionGroup:
+            raise TranslationError("translation_connect_failed") from None
+        self.audio_input = BilingualAudioInput(
+            vad.result(),
+            self.detector,
+            by_source,
+            self.emit,
+            settings=settings,
+            silence_bytes=config.turn_silence_bytes,
+            key=self.key,
+            languages=pair,
+            fixed_source=fixed_source,
+        )
+        for results in self.results:
+            results.speech_clock = self.audio_input.speech_started
+        await self.emit(
+            {
+                "type": "ready",
+                "protocol_version": PROTOCOL_VERSION,
+                "max_seconds": self.max_seconds,
+                "idle_seconds": self.idle_seconds,
+                "input_sample_rate": 16000,
+                "output_sample_rate": 24000,
+            }
+        )
+
+    async def _close(self):
+        try:
+            if self.audio_input:
+                await self.audio_input.aclose()
+        finally:
+            await asyncio.gather(
+                *([self.detector.aclose()] if self.detector else []),
+                *(results.close() for results in self.results),
+                *(session.close() for session in self.sessions),
+                return_exceptions=True,
+            )
+            if self.session_id:
+                try:
+                    await self.update_lease(self.session_id, "close")
+                except Exception:
+                    logger.info("translation_lease_close_failed session=%s", self.key)
+            logger.info(
+                "translation_session_closed session=%s duration_ms=%d"
+                " input_bytes=%d output_bytes=%d translations=%d providers=%d",
+                self.key,
+                round((time.monotonic() - self.started_at) * 1000),
+                self.input_bytes,
+                self.output_bytes,
+                self.translations,
+                len(self.sessions),
+            )
+
+    def _check_outputs(self):
+        for session in self.sessions:
+            if session.error_code:
+                raise TranslationError(session.error_code)
+        for results in self.results:
+            results.check()
 
     async def _stream(self):
         started, total = time.monotonic(), 0
-        while time.monotonic() - started < SESSION_TIMEOUT:
-            for session in self.sessions:
-                if session.error_code:
-                    raise TranslationError(session.error_code)
-            for results in self.results:
-                results.check()
+        while time.monotonic() < self.deadline - FINISH_RESERVE_SECONDS:
+            if (
+                time.monotonic()
+                - max(self.last_activity, self.audio_input.last_activity)
+                >= self.idle_seconds
+            ):
+                await asyncio.wait_for(self._finish(), FINISH_SECONDS)
+                await self.emit({"type": "expired", "reason": "idle"})
+                return
+            self._check_outputs()
             receive = asyncio.create_task(self.socket.recv())
             try:
                 done, _ = await asyncio.wait(
@@ -510,19 +670,20 @@ class AssistantTranslationConnection:
                 ):
                     raise TranslationError("invalid_translation_audio")
                 self.audio_input.push(raw)
+                self.input_bytes += len(raw)
                 await self.emit({"type": "ack"})
             elif json.loads(raw) == {"type": "finish"}:
-                await asyncio.wait_for(self._finish(), 25)
-                if any(results.items for results in self.results):
-                    raise TranslationError("translation_finish_incomplete")
+                await asyncio.wait_for(self._finish(), FINISH_SECONDS)
                 await self.emit({"type": "finished"})
                 return
             else:
                 raise TranslationError("invalid_translation_control")
-        await asyncio.wait_for(self._finish(), 25)
-        await self.emit({"type": "expired"})
+        await asyncio.wait_for(self._finish(), FINISH_SECONDS)
+        await self.emit({"type": "expired", "reason": "duration"})
 
     async def _finish(self):
         await self.audio_input.finish()
         await asyncio.gather(*(session.finish() for session in self.sessions))
         await asyncio.gather(*(results.finish() for results in self.results))
+        if any(results.items for results in self.results):
+            raise TranslationError("translation_finish_incomplete")

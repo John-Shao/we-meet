@@ -39,6 +39,7 @@ from core.api.assistant_summary import AssistantSummaryView
 from core.api.assistant_transcription import AssistantTranscriptionSessionView
 from core.api.assistant_translation import (
     AssistantTranslationClaimView,
+    AssistantTranslationLeaseView,
     AssistantTranslationConfigView,
     AssistantTranslationSessionView,
     AssistantTranslationTicketView,
@@ -454,6 +455,7 @@ urlpatterns = [
         name="assistant-translation-session",
     ),
     path("api/agent/assistant-translation/claim/", AssistantTranslationClaimView.as_view()),
+    path("api/agent/assistant-translation/lease/", AssistantTranslationLeaseView.as_view()),
     path("api/agent/capture-transcriptions/claim/", ClaimTranscriptionView.as_view()),
     path("api/agent/capture-translations/claim/", CaptureTranslationClaimView.as_view()),
     path("api/agent/capture-translations/<uuid:run_id>/control/", CaptureTranslationControlView.as_view()),

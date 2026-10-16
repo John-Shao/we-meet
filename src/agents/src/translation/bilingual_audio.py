@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from functools import lru_cache
 
 from livekit import rtc
@@ -54,6 +55,8 @@ class BilingualAudioInput:
         settings=None,
         silence_bytes=DEFAULT_SILENCE_BYTES,
         key="",
+        languages=None,
+        fixed_source=None,
     ):
         """Own one VAD consumer and one serialized utterance router."""
         self.stream = stream
@@ -64,14 +67,16 @@ class BilingualAudioInput:
         self.ending = False
         self.silence_bytes = silence_bytes
         self.key = key
+        self.last_activity = time.monotonic()
         self.router = BilingualUtteranceRouter(
             detector,
             self._send_speech,
             self._end,
             emit,
-            languages=tuple(sessions),
+            languages=languages or tuple(sessions),
             settings=settings,
             key=key,
+            fixed_source=fixed_source,
         )
         self.task = asyncio.create_task(self._run())
 
@@ -79,6 +84,7 @@ class BilingualAudioInput:
         await self.sessions[language].send_audio(pcm)
 
     async def _send_speech(self, language, pcm):
+        self.last_activity = time.monotonic()
         session = self.sessions[language]
         await session.send_speech(pcm)
 
