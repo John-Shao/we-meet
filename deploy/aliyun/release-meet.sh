@@ -83,11 +83,12 @@ git_display() {
 usage() {
   cat <<'EOF'
 Usage:
-  bash deploy/aliyun/release-meet.sh [options] [backend] [frontend] [summary] [agents]
+  bash deploy/aliyun/release-meet.sh [options] [backend] [frontend] [summary] [agents] [translation-gateway]
 
 Without module arguments, release all modules. Without --tag, release the
 current HEAD commit's fixed-length short SHA after pulling the configured
 branch.
+translation-gateway updates only the capture-translation worker using the agents image.
 
 Options:
   --branch <name>      Source branch to check out and pull (default: current
@@ -223,6 +224,7 @@ check_images() {
       frontend) repo=$(module_image_repository '.frontend.image.repository' "$RELEASE-frontend") || repo="" ;;
       summary)  repo=$(module_image_repository '.summary.image.repository' "$RELEASE-summary") || repo="" ;;
       agents)   repo=$(module_image_repository '.agents.image.repository' "$RELEASE-agent-metadata") || repo="" ;;
+      translation-gateway) repo=$(module_image_repository '.meetingAIWorkers.image.repository' "$RELEASE-agent-capture-translation") || repo="" ;;
       *)        repo="" ;;
     esac
     if [[ -z "$repo" ]]; then
@@ -278,7 +280,7 @@ while (($#)); do
       usage
       exit 0
       ;;
-    backend|frontend|summary|agents)
+    backend|frontend|summary|agents|translation-gateway)
       SELECTED+=("$1")
       shift
       ;;
@@ -469,7 +471,7 @@ python3 deploy/aliyun/check-work-cohort.py \
 ai_workers=(translation interpretation capture-asr capture-live-asr capture-translation)
 for worker in "${ai_workers[@]}"; do
   deployment="$RELEASE-agent-$worker"
-  if contains_module agents; then
+  if contains_module agents || { contains_module translation-gateway && [[ "$worker" == "capture-translation" ]]; }; then
     repository=$(module_image_repository '.meetingAIWorkers.image.repository' "$deployment") || die "cannot resolve AI worker repository"
     helm_args+=(--set-string "meetingAIWorkers.workers.$worker.imageReference=$repository:$TAG")
   else
@@ -549,6 +551,10 @@ if contains_module agents; then
       wait_for_deployment "$deployment"
     fi
   done
+fi
+
+if contains_module translation-gateway && ! contains_module agents; then
+  wait_for_deployment "$RELEASE-agent-capture-translation"
 fi
 
 echo "==> Running images"

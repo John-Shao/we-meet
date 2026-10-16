@@ -344,6 +344,25 @@ echo "CI-CHECK: $*"
         self.assertIn("required release CI did not pass", result.stderr)
         self.assertIn(f"--commit {self.FULL_SHA} --commit {'a' * 40}", result.stdout)
 
+    def test_translation_gateway_release_preserves_other_agent_images(self):
+        result, log = self.release("translation-gateway")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("meetingAIWorkers.workers.capture-translation.imageReference=fixture/agents:new-tag", log)
+        self.assertIn("meetingAIWorkers.workers.translation.imageReference=fixture/agents:old-tag", log)
+        self.assertIn("agentAIAssistant.image.reference=fixture/agents:old-tag", log)
+        self.assertIn("agentMetadata.image.reference=fixture/agents:old-tag", log)
+        self.assertIn("backend.image.reference=fixture/agents:old-tag", log)
+        self.assertIn("backend.jobs.enabled=false", log)
+
+    def test_backend_and_translation_gateway_select_only_requested_families(self):
+        result, log = self.release("backend translation-gateway", tag="aaaaaaaaa", ci_check=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("backend.image.reference=fixture/agents:aaaaaaaaa", log)
+        self.assertIn("meetingAIWorkers.workers.capture-translation.imageReference=fixture/agents:aaaaaaaaa", log)
+        self.assertIn("agentAIAssistant.image.reference=fixture/agents:old-tag", log)
+        self.assertIn("frontend.image.reference=fixture/agents:old-tag", log)
+        self.assertNotIn("backend.jobs.enabled=false", log)
+
     def test_dry_run_can_verify_both_chart_and_rollback_image_commits(self):
         result, log = self.release("backend", tag="aaaaaaaaa", ci_check=True)
         self.assertEqual(0, result.returncode, result.stderr)
