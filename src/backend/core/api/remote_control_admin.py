@@ -5,7 +5,6 @@ from rest_framework.response import Response
 
 from core.api.remote_control import RemoteControlView, StrictSerializer
 from core.services import remote_control_admin as service
-from core.services.remote_control_livekit import RemoteControlError
 
 
 class PolicyWriteSerializer(StrictSerializer):
@@ -19,6 +18,9 @@ class CandidateQuerySerializer(StrictSerializer):
 
 
 class RemoteControlAdminView(RemoteControlView):
+    def request_body_limit(self):
+        return 1024 if self.request.method == "POST" else 16384
+
     def get(self, request, operation="policy"):
         if operation == "policy":
             return Response(service.read_policy(request.user))
@@ -37,8 +39,6 @@ class RemoteControlAdminView(RemoteControlView):
     def put(self, request, operation="policy"):
         if operation != "policy":
             return Response(status=405)
-        if len(request.body) > 16384:
-            raise RemoteControlError("request_too_large", 413)
         data = PolicyWriteSerializer(data=request.data)
         data.is_valid(raise_exception=True)
         return Response(
@@ -52,8 +52,6 @@ class RemoteControlAdminView(RemoteControlView):
     def post(self, request, operation="policy"):
         if operation != "emergency-close":
             return Response(status=405)
-        if len(request.body) > 1024:
-            raise RemoteControlError("request_too_large", 413)
         body = StrictSerializer(data=request.data)
         body.is_valid(raise_exception=True)
         return Response(service.update_policy(request.user, emergency=True))

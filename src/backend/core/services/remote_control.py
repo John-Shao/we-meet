@@ -49,6 +49,14 @@ def enabled():
     return keys.available()
 
 
+def _role_allowed(user, role, configurations):
+    """Intersect normalized organization and room allowlists for one role."""
+    return all(
+        configuration[role] is None or str(user.pk) in configuration[role]
+        for configuration in configurations
+    )
+
+
 def policy(room, controller=None, target=None):
     if (
         not enabled()
@@ -70,12 +78,8 @@ def policy(room, controller=None, target=None):
             status=models.MembershipStatusChoices.ACTIVE,
         ).exists():
             raise RemoteControlError("organization_access_denied", 403)
-        for configuration in (organization, local):
-            allowed = configuration.get(role)
-            if allowed is not None and (
-                not isinstance(allowed, list) or str(user.pk) not in allowed
-            ):
-                raise RemoteControlError("remote_control_not_allowed", 403)
+        if not _role_allowed(user, role, (organization, local)):
+            raise RemoteControlError("remote_control_not_allowed", 403)
     return min(organization["max_seconds"], local["max_seconds"]), policies.digest(
         organization, local
     )
@@ -178,12 +182,9 @@ def publish_presence(room_id, user, data):
     user = _lock_users(user.pk)[user.pk]
     human(user)
     room = _lock_room_policy(room_id)
-    policy(
-        room,
-        user if data["canControl"] else None,
-        user if data["canBeControlled"] else None,
-    )
+    policy(room)
     _member(room, user)
+    configurations = policies.configurations(room)
     entry = livekit.participant(evidence, user, data["participantSid"])
     if evidence.room_sid != data["roomSid"]:
         raise RemoteControlError("connection_changed")
@@ -195,8 +196,13 @@ def publish_presence(room_id, user, data):
         "room_sid": evidence.room_sid,
         "participant_sid": entry.sid,
         "device_session_id": data["deviceSessionId"],
-        "can_control": data["canControl"],
-        "can_be_controlled": data["canBeControlled"],
+        # Clients advertise device support. Each role is independently limited
+        # by policy; a target-only desktop must not lose its eligible role just
+        # because it also supports controlling. Grant paths still check policy.
+        "can_control": data["canControl"]
+        and _role_allowed(user, "controllers", configurations),
+        "can_be_controlled": data["canBeControlled"]
+        and _role_allowed(user, "targets", configurations),
         "protocol_versions": data["protocolVersions"],
         "platform": data["platform"],
         "helper_version": data["helperVersion"],
