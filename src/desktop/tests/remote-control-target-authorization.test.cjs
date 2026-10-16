@@ -275,3 +275,94 @@ test('native resume does not cancel an in-flight signed health response on the s
   await assert.doesNotReject(response); await until(() => f.target.status().phase === 'active');
   assert.equal(f.target.status().epoch, 2);
 });
+
+for (const purpose of ['approve', 'resume']) {
+  test(`confirmation poll cannot reject our own ${purpose} commit before its signed response arrives`, async t => {
+    const f = await fixture(false); t.after(() => f.target.dispose());
+    let starting = f.start();
+    await until(() => f.helper.lastConsent);
+    if (purpose === 'resume') {
+      f.helper.allow(); await starting;
+      f.target.pause(); await until(() => f.target.status().phase === 'paused');
+      f.helper.lastConsent = undefined;
+      f.helper.emit('state', { event: 'resumeRequested' });
+      await until(() => f.helper.lastConsent);
+    }
+    const poll = deferred(), approval = deferred();
+    t.after(() => { poll.resolve(); approval.resolve(); });
+    let reading = false, committed = false;
+    f.hooks.before = async action => { if (action === 'session') { reading = true; await poll.promise; } };
+    f.hooks.after = async action => { if (action === purpose) { committed = true; await approval.promise; } };
+    // Start the poll while the native dialog is open, but let it observe the
+    // server's new ACTIVE version before the signed mutation response arrives.
+    f.advance(2000); f.tick(); await until(() => reading);
+    f.helper.allow(); await until(() => committed);
+    const outcome = purpose === 'approve' ? starting.then(() => null, error => error) : Promise.resolve(null);
+    poll.resolve(); await until(() => !f.target.polling);
+    approval.resolve();
+    assert.equal(await outcome, null);
+    await until(() => f.target.status().phase !== 'confirming');
+    assert.equal(f.target.status().phase, 'active');
+    assert.equal(f.target.inputGrant().epoch, purpose === 'resume' ? 2 : 1);
+    assert.equal(f.target.status().inputOpen, false);
+  });
+}
+
+test('no new confirmation poll starts after native consent while approval is pending', async t => {
+  const f = await fixture(false); t.after(() => f.target.dispose());
+  const gate = deferred(); t.after(() => gate.resolve()); let committed = false;
+  f.hooks.after = async action => { if (action === 'approve') { committed = true; await gate.promise; } };
+  const starting = f.start(); const outcome = starting.then(() => null, error => error);
+  await until(() => f.helper.lastConsent); f.helper.allow(); await until(() => committed);
+  const reads = f.calls.filter(c => c.action === 'session').length;
+  f.advance(2000); f.tick(); await new Promise(resolve => setImmediate(resolve));
+  gate.resolve(); await outcome;
+  assert.equal(f.calls.filter(c => c.action === 'session').length, reads);
+  assert.equal(f.target.status().phase, 'active');
+});
+
+test('late confirmation poll still honors cancellation after local consent', async t => {
+  const f = await fixture(false); t.after(() => f.target.dispose());
+  const poll = deferred(), approval = deferred();
+  t.after(() => { poll.resolve(); approval.resolve(); });
+  let reading = false, committed = false;
+  const starting = f.start(); const outcome = starting.then(() => null, error => error);
+  await until(() => f.helper.lastConsent);
+  f.hooks.before = async action => { if (action === 'session') { reading = true; await poll.promise; } };
+  f.hooks.after = async action => { if (action === 'approve') { committed = true; await approval.promise; } };
+  f.advance(2000); f.tick(); await until(() => reading);
+  f.helper.allow(); await until(() => committed);
+  f.row.state = 'CANCELLED'; f.row.stateVersion++;
+  poll.resolve(); await until(() => f.target.status().phase === 'ended');
+  approval.resolve(); assert.match((await outcome).message, /authorization_cancelled/);
+  assert.throws(() => f.target.inputGrant());
+  assert.equal(f.target.status().inputOpen, false);
+});
+
+test('obsolete dialog reads cannot bypass binding, key revocation or signed lease validation', async t => {
+  for (const failure of ['binding', 'revocation', 'lease']) {
+    const f = await fixture(false); t.after(() => f.target.dispose());
+    const poll = deferred(), approval = deferred();
+    t.after(() => { poll.resolve(); approval.resolve(); });
+    let reading = false, committed = false;
+    const starting = f.start(); const outcome = starting.then(() => null, error => error);
+    await until(() => f.helper.lastConsent);
+    f.hooks.before = async action => { if (action === 'session') { reading = true; await poll.promise; } };
+    f.hooks.after = async (action, data) => {
+      if (action === 'approve') {
+        if (failure === 'lease') data.lease = 'invalid-signed-lease';
+        committed = true; await approval.promise;
+      }
+      if (action === 'session') {
+        if (failure === 'binding') data.binding.trackSid = 'TR_other';
+        if (failure === 'revocation') { data.keyRing.generation++; data.keyRing.revision++; }
+      }
+    };
+    f.advance(2000); f.tick(); await until(() => reading);
+    f.helper.allow(); await until(() => committed);
+    poll.resolve(); await until(() => !f.target.polling); approval.resolve();
+    assert.ok(await outcome, failure);
+    assert.equal(f.target.status().phase, 'ended', failure);
+    assert.throws(() => f.target.inputGrant());
+  }
+});

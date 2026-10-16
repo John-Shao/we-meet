@@ -68,6 +68,8 @@ B 返回 `update-delivery9/remote-control.jsonl`，没有轮转文件。北京�
 
 本地完整远控检查通过：99 项 Node 集成/单元测试通过，原生运行时 33 项中 30 通过、3 项真实输入用例按默认模式跳过；572 种保留快捷键组合、1830 次策略判断通过。随后桌面普通测试 113 通过、1 跳过。原生回归覆盖 worker/guardian 的会话变化、休眠/唤醒关闭、原生确认、暂停/重新确认及清理；没有执行真实按键/拖拽注入测试。下一步构建并交接 delivery.10，再验证 B 会议内授权。
 
+delivery.10 已由干净提交 `5accc006ac7391a014216c14afa1ff1df21256c3` 构建，安装器 187,805,923 字节，SHA-256 `916235714113e63fea6a02931ef7cfc038d34beced284ba5af9038d5dcd77547`，NotSigned。包内主进程/诊断 JS 和原生 helper 与本机构建逐字节一致；helper SHA-256 `665dda50c3a5772ebcb0f75c5bef445ae79d21a0a21285e6cd359667bd85d9c2`，202 项页面资源及交接复制摘要通过。目录为 `work/remote-control-dual-pc-2026-10-16/update-delivery10`。[Release guard 38888400152](https://github.com/John-Shao/we-meet/actions/runs/38888400152) 的 Windows desktop-boundaries、deployment-boundaries 已成功，完整 workflow 尚在运行。用户回复正在更新 B，升级后实际授权结果待反馈。
+
 - 用户已准备第二台 Windows 10/11，可安装测试客户端，由用户操作。先安排本机为 A（操作方），第二台电脑为 B（被控方）。具体 Windows 版本、账号、组织和网络待记录。
 - 目标站点：`https://meet.we-meet.online`；认证 issuer：`https://id.we-meet.online/realms/meet`。
 - 公开 HTTP 实测：主页、配置接口、OIDC discovery 均为 200；OIDC 支持 S256。
@@ -169,3 +171,22 @@ b1a2d78be75807030356cfc9af956f8f5a0ab2610a1a838f6fdfac96ea06bb19
 | 迁移/密钥/开关/范围 | 0223～0226 已应用；密钥 ready；全局开启；组织仅允许 A 控制 B |
 | T01～T10 | T01 通过；T02 拒绝流程已验证；普通整屏共享已恢复；T03 原生授权尚未完成；T04～T10 未执行 |
 
+
+
+### delivery.10 双机授权观察（18:50—18:55）
+
+B 已安装 delivery.10、入会并共享整屏。第一次会话 e19d3145-0349-4c67-832a-5af659e632e3 在北京时间 18:50:59 已观察到 ACTIVE，A 显示“已获授权，点击开始操作”。等待用户将空白编辑器置于前台期间，会话于 18:51:55 结束；B 显示“本次申请或授权已到期”。A 尚未点击开始，也没有发送输入。原生代码在首次 Arm 前仍检查确认有效期，但本次具体关闭原因需要 B 日志核实。
+
+第二次会话 9f706446-1c35-41d7-b6bc-3fe54211fdf0 于 18:55:30.458 创建，18:55:35.268 观察到 PREPARING，18:55:37.734 观察到 ACTIVE，18:55:38.249 已为 ENDED / local_stop。B 确认并提供截图：提示为“无法继续本次远程操作。请核对共享、连接和设备状态。”不能把这次终止归因于用户操作不及时，也不能将服务端通用 local_stop 当作用户手动停止。尚未点击开始或发送键鼠/文本，已暂停申请并请求 B 复制诊断日志；B 已确认停止共享。
+
+T03 已有真实原生同意并进入 ACTIVE 的证据，但授权后稳定建立操作通道仍未通过；T04—T10 未执行。脱敏的第二次会话时间线保存于 work/remote-control-preflight-2026-10-16/delivery10-second-session-timeline.json。
+
+### delivery.10 日志结论及 delivery.11 确认轮询竞态修复
+
+B 返回的 `update-delivery10/remote-control.jsonl` 已归档到 `work/remote-control-preflight-2026-10-16/b-delivery10-authorization-changed.jsonl`。第一轮 18:50:57.578 consentAllowed、18:50:58.701 active，18:51:53.813 以 consent_expired 正常关闭；desktopCause=none、cleanup=1、worker exitCode=0。确认是在首次 Arm 前达到原生确认截止时间，没有输入或清理失败。
+
+第二轮 18:55:36.597 consentAllowed，18:55:37.690 主进程因 authorization_changed 结束，随后 authorization_cancelled；原生仅响应 parent_stop，desktopCause=none、cleanup=1、exitCode=0。主进程在确认完成后仍以 confirming 阶段轮询，服务端 approve 已提交 ACTIVE、签名响应尚未本地验证时，轮询把自己的状态推进误判为外部变更。这与 B 日志及 A 端 ACTIVE 后立即 ENDED 的时间线一致。
+
+新增确定性回归通过延迟 session 读取和签名批准响应复现此顺序。旧代码首次批准、恢复批准及批准期间新轮询三项均失败。修复仅在原生确认仍待决时启动轮询；已完成确认的旧轮询不再比较非终态版本，状态推进仍必须经过原批准响应的完整签名验证。旧轮询仍检查绑定、密钥撤销及终态取消；没有延长申请或确认期限，也没有将 HTTP ACTIVE 当作可输入状态。
+
+新增五项回归覆盖首次批准、恢复批准、禁止批准期间新轮询、迟到取消，以及绑定/密钥撤销/签名租约异常。桌面测试 118 通过、1 跳过；远控 Node 联检 103 通过、1 因 A 原生环境 native_controls_unavailable 未通过，已请求解锁后单独复核。候选版本 delivery.11，安装包及双机复测待完成；T04—T10 仍未执行。

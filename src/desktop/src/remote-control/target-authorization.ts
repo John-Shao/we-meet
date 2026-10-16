@@ -364,11 +364,18 @@ export class TargetAuthorization extends EventEmitter {
       this.cleanupBlocked = true; this.stop("cleanup_unconfirmed"); return;
     }
     const serial = this.serial;
-    if (this.phase === "confirming" && !this.polling && this.now() >= this.nextPoll) {
+    if (this.phase === "confirming" && this.consent && !this.polling && this.now() >= this.nextPoll) {
+      const consent = this.consent;
       this.polling = true; this.nextPoll = this.now() + 2000;
       void this.call("session", serial).then(response => {
         const row = session(response.data); this.matchRow(row);
         if (!terminal.has(row.state)) this.trust!.update(response.data.keyRing, row.signingGeneration);
+        // The native decision can resolve while this read is in flight. Our
+        // approve/resume may already have committed remotely, before its signed
+        // response is verified locally. Only that proof may advance the grant;
+        // an obsolete dialog poll must not reject our own transition. Still
+        // honor terminal responses, binding checks and signing-key revocation.
+        if (this.consent !== consent && !terminal.has(row.state)) return;
         if (row.stateVersion < this.row!.stateVersion) return; // Older concurrent read.
         if (row.stateVersion !== this.row!.stateVersion || row.state !== this.row!.state || row.epoch !== this.row!.epoch || terminal.has(row.state)) this.stop("authorization_changed");
       }).catch(error => { if (serial === this.serial) this.stop(this.errorCode(error)); }).finally(() => { this.polling = false; });
