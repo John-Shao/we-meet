@@ -2,7 +2,7 @@
 
 日期：2026-10-16（北京时间）。本记录只覆盖本次实际执行的步骤；未执行项不能登记通过。完整发布门槛仍见[验收矩阵](meeting-remote-control-acceptance-matrix-2026-10-15.md)。
 
-## 当前进度：双方已验证入会，修复能力登记阻塞后重启联调
+## 当前进度：修复已上线，双机联调进行中
 
 - 用户确认 B 已安装内部测试客户端并登录指定 B 账号。用户随后将 A 提升为组织管理员；服务端只读复核 A 为 administrator、B 为 member，本次维护未更改账号角色。
 - 用户明确批准部署候选 `f950ba8cc2ef13ddc0ed8feb21768f1a81e2f34f`。该提交的 [Release guard 38770440116 / attempt 1](https://github.com/John-Shao/we-meet/actions/runs/38770440116/attempts/1) 四项作业全部通过，发布主机也用原门禁脚本实时复核通过。
@@ -18,6 +18,19 @@
 - 首次策略保存自动化在等待确认框后续请求时超时；只读核对策略仍为空、远控会话为 0 后，重新登录并完成 UI 确认。最终成功结果来自上述 HTTP 200，未绕过管理接口或本机授权。
 
 以下预检段落保留部署前的时间点；当前状态以本节为准。部署文件及证据保存在本机 `work/remote-control-preflight-2026-10-16`、交接目录 `work/remote-control-dual-pc-2026-10-16` 和上述服务器私有发布目录。
+
+### 中断后重启联调的修复候选
+
+- 候选 `7f252a191a3da76abd6c32c34c2c7cf0f943156c` 修复上述两处能力登记错误。新增 16 项回归通过；本机远控六文件完整测试集 107 项通过。真实会话测试启用 CSRF 检查，缺少 CSRF 请求头仍返回 403；16 KiB / 1 KiB 边界以内成功、超出一字节返回 413。组织、会议以及两者共同限制时，A/B 分别只登记获准的一种角色，B 反向申请仍返回 403。
+- [Release guard 38867840543 / attempt 1](https://github.com/John-Shao/we-meet/actions/runs/38867840543/attempts/1) 四项作业全部通过，发布主机原门禁也复核了同一提交。只构建、推送后端镜像 `7f252a191`，注册表摘要 `sha256:8f2e44c524bf40a538e507e825a6681c84b375eba7ba461a482b089045e928e8`，OCI revision 为完整候选 SHA。客户端安装器和线上前端继续使用此前版本。
+- 新的发布前机外备份于北京时间 15:33:34 完成，检查通过；SHA-256 `5eadcdd80e33780adc1386478c1c63a466e54bb8864b6036d6fdc0a9e1d84475a`，39,675,238 字节。独立发布目录 `/root/we-meet-remote-control-7f252a191` 保留私有 values、manifest、工作负载快照和发布日志。
+- 首次渲染发现 `helm get values -a` 丢失了一个显式 null 覆盖，导致媒体入口默认 annotation 重新出现。候选 values 补回该 null 后再次通过原 CI 门禁及渲染检查，差异只剩 5 个 Deployment、2 个 CronJob 的后端镜像。没有修改入口配置、签名密钥或测试名单。
+- 用户确认 B 客户端普通双击启动、空白记事本已就绪。A 已离开旧连接并打开 54336287 的入会准备页，等待发布后重新验证。
+- Helm `468` 已部署，发布脚本退出 0；5 个选中 Deployment 就绪、2 个 CronJob 使用新镜像，另外 15 个 Deployment/CronJob 的 spec 与发布前完全一致。两处后端签名检查均 ready、revision=1，指纹与此前一致。A 入会后 capabilities GET/POST 连续 HTTP 200。
+- 北京时间 15:46，B 重新入会并确认看到 A。A 页面显示双方，能力列表中 A 为 `canControl=true / canBeControlled=false`，B 为 `false / true`，远控申请入口可用。首次申请于 15:46:34 返回 PENDING，用户随即在 B 点击拒绝，A 显示“本次申请未获同意”。没有发送键鼠或文本输入，未开启共享屏幕。
+- 首次申请最终服务端状态 `REJECTED`、stateVersion=2、endReason=`request_rejected`。第二次申请 15:47:59 创建；B 点击“选择整屏并继续”后报错，没有出现屏幕选择框。A 在本地期限到达后于 15:48:28 取消，服务端 `CANCELLED / request_cancelled`；审计只有 requested、ended，没有 prepare/approve。截图同时显示授权到期和通用错误，不能据此认定只是用户操作超时。
+- B 确认通过另一款远程桌面软件操作第二台电脑，普通“共享屏幕”也没有弹出选择框。独立 Electron 44.4.3、真实 main/preload、临时用户目录和回环页面复现：`getDisplayMedia` 先触发 `media` 权限且 `mediaTypes=[]`，旧代码拒绝后返回 `NotAllowedError: Permission denied`。本次桌面修复只接受显式空数组的兼容路径，仍校验窗口、来源和主 frame，后续采集仍通过原生选择框与手势检查。该旧版回调行为也见 [Electron 官方变更说明](https://github.com/electron/electron/blob/main/docs/breaking-changes.md#behavior-changed-screen-capture-requests-are-reported-as-display-capture-in-setpermissionrequesthandler)。
+- 新增真实 Electron 采集权限回归并加入 Windows CI：假采集源能进入选择框、取消不返回轨道；屏幕权限不授予摄像头/麦克风，设备许可仍需确认；子 frame 在选择框之前被拒绝。本地四项检查通过，使用假设备和假采集源，没有截屏或输入。升级候选版本 `0.4.0-delivery.7`，安装包与 B 端复测待完成。
 
 ## 环境与当前预检
 
@@ -75,8 +88,8 @@ b1a2d78be75807030356cfc9af956f8f5a0ab2610a1a838f6fdfac96ea06bb19
 
 | 编号 | A 操作 | B 操作和应观察结果 | 本次结果 |
 | --- | --- | --- | --- |
-| T01 | 用不同于 B 的正式账号进入测试会议 | 同一会议可见 A；确认使用桌面端、普通用户权限 | 双方同会可见已验证；B 普通进程权限待确认，中断后重新入会 |
-| T02 | 对 B 申请远程操作 | 先拒绝；B 的记事本不能被 A 操作 | 未执行 |
+| T01 | 用不同于 B 的正式账号进入测试会议 | 同一会议可见 A；确认使用桌面端、普通用户权限 | 通过：重启后双方同会可见；B 确认普通双击启动 |
+| T02 | 对 B 申请远程操作 | 先拒绝；B 的记事本不能被 A 操作 | 拒绝流程已验证，A 已结束；未发送输入，记事本无变化待 B 确认 |
 | T03 | 冷却结束后重新申请 | 选择完整显示器，核对原生确认框，再允许本次控制 | 未执行 |
 | T04 | 画面就绪后点击开始，点击记事本，输入 `remote test 123` | 确认字符只出现在预期记事本；本项期间 B 不操作键鼠 | 未执行 |
 | T05 | 使用文本框发送 `远程控制测试`，核对回执 | 中文完整且仅出现一次，不自动附加回车 | 未执行 |

@@ -382,13 +382,17 @@ async function createWindow() {
       callback(false);
       return;
     }
-    if (permission === "display-capture") {
+    const types = "mediaTypes" in details ? details.mediaTypes : undefined;
+    // Electron 44 reports getDisplayMedia as media with an explicit empty list.
+    // This only admits the request to the guarded native source picker below;
+    // it grants neither a capture source nor remote input authorization.
+    if (permission === "display-capture" ||
+        (permission === "media" && Array.isArray(types) && types.length === 0)) {
       callback(true);
       return;
     }
-    const types = "mediaTypes" in details ? details.mediaTypes || [] : [];
     if (
-      !types.length ||
+      !types?.length ||
       types.some((type) => !["audio", "video"].includes(type))
     ) {
       callback(false);

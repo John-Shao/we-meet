@@ -189,6 +189,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Check installed LiveKit SDK receive semantics
         run: npm run test:remote-control:sdk
+      - name: Check Electron screen capture and media permission separation
+        run: npm run test:remote-control:capture
       - name: Preserve remote-control native evidence
         if: always()
         uses: actions/upload-artifact@v4
