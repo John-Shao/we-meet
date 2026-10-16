@@ -1,7 +1,7 @@
 {
   "name": "we-meet-desktop",
   "private": true,
-  "version": "0.4.0-delivery.7",
+  "version": "0.4.0-delivery.8",
   "description": "we-meet 桌面端 (Electron) — 复用 src/frontend 的 React 应用",
   "main": "dist/main.js",
   "scripts": {
@@ -13,6 +13,7 @@
     "test:remote-control:sdk": "tsc && node --test tests/remote-control-sdk.integration.cjs",
     "test:remote-control:ipc": "npm run build:main && node scripts/remote-control-ipc-smoke.cjs",
     "test:remote-control:capture": "npm run build:main && node scripts/remote-control-capture-smoke.cjs",
+    "test:remote-control:display-mapping": "npm run build:main && node scripts/remote-control-display-mapping-smoke.cjs",
     "test:remote-input": "npm run build:remote-input && npm run test:remote-input:cleanup && npm run test:remote-input:keys && tsc && node --test tests/remote-control-native.integration.cjs && python native/remote-input/test_runtime.py -v",
     "test:remote-control": "npm run build:remote-input && npm run test:remote-input:cleanup && npm run test:remote-input:keys && tsc && node --test tests/remote-control-*.integration.cjs tests/remote-control-*.test.cjs && python native/remote-input/test_runtime.py -v",
     "probe:remote-control:displays": "npm run build:remote-input && tsc && electron scripts/remote-control-display-probe.cjs",

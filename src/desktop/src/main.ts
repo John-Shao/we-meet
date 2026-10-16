@@ -456,7 +456,7 @@ async function createWindow() {
           const probe = await remote.probeCapture();
           if (!probe.ready) throw new Error("native_unavailable");
           const binding = bindScreenSource(source, screen.getAllDisplays(), probe.displays,
-            rect => screen.dipToScreenRect(null, rect));
+            { toDip: rect => screen.screenToDipRect(null, rect) });
           remote.selectedCapture(ticket, binding);
         } catch {
           if (ticket.fullScreenOnly) { callback({}); return; }

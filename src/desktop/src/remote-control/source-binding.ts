@@ -17,12 +17,13 @@ function rectangle(value: Rect) {
 }
 
 /** Main only: all arguments come from Electron/native enumeration, never IPC rects.
- * Windows uses screen.dipToScreenRect(null, bounds). Matching must be unique and
- * exact; failing closed is preferable to guessing from names, array indexes or
- * multiplying absolute DIP coordinates by a scale factor.
+ * Convert native pixel rectangles to DIP with screen.screenToDipRect. Electron
+ * encloses fractional DIP bounds, so converting them back to pixels can enlarge
+ * a monitor (3072x1920 at 175% becomes 3073x1922). Keep the native pixel rectangle
+ * authoritative, require one exact DIP match, and reject ambiguous conversions.
  */
 export function bindScreenSource(source: CaptureSource, displays: ScreenDisplay[], nativeDisplays: NativeDisplay[],
-  toPhysical: (rect: Rect) => Rect, shareInstanceId = randomUUID()): SourceBinding {
+  coordinates: { toDip: (rect: Rect) => Rect }, shareInstanceId = randomUUID()): SourceBinding {
   bytesFromUuid(shareInstanceId);
   if (!source || !/^screen:[^:\s]+:[^:\s]+$/.test(source.id) || !source.display_id) throw new Error("full_display_required");
   const matches = displays.filter(display => String(display.id) === source.display_id);
@@ -30,9 +31,12 @@ export function bindScreenSource(source: CaptureSource, displays: ScreenDisplay[
   const display = matches[0];rectangle(display.bounds);
   if (!Number.isSafeInteger(display.id) || display.id === -1 || !Number.isFinite(display.scaleFactor) ||
     display.scaleFactor < .5 || display.scaleFactor > 8 || ![0,90,180,270].includes(display.rotation)) throw new Error("display_mapping_unavailable");
-  const physical = toPhysical({ ...display.bounds });rectangle(physical);
-  const nativeMatches = nativeDisplays.filter(item => item.left === physical.x && item.top === physical.y &&
-    item.width === physical.width && item.height === physical.height);
+  const nativeMatches = nativeDisplays.filter(item => {
+    const physical = { x: item.left, y: item.top, width: item.width, height: item.height };rectangle(physical);
+    const dip = coordinates.toDip(physical);rectangle(dip);
+    return dip.x === display.bounds.x && dip.y === display.bounds.y &&
+      dip.width === display.bounds.width && dip.height === display.bounds.height;
+  });
   if (nativeMatches.length !== 1) throw new Error("display_mapping_unavailable");
   const native = nativeMatches[0], dpi = Math.round(display.scaleFactor*96);
   if (!native.deviceName || !native.devicePath || native.rotation !== display.rotation || native.dpiX !== dpi || native.dpiY !== dpi ||

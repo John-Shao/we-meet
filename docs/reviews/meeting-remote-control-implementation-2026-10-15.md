@@ -105,7 +105,7 @@
 - 长姓名完整显示于确认窗，控制条单行省略；热键提示为独立控件，避免被长姓名挤掉。已检查 150% 缩放下普通/159 字符姓名确认窗及控制条截图。
 - 本地真实输入立即关闭共享 gate，再释放并报告 local_takeover；紧急热键单独报告 emergency_stop。捕获挂起保留同意但释放输入；重新开放必须使用新 inputGeneration；停止会清除原生同意。恢复按钮只产生 resumeRequested，不自行恢复授权。
 - 原生枚举 GDI 显示器名、DisplayConfig 目标路径、物理区域、方向及有效 DPI；镜像/缺失映射拒绝绑定。同意及 Arm 再核对显示器，显示事件和定期快照变化使旧绑定失效。
-- 主进程 `source-binding.ts` 使用 source.display_id → Electron Display → `screen.dipToScreenRect` → 唯一 Win32 物理区域映射，再匹配 DPI/方向并生成绑定摘要；拒绝窗口、缺失/重复映射，不按名称或数组下标猜屏幕。采集记录具有准备 TTL、登录 epoch、共享实例和不可变轨道 SID。
+- 主进程 `source-binding.ts` 先按 source.display_id 找到 Electron Display，再将每个 Win32 物理区域通过 `screen.screenToDipRect` 转换后与所选 Display 的逻辑区域精确比对，要求唯一匹配并校验 DPI/方向，绑定中保留原生物理尺寸。2026-10-16 实机联调发现旧的 DIP→物理反算在 175% 缩放下会因取整扩大尺寸，已改为上述方向；拒绝窗口、缺失/重复映射，不按名称或数组下标猜屏幕。采集记录具有准备 TTL、登录 epoch、共享实例和不可变轨道 SID。
 - 此映射模块与原生 UI 已做独立验证，但尚未改接 main.ts 的共享 handler 或 preload；普通共享不会因此自动获得控制许可。
 
 ### 本批证据与剩余验证

@@ -24,7 +24,7 @@ app.whenReady().then(async()=>{
     const displays=screen.getAllDisplays()
     if(!sources.length)throw Error('No screen sources available')
     const results=sources.map(source=>{
-      const binding=bindScreenSource(source,displays,nativeDisplays,rect=>screen.dipToScreenRect(null,rect))
+      const binding=bindScreenSource(source,displays,nativeDisplays,{toDip:rect=>screen.screenToDipRect(null,rect)})
       const {left,top,width,height,dpiX,dpiY,rotation}=binding.native
       return {sourceId:binding.sourceId,electronDisplayId:binding.electronDisplayId,dipBounds:binding.dipBounds,
         scaleMilli:binding.scaleMilli,physical:{left,top,width,height,dpiX,dpiY,rotation},hash:binding.displayBindingHash}

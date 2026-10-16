@@ -45,7 +45,7 @@ function fixture() {
     } });
   runtime.on('state', event => events.push(event));
   const source = () => bindScreenSource({ id: 'screen:1:0', display_id: '1' },
-    [{ id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 }, scaleFactor: 1, rotation: 0 }], [native], rect => rect);
+    [{ id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 }, scaleFactor: 1, rotation: 0 }], [native], { toDip: rect => rect });
   const select = async () => { const ticket = runtime.beginCapture(); await runtime.captureBaseline(ticket); const binding = source(); runtime.selectedCapture(ticket, binding); return binding; };
   const bind = (c, binding, sid = 'TR_new') => runtime.bindPublishedTrack({ contextId: c.contextId, shareInstanceId: binding.shareInstanceId, trackSid: sid });
   return { runtime, auth, room, state, calls, helpers, events, source, select, bind };

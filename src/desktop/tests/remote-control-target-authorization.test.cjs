@@ -23,7 +23,7 @@ async function fixture(autoConsent = true) {
   const auth = { epoch: 7, signedIn: true, subject: context.identity, access: async () => 'test-only' };
   const captures = new CaptureBindingStore(now);
   const source = bindScreenSource({ id: 'screen:1:0', display_id: '1' }, [{ id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 }, scaleFactor: 1, rotation: 0 }],
-    [{ left: 0, top: 0, width: 1920, height: 1080, deviceName: 'DISPLAY1', devicePath: 'test-monitor', rotation: 0, dpiX: 96, dpiY: 96 }], rect => rect);
+    [{ left: 0, top: 0, width: 1920, height: 1080, deviceName: 'DISPLAY1', devicePath: 'test-monitor', rotation: 0, dpiX: 96, dpiY: 96 }], { toDip: rect => rect });
   captures.selected(source, context.authEpoch);
   const request = { v: 1, roomId: context.roomId, roomSid: context.roomSid,
     controllerUserId: randomUUID(), controllerIdentity: 'controller-user', controllerSid: 'PA_controller',

@@ -189,6 +189,8 @@ jobs:
         run: npm run test:remote-control:sdk
       - name: Check Electron screen capture and media permission separation
         run: npm run test:remote-control:capture
+      - name: Check fractional DPI display mapping with Electron
+        run: npm run test:remote-control:display-mapping
       - name: Preserve remote-control native evidence
         if: always()
         uses: actions/upload-artifact@v4
