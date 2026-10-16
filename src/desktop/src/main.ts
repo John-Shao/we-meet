@@ -43,6 +43,7 @@ import { forwardRequest } from "./forward";
 import { loadInitialPage } from "./startup";
 import { RemoteControlCloud } from "./remote-control/cloud";
 import { RemoteDesktopRuntime, publicRemoteError } from "./remote-control/runtime";
+import { createRemoteDiagnostics } from "./remote-control/diagnostics";
 import { bindScreenSource } from "./remote-control/source-binding";
 import { chooseCaptureSource } from "./remote-control/source-picker";
 import { nativeDescriptor } from "./remote-control/native-resources";
@@ -346,6 +347,7 @@ async function createWindow() {
   });
   const win = window;
   remoteControl = new RemoteDesktopRuntime({ auth, cloud: new RemoteControlCloud(config.serviceOrigin, auth),
+    diagnostic: createRemoteDiagnostics(path.join(app.getPath("userData"), "diagnostics")).record,
     resourceRoot: path.join(app.isPackaged ? process.resourcesPath : __dirname, "remote-input"),
     nativeDescriptor: (() => {
       if (!app.isPackaged) return undefined;

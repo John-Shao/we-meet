@@ -37,8 +37,20 @@
 - 安装包源码 `6121a5350` 的完整 [Release guard 38870757589](https://github.com/John-Shao/we-meet/actions/runs/38870757589) 已完成且成功。本机 GitHub API TLS 超时后，改由既有发布主机读取 GitHub 公开 API 确认同一 head SHA；CI 通过不代表此次 B 原生授权问题已解决。
 - B 的只读原生探针返回 ready=true，单屏物理区域 `(0,0,3072,1920)`、rotation=0、dpiX=dpiY=168。结合选择框中 1756×1098 DIP / 175% 的截图，使用真实 Electron 44.4.3 的独立进程复现：物理→DIP 为 1756×1098，DIP→物理反算为 3073×1922。旧代码要求反算结果与 Win32 区域完全相同，因此该配置无法绑定。该取整行为与 [Chromium ScreenWin 转换实现](https://github.com/chromium/chromium/blob/main/ui/display/win/screen_win.cc) 一致。
 - delivery.8 改为将可信 Win32 物理区域转换到 DIP 后与所选 Electron Display 精确匹配，仍要求唯一匹配、相同 DPI/方向和非空设备标识；绑定与原生输入继续使用 Win32 原始物理区域。没有扩大坐标容差、改动用户缩放、放宽授权或延长申请期限。真实 Electron 转换回归、负坐标/混合 DPI/旋转及量化歧义拒绝测试通过；桌面测试 111 通过、1 跳过，真实屏幕权限四项回归通过。新增转换回归纳入 Windows CI；新安装包和 B 原生授权复测待完成。
+- delivery.8 已由干净提交 `a674eeaeaea54c3bd67ebff9f0d16d4bf658e68a` 构建并交接。Windows [desktop-boundaries 作业](https://github.com/John-Shao/we-meet/actions/runs/38874878564) 已通过，完整 workflow 尚在运行。包内 main/source-binding 与测试构建逐字节一致，202 项页面资源、原生资源清单及交接复制后的 SHA-256 均已校验。用户正在更新 B；服务器未因本次桌面修复变更。
+- 随后确认同一 `a674eeaea` 的完整 Release guard 已完成且成功。B 确认 delivery.8 已就绪并重新加入 54336287，A 看到新的 B 连接且能力登记正常；正在安排重新共享及原生授权复测。
+- delivery.8 实机复测：B 关闭麦克风/摄像头并共享整屏后，申请 `1c1368a0-e963-4ab5-bb27-c6e2f4cf51b7` 在北京时间 16:56:37 左右进入 PENDING。B 主进程 16:56:42 读取申请，16:56:44 的 authorization-challenge、prepare 均 HTTP 200，A 观察到 PREPARING 及显示 3072×1920 的原生授权窗口。因此本次整屏绑定和授权准备已实际通过。用户确认点击“允许本次控制”，但日志没有后续 approve challenge/approve，16:56:50 B 主进程调用 end，最终 ENDED / local_stop。该 endReason 是服务端结束接口的结果，不能据此认定用户点击了停止。
+- 随后 B 截图显示“远程控制已停止，但按键释放结果未能确认……重新启动客户端前不能再次接受远控”。正在排查原生授权确认与进程/守护进程退出路径；现有证据不足以判定具体原生原因。A 未点击开始、未发送任何键鼠或文本输入。T03 仍未通过。A 本机只读探针 ready=false，原生界面回归因运行条件不满足而退出，已请求检查并解锁 A；此失败不计为产品回归失败或通过。
+- A 解锁后，原生确认超时拒绝、确认后绑定变更拒绝、暂停后重新本机确认这三项现有回归全部通过（2.261 秒）；尚未复现 B 的清理异常。B 重新登录后仍显示清理警告及“重新登录”按钮：保护状态按进程生命周期保留是预期行为，退出账号并不会重新创建远控运行时；但 DesktopStatusBar 将所有其他提示默认配成“重新登录”属于界面缺陷。源码已改为仅 signed-out 状态显示该入口，signed-in 的一般警告只显示说明，不改变清理保护或自动重启客户端。此修改尚未交付 B。
+- 横幅修改通过前端 `tsc -b`。为取得 B 原生事件，已准备独立诊断目录 `work/remote-control-dual-pc-2026-10-16/diagnostic-consent-delivery8`；不连接会议、不读取账号、不发 Arm/Input/Lease，只允许 Hello/ParentAlive/Consent/Close。随附 helper 与 delivery.8 同一二进制，SHA-256 `4eb311a19cc362426f2ec2f073ad297818cc282b4610eb3b58f5fed2c5cd6083`，启动时固定校验。诊断入口 15,872 字节，SHA-256 `6c260bd8f94eb1b264364e4d16690a14234340a49b109b3a7e04a7738c35574d`。本机独立测试进程的允许、拒绝两条路径均 cleanup=1、workerExitCode=0、inputCommandsSent=0；交接复制后重新核对哈希。B 运行及日志待反馈，不把诊断工具的本机成功算为 T03 通过，也未据推测修改原生保护逻辑。
 
 ## 环境与当前预检
+
+### delivery.8 独立原生诊断结果与 delivery.9 候选
+
+B 返回的 `native-consent-20261016-175832-368.jsonl` 显示：北京时间 17:58:32 原生 ready=true、物理区域 3072×1920 / DPI 168，17:58:43 收到 consentAllowed；诊断程序按设计观察两秒后发送 Close，17:58:45 收到 parent_stop / cleanup=1、guardianClosed / cleanup=1，workerExitCode=0、inputCommandsSent=0。此结果证明同一 helper 在 B 的独立诊断上下文中可正常完成授权与清理；不证明会议内链路成功，也不能排除间歇性原生故障。
+
+delivery.9 候选仅补充客户端主进程脱敏事件日志，并包含上述已登录横幅按钮修正。记录原生生命周期、授权状态变化、失败原因白名单、退出码与清理结果；不记录会话标识、账号、令牌、签名、nonce、屏幕或输入内容，不记录逐条输入/心跳。日志异步落盘、失败不影响控制决策，最多两个 128 KiB 文件及 128 条待写记录。没有变更原生授权、守护进程、释放保护、申请期限或服务器。新增脱敏/去重/轮转/写入失败回归；桌面测试 113 通过、1 跳过，安装包及 B 会议内复测待完成。
 
 - 用户已准备第二台 Windows 10/11，可安装测试客户端，由用户操作。先安排本机为 A（操作方），第二台电脑为 B（被控方）。具体 Windows 版本、账号、组织和网络待记录。
 - 目标站点：`https://meet.we-meet.online`；认证 issuer：`https://id.we-meet.online/realms/meet`。
@@ -62,7 +74,17 @@
 
 ## 交给 B 的内部测试包
 
-### 当前更新：0.4.0-delivery.7
+### 当前更新：0.4.0-delivery.8
+
+文件：`update-delivery8/We-Meet-0.4.0-delivery.8-setup.exe`，187,804,239 字节。干净构建源码：`a674eeaeaea54c3bd67ebff9f0d16d4bf658e68a`。SHA-256：
+
+```text
+aead0bb7acce82dd6b77793bafad4484a897e244d38997b44bfba7cff93038c3
+```
+
+B 停止共享并退出旧客户端后安装，保留 175% 缩放，普通双击启动后加入原会议。先普通共享完整显示器、准备空白编辑器，再同步申请原生授权。安装器及 helper 仍为未签名内部测试版本；完成更新也不代表完整升级、卸载或远控验收通过。
+
+### 屏幕权限修复交接：0.4.0-delivery.7
 
 文件：`update-delivery7/We-Meet-0.4.0-delivery.7-setup.exe`，187,804,819 字节。源码为 `6121a53507cff1dfeddfd5bb0c3c5c0fd6468ac9`，构建时工作树干净；修复屏幕选择框无法打开的问题，原生输入协议仍为 1。SHA-256：
 
@@ -108,7 +130,7 @@ b1a2d78be75807030356cfc9af956f8f5a0ab2610a1a838f6fdfac96ea06bb19
 | --- | --- | --- | --- |
 | T01 | 用不同于 B 的正式账号进入测试会议 | 同一会议可见 A；确认使用桌面端、普通用户权限 | 通过：重启后双方同会可见；B 确认普通双击启动 |
 | T02 | 对 B 申请远程操作 | 先拒绝；B 的记事本不能被 A 操作 | 拒绝流程已验证，A 已结束；未发送输入，记事本无变化待 B 确认 |
-| T03 | 冷却结束后重新申请 | 选择完整显示器，核对原生确认框，再允许本次控制 | delivery.7 已恢复普通整屏共享；点击查看后仍未进入原生授权，排查中 |
+| T03 | 冷却结束后重新申请 | 选择完整显示器，核对原生确认框，再允许本次控制 | delivery.8 已通过整屏绑定/prepare，并显示原生授权；B 点击允许后因原生清理结果未确认而结束，尚未 ACTIVE，待定位 |
 | T04 | 画面就绪后点击开始，点击记事本，输入 `remote test 123` | 确认字符只出现在预期记事本；本项期间 B 不操作键鼠 | 未执行 |
 | T05 | 使用文本框发送 `远程控制测试`，核对回执 | 中文完整且仅出现一次，不自动附加回车 | 未执行 |
 | T06 | 暂停，再按提示开始 | 暂停期间不执行输入；恢复后仅执行新输入 | 未执行 |
@@ -124,8 +146,8 @@ b1a2d78be75807030356cfc9af956f8f5a0ab2610a1a838f6fdfac96ea06bb19
 | 项目 | 结果 |
 | --- | --- |
 | A 客户端/版本、Windows 版本 | 待提供 |
-| B Windows 版本、显示器/缩放、原有客户端版本 | 待提供 |
-| B 安装及登录结果 | delivery.7 更新后已入会，普通共享选择框已由用户截图确认；不据此推定完整升级/卸载验收通过 |
+| B Windows 版本、显示器/缩放、原有客户端版本 | 具体 Windows 版本待确认；TL160MDMP01，3072×1920，175% / DPI 168，rotation=0；旧版本 delivery.7 |
+| B 安装及登录结果 | delivery.7 普通整屏共享通过；delivery.8 正在更新；不据此推定完整升级/卸载验收通过 |
 | 测试组织、A/B 账号、会议 | Default Organization；A=POC验证、B=W006；会议 54336287；不记录凭据 |
 | 实际服务端候选提交、镜像摘要、CI、备份 | 后端 7f252a191、前端 f950ba8cc；Helm 468；门禁、备份与上线验证通过，摘要见上文 |
 | 迁移/密钥/开关/范围 | 0223～0226 已应用；密钥 ready；全局开启；组织仅允许 A 控制 B |

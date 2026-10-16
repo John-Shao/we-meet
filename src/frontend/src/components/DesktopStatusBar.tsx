@@ -56,9 +56,9 @@ export function DesktopStatusBar() {
         <button onClick={() => run(bridge.logout)}>取消登录</button>
       ) : offline ? (
         <button onClick={() => run(bridge.retry)}>重新连接</button>
-      ) : (
+      ) : status?.auth === 'signed-out' ? (
         <button onClick={() => run(bridge.login)}>重新登录</button>
-      )}
+      ) : null}
     </aside>
   )
 }

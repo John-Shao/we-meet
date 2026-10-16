@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 import { type RemoteAuth, type RemoteControlCloud } from "./cloud";
 import { RemoteInputHelper, type NativeEvent } from "./native-helper";
 import type { NativeDescriptor } from "./native-resources";
+import type { DiagnosticSink } from "./diagnostics";
 import { CaptureBindingStore, type SourceBinding } from "./source-binding";
 import { TargetAuthorization, type TargetContext } from "./target-authorization";
 import { TargetTransport, type OutgoingRemoteMessage } from "./target-transport";
@@ -15,6 +16,7 @@ type Native = Pick<RemoteInputHelper, "start" | "stop" | "shutdown" | "on" | "of
 type Dependencies = {
   auth: RemoteAuth & { readonly subject?: string }; cloud: Pick<RemoteControlCloud, "request">; resourceRoot: string;
   nativeDescriptor?: NativeDescriptor | null;
+  diagnostic?: DiagnosticSink;
   probe?: typeof RemoteInputHelper.probe; helper?: () => Native; now?: () => number;
 };
 type Running = { helper: Native; auth?: TargetAuthorization; transport?: TargetTransport; retiring: boolean };
@@ -211,6 +213,7 @@ export class RemoteDesktopRuntime extends EventEmitter {
     const entry: Running = { helper: this.deps.helper?.() ?? new RemoteInputHelper(this.deps.nativeDescriptor), retiring: false };
     this.running = entry; this.intent = undefined;
     entry.helper.on("state", (event: NativeEvent) => {
+      this.diagnostic("native", event);
       if (["closed", "guardianClosed", "terminated"].includes(event.event) && event.cleanup !== 1) {
         this.blocked = true;
         if (entry.auth) entry.auth.block(); else this.stopTarget("cleanup_unconfirmed");
@@ -235,7 +238,7 @@ export class RemoteDesktopRuntime extends EventEmitter {
       if (entry.retiring || this.running !== entry) throw new Error("authorization_cancelled");
       const transport = new TargetTransport(authorization, entry.helper, message => this.send(c, message), this.now);
       entry.transport = transport; await transport.start();
-    })().catch(error => { if (this.running === entry) this.stopTarget(code(error)); });
+    })().catch(error => { this.diagnostic("failure", { reason: code(error) }); if (this.running === entry) this.stopTarget(code(error)); });
   }
 
   private stopTarget(reason: string) {
@@ -250,6 +253,7 @@ export class RemoteDesktopRuntime extends EventEmitter {
     const previous = this.cleanup;
     this.cleanup = (async () => {
       const cleanup = await entry.helper.shutdown().catch(() => -1); await previous;
+      this.diagnostic("shutdown", { cleanup });
       if (cleanup !== 1) this.blocked = true;
       this.publish({ ...this.status, phase: this.blocked ? "blocked" : "ended", inputOpen: false,
         cleanupBlocked: this.blocked, reason: this.blocked ? "cleanup_unconfirmed" : reason });
@@ -280,5 +284,6 @@ export class RemoteDesktopRuntime extends EventEmitter {
     if (source) return { shareInstanceId: source.shareInstanceId, width: source.native.width, height: source.native.height, ...(active ? { trackSid: active.trackSid } : {}) };
   }
   private snapshot(enabled: boolean): RemoteCapabilities { return { enabled, contextId: this.context?.contextId, canBeControlled: this.supported && !this.blocked, capture: this.capture(), status: { ...this.status } }; }
-  private publish(status: RemoteTargetStatus) { this.status = { ...status, cleanupBlocked: this.blocked || status.cleanupBlocked }; this.emit("state", { type: "state", contextId: this.context?.contextId, status: this.status, capture: this.capture() } satisfies RemoteDesktopEvent); }
+  private diagnostic(kind: Parameters<DiagnosticSink>[0], value: Record<string, unknown>) { try { this.deps.diagnostic?.(kind, value); } catch { /* Logging never changes control state. */ } }
+  private publish(status: RemoteTargetStatus) { this.status = { ...status, cleanupBlocked: this.blocked || status.cleanupBlocked }; this.diagnostic("state", this.status); this.emit("state", { type: "state", contextId: this.context?.contextId, status: this.status, capture: this.capture() } satisfies RemoteDesktopEvent); }
 }

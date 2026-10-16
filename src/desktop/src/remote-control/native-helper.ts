@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 import { Command, encodeArm, encodeConsent, INPUT_BYTES, type Binding, type Display, type NativeDisplay } from "./wire";
 import { verifyNativeResources, type NativeDescriptor } from "./native-resources";
 
-export type NativeEvent = { event: string; reason?: string; ready?: boolean; cleanup?: number; seq?: number; nonce?: string; ttlMs?: number; displays?: NativeDisplay[]; consentId?: string; pid?: number; guardianPid?: number };
+export type NativeEvent = { event: string; reason?: string; ready?: boolean; cleanup?: number; exitCode?: number; seq?: number; nonce?: string; ttlMs?: number; displays?: NativeDisplay[]; consentId?: string; pid?: number; guardianPid?: number };
 async function verifiedExecutable(resourceRoot: string, descriptor?: NativeDescriptor | null) {
   if (process.platform !== "win32" || process.arch !== "x64") throw new Error("native_unavailable");
   return (await verifyNativeResources(resourceRoot, descriptor, descriptor !== undefined)).executable;
@@ -45,10 +45,10 @@ export class RemoteInputHelper extends EventEmitter {
     this.child.on("error", () => this.fail("native_spawn_failed"));
     // Do not use `exit` to mark cleanup complete. Guardian keeps stdout alive
     // after worker death and reports the independent ledger cleanup outcome.
-    this.child.on("close", () => {
+    this.child.on("close", (exitCode) => {
       this.clearTimers(); this.active = false;
       this.exitCleanup = this.guardianCleanup ?? -1;
-      this.emit("state", { event: "terminated", cleanup: this.exitCleanup });
+      this.emit("state", { event: "terminated", cleanup: this.exitCleanup, exitCode });
     });
     this.pulse = setInterval(() => this.send(Command.ParentAlive), 200);
     this.challenges = setInterval(() => { if (this.active) this.send(Command.Challenge); }, 1000);
