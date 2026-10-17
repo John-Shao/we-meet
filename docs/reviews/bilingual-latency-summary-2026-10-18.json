@@ -1,0 +1,365 @@
+{
+  "local_date": "2026-10-18",
+  "timezone": "Asia/Shanghai",
+  "recorded_at": "2026-10-17T23:20:54.651255+00:00",
+  "status": "automatic_stage_measurement_completed_no_product_deployment",
+  "source": {
+    "android_main": "3833084878ade4a6b16317ae681bce180ba91270",
+    "backend_gateway": "9ff292335c1e47dbcdbf945e56493f964b326824",
+    "branch": "release/bilingual-websocket-20261016",
+    "main_apk_sha256": "ea48e13aad9f4a9400c779cb3b099304f95ca7d353e29dc680c31f7b465f3700",
+    "signed_measurement_test_apk_sha256": "4851cd08fdc99476ecf16c9716fa0d2e363139df5ac8a81168097fabb6b24497"
+  },
+  "scope": "Real provider calls from a separate process inside the unchanged gateway image; fixture admission and loopback downstream; silent real Android AudioTrack tested separately",
+  "primary_baseline": [
+    {
+      "mode": "fixed",
+      "source": "zh",
+      "samples": 2,
+      "metrics": {
+        "first_audio_hold_and_delivery_ms": {
+          "median_ms": 291.032,
+          "min_ms": 286.485,
+          "max_ms": 295.579
+        },
+        "estimated_speech_end_to_provider_first_audio_ms": {
+          "median_ms": 874.507,
+          "min_ms": 870.752,
+          "max_ms": 878.261
+        },
+        "estimated_speech_end_to_gateway_first_audio_ms": {
+          "median_ms": 1165.539,
+          "min_ms": 1164.746,
+          "max_ms": 1166.331
+        },
+        "end_detection_and_queue_ms": {
+          "median_ms": 608.311,
+          "min_ms": 607.401,
+          "max_ms": 609.221
+        }
+      }
+    },
+    {
+      "mode": "fixed",
+      "source": "en",
+      "samples": 2,
+      "metrics": {
+        "first_audio_hold_and_delivery_ms": {
+          "median_ms": 1316.975,
+          "min_ms": 1310.184,
+          "max_ms": 1323.766
+        },
+        "estimated_speech_end_to_provider_first_audio_ms": {
+          "median_ms": -540.503,
+          "min_ms": -557.6,
+          "max_ms": -523.405
+        },
+        "estimated_speech_end_to_gateway_first_audio_ms": {
+          "median_ms": 776.472,
+          "min_ms": 752.584,
+          "max_ms": 800.361
+        },
+        "end_detection_and_queue_ms": {
+          "median_ms": 608.381,
+          "min_ms": 607.895,
+          "max_ms": 608.867
+        }
+      }
+    },
+    {
+      "mode": "automatic",
+      "source": "zh",
+      "samples": 2,
+      "metrics": {
+        "first_audio_hold_and_delivery_ms": {
+          "median_ms": 302.364,
+          "min_ms": 280.927,
+          "max_ms": 323.801
+        },
+        "estimated_speech_end_to_provider_first_audio_ms": {
+          "median_ms": 910.075,
+          "min_ms": 882.311,
+          "max_ms": 937.84
+        },
+        "estimated_speech_end_to_gateway_first_audio_ms": {
+          "median_ms": 1212.44,
+          "min_ms": 1163.238,
+          "max_ms": 1261.641
+        },
+        "end_detection_and_queue_ms": {
+          "median_ms": 650.204,
+          "min_ms": 609.702,
+          "max_ms": 690.706
+        },
+        "language_probe_ms": {
+          "median_ms": 1109.973,
+          "min_ms": 1084.536,
+          "max_ms": 1135.409
+        },
+        "language_connect_ms": {
+          "median_ms": 248.045,
+          "min_ms": 218.053,
+          "max_ms": 278.037
+        },
+        "language_classification_ms": {
+          "median_ms": 360.772,
+          "min_ms": 356.59,
+          "max_ms": 364.954
+        },
+        "language_result_to_return_ms": {
+          "median_ms": 501.103,
+          "min_ms": 500.75,
+          "max_ms": 501.456
+        }
+      }
+    },
+    {
+      "mode": "automatic",
+      "source": "en",
+      "samples": 2,
+      "metrics": {
+        "first_audio_hold_and_delivery_ms": {
+          "median_ms": 547.34,
+          "min_ms": 527.418,
+          "max_ms": 567.262
+        },
+        "estimated_speech_end_to_provider_first_audio_ms": {
+          "median_ms": 446.727,
+          "min_ms": 446.414,
+          "max_ms": 447.041
+        },
+        "estimated_speech_end_to_gateway_first_audio_ms": {
+          "median_ms": 994.067,
+          "min_ms": 974.458,
+          "max_ms": 1013.676
+        },
+        "end_detection_and_queue_ms": {
+          "median_ms": 607.46,
+          "min_ms": 607.134,
+          "max_ms": 607.786
+        },
+        "language_probe_ms": {
+          "median_ms": 1083.576,
+          "min_ms": 1077.633,
+          "max_ms": 1089.519
+        },
+        "language_connect_ms": {
+          "median_ms": 231.399,
+          "min_ms": 224.098,
+          "max_ms": 238.699
+        },
+        "language_classification_ms": {
+          "median_ms": 351.278,
+          "min_ms": 338.315,
+          "max_ms": 364.242
+        },
+        "language_result_to_return_ms": {
+          "median_ms": 500.864,
+          "min_ms": 500.579,
+          "max_ms": 501.149
+        }
+      }
+    }
+  ],
+  "cleanup_experiment": [
+    {
+      "mode": "automatic",
+      "source": "zh",
+      "samples": 3,
+      "metrics": {
+        "first_audio_hold_and_delivery_ms": {
+          "median_ms": 302.21,
+          "min_ms": 296.571,
+          "max_ms": 303.963
+        },
+        "estimated_speech_end_to_provider_first_audio_ms": {
+          "median_ms": 881.959,
+          "min_ms": 860.983,
+          "max_ms": 886.761
+        },
+        "estimated_speech_end_to_gateway_first_audio_ms": {
+          "median_ms": 1178.53,
+          "min_ms": 1164.947,
+          "max_ms": 1188.971
+        },
+        "end_detection_and_queue_ms": {
+          "median_ms": 608.932,
+          "min_ms": 608.632,
+          "max_ms": 620.114
+        },
+        "language_probe_ms": {
+          "median_ms": 601.955,
+          "min_ms": 588.426,
+          "max_ms": 617.031
+        },
+        "language_connect_ms": {
+          "median_ms": 240.758,
+          "min_ms": 225.497,
+          "max_ms": 265.496
+        },
+        "language_classification_ms": {
+          "median_ms": 361.105,
+          "min_ms": 351.455,
+          "max_ms": 362.84
+        },
+        "language_result_to_return_ms": {
+          "median_ms": 0.039,
+          "min_ms": 0.036,
+          "max_ms": 0.056
+        }
+      }
+    },
+    {
+      "mode": "automatic",
+      "source": "en",
+      "samples": 3,
+      "metrics": {
+        "first_audio_hold_and_delivery_ms": {
+          "median_ms": 797.408,
+          "min_ms": 732.976,
+          "max_ms": 862.26
+        },
+        "estimated_speech_end_to_provider_first_audio_ms": {
+          "median_ms": -45.691,
+          "min_ms": -92.866,
+          "max_ms": 24.41
+        },
+        "estimated_speech_end_to_gateway_first_audio_ms": {
+          "median_ms": 757.386,
+          "min_ms": 751.717,
+          "max_ms": 769.394
+        },
+        "end_detection_and_queue_ms": {
+          "median_ms": 608.266,
+          "min_ms": 606.22,
+          "max_ms": 608.363
+        },
+        "language_probe_ms": {
+          "median_ms": 616.733,
+          "min_ms": 561.969,
+          "max_ms": 641.563
+        },
+        "language_connect_ms": {
+          "median_ms": 211.923,
+          "min_ms": 205.446,
+          "max_ms": 256.86
+        },
+        "language_classification_ms": {
+          "median_ms": 384.631,
+          "min_ms": 356.459,
+          "max_ms": 404.742
+        },
+        "language_result_to_return_ms": {
+          "median_ms": 0.036,
+          "min_ms": 0.035,
+          "max_ms": 0.039
+        }
+      }
+    }
+  ],
+  "playback_head_progress": [
+    {
+      "feed": "burst",
+      "samples": 3,
+      "median_ms": 6.376,
+      "min_ms": 2.256,
+      "max_ms": 43.665
+    },
+    {
+      "feed": "paced_20ms",
+      "samples": 3,
+      "median_ms": 65.63,
+      "min_ms": 65.32,
+      "max_ms": 67.932
+    }
+  ],
+  "case_accounting": {
+    "attempted": 32,
+    "passed": 31,
+    "failed": 1,
+    "preliminary_failure_retained": true,
+    "unsigned_install_failure_retained": true
+  },
+  "known_successful_probe_usage_not_supplier_billable": {
+    "cases_with_counters": 31,
+    "input_pcm_bytes": 2793120,
+    "output_protocol_bytes": 3728084,
+    "failed_case_usage_unknown": true
+  },
+  "production_audit": {
+    "observed_at": "2026-10-17T23:20:54.651409+00:00",
+    "revision": 495,
+    "helm_status": "deployed",
+    "registry": "jusi-cn-guangzhou.cr.volces.com",
+    "all_workloads_ready": true,
+    "pull_secret_hosts": [
+      "jusi-cn-guangzhou.cr.volces.com"
+    ],
+    "pending_pods": 0,
+    "backend_pull_policy": "Always",
+    "translation_enabled": false,
+    "migration_0228_applied": true,
+    "session_counts": {
+      "expired": 1,
+      "closed": 18
+    },
+    "live_unexpired_sessions": 0,
+    "release_source": "9ff292335c1e47dbcdbf945e56493f964b326824",
+    "release_checkout_clean": true,
+    "all_image_and_pull_secret_references_match_plan": true
+  },
+  "phone_cleanup": {
+    "resources": {
+      "assistant_service_present": false,
+      "assistant_wake_lock_present": false,
+      "record_audio_appop_running": false,
+      "main_activity_resumed": false,
+      "display_asleep": false,
+      "raw_diagnostics_saved": false
+    },
+    "network": {
+      "default_network_id": "100",
+      "transports": [
+        "CELLULAR"
+      ],
+      "wifi_on": "1",
+      "mobile_data": "1"
+    },
+    "main_apk_unchanged": true,
+    "test_package_restored": true,
+    "phone_microphone_used": false
+  },
+  "validation": {
+    "timeline_unit_tests": 5,
+    "timeline_unit_failures": 0,
+    "ruff_passed": true,
+    "android_test_methods": 1,
+    "android_output_measurements": 6,
+    "main_product_code_changed": false,
+    "feature_flag_changed": false,
+    "deployment_changed": false
+  },
+  "limits": [
+    "Only two existing Chinese/English synthetic short phrases. Small samples, sequential nonrandomized variants; no P95 or broad travel-language claim.",
+    "End of speech estimated from Silero samples_index minus silence_duration, mapped to a 100ms PCM send frame; not a physical last-phoneme measurement.",
+    "Downstream is loopback, excluding phone-network delay, production business HTTP authentication, and concurrent load.",
+    "Android measures silent PCM write to observed playback-head progress with a 2ms poll, not physical speaker sound or real translated-audio arrival.",
+    "Server and Android measurements are separate clocks/runs; do not add them into an asserted end-to-end latency.",
+    "Negative end-relative provider latency is retained when the model streams audio before the estimated speech end.",
+    "Preliminary reports precede output-item correlation; use the correlated baseline as the primary comparison. Preserve the single original TranslationError with unknown root cause.",
+    "Background cleanup is a diagnostic-only experiment. It disables speculative preparation and awaits retirement on teardown; no production runtime changed.",
+    "No phone-direct transport or real phone-network A/B was measured; cannot quantify the gain of migrating to direct WSS.",
+    "Human voice/listening, mixed languages, short ambiguous words, headset routes and true end-to-acoustic latency remain pending because the user was unavailable.",
+    "All prior CPU/gray-rollout/headphone/concurrency/invoice scope decisions remain in force."
+  ],
+  "raw_evidence_sha256": {
+    "bilingual-latency-provider-baseline-20261018.json": "ba708454e90b8967d9a93efac3ec226e1090f5145bf74665695ac1096fef8490",
+    "bilingual-latency-provider-detail-20261018.json": "c801d5f8fda40e478eee82f000f120ecb4f885f320ac6b891b23b533a4b8f332",
+    "bilingual-latency-provider-correlated-20261018.json": "616ccc7e2f6b0a8565c425a487b5531bd340b2fb6211f4ff9ce5bbcb3fd498cf",
+    "bilingual-latency-background-cleanup-experiment-20261018.json": "080f05a2d78c07773f594f7070dade3b98bf09882467655d4769e6aa7081e8c8",
+    "android-playback-latency-20261018.json": "a789abbdfc081fbf665e9dd0d4d50ed93156ab221b588b80cafd3e0f408c46c2",
+    "android-playback-latency-unsigned-install-20261018.json": "fffde268b2e07e8d23f8393997b39bcc44702ce47edb0bc672501186a2749de6",
+    "latency-production-audit-20261018.json": "187a7e01a3a7bed49a6579349f316693828d90dbb7b051fa70b1dda6f09b3093",
+    "latency-phone-cleanup-20261018.json": "73bbabeca99dd774cd4c8cc6d2d8c2e88a1c7ebb7375b60f0f5e59c364f4ccf9"
+  }
+}
