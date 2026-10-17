@@ -122,7 +122,7 @@ class MeetingAIChartTest(unittest.TestCase):
             self.assertEqual("meet-ai-credentials", env["DASHSCOPE_API_KEY"]["valueFrom"]["secretKeyRef"]["name"])
         for worker in WORKERS:
             container = deployments[f"meet-agent-{worker}"]["spec"]["template"]["spec"]["containers"][0]
-            self.assertTrue(container["image"].startswith("jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:"))
+            self.assertTrue(container["image"].startswith("we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-agents:"))
         capture = deployments["meet-agent-capture-asr"]["spec"]["template"]["spec"]["containers"][0]
         capture_env = {item["name"]: item for item in capture["env"]}
         self.assertEqual(config["backend"]["envVars"]["AWS_STORAGE_BUCKET_NAME_VIDEO"],

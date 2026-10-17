@@ -16,12 +16,12 @@
 # values.secrets.yaml is gitignored — copy values.secrets.yaml.dist and fill in.
 
 image:
-  repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend
+  repository: we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-backend
   pullPolicy: Always
   tag: "latest"
   credentials:
     name: meet-dockerconfig
-    registry: jusi-cn-guangzhou.cr.volces.com
+    registry: we-meet-cn-guangzhou.cr.volces.com
     # username / password come from values.secrets.yaml
 
 # Isolate long-running HTTP model calls from ordinary API workers.
@@ -374,7 +374,7 @@ frontend:
       memory: 256Mi
 
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-frontend
+    repository: we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-frontend
     pullPolicy: Always
     tag: "latest"
 
@@ -466,7 +466,7 @@ posthog:
 summary:
   replicas: 1
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
+    repository: we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-summary
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -513,7 +513,7 @@ summary:
 celeryTranscribe:
   replicas: 1
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
+    repository: we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-summary
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -536,7 +536,7 @@ celeryTranscribe:
 celerySummarize:
   replicas: 1
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
+    repository: we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-summary
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -559,7 +559,7 @@ celerySummarize:
 celerySummaryBackend:
   replicas: 1
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary
+    repository: we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-summary
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -605,7 +605,7 @@ celeryBeat:
 agentMetadata:
   replicas: 1
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents
+    repository: we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-agents
     pullPolicy: Always
     tag: "latest"
   resources:
@@ -635,7 +635,7 @@ agentMetadata:
 agentSubtitles:
   replicas: 1
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents
+    repository: we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-agents
     pullPolicy: Always
     tag: "latest"
   envVars:
@@ -673,7 +673,7 @@ agentAIAssistant:
   enabled: true
   replicas: 1
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents
+    repository: we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-agents
     pullPolicy: Always
     tag: "latest"
   command:
@@ -706,7 +706,7 @@ meetingAIWorkers:
   backendUrl: http://meet-backend
   livekitUrl: wss://livekit.we-meet.online
   image:
-    repository: jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents
+    repository: we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-agents
     tag: latest
     pullPolicy: Always
   gateway:
