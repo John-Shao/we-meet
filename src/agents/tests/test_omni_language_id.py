@@ -23,6 +23,122 @@ from plugins.qwen.omni.language_id import (
 
 
 class DetectorTests(unittest.IsolatedAsyncioTestCase):
+    """Check classification, bounded transport ownership and cancellation."""
+
+    async def test_cold_success_returns_without_closing_or_prewarming_next_socket(self):
+        """The gateway's non-prewarmed path must return before a slow close."""
+        for answer, expected in [("zh", "zh"), ("unknown", None)]:
+            with self.subTest(answer=answer):
+                detector, socket, connector = self.make_detector(answer)
+                release, closing = asyncio.Event(), asyncio.Event()
+
+                async def close(release=release, closing=closing):
+                    closing.set()
+                    await release.wait()
+
+                socket.close.side_effect = close
+                try:
+                    self.assertEqual(
+                        await asyncio.wait_for(detector.detect(bytes(3200)), 0.1),
+                        expected,
+                    )
+                    await asyncio.wait_for(closing.wait(), 0.2)
+                    self.assertIsNone(detector.socket)
+                    self.assertIsNone(detector._preparing)
+                    self.assertEqual(connector.await_count, 1)
+                    shutdown = asyncio.create_task(detector.aclose())
+                    await asyncio.sleep(0)
+                    self.assertFalse(shutdown.done())
+                    release.set()
+                    await shutdown
+                    self.assertIsNone(detector._retiring)
+                    socket.close.assert_awaited_once()
+                finally:
+                    release.set()
+                    await detector.aclose()
+
+    async def test_next_request_waits_for_retirement_before_opening_another_socket(
+        self,
+    ):
+        """Repeated uncertain speech cannot accumulate closing connections."""
+        detector, first, connector = self.make_detector("unknown")
+        _, second, _ = self.make_detector("en")
+        connector.side_effect = [first, second]
+        release, closing = asyncio.Event(), asyncio.Event()
+
+        async def close():
+            closing.set()
+            await release.wait()
+
+        first.close.side_effect = close
+        try:
+            self.assertIsNone(await asyncio.wait_for(detector.detect(bytes(3200)), 0.1))
+            await closing.wait()
+            following = asyncio.create_task(detector.detect(bytes(3200)))
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            self.assertEqual(connector.await_count, 1)
+            self.assertFalse(following.done())
+            release.set()
+            self.assertEqual(await following, "en")
+            await detector.aclose()
+            self.assertEqual(connector.await_count, 2)
+            first.close.assert_awaited_once()
+            second.close.assert_awaited_once()
+        finally:
+            release.set()
+            await detector.aclose()
+
+    async def test_cancel_while_waiting_for_retirement_preserves_cleanup(self):
+        """Cancelling a later probe cannot cancel the preceding socket close."""
+        detector, socket, connector = self.make_detector()
+        release, closing = asyncio.Event(), asyncio.Event()
+
+        async def close():
+            closing.set()
+            await release.wait()
+
+        socket.close.side_effect = close
+        try:
+            await asyncio.wait_for(detector.detect(bytes(3200)), 0.1)
+            await closing.wait()
+            following = asyncio.create_task(detector.detect(bytes(3200)))
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            following.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await following
+            self.assertFalse(detector._retiring.done())
+            self.assertEqual(connector.await_count, 1)
+            release.set()
+            await detector.aclose()
+            self.assertIsNone(detector._retiring)
+        finally:
+            release.set()
+            await detector.aclose()
+
+    async def test_shutdown_bounds_a_stuck_retired_close(self):
+        """A returned result does not make final cleanup unbounded."""
+        detector, socket, _ = self.make_detector()
+        cancelled = asyncio.Event()
+
+        async def close():
+            try:
+                await asyncio.Future()
+            finally:
+                cancelled.set()
+
+        socket.close.side_effect = close
+        try:
+            self.assertEqual(
+                await asyncio.wait_for(detector.detect(bytes(3200)), 0.1), "zh"
+            )
+            await asyncio.wait_for(detector.aclose(), 0.8)
+            self.assertTrue(cancelled.is_set())
+            self.assertIsNone(detector._retiring)
+        finally:
+            await detector.aclose()
+
     async def test_prepare_only_handshakes_and_each_sample_uses_a_fresh_session(self):
         detector, first, connector = self.make_detector("zh")
         _, second, _ = self.make_detector("en")
@@ -175,6 +291,7 @@ class DetectorTests(unittest.IsolatedAsyncioTestCase):
             connector=connector,
             languages=languages,
         )
+        self.addAsyncCleanup(detector.aclose)
         return detector, socket, connector
 
     async def test_every_audio_language_can_be_classified_within_selected_pair(self):
@@ -222,6 +339,7 @@ class DetectorTests(unittest.IsolatedAsyncioTestCase):
             b"".join(base64.b64decode(r["audio"]) for r in request if "audio" in r), pcm
         )
         self.assertIn("model=qwen3.8-omni-flash-realtime", connector.call_args.args[0])
+        await detector.aclose()
         socket.close.assert_awaited_once()
 
     async def test_english_and_uncertain_results(self):

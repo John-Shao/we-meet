@@ -89,7 +89,7 @@ class OmniLanguageDetector:
         except Exception:
             raise TranslationError("language_detection_failed") from None
         finally:
-            if self._prewarm_enabled and outcome in {"classified", "unknown"}:
+            if outcome in {"classified", "unknown"}:
                 # Classification is complete. Closing its single-use socket is
                 # cleanup, not a prerequisite for forwarding the user's audio.
                 await self._retire_socket()
@@ -105,6 +105,9 @@ class OmniLanguageDetector:
                 await self.prepare()
 
     async def _detect(self, pcm):
+        # Bound retirement to one socket. Wait before another admitted request,
+        # never after its result is ready; cancellation must not abort cleanup.
+        await self._drain_retired()
         preparing = self._preparing
         if preparing is not None:
             try:
@@ -226,10 +229,18 @@ class OmniLanguageDetector:
         await self._close_connection(socket)
 
     async def _retire_socket(self):
-        if self._retiring is not None:
-            await self._retiring
+        await self._drain_retired()
         socket, self.socket = self.socket, None
         self._retiring = asyncio.create_task(self._close_connection(socket))
+
+    async def _drain_retired(self):
+        task = self._retiring
+        if task is not None:
+            try:
+                await asyncio.shield(task)
+            finally:
+                if task.done() and self._retiring is task:
+                    self._retiring = None
 
     @staticmethod
     async def _close_connection(socket):
@@ -247,6 +258,4 @@ class OmniLanguageDetector:
             preparing.cancel()
             await asyncio.gather(preparing, return_exceptions=True)
         await self._close_socket()
-        if self._retiring is not None:
-            await self._retiring
-            self._retiring = None
+        await self._drain_retired()
