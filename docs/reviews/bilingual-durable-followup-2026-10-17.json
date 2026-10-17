@@ -1,0 +1,362 @@
+{
+  "created_at": "2026-10-17T15:07:24.101493+00:00",
+  "status": "item1_completed_unattended_item2_checks_passed_human_retests_deferred",
+  "candidate": {
+    "source_commit": "3833084878ade4a6b16317ae681bce180ba91270",
+    "unit_tests": {
+      "tests": 750,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "apks": {
+      "main": {
+        "path": "work\\bilingual-release\\we-meet-android\\app\\build\\outputs\\apk\\release\\app-release.apk",
+        "sha256": "ea48e13aad9f4a9400c779cb3b099304f95ca7d353e29dc680c31f7b465f3700",
+        "bytes": 146168656
+      },
+      "test": {
+        "path": "work\\bilingual-release\\we-meet-android\\app\\build\\outputs\\apk\\androidTest\\release\\app-release-androidTest.apk",
+        "sha256": "1d1f928fa5452288ddd94f39f429b46ad5036b0c995976117978e7651ae1d5ec",
+        "bytes": 5893965
+      }
+    },
+    "installed_main_hash_verified": true,
+    "signature_verified": true,
+    "phone_baseline": {
+      "network": {
+        "default_network_id": "318",
+        "transports": [
+          "WIFI"
+        ],
+        "wifi_on": "1",
+        "mobile_data": "1"
+      },
+      "resources": {
+        "assistant_service_present": false,
+        "assistant_wake_lock_present": false,
+        "record_audio_appop_running": false,
+        "main_activity_resumed": true,
+        "display_asleep": false,
+        "raw_diagnostics_saved": false
+      }
+    },
+    "version_code": 6,
+    "version_name": "0.3.0-work.4",
+    "debuggable": false,
+    "signature": {
+      "verified": true,
+      "scheme_v2": true,
+      "certificate_sha256": "053d9864295c3d3f87b615bacb4872f136bdb1a34af7fe503ca036530141c528",
+      "kind": "existing internal Android Debug certificate"
+    },
+    "test_source_commit": "6507f780df4673f8f42c46c58fea687497c75ba9",
+    "build_passed": true,
+    "test_apk_reused_unchanged": true,
+    "new_focused_device_tests_performed": false
+  },
+  "backend_source_commit": "9ff292335c1e47dbcdbf945e56493f964b326824",
+  "ci": {
+    "url": "https://github.com/John-Shao/we-meet/actions/runs/39040829578",
+    "conclusion": "success"
+  },
+  "fixed_copy": {
+    "case": "fixed-listening-copy",
+    "expected_status": "\u6b63\u5728\u8046\u542c \u00b7 \u4e2d\u6587 \u2192 \u82f1\u8bed",
+    "expected_status_present": true,
+    "since": "2026-10-17T14:51:52.062120+00:00",
+    "normal_ui": true,
+    "state": "copy_verified_audio_feedback_deferred",
+    "human_feedback": "not_performed_user_left_office"
+  },
+  "background": {
+    "home": {
+      "seconds": 180.399,
+      "state": "passed",
+      "ack_start": 21,
+      "ack_end": 39,
+      "human_speech_recovery": "not_performed_user_left_office"
+    },
+    "screen-off": {
+      "seconds": 180.499,
+      "state": "passed",
+      "ack_start": 40,
+      "ack_end": 58,
+      "human_speech_recovery": "not_performed_user_left_office"
+    }
+  },
+  "durable_usage": {
+    "retained_identically_after_normal_pod_rollout": true,
+    "production_export": {
+      "since": "2026-10-17T14:49:47.996947+00:00",
+      "not_supplier_billable_usage": true,
+      "complete": {
+        "sessions": 3,
+        "duration_ms": 626184,
+        "input_bytes": 19571200,
+        "output_bytes": 92244,
+        "translations": 0,
+        "providers": 5
+      },
+      "partial": {
+        "sessions": 0,
+        "duration_ms": 0,
+        "input_bytes": 0,
+        "output_bytes": 0,
+        "translations": 0,
+        "providers": 0
+      },
+      "missing_usage_sessions": 0,
+      "sessions": [
+        {
+          "session_id": "859a59f4-2b27-4c23-b6bb-22dde0d973fb",
+          "status": "closed",
+          "usage_updated_at": "2026-10-17T14:55:17.745992+00:00",
+          "complete": true,
+          "providers": 1,
+          "correlation": "906d1f5d",
+          "duration_ms": 211286,
+          "input_bytes": 6627840,
+          "output_bytes": 31238,
+          "translations": 0
+        },
+        {
+          "session_id": "7ab752de-dac8-48cc-a9ea-8c8c3c7ccc7c",
+          "status": "closed",
+          "usage_updated_at": "2026-10-17T15:00:52.177616+00:00",
+          "complete": true,
+          "providers": 2,
+          "correlation": "7f04894b",
+          "duration_ms": 212226,
+          "input_bytes": 6602880,
+          "output_bytes": 31118,
+          "translations": 0
+        },
+        {
+          "session_id": "6410e8b2-c022-4cc5-a558-abcb494ed8bd",
+          "status": "closed",
+          "usage_updated_at": "2026-10-17T15:04:33.547242+00:00",
+          "complete": true,
+          "providers": 2,
+          "correlation": "d22a2fcf",
+          "duration_ms": 202672,
+          "input_bytes": 6340480,
+          "output_bytes": 29888,
+          "translations": 0
+        }
+      ]
+    },
+    "isolated_forced_process_loss": {
+      "scope": "Real internal HTTP API and PostgreSQL across forced gateway/backend process termination; controlled stream counters only",
+      "real_supplier": false,
+      "real_audio": false,
+      "raw_text_or_credentials_exported": false,
+      "passed": true,
+      "gateway_forcibly_terminated": true,
+      "backend_forcibly_terminated": true,
+      "replacement_api_process_verified": true,
+      "fresh_export_process_verified": true,
+      "partial": {
+        "complete": false,
+        "providers": 0,
+        "correlation": "0306ba47",
+        "duration_ms": 7515,
+        "input_bytes": 19200,
+        "output_bytes": 318,
+        "translations": 6
+      },
+      "complete": {
+        "complete": true,
+        "providers": 0,
+        "correlation": "c8072e50",
+        "duration_ms": 7979,
+        "input_bytes": 19200,
+        "output_bytes": 318,
+        "translations": 6
+      },
+      "exported": {
+        "since": "2026-10-17T14:30:18.426851+00:00",
+        "not_supplier_billable_usage": true,
+        "complete": {
+          "sessions": 1,
+          "duration_ms": 7979,
+          "input_bytes": 19200,
+          "output_bytes": 318,
+          "translations": 6,
+          "providers": 0
+        },
+        "partial": {
+          "sessions": 1,
+          "duration_ms": 7515,
+          "input_bytes": 19200,
+          "output_bytes": 318,
+          "translations": 6,
+          "providers": 0
+        },
+        "missing_usage_sessions": 0,
+        "sessions": [
+          {
+            "session_id": "4764cb34-c9a8-42bf-b95e-f5533f4634f2",
+            "status": "expired",
+            "usage_updated_at": "2026-10-17T14:30:33.108868+00:00",
+            "complete": false,
+            "providers": 0,
+            "correlation": "0306ba47",
+            "duration_ms": 7515,
+            "input_bytes": 19200,
+            "output_bytes": 318,
+            "translations": 6
+          },
+          {
+            "session_id": "982a4c52-b272-442a-861a-6f8bd73448d7",
+            "status": "closed",
+            "usage_updated_at": "2026-10-17T14:30:46.385135+00:00",
+            "complete": true,
+            "providers": 0,
+            "correlation": "c8072e50",
+            "duration_ms": 7979,
+            "input_bytes": 19200,
+            "output_bytes": 318,
+            "translations": 6
+          }
+        ]
+      }
+    }
+  },
+  "production_final": {
+    "date": "2026-10-17",
+    "revision": 495,
+    "helm_status": "deployed",
+    "registry": "jusi-cn-guangzhou.cr.volces.com",
+    "history": [
+      {
+        "revision": 486,
+        "status": "superseded"
+      },
+      {
+        "revision": 487,
+        "status": "superseded"
+      },
+      {
+        "revision": 488,
+        "status": "superseded"
+      },
+      {
+        "revision": 489,
+        "status": "superseded"
+      },
+      {
+        "revision": 490,
+        "status": "superseded"
+      },
+      {
+        "revision": 491,
+        "status": "superseded"
+      },
+      {
+        "revision": 492,
+        "status": "superseded"
+      },
+      {
+        "revision": 493,
+        "status": "superseded"
+      },
+      {
+        "revision": 494,
+        "status": "superseded"
+      },
+      {
+        "revision": 495,
+        "status": "deployed"
+      }
+    ],
+    "all_workloads_ready": true,
+    "pull_secret_hosts": [
+      "jusi-cn-guangzhou.cr.volces.com"
+    ],
+    "pending_pods": 0,
+    "backend_pull_policy": "Always",
+    "translation_enabled": false,
+    "migration_0228_applied": true,
+    "session_counts": {
+      "expired": 1,
+      "closed": 18
+    },
+    "live_unexpired_sessions": 0,
+    "release_source": "9ff292335c1e47dbcdbf945e56493f964b326824",
+    "release_checkout_clean": true,
+    "all_image_and_pull_secret_references_match_plan": true
+  },
+  "phone_cleanup": {
+    "at": "2026-10-17T15:04:37.220961+00:00",
+    "resources_released": true,
+    "release_observations": [
+      {
+        "seconds_after_click": 0.0,
+        "assistant_service_present": true,
+        "assistant_wake_lock_present": true,
+        "record_audio_appop_running": false,
+        "main_activity_resumed": true,
+        "display_asleep": false,
+        "raw_diagnostics_saved": false
+      },
+      {
+        "seconds_after_click": 2.526,
+        "assistant_service_present": true,
+        "assistant_wake_lock_present": true,
+        "record_audio_appop_running": false,
+        "main_activity_resumed": true,
+        "display_asleep": false,
+        "raw_diagnostics_saved": false
+      },
+      {
+        "seconds_after_click": 4.887,
+        "assistant_service_present": false,
+        "assistant_wake_lock_present": false,
+        "record_audio_appop_running": false,
+        "main_activity_resumed": true,
+        "display_asleep": false,
+        "raw_diagnostics_saved": false
+      }
+    ],
+    "network": {
+      "default_network_id": "318",
+      "transports": [
+        "WIFI"
+      ],
+      "wifi_on": "1",
+      "mobile_data": "1"
+    },
+    "installed_apks": {
+      "com.we.meet": "ea48e13aad9f4a9400c779cb3b099304f95ca7d353e29dc680c31f7b465f3700",
+      "com.we.meet.test": "1d1f928fa5452288ddd94f39f429b46ad5036b0c995976117978e7651ae1d5ec"
+    },
+    "returned_to_android_home": true,
+    "power_policy_changed": false,
+    "raw_diagnostics_saved": false
+  },
+  "limits": [
+    "No new human speech/listening/call confirmation: user left office.",
+    "Repeated incoming calls, speech/replay after wake and repeated network acoustic recovery remain pending.",
+    "Two separate 180-second silent sessions do not establish long standby reliability; 300-second idle policy unchanged.",
+    "No real translated utterance occurred in this unattended production window.",
+    "Complete usage means final counters, not successful acoustic acceptance or supplier billable amounts.",
+    "Forced process loss may lose the last heartbeat interval plus HTTP delay; last saved snapshot remains partial.",
+    "CPU changes and gray rollout/permanent enable deferred; headphones unavailable, concurrency excluded, invoice later.",
+    "Original popup/exit root cause remains unproven; previous package acoustic evidence is historical."
+  ],
+  "evidence_files": [
+    "bilingual-followup-candidate-20261017.json",
+    "durable-usage-process-loss-20261017.json",
+    "durable-usage-image-build-20261017.json",
+    "durable-usage-audit-493.json",
+    "durable-usage-audit-495.json",
+    "followup-window-20261017-224738.json",
+    "followup-fixed-copy-20261017-224738.json",
+    "followup-home-20261017-224738.json",
+    "followup-home-stop-20261017-224738.json",
+    "followup-screen-off-20261017-224738.json",
+    "followup-phone-cleanup-20261017.json",
+    "followup-usage-after-rollout-20261017.json"
+  ]
+}

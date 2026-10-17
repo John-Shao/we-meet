@@ -1,0 +1,78 @@
+{
+  "scope": "Real internal HTTP API and PostgreSQL across forced gateway/backend process termination; controlled stream counters only",
+  "real_supplier": false,
+  "real_audio": false,
+  "raw_text_or_credentials_exported": false,
+  "passed": true,
+  "gateway_forcibly_terminated": true,
+  "backend_forcibly_terminated": true,
+  "replacement_api_process_verified": true,
+  "fresh_export_process_verified": true,
+  "partial": {
+    "complete": false,
+    "providers": 0,
+    "correlation": "0306ba47",
+    "duration_ms": 7515,
+    "input_bytes": 19200,
+    "output_bytes": 318,
+    "translations": 6
+  },
+  "complete": {
+    "complete": true,
+    "providers": 0,
+    "correlation": "c8072e50",
+    "duration_ms": 7979,
+    "input_bytes": 19200,
+    "output_bytes": 318,
+    "translations": 6
+  },
+  "exported": {
+    "since": "2026-10-17T14:30:18.426851+00:00",
+    "not_supplier_billable_usage": true,
+    "complete": {
+      "sessions": 1,
+      "duration_ms": 7979,
+      "input_bytes": 19200,
+      "output_bytes": 318,
+      "translations": 6,
+      "providers": 0
+    },
+    "partial": {
+      "sessions": 1,
+      "duration_ms": 7515,
+      "input_bytes": 19200,
+      "output_bytes": 318,
+      "translations": 6,
+      "providers": 0
+    },
+    "missing_usage_sessions": 0,
+    "sessions": [
+      {
+        "session_id": "4764cb34-c9a8-42bf-b95e-f5533f4634f2",
+        "status": "expired",
+        "usage_updated_at": "2026-10-17T14:30:33.108868+00:00",
+        "complete": false,
+        "providers": 0,
+        "correlation": "0306ba47",
+        "duration_ms": 7515,
+        "input_bytes": 19200,
+        "output_bytes": 318,
+        "translations": 6
+      },
+      {
+        "session_id": "982a4c52-b272-442a-861a-6f8bd73448d7",
+        "status": "closed",
+        "usage_updated_at": "2026-10-17T14:30:46.385135+00:00",
+        "complete": true,
+        "providers": 0,
+        "correlation": "c8072e50",
+        "duration_ms": 7979,
+        "input_bytes": 19200,
+        "output_bytes": 318,
+        "translations": 6
+      }
+    ]
+  },
+  "reproduction_command": "src/backend/.venv/Scripts/python.exe scripts/test_bilingual_usage_durability.py",
+  "validation_fixture": "Controlled streaming body; actual admission, authenticated HTTP leases, PostgreSQL, forced process termination, replacement API and fresh-process export."
+}
