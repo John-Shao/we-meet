@@ -1,0 +1,190 @@
+{
+  "date": "2026-10-17",
+  "decision": "Keep restored original registry",
+  "production_registry": "jusi-cn-guangzhou.cr.volces.com",
+  "replacement_registry_applied_to_production": false,
+  "replacement_copies_retained": 6,
+  "source_commit": "b524f714fe75be3a03758277b692b96a4d1a2358",
+  "application_image_commit": "fff8391daeaf564229f12c91b55efcd2e103b613",
+  "source_ci": "https://github.com/John-Shao/we-meet/actions/runs/39016855223",
+  "source_ci_required_jobs_passed": 4,
+  "credentials": "Existing Kubernetes pull secret matches Helm values; credentials not replaced",
+  "cold_pull": {
+    "registry": "jusi-cn-guangzhou.cr.volces.com",
+    "isolated_daemon": true,
+    "initial_content_count": 0,
+    "all_platforms": true,
+    "unpacked": false,
+    "production_cache_untouched": true,
+    "images": [
+      {
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:fff8391da",
+        "digest": "sha256:ba280ef451cc7e7ded1daf520a54590ae96202bc7ba2de8ed1cfe97172d336ba",
+        "passed": true,
+        "seconds": 76.872
+      },
+      {
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:fff8391da",
+        "digest": "sha256:46810a0973b58790bc1208744829e324e7b8a2a9bc62f50af3ea729386b2390c",
+        "passed": true,
+        "seconds": 136.176
+      },
+      {
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:f12d6c04c",
+        "digest": "sha256:f6985c6020d85ca524d916b293416b82884fc0a189cc7b558f9ce0f688d83c0c",
+        "passed": true,
+        "seconds": 110.344
+      },
+      {
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-frontend:f950ba8cc",
+        "digest": "sha256:a0e3624c4f40f82d473c31e41388d171511e1fb4ff14aa154c09886177ccefaf",
+        "passed": true,
+        "seconds": 21.604
+      },
+      {
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary:f12d6c04c",
+        "digest": "sha256:c3fd5281850bdf625ffb386f1f522f14ada76629176e11b08a5f028e4baeee5c",
+        "passed": true,
+        "seconds": 40.372
+      },
+      {
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/livekit-egress:v1.14.1",
+        "digest": "sha256:2887536b94980f23257d8c0a2c357497482c749e2dce7dc796755a8e622c5ff1",
+        "passed": true,
+        "seconds": 459.452
+      }
+    ],
+    "downloaded_unique_blobs": 94,
+    "downloaded_bytes": 2253230290,
+    "all_blob_hashes_verified": true,
+    "seconds": 858.912,
+    "private_cache_removed": true,
+    "isolated_daemon_stopped": true
+  },
+  "normal_release_and_rollback": [
+    {
+      "operation": "original_registry_normal_backend_release",
+      "previous_revision": "475",
+      "revision": "476",
+      "helm_status": "deployed",
+      "exit": 0
+    },
+    {
+      "operation": "original_registry_helm_rollback",
+      "previous_revision": 476,
+      "revision": 477,
+      "helm_status": "deployed",
+      "exit": 0
+    },
+    {
+      "operation": "original_registry_normal_backend_release",
+      "previous_revision": "477",
+      "revision": "478",
+      "helm_status": "deployed",
+      "exit": 0
+    }
+  ],
+  "rollback_scope": "Same immutable application images; rollback of configuration and pull policy, not rollback to older application code",
+  "runtime_audits": [
+    {
+      "date": "2026-10-17",
+      "revision": 476,
+      "helm_status": "deployed",
+      "registry": "jusi-cn-guangzhou.cr.volces.com",
+      "history": [
+        {
+          "revision": 475,
+          "status": "superseded"
+        },
+        {
+          "revision": 476,
+          "status": "deployed"
+        }
+      ],
+      "all_workloads_ready": true,
+      "all_image_and_pull_secret_references_unchanged": true,
+      "pull_secret_hosts": [
+        "jusi-cn-guangzhou.cr.volces.com"
+      ],
+      "pending_pods": 0,
+      "backend_pull_policy": "Always",
+      "translation_enabled": false,
+      "migration_0227_applied": true,
+      "release_source": "b524f714fe75be3a03758277b692b96a4d1a2358",
+      "release_checkout_clean": true
+    },
+    {
+      "date": "2026-10-17",
+      "revision": 477,
+      "helm_status": "deployed",
+      "registry": "jusi-cn-guangzhou.cr.volces.com",
+      "history": [
+        {
+          "revision": 475,
+          "status": "superseded"
+        },
+        {
+          "revision": 476,
+          "status": "superseded"
+        },
+        {
+          "revision": 477,
+          "status": "deployed"
+        }
+      ],
+      "all_workloads_ready": true,
+      "all_image_and_pull_secret_references_unchanged": true,
+      "pull_secret_hosts": [
+        "jusi-cn-guangzhou.cr.volces.com"
+      ],
+      "pending_pods": 0,
+      "backend_pull_policy": "IfNotPresent",
+      "translation_enabled": false,
+      "migration_0227_applied": true,
+      "release_source": "b524f714fe75be3a03758277b692b96a4d1a2358",
+      "release_checkout_clean": true
+    },
+    {
+      "date": "2026-10-17",
+      "revision": 478,
+      "helm_status": "deployed",
+      "registry": "jusi-cn-guangzhou.cr.volces.com",
+      "history": [
+        {
+          "revision": 475,
+          "status": "superseded"
+        },
+        {
+          "revision": 476,
+          "status": "superseded"
+        },
+        {
+          "revision": 477,
+          "status": "superseded"
+        },
+        {
+          "revision": 478,
+          "status": "deployed"
+        }
+      ],
+      "all_workloads_ready": true,
+      "all_image_and_pull_secret_references_unchanged": true,
+      "pull_secret_hosts": [
+        "jusi-cn-guangzhou.cr.volces.com"
+      ],
+      "pending_pods": 0,
+      "backend_pull_policy": "Always",
+      "translation_enabled": false,
+      "migration_0227_applied": true,
+      "release_source": "b524f714fe75be3a03758277b692b96a4d1a2358",
+      "release_checkout_clean": true
+    }
+  ],
+  "final_helm_revision": 478,
+  "backend_pull_policy": "Always",
+  "translation_enabled": false,
+  "migration_0227_applied": true,
+  "human_production_acoustic_acceptance": "Pending; previous negative feedback remains unresolved",
+  "capacity_followup": "Review single-node CPU reserve; no capacity acceptance in this round",
+  "prior_apk_archive_modified": false
+}

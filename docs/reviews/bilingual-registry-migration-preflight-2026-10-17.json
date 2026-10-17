@@ -1,0 +1,207 @@
+{
+  "date": "2026-10-17",
+  "registry": "we-meet-cn-guangzhou.cr.volces.com",
+  "docker_login": {
+    "local": true,
+    "backend_server": true
+  },
+  "repository_probe": {
+    "namespace": "we-meet",
+    "result": "namespace we-meet not found",
+    "http_status": 401
+  },
+  "production": {
+    "helm_revision": 475,
+    "status": "deployed",
+    "translation_enabled": false,
+    "workloads_changed": false,
+    "cluster_pull_secret_changed": false
+  },
+  "image_inventory": {
+    "unique_references": 6,
+    "workload_image_assignments": 21,
+    "local_cached": 5,
+    "local_cache_missing": [
+      "jusi-cn-guangzhou.cr.volces.com/we-meet/livekit-egress:v1.14.1"
+    ]
+  },
+  "credential_storage": "Local Docker configuration and server root private Docker configuration only; no credentials in reports or repository",
+  "required_input": "None for registry selection: user restored original registry and migration was stopped",
+  "images": [
+    {
+      "source": "jusi-cn-guangzhou.cr.volces.com/we-meet/livekit-egress:v1.14.1",
+      "proposed_target": "we-meet-cn-guangzhou.cr.volces.com/we-meet/livekit-egress:v1.14.1",
+      "local_cached": false,
+      "workloads": [
+        {
+          "kind": "Deployment",
+          "name": "meet-livekit-egress"
+        }
+      ]
+    },
+    {
+      "source": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:f12d6c04c",
+      "proposed_target": "we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-agents:f12d6c04c",
+      "local_cached": true,
+      "repo_digests": [
+        "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents@sha256:f6985c6020d85ca524d916b293416b82884fc0a189cc7b558f9ce0f688d83c0c"
+      ],
+      "architecture": "amd64",
+      "os": "linux",
+      "size_bytes": 241121485,
+      "workloads": [
+        {
+          "kind": "Deployment",
+          "name": "meet-agent-ai-assistant"
+        },
+        {
+          "kind": "Deployment",
+          "name": "meet-agent-capture-asr"
+        },
+        {
+          "kind": "Deployment",
+          "name": "meet-agent-capture-live-asr"
+        },
+        {
+          "kind": "Deployment",
+          "name": "meet-agent-interpretation"
+        },
+        {
+          "kind": "Deployment",
+          "name": "meet-agent-metadata"
+        },
+        {
+          "kind": "Deployment",
+          "name": "meet-agent-subtitles"
+        },
+        {
+          "kind": "Deployment",
+          "name": "meet-agent-translation"
+        }
+      ],
+      "local_image_id": "sha256:f6985c6020d85ca524d916b293416b82884fc0a189cc7b558f9ce0f688d83c0c"
+    },
+    {
+      "source": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:fff8391da",
+      "proposed_target": "we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-agents:fff8391da",
+      "local_cached": true,
+      "repo_digests": [
+        "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents@sha256:46810a0973b58790bc1208744829e324e7b8a2a9bc62f50af3ea729386b2390c"
+      ],
+      "architecture": "amd64",
+      "os": "linux",
+      "size_bytes": 241121612,
+      "workloads": [
+        {
+          "kind": "Deployment",
+          "name": "meet-agent-capture-translation"
+        }
+      ],
+      "local_image_id": "sha256:46810a0973b58790bc1208744829e324e7b8a2a9bc62f50af3ea729386b2390c"
+    },
+    {
+      "source": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:fff8391da",
+      "proposed_target": "we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-backend:fff8391da",
+      "local_cached": true,
+      "repo_digests": [
+        "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:ba280ef451cc7e7ded1daf520a54590ae96202bc7ba2de8ed1cfe97172d336ba"
+      ],
+      "architecture": "amd64",
+      "os": "linux",
+      "size_bytes": 177046946,
+      "workloads": [
+        {
+          "kind": "Deployment",
+          "name": "meet-backend"
+        },
+        {
+          "kind": "Deployment",
+          "name": "meet-backend-ai"
+        },
+        {
+          "kind": "Deployment",
+          "name": "meet-celery-backend"
+        },
+        {
+          "kind": "Deployment",
+          "name": "meet-celery-beat"
+        },
+        {
+          "kind": "Deployment",
+          "name": "meet-celery-work"
+        },
+        {
+          "kind": "CronJob",
+          "name": "meet-backend-docs-profiles"
+        },
+        {
+          "kind": "CronJob",
+          "name": "meet-backend-reminders"
+        }
+      ],
+      "local_image_id": "sha256:ba280ef451cc7e7ded1daf520a54590ae96202bc7ba2de8ed1cfe97172d336ba"
+    },
+    {
+      "source": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-frontend:f950ba8cc",
+      "proposed_target": "we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-frontend:f950ba8cc",
+      "local_cached": true,
+      "repo_digests": [
+        "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-frontend@sha256:a0e3624c4f40f82d473c31e41388d171511e1fb4ff14aa154c09886177ccefaf"
+      ],
+      "architecture": "amd64",
+      "os": "linux",
+      "size_bytes": 42591731,
+      "workloads": [
+        {
+          "kind": "Deployment",
+          "name": "meet-frontend"
+        }
+      ],
+      "local_image_id": "sha256:a0e3624c4f40f82d473c31e41388d171511e1fb4ff14aa154c09886177ccefaf"
+    },
+    {
+      "source": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary:f12d6c04c",
+      "proposed_target": "we-meet-cn-guangzhou.cr.volces.com/we-meet/meet-summary:f12d6c04c",
+      "local_cached": true,
+      "repo_digests": [
+        "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-summary@sha256:c3fd5281850bdf625ffb386f1f522f14ada76629176e11b08a5f028e4baeee5c"
+      ],
+      "architecture": "amd64",
+      "os": "linux",
+      "size_bytes": 112368975,
+      "workloads": [
+        {
+          "kind": "Deployment",
+          "name": "meet-celery-summarize"
+        },
+        {
+          "kind": "Deployment",
+          "name": "meet-celery-summary-backend"
+        },
+        {
+          "kind": "Deployment",
+          "name": "meet-celery-transcribe-default"
+        },
+        {
+          "kind": "Deployment",
+          "name": "meet-summary"
+        }
+      ],
+      "local_image_id": "sha256:c3fd5281850bdf625ffb386f1f522f14ada76629176e11b08a5f028e4baeee5c"
+    }
+  ],
+  "observed_stage": "Initial preflight before the user created the target namespace",
+  "subsequent_decision": "Keep original registry after user reported it restored; replacement registry was not applied to production",
+  "replacement_registry_namespace_created": true,
+  "replacement_registry_mirrored_images": 6,
+  "replacement_registry_all_image_digests_preserved": true,
+  "replacement_configuration_commit": "fa09617d79b366d7e124a30b7baa28e535844162",
+  "replacement_configuration_reverted_by": "b524f714fe75be3a03758277b692b96a4d1a2358",
+  "original_registry_recovered": {
+    "backend_token_http_status": 200,
+    "backend_manifest_http_status": 200,
+    "translation_gateway_token_http_status": 200,
+    "translation_gateway_manifest_http_status": 200,
+    "credentials_source": "existing Kubernetes pull secret; not replaced"
+  }
+}
