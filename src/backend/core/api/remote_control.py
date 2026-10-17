@@ -1,8 +1,10 @@
 """Human-account-only HTTP control plane; no operating-system input endpoint."""
 
+from io import BytesIO
+
 from django.utils import timezone
 
-from rest_framework import permissions, serializers, throttling
+from rest_framework import parsers, permissions, serializers, throttling
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -27,6 +29,17 @@ class HumanAccount(permissions.BasePermission):
 class RemoteControlThrottle(throttling.UserRateThrottle):
     scope = "remote-control"
     rate = "180/min"
+
+
+class BoundedJSONParser(parsers.JSONParser):
+    """Bound raw bytes before parsing, including parsing triggered by CSRF."""
+
+    def parse(self, stream, media_type=None, parser_context=None):
+        limit = parser_context["view"].request_body_limit()
+        body = stream.read(limit + 1)
+        if len(body) > limit:
+            raise RemoteControlError("request_too_large", 413)
+        return super().parse(BytesIO(body), media_type, parser_context)
 
 
 class StrictSerializer(serializers.Serializer):
@@ -95,6 +108,10 @@ class RemoteControlView(APIView):
     # OIDC Bearer as a LiveKit room token, nor grant API rights to anonymous joins.
     permission_classes = [HumanAccount]
     throttle_classes = [RemoteControlThrottle]
+    parser_classes = [BoundedJSONParser]
+
+    def request_body_limit(self):
+        return 16384
 
     def handle_exception(self, exc):
         if isinstance(exc, RemoteControlError):
@@ -162,8 +179,6 @@ class RemoteControlView(APIView):
         return Response(status=405)
 
     def post(self, request, room_id, operation="session", session_id=None):
-        if len(request.body) > 16384:
-            raise RemoteControlError("request_too_large", 413)
         serializers_by_operation = {
             "capabilities": PresenceSerializer,
             "requests": RequestSerializer,

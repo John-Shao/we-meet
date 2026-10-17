@@ -1,5 +1,6 @@
 """Policy, cleanup, audit privacy, and real database race boundaries."""
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from threading import Barrier
@@ -11,6 +12,7 @@ from django.utils import timezone
 
 import pytest
 from livekit.protocol.models import TrackSource
+from rest_framework.test import APIClient
 
 from core import models
 from core.services import remote_control as service
@@ -27,6 +29,109 @@ from core.tests.services.test_remote_control import (
 )
 
 pytestmark = pytest.mark.django_db
+
+
+def session_client(user):
+    """Exercise real session authentication and its POST-body CSRF parsing."""
+    result = APIClient(enforce_csrf_checks=True)
+    result.force_login(user, backend="django.contrib.auth.backends.ModelBackend")
+    token = "a" * 32
+    result.cookies["csrftoken"] = token
+    result.credentials(HTTP_X_CSRFTOKEN=token)
+    return result
+
+
+def presence_data(m, user):
+    return {
+        "roomSid": "RM_test",
+        "participantSid": m.people[str(user.sub)].sid,
+        "deviceSessionId": str(m.devices[user.pk]),
+        "canControl": True,
+        "canBeControlled": True,
+        "protocolVersions": [1],
+        "platform": "win32",
+        "helperVersion": "1",
+    }
+
+
+def test_browser_session_can_publish_and_request_with_csrf(meeting):
+    m = meeting
+    c = session_client(m.a)
+    data = {
+        **presence_data(m, m.a),
+        "canBeControlled": False,
+        "platform": "pc-web",
+        "helperVersion": "",
+    }
+    assert c.post(m.url + "capabilities/", data, format="json").status_code == 200
+    response = c.post(m.url + "requests/", request_data(m), format="json")
+    assert response.status_code == 200
+    assert response.data["state"] == "PENDING"
+    c.credentials()
+    assert c.post(m.url + "capabilities/", data, format="json").status_code == 403
+
+
+@pytest.mark.parametrize("authenticated_session", [True, False])
+@pytest.mark.parametrize("extra_byte", [False, True])
+@pytest.mark.parametrize("endpoint", ["presence", "policy", "emergency"])
+def test_json_body_byte_limits(meeting, authenticated_session, extra_byte, endpoint):
+    m = meeting
+    models.Membership.objects.filter(user=m.a).update(
+        org_role=models.OrgRoleChoices.ADMIN
+    )
+    c = session_client(m.a) if authenticated_session else client(m.a)
+    if endpoint == "presence":
+        url, method, limit = m.url + "capabilities/", c.post, 16384
+        data = presence_data(m, m.a)
+    elif endpoint == "policy":
+        url = "/api/v1.0/admin/remote-control/policy/"
+        current = c.get(url).data
+        method, limit = c.put, 16384
+        data = {"version": current["version"], "policy": current["policy"]}
+    else:
+        url = "/api/v1.0/admin/remote-control/emergency-close/"
+        method, limit, data = c.post, 1024, {}
+    payload = json.dumps(data).encode()
+    payload += b" " * (limit - len(payload) + int(extra_byte))
+    response = method(url, payload, content_type="application/json")
+    assert response.status_code == (413 if extra_byte else 200)
+    if extra_byte:
+        assert response.data["code"] == "request_too_large"
+
+
+@pytest.mark.parametrize("scope", ["organization", "room", "both"])
+def test_native_presence_intersects_independent_role_allowlists(meeting, scope):
+    m = meeting
+    restriction = {
+        "enabled": True,
+        "controllers": [str(m.a.pk)],
+        "targets": [str(m.b.pk)],
+    }
+    if scope in ("organization", "both"):
+        models.Organization.objects.filter(pk=m.room.organization_id).update(
+            settings={"remote_control": restriction}
+        )
+    if scope in ("room", "both"):
+        models.Room.objects.filter(pk=m.room.pk).update(
+            configuration={"remote_control": restriction}
+        )
+    for user, expected in (
+        (m.a, (True, False)),
+        (m.b, (False, True)),
+        (m.c, (False, False)),
+    ):
+        response = client(user).post(
+            m.url + "capabilities/", presence_data(m, user), format="json"
+        )
+        assert response.status_code == 200
+        row = models.RemoteControlPresence.objects.get(room=m.room, user=user)
+        assert (row.can_control, row.can_be_controlled) == expected
+    assert create(m)["state"] == "PENDING"
+    reverse = client(m.b).post(
+        m.url + "requests/", request_data(m, m.b, m.a), format="json"
+    )
+    assert reverse.status_code == 403
+    assert reverse.data["code"] == "remote_control_not_allowed"
 
 
 @pytest.mark.parametrize(
