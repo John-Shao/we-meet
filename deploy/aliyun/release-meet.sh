@@ -23,7 +23,7 @@
 # 字符串, 看起来像两个 tag.
 #
 # 发布前默认会调 CR 的 Docker Registry v2 API 校验 <repo>:<tag> 存在
-# (--skip-image-check 可跳过); 明确 404 直接失败, 拿不到凭据/网络异常只告警.
+# (--skip-image-check 可跳过); 401/403/404 直接失败, 网络等其他异常只告警.
 # --dry-run 默认跳过该校验 (chart 测试 / 纯渲染场景不联网), --image-check 可强制.
 
 set -euo pipefail
@@ -138,7 +138,8 @@ module_reference() {
 # ─── 镜像存在性预检 ──────────────────────────────────────────────────────
 # 走 CR 的 Docker Registry v2 API 确认 <repo>:<tag> 真的存在, 免得 helm 一路
 # 等到 rollout 超时或 ImagePullBackOff 才发现 tag 打错. 判定:
-#   200 → 存在; 404 → 明确不存在 → die; 其它 (401/403/网络) → 只告警, 不阻塞.
+#   200 → 存在; 401/403 → 拉取鉴权失败 → die; 404 → 不存在 → die;
+#   其它网络异常保持既有告警语义.
 load_cr_credentials() {
   CR_USER="${VOLC_CR_USER:-}"
   CR_PASS="${VOLC_CR_PASS:-}"
@@ -210,6 +211,7 @@ require_image_exists() {
   code=$(curl -sS "${timeouts[@]}" -o /dev/null -w '%{http_code}' "${headers[@]}" -H "Accept: $accept" "$url" 2>/dev/null) || code=000
   case "$code" in
     200) return 0 ;;
+    401|403) die "image pull authorization rejected for ${reference}:${tag} (HTTP ${code}); repair registry credentials before release" ;;
     404) die "image not found: ${reference}:${tag} — push it with deploy/aliyun/build-and-push.sh, or release a tag that exists (--tag <pushed-tag>)" ;;
     *)   warn "cannot verify ${reference}:${tag} (registry returned ${code}${auth_hint}); skipping this image check" ;;
   esac

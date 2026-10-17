@@ -259,7 +259,7 @@ class MeetingAIReleaseTest(unittest.TestCase):
     # 40 位 fixture commit: 前 9 位是 123456789.
     FULL_SHA = "1234567890abcdef1234567890abcdef12345678"
 
-    def release(self, module, denied=False, tag="new-tag", ci_check=False, ci_denied=False, dry_run=True, old_backend=False):
+    def release(self, module, denied=False, tag="new-tag", ci_check=False, ci_denied=False, dry_run=True, old_backend=False, image_status=None, bearer_denied=False):
         bash = shutil.which("bash")
         git = shutil.which("git")
         if os.name == "nt" and git:
@@ -306,6 +306,16 @@ esac
 printf '%s\\n' "$@" > "$FIXTURE_LOG"
 """,
                 "gh": "#!/usr/bin/env bash\nexit 0\n",
+                "curl": """#!/usr/bin/env bash
+case "$*" in
+  *http_code*) printf '%s' "$FIXTURE_IMAGE_STATUS" ;;
+  *'/token?'*) printf '%s' '{"errors":[{"code":"UNAUTHORIZED"}]}' ;;
+  *)
+    if [[ "$FIXTURE_BEARER_DENIED" == 1 ]]; then
+      printf '%s\\n' 'HTTP/1.1 401 Unauthorized' 'WWW-Authenticate: Bearer realm="https://registry.invalid/token",service="fixture"'
+    fi ;;
+esac
+""",
                 "python3": """#!/usr/bin/env bash
 echo "CI-CHECK: $*"
 [[ "$FIXTURE_CI_DENIED" != 1 ]]
@@ -321,9 +331,13 @@ echo "CI-CHECK: $*"
             env = dict(os.environ, VALUES_FILE=posix(values), SECRETS_FILE=posix(values),
                        FIXTURE_LOG=posix(log), FIXTURE_DENIED="1" if denied else "0",
                        FIXTURE_CI_DENIED="1" if ci_denied else "0",
-                       FIXTURE_OLD_BACKEND="1" if old_backend else "0")
+                       FIXTURE_OLD_BACKEND="1" if old_backend else "0",
+                       FIXTURE_IMAGE_STATUS=str(image_status or 200),
+                       FIXTURE_BEARER_DENIED="1" if bearer_denied else "0")
             tag_arg = f"--tag {tag} " if tag else ""
             options = ("--dry-run " if dry_run else "--skip-image-check ") + ("--ci-check " if ci_check else "")
+            if image_status is not None:
+                options = options.replace("--skip-image-check ", "") + "--image-check "
             command = f'export PATH="{posix(root)}:$PATH"; exec bash "{posix(ROOT / "deploy/aliyun/release-meet.sh")}" {tag_arg}--skip-git-pull {options}{module}'
             result = subprocess.run([bash, "-c", command], env=env, capture_output=True, text=True)
             return result, log.read_text(encoding="utf-8") if log.exists() else ""
@@ -343,6 +357,22 @@ echo "CI-CHECK: $*"
         self.assertEqual("", log)
         self.assertIn("required release CI did not pass", result.stderr)
         self.assertIn(f"--commit {self.FULL_SHA} --commit {'a' * 40}", result.stdout)
+
+    def test_registry_authorization_failure_prevents_helm(self):
+        for status in (401, 403):
+            for bearer in (False, True):
+                with self.subTest(status=status, bearer=bearer):
+                    result, log = self.release("backend", tag="aaaaaaaaa", dry_run=False,
+                                               image_status=status, bearer_denied=bearer)
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertEqual("", log)
+                    self.assertIn(f"HTTP {status}", result.stderr)
+                    self.assertIn("image pull authorization rejected", result.stderr)
+
+    def test_verified_registry_image_can_reach_helm(self):
+        result, log = self.release("backend", tag="aaaaaaaaa", image_status=200)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("upgrade", log)
 
     def test_translation_gateway_release_preserves_other_agent_images(self):
         result, log = self.release("translation-gateway")
