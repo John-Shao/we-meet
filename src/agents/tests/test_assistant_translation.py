@@ -60,6 +60,25 @@ def events(language="zh"):
 
 
 class RoutingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_partial_source_language_cannot_release_audio_before_final_conflict(
+        self,
+    ):
+        """An early matching transcript can still become the other language."""
+        emit = AsyncMock()
+        results = BilingualResults("en", emit, source="zh")
+        sequence = events()
+        await results.accept(sequence[1])
+        await results.accept(sequence[2])
+        await results.accept({**sequence[0], "completed": False})
+        emit.assert_not_awaited()
+        await results.accept({**sequence[0], "language": "en"})
+        emit.assert_not_awaited()
+        await results.accept(sequence[-1])
+        self.assertEqual(
+            [call.args[0] for call in emit.call_args_list],
+            [{"type": "language_unknown"}],
+        )
+
     async def test_input_items_between_replies_do_not_accumulate_or_time_out(self):
         normalizer = TranslationEvents()
         emit = AsyncMock()

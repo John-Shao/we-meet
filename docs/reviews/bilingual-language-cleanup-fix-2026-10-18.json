@@ -1,0 +1,1908 @@
+{
+  "local_date": "2026-10-18",
+  "timezone": "Asia/Shanghai",
+  "recorded_at": "2026-10-17T23:43:00.143734+00:00",
+  "status": "production_code_fixed_and_validated_not_deployed",
+  "product_source_commit": "90af10475de69a6996d1c316edc3172c09193420",
+  "baseline_source_commit": "9ff292335c1e47dbcdbf945e56493f964b326824",
+  "branch": "release/bilingual-websocket-20261016",
+  "product_module_sha256": "0dc1452209f44a2e784b1f5b50cbb056e0608f49b5efc78f3a30cd5fc2987c7e",
+  "validation": {
+    "regression_tests_windows": 134,
+    "regression_tests_linux_production_image": 133,
+    "focused_language_detector_tests": 24,
+    "cold_path_red_before_fix": true,
+    "production_ruff": "passed",
+    "test_ruff": "passed with existing D102 docstring rule excluded",
+    "ci": {
+      "conclusion": "success",
+      "headSha": "90af10475de69a6996d1c316edc3172c09193420",
+      "jobs": [
+        {
+          "name": "frontend-artifact",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "desktop-boundaries",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "deployment-boundaries",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "backend-boundaries",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "status": "completed",
+      "url": "https://github.com/John-Shao/we-meet/actions/runs/39079408573"
+    },
+    "linux_image": {
+      "source_commit": "90af10475de69a6996d1c316edc3172c09193420",
+      "image": "we-meet-language-cleanup:90af10475",
+      "image_id": "sha256:760c65310f640a09000d7e322e9a7f5d7b8813a2b6fc05be834da6c2329ef620",
+      "network": "none",
+      "tests_passed": 133,
+      "pushed": false,
+      "deployed": false,
+      "seconds": 59.618
+    }
+  },
+  "measurements": [
+    {
+      "variant": "before",
+      "source": "zh",
+      "samples": 3,
+      "metrics": {
+        "estimated_end_to_gateway_first_audio_ms": {
+          "median_ms": 1171.85,
+          "min_ms": 1170.321,
+          "max_ms": 1176.308
+        },
+        "classification_result_to_return_ms": {
+          "median_ms": 501.203,
+          "min_ms": 500.404,
+          "max_ms": 501.68
+        },
+        "probe_call_ms": {
+          "median_ms": 1044.424,
+          "min_ms": 1033.336,
+          "max_ms": 1048.172
+        }
+      }
+    },
+    {
+      "variant": "before",
+      "source": "en",
+      "samples": 3,
+      "metrics": {
+        "estimated_end_to_gateway_first_audio_ms": {
+          "median_ms": 892.332,
+          "min_ms": 887.844,
+          "max_ms": 983.617
+        },
+        "classification_result_to_return_ms": {
+          "median_ms": 500.365,
+          "min_ms": 500.275,
+          "max_ms": 500.709
+        },
+        "probe_call_ms": {
+          "median_ms": 1017.734,
+          "min_ms": 1007.275,
+          "max_ms": 1107.693
+        }
+      }
+    },
+    {
+      "variant": "after",
+      "source": "zh",
+      "samples": 3,
+      "metrics": {
+        "estimated_end_to_gateway_first_audio_ms": {
+          "median_ms": 1187.948,
+          "min_ms": 1170.142,
+          "max_ms": 1194.247
+        },
+        "classification_result_to_return_ms": {
+          "median_ms": 0.039,
+          "min_ms": 0.034,
+          "max_ms": 0.062
+        },
+        "probe_call_ms": {
+          "median_ms": 602.404,
+          "min_ms": 533.758,
+          "max_ms": 692.961
+        }
+      }
+    },
+    {
+      "variant": "after",
+      "source": "en",
+      "samples": 3,
+      "metrics": {
+        "estimated_end_to_gateway_first_audio_ms": {
+          "median_ms": 724.768,
+          "min_ms": 719.113,
+          "max_ms": 772.188
+        },
+        "classification_result_to_return_ms": {
+          "median_ms": 0.041,
+          "min_ms": 0.04,
+          "max_ms": 0.043
+        },
+        "probe_call_ms": {
+          "median_ms": 567.821,
+          "min_ms": 560.632,
+          "max_ms": 595.239
+        }
+      }
+    }
+  ],
+  "real_probe_accounting": {
+    "attempted": 16,
+    "completed": 12,
+    "failed": 4
+  },
+  "failures": [
+    {
+      "variant": "before",
+      "source": "zh",
+      "error_code": "translation_connect_failed",
+      "failure_class": "TranslationError",
+      "stages": [
+        {
+          "stage": "language_cleanup_start",
+          "at_ms": 5206.235
+        },
+        {
+          "stage": "language_cleanup_end",
+          "at_ms": 5206.243
+        }
+      ]
+    },
+    {
+      "variant": "before",
+      "source": "en",
+      "error_code": "translation_connect_failed",
+      "failure_class": "TranslationError",
+      "stages": [
+        {
+          "stage": "language_cleanup_start",
+          "at_ms": 5374.771
+        },
+        {
+          "stage": "language_cleanup_end",
+          "at_ms": 5374.777
+        }
+      ]
+    },
+    {
+      "variant": "after",
+      "source": "zh",
+      "error_code": "translation_connect_failed",
+      "failure_class": "TranslationError",
+      "stages": [
+        {
+          "stage": "language_cleanup_start",
+          "at_ms": 5228.794
+        },
+        {
+          "stage": "language_cleanup_end",
+          "at_ms": 5228.801
+        }
+      ]
+    },
+    {
+      "variant": "after",
+      "source": "en",
+      "error_code": "translation_connect_failed",
+      "failure_class": "TranslationError",
+      "stages": [
+        {
+          "stage": "language_cleanup_start",
+          "at_ms": 5131.46
+        },
+        {
+          "stage": "language_cleanup_end",
+          "at_ms": 5131.465
+        }
+      ]
+    }
+  ],
+  "known_successful_probe_usage_not_supplier_billable": {
+    "cases": 12,
+    "input_pcm_bytes": 1084480,
+    "output_protocol_bytes": 1457850,
+    "failed_case_usage_unknown": true
+  },
+  "release_state": {
+    "pushed_image": false,
+    "deployed": false,
+    "phone_apk_changed": false,
+    "production_feature_flag_changed": false,
+    "production_read_only_audit": {
+      "revision": 495,
+      "helm_status": "deployed",
+      "registry": "jusi-cn-guangzhou.cr.volces.com",
+      "all_workloads_ready": true,
+      "pull_secret_hosts": [
+        "jusi-cn-guangzhou.cr.volces.com"
+      ],
+      "pending_pods": 0,
+      "backend_pull_policy": "Always",
+      "translation_enabled": false,
+      "migration_0228_applied": true,
+      "session_counts": {
+        "expired": 1,
+        "closed": 18
+      },
+      "live_unexpired_sessions": 0,
+      "release_source": "9ff292335c1e47dbcdbf945e56493f964b326824",
+      "release_checkout_clean": true,
+      "all_image_and_pull_secret_references_match_plan": true
+    }
+  },
+  "audio_release_policy": "Unchanged: wait for linked final source evidence; stream audio before response completion once validated. Added a regression that partial language evidence can flip and must not release audio.",
+  "limits": [
+    "Real provider calls but fixture admission and loopback downstream; no phone-network or acoustic end-to-end measurement.",
+    "Two short Chinese/English fixtures, three valid samples per variant/language; not P95 or broad travel acceptance.",
+    "Four translation_connect_failed cases occurred before language identification, in both old and new versions; retained with root cause unconfirmed. Diagnostic recheck completed all four cases.",
+    "The module override occurred only in a separate diagnostic process inside the unchanged image; the real service and files were not modified.",
+    "Background socket closure still takes time; moving it out of response latency does not imply lower billing or a 500ms end-to-end gain.",
+    "Windows has one additional audio-release safety test beyond the immutable product-commit image; 134 and 133 are intentionally distinct.",
+    "Human speech/listening and interruptions remain pending. CPU/gray rollout/headphones/concurrency/invoice scope decisions unchanged."
+  ],
+  "raw_comparisons": {
+    "language-cleanup-real-comparison-20261018.json": {
+      "gateway_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:9ff292335",
+      "production_deployment_changed": false,
+      "production_feature_flag_changed": false,
+      "fixture_admission": true,
+      "loopback_downstream": true,
+      "module_override_only_in_separate_probe_process": true,
+      "runs": [
+        {
+          "scope": "Real gateway/VAD/LID/translation providers; synthetic PCM, fixture admission, loopback client",
+          "phone_network_or_playback_measured": false,
+          "raw_content_or_credentials_exported": false,
+          "experimental_background_language_cleanup": false,
+          "settings": {
+            "probe_ms": 800,
+            "turn_silence_ms": 1000
+          },
+          "cases": [
+            {
+              "source": "zh",
+              "mode": "automatic",
+              "summary": {
+                "single_utterance": true,
+                "first_audio_hold_and_delivery_ms": 308.99500101804733,
+                "estimated_speech_end_to_provider_first_audio_ms": 862.855164334178,
+                "estimated_speech_end_to_gateway_first_audio_ms": 1171.8501653522253,
+                "end_detection_and_queue_ms": 607.1228981018066
+              },
+              "stages": [
+                {
+                  "stage": "ready",
+                  "at_ms": 537.271
+                },
+                {
+                  "stage": "vad_start_of_speech",
+                  "at_ms": 740.992,
+                  "sample_index": 3584
+                },
+                {
+                  "stage": "language_probe_start",
+                  "at_ms": 1246.156,
+                  "buffered_ms": 800.0
+                },
+                {
+                  "stage": "language_connect_start",
+                  "at_ms": 1246.184
+                },
+                {
+                  "stage": "language_connect_ready",
+                  "at_ms": 1451.181
+                },
+                {
+                  "stage": "language_classify_start",
+                  "at_ms": 1451.187
+                },
+                {
+                  "stage": "language_classify_result",
+                  "at_ms": 1788.9,
+                  "known": true
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 1788.913
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 2290.56
+                },
+                {
+                  "stage": "language_probe_return",
+                  "at_ms": 2290.58,
+                  "known": true
+                },
+                {
+                  "stage": "provider_first_speech_send",
+                  "at_ms": 2290.662
+                },
+                {
+                  "stage": "provider_source_link",
+                  "at_ms": 2541.767
+                },
+                {
+                  "stage": "vad_end_of_speech",
+                  "at_ms": 2756.385,
+                  "sample_index": 35840,
+                  "silence_ms": 576.0,
+                  "estimated_last_speech_sample": 26624,
+                  "estimated_speech_end_sent_ms": 2149.258,
+                  "end_detection_and_queue_ms": 607.123
+                },
+                {
+                  "stage": "provider_silence_boundary_sent",
+                  "at_ms": 2757.401
+                },
+                {
+                  "stage": "provider_first_audio",
+                  "at_ms": 3012.113,
+                  "output_index": 0
+                },
+                {
+                  "stage": "provider_source_final",
+                  "at_ms": 3320.946
+                },
+                {
+                  "stage": "gateway_first_audio",
+                  "at_ms": 3321.108,
+                  "output_index": 0
+                },
+                {
+                  "stage": "client_first_audio",
+                  "at_ms": 3322.317
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 6553.4
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 6553.405
+                }
+              ],
+              "passed": true,
+              "errors": [],
+              "output_items": 1,
+              "leases_closed": 1,
+              "input_bytes": 91520,
+              "output_bytes": 113810,
+              "round": 1
+            },
+            {
+              "source": "en",
+              "mode": "automatic",
+              "summary": {
+                "single_utterance": true,
+                "first_audio_hold_and_delivery_ms": 510.90443693101406,
+                "estimated_speech_end_to_provider_first_audio_ms": 472.7126844227314,
+                "estimated_speech_end_to_gateway_first_audio_ms": 983.6171213537455,
+                "end_detection_and_queue_ms": 608.717804774642
+              },
+              "stages": [
+                {
+                  "stage": "ready",
+                  "at_ms": 223.765
+                },
+                {
+                  "stage": "vad_start_of_speech",
+                  "at_ms": 328.495,
+                  "sample_index": 3072
+                },
+                {
+                  "stage": "language_probe_start",
+                  "at_ms": 933.699,
+                  "buffered_ms": 800.0
+                },
+                {
+                  "stage": "language_connect_start",
+                  "at_ms": 933.727
+                },
+                {
+                  "stage": "language_connect_ready",
+                  "at_ms": 1211.52
+                },
+                {
+                  "stage": "language_classify_start",
+                  "at_ms": 1211.527
+                },
+                {
+                  "stage": "language_classify_result",
+                  "at_ms": 1541.117,
+                  "known": true
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 1541.132
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 2041.379
+                },
+                {
+                  "stage": "language_probe_return",
+                  "at_ms": 2041.392,
+                  "known": true
+                },
+                {
+                  "stage": "provider_first_speech_send",
+                  "at_ms": 2041.424
+                },
+                {
+                  "stage": "provider_source_link",
+                  "at_ms": 2304.818
+                },
+                {
+                  "stage": "provider_first_audio",
+                  "at_ms": 2614.8,
+                  "output_index": 0
+                },
+                {
+                  "stage": "vad_end_of_speech",
+                  "at_ms": 2750.808,
+                  "sample_index": 40448,
+                  "silence_ms": 576.0,
+                  "estimated_last_speech_sample": 31232,
+                  "estimated_speech_end_sent_ms": 2142.087,
+                  "end_detection_and_queue_ms": 608.718
+                },
+                {
+                  "stage": "provider_silence_boundary_sent",
+                  "at_ms": 2751.562
+                },
+                {
+                  "stage": "provider_source_final",
+                  "at_ms": 3125.525
+                },
+                {
+                  "stage": "gateway_first_audio",
+                  "at_ms": 3125.705,
+                  "output_index": 0
+                },
+                {
+                  "stage": "client_first_audio",
+                  "at_ms": 3127.129
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 6327.382
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 6327.39
+                }
+              ],
+              "passed": true,
+              "errors": [],
+              "output_items": 1,
+              "leases_closed": 1,
+              "input_bytes": 94560,
+              "output_bytes": 118950,
+              "round": 1
+            }
+          ],
+          "passed": true,
+          "variant": "before",
+          "comparison_round": 1,
+          "process_exit": 0
+        },
+        {
+          "scope": "Real gateway/VAD/LID/translation providers; synthetic PCM, fixture admission, loopback client",
+          "phone_network_or_playback_measured": false,
+          "raw_content_or_credentials_exported": false,
+          "experimental_background_language_cleanup": false,
+          "settings": {
+            "probe_ms": 800,
+            "turn_silence_ms": 1000
+          },
+          "cases": [
+            {
+              "source": "zh",
+              "mode": "automatic",
+              "summary": {
+                "single_utterance": true,
+                "first_audio_hold_and_delivery_ms": 304.5563753694296,
+                "estimated_speech_end_to_provider_first_audio_ms": 865.5860517174006,
+                "estimated_speech_end_to_gateway_first_audio_ms": 1170.1424270868301,
+                "end_detection_and_queue_ms": 608.4174644201994
+              },
+              "stages": [
+                {
+                  "stage": "ready",
+                  "at_ms": 287.478
+                },
+                {
+                  "stage": "vad_start_of_speech",
+                  "at_ms": 490.504,
+                  "sample_index": 3584
+                },
+                {
+                  "stage": "language_probe_start",
+                  "at_ms": 996.698,
+                  "buffered_ms": 800.0
+                },
+                {
+                  "stage": "language_connect_start",
+                  "at_ms": 996.73
+                },
+                {
+                  "stage": "language_connect_ready",
+                  "at_ms": 1243.587
+                },
+                {
+                  "stage": "language_classify_start",
+                  "at_ms": 1243.593
+                },
+                {
+                  "stage": "language_classify_result",
+                  "at_ms": 1599.068,
+                  "known": true
+                },
+                {
+                  "stage": "language_cleanup_scheduled",
+                  "at_ms": 1599.079
+                },
+                {
+                  "stage": "language_probe_return",
+                  "at_ms": 1599.102,
+                  "known": true
+                },
+                {
+                  "stage": "provider_first_speech_send",
+                  "at_ms": 1599.147
+                },
+                {
+                  "stage": "provider_source_link",
+                  "at_ms": 1848.257
+                },
+                {
+                  "stage": "vad_end_of_speech",
+                  "at_ms": 2509.962,
+                  "sample_index": 35840,
+                  "silence_ms": 576.0,
+                  "estimated_last_speech_sample": 26624,
+                  "estimated_speech_end_sent_ms": 1901.541,
+                  "end_detection_and_queue_ms": 608.417
+                },
+                {
+                  "stage": "provider_silence_boundary_sent",
+                  "at_ms": 2510.934
+                },
+                {
+                  "stage": "provider_first_audio",
+                  "at_ms": 2767.127,
+                  "output_index": 0
+                },
+                {
+                  "stage": "provider_source_final",
+                  "at_ms": 3071.524
+                },
+                {
+                  "stage": "gateway_first_audio",
+                  "at_ms": 3071.683,
+                  "output_index": 0
+                },
+                {
+                  "stage": "client_first_audio",
+                  "at_ms": 3073.722
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 6291.016
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 6291.021
+                }
+              ],
+              "passed": true,
+              "errors": [],
+              "output_items": 1,
+              "leases_closed": 1,
+              "input_bytes": 91520,
+              "output_bytes": 113810,
+              "round": 1
+            },
+            {
+              "source": "en",
+              "mode": "automatic",
+              "summary": {
+                "single_utterance": true,
+                "first_audio_hold_and_delivery_ms": 849.6752604842186,
+                "estimated_speech_end_to_provider_first_audio_ms": -130.56270219385624,
+                "estimated_speech_end_to_gateway_first_audio_ms": 719.1125582903624,
+                "end_detection_and_queue_ms": 606.9035977125168
+              },
+              "stages": [
+                {
+                  "stage": "ready",
+                  "at_ms": 184.554
+                },
+                {
+                  "stage": "vad_start_of_speech",
+                  "at_ms": 288.375,
+                  "sample_index": 3072
+                },
+                {
+                  "stage": "language_probe_start",
+                  "at_ms": 895.367,
+                  "buffered_ms": 800.0
+                },
+                {
+                  "stage": "language_connect_start",
+                  "at_ms": 895.397
+                },
+                {
+                  "stage": "language_connect_ready",
+                  "at_ms": 1118.826
+                },
+                {
+                  "stage": "language_classify_start",
+                  "at_ms": 1118.831
+                },
+                {
+                  "stage": "language_classify_result",
+                  "at_ms": 1463.147,
+                  "known": true
+                },
+                {
+                  "stage": "language_cleanup_scheduled",
+                  "at_ms": 1463.161
+                },
+                {
+                  "stage": "language_probe_return",
+                  "at_ms": 1463.188,
+                  "known": true
+                },
+                {
+                  "stage": "provider_first_speech_send",
+                  "at_ms": 1463.216
+                },
+                {
+                  "stage": "provider_source_link",
+                  "at_ms": 1702.238
+                },
+                {
+                  "stage": "provider_first_audio",
+                  "at_ms": 1977.365,
+                  "output_index": 0
+                },
+                {
+                  "stage": "vad_end_of_speech",
+                  "at_ms": 2714.834,
+                  "sample_index": 40448,
+                  "silence_ms": 576.0,
+                  "estimated_last_speech_sample": 31232,
+                  "estimated_speech_end_sent_ms": 2107.927,
+                  "end_detection_and_queue_ms": 606.904
+                },
+                {
+                  "stage": "provider_silence_boundary_sent",
+                  "at_ms": 2715.717
+                },
+                {
+                  "stage": "provider_source_final",
+                  "at_ms": 2826.848
+                },
+                {
+                  "stage": "gateway_first_audio",
+                  "at_ms": 2827.04,
+                  "output_index": 0
+                },
+                {
+                  "stage": "client_first_audio",
+                  "at_ms": 2828.533
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 5987.488
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 5987.495
+                }
+              ],
+              "passed": true,
+              "errors": [],
+              "output_items": 1,
+              "leases_closed": 1,
+              "input_bytes": 84960,
+              "output_bytes": 124025,
+              "round": 1
+            }
+          ],
+          "passed": true,
+          "variant": "after",
+          "comparison_round": 1,
+          "process_exit": 0
+        },
+        {
+          "scope": "Real gateway/VAD/LID/translation providers; synthetic PCM, fixture admission, loopback client",
+          "phone_network_or_playback_measured": false,
+          "raw_content_or_credentials_exported": false,
+          "experimental_background_language_cleanup": false,
+          "settings": {
+            "probe_ms": 800,
+            "turn_silence_ms": 1000
+          },
+          "cases": [
+            {
+              "source": "zh",
+              "mode": "automatic",
+              "summary": {
+                "single_utterance": true,
+                "first_audio_hold_and_delivery_ms": 325.57507790625095,
+                "estimated_speech_end_to_provider_first_audio_ms": 868.6721362173557,
+                "estimated_speech_end_to_gateway_first_audio_ms": 1194.2472141236067,
+                "end_detection_and_queue_ms": 608.5535567253828
+              },
+              "stages": [
+                {
+                  "stage": "ready",
+                  "at_ms": 287.818
+                },
+                {
+                  "stage": "vad_start_of_speech",
+                  "at_ms": 491.754,
+                  "sample_index": 3584
+                },
+                {
+                  "stage": "language_probe_start",
+                  "at_ms": 998.622,
+                  "buffered_ms": 800.0
+                },
+                {
+                  "stage": "language_connect_start",
+                  "at_ms": 998.654
+                },
+                {
+                  "stage": "language_connect_ready",
+                  "at_ms": 1350.681
+                },
+                {
+                  "stage": "language_classify_start",
+                  "at_ms": 1350.686
+                },
+                {
+                  "stage": "language_classify_result",
+                  "at_ms": 1691.521,
+                  "known": true
+                },
+                {
+                  "stage": "language_cleanup_scheduled",
+                  "at_ms": 1691.538
+                },
+                {
+                  "stage": "language_probe_return",
+                  "at_ms": 1691.583,
+                  "known": true
+                },
+                {
+                  "stage": "provider_first_speech_send",
+                  "at_ms": 1691.627
+                },
+                {
+                  "stage": "provider_source_link",
+                  "at_ms": 1954.016
+                },
+                {
+                  "stage": "vad_end_of_speech",
+                  "at_ms": 2512.707,
+                  "sample_index": 35840,
+                  "silence_ms": 576.0,
+                  "estimated_last_speech_sample": 26624,
+                  "estimated_speech_end_sent_ms": 1904.15,
+                  "end_detection_and_queue_ms": 608.554
+                },
+                {
+                  "stage": "provider_silence_boundary_sent",
+                  "at_ms": 2513.626
+                },
+                {
+                  "stage": "provider_first_audio",
+                  "at_ms": 2772.822,
+                  "output_index": 0
+                },
+                {
+                  "stage": "provider_source_final",
+                  "at_ms": 3098.22
+                },
+                {
+                  "stage": "gateway_first_audio",
+                  "at_ms": 3098.397,
+                  "output_index": 0
+                },
+                {
+                  "stage": "client_first_audio",
+                  "at_ms": 3099.893
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 6292.737
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 6292.743
+                }
+              ],
+              "passed": true,
+              "errors": [],
+              "output_items": 1,
+              "leases_closed": 1,
+              "input_bytes": 91520,
+              "output_bytes": 124050,
+              "round": 1
+            },
+            {
+              "source": "en",
+              "mode": "automatic",
+              "summary": {
+                "single_utterance": true,
+                "first_audio_hold_and_delivery_ms": 769.7757109999657,
+                "estimated_speech_end_to_provider_first_audio_ms": 2.4123750627040863,
+                "estimated_speech_end_to_gateway_first_audio_ms": 772.1880860626698,
+                "end_detection_and_queue_ms": 606.7166794091463
+              },
+              "stages": [
+                {
+                  "stage": "ready",
+                  "at_ms": 272.383
+                },
+                {
+                  "stage": "vad_start_of_speech",
+                  "at_ms": 375.951,
+                  "sample_index": 3072
+                },
+                {
+                  "stage": "language_probe_start",
+                  "at_ms": 983.28,
+                  "buffered_ms": 800.0
+                },
+                {
+                  "stage": "language_connect_start",
+                  "at_ms": 983.312
+                },
+                {
+                  "stage": "language_connect_ready",
+                  "at_ms": 1225.152
+                },
+                {
+                  "stage": "language_classify_start",
+                  "at_ms": 1225.157
+                },
+                {
+                  "stage": "language_classify_result",
+                  "at_ms": 1578.476,
+                  "known": true
+                },
+                {
+                  "stage": "language_cleanup_scheduled",
+                  "at_ms": 1578.491
+                },
+                {
+                  "stage": "language_probe_return",
+                  "at_ms": 1578.519,
+                  "known": true
+                },
+                {
+                  "stage": "provider_first_speech_send",
+                  "at_ms": 1578.55
+                },
+                {
+                  "stage": "provider_source_link",
+                  "at_ms": 1869.439
+                },
+                {
+                  "stage": "provider_first_audio",
+                  "at_ms": 2193.286,
+                  "output_index": 0
+                },
+                {
+                  "stage": "vad_end_of_speech",
+                  "at_ms": 2797.593,
+                  "sample_index": 40448,
+                  "silence_ms": 576.0,
+                  "estimated_last_speech_sample": 31232,
+                  "estimated_speech_end_sent_ms": 2190.874,
+                  "end_detection_and_queue_ms": 606.717
+                },
+                {
+                  "stage": "provider_silence_boundary_sent",
+                  "at_ms": 2798.445
+                },
+                {
+                  "stage": "provider_source_final",
+                  "at_ms": 2962.881
+                },
+                {
+                  "stage": "gateway_first_audio",
+                  "at_ms": 2963.062,
+                  "output_index": 0
+                },
+                {
+                  "stage": "client_first_audio",
+                  "at_ms": 2964.567
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 6233.448
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 6233.453
+                }
+              ],
+              "passed": true,
+              "errors": [],
+              "output_items": 1,
+              "leases_closed": 1,
+              "input_bytes": 88160,
+              "output_bytes": 129160,
+              "round": 1
+            }
+          ],
+          "passed": true,
+          "variant": "after",
+          "comparison_round": 2,
+          "process_exit": 0
+        },
+        {
+          "scope": "Real gateway/VAD/LID/translation providers; synthetic PCM, fixture admission, loopback client",
+          "phone_network_or_playback_measured": false,
+          "raw_content_or_credentials_exported": false,
+          "experimental_background_language_cleanup": false,
+          "settings": {
+            "probe_ms": 800,
+            "turn_silence_ms": 1000
+          },
+          "cases": [
+            {
+              "source": "zh",
+              "mode": "automatic",
+              "summary": {
+                "single_utterance": true,
+                "first_audio_hold_and_delivery_ms": 305.7108037173748,
+                "estimated_speech_end_to_provider_first_audio_ms": 864.6104149520397,
+                "estimated_speech_end_to_gateway_first_audio_ms": 1170.3212186694145,
+                "end_detection_and_queue_ms": 607.8537050634623
+              },
+              "stages": [
+                {
+                  "stage": "ready",
+                  "at_ms": 285.228
+                },
+                {
+                  "stage": "vad_start_of_speech",
+                  "at_ms": 487.836,
+                  "sample_index": 3584
+                },
+                {
+                  "stage": "language_probe_start",
+                  "at_ms": 995.202,
+                  "buffered_ms": 800.0
+                },
+                {
+                  "stage": "language_connect_start",
+                  "at_ms": 995.231
+                },
+                {
+                  "stage": "language_connect_ready",
+                  "at_ms": 1200.617
+                },
+                {
+                  "stage": "language_classify_start",
+                  "at_ms": 1200.621
+                },
+                {
+                  "stage": "language_classify_result",
+                  "at_ms": 1527.335,
+                  "known": true
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 1527.35
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 2028.523
+                },
+                {
+                  "stage": "language_probe_return",
+                  "at_ms": 2028.538,
+                  "known": true
+                },
+                {
+                  "stage": "provider_first_speech_send",
+                  "at_ms": 2028.583
+                },
+                {
+                  "stage": "provider_source_link",
+                  "at_ms": 2261.792
+                },
+                {
+                  "stage": "vad_end_of_speech",
+                  "at_ms": 2510.316,
+                  "sample_index": 35840,
+                  "silence_ms": 576.0,
+                  "estimated_last_speech_sample": 26624,
+                  "estimated_speech_end_sent_ms": 1902.459,
+                  "end_detection_and_queue_ms": 607.854
+                },
+                {
+                  "stage": "provider_silence_boundary_sent",
+                  "at_ms": 2511.205
+                },
+                {
+                  "stage": "provider_first_audio",
+                  "at_ms": 2767.07,
+                  "output_index": 0
+                },
+                {
+                  "stage": "provider_source_final",
+                  "at_ms": 3072.59
+                },
+                {
+                  "stage": "gateway_first_audio",
+                  "at_ms": 3072.781,
+                  "output_index": 0
+                },
+                {
+                  "stage": "client_first_audio",
+                  "at_ms": 3074.086
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 6297.92
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 6297.925
+                }
+              ],
+              "passed": true,
+              "errors": [],
+              "output_items": 1,
+              "leases_closed": 1,
+              "input_bytes": 91520,
+              "output_bytes": 113810,
+              "round": 1
+            },
+            {
+              "source": "en",
+              "mode": "automatic",
+              "summary": {
+                "single_utterance": true,
+                "first_audio_hold_and_delivery_ms": 494.6446940302849,
+                "estimated_speech_end_to_provider_first_audio_ms": 393.19886825978756,
+                "estimated_speech_end_to_gateway_first_audio_ms": 887.8435622900724,
+                "end_detection_and_queue_ms": 606.8839710205793
+              },
+              "stages": [
+                {
+                  "stage": "ready",
+                  "at_ms": 240.541
+                },
+                {
+                  "stage": "vad_start_of_speech",
+                  "at_ms": 344.979,
+                  "sample_index": 3072
+                },
+                {
+                  "stage": "language_probe_start",
+                  "at_ms": 950.288,
+                  "buffered_ms": 800.0
+                },
+                {
+                  "stage": "language_connect_start",
+                  "at_ms": 950.319
+                },
+                {
+                  "stage": "language_connect_ready",
+                  "at_ms": 1160.752
+                },
+                {
+                  "stage": "language_classify_start",
+                  "at_ms": 1160.757
+                },
+                {
+                  "stage": "language_classify_result",
+                  "at_ms": 1467.657,
+                  "known": true
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 1467.67
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 1968.007
+                },
+                {
+                  "stage": "language_probe_return",
+                  "at_ms": 1968.022,
+                  "known": true
+                },
+                {
+                  "stage": "provider_first_speech_send",
+                  "at_ms": 1968.059
+                },
+                {
+                  "stage": "provider_source_link",
+                  "at_ms": 2256.0
+                },
+                {
+                  "stage": "provider_first_audio",
+                  "at_ms": 2549.438,
+                  "output_index": 0
+                },
+                {
+                  "stage": "vad_end_of_speech",
+                  "at_ms": 2763.126,
+                  "sample_index": 40448,
+                  "silence_ms": 576.0,
+                  "estimated_last_speech_sample": 31232,
+                  "estimated_speech_end_sent_ms": 2156.239,
+                  "end_detection_and_queue_ms": 606.884
+                },
+                {
+                  "stage": "provider_silence_boundary_sent",
+                  "at_ms": 2763.968
+                },
+                {
+                  "stage": "provider_source_final",
+                  "at_ms": 3043.82
+                },
+                {
+                  "stage": "gateway_first_audio",
+                  "at_ms": 3044.083,
+                  "output_index": 0
+                },
+                {
+                  "stage": "client_first_audio",
+                  "at_ms": 3046.17
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 6232.327
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 6232.332
+                }
+              ],
+              "passed": true,
+              "errors": [],
+              "output_items": 1,
+              "leases_closed": 1,
+              "input_bytes": 91360,
+              "output_bytes": 124055,
+              "round": 1
+            }
+          ],
+          "passed": true,
+          "variant": "before",
+          "comparison_round": 2,
+          "process_exit": 0
+        },
+        {
+          "scope": "Real gateway/VAD/LID/translation providers; synthetic PCM, fixture admission, loopback client",
+          "phone_network_or_playback_measured": false,
+          "raw_content_or_credentials_exported": false,
+          "experimental_background_language_cleanup": false,
+          "settings": {
+            "probe_ms": 800,
+            "turn_silence_ms": 1000
+          },
+          "cases": [
+            {
+              "passed": false,
+              "source": "zh",
+              "mode": "automatic",
+              "failure_class": "TranslationError",
+              "error_code": "translation_connect_failed",
+              "summary": {
+                "single_utterance": false
+              },
+              "stages": [
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 5206.235
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 5206.243
+                }
+              ],
+              "round": 1
+            },
+            {
+              "passed": false,
+              "source": "en",
+              "mode": "automatic",
+              "failure_class": "TranslationError",
+              "error_code": "translation_connect_failed",
+              "summary": {
+                "single_utterance": false
+              },
+              "stages": [
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 5374.771
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 5374.777
+                }
+              ],
+              "round": 1
+            }
+          ],
+          "passed": false,
+          "variant": "before",
+          "comparison_round": 3,
+          "process_exit": 1
+        },
+        {
+          "scope": "Real gateway/VAD/LID/translation providers; synthetic PCM, fixture admission, loopback client",
+          "phone_network_or_playback_measured": false,
+          "raw_content_or_credentials_exported": false,
+          "experimental_background_language_cleanup": false,
+          "settings": {
+            "probe_ms": 800,
+            "turn_silence_ms": 1000
+          },
+          "cases": [
+            {
+              "passed": false,
+              "source": "zh",
+              "mode": "automatic",
+              "failure_class": "TranslationError",
+              "error_code": "translation_connect_failed",
+              "summary": {
+                "single_utterance": false
+              },
+              "stages": [
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 5228.794
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 5228.801
+                }
+              ],
+              "round": 1
+            },
+            {
+              "passed": false,
+              "source": "en",
+              "mode": "automatic",
+              "failure_class": "TranslationError",
+              "error_code": "translation_connect_failed",
+              "summary": {
+                "single_utterance": false
+              },
+              "stages": [
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 5131.46
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 5131.465
+                }
+              ],
+              "round": 1
+            }
+          ],
+          "passed": false,
+          "variant": "after",
+          "comparison_round": 3,
+          "process_exit": 1
+        }
+      ],
+      "passed": false,
+      "recorded_at": "2026-10-17T23:32:03.712803+00:00",
+      "before_module_sha256": "cb74355440f50266eeac7197cccbfce4d228373c080d44ce3f0770602bace4a2",
+      "after_module_sha256": "0dc1452209f44a2e784b1f5b50cbb056e0608f49b5efc78f3a30cd5fc2987c7e",
+      "harness_sha256": "cbb7c001c70d4de14c1281f2820e2445900b5bb9a69396c54a414d6768299e35"
+    },
+    "language-cleanup-handshake-recheck-20261018.json": {
+      "gateway_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:9ff292335",
+      "production_deployment_changed": false,
+      "production_feature_flag_changed": false,
+      "fixture_admission": true,
+      "loopback_downstream": true,
+      "module_override_only_in_separate_probe_process": true,
+      "runs": [
+        {
+          "scope": "Real gateway/VAD/LID/translation providers; synthetic PCM, fixture admission, loopback client",
+          "phone_network_or_playback_measured": false,
+          "raw_content_or_credentials_exported": false,
+          "experimental_background_language_cleanup": false,
+          "settings": {
+            "probe_ms": 800,
+            "turn_silence_ms": 1000
+          },
+          "cases": [
+            {
+              "source": "zh",
+              "mode": "automatic",
+              "summary": {
+                "single_utterance": true,
+                "first_audio_hold_and_delivery_ms": 308.0151677131653,
+                "estimated_speech_end_to_provider_first_audio_ms": 868.293197825551,
+                "estimated_speech_end_to_gateway_first_audio_ms": 1176.3083655387163,
+                "end_detection_and_queue_ms": 607.813160866499
+              },
+              "stages": [
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 498.189,
+                  "phase": "session.created",
+                  "source": "en"
+                },
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 501.826,
+                  "phase": "session.updated",
+                  "source": "en"
+                },
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 524.539,
+                  "phase": "session.created",
+                  "source": "zh"
+                },
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 528.29,
+                  "phase": "session.updated",
+                  "source": "zh"
+                },
+                {
+                  "stage": "ready",
+                  "at_ms": 606.085
+                },
+                {
+                  "stage": "vad_start_of_speech",
+                  "at_ms": 809.942,
+                  "sample_index": 3584
+                },
+                {
+                  "stage": "language_probe_start",
+                  "at_ms": 1316.323,
+                  "buffered_ms": 800.0
+                },
+                {
+                  "stage": "language_connect_start",
+                  "at_ms": 1316.369
+                },
+                {
+                  "stage": "language_connect_ready",
+                  "at_ms": 1521.949
+                },
+                {
+                  "stage": "language_classify_start",
+                  "at_ms": 1521.953
+                },
+                {
+                  "stage": "language_classify_result",
+                  "at_ms": 1864.091,
+                  "known": true
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 1864.104
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 2364.481
+                },
+                {
+                  "stage": "language_probe_return",
+                  "at_ms": 2364.495,
+                  "known": true
+                },
+                {
+                  "stage": "provider_first_speech_send",
+                  "at_ms": 2364.539
+                },
+                {
+                  "stage": "provider_source_link",
+                  "at_ms": 2642.869
+                },
+                {
+                  "stage": "vad_end_of_speech",
+                  "at_ms": 2829.278,
+                  "sample_index": 35840,
+                  "silence_ms": 576.0,
+                  "estimated_last_speech_sample": 26624,
+                  "estimated_speech_end_sent_ms": 2221.461,
+                  "end_detection_and_queue_ms": 607.813
+                },
+                {
+                  "stage": "provider_silence_boundary_sent",
+                  "at_ms": 2830.236
+                },
+                {
+                  "stage": "provider_first_audio",
+                  "at_ms": 3089.755,
+                  "output_index": 0
+                },
+                {
+                  "stage": "provider_source_final",
+                  "at_ms": 3397.601
+                },
+                {
+                  "stage": "gateway_first_audio",
+                  "at_ms": 3397.77,
+                  "output_index": 0
+                },
+                {
+                  "stage": "client_first_audio",
+                  "at_ms": 3399.138
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 6614.132
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 6614.138
+                }
+              ],
+              "passed": true,
+              "errors": [],
+              "output_items": 1,
+              "leases_closed": 1,
+              "input_bytes": 91520,
+              "output_bytes": 124050,
+              "round": 1
+            },
+            {
+              "source": "en",
+              "mode": "automatic",
+              "summary": {
+                "single_utterance": true,
+                "first_audio_hold_and_delivery_ms": 543.4623248875141,
+                "estimated_speech_end_to_provider_first_audio_ms": 348.8694205880165,
+                "estimated_speech_end_to_gateway_first_audio_ms": 892.3317454755306,
+                "end_detection_and_queue_ms": 609.2975605279207
+              },
+              "stages": [
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 114.859,
+                  "phase": "session.created",
+                  "source": "zh"
+                },
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 118.23,
+                  "phase": "session.updated",
+                  "source": "zh"
+                },
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 130.289,
+                  "phase": "session.created",
+                  "source": "en"
+                },
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 133.5,
+                  "phase": "session.updated",
+                  "source": "en"
+                },
+                {
+                  "stage": "ready",
+                  "at_ms": 198.258
+                },
+                {
+                  "stage": "vad_start_of_speech",
+                  "at_ms": 302.992,
+                  "sample_index": 3072
+                },
+                {
+                  "stage": "language_probe_start",
+                  "at_ms": 909.02,
+                  "buffered_ms": 800.0
+                },
+                {
+                  "stage": "language_connect_start",
+                  "at_ms": 909.052
+                },
+                {
+                  "stage": "language_connect_ready",
+                  "at_ms": 1110.405
+                },
+                {
+                  "stage": "language_classify_start",
+                  "at_ms": 1110.411
+                },
+                {
+                  "stage": "language_classify_result",
+                  "at_ms": 1415.586,
+                  "known": true
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 1415.597
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 1916.28
+                },
+                {
+                  "stage": "language_probe_return",
+                  "at_ms": 1916.295,
+                  "known": true
+                },
+                {
+                  "stage": "provider_first_speech_send",
+                  "at_ms": 1916.33
+                },
+                {
+                  "stage": "provider_source_link",
+                  "at_ms": 2179.301
+                },
+                {
+                  "stage": "provider_first_audio",
+                  "at_ms": 2469.557,
+                  "output_index": 0
+                },
+                {
+                  "stage": "vad_end_of_speech",
+                  "at_ms": 2729.99,
+                  "sample_index": 40448,
+                  "silence_ms": 576.0,
+                  "estimated_last_speech_sample": 31232,
+                  "estimated_speech_end_sent_ms": 2120.687,
+                  "end_detection_and_queue_ms": 609.298
+                },
+                {
+                  "stage": "provider_silence_boundary_sent",
+                  "at_ms": 2730.962
+                },
+                {
+                  "stage": "provider_source_final",
+                  "at_ms": 3012.737
+                },
+                {
+                  "stage": "gateway_first_audio",
+                  "at_ms": 3013.019,
+                  "output_index": 0
+                },
+                {
+                  "stage": "client_first_audio",
+                  "at_ms": 3014.617
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 6207.68
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 6207.685
+                }
+              ],
+              "passed": true,
+              "errors": [],
+              "output_items": 1,
+              "leases_closed": 1,
+              "input_bytes": 91360,
+              "output_bytes": 129175,
+              "round": 1
+            }
+          ],
+          "passed": true,
+          "variant": "before",
+          "comparison_round": 1,
+          "process_exit": 0
+        },
+        {
+          "scope": "Real gateway/VAD/LID/translation providers; synthetic PCM, fixture admission, loopback client",
+          "phone_network_or_playback_measured": false,
+          "raw_content_or_credentials_exported": false,
+          "experimental_background_language_cleanup": false,
+          "settings": {
+            "probe_ms": 800,
+            "turn_silence_ms": 1000
+          },
+          "cases": [
+            {
+              "source": "zh",
+              "mode": "automatic",
+              "summary": {
+                "single_utterance": true,
+                "first_audio_hold_and_delivery_ms": 304.8749342560768,
+                "estimated_speech_end_to_provider_first_audio_ms": 883.0730430781841,
+                "estimated_speech_end_to_gateway_first_audio_ms": 1187.947977334261,
+                "end_detection_and_queue_ms": 605.9719175100327
+              },
+              "stages": [
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 310.056,
+                  "phase": "session.created",
+                  "source": "en"
+                },
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 313.713,
+                  "phase": "session.updated",
+                  "source": "en"
+                },
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 324.677,
+                  "phase": "session.created",
+                  "source": "zh"
+                },
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 327.388,
+                  "phase": "session.updated",
+                  "source": "zh"
+                },
+                {
+                  "stage": "ready",
+                  "at_ms": 381.36
+                },
+                {
+                  "stage": "vad_start_of_speech",
+                  "at_ms": 585.207,
+                  "sample_index": 3584
+                },
+                {
+                  "stage": "language_probe_start",
+                  "at_ms": 1092.74,
+                  "buffered_ms": 800.0
+                },
+                {
+                  "stage": "language_connect_start",
+                  "at_ms": 1092.776
+                },
+                {
+                  "stage": "language_connect_ready",
+                  "at_ms": 1297.503
+                },
+                {
+                  "stage": "language_classify_start",
+                  "at_ms": 1297.508
+                },
+                {
+                  "stage": "language_classify_result",
+                  "at_ms": 1626.459,
+                  "known": true
+                },
+                {
+                  "stage": "language_cleanup_scheduled",
+                  "at_ms": 1626.471
+                },
+                {
+                  "stage": "language_probe_return",
+                  "at_ms": 1626.498,
+                  "known": true
+                },
+                {
+                  "stage": "provider_first_speech_send",
+                  "at_ms": 1626.534
+                },
+                {
+                  "stage": "provider_source_link",
+                  "at_ms": 1864.112
+                },
+                {
+                  "stage": "vad_end_of_speech",
+                  "at_ms": 2603.479,
+                  "sample_index": 35840,
+                  "silence_ms": 576.0,
+                  "estimated_last_speech_sample": 26624,
+                  "estimated_speech_end_sent_ms": 1997.504,
+                  "end_detection_and_queue_ms": 605.972
+                },
+                {
+                  "stage": "provider_silence_boundary_sent",
+                  "at_ms": 2604.342
+                },
+                {
+                  "stage": "provider_first_audio",
+                  "at_ms": 2880.577,
+                  "output_index": 0
+                },
+                {
+                  "stage": "provider_source_final",
+                  "at_ms": 3185.283
+                },
+                {
+                  "stage": "gateway_first_audio",
+                  "at_ms": 3185.452,
+                  "output_index": 0
+                },
+                {
+                  "stage": "client_first_audio",
+                  "at_ms": 3186.729
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 6379.914
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 6379.919
+                }
+              ],
+              "passed": true,
+              "errors": [],
+              "output_items": 1,
+              "leases_closed": 1,
+              "input_bytes": 91520,
+              "output_bytes": 113810,
+              "round": 1
+            },
+            {
+              "source": "en",
+              "mode": "automatic",
+              "summary": {
+                "single_utterance": true,
+                "first_audio_hold_and_delivery_ms": 842.3061929643154,
+                "estimated_speech_end_to_provider_first_audio_ms": -117.53867566585541,
+                "estimated_speech_end_to_gateway_first_audio_ms": 724.76751729846,
+                "end_detection_and_queue_ms": 608.8081765919924
+              },
+              "stages": [
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 111.321,
+                  "phase": "session.created",
+                  "source": "zh"
+                },
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 115.452,
+                  "phase": "session.updated",
+                  "source": "zh"
+                },
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 128.284,
+                  "phase": "session.created",
+                  "source": "en"
+                },
+                {
+                  "stage": "provider_handshake_wait",
+                  "at_ms": 132.625,
+                  "phase": "session.updated",
+                  "source": "en"
+                },
+                {
+                  "stage": "ready",
+                  "at_ms": 192.148
+                },
+                {
+                  "stage": "vad_start_of_speech",
+                  "at_ms": 296.249,
+                  "sample_index": 3072
+                },
+                {
+                  "stage": "language_probe_start",
+                  "at_ms": 902.342,
+                  "buffered_ms": 800.0
+                },
+                {
+                  "stage": "language_connect_start",
+                  "at_ms": 902.375
+                },
+                {
+                  "stage": "language_connect_ready",
+                  "at_ms": 1121.094
+                },
+                {
+                  "stage": "language_classify_start",
+                  "at_ms": 1121.1
+                },
+                {
+                  "stage": "language_classify_result",
+                  "at_ms": 1462.934,
+                  "known": true
+                },
+                {
+                  "stage": "language_cleanup_scheduled",
+                  "at_ms": 1462.947
+                },
+                {
+                  "stage": "language_probe_return",
+                  "at_ms": 1462.974,
+                  "known": true
+                },
+                {
+                  "stage": "provider_first_speech_send",
+                  "at_ms": 1463.002
+                },
+                {
+                  "stage": "provider_source_link",
+                  "at_ms": 1708.016
+                },
+                {
+                  "stage": "provider_first_audio",
+                  "at_ms": 1991.984,
+                  "output_index": 0
+                },
+                {
+                  "stage": "vad_end_of_speech",
+                  "at_ms": 2718.334,
+                  "sample_index": 40448,
+                  "silence_ms": 576.0,
+                  "estimated_last_speech_sample": 31232,
+                  "estimated_speech_end_sent_ms": 2109.522,
+                  "end_detection_and_queue_ms": 608.808
+                },
+                {
+                  "stage": "provider_silence_boundary_sent",
+                  "at_ms": 2719.206
+                },
+                {
+                  "stage": "provider_source_final",
+                  "at_ms": 2834.11
+                },
+                {
+                  "stage": "gateway_first_audio",
+                  "at_ms": 2834.29,
+                  "output_index": 0
+                },
+                {
+                  "stage": "client_first_audio",
+                  "at_ms": 2835.904
+                },
+                {
+                  "stage": "language_cleanup_start",
+                  "at_ms": 6099.411
+                },
+                {
+                  "stage": "language_cleanup_end",
+                  "at_ms": 6099.416
+                }
+              ],
+              "passed": true,
+              "errors": [],
+              "output_items": 1,
+              "leases_closed": 1,
+              "input_bytes": 84960,
+              "output_bytes": 129145,
+              "round": 1
+            }
+          ],
+          "passed": true,
+          "variant": "after",
+          "comparison_round": 1,
+          "process_exit": 0
+        }
+      ],
+      "passed": true,
+      "recorded_at": "2026-10-17T23:34:07.833334+00:00",
+      "before_module_sha256": "cb74355440f50266eeac7197cccbfce4d228373c080d44ce3f0770602bace4a2",
+      "after_module_sha256": "0dc1452209f44a2e784b1f5b50cbb056e0608f49b5efc78f3a30cd5fc2987c7e",
+      "harness_sha256": "5b0dea510d8b61303869d7b4f03a56513d80103b2aa37f56bded08fb6b3537d7"
+    }
+  }
+}

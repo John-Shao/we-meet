@@ -220,6 +220,19 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
                 raise
 
     class Session(BilingualTranslationSession):
+        async def _expect(self, kind):
+            trace.mark("provider_handshake_wait", phase=kind, source=self.config.source)
+            try:
+                await super()._expect(kind)
+            except BaseException as error:
+                trace.mark(
+                    "provider_handshake_failed",
+                    phase=kind,
+                    source=self.config.source,
+                    failure_class=type(error).__name__,
+                )
+                raise
+
         def __init__(self, config, consume):
             super().__init__(config, consume)
             self.sent_speech = False
