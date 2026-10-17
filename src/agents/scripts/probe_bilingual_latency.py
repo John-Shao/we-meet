@@ -12,6 +12,7 @@ import json
 import logging
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 
 from websockets.asyncio.client import connect
@@ -42,6 +43,7 @@ class Timeline:
         self.stages = []
         self.input_frames = []
         self._output_indexes = {}
+        self._delivered_ids = set()
 
     def provider_audio(self, target, item_id):
         """Assign content-free indexes so delivery cannot match another reply."""
@@ -56,6 +58,11 @@ class Timeline:
 
     def gateway_audio(self, identity):
         """Keep raw provider IDs private and join only the exact output item."""
+        if identity in self._delivered_ids:
+            return
+        if len(self._delivered_ids) >= MAX_OUTPUT_ITEMS:
+            raise RuntimeError("latency_output_limit")
+        self._delivered_ids.add(identity)
         self.mark(
             "gateway_first_audio", output_index=self._output_indexes.get(identity, -1)
         )
@@ -99,9 +106,8 @@ class Timeline:
         """Summarize only a single unambiguous utterance and output item."""
         stages = self.stages
         ends = [s for s in stages if s["stage"] == "vad_end_of_speech"]
-        delivered = next(
-            (s for s in stages if s["stage"] == "gateway_first_audio"), None
-        )
+        deliveries = [s for s in stages if s["stage"] == "gateway_first_audio"]
+        delivered = next(iter(deliveries), None)
         first = next(
             (
                 s
@@ -113,7 +119,7 @@ class Timeline:
             None,
         )
         starts = [s for s in stages if s["stage"] == "vad_start_of_speech"]
-        ambiguous = len(ends) != 1 or len(starts) != 1
+        ambiguous = len(ends) != 1 or len(starts) != 1 or len(deliveries) != 1
         summary = {"single_utterance": not ambiguous}
         if first and delivered:
             summary["first_audio_hold_and_delivery_ms"] = (
@@ -173,13 +179,33 @@ class ObservedVad:
         return event
 
 
+def output_settled(events, *, now, input_finished_at, last_output_at, settle_seconds):
+    """Observe a full quiet tail rather than stopping at the first reply."""
+    return (
+        bool(events)
+        and all(item["audio_end"] for item in events.values())
+        and now - input_finished_at >= settle_seconds
+        and now - last_output_at >= min(settle_seconds, 3.0)
+    )
+
+
 async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories and complete socket lifecycle
-    pcm, *, source, fixed, timeout=70, trace=None, background_language_cleanup=False
+    pcm,
+    *,
+    source,
+    fixed,
+    timeout=70,
+    trace=None,
+    background_language_cleanup=False,
+    vad_factory_override=None,
+    settle_seconds=0,
+    expected_sources=None,
 ):
     """Run one fixture through actual production routing and provider classes."""
     trace = trace if trace is not None else Timeline()
     events, errors, connections, leases = {}, [], [], []
     complete = asyncio.Event()
+    last_output_at = time.monotonic()
 
     class Detector(OmniLanguageDetector):
         async def prepare(self):
@@ -261,7 +287,8 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
             await super()._consume(event)
 
     async def vad_factory():
-        return ObservedVad(await open_vad(), trace)
+        factory = vad_factory_override or open_vad
+        return ObservedVad(await factory(), trace)
 
     async def claim(ticket):
         if ticket != "isolated-latency-fixture":
@@ -296,9 +323,7 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
         emit = connection.emit
 
         async def observed_emit(event):
-            if event["type"] == "audio" and not any(
-                s["stage"] == "gateway_first_audio" for s in trace.stages
-            ):
+            if event["type"] == "audio":
                 trace.gateway_audio(event["id"])
             await emit(event)
 
@@ -327,10 +352,12 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
             trace.mark("ready")
 
             async def receive():
+                nonlocal last_output_at
                 async for raw in socket:
                     event = json.loads(raw)
                     kind = event["type"]
                     if kind in {"audio", "audio_end", "translation"}:
+                        last_output_at = time.monotonic()
                         item = events.setdefault(
                             event["id"], {"audio_bytes": 0, "audio_end": False}
                         )
@@ -361,11 +388,22 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
                     await socket.send(frame)
                     await asyncio.sleep(len(frame) / 32000)
                 deadline = time.monotonic() + 25
-                while not complete.is_set() and time.monotonic() < deadline:
+                input_finished_at = time.monotonic()
+                while not errors and time.monotonic() < deadline:
+                    if complete.is_set() and output_settled(
+                        events,
+                        now=time.monotonic(),
+                        input_finished_at=input_finished_at,
+                        last_output_at=last_output_at,
+                        settle_seconds=settle_seconds,
+                    ):
+                        break
                     trace.sent(1600)
                     await socket.send(bytes(3200))
                     await asyncio.sleep(0.1)
-                if not complete.is_set():
+                if not complete.is_set() or (
+                    not errors and time.monotonic() >= deadline
+                ):
                     errors.append("latency_output_timeout")
                 await socket.send('{"type":"finish"}')
                 await asyncio.wait_for(receiver, 15)
@@ -373,21 +411,18 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
                 receiver.cancel()
                 await asyncio.gather(receiver, return_exceptions=True)
     output = list(events.values())
+    expected = Counter(expected_sources if expected_sources is not None else [source])
     return {
         "source": source,
         "mode": "fixed" if fixed else "automatic",
         **trace.report(),
         "passed": not errors
         and leases.count("close") == 1
-        and len(output) == 1
-        and all(
-            item.get("source") == source
-            and item["audio_end"]
-            and item["audio_bytes"] > 0
-            for item in output
-        ),
+        and Counter(item.get("source") for item in output) == expected
+        and all(item["audio_end"] and item["audio_bytes"] > 0 for item in output),
         "errors": errors,
         "output_items": len(output),
+        "outputs": output,
         "leases_closed": leases.count("close"),
         "input_bytes": sum(c.input_bytes for c in connections),
         "output_bytes": sum(c.output_bytes for c in connections),
