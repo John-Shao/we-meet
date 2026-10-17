@@ -56,6 +56,11 @@ def parse_arguments(argv=None):
     parser.add_argument("--client-only", action="store_true")
     parser.add_argument("--physical", action="store_true")
     parser.add_argument(
+        "--synthetic-on-device",
+        action="store_true",
+        help="Explicitly run audible Chinese/English fixtures on a device without opening its microphone",
+    )
+    parser.add_argument(
         "--physical-routes",
         nargs="+",
         choices=("speaker", "wired", "bluetooth"),
@@ -86,6 +91,12 @@ def parse_arguments(argv=None):
         "--network-profile", choices=("normal", "loss-jitter"), default="normal"
     )
     args = parser.parse_args(argv)
+    if args.synthetic_on_device and (
+        not args.android or not args.client_only or args.physical
+    ):
+        parser.error(
+            "--synthetic-on-device requires --android and --client-only, without --physical"
+        )
     if (args.client_only or args.physical) and not args.android:
         parser.error("--client-only/--physical require --android DEVICE_SERIAL")
     if not args.physical and (
@@ -229,6 +240,7 @@ def main():  # noqa: PLR0915 -- bounded setup with unconditional resource cleanu
                     "agent_token": token,
                     "headers": headers,
                     "authentication": args.auth,
+                    "synthetic_on_device": args.synthetic_on_device,
                     "physical_mode": args.physical_mode,
                     "physical_routes": args.physical_routes,
                     "physical_environment": args.physical_environment,

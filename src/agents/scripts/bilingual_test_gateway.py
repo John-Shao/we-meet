@@ -24,11 +24,19 @@ class DelayedSocket:
         """Delegate receive and connection metadata to the actual TLS socket."""
         return getattr(self.socket, name)
 
+    async def recv(self):
+        """Count PCM bytes without retaining audio or authentication messages."""
+        message = await self.socket.recv()
+        if isinstance(message, bytes):
+            self.telemetry["input_pcm_bytes"] += len(message)
+        return message
+
     async def send(self, message):
         """Record only event categories and safe gateway error codes."""
         if self.sender.done():
             self.sender.result()
         event = json.loads(message)
+        self.telemetry["output_message_bytes"] += len(message.encode("utf-8"))
         kind = event.get("type", "unknown")
         self.telemetry["events"][kind] = self.telemetry["events"].get(kind, 0) + 1
         if kind == "error":
@@ -69,14 +77,23 @@ async def main():
     tls.load_cert_chain(config["certificate"], config["key"])
     gateway = CaptureTranslationGateway(origins=["https://localhost"])
     delay = config.get("downstream_delay_ms", 0) / 1000
-    telemetry = {"events": {}, "error_codes": []}
+    telemetry = {
+        "events": {},
+        "error_codes": [],
+        "input_pcm_bytes": 0,
+        "output_message_bytes": 0,
+    }
 
     async def handle(socket):
+        started = asyncio.get_running_loop().time()
         delayed = DelayedSocket(socket, delay, telemetry)
         try:
             await gateway.handle(delayed)
         finally:
             await delayed.close_output()
+            telemetry.setdefault("connection_duration_ms", []).append(
+                round((asyncio.get_running_loop().time() - started) * 1000)
+            )
 
     async with serve(
         handle,

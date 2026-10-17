@@ -120,8 +120,15 @@ def run_android(repo, config, environment, serial, *, physical=False):
     """Run the opt-in device test and remove only this harness's reverse mappings."""
     from django.conf import settings
 
-    if not physical and not serial.startswith("emulator-"):
-        raise ValueError("This automated harness requires an emulator")
+    synthetic_device = config.get("synthetic_on_device", False)
+    if not physical and not serial.startswith("emulator-") and not synthetic_device:
+        raise ValueError(
+            "Synthetic input on a real device requires --synthetic-on-device"
+        )
+    if physical and synthetic_device:
+        raise ValueError(
+            "Physical microphone and synthetic device modes cannot be combined"
+        )
     adb = [shutil.which("adb") or "adb", "-s", serial]
     agents = repo / "src/agents"
     with TemporaryDirectory(prefix="bilingual-tls-") as temporary:
@@ -188,12 +195,15 @@ def run_android(repo, config, environment, serial, *, physical=False):
                 "-r",
                 "-e",
                 "class",
-                "com.we.meet.ui.ai.BilingualLiveIntegrationTest",
+                "com.we.meet.ui.ai.BilingualLiveIntegrationTest#realBusinessAdmissionTranslationFinishAndReplay",
             ]
             arguments = {
                 "bilingual_api": f"https://localhost:{api.server_port}/",
                 "bilingual_ca": encoded,
                 "bilingual_physical": str(physical).lower(),
+                "bilingual_synthetic_pair": str(synthetic_device).lower(),
+                "bilingual_audible_synthetic": str(synthetic_device).lower(),
+                "bilingual_hold_seconds": "8" if synthetic_device else "0",
                 "bilingual_physical_routes": ",".join(
                     config.get("physical_routes", ["speaker", "wired", "bluetooth"])
                 ),
@@ -229,6 +239,9 @@ def run_android(repo, config, environment, serial, *, physical=False):
                 config.get("downstream_delay_ms", 0),
                 physical=physical,
                 authentication=config.get("authentication", "session"),
+            )
+            report.update(
+                synthetic_pair=synthetic_device, audible_synthetic=synthetic_device
             )
             if physical:
                 report.update(
