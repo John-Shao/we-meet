@@ -1,0 +1,99 @@
+{
+  "cronjobs": [
+    {
+      "name": "meet-backend-docs-profiles",
+      "schedule": "* * * * *",
+      "concurrency_policy": "Forbid",
+      "cpu_request_m": 200
+    },
+    {
+      "name": "meet-backend-reminders",
+      "schedule": "* * * * *",
+      "concurrency_policy": "Forbid",
+      "cpu_request_m": 200
+    }
+  ],
+  "hooks": [
+    {
+      "name": "meet-backend-createsuperuser",
+      "hook": "pre-install,pre-upgrade",
+      "cpu_request_m": 200
+    },
+    {
+      "name": "meet-backend-migrate",
+      "hook": "pre-install,pre-upgrade",
+      "cpu_request_m": 200
+    }
+  ],
+  "backend_deployments": [
+    {
+      "name": "meet-backend",
+      "replicas": 1,
+      "cpu_request_m": 200,
+      "strategy": {
+        "rollingUpdate": {
+          "maxSurge": "25%",
+          "maxUnavailable": "25%"
+        },
+        "type": "RollingUpdate"
+      }
+    },
+    {
+      "name": "meet-backend-ai",
+      "replicas": 1,
+      "cpu_request_m": 100,
+      "strategy": {
+        "rollingUpdate": {
+          "maxSurge": "25%",
+          "maxUnavailable": "25%"
+        },
+        "type": "RollingUpdate"
+      }
+    },
+    {
+      "name": "meet-celery-backend",
+      "replicas": 1,
+      "cpu_request_m": 50,
+      "strategy": {
+        "rollingUpdate": {
+          "maxSurge": "25%",
+          "maxUnavailable": "25%"
+        },
+        "type": "RollingUpdate"
+      }
+    },
+    {
+      "name": "meet-celery-beat",
+      "replicas": 1,
+      "cpu_request_m": 50,
+      "strategy": {
+        "type": "Recreate"
+      }
+    },
+    {
+      "name": "meet-celery-work",
+      "replicas": 1,
+      "cpu_request_m": 100,
+      "strategy": {
+        "rollingUpdate": {
+          "maxSurge": "25%",
+          "maxUnavailable": "25%"
+        },
+        "type": "RollingUpdate"
+      }
+    }
+  ],
+  "production_resources_changed": false,
+  "date": "2026-10-17",
+  "allocatable_cpu_m": 4000,
+  "observed_scheduled_cpu_requests_m": 3850,
+  "steady_cpu_requests_m": 3650,
+  "estimated_cpu_requests_with_two_cronjobs_and_migration_m": 4250,
+  "capacity_acceptance_performed": false,
+  "scope": "Scheduling reserve review only; snapshot metrics do not justify lowering production requests",
+  "next_actions": [
+    "Separate CronJob and migration resource configuration from backend web resources, retaining backward-compatible defaults",
+    "Size batch requests using representative duration and load measurements, or add node capacity",
+    "Keep Egress resources unchanged; review peak scheduling demand before the next release"
+  ]
+}
