@@ -15,9 +15,6 @@ import sys
 import time
 from pathlib import Path
 
-from websockets.asyncio.client import connect
-from websockets.asyncio.server import serve
-
 from translation.assistant_gateway import (
     AssistantTranslationConnection,
     safe_error_code,
@@ -28,6 +25,8 @@ from translation.assistant_gateway import (
 from translation.assistant_gateway import (
     lease as backend_lease,
 )
+from websockets.asyncio.client import connect
+from websockets.asyncio.server import serve
 
 
 async def probe(  # noqa: PLR0912, PLR0913, PLR0915 -- bounded acceptance scenarios
@@ -77,10 +76,10 @@ async def probe(  # noqa: PLR0912, PLR0913, PLR0915 -- bounded acceptance scenar
             "heartbeat_seconds": 20,
         }
 
-    async def lease(session_id, operation):
+    async def lease(session_id, operation, *, usage=None):
         leases.append(operation)
         if admission:
-            return await backend_lease(session_id, operation)
+            return await backend_lease(session_id, operation, usage=usage)
         return {"status": "active" if operation == "heartbeat" else "closed"}
 
     async def handler(socket):

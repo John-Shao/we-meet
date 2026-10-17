@@ -242,10 +242,15 @@ class AssistantTranslationLeaseView(APIView):
             choices=("heartbeat", "close")
         ).run_validation(request.data.get("operation"))
         try:
-            state = bilingual_sessions.update(session_id, operation)
+            state = bilingual_sessions.update(
+                session_id, operation, request.data.get("usage")
+            )
         except BilingualSession.DoesNotExist:
             return Response(status=404)
-        return Response({"status": state}, headers={"Cache-Control": "no-store"})
+        return Response(
+            {"status": state, "usage_recorded": request.data.get("usage") is not None},
+            headers={"Cache-Control": "no-store"},
+        )
 
 
 class AssistantTranslationSessionView(APIView):

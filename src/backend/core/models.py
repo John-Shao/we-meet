@@ -10389,6 +10389,9 @@ class BilingualSession(BaseModel):
     deadline = models.DateTimeField()
     lease_until = models.DateTimeField()
     ended_at = models.DateTimeField(null=True, blank=True)
+    # Cumulative gateway counters only; no transcripts, audio, tickets or tokens.
+    usage = models.JSONField(default=dict, blank=True)
+    usage_updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         indexes = [

@@ -5,17 +5,17 @@ import json
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from plugins.qwen.live_translate import TranslationConfig
+from translation.assistant_gateway import AssistantTranslationConnection
+from translation.bilingual_session import BilingualTranslationSession
+from translation.capture_gateway import MAX_CONNECTIONS, CaptureTranslationGateway
 from websockets.asyncio.client import connect
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
-from plugins.qwen.live_translate import TranslationConfig
 from tests.test_assistant_translation import grant
 from tests.test_bilingual_audio import FakeVad
 from tests.test_qwen_live_translate import FakeSocket, done, target
-from translation.assistant_gateway import AssistantTranslationConnection
-from translation.bilingual_session import BilingualTranslationSession
-from translation.capture_gateway import MAX_CONNECTIONS, CaptureTranslationGateway
 
 
 class GatewaySocketTests(unittest.IsolatedAsyncioTestCase):
@@ -129,6 +129,15 @@ class GatewaySocketTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.vads[0].closed)
         self.assertEqual(self.providers[0].closes, 1)
         self.assertEqual(self.leases.call_args.args, ("local-ticket", "close"))
+        usage = self.leases.call_args.kwargs["usage"]
+        self.assertTrue(usage["complete"])
+        self.assertEqual(usage["input_bytes"], len(pcm))
+        self.assertEqual(usage["translations"], 1)
+        self.assertEqual(usage["providers"], 1)
+        # Count the successfully delivered wire frames, including the ready and ACK.
+        expected_bytes = sum(len(json.dumps(event)) for event in output)
+        self.assertGreater(usage["output_bytes"], expected_bytes)
+        self.assertNotIn("Hello", json.dumps(usage))
 
     async def test_concurrent_admission_limit_rejects_before_claim_and_releases_all(
         self,

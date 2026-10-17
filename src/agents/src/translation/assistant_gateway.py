@@ -23,6 +23,8 @@ from plugins.qwen.live_translate import (
     audio_language_pair,
 )
 from plugins.qwen.omni.language_id import OmniLanguageDetector
+from transport.http import open_backend
+
 from translation.bilingual_audio import BilingualAudioInput, open_vad
 from translation.bilingual_direction import (
     same_words,
@@ -31,7 +33,6 @@ from translation.bilingual_direction import (
 )
 from translation.bilingual_session import BilingualTranslationSession
 from translation.bilingual_settings import BilingualSettings
-from transport.http import open_backend
 
 # Output awaiting its original-transcript association is bounded. Once linked,
 # audio streams in half-second chunks, independently of response length.
@@ -56,6 +57,7 @@ logger = logging.getLogger("assistant-translation")
 SAFE_ERROR_CODES = frozenset(
     {
         "translation_session_revoked",
+        "translation_usage_unavailable",
         "language_detection_unavailable",
         "language_detection_failed",
         "language_connection_rejected",
@@ -91,14 +93,23 @@ def _claim(ticket):
     return _backend("claim", {"ticket": ticket})
 
 
-async def lease(session_id, operation):
+async def lease(session_id, operation, *, usage=None):
     """Renew or close a business session through the internal authenticated API."""
-    return await asyncio.wait_for(
+    result = await asyncio.wait_for(
         asyncio.to_thread(
-            _backend, "lease", {"session_id": session_id, "operation": operation}
+            _backend,
+            "lease",
+            {
+                "session_id": session_id,
+                "operation": operation,
+                **({"usage": usage} if usage is not None else {}),
+            },
         ),
         4,
     )
+    if usage is not None and result.get("usage_recorded") is not True:
+        raise TranslationError("translation_usage_unavailable")
+    return result
 
 
 def _backend(action, payload):
@@ -410,6 +421,18 @@ class AssistantTranslationConnection:
         self.started_at = self.last_activity
         self.input_bytes = self.output_bytes = self.translations = 0
 
+    def usage_snapshot(self, *, complete=False):
+        """Snapshot counters independently of pod logs and phone diagnostics."""
+        return {
+            "correlation": self.key,
+            "duration_ms": round((time.monotonic() - self.started_at) * 1000),
+            "input_bytes": self.input_bytes,
+            "output_bytes": self.output_bytes,
+            "translations": self.translations,
+            "providers": len(self.sessions),
+            "complete": complete,
+        }
+
     async def emit(self, event):
         """Serialize both directions over the same bounded socket."""
         payload = json.dumps(event)
@@ -423,7 +446,9 @@ class AssistantTranslationConnection:
 
     async def _heartbeat(self, interval):
         while True:
-            result = await self.update_lease(self.session_id, "heartbeat")
+            result = await self.update_lease(
+                self.session_id, "heartbeat", usage=self.usage_snapshot()
+            )
             if result.get("status") != "active":
                 raise TranslationError("translation_session_revoked")
             await asyncio.sleep(interval)
@@ -611,10 +636,19 @@ class AssistantTranslationConnection:
                 return_exceptions=True,
             )
             if self.session_id:
-                try:
-                    await self.update_lease(self.session_id, "close")
-                except Exception:
-                    logger.info("translation_lease_close_failed session=%s", self.key)
+                snapshot = self.usage_snapshot(complete=True)
+                for attempt in range(2):
+                    try:
+                        await self.update_lease(
+                            self.session_id, "close", usage=snapshot
+                        )
+                        break
+                    except Exception:
+                        logger.info(
+                            "translation_lease_close_failed session=%s attempt=%d",
+                            self.key,
+                            attempt + 1,
+                        )
             logger.info(
                 "translation_session_closed session=%s duration_ms=%d"
                 " input_bytes=%d output_bytes=%d translations=%d providers=%d",

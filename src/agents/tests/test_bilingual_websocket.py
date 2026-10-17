@@ -6,20 +6,31 @@ import time
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
-from plugins.qwen.live_translate import TranslationConfig
-from tests.test_assistant_translation import events, grant
+from plugins.qwen.live_translate import TranslationConfig, TranslationError
 from translation.assistant_gateway import (
     AssistantTranslationConnection,
     BilingualResults,
 )
+from translation.assistant_gateway import (
+    lease as backend_lease,
+)
 from translation.bilingual_router import BilingualUtteranceRouter
+
+from tests.test_assistant_translation import events, grant
 
 
 class WebSocketTests(unittest.IsolatedAsyncioTestCase):
     """Check paid-session limits and per-item audio boundaries."""
 
-    async def run_connection(
-        self, *, choices=None, idle=False, revoked=False, stalled=False
+    async def run_connection(  # noqa: PLR0913 -- Independent failure injections.
+        self,
+        *,
+        choices=None,
+        idle=False,
+        revoked=False,
+        stalled=False,
+        fail_close_once=False,
+        fail_heartbeat=False,
     ):
         """Run real gateway orchestration with controlled provider timing."""
         socket = AsyncMock()
@@ -40,7 +51,16 @@ class WebSocketTests(unittest.IsolatedAsyncioTestCase):
             providers.append(session)
             return session
 
-        async def lease(session_id, operation):
+        close_attempts = 0
+
+        async def lease(session_id, operation, *, usage=None):
+            nonlocal close_attempts
+            if operation == "close":
+                close_attempts += 1
+                if fail_close_once and close_attempts == 1:
+                    raise OSError("fixture unavailable")
+            if fail_heartbeat and operation == "heartbeat":
+                raise OSError("fixture unavailable")
             if revoked and operation == "heartbeat":
                 await started.wait()
                 return {"status": "expired"}
@@ -179,6 +199,63 @@ class WebSocketTests(unittest.IsolatedAsyncioTestCase):
             ["audio", "audio", "translation", "audio_end"],
         )
         self.assertEqual({event["id"] for event in output}, {"en:item"})
+
+    async def test_failed_usage_heartbeat_stops_providers_and_reports_final_counters(
+        self,
+    ):
+        """A broken durable sink cannot silently leave paid connections running."""
+        output, providers, _, lease = await self.run_connection(
+            fail_heartbeat=True, stalled=True
+        )
+        self.assertEqual(output[-1]["type"], "error")
+        self.assertNotIn("ready", [event["type"] for event in output])
+        for provider in providers:
+            provider.close.assert_awaited_once()
+        self.assertTrue(lease.call_args.kwargs["usage"]["complete"])
+        partials = [
+            call.kwargs["usage"]
+            for call in lease.call_args_list
+            if call.args[1] == "heartbeat"
+        ]
+        self.assertTrue(partials)
+        self.assertTrue(all(not value["complete"] for value in partials))
+
+    async def test_final_usage_retries_identical_snapshot_after_transient_api_failure(
+        self,
+    ):
+        """A retried close must not double-count its already delivered output."""
+        _, providers, _, lease = await self.run_connection(fail_close_once=True)
+        closes = [
+            call.kwargs["usage"]
+            for call in lease.call_args_list
+            if call.args[1] == "close"
+        ]
+        self.assertEqual(len(closes), 2)
+        self.assertEqual(closes[0], closes[1])
+        self.assertTrue(closes[1]["complete"])
+        self.assertEqual(closes[1]["providers"], len(providers))
+
+    async def test_backend_must_acknowledge_durable_storage_before_lease_is_accepted(
+        self,
+    ):
+        """An old API that ignores usage is not mistaken for durable delivery."""
+        with patch(
+            "translation.assistant_gateway._backend", return_value={"status": "active"}
+        ):
+            with self.assertRaises(TranslationError) as failure:
+                await backend_lease("session", "heartbeat", usage={"complete": False})
+            self.assertEqual(str(failure.exception), "translation_usage_unavailable")
+        with patch(
+            "translation.assistant_gateway._backend",
+            return_value={"status": "active", "usage_recorded": True},
+        ):
+            self.assertTrue(
+                (
+                    await backend_lease(
+                        "session", "heartbeat", usage={"complete": False}
+                    )
+                )["usage_recorded"]
+            )
 
     async def test_fixed_router_never_calls_language_model_and_preserves_first_frame(
         self,

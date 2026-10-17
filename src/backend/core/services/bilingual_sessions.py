@@ -1,18 +1,67 @@
 """Enforced gateway-owned admission, single-use claims and renewable leases."""
 
+import re
 from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from rest_framework.exceptions import PermissionDenied, Throttled
+from rest_framework.exceptions import PermissionDenied, Throttled, ValidationError
 
 from core.models import BilingualSession, User
 
 LIVE = ("issued", "active")
 LEASE_SECONDS = 90
 HEARTBEAT_SECONDS = 20
+USAGE_LIMITS = {
+    "duration_ms": 3_660_000,
+    "input_bytes": 120_000_000,
+    "output_bytes": 2_000_000_000,
+    "translations": 100_000,
+    "providers": 2,
+}
+
+
+def validate_usage(usage, operation):
+    """Accept bounded cumulative counters, never arbitrary diagnostic content."""
+    if (
+        not isinstance(usage, dict)
+        or set(usage) != {*USAGE_LIMITS, "correlation", "complete"}
+        or not isinstance(usage.get("correlation"), str)
+        or not re.fullmatch(r"[0-9a-f]{8}", usage["correlation"])
+        or type(usage.get("complete")) is not bool
+        or usage["complete"] != (operation == "close")
+        or any(
+            type(usage.get(k)) is not int or not 0 <= usage[k] <= limit
+            for k, limit in USAGE_LIMITS.items()
+        )
+    ):
+        raise ValidationError("Invalid translation usage counters.")
+    return usage.copy()
+
+
+def store_usage(row, usage, now):
+    """Make retries idempotent and ignore late snapshots without reviving leases."""
+    previous = row.usage
+    if row.status == "issued":
+        raise ValidationError("Translation session has not been claimed.")
+    if previous:
+        if previous["correlation"] != usage["correlation"]:
+            raise ValidationError("Translation usage correlation changed.")
+        if previous["complete"]:
+            # A cancelled HTTP heartbeat can finish after the final close.
+            if all(usage[k] <= previous[k] for k in USAGE_LIMITS):
+                return
+            raise ValidationError("Translation usage is already complete.")
+        if any(usage[k] < previous[k] for k in USAGE_LIMITS):
+            if not usage["complete"] and all(
+                usage[k] <= previous[k] for k in USAGE_LIMITS
+            ):
+                return
+            raise ValidationError("Translation usage counters regressed.")
+    row.usage, row.usage_updated_at = usage, now
+    row.save(update_fields=["usage", "usage_updated_at", "updated_at"])
 
 
 def policy():
@@ -86,7 +135,7 @@ def claim(session_id, user_id):
 
 
 @transaction.atomic
-def update(session_id, operation):
+def update(session_id, operation, usage=None):
     """Only an authenticated gateway renews; failures must stop its paid providers."""
     row = (
         BilingualSession.objects.select_for_update()
@@ -94,6 +143,8 @@ def update(session_id, operation):
         .get(pk=session_id)
     )
     now = timezone.now()
+    if usage is not None:
+        store_usage(row, validate_usage(usage, operation), now)
     if operation == "close":
         if row.status in LIVE:
             row.status, row.ended_at = "closed", now
