@@ -152,9 +152,10 @@ class Timeline:
 class ObservedVad:
     """Observe the production detector without replacing inference or frames."""
 
-    def __init__(self, stream, trace):
+    def __init__(self, stream, trace, on_speech_start=None):
         """Delegate audio and lifecycle to the real stream."""
         self.stream, self.trace = stream, trace
+        self.on_speech_start = on_speech_start
 
     def push_frame(self, frame):
         """Preserve input unchanged."""
@@ -176,6 +177,8 @@ class ObservedVad:
         """Record when the gateway consumer actually sees each boundary."""
         event = await self.stream.__anext__()
         self.trace.vad(event)
+        if event.type.value == "start_of_speech" and self.on_speech_start is not None:
+            await self.on_speech_start()
         return event
 
 
@@ -201,6 +204,9 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
     settle_seconds=0,
     expected_sources=None,
     translation_observer=None,
+    detector_base=None,
+    speech_start_observer=None,
+    expect_silence=False,
 ):
     """Run one fixture through actual production routing and provider classes."""
     trace = trace if trace is not None else Timeline()
@@ -208,7 +214,7 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
     complete = asyncio.Event()
     last_output_at = time.monotonic()
 
-    class Detector(OmniLanguageDetector):
+    class Detector(detector_base or OmniLanguageDetector):
         async def prepare(self):
             # Use bounded retirement without a speculative next paid connection.
             if not background_language_cleanup:
@@ -240,7 +246,11 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
             trace.mark("language_probe_start", buffered_ms=len(audio) / 32)
             try:
                 language = await super().detect(audio)
-                trace.mark("language_probe_return", known=language is not None)
+                trace.mark(
+                    "language_probe_return",
+                    known=language is not None,
+                    language=language if language in {"zh", "en"} else "unknown",
+                )
                 return language
             except BaseException:
                 trace.mark("language_probe_failed")
@@ -289,7 +299,12 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
 
     async def vad_factory():
         factory = vad_factory_override or open_vad
-        return ObservedVad(await factory(), trace)
+
+        async def speech_started():
+            if speech_start_observer is not None:
+                await speech_start_observer(connections[-1], trace)
+
+        return ObservedVad(await factory(), trace, speech_started)
 
     async def claim(ticket):
         if ticket != "isolated-latency-fixture":
@@ -395,6 +410,11 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
                 deadline = time.monotonic() + 25
                 input_finished_at = time.monotonic()
                 while not errors and time.monotonic() < deadline:
+                    if (
+                        expect_silence
+                        and time.monotonic() - input_finished_at >= settle_seconds
+                    ):
+                        break
                     if complete.is_set() and output_settled(
                         events,
                         now=time.monotonic(),
@@ -406,7 +426,7 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
                     trace.sent(1600)
                     await socket.send(bytes(3200))
                     await asyncio.sleep(0.1)
-                if not complete.is_set() or (
+                if (not complete.is_set() and not expect_silence) or (
                     not errors and time.monotonic() >= deadline
                 ):
                     errors.append("latency_output_timeout")
@@ -423,7 +443,11 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
         **trace.report(),
         "passed": not errors
         and leases.count("close") == 1
-        and Counter(item.get("source") for item in output) == expected
+        and (
+            not output
+            if expect_silence
+            else Counter(item.get("source") for item in output) == expected
+        )
         and all(item["audio_end"] and item["audio_bytes"] > 0 for item in output),
         "errors": errors,
         "output_items": len(output),
