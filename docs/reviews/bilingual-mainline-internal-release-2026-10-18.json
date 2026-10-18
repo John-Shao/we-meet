@@ -1,0 +1,611 @@
+{
+  "recorded_at": "2026-10-18T06:19:21.253626+00:00",
+  "status": "mainline_internal_preview_published_human_phone_acceptance_pending",
+  "mainline_sources": {
+    "we-meet": {
+      "branch": "aliyun-dev",
+      "source_commit": "938b16649408b2c690752b9c318256b89746b3b8"
+    },
+    "we-meet-android": {
+      "branch": "main",
+      "source_commit": "e6439f9cf8e59173dcd0f4a981430d1137f07b0c"
+    },
+    "jusi-light-im": {
+      "branch": "main",
+      "source_commit": "f41f52e9ad696f56528b9903f90b0575dc4ded5c",
+      "changed": false
+    }
+  },
+  "package": {
+    "archive": "D:\\workspace\\jusi-meet\\we-meet-android\\release\\0.3.0-work.5-bilingual-internal-20261018",
+    "source_commit": "e6439f9cf8e59173dcd0f4a981430d1137f07b0c",
+    "artifact": {
+      "file": "we-meet-0.3.0-work.5-internal.apk",
+      "bytes": 146168656,
+      "sha256": "7e38a89eb66ea36df7533fca3e7b6ddb829b614b9174f1b1e7103978f5f05ade"
+    },
+    "unit_tests": {
+      "tests": 1018,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "debuggable": false,
+    "signature_verified": true,
+    "checksums_verified": 3
+  },
+  "release": {
+    "release_url": "https://github.com/John-Shao/we-meet-android/releases/tag/v0.3.0-work.5-internal",
+    "tag": "v0.3.0-work.5-internal",
+    "draft": false,
+    "prerelease": true,
+    "assets": [
+      {
+        "apiUrl": "https://api.github.com/repos/John-Shao/we-meet-android/releases/assets/652650002",
+        "contentType": "application/octet-stream",
+        "createdAt": "2026-10-18T06:09:20Z",
+        "digest": "sha256:1862957c73466294f84634de6b93a88950b174fddaddf7488a80863f2c6d6dce",
+        "downloadCount": 0,
+        "id": "RA_kwDOSWr8784m5qYS",
+        "label": "",
+        "name": "release-notes.md",
+        "size": 780,
+        "state": "uploaded",
+        "updatedAt": "2026-10-18T06:09:20Z",
+        "url": "https://github.com/John-Shao/we-meet-android/releases/download/v0.3.0-work.5-internal/release-notes.md"
+      },
+      {
+        "apiUrl": "https://api.github.com/repos/John-Shao/we-meet-android/releases/assets/652636805",
+        "contentType": "application/json",
+        "createdAt": "2026-10-18T06:02:15Z",
+        "digest": "sha256:9067d0424b0643af1496276781d4f60ebe55e391189b51cb37cbaae8c28273cf",
+        "downloadCount": 0,
+        "id": "RA_kwDOSWr8784m5nKF",
+        "label": "",
+        "name": "release.json",
+        "size": 1860,
+        "state": "uploaded",
+        "updatedAt": "2026-10-18T06:02:15Z",
+        "url": "https://github.com/John-Shao/we-meet-android/releases/download/v0.3.0-work.5-internal/release.json"
+      },
+      {
+        "apiUrl": "https://api.github.com/repos/John-Shao/we-meet-android/releases/assets/652636819",
+        "contentType": "application/octet-stream",
+        "createdAt": "2026-10-18T06:02:15Z",
+        "digest": "sha256:6253055bfba3ac6330683f3d38ff15f89e1f6ad4b0c9cb5713dbaa6b6cba76f5",
+        "downloadCount": 0,
+        "id": "RA_kwDOSWr8784m5nKT",
+        "label": "",
+        "name": "SHA256SUMS",
+        "size": 262,
+        "state": "uploaded",
+        "updatedAt": "2026-10-18T06:02:15Z",
+        "url": "https://github.com/John-Shao/we-meet-android/releases/download/v0.3.0-work.5-internal/SHA256SUMS"
+      },
+      {
+        "apiUrl": "https://api.github.com/repos/John-Shao/we-meet-android/releases/assets/652636804",
+        "contentType": "application/vnd.android.package-archive",
+        "createdAt": "2026-10-18T06:02:15Z",
+        "digest": "sha256:7e38a89eb66ea36df7533fca3e7b6ddb829b614b9174f1b1e7103978f5f05ade",
+        "downloadCount": 0,
+        "id": "RA_kwDOSWr8784m5nKE",
+        "label": "",
+        "name": "we-meet-0.3.0-work.5-internal.apk",
+        "size": 146168656,
+        "state": "uploaded",
+        "updatedAt": "2026-10-18T06:04:38Z",
+        "url": "https://github.com/John-Shao/we-meet-android/releases/download/v0.3.0-work.5-internal/we-meet-0.3.0-work.5-internal.apk"
+      }
+    ],
+    "source_commit": "e6439f9cf8e59173dcd0f4a981430d1137f07b0c"
+  },
+  "public_download": {
+    "observed_at": "2026-10-18T06:19:00.523999+00:00",
+    "url": "https://github.com/John-Shao/we-meet-android/releases/download/v0.3.0-work.5-internal/we-meet-0.3.0-work.5-internal.apk",
+    "public_unauthenticated_download": true,
+    "http_status": 206,
+    "bytes": 146168656,
+    "prefix_bytes_verified": 65536,
+    "prefix_sha256": "ec10bbb59ff09d5cac7d82cf7b26f631e855534f89c606cd4a2dfc36c612a76e",
+    "github_full_file_digest_matches_archive": true,
+    "apk_sha256": "7e38a89eb66ea36df7533fca3e7b6ddb829b614b9174f1b1e7103978f5f05ade",
+    "redirect_host": "release-assets.githubusercontent.com",
+    "prior_get_failures": [],
+    "passed": true
+  },
+  "ci": {
+    "observed_at": "2026-10-18T06:02:18.089038+00:00",
+    "repos": [
+      {
+        "repository": "we-meet",
+        "source_commit": "938b16649408b2c690752b9c318256b89746b3b8",
+        "runs": [
+          {
+            "name": "Release guard",
+            "id": 39101951452,
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/John-Shao/we-meet/actions/runs/39101951452",
+            "jobs": [
+              {
+                "name": "desktop-boundaries",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "deployment-boundaries",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "backend-boundaries",
+                "status": "completed",
+                "conclusion": "success"
+              },
+              {
+                "name": "frontend-artifact",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "repository": "we-meet-android",
+        "source_commit": "e6439f9cf8e59173dcd0f4a981430d1137f07b0c",
+        "runs": [
+          {
+            "name": "design-lint",
+            "id": 39101954105,
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/John-Shao/we-meet-android/actions/runs/39101954105",
+            "jobs": [
+              {
+                "name": "check-design-tokens",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          },
+          {
+            "name": "i18n-check",
+            "id": 39101954103,
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/John-Shao/we-meet-android/actions/runs/39101954103",
+            "jobs": [
+              {
+                "name": "check-translations",
+                "status": "completed",
+                "conclusion": "success"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "all_passed": true
+  },
+  "backend_regression": {
+    "source_commit": "938b16649408b2c690752b9c318256b89746b3b8",
+    "test_count": 115,
+    "failures": 0,
+    "errors": 0,
+    "seconds": 72.51,
+    "database": "fresh disposable database in existing loopback validation PostgreSQL; removed by harness",
+    "command": ".venv/Scripts/python.exe ../../scripts/test_bilingual_backend.py",
+    "migration_check": "No changes detected",
+    "lint_product_files": "passed",
+    "evidence": "Observed local command output; whitelist config, ticket, claim, heartbeat and revoked-account cases included."
+  },
+  "agents_image_regression": {
+    "recorded_at": "2026-10-18T05:53:50.809935+00:00",
+    "source_commit": "938b16649408b2c690752b9c318256b89746b3b8",
+    "tag": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:938b16649",
+    "image_id": "sha256:62693f182559c699ee43fde27daf10af3fd8f9f31bb5a8474ac7214ce6672f90",
+    "os": "linux",
+    "architecture": "amd64",
+    "build_target": "production",
+    "build_args": {
+      "APT_MIRROR": "mirrors.aliyun.com"
+    },
+    "initial_default_mirror_attempt": "cancelled after package download retries; no completed image",
+    "registry_pushed": false,
+    "deployed": false,
+    "network": "none",
+    "host_mounts": [],
+    "test_exit": 0,
+    "test_count": 165,
+    "test_seconds": 4.264,
+    "modules": [
+      "test_omni_language_id",
+      "test_speech_language_id",
+      "test_bilingual_router",
+      "test_bilingual_audio",
+      "test_bilingual_websocket",
+      "test_bilingual_recovery",
+      "test_bilingual_gateway_socket",
+      "test_bilingual_direction",
+      "test_bilingual_settings",
+      "test_bilingual_languages",
+      "test_assistant_translation",
+      "test_bilingual_latency_probe",
+      "test_bilingual_speech_handshake_probe",
+      "test_qwen_live_translate"
+    ],
+    "product_and_probe_source_matches_final_live_probe": true,
+    "source_sha256": {
+      "plugins.qwen.omni.language_id": "0dc1452209f44a2e784b1f5b50cbb056e0608f49b5efc78f3a30cd5fc2987c7e",
+      "plugins.qwen.omni.speech_language_id": "57d570bcdcb5bbd569fb99e779e49384607eff18e7ad42acf763f81f4c4ee39b",
+      "translation.bilingual_router": "680403799b59de31f08eb488f73b92c96ec5f0e6e9dcac7a1626b0529c46344a",
+      "translation.bilingual_audio": "371d984762ee7e4d1bc50e575d56c4abcedd46bc250b2f456babea73f09d5331",
+      "translation.assistant_gateway": "d1714e90f75b460416c265033d9b394a576298db5d9292f4983ec6c1d1affa2a",
+      "probe_bilingual_latency": "bc175d00cebc0005f9ba81277c3efaa863170b4a1f26f56582ee952e4a43c759",
+      "probe_bilingual_prosody": "c709fcebfc7e0503d3aa9b84d19730d4495426a5d2b9c2519f2c6b818617e91b",
+      "probe_bilingual_turn_windows": "4ecc1d17cc341d0f7105ddfb804700009fb2b3b53a5f3f86e0101cddad869114",
+      "probe_bilingual_formal_handshake": "a9228bc96ed6629249a0d80315766ea5fe765a80aeae0162591cb4e57427d4ef"
+    },
+    "command": [
+      "docker",
+      "run",
+      "--rm",
+      "--network",
+      "none",
+      "--entrypoint",
+      "python",
+      "-e",
+      "PYTHONPATH=/app/src:/app/scripts",
+      "sha256:62693f182559c699ee43fde27daf10af3fd8f9f31bb5a8474ac7214ce6672f90",
+      "-m",
+      "unittest",
+      "tests.test_omni_language_id",
+      "tests.test_speech_language_id",
+      "tests.test_bilingual_router",
+      "tests.test_bilingual_audio",
+      "tests.test_bilingual_websocket",
+      "tests.test_bilingual_recovery",
+      "tests.test_bilingual_gateway_socket",
+      "tests.test_bilingual_direction",
+      "tests.test_bilingual_settings",
+      "tests.test_bilingual_languages",
+      "tests.test_assistant_translation",
+      "tests.test_bilingual_latency_probe",
+      "tests.test_bilingual_speech_handshake_probe",
+      "tests.test_qwen_live_translate"
+    ]
+  },
+  "built_images": [
+    {
+      "module": "backend",
+      "source_commit": "938b16649408b2c690752b9c318256b89746b3b8",
+      "mainline": "origin/aliyun-dev",
+      "command": [
+        "docker",
+        "build",
+        "--network",
+        "host",
+        "--target",
+        "backend-production",
+        "-t",
+        "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:938b16649",
+        "-f",
+        "Dockerfile",
+        "."
+      ],
+      "started_at": "2026-10-18T05:51:44.802200+00:00",
+      "completed_at": "2026-10-18T05:52:43.872457+00:00",
+      "exit": 0,
+      "log": "mainline-build-backend-20261018.log",
+      "tag": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:938b16649",
+      "image_id": "sha256:5f3e92dbe0ba6ec41af72dd47bf8a5ab371a2d37bf8cdb86bd4992682b5d4e64",
+      "platform": "linux/amd64",
+      "registry_pushed": false
+    },
+    {
+      "module": "agents",
+      "source_commit": "938b16649408b2c690752b9c318256b89746b3b8",
+      "mainline": "origin/aliyun-dev",
+      "command": [
+        "docker",
+        "build",
+        "--network",
+        "host",
+        "--target",
+        "production",
+        "--build-arg",
+        "APT_MIRROR=mirrors.aliyun.com",
+        "-t",
+        "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:938b16649",
+        "-f",
+        "src/agents/Dockerfile",
+        "src/agents"
+      ],
+      "started_at": "2026-10-18T05:51:44.800333+00:00",
+      "completed_at": "2026-10-18T05:52:57.885491+00:00",
+      "exit": 0,
+      "log": "mainline-build-agents-20261018.log",
+      "tag": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:938b16649",
+      "image_id": "sha256:62693f182559c699ee43fde27daf10af3fd8f9f31bb5a8474ac7214ce6672f90",
+      "platform": "linux/amd64",
+      "registry_pushed": false
+    }
+  ],
+  "pushed_images": [
+    {
+      "module": "backend",
+      "tag": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:938b16649",
+      "source_commit": "938b16649408b2c690752b9c318256b89746b3b8",
+      "local_image_id": "sha256:5f3e92dbe0ba6ec41af72dd47bf8a5ab371a2d37bf8cdb86bd4992682b5d4e64",
+      "pushed_digest": "sha256:5f3e92dbe0ba6ec41af72dd47bf8a5ab371a2d37bf8cdb86bd4992682b5d4e64",
+      "registry_pushed": true,
+      "completed_at": "2026-10-18T05:53:57.925727+00:00",
+      "exit": 0
+    },
+    {
+      "module": "agents",
+      "tag": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:938b16649",
+      "source_commit": "938b16649408b2c690752b9c318256b89746b3b8",
+      "local_image_id": "sha256:62693f182559c699ee43fde27daf10af3fd8f9f31bb5a8474ac7214ce6672f90",
+      "pushed_digest": "sha256:62693f182559c699ee43fde27daf10af3fd8f9f31bb5a8474ac7214ce6672f90",
+      "registry_pushed": true,
+      "completed_at": "2026-10-18T05:53:58.337624+00:00",
+      "exit": 0
+    }
+  ],
+  "production_audit": {
+    "source_commit": "938b16649408b2c690752b9c318256b89746b3b8",
+    "branch": "aliyun-dev",
+    "revision_before": 495,
+    "revision": 496,
+    "helm_status": "deployed",
+    "resources_unchanged": true,
+    "images_match_plan": true,
+    "all_workloads_ready": true,
+    "pending_pods": 1,
+    "account_verification": {
+      "enabled": true,
+      "allowed_user_count": 1,
+      "nonallowlisted_ticket_status": 403,
+      "allowed_catalog_enabled": true,
+      "other_active_accounts_checked": 15,
+      "demo_otp_ready": true
+    },
+    "observed_at": "2026-10-18T06:15:09.858507+00:00",
+    "public_smoke_usage": {
+      "complete": {
+        "sessions": 2,
+        "duration_ms": 22892,
+        "input_bytes": 340960,
+        "output_bytes": 141300,
+        "translations": 3,
+        "providers": 3
+      },
+      "partial": {
+        "sessions": 0,
+        "duration_ms": 0,
+        "input_bytes": 0,
+        "output_bytes": 0,
+        "translations": 0,
+        "providers": 0
+      },
+      "missing_usage_sessions": 1,
+      "not_supplier_billable_usage": true
+    },
+    "unclaimed_ticket_states": [
+      "expired"
+    ]
+  },
+  "later_final_readiness": {
+    "revision": "496",
+    "helm_status": "deployed",
+    "source": "938b16649408b2c690752b9c318256b89746b3b8",
+    "unready_pods": [],
+    "observed_at": "2026-10-18T06:17:12.124294+00:00",
+    "read_only": true,
+    "pending_pods": 0
+  },
+  "public_smoke": {
+    "started_at": "2026-10-18T06:09:59.946873+00:00",
+    "final_attempt_started_at": "2026-10-18T06:13:30.793287+00:00",
+    "completed_at": "2026-10-18T06:14:32.161315+00:00",
+    "passed": true,
+    "scope": "real public OTP/Bearer/API, production WebSocket and providers; fixed synthetic PCM, no physical phone playback",
+    "backend_source_commit": "938b16649408b2c690752b9c318256b89746b3b8",
+    "demo_sms_not_sent": true,
+    "anonymous_ticket_status": 401,
+    "catalog_enabled": true,
+    "protocol_version": 2,
+    "cases": [
+      {
+        "mode": "fixed",
+        "ready_ms": 3432.6,
+        "duration_ms": 10485,
+        "outputs": [
+          {
+            "audio_bytes": 34560,
+            "audio_end": true,
+            "source": "zh",
+            "target": "en"
+          }
+        ],
+        "input_pcm_bytes": 108480,
+        "received_protocol_bytes": 46988,
+        "acks": 34,
+        "errors": [],
+        "lexical": {
+          "translation_events": 1,
+          "source_anchors": {
+            "affirmation": true
+          },
+          "source_all_anchors": true,
+          "source_chars": 3,
+          "target_anchors": {
+            "affirmation": true
+          },
+          "target_all_anchors": true,
+          "target_chars": 5
+        },
+        "passed": true,
+        "observed_attempt": 1
+      },
+      {
+        "mode": "automatic",
+        "ready_ms": 5162.8,
+        "duration_ms": 16339,
+        "outputs": [
+          {
+            "audio_bytes": 34560,
+            "audio_end": true,
+            "source": "zh",
+            "target": "en"
+          },
+          {
+            "audio_bytes": 34560,
+            "audio_end": true,
+            "source": "en",
+            "target": "zh"
+          }
+        ],
+        "input_pcm_bytes": 232480,
+        "received_protocol_bytes": 94036,
+        "acks": 73,
+        "errors": [],
+        "lexical": {
+          "translation_events": 2,
+          "source_anchors": {
+            "affirmation": true
+          },
+          "source_all_anchors": true,
+          "source_chars": 9,
+          "target_anchors": {
+            "affirmation": true
+          },
+          "target_all_anchors": true,
+          "target_chars": 9
+        },
+        "passed": true,
+        "observed_attempt": 2
+      }
+    ],
+    "prior_attempt_failed": true,
+    "known_unclaimed_tickets_without_usage": 1,
+    "initial_http_disconnect_root_cause": "unconfirmed; system proxy was configured for this host; second attempt bypasses it",
+    "phone_or_acoustic_measured": false,
+    "raw_model_content_or_credentials_exported": false,
+    "fixtures_sha256": {
+      "zh": "f66eb70ef6f7854e185a7711a56343d2b34c757dfd0e1ff95c67316dd910315f",
+      "en": "dc6ded741861f3be0f7fb0d6fc0ede43af9eeb90eb1ae3a51fe68dc02e1c7e3d"
+    },
+    "attempt": 2,
+    "client_source_sha256": "220fe239ac8c8dd648ab1c95d2875e7ab55b9203c829e55d9b7b9223c6cea345",
+    "system_http_proxy_bypassed": true,
+    "http_checks": [
+      {
+        "path": "/api/mobile/auth/send-otp/",
+        "authenticated": false,
+        "status": 200
+      },
+      {
+        "path": "/api/mobile/auth/verify-otp/",
+        "authenticated": false,
+        "status": 200
+      },
+      {
+        "path": "/api/v1.0/assistant-translation/ticket/",
+        "authenticated": false,
+        "status": 401
+      },
+      {
+        "path": "/api/v1.0/assistant-translation/config/",
+        "authenticated": true,
+        "status": 200
+      },
+      {
+        "path": "/api/v1.0/assistant-translation/ticket/",
+        "authenticated": true,
+        "status": 200
+      }
+    ]
+  },
+  "failed_attempts": [
+    {
+      "attempt": 1,
+      "started_at": "2026-10-18T06:09:59.946873+00:00",
+      "passed": false,
+      "cases": [
+        {
+          "mode": "fixed",
+          "ready_ms": 3432.6,
+          "duration_ms": 10485,
+          "outputs": [
+            {
+              "audio_bytes": 34560,
+              "audio_end": true,
+              "source": "zh",
+              "target": "en"
+            }
+          ],
+          "input_pcm_bytes": 108480,
+          "received_protocol_bytes": 46988,
+          "acks": 34,
+          "errors": [],
+          "lexical": {
+            "translation_events": 1,
+            "source_anchors": {
+              "affirmation": true
+            },
+            "source_all_anchors": true,
+            "source_chars": 3,
+            "target_anchors": {
+              "affirmation": true
+            },
+            "target_all_anchors": true,
+            "target_chars": 5
+          },
+          "passed": true
+        }
+      ],
+      "completed_at": "2026-10-18T06:10:45.878092+00:00",
+      "error_class": "RemoteDisconnected",
+      "safe_assertion": null
+    }
+  ],
+  "initial_disconnect_analysis": {
+    "initial_attempt": 1,
+    "fixed_case_completed": true,
+    "failure_stage": "subsequent automatic-direction HTTP ticket request; response disconnected after server created an unclaimed ticket",
+    "initial_system_proxy_applied_to_host": true,
+    "root_cause": "unconfirmed",
+    "direct_unauthenticated_catalog_http_status": 401,
+    "client_v1_sha256": "f403b22a42b0f8623b721d6b2112e6954dfa9fa49edb4cd9c714762304dbe922",
+    "client_v2_sha256": "220fe239ac8c8dd648ab1c95d2875e7ab55b9203c829e55d9b7b9223c6cea345"
+  },
+  "admission": {
+    "feature_enabled": true,
+    "allowlist_user_count": 1,
+    "empty_allowlist_denies": true,
+    "all_four_boundaries_checked": [
+      "catalog",
+      "reserve",
+      "claim",
+      "heartbeat"
+    ],
+    "account_identifiers_exported": false,
+    "max_active": 1,
+    "max_daily": 100,
+    "max_seconds": 900,
+    "idle_seconds": 300
+  },
+  "phone_or_acoustic_acceptance": false,
+  "concurrency_capacity_tested": false,
+  "invoice_amount": null,
+  "remaining": [
+    "Natural speech, actual phone sound-onset time, replay, long background/screen-off and repeated call/network recovery.",
+    "Historical popup/exit and provider startup failures; initial public HTTP disconnect remains unconfirmed.",
+    "400/700 candidate zh travel line-three omission; keep 550/1000 and final-source validation.",
+    "CPU reserve and wider rollout remain deferred; wired/Bluetooth and invoice follow existing scope."
+  ],
+  "private_credentials_or_model_content_exported": false
+}
