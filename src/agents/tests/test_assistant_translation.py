@@ -10,6 +10,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 from plugins.qwen.live_translate import TranslationConfig, TranslationEvents
+from plugins.qwen.omni.speech_language_id import SpeechLanguageDetector
+from tests.test_bilingual_audio import FakeVad
 from translation.assistant_gateway import (
     MAX_AUDIO,
     AssistantTranslationConnection,
@@ -285,6 +287,77 @@ class RoutingTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ConnectionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_default_detector_is_prepared_by_real_vad_router_only(self):
+        """Use the real input/router path without a diagnostic VAD callback."""
+        vad = FakeVad()
+        socket = AsyncMock()
+        connection = AssistantTranslationConnection(
+            socket,
+            config_factory=lambda **kw: TranslationConfig("test", "workspace", **kw),
+            session_factory=lambda config, consume: AsyncMock(config=config),
+            vad_factory=AsyncMock(return_value=vad),
+        )
+        entered, cancelled = asyncio.Event(), asyncio.Event()
+
+        async def open_session():
+            entered.set()
+            try:
+                await asyncio.Future()
+            finally:
+                cancelled.set()
+
+        async def processed_at_least(count):
+            while connection.audio_input.processed < count:
+                await asyncio.sleep(0)
+
+        with patch.object(
+            SpeechLanguageDetector, "_open_session", side_effect=open_session
+        ) as opened:
+            try:
+                await connection._connect(grant())
+                self.assertIsInstance(connection.detector, SpeechLanguageDetector)
+                self.assertEqual(
+                    connection.audio_input.router.prepare_speech,
+                    connection.detector.begin_speech,
+                )
+                opened.assert_not_awaited()
+                vad.event("inference_done", index=1600, speaking=False)
+                await asyncio.wait_for(processed_at_least(3200), 0.5)
+                opened.assert_not_awaited()
+                vad.event("start_of_speech", bytes(3200))
+                await asyncio.wait_for(entered.wait(), 0.5)
+                vad.event("inference_done", bytes(3200), index=3200, speaking=True)
+                await asyncio.wait_for(processed_at_least(6400), 0.5)
+                self.assertIsNone(connection.audio_input.router.selected)
+                for session in connection.sessions:
+                    session.send_speech.assert_not_awaited()
+                opened.assert_awaited_once()
+            finally:
+                await connection._close()
+        self.assertTrue(cancelled.is_set())
+        self.assertIsNone(connection.detector._preparing)
+        self.assertIsNone(connection.detector.socket)
+
+    async def test_fixed_gateway_does_not_construct_or_prepare_language_detector(self):
+        """The formal gateway still uses one direct translation stream when fixed."""
+        vad = FakeVad()
+        detector_factory = Mock(side_effect=AssertionError("unexpected_classifier"))
+        connection = AssistantTranslationConnection(
+            AsyncMock(),
+            config_factory=lambda **kw: TranslationConfig("test", "workspace", **kw),
+            session_factory=lambda config, consume: AsyncMock(config=config),
+            vad_factory=AsyncMock(return_value=vad),
+            detector_factory=detector_factory,
+        )
+        try:
+            await connection._connect(grant(fixed_source="zh"))
+            self.assertIsNone(connection.detector)
+            self.assertIsNone(connection.audio_input.router.prepare_speech)
+            self.assertEqual(len(connection.sessions), 1)
+            detector_factory.assert_not_called()
+        finally:
+            await connection._close()
+
     async def test_shared_gateway_dispatches_assistant_without_recording_claim(self):
         socket = AsyncMock()
         socket.request = SimpleNamespace(path="/capture-translation", headers={})

@@ -192,6 +192,50 @@ def output_settled(events, *, now, input_finished_at, last_output_at, settle_sec
     )
 
 
+def observe_default_detector(connection, trace):
+    """Observe the real gateway default after readiness, without substituting it."""
+    detector = connection.detector
+    if detector is None:
+        return
+    if detector.socket is not None or detector._preparing is not None:
+        raise RuntimeError("default_detector_prepared_before_speech")
+
+    def wrap(name, start, end):
+        original = getattr(detector, name)
+
+        async def observed(*args, **kwargs):
+            fields = {"buffered_ms": len(args[0]) / 32} if name == "detect" else {}
+            trace.mark(start, **fields)
+            try:
+                result = await original(*args, **kwargs)
+            except BaseException:
+                trace.mark(start + "_failed")
+                raise
+            fields = {}
+            if name in {"detect", "_classify"}:
+                fields["known"] = result is not None
+            if name == "detect":
+                fields["language"] = result if result in {"zh", "en"} else "unknown"
+            trace.mark(end, **fields)
+            return result
+
+        setattr(detector, name, observed)
+
+    wrap("_open_session", "language_connect_start", "language_connect_ready")
+    wrap("_classify", "language_classify_start", "language_classify_result")
+    wrap("detect", "language_probe_start", "language_probe_return")
+    original = connection.audio_input.router.prepare_speech
+    if original is None or getattr(original, "__self__", None) is not detector:
+        raise RuntimeError("default_speech_preparation_not_wired")
+
+    async def prepared():
+        trace.mark("language_speech_prepare_requested")
+        await original()
+
+    connection.audio_input.router.prepare_speech = prepared
+    trace.mark("gateway_default_detector_observed")
+
+
 async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories and complete socket lifecycle
     pcm,
     *,
@@ -207,6 +251,7 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
     detector_base=None,
     speech_start_observer=None,
     expect_silence=False,
+    use_gateway_default_detector=False,
 ):
     """Run one fixture through actual production routing and provider classes."""
     trace = trace if trace is not None else Timeline()
@@ -327,13 +372,16 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
         return {"status": "active" if operation == "heartbeat" else "closed"}
 
     async def handler(socket):
+        detector_options = (
+            {} if use_gateway_default_detector else {"detector_factory": Detector}
+        )
         connection = AssistantTranslationConnection(
             socket,
             claim_ticket=claim,
             update_lease=lease,
             session_factory=Session,
-            detector_factory=Detector,
             vad_factory=vad_factory,
+            **detector_options,
         )
         connections.append(connection)
         emit = connection.emit
@@ -366,6 +414,8 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
             if ready["type"] != "ready":
                 raise TranslationError(ready.get("code", "latency_not_ready"))
             trace.mark("ready")
+            if use_gateway_default_detector:
+                observe_default_detector(connections[-1], trace)
 
             async def receive():
                 nonlocal last_output_at

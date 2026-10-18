@@ -28,6 +28,7 @@ class BilingualUtteranceRouter:
         settings=None,
         key="",
         fixed_source=None,
+        prepare_speech=None,
     ):
         """Inject classification and output without guessing unknown languages."""
         self.detector = detector
@@ -41,6 +42,7 @@ class BilingualUtteranceRouter:
         if fixed_source is not None and fixed_source not in self.languages:
             raise ValueError("invalid_fixed_source")
         self.fixed_source = fixed_source
+        self.prepare_speech = prepare_speech
         self.send_packet = send_packet
         self.end_turn = end_turn
         self.unknown = unknown
@@ -65,6 +67,9 @@ class BilingualUtteranceRouter:
         self.speaking = True
         if self.fixed_source is not None:
             await self._select(self.fixed_source)
+        elif self.prepare_speech is not None and time.monotonic() >= self.probe_after:
+            # The callback schedules one handshake; audio collection continues.
+            await self.prepare_speech()
 
     async def feed(self, pcm):
         """Probe a speech prefix, backing off when more audio remains undecidable."""

@@ -1,5 +1,6 @@
 """Audio prefixes, turn direction, uncertainty and classifier backpressure."""
 
+import time
 import unittest
 from unittest.mock import AsyncMock
 
@@ -9,6 +10,68 @@ from translation.bilingual_router import MAX_PROBE_BYTES, BilingualUtteranceRout
 
 
 class RouterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_speech_preparation_precedes_prefix_classification(self):
+        """Scheduling a handshake must not classify, route or mutate a short prefix."""
+        router, send, end, unknown = self.router(["zh"])
+        prepare = AsyncMock()
+        router.prepare_speech = prepare
+        prefix = b"\1\0" * 1600
+        await router.start(prefix)
+        prepare.assert_awaited_once()
+        router.detector.detect.assert_not_awaited()
+        send.assert_not_awaited()
+        await router.end()
+        router.detector.detect.assert_awaited_once_with(prefix)
+        send.assert_awaited_once_with("zh", prefix)
+        end.assert_awaited_once_with("zh")
+        unknown.assert_not_awaited()
+
+    async def test_fixed_direction_never_prepares_a_classifier(self):
+        """A fixed route forwards speech directly without a language connection."""
+        prepare, send = AsyncMock(), AsyncMock()
+        router = BilingualUtteranceRouter(
+            AsyncMock(),
+            send,
+            AsyncMock(),
+            AsyncMock(),
+            fixed_source="en",
+            prepare_speech=prepare,
+        )
+        await router.start(bytes(3200))
+        await router.end()
+        prepare.assert_not_awaited()
+        router.detector.detect.assert_not_awaited()
+        send.assert_awaited_once_with("en", bytes(3200))
+
+    async def test_backoff_skips_preparation_then_resumes_after_expiry(self):
+        """An undecidable-language cooldown must not be bypassed by the handshake."""
+        router, send, _, unknown = self.router(["zh"])
+        router.prepare_speech = prepare = AsyncMock()
+        router.probe_after = time.monotonic() + 60
+        await router.start(bytes(3200))
+        await router.end()
+        prepare.assert_not_awaited()
+        router.detector.detect.assert_not_awaited()
+        send.assert_not_awaited()
+        unknown.assert_awaited_once()
+        router.probe_after = 0
+        await router.start(bytes(3200))
+        prepare.assert_awaited_once()
+        await router.end()
+        send.assert_awaited_once_with("zh", bytes(3200))
+
+    async def test_repeated_unknown_speech_still_enters_backoff(self):
+        """Preparing a connection cannot turn repeated unknown results into a guess."""
+        router, send, _, unknown = self.router([None] * 3)
+        router.prepare_speech = prepare = AsyncMock()
+        for _ in range(4):
+            await router.start(bytes(3200))
+            await router.end()
+        self.assertEqual(prepare.await_count, 3)
+        self.assertEqual(router.detector.detect.await_count, 3)
+        self.assertEqual(unknown.await_count, 4)
+        send.assert_not_awaited()
+
     async def test_short_greeting_keeps_first_valid_decision_at_end(self):
         router, send, end, unknown = self.router(["zh", None])
         pcm = b"\1\0" * 12800

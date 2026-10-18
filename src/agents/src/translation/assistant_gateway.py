@@ -22,9 +22,7 @@ from plugins.qwen.live_translate import (
     TranslationError,
     audio_language_pair,
 )
-from plugins.qwen.omni.language_id import OmniLanguageDetector
-from transport.http import open_backend
-
+from plugins.qwen.omni.speech_language_id import SpeechLanguageDetector
 from translation.bilingual_audio import BilingualAudioInput, open_vad
 from translation.bilingual_direction import (
     same_words,
@@ -33,6 +31,7 @@ from translation.bilingual_direction import (
 )
 from translation.bilingual_session import BilingualTranslationSession
 from translation.bilingual_settings import BilingualSettings
+from transport.http import open_backend
 
 # Output awaiting its original-transcript association is bounded. Once linked,
 # audio streams in half-second chunks, independently of response length.
@@ -394,7 +393,7 @@ class AssistantTranslationConnection:
         claim_ticket=claim,
         config_factory=TranslationConfig.from_env,
         session_factory=BilingualTranslationSession,
-        detector_factory=OmniLanguageDetector,
+        detector_factory=SpeechLanguageDetector,
         vad_factory=open_vad,
         update_lease=lease,
     ):
@@ -610,6 +609,11 @@ class AssistantTranslationConnection:
             key=self.key,
             languages=pair,
             fixed_source=fixed_source,
+            prepare_speech=(
+                self.detector.begin_speech
+                if isinstance(self.detector, SpeechLanguageDetector)
+                else None
+            ),
         )
         for results in self.results:
             results.speech_clock = self.audio_input.speech_started

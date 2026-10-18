@@ -57,6 +57,7 @@ class BilingualAudioInput:
         key="",
         languages=None,
         fixed_source=None,
+        prepare_speech=None,
     ):
         """Own one VAD consumer and one serialized utterance router."""
         self.stream = stream
@@ -77,6 +78,7 @@ class BilingualAudioInput:
             settings=settings,
             key=key,
             fixed_source=fixed_source,
+            prepare_speech=prepare_speech,
         )
         self.task = asyncio.create_task(self._run())
 
