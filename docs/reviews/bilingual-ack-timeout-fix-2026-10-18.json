@@ -1,0 +1,93 @@
+{
+  "observed_at": "2026-10-18T11:28:20.238941+00:00",
+  "reported_device": {
+    "model": "Honor 300",
+    "android_version": 16
+  },
+  "reported_error": "BT11 / ACK_TIMEOUT",
+  "source_commit": "70c528d59a78202c6949d32fc9bb0d78e7f2453c",
+  "release_url": "https://github.com/John-Shao/we-meet-android/releases/tag/v0.3.0-work.7-internal",
+  "download_url": "https://github.com/John-Shao/we-meet-android/releases/download/v0.3.0-work.7-internal/we-meet-0.3.0-work.7-internal.apk",
+  "artifact": {
+    "file": "we-meet-0.3.0-work.7-internal.apk",
+    "bytes": 146186708,
+    "sha256": "72d945fd91c3d0de930a75ef2ba7d6ee1b954e25b3ecd3a090a48675f3b8718f"
+  },
+  "confirmed_mechanism": "Network ACK receipt and input sending must not wait for UI work.",
+  "baseline": {
+    "version": "0.3.0-work.6",
+    "frames_before_main_busy": 2,
+    "frames_during_main_busy": 2,
+    "network_ack_callbacks": 2,
+    "failure": "ACK_TIMEOUT"
+  },
+  "candidate_transport": {
+    "started_at": "2026-10-18T11:14:04.831408+00:00",
+    "completed_at": "2026-10-18T11:16:08.943079+00:00",
+    "phase": "fixed",
+    "tests_passed": true,
+    "baseline_ack_timeout_reproduced": false,
+    "contains_real_credentials": false,
+    "real_tls_websocket": true,
+    "physical_audio_track": true,
+    "physical_microphone": false,
+    "log": "ack-transport-fixed-device-20261018.log",
+    "healthy_case_observation": {
+      "frames_before": 2,
+      "frames_during_main_busy": 42,
+      "network_acks": 44,
+      "failure": null,
+      "played_samples": 288000
+    },
+    "missing_ack_control_failed_as_expected": true
+  },
+  "controller_regression": {
+    "started_at": "2026-10-18T11:24:18.277661+00:00",
+    "completed_at": "2026-10-18T11:26:06.633771+00:00",
+    "source_commit": "70c528d59a78202c6949d32fc9bb0d78e7f2453c",
+    "passed": true,
+    "full_class": false,
+    "all_distinct_cases_covered": true,
+    "cases_passed": 42,
+    "opt_in_cases_skipped": 2,
+    "first_batch": {
+      "log": "ack-fix-controller-device-20261018.log",
+      "completed_cases": 34,
+      "runner_finished": false,
+      "reason": "Host orchestration deadline reached; no assertion failure among completed cases"
+    },
+    "second_batch": {
+      "log": "ack-fix-controller-remainder-device-20261018.log",
+      "selected_cases": [
+        "activityRecreationRetainsTranslationButNavigationOwnerDestructionClosesIt",
+        "connectionLossPreservesCompletedRowsAndDiscardsPartialAudioWithoutRetry",
+        "disconnectedDuringUserFinishPreservesRowsAndReportsIncomplete",
+        "disposedOrLoggedOutTicketResponseCannotOpenSocketOrMicrophone",
+        "expiredWaitsForPlaybackBeforeReleasingResources",
+        "inputInterruptionReleasesSessionWithoutAutomaticReallocation",
+        "logoutStopsAnActiveMicrophoneAndLateEventsCannotRestoreRows",
+        "playbackTimeoutTerminatesSessionAndReleasesResources",
+        "realAudioFocusLossStopsSessionAndRequiresExplicitRestart",
+        "timeoutShowsErrorAndAllowsExplicitRetry"
+      ],
+      "runner_summary": "OK (10 tests)"
+    },
+    "log": "ack-fix-controller-device-20261018.log"
+  },
+  "unit_tests": {
+    "tests": 1019,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "test_limits": "Actual TLS WebSocket and AudioTrack on OPPO Android 12; synthetic capture, zero PCM, local fixture admission; not a natural speech or Honor acoustic test.",
+  "honor_natural_speech_retest_required": true,
+  "ack_timeout_ms": 5000,
+  "in_flight_frames": 50,
+  "capture_buffer_frames": 50,
+  "wire_budget_bytes": 64000,
+  "server_deployment_changed": false,
+  "translation_parameters_changed": false,
+  "rollout_scope_changed": false,
+  "remaining_availability_issue": "Earlier backend liveness timeouts/restarts remain independent and unresolved; no resource changes this round."
+}
