@@ -29,6 +29,7 @@ from translation.bilingual_direction import (
     source_language,
     transcript_language,
 )
+from translation.bilingual_output import BilingualAudioOutput
 from translation.bilingual_session import BilingualTranslationSession
 from translation.bilingual_settings import BilingualSettings
 from transport.http import open_backend
@@ -50,6 +51,7 @@ MIN_HEARTBEAT_SECONDS = 5
 MAX_HEARTBEAT_SECONDS = 30
 FRAME_BYTES = 3200
 FINISH_SECONDS = 25
+AUDIO_DRAIN_SECONDS = 65
 FINISH_RESERVE_SECONDS = FINISH_SECONDS + 5
 logger = logging.getLogger("assistant-translation")
 
@@ -73,6 +75,8 @@ SAFE_ERROR_CODES = frozenset(
         "translation_finish_failed",
         "translation_finish_incomplete",
         "translation_provider_failed",
+        "translation_output_backlog",
+        "translation_output_failed",
     }
 )
 
@@ -407,6 +411,7 @@ class AssistantTranslationConnection:
         self.session_factory = session_factory
         self.detector_factory, self.vad_factory = detector_factory, vad_factory
         self.detector = self.audio_input = None
+        self.audio_output = None
         self.sessions = []
         self.results = []
         self.send_lock = asyncio.Lock()
@@ -419,6 +424,7 @@ class AssistantTranslationConnection:
         self.deadline = self.last_activity + self.max_seconds
         self.started_at = self.last_activity
         self.input_bytes = self.output_bytes = self.translations = 0
+        self.ack_frames = self.max_input_gap_ms = self.max_ack_write_ms = 0
 
     def usage_snapshot(self, *, complete=False):
         """Snapshot counters independently of pod logs and phone diagnostics."""
@@ -433,7 +439,14 @@ class AssistantTranslationConnection:
         }
 
     async def emit(self, event):
-        """Serialize both directions over the same bounded socket."""
+        """Pace audio while ACKs and text bypass the audio queue."""
+        if self.audio_output and event["type"] in {"audio", "audio_end"}:
+            self.audio_output.put(event)
+            return
+        await self._send_event(event)
+
+    async def _send_event(self, event):
+        """Serialize one socket write without holding its lock during pacing."""
         payload = json.dumps(event)
         async with self.send_lock:
             await asyncio.wait_for(self.socket.send(payload), 5)
@@ -471,9 +484,14 @@ class AssistantTranslationConnection:
         except Exception as error:
             code = safe_error_code(error)
             logger.info(
-                "Bilingual translation interrupted code=%s session=%s", code, self.key
+                "Bilingual translation interrupted code=%s session=%s class=%s",
+                code,
+                self.key,
+                type(error).__name__,
             )
             try:
+                if self.audio_output:
+                    await self.audio_output.aclose()
                 await self.emit({"type": "error", "code": code})
             except Exception:
                 logger.info("Translation client disconnected before error receipt")
@@ -526,6 +544,7 @@ class AssistantTranslationConnection:
         return grant
 
     async def _serve(self, grant):
+        self.audio_output = BilingualAudioOutput(self._send_event)
         startup_seconds = min(
             35, self.deadline - time.monotonic() - FINISH_RESERVE_SECONDS
         )
@@ -630,6 +649,8 @@ class AssistantTranslationConnection:
 
     async def _close(self):
         try:
+            if self.audio_output:
+                await self.audio_output.aclose()
             if self.audio_input:
                 await self.audio_input.aclose()
         finally:
@@ -663,8 +684,19 @@ class AssistantTranslationConnection:
                 self.translations,
                 len(self.sessions),
             )
+            logger.info(
+                "translation_input_health session=%s ack_frames=%d"
+                " max_input_gap_ms=%d max_ack_write_ms=%d peak_output_bytes=%d",
+                self.key,
+                self.ack_frames,
+                self.max_input_gap_ms,
+                self.max_ack_write_ms,
+                self.audio_output.peak_bytes if self.audio_output else 0,
+            )
 
     def _check_outputs(self):
+        if self.audio_output:
+            self.audio_output.check()
         for session in self.sessions:
             if session.error_code:
                 raise TranslationError(session.error_code)
@@ -673,26 +705,33 @@ class AssistantTranslationConnection:
 
     async def _stream(self):
         started, total = time.monotonic(), 0
+        last_input = started
         while time.monotonic() < self.deadline - FINISH_RESERVE_SECONDS:
             if (
                 time.monotonic()
                 - max(self.last_activity, self.audio_input.last_activity)
                 >= self.idle_seconds
             ):
-                await asyncio.wait_for(self._finish(), FINISH_SECONDS)
+                await self._finish_with_audio()
                 await self.emit({"type": "expired", "reason": "idle"})
                 return
             self._check_outputs()
             receive = asyncio.create_task(self.socket.recv())
             try:
+                watched = [receive, self.audio_input.task]
+                if self.audio_output:
+                    watched.append(self.audio_output.task)
                 done, _ = await asyncio.wait(
-                    [receive, self.audio_input.task],
+                    watched,
                     timeout=5,
                     return_when=asyncio.FIRST_COMPLETED,
                 )
                 if self.audio_input.task in done:
                     self.audio_input.task.result()
                     raise TranslationError("translation_input_ended")
+                if self.audio_output and self.audio_output.task in done:
+                    self.audio_output.check()
+                    raise TranslationError("translation_output_failed")
                 if receive not in done:
                     raise TranslationError("translation_input_timeout")
                 raw = receive.result()
@@ -700,6 +739,11 @@ class AssistantTranslationConnection:
                 receive.cancel()
                 await asyncio.gather(receive, return_exceptions=True)
             if isinstance(raw, bytes):
+                received_at = time.monotonic()
+                self.max_input_gap_ms = max(
+                    self.max_input_gap_ms, round((received_at - last_input) * 1000)
+                )
+                last_input = received_at
                 total += len(raw)
                 if (
                     not 0 < len(raw) <= FRAME_BYTES
@@ -710,13 +754,18 @@ class AssistantTranslationConnection:
                 self.audio_input.push(raw)
                 self.input_bytes += len(raw)
                 await self.emit({"type": "ack"})
+                self.ack_frames += 1
+                self.max_ack_write_ms = max(
+                    self.max_ack_write_ms,
+                    round((time.monotonic() - received_at) * 1000),
+                )
             elif json.loads(raw) == {"type": "finish"}:
-                await asyncio.wait_for(self._finish(), FINISH_SECONDS)
+                await self._finish_with_audio()
                 await self.emit({"type": "finished"})
                 return
             else:
                 raise TranslationError("invalid_translation_control")
-        await asyncio.wait_for(self._finish(), FINISH_SECONDS)
+        await self._finish_with_audio()
         await self.emit({"type": "expired", "reason": "duration"})
 
     async def _finish(self):
@@ -725,3 +774,18 @@ class AssistantTranslationConnection:
         await asyncio.gather(*(results.finish() for results in self.results))
         if any(results.items for results in self.results):
             raise TranslationError("translation_finish_incomplete")
+
+    async def _finish_with_audio(self):
+        # Provider completion keeps its existing bound. Draining the paced
+        # audio queue is separate and cannot extend the admitted session lease.
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise TranslationError("translation_finish_incomplete")
+        await asyncio.wait_for(self._finish(), min(FINISH_SECONDS, remaining))
+        if self.audio_output:
+            remaining = self.deadline - time.monotonic()
+            if remaining <= 0:
+                raise TranslationError("translation_finish_incomplete")
+            await asyncio.wait_for(
+                self.audio_output.drain(), min(AUDIO_DRAIN_SECONDS, remaining)
+            )

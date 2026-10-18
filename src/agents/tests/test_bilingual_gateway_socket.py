@@ -119,12 +119,16 @@ class GatewaySocketTests(unittest.IsolatedAsyncioTestCase):
         async with asyncio.timeout(5):
             async for frame in socket:
                 output.append(json.loads(frame))
-        self.assertEqual(
-            [event["type"] for event in output],
-            ["audio", "translation", "audio_end", "finished"],
+        # Text may bypass paced audio; completion must never bypass its tail.
+        self.assertCountEqual(
+            [event["type"] for event in output[:2]], ["audio", "translation"]
         )
-        self.assertEqual(output[1]["text"], "Hello")
-        self.assertEqual(output[0]["id"], output[2]["id"])
+        self.assertEqual(
+            [event["type"] for event in output[2:]], ["audio_end", "finished"]
+        )
+        by_type = {event["type"]: event for event in output}
+        self.assertEqual(by_type["translation"]["text"], "Hello")
+        self.assertEqual(by_type["audio"]["id"], by_type["audio_end"]["id"])
         self.assertEqual(self.gateway.active, 0)
         self.assertTrue(self.vads[0].closed)
         self.assertEqual(self.providers[0].closes, 1)
