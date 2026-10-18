@@ -75,6 +75,8 @@ def parent():
             from core.services import bilingual_sessions
             call_command('migrate', interactive=False, verbosity=0)
             user = UserFactory()
+            settings.ASSISTANT_TRANSLATION_ALLOWED_USER_IDS = [str(user.pk)]
+            os.environ['ASSISTANT_TRANSLATION_ALLOWED_USER_IDS'] = str(user.pk)
             since = (timezone.now()-timedelta(seconds=1)).isoformat()
             def start_backend():
                 process=subprocess.Popen([sys.executable,str(Path(__file__).resolve()),'--backend-child'],

@@ -1262,6 +1262,8 @@ class Base(Configuration):
     MEETING_CAPTURE_TRANSLATION_URL = values.Value("", environ_prefix=None)
     # Standalone bilingual sessions have their own enforced product quota.
     ASSISTANT_TRANSLATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    # Internal rollout is account-scoped; an empty list never grants access.
+    ASSISTANT_TRANSLATION_ALLOWED_USER_IDS = values.ListValue([], environ_prefix=None)
     ASSISTANT_TRANSLATION_MAX_ACTIVE = values.PositiveIntegerValue(1, environ_prefix=None)
     ASSISTANT_TRANSLATION_MAX_DAILY = values.PositiveIntegerValue(100, environ_prefix=None)
     ASSISTANT_TRANSLATION_MAX_SECONDS = values.PositiveIntegerValue(900, environ_prefix=None)

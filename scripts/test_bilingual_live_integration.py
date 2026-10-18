@@ -199,6 +199,7 @@ def main():  # noqa: PLR0915 -- bounded setup with unconditional resource cleanu
         ):
             client = Client()
             user = UserFactory()
+            settings.ASSISTANT_TRANSLATION_ALLOWED_USER_IDS = [str(user.pk)]
             bearer = secrets.token_urlsafe(32)
             identity_counts = {"accepted": 0, "rejected": 0}
             if args.auth == "session":

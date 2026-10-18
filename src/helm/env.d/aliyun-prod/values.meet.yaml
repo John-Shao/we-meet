@@ -248,6 +248,7 @@ backend:
     MEETING_CAPTURE_TRANSLATION_URL: "wss://meet.we-meet.online/capture-translation"
     # Enable only after the V2 gateway and internal Android candidate pass admission.
     ASSISTANT_TRANSLATION_ENABLED: "False"
+    ASSISTANT_TRANSLATION_ALLOWED_USER_IDS: ""
     ASSISTANT_TRANSLATION_MAX_ACTIVE: "1"
     ASSISTANT_TRANSLATION_MAX_DAILY: "100"
     ASSISTANT_TRANSLATION_MAX_SECONDS: "900"

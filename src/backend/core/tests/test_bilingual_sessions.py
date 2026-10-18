@@ -10,7 +10,7 @@ from django.db import close_old_connections
 from django.utils import timezone
 
 import pytest
-from rest_framework.exceptions import Throttled
+from rest_framework.exceptions import PermissionDenied, Throttled
 from rest_framework.test import APIClient
 
 from core.factories import UserFactory
@@ -30,6 +30,7 @@ def admission(settings):
     settings.MEETING_CAPTURE_TRANSLATION_URL = "wss://meet.example/capture-translation"
     settings.AGENT_INTERNAL_API_TOKEN = "test-internal"
     user = UserFactory()
+    settings.ASSISTANT_TRANSLATION_ALLOWED_USER_IDS = [str(user.pk)]
     client = APIClient()
     client.force_authenticate(user)
     agent = APIClient()
@@ -43,6 +44,66 @@ def start(client, agent, **choices):
     response = agent.post(CLAIM, {"ticket": ticket.data["ticket"]}, format="json")
     assert response.status_code == 200
     return response.data
+
+
+def test_allowlisted_account_catalog_and_ticket_are_available(admission):
+    """An explicitly admitted account can discover and start the feature."""
+    _, client, agent = admission
+    config = client.get("/api/v1.0/assistant-translation/config/")
+    assert config.data["enabled"] is True
+    assert config.data["reason"] is None
+    assert start(client, agent)["session_id"]
+
+
+def test_other_account_cannot_discover_or_reserve_translation(admission):
+    """The global switch must not admit another authenticated account."""
+    outsider = UserFactory(is_staff=True)
+    client = APIClient()
+    client.force_authenticate(outsider)
+    config = client.get("/api/v1.0/assistant-translation/config/")
+    assert config.data["enabled"] is False
+    assert config.data["reason"] == "account_not_enabled"
+    assert client.post(TICKET, REQUEST, format="json").status_code == 403
+    with pytest.raises(PermissionDenied):
+        bilingual_sessions.reserve(outsider)
+    assert not BilingualSession.objects.exists()
+
+
+@pytest.mark.parametrize("allowed", [[], ["*"], "*", None])
+def test_missing_or_wildcard_allowlist_fails_closed(admission, settings, allowed):
+    """Empty, wildcard and malformed configuration never means all accounts."""
+    settings.ASSISTANT_TRANSLATION_ALLOWED_USER_IDS = allowed
+    client = admission[1]
+    assert (
+        client.get("/api/v1.0/assistant-translation/config/").data["enabled"] is False
+    )
+    assert client.post(TICKET, REQUEST, format="json").status_code == 403
+    assert not BilingualSession.objects.exists()
+
+
+def test_removing_account_before_claim_blocks_an_already_issued_ticket(
+    admission, settings
+):
+    """The worker must recheck admission before opening paid connections."""
+    _, client, agent = admission
+    ticket = client.post(TICKET, REQUEST, format="json").data["ticket"]
+    settings.ASSISTANT_TRANSLATION_ALLOWED_USER_IDS = []
+    response = agent.post(CLAIM, {"ticket": ticket}, format="json")
+    assert response.status_code == 403
+    assert not BilingualSession.objects.filter(status="active").exists()
+
+
+def test_removing_active_account_expires_lease_and_does_not_revive(admission, settings):
+    """Revocation reaches existing sessions through their next gateway heartbeat."""
+    user, client, agent = admission
+    grant = start(client, agent)
+    settings.ASSISTANT_TRANSLATION_ALLOWED_USER_IDS = []
+    body = {"session_id": grant["session_id"], "operation": "heartbeat"}
+    assert agent.post(LEASE, body, format="json").data["status"] == "expired"
+    settings.ASSISTANT_TRANSLATION_ALLOWED_USER_IDS = [str(user.pk)]
+    assert agent.post(LEASE, body, format="json").data["status"] == "expired"
+    body["operation"] = "close"
+    assert agent.post(LEASE, body, format="json").status_code == 200
 
 
 def test_fixed_direction_and_voice_are_frozen_in_single_business_session(admission):

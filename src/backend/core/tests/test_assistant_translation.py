@@ -25,6 +25,7 @@ def setup(settings):
     settings.AGENT_INTERNAL_API_TOKEN = "test-internal"
     client = APIClient()
     user = UserFactory()
+    settings.ASSISTANT_TRANSLATION_ALLOWED_USER_IDS = [str(user.pk)]
     client.force_authenticate(user)
     agent = APIClient()
     agent.credentials(HTTP_X_AGENT_TOKEN="test-internal")

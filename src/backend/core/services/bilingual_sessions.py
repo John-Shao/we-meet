@@ -64,7 +64,19 @@ def store_usage(row, usage, now):
     row.save(update_fields=["usage", "usage_updated_at", "updated_at"])
 
 
-def policy():
+def account_enabled(user):
+    """Require both the feature switch and an explicit active-account allowlist."""
+    allowed = settings.ASSISTANT_TRANSLATION_ALLOWED_USER_IDS
+    return bool(
+        settings.ASSISTANT_TRANSLATION_ENABLED
+        and user
+        and user.is_active
+        and isinstance(allowed, (list, tuple))
+        and str(user.pk) in allowed
+    )
+
+
+def policy(user):
     """Reject zero/unbounded limits rather than silently disabling enforcement."""
     result = {
         "max_active": settings.ASSISTANT_TRANSLATION_MAX_ACTIVE,
@@ -74,6 +86,8 @@ def policy():
     }
     if not settings.ASSISTANT_TRANSLATION_ENABLED:
         raise PermissionDenied("Translation is disabled.")
+    if not account_enabled(user):
+        raise PermissionDenied("Translation is not enabled for this account.")
     if any(type(value) is not int or value <= 0 for value in result.values()):
         raise PermissionDenied("Translation limits are unavailable.")
     if (
@@ -87,7 +101,7 @@ def policy():
 @transaction.atomic
 def reserve(user):
     """Serialize per-account admission across API workers before issuing a ticket."""
-    limits = policy()
+    limits = policy(user)
     if not User.objects.select_for_update().filter(pk=user.pk, is_active=True).exists():
         raise PermissionDenied
     now = timezone.now()
@@ -114,12 +128,12 @@ def reserve(user):
 @transaction.atomic
 def claim(session_id, user_id):
     """Consume a ticket once using the shared database, including concurrent claims."""
-    policy()
     row = (
         BilingualSession.objects.select_for_update()
         .select_related("user")
         .get(pk=session_id, user_id=user_id)
     )
+    policy(row.user)
     now = timezone.now()
     if (
         row.status != "issued"
@@ -151,8 +165,7 @@ def update(session_id, operation, usage=None):
             row.save(update_fields=["status", "ended_at", "updated_at"])
         return row.status
     valid = (
-        settings.ASSISTANT_TRANSLATION_ENABLED
-        and row.user.is_active
+        account_enabled(row.user)
         and row.status == "active"
         and row.lease_until > now
         and row.deadline > now

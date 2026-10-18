@@ -91,6 +91,7 @@ class AssistantTranslationConfigView(APIView):
             default = (
                 "Tina" if "Tina" in values else (voices[0]["value"] if voices else None)
             )
+        enabled = bilingual_sessions.account_enabled(request.user)
         return Response(
             {
                 "model": TRANSLATION_MODEL,
@@ -98,12 +99,12 @@ class AssistantTranslationConfigView(APIView):
                 "voices": voices,
                 "protocol_version": 2,
                 "languages": list(LANGUAGES),
-                "enabled": bool(
-                    settings.ASSISTANT_TRANSLATION_ENABLED and model and voices
-                ),
+                "enabled": bool(enabled and model and voices),
                 "reason": (
                     "feature_disabled"
                     if not settings.ASSISTANT_TRANSLATION_ENABLED
+                    else "account_not_enabled"
+                    if not enabled
                     else "model_unavailable"
                     if model is None
                     else "voices_disabled"
@@ -126,7 +127,7 @@ class AssistantTranslationTicketView(APIView):
             return Response({"code": "client_upgrade_required"}, status=426)
         serializer = TicketSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        bilingual_sessions.policy()
+        bilingual_sessions.policy(request.user)
         url = settings.MEETING_CAPTURE_TRANSLATION_URL
         try:
             parsed = urlsplit(url)
@@ -173,7 +174,7 @@ class AssistantTranslationTicketView(APIView):
         if voice not in voices:
             return Response({"code": "voice_unavailable"}, status=400)
         session = bilingual_sessions.reserve(request.user)
-        limits = bilingual_sessions.policy()
+        limits = bilingual_sessions.policy(request.user)
         ticket = signing.dumps(
             {
                 "user": str(request.user.pk),
