@@ -200,6 +200,7 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
     vad_factory_override=None,
     settle_seconds=0,
     expected_sources=None,
+    translation_observer=None,
 ):
     """Run one fixture through actual production routing and provider classes."""
     trace = trace if trace is not None else Timeline()
@@ -373,6 +374,10 @@ async def probe_case(  # noqa: PLR0913, PLR0915 -- isolated observer factories a
                         else:
                             item["source"] = event["source_language"]
                             item["target"] = event["target_language"]
+                            if translation_observer is not None:
+                                translation_observer(event)
+                    elif kind == "language_unknown":
+                        trace.mark("language_unknown")
                     elif kind == "error":
                         errors.append(event["code"])
                         complete.set()

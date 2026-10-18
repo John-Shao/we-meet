@@ -20,6 +20,19 @@ window_spec = importlib.util.spec_from_file_location(
 windows = importlib.util.module_from_spec(window_spec)
 with patch.dict(sys.modules, {"probe_bilingual_latency": probe}):
     window_spec.loader.exec_module(windows)
+prosody_spec = importlib.util.spec_from_file_location(
+    "prosody_probe",
+    Path(__file__).resolve().parents[1] / "scripts/probe_bilingual_prosody.py",
+)
+prosody = importlib.util.module_from_spec(prosody_spec)
+with patch.dict(
+    sys.modules,
+    {
+        "probe_bilingual_latency": probe,
+        "probe_bilingual_turn_windows": windows,
+    },
+):
+    prosody_spec.loader.exec_module(prosody)
 
 
 class TimelineTests(unittest.TestCase):
@@ -199,3 +212,76 @@ class PauseFixtureTests(unittest.TestCase):
         """Reject an ambiguous fixture instead of guessing an insertion span."""
         with self.assertRaisesRegex(ValueError, "ambiguous_fixture_speech_span"):
             windows.paused_fixture(bytes(32000), [])
+
+
+class CoverageTests(unittest.TestCase):
+    """Separate lexical preservation indicators from segmentation and semantics."""
+
+    def test_fragmented_travel_content_is_checked_across_all_final_outputs(self):
+        """Multiple completed clauses must not be called missing just by their count."""
+        coverage = prosody.Coverage("travel_prosody")
+        coverage.observe(
+            {"source": "新宿站，浅草寺", "text": "Shinjuku Station, Asakusa Temple"}
+        )
+        coverage.observe(
+            {"source": "三号线还是七号线", "text": "line THREE or line ７"}
+        )
+        report = coverage.report()
+        self.assertTrue(report["source_all_anchors"])
+        self.assertTrue(report["target_all_anchors"])
+        self.assertEqual(report["translation_events"], 2)
+        self.assertNotIn("Shinjuku Station, Asakusa Temple", str(report))
+
+    def test_absent_negation_is_not_hidden_by_a_polite_translation(self):
+        """A thank-you clause alone cannot satisfy a negative reply fixture."""
+        coverage = prosody.Coverage("short_polite_no")
+        coverage.observe({"source": "不用了，谢谢", "text": "Thank you"})
+        report = coverage.report()
+        self.assertTrue(report["source_all_anchors"])
+        self.assertFalse(report["target_all_anchors"])
+        self.assertFalse(report["target_anchors"]["negation"])
+
+    def test_missing_line_number_does_not_pass_the_travel_check(self):
+        """Preserving names and one number is not evidence of both numeric anchors."""
+        coverage = prosody.Coverage("travel_prosody")
+        coverage.observe(
+            {"source": "新宿 浅草 三 七", "text": "Shinjuku Asakusa three"}
+        )
+        self.assertFalse(coverage.report()["target_all_anchors"])
+
+    def test_no_translation_and_excess_text_cannot_be_reported_as_covered(self):
+        """Silence is incomplete, and large model payloads are bounded in memory."""
+        coverage = prosody.Coverage("short_yes")
+        self.assertFalse(coverage.report()["source_all_anchors"])
+        with self.assertRaisesRegex(ValueError, "prosody_text_limit"):
+            coverage.observe({"source": "x" * (prosody.MAX_TEXT_CHARS + 1), "text": ""})
+
+    def test_place_alias_and_digits_adjacent_to_chinese_are_not_missing(self):
+        """Place aliases and Arabic numbers in Chinese must survive lexical scoring."""
+        coverage = prosody.Coverage("travel_prosody")
+        coverage.observe(
+            {
+                "source": "新宿 浅草寺 3号线 7号线",
+                "text": "Shinjuku, Sensō-ji, line3 or line7",
+            }
+        )
+        self.assertTrue(coverage.report()["source_all_anchors"])
+        self.assertTrue(coverage.report()["target_all_anchors"])
+
+    def test_larger_numbers_do_not_satisfy_individual_line_numbers(self):
+        """Thirteen and seventeen must not satisfy three and seven."""
+        coverage = prosody.Coverage("travel_prosody")
+        coverage.observe(
+            {"source": "新宿 浅草寺 13号线 17号线", "text": "Shinjuku Asakusa 13 or 17"}
+        )
+        self.assertFalse(coverage.report()["source_all_anchors"])
+        self.assertFalse(coverage.report()["target_all_anchors"])
+        coverage = prosody.Coverage("travel_prosody")
+        coverage.observe(
+            {
+                "source": "新宿 浅草寺 十三号线 十七号线",
+                "text": "Shinjuku Asakusa thirteen or seventeen",
+            }
+        )
+        self.assertFalse(coverage.report()["source_all_anchors"])
+        self.assertFalse(coverage.report()["target_all_anchors"])
