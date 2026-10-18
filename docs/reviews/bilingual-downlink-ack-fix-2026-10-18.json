@@ -251,7 +251,21 @@
     "fixed": false,
     "existing_explicit_restart_policy_preserved": true
   },
-  "honor_natural_speech_retest_required": true,
+  "honor_natural_speech_retest_required": false,
+  "honor_acceptance": {
+    "date": "2026-10-18",
+    "source": "user_report",
+    "user_statement": "测试通过，问题没有再复现",
+    "device_from_test_context": "Honor 300 / Android 16",
+    "apk_version_from_test_context": "0.3.0-work.7",
+    "server_helm_revision": 497,
+    "server_code_commit": "145de46473af4fed915256621dbaae1707ec63e1",
+    "status": "accepted_closed",
+    "scope": "Previously reported long-sentence BT11 interruption",
+    "repetition_count_and_separate_replay_result_not_reported": true,
+    "bt04_closed_by_this_report": false,
+    "other_remaining_issues_unchanged": true
+  },
   "ack_deadline_ms": 5000,
   "input_windows_unchanged": true,
   "turn_detection_and_language_parameters_unchanged": true,
