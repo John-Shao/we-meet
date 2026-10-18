@@ -1,0 +1,144 @@
+{
+  "recorded_at": "2026-10-18T15:16:27.446601+00:00",
+  "status": "internal_single_account_delivery_closed_with_followups",
+  "honor_long_sentence_bt11": {
+    "date": "2026-10-18",
+    "source": "user_report",
+    "user_statement": "测试通过，问题没有再复现",
+    "device_from_test_context": "Honor 300 / Android 16",
+    "apk_version_from_test_context": "0.3.0-work.7",
+    "server_helm_revision": 497,
+    "server_code_commit": "145de46473af4fed915256621dbaae1707ec63e1",
+    "status": "accepted_closed",
+    "scope": "Previously reported long-sentence BT11 interruption",
+    "repetition_count_and_separate_replay_result_not_reported": true,
+    "bt04_closed_by_this_report": false,
+    "other_remaining_issues_unchanged": true
+  },
+  "branches": {
+    "we-meet": "aliyun-dev",
+    "we-meet-android": "main"
+  },
+  "products": {
+    "gateway_source_commit": "145de46473af4fed915256621dbaae1707ec63e1",
+    "android_apk_source_commit": "70c528d59a78202c6949d32fc9bb0d78e7f2453c",
+    "android_test_source_commit": "735a93847d2d91d0d3d3c79815e598e36297a5d1",
+    "backend_image_source_commit": "938b16649408b2c690752b9c318256b89746b3b8",
+    "im_sdk_source_commit": "f41f52e9ad696f56528b9903f90b0575dc4ded5c"
+  },
+  "apk": {
+    "version": "0.3.0-work.7",
+    "version_code": 9,
+    "bytes": 146186708,
+    "sha256": "72d945fd91c3d0de930a75ef2ba7d6ee1b954e25b3ecd3a090a48675f3b8718f",
+    "github_asset_digest_matches_local": true,
+    "internal_signature": true,
+    "debuggable": false,
+    "rebuild_required": false,
+    "download_url": "https://github.com/John-Shao/we-meet-android/releases/download/v0.3.0-work.7-internal/we-meet-0.3.0-work.7-internal.apk"
+  },
+  "server_read_only_snapshot": {
+    "observed_at": "2026-10-18T15:14:27.650330+00:00",
+    "helm_revision": 497,
+    "helm_status": "deployed",
+    "all_deployments_ready": true,
+    "workload_specs_match_497_plan": true,
+    "business": {
+      "enabled": true,
+      "allowed_account_count": 1,
+      "active_translation_sessions": 0
+    },
+    "gateway_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:145de4647",
+    "gateway_image_id": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents@sha256:fdd1bd60315a48c61c6460a2fe6641c3edc0d5b8a18a8636642bf4e7d8b46609",
+    "gateway_restarts": 0,
+    "backend_restarts": 2,
+    "pending_pods": []
+  },
+  "device_cleanup_read_only_checks": {
+    "device": "OPPO / Android 12",
+    "app_process_running": false,
+    "adb_reverse_mappings": 0,
+    "local_proxy_18973_listening": false,
+    "other_emulators_untouched": true
+  },
+  "immutable_evidence_verification": {
+    "bilingual-ack-fix-evidence-20261018": {
+      "verified_files": 20,
+      "manifest_sha256": "3d5be0a96221167be5c01557d18fd096f04511a8148a9e28581206aa42feecf9",
+      "preserved_unchanged": true
+    },
+    "bilingual-downlink-ack-evidence-20261018": {
+      "verified_files": 23,
+      "manifest_sha256": "c0073f368426b0b84e6543ccc74a4fd23213d42a55013f81bac1582d50969ffa",
+      "preserved_unchanged": true
+    }
+  },
+  "historical_validation_not_rerun_for_documentation": {
+    "android_jvm_tests_passed": 1019,
+    "gateway_windows_tests_passed": 174,
+    "gateway_linux_tests_passed": 174,
+    "gateway_release_guard_jobs_passed": 4,
+    "real_phone_controlled_downlink_before_failed_after_passed": true
+  },
+  "open_followups": [
+    {
+      "id": "BT04",
+      "priority": "P1",
+      "status": "open",
+      "scope": "Transient direction-classifier dependency failure; existing explicit restart policy retained"
+    },
+    {
+      "id": "BACKEND-AVAILABILITY",
+      "priority": "P1",
+      "status": "open",
+      "scope": "Historical health-probe timeouts and two restarts; no new restart in closeout snapshot"
+    },
+    {
+      "id": "R1",
+      "priority": "P1",
+      "status": "observation_open"
+    },
+    {
+      "id": "R2",
+      "priority": "P1",
+      "status": "manual_acceptance_pending"
+    },
+    {
+      "id": "R3",
+      "priority": "P1",
+      "status": "manual_acceptance_pending"
+    },
+    {
+      "id": "R4",
+      "priority": "P2",
+      "status": "deferred_by_user"
+    },
+    {
+      "id": "R5",
+      "priority": "P2",
+      "status": "single_account_only_wider_rollout_deferred"
+    },
+    {
+      "id": "R6",
+      "priority": "P2",
+      "status": "skipped_by_user_pending_equipment"
+    },
+    {
+      "id": "R7",
+      "status": "usage_recorded_bill_amount_pending"
+    }
+  ],
+  "experimental_400_700_defaults_adopted": false,
+  "historical_unexplained_connection_failures_closed": false,
+  "concurrency_capacity_acceptance_in_scope": false,
+  "this_closeout": {
+    "documentation_only": true,
+    "product_code_changed": false,
+    "build_performed": false,
+    "deployment_performed": false,
+    "feature_or_allowlist_changed": false,
+    "resources_changed": false,
+    "release_assets_overwritten": false,
+    "automatic_followup_scheduled": false
+  }
+}
