@@ -1,0 +1,264 @@
+{
+  "recorded_at": "2026-10-18T14:31:52.822890+00:00",
+  "gateway_source_commit": "145de46473af4fed915256621dbaae1707ec63e1",
+  "android_product_source_commit": "70c528d59a78202c6949d32fc9bb0d78e7f2453c",
+  "android_test_source_commit": "735a93847d2d91d0d3d3c79815e598e36297a5d1",
+  "apk_version": "0.3.0-work.7",
+  "apk_unchanged": true,
+  "apk_sha256": "72d945fd91c3d0de930a75ef2ba7d6ee1b954e25b3ecd3a090a48675f3b8718f",
+  "new_apk_required": false,
+  "mechanism": "Buffered long audio was burst-written ahead of ACKs on one WebSocket/TCP downlink; a busy-UI fix alone cannot prevent this head-of-line delay.",
+  "loopback": {
+    "scope": "Loopback WebSocket and production gateway emit, throttled 120KB/s downlink; no provider/admission/TLS/physical phone; paced row uses the product BilingualAudioOutput and gateway emit; unpaced row disables only that writer",
+    "cases": [
+      {
+        "production_pacing": false,
+        "downlink_bytes_per_second": 120000,
+        "sent_frames": 73,
+        "acks": 73,
+        "max_ack_ms": 7090,
+        "ack_deadline_would_fail": true,
+        "elapsed_ms": 7935
+      },
+      {
+        "production_pacing": true,
+        "downlink_bytes_per_second": 120000,
+        "sent_frames": 110,
+        "acks": 110,
+        "max_ack_ms": 528,
+        "ack_deadline_would_fail": false,
+        "elapsed_ms": 11937
+      }
+    ]
+  },
+  "phone_before": {
+    "started_at": "2026-10-18T14:12:29.247487+00:00",
+    "completed_at": "2026-10-18T14:13:54.207287+00:00",
+    "phase": "baseline",
+    "passed": false,
+    "bt11_reproduced": true,
+    "diagnostics": [
+      {
+        "reads": 180,
+        "last_read_samples": 1600,
+        "read_failures": 0,
+        "input_interruptions": 0,
+        "output_interruptions": 0,
+        "foreground_interruptions": 0,
+        "sent_frames": 179,
+        "wire_failures": 1,
+        "playback_failures": 0,
+        "peak_queued_bytes": 0,
+        "played_samples": 120000,
+        "last_ack_age_ms": 5275,
+        "events": {
+          "ready": 1,
+          "ack": 130,
+          "audio": 10
+        },
+        "error_codes": [],
+        "phase": "ERROR",
+        "failure_reason": "ACK_TIMEOUT"
+      }
+    ],
+    "main_apk_before": "72d945fd91c3d0de930a75ef2ba7d6ee1b954e25b3ecd3a090a48675f3b8718f",
+    "main_apk_after": "72d945fd91c3d0de930a75ef2ba7d6ee1b954e25b3ecd3a090a48675f3b8718f",
+    "downlink_bytes_per_second": 75000,
+    "tls_verification": "Production TLS and hostname verification unchanged; CONNECT byte relay only",
+    "speech_fixture": "Two continuous synthetic repetitions of the generic travel sentence with a short gap",
+    "fixture_seconds": 12.320375,
+    "log": "bt11-phone-downlink-baseline-20261018.log",
+    "scope": "Actual OPPO, authenticated production gateway/model, synthetic capture and AudioTrack/replay; not Honor natural speech"
+  },
+  "phone_after": {
+    "started_at": "2026-10-18T14:24:34.327957+00:00",
+    "completed_at": "2026-10-18T14:26:26.309142+00:00",
+    "phase": "fixed",
+    "passed": true,
+    "bt11_reproduced": false,
+    "diagnostics": [
+      {
+        "reads": 350,
+        "last_read_samples": 0,
+        "read_failures": 0,
+        "input_interruptions": 0,
+        "output_interruptions": 0,
+        "foreground_interruptions": 0,
+        "sent_frames": 349,
+        "wire_failures": 1,
+        "playback_failures": 0,
+        "peak_queued_bytes": 0,
+        "played_samples": 387840,
+        "last_ack_age_ms": 11637,
+        "events": {
+          "ready": 1,
+          "ack": 349,
+          "translation": 1,
+          "finished": 1,
+          "audio": 17,
+          "audio_end": 1
+        },
+        "error_codes": [],
+        "phase": "CLOSED"
+      }
+    ],
+    "main_apk_before": "72d945fd91c3d0de930a75ef2ba7d6ee1b954e25b3ecd3a090a48675f3b8718f",
+    "main_apk_after": "72d945fd91c3d0de930a75ef2ba7d6ee1b954e25b3ecd3a090a48675f3b8718f",
+    "downlink_bytes_per_second": 75000,
+    "tls_verification": "Production TLS and hostname verification unchanged; CONNECT byte relay only",
+    "speech_fixture": "Two continuous synthetic repetitions of the generic travel sentence with a short gap",
+    "fixture_seconds": 12.320375,
+    "log": "bt11-phone-downlink-fixed-20261018.log",
+    "scope": "Actual OPPO, authenticated production gateway/model, synthetic capture and AudioTrack/replay; not Honor natural speech"
+  },
+  "deployment": {
+    "source_commit": "145de46473af4fed915256621dbaae1707ec63e1",
+    "revision_before": 496,
+    "revision": 497,
+    "helm_status": "deployed",
+    "changed_images": [
+      "Deployment/meet-agent-capture-translation"
+    ],
+    "resources_unchanged": true,
+    "rollout_scope_unchanged": true,
+    "backend_unchanged": true,
+    "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:145de4647",
+    "digest": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents@sha256:fdd1bd60315a48c61c6460a2fe6641c3edc0d5b8a18a8636642bf4e7d8b46609",
+    "deployed_source_matches": true,
+    "all_workloads_ready": true,
+    "pending_pods": 1,
+    "observed_at": "2026-10-18T14:23:21.650026+00:00"
+  },
+  "linux_tests": {
+    "started_at": "2026-10-18T14:10:51.858876+00:00",
+    "completed_at": "2026-10-18T14:11:00.973159+00:00",
+    "source_commit": "145de46473af4fed915256621dbaae1707ec63e1",
+    "image_id": "sha256:fdd1bd60315a48c61c6460a2fe6641c3edc0d5b8a18a8636642bf4e7d8b46609",
+    "tag": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:145de4647",
+    "exit": 0,
+    "tests": 174,
+    "seconds": 4.347,
+    "network": "none",
+    "host_mounts": [],
+    "source_sha256": {
+      "src/translation/assistant_gateway.py": "1a7204a828908b1e6f38c9ed2fd3b507c046ba3b6b005c4b66eef1b044ba9d11",
+      "src/translation/bilingual_output.py": "d4781ef786e70a644b83900f8df52ef6fdc1af7b01ec5f679458e0ba27f1370f"
+    },
+    "source_matches_commit": true
+  },
+  "windows_tests": {
+    "started_at": "2026-10-18T14:07:20.823019+00:00",
+    "completed_at": "2026-10-18T14:07:29.356329+00:00",
+    "exit": 0,
+    "modules": [
+      "test_omni_language_id",
+      "test_speech_language_id",
+      "test_bilingual_router",
+      "test_bilingual_audio",
+      "test_bilingual_websocket",
+      "test_bilingual_recovery",
+      "test_bilingual_gateway_socket",
+      "test_bilingual_direction",
+      "test_bilingual_settings",
+      "test_bilingual_languages",
+      "test_assistant_translation",
+      "test_bilingual_latency_probe",
+      "test_bilingual_speech_handshake_probe",
+      "test_qwen_live_translate",
+      "test_bilingual_output"
+    ],
+    "tests": 174
+  },
+  "ci": {
+    "observed_at": "2026-10-18T14:16:20.789515+00:00",
+    "source_commit": "145de46473af4fed915256621dbaae1707ec63e1",
+    "run_id": 39134560064,
+    "status": "completed",
+    "jobs": [
+      {
+        "name": "backend-boundaries",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/John-Shao/we-meet/actions/runs/39134560064/job/117696322887"
+      },
+      {
+        "name": "deployment-boundaries",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/John-Shao/we-meet/actions/runs/39134560064/job/117696323108"
+      },
+      {
+        "name": "desktop-boundaries",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/John-Shao/we-meet/actions/runs/39134560064/job/117696323121"
+      },
+      {
+        "name": "frontend-artifact",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/John-Shao/we-meet/actions/runs/39134560064/job/117696323133"
+      }
+    ],
+    "all_passed": true
+  },
+  "business_scope": {
+    "enabled": true,
+    "allowed_account_count": 1,
+    "nonallowlisted_ticket_status": 403,
+    "active_translation_sessions": 0
+  },
+  "post_smoke_health": [
+    {
+      "session": "39b138cb",
+      "ack_frames": 349,
+      "max_input_gap_ms": 336,
+      "max_ack_write_ms": 2,
+      "peak_output_bytes": 387840
+    }
+  ],
+  "post_smoke_errors": [],
+  "pending_unrelated_jobs": [
+    {
+      "name": "meet-backend-docs-profiles-29872229-q287h",
+      "phase": "Pending",
+      "owners": [
+        "Job"
+      ],
+      "insufficient_cpu": false
+    }
+  ],
+  "backend_restarts": 2,
+  "gateway_restarts": 0,
+  "usage": {
+    "sessions": 3,
+    "totals": {
+      "duration_ms": 96846,
+      "input_bytes": 2547200,
+      "output_bytes": 1486583,
+      "translations": 3,
+      "providers": 6
+    },
+    "all_closed": true,
+    "counters_complete": true,
+    "not_supplier_bill_amount": true,
+    "provider_counter_excludes_language_classifier_connections": true
+  },
+  "bt04": {
+    "code": "language_detection_unavailable",
+    "observed_local_time": "2026-10-18 20:09:18",
+    "cause": "Transient language-classifier dependency failure; gateway max_failures=1 terminates the session by existing policy.",
+    "fixed": false,
+    "existing_explicit_restart_policy_preserved": true
+  },
+  "honor_natural_speech_retest_required": true,
+  "ack_deadline_ms": 5000,
+  "input_windows_unchanged": true,
+  "turn_detection_and_language_parameters_unchanged": true,
+  "server_media_queue": {
+    "max_raw_audio_bytes": 2880000,
+    "max_events": 256,
+    "lookahead_seconds": 0.5
+  },
+  "backend_resources_and_other_images_unchanged": true
+}
