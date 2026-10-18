@@ -1,0 +1,89 @@
+{
+  "scope": "internal diagnostic release, not a confirmed long-sentence truncation fix",
+  "reported_device": {
+    "model": "Honor 300",
+    "android_version": 16
+  },
+  "source_commit": "5bc23942a55dac2599ac03baa102394db2a10c93",
+  "release_url": "https://github.com/John-Shao/we-meet-android/releases/tag/v0.3.0-work.6-internal",
+  "artifact": {
+    "file": "we-meet-0.3.0-work.6-internal.apk",
+    "bytes": 146170320,
+    "sha256": "3f8a8f046fc12a66a50fa6475806342ccdfcd3e6f6b8453c4c2e65f06bcef305"
+  },
+  "candidate_device_check": {
+    "started_at": "2026-10-18T07:12:44.272843+00:00",
+    "completed_at": "2026-10-18T07:13:51.528720+00:00",
+    "candidate_installed": true,
+    "version_name": "0.3.0-work.6",
+    "version_code": 8,
+    "device_model": "OPPO PDYM20",
+    "android_api": 31,
+    "long_playback_passed": true,
+    "tests": [
+      "longBurstDrainsBeyondTheAudioTrackCapacityWhileInputAcksContinue",
+      "readAndPlaybackExceptionsRetainDistinctFailureReasonsAndReleaseResources",
+      "connectionLossPreservesCompletedRowsAndDiscardsPartialAudioWithoutRetry"
+    ],
+    "physical_audio_track": true,
+    "physical_microphone": false,
+    "real_business_connection": false,
+    "input_and_transport": "test doubles",
+    "audio": "12 seconds zero PCM; no acoustic judgment",
+    "honor_android16_verified": false
+  },
+  "provider_probe": {
+    "scope": "isolated fixture admission, installed production gateway code, synthetic speech, no physical microphone or playback",
+    "cases": [
+      {
+        "mode": "automatic",
+        "passed": true,
+        "errors": [],
+        "outputs": [
+          {
+            "audio_bytes": 330240,
+            "audio_end": true,
+            "source": "zh",
+            "target": "en"
+          }
+        ],
+        "lexical": {
+          "source_shanghai": true,
+          "target_shanghai": true,
+          "source_meeting": true,
+          "target_meeting": true,
+          "target_nine": true
+        }
+      },
+      {
+        "mode": "fixed",
+        "passed": true,
+        "errors": [],
+        "outputs": [
+          {
+            "audio_bytes": 353280,
+            "audio_end": true,
+            "source": "zh",
+            "target": "en"
+          }
+        ],
+        "lexical": {
+          "source_shanghai": true,
+          "target_shanghai": true,
+          "source_meeting": true,
+          "target_meeting": true,
+          "target_nine": true
+        }
+      }
+    ]
+  },
+  "observed_interruption_seconds_after_result": [
+    14.291,
+    5.17
+  ],
+  "root_cause": "unconfirmed; server counters and successful synthetic checks do not prove Honor playback",
+  "server_deployment_changed": false,
+  "translation_parameters_changed": false,
+  "honor_retest_required": true,
+  "related_availability_incident": "API backend restarted after liveness probe timeouts at 14:31 and 14:49 local; underlying timeout cause remains unconfirmed; existing CPU expansion deferral preserved"
+}
