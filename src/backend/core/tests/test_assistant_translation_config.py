@@ -1,7 +1,7 @@
 import pytest
 from rest_framework.test import APIClient
 
-from core.api.assistant_translation import LANGUAGES
+from core.api.assistant_translation import LANGUAGES, TRANSCRIPTION_LANGUAGES
 from core.factories import UserFactory
 from core.models import AIModel, AIVoice
 
@@ -29,6 +29,7 @@ def test_translation_catalog_is_model_scoped_and_admin_managed():
         "reason": "feature_disabled",
         "protocol_version": 2,
         "languages": list(LANGUAGES),
+        "fixed_transcription_languages": list(TRANSCRIPTION_LANGUAGES),
         "default_voice": "FutureVoice",
         "voices": [{"value": "FutureVoice", "label": "New voice"}],
     }

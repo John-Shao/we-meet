@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import AsyncMock, Mock, patch
 
 from plugins.qwen.live_translate import TranslationConfig, TranslationError
+from tests.test_assistant_translation import events, grant
 from translation.assistant_gateway import (
     AssistantTranslationConnection,
     BilingualResults,
@@ -15,8 +16,6 @@ from translation.assistant_gateway import (
     lease as backend_lease,
 )
 from translation.bilingual_router import BilingualUtteranceRouter
-
-from tests.test_assistant_translation import events, grant
 
 
 class WebSocketTests(unittest.IsolatedAsyncioTestCase):
@@ -73,6 +72,7 @@ class WebSocketTests(unittest.IsolatedAsyncioTestCase):
             claim_ticket=AsyncMock(return_value=grant(**(choices or {}))),
             config_factory=lambda **kw: TranslationConfig("test", "workspace", **kw),
             session_factory=provider,
+            transcription_factory=provider,
             detector_factory=detector,
             vad_factory=AsyncMock(),
             update_lease=lease,
@@ -117,6 +117,54 @@ class WebSocketTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(output[-1]["type"], "finished")
         self.assertEqual(lease.call_args.args, ("session", "close"))
         providers[0].close.assert_awaited_once()
+
+    async def test_new_fixed_mode_opens_translator_and_asr_with_language_routing(self):
+        """Only the explicitly opted-in fixed mode adds a record-only provider."""
+        output, providers, detector, _ = await self.run_connection(
+            choices={"fixed_source": "en", "record_other_language": True}
+        )
+        self.assertEqual(len(providers), 2)
+        self.assertEqual(
+            (providers[0].config.source, providers[0].config.target), ("en", "zh")
+        )
+        self.assertTrue(providers[0].config.audio)
+        self.assertEqual(providers[1].config.source, "zh")
+        self.assertFalse(providers[1].config.audio)
+        detector.assert_called_once()
+        self.assertEqual(output[-1]["type"], "finished")
+
+    async def test_new_fixed_mode_silently_discards_unknown_notifications(self):
+        """Unknown audio creates no public content or unknown placeholder."""
+        socket = AsyncMock()
+        connection = AssistantTranslationConnection(socket)
+        connection.record_other_language = True
+        await connection.emit({"type": "language_unknown"})
+        socket.send.assert_not_awaited()
+
+    async def test_new_fixed_mode_suppresses_out_of_pair_provider_results(self):
+        """A mistaken early classification cannot release third-language output."""
+        emit = AsyncMock()
+        results = BilingualResults("zh", emit, source="en", strict_pair=True)
+        for event in events("fr"):
+            await results.accept(event)
+        self.assertFalse(results.items)
+        self.assertEqual(
+            [call.args[0]["type"] for call in emit.call_args_list], ["language_unknown"]
+        )
+
+    async def test_late_asr_retains_record_only_language_without_audio(self):
+        """Known record-only speech survives an incorrect early LID decision."""
+        emit = AsyncMock()
+        results = BilingualResults("zh", emit, source="en", strict_pair=True)
+        sequence = events("zh")
+        sequence[0]["text"] = "\u4f60\u597d"
+        for event in sequence:
+            await results.accept(event)
+        output = [call.args[0] for call in emit.call_args_list]
+        self.assertEqual([event["type"] for event in output], ["transcription"])
+        self.assertEqual(output[0]["source"], "\u4f60\u597d")
+        self.assertEqual(output[0]["source_language"], "zh")
+        self.assertFalse(results.items)
 
     async def test_idle_timeout_finishes_then_releases_every_provider(self):
         """Idle expiry drains providers and returns the business-session lease."""

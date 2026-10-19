@@ -55,6 +55,47 @@ def test_allowlisted_account_catalog_and_ticket_are_available(admission):
     assert start(client, agent)["session_id"]
 
 
+def test_record_other_language_is_signed_and_claimed_only_for_supported_fixed_mode(
+    admission,
+):
+    """Old tickets remain false; the new behavior is explicitly authenticated."""
+    _, client, agent = admission
+    choices = {
+        "source_language": "en",
+        "target_language": "zh",
+        "fixed_source": "en",
+        "record_other_language": True,
+        "protocol_version": 2,
+    }
+    ticket = client.post(TICKET, choices, format="json")
+    assert ticket.status_code == 200
+    assert ticket.data["record_other_language"] is True
+    claimed = agent.post(CLAIM, {"ticket": ticket.data["ticket"]}, format="json")
+    assert claimed.status_code == 200
+    assert claimed.data["record_other_language"] is True
+
+
+@pytest.mark.parametrize("fixed,target", [(None, "zh"), ("en", "nl"), ("en", "he")])
+def test_invalid_record_only_mode_is_rejected_before_reservation(
+    admission, fixed, target
+):
+    """Unsupported ASR languages and automatic mode cannot opt into fixed recording."""
+    client = admission[1]
+    response = client.post(
+        TICKET,
+        {
+            "source_language": "en",
+            "target_language": target,
+            "fixed_source": fixed,
+            "record_other_language": True,
+            "protocol_version": 2,
+        },
+        format="json",
+    )
+    assert response.status_code == 400
+    assert not BilingualSession.objects.exists()
+
+
 def test_other_account_cannot_discover_or_reserve_translation(admission):
     """The global switch must not admit another authenticated account."""
     outsider = UserFactory(is_staff=True)

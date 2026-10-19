@@ -40,6 +40,9 @@ class PairSerializer(serializers.Serializer):
 
 
 TRANSLATION_MODEL = "qwen3.8-livetranslate-flash-realtime"
+TRANSCRIPTION_LANGUAGES = tuple(
+    "zh en ja de ko ru fr pt ar it es hi id th tr vi cs da fil fi is ms nb pl sv".split()
+)
 
 
 class TicketSerializer(PairSerializer):
@@ -50,6 +53,7 @@ class TicketSerializer(PairSerializer):
         choices=LANGUAGES, allow_null=True, default=None
     )
     voice = serializers.CharField(max_length=128, required=False)
+    record_other_language = serializers.BooleanField(default=False)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -59,6 +63,20 @@ class TicketSerializer(PairSerializer):
             attrs["target_language"],
         ):
             raise serializers.ValidationError("Invalid fixed direction.")
+        if attrs["record_other_language"]:
+            fixed = attrs["fixed_source"]
+            other = next(
+                (
+                    code
+                    for code in (attrs["source_language"], attrs["target_language"])
+                    if code != fixed
+                ),
+                None,
+            )
+            if fixed is None or other not in TRANSCRIPTION_LANGUAGES:
+                raise serializers.ValidationError(
+                    "Record-only language is not supported."
+                )
         return attrs
 
 
@@ -99,6 +117,7 @@ class AssistantTranslationConfigView(APIView):
                 "voices": voices,
                 "protocol_version": 2,
                 "languages": list(LANGUAGES),
+                "fixed_transcription_languages": list(TRANSCRIPTION_LANGUAGES),
                 "enabled": bool(enabled and model and voices),
                 "reason": (
                     "feature_disabled"
@@ -187,7 +206,16 @@ class AssistantTranslationTicketView(APIView):
             salt=SALT,
         )
         return Response(
-            {"url": url, "ticket": ticket, "protocol_version": 2},
+            {
+                "url": url,
+                "ticket": ticket,
+                "protocol_version": 2,
+                **(
+                    {"record_other_language": True}
+                    if data["record_other_language"]
+                    else {}
+                ),
+            },
             headers={"Cache-Control": "no-store"},
         )
 

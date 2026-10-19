@@ -32,6 +32,10 @@ from translation.bilingual_direction import (
 from translation.bilingual_output import BilingualAudioOutput
 from translation.bilingual_session import BilingualTranslationSession
 from translation.bilingual_settings import BilingualSettings
+from translation.bilingual_transcription import (
+    ASR_LANGUAGES,
+    BilingualTranscriptionSession,
+)
 from transport.http import open_backend
 
 # Output awaiting its original-transcript association is bounded. Once linked,
@@ -146,10 +150,11 @@ def _backend(action, payload):
 class BilingualResults:
     """Match original, translation and audio by ID in any arrival order."""
 
-    def __init__(self, target, emit, *, source, repair=None, key=""):
+    def __init__(self, target, emit, *, source, repair=None, key="", strict_pair=False):  # noqa: PLR0913 -- independent provider result policy
         """Keep only bounded source and response associations."""
         self.target, self.emit = target, emit
         self.source = source
+        self.strict_pair = strict_pair
         self.sources = OrderedDict()
         self.items = {}
         self.done = set()
@@ -181,7 +186,13 @@ class BilingualResults:
                 )
                 self.sources[event["item_id"]] = {
                     **event,
-                    "language": source_language(event, self.source, self.target),
+                    "language": (
+                        None
+                        if self.strict_pair
+                        and event.get("language") is not None
+                        and event["language"] not in {self.source, self.target}
+                        else source_language(event, self.source, self.target)
+                    ),
                 }
                 if len(self.sources) > MAX_SOURCES:
                     self.sources.popitem(last=False)
@@ -313,6 +324,19 @@ class BilingualResults:
 
     async def _schedule_repair(self, *, identity, source):
         self.check()
+        if self.strict_pair and source["language"] == self.target:
+            # Late ASR can correct the early LID choice. Preserve the known
+            # record-only original while discarding every translated byte.
+            if source["text"].strip():
+                await self.emit(
+                    {
+                        "type": "transcription",
+                        "id": "original:" + identity,
+                        "source_language": self.target,
+                        "source": source["text"].strip(),
+                    }
+                )
+            return
         logger.info(
             "translation_direction_conflict selected=%s actual=%s session=%s",
             self.source,
@@ -398,6 +422,7 @@ class AssistantTranslationConnection:
         config_factory=TranslationConfig.from_env,
         session_factory=BilingualTranslationSession,
         detector_factory=SpeechLanguageDetector,
+        transcription_factory=BilingualTranscriptionSession,
         vad_factory=open_vad,
         update_lease=lease,
     ):
@@ -410,6 +435,8 @@ class AssistantTranslationConnection:
         self.config_factory = config_factory
         self.session_factory = session_factory
         self.detector_factory, self.vad_factory = detector_factory, vad_factory
+        self.transcription_factory = transcription_factory
+        self.record_other_language = False
         self.detector = self.audio_input = None
         self.audio_output = None
         self.sessions = []
@@ -440,6 +467,8 @@ class AssistantTranslationConnection:
 
     async def emit(self, event):
         """Pace audio while ACKs and text bypass the audio queue."""
+        if self.record_other_language and event["type"] == "language_unknown":
+            return
         if self.audio_output and event["type"] in {"audio", "audio_end"}:
             self.audio_output.put(event)
             return
@@ -453,7 +482,7 @@ class AssistantTranslationConnection:
         self.output_bytes += len(payload)
         if event["type"] == "translation":
             self.translations += 1
-        if event["type"] in {"translation", "audio"}:
+        if event["type"] in {"translation", "transcription", "audio"}:
             self.last_activity = time.monotonic()
 
     async def _heartbeat(self, interval):
@@ -559,6 +588,10 @@ class AssistantTranslationConnection:
         fixed_source = grant.get("fixed_source")
         if fixed_source is not None and fixed_source not in pair:
             raise ValueError("invalid_fixed_source")
+        record_other = grant.get("record_other_language", False)
+        if type(record_other) is not bool or record_other and fixed_source is None:
+            raise ValueError("invalid_fixed_transcription")
+        self.record_other_language = record_other
         # A transport failure requires an explicit user restart, including LID.
         settings = replace(BilingualSettings.from_env(), max_failures=1)
         by_source = {}
@@ -590,6 +623,7 @@ class AssistantTranslationConnection:
                 source=source,
                 repair=None,
                 key=self.key,
+                strict_pair=record_other,
             )
             self.results.append(results)
             session = self.session_factory(config, results.accept)
@@ -602,7 +636,16 @@ class AssistantTranslationConnection:
             )
             self.sessions.append(session)
             by_source[source] = session
-        if fixed_source is None:
+        if record_other:
+            other = next(code for code in pair if code != fixed_source)
+            if other not in ASR_LANGUAGES:
+                raise ValueError("unsupported_transcription_language")
+            asr_config = replace(config, source=other, target=other, audio=False)
+            transcription = self.transcription_factory(asr_config, self.emit)
+            transcription.key = self.key
+            self.sessions.append(transcription)
+            by_source[other] = transcription
+        if fixed_source is None or record_other:
             self.detector = self.detector_factory(config, languages=pair)
             self.detector.key = self.key
             self.detector.timeout = settings.detection_timeout
@@ -627,7 +670,7 @@ class AssistantTranslationConnection:
             silence_bytes=config.turn_silence_bytes,
             key=self.key,
             languages=pair,
-            fixed_source=fixed_source,
+            fixed_source=None if record_other else fixed_source,
             prepare_speech=(
                 self.detector.begin_speech
                 if isinstance(self.detector, SpeechLanguageDetector)
@@ -644,6 +687,7 @@ class AssistantTranslationConnection:
                 "idle_seconds": self.idle_seconds,
                 "input_sample_rate": 16000,
                 "output_sample_rate": 24000,
+                "record_other_language": self.record_other_language,
             }
         )
 
