@@ -1,0 +1,234 @@
+{
+  "source_commit": "808c98723adea0ea28382f3ffc1a5db704c67a03",
+  "date": "2026-10-19",
+  "status": "deployed",
+  "helm_revision": 498,
+  "previous_revision": 497,
+  "completed_utc": "2026-10-19T04:21:32.818071+00:00",
+  "audited_utc": "2026-10-19T04:25:26.096889+00:00",
+  "apk_version": "0.3.0-work.9",
+  "apk_source_commit": "3626ea28432c21afdf4acbce84ff0d0ed124426b",
+  "apk_sha256": "924ec3ba3db1281082e5c192e654c8915f1c29f8a03943139561d42d7f9c3461",
+  "release_candidate": {
+    "source_commit": "808c98723adea0ea28382f3ffc1a5db704c67a03",
+    "immutable_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:b21a0d6e713d72c01bb33fb52d702e033489fbd71090d91dd78134993eeacce6",
+    "registry_digest_verified": true
+  },
+  "images": [
+    {
+      "family": "backend",
+      "tagged_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:808c98723",
+      "immutable_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:b21a0d6e713d72c01bb33fb52d702e033489fbd71090d91dd78134993eeacce6",
+      "digest": "sha256:b21a0d6e713d72c01bb33fb52d702e033489fbd71090d91dd78134993eeacce6",
+      "base_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend@sha256:5f3e92dbe0ba6ec41af72dd47bf8a5ab371a2d37bf8cdb86bd4992682b5d4e64",
+      "base_source": "938b16649408b2c690752b9c318256b89746b3b8",
+      "source_commit": "808c98723adea0ea28382f3ffc1a5db704c67a03",
+      "base_verified_files": 692,
+      "candidate_verified_files": 692,
+      "changed_files": [
+        "src/backend/core/api/assistant_translation.py",
+        "src/backend/core/tests/test_assistant_translation_config.py",
+        "src/backend/core/tests/test_bilingual_sessions.py"
+      ],
+      "image_runtime_configuration_unchanged": true
+    },
+    {
+      "family": "agents",
+      "tagged_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:808c98723",
+      "immutable_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents@sha256:6705294df8a6c661b5f242ec407b0af0ca893d01f319882bbb136df2299c0d4c",
+      "digest": "sha256:6705294df8a6c661b5f242ec407b0af0ca893d01f319882bbb136df2299c0d4c",
+      "base_image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents@sha256:fdd1bd60315a48c61c6460a2fe6641c3edc0d5b8a18a8636642bf4e7d8b46609",
+      "base_source": "145de46473af4fed915256621dbaae1707ec63e1",
+      "source_commit": "808c98723adea0ea28382f3ffc1a5db704c67a03",
+      "base_verified_files": 74,
+      "candidate_verified_files": 75,
+      "changed_files": [
+        "src/agents/src/translation/assistant_gateway.py",
+        "src/agents/src/translation/bilingual_transcription.py",
+        "src/agents/tests/test_bilingual_transcription.py",
+        "src/agents/tests/test_bilingual_websocket.py"
+      ],
+      "image_runtime_configuration_unchanged": true
+    }
+  ],
+  "verification": {
+    "controllers": [
+      {
+        "name": "meet-agent-capture-translation",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-agents:808c98723",
+        "digest": "sha256:6705294df8a6c661b5f242ec407b0af0ca893d01f319882bbb136df2299c0d4c",
+        "ready": 1
+      },
+      {
+        "name": "meet-backend",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:808c98723",
+        "digest": "sha256:b21a0d6e713d72c01bb33fb52d702e033489fbd71090d91dd78134993eeacce6",
+        "ready": 1
+      },
+      {
+        "name": "meet-backend-ai",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:808c98723",
+        "digest": "sha256:b21a0d6e713d72c01bb33fb52d702e033489fbd71090d91dd78134993eeacce6",
+        "ready": 1
+      },
+      {
+        "name": "meet-celery-backend",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:808c98723",
+        "digest": "sha256:b21a0d6e713d72c01bb33fb52d702e033489fbd71090d91dd78134993eeacce6",
+        "ready": 1
+      },
+      {
+        "name": "meet-celery-beat",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:808c98723",
+        "digest": "sha256:b21a0d6e713d72c01bb33fb52d702e033489fbd71090d91dd78134993eeacce6",
+        "ready": 1
+      },
+      {
+        "name": "meet-celery-work",
+        "image": "jusi-cn-guangzhou.cr.volces.com/we-meet/meet-backend:808c98723",
+        "digest": "sha256:b21a0d6e713d72c01bb33fb52d702e033489fbd71090d91dd78134993eeacce6",
+        "ready": 1
+      }
+    ],
+    "changed_cronjobs": [
+      "meet-backend-docs-profiles",
+      "meet-backend-reminders"
+    ],
+    "only_selected_images_changed": true,
+    "all_deployments_ready": true,
+    "deployment_count": 20,
+    "pending_pods": 0,
+    "selected_pod_restarts": 0,
+    "resources_unchanged": true,
+    "environment_unchanged": true,
+    "allowlist_count": 1,
+    "work_cohort_unchanged": true,
+    "public_smoke": {
+      "passed": true,
+      "checks": {
+        "allowed_public_catalog": true,
+        "fixed_transcription_language_count": true,
+        "other_account_still_disabled": true,
+        "other_account_ticket_rejected": true,
+        "invalid_fixed_request_rejected": true
+      },
+      "cases": [
+        {
+          "case": "new_fixed_mixed",
+          "passed": true,
+          "input_bytes": 1373440,
+          "acks": 430,
+          "rows": [
+            {
+              "type": "transcription",
+              "source_language": "zh",
+              "source_chars": 33,
+              "translated_chars": 0
+            },
+            {
+              "type": "translation",
+              "source_language": "en",
+              "source_chars": 113,
+              "translated_chars": 37
+            },
+            {
+              "type": "transcription",
+              "source_language": "zh",
+              "source_chars": 33,
+              "translated_chars": 0
+            }
+          ],
+          "audio_bytes": 395520,
+          "audio_ends": 1,
+          "record_other_language_confirmed": true
+        },
+        {
+          "case": "legacy_fixed",
+          "passed": true,
+          "input_bytes": 284800,
+          "acks": 89,
+          "rows": [
+            {
+              "type": "translation",
+              "source_language": "en",
+              "source_chars": 105,
+              "translated_chars": 34
+            }
+          ],
+          "audio_bytes": 334080,
+          "audio_ends": 1,
+          "record_other_language_confirmed": false
+        },
+        {
+          "case": "automatic",
+          "passed": true,
+          "input_bytes": 973120,
+          "acks": 305,
+          "rows": [
+            {
+              "type": "translation",
+              "source_language": "zh",
+              "source_chars": 34,
+              "translated_chars": 126
+            },
+            {
+              "type": "translation",
+              "source_language": "en",
+              "source_chars": 113,
+              "translated_chars": 36
+            }
+          ],
+          "audio_bytes": 837120,
+          "audio_ends": 2,
+          "record_other_language_confirmed": false
+        }
+      ],
+      "scope": "Public HTTPS with temporary Django sessions for existing users; real signed admission, serving WSS and models; synthetic PCM; no phone acoustics",
+      "usage": {
+        "all_closed_with_complete_usage": true,
+        "own_live_sessions": 0,
+        "sessions": [
+          {
+            "status": "closed",
+            "usage": {
+              "complete": true,
+              "providers": 2,
+              "duration_ms": 47877,
+              "input_bytes": 1373440,
+              "output_bytes": 536325,
+              "translations": 1
+            }
+          },
+          {
+            "status": "closed",
+            "usage": {
+              "complete": true,
+              "providers": 1,
+              "duration_ms": 16427,
+              "input_bytes": 284800,
+              "output_bytes": 448452,
+              "translations": 1
+            }
+          },
+          {
+            "status": "closed",
+            "usage": {
+              "complete": true,
+              "providers": 2,
+              "duration_ms": 39037,
+              "input_bytes": 973120,
+              "output_bytes": 1124482,
+              "translations": 2
+            }
+          }
+        ],
+        "usage_is_not_supplier_bill_amount": true
+      },
+      "observed_utc": "2026-10-19T04:24:34.311412+00:00"
+    },
+    "temporary_login_sessions_removed": true
+  },
+  "ci_url": "https://github.com/John-Shao/we-meet/actions/runs/39195848516/attempts/1",
+  "physical_acoustic_acceptance": "pending; not replaced by synthetic smoke",
+  "supplier_bill_amount": "deferred; usage counters recorded only"
+}
