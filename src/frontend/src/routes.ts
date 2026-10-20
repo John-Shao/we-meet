@@ -28,6 +28,7 @@ import { InviteRoute } from '@/features/invite'
 import { TasksRoute } from '@/features/tasks'
 import { WorkRoute } from '@/features/work/routes/WorkRoute'
 import { AiCallRoute } from '@/features/ai-call/AiCallRoute'
+import { AiAssistantRoute } from '@/features/ai-assistant/AiAssistantRoute'
 
 const roomIdRegex = new RegExp(`^[/](?<roomId>${flexibleRoomIdPattern})$`)
 
@@ -61,7 +62,8 @@ export const routes: Record<
   | 'work'
   | 'docs'
   | 'invite'
-  | 'aiCall',
+  | 'aiCall'
+  | 'aiAssistant',
   {
     name: RouteName
     path: RegExp | string
@@ -209,6 +211,11 @@ export const routes: Record<
     name: 'aiCall',
     path: '/ai-call',
     Component: AiCallRoute,
+  },
+  aiAssistant: {
+    name: 'aiAssistant',
+    path: '/assistant',
+    Component: AiAssistantRoute,
   },
 }
 

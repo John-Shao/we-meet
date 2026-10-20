@@ -105,6 +105,16 @@ export function DesktopTitleBar() {
             </button>
             <button
               type="button"
+              aria-label="AI 助手"
+              title="AI 助手"
+              onClick={() => {
+                window.location.assign('/assistant')
+              }}
+            >
+              AI
+            </button>
+            <button
+              type="button"
               aria-label="AI 打电话"
               title="AI 打电话"
               onClick={() => {
