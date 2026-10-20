@@ -928,7 +928,7 @@ macOS 屏幕录制权限：
 
 ### Phase 0：技术验证（3–5 天）
 
-状态：**核心通过，媒体顺序待修**（2026-10-20）
+状态：**核心通过**（2026-10-20）
 
 已完成：
 
@@ -937,13 +937,16 @@ macOS 屏幕录制权限：
 - DataChannel `oai-events` 打开；
 - 收到 `session.created` / `session.updated`；
 - photo QA 使用 `session_lease.id` 返回 200；
-- 预加无轨 video transceiver 可建立连接。
+- 预加无轨 video transceiver + 音频优先 + `replaceTrack`：
+  - 连接成功；
+  - 无重新协商；
+  - 无 `append image before append audio` 错误。
 
 待修：
 
-- 视频帧早于音频会触发 `Error append image before append audio`；
-- 需要补 `getDisplayMedia` 真实捕获和 `replaceTrack` 测试；
-- 进入 Phase 1 前必须完成媒体门控顺序。
+- 真实 `getDisplayMedia` 捕获与停止共享恢复；
+- Electron OIDC、浮窗 autoStart、源选择器；
+- 真实屏幕帧的 photo QA 可读性。
 
 ### Phase 1：Electron 浮窗 MVP（3–4 周）
 
@@ -1013,15 +1016,15 @@ macOS 屏幕录制权限：
 | 历史跨端同步 | 不在首版 |
 | 浏览器降级 | Chrome/Edge 面板 + Document PiP；Safari/Firefox 不承诺浮窗 |
 
-### 16.2 仍需 Phase 0 验证
+### 16.2 仍需验证
 
-1. 视频媒体门控：确保音频先于视频到达，消除 `Error append image before append audio`；
-2. 真实 `getDisplayMedia` 捕获后 `replaceTrack`，并在停止共享后恢复；
+1. 真实 `getDisplayMedia` 捕获、停止共享和摄像头恢复；
+2. 真实屏幕帧的 photo QA 可读性；
 3. Electron OIDC 使用 loopback 还是自定义 scheme；
 4. Electron 多显示器源选择器的具体交互；
 5. 浮窗 `autoStart` 在 Windows/macOS 上是否触发媒体权限拦截。
 
-其中 1、2 决定 Phase 1 媒体实现能否稳定；3、4、5 是实现细节，不阻塞架构。
+媒体门控已通过：offer 不挂视频轨，音频优先，`session.updated` 后 `replaceTrack`，且 `negotiationneeded = 0`。
 
 ## 17. 关键文件
 
@@ -1051,18 +1054,19 @@ macOS 屏幕录制权限：
 
 ## 18. 最终建议
 
-Phase 0 核心链路已通过，剩余工作集中在媒体门控和真实屏幕捕获。
+Phase 0 核心链路已通过，剩余工作集中在真实屏幕捕获和 Electron 壳。
 
 已通过：
 
 - `addTrack` 音频 + `addTransceiver(video, sendrecv)` 的浏览器 SDP 被供应商接受；
 - DataChannel `oai-events`、`session.created`、`session.updated` 正常；
-- photo QA 使用 `session_lease.id` 成功。
+- photo QA 使用 `session_lease.id` 成功；
+- 无轨 video transceiver + 延迟 `replaceTrack` 正常，无需重新协商。
 
 进入 Phase 1 前还需：
 
-- 视频晚于音频发送，消除 `Error append image before append audio`；
 - `getDisplayMedia` 真实屏幕轨替换/恢复；
+- 真实屏幕帧 photo QA 可读性；
 - 浮窗 `autoStart` 和 OIDC 壳验证。
 
 满足后把媒体核心封装成 React 模块，接入：
@@ -1118,8 +1122,9 @@ ICE gathering: complete
 |---|---|
 | `addTransceiver` sendonly audio/video | `502` |
 | audio + data（`addTrack`） | `200` |
-| audio + video + data（`addTrack`） | `200` |
+| audio + video + data（`addTrack`） | `200`，但出现媒体顺序错误 |
 | audio + 预加无轨 video + data | `200` |
+| audio + 预加无轨 video + data + 延迟 `replaceTrack` | `200`，无错误 |
 | audio only，无 DataChannel | `502` |
 
 关键结论：
@@ -1130,41 +1135,54 @@ ICE gathering: complete
 4. DataChannel 是连接和会话事件所必需的；
 5. 连接后收到 `session.created` / `session.updated`。
 
-### 19.4 新发现的问题
+### 19.4 媒体顺序验证
 
-带真实视频轨时，供应商返回：
+错误现象：
 
 ```text
 invalid_request_error: Error append image before append audio
 ```
 
-说明视频帧先于音频到达。不是 SDP 拒绝；连接和会话已建立，但媒体顺序错误。
+验证结果：
 
-处理方向：
+| 方案 | 结果 |
+|---|---|
+| offer 阶段挂真实 video track，即使 `enabled=false` | 仍出现 image-before-audio 错误 |
+| offer 阶段只加 audio + **无轨 video transceiver**，session.updated 后再 `replaceTrack` | 200，无错误，`negotiationneeded = 0` |
 
-- offer 阶段不挂视频轨；
-- 先发音频；
+结论：
+
+- 不要用“禁用真实 video track”来做门控；
+- offer 阶段不要挂视频轨；
+- 使用 `addTransceiver("video", {direction:"sendrecv"})`，保持 sender 无 track；
+- 先发送音频；
 - 等 `session.created` / `session.updated`；
-- 再 `replaceTrack(screenTrack)`；
-- 或使用视频轨 `enabled=false`，音频开始后再启用。
+- 再 `videoSender.replaceTrack(screenTrack)`。
 
 ### 19.5 当前结论
 
-Phase 0 **核心链路通过，媒体顺序待修**。
+Phase 0 **核心链路通过**。
 
-可以进入 Phase 1 的媒体实现，但必须先完成：
+已验证：
 
-1. 音频优先的媒体门控；
-2. 真实 `getDisplayMedia` 捕获与 `replaceTrack`；
-3. 停止共享后的摄像头/空轨恢复；
-4. Electron OIDC/浮窗 autoStart 验证。
+- 浏览器 SDP 被供应商接受；
+- DataChannel/会话事件正常；
+- photo QA 正常；
+- 无轨 video transceiver + 延迟 replaceTrack 正常，且不需要重新协商。
+
+仍需：
+
+1. 真实 `getDisplayMedia` 捕获与停止共享恢复；
+2. 真实屏幕帧的 photo QA 可读性；
+3. Electron OIDC、浮窗 autoStart、源选择器；
+4. 媒体断线/轨道 ended 的恢复。
 
 ### 19.6 下一步
 
-1. 在测试脚本中实现“先音频、后视频”的门控并复测；
-2. 用 `canvas.captureStream()` 或真实 `getDisplayMedia` 替换 video sender；
-3. 验证不重新协商、不重连；
-4. 再用真实 Electron 浮窗验证 `autoStart` 和权限；
+1. 用真实 `getDisplayMedia` 替换 video sender；
+2. 验证共享停止、恢复摄像头、track ended；
+3. 对真实屏幕截图跑 photo QA；
+4. 用 Electron 浮窗验证 `autoStart` 和权限；
 5. 全部通过后进入 Phase 1。
 
 ### 19.7 验证产物

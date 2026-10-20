@@ -10,6 +10,7 @@ const withAudio = mode.includes('a')
 const withVideo = mode.includes('v')
 const withPreVideo = mode.includes('p')
 const withData = mode.includes('d')
+const replaceVideo = process.env.WE_MEET_REPLACE === '1'
 
 if (!token) {
   console.error('WE_MEET_ACCESS_TOKEN is required')
@@ -100,23 +101,28 @@ console.log('answer keys:', Object.keys(answer).join(','), 'has SDP:', Boolean(a
 const result = await page.evaluate(async (payload) => {
   const { pc, channel } = window.__phase0
   const events = []
+  let negotiation = 0
+  pc.addEventListener('negotiationneeded', () => { negotiation += 1 })
   if (!channel) {
     await pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp })
     const deadline = Date.now() + 10_000
     while (Date.now() < deadline && !['connected', 'failed', 'disconnected'].includes(pc.connectionState)) {
       await new Promise((resolve) => setTimeout(resolve, 250))
     }
-    return { channel: 'none', ice: pc.iceConnectionState, connection: pc.connectionState, events }
+    return { channel: 'none', ice: pc.iceConnectionState, connection: pc.connectionState, events, negotiation }
   }
   channel.addEventListener('message', (event) => {
-    if (events.length < 8) events.push(String(event.data).slice(0, 500))
+    if (events.length < 12) events.push(String(event.data).slice(0, 500))
   })
   const videoTrack = window.__phase0.videoTrack
+  let videoEnabled = false
   channel.addEventListener('message', (event) => {
     try {
       const parsed = JSON.parse(String(event.data))
-      if (parsed?.type === 'session.created' && videoTrack && !videoTrack.enabled) {
-        videoTrack.enabled = true
+      if (parsed?.type === 'session.updated' && videoTrack && !videoEnabled) {
+        videoEnabled = true
+        // Audio must be flowing before the first video frame reaches the model.
+        setTimeout(() => { videoTrack.enabled = true }, 800)
       }
     } catch {}
   })
@@ -141,25 +147,50 @@ const result = await page.evaluate(async (payload) => {
   if (channel.readyState === 'open') sendUpdate()
   pc.addEventListener('datachannel', (event) => {
     event.channel.addEventListener('message', (message) => {
-      if (events.length < 8) events.push(String(message.data).slice(0, 500))
+      if (events.length < 12) events.push(String(message.data).slice(0, 500))
     })
   })
   await pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp })
   sendUpdate()
   const deadline = Date.now() + 20_000
   while (Date.now() < deadline) {
-    if (channel.readyState === 'open' && events.length > 0) break
+    if (channel.readyState === 'open' && events.some((event) => event.includes('"session.updated"'))) break
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
+
+  let replaced = false
+  if (payload.replaceVideo) {
+    const sender = pc.getSenders().find((candidate) => candidate.track === null)
+    if (sender) {
+      const canvas = document.createElement('canvas')
+      canvas.width = 640
+      canvas.height = 360
+      const context = canvas.getContext('2d')
+      context.fillStyle = '#f2f2f2'
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      context.fillStyle = '#111'
+      context.font = '32px sans-serif'
+      context.fillText('Phase 0 screen frame', 30, 80)
+      const stream = canvas.captureStream(2)
+      await sender.replaceTrack(stream.getVideoTracks()[0])
+      replaced = true
+      await new Promise((resolve) => setTimeout(resolve, 2500))
+    }
+  }
+  await new Promise((resolve) => setTimeout(resolve, 1200))
   return {
     channel: channel.readyState,
     ice: pc.iceConnectionState,
     connection: pc.connectionState,
+    videoEnabled,
+    replaced,
+    negotiation,
     events,
   }
-}, answer)
+}, { ...answer, replaceVideo })
 
 console.log('channel:', result.channel, 'ice:', result.ice, 'connection:', result.connection)
+console.log('videoEnabled:', result.videoEnabled, 'replaced:', result.replaced, 'negotiation:', result.negotiation)
 console.log('server events:', result.events.length)
 for (const event of result.events) console.log('event:', event)
 
