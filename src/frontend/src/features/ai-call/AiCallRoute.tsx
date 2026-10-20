@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchApi } from '@/api/fetchApi'
+import {
+  deleteRemoteCallHistory,
+  pullAiCallHistory,
+  pushAiCallHistory,
+  type SyncRecord,
+} from './sync'
 
 type CallStatus = 'idle' | 'connecting' | 'active' | 'sharing' | 'error' | 'ended'
 type Row = { id: string; role: 'user' | 'assistant'; text: string }
@@ -18,6 +24,7 @@ type HistoryRecord = {
   startedAt: number
   seconds: number
   rows: Row[]
+  remoteId?: string
 }
 const HISTORY_KEY = 'we-meet:ai-call-history'
 const loadHistory = (): HistoryRecord[] => {
@@ -70,6 +77,36 @@ export function AiCallRoute() {
   const [history, setHistory] = useState<HistoryRecord[]>(loadHistory)
   const [expandedHistory, setExpandedHistory] = useState('')
   const [draft, setDraft] = useState('')
+
+  const persistHistory = (next: HistoryRecord[]) => {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
+    } catch {}
+  }
+
+  useEffect(() => {
+    let active = true
+    void pullAiCallHistory()
+      .then(records => {
+        if (!active) return
+        setHistory(previous => {
+          const merged = new Map<string, HistoryRecord>()
+          for (const record of records as HistoryRecord[]) merged.set(record.id, record)
+          for (const record of previous) {
+            if (!merged.has(record.id)) merged.set(record.id, record)
+          }
+          const next = [...merged.values()]
+            .sort((a, b) => b.startedAt - a.startedAt)
+            .slice(0, 20)
+          persistHistory(next)
+          return next
+        })
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [])
 
   const audioRef = useRef<HTMLAudioElement>(null)
   const screenRef = useRef<HTMLVideoElement>(null)
@@ -236,11 +273,19 @@ export function AiCallRoute() {
     sessionIdRef.current = ''
     setHistory(previous => {
       const next = [record, ...previous].slice(0, 20)
-      try {
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
-      } catch {}
+      persistHistory(next)
       return next
     })
+    void pushAiCallHistory(record satisfies SyncRecord).then(remoteId => {
+      if (!remoteId) return
+      setHistory(previous => {
+        const next = previous.map(item =>
+          item.id === record.id ? { ...item, remoteId } : item
+        )
+        persistHistory(next)
+        return next
+      })
+    }).catch(() => {})
   }
 
   const stop = () => {
@@ -498,11 +543,13 @@ export function AiCallRoute() {
   }
 
   const removeHistory = (id: string) => {
+    const record = history.find(item => item.id === id)
+    if (record?.remoteId) {
+      void deleteRemoteCallHistory(record.remoteId).catch(() => {})
+    }
     setHistory(previous => {
-      const next = previous.filter(record => record.id !== id)
-      try {
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
-      } catch {}
+      const next = previous.filter(item => item.id !== id)
+      persistHistory(next)
       return next
     })
     setExpandedHistory(current => (current === id ? '' : current))

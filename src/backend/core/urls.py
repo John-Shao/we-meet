@@ -33,6 +33,7 @@ from core.api.admin_roles import (
 from core.api.admin_stats import AdminStatsOverviewView
 from core.api.agent_internal import IngestTranscriptView, TranscriptDeliveryView
 from core.api.ai_call import AiCallSessionView
+from core.api.ai_call_history import AIConversationDetailView, AIConversationView
 from core.api.ai_call_photo import AiCallPhotoView
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.assistant_summary import AssistantSummaryView
@@ -444,6 +445,16 @@ urlpatterns = [
     path("api/agent/voiceprint-sampling/permits/<uuid:permit_id>/validate/", SamplingValidationView.as_view(), name="voiceprint-sampling-validate"),
     path("api/v1.0/ai-call/photo/", AiCallPhotoView.as_view(), name="ai-call-photo"),
     path("api/v1.0/ai-call/session/", AiCallSessionView.as_view(), name="ai-call-session"),
+    path(
+        "api/v1.0/ai-call/conversations/",
+        AIConversationView.as_view(),
+        name="ai-call-conversations",
+    ),
+    path(
+        "api/v1.0/ai-call/conversations/<uuid:conversation_id>/",
+        AIConversationDetailView.as_view(),
+        name="ai-call-conversation-detail",
+    ),
     path("api/v1.0/direct-ai/sessions/<uuid:allocation_id>/", DirectAIAllocationView.as_view(), name="direct-ai-session"),
     path("api/v1.0/assistant-summary/", AssistantSummaryView.as_view(), name="assistant-summary"),
     path("api/v1.0/assistant-transcription/session/", AssistantTranscriptionSessionView.as_view(), name="assistant-transcription-session"),

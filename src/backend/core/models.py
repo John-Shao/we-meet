@@ -10398,3 +10398,94 @@ class BilingualSession(BaseModel):
             models.Index(fields=["user", "status", "lease_until"], name="bilingual_user_lease"),
             models.Index(fields=["user", "created_at"], name="bilingual_user_created"),
         ]
+
+
+class AIConversation(models.Model):
+    """Account-owned assistant conversation index; media and audio stay client-side."""
+
+    class Kind(models.TextChoices):
+        CALL = "call", _("AI call")
+        CHAT = "chat", _("AI chat")
+        TRANSLATION = "translation", _("Assistant translation")
+
+    class Status(models.TextChoices):
+        ONGOING = "ongoing", _("Ongoing")
+        COMPLETED = "completed", _("Completed")
+        INTERRUPTED = "interrupted", _("Interrupted")
+        ERROR = "error", _("Error")
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="ai_conversations",
+    )
+    client_id = models.CharField(max_length=128)
+    device_id = models.CharField(max_length=128, blank=True)
+    kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.CALL)
+    title = models.CharField(max_length=200, blank=True)
+    started_at = models.DateTimeField()
+    ended_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.COMPLETED
+    )
+    summary = models.TextField(blank=True)
+    todos = models.JSONField(default=list, blank=True)
+    version = models.PositiveBigIntegerField(default=1)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-started_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "client_id"], name="ai_conversation_client_once"
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["owner", "deleted_at", "started_at"],
+                name="ai_conv_owner_list",
+            ),
+            models.Index(fields=["owner", "updated_at"], name="ai_conv_owner_sync"),
+        ]
+
+    def __str__(self):
+        return str(self.id)
+
+
+class AIConversationMessage(models.Model):
+    """Persisted text rows only; screen frames and audio are not uploaded in phase 1."""
+
+    class Role(models.TextChoices):
+        USER = "user", _("User")
+        ASSISTANT = "assistant", _("Assistant")
+        SYSTEM = "system", _("System")
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    conversation = models.ForeignKey(
+        AIConversation, on_delete=models.CASCADE, related_name="messages"
+    )
+    client_id = models.CharField(max_length=128)
+    position = models.PositiveIntegerField()
+    role = models.CharField(max_length=16, choices=Role.choices)
+    text = models.TextField()
+    source = models.CharField(max_length=20, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["position", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["conversation", "client_id"], name="ai_message_client_once"
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["conversation", "position"], name="ai_msg_conv_order"
+            )
+        ]
+
+    def __str__(self):
+        return str(self.id)
