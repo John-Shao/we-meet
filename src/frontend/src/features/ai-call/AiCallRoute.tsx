@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchApi } from '@/api/fetchApi'
 
 type CallStatus = 'idle' | 'connecting' | 'active' | 'sharing' | 'error' | 'ended'
@@ -188,6 +188,8 @@ export function AiCallRoute() {
     cleanup()
     setStatus('ended')
   }
+
+  useEffect(() => () => cleanup(), [])
 
   const start = async () => {
     if (status === 'connecting' || status === 'active' || status === 'sharing') return

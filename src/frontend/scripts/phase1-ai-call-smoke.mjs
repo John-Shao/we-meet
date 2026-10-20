@@ -3,6 +3,7 @@ import { chromium } from 'playwright'
 const token = process.env.WE_MEET_ACCESS_TOKEN
 const base = 'http://127.0.0.1:4173'
 const api = 'https://meet.we-meet.online'
+const path = process.env.WE_MEET_PATH || '/ai-call'
 if (!token) throw new Error('WE_MEET_ACCESS_TOKEN required')
 
 const browser = await chromium.launch({
@@ -17,7 +18,10 @@ const browser = await chromium.launch({
     '--allow-http-screen-capture',
   ],
 })
-const context = await browser.newContext({ permissions: ['microphone', 'camera'] })
+const context = await browser.newContext({
+  permissions: ['microphone', 'camera'],
+  viewport: path.includes('float') ? { width: 420, height: 700 } : undefined,
+})
 await context.addInitScript((value) => {
   localStorage.setItem('we-meet:access_token', value)
   localStorage.setItem('we-meet:auth_session', crypto.randomUUID())
@@ -35,7 +39,7 @@ await context.route(`${base}/api/**`, async route => {
   })
   await route.fulfill({ status: response.status, headers: Object.fromEntries(response.headers), body: Buffer.from(await response.arrayBuffer()) })
 })
-await page.goto(`${base}/ai-call`, { waitUntil: 'networkidle' })
+await page.goto(`${base}${path}`, { waitUntil: 'networkidle' })
 await page.getByRole('button', { name: '开始通话' }).click()
 await page.getByText('通话中', { exact: true }).waitFor({ timeout: 30000 })
 console.log('connected')

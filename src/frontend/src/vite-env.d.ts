@@ -20,6 +20,9 @@ interface Window {
     isDesktop: true
     platform: string
     remoteControl?: import('../../desktop/src/remote-control/bridge').RemoteControlBridge
+    aiCall?: {
+      open(): Promise<void>
+    }
     shell?: {
       openMenu(): Promise<void>
       setTheme(theme: 'light' | 'dark'): Promise<void>

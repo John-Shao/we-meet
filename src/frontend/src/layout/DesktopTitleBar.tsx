@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSnapshot } from 'valtio'
 import { useTranslation } from 'react-i18next'
-import { RiLayoutLeftLine, RiMoreLine, RiSearchLine } from '@remixicon/react'
+import { RiLayoutLeftLine, RiMoreLine, RiSearchLine, RiPhoneLine } from '@remixicon/react'
 import { useUser } from '@/features/auth'
 import { layoutStore } from '@/stores/layout'
 import { openGlobalSearch } from './globalSearchBus'
@@ -77,6 +77,17 @@ export function DesktopTitleBar() {
               onClick={() => openGlobalSearch()}
             >
               <RiSearchLine size={18} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              aria-label="AI 打电话"
+              title="AI 打电话"
+              onClick={() => {
+                const bridge = window.weMeetDesktop?.aiCall
+                if (bridge) void bridge.open().catch(() => {})
+              }}
+            >
+              <RiPhoneLine size={18} aria-hidden="true" />
             </button>
           </>
         )}

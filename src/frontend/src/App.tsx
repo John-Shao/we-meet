@@ -20,6 +20,7 @@ import { useApplyTheme } from '@/hooks/useApplyTheme'
 import { useUser } from '@/features/auth'
 import { HomeRoute } from '@/features/home'
 import { DesktopTitleBar } from '@/layout/DesktopTitleBar'
+import { AiCallFloatRoute } from '@/features/ai-call/AiCallFloatRoute'
 
 // M 端(运营管理端)—— 独立 shell + org_role 守卫,懒加载,普通员工不加载其 bundle。
 const AdminApp = lazy(() => import('@/features/admin'))
@@ -58,6 +59,7 @@ function App() {
               <Route path="/admin" nest>
                 <AdminApp />
               </Route>
+              <Route path="/ai-call-float" component={AiCallFloatRoute} />
               {/* 其余全部走 C 端 Layout(顶栏/侧栏)。 */}
               <Route>
                 <Layout>

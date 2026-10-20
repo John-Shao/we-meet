@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld("weMeetDesktop", {
   isDesktop: true,
   platform: process.platform,
   remoteControl,
+  aiCall: {
+    open: () => ipcRenderer.invoke("ai-call:open"),
+  },
   shell: {
     openMenu: () => ipcRenderer.invoke("desktop:menu"),
     setTheme: (theme: "light" | "dark") => ipcRenderer.invoke("desktop:titlebar-theme", theme),

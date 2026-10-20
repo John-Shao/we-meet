@@ -72,6 +72,7 @@ if (devRenderer)
   validateConfig({ ...config, serviceOrigin: devRenderer }, true);
 const rendererOrigin = devRenderer || config.serviceOrigin;
 let window: BrowserWindow | undefined;
+let aiCallWindow: BrowserWindow | undefined;
 let auth: DesktopAuth;
 let quitting = false;
 let closing = false;
@@ -345,6 +346,59 @@ async function createWindow() {
     },
   });
   const win = window;
+  const openAiCallWindow = async () => {
+    if (aiCallWindow && !aiCallWindow.isDestroyed()) {
+      if (aiCallWindow.isMinimized()) aiCallWindow.restore();
+      aiCallWindow.show();
+      aiCallWindow.focus();
+      return;
+    }
+    const float = new BrowserWindow({
+      width: 420,
+      height: 700,
+      minWidth: 360,
+      minHeight: 520,
+      show: false,
+      title: "AI 打电话",
+      backgroundColor: "#ffffff",
+      titleBarStyle: "hidden",
+      alwaysOnTop: true,
+      ...(process.platform !== "darwin" ? {
+        titleBarOverlay: { color: "#f6f6f6", symbolColor: "#555555", height: 40 },
+      } : {}),
+      webPreferences: {
+        preload: path.join(__dirname, "preload.js"),
+        session: ses,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webSecurity: true,
+      },
+    });
+    aiCallWindow = float;
+    float.on("closed", () => {
+      if (aiCallWindow === float) aiCallWindow = undefined;
+    });
+    float.once("ready-to-show", () => float.show());
+    float.webContents.setWindowOpenHandler(({ url }) => {
+      if (externalUrl(url)) void shell.openExternal(url).catch(() => {});
+      return { action: "deny" };
+    });
+    float.webContents.on("will-attach-webview", (event) => event.preventDefault());
+    float.webContents.on("will-navigate", (event, url) => {
+      if (!sameOrigin(url, rendererOrigin)) event.preventDefault();
+    });
+    await float.loadURL(`${rendererOrigin}/ai-call-float`);
+  };
+  ipcMain.handle("ai-call:open", (event) => {
+    if (
+      event.sender !== win.webContents ||
+      event.senderFrame !== win.webContents.mainFrame ||
+      !sameOrigin(event.senderFrame.url, rendererOrigin)
+    ) throw new Error("invalid_ai_call_request");
+    return openAiCallWindow();
+  });
+
   remoteControl = new RemoteDesktopRuntime({ auth, cloud: new RemoteControlCloud(config.serviceOrigin, auth),
     resourceRoot: path.join(app.isPackaged ? process.resourcesPath : __dirname, "remote-input"),
     nativeDescriptor: (() => {
@@ -365,7 +419,8 @@ async function createWindow() {
   screen.on("display-metrics-changed", () => { void remote.close("display_changed"); });
   const trusted = (contents: Electron.WebContents | null, origin: string) =>
     !!contents &&
-    contents.id === win.webContents.id &&
+    (contents.id === win.webContents.id ||
+      contents.id === aiCallWindow?.webContents.id) &&
     sameOrigin(origin, rendererOrigin);
   const grants = new Set<string>();
   ses.setPermissionCheckHandler(
@@ -415,12 +470,34 @@ async function createWindow() {
       .catch(() => callback(false));
   });
   ses.setDisplayMediaRequestHandler((request, callback) => {
+    const isMain = request.frame === win.webContents.mainFrame;
+    const isAiCall =
+      !!aiCallWindow && request.frame === aiCallWindow.webContents.mainFrame;
     if (
-      request.frame !== win.webContents.mainFrame ||
+      (!isMain && !isAiCall) ||
       !sameOrigin(request.securityOrigin, rendererOrigin) ||
       !request.userGesture
     ) {
       callback({});
+      return;
+    }
+    if (isAiCall) {
+      const float = aiCallWindow!;
+      void (async () => {
+        const sources = await desktopCapturer.getSources({
+          types: ["screen", "window"],
+          thumbnailSize: { width: 0, height: 0 },
+        });
+        const source = await chooseCaptureSource({
+          sources,
+          displays: screen.getAllDisplays(),
+          fullScreenOnly: false,
+          isCurrent: () => !float.isDestroyed(),
+          ask: options => dialog.showMessageBox(float, options),
+        });
+        if (source && !float.isDestroyed()) callback({ video: source });
+        else callback({});
+      })().catch(() => callback({}));
       return;
     }
     const ticket = remote.beginCapture();
