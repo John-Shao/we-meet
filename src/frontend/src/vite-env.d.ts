@@ -22,6 +22,16 @@ interface Window {
     remoteControl?: import('../../desktop/src/remote-control/bridge').RemoteControlBridge
     aiCall?: {
       open(): Promise<void>
+      reportStatus(status: {
+        state: 'idle' | 'connecting' | 'active' | 'sharing' | 'error' | 'ended'
+        startedAt?: number
+        sharing?: boolean
+      }): Promise<void>
+      onStatus(listener: (status: {
+        state: 'idle' | 'connecting' | 'active' | 'sharing' | 'error' | 'ended'
+        startedAt?: number
+        sharing?: boolean
+      }) => void): () => void
     }
     shell?: {
       openMenu(): Promise<void>
