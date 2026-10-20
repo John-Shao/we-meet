@@ -13,6 +13,29 @@ type CallAnswer = {
   session_lease?: { id: string }
 }
 type PhotoAnswer = { answer: string }
+type HistoryRecord = {
+  id: string
+  startedAt: number
+  seconds: number
+  rows: Row[]
+}
+const HISTORY_KEY = 'we-meet:ai-call-history'
+const loadHistory = (): HistoryRecord[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]') as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((value): value is HistoryRecord => {
+      if (!value || typeof value !== 'object') return false
+      const record = value as Partial<HistoryRecord>
+      return typeof record.id === 'string' &&
+        typeof record.startedAt === 'number' &&
+        typeof record.seconds === 'number' &&
+        Array.isArray(record.rows)
+    }).slice(0, 20)
+  } catch {
+    return []
+  }
+}
 
 const READ_SCREEN_TOOL = {
   type: 'function',
@@ -44,6 +67,8 @@ export function AiCallRoute() {
   const [snapshot, setSnapshot] = useState('')
   const [readResult, setReadResult] = useState('')
   const [elapsed, setElapsed] = useState(0)
+  const [history, setHistory] = useState<HistoryRecord[]>(loadHistory)
+  const [expandedHistory, setExpandedHistory] = useState('')
 
   const audioRef = useRef<HTMLAudioElement>(null)
   const screenRef = useRef<HTMLVideoElement>(null)
@@ -59,6 +84,10 @@ export function AiCallRoute() {
   const instructionsRef = useRef('你是一个友好、简洁的 AI 助手。')
   const seenCallsRef = useRef(new Set<string>())
   const timerRef = useRef<number | null>(null)
+  const rowsRef = useRef<Row[]>(rows)
+  const elapsedRef = useRef(elapsed)
+  rowsRef.current = rows
+  elapsedRef.current = elapsed
 
   const appendRow = (role: Row['role'], text: string) => {
     if (!text) return
@@ -195,12 +224,42 @@ export function AiCallRoute() {
     setSharing(false)
   }
 
+  const saveHistory = () => {
+    if (!sessionIdRef.current || !startedAtRef.current) return
+    const record: HistoryRecord = {
+      id: crypto.randomUUID(),
+      startedAt: startedAtRef.current,
+      seconds: elapsedRef.current,
+      rows: rowsRef.current,
+    }
+    sessionIdRef.current = ''
+    setHistory(previous => {
+      const next = [record, ...previous].slice(0, 20)
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  }
+
   const stop = () => {
+    saveHistory()
     cleanup()
     setStatus('ended')
   }
 
   useEffect(() => () => {
+    if (sessionIdRef.current && startedAtRef.current) {
+      const record: HistoryRecord = {
+        id: crypto.randomUUID(),
+        startedAt: startedAtRef.current,
+        seconds: elapsedRef.current,
+        rows: rowsRef.current,
+      }
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify([record, ...loadHistory()].slice(0, 20)))
+      } catch {}
+    }
     cleanup()
     const bridge = window.weMeetDesktop?.aiCall
     if (bridge) void bridge.reportStatus({ state: 'ended' }).catch(() => {})
@@ -308,6 +367,7 @@ export function AiCallRoute() {
       await pc.setRemoteDescription({ type: 'answer', sdp: answer.sdp })
       await opened
       await updated
+      startedAtRef.current = Date.now()
       setStatus('active')
       setElapsed(0)
       timerRef.current = window.setInterval(() => setElapsed(value => value + 1), 1000)
@@ -401,6 +461,17 @@ export function AiCallRoute() {
     channel.send(JSON.stringify({ type: 'response.create' }))
   }
 
+  const removeHistory = (id: string) => {
+    setHistory(previous => {
+      const next = previous.filter(record => record.id !== id)
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
+      } catch {}
+      return next
+    })
+    setExpandedHistory(current => (current === id ? '' : current))
+  }
+
   return (
     <div style={{ padding: 24, maxWidth: 980, margin: '0 auto' }}>
       <h1 style={{ fontSize: 24, margin: '0 0 8px' }}>AI 打电话</h1>
@@ -433,6 +504,37 @@ export function AiCallRoute() {
           <p key={row.id} style={{ margin: '8px 0' }}>
             <strong>{row.role === 'user' ? '你' : 'AI'}：</strong>{row.text}
           </p>
+        ))}
+      </div>
+      <div data-testid="ai-call-history" style={{ marginTop: 24, borderTop: '1px solid #eee', paddingTop: 12 }}>
+        <h2 style={{ fontSize: 18, margin: '0 0 8px' }}>通话记录</h2>
+        {history.length === 0 && <p style={{ color: '#888' }}>暂无通话记录</p>}
+        {history.map(record => (
+          <div key={record.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+            <button
+              type="button"
+              onClick={() => setExpandedHistory(current => (current === record.id ? '' : record.id))}
+              style={{ border: 0, background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer' }}
+            >
+              <strong>{new Date(record.startedAt).toLocaleString()}</strong>
+              <span style={{ color: '#777', marginLeft: 8 }}>
+                {String(Math.floor(record.seconds / 60)).padStart(2, '0')}:{String(record.seconds % 60).padStart(2, '0')}
+              </span>
+            </button>
+            <button
+              type="button"
+              aria-label="删除通话记录"
+              onClick={() => removeHistory(record.id)}
+              style={{ marginLeft: 8, border: 0, background: 'transparent', color: '#b00020', cursor: 'pointer' }}
+            >
+              删除
+            </button>
+            {expandedHistory === record.id && record.rows.map(row => (
+              <p key={row.id} style={{ margin: '6px 0 0 16px', color: '#444' }}>
+                {row.role === 'user' ? '你' : 'AI'}：{row.text}
+              </p>
+            ))}
+          </div>
         ))}
       </div>
     </div>
