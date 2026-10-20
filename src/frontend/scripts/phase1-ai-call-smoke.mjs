@@ -1,0 +1,54 @@
+import { chromium } from 'playwright'
+
+const token = process.env.WE_MEET_ACCESS_TOKEN
+const base = 'http://127.0.0.1:4173'
+const api = 'https://meet.we-meet.online'
+if (!token) throw new Error('WE_MEET_ACCESS_TOKEN required')
+
+const browser = await chromium.launch({
+  channel: 'chrome',
+  headless: true,
+  args: [
+    '--use-fake-ui-for-media-stream',
+    '--use-fake-device-for-media-stream',
+    '--autoplay-policy=no-user-gesture-required',
+    '--auto-select-desktop-capture-source=Entire screen',
+    '--enable-usermedia-screen-capturing',
+    '--allow-http-screen-capture',
+  ],
+})
+const context = await browser.newContext({ permissions: ['microphone', 'camera'] })
+await context.addInitScript((value) => {
+  localStorage.setItem('we-meet:access_token', value)
+  localStorage.setItem('we-meet:auth_session', crypto.randomUUID())
+}, token)
+const page = await context.newPage()
+page.on('console', message => {
+  console.log('page console:', message.type(), message.text())
+})
+await context.route(`${base}/api/**`, async route => {
+  const request = route.request()
+  const response = await fetch(request.url().replace(base, api), {
+    method: request.method(),
+    headers: request.headers(),
+    body: request.postDataBuffer() ?? undefined,
+  })
+  await route.fulfill({ status: response.status, headers: Object.fromEntries(response.headers), body: Buffer.from(await response.arrayBuffer()) })
+})
+await page.goto(`${base}/ai-call`, { waitUntil: 'networkidle' })
+await page.getByRole('button', { name: '开始通话' }).click()
+await page.waitForTimeout(12000)
+console.log('page text:', await page.locator('body').innerText())
+await page.screenshot({ path: 'phase1-ai-call.png', fullPage: true })
+await page.getByText('通话中', { exact: true }).waitFor({ timeout: 20000 })
+console.log('connected')
+await page.getByRole('button', { name: '共享屏幕' }).click()
+await page.getByText('共享中', { exact: false }).waitFor({ timeout: 15000 })
+console.log('sharing')
+await page.getByRole('button', { name: '停止共享' }).click()
+await page.getByText('通话中', { exact: true }).waitFor({ timeout: 10000 })
+console.log('share stopped')
+await page.getByRole('button', { name: '挂断' }).click()
+await page.getByText('已结束', { exact: true }).waitFor({ timeout: 10000 })
+console.log('ended')
+await browser.close()
