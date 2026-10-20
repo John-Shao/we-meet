@@ -1509,14 +1509,21 @@ DELETE /api/v1.0/ai-call/conversations/by-client/{client_id}/
 - 前端 `npx tsc --noEmit` 通过；
 - 前端 `npm run build` 通过；
 - PC sync 单元测试通过：2/2；
+- 后端 sync pytest 通过：6/6；
 - Android `:feature-assistant:compileDebugKotlin` 通过；
 - Android `:feature-assistant:testDebugUnitTest` 通过；
-- 后端 `py_compile` 通过；
+- 后端 `makemigrations --check --dry-run` 无变更；
 - PC smoke 通过；生产环境尚未部署新接口时，同步请求 404 被静默降级。
+
+后端测试使用本地 Postgres/Redis 容器：
+
+```text
+DATABASE_URL=postgres://dinum:pass@localhost:15432/meet
+REDIS_URL=redis://localhost:6379/1
+```
 
 未完成：
 
-- 后端 pytest 未在本机跑通：Django settings/测试环境在 Windows 上启动挂起；
-- 新接口未部署，未做真实双端 E2E；
+- 新接口未部署，未做真实 PC ↔ Android 双端 E2E；
 - 摘要/待办完整同步；
 - 远端删除 tombstone 与本地 pending 冲突处理。
