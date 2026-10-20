@@ -973,7 +973,9 @@ macOS 屏幕录制权限：
 - 摄像头开关；
 - 停止共享后恢复空轨；
 - 本地通话记录（localStorage，最近 20 条）；
-- 浮窗关闭时保存进行中的通话记录。
+- 浮窗关闭时保存进行中的通话记录；
+- 通话中输入文字消息；
+- 文本/语音共用同一 Realtime 会话。
 
 待办：
 
@@ -1346,3 +1348,25 @@ ended
   - history saved；
   - 刷新页面；
   - history persisted。
+
+### 19.12 文字消息
+
+已接入：
+
+- 通话 active/sharing 时可输入文字；
+- `conversation.item.create` + `input_text`；
+- `response.create`；
+- 用户消息立即进入对话列表；
+- 语音/文字共用同一个 `oai-events` 会话。
+
+验证：
+
+- Playwright smoke：
+  - connected；
+  - text sent；
+  - camera on/off；
+  - sharing；
+  - read screen；
+  - share stopped；
+  - history saved/persisted；
+  - ended。
