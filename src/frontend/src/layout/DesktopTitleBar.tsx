@@ -13,6 +13,26 @@ export function DesktopTitleBar() {
   const { showHeader, appRailCollapsed } = useSnapshot(layoutStore)
   const { t } = useTranslation('shell')
   const [error, setError] = useState('')
+  const [aiCall, setAiCall] = useState<{
+    state: 'idle' | 'connecting' | 'active' | 'sharing' | 'error' | 'ended'
+    startedAt?: number
+    sharing?: boolean
+  } | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const bridge = window.weMeetDesktop?.aiCall
+    if (!bridge) return
+    const unsubscribe = bridge.onStatus(setAiCall)
+    return unsubscribe
+  }, [])
+
+  useEffect(() => {
+    if (!aiCall || (aiCall.state !== 'active' && aiCall.state !== 'sharing')) return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [aiCall?.state, aiCall?.startedAt])
 
   useEffect(() => {
     if (!shell) return
@@ -49,6 +69,11 @@ export function DesktopTitleBar() {
 
   if (!shell) return null
   const workspace = isLoggedIn && showHeader
+  const callActive = aiCall?.state === 'active' || aiCall?.state === 'sharing'
+  const callSeconds = aiCall?.startedAt
+    ? Math.max(0, Math.floor((now - aiCall.startedAt) / 1000))
+    : 0
+  const callTime = `${String(Math.floor(callSeconds / 60)).padStart(2, '0')}:${String(callSeconds % 60).padStart(2, '0')}`
   return (
     <header
       className="desktop-titlebar"
@@ -105,6 +130,28 @@ export function DesktopTitleBar() {
           <RiMoreLine size={19} aria-hidden="true" />
         </button>
       </div>
+      {callActive && (
+        <button
+          type="button"
+          aria-label="打开 AI 通话"
+          title="打开 AI 通话"
+          onClick={() => {
+            const bridge = window.weMeetDesktop?.aiCall
+            if (bridge) void bridge.open().catch(() => {})
+          }}
+          style={{
+            border: 0,
+            borderRadius: 999,
+            padding: '4px 10px',
+            background: '#e8f5e9',
+            color: '#1b5e20',
+            fontSize: 12,
+            cursor: 'pointer',
+          }}
+        >
+          AI 通话中 {callTime}
+        </button>
+      )}
       <span className="desktop-titlebar-name">We-Meet</span>
       {error && (
         <span role="status" className="desktop-titlebar-error">

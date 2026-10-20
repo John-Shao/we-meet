@@ -25,6 +25,13 @@ contextBridge.exposeInMainWorld("weMeetDesktop", {
   remoteControl,
   aiCall: {
     open: () => ipcRenderer.invoke("ai-call:open"),
+    reportStatus: (status: unknown) => ipcRenderer.invoke("ai-call:status", status),
+    onStatus: (listener: (status: unknown) => void) => {
+      if (typeof listener !== "function") throw new TypeError("Expected a listener");
+      const handler = (_event: unknown, status: unknown) => listener(status);
+      ipcRenderer.on("ai-call:status", handler);
+      return () => ipcRenderer.removeListener("ai-call:status", handler);
+    },
   },
   shell: {
     openMenu: () => ipcRenderer.invoke("desktop:menu"),

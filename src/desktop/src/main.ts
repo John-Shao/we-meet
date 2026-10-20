@@ -73,6 +73,16 @@ if (devRenderer)
 const rendererOrigin = devRenderer || config.serviceOrigin;
 let window: BrowserWindow | undefined;
 let aiCallWindow: BrowserWindow | undefined;
+type AiCallState = {
+  state: "idle" | "connecting" | "active" | "sharing" | "error" | "ended";
+  startedAt?: number;
+  sharing?: boolean;
+};
+let aiCallState: AiCallState = { state: "idle" };
+const publishAiCallState = () => {
+  if (window && !window.isDestroyed() && !window.webContents.isDestroyed())
+    window.webContents.send("ai-call:status", aiCallState);
+};
 let auth: DesktopAuth;
 let quitting = false;
 let closing = false;
@@ -346,6 +356,7 @@ async function createWindow() {
     },
   });
   const win = window;
+  win.webContents.on("did-finish-load", publishAiCallState);
   const openAiCallWindow = async () => {
     if (aiCallWindow && !aiCallWindow.isDestroyed()) {
       if (aiCallWindow.isMinimized()) aiCallWindow.restore();
@@ -378,6 +389,8 @@ async function createWindow() {
     aiCallWindow = float;
     float.on("closed", () => {
       if (aiCallWindow === float) aiCallWindow = undefined;
+      aiCallState = { state: "ended", startedAt: aiCallState.startedAt };
+      publishAiCallState();
     });
     float.once("ready-to-show", () => float.show());
     float.webContents.setWindowOpenHandler(({ url }) => {
@@ -397,6 +410,28 @@ async function createWindow() {
       !sameOrigin(event.senderFrame.url, rendererOrigin)
     ) throw new Error("invalid_ai_call_request");
     return openAiCallWindow();
+  });
+  ipcMain.handle("ai-call:status", (event, value: unknown) => {
+    const float = aiCallWindow;
+    if (
+      !float ||
+      float.isDestroyed() ||
+      event.sender !== float.webContents ||
+      event.senderFrame !== float.webContents.mainFrame ||
+      !sameOrigin(event.senderFrame.url, rendererOrigin)
+    ) throw new Error("invalid_ai_call_status");
+    if (!value || typeof value !== "object") throw new Error("invalid_ai_call_status");
+    const candidate = value as Record<string, unknown>;
+    const state = candidate.state;
+    if (!["idle", "connecting", "active", "sharing", "error", "ended"].includes(String(state)))
+      throw new Error("invalid_ai_call_status");
+    aiCallState = {
+      state: state as AiCallState["state"],
+      startedAt: typeof candidate.startedAt === "number" ? candidate.startedAt : undefined,
+      sharing: candidate.sharing === true,
+    };
+    publishAiCallState();
+    return true;
   });
 
   remoteControl = new RemoteDesktopRuntime({ auth, cloud: new RemoteControlCloud(config.serviceOrigin, auth),

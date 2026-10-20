@@ -40,6 +40,7 @@ export function AiCallRoute() {
   const [error, setError] = useState('')
   const [rows, setRows] = useState<Row[]>([])
   const [sharing, setSharing] = useState(false)
+  const [cameraOn, setCameraOn] = useState(false)
   const [snapshot, setSnapshot] = useState('')
   const [readResult, setReadResult] = useState('')
   const [elapsed, setElapsed] = useState(0)
@@ -50,7 +51,9 @@ export function AiCallRoute() {
   const channelRef = useRef<RTCDataChannel | null>(null)
   const micRef = useRef<MediaStream | null>(null)
   const screenStreamRef = useRef<MediaStream | null>(null)
+  const cameraStreamRef = useRef<MediaStream | null>(null)
   const videoSenderRef = useRef<RTCRtpSender | null>(null)
+  const startedAtRef = useRef<number | undefined>(undefined)
   const sessionIdRef = useRef('')
   const voiceRef = useRef('Tina')
   const instructionsRef = useRef('你是一个友好、简洁的 AI 助手。')
@@ -168,11 +171,19 @@ export function AiCallRoute() {
     }
   }
 
+  const stopCamera = () => {
+    cameraStreamRef.current?.getTracks().forEach(track => track.stop())
+    cameraStreamRef.current = null
+    void videoSenderRef.current?.replaceTrack(null)
+    setCameraOn(false)
+  }
+
   const cleanup = () => {
     if (timerRef.current !== null) window.clearInterval(timerRef.current)
     timerRef.current = null
     screenStreamRef.current?.getTracks().forEach(track => track.stop())
     screenStreamRef.current = null
+    stopCamera()
     micRef.current?.getTracks().forEach(track => track.stop())
     micRef.current = null
     channelRef.current?.close()
@@ -189,7 +200,23 @@ export function AiCallRoute() {
     setStatus('ended')
   }
 
-  useEffect(() => () => cleanup(), [])
+  useEffect(() => () => {
+    cleanup()
+    const bridge = window.weMeetDesktop?.aiCall
+    if (bridge) void bridge.reportStatus({ state: 'ended' }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const bridge = window.weMeetDesktop?.aiCall
+    if (!bridge) return
+    if ((status === 'active' || status === 'sharing') && !startedAtRef.current)
+      startedAtRef.current = Date.now()
+    void bridge.reportStatus({
+      state: status,
+      startedAt: startedAtRef.current,
+      sharing,
+    }).catch(() => {})
+  }, [status, sharing])
 
   const start = async () => {
     if (status === 'connecting' || status === 'active' || status === 'sharing') return
@@ -197,6 +224,8 @@ export function AiCallRoute() {
     setRows([])
     setSnapshot('')
     setReadResult('')
+    setCameraOn(false)
+    startedAtRef.current = undefined
     seenCallsRef.current.clear()
     setStatus('connecting')
     try {
@@ -289,8 +318,34 @@ export function AiCallRoute() {
     }
   }
 
+  const toggleCamera = async () => {
+    if (status !== 'active') return
+    if (cameraOn) {
+      stopCamera()
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          frameRate: { ideal: 15, max: 30 },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
+      })
+      const track = stream.getVideoTracks()[0]
+      if (!track) throw new Error('没有摄像头视频轨')
+      cameraStreamRef.current = stream
+      await videoSenderRef.current?.replaceTrack(track)
+      setCameraOn(true)
+      track.onended = () => stopCamera()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '无法打开摄像头')
+    }
+  }
+
   const share = async () => {
     if (!pcRef.current || status !== 'active') return
+    if (cameraOn) stopCamera()
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
@@ -357,6 +412,7 @@ export function AiCallRoute() {
         {status === 'idle' || status === 'ended' || status === 'error'
           ? <button onClick={start}>开始通话</button>
           : <button onClick={stop}>挂断</button>}
+        {status === 'active' && <button onClick={toggleCamera}>{cameraOn ? '关闭摄像头' : '开启摄像头'}</button>}
         {status === 'active' && <button onClick={share}>共享屏幕</button>}
         {status === 'sharing' && <button onClick={stopShare}>停止共享</button>}
         {status === 'sharing' && <button onClick={askReadScreen}>让 AI 读屏</button>}
