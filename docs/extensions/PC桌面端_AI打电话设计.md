@@ -971,7 +971,9 @@ macOS 屏幕录制权限：
 - 主窗口“AI 通话中”胶囊；
 - 浮窗 → 主进程 → 主窗口的通话状态 IPC；
 - 摄像头开关；
-- 停止共享后恢复空轨。
+- 停止共享后恢复空轨；
+- 本地通话记录（localStorage，最近 20 条）；
+- 浮窗关闭时保存进行中的通话记录。
 
 待办：
 
@@ -1325,3 +1327,22 @@ ended
   - ended；
 - 桌面端 `npm test`：109 passed，1 skipped；
 - 桌面端 `npm run build:main` 通过。
+
+### 19.11 本地通话记录
+
+已接入：
+
+- localStorage key：`we-meet:ai-call-history`；
+- 最近 20 条；
+- 记录时间、时长、对话文本；
+- 结束通话自动保存；
+- 浮窗关闭时保存进行中的通话；
+- 支持展开、删除；
+- 刷新后仍可读取。
+
+验证：
+
+- Playwright smoke：
+  - history saved；
+  - 刷新页面；
+  - history persisted。
