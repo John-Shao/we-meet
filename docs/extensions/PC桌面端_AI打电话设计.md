@@ -944,9 +944,9 @@ macOS 屏幕录制权限：
 
 待修：
 
-- 真实 `getDisplayMedia` 捕获与停止共享恢复；
-- Electron OIDC、浮窗 autoStart、源选择器；
-- 真实屏幕帧的 photo QA 可读性。
+- 真实 `getDisplayMedia` 屏幕轨替换、停止共享恢复；
+- 真实屏幕帧的 photo QA 可读性；
+- Electron OIDC、浮窗 autoStart、源选择器。
 
 ### Phase 1：Electron 浮窗 MVP（3–4 周）
 
@@ -1061,11 +1061,13 @@ Phase 0 核心链路已通过，剩余工作集中在真实屏幕捕获和 Elect
 - `addTrack` 音频 + `addTransceiver(video, sendrecv)` 的浏览器 SDP 被供应商接受；
 - DataChannel `oai-events`、`session.created`、`session.updated` 正常；
 - photo QA 使用 `session_lease.id` 成功；
-- 无轨 video transceiver + 延迟 `replaceTrack` 正常，无需重新协商。
+- 无轨 video transceiver + 延迟 `replaceTrack` 正常，无需重新协商；
+- Chrome `getDisplayMedia` 可获取 `displaySurface=monitor` 的实时屏幕轨（1280×720，live）。
 
 进入 Phase 1 前还需：
 
-- `getDisplayMedia` 真实屏幕轨替换/恢复；
+- `getDisplayMedia` 已能取得真实屏幕轨；
+- 真实屏幕轨替换/停止/恢复仍需验证；
 - 真实屏幕帧 photo QA 可读性；
 - 浮窗 `autoStart` 和 OIDC 壳验证。
 
@@ -1114,7 +1116,8 @@ ICE gathering: complete
 
 - photo QA 的 `session_id` = `session_lease.id`；
 - DataChannel 标签 = `oai-events`；
-- 后端 SDP 校验只要求 `m=audio`，允许额外 m-line。
+- 后端 SDP 校验只要求 `m=audio`，允许额外 m-line；
+- Chrome `getDisplayMedia` 在自动选择屏幕源时返回 live 的 `displaySurface=monitor` 轨。
 
 ### 19.3 实测结果
 
@@ -1168,18 +1171,19 @@ Phase 0 **核心链路通过**。
 - 浏览器 SDP 被供应商接受；
 - DataChannel/会话事件正常；
 - photo QA 正常；
-- 无轨 video transceiver + 延迟 replaceTrack 正常，且不需要重新协商。
+- 无轨 video transceiver + 延迟 replaceTrack 正常，且不需要重新协商；
+- Chrome `getDisplayMedia` 可取得真实 `displaySurface=monitor` 的 1280×720 实时屏幕轨。
 
 仍需：
 
-1. 真实 `getDisplayMedia` 捕获与停止共享恢复；
+1. 真实屏幕轨替换 video sender、停止共享、恢复摄像头；
 2. 真实屏幕帧的 photo QA 可读性；
 3. Electron OIDC、浮窗 autoStart、源选择器；
 4. 媒体断线/轨道 ended 的恢复。
 
 ### 19.6 下一步
 
-1. 用真实 `getDisplayMedia` 替换 video sender；
+1. 用真实 `getDisplayMedia` 轨道替换 video sender；
 2. 验证共享停止、恢复摄像头、track ended；
 3. 对真实屏幕截图跑 photo QA；
 4. 用 Electron 浮窗验证 `autoStart` 和权限；
@@ -1188,6 +1192,7 @@ Phase 0 **核心链路通过**。
 ### 19.7 验证产物
 
 - 测试脚本：`src/frontend/scripts/phase0-webrtc-check.mjs`
+- 屏幕采集脚本：`src/frontend/scripts/phase0-display-check.mjs`
 - 支持模式：
   - `ad`：audio + data
   - `avd`：audio + video + data
