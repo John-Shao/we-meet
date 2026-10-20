@@ -940,13 +940,14 @@ macOS 屏幕录制权限：
 - 预加无轨 video transceiver + 音频优先 + `replaceTrack`：
   - 连接成功；
   - 无重新协商；
-  - 无 `append image before append audio` 错误。
+  - 无 `append image before append audio` 错误；
+- 真实 `getDisplayMedia` 轨道替换、停止、清空 sender 均成功。
 
-待修：
+待办：
 
-- 真实 `getDisplayMedia` 屏幕轨替换、停止共享恢复；
-- 真实屏幕帧的 photo QA 可读性；
-- Electron OIDC、浮窗 autoStart、源选择器。
+- 真实屏幕内容 photo QA 可读性；
+- Electron OIDC、浮窗 autoStart、源选择器；
+- 摄像头恢复和 track ended 的完整状态机。
 
 ### Phase 1：Electron 浮窗 MVP（3–4 周）
 
@@ -1018,13 +1019,17 @@ macOS 屏幕录制权限：
 
 ### 16.2 仍需验证
 
-1. 真实 `getDisplayMedia` 捕获、停止共享和摄像头恢复；
-2. 真实屏幕帧的 photo QA 可读性；
+1. 真实屏幕帧的 photo QA 可读性；
+2. 停止共享后摄像头恢复和 `track.ended` 状态机；
 3. Electron OIDC 使用 loopback 还是自定义 scheme；
 4. Electron 多显示器源选择器的具体交互；
 5. 浮窗 `autoStart` 在 Windows/macOS 上是否触发媒体权限拦截。
 
-媒体门控已通过：offer 不挂视频轨，音频优先，`session.updated` 后 `replaceTrack`，且 `negotiationneeded = 0`。
+已通过：
+
+- 浏览器 SDP 与供应商连接；
+- 无轨 video transceiver + 延迟 `replaceTrack`，`negotiationneeded = 0`；
+- 真实 `getDisplayMedia` 轨道替换、停止、清空 sender。
 
 ## 17. 关键文件
 
@@ -1054,7 +1059,7 @@ macOS 屏幕录制权限：
 
 ## 18. 最终建议
 
-Phase 0 核心链路已通过，剩余工作集中在真实屏幕捕获和 Electron 壳。
+Phase 0 核心链路已通过，剩余工作集中在真实屏幕内容、Electron 壳和状态恢复。
 
 已通过：
 
@@ -1062,14 +1067,13 @@ Phase 0 核心链路已通过，剩余工作集中在真实屏幕捕获和 Elect
 - DataChannel `oai-events`、`session.created`、`session.updated` 正常；
 - photo QA 使用 `session_lease.id` 成功；
 - 无轨 video transceiver + 延迟 `replaceTrack` 正常，无需重新协商；
-- Chrome `getDisplayMedia` 可获取 `displaySurface=monitor` 的实时屏幕轨（1280×720，live）。
+- 真实 `getDisplayMedia` 屏幕轨替换、停止、清空 sender 正常。
 
 进入 Phase 1 前还需：
 
-- `getDisplayMedia` 已能取得真实屏幕轨；
-- 真实屏幕轨替换/停止/恢复仍需验证；
 - 真实屏幕帧 photo QA 可读性；
-- 浮窗 `autoStart` 和 OIDC 壳验证。
+- 摄像头恢复和 `track.ended` 状态；
+- 浮窗 `autoStart`、OIDC 和源选择器验证。
 
 满足后把媒体核心封装成 React 模块，接入：
 
@@ -1172,22 +1176,22 @@ Phase 0 **核心链路通过**。
 - DataChannel/会话事件正常；
 - photo QA 正常；
 - 无轨 video transceiver + 延迟 replaceTrack 正常，且不需要重新协商；
-- Chrome `getDisplayMedia` 可取得真实 `displaySurface=monitor` 的 1280×720 实时屏幕轨。
+- 真实 `getDisplayMedia` 屏幕轨（`screen:-3:0`）替换 video sender 成功；
+- 停止屏幕轨并 `replaceTrack(null)` 成功，`negotiationneeded = 0`。
 
 仍需：
 
-1. 真实屏幕轨替换 video sender、停止共享、恢复摄像头；
-2. 真实屏幕帧的 photo QA 可读性；
+1. 真实屏幕帧的 photo QA 可读性；
+2. 停止共享后恢复摄像头；
 3. Electron OIDC、浮窗 autoStart、源选择器；
 4. 媒体断线/轨道 ended 的恢复。
 
 ### 19.6 下一步
 
-1. 用真实 `getDisplayMedia` 轨道替换 video sender；
+1. 对真实屏幕帧跑 photo QA；
 2. 验证共享停止、恢复摄像头、track ended；
-3. 对真实屏幕截图跑 photo QA；
-4. 用 Electron 浮窗验证 `autoStart` 和权限；
-5. 全部通过后进入 Phase 1。
+3. 用 Electron 浮窗验证 `autoStart` 和权限；
+4. 全部通过后进入 Phase 1。
 
 ### 19.7 验证产物
 

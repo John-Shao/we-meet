@@ -11,6 +11,7 @@ const withVideo = mode.includes('v')
 const withPreVideo = mode.includes('p')
 const withData = mode.includes('d')
 const replaceVideo = process.env.WE_MEET_REPLACE === '1'
+const useDisplay = process.env.WE_MEET_DISPLAY === '1'
 
 if (!token) {
   console.error('WE_MEET_ACCESS_TOKEN is required')
@@ -31,26 +32,37 @@ const browser = await chromium.launch({
     '--use-fake-ui-for-media-stream',
     '--use-fake-device-for-media-stream',
     '--autoplay-policy=no-user-gesture-required',
+    ...(useDisplay ? [
+      '--auto-select-desktop-capture-source=Entire screen',
+      '--enable-usermedia-screen-capturing',
+      '--allow-http-screen-capture',
+    ] : []),
   ],
 })
 const page = await browser.newPage()
 await page.goto(`http://127.0.0.1:${port}/`)
 
-const offer = await page.evaluate(async ({ withAudio, withVideo, withPreVideo, withData }) => {
+const offer = await page.evaluate(async ({ withAudio, withVideo, withPreVideo, withData, useDisplay }) => {
   const pc = new RTCPeerConnection()
   const channel = withData ? pc.createDataChannel('oai-events', { ordered: true }) : null
   window.__phase0 = { pc, channel }
+  let displayTrack = null
+  if (useDisplay) {
+    const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+    displayTrack = display.getVideoTracks()[0]
+  }
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: withAudio,
     video: withVideo,
   })
   const videoTrack = withVideo ? stream.getVideoTracks()[0] : null
   window.__phase0.videoTrack = videoTrack
+  window.__phase0.displayTrack = displayTrack
   // Qwen expects audio before video; keep video silent until session.created.
   if (videoTrack) videoTrack.enabled = false
   if (withAudio) pc.addTrack(stream.getAudioTracks()[0], stream)
   if (withVideo) pc.addTrack(videoTrack, stream)
-  if (withPreVideo && !withVideo) pc.addTransceiver('video', { direction: 'sendrecv' })
+  if ((withPreVideo && !withVideo) || useDisplay) pc.addTransceiver('video', { direction: 'sendrecv' })
   const description = await pc.createOffer()
   await pc.setLocalDescription(description)
   await new Promise((resolve) => {
@@ -64,7 +76,7 @@ const offer = await page.evaluate(async ({ withAudio, withVideo, withPreVideo, w
     })
   })
   return { sdp: pc.localDescription.sdp, ice: pc.iceGatheringState }
-}, { withAudio, withVideo, withPreVideo, withData })
+}, { withAudio, withVideo, withPreVideo, withData, useDisplay })
 
 const mlines = offer.sdp.split(/\r?\n/).filter((line) => line.startsWith('m='))
 console.log('mode:', mode, 'offer m-lines:', mlines.join(' | '), 'ice:', offer.ice)
@@ -159,7 +171,21 @@ const result = await page.evaluate(async (payload) => {
   }
 
   let replaced = false
-  if (payload.replaceVideo) {
+  let displayLabel = null
+  let stopped = false
+  if (payload.useDisplay) {
+    const displayTrack = window.__phase0.displayTrack
+    const sender = pc.getSenders().find((candidate) => candidate.track === null)
+    if (sender && displayTrack) {
+      displayLabel = displayTrack.label
+      await sender.replaceTrack(displayTrack)
+      replaced = true
+      await new Promise((resolve) => setTimeout(resolve, 2500))
+      displayTrack.stop()
+      await sender.replaceTrack(null)
+      stopped = true
+    }
+  } else if (payload.replaceVideo) {
     const sender = pc.getSenders().find((candidate) => candidate.track === null)
     if (sender) {
       const canvas = document.createElement('canvas')
@@ -184,13 +210,16 @@ const result = await page.evaluate(async (payload) => {
     connection: pc.connectionState,
     videoEnabled,
     replaced,
+    displayLabel,
+    stopped,
     negotiation,
     events,
   }
-}, { ...answer, replaceVideo })
+}, { ...answer, replaceVideo, useDisplay })
 
 console.log('channel:', result.channel, 'ice:', result.ice, 'connection:', result.connection)
 console.log('videoEnabled:', result.videoEnabled, 'replaced:', result.replaced, 'negotiation:', result.negotiation)
+console.log('displayLabel:', result.displayLabel, 'stopped:', result.stopped)
 console.log('server events:', result.events.length)
 for (const event of result.events) console.log('event:', event)
 
