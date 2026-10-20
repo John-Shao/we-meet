@@ -14,6 +14,7 @@ import {
   RiTaskLine,
   RiContactsBookLine,
   RiFileTextLine,
+  RiRobot2Line,
   RiLayoutLeftLine,
   RiMoreLine,
   RiSettings3Line,
@@ -51,6 +52,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: '/im', labelKey: 'nav.messages', Icon: RiMessage3Line },
+  { to: '/assistant', labelKey: 'nav.assistant', Icon: RiRobot2Line },
   { to: '/work', labelKey: 'nav.work', Icon: RiBriefcaseLine },
   { to: '/meeting', labelKey: 'nav.meeting', Icon: RiVidiconLine },
   { to: '/calendar', labelKey: 'nav.calendar', Icon: RiCalendarLine },
