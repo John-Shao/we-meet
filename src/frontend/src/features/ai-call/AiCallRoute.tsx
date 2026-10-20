@@ -41,6 +41,7 @@ export function AiCallRoute() {
   const [rows, setRows] = useState<Row[]>([])
   const [sharing, setSharing] = useState(false)
   const [snapshot, setSnapshot] = useState('')
+  const [readResult, setReadResult] = useState('')
   const [elapsed, setElapsed] = useState(0)
 
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -111,6 +112,7 @@ export function AiCallRoute() {
     let output: string
     try {
       const answer = await captureScreen(question)
+      setReadResult(answer)
       appendRow('assistant', answer)
       output = JSON.stringify({ success: true, answer })
     } catch (reason) {
@@ -192,6 +194,7 @@ export function AiCallRoute() {
     setError('')
     setRows([])
     setSnapshot('')
+    setReadResult('')
     seenCallsRef.current.clear()
     setStatus('connecting')
     try {
@@ -324,6 +327,23 @@ export function AiCallRoute() {
     sendSessionUpdate(false)
   }
 
+  const askReadScreen = () => {
+    const channel = channelRef.current
+    if (!sharing || channel?.readyState !== 'open') return
+    channel.send(JSON.stringify({
+      type: 'conversation.item.create',
+      item: {
+        type: 'message',
+        role: 'user',
+        content: [{
+          type: 'input_text',
+          text: '请调用 read_screen 读取当前共享屏幕上的标题或主要文字，并简短告诉我。',
+        }],
+      },
+    }))
+    channel.send(JSON.stringify({ type: 'response.create' }))
+  }
+
   return (
     <div style={{ padding: 24, maxWidth: 980, margin: '0 auto' }}>
       <h1 style={{ fontSize: 24, margin: '0 0 8px' }}>AI 打电话</h1>
@@ -337,6 +357,7 @@ export function AiCallRoute() {
           : <button onClick={stop}>挂断</button>}
         {status === 'active' && <button onClick={share}>共享屏幕</button>}
         {status === 'sharing' && <button onClick={stopShare}>停止共享</button>}
+        {status === 'sharing' && <button onClick={askReadScreen}>让 AI 读屏</button>}
       </div>
       {error && <p style={{ color: '#b00020' }}>{error}</p>}
       <audio ref={audioRef} autoPlay />
@@ -348,6 +369,7 @@ export function AiCallRoute() {
           style={{ maxWidth: 320, border: '1px solid #ddd', borderRadius: 8 }}
         />
       )}
+      {readResult && <p data-testid="read-screen-result">读屏：{readResult}</p>}
       <div style={{ marginTop: 16, borderTop: '1px solid #eee', paddingTop: 12 }}>
         {rows.map(row => (
           <p key={row.id} style={{ margin: '8px 0' }}>
