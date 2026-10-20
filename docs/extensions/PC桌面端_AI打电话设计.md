@@ -962,16 +962,19 @@ macOS 屏幕录制权限：
 - Web `/ai-call` 原型；
 - 语音连接、`session.created` / `session.updated`；
 - 屏幕共享、停止共享；
-- `read_screen` 工具定义和 photo QA 调用；
-- Playwright smoke 通过连接、共享、停止、挂断。
+- `read_screen` 工具调用和真实 photo QA 结果；
+- Playwright smoke 通过连接、共享、读屏、停止、挂断；
+- Electron 置顶 AI 通话浮窗；
+- 标题栏电话入口；
+- Electron 屏幕源选择器；
+- 浮窗独立 `/ai-call-float` 路由。
 
 待办：
 
 - 主窗口 AI 对话入口；
-- Electron 浮窗；
+- 对话浮窗（当前是独立通话窗，不是对话浮窗）；
 - 主窗口/浮窗 IPC 与唯一 Call Store；
 - 通话中胶囊；
-- 真实读屏内容验证；
 - 摄像头恢复、历史、错误处理。
 
 - 主窗口 AI 对话；
@@ -1258,3 +1261,32 @@ ended
 ```
 
 对应脚本：`src/frontend/scripts/phase1-ai-call-smoke.mjs`。
+
+### 19.9 Electron 浮窗接入（2026-10-20）
+
+已接入：
+
+- 标题栏电话按钮；
+- `ai-call:open` IPC；
+- Electron 置顶通话窗；
+- `/ai-call-float` 独立路由；
+- 浮窗媒体权限；
+- 浮窗屏幕源选择器；
+- 浮窗关闭时释放媒体。
+
+验证：
+
+- `src/desktop` TypeScript 类型检查通过；
+- `npm run build:main` 通过；
+- 桌面端 `npm test`：109 passed，1 skipped；
+- `/ai-call-float` 在 420×700 视口 Playwright smoke 通过：
+  - connected；
+  - sharing；
+  - read screen；
+  - share stopped；
+  - ended。
+
+限制：
+
+- 当前 Electron 二进制未安装，未做真实窗口截图验证；
+- 当前是独立通话浮窗，不是设计中的“AI 对话浮窗”。
