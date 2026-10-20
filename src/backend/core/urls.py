@@ -33,7 +33,11 @@ from core.api.admin_roles import (
 from core.api.admin_stats import AdminStatsOverviewView
 from core.api.agent_internal import IngestTranscriptView, TranscriptDeliveryView
 from core.api.ai_call import AiCallSessionView
-from core.api.ai_call_history import AIConversationDetailView, AIConversationView
+from core.api.ai_call_history import (
+    AIConversationByClientView,
+    AIConversationDetailView,
+    AIConversationView,
+)
 from core.api.ai_call_photo import AiCallPhotoView
 from core.api.approval import ApprovalInstanceViewSet, ApprovalTemplateViewSet
 from core.api.assistant_summary import AssistantSummaryView
@@ -454,6 +458,11 @@ urlpatterns = [
         "api/v1.0/ai-call/conversations/<uuid:conversation_id>/",
         AIConversationDetailView.as_view(),
         name="ai-call-conversation-detail",
+    ),
+    path(
+        "api/v1.0/ai-call/conversations/by-client/<str:client_id>/",
+        AIConversationByClientView.as_view(),
+        name="ai-call-conversation-by-client",
     ),
     path("api/v1.0/direct-ai/sessions/<uuid:allocation_id>/", DirectAIAllocationView.as_view(), name="direct-ai-session"),
     path("api/v1.0/assistant-summary/", AssistantSummaryView.as_view(), name="assistant-summary"),

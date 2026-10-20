@@ -253,3 +253,19 @@ class AIConversationDetailView(APIView):
         conversation.version += 1
         conversation.save(update_fields=["deleted_at", "version", "updated_at"])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AIConversationByClientView(APIView):
+    """Delete by the stable client id used by Android/local-first clients."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ConversationThrottle]
+
+    def delete(self, request, client_id):
+        conversation = _conversation_queryset(request.user).filter(client_id=client_id).first()
+        if conversation is None:
+            raise NotFound
+        conversation.deleted_at = timezone.now()
+        conversation.version += 1
+        conversation.save(update_fields=["deleted_at", "version", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
