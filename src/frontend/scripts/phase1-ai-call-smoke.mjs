@@ -2,7 +2,7 @@ import { chromium } from 'playwright'
 
 const token = process.env.WE_MEET_ACCESS_TOKEN
 const base = 'http://127.0.0.1:4173'
-const api = 'https://meet.we-meet.online'
+const api = process.env.WE_MEET_API_BASE || 'https://meet.we-meet.online'
 const path = process.env.WE_MEET_PATH || '/ai-call'
 if (!token) throw new Error('WE_MEET_ACCESS_TOKEN required')
 
