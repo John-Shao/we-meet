@@ -976,7 +976,10 @@ macOS 屏幕录制权限：
 - 浮窗关闭时保存进行中的通话记录；
 - 通话中输入文字消息；
 - 文本/语音共用同一 Realtime 会话；
-- 实际 Electron 浮窗创建验证。
+- 实际 Electron 浮窗创建验证；
+- 主窗口 `/assistant` 文字对话；
+- 静音音频轨建立 Realtime 会话，无需麦克风权限；
+- AI 助手页直接打开通话浮窗。
 
 待办：
 
@@ -1398,3 +1401,32 @@ float UI ready
 - 本次使用本地 mock 服务地址，未完成真实登录态下 Electron 内的通话；
 - 原生屏幕源选择器的实际交互仍未在 Electron 内跑通；
 - 需要登录态和真实服务后再做一次源选择 + getDisplayMedia E2E。
+
+### 19.14 主窗口 AI 助手（2026-10-20）
+
+新增 `/assistant`：
+
+- 主窗口文字对话；
+- 通过静音 `MediaStreamDestination` 音轨建立 Realtime 会话；
+- 不需要麦克风权限；
+- 文本输入、流式回答；
+- “AI 打电话”按钮打开已有通话浮窗；
+- Electron 标题栏增加“AI”入口。
+
+验证：
+
+```text
+assistant connected
+assistant replied
+```
+
+实测回答示例：
+
+```text
+我是 Qwen-Omni，一个能处理文本、图像、音频和视频的多模态AI助手。
+```
+
+限制：
+
+- 主窗口对话与通话浮窗目前是**独立会话**，不共享上下文；
+- 后续需要把对话内容作为通话初始上下文注入，或统一 Call Store。
