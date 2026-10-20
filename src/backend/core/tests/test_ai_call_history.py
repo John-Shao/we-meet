@@ -107,6 +107,31 @@ def test_delete_by_client_id_is_owner_scoped():
     assert client.post(URL, body(), format="json").status_code == 410
 
 
+def test_second_client_sees_and_updates_same_conversation():
+    user = UserFactory()
+    first = APIClient()
+    first.force_authenticate(user)
+    second = APIClient()
+    second.force_authenticate(user)
+    created = first.post(URL, body(), format="json")
+    assert created.status_code == 201
+
+    seen = second.get(f"{URL}{created.data['id']}/")
+    assert seen.status_code == 200
+    assert seen.data["version"] == 1
+    update = second.post(URL, body(messages=[
+        {"client_id": "m4", "position": 0, "role": "assistant", "text": "来自另一台设备"},
+    ]), format="json")
+    assert update.status_code == 200
+    assert update.data["version"] == 2
+
+    refreshed = first.get(f"{URL}{created.data['id']}/")
+    assert refreshed.data["version"] == 2
+    assert [row["text"] for row in refreshed.data["messages"]] == ["来自另一台设备"]
+    assert first.delete(f"{URL}{created.data['id']}/").status_code == 204
+    assert second.get(URL).data["conversations"] == []
+
+
 def test_duplicate_ids_and_reversed_time_are_rejected():
     client = APIClient()
     client.force_authenticate(UserFactory())
