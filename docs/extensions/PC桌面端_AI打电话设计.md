@@ -1430,3 +1430,89 @@ assistant replied
 
 - 主窗口对话与通话浮窗目前是**独立会话**，不共享上下文；
 - 后续需要把对话内容作为通话初始上下文注入，或统一 Call Store。
+
+## 20. 跨端会话记录 Phase 1（2026-10-20）
+
+### 20.1 范围
+
+同步：
+
+- 会话索引；
+- 文本对话；
+- 摘要/待办字段（API 已支持）；
+- 删除状态。
+
+不同步：
+
+- 屏幕截图；
+- 摄像头画面；
+- 原始音频/视频；
+- 全量 OCR 文本。
+
+### 20.2 后端模型
+
+- `AIConversation`
+  - `owner`
+  - `client_id`（客户端稳定 ID，`owner + client_id` 唯一）
+  - `device_id`
+  - `kind` / `status`
+  - `started_at` / `ended_at`
+  - `title` / `summary` / `todos`
+  - `version`
+  - `deleted_at`
+- `AIConversationMessage`
+  - `conversation`
+  - `client_id`（会话内唯一）
+  - `position` / `role` / `text` / `source`
+
+### 20.3 API
+
+```text
+GET    /api/v1.0/ai-call/conversations/?include_messages=1
+GET    /api/v1.0/ai-call/conversations/{id}/
+POST   /api/v1.0/ai-call/conversations/
+DELETE /api/v1.0/ai-call/conversations/{id}/
+```
+
+语义：
+
+- `POST` 是按 `client_id` 的完整快照 upsert；
+- 同一会话重复上传会替换消息并递增 `version`；
+- 删除后再次上传返回 `410`，不允许复活；
+- 只返回当前 owner 的记录；
+- 列表支持 `since` 增量过滤；
+- 单会话最多 2000 条消息、文本总大小 2 MB。
+
+### 20.4 PC
+
+- 保留 localStorage 本地缓存；
+- `/ai-call` 打开时拉取远端；
+- 结束通话后上传本地快照；
+- 删除时同步删除远端；
+- 上传返回的 server id 写回本地；
+- 远端失败不阻塞本地通话。
+
+### 20.5 Android
+
+- 历史页打开时拉取远端；
+- 本地 call 记录上传；
+- 合并远端文本记录；
+- 屏幕/翻译等非 user/assistant 行以 assistant 角色同步，避免服务端拒绝；
+- 图片和原始音视频不上传。
+
+### 20.6 验证
+
+已执行：
+
+- 前端 `npx tsc --noEmit` 通过；
+- 前端 `npm run build` 通过；
+- Android `:feature-assistant:compileDebugKotlin` 通过；
+- Android `:feature-assistant:testDebugUnitTest` 通过；
+- PC smoke 仍通过；生产环境尚未部署新接口时，同步请求 404 被静默降级。
+
+未完成：
+
+- 后端测试未在本机运行（缺少 Python 依赖环境）；
+- 新接口未部署，未做真实双端 E2E；
+- 摘要/待办完整同步；
+- 远端删除 tombstone 与本地 pending 冲突处理。
