@@ -151,7 +151,7 @@ flowchart LR
 | 主窗口 | AI 对话、历史消息、屏幕共享图片、通话中的“通话中”胶囊 |
 | 对话浮窗 | 常驻置顶、拖动/固定/最小化；发起通话；通话中的头像/状态/控制按钮 |
 | Call Store | 唯一通话状态机，持有 WebRTC 和媒体轨道；Electron 中位于浮窗 renderer |
-| 主进程 | 窗口管理、源选择器、托盘、通知、全局快捷键 |
+| 主进程 | 窗口管理、源选择器；托盘/通知/全局快捷键在后续阶段接入 |
 
 推荐由**浮窗 renderer 持有 Call Store 和通话媒体**：
 
@@ -171,6 +171,80 @@ flowchart LR
 - 可用 Document Picture-in-Picture 提供近似浮窗；
 - 不支持 Safari/Firefox 的常驻置顶，明确降级；
 - 媒体层与 Electron 共用。
+
+### 4.3 主窗口 / 浮窗 IPC 与状态契约
+
+#### 4.3.1 唯一所有权
+
+```text
+Electron：
+  浮窗 renderer = Call Store 唯一实例 + WebRTC + 媒体轨道
+  主窗口 renderer = 只读订阅 + 发起命令
+  主进程 = 窗口管理 + 源选择器 + 单实例约束
+```
+
+任何情况下不允许主窗口和浮窗各自创建一个 `RTCPeerConnection`。
+
+#### 4.3.2 窗口生命周期
+
+| 动作 | 行为 |
+|---|---|
+| 主窗口点击电话 | `call:open`，主进程创建或聚焦浮窗 |
+| 浮窗启动 | 获取 `conversationId`，创建 Call Store |
+| 浮窗最小化 | 通话继续，track 保持 |
+| 浮窗关闭 | 二次确认后结束通话，销毁窗口 |
+| 浮窗崩溃 | 主进程监听 `render-process-gone`，标记 failed 并通知主窗口 |
+| 主窗口关闭 | 首版结束通话并退出应用，不保留后台通话 |
+| 再次点击电话 | 若浮窗存在则聚焦；不存在则新建 |
+
+#### 4.3.3 命令与事件
+
+命令（主窗口 → 主进程 → 浮窗）：
+
+```text
+call:open        { conversationId }
+call:start       { callId }
+call:end         { callId }
+call:mute        { callId, muted }
+call:camera      { callId, enabled }
+call:share.start { callId }
+call:share.stop  { callId }
+call:focus       { callId }
+```
+
+事件（浮窗 → 主进程 → 主窗口）：
+
+```text
+call:state      { callId, phase, micMuted, cameraEnabled, sharing, trackLive, startedAt, error? }
+call:transcript { callId, messageId, role, text, streaming }
+call:snapshot   { callId, messageId, snapshotId, caption }
+call:ended      { callId, reason }
+```
+
+约束：
+
+- 所有命令带 `callId`，重复命令幂等；
+- 事件按 `callId + messageId` 去重；
+- 主窗口不把状态回写给浮窗，避免双向竞争；
+- 事件通道使用固定白名单，`contextBridge` 不暴露任意 `ipcRenderer`；
+- 截图不通过 IPC 传整段 base64：浮窗把 Blob 写入同源 IndexedDB，事件只传 `snapshotId`；
+- 命令超时 3 秒返回明确失败，不静默重试。
+
+#### 4.3.4 启动与手势
+
+点击电话按钮后，主进程创建浮窗并传入 `autoStart=true`。如果浮窗无法在无用户手势的情况下获取麦克风或播放远端音频：
+
+- 浮窗显示一次“点击开始通话”；
+- 不静默失败，也不循环申请权限；
+- 用户点击后继续同一个 `callId`，不新建会话。
+
+#### 4.3.5 崩溃与重开
+
+- 浮窗 renderer 崩溃：结束通话、释放后端租约、主窗口显示“通话异常结束”；
+- 浮窗刷新：视为崩溃，不尝试恢复媒体；
+- 浮窗最小化不等于关闭，通话继续；
+- 关闭浮窗后不允许“后台继续通话”；
+- 如果需要“收起到主窗口”，作为后续独立产品能力，不在首版范围。
 
 ## 5. 会话建立
 
@@ -586,20 +660,61 @@ Electron 首版必须具备：
 - 会议/通话快捷唤起；
 - 自动更新。
 
+### 9.8 设备选择与可访问性
+
+首版必须有：
+
+- 麦克风选择器；
+- 摄像头选择器；
+- 扬声器选择器（浏览器支持时）；
+- `devicechange` 监听，设备拔出时回退到默认设备并提示；
+- 浮窗内完整键盘可达：Tab 聚焦、Space 切换、Esc 关闭；
+- 麦克风/共享/挂断有可读的 aria-label；
+- 浮窗最小化、置顶、关闭不能只用鼠标悬浮触发；
+- 通话状态和共享状态可被屏幕阅读器读取。
+
+不做：
+
+- 系统级音频设备热插拔的复杂恢复；
+- 盲文/辅助设备专项适配（后续）。
+
 ## 10. 历史记录
+
+### 10.0 对话与通话的关系
+
+一次 AI 对话可以包含多次通话；一次通话属于一个 `conversationId`。
+
+```text
+conversation
+  └── callSession 1
+  └── callSession 2
+```
+
+规则：
+
+- 通话中的用户文字、AI 文字、屏幕截图都追加到同一个对话；
+- 通话记录是对话内的一条 session 记录，不是独立聊天；
+- 主窗口展示完整对话；
+- 浮窗只展示当前通话相关消息；
+- 关闭浮窗后，对话内容和截图仍保留在主窗口；
+- 历史列表既能打开对话，也能看到通话时长/状态/截图数量。
 
 ### 10.1 存储
 
 浏览器使用 IndexedDB，Electron 使用 userData 下的 IndexedDB/文件：
 
 ```text
+conversations
+  id, title, createdAt, updatedAt
 sessions
-  id, kind, startedAt, endedAt, mode, transport, title, summary, ...
+  id, conversationId, kind, startedAt, endedAt, mode, outcome, title, summary, ...
 rows
-  id, sessionId, order, role, text, imageBlob
+  id, conversationId, sessionId, order, role, text, imageBlob
 summaries
   sessionId, content, tasks
 ```
+
+`sessions.conversationId` 关联主对话；`rows.sessionId` 可空，普通聊天行为空，通话产生的行为对应通话 session。
 
 第一期字段：
 
@@ -684,6 +799,7 @@ PC 与 Android 历史各自本地保存；后续如需同步，应通过后端�
 - WebRTC SDP/事件协议单测；
 - 工具解析、去重、错误码单测；
 - 媒体 track mock：麦克风、摄像头、屏幕；
+- Call Store/IPC 契约测试：命令幂等、事件去重、callId 校验；
 - IndexedDB 历史增删改查；
 - Playwright 使用 fake media：
   - 假麦克风；
@@ -709,7 +825,12 @@ PC 与 Android 历史各自本地保存；后续如需同步，应通过后端�
 7. 挂断释放麦克风/摄像头/屏幕；
 8. 历史记录含截图；
 9. 拒绝权限、取消共享；
-10. 关闭窗口后无残留采集。
+10. 关闭窗口后无残留采集；
+11. 浮窗最小化后通话继续；
+12. 浮窗关闭后通话结束、主窗口胶囊消失；
+13. 浮窗 renderer 崩溃后主窗口显示异常并释放；
+14. 拔出麦克风/摄像头后回退默认设备；
+15. 主窗口和浮窗的通话状态、计时、静音保持同步。
 
 ### 13.3 验收标准
 
@@ -741,11 +862,15 @@ PC 与 Android 历史各自本地保存；后续如需同步，应通过后端�
 - 主窗口 AI 对话；
 - 对话浮窗，顶部电话入口；
 - 浮窗内通话模式；
+- 主窗口/浮窗 IPC 与唯一 Call Store；
 - 麦克风/摄像头/屏幕共享；
 - 主窗口“通话中”胶囊与状态同步；
 - 工具调用、读屏；
+- 麦克风/摄像头/扬声器选择；
+- 浮窗键盘可达；
 - 本地历史；
-- 基础错误处理和浮窗生命周期。
+- 浮窗关闭/崩溃/刷新生命周期；
+- 基础错误处理。
 
 > 媒体核心仍写成可复用 React 模块，浏览器可独立运行；但首版产品入口按 Electron 浮窗交付。
 
@@ -787,13 +912,11 @@ PC 与 Android 历史各自本地保存；后续如需同步，应通过后端�
 1. 后端 `ai-call/session` 是否接受包含 video m-line 的浏览器 SDP；
 2. photo QA 的 `session_id` 具体来自分配响应还是租约 ID；
 3. 现有 Web 登录在 Electron 中是 OIDC PKCE 还是复用 Cookie；
-4. 是否需要共享系统音频；
-5. 历史是否需要与 Android 同步；
-6. 是否提供“关闭浮窗收起到主窗口继续通话”的例外（默认关闭即结束）；
-7. 是否需要全局快捷键作为首版能力；
-8. 是否允许 macOS 使用系统屏幕录制权限；
-9. Qwen Realtime 的 DataChannel 事件名与浏览器实现是否完全一致；
-10. 浮窗和主窗口采用同一 renderer 还是两个 BrowserWindow。
+4. 是否需要全局快捷键作为首版能力；
+5. 是否允许 macOS 使用系统屏幕录制权限；
+6. Qwen Realtime 的 DataChannel 事件名与浏览器实现是否完全一致；
+7. 浮窗 `autoStart` 在无用户手势时是否会被 Electron 媒体策略拦截；
+8. 是否提供“关闭浮窗收起到主窗口继续通话”的例外（默认关闭即结束）。
 
 ## 17. 关键文件
 
