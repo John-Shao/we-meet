@@ -98,6 +98,26 @@
 - 第一期使用 WebRTC 即可覆盖语音和屏幕共享；
 - 后续若需要更低延迟，再评估 AOQ 桌面 SDK 或原生壳。
 
+### 3.3 Electron 登录
+
+Electron 不复用内嵌 WebView 登录，采用：
+
+```text
+系统浏览器
+→ OIDC Authorization Code + PKCE
+→ loopback（127.0.0.1 临时端口）
+→ 或自定义 scheme wemeet://
+→ 回调到 Electron
+```
+
+原因：
+
+- Keycloak/安全要求不允许内嵌 WebView 登录；
+- 系统浏览器可复用现有 SSO/密码管理器；
+- loopback/scheme 回调避免把密码暴露给 renderer。
+
+具体使用 loopback 还是自定义 scheme，在 Electron 壳 PoC 中确定；两者都不改变业务 API。
+
 ## 4. 总体架构
 
 ```mermaid
@@ -136,7 +156,7 @@ flowchart LR
     end
 
     Main -->|HTTPS 登录态| API
-    Float -->|HTTPS session_id| Photo
+    Float -->|HTTPS session_lease.id| Photo
     Store -->|HTTPS| Summary
     RTC <-->|WebRTC 音频/视频/DataChannel| Realtime
     API -->|服务端 Key 分配| Realtime
@@ -270,6 +290,21 @@ POST /api/v1.0/direct-ai/sessions/{id}/  operation=heartbeat|close
 }
 ```
 
+已确认的契约：
+
+- photo QA 的 `session_id` 使用分配响应里的 `session_lease.id`，不是另建的会话 ID；
+- 心跳/关闭使用同一个 `session_lease.id`：
+  - `POST /api/v1.0/direct-ai/sessions/{session_lease.id}/`
+- DataChannel 使用标签 `oai-events`，必须在 `createOffer` 前创建；
+- 浏览器和 Android 使用同一套 OpenAI Realtime 风格事件。
+
+依据：
+
+- Android `AiCallViewModel` 将 `answer.session_lease?.id` 作为 photo QA 的 `sessionId`；
+- 后端 `live_session` 按 `DirectAIAllocation.id` 校验；
+- Android `OmniWebRtcClient` 创建 `createDataChannel("oai-events")`；
+- 后端 `CallOfferSerializer` 只强制 `m=audio`，不会拒绝额外的 `m=video`，但供应商是否接受仍需 Phase 0 实测。
+
 ### 5.2 预协商视频轨
 
 不能等用户点“共享屏幕”时才新增视频 m-line。
@@ -278,6 +313,7 @@ POST /api/v1.0/direct-ai/sessions/{id}/  operation=heartbeat|close
 
 ```text
 创建 RTCPeerConnection
+→ createDataChannel("oai-events", { ordered: true })
 → addTransceiver("video", { direction: "sendonly" })
 → addTransceiver("audio", { direction: "sendonly" })
 → createOffer / setLocalDescription
@@ -770,6 +806,21 @@ PC 与 Android 历史各自本地保存；后续如需同步，应通过后端�
 - 屏幕源选择交给 main 进程，不把任意 IPC 暴露给 renderer；
 - 不把 DASHSCOPE Key 或服务端 Key 写入客户端。
 
+macOS 屏幕录制权限：
+
+- 首次共享时检测 `getDisplayMedia`/系统权限失败；
+- 显示一次性引导：
+
+```text
+需要“屏幕录制”权限
+系统设置 → 隐私与安全性 → 屏幕录制 → 勾选 We Meet
+修改后需要重启应用
+[打开系统设置]
+```
+
+- 不静默失败，不循环弹系统窗口；
+- 用户拒绝后，语音/摄像头仍可用。
+
 ### 11.3 数据
 
 - 屏幕截图和拍照属于敏感数据；
@@ -895,8 +946,8 @@ PC 与 Android 历史各自本地保存；后续如需同步，应通过后端�
 
 | 风险 | 等级 | 处理 |
 |---|---|---|
-| 后端不兼容带 video m-line 的浏览器 SDP | 高 | Phase 0 先验证 |
-| photo QA 需要有效 session_id | 高 | 确认现有分配/租约返回值 |
+| 后端不兼容带 video m-line 的浏览器 SDP | 高 | API 已放行，Phase 0 验证供应商是否接受 |
+| photo QA 的 session_id 用错 | 高 | 已确认使用 `session_lease.id` |
 | 主窗口与浮窗状态/媒体归属不一致 | 高 | Call Store 单一所有权 + IPC 协议 |
 | 关闭浮窗后媒体成为孤儿 | 高 | 关闭即结束通话并通知主窗口 |
 | 屏幕选择器体验比移动端多一步 | 中 | 接受；Electron 再做源记忆 |
@@ -907,16 +958,32 @@ PC 与 Android 历史各自本地保存；后续如需同步，应通过后端�
 | 多窗口 UI 分叉 | 中 | 同一 React 组件 + 两个窗口壳 |
 | 多平台测试成本 | 中 | 先 Windows Electron，再 macOS |
 
-## 16. 待确认问题
+## 16. 已决策与仍需验证
 
-1. 后端 `ai-call/session` 是否接受包含 video m-line 的浏览器 SDP；
-2. photo QA 的 `session_id` 具体来自分配响应还是租约 ID；
-3. 现有 Web 登录在 Electron 中是 OIDC PKCE 还是复用 Cookie；
-4. 是否需要全局快捷键作为首版能力；
-5. 是否允许 macOS 使用系统屏幕录制权限；
-6. Qwen Realtime 的 DataChannel 事件名与浏览器实现是否完全一致；
-7. 浮窗 `autoStart` 在无用户手势时是否会被 Electron 媒体策略拦截；
-8. 是否提供“关闭浮窗收起到主窗口继续通话”的例外（默认关闭即结束）。
+### 16.1 已决策
+
+| 问题 | 结论 |
+|---|---|
+| photo QA 的 session ID | 使用 `session_lease.id`，心跳/close 同 ID |
+| DataChannel 协议 | 标签 `oai-events`，创建 DataChannel 后再 offer |
+| Electron 登录 | 系统浏览器 + OIDC Authorization Code + PKCE，不用内嵌 WebView |
+| 全局快捷键 | 不在首版，Phase 3 |
+| macOS 屏幕录制 | 用户手动授权，应用提供系统设置引导 |
+| `autoStart` | 先自动尝试；失败显示一次“点击开始通话”，不循环申请权限 |
+| 关闭浮窗 | 结束通话并释放媒体；不做后台通话 |
+| 系统音频共享 | 不在首版 |
+| 历史跨端同步 | 不在首版 |
+| 浏览器降级 | Chrome/Edge 面板 + Document PiP；Safari/Firefox 不承诺浮窗 |
+
+### 16.2 仍需 Phase 0 验证
+
+1. 供应商是否接受包含 video m-line 的浏览器 SDP；
+2. Electron OIDC 使用 loopback 还是自定义 scheme；
+3. Electron 多显示器源选择器的具体交互；
+4. 浏览器 SDP 的 codec/ICE 与 Qwen 端点是否完全兼容；
+5. 浮窗 `autoStart` 在 Windows/macOS 上是否触发媒体权限拦截。
+
+其中 1、4 决定 Phase 1 是否能按 WebRTC 方案落地；2、3、5 是实现细节，不阻塞架构。
 
 ## 17. 关键文件
 
