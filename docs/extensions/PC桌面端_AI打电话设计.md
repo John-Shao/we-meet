@@ -295,7 +295,11 @@ POST /api/v1.0/direct-ai/sessions/{id}/  operation=heartbeat|close
 - photo QA 的 `session_id` 使用分配响应里的 `session_lease.id`，不是另建的会话 ID；
 - 心跳/关闭使用同一个 `session_lease.id`：
   - `POST /api/v1.0/direct-ai/sessions/{session_lease.id}/`
-- DataChannel 使用标签 `oai-events`，必须在 `createOffer` 前创建；
+- 客户端 DataChannel 使用标签 `oai-events`，必须在 `createOffer` 前创建；
+- **服务端还会创建自己的 DataChannel，标签为 `txt`**；
+- `session.created` / `session.updated` 等服务器事件从 `txt` 返回；
+- 必须监听 `pc.addEventListener("datachannel", ...)`；只监听客户端 `oai-events` 会一直停在“正在连接”；
+- 客户端发送 `session.update` / `function_call_output` 仍走 `oai-events`；
 - 浏览器和 Android 使用同一套 OpenAI Realtime 风格事件。
 
 依据：
@@ -951,6 +955,25 @@ macOS 屏幕录制权限：
 
 ### Phase 1：Electron 浮窗 MVP（3–4 周）
 
+状态：**进行中**
+
+已完成：
+
+- Web `/ai-call` 原型；
+- 语音连接、`session.created` / `session.updated`；
+- 屏幕共享、停止共享；
+- `read_screen` 工具定义和 photo QA 调用；
+- Playwright smoke 通过连接、共享、停止、挂断。
+
+待办：
+
+- 主窗口 AI 对话入口；
+- Electron 浮窗；
+- 主窗口/浮窗 IPC 与唯一 Call Store；
+- 通话中胶囊；
+- 真实读屏内容验证；
+- 摄像头恢复、历史、错误处理。
+
 - 主窗口 AI 对话；
 - 对话浮窗，顶部电话入口；
 - 浮窗内通话模式；
@@ -1203,3 +1226,35 @@ Phase 0 **核心链路通过**。
   - `apd`：audio + 预加无轨 video + data
   - `a`：audio only（预期 502，用于对照）
 - 不记录 access token，不输出完整 SDP。
+
+### 19.8 页面联调记录（2026-10-20）
+
+新增 `/ai-call` React 原型后，页面能完成：
+
+- 获取 profile；
+- 建立 SDP / ICE；
+- 打开客户端 `oai-events`；
+- 但一直停在“正在连接”。
+
+根因：
+
+- 服务端创建了自己的 DataChannel `txt`；
+- `session.created` / `session.updated` 从 `txt` 返回；
+- 页面只监听客户端 `oai-events`，所以永远等不到 `session.updated`。
+
+修复：
+
+- 监听 `pc.addEventListener("datachannel", ...)`；
+- 对服务端 channel 绑定消息处理；
+- 在任意 channel 上收到 `session.updated` 即可进入 active。
+
+修复后 Playwright smoke 通过：
+
+```text
+connected
+sharing
+share stopped
+ended
+```
+
+对应脚本：`src/frontend/scripts/phase1-ai-call-smoke.mjs`。
