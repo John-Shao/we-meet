@@ -1575,3 +1575,33 @@ Android 本地上传 -> PC 拉取显示
 中文测试消息在 PowerShell 种数据时变成 `?????`，是测试数据编码问题，不是 Android 解码问题。
 
 注意：手机当前安装的是指向 `127.0.0.1:8071` 的本地联调 APK；恢复日常使用需重新安装生产配置 APK。
+
+### 20.8 PC 媒体自测（2026-10-21）
+
+新增可观测媒体状态和本地预览：
+
+- `media-state`：音频/摄像头/屏幕轨、发送轨、远端音频、连接、DataChannel；
+- 摄像头本地预览；
+- 共享屏幕本地预览。
+
+Playwright 断言结果：
+
+```text
+audio: live
+connection: connected
+channel: open
+remoteAudio: true
+camera: live / sender video / preview visible
+camera off: sender empty
+screen: live / displaySurface monitor / sender video / preview visible
+share stopped: screen empty / sender empty
+read screen: 成功
+history saved / persisted
+ended
+```
+
+限制：
+
+- 使用 Chrome fake camera 和自动选择屏幕源；
+- 未验证真实摄像头画质、真实显示器选择器和弱网；
+- 生产环境同步接口尚未部署，PC 页面出现两个 404 日志，但静默降级。
