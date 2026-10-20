@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import { DesktopStatusBar } from './components/DesktopStatusBar'
 
+const isAiCallFloat = window.location.pathname === '/ai-call-float'
+
 // Supports weights 100-700
 import '@fontsource-variable/material-symbols-outlined'
 
@@ -13,7 +15,7 @@ if (window.weMeetDesktop?.shell) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <DesktopStatusBar />
+    {!isAiCallFloat && <DesktopStatusBar />}
     <App />
   </React.StrictMode>
 )
