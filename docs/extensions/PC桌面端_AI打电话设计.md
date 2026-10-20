@@ -967,7 +967,11 @@ macOS 屏幕录制权限：
 - Electron 置顶 AI 通话浮窗；
 - 标题栏电话入口；
 - Electron 屏幕源选择器；
-- 浮窗独立 `/ai-call-float` 路由。
+- 浮窗独立 `/ai-call-float` 路由；
+- 主窗口“AI 通话中”胶囊；
+- 浮窗 → 主进程 → 主窗口的通话状态 IPC；
+- 摄像头开关；
+- 停止共享后恢复空轨。
 
 待办：
 
@@ -1290,3 +1294,34 @@ ended
 
 - 当前 Electron 二进制未安装，未做真实窗口截图验证；
 - 当前是独立通话浮窗，不是设计中的“AI 对话浮窗”。
+
+### 19.10 通话状态与摄像头（2026-10-20）
+
+已接入：
+
+- 浮窗状态上报：
+  - `idle` / `connecting` / `active` / `sharing` / `error` / `ended`
+  - `startedAt`、`sharing`
+- 主进程校验上报来源后广播；
+- 主窗口标题栏显示“AI 通话中 mm:ss”胶囊；
+- 点击胶囊聚焦/重新打开浮窗；
+- 浮窗关闭自动变为 ended；
+- 摄像头开关：
+  - 音频先建立；
+  - active 后 `replaceTrack(cameraTrack)`；
+  - 关闭摄像头 `replaceTrack(null)`；
+  - 共享屏幕前关闭摄像头；
+  - 浮窗关闭时停止摄像头轨。
+
+验证：
+
+- Playwright smoke：
+  - connected；
+  - camera on；
+  - camera off；
+  - sharing；
+  - read screen；
+  - share stopped；
+  - ended；
+- 桌面端 `npm test`：109 passed，1 skipped；
+- 桌面端 `npm run build:main` 通过。
