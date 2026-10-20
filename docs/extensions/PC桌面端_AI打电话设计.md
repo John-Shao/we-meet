@@ -902,11 +902,19 @@ macOS 屏幕录制权限：
 
 ### Phase 0：技术验证（3–5 天）
 
-- 浏览器建立 WebRTC，完成 Qwen 语音通话；
-- 预协商 video m-line；
-- `getDisplayMedia` + `replaceTrack`；
-- 从屏幕帧抓图，调 photo QA；
-- 验证后端 SDP/租约/photo QA 对 PC 可用。
+状态：**blocked**（2026-10-20）
+
+已完成：
+
+- 浏览器建立 WebRTC offer；
+- 预协商 audio / video / data m-line；
+- 后端鉴权、profile 目录、SDP 请求链路验证；
+- 浏览器 SDP 三种组合实测。
+
+阻塞：
+
+- 当前供应商对所有浏览器 SDP 组合返回拒绝，详见第 19 节；
+- 在供应商接受浏览器 SDP 前，不能进入 Phase 1。
 
 ### Phase 1：Electron 浮窗 MVP（3–4 周）
 
@@ -1013,16 +1021,18 @@ macOS 屏幕录制权限：
 
 ## 18. 最终建议
 
-先做 **Phase 0 技术验证**，随后直接做 **Electron 浮窗 MVP**。
+先解决 **Phase 0 的供应商 SDP 兼容问题**，再进入 Electron 浮窗 MVP。
 
-如果 Phase 0 证明：
+当前实测状态是 blocked：浏览器 offer 的 audio/video/data 三种组合均被供应商拒绝。
 
-- 浏览器 SDP 可被后端接受；
+只有以下条件满足后才进入 Phase 1：
+
+- 浏览器或受控 SDP 适配后的 SDP 能被供应商接受；
 - 屏幕轨可替换；
 - 抓帧 photo QA 可用；
-- 租约/心跳正常；
+- 租约/心跳正常。
 
-就把媒体核心封装成 React 模块，接入：
+然后把媒体核心封装成 React 模块，接入：
 
 ```text
 主窗口 AI 对话
@@ -1034,3 +1044,86 @@ macOS 屏幕录制权限：
 浏览器版本作为降级形态，不要求提供与 Electron 完全一致的置顶浮窗。
 
 不要在验证前直接开始原生桌面重写，也不要把 Android 无障碍和 MediaProjection 逻辑带进 PC 方案。
+
+## 19. Phase 0 验证记录（2026-10-20）
+
+### 19.1 环境
+
+- 桌面 Chrome + Playwright（`channel: "chrome"`）；
+- 生产 API：`https://meet.we-meet.online`；
+- demo 账号登录，仅验证协议，不涉及真实用户数据；
+- AI profile：`qwen-omni-realtime`；
+- 测试脚本：`src/frontend/scripts/phase0-webrtc-check.mjs`。
+
+### 19.2 已验证
+
+浏览器 offer 能正确生成：
+
+```text
+m=audio
+m=video
+m=application (oai-events)
+ICE gathering: complete
+```
+
+后端链路：
+
+- demo 账号 OTP 登录成功；
+- `ai-agent-config` 可读取；
+- `ai-call/session` 请求到达后端；
+- 后端返回结构化的 502，而不是 401/400/503。
+
+代码契约：
+
+- photo QA 的 `session_id` = `session_lease.id`；
+- DataChannel 标签 = `oai-events`；
+- 后端 SDP 校验只要求 `m=audio`，允许额外 m-line。
+
+### 19.3 实测结果
+
+| offer 内容 | 结果 |
+|---|---|
+| audio + data | `502 AI call connection was rejected` |
+| audio + video + data | `502 AI call connection was rejected` |
+| audio only | `502 AI call connection was rejected` |
+
+结论：
+
+- 不是单单 video m-line 导致；
+- 不是单单 data channel 导致；
+- 浏览器生成的 SDP 目前整体未被供应商接受；
+- 或当前供应商端点/账号/profile 与浏览器路径不兼容。
+
+### 19.4 当前阻塞
+
+Phase 0 **未通过**，不能进入 Phase 1。
+
+需要先区分：
+
+1. **账号/供应商问题**：用同一账号走 Android/AOQ 是否还能建立通话；
+2. **SDP 兼容问题**：把 Android 已接受的 SDP 原样送到同一接口，确认是否 200；
+3. **端点差异**：供应商是否只接受其 SDK 生成的 SDP；
+4. **codec/ICE/BUNDLE 差异**：比较浏览器与 Android 的 offer；
+5. **后端错误信息**：当前 502 被统一包装，无法看到上游拒绝原因，需要安全地记录供应商状态/错误码（不记录密钥和完整 SDP）。
+
+### 19.5 下一步
+
+按顺序：
+
+1. 用 Android WebRTC 生成一次 offer，发送到同一 `/ai-call/session`，记录结果；
+2. 用同一脚本发送一份已知可用的 Android SDP，区分账号/端点；
+3. 用 `transport=aoq` 做对照，确认供应商分配本身是否正常；
+4. 如果只有 SDK SDP 被接受，评估：
+   - 使用 Qwen 提供的浏览器 WebRTC SDK/端点；
+   - 服务端做受控 SDP 适配；
+   - 或 PC 端改用 Electron 内嵌原生 WebRTC SDK；
+5. 在上述问题解决前，不开始 Electron 浮窗 MVP 的媒体实现。
+
+### 19.6 验证产物
+
+- 测试脚本：`src/frontend/scripts/phase0-webrtc-check.mjs`
+- 支持模式：
+  - `ad`：audio + data
+  - `avd`：audio + video + data
+  - `a`：audio only
+- 不记录 access token，不输出完整 SDP。
