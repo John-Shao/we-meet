@@ -243,6 +243,8 @@ AOQ 只向客户端返回所需字段：`sid`、`aoqTokenForClient`、`clientRel
 
 两种客户端均设置 `modalities=["text","audio"]`、当前 voice、用户选择的 VAD 模式和 `input_audio_transcription.model=qwen3-asr-flash-realtime`。通话设置中的“语音轮次检测（VAD）”可选择声学检测 `server_vad` 或语义检测 `semantic_vad`，默认保持 `server_vad`；选择以 `call_vad_mode` 保存于 App 偏好，统一用于 AOQ／WebRTC、语音／视频通话。它是运行时设置，不是编译选项：通话前选择，客户端创建时固定本通电话的模式，连接中及通话中不修改。两种模式共用阈值 0.5、静音判定 800 ms，通过 `session.update.session.turn_detection` 配置，不增加业务后端字段。官方 [AOQ 实时通话示例](https://help.aliyun.com/zh/model-studio/best-practice-aoq-omni-realtime)支持并推荐语义检测；本项目保留声学基线供对比，实际误打断和延迟效果须在相同设备、音色、音量及网络条件下验证，语义检测不替代回声消除。
 
+2026-10-20 真机实测补充：WebRTC 建连后首个 `session.update` 若把 `turn_detection.type` 从默认 `server_vad` 改为 `semantic_vad`，WebRTC 端点返回 `invalid_request_error`（`param=session.turn_detection`，原文 `Cannot change turn_detection while input audio is pending`），通话在 `session.updated` 之前失败；同一 payload 走 AOQ 可正常收到 `session.updated`，WebRTC 改用 `server_vad` 也能建连。因此 Android 端在 WebRTC 下固定使用 `server_vad`，语义检测仅在 AOQ 可用；映射位置与网关修复后的回退步骤见 §11.3。
+
 这是 Omni 会话内的转写配置，不额外创建个人 ASR 3.1 连接。模型侧音频格式配置与 SDK／WebRTC 的线路编码是不同层次，不能把 PCM 会话配置理解为网络不编码。
 
 按各自开关分别注册摄像头控制／查询和结束通话工具，显式 `enable_search=false`；当前还设置 `temperature=0`、`presence_penalty=0`。这些参数并未解决实测漏调用问题，不能作为可靠性承诺。所有工具均关闭时不附加控制规则和工具定义，保留原对话行为。百炼支持 Realtime Function Calling，但平台能力仍须在本项目两条链路上验收。[Realtime 能力说明](https://www.alibabacloud.com/help/zh/model-studio/realtime)。
@@ -693,6 +695,8 @@ WebRTC 实测的请求冲突 `Conversation already has an active response` 属�
 `BuildConfig.AI_CALL_CAMERA_VOICE_CONTROL` 同时控制摄像头工具注册和摄像头控制提示词。语音挂断使用独立的 `AI_CALL_VOICE_HANGUP`，默认 Debug／Release 开启，`-PAI_CALL_VOICE_HANGUP=false` 可关闭。它们是编译开关，回退已安装功能需要分发对应 APK，不是运行时远程开关。关闭后各自按钮继续可用；AOQ 正式默认传输及用户手动选择 WebRTC 的能力不受影响。
 
 此次语音控制不增加后端 API、数据库迁移、生产后端部署或 API Key 调整；已存在的分配／租约后端保持原契约。正式发布只需在功能可靠性验收后完成 Android 默认值、正式签名、版本归档及发布流程。
+
+**VAD 回退（WebRTC 语义检测）。** 限制与实测证据见 §4.3。Android 的 `AiCallVadMode.effectiveFor(transport)`（`feature-assistant/src/main/java/com/we/meet/feature/assistant/aicall/model/AiCallVadMode.kt`）是唯一映射点：WebRTC + `semantic_vad` 归一为 `server_vad`；通话设置在 WebRTC 下禁用语义项并显示专项说明，读取历史偏好时自动把 `WebRTC + semantic_vad` 写回 `server_vad`，避免每通都在首个 `session.update` 失败。若阿里云确认并修复 WebRTC 网关的 `turn_detection` 限制，按以下顺序回退：1) 删除 `effectiveFor` 映射，调用点恢复直接使用用户选择；2) 恢复设置页语义选项和通用提示，删除 WebRTC 专项文案及对应字符串；3) 更新 `AiCallVadModeTest`、`AiCallVadSettingsTest`、`AoqDefaultPreferencesTest` 中按 WebRTC 归一的断言；4) 在真机分别用 WebRTC／AOQ 建连，确认均收到 `session.updated`、可选择语义并正常对话，再删除本段。除映射与文案外不需要其它代码改动，UI 会自动恢复语义项可选；回退前不要把该项当作已验收能力。
 
 ## 12. 实现入口与相关文档
 
