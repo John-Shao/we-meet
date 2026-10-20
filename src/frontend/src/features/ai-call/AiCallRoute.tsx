@@ -69,6 +69,7 @@ export function AiCallRoute() {
   const [elapsed, setElapsed] = useState(0)
   const [history, setHistory] = useState<HistoryRecord[]>(loadHistory)
   const [expandedHistory, setExpandedHistory] = useState('')
+  const [draft, setDraft] = useState('')
 
   const audioRef = useRef<HTMLAudioElement>(null)
   const screenRef = useRef<HTMLVideoElement>(null)
@@ -461,6 +462,23 @@ export function AiCallRoute() {
     channel.send(JSON.stringify({ type: 'response.create' }))
   }
 
+  const sendText = () => {
+    const text = draft.trim()
+    const channel = channelRef.current
+    if (!text || channel?.readyState !== 'open') return
+    channel.send(JSON.stringify({
+      type: 'conversation.item.create',
+      item: {
+        type: 'message',
+        role: 'user',
+        content: [{ type: 'input_text', text }],
+      },
+    }))
+    channel.send(JSON.stringify({ type: 'response.create' }))
+    appendRow('user', text)
+    setDraft('')
+  }
+
   const removeHistory = (id: string) => {
     setHistory(previous => {
       const next = previous.filter(record => record.id !== id)
@@ -506,6 +524,28 @@ export function AiCallRoute() {
           </p>
         ))}
       </div>
+      <form
+        onSubmit={event => {
+          event.preventDefault()
+          sendText()
+        }}
+        style={{ display: 'flex', gap: 8, marginTop: 16 }}
+      >
+        <input
+          aria-label="输入消息"
+          value={draft}
+          onChange={event => setDraft(event.target.value)}
+          placeholder={status === 'active' || status === 'sharing' ? '输入文字，或直接说话' : '开始通话后可输入文字'}
+          disabled={status !== 'active' && status !== 'sharing'}
+          style={{ flex: 1, padding: '8px 10px', border: '1px solid #ccc', borderRadius: 6 }}
+        />
+        <button
+          type="submit"
+          disabled={!draft.trim() || (status !== 'active' && status !== 'sharing')}
+        >
+          发送
+        </button>
+      </form>
       <div data-testid="ai-call-history" style={{ marginTop: 24, borderTop: '1px solid #eee', paddingTop: 12 }}>
         <h2 style={{ fontSize: 18, margin: '0 0 8px' }}>通话记录</h2>
         {history.length === 0 && <p style={{ color: '#888' }}>暂无通话记录</p>}
