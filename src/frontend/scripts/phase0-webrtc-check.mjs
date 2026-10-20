@@ -8,6 +8,7 @@ const profileCode = process.env.WE_MEET_PROFILE_CODE || 'qwen-omni-realtime'
 const mode = process.env.WE_MEET_MODE || 'avd'
 const withAudio = mode.includes('a')
 const withVideo = mode.includes('v')
+const withPreVideo = mode.includes('p')
 const withData = mode.includes('d')
 
 if (!token) {
@@ -34,7 +35,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage()
 await page.goto(`http://127.0.0.1:${port}/`)
 
-const offer = await page.evaluate(async ({ withAudio, withVideo, withData }) => {
+const offer = await page.evaluate(async ({ withAudio, withVideo, withPreVideo, withData }) => {
   const pc = new RTCPeerConnection()
   const channel = withData ? pc.createDataChannel('oai-events', { ordered: true }) : null
   window.__phase0 = { pc, channel }
@@ -42,8 +43,13 @@ const offer = await page.evaluate(async ({ withAudio, withVideo, withData }) => 
     audio: withAudio,
     video: withVideo,
   })
-  if (withAudio) pc.addTransceiver(stream.getAudioTracks()[0], { direction: 'sendonly' })
-  if (withVideo) pc.addTransceiver(stream.getVideoTracks()[0], { direction: 'sendonly' })
+  const videoTrack = withVideo ? stream.getVideoTracks()[0] : null
+  window.__phase0.videoTrack = videoTrack
+  // Qwen expects audio before video; keep video silent until session.created.
+  if (videoTrack) videoTrack.enabled = false
+  if (withAudio) pc.addTrack(stream.getAudioTracks()[0], stream)
+  if (withVideo) pc.addTrack(videoTrack, stream)
+  if (withPreVideo && !withVideo) pc.addTransceiver('video', { direction: 'sendrecv' })
   const description = await pc.createOffer()
   await pc.setLocalDescription(description)
   await new Promise((resolve) => {
@@ -57,7 +63,7 @@ const offer = await page.evaluate(async ({ withAudio, withVideo, withData }) => 
     })
   })
   return { sdp: pc.localDescription.sdp, ice: pc.iceGatheringState }
-}, { withAudio, withVideo, withData })
+}, { withAudio, withVideo, withPreVideo, withData })
 
 const mlines = offer.sdp.split(/\r?\n/).filter((line) => line.startsWith('m='))
 console.log('mode:', mode, 'offer m-lines:', mlines.join(' | '), 'ice:', offer.ice)
@@ -105,8 +111,19 @@ const result = await page.evaluate(async (payload) => {
   channel.addEventListener('message', (event) => {
     if (events.length < 8) events.push(String(event.data).slice(0, 500))
   })
-  await pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp })
-  channel.addEventListener('open', () => {
+  const videoTrack = window.__phase0.videoTrack
+  channel.addEventListener('message', (event) => {
+    try {
+      const parsed = JSON.parse(String(event.data))
+      if (parsed?.type === 'session.created' && videoTrack && !videoTrack.enabled) {
+        videoTrack.enabled = true
+      }
+    } catch {}
+  })
+  let updateSent = false
+  const sendUpdate = () => {
+    if (updateSent || channel.readyState !== 'open') return
+    updateSent = true
     channel.send(JSON.stringify({
       type: 'session.update',
       session: {
@@ -119,8 +136,17 @@ const result = await page.evaluate(async (payload) => {
         turn_detection: { type: 'server_vad', threshold: 0.0, silence_duration_ms: 400 },
       },
     }))
+  }
+  channel.addEventListener('open', sendUpdate)
+  if (channel.readyState === 'open') sendUpdate()
+  pc.addEventListener('datachannel', (event) => {
+    event.channel.addEventListener('message', (message) => {
+      if (events.length < 8) events.push(String(message.data).slice(0, 500))
+    })
   })
-  const deadline = Date.now() + 15_000
+  await pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp })
+  sendUpdate()
+  const deadline = Date.now() + 20_000
   while (Date.now() < deadline) {
     if (channel.readyState === 'open' && events.length > 0) break
     await new Promise((resolve) => setTimeout(resolve, 250))
@@ -136,6 +162,21 @@ const result = await page.evaluate(async (payload) => {
 console.log('channel:', result.channel, 'ice:', result.ice, 'connection:', result.connection)
 console.log('server events:', result.events.length)
 for (const event of result.events) console.log('event:', event)
+
+const image = process.env.WE_MEET_TEST_IMAGE
+if (image && answer.session_lease?.id) {
+  const photo = await fetch(`${base}/api/v1.0/ai-call/photo/`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      session_id: answer.session_lease.id,
+      question: 'What is in this image?',
+      image,
+    }),
+  })
+  const photoBody = await photo.text()
+  console.log('photo status:', photo.status, 'body:', photoBody.slice(0, 300))
+}
 
 await browser.close()
 server.close()

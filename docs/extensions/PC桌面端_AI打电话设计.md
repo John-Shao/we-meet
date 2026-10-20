@@ -303,27 +303,35 @@ POST /api/v1.0/direct-ai/sessions/{id}/  operation=heartbeat|close
 - Android `AiCallViewModel` 将 `answer.session_lease?.id` 作为 photo QA 的 `sessionId`；
 - 后端 `live_session` 按 `DirectAIAllocation.id` 校验；
 - Android `OmniWebRtcClient` 创建 `createDataChannel("oai-events")`；
-- 后端 `CallOfferSerializer` 只强制 `m=audio`，不会拒绝额外的 `m=video`，但供应商是否接受仍需 Phase 0 实测。
+- 后端 `CallOfferSerializer` 只强制 `m=audio`，不会拒绝额外的 `m=video`；Phase 0 已确认供应商接受 `addTrack`/`sendrecv` 生成的浏览器 SDP。
 
 ### 5.2 预协商视频轨
 
 不能等用户点“共享屏幕”时才新增视频 m-line。
+
+Phase 0 实测结论：
+
+- `addTransceiver(..., {direction: "sendonly"})` 的浏览器 SDP 被供应商拒绝；
+- `addTrack(audio)` + `addTransceiver("video", {direction: "sendrecv"})` 被接受；
+- 预加无轨 video transceiver 也能建立连接。
 
 正确顺序：
 
 ```text
 创建 RTCPeerConnection
 → createDataChannel("oai-events", { ordered: true })
-→ addTransceiver("video", { direction: "sendonly" })
-→ addTransceiver("audio", { direction: "sendonly" })
+→ addTrack(音频轨)
+→ addTransceiver("video", { direction: "sendrecv" })   // 不挂轨道
 → createOffer / setLocalDescription
 → POST SDP
 → setRemoteDescription(answer)
-→ 语音阶段 video sender 不挂真实轨道
-→ 摄像头/屏幕共享时 replaceTrack(track)
+→ 等待 DataChannel session.created
+→ 发送 session.update
+→ 收到 session.updated / 音频已开始
+→ 摄像头/屏幕共享时 videoSender.replaceTrack(track)
 ```
 
-这样切换摄像头和屏幕不会触发后端不支持的重新协商。
+禁止使用 `sendonly` 作为初始 video transceiver。
 
 ### 5.3 建连时序
 
@@ -336,18 +344,36 @@ sequenceDiagram
 
     UI->>API: GET ai-agent-config
     API-->>UI: profile / voice / prompt
-    UI->>UI: 预加 audio/video transceiver
+    UI->>UI: createDataChannel + add audio track + video sendrecv transceiver
     UI->>API: POST ai-call/session（webrtc + SDP）
     API->>Qwen: 服务端 Key 交换 SDP
     Qwen-->>API: SDP answer
     API-->>UI: sdp / voice / instructions / lease
     UI->>Qwen: setRemoteDescription
-    UI->>Qwen: DataChannel session.update
+    Qwen-->>UI: DataChannel session.created
+    UI->>Qwen: 释放音频 + session.update
     Qwen-->>UI: session.updated
-    UI->>UI: 启动麦克风并进入语音通话
+    UI->>UI: 进入语音通话
+    UI->>Qwen: 需要摄像头/共享时 replaceTrack
 ```
 
-### 5.4 租约
+### 5.4 媒体顺序
+
+Phase 0 实测发现：如果视频帧先于音频到达，供应商会返回：
+
+```text
+invalid_request_error: Error append image before append audio
+```
+
+因此：
+
+- offer 阶段不挂视频轨道；
+- 等 `session.created` 并开始发送音频；
+- 最好等 `session.updated` 或首个音频 RTP 后再 `replaceTrack`；
+- 摄像头/屏幕共享启动时先确认音频发送正常，再挂视频；
+- 不允许媒体轨在连接前自动发送。
+
+### 5.5 租约
 
 - 使用返回的 `session_lease`；
 - 按 `heartbeat_seconds` 发送 heartbeat；
@@ -902,19 +928,22 @@ macOS 屏幕录制权限：
 
 ### Phase 0：技术验证（3–5 天）
 
-状态：**blocked**（2026-10-20）
+状态：**核心通过，媒体顺序待修**（2026-10-20）
 
 已完成：
 
-- 浏览器建立 WebRTC offer；
-- 预协商 audio / video / data m-line；
-- 后端鉴权、profile 目录、SDP 请求链路验证；
-- 浏览器 SDP 三种组合实测。
+- demo 账号鉴权、profile 目录、SDP 请求链路；
+- `addTrack` + `addTransceiver(video, sendrecv)` 浏览器 offer 被供应商接受；
+- DataChannel `oai-events` 打开；
+- 收到 `session.created` / `session.updated`；
+- photo QA 使用 `session_lease.id` 返回 200；
+- 预加无轨 video transceiver 可建立连接。
 
-阻塞：
+待修：
 
-- 当前供应商对所有浏览器 SDP 组合返回拒绝，详见第 19 节；
-- 在供应商接受浏览器 SDP 前，不能进入 Phase 1。
+- 视频帧早于音频会触发 `Error append image before append audio`；
+- 需要补 `getDisplayMedia` 真实捕获和 `replaceTrack` 测试；
+- 进入 Phase 1 前必须完成媒体门控顺序。
 
 ### Phase 1：Electron 浮窗 MVP（3–4 周）
 
@@ -954,7 +983,8 @@ macOS 屏幕录制权限：
 
 | 风险 | 等级 | 处理 |
 |---|---|---|
-| 后端不兼容带 video m-line 的浏览器 SDP | 高 | API 已放行，Phase 0 验证供应商是否接受 |
+| 视频帧早于音频被供应商拒绝 | 高 | 媒体门控：先音频，后 replaceTrack |
+| 初始 video transceiver 误用 sendonly | 高 | 使用 sendrecv；Phase 0 已验证 |
 | photo QA 的 session_id 用错 | 高 | 已确认使用 `session_lease.id` |
 | 主窗口与浮窗状态/媒体归属不一致 | 高 | Call Store 单一所有权 + IPC 协议 |
 | 关闭浮窗后媒体成为孤儿 | 高 | 关闭即结束通话并通知主窗口 |
@@ -985,13 +1015,13 @@ macOS 屏幕录制权限：
 
 ### 16.2 仍需 Phase 0 验证
 
-1. 供应商是否接受包含 video m-line 的浏览器 SDP；
-2. Electron OIDC 使用 loopback 还是自定义 scheme；
-3. Electron 多显示器源选择器的具体交互；
-4. 浏览器 SDP 的 codec/ICE 与 Qwen 端点是否完全兼容；
+1. 视频媒体门控：确保音频先于视频到达，消除 `Error append image before append audio`；
+2. 真实 `getDisplayMedia` 捕获后 `replaceTrack`，并在停止共享后恢复；
+3. Electron OIDC 使用 loopback 还是自定义 scheme；
+4. Electron 多显示器源选择器的具体交互；
 5. 浮窗 `autoStart` 在 Windows/macOS 上是否触发媒体权限拦截。
 
-其中 1、4 决定 Phase 1 是否能按 WebRTC 方案落地；2、3、5 是实现细节，不阻塞架构。
+其中 1、2 决定 Phase 1 媒体实现能否稳定；3、4、5 是实现细节，不阻塞架构。
 
 ## 17. 关键文件
 
@@ -1021,18 +1051,21 @@ macOS 屏幕录制权限：
 
 ## 18. 最终建议
 
-先解决 **Phase 0 的供应商 SDP 兼容问题**，再进入 Electron 浮窗 MVP。
+Phase 0 核心链路已通过，剩余工作集中在媒体门控和真实屏幕捕获。
 
-当前实测状态是 blocked：浏览器 offer 的 audio/video/data 三种组合均被供应商拒绝。
+已通过：
 
-只有以下条件满足后才进入 Phase 1：
+- `addTrack` 音频 + `addTransceiver(video, sendrecv)` 的浏览器 SDP 被供应商接受；
+- DataChannel `oai-events`、`session.created`、`session.updated` 正常；
+- photo QA 使用 `session_lease.id` 成功。
 
-- 浏览器或受控 SDP 适配后的 SDP 能被供应商接受；
-- 屏幕轨可替换；
-- 抓帧 photo QA 可用；
-- 租约/心跳正常。
+进入 Phase 1 前还需：
 
-然后把媒体核心封装成 React 模块，接入：
+- 视频晚于音频发送，消除 `Error append image before append audio`；
+- `getDisplayMedia` 真实屏幕轨替换/恢复；
+- 浮窗 `autoStart` 和 OIDC 壳验证。
+
+满足后把媒体核心封装成 React 模块，接入：
 
 ```text
 主窗口 AI 对话
@@ -1066,12 +1099,12 @@ m=application (oai-events)
 ICE gathering: complete
 ```
 
-后端链路：
+供应商接受：
 
-- demo 账号 OTP 登录成功；
-- `ai-agent-config` 可读取；
-- `ai-call/session` 请求到达后端；
-- 后端返回结构化的 502，而不是 401/400/503。
+- `addTrack(audio)` + `addTransceiver(video, sendrecv)`；
+- 预加无轨 video transceiver（`addTransceiver("video", {direction:"sendrecv"})`）；
+- DataChannel `oai-events`；
+- 收到 `session.created` 和 `session.updated`。
 
 代码契约：
 
@@ -1083,47 +1116,63 @@ ICE gathering: complete
 
 | offer 内容 | 结果 |
 |---|---|
-| audio + data | `502 AI call connection was rejected` |
-| audio + video + data | `502 AI call connection was rejected` |
-| audio only | `502 AI call connection was rejected` |
+| `addTransceiver` sendonly audio/video | `502` |
+| audio + data（`addTrack`） | `200` |
+| audio + video + data（`addTrack`） | `200` |
+| audio + 预加无轨 video + data | `200` |
+| audio only，无 DataChannel | `502` |
 
-结论：
+关键结论：
 
-- 不是单单 video m-line 导致；
-- 不是单单 data channel 导致；
-- 浏览器生成的 SDP 目前整体未被供应商接受；
-- 或当前供应商端点/账号/profile 与浏览器路径不兼容。
+1. 初始 video transceiver **不能用 `sendonly`**；
+2. `addTrack` / `sendrecv` 生成的浏览器 SDP 可以被供应商接受；
+3. 预加无轨 video transceiver 可行，后续可 `replaceTrack`；
+4. DataChannel 是连接和会话事件所必需的；
+5. 连接后收到 `session.created` / `session.updated`。
 
-### 19.4 当前阻塞
+### 19.4 新发现的问题
 
-Phase 0 **未通过**，不能进入 Phase 1。
+带真实视频轨时，供应商返回：
 
-需要先区分：
+```text
+invalid_request_error: Error append image before append audio
+```
 
-1. **账号/供应商问题**：用同一账号走 Android/AOQ 是否还能建立通话；
-2. **SDP 兼容问题**：把 Android 已接受的 SDP 原样送到同一接口，确认是否 200；
-3. **端点差异**：供应商是否只接受其 SDK 生成的 SDP；
-4. **codec/ICE/BUNDLE 差异**：比较浏览器与 Android 的 offer；
-5. **后端错误信息**：当前 502 被统一包装，无法看到上游拒绝原因，需要安全地记录供应商状态/错误码（不记录密钥和完整 SDP）。
+说明视频帧先于音频到达。不是 SDP 拒绝；连接和会话已建立，但媒体顺序错误。
 
-### 19.5 下一步
+处理方向：
 
-按顺序：
+- offer 阶段不挂视频轨；
+- 先发音频；
+- 等 `session.created` / `session.updated`；
+- 再 `replaceTrack(screenTrack)`；
+- 或使用视频轨 `enabled=false`，音频开始后再启用。
 
-1. 用 Android WebRTC 生成一次 offer，发送到同一 `/ai-call/session`，记录结果；
-2. 用同一脚本发送一份已知可用的 Android SDP，区分账号/端点；
-3. 用 `transport=aoq` 做对照，确认供应商分配本身是否正常；
-4. 如果只有 SDK SDP 被接受，评估：
-   - 使用 Qwen 提供的浏览器 WebRTC SDK/端点；
-   - 服务端做受控 SDP 适配；
-   - 或 PC 端改用 Electron 内嵌原生 WebRTC SDK；
-5. 在上述问题解决前，不开始 Electron 浮窗 MVP 的媒体实现。
+### 19.5 当前结论
 
-### 19.6 验证产物
+Phase 0 **核心链路通过，媒体顺序待修**。
+
+可以进入 Phase 1 的媒体实现，但必须先完成：
+
+1. 音频优先的媒体门控；
+2. 真实 `getDisplayMedia` 捕获与 `replaceTrack`；
+3. 停止共享后的摄像头/空轨恢复；
+4. Electron OIDC/浮窗 autoStart 验证。
+
+### 19.6 下一步
+
+1. 在测试脚本中实现“先音频、后视频”的门控并复测；
+2. 用 `canvas.captureStream()` 或真实 `getDisplayMedia` 替换 video sender；
+3. 验证不重新协商、不重连；
+4. 再用真实 Electron 浮窗验证 `autoStart` 和权限；
+5. 全部通过后进入 Phase 1。
+
+### 19.7 验证产物
 
 - 测试脚本：`src/frontend/scripts/phase0-webrtc-check.mjs`
 - 支持模式：
   - `ad`：audio + data
   - `avd`：audio + video + data
-  - `a`：audio only
+  - `apd`：audio + 预加无轨 video + data
+  - `a`：audio only（预期 502，用于对照）
 - 不记录 access token，不输出完整 SDP。
