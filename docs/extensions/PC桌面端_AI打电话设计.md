@@ -1500,6 +1500,7 @@ DELETE /api/v1.0/ai-call/conversations/by-client/{client_id}/
 - 合并远端文本记录；
 - 删除单条/清空时按 `client_id` 同步删除远端；
 - 屏幕/翻译等非 user/assistant 行以 assistant 角色同步，避免服务端拒绝；
+- 摘要/待办随历史记录上传和恢复；
 - 图片和原始音视频不上传。
 
 ### 20.6 验证
@@ -1525,5 +1526,4 @@ REDIS_URL=redis://localhost:6379/1
 未完成：
 
 - 新接口未部署，未做真实 PC ↔ Android 双端 E2E；
-- 摘要/待办完整同步；
 - 远端删除 tombstone 与本地 pending 冲突处理。
