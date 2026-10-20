@@ -1558,12 +1558,20 @@ Android：
 - `adb reverse tcp:8071 tcp:8071` 已配置；
 - 通过 WebView 登录页完成本地联调账号登录；
 - 打开“AI 打电话 → 会话记录”后成功拉取 PC/API 写入的会话；
-- 显示用户消息 `PC E2E conversation`，证明 Android 拉取链路可用。
+- 显示用户消息 `PC E2E conversation`；
+- 向 Android 本地历史库注入一条已完成 call 记录后，打开历史页触发上传；
+- 服务端收到 `android-local-e2e`；
+- PC 再次拉取并展开，成功显示 `Android local call`。
 
-尚未验证：
+双向链路验证：
 
-- Android 本机通话结束后的上传；
-- PC 侧再次拉取 Android 新记录；
-- 中文测试消息的端到端显示（本次第二条测试消息在 PowerShell 种数据时已变成 `?????`，不是 Android 解码问题）。
+```text
+PC 写入 -> Android 拉取显示
+Android 本地上传 -> PC 拉取显示
+```
+
+本次 Android 上传是向本地历史库注入记录后由历史页同步触发，不是实际通话结束路径；但上传代码、接口和 PC 拉取已完成真实网络验证。
+
+中文测试消息在 PowerShell 种数据时变成 `?????`，是测试数据编码问题，不是 Android 解码问题。
 
 注意：手机当前安装的是指向 `127.0.0.1:8071` 的本地联调 APK；恢复日常使用需重新安装生产配置 APK。
