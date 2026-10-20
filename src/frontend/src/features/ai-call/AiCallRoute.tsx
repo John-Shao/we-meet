@@ -71,6 +71,7 @@ export function AiCallRoute() {
   const [rows, setRows] = useState<Row[]>([])
   const [sharing, setSharing] = useState(false)
   const [cameraOn, setCameraOn] = useState(false)
+  const [remoteAudioReady, setRemoteAudioReady] = useState(false)
   const [snapshot, setSnapshot] = useState('')
   const [readResult, setReadResult] = useState('')
   const [elapsed, setElapsed] = useState(0)
@@ -110,6 +111,7 @@ export function AiCallRoute() {
 
   const audioRef = useRef<HTMLAudioElement>(null)
   const screenRef = useRef<HTMLVideoElement>(null)
+  const cameraRef = useRef<HTMLVideoElement>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const channelRef = useRef<RTCDataChannel | null>(null)
   const micRef = useRef<MediaStream | null>(null)
@@ -241,6 +243,7 @@ export function AiCallRoute() {
   const stopCamera = () => {
     cameraStreamRef.current?.getTracks().forEach(track => track.stop())
     cameraStreamRef.current = null
+    if (cameraRef.current) cameraRef.current.srcObject = null
     void videoSenderRef.current?.replaceTrack(null)
     setCameraOn(false)
   }
@@ -259,6 +262,8 @@ export function AiCallRoute() {
     pcRef.current = null
     videoSenderRef.current = null
     if (audioRef.current) audioRef.current.srcObject = null
+    if (cameraRef.current) cameraRef.current.srcObject = null
+    setRemoteAudioReady(false)
     setSharing(false)
   }
 
@@ -391,6 +396,7 @@ export function AiCallRoute() {
           audioRef.current.srcObject = remote.streams[0]
           void audioRef.current.play().catch(() => {})
         }
+        setRemoteAudioReady(remote.streams[0].getAudioTracks().length > 0)
       }
 
       const opened = new Promise<void>((resolve, reject) => {
@@ -459,6 +465,10 @@ export function AiCallRoute() {
       const track = stream.getVideoTracks()[0]
       if (!track) throw new Error('没有摄像头视频轨')
       cameraStreamRef.current = stream
+      if (cameraRef.current) {
+        cameraRef.current.srcObject = stream
+        await cameraRef.current.play().catch(() => {})
+      }
       await videoSenderRef.current?.replaceTrack(track)
       setCameraOn(true)
       track.onended = () => stopCamera()
@@ -555,6 +565,18 @@ export function AiCallRoute() {
     setExpandedHistory(current => (current === id ? '' : current))
   }
 
+  const mediaState = JSON.stringify({
+    audio: micRef.current?.getAudioTracks().map(track => track.readyState) ?? [],
+    camera: cameraStreamRef.current?.getVideoTracks().map(track => track.readyState) ?? [],
+    screen: screenStreamRef.current?.getVideoTracks().map(track => track.readyState) ?? [],
+    screenSurface: screenStreamRef.current?.getVideoTracks()[0]?.getSettings().displaySurface ?? '',
+    sender: videoSenderRef.current?.track?.kind ?? '',
+    senderState: videoSenderRef.current?.track?.readyState ?? '',
+    remoteAudio: remoteAudioReady,
+    connection: pcRef.current?.connectionState ?? '',
+    channel: channelRef.current?.readyState ?? '',
+  })
+
   return (
     <div style={{ padding: 24, maxWidth: 980, margin: '0 auto' }}>
       <h1 style={{ fontSize: 24, margin: '0 0 8px' }}>AI 打电话</h1>
@@ -572,8 +594,30 @@ export function AiCallRoute() {
         {status === 'sharing' && <button onClick={askReadScreen}>让 AI 读屏</button>}
       </div>
       {error && <p style={{ color: '#b00020' }}>{error}</p>}
-      <audio ref={audioRef} autoPlay />
-      <video ref={screenRef} autoPlay muted playsInline style={{ display: 'none' }} />
+      <pre data-testid="media-state" style={{ display: 'none' }}>{mediaState}</pre>
+      <audio ref={audioRef} autoPlay data-testid="remote-audio" />
+      <video
+        ref={screenRef}
+        autoPlay
+        muted
+        playsInline
+        data-testid="screen-preview"
+        style={{ display: sharing ? 'block' : 'none', maxWidth: 480, border: '1px solid #ddd', borderRadius: 8 }}
+      />
+      <video
+        ref={cameraRef}
+        autoPlay
+        muted
+        playsInline
+        data-testid="camera-preview"
+        style={{
+          display: cameraOn ? 'block' : 'none',
+          maxWidth: 320,
+          border: '1px solid #ddd',
+          borderRadius: 8,
+          transform: 'scaleX(-1)',
+        }}
+      />
       {snapshot && (
         <img
           src={snapshot}

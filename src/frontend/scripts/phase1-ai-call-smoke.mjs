@@ -40,28 +40,55 @@ await context.route(`${base}/api/**`, async route => {
   await route.fulfill({ status: response.status, headers: Object.fromEntries(response.headers), body: Buffer.from(await response.arrayBuffer()) })
 })
 await page.goto(`${base}${path}`, { waitUntil: 'networkidle' })
+const media = async () => JSON.parse(await page.getByTestId('media-state').innerText())
+const waitMedia = async (predicate, label) => {
+  const deadline = Date.now() + 15000
+  while (Date.now() < deadline) {
+    const state = await media()
+    if (predicate(state)) return state
+    await page.waitForTimeout(200)
+  }
+  throw new Error(`media state timed out: ${label}: ${JSON.stringify(await media())}`)
+}
 await page.getByRole('button', { name: '开始通话' }).click()
 await page.getByText('通话中', { exact: true }).waitFor({ timeout: 30000 })
-console.log('connected')
+const audioState = await waitMedia(state =>
+  state.audio?.[0] === 'live' && state.connection === 'connected' &&
+  state.channel === 'open' && state.remoteAudio === true,
+  'audio call')
+console.log('connected', JSON.stringify(audioState))
 await page.getByLabel('输入消息').fill('你好')
 await page.getByRole('button', { name: '发送' }).click()
 await page.locator('p').filter({ hasText: '你好' }).waitFor({ timeout: 5000 })
 console.log('text sent')
 await page.getByRole('button', { name: '开启摄像头' }).click()
 await page.getByRole('button', { name: '关闭摄像头' }).waitFor({ timeout: 15000 })
-console.log('camera on')
+const cameraState = await waitMedia(state =>
+  state.camera?.[0] === 'live' && state.sender === 'video' && state.senderState === 'live',
+  'camera on')
+if (!(await page.getByTestId('camera-preview').isVisible())) throw new Error('camera preview hidden')
+console.log('camera on', JSON.stringify(cameraState))
 await page.getByRole('button', { name: '关闭摄像头' }).click()
 await page.getByRole('button', { name: '开启摄像头' }).waitFor({ timeout: 10000 })
-console.log('camera off')
+const cameraOffState = await waitMedia(state => !state.sender && state.camera.length === 0, 'camera off')
+if (await page.getByTestId('camera-preview').isVisible()) throw new Error('camera preview still visible')
+console.log('camera off', JSON.stringify(cameraOffState))
 await page.getByRole('button', { name: '共享屏幕' }).click()
 await page.getByText('共享中', { exact: false }).waitFor({ timeout: 15000 })
-console.log('sharing')
+const shareState = await waitMedia(state =>
+  state.screen?.[0] === 'live' && state.sender === 'video' &&
+  ['monitor', 'window'].includes(state.screenSurface),
+  'screen sharing')
+if (!(await page.getByTestId('screen-preview').isVisible())) throw new Error('screen preview hidden')
+console.log('sharing', JSON.stringify(shareState))
 await page.getByRole('button', { name: '让 AI 读屏' }).click()
 await page.getByTestId('read-screen-result').waitFor({ timeout: 30000 })
 console.log('read screen:', await page.getByTestId('read-screen-result').innerText())
 await page.getByRole('button', { name: '停止共享' }).click()
 await page.getByText('通话中', { exact: true }).waitFor({ timeout: 10000 })
-console.log('share stopped')
+const stopShareState = await waitMedia(state => !state.sender && state.screen.length === 0, 'share stopped')
+if (await page.getByTestId('screen-preview').isVisible()) throw new Error('screen preview still visible')
+console.log('share stopped', JSON.stringify(stopShareState))
 await page.getByRole('button', { name: '挂断' }).click()
 await page.getByText('已结束', { exact: true }).waitFor({ timeout: 10000 })
 await page.getByTestId('ai-call-history').getByRole('button', { name: '删除通话记录' }).first().waitFor({ timeout: 5000 })
