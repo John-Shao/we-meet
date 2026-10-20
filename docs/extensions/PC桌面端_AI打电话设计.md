@@ -1472,6 +1472,7 @@ GET    /api/v1.0/ai-call/conversations/?include_messages=1
 GET    /api/v1.0/ai-call/conversations/{id}/
 POST   /api/v1.0/ai-call/conversations/
 DELETE /api/v1.0/ai-call/conversations/{id}/
+DELETE /api/v1.0/ai-call/conversations/by-client/{client_id}/
 ```
 
 语义：
@@ -1497,6 +1498,7 @@ DELETE /api/v1.0/ai-call/conversations/{id}/
 - 历史页打开时拉取远端；
 - 本地 call 记录上传；
 - 合并远端文本记录；
+- 删除单条/清空时按 `client_id` 同步删除远端；
 - 屏幕/翻译等非 user/assistant 行以 assistant 角色同步，避免服务端拒绝；
 - 图片和原始音视频不上传。
 
