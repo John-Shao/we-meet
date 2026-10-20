@@ -1527,3 +1527,36 @@ REDIS_URL=redis://localhost:6379/1
 
 - 新接口未部署，未做真实 PC ↔ Android 双端 E2E；
 - 远端删除 tombstone 与本地 pending 冲突处理。
+
+### 20.7 本地真实 API 验证（2026-10-20）
+
+本地启动：
+
+- Postgres 容器（`localhost:15432`）；
+- Redis 容器（`localhost:6379`）；
+- Django `runserver 0.0.0.0:8071`；
+- 生产 demo 账号 token 可被本地 OIDC 配置接受。
+
+已通过 PC 真实接口 E2E：
+
+```text
+PC pulled Android conversation
+PC deleted local row
+remote deletion synced
+```
+
+流程：
+
+1. 通过 API 模拟 Android 写入一条会话；
+2. PC `/ai-call` 拉取并展开显示；
+3. PC 删除；
+4. 服务端会话列表变为空。
+
+Android：
+
+- 已用本地 base URL 构建并安装 debug APK；
+- `adb reverse tcp:8071 tcp:8071` 已配置；
+- 但 App 清除数据后进入 WebView 登录页，未能完成登录；
+- 因此 Android 端真实同步 E2E 尚未完成。
+
+注意：手机当前安装的是指向 `127.0.0.1:8071` 的本地联调 APK，且 App 数据已清除。继续验证需要重新登录；恢复日常使用需重新安装生产配置 APK。
