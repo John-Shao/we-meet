@@ -24,7 +24,7 @@ await context.addInitScript((value) => {
 }, token)
 const page = await context.newPage()
 page.on('console', message => {
-  console.log('page console:', message.type(), message.text())
+  if (message.type() === 'error') console.log('page error:', message.text())
 })
 await context.route(`${base}/api/**`, async route => {
   const request = route.request()
@@ -37,10 +37,7 @@ await context.route(`${base}/api/**`, async route => {
 })
 await page.goto(`${base}/ai-call`, { waitUntil: 'networkidle' })
 await page.getByRole('button', { name: '开始通话' }).click()
-await page.waitForTimeout(12000)
-console.log('page text:', await page.locator('body').innerText())
-await page.screenshot({ path: 'phase1-ai-call.png', fullPage: true })
-await page.getByText('通话中', { exact: true }).waitFor({ timeout: 20000 })
+await page.getByText('通话中', { exact: true }).waitFor({ timeout: 30000 })
 console.log('connected')
 await page.getByRole('button', { name: '共享屏幕' }).click()
 await page.getByText('共享中', { exact: false }).waitFor({ timeout: 15000 })

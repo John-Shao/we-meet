@@ -201,9 +201,27 @@ export function AiCallRoute() {
 
       const pc = new RTCPeerConnection()
       pcRef.current = pc
+      let resolveUpdated: (() => void) | null = null
+      const updated = new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error('session.updated 超时')), 20_000)
+        resolveUpdated = () => {
+          window.clearTimeout(timeout)
+          resolve()
+        }
+      })
       const channel = pc.createDataChannel('oai-events', { ordered: true })
       channelRef.current = channel
-      channel.onmessage = handleEvent
+      const attachChannel = (target: RTCDataChannel) => {
+        target.addEventListener('message', event => {
+          handleEvent(event)
+          try {
+            const parsed = JSON.parse(event.data) as { type?: string }
+            if (parsed.type === 'session.updated') resolveUpdated?.()
+          } catch {}
+        })
+      }
+      attachChannel(channel)
+      pc.addEventListener('datachannel', event => attachChannel(event.channel))
       const mic = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       })
@@ -222,24 +240,10 @@ export function AiCallRoute() {
         const timeout = window.setTimeout(() => reject(new Error('DataChannel 打开超时')), 15_000)
         channel.onopen = () => {
           window.clearTimeout(timeout)
+          sendSessionUpdate(false)
           resolve()
         }
       })
-      const updated = new Promise<void>((resolve, reject) => {
-        const timeout = window.setTimeout(() => reject(new Error('session.updated 超时')), 20_000)
-        const listener = (event: MessageEvent<string>) => {
-          try {
-            const parsed = JSON.parse(event.data) as { type?: string }
-            if (parsed.type === 'session.updated') {
-              window.clearTimeout(timeout)
-              channel.removeEventListener('message', listener)
-              resolve()
-            }
-          } catch {}
-        }
-        channel.addEventListener('message', listener)
-      })
-
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
       await new Promise<void>(resolve => {
@@ -266,10 +270,9 @@ export function AiCallRoute() {
       sessionIdRef.current = answer.session_lease?.id ?? ''
       if (!sessionIdRef.current) throw new Error('服务端没有返回通话租约')
       voiceRef.current = answer.voice || 'Tina'
-      instructionsRef.current = answer.instructions || instructionsRef.current
+      instructionsRef.current = `${answer.instructions?.trim() || '你是一个友好、简洁的 AI 助手。'} 用户共享屏幕时，如需读取屏幕上的文字或细节，请调用 read_screen，不要猜测屏幕内容。`
       await pc.setRemoteDescription({ type: 'answer', sdp: answer.sdp })
       await opened
-      sendSessionUpdate(false)
       await updated
       setStatus('active')
       setElapsed(0)
