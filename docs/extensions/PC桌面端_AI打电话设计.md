@@ -975,7 +975,8 @@ macOS 屏幕录制权限：
 - 本地通话记录（localStorage，最近 20 条）；
 - 浮窗关闭时保存进行中的通话记录；
 - 通话中输入文字消息；
-- 文本/语音共用同一 Realtime 会话。
+- 文本/语音共用同一 Realtime 会话；
+- 实际 Electron 浮窗创建验证。
 
 待办：
 
@@ -1370,3 +1371,30 @@ ended
   - share stopped；
   - history saved/persisted；
   - ended。
+
+### 19.13 实际 Electron 窗口验证
+
+已用 Playwright Electron 启动真实 Electron 主进程：
+
+```text
+main window ready
+float window: http://127.0.0.1:4173/ai-call-float
+float UI ready
+```
+
+验证内容：
+
+- 标题栏按钮调用 `ai-call:open`；
+- 主进程创建置顶浮窗；
+- 浮窗加载 `/ai-call-float`；
+- 浮窗 UI 正常渲染。
+
+同时修复：
+
+- 浮窗不再显示主窗口的 `DesktopStatusBar` 错误提示。
+
+限制：
+
+- 本次使用本地 mock 服务地址，未完成真实登录态下 Electron 内的通话；
+- 原生屏幕源选择器的实际交互仍未在 Electron 内跑通；
+- 需要登录态和真实服务后再做一次源选择 + getDisplayMedia E2E。
