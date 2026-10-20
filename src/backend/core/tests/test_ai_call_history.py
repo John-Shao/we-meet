@@ -94,6 +94,19 @@ def test_deleted_conversation_is_not_resurrected():
     assert again.status_code == 410
 
 
+def test_delete_by_client_id_is_owner_scoped():
+    client = APIClient()
+    client.force_authenticate(UserFactory())
+    created = client.post(URL, body(), format="json")
+    assert created.status_code == 201
+    other = APIClient()
+    other.force_authenticate(UserFactory())
+    by_client = f"{URL}by-client/{CLIENT}/"
+    assert other.delete(by_client).status_code == 404
+    assert client.delete(by_client).status_code == 204
+    assert client.post(URL, body(), format="json").status_code == 410
+
+
 def test_duplicate_ids_and_reversed_time_are_rejected():
     client = APIClient()
     client.force_authenticate(UserFactory())
