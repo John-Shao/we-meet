@@ -267,6 +267,24 @@ export function AiCallRoute() {
   }, [])
 
   useEffect(() => {
+    const persist = () => {
+      if (!sessionIdRef.current || !startedAtRef.current) return
+      const record: HistoryRecord = {
+        id: crypto.randomUUID(),
+        startedAt: startedAtRef.current,
+        seconds: elapsedRef.current,
+        rows: rowsRef.current,
+      }
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify([record, ...loadHistory()].slice(0, 20)))
+      } catch {}
+      sessionIdRef.current = ''
+    }
+    window.addEventListener('beforeunload', persist)
+    return () => window.removeEventListener('beforeunload', persist)
+  }, [])
+
+  useEffect(() => {
     const bridge = window.weMeetDesktop?.aiCall
     if (!bridge) return
     if ((status === 'active' || status === 'sharing') && !startedAtRef.current)
