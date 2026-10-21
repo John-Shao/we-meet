@@ -92,6 +92,7 @@ class MeetingAIChartTest(unittest.TestCase):
                    "-f", str(ROOT / "src/helm/env.d/aliyun-prod/values.meet.yaml")]
         # Never load the operator's actual secret file in regression tests.
         for item in ("agentAIAssistant.envVars.DASHSCOPE_API_KEY=fixture-provider",
+                     "agentAIAssistant.envVars.DASHSCOPE_ASR_CLIENT_API_KEY=fixture-asr",
                      "agentAIAssistant.envVars.DASHSCOPE_WORKSPACE_ID=fixture-workspace",
                      "backend.envVars.AGENT_INTERNAL_API_TOKEN=fixture-internal",
                      "backend.envVars.AWS_S3_ACCESS_KEY_ID=fixture-storage-key",
@@ -136,6 +137,7 @@ class MeetingAIChartTest(unittest.TestCase):
         self.assertEqual("", env["TRANSLATION_TARGET_LANGS"]["value"])
         secret = next(row for row in rows if row["kind"] == "Secret" and row["metadata"]["name"] == "meet-ai-credentials")
         self.assertEqual("fixture-provider", secret["stringData"]["DASHSCOPE_API_KEY"])
+        self.assertEqual("fixture-asr", secret["stringData"]["DASHSCOPE_ASR_CLIENT_API_KEY"])
         self.assertEqual("fixture-internal", secret["stringData"]["AGENT_INTERNAL_API_TOKEN"])
         self.assertEqual("fixture-livekit", secret["stringData"]["LIVEKIT_API_SECRET"])
         self.assertEqual("fixture-workspace", secret["stringData"]["DASHSCOPE_WORKSPACE_ID"])
