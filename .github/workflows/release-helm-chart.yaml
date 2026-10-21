@@ -33,12 +33,17 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
+      - name: Stage chart
+        run: |
+          mkdir -p ".chart-publish/${{ matrix.chart }}"
+          cp -a "src/helm/${{ matrix.chart }}/." ".chart-publish/${{ matrix.chart }}/"
+
       - name: Publish Helm charts
         uses: numerique-gouv/helm-gh-pages@add-overwrite-option
         with:
-          # This action moves the whole package directory on each iteration;
-          # one chart per job avoids the second-iteration mv failure.
-          charts_dir: ./src/helm/${{ matrix.chart }}
+          # The publisher expects one chart directory per parent and moves the
+          # package directory once per chart; stage exactly one chart per job.
+          charts_dir: ./.chart-publish
           helm_version: 3.17.0
           linting: on
           token: ${{ secrets.GITHUB_TOKEN }}
