@@ -22,6 +22,8 @@ jobs:
 
       - name: Install Helm
         uses: azure/setup-helm@v4
+        with:
+          version: v3.17.0
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
@@ -29,5 +31,6 @@ jobs:
         uses: numerique-gouv/helm-gh-pages@add-overwrite-option
         with:
           charts_dir: ./src/helm
+          helm_version: v3.17.0
           linting: on
           token: ${{ secrets.GITHUB_TOKEN }}
