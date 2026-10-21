@@ -705,7 +705,7 @@ agentAIAssistant:
 # Meeting AI workers reuse credentials already supplied in values.secrets.yaml.
 # release-meet.sh agents pins all five processes to the selected immutable image.
 meetingAIWorkers:
-  credentialsFromExistingEnv: false # Existing Secret is managed outside Helm; retain dedicated ASR credentials.
+  credentialsFromExistingEnv: true
   credentialsSecret: meet-ai-credentials
   backendUrl: http://meet-backend
   livekitUrl: wss://livekit.we-meet.online
