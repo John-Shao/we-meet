@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - src/helm/meet/**
+  workflow_dispatch:
 
 jobs:
   release:
