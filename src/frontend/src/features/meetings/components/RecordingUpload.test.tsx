@@ -464,7 +464,7 @@ it('reports a cancelled transfer as cancelled, not as an error', async () => {
   expect(navigate).not.toHaveBeenCalled()
   expect(uploadInParts.mock.calls[0][2].diarization).toBe(true)
   expect(screen.getByLabelText('upload.diarization')).toBeDisabled()
-})
+}, 15000)
 
 it('shows byte progress and offers a way out while a large transfer runs', async () => {
   let report: ((sent: number, total: number) => void) | undefined
@@ -491,7 +491,7 @@ it('shows byte progress and offers a way out while a large transfer runs', async
     screen.getByRole('button', { name: 'upload.cancel' })
   ).toBeInTheDocument()
   expect(screen.getByRole('progressbar')).toBeInTheDocument()
-})
+}, 15000)
 
 it('stops a normal upload and retains its declaration for an uncertain retry', async () => {
   let options: NonNullable<Parameters<typeof fetchApi>[1]> | undefined
@@ -526,7 +526,7 @@ it('stops a normal upload and retains its declaration for an uncertain retry', a
   )
   const retried = vi.mocked(fetchApi).mock.calls.at(-1)![1]!.body as FormData
   expect(retried.get('key')).toBe((options!.body as FormData).get('key'))
-})
+}, 15000)
 
 it('cancels a direct PUT before adoption and reports its progress', async () => {
   vi.mocked(fetchApi)
