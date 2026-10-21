@@ -12,6 +12,11 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-latest
+    strategy:
+      # The publisher commits to gh-pages; keep chart jobs sequential.
+      max-parallel: 1
+      matrix:
+        chart: [meet, work-agent, work-agent-k8s]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -31,7 +36,9 @@ jobs:
       - name: Publish Helm charts
         uses: numerique-gouv/helm-gh-pages@add-overwrite-option
         with:
-          charts_dir: ./src/helm
+          # This action moves the whole package directory on each iteration;
+          # one chart per job avoids the second-iteration mv failure.
+          charts_dir: ./src/helm/${{ matrix.chart }}
           helm_version: v3.17.0
           linting: on
           token: ${{ secrets.GITHUB_TOKEN }}
