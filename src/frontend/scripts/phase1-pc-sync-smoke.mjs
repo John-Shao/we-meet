@@ -26,12 +26,13 @@ await context.route(`${appBase}/api/**`, async route => {
   })
 })
 await page.goto(`${appBase}/ai-call`, { waitUntil: 'networkidle' })
+await page.getByRole('tab', { name: '通话记录' }).click()
 await page.getByTestId('ai-call-history').waitFor({ timeout: 15000 })
-await page.getByTestId('ai-call-history').locator('button').first().click()
-await page.getByText('Android E2E conversation', { exact: false }).waitFor({ timeout: 10000 })
+await page.getByTestId('ai-call-history').locator('button.history-main').first().click()
+await page.getByText('Android E2E conversation', { exact: false }).first().waitFor({ timeout: 10000 })
 console.log('PC pulled Android conversation')
 await page.getByTestId('ai-call-history').getByRole('button', { name: '删除通话记录' }).first().click()
-await page.getByText('Android E2E conversation', { exact: false }).waitFor({ state: 'hidden', timeout: 10000 })
+await page.getByText('Android E2E conversation', { exact: false }).first().waitFor({ state: 'hidden', timeout: 10000 })
 console.log('PC deleted local row')
 
 const server = await fetch(`${apiBase}/api/v1.0/ai-call/conversations/`, {

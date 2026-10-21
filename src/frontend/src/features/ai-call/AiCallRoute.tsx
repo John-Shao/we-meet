@@ -1,4 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
+import {
+  RiChat3Line,
+  RiComputerLine,
+  RiDeleteBin6Line,
+  RiHistoryLine,
+  RiMicLine,
+  RiMicOffLine,
+  RiPhoneLine,
+  RiVideoLine,
+  RiVideoOffLine,
+} from '@remixicon/react'
 import { fetchApi } from '@/api/fetchApi'
 import {
   deleteRemoteCallHistory,
@@ -6,9 +17,10 @@ import {
   pushAiCallHistory,
   type SyncRecord,
 } from './sync'
+import './AiCallRoute.css'
 
 type CallStatus = 'idle' | 'connecting' | 'active' | 'sharing' | 'error' | 'ended'
-type Row = { id: string; role: 'user' | 'assistant'; text: string }
+type Row = { id: string; role: 'user' | 'assistant'; text: string; createdAt?: number }
 
 type AgentProfile = { code: string; display_name?: string }
 type AgentConfig = { profiles: AgentProfile[] }
@@ -65,13 +77,17 @@ const STATUS_LABEL: Record<CallStatus, string> = {
   ended: '已结束',
 }
 
-export function AiCallRoute() {
+export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
   const [status, setStatus] = useState<CallStatus>('idle')
   const [error, setError] = useState('')
   const [rows, setRows] = useState<Row[]>([])
   const [sharing, setSharing] = useState(false)
   const [cameraOn, setCameraOn] = useState(false)
   const [remoteAudioReady, setRemoteAudioReady] = useState(false)
+  const [micMuted, setMicMuted] = useState(false)
+  const [tab, setTab] = useState<'chat' | 'history'>('chat')
+  const [readQuestion, setReadQuestion] = useState('')
+  const [readRequestedAt, setReadRequestedAt] = useState(0)
   const [snapshot, setSnapshot] = useState('')
   const [readResult, setReadResult] = useState('')
   const [elapsed, setElapsed] = useState(0)
@@ -131,7 +147,7 @@ export function AiCallRoute() {
 
   const appendRow = (role: Row['role'], text: string) => {
     if (!text) return
-    setRows(previous => [...previous, { id: crypto.randomUUID(), role, text }])
+    setRows(previous => [...previous, { id: crypto.randomUUID(), role, text, createdAt: Date.now() }])
   }
 
   const sendSessionUpdate = (withReadScreen: boolean) => {
@@ -184,8 +200,8 @@ export function AiCallRoute() {
     let output: string
     try {
       const answer = await captureScreen(question)
+      setReadQuestion(question)
       setReadResult(answer)
-      appendRow('assistant', answer)
       output = JSON.stringify({ success: true, answer })
     } catch (reason) {
       output = JSON.stringify({
@@ -211,6 +227,7 @@ export function AiCallRoute() {
     }
     const type = String(payload.type ?? '')
     if (type === 'conversation.item.input_audio_transcription.completed') {
+      setReadRequestedAt(0)
       appendRow('user', String(payload.transcript ?? ''))
       return
     }
@@ -226,6 +243,7 @@ export function AiCallRoute() {
           id: `assistant-${String(payload.response_id ?? crypto.randomUUID())}`,
           role: 'assistant',
           text: delta,
+          createdAt: Date.now(),
         }]
       })
       return
@@ -352,7 +370,11 @@ export function AiCallRoute() {
     setRows([])
     setSnapshot('')
     setReadResult('')
+    setReadQuestion('')
+    setReadRequestedAt(0)
     setCameraOn(false)
+    setMicMuted(false)
+    setTab('chat')
     startedAtRef.current = undefined
     seenCallsRef.current.clear()
     setStatus('connecting')
@@ -448,6 +470,14 @@ export function AiCallRoute() {
     }
   }
 
+  const toggleMic = () => {
+    const track = micRef.current?.getAudioTracks()[0]
+    if (!track) return
+    const next = !micMuted
+    track.enabled = !next
+    setMicMuted(next)
+  }
+
   const toggleCamera = async () => {
     if (status !== 'active') return
     if (cameraOn) {
@@ -521,6 +551,9 @@ export function AiCallRoute() {
   const askReadScreen = () => {
     const channel = channelRef.current
     if (!sharing || channel?.readyState !== 'open') return
+    setReadResult('')
+    setReadQuestion('')
+    setReadRequestedAt(Date.now())
     channel.send(JSON.stringify({
       type: 'conversation.item.create',
       item: {
@@ -539,6 +572,7 @@ export function AiCallRoute() {
     const text = draft.trim()
     const channel = channelRef.current
     if (!text || channel?.readyState !== 'open') return
+    setReadRequestedAt(0)
     channel.send(JSON.stringify({
       type: 'conversation.item.create',
       item: {
@@ -567,6 +601,8 @@ export function AiCallRoute() {
 
   const mediaState = JSON.stringify({
     audio: micRef.current?.getAudioTracks().map(track => track.readyState) ?? [],
+    audioEnabled: micRef.current?.getAudioTracks()[0]?.enabled ?? false,
+    micMuted,
     camera: cameraStreamRef.current?.getVideoTracks().map(track => track.readyState) ?? [],
     screen: screenStreamRef.current?.getVideoTracks().map(track => track.readyState) ?? [],
     screenSurface: screenStreamRef.current?.getVideoTracks()[0]?.getSettings().displaySurface ?? '',
@@ -577,115 +613,256 @@ export function AiCallRoute() {
     channel: channelRef.current?.readyState ?? '',
   })
 
+  const visibleRows = rows.filter(row =>
+    !(readResult && readRequestedAt && row.role === 'assistant' && (row.createdAt ?? 0) >= readRequestedAt)
+  )
+
   return (
-    <div style={{ padding: 24, maxWidth: 980, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 24, margin: '0 0 8px' }}>AI 打电话</h1>
-      <p style={{ color: '#666', marginTop: 0 }}>PC WebRTC 原型：语音 + 屏幕共享 + 读屏</p>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '16px 0' }}>
-        <strong>{STATUS_LABEL[status]}</strong>
-        {sharing && <span>· 正在共享屏幕</span>}
-        {(status === 'active' || status === 'sharing') && <span>{elapsed}s</span>}
-        {status === 'idle' || status === 'ended' || status === 'error'
-          ? <button onClick={start}>开始通话</button>
-          : <button onClick={stop}>挂断</button>}
-        {status === 'active' && <button onClick={toggleCamera}>{cameraOn ? '关闭摄像头' : '开启摄像头'}</button>}
-        {status === 'active' && <button onClick={share}>共享屏幕</button>}
-        {status === 'sharing' && <button onClick={stopShare}>停止共享</button>}
-        {status === 'sharing' && <button onClick={askReadScreen}>让 AI 读屏</button>}
-      </div>
-      {error && <p style={{ color: '#b00020' }}>{error}</p>}
-      <pre data-testid="media-state" style={{ display: 'none' }}>{mediaState}</pre>
-      <audio ref={audioRef} autoPlay data-testid="remote-audio" />
-      <video
-        ref={screenRef}
-        autoPlay
-        muted
-        playsInline
-        data-testid="screen-preview"
-        style={{ display: sharing ? 'block' : 'none', maxWidth: 480, border: '1px solid #ddd', borderRadius: 8 }}
-      />
-      <video
-        ref={cameraRef}
-        autoPlay
-        muted
-        playsInline
-        data-testid="camera-preview"
-        style={{
-          display: cameraOn ? 'block' : 'none',
-          maxWidth: 320,
-          border: '1px solid #ddd',
-          borderRadius: 8,
-          transform: 'scaleX(-1)',
-        }}
-      />
-      {snapshot && (
-        <img
-          src={snapshot}
-          alt="屏幕读取截图"
-          style={{ maxWidth: 320, border: '1px solid #ddd', borderRadius: 8 }}
-        />
-      )}
-      {readResult && <p data-testid="read-screen-result">读屏：{readResult}</p>}
-      <div style={{ marginTop: 16, borderTop: '1px solid #eee', paddingTop: 12 }}>
-        {rows.map(row => (
-          <p key={row.id} style={{ margin: '8px 0' }}>
-            <strong>{row.role === 'user' ? '你' : 'AI'}：</strong>{row.text}
-          </p>
-        ))}
-      </div>
-      <form
-        onSubmit={event => {
-          event.preventDefault()
-          sendText()
-        }}
-        style={{ display: 'flex', gap: 8, marginTop: 16 }}
-      >
-        <input
-          aria-label="输入消息"
-          value={draft}
-          onChange={event => setDraft(event.target.value)}
-          placeholder={status === 'active' || status === 'sharing' ? '输入文字，或直接说话' : '开始通话后可输入文字'}
-          disabled={status !== 'active' && status !== 'sharing'}
-          style={{ flex: 1, padding: '8px 10px', border: '1px solid #ccc', borderRadius: 6 }}
-        />
-        <button
-          type="submit"
-          disabled={!draft.trim() || (status !== 'active' && status !== 'sharing')}
-        >
-          发送
-        </button>
-      </form>
-      <div data-testid="ai-call-history" style={{ marginTop: 24, borderTop: '1px solid #eee', paddingTop: 12 }}>
-        <h2 style={{ fontSize: 18, margin: '0 0 8px' }}>通话记录</h2>
-        {history.length === 0 && <p style={{ color: '#888' }}>暂无通话记录</p>}
-        {history.map(record => (
-          <div key={record.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-            <button
-              type="button"
-              onClick={() => setExpandedHistory(current => (current === record.id ? '' : record.id))}
-              style={{ border: 0, background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer' }}
-            >
-              <strong>{new Date(record.startedAt).toLocaleString()}</strong>
-              <span style={{ color: '#777', marginLeft: 8 }}>
-                {String(Math.floor(record.seconds / 60)).padStart(2, '0')}:{String(record.seconds % 60).padStart(2, '0')}
-              </span>
-            </button>
-            <button
-              type="button"
-              aria-label="删除通话记录"
-              onClick={() => removeHistory(record.id)}
-              style={{ marginLeft: 8, border: 0, background: 'transparent', color: '#b00020', cursor: 'pointer' }}
-            >
-              删除
-            </button>
-            {expandedHistory === record.id && record.rows.map(row => (
-              <p key={row.id} style={{ margin: '6px 0 0 16px', color: '#444' }}>
-                {row.role === 'user' ? '你' : 'AI'}：{row.text}
-              </p>
-            ))}
+    <div className={`ai-call ${compact ? 'ai-call--compact' : ''}`}>
+      <header className="ai-call-header">
+        <div>
+          <span className="eyebrow">AI 通话</span>
+          <h1>和 AI 说说话</h1>
+          <p className="ai-call-subtitle">语音、摄像头或共享屏幕，都可以成为对话的一部分。</p>
+        </div>
+        <div className="ai-call-header-status">
+          <span className={`status-pill status-pill--${status}`}>{STATUS_LABEL[status]}</span>
+          {(status === 'active' || status === 'sharing') && <span className="call-timer">{elapsed}s</span>}
+        </div>
+      </header>
+
+      <main className="ai-call-layout">
+        <section className="call-stage" aria-label="通话画面">
+          <div className="stage-media">
+            <div className={`ai-orb ai-orb--${status}`} aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
+            <video
+              ref={screenRef}
+              autoPlay
+              muted
+              playsInline
+              data-testid="screen-preview"
+              className={`stage-video stage-video--screen ${sharing ? 'is-visible' : ''}`}
+            />
+            <video
+              ref={cameraRef}
+              autoPlay
+              muted
+              playsInline
+              data-testid="camera-preview"
+              className={`stage-video stage-video--camera ${cameraOn && !sharing ? 'is-visible' : ''}`}
+            />
+            {!sharing && !cameraOn && (
+              <div className="stage-empty">
+                <span className="stage-empty-icon" aria-hidden="true">AI</span>
+                <strong>
+                  {status === 'idle'
+                    ? '准备开始一段对话'
+                    : status === 'active' || status === 'sharing'
+                      ? 'AI 正在聆听'
+                      : status === 'ended'
+                        ? '本次通话已结束'
+                        : STATUS_LABEL[status]}
+                </strong>
+                <p>
+                  {status === 'idle'
+                    ? '开始后你可以直接说话；需要看屏幕时再共享。'
+                    : status === 'connecting'
+                      ? '正在连接语音通道…'
+                      : status === 'error'
+                        ? error || '连接失败，请重试。'
+                        : '语音通道已连接。'}
+                </p>
+              </div>
+            )}
           </div>
-        ))}
-      </div>
+          <div className="stage-meta">
+            <span className={`stage-live-dot ${status === 'active' || status === 'sharing' ? 'is-live' : ''}`} />
+            <span>
+              {sharing ? '正在共享屏幕' : cameraOn ? '摄像头已开启' : status === 'active' ? 'AI 正在聆听' : '未在通话'}
+            </span>
+            {sharing && <span className="stage-chip">屏幕已共享</span>}
+            {sharing && (
+              <button type="button" className="stage-read-button" onClick={askReadScreen}>
+                读取当前屏幕
+              </button>
+            )}
+          </div>
+          {(status === 'idle' || status === 'ended' || status === 'error') && (
+            <button type="button" className="primary-action" onClick={start}>
+              开始通话
+            </button>
+          )}
+        </section>
+
+        <aside className="ai-call-panel" aria-label="对话与记录">
+          <div className="panel-tabs" role="tablist" aria-label="通话内容">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'chat'}
+              className={tab === 'chat' ? 'is-active' : ''}
+              onClick={() => setTab('chat')}
+            >
+              <RiChat3Line size={16} aria-hidden="true" />
+              对话
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'history'}
+              className={tab === 'history' ? 'is-active' : ''}
+              onClick={() => setTab('history')}
+            >
+              <RiHistoryLine size={16} aria-hidden="true" />
+              通话记录
+            </button>
+          </div>
+
+          {tab === 'chat' ? (
+            <div className="panel-chat">
+              <div className="transcript" aria-live="polite">
+                {visibleRows.length === 0 && !readResult && (
+                  <div className="panel-empty">
+                    <strong>开始后，对话会显示在这里</strong>
+                    <p>你可以说话，也可以输入文字。</p>
+                  </div>
+                )}
+                {visibleRows.map(row => (
+                  <div key={row.id} className={`transcript-row transcript-row--${row.role}`}>
+                    <span className="transcript-role">{row.role === 'user' ? '你' : 'AI'}</span>
+                    <p>{row.text}</p>
+                  </div>
+                ))}
+                {readResult && (
+                  <section className="read-card" data-testid="read-screen-result">
+                    <div className="read-card-head">
+                      <strong>屏幕读取</strong>
+                      <span>刚刚</span>
+                    </div>
+                    {snapshot && <img src={snapshot} alt="屏幕读取截图" />}
+                    {readQuestion && <p className="read-question">问题：{readQuestion}</p>}
+                    <p className="read-answer">{readResult}</p>
+                  </section>
+                )}
+              </div>
+              <form
+                className="composer"
+                onSubmit={event => {
+                  event.preventDefault()
+                  sendText()
+                }}
+              >
+                <input
+                  aria-label="输入消息"
+                  value={draft}
+                  onChange={event => setDraft(event.target.value)}
+                  placeholder={status === 'active' || status === 'sharing' ? '输入文字，或直接说话' : '通话开始后可输入文字'}
+                  disabled={status !== 'active' && status !== 'sharing'}
+                />
+                <button type="submit" disabled={!draft.trim() || (status !== 'active' && status !== 'sharing')}>
+                  发送
+                </button>
+              </form>
+            </div>
+          ) : (
+            <div className="panel-history" data-testid="ai-call-history">
+              {history.length === 0 && (
+                <div className="panel-empty">
+                  <strong>还没有通话记录</strong>
+                  <p>完成一次 AI 通话后会出现在这里。</p>
+                </div>
+              )}
+              {history.map(record => {
+                const first = record.rows.find(row => row.role === 'user')?.text ?? record.rows[0]?.text ?? ''
+                const title = first.trim() || 'AI 通话'
+                const duration = `${String(Math.floor(record.seconds / 60)).padStart(2, '0')}:${String(record.seconds % 60).padStart(2, '0')}`
+                return (
+                  <article key={record.id} className="history-card">
+                    <button
+                      type="button"
+                      className="history-main"
+                      onClick={() => setExpandedHistory(current => (current === record.id ? '' : record.id))}
+                      aria-expanded={expandedHistory === record.id}
+                    >
+                      <span className="history-title">{title.length > 42 ? `${title.slice(0, 42)}…` : title}</span>
+                      <span className="history-meta">
+                        {new Date(record.startedAt).toLocaleString()} · {duration}
+                      </span>
+                      <span className="history-status">
+                        {record.rows.length ? '已完成' : '无对话内容'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button history-delete"
+                      aria-label="删除通话记录"
+                      onClick={() => removeHistory(record.id)}
+                    >
+                      <RiDeleteBin6Line size={16} aria-hidden="true" />
+                    </button>
+                    {expandedHistory === record.id && (
+                      <div className="history-detail">
+                        {record.rows.map(row => (
+                          <p key={row.id}>
+                            <strong>{row.role === 'user' ? '你' : 'AI'}：</strong>{row.text}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </aside>
+      </main>
+
+      <footer className="control-dock" aria-label="通话控制">
+        <button
+          type="button"
+          className={`control-button ${micMuted ? 'is-off' : ''}`}
+          aria-pressed={!micMuted}
+          aria-label={micMuted ? '取消静音' : '静音'}
+          onClick={toggleMic}
+          disabled={status !== 'active' && status !== 'sharing'}
+        >
+          {micMuted ? <RiMicOffLine size={20} aria-hidden="true" /> : <RiMicLine size={20} aria-hidden="true" />}
+          <span>{micMuted ? '取消静音' : '静音'}</span>
+        </button>
+        <button
+          type="button"
+          className={`control-button ${cameraOn ? 'is-on' : ''}`}
+          aria-pressed={cameraOn}
+          onClick={toggleCamera}
+          disabled={status !== 'active'}
+        >
+          {cameraOn ? <RiVideoLine size={20} aria-hidden="true" /> : <RiVideoOffLine size={20} aria-hidden="true" />}
+          <span>{cameraOn ? '关闭摄像头' : '开启摄像头'}</span>
+        </button>
+        <button
+          type="button"
+          className={`control-button ${sharing ? 'is-on' : ''}`}
+          aria-pressed={sharing}
+          onClick={sharing ? stopShare : share}
+          disabled={status !== 'active' && status !== 'sharing'}
+        >
+          <RiComputerLine size={20} aria-hidden="true" />
+          <span>{sharing ? '停止共享' : '共享屏幕'}</span>
+        </button>
+        {(status === 'active' || status === 'sharing') && (
+          <button type="button" className="end-button" onClick={stop}>
+            <RiPhoneLine size={20} aria-hidden="true" />
+            <span>挂断</span>
+          </button>
+        )}
+      </footer>
+
+      <pre data-testid="media-state" className="visually-hidden">{mediaState}</pre>
+      <audio ref={audioRef} autoPlay data-testid="remote-audio" className="visually-hidden" />
     </div>
   )
 }
