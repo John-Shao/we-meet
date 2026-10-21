@@ -39,6 +39,6 @@ jobs:
           # This action moves the whole package directory on each iteration;
           # one chart per job avoids the second-iteration mv failure.
           charts_dir: ./src/helm/${{ matrix.chart }}
-          helm_version: v3.17.0
+          helm_version: 3.17.0
           linting: on
           token: ${{ secrets.GITHUB_TOKEN }}
