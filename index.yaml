@@ -20,4 +20,16 @@ entries:
     urls:
     - https://John-Shao.github.io/we-meet/work-agent-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-21T10:33:59.480919428Z"
+  work-agent-k8s:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2026-10-21T10:34:32.427175732Z"
+    description: Independent Work agent gateway with namespace-scoped Kubernetes task
+      Pods
+    digest: a86a2ecad803634933186a778140c0417dfef033a1bc7da6c2b5d3c1b80d38c2
+    name: work-agent-k8s
+    type: application
+    urls:
+    - https://John-Shao.github.io/we-meet/work-agent-k8s-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-10-21T10:34:32.426750129Z"
