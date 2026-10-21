@@ -9,4 +9,15 @@ entries:
     urls:
     - https://John-Shao.github.io/we-meet/meet-0.0.21.tgz
     version: 0.0.21
-generated: "2026-10-21T10:33:38.122631738Z"
+  work-agent:
+  - apiVersion: v2
+    appVersion: 0.3.1
+    created: "2026-10-21T10:33:59.481331471Z"
+    description: Independent Work agent gateway on a dedicated Docker runner node
+    digest: 48b2210352c79903346798a2cfd9f1468a20517f8512b5fc155d8557cdb2e2b6
+    name: work-agent
+    type: application
+    urls:
+    - https://John-Shao.github.io/we-meet/work-agent-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-10-21T10:33:59.480919428Z"
