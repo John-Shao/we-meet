@@ -33,6 +33,44 @@ describe('AI call history sync', () => {
     }])
   })
 
+  it('carries title, summary and todos in both directions', async () => {
+    fetchApi.mockResolvedValue({
+      conversations: [{
+        id: 'remote-2',
+        client_id: 'local-2',
+        started_at: '2026-10-20T10:00:00Z',
+        ended_at: '2026-10-20T10:01:00Z',
+        title: 'Weekly sync',
+        summary: 'Discussed roadmap.',
+        todos: [{ text: 'Send notes', done: false }],
+        messages: [],
+      }],
+    })
+    const records = await pullAiCallHistory()
+    expect(records[0]).toMatchObject({
+      title: 'Weekly sync',
+      summary: 'Discussed roadmap.',
+      todos: [{ text: 'Send notes', done: false }],
+    })
+
+    fetchApi.mockResolvedValue({ id: 'remote-3' })
+    await pushAiCallHistory({
+      id: 'local-3',
+      startedAt: 1000,
+      seconds: 2,
+      rows: [],
+      title: 'Weekly sync',
+      summary: 'Discussed roadmap.',
+      todos: [{ text: 'Send notes', done: false }],
+    })
+    const body = JSON.parse(fetchApi.mock.calls[1][1].body)
+    expect(body).toMatchObject({
+      title: 'Weekly sync',
+      summary: 'Discussed roadmap.',
+      todos: [{ text: 'Send notes', done: false }],
+    })
+  })
+
   it('uploads a stable snapshot and returns the server id', async () => {
     fetchApi.mockResolvedValue({ id: 'remote-1' })
     const remote = await pushAiCallHistory({

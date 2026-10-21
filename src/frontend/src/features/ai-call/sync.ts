@@ -4,12 +4,16 @@ const DEVICE_KEY = 'we-meet:ai-call-device'
 const API = 'ai-call/conversations/'
 
 export type SyncRow = { id: string; role: 'user' | 'assistant' | 'system'; text: string }
+export type SyncTodo = { text: string; done?: boolean }
 export type SyncRecord = {
   id: string
   startedAt: number
   seconds: number
   rows: SyncRow[]
   remoteId?: string
+  title?: string
+  summary?: string
+  todos?: SyncTodo[]
 }
 
 type ServerMessage = {
@@ -24,6 +28,9 @@ type ServerConversation = {
   client_id: string
   started_at: string
   ended_at?: string | null
+  title?: string
+  summary?: string
+  todos?: SyncTodo[]
   messages?: ServerMessage[]
   message_count?: number
 }
@@ -45,6 +52,9 @@ const toSyncRecord = (server: ServerConversation): SyncRecord => {
     startedAt: started,
     seconds: Math.max(0, Math.round((ended - started) / 1000)),
     remoteId: server.id,
+    ...(server.title ? { title: server.title } : {}),
+    ...(server.summary ? { summary: server.summary } : {}),
+    ...(server.todos?.length ? { todos: server.todos } : {}),
     rows: (server.messages ?? []).map(message => ({
       id: message.client_id,
       role: message.role,
@@ -68,12 +78,12 @@ export async function pushAiCallHistory(record: SyncRecord): Promise<string | un
       client_id: record.id,
       device_id: deviceId(),
       kind: 'call',
-      title: '',
+      title: record.title ?? '',
       started_at: new Date(record.startedAt).toISOString(),
       ended_at: endedAt,
       status: 'completed',
-      summary: '',
-      todos: [],
+      summary: record.summary ?? '',
+      todos: record.todos ?? [],
       messages: record.rows.map((row, position) => ({
         client_id: row.id,
         position,

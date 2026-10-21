@@ -7,6 +7,7 @@ import {
   RiMicLine,
   RiMicOffLine,
   RiPhoneLine,
+  RiSettings3Line,
   RiVideoLine,
   RiVideoOffLine,
 } from '@remixicon/react'
@@ -37,6 +38,9 @@ type HistoryRecord = {
   seconds: number
   rows: Row[]
   remoteId?: string
+  title?: string
+  summary?: string
+  todos?: { text: string; done?: boolean }[]
 }
 const HISTORY_KEY = 'we-meet:ai-call-history'
 const loadHistory = (): HistoryRecord[] => {
@@ -77,6 +81,13 @@ const STATUS_LABEL: Record<CallStatus, string> = {
   ended: '已结束',
 }
 
+const NETWORK_LABEL = {
+  good: '网络良好',
+  weak: '网络不稳定',
+  poor: '网络较差',
+  offline: '连接已断开',
+} as const
+
 export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
   const [status, setStatus] = useState<CallStatus>('idle')
   const [error, setError] = useState('')
@@ -86,9 +97,15 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
   const [remoteAudioReady, setRemoteAudioReady] = useState(false)
   const [micMuted, setMicMuted] = useState(false)
   const [tab, setTab] = useState<'chat' | 'history'>('chat')
+  const [historyQuery, setHistoryQuery] = useState('')
   const [readQuestion, setReadQuestion] = useState('')
   const [readRequestedAt, setReadRequestedAt] = useState(0)
   const [snapshot, setSnapshot] = useState('')
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
+  const [deviceMenuOpen, setDeviceMenuOpen] = useState(false)
+  const [micDeviceId, setMicDeviceId] = useState(() => localStorage.getItem('we-meet:ai-call-mic') ?? '')
+  const [cameraDeviceId, setCameraDeviceId] = useState(() => localStorage.getItem('we-meet:ai-call-camera') ?? '')
+  const [networkQuality, setNetworkQuality] = useState<'good' | 'weak' | 'poor' | 'offline'>('good')
   const [readResult, setReadResult] = useState('')
   const [elapsed, setElapsed] = useState(0)
   const [history, setHistory] = useState<HistoryRecord[]>(loadHistory)
@@ -100,6 +117,19 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
     } catch {}
   }
+
+  const refreshDevices = async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return
+    try {
+      setDevices(await navigator.mediaDevices.enumerateDevices())
+    } catch {}
+  }
+
+  useEffect(() => {
+    void refreshDevices()
+    navigator.mediaDevices?.addEventListener?.('devicechange', refreshDevices)
+    return () => navigator.mediaDevices?.removeEventListener?.('devicechange', refreshDevices)
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -131,6 +161,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const channelRef = useRef<RTCDataChannel | null>(null)
   const micRef = useRef<MediaStream | null>(null)
+  const audioSenderRef = useRef<RTCRtpSender | null>(null)
   const screenStreamRef = useRef<MediaStream | null>(null)
   const cameraStreamRef = useRef<MediaStream | null>(null)
   const videoSenderRef = useRef<RTCRtpSender | null>(null)
@@ -144,6 +175,81 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
   const elapsedRef = useRef(elapsed)
   rowsRef.current = rows
   elapsedRef.current = elapsed
+
+  useEffect(() => {
+    if (status !== 'active' && status !== 'sharing') return
+    let cancelled = false
+    const poll = async () => {
+      const pc = pcRef.current
+      if (!pc || cancelled) return
+      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        setNetworkQuality('offline')
+        return
+      }
+      try {
+        let received = 0
+        let lost = 0
+        let jitter = 0
+        const stats = await pc.getStats()
+        stats.forEach(report => {
+          if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+            received += Number(report.packetsReceived ?? 0)
+            lost += Number(report.packetsLost ?? 0)
+            jitter = Math.max(jitter, Number(report.jitter ?? 0))
+          }
+        })
+        if (received === 0) {
+          setNetworkQuality('good')
+          return
+        }
+        const loss = lost / (received + lost)
+        setNetworkQuality(loss > 0.05 || jitter > 0.12 ? 'poor' : loss > 0.02 || jitter > 0.05 ? 'weak' : 'good')
+      } catch {}
+    }
+    void poll()
+    const timer = window.setInterval(poll, 4000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [status])
+
+  const reconnect = () => {
+    cleanup()
+    setStatus('idle')
+    setError('')
+    window.setTimeout(() => void start(true), 0)
+  }
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.key === 'Escape') {
+        if (deviceMenuOpen) {
+          setDeviceMenuOpen(false)
+        } else if (status === 'active' || status === 'sharing') {
+          stop()
+        }
+        return
+      }
+      if (status !== 'active' && status !== 'sharing') return
+      if (event.key.toLowerCase() === 'm') {
+        event.preventDefault()
+        toggleMic()
+      } else if (event.key.toLowerCase() === 'c' && status === 'active') {
+        event.preventDefault()
+        void toggleCamera()
+      } else if (event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        if (sharing) stopShare()
+        else void share()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [status, sharing, deviceMenuOpen, micMuted, cameraOn])
 
   const appendRow = (role: Row['role'], text: string) => {
     if (!text) return
@@ -274,6 +380,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
     stopCamera()
     micRef.current?.getTracks().forEach(track => track.stop())
     micRef.current = null
+    audioSenderRef.current = null
     channelRef.current?.close()
     channelRef.current = null
     pcRef.current?.close()
@@ -283,6 +390,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
     if (cameraRef.current) cameraRef.current.srcObject = null
     setRemoteAudioReady(false)
     setSharing(false)
+    setNetworkQuality('good')
   }
 
   const saveHistory = () => {
@@ -364,8 +472,9 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
     }).catch(() => {})
   }, [status, sharing])
 
-  const start = async () => {
-    if (status === 'connecting' || status === 'active' || status === 'sharing') return
+  const start = async (force = false) => {
+    if (!force && (status === 'connecting' || status === 'active' || status === 'sharing')) return
+    setNetworkQuality('good')
     setError('')
     setRows([])
     setSnapshot('')
@@ -385,6 +494,13 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
 
       const pc = new RTCPeerConnection()
       pcRef.current = pc
+      pc.addEventListener('connectionstatechange', () => {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          setNetworkQuality('offline')
+        } else if (pc.connectionState === 'connected') {
+          setNetworkQuality('good')
+        }
+      })
       let resolveUpdated: (() => void) | null = null
       const updated = new Promise<void>((resolve, reject) => {
         const timeout = window.setTimeout(() => reject(new Error('session.updated 超时')), 20_000)
@@ -406,11 +522,16 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
       }
       attachChannel(channel)
       pc.addEventListener('datachannel', event => attachChannel(event.channel))
-      const mic = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      })
+      const audioConstraints: MediaTrackConstraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        ...(micDeviceId ? { deviceId: { exact: micDeviceId } } : {}),
+      }
+      const mic = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints })
       micRef.current = mic
-      pc.addTrack(mic.getAudioTracks()[0], mic)
+      audioSenderRef.current = pc.addTrack(mic.getAudioTracks()[0], mic)
+      void refreshDevices()
       const transceiver = pc.addTransceiver('video', { direction: 'sendrecv' })
       videoSenderRef.current = transceiver.sender
       pc.ontrack = remote => {
@@ -490,10 +611,12 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
           frameRate: { ideal: 15, max: 30 },
           width: { ideal: 640 },
           height: { ideal: 480 },
+          ...(cameraDeviceId ? { deviceId: { exact: cameraDeviceId } } : {}),
         },
       })
       const track = stream.getVideoTracks()[0]
       if (!track) throw new Error('没有摄像头视频轨')
+      void refreshDevices()
       cameraStreamRef.current = stream
       if (cameraRef.current) {
         cameraRef.current.srcObject = stream
@@ -504,6 +627,60 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
       track.onended = () => stopCamera()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '无法打开摄像头')
+    }
+  }
+
+  const switchMic = async (deviceId: string) => {
+    setMicDeviceId(deviceId)
+    localStorage.setItem('we-meet:ai-call-mic', deviceId)
+    if (!audioSenderRef.current || (status !== 'active' && status !== 'sharing')) return
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+        },
+      })
+      const track = stream.getAudioTracks()[0]
+      if (!track) throw new Error('没有麦克风音频轨')
+      track.enabled = !micMuted
+      await audioSenderRef.current.replaceTrack(track)
+      micRef.current?.getTracks().forEach(old => old.stop())
+      micRef.current = stream
+      void refreshDevices()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '无法切换麦克风')
+    }
+  }
+
+  const switchCamera = async (deviceId: string) => {
+    setCameraDeviceId(deviceId)
+    localStorage.setItem('we-meet:ai-call-camera', deviceId)
+    if (!cameraOn) return
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          frameRate: { ideal: 15, max: 30 },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+        },
+      })
+      const track = stream.getVideoTracks()[0]
+      if (!track) throw new Error('没有摄像头视频轨')
+      await videoSenderRef.current?.replaceTrack(track)
+      cameraStreamRef.current?.getTracks().forEach(old => old.stop())
+      cameraStreamRef.current = stream
+      if (cameraRef.current) {
+        cameraRef.current.srcObject = stream
+        await cameraRef.current.play().catch(() => {})
+      }
+      track.onended = () => stopCamera()
+      void refreshDevices()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '无法切换摄像头')
     }
   }
 
@@ -611,11 +788,33 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
     remoteAudio: remoteAudioReady,
     connection: pcRef.current?.connectionState ?? '',
     channel: channelRef.current?.readyState ?? '',
+    networkQuality,
   })
 
   const visibleRows = rows.filter(row =>
     !(readResult && readRequestedAt && row.role === 'assistant' && (row.createdAt ?? 0) >= readRequestedAt)
   )
+
+  const normalizedQuery = historyQuery.trim().toLowerCase()
+  const filteredHistory = history.filter(record => {
+    if (!normalizedQuery) return true
+    return `${record.title ?? ''} ${record.summary ?? ''} ${record.rows.map(row => row.text).join(' ')}`
+      .toLowerCase()
+      .includes(normalizedQuery)
+  })
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+  const historyGroups = new Map<string, HistoryRecord[]>()
+  for (const record of filteredHistory) {
+    const group = record.startedAt >= todayStart.getTime()
+      ? '今天'
+      : record.startedAt >= todayStart.getTime() - 86400000
+        ? '昨天'
+        : '更早'
+    const list = historyGroups.get(group) ?? []
+    list.push(record)
+    historyGroups.set(group, list)
+  }
 
   return (
     <div className={`ai-call ${compact ? 'ai-call--compact' : ''}`}>
@@ -624,8 +823,47 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
           <span className="eyebrow">AI 通话</span>
           <h1>和 AI 说说话</h1>
           <p className="ai-call-subtitle">语音、摄像头或共享屏幕，都可以成为对话的一部分。</p>
+          <p className="shortcut-hint">快捷键：M 静音 · C 摄像头 · S 共享 · Esc 挂断</p>
         </div>
         <div className="ai-call-header-status">
+          <div className={`device-picker ${deviceMenuOpen ? 'is-open' : ''}`}>
+            <button
+              type="button"
+              className="device-button"
+              aria-label="选择设备"
+              aria-expanded={deviceMenuOpen}
+              onClick={() => setDeviceMenuOpen(open => !open)}
+            >
+              <RiSettings3Line size={16} aria-hidden="true" />
+              设备
+            </button>
+            {deviceMenuOpen && (
+              <div className="device-menu">
+                <label>
+                  <span>麦克风</span>
+                  <select value={micDeviceId} onChange={event => void switchMic(event.target.value)}>
+                    <option value="">系统默认</option>
+                    {devices.filter(device => device.kind === 'audioinput').map((device, index) => (
+                      <option key={device.deviceId || index} value={device.deviceId}>
+                        {device.label || `麦克风 ${index + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>摄像头</span>
+                  <select value={cameraDeviceId} onChange={event => void switchCamera(event.target.value)}>
+                    <option value="">系统默认</option>
+                    {devices.filter(device => device.kind === 'videoinput').map((device, index) => (
+                      <option key={device.deviceId || index} value={device.deviceId}>
+                        {device.label || `摄像头 ${index + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+          </div>
           <span className={`status-pill status-pill--${status}`}>{STATUS_LABEL[status]}</span>
           {(status === 'active' || status === 'sharing') && <span className="call-timer">{elapsed}s</span>}
         </div>
@@ -684,6 +922,16 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
             <span>
               {sharing ? '正在共享屏幕' : cameraOn ? '摄像头已开启' : status === 'active' ? 'AI 正在聆听' : '未在通话'}
             </span>
+            {(status === 'active' || status === 'sharing') && (
+              <span className={`network-quality network-quality--${networkQuality}`}>
+                {NETWORK_LABEL[networkQuality]}
+              </span>
+            )}
+            {networkQuality === 'offline' && (status === 'active' || status === 'sharing') && (
+              <button type="button" className="stage-reconnect" onClick={reconnect}>
+                重新连接
+              </button>
+            )}
             {sharing && <span className="stage-chip">屏幕已共享</span>}
             {sharing && (
               <button type="button" className="stage-read-button" onClick={askReadScreen}>
@@ -692,7 +940,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
             )}
           </div>
           {(status === 'idle' || status === 'ended' || status === 'error') && (
-            <button type="button" className="primary-action" onClick={start}>
+            <button type="button" className="primary-action" onClick={() => void start()}>
               开始通话
             </button>
           )}
@@ -770,52 +1018,84 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
             </div>
           ) : (
             <div className="panel-history" data-testid="ai-call-history">
+              <div className="history-toolbar">
+                <input
+                  aria-label="搜索通话记录"
+                  value={historyQuery}
+                  onChange={event => setHistoryQuery(event.target.value)}
+                  placeholder="搜索标题或对话内容"
+                />
+                <span>{filteredHistory.length}/{history.length}</span>
+              </div>
               {history.length === 0 && (
                 <div className="panel-empty">
                   <strong>还没有通话记录</strong>
                   <p>完成一次 AI 通话后会出现在这里。</p>
                 </div>
               )}
-              {history.map(record => {
-                const first = record.rows.find(row => row.role === 'user')?.text ?? record.rows[0]?.text ?? ''
-                const title = first.trim() || 'AI 通话'
-                const duration = `${String(Math.floor(record.seconds / 60)).padStart(2, '0')}:${String(record.seconds % 60).padStart(2, '0')}`
-                return (
-                  <article key={record.id} className="history-card">
-                    <button
-                      type="button"
-                      className="history-main"
-                      onClick={() => setExpandedHistory(current => (current === record.id ? '' : record.id))}
-                      aria-expanded={expandedHistory === record.id}
-                    >
-                      <span className="history-title">{title.length > 42 ? `${title.slice(0, 42)}…` : title}</span>
-                      <span className="history-meta">
-                        {new Date(record.startedAt).toLocaleString()} · {duration}
-                      </span>
-                      <span className="history-status">
-                        {record.rows.length ? '已完成' : '无对话内容'}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-button history-delete"
-                      aria-label="删除通话记录"
-                      onClick={() => removeHistory(record.id)}
-                    >
-                      <RiDeleteBin6Line size={16} aria-hidden="true" />
-                    </button>
-                    {expandedHistory === record.id && (
-                      <div className="history-detail">
-                        {record.rows.map(row => (
-                          <p key={row.id}>
-                            <strong>{row.role === 'user' ? '你' : 'AI'}：</strong>{row.text}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </article>
-                )
-              })}
+              {history.length > 0 && filteredHistory.length === 0 && (
+                <div className="panel-empty">
+                  <strong>没有匹配的通话</strong>
+                  <p>换一个关键词试试。</p>
+                </div>
+              )}
+              {[...historyGroups.entries()].map(([group, records]) => (
+                <section key={group} className="history-group">
+                  <h3>{group}</h3>
+                  {records.map(record => {
+                    const first = record.rows.find(row => row.role === 'user')?.text ?? record.rows[0]?.text ?? ''
+                    const title = (record.title?.trim() || first.trim()) || 'AI 通话'
+                    const duration = `${String(Math.floor(record.seconds / 60)).padStart(2, '0')}:${String(record.seconds % 60).padStart(2, '0')}`
+                    return (
+                      <article key={record.id} className="history-card">
+                        <button
+                          type="button"
+                          className="history-main"
+                          onClick={() => setExpandedHistory(current => (current === record.id ? '' : record.id))}
+                          aria-expanded={expandedHistory === record.id}
+                        >
+                          <span className="history-title">{title.length > 42 ? `${title.slice(0, 42)}…` : title}</span>
+                          <span className="history-meta">
+                            {new Date(record.startedAt).toLocaleString()} · {duration}
+                          </span>
+                          <span className="history-badges">
+                            <span className="history-status">{record.rows.length ? '已完成' : '无对话内容'}</span>
+                            {record.summary && <span className="history-badge">摘要</span>}
+                            {!!record.todos?.length && <span className="history-badge">待办 {record.todos.length}</span>}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button history-delete"
+                          aria-label="删除通话记录"
+                          onClick={() => removeHistory(record.id)}
+                        >
+                          <RiDeleteBin6Line size={16} aria-hidden="true" />
+                        </button>
+                        {expandedHistory === record.id && (
+                          <div className="history-detail">
+                            {record.summary && <p className="history-summary">{record.summary}</p>}
+                            {!!record.todos?.length && (
+                              <ul className="history-todos">
+                                {record.todos.map((todo, index) => (
+                                  <li key={`${todo.text}-${index}`} className={todo.done ? 'is-done' : ''}>
+                                    {todo.done ? '✓' : '○'} {todo.text}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {record.rows.map(row => (
+                              <p key={row.id}>
+                                <strong>{row.role === 'user' ? '你' : 'AI'}：</strong>{row.text}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </article>
+                    )
+                  })}
+                </section>
+              ))}
             </div>
           )}
         </aside>
