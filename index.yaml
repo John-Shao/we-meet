@@ -1,3 +1,12 @@
 apiVersion: v1
-entries: {}
-generated: "2026-10-21T00:00:00Z"
+entries:
+  meet:
+  - apiVersion: v2
+    created: "2026-10-21T10:33:38.125678973Z"
+    digest: 8b757d6875749d2b0a1e01b3572eb7ea714624098f1dd3f151a80d6f1ec0e3a4
+    name: meet
+    type: application
+    urls:
+    - https://John-Shao.github.io/we-meet/meet-0.0.21.tgz
+    version: 0.0.21
+generated: "2026-10-21T10:33:38.122631738Z"
