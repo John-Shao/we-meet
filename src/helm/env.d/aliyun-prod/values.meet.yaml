@@ -137,7 +137,10 @@ backend:
     AWS_STORAGE_BUCKET_NAME_CHAT_AUDIO: we-chat-audio
     # 火山引擎短信 — 复用 jusi (巨思人工智能) 的短信账号 / 签名 / 模板.
     # AK / SK 属火山引擎账号密钥, 见 values.secrets.yaml.
-    VOLC_SMS_ACCOUNT: "8880e180"
+    VOLC_SMS_ACCOUNT:
+      secretKeyRef:
+        name: meet-sms-account
+        key: VOLC_SMS_ACCOUNT
     VOLC_SMS_SIGN: "巨思人工智能"
     VOLC_SMS_TEMPLATE_ID: "S1T_1y2p1bc526ebm"
     # 联调用 demo 账号: 列出的手机号不发真实短信, 验证码固定为 DEMO_OTP.
@@ -702,7 +705,7 @@ agentAIAssistant:
 # Meeting AI workers reuse credentials already supplied in values.secrets.yaml.
 # release-meet.sh agents pins all five processes to the selected immutable image.
 meetingAIWorkers:
-  credentialsFromExistingEnv: true
+  credentialsFromExistingEnv: false # Existing Secret is managed outside Helm; retain dedicated ASR credentials.
   credentialsSecret: meet-ai-credentials
   backendUrl: http://meet-backend
   livekitUrl: wss://livekit.we-meet.online
