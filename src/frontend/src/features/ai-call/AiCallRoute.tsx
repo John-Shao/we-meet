@@ -106,6 +106,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
   const [micDeviceId, setMicDeviceId] = useState(() => localStorage.getItem('we-meet:ai-call-mic') ?? '')
   const [cameraDeviceId, setCameraDeviceId] = useState(() => localStorage.getItem('we-meet:ai-call-camera') ?? '')
   const [networkQuality, setNetworkQuality] = useState<'good' | 'weak' | 'poor' | 'offline'>('good')
+  const [reconnecting, setReconnecting] = useState(false)
   const [readResult, setReadResult] = useState('')
   const [elapsed, setElapsed] = useState(0)
   const [history, setHistory] = useState<HistoryRecord[]>(loadHistory)
@@ -171,6 +172,8 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
   const instructionsRef = useRef('你是一个友好、简洁的 AI 助手。')
   const seenCallsRef = useRef(new Set<string>())
   const timerRef = useRef<number | null>(null)
+  const reconnectTimerRef = useRef<number | null>(null)
+  const reconnectAttemptsRef = useRef(0)
   const rowsRef = useRef<Row[]>(rows)
   const elapsedRef = useRef(elapsed)
   rowsRef.current = rows
@@ -215,6 +218,8 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
   }, [status])
 
   const reconnect = () => {
+    reconnectAttemptsRef.current = 0
+    setReconnecting(true)
     cleanup()
     setStatus('idle')
     setError('')
@@ -375,6 +380,8 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
   const cleanup = () => {
     if (timerRef.current !== null) window.clearInterval(timerRef.current)
     timerRef.current = null
+    if (reconnectTimerRef.current !== null) window.clearTimeout(reconnectTimerRef.current)
+    reconnectTimerRef.current = null
     screenStreamRef.current?.getTracks().forEach(track => track.stop())
     screenStreamRef.current = null
     stopCamera()
@@ -422,6 +429,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
   const stop = () => {
     saveHistory()
     cleanup()
+    setReconnecting(false)
     setStatus('ended')
   }
 
@@ -495,9 +503,23 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
       const pc = new RTCPeerConnection()
       pcRef.current = pc
       pc.addEventListener('connectionstatechange', () => {
+        if (pcRef.current !== pc) return
         if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
           setNetworkQuality('offline')
+          if (reconnectTimerRef.current === null && reconnectAttemptsRef.current < 3) {
+            setReconnecting(true)
+            reconnectTimerRef.current = window.setTimeout(() => {
+              reconnectTimerRef.current = null
+              reconnectAttemptsRef.current += 1
+              cleanup()
+              setStatus('idle')
+              setError('')
+              window.setTimeout(() => void start(true), 0)
+            }, 2000)
+          }
         } else if (pc.connectionState === 'connected') {
+          reconnectAttemptsRef.current = 0
+          setReconnecting(false)
           setNetworkQuality('good')
         }
       })
@@ -582,11 +604,13 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
       await updated
       startedAtRef.current = Date.now()
       setStatus('active')
+      setReconnecting(false)
       setElapsed(0)
       timerRef.current = window.setInterval(() => setElapsed(value => value + 1), 1000)
     } catch (reason) {
       cleanup()
       setStatus('error')
+      setReconnecting(false)
       setError(reason instanceof Error ? reason.message : '连接失败')
     }
   }
@@ -924,10 +948,10 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
             </span>
             {(status === 'active' || status === 'sharing') && (
               <span className={`network-quality network-quality--${networkQuality}`}>
-                {NETWORK_LABEL[networkQuality]}
+                {reconnecting ? '正在重连…' : NETWORK_LABEL[networkQuality]}
               </span>
             )}
-            {networkQuality === 'offline' && (status === 'active' || status === 'sharing') && (
+            {networkQuality === 'offline' && !reconnecting && (status === 'active' || status === 'sharing') && (
               <button type="button" className="stage-reconnect" onClick={reconnect}>
                 重新连接
               </button>
