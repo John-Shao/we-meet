@@ -2,4 +2,3 @@
 export function AiCallFloatRoute() {
   return <AiCallRoute compact />
 }
-

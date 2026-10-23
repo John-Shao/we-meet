@@ -39,13 +39,15 @@ export function DesktopTitleBar({
     return unsubscribe
   }, [])
 
+  const aiCallState = aiCall?.state
+  const aiCallStartedAt = aiCall?.startedAt
+
   useEffect(() => {
-    if (!aiCall || (aiCall.state !== 'active' && aiCall.state !== 'sharing'))
-      return
+    if (aiCallState !== 'active' && aiCallState !== 'sharing') return
     setNow(Date.now())
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
-  }, [aiCall?.state, aiCall?.startedAt])
+  }, [aiCallState, aiCallStartedAt])
 
   useEffect(() => {
     if (!shell) return

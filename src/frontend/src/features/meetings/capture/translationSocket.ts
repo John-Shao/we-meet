@@ -210,7 +210,10 @@ export class CaptureTranslationSocket {
       }
       return
     }
-    if (value.type === 'response_completed' || value.type === 'turn_completed') {
+    if (
+      value.type === 'response_completed' ||
+      value.type === 'turn_completed'
+    ) {
       if (!identity(value.response_id))
         throw new Error('invalid_translation_response')
       const responseKey = JSON.stringify([direction, value.response_id])

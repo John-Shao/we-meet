@@ -170,7 +170,6 @@ export const CaptureAudioPlayer = forwardRef<
       clearInterval(timer)
       window.removeEventListener('storage', check)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Refs fence the current load session.
   }, [])
 
   const play = async (index: number, offset = 0) => {

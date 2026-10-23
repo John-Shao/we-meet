@@ -484,7 +484,6 @@ export function ControllerView({
           })}
         >
           {/* Screen capture has no audio in this element; room audio remains separate. */}
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <video
             ref={videoRef}
             autoPlay
