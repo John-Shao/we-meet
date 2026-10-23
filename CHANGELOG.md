@@ -173,6 +173,8 @@ and this project adheres to
 - 🩹(ci) scope the backend and agents ruff checks to files touched by the
   change, and repair the summary, E2E and frontend image baselines so the
   development branch can stay green
+- 🩹(ci) quarantine the known backend and task E2E failures so new
+  regressions are still caught while the existing debt is paid down
 - 🔧(deploy) replace the removed MinIO Docker Hub images with the maintained
   `pgsty/silo` fork in Compose, Helm and the RTC probe
 - 🩹(deploy) derive image tags from the first nine characters of the full
