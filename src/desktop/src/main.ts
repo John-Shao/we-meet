@@ -79,6 +79,7 @@ type AiCallState = {
   sharing?: boolean;
 };
 let aiCallState: AiCallState = { state: "idle" };
+let aiCallPinned = false;
 const publishAiCallState = () => {
   if (window && !window.isDestroyed() && !window.webContents.isDestroyed())
     window.webContents.send("ai-call:status", aiCallState);
@@ -357,6 +358,10 @@ async function createWindow() {
   });
   const win = window;
   win.webContents.on("did-finish-load", publishAiCallState);
+  win.on("restore", () => {
+    const float = aiCallWindow;
+    if (float && !float.isDestroyed() && !aiCallPinned) float.setParentWindow(win);
+  });
   const openAiCallWindow = async () => {
     if (aiCallWindow && !aiCallWindow.isDestroyed()) {
       if (aiCallWindow.isMinimized()) aiCallWindow.restore();
@@ -388,8 +393,10 @@ async function createWindow() {
       },
     });
     aiCallWindow = float;
+    aiCallPinned = false;
     float.on("closed", () => {
       if (aiCallWindow === float) aiCallWindow = undefined;
+      aiCallPinned = false;
       aiCallState = { state: "ended", startedAt: aiCallState.startedAt };
       publishAiCallState();
     });
@@ -456,6 +463,10 @@ async function createWindow() {
     ) throw new Error("invalid_ai_call_request");
     if (typeof value !== "boolean") throw new Error("invalid_ai_call_pin");
     float.setAlwaysOnTop(value);
+    aiCallPinned = value;
+    // Owned windows are hidden when the main window minimizes, so detach while pinned.
+    if (value) float.setParentWindow(null);
+    else if (!win.isMinimized()) float.setParentWindow(win);
     return float.isAlwaysOnTop();
   });
 
