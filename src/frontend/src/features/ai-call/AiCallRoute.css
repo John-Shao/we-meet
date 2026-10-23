@@ -1023,6 +1023,18 @@
   padding-top: 0;
 }
 
+.ai-call--compact .device-button {
+  min-height: 26px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
+.ai-call--compact .status-pill {
+  min-height: 26px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
 .ai-call--compact .ai-call-layout {
   flex: 1;
   min-height: 0;

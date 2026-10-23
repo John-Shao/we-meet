@@ -1044,16 +1044,18 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
     <Screen footer={false}>
       <div className={`ai-call ${compact ? 'ai-call--compact' : ''}`}>
         <header className="ai-call-header">
-          <div>
-            <span className="eyebrow">AI 通话</span>
-            <h1>和 AI 说说话</h1>
-            <p className="ai-call-subtitle">
-              语音、摄像头或共享屏幕，都可以成为对话的一部分。
-            </p>
-            <p className="shortcut-hint">
-              快捷键：M 静音 · C 摄像头 · S 共享 · Esc 挂断
-            </p>
-          </div>
+          {!compact && (
+            <div>
+              <span className="eyebrow">AI 通话</span>
+              <h1>和 AI 说说话</h1>
+              <p className="ai-call-subtitle">
+                语音、摄像头或共享屏幕，都可以成为对话的一部分。
+              </p>
+              <p className="shortcut-hint">
+                快捷键：M 静音 · C 摄像头 · S 共享 · Esc 挂断
+              </p>
+            </div>
+          )}
           <div className="ai-call-header-status">
             <div
               ref={devicePickerRef}
@@ -1188,6 +1190,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
                 </div>
               )}
             </div>
+            {(status === 'active' || status === 'sharing') && (
             <div className="stage-meta">
               <span
                 className={`stage-live-dot ${status === 'active' || status === 'sharing' ? 'is-live' : ''}`}
@@ -1238,6 +1241,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
                 </button>
               )}
             </div>
+            )}
             {(status === 'idle' ||
               status === 'ended' ||
               status === 'error') && (
