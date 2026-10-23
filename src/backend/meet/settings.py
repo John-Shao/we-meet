@@ -1848,8 +1848,10 @@ class Base(Configuration):
             },
         }
 
+    # pylint: disable=invalid-name
     @property
     def CELERY_BEAT_SCHEDULE(self):
+        """Periodic tasks that stay silent while their feature is disabled."""
         # Redis keeps expired messages until a consumer receives them. Avoid
         # publishing disabled work to optional queues with no consumers.
         schedule = self.celery_beat_entries.copy()
@@ -1929,8 +1931,10 @@ class Development(Base):
 class Test(Base):
     """Test environment settings"""
 
+    # pylint: disable=invalid-name
     @property
     def CACHES(self):
+        """Cache settings, isolated per pytest-xdist worker."""
         # Several suites call cache.clear(); with xdist workers sharing one
         # Redis database that wipes the sessions and rate-limit counters the
         # other worker is using, producing random 401s. Give each worker its
@@ -2124,6 +2128,9 @@ class Production(Base):
     def setup(cls):
         super().setup()
         for name in cls.MEETING_LOGGERS:
+            # pylint: disable=unsubscriptable-object
+            # django-configurations swaps the DictValue for the resolved
+            # mapping before setup() runs, which pylint cannot infer.
             cls.LOGGING["loggers"][name]["level"] = cls.LOG_LEVEL
 
     CACHES = {
