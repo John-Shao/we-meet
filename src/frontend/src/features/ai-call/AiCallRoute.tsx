@@ -1218,56 +1218,56 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
               )}
             </div>
             {(status === 'active' || status === 'sharing') && (
-            <div className="stage-meta">
-              <span
-                className={`stage-live-dot ${status === 'active' || status === 'sharing' ? 'is-live' : ''}`}
-              />
-              <span>
-                {sharing
-                  ? '正在共享屏幕'
-                  : cameraOn
-                    ? '摄像头已开启'
-                    : status === 'active'
-                      ? 'AI 正在聆听'
-                      : '未在通话'}
-              </span>
-              {(status === 'active' || status === 'sharing') && (
+              <div className="stage-meta">
                 <span
-                  className={`network-quality network-quality--${networkQuality}`}
-                >
-                  {reconnecting ? '正在重连…' : NETWORK_LABEL[networkQuality]}
+                  className={`stage-live-dot ${status === 'active' || status === 'sharing' ? 'is-live' : ''}`}
+                />
+                <span>
+                  {sharing
+                    ? '正在共享屏幕'
+                    : cameraOn
+                      ? '摄像头已开启'
+                      : status === 'active'
+                        ? 'AI 正在聆听'
+                        : '未在通话'}
                 </span>
-              )}
-              {networkQuality === 'offline' &&
-                !reconnecting &&
-                (status === 'active' || status === 'sharing') && (
+                {(status === 'active' || status === 'sharing') && (
+                  <span
+                    className={`network-quality network-quality--${networkQuality}`}
+                  >
+                    {reconnecting ? '正在重连…' : NETWORK_LABEL[networkQuality]}
+                  </span>
+                )}
+                {networkQuality === 'offline' &&
+                  !reconnecting &&
+                  (status === 'active' || status === 'sharing') && (
+                    <button
+                      type="button"
+                      className="stage-reconnect"
+                      onClick={reconnect}
+                    >
+                      重新连接
+                    </button>
+                  )}
+                {sharing && (
+                  <span
+                    className="stage-privacy"
+                    title="AI 只能看到你正在共享的窗口或屏幕"
+                  >
+                    <RiLock2Line size={12} aria-hidden="true" />
+                    仅共享画面可见
+                  </span>
+                )}
+                {sharing && (
                   <button
                     type="button"
-                    className="stage-reconnect"
-                    onClick={reconnect}
+                    className="stage-read-button"
+                    onClick={askReadScreen}
                   >
-                    重新连接
+                    读取当前屏幕
                   </button>
                 )}
-              {sharing && (
-                <span
-                  className="stage-privacy"
-                  title="AI 只能看到你正在共享的窗口或屏幕"
-                >
-                  <RiLock2Line size={12} aria-hidden="true" />
-                  仅共享画面可见
-                </span>
-              )}
-              {sharing && (
-                <button
-                  type="button"
-                  className="stage-read-button"
-                  onClick={askReadScreen}
-                >
-                  读取当前屏幕
-                </button>
-              )}
-            </div>
+              </div>
             )}
             {(status === 'idle' ||
               status === 'ended' ||
@@ -1345,9 +1345,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
                           <strong>屏幕读取</strong>
                           <span>刚刚</span>
                         </div>
-                        {snapshot && (
-                          <img src={snapshot} alt="屏幕读取截图" />
-                        )}
+                        {snapshot && <img src={snapshot} alt="屏幕读取截图" />}
                         {readQuestion && (
                           <p className="read-question">问题：{readQuestion}</p>
                         )}
@@ -1355,11 +1353,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
                           <ReactMarkdown
                             components={{
                               a: ({ children, ...props }) => (
-                                <a
-                                  {...props}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                >
+                                <a {...props} target="_blank" rel="noreferrer">
                                   {children}
                                 </a>
                               ),
