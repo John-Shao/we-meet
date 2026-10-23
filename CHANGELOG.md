@@ -177,6 +177,9 @@ and this project adheres to
   regressions are still caught while the existing debt is paid down
 - 🔧(deploy) replace the removed MinIO Docker Hub images with the maintained
   `pgsty/silo` fork in Compose, Helm and the RTC probe
+- 🐛(backend) give every pytest-xdist worker its own Redis cache database:
+  suites that call `cache.clear()` wiped the sessions and rate-limit counters
+  of the sibling worker on the shared database, turning the API tests flaky
 - 🩹(deploy) derive image tags from the first nine characters of the full
   commit SHA in both build-and-push.sh and release-meet.sh. `git rev-parse
   --short` abbreviates by repository size, so the build host pushed
