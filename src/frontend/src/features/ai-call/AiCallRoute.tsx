@@ -22,6 +22,7 @@ import {
   pushAiCallHistory,
   type SyncRecord,
 } from './sync'
+import { mergeTranscript } from './transcript'
 import './AiCallRoute.css'
 
 type CallStatus =
@@ -137,6 +138,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
   const [historyQuery, setHistoryQuery] = useState('')
   const [readQuestion, setReadQuestion] = useState('')
   const [readRequestedAt, setReadRequestedAt] = useState(0)
+  const [readAt, setReadAt] = useState(0)
   const [snapshot, setSnapshot] = useState('')
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
   const [deviceMenuOpen, setDeviceMenuOpen] = useState(false)
@@ -426,6 +428,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
       const answer = await captureScreen(question)
       setReadQuestion(question)
       setReadResult(answer)
+      setReadAt(Date.now())
       output = JSON.stringify({ success: true, answer })
     } catch (reason) {
       output = JSON.stringify({
@@ -639,6 +642,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
     setReadResult('')
     setReadQuestion('')
     setReadRequestedAt(0)
+    setReadAt(0)
     setCameraOn(false)
     setMicMuted(false)
     setTab('chat')
@@ -935,6 +939,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
     if (!sharing || channel?.readyState !== 'open') return
     setReadResult('')
     setReadQuestion('')
+    setReadAt(0)
     setReadRequestedAt(Date.now())
     channel.send(
       JSON.stringify({
@@ -1019,6 +1024,12 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
         row.role === 'assistant' &&
         (row.createdAt ?? 0) >= readRequestedAt
       )
+  )
+  // The read card is a transcript entry, not a footer: keep it where it
+  // happened so later questions appear below it.
+  const transcriptEntries = mergeTranscript(
+    visibleRows,
+    readResult ? readAt : null
   )
 
   const normalizedQuery = historyQuery.trim().toLowerCase()
@@ -1323,60 +1334,72 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
                       </p>
                     </div>
                   )}
-                  {visibleRows.map((row) => (
-                    <div
-                      key={row.id}
-                      className={`transcript-row transcript-row--${row.role}`}
-                    >
-                      <span className="transcript-role">
-                        {row.role === 'user' ? '你' : 'AI'}
-                      </span>
-                      <div className="transcript-bubble">
-                        {row.role === 'assistant' ? (
+                  {transcriptEntries.map((entry) =>
+                    entry.kind === 'read' ? (
+                      <section
+                        key="read-result"
+                        className="read-card"
+                        data-testid="read-screen-result"
+                      >
+                        <div className="read-card-head">
+                          <strong>屏幕读取</strong>
+                          <span>刚刚</span>
+                        </div>
+                        {snapshot && (
+                          <img src={snapshot} alt="屏幕读取截图" />
+                        )}
+                        {readQuestion && (
+                          <p className="read-question">问题：{readQuestion}</p>
+                        )}
+                        <div className="read-answer">
                           <ReactMarkdown
                             components={{
                               a: ({ children, ...props }) => (
-                                <a {...props} target="_blank" rel="noreferrer">
+                                <a
+                                  {...props}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
                                   {children}
                                 </a>
                               ),
                             }}
                           >
-                            {row.text}
+                            {readResult}
                           </ReactMarkdown>
-                        ) : (
-                          row.text
-                        )}
+                        </div>
+                      </section>
+                    ) : (
+                      <div
+                        key={entry.row.id}
+                        className={`transcript-row transcript-row--${entry.row.role}`}
+                      >
+                        <span className="transcript-role">
+                          {entry.row.role === 'user' ? '你' : 'AI'}
+                        </span>
+                        <div className="transcript-bubble">
+                          {entry.row.role === 'assistant' ? (
+                            <ReactMarkdown
+                              components={{
+                                a: ({ children, ...props }) => (
+                                  <a
+                                    {...props}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    {children}
+                                  </a>
+                                ),
+                              }}
+                            >
+                              {entry.row.text}
+                            </ReactMarkdown>
+                          ) : (
+                            entry.row.text
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  {readResult && (
-                    <section
-                      className="read-card"
-                      data-testid="read-screen-result"
-                    >
-                      <div className="read-card-head">
-                        <strong>屏幕读取</strong>
-                        <span>刚刚</span>
-                      </div>
-                      {snapshot && <img src={snapshot} alt="屏幕读取截图" />}
-                      {readQuestion && (
-                        <p className="read-question">问题：{readQuestion}</p>
-                      )}
-                      <div className="read-answer">
-                        <ReactMarkdown
-                          components={{
-                            a: ({ children, ...props }) => (
-                              <a {...props} target="_blank" rel="noreferrer">
-                                {children}
-                              </a>
-                            ),
-                          }}
-                        >
-                          {readResult}
-                        </ReactMarkdown>
-                      </div>
-                    </section>
+                    )
                   )}
                 </div>
                 <form
