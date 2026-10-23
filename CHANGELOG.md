@@ -38,6 +38,9 @@ and this project adheres to
 
 ### Changed
 
+- 🔧(ci) run the full suite on every `aliyun-dev` push, so the development
+  baseline is re-verified after a merge instead of rotting between PRs
+
 - Improve meeting library filters, empty-search recovery and narrow-screen
   recording layouts; align filter interactions with the Android app.
 

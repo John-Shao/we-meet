@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+      # 基线分支只在 PR 上跑测试，合并后不再复验，红点会悄悄堆回来。
+      - aliyun-dev
   pull_request:
     branches:
       - "*"
