@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld("weMeetDesktop", {
   aiCall: {
     open: () => ipcRenderer.invoke("ai-call:open"),
     reportStatus: (status: unknown) => ipcRenderer.invoke("ai-call:status", status),
+    getPinned: () => ipcRenderer.invoke("ai-call:pinned"),
+    setPinned: (pinned: boolean) => ipcRenderer.invoke("ai-call:set-pinned", pinned),
     onStatus: (listener: (status: unknown) => void) => {
       if (typeof listener !== "function") throw new TypeError("Expected a listener");
       const handler = (_event: unknown, status: unknown) => listener(status);

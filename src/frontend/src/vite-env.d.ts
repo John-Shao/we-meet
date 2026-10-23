@@ -22,6 +22,8 @@ interface Window {
     remoteControl?: import('../../desktop/src/remote-control/bridge').RemoteControlBridge
     aiCall?: {
       open(): Promise<void>
+      getPinned?(): Promise<boolean>
+      setPinned?(pinned: boolean): Promise<boolean>
       reportStatus(status: {
         state: 'idle' | 'connecting' | 'active' | 'sharing' | 'error' | 'ended'
         startedAt?: number

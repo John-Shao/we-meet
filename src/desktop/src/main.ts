@@ -434,6 +434,30 @@ async function createWindow() {
     publishAiCallState();
     return true;
   });
+  ipcMain.handle("ai-call:pinned", (event) => {
+    const float = aiCallWindow;
+    if (
+      !float ||
+      float.isDestroyed() ||
+      event.sender !== float.webContents ||
+      event.senderFrame !== float.webContents.mainFrame ||
+      !sameOrigin(event.senderFrame.url, rendererOrigin)
+    ) throw new Error("invalid_ai_call_request");
+    return float.isAlwaysOnTop();
+  });
+  ipcMain.handle("ai-call:set-pinned", (event, value: unknown) => {
+    const float = aiCallWindow;
+    if (
+      !float ||
+      float.isDestroyed() ||
+      event.sender !== float.webContents ||
+      event.senderFrame !== float.webContents.mainFrame ||
+      !sameOrigin(event.senderFrame.url, rendererOrigin)
+    ) throw new Error("invalid_ai_call_request");
+    if (typeof value !== "boolean") throw new Error("invalid_ai_call_pin");
+    float.setAlwaysOnTop(value);
+    return float.isAlwaysOnTop();
+  });
 
   remoteControl = new RemoteDesktopRuntime({ auth, cloud: new RemoteControlCloud(config.serviceOrigin, auth),
     resourceRoot: path.join(app.isPackaged ? process.resourcesPath : __dirname, "remote-input"),

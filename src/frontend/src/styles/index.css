@@ -81,6 +81,23 @@ html[data-desktop-fullscreen] .desktop-titlebar {
   font-size: 13px;
   opacity: 0.9;
 }
+.desktop-titlebar-actions--end {
+  margin-left: auto;
+}
+.desktop-titlebar--plain .desktop-titlebar-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: auto;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.desktop-titlebar--plain .desktop-titlebar-actions button[aria-pressed='true'] {
+  color: #1570ef;
+}
 html[data-ai-call-float],
 html[data-ai-call-float] body,
 html[data-ai-call-float] #root {
