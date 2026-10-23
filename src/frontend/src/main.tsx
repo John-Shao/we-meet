@@ -12,6 +12,9 @@ if (window.weMeetDesktop?.shell) {
   document.documentElement.dataset.desktopPlatform =
     window.weMeetDesktop.platform
 }
+if (isAiCallFloat) {
+  document.documentElement.dataset.aiCallFloat = 'true'
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -370,10 +370,11 @@ async function createWindow() {
       minWidth: 360,
       minHeight: 520,
       show: false,
-      title: "AI 打电话",
+      title: "打电话",
       backgroundColor: "#ffffff",
       titleBarStyle: "hidden",
-      alwaysOnTop: true,
+      parent: win,
+      alwaysOnTop: false,
       ...(process.platform !== "darwin" ? {
         titleBarOverlay: { color: "#f6f6f6", symbolColor: "#555555", height: 40 },
       } : {}),

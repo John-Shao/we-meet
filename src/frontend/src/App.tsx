@@ -41,7 +41,8 @@ const RootGate = () => {
 
 function App() {
   const { i18n } = useTranslation()
-  useTitle(import.meta.env.VITE_APP_TITLE ?? '')
+  const isAiCallFloat = window.location.pathname === '/ai-call-float'
+  useTitle(isAiCallFloat ? '打电话' : (import.meta.env.VITE_APP_TITLE ?? ''))
 
   const isSDKContext = useIsSdkContext()
   useApplyA11yFonts()
@@ -49,7 +50,9 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {window.weMeetDesktop?.shell && <DesktopTitleBar />}
+      {window.weMeetDesktop?.shell && (
+        <DesktopTitleBar variant={isAiCallFloat ? 'plain' : 'default'} />
+      )}
       {!isSDKContext && <AppInitialization />}
       <Suspense fallback={null}>
         <I18nProvider locale={i18n.language}>

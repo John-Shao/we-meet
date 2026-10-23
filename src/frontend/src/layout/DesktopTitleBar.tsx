@@ -13,7 +13,11 @@ import { layoutStore } from '@/stores/layout'
 import { openGlobalSearch } from './globalSearchBus'
 
 /** Application chrome; window buttons remain owned by the operating system. */
-export function DesktopTitleBar() {
+export function DesktopTitleBar({
+  variant = 'default',
+}: {
+  variant?: 'default' | 'plain'
+} = {}) {
   const shell = window.weMeetDesktop?.shell
   const { isLoggedIn } = useUser()
   const { showHeader, appRailCollapsed } = useSnapshot(layoutStore)
@@ -75,6 +79,17 @@ export function DesktopTitleBar() {
   }, [shell])
 
   if (!shell) return null
+  if (variant === 'plain') {
+    return (
+      <header
+        className="desktop-titlebar desktop-titlebar--plain"
+        aria-label="打电话"
+        data-testid="desktop-titlebar"
+      >
+        <span className="desktop-titlebar-name">打电话</span>
+      </header>
+    )
+  }
   const workspace = isLoggedIn && showHeader
   const callActive = aiCall?.state === 'active' || aiCall?.state === 'sharing'
   const callSeconds = aiCall?.startedAt

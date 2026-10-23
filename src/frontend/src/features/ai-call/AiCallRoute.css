@@ -1000,9 +1000,15 @@
 
 .ai-call--compact {
   width: 100%;
-  min-height: 100vh;
-  padding: 12px;
-  gap: 10px;
+  height: calc(100dvh - var(--desktop-titlebar-height, 0px));
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px 12px 12px;
+  gap: 8px;
+}
+
+.ai-call--compact .ai-call-header {
+  flex: none;
 }
 
 .ai-call--compact .ai-call-header h1 {
@@ -1018,12 +1024,17 @@
 }
 
 .ai-call--compact .ai-call-layout {
-  grid-template-columns: 1fr;
-  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .ai-call--compact .call-stage {
+  flex: 0 0 210px;
   min-height: 210px;
+  max-height: 230px;
   border-radius: 16px;
 }
 
@@ -1072,9 +1083,15 @@
 }
 
 .ai-call--compact .ai-call-panel {
-  min-height: 230px;
-  max-height: 290px;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
   border-radius: 16px;
+}
+
+.ai-call--compact .panel-chat {
+  flex: 1;
+  min-height: 0;
 }
 
 .ai-call--compact .transcript {
@@ -1083,7 +1100,8 @@
 }
 
 .ai-call--compact .composer {
-  padding: 7px 8px 8px;
+  flex: none;
+  padding: 8px;
 }
 
 .ai-call--compact .control-dock {
