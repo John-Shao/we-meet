@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useSnapshot } from 'valtio'
 import { useTranslation } from 'react-i18next'
-import { RiLayoutLeftLine, RiMoreLine, RiSearchLine, RiPhoneLine } from '@remixicon/react'
+import {
+  RiLayoutLeftLine,
+  RiMoreLine,
+  RiRobot2Line,
+  RiSearchLine,
+  RiPhoneLine,
+} from '@remixicon/react'
 import { useUser } from '@/features/auth'
 import { layoutStore } from '@/stores/layout'
 import { openGlobalSearch } from './globalSearchBus'
@@ -28,7 +34,8 @@ export function DesktopTitleBar() {
   }, [])
 
   useEffect(() => {
-    if (!aiCall || (aiCall.state !== 'active' && aiCall.state !== 'sharing')) return
+    if (!aiCall || (aiCall.state !== 'active' && aiCall.state !== 'sharing'))
+      return
     setNow(Date.now())
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
@@ -111,7 +118,7 @@ export function DesktopTitleBar() {
                 window.location.assign('/assistant')
               }}
             >
-              AI
+              <RiRobot2Line size={18} aria-hidden="true" />
             </button>
             <button
               type="button"
