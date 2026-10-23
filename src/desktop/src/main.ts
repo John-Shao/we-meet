@@ -513,11 +513,15 @@ async function createWindow() {
       return;
     }
     const types = "mediaTypes" in details ? details.mediaTypes || [] : [];
-    if (
-      !types.length ||
-      types.some((type) => !["audio", "video"].includes(type))
-    ) {
+    if (types.some((type) => !["audio", "video"].includes(type))) {
       callback(false);
+      return;
+    }
+    // Electron reports getDisplayMedia as a media request without media types.
+    // The display-capture handler below still gates it by frame, origin,
+    // user gesture and the native source picker.
+    if (!types.length) {
+      callback(true);
       return;
     }
     const key = types.slice().sort().join(",");

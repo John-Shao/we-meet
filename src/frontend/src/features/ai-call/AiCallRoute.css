@@ -75,6 +75,39 @@
   padding-top: 6px;
 }
 
+.ai-call-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #fecdca;
+  border-radius: 8px;
+  background: #fef3f2;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ai-call-error button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ai-call-error button:hover {
+  background: #fee4e2;
+}
+
 .device-picker {
   position: relative;
 }
@@ -1023,6 +1056,11 @@
 
 .ai-call--compact .ai-call-header-status {
   padding-top: 0;
+}
+
+.ai-call--compact .ai-call-error {
+  padding: 6px 8px;
+  font-size: 11px;
 }
 
 .ai-call--compact .device-button {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import {
   RiChat3Line,
+  RiCloseLine,
   RiComputerLine,
   RiDeleteBin6Line,
   RiHistoryLine,
@@ -884,6 +885,7 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
 
   const share = async () => {
     if (!pcRef.current || status !== 'active') return
+    setError('')
     if (cameraOn) stopCamera()
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -1137,6 +1139,19 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
             )}
           </div>
         </header>
+
+        {error && status !== 'error' && (
+          <p className="ai-call-error" role="alert">
+            <span>{error}</span>
+            <button
+              type="button"
+              aria-label="关闭提示"
+              onClick={() => setError('')}
+            >
+              <RiCloseLine size={14} aria-hidden="true" />
+            </button>
+          </p>
+        )}
 
         <main className="ai-call-layout">
           <section className="call-stage" aria-label="通话画面">
