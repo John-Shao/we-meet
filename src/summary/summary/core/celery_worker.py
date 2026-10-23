@@ -417,7 +417,6 @@ def summarize_transcription_internals(
             llm_observability.flush()
 
 
-
 @celery.task(
     bind=True,
     autoretry_for=[LLMException, Exception],

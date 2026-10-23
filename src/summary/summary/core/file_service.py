@@ -149,7 +149,9 @@ class FileService:
         client = self._minio_client
         if settings.aws_s3_public_endpoint_url:
             client = Minio(
-                settings.aws_s3_public_endpoint_url.removeprefix("https://").removeprefix("http://").rstrip("/"),
+                settings.aws_s3_public_endpoint_url.removeprefix("https://")
+                .removeprefix("http://")
+                .rstrip("/"),
                 access_key=settings.aws_s3_access_key_id,
                 secret_key=settings.aws_s3_secret_access_key.get_secret_value(),
                 secure=settings.aws_s3_secure_access,
