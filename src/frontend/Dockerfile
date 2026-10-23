@@ -23,6 +23,11 @@ COPY --chown=node:node \
     ./src/desktop/src/remote-control/controller-transport.ts \
     ./src/desktop/src/remote-control/controller-session.ts \
     /home/desktop/src/remote-control/
+# Screen-picker contract shared with the desktop shell; type-only, so the
+# native runtime stays out of the image.
+COPY --chown=node:node \
+    ./src/desktop/src/screen-picker/bridge.ts \
+    /home/desktop/src/screen-picker/
 
 ### ---- Front-end builder image ----
 FROM frontend-deps AS meet
