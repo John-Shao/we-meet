@@ -3,7 +3,11 @@ import { fetchApi } from '@/api/fetchApi'
 const DEVICE_KEY = 'we-meet:ai-call-device'
 const API = 'ai-call/conversations/'
 
-export type SyncRow = { id: string; role: 'user' | 'assistant' | 'system'; text: string }
+export type SyncRow = {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  text: string
+}
 export type SyncTodo = { text: string; done?: boolean }
 export type SyncRecord = {
   id: string
@@ -44,18 +48,21 @@ const deviceId = () => {
   return value
 }
 
-const toSyncRecord = (server: ServerConversation): SyncRecord => {
+const toSyncRecord = (server: ServerConversation): SyncRecord | null => {
   const started = Date.parse(server.started_at)
+  if (!Number.isFinite(started) || !server.client_id) return null
   const ended = server.ended_at ? Date.parse(server.ended_at) : started
   return {
     id: server.client_id,
     startedAt: started,
-    seconds: Math.max(0, Math.round((ended - started) / 1000)),
+    seconds: Number.isFinite(ended)
+      ? Math.max(0, Math.round((ended - started) / 1000))
+      : 0,
     remoteId: server.id,
     ...(server.title ? { title: server.title } : {}),
     ...(server.summary ? { summary: server.summary } : {}),
     ...(server.todos?.length ? { todos: server.todos } : {}),
-    rows: (server.messages ?? []).map(message => ({
+    rows: (server.messages ?? []).map((message) => ({
       id: message.client_id,
       role: message.role,
       text: message.text,
@@ -67,11 +74,17 @@ export async function pullAiCallHistory(): Promise<SyncRecord[]> {
   const response = await fetchApi<{ conversations: ServerConversation[] }>(
     `${API}?include_messages=1`
   )
-  return response.conversations.map(toSyncRecord)
+  return response.conversations
+    .map(toSyncRecord)
+    .filter((record): record is SyncRecord => record !== null)
 }
 
-export async function pushAiCallHistory(record: SyncRecord): Promise<string | undefined> {
-  const endedAt = new Date(record.startedAt + record.seconds * 1000).toISOString()
+export async function pushAiCallHistory(
+  record: SyncRecord
+): Promise<string | undefined> {
+  const endedAt = new Date(
+    record.startedAt + record.seconds * 1000
+  ).toISOString()
   const result = await fetchApi<ServerConversation>(API, {
     method: 'POST',
     body: JSON.stringify({

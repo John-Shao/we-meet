@@ -13,38 +13,50 @@ describe('AI call history sync', () => {
 
   it('maps server snapshots to local records', async () => {
     fetchApi.mockResolvedValue({
-      conversations: [{
-        id: 'remote-1',
-        client_id: 'local-1',
-        started_at: '2026-10-20T10:00:00Z',
-        ended_at: '2026-10-20T10:01:00Z',
-        messages: [
-          { id: 'm1', client_id: 'm1', position: 0, role: 'user', text: 'hi' },
-        ],
-      }],
+      conversations: [
+        {
+          id: 'remote-1',
+          client_id: 'local-1',
+          started_at: '2026-10-20T10:00:00Z',
+          ended_at: '2026-10-20T10:01:00Z',
+          messages: [
+            {
+              id: 'm1',
+              client_id: 'm1',
+              position: 0,
+              role: 'user',
+              text: 'hi',
+            },
+          ],
+        },
+      ],
     })
     const records = await pullAiCallHistory()
-    expect(records).toEqual([{
-      id: 'local-1',
-      remoteId: 'remote-1',
-      startedAt: Date.parse('2026-10-20T10:00:00Z'),
-      seconds: 60,
-      rows: [{ id: 'm1', role: 'user', text: 'hi' }],
-    }])
+    expect(records).toEqual([
+      {
+        id: 'local-1',
+        remoteId: 'remote-1',
+        startedAt: Date.parse('2026-10-20T10:00:00Z'),
+        seconds: 60,
+        rows: [{ id: 'm1', role: 'user', text: 'hi' }],
+      },
+    ])
   })
 
   it('carries title, summary and todos in both directions', async () => {
     fetchApi.mockResolvedValue({
-      conversations: [{
-        id: 'remote-2',
-        client_id: 'local-2',
-        started_at: '2026-10-20T10:00:00Z',
-        ended_at: '2026-10-20T10:01:00Z',
-        title: 'Weekly sync',
-        summary: 'Discussed roadmap.',
-        todos: [{ text: 'Send notes', done: false }],
-        messages: [],
-      }],
+      conversations: [
+        {
+          id: 'remote-2',
+          client_id: 'local-2',
+          started_at: '2026-10-20T10:00:00Z',
+          ended_at: '2026-10-20T10:01:00Z',
+          title: 'Weekly sync',
+          summary: 'Discussed roadmap.',
+          todos: [{ text: 'Send notes', done: false }],
+          messages: [],
+        },
+      ],
     })
     const records = await pullAiCallHistory()
     expect(records[0]).toMatchObject({
@@ -69,6 +81,29 @@ describe('AI call history sync', () => {
       summary: 'Discussed roadmap.',
       todos: [{ text: 'Send notes', done: false }],
     })
+  })
+
+  it('drops malformed snapshots instead of rendering invalid dates', async () => {
+    fetchApi.mockResolvedValue({
+      conversations: [
+        {
+          id: 'remote-bad',
+          client_id: 'local-bad',
+          started_at: '',
+          ended_at: '',
+          messages: [],
+        },
+        {
+          id: 'remote-good',
+          client_id: 'local-good',
+          started_at: '2026-10-20T10:00:00Z',
+          messages: [],
+        },
+      ],
+    })
+    const records = await pullAiCallHistory()
+    expect(records).toHaveLength(1)
+    expect(records[0].id).toBe('local-good')
   })
 
   it('uploads a stable snapshot and returns the server id', async () => {
