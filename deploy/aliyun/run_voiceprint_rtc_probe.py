@@ -185,7 +185,10 @@ def main():  # noqa: PLR0912, PLR0915 -- Keep this isolated scenario and its own
         help="Real MinIO/upload/dispatch and browser decisions; local ASR protocol fixture.",
     )
     parser.add_argument("--web-port", type=int, default=5318)
-    parser.add_argument("--minio-image", default="minio/minio:latest")
+    parser.add_argument(
+        "--minio-image",
+        default="docker.io/pgsty/silo:RELEASE.2026-10-18T00-00-00Z",
+    )
     args = parser.parse_args()
     if args.import_web_review:
         if not 1024 <= args.web_port <= 65535:

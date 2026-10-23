@@ -68,13 +68,13 @@ spec:
           - /bin/sh
           - -c
           - |
-            minio server --console-address :9001 /data
+            silo server --console-address :9001 /data
         env:
           - name: MINIO_ROOT_USER
             value: meet
           - name: MINIO_ROOT_PASSWORD
             value: password
-        image: "minio/minio"
+        image: "docker.io/pgsty/silo:RELEASE.2026-10-18T00-00-00Z"
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9000
@@ -103,7 +103,7 @@ spec:
     spec:
       containers:
       - name: mc
-        image: minio/mc
+        image: docker.io/pgsty/silo:RELEASE.2026-10-18T00-00-00Z
         command:
           - /bin/sh
           - -c
@@ -124,7 +124,7 @@ spec:
     spec:
       containers:
       - name: mc
-        image: minio/mc
+        image: docker.io/pgsty/silo:RELEASE.2026-10-18T00-00-00Z
         command:
           - /bin/sh
           - -c
