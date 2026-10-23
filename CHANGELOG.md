@@ -170,6 +170,11 @@ and this project adheres to
 
 ### Fixed
 
+- 🩹(ci) scope the backend and agents ruff checks to files touched by the
+  change, and repair the summary, E2E and frontend image baselines so the
+  development branch can stay green
+- 🔧(deploy) replace the removed MinIO Docker Hub images with the maintained
+  `pgsty/silo` fork in Compose, Helm and the RTC probe
 - 🩹(deploy) derive image tags from the first nine characters of the full
   commit SHA in both build-and-push.sh and release-meet.sh. `git rev-parse
   --short` abbreviates by repository size, so the build host pushed
