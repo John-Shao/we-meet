@@ -4,10 +4,15 @@
 # caught while the existing debt is paid down incrementally. Remove an entry
 # as soon as its test is fixed; do not add new failures here — fix them.
 #
-# Root causes span: zh-cn default locale vs English assertions, serializer
-# contract drift (users, recordings, rooms, resource accesses, calendars),
-# 8-digit room slugs, audit action groups, stale embedding mocks, jusi IM
-# tests reaching a real host, and a few xdist database-connection failures.
+# Re-probed on 2026-10-24 with the per-worker cache database in place: the
+# three entries that only failed because another xdist worker cleared the
+# shared Redis cache are gone, and no new failure appeared.
+#
+# Root causes behind the remaining entries: assertions written against the
+# English strings while the default locale is zh-cn (users, rooms, resource
+# accesses, applications, recordings, files), jusi IM tests reaching a real
+# host, the upgraded work schema missing meet_user.full_name_pinyin, drifted
+# query counts, an ungrouped admin audit action, and a stale embedding mock.
 core/tests/authentication/test_backends.py::test_authentication_getter_existing_user_change_fields[Jack-Doe-john.doe@example.com]
 core/tests/authentication/test_backends.py::test_authentication_getter_existing_user_change_fields[Jack-Duy-jack.duy@example.com]
 core/tests/authentication/test_backends.py::test_authentication_getter_existing_user_change_fields[John-Doe-jack.duy@example.com]
@@ -18,7 +23,6 @@ core/tests/files/test_api_files_create.py::test_api_files_create_file_authentica
 core/tests/files/test_api_files_create.py::test_api_files_create_file_authenticated_no_filename
 core/tests/files/test_api_files_create.py::test_api_files_create_file_too_many
 core/tests/files/test_api_files_update.py::test_api_files_update_anonymous_forbidden
-core/tests/recording/test_api_recordings_list.py::test_api_recording_list_authenticated_via_team
 core/tests/recording/test_api_recordings_list.py::test_api_recordings_list_authenticated_direct[administrator]
 core/tests/recording/test_api_recordings_list.py::test_api_recordings_list_authenticated_direct[member]
 core/tests/recording/test_api_recordings_list.py::test_api_recordings_list_authenticated_direct[owner]
@@ -39,8 +43,6 @@ core/tests/services/test_jusi_im_p5.py::test_post_message_404_is_bad_response
 core/tests/services/test_jusi_im_p5.py::test_post_message_default_sender_is_omitted_in_body
 core/tests/services/test_jusi_im_p5.py::test_post_message_happy_path_with_explicit_sender
 core/tests/services/test_meeting_session_artifacts.py::test_embedding_rebuild_only_replaces_target_session
-core/tests/tasks/test_api_tasks.py::test_task_list_orders_dates_with_empty_values_last_and_validates_field
-core/tests/tasks/test_api_tasks.py::test_task_list_orders_priority_and_status_by_business_rank
 core/tests/test_api_admin_audit_actions.py::test_every_action_lands_in_a_named_group_not_other
 core/tests/test_api_admin_console.py::test_admin_membership_cannot_suspend_self
 core/tests/test_api_resource_accesses.py::test_api_room_user_accesses_create_anonymous

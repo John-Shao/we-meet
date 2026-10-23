@@ -178,6 +178,9 @@ and this project adheres to
   development branch can stay green
 - 🩹(ci) quarantine the known backend and task E2E failures so new
   regressions are still caught while the existing debt is paid down
+- 🩹(ci) drop the three quarantined backend tests that only failed because
+  xdist workers shared one cache database; the other 79 still fail on their
+  own and stay quarantined
 - 🔧(deploy) replace the removed MinIO Docker Hub images with the maintained
   `pgsty/silo` fork in Compose, Helm and the RTC probe
 - 🐛(backend) give every pytest-xdist worker its own Redis cache database:
