@@ -4,6 +4,7 @@ import App from './App.tsx'
 import { DesktopStatusBar } from './components/DesktopStatusBar'
 
 const isAiCallFloat = window.location.pathname === '/ai-call-float'
+const isSharePicker = window.location.pathname === '/share-picker'
 
 // Supports weights 100-700
 import '@fontsource-variable/material-symbols-outlined'
@@ -15,10 +16,13 @@ if (window.weMeetDesktop?.shell) {
 if (isAiCallFloat) {
   document.documentElement.dataset.aiCallFloat = 'true'
 }
+if (isSharePicker) {
+  document.documentElement.dataset.sharePicker = 'true'
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {!isAiCallFloat && <DesktopStatusBar />}
+    {!isAiCallFloat && !isSharePicker && <DesktopStatusBar />}
     <App />
   </React.StrictMode>
 )

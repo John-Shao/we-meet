@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { RemoteControlBridge, RemoteDesktopEvent } from "./remote-control/bridge";
+import type { ScreenPickerBridge } from "./screen-picker/bridge";
 
 const remoteControl: RemoteControlBridge = {
   capabilities: value => ipcRenderer.invoke("remote-control:capabilities", value),
@@ -15,6 +16,16 @@ const remoteControl: RemoteControlBridge = {
   },
 };
 
+const screenPicker: ScreenPickerBridge = {
+  ready: () => ipcRenderer.send("screen-picker:ready"),
+  get: () => ipcRenderer.invoke("screen-picker:get"),
+  choose: token => {
+    if (typeof token !== "string") throw new TypeError("Expected a token");
+    ipcRenderer.send("screen-picker:choose", token);
+  },
+  cancel: () => ipcRenderer.send("screen-picker:cancel"),
+};
+
 // Minimal, safe surface exposed to the renderer via contextBridge. The web app
 // can feature-detect desktop via `window.weMeetDesktop?.isDesktop`. This grows
 // as desktop features land (native notifications, tray, deep links, screen
@@ -23,6 +34,7 @@ contextBridge.exposeInMainWorld("weMeetDesktop", {
   isDesktop: true,
   platform: process.platform,
   remoteControl,
+  screenPicker,
   aiCall: {
     open: () => ipcRenderer.invoke("ai-call:open"),
     reportStatus: (status: unknown) => ipcRenderer.invoke("ai-call:status", status),

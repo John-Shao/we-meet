@@ -37,6 +37,7 @@
     "../desktop/src/remote-control/authorization.ts",
     "../desktop/src/remote-control/signing-trust.ts",
     "../desktop/src/remote-control/controller-transport.ts",
-    "../desktop/src/remote-control/controller-session.ts"
+    "../desktop/src/remote-control/controller-session.ts",
+    "../desktop/src/screen-picker/bridge.ts"
   ]
 }

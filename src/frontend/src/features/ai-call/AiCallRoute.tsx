@@ -912,7 +912,8 @@ export function AiCallRoute({ compact = false }: { compact?: boolean } = {}) {
       track.onended = () => stopShare()
     } catch (reason) {
       setError(
-        reason instanceof Error && reason.name === 'NotAllowedError'
+        reason instanceof Error &&
+          (reason.name === 'NotAllowedError' || reason.name === 'AbortError')
           ? '已取消共享，或屏幕共享权限被拒绝。'
           : mediaErrorMessage(reason, '无法共享屏幕')
       )

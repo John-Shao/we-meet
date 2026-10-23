@@ -45,6 +45,7 @@ import { RemoteControlCloud } from "./remote-control/cloud";
 import { RemoteDesktopRuntime, publicRemoteError } from "./remote-control/runtime";
 import { bindScreenSource } from "./remote-control/source-binding";
 import { chooseCaptureSource } from "./remote-control/source-picker";
+import { ScreenPicker } from "./screen-picker/picker";
 import { nativeDescriptor } from "./remote-control/native-resources";
 import type { RemoteDesktopEvent } from "./remote-control/bridge";
 
@@ -99,6 +100,7 @@ let managedRuntime: ManagedRuntime | undefined;
 let managedExecutable = "";
 let managedError = "";
 let remoteControl: RemoteDesktopRuntime | undefined;
+let screenPicker: ScreenPicker | undefined;
 const closeRemoteControl = (reason: string) => remoteControl?.close(reason) ?? Promise.resolve();
 
 async function closeLocalWork() {
@@ -240,6 +242,7 @@ async function receiveCallback(raw?: string) {
 }
 
 async function resetWebSession() {
+  screenPicker?.close();
   const ses = window!.webContents.session;
   await window!.loadURL("about:blank");
   await ses.clearStorageData();
@@ -357,6 +360,11 @@ async function createWindow() {
     },
   });
   const win = window;
+  screenPicker = new ScreenPicker({
+    rendererOrigin,
+    preload: path.join(__dirname, "preload.js"),
+    session: ses,
+  });
   win.webContents.on("did-finish-load", publishAiCallState);
   win.on("restore", () => {
     const float = aiCallWindow;
@@ -545,6 +553,19 @@ async function createWindow() {
       .catch(() => callback(false));
   });
   ses.setDisplayMediaRequestHandler((request, callback) => {
+    let answered = false;
+    const answer = (streams: Electron.Streams) => {
+      if (answered) return;
+      answered = true;
+      try {
+        callback(streams);
+      } catch (error) {
+        // Electron throws when a video request is denied without a stream. The
+        // request is still failed for the renderer, so denial is expected here.
+        if (!streams.video) return;
+        throw error;
+      }
+    };
     const isMain = request.frame === win.webContents.mainFrame;
     const isAiCall =
       !!aiCallWindow && request.frame === aiCallWindow.webContents.mainFrame;
@@ -553,52 +574,60 @@ async function createWindow() {
       !sameOrigin(request.securityOrigin, rendererOrigin) ||
       !request.userGesture
     ) {
-      callback({});
+      answer({});
       return;
     }
     if (isAiCall) {
       const float = aiCallWindow!;
       void (async () => {
-        const sources = await desktopCapturer.getSources({
-          types: ["screen", "window"],
-          thumbnailSize: { width: 0, height: 0 },
-        });
-        const source = await chooseCaptureSource({
-          sources,
-          displays: screen.getAllDisplays(),
-          fullScreenOnly: false,
+        const source = await screenPicker!.open({
+          parent: float,
           isCurrent: () => !float.isDestroyed(),
-          ask: options => dialog.showMessageBox(float, options),
         });
-        if (source && !float.isDestroyed()) callback({ video: source });
-        else callback({});
-      })().catch(() => callback({}));
+        if (
+          source &&
+          !float.isDestroyed() &&
+          request.frame === float.webContents.mainFrame
+        )
+          answer({ video: source });
+        else answer({});
+      })().catch(() => answer({}));
       return;
     }
     const ticket = remote.beginCapture();
     void (async () => {
       if (ticket.context) {
         try { await remote.captureBaseline(ticket); }
-        catch { if (ticket.fullScreenOnly) { callback({}); return; } }
+        catch { if (ticket.fullScreenOnly) { answer({}); return; } }
       }
-      const sources = await desktopCapturer.getSources({
-        types: ticket.fullScreenOnly ? ["screen"] : ["screen", "window"],
-        thumbnailSize: { width: 0, height: 0 },
-      });
-      const source = await chooseCaptureSource({
-        sources, displays: screen.getAllDisplays(), fullScreenOnly: ticket.fullScreenOnly,
-        isCurrent: () => remote.captureCurrent(ticket) && !win.isDestroyed(),
-        ask: options => dialog.showMessageBox(win, options),
-      });
+      let source: Electron.DesktopCapturerSource | undefined;
+      if (ticket.fullScreenOnly) {
+        const sources = await desktopCapturer.getSources({
+          types: ["screen"],
+          thumbnailSize: { width: 0, height: 0 },
+        });
+        source = await chooseCaptureSource({
+          sources,
+          displays: screen.getAllDisplays(),
+          fullScreenOnly: true,
+          isCurrent: () => remote.captureCurrent(ticket) && !win.isDestroyed(),
+          ask: options => dialog.showMessageBox(win, options),
+        });
+      } else {
+        source = await screenPicker!.open({
+          parent: win,
+          isCurrent: () => remote.captureCurrent(ticket) && !win.isDestroyed(),
+        });
+      }
       if (!source || win.isDestroyed() || !remote.captureCurrent(ticket)) {
-        callback({});
+        answer({});
         return;
       }
       const currentSources = await desktopCapturer.getSources({
         types: ticket.fullScreenOnly ? ["screen"] : ["screen", "window"], thumbnailSize: { width: 0, height: 0 },
       });
       if (!currentSources.some(current => current.id === source.id && current.display_id === source.display_id) ||
-          !remote.captureCurrent(ticket) || win.isDestroyed()) { callback({}); return; }
+          !remote.captureCurrent(ticket) || win.isDestroyed()) { answer({}); return; }
       if (ticket.context && source.id.startsWith("screen:")) {
         try {
           const probe = await remote.probeCapture();
@@ -607,12 +636,12 @@ async function createWindow() {
             rect => screen.dipToScreenRect(null, rect));
           remote.selectedCapture(ticket, binding);
         } catch {
-          if (ticket.fullScreenOnly) { callback({}); return; }
+          if (ticket.fullScreenOnly) { answer({}); return; }
         }
-      } else if (ticket.fullScreenOnly) { callback({}); return; }
-      if (!remote.captureCurrent(ticket) || win.isDestroyed() || request.frame !== win.webContents.mainFrame) { callback({}); return; }
-      callback({ video: source });
-    })().catch(() => callback({}));
+      } else if (ticket.fullScreenOnly) { answer({}); return; }
+      if (!remote.captureCurrent(ticket) || win.isDestroyed() || request.frame !== win.webContents.mainFrame) { answer({}); return; }
+      answer({ video: source });
+    })().catch(() => answer({}));
   });
   const external = (url: string) => {
     if (externalUrl(url))

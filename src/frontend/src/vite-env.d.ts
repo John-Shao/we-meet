@@ -20,6 +20,7 @@ interface Window {
     isDesktop: true
     platform: string
     remoteControl?: import('../../desktop/src/remote-control/bridge').RemoteControlBridge
+    screenPicker?: import('../../desktop/src/screen-picker/bridge').ScreenPickerBridge
     aiCall?: {
       open(): Promise<void>
       getPinned?(): Promise<boolean>

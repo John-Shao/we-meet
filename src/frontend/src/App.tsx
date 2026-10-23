@@ -24,6 +24,9 @@ import { AiCallFloatRoute } from '@/features/ai-call/AiCallFloatRoute'
 
 // M 端(运营管理端)—— 独立 shell + org_role 守卫,懒加载,普通员工不加载其 bundle。
 const AdminApp = lazy(() => import('@/features/admin'))
+const ScreenPickerRoute = lazy(
+  () => import('@/features/screen-picker/ScreenPickerRoute')
+)
 
 /**
  * Root "/" is the login landing: logged-in users go straight to 消息 (/im),
@@ -42,7 +45,14 @@ const RootGate = () => {
 function App() {
   const { i18n } = useTranslation()
   const isAiCallFloat = window.location.pathname === '/ai-call-float'
-  useTitle(isAiCallFloat ? '打电话' : (import.meta.env.VITE_APP_TITLE ?? ''))
+  const isSharePicker = window.location.pathname === '/share-picker'
+  useTitle(
+    isSharePicker
+      ? '选择要共享的屏幕或窗口'
+      : isAiCallFloat
+        ? '打电话'
+        : (import.meta.env.VITE_APP_TITLE ?? '')
+  )
 
   const isSDKContext = useIsSdkContext()
   useApplyA11yFonts()
@@ -50,10 +60,10 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {window.weMeetDesktop?.shell && (
+      {window.weMeetDesktop?.shell && !isSharePicker && (
         <DesktopTitleBar variant={isAiCallFloat ? 'plain' : 'default'} />
       )}
-      {!isSDKContext && <AppInitialization />}
+      {!isSDKContext && !isSharePicker && <AppInitialization />}
       <Suspense fallback={null}>
         <I18nProvider locale={i18n.language}>
           <ConfirmProvider>
@@ -63,6 +73,7 @@ function App() {
                 <AdminApp />
               </Route>
               <Route path="/ai-call-float" component={AiCallFloatRoute} />
+              <Route path="/share-picker" component={ScreenPickerRoute} />
               {/* 其余全部走 C 端 Layout(顶栏/侧栏)。 */}
               <Route>
                 <Layout>
