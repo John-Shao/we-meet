@@ -6,12 +6,17 @@ these tests deliberately go around the service layer (``bulk_create``) to prove
 the *database* refuses the overlap rather than some Python check.
 """
 
+# pylint: disable=missing-function-docstring
+# Test names already state the contract; a docstring only repeats them.
+
 import threading
 from datetime import timedelta
+from unittest.mock import Mock
+
+from django.db import IntegrityError, OperationalError, connection
+from django.utils import timezone
 
 import pytest
-from django.db import IntegrityError, connection
-from django.utils import timezone
 from rest_framework.test import APIClient
 
 from core import factories, models
@@ -32,6 +37,15 @@ def _at(hour, *, days=1):
         minute=0, second=0, microsecond=0
     )
     return base.replace(hour=hour)
+
+
+def _operational_error(sqlstate):
+    """An ``OperationalError`` whose driver cause carries a PostgreSQL code."""
+    cause = RuntimeError(sqlstate)
+    cause.sqlstate = sqlstate
+    exc = OperationalError("write aborted")
+    exc.__cause__ = cause
+    return exc
 
 
 def _setup():
@@ -175,6 +189,40 @@ def test_book_for_event_skip_records_a_conflict_row():
         event, room, policy=meeting_room_booking.SKIP
     )
     assert booking.status == models.MeetingRoomBookingStatus.CONFLICT
+
+
+def test_book_for_event_treats_a_deadlock_abort_like_a_conflict(monkeypatch):
+    """Racing inserts can deadlock on the constraint instead of tripping it.
+
+    PostgreSQL aborts one of the two transactions. That request lost the same
+    race an overlap describes, so it must surface as a conflict (409), not as a
+    server error; a genuine outage must still propagate.
+    """
+    org, user, room = _setup()
+    blocker = factories.CalendarEventFactory(
+        organization=org, organizer=user, start_at=_at(10), end_at=_at(12)
+    )
+    meeting_room_booking.book_for_event(blocker, room)
+    event = factories.CalendarEventFactory(
+        organization=org, organizer=user, start_at=_at(11), end_at=_at(13)
+    )
+
+    monkeypatch.setattr(
+        meeting_room_booking,
+        "_create",
+        Mock(side_effect=_operational_error("40P01")),
+    )
+    with pytest.raises(meeting_room_booking.MeetingRoomUnavailable) as excinfo:
+        meeting_room_booking.book_for_event(event, room)
+    assert excinfo.value.conflicts[0]["room_id"] == str(room.id)
+
+    monkeypatch.setattr(
+        meeting_room_booking,
+        "_create",
+        Mock(side_effect=_operational_error("08006")),
+    )
+    with pytest.raises(OperationalError):
+        meeting_room_booking.book_for_event(event, room)
 
 
 def test_resync_moves_the_booking_with_the_event():

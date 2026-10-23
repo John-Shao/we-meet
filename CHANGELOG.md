@@ -173,6 +173,9 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) report a meeting-room booking that loses a database deadlock as
+  a room conflict instead of a 500, so two simultaneous bookings still yield
+  one 201 and one 409
 - 🩹(ci) scope the backend and agents ruff checks to files touched by the
   change, and repair the summary, E2E and frontend image baselines so the
   development branch can stay green
