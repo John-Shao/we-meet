@@ -1,6 +1,6 @@
 # 会议行动项任务回链（既有能力补全）
 
-> 状态：进行中（2026-10-24）
+> 状态：已实现（2026-10-24）
 > 分支：`feature/meeting-actions-backlink`（由 `feature/meeting-actions-mvp` 改名）
 > 基线：`aliyun-dev@441127d70`
 > 定位：**不是企业 AI 平台 MVP，也不是 AI 办公（Work）主线。** 本文件只记录会议 AI 既有链路的一个补全切片，用于修复新路径任务缺少来源回链的缺口；企业 AI 平台的主体见 [Work 办公 MVP 重新定基线](work-office-mvp-rebaseline-2026-10-24.md)。
