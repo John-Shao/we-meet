@@ -80,9 +80,7 @@ def active_seats(organization_id):
 
 def seat_usage(organization_id):
     limit = (
-        WorkOrganizationEntitlement.objects.filter(
-            organization_id=organization_id
-        )
+        WorkOrganizationEntitlement.objects.filter(organization_id=organization_id)
         .values_list("member_limit", flat=True)
         .first()
     )
@@ -195,9 +193,7 @@ def grant_member(  # noqa: PLR0913 -- explicit write contract
 
 
 @transaction.atomic
-def disable_member_grant(
-    *, organization_id, user_id, actor=None, request_id=""
-):
+def disable_member_grant(*, organization_id, user_id, actor=None, request_id=""):
     """Switch a grant off without recording a lifecycle revocation."""
     grant = (
         WorkMemberGrant.objects.select_for_update()
@@ -245,9 +241,7 @@ def revoke_member_grant(
     grant.revoked_at = timezone.now()
     grant.revoked_reason = reason
     grant.revoked_by = actor if getattr(actor, "is_authenticated", False) else None
-    grant.save(
-        update_fields=["enabled", "revoked_at", "revoked_reason", "revoked_by"]
-    )
+    grant.save(update_fields=["enabled", "revoked_at", "revoked_reason", "revoked_by"])
     _audit(
         WorkAccessAudit.Action.GRANT_REVOKED,
         grant,

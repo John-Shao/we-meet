@@ -13,6 +13,7 @@ membership rows in id order. That is the same lock order every lifecycle write
 uses (organization → membership), so concurrent transfers and demotions cannot
 deadlock or interleave into a zero-owner / two-hundred-owner state.
 """
+# pylint: disable=missing-function-docstring
 
 import contextlib
 import contextvars
@@ -76,9 +77,7 @@ def owner_only_error():
 def owner_limit_error():
     return MembershipWriteError(
         {
-            "org_role": _(
-                "An organization can have at most %(limit)d active owners."
-            )
+            "org_role": _("An organization can have at most %(limit)d active owners.")
             % {"limit": MAX_ACTIVE_OWNERS}
         }
     )
@@ -116,9 +115,7 @@ def active_owner_count(organization_id, *, exclude_id=None):
 
 def is_active_owner(membership):
     return bool(
-        membership
-        and membership.status == ACTIVE
-        and membership.org_role == OWNER
+        membership and membership.status == ACTIVE and membership.org_role == OWNER
     )
 
 
@@ -164,9 +161,7 @@ def assert_can_grant_owner(organization_id, *, actor, target_id=None):
         org_role=OWNER,
     ).exists():
         raise owner_only_error()
-    if active_owner_count(organization_id, exclude_id=target_id) >= (
-        MAX_ACTIVE_OWNERS
-    ):
+    if active_owner_count(organization_id, exclude_id=target_id) >= (MAX_ACTIVE_OWNERS):
         raise owner_limit_error()
 
 
@@ -202,14 +197,13 @@ def set_role(membership, *, actor, role):
                 raise MembershipWriteError(
                     {"org_role": _("Only an active member can become an owner.")}
                 )
-            if active_owner_count(
-                target.organization_id, exclude_id=target.id
-            ) >= MAX_ACTIVE_OWNERS:
+            if (
+                active_owner_count(target.organization_id, exclude_id=target.id)
+                >= MAX_ACTIVE_OWNERS
+            ):
                 raise owner_limit_error()
         elif previous == OWNER:
-            if not active_owner_count(
-                target.organization_id, exclude_id=target.id
-            ):
+            if not active_owner_count(target.organization_id, exclude_id=target.id):
                 raise last_owner_error()
 
         target.org_role = role
@@ -244,9 +238,10 @@ def _guard_status_change(target, status, actor_rows):
         # two checks as granting ownership — otherwise a suspend / restore
         # cycle walks past the cap.
         _require_active_owner(actor_rows)
-        if active_owner_count(
-            target.organization_id, exclude_id=target.id
-        ) >= MAX_ACTIVE_OWNERS:
+        if (
+            active_owner_count(target.organization_id, exclude_id=target.id)
+            >= MAX_ACTIVE_OWNERS
+        ):
             raise owner_limit_error()
     return was_active_owner
 

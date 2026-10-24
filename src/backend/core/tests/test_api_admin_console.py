@@ -5,6 +5,7 @@
 - ``GET /admin/stats/overview/`` — dashboard aggregates
 - ``admin/audit-logs`` — audit records written by admin mutations
 """
+# pylint: disable=missing-function-docstring,import-outside-toplevel
 
 import pytest
 from rest_framework.test import APIClient
@@ -242,9 +243,7 @@ def test_admin_audit_records_department_create():
 
     logs = client.get("/api/v1.0/admin/audit-logs/")
     assert logs.status_code == 200, logs.content
-    entries = [
-        row for row in logs.json()["results"] if row["action"] == "dept.create"
-    ]
+    entries = [row for row in logs.json()["results"] if row["action"] == "dept.create"]
     assert entries, logs.content
     assert entries[0]["target_label"] == "Engineering"
     assert entries[0]["actor"]["id"] == str(admin.id)
@@ -278,9 +277,7 @@ def test_admin_audit_records_department_move():
     org = factories.OrganizationFactory()
     client, _ = _admin_client(org)
     root = models.Department.objects.create(organization=org, name="Root")
-    node = models.Department.objects.create(
-        organization=org, name="Node", parent=root
-    )
+    node = models.Department.objects.create(organization=org, name="Node", parent=root)
 
     other_root = models.Department.objects.create(organization=org, name="Other")
     moved = client.post(
@@ -438,16 +435,12 @@ def test_admin_audit_is_org_scoped():
     other = factories.OrganizationFactory()
     client, _ = _admin_client(org)
     # An action in `org` must not surface in another org admin's log.
-    client.post(
-        "/api/v1.0/admin/departments/", {"name": "Secret"}, format="json"
-    )
+    client.post("/api/v1.0/admin/departments/", {"name": "Secret"}, format="json")
 
     other_client, _ = _admin_client(other)
     logs = other_client.get("/api/v1.0/admin/audit-logs/")
     assert logs.status_code == 200, logs.content
-    assert all(
-        row["target_label"] != "Secret" for row in logs.json()["results"]
-    )
+    assert all(row["target_label"] != "Secret" for row in logs.json()["results"])
 
 
 # --- member invitations / pre-provisioning ----------------------------------
@@ -476,8 +469,7 @@ def test_admin_create_invitation_pending():
 
     logs = client.get("/api/v1.0/admin/audit-logs/?action=member.invite")
     assert any(
-        row["target_label"] == "newhire@example.com"
-        for row in logs.json()["results"]
+        row["target_label"] == "newhire@example.com" for row in logs.json()["results"]
     )
 
 
@@ -518,9 +510,7 @@ def test_invitation_claim_ignores_unmatched_email():
     )
 
     org = factories.OrganizationFactory()
-    models.OrgInvitation.objects.create(
-        organization=org, email="someone@example.com"
-    )
+    models.OrgInvitation.objects.create(organization=org, email="someone@example.com")
     user = factories.UserFactory(email="other@example.com")
 
     assert claim_pending_invitations(user) == 0
@@ -555,9 +545,7 @@ def test_admin_revoke_invitation_is_soft_and_not_claimable():
 def test_admin_duplicate_pending_invitation_rejected():
     org = factories.OrganizationFactory()
     client, _ = _admin_client(org)
-    models.OrgInvitation.objects.create(
-        organization=org, email="dup@example.com"
-    )
+    models.OrgInvitation.objects.create(organization=org, email="dup@example.com")
     response = client.post(
         "/api/v1.0/admin/invitations/",
         {"email": "dup@example.com"},

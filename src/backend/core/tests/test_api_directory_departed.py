@@ -6,6 +6,7 @@ Two bugs offboarding would otherwise expose on day one:
   - ``directory/members/{id}/`` 404s, white-screening the ``?member=<id>`` deep
     link that historical messages point at.
 """
+# pylint: disable=missing-function-docstring
 
 from unittest import mock
 
@@ -310,7 +311,9 @@ def test_resolve_skips_a_deactivated_bot():
 
     body = (
         _client(me)
-        .post("/api/v1.0/im/users/resolve/", {"im_uids": ["uid-bot-off"]}, format="json")
+        .post(
+            "/api/v1.0/im/users/resolve/", {"im_uids": ["uid-bot-off"]}, format="json"
+        )
         .json()
     )
     assert "uid-bot-off" not in body

@@ -12,6 +12,7 @@ Three clusters, and the weight is deliberately uneven:
   silently and the person appears twice in the directory.
 - **the scope holding through approval.** Same bidirectional rule as M2-f.
 """
+# pylint: disable=missing-function-docstring,import-outside-toplevel
 
 from datetime import timedelta
 
@@ -430,9 +431,12 @@ def test_the_reviewer_can_override_the_department():
         {"department": str(sales.id)},
         format="json",
     )
-    assert models.Membership.objects.get(
-        organization=organization, user=applicant
-    ).department_id == sales.id
+    assert (
+        models.Membership.objects.get(
+            organization=organization, user=applicant
+        ).department_id
+        == sales.id
+    )
 
 
 def test_a_link_revoked_after_the_application_blocks_approval():
@@ -523,7 +527,9 @@ def _scoped_hr(organization, department, permissions):
         organization=organization, code="hr", name="HR", permissions=permissions
     )
     assignment = models.AdminRoleAssignment.objects.create(
-        role=role, membership=membership, scope_type=models.AdminScopeChoices.DEPARTMENTS
+        role=role,
+        membership=membership,
+        scope_type=models.AdminScopeChoices.DEPARTMENTS,
     )
     models.AdminRoleScopeDepartment.objects.create(
         assignment=assignment, department=department
@@ -606,7 +612,7 @@ def test_issuing_a_link_from_the_console():
 
 
 def test_an_absurd_expiry_is_refused():
-    organization, owner = _org_owner()
+    _organization, owner = _org_owner()
     response = _client(owner).post(
         "/api/v1.0/admin/invite-links/", {"expires_in_days": 3650}, format="json"
     )
@@ -694,7 +700,10 @@ def test_turning_auto_join_off_stops_the_membership_being_created(settings):
 
     settings.ORGANIZATION_BOOTSTRAP_SLUG = "default"
     organization = models.Organization.objects.get(slug="default")
-    organization.settings = {**(organization.settings or {}), "auto_join_enabled": False}
+    organization.settings = {
+        **(organization.settings or {}),
+        "auto_join_enabled": False,
+    }
     organization.save()
 
     user = factories.UserFactory(sub="kc-auto-2")
@@ -713,7 +722,10 @@ def test_the_switch_does_not_disturb_someone_who_is_already_a_member(settings):
         organization=organization, user=user, is_primary=True
     )
 
-    organization.settings = {**(organization.settings or {}), "auto_join_enabled": False}
+    organization.settings = {
+        **(organization.settings or {}),
+        "auto_join_enabled": False,
+    }
     organization.save()
     OIDCAuthenticationBackend.ensure_default_org_membership(user)
 

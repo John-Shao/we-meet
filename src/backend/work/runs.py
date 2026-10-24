@@ -113,9 +113,7 @@ def daily_budget(organization_id=None):
     """Tenant-specific budget, else the deployment-wide default."""
     if organization_id is not None:
         budget = (
-            WorkOrganizationEntitlement.objects.filter(
-                organization_id=organization_id
-            )
+            WorkOrganizationEntitlement.objects.filter(organization_id=organization_id)
             .values_list("daily_token_budget", flat=True)
             .first()
         )

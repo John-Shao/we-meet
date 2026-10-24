@@ -13,6 +13,8 @@ because a single admin request asks "may I?" several times (permission class,
 queryset filter, per-object write check) and each of those would otherwise be
 its own JOIN.
 """
+# pylint: disable=missing-function-docstring,import-outside-toplevel
+# pylint: disable=protected-access
 
 from dataclasses import dataclass, field
 
@@ -168,9 +170,7 @@ def get_admin_context(request) -> OrgAdminContext:
     if cached is None:
         user = getattr(request, "user", None)
         cached = (
-            _resolve(user)
-            if user is not None and user.is_authenticated
-            else _EMPTY
+            _resolve(user) if user is not None and user.is_authenticated else _EMPTY
         )
         request._org_admin_ctx = cached  # noqa: SLF001 — request is ours
     return cached

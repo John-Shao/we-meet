@@ -14,6 +14,9 @@ Scope (P1-d2 MVP):
 Everything is scoped to the caller's organization, resolved from their own
 membership (single-org MVP; ready for multi-org without query changes).
 """
+# pylint: disable=missing-function-docstring,abstract-method
+# pylint: disable=attribute-defined-outside-init,redefined-outer-name
+# pylint: disable=too-many-ancestors,too-many-lines
 
 from django.db import transaction
 from django.db.models import Count, Q
@@ -22,6 +25,7 @@ from django.utils.translation import gettext_lazy as _
 
 from rest_framework import exceptions, mixins, serializers, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 
 from core import models, utils
@@ -48,10 +52,8 @@ class IsOrgAdmin(permissions.IsAuthenticated):
             return False
         organization = get_caller_organization(request.user)
         if organization is not None and organization.archived_at is not None:
-            if request.method not in permissions.SAFE_METHODS:
-                raise exceptions.PermissionDenied(
-                    {"code": "organization_read_only"}
-                )
+            if request.method not in SAFE_METHODS:
+                raise exceptions.PermissionDenied({"code": "organization_read_only"})
             return is_caller_org_admin(request.user, include_archived=True)
         return is_caller_org_admin(request.user)
 
@@ -86,12 +88,17 @@ class DepartmentAdminSerializer(serializers.ModelSerializer):
         return value
 
     def validate_head(self, value):
-        if value is not None and not models.Membership.objects.filter(
-            user=value,
-            organization=self._organization(),
-            status=models.MembershipStatusChoices.ACTIVE,
-        ).exists():
-            raise serializers.ValidationError("head must be a member of your organization")
+        if (
+            value is not None
+            and not models.Membership.objects.filter(
+                user=value,
+                organization=self._organization(),
+                status=models.MembershipStatusChoices.ACTIVE,
+            ).exists()
+        ):
+            raise serializers.ValidationError(
+                "head must be a member of your organization"
+            )
         return value
 
     def _organization(self):
@@ -162,7 +169,7 @@ class MembershipAdminSerializer(serializers.ModelSerializer):
     def validate_job_sequence(self, value):
         return self._validate_dict_item(value, models.DictScopeChoices.JOB_SEQUENCE)
 
-    def _validate_manager(self, value, field):
+    def _validate_manager(self, value, _field):
         if value is None:
             return value
         if value.organization_id != self._organization().id:
@@ -629,7 +636,9 @@ class DepartmentAdminViewSet(
     def perform_update(self, serializer):
         before = {
             "name": serializer.instance.name,
-            "head": str(serializer.instance.head_id) if serializer.instance.head_id else None,
+            "head": str(serializer.instance.head_id)
+            if serializer.instance.head_id
+            else None,
             "sort_order": serializer.instance.sort_order,
         }
         instance = serializer.save()
@@ -638,7 +647,11 @@ class DepartmentAdminViewSet(
             "head": str(instance.head_id) if instance.head_id else None,
             "sort_order": instance.sort_order,
         }
-        changes = {k: {"from": before[k], "to": after[k]} for k in after if before[k] != after[k]}
+        changes = {
+            key: {"from": before[key], "to": current}
+            for key, current in after.items()
+            if before[key] != current
+        }
         if not changes:
             return
         # A pure rename gets its own action; head / sort edits fold into dept.update.
@@ -721,13 +734,13 @@ class DepartmentAdminViewSet(
                 deleted_at__isnull=True,
             ).first()
             if new_parent is None:
-                raise serializers.ValidationError(
-                    {"parent": "invalid target parent"}
-                )
+                raise serializers.ValidationError({"parent": "invalid target parent"})
             # node.path includes self, so a descendant's path starts with it.
             if new_parent.id == node.id or new_parent.path.startswith(node.path):
                 raise serializers.ValidationError(
-                    {"parent": "cannot move a department under itself or its descendant"}
+                    {
+                        "parent": "cannot move a department under itself or its descendant"
+                    }
                 )
 
         new_parent_id = new_parent.id if new_parent else None
@@ -756,7 +769,7 @@ class DepartmentAdminViewSet(
             )
             for dept in descendants:
                 models.Department.objects.filter(id=dept.id).update(
-                    path=new_path + dept.path[len(old_path):],
+                    path=new_path + dept.path[len(old_path) :],
                     depth=dept.depth + depth_delta,
                 )
 
@@ -969,9 +982,9 @@ class MembershipAdminViewSet(
         after = self._member_snapshot(membership)
         # Exclude fields the services already audited to avoid a second row.
         changes = {
-            key: {"from": before[key], "to": after[key]}
-            for key in after
-            if key not in ("status", "org_role") and before[key] != after[key]
+            key: {"from": before[key], "to": current}
+            for key, current in after.items()
+            if key not in ("status", "org_role") and before[key] != current
         }
         if not changes:
             return
@@ -1283,14 +1296,10 @@ class OrgDictItemViewSet(
         )
 
     def perform_create(self, serializer):
-        self._audit(
-            serializer.save(), models.AuditActionChoices.DICT_ITEM_CREATE
-        )
+        self._audit(serializer.save(), models.AuditActionChoices.DICT_ITEM_CREATE)
 
     def perform_update(self, serializer):
-        self._audit(
-            serializer.save(), models.AuditActionChoices.DICT_ITEM_UPDATE
-        )
+        self._audit(serializer.save(), models.AuditActionChoices.DICT_ITEM_UPDATE)
 
     def perform_destroy(self, instance):
         if instance.is_builtin:
@@ -1302,9 +1311,7 @@ class OrgDictItemViewSet(
                 }
             )
         in_use = models.Membership.objects.filter(
-            Q(employee_type=instance)
-            | Q(job_level=instance)
-            | Q(job_sequence=instance)
+            Q(employee_type=instance) | Q(job_level=instance) | Q(job_sequence=instance)
         ).count()
         if in_use:
             raise serializers.ValidationError(

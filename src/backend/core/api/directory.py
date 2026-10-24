@@ -10,6 +10,8 @@ Read-only on purpose — department / membership mutations live in the admin
 console (P1-d). Every queryset is scoped to the caller's organization from day
 one, even though MVP runs a single organization.
 """
+# pylint: disable=missing-function-docstring,abstract-method,too-many-lines
+# pylint: disable=import-outside-toplevel,broad-exception-caught,unused-argument
 
 import logging
 import uuid
@@ -92,9 +94,7 @@ def is_caller_org_admin(user, *, include_archived=False) -> bool:
     that flag admits archived tenants only, never suspended ones (an archived
     tenant is also ``is_active=False``, so the two states need separate tests).
     """
-    cache_name = (
-        "_org_admin_archived_cache" if include_archived else "_org_admin_cache"
-    )
+    cache_name = "_org_admin_archived_cache" if include_archived else "_org_admin_cache"
     if not hasattr(user, cache_name):
         organization = get_caller_organization(user)
         usable = bool(
@@ -196,7 +196,6 @@ def apply_member_list_params(queryset, request):
     # 第二列 full_name 是为了翻页稳定:只按拼音排时同音重名的行在不同页之间顺序
     # 不定,会出现重复或漏人。Meta.indexes 里的复合索引正好覆盖这两列。
     return queryset.order_by("user__full_name_pinyin", "user__full_name")
-
 
 
 class DirectoryMemberSerializer(serializers.Serializer):

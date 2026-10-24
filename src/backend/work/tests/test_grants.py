@@ -203,9 +203,7 @@ def test_concurrent_grants_take_exactly_one_last_seat():
         with lock:
             outcomes.append(result)
 
-    threads = [
-        threading.Thread(target=claim, args=(person.id,)) for person in people
-    ]
+    threads = [threading.Thread(target=claim, args=(person.id,)) for person in people]
     for thread in threads:
         thread.start()
     for thread in threads:
@@ -229,19 +227,11 @@ def test_grant_audit_attributes_each_write_to_its_operator():
     granter = factories.UserFactory()
     operator = factories.UserFactory()
 
-    grant = grants.grant_member(
-        organization_id=org.id, user_id=user.id, actor=granter
-    )
-    grants.disable_member_grant(
-        organization_id=org.id, user_id=user.id, actor=operator
-    )
+    grant = grants.grant_member(organization_id=org.id, user_id=user.id, actor=granter)
+    grants.disable_member_grant(organization_id=org.id, user_id=user.id, actor=operator)
     grants.grant_member(organization_id=org.id, user_id=user.id, actor=operator)
-    grants.revoke_member_grant(
-        organization_id=org.id, user_id=user.id, actor=operator
-    )
-    grants.restore_member_grant(
-        organization_id=org.id, user_id=user.id, actor=granter
-    )
+    grants.revoke_member_grant(organization_id=org.id, user_id=user.id, actor=operator)
+    grants.restore_member_grant(organization_id=org.id, user_id=user.id, actor=granter)
 
     rows = WorkAccessAudit.objects.filter(target_id=str(grant.pk))
     assert rows.get(action=WorkAccessAudit.Action.GRANT_CREATED).actor_id == granter.id

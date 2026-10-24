@@ -271,9 +271,7 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
                         raise MaterialError("generation_unavailable")
                 except MaterialError as exc:
                     if exc.code != "access_unavailable":
-                        runs.terminal(
-                            current, runs.failure_status(exc.code), exc.code
-                        )
+                        runs.terminal(current, runs.failure_status(exc.code), exc.code)
             if current.status not in runs.ACTIVE and not current.call_started_at:
                 current.agent_done = True
                 current.reserved_tokens = 0
@@ -348,9 +346,7 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
                         runs.event(current, "running")
                 except MaterialError as exc:
                     if exc.code != "access_unavailable":
-                        runs.terminal(
-                            current, runs.failure_status(exc.code), exc.code
-                        )
+                        runs.terminal(current, runs.failure_status(exc.code), exc.code)
             remote_terminal = value["state"] in {"succeeded", "failed", "cancelled"}
             # Unknown usage remains visible and reserved. Allow 60s for in-flight drain.
             grace_over = (
@@ -382,9 +378,7 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
             }
             if not transient and current.status in runs.ACTIVE:
                 if isinstance(exc, MaterialError) and exc.code in access.DENIAL_CODES:
-                    runs.terminal(
-                        current, runs.failure_status(exc.code), exc.code
-                    )
+                    runs.terminal(current, runs.failure_status(exc.code), exc.code)
                 else:
                     runs.terminal(
                         current,

@@ -30,7 +30,9 @@ class OwnershipError(APIException):
 
 
 def _locked_membership(membership_id):
-    return models.Membership.objects.select_for_update().filter(id=membership_id).first()
+    return (
+        models.Membership.objects.select_for_update().filter(id=membership_id).first()
+    )
 
 
 def transfer_ownership(*, actor_membership, target_membership):

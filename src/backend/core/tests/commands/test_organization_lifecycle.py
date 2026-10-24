@@ -1,4 +1,5 @@
 """Management command wrapper around the organization lifecycle service (P0-4)."""
+# pylint: disable=missing-function-docstring,redefined-outer-name
 
 import io
 import json
@@ -34,7 +35,9 @@ def actor():
     return factories.UserFactory()
 
 
-def test_dry_run_reports_counts_without_writing(org, actor):
+def test_dry_run_reports_counts_without_writing(  # pylint: disable=unused-argument
+    org, actor
+):
     membership = models.Membership.objects.create(
         organization=org,
         user=factories.UserFactory(),
@@ -43,9 +46,7 @@ def test_dry_run_reports_counts_without_writing(org, actor):
         is_primary=True,
     )
     WorkOrganizationEntitlement.objects.create(organization=org, enabled=True)
-    WorkMemberGrant.objects.create(
-        organization=org, user=membership.user, enabled=True
-    )
+    WorkMemberGrant.objects.create(organization=org, user=membership.user, enabled=True)
 
     payload = _call("archive", org.slug, "--dry-run")
 
@@ -85,9 +86,12 @@ def test_archive_and_restore_through_the_command(org, actor):
     org.refresh_from_db()
     assert org.archived_at is not None
     assert org.archive_reason == "contract ended"
-    assert models.AuditLog.objects.get(
-        action=models.AuditActionChoices.ORGANIZATION_ARCHIVED
-    ).actor_id == actor.id
+    assert (
+        models.AuditLog.objects.get(
+            action=models.AuditActionChoices.ORGANIZATION_ARCHIVED
+        ).actor_id
+        == actor.id
+    )
 
     restored = _call("restore", org.slug, "--confirm", org.slug, "--actor", actor.email)
     assert restored["changed"] is True

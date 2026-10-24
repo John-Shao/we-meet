@@ -70,10 +70,9 @@ def new_review(run, key, selection):
     output = min(settings.WORK_MAX_OUTPUT_TOKENS, 4096)
     if budget < output + 1024:
         raise MaterialError("review_unavailable", 503)
-    if (
-        runs.daily_reserved(run.task.owner_id, run.task.organization_id) + budget
-        > runs.daily_budget(run.task.organization_id)
-    ):
+    if runs.daily_reserved(
+        run.task.owner_id, run.task.organization_id
+    ) + budget > runs.daily_budget(run.task.organization_id):
         raise MaterialError("budget_exceeded", 429)
     value = WorkReview.objects.create(
         source_run=run,

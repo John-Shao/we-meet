@@ -1,4 +1,5 @@
 """Concurrency invariants for membership lifecycle writes (P0-1)."""
+# pylint: disable=broad-exception-caught
 
 import threading
 
@@ -41,9 +42,7 @@ def test_concurrent_offboards_never_leave_the_organization_ownerless():
         try:
             barrier.wait(timeout=10)
             membership = models.Membership.objects.get(id=membership_id)
-            offboarding.offboard_membership(
-                membership, actor=None, disable_login=False
-            )
+            offboarding.offboard_membership(membership, actor=None, disable_login=False)
             result = "offboarded"
         except offboarding.OffboardError:
             result = "refused"

@@ -277,7 +277,9 @@ def test_prefs_list_returns_flags_only_for_client_side_sets():
         owner=me, target=alerted, special_alert=True
     )
 
-    rows = {r["user_id"]: r for r in client.get("/api/v1.0/directory/contact-prefs/").json()}
+    rows = {
+        r["user_id"]: r for r in client.get("/api/v1.0/directory/contact-prefs/").json()
+    }
     assert rows[str(starred.id)] == {
         "user_id": str(starred.id),
         "is_starred": True,

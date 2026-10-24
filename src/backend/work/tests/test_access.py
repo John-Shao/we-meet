@@ -379,9 +379,7 @@ def test_claim_retries_when_access_lookup_is_unavailable(client, model_settings)
     assert run.status == "queued"
 
 
-def test_daily_budget_and_reservation_are_organization_scoped(
-    client, settings
-):
+def test_daily_budget_and_reservation_are_organization_scoped(client, settings):
     settings.WORK_DAILY_TOKEN_BUDGET = 100000
     first = grant_member(client.work_user)
     second = grant_member(client.work_user)
@@ -433,9 +431,9 @@ def test_suspended_organization_is_denied(client):
 
 def test_archived_organization_denies_before_member_state(client):
     organization = grant_member(client.work_user)
-    Membership.objects.filter(
-        organization=organization, user=client.work_user
-    ).update(status=MembershipStatusChoices.LEFT)
+    Membership.objects.filter(organization=organization, user=client.work_user).update(
+        status=MembershipStatusChoices.LEFT
+    )
     Organization.objects.filter(pk=organization.pk).update(
         is_active=False, archived_at=timezone.now()
     )

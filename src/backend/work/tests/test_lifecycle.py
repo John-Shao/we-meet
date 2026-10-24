@@ -171,9 +171,7 @@ def test_signal_is_idempotent_and_keeps_first_revocation(org):
         revoked_reason=WorkMemberGrant.RevokedReason.BACKFILL,
     )
 
-    lifecycle.on_membership_left(
-        sender=models.Membership, membership=membership
-    )
+    lifecycle.on_membership_left(sender=models.Membership, membership=membership)
 
     grant.refresh_from_db()
     assert grant.revoked_at == first

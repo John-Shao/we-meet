@@ -183,11 +183,7 @@ def test_api_directory_pinyin_order_files_accented_latin_names():
     client, _ = _org_with(["Zoe", "Émile", "Ørsted", "Łukasz"])
 
     ordered = client.get(f"{MEMBERS_URL}?ordering=pinyin")
-    names = [
-        n
-        for n in _names(ordered)
-        if n in {"Zoe", "Émile", "Ørsted", "Łukasz"}
-    ]
+    names = [n for n in _names(ordered) if n in {"Zoe", "Émile", "Ørsted", "Łukasz"}]
     assert names == ["Émile", "Łukasz", "Ørsted", "Zoe"]
 
 

@@ -48,9 +48,7 @@ def test_entitlement_create_update_delete_are_audited():
 
     entitlement.enabled = False
     entitlement.disabled_reason = "pilot ended"
-    model_admin.save_model(
-        request_for(operator, "req-456"), entitlement, None, True
-    )
+    model_admin.save_model(request_for(operator, "req-456"), entitlement, None, True)
     updated = WorkAccessAudit.objects.get(action="entitlement_updated")
     assert updated.before["enabled"] is True
     assert updated.after["enabled"] is False

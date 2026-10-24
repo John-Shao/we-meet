@@ -1,4 +1,5 @@
 """HTTP tests for transfer-owner and the membership write guards (P0-1)."""
+# pylint: disable=missing-function-docstring,redefined-outer-name
 
 import pytest
 from rest_framework.test import APIClient
@@ -172,9 +173,7 @@ def test_delete_membership_is_method_not_allowed(org):
     actor = _member(org, role=ADMIN)
     target = _member(org, role=MEMBER)
 
-    response = _client_for(actor).delete(
-        f"/api/v1.0/admin/memberships/{target.id}/"
-    )
+    response = _client_for(actor).delete(f"/api/v1.0/admin/memberships/{target.id}/")
 
     assert response.status_code == 405
     assert models.Membership.objects.filter(id=target.id).exists()

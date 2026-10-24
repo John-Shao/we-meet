@@ -237,11 +237,7 @@ def scope_denial(user, organization, feature=None):
     key = _organization_key(organization)
     if key is None:
         return "access_revoked"
-    row = (
-        Organization.objects.filter(pk=key)
-        .values("is_active", "archived_at")
-        .first()
-    )
+    row = Organization.objects.filter(pk=key).values("is_active", "archived_at").first()
     if row is None or not row["is_active"] or row["archived_at"] is not None:
         return "access_revoked"
     return None if member_of(user, organization) else "access_revoked"

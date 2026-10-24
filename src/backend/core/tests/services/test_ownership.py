@@ -1,4 +1,5 @@
 """Ownership transfer service tests (P0-1)."""
+# pylint: disable=missing-function-docstring,redefined-outer-name
 
 import pytest
 
@@ -55,9 +56,7 @@ def test_transfer_requires_active_owner(org):
     target = _member(org, role=MEMBER)
 
     with pytest.raises(ownership.OwnershipError) as exc:
-        ownership.transfer_ownership(
-            actor_membership=actor, target_membership=target
-        )
+        ownership.transfer_ownership(actor_membership=actor, target_membership=target)
     assert exc.value.status_code == 403
     assert exc.value.detail["code"] == "not_organization_owner"
 
@@ -67,18 +66,14 @@ def test_transfer_rejects_suspended_target(org):
     target = _member(org, role=MEMBER, status=SUSPENDED)
 
     with pytest.raises(ownership.OwnershipError) as exc:
-        ownership.transfer_ownership(
-            actor_membership=actor, target_membership=target
-        )
+        ownership.transfer_ownership(actor_membership=actor, target_membership=target)
     assert exc.value.detail["code"] == "target_not_active"
 
 
 def test_transfer_rejects_self(org):
     actor = _member(org, role=OWNER)
     with pytest.raises(ownership.OwnershipError) as exc:
-        ownership.transfer_ownership(
-            actor_membership=actor, target_membership=actor
-        )
+        ownership.transfer_ownership(actor_membership=actor, target_membership=actor)
     assert exc.value.detail["code"] == "target_is_self"
 
 
@@ -88,9 +83,7 @@ def test_transfer_rejects_existing_owner_but_keeps_multi_owner(org):
     target = _member(org, role=MEMBER)
 
     with pytest.raises(ownership.OwnershipError) as exc:
-        ownership.transfer_ownership(
-            actor_membership=actor, target_membership=other
-        )
+        ownership.transfer_ownership(actor_membership=actor, target_membership=other)
     assert exc.value.detail["code"] == "target_already_owner"
 
     # A co-owner transfer is still allowed and leaves the other owner intact.
@@ -110,9 +103,7 @@ def test_transfer_is_idempotent_after_actor_demoted(org):
 
     target.refresh_from_db()
     with pytest.raises(ownership.OwnershipError) as exc:
-        ownership.transfer_ownership(
-            actor_membership=actor, target_membership=target
-        )
+        ownership.transfer_ownership(actor_membership=actor, target_membership=target)
     assert exc.value.detail["code"] == "not_organization_owner"
 
 
@@ -167,9 +158,7 @@ def test_set_status_reactivating_owner_requires_owner(org):
     sleeping_owner = _member(org, role=OWNER, status=SUSPENDED)
 
     with pytest.raises(membership_service.MembershipWriteError) as exc:
-        membership_service.set_status(
-            sleeping_owner, actor=actor.user, status=ACTIVE
-        )
+        membership_service.set_status(sleeping_owner, actor=actor.user, status=ACTIVE)
     assert "active owner" in str(exc.value.detail["org_role"])
 
     sleeping_owner.refresh_from_db()
@@ -183,9 +172,7 @@ def test_set_status_reactivating_owner_respects_cap(org):
     sleeping_owner = _member(org, role=OWNER, status=SUSPENDED)
 
     with pytest.raises(membership_service.MembershipWriteError) as exc:
-        membership_service.set_status(
-            sleeping_owner, actor=actor.user, status=ACTIVE
-        )
+        membership_service.set_status(sleeping_owner, actor=actor.user, status=ACTIVE)
     assert "at most 3 active owners" in str(exc.value.detail["org_role"])
 
     sleeping_owner.refresh_from_db()

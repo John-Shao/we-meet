@@ -1,4 +1,6 @@
 """Admin classes and registrations for core app."""
+# pylint: disable=missing-class-docstring,missing-function-docstring
+# pylint: disable=import-outside-toplevel,too-many-lines
 
 from django import forms
 from django.contrib import admin, messages
@@ -629,7 +631,9 @@ class OrganizationAdmin(admin.ModelAdmin):
                 if not request.user.is_superuser:
                     self.message_user(
                         request,
-                        _("Only a superuser can suspend or reactivate an organization."),
+                        _(
+                            "Only a superuser can suspend or reactivate an organization."
+                        ),
                         level=messages.ERROR,
                     )
                     obj.is_active = previous
@@ -666,16 +670,19 @@ class OrganizationAdmin(admin.ModelAdmin):
         handler = getattr(organization_lifecycle, name)
         for organization in queryset:
             try:
-                result = handler(
-                    organization, actor=request.user, reason=actor_reason
-                )
+                result = handler(organization, actor=request.user, reason=actor_reason)
             except organization_lifecycle.LifecycleError as exc:
-                self.message_user(request, f"{organization.slug}: {exc.detail}", level=messages.ERROR)
+                self.message_user(
+                    request, f"{organization.slug}: {exc.detail}", level=messages.ERROR
+                )
                 continue
             if not result["changed"]:
                 self.message_user(
                     request,
-                    f"{organization.slug}: already {organization_lifecycle.organization_state(organization)}.",
+                    (
+                        f"{organization.slug}: already "
+                        f"{organization_lifecycle.organization_state(organization)}."
+                    ),
                     level=messages.INFO,
                 )
 
@@ -687,7 +694,9 @@ class OrganizationAdmin(admin.ModelAdmin):
     def activate_selected(self, request, queryset):
         self._run_lifecycle(request, queryset, "activate", "django admin")
 
-    @admin.action(description=_("Archive selected organizations (irreversible without restore)"))
+    @admin.action(
+        description=_("Archive selected organizations (irreversible without restore)")
+    )
     def archive_selected(self, request, queryset):
         self._run_lifecycle(request, queryset, "archive", "django admin")
 

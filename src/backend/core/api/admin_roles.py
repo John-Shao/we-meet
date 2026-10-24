@@ -14,6 +14,8 @@ put inside any custom role. Only the organization's own owner/administrator has
 it. Without that rule an HR role could write itself ``org.role.write`` once and
 then grant itself everything.
 """
+# pylint: disable=missing-function-docstring,attribute-defined-outside-init
+# pylint: disable=too-many-ancestors
 
 from django.db import transaction
 from django.db.models import Count
@@ -56,7 +58,9 @@ class HasOrgPermission(permissions.IsAuthenticated):
         if organization is not None and not organization.is_active:
             if organization.archived_at is not None:
                 if request.method not in drf_permissions.SAFE_METHODS:
-                    raise exceptions.PermissionDenied({"code": "organization_read_only"})
+                    raise exceptions.PermissionDenied(
+                        {"code": "organization_read_only"}
+                    )
             else:
                 # Suspended: administration is off, not read-only.
                 return False
@@ -131,9 +135,7 @@ class AdminRoleSerializer(serializers.ModelSerializer):
         permission_codes = attrs.get("permissions")
         if self.instance is None or permission_codes is None:
             return attrs
-        offenders = sorted(
-            set(permission_codes) & permissions_registry.UNSCOPABLE
-        )
+        offenders = sorted(set(permission_codes) & permissions_registry.UNSCOPABLE)
         if not offenders:
             return attrs
         scoped = models.AdminRoleAssignment.objects.filter(

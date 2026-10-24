@@ -10,6 +10,8 @@ from core.services import organization_lifecycle
 
 
 class Command(BaseCommand):
+    """Provider-only operator entry point for tenant lifecycle transitions."""
+
     help = "Suspend, activate, archive or restore a tenant organization."
 
     def add_arguments(self, parser):
@@ -80,9 +82,7 @@ class Command(BaseCommand):
 
         handler = getattr(organization_lifecycle, action)
         try:
-            result = handler(
-                organization, actor=actor, reason=options["reason"]
-            )
+            result = handler(organization, actor=actor, reason=options["reason"])
         except organization_lifecycle.LifecycleError as exc:
             raise CommandError(f"{exc.code}: {exc.detail}") from exc
 

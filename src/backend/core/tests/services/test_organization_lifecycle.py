@@ -1,4 +1,5 @@
 """Organization lifecycle service tests (P0-4)."""
+# pylint: disable=missing-function-docstring,redefined-outer-name
 
 import uuid
 
@@ -197,7 +198,9 @@ def test_archive_closes_entitlement_revokes_grants_and_stops_work(org, actor):
     assert (run.status, run.error_code) == ("canceled", "org_disabled")
     assert (review.status, review.error_code) == ("canceled", "org_disabled")
 
-    grant_audit = WorkAccessAudit.objects.get(action=WorkAccessAudit.Action.GRANT_REVOKED)
+    grant_audit = WorkAccessAudit.objects.get(
+        action=WorkAccessAudit.Action.GRANT_REVOKED
+    )
     assert grant_audit.target_id == str(grant.pk)
     assert grant_audit.actor_id == actor.id
     assert grant_audit.before["enabled"] is True
@@ -289,9 +292,7 @@ def test_restore_on_active_organization_is_a_noop(org, actor):
     assert organization_lifecycle.restore(org, actor=actor)["changed"] is False
 
 
-def test_archive_rolls_back_when_terminal_backlog_is_too_large(
-    org, actor, monkeypatch
-):
+def test_archive_rolls_back_when_terminal_backlog_is_too_large(org, actor, monkeypatch):
     entitlement = _entitlement(org)
     membership = _member(org)
     grant = _grant(org, membership.user)
@@ -323,6 +324,7 @@ def test_preview_counts_archived_candidates(org):
         "runs_cancelled": 1,
         "reviews_cancelled": 1,
     }
-    assert organization_lifecycle.preview_counts(org, action="suspend")[
-        "grants_revoked"
-    ] == 0
+    assert (
+        organization_lifecycle.preview_counts(org, action="suspend")["grants_revoked"]
+        == 0
+    )
