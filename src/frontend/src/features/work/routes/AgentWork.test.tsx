@@ -162,10 +162,37 @@ describe('Agent Work integration', () => {
     expect(
       screen.queryByRole('link', { name: '表格分析' })
     ).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '周报' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '周报' })
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: '表格分析' })
     ).not.toBeInTheDocument()
+  })
+  it('does not expose unimplemented feature entries in navigation', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((media: string) => ({
+        matches: false,
+        media,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      }))
+    )
+    mount('new', true)
+    expect(screen.queryByText('筹备中的功能')).not.toBeInTheDocument()
+    for (const label of [
+      '我的工作',
+      '助理',
+      '项目',
+      '专家·技能·连接器',
+      '定时任务',
+      '成果与资料库',
+    ]) {
+      expect(
+        screen.queryByRole('link', { name: label })
+      ).not.toBeInTheDocument()
+    }
   })
   it('reuses admission key after an unknown response and sends selected material identity', async () => {
     vi.mocked(tasks.createTask).mockRejectedValue(

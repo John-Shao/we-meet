@@ -6,12 +6,6 @@ import {
   RiBriefcaseLine,
   RiChatQuoteLine,
   RiFileTextLine,
-  RiFolderLine,
-  RiFunctionLine,
-  RiHistoryLine,
-  RiRobot2Line,
-  RiTimeLine,
-  RiBookOpenLine,
   type RemixiconComponentType,
 } from '@remixicon/react'
 import { ResizablePanel } from '@/components/ResizablePanel'
@@ -24,7 +18,6 @@ interface WorkModule {
   label: string
   icon: RemixiconComponentType
   description: string
-  planned?: boolean
 }
 
 const groups: { label: string; items: WorkModule[] }[] = [
@@ -36,14 +29,6 @@ const groups: { label: string; items: WorkModule[] }[] = [
         label: '新建任务',
         icon: RiAddCircleLine,
         description: '选择一项工作，从材料开始。',
-      },
-      {
-        id: 'tasks',
-        label: '我的工作',
-        icon: RiHistoryLine,
-        description:
-          '集中查看进行中、待处理和已完成的工作。统一任务列表即将开放，已有沟通准备任务可在沟通准备中查看。',
-        planned: true,
       },
     ],
   },
@@ -61,47 +46,6 @@ const groups: { label: string; items: WorkModule[] }[] = [
         label: '沟通准备',
         icon: RiChatQuoteLine,
         description: '根据材料整理背景、议程、问题和建议话术。',
-      },
-    ],
-  },
-  {
-    label: '工作空间',
-    items: [
-      {
-        id: 'assistant',
-        label: '助理',
-        icon: RiRobot2Line,
-        description: '连接工作设备，管理个人助理与持续协作。',
-        planned: true,
-      },
-      {
-        id: 'projects',
-        label: '项目',
-        icon: RiFolderLine,
-        description: '按项目组织目标、材料、任务与成果。',
-        planned: true,
-      },
-      {
-        id: 'capabilities',
-        label: '专家·技能·连接器',
-        icon: RiFunctionLine,
-        description: '发现专家和技能，管理工作中使用的连接器。',
-        planned: true,
-      },
-      {
-        id: 'schedules',
-        label: '定时任务',
-        icon: RiTimeLine,
-        description: '安排周期性工作，查看每次运行的记录。',
-        planned: true,
-      },
-      {
-        id: 'library',
-        label: '成果与资料库',
-        icon: RiBookOpenLine,
-        description:
-          '查找和复用工作资料及成果。统一资料库即将开放，当前可在沟通准备任务中编辑、采纳和下载成果。',
-        planned: true,
       },
     ],
   },
@@ -162,42 +106,12 @@ export const WorkNavigation = ({
         collapseLabel="收起工作导航"
       />
       <nav aria-label="工作模块" className="work-nav-groups">
-        {groups
-          .filter((group) => group.items.some((item) => !item.planned))
-          .map((group) => (
-            <div className="work-nav-group" key={group.label}>
-              {group.label !== '工作' && (
-                <p className="work-nav-label">{group.label}</p>
-              )}
-              {group.items
-                .filter((item) => !item.planned)
-                .map(({ id, label, icon: Icon }) => (
-                  <Link
-                    key={id}
-                    href={hrefFor(id)}
-                    className="work-nav-link"
-                    aria-current={active === id ? 'page' : undefined}
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <Icon size={19} aria-hidden="true" />
-                    <span>{label}</span>
-                  </Link>
-                ))}
-            </div>
-          ))}
-        <details
-          className="work-nav-more"
-          open={groups.some((group) =>
-            group.items.some((item) => item.id === active && item.planned)
-          )}
-        >
-          <summary>
-            更多<span>筹备中的功能</span>
-          </summary>
-          {groups
-            .flatMap((group) => group.items)
-            .filter((item) => item.planned)
-            .map(({ id, label, icon: Icon }) => (
+        {groups.map((group) => (
+          <div className="work-nav-group" key={group.label}>
+            {group.label !== '工作' && (
+              <p className="work-nav-label">{group.label}</p>
+            )}
+            {group.items.map(({ id, label, icon: Icon }) => (
               <Link
                 key={id}
                 href={hrefFor(id)}
@@ -207,10 +121,10 @@ export const WorkNavigation = ({
               >
                 <Icon size={19} aria-hidden="true" />
                 <span>{label}</span>
-                <small>待开放</small>
               </Link>
             ))}
-        </details>
+          </div>
+        ))}
       </nav>
       <div ref={setSidebarTarget} className="work-sidebar-tasks" />
     </aside>
@@ -243,10 +157,6 @@ export const WorkNavigation = ({
 }
 
 export const WorkModulePage = ({ view }: { view: string }) => {
-  const group = groups.find((item) =>
-    item.items.some((module) => module.id === view)
-  )
-  const module = group?.items.find((item) => item.id === view)
   if (view === 'new')
     return (
       <section className="work-materials" aria-label="新建工作任务">
@@ -258,39 +168,30 @@ export const WorkModulePage = ({ view }: { view: string }) => {
           </div>
         </header>
         <div className="work-entry-grid">
-          {groups[1].items.map(
-            ({ id, label, icon: Icon, description, planned }) => (
-              <Link href={hrefFor(id)} key={id} className="work-entry-card">
-                <Icon size={26} aria-hidden="true" />
-                <h2>
-                  {label}
-                  {planned && <small>待开放</small>}
-                </h2>
-                <p>{description}</p>
-                <span>{planned ? '了解功能' : '开始使用'} →</span>
-              </Link>
-            )
-          )}
+          {groups[1].items.map(({ id, label, icon: Icon, description }) => (
+            <Link href={hrefFor(id)} key={id} className="work-entry-card">
+              <Icon size={26} aria-hidden="true" />
+              <h2>{label}</h2>
+              <p>{description}</p>
+              <span>开始使用 →</span>
+            </Link>
+          ))}
         </div>
       </section>
     )
-  const Icon = module?.icon ?? RiBriefcaseLine
   return (
-    <section
-      className="work-materials"
-      aria-label={module?.label ?? '未找到工作模块'}
-    >
+    <section className="work-materials" aria-label="这个入口暂不可用">
       <header className="work-heading">
         <div>
-          <p className="work-eyebrow">{group?.label ?? '工作'}</p>
-          <h1>{module?.label ?? '未找到工作模块'}</h1>
+          <p className="work-eyebrow">工作</p>
+          <h1>这个入口暂不可用</h1>
+          <p>请从工作导航选择已开放的工作模块。</p>
         </div>
       </header>
       <div className="work-module-placeholder">
-        <Icon size={40} aria-hidden="true" />
-        <h2>{module ? '功能筹备中' : '这个入口暂不可用'}</h2>
-        <p>{module?.description ?? '请从工作导航选择其他模块。'}</p>
-        <p className="work-muted">你可以先上传工作材料，或使用沟通准备。</p>
+        <RiBriefcaseLine size={40} aria-hidden="true" />
+        <h2>你可以先处理材料</h2>
+        <p className="work-muted">上传并核对工作材料，或直接开始沟通准备。</p>
         <div className="work-actions">
           <Link
             className="work-button work-primary"

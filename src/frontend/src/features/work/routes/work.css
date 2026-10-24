@@ -23,20 +23,6 @@
 .work-sidebar:has(.work-sidebar-tasks:empty) .work-nav-groups {
   max-height: none;
 }
-.work-nav-more {
-  margin-top: 16px;
-}
-.work-nav-more > summary {
-  cursor: pointer;
-  padding: 8px 10px;
-  font-size: 13px;
-  color: var(--colors-greyscale-700);
-}
-.work-nav-more > summary span {
-  margin-left: 10px;
-  font-size: 11px;
-  color: var(--colors-greyscale-600);
-}
 .work-sidebar-tasks {
   flex: 1;
   min-height: 0;
@@ -71,8 +57,7 @@
   opacity: 0.5;
   cursor: default;
 }
-.work-sidebar-tasks button:focus-visible,
-.work-nav-more summary:focus-visible {
+.work-sidebar-tasks button:focus-visible {
   outline: 2px solid var(--colors-primary-500);
   outline-offset: -2px;
 }
@@ -175,12 +160,6 @@
 }
 .work-nav-link span {
   flex: 1;
-}
-.work-nav-link small,
-.work-entry-card small {
-  font-size: 11px;
-  white-space: nowrap;
-  color: var(--colors-greyscale-600);
 }
 .work-nav-link:hover,
 .work-entry-card:hover {
