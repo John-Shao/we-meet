@@ -29,6 +29,7 @@ import { TasksRoute } from '@/features/tasks'
 import { WorkRoute } from '@/features/work/routes/WorkRoute'
 import { AiCallRoute } from '@/features/ai-call/AiCallRoute'
 import { AiAssistantRoute } from '@/features/ai-assistant/AiAssistantRoute'
+import { AppsRoute } from '@/features/apps/AppsPage'
 
 const roomIdRegex = new RegExp(`^[/](?<roomId>${flexibleRoomIdPattern})$`)
 
@@ -60,6 +61,7 @@ export const routes: Record<
   | 'approval'
   | 'tasks'
   | 'work'
+  | 'apps'
   | 'docs'
   | 'invite'
   | 'aiCall'
@@ -198,6 +200,11 @@ export const routes: Record<
     path: docIdRegex,
     to: (docId?: string) => (docId ? `/docs/${docId.trim()}` : '/docs'),
     Component: DocsRoute,
+  },
+  apps: {
+    name: 'apps',
+    path: '/apps',
+    Component: AppsRoute,
   },
   // 邀请落地页 —— 收到链接的人多半还没登录,所以这一页**必须匿名可开**。
   // Layout 已按 isLoggedIn 分支处理匿名态,不要为它再造一套根树。

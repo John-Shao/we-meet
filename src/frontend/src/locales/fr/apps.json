@@ -1,0 +1,64 @@
+{
+  "title": "Applications",
+  "favorites": "Favoris",
+  "allApps": "Toutes les applications",
+  "addFavorites": "Ajouter des favoris",
+  "manage": "Gérer les favoris",
+  "done": "Terminer",
+  "back": "Retour",
+  "addedCount": "Ajoutées ({{count}})",
+  "search": "Rechercher une application",
+  "categories": "Catégories",
+  "add": "Ajouter",
+  "added": "Ajoutée",
+  "remove": "Retirer",
+  "addName": "Ajouter {{name}}",
+  "addedName": "{{name}} ajoutée",
+  "removeName": "Retirer {{name}}",
+  "dragName": "Déplacer {{name}}",
+  "moveUp": "Monter {{name}}",
+  "moveDown": "Descendre {{name}}",
+  "reorderHint": "Glissez la poignée ou utilisez les flèches pour réordonner. Les modifications sont enregistrées automatiquement.",
+  "orderSaved": "Ordre des favoris enregistré",
+  "emptyFavorites": "Ajoutez des applications pour les retrouver ici.",
+  "emptySearch": "Aucune application correspondante",
+  "emptyRecent": "Les applications utilisées apparaîtront ici.",
+  "emptyApps": "Aucune application dans cette catégorie.",
+  "groups": {
+    "all": "Toutes",
+    "recent": "Récemment utilisées",
+    "time": "Agenda et tâches",
+    "organization": "Organisation et processus",
+    "ai": "Outils IA"
+  },
+  "items": {
+    "calendar": {
+      "name": "Agenda",
+      "description": "Gérer les événements et les réunions."
+    },
+    "tasks": {
+      "name": "Tâches",
+      "description": "Suivre les tâches et leur progression."
+    },
+    "contacts": {
+      "name": "Contacts",
+      "description": "Rechercher des collègues et des services."
+    },
+    "approval": {
+      "name": "Approbations",
+      "description": "Envoyer des demandes et traiter les validations."
+    },
+    "communication": {
+      "name": "Préparation des échanges",
+      "description": "Préparer le contexte, les questions et les arguments."
+    },
+    "weekly": {
+      "name": "Rapport hebdomadaire",
+      "description": "Récapituler les avancées et préparer un rapport."
+    },
+    "spreadsheet": {
+      "name": "Analyse de tableaux",
+      "description": "Analyser les données et résumer les résultats."
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "title": "Apps",
+  "favorites": "Favorites",
+  "allApps": "All apps",
+  "addFavorites": "Add favorites",
+  "manage": "Manage favorites",
+  "done": "Done",
+  "back": "Back",
+  "addedCount": "Added ({{count}})",
+  "search": "Search apps",
+  "categories": "App categories",
+  "add": "Add",
+  "added": "Added",
+  "remove": "Remove",
+  "addName": "Add {{name}}",
+  "addedName": "{{name}} added",
+  "removeName": "Remove {{name}}",
+  "dragName": "Drag {{name}} to reorder",
+  "moveUp": "Move {{name}} up",
+  "moveDown": "Move {{name}} down",
+  "reorderHint": "Drag the handle to reorder, or use the arrow buttons. Changes are saved automatically.",
+  "orderSaved": "Favorite order saved",
+  "emptyFavorites": "Add apps to keep them handy here.",
+  "emptySearch": "No matching apps",
+  "emptyRecent": "Apps you open will appear here.",
+  "emptyApps": "No apps in this category.",
+  "groups": {
+    "all": "All",
+    "recent": "Recently used",
+    "time": "Time and tasks",
+    "organization": "Organization and workflows",
+    "ai": "AI tools"
+  },
+  "items": {
+    "calendar": {
+      "name": "Calendar",
+      "description": "Manage schedules and meeting arrangements."
+    },
+    "tasks": {
+      "name": "Tasks",
+      "description": "Track tasks and progress."
+    },
+    "contacts": {
+      "name": "Contacts",
+      "description": "Find colleagues and organizational contacts."
+    },
+    "approval": {
+      "name": "Approvals",
+      "description": "Submit requests and review pending approvals."
+    },
+    "communication": {
+      "name": "Communication preparation",
+      "description": "Prepare agendas, questions and talking points from materials."
+    },
+    "weekly": {
+      "name": "Weekly report",
+      "description": "Summarize progress and prepare a weekly report."
+    },
+    "spreadsheet": {
+      "name": "Spreadsheet analysis",
+      "description": "Analyze spreadsheet data and summarize findings."
+    }
+  }
+}
