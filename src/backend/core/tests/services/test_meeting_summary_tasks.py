@@ -6,6 +6,7 @@ from threading import Barrier
 
 from django.db import close_old_connections, connection
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 
 import pytest
 
@@ -45,6 +46,28 @@ def setup():
     return user, record, review, data
 
 
+def make_linked_task(*, record, review, user, title, action_index, **fields):
+    task = models.Task.objects.create(
+        title=title,
+        creator=user,
+        organization_id=record.organization_id,
+        assignee=user,
+        **fields,
+    )
+    models.MeetingSummaryTaskLink.objects.create(
+        record=record,
+        review=review,
+        action_index=action_index,
+        action_hash=uuid.uuid4().hex,
+        task=task,
+        author=user,
+        key=uuid.uuid4(),
+        request_hash=uuid.uuid4().hex,
+        confirmed={"title": title},
+    )
+    return task
+
+
 def test_explicit_conversion_and_replay_leave_source_unchanged():
     user, record, review, data = setup()
     key = uuid.uuid4()
@@ -60,6 +83,7 @@ def test_explicit_conversion_and_replay_leave_source_unchanged():
     task = api.get(f"/api/v1.0/tasks/{link.task_id}/").json()
     assert task["source_record_id"] == str(record.pk)
     assert task["source_record_title"] == record.title
+    assert task["source_record_trashed"] is False
     assert task["source_room_id"] is None
     models.MeetingRecord.objects.filter(pk=record.pk).update(title="")
     assert (
@@ -73,41 +97,122 @@ def test_explicit_conversion_and_replay_leave_source_unchanged():
         service.convert(record.pk, user, key, {**data, "title": "Changed"})
 
 
+def test_source_record_trashed_flag_follows_the_record_lifecycle():
+    user, record, review, data = setup()
+    link, _ = service.convert(record.pk, user, uuid.uuid4(), data)
+    api = client_for(user)
+    url = f"/api/v1.0/tasks/{link.task_id}/"
+    assert api.get(url).json()["source_record_trashed"] is False
+
+    models.MeetingRecord.objects.filter(pk=record.pk).update(deleted_at=timezone.now())
+    task = api.get(url).json()
+    assert task["source_record_id"] == str(record.pk)
+    assert task["source_record_title"] == record.title
+    assert task["source_record_trashed"] is True
+
+    models.MeetingRecord.objects.filter(pk=record.pk).update(deleted_at=None)
+    assert api.get(url).json()["source_record_trashed"] is False
+
+
 def test_task_list_source_backlink_queries_are_bounded():
     user, record, review, data = setup()
     link, _ = service.convert(record.pk, user, uuid.uuid4(), data)
+    unlinked_ids = {
+        str(
+            models.Task.objects.create(
+                title=f"Unlinked task {index}",
+                creator=user,
+                organization_id=record.organization_id,
+                assignee=user,
+            ).pk
+        )
+        for index in range(3)
+    }
     api = client_for(user)
     assert api.get("/api/v1.0/tasks/").status_code == 200
 
     with CaptureQueriesContext(connection) as one:
         response = api.get("/api/v1.0/tasks/")
     assert response.status_code == 200
-    assert [row["id"] for row in response.json()["results"]] == [str(link.task_id)]
+    assert {row["id"] for row in response.json()["results"]} == {
+        str(link.task_id),
+        *unlinked_ids,
+    }
 
+    linked_ids = {str(link.task_id)}
     for index in range(5):
-        task = models.Task.objects.create(
-            title=f"Linked task {index}",
-            creator=user,
-            organization_id=record.organization_id,
-            assignee=user,
-        )
-        models.MeetingSummaryTaskLink.objects.create(
+        task = make_linked_task(
             record=record,
             review=review,
+            user=user,
+            title=f"Linked task {index}",
             action_index=index + 1,
-            action_hash=f"bounded-{index}",
-            task=task,
-            author=user,
-            key=uuid.uuid4(),
-            request_hash=f"bounded-{index}",
-            confirmed={"title": f"Linked task {index}"},
         )
+        linked_ids.add(str(task.pk))
 
     with CaptureQueriesContext(connection) as many:
         response = api.get("/api/v1.0/tasks/")
     assert response.status_code == 200
-    assert len(response.json()["results"]) == 6
+    assert {row["id"] for row in response.json()["results"]} == {
+        *linked_ids,
+        *unlinked_ids,
+    }
     assert len(many) == len(one)
+
+
+def test_subtask_reorder_source_backlink_queries_are_bounded():
+    user, record, review, _ = setup()
+    parent = models.Task.objects.create(
+        title="Parent",
+        creator=user,
+        organization_id=record.organization_id,
+        assignee=user,
+    )
+    first = make_linked_task(
+        record=record,
+        review=review,
+        user=user,
+        title="First linked child",
+        action_index=0,
+        parent=parent,
+        position=0,
+    )
+    api = client_for(user)
+    url = f"/api/v1.0/tasks/{parent.pk}/subtasks/reorder/"
+
+    with CaptureQueriesContext(connection) as one:
+        response = api.post(url, {"task_ids": [str(first.pk)]}, format="json")
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()] == [str(first.pk)]
+
+    for index in range(1, 6):
+        make_linked_task(
+            record=record,
+            review=review,
+            user=user,
+            title=f"Linked child {index}",
+            action_index=index,
+            parent=parent,
+            position=index,
+        )
+    children = models.Task.objects.filter(parent=parent).order_by(
+        "position", "created_at"
+    )
+    ordered_ids = [str(child.pk) for child in children]
+
+    with CaptureQueriesContext(connection) as many:
+        response = api.post(url, {"task_ids": ordered_ids}, format="json")
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()] == ordered_ids
+
+    def backlink_queries(captured):
+        return [
+            query["sql"]
+            for query in captured.captured_queries
+            if "meetingsummarytasklink" in query["sql"].lower()
+        ]
+
+    assert len(backlink_queries(one)) == len(backlink_queries(many))
 
 
 def test_same_action_across_revisions_reuses_task_and_deleted_task_is_not_recreated():
@@ -136,6 +241,13 @@ def test_same_action_across_revisions_reuses_task_and_deleted_task_is_not_recrea
     receipt, created = service.convert(record.pk, user, uuid.uuid4(), next_data)
     assert not created and receipt.task_id is None
     assert not models.Task.objects.exists()
+    action = (
+        client_for(user)
+        .get(f"/api/v1.0/meeting-records/{record.pk}/summary-tasks/")
+        .json()["actions"][0]
+    )
+    assert action["task_id"] is None
+    assert action["deleted"] is True
 
 
 def test_stale_revision_foreign_owner_and_disabled_writes_are_rejected(settings):

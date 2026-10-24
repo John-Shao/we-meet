@@ -1246,14 +1246,22 @@ export const TaskDetailPanel = ({
           )}
 
           {task.source_record_id ? (
-            <Link
-              href={`/meeting/records/${task.source_record_id}?tab=summary`}
-              className={sourceLinkCss}
-            >
-              {t('sourceMeeting', {
-                name: task.source_record_title || t('meeting'),
-              })}
-            </Link>
+            task.source_record_trashed ? (
+              <span className={sourceTextCss}>
+                {t('sourceTrashed', {
+                  name: task.source_record_title || t('standaloneRecord'),
+                })}
+              </span>
+            ) : (
+              <Link
+                href={`/meeting/records/${task.source_record_id}?tab=summary`}
+                className={sourceLinkCss}
+              >
+                {task.source_record_title
+                  ? t('sourceMeeting', { name: task.source_record_title })
+                  : t('sourceRecord', { name: t('standaloneRecord') })}
+              </Link>
+            )
           ) : (
             task.source_room_id && (
               <Link
@@ -2319,6 +2327,7 @@ const detailInlineSelectCss = css({
   },
 })
 const sourceLinkCss = css({ color: 'primary.600', textDecoration: 'none' })
+const sourceTextCss = css({ color: 'default.subtle-text' })
 const headerMenuItemCss = css({
   display: 'flex',
   alignItems: 'center',

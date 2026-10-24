@@ -16,7 +16,10 @@
     "close": "Benachrichtigung schließen"
   },
   "meeting": "Meeting",
+  "standaloneRecord": "Eigenständige Aufnahme oder Import",
   "sourceMeeting": "Quell-Meeting: {{name}}",
+  "sourceRecord": "Quellaufzeichnung: {{name}}",
+  "sourceTrashed": "Quelle: {{name}} (im Papierkorb)",
   "sourceMessage": "Quellnachricht anzeigen",
   "workspace": {
     "navigation": "Aufgabenansichten",

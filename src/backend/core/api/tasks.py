@@ -2359,7 +2359,10 @@ class TaskViewSet(
             children = list(
                 models.Task.objects.select_for_update(of=("self",))
                 .filter(parent=parent)
-                .select_related("task_list")
+                .select_related(
+                    "task_list",
+                    "meeting_summary_link__record__meeting_session__room",
+                )
                 .order_by("position", "created_at")
             )
             if not _can_manage_task_content(parent, request.user) or any(

@@ -16,7 +16,10 @@
     "close": "Fermer la notification"
   },
   "meeting": "Réunion",
+  "standaloneRecord": "Enregistrement ou import autonome",
   "sourceMeeting": "Réunion source : {{name}}",
+  "sourceRecord": "Enregistrement source : {{name}}",
+  "sourceTrashed": "Source : {{name}} (dans la corbeille)",
   "sourceMessage": "Voir le message source",
   "workspace": {
     "navigation": "Vues des tâches",

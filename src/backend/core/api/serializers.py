@@ -921,6 +921,7 @@ class TaskSerializer(serializers.ModelSerializer):
     source_room_name = serializers.SerializerMethodField()
     source_record_id = serializers.SerializerMethodField()
     source_record_title = serializers.SerializerMethodField()
+    source_record_trashed = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     can_move = serializers.SerializerMethodField()
     can_update_status = serializers.SerializerMethodField()
@@ -1122,6 +1123,10 @@ class TaskSerializer(serializers.ModelSerializer):
             return record.meeting_session.room.name
         return None
 
+    def get_source_record_trashed(self, obj):
+        link = getattr(obj, "meeting_summary_link", None)
+        return bool(link is not None and link.record.deleted_at is not None)
+
     def get_recurrence(self, obj):
         rule = obj.recurrence_rule
         if rule is None:
@@ -1173,6 +1178,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "source_room_name",
             "source_record_id",
             "source_record_title",
+            "source_record_trashed",
             "source_message",
             "can_edit",
             "can_move",

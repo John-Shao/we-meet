@@ -1674,6 +1674,19 @@ const TaskTitle = ({
   const filteredParent = showAncestorPath
     ? task.ancestor_path.find((node) => node.id === task.parent_id)
     : undefined
+  const recordSourceName = task.source_record_title || task.source_room_name
+  let sourceText: string | null = null
+  if (task.source_record_trashed) {
+    sourceText = t('sourceTrashed', {
+      name: recordSourceName || t('standaloneRecord'),
+    })
+  } else if (task.source_record_id) {
+    sourceText = recordSourceName
+      ? t('sourceMeeting', { name: recordSourceName })
+      : t('sourceRecord', { name: t('standaloneRecord') })
+  } else if (task.source_room_name) {
+    sourceText = t('sourceMeeting', { name: task.source_room_name })
+  }
   return (
     <span
       className={titleCellCss}
@@ -1701,13 +1714,7 @@ const TaskTitle = ({
           </span>
         )}
       </span>
-      {(task.source_record_title || task.source_room_name) && (
-        <span className={titleMetaCss}>
-          {t('sourceMeeting', {
-            name: task.source_record_title || task.source_room_name,
-          })}
-        </span>
-      )}
+      {sourceText && <span className={titleMetaCss}>{sourceText}</span>}
     </span>
   )
 }

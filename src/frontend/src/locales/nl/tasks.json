@@ -16,7 +16,10 @@
     "close": "Melding sluiten"
   },
   "meeting": "Vergadering",
+  "standaloneRecord": "Losse opname of import",
   "sourceMeeting": "Bronvergadering: {{name}}",
+  "sourceRecord": "Bronrecord: {{name}}",
+  "sourceTrashed": "Bron: {{name}} (in prullenbak)",
   "sourceMessage": "Bronbericht bekijken",
   "workspace": {
     "navigation": "Taakweergaven",

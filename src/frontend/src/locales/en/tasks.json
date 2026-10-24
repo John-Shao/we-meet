@@ -16,7 +16,10 @@
     "close": "Close notification"
   },
   "meeting": "Meeting",
+  "standaloneRecord": "Standalone recording or upload",
   "sourceMeeting": "Source meeting: {{name}}",
+  "sourceRecord": "Source record: {{name}}",
+  "sourceTrashed": "Source: {{name}} (in trash)",
   "sourceMessage": "View source message",
   "workspace": {
     "navigation": "Task views",

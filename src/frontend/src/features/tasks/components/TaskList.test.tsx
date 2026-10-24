@@ -182,11 +182,48 @@ describe('TaskList', () => {
 
     expect(screen.getByText('sourceMeeting:Record title')).toBeInTheDocument()
 
-    rerender(
-      <TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />
-    )
+    rerender(<TaskList tasks={[task]} onOpen={vi.fn()} registerRow={vi.fn()} />)
 
     expect(screen.getByText('sourceMeeting:Weekly sync')).toBeInTheDocument()
+  })
+
+  it('labels untitled standalone records and trashed records', () => {
+    const { rerender } = render(
+      <TaskList
+        tasks={[
+          {
+            ...task,
+            source_record_id: 'record-2',
+            source_record_title: null,
+            source_room_id: null,
+            source_room_name: null,
+          },
+        ]}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByText('sourceRecord:standaloneRecord')
+    ).toBeInTheDocument()
+
+    rerender(
+      <TaskList
+        tasks={[
+          {
+            ...task,
+            source_record_id: 'record-1',
+            source_record_title: 'Record title',
+            source_record_trashed: true,
+          },
+        ]}
+        onOpen={vi.fn()}
+        registerRow={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('sourceTrashed:Record title')).toBeInTheDocument()
   })
 
   it('renders visible columns in the configured order', () => {
