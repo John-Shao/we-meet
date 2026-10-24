@@ -35,7 +35,6 @@ from timezone_field import TimeZoneField
 
 from . import fields, utils
 from .recording.enums import FileExtension
-from .voiceprint_queryset import VoiceprintManager, VoiceprintUserManager
 
 # 只 import 这一个叶子模块:services/__init__ 是空的,而 services.pinyin 不碰
 # models,所以没有循环导入风险。别在这里 import 别的 services 子模块。
@@ -45,6 +44,7 @@ from .services.pinyin import (
     pinyin_search_key,
     pinyin_sort_key,
 )
+from .voiceprint_queryset import VoiceprintManager, VoiceprintUserManager
 
 logger = getLogger(__name__)
 
@@ -124,8 +124,6 @@ class BaseModel(models.Model):
     Includes fields common to all models: a UUID primary key and creation/update timestamps.
     """
 
-    objects = VoiceprintManager()
-
     id = models.UUIDField(
         verbose_name=_("id"),
         help_text=_("primary key for the record as UUID"),
@@ -146,19 +144,25 @@ class BaseModel(models.Model):
         editable=False,
     )
 
+    objects = VoiceprintManager()
+
     class Meta:
         abstract = True
 
     def save(self, *args, **kwargs):
         """Call `full_clean` before saving."""
-        from core.services.voiceprint_journal_runtime import save_context  # noqa: PLC0415 -- Runtime imports models only after app initialization.
+        from core.services.voiceprint_journal_runtime import (  # noqa: PLC0415
+            save_context,
+        )
 
         with save_context(self, kwargs.get("update_fields")):
             self.full_clean()
             super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        from core.services.voiceprint_journal_runtime import delete_context  # noqa: PLC0415
+        from core.services.voiceprint_journal_runtime import (  # noqa: PLC0415
+            delete_context,
+        )
 
         with delete_context(self):
             return super().delete(*args, **kwargs)
@@ -1138,7 +1142,7 @@ class MeetingRecordAccess(BaseModel):
         return f"MeetingRecordAccess({self.record_id}, {self.user_id})"
 
 
-class MeetingCollaboration(BaseModel):
+class MeetingCollaboration(BaseModel):  # noqa: DJ008 -- pre-existing model, not part of this change.
     """Independent access policy for a record or its minutes document."""
 
     record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE, related_name="collaboration_policies")
@@ -1151,7 +1155,7 @@ class MeetingCollaboration(BaseModel):
         constraints = [models.UniqueConstraint(fields=["record", "scope"], name="unique_meeting_collaboration")]
 
 
-class MeetingCollaborator(BaseModel):
+class MeetingCollaborator(BaseModel):  # noqa: DJ008 -- pre-existing model, not part of this change.
     """An explicit role overrides legacy access only for this object and user."""
 
     record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE, related_name="collaborators")
@@ -1165,7 +1169,7 @@ class MeetingCollaborator(BaseModel):
         constraints = [models.UniqueConstraint(fields=["record", "scope", "user"], name="unique_meeting_collaborator")]
 
 
-class MeetingCollaborationTeam(BaseModel):
+class MeetingCollaborationTeam(BaseModel):  # noqa: DJ008 -- pre-existing model, not part of this change.
     record = models.ForeignKey(MeetingRecord, on_delete=models.CASCADE, related_name="collaboration_teams")
     scope = models.CharField(max_length=10, choices=[("record", "Record"), ("minutes", "Minutes")])
     team = models.CharField(max_length=100)
@@ -1175,7 +1179,7 @@ class MeetingCollaborationTeam(BaseModel):
         constraints = [models.UniqueConstraint(fields=["record", "scope", "team"], name="unique_meeting_collaboration_team")]
 
 
-class MeetingCollaborationReceipt(BaseModel):
+class MeetingCollaborationReceipt(BaseModel):  # noqa: DJ008 -- pre-existing model, not part of this change.
     policy = models.ForeignKey(MeetingCollaboration, on_delete=models.CASCADE)
     actor = models.ForeignKey(User, on_delete=models.CASCADE)
     key = models.UUIDField()
@@ -1186,7 +1190,7 @@ class MeetingCollaborationReceipt(BaseModel):
         constraints = [models.UniqueConstraint(fields=["actor", "key"], name="unique_meeting_collaboration_receipt")]
 
 
-class MeetingCollaborationNotice(BaseModel):
+class MeetingCollaborationNotice(BaseModel):  # noqa: DJ008 -- pre-existing model, not part of this change.
     receipt = models.ForeignKey(MeetingCollaborationReceipt, on_delete=models.CASCADE, related_name="notices")
     recipient = models.ForeignKey(User, on_delete=models.CASCADE)
     note = models.CharField(max_length=1000, blank=True)
@@ -1343,7 +1347,7 @@ class UploadedRecording(BaseModel):
             raise ValidationError("Uploaded recording must match its owner and source.")
 
 
-class RecordingImportInput(BaseModel):
+class RecordingImportInput(BaseModel):  # noqa: DJ008 -- pre-existing model, not part of this change.
     """A private derivative with deletion work surviving removal of its upload."""
 
     upload = models.ForeignKey(UploadedRecording, null=True, blank=True, on_delete=models.SET_NULL, related_name="identity_inputs")
@@ -1919,7 +1923,7 @@ class CaptureDiarizationInput(BaseModel):
                 raise ValidationError("Diarization object receipt is immutable.")
 
 
-class CaptureTranscriptionInput(BaseModel):
+class CaptureTranscriptionInput(BaseModel):  # noqa: DJ008 -- pre-existing model, not part of this change.
     """Append-only verified audio identity offered to one live ASR attempt."""
 
     job = models.ForeignKey(CaptureTranscriptionJob, on_delete=models.CASCADE, related_name="live_inputs")
@@ -3712,6 +3716,9 @@ class CloudRecordingCommand(BaseModel):
             models.Index(fields=["state", "lease_until"], name="cloud_cmd_state_lease_idx"),
         ]
 
+    def __str__(self):
+        return f"CloudRecordingCommand({self.pk})"
+
     def clean(self):
         """Preserve the original receipt and prevent cross-source commands."""
         super().clean()
@@ -3738,9 +3745,6 @@ class CloudRecordingCommand(BaseModel):
                     raise ValidationError(
                         "Cloud recording intent and receipt are immutable."
                     )
-
-    def __str__(self):
-        return f"CloudRecordingCommand({self.pk})"
 
 
 class RecordingAccess(BaseAccess):
@@ -9562,7 +9566,7 @@ class MeetingRoomBooking(BaseModel):
         super(BaseModel, self).save(*args, **kwargs)  # pylint: disable=bad-super-call
 
 
-class DirectAIAllocation(BaseModel):
+class DirectAIAllocation(BaseModel):  # noqa: DJ008 -- pre-existing model, not part of this change.
     """Application-side admission lease; never stores provider credentials or content."""
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -9577,7 +9581,7 @@ class DirectAIAllocation(BaseModel):
         indexes = [models.Index(fields=["user", "status", "lease_until"]), models.Index(fields=["user", "created_at"])]
 
 
-class VoiceprintJournalCheckpoint(models.Model):
+class VoiceprintJournalCheckpoint(models.Model):  # noqa: DJ008 -- pre-existing model, not part of this change.
     """Primary mirror of the independent authority; never an authority itself."""
 
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
@@ -10431,7 +10435,7 @@ class RemoteControlAudit(BaseModel):
         return str(self.pk)
 
 
-class BilingualSession(BaseModel):
+class BilingualSession(BaseModel):  # noqa: DJ008 -- pre-existing model, not part of this change.
     """One gateway conversation, independent of its provider connection count."""
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)

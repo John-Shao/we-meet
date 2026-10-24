@@ -8,8 +8,8 @@ active owner" guard — the target receives it in the same transaction.
 
 from django.db import transaction
 
-from rest_framework.exceptions import APIException
 from rest_framework import status
+from rest_framework.exceptions import APIException
 
 from core import models
 from core.services import membership as membership_service

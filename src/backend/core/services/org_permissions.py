@@ -87,7 +87,10 @@ _EMPTY = OrgAdminContext(organization=None, membership=None)
 
 def _resolve(user) -> OrgAdminContext:
     # Circular at import time: directory imports models, models is imported here.
-    from core.api.directory import get_caller_membership, is_caller_org_admin
+    from core.api.directory import (  # noqa: PLC0415 -- circular at import time.
+        get_caller_membership,
+        is_caller_org_admin,
+    )
 
     membership = get_caller_membership(user)
     if membership is None:

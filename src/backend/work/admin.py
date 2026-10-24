@@ -12,7 +12,7 @@ class WorkMemberGrantForm(forms.ModelForm):
 
     class Meta:
         model = WorkMemberGrant
-        fields = "__all__"
+        fields = "__all__"  # noqa: DJ007 -- service owns the revoked/enabled invariant.
 
     def clean(self):
         cleaned = super().clean()

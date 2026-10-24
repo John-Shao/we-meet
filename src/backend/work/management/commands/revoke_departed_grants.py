@@ -15,6 +15,7 @@ from django.db import transaction
 from django.db.models import Exists, OuterRef
 
 from core.models import Membership, MembershipStatusChoices
+
 from work import lifecycle
 from work.models import WorkMemberGrant
 

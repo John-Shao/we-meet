@@ -111,7 +111,7 @@ def close_member_access(organization_id, user_id, *, reason, actor=None):
 
 
 @transaction.atomic
-def on_membership_left(
+def on_membership_left(  # noqa: PLR0913 -- signal payload is explicit.
     sender,
     membership,
     actor=None,

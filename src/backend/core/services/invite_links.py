@@ -204,7 +204,7 @@ def _place(request, *, actor):
     elif membership.status == models.MembershipStatusChoices.LEFT:
         # They were here before. Rehire rather than leave them departed with a
         # new department — offboarding froze things that need unfreezing.
-        from core.services import offboarding
+        from core.services import offboarding  # noqa: PLC0415 -- avoids import cycle.
 
         offboarding.rehire_membership(
             membership,
