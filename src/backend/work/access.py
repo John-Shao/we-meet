@@ -8,7 +8,7 @@ from django.db import DatabaseError
 
 from rest_framework.exceptions import APIException
 
-from core.models import Membership, MembershipStatusChoices
+from core.models import Membership, MembershipStatusChoices, Organization
 
 from .models import WorkMemberGrant, WorkOrganizationEntitlement
 
@@ -65,6 +65,15 @@ def _active_memberships(user):
     )
 
 
+def _has_active_membership(user, organization_id):
+    """Membership alone, without judging the organization's state."""
+    return Membership.objects.filter(
+        user=user,
+        organization_id=organization_id,
+        status=MembershipStatusChoices.ACTIVE,
+    ).exists()
+
+
 def member_of(user, organization):
     """Identity plus active membership in exactly this organization."""
     if not identity_ok(user) or organization is None:
@@ -92,17 +101,26 @@ def request_organization(request, user=None):
 
     The header is accepted only for an active membership; it never falls back
     to the primary organization when the caller supplied an explicit choice.
+    Organization state is judged before the membership result, so an archived
+    tenant answers ``org_disabled`` even for a member who has also left.
     """
     user = user or request.user
     requested = _requested_organization(request)
     if requested is not None:
-        if not member_of(user, requested):
+        # Organization before membership: an archived tenant must answer
+        # ``org_disabled`` even for a caller who has also left it. The reverse
+        # order would leak the membership result through the denial code.
+        _require_usable_organization(requested)
+        if not _has_active_membership(user, requested):
             raise WorkAccessDenied("member_disabled")
         return requested
     organization_ids = list(
-        _active_memberships(user).values_list("organization_id", flat=True)[:2]
+        Membership.objects.filter(
+            user=user, status=MembershipStatusChoices.ACTIVE
+        ).values_list("organization_id", flat=True)[:2]
     )
     if len(organization_ids) == 1:
+        _require_usable_organization(organization_ids[0])
         return organization_ids[0]
     if not organization_ids:
         raise WorkAccessDenied("member_disabled")
@@ -131,12 +149,8 @@ def _organization_key(organization):
         return None
 
 
-def check(user, organization, feature=None):  # noqa: PLR0911 -- one denial per gate
-    """Return None when allowed, else a stable denial code. Fail closed."""
-    if not enabled():
-        return None
-    if not identity_ok(user):
-        return "access_denied"
+def organization_denial(organization):
+    """Deny on the organization itself, before any membership judgement."""
     if organization is None:
         return "organization_required"
     organization_key = _organization_key(organization)
@@ -145,16 +159,43 @@ def check(user, organization, feature=None):  # noqa: PLR0911 -- one denial per 
     blocked = _blocked_organizations()
     if blocked is None or organization_key in blocked:
         return "org_disabled"
+    row = (
+        Organization.objects.filter(pk=organization_key)
+        .values("is_active", "archived_at")
+        .first()
+    )
+    if row is None or not row["is_active"] or row["archived_at"] is not None:
+        return "org_disabled"
+    return None
+
+
+def _require_usable_organization(organization):
+    code = organization_denial(organization)
+    if code:
+        raise WorkAccessDenied(
+            "org_disabled" if code == "organization_required" else code
+        )
+
+
+def check(user, organization, feature=None):  # noqa: PLR0911 -- one denial per gate
+    """Return None when allowed, else a stable denial code. Fail closed."""
+    if not enabled():
+        return None
+    if not identity_ok(user):
+        return "access_denied"
     try:
+        denial = organization_denial(organization)
+        if denial:
+            return denial
         entitlement = WorkOrganizationEntitlement.objects.filter(
             organization_id=organization
         ).first()
         if entitlement is None or not entitlement.enabled:
             return "org_disabled"
-        if feature and not entitlement.feature_enabled(feature):
-            return "feature_disabled"
         if not member_of(user, organization):
             return "member_disabled"
+        if feature and not entitlement.feature_enabled(feature):
+            return "feature_disabled"
         grant = WorkMemberGrant.objects.filter(
             organization_id=organization, user=user
         ).first()
@@ -191,6 +232,18 @@ def scope_denial(user, organization, feature=None):
     if organization is None:
         # Legacy null-organization rows stay owner-only while the gate is off.
         return None
+    # The gate being off does not re-admit a suspended or archived tenant:
+    # existing rows are re-checked even when new admission is not gated.
+    key = _organization_key(organization)
+    if key is None:
+        return "access_revoked"
+    row = (
+        Organization.objects.filter(pk=key)
+        .values("is_active", "archived_at")
+        .first()
+    )
+    if row is None or not row["is_active"] or row["archived_at"] is not None:
+        return "access_revoked"
     return None if member_of(user, organization) else "access_revoked"
 
 

@@ -94,13 +94,24 @@ def _resolve(user) -> OrgAdminContext:
         return _EMPTY
     organization = membership.organization
 
+    if not organization.is_active and organization.archived_at is None:
+        # Suspended: the tenant keeps its data but nobody administers it. Only
+        # archived tenants get the read-only console below.
+        return OrgAdminContext(organization=organization, membership=membership)
+
     # Deliberately ``is_caller_org_admin`` and not ``membership.org_role``: the
     # rule is "**any** active membership carries an admin role", because someone
     # whose primary membership is a plain member may still administer via a
     # second one. Reading only the primary here would silently narrow a gate
     # that has always been the broader one — M1 unified the two definitions
     # precisely so they could not drift again.
-    if is_caller_org_admin(user):
+    #
+    # ``include_archived=True``: an archived organization's console is
+    # read-only, not invisible. Without this an archived owner/admin would fail
+    # the *read* permission check too, so the console could not even load the
+    # data it is allowed to show. Writes are refused earlier, in the permission
+    # classes (``organization_read_only``), not by emptying this context.
+    if is_caller_org_admin(user, include_archived=True):
         # Owners and administrators are not modelled as role holders. Doing so
         # would mean an org could lock itself out by editing a seeded role.
         return OrgAdminContext(

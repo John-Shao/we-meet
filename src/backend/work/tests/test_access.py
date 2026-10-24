@@ -5,10 +5,12 @@ from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import DatabaseError
+from django.utils import timezone
 
 import pytest
 
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
+from core.models import Membership, MembershipStatusChoices, Organization
 
 from work import access, local_runs, runs, services
 from work.models import (
@@ -133,13 +135,13 @@ def test_header_must_be_a_uuid(client):
     assert response.data == {"code": "invalid_organization"}
 
 
-def test_header_requires_active_membership(client):
+def test_header_organization_is_validated_before_membership(client):
     grant_member(client.work_user)
     response = client.get(
         ROOT + "capabilities/", HTTP_X_ORGANIZATION_ID=str(uuid.uuid4())
     )
     assert response.status_code == 403
-    assert response.data == {"code": "member_disabled"}
+    assert response.data == {"code": "org_disabled"}
 
 
 def test_header_organization_entitlement_is_enforced(client):
@@ -417,3 +419,52 @@ def test_daily_budget_and_reservation_are_organization_scoped(
     assert runs.daily_reserved(client.work_user.pk, second) == 0
     assert runs.daily_budget(first) == 5000
     assert runs.daily_budget(second) == 100000
+
+
+def test_suspended_organization_is_denied(client):
+    organization = grant_member(client.work_user)
+    organization.is_active = False
+    organization.save(update_fields=["is_active"])
+
+    response = client.get(ROOT + "capabilities/")
+    assert response.status_code == 403
+    assert response.data == {"code": "org_disabled"}
+
+
+def test_archived_organization_denies_before_member_state(client):
+    organization = grant_member(client.work_user)
+    Membership.objects.filter(
+        organization=organization, user=client.work_user
+    ).update(status=MembershipStatusChoices.LEFT)
+    Organization.objects.filter(pk=organization.pk).update(
+        is_active=False, archived_at=timezone.now()
+    )
+
+    assert access.check(client.work_user, organization.pk) == "org_disabled"
+    response = client.get(
+        ROOT + "capabilities/", HTTP_X_ORGANIZATION_ID=str(organization.pk)
+    )
+    assert response.status_code == 403
+    assert response.data == {"code": "org_disabled"}
+
+
+def test_archived_organization_without_header_is_denied(client):
+    organization = grant_member(client.work_user)
+    Organization.objects.filter(pk=organization.pk).update(
+        is_active=False, archived_at=timezone.now()
+    )
+
+    response = client.get(ROOT + "capabilities/")
+    assert response.status_code == 403
+    assert response.data == {"code": "org_disabled"}
+
+
+def test_archived_organization_is_revoked_with_tenant_gate_off(client, settings):
+    organization = grant_member(client.work_user)
+    Organization.objects.filter(pk=organization.pk).update(
+        is_active=False, archived_at=timezone.now()
+    )
+    settings.WORK_TENANT_ACCESS_ENABLED = False
+
+    assert access.scope_denial(client.work_user, organization.pk) == "access_revoked"
+    assert access.allows_scope(client.work_user, organization.pk) is False

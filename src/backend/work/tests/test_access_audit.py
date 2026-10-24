@@ -7,7 +7,7 @@ from django.test import RequestFactory
 
 import pytest
 
-from core.factories import OrganizationFactory, UserFactory
+from core.factories import MembershipFactory, OrganizationFactory, UserFactory
 
 from work.admin import (
     WorkAccessAuditAdmin,
@@ -70,6 +70,8 @@ def test_grant_changes_and_bulk_delete_are_audited():
     operator = UserFactory()
     organization = OrganizationFactory()
     user = UserFactory()
+    MembershipFactory(user=user, organization=organization)
+    WorkOrganizationEntitlement.objects.create(organization=organization, enabled=True)
     model_admin = WorkMemberGrantAdmin(WorkMemberGrant, admin.site)
     grant = WorkMemberGrant(organization=organization, user=user, enabled=True)
 
@@ -92,6 +94,12 @@ def test_grant_changes_and_bulk_delete_are_audited():
     assert deleted.target_id == target_id
     assert deleted.request_id == "req-bulk"
     assert deleted.before["enabled"] is False
+
+
+def test_grants_cannot_be_hard_deleted_from_the_admin():
+    """Revocation is a soft state change; the row is the evidence of the seat."""
+    model_admin = WorkMemberGrantAdmin(WorkMemberGrant, admin.site)
+    assert model_admin.has_delete_permission(None) is False
 
 
 def test_audit_failure_never_breaks_the_admin_mutation():

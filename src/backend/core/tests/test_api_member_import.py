@@ -117,6 +117,43 @@ def test_departed_person_is_a_rehire_not_a_create():
     assert results[0].action == member_import.ACTION_REHIRE
 
 
+def test_a_file_cannot_demote_an_owner():
+    """Ownership writes go through the service that enforces the owner-only rule."""
+    organization, _admin = _org_with_admin()
+    _member(organization, "boss@x.com", org_role=models.OrgRoleChoices.OWNER)
+    _headers, rows = member_import.parse_csv(
+        _csv("email,org_role", "boss@x.com,administrator")
+    )
+    results = member_import.preflight(organization, rows, False)
+
+    assert results[0].action == member_import.ACTION_ERROR
+    assert "Ownership cannot be changed" in results[0].errors[0]
+
+
+def test_apply_rechecks_ownership_after_the_preview():
+    """The preview may be minutes old; the write must re-read the role."""
+    organization, admin = _org_with_admin()
+    membership = _member(organization, "boss@x.com")
+    _headers, rows = member_import.parse_csv(
+        _csv("email,org_role", "boss@x.com,administrator")
+    )
+    results = member_import.preflight(organization, rows, False)
+    assert results[0].action == member_import.ACTION_UPDATE
+
+    membership.org_role = models.OrgRoleChoices.OWNER
+    membership.save()
+
+    job = models.ImportJob.objects.create(
+        organization=organization, created_by=admin
+    )
+    applied = member_import.apply_rows(job, results, admin)
+
+    membership.refresh_from_db()
+    assert membership.org_role == models.OrgRoleChoices.OWNER
+    assert results[0].action == member_import.ACTION_ERROR
+    assert applied[member_import.ACTION_ERROR] == 1
+
+
 def test_employee_no_wins_over_email_when_matching():
     """An employee number survives an address change; the email may not."""
     organization, _admin = _org_with_admin()

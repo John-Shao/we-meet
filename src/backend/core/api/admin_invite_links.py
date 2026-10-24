@@ -92,6 +92,13 @@ class InviteLinkCreateSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def validate_org_role(self, value):
+        if value == models.OrgRoleChoices.OWNER:
+            raise serializers.ValidationError(
+                _("Invite links cannot grant ownership.")
+            )
+        return value
+
     def _organization(self):
         return self.context["organization"]
 

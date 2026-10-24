@@ -21,6 +21,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from core import models
+from core.services import membership as membership_service
 from core.services.audit import record_audit
 from core.services.phone import normalize_cn_phone
 
@@ -90,6 +91,21 @@ def apply_to_link(link, user):
         raise InviteError(
             _("You are already a member of this organization."), code="already_member"
         )
+    if (
+        membership is not None
+        and membership.status != models.MembershipStatusChoices.LEFT
+        and membership.org_role == models.OrgRoleChoices.OWNER
+        and (
+            membership.department_id != link.department_id
+            or link.org_role != models.OrgRoleChoices.OWNER
+        )
+    ):
+        # Approval would demote an owner. Reject before a pending application
+        # exists, so the queue never shows a request that can only fail.
+        raise InviteError(
+            _("Ownership changes are made by an owner in the console."),
+            code="owner_role_locked",
+        )
 
     pending = models.OrgJoinRequest.objects.filter(
         organization=link.organization,
@@ -139,6 +155,8 @@ def approve_request(request, *, actor, department=None, org_role=None):
         request.department = department
     if org_role:
         request.org_role = org_role
+    if request.org_role == models.OrgRoleChoices.OWNER:
+        raise InviteError(_("Ownership must be granted by an active owner."))
 
     _place(request, actor=actor)
 
@@ -169,6 +187,9 @@ def _place(request, *, actor):
     through and the person quietly appears twice in the directory. Updating is
     not an optimization; it is the only correct branch.
     """
+    if request.org_role == models.OrgRoleChoices.OWNER:
+        raise InviteError(_("Ownership must be granted by an active owner."))
+
     membership = _existing_membership(request.organization, request.user)
 
     if membership is None:
@@ -195,9 +216,19 @@ def _place(request, *, actor):
         # Active or suspended. Placement changes; **status does not** — a
         # suspension is an administrator's decision and approving a join
         # request is not the place to quietly undo it.
+        if membership.org_role == models.OrgRoleChoices.OWNER:
+            # Approving a member-level link must never strip ownership: that
+            # is an ownership write and belongs behind its own guard.
+            raise InviteError(
+                _("Ownership changes are made by an owner in the console."),
+                code="owner_role_locked",
+            )
+        if membership.org_role != request.org_role:
+            membership = membership_service.set_role(
+                membership, actor=actor, role=request.org_role
+            )
         membership.department = request.department
-        membership.org_role = request.org_role
-        membership.save(update_fields=["department", "org_role", "updated_at"])
+        membership.save(update_fields=["department", "updated_at"])
 
     request.status = models.OrgJoinStatusChoices.APPROVED
     request.reviewed_by = actor

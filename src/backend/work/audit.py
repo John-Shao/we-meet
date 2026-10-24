@@ -27,6 +27,8 @@ def grant_snapshot(instance):
         "source": instance.source,
         "expires_at": instance.expires_at.isoformat() if instance.expires_at else None,
         "user_id": str(instance.user_id),
+        "revoked_at": instance.revoked_at.isoformat() if instance.revoked_at else None,
+        "revoked_reason": instance.revoked_reason,
     }
 
 
@@ -56,6 +58,30 @@ def record_access_change(  # noqa: PLR0913 -- full attribution is the record
 ):
     """Append one row; an audit failure must never undo the admin mutation."""
     actor = getattr(request, "user", None)
+    record_access_event(
+        action=action,
+        organization=organization,
+        actor=actor if getattr(actor, "is_authenticated", False) else None,
+        target_type=target_type,
+        target_id=target_id,
+        request_id=request_id(request),
+        before=before,
+        after=after,
+    )
+
+
+def record_access_event(  # noqa: PLR0913 -- full attribution is the record
+    *,
+    action,
+    organization,
+    actor=None,
+    target_type="",
+    target_id="",
+    request_id="",
+    before=None,
+    after=None,
+):
+    """Append one row without needing an HTTP request (lifecycle, commands)."""
     try:
         WorkAccessAudit.objects.create(
             organization=organization,
@@ -63,7 +89,7 @@ def record_access_change(  # noqa: PLR0913 -- full attribution is the record
             action=action,
             target_type=target_type,
             target_id=str(target_id),
-            request_id=request_id(request),
+            request_id=(request_id or "")[:64],
             before=before or {},
             after=after or {},
         )

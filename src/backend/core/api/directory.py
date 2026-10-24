@@ -76,7 +76,7 @@ ORG_ADMIN_ROLES = (
 )
 
 
-def is_caller_org_admin(user) -> bool:
+def is_caller_org_admin(user, *, include_archived=False) -> bool:
     """Whether the caller administers their organization. Memoized per request.
 
     Checks **any** active membership in the org, not just the primary one — a
@@ -85,11 +85,27 @@ def is_caller_org_admin(user) -> bool:
     gated on that broader rule; ``/directory/me/`` used to read the primary
     membership's role only, so such a user was refused by the console guard
     while the admin API happily served them. Single source of truth now.
+
+    A suspended or archived organization grants no administration. Reads in an
+    archived tenant still resolve here with ``include_archived=True`` so the
+    console can render its read-only banner without regaining write power —
+    that flag admits archived tenants only, never suspended ones (an archived
+    tenant is also ``is_active=False``, so the two states need separate tests).
     """
-    if not hasattr(user, "_org_admin_cache"):
+    cache_name = (
+        "_org_admin_archived_cache" if include_archived else "_org_admin_cache"
+    )
+    if not hasattr(user, cache_name):
         organization = get_caller_organization(user)
-        user._org_admin_cache = bool(  # pylint: disable=protected-access
+        usable = bool(
             organization
+            and (
+                (organization.is_active and organization.archived_at is None)
+                or (include_archived and organization.archived_at is not None)
+            )
+        )
+        value = bool(
+            usable
             and models.Membership.objects.filter(
                 user=user,
                 organization=organization,
@@ -97,7 +113,8 @@ def is_caller_org_admin(user) -> bool:
                 org_role__in=ORG_ADMIN_ROLES,
             ).exists()
         )
-    return user._org_admin_cache  # pylint: disable=protected-access
+        setattr(user, cache_name, value)  # pylint: disable=protected-access
+    return getattr(user, cache_name)  # pylint: disable=protected-access
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -1112,6 +1129,11 @@ class DirectoryMeView(APIView):
                 "organization": {
                     "id": str(organization.id),
                     "name": organization.name,
+                    "state": (
+                        "archived"
+                        if organization.archived_at is not None
+                        else ("active" if organization.is_active else "suspended")
+                    ),
                 },
                 "org_role": membership.org_role,
                 "is_org_admin": is_org_admin,

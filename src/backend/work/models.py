@@ -337,6 +337,12 @@ class WorkMemberGrant(models.Model):
         PROVIDER = "provider"
         CUSTOMER = "customer"
 
+    class RevokedReason(models.TextChoices):
+        MEMBERSHIP_LEFT = "membership_left"
+        ORGANIZATION_ARCHIVED = "organization_archived"
+        BACKFILL = "backfill"
+        MANUAL = "manual"
+
     organization = models.ForeignKey(
         "core.Organization",
         related_name="work_member_grants",
@@ -359,6 +365,20 @@ class WorkMemberGrant(models.Model):
         on_delete=models.SET_NULL,
     )
     expires_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_reason = models.CharField(
+        max_length=40,
+        choices=RevokedReason.choices,
+        blank=True,
+        default="",
+    )
+    revoked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="+",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -367,12 +387,21 @@ class WorkMemberGrant(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["organization", "user"], name="work_member_grant_once"
-            )
+            ),
+            models.CheckConstraint(
+                condition=models.Q(revoked_at__isnull=True)
+                | models.Q(enabled=False),
+                name="work_grant_revoked_disabled",
+            ),
         ]
         indexes = [
             models.Index(
                 fields=["organization", "enabled"], name="work_grant_org_enabled"
-            )
+            ),
+            models.Index(
+                fields=["organization", "revoked_at", "enabled"],
+                name="work_grant_org_active",
+            ),
         ]
         verbose_name = "Work member grant"
         verbose_name_plural = "Work member grants"
@@ -381,8 +410,10 @@ class WorkMemberGrant(models.Model):
         return f"{self.organization_id}:{self.user_id}"
 
     def is_active(self):
-        return self.enabled and (
-            self.expires_at is None or self.expires_at > timezone.now()
+        return (
+            self.enabled
+            and self.revoked_at is None
+            and (self.expires_at is None or self.expires_at > timezone.now())
         )
 
 
@@ -400,6 +431,8 @@ class WorkAccessAudit(models.Model):
         GRANT_CREATED = "grant_created"
         GRANT_UPDATED = "grant_updated"
         GRANT_DELETED = "grant_deleted"
+        GRANT_REVOKED = "grant_revoked"
+        GRANT_RESTORED = "grant_restored"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(

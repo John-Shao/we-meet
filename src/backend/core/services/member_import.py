@@ -313,6 +313,25 @@ def preflight(organization, rows: list[dict], create_missing_departments: bool):
         org_role = raw.get("org_role", "").strip()
         if org_role and org_role not in models.OrgRoleChoices.values:
             result.errors.append(_("Unknown role '%(value)s'.") % {"value": org_role})
+        elif org_role == models.OrgRoleChoices.OWNER:
+            # Ownership is granted by its current owner, never by a file.
+            result.errors.append(
+                _("Ownership cannot be imported; transfer it in the console.")
+            )
+        elif (
+            org_role
+            and membership is not None
+            and membership.status != models.MembershipStatusChoices.LEFT
+            and membership.org_role == models.OrgRoleChoices.OWNER
+        ):
+            # A file may not demote an owner either: ownership writes go
+            # through the service that enforces the owner-only rule.
+            result.errors.append(
+                _(
+                    "Ownership cannot be changed by an import; "
+                    "transfer it in the console."
+                )
+            )
 
         result.data = {
             "email": email,
@@ -467,7 +486,7 @@ def _apply_one(organization, resolver, result, actor):
     # Blank cells mean "leave alone", not "clear". A CSV round-trip that only
     # fills two columns must not wipe the other ten.
     fields = {k: v for k, v in fields.items() if v not in ("", None)}
-    if data.get("org_role"):
+    if data.get("org_role") and data["org_role"] != models.OrgRoleChoices.OWNER:
         fields["org_role"] = data["org_role"]
 
     if result.action == ACTION_INVITE:
@@ -495,6 +514,20 @@ def _apply_one(organization, resolver, result, actor):
         return None
 
     membership = models.Membership.objects.get(id=data["membership_id"])
+    if (
+        membership.status != models.MembershipStatusChoices.LEFT
+        and membership.org_role == models.OrgRoleChoices.OWNER
+        and "org_role" in fields
+    ):
+        # The preview may be minutes old; re-check at write time.
+        raise ValueError(
+            str(
+                _(
+                    "Ownership cannot be changed by an import; "
+                    "transfer it in the console."
+                )
+            )
+        )
     if result.action == ACTION_REHIRE:
         from core.services import offboarding
 

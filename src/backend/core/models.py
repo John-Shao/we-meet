@@ -6214,6 +6214,16 @@ class Organization(BaseModel):
         ),
     )
     is_active = models.BooleanField(_("active"), default=True)
+    archived_at = models.DateTimeField(
+        _("archived on"),
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=_("Set once the tenant is archived; only restore clears it."),
+    )
+    archive_reason = models.CharField(
+        _("archive reason"), max_length=200, blank=True, default=""
+    )
     settings = models.JSONField(_("settings"), blank=True, default=dict)
 
     class Meta:
@@ -6221,6 +6231,16 @@ class Organization(BaseModel):
         ordering = ("name",)
         verbose_name = _("Organization")
         verbose_name_plural = _("Organizations")
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(archived_at__isnull=True)
+                | models.Q(is_active=False),
+                name="org_archived_is_inactive",
+                violation_error_message=_(
+                    "An archived organization must be inactive."
+                ),
+            )
+        ]
 
     def __str__(self):
         return self.name
@@ -6483,6 +6503,28 @@ class Membership(BaseModel):
             other = getattr(self, field, None)
             if other is not None and other.organization_id != self.organization_id:
                 errors[field] = _("The manager must belong to the same organization.")
+
+        if self.pk and self.status == MembershipStatusChoices.LEFT:
+            # Entering ``left`` has side effects (head transfer, frozen snapshot,
+            # Work revocation) that live in the offboarding service. Reject the
+            # transition everywhere else — admin, commands, future callers.
+            from core.services.membership import (  # noqa: PLC0415 -- models/services cycle
+                left_transition_allowed,
+            )
+
+            previous = (
+                Membership.objects.filter(pk=self.pk)
+                .values_list("status", flat=True)
+                .first()
+            )
+            if (
+                previous is not None
+                and previous != MembershipStatusChoices.LEFT
+                and not left_transition_allowed()
+            ):
+                errors["status"] = _(
+                    "Use the offboard action to record a departure."
+                )
 
         if self.manager_id and self.manager_id == self.pk:
             errors["manager"] = _("A member cannot be their own manager.")
@@ -7761,6 +7803,14 @@ class AuditActionChoices(models.TextChoices):
     MEMBER_REHIRE = "member.rehire", _("Member rehired")
     MEMBER_PURGE = "member.purge", _("Member record purged")
     MEMBER_BULK_UPDATE = "member.bulk_update", _("Members updated in bulk")
+    MEMBER_OWNER_TRANSFERRED = (
+        "member.owner_transferred",
+        _("Organization ownership transferred"),
+    )
+    ORGANIZATION_SUSPENDED = "organization.suspended", _("Organization suspended")
+    ORGANIZATION_ACTIVATED = "organization.activated", _("Organization activated")
+    ORGANIZATION_ARCHIVED = "organization.archived", _("Organization archived")
+    ORGANIZATION_RESTORED = "organization.restored", _("Organization restored")
     DICT_ITEM_CREATE = "dict_item.create", _("Dictionary option created")
     DICT_ITEM_UPDATE = "dict_item.update", _("Dictionary option updated")
     DICT_ITEM_DELETE = "dict_item.delete", _("Dictionary option deleted")

@@ -572,13 +572,26 @@ class OrganizationAdmin(admin.ModelAdmin):
         "slug",
         "primary_domain",
         "is_active",
+        "archived_at",
         "_departments",
         "_members",
     )
     list_filter = ("is_active",)
     search_fields = ("name", "slug", "primary_domain")
-    readonly_fields = ("id", "created_at", "updated_at")
+    readonly_fields = (
+        "id",
+        "created_at",
+        "updated_at",
+        "archived_at",
+        "archive_reason",
+    )
     prepopulated_fields = {"slug": ("name",)}
+    actions = (
+        "suspend_selected",
+        "activate_selected",
+        "archive_selected",
+        "restore_selected",
+    )
 
     def get_prepopulated_fields(self, request, obj=None):
         # The slug seeds the auth backend's default-org lookup — freeze it once
@@ -603,10 +616,84 @@ class OrganizationAdmin(admin.ModelAdmin):
         organization gets created (there is no self-serve tenant signup), so
         this plus migrations 0070 / 0073 covers every path.
         """
+        if change:
+            previous = (
+                models.Organization.objects.filter(pk=obj.pk)
+                .values_list("is_active", flat=True)
+                .first()
+            )
+            if previous is not None and previous != obj.is_active:
+                # Lifecycle writes are platform-only (the management command is
+                # the other entry point); plain staff may edit the org but not
+                # suspend or reactivate it.
+                if not request.user.is_superuser:
+                    self.message_user(
+                        request,
+                        _("Only a superuser can suspend or reactivate an organization."),
+                        level=messages.ERROR,
+                    )
+                    obj.is_active = previous
+                else:
+                    from core.services import organization_lifecycle  # noqa: PLC0415
+
+                    action = (
+                        organization_lifecycle.activate
+                        if obj.is_active
+                        else organization_lifecycle.suspend
+                    )
+                    try:
+                        action(obj, actor=request.user, reason="django admin")
+                    except organization_lifecycle.LifecycleError as exc:
+                        self.message_user(request, exc.detail, level=messages.ERROR)
+                        return
+                    obj.is_active = not previous
         super().save_model(request, obj, form, change)
         if not change:
             ensure_builtin_dict_items(obj)
             ensure_builtin_roles(obj)
+
+    def _run_lifecycle(self, request, queryset, name, actor_reason):
+        from core.services import organization_lifecycle  # noqa: PLC0415
+
+        if not request.user.is_superuser:
+            self.message_user(
+                request,
+                _("Only a superuser can change an organization's lifecycle."),
+                level=messages.ERROR,
+            )
+            return
+
+        handler = getattr(organization_lifecycle, name)
+        for organization in queryset:
+            try:
+                result = handler(
+                    organization, actor=request.user, reason=actor_reason
+                )
+            except organization_lifecycle.LifecycleError as exc:
+                self.message_user(request, f"{organization.slug}: {exc.detail}", level=messages.ERROR)
+                continue
+            if not result["changed"]:
+                self.message_user(
+                    request,
+                    f"{organization.slug}: already {organization_lifecycle.organization_state(organization)}.",
+                    level=messages.INFO,
+                )
+
+    @admin.action(description=_("Suspend selected organizations"))
+    def suspend_selected(self, request, queryset):
+        self._run_lifecycle(request, queryset, "suspend", "django admin")
+
+    @admin.action(description=_("Activate selected organizations"))
+    def activate_selected(self, request, queryset):
+        self._run_lifecycle(request, queryset, "activate", "django admin")
+
+    @admin.action(description=_("Archive selected organizations (irreversible without restore)"))
+    def archive_selected(self, request, queryset):
+        self._run_lifecycle(request, queryset, "archive", "django admin")
+
+    @admin.action(description=_("Restore selected organizations"))
+    def restore_selected(self, request, queryset):
+        self._run_lifecycle(request, queryset, "restore", "django admin")
 
     @admin.display(description=_("departments"))
     def _departments(self, obj):
@@ -767,9 +854,24 @@ class MembershipAdmin(admin.ModelAdmin):
         "title",
     )
     autocomplete_fields = ("user", "organization", "department")
-    list_editable = ("department", "org_role", "status")
+    list_editable = ("department",)
     list_select_related = ("user", "organization", "department")
-    readonly_fields = ("id", "created_at", "updated_at")
+    # Role and status are never plain admin field edits: ownership changes need
+    # the owner check and organization lock, and ``left`` has lifecycle side
+    # effects. The console API / management commands are the supported paths.
+    readonly_fields = (
+        "id",
+        "created_at",
+        "updated_at",
+        "org_role",
+        "status",
+        "left_at",
+        "left_reason",
+        "left_snapshot",
+    )
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
     def get_changeform_initial_data(self, request):
         # Single-org MVP: prefill the only organization to cut friction.

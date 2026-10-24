@@ -161,25 +161,26 @@ def test_admin_membership_cannot_suspend_self():
         format="json",
     )
     assert response.status_code == 400, response.content
-    assert str(response.data["code"][0]) == "pending_email"
+    assert "your own membership" in str(response.data["status"][0])
 
 
 def test_admin_membership_cannot_demote_last_owner():
     org = factories.OrganizationFactory()
-    client, _ = _admin_client(org)
-    owner = _member(org, factories.UserFactory(), org_role=OWNER)
+    client, owner_user = _admin_client(org, org_role=OWNER)
+    own = models.Membership.objects.get(user=owner_user, organization=org)
 
     response = client.patch(
-        f"/api/v1.0/admin/memberships/{owner.id}/",
+        f"/api/v1.0/admin/memberships/{own.id}/",
         {"org_role": MEMBER},
         format="json",
     )
     assert response.status_code == 400, response.content
+    assert "at least one active owner" in str(response.data["detail"])
 
     # A second owner makes demotion allowed again.
     _member(org, factories.UserFactory(), org_role=OWNER)
     response = client.patch(
-        f"/api/v1.0/admin/memberships/{owner.id}/",
+        f"/api/v1.0/admin/memberships/{own.id}/",
         {"org_role": MEMBER},
         format="json",
     )

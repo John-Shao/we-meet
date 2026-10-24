@@ -13,6 +13,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from core import factories, models
+from core.services import offboarding
 
 pytestmark = pytest.mark.django_db
 
@@ -113,9 +114,7 @@ def test_departed_member_returns_tombstone_not_404():
     membership = _member(
         org, gone_user, department=department, title="Engineer", is_primary=False
     )
-    membership.left_snapshot = membership.build_left_snapshot()
-    membership.status = LEFT
-    membership.save()
+    offboarding.offboard_membership(membership, actor=me, disable_login=False)
 
     response = _client(me).get(f"/api/v1.0/directory/members/{gone_user.id}/")
     assert response.status_code == 200, response.content
