@@ -15,7 +15,12 @@ from core.models import User
 
 from . import access, agent_runs, rollout, runs
 from .models import WorkArtifactFile, WorkArtifactVersion, WorkDevice, WorkRun, WorkTask
-from .services import MaterialError, require_organization, scoped_organization
+from .services import (
+    MAX_ARTIFACT_CHARS,
+    WorkError,
+    require_organization,
+    scoped_organization,
+)
 
 CONTRACT = "work-device/v1"
 FINAL = {"succeeded", "failed", "canceled", "access_revoked"}
@@ -47,14 +52,14 @@ def device_for(user, identifier, organization_id=None):
 @transaction.atomic
 def register(user, identifier, name, organization_id=None):
     if not enabled(user):
-        raise MaterialError("local_coordination_disabled", 503)
+        raise WorkError("local_coordination_disabled", 503)
     User.objects.select_for_update().get(pk=user.pk)
     device = WorkDevice.objects.filter(pk=identifier).first()
     organization = require_organization(user, organization_id)
     if device and (
         device.owner_id != user.pk or device.organization_id != organization
     ):
-        raise MaterialError("device_unavailable", 409)
+        raise WorkError("device_unavailable", 409)
     if not device:
         device = WorkDevice(id=identifier, owner=user, organization_id=organization)
     device.name = name
@@ -65,14 +70,13 @@ def register(user, identifier, name, organization_id=None):
 @transaction.atomic
 def admit(user, data, *, workspace=None, organization_id=None):
     if not enabled(user):
-        raise MaterialError("local_coordination_disabled", 503)
+        raise WorkError("local_coordination_disabled", 503)
     User.objects.select_for_update().get(pk=user.pk)
     organization_id = require_organization(user, organization_id)
     device = device_for(user, data["device_id"], organization_id)
     previous = WorkRun.objects.filter(pk=data["run_id"]).select_related("task").first()
     frozen = {
         "goal": data["goal"],
-        "sources": data["sources"],
         "model": data["model"],
         "workspace_label": data["workspace_label"],
     }
@@ -86,37 +90,23 @@ def admit(user, data, *, workspace=None, organization_id=None):
             or previous.execution_target != "local"
             or previous.agent_payload.get("admission") != frozen
         ):
-            raise MaterialError("idempotency_conflict", 409)
+            raise WorkError("idempotency_conflict", 409)
         return previous, False
     if WorkTask.objects.filter(owner=user, request_key=data["run_id"]).exists():
-        raise MaterialError("idempotency_conflict", 409)
+        raise WorkError("idempotency_conflict", 409)
     if data["model"] != settings.WORK_AGENT_MODEL:
-        raise MaterialError("local_model_unavailable", 409)
+        raise WorkError("local_model_unavailable", 409)
     budget = min(settings.WORK_AGENT_TOKEN_BUDGET, 80000)
     used = runs.daily_reserved(user.pk, device.organization_id)
     if used + budget > runs.daily_budget(device.organization_id):
-        raise MaterialError("budget_exceeded", 429)
-    task = WorkTask(
+        raise WorkError("budget_exceeded", 429)
+    task = WorkTask.objects.create(
         owner=user,
         organization_id=device.organization_id,
         request_key=data["run_id"],
         kind="office_agent",
-        recipient="",
         goal=data["goal"],
-        sources=data["sources"],
     )
-    materials = runs.sources_for(task)
-    files = [
-        {
-            "name": f"source-{m.pk}.md",
-            "text": m.text,
-            "sha256": hashlib.sha256(m.text.encode()).hexdigest(),
-        }
-        for m in materials
-    ]
-    if sum(len(item["text"].encode()) for item in files) > 400000:
-        raise MaterialError("context_too_large", 413)
-    task.save()
     run = WorkRun.objects.create(
         id=data["run_id"],
         task=task,
@@ -135,7 +125,7 @@ def admit(user, data, *, workspace=None, organization_id=None):
         agent_done=True,
         agent_payload={
             "admission": frozen,
-            "files": files,
+            "files": [],
             "limits": {
                 "max_model_calls": min(settings.WORK_AGENT_MAX_CALLS, 6),
                 "max_total_tokens": budget,
@@ -180,18 +170,17 @@ def control(run):
 def claim(user, identifier, device_id, organization_id=None):
     run = locked(user, identifier, device_id, organization_id)
     if not enabled(user) or run.status in FINAL:
-        raise MaterialError("local_assignment_closed", 409)
+        raise WorkError("local_assignment_closed", 409)
     code = access.check(user, run.task.organization_id)
     if code == "access_unavailable":
-        raise MaterialError(code, 503)
+        raise WorkError(code, 503)
     if code:
         runs.terminal(run, "access_revoked", code)
-        raise MaterialError(code, access.denial_status(code))
+        raise WorkError(code, access.denial_status(code))
     if run.remote_requested and (
         not settings.WORK_REMOTE_AGENT_ENABLED or not run.workspace.enabled
     ):
-        raise MaterialError("workspace_permission_required", 409)
-    runs.sources_for(run.task)
+        raise WorkError("workspace_permission_required", 409)
     # A disconnected assignment can be reconciled only by its original device;
     # admission is never replayed automatically, even if claim is retried.
     run.local_claimed = True
@@ -213,34 +202,34 @@ def claim(user, identifier, device_id, organization_id=None):
 def report(user, identifier, data, organization_id=None):  # noqa: PLR0912, PLR0915 -- fenced device state machine
     run = locked(user, identifier, data["device_id"], organization_id)
     if not run.local_claimed or not hmac.compare_digest(ticket(run), data["ticket"]):
-        raise MaterialError("local_assignment_invalid", 403)
+        raise WorkError("local_assignment_invalid", 403)
     code = access.check(user, run.task.organization_id)
     if code == "access_unavailable":
-        raise MaterialError(code, 503)
+        raise WorkError(code, 503)
     if code and run.status not in FINAL:
         runs.terminal(run, "access_revoked", code)
         return control(run)
     fingerprint = hashlib.sha256(encoded(data)).hexdigest()
     if data["seq"] <= run.local_report_seq:
         if data["seq"] != run.local_report_seq or fingerprint != run.local_report_hash:
-            raise MaterialError("local_report_conflict", 409)
+            raise WorkError("local_report_conflict", 409)
         return control(run)
     if data["seq"] != run.local_report_seq + 1:
-        raise MaterialError("local_report_gap", 409)
+        raise WorkError("local_report_gap", 409)
     deployment = data["deployment"]
     if (
         deployment.get("contract") != "work-local/v1"
         or deployment.get("engine") != "dsh"
         or deployment.get("model") != run.model
     ):
-        raise MaterialError("local_contract_mismatch", 409)
+        raise WorkError("local_contract_mismatch", 409)
     if run.agent_deployment and run.agent_deployment != deployment:
-        raise MaterialError("local_deployment_changed", 409)
+        raise WorkError("local_deployment_changed", 409)
     meter = agent_runs.validate_metering(data)
     if meter["calls"] > run.agent_payload["limits"]["max_model_calls"]:
-        raise MaterialError("invalid_local_usage")
+        raise WorkError("invalid_local_usage")
     if meter["usage"] and sum(meter["usage"].values()) > run.reserved_tokens:
-        raise MaterialError("invalid_local_usage")
+        raise WorkError("invalid_local_usage")
     previous = run.agent_metering
     if previous and (
         meter["calls"] < previous["calls"]
@@ -250,7 +239,7 @@ def report(user, identifier, data, organization_id=None):  # noqa: PLR0912, PLR0
             and meter != previous
         )
     ):
-        raise MaterialError("local_usage_conflict", 409)
+        raise WorkError("local_usage_conflict", 409)
     run.agent_metering = meter
     if meter["complete"] and meter["usage"] is not None:
         run.input_tokens = sum(
@@ -264,18 +253,16 @@ def report(user, identifier, data, organization_id=None):  # noqa: PLR0912, PLR0
     run.local_report_hash = fingerprint
     run.lease_until = timezone.now() + timedelta(seconds=90)
     if run.status not in FINAL:
-        try:
-            runs.sources_for(run.task)
-            if not enabled(user):
-                raise MaterialError("local_coordination_disabled")
-        except MaterialError as exc:
-            if exc.code == "access_unavailable":
-                raise
-            runs.terminal(run, runs.failure_status(exc.code), exc.code)
+        if not enabled(user):
+            runs.terminal(
+                run,
+                runs.failure_status("local_coordination_disabled"),
+                "local_coordination_disabled",
+            )
         else:
             state = {"cancelled": "canceled"}.get(data["state"], data["state"])
             if run.status == "running" and state == "queued":
-                raise MaterialError("local_state_regression", 409)
+                raise WorkError("local_state_regression", 409)
             if state in FINAL:
                 run.artifact_manifest = (
                     data["artifacts"] if state == "succeeded" else []
@@ -293,10 +280,9 @@ def report(user, identifier, data, organization_id=None):  # noqa: PLR0912, PLR0
 def sync_files(user, identifier, data, organization_id=None):
     run = locked(user, identifier, data["device_id"], organization_id)
     if not hmac.compare_digest(ticket(run), data["ticket"]):
-        raise MaterialError("local_assignment_invalid", 403)
-    runs.sources_for(run.task)
+        raise WorkError("local_assignment_invalid", 403)
     if run.status != "succeeded":
-        raise MaterialError("artifact_not_ready", 409)
+        raise WorkError("artifact_not_ready", 409)
     manifest = {item["name"]: item for item in run.artifact_manifest}
     changed = False
     for item in data["files"]:
@@ -308,7 +294,7 @@ def sync_files(user, identifier, data, organization_id=None):
             or expected["bytes"] != len(raw)
             or hashlib.sha256(raw).hexdigest() != item["sha256"]
         ):
-            raise MaterialError("artifact_changed", 409)
+            raise WorkError("artifact_changed", 409)
         existing, created = WorkArtifactFile.objects.get_or_create(
             run=run,
             name=item["name"],
@@ -317,11 +303,9 @@ def sync_files(user, identifier, data, organization_id=None):
         if not created and (
             existing.sha256 != item["sha256"] or existing.text != item["text"]
         ):
-            raise MaterialError("artifact_changed", 409)
+            raise WorkError("artifact_changed", 409)
         changed = changed or created
     if not run.versions.exists():
-        from .executor import MAX_ARTIFACT_CHARS  # noqa: PLC0415
-
         body = next(
             (
                 f["text"]
@@ -331,7 +315,7 @@ def sync_files(user, identifier, data, organization_id=None):
             "# Local deliverables\n\n"
             + "\n".join(f"- {f['name']}" for f in data["files"]),
         )
-        WorkArtifactVersion.objects.create(run=run, version=1, body=body, citations=[])
+        WorkArtifactVersion.objects.create(run=run, version=1, body=body)
     if changed:
         runs.event(run, "local_files_synced")
     return control(run)

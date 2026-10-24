@@ -1,5 +1,7 @@
 # 工作（Work）模块：产品、架构与 Agent 选型方案
 
+**2026-10-25 当前范围变更**：日常办公的材料上传 / 解析、沟通准备、周报和表格分析已全部删除；当前 Work 仅保留目标驱动的 `office_agent`、桌面本地 / 远程协调和 Pi 只读复核。以下历史章节保留原规划与实施记录，不再代表当前产品能力；其中提到的 `accept-work.sh`、`evaluate-candidate`、`work/materials/` 接口和 `communication-v*` 执行器均已删除，相关命令与评测流程无法再执行。
+
 **2026-10-08 当前实现入口**：详见 [Work Agent 架构](../features/work-agent-architecture.md)。已采用桌面 dsh 执行、服务端 Pi 只读复核、Android 派发与查看；生产保持单演示账号灰度。业务与执行器通过自有版本化协议独立更新，桌面内部候选为 delivery.4，服务端适配器为 0.3.5。精确版本、验证和限制见 [生产记录](../reviews/work-dual-agent-production-release-2026-10-08.md)；以下规划修订及 2026-10-07 补充保留其历史日期和范围。
 
 **2026-10-24 授权、任务关系与执行模型决策**：以下三份 ADR 覆盖相关历史表述，后续实施以此为准。
@@ -353,7 +355,7 @@ LangGraph 官方文档提供持久化检查点和 interrupt/resume 能力，同�
 
 下表均为新增设计，名称可在实现评审中调整。
 
-**2026-10-24 现状说明**：本表是目标模型，不是当前代码清单。当前已实现的核心实体是 `WorkMaterial`、`WorkTask`、`WorkDevice`、`WorkWorkspace`、`WorkRun`、`WorkRunEvent`、`WorkReview`、`WorkArtifactVersion/File`；字段以 `work/models.py` 为准。`WorkProject`、`WorkSchedule`、`WorkLibraryItem`、`WorkApproval`、`ToolOperation` 等仍为规划实体。`WorkTaskLink` 由 ADR-0006 定义为阶段 1 新增，当前未实现。
+**2026-10-24 现状说明（2026-10-25 修订）**：本表是目标模型，不是当前代码清单。当前已实现的核心实体是 `WorkTask`、`WorkDevice`、`WorkWorkspace`、`WorkRun`、`WorkRunEvent`、`WorkReview`、`WorkArtifactVersion/File` 及组织授权 / 审计实体；字段以 `work/models.py` 为准。`WorkMaterial` 已随日常办公能力删除（迁移 `0012`）。`WorkProject`、`WorkSchedule`、`WorkLibraryItem`、`WorkApproval`、`ToolOperation` 等仍为规划实体。`WorkTaskLink` 由 ADR-0006 定义为阶段 1 新增，当前未实现。
 
 | 实体 | 核心字段 / 约束 |
 |---|---|
@@ -831,7 +833,7 @@ C09、C13–C15 的既有边界 / 故障回归已在固定 `6507434dc` worktree 
 
 2026-09-24 下一批收尾（v1.17）：新增 `deploy/aliyun/accept-work.sh`，将 C10 / C19 核对收敛为 `audit`：在只读事务中逐笔比对上述 5 次业务 Run 与唯一账本的关联、账号 / 组织 / 模型 / 实际 token，并核验 6 份合成材料的清理 worker 回执。它不进行清理写入，不把应用拒读或 DB 清理标记宣称为独立对象存储查询结果。新增 `catalog / evaluate` 与 S01–S20 固定合成语义样本，扩充 C01 / C05–C09；它们与本节的 C01–C20 业务检查是两个编号集合。20 条涵盖稀疏资料、冲突 / 更正、未确认预算和日期、背景猜测、指令注入、否定 / 条件 / 主体 / 单位、相对日期和目标范围。
 
-执行顺序保持明确：① 在发布主机拉取脚本，运行 `bash deploy/aliyun/accept-work.sh audit` 获取账本与清理回执；② 运行 `bash deploy/aliyun/accept-work.sh evaluate`，对实际输出逐条完成引用含义、不确定性、建议范围、指令边界及可用性评审；③ 有失败先校准并固定集合复验，全部门槛满足后再做 P0-1 放行和周报实施。当前仅工具完成 15 项离线 + 6 项 PostgreSQL 验证，尚未取得这轮服务器结果；不将采集成功等同语义通过。脚本保存逐条证据并在首个契约错误后停止，无自动重试；只使用现有容器，无需应用重新部署。命令、费用与证据说明统一见 [Work 工程说明](../../src/backend/work/README.md#账本--清理核对与固定语义评测2026-09-24)。
+执行顺序保持明确：① 在发布主机拉取脚本，运行 `bash deploy/aliyun/accept-work.sh audit` 获取账本与清理回执；② 运行 `bash deploy/aliyun/accept-work.sh evaluate`，对实际输出逐条完成引用含义、不确定性、建议范围、指令边界及可用性评审；③ 有失败先校准并固定集合复验，全部门槛满足后再做 P0-1 放行和周报实施。当前仅工具完成 15 项离线 + 6 项 PostgreSQL 验证，尚未取得这轮服务器结果；不将采集成功等同语义通过。脚本保存逐条证据并在首个契约错误后停止，无自动重试；只使用现有容器，无需应用重新部署。命令、费用与证据说明统一见 [Work 工程说明](../../src/backend/work/README.md)。
 
 2026-09-24 回执审阅与修正（v1.18）：服务器 `03:47:44 UTC` 的只读核验确认全部 5 个 WorkRun 与唯一 `AIUsageRecord` 关联、归属、模型和实际 token 一致；6 份材料均已删除并有 `purged_at`、空存储键 / 正文 / 定位记录，补齐 C10 与 C19 的后台清理回执。它仍不是独立 OSS HEAD 或金额账单对账。本次 `evaluate` 在 S19 后被 `^C` 中断，无 S20 与 summary，不能宣称 20 条采集完成；S20 是否已计费未知。已返回 19 条的合计用量 5847 / 6740 token，调用耗时中位数 6.825 秒、最大 8.690 秒。
 
@@ -1099,7 +1101,7 @@ v6 系统哈希 `296a12bd77e915b66ccc6595c8b3d0a734eb50bd60f641b0fcea11ef0f6f375
 落地顺序与门槛：
 
 1. **冻结候选，构建推送 backend。** 已测执行器以 `20f9397a8` 为基线；本轮仅更新记录。构建机保存完整源码 SHA 与对应前九位镜像 tag，确认执行器无变化，再执行 `build-and-push.sh backend`。不新增 v7，不默认重跑相同付费集合。
-2. **发布同一已推送 tag。** 生产用同一源码和 `release-meet.sh --skip-git-pull --tag <已推送的tag> backend` 更新后端及 Work Worker；等待滚动更新，只读 `enable-work.sh check`，分别核对 backend / Work Worker 实际 v6 版本与上述系统哈希。完整命令维护在 [Work README](../../src/backend/work/README.md#账本--清理核对与固定语义评测2026-09-24)。不重复执行会关闭沟通的 `materials`，不遗漏构建直接发布新 HEAD。
+2. **发布同一已推送 tag。** 生产用同一源码和 `release-meet.sh --skip-git-pull --tag <已推送的tag> backend` 更新后端及 Work Worker；等待滚动更新，只读 `enable-work.sh check`，分别核对 backend / Work Worker 实际 v6 版本与上述系统哈希。完整命令维护在 [Work README](../../src/backend/work/README.md)。不重复执行会关闭沟通的 `materials`，不遗漏构建直接发布新 HEAD。
 3. **复验新版本业务并留证。** 使用新合成材料完成生成、引用核对、编辑、采纳、下载与刷新；核对新 Run 的 v6 版本、实际模型与 token、唯一关联用量记录和成果路径。此前固定旧业务的 `audit` 不能证明 v6 闭环，本轮合成评测没有写业务账本。P0-1 整体放行仍等待这份回执及既有独立门槛。
 4. **后续批次。** 发布验证完成后推进周报，再推进表格分析；已提交的二级导航另需 frontend 发布确认。桌面 D0 剩余发布验收按原清单独立跟踪，后端提示词升级无需重新打包桌面。
 
@@ -1120,7 +1122,7 @@ v6 系统哈希 `296a12bd77e915b66ccc6595c8b3d0a734eb50bd60f641b0fcea11ef0f6f375
 | 已采纳 / 下载成果 v2 SHA-256 | `38a02db526717a5778c50d934c7c3114dc0af1f2abcb973a5c280baec52eb76c` |
 | 本地证据 | gitignored `src/desktop/test-results/work-v6-production-attempt3.json`、`work-v6-production.png`、`work-v6-production-draft.md` |
 
-下一步在生产执行 `git pull --ff-only && bash deploy/aliyun/accept-work.sh audit-v6`。新模式复用现有审计工具，固定核对本次 Run 的版本、来源、成功状态、调用时间、1433 / 500 token、唯一用量行及关联归属，以及原始 / 编辑成果的精确正文哈希与采纳状态；并分别核对 backend / Work Worker 的 v6 版本与系统哈希。数据库采用只读可重复读事务，脚本通过 stdin 执行，不部署、不调用模型、不写入业务或删除材料；任一容器检查失败都保留证据、返回非零且不重试。28 项离线回归覆盖旧审计、候选评测及新模式的版本 / 成果错配、后端失败和 Worker 失败传播，Ruff 通过；实际生产账本核验仍待回执，不用本地模拟通过替代。完整说明见 [Work README](../../src/backend/work/README.md#账本--清理核对与固定语义评测2026-09-24)。
+下一步在生产执行 `git pull --ff-only && bash deploy/aliyun/accept-work.sh audit-v6`。新模式复用现有审计工具，固定核对本次 Run 的版本、来源、成功状态、调用时间、1433 / 500 token、唯一用量行及关联归属，以及原始 / 编辑成果的精确正文哈希与采纳状态；并分别核对 backend / Work Worker 的 v6 版本与系统哈希。数据库采用只读可重复读事务，脚本通过 stdin 执行，不部署、不调用模型、不写入业务或删除材料；任一容器检查失败都保留证据、返回非零且不重试。28 项离线回归覆盖旧审计、候选评测及新模式的版本 / 成果错配、后端失败和 Worker 失败传播，Ruff 通过；实际生产账本核验仍待回执，不用本地模拟通过替代。完整说明见 [Work README](../../src/backend/work/README.md)。
 
 收到这条新业务账本回执后，再核定沟通准备门槛并推进周报；后续仍为表格分析。无需重建镜像、重复启用材料或重跑整套付费集合，D0 的其余桌面发布门槛独立跟踪。
 

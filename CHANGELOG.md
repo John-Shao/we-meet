@@ -42,8 +42,10 @@ and this project adheres to
 
 ### Removed
 
-- Remove the unimplemented weekly report and spreadsheet analysis entries from
-  Work navigation, task suggestions, and the app catalog.
+- Remove the daily-office Work capabilities: material upload and parsing,
+  communication preparation, weekly report, and spreadsheet analysis, including
+  their APIs, task types, UI entries, tests, and documentation. Work tasks now
+  run from a goal and optional background only.
 
 ### Changed
 

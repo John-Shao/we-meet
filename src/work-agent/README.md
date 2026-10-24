@@ -10,7 +10,7 @@
 
 ## 历史 PoC 与可选云端执行路径（2026-10-07）
 
-已增加按成果手动开启的 [Pi 只读复核 PoC](REVIEW.md)：冻结授权快照，禁用全部工具，单独记录证据、预算和复核状态；生产默认关闭。
+已增加按成果手动开启的 [Pi 只读复核 PoC](REVIEW.md)：冻结所选成果快照，禁用全部工具，单独记录证据、预算和复核状态；生产默认关闭。
 
 当前阶段增加自包含 Windows 本地运行环境、逐次命令审批、签名运行环境升级与回退、Android → 桌面待办派发。当前 Agent `0.3.1`，dsh 固定 `0.1.5rc1`，与 Django / Electron 保持独立协议；不改动上游仓库。使用和交付边界见 [产品交付](DELIVERY.md)。只开发 Android，iOS 暂不开发。
 
@@ -22,12 +22,12 @@ Pi 只读复核支持 DeepSeek 与百炼 Qwen，通过独立网关配置供应�
 
 2026-10-07 已补齐 **Windows 客户端本地工作空间**：桌面通过 `work-local/v1` stdio 连接独立安装的适配器，原生 dsh 直接使用用户选择的本地目录。安装、授权、独立升级和本机记录边界见 [客户端本地集成](LOCAL.md)；下面的 HTTP Gateway 是云端执行路径。
 
-选用 dsh 作为当前试点执行器，Pi 保留为可替换对照。两者均通过 DeepSeek 合成周报和 CSV
-样例；Work API → dsh → 模型 → Work 授权下载/用量账本的真实端到端验证也已通过。
+选用 dsh 作为当前试点执行器，Pi 保留为可替换的只读复核执行器。两者均通过合成任务样例；
+Work API → dsh → 模型 → Work 授权成果同步/用量账本的真实端到端验证也已通过。
 评审和回执见 [验证记录](../../docs/reviews/work-agent-poc-2026-10-07.md)。本次代码未发布线上。
 
 业务与 Agent 使用自有 **`work-agent/v1` HTTP Job API**。Django 不安装 dsh/Pi SDK，
-不解释上游会话、插件或数据库。业务控制用户/组织权限、材料版本、任务、预算、成果编辑和采纳；
+不解释上游会话、插件或数据库。业务控制用户/组织权限、任务、预算、成果编辑和采纳；
 独立 Gateway 控制自己的 Inbox、模型调用、运行镜像和终态。唯一上游 SDK 适配点为 `drivers.py`。
 
 ```mermaid
@@ -61,20 +61,19 @@ Docker context 排除 `.env`、虚拟环境和本地回执。
 .venv/Scripts/python.exe -m work_agent.server --engine dsh --env-file .env --state-dir ../../.work-acceptance/dsh-service --port 8881
 ```
 
-业务服务先应用 `work.0003` 数据库迁移，保留独立 Celery `work` 队列和 Beat。
-配置 `WORK_ENABLED=true`、`WORK_MATERIALS_ENABLED=true`、`WORK_AGENT_ENABLED=true`、
+业务服务先应用最新的 `work` 数据库迁移，保留独立 Celery `work` 队列和 Beat。
+配置 `WORK_ENABLED=true`、`WORK_AGENT_ENABLED=true`、
 `WORK_AGENT_URL=http://127.0.0.1:8881`、`WORK_AGENT_TOKEN`（与 Gateway 相同）及
 `WORK_AGENT_MODEL=deepseek-flash`。两者在不同主机时使用内部 HTTPS 端点；客户端禁止远程明文 HTTP
-和重定向。默认关闭 Agent 开关，已有沟通准备使用原执行器。
+和重定向。默认关闭 Agent 开关。
 
 `WORK_AGENT_TIMEOUT=180`、`WORK_AGENT_MAX_CALLS=6`、`WORK_AGENT_TOKEN_BUDGET=80000`，
 每次响应上限来自 `WORK_MAX_OUTPUT_TOKENS`（最高 4096）。每日配额仍为 `WORK_DAILY_TOKEN_BUDGET`。
 业务先预留全任务预算，完整用量确认后改为实际 token；未知用量继续占用预算。缓存 token 独立保存，
 账本输入包含缓存读取；现有价格目录不能精确反映缓存折扣，金额需供应商对账。
 
-Web `/work/new`、周报和表格分析复用同一 Agent 路径。上传支持 CSV/文本/文本型 PDF/受限 DOCX，
-执行器只接收选定材料的 UTF-8 解析快照。成果目前为 Markdown/CSV/JSON/TXT，用户可编辑、采纳
-草稿并下载不可变的原始文件。任务、产物和下载均限制当前用户及组织；材料删除或权限撤销禁止交付。
+Web `/work/new` 复用同一 Agent 路径，任务输入仅包含目标与背景文本。成果目前为 Markdown/CSV/JSON/TXT，
+用户可编辑、采纳草稿并下载不可变的原始文件。任务、产物和下载均限制当前用户及组织。
 
 ## 独立升级
 
@@ -109,9 +108,8 @@ Python 发布 pin 与仓库源码提交分别记录，不能视为验证了 mast
 | `GET /v1/jobs/{id}?after=0` | 状态、增量事件、执行快照、成果和模型用量 |
 | `POST /v1/jobs/{id}/cancel` | 幂等取消；先于提交时保存墓碑，后到提交不执行 |
 
-请求包含 `contract`、UUID `run_id`、`goal`、`files`、`timeout_seconds`（1—300），可选 `limits`。
-文件为 `{name,text,sha256}`，最多 20 份、400 KB 总量，只允许平面 `.txt/.md/.csv/.json` 名称。
-`limits` 包含 `max_model_calls`（最高 6）、`max_total_tokens`（最高 80000）、
+请求包含 `contract`、UUID `run_id`、`goal`、`timeout_seconds`（1—300），可选 `limits`；
+业务执行不附带用户文件，复核另携带冻结的成果快照。`limits` 包含 `max_model_calls`（最高 6）、`max_total_tokens`（最高 80000）、
 `max_output_tokens`（最高 4096）。ModelBroker 在每次供应商调用前原子预占，用 UTF-8 请求字节数
 加 1024 和输出上限作保守 token 上界，未知调用保留预占；超过总预算/次数拒绝新调用。
 
@@ -148,13 +146,10 @@ JSON 和 SSE 使用有界字节读取，完整读取、异常及提前关闭都�
 $env:WORK_AGENT_DOCKER_TEST_IMAGE='we-meet-work-agent:dsh-poc'
 .venv/Scripts/python.exe -m unittest discover -s tests -v
 ../backend/.venv/Scripts/ruff.exe check work_agent tests ../backend/work/agent_client.py
-.venv/Scripts/python.exe -m work_agent.compare --env-file .env --output-dir ../../.work-acceptance/comparison --allow-paid
 ```
 
-最后一条会调用真实模型，可加 `--engine dsh/pi` 和 `--case csv-analysis/weekly-report`。
 业务层 `work/tests/test_agent_runs.py` 包含真实 HTTP/fixture 端到端测试；付费 dsh 验证仅在明确设置
 `WORK_AGENT_LIVE_ENV` 时执行，`WORK_AGENT_LIVE_RECEIPT` 指定 Git 忽略的回执路径。
 
-当前完成合成材料的选型与集成验证，默认开关关闭。容器仍有网络访问，未配置出站白名单，因此本轮
-仅验证合成材料；生产敏感材料放行需另行落实网络策略与业务验收。Skills/MCP、业务外部写入、
-GUI、二进制成果、会话恢复和多副本调度不在本次实现范围。
+当前范围只包含目标驱动的云端执行、桌面本地/远程协调和 Pi 只读复核，默认开关关闭。容器仍有网络访问，
+未配置出站白名单。Skills/MCP、业务外部写入、GUI、二进制成果、会话恢复和多副本调度不在实现范围。

@@ -2,11 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams, useLocation } from 'wouter'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { localError, type LocalJob, type LocalWorkspace } from '../api/local'
-import {
-  getWorkCapabilities,
-  listMaterials,
-  type Material,
-} from '../api/materials'
+import { getWorkCapabilities } from '../api/work'
 import { PiReview } from './PiReview'
 import { TaskComposer } from './TaskComposer'
 import { WorkSidebarSection } from './WorkNavigation'
@@ -15,7 +11,6 @@ import {
   RiSettings3Line,
   RiShieldCheckLine,
   RiSparklingLine,
-  RiAttachment2,
 } from '@remixicon/react'
 
 const active = (job?: LocalJob) =>
@@ -50,8 +45,6 @@ export function LocalWorkspaceWork({
   const [model, setModel] = useState('deepseek-flash')
   const [error, setError] = useState('')
   const [tracking, setTracking] = useState(false)
-  const [materials, setMaterials] = useState<Material[]>([])
-  const [materialPage, setMaterialPage] = useState(1)
   const [shared, setShared] = useState<string[]>([])
   const [remoteAllowed, setRemoteAllowed] = useState(false)
   const [historyLimit, setHistoryLimit] = useState(8)
@@ -111,12 +104,6 @@ export function LocalWorkspaceWork({
   useEffect(() => {
     if (capabilities.data?.coordination_enabled) setTracking(true)
   }, [capabilities.data?.coordination_enabled])
-  const cloudMaterials = useQuery({
-    queryKey: [...root, 'cloud-materials', materialPage],
-    queryFn: () => listMaterials(materialPage),
-    enabled: coordinationEnabled && tracking && !selected,
-    retry: false,
-  })
   const history = useQuery({
     queryKey: [...root, 'jobs'],
     queryFn: () => bridge.list(),
@@ -177,19 +164,10 @@ export function LocalWorkspaceWork({
         }
       }
       if (kind === 'submit') {
-        const sources = tracking
-          ? materials.map(({ id, checksum, parser_version, generation }) => ({
-              id,
-              checksum,
-              parser_version,
-              generation,
-            }))
-          : []
         const signature = JSON.stringify({
           workspace_id: workspace!.id,
           goal,
           tracking,
-          sources,
         })
         if (submission.current.signature !== signature)
           submission.current = { signature, id: crypto.randomUUID() }
@@ -198,7 +176,6 @@ export function LocalWorkspaceWork({
           workspace_id: workspace!.id,
           goal,
           track_cloud: tracking,
-          sources,
         })
         if (alive.current) {
           open(result.run_id)
@@ -265,7 +242,7 @@ export function LocalWorkspaceWork({
     ) || []
   return (
     <section
-      className={`work-materials work-local-workspace work-task-page ${selected ? '' : 'work-task-create'}`}
+      className={`work-page work-local-workspace work-task-page ${selected ? '' : 'work-task-create'}`}
       aria-label="本地工作空间"
     >
       <header className="work-heading work-task-heading">
@@ -275,13 +252,15 @@ export function LocalWorkspaceWork({
             本机工作助理
           </p>
           <h1>{selected ? '本地工作空间' : '今天想完成什么工作？'}</h1>
-          <p>说说你的目标，让助理帮你整理材料、分析数据、生成成果。</p>
+          <p>
+            说说你的目标，让助理在授权文件夹中整理文件、分析数据、生成成果。
+          </p>
         </div>
         <button
           className="work-button"
           onClick={() => navigate(`/work?view=${view}&execution=cloud`)}
         >
-          使用云端材料
+          使用云端工作助理
         </button>
       </header>
       {(error || capabilities.isError) && (
@@ -349,7 +328,7 @@ export function LocalWorkspaceWork({
           {history.isError && <p role="alert">{localError(history.error)}</p>}
           {recentJobs.map((item) => (
             <button
-              className="work-material-row"
+              className="work-task-row"
               data-work-open-task
               key={item.run_id}
               aria-pressed={item.run_id === selected}
@@ -445,64 +424,6 @@ export function LocalWorkspaceWork({
                       <RiFolderAddLine size={18} aria-hidden="true" />
                       {workspace ? '更换或重新授权文件夹' : '选择本地文件夹'}
                     </button>
-                    {tracking && (
-                      <details className="work-composer-menu">
-                        <summary>
-                          <RiAttachment2 size={18} aria-hidden="true" />
-                          云端材料（{materials.length}）
-                        </summary>
-                        <fieldset className="work-composer-popover">
-                          <legend>可选云端材料</legend>
-                          {cloudMaterials.isError && (
-                            <p role="alert">
-                              云端材料暂不可用，可不选择材料继续。
-                            </p>
-                          )}
-                          {cloudMaterials.data?.results.map((item) => (
-                            <label className="work-check" key={item.id}>
-                              <input
-                                type="checkbox"
-                                disabled={
-                                  item.status !== 'ready' ||
-                                  operation.isPending ||
-                                  (!materials.some((m) => m.id === item.id) &&
-                                    materials.length >= 10)
-                                }
-                                checked={materials.some(
-                                  (m) => m.id === item.id
-                                )}
-                                onChange={(e) =>
-                                  setMaterials((current) =>
-                                    e.target.checked
-                                      ? [...current, item]
-                                      : current.filter((m) => m.id !== item.id)
-                                  )
-                                }
-                              />
-                              {item.original_name}
-                            </label>
-                          ))}
-                          <button
-                            type="button"
-                            disabled={materialPage <= 1}
-                            onClick={() => setMaterialPage((p) => p - 1)}
-                          >
-                            上一页材料
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!cloudMaterials.data?.next}
-                            onClick={() => setMaterialPage((p) => p + 1)}
-                          >
-                            下一页材料
-                          </button>
-                          <p>
-                            已选择 {materials.length}{' '}
-                            份云端材料，仅将授权快照提供给本机执行器。
-                          </p>
-                        </fieldset>
-                      </details>
-                    )}
 
                     <details className="work-composer-menu">
                       <summary>
@@ -590,9 +511,7 @@ export function LocalWorkspaceWork({
                   workspace ? (
                     <p>当前工作空间：{workspace.path}</p>
                   ) : (
-                    <span>
-                      选择一个本地文件夹，作为本次工作的材料与成果目录
-                    </span>
+                    <span>选择一个本地文件夹，作为本次工作的工作目录</span>
                   )
                 }
                 options={

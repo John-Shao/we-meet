@@ -15,8 +15,7 @@ from core.models import AIUsageRecord
 from work import agent_runs, local_runs
 from work.models import WorkRun
 
-from .test_materials import client, work_settings
-from .test_runs import task_input
+from .support import client, work_settings
 
 pytestmark = pytest.mark.django_db
 ROOT = "/api/v1.0/work/"
@@ -44,14 +43,13 @@ def device(client):
     return identifier
 
 
-def admit(client, sources=None):
+def admit(client):
     body = {
         "device_id": device(client),
         "run_id": str(uuid.uuid4()),
         "goal": "Combine authorized cloud context with local files",
         "model": "deepseek-flash",
         "workspace_label": "selected folder",
-        "sources": sources or [],
     }
     response = client.post(ROOT + "local/tasks/", body, format="json")
     assert response.status_code == 201, response.data
@@ -263,18 +261,11 @@ def test_gap_and_usage_regression_do_not_mutate_ledger(client):
     assert run.local_report_seq == 1 and run.agent_metering["calls"] == 1
 
 
-def test_context_snapshot_and_source_revocation(client):
-    sources = task_input(client)["sources"]
-    body, _, claim = admit(client, sources)
-    assert (
-        claim["files"]
-        and claim["files"][0]["sha256"]
-        == hashlib.sha256(claim["files"][0]["text"].encode()).hexdigest()
-    )
-    assert client.delete(ROOT + f"materials/{sources[0]['id']}/").status_code == 204
+def test_claim_carries_no_files(client):
+    body, _, claim = admit(client)
+    assert claim["files"] == []
     response = post_report(client, body, report_for(body, claim, "running"))
-    assert response.status_code == 200 and response.data["cancel"] is True
-    assert WorkRun.objects.get(pk=body["run_id"]).status == "failed"
+    assert response.status_code == 200
 
 
 def test_disabled_coordination_cannot_admit_but_cancels_existing(client, settings):

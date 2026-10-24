@@ -1,20 +1,20 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import {
   RiArrowUpLine,
-  RiChatQuoteLine,
+  RiFileList3Line,
   RiFileTextLine,
 } from '@remixicon/react'
 
 const suggestions = [
   {
-    label: '文档整理',
+    label: '整理要点',
     icon: RiFileTextLine,
-    goal: '阅读工作材料，整理核心要点、结论与待确认信息，生成一份结构清晰的 report.md，并标明材料来源。',
+    goal: '整理给定主题的核心要点、结论与待确认信息，生成一份结构清晰的 report.md。',
   },
   {
-    label: '沟通提纲',
-    icon: RiChatQuoteLine,
-    goal: '根据工作材料整理沟通背景、议程、关键问题与建议话术，生成 report.md。区分已知事实与待确认信息。',
+    label: '生成方案',
+    icon: RiFileList3Line,
+    goal: '围绕给定目标撰写一份可执行的方案，说明步骤、依赖与待确认信息，生成 report.md。',
   },
 ]
 
@@ -36,7 +36,7 @@ export function TaskComposer({
   busy: boolean
   disabled: boolean
   submitLabel: string
-  tools: ReactNode
+  tools?: ReactNode
   context?: ReactNode
   options?: ReactNode
   hint: ReactNode
@@ -125,13 +125,15 @@ export function TaskComposer({
             maxLength={maxLength}
             value={goal}
             disabled={busy}
-            placeholder="描述你想完成的工作，例如：整理材料要点，生成一份总结…"
+            placeholder="描述你想完成的工作，例如：整理文件要点，生成一份总结…"
             onChange={(event) => onGoalChange(event.target.value)}
           />
           <div className="work-composer-toolbar">
-            <div ref={toolbar} className="work-composer-tools">
-              {tools}
-            </div>
+            {tools && (
+              <div ref={toolbar} className="work-composer-tools">
+                {tools}
+              </div>
+            )}
             <button
               type="submit"
               className="work-composer-send"

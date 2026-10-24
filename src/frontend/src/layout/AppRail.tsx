@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Link, useLocation, useSearch } from 'wouter'
+import { Link, useLocation } from 'wouter'
 import { useTranslation } from 'react-i18next'
 import {
   Button as RACButton,
@@ -36,7 +36,7 @@ import { fetchApprovals } from '@/features/approval/api/fetchApproval'
 import { GlobalSearch } from './GlobalSearch'
 import {
   appAtLocation,
-  availableApps,
+  appCatalog,
   isModulePath,
 } from '@/features/apps/catalog'
 import { useAppPreferences } from '@/features/apps/useAppPreferences'
@@ -133,22 +133,21 @@ export const AppRail = ({ collapsed = false, onToggleCollapse }: Props) => {
   const { user, logout } = useUser()
   const { data: config } = useConfig()
   const [location] = useLocation()
-  const search = useSearch()
   const preferences = useAppPreferences(user?.id ?? '')
   const { opened } = preferences
-  const catalog = availableApps(config?.work?.enabled === true)
+  const catalog = appCatalog
   const favorites = preferences.favorites.flatMap((id) => {
     const app = catalog.find((item) => item.id === id)
     return app ? [app] : []
   })
-  const currentApp = appAtLocation(location, search)
+  const currentApp = appAtLocation(location)
   const currentAppId = catalog.find((app) => app.id === currentApp?.id)?.id
   useEffect(() => {
     if (currentAppId) opened(currentAppId)
   }, [currentAppId, opened])
   const activePrimary = (to: string) =>
     isModulePath(location, to) ||
-    (to === '/apps' && currentApp?.group !== 'ai' && !!currentApp) ||
+    (to === '/apps' && !!currentApp) ||
     (to === '/meeting' && location.startsWith('/meetings/'))
   // P8 设置收敛:弹窗开关走全局 store,模块快捷入口(日历页齿轮等)也能打开。
   const { open: settingsOpen, section: settingsSection } =

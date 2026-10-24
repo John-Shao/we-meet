@@ -13,8 +13,8 @@ from core.factories import UserFactory
 from work import agent_runs
 from work.models import WorkRun, WorkWorkspace
 
+from .support import client, work_settings
 from .test_local_runs import device, local_settings
-from .test_materials import client, work_settings
 
 pytestmark = pytest.mark.django_db
 ROOT = "/api/v1.0/work/local/"

@@ -4,6 +4,8 @@
 >
 > 实现状态：Implemented（2026-10-24：模型、准入、交付复核、非空组织、组织预算与审计已落地，`WORK_TENANT_ACCESS_ENABLED` 默认关闭）
 >
+> 后续变更：2026-10-25 已删除 Work 的材料上传 / 解析和沟通准备能力；能力集合不再包含 `material` / `communication`，下文相关表述仅保留为当时决策背景。
+>
 > 日期：2026-10-24
 >
 > 决策范围：组织授权、成员准入、Work 数据边界、预算归属
@@ -18,9 +20,9 @@ Work 当前以单组织试点运行，准入依赖一个全局环境变量：
 - 该判定只覆盖 Agent、本地协调、远程派发和 Pi 复核；材料上传与沟通准备不经过它（`work/README.md` 的准入说明）。
 - 组织归属由 `services.organization_for()`（`work/services.py:42`）取用户 primary 的 active membership，只返回一个组织。
 - 每日 token 预占按 owner 汇总，跨组织共用（`work/runs.py:76`）。
-- `WorkMaterial` / `WorkTask` / `WorkDevice` 的 `organization` 均可为空，空组织数据按 owner 隔离。
+- `WorkTask` / `WorkDevice` 的 `organization` 均可为空，空组织数据按 owner 隔离。
 
-这套实现适合单租户演示，但不满足“服务方控制组织白名单、企业客户控制账号 allowlist”的试点边界：全局 UUID 列表无法表达租户；材料与沟通准备绕过了准入；组织停用后队列中的 run 仍可能执行；预算无法按租户核算。
+这套实现适合单租户演示，但不满足“服务方控制组织白名单、企业客户控制账号 allowlist”的试点边界：全局 UUID 列表无法表达租户；材料与沟通准备绕过了准入（该能力已于 2026-10-25 删除）；组织停用后队列中的 run 仍可能执行；预算无法按租户核算。
 
 ## 决策
 
@@ -37,7 +39,7 @@ Work 当前以单组织试点运行，准入依赖一个全局环境变量：
 ### 2. 数据模型
 
 - `WorkOrganizationEntitlement`（Work app，OneToOne `Organization`）
-  - `enabled`、`features`（material / communication / agent / local / remote / review 的布尔集合）、`daily_token_budget`、`member_limit`、`disabled_reason`、`updated_by`、时间戳。
+  - `enabled`、`features`（agent / local / remote / review 的布尔集合；历史 `material` / `communication` 已随能力删除）、`daily_token_budget`、`member_limit`、`disabled_reason`、`updated_by`、时间戳。
   - 服务方通过 Django admin 维护；内部管理 API 后续再加。
 - `WorkMemberGrant`（Work app）
   - `organization`、`user`、`enabled`、`source`（`provider` / `customer`）、`granted_by`、`expires_at`、`created_at`。
@@ -63,7 +65,7 @@ Work 当前以单组织试点运行，准入依赖一个全局环境变量：
 
 ### 4. 组织必须显式
 
-- 新建 `WorkMaterial` / `WorkTask` / `WorkDevice` 必须带非空 `organization`；没有 active membership 的账号不能创建 Work 数据。
+- 新建 `WorkTask` / `WorkDevice` 必须带非空 `organization`；没有 active membership 的账号不能创建 Work 数据。
 - 多组织用户不能再用 “primary 组织” 静默代选。API 接受 `X-Organization-Id`（或等价显式参数），必须是调用者的 active membership；只有一个组织时可省略。缺失且有多个组织时返回 409 `organization_required`；头部不是合法 UUID 时 400 `invalid_organization`；不是 active membership 时 403 `member_disabled`。该头部仅在 `WORK_TENANT_ACCESS_ENABLED` 打开时生效，关闭时保留原有单组织回退。
 - 既有 `organization IS NULL` 的数据保留 owner-only 只读，不删除、不自动迁移；不能再创建新的空组织数据。迁移或到期清理走独立留存策略。
 
@@ -126,11 +128,11 @@ Work 当前以单组织试点运行，准入依赖一个全局环境变量：
 
 - `WorkOrganizationEntitlement` / `WorkMemberGrant` / `WorkAccessAudit` 模型、`work/migrations/0008_tenant_access.py` / `0009_work_access_audit.py`、Django admin。
 - `work/access.py` 统一谓词：身份、单组织解析、应急停用、组织授权、能力开关、成员关系、grant 有效期；数据库异常 fail-closed。`require_scope()` / `scope_denial()` 用于对已存行做交付前复核。
-- `WorkUser` 权限统一调用谓词，材料 / 本地 / 远程 / 复核视图通过 `work_feature` 声明能力。
+- `WorkUser` 权限统一调用谓词，本地 / 远程 / 复核视图通过 `work_feature` 声明能力。
 - `X-Organization-Id` 显式组织选择：必须是调用者的 active membership；格式错误 400 `invalid_organization`，非成员 403 `member_disabled`，多组织未提供时 409。选中的组织透传到材料、任务、设备与远程 workspace 的查询和创建，不再回退主组织。
-- 交付复核：材料预览、run 事件 / 文件 / 下载 / 成果读取 / 采纳、review 读取 / 创建 / 取消都会重查行级组织与成员授权；`sources_for()` 继续校验冻结材料版本。
+- 交付复核：run 事件 / 文件 / 下载 / 成果读取 / 采纳、review 读取 / 创建 / 取消都会重查行级组织与成员授权。
 - `claim_run()`、`local_runs.claim()/report()`、`agent_runs.claim()/reconcile()`、`review_runs.claim()` 在领取（及本地回报、远程交付）时复核。准入撤销的 run/review 以 `access_revoked` 终结，`error_code` 保留 `org_disabled` / `member_disabled` 等具体原因；`access_unavailable` 视为瞬时故障，保持 queued 待重试。
-- 新建 `WorkMaterial` / `WorkTask` / `WorkDevice` / 本地受理在租户开关打开时强制非空组织，否则 409 `organization_required`。空组织历史数据保持 owner-only 只读。
+- 新建 `WorkTask` / `WorkDevice` / 本地受理在租户开关打开时强制非空组织，否则 409 `organization_required`。空组织历史数据保持 owner-only 只读。
 - 每日预占按组织汇总（含 review），上限优先取 `WorkOrganizationEntitlement.daily_token_budget`，否则回退 `WORK_DAILY_TOKEN_BUDGET`；`capabilities` 返回当前请求组织的额度。
 - 审计：Django admin 新增 / 修改 / 删除 entitlement 或 grant 时写入 `WorkAccessAudit`，记录操作者、动作、组织、对象、变更前后快照与 `X-Request-Id`；审计页只读，写审计失败不回滚授权变更。
 - 失败语义：成员/组织/能力拒绝 403；多组织未显式选择 409；授权查询异常 503。
@@ -145,7 +147,7 @@ Work 当前以单组织试点运行，准入依赖一个全局环境变量：
 
 ## 验收
 
-- 组织未开通：所有 Work API 403；材料与沟通准备同样被拒。
+- 组织未开通：所有 Work API 403。
 - 组织停用：queued 任务终止为 `org_disabled`；运行中调用结束后结果不可见；不产生新预占。
 - 成员撤销：下一次领取、回报或下载被拒；同组织其他成员不受影响。
 - 多组织用户：不传组织且有两个成员关系时 409；传非成员组织时 403。

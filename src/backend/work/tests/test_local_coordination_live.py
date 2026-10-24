@@ -18,11 +18,10 @@ from rest_framework.test import APIClient
 
 from core.models import AIUsageRecord
 
-from work import services
-from work.models import WorkMaterial, WorkRun
+from work.models import WorkRun
 
+from .support import client, work_settings
 from .test_local_runs import local_settings
-from .test_materials import client, upload, work_settings
 
 pytestmark = [
     pytest.mark.django_db(transaction=True),
@@ -34,20 +33,8 @@ pytestmark = [
 
 
 @pytest.mark.parametrize("remote", [False, True])
-def test_native_execution_with_authorized_cloud_context(client, settings, remote):
+def test_native_execution_with_authorized_workspace(client, settings, remote):
     settings.WORK_REMOTE_AGENT_ENABLED = remote
-    response = upload(client, data=b"cloud-marker-4681\n", name="context.md")
-    assert response.status_code == 201
-    assert services.process_materials() == 1
-    material = WorkMaterial.objects.get(pk=response.data["id"])
-    sources = [
-        {
-            "id": str(material.pk),
-            "checksum": material.checksum,
-            "parser_version": material.parser_version,
-            "generation": material.generation,
-        }
-    ]
     user = client.work_user
 
     class Handler(BaseHTTPRequestHandler):
@@ -95,7 +82,6 @@ def test_native_execution_with_authorized_cloud_context(client, settings, remote
         "WE_MEET_LOCAL_KEY_FILE": os.environ["WORK_COORDINATION_LIVE_KEY_FILE"],
         "WORK_LOCAL_ALLOW_PAID": "1",
         "WORK_COORDINATION_URL": f"http://127.0.0.1:{server.server_port}",
-        "WORK_COORDINATION_SOURCES": json.dumps(sources),
         "WORK_COORDINATION_RECEIPT": str(receipt),
         "WORK_COORDINATION_REMOTE": "1" if remote else "0",
     }

@@ -76,12 +76,6 @@ export interface LocalWorkBridge {
     workspace_id: string
     goal: string
     track_cloud?: boolean
-    sources?: {
-      id: string
-      checksum: string
-      parser_version: string
-      generation: number
-    }[]
   }): Promise<LocalJob>
   get(runId: string): Promise<LocalJob>
   cancel(runId: string): Promise<LocalJob>

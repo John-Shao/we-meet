@@ -95,7 +95,7 @@ def validate_request(body):
         if item["sha256"] != digest(content):
             raise ContractError("checksum_mismatch")
     if total > 400_000:
-        raise ContractError("materials_too_large", 413)
+        raise ContractError("files_too_large", 413)
     return body
 
 

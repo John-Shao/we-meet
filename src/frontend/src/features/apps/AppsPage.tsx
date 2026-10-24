@@ -9,13 +9,12 @@ import {
   RiDraggable,
   RiSettings3Line,
 } from '@remixicon/react'
-import { useConfig } from '@/api/useConfig'
 import { useUser } from '@/features/auth'
 import { RequireAuth } from '@/components/RequireAuth'
 import { Screen } from '@/layout/Screen'
 import { Button } from '@/primitives/Button'
 import { css } from '@/styled-system/css'
-import { availableApps, type AppEntry, type AppId } from './catalog'
+import { appCatalog, type AppEntry, type AppId } from './catalog'
 import { useAppPreferences } from './useAppPreferences'
 
 const grid = css({
@@ -78,13 +77,7 @@ export function AppIcon({ app }: { app: AppEntry }) {
   )
 }
 
-export function AppsContent({
-  ownerId,
-  workEnabled,
-}: {
-  ownerId: string
-  workEnabled: boolean
-}) {
+export function AppsContent({ ownerId }: { ownerId: string }) {
   const { t } = useTranslation('apps')
   const [params, setParams] = useSearchParams()
   const mode = params.get('view')
@@ -96,7 +89,7 @@ export function AppsContent({
   const dragId = useRef<AppId | null>(null)
   const [announcement, setAnnouncement] = useState('')
   const preferences = useAppPreferences(ownerId)
-  const apps = availableApps(workEnabled)
+  const apps = appCatalog
   const resolve = (ids: AppId[]) =>
     ids.flatMap((id) => {
       const app = apps.find((item) => item.id === id)
@@ -125,13 +118,7 @@ export function AppsContent({
     preferences.move(id, target)
     setAnnouncement(t('orderSaved'))
   }
-  const categories = [
-    'all',
-    'recent',
-    'time',
-    'organization',
-    ...(workEnabled ? ['ai'] : []),
-  ]
+  const categories = ['all', 'recent', 'time', 'organization']
   const appTile = (app: AppEntry, section: string) => (
     <Link
       key={app.id}
@@ -468,15 +455,10 @@ export function AppsContent({
 
 export function AppsRoute() {
   const { user } = useUser()
-  const { data: config } = useConfig()
   return (
     <RequireAuth>
       <Screen footer={false}>
-        <AppsContent
-          key={user?.id}
-          ownerId={user?.id ?? ''}
-          workEnabled={config?.work?.enabled === true}
-        />
+        <AppsContent key={user?.id} ownerId={user?.id ?? ''} />
       </Screen>
     </RequireAuth>
   )

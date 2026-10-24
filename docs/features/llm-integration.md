@@ -21,7 +21,6 @@ AOQ、WebRTC、WebSocket 是传输方式，DashScope SDK、OpenAI SDK 是调用�
 | 同上 | 会议字幕、其他云端实时转写 | LiveKit／采集链路 → Agent → 百炼 WebSocket | 继续使用原生 WebSocket 适配器 |
 | `qwen-audio-3.1-asr-flash-filetrans` | 上传文件、录后整段转写、旧 Summary 转写 | 后端／Agent／Summary 使用异步任务 HTTP API；分别复用 requests／aiohttp 连接 | 保留云端任务管理，已完成连接复用 |
 | `qwen3.8-flash` | 会议纪要、概览、录音问答、全局 AI 搜索、会话摘要、上传原文翻译 | 后端和旧 Summary 使用 OpenAI 兼容 SDK，HTTP／SSE | 复用 SDK 实例和 HTTP 连接，不为池化更换 SDK |
-| 同上（按任务配置） | Work 通信任务 | 后端 `WorkCommunicationExecutor` 使用 `LLMClient`／OpenAI SDK | 使用后端复用层；模型和地址取任务快照 |
 | 同上（Pi 灰度配置） | Work 云端 Pi Agent | Agent runtime → Model Broker → 百炼兼容 HTTP／SSE | Broker 独立持有 httpx 池，已随云端适配器 0.3.6 发布并验证 |
 | `text-embedding-v4` | 字幕及搜索向量，1024 维 | 后端调用兼容 HTTP `/embeddings`，实际传输经 requests 连接池 | 已生产发布：每请求最多 10 条，按索引恢复顺序并校验维度 |
 | `qwen3-asr-flash-realtime` | Omni AOQ／WebRTC 会话中的输入文字 | 两条客户端路径均使用 `session.input_audio_transcription.model` 子配置 | 不是独立 ASR 3.1 转写任务，不应与其混为一谈 |
@@ -157,7 +156,6 @@ Filetrans 的收费提交不自动重复；提交结果不明时不能把 HTTP �
 | `MEETING_SUMMARY_MODEL`、`MEETING_OVERVIEW_MODEL`、`MEETING_SUMMARY_BASE_URL` | 默认 `qwen3.8-flash`，北京 OpenAI 兼容地址 |
 | `QWEN_EMBEDDING_MODEL` | 默认 `text-embedding-v4`；更换模型需同时考虑索引和缓存 |
 | 旧 Summary 的 `LLM_MODEL`、`LLM_BASE_URL`、`DASHSCOPE_API_KEY` | 独立服务配置；Qwen 路径不使用遗留 `LLM_API_KEY` |
-| `WORK_MODEL_API_KEY`、任务的 model／base_url | 后端 Work 通信任务，与 Work Agent Broker 的 provider 配置分开管理 |
 
 实时 WebSocket 使用工作空间域名的 `/api-ws/v1/inference`（ASR）或 `/api-ws/v1/realtime`（Omni／翻译）。文件任务使用区域 `/api/v1/services/audio/asr/transcription`、`/api/v1/tasks/{task}`；文本和向量使用 `/compatible-mode/v1`。各区域配置及凭证不能混用。
 

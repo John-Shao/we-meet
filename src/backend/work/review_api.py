@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from core.models import User
 
 from . import access, review_runs, runs
-from .api import MaterialViewSet
+from .api import request_key
 from .models import WorkReview
 from .task_api import RunViewSet
 
@@ -34,18 +34,16 @@ class ReviewView(RunViewSet):
     def reviews(self, request, pk=None):
         if request.method == "GET":
             run = self.authorized_run()
-            runs.sources_for(run.task)
             return Response(
                 [review_runs.public_data(item) for item in run.reviews.all()]
             )
         form = ReviewInput(data=request.data)
         form.is_valid(raise_exception=True)
-        key = MaterialViewSet.request_key(request)
+        key = request_key(request)
         with transaction.atomic():
             User.objects.select_for_update().get(pk=request.user.pk)
             run = get_object_or_404(self.get_queryset().select_for_update(), pk=pk)
             access.require_scope(request.user, run.task.organization_id)
-            runs.sources_for(run.task)
             review, created = review_runs.new_review(
                 run, key, form.validated_data["files"]
             )

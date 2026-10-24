@@ -8,8 +8,8 @@ from rest_framework.views import APIView
 
 from . import access, local_runs
 from .api import WorkUser
-from .services import MaterialError
-from .task_api import SourceInput, run_data, task_data
+from .services import WorkError
+from .task_api import run_data, task_data
 
 
 class StrictInput(serializers.Serializer):
@@ -30,12 +30,6 @@ class AdmissionInput(StrictInput):
     goal = serializers.CharField(max_length=2000)
     model = serializers.RegexField(r"^[A-Za-z0-9._-]{1,80}$")
     workspace_label = serializers.CharField(max_length=120)
-    sources = SourceInput(many=True, max_length=10, default=list)
-
-    def validate_sources(self, value):
-        if len({v["id"] for v in value}) != len(value):
-            raise serializers.ValidationError("duplicate_source")
-        return [{**v, "id": str(v["id"])} for v in value]
 
 
 class ClaimInput(StrictInput):
@@ -119,13 +113,13 @@ class DeviceView(APIView):
         return response
 
     def handle_exception(self, exc):
-        if isinstance(exc, MaterialError):
+        if isinstance(exc, WorkError):
             return Response({"code": exc.code}, status=exc.status)
         return super().handle_exception(exc)
 
     def post(self, request):
         if not local_runs.enabled(request.user):
-            raise MaterialError("local_coordination_disabled", 503)
+            raise WorkError("local_coordination_disabled", 503)
         form = DeviceInput(data=request.data)
         form.is_valid(raise_exception=True)
         device = local_runs.register(

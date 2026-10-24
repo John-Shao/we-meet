@@ -15,7 +15,7 @@ from core.models import User
 from . import access, local_runs, runs
 from .local_api import DeviceView, StrictInput
 from .models import WorkDevice, WorkRun, WorkWorkspace
-from .services import MaterialError, scoped_organization
+from .services import WorkError, scoped_organization
 from .task_api import run_data, task_data
 
 
@@ -25,7 +25,7 @@ def enabled(user):
 
 def ensure_enabled(user):
     if not enabled(user):
-        raise MaterialError("remote_coordination_disabled", 503)
+        raise WorkError("remote_coordination_disabled", 503)
 
 
 def workspaces(user, organization_id=None):
@@ -94,12 +94,12 @@ class WorkspaceView(DeviceView):
         device = local_runs.device_for(request.user, data["device_id"], organization_id)
         w = WorkWorkspace.objects.filter(pk=data["workspace_id"]).first()
         if w and w.device_id != device.pk:
-            raise MaterialError("workspace_unavailable", 409)
+            raise WorkError("workspace_unavailable", 409)
         if data["model"] != settings.WORK_AGENT_MODEL:
-            raise MaterialError("local_model_unavailable", 409)
+            raise WorkError("local_model_unavailable", 409)
         if not w:
             if workspaces(request.user, organization_id).count() >= 100:
-                raise MaterialError("workspace_limit", 429)
+                raise WorkError("workspace_limit", 429)
             w = WorkWorkspace(id=data["workspace_id"], device=device)
         w.label, w.model, w.enabled, w.last_seen_at = (
             data["label"],
@@ -145,7 +145,7 @@ class RemoteTaskView(DeviceView):
                 or not previous.remote_requested
                 or previous.task.goal != data["goal"]
             ):
-                raise MaterialError("idempotency_conflict", 409)
+                raise WorkError("idempotency_conflict", 409)
             return Response(
                 {
                     "contract": local_runs.CONTRACT,
@@ -154,7 +154,7 @@ class RemoteTaskView(DeviceView):
                 }
             )
         if not w.enabled:
-            raise MaterialError("workspace_permission_required", 409)
+            raise WorkError("workspace_permission_required", 409)
         # An offline alias can receive a queued request. Only its original desktop
         # may claim it after fresh native folder consent and explicit task review.
         run, created = local_runs.admit(
@@ -165,7 +165,6 @@ class RemoteTaskView(DeviceView):
                 "goal": data["goal"],
                 "model": w.model,
                 "workspace_label": w.label,
-                "sources": [],
             },
             workspace=w,
             organization_id=organization_id,

@@ -28,8 +28,7 @@
     "all": "All",
     "recent": "Recently used",
     "time": "Time and tasks",
-    "organization": "Organization and workflows",
-    "ai": "AI tools"
+    "organization": "Organization and workflows"
   },
   "items": {
     "calendar": {
@@ -47,18 +46,6 @@
     "approval": {
       "name": "Approvals",
       "description": "Submit requests and review pending approvals."
-    },
-    "communication": {
-      "name": "Communication preparation",
-      "description": "Prepare agendas, questions and talking points from materials."
-    },
-    "weekly": {
-      "name": "Weekly report",
-      "description": "Summarize progress and prepare a weekly report."
-    },
-    "spreadsheet": {
-      "name": "Spreadsheet analysis",
-      "description": "Analyze spreadsheet data and summarize findings."
     }
   }
 }

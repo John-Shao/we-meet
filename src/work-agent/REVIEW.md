@@ -6,11 +6,11 @@ Work 业务层协调复核，dsh 仍是默认执行器。Pi 使用独立 Gateway
 
 ## 使用与授权
 
-Web/Electron 共用 Work 页面，在成功完成的任务详情中显示“成果复核”。选择最多 8 个原始成果文件，确认将选定成果和本任务已授权材料发送给复核模型后，手动开启本次复核。默认额外预留 20,000 tokens，最多调用模型一次，同一成果最多复核 5 次，与原执行共享每日预算。
+Web/Electron 共用 Work 页面，在成功完成的任务详情中显示“成果复核”。选择最多 8 个原始成果文件，确认将选定成果发送给复核模型后，手动开启本次复核。默认额外预留 20,000 tokens，最多调用模型一次，同一成果最多复核 5 次，与原执行共享每日预算。
 
 桌面成果经原有显式同步流程进入服务端后才可选择；不读取桌面文件夹、不自动上传工作空间。Android 已实现报告及源成果只读查看，尚无复核创建/取消入口。
 
-创建时冻结任务目标、背景、选定成果和已授权材料。引用文件使用 `source-<id>.md/csv`、`result-01.<ext>` 等别名，`snapshot.json` 记录原始名称与文件映射。检查的是选定原始成果文件，不会读取编辑后的 Markdown 草稿代替它。
+创建时冻结任务目标、背景和选定成果。成果文件使用 `result-01.<ext>` 别名，`snapshot.json` 记录原始名称与文件映射。检查的是选定原始成果文件，不会读取编辑后的 Markdown 草稿代替它。
 
 ## 只读限制
 
@@ -18,7 +18,7 @@ Web/Electron 共用 Work 页面，在成功完成的任务详情中显示“成�
 - ModelBroker 在付费调用前拒绝复核请求中的工具/函数能力，并强制 JSON Output。每个容器只挂载当前 job，不挂载桌面工作空间、Docker socket 或业务凭据；Pi 只有临时模型 token，真实供应商 key 保留在 Gateway。
 - runner 与后端分别验证报告结构。每条问题必须引用快照中的文件名、SHA-256 和精确非空原文。匹配证据来源不能证明模型推理正确，仍需人工核实。
 - 可信 runner 写入唯一成果 `pi-review.json`，保存到独立 `WorkReview`。复核不修改原成果版本、不改变原执行结果、不自动触发修复或发布。
-- `no_issues` 表示在提供的材料中未发现问题；`needs_changes` 必须有问题与证据；`inconclusive` 必须解释缺失信息。
+- `no_issues` 表示在提供的成果中未发现问题；`needs_changes` 必须有问题与证据；`inconclusive` 必须解释缺失信息。
 - 适配器 `0.3.5` 将含有效缺失信息的 `no_issues` 或 `needs_changes` 保守标为 `inconclusive`，保留发现并继续严格校验引用；Web/Android 对历史报告也优先展示信息不足提示，不改写原记录、不补造证据。
 - 无效报告作为失败处理，不自动重试模型。私有 runtime-home 内的 `review-candidate.json` 用于定位失败，不作为成果、API 响应或公开日志；遵循 job 的私有数据保留策略。
 
@@ -41,7 +41,7 @@ Gateway 以 `--engine pi` 和固定 Pi 镜像启动，使用独立端口和状�
 
 部署新版本的 Work worker 和 Beat 后，`work.tasks.tick_reviews` 在既有 Work queue 中每 5 秒协调两条记录。关闭开关后已有历史可读，取消清理仍继续协调。
 
-桌面本地工作空间任务成功且成果已明确同步到云端后，同一页面显示“成果复核”。用户再次选择已同步文件并勾选发送授权，再开启复核；尚未同步的本地文件不会列入复核选项。复核只使用云端冻结材料，不遍历本地文件夹。新增同步成功或响应不确定时，页面重新查询云端文件身份；切换本地任务会清空原同步文件选择。
+桌面本地工作空间任务成功且成果已明确同步到云端后，同一页面显示“成果复核”。用户再次选择已同步文件并勾选发送授权，再开启复核；尚未同步的本地文件不会列入复核选项。复核只使用云端冻结成果，不遍历本地文件夹。新增同步成功或响应不确定时，页面重新查询云端文件身份；切换本地任务会清空原同步文件选择。
 
 完整流程的合成验收见 [桌面到 Pi 复核记录](../../docs/reviews/work-local-pi-flow-2026-10-07.md)。包含真实 PostgreSQL/API、HTTP Gateway 与 Pi Docker 的模拟供应商响应，未新增付费调用。
 
@@ -50,7 +50,7 @@ Gateway 以 `--engine pi` 和固定 Pi 镜像启动，使用独立端口和状�
 - `POST /api/v1.0/work/runs/<run_id>/reviews/<review_id>/cancel/`：只取消复核。
 - capabilities 新增 `review_enabled`、`review_model`、`review_token_budget`。
 
-接口按原任务账号与当前组织隔离，材料权限在创建、执行、交付和查看时重新校验。撤销源材料会阻断交付并清理远端任务。取消优先于迟到报告，但保留已产生的供应商用量。传输不确定时查询同一 UUID 和快照，不自动换执行器或创建新 UUID。
+接口按原任务账号与当前组织隔离，复核创建、执行和查看时重新校验账号访问。选定成果身份在创建时冻结，缺失或不匹配则拒绝创建。取消优先于迟到报告，但保留已产生的供应商用量。传输不确定时查询同一 UUID 和快照，不自动换执行器或创建新 UUID。
 
 ## 真实评测
 
@@ -76,7 +76,7 @@ Schema 只约束字段、类型与枚举；字符串长度、数组数量、判�
 
 Qwen 的 `prompt_tokens_details.cached_tokens` 计入输入缓存；非缓存输入为 `prompt_tokens-cached_tokens`。推理 tokens 已包含在 `completion_tokens` 中，不再次累加。缺失或无效用量保持未知和保守预留，不能当成免费调用。供应商 key 只在网关，容器收到的是限当前 job 的短期 token。
 
-配置测试用 `DASHSCOPE_API_KEY` 后，执行以下合成样本对照。默认每个模型五次调用，共最多十次，每次最多预留 20,000 tokens、输出 4096 tokens；失败保留、不自动重试。它使用固定的正确合成成果，不重新运行 dsh，以保持两种模型收到相同材料。
+配置测试用 `DASHSCOPE_API_KEY` 后，执行以下合成样本对照。默认每个模型五次调用，共最多十次，每次最多预留 20,000 tokens、输出 4096 tokens；失败保留、不自动重试。它使用固定的正确合成成果，不重新运行 dsh，以保持两种模型收到相同输入。
 
 ```powershell
 cd src/work-agent
@@ -85,7 +85,7 @@ python scripts/compare_reviews.py --live --env-file .env --pi-image we-meet-work
 # 可增加 --qwen-base-url <区域工作空间端点> 或 --qwen-model <固定快照模型名>
 ```
 
-脚本校验每个样本目标与材料的 SHA-256，以及双方的 runtime/image/policy 固定信息。`work-review-synthetic/v2` 补齐 accepted/pending 状态定义；旧样本未定义这些业务代码，不能把模型拒绝推定状态含义直接当成误报。证据不足样本继续不提供订单或状态字典。
+脚本校验每个样本目标与输入的 SHA-256，以及双方的 runtime/image/policy 固定信息。`work-review-synthetic/v2` 补齐 accepted/pending 状态定义；旧样本未定义这些业务代码，不能把模型拒绝推定状态含义直接当成误报。证据不足样本继续不提供订单或状态字典。
 
 ### 复用现有百炼凭据与基线
 
@@ -107,7 +107,7 @@ python scripts/compare_reviews.py --live --qwen-model qwen3.8-flash --deepseek-b
 
 用 `check-work-agent.py --values-file <reviewer profile> --credential-section workReview` 校验 reviewer；此模式不读取主执行器的 token。可选的 `workReview.secrets` 只用于独立任务鉴权配置，供应商仍引用 `meet-ai-credentials`。校验器验证 Pi 引擎、模型、服务地址与 client token/CA 引用，明确开启后才要求非 optional 引用。禁用样例可离线校验，不更新集群。
 
-2026-10-07 用户确认复用已有百炼凭据后，完成五次真实 Flash 调用：四份报告通过，一份因 `file` 字段误写为 `fle` 被结构校验阻断。计量完整，共 5,408 tokens；材料及 runtime 与 DeepSeek v2 基线一致，失败保留，无自动付费重试。详见 [本轮记录](../../docs/reviews/work-pi-qwen-poc-2026-10-07.md)。生产 Pi 复核仍关闭，尚未发布。
+2026-10-07 用户确认复用已有百炼凭据后，完成五次真实 Flash 调用：四份报告通过，一份因 `file` 字段误写为 `fle` 被结构校验阻断。计量完整，共 5,408 tokens；输入及 runtime 与 DeepSeek v2 基线一致，失败保留，无自动付费重试。详见 [本轮记录](../../docs/reviews/work-pi-qwen-poc-2026-10-07.md)。生产 Pi 复核仍关闭，尚未发布。
 
 供应商配置依据 [Pi 自定义模型文档](https://pi.dev/docs/latest/models)、[百炼 OpenAI 兼容调用](https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions) 和 [Qwen 结构化输出](https://help.aliyun.com/en/model-studio/qwen-structured-output)。2026-10-07 查阅的官方 JSON Schema 支持列表包含 Qwen3.8-Flash 系列；本次只为所选 Flash 系列启用。JSON Object 保证语法格式，不保证字段 schema；两种格式均继续严格校验，未自动纠正模型报告。
 

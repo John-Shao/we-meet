@@ -86,7 +86,7 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(job["metering"]["calls"], 0)
         self.assertEqual([event["seq"] for event in job["events"]], [1])
 
-    def test_unicode_material_uses_utf8_wire_budget(self):
+    def test_unicode_file_uses_utf8_wire_budget(self):
         run_id = str(uuid.uuid4())
         self.client.submit(run_id, "fixture", {"材料.md": "文" * 100000})
         self.assertEqual(self.terminal(run_id)["state"], "succeeded")

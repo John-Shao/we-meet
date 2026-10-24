@@ -3,17 +3,17 @@
 > 状态：已实现（2026-10-24）
 > 分支：`feature/meeting-actions-backlink`（由 `feature/meeting-actions-mvp` 改名）
 > 基线：`aliyun-dev@441127d70`
-> 定位：**不是企业 AI 平台 MVP，也不是 AI 办公（Work）主线。** 本文件只记录会议 AI 既有链路的一个补全切片，用于修复新路径任务缺少来源回链的缺口；企业 AI 平台的主体见 [Work 办公 MVP 重新定基线](work-office-mvp-rebaseline-2026-10-24.md)。
+> 定位：**不是企业 AI 平台 MVP，也不是 Work Agent 主线。** 本文件只记录会议 AI 既有链路的一个补全切片，用于修复新路径任务缺少来源回链的缺口。
 
 ## 1. 来源
 
 - 产品来源：会议 AI 产品方案 v2 的[行动项与任务](meeting-ai-product-plan-v2-2026-09-12.md#行动项与任务)，2026-09-13 在[阶段 3 第二批](meeting-ai-phase3-records-delivery-2026-09-13.md#phase3-batch2)落地；Android 在[阶段 3 第 66 批](meeting-ai-phase3-native-2026-09-13.md#phase3-batch66)补齐行动项确认与任务回执。
 - 工程来源：`MeetingRecord → MeetingTranscriptVersion → MeetingSummaryVersion → MeetingSummaryReview → action_items → MeetingSummaryTaskLink → Task`。
-- 决策来源：2026-10-24 原企业 AI 平台方案被判定证据链断裂后，我在仓库中发现这条链路已实现、生产 Helm values 已把 `MEETING_SUMMARY_TASKS_ENABLED` 设为 `"True"`，于是把它作为可立即验证的工程切片。它**不是**从企业 AI 平台设计主线或 Work 办公 MVP 的需求验证中推导出来的。
+- 决策来源：2026-10-24 原企业 AI 平台方案被判定证据链断裂后，我在仓库中发现这条链路已实现、生产 Helm values 已把 `MEETING_SUMMARY_TASKS_ENABLED` 设为 `"True"`，于是把它作为可立即验证的工程切片。它**不是**从企业 AI 平台设计主线或 Work Agent 的需求验证中推导出来的。
 
 ## 2. 与平台主线的关系
 
-- 企业 AI 平台的主体是 AI 办公（Work）：材料 → 沟通准备 → 周报 → 表格分析。
+- 2026-10-25 起，Work 的日常办公能力（材料、沟通准备、周报、表格分析）已删除，仅保留目标驱动的 `office_agent`、本地 / 远程协调和 Pi 复核；本切片与 Work 主线的边界不变。
 - 会议行动项属于会议纪要能力；未来可作为 Work 的 P1-M 会议来源连接器，但当前 Work app 不读取会议，也没有“会议 → Work”接口。
 - 因此本切片只做任务侧回链，不承担平台立项、应用/技能注册、多租户 SaaS 或 Agent runtime 的职责，也不能作为平台成熟度的验收依据。
 

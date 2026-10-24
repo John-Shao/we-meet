@@ -28,8 +28,7 @@
     "all": "全部",
     "recent": "最近使用",
     "time": "时间与待办",
-    "organization": "组织与流程",
-    "ai": "AI 工具"
+    "organization": "组织与流程"
   },
   "items": {
     "calendar": {
@@ -47,18 +46,6 @@
     "approval": {
       "name": "审批",
       "description": "发起申请，处理待审批事项。"
-    },
-    "communication": {
-      "name": "沟通准备",
-      "description": "根据材料整理背景、议程和建议话术。"
-    },
-    "weekly": {
-      "name": "周报",
-      "description": "整理工作进展，生成周报。"
-    },
-    "spreadsheet": {
-      "name": "表格分析",
-      "description": "分析表格数据，提取统计结果与结论。"
     }
   }
 }

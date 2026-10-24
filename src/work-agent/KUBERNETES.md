@@ -4,7 +4,7 @@
 
 用户选定沿用现有单节点 K3s。新增 `--execution kubernetes` 和独立 chart `src/helm/work-agent-k8s`，业务仍通过 `work-agent/v1` 提交、查询、取消；dsh/Pi SDK 不进入业务镜像。桌面本地工作空间继续使用 `work-local/v1`，不受此执行器影响。
 
-Gateway 使用独立 namespace 和持久 PVC。每个任务创建一个固定镜像的 Pod：非 root、只读根目录、临时工作目录、无宿主机挂载、无 Docker socket、无 ServiceAccount token。任务通过验证私有 CA 的 HTTPS 一次性领取材料，再通过 ModelBroker 调用模型并回传成果。供应商 key 只在 Gateway；任务 namespace 只放公共 CA 和必要的镜像拉取凭据。
+Gateway 使用独立 namespace 和持久 PVC。每个任务创建一个固定镜像的 Pod：非 root、只读根目录、临时工作目录、无宿主机挂载、无 Docker socket、无 ServiceAccount token。任务通过验证私有 CA 的 HTTPS 一次性领取任务输入，再通过 ModelBroker 调用模型并回传成果。供应商 key 只在 Gateway；任务 namespace 只放公共 CA 和必要的镜像拉取凭据。
 
 创建只发一次 POST；应答丢失后按原 UUID、Pod UID 和启动凭据摘要确认已有 Pod，绝不换 UUID 再执行。Pod `restartPolicy: Never`，不使用 Job 重试控制器。取消、超时、关闭及重启先撤销任务与模型凭据，再按 UID 删除所属 Pod；未知任务不自动重放。节点失联时 Pod 还有独立 deadline，无法撤销已经发往供应商的请求，用量仍按未知预留处理。
 
@@ -42,6 +42,6 @@ python -m unittest discover -s deploy/aliyun -p test_work_kubernetes_live.py -v
 python deploy/aliyun/work-k3s-fixture.py cleanup --state-directory .work-acceptance/k3s-check
 ```
 
-真实测试覆盖 HTTPS 材料/成果交付、取消、超时、Gateway 重启、UID 清理、RBAC、无任务 API token、实际网络阻断，并在传入 worker 镜像时覆盖真实 Pi/dsh SDK 到 ModelBroker 的 TLS 链路。模型响应使用本地 SSE fixture，不读取真实供应商 key，不调用付费模型。回执保存在 Git 忽略目录，仅包含公开验收摘要。
+真实测试覆盖 HTTPS 任务输入/成果交付、取消、超时、Gateway 重启、UID 清理、RBAC、无任务 API token、实际网络阻断，并在传入 worker 镜像时覆盖真实 Pi/dsh SDK 到 ModelBroker 的 TLS 链路。模型响应使用本地 SSE fixture，不读取真实供应商 key，不调用付费模型。回执保存在 Git 忽略目录，仅包含公开验收摘要。
 
 正常离线回归：`python -m unittest discover -s src/work-agent/tests`（需设置对应 PYTHONPATH）以及 `python -m unittest discover -s deploy/aliyun -p test_work_kubernetes_delivery.py`。未显式提供隔离夹具时，真实集群测试跳过；跳过不能当作验收成功。

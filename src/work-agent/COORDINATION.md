@@ -8,7 +8,7 @@
 flowchart LR
   UI[桌面 Work 页面] --> Main[Electron 主进程]
   Main -->|work-device/v1 登记与领取| Work[Work API / PostgreSQL]
-  Work -->|已授权材料快照与预算| Main
+  Work -->|目标、执行预算与私有 ticket| Main
   Main -->|work-local/v1 stdio| Adapter[独立本地适配器 / dsh]
   Adapter --> Folder[用户授权的本地文件夹]
   Adapter --> Model[本机 ModelBroker / DeepSeek]
@@ -17,14 +17,14 @@ flowchart LR
   Main -->|主动同步选中文本| Work
 ```
 
-服务端拥有业务任务、用户与组织权限、材料版本、预算预留和任务状态。本机拥有目录授权、实际文件读写、运行时生命周期和模型凭据。一条任务只有一个执行位置；云端 worker 不领取本地任务。业务后端与 Electron 均不依赖上游 dsh SDK，SDK 更新集中在独立适配器中。
+服务端拥有业务任务、用户与组织权限、预算预留和任务状态。本机拥有目录授权、实际文件读写、运行时生命周期和模型凭据。一条任务只有一个执行位置；云端 worker 不领取本地任务。业务后端与 Electron 均不依赖上游 dsh SDK，SDK 更新集中在独立适配器中。
 
 ## 启用和使用
 
 1. 确认 Work 数据库迁移和 worker 可用；当前生产基线为 `work.0007`。
-2. 本地协调要求 `WORK_ENABLED=true`、`WORK_LOCAL_AGENT_ENABLED=true`、`WORK_AGENT_MODEL=deepseek-flash` 及账号准入；远程待办另需 `WORK_REMOTE_AGENT_ENABLED=true`。选择云端材料还需 `WORK_MATERIALS_ENABLED=true`。本地协调不要求打开 `WORK_AGENT_ENABLED`，也不要求服务端执行 Gateway 或 Docker；现有 Work 定时 worker 可处理过期设备，任务读取也会检查过期状态。生产设置须通过 cohort 流程保持所有消费者一致并导出完整 overlay。
+2. 本地协调要求 `WORK_ENABLED=true`、`WORK_LOCAL_AGENT_ENABLED=true`、`WORK_AGENT_MODEL=deepseek-flash` 及账号准入；远程待办另需 `WORK_REMOTE_AGENT_ENABLED=true`。本地协调不要求打开 `WORK_AGENT_ENABLED`，也不要求服务端执行 Gateway 或 Docker；现有 Work 定时 worker 可处理过期设备，任务读取也会检查过期状态。生产设置须通过 cohort 流程保持所有消费者一致并导出完整 overlay。
 3. 安装桌面候选版，使用其内置独立适配器 `0.3.2`；模型密钥仍由本机导入，后端和页面均不接收该密钥。旧手动安装记录见 [本地集成说明](LOCAL.md)。
-4. 在桌面本地工作空间中选定目录。服务端能力可用时，“登记到云端任务列表”默认勾选，可选择最多 10 份当前账号可访问的云端材料。目标、目录名称、任务状态及设备回报用量会登记；本地原始文件不因此上传到业务服务。
+4. 在桌面本地工作空间中选定目录。服务端能力可用时，“登记到云端任务列表”默认勾选。目标、目录名称、任务状态及设备回报用量会登记；本地原始文件不因此上传到业务服务。
 5. 完成后查看本机成果，勾选希望同步的文件，点击同步按钮。服务端只接收本次选中的正文，并按任务所有者和当前组织权限提供已有 Work 成果下载。当前没有自动共享给组织其他成员的权限入口。
 
 关闭登记可使用原有本机独立任务。服务端不可用时页面明确显示本地模式。已经发出登记的同一 UUID 不允许绕过协调改为本地独立提交，避免不确定应答导致重复执行。
@@ -36,14 +36,14 @@ flowchart LR
 | POST 端点 | 输入与结果 |
 | --- | --- |
 | `local/devices/` | 设备 UUID、名称；绑定当前账号及组织 |
-| `local/tasks/` | 固定 run UUID、设备 UUID、目标、模型、目录名称和材料版本引用；创建统一 WorkTask / WorkRun |
-| `local/runs/<uuid>/claim/` | 原设备领取；返回目标、冻结材料文本、执行预算及私有 ticket |
+| `local/tasks/` | 固定 run UUID、设备 UUID、目标、模型和目录名称；创建统一 WorkTask / WorkRun |
+| `local/runs/<uuid>/claim/` | 原设备领取；返回目标、执行预算及私有 ticket |
 | `local/runs/<uuid>/report/` | ticket、连续序号、状态、运行版本、设备用量和文件名/字节数/SHA256；不接受成果正文 |
 | `local/runs/<uuid>/sync/` | 用户选中的成果文本；验证已回报清单、字节数及 SHA256，并保存不可变文件 |
 
-取消复用 `runs/<uuid>/cancel/`。Web 原有任务接口可读取同一任务、执行位置、目录名称和已同步文件。任务 run UUID 与本机执行 UUID 一致，领取绑定原设备 UUID；同 run UUID 的目标、模型、材料引用和目录名称不可变。重试登记或回报不会创建第二条执行。
+取消复用 `runs/<uuid>/cancel/`。Web 原有任务接口可读取同一任务、执行位置、目录名称和已同步文件。任务 run UUID 与本机执行 UUID 一致，领取绑定原设备 UUID；同 run UUID 的目标、模型和目录名称不可变。重试登记或回报不会创建第二条执行。
 
-`work-local/v1` 保持原有 stdio 方法；`submit` 增加可选 `files` 和 `limits`。协调执行要求适配器通过能力声明提供 `cloud_context`、`run_limits`、`command_approval`；旧适配器不进入当前受审批的执行入口。云端快照校验 SHA256，作为数据传入本机任务；预算只能低于适配器固定上限：6 次模型调用、80,000 tokens、每次输出 4,096 tokens、180 秒。生产任务进一步限制为最多 5 次调用、20,000 tokens；传输和成果大小沿用受限 UTF-8 契约。
+`work-local/v1` 保持原有 stdio 方法；`submit` 携带可选 `files` 与 `limits`，当前只下发执行限制，`files` 为空。协调执行要求适配器通过能力声明提供 `cloud_context`、`run_limits`、`command_approval`；旧适配器不进入当前受审批的执行入口。预算只能低于适配器固定上限：6 次模型调用、80,000 tokens、每次输出 4,096 tokens、180 秒。生产任务进一步限制为最多 5 次调用、20,000 tokens；传输和成果大小沿用受限 UTF-8 契约。
 
 ## 断线、重启和取消
 
@@ -59,7 +59,7 @@ Electron 主进程按账号加密保存 `coordination.enc`，先写入登记意�
 
 用量标记 `usage_origin=device_reported`，保存在 WorkRun，供任务观测。客户端回报不能作为供应商确认的计费凭证，因此不写入 `AIUsageRecord`，也不按较低的设备回报释放每日预算预留。当前采用每任务完整预算预留；供应商对账、组织统一计费和企业设备治理仍需后续建设。
 
-云端材料在登记和领取时校验访问权限、校验和及解析代次，执行期间回报继续检查权限；撤销后停止交付和主动同步。已发送到执行设备的快照无法远程收回。上传成果保持原有任务所有者/当前组织访问范围，当前不支持跨设备接管本机执行或自动组织共享。
+云端任务在选择成果、回报和主动同步时校验文件身份；账号或组织访问失效后停止交付和主动同步。已发送到执行设备的成果快照无法远程收回。上传成果保持原有任务所有者/当前组织访问范围，当前不支持跨设备接管本机执行或自动组织共享。
 
 ## 升级和验证
 
@@ -67,4 +67,4 @@ Electron 主进程按账号加密保存 `coordination.enc`，先写入登记意�
 
 离线检查：后端 `python -m pytest work/tests --reuse-db`，适配器 `python -m unittest discover -s tests -v`，桌面 `npm test`，前端 Work 路由 Vitest 与 TypeScript。
 
-真实联合验收入口为后端 `work/tests/test_local_coordination_live.py`，需要显式设置 `WORK_COORDINATION_LIVE_KEY_FILE` 和 `WE_MEET_LOCAL_ADAPTER`。测试启动仅监听 loopback 的真实 Django API 桥，使用 PostgreSQL、实际 Node 协调器、非 editable 安装的适配器、dsh 和 DeepSeek；业务身份为隔离的合成账号。测试验证本地原文件与授权云端材料同时进入任务、统一 UUID、设备计量、上传前无成果正文、主动同步后可读。证据见 [本轮评审](../../docs/reviews/work-device-coordination-2026-10-07.md)。
+真实联合验收入口为后端 `work/tests/test_local_coordination_live.py`，需要显式设置 `WORK_COORDINATION_LIVE_KEY_FILE` 和 `WE_MEET_LOCAL_ADAPTER`。测试启动仅监听 loopback 的真实 Django API 桥，使用 PostgreSQL、实际 Node 协调器、非 editable 安装的适配器、dsh 和 DeepSeek；业务身份为隔离的合成账号。测试验证目标经授权目录在本机执行、统一 UUID、设备计量、上传前无成果正文、主动同步后可读。证据见 [本轮评审](../../docs/reviews/work-device-coordination-2026-10-07.md)。

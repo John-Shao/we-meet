@@ -164,7 +164,7 @@ class Config:
                 "no_resume",
                 "no_business_tools",
                 "usage_may_be_unknown",
-                "synthetic_materials_only",
+                "no_user_files",
             ],
         }
 

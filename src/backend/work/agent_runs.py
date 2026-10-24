@@ -4,7 +4,6 @@ Ticks submit/poll briefly; the isolated gateway owns long-running execution.
 A lost response always queries the same UUID and never creates a second job.
 """
 
-import json
 import uuid
 from datetime import timedelta
 
@@ -17,9 +16,8 @@ from core.services.ai_usage import record_usage
 
 from . import access, rollout, runs
 from .agent_client import CONTRACT, AgentBoundaryError, AgentClient
-from .executor import MAX_ARTIFACT_CHARS
 from .models import WorkArtifactFile, WorkArtifactVersion, WorkRun
-from .services import MaterialError
+from .services import MAX_ARTIFACT_CHARS, WorkError
 
 VERSION = "office-agent-v1"
 REQUIRED_FEATURES = {"idempotency", "cancel", "cumulative_budget", "provider_metering"}
@@ -43,42 +41,25 @@ def enabled(user):
 
 
 def new_agent_run(task, key):
-    """Caller holds owner/task locks. Freeze only explicitly selected text."""
+    """Caller holds owner/task locks; the goal and limits are frozen here."""
     if not enabled(task.owner):
-        raise MaterialError("generation_unavailable", 503)
+        raise WorkError("generation_unavailable", 503)
     if task.runs.filter(status__in=runs.ACTIVE).exists():
-        raise MaterialError("run_active", 409)
+        raise WorkError("run_active", 409)
     if task.runs.count() >= 20:
-        raise MaterialError("task_run_limit", 429)
-    materials = runs.sources_for(task)
-    files = {}
-    manifest = []
-    for item in materials:
-        extension = "csv" if item.mime == "text/csv" else "md"
-        name = f"source-{item.pk}.{extension}"
-        files[name] = item.text
-        manifest.append(
-            {
-                "file": name,
-                "name": item.original_name,
-                **next(ref for ref in task.sources if ref["id"] == str(item.pk)),
-            }
-        )
-    files["sources.json"] = json.dumps(manifest, ensure_ascii=False)
-    if sum(len(text.encode()) for text in files.values()) > 400000:
-        raise MaterialError("context_too_large", 413)
+        raise WorkError("task_run_limit", 429)
     budget = min(settings.WORK_AGENT_TOKEN_BUDGET, 80000)
     output = min(settings.WORK_MAX_OUTPUT_TOKENS, 4096)
     if budget < output + 1024:
-        raise MaterialError("generation_unavailable", 503)
+        raise WorkError("generation_unavailable", 503)
     used = runs.daily_reserved(task.owner_id, task.organization_id)
     if used + budget > runs.daily_budget(task.organization_id):
-        raise MaterialError("budget_exceeded", 429)
+        raise WorkError("budget_exceeded", 429)
     run_id = uuid.uuid4()
     payload = {
         "goal": task.goal
         + ("\n\n用户补充背景：\n" + task.background if task.background else ""),
-        "files": files,
+        "files": {},
         "timeout_seconds": min(settings.WORK_AGENT_TIMEOUT, 300),
         "limits": {
             "max_model_calls": min(settings.WORK_AGENT_MAX_CALLS, 6),
@@ -127,7 +108,7 @@ def claim(exclude):
 
 def check_caps(caps, run):
     if not isinstance(caps, dict):
-        raise MaterialError("agent_contract_mismatch", 503)
+        raise WorkError("agent_contract_mismatch", 503)
     engines = {"dsh", "pi"}
     if getattr(settings, "WORK_AGENT_TEST_FIXTURE", False):
         engines.add("fixture")
@@ -136,7 +117,7 @@ def check_caps(caps, run):
         or any(not isinstance(value, str) for value in caps["features"])
         or not isinstance(caps.get("limits_ceiling"), dict)
     ):
-        raise MaterialError("agent_contract_mismatch", 503)
+        raise WorkError("agent_contract_mismatch", 503)
     if hasattr(run, "source_run_id") and (
         caps.get("engine") != "pi"
         and not (
@@ -145,7 +126,7 @@ def check_caps(caps, run):
         )
         or "readonly_review_v1" not in caps.get("features", [])
     ):
-        raise MaterialError("agent_contract_mismatch", 503)
+        raise WorkError("agent_contract_mismatch", 503)
     if (
         caps.get("contract") != CONTRACT
         or caps.get("engine") not in engines
@@ -157,24 +138,24 @@ def check_caps(caps, run):
             for key, value in run.agent_payload["limits"].items()
         )
     ):
-        raise MaterialError("agent_contract_mismatch", 503)
+        raise WorkError("agent_contract_mismatch", 503)
 
 
 def validate_metering(value):
     meter = value.get("metering")
     if not isinstance(meter, dict) or type(meter.get("complete")) is not bool:
-        raise MaterialError("agent_invalid_response")
+        raise WorkError("agent_invalid_response")
     if type(meter.get("calls")) is not int or not 0 <= meter["calls"] <= 6:
-        raise MaterialError("agent_invalid_response")
+        raise WorkError("agent_invalid_response")
     usage = meter.get("usage")
     if meter["complete"] and meter["calls"] and usage is None:
-        raise MaterialError("agent_invalid_response")
+        raise WorkError("agent_invalid_response")
     if usage is not None and (
         not isinstance(usage, dict)
         or set(usage) != USAGE_KEYS
         or any(type(n) is not int or not 0 <= n <= 10000000 for n in usage.values())
     ):
-        raise MaterialError("agent_invalid_response")
+        raise WorkError("agent_invalid_response")
     return meter
 
 
@@ -210,7 +191,7 @@ def import_result(run, result):
     # The HTTP client checked hashes and flat names; retain generated files immutably.
     summary = result["summary"]
     if not summary or len(summary) > MAX_ARTIFACT_CHARS:
-        raise MaterialError("invalid_model_output")
+        raise WorkError("invalid_model_output")
     primary = next(
         (
             item["text"]
@@ -219,7 +200,7 @@ def import_result(run, result):
         ),
         summary,
     )
-    WorkArtifactVersion.objects.create(run=run, version=1, body=primary, citations=[])
+    WorkArtifactVersion.objects.create(run=run, version=1, body=primary)
     for item in result["artifacts"]:
         WorkArtifactFile.objects.create(
             run=run, **{key: item[key] for key in ("name", "text", "sha256")}
@@ -257,19 +238,18 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
                 return
             if current.status in runs.ACTIVE:
                 try:
-                    runs.sources_for(current.task)
                     code = access.check(
                         current.task.owner, current.task.organization_id
                     )
                     if code:
-                        raise MaterialError(code)
+                        raise WorkError(code)
                     if (
                         not configured(current.task.owner)
                         or endpoint != current.base_url
                         or current.executor_version != version
                     ):
-                        raise MaterialError("generation_unavailable")
-                except MaterialError as exc:
+                        raise WorkError("generation_unavailable")
+                except WorkError as exc:
                     if exc.code != "access_unavailable":
                         runs.terminal(current, runs.failure_status(exc.code), exc.code)
             if current.status not in runs.ACTIVE and not current.call_started_at:
@@ -299,10 +279,9 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
                     ):
                         return
                     if current.agent_deployment and current.agent_deployment != caps:
-                        raise MaterialError("deployment_changed") from None
-                    runs.sources_for(current.task)
+                        raise WorkError("deployment_changed") from None
                     if not configured(current.task.owner):
-                        raise MaterialError("generation_unavailable") from None
+                        raise WorkError("generation_unavailable") from None
                     current.agent_deployment = caps
                     # Commit before network admission; exact same UUID/payload on uncertainty.
                     current.call_started_at = current.call_started_at or timezone.now()
@@ -318,9 +297,8 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
             current.call_started_at = current.call_started_at or timezone.now()
             if current.status in runs.ACTIVE:
                 try:
-                    runs.sources_for(current.task)
                     if not configured(current.task.owner):
-                        raise MaterialError("generation_unavailable")
+                        raise WorkError("generation_unavailable")
                     if value["state"] == "succeeded":
                         import_result(current, value["result"])
                         runs.terminal(current, "succeeded")
@@ -344,7 +322,7 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
                     elif current.status == "queued":
                         current.status = "running"
                         runs.event(current, "running")
-                except MaterialError as exc:
+                except WorkError as exc:
                     if exc.code != "access_unavailable":
                         runs.terminal(current, runs.failure_status(exc.code), exc.code)
             remote_terminal = value["state"] in {"succeeded", "failed", "cancelled"}
@@ -361,7 +339,7 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
             )
             current.lease_until = None
             current.save()
-    except (AgentBoundaryError, MaterialError) as exc:
+    except (AgentBoundaryError, WorkError) as exc:
         with transaction.atomic():
             current = model_class.objects.select_for_update().get(pk=run.pk)
             if current.agent_generation != run.agent_generation:
@@ -377,7 +355,7 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
                 "agent_http_504",
             }
             if not transient and current.status in runs.ACTIVE:
-                if isinstance(exc, MaterialError) and exc.code in access.DENIAL_CODES:
+                if isinstance(exc, WorkError) and exc.code in access.DENIAL_CODES:
                     runs.terminal(current, runs.failure_status(exc.code), exc.code)
                 else:
                     runs.terminal(

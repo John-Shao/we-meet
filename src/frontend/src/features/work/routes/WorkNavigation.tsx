@@ -1,58 +1,11 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'wouter'
-import {
-  RiAddCircleLine,
-  RiBriefcaseLine,
-  RiChatQuoteLine,
-  RiFileTextLine,
-  type RemixiconComponentType,
-} from '@remixicon/react'
+import { RiAddCircleLine, RiBriefcaseLine } from '@remixicon/react'
 import { ResizablePanel } from '@/components/ResizablePanel'
 import { SubNavHeader, SubNavStrip } from '@/components/SubNav'
 import { useCollapsibleSubNav } from '@/components/useCollapsibleSubNav'
 import { useMediaQuery } from '@/features/rooms/livekit/hooks/useMediaQuery'
-
-interface WorkModule {
-  id: string
-  label: string
-  icon: RemixiconComponentType
-  description: string
-}
-
-const groups: { label: string; items: WorkModule[] }[] = [
-  {
-    label: '工作',
-    items: [
-      {
-        id: 'new',
-        label: '新建任务',
-        icon: RiAddCircleLine,
-        description: '选择一项工作，从材料开始。',
-      },
-    ],
-  },
-  {
-    label: '日常办公',
-    items: [
-      {
-        id: 'materials',
-        label: '工作材料',
-        icon: RiFileTextLine,
-        description: '上传和核对材料，为后续工作提供背景。',
-      },
-      {
-        id: 'communication',
-        label: '沟通准备',
-        icon: RiChatQuoteLine,
-        description: '根据材料整理背景、议程、问题和建议话术。',
-      },
-    ],
-  },
-]
-
-const hrefFor = (id: string) =>
-  id === 'materials' ? '/work' : `/work?view=${id}`
 
 const SidebarContext = createContext<{
   target: HTMLDivElement | null
@@ -106,25 +59,17 @@ export const WorkNavigation = ({
         collapseLabel="收起工作导航"
       />
       <nav aria-label="工作模块" className="work-nav-groups">
-        {groups.map((group) => (
-          <div className="work-nav-group" key={group.label}>
-            {group.label !== '工作' && (
-              <p className="work-nav-label">{group.label}</p>
-            )}
-            {group.items.map(({ id, label, icon: Icon }) => (
-              <Link
-                key={id}
-                href={hrefFor(id)}
-                className="work-nav-link"
-                aria-current={active === id ? 'page' : undefined}
-                onClick={() => setMobileOpen(false)}
-              >
-                <Icon size={19} aria-hidden="true" />
-                <span>{label}</span>
-              </Link>
-            ))}
-          </div>
-        ))}
+        <div className="work-nav-group">
+          <Link
+            href="/work"
+            className="work-nav-link"
+            aria-current={active === 'new' ? 'page' : undefined}
+            onClick={() => setMobileOpen(false)}
+          >
+            <RiAddCircleLine size={19} aria-hidden="true" />
+            <span>新建任务</span>
+          </Link>
+        </div>
       </nav>
       <div ref={setSidebarTarget} className="work-sidebar-tasks" />
     </aside>
@@ -156,54 +101,24 @@ export const WorkNavigation = ({
   )
 }
 
-export const WorkModulePage = ({ view }: { view: string }) => {
-  if (view === 'new')
-    return (
-      <section className="work-materials" aria-label="新建工作任务">
-        <header className="work-heading">
-          <div>
-            <p className="work-eyebrow">日常办公</p>
-            <h1>今天想完成什么工作？</h1>
-            <p>准备好材料，选择一项工作开始。</p>
-          </div>
-        </header>
-        <div className="work-entry-grid">
-          {groups[1].items.map(({ id, label, icon: Icon, description }) => (
-            <Link href={hrefFor(id)} key={id} className="work-entry-card">
-              <Icon size={26} aria-hidden="true" />
-              <h2>{label}</h2>
-              <p>{description}</p>
-              <span>开始使用 →</span>
-            </Link>
-          ))}
-        </div>
-      </section>
-    )
-  return (
-    <section className="work-materials" aria-label="这个入口暂不可用">
-      <header className="work-heading">
-        <div>
-          <p className="work-eyebrow">工作</p>
-          <h1>这个入口暂不可用</h1>
-          <p>请从工作导航选择已开放的工作模块。</p>
-        </div>
-      </header>
-      <div className="work-module-placeholder">
-        <RiBriefcaseLine size={40} aria-hidden="true" />
-        <h2>你可以先处理材料</h2>
-        <p className="work-muted">上传并核对工作材料，或直接开始沟通准备。</p>
-        <div className="work-actions">
-          <Link
-            className="work-button work-primary"
-            href="/work?view=communication"
-          >
-            进入沟通准备
-          </Link>
-          <Link className="work-button" href="/work">
-            查看工作材料
-          </Link>
-        </div>
+export const WorkModulePage = () => (
+  <section className="work-page" aria-label="这个入口暂不可用">
+    <header className="work-heading">
+      <div>
+        <p className="work-eyebrow">工作</p>
+        <h1>这个入口暂不可用</h1>
+        <p>请从工作导航进入新建任务。</p>
       </div>
-    </section>
-  )
-}
+    </header>
+    <div className="work-module-placeholder">
+      <RiBriefcaseLine size={40} aria-hidden="true" />
+      <h2>直接开始一项工作</h2>
+      <p className="work-muted">描述目标，由工作助理生成可核对和编辑的成果。</p>
+      <div className="work-actions">
+        <Link className="work-button work-primary" href="/work">
+          新建任务
+        </Link>
+      </div>
+    </div>
+  </section>
+)

@@ -1,17 +1,19 @@
 # Work Agent 架构
 
-更新日期：2026-10-08。本文说明当前实现、部署边界和独立升级规则，是 Work Agent 的架构入口；历史规划、PoC 和逐批验收记录保留各自日期与范围。
+更新日期：2026-10-25。本文说明当前实现、部署边界和独立升级规则，是 Work Agent 的架构入口；历史规划、PoC 和逐批验收记录保留各自日期与范围。
+
+2026-10-25 仓库代码已删除日常办公的材料上传/解析与沟通准备能力，新增迁移 `0012`；该迁移仅在本地验证，尚未应用到生产。下方生产基线仍描述 2026-10-08 的部署现场。
 
 当前采用 **桌面 dsh 执行 + 服务端 Pi 只读复核**。业务系统管理身份、任务、授权、预算和成果，通过自有版本化协议连接执行器。Android 可以派发桌面任务、查看状态和已同步成果，无需在手机运行 dsh。通用云端执行路径已经实现，当前生产开关关闭。
 
-Work 原有材料处理和 `communication` 固定流程继续使用既有执行器；新增 Agent 路径使用 `office_agent` 及执行位置字段。普通材料与沟通准备不经过新 Agent 账号准入，双 Agent 的部署不会把所有 Work 流程替换成自主执行。
+Work 仅保留 `office_agent` 目标驱动任务，不再包含材料上传/解析或沟通准备；历史 `communication` 记录保留在数据库，但不进入当前列表与执行路径。云端 Agent、桌面本地/远程协调和 Pi 复核共用同一 WorkTask / WorkRun。
 
 ## 1. 当前基线与范围
 
 | 单元 | 当前基线 | 交付与部署状态 |
 | --- | --- | --- |
-| 业务 API / Work worker | 构建提交 `e92f9eec4`，Work 迁移至 `0007` | 生产五个 Deployment、两个 CronJob；截至仓库 `8a448a798`，相关后端运行源码无变化 |
-| Web | 构建提交 `1a316cdac` | 生产前端已包含材料不足提示 |
+| 业务 API / Work worker | 构建提交 `e92f9eec4`，生产 Work 迁移至 `0007` | 生产五个 Deployment、两个 CronJob；截至仓库 `8a448a798`，相关后端运行源码无变化 |
+| Web | 构建提交 `1a316cdac` | 生产前端已包含复核缺失信息提示 |
 | Pi Gateway / worker | 适配器 `0.3.5`、Pi `1.0.4`、`qwen3.8-flash` | 生产私有 HTTPS Gateway 与 K3s 任务 Pod，源 `1a316cdac` |
 | Windows 桌面 | `0.4.0-delivery.4`，源 `99b64cd5b` | 自包含内部安装包已构建和解包审计；安装该包才更新用户设备 |
 | 桌面独立 Agent | 适配器 `0.3.2`、dsh SDK/runtime `0.1.5rc1`、`deepseek-flash` | 固定在桌面运行环境清单中，独立于服务端适配器版本 |
@@ -19,7 +21,7 @@ Work 原有材料处理和 `communication` 固定流程继续使用既有执行�
 
 生产保持单演示账号灰度：`WORK_LOCAL_AGENT_ENABLED`、`WORK_REMOTE_AGENT_ENABLED`、`WORK_REVIEW_ENABLED` 开启，`WORK_AGENT_ENABLED` 关闭。账号准入模式为 `allowlist`，其他账号不获新 Agent 能力。工程默认值和示例配置仍为关闭，部署状态以现场配置为准。
 
-精确镜像 digest、构建来源、安装包哈希、失败尝试和验证限制见 [生产记录](../reviews/work-dual-agent-production-release-2026-10-08.md) 与 [机器回执](../reviews/work-dual-agent-production-release-2026-10-08.json)。合成样本证明功能链路和来源校验，不构成真实业务材料的模型质量评估；当前不包含 iOS、全用户放量或通用云端 dsh 的生产启用。
+精确镜像 digest、构建来源、安装包哈希、失败尝试和验证限制见 [生产记录](../reviews/work-dual-agent-production-release-2026-10-08.md) 与 [机器回执](../reviews/work-dual-agent-production-release-2026-10-08.json)。合成样本证明功能链路和来源校验，不构成真实业务内容的模型质量评估；当前不包含 iOS、全用户放量或通用云端 dsh 的生产启用。
 
 ## 2. 总体架构与职责
 
@@ -72,7 +74,7 @@ flowchart LR
 | Android / Web | 创建请求、查询状态、查看授权成果和复核意见 | 手机不持有桌面模型密钥、任务 ticket 或本地绝对路径；Web 可读已同步成果 |
 | Electron 主进程 | 原生登录、凭据保护、目录授权、待办领取、命令审批、状态回报、文件同步、运行环境切换 | renderer 经受限 preload/IPC 调用；不导入 dsh SDK；远程待办逐项领取 |
 | 本地适配器 / dsh | 在授权目录执行目标、管理本机任务和模型预算、产生成果 | 运行在用户设备；本机文件访问与命令执行经审批；不接管服务端任务 |
-| Django Work | 身份与组织范围、材料版本、任务和复核账本、预算预留、成果授权、账号准入 | 不导入 dsh/Pi SDK，不读取上游会话库，不直接操作桌面文件系统 |
+| Django Work | 身份与组织范围、任务和复核账本、预算预留、成果授权、账号准入 | 不导入 dsh/Pi SDK，不读取上游会话库，不直接操作桌面文件系统 |
 | Celery Work / Beat | 从持久记录领取短周期协调工作，查询 Gateway、导入结果、取消和对账、标记设备断线 | 模型和工具循环在独立执行器运行；本地任务不由云端 worker 执行 |
 | Pi Gateway | 独立持久 Inbox、执行配置快照、任务凭据、供应商调用与计量、Pod 生命周期 | 不连接业务 PostgreSQL；供应商 key 留在 Gateway；单状态目录只运行一个 Gateway |
 | Pi 任务 Pod | 对冻结的授权文本给出结构化复核意见 | 无文件读写、Shell、MCP 或技能工具；不自动修复、改写源任务或触发发布 |
@@ -118,11 +120,10 @@ Gateway 独立提供 `GET /v1/capabilities`、`POST /v1/jobs`、`GET /v1/jobs/<i
 
 | 数据 | 存放与用途 |
 | --- | --- |
-| `WorkTask` | PostgreSQL；目标、背景、账号/组织和材料引用，独立于人工待办 `core.Task` |
+| `WorkTask` | PostgreSQL；目标、背景、账号/组织，独立于人工待办 `core.Task` |
 | `WorkRun` | PostgreSQL；一次执行、位置、设备/工作空间绑定、版本、预算、租约、用量来源和成果清单 |
 | `WorkDevice` / `WorkWorkspace` | PostgreSQL；当前账号的设备 UUID、目录别名、模型、远程准入和最近在线时间；无本地绝对路径 |
 | `WorkRunEvent` | PostgreSQL；有序状态事件，用于查询和恢复展示 |
-| `WorkMaterial` | 私有材料对象和解析记录；版本、校验和、解析代次及访问授权 |
 | `WorkArtifactFile` / `WorkArtifactVersion` | PostgreSQL；不可变原始文本文件及用户编辑/采纳的版本，编辑草稿不覆盖原始文件 |
 | `WorkReview` | PostgreSQL；独立 UUID、幂等键、源 run、选中文件、冻结请求、模型用量与报告；取消复核不取消源任务 |
 | 本机任务 / 协调记录 | 本机私有状态和账号隔离的加密协调记录；保存请求意图、原 UUID、回报序号与待确认内容 |
@@ -151,7 +152,7 @@ sequenceDiagram
   Main-->>User: 展示目标，等待审阅并领取
   User->>Main: 确认领取
   Main->>API: 原设备 claim
-  API-->>Main: 冻结目标、材料、预算和 ticket
+  API-->>Main: 冻结目标、执行预算和 ticket
   Main->>Agent: 同一 UUID 和授权 workspace 提交
   Agent->>Model: 经本机 broker 调用模型
   loop 每次命令调用
@@ -186,7 +187,7 @@ sequenceDiagram
   participant Model as 百炼 Qwen
   User->>UI: 选择已同步原成果并再次确认发送
   UI->>API: 文件名、哈希与 Idempotency-Key
-  API->>API: 校验权限与源任务成功，冻结材料并预留预算
+  API->>API: 校验权限与源任务成功，冻结成果并预留预算
   API-->>UI: 独立 WorkReview UUID
   Tick->>GW: operation=review，固定请求与预算
   GW->>PI: 固定镜像创建只读任务 Pod
@@ -203,7 +204,7 @@ sequenceDiagram
   API-->>UI: 复核意见，源成果保持原样
 ```
 
-业务从任务已经授权的材料、此次选中的原始成果、目标和背景构造快照，使用文件别名及 `snapshot.json` 映射；不读取未同步的本机文件，也不以编辑后的 Markdown 草稿替代原文件。复核创建、执行、交付和查看都重新检查源材料权限。
+业务从此轮选中的原始成果、目标和背景构造快照，使用文件别名及 `snapshot.json` 映射；不读取未同步的本机文件，也不以编辑后的 Markdown 草稿替代原文件。复核创建、执行、交付和查看都重新检查账号访问与源任务权限。
 
 当前复核由 Web/桌面页面主动创建或取消；Android 实现报告只读查询及源成果预览，尚无复核创建/取消入口。
 
@@ -211,11 +212,11 @@ Pi 使用 `--no-tools`，关闭扩展、技能、模板和上下文发现。Gate
 
 | 结论 | 展示与约束 |
 | --- | --- |
-| `no_issues` | 仅指提供材料中未发现问题；不能有缺失信息或问题列表 |
+| `no_issues` | 仅指提供成果中未发现问题；不能有缺失信息或问题列表 |
 | `needs_changes` | 必须有发现及原文证据，仍需人工判断意见是否正确 |
 | `inconclusive` | 说明缺失信息，不能当作任务失败或验收通过 |
 
-适配器 `0.3.5` 对包含有效 `missing_information` 的 `no_issues` 或 `needs_changes` 保守转为 `inconclusive`，保留发现，继续严格校验引用。Web/Android 对历史报告也优先展示材料不足提示，同时保留原始记录。合法引用证明来源匹配，不能证明模型推理正确；无效报告返回失败，不自动付费重试。
+适配器 `0.3.5` 对包含有效 `missing_information` 的 `no_issues` 或 `needs_changes` 保守转为 `inconclusive`，保留发现，继续严格校验引用。Web/Android 对历史报告也优先展示缺失信息提示，同时保留原始记录。合法引用证明来源匹配，不能证明模型推理正确；无效报告返回失败，不自动付费重试。
 
 ## 7. 故障、取消与计量
 
@@ -231,7 +232,7 @@ Pi 使用 `--no-tools`，关闭扩展、技能、模板和上下文发现。Gate
 | Gateway/节点重启或执行不确定 | 清理所属执行，保留 `execution_unknown` 等错误及调用预占；不重放付费任务 |
 | 镜像或执行配置变化 | 排队旧配置任务以 `deployment_changed` 失败，已受理任务不静默换引擎或模型 |
 | 迟到成功或取消先于提交 | 取消优先，Gateway 保存取消墓碑；已发生模型用量继续对账 |
-| 账号准入/材料权限撤销 | 阻止新执行和交付，已有提交继续取消/对账；已发到设备或供应商的材料不能远程收回 |
+| 账号准入/成果访问撤销 | 阻止新执行和交付，已有提交继续取消/对账；已发到设备或供应商的内容不能远程收回 |
 
 业务预留全任务预算，ModelBroker 在供应商请求前再原子预占每次调用。未知调用保留预占，`complete=false` 不作零成本。输入、输出和缓存 token 分开记录，金额仍需供应商对账。
 
@@ -381,6 +382,6 @@ Gateway 的供应商凭据在独立 namespace Secret；当前 Qwen 使用现有�
 
 离线验证覆盖协议、幂等、权限撤销、状态/用量倒退、预算预占、严格引用、Pod 清理、运行环境签名/篡改/回退、工作空间重试和页面结论展示。WSL 隔离 K3s 可验证真实 HTTPS、RBAC 和 NetworkPolicy；实际 Pi RPC 可接合成 SSE 验证，无供应商调用。真实模型和生产验收必须区分样本、调用次数、用量、执行来源、失败记录以及 fixture 边界。
 
-当前生产端到端证据包括一次成功 dsh 任务、显式同步、成功 Pi 报告以及桌面/Android 只读查看；保留前三次失败，未自动付费重试。原生 OAuth UX、干净 Windows VM、逐文件修改预览、企业设备证明与统一计费、真实业务材料的规模质量评估仍需各自验收。未来增加自主修复或云端接管时，必须定义新的授权、幂等和恢复规则，不能从现有只读复核或断线恢复推导这些能力已经实现。
+当前生产端到端证据包括一次成功 dsh 任务、显式同步、成功 Pi 报告以及桌面/Android 只读查看；保留前三次失败，未自动付费重试。原生 OAuth UX、干净 Windows VM、逐文件修改预览、企业设备证明与统一计费、真实业务内容的规模质量评估仍需各自验收。未来增加自主修复或云端接管时，必须定义新的授权、幂等和恢复规则，不能从现有只读复核或断线恢复推导这些能力已经实现。
 
 相关记录：[架构整改](../reviews/work-agent-architecture-review-2026-10-08.md)、[代码走查](../reviews/work-agent-code-review-2026-10-08.md)、[产品主计划](../plan/work-module-product-architecture-agent-plan-2026-09-21.md)。

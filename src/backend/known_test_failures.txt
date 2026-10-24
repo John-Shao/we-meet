@@ -88,7 +88,5 @@ core/tests/test_models_rooms.py::test_models_rooms_slug_automatic
 core/tests/test_models_rooms.py::test_models_rooms_slug_unique
 core/tests/test_models_rooms.py::test_pin_code_uniqueness
 core/tests/test_models_users.py::test_models_users_id_unique
-work/tests/test_materials.py::test_concurrent_uploads_share_one_material
-work/tests/test_runs.py::test_concurrent_submit_reserves_once
 work/tests/test_upgrade_compatibility.py::test_partial_upgrade_error_rolls_back_ddl_and_migration_records
 work/tests/test_upgrade_compatibility.py::test_work_upgrade_keeps_history_and_accepts_old_schema_inserts

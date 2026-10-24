@@ -81,7 +81,7 @@ export class WorkCoordinator {
     if (!binding) {
       const pending = (await this.inbox()).find(r => r.run_id === id && r.workspace_id === workspaceId);
       if (!pending) throw new Error("local_assignment_closed");
-      binding = this.bindings[id] = { remote: true, admission: { run_id: id, device_id: this.deviceId, goal: pending.goal, workspace_label: pending.workspace_label, model: pending.model, sources: [] }, workspaceId, taskId: pending.task_id, started: false, seq: 0 };
+      binding = this.bindings[id] = { remote: true, admission: { run_id: id, device_id: this.deviceId, goal: pending.goal, workspace_label: pending.workspace_label, model: pending.model }, workspaceId, taskId: pending.task_id, started: false, seq: 0 };
       this.save();
     }
     if (!binding.remote || binding.workspaceId !== workspaceId) throw new Error("workspace_permission_required");
@@ -105,7 +105,7 @@ export class WorkCoordinator {
   resume(id: string, workspaceId: string, label: string) {
     const binding = this.bindings[id];
     if (!binding || binding.workspaceId !== workspaceId) throw new Error("workspace_permission_required");
-    return this.submit({ run_id: id, workspace_id: workspaceId, goal: binding.admission.goal, sources: binding.admission.sources }, label);
+    return this.submit({ run_id: id, workspace_id: workspaceId, goal: binding.admission.goal }, label);
   }
   private serial(id: string, action: () => Promise<any>) {
     const previous = this.operations.get(id) || Promise.resolve();
@@ -125,7 +125,7 @@ export class WorkCoordinator {
       if (binding && binding.workspaceId !== body.workspace_id) throw new Error("workspace_permission_required");
       const capabilities = await this.client.request("capabilities");
       if (!capabilities.features?.includes("command_approval") || !capabilities.features?.includes("cloud_context") || !capabilities.features?.includes("run_limits")) throw new Error("local_adapter_upgrade_required");
-      const admission = { run_id: body.run_id, device_id: this.deviceId, goal: body.goal, workspace_label: workspaceLabel.slice(0, 120), model: capabilities.model, sources: body.sources || [] };
+      const admission = { run_id: body.run_id, device_id: this.deviceId, goal: body.goal, workspace_label: workspaceLabel.slice(0, 120), model: capabilities.model };
       if (binding && JSON.stringify(binding.admission) !== JSON.stringify(admission)) throw new Error("idempotency_conflict");
       if (!binding) {
         binding = this.bindings[body.run_id] = { admission, workspaceId: body.workspace_id, started: false, seq: 0 };

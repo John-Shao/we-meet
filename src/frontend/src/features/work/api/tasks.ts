@@ -1,5 +1,4 @@
 import { fetchApi, fetchApiBlob } from '@/api/fetchApi'
-import type { Material } from './materials'
 
 export interface WorkRun {
   id: string
@@ -24,11 +23,9 @@ export interface WorkRun {
 }
 export interface WorkTask {
   id: string
-  kind?: 'communication' | 'office_agent'
-  recipient: string
+  kind?: 'office_agent'
   goal: string
   background: string
-  sources: Pick<Material, 'id' | 'checksum' | 'parser_version' | 'generation'>[]
   runs: WorkRun[]
 }
 export interface Artifact {
@@ -36,18 +33,10 @@ export interface Artifact {
   body: string
   origin: 'generated' | 'edited'
   adopted_at: string | null
-  citations: {
-    source_id: string
-    name: string
-    location: string
-    line: number
-    quote: string
-  }[]
 }
-export type TaskInput = Pick<
-  WorkTask,
-  'recipient' | 'goal' | 'background' | 'sources'
->
+export type TaskInput = Pick<WorkTask, 'goal' | 'background'> & {
+  kind?: 'office_agent'
+}
 export interface RunEvent {
   seq: number
   type: string
@@ -57,7 +46,7 @@ export const getRunEvents = (id: string, after: number) =>
   fetchApi<{ run: WorkRun; events: RunEvent[]; next_after: number }>(
     `work/runs/${id}/events/?after=${after}`
   )
-export const listTasks = (page: number, kind = 'communication') =>
+export const listTasks = (page: number, kind = 'office_agent') =>
   fetchApi<{
     results: WorkTask[]
     next: string | null
@@ -65,7 +54,7 @@ export const listTasks = (page: number, kind = 'communication') =>
   }>(`work/tasks/?page=${page}&kind=${kind}`)
 export const getTask = (id: string) => fetchApi<WorkTask>(`work/tasks/${id}/`)
 export const createTask = (
-  data: TaskInput & { kind?: 'communication' | 'office_agent' },
+  data: TaskInput,
   key: string,
   signal?: AbortSignal
 ) =>

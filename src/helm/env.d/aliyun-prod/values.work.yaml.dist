@@ -1,5 +1,5 @@
 # Copy to values.work.yaml; release-meet.sh automatically includes it.
-# Start via deploy/aliyun/enable-work.sh materials after the storage probe passes.
+# Start via deploy/aliyun/enable-work.sh check, then enable with `on`.
 workWorker:
   enabled: true
 celeryBeat:
@@ -7,13 +7,3 @@ celeryBeat:
 backend:
   envVars:
     WORK_ENABLED: "True"
-    WORK_MATERIALS_ENABLED: "True"
-    WORK_COMMUNICATION_ENABLED: "False"
-    # Reuse the existing meeting deployment's provider, without coupling settings.
-    # Explicitly enable communication for controlled Work acceptance after binding.
-    WORK_MODEL: "qwen3.8-flash"
-    WORK_MODEL_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    WORK_MODEL_API_KEY:
-      secretKeyRef:
-        name: meet-ai-credentials
-        key: DASHSCOPE_API_KEY

@@ -21,9 +21,8 @@ from work import agent_runs, review_runs
 from work.agent_client import AgentBoundaryError, AgentClient
 from work.models import WorkReview
 
+from .support import ROOT, client, work_settings
 from .test_agent_runs import agent_settings, new_run, response
-from .test_materials import client, work_settings
-from .test_runs import ROOT
 
 pytestmark = pytest.mark.django_db
 
@@ -142,7 +141,7 @@ def test_review_ownership_selection_and_budget(client, settings):
     assert WorkReview.objects.count() == 0
     settings.WORK_DAILY_TOKEN_BUDGET = 21000
     assert submit_review(client, run).status_code == 202
-    # The same owner ledger also protects new execution and communication tasks.
+    # The same owner ledger also protects new execution tasks.
     assert (
         agent_runs.runs.daily_reserved(run.task.owner_id, run.task.organization_id)
         == 20035
@@ -184,22 +183,6 @@ def test_cancel_wins_review_delivery_and_keeps_usage(client):
     assert review.input_tokens == 30
     run.refresh_from_db()
     assert run.status == "succeeded"
-
-
-def test_source_revocation_cancels_review_and_blocks_read(client):
-    run = completed(client)
-    review = WorkReview.objects.get(pk=submit_review(client, run).data["id"])
-    review.call_started_at = timezone.now()
-    review.save()
-    client.delete(ROOT + f"materials/{run.task.sources[0]['id']}/")
-    with patch.object(
-        AgentClient, "cancel", return_value=reviewed(review, "cancelled")
-    ) as cancel:
-        review_runs.process_reviews()
-    cancel.assert_called_once_with(review.pk)
-    review.refresh_from_db()
-    assert review.status == "failed" and review.error_code == "source_unavailable"
-    assert client.get(ROOT + f"runs/{run.pk}/reviews/").status_code == 409
 
 
 def test_uncertain_review_admission_uses_same_id_and_payload(client):

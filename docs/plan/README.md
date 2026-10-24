@@ -1,6 +1,6 @@
 # 方案与执行记录目录
 
-整理日期：2026-09-22；Agent 架构导航更新：2026-10-08；Work 授权 / 任务关系 / 执行模型决策索引：2026-10-24。
+整理日期：2026-09-22；Agent 架构导航更新：2026-10-08；Work 授权 / 任务关系 / 执行模型决策索引：2026-10-24；日常办公能力删除：2026-10-25。
 
 按主题查阅方案、实施契约、部署说明和历史执行记录。文档中的日期、代码版本、测试结果与部署状态保持原有语义；整理目录不代表重新测试或更新线上状态。
 
@@ -10,14 +10,13 @@
 
 | 文档 | 用途 |
 |---|---|
-| [work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md) | 工作（Work）：v1.10 首批私人材料上传 / 解析预览已本地验收，下一步沟通准备、周报、表格分析；会议集成和桌面 D0 独立跟踪；含范围、契约、步骤及实施证据 |
+| [work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md) | 工作（Work）历史产品计划：保留早期材料上传 / 沟通准备 / 周报 / 表格分析的范围与实施记录；这些日常办公能力已于 2026-10-25 删除，当前仅保留 `office_agent`、本地 / 远程协调和 Pi 复核 |
 | [Work Agent 架构](../features/work-agent-architecture.md) | 2026-10-08 当前实现：桌面 dsh、服务端 Pi、Android 分工，版本化契约、状态/计量、凭据边界、K3s 与客户端升级回退 |
 | [org-account-lifecycle-plan-2026-10-24.md](org-account-lifecycle-plan-2026-10-24.md) | 组织/账号生命周期与 Work 授权闭环：借鉴范围、现状校准、P0 所有权转移/离职撤权/席位上限/组织归档、P1 外部身份与组授权；已按 2026-10-24 评审修订；P0 与 P1-A 已实施并上线生产（镜像 `a34668295`），P1-B / P1-C 未实施；离职回填闸门 dry-run 已为 0 |
 | [org-account-lifecycle-system-design-2026-10-24.md](org-account-lifecycle-system-design-2026-10-24.md) | 上述方案的系统设计：模块边界、数据模型、接口契约、事务与并发、迁移回滚、文件级实施批次；已按 2026-10-24 评审修订；批次 1–4（P0）与 P1-A 已实施并上线生产（镜像 `a34668295`），批次 5 的 P1-B 组授权与 P1-C 外部身份未实施 |
 | [org-account-lifecycle-p1-implementation-2026-10-24.md](org-account-lifecycle-p1-implementation-2026-10-24.md) | P1 功能清单与实施步骤：按依赖顺序拆成 P1-A 租户 Work 管理面 API / 权限码 / 审计保留导出、P1-B 组授权与席位并集、P1-C 外部身份源与事件同步；含落点文件、硬约束、待产品与法务定案项和发布回滚顺序；P1-A 已实施并上线（镜像 `a34668295`），P1-B / P1-C 未实施 |
 | [org-account-lifecycle-p1a-work-plan-2026-10-24.md](org-account-lifecycle-p1a-work-plan-2026-10-24.md) | 上述 P1-A（客户侧 Work 授权管理面）的落地工作计划：T1–T8 任务拆解、接口与错误码契约、逐条验收标准、发布回滚与 core 落点边界；含权限码命名与管理面租户口径两处定案；已实施并随镜像 `a34668295` 上线生产 |
-| [work-office-mvp-rebaseline-2026-10-24.md](work-office-mvp-rebaseline-2026-10-24.md) | 企业 AI 平台主体（AI 办公 / Work）的重新定基线：材料与沟通准备已落地，周报与表格分析未实现，会议接入无接口；建议先做 P0-2 周报 |
-| [meeting-actions-backlink-2026-10-24.md](meeting-actions-backlink-2026-10-24.md) | 会议行动项任务回链：既有会议 AI 能力的小切片，补任务侧会议回链；明确不是企业 AI 平台 MVP，也不属于 Work 办公 MVP 主线 |
+| [meeting-actions-backlink-2026-10-24.md](meeting-actions-backlink-2026-10-24.md) | 会议行动项任务回链：既有会议 AI 能力的小切片，补任务侧会议回链；明确不是企业 AI 平台 MVP，也不属于 Work Agent 主线 |
 | [task-module-improvement-plan.md](task-module-improvement-plan.md) | 任务模块完善与实施范围 |
 | [chat-message-to-task-plan.md](chat-message-to-task-plan.md) | 聊天消息转任务 |
 | [docs-member-identity.md](docs-member-identity.md) | 云文档成员身份与授权；独立跨服务协议说明 |

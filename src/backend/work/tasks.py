@@ -11,26 +11,12 @@ from celery import shared_task
 from .agent_runs import process_agent_runs
 from .models import WorkAccessAudit
 from .review_runs import process_reviews
-from .runs import process_runs
-from .services import process_materials
 
 logger = logging.getLogger(__name__)
 
 #: Long transactions lock the write path; 1000 rows is short enough to stay
 #: under the statement-time expectations of an ordinary OLTP deployment.
 PRUNE_CHUNK = 1000
-
-
-@shared_task(queue="work", soft_time_limit=60, time_limit=90)
-def tick_materials():
-    """Bound each pass; expired claims are resumed by later passes."""
-    return process_materials()
-
-
-@shared_task(queue="work", soft_time_limit=65, time_limit=80)
-def tick_runs():
-    """One fixed flow per tick; expired provider attempts are never replayed."""
-    return process_runs()
 
 
 @shared_task(queue="work", soft_time_limit=55, time_limit=65)

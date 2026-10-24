@@ -171,7 +171,7 @@ const assert = require('node:assert/strict');
         const reviewUI = page.getByRole('region', { name: '成果复核', exact: true });
         await reviewUI.waitFor();
         await reviewUI.getByLabel('report.md', { exact: true }).check();
-        await reviewUI.getByLabel('同意将选定成果和本任务已授权材料发送至复核模型').check();
+        await reviewUI.getByLabel('同意将选定成果发送至复核模型').check();
         await reviewUI.getByRole('button', { name: '开启本次复核', exact: true }).click();
         let review;
         for (const deadline = Date.now() + 300000; Date.now() < deadline;) {

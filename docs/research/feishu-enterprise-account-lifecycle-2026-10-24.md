@@ -325,7 +325,7 @@
 1. **没有租户创建人/所有者**：`core.Organization` 只有 `name/slug/is_active/settings`，没有 creator/owner，也没有所有权转移（[core/models.py:6195](../../src/backend/core/models.py#L6195)）。
 2. **没有外部身份映射**：`Membership` 只有内部 `user`（[core/models.py:6324](../../src/backend/core/models.py#L6324)）。接入飞书时需要 `tenant_key/open_id/union_id`，且不能拿邮箱/手机当主键。
 3. **没有“待离职 / 离职恢复”状态**：`MembershipStatusChoices` 只有 active/invited/suspended/left，没有离职日期、离职原因、恢复窗口。
-4. **Work 数据是 owner-scoped**：`WorkMaterial.owner`、`WorkTask.owner` 都是个人，成员离职后没有类似飞书的资源交接；目前只能保留数据但无人可读。
+4. **Work 数据是 owner-scoped**：`WorkTask.owner`、`WorkDevice.owner` 都是个人，成员离职后没有类似飞书的资源交接；目前只能保留数据但无人可读。
 5. **`member_limit` 没有真正执行**：`WorkOrganizationEntitlement.member_limit` 有字段，但授权创建路径没有校验；飞书是席位/人数硬限制，我们至少要在 grant 创建和激活时校验（[work/models.py:292](../../src/backend/work/models.py#L292)）。
 6. **`WorkMemberGrant` 只支持逐人**：飞书的用户组是规模化授权单元，后续应支持组授权（[work/models.py:333](../../src/backend/work/models.py#L333)）。
 7. **没有管理员角色与数据范围**：目前只有 `work.manage_tenant` 这种粗粒度权限；飞书的管理员角色可以按部门/会议室限定数据范围。
