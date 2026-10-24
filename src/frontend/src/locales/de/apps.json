@@ -1,0 +1,64 @@
+{
+  "title": "Apps",
+  "favorites": "Favoriten",
+  "allApps": "Alle Apps",
+  "addFavorites": "Favoriten hinzufügen",
+  "manage": "Favoriten verwalten",
+  "done": "Fertig",
+  "back": "Zurück",
+  "addedCount": "Hinzugefügt ({{count}})",
+  "search": "Apps suchen",
+  "categories": "App-Kategorien",
+  "add": "Hinzufügen",
+  "added": "Hinzugefügt",
+  "remove": "Entfernen",
+  "addName": "{{name}} hinzufügen",
+  "addedName": "{{name}} hinzugefügt",
+  "removeName": "{{name}} entfernen",
+  "dragName": "{{name}} ziehen und anordnen",
+  "moveUp": "{{name}} nach oben",
+  "moveDown": "{{name}} nach unten",
+  "reorderHint": "Zum Sortieren am Griff ziehen oder die Pfeile verwenden. Änderungen werden automatisch gespeichert.",
+  "orderSaved": "Reihenfolge gespeichert",
+  "emptyFavorites": "Fügen Sie Apps für den schnellen Zugriff hinzu.",
+  "emptySearch": "Keine passenden Apps",
+  "emptyRecent": "Verwendete Apps werden hier angezeigt.",
+  "emptyApps": "Keine Apps in dieser Kategorie.",
+  "groups": {
+    "all": "Alle",
+    "recent": "Zuletzt verwendet",
+    "time": "Zeit und Aufgaben",
+    "organization": "Organisation und Abläufe",
+    "ai": "KI-Werkzeuge"
+  },
+  "items": {
+    "calendar": {
+      "name": "Kalender",
+      "description": "Termine und Besprechungen verwalten."
+    },
+    "tasks": {
+      "name": "Aufgaben",
+      "description": "Aufgaben und Fortschritte verfolgen."
+    },
+    "contacts": {
+      "name": "Kontakte",
+      "description": "Kollegen und Abteilungen finden."
+    },
+    "approval": {
+      "name": "Genehmigungen",
+      "description": "Anträge stellen und Genehmigungen bearbeiten."
+    },
+    "communication": {
+      "name": "Gesprächsvorbereitung",
+      "description": "Hintergrund, Fragen und Gesprächspunkte vorbereiten."
+    },
+    "weekly": {
+      "name": "Wochenbericht",
+      "description": "Fortschritte zusammenfassen und einen Bericht erstellen."
+    },
+    "spreadsheet": {
+      "name": "Tabellenanalyse",
+      "description": "Tabellendaten analysieren und Ergebnisse zusammenfassen."
+    }
+  }
+}

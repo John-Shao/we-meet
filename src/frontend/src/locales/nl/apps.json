@@ -1,0 +1,64 @@
+{
+  "title": "Apps",
+  "favorites": "Favorieten",
+  "allApps": "Alle apps",
+  "addFavorites": "Favorieten toevoegen",
+  "manage": "Favorieten beheren",
+  "done": "Gereed",
+  "back": "Terug",
+  "addedCount": "Toegevoegd ({{count}})",
+  "search": "Apps zoeken",
+  "categories": "Appcategorieën",
+  "add": "Toevoegen",
+  "added": "Toegevoegd",
+  "remove": "Verwijderen",
+  "addName": "{{name}} toevoegen",
+  "addedName": "{{name}} toegevoegd",
+  "removeName": "{{name}} verwijderen",
+  "dragName": "Sleep {{name}} om te sorteren",
+  "moveUp": "{{name}} omhoog",
+  "moveDown": "{{name}} omlaag",
+  "reorderHint": "Sleep de greep of gebruik de pijlen om te sorteren. Wijzigingen worden automatisch opgeslagen.",
+  "orderSaved": "Volgorde opgeslagen",
+  "emptyFavorites": "Voeg apps toe om ze hier snel te openen.",
+  "emptySearch": "Geen overeenkomende apps",
+  "emptyRecent": "Gebruikte apps verschijnen hier.",
+  "emptyApps": "Geen apps in deze categorie.",
+  "groups": {
+    "all": "Alle",
+    "recent": "Recent gebruikt",
+    "time": "Tijd en taken",
+    "organization": "Organisatie en processen",
+    "ai": "AI-tools"
+  },
+  "items": {
+    "calendar": {
+      "name": "Agenda",
+      "description": "Afspraken en vergaderingen beheren."
+    },
+    "tasks": {
+      "name": "Taken",
+      "description": "Taken en voortgang bijhouden."
+    },
+    "contacts": {
+      "name": "Contacten",
+      "description": "Collega’s en afdelingen zoeken."
+    },
+    "approval": {
+      "name": "Goedkeuringen",
+      "description": "Aanvragen indienen en goedkeuren."
+    },
+    "communication": {
+      "name": "Gespreksvoorbereiding",
+      "description": "Achtergrond, vragen en gesprekspunten voorbereiden."
+    },
+    "weekly": {
+      "name": "Weekverslag",
+      "description": "Voortgang samenvatten en een verslag maken."
+    },
+    "spreadsheet": {
+      "name": "Spreadsheetanalyse",
+      "description": "Gegevens analyseren en resultaten samenvatten."
+    }
+  }
+}

@@ -1,0 +1,15 @@
+sequenceDiagram
+    autonumber
+    participant U as 用户
+    participant L as 实时助手
+    participant A as 后台编码 Agent
+    U->>L: 语音：给当前页面加搜索
+    L->>A: 委派任务与必要上下文
+    A-->>L: 任务已受理
+    L-->>U: 告知受理，继续前台对话
+    U->>L: 补充：支持拼音，保留现有样式
+    L->>A: 按后台能力追加或排队指令
+    Note over U,A: 需要授权的操作另行审批
+    A-->>L: 返回修改与检查结果
+    L-->>U: 展示结果并排队播报
+    Note over U,A: 受理、完成、用户听到结果分别确认

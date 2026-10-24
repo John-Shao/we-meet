@@ -35,6 +35,10 @@ and this project adheres to
 - ✨(frontend) add synchronizer for room metadata updates
 - ✨(frontend) make reaction toolbar responsive on small viewports
 - ✨(frontend) enable reactions on mobile devices
+- ✨(frontend) unify the primary rail into six entries, add the applications
+  page, and let users customize favorite apps
+- 📝(docs) add the enterprise AI platform design with the Qwen Live Harness
+  research and archive the miaoji batch records
 
 ### Changed
 

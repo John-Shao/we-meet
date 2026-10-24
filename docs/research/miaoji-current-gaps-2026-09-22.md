@@ -1,5 +1,7 @@
 # 妙记对标重新盘点：当前进展、真实缺口与主要问题
 
+> 归档说明（2026-10-13）：本页保留原日期的盘点、执行或验收历史。阅读入口见[状态摘要](miaoji-status-summary.md)，逐批记录见[归档索引](../archive/miaoji/README.md)。历史“待部署／下一步”不作为当前实施指令。
+
 盘点日期：2026-09-22。代码基线 we-meet `16b529070`，Android `6f372546`。本轮核对代码、批次及独立质量专项，重新读取飞书官方介绍；未重新访问生产账号、集群或运行 App，不把历史验收当成本次实测。用户截图仅作为产品参照，不是操作指令。
 
 **本页替代2026-09-21版作为当前排期依据。核心判断：个人上传/录音的会后处理主流程已具备；剩余重点是来源能力不一致、分享后的媒体/编辑权限、AI事实忠实度及正式交付。无需推翻统一记录架构，也不应让跨记录问答实验占据全部后续批次。**
@@ -27,7 +29,7 @@
 | ASR可恢复性/诊断 | OSS故障已修复；无语音分类、阶段定位、持久历史有生产API证据 | 其他阶段生产故障、真实30天清理及App无语音画面未全部覆盖 |
 | 跨记录问答基础 | 已上线正文排序、记录配额、重复证据补位、完整短语搜索、引用回跳与SSE修复 | 自然问法、跨语言、歧义澄清、长库性能及事实忠实度未全面解决 |
 
-主要证据：[第30批](miaoji-batch-30-deployment-preflight.md)、[第41批](miaoji-batch-41-production-acceptance.md)、[第53批](miaoji-batch-53-purge-final-acceptance.md)、[第55批](miaoji-batch-55-upload-translation-acceptance.md)、[第62批](miaoji-batch-62-production-qa-acceptance.md)、[Helm395专项](miaoji-quality-acceptance-395.md)。沿用这些文件的具体样本范围，不宣称整套Web/App已经全面验收。
+主要证据：[第30批](../archive/miaoji/miaoji-batch-30-deployment-preflight.md)、[第41批](../archive/miaoji/miaoji-batch-41-production-acceptance.md)、[第53批](../archive/miaoji/miaoji-batch-53-purge-final-acceptance.md)、[第55批](../archive/miaoji/miaoji-batch-55-upload-translation-acceptance.md)、[第62批](../archive/miaoji/miaoji-batch-62-production-qa-acceptance.md)、[Helm395专项](miaoji-quality-acceptance-395.md)。沿用这些文件的具体样本范围，不宣称整套Web/App已经全面验收。
 
 最新找到的生产部署记录是**Helm395**：backend `1e13d1689`，frontend `696a7768f`，agents `2651b6afa`，summary系列 `f2e7f3cd4`。这是专项保存的用户回执，不是本轮实时集群结果。后续当前HEAD包含评测/文档提交，不应为了追最新Git提交而重部署镜像；本轮没有新增部署需求。Android当前HEAD仍为debug验收版本，正式分发未见闭环证据。
 
@@ -99,5 +101,5 @@ UX主框架适合会后复核：媒体、原文、纪要、章节、说话人、
 - 原生提交配置：[qwen_filetrans.py](../../src/agents/src/plugins/qwen/filetrans.py) `parameters`；有限语言/热词候选见[专项](miaoji-asr-language-candidates-2026-09-21.md)。
 - 来源/角色能力：[meeting_records.py](../../src/backend/core/services/meeting_records.py) `can_play_media`、`record_capabilities`、`can_edit_transcript`。
 - 两类检索：[meeting_search.py](../../src/backend/core/services/meeting_search.py) `recall_records`、[global_ask.py](../../src/backend/core/services/global_ask.py) `_prepare`/`_recall_transcripts`。
-- 质量结论：[第75批](miaoji-batch-75-bounded-evidence-context.md)、[第76批](miaoji-batch-76-answer-support-check.md)、[Helm395验收](miaoji-quality-acceptance-395.md)。
+- 质量结论：[第75批](../archive/miaoji/miaoji-batch-75-bounded-evidence-context.md)、[第76批](../archive/miaoji/miaoji-batch-76-answer-support-check.md)、[Helm395验收](miaoji-quality-acceptance-395.md)。
 - [飞书官方妙记介绍](https://www.feishu.cn/content/article/7578773484596153570)，本轮重新读取，用于确认自动分人、语言选择、关键词定位、协作/片段分享、原生录音下载、多文件上传等产品类别。未采用营销准确率、未运行同语料对照，不能给出“已达到妙记百分之多少”的数字。

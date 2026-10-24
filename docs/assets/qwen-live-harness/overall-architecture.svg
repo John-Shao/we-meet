@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="800" viewBox="0 0 1300 800" role="img" aria-labelledby="title desc">
+  <title id="title">Qwen-Live-Harness 总体架构</title>
+  <desc id="desc">用户通过本地设备交互。Qwen-Live-Harness 的 Host 和 daemon 在本机运行，daemon 管理本地记忆、委派可选后台任务，并连接云端模型。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0 0L8 4L0 8" fill="#64748b"/></marker>
+  </defs>
+  <style>
+    text{font-family:'Microsoft YaHei',sans-serif;fill:#172554;font-size:23px;text-anchor:middle}
+    .label{font-size:20px;fill:#475569}
+    .heading{font-size:25px;font-weight:600}
+    .outer{fill:#f8fafc;stroke:#cbd5e1;stroke-width:2}
+    .harness{fill:#eef2ff;stroke:#818cf8;stroke-width:2}
+    .node{fill:#fff;stroke:#a5b4fc;stroke-width:2}
+    .cloud{fill:#ecfdf5;stroke:#6ee7b7;stroke-width:2}
+    .edge{fill:none;stroke:#64748b;stroke-width:2;marker-start:url(#arrow);marker-end:url(#arrow)}
+  </style>
+  <rect x="245" y="45" width="715" height="660" rx="18" class="outer"/>
+  <text x="602" y="85" class="heading">本地电脑 · 当前完整体验为 macOS</text>
+  <rect x="470" y="130" width="460" height="330" rx="14" class="harness"/>
+  <text x="700" y="172" class="heading">Qwen-Live-Harness · 本机运行</text>
+  <rect x="500" y="205" width="170" height="135" rx="10" class="node"/>
+  <text x="585" y="240">Electron Host</text>
+  <text x="585" y="280">界面 · 权限</text>
+  <text x="585" y="315">采集 · 播放</text>
+  <rect x="735" y="205" width="165" height="135" rx="10" class="node"/>
+  <text x="817" y="240">Node.js</text><text x="817" y="272">daemon</text>
+  <text x="817" y="312">会话 · 工具</text>
+  <path d="M675 280H730" class="edge"/>
+  <text x="702" y="360" class="label">本机 WebSocket</text>
+  <rect x="600" y="390" width="245" height="50" rx="9" class="node"/>
+  <text x="722" y="423">Memory · 本地记忆库</text>
+  <path d="M817 345V384" class="edge"/>
+  <rect x="270" y="230" width="165" height="245" rx="10" class="outer"/>
+  <text x="352" y="270">设备能力</text><text x="352" y="315">麦克风</text>
+  <text x="352" y="355">摄像头</text><text x="352" y="395">屏幕</text><text x="352" y="435">扬声器</text>
+  <path d="M440 282H495" class="edge"/>
+  <text x="350" y="515" class="label">Host 检查权限</text>
+  <text x="350" y="545" class="label">并确认设备实际状态</text>
+  <rect x="25" y="290" width="175" height="160" rx="12" class="outer"/>
+  <text x="112" y="330" class="heading">用户</text>
+  <text x="112" y="375">目标 · 授权</text><text x="112" y="415">反馈 · 结果</text>
+  <path d="M205 370H265" class="edge"/>
+  <text x="135" y="500" class="label">语音 / 画面</text>
+  <text x="135" y="530" class="label">操作 / 回复</text>
+  <rect x="670" y="560" width="250" height="110" rx="10" class="outer"/>
+  <text x="795" y="595">可选后台 Harness</text>
+  <text x="795" y="627" class="label">Qwen Code / Codex 等</text>
+  <text x="795" y="657" class="label">代码 · 文件 · 命令执行</text>
+  <path d="M900 330H945V505H795V555" class="edge"/>
+  <text x="785" y="488" class="label">任务委派 / 状态 / 审批</text>
+  <rect x="1020" y="130" width="260" height="450" rx="18" class="cloud"/>
+  <text x="1150" y="173" class="heading">云端模型服务</text>
+  <rect x="1045" y="225" width="210" height="130" rx="10" class="cloud"/>
+  <text x="1150" y="260">Qwen Omni</text><text x="1150" y="294">Realtime</text>
+  <text x="1150" y="333" class="label">音视频理解与回复</text>
+  <rect x="1045" y="415" width="210" height="130" rx="10" class="cloud"/>
+  <text x="1150" y="455">文本 / 向量模型</text>
+  <text x="1150" y="492">记忆整理</text><text x="1150" y="526">Embedding</text>
+  <path d="M905 265H985V285H1040" class="edge"/>
+  <text x="1140" y="205" class="label">实时音视频 / 会话事件</text>
+  <path d="M850 420H990V480H1040" class="edge"/>
+  <text x="1135" y="395" class="label">相关记忆内容</text>
+  <text x="650" y="760" class="label">蓝色区域为 Harness；后台执行器独立运行；模型推理在云端。</text>
+</svg>
