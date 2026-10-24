@@ -1701,9 +1701,11 @@ const TaskTitle = ({
           </span>
         )}
       </span>
-      {task.source_room_name && (
+      {(task.source_record_title || task.source_room_name) && (
         <span className={titleMetaCss}>
-          {t('sourceMeeting', { name: task.source_room_name })}
+          {t('sourceMeeting', {
+            name: task.source_record_title || task.source_room_name,
+          })}
         </span>
       )}
     </span>

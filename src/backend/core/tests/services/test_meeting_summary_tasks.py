@@ -4,7 +4,8 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
-from django.db import close_old_connections
+from django.db import close_old_connections, connection
+from django.test.utils import CaptureQueriesContext
 
 import pytest
 
@@ -55,11 +56,58 @@ def test_explicit_conversion_and_replay_leave_source_unchanged():
     assert link.task.organization_id == record.organization_id
     assert link.task.activities.count() == 1
     assert not models.TaskImDelivery.objects.exists()  # Self-assignment stays silent.
+    api = client_for(user)
+    task = api.get(f"/api/v1.0/tasks/{link.task_id}/").json()
+    assert task["source_record_id"] == str(record.pk)
+    assert task["source_record_title"] == record.title
+    assert task["source_room_id"] is None
+    models.MeetingRecord.objects.filter(pk=record.pk).update(title="")
+    assert (
+        api.get(f"/api/v1.0/tasks/{link.task_id}/").json()["source_record_title"]
+        == record.meeting_session.room.name
+    )
     review.refresh_from_db()
     assert review.content["action_items"][0]["text"] == "Human follow-up"
     assert service.convert(record.pk, user, key, data) == (link, False)
     with pytest.raises(RecordConflict):
         service.convert(record.pk, user, key, {**data, "title": "Changed"})
+
+
+def test_task_list_source_backlink_queries_are_bounded():
+    user, record, review, data = setup()
+    link, _ = service.convert(record.pk, user, uuid.uuid4(), data)
+    api = client_for(user)
+    assert api.get("/api/v1.0/tasks/").status_code == 200
+
+    with CaptureQueriesContext(connection) as one:
+        response = api.get("/api/v1.0/tasks/")
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()["results"]] == [str(link.task_id)]
+
+    for index in range(5):
+        task = models.Task.objects.create(
+            title=f"Linked task {index}",
+            creator=user,
+            organization_id=record.organization_id,
+            assignee=user,
+        )
+        models.MeetingSummaryTaskLink.objects.create(
+            record=record,
+            review=review,
+            action_index=index + 1,
+            action_hash=f"bounded-{index}",
+            task=task,
+            author=user,
+            key=uuid.uuid4(),
+            request_hash=f"bounded-{index}",
+            confirmed={"title": f"Linked task {index}"},
+        )
+
+    with CaptureQueriesContext(connection) as many:
+        response = api.get("/api/v1.0/tasks/")
+    assert response.status_code == 200
+    assert len(response.json()["results"]) == 6
+    assert len(many) == len(one)
 
 
 def test_same_action_across_revisions_reuses_task_and_deleted_task_is_not_recreated():
@@ -154,6 +202,13 @@ def test_organization_directory_and_task_content_access_are_separate():
     assert link.task.organization_id == organization.pk
     assert service.serialize(link, colleague)["task_id"] == str(link.task_id)
     assert service.serialize(link, outsider)["task_id"] is None
+    colleague_api = client_for(colleague)
+    colleague_task = colleague_api.get(f"/api/v1.0/tasks/{link.task_id}/").json()
+    assert colleague_task["source_record_id"] == str(record.pk)
+    assert colleague_task["source_record_title"] == record.title
+    assert (
+        colleague_api.get(f"/api/v1.0/meeting-records/{record.pk}/").status_code == 404
+    )
     assert link.task.source_action_item_id is None and link.task.description == ""
     # Changing task completion is reflected without editing the reviewed minutes.
     link.task.status = models.Task.Status.COMPLETED

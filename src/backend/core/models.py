@@ -3259,7 +3259,11 @@ class MeetingSummaryTaskLink(BaseModel):
     action_index = models.PositiveSmallIntegerField()
     action_hash = models.CharField(max_length=64)
     task = models.OneToOneField(
-        "Task", on_delete=models.SET_NULL, null=True, blank=True
+        "Task",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meeting_summary_link",
     )
     author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     key = models.UUIDField()

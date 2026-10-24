@@ -919,6 +919,8 @@ class TaskSerializer(serializers.ModelSerializer):
     source_action_item_id = serializers.UUIDField(read_only=True)
     source_room_id = serializers.SerializerMethodField()
     source_room_name = serializers.SerializerMethodField()
+    source_record_id = serializers.SerializerMethodField()
+    source_record_title = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     can_move = serializers.SerializerMethodField()
     can_update_status = serializers.SerializerMethodField()
@@ -1105,6 +1107,21 @@ class TaskSerializer(serializers.ModelSerializer):
             return None
         return obj.source_action_item.room.name
 
+    def get_source_record_id(self, obj):
+        link = getattr(obj, "meeting_summary_link", None)
+        return str(link.record_id) if link else None
+
+    def get_source_record_title(self, obj):
+        link = getattr(obj, "meeting_summary_link", None)
+        if link is None:
+            return None
+        record = link.record
+        if record.title:
+            return record.title
+        if record.meeting_session_id:
+            return record.meeting_session.room.name
+        return None
+
     def get_recurrence(self, obj):
         rule = obj.recurrence_rule
         if rule is None:
@@ -1154,6 +1171,8 @@ class TaskSerializer(serializers.ModelSerializer):
             "source_action_item_id",
             "source_room_id",
             "source_room_name",
+            "source_record_id",
+            "source_record_title",
             "source_message",
             "can_edit",
             "can_move",

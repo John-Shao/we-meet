@@ -267,6 +267,54 @@ describe('TaskDetailPanel', () => {
     )
   })
 
+  it('links a converted meeting action item back to the meeting record', () => {
+    const linkedTask = {
+      ...task,
+      source_record_id: 'record-1',
+      source_record_title: 'Weekly sync',
+      source_room_id: 'room-1',
+      source_room_name: 'Legacy room',
+    }
+    render(
+      <TaskDetailPanel
+        taskId={linkedTask.id}
+        fallbackTask={linkedTask}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('link', { name: 'sourceMeeting' })).toHaveAttribute(
+      'href',
+      '/meeting/records/record-1?tab=summary'
+    )
+  })
+
+  it('falls back to the legacy meeting room when no record is linked', () => {
+    const legacyTask = {
+      ...task,
+      source_room_id: 'room-1',
+      source_room_name: 'Legacy sync',
+    }
+    render(
+      <TaskDetailPanel
+        taskId={legacyTask.id}
+        fallbackTask={legacyTask}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('link', { name: 'sourceMeeting' })).toHaveAttribute(
+      'href',
+      '/meetings/room-1'
+    )
+  })
+
   it('does not offer forwarding to a read-only task viewer', () => {
     render(
       <TaskDetailPanel

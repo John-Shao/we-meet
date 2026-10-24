@@ -1245,15 +1245,26 @@ export const TaskDetailPanel = ({
             </Link>
           )}
 
-          {task.source_room_id && (
+          {task.source_record_id ? (
             <Link
-              href={`/meetings/${task.source_room_id}`}
+              href={`/meeting/records/${task.source_record_id}?tab=summary`}
               className={sourceLinkCss}
             >
               {t('sourceMeeting', {
-                name: task.source_room_name || t('meeting'),
+                name: task.source_record_title || t('meeting'),
               })}
             </Link>
+          ) : (
+            task.source_room_id && (
+              <Link
+                href={`/meetings/${task.source_room_id}`}
+                className={sourceLinkCss}
+              >
+                {t('sourceMeeting', {
+                  name: task.source_room_name || t('meeting'),
+                })}
+              </Link>
+            )
           )}
 
           <CollapsibleDetailSection title={t('detailGroups.related')}>
