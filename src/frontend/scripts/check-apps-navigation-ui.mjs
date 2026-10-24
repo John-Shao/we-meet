@@ -39,7 +39,7 @@ try {
   await mkdir('test-results/apps-navigation', { recursive: true })
   await page.goto(`${origin}/apps`)
   await mount()
-  assert.equal(await page.locator('[data-testid^="rail-/"]').count(), 5)
+  assert.equal(await page.locator('[data-testid^="rail-/"]').count(), 6)
   await page.screenshot({
     path: 'test-results/apps-navigation/apps-desktop-light.png',
   })
@@ -130,7 +130,7 @@ try {
   )
   assert.deepEqual(errors, [])
   console.log(
-    'PASS: five destinations, add/remove, mouse drag, rail sync, reload, categories, search, light/dark and narrow layouts'
+    'PASS: six destinations, add/remove, mouse drag, rail sync, reload, categories, search, light/dark and narrow layouts'
   )
 } finally {
   await browser.close()
