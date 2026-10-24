@@ -12,6 +12,8 @@
 |---|---|
 | [work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md) | 工作（Work）：v1.10 首批私人材料上传 / 解析预览已本地验收，下一步沟通准备、周报、表格分析；会议集成和桌面 D0 独立跟踪；含范围、契约、步骤及实施证据 |
 | [Work Agent 架构](../features/work-agent-architecture.md) | 2026-10-08 当前实现：桌面 dsh、服务端 Pi、Android 分工，版本化契约、状态/计量、凭据边界、K3s 与客户端升级回退 |
+| [org-account-lifecycle-plan-2026-10-24.md](org-account-lifecycle-plan-2026-10-24.md) | 组织/账号生命周期与 Work 授权闭环：借鉴范围、现状校准、P0 所有权转移/离职撤权/席位上限/组织归档、P1 外部身份与组授权；已按 2026-10-24 评审修订，未实施 |
+| [org-account-lifecycle-system-design-2026-10-24.md](org-account-lifecycle-system-design-2026-10-24.md) | 上述方案的系统设计：模块边界、数据模型、接口契约、事务与并发、迁移回滚、文件级实施批次；已按 2026-10-24 评审修订，未实施 |
 | [task-module-improvement-plan.md](task-module-improvement-plan.md) | 任务模块完善与实施范围 |
 | [chat-message-to-task-plan.md](chat-message-to-task-plan.md) | 聊天消息转任务 |
 | [docs-member-identity.md](docs-member-identity.md) | 云文档成员身份与授权；独立跨服务协议说明 |
