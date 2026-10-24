@@ -232,6 +232,25 @@ def set_role(membership, *, actor, role):
         return target
 
 
+def _guard_status_change(target, status, actor_rows):
+    """Owner-only, last-owner and owner-cap checks for a status transition."""
+    was_active_owner = is_active_owner(target)
+    if was_active_owner and status != ACTIVE:
+        _require_active_owner(actor_rows)
+        if not active_owner_count(target.organization_id, exclude_id=target.id):
+            raise last_owner_error()
+    elif status == ACTIVE and target.org_role == OWNER:
+        # Reactivating a suspended owner adds a seat back, so it needs the same
+        # two checks as granting ownership — otherwise a suspend / restore
+        # cycle walks past the cap.
+        _require_active_owner(actor_rows)
+        if active_owner_count(
+            target.organization_id, exclude_id=target.id
+        ) >= MAX_ACTIVE_OWNERS:
+            raise owner_limit_error()
+    return was_active_owner
+
+
 def set_status(membership, *, actor, status):
     """Change lifecycle status through the supported transitions.
 
@@ -255,23 +274,14 @@ def set_status(membership, *, actor, status):
             raise MembershipWriteError({"detail": _("Membership no longer exists.")})
         if target.status == status:
             return target
+        if target.status == LEFT:
+            # Leaving LEFT restores login, resets the role and un-freezes the
+            # snapshot; only ``rehire_membership`` may do that.
+            raise MembershipWriteError(
+                {"status": _("Use the rehire action to reactivate a departed member.")}
+            )
 
-        was_active_owner = is_active_owner(target)
-        if was_active_owner and status != ACTIVE:
-            _require_active_owner(actor_rows)
-            if not active_owner_count(
-                target.organization_id, exclude_id=target.id
-            ):
-                raise last_owner_error()
-        elif status == ACTIVE and target.org_role == OWNER:
-            # Reactivating a suspended owner adds a seat back, so it needs the
-            # same two checks as granting ownership — otherwise a suspend /
-            # restore cycle walks past the cap.
-            _require_active_owner(actor_rows)
-            if active_owner_count(
-                target.organization_id, exclude_id=target.id
-            ) >= MAX_ACTIVE_OWNERS:
-                raise owner_limit_error()
+        was_active_owner = _guard_status_change(target, status, actor_rows)
 
         previous = target.status
         target.status = status

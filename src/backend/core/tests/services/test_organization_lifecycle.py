@@ -239,6 +239,28 @@ def test_archive_is_idempotent(org, actor):
     assert org.archived_at == archived_at
 
 
+def test_archive_still_revokes_when_the_audit_insert_fails(org, actor, monkeypatch):
+    _entitlement(org)
+    membership = _member(org)
+    grant = _grant(org, membership.user)
+
+    def unavailable(*args, **kwargs):
+        raise RuntimeError("audit store unavailable")
+
+    monkeypatch.setattr(
+        WorkAccessAudit.objects, "bulk_create", unavailable, raising=False
+    )
+
+    result = organization_lifecycle.archive(org, actor=actor)
+
+    org.refresh_from_db()
+    grant.refresh_from_db()
+    assert result["changed"] is True
+    assert org.archived_at is not None
+    assert grant.enabled is False
+    assert grant.revoked_at is not None
+
+
 def test_restore_reopens_organization_without_regranting(org, actor):
     entitlement = _entitlement(org)
     membership = _member(org)

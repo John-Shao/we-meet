@@ -19,6 +19,7 @@ from rest_framework.test import APIClient
 from core import models
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
 from core.services import voiceprint_consent as service
+from core.services.membership import left_transition
 from core.services.voiceprint_crypto import VoiceprintCryptoError, load_keyring
 from core.services.voiceprint_prompt import challenge_digest
 from core.services.voiceprint_quality import MODEL_ID as QUALITY_MODEL_ID
@@ -292,7 +293,8 @@ def test_organization_opt_in_and_active_membership_are_required():
     assert change(user, organization, allow_enrollment=True).status_code == 200
     assert settings_for(UserFactory(), organization).status_code == 404
     membership.status = models.MembershipStatusChoices.LEFT
-    membership.save()
+    with left_transition():
+        membership.save()
     assert settings_for(user, organization).data["allow_enrollment"] is False
     assert (
         change(user, organization, version=2, allow_enrollment=True).status_code == 403
@@ -522,7 +524,8 @@ def test_account_or_last_membership_loss_invalidates_scope(loss):
         user.save()
     elif loss == "left":
         membership.status = models.MembershipStatusChoices.LEFT
-        membership.save()
+        with left_transition():
+            membership.save()
     else:
         membership.delete()
     profile.refresh_from_db()

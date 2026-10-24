@@ -8,6 +8,7 @@ from core import factories, models
 pytestmark = pytest.mark.django_db
 
 ACTIVE = models.MembershipStatusChoices.ACTIVE
+LEFT = models.MembershipStatusChoices.LEFT
 OWNER = models.OrgRoleChoices.OWNER
 ADMIN = models.OrgRoleChoices.ADMIN
 MEMBER = models.OrgRoleChoices.MEMBER
@@ -177,3 +178,49 @@ def test_delete_membership_is_method_not_allowed(org):
 
     assert response.status_code == 405
     assert models.Membership.objects.filter(id=target.id).exists()
+
+
+def test_transfer_uses_the_owner_membership_not_the_primary_one(org):
+    user = factories.UserFactory()
+    _member(org, user, role=MEMBER, primary=True)
+    owner_row = _member(org, user, role=OWNER, primary=False)
+    target = _member(org, role=MEMBER)
+
+    response = _transfer(_client_for(owner_row), target)
+
+    assert response.status_code == 200, response.content
+    assert response.json()["actor"]["membership_id"] == str(owner_row.id)
+    owner_row.refresh_from_db()
+    assert owner_row.org_role == ADMIN
+
+
+def test_patch_on_a_departed_member_can_still_edit_profile_fields(org):
+    actor = _member(org, role=ADMIN)
+    departed = _member(org, role=MEMBER, status=LEFT, primary=False)
+
+    response = _client_for(actor).patch(
+        f"/api/v1.0/admin/memberships/{departed.id}/",
+        {"title": "Former employee"},
+        format="json",
+    )
+
+    assert response.status_code == 200, response.content
+    departed.refresh_from_db()
+    assert departed.status == LEFT
+    assert departed.title == "Former employee"
+
+
+def test_patch_cannot_reactivate_a_departed_member(org):
+    actor = _member(org, role=ADMIN)
+    departed = _member(org, role=MEMBER, status=LEFT, primary=False)
+
+    response = _client_for(actor).patch(
+        f"/api/v1.0/admin/memberships/{departed.id}/",
+        {"status": ACTIVE},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "rehire" in _field_message(response.json(), "status").lower()
+    departed.refresh_from_db()
+    assert departed.status == LEFT

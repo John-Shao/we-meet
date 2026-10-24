@@ -185,12 +185,20 @@ class MembershipAdminSerializer(serializers.ModelSerializer):
         count and the write happen under one lock.
         """
         instance = self.instance
-        new_status = attrs.get("status", instance.status if instance else None)
+        requested_status = attrs.get("status")
         new_role = attrs.get("org_role", None)
 
-        if new_status == models.MembershipStatusChoices.LEFT:
+        if requested_status == models.MembershipStatusChoices.LEFT:
             raise serializers.ValidationError(
                 {"status": _("Use the offboard action to record a departure.")}
+            )
+        if (
+            instance is not None
+            and instance.status == models.MembershipStatusChoices.LEFT
+            and requested_status is not None
+        ):
+            raise serializers.ValidationError(
+                {"status": _("Use the rehire action to reactivate a departed member.")}
             )
         if instance is None and new_role == models.OrgRoleChoices.OWNER:
             raise serializers.ValidationError(
@@ -202,7 +210,8 @@ class MembershipAdminSerializer(serializers.ModelSerializer):
             instance is not None
             and request is not None
             and instance.user_id == request.user.id
-            and new_status != models.MembershipStatusChoices.ACTIVE
+            and requested_status is not None
+            and requested_status != models.MembershipStatusChoices.ACTIVE
         ):
             raise serializers.ValidationError(
                 {"status": _("You cannot suspend your own membership.")}
@@ -909,23 +918,6 @@ class MembershipAdminViewSet(
             "title": membership.title,
         }
 
-    @staticmethod
-    def _member_update_action(before, after):
-        """Pick the most specific audit action for a membership edit."""
-        if before["status"] != after["status"]:
-            if after["status"] == models.MembershipStatusChoices.SUSPENDED:
-                return models.AuditActionChoices.MEMBER_SUSPEND
-            if (
-                before["status"] == models.MembershipStatusChoices.SUSPENDED
-                and after["status"] == models.MembershipStatusChoices.ACTIVE
-            ):
-                return models.AuditActionChoices.MEMBER_RESTORE
-        if before["org_role"] != after["org_role"]:
-            return models.AuditActionChoices.MEMBER_ROLE_CHANGE
-        if before["department"] != after["department"]:
-            return models.AuditActionChoices.MEMBER_DEPARTMENT_CHANGE
-        return models.AuditActionChoices.MEMBER_UPDATE
-
     def perform_create(self, serializer):
         instance = serializer.save()
         record_audit(
@@ -1012,11 +1004,15 @@ class MembershipAdminViewSet(
         """Transfer the caller's own owner role to this member."""
         target = self.get_object()
         organization = self.get_organization()
+        # A user may hold several memberships here; only an OWNER row may be
+        # the source, and the console's primary row is not necessarily the
+        # owner one.
         actor_membership = (
             models.Membership.objects.filter(
                 user=request.user,
                 organization=organization,
                 status=models.MembershipStatusChoices.ACTIVE,
+                org_role=models.OrgRoleChoices.OWNER,
             )
             .order_by("-is_primary", "created_at")
             .first()

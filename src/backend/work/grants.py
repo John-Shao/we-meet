@@ -125,11 +125,11 @@ def _claim_seat(entitlement, grant):
         raise MemberLimitReached(limit, active)
 
 
-def _audit(action, grant, before, request_id=""):
+def _audit(action, grant, before, *, actor=None, request_id=""):
     audit.record_access_event(
         action=action,
         organization=grant.organization,
-        actor=grant.granted_by,
+        actor=actor,
         target_type="grant",
         target_id=grant.pk,
         request_id=request_id,
@@ -190,7 +190,7 @@ def grant_member(  # noqa: PLR0913 -- explicit write contract
     except IntegrityError as exc:
         raise GrantConflict() from exc
 
-    _audit(action, grant, before, request_id)
+    _audit(action, grant, before, actor=actor, request_id=request_id)
     return grant
 
 
@@ -211,12 +211,18 @@ def disable_member_grant(
     before = audit.snapshot(grant)
     grant.enabled = False
     grant.save(update_fields=["enabled"])
-    _audit(WorkAccessAudit.Action.GRANT_UPDATED, grant, before, request_id)
+    _audit(
+        WorkAccessAudit.Action.GRANT_UPDATED,
+        grant,
+        before,
+        actor=actor,
+        request_id=request_id,
+    )
     return grant
 
 
 @transaction.atomic
-def revoke_member_grant(  # noqa: PLR0913 -- explicit write contract
+def revoke_member_grant(
     *,
     organization_id,
     user_id,
@@ -242,12 +248,18 @@ def revoke_member_grant(  # noqa: PLR0913 -- explicit write contract
     grant.save(
         update_fields=["enabled", "revoked_at", "revoked_reason", "revoked_by"]
     )
-    _audit(WorkAccessAudit.Action.GRANT_REVOKED, grant, before, request_id)
+    _audit(
+        WorkAccessAudit.Action.GRANT_REVOKED,
+        grant,
+        before,
+        actor=actor,
+        request_id=request_id,
+    )
     return grant
 
 
 @transaction.atomic
-def restore_member_grant(  # noqa: PLR0913 -- explicit write contract
+def restore_member_grant(
     *, organization_id, user_id, actor=None, expires_at=None, request_id=""
 ):
     """Bring a revoked grant back, re-checking the seat limit."""
@@ -279,5 +291,11 @@ def restore_member_grant(  # noqa: PLR0913 -- explicit write contract
             "expires_at",
         ]
     )
-    _audit(WorkAccessAudit.Action.GRANT_RESTORED, grant, before, request_id)
+    _audit(
+        WorkAccessAudit.Action.GRANT_RESTORED,
+        grant,
+        before,
+        actor=actor,
+        request_id=request_id,
+    )
     return grant

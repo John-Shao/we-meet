@@ -24,6 +24,7 @@ from core.services import voiceprint_journal_runtime as runtime
 from core.services import voiceprint_quality_jobs as quality
 from core.services import voiceprint_recovery as recovery
 from core.services import voiceprint_sampling as sampling
+from core.services.membership import left_transition
 from core.services.voiceprint_templates import build
 from core.tests.services.test_voiceprint_consent import (
     enabled,
@@ -467,7 +468,8 @@ def test_membership_offboarding_keeps_personal_scope_and_publishes_org_revoke(
     profile = profile_for(owner, organization, identify=True)
     if mode == "save":
         member.status = models.MembershipStatusChoices.LEFT
-        member.save(update_fields=["status"])
+        with left_transition():
+            member.save(update_fields=["status"])
     elif mode == "update":
         models.Membership.objects.filter(pk=member.pk).update(
             status=models.MembershipStatusChoices.LEFT

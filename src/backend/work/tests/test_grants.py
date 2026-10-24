@@ -196,7 +196,7 @@ def test_concurrent_grants_take_exactly_one_last_seat():
             result = "granted"
         except grants.MemberLimitReached:
             result = "rejected"
-        except Exception as exc:  # pragma: no cover - surfaced by the assertion
+        except Exception as exc:  # noqa: BLE001 -- surfaced by the assertion
             result = type(exc).__name__
         finally:
             connections.close_all()
@@ -221,3 +221,34 @@ def test_seat_usage_reports_unlimited_tenants():
     grants.grant_member(organization_id=org.id, user_id=_person(org).id)
 
     assert grants.seat_usage(org.id) == {"active": 1, "limit": None}
+
+
+def test_grant_audit_attributes_each_write_to_its_operator():
+    org = _tenant()
+    user = _person(org)
+    granter = factories.UserFactory()
+    operator = factories.UserFactory()
+
+    grant = grants.grant_member(
+        organization_id=org.id, user_id=user.id, actor=granter
+    )
+    grants.disable_member_grant(
+        organization_id=org.id, user_id=user.id, actor=operator
+    )
+    grants.grant_member(organization_id=org.id, user_id=user.id, actor=operator)
+    grants.revoke_member_grant(
+        organization_id=org.id, user_id=user.id, actor=operator
+    )
+    grants.restore_member_grant(
+        organization_id=org.id, user_id=user.id, actor=granter
+    )
+
+    rows = WorkAccessAudit.objects.filter(target_id=str(grant.pk))
+    assert rows.get(action=WorkAccessAudit.Action.GRANT_CREATED).actor_id == granter.id
+    assert set(
+        rows.filter(action=WorkAccessAudit.Action.GRANT_UPDATED).values_list(
+            "actor_id", flat=True
+        )
+    ) == {operator.id}
+    assert rows.get(action=WorkAccessAudit.Action.GRANT_REVOKED).actor_id == operator.id
+    assert rows.get(action=WorkAccessAudit.Action.GRANT_RESTORED).actor_id == granter.id

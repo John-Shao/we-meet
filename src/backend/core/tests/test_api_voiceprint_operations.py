@@ -14,6 +14,7 @@ from rest_framework.test import APIClient
 from core import models
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
 from core.services import voiceprint_operations as service
+from core.services.membership import left_transition
 from core.services.voiceprint_consent import VoiceprintError
 from core.tests.services.test_meeting_records import client_for
 from core.tests.services.test_voiceprint_consent import (
@@ -76,7 +77,8 @@ def test_admin_boundary(denial, admin):
         organization = OrganizationFactory()
     elif denial == "departed":
         membership.status = models.MembershipStatusChoices.LEFT
-        membership.save(update_fields=["status"])
+        with left_transition():
+            membership.save(update_fields=["status"])
     elif denial == "inactive_org":
         organization.is_active = False
         organization.save(update_fields=["is_active"])

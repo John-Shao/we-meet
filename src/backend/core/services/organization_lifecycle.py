@@ -228,7 +228,16 @@ def archive(organization, *, actor=None, reason=""):
         # Snapshots have to read the post-write row, so fill them after the update.
         for row, grant in zip(audit_rows, grants, strict=True):
             row.after = work_audit.snapshot(grant)
-        WorkAccessAudit.objects.bulk_create(audit_rows)
+        try:
+            # Audit is best-effort: a failed insert must not keep the tenant's
+            # Work access alive. The savepoint keeps the outer transaction usable.
+            with transaction.atomic():
+                WorkAccessAudit.objects.bulk_create(audit_rows)
+        except Exception:
+            logger.exception(
+                "Failed to write Work access audit for archive of %s",
+                organization.id,
+            )
 
     counts = _terminate_work(organization.id)
     counts["grants_revoked"] = len(grants)
