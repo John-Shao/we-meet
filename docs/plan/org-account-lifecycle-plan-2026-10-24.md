@@ -146,7 +146,12 @@ P0 的四个项都不依赖飞书，也不改变现有两层授权的语义，�
    - 通用 `DELETE`：返回 405，离职走 `offboard`，清理走 `purge`。
    - Django admin：移除 `org_role` / `status` 可编辑，`save_model` / `delete_model` 走统一服务。
    - ADMIN 不能再把人提升为 OWNER，也不能降级任何 OWNER。
-4. 不新增 `Organization.created_by`。创建者信息由成员创建审计承担；再加一个 owner 字段会制造第二个事实来源，和 `AdminRole` 文档里反对"两个管理事实源"的理由相同。
+4. OWNER 数量与审计约束：
+   - 一个组织最多 3 个 active OWNER（`status=ACTIVE` 且 `org_role=OWNER`），常量 `MAX_ACTIVE_OWNERS = 3`。
+   - PATCH 新增联席 OWNER 时在组织行锁内计数，超限返回 400 `{"org_role": ["An organization can have at most 3 active owners."]}`。
+   - `transfer-owner` 只交换角色，不增加 OWNER 数量，不受上限限制。
+   - 所有 OWNER 授予 / 降级走 `set_role` 专用分支，写 `member.role_change` 或 `member.owner_transferred`，记录 actor、前后角色和双方 membership id。
+5. 不新增 `Organization.created_by`。创建者信息由成员创建审计承担；再加一个 owner 字段会制造第二个事实来源，和 `AdminRole` 文档里反对"两个管理事实源"的理由相同。
 
 **迁移**
 
@@ -162,6 +167,9 @@ P0 的四个项都不依赖飞书，也不改变现有两层授权的语义，�
 - 唯一 owner 被离职 / 降级 → 沿用现有守卫，仍拒绝。
 - 两个并发转移请求 → 一个成功，另一个因锁后状态不满足而失败，不出现双 owner。
 - 多 owner：active OWNER 通过 PATCH 将成员提升为联席 OWNER，组织出现两个 OWNER；原 OWNER 保留 OWNER，联席 OWNER 也可再次发起转移。
+- 上限：已有 3 个 active OWNER 时，第 4 个提升返回 400；并发两个提升抢最后一个名额，只有一个成功。
+- 3 个 OWNER 时执行 transfer-owner 成功，OWNER 数量仍为 3。
+- 审计：OWNER 授予 / 降级记录 actor、前后角色和双方 membership id。
 - 两个 owner 并发降级 / 离职 → 至少保留一个 active owner，不出现零 owner。
 
 **验收**
@@ -414,6 +422,7 @@ P2 资源交接 / 个人版 / SCIM ──── 依赖 P1 的身份模型
 | 归档组织成功 Work 请求 | 0 | 访问日志按组织过滤 |
 | 归档组织新 provider 调用 | 0 | run 创建 / claim 指标 |
 | 所有权转移审计覆盖率 | 100% | `MEMBER_OWNER_TRANSFERRED` 与操作次数对账 |
+| active OWNER 数超过 3 | 0 | 成员写服务计数 + 审计 |
 | 非 OWNER 授权的 OWNER 写入（新建 / 邀请 / 导入 / 重新入职 / DELETE） | 0 | 写入矩阵测试 + 审计 |
 | 归档组织 core 写操作成功数 | 0 | 接口测试 + 访问日志 |
 | 拒绝码误报（组织停用被报成成员停用） | 0 | 接口测试 + 线上 403 分布 |
@@ -423,7 +432,7 @@ P2 资源交接 / 个人版 / SCIM ──── 依赖 P1 的身份模型
 | # | 问题 | 建议 | 影响方 |
 |---|---|---|---|
 | 1 | 所有权转移后，原 owner 变成 ADMIN 还是 MEMBER？ | ADMIN，避免转移即失去后台入口 | 产品 |
-| 2 | 一个组织是否允许同时存在多个 OWNER？ | 允许；转移是"调用者把自己的所有权给出去"，不强制唯一；联席 OWNER 由 active OWNER 通过 PATCH 设置 | 产品 |
+| 2 | 一个组织是否允许同时存在多个 OWNER？ | 允许，上限 3 个 active OWNER；转移不强制唯一；联席 OWNER 由 active OWNER 通过 PATCH 设置 | 产品 |
 | 3 | ADMIN 能否发起所有权转移？ | 不能，仅 active OWNER；否则 ADMIN 可绕过 OWNER_ONLY | 安全 |
 | 4 | 成员停用（SUSPENDED）是否撤销 grant？ | 不撤销；准入已按 ACTIVE 拦截，保留席位便于复职 | 产品 |
 | 5 | `member_limit` 是否把停用成员的 grant 计入？ | 计入；席位按已分配算，离职才释放 | 产品 / 商务 |

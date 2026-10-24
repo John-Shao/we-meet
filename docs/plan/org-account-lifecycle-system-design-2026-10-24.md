@@ -60,7 +60,7 @@
 | 模块 | 文件 | 职责 | 状态 |
 |---|---|---|---|
 | 领域信号 | `core/signals.py` | 定义 `membership_left`；只描述"发生了什么"，不做业务 | 新增 |
-| 成员写服务 | `core/services/membership.py` | 统一角色 / 状态写入、OWNER 授权校验、组织行锁 | 新增 |
+| 成员写服务 | `core/services/membership.py` | 统一角色 / 状态写入、OWNER 授权校验与数量上限、组织行锁 | 新增 |
 | 所有权服务 | `core/services/ownership.py` | 加锁、校验、角色交换、审计 | 新增 |
 | 组织生命周期服务 | `core/services/organization_lifecycle.py` | 停用/启用/归档/恢复；撤销授权、终止任务、关闭开通 | 新增 |
 | 离职服务 | `core/services/offboarding.py` | 现有逻辑 + 发出 `membership_left` | 修改 |
@@ -280,6 +280,7 @@ POST /api/v1.0/admin/memberships/{target_id}/transfer-owner/
 - `{target_id}`：接收方的 membership UUID。
 - 语义：**调用者把自己的 OWNER 转给目标**；调用者降为 `ADMIN`。
 - 多 OWNER：本端点不要求组织唯一 owner，也不改变其他 OWNER；目标已是 OWNER 时拒绝转移。需要新增联席 OWNER 时，由 active OWNER 通过 PATCH 设置，而不是调用 `transfer-owner`。
+- 数量：转移只交换角色，不增加 active OWNER 数量，因此不受 3 人上限限制。
 - 鉴权：调用者在目标所属组织内必须是 `status=active` 且 `org_role=owner`。不复用 `HasOrgPermission`，因为 `OrgAdminContext` 给 ADMIN 授予 `ALL_PERMISSIONS`，任何注册表权限码都无法表达"仅 OWNER"（[core/services/org_permissions.py:97](../../src/backend/core/services/org_permissions.py#L97)）。
 - 路由：`MembershipAdminViewSet.get_permissions` 必须为 `transfer-owner` 单独分支，不能回落到默认的 `org.member.write`（[core/api/admin_org.py:790](../../src/backend/core/api/admin_org.py#L790)）；action 内再做一次显式 `org_role=OWNER` 校验，两层都保留。
 - 幂等：成功转移后重复调用不会改变任何数据。调用者已不是 owner → `403 not_organization_owner`；目标已是 owner → `400 target_already_owner`；加锁后发现并发变化 → `409 ownership_changed`。
@@ -355,6 +356,18 @@ def transfer_ownership(*, actor_membership, target_membership):
 ```
 
 ADMIN 仍可编辑普通成员、部门、职位；不能把人提升为 OWNER，也不能降级 OWNER。OWNER 的授予只有两条路径：`transfer-owner`（调用者把自己的所有权转出）或 active OWNER 通过 PATCH 设置联席 OWNER；两者都必须在组织行锁内执行并写 `member.owner_transferred` / `member.role_change`。`suspended` 仍可通过 PATCH 设置，审计复用 `member.suspend` / `member.restore`。
+
+**OWNER 数量与审计约束**
+
+- 一个组织最多同时存在 **3 个 active OWNER**（`status=ACTIVE` 且 `org_role=OWNER`）；常量 `MAX_ACTIVE_OWNERS = 3` 定义在成员写服务，需要调整时只改这一处。
+- PATCH 新增联席 OWNER 时，在组织行锁内计数；达到上限返回字段错误：
+
+```json
+{"org_role": ["An organization can have at most 3 active owners."]}
+```
+
+- `transfer-owner` 只做角色交换，不增加 active OWNER 数量，因此不受上限限制；目标已是 OWNER 时仍然拒绝。
+- 所有 OWNER 授予 / 降级必须在 `set_role` 的专用分支内完成，写 `member.role_change` 或 `member.owner_transferred`，记录 actor、前后角色和双方 membership id；禁止走通用字段更新。
 
 已有离职/复职端点不变：
 
@@ -581,6 +594,7 @@ work.grants.grant_member
 |---|---|---|
 | 两人同时转移所有权 | 锁 Organization 行 + membership id 排序 `FOR UPDATE` | 后到者看到角色已变化，返回 409 |
 | 并发降级 / 离职最后两个 owner | 先锁 Organization 行，再锁 membership | 串行执行，至少保留一个 owner |
+| 并发授予第 4 个 OWNER | 组织行锁内计数 | 只有一个成功，其余 400 |
 | 并发授予最后一个席位 | 锁 entitlement 行 | 只有一个成功，其余 409 |
 | 并发创建 / 复活同一 grant | `unique(organization, user)` + upsert 捕获 | 一个成功，其余 409 `grant_conflict` |
 | 归档与授权并发 | 两者都锁 entitlement | 归档先则授权看到关闭；授权先则归档随后撤销该 grant |
@@ -608,7 +622,7 @@ work.grants.grant_member
 | 查看 Work 授权（P1） | — | 是 | 是 | `work.member_grant.read` | 否 |
 | 授予/撤销 Work（P1） | — | 是 | 是 | `work.member_grant.write` | 否 |
 
-`transfer-owner` 必须在 `get_permissions` 中单独分支：ADMIN 拥有 `ALL_PERMISSIONS`，只加权限码无法表达“仅 OWNER”。归档组织的 core 管理面写操作同样在权限层拒绝，不依赖前端隐藏。
+`transfer-owner` 必须在 `get_permissions` 中单独分支：ADMIN 拥有 `ALL_PERMISSIONS`，只加权限码无法表达“仅 OWNER”。归档组织的 core 管理面写操作同样在权限层拒绝，不依赖前端隐藏。active OWNER 上限为 3，由成员写服务在组织行锁内执行。
 
 ### 8.2 安全约束
 
@@ -662,7 +676,7 @@ event=work.lifecycle.failed organization=<uuid> membership=<uuid> error=<code>
 
 | 层 | 文件 | 覆盖 |
 |---|---|---|
-| 所有权服务 | `core/tests/services/test_ownership.py` | 正常转移、非 owner、目标非 active、并发、最后一个 owner、多 owner 联席授予与再次转移 |
+| 所有权服务 | `core/tests/services/test_ownership.py` | 正常转移、非 owner、目标非 active、并发、最后一个 owner、多 owner 联席授予与再次转移、第 4 个 OWNER 被拒、并发上限 |
 | 成员 API | `core/tests/api/test_membership_ownership.py` | 端点响应、PATCH 收口、ADMIN 提权被拒、`get_permissions` 路由 |
 | 成员写入矩阵 | `core/tests/api/test_membership_write_matrix.py` | 新建 / 邀请 / 审批 / 导入 / 重新入职都不能产生 OWNER；DELETE 返回 405；PATCH `status=left` 返回 400；Django admin 同样受限 |
 | 成员并发 | `core/tests/services/test_membership_concurrency.py` | 并发降级 / 离职最后两个 owner，断言至少保留一个 owner |
@@ -754,7 +768,7 @@ WHERE m.status = 'left'
 
 | 文件 | 改动 |
 |---|---|
-| `core/services/membership.py` | 新增统一写入服务：角色集合、状态迁移、组织行锁、OWNER 授权校验 |
+| `core/services/membership.py` | 新增统一写入服务：角色集合、状态迁移、组织行锁、OWNER 授权校验、`MAX_ACTIVE_OWNERS = 3` |
 | `core/services/ownership.py` | 新增 `transfer_ownership`、`OwnershipError` |
 | `core/api/admin_org.py` | `transfer_owner` action、`get_permissions` 分支、PATCH 收口、DELETE 禁用、新建排除 OWNER |
 | `core/api/admin_invite_links.py`、`core/services/invite_links.py` | 邀请创建 / 审批排除 OWNER |
