@@ -1,6 +1,6 @@
 # 方案与执行记录目录
 
-整理日期：2026-09-22；Agent 架构导航更新：2026-10-08。
+整理日期：2026-09-22；Agent 架构导航更新：2026-10-08；Work 授权 / 任务关系 / 执行模型决策索引：2026-10-24。
 
 按主题查阅方案、实施契约、部署说明和历史执行记录。文档中的日期、代码版本、测试结果与部署状态保持原有语义；整理目录不代表重新测试或更新线上状态。
 
@@ -20,6 +20,20 @@
 | [speaker-identity-voiceprint-plan-2026-10-09.md](speaker-identity-voiceprint-plan-2026-10-09.md) | 声纹身份识别方案 v1.5：先尝试 Qwen，未满足要求时再考虑 CAM++ 私有化部署；保留专用模型配置参考、人工通讯录选择／自定义标签与通话采样；[代码与资料调研](../research/voiceprint-preimplementation-2026-10-09.md)已完成，真人与生产实测待验证；待评审，未实施 |
 | [meeting-ai-redesign-2026-09-12.md](meeting-ai-redesign-2026-09-12.md) | 会议 AI 重设计提案与早期背景 |
 | [meeting-ai-translation-qwen-2026-09-12.md](meeting-ai-translation-qwen-2026-09-12.md) | 翻译模型选型与接入方案 |
+
+## 架构决策（ADR）
+
+关键不可逆决策保留在 [docs/adr](../adr/)，与方案文档分开维护：
+
+| ADR | 主题 |
+|---|---|
+| [ADR-0001](../adr/0001-bounded-recursive-task-hierarchy.md) | 有界递归任务层级 |
+| [ADR-0002](../adr/0002-upward-task-visibility.md) | 子任务向上可见 |
+| [ADR-0003](../adr/0003-task-delete-unbinds-subtasks.md) | 删除任务解绑子任务 |
+| [ADR-0004](../adr/0004-meeting-module-responsibility.md) | 会议模块职责边界 |
+| [ADR-0005](../adr/0005-work-two-layer-access.md) | Work 两层授权：组织白名单 + 账号 allowlist |
+| [ADR-0006](../adr/0006-work-absorbs-task.md) | Work 逐步吸收 Task，先统一入口不合并表 |
+| [ADR-0007](../adr/0007-work-execution-local-remote.md) | 只承诺本地 / 远程执行，云电脑规划中 |
 
 ## 实施基线与评审
 

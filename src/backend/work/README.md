@@ -229,10 +229,18 @@ celery -A meet.celery_app worker -Q work --concurrency=2 --loglevel=INFO
 | `WORK_MODEL` | 空；实际兼容接口模型 ID |
 | `WORK_MODEL_BASE_URL` | 空；经部署方验证的模型接口根地址 |
 | `WORK_MODEL_API_KEY` | 空；通过现有 SecretFileValue / secret 注入，不写入前端或运行记录 |
-| `WORK_DAILY_TOKEN_BUDGET` | 100000；按服务端时区自然日、owner 全组织合计的预占 token 额度 |
+| `WORK_DAILY_TOKEN_BUDGET` | 100000；组织未单独配置额度时的全局回退，启用租户准入后按服务端时区自然日、组织合计预占 |
 | `WORK_MAX_OUTPUT_TOKENS` | 3000；代码硬上限 4000 |
+| `WORK_TENANT_ACCESS_ENABLED` | `false`；开启后 Work API 统一校验组织授权 + 成员 grant（ADR-0005） |
+| `WORK_DISABLED_ORGANIZATION_IDS` | 空；逗号分隔 UUID，应急停用指定组织 |
 
 `GET /api/v1.0/work/capabilities/` 只在配置完整时返回 `communication_enabled=true`，这属于配置预检，不等于模型可用性和效果验收。只有材料开关开启时也可先使用上传预览。共用路由 `/work?view=communication`；成功提交后 URL 增加 `task=<uuid>`，刷新恢复同一任务。
+
+开启 `WORK_TENANT_ACCESS_ENABLED` 后，多组织账号必须通过 `X-Organization-Id` 显式选择组织；该值必须是调用者的 active membership。头部不是合法 UUID 返回 400 `invalid_organization`，不是成员组织返回 403 `member_disabled`，多组织未传头部返回 409 `organization_required`。选中的组织用于材料、任务、设备与远程 workspace 的查询和创建。开关关闭时忽略该头部，保留原有单组织回退。
+
+同一开关下，新建材料、任务、设备或本地受理若解析不到组织，返回 409 `organization_required`，不再写入空组织数据；既有 `organization IS NULL` 数据保持 owner-only 只读。材料预览、run 事件 / 文件 / 下载 / 成果 / 采纳以及 review 读取、创建、取消都会对行上的组织再次校验：成员或组织被撤销时返回 403（组织缺失 409、授权查询异常 503），不会交付成果。领取或回报时发现准入撤销，run/review 以 `access_revoked` 终结，`error_code` 保留 `org_disabled` / `member_disabled` 等具体原因；授权查询瞬时异常不终结运行，留待下次重试。
+
+每日预占按组织汇总（包含 review），额度优先取 `WorkOrganizationEntitlement.daily_token_budget`，未配置时回退 `WORK_DAILY_TOKEN_BUDGET`；`GET capabilities/` 返回当前请求组织的额度。服务方在 Django admin 新增、修改或删除 entitlement / grant 时写入只读的 `WorkAccessAudit`，记录操作者、动作、组织、对象、变更前后快照与 `X-Request-Id`，审计写入失败不影响授权变更本身。
 
 Beat 每 5 秒投递 `work.tasks.tick_runs`，每次最多处理一个运行。开发和调度恢复可执行 `python manage.py process_work_runs`。数据库 `WorkRun(status=queued)` 行本身承担事务 Outbox，任务、运行和首条事件在同一事务创建；Worker 在数据库领取，重复投递不产生第二次调用。运行租约 2 分钟，SDK 单次请求超时 45 秒、重试次数 0，Celery 软 / 硬时限为 65 / 80 秒。
 
@@ -242,8 +250,8 @@ Beat 每 5 秒投递 `work.tasks.tick_runs`，每次最多处理一个运行。�
 
 - `WorkTask` 是私人办公目标，独立于 `core.Task`（人的待办）。最多选择 10 份 / 合计 30 MiB 的 ready 材料，冻结 ID、SHA-256、解析器版本及 generation；对象、目标和背景按字段限制长度。任务参数不可覆盖修改，修改目标新建任务。
 - 创建使用 UUID `Idempotency-Key`，owner 行锁串行执行配额和请求去重；同键同输入返回原任务，同键不同输入返回 409。重新生成产生新 `WorkRun`，原稿保留；相同重试 key 只创建一次，每任务最多 20 个运行，不允许同时存在两个活动运行。
-- `WorkRun` 保存模型、端点、固定执行版本、预占额度、调用起点、实际输入 / 输出 token 和用量记录。状态为 `queued / running / succeeded / failed / canceled`；过期 running 转为 `failed + execution_unknown`，**不自动重发结果不明的付费调用**。用户明确选择重新生成才再调用；取消只阻止后续成果发布，已开始的模型请求可能仍计费。
-- 当前是 token 额度，不是人民币预算：按完整提示的 UTF-8 字节数 + 消息余量 + 最大输出预占，失败、取消或缺用量仍保留当日预占，不自动退还；实际 usage 另存并归因 `AIUsageRecord.ref_type=work_run`，组织按任务冻结。缺 usage 展示“待确认”，未配置模型价格不宣称免费。金额预算、结算及额度释放对账后续完善。
+- `WorkRun` 保存模型、端点、固定执行版本、预占额度、调用起点、实际输入 / 输出 token 和用量记录。状态为 `queued / running / succeeded / failed / canceled / access_revoked`；过期 running 转为 `failed + execution_unknown`，**不自动重发结果不明的付费调用**。用户明确选择重新生成才再调用；取消只阻止后续成果发布，已开始的模型请求可能仍计费。
+- 当前是 token 额度，不是人民币预算：按完整提示的 UTF-8 字节数 + 消息余量 + 最大输出预占，失败、取消、缺用量或 `access_revoked` 仍保留当日预占，不自动退还；实际 usage 另存并归因 `AIUsageRecord.ref_type=work_run`，组织按任务冻结。启用租户准入后预占与上限按组织合计，不再按 owner 跨组织共用；缺 usage 展示“待确认”，未配置模型价格不宣称免费。金额预算、结算及额度释放对账后续完善。
 - 固定 `CommunicationExecutor` 一次结构化调用，无工具、检索、会议或外部写入。选中材料与补充背景合计最多 12000 字符，序列化提示另限 55000 UTF-8 字节；完整读取超限直接拒绝，不静默截断。模型结果用 JSON Schema 校验，事实引用必须属于选中材料、行号有效、引文是对应行的精确片段；事实含义和建议仍需人工核实。
 - `WorkRunEvent` 在运行锁内分配单调 seq，`GET runs/<id>/events/?after=<seq>` 最多返回 100 条，前端重连按游标补拉并去重。事件只包含阶段和时间，不含源文、密钥或供应商错误正文。
 - 提交、执行和成果读取 / 修改 / 下载时均重查 owner、当前组织和来源版本。删除材料会让引用它的成果不可再读；晚到结果无法覆盖取消或失效状态。当前没有公开链接、共享或自动发送。
