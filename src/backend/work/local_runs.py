@@ -13,12 +13,12 @@ from django.utils import timezone
 
 from core.models import User
 
-from . import agent_runs, rollout, runs
+from . import access, agent_runs, rollout, runs
 from .models import WorkArtifactFile, WorkArtifactVersion, WorkDevice, WorkRun, WorkTask
-from .services import MaterialError, organization_for
+from .services import MaterialError, require_organization, scoped_organization
 
 CONTRACT = "work-device/v1"
-FINAL = {"succeeded", "failed", "canceled"}
+FINAL = {"succeeded", "failed", "canceled", "access_revoked"}
 
 
 def encoded(body):
@@ -35,19 +35,22 @@ def enabled(user):
     )
 
 
-def device_for(user, identifier):
+def device_for(user, identifier, organization_id=None):
     return get_object_or_404(
-        WorkDevice, id=identifier, owner=user, organization_id=organization_for(user)
+        WorkDevice,
+        id=identifier,
+        owner=user,
+        organization_id=scoped_organization(user, organization_id),
     )
 
 
 @transaction.atomic
-def register(user, identifier, name):
+def register(user, identifier, name, organization_id=None):
     if not enabled(user):
         raise MaterialError("local_coordination_disabled", 503)
     User.objects.select_for_update().get(pk=user.pk)
     device = WorkDevice.objects.filter(pk=identifier).first()
-    organization = organization_for(user)
+    organization = require_organization(user, organization_id)
     if device and (
         device.owner_id != user.pk or device.organization_id != organization
     ):
@@ -60,11 +63,12 @@ def register(user, identifier, name):
 
 
 @transaction.atomic
-def admit(user, data, *, workspace=None):
+def admit(user, data, *, workspace=None, organization_id=None):
     if not enabled(user):
         raise MaterialError("local_coordination_disabled", 503)
     User.objects.select_for_update().get(pk=user.pk)
-    device = device_for(user, data["device_id"])
+    organization_id = require_organization(user, organization_id)
+    device = device_for(user, data["device_id"], organization_id)
     previous = WorkRun.objects.filter(pk=data["run_id"]).select_related("task").first()
     frozen = {
         "goal": data["goal"],
@@ -77,7 +81,7 @@ def admit(user, data, *, workspace=None):
     if previous:
         if (
             previous.task.owner_id != user.pk
-            or previous.task.organization_id != organization_for(user)
+            or previous.task.organization_id != device.organization_id
             or previous.device_id != device.pk
             or previous.execution_target != "local"
             or previous.agent_payload.get("admission") != frozen
@@ -89,8 +93,8 @@ def admit(user, data, *, workspace=None):
     if data["model"] != settings.WORK_AGENT_MODEL:
         raise MaterialError("local_model_unavailable", 409)
     budget = min(settings.WORK_AGENT_TOKEN_BUDGET, 80000)
-    used = runs.daily_reserved(user.pk)
-    if used + budget > settings.WORK_DAILY_TOKEN_BUDGET:
+    used = runs.daily_reserved(user.pk, device.organization_id)
+    if used + budget > runs.daily_budget(device.organization_id):
         raise MaterialError("budget_exceeded", 429)
     task = WorkTask(
         owner=user,
@@ -149,14 +153,14 @@ def ticket(run):
     return hmac.new(settings.SECRET_KEY.encode(), message, hashlib.sha256).hexdigest()
 
 
-def locked(user, identifier, device_id):
-    device_for(user, device_id)
+def locked(user, identifier, device_id, organization_id=None):
+    device_for(user, device_id, organization_id)
     return get_object_or_404(
         WorkRun.objects.select_for_update().select_related("task"),
         pk=identifier,
         device_id=device_id,
         execution_target="local",
-        task__in=runs.visible_tasks(user),
+        task__in=runs.visible_tasks(user, organization_id),
     )
 
 
@@ -166,17 +170,23 @@ def control(run):
         "task_id": str(run.task_id),
         "run_id": str(run.pk),
         "status": run.status,
-        "cancel": run.status in {"canceled", "failed"},
+        "cancel": run.status in FINAL,
         "report_seq": run.local_report_seq,
         "uploaded_files": list(run.files.values_list("name", flat=True)),
     }
 
 
 @transaction.atomic
-def claim(user, identifier, device_id):
-    run = locked(user, identifier, device_id)
+def claim(user, identifier, device_id, organization_id=None):
+    run = locked(user, identifier, device_id, organization_id)
     if not enabled(user) or run.status in FINAL:
         raise MaterialError("local_assignment_closed", 409)
+    code = access.check(user, run.task.organization_id)
+    if code == "access_unavailable":
+        raise MaterialError(code, 503)
+    if code:
+        runs.terminal(run, "access_revoked", code)
+        raise MaterialError(code, access.denial_status(code))
     if run.remote_requested and (
         not settings.WORK_REMOTE_AGENT_ENABLED or not run.workspace.enabled
     ):
@@ -200,10 +210,16 @@ def claim(user, identifier, device_id):
 
 
 @transaction.atomic
-def report(user, identifier, data):  # noqa: PLR0912 -- fenced device state machine
-    run = locked(user, identifier, data["device_id"])
+def report(user, identifier, data, organization_id=None):  # noqa: PLR0912, PLR0915 -- fenced device state machine
+    run = locked(user, identifier, data["device_id"], organization_id)
     if not run.local_claimed or not hmac.compare_digest(ticket(run), data["ticket"]):
         raise MaterialError("local_assignment_invalid", 403)
+    code = access.check(user, run.task.organization_id)
+    if code == "access_unavailable":
+        raise MaterialError(code, 503)
+    if code and run.status not in FINAL:
+        runs.terminal(run, "access_revoked", code)
+        return control(run)
     fingerprint = hashlib.sha256(encoded(data)).hexdigest()
     if data["seq"] <= run.local_report_seq:
         if data["seq"] != run.local_report_seq or fingerprint != run.local_report_hash:
@@ -253,7 +269,9 @@ def report(user, identifier, data):  # noqa: PLR0912 -- fenced device state mach
             if not enabled(user):
                 raise MaterialError("local_coordination_disabled")
         except MaterialError as exc:
-            runs.terminal(run, "failed", exc.code)
+            if exc.code == "access_unavailable":
+                raise
+            runs.terminal(run, runs.failure_status(exc.code), exc.code)
         else:
             state = {"cancelled": "canceled"}.get(data["state"], data["state"])
             if run.status == "running" and state == "queued":
@@ -272,8 +290,8 @@ def report(user, identifier, data):  # noqa: PLR0912 -- fenced device state mach
 
 
 @transaction.atomic
-def sync_files(user, identifier, data):
-    run = locked(user, identifier, data["device_id"])
+def sync_files(user, identifier, data, organization_id=None):
+    run = locked(user, identifier, data["device_id"], organization_id)
     if not hmac.compare_digest(ticket(run), data["ticket"]):
         raise MaterialError("local_assignment_invalid", 403)
     runs.sources_for(run.task)
@@ -320,7 +338,7 @@ def sync_files(user, identifier, data):
 
 
 @transaction.atomic
-def expire_runs(user=None):
+def expire_runs(user=None, organization_id=None):
     query = WorkRun.objects.select_for_update(skip_locked=True).filter(
         execution_target="local",
         local_claimed=True,
@@ -328,7 +346,7 @@ def expire_runs(user=None):
         lease_until__lt=timezone.now(),
     )
     if user:
-        query = query.filter(task__in=runs.visible_tasks(user))
+        query = query.filter(task__in=runs.visible_tasks(user, organization_id))
     for run in query[:100]:
         run.status = "disconnected"
         run.error_code = "local_device_disconnected"

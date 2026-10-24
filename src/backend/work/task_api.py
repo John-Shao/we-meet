@@ -11,7 +11,7 @@ from rest_framework.response import Response
 
 from core.models import User
 
-from . import runs
+from . import access, runs
 from .api import MaterialPagination, MaterialViewSet, WorkUser
 from .executor import MAX_ARTIFACT_CHARS
 from .models import WorkArtifactVersion, WorkRun
@@ -114,7 +114,9 @@ class TaskViewSet(viewsets.GenericViewSet):
     pagination_class = MaterialPagination
 
     def get_queryset(self):
-        return runs.visible_tasks(self.request.user).prefetch_related("runs")
+        return runs.visible_tasks(
+            self.request.user, access.request_organization_id(self.request)
+        ).prefetch_related("runs")
 
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)
@@ -129,7 +131,7 @@ class TaskViewSet(viewsets.GenericViewSet):
     def list(self, request):
         from .local_runs import expire_runs  # noqa: PLC0415
 
-        expire_runs(request.user)
+        expire_runs(request.user, access.request_organization_id(request))
         query = self.get_queryset()
         if request.query_params.get("kind"):
             query = query.filter(kind=request.query_params["kind"])
@@ -140,14 +142,17 @@ class TaskViewSet(viewsets.GenericViewSet):
         form = TaskInput(data=request.data)
         form.is_valid(raise_exception=True)
         task, created = runs.create_task(
-            request.user, form.validated_data, MaterialViewSet.request_key(request)
+            request.user,
+            form.validated_data,
+            MaterialViewSet.request_key(request),
+            access.request_organization_id(request),
         )
         return Response(task_data(task, True), status=201 if created else 200)
 
     def retrieve(self, request, pk=None):
         from .local_runs import expire_runs  # noqa: PLC0415
 
-        expire_runs(request.user)
+        expire_runs(request.user, access.request_organization_id(request))
         return Response(task_data(self.get_object(), True))
 
     @action(detail=True, methods=["post"])
@@ -164,17 +169,27 @@ class RunViewSet(TaskViewSet):
     """Run endpoints validate task ownership and source permission on delivery."""
 
     def get_queryset(self):
-        return WorkRun.objects.filter(task__in=runs.visible_tasks(self.request.user))
+        return WorkRun.objects.filter(
+            task__in=runs.visible_tasks(
+                self.request.user, access.request_organization_id(self.request)
+            )
+        )
+
+    def authorized_run(self):
+        """Reauthorize the row's stored organization before exposing or mutating it."""
+        run = self.get_object()
+        access.require_scope(self.request.user, run.task.organization_id)
+        return run
 
     @action(detail=True, methods=["get"])
     def files(self, request, pk=None):
-        run = self.get_object()
+        run = self.authorized_run()
         runs.sources_for(run.task)
         return Response(list(run.files.values("name", "sha256")))
 
     @action(detail=True, methods=["get"], url_path="file-download")
     def file_download(self, request, pk=None):
-        run = self.get_object()
+        run = self.authorized_run()
         runs.sources_for(run.task)
         item = get_object_or_404(run.files, name=request.query_params.get("name", ""))
         response = HttpResponse(
@@ -191,7 +206,7 @@ class RunViewSet(TaskViewSet):
 
     @action(detail=True, methods=["get"])
     def events(self, request, pk=None):
-        run = self.get_object()
+        run = self.authorized_run()
         try:
             after = int(request.query_params.get("after", "0"))
             if after < 0:
@@ -213,6 +228,7 @@ class RunViewSet(TaskViewSet):
     def cancel(self, request, pk=None):
         with transaction.atomic():
             run = get_object_or_404(self.get_queryset().select_for_update(), pk=pk)
+            access.require_scope(request.user, run.task.organization_id)
             if run.status in runs.ACTIVE or (
                 run.execution_target == "local" and run.status == "disconnected"
             ):
@@ -223,6 +239,7 @@ class RunViewSet(TaskViewSet):
     def artifact(self, request, pk=None):
         with transaction.atomic():
             run = get_object_or_404(self.get_queryset().select_for_update(), pk=pk)
+            access.require_scope(request.user, run.task.organization_id)
             runs.sources_for(run.task)
             latest = run.versions.last()
             if not latest:
@@ -253,6 +270,7 @@ class RunViewSet(TaskViewSet):
     def adopt(self, request, pk=None):
         with transaction.atomic():
             run = get_object_or_404(self.get_queryset().select_for_update(), pk=pk)
+            access.require_scope(request.user, run.task.organization_id)
             runs.sources_for(run.task)
             version = run.versions.last()
             if not version or request.data.get("version") != version.version:
@@ -265,7 +283,7 @@ class RunViewSet(TaskViewSet):
 
     @action(detail=True, methods=["get"])
     def download(self, request, pk=None):
-        run = self.get_object()
+        run = self.authorized_run()
         runs.sources_for(run.task)
         try:
             version = int(request.query_params.get("version", "0"))

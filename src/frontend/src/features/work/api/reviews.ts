@@ -7,7 +7,13 @@ export interface ReviewFile {
 export interface WorkReview {
   id: string
   source_run_id: string
-  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled'
+  status:
+    | 'queued'
+    | 'running'
+    | 'succeeded'
+    | 'failed'
+    | 'canceled'
+    | 'access_revoked'
   error_code: string
   model: string
   selection: ReviewFile[]

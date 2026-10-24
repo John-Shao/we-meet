@@ -287,3 +287,154 @@ class WorkArtifactFile(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class WorkOrganizationEntitlement(models.Model):
+    """Provider-owned Work entitlement for one tenant.
+
+    ``features`` is a sparse override map: a missing key is allowed once the
+    entitlement is enabled, so onboarding only has to disable exceptions.
+    """
+
+    organization = models.OneToOneField(
+        "core.Organization",
+        related_name="work_entitlement",
+        on_delete=models.CASCADE,
+    )
+    enabled = models.BooleanField(default=False)
+    features = models.JSONField(default=dict, blank=True)
+    daily_token_budget = models.PositiveIntegerField(null=True, blank=True)
+    member_limit = models.PositiveIntegerField(null=True, blank=True)
+    disabled_reason = models.CharField(max_length=200, blank=True, default="")
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="+",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["organization_id"]
+        verbose_name = "Work organization entitlement"
+        verbose_name_plural = "Work organization entitlements"
+
+    def __str__(self):
+        return f"{self.organization_id}:{'on' if self.enabled else 'off'}"
+
+    def feature_enabled(self, feature):
+        if not self.enabled:
+            return False
+        return bool(self.features.get(feature, True))
+
+
+class WorkMemberGrant(models.Model):
+    """Customer-owned Work access grant inside an entitled organization."""
+
+    class Source(models.TextChoices):
+        PROVIDER = "provider"
+        CUSTOMER = "customer"
+
+    organization = models.ForeignKey(
+        "core.Organization",
+        related_name="work_member_grants",
+        on_delete=models.CASCADE,
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="work_member_grants",
+        on_delete=models.CASCADE,
+    )
+    enabled = models.BooleanField(default=True)
+    source = models.CharField(
+        max_length=16, choices=Source.choices, default=Source.CUSTOMER
+    )
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="+",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    expires_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["organization_id", "user_id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "user"], name="work_member_grant_once"
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "enabled"], name="work_grant_org_enabled"
+            )
+        ]
+        verbose_name = "Work member grant"
+        verbose_name_plural = "Work member grants"
+
+    def __str__(self):
+        return f"{self.organization_id}:{self.user_id}"
+
+    def is_active(self):
+        return self.enabled and (
+            self.expires_at is None or self.expires_at > timezone.now()
+        )
+
+
+class WorkAccessAudit(models.Model):
+    """Append-only record of provider-side entitlement and member-grant changes.
+
+    Written best-effort from Django admin so onboarding and break-glass actions
+    have an attributable trail without coupling core audit action choices to Work.
+    """
+
+    class Action(models.TextChoices):
+        ENTITLEMENT_CREATED = "entitlement_created"
+        ENTITLEMENT_UPDATED = "entitlement_updated"
+        ENTITLEMENT_DELETED = "entitlement_deleted"
+        GRANT_CREATED = "grant_created"
+        GRANT_UPDATED = "grant_updated"
+        GRANT_DELETED = "grant_deleted"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(
+        "core.Organization",
+        related_name="work_access_audits",
+        on_delete=models.CASCADE,
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="+",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    action = models.CharField(max_length=40, choices=Action.choices)
+    target_type = models.CharField(max_length=40, blank=True, default="")
+    target_id = models.CharField(max_length=64, blank=True, default="")
+    request_id = models.CharField(max_length=64, blank=True, default="")
+    before = models.JSONField(default=dict, blank=True)
+    after = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Work access audit"
+        verbose_name_plural = "Work access audits"
+        indexes = [
+            models.Index(
+                fields=["organization", "-created_at"],
+                name="work_audit_org_created",
+            ),
+            models.Index(
+                fields=["actor", "-created_at"], name="work_audit_actor_created"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.action}:{self.target_type}:{self.target_id}"

@@ -34,6 +34,7 @@ const states = {
   succeeded: '成果已完成',
   failed: '处理失败',
   canceled: '已取消',
+  access_revoked: '访问权限已撤销',
   disconnected: '设备断线，执行待确认',
 }
 const templates: Record<string, { title: string; goal: string }> = {

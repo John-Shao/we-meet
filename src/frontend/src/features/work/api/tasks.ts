@@ -9,6 +9,7 @@ export interface WorkRun {
     | 'succeeded'
     | 'failed'
     | 'canceled'
+    | 'access_revoked'
     | 'disconnected'
   execution_target?: 'cloud' | 'local'
   usage_origin?: 'provider' | 'device_reported'

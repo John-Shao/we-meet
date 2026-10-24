@@ -9,7 +9,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from . import agent_runs, rollout, runs
+from . import access, agent_runs, rollout, runs
 from .models import WorkReview
 from .review_contract import validate_report
 from .services import MaterialError
@@ -71,8 +71,8 @@ def new_review(run, key, selection):
     if budget < output + 1024:
         raise MaterialError("review_unavailable", 503)
     if (
-        runs.daily_reserved(run.task.owner_id) + budget
-        > settings.WORK_DAILY_TOKEN_BUDGET
+        runs.daily_reserved(run.task.owner_id, run.task.organization_id) + budget
+        > runs.daily_budget(run.task.organization_id)
     ):
         raise MaterialError("budget_exceeded", 429)
     value = WorkReview.objects.create(
@@ -140,12 +140,20 @@ def claim(exclude):
     now = timezone.now()
     review = (
         WorkReview.objects.select_for_update(skip_locked=True)
+        .select_related("source_run__task")
         .filter(agent_done=False)
         .exclude(pk__in=exclude)
         .filter(Q(lease_until__isnull=True) | Q(lease_until__lt=now))
         .first()
     )
     if review:
+        task = review.source_run.task
+        code = access.check(task.owner, task.organization_id)
+        if code == "access_unavailable":
+            return None
+        if code:
+            runs.terminal(review, runs.failure_status(code), code)
+            return None
         review.agent_generation += 1
         review.lease_until = now + timedelta(seconds=45)
         review.save(update_fields=["agent_generation", "lease_until"])

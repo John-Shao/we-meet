@@ -271,7 +271,9 @@ def test_revocation_during_generation_prevents_artifact(client):
 
     with patch("work.runs.CommunicationExecutor.generate", side_effect=revoke):
         runs.process_runs()
-    assert WorkRun.objects.get().error_code == "access_revoked"
+    run = WorkRun.objects.get()
+    assert run.status == "access_revoked"
+    assert run.error_code == "access_revoked"
     assert not WorkArtifactVersion.objects.exists()
 
 

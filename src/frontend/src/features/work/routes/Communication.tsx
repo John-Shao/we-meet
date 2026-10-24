@@ -32,6 +32,7 @@ const states: Record<WorkRun['status'], string> = {
   succeeded: '草稿已完成',
   failed: '生成失败',
   canceled: '已取消',
+  access_revoked: '访问权限已撤销',
   disconnected: '设备断线，执行待确认',
 }
 

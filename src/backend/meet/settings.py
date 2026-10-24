@@ -971,6 +971,8 @@ class Base(Configuration):
     WORK_LOCAL_AGENT_ENABLED = values.BooleanValue(False, environ_prefix=None)
     WORK_AGENT_ROLLOUT_MODE = values.Value("closed", environ_prefix=None)
     WORK_AGENT_ALLOWED_USER_IDS = values.ListValue([], environ_prefix=None)
+    WORK_TENANT_ACCESS_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    WORK_DISABLED_ORGANIZATION_IDS = values.ListValue([], environ_prefix=None)
     WORK_REMOTE_AGENT_ENABLED = values.BooleanValue(False, environ_prefix=None)
     WORK_AGENT_URL = values.Value("", environ_prefix=None)
     WORK_AGENT_TOKEN = SecretFileValue(None, environ_prefix=None)
