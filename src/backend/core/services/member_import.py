@@ -211,7 +211,7 @@ def _parse_date(raw: str, result: RowResult):
         return None
     for fmt in ("%Y-%m-%d", "%Y/%m/%d"):
         try:
-            from datetime import datetime
+            from datetime import datetime  # noqa: PLC0415 -- local to the date parser.
 
             return datetime.strptime(raw, fmt).date()
         except ValueError:
@@ -220,7 +220,7 @@ def _parse_date(raw: str, result: RowResult):
     return None
 
 
-def preflight(organization, rows: list[dict], create_missing_departments: bool):
+def preflight(organization, rows: list[dict], create_missing_departments: bool):  # noqa: PLR0912, PLR0915 -- row state machine is explicit.
     """Resolve every row and decide what would happen. No writes."""
     resolver = _Resolver(organization, create_missing_departments)
     results: list[RowResult] = []
@@ -529,7 +529,7 @@ def _apply_one(organization, resolver, result, actor):
             )
         )
     if result.action == ACTION_REHIRE:
-        from core.services import offboarding
+        from core.services import offboarding  # noqa: PLC0415 -- avoids import cycle.
 
         offboarding.rehire_membership(membership, actor=actor)
         membership.refresh_from_db()

@@ -482,7 +482,9 @@ def test_admin_create_invitation_pending():
 
 
 def test_admin_invitation_claimed_on_login_provisions_membership():
-    from core.services.invitation_provisioning import claim_pending_invitations
+    from core.services.invitation_provisioning import (  # noqa: PLC0415
+        claim_pending_invitations,
+    )
 
     org = factories.OrganizationFactory()
     dept = models.Department.objects.create(organization=org, name="Eng")
@@ -511,7 +513,9 @@ def test_admin_invitation_claimed_on_login_provisions_membership():
 
 
 def test_invitation_claim_ignores_unmatched_email():
-    from core.services.invitation_provisioning import claim_pending_invitations
+    from core.services.invitation_provisioning import (  # noqa: PLC0415
+        claim_pending_invitations,
+    )
 
     org = factories.OrganizationFactory()
     models.OrgInvitation.objects.create(
@@ -528,7 +532,9 @@ def test_invitation_claim_ignores_unmatched_email():
 
 
 def test_admin_revoke_invitation_is_soft_and_not_claimable():
-    from core.services.invitation_provisioning import claim_pending_invitations
+    from core.services.invitation_provisioning import (  # noqa: PLC0415
+        claim_pending_invitations,
+    )
 
     org = factories.OrganizationFactory()
     client, _ = _admin_client(org)

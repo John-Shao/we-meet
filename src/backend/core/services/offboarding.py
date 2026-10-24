@@ -130,7 +130,7 @@ def collect_owned_resources(membership) -> dict:
 
 
 @transaction.atomic
-def offboard_membership(
+def offboard_membership(  # noqa: PLR0913 -- explicit offboarding options.
     membership,
     *,
     actor,
@@ -267,7 +267,7 @@ def offboard_membership(
 def _schedule_login_disable(user, organization, actor):
     """Kick the Keycloak disable task, swallowing dispatch errors."""
     # Imported here so importing this module never drags in Celery wiring.
-    from core.tasks.offboarding import (  # pylint: disable=import-outside-toplevel
+    from core.tasks.offboarding import (  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
         disable_keycloak_login,
     )
 
@@ -341,7 +341,7 @@ def rehire_membership(membership, *, actor, department=None, org_role=None) -> N
     )
 
     if membership.user.sub:
-        from core.tasks.offboarding import (  # pylint: disable=import-outside-toplevel
+        from core.tasks.offboarding import (  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
             enable_keycloak_login,
         )
 

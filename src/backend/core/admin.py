@@ -994,7 +994,7 @@ class ApprovalInstanceAdmin(admin.ModelAdmin):
         """Recovery for stuck NEEDS_ASSIGNMENT instances: re-resolve the current
         node's approver (after the org head / role was fixed) and, on success, put
         the instance back into PENDING. Non-stuck rows are skipped."""
-        from core.services import approval as approval_service
+        from core.services import approval as approval_service  # noqa: PLC0415
 
         recovered = 0
         skipped = 0

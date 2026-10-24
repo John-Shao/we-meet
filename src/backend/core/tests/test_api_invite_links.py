@@ -152,7 +152,7 @@ def test_resolution_is_throttled(monkeypatch):
     order — which is exactly why this test passed alone and failed in the suite.
     ``SimpleRateThrottle.__init__`` honours a class-level ``rate``.
     """
-    from core.api.invite import InviteThrottle
+    from core.api.invite import InviteThrottle  # noqa: PLC0415
 
     monkeypatch.setattr(InviteThrottle, "rate", "3/minute", raising=False)
     client = _client()
@@ -163,7 +163,7 @@ def test_resolution_is_throttled(monkeypatch):
 
 def test_the_throttle_has_its_own_bucket():
     """Sharing AnonRateThrottle's default bucket would starve the QR-login poll."""
-    from core.api.invite import InviteThrottle
+    from core.api.invite import InviteThrottle  # noqa: PLC0415
 
     assert InviteThrottle.scope == "invite_code"
 
@@ -676,7 +676,7 @@ def test_one_applicant_cannot_withdraw_anothers():
 def test_auto_join_is_on_unless_an_organization_turns_it_off(settings):
     """The absent key must read as True — nothing changes for anyone who has
     not opted in."""
-    from core.authentication.backends import OIDCAuthenticationBackend
+    from core.authentication.backends import OIDCAuthenticationBackend  # noqa: PLC0415
 
     settings.ORGANIZATION_BOOTSTRAP_SLUG = "default"
     organization = models.Organization.objects.get(slug="default")
@@ -690,7 +690,7 @@ def test_auto_join_is_on_unless_an_organization_turns_it_off(settings):
 
 
 def test_turning_auto_join_off_stops_the_membership_being_created(settings):
-    from core.authentication.backends import OIDCAuthenticationBackend
+    from core.authentication.backends import OIDCAuthenticationBackend  # noqa: PLC0415
 
     settings.ORGANIZATION_BOOTSTRAP_SLUG = "default"
     organization = models.Organization.objects.get(slug="default")
@@ -704,7 +704,7 @@ def test_turning_auto_join_off_stops_the_membership_being_created(settings):
 
 def test_the_switch_does_not_disturb_someone_who_is_already_a_member(settings):
     """Turning it off is not a mass eviction."""
-    from core.authentication.backends import OIDCAuthenticationBackend
+    from core.authentication.backends import OIDCAuthenticationBackend  # noqa: PLC0415
 
     settings.ORGANIZATION_BOOTSTRAP_SLUG = "default"
     organization = models.Organization.objects.get(slug="default")

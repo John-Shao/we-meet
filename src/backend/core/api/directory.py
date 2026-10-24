@@ -48,7 +48,7 @@ def get_caller_membership(user):
     there is no cross-request staleness to reason about.
     """
     if not hasattr(user, "_org_membership_cache"):
-        user._org_membership_cache = (  # pylint: disable=protected-access
+        user._org_membership_cache = (  # noqa: SLF001 # pylint: disable=protected-access
             models.Membership.objects.filter(
                 user=user, status=models.MembershipStatusChoices.ACTIVE
             )
@@ -56,7 +56,7 @@ def get_caller_membership(user):
             .order_by("-is_primary", "created_at")
             .first()
         )
-    return user._org_membership_cache  # pylint: disable=protected-access
+    return user._org_membership_cache  # noqa: SLF001 # pylint: disable=protected-access
 
 
 def get_caller_organization(user):
@@ -1093,7 +1093,7 @@ class DirectoryMeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        from core.services.org_permissions import get_admin_context
+        from core.services.org_permissions import get_admin_context  # noqa: PLC0415
 
         membership = get_caller_membership(request.user)
         if membership is None:
