@@ -121,11 +121,13 @@ describe('App navigation and favorites', () => {
     mount()
     fireEvent.click(screen.getByRole('button', { name: 'AI 工具' }))
     expect(screen.queryByTestId('catalog-calendar')).not.toBeInTheDocument()
-    expect(screen.getByTestId('catalog-spreadsheet')).toBeInTheDocument()
+    expect(screen.getByTestId('catalog-communication')).toBeInTheDocument()
     fireEvent.change(screen.getByRole('searchbox'), {
-      target: { value: '沟通' },
+      target: { value: '表格' },
     })
-    expect(screen.queryByTestId('catalog-spreadsheet')).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('catalog-communication')
+    ).not.toBeInTheDocument()
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } })
     fireEvent.click(screen.getByTestId('rail-shortcut-calendar'))
     fireEvent.click(screen.getByRole('button', { name: '最近使用' }))
@@ -138,7 +140,7 @@ describe('App navigation and favorites', () => {
   it('respects module availability without erasing saved favorites', () => {
     localStorage.setItem(
       'we-meet:apps:v1:alice',
-      JSON.stringify({ favorites: ['calendar', 'weekly'], recent: [] })
+      JSON.stringify({ favorites: ['calendar', 'communication'], recent: [] })
     )
     session.work = false
     session.docs = false
@@ -148,10 +150,12 @@ describe('App navigation and favorites', () => {
     expect(
       screen.queryByRole('button', { name: 'AI 工具' })
     ).not.toBeInTheDocument()
-    expect(screen.queryByTestId('rail-shortcut-weekly')).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('rail-shortcut-communication')
+    ).not.toBeInTheDocument()
     expect(
       JSON.parse(localStorage.getItem('we-meet:apps:v1:alice')!).favorites
-    ).toContain('weekly')
+    ).toContain('communication')
   })
 })
 

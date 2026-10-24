@@ -56,7 +56,7 @@ export const WorkRoute = () => {
             <Communication key={user?.id} ownerId={user?.id || ''} />
           ) : view === 'materials' ? (
             <WorkMaterials key={user?.id} ownerId={user?.id || ''} />
-          ) : ['new', 'weekly', 'spreadsheet'].includes(view) ? (
+          ) : view === 'new' ? (
             window.weMeetDesktop?.localWork &&
             params.get('execution') !== 'cloud' ? (
               <LocalWorkspaceWork

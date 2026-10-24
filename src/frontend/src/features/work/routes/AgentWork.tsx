@@ -39,14 +39,6 @@ const states = {
 }
 const templates: Record<string, { title: string; goal: string }> = {
   new: { title: '新工作', goal: '' },
-  weekly: {
-    title: '周报',
-    goal: '根据选定材料整理本周进展、风险和下周计划，输出 report.md。保留未确认和待验收状态，缺失信息单独列出。',
-  },
-  spreadsheet: {
-    title: '表格分析',
-    goal: '分析选定材料中的表格数据，说明清洗和统计口径，输出 report.md 及可复核的 CSV 或 JSON 结果。缺失信息单独列出。',
-  },
 }
 
 export function AgentWork({

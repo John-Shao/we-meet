@@ -4,8 +4,6 @@ import {
   RiContactsBookLine,
   RiCheckboxCircleLine,
   RiChatQuoteLine,
-  RiFileChartLine,
-  RiTableLine,
 } from '@remixicon/react'
 
 export const appCatalog = [
@@ -28,18 +26,6 @@ export const appCatalog = [
     href: '/work?view=communication',
     group: 'ai',
     Icon: RiChatQuoteLine,
-  },
-  {
-    id: 'weekly',
-    href: '/work?view=weekly',
-    group: 'ai',
-    Icon: RiFileChartLine,
-  },
-  {
-    id: 'spreadsheet',
-    href: '/work?view=spreadsheet',
-    group: 'ai',
-    Icon: RiTableLine,
   },
 ] as const
 

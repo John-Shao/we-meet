@@ -186,10 +186,10 @@ it('keeps the authorized workspace and draft while navigation is collapsed and r
 it('fills a suggested goal without executing and keeps configuration separate from task submission', async () => {
   mount()
   await screen.findByText(/已连接 dsh/)
-  fireEvent.click(screen.getByRole('button', { name: '周报' }))
+  fireEvent.click(screen.getByRole('button', { name: '文档整理' }))
   expect(
     (screen.getByLabelText('工作目标') as HTMLTextAreaElement).value
-  ).toContain('本周进展')
+  ).toContain('核心要点')
   expect(bridge.submit).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: '选择本地文件夹' }))
   await screen.findByText(/当前工作空间/)

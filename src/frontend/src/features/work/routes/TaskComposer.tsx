@@ -2,9 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import {
   RiArrowUpLine,
   RiChatQuoteLine,
-  RiFileChartLine,
   RiFileTextLine,
-  RiTableLine,
 } from '@remixicon/react'
 
 const suggestions = [
@@ -12,16 +10,6 @@ const suggestions = [
     label: '文档整理',
     icon: RiFileTextLine,
     goal: '阅读工作材料，整理核心要点、结论与待确认信息，生成一份结构清晰的 report.md，并标明材料来源。',
-  },
-  {
-    label: '周报',
-    icon: RiFileChartLine,
-    goal: '整理本周进展、风险和下周计划，生成 report.md。保留未确认和待验收状态，列出缺失信息。',
-  },
-  {
-    label: '表格分析',
-    icon: RiTableLine,
-    goal: '分析相关表格数据，说明清洗和统计口径，生成 report.md 及可复核的 CSV 或 JSON 结果，保留原始文件。',
   },
   {
     label: '沟通提纲',
@@ -137,7 +125,7 @@ export function TaskComposer({
             maxLength={maxLength}
             value={goal}
             disabled={busy}
-            placeholder="描述你想完成的工作，例如：整理本周进展，生成一份周报…"
+            placeholder="描述你想完成的工作，例如：整理材料要点，生成一份总结…"
             onChange={(event) => onGoalChange(event.target.value)}
           />
           <div className="work-composer-toolbar">

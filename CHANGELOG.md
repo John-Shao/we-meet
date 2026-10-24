@@ -40,6 +40,11 @@ and this project adheres to
 - ✨(fullstack) link tasks created from reviewed meeting action items back to
   the meeting record
 
+### Removed
+
+- Remove the unimplemented weekly report and spreadsheet analysis entries from
+  Work navigation, task suggestions, and the app catalog.
+
 ### Changed
 
 - 🔧(ci) run the full suite on every `aliyun-dev` push, so the development

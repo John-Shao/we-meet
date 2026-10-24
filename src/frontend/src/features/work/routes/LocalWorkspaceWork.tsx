@@ -30,10 +30,6 @@ const states = {
 }
 const goals: Record<string, string> = {
   new: '',
-  weekly:
-    '阅读工作空间中与本周进展有关的材料，整理进展、风险和下周计划，生成 report.md。保留未确认和待验收状态，列出缺失信息。',
-  spreadsheet:
-    '分析工作空间中的相关表格文件，说明清洗和统计口径，生成 report.md 及可复核的 CSV 或 JSON 结果。保留原始文件。',
 }
 
 export function LocalWorkspaceWork({

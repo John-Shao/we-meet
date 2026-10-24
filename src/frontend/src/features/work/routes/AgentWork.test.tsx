@@ -147,11 +147,32 @@ describe('Agent Work integration', () => {
     ).not.toBeInTheDocument()
     expect(tasks.createTask).not.toHaveBeenCalled()
   })
+  it('does not expose unimplemented weekly or spreadsheet entries', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((media: string) => ({
+        matches: false,
+        media,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      }))
+    )
+    mount('new', true)
+    expect(screen.queryByRole('link', { name: '周报' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: '表格分析' })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '周报' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '表格分析' })
+    ).not.toBeInTheDocument()
+  })
   it('reuses admission key after an unknown response and sends selected material identity', async () => {
     vi.mocked(tasks.createTask).mockRejectedValue(
       new Error('unknown transport')
     )
-    mount('spreadsheet')
+    mount()
+    fireEvent.click(screen.getByRole('button', { name: '文档整理' }))
     fireEvent.click(await screen.findByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: '开始处理' }))
     await screen.findByRole('alert')
@@ -172,7 +193,7 @@ describe('Agent Work integration', () => {
       ...capabilities,
       agent_enabled: false,
     })
-    mount('weekly')
+    mount()
     expect(
       await screen.findByText('工作生成尚未启用。可以先上传并核对材料。')
     ).toBeInTheDocument()

@@ -10,8 +10,8 @@
 
 - **材料上传 / 解析预览**：代码已实现，覆盖 TXT / Markdown / CSV / 文本型 PDF / DOCX；但主计划的 P0-0 正式验收仍未勾选。
 - **沟通准备**：已实现并完成工程验收；仓库记录显示 2026-09-24 发布 backend `d45f7d634` / Helm revision 421，沟通生成开关已打开。
-- **周报**：没有专用执行器、模型、开关或功能测试；前端入口当前只是通用模板，主计划 P0-2 未完成。
-- **表格分析**：没有字段 / sheet 选择、确定性统计、图表或 CSV / XLSX 导出；前端入口同样只是通用模板，P0-3 未完成。
+- **周报**：没有专用执行器、模型、开关或功能测试；前端入口已移除，待主计划 P0-2 完成后恢复。
+- **表格分析**：没有字段 / sheet 选择、确定性统计、图表或 CSV / XLSX 导出；前端入口已移除，待 P0-3 完成后恢复。
 
 因此，Work 办公 MVP 尚未完成，不能把“入口可见”当成“能力已交付”。下一批应沿用主计划的 **P0-2 周报**；会议接入仍是 P1-M 条件批次。
 
@@ -21,8 +21,8 @@
 |---|---|---|
 | 材料上传 / 解析 / 预览 | 代码已实现；P0-0 未勾选 | `WorkMaterial` 与解析状态见 [models.py:10](../../src/backend/work/models.py#L10)；上传校验与解析见 [services.py:79](../../src/backend/work/services.py#L79)、[services.py:241](../../src/backend/work/services.py#L241)；PDF / DOCX 见 [document_parser.py:84](../../src/backend/work/document_parser.py#L84)；API 见 [urls.py:44](../../src/backend/work/urls.py#L44)；前端见 [WorkRoute.tsx:45](../../src/frontend/src/features/work/routes/WorkRoute.tsx#L45) |
 | 沟通准备 | 已实现并验收 | 执行器与引用校验见 [executor.py:122](../../src/backend/work/executor.py#L122)；任务与成果 API 见 [task_api.py:141](../../src/backend/work/task_api.py#L141)、[task_api.py:238](../../src/backend/work/task_api.py#L238)；发布记录见 [work/README.md](../../src/backend/work/README.md) |
-| 周报 | 未实现专用能力 | 主计划 15.7 节明确“尚未实现或启用”，14.5 节 P0-2 未勾选（[work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md)）；前端仅通用目标模板 [AgentWork.tsx:42](../../src/frontend/src/features/work/routes/AgentWork.tsx#L42) |
-| 表格分析 | 未实现专用能力 | 主计划 14.5 节 P0-3 未勾选（[同文件](work-module-product-architecture-agent-plan-2026-09-21.md)）；CSV 当前只按纯文本解析（[services.py:83](../../src/backend/work/services.py#L83)）；前端仅通用目标模板 [AgentWork.tsx:46](../../src/frontend/src/features/work/routes/AgentWork.tsx#L46) |
+| 周报 | 未实现专用能力 | 主计划 15.7 节明确“尚未实现或启用”，14.5 节 P0-2 未勾选（[work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md)）；前端入口已移除 |
+| 表格分析 | 未实现专用能力 | 主计划 14.5 节 P0-3 未勾选（[同文件](work-module-product-architecture-agent-plan-2026-09-21.md)）；CSV 当前只按纯文本解析（[services.py:83](../../src/backend/work/services.py#L83)）；前端入口已移除 |
 | 会议接入 | 不存在 | Work app 明确“不读取会议”（[api.py:1](../../src/backend/work/api.py#L1)）；`WorkTask` 与 core Task 相互独立（[models.py:62](../../src/backend/work/models.py#L62)）；会议行动项转换写入 core Task（[meeting_summary_tasks.py:99](../../src/backend/core/services/meeting_summary_tasks.py#L99)）；主计划 14.5 节 P1-M 未勾选（[同计划](work-module-product-architecture-agent-plan-2026-09-21.md)） |
 
 补充：2026-09-21 之后 Work 增加了 Agent、本地 / 远程执行和独立复核等能力，但这些是办公底座之外的执行路径，不改变上述四类办公能力的完成度。
