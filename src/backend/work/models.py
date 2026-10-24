@@ -389,8 +389,7 @@ class WorkMemberGrant(models.Model):
                 fields=["organization", "user"], name="work_member_grant_once"
             ),
             models.CheckConstraint(
-                condition=models.Q(revoked_at__isnull=True)
-                | models.Q(enabled=False),
+                condition=models.Q(revoked_at__isnull=True) | models.Q(enabled=False),
                 name="work_grant_revoked_disabled",
             ),
         ]
@@ -433,6 +432,7 @@ class WorkAccessAudit(models.Model):
         GRANT_DELETED = "grant_deleted"
         GRANT_REVOKED = "grant_revoked"
         GRANT_RESTORED = "grant_restored"
+        ACCESS_AUDIT_EXPORTED = "access_audit_exported"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(

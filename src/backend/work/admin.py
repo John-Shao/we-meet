@@ -12,7 +12,14 @@ class WorkMemberGrantForm(forms.ModelForm):
 
     class Meta:
         model = WorkMemberGrant
-        fields = "__all__"
+        fields = (
+            "organization",
+            "user",
+            "enabled",
+            "source",
+            "granted_by",
+            "expires_at",
+        )
 
     def clean(self):
         cleaned = super().clean()
@@ -22,7 +29,6 @@ class WorkMemberGrantForm(forms.ModelForm):
             self.instance.revoked_at = None
             self.instance.revoked_reason = ""
         return cleaned
-
 
 
 class AuditedAccessAdmin(admin.ModelAdmin):
@@ -184,7 +190,6 @@ class WorkMemberGrantAdmin(AuditedAccessAdmin):
         obj.revoked_at = saved.revoked_at
         obj.revoked_reason = saved.revoked_reason
         obj.revoked_by = saved.revoked_by
-
 
 
 @admin.register(WorkAccessAudit)

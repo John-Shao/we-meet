@@ -49,9 +49,7 @@ def revoke_grant(organization_id, user_id, *, reason, actor=None, before=None):
     grant.revoked_at = timezone.now()
     grant.revoked_reason = reason
     grant.revoked_by = actor if getattr(actor, "is_authenticated", False) else None
-    grant.save(
-        update_fields=["enabled", "revoked_at", "revoked_reason", "revoked_by"]
-    )
+    grant.save(update_fields=["enabled", "revoked_at", "revoked_reason", "revoked_by"])
     audit.record_access_event(
         action=WorkAccessAudit.Action.GRANT_REVOKED,
         organization=grant.organization,
@@ -70,9 +68,7 @@ def close_member_access(organization_id, user_id, *, reason, actor=None):
         return {"grant_revoked": False, "runs_closed": 0, "reviews_closed": 0}
 
     now = timezone.now()
-    revoked = revoke_grant(
-        organization_id, user_id, reason=reason, actor=actor
-    )
+    revoked = revoke_grant(organization_id, user_id, reason=reason, actor=actor)
 
     run_count = 0
     for run in WorkRun.objects.select_for_update().filter(
@@ -111,7 +107,7 @@ def close_member_access(organization_id, user_id, *, reason, actor=None):
 
 
 @transaction.atomic
-def on_membership_left(
+def on_membership_left(  # noqa: PLR0913 - the signal sends this full contract
     sender,
     membership,
     actor=None,

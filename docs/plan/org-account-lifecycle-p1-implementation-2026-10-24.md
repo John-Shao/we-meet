@@ -20,10 +20,12 @@ P1 拆成三块可独立发布的能力，依赖外部条件的部分必须等�
 
 ### P1-A 客户侧 Work 授权管理
 
+> 落地计划与验收标准见 [P1-A 工作计划与验收标准](org-account-lifecycle-p1a-work-plan-2026-10-24.md)；该文档把 A1–A10 拆成 T1–T8，并修正了下面两行（A1 权限码命名、A3 租户解析口径）。
+
 | 编号 | 功能 | 落点 |
 |---|---|---|
-| A1 | 新增权限码 `work.member_grant.read` / `work.member_grant.write`（分组 `operations`） | [core/permissions_registry.py](../../src/backend/core/permissions_registry.py) |
-| A2 | 内置角色「并集追加」`read` 给 `hr / it / admin_office`，`write` 不给任何内置角色 | 数据迁移 `core/00XX_builtin_work_permissions.py` + `core/services/org_roles.py` |
+| A1 | 新增权限码 `org.work_grant.read` / `org.work_grant.write`（分组 `operations`；沿用注册表的 `org.<subject>.<verb>` 约定） | [core/permissions_registry.py](../../src/backend/core/permissions_registry.py) |
+| A2 | 内置角色「并集追加」`read` 给 `hr / it / admin_office`，`write` 不给任何内置角色 | 数据迁移 `core/00XX_builtin_work_grant_permissions.py` + `core/permissions_registry.py` 的 `BUILTIN_ROLES`（播种与迁移必须同源） |
 | A3 | `GET /work/admin/grants/`：授权列表，`?q=` / `?status=active|revoked|disabled|expired`，按部门 scope 过滤 | 新增 `work/api_admin.py`、[work/urls.py](../../src/backend/work/urls.py) |
 | A4 | `POST /work/admin/grants/`：授予 / 重新启用（upsert），超限 `409 member_limit_reached`，唯一冲突 `409 grant_conflict` | `grants.grant_member` |
 | A5 | `DELETE /work/admin/grants/{user_id}/`：软撤销 → `204`，重复调用保留首次撤销时间 | `grants.revoke_member_grant` |
@@ -71,15 +73,15 @@ P1 拆成三块可独立发布的能力，依赖外部条件的部分必须等�
    - 数据迁移对内置角色**并集追加** `read`（现有 `ensure_builtin_roles` 只补建缺失角色，不承担更新），不覆盖客户自定义。
    - 测试：权限码注册表用例 + 迁移用例（已自定义的角色权限保持不变）。
 2. **`work/api_admin.py` 骨架**
-   - 复用 `core.api.admin_roles.HasOrgPermission` 与 `core.services.org_permissions.get_admin_context`；组织解析沿用 `work.access.request_organization`（`X-Organization-Id` 优先）。
-   - 归档/停用租户沿用现有管理面契约：读放行、写 `403 {"code":"organization_read_only"}`。
-   - 部门 scope：目标成员必须 `admin_context.in_scope(target.department)`，`department=None` 对 scope 管理员不可见。
+   - 复用 `core.api.admin_roles.HasOrgPermission` 与 `core.services.org_permissions.get_admin_context`；租户取 admin context 的组织（主用活跃 membership），不接受 `X-Organization-Id` 切租户——详见 [P1-A 工作计划](org-account-lifecycle-p1a-work-plan-2026-10-24.md) §0.3。
+   - 租户状态分层：归档租户读放行、写 `403 {"code":"organization_read_only"}`；**停用租户所有方法一律 403**（治理关闭，不是只读），与现有 org-admin 管理面一致。
+   - 部门 scope 按 membership **行**判定（`Exists`），不按「主用行的部门」：membership 是每人每部门一行，`department=None` 的行与部门行可以并存。部门作用域管理员对范围外与「非本组织成员」同为 `403 member_out_of_scope`；全域管理员穿透到服务得 `409 member_not_active`。
 3. **写端点全部走 `work/grants.py`**
    - 不在 API 层做任何 `WorkMemberGrant` 直接写；请求 `X-Request-Id` 透传给 `request_id`，与 `work/audit.py::request_id` 一致。
    - 契约：`member_limit_reached` / `grant_conflict` **不进** `work.access.DENIAL_CODES`（否则运行中的 run 会被 `failure_status` 误标 `access_revoked`）。
 4. **导出与清理**
-   - 导出复用 `WorkAccessAudit` 分页扫描，列固定为时间 / 动作 / 操作人 / 目标 / request_id / before-after 摘要；单元格以 `= + - @` 开头时加 `'` 前缀；不含密钥、token、完整手机号。
-   - 清理任务按 `WORK_ACCESS_AUDIT_RETENTION_DAYS` 分批删除，幂等、可 dry-run。
+   - 导出复用 `WorkAccessAudit` 分页扫描，列固定为时间 / 动作 / 操作人 / 目标 / request_id / 变更摘要；单元格以 `= + - @` 开头时加 `'` 前缀；不含密钥、token、完整手机号或邮箱（人员一律 `full_name`/uuid，禁止 `str(user)`）。导出本身写一条 `ACCESS_AUDIT_EXPORTED`（需给 `WorkAccessAudit.Action` 加一个值，`work/0011` 只改 choices），写入失败不影响导出。
+   - 清理任务按 `WORK_ACCESS_AUDIT_RETENTION_DAYS` 分批删除，单次有上限并返回 `has_more`；小时级调度 + 首次存量走管理命令，幂等、可 dry-run。
 5. **验收**
    - `work/tests/test_admin_grants.py`：权限矩阵（OWNER/ADMIN/自定义 read/自定义 write/范围外）、409 两种码、已撤销行 upsert 复活、并发授予撞唯一约束、导出不含敏感列。
    - `work/tests/test_access_audit.py`：客户侧写入与平台侧共用一张表，靠 `actor` / `request_id` 区分。

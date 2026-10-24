@@ -13,6 +13,7 @@ class WorkConfig(AppConfig):
     def ready(self):
         # Imported here: both modules touch models, which are not ready earlier.
         from core.models import Membership  # noqa: PLC0415
+
         from work import lifecycle  # noqa: PLC0415
 
         lifecycle.connect()

@@ -269,7 +269,7 @@ grant_restored
 - core 管理端沿用 DRF 错误形状：`{"detail": "..."}` 或字段错误；新增的所有权端点额外带机器可读 `code`。
 - Work 数据面沿用现有 `{"code": "member_disabled"}`（[work/access.py:173](../../src/backend/work/access.py#L173)）。
 - Work 管理面（P1）统一为 `{"code": "...", "detail": "...", "meta": {...}}`。
-- 所有管理端请求都必须能解析出调用者的组织；多组织时显式使用 `X-Organization-Id`，不能回退到默认组织。
+- 所有管理端请求都必须能解析出调用者的组织（主用活跃 membership）；解析不出组织的调用者一律拒绝，不允许回退到「任意一个组织」。
 
 ### 5.2 所有权转移
 
@@ -447,12 +447,12 @@ python manage.py organization_lifecycle archive  <slug|uuid> --dry-run
 
 | 方法 | 路径 | 权限 | 说明 |
 |---|---|---|---|
-| GET | `/api/v1.0/work/admin/grants/` | `work.member_grant.read` | 授权列表，支持 `?q=&status=` |
-| POST | `/api/v1.0/work/admin/grants/` | `work.member_grant.write` | 授予 |
-| DELETE | `/api/v1.0/work/admin/grants/{user_id}/` | `work.member_grant.write` | 撤销（软撤销） |
-| POST | `/api/v1.0/work/admin/grants/{user_id}/restore/` | `work.member_grant.write` | 恢复 |
-| GET | `/api/v1.0/work/admin/grants/summary/` | `work.member_grant.read` | 席位使用量 |
-| POST | `/api/v1.0/work/admin/group-grants/` | `work.member_grant.write` | 组授权 |
+| GET | `/api/v1.0/work/admin/grants/` | `org.work_grant.read` | 授权列表，支持 `?q=&status=` |
+| POST | `/api/v1.0/work/admin/grants/` | `org.work_grant.write` | 授予 |
+| DELETE | `/api/v1.0/work/admin/grants/{user_id}/` | `org.work_grant.write` | 撤销（软撤销） |
+| POST | `/api/v1.0/work/admin/grants/{user_id}/restore/` | `org.work_grant.write` | 恢复 |
+| GET | `/api/v1.0/work/admin/grants/summary/` | `org.work_grant.read` | 席位使用量 |
+| POST | `/api/v1.0/work/admin/group-grants/` | `org.work_grant.write` | 组授权 |
 | GET | `/api/v1.0/work/admin/access-audit/export/` | `org.audit.read` | CSV 导出 |
 
 授予请求：
@@ -480,11 +480,11 @@ python manage.py organization_lifecycle archive  <slug|uuid> --dry-run
 
 权限与范围：
 
-- 复用 `core.permissions_registry`，只新增 `work.member_grant.read/write`，不新建角色系统。
+- 复用 `core.permissions_registry`，只新增 `org.work_grant.read/write`，不新建角色系统。
 - `read` 默认给 `hr / it / admin_office`；`write` 默认不给任何内置角色，按需勾选。
-- 部门范围管理员只能操作 `admin_context.in_scope(target.department)` 为真的成员；`department=None` 的成员对范围管理员不可见，与现有 `OrgAdminContext.in_scope` 一致。
+- 部门范围管理员只能操作范围为其一 membership **行**的成员（`OrgAdminContext.filter_memberships(...).exists()`）；不取「主用行的部门」判定——membership 是每人每部门一行，`department=None` 的行与部门行可以并存。范围外与「非本组织成员」都答 `403 member_out_of_scope`；全域管理员由服务给出 `409 member_not_active`。
 - 这些端点属于管理面，不要求调用者自己持有 Work grant。
-- 多组织场景下，先用 `X-Organization-Id` 解析目标组织，再按该组织解析角色与范围；P1 仍沿用现有单组织控制台，跨组织切换不在本设计内。
+- 管理面租户取调用者的主用活跃 membership（`get_admin_context(request).organization`），与其余 org-admin 端点同源；`X-Organization-Id` 只属数据面，管理面收到与主租户不一致的头部按 `403 organization_mismatch` 拒绝。跨组织切换控制台不在本设计内，落地口径见 [P1-A 工作计划](org-account-lifecycle-p1a-work-plan-2026-10-24.md) §0.3。
 
 ### 5.6 P1 外部事件回调
 
@@ -619,8 +619,8 @@ work.grants.grant_member
 | 授予 / 降级 OWNER | — | 仅 `transfer-owner` 或 owner 的 PATCH | 否 | 否 | 否 |
 | 离职 / 复职 | — | 是 | 是 | 需 `org.member.offboard` | 否 |
 | 组织停用/归档/恢复 | 命令 / Django superuser | 否 | 否 | 否 | 否 |
-| 查看 Work 授权（P1） | — | 是 | 是 | `work.member_grant.read` | 否 |
-| 授予/撤销 Work（P1） | — | 是 | 是 | `work.member_grant.write` | 否 |
+| 查看 Work 授权（P1） | — | 是 | 是 | `org.work_grant.read` | 否 |
+| 授予/撤销 Work（P1） | — | 是 | 是 | `org.work_grant.write` | 否 |
 
 `transfer-owner` 必须在 `get_permissions` 中单独分支：ADMIN 拥有 `ALL_PERMISSIONS`，只加权限码无法表达“仅 OWNER”。归档组织的 core 管理面写操作同样在权限层拒绝，不依赖前端隐藏。active OWNER 上限为 3，由成员写服务在组织行锁内执行。
 
@@ -660,7 +660,7 @@ event=work.lifecycle.failed organization=<uuid> membership=<uuid> error=<code>
 
 - `work_grant_active{organization}`：有效席位（逐人 ∪ 组授权去重后的自然人数），用于对照 `member_limit`。
 - `work_grant_revocations_total{reason}`。
-- `work_membership_left_unrevoked`：应为 0。
+- `work_membership_left_unrevoked`：应为 0。**按自然人 + 组织计数**，不是按 membership 行：持有人在该组织存在任一 `left` 行、且无任何 `active` 行，而其 grant 的 `revoked_at` 仍为空。口径必须与 `revoke_departed_grants` 和 `work/lifecycle.py` 的 `_still_a_member` 一致；按 `status='left'` JOIN 计数会把多部门（一人每部门一行，唯一约束 `(user, department)`）的在职者误判成脏数据，指标永远归不了零。表名注意 `meet_membership` 与 `work_workmembergrant` 不同 app 前缀不一致。
 - `work_seat_overage{organization}`：P1 组授权导致的超限。
 - `work_org_archive_total`、`work_lifecycle_signal_failures_total`。
 - `work_run_cancelled_total{reason}`。
@@ -837,7 +837,7 @@ WHERE m.status = 'left'
 | `work/models.py`、`work/grants.py` | WorkGroupGrant、组授权解析与席位投影 |
 | `work/api_admin.py`、`work/urls.py` | 客户侧授权管理 API |
 | `work/tasks.py` | 审计清理任务 |
-| `core/permissions_registry.py` | `work.member_grant.read/write` |
+| `core/permissions_registry.py` | `org.work_grant.read/write` |
 | `core/migrations/0233_builtin_work_permissions.py` | 内置角色并集追加 Work 权限码 |
 
 ## 13. 控制台与客户端改动

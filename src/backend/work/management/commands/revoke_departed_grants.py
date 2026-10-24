@@ -15,6 +15,7 @@ from django.db import transaction
 from django.db.models import Exists, OuterRef
 
 from core.models import Membership, MembershipStatusChoices
+
 from work import lifecycle
 from work.models import WorkMemberGrant
 
@@ -47,9 +48,7 @@ class Command(BaseCommand):
             status=MembershipStatusChoices.ACTIVE,
         )
         queryset = (
-            WorkMemberGrant.objects.filter(
-                enabled=True, revoked_at__isnull=True
-            )
+            WorkMemberGrant.objects.filter(enabled=True, revoked_at__isnull=True)
             .annotate(has_left=Exists(left), has_active=Exists(active))
             .filter(has_left=True, has_active=False)
             .order_by("pk")
@@ -83,6 +82,4 @@ class Command(BaseCommand):
             queryset = queryset.filter(pk__gt=batch[-1].pk)
 
         verb = "would revoke" if dry_run else "revoked"
-        self.stdout.write(
-            self.style.SUCCESS(f"{verb} {revoked} grant(s)")
-        )
+        self.stdout.write(self.style.SUCCESS(f"{verb} {revoked} grant(s)"))

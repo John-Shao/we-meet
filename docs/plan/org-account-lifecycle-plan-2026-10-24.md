@@ -354,13 +354,13 @@ P1 的前提是产品确认要接飞书 / 企微 / 钉钉中的一个。若只�
 
 | 权限码 | 含义 | 分组 | 默认角色 |
 |---|---|---|---|
-| `work.member_grant.read` | 查看谁有 Work 使用权与用量 | operations | hr、it、admin_office |
-| `work.member_grant.write` | 授予 / 撤销逐人与组授权 | operations | 无（按需勾选） |
+| `org.work_grant.read` | 查看谁有 Work 使用权与用量 | operations | hr、it、admin_office |
+| `org.work_grant.write` | 授予 / 撤销逐人与组授权 | operations | 无（按需勾选） |
 
-- `work.member_grant.write` 可按部门 scope 授予：目标成员的部门必须在调用者的 `scope_paths` 内。
+- `org.work_grant.write` 可按部门 scope 授予：目标成员的部门必须在调用者的 `scope_paths` 内。
 - 内置角色权限通过数据迁移“并集追加”，不覆盖客户已自定义的权限；现有 `ensure_builtin_roles` 只创建缺失角色，不能承担更新职责。
 - 不新增 `work.entitlement.write` 给客户；开通、预算、上限仍由平台侧控制。
-- 撤销 `work.member_grant.write` 不会自动收回已发出的 grant，必须在界面明确提示；这与机器人凭据的"撤销权限收不回已泄露凭据"是同一类问题。
+- 撤销 `org.work_grant.write` 不会自动收回已发出的 grant，必须在界面明确提示；这与机器人凭据的"撤销权限收不回已泄露凭据"是同一类问题。
 
 ### 5.4 组授权
 
