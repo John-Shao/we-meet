@@ -12,10 +12,10 @@
 |---|---|
 | [work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md) | 工作（Work）：v1.10 首批私人材料上传 / 解析预览已本地验收，下一步沟通准备、周报、表格分析；会议集成和桌面 D0 独立跟踪；含范围、契约、步骤及实施证据 |
 | [Work Agent 架构](../features/work-agent-architecture.md) | 2026-10-08 当前实现：桌面 dsh、服务端 Pi、Android 分工，版本化契约、状态/计量、凭据边界、K3s 与客户端升级回退 |
-| [org-account-lifecycle-plan-2026-10-24.md](org-account-lifecycle-plan-2026-10-24.md) | 组织/账号生命周期与 Work 授权闭环：借鉴范围、现状校准、P0 所有权转移/离职撤权/席位上限/组织归档、P1 外部身份与组授权；已按 2026-10-24 评审修订；P0 已在 `feature/work-tenant-access` 实施并通过代码走查，P1 未实施；上线前仍需完成离职数据回填与对账验证 |
-| [org-account-lifecycle-system-design-2026-10-24.md](org-account-lifecycle-system-design-2026-10-24.md) | 上述方案的系统设计：模块边界、数据模型、接口契约、事务与并发、迁移回滚、文件级实施批次；已按 2026-10-24 评审修订；批次 1–4（P0）已实施，批次 5 及外部身份未实施 |
-| [org-account-lifecycle-p1-implementation-2026-10-24.md](org-account-lifecycle-p1-implementation-2026-10-24.md) | P1 功能清单与实施步骤：按依赖顺序拆成 P1-A 租户 Work 管理面 API / 权限码 / 审计保留导出、P1-B 组授权与席位并集、P1-C 外部身份源与事件同步；含落点文件、硬约束、待产品与法务定案项和发布回滚顺序；方案文档，未实施 |
-| [org-account-lifecycle-p1a-work-plan-2026-10-24.md](org-account-lifecycle-p1a-work-plan-2026-10-24.md) | 上述 P1-A（客户侧 Work 授权管理面）的落地工作计划：T1–T8 任务拆解、接口与错误码契约、逐条验收标准、发布回滚与 core 落点边界；含权限码命名与管理面租户口径两处定案；方案文档，未实施 |
+| [org-account-lifecycle-plan-2026-10-24.md](org-account-lifecycle-plan-2026-10-24.md) | 组织/账号生命周期与 Work 授权闭环：借鉴范围、现状校准、P0 所有权转移/离职撤权/席位上限/组织归档、P1 外部身份与组授权；已按 2026-10-24 评审修订；P0 与 P1-A 已实施并上线生产（镜像 `a34668295`），P1-B / P1-C 未实施；离职回填闸门 dry-run 已为 0 |
+| [org-account-lifecycle-system-design-2026-10-24.md](org-account-lifecycle-system-design-2026-10-24.md) | 上述方案的系统设计：模块边界、数据模型、接口契约、事务与并发、迁移回滚、文件级实施批次；已按 2026-10-24 评审修订；批次 1–4（P0）与 P1-A 已实施并上线生产（镜像 `a34668295`），批次 5 的 P1-B 组授权与 P1-C 外部身份未实施 |
+| [org-account-lifecycle-p1-implementation-2026-10-24.md](org-account-lifecycle-p1-implementation-2026-10-24.md) | P1 功能清单与实施步骤：按依赖顺序拆成 P1-A 租户 Work 管理面 API / 权限码 / 审计保留导出、P1-B 组授权与席位并集、P1-C 外部身份源与事件同步；含落点文件、硬约束、待产品与法务定案项和发布回滚顺序；P1-A 已实施并上线（镜像 `a34668295`），P1-B / P1-C 未实施 |
+| [org-account-lifecycle-p1a-work-plan-2026-10-24.md](org-account-lifecycle-p1a-work-plan-2026-10-24.md) | 上述 P1-A（客户侧 Work 授权管理面）的落地工作计划：T1–T8 任务拆解、接口与错误码契约、逐条验收标准、发布回滚与 core 落点边界；含权限码命名与管理面租户口径两处定案；已实施并随镜像 `a34668295` 上线生产 |
 | [task-module-improvement-plan.md](task-module-improvement-plan.md) | 任务模块完善与实施范围 |
 | [chat-message-to-task-plan.md](chat-message-to-task-plan.md) | 聊天消息转任务 |
 | [docs-member-identity.md](docs-member-identity.md) | 云文档成员身份与授权；独立跨服务协议说明 |

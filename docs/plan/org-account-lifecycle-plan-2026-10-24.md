@@ -1,7 +1,7 @@
 # 组织 / 账号生命周期与 Work 授权闭环方案
 
 - 日期：2026-10-24
-- 状态：Draft（已按 2026-10-24 系统设计评审修订，未实施）
+- 状态：已按 2026-10-24 系统设计评审修订；P0 与 P1-A 已实施并上线生产（2026-10-24，镜像 `a34668295`），P1-B / P1-C 与外部身份未实施
 - 依据：[飞书企业账号生命周期调研](../research/feishu-enterprise-account-lifecycle-2026-10-24.md)、[ADR-0005](../adr/0005-work-two-layer-access.md)
 - 系统设计：[org-account-lifecycle-system-design-2026-10-24.md](org-account-lifecycle-system-design-2026-10-24.md)
 - 范围：`core` 的组织 / 成员生命周期，与 `work` 的租户开通、成员授权之间的闭环；不含飞书应用的具体接入实现

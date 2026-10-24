@@ -4,6 +4,8 @@
 
 前置状态：P0（所有权转移、离职撤权、席位上限、组织停用/归档）已在 `feature/work-tenant-access` 实现（`dc5b176b5`、`33478cfff`），**尚未按设计稿 §11.2 的发布顺序完成灰度与存量回填**。P1 的任何一块都不应在 P0 回填校验（`work_membership_left_unrevoked = 0`）通过之前上线生产。
 
+**2026-10-24 状态更新：** P0 与 P1-A 已合并到 `aliyun-dev` 并上线生产（镜像 `a34668295`）；P0 回填闸门 `revoke_departed_grants --dry-run` 为 `would revoke 0 grant(s)`；P1-B、P1-C 未实施。上面的前置状态与门槛作为历史约束保留。
+
 ## 0. 排序结论
 
 P1 拆成三块可独立发布的能力，依赖外部条件的部分必须等拍板：

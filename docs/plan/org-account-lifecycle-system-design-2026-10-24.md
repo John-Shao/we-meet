@@ -1,11 +1,17 @@
 # 组织 / 账号生命周期与 Work 授权闭环：系统设计
 
 - 日期：2026-10-24
-- 状态：Draft（已按 2026-10-24 评审修订，未实施）
+- 状态：已按 2026-10-24 评审修订；P0 与 P1-A 已实施并上线生产（2026-10-24，镜像 `a34668295`），P1-B / P1-C 与外部身份未实施
 - 上游方案：[org-account-lifecycle-plan-2026-10-24.md](org-account-lifecycle-plan-2026-10-24.md)
 - 依据：[飞书企业账号生命周期调研](../research/feishu-enterprise-account-lifecycle-2026-10-24.md)、[ADR-0005](../adr/0005-work-two-layer-access.md)
-- 范围：P0（所有权转移、离职撤权、席位上限、组织停用/归档）的完整实现设计；P1（外部身份、组授权、审计留存）给出模型与接口骨架
+- 范围：P0（所有权转移、离职撤权、席位上限、组织停用/归档）与 P1-A（客户侧 Work 授权管理、审计留存与导出）的完整实现设计；P1-B（组授权）与 P1-C（外部身份、事件同步、对账）给出模型与接口骨架
 - 非范围：控制台视觉稿、飞书应用上架、Work 资源交接、物理删除组织
+
+## 0. 实施状态（2026-10-24）
+
+- P0：批次 1–4 已合并到 `aliyun-dev` 并上线生产；离职撤权回填闸门 `revoke_departed_grants --dry-run` 为 `would revoke 0 grant(s)`。
+- P1-A：权限码 `org.work_grant.read/write`、`work/admin/grants/` 读写与席位摘要、`work/admin/access-audit/` 与 CSV 导出、留存清理任务已实施，随镜像 `a34668295` 上线；`8da135570` 清理相关 lint 历史债。
+- P1-B（组授权）与 P1-C（外部身份、事件同步、对账）仍为设计稿，未实施。
 
 ## 1. 设计目标
 
