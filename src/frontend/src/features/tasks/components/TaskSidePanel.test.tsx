@@ -5,7 +5,8 @@ import {
   waitFor,
   within,
 } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useLocation, useSearch } from 'wouter'
 
 import type { ApiTask, ApiTaskGroup, ApiTaskList } from '../api/ApiTask'
 import { TaskDetailPanel } from './TaskSidePanel'
@@ -224,7 +225,22 @@ const task: ApiTask = {
   updated_at: '2026-08-21T09:00:00Z',
 }
 
+function LocationProbe() {
+  const [location] = useLocation()
+  const search = useSearch()
+  return (
+    <>
+      <span data-testid="location">{location}</span>
+      <span data-testid="search">{search}</span>
+    </>
+  )
+}
+
 describe('TaskDetailPanel', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/')
+  })
+
   beforeEach(() => {
     mutate.mockClear()
     mutateAsync.mockClear()
@@ -265,6 +281,134 @@ describe('TaskDetailPanel', () => {
       task.id,
       'conversation/id'
     )
+  })
+
+  it('links a converted meeting action item back to the meeting record', () => {
+    const linkedTask = {
+      ...task,
+      source_record_id: 'record-1',
+      source_record_title: 'Weekly sync',
+      source_room_id: 'room-1',
+      source_room_name: 'Legacy room',
+    }
+    render(
+      <TaskDetailPanel
+        taskId={linkedTask.id}
+        fallbackTask={linkedTask}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('link', { name: 'sourceMeeting' })).toHaveAttribute(
+      'href',
+      '/meeting/records/record-1?tab=summary'
+    )
+  })
+
+  it('falls back to the legacy meeting room when no record is linked', () => {
+    const legacyTask = {
+      ...task,
+      source_room_id: 'room-1',
+      source_room_name: 'Legacy sync',
+    }
+    render(
+      <TaskDetailPanel
+        taskId={legacyTask.id}
+        fallbackTask={legacyTask}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('link', { name: 'sourceMeeting' })).toHaveAttribute(
+      'href',
+      '/meetings/room-1'
+    )
+  })
+
+  it('labels a standalone record when it has no meeting or title', () => {
+    const standaloneTask = {
+      ...task,
+      source_record_id: 'record-2',
+      source_record_title: null,
+      source_room_id: null,
+      source_room_name: null,
+    }
+    render(
+      <TaskDetailPanel
+        taskId={standaloneTask.id}
+        fallbackTask={standaloneTask}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('link', { name: 'sourceRecord' })).toHaveAttribute(
+      'href',
+      '/meeting/records/record-2?tab=summary'
+    )
+  })
+
+  it('does not link to a source record that has been moved to trash', () => {
+    const trashedTask = {
+      ...task,
+      source_record_id: 'record-1',
+      source_record_title: 'Weekly sync',
+      source_record_trashed: true,
+    }
+    render(
+      <TaskDetailPanel
+        taskId={trashedTask.id}
+        fallbackTask={trashedTask}
+        taskLists={[]}
+        onCreateSubtask={vi.fn()}
+        onOpenSubtask={vi.fn()}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('sourceTrashed')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'sourceMeeting' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('navigates from the task source into the record summary tab', async () => {
+    window.history.replaceState(null, '', '/tasks')
+    const linkedTask = {
+      ...task,
+      source_record_id: 'record-1',
+      source_record_title: 'Weekly sync',
+    }
+    render(
+      <>
+        <TaskDetailPanel
+          taskId={linkedTask.id}
+          fallbackTask={linkedTask}
+          taskLists={[]}
+          onCreateSubtask={vi.fn()}
+          onOpenSubtask={vi.fn()}
+          onClose={vi.fn()}
+        />
+        <LocationProbe />
+      </>
+    )
+
+    fireEvent.click(screen.getByRole('link', { name: 'sourceMeeting' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent(
+        '/meeting/records/record-1'
+      )
+    )
+    expect(screen.getByTestId('search')).toHaveTextContent('tab=summary')
   })
 
   it('does not offer forwarding to a read-only task viewer', () => {

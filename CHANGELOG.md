@@ -37,6 +37,8 @@ and this project adheres to
 - ✨(frontend) enable reactions on mobile devices
 - ✨(frontend) unify the primary rail into six entries, add the applications
   page, and let users customize favorite apps
+- ✨(fullstack) link tasks created from reviewed meeting action items back to
+  the meeting record
 
 ### Changed
 

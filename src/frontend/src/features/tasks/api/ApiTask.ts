@@ -176,6 +176,9 @@ export interface ApiTask {
   source_action_item_id: string | null
   source_room_id: string | null
   source_room_name: string | null
+  source_record_id?: string | null
+  source_record_title?: string | null
+  source_record_trashed?: boolean
   source_message?: ApiTaskMessageSource | null
   can_edit: boolean
   can_move?: boolean

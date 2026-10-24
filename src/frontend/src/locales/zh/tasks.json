@@ -16,7 +16,10 @@
     "close": "关闭提示"
   },
   "meeting": "会议",
+  "standaloneRecord": "独立录音/导入",
   "sourceMeeting": "来源会议：{{name}}",
+  "sourceRecord": "来源记录：{{name}}",
+  "sourceTrashed": "来源：{{name}}（已移入回收站）",
   "sourceMessage": "查看来源消息",
   "workspace": {
     "navigation": "任务视图",

@@ -1665,6 +1665,7 @@ class TaskViewSet(
                 "task_list",
                 "group",
                 "source_action_item__room",
+                "meeting_summary_link__record__meeting_session__room",
                 *parent_fields,
             )
             .prefetch_related("assignees", "followers")
@@ -1867,6 +1868,7 @@ class TaskViewSet(
                 "message_source",
                 "task_list",
                 "group",
+                "meeting_summary_link__record__meeting_session__room",
                 *_task_parent_select_fields(),
             )
             .prefetch_related("assignees", "followers")
@@ -2014,6 +2016,7 @@ class TaskViewSet(
                     "task_list",
                     "group",
                     "source_action_item__room",
+                    "meeting_summary_link__record__meeting_session__room",
                 )
                 .prefetch_related("assignees")
                 .get(pk=task.pk)
@@ -2356,7 +2359,10 @@ class TaskViewSet(
             children = list(
                 models.Task.objects.select_for_update(of=("self",))
                 .filter(parent=parent)
-                .select_related("task_list")
+                .select_related(
+                    "task_list",
+                    "meeting_summary_link__record__meeting_session__room",
+                )
                 .order_by("position", "created_at")
             )
             if not _can_manage_task_content(parent, request.user) or any(
