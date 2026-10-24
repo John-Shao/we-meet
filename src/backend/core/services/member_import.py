@@ -18,6 +18,9 @@ touching ``manager``; pass 2 resolves the manager column. A manager may appear
 *below* their report in the same file, so a single pass would report half the
 hierarchy as "unknown manager" purely because of row order.
 """
+# pylint: disable=missing-function-docstring,import-outside-toplevel
+# pylint: disable=broad-exception-caught,too-many-locals,too-many-branches
+# pylint: disable=too-many-statements
 
 import csv
 import io
@@ -86,28 +89,28 @@ class RowResult:
         }
 
 
-class ImportError_(Exception):
+class ImportFileError(Exception):
     """The file itself is unusable — not a per-row problem."""
 
 
 def parse_csv(source: str) -> tuple[list[str], list[dict]]:
-    """Return (headers, rows). Raises :class:`ImportError_` on a broken file."""
+    """Return (headers, rows). Raises :class:`ImportFileError` on a broken file."""
     # utf-8-sig: Excel writes a BOM, and without stripping it the first header
     # becomes "﻿email" and every row loses its email column.
     text = source.lstrip("﻿")
     reader = csv.DictReader(io.StringIO(text))
     if reader.fieldnames is None:
-        raise ImportError_(_("The file is empty."))
+        raise ImportFileError(_("The file is empty."))
     headers = [(h or "").strip() for h in reader.fieldnames]
     unknown = [h for h in headers if h and h not in COLUMNS]
     if unknown:
-        raise ImportError_(
+        raise ImportFileError(
             _("Unknown column(s): %(cols)s") % {"cols": ", ".join(unknown)}
         )
     if "email" not in headers and "phone" not in headers:
         # Either identifies a person; requiring the address specifically would
         # reject the file an HR system actually exports.
-        raise ImportError_(_("The file needs an 'email' or a 'phone' column."))
+        raise ImportFileError(_("The file needs an 'email' or a 'phone' column."))
     rows = []
     for raw in reader:
         rows.append({(k or "").strip(): (v or "").strip() for k, v in raw.items()})
@@ -160,9 +163,7 @@ class _Resolver:
         if found is not None:
             return found
         if not self.create_missing_departments:
-            result.errors.append(
-                _("Unknown department '%(name)s'.") % {"name": raw}
-            )
+            result.errors.append(_("Unknown department '%(name)s'.") % {"name": raw})
             return None
         result.warnings.append(
             _("Department '%(name)s' will be created.") % {"name": raw}
@@ -211,16 +212,20 @@ def _parse_date(raw: str, result: RowResult):
         return None
     for fmt in ("%Y-%m-%d", "%Y/%m/%d"):
         try:
-            from datetime import datetime
+            from datetime import datetime  # noqa: PLC0415 -- local to the date parser.
 
             return datetime.strptime(raw, fmt).date()
         except ValueError:
             continue
-    result.errors.append(_("Invalid date '%(value)s' (use YYYY-MM-DD).") % {"value": raw})
+    result.errors.append(
+        _("Invalid date '%(value)s' (use YYYY-MM-DD).") % {"value": raw}
+    )
     return None
 
 
-def preflight(organization, rows: list[dict], create_missing_departments: bool):
+def preflight(  # noqa: PLR0912, PLR0915 -- row state machine is explicit.
+    organization, rows: list[dict], create_missing_departments: bool
+):
     """Resolve every row and decide what would happen. No writes."""
     resolver = _Resolver(organization, create_missing_departments)
     results: list[RowResult] = []
@@ -313,6 +318,25 @@ def preflight(organization, rows: list[dict], create_missing_departments: bool):
         org_role = raw.get("org_role", "").strip()
         if org_role and org_role not in models.OrgRoleChoices.values:
             result.errors.append(_("Unknown role '%(value)s'.") % {"value": org_role})
+        elif org_role == models.OrgRoleChoices.OWNER:
+            # Ownership is granted by its current owner, never by a file.
+            result.errors.append(
+                _("Ownership cannot be imported; transfer it in the console.")
+            )
+        elif (
+            org_role
+            and membership is not None
+            and membership.status != models.MembershipStatusChoices.LEFT
+            and membership.org_role == models.OrgRoleChoices.OWNER
+        ):
+            # A file may not demote an owner either: ownership writes go
+            # through the service that enforces the owner-only rule.
+            result.errors.append(
+                _(
+                    "Ownership cannot be changed by an import; "
+                    "transfer it in the console."
+                )
+            )
 
         result.data = {
             "email": email,
@@ -348,7 +372,9 @@ def preflight(organization, rows: list[dict], create_missing_departments: bool):
             if (email and email in pending_invites) or (
                 phone and phone in pending_invite_phones
             ):
-                result.warnings.append(_("An invitation is already pending; it will be updated."))
+                result.warnings.append(
+                    _("An invitation is already pending; it will be updated.")
+                )
         elif membership.status == models.MembershipStatusChoices.LEFT:
             # Rehire, never create: a second Membership for the same person would
             # hit unique(user, organization) and, worse, split their history.
@@ -467,7 +493,7 @@ def _apply_one(organization, resolver, result, actor):
     # Blank cells mean "leave alone", not "clear". A CSV round-trip that only
     # fills two columns must not wipe the other ten.
     fields = {k: v for k, v in fields.items() if v not in ("", None)}
-    if data.get("org_role"):
+    if data.get("org_role") and data["org_role"] != models.OrgRoleChoices.OWNER:
         fields["org_role"] = data["org_role"]
 
     if result.action == ACTION_INVITE:
@@ -475,7 +501,10 @@ def _apply_one(organization, resolver, result, actor):
         # alone would make every phone-only row collide on ``email=""`` and
         # overwrite one another — the partial unique constraints on the model
         # would turn the second row of a phone-only file into a 500.
-        lookup = {"organization": organization, "status": models.InvitationStatusChoices.PENDING}
+        lookup = {
+            "organization": organization,
+            "status": models.InvitationStatusChoices.PENDING,
+        }
         if data.get("email"):
             lookup["email"] = data["email"]
         else:
@@ -495,8 +524,22 @@ def _apply_one(organization, resolver, result, actor):
         return None
 
     membership = models.Membership.objects.get(id=data["membership_id"])
+    if (
+        membership.status != models.MembershipStatusChoices.LEFT
+        and membership.org_role == models.OrgRoleChoices.OWNER
+        and "org_role" in fields
+    ):
+        # The preview may be minutes old; re-check at write time.
+        raise ValueError(
+            str(
+                _(
+                    "Ownership cannot be changed by an import; "
+                    "transfer it in the console."
+                )
+            )
+        )
     if result.action == ACTION_REHIRE:
-        from core.services import offboarding
+        from core.services import offboarding  # noqa: PLC0415 -- avoids import cycle.
 
         offboarding.rehire_membership(membership, actor=actor)
         membership.refresh_from_db()
@@ -535,9 +578,7 @@ def _apply_managers(organization, results, membership_by_key):
             for membership in models.Membership.objects.filter(
                 organization=organization, user__phone__in=numbers
             ).select_related("user"):
-                lookup.setdefault(
-                    normalize_cn_phone(membership.user.phone), membership
-                )
+                lookup.setdefault(normalize_cn_phone(membership.user.phone), membership)
 
     for row_key, manager_key in wanted.items():
         subordinate = lookup.get(row_key)
@@ -593,7 +634,7 @@ def run_preflight(job_id):
     try:
         _headers, rows = parse_csv(job.source)
         results = preflight(job.organization, rows, job.create_missing_departments)
-    except ImportError_ as exc:
+    except ImportFileError as exc:
         job.status = models.ImportJobStatusChoices.FAILED
         job.error = str(exc)[:500]
         job.save(update_fields=["status", "error", "updated_at"])
@@ -620,7 +661,7 @@ def run_apply(job_id, actor_id=None):
         _headers, rows = parse_csv(job.source)
         results = preflight(job.organization, rows, job.create_missing_departments)
         applied = apply_rows(job, results, actor)
-    except ImportError_ as exc:
+    except ImportFileError as exc:
         job.status = models.ImportJobStatusChoices.FAILED
         job.error = str(exc)[:500]
         job.save(update_fields=["status", "error", "updated_at"])

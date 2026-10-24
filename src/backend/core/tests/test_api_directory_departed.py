@@ -6,6 +6,7 @@ Two bugs offboarding would otherwise expose on day one:
   - ``directory/members/{id}/`` 404s, white-screening the ``?member=<id>`` deep
     link that historical messages point at.
 """
+# pylint: disable=missing-function-docstring
 
 from unittest import mock
 
@@ -13,6 +14,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from core import factories, models
+from core.services import offboarding
 
 pytestmark = pytest.mark.django_db
 
@@ -113,9 +115,7 @@ def test_departed_member_returns_tombstone_not_404():
     membership = _member(
         org, gone_user, department=department, title="Engineer", is_primary=False
     )
-    membership.left_snapshot = membership.build_left_snapshot()
-    membership.status = LEFT
-    membership.save()
+    offboarding.offboard_membership(membership, actor=me, disable_login=False)
 
     response = _client(me).get(f"/api/v1.0/directory/members/{gone_user.id}/")
     assert response.status_code == 200, response.content
@@ -311,7 +311,9 @@ def test_resolve_skips_a_deactivated_bot():
 
     body = (
         _client(me)
-        .post("/api/v1.0/im/users/resolve/", {"im_uids": ["uid-bot-off"]}, format="json")
+        .post(
+            "/api/v1.0/im/users/resolve/", {"im_uids": ["uid-bot-off"]}, format="json"
+        )
         .json()
     )
     assert "uid-bot-off" not in body

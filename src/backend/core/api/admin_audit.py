@@ -33,6 +33,9 @@ ACTION_GROUPS: dict[str, str] = {
     "meeting_room_facility": "meeting_room",
     "summary": "meeting",
     "remote_control": "meeting",
+    "voiceprint": "meeting",
+    "task_list": "member",
+    "organization": "organization",
     "bot": "bot",
 }
 

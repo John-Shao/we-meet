@@ -12,10 +12,10 @@ from rest_framework.response import Response
 
 from core.models import User
 
-from . import local_runs, runs
+from . import access, local_runs, runs
 from .local_api import DeviceView, StrictInput
 from .models import WorkDevice, WorkRun, WorkWorkspace
-from .services import MaterialError, organization_for
+from .services import MaterialError, scoped_organization
 from .task_api import run_data, task_data
 
 
@@ -28,9 +28,10 @@ def ensure_enabled(user):
         raise MaterialError("remote_coordination_disabled", 503)
 
 
-def workspaces(user):
+def workspaces(user, organization_id=None):
     return WorkWorkspace.objects.filter(
-        device__owner=user, device__organization_id=organization_for(user)
+        device__owner=user,
+        device__organization_id=scoped_organization(user, organization_id),
     )
 
 
@@ -73,7 +74,9 @@ class WorkspaceView(DeviceView):
                 "contract": local_runs.CONTRACT,
                 "workspaces": [
                     workspace_data(w)
-                    for w in workspaces(request.user)
+                    for w in workspaces(
+                        request.user, access.request_organization_id(request)
+                    )
                     .select_related("device")
                     .order_by("label")[:100]
                 ],
@@ -87,14 +90,15 @@ class WorkspaceView(DeviceView):
         form.is_valid(raise_exception=True)
         data = form.validated_data
         User.objects.select_for_update().get(pk=request.user.pk)
-        device = local_runs.device_for(request.user, data["device_id"])
+        organization_id = access.request_organization_id(request)
+        device = local_runs.device_for(request.user, data["device_id"], organization_id)
         w = WorkWorkspace.objects.filter(pk=data["workspace_id"]).first()
         if w and w.device_id != device.pk:
             raise MaterialError("workspace_unavailable", 409)
         if data["model"] != settings.WORK_AGENT_MODEL:
             raise MaterialError("local_model_unavailable", 409)
         if not w:
-            if workspaces(request.user).count() >= 100:
+            if workspaces(request.user, organization_id).count() >= 100:
                 raise MaterialError("workspace_limit", 429)
             w = WorkWorkspace(id=data["workspace_id"], device=device)
         w.label, w.model, w.enabled, w.last_seen_at = (
@@ -117,6 +121,8 @@ class WorkspaceView(DeviceView):
 
 
 class RemoteTaskView(DeviceView):
+    work_feature = "remote"
+
     @transaction.atomic
     def post(self, request):
         ensure_enabled(request.user)
@@ -124,14 +130,17 @@ class RemoteTaskView(DeviceView):
         form.is_valid(raise_exception=True)
         data = form.validated_data
         User.objects.select_for_update().get(pk=request.user.pk)
-        w = get_object_or_404(workspaces(request.user), pk=data["workspace_id"])
+        organization_id = access.request_organization_id(request)
+        w = get_object_or_404(
+            workspaces(request.user, organization_id), pk=data["workspace_id"]
+        )
         previous = (
             WorkRun.objects.filter(pk=data["run_id"]).select_related("task").first()
         )
         if previous:
             if (
                 previous.task.owner_id != request.user.pk
-                or previous.task.organization_id != organization_for(request.user)
+                or previous.task.organization_id != w.device.organization_id
                 or previous.workspace_id != w.pk
                 or not previous.remote_requested
                 or previous.task.goal != data["goal"]
@@ -159,6 +168,7 @@ class RemoteTaskView(DeviceView):
                 "sources": [],
             },
             workspace=w,
+            organization_id=organization_id,
         )
         return Response(
             {
@@ -176,14 +186,15 @@ class InboxView(DeviceView):
         form = InboxInput(data=request.data)
         form.is_valid(raise_exception=True)
         data = form.validated_data
-        device = local_runs.device_for(request.user, data["device_id"])
-        eligible = workspaces(request.user).filter(
+        organization_id = access.request_organization_id(request)
+        device = local_runs.device_for(request.user, data["device_id"], organization_id)
+        eligible = workspaces(request.user, organization_id).filter(
             device=device, enabled=True, pk__in=data["workspace_ids"]
         )
         eligible.update(last_seen_at=timezone.now())
         WorkDevice.objects.filter(pk=device.pk).update(last_seen_at=timezone.now())
         pending = WorkRun.objects.filter(
-            task__in=runs.visible_tasks(request.user),
+            task__in=runs.visible_tasks(request.user, organization_id),
             device=device,
             workspace__in=eligible,
             remote_requested=True,

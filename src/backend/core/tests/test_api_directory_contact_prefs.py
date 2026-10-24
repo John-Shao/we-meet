@@ -12,6 +12,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from core import factories, models
+from core.services.membership import left_transition
 
 pytestmark = pytest.mark.django_db
 
@@ -172,7 +173,8 @@ def test_list_is_ordered_by_name_and_drops_people_outside_the_org():
 
     # Membership no longer active → the row stays but the card stops showing.
     amy_membership.status = models.MembershipStatusChoices.LEFT
-    amy_membership.save(update_fields=["status"])
+    with left_transition():
+        amy_membership.save(update_fields=["status"])
     assert [m["full_name"] for m in client.get(STARRED_URL).json()] == ["Zoe Last"]
     assert models.ContactPreference.objects.filter(owner=me).count() == 3
 
@@ -252,7 +254,8 @@ def test_special_alert_list_requires_authentication_and_drops_ex_members():
     assert len(client.get(SPECIAL_ALERT_URL).json()) == 1
 
     membership.status = models.MembershipStatusChoices.LEFT
-    membership.save(update_fields=["status"])
+    with left_transition():
+        membership.save(update_fields=["status"])
     assert client.get(SPECIAL_ALERT_URL).json() == []
     # The row survives — only the card projection drops out.
     assert models.ContactPreference.objects.filter(owner=me).count() == 1
@@ -274,7 +277,9 @@ def test_prefs_list_returns_flags_only_for_client_side_sets():
         owner=me, target=alerted, special_alert=True
     )
 
-    rows = {r["user_id"]: r for r in client.get("/api/v1.0/directory/contact-prefs/").json()}
+    rows = {
+        r["user_id"]: r for r in client.get("/api/v1.0/directory/contact-prefs/").json()
+    }
     assert rows[str(starred.id)] == {
         "user_id": str(starred.id),
         "is_starred": True,

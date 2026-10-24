@@ -14,12 +14,22 @@ put inside any custom role. Only the organization's own owner/administrator has
 it. Without that rule an HR role could write itself ``org.role.write`` once and
 then grant itself everything.
 """
+# pylint: disable=missing-function-docstring,attribute-defined-outside-init
+# pylint: disable=too-many-ancestors
 
 from django.db import transaction
 from django.db.models import Count
 from django.utils.translation import gettext_lazy as _
 
-from rest_framework import mixins, permissions as drf_permissions, serializers, viewsets
+from rest_framework import (
+    exceptions,
+    mixins,
+    serializers,
+    viewsets,
+)
+from rest_framework import (
+    permissions as drf_permissions,
+)
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -28,8 +38,8 @@ from core import models, permissions_registry
 from core.api import permissions
 from core.api.directory import get_caller_organization
 from core.services.audit import record_audit
-from core.services.org_roles import ensure_builtin_roles
 from core.services.org_permissions import get_admin_context
+from core.services.org_roles import ensure_builtin_roles
 
 
 class HasOrgPermission(permissions.IsAuthenticated):
@@ -44,6 +54,16 @@ class HasOrgPermission(permissions.IsAuthenticated):
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
+        organization = get_caller_organization(request.user)
+        if organization is not None and not organization.is_active:
+            if organization.archived_at is not None:
+                if request.method not in drf_permissions.SAFE_METHODS:
+                    raise exceptions.PermissionDenied(
+                        {"code": "organization_read_only"}
+                    )
+            else:
+                # Suspended: administration is off, not read-only.
+                return False
         required = getattr(view, "required_permission", None)
         if required is None:  # misconfiguration — fail closed, loudly
             raise RuntimeError(
@@ -115,9 +135,7 @@ class AdminRoleSerializer(serializers.ModelSerializer):
         permission_codes = attrs.get("permissions")
         if self.instance is None or permission_codes is None:
             return attrs
-        offenders = sorted(
-            set(permission_codes) & permissions_registry.UNSCOPABLE
-        )
+        offenders = sorted(set(permission_codes) & permissions_registry.UNSCOPABLE)
         if not offenders:
             return attrs
         scoped = models.AdminRoleAssignment.objects.filter(

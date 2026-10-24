@@ -24,7 +24,7 @@ on, under one of two policies:
 
 import logging
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, OperationalError, transaction
 from django.db.models import Q
 
 from core import models
@@ -44,6 +44,10 @@ LIVE_STATUSES = (
     models.MeetingRoomBookingStatus.PENDING,
     models.MeetingRoomBookingStatus.CONFLICT,
 )
+
+#: SQLSTATEs the database uses when it aborts one of two racing writes:
+#: ``deadlock_detected`` and ``serialization_failure``.
+WRITE_CONTENTION_SQLSTATES = frozenset({"40P01", "40001"})
 
 
 class MeetingRoomUnavailable(Exception):
@@ -91,9 +95,7 @@ def active_booking_for(event):
     ``event.room_bookings.all()`` themselves via :func:`pick_live_booking`.
     """
     return (
-        models.MeetingRoomBooking.objects.filter(
-            event=event, status__in=LIVE_STATUSES
-        )
+        models.MeetingRoomBooking.objects.filter(event=event, status__in=LIVE_STATUSES)
         .select_related("room", "room__node")
         .first()
     )
@@ -140,9 +142,7 @@ def _move(booking, event, *, status):
         booking.start_at = event.start_at
         booking.end_at = event.end_at
         booking.status = status
-        booking.save(
-            update_fields=["start_at", "end_at", "status", "updated_at"]
-        )
+        booking.save(update_fields=["start_at", "end_at", "status", "updated_at"])
         return booking
 
 
@@ -163,6 +163,20 @@ def _on_conflict(event, room, policy, write_conflict_row):
     return write_conflict_row()
 
 
+def _is_write_contention(exc):
+    """Whether ``exc`` is the database rejecting a racing write, not an outage.
+
+    Two overlapping inserts can deadlock on the exclusion constraint instead of
+    tripping it; PostgreSQL then aborts one of them with ``deadlock_detected``.
+    That transaction lost the same race an ``IntegrityError`` describes, so it
+    is reported as a conflict rather than leaking a 500.
+    """
+    return (
+        getattr(getattr(exc, "__cause__", None), "sqlstate", None)
+        in WRITE_CONTENTION_SQLSTATES
+    )
+
+
 def book_for_event(event, room, *, policy=STRICT, booked_by=None):
     """Hold ``room`` for ``event``'s range. Returns the booking row.
 
@@ -176,7 +190,9 @@ def book_for_event(event, room, *, policy=STRICT, booked_by=None):
             booked_by=booked_by,
             status=models.MeetingRoomBookingStatus.CONFIRMED,
         )
-    except IntegrityError:
+    except (IntegrityError, OperationalError) as exc:
+        if isinstance(exc, OperationalError) and not _is_write_contention(exc):
+            raise
         return _on_conflict(
             event,
             room,
@@ -237,10 +253,10 @@ def resync_event_booking(event, *, room=UNSET, policy=STRICT, booked_by=None):
     try:
         # Always attempt to (re)claim the slot: a previously conflicted booking
         # must be able to recover once the event moves somewhere free.
-        return _move(
-            current, event, status=models.MeetingRoomBookingStatus.CONFIRMED
-        )
-    except IntegrityError:
+        return _move(current, event, status=models.MeetingRoomBookingStatus.CONFIRMED)
+    except (IntegrityError, OperationalError) as exc:
+        if isinstance(exc, OperationalError) and not _is_write_contention(exc):
+            raise
         return _on_conflict(
             event,
             target,

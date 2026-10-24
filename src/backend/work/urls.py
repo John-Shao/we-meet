@@ -3,12 +3,28 @@
 from django.urls import path
 
 from .api import CapabilitiesView, MaterialViewSet
+from .api_admin import (
+    AccessAuditExportView,
+    AccessAuditListView,
+    EntitlementView,
+    GrantCollectionView,
+    GrantMemberView,
+    GrantRestoreView,
+    GrantSummaryView,
+)
 from .local_api import DeviceView, LocalAdmissionView, LocalRunView
 from .remote_api import InboxView, RemoteTaskView, WorkspaceView
 from .review_api import ReviewView
 from .task_api import RunViewSet, TaskViewSet
 
 urlpatterns = [
+    path("admin/grants/", GrantCollectionView.as_view()),
+    path("admin/grants/summary/", GrantSummaryView.as_view()),
+    path("admin/grants/<uuid:user_id>/", GrantMemberView.as_view()),
+    path("admin/grants/<uuid:user_id>/restore/", GrantRestoreView.as_view()),
+    path("admin/entitlement/", EntitlementView.as_view()),
+    path("admin/access-audit/", AccessAuditListView.as_view()),
+    path("admin/access-audit/export/", AccessAuditExportView.as_view()),
     path(
         "runs/<uuid:pk>/reviews/",
         ReviewView.as_view({"get": "reviews", "post": "reviews"}),

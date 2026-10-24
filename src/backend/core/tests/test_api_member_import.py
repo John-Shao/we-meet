@@ -10,6 +10,7 @@ the wrong thing:
 - blank cells must mean "leave alone", not "clear";
 - an unknown column must fail the file rather than be ignored.
 """
+# pylint: disable=missing-function-docstring
 
 import io
 
@@ -69,12 +70,12 @@ def _upload(client, source: str, **extra):
 
 def test_unknown_column_fails_the_file_rather_than_being_ignored():
     """Silently ignoring a typo'd header is how 300 people import with no department."""
-    with pytest.raises(member_import.ImportError_):
+    with pytest.raises(member_import.ImportFileError):
         member_import.parse_csv(_csv("email,departmant", "a@x.com,Eng"))
 
 
 def test_missing_email_column_is_rejected():
-    with pytest.raises(member_import.ImportError_):
+    with pytest.raises(member_import.ImportFileError):
         member_import.parse_csv(_csv("full_name", "张三"))
 
 
@@ -99,9 +100,7 @@ def test_unknown_person_becomes_an_invitation_not_a_membership():
 def test_existing_active_member_is_an_update():
     organization, _admin = _org_with_admin()
     _member(organization, "old@x.com")
-    _headers, rows = member_import.parse_csv(
-        _csv("email,title", "old@x.com,工程师")
-    )
+    _headers, rows = member_import.parse_csv(_csv("email,title", "old@x.com,工程师"))
     results = member_import.preflight(organization, rows, False)
 
     assert results[0].action == member_import.ACTION_UPDATE
@@ -115,6 +114,41 @@ def test_departed_person_is_a_rehire_not_a_create():
     results = member_import.preflight(organization, rows, False)
 
     assert results[0].action == member_import.ACTION_REHIRE
+
+
+def test_a_file_cannot_demote_an_owner():
+    """Ownership writes go through the service that enforces the owner-only rule."""
+    organization, _admin = _org_with_admin()
+    _member(organization, "boss@x.com", org_role=models.OrgRoleChoices.OWNER)
+    _headers, rows = member_import.parse_csv(
+        _csv("email,org_role", "boss@x.com,administrator")
+    )
+    results = member_import.preflight(organization, rows, False)
+
+    assert results[0].action == member_import.ACTION_ERROR
+    assert "Ownership cannot be changed" in results[0].errors[0]
+
+
+def test_apply_rechecks_ownership_after_the_preview():
+    """The preview may be minutes old; the write must re-read the role."""
+    organization, admin = _org_with_admin()
+    membership = _member(organization, "boss@x.com")
+    _headers, rows = member_import.parse_csv(
+        _csv("email,org_role", "boss@x.com,administrator")
+    )
+    results = member_import.preflight(organization, rows, False)
+    assert results[0].action == member_import.ACTION_UPDATE
+
+    membership.org_role = models.OrgRoleChoices.OWNER
+    membership.save()
+
+    job = models.ImportJob.objects.create(organization=organization, created_by=admin)
+    applied = member_import.apply_rows(job, results, admin)
+
+    membership.refresh_from_db()
+    assert membership.org_role == models.OrgRoleChoices.OWNER
+    assert results[0].action == member_import.ACTION_ERROR
+    assert applied[member_import.ACTION_ERROR] == 1
 
 
 def test_employee_no_wins_over_email_when_matching():
@@ -132,9 +166,7 @@ def test_employee_no_wins_over_email_when_matching():
 
 def test_duplicate_email_in_one_file_is_an_error():
     organization, _admin = _org_with_admin()
-    _headers, rows = member_import.parse_csv(
-        _csv("email", "dup@x.com", "dup@x.com")
-    )
+    _headers, rows = member_import.parse_csv(_csv("email", "dup@x.com", "dup@x.com"))
     results = member_import.preflight(organization, rows, False)
 
     assert results[0].action != member_import.ACTION_ERROR
@@ -143,9 +175,7 @@ def test_duplicate_email_in_one_file_is_an_error():
 
 def test_unknown_department_is_an_error_by_default():
     organization, _admin = _org_with_admin()
-    _headers, rows = member_import.parse_csv(
-        _csv("email,department", "a@x.com,Nope")
-    )
+    _headers, rows = member_import.parse_csv(_csv("email,department", "a@x.com,Nope"))
     results = member_import.preflight(organization, rows, False)
 
     assert results[0].action == member_import.ACTION_ERROR
@@ -153,9 +183,7 @@ def test_unknown_department_is_an_error_by_default():
 
 def test_unknown_department_downgrades_to_a_warning_when_opted_in():
     organization, _admin = _org_with_admin()
-    _headers, rows = member_import.parse_csv(
-        _csv("email,department", "a@x.com,新部门")
-    )
+    _headers, rows = member_import.parse_csv(_csv("email,department", "a@x.com,新部门"))
     results = member_import.preflight(organization, rows, True)
 
     assert results[0].action == member_import.ACTION_INVITE
@@ -366,7 +394,7 @@ def test_apply_requires_a_previewed_job():
 
 
 def test_apply_refuses_when_the_preview_on_screen_is_stale():
-    organization, admin = _org_with_admin()
+    _organization, admin = _org_with_admin()
     upload = _upload(_client(admin), _csv("email", "a@x.com", "b@x.com"))
     job_id = upload.data["id"]
 
@@ -379,10 +407,8 @@ def test_apply_refuses_when_the_preview_on_screen_is_stale():
 
 
 def test_apply_writes_one_audit_row_not_one_per_line():
-    organization, admin = _org_with_admin()
-    upload = _upload(
-        _client(admin), _csv("email", "a@x.com", "b@x.com", "c@x.com")
-    )
+    _organization, admin = _org_with_admin()
+    upload = _upload(_client(admin), _csv("email", "a@x.com", "b@x.com", "c@x.com"))
     _client(admin).post(f"/api/v1.0/admin/import-jobs/{upload.data['id']}/apply/")
 
     assert (
@@ -395,7 +421,7 @@ def test_apply_writes_one_audit_row_not_one_per_line():
 
 def test_non_utf8_upload_is_refused_with_a_usable_message():
     """Excel on a Chinese Windows saves GBK; the mojibake would land as people's names."""
-    organization, admin = _org_with_admin()
+    _organization, admin = _org_with_admin()
     payload = io.BytesIO("email,full_name\na@x.com,张三\n".encode("gbk"))
     payload.name = "members.csv"
 
@@ -521,13 +547,13 @@ def test_two_phone_only_rows_do_not_collide():
 
 def test_a_row_with_neither_key_is_an_error():
     """The columns are there; this row just filled in neither of them."""
-    organization, admin = _org_with_admin()
+    _organization, admin = _org_with_admin()
     upload = _upload(_client(admin), _csv("email,phone,full_name", ",,无名氏"))
     assert upload.data["rows"][0]["action"] == "error"
 
 
 def test_a_file_with_no_identifying_column_at_all_is_rejected_outright():
-    organization, admin = _org_with_admin()
+    _organization, admin = _org_with_admin()
     upload = _upload(_client(admin), _csv("full_name,title", "无名氏,工程师"))
     assert upload.data["status"] == "failed"
     assert "phone" in upload.data["error"]
@@ -535,7 +561,7 @@ def test_a_file_with_no_identifying_column_at_all_is_rejected_outright():
 
 def test_a_malformed_number_fails_its_row_rather_than_importing_unmatched():
     """Importing it anyway produces someone who can never match their sign-in."""
-    organization, admin = _org_with_admin()
+    _organization, admin = _org_with_admin()
     upload = _upload(_client(admin), _csv("phone,full_name", "1380000,张三"))
     row = upload.data["rows"][0]
     assert row["action"] == "error"
@@ -543,7 +569,7 @@ def test_a_malformed_number_fails_its_row_rather_than_importing_unmatched():
 
 
 def test_a_duplicate_number_in_the_file_is_caught():
-    organization, admin = _org_with_admin()
+    _organization, admin = _org_with_admin()
     upload = _upload(
         _client(admin),
         _csv("phone,full_name", "13800000001,张三", "+8613800000001,张三again"),
@@ -558,9 +584,7 @@ def test_phone_matches_an_existing_member_and_updates_them():
     existing.user.phone = "+8613800000001"
     existing.user.save(update_fields=["phone"])
 
-    upload = _upload(
-        _client(admin), _csv("phone,title", "13800000001,高级工程师")
-    )
+    upload = _upload(_client(admin), _csv("phone,title", "13800000001,高级工程师"))
     assert [r["action"] for r in upload.data["rows"]] == ["update"]
 
     _client(admin).post(
@@ -599,9 +623,7 @@ def test_a_manager_can_be_named_by_phone_number():
     boss.user.save(update_fields=["phone"])
     report = _member(organization, "report@x.com")
 
-    upload = _upload(
-        _client(admin), _csv("email,manager", "report@x.com,13900000009")
-    )
+    upload = _upload(_client(admin), _csv("email,manager", "report@x.com,13900000009"))
     assert upload.data["rows"][0]["warnings"] == []
     _client(admin).post(
         f"/api/v1.0/admin/import-jobs/{upload.data['id']}/apply/", {}, format="json"

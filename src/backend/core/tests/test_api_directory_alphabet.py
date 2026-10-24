@@ -12,6 +12,7 @@ from rest_framework.test import APIClient
 
 from core import factories, models
 from core.services import pinyin
+from core.services.membership import left_transition
 
 pytestmark = pytest.mark.django_db
 
@@ -182,11 +183,7 @@ def test_api_directory_pinyin_order_files_accented_latin_names():
     client, _ = _org_with(["Zoe", "Émile", "Ørsted", "Łukasz"])
 
     ordered = client.get(f"{MEMBERS_URL}?ordering=pinyin")
-    names = [
-        n
-        for n in _names(ordered)
-        if n in {"Zoe", "Émile", "Ørsted", "Łukasz"}
-    ]
+    names = [n for n in _names(ordered) if n in {"Zoe", "Émile", "Ørsted", "Łukasz"}]
     assert names == ["Émile", "Łukasz", "Ørsted", "Zoe"]
 
 
@@ -202,7 +199,8 @@ def test_api_directory_departed_card_carries_initial():
     membership = _membership(org, gone, is_primary=False)
     membership.left_snapshot = membership.build_left_snapshot()
     membership.status = models.MembershipStatusChoices.LEFT
-    membership.save()
+    with left_transition():
+        membership.save()
 
     client = APIClient()
     client.force_login(me)

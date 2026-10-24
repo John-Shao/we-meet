@@ -12,16 +12,19 @@ Three clusters, and the weight is deliberately uneven:
   silently and the person appears twice in the directory.
 - **the scope holding through approval.** Same bidirectional rule as M2-f.
 """
+# pylint: disable=missing-function-docstring,import-outside-toplevel
 
 from datetime import timedelta
 
-import pytest
 from django.core.cache import cache
 from django.utils import timezone
+
+import pytest
 from rest_framework.test import APIClient
 
 from core import factories, models
 from core.services import invite_links
+from core.services import membership as membership_service
 
 pytestmark = pytest.mark.django_db
 
@@ -150,7 +153,7 @@ def test_resolution_is_throttled(monkeypatch):
     order — which is exactly why this test passed alone and failed in the suite.
     ``SimpleRateThrottle.__init__`` honours a class-level ``rate``.
     """
-    from core.api.invite import InviteThrottle
+    from core.api.invite import InviteThrottle  # noqa: PLC0415
 
     monkeypatch.setattr(InviteThrottle, "rate", "3/minute", raising=False)
     client = _client()
@@ -161,7 +164,7 @@ def test_resolution_is_throttled(monkeypatch):
 
 def test_the_throttle_has_its_own_bucket():
     """Sharing AnonRateThrottle's default bucket would starve the QR-login poll."""
-    from core.api.invite import InviteThrottle
+    from core.api.invite import InviteThrottle  # noqa: PLC0415
 
     assert InviteThrottle.scope == "invite_code"
 
@@ -364,6 +367,55 @@ def test_approving_does_not_quietly_unsuspend():
     assert membership.department_id == engineering.id
 
 
+def test_an_owner_cannot_apply_to_a_member_link():
+    """A join link decides placement, never ownership."""
+    organization, owner = _org_owner()
+    engineering = models.Department.objects.create(
+        organization=organization, name="研发部"
+    )
+    link = _link(organization, department=engineering)
+    owner_membership = models.Membership.objects.get(
+        organization=organization, user=owner
+    )
+
+    response = _client(owner).post(f"/api/v1.0/invite/{link.code}/apply/")
+    assert response.status_code == 400
+    assert response.data["code"] == "owner_role_locked"
+
+    owner_membership.refresh_from_db()
+    assert owner_membership.org_role == models.OrgRoleChoices.OWNER
+    assert not models.OrgJoinRequest.objects.exists()
+
+
+def test_approving_never_demotes_an_owner_who_was_promoted_while_waiting():
+    """The link is re-read at approval time; so is the applicant's role."""
+    organization, owner = _org_owner()
+    engineering = models.Department.objects.create(
+        organization=organization, name="研发部"
+    )
+    link = _link(organization, department=engineering)
+    applicant = factories.UserFactory()
+    membership = models.Membership.objects.create(
+        organization=organization, user=applicant, is_primary=True
+    )
+    join_request = invite_links.apply_to_link(link, applicant)
+
+    membership_service.set_role(
+        membership, actor=owner, role=models.OrgRoleChoices.OWNER
+    )
+
+    response = _client(owner).post(
+        f"/api/v1.0/admin/join-requests/{join_request.id}/approve/", {}, format="json"
+    )
+    assert response.status_code == 400, response.data
+
+    membership.refresh_from_db()
+    join_request.refresh_from_db()
+    assert membership.org_role == models.OrgRoleChoices.OWNER
+    assert membership.department_id is None
+    assert join_request.status == "pending"
+
+
 def test_the_reviewer_can_override_the_department():
     organization, owner = _org_owner()
     engineering = models.Department.objects.create(
@@ -379,9 +431,12 @@ def test_the_reviewer_can_override_the_department():
         {"department": str(sales.id)},
         format="json",
     )
-    assert models.Membership.objects.get(
-        organization=organization, user=applicant
-    ).department_id == sales.id
+    assert (
+        models.Membership.objects.get(
+            organization=organization, user=applicant
+        ).department_id
+        == sales.id
+    )
 
 
 def test_a_link_revoked_after_the_application_blocks_approval():
@@ -472,7 +527,9 @@ def _scoped_hr(organization, department, permissions):
         organization=organization, code="hr", name="HR", permissions=permissions
     )
     assignment = models.AdminRoleAssignment.objects.create(
-        role=role, membership=membership, scope_type=models.AdminScopeChoices.DEPARTMENTS
+        role=role,
+        membership=membership,
+        scope_type=models.AdminScopeChoices.DEPARTMENTS,
     )
     models.AdminRoleScopeDepartment.objects.create(
         assignment=assignment, department=department
@@ -555,7 +612,7 @@ def test_issuing_a_link_from_the_console():
 
 
 def test_an_absurd_expiry_is_refused():
-    organization, owner = _org_owner()
+    _organization, owner = _org_owner()
     response = _client(owner).post(
         "/api/v1.0/admin/invite-links/", {"expires_in_days": 3650}, format="json"
     )
@@ -625,7 +682,7 @@ def test_one_applicant_cannot_withdraw_anothers():
 def test_auto_join_is_on_unless_an_organization_turns_it_off(settings):
     """The absent key must read as True — nothing changes for anyone who has
     not opted in."""
-    from core.authentication.backends import OIDCAuthenticationBackend
+    from core.authentication.backends import OIDCAuthenticationBackend  # noqa: PLC0415
 
     settings.ORGANIZATION_BOOTSTRAP_SLUG = "default"
     organization = models.Organization.objects.get(slug="default")
@@ -639,11 +696,14 @@ def test_auto_join_is_on_unless_an_organization_turns_it_off(settings):
 
 
 def test_turning_auto_join_off_stops_the_membership_being_created(settings):
-    from core.authentication.backends import OIDCAuthenticationBackend
+    from core.authentication.backends import OIDCAuthenticationBackend  # noqa: PLC0415
 
     settings.ORGANIZATION_BOOTSTRAP_SLUG = "default"
     organization = models.Organization.objects.get(slug="default")
-    organization.settings = {**(organization.settings or {}), "auto_join_enabled": False}
+    organization.settings = {
+        **(organization.settings or {}),
+        "auto_join_enabled": False,
+    }
     organization.save()
 
     user = factories.UserFactory(sub="kc-auto-2")
@@ -653,7 +713,7 @@ def test_turning_auto_join_off_stops_the_membership_being_created(settings):
 
 def test_the_switch_does_not_disturb_someone_who_is_already_a_member(settings):
     """Turning it off is not a mass eviction."""
-    from core.authentication.backends import OIDCAuthenticationBackend
+    from core.authentication.backends import OIDCAuthenticationBackend  # noqa: PLC0415
 
     settings.ORGANIZATION_BOOTSTRAP_SLUG = "default"
     organization = models.Organization.objects.get(slug="default")
@@ -662,7 +722,10 @@ def test_the_switch_does_not_disturb_someone_who_is_already_a_member(settings):
         organization=organization, user=user, is_primary=True
     )
 
-    organization.settings = {**(organization.settings or {}), "auto_join_enabled": False}
+    organization.settings = {
+        **(organization.settings or {}),
+        "auto_join_enabled": False,
+    }
     organization.save()
     OIDCAuthenticationBackend.ensure_default_org_membership(user)
 

@@ -13,8 +13,10 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 # pylint: disable=too-many-lines
 
 import json
+import os
 from os import path
 from socket import gethostbyname, gethostname
+from urllib.parse import urlsplit, urlunsplit
 
 from django.utils.translation import gettext_lazy as _
 
@@ -969,6 +971,8 @@ class Base(Configuration):
     WORK_LOCAL_AGENT_ENABLED = values.BooleanValue(False, environ_prefix=None)
     WORK_AGENT_ROLLOUT_MODE = values.Value("closed", environ_prefix=None)
     WORK_AGENT_ALLOWED_USER_IDS = values.ListValue([], environ_prefix=None)
+    WORK_TENANT_ACCESS_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    WORK_DISABLED_ORGANIZATION_IDS = values.ListValue([], environ_prefix=None)
     WORK_REMOTE_AGENT_ENABLED = values.BooleanValue(False, environ_prefix=None)
     WORK_AGENT_URL = values.Value("", environ_prefix=None)
     WORK_AGENT_TOKEN = SecretFileValue(None, environ_prefix=None)
@@ -990,6 +994,20 @@ class Base(Configuration):
     WORK_MAX_OUTPUT_TOKENS = values.PositiveIntegerValue(3000, environ_prefix=None)
     WORK_STORAGE = values.DictValue(
         {"BACKEND": "work.storage.PrivateMaterialStorage"}, environ_prefix=None
+    )
+    # Work access-audit retention. The purge is hourly and bounded instead of
+    # nightly and unbounded: a backlog is then drained as a rolling queue rather
+    # than a long transaction, and a steady-state tick usually deletes nothing.
+    # ``0`` disables the purge and removes its beat entry below.
+    WORK_ACCESS_AUDIT_RETENTION_DAYS = values.PositiveIntegerValue(
+        365, environ_prefix=None
+    )
+    WORK_ACCESS_AUDIT_RETENTION_DRY_RUN = values.BooleanValue(True, environ_prefix=None)
+    WORK_ACCESS_AUDIT_PRUNE_BATCH = values.PositiveIntegerValue(
+        5000, environ_prefix=None
+    )
+    WORK_ACCESS_AUDIT_EXPORT_MAX_ROWS = values.PositiveIntegerValue(
+        50000, environ_prefix=None
     )
 
     celery_beat_entries = {
@@ -1019,6 +1037,11 @@ class Base(Configuration):
             "task": "work.tasks.tick_materials",
             "schedule": 5.0,
             "options": {"queue": "work", "expires": 30},
+        },
+        "prune-work-access-audit": {
+            "task": "work.tasks.prune_access_audit",
+            "schedule": 3600.0,
+            "options": {"queue": "work", "expires": 1800},
         },
         "tick-upload-translations": {
             "task": "core.tasks.upload_translations.tick_upload_translations",
@@ -1220,18 +1243,28 @@ class Base(Configuration):
     # Mandatory in runtime configurations; only isolated unit tests bypass it.
     MEETING_VOICEPRINT_JOURNAL_REQUIRED = True
     MEETING_VOICEPRINT_JOURNAL_CONFIG_FILE = values.Value("", environ_prefix=None)
-    MEETING_VOICEPRINT_SAMPLING_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_VOICEPRINT_SAMPLING_ENABLED = values.BooleanValue(
+        False, environ_prefix=None
+    )
     MEETING_VOICEPRINT_SAMPLING_AGENT_TOKEN = values.Value("", environ_prefix=None)
     MEETING_VOICEPRINT_SAMPLING_AGENT_NAME = values.Value("", environ_prefix=None)
-    MEETING_VOICEPRINT_SAMPLING_CLIP_MS = values.PositiveIntegerValue(10000, environ_prefix=None)
-    MEETING_VOICEPRINT_SAMPLING_SESSION_MS = values.PositiveIntegerValue(60000, environ_prefix=None)
-    MEETING_VOICEPRINT_SAMPLING_DAILY_MS = values.PositiveIntegerValue(120000, environ_prefix=None)
+    MEETING_VOICEPRINT_SAMPLING_CLIP_MS = values.PositiveIntegerValue(
+        10000, environ_prefix=None
+    )
+    MEETING_VOICEPRINT_SAMPLING_SESSION_MS = values.PositiveIntegerValue(
+        60000, environ_prefix=None
+    )
+    MEETING_VOICEPRINT_SAMPLING_DAILY_MS = values.PositiveIntegerValue(
+        120000, environ_prefix=None
+    )
     # Separate, rotatable mounted keyring; never fall back to DJANGO_SECRET_KEY.
     MEETING_VOICEPRINT_KEYRING_FILE = values.Value("", environ_prefix=None)
     MEETING_VOICEPRINT_ENCODER_CONFIG_FILE = values.Value("", environ_prefix=None)
     MEETING_VOICEPRINT_QUALITY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_VOICEPRINT_QUALITY_CONFIG_FILE = values.Value("", environ_prefix=None)
-    MEETING_VOICEPRINT_MATCHING_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_VOICEPRINT_MATCHING_ENABLED = values.BooleanValue(
+        False, environ_prefix=None
+    )
     MEETING_VOICEPRINT_THRESHOLD_CONFIG_FILE = values.Value("", environ_prefix=None)
     MEETING_VOICEPRINT_MEDIA_CONFIG_FILE = values.Value("", environ_prefix=None)
     MEETING_VOICEPRINT_TEMPLATES_ENABLED = values.BooleanValue(
@@ -1254,7 +1287,9 @@ class Base(Configuration):
     MEETING_SUMMARY_REVIEW_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_SUMMARY_TASKS_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_RECORD_QA_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    UPLOAD_TRANSCRIPT_TRANSLATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    UPLOAD_TRANSCRIPT_TRANSLATION_ENABLED = values.BooleanValue(
+        False, environ_prefix=None
+    )
     MEETING_CAPTURE_AUDIO_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_TRANSLATION_ENABLED = values.BooleanValue(
         False, environ_prefix=None
@@ -1264,16 +1299,28 @@ class Base(Configuration):
     ASSISTANT_TRANSLATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
     # Internal rollout is account-scoped; an empty list never grants access.
     ASSISTANT_TRANSLATION_ALLOWED_USER_IDS = values.ListValue([], environ_prefix=None)
-    ASSISTANT_TRANSLATION_MAX_ACTIVE = values.PositiveIntegerValue(1, environ_prefix=None)
-    ASSISTANT_TRANSLATION_MAX_DAILY = values.PositiveIntegerValue(100, environ_prefix=None)
-    ASSISTANT_TRANSLATION_MAX_SECONDS = values.PositiveIntegerValue(900, environ_prefix=None)
-    ASSISTANT_TRANSLATION_IDLE_SECONDS = values.PositiveIntegerValue(300, environ_prefix=None)
+    ASSISTANT_TRANSLATION_MAX_ACTIVE = values.PositiveIntegerValue(
+        1, environ_prefix=None
+    )
+    ASSISTANT_TRANSLATION_MAX_DAILY = values.PositiveIntegerValue(
+        100, environ_prefix=None
+    )
+    ASSISTANT_TRANSLATION_MAX_SECONDS = values.PositiveIntegerValue(
+        900, environ_prefix=None
+    )
+    ASSISTANT_TRANSLATION_IDLE_SECONDS = values.PositiveIntegerValue(
+        300, environ_prefix=None
+    )
     MEETING_CAPTURE_TRANSLATION_REGION = values.Value("cn-beijing", environ_prefix=None)
     MEETING_CAPTURE_TEXT_ONLY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    MEETING_CAPTURE_DIARIZATION_ENABLED = values.BooleanValue(False, environ_prefix=None)
+    MEETING_CAPTURE_DIARIZATION_ENABLED = values.BooleanValue(
+        False, environ_prefix=None
+    )
     MEETING_CAPTURE_DIARIZATION_BUCKET_NAME = values.Value("", environ_prefix=None)
-    MEETING_CAPTURE_DIARIZATION_DAILY_LIMIT = values.PositiveIntegerValue(3, environ_prefix=None)
+    MEETING_CAPTURE_DIARIZATION_DAILY_LIMIT = values.PositiveIntegerValue(
+        3, environ_prefix=None
+    )
     MEETING_CAPTURE_LIVE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_SUMMARY_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_CAPTURE_STAGED_SUMMARY_ENABLED = values.BooleanValue(
@@ -1291,15 +1338,21 @@ class Base(Configuration):
     ROOM_INTERPRETATION_AGENT_NAME = values.Value("", environ_prefix=None)
     DASHSCOPE_ASR_CLIENT_API_KEY = values.Value("", environ_prefix=None)
     # Zero observes existing usage without imposing a new product quota.
-    DIRECT_AI_MAX_ACTIVE_ALLOCATIONS = values.PositiveIntegerValue(0, environ_prefix=None)
-    DIRECT_AI_MAX_DAILY_ALLOCATIONS = values.PositiveIntegerValue(0, environ_prefix=None)
+    DIRECT_AI_MAX_ACTIVE_ALLOCATIONS = values.PositiveIntegerValue(
+        0, environ_prefix=None
+    )
+    DIRECT_AI_MAX_DAILY_ALLOCATIONS = values.PositiveIntegerValue(
+        0, environ_prefix=None
+    )
     MEETING_CAPTURE_DIRECT_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
     QWEN_ASR_MODEL = values.Value(
         "qwen-audio-3.1-asr-flash-streaming", environ_prefix=None
     )
     QWEN_ASR_REGION = values.Value("cn-beijing", environ_prefix=None)
     MEETING_FILE_ASR_ENABLED = values.BooleanValue(False, environ_prefix=None)
-    MEETING_WORD_ALIGNMENT_WRITE_ENABLED = values.BooleanValue(True, environ_prefix=None)
+    MEETING_WORD_ALIGNMENT_WRITE_ENABLED = values.BooleanValue(
+        True, environ_prefix=None
+    )
     MEETING_WORD_ALIGNMENT_READ_ENABLED = values.BooleanValue(True, environ_prefix=None)
     # Multipart ceiling. Bytes in this path spool to the application's own disk,
     # so it stays small on purpose; large files use the direct-upload path below.
@@ -1311,9 +1364,7 @@ class Base(Configuration):
     # client PUTs straight to object storage against a signed URL whose
     # ContentLength is part of the signature, so declaring a small size and
     # sending more fails at the storage boundary.
-    MEETING_FILE_DIRECT_UPLOAD_ENABLED = values.BooleanValue(
-        False, environ_prefix=None
-    )
+    MEETING_FILE_DIRECT_UPLOAD_ENABLED = values.BooleanValue(False, environ_prefix=None)
     MEETING_FILE_DIRECT_UPLOAD_MAX_BYTES = values.PositiveIntegerValue(
         6 * 1024 * 1024 * 1024, environ_prefix=None
     )
@@ -1818,8 +1869,10 @@ class Base(Configuration):
             },
         }
 
+    # pylint: disable=invalid-name
     @property
     def CELERY_BEAT_SCHEDULE(self):
+        """Periodic tasks that stay silent while their feature is disabled."""
         # Redis keeps expired messages until a consumer receives them. Avoid
         # publishing disabled work to optional queues with no consumers.
         schedule = self.celery_beat_entries.copy()
@@ -1829,6 +1882,10 @@ class Base(Configuration):
             self.MEETING_VOICEPRINT_ENABLED and self.MEETING_VOICEPRINT_MATCHING_ENABLED
         ):
             schedule.pop("identify-speakers", None)
+        if self.WORK_ACCESS_AUDIT_RETENTION_DAYS <= 0:
+            # Retention is off: keep the queue free of a task that can only
+            # return zero.
+            schedule.pop("prune-work-access-audit", None)
         # Erasure and lease recovery must survive collection/matching shutdown.
         return schedule
 
@@ -1898,6 +1955,29 @@ class Development(Base):
 
 class Test(Base):
     """Test environment settings"""
+
+    # pylint: disable=invalid-name
+    @property
+    def CACHES(self):
+        """Cache settings, isolated per pytest-xdist worker."""
+        # Several suites call cache.clear(); with xdist workers sharing one
+        # Redis database that wipes the sessions and rate-limit counters the
+        # other worker is using, producing random 401s. Give each worker its
+        # own database, offset so the default /0 and /1 stay free.
+        location = os.environ.get("REDIS_URL", "redis://redis:6379/1")
+        worker = os.environ.get("PYTEST_XDIST_WORKER", "gw0").removeprefix("gw")
+        database = int(worker) + 2 if worker.isdigit() else 2
+        return {
+            "default": {
+                "BACKEND": "django_redis.cache.RedisCache",
+                "LOCATION": urlunsplit(
+                    urlsplit(location)._replace(path=f"/{database}")
+                ),
+                "OPTIONS": {
+                    "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                },
+            },
+        }
 
     MEETING_VOICEPRINT_JOURNAL_REQUIRED = False
 
@@ -2073,6 +2153,9 @@ class Production(Base):
     def setup(cls):
         super().setup()
         for name in cls.MEETING_LOGGERS:
+            # pylint: disable=unsubscriptable-object
+            # django-configurations swaps the DictValue for the resolved
+            # mapping before setup() runs, which pylint cannot infer.
             cls.LOGGING["loggers"][name]["level"] = cls.LOG_LEVEL
 
     CACHES = {

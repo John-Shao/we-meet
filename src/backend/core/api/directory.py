@@ -10,6 +10,8 @@ Read-only on purpose — department / membership mutations live in the admin
 console (P1-d). Every queryset is scoped to the caller's organization from day
 one, even though MVP runs a single organization.
 """
+# pylint: disable=missing-function-docstring,abstract-method,too-many-lines
+# pylint: disable=import-outside-toplevel,broad-exception-caught,unused-argument
 
 import logging
 import uuid
@@ -48,7 +50,7 @@ def get_caller_membership(user):
     there is no cross-request staleness to reason about.
     """
     if not hasattr(user, "_org_membership_cache"):
-        user._org_membership_cache = (  # pylint: disable=protected-access
+        user._org_membership_cache = (  # noqa: SLF001 # pylint: disable=protected-access
             models.Membership.objects.filter(
                 user=user, status=models.MembershipStatusChoices.ACTIVE
             )
@@ -56,7 +58,7 @@ def get_caller_membership(user):
             .order_by("-is_primary", "created_at")
             .first()
         )
-    return user._org_membership_cache  # pylint: disable=protected-access
+    return user._org_membership_cache  # noqa: SLF001 # pylint: disable=protected-access
 
 
 def get_caller_organization(user):
@@ -76,7 +78,7 @@ ORG_ADMIN_ROLES = (
 )
 
 
-def is_caller_org_admin(user) -> bool:
+def is_caller_org_admin(user, *, include_archived=False) -> bool:
     """Whether the caller administers their organization. Memoized per request.
 
     Checks **any** active membership in the org, not just the primary one — a
@@ -85,11 +87,25 @@ def is_caller_org_admin(user) -> bool:
     gated on that broader rule; ``/directory/me/`` used to read the primary
     membership's role only, so such a user was refused by the console guard
     while the admin API happily served them. Single source of truth now.
+
+    A suspended or archived organization grants no administration. Reads in an
+    archived tenant still resolve here with ``include_archived=True`` so the
+    console can render its read-only banner without regaining write power —
+    that flag admits archived tenants only, never suspended ones (an archived
+    tenant is also ``is_active=False``, so the two states need separate tests).
     """
-    if not hasattr(user, "_org_admin_cache"):
+    cache_name = "_org_admin_archived_cache" if include_archived else "_org_admin_cache"
+    if not hasattr(user, cache_name):
         organization = get_caller_organization(user)
-        user._org_admin_cache = bool(  # pylint: disable=protected-access
+        usable = bool(
             organization
+            and (
+                (organization.is_active and organization.archived_at is None)
+                or (include_archived and organization.archived_at is not None)
+            )
+        )
+        value = bool(
+            usable
             and models.Membership.objects.filter(
                 user=user,
                 organization=organization,
@@ -97,7 +113,8 @@ def is_caller_org_admin(user) -> bool:
                 org_role__in=ORG_ADMIN_ROLES,
             ).exists()
         )
-    return user._org_admin_cache  # pylint: disable=protected-access
+        setattr(user, cache_name, value)  # pylint: disable=protected-access
+    return getattr(user, cache_name)  # pylint: disable=protected-access
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -179,7 +196,6 @@ def apply_member_list_params(queryset, request):
     # 第二列 full_name 是为了翻页稳定:只按拼音排时同音重名的行在不同页之间顺序
     # 不定,会出现重复或漏人。Meta.indexes 里的复合索引正好覆盖这两列。
     return queryset.order_by("user__full_name_pinyin", "user__full_name")
-
 
 
 class DirectoryMemberSerializer(serializers.Serializer):
@@ -1076,7 +1092,7 @@ class DirectoryMeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        from core.services.org_permissions import get_admin_context
+        from core.services.org_permissions import get_admin_context  # noqa: PLC0415
 
         membership = get_caller_membership(request.user)
         if membership is None:
@@ -1112,6 +1128,11 @@ class DirectoryMeView(APIView):
                 "organization": {
                     "id": str(organization.id),
                     "name": organization.name,
+                    "state": (
+                        "archived"
+                        if organization.archived_at is not None
+                        else ("active" if organization.is_active else "suspended")
+                    ),
                 },
                 "org_role": membership.org_role,
                 "is_org_admin": is_org_admin,

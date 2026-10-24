@@ -10,6 +10,7 @@ from django.utils import timezone
 from core.models import User
 from core.services.ai_usage import record_usage
 
+from . import access
 from .executor import (
     EXECUTOR_VERSION,
     MAX_ARTIFACT_CHARS,
@@ -18,8 +19,20 @@ from .executor import (
     prompt_for,
     validate_result,
 )
-from .models import WorkArtifactVersion, WorkMaterial, WorkRun, WorkRunEvent, WorkTask
-from .services import MaterialError, organization_for, visible_materials
+from .models import (
+    WorkArtifactVersion,
+    WorkMaterial,
+    WorkOrganizationEntitlement,
+    WorkRun,
+    WorkRunEvent,
+    WorkTask,
+)
+from .services import (
+    MaterialError,
+    require_organization,
+    scoped_organization,
+    visible_materials,
+)
 
 ACTIVE = ("queued", "running")
 
@@ -34,23 +47,21 @@ def enabled():
     )
 
 
-def visible_tasks(user):
-    return WorkTask.objects.filter(owner=user, organization_id=organization_for(user))
+def visible_tasks(user, organization_id=None):
+    return WorkTask.objects.filter(
+        owner=user, organization_id=scoped_organization(user, organization_id)
+    )
 
 
 def sources_for(task):
     """Reauthorize the frozen selection at admission, execution and delivery."""
     user = User.objects.get(pk=task.owner_id)
-    if (
-        not user.is_active
-        or user.is_device
-        or not user.sub
-        or organization_for(user) != task.organization_id
-    ):
-        raise MaterialError("access_revoked", 409)
+    code = access.scope_denial(user, task.organization_id)
+    if code:
+        raise MaterialError(code, access.denial_status(code))
     materials = {
         str(item.pk): item
-        for item in visible_materials(user).filter(
+        for item in visible_materials(user, task.organization_id).filter(
             pk__in=[ref["id"] for ref in task.sources], status="ready"
         )
     }
@@ -73,23 +84,47 @@ def event(run, kind):
     WorkRunEvent.objects.create(run=run, seq=run.events.count() + 1, type=kind)
 
 
-def daily_reserved(owner_id):
+def daily_reserved(owner_id, organization_id=None):
+    """Tokens reserved today for one tenant, or legacy owner rows without one."""
     from .models import WorkReview  # noqa: PLC0415 -- independent review ledger
 
     today = timezone.localdate()
-    total = (
-        WorkRun.objects.filter(
-            task__owner_id=owner_id, created_at__date=today
-        ).aggregate(total=Sum("reserved_tokens"))["total"]
-        or 0
-    )
-    reviews = (
-        WorkReview.objects.filter(
-            source_run__task__owner_id=owner_id, created_at__date=today
-        ).aggregate(total=Sum("reserved_tokens"))["total"]
-        or 0
-    )
+    runs_query = WorkRun.objects.filter(created_at__date=today)
+    reviews_query = WorkReview.objects.filter(created_at__date=today)
+    if organization_id is None:
+        runs_query = runs_query.filter(
+            task__owner_id=owner_id, task__organization_id__isnull=True
+        )
+        reviews_query = reviews_query.filter(
+            source_run__task__owner_id=owner_id,
+            source_run__task__organization_id__isnull=True,
+        )
+    else:
+        runs_query = runs_query.filter(task__organization_id=organization_id)
+        reviews_query = reviews_query.filter(
+            source_run__task__organization_id=organization_id
+        )
+    total = runs_query.aggregate(total=Sum("reserved_tokens"))["total"] or 0
+    reviews = reviews_query.aggregate(total=Sum("reserved_tokens"))["total"] or 0
     return total + reviews
+
+
+def daily_budget(organization_id=None):
+    """Tenant-specific budget, else the deployment-wide default."""
+    if organization_id is not None:
+        budget = (
+            WorkOrganizationEntitlement.objects.filter(organization_id=organization_id)
+            .values_list("daily_token_budget", flat=True)
+            .first()
+        )
+        if budget is not None:
+            return budget
+    return settings.WORK_DAILY_TOKEN_BUDGET
+
+
+def failure_status(code):
+    """Access loss is terminal and distinct from provider or transport failure."""
+    return "access_revoked" if code in access.DENIAL_CODES else "failed"
 
 
 def new_run(task, key):
@@ -112,8 +147,8 @@ def new_run(task, key):
     prompt = prompt_for(task, sources_for(task))
     output = min(settings.WORK_MAX_OUTPUT_TOKENS, 4000)
     reservation = len(prompt.encode()) + len(SYSTEM.encode()) + 1024 + output
-    used = daily_reserved(task.owner_id)
-    if used + reservation > settings.WORK_DAILY_TOKEN_BUDGET:
+    used = daily_reserved(task.owner_id, task.organization_id)
+    if used + reservation > daily_budget(task.organization_id):
         raise MaterialError("budget_exceeded", 429)
     run = WorkRun.objects.create(
         task=task,
@@ -129,10 +164,10 @@ def new_run(task, key):
 
 
 @transaction.atomic
-def create_task(user, data, key):
+def create_task(user, data, key, organization_id=None):
     data = {"kind": "communication", **data}
     User.objects.select_for_update().get(pk=user.pk)
-    organization_id = organization_for(user)
+    organization_id = require_organization(user, organization_id)
     previous = WorkTask.objects.filter(owner=user, request_key=key).first()
     if previous:
         if previous.organization_id != organization_id or any(
@@ -169,17 +204,27 @@ def claim_run():
         terminal(expired, "failed", "execution_unknown")
     if not enabled():
         return None
-    run = (
-        WorkRun.objects.select_for_update(skip_locked=True)
-        .filter(task__kind="communication", status="queued")
-        .first()
-    )
-    if run:
+    for _ in range(20):
+        run = (
+            WorkRun.objects.select_for_update(skip_locked=True)
+            .select_related("task")
+            .filter(task__kind="communication", status="queued")
+            .first()
+        )
+        if run is None:
+            return None
+        code = access.check(run.task.owner, run.task.organization_id)
+        if code == "access_unavailable":
+            return None
+        if code:
+            terminal(run, failure_status(code), code)
+            continue
         run.status = "running"
         run.lease_until = now + timedelta(minutes=2)
         run.save()
         event(run, "running")
-    return run
+        return run
+    return None
 
 
 def execute_run(run):
@@ -259,8 +304,12 @@ def execute_run(run):
         code = exc.code if isinstance(exc, MaterialError) else "execution_unknown"
         with transaction.atomic():
             current = WorkRun.objects.select_for_update().get(pk=run.pk)
-            if current.status == "running":
-                terminal(current, "failed", code)
+            if current.status == "running" and code == "access_unavailable":
+                if not current.call_started_at:
+                    current.status, current.lease_until = "queued", None
+                    current.save(update_fields=["status", "lease_until"])
+            elif current.status == "running":
+                terminal(current, failure_status(code), code)
 
 
 def process_runs(limit=1):

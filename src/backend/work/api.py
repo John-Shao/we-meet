@@ -15,19 +15,26 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import agent_runs, local_runs, review_runs, runs, services
+from . import access, agent_runs, local_runs, review_runs, runs, services
 from .models import WorkMaterial
 from .upload import BoundedMaterialUpload
 
 
 class WorkUser(permissions.BasePermission):
-    """Require a real active account, including for API bearer authentication."""
+    """Require a real active account and, when enabled, two-layer Work access."""
 
     def has_permission(self, request, view):
         user = request.user
-        return bool(
-            user.is_authenticated and user.is_active and user.sub and not user.is_device
-        )
+        if not access.identity_ok(user):
+            return False
+        if not access.enabled():
+            return True
+        organization = access.request_organization(request)
+        code = access.check(user, organization, getattr(view, "work_feature", None))
+        if code:
+            raise access.denial(code)
+        request.work_organization_id = organization
+        return True
 
 
 class MaterialSerializer(serializers.ModelSerializer):
@@ -99,7 +106,9 @@ class CapabilitiesView(APIView):
                 "agent_token_budget": settings.WORK_AGENT_TOKEN_BUDGET,
                 "communication_enabled": runs.enabled(),
                 "model": settings.WORK_MODEL if runs.enabled() else "",
-                "daily_token_budget": settings.WORK_DAILY_TOKEN_BUDGET,
+                "daily_token_budget": runs.daily_budget(
+                    access.request_organization_id(request)
+                ),
                 "max_context_chars": 12000,
             }
         )
@@ -109,6 +118,7 @@ class MaterialViewSet(viewsets.GenericViewSet):
     """Private material lifecycle; safe reads remain available after disabling."""
 
     permission_classes = [WorkUser]
+    work_feature = "materials"
     serializer_class = MaterialSerializer
     pagination_class = MaterialPagination
     parser_classes = [MultiPartParser, FormParser, JSONParser]
@@ -119,7 +129,10 @@ class MaterialViewSet(viewsets.GenericViewSet):
         return super().initialize_request(request, *args, **kwargs)
 
     def get_queryset(self):
-        return services.visible_materials(self.request.user)
+        return services.visible_materials(
+            self.request.user,
+            access.request_organization_id(self.request),
+        )
 
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)
@@ -147,7 +160,10 @@ class MaterialViewSet(viewsets.GenericViewSet):
             return Response({"code": "one_file_required"}, status=400)
         try:
             item, created = services.create_material(
-                request.user, request.FILES["file"], key
+                request.user,
+                request.FILES["file"],
+                key,
+                access.request_organization_id(request),
             )
         except services.MaterialError as exc:
             return Response({"code": exc.code}, status=exc.status)
@@ -172,6 +188,7 @@ class MaterialViewSet(viewsets.GenericViewSet):
     @action(detail=True, methods=["get"])
     def preview(self, request, pk=None):
         item = self.get_object()
+        access.require_scope(request.user, item.organization_id)
         if item.status != WorkMaterial.Status.READY:
             return Response({"code": "material_not_ready"}, status=409)
         try:

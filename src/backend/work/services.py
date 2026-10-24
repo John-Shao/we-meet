@@ -18,6 +18,7 @@ from django.utils import timezone
 
 from core.models import Membership, MembershipStatusChoices, User
 
+from . import access
 from .models import WorkMaterial
 from .storage import material_storage
 
@@ -53,10 +54,25 @@ def organization_for(user):
     )
 
 
-def visible_materials(user):
+def scoped_organization(user, organization_id=None):
+    """Explicit request organization, else the legacy single-org fallback."""
+    return organization_id if organization_id is not None else organization_for(user)
+
+
+def require_organization(user, organization_id=None):
+    """New tenant data must never be written without an organization."""
+    organization_id = scoped_organization(user, organization_id)
+    if organization_id is None and access.enabled():
+        raise MaterialError("organization_required", 409)
+    return organization_id
+
+
+def visible_materials(user, organization_id=None):
     """Owner AND current org scope; null organizations are never public."""
     return WorkMaterial.objects.filter(
-        owner=user, organization_id=organization_for(user), deleted_at__isnull=True
+        owner=user,
+        organization_id=scoped_organization(user, organization_id),
+        deleted_at__isnull=True,
     )
 
 
@@ -99,7 +115,7 @@ def read_upload(upload):
     )
 
 
-def create_material(user, upload, upload_key):
+def create_material(user, upload, upload_key, organization_id=None):
     """Serialize owner quota and upload dedupe; storage failure leaves no job."""
     name, data, mime = read_upload(upload)
     checksum = hashlib.sha256(data).hexdigest()
@@ -108,7 +124,7 @@ def create_material(user, upload, upload_key):
     try:
         with transaction.atomic():
             User.objects.select_for_update().get(pk=user.pk)
-            organization_id = organization_for(user)
+            organization_id = require_organization(user, organization_id)
             existing = WorkMaterial.objects.filter(
                 owner=user, upload_key=upload_key
             ).first()
@@ -200,12 +216,7 @@ def finish_material(item, *, text="", error_code="", locations=None):
         ):
             return False
         user = User.objects.get(pk=item.owner_id)
-        if (
-            not user.is_active
-            or user.is_device
-            or not user.sub
-            or organization_for(user) != item.organization_id
-        ):
+        if not access.allows_scope(user, item.organization_id):
             text, error_code = "", "access_revoked"
         if not settings.WORK_ENABLED or not settings.WORK_MATERIALS_ENABLED:
             current.status = WorkMaterial.Status.UPLOADED
@@ -232,12 +243,7 @@ def parse_material(item):
     text, error, locations = "", "", []
     try:
         user = User.objects.get(pk=item.owner_id)
-        if (
-            not user.is_active
-            or user.is_device
-            or not user.sub
-            or organization_for(user) != item.organization_id
-        ):
+        if not access.allows_scope(user, item.organization_id):
             raise MaterialError("access_revoked")
         with material_storage().open(item.storage_key, "rb") as source:
             data = source.read(MAX_FILE_BYTES + 1)

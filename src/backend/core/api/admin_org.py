@@ -14,14 +14,18 @@ Scope (P1-d2 MVP):
 Everything is scoped to the caller's organization, resolved from their own
 membership (single-org MVP; ready for multi-org without query changes).
 """
+# pylint: disable=missing-function-docstring,abstract-method
+# pylint: disable=attribute-defined-outside-init,redefined-outer-name
+# pylint: disable=too-many-ancestors,too-many-lines
 
 from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from rest_framework import exceptions, mixins, serializers, viewsets
+from rest_framework import exceptions, mixins, serializers, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 
 from core import models, utils
@@ -29,7 +33,8 @@ from core.api import permissions
 from core.api.admin_roles import HasOrgPermission
 from core.api.directory import get_caller_organization, is_caller_org_admin
 from core.api.viewsets import Pagination
-from core.services import offboarding
+from core.services import membership as membership_service
+from core.services import offboarding, ownership
 from core.services.audit import record_audit
 from core.services.org_permissions import get_admin_context
 
@@ -45,6 +50,11 @@ class IsOrgAdmin(permissions.IsAuthenticated):
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
+        organization = get_caller_organization(request.user)
+        if organization is not None and organization.archived_at is not None:
+            if request.method not in SAFE_METHODS:
+                raise exceptions.PermissionDenied({"code": "organization_read_only"})
+            return is_caller_org_admin(request.user, include_archived=True)
         return is_caller_org_admin(request.user)
 
 
@@ -78,12 +88,17 @@ class DepartmentAdminSerializer(serializers.ModelSerializer):
         return value
 
     def validate_head(self, value):
-        if value is not None and not models.Membership.objects.filter(
-            user=value,
-            organization=self._organization(),
-            status=models.MembershipStatusChoices.ACTIVE,
-        ).exists():
-            raise serializers.ValidationError("head must be a member of your organization")
+        if (
+            value is not None
+            and not models.Membership.objects.filter(
+                user=value,
+                organization=self._organization(),
+                status=models.MembershipStatusChoices.ACTIVE,
+            ).exists()
+        ):
+            raise serializers.ValidationError(
+                "head must be a member of your organization"
+            )
         return value
 
     def _organization(self):
@@ -154,7 +169,7 @@ class MembershipAdminSerializer(serializers.ModelSerializer):
     def validate_job_sequence(self, value):
         return self._validate_dict_item(value, models.DictScopeChoices.JOB_SEQUENCE)
 
-    def _validate_manager(self, value, field):
+    def _validate_manager(self, value, _field):
         if value is None:
             return value
         if value.organization_id != self._organization().id:
@@ -170,51 +185,44 @@ class MembershipAdminSerializer(serializers.ModelSerializer):
         return self._validate_manager(value, "dotted_manager")
 
     def validate(self, attrs):
-        """Guard against locking the organization out of administration.
+        """Field-level guards only; ownership rules run under the org lock.
 
-        On update, refuse to suspend one's own membership (an admin could strand
-        themselves) and refuse to remove the last active owner (by suspending it
-        or demoting its role) so the organization always keeps an owner.
+        ``status=left`` is refused because departure has side effects; owner
+        grants/demotions are validated in ``core.services.membership`` so the
+        count and the write happen under one lock.
         """
         instance = self.instance
-        if instance is None:  # create — nothing to protect yet
-            return attrs
+        requested_status = attrs.get("status")
+        new_role = attrs.get("org_role", None)
 
-        new_status = attrs.get("status", instance.status)
-        new_role = attrs.get("org_role", instance.org_role)
+        if requested_status == models.MembershipStatusChoices.LEFT:
+            raise serializers.ValidationError(
+                {"status": _("Use the offboard action to record a departure.")}
+            )
+        if (
+            instance is not None
+            and instance.status == models.MembershipStatusChoices.LEFT
+            and requested_status is not None
+        ):
+            raise serializers.ValidationError(
+                {"status": _("Use the rehire action to reactivate a departed member.")}
+            )
+        if instance is None and new_role == models.OrgRoleChoices.OWNER:
+            raise serializers.ValidationError(
+                {"org_role": _("Ownership must be transferred by its current owner.")}
+            )
 
         request = self.context.get("request")
         if (
-            request is not None
+            instance is not None
+            and request is not None
             and instance.user_id == request.user.id
-            and new_status != models.MembershipStatusChoices.ACTIVE
+            and requested_status is not None
+            and requested_status != models.MembershipStatusChoices.ACTIVE
         ):
             raise serializers.ValidationError(
                 {"status": _("You cannot suspend your own membership.")}
             )
-
-        was_active_owner = (
-            instance.status == models.MembershipStatusChoices.ACTIVE
-            and instance.org_role == models.OrgRoleChoices.OWNER
-        )
-        still_active_owner = (
-            new_status == models.MembershipStatusChoices.ACTIVE
-            and new_role == models.OrgRoleChoices.OWNER
-        )
-        if was_active_owner and not still_active_owner:
-            other_owner_exists = (
-                models.Membership.objects.filter(
-                    organization=instance.organization,
-                    status=models.MembershipStatusChoices.ACTIVE,
-                    org_role=models.OrgRoleChoices.OWNER,
-                )
-                .exclude(id=instance.id)
-                .exists()
-            )
-            if not other_owner_exists:
-                raise serializers.ValidationError(
-                    _("The organization must keep at least one active owner.")
-                )
         return attrs
 
     def _organization(self):
@@ -352,8 +360,17 @@ class RehireSerializer(serializers.Serializer):
         allow_null=True,
     )
     org_role = serializers.ChoiceField(
-        choices=models.OrgRoleChoices.choices, required=False
+        choices=models.OrgRoleChoices.choices,
+        required=False,
+        default=models.OrgRoleChoices.MEMBER,
     )
+
+    def validate_org_role(self, value):
+        if value == models.OrgRoleChoices.OWNER:
+            raise serializers.ValidationError(
+                _("Ownership must be granted by an active owner.")
+            )
+        return value
 
 
 # Bulk operations are capped so one request can never quietly rewrite an entire
@@ -619,7 +636,9 @@ class DepartmentAdminViewSet(
     def perform_update(self, serializer):
         before = {
             "name": serializer.instance.name,
-            "head": str(serializer.instance.head_id) if serializer.instance.head_id else None,
+            "head": str(serializer.instance.head_id)
+            if serializer.instance.head_id
+            else None,
             "sort_order": serializer.instance.sort_order,
         }
         instance = serializer.save()
@@ -628,7 +647,11 @@ class DepartmentAdminViewSet(
             "head": str(instance.head_id) if instance.head_id else None,
             "sort_order": instance.sort_order,
         }
-        changes = {k: {"from": before[k], "to": after[k]} for k in after if before[k] != after[k]}
+        changes = {
+            key: {"from": before[key], "to": current}
+            for key, current in after.items()
+            if before[key] != current
+        }
         if not changes:
             return
         # A pure rename gets its own action; head / sort edits fold into dept.update.
@@ -711,13 +734,13 @@ class DepartmentAdminViewSet(
                 deleted_at__isnull=True,
             ).first()
             if new_parent is None:
-                raise serializers.ValidationError(
-                    {"parent": "invalid target parent"}
-                )
+                raise serializers.ValidationError({"parent": "invalid target parent"})
             # node.path includes self, so a descendant's path starts with it.
             if new_parent.id == node.id or new_parent.path.startswith(node.path):
                 raise serializers.ValidationError(
-                    {"parent": "cannot move a department under itself or its descendant"}
+                    {
+                        "parent": "cannot move a department under itself or its descendant"
+                    }
                 )
 
         new_parent_id = new_parent.id if new_parent else None
@@ -746,7 +769,7 @@ class DepartmentAdminViewSet(
             )
             for dept in descendants:
                 models.Department.objects.filter(id=dept.id).update(
-                    path=new_path + dept.path[len(old_path):],
+                    path=new_path + dept.path[len(old_path) :],
                     depth=dept.depth + depth_delta,
                 )
 
@@ -791,7 +814,12 @@ class MembershipAdminViewSet(
         # Offboarding touches Keycloak and resource ownership, so it is a
         # separate grant from ordinary member editing — an HR role can be given
         # one without the other.
-        if self.action in ("offboard", "rehire", "purge", "bulk_offboard"):
+        if self.action == "transfer_owner":
+            # Only an owner may transfer, and ``OrgAdminContext`` gives ADMIN
+            # every permission code — so this branch is a plain org-membership
+            # gate and the action performs the authoritative owner check.
+            self.required_permission = "org.member.read"
+        elif self.action in ("offboard", "rehire", "purge", "bulk_offboard"):
             self.required_permission = "org.member.offboard"
         elif self.request.method in ("GET", "HEAD", "OPTIONS"):
             self.required_permission = "org.member.read"
@@ -903,23 +931,6 @@ class MembershipAdminViewSet(
             "title": membership.title,
         }
 
-    @staticmethod
-    def _member_update_action(before, after):
-        """Pick the most specific audit action for a membership edit."""
-        if before["status"] != after["status"]:
-            if after["status"] == models.MembershipStatusChoices.SUSPENDED:
-                return models.AuditActionChoices.MEMBER_SUSPEND
-            if (
-                before["status"] == models.MembershipStatusChoices.SUSPENDED
-                and after["status"] == models.MembershipStatusChoices.ACTIVE
-            ):
-                return models.AuditActionChoices.MEMBER_RESTORE
-        if before["org_role"] != after["org_role"]:
-            return models.AuditActionChoices.MEMBER_ROLE_CHANGE
-        if before["department"] != after["department"]:
-            return models.AuditActionChoices.MEMBER_DEPARTMENT_CHANGE
-        return models.AuditActionChoices.MEMBER_UPDATE
-
     def perform_create(self, serializer):
         instance = serializer.save()
         record_audit(
@@ -938,44 +949,111 @@ class MembershipAdminViewSet(
         # Without this a scoped administrator can move somebody out of their own
         # scope, which is functionally deleting that person from the only admin
         # who was supposed to see them.
-        if "department" in serializer.validated_data:
+        data = serializer.validated_data
+        if "department" in data:
             self.assert_move_allowed(
                 serializer.instance.department,
-                serializer.validated_data["department"],
+                data["department"],
             )
+        # Role / status changes are not plain field writes: they take the
+        # organization lock, enforce the owner rules and write their own audit.
+        role = data.pop("org_role", serializers.empty)
+        new_status = data.pop("status", serializers.empty)
+
         before = self._member_snapshot(serializer.instance)
         label = self._member_label(serializer.instance)
-        instance = serializer.save()
-        after = self._member_snapshot(instance)
+        membership = serializer.instance
+
+        with transaction.atomic():
+            if role is not serializers.empty:
+                membership = membership_service.set_role(
+                    membership, actor=self.request.user, role=role
+                )
+            if new_status is not serializers.empty:
+                membership = membership_service.set_status(
+                    membership, actor=self.request.user, status=new_status
+                )
+            if data:
+                for field, value in data.items():
+                    setattr(membership, field, value)
+                membership.save(update_fields=[*data.keys(), "updated_at"])
+
+        serializer.instance = membership
+        after = self._member_snapshot(membership)
+        # Exclude fields the services already audited to avoid a second row.
         changes = {
-            key: {"from": before[key], "to": after[key]}
-            for key in after
-            if before[key] != after[key]
+            key: {"from": before[key], "to": current}
+            for key, current in after.items()
+            if key not in ("status", "org_role") and before[key] != current
         }
         if not changes:
             return
         record_audit(
             actor=self.request.user,
             organization=self.get_organization(),
-            action=self._member_update_action(before, after),
+            action=(
+                models.AuditActionChoices.MEMBER_DEPARTMENT_CHANGE
+                if "department" in changes
+                else models.AuditActionChoices.MEMBER_UPDATE
+            ),
             target_type="membership",
-            target_id=instance.id,
+            target_id=membership.id,
             target_label=label,
             metadata={"changes": changes},
         )
 
-    def perform_destroy(self, instance):
-        label = self._member_label(instance)
-        organization = instance.organization
-        target_id = instance.id
-        super().perform_destroy(instance)
-        record_audit(
-            actor=self.request.user,
-            organization=organization,
-            action=models.AuditActionChoices.MEMBER_REMOVE,
-            target_type="membership",
-            target_id=target_id,
-            target_label=label,
+    def destroy(self, request, *args, **kwargs):
+        # Hard DELETE bypassed every lifecycle side effect. Departure goes
+        # through ``offboard``; cleaning up a departed row goes through ``purge``.
+        raise exceptions.MethodNotAllowed(
+            request.method,
+            detail=_("Use offboard or purge instead of deleting a membership."),
+        )
+
+    # --- ownership ----------------------------------------------------------
+
+    @action(detail=True, methods=["post"], url_path="transfer-owner")
+    def transfer_owner(self, request, *args, **kwargs):
+        """Transfer the caller's own owner role to this member."""
+        target = self.get_object()
+        organization = self.get_organization()
+        # A user may hold several memberships here; only an OWNER row may be
+        # the source, and the console's primary row is not necessarily the
+        # owner one.
+        actor_membership = (
+            models.Membership.objects.filter(
+                user=request.user,
+                organization=organization,
+                status=models.MembershipStatusChoices.ACTIVE,
+                org_role=models.OrgRoleChoices.OWNER,
+            )
+            .order_by("-is_primary", "created_at")
+            .first()
+        )
+        if actor_membership is None:
+            raise ownership.OwnershipError(
+                "not_organization_owner",
+                "Only an active owner can transfer ownership.",
+                status.HTTP_403_FORBIDDEN,
+            )
+
+        actor, target = ownership.transfer_ownership(
+            actor_membership=actor_membership, target_membership=target
+        )
+        return Response(
+            {
+                "transferred": True,
+                "target": {
+                    "id": str(target.id),
+                    "user_id": str(target.user_id),
+                    "org_role": target.org_role,
+                    "status": target.status,
+                },
+                "actor": {
+                    "membership_id": str(actor.id),
+                    "org_role": actor.org_role,
+                },
+            }
         )
 
     # --- lifecycle (P10 M1) -------------------------------------------------
@@ -1218,14 +1296,10 @@ class OrgDictItemViewSet(
         )
 
     def perform_create(self, serializer):
-        self._audit(
-            serializer.save(), models.AuditActionChoices.DICT_ITEM_CREATE
-        )
+        self._audit(serializer.save(), models.AuditActionChoices.DICT_ITEM_CREATE)
 
     def perform_update(self, serializer):
-        self._audit(
-            serializer.save(), models.AuditActionChoices.DICT_ITEM_UPDATE
-        )
+        self._audit(serializer.save(), models.AuditActionChoices.DICT_ITEM_UPDATE)
 
     def perform_destroy(self, instance):
         if instance.is_builtin:
@@ -1237,9 +1311,7 @@ class OrgDictItemViewSet(
                 }
             )
         in_use = models.Membership.objects.filter(
-            Q(employee_type=instance)
-            | Q(job_level=instance)
-            | Q(job_sequence=instance)
+            Q(employee_type=instance) | Q(job_level=instance) | Q(job_sequence=instance)
         ).count()
         if in_use:
             raise serializers.ValidationError(

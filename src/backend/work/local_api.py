@@ -6,7 +6,7 @@ from rest_framework import serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import local_runs
+from . import access, local_runs
 from .api import WorkUser
 from .services import MaterialError
 from .task_api import SourceInput, run_data, task_data
@@ -111,6 +111,7 @@ class SyncInput(ClaimInput):
 
 class DeviceView(APIView):
     permission_classes = [WorkUser]
+    work_feature = "local"
 
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)
@@ -128,7 +129,10 @@ class DeviceView(APIView):
         form = DeviceInput(data=request.data)
         form.is_valid(raise_exception=True)
         device = local_runs.register(
-            request.user, form.validated_data["device_id"], form.validated_data["name"]
+            request.user,
+            form.validated_data["device_id"],
+            form.validated_data["name"],
+            access.request_organization_id(request),
         )
         return Response({"contract": local_runs.CONTRACT, "device_id": str(device.pk)})
 
@@ -137,7 +141,11 @@ class LocalAdmissionView(DeviceView):
     def post(self, request):
         form = AdmissionInput(data=request.data)
         form.is_valid(raise_exception=True)
-        run, created = local_runs.admit(request.user, form.validated_data)
+        run, created = local_runs.admit(
+            request.user,
+            form.validated_data,
+            organization_id=access.request_organization_id(request),
+        )
         return Response(
             {
                 "contract": local_runs.CONTRACT,
@@ -158,10 +166,13 @@ class LocalRunView(DeviceView):
         form = form_class(data=request.data)
         form.is_valid(raise_exception=True)
         data = form.validated_data
+        organization_id = access.request_organization_id(request)
         if self.operation == "claim":
-            value = local_runs.claim(request.user, pk, data["device_id"])
+            value = local_runs.claim(
+                request.user, pk, data["device_id"], organization_id
+            )
         elif self.operation == "report":
-            value = local_runs.report(request.user, pk, data)
+            value = local_runs.report(request.user, pk, data, organization_id)
         else:
-            value = local_runs.sync_files(request.user, pk, data)
+            value = local_runs.sync_files(request.user, pk, data, organization_id)
         return Response(value)

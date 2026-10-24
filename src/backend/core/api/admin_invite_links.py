@@ -6,14 +6,14 @@ cannot place a person outside it — the same bidirectional check the member
 endpoints got in M2-f, reused rather than re-derived, because a second
 implementation of "is this in my scope" is a second thing to get wrong.
 """
+# pylint: disable=missing-class-docstring,missing-function-docstring
 
 from datetime import timedelta
 
-from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from rest_framework import mixins, serializers, status, viewsets
+from rest_framework import mixins, serializers, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -90,6 +90,11 @@ class InviteLinkCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 _("That department is not in your organization.")
             )
+        return value
+
+    def validate_org_role(self, value):
+        if value == models.OrgRoleChoices.OWNER:
+            raise serializers.ValidationError(_("Invite links cannot grant ownership."))
         return value
 
     def _organization(self):
@@ -274,7 +279,9 @@ class JoinRequestViewSet(
             # must not place the person outside the reviewer's scope.
             self.assert_in_scope(
                 department,
-                message=_("You cannot place someone outside the departments you administer."),
+                message=_(
+                    "You cannot place someone outside the departments you administer."
+                ),
             )
         try:
             invite_links.approve_request(

@@ -143,7 +143,10 @@ def test_review_ownership_selection_and_budget(client, settings):
     settings.WORK_DAILY_TOKEN_BUDGET = 21000
     assert submit_review(client, run).status_code == 202
     # The same owner ledger also protects new execution and communication tasks.
-    assert agent_runs.runs.daily_reserved(run.task.owner_id) == 20035
+    assert (
+        agent_runs.runs.daily_reserved(run.task.owner_id, run.task.organization_id)
+        == 20035
+    )
 
 
 def test_review_requires_success_and_independent_configuration(client, settings):

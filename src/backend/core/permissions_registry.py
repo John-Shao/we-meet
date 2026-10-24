@@ -50,6 +50,12 @@ PERMISSIONS: dict[str, tuple[object, str]] = {
     # --- bulk operations ---
     "org.import.write": (_("Import and export members"), "operations"),
     "org.meeting_room.write": (_("Manage meeting rooms"), "operations"),
+    # Work seats are organization governance, not a Work-domain-only right:
+    # granting one spends the tenant's money and hands out AI access. ``write``
+    # is seeded into no built-in role (same reasoning as ``org.bot.secret.read``);
+    # the owner has to tick it explicitly.
+    "org.work_grant.read": (_("View Work seat grants"), "operations"),
+    "org.work_grant.write": (_("Manage Work seat grants"), "operations"),
     # --- observability ---
     "org.audit.read": (_("View the audit log"), "governance"),
     "org.stats.read": (_("View the dashboard"), "governance"),
@@ -103,6 +109,7 @@ BUILTIN_ROLES: dict[str, tuple[object, frozenset[str]]] = {
                 "org.import.write",
                 "org.group.read",
                 "org.stats.read",
+                "org.work_grant.read",
             }
         ),
     ),
@@ -124,6 +131,7 @@ BUILTIN_ROLES: dict[str, tuple[object, frozenset[str]]] = {
                 # 撤销权限收不回已经泄露的凭据。要它得 owner 明确勾选。
                 "org.bot.read",
                 "org.bot.write",
+                "org.work_grant.read",
             }
         ),
     ),
@@ -135,6 +143,7 @@ BUILTIN_ROLES: dict[str, tuple[object, frozenset[str]]] = {
                 "org.member.read",
                 "org.meeting_room.write",
                 "org.stats.read",
+                "org.work_grant.read",
             }
         ),
     ),

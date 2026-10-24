@@ -240,7 +240,12 @@ export const Home = () => {
     checkSiteAndRedirect()
   }, [isLoggedIn, data])
 
-  if (data?.external_home_url && !window.weMeetDesktop?.isDesktop && isLoggedIn == false && !redirectFailed) {
+  if (
+    data?.external_home_url &&
+    !window.weMeetDesktop?.isDesktop &&
+    isLoggedIn == false &&
+    !redirectFailed
+  ) {
     return <LoadingScreen header={false} footer={false} delay={0} />
   }
 

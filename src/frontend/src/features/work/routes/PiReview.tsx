@@ -10,6 +10,7 @@ const states = {
   succeeded: '复核完成',
   failed: '复核失败',
   canceled: '已取消复核',
+  access_revoked: '访问权限已撤销',
 }
 const verdicts = {
   no_issues: '在提供的材料中未发现问题',

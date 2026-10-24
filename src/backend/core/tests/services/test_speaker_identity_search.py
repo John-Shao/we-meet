@@ -7,6 +7,7 @@ import pytest
 from core import models
 from core.factories import MembershipFactory, UserFactory
 from core.services.meeting_search import CONTEXT_CHARS, recall_records
+from core.services.membership import left_transition
 from core.tests.services.test_meeting_records import client_for, online_note
 from core.tests.services.test_speaker_attribution import org_record
 from core.tests.services.test_speaker_identity_decisions import decide
@@ -117,7 +118,8 @@ def test_confirmed_names_do_not_widen_transcript_access(summary_only):
     grant.save()
     assert_search(reader, record, "访谈嘉宾")
     membership.status = models.MembershipStatusChoices.LEFT
-    membership.save(update_fields=["status"])
+    with left_transition():
+        membership.save(update_fields=["status"])
     assert recall_records(reader, ["访谈嘉宾"], []) == []
     assert client_for(reader).get(path, {"q": "访谈嘉宾"}).status_code == 404
     membership.status = models.MembershipStatusChoices.ACTIVE

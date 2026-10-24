@@ -17,7 +17,9 @@ services:
 
   minio:
     user: ${DOCKER_USER:-1000}
-    image: minio/minio
+    # MinIO removed its Docker Hub images in September 2026; use the maintained
+    # fork, pinned to a release so local and CI environments stay reproducible.
+    image: docker.io/pgsty/silo:RELEASE.2026-10-18T00-00-00Z
     environment:
       - MINIO_ROOT_USER=meet
       - MINIO_ROOT_PASSWORD=password
@@ -29,13 +31,12 @@ services:
       interval: 1s
       timeout: 20s
       retries: 300
-    entrypoint: ""
-    command: minio server --console-address :9001 /data
+    command: server --console-address :9001 /data
     volumes:
       - ./data/media:/data
 
   createbuckets:
-    image: minio/mc
+    image: docker.io/pgsty/silo:RELEASE.2026-10-18T00-00-00Z
     depends_on:
       minio:
         condition: service_healthy
@@ -48,7 +49,7 @@ services:
       exit 0;"
 
   createwebhook:
-    image: minio/mc
+    image: docker.io/pgsty/silo:RELEASE.2026-10-18T00-00-00Z
     depends_on:
       minio:
         condition: service_healthy

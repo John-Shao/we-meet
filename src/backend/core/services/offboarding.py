@@ -24,7 +24,9 @@ from rest_framework import serializers
 
 from core import models
 from core.services.audit import record_audit
+from core.services.membership import lock_organization
 from core.services.task_permissions import annotate_task_list_owners
+from core.signals import membership_left
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,18 @@ def _member_label(membership) -> str:
     return user.full_name or user.email or str(user.sub or user.id)
 
 
+def _lock_membership(membership):
+    """Lock the organization, then the membership row, and re-read it.
+
+    Same order as every other membership write (organization → membership).
+    Re-reading under the lock is what makes the last-owner guard meaningful:
+    without it two concurrent departures each see the other owner as present
+    and both commit, leaving the organization with none.
+    """
+    lock_organization(membership.organization_id)
+    return models.Membership.objects.select_for_update().get(pk=membership.pk)
+
+
 def assert_can_offboard(membership, actor) -> None:
     """Guards that must hold before a member may be offboarded.
 
@@ -48,7 +62,7 @@ def assert_can_offboard(membership, actor) -> None:
     enforces for suspension — offboarding is a stronger form of the same thing
     and must not be a way around them.
     """
-    if membership.user_id == actor.id:
+    if actor is not None and membership.user_id == actor.id:
         raise OffboardError({"detail": _("You cannot offboard yourself.")})
 
     if membership.status == LEFT:
@@ -116,7 +130,7 @@ def collect_owned_resources(membership) -> dict:
 
 
 @transaction.atomic
-def offboard_membership(
+def offboard_membership(  # noqa: PLR0913 -- explicit offboarding options.
     membership,
     *,
     actor,
@@ -125,12 +139,18 @@ def offboard_membership(
     transfer_head_to=None,
     allow_orphan_head: bool = False,
     disable_login: bool = True,
+    initiated_by: str = "console",
 ) -> dict:
     """Mark a membership as ``LEFT`` and settle what it leaves behind.
 
     Returns a small report the console shows after the fact (what was
     reassigned, what was orphaned).
+
+    ``actor`` is ``None`` for system-initiated departures (identity webhooks);
+    ``initiated_by`` keeps the audit trail attributable in that case.
     """
+    original = membership
+    membership = _lock_membership(membership)
     assert_can_offboard(membership, actor)
 
     organization = membership.organization
@@ -184,7 +204,25 @@ def offboard_membership(
     # Must clear: the partial unique constraint on (user, organization) where
     # is_primary would otherwise block this person being rehired later.
     membership.is_primary = False
-    membership.save()
+    from core.services.membership import (  # noqa: PLC0415 -- avoid import cycle
+        left_transition,
+    )
+
+    with left_transition():
+        membership.save()
+
+    # Callers keep the instance they passed in; leave it in sync with the
+    # locked row this function actually wrote.
+    original.refresh_from_db()
+
+    membership_left.send(
+        sender=type(membership),
+        membership=membership,
+        actor=actor,
+        reason=reason,
+        left_at=membership.left_at,
+        initiated_by=initiated_by,
+    )
 
     owned = collect_owned_resources(membership)
 
@@ -198,6 +236,7 @@ def offboard_membership(
         metadata={
             "left_at": membership.left_at.isoformat(),
             "reason": reason,
+            "initiated_by": initiated_by,
             "snapshot": snapshot,
             "headed_departments_transferred": [str(d.id) for d in headed],
             "new_head": str(new_head_user.id) if new_head_user else None,
@@ -228,7 +267,7 @@ def offboard_membership(
 def _schedule_login_disable(user, organization, actor):
     """Kick the Keycloak disable task, swallowing dispatch errors."""
     # Imported here so importing this module never drags in Celery wiring.
-    from core.tasks.offboarding import (  # pylint: disable=import-outside-toplevel
+    from core.tasks.offboarding import (  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
         disable_keycloak_login,
     )
 
@@ -250,6 +289,8 @@ def rehire_membership(membership, *, actor, department=None, org_role=None) -> N
     ``unique(user, department)`` from blowing up when someone returns to the
     department they left.
     """
+    original = membership
+    membership = _lock_membership(membership)
     if membership.status != LEFT:
         raise OffboardError({"detail": _("This member has not left.")})
 
@@ -266,8 +307,13 @@ def rehire_membership(membership, *, actor, department=None, org_role=None) -> N
                 {"department": _("The department must be in the same organization.")}
             )
         membership.department = department
-    if org_role is not None:
-        membership.org_role = org_role
+    # Rehire never restores ownership: the pre-departure OWNER role would come
+    # back without the owner-only grant path being exercised.
+    if org_role == models.OrgRoleChoices.OWNER:
+        raise OffboardError(
+            {"org_role": _("Ownership must be granted by an active owner.")}
+        )
+    membership.org_role = org_role or models.OrgRoleChoices.MEMBER
 
     membership.status = ACTIVE
     membership.left_at = None
@@ -282,6 +328,7 @@ def rehire_membership(membership, *, actor, department=None, org_role=None) -> N
         .exists()
     )
     membership.save()
+    original.refresh_from_db()
 
     record_audit(
         actor=actor,
@@ -294,7 +341,7 @@ def rehire_membership(membership, *, actor, department=None, org_role=None) -> N
     )
 
     if membership.user.sub:
-        from core.tasks.offboarding import (  # pylint: disable=import-outside-toplevel
+        from core.tasks.offboarding import (  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
             enable_keycloak_login,
         )
 

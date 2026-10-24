@@ -7,6 +7,7 @@ from rest_framework.test import APIClient
 
 from core import models
 from core.factories import MembershipFactory, OrganizationFactory, UserFactory
+from core.services.membership import left_transition
 from core.tests.services.test_meeting_records import client_for
 from core.tests.services.test_voiceprint_consent import enabled, profile_for
 
@@ -26,7 +27,8 @@ def test_only_own_active_orgs_with_minimal_policy_and_role():
     MembershipFactory(user=UserFactory(), organization=OrganizationFactory())
     inactive = MembershipFactory(user=user, organization=OrganizationFactory())
     inactive.status = models.MembershipStatusChoices.LEFT
-    inactive.save(update_fields=["status"])
+    with left_transition():
+        inactive.save(update_fields=["status"])
     response = client_for(user).get(URL)
     assert response.status_code == 200
     assert response["Cache-Control"] == "private, no-store"

@@ -15,7 +15,7 @@ from django.utils import timezone
 
 from core.services.ai_usage import record_usage
 
-from . import rollout, runs
+from . import access, rollout, runs
 from .agent_client import CONTRACT, AgentBoundaryError, AgentClient
 from .executor import MAX_ARTIFACT_CHARS
 from .models import WorkArtifactFile, WorkArtifactVersion, WorkRun
@@ -71,8 +71,8 @@ def new_agent_run(task, key):
     output = min(settings.WORK_MAX_OUTPUT_TOKENS, 4096)
     if budget < output + 1024:
         raise MaterialError("generation_unavailable", 503)
-    used = runs.daily_reserved(task.owner_id)
-    if used + budget > settings.WORK_DAILY_TOKEN_BUDGET:
+    used = runs.daily_reserved(task.owner_id, task.organization_id)
+    if used + budget > runs.daily_budget(task.organization_id):
         raise MaterialError("budget_exceeded", 429)
     run_id = uuid.uuid4()
     payload = {
@@ -106,12 +106,19 @@ def claim(exclude):
     now = timezone.now()
     run = (
         WorkRun.objects.select_for_update(skip_locked=True)
+        .select_related("task")
         .filter(task__kind="office_agent", execution_target="cloud", agent_done=False)
         .exclude(pk__in=exclude)
         .filter(Q(lease_until__isnull=True) | Q(lease_until__lt=now))
         .first()
     )
     if run:
+        code = access.check(run.task.owner, run.task.organization_id)
+        if code == "access_unavailable":
+            return None
+        if code:
+            runs.terminal(run, runs.failure_status(code), code)
+            return None
         run.agent_generation += 1
         run.lease_until = now + timedelta(seconds=45)
         run.save(update_fields=["agent_generation", "lease_until"])
@@ -251,6 +258,11 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
             if current.status in runs.ACTIVE:
                 try:
                     runs.sources_for(current.task)
+                    code = access.check(
+                        current.task.owner, current.task.organization_id
+                    )
+                    if code:
+                        raise MaterialError(code)
                     if (
                         not configured(current.task.owner)
                         or endpoint != current.base_url
@@ -258,7 +270,8 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
                     ):
                         raise MaterialError("generation_unavailable")
                 except MaterialError as exc:
-                    runs.terminal(current, "failed", exc.code)
+                    if exc.code != "access_unavailable":
+                        runs.terminal(current, runs.failure_status(exc.code), exc.code)
             if current.status not in runs.ACTIVE and not current.call_started_at:
                 current.agent_done = True
                 current.reserved_tokens = 0
@@ -332,7 +345,8 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
                         current.status = "running"
                         runs.event(current, "running")
                 except MaterialError as exc:
-                    runs.terminal(current, "failed", exc.code)
+                    if exc.code != "access_unavailable":
+                        runs.terminal(current, runs.failure_status(exc.code), exc.code)
             remote_terminal = value["state"] in {"succeeded", "failed", "cancelled"}
             # Unknown usage remains visible and reserved. Allow 60s for in-flight drain.
             grace_over = (
@@ -354,6 +368,7 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
                 return
             # Transport ambiguity stays recoverable with the same run ID.
             transient = exc.code in {
+                "access_unavailable",
                 "agent_transport_unknown",
                 "agent_http_429",
                 "agent_http_500",
@@ -362,13 +377,16 @@ def reconcile(run):  # noqa: PLR0912, PLR0915 -- fenced admission/delivery/cance
                 "agent_http_504",
             }
             if not transient and current.status in runs.ACTIVE:
-                runs.terminal(
-                    current,
-                    "failed",
-                    "agent_contract_mismatch"
-                    if exc.code == "agent_contract_mismatch"
-                    else "agent_unavailable",
-                )
+                if isinstance(exc, MaterialError) and exc.code in access.DENIAL_CODES:
+                    runs.terminal(current, runs.failure_status(exc.code), exc.code)
+                else:
+                    runs.terminal(
+                        current,
+                        "failed",
+                        "agent_contract_mismatch"
+                        if exc.code == "agent_contract_mismatch"
+                        else "agent_unavailable",
+                    )
             if exc.code == "agent_http_404" and current.status not in runs.ACTIVE:
                 # Could race an earlier admission. Keep cancellation pending after submission.
                 current.agent_done = not bool(current.call_started_at)

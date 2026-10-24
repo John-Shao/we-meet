@@ -48,13 +48,25 @@ def client():
 
 
 def upload(
-    client, *, data=b"Background\r\nReview plan\n", name="notes.md", key=None, **extra
+    client,
+    *,
+    data=b"Background\r\nReview plan\n",
+    name="notes.md",
+    key=None,
+    organization_id=None,
+    **extra,
 ):
+    request_extra = (
+        {"HTTP_X_ORGANIZATION_ID": str(organization_id)}
+        if organization_id is not None
+        else {}
+    )
     return client.post(
         ROOT,
         {"file": SimpleUploadedFile(name, data), **extra},
         format="multipart",
         HTTP_IDEMPOTENCY_KEY=str(key or uuid.uuid4()),
+        **request_extra,
     )
 
 

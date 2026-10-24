@@ -42,6 +42,9 @@ and this project adheres to
 
 ### Changed
 
+- 🔧(ci) run the full suite on every `aliyun-dev` push, so the development
+  baseline is re-verified after a merge instead of rotting between PRs
+
 - Improve meeting library filters, empty-search recovery and narrow-screen
   recording layouts; align filter interactions with the Android app.
 
@@ -174,6 +177,22 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(backend) report a meeting-room booking that loses a database deadlock as
+  a room conflict instead of a 500, so two simultaneous bookings still yield
+  one 201 and one 409
+- 🩹(ci) scope the backend and agents ruff checks to files touched by the
+  change, and repair the summary, E2E and frontend image baselines so the
+  development branch can stay green
+- 🩹(ci) quarantine the known backend and task E2E failures so new
+  regressions are still caught while the existing debt is paid down
+- 🩹(ci) drop the three quarantined backend tests that only failed because
+  xdist workers shared one cache database; the other 79 still fail on their
+  own and stay quarantined
+- 🔧(deploy) replace the removed MinIO Docker Hub images with the maintained
+  `pgsty/silo` fork in Compose, Helm and the RTC probe
+- 🐛(backend) give every pytest-xdist worker its own Redis cache database:
+  suites that call `cache.clear()` wiped the sessions and rate-limit counters
+  of the sibling worker on the shared database, turning the API tests flaky
 - 🩹(deploy) derive image tags from the first nine characters of the full
   commit SHA in both build-and-push.sh and release-meet.sh. `git rev-parse
   --short` abbreviates by repository size, so the build host pushed
