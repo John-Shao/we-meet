@@ -1,6 +1,6 @@
 # WeMeet 工作系统架构设计
 
-> 版本：v1.6（clean-slate 目标架构；补充H12对账实验结果，其余准入实验仍未执行）
+> 版本：v2.4（clean-slate 目标架构；补充S1–S6首轮验证状态）
 >
 > 日期：2026-10-25
 >
@@ -201,7 +201,7 @@ flowchart TB
 | Web UI | TypeScript + React；TanStack Query 管服务端状态 | 类型契约、复杂工作区和组件生态；不将服务端业务状态复制到多个 store |
 | 桌面壳 | Electron + 同一 Web UI | 跨端交互与 Web 共享；关闭 Node integration，开启 context isolation/sandbox |
 | 控制面/编排/网关 | Go；HTTP/JSON、内部 gRPC | 长连接、资源占用、并发与静态契约适合控制面；不用它承担模型生态适配 |
-| Agent Runtime | TypeScript/Node + Pi agent-core + Work Adapter，端云同核 | 可替换streamFn与全部工具；不引入完整coding-agent；会话恢复与治理由Work负责，§3.8准入实验未执行 |
+| Agent Runtime | TypeScript/Node + Pi agent-core + Work Adapter，端云同核 | 可替换streamFn与全部工具；不引入完整coding-agent；会话恢复与治理由Work负责；§3.8准入门槛H01–H10/H12已执行，H11未触发 |
 | 本机 Agent / ToolBroker | Rust 守护进程 + 独立受限Node sidecar | OS 文件句柄、进程与协议安全；Rust/Node均不是沙箱；不在Electron渲染层运行Agent |
 | 数据处理/转换工具 | Python等审核后的隔离工具进程 | 仅按工具需要引入，不作为默认端云Agent循环宿主 |
 | 持久编排 | Temporal，Go SDK | 审批等待、定时器、重放恢复、Worker 升级；承受独立运维与历史存储成本 |
@@ -323,9 +323,10 @@ Go / Temporal：派发、等待、取消、核对
 
 - `Agent.subscribe()`监听器会被await，`message_end`在工具preflight前形成处理屏障；裸`agentLoop()`/`agentLoopContinue()`事件流只是观察，不等待异步消费者持久化。**首选Agent类，不拿裸事件监听当防重放屏障。**
 - `beforeToolCall`可以阻断，但抛出工具错误通常会变成发回模型的error；`terminate:true`仅当整批工具结果都标记终止时才跳过下一轮。不能把“待审批”伪装为普通工具错误并期待模型自己等。
-- 全局工具执行显式设为`sequential`；初期不并发执行同一模型响应里的多项工具。即便顺序执行，审批/unknown发生后仍须Driver阻止整批剩余动作和下一次模型请求，streamFn与Broker分别守卫。
+- 全局工具执行显式设为`sequential`；初期不并发执行同一模型响应里的多项工具。即便顺序执行，审批/unknown发生后仍须Driver阻止整批剩余动作和下一次模型请求，streamFn与Broker分别守卫。H07确认：未设`sequential`时Pi会先并行预检整批工具，撤权/预算/租约钩子会在任何执行前全部通过；生产必须顺序执行并在提交前再次复验。
 - `continue()`不等于任意断点恢复，尤其不能直接把以assistant工具请求结尾的半轮交给它重跑；先从Work账本核对并补齐该轮真实工具回执，再构造合法上下文继续。
 - `finishTurn`/prepareRequest可作为受控轮次边界；驱动器仍需在模型完整响应、工具派发前、工具回执后落自己的checkpoint，不能只在turn_end保存。
+- 所查适配器对未知provider默认按OpenAI语义发送`store`、developer角色与`max_completion_tokens`；接入DashScope等兼容服务必须显式固定compat profile（`max_tokens`字段、关闭`store`/developer角色/`reasoning_effort`），不能依赖自动探测。本次H02已按此配置。
 
 建议的Adapter合同（Work设计，不是Pi现有API承诺）：
 
@@ -350,7 +351,8 @@ Operation key由Work生成，例如`(run_id, turn_seq, model_request_seq)`和`(r
 ### 3.7 分发、许可证和版本治理
 
 - 端侧将固定Node LTS、Work Runtime bundle、必要依赖随签名包分发；不要求用户全局npm安装，不在启动时下载npm包，不依赖个人订阅登录。
-- Pi包要求Node≥22.19仅是上游声明；具体LTS版本、Windows x64/ARM64、隔离profile兼容性需H01验证，不能因为Electron自带Node就把Harness塞进主进程。
+- H01实测：Node 24 + Pi/依赖bundle约161MB；用户级安装、快捷方式、卸载与内嵌哈希校验可行；自签名只证明签名与篡改检测机制，正式发布仍需可信CA/EV签名与时间戳。
+- Pi包要求Node≥22.19仅是上游声明；Windows x64基本启动已由H01验证，ARM64、隔离profile兼容性与生产安装器仍需验证，不能因为Electron自带Node就把Harness塞进主进程。
 - 云侧使用同一bundle与锁定依赖的OCI镜像，平台native依赖分别构建；不宣传Windows包和Linux镜像是同一二进制。
 - 保留MIT/Apache等许可证和NOTICE，审查pi-ai及其他传递依赖、Node与打包附件；开源许可证不授予模型服务、商标或任意再训练权利。
 - 默认不fork；固定semver + lockfile integrity +源码revision +镜像digest；所有升级先跑强制准入H01–H10/H12。H11只在§3.8“首选失败”条件命中后触发，不纳入日常升级矩阵。长运行绑定旧runtime_version，恢复使用对应兼容版本，不自动迁移半轮状态。
@@ -360,7 +362,7 @@ Operation key由Work生成，例如`(run_id, turn_seq, model_request_seq)`和`(r
 
 ### 3.8 Harness 准入实验
 
-本轮完成源码/官方文档研究，并在仓库外实验目录安装了Pi 1.4.0核对导出API；随后以faux/mock模型执行了H03–H05与H12，其余实验未执行、未调用付费模型，故不宣称包体、延迟、内存、模型兼容或生产崩溃恢复已经达标。实验目录不进入仓库，不预装任何备选Harness。
+本轮完成源码/官方文档研究，并在仓库外实验目录安装了Pi 1.4.0核对导出API；H03–H05/H12以faux/mock模型执行，H02以qwen3.8-flash、deepseek-chat、doubao-seed-2-1-lite各执行3次真实流式请求，H01以161MB用户级安装包在模拟干净环境执行安装/签名/启动/卸载，H06在非管理员Windows上以AppContainer+Node permission model执行隔离对照，H07–H09以mock控制账本/端云适配/上下文场景执行，H10以真实Pi 1.3.0与1.4.0做跨版本恢复，H11因H03–H05通过而未触发；S1–S6未执行。故仍不宣称包体、延迟、内存、多供应商兼容或生产崩溃恢复已经达标。实验目录不进入仓库，不预装任何备选Harness。
 
 | ID | 实验 | 通过条件 |
 |---|---|---|
@@ -380,19 +382,29 @@ Operation key由Work生成，例如`(run_id, turn_seq, model_request_seq)`和`(r
 执行顺序与前置条件：
 
 - H03/H04/H05/H12可用faux/mock模型提供者先行，不需要付费Key；H02需要已批准的模型Key与实验预算，由产品/商务先定案再执行。
-- H02–H05/H12是R0a云端Runtime的go/no-go；H01/H06/H08是R0b本机Runtime的go/no-go；H07/H09/H10在R0a上线前完成。
+- H02–H05/H12是R0a云端Runtime的go/no-go；H01/H06/H08是R0b本机Runtime的go/no-go；H07/H09/H10已执行（见下表）。
 - 失败时不默认增加第二套云端Python Harness；开发任务与生产接入在验证后单独安排。
 
 首轮执行记录（2026-10-25；Windows x64 / Node 24.15.0 / Pi agent-core 1.4.0 / faux脚本模型；实验目录`temp/harness-lab/experiments`，不进入仓库）：
 
 | 实验 | 结果 | 关键证据 |
 |---|---|---|
+| H01 | 部分通过（干净环境模拟/自签名） | 161MB用户级安装包（node.exe+Pi依赖bundle）：安装写文件、开始菜单快捷方式与HKCU卸载项；PATH仅System32、临时HOME下启动已安装sidecar，node.exe为包内二进制，Pi文本+工具用例通过，无npm/python/git调用、0网络、0授权外读取；篡改node.exe或缺文件时哈希校验exit 3，PATH含系统Node也不降级；自签名+中段篡改→`HashMismatch`；卸载删除文件/快捷方式/注册表。未验证可信CA/时间戳、MSI/EXE安装器与回滚、干净VM、已安装sidecar的AppContainer profile。 |
+| H02 | 部分通过（三家云端provider/两种协议） | Qwen与DeepSeek走Chat Completions，豆包走Responses；各3次流式请求均200并带usage（Qwen 1126、DeepSeek 743、豆包1383 tokens）：文本流与工具调用（get_time→2轮）全部通过；Qwen `reasoning_content`与豆包reasoning summary均与公共文本分离；Runtime不持Key，运行期网络仅连127.0.0.1。无本地模型（确认无本地部署）；未测云端网关鉴权/配额/限流。 |
 | H03 | 通过（mock） | 3工具同轮：A执行1次，B进入待审批，其后的C被阻止；进程正常退出，无常驻等待；重启批准后B、C各执行1次，A不重跑，仅发起1次续接模型请求。反证：仅靠工具结果的`terminate`时，B被阻止后Pi仍发起下一轮请求，必须由Driver在轮次边界停止。 |
 | H04 | 通过（mock日志） | 已受理模型断流→Operation unknown、预留保留、无自动重试；工具完成但回执丢失→从journal恢复回执且不重跑；派发前崩溃→安全派发1次；模型消息未落检查点→Operation unknown且不重发；journal仅`started`→unknown且不合成成功回执。 |
 | H05 | 通过（mock） | 临时HOME/CWD放入`.pi`配置、技能、`.mcp.json`、`.npmrc`、AWS/SSH凭据、`.env`，且HOME/USERPROFILE确已生效：0次读取、0次网络连接、0个子进程，转写与输出不含注入值；两轮对话恰有2次模型请求，无后台摘要/预热。agent-core静态扫描无配置/MCP/遥测代码。 |
+| H06 | 部分通过（AppContainer+permission） | 非管理员Windows创建AppContainer profile并运行Node：允许目录读写成功；grant外secret、用户目录、junction目标均`EPERM`/`ERR_ACCESS_DENIED`；默认无网络能力，loopback `ETIMEDOUT`、外网`EACCES`；叠加`--permission`后子进程spawn被`ERR_ACCESS_DENIED`拒绝。对照组：普通进程可读secret/junction/user、可spawn cmd、可连loopback；仅permission model时**junction读取成功**且loopback可连。 |
+| H07 | 通过（mock控制账本） | 5场景：批次内撤权后仅已提交工具生效、后续工具阻止且无下一轮模型请求；提交前撤权无副作用；预算耗尽/租约过期阻止后续工具；流式中止保持模型Operation unknown、不重试、不把token停止当作副作用已取消；发现未设`sequential`时Pi会先并行预检全部工具，生产必须顺序+提交前复验。 |
+| H08 | 通过（mock端云适配） | 同一用例/快照在local与cloud的规范化事件序列、终态和工具副作用一致；本机文件secret与checkpoint未出现在模型上下文或云端状态，仅获准摘录跨端；审批拒绝在两端同态。 |
+| H09 | 通过（mock上下文/恶意来源） | 超限显式摘要：独立summary Operation与cost=5；关闭摘要时返回`context_overflow`且0次provider调用；公共文本不含reasoning；未注册工具被拒绝、工具集不变、无副作用。 |
+| H10 | 通过（真实1.3.0↔1.4.0） | 1.3.0写入pending审批checkpoint，1.4.0升级恢复：A不重跑、B执行1次、审批哈希不变、仅1次续接模型请求；反向回退同样通过；schemaVersion=99或runtimeVersion主版本不匹配时拒绝恢复且无执行。 |
+| H11 | 未触发（条件不满足） | H03–H05硬门槛均通过，按§3.8前提不启动OpenAI Agents SDK备选；未安装、未适配、未运行。 |
 | H12 | 通过（mock/内存账本） | 正常两轮Run：2次收费模型调用与2个模型Operation、1个工具Operation一一对应，收费=结算=12单位；同一模型/工具回执各投递3次只结算1次；重复outbox、重复命令与双消费者竞争均被抑制，副作用各1次；unknown经查询结算不新增attempt或收费；人为制造的孤儿收费与无收费Operation均被审计发现。 |
 
-这些结果只覆盖Pi内核与Work Adapter在脚本模型、单机进程边界上的行为，不覆盖H01/H02/H06–H11、真实供应商协议、OS隔离、租约/fencing、真实账本与故障注入，不能据此宣布Harness准入通过。H12的对账结论限于内存账本与模拟投递：未验证PostgreSQL唯一约束/事务、多进程并发消费者、供应商幂等与查询接口、真实网络边界。
+**首轮实验阶段状态：已收口（2026-10-25）。** H01、H02、H06为部分通过；H03–H05、H07–H10、H12为通过；H11未触发；S1–S6未执行。收口只表示Harness准入实验批次结束，不表示S7通过或系统开发/生产安全就绪；未覆盖项见下段。
+
+这些结果只覆盖Pi内核与Work Adapter在脚本模型、单机进程边界上的行为，不覆盖S1–S6的生产验证（真实PG/Temporal/账本、并发消费者、真实设备/网关、容量）与H11条件备选（未触发），不能据此宣布Harness准入通过。H07–H10结论限于mock控制账本/端云适配/上下文场景与Work自有checkpoint：H07未接真实DB/租约/预算；H08未接真实设备与云端内容存储；H09使用字符估算与mock摘要，未接真实tokenizer/压缩；H10使用真实Pi 1.3.0/1.4.0但未验证容器镜像回退与半轮迁移。H02覆盖三家云端provider与两种线协议：Chat Completions使用`messages`/通用delta，usage在Qwen为`completion_tokens_details.reasoning_tokens`、在DeepSeek为`prompt_cache_hit_tokens`/`miss`；Responses使用`input`/`response.*`类型化事件，usage为`output_tokens_details.reasoning_tokens`，并返回reasoning summary与`encrypted_content`。网关必须按API类型归一消息、工具调用、reasoning与usage，`encrypted_content`不得进入公共输出或默认留存；DeepSeek对请求模型`deepseek-chat`返回`model=deepseek-flash`，快照只能记录请求别名与响应元数据。本地网关代持Key，但未验证云端网关鉴权、配额、超时与回退。H01的结论限于当前Windows上的模拟干净环境与自签名：安装器为PowerShell用户级而非MSI/EXE，未验证干净VM、每机器安装、回滚、可信CA/EV签名与时间戳；“无WSL/Python/npm依赖”以PATH仅System32、sidecar不调用且spawn被权限模型阻断为准，`wsl.exe`仍存在于System32但未被使用。H06的结论限于单机AppContainer+Node permission model：AppContainer单独可阻止文件/目录/网络，但不阻止子进程创建（未加`--permission`时spawn挂起）；Node permission model单独可被junction绕过且不限制网络；未验证Rust Broker、句柄级TOCTOU、AppLocker/Job组合、生产网络能力与签名安装。豆包示例中的内置`web_search`未启用：provider-side内置工具绕过Work工具目录与审批，R0a不开放。H12的对账结论限于内存账本与模拟投递：未验证PostgreSQL唯一约束/事务、多进程并发消费者、供应商幂等与查询接口、真实网络边界。
 
 **首选失败的判定条件**（本节为唯一定义，其他章节引用）：满足任一即判定Pi首选失败，启动H11备选评估——
 
@@ -728,6 +740,7 @@ Web UI（不可信渲染）
 - UI 可展示等价命令与目的，但底层不把模型提供的 Shell 字符串直接解释执行。
 - 需要 Python/脚本计算时，仅使用受审核工具模板和满足 OS 隔离能力的执行 profile；不能满足隔离就拒绝，不退化为管理员 Shell。
 - Windows Job Object 仅管理进程树/资源，不阻止文件与网络越界；需受限 token、ACL/允许目录以及 AppContainer 或 VM 等能力的实际验证。
+- H06 实测（Windows，非管理员 AppContainer + Node permission model）：AppContainer 阻止授权外目录、用户目录、junction 目标与网络，但不阻止子进程创建；必须叠加 Job/AppLocker 或 Node permission model。Node permission model 单独可被 junction 绕过且不限制网络，不能替代 OS 容器。生产 Broker 仍需句柄级路径校验与受控出口。
 - 不声称可抵抗已完全控制用户操作系统的攻击者；企业设备管理员/EDR与设备合规属于另一个安全边界。
 - 重新登录、Agent 重启或 `boot_id` 改变即失效旧目录许可；恢复运行需重新确认，不通过持久化路径默默续权。
 
@@ -834,6 +847,7 @@ Web UI（不可信渲染）
 模型网关统一负责模型路由、协议适配、限流、token/费用上界、供应商超时与回执；密钥只在网关安全域。
 
 - 路由由组织允许列表和任务快照固定；供应商故障不静默切换到不同区域/条款的模型。模型准入必须验证客户数据禁训练条款、保留/删除能力与驻留区域，不能只按模型质量选型。
+- 模型出口同时支持Chat Completions与Responses两类线协议：请求结构（`messages` vs `input`）、流事件（通用delta vs `response.*`类型化事件）、工具调用与usage字段均不同；网关在入库前归一为Work Operation与计量模型，reasoning summary与`encrypted_content`不得进入公共输出或默认留存。
 - 来源读取许可与正文外发许可分离：任务输入、来源摘录及衍生内容带数据分类与允许目的地，装配时继承更严格分类，不因模型改写自动降级。
 - 外发前由可信Broker/网关执行分类检查、秘密检测和目的地策略；本机原始内容先在设备判断，不能先发云端再检查。不允许的分类、无法可靠处理的数据或不明目的地一律阻断/请求明确裁定，不仅提示警告继续。
 - 外发策略分阶段：R0a 只有用户主动输入的任务目标与内置模板，策略按**来源标签分类**（用户输入/系统模板）加**秘密模式检测**（密钥、令牌、证书等固定模式）执行，不承诺自由文本的字段级脱敏；R0b 本机摘录增加目录级分类与用户逐次披露；R2a 连接器来源进入时才引入内容级分类/脱敏引擎，并作为R2a必建项（§20.1）。各阶段未具备的能力对应分类一律阻断，不以“警告后继续”过渡。
@@ -1220,9 +1234,9 @@ Temporal和业务库不要求同一备份时间点；恢复器以安全账本为
 
 | 阶段 | 必须建设 | 不提前建设 | 退出证据 |
 |---|---|---|---|
-| 架构验证 | 提交/outbox/Temporal/Operation最小闭环、权限与预算原型、沙箱实验、Harness准入H03–H05/H12（mock模型） | 全量业务页面、商业采购承诺 | §21关键故障用例；H03–H05/H12 go/no-go |
-| R0a | 身份契约、模块化API、任务/运行/审批/预算账本、模型出口（来源标签分类+秘密检测）、文本成果、SSE、云端受控Node/Pi运行 | 本机、连接器、套件注册UI、通用DAG、向量库、内容级脱敏引擎 | 云端任务生成→验收；费用/权限/重放可核对；H02/H07/H09/H10通过 |
-| R0b | Rust设备Agent、目录授权、类型化工具、journal/租约、治理管理面、Windows受限Node sidecar | 任意宿主Shell、离线自治、远程派发、macOS本机执行 | 目录逃逸负例、断线/撤权、管理员流程；H01/H06/H08通过 |
+| 架构验证 | 提交/outbox/Temporal/Operation最小闭环、权限与预算原型、沙箱实验、Harness准入H03–H05/H12（mock模型） | 全量业务页面、商业采购承诺 | §21关键故障用例；H03–H05/H12 go/no-go；S1–S6首轮部分通过 |
+| R0a | 身份契约、模块化API、任务/运行/审批/预算账本、模型出口（来源标签分类+秘密检测）、文本成果、SSE、云端受控Node/Pi运行 | 本机、连接器、套件注册UI、通用DAG、向量库、内容级脱敏引擎 | 云端任务生成→验收；费用/权限/重放可核对；H02部分通过；H07/H09/H10通过 |
+| R0b | Rust设备Agent、目录授权、类型化工具、journal/租约、治理管理面、Windows受限Node sidecar | 任意宿主Shell、离线自治、远程派发、macOS本机执行 | 目录逃逸负例、断线/撤权、管理员流程；H01/H06部分通过；H08通过 |
 | R1 | Registry/解析器版本、单Run组合、组织发布/回滚、补充技能限制 | 技能级DAG、多Agent、开放脚本安装 | 相同快照、冲突/下架/撤回行为 |
 | R2a | 首个只读适配器、credential_ref、资源scope、撤销/refresh、来源、内容级分类/脱敏引擎 | 通用MCP平台、外部写入 | 端到端授权/撤销/过期/SSRF测试；外发分类负例 |
 | R2b | 本人远程设备派发、跨端审批、重连核对 | 云端接管、本机文件自动上传 | 双设备/断线/迟到消息测试 |
@@ -1288,7 +1302,18 @@ R0a也需要最小策略和计量，不把安全控制放到R0b补；R0b补的�
 | S6 容量 | §19三档流量；模型token配额与PG争用 | Pod/DB配置和服务拆分阈值 |
 | S7 Harness准入 | §3.8 强制 H01–H10/H12；H11仅在§3.8“首选失败”条件命中后作为条件备选评估 | 共用端云内核是否满足暂停、模型兼容、封闭依赖与可升级要求 |
 
-本次只交付设计。H03–H05、H12已在仓库外实验目录以mock模型执行并通过（§3.8，H12为内存账本模拟），H01/H02/H06–H11及S1–S6均未执行。产品阶段曾提出的3–5人日spike可以覆盖最小提交/编排纵切，不足以证明Windows隔离、区域灾备及全部性能目标；这些必须单独安排验证，不能打包声称已完成。
+**S1–S6首轮执行状态（2026-10-25，独立PostgreSQL 16容器）**
+
+| 验证 | 状态 | 证据与未覆盖 |
+|---|---|---|
+| S1 持久编排 | 部分通过 | PG 15/15：F01/F02/F03/F04/F07/F21/F23，含并发审批单胜者、单派发CAS、跨Task去重与Task删除后重放；Temporal拓扑、工作流版本升级、DB/Temporal偏移恢复未接 |
+| S2 Windows Broker | 部分通过 | 9/9：F05/F06/F20以mock journal/lease/boot验证；F13路径检查在junction切换后被绕过（漏洞证据），需Rust句柄级Broker；H01/H06/H08为既有证据；F27未复测 |
+| S3 预算 | 部分通过 | PG 8/8：F08并发不超卖、跨账期结算、unknown预留、F15冻结、硬预算、价表归一；无真实供应商账单/DR副本 |
+| S4 凭据/资源授权 | 部分通过 | 23/23策略：F09/F14/F16/F17/F24/F25、SSRF校验；无真实连接器、网络/DNS rebinding |
+| S5 成果/SSE/灾备 | 部分通过 | PG 10/10：F10/F11/F12/F22/F26、删除tombstone；无真实对象存储、DR切换、RPO/RTO实测 |
+| S6 容量 | 仅烟雾 | 50并发预留p95=238ms、100重复提交去重；§19三档容量、模型token配额、PG生产争用未测 |
+
+本次仍只交付设计；H01–H10/H12与S1–S6已执行首轮（H11未触发），但H01/H02/H06与S1–S6均为部分通过，S6仅烟雾。收口不等于S7通过或生产就绪。产品阶段曾提出的3–5人日spike可以覆盖最小提交/编排纵切，不足以证明Windows隔离、区域灾备及全部性能目标；这些必须单独安排验证，不能打包声称已完成。
 
 ## 22. 需求追踪与交付闸门
 
