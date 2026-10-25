@@ -61,7 +61,7 @@ const check = (name, ok, detail) => {
     escaped = content.includes("SECRET_VIA_JUNCTION");
   } catch {}
   execFileSync("cmd.exe", ["/c", "rmdir", path.join(allowed, "swap")]);
-  check("F13-path-check-toctou", checked === true && escaped === true, { checked, escaped, finding: "path-based check cannot survive junction swap" });
+  check("F13-path-check-toctou", checked === true && escaped === false, { checked, escaped, finding: "path-based check cannot survive junction swap; security invariant failed" });
 }
 
 // F20: boot/session change invalidates a directory grant.

@@ -1,6 +1,6 @@
 # WeMeet 工作系统架构设计
 
-> 版本：v2.5（clean-slate 目标架构；归档H01–H12/S1–S6脚本副本）
+> 版本：v2.6（clean-slate 目标架构；修正H10/S2/S6状态口径，补追踪行与风险登记）
 >
 > 日期：2026-10-25
 >
@@ -398,13 +398,13 @@ Operation key由Work生成，例如`(run_id, turn_seq, model_request_seq)`和`(r
 | H07 | 通过（mock控制账本） | 5场景：批次内撤权后仅已提交工具生效、后续工具阻止且无下一轮模型请求；提交前撤权无副作用；预算耗尽/租约过期阻止后续工具；流式中止保持模型Operation unknown、不重试、不把token停止当作副作用已取消；发现未设`sequential`时Pi会先并行预检全部工具，生产必须顺序+提交前复验。 |
 | H08 | 通过（mock端云适配） | 同一用例/快照在local与cloud的规范化事件序列、终态和工具副作用一致；本机文件secret与checkpoint未出现在模型上下文或云端状态，仅获准摘录跨端；审批拒绝在两端同态。 |
 | H09 | 通过（mock上下文/恶意来源） | 超限显式摘要：独立summary Operation与cost=5；关闭摘要时返回`context_overflow`且0次provider调用；公共文本不含reasoning；未注册工具被拒绝、工具集不变、无副作用。 |
-| H10 | 通过（真实1.3.0↔1.4.0） | 1.3.0写入pending审批checkpoint，1.4.0升级恢复：A不重跑、B执行1次、审批哈希不变、仅1次续接模型请求；反向回退同样通过；schemaVersion=99或runtimeVersion主版本不匹配时拒绝恢复且无执行。 |
+| H10 | 部分通过（包版本1.3.0↔1.4.0） | 1.3.0写入pending审批checkpoint，1.4.0升级恢复：A不重跑、B执行1次、审批哈希不变、仅1次续接模型请求；反向回退同样通过；schemaVersion=99或runtimeVersion主版本不匹配时拒绝恢复且无执行。未验证容器镜像回退、半轮状态迁移与生产升级编排。 |
 | H11 | 未触发（条件不满足） | H03–H05硬门槛均通过，按§3.8前提不启动OpenAI Agents SDK备选；未安装、未适配、未运行。 |
 | H12 | 通过（mock/内存账本） | 正常两轮Run：2次收费模型调用与2个模型Operation、1个工具Operation一一对应，收费=结算=12单位；同一模型/工具回执各投递3次只结算1次；重复outbox、重复命令与双消费者竞争均被抑制，副作用各1次；unknown经查询结算不新增attempt或收费；人为制造的孤儿收费与无收费Operation均被审计发现。 |
 
-**首轮实验阶段状态：已收口（2026-10-25）。** H01、H02、H06为部分通过；H03–H05、H07–H10、H12为通过；H11未触发；S1–S6已执行首轮（部分通过，见§21.2）。收口只表示Harness准入实验批次结束，不表示S7通过或系统开发/生产安全就绪；未覆盖项见下段。
+**首轮实验阶段状态：已收口（2026-10-25）。** H01、H02、H06为部分通过；H03–H05、H07–H09、H12为通过（mock）；H10为部分通过（包版本升级/回退，镜像回退未测）；H11未触发；S1–S6已执行首轮（部分通过，见§21.2）。收口只表示Harness准入实验批次结束，不表示S7通过或系统开发/生产安全就绪；未覆盖项见下段。
 
-这些结果只覆盖Pi内核与Work Adapter在脚本模型、单机进程边界上的行为，不覆盖S1–S6的生产验证（真实PG/Temporal/账本、并发消费者、真实设备/网关、容量）与H11条件备选（未触发），不能据此宣布Harness准入通过。H07–H10结论限于mock控制账本/端云适配/上下文场景与Work自有checkpoint：H07未接真实DB/租约/预算；H08未接真实设备与云端内容存储；H09使用字符估算与mock摘要，未接真实tokenizer/压缩；H10使用真实Pi 1.3.0/1.4.0但未验证容器镜像回退与半轮迁移。H02覆盖三家云端provider与两种线协议：Chat Completions使用`messages`/通用delta，usage在Qwen为`completion_tokens_details.reasoning_tokens`、在DeepSeek为`prompt_cache_hit_tokens`/`miss`；Responses使用`input`/`response.*`类型化事件，usage为`output_tokens_details.reasoning_tokens`，并返回reasoning summary与`encrypted_content`。网关必须按API类型归一消息、工具调用、reasoning与usage，`encrypted_content`不得进入公共输出或默认留存；DeepSeek对请求模型`deepseek-chat`返回`model=deepseek-flash`，快照只能记录请求别名与响应元数据。本地网关代持Key，但未验证云端网关鉴权、配额、超时与回退。H01的结论限于当前Windows上的模拟干净环境与自签名：安装器为PowerShell用户级而非MSI/EXE，未验证干净VM、每机器安装、回滚、可信CA/EV签名与时间戳；“无WSL/Python/npm依赖”以PATH仅System32、sidecar不调用且spawn被权限模型阻断为准，`wsl.exe`仍存在于System32但未被使用。H06的结论限于单机AppContainer+Node permission model：AppContainer单独可阻止文件/目录/网络，但不阻止子进程创建（未加`--permission`时spawn挂起）；Node permission model单独可被junction绕过且不限制网络；未验证Rust Broker、句柄级TOCTOU、AppLocker/Job组合、生产网络能力与签名安装。豆包示例中的内置`web_search`未启用：provider-side内置工具绕过Work工具目录与审批，R0a不开放。H12的对账结论限于内存账本与模拟投递：未验证PostgreSQL唯一约束/事务、多进程并发消费者、供应商幂等与查询接口、真实网络边界。
+这些结果只覆盖Pi内核与Work Adapter在脚本模型、单机进程边界上的行为，不覆盖S1–S6的生产级验证（生产级PG/Temporal、完整账本与并发消费者、真实设备/网关、容量）与H11条件备选（未触发），不能据此宣布Harness准入通过。H07–H10结论限于mock控制账本/端云适配/上下文场景与Work自有checkpoint：H07未接真实DB/租约/预算；H08未接真实设备与云端内容存储；H09使用字符估算与mock摘要，未接真实tokenizer/压缩；H10使用真实Pi 1.3.0/1.4.0但未验证容器镜像回退与半轮迁移。H02覆盖三家云端provider与两种线协议：Chat Completions使用`messages`/通用delta，usage在Qwen为`completion_tokens_details.reasoning_tokens`、在DeepSeek为`prompt_cache_hit_tokens`/`miss`；Responses使用`input`/`response.*`类型化事件，usage为`output_tokens_details.reasoning_tokens`，并返回reasoning summary与`encrypted_content`。网关必须按API类型归一消息、工具调用、reasoning与usage，`encrypted_content`不得进入公共输出或默认留存；DeepSeek对请求模型`deepseek-chat`返回`model=deepseek-flash`，快照只能记录请求别名与响应元数据。本地网关代持Key，但未验证云端网关鉴权、配额、超时与回退。H01的结论限于当前Windows上的模拟干净环境与自签名：安装器为PowerShell用户级而非MSI/EXE，未验证干净VM、每机器安装、回滚、可信CA/EV签名与时间戳；“无WSL/Python/npm依赖”以PATH仅System32、sidecar不调用且spawn被权限模型阻断为准，`wsl.exe`仍存在于System32但未被使用。H06的结论限于单机AppContainer+Node permission model：AppContainer单独可阻止文件/目录/网络，但不阻止子进程创建（未加`--permission`时spawn挂起）；Node permission model单独可被junction绕过且不限制网络；未验证Rust Broker、句柄级TOCTOU、AppLocker/Job组合、生产网络能力与签名安装。豆包示例中的内置`web_search`未启用：provider-side内置工具绕过Work工具目录与审批，R0a不开放。H12的对账结论限于内存账本与模拟投递：未验证PostgreSQL唯一约束/事务、多进程并发消费者、供应商幂等与查询接口、真实网络边界。
 
 **首选失败的判定条件**（本节为唯一定义，其他章节引用）：满足任一即判定Pi首选失败，启动H11备选评估——
 
@@ -1235,7 +1235,7 @@ Temporal和业务库不要求同一备份时间点；恢复器以安全账本为
 | 阶段 | 必须建设 | 不提前建设 | 退出证据 |
 |---|---|---|---|
 | 架构验证 | 提交/outbox/Temporal/Operation最小闭环、权限与预算原型、沙箱实验、Harness准入H03–H05/H12（mock模型） | 全量业务页面、商业采购承诺 | §21关键故障用例；H03–H05/H12 go/no-go；S1–S6首轮部分通过 |
-| R0a | 身份契约、模块化API、任务/运行/审批/预算账本、模型出口（来源标签分类+秘密检测）、文本成果、SSE、云端受控Node/Pi运行 | 本机、连接器、套件注册UI、通用DAG、向量库、内容级脱敏引擎 | 云端任务生成→验收；费用/权限/重放可核对；H02部分通过；H07/H09/H10通过 |
+| R0a | 身份契约、模块化API、任务/运行/审批/预算账本、模型出口（来源标签分类+秘密检测）、文本成果、SSE、云端受控Node/Pi运行 | 本机、连接器、套件注册UI、通用DAG、向量库、内容级脱敏引擎 | 云端任务生成→验收；费用/权限/重放可核对；H02部分通过；H07/H09通过；H10部分通过（包版本） |
 | R0b | Rust设备Agent、目录授权、类型化工具、journal/租约、治理管理面、Windows受限Node sidecar | 任意宿主Shell、离线自治、远程派发、macOS本机执行 | 目录逃逸负例、断线/撤权、管理员流程；H01/H06部分通过；H08通过 |
 | R1 | Registry/解析器版本、单Run组合、组织发布/回滚、补充技能限制 | 技能级DAG、多Agent、开放脚本安装 | 相同快照、冲突/下架/撤回行为 |
 | R2a | 首个只读适配器、credential_ref、资源scope、撤销/refresh、来源、内容级分类/脱敏引擎 | 通用MCP平台、外部写入 | 端到端授权/撤销/过期/SSRF测试；外发分类负例 |
@@ -1307,13 +1307,15 @@ R0a也需要最小策略和计量，不把安全控制放到R0b补；R0b补的�
 | 验证 | 状态 | 证据与未覆盖 |
 |---|---|---|
 | S1 持久编排 | 部分通过 | PG 15/15：F01/F02/F03/F04/F07/F21/F23，含并发审批单胜者、单派发CAS、跨Task去重与Task删除后重放；Temporal拓扑、工作流版本升级、DB/Temporal偏移恢复未接 |
-| S2 Windows Broker | 部分通过 | 9/9：F05/F06/F20以mock journal/lease/boot验证；F13路径检查在junction切换后被绕过（漏洞证据），需Rust句柄级Broker；H01/H06/H08为既有证据；F27未复测 |
+| S2 Windows Broker | 部分通过 | 实验9项执行，8项通过、1项失败；F13路径检查在junction切换后被绕过，**安全不变量未通过**（脚本已按失败断言，不计为通过）；需Rust句柄级Broker；H01/H06/H08为既有证据；F27未复测 |
 | S3 预算 | 部分通过 | PG 8/8：F08并发不超卖、跨账期结算、unknown预留、F15冻结、硬预算、价表归一；无真实供应商账单/DR副本 |
 | S4 凭据/资源授权 | 部分通过 | 23/23策略：F09/F14/F16/F17/F24/F25、SSRF校验；无真实连接器、网络/DNS rebinding |
 | S5 成果/SSE/灾备 | 部分通过 | PG 10/10：F10/F11/F12/F22/F26、删除tombstone；无真实对象存储、DR切换、RPO/RTO实测 |
-| S6 容量 | 仅烟雾 | 50并发预留p95=238ms、100重复提交去重；§19三档容量、模型token配额、PG生产争用未测 |
+| S6 容量 | 仅烟雾（决策未产生） | 50并发预留p95=238ms、100重复提交去重；§19三档容量、模型token配额、PG生产争用未测；§21.2要求的Pod/DB配置与服务拆分阈值未产生 |
 
-本次仍只交付设计；H01–H10/H12与S1–S6已执行首轮（H11未触发），但H01/H02/H06与S1–S6均为部分通过，S6仅烟雾。收口不等于S7通过或生产就绪。产品阶段曾提出的3–5人日spike可以覆盖最小提交/编排纵切，不足以证明Windows隔离、区域灾备及全部性能目标；这些必须单独安排验证，不能打包声称已完成。
+上表是执行状态而非签收：S1的Temporal拓扑、S2的Broker/工具清单、S3的硬预算上界、S4的首个适配器、S5的RPO/RTO、S6的容量阈值均未形成决策输出，不得据表宣布对应S包通过。
+
+本次仍只交付设计；H01–H10/H12与S1–S6已执行首轮（H11未触发），其中H03–H05、H07–H09、H12为mock通过，H01/H02/H06/H10与S1–S6均为部分通过（H10仅包版本，S6仅烟雾）。收口不等于S7通过或生产就绪。产品阶段曾提出的3–5人日spike可以覆盖最小提交/编排纵切，不足以证明Windows隔离、区域灾备及全部性能目标；这些必须单独安排验证，不能打包声称已完成。
 
 ## 22. 需求追踪与交付闸门
 
@@ -1334,8 +1336,13 @@ R0a也需要最小策略和计量，不把安全控制放到R0b补；R0b补的�
 | 富成果/分享/工作台 | §13.3–13.4 | 内容隔离、版本冲突、撤销访问 |
 | 事件恢复/跨端 | §15.3–15.4 | F12/F20 |
 | 留存/区域部署 | §17/§18 | 删除恢复、驻留审查、F15 |
-| 端云执行器与Harness | §3.2–§3.9/§9.1/§10.1 | S7（H01–H10/H12）、F27 |
+| 端云执行器与Harness | §3.2–§3.9/§9.1/§10.1 | S7（H01–H10/H12；H11未触发）、F27 |
 | 模型外发与内容策略 | §12.1/§3.6 | F25、H05/H09 |
+| 组织/账号生命周期 | §4.2/§11 | F16/F19、离职撤权与所有权转移 |
+| 远程设备/跨端执行 | §10.3/§15.4 | F06/F20/F27、双设备与断线测试 |
+| R5a/b/c 来源回链/委托调度/能力生态 | §16.4/§20.1 | 各自风险与业务验证；未实现 |
+| 私有化/BYO模型/数据驻留 | §10.5/§17.3/§18.1 | 驻留审查、本地模型验证 |
+| 数据导出/观测性 | §16.3/§19 | 审计导出、指标与SLO测量 |
 
 ### 22.2 架构评审后下一批交付
 
@@ -1346,9 +1353,25 @@ R0a也需要最小策略和计量，不把安全控制放到R0b补；R0b补的�
 5. 工作流升级与区域恢复runbook、SLO测量方案、故障注入自动化。
 6. 当前产品与本架构§1.3差异回写；真实用户测试与技术验证签收仍单列，不由本文件代替。
 
+以上1–6均未开始；A01–A13的独立ADR拆分与统一风险登记见§22.4。
+
 ### 22.3 评审结论边界
 
 - 本文可用于目标架构评审及实施拆解；不证明任何现有实现符合本设计。
 - 品牌、角色、阶段、安全原则沿用产品意图；技术栈与部署拓扑为新推荐，不对当前仓库作兼容承诺。
 - 在S1–S5关键验证、S7 Harness准入与协议评审完成前，不宣布系统开发/生产安全就绪。
 - 不在本次修改生产代码、权限配置、运行环境或部署；不自动提交与推送。
+
+### 22.4 风险与未决事项
+
+| 风险/未决项 | 影响 | 关闭条件 | 状态 |
+|---|---|---|---|
+| H01 分发信任链与安装器 | 无法可信分发、升级与回滚 | 可信CA/EV签名+时间戳、MSI/EXE、干净VM、已安装sidecar profile | 未关闭 |
+| H02 云端网关治理与计费 | 费用、配额、条款不可承诺 | 网关鉴权/配额/限流/回退、价表上界、供应商条款核对 | 未关闭 |
+| H06/S2 Rust Broker与TOCTOU | 本机越界风险 | 句柄级Broker通过F13、Job/AppLocker组合、生产受控出口 | 未关闭 |
+| S1 Temporal与工作流升级 | 持久编排未证明 | Temporal拓扑、工作流版本升级、DB/Temporal偏移测试 | 未关闭 |
+| S5 灾备与RPO/RTO | 区域恢复承诺不成立 | DR切换演练、RPO/RTO实测、冻结流程签收 | 未关闭 |
+| S6 容量 | 无法给出生产规格 | §19三档压测、token配额与PG争用实测 | 未关闭 |
+| 供应商条款/连接器scope | 资源授权粒度无法承诺 | 首个适配器端到端、条款核对、价表上界 | 未关闭 |
+| A01–A13 的ADR拆分 | 不可逆决策追溯不足 | 独立ADR与决策签收 | 未开始 |
+| §1.3差异回写与真实用户测试 | 产品/UX与架构漂移 | 回写并单列测试签收 | 未开始 |
