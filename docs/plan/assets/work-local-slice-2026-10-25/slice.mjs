@@ -1796,6 +1796,10 @@ async function route(req, res) {
   }
   m = p.match(/^\/work\/v1\/workspace-grants\/([^/]+)\/revoke$/);
   if (m && req.method === 'POST') {
+    const body = await readJson(req);
+    if (typeof body.client_request_id !== 'string' || body.client_request_id.length < 8) {
+      throw new ApiError(400, 'invalid_request', 'client_request_id_required');
+    }
     return sendJson(res, 200, await revokeGrant(m[1]));
   }
   throw new ApiError(404, 'invalid_request', 'not_found');

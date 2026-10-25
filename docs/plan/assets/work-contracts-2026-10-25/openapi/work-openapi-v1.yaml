@@ -416,6 +416,21 @@ paths:
               schema: { $ref: "#/components/schemas/ConnectorAuthorization" }
         "422": { $ref: "#/components/responses/UnprocessableEntity" }
 
+  /work/v1/connector-grants:
+    get:
+      tags: [Connectors]
+      operationId: listConnectorGrants
+      summary: 当前用户的连接器 grant 列表
+      responses:
+        "200":
+          description: grant 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ConnectorGrant" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
   /work/v1/connector-grants/{grantId}/revoke:
     post:
       tags: [Connectors]
@@ -472,6 +487,63 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PairingChallenge" }
         "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/workspace-grants:
+    get:
+      tags: [Devices]
+      operationId: listWorkspaceGrants
+      summary: 当前用户的本机目录授权
+      responses:
+        "200":
+          description: workspace grant 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WorkspaceGrant" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Devices]
+      operationId: createWorkspaceGrant
+      summary: 用户选择目录后创建不透明 workspace grant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkspaceGrantRequest" }
+      responses:
+        "201":
+          description: grant 已创建；不返回绝对路径
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkspaceGrant" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/workspace-grants/{grantId}/revoke:
+    post:
+      tags: [Devices]
+      operationId: revokeWorkspaceGrant
+      summary: 撤销本机目录 grant，设备侧 root 许可失效
+      parameters:
+        - name: grantId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RevokeRequest" }
+      responses:
+        "200":
+          description: 撤销后的 grant
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkspaceGrant" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
 
   /work/v1/capabilities:
     get:
@@ -1277,9 +1349,10 @@ components:
     ConnectorGrant:
       type: object
       additionalProperties: false
-      required: [id, resource_selector, allowed_actions, status, revision]
+      required: [id, connection_id, resource_selector, allowed_actions, status, revision]
       properties:
         id: { type: string, format: uuid }
+        connection_id: { type: string, format: uuid }
         resource_selector: { type: object, additionalProperties: true }
         allowed_actions:
           type: array
@@ -1287,6 +1360,33 @@ components:
         expires_at: { type: [string, "null"], format: date-time }
         status: { type: string, enum: [active, revoked, expired] }
         revision: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+
+    WorkspaceGrant:
+      type: object
+      additionalProperties: false
+      required: [id, device_id, root_ref, allowed_tools, status, expires_at]
+      properties:
+        id: { type: string, format: uuid }
+        device_id: { type: string, format: uuid }
+        root_ref: { type: string, description: 不透明目录引用；服务端不存绝对路径 }
+        allowed_tools:
+          type: array
+          items: { type: string }
+        status: { type: string, enum: [active, revoked, expired] }
+        expires_at: { type: string, format: date-time }
+
+    WorkspaceGrantRequest:
+      type: object
+      additionalProperties: false
+      required: [device_id, root_ref, allowed_tools]
+      properties:
+        device_id: { type: string, format: uuid }
+        root_ref: { type: string, description: 设备选择器产生的不透明目录引用 }
+        allowed_tools:
+          type: array
+          items: { type: string, enum: [workspace.write] }
+        expires_at: { type: [string, "null"], format: date-time }
 
     Device:
       type: object
@@ -1297,6 +1397,11 @@ components:
         name: { type: string }
         platform: { type: string, enum: [windows, macos, linux, ios, android] }
         status: { type: string, enum: [pending, active, revoked] }
+        availability:
+          type: string
+          enum: [online, offline, remote_disabled]
+          description: 仅在线且 remote_enabled 时接受远程派发
+        remote_enabled: { type: boolean }
         protocol_version: { type: string }
         last_seen_at: { type: [string, "null"], format: date-time }
         capabilities:

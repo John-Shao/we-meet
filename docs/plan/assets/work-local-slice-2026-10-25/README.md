@@ -19,7 +19,7 @@
 
 已实现：
 
-- Node 参考 API + 独立 `device-agent.mjs`；
+- Node 参考 API + 独立 `device-agent.mjs`（独立进程，模拟后台 Agent；不是桌面壳子进程）；
 - PostgreSQL DDL 的 `device`、`device_session`、`workspace_grant`、`execution_lease`、`device_receipt`、`journal_release`；
 - `create_run`、`acquire_run`、`create_operation`、`claim_dispatch`、预算、`finish_run`、`accept_task`；
 - 设备 journal 持久化（JSON + fsync）、重连重放、释放水位；
@@ -31,7 +31,7 @@
 - 设备身份使用开发 token，不是 mTLS/真实配对；没有可信 CA、attestation；
 - 设备会话重连复用同一 boot/session；真实 OS 重启后的重新授权未测；
 - 没有真实 SSE，事件以 JSON replay 返回；
-- 没有 Temporal、后台常驻服务、真实通知、完整 lease sweeper 调度和并发多消费者；
+- 没有 Temporal、生产级 autostart/OS 服务、真实通知、完整 lease sweeper 调度和并发多消费者；R2b 跨设备提交/审批与桌面壳关闭后的安装器集成未测；
 - 没有 unknown 的人工处置 UI；`unresolved` 也没有专门入口；
 - 没有 grant 撤销时对在途 Operation 的完整取消/释放；当前撤销主要阻断新预览与新命令；
 - 没有管理端、连接器、远程设备、真实身份服务。
@@ -73,7 +73,7 @@ npm run agent
 
 ```text
 device-agent → hello
-  → 用户 POST /workspace-grants（root_ref 为不透明引用，不传绝对路径）
+  → 用户 POST /work/v1/workspace-grants（root_ref 为不透明引用，不传绝对路径）
   → preview/submit local Task/Run
   → worker: acquire_run + tool:1 + reserve 10 + approval
   → 用户批准
@@ -100,7 +100,7 @@ device-agent → hello
 - `GET /work/v1/tasks/{id}/events`（JSON replay）
 - `GET /work/v1/artifacts/{id}/versions/{no}`
 - `POST /work/v1/tasks/{id}/acceptances`
-- `GET/POST /work/v1/workspace-grants`、`POST /workspace-grants/{id}/revoke`
+- `GET/POST /work/v1/workspace-grants`、`POST /work/v1/workspace-grants/{id}/revoke`
 
 设备内网（仅本地）：
 - `POST /internal/device/hello`

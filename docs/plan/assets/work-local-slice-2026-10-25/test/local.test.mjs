@@ -365,7 +365,7 @@ test('local authorization and disconnected recovery', async (t) => {
         base,
         'POST',
         `/work/v1/workspace-grants/${grant.body.id}/revoke`,
-        {},
+        { client_request_id: crypto.randomUUID() },
       );
       assert.equal(revoked.status, 200);
       assert.equal(revoked.body.status, 'revoked');

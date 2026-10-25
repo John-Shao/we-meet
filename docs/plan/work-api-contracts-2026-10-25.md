@@ -96,11 +96,23 @@ OpenAPI 草案覆盖 30 个路径，按组：
 | Approvals | `GET /approvals`、`POST /approvals/{id}/decisions` |
 | Artifacts | 上传会话、`POST /artifacts/{id}/versions`、`POST /tasks/{id}/acceptances` |
 | Events | `GET /tasks/{id}/events`、`GET /inbox`、`GET /inbox/events` |
-| Connectors | `GET/POST /connector-connections`、`POST /connector-grants/{id}/revoke` |
-| Devices | `GET /devices`、`POST /devices/pairings` |
+| Connectors | `GET/POST /connector-connections`、`GET /connector-grants`、`POST /connector-grants/{id}/revoke` |
+| Devices | `GET /devices`、`POST /devices/pairings`、`GET/POST /workspace-grants`、`POST /workspace-grants/{id}/revoke` |
 | Capabilities | `GET /capabilities` |
 | Admin | overview、seats、budgets、policies、audit-exports（`If-Match` CAS） |
 | Operator | `POST /operator/organizations/{orgId}/suspend`、`/resume` |
+
+### 4.1 切片与契约映射
+
+三条参考切片是手写路由，不是生成客户端；以下是当前公开接口的对齐情况：
+
+| 切片 | 公开接口 | 契约状态 |
+|---|---|---|
+| 云端任务→采纳 | bootstrap、task-previews、tasks、runs、approvals、artifacts、acceptances、events | 与 OpenAPI 路径和字段一致；内部 worker tick 是切片测试钩子 |
+| 本机授权→断线恢复 | 上述公开接口 + `GET/POST /workspace-grants`、`POST /workspace-grants/{id}/revoke` | workspace grant 已补入 OpenAPI；设备 hello/heartbeat/commands/receipts/journal-release 是切片内部 HTTP 传输，正式目标是 device proto + WebSocket/mTLS |
+| 连接器 scope→撤销 | public task/run/artifact 接口 + `GET /connector-connections`、`GET /connector-grants`、`POST /connector-grants/{id}/revoke` | connector-grant 列表已补入 OpenAPI；adapter invoke/refresh 是切片内部测试入口 |
+
+尚未完成：从 OpenAPI/Proto 生成客户端与 mock server、把切片路由改为生成类型、合同测试进入 CI。当前“对齐”是人工映射与端到端行为测试，不是生成物一致性证明。
 
 ## 5. 内部 Protobuf
 
@@ -119,7 +131,7 @@ OpenAPI 草案覆盖 30 个路径，按组：
 
 2026-10-25：
 
-- OpenAPI 3.1 YAML 解析成功；30 个 path、64 个 schema；78 个本地 `$ref` 全部可解析；`openapi-spec-validator` 通过。
+- OpenAPI 3.1 YAML 解析成功；33 个 path、66 个 schema；80 个本地 `$ref` 全部可解析；`openapi-spec-validator` 通过（含 workspace grant 与 connector grant 列表）。
 - 5 个 Protobuf 文件用 `grpc_tools.protoc` 编译通过（含 common/control/device/events/egress 与 well-known types），生成 descriptor set 仅用于本地验证，未提交。
 - 事件 JSON Schema 解析通过（draft 2020-12）。
 - 未执行：生成客户端/mock server 的编译、真实鉴权、SSE/WebSocket 连接测试、OAuth 回调、供应商协议回归、schema 兼容性矩阵、性能和安全模糊测试。
@@ -137,4 +149,4 @@ OpenAPI 草案覆盖 30 个路径，按组：
 
 ## 9. 边界
 
-本契约可用于评审、mock、代码生成试验和纵切拆解；不证明现有实现符合契约，不证明供应商、设备或部署可用，不替代 S1–S7 验证与真实用户测试。下一批应先做“云端任务→采纳”纵切，把 OpenAPI、Control proto 与 DDL 命令连起来，再扩展设备与连接器。
+本契约可用于评审、mock、代码生成试验和纵切拆解；不证明现有实现符合契约，不证明供应商、设备或部署可用，不替代 S1–S7 验证与真实用户测试。三条参考纵切已完成，下一批应做生成客户端/mock server 与合同测试，把 OpenAPI/Control proto 真正接入实现，再扩展真实设备、连接器和协议回归。

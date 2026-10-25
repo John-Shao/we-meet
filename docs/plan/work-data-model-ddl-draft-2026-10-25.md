@@ -41,7 +41,7 @@
 | 去重 | `submission_dedup` | 跨 Task 唯一键；Task 删除后保留 tombstone，不级联删除 |
 | 预算 | `budget_account`、`budget_reservation`、`budget_entry` | 同一 Operation 最多一个 held/unknown 预留；`reservation_seq` 支持释放后重预留；`settlement_revision` 支持幂等结算与 adjust 冲销 |
 | 成果 | `artifact`、`artifact_version`、`upload_session`、`acceptance`、`artifact_tombstone` | 版本主键 `(artifact_id, version_no)`；正文哈希/大小/类型不可变；采纳绑定版本与 Task revision |
-| 设备 | `device`、`device_session`、`workspace_grant`、`execution_lease`、`device_receipt`、`journal_release` | boot/session/lease/fence；回执按设备序号唯一；目录 grant 不存绝对路径 |
+| 设备 | `device`、`device_session`、`workspace_grant`、`execution_lease`、`device_receipt`、`journal_release` | `remote_enabled` 控制 R2b 远程派发；boot/session/lease/fence；回执按设备序号唯一；目录 grant 不存绝对路径 |
 | R3 项目 | `project`、`project_member`、`project_source`、`context_version`、`plan_version`、`plan_step` | 版本化上下文/计划；Step 输出引用不可变成果版本 |
 | 事件 | `task_event`、`audit_event`、`outbox` | Task seq 唯一；审计/事件只追加；Outbox 与业务事务同提交 |
 
@@ -97,6 +97,10 @@
 - `release_budget()`：只允许 held；unknown 不得自动释放。
 - `accept_task()`：锁 Task，检查 revision、无 active Run、latest Run 已终态、全部阻塞 Operation 已消失、成果已发布且属于该 Task；追加 acceptance 并完成 Task。
 - 所有函数使用 invoker 权限，必须配合 `app.org_id` 与事务使用；正式版本需评审 `SECURITY DEFINER` 与审计策略。
+
+## 7.1 R3 设计边界
+
+`plan_version`/`plan_step` 目前只覆盖版本与步骤投影；架构 §8.5 新增的 Step 状态机、`parent_plan_version_id`/`reused_outputs`、Step Operation 绑定和计划变更审批尚未落入本 DDL，不能据表声称 R3 已可实施。后续需补 Step 状态迁移、Operation 关联、复用输出授权校验和 R3 负例测试。
 
 ## 8. 验证记录
 

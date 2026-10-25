@@ -287,7 +287,7 @@ test('connector scope and revocation', async (t) => {
         base,
         'POST',
         `/work/v1/connector-grants/${grantId}/revoke`,
-        {},
+        { client_request_id: crypto.randomUUID() },
       );
       assert.equal(revoked.status, 200);
       assert.equal(revoked.body.status, 'revoked');

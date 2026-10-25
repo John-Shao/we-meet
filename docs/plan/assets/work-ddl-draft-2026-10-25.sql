@@ -450,6 +450,7 @@ CREATE TABLE work.device (
   owner_subject_id text NOT NULL,
   public_key text NOT NULL,
   status text NOT NULL CHECK (status IN ('pending', 'active', 'revoked')),
+  remote_enabled boolean NOT NULL DEFAULT false,
   boot_id text,
   protocol_version text NOT NULL,
   attestation jsonb,
