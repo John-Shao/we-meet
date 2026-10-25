@@ -11,7 +11,7 @@
 | 文档 | 用途 |
 |---|---|
 | [work-product-design-2026-10-25.md](work-product-design-2026-10-25.md) | **WeMeet 工作 clean-slate 产品设计方案**：定位与品牌、用户场景、产品架构、IA、Composer、任务工作区、成果与验收、套件/技能/连接器/项目、权限治理、指标与 R0a–R5c 路线图；R0 拆为 R0a/R0b，R4 拆为 R4a/R4b，R5 拆为协作/自动化/生态；不继承现有 Work 页面与交互 |
-| [work-system-architecture-2026-10-25.md](work-system-architecture-2026-10-25.md) | **Work clean-slate 目标系统架构**：不以当前实现为约束；模块化控制平面、Temporal 持久编排、端云共用 Pi agent-core + Work Adapter 的 Harness 选型（含候选对比、11项强制准入与1项条件备选评估）、Rust端侧安全边界、Task/Run/Operation/Artifact、授权撤销、预算与恢复；架构提案；H03–H05 已用 mock 模型在仓库外实验目录执行并通过，其余实验未执行，不是现状说明 |
+| [work-system-architecture-2026-10-25.md](work-system-architecture-2026-10-25.md) | **Work clean-slate 目标系统架构**：不以当前实现为约束；模块化控制平面、Temporal 持久编排、端云共用 Pi agent-core + Work Adapter 的 Harness 选型（含候选对比、11项强制准入与1项条件备选评估）、Rust端侧安全边界、Task/Run/Operation/Artifact、授权撤销、预算与恢复；架构提案；H03–H05、H12 已用 mock 模型在仓库外实验目录执行并通过（H12 为内存账本模拟），其余实验未执行，不是现状说明 |
 | [work-ux-design-r0-2026-10-25.md](work-ux-design-r0-2026-10-25.md) | **Work R0 中保真 UX 设计蓝图**：四界面、三条核心流程、组件/状态矩阵、审批与成果采纳、首次使用、历史工作、管理面、响应式、可访问性、可用性测试计划；工作首页对齐千问“新任务”（`＋` 菜单、执行器/权限 chip、R3 新建项目门控）；配套 [R0 原型](assets/work-ux-r0/prototype.html) 与 [管理面原型](assets/work-ux-admin/prototype.html) |
 | [work-ux-design-extensions-2026-10-25.md](work-ux-design-extensions-2026-10-25.md) | **Work 扩展 UX 设计（R1–R3）**：套件/技能收进 Composer `＋` 菜单、连接器独立入口、只读连接器授权、一级扩展能力首页 + 二级列表 + 三级套件/技能/连接器详情、加载/过期/错误状态、管理与创建入口；首页与千问“新任务”对齐并做能力范围门控；配套 [扩展原型](assets/work-ux-extensions/prototype.html) |
 | [work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md) | 工作（Work）历史产品计划：保留早期材料上传 / 沟通准备 / 周报 / 表格分析的范围与实施记录；这些日常办公能力已于 2026-10-25 删除，当前仅保留 `office_agent`、本地 / 远程协调和 Pi 复核；产品目标形态以 2026-10-25 clean-slate 方案为准 |
