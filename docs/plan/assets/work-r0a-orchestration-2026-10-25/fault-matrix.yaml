@@ -1,0 +1,231 @@
+version: 1
+stage: R0a
+description: >-
+  R0a orchestration fault-injection matrix. Cases are design contracts for the
+  D3 implementation and DR2/DR4 execution; they are not executed by this file.
+cases:
+  - id: F01
+    title: Submit transaction commits, process exits before Temporal start
+    inject:
+      - Commit Task/Run/dedup/event/outbox.
+      - Kill the outbox relay before StartWorkflow.
+    expected:
+      tasks: 1
+      runs: 1
+      workflows_started: 1
+      duplicate_dispatches: 0
+      budget_reserved_cents: 0
+      run_state_after_recovery: active
+      task_state_after_recovery: open
+    recovery: >-
+      Outbox relay retries StartWorkflow with workflow_id run:<run_id>;
+      AlreadyStarted is treated as success; only one Run exists.
+    evidence:
+      - outbox workflow_start row delivered
+      - Temporal workflow id run:<run_id>
+      - Run active with fence
+      - no second Task/Run
+  - id: F02
+    title: Workflow start succeeds, relay crashes before ACK
+    inject:
+      - StartWorkflow succeeds.
+      - Kill the relay before marking the outbox row delivered.
+    expected:
+      tasks: 1
+      runs: 1
+      workflows_started: 1
+      duplicate_dispatches: 0
+      run_state_after_recovery: active
+    recovery: >-
+      Relay retries StartWorkflow with the same workflow ID; Temporal returns
+      AlreadyStarted; relay marks delivered. No new Run or workflow is created.
+    evidence:
+      - one Temporal workflow for run:<run_id>
+      - outbox row delivered after retry
+      - one Run
+  - id: F03
+    title: Approval decision races expiry/revoke (R0a internal path)
+    inject:
+      - Create an operation waiting_approval in the internal approval path.
+      - Race an approve decision with expiry or org/member suspension.
+    expected:
+      authoritative_decisions: 1
+      stale_approval_dispatches: 0
+      operation_state: authorized_or_canceled
+      task_blocks_on_unresolved: true
+    recovery: >-
+      Decision uses approval revision and params_hash CAS. R0a golden path has
+      no manual approval; this case protects the future R0b/R2 path and the
+      policy-auto vs org-suspend boundary.
+    evidence:
+      - approval_decision row is immutable
+      - stale decision returns conflict
+      - suspended org cannot authorize or dispatch
+  - id: F04
+    title: Model accepted, network lost, no receipt
+    inject:
+      - claim_dispatch commits.
+      - Provider accepts the request.
+      - Network drops before receipt/usage is recorded.
+    expected:
+      operation_state: unknown
+      budget_reserved_cents: held
+      provider_requests: 1
+      automatic_paid_replays: 0
+      run_state: waiting_or_reconcile
+      task_acceptance_allowed: false
+    recovery: >-
+      invokeModel returns an unknown error; workflow calls markOperationUnknown.
+      Reconciler queries the provider by provider_request_id or request hash.
+      Only a confirmed not-sent resolution releases the reservation; never
+      blindly resend a paid call.
+    evidence:
+      - Operation unknown and reservation held
+      - no second provider request
+      - reconciler evidence ref
+  - id: F07
+    title: Cancel request, then late model result or upload completes
+    inject:
+      - User requests cancel while the model is dispatching.
+      - Late model result or content upload completes.
+    expected:
+      operation_state: unknown_or_canceled
+      late_artifact_published: 0
+      task_state: open
+      run_state: canceled_or_waiting_reconcile
+      usage_and_audit_retained: true
+      budget_double_charge: 0
+    recovery: >-
+      request_cancel is authoritative in PostgreSQL. The workflow marks a
+      dispatching operation unknown, does not publish the late artifact, and
+      finishes the Run canceled only when allowed. Late results are attached as
+      evidence, not promoted to the Task.
+    evidence:
+      - no published artifact version after cancel
+      - audit event for cancel/unknown
+      - budget entries remain balanced
+  - id: F21
+    title: Dispatching commit confirmation lost or crash before/after send
+    inject:
+      - claim_dispatch CAS commits.
+      - Process crashes before or after the external request.
+      - A takeover worker tries to resume.
+    expected:
+      dispatch_attempts: 1
+      operation_state: dispatching_or_unknown
+      budget_reserved_cents: held
+      blind_resends: 0
+      new_run_created: 0
+    recovery: >-
+      Only the CAS winner may send once. A takeover does not inherit the send
+      right; it queries the provider and uses reconcileOperation. Unknown keeps
+      the reservation until resolved.
+    evidence:
+      - one dispatch_attempt_id
+      - no second send from takeover
+      - reconcile evidence
+  - id: F23
+    title: Idempotency record expires or Task is deleted, then submit replay
+    inject:
+      - Submit with client_request_id.
+      - Delete/archive the Task or wait beyond any short-lived cache.
+      - Replay the same submit request.
+    expected:
+      tasks_created: 1
+      charged_tasks: 1
+      duplicate_submissions: 0
+      response: original_or_deleted
+    recovery: >-
+      submission_dedup is a persistent cross-Task unique record; replay returns
+      the original Task/Run or deleted state. No new Task is created.
+    evidence:
+      - one submission_dedup row
+      - no second Task or budget account
+      - replay returns original/deleted
+  - id: D3-R01
+    title: Outbox relay crash loop and backlog
+    inject:
+      - Relay repeatedly crashes with undelivered workflow_start/events.
+      - Oldest undelivered row exceeds the recovery window.
+    expected:
+      new_submissions: 503_service_degraded
+      existing_runs_continue: true
+      duplicate_dispatches: 0
+      workflow_starts_without_outbox: 0
+    recovery: >-
+      Alert on backlog; stop accepting new Runs when oldest age/count exceeds
+      the configured limit; repair relay and drain in order. Existing Runs are
+      not restarted or blindly resent.
+    evidence:
+      - outbox age/count metric
+      - API 503 for new submissions
+      - drained backlog
+  - id: D3-R02
+    title: Worker crash during a non-idempotent activity
+    inject:
+      - Worker dies after claim_dispatch but before the model result is recorded.
+    expected:
+      operation_state: unknown_after_reconcile
+      automatic_paid_replays: 0
+      budget_reserved_cents: held_or_settled_once
+      duplicate_dispatch: 0
+    recovery: >-
+      Temporal retries only idempotent activities. invokeModel is not retried
+      after dispatch; reconciler resolves unknown. The same Run identity is
+      reused only for idempotent steps.
+    evidence:
+      - Temporal activity attempt history
+      - one provider request
+      - reconcile outcome
+  - id: D3-R03
+    title: Budget exhausted while Run is waiting
+    inject:
+      - reserve_budget returns budget_exhausted.
+      - Service operator adds budget later.
+    expected:
+      run_state: waiting
+      wait_reason: budget
+      new_dispatches_before_replenish: 0
+      resume_after_replenish: true
+      duplicate_changes: 0
+    recovery: >-
+      Workflow calls waitRun(budget); reconciler detects available budget and
+      sends budget_available/resume; workflow revalidates policy and reservation
+      before any new dispatch. If the 24h wait timer expires, finish failed with
+      budget_wait_timeout and keep the Task open.
+    evidence:
+      - Run waiting/budget
+      - no new operation before replenish
+      - resume audit and one new reservation
+  - id: D3-R04
+    title: Acceptance while Run active or Operation unknown
+    inject:
+      - User attempts accept_task while active_run_id is set or an Operation is unknown.
+    expected:
+      acceptance_status: 409_run_not_quiescent
+      task_state: unchanged
+      artifact_state: unchanged
+    recovery: >-
+      accept_task checks revision, active Run, latest terminal Run and all
+      blocking Operations. The UI must show reconciling, not offer retry or
+      acceptance as if complete.
+    evidence:
+      - 409 error with current revision
+      - no Acceptance row
+  - id: D3-R05
+    title: Organization suspended during dispatch
+    inject:
+      - Operator suspends the tenant after claim_dispatch.
+    expected:
+      new_dispatches: 0
+      in_flight_action: unknown_or_canceled
+      auto_resume_after_unsuspend: false
+      content_access: denied_or_policy_limited
+    recovery: >-
+      Suspension raises the execution epoch and blocks new permits. In-flight
+      external actions may already exist; reconcile and audit. Unsuspend is
+      explicit and does not restore revoked seats/grants or replay old actions.
+    evidence:
+      - dispatch denied after suspension
+      - audit events
+      - no automatic re-execution

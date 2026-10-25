@@ -1,6 +1,6 @@
 # 方案与执行记录目录
 
-整理日期：2026-09-22；Agent 架构导航更新：2026-10-08；Work 授权 / 任务关系 / 执行模型决策索引：2026-10-24；日常办公能力删除：2026-10-25；Work 产品重做方案：2026-10-25；Work R0 UX 设计：2026-10-25；Work 扩展 UX 设计：2026-10-25；Work 目标系统架构：2026-10-25；Work R0a 详细设计：2026-10-25；Work API/内部契约：2026-10-25；Work 云端任务纵切：2026-10-25；Work 本机断线纵切：2026-10-25；Work 连接器撤销纵切：2026-10-25；Work 威胁模型/运维证据：2026-10-25；Work R0a 数据设计：2026-10-25；Work R0a API 设计：2026-10-25。
+整理日期：2026-09-22；Agent 架构导航更新：2026-10-08；Work 授权 / 任务关系 / 执行模型决策索引：2026-10-24；日常办公能力删除：2026-10-25；Work 产品重做方案：2026-10-25；Work R0 UX 设计：2026-10-25；Work 扩展 UX 设计：2026-10-25；Work 目标系统架构：2026-10-25；Work R0a 详细设计：2026-10-25；Work API/内部契约：2026-10-25；Work 云端任务纵切：2026-10-25；Work 本机断线纵切：2026-10-25；Work 连接器撤销纵切：2026-10-25；Work 威胁模型/运维证据：2026-10-25；Work R0a 数据设计：2026-10-25；Work R0a API 设计：2026-10-25；Work R0a 编排设计：2026-10-25。
 
 按主题查阅方案、实施契约、部署说明和历史执行记录。文档中的日期、代码版本、测试结果与部署状态保持原有语义；整理目录不代表重新测试或更新线上状态。
 
@@ -16,6 +16,8 @@
 | [work-r0a-data-design-2026-10-25.md](work-r0a-data-design-2026-10-25.md) | **Work R0a 数据、权限与迁移详细设计（D1）**：R0a 表裁剪、input_object/title、角色/RLS、SECURITY DEFINER 领域命令、task summary；可执行 schema 在 PostgreSQL 16 冒烟 20/20；草案，未应用生产 |
 | [work-r0a-api-design-2026-10-25.md](work-r0a-api-design-2026-10-25.md) | **Work R0a API、事件与协议详细设计（D2）**：OpenAPI 20 path/48 schema、inputs/templates/TaskSummary/view/SSE、生成 TypeScript 类型、mock server 与 6/6 合同测试；未做真实鉴权/持久化/供应商回归 |
 | [assets/work-r0a-design-2026-10-25](assets/work-r0a-design-2026-10-25/README.md) | **R0a 详细设计资产**：可执行 schema + 20 项冒烟、R0a OpenAPI + 生成类型、无依赖 mock server + 合同测试；一次性数据库/本地 mock，不接生产 |
+| [work-r0a-orchestration-design-2026-10-25.md](work-r0a-orchestration-design-2026-10-25.md) | **Work R0a 控制面与持久编排详细设计（D3）**：Temporal 拓扑、每 Run 工作流、Activity/信号/重试/超时、提交/派发/未知/对账、取消/重试/预算等待、outbox/SSE、开关/停用/升级、F01–F23 与 D3 专项故障矩阵；设计草案，未接 Temporal、未执行 DR2 |
+| [assets/work-r0a-orchestration-2026-10-25](assets/work-r0a-orchestration-2026-10-25/README.md) | **R0a 编排设计资产**：RunWorkflow/Activity TypeScript 契约与 12 项故障矩阵 YAML；仅类型/矩阵校验，不含 Temporal 运行时 |
 | [assets/harness-lab](assets/harness-lab/README.md) | **Harness / 技术验证脚本副本**：H01–H12（H11 未触发）与 S1–S6 首轮脚本；不含依赖、运行产物与密钥；需 Node 24、Windows PowerShell、PostgreSQL 16；结果与边界以架构文档 §3.8/§21.2 为准 |
 | [work-data-model-ddl-draft-2026-10-25.md](work-data-model-ddl-draft-2026-10-25.md) | **Work 领域模型 DDL 草案（§22.2-1）**：schema `work`、复合 FK、RLS、状态迁移触发器、预算锁、派发 CAS、采纳函数；已按 P0-1/P0-2/P1-1/P1-2 修订（任务静止、active_run/latest_run、reservation_seq/settlement_revision、审批模式），可执行 SQL 与冒烟脚本见 [assets/work-ddl-draft-2026-10-25.sql](assets/work-ddl-draft-2026-10-25.sql)、[assets/work-ddl-smoke-2026-10-25.sql](assets/work-ddl-smoke-2026-10-25.sql)；已在 PostgreSQL 16 烟雾验证，未评审/未应用生产 |
 | [work-api-contracts-2026-10-25.md](work-api-contracts-2026-10-25.md) | **Work API 与内部契约草案（§22.2-2）**：OpenAPI 3.1、内部 control/device/events/egress Protobuf、TaskEvent JSON Schema；已补 workspace grant 与 connector grant 列表、切片映射；覆盖幂等、revision、permission_mode、错误码、SSE/设备协议与版本规则；已通过语法校验，未做生成客户端/真实鉴权/协议回归 |

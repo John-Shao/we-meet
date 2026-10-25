@@ -48,6 +48,12 @@
 - **D2 已完成契约子集**：[API/事件设计](work-r0a-api-design-2026-10-25.md)、[OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型、mock server 与 6/6 合同测试；未做真实鉴权/持久化。
 - **DR1 尚未评审**：D1/D2 仍是草案；D3/D4 需在 DR1 后继续。
 
+### 0.4 W2 进展（2026-10-25）
+
+- **D3 设计草案完成**：[控制面与持久编排设计](work-r0a-orchestration-design-2026-10-25.md)、[RunWorkflow/Activity 契约](assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)、[12 项故障矩阵](assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)。
+- **D3 仅为设计**：D1 增量命令（wait/resume/unknown/reconcile、workflow-start outbox）未实现；未接 Temporal，DR2 未评审。
+- **D4 尚未开始**：Pi Adapter、沙箱、模型网关待 D3 评审后继续。
+
 ## 1. R0a 范围冻结
 
 ### 1.1 范围内
@@ -279,6 +285,8 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[架构 §6/§7/§11/§14/§21](work-system-architecture-2026-10-25.md)、[云端纵切](assets/work-cloud-slice-2026-10-25/README.md)、[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)。
 
+**当前进展（2026-10-25）**：D3 设计草案与契约已产出；Temporal 运行时、D1 增量命令与 DR2 故障注入均未执行。
+
 **交付物**：
 
 1. **模块依赖规则**：Task/Run 不直接改 Budget/Artifact 表；跨模块通过领域命令；应用服务组合事务；worker 与 API 共享领域库，但权限不同。
@@ -288,6 +296,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 5. **对账器与 Outbox**：悬挂 dispatching、unknown、终态 Run 清理、outbox 重放、事件投递、SSE 游标；定时任务与手动重放。
 6. **故障注入矩阵**：重复提交、单派发、预算并发、审批策略拒绝、取消竞态、供应商超时、worker 崩溃、DB/Temporal 偏移、outbox 重复、采纳时活动 Run/未知 Operation。
 7. **开关与停用**：组织级 feature flag、kill switch、组织停用/恢复；停用立即拒绝新动作并停止派发，不自动恢复旧许可。
+8. **契约与故障矩阵**：[RunWorkflow/Activity 契约](assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)、[12 项故障矩阵](assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)；F01/F02/F03/F04/F07/F21/F23 + D3 专项。
 
 **完成标准**：
 
@@ -506,7 +515,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | W3 体验/运维 | D5 + D6 | 四界面规格、状态矩阵、SLO/告警、Runbook、切换回滚 | DR3 |
 | W4 实施就绪 | 汇总设计、测试计划、估算、依赖、风险 | 实施就绪包 | DR4 |
 
-波次是依赖顺序，不是工期承诺；W1 可与设计合作伙伴研究并行，但 R0a 开发启动仍需 §5.3 的研究与供应商闸门。
+波次是依赖顺序，不是工期承诺；W1 可与设计合作伙伴研究并行，但 R0a 开发启动仍需 §5.3 的研究与供应商闸门。当前 W1 的 D1/D2 草案已完成，W2 的 D3 设计草案已完成；D4 未开始，DR2 未评审。
 
 ### 5.2 评审闸门
 
