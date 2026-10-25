@@ -1,0 +1,328 @@
+{
+  "version": "r0a-v1",
+  "scope": "R0a 3-org pilot",
+  "lastReview": "2026-10-25",
+  "categories": ["design", "implementation", "security", "ops", "product", "migration"],
+  "items": [
+    {
+      "id": "C01",
+      "category": "design",
+      "title": "D1 data/permissions/migration design reviewed",
+      "owner": "backend + DBA/security",
+      "status": "partial",
+      "blocking": true,
+      "evidence": ["D1 design + 20/20 smoke"],
+      "note": "Design draft; formal DR1 review not held."
+    },
+    {
+      "id": "C02",
+      "category": "design",
+      "title": "D2 API/event/SSE contract reviewed",
+      "owner": "backend + frontend",
+      "status": "partial",
+      "blocking": true,
+      "evidence": ["D2 OpenAPI + 6/6 contract tests"],
+      "note": "Draft; generated client/CI pending."
+    },
+    {
+      "id": "C03",
+      "category": "design",
+      "title": "D3 orchestration and fault matrix reviewed",
+      "owner": "backend + SRE",
+      "status": "partial",
+      "blocking": true,
+      "evidence": ["D3 design + 12-case matrix"],
+      "note": "No Temporal test environment."
+    },
+    {
+      "id": "C04",
+      "category": "design",
+      "title": "D4 runtime/egress design reviewed",
+      "owner": "runtime + security",
+      "status": "partial",
+      "blocking": true,
+      "evidence": ["D4 design + 10/10 policy tests"],
+      "note": "No real sandbox/egress/provider."
+    },
+    {
+      "id": "C05",
+      "category": "design",
+      "title": "D5 frontend design reviewed",
+      "owner": "frontend + product",
+      "status": "partial",
+      "blocking": true,
+      "evidence": ["D5 design + 11/11 UI model tests"],
+      "note": "No React pages/E2E."
+    },
+    {
+      "id": "C06",
+      "category": "implementation",
+      "title": "D1 orchestration deltas implemented and smoked",
+      "owner": "backend",
+      "status": "todo",
+      "blocking": true,
+      "evidence": [],
+      "note": "wait/resume/mark unknown/reconcile/workflow-start outbox."
+    },
+    {
+      "id": "C07",
+      "category": "implementation",
+      "title": "D2 generated client and CI contract tests",
+      "owner": "backend + frontend",
+      "status": "partial",
+      "blocking": true,
+      "evidence": ["types + mock + 6/6 local tests"],
+      "note": "Runtime SDK/CI not wired."
+    },
+    {
+      "id": "C08",
+      "category": "implementation",
+      "title": "D3 Temporal workflow/activities in test environment",
+      "owner": "backend + SRE",
+      "status": "todo",
+      "blocking": true,
+      "evidence": [],
+      "note": "F01/F02/F04/F07/F21/F23 not executed."
+    },
+    {
+      "id": "C09",
+      "category": "implementation",
+      "title": "D4 sandbox, Content Store and egress integration",
+      "owner": "runtime + platform",
+      "status": "todo",
+      "blocking": true,
+      "evidence": [],
+      "note": "No gVisor/KMS/content store/provider gateway."
+    },
+    {
+      "id": "C10",
+      "category": "implementation",
+      "title": "D5 React pages, React Query and SSE E2E",
+      "owner": "frontend",
+      "status": "todo",
+      "blocking": true,
+      "evidence": [],
+      "note": "No Playwright/visual/a11y run."
+    },
+    {
+      "id": "C11",
+      "category": "security",
+      "title": "Threat model and R0a controls signed off",
+      "owner": "security",
+      "status": "todo",
+      "blocking": true,
+      "evidence": ["Threat model draft"],
+      "note": "S01–S16 controls still partial/open."
+    },
+    {
+      "id": "C12",
+      "category": "security",
+      "title": "RLS, direct DML and connection-pool tenant tests",
+      "owner": "backend + DBA/security",
+      "status": "partial",
+      "blocking": true,
+      "evidence": ["D1 RLS/direct-DML smoke"],
+      "note": "Pool/production-shaped tests missing."
+    },
+    {
+      "id": "C13",
+      "category": "security",
+      "title": "KMS and Content Store implemented and tested",
+      "owner": "platform + security",
+      "status": "todo",
+      "blocking": true,
+      "evidence": [],
+      "note": "Scoped refs/encryption/delete/restore."
+    },
+    {
+      "id": "C14",
+      "category": "security",
+      "title": "Sandbox proof or signed reduced-profile no-claim",
+      "owner": "runtime + security",
+      "status": "todo",
+      "blocking": true,
+      "evidence": ["D4 sandbox policy"],
+      "note": "gVisor/equiv escape test not executed."
+    },
+    {
+      "id": "C15",
+      "category": "security",
+      "title": "Provider terms, residency, training/retention and price ceiling",
+      "owner": "business + legal + security",
+      "status": "todo",
+      "blocking": true,
+      "evidence": ["H02 real requests only"],
+      "note": "No written terms/DPA/price ceiling."
+    },
+    {
+      "id": "C16",
+      "category": "security",
+      "title": "No-content/no-secret logs and traces verified at runtime",
+      "owner": "runtime + backend",
+      "status": "todo",
+      "blocking": true,
+      "evidence": ["D4 policy only"],
+      "note": "Need synthetic-secret log scan."
+    },
+    {
+      "id": "C17",
+      "category": "ops",
+      "title": "SLO dashboards, alerts and on-call thresholds",
+      "owner": "SRE",
+      "status": "todo",
+      "blocking": true,
+      "evidence": ["SLO asset"],
+      "note": "No telemetry wired."
+    },
+    {
+      "id": "C18",
+      "category": "ops",
+      "title": "Pilot capacity model and load test",
+      "owner": "SRE + backend",
+      "status": "partial",
+      "blocking": true,
+      "evidence": ["Capacity model + current DDL smoke"],
+      "note": "No pilot load/queue/SLO run."
+    },
+    {
+      "id": "C19",
+      "category": "ops",
+      "title": "Backup/restore drill with ledger and tombstone checks",
+      "owner": "SRE + DBA",
+      "status": "partial",
+      "blocking": true,
+      "evidence": ["Logical restore smoke"],
+      "note": "Pilot drill not executed."
+    },
+    {
+      "id": "C20",
+      "category": "ops",
+      "title": "Kill switch and org suspend/resume drill",
+      "owner": "SRE + backend",
+      "status": "todo",
+      "blocking": true,
+      "evidence": [],
+      "note": "No drill."
+    },
+    {
+      "id": "C21",
+      "category": "ops",
+      "title": "Pilot runbook and incident communication",
+      "owner": "SRE + product",
+      "status": "todo",
+      "blocking": true,
+      "evidence": ["Architecture runbook draft"],
+      "note": "R0a-specific steps/owners pending."
+    },
+    {
+      "id": "C22",
+      "category": "ops",
+      "title": "Temporal topology/upgrade/DB-offset validation (S1)",
+      "owner": "platform + backend",
+      "status": "todo",
+      "blocking": true,
+      "evidence": ["S1 partial"],
+      "note": "No Temporal topology/upgrade tests."
+    },
+    {
+      "id": "C23",
+      "category": "ops",
+      "title": "Regional DR drill",
+      "owner": "SRE + platform",
+      "status": "waived",
+      "blocking": false,
+      "evidence": [],
+      "note": "R0a pilot uses the single-region persistence boundary; no regional DR claim. Revisit before GA."
+    },
+    {
+      "id": "C24",
+      "category": "product",
+      "title": "3 design-partner organizations committed and onboarded",
+      "owner": "product + ops",
+      "status": "todo",
+      "blocking": true,
+      "evidence": [],
+      "note": "No signed pilot organizations."
+    },
+    {
+      "id": "C25",
+      "category": "product",
+      "title": "5–8 design-partner research and usability test",
+      "owner": "product + design",
+      "status": "todo",
+      "blocking": true,
+      "evidence": [],
+      "note": "At least two scenarios in 3+ orgs."
+    },
+    {
+      "id": "C26",
+      "category": "product",
+      "title": "Golden tasks and activation/technical-success/acceptance metrics",
+      "owner": "product + backend",
+      "status": "todo",
+      "blocking": true,
+      "evidence": [],
+      "note": "Metric definitions/dashboards pending."
+    },
+    {
+      "id": "C27",
+      "category": "product",
+      "title": "Pilot support escalation and data-deletion procedure",
+      "owner": "product + support + legal",
+      "status": "todo",
+      "blocking": true,
+      "evidence": [],
+      "note": "Ownership transfer remains manual."
+    },
+    {
+      "id": "C28",
+      "category": "migration",
+      "title": "Cutover, org flag, rollback and legacy notice",
+      "owner": "product + frontend",
+      "status": "partial",
+      "blocking": true,
+      "evidence": ["D5 routes/legacy tests", "D6 cutover plan"],
+      "note": "No real old-link/flag/rollback drill."
+    },
+    {
+      "id": "C29",
+      "category": "migration",
+      "title": "Old Work data/routes frozen read-only, no migration/dual-write",
+      "owner": "backend + product",
+      "status": "partial",
+      "blocking": true,
+      "evidence": ["D-06 decision", "D5 legacy redirects"],
+      "note": "Old task read-only ownership/retention still open."
+    },
+    {
+      "id": "C30",
+      "category": "migration",
+      "title": "Data deletion and ownership-transfer runbook",
+      "owner": "ops + legal",
+      "status": "todo",
+      "blocking": true,
+      "evidence": [],
+      "note": "Manual pilot procedure not signed."
+    },
+    {
+      "id": "C31",
+      "category": "migration",
+      "title": "Admin read-only P1-A field/permission mapping",
+      "owner": "backend + platform",
+      "status": "todo",
+      "blocking": true,
+      "evidence": ["D2 admin subset"],
+      "note": "No mapping/test."
+    },
+    {
+      "id": "C32",
+      "category": "product",
+      "title": "Mobile editing",
+      "owner": "product",
+      "status": "waived",
+      "blocking": false,
+      "evidence": [],
+      "note": "R0a mobile is read-only by design; revisit R4b."
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # 方案与执行记录目录
 
-整理日期：2026-09-22；Agent 架构导航更新：2026-10-08；Work 授权 / 任务关系 / 执行模型决策索引：2026-10-24；日常办公能力删除：2026-10-25；Work 产品重做方案：2026-10-25；Work R0 UX 设计：2026-10-25；Work 扩展 UX 设计：2026-10-25；Work 目标系统架构：2026-10-25；Work R0a 详细设计：2026-10-25；Work API/内部契约：2026-10-25；Work 云端任务纵切：2026-10-25；Work 本机断线纵切：2026-10-25；Work 连接器撤销纵切：2026-10-25；Work 威胁模型/运维证据：2026-10-25；Work R0a 数据设计：2026-10-25；Work R0a API 设计：2026-10-25；Work R0a 编排设计：2026-10-25；Work R0a Runtime/出口设计：2026-10-25；Work R0a 前端设计：2026-10-25。
+整理日期：2026-09-22；Agent 架构导航更新：2026-10-08；Work 授权 / 任务关系 / 执行模型决策索引：2026-10-24；日常办公能力删除：2026-10-25；Work 产品重做方案：2026-10-25；Work R0 UX 设计：2026-10-25；Work 扩展 UX 设计：2026-10-25；Work 目标系统架构：2026-10-25；Work R0a 详细设计：2026-10-25；Work API/内部契约：2026-10-25；Work 云端任务纵切：2026-10-25；Work 本机断线纵切：2026-10-25；Work 连接器撤销纵切：2026-10-25；Work 威胁模型/运维证据：2026-10-25；Work R0a 数据设计：2026-10-25；Work R0a API 设计：2026-10-25；Work R0a 编排设计：2026-10-25；Work R0a Runtime/出口设计：2026-10-25；Work R0a 前端设计：2026-10-25；Work R0a 安全/运维/试点设计：2026-10-25。
 
 按主题查阅方案、实施契约、部署说明和历史执行记录。文档中的日期、代码版本、测试结果与部署状态保持原有语义；整理目录不代表重新测试或更新线上状态。
 
@@ -22,6 +22,8 @@
 | [assets/work-r0a-runtime-2026-10-25](assets/work-r0a-runtime-2026-10-25/README.md) | **R0a Runtime/出口设计资产**：WorkAdapter 类型契约、工具/沙箱/出口 JSON 策略、策略评估器与 10/10 测试；faux model，无真实网络/沙箱 |
 | [work-r0a-frontend-design-2026-10-25.md](work-r0a-frontend-design-2026-10-25.md) | **Work R0a 前端体验详细设计（D5）**：React 18/wouter/React Query/Semi UI 落点、路由/功能开关、四界面/历史/管理只读、12 状态矩阵、Composer 两阶段、SSE fetch 客户端、成果编辑/版本/采纳/导出、响应式/可访问性、埋点与测试；设计草案，未实现页面 |
 | [assets/work-r0a-frontend-2026-10-25](assets/work-r0a-frontend-2026-10-25/README.md) | **R0a 前端设计资产**：UI 状态契约、12 状态矩阵、路由/旧链接、中文文案、UI 模型与 11/11 测试；不含 React 页面实现 |
+| [work-r0a-security-ops-migration-design-2026-10-25.md](work-r0a-security-ops-migration-design-2026-10-25.md) | **Work R0a 安全、运维、迁移与试点详细设计（D6）**：S01–S16 控制映射、SLO/告警、试点容量模型、升级/回滚/故障 Runbook、切换/旧数据处理、试点开通/支持/删除、演练与 go/no-go；当前 no-go（30 个 blocking），未执行真实演练 |
+| [assets/work-r0a-ops-2026-10-25](assets/work-r0a-ops-2026-10-25/README.md) | **R0a 安全/运维/容量/试点资产**：控制/SLO/试点清单 JSON、容量模型、ops 校验与 8/8 测试；基线容量通过、10× 失败、当前 no-go |
 | [assets/harness-lab](assets/harness-lab/README.md) | **Harness / 技术验证脚本副本**：H01–H12（H11 未触发）与 S1–S6 首轮脚本；不含依赖、运行产物与密钥；需 Node 24、Windows PowerShell、PostgreSQL 16；结果与边界以架构文档 §3.8/§21.2 为准 |
 | [work-data-model-ddl-draft-2026-10-25.md](work-data-model-ddl-draft-2026-10-25.md) | **Work 领域模型 DDL 草案（§22.2-1）**：schema `work`、复合 FK、RLS、状态迁移触发器、预算锁、派发 CAS、采纳函数；已按 P0-1/P0-2/P1-1/P1-2 修订（任务静止、active_run/latest_run、reservation_seq/settlement_revision、审批模式），可执行 SQL 与冒烟脚本见 [assets/work-ddl-draft-2026-10-25.sql](assets/work-ddl-draft-2026-10-25.sql)、[assets/work-ddl-smoke-2026-10-25.sql](assets/work-ddl-smoke-2026-10-25.sql)；已在 PostgreSQL 16 烟雾验证，未评审/未应用生产 |
 | [work-api-contracts-2026-10-25.md](work-api-contracts-2026-10-25.md) | **Work API 与内部契约草案（§22.2-2）**：OpenAPI 3.1、内部 control/device/events/egress Protobuf、TaskEvent JSON Schema；已补 workspace grant 与 connector grant 列表、切片映射；覆盖幂等、revision、permission_mode、错误码、SSE/设备协议与版本规则；已通过语法校验，未做生成客户端/真实鉴权/协议回归 |

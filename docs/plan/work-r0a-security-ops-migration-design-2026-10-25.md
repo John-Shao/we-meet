@@ -1,0 +1,236 @@
+# Work R0a 安全、运维、迁移与试点详细设计（D6）
+
+> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（30 个 blocking 项）**；未执行真实演练、Temporal/沙箱/供应商/KMS 测试。
+>
+> 日期：2026-10-25
+>
+> 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[D3 编排](work-r0a-orchestration-design-2026-10-25.md)、[D4 Runtime/出口](work-r0a-runtime-egress-design-2026-10-25.md)、[D5 前端](work-r0a-frontend-design-2026-10-25.md)、[威胁模型](work-threat-model-2026-10-25.md)、[运行手册](work-operations-runbook-2026-10-25.md)。
+>
+> 资产：[安全控制](assets/work-r0a-ops-2026-10-25/security-controls.json)、[SLO](assets/work-r0a-ops-2026-10-25/slo-pilot.json)、[试点清单](assets/work-r0a-ops-2026-10-25/pilot-checklist.json)、[容量模型](assets/work-r0a-ops-2026-10-25/pilot-capacity-model.mjs)、[校验模型](assets/work-r0a-ops-2026-10-25/ops-model.mjs)、[8 组测试](assets/work-r0a-ops-2026-10-25/ops-model.test.mjs)。
+
+## 1. 目标与范围
+
+D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、出问题如何恢复，以及哪些证据仍缺失。
+
+**范围内**：3 家组织/20 席位/≤10 并发 Run 的试点；安全控制映射；SLO/告警；容量模型；升级/回滚/故障 Runbook；切换与旧数据处理；试点开通/支持/删除；演练与 go/no-go。
+
+**范围外**：生产 GA 的容量/DR 承诺、区域灾备演练、R0b 本机、R2 连接器、R3 项目、R4 富成果、R5 协作、完整合规认证。它们不能借用 R0a 试点结论。
+
+## 2. 结论与工作假设
+
+| ID | 设计选择 | 理由 |
+|---|---|---|
+| D6-01 | 试点上限：3 组织、20 席位、≤10 并发 Run；单区域、同区多 AZ；不承诺区域 DR | 与架构 §19.1 设计伙伴基线一致；D-01 边界 |
+| D6-02 | 安全控制未签收、沙箱未证明/降级未签收、供应商条款未关闭前，不作生产安全承诺 | 设计/局部实验不等于生产证明 |
+| D6-03 | SLO 为**内部测量目标**，不是客户合同；未测指标不得标“met” | 避免把设计/烟雾当实测 |
+| D6-04 | 容量模型只覆盖试点假设；outbox backlog 达到阈值时新提交 503，已有 Run 继续 | 防止无限接收无法启动的 Run |
+| D6-05 | 切换使用组织级开关；旧 `/work?task=` 链接进入只读通知；不迁移旧数据、不双写 | D-06；避免旧模型污染 R0a |
+| D6-06 | 试点席位/审计通过 P1-A 或运营流程；预算/策略写 UI 不在 R0a | 产品范围与现有能力 |
+| D6-07 | 区域 DR 为 R0a 非目标；故障超出声明的持久性边界时冻结执行并人工核账 | 不虚构 RPO/RTO |
+| D6-08 | 任何 blocking 清单项未 `done/waived` 前不 go-live | go/no-go 必须可核查 |
+
+## 3. 安全控制映射
+
+完整控制见 [security-controls.json](assets/work-r0a-ops-2026-10-25/security-controls.json)。状态：`closed/partial/open/out_of_scope`；`closed` 必须有证据。
+
+| ID | 威胁 | 核心控制 | 状态 |
+|---|---|---|---|
+| S01 | Prompt injection/外部内容 | R0a 无外部内容；只允许 user/system 标签；输出不作指令；3 个工具 | partial |
+| S02 | 跨租户 IDOR/缓存泄漏 | 会话绑组织、ACL、复合 FK、FORCE RLS、scoped content key | partial |
+| S03 | 供应商 Key/凭据泄漏 | KMS/egress 持有；Runtime 无长期 Key；日志不含 Key/正文 | partial |
+| S04 | SSRF/DNS/直连互联网 | 仅 `work-egress`；固定目标；禁 metadata/loopback/private | partial |
+| S05 | 审批重放/陈旧批准 | R0a 无手工审批；policy_auto + audit；R0b/R2 保留 CAS | partial |
+| S06 | 供应链/Pi/镜像 | Pi/镜像固定；禁止运行时安装/扩展；签名/SBOM 待补 | open |
+| S07 | Unknown/重复付费调用 | Operation 账本、CAS/fence、不自动重放、保留预算 | partial |
+| S08 | 备份/恢复/DR 丢失安全事实 | 声明持久性边界；恢复核账；超出边界冻结 | partial |
+| S09 | 留存/删除/驻留 | 审计 365 天；任务/正文待产品/法务；crypto-shredding 计划 | open |
+| S10 | 管理读取/导出越权 | 只读管理面；服务端绑组织；导出短时受控 | open |
+| S11 | 旧路由/开关暴露错误数据 | 组织开关；旧链接只读通知；不迁移/不双写 | partial |
+| S12 | 沙箱逃逸/宿主访问 | gVisor/等效；非 root/只读/无宿主挂载/egress-only | open |
+| S13 | 供应商训练/驻留/留存 | 书面条款/DPA；驻留/训练/留存/价表上界 | open |
+| S14 | 正文/密钥进日志 | 只记录 ID/哈希/usage/错误码；秘密阻断 | partial |
+| S15 | 停用/离职/所有权 | 停用 epoch；不自动恢复；所有权转移人工流程 | partial |
+| S16 | 连接器/设备 scope | R0a 不适用；R0b/R2 再审 | out_of_scope |
+
+**签收边界**：
+
+- S01/S02/S04/S07/S14 的 partial 不能当 closed；需要真实模型/网络/运行时/池化测试。
+- S06/S09/S12/S13 是试点前必须关闭或书面降级的硬项。
+- S16 的 out_of_scope 仅对 R0a 成立，不覆盖 R0b/R2。
+
+## 4. SLO、告警与测量
+
+完整 SLO 见 [slo-pilot.json](assets/work-r0a-ops-2026-10-25/slo-pilot.json)。所有指标当前为 `not_measured`；`met/missed` 必须有证据。
+
+| 指标 | 目标/口径 | 窗口 | 状态 |
+|---|---|---|---|
+| 控制 API 可用性 | 99.9% 内部目标 | 30d | 未测 |
+| 提交受理 P95 | ≤500ms（不含模型开始） | 7d | 未测 |
+| 状态可见 P95 | 提交到在线客户端展示 ≤2s | 7d | 未测 |
+| 首屏可交互 P95 | ≤1.5s（固定设备/网络/数据量） | 7d | 未测 |
+| 首个公开 token P95 | ≤10s（试点暂定，随 H02/试点校准） | 7d | 未测 |
+| Outbox 投递 lag P95 | ≤30s（试点暂定） | 7d | 未测 |
+| Unknown 年龄 P95 | ≤15min（试点暂定） | 7d | 未测 |
+| 预算对账差 | 0 分/日 | 1d | 未测 |
+| Golden task 技术成功 | ≥95%（排除用户取消/预算等待，试点暂定） | 7d | 未测 |
+| 验收率 | 仅跟踪，不作为 R0a SLO 门 | 7d | 未测 |
+| SSE resync 率 | 仅跟踪，避免把重同步当失败 | 7d | 未测 |
+| 供应商错误率 | 仅跟踪，区分限流/超时/unknown | 7d | 未测 |
+
+告警：
+
+- 控制 API 5xx/延迟、提交拒绝、outbox lag、workflow start 失败、活动失败率。
+- unknown 数量/年龄、重复 Operation 冲突、过期 fence、预算未结算/差异。
+- SSE 连接失败/resync、Provider 429/5xx/401、内容存储错误。
+- 告警必须带 org/task/run/operation ID，不带正文/密钥。
+
+## 5. 试点容量模型
+
+完整模型见 [pilot-capacity-model.mjs](assets/work-r0a-ops-2026-10-25/pilot-capacity-model.mjs)。运行：
+
+```bash
+node pilot-capacity-model.mjs
+```
+
+基线（3 组织/20 席位/15 活跃用户/10 并发/4 分钟平均 Run/3 次模型调用）：
+
+| 指标 | 基线 | 试点限制 | 结果 |
+|---|---|---|---|
+| 任务/日 | 30 | — | — |
+| Run/日 | 36 | — | — |
+| 模型 Operation/日 | 108 | — | — |
+| 峰值 Run/分钟 | 2.5 | — | — |
+| 峰值供应商请求/分钟 | 7.5 | 60 | 通过 |
+| 峰值 DB 预留/秒 | 0.125 | 20 | 通过 |
+| 峰值 Outbox 事件/秒 | 0.333 | 10 | 通过 |
+| 峰值 workflow 启动/分钟 | 2.5 | 20 | 通过 |
+| Token/日 | 1.296M | 2M | 通过 |
+| 365 天内容留存 | 1.156GB | 10GB | 通过 |
+
+**10× 压力**（150 活跃/100 并发）会超过：供应商 75 rpm>60、token 12.96M>2M、workflow 25/min>20、内容 11.56GB>10、并发 100>10；模型测试已覆盖。  
+当前证据只有 DDL 容量烟雾（50 并发预留成功，p95 179.5ms；100 重复提交→1；10 dispatch→1）与逻辑恢复烟雾，**不是试点/生产压测**。
+
+## 6. 升级、回滚与故障 Runbook
+
+| 场景 | 首要动作 | 禁止 | 证据 |
+|---|---|---|---|
+| 发布/回滚 | 组织开关/金丝雀；镜像+workflow 版本固定；先 drain 再换 worker | 改写运行中 workflow/history；跳过 flag | 发布记录、flag 状态、drain 记录 |
+| DB 迁移 | 备份、expand/contract、迁移角色、验证 RLS/账本 | 应用角色 owner/超级用户；破坏性变更无回滚 | migration 日志、冒烟、回滚/前向修复 |
+| Temporal 升级 | worker versioning/patching；运行中 Run 保持旧行为；DB/Temporal 偏移核对 | 升级时改变在途语义；重放已消费许可 | workflow 版本、drain、偏移核对 |
+| 供应商故障/限流 | 停止新派发；派发前可重试/回退；派发后 unknown/核对 | 跨供应商重放；自动重复付费 | provider 错误、unknown、预算 |
+| Runner 故障 | 停止新 Run；安全活动重试；检查点恢复；unknown 不进重试 | 重跑已派发模型；复用旧 permit | run/operation、checkpoint、fence |
+| Outbox backlog | 告警；超阈值新提交 503；修复 relay；按序 drain | 无限接收；静默丢事件 | backlog 年龄/数量、503、drain |
+| 备份恢复 | 冻结入口、隔离旧主、恢复业务库/账本/tombstone/dedup、核对 unknown、先只读 | 未核账就开放写入/正文；以重新生成冒充恢复 | restore 报告、账本/unknown 核对 |
+| Kill switch | 停止新提交/派发；保留读取/采纳/审计；人工恢复 | 自动恢复；后台继续派发 | flag/epoch、停止通知、审计 |
+| 组织停用/恢复 | 提升 epoch；拒绝新许可；核对在途；显式恢复 | 自动恢复席位/grant/旧操作 | epoch、拒绝记录、审计 |
+| 事故沟通 | 安全无正文的故障摘要；支持/管理员通道；状态更新 | 把正文/密钥贴进工单/聊天 | 事件 ID、时间线、根因/行动 |
+
+## 7. 切换与旧数据处理
+
+### 7.1 阶段
+
+1. **预切换**：D1–D5 评审；D1 增量实现；flag 关闭；旧页面保持现状；准备回滚。
+2. **试点组织开启**：逐组织开 flag；新 `/work` 生效；旧 `/work?task=` 链接进入只读归档通知；不迁移/不双写。
+3. **观察**：SLO/outbox/unknown/预算/支持；不达标暂停扩量。
+4. **收口**：3 家组织完成云端任务并采纳；决定继续 R0b 或回退。
+
+### 7.2 旧数据/旧路由
+
+- 旧 `office_agent` 任务不迁入新表；旧链接只读通知，不映射为新 Task。
+- 旧页面在开关关闭时保留；开启后旧任务入口只读/归档，不出现“假新任务”。
+- 不双写、不共享任务表（ADR-0006）。
+- 旧任务保留期/删除由产品/法务定；R0a 不承诺自动迁移。
+
+### 7.3 回滚
+
+- 关闭组织 flag；停止新提交/派发；保留读取与已产生成果的导出/支持。
+- 不重写新表/不删证据；D1 迁移采用前向修复，不做破坏性回滚。
+- 回滚演练需覆盖：旧链接、新任务读取、取消/采纳、SSE、审计。
+
+## 8. 试点开通、支持与数据处置
+
+每家组织：
+
+- 书面试点范围/DPA/数据驻留/删除/支持约定；指定管理员与安全联系人。
+- 席位通过 P1-A/运营流程开通；管理员只读概览/审计；预算/策略写不在 R0a。
+- 3 个 golden tasks；反馈节奏；已知限制（无本机/连接器/项目/分享/移动编辑）。
+- 支持升级：P1 支持 → P2 研发 → 安全事件；工单不含正文/密钥。
+- 数据删除：按保留策略执行；正文/密钥/备份范围写清；第三方供应商删除单独确认。
+- 所有权转移：试点期间人工流程；不自动恢复离职人员权限。
+- 退出：导出/归档/删除；保留审计事实；不删除旧任务证据除非策略允许。
+
+## 9. 演练矩阵
+
+| 演练 | 预期证据 |
+|---|---|
+| RLS/直接 DML | org1/org2=0；app 无直接 DML；池化连接不残留租户 |
+| 密钥泄漏/日志扫描 | 合成密钥被阻断；日志/trace 无正文/Key |
+| 沙箱/egress | gVisor/等效 profile；无宿主挂载/互联网/metadata；降级声明 |
+| 供应商故障 | 派发前回退；派发后 unknown；不跨供应商重放 |
+| Outbox backlog | 阈值 503；relay 恢复；无丢事件/重复 Run |
+| 备份恢复 | 账本/tombstone/dedup/unknown 核对；先只读后写入 |
+| Kill switch/组织停用 | 新提交/派发停止；读取保留；不自动恢复 |
+| 旧链接/flag 回滚 | 旧链接只读通知；新任务不消失；回滚可读/导出 |
+| 预算耗尽/补充 | waiting(budget)；补充前不派发；一次预留 |
+
+演练结果写入运行记录；未执行不等于通过。
+
+## 10. Go/No-Go 与当前状态
+
+完整清单见 [pilot-checklist.json](assets/work-r0a-ops-2026-10-25/pilot-checklist.json)；`ops-model.mjs` 校验状态/证据，`goNoGo` 只把 `done/waived` 视为关闭。
+
+**当前：no-go，30 个 blocking 项未关闭。** 主要阻塞：
+
+- D1–D5 设计尚未正式评审；D1 增量命令未实现。
+- D2 运行时 SDK/CI；D3 Temporal 测试；D4 真实沙箱/Content Store/KMS/供应商；D5 React/E2E。
+- 威胁模型/控制签收；RLS 池化；sandbox proof；供应商条款/价表；无正文日志运行时验证。
+- SLO 仪表盘/告警；试点容量压测；备份恢复/停用/kill switch 演练；S1 Temporal 拓扑。
+- 3 家组织/5–8 名研究/golden tasks/支持流程；切换/旧链接/删除/所有权转移。
+
+**Go 条件**：所有 blocking 项 `done` 或有签署 `waived` 且证据可查；安全/供应商/沙箱/恢复/容量/试点研究均签收；没有“以烟雾代替演练”。
+
+## 11. D6 对 D1–D5 的待办
+
+1. D1：wait/resume/mark unknown/reconcile、workflow-start/cancel outbox、启动失败收尾、F 用例库断言。
+2. D2：生成客户端/CI 合同测试；预算剩余、标题编辑、导出、admin P1-A 映射、CSRF 生命周期。
+3. D3：Temporal 测试环境、worker 版本/升级、DB/Temporal 偏移、F01–F23 执行。
+4. D4：gVisor/等效证据、Content Store/KMS、真实 provider/配额/回退/usage、无正文日志。
+5. D5：React 页面/React Query/SSE/Playwright/可用性；旧路由/flag 切换。
+6. 平台：S1 Temporal 拓扑、备份恢复、SLO 遥测、容量压测；R0a 不承诺区域 DR。
+
+## 12. 未决与风险
+
+1. **区域 DR**：R0a 不承诺；超出单区故障域时冻结，客户需接受。
+2. **供应商条款/价表**：未取得书面材料；价格上界/驻留/训练/留存未定。
+3. **沙箱证明**：gVisor/等效可用性不确定；降级需安全/产品签收。
+4. **KMS/Content Store**：加密/删除/恢复/驻留未实现。
+5. **SLO 目标**：TTFT/unknown/technical success 为试点暂定，需数据校准；不能当合同。
+6. **容量**：模型只覆盖试点假设；10× 压力不通过；生产三档未做。
+7. **旧数据/路由**：旧任务只读归属/保留期未定；回滚演练未做。
+8. **所有权转移/离职**：人工流程未演练；可能留下无人接管任务。
+9. **试点组织/研究**：3 家未签、5–8 名研究未做；不能以内部走查代替。
+10. **事故沟通/支持**：R0a 专用 on-call/工单模板未定。
+11. **合规**：数据驻留/删除/审计保留需法务/安全确认。
+12. **No-go 清单**：30 个 blocking 项是当前事实，不是“待补文档”就能关闭。
+
+## 13. 验收标准
+
+D6 完成（可进入 R0a 试点）需要：
+
+- 安全控制 S01–S15 全部 `closed` 或有签署风险接受/降级；S16 out_of_scope 仅 R0a。
+- SLO 指标/告警/仪表盘可测量；未测指标不标 met。
+- 容量模型 + 试点压测通过；outbox backlog 阈值/503 可演练。
+- 升级/回滚/DB 迁移/Temporal 升级/供应商故障/Runner 故障/恢复/kill switch/停用 Runbook 经走查。
+- 备份恢复、RLS/直接 DML、密钥泄漏、沙箱/egress、旧链接/flag 回滚演练通过。
+- 3 家组织/20 席位/已知限制/支持/删除/所有权转移完成。
+- 5–8 名研究 + 3 家组织 golden tasks；边界复述/验收/采纳指标可算。
+- `pilot-checklist.json` 所有 blocking 项 done/waived；go/no-go 记录签署。
+
+## 14. 交付物与下一步
+
+- [security-controls.json](assets/work-r0a-ops-2026-10-25/security-controls.json)
+- [slo-pilot.json](assets/work-r0a-ops-2026-10-25/slo-pilot.json)
+- [pilot-checklist.json](assets/work-r0a-ops-2026-10-25/pilot-checklist.json)
+- [pilot-capacity-model.mjs](assets/work-r0a-ops-2026-10-25/pilot-capacity-model.mjs)
+- [ops-model.mjs](assets/work-r0a-ops-2026-10-25/ops-model.mjs) + [8 组测试](assets/work-r0a-ops-2026-10-25/ops-model.test.mjs)
+- 下一步：D6 评审后按 no-go 清单逐项关闭；优先 D1 增量、Temporal 测试、沙箱/供应商/KMS、SLO/恢复演练、试点组织与研究。
