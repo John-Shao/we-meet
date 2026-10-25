@@ -1,5 +1,7 @@
 # 工作（Work）模块：产品、架构与 Agent 选型方案
 
+**2026-10-25 产品重做**：目标产品形态见 [WeMeet 工作产品设计方案](work-product-design-2026-10-25.md)。本文保留历史产品范围、架构选型与实施记录，不作为 clean-slate 产品设计依据。
+
 **2026-10-25 当前范围变更**：日常办公的材料上传 / 解析、沟通准备、周报和表格分析已全部删除；当前 Work 仅保留目标驱动的 `office_agent`、桌面本地 / 远程协调和 Pi 只读复核。以下历史章节保留原规划与实施记录，不再代表当前产品能力；其中提到的 `accept-work.sh`、`evaluate-candidate`、`work/materials/` 接口和 `communication-v*` 执行器均已删除，相关命令与评测流程无法再执行。
 
 **2026-10-08 当前实现入口**：详见 [Work Agent 架构](../features/work-agent-architecture.md)。已采用桌面 dsh 执行、服务端 Pi 只读复核、Android 派发与查看；生产保持单演示账号灰度。业务与执行器通过自有版本化协议独立更新，桌面内部候选为 delivery.4，服务端适配器为 0.3.5。精确版本、验证和限制见 [生产记录](../reviews/work-dual-agent-production-release-2026-10-08.md)；以下规划修订及 2026-10-07 补充保留其历史日期和范围。
