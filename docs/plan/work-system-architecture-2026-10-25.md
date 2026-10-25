@@ -1,6 +1,6 @@
 # WeMeet 工作系统架构设计
 
-> 版本：v2.4（clean-slate 目标架构；补充S1–S6首轮验证状态）
+> 版本：v2.5（clean-slate 目标架构；归档H01–H12/S1–S6脚本副本）
 >
 > 日期：2026-10-25
 >
@@ -362,7 +362,7 @@ Operation key由Work生成，例如`(run_id, turn_seq, model_request_seq)`和`(r
 
 ### 3.8 Harness 准入实验
 
-本轮完成源码/官方文档研究，并在仓库外实验目录安装了Pi 1.4.0核对导出API；H03–H05/H12以faux/mock模型执行，H02以qwen3.8-flash、deepseek-chat、doubao-seed-2-1-lite各执行3次真实流式请求，H01以161MB用户级安装包在模拟干净环境执行安装/签名/启动/卸载，H06在非管理员Windows上以AppContainer+Node permission model执行隔离对照，H07–H09以mock控制账本/端云适配/上下文场景执行，H10以真实Pi 1.3.0与1.4.0做跨版本恢复，H11因H03–H05通过而未触发；S1–S6未执行。故仍不宣称包体、延迟、内存、多供应商兼容或生产崩溃恢复已经达标。实验目录不进入仓库，不预装任何备选Harness。
+本轮完成源码/官方文档研究，并在仓库外实验目录安装了Pi 1.4.0核对导出API；H03–H05/H12以faux/mock模型执行，H02以qwen3.8-flash、deepseek-chat、doubao-seed-2-1-lite各执行3次真实流式请求，H01以161MB用户级安装包在模拟干净环境执行安装/签名/启动/卸载，H06在非管理员Windows上以AppContainer+Node permission model执行隔离对照，H07–H09以mock控制账本/端云适配/上下文场景执行，H10以真实Pi 1.3.0与1.4.0做跨版本恢复，H11因H03–H05通过而未触发；S1–S6已执行首轮（见§21.2）。故仍不宣称包体、延迟、内存、多供应商兼容或生产崩溃恢复已经达标。实验运行产物不进入仓库；可复现脚本副本见[assets/harness-lab](assets/harness-lab/README.md)，不预装任何备选Harness。
 
 | ID | 实验 | 通过条件 |
 |---|---|---|
@@ -402,7 +402,7 @@ Operation key由Work生成，例如`(run_id, turn_seq, model_request_seq)`和`(r
 | H11 | 未触发（条件不满足） | H03–H05硬门槛均通过，按§3.8前提不启动OpenAI Agents SDK备选；未安装、未适配、未运行。 |
 | H12 | 通过（mock/内存账本） | 正常两轮Run：2次收费模型调用与2个模型Operation、1个工具Operation一一对应，收费=结算=12单位；同一模型/工具回执各投递3次只结算1次；重复outbox、重复命令与双消费者竞争均被抑制，副作用各1次；unknown经查询结算不新增attempt或收费；人为制造的孤儿收费与无收费Operation均被审计发现。 |
 
-**首轮实验阶段状态：已收口（2026-10-25）。** H01、H02、H06为部分通过；H03–H05、H07–H10、H12为通过；H11未触发；S1–S6未执行。收口只表示Harness准入实验批次结束，不表示S7通过或系统开发/生产安全就绪；未覆盖项见下段。
+**首轮实验阶段状态：已收口（2026-10-25）。** H01、H02、H06为部分通过；H03–H05、H07–H10、H12为通过；H11未触发；S1–S6已执行首轮（部分通过，见§21.2）。收口只表示Harness准入实验批次结束，不表示S7通过或系统开发/生产安全就绪；未覆盖项见下段。
 
 这些结果只覆盖Pi内核与Work Adapter在脚本模型、单机进程边界上的行为，不覆盖S1–S6的生产验证（真实PG/Temporal/账本、并发消费者、真实设备/网关、容量）与H11条件备选（未触发），不能据此宣布Harness准入通过。H07–H10结论限于mock控制账本/端云适配/上下文场景与Work自有checkpoint：H07未接真实DB/租约/预算；H08未接真实设备与云端内容存储；H09使用字符估算与mock摘要，未接真实tokenizer/压缩；H10使用真实Pi 1.3.0/1.4.0但未验证容器镜像回退与半轮迁移。H02覆盖三家云端provider与两种线协议：Chat Completions使用`messages`/通用delta，usage在Qwen为`completion_tokens_details.reasoning_tokens`、在DeepSeek为`prompt_cache_hit_tokens`/`miss`；Responses使用`input`/`response.*`类型化事件，usage为`output_tokens_details.reasoning_tokens`，并返回reasoning summary与`encrypted_content`。网关必须按API类型归一消息、工具调用、reasoning与usage，`encrypted_content`不得进入公共输出或默认留存；DeepSeek对请求模型`deepseek-chat`返回`model=deepseek-flash`，快照只能记录请求别名与响应元数据。本地网关代持Key，但未验证云端网关鉴权、配额、超时与回退。H01的结论限于当前Windows上的模拟干净环境与自签名：安装器为PowerShell用户级而非MSI/EXE，未验证干净VM、每机器安装、回滚、可信CA/EV签名与时间戳；“无WSL/Python/npm依赖”以PATH仅System32、sidecar不调用且spawn被权限模型阻断为准，`wsl.exe`仍存在于System32但未被使用。H06的结论限于单机AppContainer+Node permission model：AppContainer单独可阻止文件/目录/网络，但不阻止子进程创建（未加`--permission`时spawn挂起）；Node permission model单独可被junction绕过且不限制网络；未验证Rust Broker、句柄级TOCTOU、AppLocker/Job组合、生产网络能力与签名安装。豆包示例中的内置`web_search`未启用：provider-side内置工具绕过Work工具目录与审批，R0a不开放。H12的对账结论限于内存账本与模拟投递：未验证PostgreSQL唯一约束/事务、多进程并发消费者、供应商幂等与查询接口、真实网络边界。
 

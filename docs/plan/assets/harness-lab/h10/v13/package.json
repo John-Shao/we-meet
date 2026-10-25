@@ -1,0 +1,10 @@
+{
+  "name": "h10-v13",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "1.3.0",
+    "@earendil-works/pi-ai": "1.3.0",
+    "typebox": "1.3.27"
+  }
+}
