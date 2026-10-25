@@ -1,0 +1,2001 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WeMeet 工作 · 扩展 UX 原型（R1–R3 预览）</title>
+<style>
+  :root {
+    --brand: #3370ff;
+    --brand-strong: #2860d9;
+    --brand-soft: #ebf1ff;
+    --canvas: #f6f6f6;
+    --surface: #ffffff;
+    --surface-muted: #fafbfc;
+    --text: #1a1c1e;
+    --text-2: #666666;
+    --text-3: #929292;
+    --border: #e5e5e5;
+    --border-strong: #d5d7db;
+    --warning-bg: #fff8e6;
+    --warning-border: #f2d48c;
+    --warning-text: #7a4b00;
+    --info-bg: #eef5ff;
+    --info-border: #b9d3ff;
+    --info-text: #1e4db3;
+    --success-bg: #edf9f2;
+    --success-border: #a8dfc0;
+    --success-text: #17663a;
+    --danger-bg: #fff1f0;
+    --danger-border: #f2b8b5;
+    --danger-text: #a8221a;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 16px 48px rgba(20, 24, 30, .18);
+    --font: 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+    --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--canvas); color: var(--text);
+    font-family: var(--font); font-size: 14px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+  .app { display: flex; min-height: 100vh; }
+  .rail {
+    width: 64px; flex: 0 0 64px; background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 8px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .rail-logo { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--brand); color: #fff; font-weight: 700; font-size: 13px; margin-bottom: 8px; }
+  .rail-nav { display: flex; flex-direction: column; gap: 4px; width: 100%; align-items: center; }
+  .rail-item { border: 0; background: transparent; color: var(--text-2); width: 52px; padding: 7px 4px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; }
+  .rail-item svg { width: 19px; height: 19px; }
+  .rail-item:hover { background: var(--surface-muted); color: var(--text); }
+  .rail-item.active { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
+  .rail-user { margin-top: auto; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand-strong); font-size: 11px; font-weight: 700; }
+  .workspace { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .topbar { height: 52px; flex: 0 0 52px; display: flex; align-items: center; gap: 16px; padding: 0 20px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
+  .breadcrumb { display: flex; gap: 8px; align-items: center; color: var(--text-3); font-size: 13px; }
+  .breadcrumb strong { color: var(--text); font-weight: 600; }
+  .top-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .badge { font-size: 11px; color: var(--brand-strong); background: var(--brand-soft); border: 1px solid var(--info-border); padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+  .icon-btn { border: 1px solid var(--border); background: var(--surface); color: var(--text-2); height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12px; }
+  .icon-btn:hover { background: var(--surface-muted); color: var(--text); }
+  .layout { display: flex; flex: 1; min-height: 0; }
+  .side { width: 224px; flex: 0 0 224px; background: var(--surface); border-right: 1px solid var(--border); padding: 18px 12px; display: flex; flex-direction: column; gap: 16px; position: sticky; top: 52px; height: calc(100vh - 52px); }
+  .side-head { display: flex; align-items: center; justify-content: space-between; padding: 0 6px; }
+  .side-head strong { font-size: 15px; }
+  .side-head .badge { font-size: 10px; padding: 2px 6px; }
+  .side-nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav-item { border: 0; background: transparent; text-align: left; color: var(--text-2); padding: 9px 10px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .nav-item:hover { background: var(--surface-muted); color: var(--text); }
+  .nav-item.active { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
+  .side-foot { margin-top: auto; border-top: 1px solid var(--border); padding: 12px 6px 0; color: var(--text-3); font-size: 11px; }
+  .side-foot p { margin: 2px 0; }
+  .main { flex: 1; min-width: 0; overflow: auto; }
+  .screen { max-width: 1120px; margin: 0 auto; padding: 28px 30px 80px; }
+  .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+  .page-head h1 { margin: 2px 0 4px; font-size: 26px; letter-spacing: -.2px; }
+  .page-head p { margin: 0; color: var(--text-2); font-size: 13px; }
+  .eyebrow { color: var(--text-3); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .composer { padding: 16px 16px 12px; }
+  .composer textarea { width: 100%; min-height: 120px; resize: vertical; border: 0; outline: none; background: transparent; padding: 4px 2px 10px; font-size: 15px; line-height: 1.65; }
+  .composer textarea::placeholder { color: var(--text-3); }
+  .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 10px; }
+  .chip { border: 1px solid var(--border); background: var(--surface); color: var(--text-2); border-radius: 999px; height: 30px; padding: 0 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+  .chip:hover { border-color: var(--border-strong); color: var(--text); }
+  .chip.selected { border-color: var(--brand); color: var(--brand-strong); background: var(--brand-soft); }
+  .chip.warn { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning-text); }
+  .chip .caret { color: var(--text-3); font-size: 10px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; height: 30px; }
+  .seg button { border: 0; background: var(--surface); color: var(--text-2); padding: 0 10px; font-size: 12px; border-right: 1px solid var(--border); }
+  .seg button:last-child { border-right: 0; }
+  .seg button.active { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
+  .seg button:disabled { color: var(--text-3); opacity: .6; }
+  .send { margin-left: auto; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--brand); color: #fff; font-size: 20px; display: grid; place-items: center; }
+  .send:disabled { background: var(--border); color: var(--text-3); }
+  .composer-meta { display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; font-size: 11px; color: var(--text-3); }
+  .greeting { margin: 0 0 2px; color: var(--text-3); font-size: 12px; }
+  .tool-plus { width: 34px; height: 34px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); border-radius: 50%; font-size: 20px; display: grid; place-items: center; line-height: 1; flex: 0 0 auto; }
+  .tool-plus:hover { border-color: var(--brand); color: var(--brand-strong); background: var(--brand-soft); }
+  .tool-plus.selected { border-color: var(--brand); color: var(--brand-strong); background: var(--brand-soft); }
+  .tool-plus:disabled, .chip:disabled { opacity: .5; }
+  .composer-footer { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px; }
+  .new-project { border: 0; background: transparent; color: var(--brand-strong); font-size: 12px; padding: 0; display: inline-flex; align-items: center; gap: 6px; }
+  .new-project:hover { text-decoration: underline; }
+  .r3 { border: 1px solid var(--warning-border); background: var(--warning-bg); color: var(--warning-text); border-radius: 999px; padding: 1px 6px; font-size: 10px; }
+  .tool-list { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; }
+  .tool-row { border: 0; background: transparent; text-align: left; padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; gap: 10px; align-items: center; font-size: 13px; color: var(--text); }
+  .tool-row:hover { background: var(--surface-muted); }
+  .tool-row small { display: block; color: var(--text-2); font-size: 11.5px; margin-top: 2px; }
+  .tool-row .r3 { flex: 0 0 auto; }
+  .executor-option, .permission-option { width: 100%; border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 10px 12px; text-align: left; display: flex; justify-content: space-between; gap: 10px; align-items: center; margin: 8px 0; font-size: 13px; color: var(--text); }
+  .executor-option:hover, .permission-option:hover { border-color: var(--brand); background: var(--brand-soft); }
+  .executor-option.selected, .permission-option.selected { border-color: var(--brand); background: var(--brand-soft); }
+  .executor-option small, .permission-option small { display: block; color: var(--text-2); font-size: 11.5px; margin-top: 2px; }
+  .option-check { color: var(--brand-strong); font-weight: 700; }
+
+  .composer-meta .hint.warn { color: var(--danger-text); }
+  .composer-meta .hint.ok { color: var(--success-text); }
+  .trust { margin-top: 10px; border: 1px solid var(--info-border); background: var(--info-bg); color: var(--info-text); border-radius: var(--radius-sm); padding: 10px 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; }
+  .trust-title { display: flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; }
+  .trust-title .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
+  .trust-items { flex: 1; min-width: 220px; }
+  .mode-tag { margin-left: auto; border: 1px solid var(--info-border); background: var(--surface); color: var(--info-text); border-radius: 999px; padding: 2px 8px; font-size: 11px; white-space: nowrap; }
+  .section { margin-top: 24px; }
+  .section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+  .section-head h2 { margin: 0; font-size: 15px; }
+  .section-head span { color: var(--text-2); font-size: 12px; }
+  .suite-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .suite-card { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm); padding: 12px; text-align: left; display: flex; flex-direction: column; gap: 5px; }
+  .suite-card:hover { border-color: var(--brand); background: var(--brand-soft); }
+  .suite-card strong { font-size: 13px; }
+  .suite-card p { margin: 0; color: var(--text-2); font-size: 12px; }
+  .suite-card small { color: var(--text-3); font-size: 11px; }
+  .suite-card .req { color: var(--warning-text); font-size: 11px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; overflow-x: auto; }
+  .tab { border: 0; background: transparent; color: var(--text-2); padding: 9px 10px; border-bottom: 2px solid transparent; font-size: 12px; white-space: nowrap; }
+  .tab.active { color: var(--brand-strong); border-bottom-color: var(--brand); font-weight: 600; }
+  .cap-head { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 12px; }
+  .cap-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; justify-content: flex-end; height: 34px; }
+  .cap-head-actions select { height: 34px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-2); padding: 0 8px; font-size: 12px; }
+  .cap-head-actions .btn { height: 34px; }
+  .cap-head input { height: 34px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-2); padding: 0 10px; font-size: 12px; width: min(320px, 100%); }
+  .feature { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; padding: 20px; margin-bottom: 18px; }
+  .feature h2 { margin: 8px 0 5px; font-size: 22px; letter-spacing: -.2px; }
+  .feature p { margin: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.7; }
+  .feature-actions, .feature-tags { display: flex; gap: 7px; flex-wrap: wrap; }
+  .feature-actions { margin-top: 14px; }
+  .feature-tags { align-content: flex-start; justify-content: flex-end; }
+  .feature-tags .summary-chip { background: var(--brand-soft); border-color: var(--info-border); color: var(--info-text); }
+  .category-row { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; min-width: 200px; }
+  .category-row .chip { height: 28px; }
+  .category-row .chip.active { border-color: var(--brand); color: var(--brand-strong); background: var(--brand-soft); }
+  .cap-section { margin-top: 20px; }
+  .cap-card { padding: 14px; }
+  .cap-card-head { display: flex; gap: 10px; align-items: flex-start; }
+  .cap-icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand-strong); font-weight: 700; font-size: 14px; flex: 0 0 auto; }
+  .cap-card h3 { margin: 0 0 3px; font-size: 14px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .cap-card p { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.55; }
+  .cap-actions { display: flex; gap: 6px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .breadcrumb-line { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; color: var(--text-3); font-size: 12px; margin-bottom: 12px; }
+  .breadcrumb-line button { border: 0; background: transparent; color: var(--brand-strong); padding: 0; font-size: 12px; }
+  .breadcrumb-line button:hover { text-decoration: underline; }
+  .breadcrumb-line strong { color: var(--text); font-weight: 600; }
+  .detail-head { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+  .detail-icon { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand-strong); font-weight: 700; font-size: 18px; flex: 0 0 auto; }
+  .detail-head h1 { margin: 0 0 3px; font-size: 24px; }
+  .detail-head p { margin: 0; color: var(--text-2); font-size: 13px; max-width: 720px; }
+  .detail-meta { margin-top: 7px; color: var(--text-3); font-size: 11.5px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .detail-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+  .detail-main, .detail-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .detail-card { padding: 14px; }
+  .detail-card h2 { margin: 0 0 8px; font-size: 13px; }
+  .detail-card p { margin: 5px 0; color: var(--text-2); font-size: 12px; line-height: 1.7; }
+  .detail-card ol, .detail-card ul { margin: 5px 0; padding-left: 18px; color: var(--text-2); font-size: 12px; line-height: 1.8; }
+  .detail-card .meta { color: var(--text-3); font-size: 11px; }
+  .detail-card .row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-2); }
+  .detail-card .row:first-of-type { border-top: 0; }
+  .detail-card .row strong { color: var(--text); font-weight: 600; }
+  .detail-card .link { margin-top: 6px; }
+  .cap-note { margin: -4px 0 12px; color: var(--text-2); font-size: 12px; }
+  .example-list { display: flex; flex-direction: column; gap: 6px; }
+  .example-row { border: 1px solid var(--border); background: var(--surface-muted); border-radius: 8px; padding: 8px 10px; display: flex; justify-content: space-between; gap: 10px; align-items: center; text-align: left; font-size: 12px; color: var(--text-2); }
+  .example-row:hover { border-color: var(--brand); color: var(--text); background: var(--brand-soft); }
+  .example-row span:last-child { color: var(--brand-strong); font-size: 15px; }
+  .form-row { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; font-size: 12px; color: var(--text-2); }
+  .form-row input, .form-row textarea, .form-row select { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--surface); font-size: 12px; color: var(--text); }
+  .form-row textarea { min-height: 64px; resize: vertical; }
+  .manage-row { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--border); font-size: 12px; }
+  .manage-row:first-child { border-top: 0; }
+  .manage-row strong { font-weight: 600; }
+  .manage-row span { color: var(--text-2); }
+  .cap-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .cap-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .cap-tools input { height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-2); padding: 0 9px; font-size: 12px; min-width: 220px; }
+  .cap-tools .chip { height: 28px; }
+  .cap-tools .chip.active { border-color: var(--brand); color: var(--brand-strong); background: var(--brand-soft); }
+  .cap-card { padding: 14px; }
+  .cap-card h3 { margin: 0 0 4px; font-size: 14px; }
+  .cap-card p { margin: 0; color: var(--text-2); font-size: 12px; }
+  .cap-card .meta { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; font-size: 11px; color: var(--text-3); }
+  .status { font-size: 11px; border-radius: 999px; padding: 2px 7px; border: 1px solid var(--border); color: var(--text-2); background: var(--surface-muted); }
+  .status.ok { background: var(--success-bg); color: var(--success-text); border-color: var(--success-border); }
+  .status.warn { background: var(--warning-bg); color: var(--warning-text); border-color: var(--warning-border); }
+  .status.danger { background: var(--danger-bg); color: var(--danger-text); border-color: var(--danger-border); }
+  .task-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .back { border: 1px solid var(--border); background: var(--surface); color: var(--text-2); width: 32px; height: 32px; border-radius: 8px; }
+  .task-head h1 { margin: 0; font-size: 22px; }
+  .pill { font-size: 11px; border-radius: 999px; padding: 3px 9px; border: 1px solid var(--info-border); background: var(--info-bg); color: var(--info-text); }
+  .task-summary { padding: 14px; margin-bottom: 14px; }
+  .task-summary h2 { margin: 0 0 8px; font-size: 13px; }
+  .summary-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .summary-chip { border: 1px solid var(--border); background: var(--surface-muted); border-radius: 999px; padding: 3px 8px; font-size: 11px; color: var(--text-2); }
+  .summary-chip strong { color: var(--text); }
+  .task-note { margin-top: 8px; color: var(--text-2); font-size: 12px; }
+  .usage-details { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; color: var(--text-2); font-size: 12px; }
+  .usage-details summary { cursor: pointer; color: var(--brand-strong); }
+  .usage-details ul { margin: 8px 0 0; padding-left: 18px; }
+  .usage-details li { margin: 3px 0; }
+  .preview { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); padding: 14px; font-size: 12px; color: var(--text-2); }
+  .preview h3 { margin: 0 0 6px; color: var(--text); font-size: 14px; }
+  .preview h4 { margin: 12px 0 4px; color: var(--text); font-size: 12px; }
+  .preview ul { margin: 4px 0; padding-left: 18px; }
+  .backdrop { position: fixed; inset: 0; background: rgba(12, 16, 22, .44); display: grid; place-items: center; padding: 20px; z-index: 100; }
+  .modal { width: min(720px, 100%); max-height: min(760px, 88vh); overflow: auto; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; }
+  .modal h2 { margin: 0 0 4px; font-size: 18px; }
+  .modal .sub { margin: 0 0 14px; color: var(--text-2); font-size: 12px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--border); background: var(--surface); color: var(--text); height: 32px; border-radius: 8px; padding: 0 12px; font-size: 12px; font-weight: 600; }
+  .btn:hover:not(:disabled) { background: var(--surface-muted); }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .btn.primary:hover:not(:disabled) { background: var(--brand-strong); }
+  .btn.primary:disabled { background: var(--border); border-color: var(--border); color: var(--text-3); opacity: 1; }
+  .btn.ghost { border-color: transparent; background: transparent; color: var(--text-2); }
+  .btn.danger { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
+  .picker-layout { display: grid; grid-template-columns: 1fr 300px; gap: 14px; }
+  .picker-list { display: flex; flex-direction: column; gap: 8px; }
+  .pick-card { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 12px; text-align: left; display: flex; flex-direction: column; gap: 4px; }
+  .pick-card:hover { border-color: var(--brand); }
+  .pick-card.selected { border-color: var(--brand); background: var(--brand-soft); box-shadow: inset 0 0 0 1px var(--brand); }
+  .pick-card strong { font-size: 13px; }
+  .pick-card p { margin: 0; color: var(--text-2); font-size: 12px; }
+  .pick-card small { color: var(--text-3); font-size: 11px; }
+  .pick-card .req { color: var(--warning-text); font-size: 11px; }
+  .detail { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); padding: 12px; font-size: 12px; color: var(--text-2); }
+  .detail h3 { margin: 0 0 6px; color: var(--text); font-size: 14px; }
+  .detail h4 { margin: 12px 0 4px; color: var(--text); font-size: 12px; }
+  .detail ol, .detail ul { margin: 4px 0; padding-left: 18px; }
+  .detail .meta { color: var(--text-3); font-size: 11px; }
+  .skill-list { display: flex; flex-direction: column; gap: 8px; }
+  .skill-row { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: var(--surface); text-align: left; }
+  .skill-row:hover { border-color: var(--brand); }
+  .skill-row.selected { border-color: var(--brand); background: var(--brand-soft); }
+  .skill-row input { margin-top: 3px; }
+  .skill-row strong { display: block; font-size: 13px; }
+  .skill-row small { display: block; color: var(--text-2); font-size: 11.5px; margin-top: 2px; }
+  .skill-row .tag { color: var(--text-3); font-size: 11px; }
+  .counter { color: var(--text-2); font-size: 12px; margin-bottom: 10px; }
+  .connector-list { display: flex; flex-direction: column; gap: 8px; }
+  .connector-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: var(--surface); }
+  .connector-row.selected { border-color: var(--brand); background: var(--brand-soft); }
+  .connector-main { flex: 1; min-width: 0; }
+  .connector-main strong { display: block; font-size: 13px; }
+  .connector-main small { display: block; color: var(--text-2); font-size: 11.5px; margin-top: 2px; }
+  .connector-row .actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .scope { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--border); font-size: 12px; }
+  .scope:first-of-type { border-top: 0; }
+  .scope input { margin-top: 3px; }
+  .scope strong { display: block; font-size: 12px; }
+  .scope small { display: block; color: var(--text-2); font-size: 11px; }
+  .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: var(--text); color: var(--surface); padding: 9px 14px; border-radius: 999px; font-size: 12px; z-index: 200; box-shadow: var(--shadow); }
+  .empty { border: 1px dashed var(--border-strong); border-radius: var(--radius); padding: 32px 16px; text-align: center; color: var(--text-2); font-size: 13px; background: var(--surface); }
+  .task-alert { border: 1px solid var(--danger-border); background: var(--danger-bg); color: var(--danger-text); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px; font-size: 12px; }
+  .task-alert strong { display: block; }
+  .task-alert p { margin: 2px 0 8px; }
+  .task-alert-actions { display: flex; gap: 8px; }
+  .cap-demo-banner { border: 1px solid var(--warning-border); background: var(--warning-bg); color: var(--warning-text); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px; font-size: 12px; }
+  .cap-demo-banner.danger { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-text); }
+  .skeleton-card { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); padding: 14px; min-height: 108px; }
+  .skeleton-line { height: 10px; border-radius: 999px; background: linear-gradient(90deg, var(--surface-muted), var(--border), var(--surface-muted)); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; margin-bottom: 10px; }
+  .skeleton-line.short { width: 45%; }
+  .cap-loading-note { color: var(--text-2); font-size: 12px; margin-bottom: 10px; }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .skeleton-line { animation: none; } }
+  .mobile-nav { display: none; }
+  @media (max-width: 1050px) {
+    .suite-grid { grid-template-columns: 1fr 1fr; }
+    .cap-grid { grid-template-columns: 1fr; }
+    .picker-layout { grid-template-columns: 1fr; }
+    .detail { order: -1; }
+    .feature { grid-template-columns: 1fr; }
+    .feature-tags { justify-content: flex-start; }
+    .detail-layout { grid-template-columns: 1fr; }
+    .detail-actions { margin-left: 0; width: 100%; }
+  }
+  @media (max-width: 760px) {
+    .rail, .side { display: none; }
+    .topbar { padding: 0 14px; }
+    .badge { display: none; }
+    .screen { padding: 18px 14px 88px; }
+    .page-head h1 { font-size: 22px; }
+    .suite-grid { grid-template-columns: 1fr; }
+    .cap-head { align-items: flex-start; }
+    .cap-head-actions { height: auto; flex-wrap: wrap; justify-content: flex-start; }
+    .cap-head input { width: 100%; }
+    .detail-head h1 { font-size: 22px; }
+    .detail-actions { width: 100%; }
+    .detail-actions .btn { flex: 1; }
+    .tools { gap: 6px; }
+    .chip { height: 28px; font-size: 11px; }
+    .seg { order: 3; }
+    .send { order: 4; }
+    .trust { align-items: flex-start; }
+    .mode-tag { margin-left: 0; }
+    .modal { width: 100%; max-height: 92vh; border-radius: 14px; padding: 16px; }
+    .modal-actions { position: sticky; bottom: -16px; background: var(--surface); padding: 10px 0 0; }
+    .connector-row { align-items: flex-start; flex-direction: column; }
+    .connector-row .actions { width: 100%; }
+    .connector-row .actions .btn { flex: 1; }
+    .mobile-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 6px 12px 10px; z-index: 50; }
+    .mobile-nav button { flex: 1; border: 0; background: transparent; color: var(--text-2); padding: 6px 0; font-size: 11px; }
+    .mobile-nav button.active { color: var(--brand-strong); font-weight: 600; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" aria-label="主导航">
+    <div class="rail-logo" aria-hidden="true">W</div>
+    <nav class="rail-nav">
+      <button class="rail-item" type="button" title="消息"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H9l-5 4V5Z"/></svg><span>消息</span></button>
+      <button class="rail-item" type="button" title="会议"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="m15 10 6-3v10l-6-3"/></svg><span>会议</span></button>
+      <button class="rail-item active" type="button" title="工作" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5h8v2M3 12h18"/></svg><span>工作</span></button>
+      <button class="rail-item" type="button" title="文档"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h8l4 4v14H6V3Z"/><path d="M14 3v5h4M9 12h6M9 16h6"/></svg><span>文档</span></button>
+    </nav>
+    <div class="rail-user">JS</div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <div class="breadcrumb"><span>WeMeet</span><span>/</span><strong>工作</strong><span>/</span><span>扩展</span></div>
+      <div class="top-actions">
+        <span class="badge" id="modeBadge">R1–R3 扩展预览</span>
+        <button class="icon-btn" type="button" id="resetDemo">重置</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="side" aria-label="工作导航">
+        <div class="side-head"><strong>工作</strong><span class="badge">扩展</span></div>
+        <nav class="side-nav">
+          <button class="nav-item active" type="button" data-nav="home">工作首页</button>
+          <button class="nav-item" type="button" data-nav="capabilities">扩展能力</button>
+          <button class="nav-item" type="button" data-nav="task" hidden>任务摘要</button>
+        </nav>
+        <div class="side-foot">
+          <p>R1 · 套件/技能</p>
+          <p>R2a · 只读连接器</p>
+          <p>R3 · 链式预览</p>
+          <p>中保真 · 无后端</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <!-- 首页 -->
+        <section class="screen" data-screen="home">
+          <header class="page-head">
+            <div>
+              <p class="greeting">下午好，JS</p>
+              <h1>今天想完成什么工作？</h1>
+              <p>用 ＋ 添加套件和技能；连接器单独授权；提交前看清本次会用到的能力。</p>
+            </div>
+          </header>
+
+          <section class="composer card" aria-label="任务输入">
+            <label class="sr-only" for="goal">任务描述</label>
+            <textarea id="goal" placeholder="描述任务，输入/调用技能"></textarea>
+            <div class="tools">
+              <button class="tool-plus" type="button" id="toolChip" data-action="open-tools" aria-label="添加套件、技能或文件夹" aria-haspopup="dialog">＋</button>
+              <span class="chip" id="projectChip" hidden data-action="new-project"></span>
+              <button class="chip" type="button" id="connectorChip" data-open="connector">连接器</button>
+              <button class="chip" type="button" id="executorChip" data-action="open-executor">执行器：云端</button>
+              <button class="chip" type="button" id="permissionChip" data-action="open-permission">默认权限</button>
+              <button class="chip" type="button" id="quickChip" data-open="quick">／ 命令</button>
+              <button class="send" type="button" id="sendBtn" aria-label="提交任务" disabled>↑</button>
+            </div>
+            <div class="composer-meta">
+              <span id="charCount">0 / 2000</span>
+              <span class="hint" id="hint">先描述你想完成的任务</span>
+            </div>
+            <div class="composer-footer">
+              <button class="new-project" type="button" id="newProjectLink" data-action="new-project">＋ 新建项目 <span class="r3">R3</span></button>
+            </div>
+          </section>
+
+          <div class="trust" aria-live="polite">
+            <div class="trust-title"><span class="dot" aria-hidden="true"></span>本次使用</div>
+            <div class="trust-items" id="usage">云端 · 无套件 · 0 个补充技能 · 无连接器 · 交付 Markdown</div>
+            <span class="mode-tag" id="modeTag" hidden>预设组合 · 无链式</span>
+          </div>
+
+          <section class="section" aria-labelledby="suitesTitle">
+            <div class="section-head"><h2 id="suitesTitle">推荐套件</h2><span>R1 · 套件模板</span></div>
+            <div class="suite-grid" id="suiteGrid">
+              <button class="suite-card" type="button" data-suite-card="product">
+                <strong>产品方案</strong>
+                <p>目标 → 背景 → 备选 → 取舍 → 自检</p>
+                <small>5 个技能 · Markdown · 云端</small>
+              </button>
+              <button class="suite-card" type="button" data-suite-card="weekly">
+                <strong>客户周报</strong>
+                <p>来源 → 结论 → 行动项 → 风险</p>
+                <small>4 个技能 · 需要「知识库」 · 云端</small>
+                <span class="req">未连接知识库</span>
+              </button>
+              <button class="suite-card" type="button" data-suite-card="local">
+                <strong>本地资料整理</strong>
+                <p>扫描 → 分类 → 索引 → 自检</p>
+                <small>3 个技能 · Markdown/CSV · 本机</small>
+              </button>
+            </div>
+          </section>
+
+          <section class="section" aria-labelledby="howTitle">
+            <div class="section-head"><h2 id="howTitle">扩展怎么用</h2><span>R1 预设组合；R3 才有链式</span></div>
+            <div class="card" style="padding:14px; color:var(--text-2); font-size:12px; line-height:1.8">
+              套件是方法，技能是步骤，连接器是数据。R1 套件只在一次运行内组织提示，不会自动执行多步链式；需要读取前序产出和 schema 校验时，才进入 R3。
+            </div>
+          </section>
+        </section>
+
+        <!-- 扩展能力首页（一级） -->
+        <section class="screen" data-screen="capabilities" hidden>
+          <header class="page-head cap-head">
+            <div>
+              <div class="eyebrow">组织目录</div>
+              <h1>扩展能力</h1>
+              <p>组织目录，不是开放市场。安装、启用、授权、调用是四个状态。</p>
+            </div>
+            <div class="cap-head-actions">
+              <select id="capabilitySet" aria-label="演示能力范围" title="演示：模拟组织已开通的能力范围">
+                <option value="r1r2a_r3" selected>范围：R1–R3 预览</option>
+                <option value="r1r2a">范围：R1 + R2a</option>
+                <option value="r1">范围：仅 R1</option>
+              </select>
+              <select id="capState" aria-label="演示能力状态" title="演示：模拟加载、授权过期和连接器错误">
+                <option value="normal" selected>状态：正常</option>
+                <option value="loading">状态：加载中</option>
+                <option value="expired">状态：授权过期</option>
+                <option value="error">状态：连接器错误</option>
+              </select>
+              <input type="search" id="capSearch" placeholder="搜索扩展能力" aria-label="搜索扩展能力">
+              <button class="btn" type="button" data-action="manage-capabilities" title="管理员入口">管理</button>
+              <button class="btn primary" type="button" data-action="create-suite" title="组织作者入口">创建套件</button>
+            </div>
+          </header>
+
+          <div class="cap-demo-banner" id="capDemoBanner" hidden></div>
+          <div id="capLoading" hidden>
+            <p class="cap-loading-note">正在加载能力…</p>
+            <div class="cap-grid">
+              <div class="skeleton-card"><div class="skeleton-line short"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+              <div class="skeleton-card"><div class="skeleton-line short"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+              <div class="skeleton-card"><div class="skeleton-line short"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
+            </div>
+          </div>
+          <div id="capContent">
+            <section class="feature card" id="featureCard"></section>
+
+            <div class="tabs" id="capTabs" role="tablist" aria-label="能力类型"></div>
+            <p class="cap-note" id="capabilityNote" hidden>当前组织未开通连接器；连接器 tab 不显示。</p>
+
+            <div class="cap-tools">
+              <div class="category-row" id="capCategories"></div>
+              <button class="chip active" type="button" data-cap-filter="all">全部状态</button>
+              <button class="chip" type="button" data-cap-filter="installed">仅已启用</button>
+              <button class="link" type="button" data-open-list="suite">查看全部</button>
+            </div>
+
+            <section class="cap-section">
+              <div class="section-head"><h2 id="capFeaturedTitle">组织推荐</h2><span id="capFeaturedMeta">精选 2 个</span></div>
+              <div class="cap-grid" id="capFeatured"></div>
+            </section>
+
+            <section class="cap-section" id="capMoreSection">
+              <div class="section-head"><h2 id="capAllTitle">更多套件</h2><span id="capCount"></span></div>
+              <div class="cap-grid" id="capGrid"></div>
+              <div class="empty" id="capEmpty" hidden>没有匹配的扩展能力。调整搜索或分类。</div>
+            </section>
+          </div>
+        </section>
+
+        <!-- 分类列表（二级） -->
+        <section class="screen" data-screen="capability-list" hidden>
+          <div class="breadcrumb-line" aria-label="面包屑">
+            <button type="button" data-nav="capabilities">扩展能力</button>
+            <span>/</span>
+            <strong id="listCrumb">套件</strong>
+          </div>
+          <header class="page-head">
+            <div>
+              <div class="eyebrow" id="listEyebrow">组织目录</div>
+              <h1 id="listTitle">套件</h1>
+              <p id="listSub">查看全部套件，选择一个查看方法或使用。</p>
+            </div>
+            <button class="btn" type="button" data-nav="capabilities">返回扩展能力</button>
+          </header>
+          <div class="cap-tools">
+            <input type="search" id="listSearch" placeholder="搜索当前分类" aria-label="搜索当前分类">
+            <select id="listCategory" aria-label="分类筛选">
+              <option value="all">全部分类</option>
+              <option value="document">文档</option>
+              <option value="analysis">分析</option>
+              <option value="project">项目</option>
+              <option value="data">数据</option>
+            </select>
+            <button class="chip active" type="button" data-list-filter="all">全部状态</button>
+            <button class="chip" type="button" data-list-filter="installed">仅已启用</button>
+          </div>
+          <div class="cap-grid" id="listGrid"></div>
+          <div class="empty" id="listEmpty" hidden>没有匹配项。调整搜索或分类。</div>
+        </section>
+
+        <!-- 套件详情（三级） -->
+        <section class="screen" data-screen="suite-detail" hidden>
+          <div class="breadcrumb-line" aria-label="面包屑">
+            <button type="button" data-nav="capabilities">扩展能力</button>
+            <span>/</span>
+            <button type="button" data-nav="capability-list" data-list-type="suite">套件</button>
+            <span>/</span>
+            <strong id="suiteCrumb">套件详情</strong>
+          </div>
+          <header class="detail-head">
+            <div class="detail-icon" id="suiteIcon">产</div>
+            <div>
+              <div class="eyebrow">套件 · R1 · 预设组合</div>
+              <h1 id="suiteName">产品方案</h1>
+              <p id="suiteDesc"></p>
+              <div class="detail-meta" id="suiteMeta"></div>
+            </div>
+            <div class="detail-actions">
+              <button class="btn" type="button" data-nav="capability-list" data-list-type="suite">返回列表</button>
+              <button class="btn primary" type="button" id="useSuiteFromDetail">使用此套件</button>
+            </div>
+          </header>
+          <div class="detail-layout">
+            <div class="detail-main">
+              <section class="card detail-card"><h2>方法步骤</h2><ol id="suiteSteps"></ol></section>
+              <section class="card detail-card">
+                <h2>输出标准</h2><p id="suiteOutput"></p>
+                <h2 style="margin-top:14px">快捷命令</h2><div id="suiteCommands"></div>
+              </section>
+              <section class="card detail-card"><h2>连接器</h2><div id="suiteConnectors"></div></section>
+              <section class="card detail-card"><h2>可以这样用</h2><div class="example-list" id="suiteExamples"></div><p class="meta">点击示例会预填工作首页，不自动提交。</p></section>
+            </div>
+            <aside class="detail-side">
+              <section class="card detail-card">
+                <h2>版本</h2>
+                <div class="row"><span>版本</span><strong id="suiteVersion"></strong></div>
+                <div class="row"><span>作者</span><strong>组织发布</strong></div>
+                <div class="row"><span>状态</span><strong id="suiteStatus"></strong></div>
+              </section>
+              <section class="card detail-card"><h2>环境</h2><p id="suiteEnv"></p></section>
+              <section class="card detail-card"><h2>相关技能</h2><div id="suiteSkills"></div></section>
+            </aside>
+          </div>
+        </section>
+
+        <!-- 技能详情（三级） -->
+        <section class="screen" data-screen="skill-detail" hidden>
+          <div class="breadcrumb-line" aria-label="面包屑">
+            <button type="button" data-nav="capabilities">扩展能力</button>
+            <span>/</span>
+            <button type="button" data-nav="capability-list" data-list-type="skill">技能</button>
+            <span>/</span>
+            <strong id="skillCrumb">技能详情</strong>
+          </div>
+          <header class="detail-head">
+            <div class="detail-icon" id="skillIcon">技</div>
+            <div>
+              <div class="eyebrow">技能 · R1</div>
+              <h1 id="skillName">竞品分析</h1>
+              <p id="skillDesc"></p>
+              <div class="detail-meta" id="skillMeta"></div>
+            </div>
+            <div class="detail-actions">
+              <button class="btn" type="button" data-nav="capability-list" data-list-type="skill">返回列表</button>
+              <button class="btn primary" type="button" id="useSkillFromDetail">添加为补充技能</button>
+            </div>
+          </header>
+          <div class="detail-layout">
+            <div class="detail-main">
+              <section class="card detail-card"><h2>方法说明</h2><p id="skillMethods"></p></section>
+              <section class="card detail-card"><h2>输入 / 输出</h2><div id="skillIO"></div></section>
+              <section class="card detail-card"><h2>适用与不适用</h2><div id="skillFit"></div></section>
+              <section class="card detail-card"><h2>可以这样用</h2><div class="example-list" id="skillExamples"></div><p class="meta">点击示例会预填工作首页；技能按“本次任务”添加。</p></section>
+            </div>
+            <aside class="detail-side">
+              <section class="card detail-card"><h2>环境</h2><p id="skillEnvironment"></p></section>
+              <section class="card detail-card"><h2>依赖</h2><div id="skillDeps"></div></section>
+              <section class="card detail-card"><h2>相关套件</h2><div id="skillSuites"></div></section>
+            </aside>
+          </div>
+        </section>
+
+        <!-- 连接器详情（三级） -->
+        <section class="screen" data-screen="connector-detail" hidden>
+          <div class="breadcrumb-line" aria-label="面包屑">
+            <button type="button" data-nav="capabilities">扩展能力</button>
+            <span>/</span>
+            <button type="button" data-nav="capability-list" data-list-type="connector">连接器</button>
+            <span>/</span>
+            <strong id="connectorCrumb">连接器详情</strong>
+          </div>
+          <header class="detail-head">
+            <div class="detail-icon" id="connectorIcon">库</div>
+            <div>
+              <div class="eyebrow">连接器 · R2a · 只读</div>
+              <h1 id="connectorName">知识库</h1>
+              <p id="connectorDesc"></p>
+              <div class="detail-meta" id="connectorMeta"></div>
+            </div>
+            <div class="detail-actions">
+              <button class="btn" type="button" data-nav="capability-list" data-list-type="connector">返回列表</button>
+              <button class="btn primary" type="button" id="connectorAction">连接账号</button>
+            </div>
+          </header>
+          <div class="detail-layout">
+            <div class="detail-main">
+              <section class="card detail-card"><h2>数据范围</h2><div id="connectorScopes"></div></section>
+              <section class="card detail-card"><h2>只读与安全</h2><p>R2a 只读取授权范围，不修改、不删除；令牌存储在独立凭据服务，不进入任务提示或成果。</p></section>
+              <section class="card detail-card"><h2>使用方式</h2><p>在 Composer 选择连接器和本次 scope；任务摘要会显示数据范围。撤销后新任务不可用，历史审计保留。</p></section>
+              <section class="card detail-card"><h2>可以这样用</h2><div class="example-list" id="connectorExamples"></div><p class="meta">未连接时点击示例会先打开授权。</p></section>
+            </div>
+            <aside class="detail-side">
+              <section class="card detail-card"><h2>授权状态</h2><div class="row"><span>状态</span><strong id="connectorStatus"></strong></div><div class="row"><span>环境</span><strong>云端</strong></div></section>
+              <section class="card detail-card"><h2>相关套件</h2><div id="connectorSuites"></div></section>
+            </aside>
+          </div>
+        </section>
+
+        <!-- 任务摘要 -->
+        <section class="screen" data-screen="task" hidden>
+          <div class="task-head">
+            <button class="back" type="button" data-nav="home" aria-label="返回首页">←</button>
+            <div>
+              <div class="eyebrow">任务摘要 · <span id="taskEnv">云端</span></div>
+              <h1 id="taskTitle">产品评审方案</h1>
+            </div>
+            <span class="pill">预设组合 · 待验收</span>
+          </div>
+
+          <div class="task-alert" id="taskConnectorError" hidden>
+            <strong>连接器「知识库」调用失败，任务已暂停</strong>
+            <p>已有成果保留；重试不会自动扩大 scope。可撤销连接器授权或查看审计。</p>
+            <div class="task-alert-actions"><button class="btn primary" type="button" id="retryConnector">重试</button><button class="btn" type="button" id="revokeConnector">撤销连接器</button></div>
+          </div>
+
+          <section class="card task-summary">
+            <h2>本次使用</h2>
+            <div class="summary-chips" id="taskChips"></div>
+            <p class="task-note" id="taskNote"></p>
+            <details class="usage-details">
+              <summary>查看本次能力与调用记录</summary>
+              <div id="taskUsageDetails"></div>
+            </details>
+          </section>
+
+          <section class="card" style="padding:14px">
+            <h2 style="margin:0 0 8px;font-size:13px">成果预览</h2>
+            <div class="preview">
+              <h3>产品评审方案</h3>
+              <p>本任务使用套件与技能生成；这里是中保真预览，不代表真实模型输出。</p>
+              <h4>1. 背景与目标</h4>
+              <p>确定会员改版第一阶段范围，形成可执行的取舍方案。</p>
+              <h4>2. 建议</h4>
+              <p>先做核心链路，第二阶段补视觉与运营工具。</p>
+            </div>
+          </section>
+
+          <div class="modal-actions" style="justify-content:flex-start">
+            <button class="btn" type="button" data-nav="home">返回首页继续组合</button>
+            <button class="btn" type="button" data-nav="capabilities">打开扩展能力</button>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</div>
+
+<nav class="mobile-nav" aria-label="移动端导航">
+  <button class="active" type="button" data-nav="home">工作</button>
+  <button type="button" data-nav="capabilities">扩展能力</button>
+</nav>
+
+<!-- 套件选择 -->
+<div class="backdrop" id="suiteModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="suiteTitle">
+    <h2 id="suiteTitle">选择套件</h2>
+    <p class="sub">一个任务最多一个主套件；套件内技能不计入补充技能上限。</p>
+    <div class="picker-layout">
+      <div class="picker-list" id="suiteList"></div>
+      <div class="detail" id="suiteDetail"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" type="button" data-close="suiteModal">取消</button>
+      <button class="btn danger" type="button" id="removeSuite" hidden>移除套件</button>
+      <button class="btn primary" type="button" id="useSuite" disabled>使用此套件</button>
+    </div>
+  </div>
+</div>
+
+<!-- 技能选择 -->
+<div class="backdrop" id="skillModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="skillTitle">
+    <h2 id="skillTitle">选择补充技能</h2>
+    <p class="sub">补充技能最多 3 个；套件内技能不计入上限。</p>
+    <div class="counter" id="skillCounter">已选 0/3</div>
+    <div class="empty" id="suiteSkillsNote" style="margin-bottom:10px">套件内技能不计入上限；选择套件后显示。</div>
+    <div class="skill-list" id="skillList"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" type="button" data-close="skillModal">取消</button>
+      <button class="btn primary" type="button" id="applySkills">应用</button>
+    </div>
+  </div>
+</div>
+
+<!-- 连接器选择 -->
+<div class="backdrop" id="connectorModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="connectorTitle">
+    <h2 id="connectorTitle">连接器</h2>
+    <p class="sub">R2a 只读；令牌不进入提示；任务级 scope 不能超过组织授权。</p>
+    <div class="connector-list" id="connectorList"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" type="button" data-close="connectorModal">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 连接器授权 -->
+<div class="backdrop" id="authModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <h2 id="authTitle">连接「知识库」</h2>
+    <p class="sub" id="authSub">将读取指定项目资料和文档内容；不会修改或删除。令牌不进入模型提示。</p>
+    <div id="scopeList">
+      <label class="scope"><input type="checkbox" value="projects" checked> <span><strong>读取项目资料</strong><small>只读指定空间</small></span></label>
+      <label class="scope"><input type="checkbox" value="docs" checked> <span><strong>读取文档内容</strong><small>只读，用于生成与引用</small></span></label>
+          </div>
+    <div class="modal-actions">
+      <button class="btn ghost" type="button" data-close="authModal">取消</button>
+      <button class="btn primary" type="button" id="connectAccount">连接账号</button>
+    </div>
+  </div>
+</div>
+
+<!-- 快捷命令 -->
+<div class="backdrop" id="quickModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="quickTitle">
+    <h2 id="quickTitle">快捷命令</h2>
+    <p class="sub">点击只预填目标和套件，不自动提交；缺连接器仍会提示。</p>
+    <div class="picker-list" id="quickList"></div>
+    <div class="modal-actions"><button class="btn ghost" type="button" data-close="quickModal">取消</button></div>
+  </div>
+</div>
+
+<!-- 能力管理（管理员入口） -->
+<div class="backdrop" id="manageModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manageTitle">
+    <h2 id="manageTitle">扩展能力管理</h2>
+    <p class="sub">管理员入口。生产环境按权限码控制；席位、预算和审计见 <a href="../work-ux-admin/prototype.html" style="color:var(--brand-strong)">管理面原型</a>。</p>
+    <div id="manageList"></div>
+    <div class="modal-actions"><button class="btn ghost" type="button" data-close="manageModal">关闭</button></div>
+  </div>
+</div>
+
+<!-- 创建套件（组织作者入口） -->
+<div class="backdrop" id="createSuiteModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="createSuiteTitle">
+    <h2 id="createSuiteTitle">创建套件</h2>
+    <p class="sub">组织作者入口。R1 套件是单 run 提示组合，不包含链式或连接器写入。</p>
+    <div class="form-row"><label for="createSuiteName">名称</label><input id="createSuiteName" maxlength="40" placeholder="例如：产品方案"></div>
+    <div class="form-row"><label for="createSuiteDesc">说明</label><textarea id="createSuiteDesc" maxlength="200" placeholder="这个套件解决什么问题、产出什么"></textarea></div>
+    <div class="form-row"><label for="createSuiteEnv">环境</label><select id="createSuiteEnv"><option value="cloud">云端</option><option value="local">本机</option></select></div>
+    <div class="form-row"><label for="createSuiteSkills">技能（用逗号分隔）</label><input id="createSuiteSkills" placeholder="目标澄清, 方案生成, 自检"></div>
+    <div class="form-row"><label for="createSuiteOutput">输出标准</label><input id="createSuiteOutput" value="Markdown"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" type="button" data-close="createSuiteModal">取消</button>
+      <button class="btn primary" type="button" id="saveSuite">保存并启用</button>
+    </div>
+  </div>
+</div>
+
+<!-- 工具菜单 -->
+<div class="backdrop" id="toolModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="toolTitle">
+    <h2 id="toolTitle">添加工具</h2>
+    <p class="sub">套件、技能和文件夹从这里添加；连接器在工具栏单独授权；提交前仍会显示在“本次使用”。</p>
+    <div class="tool-list">
+      <button class="tool-row" id="toolSuite" type="button" data-tool="suite"><span><strong>套件</strong><small id="toolSuiteMeta">选择组织工作方案</small></span><span>›</span></button>
+      <button class="tool-row" id="toolSkill" type="button" data-tool="skill"><span><strong>技能</strong><small id="toolSkillMeta">补充工作方法，最多 3 个</small></span><span>›</span></button>
+      <button class="tool-row" type="button" data-tool="folder"><span><strong>选择文件夹</strong><small>添加本机工作上下文</small></span><span>›</span></button>
+    </div>
+    <div class="modal-actions"><button class="btn ghost" type="button" data-close="toolModal">取消</button></div>
+  </div>
+</div>
+
+<!-- 执行器位置 -->
+<div class="backdrop" id="executorModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="executorTitle">
+    <h2 id="executorTitle">执行器位置</h2>
+    <p class="sub">执行位置决定数据访问和成果存放；提交前必须确认。</p>
+    <button class="executor-option selected" type="button" data-executor="cloud"><span>云端执行器<small>在云端运行，不访问本机文件</small></span><span class="option-check">✓</span></button>
+    <button class="executor-option" type="button" data-executor="local"><span>本机执行器<small>在你的电脑上运行，只读取授权文件夹</small></span><span class="option-check"></span></button>
+    <button class="executor-option" type="button" disabled><span>远程设备<small>R2b 后开放；不做云接管</small></span><span class="status">即将开放</span></button>
+    <div class="modal-actions"><button class="btn ghost" type="button" data-close="executorModal">关闭</button></div>
+  </div>
+</div>
+
+<!-- 默认权限 -->
+<div class="backdrop" id="permissionModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="permissionTitle">
+    <h2 id="permissionTitle">默认权限</h2>
+    <p class="sub">组织策略优先；任务级只能收窄，不能放宽。</p>
+    <button class="permission-option selected" type="button" data-permission="ask"><span>默认权限<small>需要权限的操作，每次都与你确认</small></span><span class="option-check">✓</span></button>
+    <button class="permission-option" type="button" data-permission="readonly"><span>自动审批<small>只读操作自动，写入和高风险操作仍确认</small></span><span class="option-check"></span></button>
+    <button class="permission-option" type="button" data-permission="plan"><span>计划批准后执行<small>计划批准后只读步骤自动，写入仍需确认</small></span><span class="option-check"></span></button>
+    <div class="modal-actions"><button class="btn ghost" type="button" data-close="permissionModal">关闭</button></div>
+  </div>
+</div>
+
+<!-- 选择本机文件夹 -->
+<div class="backdrop" id="folderModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="folderTitle">
+    <h2 id="folderTitle">选择本机工作文件夹</h2>
+    <p class="sub">只读取你授权的文件夹；命令逐次批准；不是操作系统沙箱。</p>
+    <div class="folder-options" role="radiogroup" aria-label="示例文件夹">
+      <button class="folder-option" type="button" role="radio" aria-checked="false" data-folder="项目资料"><strong>项目资料</strong><small>12 个文件 · 最近使用</small></button>
+      <button class="folder-option" type="button" role="radio" aria-checked="false" data-folder="客户资料"><strong>客户资料</strong><small>8 个文件 · 含敏感信息</small></button>
+      <button class="folder-option" type="button" role="radio" aria-checked="false" data-folder="数据分析"><strong>数据分析</strong><small>3 个 CSV · 1 个说明</small></button>
+    </div>
+    <div class="modal-actions"><button class="btn ghost" type="button" data-close="folderModal">取消</button><button class="btn primary" type="button" id="authorizeFolder" disabled>授权文件夹</button></div>
+  </div>
+</div>
+
+<!-- 新建项目 -->
+<div class="backdrop" id="projectModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="projectTitle">
+    <h2 id="projectTitle">新建项目 <span class="r3">R3 预览</span></h2>
+    <p class="sub">项目是跨任务的上下文容器；R1/R2a 不显示项目入口。</p>
+    <div class="form-row"><label for="projectName">项目名称</label><input id="projectName" maxlength="40" placeholder="例如：会员改版"></div>
+    <div class="form-row"><label for="projectFolder">工作文件夹</label><select id="projectFolder"><option value="">不绑定文件夹</option><option value="项目资料">项目资料</option><option value="客户资料">客户资料</option><option value="数据分析">数据分析</option></select></div>
+    <div class="modal-actions"><button class="btn ghost" type="button" data-close="projectModal">取消</button><button class="btn primary" type="button" id="createProject">创建项目</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+  const CATEGORY_LABELS = { all: '全部分类', document: '文档', analysis: '分析', project: '项目', data: '数据' };
+  const SCOPE_LABELS = { projects: '项目资料', docs: '文档内容', tasks: '任务', crm: '客户、商机' };
+
+  const SUITES = {
+    product: {
+      id: 'product', name: '产品方案', version: 2, env: 'cloud', output: 'Markdown', category: 'document',
+      desc: '围绕目标写一份可评审的产品方案，包含背景、目标、备选方案、取舍和风险。',
+      skills: ['目标澄清', '背景研究', '备选方案', '取舍与风险', '自检'],
+      commands: ['/写方案', '/写评审材料'], requires: null,
+      examples: ['为下周的产品评审写一份方案', '把这个想法整理成三个备选方案', '写一份带风险和待确认项的产品方案']
+    },
+    weekly: {
+      id: 'weekly', name: '客户周报', version: 1, env: 'cloud', output: 'Markdown + JSON', category: 'analysis',
+      desc: '读取客户项目资料，生成周报、行动项和风险清单。',
+      skills: ['来源整理', '结论', '行动项', '风险'], commands: ['/写周报'], requires: 'knowledge',
+      examples: ['根据客户项目资料写一份周报', '汇总本周风险和行动项']
+    },
+    local: {
+      id: 'local', name: '本地资料整理', version: 1, env: 'local', output: 'Markdown + CSV', category: 'document',
+      desc: '在授权文件夹内扫描、分类、生成索引和待确认信息。',
+      skills: ['扫描', '分类', '索引', '自检'], commands: ['/整理资料'], requires: null,
+      examples: ['整理项目资料文件夹，生成索引', '找出重复文件和待确认项']
+    }
+  };
+
+  const SKILLS = [
+    { id: 'competitor', name: '竞品分析', desc: '对比 2–3 个竞品，输出差异和机会', output: 'Markdown', env: '云端', category: 'analysis', examples: ['对比三个竞品的差异', '整理竞品的功能和定价'] },
+    { id: 'selfcheck', name: '结构自检', desc: '检查结构、遗漏和待确认项', output: 'Markdown', env: '云端', category: 'document', examples: ['检查这份方案的结构和遗漏', '找出还需要确认的信息'] },
+    { id: 'data', name: '数据核对', desc: '核对关键数字和来源一致性', output: 'Markdown/CSV', env: '云端/本机', category: 'data', examples: ['核对这份报表的关键数字', '检查数据来源是否一致'] },
+    { id: 'interview', name: '用户访谈', desc: '整理访谈记录，提炼需求与证据', output: 'Markdown', env: '云端', category: 'analysis', examples: ['整理用户访谈记录，提炼需求', '从访谈里找出证据和反例'] }
+  ];
+
+  const CONNECTORS = {
+    knowledge: { id: 'knowledge', name: '知识库', desc: '只读项目资料、文档内容', scopes: '只读：项目资料、文档', connected: false, expired: false, disabled: false, category: 'data', grantedScopes: [], examples: ['读取项目资料，生成周报', '引用知识库写一份方案'] },
+    project: { id: 'project', name: '项目协作', desc: '只读项目、任务、里程碑', scopes: '只读：项目、任务', connected: true, disabled: false, category: 'project', grantedScopes: ['projects', 'tasks'], examples: ['读取项目任务，生成风险清单', '根据里程碑写一份进展说明'] },
+    crm: { id: 'crm', name: 'CRM', desc: '客户与商机数据', scopes: '只读：客户、商机', connected: false, disabled: true, category: 'project', grantedScopes: [], examples: ['读取客户信息，生成跟进清单'] }
+  };
+
+  const state = {
+    env: 'cloud',
+    permission: 'ask',
+    folder: '',
+    project: null,
+    projectEnabled: true,
+    goal: '',
+    suite: null,
+    skills: [],
+    connectors: [],
+    suitePreview: null,
+    capTab: 'suite',
+    capFilter: 'all',
+    capCategory: 'all',
+    capabilitySet: 'r1r2a_r3',
+    capState: 'normal',
+    availableCapabilities: ['suite', 'skill', 'connector'],
+    listType: 'suite',
+    listFilter: 'all',
+    listCategory: 'all',
+    detailSuite: null,
+    detailSkill: null,
+    detailConnector: null,
+    task: null,
+    lastModal: null,
+    modalReturnFocus: null
+  };
+
+  function showToast(message) {
+    const toast = $('#toast');
+    toast.textContent = message;
+    toast.hidden = false;
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(() => { toast.hidden = true; }, 2600);
+  }
+
+  function setScreen(name) {
+    const capScreens = ['capabilities', 'capability-list', 'suite-detail', 'skill-detail', 'connector-detail'];
+    $$('.screen').forEach((s) => { s.hidden = s.dataset.screen !== name; });
+    $$('.nav-item').forEach((n) => {
+      const active = n.dataset.nav === name || (n.dataset.nav === 'capabilities' && capScreens.includes(name));
+      n.classList.toggle('active', active);
+      if (active) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current');
+    });
+    $$('.mobile-nav button').forEach((n) => {
+      const active = n.dataset.nav === name || (n.dataset.nav === 'capabilities' && capScreens.includes(name));
+      n.classList.toggle('active', active);
+    });
+    window.scrollTo(0, 0);
+  }
+
+  function setEnv(env) {
+    state.env = env;
+    render();
+  }
+
+  function scopeLabel(values) {
+    return (values || []).map((value) => SCOPE_LABELS[value] || value).join('、');
+  }
+
+  function connectorLabel(id) {
+    const connector = CONNECTORS[id];
+    if (!connector) return '';
+    if (connector.expired) return `${connector.name}（授权已过期）`;
+    if (!connector.connected) return connector.name;
+    const scopes = scopeLabel(connector.grantedScopes);
+    return scopes ? `${connector.name}（只读：${scopes}）` : `${connector.name}（只读）`;
+  }
+
+  function suiteMissingConnector(suite) {
+    return suite && suite.requires && (!CONNECTORS[suite.requires].connected || CONNECTORS[suite.requires].expired);
+  }
+
+  function validate() {
+    if (!state.goal.trim()) return { ok: false, hint: '先描述你想完成的任务', warn: false };
+    const suite = state.suite ? SUITES[state.suite] : null;
+    if (suite && suite.env !== state.env) {
+      return { ok: false, hint: `套件「${suite.name}」仅支持${suite.env === 'local' ? '本机' : '云端'}；切换环境后继续`, warn: true };
+    }
+    if (suiteMissingConnector(suite)) {
+      if (!state.availableCapabilities.includes('connector')) {
+        return { ok: false, hint: `套件「${suite.name}」需要连接器「${CONNECTORS[suite.requires].name}」；当前范围仅 R1，切换到 R1 + R2a 后授权`, warn: true };
+      }
+      if (CONNECTORS[suite.requires].expired) {
+        return { ok: false, hint: `连接器「${CONNECTORS[suite.requires].name}」授权已过期；点击连接器重新连接`, warn: true };
+      }
+      return { ok: false, hint: `套件「${suite.name}」需要连接器「${CONNECTORS[suite.requires].name}」；点击连接器完成授权`, warn: true };
+    }
+    if (state.env === 'local' && !state.folder) return { ok: false, hint: '选择一个本机工作文件夹后才能执行', warn: true };
+    if (state.skills.length > 3) return { ok: false, hint: '补充技能最多 3 个', warn: true };
+    return { ok: true, hint: '可以提交；本次使用摘要会随任务冻结', warn: false };
+  }
+
+  function applySuite(id) {
+    state.suite = id;
+    const suite = SUITES[id];
+    if (suite && suite.requires && CONNECTORS[suite.requires].connected && !CONNECTORS[suite.requires].expired && !state.connectors.includes(suite.requires)) {
+      state.connectors.push(suite.requires);
+    }
+  }
+
+  function render() {
+    const suite = state.suite ? SUITES[state.suite] : null;
+    if (!state.projectEnabled) state.project = null;
+    const loadingCapabilities = state.capState === 'loading';
+    CONNECTORS.knowledge.expired = state.capState === 'expired';
+    const toolPlus = $('#toolChip');
+    toolPlus.disabled = loadingCapabilities;
+    toolPlus.setAttribute('aria-busy', String(loadingCapabilities));
+    toolPlus.classList.toggle('selected', !!suite || state.skills.length > 0);
+    const selectedToolLabels = [];
+    if (suite) selectedToolLabels.push(`套件「${suite.name}」`);
+    if (state.skills.length) selectedToolLabels.push(`${state.skills.length} 个补充技能`);
+    toolPlus.setAttribute('aria-label', selectedToolLabels.length ? `添加套件、技能或文件夹；已选${selectedToolLabels.join('、')}` : '添加套件、技能或文件夹');
+    $('#toolSuiteMeta').textContent = suite ? `已选：${suite.name}` : '选择组织工作方案';
+
+    const connectorChip = $('#connectorChip');
+    const hasConnectorCapability = state.availableCapabilities.includes('connector');
+    connectorChip.hidden = !hasConnectorCapability;
+    const connectorExpired = CONNECTORS.knowledge.expired;
+    connectorChip.disabled = loadingCapabilities;
+    connectorChip.textContent = connectorExpired ? '连接器 · 已过期' : state.connectors.length ? `连接器 ${state.connectors.length}` : '连接器';
+    connectorChip.classList.toggle('selected', state.connectors.length > 0 && !connectorExpired);
+    connectorChip.classList.toggle('warn', hasConnectorCapability && (connectorExpired || !!suiteMissingConnector(suite)));
+
+    const permissionLabel = state.permission === 'readonly' ? '自动审批' : state.permission === 'plan' ? '计划批准后' : '默认权限';
+    $('#executorChip').textContent = `执行器：${state.env === 'local' ? '本机' : '云端'}`;
+    $('#permissionChip').textContent = permissionLabel;
+    $('#projectChip').hidden = !state.project;
+    $('#projectChip').textContent = state.project ? `项目：${state.project.name}` : '';
+    $('#newProjectLink').hidden = !state.projectEnabled;
+
+    const skillNames = state.skills.map((id) => SKILLS.find((s) => s.id === id)?.name).filter(Boolean);
+    $('#toolSkillMeta').textContent = skillNames.length ? `已选 ${state.skills.length}/3：${skillNames.join('、')}` : '补充工作方法，最多 3 个';
+    const connectorNames = state.connectors.map(connectorLabel).filter(Boolean);
+    const parts = [
+      state.env === 'local' ? '本机执行器' : '云端执行器',
+      state.project ? `项目「${state.project.name}」` : null,
+      state.env === 'local' && state.folder ? `文件夹：${state.folder}` : null,
+      suite ? `套件「${suite.name}」` : '无套件',
+      skillNames.length ? `技能「${skillNames.join('」「')}」` : '0 个补充技能',
+      connectorNames.length ? `连接器「${connectorNames.join('」「')}」` : '无连接器',
+      `权限：${permissionLabel}`,
+      suite ? `交付 ${suite.output}` : '交付 Markdown'
+    ].filter(Boolean);
+    $('#usage').textContent = parts.join(' · ');
+    $('#modeTag').hidden = !suite;
+
+    const result = validate();
+    $('#hint').textContent = result.hint;
+    $('#hint').className = `hint${result.warn ? ' warn' : result.ok ? ' ok' : ''}`;
+    $('#sendBtn').disabled = !result.ok;
+    $('#charCount').textContent = `${state.goal.length} / 2000`;
+    const taskError = $('#taskConnectorError');
+    if (taskError) taskError.hidden = state.capState !== 'error';
+
+    $$('.suite-card').forEach((card) => card.classList.toggle('selected', card.dataset.suiteCard === state.suite));
+    if (state.capTab) renderCapabilities();
+    if (state.detailSkill) renderSkillPage();
+    if (state.detailConnector) renderConnectorPage();
+  }
+
+  function getItems(type) {
+    if (type === 'skill') return SKILLS;
+    if (type === 'connector') return Object.values(CONNECTORS);
+    return Object.values(SUITES);
+  }
+
+  function typeLabel(type) {
+    return type === 'skill' ? '技能' : type === 'connector' ? '连接器' : '套件';
+  }
+
+  function capStatus(type, item) {
+    if (type === 'suite') {
+      if (item.requires && !state.availableCapabilities.includes('connector')) return '<span class="status warn">需 R2a</span>';
+      if (item.requires && CONNECTORS[item.requires].expired) return '<span class="status warn">连接器过期</span>';
+      return suiteMissingConnector(item) ? '<span class="status warn">缺连接器</span>' : '<span class="status ok">已启用</span>';
+    }
+    if (type === 'skill') {
+      const inSuite = state.suite && SUITES[state.suite].skills.includes(item.name);
+      return inSuite ? '<span class="status">已在套件中</span>' : '<span class="status ok">已启用</span>';
+    }
+    if (item.expired) return '<span class="status warn">授权已过期</span>';
+    return item.disabled ? '<span class="status danger">组织禁用</span>' : item.connected ? '<span class="status ok">已连接</span>' : '<span class="status warn">未连接</span>';
+  }
+
+  function capMeta(type, item) {
+    if (type === 'suite') {
+      const missing = suiteMissingConnector(item);
+      return `<span>${item.skills.length} 个技能</span><span>${item.output}</span><span>${item.env === 'local' ? '仅本机' : '云端'}</span>${missing ? `<span class="req">${item.requires && CONNECTORS[item.requires].expired ? '需重新连接' : '需要'}「${CONNECTORS[item.requires].name}」</span>` : ''}`;
+    }
+    if (type === 'skill') return `<span>${item.output}</span><span>${item.env}</span>`;
+    if (item.expired) return '<span>授权已过期；只读 scope 保留，需重新连接</span>';
+    return `<span>${item.connected ? `已授权：${scopeLabel(item.grantedScopes) || '只读'}` : item.scopes}</span>`;
+  }
+
+  function capActions(type, item) {
+    if (type === 'suite') {
+      return `<button class="btn" type="button" data-cap-detail-suite="${item.id}">查看详情</button><button class="btn primary" type="button" data-use-suite="${item.id}">使用</button>`;
+    }
+    if (type === 'skill') {
+      const inSuite = state.suite && SUITES[state.suite].skills.includes(item.name);
+      const selected = state.skills.includes(item.id);
+      return `<button class="btn" type="button" data-skill-detail="${item.id}">查看详情</button><button class="btn ${selected ? '' : 'primary'}" type="button" data-use-skill="${item.id}" ${inSuite ? 'disabled' : ''}>${inSuite ? '已在套件中' : selected ? '移除' : '添加'}</button>`;
+    }
+    if (item.disabled) return `<button class="btn" type="button" data-connector-detail="${item.id}">查看详情</button><button class="btn ghost" type="button" data-apply-connector>申请</button>`;
+    if (item.expired) return `<button class="btn" type="button" data-connector-detail="${item.id}">查看详情</button><button class="btn primary" type="button" data-connect-connector="${item.id}">重新连接</button>`;
+    return `<button class="btn" type="button" data-connector-detail="${item.id}">查看详情</button><button class="btn ${item.connected ? '' : 'primary'}" type="button" ${item.connected ? `data-connector-detail="${item.id}"` : `data-connect-connector="${item.id}"`}>${item.connected ? '管理' : '连接'}</button>`;
+  }
+
+  function cardHtml(type, item) {
+    const icon = item.name.slice(0, 1);
+    return `<article class="card cap-card" data-cap="${type}" data-category="${item.category}" data-name="${item.name}">
+      <div class="cap-card-head"><div class="cap-icon">${icon}</div><div><h3>${item.name} ${capStatus(type, item)}</h3><p>${item.desc}</p></div></div>
+      <div class="meta">${capMeta(type, item)}</div>
+      <div class="cap-actions">${capActions(type, item)}</div>
+    </article>`;
+  }
+
+  function renderFeature(type) {
+    const map = {
+      suite: { id: 'product', attr: 'data-suite-detail', label: '查看方法', title: '产品方案', desc: '围绕目标写一份可评审的产品方案：背景、目标、备选方案、取舍和风险。', tags: ['R1 套件模板', '5 个技能', '无连接器要求'] },
+      skill: { id: 'competitor', attr: 'data-skill-detail', label: '查看技能', title: '竞品分析', desc: '对比 2–3 个竞品，输出差异、机会和证据，作为方案的补充技能。', tags: ['R1 技能', 'Markdown', '不占套件技能上限'] },
+      connector: { id: 'knowledge', attr: 'data-connector-detail', label: '查看连接器', title: '知识库', desc: '只读项目资料和文档内容，让工作引用已有资料，而不是靠记忆。', tags: ['R2a 只读', '逐任务 scope', '可撤销'] }
+    };
+    const feature = map[type] || map.suite;
+    $('#featureCard').innerHTML = `<div><span class="badge">组织推荐</span><h2>${feature.title}</h2><p>${feature.desc}</p><div class="feature-actions"><button class="btn primary" type="button" ${feature.attr}="${feature.id}">${feature.label}</button><button class="btn" type="button" data-open-list="${type}">查看全部${typeLabel(type)}</button></div></div><div class="feature-tags">${feature.tags.map((tag) => `<span class="summary-chip">${tag}</span>`).join('')}</div>`;
+  }
+
+  function renderCategories(items) {
+    const categories = ['all', ...new Set(items.map((item) => item.category).filter(Boolean))];
+    $('#capCategories').innerHTML = categories.map((category) => `<button class="chip ${state.capCategory === category ? 'active' : ''}" type="button" data-cap-category="${category}">${CATEGORY_LABELS[category] || category}</button>`).join('');
+  }
+
+  function syncCapTabs() {
+    const tabs = ['suite', 'skill', 'connector'].filter((type) => state.availableCapabilities.includes(type));
+    $('#capTabs').innerHTML = tabs.map((type) => `<button class="tab ${state.capTab === type ? 'active' : ''}" type="button" role="tab" aria-selected="${state.capTab === type}" data-cap-tab="${type}">${typeLabel(type)}</button>`).join('');
+    if (!tabs.includes(state.capTab)) state.capTab = tabs[0] || 'suite';
+  }
+
+  function setCapabilitySet(value) {
+    state.capabilitySet = value;
+    state.availableCapabilities = value === 'r1' ? ['suite', 'skill'] : ['suite', 'skill', 'connector'];
+    state.projectEnabled = value === 'r1r2a_r3';
+    if (!state.availableCapabilities.includes('connector')) {
+      state.connectors = [];
+      state.detailConnector = null;
+      if (['expired', 'error'].includes(state.capState)) {
+        state.capState = 'normal';
+        $('#capState').value = 'normal';
+      }
+    }
+    if (!state.projectEnabled) state.project = null;
+    $('#capabilityNote').hidden = value !== 'r1';
+    $('#capabilitySet').value = value;
+    const current = $('.screen:not([hidden])')?.dataset.screen;
+    if (value === 'r1' && current === 'connector-detail') setScreen('capabilities');
+    if (value === 'r1' && current === 'capability-list' && state.listType === 'connector') setScreen('capabilities');
+    render();
+    showToast(value === 'r1r2a_r3' ? '已切换到 R1–R3 预览：项目入口可见' : value === 'r1r2a' ? '已切换到 R1 + R2a：项目入口隐藏' : '已切换到仅 R1：连接器与项目入口不显示');
+  }
+
+  function setCapState(value) {
+    if (!state.availableCapabilities.includes('connector') && (value === 'expired' || value === 'error')) {
+      $('#capState').value = 'normal';
+      showToast('当前范围不含 R2a 连接器；切回 R1 + R2a 后可演示');
+      return;
+    }
+    state.capState = value;
+    const knowledge = CONNECTORS.knowledge;
+    if (value === 'expired') {
+      knowledge.connected = true;
+      knowledge.expired = true;
+      knowledge.grantedScopes = ['projects'];
+      if (!state.connectors.includes('knowledge')) state.connectors.push('knowledge');
+    } else if (value === 'error') {
+      knowledge.connected = true;
+      knowledge.expired = false;
+      knowledge.grantedScopes = ['projects'];
+      if (!state.connectors.includes('knowledge')) state.connectors.push('knowledge');
+    } else {
+      knowledge.expired = false;
+    }
+    render();
+    showToast(value === 'loading' ? '演示：正在加载能力' : value === 'expired' ? '演示：知识库授权已过期，需重新连接' : value === 'error' ? '演示：连接器调用失败，任务暂停' : '演示：能力状态正常');
+  }
+
+  function renderCapabilities() {
+    const grid = $('#capGrid');
+    if (!grid) return;
+    const loading = state.capState === 'loading';
+    $('#capLoading').hidden = !loading;
+    $('#capContent').hidden = loading;
+    const demoBanner = $('#capDemoBanner');
+    demoBanner.hidden = !['expired', 'error'].includes(state.capState);
+    demoBanner.className = `cap-demo-banner${state.capState === 'error' ? ' danger' : ''}`;
+    demoBanner.textContent = state.capState === 'expired'
+      ? '演示：知识库授权已过期。依赖它的套件会被阻止；重新连接后恢复。'
+      : state.capState === 'error'
+        ? '演示：知识库调用失败。任务会暂停并保留已有成果；重试不会自动扩大 scope。'
+        : '';
+    syncCapTabs();
+    if (!state.availableCapabilities.includes(state.capTab)) state.capTab = state.availableCapabilities[0] || 'suite';
+    const type = state.capTab;
+    const items = getItems(type);
+    $$('.tab').forEach((tab) => {
+      const active = tab.dataset.capTab === type;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+    });
+    const moreItems = items.slice(2);
+    $('#capFeaturedTitle').textContent = '组织推荐';
+    $('#capFeaturedMeta').textContent = `精选 ${Math.min(2, items.length)} 个`;
+    $('#capAllTitle').textContent = `更多${typeLabel(type)}`;
+    const installedLabel = type === 'connector' ? '仅已连接' : '仅已启用';
+    $$('[data-cap-filter="installed"]').forEach((btn) => { btn.textContent = installedLabel; });
+    $('#capMoreSection').hidden = moreItems.length === 0;
+    renderFeature(type);
+    renderCategories(items);
+    $('#capFeatured').innerHTML = items.slice(0, 2).map((item) => cardHtml(type, item)).join('');
+    grid.innerHTML = moreItems.map((item) => cardHtml(type, item)).join('');
+    filterCapabilities();
+  }
+
+  function filterCapabilities() {
+    const grid = $('#capGrid');
+    if (!grid) return;
+    const query = ($('#capSearch')?.value || '').trim().toLowerCase();
+    const filter = state.capFilter || 'all';
+    const category = state.capCategory || 'all';
+    const match = (card) => {
+      const hasWarning = !!card.querySelector('.status.warn, .status.danger');
+      const categoryOK = category === 'all' || card.dataset.category === category;
+      return categoryOK && card.textContent.toLowerCase().includes(query) && (filter === 'all' || !hasWarning);
+    };
+    $$('.cap-card', $('#capFeatured') || document).forEach((card) => { card.hidden = !match(card); });
+    $$('.cap-card', grid).forEach((card) => { card.hidden = !match(card); });
+    const moreCards = $$('.cap-card', grid);
+    const visible = moreCards.filter((card) => !card.hidden).length;
+    const moreSection = $('#capMoreSection');
+    if (moreSection) moreSection.hidden = moreCards.length === 0;
+    $('#capCount').textContent = `${visible} 个${typeLabel(state.capTab)}`;
+    $('#capEmpty').hidden = visible > 0;
+  }
+
+  function openList(type) {
+    if (!state.availableCapabilities.includes(type)) { showToast('该能力类型尚未开通'); return; }
+    state.listType = type;
+    state.capTab = type;
+    state.listFilter = 'all';
+    state.listCategory = 'all';
+    $('#listSearch').value = '';
+    $('#listCategory').value = 'all';
+    $$('[data-list-filter]').forEach((btn) => btn.classList.toggle('active', btn.dataset.listFilter === 'all'));
+    renderList();
+    setScreen('capability-list');
+  }
+
+  function renderList() {
+    const type = state.listType;
+    const label = typeLabel(type);
+    const items = getItems(type);
+    $('#listCrumb').textContent = label;
+    $('#listEyebrow').textContent = '组织目录';
+    $('#listTitle').textContent = label;
+    $('#listSub').textContent = `${items.length} 个${label} · 组织目录`;
+    const installedLabel = type === 'connector' ? '仅已连接' : '仅已启用';
+    $$('[data-list-filter="installed"]').forEach((btn) => { btn.textContent = installedLabel; });
+    $('#listGrid').innerHTML = items.map((item) => cardHtml(type, item)).join('');
+    filterList();
+  }
+
+  function filterList() {
+    const query = ($('#listSearch')?.value || '').trim().toLowerCase();
+    const category = $('#listCategory')?.value || 'all';
+    const filter = state.listFilter || 'all';
+    let visible = 0;
+    $$('#listGrid .cap-card').forEach((card) => {
+      const hasWarning = !!card.querySelector('.status.warn, .status.danger');
+      const show = (category === 'all' || card.dataset.category === category) && card.textContent.toLowerCase().includes(query) && (filter === 'all' || !hasWarning);
+      card.hidden = !show;
+      if (show) visible += 1;
+    });
+    $('#listSub').textContent = `${visible} 个${typeLabel(state.listType)} · 组织目录`;
+    $('#listEmpty').hidden = visible > 0;
+  }
+
+  function openSuiteDetail(id) {
+    if (!SUITES[id]) return;
+    state.detailSuite = id;
+    renderSuitePage();
+    setScreen('suite-detail');
+  }
+
+  function renderSuitePage() {
+    const suite = SUITES[state.detailSuite];
+    if (!suite) return;
+    const missing = suiteMissingConnector(suite);
+    const connectorAvailable = state.availableCapabilities.includes('connector');
+    $('#suiteCrumb').textContent = suite.name;
+    $('#suiteIcon').textContent = suite.name.slice(0, 1);
+    $('#suiteName').textContent = suite.name;
+    $('#suiteDesc').textContent = suite.desc;
+    $('#suiteMeta').innerHTML = `<span>v${suite.version}</span><span>${suite.skills.length} 个技能</span><span>${suite.output}</span><span>${suite.env === 'local' ? '仅本机' : '云端'}</span>`;
+    $('#suiteSteps').innerHTML = suite.skills.map((skill) => `<li>${skill}</li>`).join('');
+    $('#suiteOutput').textContent = `${suite.output}；R1 只做提示组合，输出结构由套件说明约束，经验收确认。`;
+    $('#suiteCommands').innerHTML = suite.commands.map((command) => `<button class="chip" type="button" data-use-command="${command}" data-command-suite="${suite.id}">${command}</button>`).join('');
+    $('#suiteConnectors').innerHTML = suite.requires
+      ? `<div class="row"><span>${CONNECTORS[suite.requires].name}</span><strong>${!connectorAvailable ? 'R2a 未开放' : CONNECTORS[suite.requires].connected ? '已连接' : '未连接'}</strong></div>${connectorAvailable ? `<button class="link" type="button" data-connector-detail="${suite.requires}">查看连接器</button>` : '<p class="meta">当前范围仅 R1；切换到 R1 + R2a 后可授权。</p>'}`
+      : '<p>无连接器要求；套件只使用方法与提示。</p>';
+    $('#suiteVersion').textContent = `v${suite.version}`;
+    $('#suiteStatus').textContent = missing ? (connectorAvailable ? '缺连接器' : '需 R2a') : '已启用';
+    $('#suiteEnv').textContent = suite.env === 'local' ? '本机；需要授权文件夹' : '云端；不访问本机文件';
+    $('#suiteSkills').innerHTML = suite.skills.map((name) => {
+      const skill = SKILLS.find((item) => item.name === name);
+      return skill ? `<button class="link" type="button" data-skill-detail="${skill.id}" style="display:block;margin:4px 0">${name}</button>` : `<span class="meta" style="display:block;margin:4px 0">${name}</span>`;
+    }).join('');
+    $('#suiteExamples').innerHTML = (suite.examples || []).map((example) => `<button class="example-row" type="button" data-trial-suite="${suite.id}" data-trial-text="${example}"><span>${example}</span><span aria-hidden="true">→</span></button>`).join('') || '<p class="meta">暂无示例。</p>';
+    $('#useSuiteFromDetail').disabled = false;
+    $('#useSuiteFromDetail').textContent = state.suite === suite.id ? '已选择此套件' : '使用此套件';
+  }
+
+  function useSuiteFromDetail() {
+    const suite = SUITES[state.detailSuite];
+    if (!suite) return;
+    applySuite(suite.id);
+    setScreen('home');
+    render();
+    showToast(suiteMissingConnector(suite) ? `已选择「${suite.name}」；还需要连接器「${CONNECTORS[suite.requires].name}」` : `已选择「${suite.name}」`);
+  }
+
+  function openSkillDetail(id) {
+    if (!SKILLS.some((skill) => skill.id === id)) return;
+    state.detailSkill = id;
+    renderSkillPage();
+    setScreen('skill-detail');
+  }
+
+  function renderSkillPage() {
+    const skill = SKILLS.find((item) => item.id === state.detailSkill);
+    if (!skill) return;
+    const inSuite = state.suite && SUITES[state.suite].skills.includes(skill.name);
+    const selected = state.skills.includes(skill.id);
+    $('#skillCrumb').textContent = skill.name;
+    $('#skillIcon').textContent = skill.name.slice(0, 1);
+    $('#skillName').textContent = skill.name;
+    $('#skillDesc').textContent = skill.desc;
+    $('#skillMeta').innerHTML = `<span>R1 · 技能</span><span>${skill.output}</span><span>${skill.env}</span><span>${inSuite ? '已在当前套件中' : '仅加入本次任务'}</span>`;
+    $('#skillMethods').textContent = `按「${skill.name}」的方法执行：先确认输入与范围，再产出一份可核对的结果。技能只组织方法与提示，不持有外部账号。`;
+    $('#skillIO').innerHTML = `<div class="row"><span>输入</span><strong>任务目标、上下文与已选来源</strong></div><div class="row"><span>输出</span><strong>${skill.output}</strong></div>`;
+    $('#skillFit').innerHTML = `<p>适用：${skill.desc}</p><p>不适用：需要写入外部系统、浏览器控制或超出当前任务范围的操作。</p>`;
+    $('#skillEnvironment').textContent = skill.env;
+    $('#skillDeps').textContent = '无连接器依赖；如套件声明连接器，以套件为准。';
+    $('#skillSuites').innerHTML = Object.values(SUITES).filter((suite) => suite.skills.includes(skill.name)).map((suite) => `<button class="link" type="button" data-cap-detail-suite="${suite.id}" style="display:block;margin:4px 0">${suite.name}</button>`).join('') || '<p class="meta">暂未关联套件。</p>';
+    $('#skillExamples').innerHTML = (skill.examples || []).map((example) => `<button class="example-row" type="button" data-trial-skill="${skill.id}" data-trial-text="${example}"><span>${example}</span><span aria-hidden="true">→</span></button>`).join('') || '<p class="meta">暂无示例。</p>';
+    const button = $('#useSkillFromDetail');
+    button.disabled = !!inSuite;
+    button.textContent = inSuite ? '已在套件中' : selected ? '移除补充技能' : '添加为补充技能';
+  }
+
+  function useSkillFromDetail() {
+    const skill = SKILLS.find((item) => item.id === state.detailSkill);
+    if (!skill) return;
+    const inSuite = state.suite && SUITES[state.suite].skills.includes(skill.name);
+    if (inSuite) { showToast('该技能已在套件中，不占补充技能上限'); return; }
+    if (state.skills.includes(skill.id)) {
+      state.skills = state.skills.filter((id) => id !== skill.id);
+      showToast(`已移除「${skill.name}」`);
+    } else {
+      if (state.skills.length >= 3) { showToast('补充技能最多 3 个'); return; }
+      state.skills.push(skill.id);
+      showToast(`已添加「${skill.name}」`);
+    }
+    render();
+    renderSkillPage();
+  }
+
+  function openConnectorDetail(id) {
+    if (!CONNECTORS[id]) return;
+    if (!state.availableCapabilities.includes('connector')) { showToast('连接器尚未开通'); return; }
+    state.detailConnector = id;
+    renderConnectorPage();
+    setScreen('connector-detail');
+  }
+
+  function renderConnectorPage() {
+    const connector = CONNECTORS[state.detailConnector];
+    if (!connector) return;
+    $('#connectorCrumb').textContent = connector.name;
+    $('#connectorIcon').textContent = connector.name.slice(0, 1);
+    $('#connectorName').textContent = connector.name;
+    $('#connectorDesc').textContent = connector.desc;
+    $('#connectorMeta').innerHTML = `<span>R2a · 只读</span><span>${connector.connected ? '已连接' : connector.disabled ? '组织禁用' : '未连接'}</span><span>令牌不进入提示</span>`;
+    $('#connectorScopes').innerHTML = `<div class="row"><span>可用范围</span><strong>${connector.scopes}</strong></div>${connector.connected ? `<div class="row"><span>本次授权</span><strong>${scopeLabel(connector.grantedScopes) || '只读'}</strong></div>` : ''}`;
+    $('#connectorStatus').textContent = connector.connected ? '已连接' : connector.disabled ? '组织禁用' : '未连接';
+    $('#connectorSuites').innerHTML = Object.values(SUITES).filter((suite) => suite.requires === connector.id).map((suite) => `<button class="link" type="button" data-cap-detail-suite="${suite.id}" style="display:block;margin:4px 0">${suite.name}</button>`).join('') || '<p class="meta">暂未被套件引用。</p>';
+    $('#connectorExamples').innerHTML = (connector.examples || []).map((example) => `<button class="example-row" type="button" data-trial-connector="${connector.id}" data-trial-text="${example}"><span>${example}</span><span aria-hidden="true">→</span></button>`).join('') || '<p class="meta">暂无示例。</p>';
+    const action = $('#connectorAction');
+    action.className = connector.connected ? 'btn danger' : 'btn primary';
+    action.textContent = connector.disabled ? '组织已禁用' : connector.connected ? '撤销授权' : '连接账号';
+    action.disabled = connector.disabled;
+  }
+
+  function handleConnectorAction() {
+    const connector = CONNECTORS[state.detailConnector];
+    if (!connector || connector.disabled) return;
+    if (connector.connected) {
+      connector.connected = false;
+      connector.grantedScopes = [];
+      state.connectors = state.connectors.filter((id) => id !== connector.id);
+      render();
+      renderConnectorPage();
+      showToast(`已撤销「${connector.name}」授权`);
+    } else {
+      openAuth(connector.id);
+    }
+  }
+
+  function renderManage() {
+    const rows = [];
+    Object.values(SUITES).forEach((suite) => rows.push({ type: '套件', name: suite.name, status: suiteMissingConnector(suite) ? '缺连接器' : '已启用', detail: `v${suite.version} · ${suite.skills.length} 个技能` }));
+    SKILLS.forEach((skill) => rows.push({ type: '技能', name: skill.name, status: '已启用', detail: `${skill.output} · ${skill.env}` }));
+    Object.values(CONNECTORS).forEach((connector) => rows.push({ type: '连接器', name: connector.name, status: connector.disabled ? '组织禁用' : connector.connected ? '已连接' : '未连接', detail: connector.scopes }));
+    $('#manageList').innerHTML = rows.map((row) => `<div class="manage-row"><div><strong>${row.name}</strong><span> · ${row.type} · ${row.detail}</span></div><span class="status ${row.status === '已启用' || row.status === '已连接' ? 'ok' : row.status === '缺连接器' || row.status === '未连接' ? 'warn' : 'danger'}">${row.status}</span></div>`).join('');
+  }
+
+  function openManage() {
+    renderManage();
+    openModal('manageModal');
+  }
+
+  function openCreateSuite() {
+    $('#createSuiteName').value = '';
+    $('#createSuiteDesc').value = '';
+    $('#createSuiteEnv').value = 'cloud';
+    $('#createSuiteSkills').value = '';
+    $('#createSuiteOutput').value = 'Markdown';
+    openModal('createSuiteModal');
+    $('#createSuiteName').focus();
+  }
+
+  function saveSuite() {
+    const name = $('#createSuiteName').value.trim();
+    const desc = $('#createSuiteDesc').value.trim();
+    if (!name) { showToast('先填写套件名称'); $('#createSuiteName').focus(); return; }
+    const skills = $('#createSuiteSkills').value.split(/[,，]/).map((text) => text.trim()).filter(Boolean);
+    const id = `custom-${Date.now()}`;
+    SUITES[id] = {
+      id, name, version: 1, env: $('#createSuiteEnv').value, output: $('#createSuiteOutput').value.trim() || 'Markdown',
+      category: 'document', desc: desc || '组织创建的套件。', skills: skills.length ? skills : ['自检'],
+      commands: ['/自定义'], requires: null, examples: [`用「${name}」开始一项任务`]
+    };
+    closeAllModals();
+    state.capTab = 'suite';
+    render();
+    openSuiteDetail(id);
+    showToast(`已创建套件「${name}」并加入组织目录`);
+  }
+
+  function openTools() {
+    openModal('toolModal');
+  }
+
+  function openExecutor() {
+    $$('.executor-option').forEach((option) => {
+      const active = option.dataset.executor === state.env;
+      option.classList.toggle('selected', active);
+      const check = $('.option-check', option);
+      if (check) check.textContent = active ? '✓' : '';
+    });
+    openModal('executorModal');
+  }
+
+  function openPermission() {
+    $$('.permission-option').forEach((option) => {
+      const active = option.dataset.permission === state.permission;
+      option.classList.toggle('selected', active);
+      const check = $('.option-check', option);
+      if (check) check.textContent = active ? '✓' : '';
+    });
+    openModal('permissionModal');
+  }
+
+  function openFolder() {
+    $$('.folder-option').forEach((option) => { option.classList.remove('selected'); option.setAttribute('aria-checked', 'false'); });
+    $('#authorizeFolder').disabled = true;
+    openModal('folderModal');
+  }
+
+  function selectFolder(button) {
+    $$('.folder-option').forEach((option) => { option.classList.remove('selected'); option.setAttribute('aria-checked', 'false'); });
+    button.classList.add('selected');
+    button.setAttribute('aria-checked', 'true');
+    $('#authorizeFolder').disabled = false;
+  }
+
+  function authorizeFolder() {
+    const folder = $('.folder-option.selected')?.dataset.folder;
+    if (!folder) return;
+    state.folder = folder;
+    state.env = 'local';
+    closeAllModals();
+    render();
+    showToast(`已授权「${folder}」；本机执行器就绪`);
+  }
+
+  function openProject() {
+    if (!state.projectEnabled) { showToast('项目将在 R3 开放'); return; }
+    $('#projectName').value = state.project?.name || '';
+    $('#projectFolder').value = state.project?.folder || '';
+    openModal('projectModal');
+    $('#projectName').focus();
+  }
+
+  function createProject() {
+    if (!state.projectEnabled) { showToast('项目将在 R3 开放'); return; }
+    const name = $('#projectName').value.trim();
+    if (!name) { showToast('先填写项目名称'); $('#projectName').focus(); return; }
+    const folder = $('#projectFolder').value;
+    state.project = { name, folder };
+    if (folder) state.folder = folder;
+    closeAllModals();
+    render();
+    showToast(`已创建项目「${name}」`);
+  }
+
+  function openModal(id) {
+    closeAllModals();
+    state.modalReturnFocus = document.activeElement;
+    state.lastModal = id;
+    $('#' + id).hidden = false;
+    const focusable = $('#' + id).querySelector('button, input, textarea, select');
+    if (focusable) focusable.focus();
+  }
+
+  function closeAllModals() {
+    $$('.backdrop').forEach((b) => { b.hidden = true; });
+    state.lastModal = null;
+  }
+
+  function closeModal(id) {
+    const modal = $('#' + id);
+    if (modal) modal.hidden = true;
+    if (state.lastModal === id) state.lastModal = null;
+    if (state.modalReturnFocus && state.modalReturnFocus.focus) state.modalReturnFocus.focus();
+  }
+
+  function renderSuites() {
+    const list = $('#suiteList');
+    list.innerHTML = '';
+    Object.values(SUITES).forEach((suite) => {
+      const missing = suiteMissingConnector(suite);
+      const connectorAvailable = state.availableCapabilities.includes('connector');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `pick-card${state.suitePreview === suite.id ? ' selected' : ''}`;
+      btn.innerHTML = `<strong>${suite.name} <span class="status ${missing ? 'warn' : 'ok'}">${missing ? (connectorAvailable ? '缺连接器' : '需 R2a') : '可用'}</span></strong><p>${suite.desc}</p><small>${suite.skills.length} 个技能 · ${suite.output} · ${suite.env === 'local' ? '仅本机' : '云端'}</small>${suite.requires ? `<span class="req">${connectorAvailable ? `需要连接器「${CONNECTORS[suite.requires].name}」` : `需 R2a 连接器「${CONNECTORS[suite.requires].name}」`}</span>` : ''}`;
+      btn.addEventListener('click', () => {
+        state.suitePreview = suite.id;
+        renderSuites();
+      });
+      list.appendChild(btn);
+    });
+    renderSuiteModalDetail();
+  }
+
+  function renderSuiteModalDetail() {
+    const suite = SUITES[state.suitePreview];
+    const detail = $('#suiteDetail');
+    const use = $('#useSuite');
+    const remove = $('#removeSuite');
+    if (!suite) {
+      detail.innerHTML = '<p>选择一个套件查看方法。</p>';
+      use.disabled = true;
+      remove.hidden = true;
+      return;
+    }
+    detail.innerHTML = `<h3>${suite.name} <span class="meta">v${suite.version}</span></h3><p>${suite.desc}</p><h4>技能顺序（R1 提示顺序）</h4><ol>${suite.skills.map((skill) => `<li>${skill}</li>`).join('')}</ol><h4>输出标准</h4><p>${suite.output}</p><h4>快捷命令</h4><p>${suite.commands.join('、')}</p><h4>环境</h4><p>${suite.env === 'local' ? '仅本机' : '云端'}</p><h4>连接器</h4><p>${suite.requires ? CONNECTORS[suite.requires].name + '（只读）' : '无'}</p>`;
+    use.disabled = false;
+    remove.hidden = !state.suite;
+  }
+
+  function useSuite() {
+    if (!state.suitePreview) return;
+    applySuite(state.suitePreview);
+    closeAllModals();
+    render();
+    const suite = SUITES[state.suite];
+    if (suite.requires && !CONNECTORS[suite.requires].connected) {
+      showToast(`套件需要连接器「${CONNECTORS[suite.requires].name}」；请点击连接器完成授权`);
+    }
+  }
+
+  function removeSuite() {
+    state.suite = null;
+    state.suitePreview = null;
+    closeAllModals();
+    render();
+  }
+
+  function renderSkills() {
+    const list = $('#skillList');
+    list.innerHTML = '';
+    const suiteSkills = state.suite ? SUITES[state.suite].skills : [];
+    SKILLS.forEach((skill) => {
+      const selected = state.skills.includes(skill.id);
+      const inSuite = suiteSkills.includes(skill.name);
+      const row = document.createElement('label');
+      row.className = `skill-row${selected ? ' selected' : ''}`;
+      row.innerHTML = `<input type="checkbox" ${selected ? 'checked' : ''} ${inSuite ? 'disabled' : ''} aria-label="${skill.name}"><span><strong>${skill.name}</strong><small>${skill.desc}</small><span class="tag">${skill.output} · ${skill.env}${inSuite ? ' · 已在套件中' : ''}</span></span>`;
+      const checkbox = $('input', row);
+      checkbox.addEventListener('change', () => {
+        if (inSuite) return;
+        if (checkbox.checked) {
+          if (state.skills.length >= 3) {
+            checkbox.checked = false;
+            showToast('补充技能最多 3 个');
+            return;
+          }
+          state.skills.push(skill.id);
+        } else {
+          state.skills = state.skills.filter((id) => id !== skill.id);
+        }
+        renderSkills();
+        render();
+      });
+      list.appendChild(row);
+    });
+    $('#skillCounter').textContent = `已选 ${state.skills.length}/3`;
+    const note = $('#suiteSkillsNote');
+    if (note) {
+      note.textContent = state.suite
+        ? `套件内技能（不计入上限）：${SUITES[state.suite].skills.join('、')}`
+        : '未选择套件；所有技能都按补充技能计算。';
+    }
+  }
+
+  function renderConnectors() {
+    const list = $('#connectorList');
+    list.innerHTML = '';
+    Object.values(CONNECTORS).forEach((connector) => {
+      const selected = state.connectors.includes(connector.id);
+      const row = document.createElement('div');
+      row.className = `connector-row${selected ? ' selected' : ''}`;
+      const status = connector.disabled ? '<span class="status danger">组织禁用</span>' : connector.expired ? '<span class="status warn">授权已过期</span>' : connector.connected ? '<span class="status ok">已连接</span>' : '<span class="status warn">未连接</span>';
+      const scopeText = connector.expired ? '授权已过期；只读 scope 保留，需重新连接' : connector.connected ? `已授权：${scopeLabel(connector.grantedScopes) || '只读'}` : connector.scopes;
+      row.innerHTML = `<div class="connector-main"><strong>${connector.name} ${status}</strong><small>${connector.desc} · ${scopeText}</small></div><div class="actions"></div>`;
+      const actions = $('.actions', row);
+      if (connector.disabled) {
+        const apply = document.createElement('button');
+        apply.className = 'btn ghost'; apply.type = 'button'; apply.textContent = '申请';
+        apply.addEventListener('click', () => showToast('已提交管理员申请（演示）'));
+        actions.appendChild(apply);
+      } else if (connector.expired) {
+        const reconnect = document.createElement('button');
+        reconnect.className = 'btn primary'; reconnect.type = 'button'; reconnect.textContent = '重新连接';
+        reconnect.addEventListener('click', () => openAuth(connector.id));
+        actions.appendChild(reconnect);
+        const detail = document.createElement('button');
+        detail.className = 'btn ghost'; detail.type = 'button'; detail.textContent = '查看详情';
+        detail.addEventListener('click', () => { closeAllModals(); openConnectorDetail(connector.id); });
+        actions.appendChild(detail);
+      } else if (!connector.connected) {
+        const connect = document.createElement('button');
+        connect.className = 'btn primary'; connect.type = 'button'; connect.textContent = '连接';
+        connect.addEventListener('click', () => openAuth(connector.id));
+        actions.appendChild(connect);
+      } else {
+        const select = document.createElement('button');
+        select.className = 'btn'; select.type = 'button'; select.textContent = selected ? '取消选择' : '选择';
+        select.addEventListener('click', () => {
+          state.connectors = selected ? state.connectors.filter((id) => id !== connector.id) : [...state.connectors, connector.id];
+          renderConnectors(); render();
+        });
+        actions.appendChild(select);
+        const detail = document.createElement('button');
+        detail.className = 'btn ghost'; detail.type = 'button'; detail.textContent = '管理';
+        detail.addEventListener('click', () => { closeAllModals(); openConnectorDetail(connector.id); });
+        actions.appendChild(detail);
+      }
+      list.appendChild(row);
+    });
+  }
+
+  function openAuth(id) {
+    const connector = CONNECTORS[id];
+    if (!connector) return;
+    $('#authTitle').textContent = `${connector.expired ? '重新连接' : '连接'}「${connector.name}」`;
+    $('#authSub').textContent = connector.expired
+      ? `${connector.desc}；原只读 scope 已保留，重新连接后继续；令牌不进入模型提示。`
+      : `${connector.desc}；只读；令牌不进入模型提示。`;
+    $('#connectAccount').dataset.connector = id;
+    $('#connectAccount').textContent = connector.expired ? '重新连接' : '连接账号';
+    $$('#scopeList input[type="checkbox"]').forEach((input) => { input.checked = !input.disabled; });
+    $('#connectAccount').disabled = !$$('#scopeList input[type="checkbox"]:checked:not(:disabled)').length;
+    openModal('authModal');
+  }
+
+  function connectAccount() {
+    const id = $('#connectAccount').dataset.connector;
+    const connector = CONNECTORS[id];
+    if (!connector) return;
+    const scopes = $$('#scopeList input[type="checkbox"]:checked:not(:disabled)').map((input) => input.value);
+    if (!scopes.length) { showToast('至少选择一个只读范围'); return; }
+    connector.grantedScopes = scopes;
+    connector.connected = true;
+    const wasExpired = connector.expired;
+    connector.expired = false;
+    if (wasExpired) {
+      state.capState = 'normal';
+      $('#capState').value = 'normal';
+    }
+    if (!state.connectors.includes(id)) state.connectors.push(id);
+    closeAllModals();
+    render();
+    if (state.detailConnector === id) renderConnectorPage();
+    showToast(`${wasExpired ? '已重新连接' : '已连接'}「${connector.name}」：${scopeLabel(scopes)}`);
+  }
+
+  function sendTask() {
+    const result = validate();
+    if (!result.ok) { showToast(result.hint); return; }
+    const suite = state.suite ? SUITES[state.suite] : null;
+    state.task = { suite, skills: [...state.skills], connectors: [...state.connectors] };
+    $('#taskTitle').textContent = (state.goal.split(/[。\n]/)[0] || '新的任务').slice(0, 28);
+    $('#taskEnv').textContent = state.env === 'local' ? '本机' : '云端';
+    const chips = [];
+    chips.push(`<span class="summary-chip">${state.env === 'local' ? '本机执行器' : '云端执行器'}</span>`);
+    if (state.project) chips.push(`<span class="summary-chip">项目：<strong>${state.project.name}</strong></span>`);
+    if (state.env === 'local' && state.folder) chips.push(`<span class="summary-chip">文件夹：<strong>${state.folder}</strong></span>`);
+    chips.push(`<span class="summary-chip">套件：<strong>${suite ? suite.name : '无'}</strong></span>`);
+    chips.push(`<span class="summary-chip">技能：<strong>${state.skills.length ? state.skills.map((id) => SKILLS.find((s) => s.id === id).name).join('、') : '0 个补充'}</strong></span>`);
+    chips.push(`<span class="summary-chip">连接器：<strong>${state.connectors.length ? state.connectors.map(connectorLabel).join('、') : '无'}</strong></span>`);
+    chips.push('<span class="summary-chip">预设组合 · 无链式</span>');
+    $('#taskChips').innerHTML = chips.join('');
+    $('#taskConnectorError').hidden = state.capState !== 'error';
+    $('#taskNote').textContent = suite ? `套件 v${suite.version} · 输出 ${suite.output} · R1 只做提示组合，不产生多 run 或步骤审批。` : '未选择套件；仅使用补充技能（如有）。';
+    const skillNames = state.skills.map((id) => SKILLS.find((s) => s.id === id)?.name).filter(Boolean);
+    const permissionLabel = state.permission === 'readonly' ? '自动审批' : state.permission === 'plan' ? '计划批准后' : '默认权限';
+    $('#taskUsageDetails').innerHTML = `<ul><li>执行器：${state.env === 'local' ? '本机' : '云端'}</li><li>项目：${state.project ? state.project.name : '无'}</li><li>文件夹：${state.env === 'local' && state.folder ? state.folder : '不适用'}</li><li>套件：${suite ? `${suite.name} v${suite.version}` : '无'}</li><li>技能：${skillNames.length ? skillNames.join('、') : '无补充技能'}</li><li>连接器：${state.connectors.length ? state.connectors.map(connectorLabel).join('、') : '无'}</li><li>权限：${permissionLabel}</li><li>执行模式：R1 单 run；无步骤审批、无 schema 传递</li><li>调用记录：生成大纲、写入初稿、自检（演示）</li></ul>`;
+    setScreen('task');
+  }
+
+  function openSuite(id) {
+    state.suitePreview = id || state.suite || 'product';
+    renderSuites();
+    openModal('suiteModal');
+  }
+
+  function openSkills() {
+    renderSkills();
+    openModal('skillModal');
+  }
+
+  function openConnectors() {
+    renderConnectors();
+    openModal('connectorModal');
+  }
+
+  function openQuick() {
+    const list = $('#quickList');
+    const commands = [
+      { label: '写产品方案', suite: 'product', goal: '为下周的产品评审写一份方案，包含背景、目标、三个备选方案、取舍和风险' },
+      { label: '写客户周报', suite: 'weekly', goal: '根据客户项目资料写一份周报，包含进展、行动项和风险' },
+      { label: '整理本地资料', suite: 'local', goal: '整理授权文件夹中的资料，生成索引和待确认信息' }
+    ];
+    list.innerHTML = '';
+    commands.forEach((cmd) => {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'pick-card';
+      btn.innerHTML = `<strong>${cmd.label}</strong><p>套件「${SUITES[cmd.suite].name}」 · ${SUITES[cmd.suite].output}</p><small>点击预填，不自动提交</small>`;
+      btn.addEventListener('click', () => {
+        $('#goal').value = cmd.goal;
+        state.goal = cmd.goal;
+        applySuite(cmd.suite);
+        closeAllModals();
+        setScreen('home');
+        render();
+        showToast(`已预填「${SUITES[cmd.suite].name}」；检查后提交`);
+      });
+      list.appendChild(btn);
+    });
+    openModal('quickModal');
+  }
+
+  // Composer events
+  $('#goal').addEventListener('input', (event) => {
+    state.goal = event.target.value;
+    render();
+  });
+  $('#goal').addEventListener('keydown', (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault();
+      if (!$('#sendBtn').disabled) sendTask();
+    }
+  });
+  $('#sendBtn').addEventListener('click', sendTask);
+  $('#connectorChip').addEventListener('click', openConnectors);
+  $('#quickChip').addEventListener('click', openQuick);
+  $$('.suite-card').forEach((card) => card.addEventListener('click', () => {
+    state.suitePreview = card.dataset.suiteCard;
+    openSuite(card.dataset.suiteCard);
+  }));
+  $('#capSearch').addEventListener('input', filterCapabilities);
+  $('#capabilitySet').addEventListener('change', (event) => setCapabilitySet(event.target.value));
+  $('#capState').addEventListener('change', (event) => setCapState(event.target.value));
+  $('#retryConnector').addEventListener('click', () => showToast('已重试连接器调用；scope 不变（演示）'));
+  $('#revokeConnector').addEventListener('click', () => {
+    state.connectors = state.connectors.filter((id) => id !== 'knowledge');
+    CONNECTORS.knowledge.connected = false;
+    CONNECTORS.knowledge.grantedScopes = [];
+    state.capState = 'normal';
+    $('#capState').value = 'normal';
+    render();
+    showToast('已撤销知识库连接；历史成果与审计保留');
+  });
+  $('#listSearch').addEventListener('input', filterList);
+  $('#listCategory').addEventListener('change', filterList);
+  $('#useSuite').addEventListener('click', useSuite);
+  $('#removeSuite').addEventListener('click', removeSuite);
+  $('#applySkills').addEventListener('click', () => { closeAllModals(); render(); });
+  $('#connectAccount').addEventListener('click', connectAccount);
+  $('#connectorAction').addEventListener('click', handleConnectorAction);
+  $('#saveSuite').addEventListener('click', saveSuite);
+  $('#authorizeFolder').addEventListener('click', authorizeFolder);
+  $('#createProject').addEventListener('click', createProject);
+  $('#useSuiteFromDetail').addEventListener('click', useSuiteFromDetail);
+  $('#useSkillFromDetail').addEventListener('click', useSkillFromDetail);
+  $('#scopeList').addEventListener('change', () => {
+    $('#connectAccount').disabled = !$$('#scopeList input[type="checkbox"]:checked:not(:disabled)').length;
+  });
+  $('#resetDemo').addEventListener('click', () => location.reload());
+  $$('[data-close]').forEach((btn) => btn.addEventListener('click', () => closeModal(btn.dataset.close)));
+
+  document.addEventListener('click', (event) => {
+    const nav = event.target.closest('[data-nav]');
+    if (nav) {
+      if (nav.dataset.listType) {
+        state.listType = nav.dataset.listType;
+        state.capTab = nav.dataset.listType;
+        state.listFilter = 'all';
+        state.listCategory = 'all';
+        renderList();
+      }
+      setScreen(nav.dataset.nav);
+      return;
+    }
+    const actionEl = event.target.closest('[data-action]');
+    if (actionEl) {
+      if (actionEl.dataset.action === 'manage-capabilities') { openManage(); return; }
+      if (actionEl.dataset.action === 'create-suite') { openCreateSuite(); return; }
+      if (actionEl.dataset.action === 'open-tools') { openTools(); return; }
+      if (actionEl.dataset.action === 'open-executor') { openExecutor(); return; }
+      if (actionEl.dataset.action === 'open-permission') { openPermission(); return; }
+      if (actionEl.dataset.action === 'new-project') { openProject(); return; }
+    }
+    const tool = event.target.closest('[data-tool]');
+    if (tool) {
+      closeAllModals();
+      if (tool.dataset.tool === 'suite') openSuite();
+      if (tool.dataset.tool === 'skill') openSkills();
+      if (tool.dataset.tool === 'folder') openFolder();
+      return;
+    }
+    const executor = event.target.closest('[data-executor]');
+    if (executor) { setEnv(executor.dataset.executor); closeAllModals(); return; }
+    const permission = event.target.closest('[data-permission]');
+    if (permission) { state.permission = permission.dataset.permission; closeAllModals(); render(); return; }
+    const folder = event.target.closest('[data-folder]');
+    if (folder) { selectFolder(folder); return; }
+    const capTab = event.target.closest('[data-cap-tab]');
+    if (capTab) {
+      if (!state.availableCapabilities.includes(capTab.dataset.capTab)) return;
+      state.capTab = capTab.dataset.capTab;
+      state.capCategory = 'all';
+      state.capFilter = 'all';
+      $$('[data-cap-filter]').forEach((btn) => btn.classList.toggle('active', btn.dataset.capFilter === 'all'));
+      renderCapabilities();
+      return;
+    }
+    const capCategory = event.target.closest('[data-cap-category]');
+    if (capCategory) { state.capCategory = capCategory.dataset.capCategory; renderCapabilities(); return; }
+    const trialSuite = event.target.closest('[data-trial-suite]');
+    if (trialSuite) {
+      const suite = SUITES[trialSuite.dataset.trialSuite];
+      if (!suite) return;
+      const text = trialSuite.dataset.trialText;
+      $('#goal').value = text;
+      state.goal = text;
+      applySuite(suite.id);
+      setScreen('home');
+      render();
+      $('#goal').focus();
+      showToast(`已预填「${suite.name}」示例，不自动提交`);
+      return;
+    }
+    const trialSkill = event.target.closest('[data-trial-skill]');
+    if (trialSkill) {
+      const skill = SKILLS.find((item) => item.id === trialSkill.dataset.trialSkill);
+      if (!skill) return;
+      const inSuite = state.suite && SUITES[state.suite].skills.includes(skill.name);
+      if (!inSuite && !state.skills.includes(skill.id)) {
+        if (state.skills.length >= 3) { showToast('补充技能最多 3 个'); return; }
+        state.skills.push(skill.id);
+      }
+      const text = trialSkill.dataset.trialText;
+      $('#goal').value = text;
+      state.goal = text;
+      setScreen('home');
+      render();
+      $('#goal').focus();
+      showToast(`已预填「${skill.name}」示例，不自动提交`);
+      return;
+    }
+    const trialConnector = event.target.closest('[data-trial-connector]');
+    if (trialConnector) {
+      const connector = CONNECTORS[trialConnector.dataset.trialConnector];
+      if (!connector) return;
+      if (!state.availableCapabilities.includes('connector')) { showToast('连接器尚未开通'); return; }
+      if (!connector.connected) { openAuth(connector.id); return; }
+      if (!state.connectors.includes(connector.id)) state.connectors.push(connector.id);
+      const text = trialConnector.dataset.trialText;
+      $('#goal').value = text;
+      state.goal = text;
+      setScreen('home');
+      render();
+      $('#goal').focus();
+      showToast(`已预填「${connector.name}」示例，不自动提交`);
+      return;
+    }
+    const capFilter = event.target.closest('[data-cap-filter]');
+    if (capFilter) {
+      state.capFilter = capFilter.dataset.capFilter;
+      $$('[data-cap-filter]').forEach((btn) => btn.classList.toggle('active', btn === capFilter));
+      filterCapabilities();
+      return;
+    }
+    const listFilter = event.target.closest('[data-list-filter]');
+    if (listFilter) {
+      state.listFilter = listFilter.dataset.listFilter;
+      $$('[data-list-filter]').forEach((btn) => btn.classList.toggle('active', btn === listFilter));
+      filterList();
+      return;
+    }
+    const openListEl = event.target.closest('[data-open-list]');
+    if (openListEl) { openList(openListEl.dataset.openList); return; }
+    const suiteDetail = event.target.closest('[data-cap-detail-suite]');
+    if (suiteDetail) { openSuiteDetail(suiteDetail.dataset.capDetailSuite); return; }
+    const skillDetail = event.target.closest('[data-skill-detail]');
+    if (skillDetail) { openSkillDetail(skillDetail.dataset.skillDetail); return; }
+    const connectorDetail = event.target.closest('[data-connector-detail]');
+    if (connectorDetail) { openConnectorDetail(connectorDetail.dataset.connectorDetail); return; }
+    const useSuiteEl = event.target.closest('[data-use-suite]');
+    if (useSuiteEl) { applySuite(useSuiteEl.dataset.useSuite); render(); showToast('已选择套件；检查后提交'); return; }
+    const useSkillEl = event.target.closest('[data-use-skill]');
+    if (useSkillEl) {
+      const id = useSkillEl.dataset.useSkill;
+      if (state.skills.includes(id)) state.skills = state.skills.filter((skillId) => skillId !== id);
+      else if (state.skills.length >= 3) { showToast('补充技能最多 3 个'); return; }
+      else state.skills.push(id);
+      render(); return;
+    }
+    const connect = event.target.closest('[data-connect-connector]');
+    if (connect) { openAuth(connect.dataset.connectConnector); return; }
+    const apply = event.target.closest('[data-apply-connector]');
+    if (apply) { showToast('已提交管理员申请（演示）'); return; }
+    const useCommand = event.target.closest('[data-use-command]');
+    if (useCommand) {
+      const suite = SUITES[useCommand.dataset.commandSuite];
+      if (!suite) return;
+      $('#goal').value = `${useCommand.dataset.useCommand}：`;
+      state.goal = $('#goal').value;
+      applySuite(suite.id);
+      setScreen('home');
+      render();
+      showToast(`已预填快捷命令「${useCommand.dataset.useCommand}」`);
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && state.lastModal) closeModal(state.lastModal);
+  });
+
+  render();
+  setScreen('home');
+
+</script>
+</body>
+</html>

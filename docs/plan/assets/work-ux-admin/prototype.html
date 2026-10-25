@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WeMeet 工作 · 管理面中保真原型</title>
+<style>
+  :root {
+    --brand: #3370ff; --brand-strong: #2860d9; --brand-soft: #eef3ff;
+    --canvas: #f6f6f6; --surface: #fff; --surface-muted: #fafafa;
+    --text: #1a1c1e; --text-2: #666b73; --text-3: #8a8f99;
+    --border: #e5e5e5; --border-strong: #d0d3d9;
+    --success-text: #1f7a4a; --success-bg: #e9f7ef; --success-border: #bfe5ce;
+    --warning-text: #9a5b00; --warning-bg: #fff7e6; --warning-border: #f0d39b;
+    --danger-text: #b42318; --danger-bg: #fef3f2; --danger-border: #f2c7c4;
+    --info-text: #2456a6; --info-bg: #f3f7ff; --info-border: #cbdcff;
+    --radius: 12px; --radius-sm: 8px;
+    --shadow: 0 10px 30px rgba(20, 30, 50, .12);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--canvas); color: var(--text); font: 13px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+  .app { display: flex; min-height: 100vh; }
+  .sidebar { width: 228px; flex: 0 0 228px; background: var(--surface); border-right: 1px solid var(--border); padding: 16px 12px; display: flex; flex-direction: column; gap: 16px; position: sticky; top: 0; height: 100vh; }
+  .brand { display: flex; gap: 10px; align-items: center; padding: 2px 6px 12px; border-bottom: 1px solid var(--border); }
+  .brand-logo { width: 36px; height: 36px; border-radius: 10px; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 700; }
+  .brand strong { display: block; font-size: 15px; }
+  .brand small { display: block; color: var(--text-3); font-size: 11px; margin-top: 1px; }
+  .side-section { color: var(--text-3); font-size: 11px; letter-spacing: .08em; padding: 0 8px; }
+  .side-nav { display: flex; flex-direction: column; gap: 3px; }
+  .nav { border: 0; background: transparent; text-align: left; color: var(--text-2); padding: 9px 10px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; justify-content: space-between; }
+  .nav:hover { background: var(--surface-muted); color: var(--text); }
+  .nav.active { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
+  .nav .nav-count { font-size: 10px; border-radius: 999px; background: var(--warning-bg); color: var(--warning-text); padding: 1px 6px; }
+  .side-note { margin-top: auto; color: var(--text-3); font-size: 11px; padding: 10px 8px; border-top: 1px solid var(--border); line-height: 1.7; }
+  .back-link { color: var(--brand-strong); text-decoration: none; font-size: 12px; padding: 4px 8px; }
+  .back-link:hover { text-decoration: underline; }
+  .workspace { flex: 1; min-width: 0; }
+  .topbar { height: 56px; display: flex; align-items: center; gap: 16px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+  .crumb { color: var(--text-3); display: flex; gap: 7px; align-items: center; }
+  .crumb strong { color: var(--text); }
+  .top-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .demo { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 11px; }
+  .demo select { height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 0 8px; font-size: 12px; color: var(--text-2); }
+  .org { color: var(--text-2); font-size: 12px; white-space: nowrap; }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--brand-soft); color: var(--brand-strong); display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+  main { max-width: 1180px; margin: 0 auto; padding: 26px 28px 70px; }
+  .screen { animation: fade .16s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; }
+  .eyebrow { margin: 0 0 3px; color: var(--text-3); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  .page-head h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: -.2px; }
+  .page-head p { margin: 0; color: var(--text-2); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 14px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .card-head h2 { margin: 0; }
+  .muted { color: var(--text-2); }
+  .small { font-size: 11.5px; color: var(--text-2); }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .stat span { display: block; color: var(--text-2); font-size: 12px; }
+  .stat strong { display: block; font-size: 24px; letter-spacing: -.3px; margin: 4px 0 2px; }
+  .stat small { color: var(--text-3); font-size: 11px; }
+  .stat.warn strong { color: var(--warning-text); }
+  .stat.danger strong { color: var(--danger-text); }
+  .banner { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--info-border); background: var(--info-bg); color: var(--info-text); font-size: 12px; margin-bottom: 14px; }
+  .banner.warning { background: var(--warning-bg); border-color: var(--warning-border); color: var(--warning-text); }
+  .banner.danger { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
+  .banner strong { display: block; }
+  .banner p { margin: 2px 0 0; }
+  .banner .spacer { flex: 1; }
+  .progress { height: 8px; border-radius: 999px; background: var(--surface-muted); border: 1px solid var(--border); overflow: hidden; }
+  .progress > span { display: block; height: 100%; background: var(--brand); }
+  .progress.warn > span { background: var(--warning-text); }
+  .progress.danger > span { background: var(--danger-text); }
+  .progress-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 8px 0; font-size: 12px; color: var(--text-2); }
+  .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .toolbar input[type="search"] { height: 32px; border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; min-width: 220px; background: var(--surface); }
+  .toolbar select { height: 32px; border: 1px solid var(--border); border-radius: 8px; padding: 0 8px; background: var(--surface); color: var(--text-2); }
+  .btn { height: 32px; padding: 0 12px; border: 1px solid var(--border); background: var(--surface); border-radius: 8px; font-size: 12px; color: var(--text-2); }
+  .btn:hover { background: var(--surface-muted); color: var(--text); }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .btn.primary:hover { background: var(--brand-strong); border-color: var(--brand-strong); }
+  .btn.ghost { border-color: transparent; background: transparent; color: var(--brand-strong); }
+  .btn.danger { color: var(--danger-text); border-color: var(--danger-border); background: var(--surface); }
+  .btn:disabled { opacity: .5; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 10px 8px; border-top: 1px solid var(--border); vertical-align: middle; }
+  th { color: var(--text-3); font-weight: 500; font-size: 11px; }
+  tbody tr:hover { background: var(--surface-muted); }
+  .member { display: flex; gap: 9px; align-items: center; min-width: 160px; }
+  .member-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--brand-soft); color: var(--brand-strong); display: grid; place-items: center; font-weight: 700; font-size: 11px; flex: 0 0 auto; }
+  .member strong { display: block; font-weight: 600; }
+  .member small { display: block; color: var(--text-3); font-size: 11px; }
+  .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-muted); color: var(--text-2); font-size: 11px; white-space: nowrap; }
+  .pill.ok { background: var(--success-bg); border-color: var(--success-border); color: var(--success-text); }
+  .pill.warn { background: var(--warning-bg); border-color: var(--warning-border); color: var(--warning-text); }
+  .pill.danger { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .link { border: 0; background: transparent; color: var(--brand-strong); padding: 0; font-size: 12px; }
+  .link:hover { text-decoration: underline; }
+  .empty { padding: 26px 12px; text-align: center; color: var(--text-2); border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); }
+  .form-card { padding: 16px; }
+  .form-row { margin-bottom: 14px; }
+  .form-row label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 5px; }
+  .form-row input, .form-row select, .form-row textarea { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--surface); }
+  .form-row input:focus, .form-row select:focus, .form-row textarea:focus { outline: 2px solid var(--brand); outline-offset: 1px; border-color: transparent; }
+  .form-hint { color: var(--text-3); font-size: 11px; margin-top: 4px; }
+  .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .split { display: grid; grid-template-columns: 1.1fr .9fr; gap: 14px; }
+  .policy-group { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 12px; }
+  .policy-group h3 { margin: 0 0 4px; font-size: 13px; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid var(--border); }
+  .toggle-row:first-of-type { border-top: 0; }
+  .toggle-row strong { display: block; font-size: 12px; }
+  .toggle-row small { display: block; color: var(--text-3); font-size: 11px; margin-top: 1px; }
+  .switch { position: relative; width: 36px; height: 20px; flex: 0 0 auto; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--border-strong); transition: .15s; }
+  .switch span::after { content: ""; position: absolute; width: 16px; height: 16px; top: 2px; left: 2px; border-radius: 50%; background: #fff; transition: .15s; }
+  .switch input:checked + span { background: var(--brand); }
+  .switch input:checked + span::after { transform: translateX(16px); }
+  .switch input:focus-visible + span { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .audit-row { display: grid; grid-template-columns: 70px 110px 1fr; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); font-size: 12px; }
+  .audit-row:first-child { border-top: 0; }
+  .audit-row time { color: var(--text-3); }
+  .audit-row .actor { color: var(--text-2); }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(20, 30, 50, .34); display: grid; place-items: center; padding: 20px; z-index: 100; }
+  .modal { width: min(460px, 100%); max-height: 90vh; overflow: auto; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); padding: 18px; }
+  .modal h2 { margin: 0 0 4px; font-size: 17px; }
+  .modal p { margin: 0 0 14px; color: var(--text-2); }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); background: var(--text); color: #fff; border-radius: 999px; padding: 8px 14px; font-size: 12px; z-index: 200; box-shadow: var(--shadow); }
+  @media (max-width: 980px) {
+    .grid-4 { grid-template-columns: 1fr 1fr; }
+    .grid-2, .split { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 760px) {
+    .app { display: block; }
+    .sidebar { width: 100%; height: auto; position: static; flex-direction: row; align-items: center; overflow-x: auto; padding: 10px 12px; gap: 10px; }
+    .brand { border: 0; padding: 0; flex: 0 0 auto; }
+    .brand small, .side-section, .side-note, .back-link { display: none; }
+    .side-nav { flex-direction: row; }
+    .nav { white-space: nowrap; padding: 7px 9px; }
+    .nav .nav-count { display: none; }
+    .topbar { height: auto; min-height: 52px; padding: 10px 14px; flex-wrap: wrap; }
+    .top-actions { width: 100%; margin-left: 0; justify-content: space-between; }
+    .org { display: none; }
+    main { padding: 18px 14px 60px; }
+    .toolbar input[type="search"] { min-width: 0; flex: 1; }
+    th:nth-child(4), td:nth-child(4) { display: none; }
+    .audit-row { grid-template-columns: 58px 1fr; }
+    .audit-row .actor { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" aria-label="管理工作台导航">
+    <div class="brand">
+      <div class="brand-logo" aria-hidden="true">W</div>
+      <div><strong>WeMeet</strong><small>管理后台 · 工作</small></div>
+    </div>
+    <div class="side-section">工作治理</div>
+    <nav class="side-nav">
+      <button class="nav active" type="button" data-screen="overview">概览</button>
+      <button class="nav" type="button" data-screen="seats">成员与席位 <span class="nav-count" id="pendingNav">1</span></button>
+      <button class="nav" type="button" data-screen="budget">预算与用量</button>
+      <button class="nav" type="button" data-screen="policy">能力与策略</button>
+      <button class="nav" type="button" data-screen="audit">审计日志</button>
+    </nav>
+    <div class="side-note">管理面以主组织为准；当前不支持同一会话切换多个组织。</div>
+    <a class="back-link" href="../work-ux-r0/prototype.html">← 返回工作原型</a>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <div class="crumb"><span>WeMeet</span><span>/</span><span>管理后台</span><span>/</span><strong>工作</strong></div>
+      <div class="top-actions">
+        <label class="demo">演示状态
+          <select id="demoState" aria-label="演示状态">
+            <option value="normal">正常</option>
+            <option value="full">席位已满</option>
+            <option value="budget">预算告急</option>
+          </select>
+        </label>
+        <span class="org">星野科技 · 主组织</span>
+        <div class="avatar" aria-label="当前管理员 林悦">LY</div>
+      </div>
+    </header>
+
+    <main>
+      <section class="screen" data-screen="overview">
+        <div class="page-head">
+          <div><p class="eyebrow">组织工作治理</p><h1>工作概览</h1><p>席位、预算、策略和审计集中在这里；成员成果正文默认不可见。</p></div>
+          <button class="btn primary" type="button" data-go="seats">管理席位</button>
+        </div>
+        <div id="overviewAlerts"></div>
+        <div class="grid-4" id="overviewStats"></div>
+        <div class="grid-2">
+          <section class="card">
+            <div class="card-head"><h2>席位使用</h2><button class="link" type="button" data-go="seats">查看成员</button></div>
+            <div class="progress-row"><span id="seatUsageText">18 / 20</span><span id="seatUsagePct">90%</span></div>
+            <div class="progress" id="seatProgress"><span style="width:90%"></span></div>
+            <p class="small" id="seatNote" style="margin:10px 0 0">还可授予 2 个席位。撤销后立即释放席位。</p>
+          </section>
+          <section class="card">
+            <div class="card-head"><h2>本月预算</h2><button class="link" type="button" data-go="budget">调整预算</button></div>
+            <div class="progress-row"><span id="budgetUsageText">¥13,600 / ¥20,000</span><span id="budgetUsagePct">68%</span></div>
+            <div class="progress" id="budgetProgress"><span style="width:68%"></span></div>
+            <p class="small" id="budgetNote" style="margin:10px 0 0">按单采纳成果成本核算；达到上限后暂停新任务。</p>
+          </section>
+        </div>
+        <section class="card">
+          <div class="card-head"><h2>最近审计</h2><button class="link" type="button" data-go="audit">查看全部</button></div>
+          <div id="recentAudit"></div>
+        </section>
+      </section>
+
+      <section class="screen" data-screen="seats" hidden>
+        <div class="page-head">
+          <div><p class="eyebrow">成员与席位</p><h1>成员与席位</h1><p>授予、撤销和恢复 Work 席位；席位数受组织套餐限制。</p></div>
+          <button class="btn primary" type="button" id="grantBtn">＋ 授予席位</button>
+        </div>
+        <div id="seatBanner"></div>
+        <div class="toolbar">
+          <input id="seatSearch" type="search" placeholder="搜索姓名或邮箱" aria-label="搜索成员">
+          <select id="seatStatus" aria-label="席位状态筛选">
+            <option value="all">全部状态</option>
+            <option value="active">已启用</option>
+            <option value="invited">待接受</option>
+            <option value="revoked">已撤销</option>
+          </select>
+          <span class="small" id="seatCount"></span>
+        </div>
+        <section class="card" style="padding:0;overflow:auto">
+          <table aria-label="工作席位">
+            <thead><tr><th>成员</th><th>角色</th><th>状态</th><th>最近活跃</th><th style="text-align:right">操作</th></tr></thead>
+            <tbody id="seatTable"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <section class="screen" data-screen="budget" hidden>
+        <div class="page-head">
+          <div><p class="eyebrow">预算与用量</p><h1>预算与用量</h1><p>预算按组织计量；成员和任务只能收窄，不能突破组织上限。</p></div>
+        </div>
+        <div id="budgetBanner"></div>
+        <div class="split">
+          <section class="card">
+            <h2>用量</h2>
+            <div class="progress-row"><span>本月已用</span><strong id="budgetUsedLabel">¥13,600</strong></div>
+            <div class="progress" id="budgetBigProgress"><span style="width:68%"></span></div>
+            <div class="grid-2" style="margin-top:14px">
+              <div class="stat"><span>云端执行</span><strong id="cloudCost">¥12,100</strong><small>89% of usage</small></div>
+              <div class="stat"><span>本机执行</span><strong id="localCost">¥1,500</strong><small>本机模型/工具成本</small></div>
+            </div>
+            <p class="small" style="margin-top:12px">连接器供应商成本按合同单独结算；不计入此预算条。</p>
+          </section>
+          <section class="card">
+            <h2>预算设置</h2>
+            <form id="budgetForm">
+              <div class="form-row"><label for="monthlyCap">月度预算（元）</label><input id="monthlyCap" type="number" min="0" step="100" value="20000"><div class="form-hint">达到上限后暂停新任务；管理员可调高。</div></div>
+              <div class="form-row"><label for="perTaskCap">单任务上限（元）</label><input id="perTaskCap" type="number" min="0" step="10" value="500"><div class="form-hint">超过上限时提交前阻止，并要求管理员调整。</div></div>
+              <div class="form-row"><label for="alertPct">预警阈值</label><select id="alertPct"><option value="80">80%</option><option value="90">90%</option><option value="100">100%</option></select></div>
+              <div class="form-actions"><button class="btn primary" type="submit">保存预算</button></div>
+            </form>
+          </section>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="policy" hidden>
+        <div class="page-head">
+          <div><p class="eyebrow">能力与策略</p><h1>能力与策略</h1><p>组织策略高于个人选择；成员只能收窄审批与数据范围。</p></div>
+        </div>
+        <form id="policyForm">
+          <div class="split">
+            <div>
+              <section class="policy-group">
+                <h3>套件</h3>
+                <p class="small">控制成员在 Composer `＋` 菜单中能看到的组织套件。</p>
+                <div id="suiteToggles"></div>
+              </section>
+              <section class="policy-group">
+                <h3>连接器</h3>
+                <p class="small">只读优先；禁止的连接器不进入成员 Composer。</p>
+                <div id="connectorToggles"></div>
+              </section>
+            </div>
+            <div>
+              <section class="policy-group">
+                <h3>默认权限</h3>
+                <div class="form-row" style="margin-top:10px"><label for="defaultPermission">成员默认审批方式</label>
+                  <select id="defaultPermission">
+                    <option value="ask">默认权限：每次询问</option>
+                    <option value="readonly">自动审批：只读自动</option>
+                    <option value="plan">计划批准后执行</option>
+                  </select>
+                  <div class="form-hint">不提供“完全访问权限”。</div>
+                </div>
+                <div class="form-row"><label for="defaultEnv">允许的执行位置</label>
+                  <select id="defaultEnv">
+                    <option value="both">云端 + 本机</option>
+                    <option value="cloud">仅云端</option>
+                    <option value="local">仅本机</option>
+                  </select>
+                </div>
+              </section>
+              <section class="policy-group">
+                <h3>数据与留存</h3>
+                <div class="toggle-row"><div><strong>允许成员分享成果给组织</strong><small>R4a 前默认关闭；管理员可提前启用</small></div><label class="switch"><input type="checkbox" id="allowShare"><span></span><span class="sr-only">允许分享成果</span></label></div>
+                <div class="toggle-row"><div><strong>审计保留 365 天</strong><small>商用前可配置；删除任务不删除最小审计记录</small></div><label class="switch"><input type="checkbox" id="auditRetention" checked><span></span><span class="sr-only">审计保留 365 天</span></label></div>
+              </section>
+            </div>
+          </div>
+          <div class="form-actions"><button class="btn primary" type="submit">保存策略</button></div>
+        </form>
+      </section>
+
+      <section class="screen" data-screen="audit" hidden>
+        <div class="page-head">
+          <div><p class="eyebrow">审计日志</p><h1>审计日志</h1><p>记录授权、预算、策略、能力和发布；不记录成果正文、提示词和令牌。</p></div>
+          <button class="btn" type="button" id="exportAudit">导出 CSV</button>
+        </div>
+        <div class="toolbar">
+          <select id="auditType" aria-label="审计类型筛选">
+            <option value="all">全部类型</option>
+            <option value="席位">席位</option>
+            <option value="预算">预算</option>
+            <option value="策略">策略</option>
+            <option value="能力">能力</option>
+            <option value="审计">审计</option>
+          </select>
+          <span class="small">保留 365 天；导出包含操作者姓名，导出行为本身留痕。</span>
+        </div>
+        <section class="card" style="padding:0;overflow:auto">
+          <table aria-label="审计日志">
+            <thead><tr><th>时间</th><th>类型</th><th>操作者</th><th>事件</th></tr></thead>
+            <tbody id="auditTable"></tbody>
+          </table>
+          <div class="empty" id="auditEmpty" hidden>当前筛选下没有审计记录。</div>
+        </section>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="grantModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="grantTitle">
+    <h2 id="grantTitle">授予工作席位</h2>
+    <p>席位授予后成员才能进入 WeMeet 工作；权限仍受组织策略约束。</p>
+    <form id="grantForm">
+      <div class="form-row"><label for="grantName">姓名</label><input id="grantName" maxlength="30" placeholder="例如：陈晨" required></div>
+      <div class="form-row"><label for="grantEmail">邮箱</label><input id="grantEmail" type="email" placeholder="name@company.com" required></div>
+      <div class="form-row"><label for="grantRole">角色</label><select id="grantRole"><option value="成员">成员</option><option value="Work 管理员">Work 管理员</option><option value="只读">只读</option></select><div class="form-hint">Work 管理员需要显式授予 `org.work_grant.write`，不预置。</div></div>
+      <div class="modal-actions"><button class="btn" type="button" data-close="grantModal">取消</button><button class="btn primary" type="submit">授予席位</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="revokeModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="revokeTitle">
+    <h2 id="revokeTitle">撤销工作席位</h2>
+    <p id="revokeSub">撤销后成员不能再创建新任务；历史任务与成果按留存策略处理。</p>
+    <form id="revokeForm">
+      <div class="form-row"><label for="revokeReason">撤销原因</label><select id="revokeReason"><option>离职</option><option>岗位调整</option><option>预算/席位调整</option><option>治理要求</option></select></div>
+      <div class="form-row"><label for="revokeNote">补充说明（可选）</label><textarea id="revokeNote" rows="2" maxlength="120"></textarea></div>
+      <div class="modal-actions"><button class="btn" type="button" data-close="revokeModal">取消</button><button class="btn danger" type="submit">确认撤销</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+  const state = {
+    screen: 'overview',
+    demo: 'normal',
+    limit: 20,
+    seats: [
+      { id: 1, name: '林悦', email: 'linyue@xingye.com', role: '组织管理员', status: 'active', last: '刚刚' },
+      { id: 2, name: '周宁', email: 'zhouning@xingye.com', role: 'Work 管理员', status: 'active', last: '12 分钟前' },
+      { id: 3, name: '苏禾', email: 'suhe@xingye.com', role: '成员', status: 'active', last: '1 小时前' },
+      { id: 4, name: '陈晨', email: 'chenchen@xingye.com', role: '成员', status: 'active', last: '昨天' },
+      { id: 5, name: '何川', email: 'hechuan@xingye.com', role: '成员', status: 'active', last: '昨天' },
+      { id: 6, name: '吴笛', email: 'wudi@xingye.com', role: '成员', status: 'active', last: '2 天前' },
+      { id: 7, name: '唐宁', email: 'tangning@xingye.com', role: '成员', status: 'active', last: '2 天前' },
+      { id: 8, name: '顾言', email: 'guyan@xingye.com', role: '成员', status: 'active', last: '3 天前' },
+      { id: 9, name: '沈知', email: 'shenzhi@xingye.com', role: '成员', status: 'active', last: '3 天前' },
+      { id: 10, name: '叶青', email: 'yeqing@xingye.com', role: '成员', status: 'active', last: '4 天前' },
+      { id: 11, name: '赵一', email: 'zhaoyi@xingye.com', role: '成员', status: 'active', last: '4 天前' },
+      { id: 12, name: '钱多', email: 'qianduo@xingye.com', role: '成员', status: 'active', last: '5 天前' },
+      { id: 13, name: '孙可', email: 'sunke@xingye.com', role: '成员', status: 'active', last: '5 天前' },
+      { id: 14, name: '李想', email: 'lixiang@xingye.com', role: '成员', status: 'active', last: '6 天前' },
+      { id: 15, name: '王岸', email: 'wangan@xingye.com', role: '成员', status: 'active', last: '6 天前' },
+      { id: 16, name: '冯遥', email: 'fengyao@xingye.com', role: '成员', status: 'invited', last: '未接受' },
+      { id: 17, name: '程璐', email: 'chenglu@xingye.com', role: '成员', status: 'invited', last: '未接受' },
+      { id: 18, name: '许川', email: 'xuchuan@xingye.com', role: '成员', status: 'revoked', last: '10 月 12 日' }
+    ],
+    budget: { cap: 20000, used: 13600, perTask: 500, alert: 80, cloud: 12100, local: 1500 },
+    policy: {
+      suites: { product: true, weekly: true, local: true },
+      connectors: { knowledge: true, project: true, crm: false },
+      permission: 'ask',
+      env: 'both',
+      share: false,
+      retention: true
+    },
+    audit: [
+      { time: '10:32', type: '席位', actor: '林悦', text: '授予 陈晨 工作席位' },
+      { time: '10:18', type: '预算', actor: '林悦', text: '将月度预算调整为 ¥20,000' },
+      { time: '09:46', type: '策略', actor: '周宁', text: '允许连接器「知识库」' },
+      { time: '昨天 17:22', type: '能力', actor: '周宁', text: '发布套件「产品方案」v2' },
+      { time: '昨天 15:08', type: '席位', actor: '林悦', text: '撤销 许川 工作席位' },
+      { time: '10 月 23 日', type: '审计', actor: '林悦', text: '导出 10 月审计日志' }
+    ],
+    revokeId: null,
+    modalReturnFocus: null
+  };
+
+  function showToast(message) {
+    const toast = $('#toast');
+    toast.textContent = message;
+    toast.hidden = false;
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(() => { toast.hidden = true; }, 2200);
+  }
+
+  function openModal(id) {
+    state.modalReturnFocus = document.activeElement;
+    $('#' + id).hidden = false;
+    const focusable = $('#' + id).querySelector('input, select, textarea, button');
+    if (focusable) focusable.focus();
+  }
+
+  function closeModal(id) {
+    $('#' + id).hidden = true;
+    if (state.modalReturnFocus && state.modalReturnFocus.focus) state.modalReturnFocus.focus();
+  }
+
+  function setScreen(screen) {
+    state.screen = screen;
+    $$('.screen').forEach((section) => { section.hidden = section.dataset.screen !== screen; });
+    $$('.nav').forEach((button) => button.classList.toggle('active', button.dataset.screen === screen));
+    if (screen === 'seats') renderSeats();
+    if (screen === 'budget') renderBudget();
+    if (screen === 'policy') renderPolicy();
+    if (screen === 'audit') renderAudit();
+    if (screen === 'overview') renderOverview();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+
+  function activeSeats() {
+    return state.seats.filter((seat) => seat.status !== 'revoked').length;
+  }
+
+  function applyDemo() {
+    if (state.demo === 'full') {
+      state.limit = activeSeats();
+      state.budget = { cap: 20000, used: 13600, perTask: 500, alert: 80, cloud: 12100, local: 1500 };
+    } else if (state.demo === 'budget') {
+      state.limit = 20;
+      state.budget = { cap: 20000, used: 19800, perTask: 500, alert: 80, cloud: 18300, local: 1500 };
+    } else {
+      state.limit = 20;
+      state.budget = { cap: 20000, used: 13600, perTask: 500, alert: 80, cloud: 12100, local: 1500 };
+    }
+    renderAll();
+    showToast(state.demo === 'full' ? '演示：席位已满，授予被禁用' : state.demo === 'budget' ? '演示：预算接近上限' : '演示：恢复正常');
+  }
+
+  function seatUsageClass(percent) {
+    return percent >= 100 ? 'danger' : percent >= 90 ? 'warn' : '';
+  }
+
+  function budgetUsageClass(percent) {
+    return percent >= 100 ? 'danger' : percent >= state.budget.alert ? 'warn' : '';
+  }
+
+  function renderOverview() {
+    const seats = activeSeats();
+    const seatPct = Math.round((seats / state.limit) * 100);
+    const budgetPct = Math.round((state.budget.used / state.budget.cap) * 100);
+    $('#seatUsageText').textContent = `${seats} / ${state.limit}`;
+    $('#seatUsagePct').textContent = `${seatPct}%`;
+    $('#seatProgress').className = `progress ${seatUsageClass(seatPct)}`;
+    $('#seatProgress').firstElementChild.style.width = `${Math.min(100, seatPct)}%`;
+    $('#seatNote').textContent = seats >= state.limit ? '席位已满；撤销或等待组织扩容后才能授予。' : `还可授予 ${state.limit - seats} 个席位。撤销后立即释放席位。`;
+    $('#budgetUsageText').textContent = `¥${state.budget.used.toLocaleString()} / ¥${state.budget.cap.toLocaleString()}`;
+    $('#budgetUsagePct').textContent = `${budgetPct}%`;
+    $('#budgetProgress').className = `progress ${budgetUsageClass(budgetPct)}`;
+    $('#budgetProgress').firstElementChild.style.width = `${Math.min(100, budgetPct)}%`;
+    $('#budgetNote').textContent = budgetPct >= 100 ? '预算已耗尽；新任务暂停，等待管理员调整。' : `预警阈值 ${state.budget.alert}%；达到上限后暂停新任务。`;
+    const alerts = [];
+    if (seats >= state.limit) alerts.push('<div class="banner warning"><div><strong>席位已满（' + seats + '/' + state.limit + '）</strong><p>新成员需要先撤销旧席位或扩容套餐。</p></div><div class="spacer"></div><button class="btn" type="button" data-go="seats">查看席位</button></div>');
+    if (budgetPct >= 100) alerts.push('<div class="banner danger"><div><strong>本月预算已耗尽</strong><p>新任务已暂停；已开始任务按原预算完成。</p></div><div class="spacer"></div><button class="btn" type="button" data-go="budget">调整预算</button></div>');
+    else if (budgetPct >= state.budget.alert) alerts.push('<div class="banner warning"><div><strong>预算已用 ' + budgetPct + '%</strong><p>达到预警阈值；建议检查高消耗任务。</p></div><div class="spacer"></div><button class="btn" type="button" data-go="budget">查看用量</button></div>');
+    $('#overviewAlerts').innerHTML = alerts.join('');
+    const stats = [
+      { label: '已授予席位', value: `${seats} / ${state.limit}`, note: '含待接受邀请' },
+      { label: '本月预算', value: `¥${state.budget.used.toLocaleString()}`, note: `上限 ¥${state.budget.cap.toLocaleString()}` },
+      { label: '本周任务', value: '42', note: '技术成功率 94%' },
+      { label: '待处理审计', value: '3', note: '审批与异常' }
+    ];
+    $('#overviewStats').innerHTML = stats.map((item, index) => `<div class="stat ${index === 1 && budgetPct >= 100 ? 'danger' : index === 1 && budgetPct >= state.budget.alert ? 'warn' : ''}"><span>${item.label}</span><strong>${item.value}</strong><small>${item.note}</small></div>`).join('');
+    const recent = state.audit.slice(0, 4).map((row) => `<div class="audit-row"><time>${row.time}</time><span class="actor">${row.actor}</span><span>${row.text}</span></div>`).join('');
+    $('#recentAudit').innerHTML = recent;
+    const invites = state.seats.filter((seat) => seat.status === 'invited').length;
+    $('#pendingNav').textContent = String(invites);
+    $('#pendingNav').hidden = invites === 0;
+  }
+
+  function renderSeats() {
+    const query = ($('#seatSearch')?.value || '').trim().toLowerCase();
+    const status = $('#seatStatus')?.value || 'all';
+    const rows = state.seats.filter((seat) => {
+      const statusOK = status === 'all' || seat.status === status;
+      return statusOK && (!query || `${seat.name} ${seat.email}`.toLowerCase().includes(query));
+    });
+    const seats = activeSeats();
+    const full = seats >= state.limit;
+    $('#grantBtn').disabled = full;
+    $('#grantBtn').title = full ? '席位已满，请先撤销或扩容' : '';
+    $('#seatBanner').innerHTML = full ? `<div class="banner warning"><div><strong>席位已满（${seats}/${state.limit}）</strong><p>“授予席位”已禁用；撤销席位会立即释放名额。演示状态可切换为“正常”。</p></div></div>` : `<div class="banner"><div><strong>当前 ${seats} / ${state.limit} 个席位</strong><p>组织套餐上限由合同决定；成员不能自行扩容。</p></div></div>`;
+    $('#seatCount').textContent = `显示 ${rows.length} 人 · 已用 ${seats}/${state.limit}`;
+    $('#seatTable').innerHTML = rows.map((seat) => {
+      const statusText = seat.status === 'active' ? '已启用' : seat.status === 'invited' ? '待接受' : '已撤销';
+      const pillClass = seat.status === 'active' ? 'ok' : seat.status === 'invited' ? 'warn' : 'danger';
+      const action = seat.status === 'revoked'
+        ? `<button class="link" type="button" data-restore="${seat.id}">恢复</button>`
+        : `<button class="link" type="button" data-revoke="${seat.id}">撤销</button>`;
+      return `<tr><td><div class="member"><span class="member-avatar">${seat.name.slice(0, 1)}</span><div><strong>${seat.name}</strong><small>${seat.email}</small></div></div></td><td>${seat.role}</td><td><span class="pill ${pillClass}">${statusText}</span></td><td>${seat.last}</td><td><div class="row-actions">${action}</div></td></tr>`;
+    }).join('') || '<tr><td colspan="5"><div class="empty">没有匹配的成员。清空搜索或切换状态。</div></td></tr>';
+  }
+
+  function renderBudget() {
+    const budget = state.budget;
+    const pct = Math.round((budget.used / budget.cap) * 100);
+    $('#budgetUsedLabel').textContent = `¥${budget.used.toLocaleString()} / ¥${budget.cap.toLocaleString()}`;
+    $('#budgetBigProgress').className = `progress ${budgetUsageClass(pct)}`;
+    $('#budgetBigProgress').firstElementChild.style.width = `${Math.min(100, pct)}%`;
+    $('#cloudCost').textContent = `¥${budget.cloud.toLocaleString()}`;
+    $('#localCost').textContent = `¥${budget.local.toLocaleString()}`;
+    $('#monthlyCap').value = budget.cap;
+    $('#perTaskCap').value = budget.perTask;
+    $('#alertPct').value = String(budget.alert);
+    $('#budgetBanner').innerHTML = pct >= 100
+      ? `<div class="banner danger"><div><strong>预算已耗尽</strong><p>新任务已暂停；调高月度预算或等待下月重置。</p></div></div>`
+      : pct >= budget.alert
+        ? `<div class="banner warning"><div><strong>预算已用 ${pct}%（预警 ${budget.alert}%）</strong><p>高消耗任务需要管理员确认。</p></div></div>`
+        : `<div class="banner"><div><strong>预算健康</strong><p>组织预算优先于成员自设上限。</p></div></div>`;
+  }
+
+  function renderPolicy() {
+    const suites = [
+      { id: 'product', name: '产品方案', desc: 'R1 · 5 个技能 · 云端', version: 'v2' },
+      { id: 'weekly', name: '客户周报', desc: 'R1 · 4 个技能 · 需要知识库', version: 'v1' },
+      { id: 'local', name: '本地资料整理', desc: 'R1 · 3 个技能 · 本机', version: 'v1' }
+    ];
+    const connectors = [
+      { id: 'knowledge', name: '知识库', desc: '只读项目资料、文档内容' },
+      { id: 'project', name: '项目协作', desc: '只读项目、任务、里程碑' },
+      { id: 'crm', name: 'CRM', desc: '当前套餐未开通；不可启用' }
+    ];
+    $('#suiteToggles').innerHTML = suites.map((suite) => `<div class="toggle-row"><div><strong>${suite.name}</strong><small>${suite.desc} · ${suite.version} · 组织发布</small></div><div style="display:flex;align-items:center;gap:10px"><button class="link" type="button" data-rollback-suite="${suite.id}" data-version="${suite.version}">回滚</button><label class="switch"><input type="checkbox" data-policy-suite="${suite.id}" ${state.policy.suites[suite.id] ? 'checked' : ''}><span></span><span class="sr-only">启用 ${suite.name}</span></label></div></div>`).join('');
+    $('#connectorToggles').innerHTML = connectors.map((connector) => `<div class="toggle-row"><div><strong>${connector.name}</strong><small>${connector.desc}</small></div><label class="switch"><input type="checkbox" data-policy-connector="${connector.id}" ${state.policy.connectors[connector.id] ? 'checked' : ''} ${connector.id === 'crm' ? 'disabled' : ''}><span></span><span class="sr-only">允许 ${connector.name}</span></label></div>`).join('');
+    $('#defaultPermission').value = state.policy.permission;
+    $('#defaultEnv').value = state.policy.env;
+    $('#allowShare').checked = state.policy.share;
+    $('#auditRetention').checked = state.policy.retention;
+  }
+
+  function renderAudit() {
+    const type = $('#auditType')?.value || 'all';
+    const rows = state.audit.filter((row) => type === 'all' || row.type === type);
+    $('#auditTable').innerHTML = rows.map((row) => `<tr><td>${row.time}</td><td><span class="pill">${row.type}</span></td><td>${row.actor}</td><td>${row.text}</td></tr>`).join('');
+    $('#auditEmpty').hidden = rows.length > 0;
+  }
+
+  function renderAll() {
+    renderOverview();
+    renderSeats();
+    renderBudget();
+    renderPolicy();
+    renderAudit();
+  }
+
+  $$('.nav').forEach((button) => button.addEventListener('click', () => setScreen(button.dataset.screen)));
+  document.addEventListener('click', (event) => {
+    const go = event.target.closest('[data-go]');
+    if (go) { setScreen(go.dataset.go); return; }
+    const close = event.target.closest('[data-close]');
+    if (close) { closeModal(close.dataset.close); return; }
+    const revoke = event.target.closest('[data-revoke]');
+    if (revoke) {
+      const seat = state.seats.find((item) => item.id === Number(revoke.dataset.revoke));
+      state.revokeId = seat.id;
+      $('#revokeSub').textContent = `撤销 ${seat.name} 的席位后，不能创建新任务；历史任务与成果按留存策略处理。`;
+      openModal('revokeModal');
+      return;
+    }
+    const rollback = event.target.closest('[data-rollback-suite]');
+    if (rollback) {
+      const name = rollback.closest('.toggle-row').querySelector('strong').textContent;
+      state.audit.unshift({ time: '刚刚', type: '能力', actor: '林悦', text: `回滚套件「${name}」版本（${rollback.dataset.version} → 上一版）` });
+      renderAll();
+      showToast(`已回滚「${name}」到上一版本（演示）`);
+      return;
+    }
+    const restore = event.target.closest('[data-restore]');
+    if (restore) {
+      const seat = state.seats.find((item) => item.id === Number(restore.dataset.restore));
+      if (activeSeats() >= state.limit) { showToast('席位已满，先撤销其他席位或扩容'); return; }
+      seat.status = 'active';
+      state.audit.unshift({ time: '刚刚', type: '席位', actor: '林悦', text: `恢复 ${seat.name} 工作席位` });
+      renderAll();
+      showToast(`已恢复 ${seat.name} 的工作席位`);
+    }
+  });
+
+  $('#grantBtn').addEventListener('click', () => {
+    if (activeSeats() >= state.limit) { showToast('席位已满，请先撤销或扩容'); return; }
+    $('#grantName').value = '';
+    $('#grantEmail').value = '';
+    $('#grantRole').value = '成员';
+    openModal('grantModal');
+  });
+
+  $('#grantForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (activeSeats() >= state.limit) { showToast('席位已满'); return; }
+    const name = $('#grantName').value.trim();
+    const email = $('#grantEmail').value.trim();
+    if (!name || !email) return;
+    state.seats.push({ id: Date.now(), name, email, role: $('#grantRole').value, status: 'invited', last: '未接受' });
+    state.audit.unshift({ time: '刚刚', type: '席位', actor: '林悦', text: `邀请 ${name} 加入工作` });
+    closeModal('grantModal');
+    renderAll();
+    showToast(`已向 ${name} 发出工作席位邀请`);
+  });
+
+  $('#revokeForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const seat = state.seats.find((item) => item.id === state.revokeId);
+    if (!seat) return;
+    seat.status = 'revoked';
+    seat.last = '刚刚';
+    state.audit.unshift({ time: '刚刚', type: '席位', actor: '林悦', text: `撤销 ${seat.name} 工作席位（${$('#revokeReason').value}）` });
+    closeModal('revokeModal');
+    renderAll();
+    showToast(`已撤销 ${seat.name} 的工作席位`);
+  });
+
+  $('#seatSearch').addEventListener('input', renderSeats);
+  $('#seatStatus').addEventListener('change', renderSeats);
+
+  $('#budgetForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const cap = Number($('#monthlyCap').value);
+    const perTask = Number($('#perTaskCap').value);
+    if (!Number.isFinite(cap) || cap <= 0) { showToast('月度预算必须大于 0'); return; }
+    if (!Number.isFinite(perTask) || perTask <= 0) { showToast('单任务上限必须大于 0'); return; }
+    if (perTask > cap) { showToast('单任务上限不能超过月度预算'); return; }
+    state.budget.cap = cap;
+    state.budget.perTask = perTask;
+    state.budget.alert = Number($('#alertPct').value);
+    state.audit.unshift({ time: '刚刚', type: '预算', actor: '林悦', text: `更新月度预算 ¥${cap.toLocaleString()}，单任务上限 ¥${perTask.toLocaleString()}` });
+    renderAll();
+    showToast('预算已保存');
+  });
+
+  $('#policyForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    $$('[data-policy-suite]').forEach((input) => { state.policy.suites[input.dataset.policySuite] = input.checked; });
+    $$('[data-policy-connector]').forEach((input) => { state.policy.connectors[input.dataset.policyConnector] = input.checked; });
+    state.policy.permission = $('#defaultPermission').value;
+    state.policy.env = $('#defaultEnv').value;
+    state.policy.share = $('#allowShare').checked;
+    state.policy.retention = $('#auditRetention').checked;
+    state.audit.unshift({ time: '刚刚', type: '策略', actor: '林悦', text: '更新工作能力与审批策略' });
+    renderAll();
+    showToast('组织策略已保存；成员刷新后生效');
+  });
+
+  $('#exportAudit').addEventListener('click', () => {
+    state.audit.unshift({ time: '刚刚', type: '审计', actor: '林悦', text: '导出工作审计日志 CSV' });
+    renderAll();
+    showToast('已导出审计日志（演示）；导出行为已留痕');
+  });
+
+  $('#auditType').addEventListener('change', renderAudit);
+  $('#demoState').addEventListener('change', (event) => { state.demo = event.target.value; applyDemo(); });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    const open = $$('.modal-backdrop').filter((modal) => !modal.hidden);
+    if (!open.length) return;
+    closeModal(open[open.length - 1].id);
+  });
+
+  renderAll();
+</script>
+</body>
+</html>

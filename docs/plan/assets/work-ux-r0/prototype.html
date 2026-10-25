@@ -1,0 +1,1719 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WeMeet 工作 · R0 中保真原型</title>
+<style>
+  :root {
+    --brand: #3370ff;
+    --brand-strong: #2860d9;
+    --brand-soft: #ebf1ff;
+    --canvas: #f6f6f6;
+    --surface: #ffffff;
+    --surface-muted: #fafbfc;
+    --text: #1a1c1e;
+    --text-2: #666666;
+    --text-3: #929292;
+    --border: #e5e5e5;
+    --border-strong: #d5d7db;
+    --warning-bg: #fff8e6;
+    --warning-border: #f2d48c;
+    --warning-text: #7a4b00;
+    --info-bg: #eef5ff;
+    --info-border: #b9d3ff;
+    --info-text: #1e4db3;
+    --success-bg: #edf9f2;
+    --success-border: #a8dfc0;
+    --success-text: #17663a;
+    --danger-bg: #fff1f0;
+    --danger-border: #f2b8b5;
+    --danger-text: #a8221a;
+    --shadow: 0 8px 24px rgba(20, 24, 30, 0.08);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --font: 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+    --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  }
+  html[data-theme='dark'] {
+    --brand: #7baafb;
+    --brand-strong: #9cc0ff;
+    --brand-soft: #1e3a7a;
+    --canvas: #14171a;
+    --surface: #1d2126;
+    --surface-muted: #22272d;
+    --text: #f2f4f6;
+    --text-2: #b9c0c8;
+    --text-3: #8d969f;
+    --border: #30363d;
+    --border-strong: #414851;
+    --warning-bg: #33280f;
+    --warning-border: #6b521c;
+    --warning-text: #f3d28a;
+    --info-bg: #16283f;
+    --info-border: #2c4f79;
+    --info-text: #b9d3ff;
+    --success-bg: #142b1d;
+    --success-border: #2d5e3f;
+    --success-text: #b7e6c9;
+    --danger-bg: #321a1a;
+    --danger-border: #6c3130;
+    --danger-text: #ffc4bf;
+    --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--canvas);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; }
+  [hidden] { display: none !important; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+  :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+  .app { display: flex; min-height: 100vh; }
+  .rail {
+    width: 64px; flex: 0 0 64px; background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 12px 0; gap: 8px; position: sticky; top: 0; height: 100vh;
+  }
+  .rail-logo {
+    width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+    background: var(--brand); color: #fff; font-weight: 700; font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .rail-nav { display: flex; flex-direction: column; gap: 4px; width: 100%; align-items: center; }
+  .rail-item {
+    border: 0; background: transparent; color: var(--text-2);
+    width: 52px; padding: 7px 4px; border-radius: 10px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-size: 10px; line-height: 1.2;
+  }
+  .rail-item svg { width: 19px; height: 19px; }
+  .rail-item:hover { background: var(--surface-muted); color: var(--text); }
+  .rail-item.active { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
+  .rail-user {
+    margin-top: auto; width: 30px; height: 30px; border-radius: 50%;
+    display: grid; place-items: center; background: var(--brand-soft); color: var(--brand-strong);
+    font-size: 11px; font-weight: 700;
+  }
+  .workspace { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+  .topbar {
+    height: 52px; flex: 0 0 52px; display: flex; align-items: center; gap: 16px;
+    padding: 0 20px; background: var(--surface); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 20;
+  }
+  .breadcrumb { display: flex; align-items: center; gap: 8px; color: var(--text-3); font-size: 13px; }
+  .breadcrumb strong { color: var(--text); font-weight: 600; }
+  .top-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .demo-badge {
+    font-size: 11px; color: var(--brand-strong); background: var(--brand-soft);
+    border: 1px solid var(--info-border); padding: 3px 8px; border-radius: 999px;
+    white-space: nowrap;
+  }
+  .icon-btn {
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+    height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12px;
+  }
+  .icon-btn:hover { background: var(--surface-muted); color: var(--text); }
+  .work-layout { display: flex; flex: 1; min-height: 0; }
+  .work-side {
+    width: 224px; flex: 0 0 224px; background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 18px 12px; gap: 16px;
+    position: sticky; top: 52px; height: calc(100vh - 52px);
+  }
+  .work-side-head { display: flex; align-items: center; justify-content: space-between; padding: 0 6px; }
+  .work-side-head > span { font-weight: 700; font-size: 15px; }
+  .new-work {
+    border: 0; background: var(--brand); color: #fff; border-radius: 8px;
+    padding: 6px 9px; font-size: 12px; font-weight: 600;
+  }
+  .new-work:hover { background: var(--brand-strong); }
+  .work-nav { display: flex; flex-direction: column; gap: 2px; }
+  .work-nav-item {
+    border: 0; background: transparent; text-align: left; color: var(--text-2);
+    padding: 9px 10px; border-radius: 8px; display: flex; align-items: center; gap: 8px;
+    font-size: 13px;
+  }
+  .work-nav-item:hover { background: var(--surface-muted); color: var(--text); }
+  .work-nav-item.active { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
+  .nav-badge {
+    margin-left: auto; min-width: 20px; height: 20px; border-radius: 999px;
+    background: var(--brand); color: #fff; display: grid; place-items: center;
+    font-size: 11px; padding: 0 6px;
+  }
+  .work-side-foot { margin-top: auto; border-top: 1px solid var(--border); padding: 12px 6px 0; color: var(--text-3); font-size: 11px; }
+  .work-side-foot p { margin: 2px 0; }
+  .main { flex: 1; min-width: 0; overflow: auto; }
+  .screen { max-width: 1240px; margin: 0 auto; padding: 28px 30px 64px; }
+  .page-head { display: flex; align-items: flex-start; gap: 18px; margin-bottom: 20px; }
+  .page-head h1 { margin: 2px 0 4px; font-size: 26px; line-height: 1.25; letter-spacing: -0.2px; }
+  .page-head .sub { margin: 0; color: var(--text-2); font-size: 13px; }
+  .eyebrow { margin: 0; color: var(--text-3); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+  .muted { color: var(--text-2); }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  }
+  .home-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+  .home-main { min-width: 0; }
+  .composer { padding: 16px 16px 12px; box-shadow: 0 1px 2px rgba(16,24,40,.03); }
+  .composer textarea {
+    width: 100%; min-height: 128px; resize: vertical; border: 0; outline: none;
+    background: transparent; padding: 4px 2px 10px; color: var(--text);
+    font-size: 15px; line-height: 1.65;
+  }
+  .composer textarea::placeholder { color: var(--text-3); }
+  .composer-tools { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .tool-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+  .chip {
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+    border-radius: 999px; height: 30px; padding: 0 10px; font-size: 12px;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .chip:hover { border-color: var(--border-strong); color: var(--text); }
+  .chip.selected { border-color: var(--brand); color: var(--brand-strong); background: var(--brand-soft); }
+  .chip .plus { font-weight: 700; color: var(--brand); }
+  .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; height: 30px; }
+  .seg {
+    border: 0; background: var(--surface); color: var(--text-2); padding: 0 10px;
+    font-size: 12px; border-right: 1px solid var(--border);
+  }
+  .seg:last-child { border-right: 0; }
+  .seg:hover:not(:disabled) { background: var(--surface-muted); }
+  .seg.active { background: var(--brand-soft); color: var(--brand-strong); font-weight: 600; }
+  .seg:disabled { color: var(--text-3); opacity: .65; }
+  .select-wrap select {
+    height: 30px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text-2); padding: 0 8px; font-size: 12px;
+  }
+  .send {
+    margin-left: auto; width: 36px; height: 36px; border: 0; border-radius: 50%;
+    background: var(--brand); color: #fff; font-size: 20px; line-height: 1;
+    display: grid; place-items: center; flex: 0 0 auto;
+  }
+  .send:hover:not(:disabled) { background: var(--brand-strong); }
+  .send:disabled { background: var(--border); color: var(--text-3); }
+  .composer-meta { display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; font-size: 11px; color: var(--text-3); }
+  .composer-meta .hint.warn { color: var(--danger-text); }
+  .greeting { margin: 0 0 2px; color: var(--text-3); font-size: 12px; }
+  .tool-plus { width: 34px; height: 34px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); border-radius: 50%; font-size: 20px; display: grid; place-items: center; line-height: 1; flex: 0 0 auto; }
+  .tool-plus:hover { border-color: var(--brand); color: var(--brand-strong); background: var(--brand-soft); }
+  .composer-footer { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px; }
+  .new-project { border: 0; background: transparent; color: var(--brand-strong); font-size: 12px; padding: 0; display: inline-flex; align-items: center; gap: 6px; }
+  .new-project:hover { text-decoration: underline; }
+  .r3 { border: 1px solid var(--warning-border); background: var(--warning-bg); color: var(--warning-text); border-radius: 999px; padding: 1px 6px; font-size: 10px; }
+  .tool-list { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; }
+  .tool-row { border: 0; background: transparent; text-align: left; padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; gap: 10px; align-items: center; font-size: 13px; color: var(--text); }
+  .tool-row:hover { background: var(--surface-muted); }
+  .tool-row small { display: block; color: var(--text-2); font-size: 11.5px; margin-top: 2px; }
+  .executor-option, .permission-option { width: 100%; border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 10px 12px; text-align: left; display: flex; justify-content: space-between; gap: 10px; align-items: center; margin: 8px 0; font-size: 13px; color: var(--text); }
+  .executor-option:hover, .permission-option:hover { border-color: var(--brand); background: var(--brand-soft); }
+  .executor-option.selected, .permission-option.selected { border-color: var(--brand); background: var(--brand-soft); }
+  .executor-option small, .permission-option small { display: block; color: var(--text-2); font-size: 11.5px; margin-top: 2px; }
+  .option-check { color: var(--brand-strong); font-weight: 700; }
+
+  .trust {
+    margin-top: 10px; border: 1px solid var(--info-border); background: var(--info-bg);
+    color: var(--info-text); border-radius: var(--radius-sm); padding: 10px 12px;
+    display: grid; grid-template-columns: auto 1fr auto; gap: 8px 10px; align-items: center;
+    font-size: 12px;
+  }
+  .trust-title { display: flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; }
+  .trust-title .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
+  .trust-items { min-width: 0; overflow-wrap: anywhere; }
+  .link { border: 0; background: transparent; color: var(--brand-strong); font-size: 12px; padding: 0; }
+  .link:hover { text-decoration: underline; }
+  .trust-detail { grid-column: 1 / -1; border-top: 1px solid var(--info-border); padding-top: 8px; color: var(--info-text); line-height: 1.7; }
+  .section { margin-top: 26px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .section-head h2 { margin: 0; font-size: 15px; }
+  .method-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .method {
+    border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-sm);
+    padding: 12px; text-align: left; display: flex; flex-direction: column; gap: 4px;
+  }
+  .method:hover { border-color: var(--brand); background: var(--brand-soft); }
+  .method strong { font-size: 13px; }
+  .method span { color: var(--text-2); font-size: 12px; line-height: 1.5; }
+  .method em { color: var(--text-3); font-style: normal; font-size: 11px; margin-top: 4px; }
+  .home-side { display: flex; flex-direction: column; gap: 14px; }
+  .home-side .card { padding: 14px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .card-head h2 { margin: 0; font-size: 14px; }
+  .count { color: var(--brand-strong); font-size: 12px; }
+  .need-row, .recent-row {
+    width: 100%; display: flex; align-items: center; gap: 9px; text-align: left;
+    border: 0; background: transparent; padding: 10px 4px; border-top: 1px solid var(--border);
+    color: var(--text);
+  }
+  .need-row:hover, .recent-row:hover { background: var(--surface-muted); }
+  .need-row strong, .recent-row strong { display: block; font-size: 12.5px; font-weight: 600; }
+  .need-row small, .recent-row small { display: block; color: var(--text-2); font-size: 11.5px; margin-top: 2px; }
+  .need-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+  .need-dot.warning { background: #d99a00; }
+  .need-dot.info { background: var(--brand); }
+  .need-row .chev, .recent-row .chev { margin-left: auto; color: var(--text-3); font-size: 18px; }
+  .recent-row { border-top: 1px solid var(--border); }
+  .recent-row:first-of-type { border-top: 0; }
+  .recent-row > span:first-child { min-width: 0; }
+  .task-head { margin-bottom: 16px; }
+  .task-title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .task-title-row h1 { margin: 0; font-size: 22px; }
+  .back {
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+    width: 32px; height: 32px; border-radius: 8px; font-size: 16px;
+  }
+  .back:hover { background: var(--surface-muted); color: var(--text); }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px; border-radius: 999px;
+    padding: 3px 9px; font-size: 11px; font-weight: 600; white-space: nowrap;
+    background: var(--surface-muted); color: var(--text-2); border: 1px solid var(--border);
+  }
+  .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.running { background: var(--info-bg); color: var(--info-text); border-color: var(--info-border); }
+  .pill.warning { background: var(--warning-bg); color: var(--warning-text); border-color: var(--warning-border); }
+  .pill.success { background: var(--success-bg); color: var(--success-text); border-color: var(--success-border); }
+  .pill.danger { background: var(--danger-bg); color: var(--danger-text); border-color: var(--danger-border); }
+  .task-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .task-actions select {
+    height: 30px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text-2); padding: 0 8px; font-size: 12px;
+  }
+  .btn {
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    height: 32px; border-radius: 8px; padding: 0 12px; font-size: 12px; font-weight: 600;
+  }
+  .btn:hover:not(:disabled) { background: var(--surface-muted); }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .btn.primary:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); }
+  .btn.primary:disabled { background: var(--border); border-color: var(--border); color: var(--text-3); opacity: 1; }
+  .btn.ghost { border-color: transparent; background: transparent; color: var(--text-2); }
+  .btn.ghost:hover:not(:disabled) { background: var(--surface-muted); color: var(--text); }
+  .btn.danger { color: var(--danger-text); border-color: var(--danger-border); background: var(--danger-bg); }
+  .btn:disabled { opacity: .5; }
+  .banner {
+    margin-top: 14px; border: 1px solid var(--info-border); background: var(--info-bg);
+    border-radius: var(--radius); padding: 12px 14px; display: flex; gap: 12px; align-items: flex-start;
+  }
+  .banner.warning { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning-text); }
+  .banner.info { color: var(--info-text); }
+  .banner.danger { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-text); }
+  .banner.success { border-color: var(--success-border); background: var(--success-bg); color: var(--success-text); }
+  .banner .banner-icon { width: 22px; height: 22px; flex: 0 0 auto; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--info-text); color: var(--surface); font-size: 12px; }
+  .banner.warning .banner-icon { background: var(--warning-text); }
+  .banner.danger .banner-icon { background: var(--danger-text); }
+  .banner.success .banner-icon { background: var(--success-text); }
+  .banner .banner-body { min-width: 0; flex: 1; }
+  .banner .banner-body strong { display: block; font-size: 13px; }
+  .banner .banner-body p { margin: 2px 0 0; font-size: 12px; line-height: 1.6; }
+  .banner .banner-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .command-box {
+    margin-top: 8px; background: color-mix(in srgb, var(--surface) 72%, transparent);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+    font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap; color: var(--text);
+  }
+  .task-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+  .task-mobile-tabs { display: none; }
+  .task-grid .card { padding: 14px; min-width: 0; }
+  .task-grid h2 { margin: 0 0 10px; font-size: 13px; }
+  .steps ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .steps li { display: flex; gap: 9px; align-items: flex-start; font-size: 12px; color: var(--text-2); padding: 6px 0; }
+  .step-mark { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--border); color: var(--text-3); font-size: 10px; flex: 0 0 auto; background: var(--surface); }
+  .steps li.done .step-mark { background: var(--success-bg); color: var(--success-text); border-color: var(--success-border); }
+  .steps li.active .step-mark { background: var(--brand-soft); color: var(--brand-strong); border-color: var(--brand); }
+  .steps li.active { color: var(--text); font-weight: 600; }
+  .timeline { display: flex; flex-direction: column; gap: 0; }
+  .event { display: grid; grid-template-columns: 42px 1fr; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 12px; }
+  .event:first-child { border-top: 0; }
+  .event time { color: var(--text-3); font-family: var(--mono); font-size: 10.5px; padding-top: 1px; }
+  .event strong { font-weight: 600; }
+  .event p { margin: 2px 0 0; color: var(--text-2); }
+  .event.warning strong { color: var(--warning-text); }
+  .event.error strong { color: var(--danger-text); }
+  .artifact-panel { display: flex; flex-direction: column; min-height: 320px; }
+  .artifact-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .artifact-head h2 { margin: 0; }
+  .preview {
+    margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted);
+    padding: 12px; min-height: 180px; overflow: auto; font-size: 12px;
+  }
+  .preview h3 { margin: 0 0 6px; font-size: 14px; }
+  .preview h4 { margin: 12px 0 4px; font-size: 12px; }
+  .preview p, .preview li { color: var(--text-2); }
+  .preview ul { margin: 4px 0; padding-left: 18px; }
+  .artifact-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .artifact-actions .btn { flex: 1; }
+  .empty-preview { display: grid; place-items: center; text-align: center; color: var(--text-3); min-height: 160px; font-size: 12px; }
+  .artifact-page-head { align-items: center; }
+  .artifact-page-head h1 { font-size: 22px; }
+  .artifact-top-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .artifact-top-actions label { font-size: 12px; color: var(--text-2); display: flex; gap: 6px; align-items: center; }
+  .artifact-top-actions select { height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 0 8px; font-size: 12px; }
+  .artifact-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+  .doc { padding: 0; overflow: hidden; }
+  .doc-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); padding: 8px 10px 0; background: var(--surface-muted); }
+  .doc-tab {
+    border: 0; background: transparent; color: var(--text-2); font-size: 12px;
+    padding: 8px 10px; border-radius: 8px 8px 0 0;
+  }
+  .doc-tab:hover { color: var(--text); }
+  .doc-tab.active { background: var(--surface); color: var(--brand-strong); font-weight: 600; border: 1px solid var(--border); border-bottom-color: var(--surface); margin-bottom: -1px; }
+  .doc-panel { padding: 26px 30px; max-width: 760px; }
+  .doc-panel h2 { margin: 0 0 6px; font-size: 22px; }
+  .doc-panel h3 { margin: 22px 0 6px; font-size: 15px; }
+  .doc-panel p { margin: 6px 0; color: var(--text-2); }
+  .doc-panel li { color: var(--text-2); margin: 4px 0; }
+  .doc-panel .doc-meta { color: var(--text-3); font-size: 11px; margin-bottom: 18px; }
+  .artifact-side { display: flex; flex-direction: column; gap: 12px; }
+  .artifact-side .card { padding: 14px; }
+  .artifact-side h2 { margin: 0 0 8px; font-size: 13px; }
+  .version-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 12px; }
+  .version-row:first-of-type { border-top: 0; }
+  .version-row .adopted { margin-left: auto; color: var(--success-text); font-size: 11px; }
+  .source-row { display: flex; gap: 8px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-2); }
+  .source-row:first-of-type { border-top: 0; }
+  .source-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brand); margin-top: 6px; flex: 0 0 auto; }
+  .review-row { display: flex; gap: 8px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 12px; }
+  .review-row:first-of-type { border-top: 0; }
+  .review-badge { border-radius: 999px; padding: 1px 6px; font-size: 10px; font-weight: 600; height: 18px; }
+  .review-badge.pass { background: var(--success-bg); color: var(--success-text); }
+  .review-badge.warn { background: var(--warning-bg); color: var(--warning-text); }
+  .review-badge.block { background: var(--danger-bg); color: var(--danger-text); }
+  .compare-panel { margin-top: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 14px; }
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .compare-col { border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--surface-muted); font-size: 12px; color: var(--text-2); }
+  .compare-col h3 { margin: 0 0 6px; font-size: 12px; color: var(--text); }
+  .compare-col ins { background: var(--success-bg); text-decoration: none; }
+  .compare-col del { background: var(--danger-bg); }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; overflow-x: auto; }
+  .tab {
+    border: 0; background: transparent; color: var(--text-2); padding: 9px 10px;
+    font-size: 12px; border-bottom: 2px solid transparent; white-space: nowrap;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--brand-strong); border-bottom-color: var(--brand); font-weight: 600; }
+  .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .filters select, .filters input {
+    height: 30px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text-2); padding: 0 8px; font-size: 12px;
+  }
+  .filters input { margin-left: auto; min-width: 180px; }
+  .work-list { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+  .work-row {
+    width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px;
+    text-align: left; border: 0; border-top: 1px solid var(--border); background: transparent;
+    padding: 14px 16px; color: var(--text);
+  }
+  .work-row:first-child { border-top: 0; }
+  .work-row:hover { background: var(--surface-muted); }
+  .work-row strong { display: block; font-size: 13px; }
+  .work-row small { display: block; color: var(--text-2); font-size: 11.5px; margin-top: 3px; }
+  .work-row .row-meta { display: flex; align-items: center; gap: 8px; color: var(--text-3); font-size: 11.5px; }
+  .work-row .row-need { color: var(--warning-text); }
+  .empty-list { padding: 40px 20px; text-align: center; color: var(--text-2); font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .empty-list strong { display: block; color: var(--text); margin-bottom: 4px; }
+  .archive-note { border: 1px solid var(--warning-border); background: var(--warning-bg); color: var(--warning-text); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12px; margin-bottom: 12px; }
+  .archive-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; font-size: 12px; }
+  .archive-table th, .archive-table td { text-align: left; padding: 11px 12px; border-top: 1px solid var(--border); }
+  .archive-table th { background: var(--surface-muted); color: var(--text-2); font-weight: 600; }
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(12, 16, 22, .42); z-index: 100;
+    display: grid; place-items: center; padding: 20px;
+  }
+  .modal {
+    width: min(460px, 100%); background: var(--surface); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 20px;
+  }
+  .modal h2 { margin: 0 0 6px; font-size: 17px; }
+  .modal p { margin: 0 0 14px; color: var(--text-2); font-size: 12.5px; line-height: 1.65; }
+  .onboard-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+  .onboard-kicker { color: var(--brand-strong); font-size: 11px; font-weight: 600; letter-spacing: .06em; }
+  .onboard-progress { color: var(--text-3); font-size: 11px; }
+  .onboard-list { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
+  .onboard-choice { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 10px 12px; text-align: left; display: flex; flex-direction: column; gap: 3px; }
+  .onboard-choice:hover { border-color: var(--brand); background: var(--brand-soft); }
+  .onboard-choice.selected { border-color: var(--brand); background: var(--brand-soft); box-shadow: inset 0 0 0 1px var(--brand); }
+  .onboard-choice strong { font-size: 13px; }
+  .onboard-choice small { color: var(--text-2); font-size: 11.5px; }
+  .onboard-boundary { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 12px; color: var(--text-2); }
+  .onboard-boundary li { margin: 4px 0 4px 16px; }
+  .onboarding-modal { max-width: 500px; }
+  .side-admin-link { display: block; margin-top: 10px; color: var(--brand-strong); font-size: 11px; text-decoration: none; }
+  .side-admin-link:hover { text-decoration: underline; }
+  .folder-options { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 16px; }
+  .folder-option {
+    border: 1px solid var(--border); background: var(--surface); border-radius: 8px;
+    padding: 10px 12px; text-align: left; display: flex; flex-direction: column; gap: 2px;
+  }
+  .folder-option:hover { border-color: var(--brand); background: var(--brand-soft); }
+  .folder-option.selected { border-color: var(--brand); background: var(--brand-soft); box-shadow: inset 0 0 0 1px var(--brand); }
+  .folder-option strong { font-size: 13px; }
+  .folder-option small { color: var(--text-2); font-size: 11.5px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+    background: var(--text); color: var(--surface); padding: 9px 14px; border-radius: 999px;
+    font-size: 12px; z-index: 120; box-shadow: var(--shadow);
+  }
+  .mobile-nav { display: none; }
+  @media (max-width: 1100px) {
+    .home-grid { grid-template-columns: 1fr; }
+    .home-side { display: grid; grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 1180px) {
+    .task-grid { grid-template-columns: 200px minmax(0, 1fr); }
+    .artifact-panel { grid-column: 1 / -1; }
+    .artifact-layout { grid-template-columns: minmax(0, 1fr) 260px; }
+  }
+  @media (max-width: 980px) {
+    .home-grid { grid-template-columns: 1fr; }
+    .home-side { display: grid; grid-template-columns: 1fr 1fr; }
+    .task-grid { grid-template-columns: 1fr; }
+    .artifact-panel { grid-column: auto; }
+    .artifact-layout { grid-template-columns: 1fr; }
+    .artifact-side { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (max-width: 760px) {
+    .rail { display: none; }
+    .work-side { display: none; }
+    .topbar { padding: 0 14px; }
+    .demo-badge { display: none; }
+    .screen { padding: 18px 14px 84px; }
+    .page-head { flex-direction: column; gap: 10px; }
+    .page-head h1 { font-size: 22px; }
+    .home-side { grid-template-columns: 1fr; }
+    .method-grid { grid-template-columns: 1fr; }
+    .task-title-row { align-items: flex-start; }
+    .task-actions { margin-left: 0; width: 100%; }
+    .task-actions .select-wrap, .task-actions select { flex: 1; }
+    .task-mobile-tabs {
+      display: flex; gap: 4px; border-bottom: 1px solid var(--border);
+      margin: 0 0 12px;
+    }
+    .task-mobile-tabs button {
+      flex: 1; border: 0; background: transparent; color: var(--text-2);
+      padding: 9px 6px; border-bottom: 2px solid transparent; font-size: 12px;
+    }
+    .task-mobile-tabs button.active { color: var(--brand-strong); border-bottom-color: var(--brand); font-weight: 600; }
+    .task-grid > .card { display: none; }
+    .task-grid > .card.mobile-active { display: block; }
+    .banner { flex-direction: column; }
+    .banner .banner-actions { width: 100%; }
+    .banner .banner-actions .btn { flex: 1; }
+    .artifact-top-actions { margin-left: 0; width: 100%; }
+    .artifact-side { grid-template-columns: 1fr; }
+    .compare-grid { grid-template-columns: 1fr; }
+    .doc-panel { padding: 18px 16px; }
+    .work-row { grid-template-columns: 1fr; gap: 8px; }
+    .work-row .row-meta { justify-content: flex-start; }
+    .filters input { margin-left: 0; width: 100%; }
+    .mobile-nav {
+      display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+      background: var(--surface); border-top: 1px solid var(--border); padding: 6px 12px 10px;
+    }
+    .mobile-nav button {
+      flex: 1; border: 0; background: transparent; color: var(--text-2);
+      padding: 6px 0; font-size: 11px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    }
+    .mobile-nav button.active { color: var(--brand-strong); font-weight: 600; }
+    .mobile-nav .mobile-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" aria-label="主导航">
+    <div class="rail-logo" aria-hidden="true">W</div>
+    <nav class="rail-nav">
+      <button class="rail-item" type="button" title="消息" aria-label="消息">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16v11H9l-5 4V5Z"/></svg>
+        <span>消息</span>
+      </button>
+      <button class="rail-item" type="button" title="会议" aria-label="会议">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="m15 10 6-3v10l-6-3"/></svg>
+        <span>会议</span>
+      </button>
+      <button class="rail-item active" type="button" title="工作" aria-label="工作" aria-current="page">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5h8v2M3 12h18"/></svg>
+        <span>工作</span>
+      </button>
+      <button class="rail-item" type="button" title="文档" aria-label="文档">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3h8l4 4v14H6V3Z"/><path d="M14 3v5h4M9 12h6M9 16h6"/></svg>
+        <span>文档</span>
+      </button>
+    </nav>
+    <div class="rail-user" aria-label="当前用户：JS">JS</div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <div class="breadcrumb"><span>WeMeet</span><span>/</span><strong>工作</strong></div>
+      <div class="top-actions">
+        <span class="demo-badge">R0 中保真原型</span>
+        <button class="icon-btn" type="button" id="onboardingDemo" title="演示首次使用流程">首次使用</button>
+        <button class="icon-btn" type="button" id="themeToggle" aria-label="切换深色模式">深色</button>
+        <button class="icon-btn" type="button" id="resetDemo">重置</button>
+      </div>
+    </header>
+
+    <div class="work-layout">
+      <aside class="work-side" aria-label="工作导航">
+        <div class="work-side-head">
+          <span>工作</span>
+          <button class="new-work" type="button" data-action="new-work">＋ 新建任务</button>
+        </div>
+        <nav class="work-nav">
+          <button class="work-nav-item active" type="button" data-nav="home">工作首页</button>
+          <button class="work-nav-item" type="button" data-nav="items">我的工作 <span class="nav-badge" id="navNeedsBadge">1</span></button>
+          <button class="work-nav-item" type="button" data-nav="archive">历史工作</button>
+        </nav>
+        <div class="work-side-foot">
+          <p>R0a · 云端文档</p>
+          <p>R0b · 本机与治理</p>
+          <p>中保真 · 无后端</p>
+          <a class="side-admin-link" href="../work-ux-admin/prototype.html">打开管理面原型（R0b）</a>
+        </div>
+      </aside>
+
+      <main class="main" id="main">
+        <!-- 工作首页 -->
+        <section class="screen" data-screen="home">
+          <header class="page-head">
+            <div>
+              <p class="greeting">下午好，JS</p>
+              <h1>今天想完成什么工作？</h1>
+              <p class="sub">描述目标、交付要求和限制；其余按需展开。</p>
+            </div>
+          </header>
+
+          <div class="home-grid">
+            <div class="home-main">
+              <section class="composer card" aria-label="新建任务">
+                <label class="sr-only" for="goal">任务描述</label>
+                <textarea id="goal" placeholder="例如：为下周的产品评审写一份方案，包含背景、目标、三个备选方案、取舍和风险，输出 Markdown。"></textarea>
+                <div class="composer-tools">
+                  <div class="tool-left">
+                    <button class="tool-plus" type="button" id="toolChip" data-action="open-tools" aria-label="添加文件夹">＋</button>
+                    <button class="chip" type="button" id="contextChip" data-action="context">
+                      <span class="plus" aria-hidden="true">+</span><span id="contextLabel">上下文</span>
+                    </button>
+                    <button class="chip" type="button" id="executorChip" data-action="open-executor">执行器：云端</button>
+                    <button class="chip" type="button" id="permissionChip" data-action="open-permission">默认权限</button>
+                  </div>
+                  <button class="send" type="button" id="sendBtn" aria-label="提交任务" disabled>↑</button>
+                </div>
+                <div class="composer-meta">
+                  <span id="charCount">0 / 2000</span>
+                  <span class="hint" id="composerHint">先描述你想完成的任务</span>
+                </div>
+                <div class="composer-footer">
+                  <button class="new-project" type="button" id="newProjectLink" hidden>＋ 新建项目 <span class="r3">R3</span></button>
+                </div>
+              </section>
+
+              <div class="trust" id="trustSummary" aria-live="polite">
+                <div class="trust-title"><span class="dot" aria-hidden="true"></span>本次使用</div>
+                <div class="trust-items" id="trustItems">云端执行 · 不访问本机文件 · 交付 Markdown · 保存到任务</div>
+                <button class="link" type="button" data-action="toggle-trust" aria-expanded="false">执行边界</button>
+                <div class="trust-detail" id="trustDetail" hidden>云端执行器不挂载本机文件；成果保存在当前任务，默认仅你可见。权限为每次询问，执行中有副作用动作会暂停等你批准。</div>
+              </div>
+
+              <section class="section" aria-labelledby="methodsTitle">
+                <div class="section-head">
+                  <h2 id="methodsTitle">推荐开始</h2>
+                  <span class="muted">3 个内置方法</span>
+                </div>
+                <div class="method-grid">
+                  <button class="method" type="button" data-method="起草方案" data-env="cloud">
+                    <strong>起草方案</strong>
+                    <span>背景、目标、备选方案、取舍和风险</span>
+                    <em>云端 · Markdown</em>
+                  </button>
+                  <button class="method" type="button" data-method="整理资料" data-env="local">
+                    <strong>整理资料</strong>
+                    <span>整理文件夹或文件，输出要点和待确认信息</span>
+                    <em>本机 · Markdown</em>
+                  </button>
+                  <button class="method" type="button" data-method="制定计划" data-env="cloud">
+                    <strong>制定计划</strong>
+                    <span>拆成步骤，标注依赖、风险和验收标准</span>
+                    <em>云端 · Markdown</em>
+                  </button>
+                </div>
+              </section>
+            </div>
+
+            <aside class="home-side" aria-label="待办与最近任务">
+              <section class="card">
+                <div class="card-head">
+                  <h2>需要你 <span class="count">2</span></h2>
+                  <button class="link" type="button" data-nav="items">查看全部</button>
+                </div>
+                <button class="need-row" type="button" data-action="open-approval-task">
+                  <span class="need-dot warning" aria-hidden="true"></span>
+                  <span><strong>客户资料整理</strong><small>等待你批准读取文件夹</small></span>
+                  <span class="chev" aria-hidden="true">›</span>
+                </button>
+                <button class="need-row" type="button" data-action="open-ready-task">
+                  <span class="need-dot info" aria-hidden="true"></span>
+                  <span><strong>产品评审方案</strong><small>成果待验收</small></span>
+                  <span class="chev" aria-hidden="true">›</span>
+                </button>
+              </section>
+
+              <section class="card">
+                <div class="card-head"><h2>继续工作</h2></div>
+                <button class="recent-row" type="button" data-action="open-ready-task">
+                  <span><strong>产品评审方案</strong><small>2 分钟前 · 待验收</small></span>
+                  <span class="chev" aria-hidden="true">›</span>
+                </button>
+                <button class="recent-row" type="button" data-action="open-approval-task">
+                  <span><strong>客户资料整理</strong><small>5 分钟前 · 等待审批</small></span>
+                  <span class="chev" aria-hidden="true">›</span>
+                </button>
+              </section>
+            </aside>
+          </div>
+        </section>
+
+        <!-- 任务工作区 -->
+        <section class="screen" data-screen="task" hidden>
+          <div class="task-head">
+            <div class="task-title-row">
+              <button class="back" type="button" data-nav="items" aria-label="返回我的工作">←</button>
+              <div>
+                <p class="eyebrow">任务 · <span id="taskEnvLabel">云端</span></p>
+                <h1 id="taskTitle">产品评审方案</h1>
+              </div>
+              <span class="pill running" id="taskStatus">执行中</span>
+              <div class="task-actions">
+                <label class="select-wrap">
+                  <span class="sr-only">状态演示</span>
+                  <select id="stateDemo" aria-label="状态演示">
+                    <option value="running">执行中</option>
+                    <option value="approval">等待审批</option>
+                    <option value="ready">待验收</option>
+                    <option value="done">已完成</option>
+                    <option value="disconnected">设备断线</option>
+                    <option value="failed">失败</option>
+                    <option value="budget">预算耗尽</option>
+                    <option value="revoked">权限撤销</option>
+                  </select>
+                </label>
+                <button class="btn ghost" type="button" data-action="cancel">取消任务</button>
+              </div>
+            </div>
+            <div class="banner warning" id="needsBanner" hidden>
+              <span class="banner-icon" aria-hidden="true">!</span>
+              <div class="banner-body">
+                <strong id="bannerTitle">需要你批准运行命令</strong>
+                <p id="bannerText">只读命令；不会修改原文件；拒绝后任务暂停。</p>
+                <div class="command-box" id="commandBox">python analyze.py --dir 项目资料</div>
+                <div class="banner-actions" id="bannerActions">
+                  <button class="btn danger" type="button" data-action="reject">拒绝</button>
+                  <button class="btn" type="button" data-action="approve-similar">本次任务同类只读允许</button>
+                  <button class="btn primary" type="button" data-action="approve">批准本次</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="task-mobile-tabs" role="tablist" aria-label="任务视图">
+            <button class="active" type="button" role="tab" aria-selected="true" data-task-pane-tab="steps">步骤</button>
+            <button type="button" role="tab" aria-selected="false" data-task-pane-tab="timeline">过程</button>
+            <button type="button" role="tab" aria-selected="false" data-task-pane-tab="artifact">成果</button>
+          </div>
+
+          <div class="task-grid">
+            <section class="card steps" data-task-pane="steps" aria-label="执行步骤">
+              <h2>步骤</h2>
+              <ol id="stepList">
+                <li class="done"><span class="step-mark">✓</span><span>理解目标与限制</span></li>
+                <li class="active"><span class="step-mark">2</span><span>生成大纲</span></li>
+                <li><span class="step-mark">3</span><span>写入初稿</span></li>
+                <li><span class="step-mark">4</span><span>自检并整理成果</span></li>
+              </ol>
+            </section>
+
+            <section class="card" data-task-pane="timeline" aria-label="执行时间线">
+              <h2>执行时间线</h2>
+              <div class="timeline" id="timeline">
+                <div class="empty-preview" style="min-height:96px">等待执行</div>
+              </div>
+            </section>
+
+            <section class="card artifact-panel" data-task-pane="artifact" aria-label="成果">
+              <div class="artifact-head">
+                <h2>成果</h2>
+                <span class="pill" id="artifactStatus">生成中</span>
+              </div>
+              <div class="preview" id="artifactPreview">
+                <div class="empty-preview">成果生成中<br>完成后会在「成果」中显示</div>
+              </div>
+              <div class="artifact-actions">
+                <button class="btn" type="button" data-action="open-artifact" disabled id="openArtifactBtn">打开成果</button>
+                <button class="btn primary" type="button" data-action="adopt" disabled id="adoptTaskBtn">采纳版本</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- 成果工作区 -->
+        <section class="screen" data-screen="artifact" hidden>
+          <header class="page-head artifact-page-head">
+            <button class="back" type="button" data-nav="task" aria-label="返回任务">←</button>
+            <div>
+              <p class="eyebrow">成果 · 产品评审方案</p>
+              <h1>产品评审方案</h1>
+              <p class="sub" id="artifactMeta">任务 #A102 · 云端 · 待验收</p>
+            </div>
+            <div class="artifact-top-actions">
+              <label>版本
+                <select id="versionSelect" aria-label="成果版本">
+                  <option value="v3">v3 · 10:42</option>
+                  <option value="v2">v2 · 10:38</option>
+                  <option value="v1">v1 · 10:31</option>
+                </select>
+              </label>
+              <button class="btn" type="button" data-action="compare">对比</button>
+              <button class="btn primary" type="button" data-action="adopt" id="adoptArtifactBtn">采纳此版本</button>
+              <button class="btn" type="button" data-action="export">导出</button>
+            </div>
+          </header>
+
+          <div class="artifact-layout">
+            <section class="card doc" aria-label="成果内容">
+              <div class="doc-tabs" role="tablist" aria-label="成果视图">
+                <button class="doc-tab active" type="button" role="tab" aria-selected="true" data-doc-tab="doc">文档</button>
+                <button class="doc-tab" type="button" role="tab" aria-selected="false" data-doc-tab="files">文件</button>
+                <button class="doc-tab" type="button" role="tab" aria-selected="false" data-doc-tab="sources">来源</button>
+                <button class="doc-tab" type="button" role="tab" aria-selected="false" data-doc-tab="review">复核</button>
+              </div>
+              <div class="doc-panel" id="docPanel">
+                <h2>产品评审方案</h2>
+                <p class="doc-meta">生成于 10:42 · 方法：起草方案 · AI 生成，已编辑 1 次</p>
+                <h3>1. 背景与目标</h3>
+                <p>本次评审需要确定会员改版的第一阶段范围，平衡交付速度与体验风险。目标是形成一个可执行的取舍方案，而不是完整需求文档。</p>
+                <h3>2. 三个备选方案</h3>
+                <ul>
+                  <li><strong>方案 A：先做核心链路。</strong>覆盖登录、权益和续费，最快验证转化。</li>
+                  <li><strong>方案 B：先做视觉改版。</strong>感知强，但对核心指标影响不确定。</li>
+                  <li><strong>方案 C：双轨并行。</strong>范围最大，依赖最多，风险最高。</li>
+                </ul>
+                <h3>3. 取舍与风险</h3>
+                <p>建议选择方案 A，并在第二阶段补视觉与运营工具。主要风险是权益规则的历史数据迁移，需要在评审前确认。</p>
+                <h3>4. 待确认</h3>
+                <ul>
+                  <li>权益规则是否允许灰度用户跨版本保留？</li>
+                  <li>续费链路的埋点口径是否与现有报表一致？</li>
+                </ul>
+              </div>
+              <div class="doc-panel" id="filesPanel" hidden>
+                <h2>成果文件</h2>
+                <p class="doc-meta">R0 仅支持 Markdown/TXT/CSV/JSON。</p>
+                <ul><li>report.md · 4.2 KB · 主成果</li><li>outline.md · 1.1 KB</li></ul>
+              </div>
+              <div class="doc-panel" id="sourcesPanel" hidden>
+                <h2>来源</h2>
+                <p class="doc-meta">来源引用用于核对，不代表内容一定正确。</p>
+                <ul><li>产品评审背景.md · 本地/任务上下文</li><li>会员改版讨论记录 · 用户提供</li></ul>
+              </div>
+              <div class="doc-panel" id="reviewPanel" hidden>
+                <h2>复核</h2>
+                <p class="doc-meta">R0b 可选；复核建议不自动改写成果。</p>
+                <ul><li>通过：结构完整，包含目标、备选和取舍。</li><li>待确认：权益迁移风险未给出验证方式。</li></ul>
+              </div>
+            </section>
+
+            <aside class="artifact-side" aria-label="版本、来源与复核">
+              <section class="card">
+                <h2>版本历史</h2>
+                <div class="version-row"><strong>v3</strong><span>10:42 · 编辑</span><span class="adopted" id="currentVersionNote">当前</span></div>
+                <div class="version-row"><strong>v2</strong><span>10:38 · 编辑</span></div>
+                <div class="version-row"><strong>v1</strong><span>10:31 · 生成</span></div>
+              </section>
+              <section class="card">
+                <h2>来源</h2>
+                <div class="source-row"><span class="source-dot" aria-hidden="true"></span><span>产品评审背景.md</span></div>
+                <div class="source-row"><span class="source-dot" aria-hidden="true"></span><span>会员改版讨论记录</span></div>
+              </section>
+              <section class="card">
+                <h2>复核</h2>
+                <div class="review-row"><span class="review-badge pass">通过</span><span>结构完整</span></div>
+                <div class="review-row"><span class="review-badge warn">待确认</span><span>迁移风险缺少验证方式</span></div>
+              </section>
+            </aside>
+          </div>
+
+          <div class="compare-panel" id="comparePanel" hidden>
+            <div class="card-head"><h2>版本对比 · v2 → v3</h2><button class="link" type="button" data-action="compare">收起</button></div>
+            <div class="compare-grid">
+              <div class="compare-col"><h3>v2</h3><p>建议选择方案 A，并尽快上线。</p></div>
+              <div class="compare-col"><h3>v3</h3><p>建议选择方案 A，并在第二阶段补视觉与运营工具。<ins>新增：权益迁移需要评审前确认。</ins></p></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 我的工作 -->
+        <section class="screen" data-screen="items" hidden>
+          <header class="page-head">
+            <div>
+              <p class="eyebrow">工作</p>
+              <h1>我的工作</h1>
+              <p class="sub">所有 Work 任务；先处理“待处理”，再验收成果。</p>
+            </div>
+            <button class="btn primary" type="button" data-action="new-work">＋ 新建任务</button>
+          </header>
+
+          <div class="tabs" role="tablist" aria-label="任务筛选">
+            <button class="tab active" type="button" role="tab" aria-selected="true" data-filter="needs">待处理</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-filter="running">进行中</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-filter="ready">待验收</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-filter="done">已完成</button>
+            <button class="tab" type="button" role="tab" aria-selected="false" data-filter="all">全部</button>
+          </div>
+          <div class="filters">
+            <select aria-label="项目筛选"><option>全部项目</option><option>会员改版</option></select>
+            <select aria-label="环境筛选"><option>全部环境</option><option>云端</option><option>本机</option></select>
+            <select aria-label="时间筛选"><option>最近 30 天</option><option>最近 7 天</option></select>
+            <input type="search" placeholder="搜索标题或任务描述" aria-label="搜索任务">
+          </div>
+
+          <div class="work-list" id="workList">
+            <button class="work-row" type="button" data-status="needs" data-action="open-approval-task">
+              <span><strong>客户资料整理</strong><small>本机 · 等待你批准读取文件夹</small></span>
+              <span class="row-meta"><span class="pill warning">等待审批</span><span>5 分钟前</span></span>
+            </button>
+            <button class="work-row" type="button" data-status="ready" data-action="open-ready-task">
+              <span><strong>产品评审方案</strong><small>云端 · 成果待验收</small></span>
+              <span class="row-meta"><span class="pill info">待验收</span><span>2 分钟前</span></span>
+            </button>
+            <button class="work-row" type="button" data-status="running" data-action="open-running-task">
+              <span><strong>季度计划初稿</strong><small>云端 · 正在生成</small></span>
+              <span class="row-meta"><span class="pill running">执行中</span><span>刚刚</span></span>
+            </button>
+            <button class="work-row" type="button" data-status="done" data-action="open-done-task">
+              <span><strong>周会行动计划</strong><small>云端 · 已采纳 v2</small></span>
+              <span class="row-meta"><span class="pill success">已完成</span><span>昨天</span></span>
+            </button>
+          </div>
+          <div class="empty-list" id="emptyList" hidden><strong>这里还没有任务</strong>从工作首页开始一项新任务，完成后会出现在这里。</div>
+        </section>
+
+        <!-- 历史工作 -->
+        <section class="screen" data-screen="archive" hidden>
+          <header class="page-head">
+            <div>
+              <p class="eyebrow">过渡期</p>
+              <h1>历史工作</h1>
+              <p class="sub">旧任务只读归档；可以查看和导出，不能新建运行。</p>
+            </div>
+          </header>
+          <div class="archive-note">这是 R0 切换期间的只读归档。旧链接会自动跳转到这里；在途任务完成后也会进入这里。</div>
+          <table class="archive-table">
+            <thead><tr><th>标题</th><th>状态</th><th>环境</th><th>更新时间</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr><td>旧版资料整理</td><td><span class="pill">只读</span></td><td>本机</td><td>10 月 20 日</td><td><button class="link" type="button" data-action="archive-export">导出</button></td></tr>
+              <tr><td>旧版产品方案</td><td><span class="pill success">已完成</span></td><td>云端</td><td>10 月 18 日</td><td><button class="link" type="button" data-action="archive-export">导出</button></td></tr>
+            </tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+  </div>
+</div>
+
+<nav class="mobile-nav" aria-label="移动端导航">
+  <button class="active" type="button" data-nav="home"><span class="mobile-dot" aria-hidden="true"></span>工作</button>
+  <button type="button" data-nav="items">我的</button>
+</nav>
+
+<div class="modal-backdrop" id="folderModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="folderTitle">
+    <h2 id="folderTitle">选择本机工作文件夹</h2>
+    <p>只读取你授权的文件夹；命令逐次批准；工作空间不是操作系统沙箱。原始文件默认不上传。</p>
+    <div class="folder-options" role="radiogroup" aria-label="示例文件夹">
+      <button class="folder-option" type="button" role="radio" aria-checked="false" data-folder="项目资料"><strong>项目资料</strong><small>12 个文件 · 最近使用</small></button>
+      <button class="folder-option" type="button" role="radio" aria-checked="false" data-folder="客户资料"><strong>客户资料</strong><small>8 个文件 · 含敏感信息</small></button>
+      <button class="folder-option" type="button" role="radio" aria-checked="false" data-folder="数据分析"><strong>数据分析</strong><small>3 个 CSV · 1 个说明</small></button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" type="button" data-close>取消</button>
+      <button class="btn primary" type="button" id="authorizeFolder" disabled>授权文件夹</button>
+    </div>
+  </div>
+</div>
+
+<!-- 工具菜单 -->
+<div class="modal-backdrop" id="toolModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="toolTitle">
+    <h2 id="toolTitle">添加工具</h2>
+    <p>R0 只提供工作文件夹上下文；套件/技能/连接器在 R1/R2a 开放，项目在 R3 开放。</p>
+    <div class="tool-list">
+      <button class="tool-row" type="button" data-tool="folder"><span><strong>选择文件夹</strong><small>添加本机工作上下文</small></span><span>›</span></button>
+    </div>
+    <div class="modal-actions"><button class="btn ghost" type="button" data-close="toolModal">取消</button></div>
+  </div>
+</div>
+
+<!-- 首次使用 -->
+<div class="modal-backdrop" id="onboardingModal" hidden>
+  <div class="modal onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+    <h2 id="onboardingTitle" class="sr-only">首次使用</h2>
+    <div class="onboard-head"><span class="onboard-kicker">首次使用</span><span class="onboard-progress" id="onboardingProgress">1 / 3</span></div>
+    <div id="onboardingBody"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" type="button" id="onboardingSkip">跳过</button>
+      <button class="btn primary" type="button" id="onboardingNext">下一步</button>
+    </div>
+  </div>
+</div>
+
+<!-- 执行器位置 -->
+<div class="modal-backdrop" id="executorModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="executorTitle">
+    <h2 id="executorTitle">执行器位置</h2>
+    <p>执行位置决定数据访问和成果存放；本机需要授权文件夹。</p>
+    <button class="executor-option selected" type="button" data-executor="cloud"><span>云端执行器<small>在云端运行，不访问本机文件</small></span><span class="option-check">✓</span></button>
+    <button class="executor-option" type="button" data-executor="local"><span>本机执行器<small>在你的电脑上运行，只读取授权文件夹</small></span><span class="option-check"></span></button>
+    <button class="executor-option" type="button" disabled><span>远程设备<small>R2b 后开放；不做云接管</small></span><span class="status">即将开放</span></button>
+    <div class="modal-actions"><button class="btn ghost" type="button" data-close="executorModal">关闭</button></div>
+  </div>
+</div>
+
+<!-- 默认权限 -->
+<div class="modal-backdrop" id="permissionModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="permissionTitle">
+    <h2 id="permissionTitle">默认权限</h2>
+    <p>组织策略优先；任务级只能收窄，不能放宽。</p>
+    <button class="permission-option selected" type="button" data-permission="ask"><span>默认权限<small>需要权限的操作，每次都与你确认</small></span><span class="option-check">✓</span></button>
+    <button class="permission-option" type="button" data-permission="readonly"><span>自动审批<small>只读操作自动，写入和高风险操作仍确认</small></span><span class="option-check"></span></button>
+    <button class="permission-option" type="button" data-permission="plan"><span>计划批准后执行<small>计划批准后只读步骤自动，写入仍需确认</small></span><span class="option-check"></span></button>
+    <div class="modal-actions"><button class="btn ghost" type="button" data-close="permissionModal">关闭</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+  const state = {
+    env: 'cloud',
+    permission: 'ask',
+    folder: '',
+    goal: '',
+    taskTitle: '产品评审方案',
+    taskStatus: 'running',
+    artifactReady: false,
+    adopted: false,
+    version: 'v3',
+    filter: 'needs',
+    modalReturnFocus: null,
+    onboardingStep: 1,
+    onboardingEnv: 'cloud',
+    onboardingMethod: '',
+    timers: []
+  };
+
+  const methods = {
+    '起草方案': '围绕目标写一份可执行方案，包含背景、目标、三个备选方案、取舍和风险，输出 Markdown。',
+    '整理资料': '整理给定文件夹中的资料，输出要点、结论和待确认信息，生成一份结构清晰的索引。',
+    '制定计划': '把目标拆成可执行步骤，标注依赖、风险和验收标准，输出 Markdown。'
+  };
+
+  function setScreen(name) {
+    $$('.screen').forEach((el) => { el.hidden = el.dataset.screen !== name; });
+    $$('.work-nav-item').forEach((el) => {
+      const active = el.dataset.nav === name || (name === 'task' && el.dataset.nav === 'items') || (name === 'artifact' && el.dataset.nav === 'items');
+      el.classList.toggle('active', active);
+      if (active) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+    });
+    $$('.mobile-nav button').forEach((el) => el.classList.toggle('active', el.dataset.nav === name || (name === 'task' && el.dataset.nav === 'items') || (name === 'artifact' && el.dataset.nav === 'items')));
+    window.scrollTo(0, 0);
+  }
+
+  function syncDemo(value) {
+    const select = $('#stateDemo');
+    if (select) select.value = value;
+  }
+
+  function setTaskPane(name) {
+    $$('.task-mobile-tabs button').forEach((btn) => {
+      const active = btn.dataset.taskPaneTab === name;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', String(active));
+    });
+    $$('.task-grid > .card').forEach((card) => {
+      card.classList.toggle('mobile-active', card.dataset.taskPane === name);
+    });
+  }
+
+  function setEnv(env) {
+    state.env = env;
+    updateComposer();
+  }
+
+  function updateComposer() {
+    const goal = ($('#goal').value || '').trim();
+    state.goal = goal;
+    $('#charCount').textContent = `${goal.length} / 2000`;
+    const localNeedsFolder = state.env === 'local' && !state.folder;
+    const empty = goal.length === 0;
+    const disabled = empty || localNeedsFolder;
+    $('#sendBtn').disabled = disabled;
+    const hint = $('#composerHint');
+    if (empty) { hint.textContent = '先描述你想完成的任务'; hint.classList.remove('warn'); }
+    else if (localNeedsFolder) { hint.textContent = '选择一个工作文件夹后才能在本机执行'; hint.classList.add('warn'); }
+    else if (state.env === 'local') { hint.textContent = '本机执行 · 命令逐次批准'; hint.classList.remove('warn'); }
+    else { hint.textContent = '云端执行 · 不访问本机文件'; hint.classList.remove('warn'); }
+
+    const contextLabel = $('#contextLabel');
+    const contextChip = $('#contextChip');
+    if (state.env === 'local') {
+      contextLabel.textContent = state.folder || '选择文件夹';
+      contextChip.classList.toggle('selected', !!state.folder);
+    } else {
+      contextLabel.textContent = '上下文';
+      contextChip.classList.remove('selected');
+    }
+    $('#executorChip').textContent = `执行器：${state.env === 'local' ? '本机' : '云端'}`;
+    $('#permissionChip').textContent = state.permission === 'readonly' ? '自动审批' : state.permission === 'plan' ? '计划批准后' : '默认权限';
+    $('#taskEnvLabel').textContent = state.env === 'local' ? '本机' : '云端';
+    updateTrust();
+  }
+
+  function updateTrust() {
+    const env = state.env === 'local' ? '本机 · 只读取授权文件夹' : '云端 · 不访问本机';
+    const folder = state.env === 'local' ? (state.folder ? ` · 文件夹：${state.folder}` : ' · 未授权文件夹') : '';
+    const permissionText = state.permission === 'readonly' ? '自动审批' : state.permission === 'plan' ? '计划批准后' : '默认权限';
+    $('#trustItems').textContent = `${env}${folder} · 交付 Markdown · 保存到${state.env === 'local' ? ' WeMeet成果' : '任务'} · 权限：${permissionText}`;
+  }
+
+  function showToast(message) {
+    const toast = $('#toast');
+    toast.textContent = message;
+    toast.hidden = false;
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(() => { toast.hidden = true; }, 2600);
+  }
+
+  function clearTimers() {
+    state.timers.forEach(clearTimeout);
+    state.timers = [];
+  }
+
+  function addTimeline(text, note, variant = '') {
+    const timeline = $('#timeline');
+    const placeholder = timeline.querySelector('.empty-preview');
+    if (placeholder) placeholder.remove();
+    const now = new Date();
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const item = document.createElement('div');
+    item.className = `event ${variant}`;
+    item.innerHTML = `<time>${time}</time><div><strong></strong><p></p></div>`;
+    $('strong', item).textContent = text;
+    $('p', item).textContent = note;
+    timeline.appendChild(item);
+  }
+
+  function setSteps(activeIndex, done = false) {
+    $$('#stepList li').forEach((li, i) => {
+      li.classList.toggle('done', done || i < activeIndex);
+      li.classList.toggle('active', !done && i === activeIndex);
+      const mark = $('.step-mark', li);
+      mark.textContent = (done || i < activeIndex) ? '✓' : String(i + 1);
+    });
+  }
+
+  function setTaskPill(text, variant = '') {
+    const pill = $('#taskStatus');
+    pill.textContent = text;
+    pill.className = `pill ${variant}`.trim();
+  }
+
+  function updateArtifactMeta() {
+    const meta = $('#artifactMeta');
+    if (meta) {
+      const env = state.env === 'local' ? '本机' : '云端';
+      const status = state.adopted ? '已完成' : (state.artifactReady ? '待验收' : '执行中');
+      meta.textContent = `任务 #A102 · ${env} · ${status}`;
+    }
+    const note = $('#currentVersionNote');
+    if (note) note.textContent = state.adopted ? '已采纳' : '当前';
+  }
+  function setArtifactReady() {
+    state.artifactReady = true;
+    state.adopted = false;
+    setTaskPill('待验收', 'running');
+    syncDemo('ready');
+    setSteps(4, true);
+    $('#artifactStatus').textContent = '待验收';
+    $('#artifactStatus').className = 'pill running';
+    $('#artifactPreview').innerHTML = `<h3>产品评审方案</h3><p class="doc-meta">v3 · 10:42 · 主成果</p><h4>1. 背景与目标</h4><p>确定会员改版第一阶段范围，形成可执行的取舍方案。</p><h4>2. 三个备选方案</h4><ul><li>方案 A：先做核心链路</li><li>方案 B：先做视觉改版</li><li>方案 C：双轨并行</li></ul><h4>3. 建议</h4><p>选择方案 A，并在第二阶段补视觉与运营工具。</p>`;
+    $('#openArtifactBtn').disabled = false;
+    $('#adoptTaskBtn').disabled = false;
+    $('#adoptTaskBtn').textContent = '采纳版本';
+    $('#adoptArtifactBtn').disabled = false;
+    $('#adoptArtifactBtn').textContent = '采纳此版本';
+    updateArtifactMeta();
+    showBanner('ready');
+  }
+
+  function showBanner(type) {
+    const banner = $('#needsBanner');
+    const title = $('#bannerTitle');
+    const text = $('#bannerText');
+    const command = $('#commandBox');
+    const actions = $('#bannerActions');
+    banner.hidden = false;
+    banner.className = 'banner';
+    banner.classList.toggle('warning', type === 'approval');
+    banner.classList.toggle('info', type === 'ready');
+    banner.classList.toggle('danger', ['failed', 'disconnected', 'budget', 'revoked'].includes(type));
+    banner.classList.toggle('success', type === 'success');
+    actions.innerHTML = '';
+    command.hidden = true;
+    if (type === 'approval') syncDemo('approval');
+    if (type === 'ready') syncDemo('ready');
+    if (type === 'disconnected') syncDemo('disconnected');
+    if (type === 'failed') syncDemo('failed');
+    if (type === 'budget') syncDemo('budget');
+    if (type === 'revoked') syncDemo('revoked');
+
+    if (type === 'approval') {
+      title.textContent = '需要你批准运行命令';
+      text.textContent = '只读命令；不会修改原文件；拒绝后任务暂停。';
+      command.hidden = false;
+      actions.innerHTML = `<button class="btn danger" type="button" data-action="reject">拒绝</button><button class="btn" type="button" data-action="approve-similar">本次任务同类只读允许</button><button class="btn primary" type="button" data-action="approve">批准本次</button>`;
+    } else if (type === 'ready') {
+      title.textContent = '成果已生成，等待你验收';
+      text.textContent = '打开成果检查版本、来源和复核意见；采纳后任务完成。';
+      actions.innerHTML = `<button class="btn" type="button" data-action="open-artifact">打开成果</button><button class="btn primary" type="button" data-action="adopt">采纳此版本</button>`;
+    } else if (type === 'disconnected') {
+      title.textContent = '设备断线，执行待确认';
+      text.textContent = '不会自动切云端。请重连执行设备，或取消任务。';
+      actions.innerHTML = `<button class="btn" type="button" data-action="reconnect">重连</button><button class="btn danger" type="button" data-action="cancel">取消任务</button>`;
+    } else if (type === 'failed') {
+      title.textContent = '执行失败';
+      text.textContent = '已产生的成果会保留；可以查看原因后重试。';
+      actions.innerHTML = `<button class="btn" type="button" data-action="retry">重试</button><button class="btn" type="button" data-action="open-artifact">查看已产生成果</button>`;
+    } else if (type === 'budget') {
+      title.textContent = '今日预算已用完';
+      text.textContent = '任务已暂停；等待预算重置或申请预算。';
+      actions.innerHTML = `<button class="btn" type="button" data-action="budget">申请预算</button><button class="btn danger" type="button" data-action="cancel">取消任务</button>`;
+    } else if (type === 'revoked') {
+      title.textContent = '访问权限已撤销';
+      text.textContent = '任务已停止；成果访问按组织策略处理。';
+      actions.innerHTML = `<button class="btn" type="button" data-action="admin">联系管理员</button>`;
+    } else if (type === 'success') {
+      title.textContent = '已采纳 v3，任务完成';
+      text.textContent = '其他版本保留；可以基于此成果继续，或返回我的工作。';
+      actions.innerHTML = `<button class="btn primary" type="button" data-action="continue">基于此成果继续</button><button class="btn" type="button" data-nav="items">返回我的工作</button>`;
+    }
+  }
+
+  function hideBanner() { $('#needsBanner').hidden = true; }
+
+  function resetTask(title = '产品评审方案', env = 'cloud') {
+    clearTimers();
+    state.taskTitle = title;
+    state.taskStatus = 'running';
+    state.artifactReady = false;
+    state.adopted = false;
+    state.env = env;
+    syncDemo('running');
+    $('#taskTitle').textContent = title;
+    $('#taskEnvLabel').textContent = env === 'local' ? '本机' : '云端';
+    setTaskPill('执行中', 'running');
+    setSteps(1);
+    setTaskPane('steps');
+    $('#timeline').innerHTML = '<div class="empty-preview" style="min-height:96px">等待执行</div>';
+    $('#artifactStatus').textContent = '生成中';
+    $('#artifactStatus').className = 'pill';
+    $('#artifactPreview').innerHTML = '<div class="empty-preview">成果生成中<br>完成后会在「成果」中显示</div>';
+    $('#openArtifactBtn').disabled = true;
+    $('#adoptTaskBtn').disabled = true;
+    $('#adoptTaskBtn').textContent = '采纳版本';
+    $('#adoptArtifactBtn').disabled = false;
+    $('#adoptArtifactBtn').textContent = '采纳此版本';
+    const cancelBtn = $('.task-actions [data-action="cancel"]');
+    if (cancelBtn) cancelBtn.disabled = false;
+    updateArtifactMeta();
+    hideBanner();
+  }
+
+  function startTask() {
+    const rawTitle = state.goal.split(/[。\n]/)[0] || '新的任务';
+    const title = rawTitle.length > 18 ? `${rawTitle.slice(0, 18)}…` : rawTitle;
+    resetTask(title || '新的任务', state.env);
+    setScreen('task');
+    addTimeline('任务已开始', state.env === 'local' ? '在授权文件夹中执行；命令逐次批准。' : '云端执行器已受理。');
+    state.timers.push(setTimeout(() => {
+      addTimeline('已生成大纲', '包含目标、结构和待确认信息。');
+      setSteps(2);
+    }, 700));
+    if (state.env === 'local') {
+      state.timers.push(setTimeout(() => {
+        state.taskStatus = 'waiting';
+        setTaskPill('等待审批', 'warning');
+        addTimeline('等待批准运行命令', '只读命令；不会修改原文件。', 'warning');
+        showBanner('approval');
+      }, 1500));
+    } else {
+      state.timers.push(setTimeout(() => {
+        addTimeline('已生成初稿', '主成果写入任务。');
+        setSteps(3);
+      }, 1500));
+      state.timers.push(setTimeout(() => {
+        addTimeline('成果已保存', '可以打开成果验收。');
+        setArtifactReady();
+      }, 2600));
+    }
+  }
+
+  function openTask(kind) {
+    if (kind === 'approval') {
+      resetTask('客户资料整理', 'local');
+      state.taskStatus = 'waiting';
+      setTaskPill('等待审批', 'warning');
+      setSteps(1);
+      addTimeline('等待批准读取文件夹', '只读；不会上传原始文件。', 'warning');
+      showBanner('approval');
+    } else if (kind === 'running') {
+      resetTask('季度计划初稿', 'cloud');
+      addTimeline('已生成大纲', '正在写入初稿。');
+      setSteps(2);
+    } else if (kind === 'done') {
+      resetTask('周会行动计划', 'cloud');
+      setArtifactReady();
+      adoptArtifact(true);
+    } else {
+      resetTask('产品评审方案', 'cloud');
+      setArtifactReady();
+    }
+    setScreen('task');
+  }
+
+  function approveTask() {
+    hideBanner();
+    state.taskStatus = 'running';
+    setTaskPill('执行中', 'running');
+    addTimeline('已批准运行命令', '继续执行；本次批准只对当前任务有效。');
+    state.timers.push(setTimeout(() => {
+      addTimeline('已生成初稿', '主成果写入 WeMeet成果。');
+      setSteps(3);
+    }, 900));
+    state.timers.push(setTimeout(() => {
+      addTimeline('成果已保存', '可以打开成果验收。');
+      setArtifactReady();
+    }, 1800));
+  }
+
+  function rejectTask() {
+    hideBanner();
+    state.taskStatus = 'paused';
+    setTaskPill('已暂停', 'danger');
+    addTimeline('已拒绝运行命令', '任务暂停；可以取消或重新发起。', 'error');
+    showBanner('failed');
+  }
+
+  function adoptArtifact(silent = false) {
+    if (!state.artifactReady) return;
+    state.adopted = true;
+    setTaskPill('已完成', 'success');
+    $('#artifactStatus').textContent = '已采纳';
+    $('#artifactStatus').className = 'pill success';
+    $('#adoptTaskBtn').disabled = true;
+    $('#adoptTaskBtn').textContent = '已采纳';
+    $('#adoptArtifactBtn').disabled = true;
+    $('#adoptArtifactBtn').textContent = '已采纳';
+    const cancelBtn = $('.task-actions [data-action="cancel"]');
+    if (cancelBtn) cancelBtn.disabled = true;
+    syncDemo('done');
+    updateArtifactMeta();
+    showBanner('success');
+    if (!silent) addTimeline('已采纳 v3', '任务完成；其他版本保留。');
+  }
+
+  function setDemoState(value) {
+    hideBanner();
+    if (value === 'running') {
+      setTaskPill('执行中', 'running');
+      setSteps(2);
+      addTimeline('继续执行', '正在生成内容。');
+    } else if (value === 'approval') {
+      setTaskPill('等待审批', 'warning');
+      addTimeline('等待批准运行命令', '只读命令；不会修改原文件。', 'warning');
+      showBanner('approval');
+    } else if (value === 'ready') {
+      setArtifactReady();
+    } else if (value === 'done') {
+      setArtifactReady();
+      adoptArtifact(true);
+    } else if (value === 'disconnected') {
+      setTaskPill('设备断线', 'danger');
+      addTimeline('设备断线', '执行待确认；不会自动切云端。', 'error');
+      showBanner('disconnected');
+    } else if (value === 'failed') {
+      setTaskPill('失败', 'danger');
+      addTimeline('执行失败', '模型调用超时；没有产生完整成果。', 'error');
+      showBanner('failed');
+    } else if (value === 'budget') {
+      setTaskPill('预算耗尽', 'danger');
+      addTimeline('预算耗尽', '任务暂停，等待预算重置。', 'error');
+      showBanner('budget');
+    } else if (value === 'revoked') {
+      setTaskPill('权限撤销', 'danger');
+      addTimeline('访问权限已撤销', '任务停止；请联系管理员。', 'error');
+      showBanner('revoked');
+    }
+  }
+
+  function openTools() {
+    $('#toolModal').hidden = false;
+  }
+
+  function openExecutor() {
+    $$('.executor-option').forEach((option) => {
+      const active = option.dataset.executor === state.env;
+      option.classList.toggle('selected', active);
+      const check = $('.option-check', option);
+      if (check) check.textContent = active ? '✓' : '';
+    });
+    $('#executorModal').hidden = false;
+  }
+
+  function openPermission() {
+    $$('.permission-option').forEach((option) => {
+      const active = option.dataset.permission === state.permission;
+      option.classList.toggle('selected', active);
+      const check = $('.option-check', option);
+      if (check) check.textContent = active ? '✓' : '';
+    });
+    $('#permissionModal').hidden = false;
+  }
+
+  function openFolderModal() {
+    state.modalReturnFocus = document.activeElement;
+    $('#folderModal').hidden = false;
+    const first = $('.folder-option');
+    if (first) first.focus();
+  }
+
+  function closeFolderModal() {
+    $('#folderModal').hidden = true;
+    if (state.modalReturnFocus && state.modalReturnFocus.focus) state.modalReturnFocus.focus();
+  }
+
+  function openOnboarding() {
+    state.onboardingStep = 1;
+    state.onboardingEnv = state.env === 'local' ? 'local' : 'cloud';
+    state.onboardingMethod = '';
+    state.modalReturnFocus = document.activeElement;
+    $('#onboardingModal').hidden = false;
+    renderOnboarding();
+  }
+
+  function closeOnboarding() {
+    $('#onboardingModal').hidden = true;
+    if (state.modalReturnFocus && state.modalReturnFocus.focus) state.modalReturnFocus.focus();
+  }
+
+  function renderOnboarding() {
+    const body = $('#onboardingBody');
+    $('#onboardingProgress').textContent = `${state.onboardingStep} / 3`;
+    $('#onboardingNext').textContent = state.onboardingStep === 3 ? '开始第一个任务' : '下一步';
+    if (state.onboardingStep === 1) {
+      body.innerHTML = `<h2>先从哪种执行位置开始？</h2>
+        <p>选择后仍可随时在执行器 chip 中切换；本机执行需要桌面端。</p>
+        <div class="onboard-list">
+          <button class="onboard-choice${state.onboardingEnv === 'cloud' ? ' selected' : ''}" type="button" data-onboarding-env="cloud"><strong>云端执行</strong><small>不访问本机文件；适合文档、方案和分析</small></button>
+          <button class="onboard-choice${state.onboardingEnv === 'local' ? ' selected' : ''}" type="button" data-onboarding-env="local"><strong>本机执行</strong><small>在授权文件夹内整理资料；需要桌面端和文件夹授权</small></button>
+        </div>`;
+      $$('[data-onboarding-env]', body).forEach((button) => button.addEventListener('click', () => {
+        state.onboardingEnv = button.dataset.onboardingEnv;
+        renderOnboarding();
+      }));
+    } else if (state.onboardingStep === 2) {
+      body.innerHTML = `<h2>提交前，你会先看到执行边界</h2>
+        <p>“本次使用”会在发送前写明：</p>
+        <div class="onboard-boundary"><ul>
+          <li>在哪执行：云端或本机；本机只读取授权文件夹。</li>
+          <li>怎么执行：需要权限的命令逐次批准，高风险动作暂停。</li>
+          <li>成果去哪：保存到任务；本机成果写入 WeMeet成果。</li>
+        </ul></div>
+        <p class="muted" style="margin-top:12px">组织策略优先；任务级权限只能收窄，不能放宽。</p>`;
+    } else {
+      body.innerHTML = `<h2>从一个方法开始</h2>
+        <p>选择模板只会预填任务描述，不会自动提交。</p>
+        <div class="onboard-list">
+          <button class="onboard-choice${state.onboardingMethod === '起草方案' ? ' selected' : ''}" type="button" data-onboarding-method="起草方案"><strong>起草方案</strong><small>背景、目标、备选方案、取舍和风险</small></button>
+          <button class="onboard-choice${state.onboardingMethod === '整理资料' ? ' selected' : ''}" type="button" data-onboarding-method="整理资料"><strong>整理资料</strong><small>整理文件夹，输出要点、结论和待确认信息</small></button>
+          <button class="onboard-choice${state.onboardingMethod === '制定计划' ? ' selected' : ''}" type="button" data-onboarding-method="制定计划"><strong>制定计划</strong><small>拆成步骤，标注依赖、风险和验收标准</small></button>
+        </div>`;
+      $$('[data-onboarding-method]', body).forEach((button) => button.addEventListener('click', () => {
+        state.onboardingMethod = button.dataset.onboardingMethod;
+        renderOnboarding();
+      }));
+    }
+  }
+
+  function nextOnboarding() {
+    if (state.onboardingStep < 3) {
+      state.onboardingStep += 1;
+      renderOnboarding();
+      return;
+    }
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
+    const chosenLocal = state.onboardingEnv === 'local';
+    closeOnboarding();
+    setEnv(chosenLocal && !mobile ? 'local' : 'cloud');
+    if (state.onboardingMethod) {
+      $('#goal').value = methods[state.onboardingMethod];
+      state.goal = $('#goal').value;
+      updateComposer();
+    }
+    if (chosenLocal && mobile) {
+      showToast('本机执行需要在桌面端使用；已切换云端');
+    } else if (chosenLocal && !state.folder) {
+      openFolderModal();
+    } else {
+      showToast(state.onboardingMethod ? `已选择「${state.onboardingMethod}」；检查后提交` : '可以开始描述任务了');
+      $('#goal').focus();
+    }
+  }
+
+  function selectFolder(btn) {
+    $$('.folder-option').forEach((el) => { el.classList.remove('selected'); el.setAttribute('aria-checked', 'false'); });
+    btn.classList.add('selected');
+    btn.setAttribute('aria-checked', 'true');
+    state.folder = btn.dataset.folder;
+    $('#authorizeFolder').disabled = false;
+  }
+
+  function authorizeFolder() {
+    if (!state.folder) return;
+    state.env = 'local';
+    closeFolderModal();
+    updateComposer();
+    showToast(`已授权「${state.folder}」；描述任务后即可开始`);
+  }
+
+  function setFilter(filter) {
+    state.filter = filter;
+    $$('.tab').forEach((tab) => {
+      const active = tab.dataset.filter === filter;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+    });
+    let visible = 0;
+    $$('.work-row').forEach((row) => {
+      const show = filter === 'all' || row.dataset.status === filter;
+      row.hidden = !show;
+      if (show) visible += 1;
+    });
+    $('#emptyList').hidden = visible > 0;
+  }
+
+  // Events
+  $('#goal').addEventListener('input', updateComposer);
+  $('#goal').addEventListener('keydown', (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault();
+      if (!$('#sendBtn').disabled) startTask();
+    }
+  });
+  $$('.method').forEach((btn) => btn.addEventListener('click', () => {
+    if (btn.dataset.env === 'local' && window.matchMedia('(max-width: 760px)').matches) {
+      showToast('本机执行请在桌面应用中使用');
+      return;
+    }
+    $('#goal').value = methods[btn.dataset.method] || '';
+    setEnv(btn.dataset.env || 'cloud');
+    $('#goal').focus();
+  }));
+  $('#sendBtn').addEventListener('click', () => {
+    if (state.env === 'local' && !state.folder) return;
+    startTask();
+  });
+  $('#contextChip').addEventListener('click', () => {
+    if (state.env === 'local') openFolderModal();
+    else showToast('云端任务不访问本机文件；切换本机后可授权文件夹');
+  });
+  $$('[data-action="toggle-trust"]').forEach((btn) => btn.addEventListener('click', () => {
+    const detail = $('#trustDetail');
+    detail.hidden = !detail.hidden;
+    btn.setAttribute('aria-expanded', String(!detail.hidden));
+  }));
+  $('#onboardingDemo').addEventListener('click', openOnboarding);
+  $('#onboardingNext').addEventListener('click', nextOnboarding);
+  $('#onboardingSkip').addEventListener('click', closeOnboarding);
+  $('#themeToggle').addEventListener('click', () => {
+    const root = document.documentElement;
+    const dark = root.dataset.theme === 'dark';
+    root.dataset.theme = dark ? 'light' : 'dark';
+    $('#themeToggle').textContent = dark ? '深色' : '浅色';
+  });
+  $('#resetDemo').addEventListener('click', () => location.reload());
+  $('#stateDemo').addEventListener('change', (event) => setDemoState(event.target.value));
+  $('#versionSelect').addEventListener('change', (event) => {
+    state.version = event.target.value;
+    showToast(`已切换到 ${event.target.value}（演示）`);
+  });
+  $('#authorizeFolder').addEventListener('click', authorizeFolder);
+  $$('.folder-option').forEach((btn) => btn.addEventListener('click', () => selectFolder(btn)));
+  $$('[data-close]').forEach((btn) => btn.addEventListener('click', () => {
+    if (btn.dataset.close) $('#' + btn.dataset.close).hidden = true;
+    else closeFolderModal();
+  }));
+  $$('.tab').forEach((tab) => tab.addEventListener('click', () => setFilter(tab.dataset.filter)));
+  $$('.task-mobile-tabs button').forEach((tab) => tab.addEventListener('click', () => setTaskPane(tab.dataset.taskPaneTab)));
+  $$('.doc-tab').forEach((tab) => tab.addEventListener('click', () => {
+    $$('.doc-tab').forEach((el) => { el.classList.toggle('active', el === tab); el.setAttribute('aria-selected', String(el === tab)); });
+    ['doc', 'files', 'sources', 'review'].forEach((name) => {
+      const panel = $('#' + name + 'Panel');
+      if (panel) panel.hidden = name !== tab.dataset.docTab;
+    });
+  }));
+
+  document.addEventListener('click', (event) => {
+    const nav = event.target.closest('[data-nav]');
+    if (nav) {
+      const name = nav.dataset.nav;
+      setScreen(name);
+      if (name === 'items') setFilter(state.filter || 'needs');
+      return;
+    }
+    const tool = event.target.closest('[data-tool]');
+    if (tool) {
+      if (tool.dataset.tool === 'folder') {
+        $('#toolModal').hidden = true;
+        openFolderModal();
+      }
+      return;
+    }
+    const executor = event.target.closest('[data-executor]');
+    if (executor) {
+      setEnv(executor.dataset.executor);
+      $('#executorModal').hidden = true;
+      return;
+    }
+    const permission = event.target.closest('[data-permission]');
+    if (permission) {
+      state.permission = permission.dataset.permission;
+      $('#permissionModal').hidden = true;
+      updateComposer();
+      return;
+    }
+    const actionEl = event.target.closest('[data-action]');
+    if (!actionEl) return;
+    const action = actionEl.dataset.action;
+    if (action === 'open-tools') { openTools(); return; }
+    if (action === 'open-executor') { openExecutor(); return; }
+    if (action === 'open-permission') { openPermission(); return; }
+    if (action === 'new-work') {
+      $('#goal').value = '';
+      state.env = 'cloud'; state.folder = ''; state.permission = 'ask';
+      setEnv('cloud');
+      updateComposer();
+      setScreen('home');
+      $('#goal').focus();
+    } else if (action === 'send') {
+      if (!$('#sendBtn').disabled) startTask();
+    } else if (action === 'open-approval-task') {
+      openTask('approval');
+    } else if (action === 'open-ready-task') {
+      openTask('ready');
+    } else if (action === 'open-running-task') {
+      openTask('running');
+    } else if (action === 'open-done-task') {
+      openTask('done');
+    } else if (action === 'approve' || action === 'approve-similar') {
+      approveTask();
+    } else if (action === 'reject') {
+      rejectTask();
+    } else if (action === 'open-artifact') {
+      setScreen('artifact');
+    } else if (action === 'adopt') {
+      const onArtifact = !$('[data-screen="artifact"]').hidden;
+      adoptArtifact();
+      if (onArtifact) setScreen('artifact');
+    } else if (action === 'compare') {
+      const panel = $('#comparePanel');
+      panel.hidden = !panel.hidden;
+    } else if (action === 'export') {
+      showToast('已导出当前版本 Markdown（演示）');
+    } else if (action === 'cancel') {
+      hideBanner();
+      setTaskPill('已取消', 'danger');
+      addTimeline('已取消任务', '迟到结果会丢弃；已生成成果保留只读。', 'error');
+    } else if (action === 'retry') {
+      hideBanner();
+      resetTask(state.taskTitle, state.env);
+      addTimeline('已重新提交', '新运行保留旧运行记录。');
+      state.timers.push(setTimeout(() => setArtifactReady(), 1400));
+    } else if (action === 'reconnect') {
+      showToast('已请求重连执行设备（演示）');
+    } else if (action === 'budget') {
+      showToast('已提交预算申请（演示）');
+    } else if (action === 'admin') {
+      showToast('已复制管理员联系方式（演示）');
+    } else if (action === 'continue') {
+      $('#goal').value = '基于「产品评审方案」继续：';
+      state.env = 'cloud'; state.folder = '';
+      setEnv('cloud');
+      updateComposer();
+      setScreen('home');
+      $('#goal').focus();
+    } else if (action === 'archive-export') {
+      showToast('已导出只读归档（演示）');
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      const open = $$('.modal-backdrop').filter((modal) => !modal.hidden);
+      if (!open.length) return;
+      const modal = open[open.length - 1];
+      if (modal.id === 'folderModal') closeFolderModal();
+      else modal.hidden = true;
+    }
+  });
+
+  // Initial state
+  updateComposer();
+  setFilter('needs');
+
+  function syncEnvironmentAvailability() {
+    const mobile = window.matchMedia('(max-width: 760px)').matches;
+    const localExecutor = $('.executor-option[data-executor="local"]');
+    const localMethod = $('.method[data-env="local"]');
+    if (localExecutor) {
+      localExecutor.disabled = mobile;
+      localExecutor.title = mobile ? '本机执行需要在桌面应用中使用' : '';
+    }
+    if (localMethod) localMethod.disabled = mobile;
+    if (mobile && state.env === 'local') setEnv('cloud');
+  }
+  window.addEventListener('resize', syncEnvironmentAvailability);
+  syncEnvironmentAvailability();
+</script>
+</body>
+</html>
