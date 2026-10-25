@@ -1,0 +1,194 @@
+{
+  "version": "r0a-v1",
+  "states": {
+    "open": {
+      "labelKey": "work.r0a.state.open",
+      "tone": "neutral",
+      "actions": [],
+      "primaryAction": null,
+      "bannerKey": null
+    },
+    "queued": {
+      "labelKey": "work.r0a.state.queued",
+      "tone": "neutral",
+      "actions": [
+        "cancel"
+      ],
+      "primaryAction": "cancel",
+      "bannerKey": "work.r0a.banner.queued"
+    },
+    "running": {
+      "labelKey": "work.r0a.state.running",
+      "tone": "active",
+      "actions": [
+        "cancel"
+      ],
+      "primaryAction": "cancel",
+      "bannerKey": "work.r0a.banner.running"
+    },
+    "awaiting_acceptance": {
+      "labelKey": "work.r0a.state.awaiting_acceptance",
+      "tone": "attention",
+      "actions": [
+        "open_artifact",
+        "accept",
+        "export"
+      ],
+      "primaryAction": "accept",
+      "bannerKey": "work.r0a.banner.acceptance"
+    },
+    "completed": {
+      "labelKey": "work.r0a.state.completed",
+      "tone": "success",
+      "actions": [
+        "open_artifact",
+        "export",
+        "continue"
+      ],
+      "primaryAction": "continue",
+      "bannerKey": null
+    },
+    "failed": {
+      "labelKey": "work.r0a.state.failed",
+      "tone": "danger",
+      "actions": [
+        "view_error",
+        "retry"
+      ],
+      "primaryAction": "retry",
+      "bannerKey": "work.r0a.banner.failed"
+    },
+    "run_canceled": {
+      "labelKey": "work.r0a.state.run_canceled",
+      "tone": "neutral",
+      "actions": [
+        "view_artifact_readonly",
+        "retry"
+      ],
+      "primaryAction": "retry",
+      "bannerKey": "work.r0a.banner.run_canceled"
+    },
+    "reconciling": {
+      "labelKey": "work.r0a.state.reconciling",
+      "tone": "warning",
+      "actions": [
+        "view_timeline",
+        "cancel"
+      ],
+      "primaryAction": null,
+      "bannerKey": "work.r0a.banner.reconciling"
+    },
+    "budget_exhausted": {
+      "labelKey": "work.r0a.state.budget_exhausted",
+      "tone": "warning",
+      "actions": [
+        "view_budget",
+        "cancel"
+      ],
+      "primaryAction": null,
+      "bannerKey": "work.r0a.banner.budget"
+    },
+    "canceling": {
+      "labelKey": "work.r0a.state.canceling",
+      "tone": "neutral",
+      "actions": [
+        "view_timeline"
+      ],
+      "primaryAction": null,
+      "bannerKey": "work.r0a.banner.canceling"
+    },
+    "canceled": {
+      "labelKey": "work.r0a.state.canceled",
+      "tone": "neutral",
+      "actions": [
+        "view_artifact_readonly"
+      ],
+      "primaryAction": null,
+      "bannerKey": null
+    },
+    "archived": {
+      "labelKey": "work.r0a.state.archived",
+      "tone": "neutral",
+      "actions": [
+        "view_artifact_readonly"
+      ],
+      "primaryAction": null,
+      "bannerKey": null
+    }
+  },
+  "actions": {
+    "cancel": {
+      "labelKey": "work.r0a.action.cancel",
+      "destructive": true,
+      "requiresConfirm": true
+    },
+    "retry": {
+      "labelKey": "work.r0a.action.retry",
+      "destructive": false,
+      "requiresConfirm": false
+    },
+    "accept": {
+      "labelKey": "work.r0a.action.accept",
+      "destructive": false,
+      "requiresConfirm": true
+    },
+    "open_artifact": {
+      "labelKey": "work.r0a.action.open_artifact",
+      "destructive": false,
+      "requiresConfirm": false
+    },
+    "view_artifact_readonly": {
+      "labelKey": "work.r0a.action.view_artifact_readonly",
+      "destructive": false,
+      "requiresConfirm": false
+    },
+    "export": {
+      "labelKey": "work.r0a.action.export",
+      "destructive": false,
+      "requiresConfirm": false
+    },
+    "continue": {
+      "labelKey": "work.r0a.action.continue",
+      "destructive": false,
+      "requiresConfirm": false
+    },
+    "view_error": {
+      "labelKey": "work.r0a.action.view_error",
+      "destructive": false,
+      "requiresConfirm": false
+    },
+    "view_timeline": {
+      "labelKey": "work.r0a.action.view_timeline",
+      "destructive": false,
+      "requiresConfirm": false
+    },
+    "view_budget": {
+      "labelKey": "work.r0a.action.view_budget",
+      "destructive": false,
+      "requiresConfirm": false
+    }
+  },
+  "constraints": {
+    "accept": {
+      "onlyStates": [
+        "awaiting_acceptance"
+      ],
+      "requiresPendingAcceptance": true,
+      "requiresNoBlockingOperations": true
+    },
+    "retry": {
+      "onlyStates": [
+        "failed",
+        "run_canceled"
+      ]
+    },
+    "cancel": {
+      "onlyStates": [
+        "queued",
+        "running",
+        "budget_exhausted",
+        "reconciling"
+      ]
+    }
+  }
+}

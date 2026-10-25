@@ -55,6 +55,12 @@
 - **D4 设计草案完成**：[Runtime/出口设计](work-r0a-runtime-egress-design-2026-10-25.md)、[WorkAdapter 契约](assets/work-r0a-runtime-2026-10-25/WorkAdapter.contract.ts)、[工具/沙箱/出口策略](assets/work-r0a-runtime-2026-10-25/policy/)、[10/10 策略测试](assets/work-r0a-runtime-2026-10-25/policy/evaluator.test.mjs)。
 - **D4 仅为设计**：未接真实 gVisor、Content Store、KMS、供应商条款或生产网关；DR2/D4 评审未执行。
 
+### 0.5 W3 进展（2026-10-25）
+
+- **D5 设计草案完成**：[前端体验设计](work-r0a-frontend-design-2026-10-25.md)、[状态/路由/文案/UI 模型资产](assets/work-r0a-frontend-2026-10-25/README.md)；11/11 UI 模型测试通过。
+- **D5 仅为设计**：未实现 React 页面/React Query/SSE 客户端/Playwright，未做可用性测试。
+- **D6 尚未开始**：安全/运维/迁移/试点与真实 DR/容量证据待 D5 评审后继续。
+
 ## 1. R0a 范围冻结
 
 ### 1.1 范围内
@@ -343,6 +349,8 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[R0 UX](work-ux-design-r0-2026-10-25.md)、[R0 原型](assets/work-ux-r0/prototype.html)、[产品设计](work-product-design-2026-10-25.md)、D2。
 
+**当前进展（2026-10-25）**：D5 设计草案、状态矩阵、路由/文案与 UI 模型已产出；11/11 测试与类型检查通过。React 页面/SSE/Playwright/真实可用性测试未执行。
+
 **交付物**：
 
 1. **路由与开关**：`/work`、`/work/new`、`/work/items`、`/work/items/:id`、`/work/items/:id/artifacts/:artifactId`、`/work/archive`；组织级 feature flag；旧路由切换/回滚。
@@ -518,7 +526,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | W3 体验/运维 | D5 + D6 | 四界面规格、状态矩阵、SLO/告警、Runbook、切换回滚 | DR3 |
 | W4 实施就绪 | 汇总设计、测试计划、估算、依赖、风险 | 实施就绪包 | DR4 |
 
-波次是依赖顺序，不是工期承诺；W1 可与设计合作伙伴研究并行，但 R0a 开发启动仍需 §5.3 的研究与供应商闸门。当前 W1 的 D1/D2 草案已完成，W2 的 D3/D4 设计草案已完成；Temporal、真实沙箱/网关未接，DR2 未评审。
+波次是依赖顺序，不是工期承诺；W1 可与设计合作伙伴研究并行，但 R0a 开发启动仍需 §5.3 的研究与供应商闸门。当前 W1 的 D1/D2 草案已完成，W2 的 D3/D4 设计草案已完成，W3 的 D5 设计草案已完成；D6 未开始，Temporal/真实沙箱/网关未接，DR2 未评审。
 
 ### 5.2 评审闸门
 
