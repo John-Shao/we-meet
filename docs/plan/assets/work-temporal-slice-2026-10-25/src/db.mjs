@@ -13,6 +13,8 @@ export const CFG = {
   period: '2026-10',
   accountKey: 'default',
   budgetLimitCents: 1_000_000,
+  outboxMaxAgeMs: Number(process.env.OUTBOX_MAX_AGE_MS ?? 5 * 60 * 1000),
+  outboxMaxCount: Number(process.env.OUTBOX_MAX_COUNT ?? 1000),
 };
 
 const pools = new Map();

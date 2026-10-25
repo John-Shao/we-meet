@@ -1,6 +1,7 @@
 import {
   condition,
   defineSignal,
+  patched,
   proxyActivities,
   setHandler,
 } from '@temporalio/workflow';
@@ -18,13 +19,19 @@ const model = proxyActivities({
 });
 
 const cancelSignal = defineSignal('cancel');
+const resumeSignal = defineSignal('resume');
 
 export async function RunWorkflow(input) {
   let cancelRequested = false;
   let cancelReason = null;
+  let resumeRequested = false;
+  const v2Behavior = patched('r0a-v2');
   setHandler(cancelSignal, (reason) => {
     cancelRequested = true;
     cancelReason = reason ?? null;
+  });
+  setHandler(resumeSignal, () => {
+    resumeRequested = true;
   });
 
   const prepared = await normal.prepareRun(input);
@@ -92,11 +99,14 @@ export async function RunWorkflow(input) {
     `receipt-${input.runId}`,
   );
   await normal.settleBudget(reservation.reservationId, 80, 'price-v1', result.usage, 1);
+  if ((input.faultMode ?? 'none') === 'hold_before_publish') {
+    await condition(() => resumeRequested);
+  }
   const artifact = await normal.publishArtifact(
     input.orgId,
     input.taskId,
     input.runId,
-    'draft.md',
+    v2Behavior ? 'draft-v2.md' : 'draft.md',
     result.contentRef,
     result.contentHash,
     result.bytes,

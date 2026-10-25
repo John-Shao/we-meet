@@ -14,6 +14,14 @@
 | `src/api.mjs` | API 提交/取消/查询/对账辅助 |
 | `test/smoke.test.mjs` | normal workflow 1/1 |
 | `test/faults.test.mjs` | F01/F02/F04/F07/F21/F23 6/6 |
+| `test/s1.test.mjs` | S1 参考演练：worker 重启、DB 终态偏移、执行开关/组织停用、outbox backlog 4/4 |
+| `test/upgrade.test.mjs` | 版本升级：v1 worker → v2 `patched`；旧 workflow 保持 v1 行为，新 workflow 用 v2 |
+| `test/rls-pool.test.mjs` | 连接池复用下的 RLS 隔离、缺租户上下文、直接 DML 拒绝 |
+| `test/load.test.mjs` | 10 并发试点负载 |
+| `restore-drill-result.log` | Work DB dump/restore 计数与恢复后 RLS |
+| `test/persist-write.mjs` / `persist-read.mjs` | server 重启前后写入/读取同一 workflow |
+| `scripts/persist-restart.sh` | 主机脚本：write → `docker restart` → read |
+| `upgrade-result.log` / `persistence-restart-result.log` | 本次结果摘要 |
 
 ## 环境
 
@@ -60,10 +68,16 @@ MSYS_NO_PATHCONV=1 docker run --rm \
   node:22-bookworm node --test test/faults.test.mjs
 ```
 
-normal baseline：
+normal baseline / S1 / upgrade / RLS / load：
 
 ```bash
-# 同上，把最后一行换成 node --test test/smoke.test.mjs
+# 同上，把最后一行换成 test/smoke.test.mjs、test/s1.test.mjs、test/upgrade.test.mjs、test/rls-pool.test.mjs 或 test/load.test.mjs
+```
+
+持久化重启（容器已在跑且已安装依赖）：
+
+```bash
+bash scripts/persist-restart.sh
 ```
 
 ## 结果（2026-10-25）
@@ -77,13 +91,22 @@ normal baseline：
 | F07 | 通过 | cancel→run canceled；Operation unknown；迟到结果不发布；audit>0；budget 保留后 reconcile 释放 |
 | F21 | 通过 | claim 后崩溃→1 dispatch attempt；provider calls=0；takeover claim=null；reserved=100→释放 |
 | F23 | 通过 | 同 key replay 同 Task；task_deleted 后 replay 拒绝；Task 数不增加 |
+| S1-R01 | 通过 | worker 停止/重启后 hold workflow 继续，resume 后只发布 1 个 artifact |
+| S1-R02 | 通过 | DB 先置 failed 后，workflow resume 发布被拒；无迟到 artifact，Temporal workflow failed |
+| S1-R03 | 通过 | execution_enabled=false/operator_suspended=true 阻断 submit/acquire；恢复需显式操作 |
+| S1-R04 | 通过 | 旧 outbox start 行使新提交 `outbox_backlog`；清理后恢复 |
+| S1-R05 | 通过 | v1 worker 停止后切 v2；旧 workflow 只发布 `draft.md`，新 workflow 发布 `draft-v2.md` |
+| S1-R06 | 通过 | file-backed Temporal server 重启后仍可 describe `COMPLETED` workflow，Work DB task 仍 awaiting |
+| C12 | 通过 | 单连接池复用 org1/org2 不串租户；缺 app.org_id 返回 0；work_api 直接写 fact 表被拒 |
+| C18 | 通过 | 10 并发 Run 全部 awaiting；1.774s；budget settled=800、reserved=0（faux dev） |
+| C19 | 通过 | Work DB dump/restore 后 task/run/operation/artifact/ledger/tombstone/dedup/outbox 计数一致；恢复库 RLS 仍为 10 |
 
 ## 边界
 
 - F04/F07/F21 用测试-only `faultMode` 直接启动 workflow，不经过 outbox；F01/F02 才走 relay。
 - F23 是数据库幂等断言，不启动 workflow。
 - `faultMode` 不在 D2 公开契约；faux model 只证明编排/账本行为，不证明供应商或沙箱。
-- Temporal 为 in-memory dev；S1 拓扑/升级/DB-Temporal 偏移、outbox backlog/kill switch/org suspend 未验证。
+- S1-R01 只验证 worker 重启；S1-R05 验证 `patched` 升级；S1-R06 用 file-backed dev server 验证**已完成 workflow**的 server 重启持久化，不证明在途 workflow server 重启、多节点或生产 Temporal；S1-R02 验证 DB 终态优先；S1-R03/R04 是参考演练，不是生产操作。
 - Windows 主机不能直接运行 Temporal SDK；测试通过 Linux Node 容器执行。
 
 ## 相关文档

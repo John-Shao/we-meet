@@ -1,0 +1,75 @@
+name: Work R0a gates
+
+on:
+  pull_request:
+    paths:
+      - 'docs/plan/assets/work-r0a-design-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-ops-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-hardening-2026-10-25/**'
+      - 'docs/plan/assets/work-temporal-slice-2026-10-25/*.log'
+      - 'docs/plan/work-r0a-api-design-2026-10-25.md'
+      - 'docs/plan/work-r0a-admin-readonly-mapping-2026-10-25.md'
+      - '.github/workflows/work-r0a-gates.yml'
+  push:
+    branches:
+      - aliyun-dev
+    paths:
+      - 'docs/plan/assets/work-r0a-design-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-ops-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-hardening-2026-10-25/**'
+      - 'docs/plan/assets/work-temporal-slice-2026-10-25/*.log'
+      - 'docs/plan/work-r0a-api-design-2026-10-25.md'
+      - 'docs/plan/work-r0a-admin-readonly-mapping-2026-10-25.md'
+      - '.github/workflows/work-r0a-gates.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Contract, types and generated client
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs/plan/assets/work-r0a-design-2026-10-25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Run contract gate
+        run: node scripts/ci-contract.mjs
+
+  ops-telemetry:
+    name: SLO telemetry rules and ops model
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs/plan/assets/work-r0a-ops-2026-10-25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Check generated rules
+        run: node generate-telemetry.mjs --check
+      - name: Run ops and telemetry tests
+        run: node --test ops-model.test.mjs telemetry.test.mjs
+      - name: Run capacity model
+        run: node pilot-capacity-model.mjs
+
+  log-scan:
+    name: No-content/no-secret log scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs/plan/assets/work-r0a-hardening-2026-10-25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Run scanner tests
+        run: node --test log-scan.test.mjs
+      - name: Scan committed evidence logs
+        run: node log-scan.mjs provider-smoke.log sandbox-smoke.log ../work-temporal-slice-2026-10-25

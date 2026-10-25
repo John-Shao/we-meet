@@ -1,0 +1,7 @@
+2026-10-25
+ok 1 - RLS tenant context stays correct when one pooled connection is reused
+ok 2 - missing tenant context returns no rows
+ok 3 - work_api cannot write fact tables directly
+# tests 3
+# pass 3
+# fail 0

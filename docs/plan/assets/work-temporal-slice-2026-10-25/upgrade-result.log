@@ -1,0 +1,5 @@
+2026-10-25
+ok 1 - worker upgrade: old workflow keeps v1 artifact, new workflow uses v2 patch
+# tests 1
+# pass 1
+# fail 0

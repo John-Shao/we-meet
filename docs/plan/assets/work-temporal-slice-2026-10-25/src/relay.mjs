@@ -77,6 +77,11 @@ export async function signalCancel(workflowId, reason = 'test cancel') {
   return client.workflow.getHandle(workflowId).signal('cancel', reason);
 }
 
+export async function signalResume(workflowId) {
+  const { client } = await getClient();
+  return client.workflow.getHandle(workflowId).signal('resume');
+}
+
 export async function closeRelay() {
   if (!clientPromise) return;
   const { connection } = await clientPromise;

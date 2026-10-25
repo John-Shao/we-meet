@@ -12,6 +12,9 @@
 | `kms-envelope.test.mjs` | 6 组测试 |
 | `provider-smoke.mjs` | 真实 Qwen 流式请求；只输出元数据/hash，不输出 Key/正文 |
 | `provider-smoke.log` | 本次运行输出 |
+| `log-scan.mjs` | 日志/追踪扫描：API Key、Bearer、cookie、私钥、正文/邮箱；输出只含脱敏预览 |
+| `log-scan.test.mjs` | 7 组测试：合成密钥/canary、目录递归、脱敏、现有证据日志 |
+| `log-scan-result.log` | 对 provider/sandbox/Temporal 证据日志的扫描结果（0 fail / 0 warn） |
 
 ## 结果
 
@@ -82,6 +85,20 @@ DASHSCOPE_API_KEY=... node provider-smoke.mjs
 ```
 
 结论：真实供应商 200、流式首 token、usage/provider request id 可记录；**供应商书面条款、驻留、训练/留存、配额与价表上界仍未关闭**，不能据此作生产承诺。usage 含 77 reasoning tokens；D4 的响应过滤只累计公开 `delta.content`，最终正文 hash 不含 reasoning。
+
+### 4. 日志/追踪无正文/无密钥扫描
+
+```bash
+node --test log-scan.test.mjs
+node log-scan.mjs provider-smoke.log sandbox-smoke.log ../work-temporal-slice-2026-10-25
+# scanned 7 files/60 lines; fail=0 warn=0
+# log-scan: clean
+```
+
+- 规则：OpenAI/Anthropic 形态 Key、Bearer、环境变量赋值、AWS Access Key、私钥、session cookie、`goal/background/prompt/content/artifact_content` 字段、email（warn）。
+- 合成 canary 测试证明扫描能发现 prompt/正文泄漏；扫描结果本身不含完整密钥/canary（只留脱敏预览）。
+- 现有 provider/sandbox/Temporal 日志 **0 fail / 0 warn**，provider smoke 只记录 hash/usage/元数据。
+- **边界**：这不是 staging/生产 OTel trace/log pipeline 证据；未接真实日志后端、采样、trace attributes 或告警，C16 仍未关闭。
 
 ## 边界
 

@@ -1,12 +1,12 @@
 # Work R0a API、事件与协议详细设计（D2）
 
-> 状态：D2 详细设计草案；R0a OpenAPI 子集、生成类型、mock server 与合同测试已完成，未做真实鉴权/持久化/供应商回归。
+> 状态：D2 详细设计草案；R0a OpenAPI 子集、生成类型、运行时客户端、管理读适配、mock server 与 25 组测试已完成；远端 CI 未运行，未做真实鉴权/持久化/供应商回归。
 >
 > 日期：2026-10-25
 >
 > 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[API 契约草案](work-api-contracts-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
 >
-> 资产：[R0a OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、[生成类型](assets/work-r0a-design-2026-10-25/r0a-api-types.d.ts)、[mock server](assets/work-r0a-design-2026-10-25/mock-server.mjs)、[合同测试](assets/work-r0a-design-2026-10-25/test/contract.test.mjs)。
+> 资产：[R0a OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、[生成类型](assets/work-r0a-design-2026-10-25/r0a-api-types.d.ts)、[运行时客户端](assets/work-r0a-design-2026-10-25/r0a-client.mjs)、[管理读适配](assets/work-r0a-design-2026-10-25/admin-read-adapter.mjs)、[mock server](assets/work-r0a-design-2026-10-25/mock-server.mjs)、[CI 门禁](assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs)、[合同测试](assets/work-r0a-design-2026-10-25/test/contract.test.mjs)。
 
 ## 1. 目标与结论
 
@@ -18,7 +18,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 - R0a 如何明确拒绝 suite/connectors/plan 等未开通能力？
 - 哪些接口属于 R0a，哪些必须等 R0b/R1/R2/R3？
 
-**结论**：R0a 子集已形成 20 个 path、48 个 schema、62 个本地 `$ref`，OpenAPI 3.1 校验通过；生成 TypeScript 类型通过 `tsc --noEmit`；mock server 通过 6 组合同测试。它仍不是生产 API，也不证明真实 cookie/CSRF、Content Store、SSE 网关或供应商可用。
+**结论**：R0a 子集已形成 20 个 path、48 个 schema、62 个唯一本地 `$ref`，OpenAPI 3.1 校验通过；生成 TypeScript 类型通过 `tsc --noEmit`；生成运行时客户端覆盖 21 个 operation；合同/客户端/管理适配共 **25/25** 测试通过，CI 漂移门禁可本地通过。它仍不是生产 API，也不证明真实 cookie/CSRF、Content Store、SSE 网关、P1-A 字段或供应商可用。
 
 ## 2. 契约决策
 
@@ -112,9 +112,9 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 | 内置模板 | 已闭合 | `GET /templates`；3 个版本化资产 |
 | TaskSummary/视图筛选 | 已闭合 | 服务端投影 + `view`；不再让前端拼状态 |
 | 任务标题 | 已闭合（只读） | 服务端生成并返回；编辑接口未进入 R0a |
-| 管理只读映射 | 部分 | 目标形状已冻结；P1-A 字段/权限码映射待 D6 |
+| 管理只读映射 | 部分 | 目标形状已冻结；严格适配器 + 12 组负例已实现，真实 P1-A/身份字段未接 |
 | SSE 鉴权/游标 | 已闭合 | cookie + 409 `resync_required`；Last-Event-ID |
-| 生成类型/合同测试 | 部分 | 已生成类型 + mock + 6 组测试；运行时 SDK/CI 接入待仓库流水线 |
+| 生成类型/合同测试 | 部分 | 类型 + 客户端 + mock + 25 组测试 + CI 门禁；远端 CI 与真实前端接入未做 |
 | 审批接口 | 按范围排除 | R0a 公开子集不暴露；D1 内部命令保留 |
 | Inbox SSE | 按范围排除 | R0a 轮询；跨 Task SSE 后置 |
 | 上传会话/大文件 | 按范围排除 | R0a 内联文本 ≤256 KiB；R0b+ 再引入 |
@@ -123,7 +123,7 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
 
 2026-10-25：
 
-- OpenAPI 3.1 YAML 解析成功；**20 个 path、48 个 schema、62 个本地 `$ref`** 全部可解析；`openapi-spec-validator` 通过。
+- OpenAPI 3.1 YAML 解析成功；**20 个 path、48 个 schema、62 个唯一本地 `$ref`** 全部可解析；`openapi-spec-validator` 通过。
 - `openapi-typescript 7.13.0` 生成 `r0a-api-types.d.ts`（45 KB）；`tsc --noEmit` 通过。
 - `node --test test/contract.test.mjs`：**6/6 测试通过**，覆盖：
   1. bootstrap/templates/session/CSRF/401/404；
@@ -132,14 +132,21 @@ D2 把 R0a 的公开接口从“目标契约”收窄成可生成、可 mock、�
   4. 用户编辑新版本、content 读取、base 冲突；
   5. 取消/重复取消/finish-cancel/重试/SSE Last-Event-ID/409 resync；
   6. 管理只读 overview/seats/audit-export。
-- 未执行：真实 cookie 签发/轮换、P1-A 集成、真实 Content Store、SSE 网关/背压/多连接、Temporal、真实模型/供应商、速率限制、CORS、桌面/移动、性能与模糊测试、CI 接入。
+- `node --test test/client.test.mjs`：**7/7**；生成客户端覆盖 bootstrap→input→preview→submit→SSE→artifact 的 golden path，并验证 401/403/404、缺失/错误 CSRF、管理读、路径/body 前置校验。
+- `node --test test/admin-adapter.test.mjs`：**12/12**；验证 P1-A 原始字段缺口、token/cents 不转换、角色/版本缺失拒绝、席位状态映射、分页、同步 CSV 不伪装异步导出。
+- `node scripts/ci-contract.mjs`：通过；冻结 21 个 operation/20 个 path、排除 R0b+ 路径、解析 170 处本地 `$ref`、客户端零漂移、类型覆盖全部 operation/schema，并运行 25 组测试。
+- `.github/workflows/work-r0a-gates.yml` 已定义 contract/ops-telemetry/log-scan 三个 job；**未在远端运行**。
+- 未执行：真实 cookie 签发/轮换、P1-A 集成、真实 Content Store、SSE 网关/背压/多连接、Temporal、真实模型/供应商、速率限制、CORS、桌面/移动、性能与模糊测试、生成客户端接真实前端。
 
 ### 5.1 复现
 
 ```bash
 cd docs/plan/assets/work-r0a-design-2026-10-25
-node --test test/contract.test.mjs
+npm test
+npm run check
 
+# OpenAPI 变更后
+node generate-client.mjs
 npx --yes openapi-typescript@7 r0a-openapi-v1.yaml -o r0a-api-types.d.ts
 npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
   --target ES2022 --moduleResolution bundler --module ESNext r0a-api-types.d.ts
@@ -154,8 +161,8 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 5. **标题编辑**：R0a 子集无更新接口；D5 必须只读展示，或补 `PATCH /tasks/{id}`。
 6. **成果导出/下载**：R0a 只定义 content 读取；导出文件、分享链接与审计下载未定义。
 7. **SSE 工程化**：mock 在事件后结束；生产需心跳、背压、断线、Last-Event-ID 保留窗口与多实例。
-8. **生成 SDK/CI**：当前是类型生成 + 本地 mock/测试；运行时 SDK、mock 生成、合同测试进入仓库 CI 仍未接。
-9. **Admin 导出下载**：目标字段有 `download_url`，但一次性下载、权限复验与过期未实现。
+8. **生成 SDK/CI**：运行时客户端、漂移门禁和仓库 workflow 已定义；workflow 未在远端运行，客户端未接入真实前端，mock 未由契约生成。
+9. **Admin 导出下载**：目标字段有 `download_url`，但一次性下载、权限复验与过期未实现；P1-A 同步 CSV 仍不能直接满足作业生命周期。
 10. **错误码稳定性**：错误码目录尚未冻结为枚举；D3/D4 需要统一映射数据库/网关错误。
 11. **内容大小**：256 KiB 是 R0a 文本上限，需与 D4/D5 的编辑器、SSE 和 Content Store 限制对齐。
 12. **多组织**：R0a 不支持多组织切换；bootstrap 只返回当前主组织。
@@ -164,6 +171,9 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 
 - [r0a-openapi-v1.yaml](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)：R0a 公开契约子集。
 - [r0a-api-types.d.ts](assets/work-r0a-design-2026-10-25/r0a-api-types.d.ts)：生成的 TypeScript 类型。
+- [r0a-client.mjs](assets/work-r0a-design-2026-10-25/r0a-client.mjs)：从契约生成的运行时客户端；[生成器](assets/work-r0a-design-2026-10-25/generate-client.mjs) 带 `--check` 漂移校验。
+- [admin-read-adapter.mjs](assets/work-r0a-design-2026-10-25/admin-read-adapter.mjs)：P1-A 到 R0a 管理读契约的严格适配参考。
 - [mock-server.mjs](assets/work-r0a-design-2026-10-25/mock-server.mjs)：无依赖合同 mock。
-- [contract.test.mjs](assets/work-r0a-design-2026-10-25/test/contract.test.mjs)：6 组合同测试。
+- [contract.test.mjs](assets/work-r0a-design-2026-10-25/test/contract.test.mjs)：6 组合同测试；[client.test.mjs](assets/work-r0a-design-2026-10-25/test/client.test.mjs)：7 组客户端测试；[admin-adapter.test.mjs](assets/work-r0a-design-2026-10-25/test/admin-adapter.test.mjs)：12 组管理适配测试。
+- [ci-contract.mjs](assets/work-r0a-design-2026-10-25/scripts/ci-contract.mjs)：CI 门禁。
 - 下一步 D3：Temporal/编排与提交/派发/预算/成果/采纳/取消/恢复；D4：Pi Adapter、沙箱与模型网关。DR1 还需把 D1/D2 的接口与 schema 对齐评审。

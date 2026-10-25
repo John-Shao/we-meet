@@ -1,12 +1,12 @@
 # Work R0a 安全、运维、迁移与试点详细设计（D6）
 
-> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（28 个 blocking 项）**；已完成 Temporal dev 6/6、runc 降级沙箱、本地 KMS envelope 与真实 Qwen smoke；未做生产演练/真实 gVisor/云 KMS/供应商条款。
+> 状态：D6 设计草案；安全控制/SLO/容量/试点清单已建模并通过 8/8 校验，当前 **go/no-go = no-go（23 个 blocking 项）**；已完成 Temporal dev 6/6、S1 6/6、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、RLS 池化、10 并发负载、Work DB 恢复、试点 on-call runbook、SLO 规则即代码 10/10 与日志扫描 7/7；本地关闭 C12/C18/C19/C20/C21，剩余 23 个 blocking。未做多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/供应商条款/真实遥测接入。
 >
 > 日期：2026-10-25
 >
 > 基线：[R0a 详细设计大纲](work-r0a-detailed-design-plan-2026-10-25.md)、[D1 数据设计](work-r0a-data-design-2026-10-25.md)、[D3 编排](work-r0a-orchestration-design-2026-10-25.md)、[D4 Runtime/出口](work-r0a-runtime-egress-design-2026-10-25.md)、[D5 前端](work-r0a-frontend-design-2026-10-25.md)、[威胁模型](work-threat-model-2026-10-25.md)、[运行手册](work-operations-runbook-2026-10-25.md)。
 >
-> 资产：[安全控制](assets/work-r0a-ops-2026-10-25/security-controls.json)、[SLO](assets/work-r0a-ops-2026-10-25/slo-pilot.json)、[试点清单](assets/work-r0a-ops-2026-10-25/pilot-checklist.json)、[容量模型](assets/work-r0a-ops-2026-10-25/pilot-capacity-model.mjs)、[校验模型](assets/work-r0a-ops-2026-10-25/ops-model.mjs)、[8 组测试](assets/work-r0a-ops-2026-10-25/ops-model.test.mjs)。
+> 资产：[安全控制](assets/work-r0a-ops-2026-10-25/security-controls.json)、[SLO](assets/work-r0a-ops-2026-10-25/slo-pilot.json)、[遥测契约](assets/work-r0a-ops-2026-10-25/telemetry-contract.json)、[Prometheus 规则](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)、[试点清单](assets/work-r0a-ops-2026-10-25/pilot-checklist.json)、[容量模型](assets/work-r0a-ops-2026-10-25/pilot-capacity-model.mjs)、[校验模型](assets/work-r0a-ops-2026-10-25/ops-model.mjs)、[ops 测试](assets/work-r0a-ops-2026-10-25/ops-model.test.mjs)、[遥测测试](assets/work-r0a-ops-2026-10-25/telemetry.test.mjs)、[日志扫描](assets/work-r0a-hardening-2026-10-25/log-scan.mjs)。
 
 ## 1. 目标与范围
 
@@ -61,6 +61,8 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 ## 4. SLO、告警与测量
 
 完整 SLO 见 [slo-pilot.json](assets/work-r0a-ops-2026-10-25/slo-pilot.json)。所有指标当前为 `not_measured`；`met/missed` 必须有证据。
+
+规则即代码见 [telemetry-contract.json](assets/work-r0a-ops-2026-10-25/telemetry-contract.json) 与生成的 [prometheus-rules.yaml](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)：12 个 SLO 全覆盖，21 条 recording rule、17 条告警；每条告警带 severity/for/runbook 与 `org_id` 注释，指标标签禁止正文/密钥。规则未接入 Prometheus/Alertmanager，也没有仪表盘或真实序列；通过校验不代表已测量。`org_id` 进入指标与告警；task/run/operation ID 因基数过高不进入指标标签，需通过 exemplar/trace/结构化日志关联。
 
 | 指标 | 目标/口径 | 窗口 | 状态 |
 |---|---|---|---|
@@ -125,6 +127,21 @@ node pilot-capacity-model.mjs
 | 组织停用/恢复 | 提升 epoch；拒绝新许可；核对在途；显式恢复 | 自动恢复席位/grant/旧操作 | epoch、拒绝记录、审计 |
 | 事故沟通 | 安全无正文的故障摘要；支持/管理员通道；状态更新 | 把正文/密钥贴进工单/聊天 | 事件 ID、时间线、根因/行动 |
 
+### 6.1 试点 on-call 与事故沟通
+
+| 项 | R0a 试点约定 |
+|---|---|
+| 角色 | Incident Commander（SRE）、产品/试点负责人、后端、安全、平台、供应商联系人、支持 |
+| SEV1 | 跨租户、凭据泄漏、未授权外部副作用、数据丢失：立即 kill switch/组织停用，保留证据，通知试点负责人与安全；不把正文/密钥贴进工单 |
+| SEV2 | 执行不可用、重复扣费、unknown 风暴、outbox 严重积压：停止新提交/派发，按 Runbook 核对，30 分钟更新 |
+| SEV3 | 单任务失败、局部延迟：支持跟进，2 小时更新 |
+| 响应 | 工作时 15 分钟确认、非工作时 1 小时确认；SEV1/2 每 30 分钟更新，SEV3 每 2 小时 |
+| 复盘 | 3 个工作日内完成；记录时间线、影响、根因、行动项与预算/权限核对 |
+| 升级 | 支持 → Incident Commander → 产品/安全；供应商侧故障按合同升级，不自行重放未知动作 |
+| 证据 | 只用 org/task/run/operation/event ID；正文、prompt、Key、设备路径不进工单/聊天 |
+
+试点具体联系人与渠道在 C24/C27 开通时填入；本 runbook 模板先固定角色、分级、节奏和禁止项。
+
 ## 7. 切换与旧数据处理
 
 ### 7.1 阶段
@@ -182,17 +199,22 @@ node pilot-capacity-model.mjs
 ### 10.1 执行进展（2026-10-25）
 
 - **Temporal 参考纵切**：F01/F02/F04/F07/F21/F23 **6/6** + normal 1/1（dev server、faux model、D1 schema）；见 [slice](assets/work-temporal-slice-2026-10-25/README.md)。
+- **S1 参考演练 6/6**：worker 重启/resume；DB 终态优先（无迟到 artifact）；执行开关/组织停用阻断 submit/acquire；outbox backlog 新提交失败并在 drain 后恢复；`patched` v1→v2 升级保持旧 workflow 行为；file-backed server 重启后已完成 workflow 仍 COMPLETED。
 - **沙箱降级 profile**：runc、非 root(65532)、只读根、无宿主挂载、`--network none`、cap-drop；gVisor 不可用，`sandboxProof=false`；见 [sandbox-smoke.log](assets/work-r0a-hardening-2026-10-25/sandbox-smoke.log)。
 - **本地 KMS envelope**：租户隔离/轮换/主密钥轮换/shredding **6/6**；不是云 KMS/HSM；见 [kms-envelope](assets/work-r0a-hardening-2026-10-25/kms-envelope.mjs)。
 - **真实 Qwen smoke**：qwen3.8-flash 200、首 token 2567ms、usage 80/110、provider request id 可记录，未输出 Key/正文；见 [provider-smoke.log](assets/work-r0a-hardening-2026-10-25/provider-smoke.log)。
-- 关闭/推进：C08 `done`；C09/C13/C14 转 `partial`；C15 仍缺书面条款。当前 no-go 从 29 降为 **28**。
+- **日志扫描参考 7/7**：Key/Bearer/cookie/私钥/正文 canary/email 规则；现有 7 个证据日志 0 fail / 0 warn，扫描结果只含脱敏预览；见 [log-scan-result.log](assets/work-r0a-hardening-2026-10-25/log-scan-result.log)。不是 staging OTel 证据。
+- **SLO 遥测规则 10/10**：12 个 SLO 全覆盖，生成 21 条 record + 17 条 alert（15 SLO + 2 operational），每条告警带 severity/for/runbook，内容标签被禁止；见 [telemetry-contract](assets/work-r0a-ops-2026-10-25/telemetry-contract.json) / [rules](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)。未接 Prometheus/Alertmanager，所有 SLO 仍 not_measured。
+- 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用）；C16/C17 仍 partial（无 staging 遥测/日志后端）。
+- 当前 no-go 从 29 降为 **23**；C09/C13/C14/C22 仍 partial，C15/C24/C25/C27/C30 等仍待外部输入。
 
-**当前：no-go，28 个 blocking 项未关闭。** 主要阻塞：
+**当前：no-go，23 个 blocking 项未关闭。** 主要阻塞：
 
-- D1–D5 设计尚未正式评审；D1 增量 34/34、Temporal 参考纵切 6/6 已完成，但 S1 拓扑/升级与正式评审仍未完成。
-- D2 运行时 SDK/CI；D4 真实 gVisor/Content Store/云 KMS/供应商条款；D5 React/E2E；S1 Temporal 拓扑/升级。
-- 威胁模型/控制签收；RLS 池化；sandbox proof；供应商条款/价表；无正文日志运行时验证。
-- SLO 仪表盘/告警；试点容量压测；备份恢复/停用/kill switch 演练；S1 Temporal 拓扑。
+- D1–D5 设计尚未正式评审；D1 增量 34/34、Temporal 参考纵切 6/6 已完成，但 S1 多节点/在途 server 重启与正式评审仍未完成。
+- D2 远端 CI 未运行、生成客户端未接前端；D4 真实 gVisor/Content Store/云 KMS/供应商条款；D5 React/E2E；C22 多节点/在途 server 重启。
+- C31 管理只读映射缺口：[映射说明](work-r0a-admin-readonly-mapping-2026-10-25.md) 明确 P1-A 的 role/revision/预算/异步导出不兼容；严格适配器已实现但未接真实 P1-A/身份字段。
+- 威胁模型/控制签收；sandbox proof；供应商条款/价表；无正文日志只在本地证据日志扫描，未接 staging OTel/log pipeline。
+- SLO 规则已生成，未接 Prometheus/Alertmanager/仪表盘；C22 多节点/在途 server 重启；切换/旧链接/删除/所有权转移。
 - 3 家组织/5–8 名研究/golden tasks/支持流程；切换/旧链接/删除/所有权转移。
 
 **Go 条件**：所有 blocking 项 `done` 或有签署 `waived` 且证据可查；安全/供应商/沙箱/恢复/容量/试点研究均签收；没有“以烟雾代替演练”。
@@ -201,10 +223,10 @@ node pilot-capacity-model.mjs
 
 1. D1：wait/resume/mark unknown/reconcile、workflow-start/cancel outbox 已实现并冒烟；剩余启动失败收尾、正式评审。
 2. D2：生成客户端/CI 合同测试；预算剩余、标题编辑、导出、admin P1-A 映射、CSRF 生命周期。
-3. D3：Temporal dev 参考纵切 F01/F02/F04/F07/F21/F23 6/6；剩余 S1 拓扑/升级/DB-Temporal 偏移与生产 Temporal。
+3. D3：Temporal dev 参考纵切 F01/F02/F04/F07/F21/F23 6/6、`patched` 升级与 DB 终态偏移已完成；剩余多节点/在途 server 重启与生产 Temporal。
 4. D4：已完成 runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；剩余 gVisor/Content Store/云 KMS/条款/网关配额/无正文日志。
 5. D5：React 页面/React Query/SSE/Playwright/可用性；旧路由/flag 切换。
-6. 平台：S1 Temporal 拓扑、备份恢复、SLO 遥测、容量压测；R0a 不承诺区域 DR。
+6. 平台：S1 worker 重启/DB 偏移/`patched` 升级/已完成 workflow 的 server 重启已完成；剩余多节点/在途 server 重启、worker versioning/drain、备份恢复、SLO 遥测、容量压测；R0a 不承诺区域 DR。
 
 ## 12. 未决与风险
 
@@ -219,7 +241,7 @@ node pilot-capacity-model.mjs
 9. **试点组织/研究**：3 家未签、5–8 名研究未做；不能以内部走查代替。
 10. **事故沟通/支持**：R0a 专用 on-call/工单模板未定。
 11. **合规**：数据驻留/删除/审计保留需法务/安全确认。
-12. **No-go 清单**：28 个 blocking 项是当前事实，不是“待补文档”就能关闭。
+12. **No-go 清单**：剩余 23 个 blocking 项是当前事实；本地测试不能替代试点环境、安全签收、供应商条款与组织研究。
 
 ## 13. 验收标准
 

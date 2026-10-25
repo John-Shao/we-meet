@@ -1,6 +1,6 @@
 # Work R0a 控制面与持久编排详细设计（D3）
 
-> 状态：D3 设计草案；已接 Temporal dev 参考纵切，F01/F02/F04/F07/F21/F23 6/6；faux model + in-memory Temporal；S1 拓扑/升级/DR 与真实 provider 未做。
+> 状态：D3 设计草案；Temporal dev 参考纵切 F01/F02/F04/F07/F21/F23 6/6，S1 参考演练 6/6（worker 重启、DB 终态偏移、执行开关/停用、outbox backlog、patched 升级、file-backed server 重启）；多节点/在途 server 重启/生产 Temporal、真实 provider 未做。
 >
 > 日期：2026-10-25
 >
@@ -398,16 +398,23 @@ D3 完成（DR2）需要：
   - F07：cancel 后迟到模型结果不发布 artifact；run canceled、Operation unknown、审计保留。
   - F21：claim 后崩溃 → 一个 dispatch attempt、provider 调用 0、takeover claim 返回 null。
   - F23：Task 删除标记后重放 → `task_deleted`，不创建新 Task/收费。
-- 边界：F04/F07/F21 使用测试 `faultMode` 直接启动 workflow，不经过 outbox；F23 是数据库幂等断言；未接真实 provider、sandbox、KMS 或 S1 拓扑/升级。
+- **S1 参考演练（6/6）**：
+  - S1-R01：worker 停止/重启后，hold workflow 继续；resume 后只发布 1 个 artifact。
+  - S1-R02：DB 先置 Run failed，workflow resume 后发布被拒；无迟到 artifact，Temporal workflow FAILED。
+  - S1-R03：`execution_enabled=false`/`operator_suspended=true` 阻断 submit/acquire；恢复需显式操作。
+  - S1-R04：旧 outbox start 行使新提交 `outbox_backlog`；清理后恢复。
+  - S1-R05：v1 worker 停止后切 v2；旧 workflow 保持 v1 artifact `draft.md`，新 workflow 使用 `draft-v2.md`。
+  - S1-R06：file-backed Temporal server 重启后，已完成 workflow 仍为 COMPLETED，Work DB task 仍 awaiting_acceptance。
+- 边界：F04/F07/F21 使用测试 `faultMode` 直接启动 workflow，不经过 outbox；F23 是数据库幂等断言；S1-R01 只验证 worker 重启，不做 Temporal server 重启/多节点/version patch；未接真实 provider、sandbox、KMS。
 - 资产：[work-temporal-slice-2026-10-25](assets/work-temporal-slice-2026-10-25/README.md)。
 
 ## 15. 未决与风险
 
-1. **Temporal 托管/运维**：自托管需要 S1 拓扑、升级、备份与监控；托管需驻留/条款评审。
+1. **Temporal 托管/运维**：自托管需要 S1 多节点拓扑、在途 workflow 的 server 重启、备份与监控；当前验证 worker 重启、`patched` 升级、已完成 workflow 的 file-backed server 重启与 DB 终态偏移。
 2. **D1 增量已实现**：wait/resume/unknown/reconcile/workflow-start/cancel outbox 已通过 34/34；仍需 Temporal 集成/正式评审与 S1 拓扑/升级。
 3. **供应商回执查询**：不同供应商对 unknown 的查询能力不同；无法确认时保持 unresolved，不释放预算。
 4. **预算等待信号权限**：谁可以补预算/发 resume 需运营权限与审计；R0a 无预算写 UI。
-5. **Workflow 版本/Worker 发布**：patching vs worker versioning 的最终选择、drain 流程、回滚演练未做。
+5. **Workflow 版本/Worker 发布**：`patched` 升级已验证；worker versioning 部署、正式 drain/回滚演练未做。
 6. **Outbox 顺序/DLQ**：start/cancel/task_event 的相对顺序与 poison 事件处理未定；当前依赖 DB 状态幂等。
 7. **SSE 多实例/背压**：长连接、游标保留、重连风暴未实现。
 8. **人工审批**：R0a 不覆盖 F03 的完整审批 UI/通知；待 R0b/R2。

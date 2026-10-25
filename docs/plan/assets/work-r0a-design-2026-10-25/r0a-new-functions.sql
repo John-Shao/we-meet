@@ -1082,6 +1082,49 @@ BEGIN
 END;
 $$;
 
+
+-- ---------------------------------------------------------------------------
+-- 组织执行闸门：新增 Run/Operation/预算预留必须检查组织执行开通。
+-- 终态/取消/对账更新不被此触发器阻断。
+-- ---------------------------------------------------------------------------
+CREATE FUNCTION work.enforce_org_execution() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM work.org
+    WHERE id = NEW.org_id
+      AND status = 'active'
+      AND execution_enabled
+      AND NOT operator_suspended
+  ) THEN
+    RAISE EXCEPTION 'org_execution_unavailable' USING ERRCODE = 'P0001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER run_org_execution_insert
+  BEFORE INSERT ON work.run
+  FOR EACH ROW EXECUTE FUNCTION work.enforce_org_execution();
+CREATE TRIGGER run_org_execution_active
+  BEFORE UPDATE OF state ON work.run
+  FOR EACH ROW
+  WHEN (OLD.state <> 'active' AND NEW.state = 'active')
+  EXECUTE FUNCTION work.enforce_org_execution();
+
+CREATE TRIGGER operation_org_execution_insert
+  BEFORE INSERT ON work.operation
+  FOR EACH ROW EXECUTE FUNCTION work.enforce_org_execution();
+CREATE TRIGGER operation_org_execution_start
+  BEFORE UPDATE OF state ON work.operation
+  FOR EACH ROW
+  WHEN (OLD.state <> NEW.state AND NEW.state IN ('authorized', 'dispatching'))
+  EXECUTE FUNCTION work.enforce_org_execution();
+
+CREATE TRIGGER reservation_org_execution
+  BEFORE INSERT ON work.budget_reservation
+  FOR EACH ROW EXECUTE FUNCTION work.enforce_org_execution();
+
 -- ---------------------------------------------------------------------------
 -- R0a 任务摘要投影（供“我的工作”与 TaskDetail 使用）
 -- ---------------------------------------------------------------------------

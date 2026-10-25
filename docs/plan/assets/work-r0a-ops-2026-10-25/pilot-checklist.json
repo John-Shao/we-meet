@@ -93,9 +93,11 @@
       "status": "partial",
       "blocking": true,
       "evidence": [
-        "types + mock + 6/6 local tests"
+        "generated runtime client: 21 operations, CSRF/SSE/error mapping",
+        "client 7/7 + contract gate drift checks; 25/25 design tests",
+        "workflow .github/workflows/work-r0a-gates.yml defined"
       ],
-      "note": "Runtime SDK/CI not wired."
+      "note": "Remote CI run not observed; client not wired into a real frontend."
     },
     {
       "id": "C08",
@@ -152,12 +154,14 @@
       "category": "security",
       "title": "RLS, direct DML and connection-pool tenant tests",
       "owner": "backend + DBA/security",
-      "status": "partial",
+      "status": "done",
       "blocking": true,
       "evidence": [
-        "D1 RLS/direct-DML smoke"
+        "RLS pool test 3/3",
+        "missing tenant context returns 0",
+        "work_api direct DML denied"
       ],
-      "note": "Pool/production-shaped tests missing."
+      "note": "Reference DB test passed; production-shaped load/pool config still to be rechecked in pilot."
     },
     {
       "id": "C13",
@@ -200,82 +204,95 @@
       "category": "security",
       "title": "No-content/no-secret logs and traces verified at runtime",
       "owner": "runtime + backend",
-      "status": "todo",
+      "status": "partial",
       "blocking": true,
       "evidence": [
-        "D4 policy only"
+        "log scanner 7/7; existing 7 evidence logs 0 fail / 0 warn",
+        "synthetic secret/canary redaction tests"
       ],
-      "note": "Need synthetic-secret log scan."
+      "note": "Local evidence logs and scanner only; no staging/prod OTel trace pipeline."
     },
     {
       "id": "C17",
       "category": "ops",
       "title": "SLO dashboards, alerts and on-call thresholds",
       "owner": "SRE",
-      "status": "todo",
+      "status": "partial",
       "blocking": true,
       "evidence": [
-        "SLO asset"
+        "12-SLO telemetry contract; 21 records + 17 alerts; 10/10 tests",
+        "runbook/severity/track-only/forbidden-label checks"
       ],
-      "note": "No telemetry wired."
+      "note": "Rules-as-code only; no Prometheus scrape, dashboards or Alertmanager delivery."
     },
     {
       "id": "C18",
       "category": "ops",
       "title": "Pilot capacity model and load test",
       "owner": "SRE + backend",
-      "status": "partial",
+      "status": "done",
       "blocking": true,
       "evidence": [
-        "Capacity model + current DDL smoke"
+        "capacity model baseline pass",
+        "10 concurrent run load 1.774s",
+        "artifact=10, budget settled=800"
       ],
-      "note": "No pilot load/queue/SLO run."
+      "note": "Faux/dev load only; not a production capacity proof."
     },
     {
       "id": "C19",
       "category": "ops",
       "title": "Backup/restore drill with ledger and tombstone checks",
       "owner": "SRE + DBA",
-      "status": "partial",
+      "status": "done",
       "blocking": true,
       "evidence": [
-        "Logical restore smoke"
+        "Work DB dump/restore counts match",
+        "artifact_tombstone/submission_dedup/budget_entry/outbox checked",
+        "RLS in restored DB returns 10 org1 tasks"
       ],
-      "note": "Pilot drill not executed."
+      "note": "Work DB only; Temporal/region restore remains C22/DR."
     },
     {
       "id": "C20",
       "category": "ops",
       "title": "Kill switch and org suspend/resume drill",
       "owner": "SRE + backend",
-      "status": "todo",
+      "status": "done",
       "blocking": true,
-      "evidence": [],
-      "note": "No drill."
+      "evidence": [
+        "S1-R03 execution switch/org suspension blocks submit/acquire",
+        "DB org-execution triggers"
+      ],
+      "note": "Reference drill passed; repeat in pilot environment with real operators."
     },
     {
       "id": "C21",
       "category": "ops",
       "title": "Pilot runbook and incident communication",
       "owner": "SRE + product",
-      "status": "todo",
+      "status": "done",
       "blocking": true,
       "evidence": [
-        "Architecture runbook draft"
+        "D6 §6.1 incident roles/severity/cadence/communication rules"
       ],
-      "note": "R0a-specific steps/owners pending."
+      "note": "Contacts/channels are filled at pilot onboarding under C24/C27."
     },
     {
       "id": "C22",
       "category": "ops",
       "title": "Temporal topology/upgrade/DB-offset validation (S1)",
       "owner": "platform + backend",
-      "status": "todo",
+      "status": "partial",
       "blocking": true,
       "evidence": [
-        "S1 partial"
+        "S1-R01 worker restart/resume",
+        "S1-R02 DB terminal offset",
+        "S1-R05 patched v1->v2 upgrade",
+        "S1-R06 file-backed server restart (completed workflow)",
+        "Temporal dev F01/F02/F04/F07/F21/F23 6/6"
       ],
-      "note": "No Temporal topology/upgrade tests."
+      "note": "No multi-node topology, in-flight server restart, worker versioning/drain or production DB/Temporal upgrade drill."
     },
     {
       "id": "C23",
@@ -368,12 +385,13 @@
       "category": "migration",
       "title": "Admin read-only P1-A field/permission mapping",
       "owner": "backend + platform",
-      "status": "todo",
+      "status": "partial",
       "blocking": true,
       "evidence": [
-        "D2 admin subset"
+        "admin-readonly mapping: P1-A is not a drop-in",
+        "strict adapter 12/12; gaps throw instead of fabricating fields"
       ],
-      "note": "No mapping/test."
+      "note": "Adapter not wired to real P1-A/identity service; role/revision/subject/cents/async-export gaps remain."
     },
     {
       "id": "C32",

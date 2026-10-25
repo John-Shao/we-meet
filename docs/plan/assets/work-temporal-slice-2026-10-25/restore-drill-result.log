@@ -1,0 +1,19 @@
+2026-10-25
+# pg_dump -n work then pg_restore into work_restore; counts and RLS checked.
+task 10 10
+run 10 10
+operation 10 10
+artifact 10 10
+artifact_version 10 10
+artifact_tombstone 2 2
+submission_dedup 10 10
+budget_account 1 1
+budget_reservation 10 10
+budget_entry 20 20
+outbox 50 50
+=== RLS in restored DB ===
+BEGIN
+SET
+org1
+10
+COMMIT

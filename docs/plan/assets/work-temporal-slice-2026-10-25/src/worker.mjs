@@ -3,13 +3,13 @@ import { NativeConnection, Worker } from '@temporalio/worker';
 import * as activities from './activities.mjs';
 import { CFG } from './db.mjs';
 
-export async function startWorker() {
+export async function startWorker({ workflowsFile = 'workflows.mjs' } = {}) {
   const connection = await NativeConnection.connect({ address: CFG.temporalAddress });
   const worker = await Worker.create({
     connection,
     namespace: 'default',
     taskQueue: CFG.taskQueue,
-    workflowsPath: fileURLToPath(new URL('./workflows.mjs', import.meta.url)),
+    workflowsPath: fileURLToPath(new URL(workflowsFile, import.meta.url)),
     activities,
   });
   const runPromise = worker.run();

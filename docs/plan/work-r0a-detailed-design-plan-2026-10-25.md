@@ -51,7 +51,7 @@
 ### 0.4 W2 进展（2026-10-25）
 
 - **D3 设计草案完成**：[控制面与持久编排设计](work-r0a-orchestration-design-2026-10-25.md)、[RunWorkflow/Activity 契约](assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)、[12 项故障矩阵](assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)。
-- **D3 参考纵切通过**：D1 增量 34/34；Temporal dev + faux model 执行 F01/F02/F04/F07/F21/F23 **6/6** + normal 1/1（[slice](assets/work-temporal-slice-2026-10-25/README.md)）；S1 拓扑/升级与 DR2 未做。
+- **D3 参考纵切通过**：D1 增量 34/34；Temporal dev + faux model 执行 F01/F02/F04/F07/F21/F23 **6/6** + normal 1/1、S1 参考演练 **6/6**（[slice](assets/work-temporal-slice-2026-10-25/README.md)）；多节点/在途 server 重启/正式 worker versioning 与 DR2 未做。
 - **D4 设计草案完成**：[Runtime/出口设计](work-r0a-runtime-egress-design-2026-10-25.md)、[WorkAdapter 契约](assets/work-r0a-runtime-2026-10-25/WorkAdapter.contract.ts)、[工具/沙箱/出口策略](assets/work-r0a-runtime-2026-10-25/policy/)、[10/10 策略测试](assets/work-r0a-runtime-2026-10-25/policy/evaluator.test.mjs)。
 - **D4 仅为设计**：未接真实 gVisor、Content Store、KMS、供应商条款或生产网关；DR2/D4 评审未执行。
 
@@ -60,7 +60,15 @@
 - **D5 设计草案完成**：[前端体验设计](work-r0a-frontend-design-2026-10-25.md)、[状态/路由/文案/UI 模型资产](assets/work-r0a-frontend-2026-10-25/README.md)；11/11 UI 模型测试通过。
 - **D5 仅为设计**：未实现 React 页面/React Query/SSE 客户端/Playwright，未做可用性测试。
 - **D6 设计草案完成**：[安全/运维/迁移/试点设计](work-r0a-security-ops-migration-design-2026-10-25.md)、[安全/SLO/容量/试点资产](assets/work-r0a-ops-2026-10-25/README.md)；8/8 校验通过。
-- **D6 当前 go/no-go = no-go**：28 个 blocking 项未关闭；已完成 Temporal 6/6、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke，未做生产演练/真实 gVisor/云 KMS/供应商条款。
+- **D6 当前 go/no-go = no-go**：23 个 blocking 项未关闭；已完成 Temporal 6/6、S1 6/6、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；未做生产演练/真实 gVisor/云 KMS/供应商条款。
+
+### 0.6 下一批优先项进展（2026-10-26）
+
+- **C07 生成客户端/CI**：`generate-client.mjs` 从 OpenAPI 生成 21 个 operation 的零依赖客户端；客户端 7/7、设计包 25/25、`ci-contract.mjs` 漂移门禁通过；`.github/workflows/work-r0a-gates.yml` 已定义（远端未跑）。仍未接真实前端。
+- **C31 管理读**：严格适配器 12/12，证明 P1-A 原始字段不能直接充当 R0a 契约（role/revision/subject/seat total/cents/异步导出）；未接真实 P1-A/身份服务，C31 保持 partial。
+- **C16 日志扫描**：扫描器 7/7，覆盖 Key/Bearer/cookie/私钥/正文 canary/email；7 个既有证据日志 0 fail / 0 warn；未接 staging OTel/log pipeline，C16 保持 partial。
+- **C17 SLO 遥测**：12 个 SLO 全覆盖，生成 21 条 record + 17 条 alert，10/10 校验；未接 Prometheus/Alertmanager/仪表盘，所有 SLO 仍 `not_measured`，C17 保持 partial。
+- **No-go 不变**：23 个 blocking 项；以上均为参考实现/门禁，不替代试点环境、真实遥测、P1-A 接入或安全签收。
 
 ## 1. R0a 范围冻结
 
@@ -293,7 +301,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[架构 §6/§7/§11/§14/§21](work-system-architecture-2026-10-25.md)、[云端纵切](assets/work-cloud-slice-2026-10-25/README.md)、[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)。
 
-**当前进展（2026-10-25）**：D3 设计、契约与 Temporal dev 参考纵切已产出；F01/F02/F04/F07/F21/F23 6/6 + normal 1/1；S1 拓扑/升级与 DR2 未执行。
+**当前进展（2026-10-25）**：D3 设计、契约与 Temporal dev 参考纵切已产出；F01/F02/F04/F07/F21/F23 6/6 + normal 1/1、S1 参考演练 6/6；多节点/在途 server 重启/正式 worker versioning 与 DR2 未执行。
 
 **交付物**：
 
@@ -380,7 +388,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[威胁模型](work-threat-model-2026-10-25.md)、[Runbook](work-operations-runbook-2026-10-25.md)、[架构 §17–§19](work-system-architecture-2026-10-25.md)、[容量烟雾](assets/work-ops-2026-10-25/README.md)。
 
-**当前进展（2026-10-25）**：D6 设计、安全控制/SLO/容量/试点清单已产出；8/8 校验通过，当前 no-go（28 个 blocking）。已完成 Temporal 6/6、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；生产演练/真实 gVisor/云 KMS/供应商条款未完成。
+**当前进展（2026-10-26）**：D6 设计、安全控制/SLO/容量/试点清单已产出；8/8 + 遥测 10/10 + 日志扫描 7/7 校验通过，当前 no-go（23 个 blocking）。已完成 Temporal 6/6、S1 6/6、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke、SLO 规则即代码；多节点/在途 server 重启/生产演练/真实 gVisor/云 KMS/供应商条款/真实遥测未完成。
 
 **交付物**：
 

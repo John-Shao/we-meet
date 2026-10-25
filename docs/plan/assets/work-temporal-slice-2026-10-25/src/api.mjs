@@ -5,12 +5,45 @@ function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
+async function assertOutboxHealthy() {
+  return withWorker(async (client) => {
+    const result = await client.query(
+      `SELECT count(*)::int AS count, min(created_at) AS oldest
+       FROM work.outbox
+       WHERE org_id = $1
+         AND aggregate_type = 'run'
+         AND payload->>'kind' = 'start_workflow'
+         AND delivered_at IS NULL`,
+      [CFG.org],
+    );
+    const count = result.rows[0].count;
+    const oldest = result.rows[0].oldest;
+    const ageMs = oldest ? Date.now() - new Date(oldest).getTime() : 0;
+    if (count > CFG.outboxMaxCount || ageMs > CFG.outboxMaxAgeMs) {
+      const error = new Error('outbox_backlog');
+      error.code = 'outbox_backlog';
+      error.status = 503;
+      throw error;
+    }
+  });
+}
+
+export async function setOrgExecution({ executionEnabled, operatorSuspended }) {
+  return withAdmin(async (client) => {
+    await client.query(
+      'UPDATE work.org SET execution_enabled = $2, operator_suspended = $3 WHERE id = $1',
+      [CFG.org, executionEnabled, operatorSuspended],
+    );
+  });
+}
+
 export async function submitTask({
   clientRequestId,
   goal,
   faultMode = 'none',
   workflowId = `run:${randomUUID()}`,
 }) {
+  await assertOutboxHealthy();
   const contentRef = `content://temporal/${randomUUID()}`;
   const inputHash = `sha256:${sha256(`${goal}:${clientRequestId}`)}`;
   return withApi(async (client) => {
@@ -104,6 +137,21 @@ export async function getArtifactCount(taskId) {
       [taskId, CFG.org],
     );
     return result.rows[0].count;
+  });
+}
+
+export async function getArtifactLogicalNames(taskId) {
+  return withWorker(async (client) => {
+    const result = await client.query(
+      `SELECT DISTINCT a.logical_name
+       FROM work.artifact a
+       JOIN work.artifact_version av
+         ON av.artifact_id = a.id AND av.org_id = a.org_id
+       WHERE a.task_id = $1 AND a.org_id = $2
+       ORDER BY a.logical_name`,
+      [taskId, CFG.org],
+    );
+    return result.rows.map((row) => row.logical_name);
   });
 }
 

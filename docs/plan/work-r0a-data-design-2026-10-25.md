@@ -162,6 +162,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 - **等待/恢复**：`wait_run`/`resume_run` 只改 Run 的 `state/wait_reason`，不消费 Operation 或预算。
 - **未知对账**：`mark_operation_unknown` 只把 dispatching 转 unknown，保留预算；`reconcile_operation` 的 sent_succeeded 结算、not_sent 释放/结算 0、unresolved 保留预算，且不重发外部请求。
 - **Outbox 分流**：workflow-start/cancel-signal 与 TaskEvent 分开处理；启动/信号重复由固定 workflow ID/DB 状态幂等。
+- **组织执行闸门**：新增 Run/Operation/预算预留，以及 Run→active、Operation→authorized/dispatching，必须检查 `org.status/execution_enabled/operator_suspended`；终态、取消与对账更新不被停用阻断。
 - **对账状态**：`unresolved` 可在后续证据下转 `reconciled`；不允许跳过 `unknown/unresolved` 直接伪造成功。
 
 ## 6. 冒烟结果
