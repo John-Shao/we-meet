@@ -4,6 +4,7 @@
 - 关联产品方案：[千问办公 / 豆包工作「新任务」设计调研与 we-meet 新建任务优化方案](work-new-task-competitor-research-2026-10-25.md)
 - 关联技术方案：[we-meet「新建任务」技术方案调研](work-new-task-technical-research-2026-10-25.md)
 - 关联豆包扩展调研：[豆包工作「扩展」能力调研与 we-meet 任务能力方案](work-extension-doubao-research-2026-10-25.md)
+- 统一决策版：[豆包工作 / 千问办公「扩展」能力统一调研与 we-meet 路线图](work-extension-unified-research-2026-10-25.md)
 - 代码基线：`7fb9818d4`（`refactor/work-module`）
 - 证据：用户提供的 14 张千问办公截图、阿里云千问办公帮助中心、当前仓库代码与测试
 - 范围：千问办公的「专家套件 / 技能 / 连接器」如何定义、安装、启用、授权，以及新建任务时如何直接使用或组合使用；并与豆包工作对比，给出 we-meet 的落地方案
