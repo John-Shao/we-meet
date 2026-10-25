@@ -52,7 +52,8 @@
 
 - **D3 设计草案完成**：[控制面与持久编排设计](work-r0a-orchestration-design-2026-10-25.md)、[RunWorkflow/Activity 契约](assets/work-r0a-orchestration-2026-10-25/RunWorkflow.contract.ts)、[12 项故障矩阵](assets/work-r0a-orchestration-2026-10-25/fault-matrix.yaml)。
 - **D3 仅为设计**：D1 增量命令（wait/resume/unknown/reconcile、workflow-start outbox）未实现；未接 Temporal，DR2 未评审。
-- **D4 尚未开始**：Pi Adapter、沙箱、模型网关待 D3 评审后继续。
+- **D4 设计草案完成**：[Runtime/出口设计](work-r0a-runtime-egress-design-2026-10-25.md)、[WorkAdapter 契约](assets/work-r0a-runtime-2026-10-25/WorkAdapter.contract.ts)、[工具/沙箱/出口策略](assets/work-r0a-runtime-2026-10-25/policy/)、[10/10 策略测试](assets/work-r0a-runtime-2026-10-25/policy/evaluator.test.mjs)。
+- **D4 仅为设计**：未接真实 gVisor、Content Store、KMS、供应商条款或生产网关；DR2/D4 评审未执行。
 
 ## 1. R0a 范围冻结
 
@@ -315,6 +316,8 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[架构 §3/§9/§12](work-system-architecture-2026-10-25.md)、[Harness 实验资产](assets/harness-lab/README.md)、[威胁模型](work-threat-model-2026-10-25.md)。
 
+**当前进展（2026-10-25）**：D4 设计草案与策略资产已产出；WorkAdapter 契约通过类型检查，10/10 策略测试通过。真实沙箱/Content Store/KMS/供应商网关与条款仍未验证。
+
 **交付物**：
 
 1. **Runtime 规格**：每 Run 一个 Pod/进程；Node 24；Pi 版本固定到镜像 digest；非 root、只读根文件系统、临时可写目录、无宿主挂载、CPU/内存/PID/时间上限；gVisor/等效 profile 优先；仅经 `work-egress` 出网；每 Run 短期身份；等待时检查点后释放，结束销毁。
@@ -515,7 +518,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | W3 体验/运维 | D5 + D6 | 四界面规格、状态矩阵、SLO/告警、Runbook、切换回滚 | DR3 |
 | W4 实施就绪 | 汇总设计、测试计划、估算、依赖、风险 | 实施就绪包 | DR4 |
 
-波次是依赖顺序，不是工期承诺；W1 可与设计合作伙伴研究并行，但 R0a 开发启动仍需 §5.3 的研究与供应商闸门。当前 W1 的 D1/D2 草案已完成，W2 的 D3 设计草案已完成；D4 未开始，DR2 未评审。
+波次是依赖顺序，不是工期承诺；W1 可与设计合作伙伴研究并行，但 R0a 开发启动仍需 §5.3 的研究与供应商闸门。当前 W1 的 D1/D2 草案已完成，W2 的 D3/D4 设计草案已完成；Temporal、真实沙箱/网关未接，DR2 未评审。
 
 ### 5.2 评审闸门
 

@@ -1,0 +1,93 @@
+{
+  "version": "r0a-v1",
+  "providers": {
+    "primary": {
+      "id": "primary-text-provider",
+      "adapter": "openai-compatible",
+      "model": "r0a-text-v1",
+      "priceVersion": "price-v1",
+      "dataResidency": "cn-north",
+      "credentialRef": "kms://work/providers/primary",
+      "timeout": {
+        "connectMs": 5000,
+        "firstTokenMs": 30000,
+        "totalMs": 900000
+      },
+      "quota": {
+        "requestsPerMinute": 60,
+        "tokensPerDay": 2000000
+      },
+      "idempotency": "provider_request_id"
+    },
+    "fallback": {
+      "id": "fallback-text-provider",
+      "adapter": "openai-compatible",
+      "model": "r0a-text-fallback-v1",
+      "priceVersion": "price-v1",
+      "dataResidency": "cn-north",
+      "credentialRef": "kms://work/providers/fallback",
+      "enabled": false
+    }
+  },
+  "requestBinding": {
+    "requireOperationId": true,
+    "requireDispatchAttemptId": true,
+    "requireFence": true,
+    "requireRequestHash": true,
+    "requirePriceVersion": true,
+    "requireDispatchingState": true
+  },
+  "fallbackPolicy": {
+    "allowedBeforeDispatch": true,
+    "allowedAfterDispatch": false,
+    "allowedAfterUnknown": false
+  },
+  "sourceLabels": {
+    "allowed": ["user_input", "system_template"],
+    "blocked": ["external_content", "connector_content", "tool_result", "unknown"]
+  },
+  "secretDetection": {
+    "enabled": true,
+    "action": "block",
+    "patterns": [
+      "sk-[A-Za-z0-9]{20,}",
+      "AKIA[0-9A-Z]{16}",
+      "-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----",
+      "Bearer\\s+[A-Za-z0-9._~+/=-]{16,}",
+      "ghp_[A-Za-z0-9]{20,}"
+    ]
+  },
+  "responseFiltering": {
+    "publicAnswerOnly": true,
+    "dropReasoning": true,
+    "dropToolCalls": true,
+    "maxOutputBytes": 262144,
+    "allowMarkdown": true,
+    "allowHtml": false,
+    "autoFetchLinks": false
+  },
+  "logging": {
+    "logContent": false,
+    "logPrompt": false,
+    "logResponse": false,
+    "logProviderKey": false,
+    "logHashesOnly": true
+  },
+  "usage": {
+    "recordProviderRequestId": true,
+    "recordTokens": true,
+    "priceVersionRequired": true,
+    "currency": "CNY"
+  },
+  "retry": {
+    "beforeDispatchMaxAttempts": 2,
+    "afterDispatchMaxAttempts": 0,
+    "onUnknown": "reconcile"
+  },
+  "rateLimit": {
+    "on429": "transient",
+    "on5xx": "transient",
+    "on401": "block",
+    "on403": "block"
+  }
+}

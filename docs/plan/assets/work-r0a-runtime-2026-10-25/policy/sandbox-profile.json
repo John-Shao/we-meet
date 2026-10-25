@@ -1,0 +1,88 @@
+{
+  "version": "r0a-v1",
+  "profile": "gvisor",
+  "runtimeClass": "gvisor",
+  "sandboxProof": true,
+  "image": {
+    "repository": "work-r0a-runner",
+    "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "node": "24",
+    "piVersion": "1.4.0",
+    "immutable": true,
+    "packageInstall": false,
+    "userExtensions": false,
+    "digestNote": "Placeholder digest; replace with the reviewed build digest before any runtime test."
+  },
+  "identity": {
+    "runAsNonRoot": true,
+    "runAsUser": 65532,
+    "runAsGroup": 65532,
+    "allowPrivilegeEscalation": false,
+    "capabilitiesDrop": [
+      "ALL"
+    ],
+    "seccompProfile": "RuntimeDefault"
+  },
+  "filesystem": {
+    "readOnlyRootFilesystem": true,
+    "hostPaths": [],
+    "hostMounts": 0,
+    "writable": [
+      "/tmp"
+    ],
+    "tmpfs": {
+      "sizeLimit": "256Mi"
+    }
+  },
+  "network": {
+    "ingress": false,
+    "hostNetwork": false,
+    "dnsPolicy": "ClusterFirst",
+    "egress": {
+      "mode": "gateway_only",
+      "gateway": "work-egress",
+      "allowInternet": false,
+      "allowMetadata": false,
+      "allowLoopback": false,
+      "allowPrivate": false
+    }
+  },
+  "resources": {
+    "cpu": "1",
+    "memory": "1Gi",
+    "pids": 256,
+    "ephemeralStorage": "1Gi",
+    "timeLimit": "30m"
+  },
+  "secrets": {
+    "providerKeys": false,
+    "databaseCredentials": false,
+    "kmsMounts": [],
+    "perRunToken": "scoped"
+  },
+  "content": {
+    "input": "scoped_read",
+    "template": "scoped_read",
+    "artifactDraft": "scoped_write",
+    "checkpoint": "scoped_write",
+    "hostPaths": []
+  },
+  "lifecycle": [
+    "allocated",
+    "ready",
+    "executing",
+    "checkpointed",
+    "waiting",
+    "finalizing",
+    "destroyed"
+  ],
+  "reducedProfile": {
+    "runtimeClass": "runc",
+    "sandboxProof": false,
+    "allowedTools": [
+      "model_call"
+    ],
+    "claim": "no_sandbox_proof",
+    "requiresApproval": true
+  }
+}
