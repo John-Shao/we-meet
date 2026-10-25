@@ -55,8 +55,8 @@ test.after(async () => {
 test.beforeEach(reset);
 
 test('generated operation inventory matches the 20-path R0a subset', () => {
-  assert.equal(OPERATIONS.length, 21);
-  assert.equal(new Set(OPERATIONS.map((op) => op.operationId)).size, 21);
+  assert.equal(OPERATIONS.length, 23);
+  assert.equal(new Set(OPERATIONS.map((op) => op.operationId)).size, 23);
   assert.equal(new Set(OPERATIONS.map((op) => op.path)).size, 20);
   const submit = OPERATIONS.find((op) => op.operationId === 'submitTask');
   assert.equal(submit.method, 'POST');
@@ -244,4 +244,171 @@ test('path and body validation happens before the request', async () => {
   const api = client();
   await assert.rejects(() => api.getTask({}), /missing path parameter taskId/);
   await assert.rejects(() => api.submitTask({}), /request body is required/);
+});
+
+async function submitted(api, suffix) {
+  const input = await api.createInput({
+    body: { client_request_id: `req-in-${suffix}`, goal: '整理季度复盘', media_type: 'text/markdown' },
+  });
+  const intent = {
+    input_ref: input.data.input_ref,
+    target: { kind: 'cloud', profile: 'text-v1' },
+    template: null,
+    permission_mode: 'ask_each',
+    output: { format: 'markdown' },
+  };
+  const preview = await api.createTaskPreview({ body: { intent } });
+  const submit = await api.submitTask({
+    body: { client_request_id: `req-task-${suffix}`, preview_hash: preview.data.preview_hash, intent },
+  });
+  return submit.data.task;
+}
+
+test('updateTask edits title with revision check, idempotent replay and validation', async () => {
+  const api = client();
+  const task = await submitted(api, 'title-0001');
+  const updated = await api.updateTask({
+    path: { taskId: task.task_id },
+    body: { client_request_id: 'req-title-0001', expected_revision: task.revision, title: '  Q3 复盘（定稿）  ' },
+  });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.data.title, 'Q3 复盘（定稿）');
+  assert.equal(updated.data.revision, task.revision + 1);
+
+  const replay = await api.updateTask({
+    path: { taskId: task.task_id },
+    body: { client_request_id: 'req-title-0001', expected_revision: task.revision, title: 'Q3 复盘（定稿）' },
+  });
+  assert.equal(replay.data.revision, task.revision + 1);
+
+  await assert.rejects(
+    api.updateTask({
+      path: { taskId: task.task_id },
+      body: { client_request_id: 'req-title-0001', expected_revision: task.revision, title: '别的标题' },
+    }),
+    (error) => error instanceof WorkApiError && error.status === 409 && error.code === 'idempotency_key_conflict',
+  );
+  await assert.rejects(
+    api.updateTask({
+      path: { taskId: task.task_id },
+      body: { client_request_id: 'req-title-0002', expected_revision: task.revision, title: '旧版本' },
+    }),
+    (error) => error.status === 409 && error.code === 'version_conflict' && error.data.current_revision === task.revision + 1,
+  );
+  for (const title of ['   ', 'x'.repeat(81), 'bad\u0007title']) {
+    await assert.rejects(
+      api.updateTask({
+        path: { taskId: task.task_id },
+        body: { client_request_id: `req-title-bad-${title.length}`, expected_revision: task.revision + 1, title },
+      }),
+      (error) => error.status === 422 && error.code === 'title_invalid',
+    );
+  }
+  await assert.rejects(
+    api.updateTask({
+      path: { taskId: task.task_id },
+      body: { client_request_id: 'req-title-0003', expected_revision: task.revision + 1, title: 'ok', goal: 'x' },
+    }),
+    (error) => error.status === 400,
+  );
+  const stream = await api.streamTaskEvents({ path: { taskId: task.task_id } });
+  const seen = [];
+  for await (const event of stream.events) {
+    seen.push(event.data);
+    if (event.data.type === 'task.updated') break;
+  }
+  const titleEvent = seen.find((event) => event.type === 'task.updated');
+  assert.deepEqual(titleEvent.payload.fields, ['title']);
+  assert.ok(!JSON.stringify(titleEvent).includes('Q3 复盘'));
+});
+
+test('content download sets safe attachment headers and writes a content-free audit row', async () => {
+  const api = client();
+  const task = await submitted(api, 'dl-0001');
+  await raw('POST', `/__test/tasks/${task.task_id}/complete`, {});
+  const detail = await api.getTask({ path: { taskId: task.task_id } });
+  const { artifact_id: artifactId, version_no: versionNo } = detail.data.summary.latest_artifact;
+
+  const inline = await api.getArtifactContent({ path: { artifactId, versionNo } });
+  assert.equal(inline.headers['content-disposition'], undefined);
+  assert.equal(app.state.auditLog.length, 0);
+
+  const download = await api.getArtifactContent({
+    path: { artifactId, versionNo },
+    query: { disposition: 'attachment' },
+  });
+  assert.equal(download.status, 200);
+  assert.equal(download.headers['cache-control'], 'no-store');
+  assert.equal(download.headers['x-content-type-options'], 'nosniff');
+  assert.ok(
+    download.headers["content-disposition"].startsWith(
+      `attachment; filename="work-${artifactId.slice(0, 8)}-v${versionNo}.md"; filename*=UTF-8${"''"}`,
+    ),
+  );
+  assert.equal(app.state.auditLog.length, 1);
+  const row = app.state.auditLog[0];
+  assert.equal(row.action, 'artifact.exported');
+  assert.equal(row.version_no, versionNo);
+  assert.ok(!JSON.stringify(row).includes('Mock artifact'));
+
+  await assert.rejects(
+    api.getArtifactContent({ path: { artifactId, versionNo }, query: { disposition: 'share' } }),
+    (error) => error.status === 400,
+  );
+});
+
+test('stale CSRF token is refreshed once via bootstrap, then surfaced', async () => {
+  const rotate = await raw('POST', '/__test/rotate-csrf');
+  assert.equal(rotate.response.status, 200);
+  let refreshes = 0;
+  const api = client({
+    refreshCsrfToken: async () => {
+      refreshes += 1;
+      const boot = await createWorkClient({ baseUrl, cookie }).getBootstrap();
+      return boot.data.csrf_token;
+    },
+  });
+  const input = await api.createInput({
+    body: { client_request_id: 'req-csrf-rot-01', goal: '轮换后提交', media_type: 'text/markdown' },
+  });
+  assert.equal(input.status, 201);
+  assert.equal(refreshes, 1);
+
+  const stuck = client({ refreshCsrfToken: async () => 'still-wrong-token-000' });
+  await assert.rejects(
+    stuck.createInput({ body: { client_request_id: 'req-csrf-rot-02', goal: 'x', media_type: 'text/markdown' } }),
+    (error) => error.status === 403 && error.code === 'csrf_invalid',
+  );
+});
+
+test('deleteTask requires a quiescent task, is idempotent and makes content unreadable', async () => {
+  const api = client();
+  const task = await submitted(api, 'del-0001');
+  await assert.rejects(
+    api.deleteTask({ path: { taskId: task.task_id } }),
+    (error) => error.status === 409 && error.code === 'run_not_quiescent',
+  );
+  await raw('POST', `/__test/tasks/${task.task_id}/complete`, {});
+  const detail = await api.getTask({ path: { taskId: task.task_id } });
+  const { artifact_id: artifactId, version_no: versionNo } = detail.data.summary.latest_artifact;
+
+  const deleted = await api.deleteTask({ path: { taskId: task.task_id } });
+  assert.equal(deleted.status, 200);
+  assert.equal(deleted.data.content_purge, 'scheduled');
+  const again = await api.deleteTask({ path: { taskId: task.task_id } });
+  assert.deepEqual(again.data, deleted.data);
+
+  await assert.rejects(api.getTask({ path: { taskId: task.task_id } }), (error) => error.status === 404);
+  await assert.rejects(
+    api.getArtifactContent({ path: { artifactId, versionNo } }),
+    (error) => error.status === 404,
+  );
+  const page = await api.listTasks({ query: { view: 'all' } });
+  assert.ok(!page.data.items.some((item) => item.task_id === task.task_id));
+  const row = app.state.auditLog.find((entry) => entry.action === 'task.deleted');
+  assert.equal(row.target_id, task.task_id);
+  await assert.rejects(
+    client({ csrfToken: 'wrong-token-0000000' }).deleteTask({ path: { taskId: task.task_id } }),
+    (error) => error.status === 403,
+  );
 });

@@ -41,6 +41,12 @@ export function validateMatrix(matrix) {
   for (const [action, entry] of Object.entries(matrix.actions)) {
     if (!entry.labelKey) errors.push(`action ${action} has no label key`);
   }
+  for (const [action, rule] of Object.entries(matrix.management ?? {})) {
+    if (!matrix.actions[action]) errors.push(`management action ${action} has no action entry`);
+    for (const state of rule.states) {
+      if (!matrix.states[state]) errors.push(`management ${action} references unknown state ${state}`);
+    }
+  }
   return errors;
 }
 
@@ -166,4 +172,21 @@ export function permissionKey(mode) {
     fail('invalid_permission_mode', `unsupported R0a permission mode: ${mode}`);
   }
   return `work.r0a.permission.${mode}`;
+}
+
+export function canDelete(task) {
+  const { matrix } = loadUiAssets();
+  const entry = matrix.states[task.display_state];
+  return Boolean(
+    entry &&
+      matrix.management.delete.states.includes(task.display_state) &&
+      task.active_run_id == null &&
+      (task.blocking_operations ?? 0) === 0,
+  );
+}
+
+export function canRename(task, { mobile = false } = {}) {
+  const { matrix } = loadUiAssets();
+  const rule = matrix.management.rename;
+  return !(mobile && rule.desktopOnly) && rule.states.includes(task.display_state);
 }

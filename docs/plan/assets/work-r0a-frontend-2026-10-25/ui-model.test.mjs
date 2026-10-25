@@ -147,3 +147,22 @@ test('permission copy explicitly avoids fake per-action approvals in R0a', () =>
   assert.equal(permissionKey('auto_readonly'), 'work.r0a.permission.auto_readonly');
   assert.throws(() => permissionKey('plan_then_run'), (error) => error.code === 'invalid_permission_mode');
 });
+
+test('delete is only offered for quiescent tasks and always confirms; rename is desktop-only', async () => {
+  const { canDelete, canRename } = await import('./ui-model.mjs');
+  const { matrix, copy } = loadUiAssets();
+  assert.equal(matrix.actions.delete.requiresConfirm, true);
+  assert.equal(matrix.actions.delete.destructive, true);
+  for (const state of ['queued', 'running', 'reconciling', 'budget_exhausted', 'canceling']) {
+    assert.equal(canDelete({ display_state: state, active_run_id: null, blocking_operations: 0 }), false, state);
+  }
+  assert.equal(canDelete({ display_state: 'completed', active_run_id: null, blocking_operations: 0 }), true);
+  assert.equal(canDelete({ display_state: 'failed', active_run_id: null, blocking_operations: 1 }), false);
+  assert.equal(canRename({ display_state: 'running' }), true);
+  assert.equal(canRename({ display_state: 'archived' }), false);
+  assert.equal(canRename({ display_state: 'completed' }, { mobile: true }), false);
+  for (const code of ['title_invalid', 'csrf_invalid', 'task_archived', 'run_not_quiescent', 'org_execution_unavailable', 'work_seat_required']) {
+    assert.ok(copy[`work.r0a.error.${code}`], code);
+  }
+  assert.ok(!/恢复|撤回/.test(copy['work.r0a.confirm.delete.body']));
+});

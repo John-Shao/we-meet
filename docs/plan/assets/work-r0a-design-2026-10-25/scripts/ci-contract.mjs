@@ -33,6 +33,8 @@ const FROZEN_OPERATIONS = Object.freeze([
   'listTasks',
   'submitTask',
   'getTask',
+  'updateTask',
+  'deleteTask',
   'retryTask',
   'getRun',
   'listOperations',
@@ -193,6 +195,39 @@ check(
 if (missingSchemas.length > 0) {
   fail(`types missing schemas: ${missingSchemas.join(', ')}`);
 }
+
+const catalog = JSON.parse(read(path.join(HERE, 'error-codes.json')));
+const mockSource = read(path.join(HERE, 'mock-server.mjs'));
+const mockCodes = [...mockSource.matchAll(/fail\((\d{3}), '([a-z_]+)'/g)].map((m) => ({
+  status: Number(m[1]),
+  code: m[2],
+}));
+const badMock = mockCodes.filter(
+  ({ status, code }) => !catalog.public[code] || catalog.public[code].status !== status,
+);
+check(
+  badMock.length === 0,
+  `mock error codes match the frozen catalog (${new Set(mockCodes.map((c) => c.code)).size} codes)`,
+);
+if (badMock.length > 0) {
+  fail(`mock codes missing/mismatched: ${badMock.map((c) => `${c.code}:${c.status}`).join(', ')}`);
+}
+const sqlSource = read(path.join(HERE, 'r0a-new-functions.sql'));
+const sqlCodes = [...new Set([...sqlSource.matchAll(/RAISE EXCEPTION '([a-z_]+)'/g)].map((m) => m[1]))];
+const unmappedSql = sqlCodes.filter(
+  (code) => !catalog.public[catalog.db_exception_map[code]],
+);
+check(
+  unmappedSql.length === 0,
+  `every SQL exception maps to a public code (${sqlCodes.length} codes)`,
+);
+if (unmappedSql.length > 0) fail(`unmapped SQL exceptions: ${unmappedSql.join(', ')}`);
+check(
+  Object.values(catalog.public).every(
+    (entry) => entry.retryable === (entry.status >= 500 || entry.status === 429 || entry.recovery_action === 're_preview' && entry.status === 409),
+  ),
+  'retryable is true only for 5xx/429/preview_stale',
+);
 
 const testFiles = fs
   .readdirSync(TEST_DIR)

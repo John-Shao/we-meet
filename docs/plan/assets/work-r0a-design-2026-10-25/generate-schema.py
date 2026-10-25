@@ -89,6 +89,7 @@ DROP ROLE IF EXISTS work_api;
 DROP ROLE IF EXISTS work_worker;
 DROP ROLE IF EXISTS work_ledger;
 DROP ROLE IF EXISTS work_migrator;
+DROP ROLE IF EXISTS work_ops;
 DROP ROLE IF EXISTS work_owner;
 
 CREATE ROLE work_owner NOLOGIN;
@@ -96,6 +97,7 @@ CREATE ROLE work_api NOLOGIN;
 CREATE ROLE work_worker NOLOGIN;
 CREATE ROLE work_ledger NOLOGIN;
 CREATE ROLE work_migrator NOLOGIN;
+CREATE ROLE work_ops NOLOGIN;
 
 CREATE SCHEMA work AUTHORIZATION work_owner;
 SET LOCAL ROLE work_owner;

@@ -415,7 +415,7 @@ D3 完成（DR2）需要：
 3. **供应商回执查询**：不同供应商对 unknown 的查询能力不同；无法确认时保持 unresolved，不释放预算。
 4. **预算等待信号权限**：谁可以补预算/发 resume 需运营权限与审计；R0a 无预算写 UI。
 5. **Workflow 版本/Worker 发布**：`patched` 升级已验证；worker versioning 部署、正式 drain/回滚演练未做。
-6. **Outbox 顺序/DLQ**：start/cancel/task_event 的相对顺序与 poison 事件处理未定；当前依赖 DB 状态幂等。
+6. ~~Outbox 顺序/DLQ~~：**已定并实现于 D1（2026-10-26）**：`outbox_seq` 单聚合严格有序（头部未投递/退避/被锁即阻塞同聚合后续行；跨聚合不保证）；`mark_outbox_failed` 2^n 秒退避（≤300s），第 8 次或不可重试即死信 + 审计；死信不再阻塞，下游 DB 状态幂等兜底；`requeue_outbox_dead_letter` 仅 `work_ops`、需理由、审计。参考 relay 已改为处理 start/cancel/task 三类并在失败时调用 `mark_outbox_failed`；PG 冒烟 7 项 + Temporal 切片 faults 6/6、s1 4/4 回归通过。告警 `WorkOutboxDeadLetters`，处置见[试点运营 runbook §6](work-r0a-pilot-operations-runbook-2026-10-26.md)。
 7. **SSE 多实例/背压**：长连接、游标保留、重连风暴未实现。
 8. **人工审批**：R0a 不覆盖 F03 的完整审批 UI/通知；待 R0b/R2。
 9. **超时数值**：Run/模型/预算等待是初始建议，需产品与试点数据校准。

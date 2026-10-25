@@ -57,7 +57,7 @@
 
 ### 0.5 W3 进展（2026-10-25）
 
-- **D5 设计草案完成**：[前端体验设计](work-r0a-frontend-design-2026-10-25.md)、[状态/路由/文案/UI 模型资产](assets/work-r0a-frontend-2026-10-25/README.md)；11/11 UI 模型测试通过。
+- **D5 设计草案完成**：[前端体验设计](work-r0a-frontend-design-2026-10-25.md)、[状态/路由/文案/UI 模型资产](assets/work-r0a-frontend-2026-10-25/README.md)；UI 模型测试 11/11（2026-10-26 增至 12/12）。
 - **D5 仅为设计**：未实现 React 页面/React Query/SSE 客户端/Playwright，未做可用性测试。
 - **D6 设计草案完成**：[安全/运维/迁移/试点设计](work-r0a-security-ops-migration-design-2026-10-25.md)、[安全/SLO/容量/试点资产](assets/work-r0a-ops-2026-10-25/README.md)；8/8 校验通过。
 - **D6 当前 go/no-go = no-go**：23 个 blocking 项未关闭；已完成 Temporal 6/6、S1 6/6、RLS 池化、10 并发负载、Work DB 恢复、runc 降级沙箱、本地 KMS envelope、真实 Qwen smoke；未做生产演练/真实 gVisor/云 KMS/供应商条款。
@@ -67,8 +67,15 @@
 - **C07 生成客户端/CI**：`generate-client.mjs` 从 OpenAPI 生成 21 个 operation 的零依赖客户端；客户端 7/7、设计包 25/25、`ci-contract.mjs` 漂移门禁通过；`.github/workflows/work-r0a-gates.yml` 已定义（远端未跑）。仍未接真实前端。
 - **C31 管理读**：严格适配器 12/12，证明 P1-A 原始字段不能直接充当 R0a 契约（role/revision/subject/seat total/cents/异步导出）；未接真实 P1-A/身份服务，C31 保持 partial。
 - **C16 日志扫描**：扫描器 7/7，覆盖 Key/Bearer/cookie/私钥/正文 canary/email；7 个既有证据日志 0 fail / 0 warn；未接 staging OTel/log pipeline，C16 保持 partial。
-- **C17 SLO 遥测**：12 个 SLO 全覆盖，生成 21 条 record + 17 条 alert，10/10 校验；未接 Prometheus/Alertmanager/仪表盘，所有 SLO 仍 `not_measured`，C17 保持 partial。
+- **C17 SLO 遥测**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert，10/10 校验；未接 Prometheus/Alertmanager/仪表盘，所有 SLO 仍 `not_measured`，C17 保持 partial。
 - **No-go 不变**：23 个 blocking 项；以上均为参考实现/门禁，不替代试点环境、真实遥测、P1-A 接入或安全签收。
+
+### 0.7 W4 详细设计收口（2026-10-26）
+
+- **设计缺口全部闭合**：标题编辑、受控导出下载、CSRF/cookie 生命周期、冻结错误码目录（41 公开码 / 50 SQL 映射）；outbox 按聚合顺序 + 指数退避 + 死信/审计重排；usage 对账容差与价表校验；供应链准入（cosign/SLSA/SBOM/Pi 固定版本）；用户删除/运维代删/所有权转移；生命周期事件；黄金任务、试点指标、切换状态机；[试点运营 Runbook](work-r0a-pilot-operations-runbook-2026-10-26.md)。
+- **证据**：D1 冒烟 58/58；API 20 path / 23 operation，设计包 29/29；Temporal 6/6 + S1 4/4；Runtime 10/10 + 12/12；UI 模型 12/12；ops/pilot/telemetry 24/24（19 alert）。
+- **W4 产出**：[实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)——对照 §0 六条定义在设计层全部满足；23 个 blocking 项均给出负责角色与建议日期。
+- **仍不可实施**：DR0–DR4 未开会，D-01..D-06 未签收，go/no-go 仍 no-go（7 done / 2 waived / 18 partial / 5 todo）。
 
 ## 1. R0a 范围冻结
 
@@ -537,7 +544,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | W3 体验/运维 | D5 + D6 | 四界面规格、状态矩阵、SLO/告警、Runbook、切换回滚 | DR3 |
 | W4 实施就绪 | 汇总设计、测试计划、估算、依赖、风险 | 实施就绪包 | DR4 |
 
-波次是依赖顺序，不是工期承诺；W1 可与设计合作伙伴研究并行，但 R0a 开发启动仍需 §5.3 的研究与供应商闸门。当前 W1 的 D1/D2 草案、W2 的 D3/D4 草案、W3 的 D5/D6 草案均已完成；Temporal/真实沙箱/网关未接，演练/试点未做，DR2 未评审，D6 go/no-go 仍为 no-go。
+波次是依赖顺序，不是工期承诺；W1 可与设计合作伙伴研究并行，但 R0a 开发启动仍需 §5.3 的研究与供应商闸门。当前 W1 的 D1/D2 草案、W2 的 D3/D4 草案、W3 的 D5/D6 草案与 W4 [实施就绪包](work-r0a-implementation-readiness-2026-10-26.md)均已完成；Temporal/真实沙箱/网关未接，演练/试点未做，DR2 未评审，D6 go/no-go 仍为 no-go。
 
 ### 5.2 评审闸门
 
@@ -588,15 +595,15 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | 输入创建接口缺失 | 前端无法提交真实任务 | D2 已补 `POST /inputs` 并 mock 验证；生产输入服务待接 | 后端/前端 |
 | 模板接口缺失 | 无法渲染 3 个模板 | D2 已补 `GET /templates`；3 个版本化资产 | 后端/前端 |
 | TaskSummary/视图筛选不足 | “我的工作”状态由前端拼 | D2 已补服务端投影 + `view` 参数 | 后端/前端 |
-| 任务标题缺失 | 历史列表不可读 | D1/D2 已加只读 title；编辑接口仍待定 | 后端/产品 |
+| 任务标题缺失 | 历史列表不可读 | D1/D2 已加 title 与 `updateTask` 编辑（幂等/版本冲突） | 后端/产品 |
 | 管理只读与 P1-A 字段不一致 | 重复建设/权限口径漂移 | 目标形状已冻结；P1-A 映射待 D6 | 后端/平台 |
 | SSE 鉴权/游标 | 客户端实现分裂/token 泄漏 | D2 已冻结 cookie + 409 resync；SSE 网关待实现 | 后端/前端 |
 | Content Store 方案未定 | 正文加密/删除/恢复无落点 | D1/D6 复用平台对象存储或 S3+KMS | 平台/安全 |
 | Temporal 托管方式未定 | 部署/数据驻留/升级不清 | D3 W1 定案；自托管优先独立库/角色 | 平台/后端 |
 | 模型供应商条款/价表未定 | 预算/合规/回退不可承诺 | D4 闸门；H02 真实证据；价表上界 | 产品/商务/后端 |
 | 旧 Work 数据/路由处置 | 回滚与用户连续性 | D-06 + D6 切换/回滚演练 | 产品/前端/后端 |
-| 所有权转移/离职 | 试点期间任务无人接管 | 先人工运营流程；R0b 产品化 | 运营/产品 |
-| 留存/删除期限 | 合规与用户信任 | D1/D6 策略；法务/商用定案 | 产品/法务 |
+| 所有权转移/离职 | 试点期间任务无人接管 | `transfer_task_ownership`（work_ops + 工单审计）+ Runbook §5；R0b 产品化 | 运营/产品 |
+| 留存/删除期限 | 合规与用户信任 | 删除命令 + 内容粉碎 outbox 已设计；旧数据留存建议 180 天，法务定案 | 产品/法务 |
 | 可用性研究未做 | 场景与文案假设未验证 | §5.3 闸门；3 家组织复现 | 产品/设计 |
 
 ## 8. 变更控制与签收
@@ -608,6 +615,8 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 - **实施闸门**：DR4 通过前不进入生产代码；任何“先写再补设计”的例外需产品/架构/安全共同签收，并记录风险。
 
 ### 8.1 签收表
+
+签收议程与各决策的设计侧落实见[实施就绪包 §7](work-r0a-implementation-readiness-2026-10-26.md#7-评审议程与签收表)。
 
 | 决策 | 推荐 | 决策人 | 日期 | 结论 | 备注 |
 |---|---|---|---|---|---|

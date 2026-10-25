@@ -14,6 +14,7 @@ DROP ROLE IF EXISTS work_api;
 DROP ROLE IF EXISTS work_worker;
 DROP ROLE IF EXISTS work_ledger;
 DROP ROLE IF EXISTS work_migrator;
+DROP ROLE IF EXISTS work_ops;
 DROP ROLE IF EXISTS work_owner;
 
 CREATE ROLE work_owner NOLOGIN;
@@ -21,6 +22,7 @@ CREATE ROLE work_api NOLOGIN;
 CREATE ROLE work_worker NOLOGIN;
 CREATE ROLE work_ledger NOLOGIN;
 CREATE ROLE work_migrator NOLOGIN;
+CREATE ROLE work_ops NOLOGIN;
 
 CREATE SCHEMA work AUTHORIZATION work_owner;
 SET LOCAL ROLE work_owner;
@@ -1171,6 +1173,17 @@ $$;
 -- 这些函数在装配后统一改为 SECURITY DEFINER，由 work_owner 拥有；
 -- 应用角色只获得具体函数的 EXECUTE，不获得事实/账本表的直接 DML。
 
+-- Outbox：单聚合有序 + 失败退避 + 死信（D3 §15-6 闭合）
+ALTER TABLE work.outbox
+  ADD COLUMN outbox_seq bigint GENERATED ALWAYS AS IDENTITY,
+  ADD COLUMN last_error_code text,
+  ADD COLUMN dead_lettered_at timestamptz;
+
+CREATE UNIQUE INDEX work_outbox_seq ON work.outbox(outbox_seq);
+CREATE INDEX work_outbox_aggregate_pending
+  ON work.outbox(aggregate_type, aggregate_id, outbox_seq)
+  WHERE delivered_at IS NULL AND dead_lettered_at IS NULL;
+
 CREATE FUNCTION work.append_audit(
   p_org_id text,
   p_actor_subject_id text,
@@ -2218,16 +2231,109 @@ BEGIN
 END;
 $$;
 
+-- 单聚合按 outbox_seq 严格有序：同一 (aggregate_type, aggregate_id) 只有最早的
+-- 未投递、未死信行可被领取；被其他 relay 锁住或退避中的头部行会挡住后续行。
+-- 跨聚合不保证顺序。死信行不再阻塞（下游以 DB 状态幂等兜底，并告警）。
 CREATE FUNCTION work.claim_outbox(p_limit int DEFAULT 50)
 RETURNS SETOF work.outbox
 LANGUAGE sql AS $$
-  SELECT *
-  FROM work.outbox
-  WHERE delivered_at IS NULL
-    AND available_at <= now()
-  ORDER BY available_at
+  SELECT o.*
+  FROM work.outbox o
+  WHERE o.delivered_at IS NULL
+    AND o.dead_lettered_at IS NULL
+    AND o.available_at <= now()
+    AND NOT EXISTS (
+      SELECT 1 FROM work.outbox e
+      WHERE e.aggregate_type = o.aggregate_type
+        AND e.aggregate_id = o.aggregate_id
+        AND e.outbox_seq < o.outbox_seq
+        AND e.delivered_at IS NULL
+        AND e.dead_lettered_at IS NULL
+    )
+  ORDER BY o.outbox_seq
   LIMIT GREATEST(p_limit, 1)
-  FOR UPDATE SKIP LOCKED;
+  FOR UPDATE OF o SKIP LOCKED;
+$$;
+
+-- 投递失败：可重试按 2^attempts 秒退避（上限 300s），第 8 次或不可重试即死信。
+CREATE FUNCTION work.mark_outbox_failed(
+  p_event_id uuid,
+  p_error_code text,
+  p_retryable boolean
+) RETURNS text
+LANGUAGE plpgsql AS $$
+DECLARE
+  row_ work.outbox%ROWTYPE;
+  next_attempts int;
+BEGIN
+  IF p_error_code IS NULL OR p_error_code !~ '^[a-z][a-z0-9_]{1,63}$' THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO row_
+  FROM work.outbox
+  WHERE event_id = p_event_id
+    AND org_id = current_setting('app.org_id', true)
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'outbox_event_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF row_.delivered_at IS NOT NULL THEN
+    RETURN 'delivered';
+  END IF;
+  IF row_.dead_lettered_at IS NOT NULL THEN
+    RETURN 'dead_letter';
+  END IF;
+  next_attempts := row_.attempts + 1;
+  IF NOT p_retryable OR next_attempts >= 8 THEN
+    UPDATE work.outbox
+    SET attempts = next_attempts, last_error_code = p_error_code, dead_lettered_at = now()
+    WHERE id = row_.id;
+    PERFORM work.append_audit(
+      row_.org_id, 'system:outbox-relay', 'outbox.dead_lettered', row_.aggregate_type,
+      row_.aggregate_id::text,
+      jsonb_build_object('event_id', p_event_id, 'attempts', next_attempts, 'error_code', p_error_code)
+    );
+    RETURN 'dead_letter';
+  END IF;
+  UPDATE work.outbox
+  SET attempts = next_attempts,
+      last_error_code = p_error_code,
+      available_at = now() + make_interval(secs => LEAST(power(2, next_attempts), 300))
+  WHERE id = row_.id;
+  RETURN 'retry_scheduled';
+END;
+$$;
+
+-- 运维重放死信：必须给理由；写审计；不改变 payload。
+CREATE FUNCTION work.requeue_outbox_dead_letter(
+  p_event_id uuid,
+  p_actor_subject_id text,
+  p_reason text
+) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  row_ work.outbox%ROWTYPE;
+BEGIN
+  IF p_reason IS NULL OR length(btrim(p_reason)) < 4 THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO row_
+  FROM work.outbox
+  WHERE event_id = p_event_id
+    AND org_id = current_setting('app.org_id', true)
+  FOR UPDATE;
+  IF NOT FOUND OR row_.dead_lettered_at IS NULL THEN
+    RAISE EXCEPTION 'outbox_event_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  UPDATE work.outbox
+  SET dead_lettered_at = NULL, attempts = 0, available_at = now()
+  WHERE id = row_.id;
+  PERFORM work.append_audit(
+    row_.org_id, p_actor_subject_id, 'outbox.requeued', row_.aggregate_type,
+    row_.aggregate_id::text,
+    jsonb_build_object('event_id', p_event_id, 'reason', p_reason, 'last_error_code', row_.last_error_code)
+  );
+END;
 $$;
 
 CREATE FUNCTION work.mark_outbox_delivered(p_event_id uuid)
@@ -2382,6 +2488,341 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) av ON true;
 
+-- 标题编辑：仅 owner；乐观并发 + 幂等；事件/审计只记字段名，不记标题正文。
+CREATE FUNCTION work.update_task_title(
+  p_org_id text,
+  p_task_id uuid,
+  p_subject_id text,
+  p_client_request_id text,
+  p_expected_revision bigint,
+  p_title text
+) RETURNS bigint
+LANGUAGE plpgsql AS $$
+DECLARE
+  task_row work.task%ROWTYPE;
+  clean_title text := btrim(p_title);
+  req_hash text;
+  dedup_row work.submission_dedup%ROWTYPE;
+BEGIN
+  IF p_client_request_id IS NULL OR length(p_client_request_id) NOT BETWEEN 8 AND 128 THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
+  END IF;
+  IF clean_title IS NULL OR char_length(clean_title) NOT BETWEEN 1 AND 80
+     OR clean_title ~ '[[:cntrl:]]' THEN
+    RAISE EXCEPTION 'title_invalid' USING ERRCODE = '22023';
+  END IF;
+  req_hash := encode(sha256(convert_to(p_task_id::text || ':' || clean_title, 'UTF8')), 'hex');
+
+  SELECT * INTO task_row
+  FROM work.task
+  WHERE id = p_task_id AND org_id = p_org_id AND deleted_at IS NULL
+  FOR UPDATE;
+  IF NOT FOUND OR task_row.owner_subject_id <> p_subject_id THEN
+    RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
+  END IF;
+
+  SELECT * INTO dedup_row
+  FROM work.submission_dedup
+  WHERE org_id = p_org_id AND subject_id = p_subject_id
+    AND operation_type = 'task_title' AND client_request_id = p_client_request_id;
+  IF FOUND THEN
+    IF dedup_row.request_hash <> req_hash THEN
+      RAISE EXCEPTION 'idempotency_key_conflict' USING ERRCODE = '23505';
+    END IF;
+    RETURN task_row.revision;
+  END IF;
+
+  IF task_row.revision <> p_expected_revision THEN
+    RAISE EXCEPTION 'version_conflict' USING ERRCODE = '40001',
+      DETAIL = task_row.revision::text;
+  END IF;
+  IF task_row.state = 'archived' THEN
+    RAISE EXCEPTION 'task_archived' USING ERRCODE = '55000';
+  END IF;
+
+  UPDATE work.task
+  SET title = clean_title, revision = revision + 1, updated_at = now()
+  WHERE id = p_task_id AND org_id = p_org_id;
+  INSERT INTO work.submission_dedup
+    (org_id, subject_id, operation_type, client_request_id, request_hash, task_id, result_state)
+  VALUES
+    (p_org_id, p_subject_id, 'task_title', p_client_request_id, req_hash, p_task_id, 'updated');
+  PERFORM work.append_task_event(
+    p_org_id, p_task_id, 'task.updated', jsonb_build_object('fields', jsonb_build_array('title'))
+  );
+  PERFORM work.append_audit(
+    p_org_id, p_subject_id, 'task.title_update', 'task', p_task_id::text,
+    jsonb_build_object('fields', jsonb_build_array('title'))
+  );
+  RETURN task_row.revision + 1;
+END;
+$$;
+
+-- 成果下载审计：只记版本与哈希；读取正文本身由 Content Store 受控入口完成。
+CREATE FUNCTION work.record_artifact_export(
+  p_org_id text,
+  p_artifact_id uuid,
+  p_version_no int,
+  p_subject_id text
+) RETURNS uuid
+LANGUAGE plpgsql AS $$
+DECLARE
+  version_row work.artifact_version%ROWTYPE;
+  owner_id text;
+BEGIN
+  SELECT t.owner_subject_id INTO owner_id
+  FROM work.artifact a
+  JOIN work.task t ON t.id = a.task_id AND t.org_id = a.org_id
+  WHERE a.id = p_artifact_id AND a.org_id = p_org_id
+    AND a.deleted_at IS NULL AND t.deleted_at IS NULL;
+  IF owner_id IS NULL OR owner_id <> p_subject_id THEN
+    RAISE EXCEPTION 'artifact_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  SELECT * INTO version_row
+  FROM work.artifact_version
+  WHERE artifact_id = p_artifact_id AND org_id = p_org_id AND version_no = p_version_no;
+  IF NOT FOUND OR version_row.state <> 'published' THEN
+    RAISE EXCEPTION 'version_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  RETURN work.append_audit(
+    p_org_id, p_subject_id, 'artifact.exported', 'artifact', p_artifact_id::text,
+    jsonb_build_object('version_no', p_version_no, 'content_hash', version_row.content_hash,
+                       'bytes', version_row.bytes, 'media_type', version_row.media_type)
+  );
+END;
+$$;
+
+-- 任务删除核心：要求静止（无 active Run、无阻塞 Operation）；逻辑 tombstone +
+-- 正文引用进入 content_shred outbox（只含 content_ref，不含正文）。
+-- 预算账本、审计与无正文事件保留；标题按敏感元数据清除。不授予任何应用角色。
+CREATE FUNCTION work.delete_task_core(
+  p_org_id text,
+  p_task_id uuid,
+  p_actor_subject_id text,
+  p_reason text,
+  p_action text
+) RETURNS int
+LANGUAGE plpgsql AS $$
+DECLARE
+  task_row work.task%ROWTYPE;
+  refs jsonb;
+  artifact_count int;
+BEGIN
+  SELECT * INTO task_row
+  FROM work.task
+  WHERE id = p_task_id AND org_id = p_org_id
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF task_row.deleted_at IS NOT NULL THEN
+    RETURN 0;
+  END IF;
+  IF task_row.active_run_id IS NOT NULL OR EXISTS (
+    SELECT 1 FROM work.operation o
+    JOIN work.run r ON r.id = o.run_id AND r.org_id = o.org_id
+    WHERE r.task_id = p_task_id AND r.org_id = p_org_id
+      AND o.state IN ('prepared', 'waiting_approval', 'authorized', 'dispatching', 'unknown', 'unresolved')
+  ) THEN
+    RAISE EXCEPTION 'run_not_quiescent' USING ERRCODE = '55000';
+  END IF;
+
+  SELECT COALESCE(jsonb_agg(DISTINCT ref), '[]'::jsonb) INTO refs
+  FROM (
+    SELECT v.content_ref AS ref
+    FROM work.artifact a
+    JOIN work.artifact_version v ON v.artifact_id = a.id AND v.org_id = a.org_id
+    WHERE a.task_id = p_task_id AND a.org_id = p_org_id
+    UNION
+    SELECT i.content_ref
+    FROM work.input_object i
+    WHERE i.id = task_row.input_id AND i.org_id = p_org_id
+  ) s;
+
+  INSERT INTO work.artifact_tombstone (artifact_id, org_id)
+  SELECT a.id, a.org_id FROM work.artifact a
+  WHERE a.task_id = p_task_id AND a.org_id = p_org_id AND a.deleted_at IS NULL
+  ON CONFLICT (artifact_id) DO NOTHING;
+  UPDATE work.artifact
+  SET state = 'deleted', deleted_at = now(), updated_at = now()
+  WHERE task_id = p_task_id AND org_id = p_org_id AND deleted_at IS NULL;
+  GET DIAGNOSTICS artifact_count = ROW_COUNT;
+
+  UPDATE work.input_object
+  SET status = 'deleted', deleted_at = now()
+  WHERE id = task_row.input_id AND org_id = p_org_id AND deleted_at IS NULL;
+
+  UPDATE work.submission_dedup
+  SET task_deleted = true
+  WHERE org_id = p_org_id AND task_id = p_task_id;
+
+  UPDATE work.task
+  SET deleted_at = now(), title = '[deleted]', revision = revision + 1, updated_at = now()
+  WHERE id = p_task_id AND org_id = p_org_id;
+
+  INSERT INTO work.outbox (org_id, aggregate_type, aggregate_id, event_id, payload)
+  VALUES (p_org_id, 'content', p_task_id, gen_random_uuid(),
+          jsonb_build_object('kind', 'content_shred', 'task_id', p_task_id, 'content_refs', refs));
+
+  PERFORM work.append_audit(
+    p_org_id, p_actor_subject_id, p_action, 'task', p_task_id::text,
+    jsonb_build_object('reason', p_reason, 'artifacts', artifact_count,
+                       'content_refs', jsonb_array_length(refs), 'owner_subject_id', task_row.owner_subject_id)
+  );
+  RETURN jsonb_array_length(refs);
+END;
+$$;
+
+-- 用户删除自己的任务。
+CREATE FUNCTION work.delete_task(
+  p_org_id text,
+  p_task_id uuid,
+  p_subject_id text,
+  p_reason text DEFAULT NULL
+) RETURNS int
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM work.task
+    WHERE id = p_task_id AND org_id = p_org_id AND owner_subject_id = p_subject_id
+  ) THEN
+    RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  RETURN work.delete_task_core(p_org_id, p_task_id, p_subject_id, p_reason, 'task.deleted');
+END;
+$$;
+
+-- 运维代执行删除（法务/组织退出/离职清理）：必须带工单号。
+CREATE FUNCTION work.ops_delete_task(
+  p_org_id text,
+  p_task_id uuid,
+  p_actor_subject_id text,
+  p_ticket_ref text,
+  p_reason text
+) RETURNS int
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF p_ticket_ref IS NULL OR p_ticket_ref !~ '^[A-Z][A-Z0-9]+-[0-9]+$' OR length(btrim(coalesce(p_reason, ''))) < 4 THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
+  END IF;
+  RETURN work.delete_task_core(
+    p_org_id, p_task_id, p_actor_subject_id, p_ticket_ref || ': ' || p_reason, 'task.deleted_by_ops'
+  );
+END;
+$$;
+
+-- 所有权转移（试点人工流程）：新 owner 必须是同组织在职、有 Work 席位成员；
+-- 任务须静止；不复制原 owner 的任何授权；原 owner 立即失去访问。
+CREATE FUNCTION work.transfer_task_ownership(
+  p_org_id text,
+  p_task_id uuid,
+  p_new_owner text,
+  p_actor_subject_id text,
+  p_ticket_ref text,
+  p_reason text
+) RETURNS bigint
+LANGUAGE plpgsql AS $$
+DECLARE
+  task_row work.task%ROWTYPE;
+BEGIN
+  IF p_ticket_ref IS NULL OR p_ticket_ref !~ '^[A-Z][A-Z0-9]+-[0-9]+$' OR length(btrim(coalesce(p_reason, ''))) < 4 THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO task_row
+  FROM work.task
+  WHERE id = p_task_id AND org_id = p_org_id AND deleted_at IS NULL
+  FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'task_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF task_row.owner_subject_id = p_new_owner THEN
+    RETURN task_row.revision;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM work.member
+    WHERE org_id = p_org_id AND subject_id = p_new_owner AND status = 'active' AND work_seat
+  ) THEN
+    RAISE EXCEPTION 'work_seat_required' USING ERRCODE = '42501';
+  END IF;
+  IF task_row.active_run_id IS NOT NULL OR EXISTS (
+    SELECT 1 FROM work.operation o
+    JOIN work.run r ON r.id = o.run_id AND r.org_id = o.org_id
+    WHERE r.task_id = p_task_id AND r.org_id = p_org_id
+      AND o.state IN ('prepared', 'waiting_approval', 'authorized', 'dispatching', 'unknown', 'unresolved')
+  ) THEN
+    RAISE EXCEPTION 'run_not_quiescent' USING ERRCODE = '55000';
+  END IF;
+  UPDATE work.task
+  SET owner_subject_id = p_new_owner, revision = revision + 1, updated_at = now()
+  WHERE id = p_task_id AND org_id = p_org_id;
+  PERFORM work.append_task_event(
+    p_org_id, p_task_id, 'task.owner_changed', jsonb_build_object('fields', jsonb_build_array('owner'))
+  );
+  PERFORM work.append_audit(
+    p_org_id, p_actor_subject_id, 'task.ownership_transferred', 'task', p_task_id::text,
+    jsonb_build_object('from', task_row.owner_subject_id, 'to', p_new_owner,
+                       'ticket_ref', p_ticket_ref, 'reason', p_reason)
+  );
+  RETURN task_row.revision + 1;
+END;
+$$;
+
+-- 生命周期事件由触发器统一补发，覆盖 finish_run/accept_task/cancel/对账等全部写路径，
+-- 供 SSE 时间线与试点指标使用；payload 不含正文、标题或完成理由文本。
+CREATE FUNCTION work.emit_run_terminal_event() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.state IN ('succeeded', 'failed', 'canceled') AND NEW.state IS DISTINCT FROM OLD.state THEN
+    PERFORM work.append_task_event(
+      NEW.org_id, NEW.task_id, 'run.' || NEW.state,
+      jsonb_build_object('run_id', NEW.id, 'attempt_no', NEW.attempt_no, 'terminal_reason', NEW.terminal_reason)
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER run_terminal_event
+AFTER UPDATE OF state ON work.run
+FOR EACH ROW EXECUTE FUNCTION work.emit_run_terminal_event();
+
+CREATE FUNCTION work.emit_task_state_event() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.state = 'awaiting_acceptance' AND OLD.state IS DISTINCT FROM 'awaiting_acceptance' THEN
+    PERFORM work.append_task_event(
+      NEW.org_id, NEW.id, 'task.awaiting_acceptance',
+      jsonb_build_object('latest_run_id', NEW.latest_run_id)
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER task_state_event
+AFTER UPDATE OF state ON work.task
+FOR EACH ROW EXECUTE FUNCTION work.emit_task_state_event();
+
+CREATE FUNCTION work.emit_acceptance_event() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM work.append_task_event(
+    NEW.org_id, NEW.task_id, 'task.completed',
+    jsonb_build_object(
+      'acceptance_id', NEW.id,
+      'basis', CASE WHEN NEW.artifact_id IS NULL THEN 'reason' ELSE 'version' END,
+      'artifact_id', NEW.artifact_id,
+      'version_no', NEW.version_no
+    )
+  );
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER acceptance_event
+AFTER INSERT ON work.acceptance
+FOR EACH ROW EXECUTE FUNCTION work.emit_acceptance_event();
+
 -- R0a RLS、函数所有权与最小权限
 -- 应用每事务 SET LOCAL app.org_id；FORCE 让表 owner 也受策略约束。
 
@@ -2455,7 +2896,7 @@ $$;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA work FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA work FROM PUBLIC;
 
-GRANT USAGE ON SCHEMA work TO work_api, work_worker, work_ledger;
+GRANT USAGE ON SCHEMA work TO work_api, work_worker, work_ledger, work_ops;
 GRANT SELECT ON ALL TABLES IN SCHEMA work TO work_api, work_worker;
 GRANT SELECT ON work.task_summary TO work_api, work_worker;
 
@@ -2466,6 +2907,8 @@ GRANT EXECUTE ON FUNCTION work.create_input(text, text, text, text, bigint, text
 GRANT EXECUTE ON FUNCTION work.submit_task(text, text, text, text, uuid, text, text, text, jsonb, text[], jsonb, text, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.create_run(uuid, text, uuid, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.request_cancel(text, uuid, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.update_task_title(text, uuid, text, text, bigint, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.record_artifact_export(text, uuid, int, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.publish_artifact(text, uuid, uuid, text, text, text, bigint, text, jsonb) TO work_api, work_worker;
 GRANT EXECUTE ON FUNCTION work.accept_task(uuid, text, uuid, int, text, bigint, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.request_approval(text, uuid, text, jsonb, text, timestamptz, bigint) TO work_api;
@@ -2484,6 +2927,11 @@ GRANT EXECUTE ON FUNCTION work.release_budget(uuid) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.finish_run(uuid, text, text, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.claim_outbox(int) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.mark_outbox_delivered(uuid) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.mark_outbox_failed(uuid, text, boolean) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.requeue_outbox_dead_letter(uuid, text, text) TO work_ops;
+GRANT EXECUTE ON FUNCTION work.delete_task(text, uuid, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.ops_delete_task(text, uuid, text, text, text) TO work_ops;
+GRANT EXECUTE ON FUNCTION work.transfer_task_ownership(text, uuid, text, text, text, text) TO work_ops;
 GRANT EXECUTE ON FUNCTION work.wait_run(text, uuid, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.resume_run(text, uuid) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.mark_operation_unknown(text, uuid, text) TO work_worker;

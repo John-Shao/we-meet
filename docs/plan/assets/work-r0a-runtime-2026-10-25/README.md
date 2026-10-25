@@ -12,12 +12,17 @@
 | `policy/egress-policy.json` | 供应商、请求绑定、来源标签、秘密模式、响应过滤、usage、日志、回退 |
 | `policy/evaluator.mjs` | 设计级策略评估器（不是生产网关） |
 | `policy/evaluator.test.mjs` | 10 组策略测试 |
+| `usage/usage-reconcile.mjs` | usage 归一、单次结算/容差/超预留、月度账单对账 |
+| `usage/price-table.placeholder.json` | **占位**价表（非供应商价格） |
+| `supply-chain/supply-chain-policy.json` | 镜像签名/provenance/SBOM/Pi 固定/漏洞门禁策略 |
+| `supply-chain/supply-chain.mjs` | 发布准入评估器 |
+| `usage-supply-chain.test.mjs` | 12 组 usage/对账/准入测试 |
 
 ## 校验
 
 ```bash
 cd docs/plan/assets/work-r0a-runtime-2026-10-25
-node --test policy/evaluator.test.mjs
+node --test policy/evaluator.test.mjs usage-supply-chain.test.mjs
 
 npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
   --target ES2022 --module ESNext WorkAdapter.contract.ts
@@ -25,6 +30,7 @@ npx --yes -p typescript@5 tsc --noEmit --skipLibCheck \
 
 ## 已验证
 
+- 2026-10-26：usage/对账/供应链准入 **12/12**（合计 22/22），用真实 Qwen smoke 的 usage 形状验证不重复计 reasoning；CI `runtime-frontend` job 已定义。
 - 策略测试 **10/10** 通过：工具白名单、来源标签、秘密阻断、请求绑定、回退、响应过滤、沙箱不变量、无内容日志、usage、faux model。
 - `WorkAdapter.contract.ts` 通过 `tsc --noEmit`。
 - 策略 JSON 可解析；faux model 无网络依赖。

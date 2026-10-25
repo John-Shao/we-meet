@@ -92,10 +92,15 @@ function createState() {
     tasks: new Map(),
     taskDedup: new Map(),
     auditExports: new Map(),
+    auditLog: [],
+    deletedTasks: new Map(),
   };
 }
 
 function resetState(state) {
+  state.csrfToken = CSRF_TOKEN;
+  state.auditLog.length = 0;
+  state.deletedTasks.clear();
   state.inputs.clear();
   state.inputDedup.clear();
   state.inputByHash.clear();
@@ -124,6 +129,16 @@ function requireCsrf(req, state) {
   if (req.headers['x-csrf-token'] !== state.csrfToken) {
     fail(403, 'csrf_invalid', 'CSRF token 缺失或不匹配');
   }
+}
+
+function contentDisposition(task, artifact, version) {
+  const ext = version.mediaType === 'text/plain' ? 'txt' : 'md';
+  const ascii = `work-${artifact.id.slice(0, 8)}-v${version.versionNo}.${ext}`;
+  const label = (task.title || 'work')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f\\/:*?"<>|]/g, '_')
+    .slice(0, 60);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(`${label}-v${version.versionNo}.${ext}`)}`;
 }
 
 async function readJson(req) {
@@ -867,6 +882,65 @@ async function handle(req, res, state) {
     return sendJson(res, 200, taskDetail(task));
   }
 
+  if ((match = pathname.match(/^\/work\/v1\/tasks\/([0-9a-f-]+)$/)) && method === 'DELETE') {
+    requireCsrf(req, state);
+    const previous = state.deletedTasks.get(match[1]);
+    if (previous) return sendJson(res, 200, previous);
+    const task = state.tasks.get(match[1]);
+    if (!task) fail(404, 'task_not_found', '任务不存在');
+    const blocking = [...task.operations.values()].some((op) => BLOCKING_STATES.has(op.state));
+    const latest = task.latestRunId ? task.runs.get(task.latestRunId) : null;
+    if (task.activeRunId || blocking || (latest && !TERMINAL_RUN_STATES.has(latest.state))) {
+      fail(409, 'run_not_quiescent', '任务仍在运行或有未核对动作，取消并等待结束后再删除');
+    }
+    const receipt = { task_id: task.id, deleted_at: now(), content_purge: 'scheduled' };
+    state.tasks.delete(task.id);
+    state.deletedTasks.set(task.id, receipt);
+    state.auditLog.push({
+      action: 'task.deleted',
+      actor_subject_id: state.subjectId,
+      target_id: task.id,
+      artifacts: task.artifacts.size,
+      at: receipt.deleted_at,
+    });
+    return sendJson(res, 200, receipt);
+  }
+
+  if ((match = pathname.match(/^\/work\/v1\/tasks\/([0-9a-f-]+)$/)) && method === 'PATCH') {
+    requireCsrf(req, state);
+    const task = state.tasks.get(match[1]);
+    if (!task) fail(404, 'task_not_found', '任务不存在');
+    const body = await readJson(req);
+    const extra = Object.keys(body).filter(
+      (key) => !['client_request_id', 'expected_revision', 'title'].includes(key),
+    );
+    if (extra.length > 0) fail(400, 'invalid_request', `不允许的字段：${extra.join(',')}`);
+    if (typeof body.client_request_id !== 'string' || body.client_request_id.length < 8) {
+      fail(400, 'invalid_request', 'client_request_id 至少 8 字符');
+    }
+    const title = typeof body.title === 'string' ? body.title.trim() : '';
+    // eslint-disable-next-line no-control-regex
+    if (!title || [...title].length > 80 || /[\u0000-\u001f\u007f]/.test(title)) {
+      fail(422, 'title_invalid', '标题需 1–80 字符且不含控制字符');
+    }
+    const dedupKey = `title:${task.id}:${body.client_request_id}`;
+    const previous = state.taskDedup.get(dedupKey);
+    if (previous) {
+      if (previous.title !== title) fail(409, 'idempotency_key_conflict', '同一请求键的内容不同');
+      return sendJson(res, 200, summary(task));
+    }
+    if (body.expected_revision !== task.revision) {
+      fail(409, 'version_conflict', '任务 revision 已变化', { current_revision: task.revision });
+    }
+    if (task.state === 'archived') fail(409, 'task_archived', '已归档任务不可编辑');
+    task.title = title;
+    task.revision += 1;
+    task.updatedAt = now();
+    state.taskDedup.set(dedupKey, { title });
+    addEvent(task, 'task.updated', { task_id: task.id, fields: ['title'] }, null);
+    return sendJson(res, 200, summary(task));
+  }
+
   if ((match = pathname.match(/^\/work\/v1\/runs\/([0-9a-f-]+)\/operations$/)) && method === 'GET') {
     const found = findTaskForRun(state, match[1]);
     if (!found) fail(404, 'run_not_found', '运行不存在');
@@ -967,10 +1041,27 @@ async function handle(req, res, state) {
     if (!found) fail(404, 'artifact_not_found', '成果不存在');
     const version = found.artifact.versions.find((v) => v.versionNo === Number(match[2]));
     if (!version) fail(404, 'version_not_found', '成果版本不存在');
-    res.writeHead(200, {
+    const disposition = url.searchParams.get('disposition') ?? 'inline';
+    if (!['inline', 'attachment'].includes(disposition)) {
+      fail(400, 'invalid_request', 'disposition 只能是 inline 或 attachment');
+    }
+    const headers = {
       'Content-Type': `${version.mediaType}; charset=utf-8`,
       'Cache-Control': 'no-store',
-    });
+      'X-Content-Type-Options': 'nosniff',
+    };
+    if (disposition === 'attachment') {
+      headers['Content-Disposition'] = contentDisposition(found.task, found.artifact, version);
+      state.auditLog.push({
+        action: 'artifact.exported',
+        actor_subject_id: state.subjectId,
+        target_id: found.artifact.id,
+        version_no: version.versionNo,
+        content_hash: version.contentHash,
+        at: now(),
+      });
+    }
+    res.writeHead(200, headers);
     return res.end(version.content);
   }
 
@@ -1041,6 +1132,11 @@ async function handle(req, res, state) {
     return sendJson(res, 200, { ok: true });
   }
 
+  if (method === 'POST' && pathname === '/__test/rotate-csrf') {
+    state.csrfToken = `rotated-${uuid()}`;
+    return sendJson(res, 200, { ok: true });
+  }
+
   if ((match = pathname.match(/^\/__test\/tasks\/([0-9a-f-]+)\/complete$/)) && method === 'POST') {
     requireCsrf(req, state);
     const task = state.tasks.get(match[1]);
@@ -1087,7 +1183,7 @@ export function createWorkServer() {
   };
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const app = createWorkServer();
   const port = await app.listen();
   console.log(`work-r0a mock listening on http://127.0.0.1:${port}`);

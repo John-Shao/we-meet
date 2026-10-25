@@ -31,7 +31,7 @@ python -c "import json; [json.load(open(f, encoding='utf-8')) for f in ['securit
 
 ## 已验证
 
-- 8/8 ops 测试 + 10/10 telemetry 测试通过：控制字段/证据、SLO 必需指标/未测不冒充、清单完整性、go/no-go、容量基线、10× 失败、零使用、非法输入；12 个 SLO 全覆盖、target/window/unit 与 `slo-pilot.json` 对齐、track-only 不产生 SLO 告警、缺失/篡改/内容标签/错误 runbook 被拒。
+- 8/8 ops + 6/6 pilot-ops + 10/10 telemetry 测试通过（共 24/24；黄金任务/试点指标/切换状态机见 `pilot-ops.mjs`）：控制字段/证据、SLO 必需指标/未测不冒充、清单完整性、go/no-go、容量基线、10× 失败、零使用、非法输入；12 个 SLO 全覆盖、target/window/unit 与 `slo-pilot.json` 对齐、track-only 不产生 SLO 告警、缺失/篡改/内容标签/错误 runbook 被拒。
 - `prometheus-rules.yaml` 由契约生成且无漂移：21 条 record、17 条 alert；每条告警带 severity/for/runbook 与 `org_id` 注释；标签白名单禁止 goal/background/prompt/content/body/email/api_key/authorization/cookie/session。
 - 当前 `goNoGo`：**no-go，23 个 blocking 项**。
 - 基线：36 Run/日、108 模型 Operation/日、7.5 provider req/min、0.125 DB 预留/秒、1.296M token/日、1.156GB/365 天；均在试点限制内。

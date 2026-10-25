@@ -588,6 +588,288 @@ SELECT 'run5_awaiting', state = 'awaiting_acceptance'
 FROM work.task WHERE id = :'task5_id'::uuid;
 
 -- ---------------------------------------------------------------------------
+-- Title edit + artifact export audit (D2 gap closure)
+-- ---------------------------------------------------------------------------
+RESET ROLE;
+SET LOCAL ROLE work_api;
+SET LOCAL app.org_id = 'org1';
+
+SELECT revision AS title_rev0 FROM work.task WHERE id = :'task_id'::uuid \gset
+SELECT work.update_task_title('org1', :'task_id'::uuid, 'user1', 'req-title-0001', :'title_rev0'::bigint, '  季度复盘  ') AS title_rev1 \gset
+SELECT work.update_task_title('org1', :'task_id'::uuid, 'user1', 'req-title-0001', :'title_rev0'::bigint, '季度复盘') AS title_rev1_replay \gset
+INSERT INTO smoke_assert
+SELECT 'title_update_trimmed', title = '季度复盘' AND revision = :'title_rev0'::bigint + 1
+FROM work.task WHERE id = :'task_id'::uuid;
+INSERT INTO smoke_assert
+SELECT 'title_update_idempotent', :'title_rev1'::bigint = :'title_rev1_replay'::bigint;
+INSERT INTO smoke_assert
+SELECT 'title_event_no_text', count(*) = 1 AND bool_and(payload::text NOT LIKE '%季度复盘%')
+FROM work.task_event WHERE task_id = :'task_id'::uuid AND type = 'task.updated';
+
+DO $$
+DECLARE
+  tid uuid := (SELECT id FROM work.task WHERE org_id = 'org1' AND title = '季度复盘');
+  cases text[][] := ARRAY[
+    ARRAY['req-title-0001', '0', '另一个标题', 'idempotency_key_conflict'],
+    ARRAY['req-title-0002', '0', '旧 revision', 'version_conflict'],
+    ARRAY['req-title-0003', '-1', E'bad\x07title', 'title_invalid'],
+    ARRAY['req-title-0004', '-1', repeat('长', 81), 'title_invalid']
+  ];
+  c text[];
+BEGIN
+  FOREACH c SLICE 1 IN ARRAY cases LOOP
+    BEGIN
+      PERFORM work.update_task_title('org1', tid, 'user1', c[1],
+        CASE WHEN c[2] = '-1' THEN (SELECT revision FROM work.task WHERE id = tid) ELSE c[2]::bigint END,
+        c[3]);
+      RAISE EXCEPTION 'expected_%', c[4];
+    EXCEPTION WHEN OTHERS THEN
+      IF SQLERRM <> c[4] THEN RAISE; END IF;
+    END;
+  END LOOP;
+  BEGIN
+    PERFORM work.update_task_title('org1', tid, 'intruder', 'req-title-0005',
+      (SELECT revision FROM work.task WHERE id = tid), '越权');
+    RAISE EXCEPTION 'expected_not_owner';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'task_not_found' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'title_update_negatives', true;
+
+SELECT work.record_artifact_export('org1', :'artifact_id'::uuid, :'version_no'::int, 'user1') AS export_audit_id \gset
+INSERT INTO smoke_assert
+SELECT 'artifact_export_audit',
+  count(*) = 1
+  AND bool_and(action = 'artifact.exported')
+  AND bool_and(metadata ? 'content_hash')
+  AND bool_and(NOT metadata ? 'content')
+FROM work.audit_event WHERE id = :'export_audit_id'::uuid;
+
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.record_artifact_export('org1',
+      (SELECT id FROM work.artifact WHERE org_id = 'org1' LIMIT 1), 999, 'user1');
+    RAISE EXCEPTION 'expected_version_not_found';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'version_not_found' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'artifact_export_missing_version', true;
+
+-- ---------------------------------------------------------------------------
+-- Outbox per-aggregate ordering, backoff and dead letter (D3 §15-6)
+-- ---------------------------------------------------------------------------
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+UPDATE work.outbox SET delivered_at = now() WHERE delivered_at IS NULL;
+INSERT INTO work.outbox (org_id, aggregate_type, aggregate_id, event_id, payload)
+VALUES
+  ('org1', 'run', '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000e1', '{"kind":"start_workflow"}'),
+  ('org1', 'run', '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000e2', '{"kind":"cancel_signal"}'),
+  ('org1', 'run', '00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000e3', '{"kind":"start_workflow"}');
+
+SET LOCAL ROLE work_worker;
+SET LOCAL app.org_id = 'org1';
+INSERT INTO smoke_assert
+SELECT 'outbox_head_of_line',
+  array_agg(event_id::text ORDER BY outbox_seq) = ARRAY[
+    '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000e3']
+FROM work.claim_outbox(10);
+
+SELECT work.mark_outbox_failed('00000000-0000-0000-0000-0000000000e1', 'temporal_unavailable', true) AS fail1 \gset
+INSERT INTO smoke_assert
+SELECT 'outbox_backoff_blocks_aggregate',
+  :'fail1' = 'retry_scheduled'
+  AND NOT EXISTS (
+    SELECT 1 FROM work.claim_outbox(10)
+    WHERE aggregate_id = '00000000-0000-0000-0000-0000000000a1');
+
+SELECT work.mark_outbox_failed('00000000-0000-0000-0000-0000000000e1', 'payload_invalid', false) AS fail2 \gset
+INSERT INTO smoke_assert
+SELECT 'outbox_dead_letter_unblocks_next',
+  :'fail2' = 'dead_letter'
+  AND EXISTS (
+    SELECT 1 FROM work.claim_outbox(10)
+    WHERE event_id = '00000000-0000-0000-0000-0000000000e2');
+
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+INSERT INTO smoke_assert
+SELECT 'outbox_dead_letter_audited', count(*) = 1
+FROM work.audit_event
+WHERE action = 'outbox.dead_lettered' AND metadata->>'error_code' = 'payload_invalid';
+
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.mark_outbox_failed('00000000-0000-0000-0000-0000000000e3', 'Bad Code!', true);
+    RAISE EXCEPTION 'expected_invalid_request';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'invalid_request' THEN RAISE; END IF;
+  END;
+END $$;
+
+SET LOCAL ROLE work_ops;
+SET LOCAL app.org_id = 'org1';
+SELECT work.requeue_outbox_dead_letter('00000000-0000-0000-0000-0000000000e1', 'ops:oncall', 'payload fixed upstream');
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+INSERT INTO smoke_assert
+SELECT 'outbox_requeue_audited',
+  (SELECT dead_lettered_at IS NULL AND attempts = 0 FROM work.outbox
+     WHERE event_id = '00000000-0000-0000-0000-0000000000e1')
+  AND EXISTS (SELECT 1 FROM work.audit_event WHERE action = 'outbox.requeued');
+INSERT INTO smoke_assert
+SELECT 'outbox_requeue_not_granted_to_worker',
+  NOT has_function_privilege('work_worker', 'work.requeue_outbox_dead_letter(uuid, text, text)', 'EXECUTE')
+  AND NOT has_function_privilege('work_api', 'work.requeue_outbox_dead_letter(uuid, text, text)', 'EXECUTE')
+  AND NOT has_table_privilege('work_ops', 'work.outbox', 'UPDATE');
+
+-- ---------------------------------------------------------------------------
+-- Deletion + ownership transfer (C27/C30 design closure)
+-- ---------------------------------------------------------------------------
+RESET ROLE;
+INSERT INTO work.member (org_id, subject_id, status, role, work_seat)
+VALUES ('org1', 'user3', 'active', 'member', true),
+       ('org1', 'user4', 'active', 'member', false);
+SET LOCAL ROLE work_api;
+SET LOCAL app.org_id = 'org1';
+
+SELECT work.create_input(
+  'org1', 'user1', 'content://org1/input-del', 'sha256:input-del', 64, 'application/json'
+) AS del_input \gset
+SELECT task_id AS busy_task FROM work.submit_task(
+  'org1', 'user1', 'req-del-busy', 'sha256:req-del-busy',
+  :'del_input'::uuid, '进行中任务', 'ask_each', 'sha256:snap-del',
+  '{"template":null}'::jsonb,
+  ARRAY['model_call']::text[], '{"provider":"qwen"}'::jsonb,
+  'price-v1', 'wf-req-del-busy', 'pi-1.4.0'
+) \gset
+
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.delete_task('org1', (SELECT id FROM work.task WHERE title = '进行中任务'), 'user1', 'cleanup');
+    RAISE EXCEPTION 'expected_run_not_quiescent';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'run_not_quiescent' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM work.delete_task('org1', (SELECT id FROM work.task WHERE title = '季度复盘'), 'user2', 'not mine');
+    RAISE EXCEPTION 'expected_task_not_found';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'task_not_found' THEN RAISE; END IF;
+  END;
+END $$;
+INSERT INTO smoke_assert SELECT 'delete_requires_quiescent_owner', true;
+
+SELECT work.delete_task('org1', :'task_id'::uuid, 'user1', 'user request') AS shred_refs \gset
+SELECT work.delete_task('org1', :'task_id'::uuid, 'user1', 'user request') AS shred_refs_again \gset
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+INSERT INTO smoke_assert
+SELECT 'delete_tombstones_task',
+  t.deleted_at IS NOT NULL AND t.title = '[deleted]'
+  AND NOT EXISTS (SELECT 1 FROM work.artifact a WHERE a.task_id = t.id AND a.deleted_at IS NULL)
+  AND EXISTS (SELECT 1 FROM work.artifact_tombstone tb JOIN work.artifact a ON a.id = tb.artifact_id WHERE a.task_id = t.id)
+  AND :'shred_refs'::int >= 1 AND :'shred_refs_again'::int = 0
+FROM work.task t WHERE t.id = :'task_id'::uuid;
+INSERT INTO smoke_assert
+SELECT 'delete_shred_outbox_refs_only',
+  count(*) = 1
+  AND bool_and(jsonb_typeof(payload->'content_refs') = 'array')
+  AND bool_and(payload::text NOT LIKE '%季度复盘%')
+FROM work.outbox WHERE aggregate_type = 'content' AND aggregate_id = :'task_id'::uuid;
+INSERT INTO smoke_assert
+SELECT 'delete_keeps_ledger_and_marks_dedup',
+  EXISTS (SELECT 1 FROM work.budget_entry e JOIN work.operation o ON o.id = e.operation_id
+          JOIN work.run r ON r.id = o.run_id WHERE r.task_id = :'task_id'::uuid)
+  AND NOT EXISTS (SELECT 1 FROM work.submission_dedup WHERE task_id = :'task_id'::uuid AND NOT task_deleted);
+INSERT INTO smoke_assert
+SELECT 'delete_exports_blocked', NOT EXISTS (
+  SELECT 1 FROM work.artifact WHERE task_id = :'task_id'::uuid AND deleted_at IS NULL);
+
+CREATE TEMP TABLE ops_ids AS
+SELECT
+  (SELECT id FROM work.task WHERE title = '进行中任务') AS busy_id,
+  (SELECT id FROM work.task t
+   WHERE t.deleted_at IS NULL AND t.active_run_id IS NULL AND t.owner_subject_id = 'user1'
+     AND NOT EXISTS (SELECT 1 FROM work.operation o JOIN work.run r ON r.id = o.run_id
+                     WHERE r.task_id = t.id
+                       AND o.state IN ('prepared','waiting_approval','authorized','dispatching','unknown','unresolved'))
+   ORDER BY t.created_at LIMIT 1) AS xfer_id;
+GRANT SELECT ON ops_ids TO work_ops;
+SELECT xfer_id AS xfer_task FROM ops_ids \gset
+
+SET LOCAL ROLE work_ops;
+SET LOCAL app.org_id = 'org1';
+DO $$ BEGIN
+  BEGIN
+    PERFORM work.transfer_task_ownership('org1', (SELECT xfer_id FROM ops_ids), 'user4', 'ops:oncall', 'SUP-101', 'owner left');
+    RAISE EXCEPTION 'expected_work_seat_required';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'work_seat_required' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM work.transfer_task_ownership('org1', (SELECT busy_id FROM ops_ids), 'user3', 'ops:oncall', 'SUP-103', 'owner left');
+    RAISE EXCEPTION 'expected_run_not_quiescent';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'run_not_quiescent' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM work.transfer_task_ownership('org1', (SELECT xfer_id FROM ops_ids), 'user3', 'ops:oncall', 'no-ticket', 'owner left');
+    RAISE EXCEPTION 'expected_invalid_request';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'invalid_request' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM work.ops_delete_task('org1', (SELECT busy_id FROM ops_ids), 'ops:oncall', 'LEGAL-7', 'erasure request');
+    RAISE EXCEPTION 'expected_run_not_quiescent';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM <> 'run_not_quiescent' THEN RAISE; END IF;
+  END;
+END $$;
+SELECT work.transfer_task_ownership('org1', :'xfer_task'::uuid, 'user3', 'ops:oncall', 'SUP-102', 'owner left org') AS xfer_rev \gset
+SELECT work.ops_delete_task('org1', :'xfer_task'::uuid, 'ops:oncall', 'LEGAL-7', 'erasure request') AS ops_del_refs \gset
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+INSERT INTO smoke_assert
+SELECT 'ownership_transfer_audited',
+  (SELECT owner_subject_id = 'user3' FROM work.task WHERE id = :'xfer_task'::uuid)
+  AND EXISTS (SELECT 1 FROM work.audit_event WHERE action = 'task.ownership_transferred'
+              AND metadata->>'ticket_ref' = 'SUP-102' AND metadata->>'from' = 'user1')
+  AND EXISTS (SELECT 1 FROM work.task_event WHERE task_id = :'xfer_task'::uuid AND type = 'task.owner_changed');
+INSERT INTO smoke_assert
+SELECT 'ops_delete_audited',
+  (SELECT deleted_at IS NOT NULL FROM work.task WHERE id = :'xfer_task'::uuid)
+  AND EXISTS (SELECT 1 FROM work.audit_event WHERE action = 'task.deleted_by_ops'
+              AND target_id = :'xfer_task' AND metadata->>'reason' LIKE 'LEGAL-7:%');
+INSERT INTO smoke_assert
+SELECT 'ops_privileges_scoped',
+  NOT has_function_privilege('work_api', 'work.transfer_task_ownership(text, uuid, text, text, text, text)', 'EXECUTE')
+  AND NOT has_function_privilege('work_api', 'work.ops_delete_task(text, uuid, text, text, text)', 'EXECUTE')
+  AND NOT has_function_privilege('work_api', 'work.delete_task_core(text, uuid, text, text, text)', 'EXECUTE')
+  AND NOT has_function_privilege('work_ops', 'work.delete_task_core(text, uuid, text, text, text)', 'EXECUTE')
+  AND NOT has_function_privilege('work_ops', 'work.submit_task(text, text, text, text, uuid, text, text, text, jsonb, text[], jsonb, text, text, text)', 'EXECUTE');
+
+-- ---------------------------------------------------------------------------
+-- Lifecycle events for SSE/metrics (triggers)
+-- ---------------------------------------------------------------------------
+RESET ROLE;
+SET LOCAL app.org_id = 'org1';
+INSERT INTO smoke_assert
+SELECT 'event_run_succeeded', count(*) >= 1 FROM work.task_event WHERE type = 'run.succeeded';
+INSERT INTO smoke_assert
+SELECT 'event_task_awaiting', count(*) >= 1 FROM work.task_event WHERE type = 'task.awaiting_acceptance';
+INSERT INTO smoke_assert
+SELECT 'event_task_completed_no_text',
+  count(*) >= 1 AND bool_and(payload ? 'basis') AND bool_and(NOT payload ? 'completion_reason')
+FROM work.task_event WHERE type = 'task.completed';
+INSERT INTO smoke_assert
+SELECT 'event_seq_contiguous', bool_and(ok) FROM (
+  SELECT max(seq) = count(*) AS ok FROM work.task_event GROUP BY task_id
+) s;
+
+-- ---------------------------------------------------------------------------
 -- Assertions
 -- ---------------------------------------------------------------------------
 DO $$

@@ -1,0 +1,49 @@
+{
+  "version": "r0a-pilot-metrics-v1",
+  "window_days": 28,
+  "source": "work.task_event (content-free) + work.member seats; computed per org_id, never per user in dashboards",
+  "event_types": [
+    "task.submitted",
+    "run.succeeded",
+    "run.failed",
+    "run.canceled",
+    "task.awaiting_acceptance",
+    "task.completed",
+    "artifact.published",
+    "task.deleted"
+  ],
+  "metrics": {
+    "activation": {
+      "definition": "org is activated when >=3 distinct seated members submit >=1 task within 14 days of the org flag turning on",
+      "numerator": "distinct subjects with task.submitted within 14d of enablement",
+      "threshold": 3,
+      "target": "3 of 3 pilot orgs",
+      "go_gate": true
+    },
+    "technical_success_rate": {
+      "definition": "run.succeeded / (run.succeeded + run.failed); user-canceled runs are excluded",
+      "target": 0.95,
+      "go_gate": true
+    },
+    "acceptance_rate": {
+      "definition": "tasks with task.completed basis=version / tasks that reached task.awaiting_acceptance",
+      "target": 0.6,
+      "go_gate": true
+    },
+    "reason_completion_share": {
+      "definition": "task.completed basis=reason / all task.completed; high values mean outputs are not used",
+      "target": null,
+      "go_gate": false
+    },
+    "time_to_first_artifact_p50_seconds": {
+      "definition": "median of first artifact.published minus task.submitted per task",
+      "target": 120,
+      "go_gate": false
+    },
+    "golden_suite_pass_ratio": {
+      "definition": "golden tasks meeting pass_rule / all golden tasks (golden-tasks.json)",
+      "target": 0.8,
+      "go_gate": true
+    }
+  }
+}

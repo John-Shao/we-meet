@@ -9,6 +9,10 @@ on:
       - 'docs/plan/assets/work-temporal-slice-2026-10-25/*.log'
       - 'docs/plan/work-r0a-api-design-2026-10-25.md'
       - 'docs/plan/work-r0a-admin-readonly-mapping-2026-10-25.md'
+      - 'docs/plan/assets/work-r0a-runtime-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-frontend-2026-10-25/**'
+      - 'docs/plan/work-r0a-pilot-operations-runbook-2026-10-26.md'
+      - 'docs/plan/work-operations-runbook-2026-10-25.md'
       - '.github/workflows/work-r0a-gates.yml'
   push:
     branches:
@@ -20,6 +24,10 @@ on:
       - 'docs/plan/assets/work-temporal-slice-2026-10-25/*.log'
       - 'docs/plan/work-r0a-api-design-2026-10-25.md'
       - 'docs/plan/work-r0a-admin-readonly-mapping-2026-10-25.md'
+      - 'docs/plan/assets/work-r0a-runtime-2026-10-25/**'
+      - 'docs/plan/assets/work-r0a-frontend-2026-10-25/**'
+      - 'docs/plan/work-r0a-pilot-operations-runbook-2026-10-26.md'
+      - 'docs/plan/work-operations-runbook-2026-10-25.md'
       - '.github/workflows/work-r0a-gates.yml'
 
 permissions:
@@ -54,9 +62,24 @@ jobs:
       - name: Check generated rules
         run: node generate-telemetry.mjs --check
       - name: Run ops and telemetry tests
-        run: node --test ops-model.test.mjs telemetry.test.mjs
+        run: node --test ops-model.test.mjs telemetry.test.mjs pilot-ops.test.mjs
       - name: Run capacity model
         run: node pilot-capacity-model.mjs
+
+  runtime-frontend:
+    name: Runtime policy, usage, supply chain and UI model
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Runtime policy, usage reconciliation and release admission
+        working-directory: docs/plan/assets/work-r0a-runtime-2026-10-25
+        run: node --test policy/evaluator.test.mjs usage-supply-chain.test.mjs
+      - name: Frontend UI state model
+        working-directory: docs/plan/assets/work-r0a-frontend-2026-10-25
+        run: node --test ui-model.test.mjs
 
   log-scan:
     name: No-content/no-secret log scan

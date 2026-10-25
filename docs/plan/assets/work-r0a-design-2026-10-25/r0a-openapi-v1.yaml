@@ -165,6 +165,45 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Tasks]
+      operationId: updateTask
+      summary: 编辑任务标题（乐观并发）；只改元数据，不影响 Run/快照/成果
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskUpdateRequest" }
+      responses:
+        "200":
+          description: 更新后的任务摘要；revision 递增
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskSummary" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+    delete:
+      tags: [Tasks]
+      operationId: deleteTask
+      summary: 删除本人任务（需静止）；成果/输入不可再读，正文异步粉碎，账本与审计保留
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: 已删除；重复删除返回同一结果
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskDeletion" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
 
   /work/v1/tasks/{taskId}/runs:
     post:
@@ -346,16 +385,29 @@ paths:
     get:
       tags: [Artifacts]
       operationId: getArtifactContent
-      summary: 受控正文读取；不缓存、不写日志
+      summary: 受控正文读取/下载；不缓存、不写日志；attachment 记审计
       parameters:
         - $ref: "#/components/parameters/ArtifactId"
         - $ref: "#/components/parameters/VersionNo"
+        - name: disposition
+          in: query
+          required: false
+          description: |
+            inline=页面内渲染；attachment=导出下载，服务端生成安全文件名
+            （RFC 6266 filename*=UTF-8''，不含任务标题以外的正文），并写
+            artifact.exported 审计（不含正文）。R0a 不提供分享链接或格式转换。
+          schema: { type: string, enum: [inline, attachment], default: inline }
       responses:
         "200":
           description: Markdown/纯文本正文
           headers:
             Cache-Control:
               schema: { type: string, enum: ["no-store"] }
+            Content-Disposition:
+              schema: { type: string }
+              description: attachment 时为 `attachment; filename="work-<artifact8>-v<n>.md"; filename*=UTF-8''<标题>-v<n>.md`
+            X-Content-Type-Options:
+              schema: { type: string, enum: [nosniff] }
           content:
             text/markdown:
               schema: { type: string }
@@ -901,6 +953,31 @@ components:
       properties:
         task: { $ref: "#/components/schemas/TaskSummary" }
         run: { $ref: "#/components/schemas/Run" }
+
+    TaskUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, expected_revision, title]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        expected_revision: { type: integer, minimum: 0 }
+        title:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: 去首尾空白后 1–80 字符；禁止控制字符；敏感元数据，不写普通日志/事件 payload。
+
+    TaskDeletion:
+      type: object
+      additionalProperties: false
+      required: [task_id, deleted_at, content_purge]
+      properties:
+        task_id: { type: string, format: uuid }
+        deleted_at: { type: string, format: date-time }
+        content_purge:
+          type: string
+          enum: [scheduled]
+          description: 正文/输入在 Content Store 中异步粉碎；备份按留存周期自然过期。
 
     TaskRunRequest:
       type: object

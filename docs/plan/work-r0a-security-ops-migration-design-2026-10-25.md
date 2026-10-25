@@ -40,7 +40,7 @@ D6 回答 R0a 试点能否开始、如何安全运行、如何切换/回滚、�
 | S03 | 供应商 Key/凭据泄漏 | KMS/egress 持有；Runtime 无长期 Key；日志不含 Key/正文 | partial |
 | S04 | SSRF/DNS/直连互联网 | 仅 `work-egress`；固定目标；禁 metadata/loopback/private | partial |
 | S05 | 审批重放/陈旧批准 | R0a 无手工审批；policy_auto + audit；R0b/R2 保留 CAS | partial |
-| S06 | 供应链/Pi/镜像 | Pi/镜像固定；禁止运行时安装/扩展；签名/SBOM 待补 | open |
+| S06 | 供应链/Pi/镜像 | Pi/镜像固定；禁止运行时安装/扩展；签名/provenance/SBOM/漏洞准入策略 + 评估器 12/12（含 usage）已定义，真实流水线未接 | partial |
 | S07 | Unknown/重复付费调用 | Operation 账本、CAS/fence、不自动重放、保留预算 | partial |
 | S08 | 备份/恢复/DR 丢失安全事实 | 声明持久性边界；恢复核账；超出边界冻结 | partial |
 | S09 | 留存/删除/驻留 | 审计 365 天；任务/正文待产品/法务；crypto-shredding 计划 | open |
@@ -173,7 +173,9 @@ node pilot-capacity-model.mjs
 - 3 个 golden tasks；反馈节奏；已知限制（无本机/连接器/项目/分享/移动编辑）。
 - 支持升级：P1 支持 → P2 研发 → 安全事件；工单不含正文/密钥。
 - 数据删除：按保留策略执行；正文/密钥/备份范围写清；第三方供应商删除单独确认。
-- 所有权转移：试点期间人工流程；不自动恢复离职人员权限。
+- 所有权转移：试点期间人工流程（D1 `transfer_task_ownership`，见[试点运营 runbook](work-r0a-pilot-operations-runbook-2026-10-26.md) §5）；不自动恢复离职人员权限。
+- 删除：用户自助 `DELETE /tasks/{id}`（静止才允许）；运维代删 `ops_delete_task`；组织退出流程与粉碎/备份边界见 runbook §3–§4。
+- 黄金任务与指标：[golden-tasks.json](assets/work-r0a-ops-2026-10-25/golden-tasks.json)（6 个，3 模板×2）、[pilot-metrics.json](assets/work-r0a-ops-2026-10-25/pilot-metrics.json)（激活/技术成功率/采纳率 go-gate），由 [pilot-ops.mjs](assets/work-r0a-ops-2026-10-25/pilot-ops.mjs) 校验并只引用 D1 实际发出的事件。
 - 退出：导出/归档/删除；保留审计事实；不删除旧任务证据除非策略允许。
 
 ## 9. 演练矩阵
@@ -204,7 +206,7 @@ node pilot-capacity-model.mjs
 - **本地 KMS envelope**：租户隔离/轮换/主密钥轮换/shredding **6/6**；不是云 KMS/HSM；见 [kms-envelope](assets/work-r0a-hardening-2026-10-25/kms-envelope.mjs)。
 - **真实 Qwen smoke**：qwen3.8-flash 200、首 token 2567ms、usage 80/110、provider request id 可记录，未输出 Key/正文；见 [provider-smoke.log](assets/work-r0a-hardening-2026-10-25/provider-smoke.log)。
 - **日志扫描参考 7/7**：Key/Bearer/cookie/私钥/正文 canary/email 规则；现有 7 个证据日志 0 fail / 0 warn，扫描结果只含脱敏预览；见 [log-scan-result.log](assets/work-r0a-hardening-2026-10-25/log-scan-result.log)。不是 staging OTel 证据。
-- **SLO 遥测规则 10/10**：12 个 SLO 全覆盖，生成 21 条 record + 17 条 alert（15 SLO + 2 operational），每条告警带 severity/for/runbook，内容标签被禁止；见 [telemetry-contract](assets/work-r0a-ops-2026-10-25/telemetry-contract.json) / [rules](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)。未接 Prometheus/Alertmanager，所有 SLO 仍 not_measured。
+- **SLO 遥测规则 10/10**：12 个 SLO 全覆盖，生成 21 条 record + 19 条 alert（15 SLO + 4 operational，含 outbox 死信与 usage 偏差），每条告警带 severity/for/runbook，内容标签被禁止；见 [telemetry-contract](assets/work-r0a-ops-2026-10-25/telemetry-contract.json) / [rules](assets/work-r0a-ops-2026-10-25/prometheus-rules.yaml)。未接 Prometheus/Alertmanager，所有 SLO 仍 not_measured。
 - 本地关闭：C12 RLS 池化 3/3；C18 10 并发 1.774s；C19 Work DB 恢复计数一致；C20 S1-R03 执行开关/组织停用；C21 §6.1 on-call/事故沟通。C31 仍 partial（P1-A 不能直接复用）；C16/C17 仍 partial（无 staging 遥测/日志后端）。
 - 当前 no-go 从 29 降为 **23**；C09/C13/C14/C22 仍 partial，C15/C24/C25/C27/C30 等仍待外部输入。
 
@@ -236,10 +238,10 @@ node pilot-capacity-model.mjs
 4. **KMS/Content Store**：加密/删除/恢复/驻留未实现。
 5. **SLO 目标**：TTFT/unknown/technical success 为试点暂定，需数据校准；不能当合同。
 6. **容量**：模型只覆盖试点假设；10× 压力不通过；生产三档未做。
-7. **旧数据/路由**：旧任务只读归属/保留期未定；回滚演练未做。
-8. **所有权转移/离职**：人工流程未演练；可能留下无人接管任务。
+7. **旧数据/路由**：保留期提案 180 天只读后归档导出再删（待法务）；切换状态机见 [cutover-plan.json](assets/work-r0a-ops-2026-10-25/cutover-plan.json)；回滚演练未做。
+8. **所有权转移/离职**：D1 `transfer_task_ownership`（work_ops、工单号、静止、席位校验、审计）+ [试点运营 runbook §5](work-r0a-pilot-operations-runbook-2026-10-26.md)；未演练、未签收。
 9. **试点组织/研究**：3 家未签、5–8 名研究未做；不能以内部走查代替。
-10. **事故沟通/支持**：R0a 专用 on-call/工单模板未定。
+10. **事故沟通/支持**：支持分级 S1–S4、工单模板与升级路径见[试点运营 runbook §2](work-r0a-pilot-operations-runbook-2026-10-26.md)；联系人/渠道待 C24。
 11. **合规**：数据驻留/删除/审计保留需法务/安全确认。
 12. **No-go 清单**：剩余 23 个 blocking 项是当前事实；本地测试不能替代试点环境、安全签收、供应商条款与组织研究。
 

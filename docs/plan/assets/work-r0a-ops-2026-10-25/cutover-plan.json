@@ -1,0 +1,111 @@
+{
+  "version": "r0a-cutover-v1",
+  "flag": "work.r0a.enabled",
+  "scope": "per org_id; no global switch in R0a",
+  "states": {
+    "off": {
+      "new_routes": "hidden (404 for /work/items, /work/new; /work shows legacy page)",
+      "legacy_routes": "unchanged",
+      "new_submissions": false,
+      "kill_switch_compatible": true
+    },
+    "pilot_on": {
+      "new_routes": "enabled",
+      "legacy_routes": "read-only notice; /work?task= -> /work/archive?legacyTask=:id",
+      "new_submissions": true,
+      "kill_switch_compatible": true
+    },
+    "rolled_back": {
+      "new_routes": "read-only (list/detail/content/export/delete allowed; submit/retry/edit rejected 403 org_execution_unavailable)",
+      "legacy_routes": "unchanged legacy behaviour restored",
+      "new_submissions": false,
+      "kill_switch_compatible": true
+    }
+  },
+  "transitions": [
+    {
+      "from": "off",
+      "to": "pilot_on",
+      "requires_checklist": [
+        "C01",
+        "C02",
+        "C03",
+        "C04",
+        "C05",
+        "C07",
+        "C10",
+        "C11",
+        "C14",
+        "C15",
+        "C17",
+        "C24",
+        "C27",
+        "C30",
+        "C31"
+      ],
+      "requires_drills": [
+        "rls_direct_dml",
+        "kill_switch_org_suspend",
+        "backup_restore",
+        "legacy_link_flag_rollback"
+      ],
+      "approvers": [
+        "product",
+        "security",
+        "sre"
+      ],
+      "steps": [
+        "confirm org admin + security contact + support channel",
+        "grant seats via P1-A/ops flow",
+        "set flag pilot_on for the org only",
+        "smoke golden task G01 with an internal seat",
+        "announce to org admins with known limitations"
+      ]
+    },
+    {
+      "from": "pilot_on",
+      "to": "rolled_back",
+      "trigger": "SEV1, or SEV2 unresolved for 4h, or go-gate metric below target for 7 consecutive days",
+      "approvers": [
+        "incident_commander"
+      ],
+      "steps": [
+        "suspend execution for the org (epoch bump) so in-flight dispatch stops",
+        "set flag rolled_back",
+        "verify reads/export/delete still work and new submit returns 403",
+        "notify org admins; keep audit and ledger intact"
+      ]
+    },
+    {
+      "from": "rolled_back",
+      "to": "pilot_on",
+      "requires_checklist": [
+        "C17"
+      ],
+      "requires_drills": [
+        "legacy_link_flag_rollback"
+      ],
+      "approvers": [
+        "product",
+        "sre"
+      ],
+      "steps": [
+        "root cause closed",
+        "explicit re-enable; no automatic recovery",
+        "re-grant seats explicitly"
+      ]
+    }
+  ],
+  "forbidden": [
+    "dual-write between legacy office_agent tables and work schema",
+    "migrating legacy tasks into work.task",
+    "deleting new-work data on rollback",
+    "automatic re-enable after rollback"
+  ],
+  "legacy_retention": {
+    "status": "proposal_pending_legal",
+    "read_only_days_after_pilot_on": 180,
+    "then": "archive export for org admins, then delete per org data agreement",
+    "owner": "product + legal"
+  }
+}

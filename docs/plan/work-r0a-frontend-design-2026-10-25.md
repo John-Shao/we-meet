@@ -187,7 +187,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 
 | 区域 | 内容 |
 |---|---|
-| 头部 | 标题（R0a 只读）、状态徽标、云端/预算、更多菜单 |
+| 头部 | 标题（可编辑，`updateTask`）、状态徽标、云端/预算、更多菜单 |
 | 横幅 | `StateBanner`：待验收/失败/运行取消/核对中/预算不足/取消中 |
 | 左/中 | 执行时间线；事件类型映射；工具 Operation 折叠；无思维链 |
 | 右 | 成果面板：最新版本预览、版本号、打开成果工作区、采纳 |
@@ -323,19 +323,20 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 
 ## 12. D5 对 D2 的缺口与待办
 
-1. **预算剩余**：D2 `bootstrap` 只有 limits，没有组织剩余预算；R0a Composer 只能显示 preview 的费用上界。若产品要求“组织剩余预算”，需在 bootstrap/preview 增加 budget 字段。
-2. **标题编辑**：D2 无 `PATCH /tasks/{id}`；R0a 标题只读。若产品要求编辑，需补契约。
-3. **导出**：D2 只有 content 读取；前端 Blob 下载可用，但文件名/大文本/审计下载未定义。
+1. **预算剩余（2026-10-26 裁定）**：R0a 成员侧只显示 preview 的本次费用上界与任务卡的已预留/已结算；**不向成员展示组织剩余额度**（管理员在 `/admin/overview` 看）。额度不足由服务端 422 `budget_exhausted` / 显示态 `budget_exhausted` 表达，前端不自行计算余额。
+2. **标题编辑（2026-10-26 已补）**：D2 `PATCH /tasks/{id}`（`updateTask`）。任务工作区头部标题可点击编辑：Enter 保存、Esc 取消、失焦保存；1–80 字计数；409 `version_conflict` 时提示“任务已在别处更新”并重新取快照后保留用户输入供再次保存；422 `title_invalid` 行内提示；手机只读。
+3. **导出（2026-10-26 已补）**：成果面板“下载 Markdown”= `<a href=".../content?disposition=attachment" download>` 同源导航（cookie 携带，不经 Blob、无需 CSRF）；文件名由服务端 `Content-Disposition` 决定，前端不拼文件名；服务端记录导出审计。不提供复制分享链接或 docx/pdf。
 4. **管理只读**：`/admin/work` 的 P1-A 字段/权限码映射未完成；D6 补。
-5. **CSRF 生命周期**：bootstrap token 轮换/多标签页/失效重取未定；前端先做内存 + 403 重取一次。
+5. **CSRF 生命周期（2026-10-26 定稿）**：token 存内存（不入 localStorage）；生成客户端 `refreshCsrfToken` 在 403 `csrf_invalid` 时重新 bootstrap 并只重试一次；仍失败显示“会话已更新，请刷新页面”。多标签页共享会话级 token，由同一路径自愈。
 6. **旧路由/旧任务**：当前 `/work?view=...` 与旧 `office_agent` API 仍存在；R0a 用新路由/新 API，旧链接只读通知；D-06 的切换/回滚需实现。
-7. **SSE 传输**：D2 用 `Last-Event-ID` 头；原生 EventSource 不能手动设置，前端用 fetch stream；需在 D2/D3 文档注明。
+7. **SSE 传输（已定）**：生成客户端用 fetch stream + `readSse`，自行携带 `Last-Event-ID`；不用原生 EventSource。
 8. **移动端范围**：R0a 只读；若产品要求移动端创建/审批，另立阶段。
+9. **删除任务（2026-10-26 补齐）**：任务工作区“更多 → 删除任务”，仅在 `state-matrix.json` 的 `management.delete` 状态且无 active Run/阻塞 Operation 时可用（`canDelete`）；二次确认文案明确不可撤销、正文 24 小时内清除、用量/审计保留；成功后回到“我的工作”并移除卡片；409 `run_not_quiescent` 显示“请先取消并等待结束”。重命名为 `management.rename`（非归档、仅桌面）。UI 模型 12/12。
 
 ## 13. 未决与风险
 
 1. 预算剩余/组织额度展示依赖 D2 扩展；不要用假数字。
-2. 标题只读与原型“可编辑”不一致；需产品确认。
+2. ~~标题只读与原型不一致~~：已补编辑契约，与原型一致。
 3. 旧任务只读页面的归属/保留期限未定；D-06 需给出切换/回滚。
 4. SSE 多实例/背压/重连风暴；D3/D6 实现后联调。
 5. 版本列表是否需要 diff/比较；R0a 先不做。
@@ -347,7 +348,7 @@ D2 生成类型可直接用于 `api/client.ts`；`state-matrix.json` 作为状�
 
 ## 14. 验收标准
 
-- 路由/状态矩阵/文案/UI 模型测试通过（当前 11/11）。
+- 路由/状态矩阵/文案/UI 模型测试通过（当前 12/12，含重命名/删除管理动作）。
 - 四个界面 + 历史/管理只读覆盖全部 12 个状态；没有假入口/假审批。
 - Composer 两阶段、preview_stale、idempotency、scope/permission 错误可走通。
 - SSE 断线/409 resync 后状态可恢复；unknown 不显示重试/采纳。

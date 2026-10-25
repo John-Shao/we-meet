@@ -376,6 +376,7 @@ export function renderClient(yamlText, operations) {
  *   cookie?: string | null,
  *   csrfToken?: string | null,
  *   getCsrfToken?: (() => string | null | undefined | Promise<string | null | undefined>) | null,
+ *   refreshCsrfToken?: (() => string | null | undefined | Promise<string | null | undefined>) | null,
  *   headers?: Record<string, string>,
  * }} WorkClientConfig
  */
@@ -495,6 +496,7 @@ export function createWorkClient(config = {}) {
     cookie = null,
     csrfToken = null,
     getCsrfToken = null,
+    refreshCsrfToken = null,
     headers: defaultHeaders = {},
   } = config;
   if (typeof fetchImpl !== 'function') {
@@ -502,8 +504,11 @@ export function createWorkClient(config = {}) {
   }
   const base = String(baseUrl).replace(/\\/+$/, '');
   let token = csrfToken;
+  /** @type {string | null} */
+  let refreshedToken = null;
 
   async function resolveCsrf() {
+    if (refreshedToken) return refreshedToken;
     if (typeof getCsrfToken === 'function') {
       const value = await getCsrfToken();
       if (value) return value;
@@ -514,8 +519,9 @@ export function createWorkClient(config = {}) {
   /**
    * @param {string} operationId
    * @param {any} [params]
+   * @param {boolean} [csrfRetried]
    */
-  async function request(operationId, params = {}) {
+  async function request(operationId, params = {}, csrfRetried = false) {
     const operation = OPERATIONS.find((entry) => entry.operationId === operationId);
     if (!operation) throw new TypeError(\`unknown operation \${operationId}\`);
     const pathParams = params.path ?? {};
@@ -602,6 +608,21 @@ export function createWorkClient(config = {}) {
       (data && (data.request_id ?? data.correlation_id)) ??
       null;
     if (!response.ok) {
+      // The server rejects a stale CSRF token before any side effect, so one
+      // refresh-and-retry is safe; a second failure surfaces to the caller.
+      if (
+        response.status === 403 &&
+        data?.code === 'csrf_invalid' &&
+        operation.requiresCsrf &&
+        !csrfRetried &&
+        typeof refreshCsrfToken === 'function'
+      ) {
+        const fresh = await refreshCsrfToken();
+        if (fresh) {
+          refreshedToken = fresh;
+          return request(operationId, params, true);
+        }
+      }
       throw new WorkApiError({
         status: response.status,
         code: (data && data.code) || 'http_error',

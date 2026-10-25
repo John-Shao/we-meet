@@ -166,6 +166,16 @@
       "labelKey": "work.r0a.action.view_budget",
       "destructive": false,
       "requiresConfirm": false
+    },
+    "rename": {
+      "labelKey": "work.r0a.action.rename",
+      "destructive": false,
+      "requiresConfirm": false
+    },
+    "delete": {
+      "labelKey": "work.r0a.action.delete",
+      "destructive": true,
+      "requiresConfirm": true
     }
   },
   "constraints": {
@@ -189,6 +199,36 @@
         "budget_exhausted",
         "reconciling"
       ]
+    }
+  },
+  "management": {
+    "rename": {
+      "states": [
+        "open",
+        "queued",
+        "running",
+        "awaiting_acceptance",
+        "completed",
+        "failed",
+        "run_canceled",
+        "reconciling",
+        "budget_exhausted",
+        "canceling",
+        "canceled"
+      ],
+      "desktopOnly": true
+    },
+    "delete": {
+      "states": [
+        "open",
+        "awaiting_acceptance",
+        "completed",
+        "failed",
+        "run_canceled",
+        "canceled",
+        "archived"
+      ],
+      "requiresQuiescent": true
     }
   }
 }

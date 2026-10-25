@@ -101,10 +101,12 @@ export interface paths {
         get: operations["getTask"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** 删除本人任务（需静止）；成果/输入不可再读，正文异步粉碎，账本与审计保留 */
+        delete: operations["deleteTask"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** 编辑任务标题（乐观并发）；只改元数据，不影响 Run/快照/成果 */
+        patch: operations["updateTask"];
         trace?: never;
     };
     "/work/v1/tasks/{taskId}/runs": {
@@ -250,7 +252,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 受控正文读取；不缓存、不写日志 */
+        /** 受控正文读取/下载；不缓存、不写日志；attachment 记审计 */
         get: operations["getArtifactContent"];
         put?: never;
         post?: never;
@@ -559,6 +561,23 @@ export interface components {
         TaskRun: {
             task: components["schemas"]["TaskSummary"];
             run: components["schemas"]["Run"];
+        };
+        TaskUpdateRequest: {
+            client_request_id: string;
+            expected_revision: number;
+            /** @description 去首尾空白后 1–80 字符；禁止控制字符；敏感元数据，不写普通日志/事件 payload。 */
+            title: string;
+        };
+        TaskDeletion: {
+            /** Format: uuid */
+            task_id: string;
+            /** Format: date-time */
+            deleted_at: string;
+            /**
+             * @description 正文/输入在 Content Store 中异步粉碎；备份按留存周期自然过期。
+             * @enum {string}
+             */
+            content_purge: "scheduled";
         };
         TaskRunRequest: {
             client_request_id: string;
@@ -1009,6 +1028,68 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    deleteTask: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description double-submit token；与 bootstrap 返回的 csrf_token 一致。 */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除；重复删除返回同一结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDeletion"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateTask: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description double-submit token；与 bootstrap 返回的 csrf_token 一致。 */
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description 更新后的任务摘要；revision 递增 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
     retryTask: {
         parameters: {
             query?: never;
@@ -1259,7 +1340,14 @@ export interface operations {
     };
     getArtifactContent: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description inline=页面内渲染；attachment=导出下载，服务端生成安全文件名
+                 *     （RFC 6266 filename*=UTF-8''，不含任务标题以外的正文），并写
+                 *     artifact.exported 审计（不含正文）。R0a 不提供分享链接或格式转换。
+                 */
+                disposition?: "inline" | "attachment";
+            };
             header?: never;
             path: {
                 artifactId: components["parameters"]["ArtifactId"];
@@ -1273,6 +1361,9 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control"?: "no-store";
+                    /** @description attachment 时为 `attachment; filename="work-<artifact8>-v<n>.md"; filename*=UTF-8''<标题>-v<n>.md` */
+                    "Content-Disposition"?: string;
+                    "X-Content-Type-Options"?: "nosniff";
                     [name: string]: unknown;
                 };
                 content: {

@@ -33,7 +33,7 @@
       "evidence": [
         "D2 OpenAPI + 6/6 contract tests"
       ],
-      "note": "Draft; generated client/CI pending."
+      "note": "Draft frozen (23 ops, error catalogue, generated client, CI gate); formal DR1 review not held."
     },
     {
       "id": "C03",
@@ -329,20 +329,27 @@
       "category": "product",
       "title": "Golden tasks and activation/technical-success/acceptance metrics",
       "owner": "product + backend",
-      "status": "todo",
+      "status": "partial",
       "blocking": true,
-      "evidence": [],
-      "note": "Metric definitions/dashboards pending."
+      "evidence": [
+        "golden-tasks.json (6 tasks)",
+        "pilot-metrics.json",
+        "pilot-ops.test.mjs"
+      ],
+      "note": "Definitions and evaluator done; no real pilot run or dashboard."
     },
     {
       "id": "C27",
       "category": "product",
       "title": "Pilot support escalation and data-deletion procedure",
       "owner": "product + support + legal",
-      "status": "todo",
+      "status": "partial",
       "blocking": true,
-      "evidence": [],
-      "note": "Ownership transfer remains manual."
+      "evidence": [
+        "work-r0a-pilot-operations-runbook-2026-10-26.md §2-4",
+        "D1 delete_task/ops_delete_task smoke"
+      ],
+      "note": "Support tiers and deletion procedure drafted; contacts, legal/DPA sign-off pending."
     },
     {
       "id": "C28",
@@ -353,7 +360,8 @@
       "blocking": true,
       "evidence": [
         "D5 routes/legacy tests",
-        "D6 cutover plan"
+        "D6 cutover plan",
+        "cutover-plan.json state machine + pilot-ops tests"
       ],
       "note": "No real old-link/flag/rollback drill."
     },
@@ -366,7 +374,8 @@
       "blocking": true,
       "evidence": [
         "D-06 decision",
-        "D5 legacy redirects"
+        "D5 legacy redirects",
+        "cutover-plan.json legacy retention proposal (180d, pending legal)"
       ],
       "note": "Old task read-only ownership/retention still open."
     },
@@ -375,10 +384,13 @@
       "category": "migration",
       "title": "Data deletion and ownership-transfer runbook",
       "owner": "ops + legal",
-      "status": "todo",
+      "status": "partial",
       "blocking": true,
-      "evidence": [],
-      "note": "Manual pilot procedure not signed."
+      "evidence": [
+        "runbook §3-5",
+        "D1 transfer_task_ownership/ops_delete_task (work_ops, ticket audit) smoke"
+      ],
+      "note": "Procedure and commands exist; ops/legal sign-off and drill pending."
     },
     {
       "id": "C31",

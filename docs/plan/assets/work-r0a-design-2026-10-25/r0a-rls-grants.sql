@@ -71,7 +71,7 @@ $$;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA work FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA work FROM PUBLIC;
 
-GRANT USAGE ON SCHEMA work TO work_api, work_worker, work_ledger;
+GRANT USAGE ON SCHEMA work TO work_api, work_worker, work_ledger, work_ops;
 GRANT SELECT ON ALL TABLES IN SCHEMA work TO work_api, work_worker;
 GRANT SELECT ON work.task_summary TO work_api, work_worker;
 
@@ -82,6 +82,8 @@ GRANT EXECUTE ON FUNCTION work.create_input(text, text, text, text, bigint, text
 GRANT EXECUTE ON FUNCTION work.submit_task(text, text, text, text, uuid, text, text, text, jsonb, text[], jsonb, text, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.create_run(uuid, text, uuid, text, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.request_cancel(text, uuid, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.update_task_title(text, uuid, text, text, bigint, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.record_artifact_export(text, uuid, int, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.publish_artifact(text, uuid, uuid, text, text, text, bigint, text, jsonb) TO work_api, work_worker;
 GRANT EXECUTE ON FUNCTION work.accept_task(uuid, text, uuid, int, text, bigint, text) TO work_api;
 GRANT EXECUTE ON FUNCTION work.request_approval(text, uuid, text, jsonb, text, timestamptz, bigint) TO work_api;
@@ -100,6 +102,11 @@ GRANT EXECUTE ON FUNCTION work.release_budget(uuid) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.finish_run(uuid, text, text, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.claim_outbox(int) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.mark_outbox_delivered(uuid) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.mark_outbox_failed(uuid, text, boolean) TO work_worker;
+GRANT EXECUTE ON FUNCTION work.requeue_outbox_dead_letter(uuid, text, text) TO work_ops;
+GRANT EXECUTE ON FUNCTION work.delete_task(text, uuid, text, text) TO work_api;
+GRANT EXECUTE ON FUNCTION work.ops_delete_task(text, uuid, text, text, text) TO work_ops;
+GRANT EXECUTE ON FUNCTION work.transfer_task_ownership(text, uuid, text, text, text, text) TO work_ops;
 GRANT EXECUTE ON FUNCTION work.wait_run(text, uuid, text) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.resume_run(text, uuid) TO work_worker;
 GRANT EXECUTE ON FUNCTION work.mark_operation_unknown(text, uuid, text) TO work_worker;

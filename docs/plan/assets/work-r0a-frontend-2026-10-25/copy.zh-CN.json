@@ -139,5 +139,17 @@
   "work.r0a.admin.seats": "席位",
   "work.r0a.admin.audit": "审计导出",
   "work.r0a.admin.readonly": "只读视图；席位、预算和策略写入不在 R0a。",
-  "work.r0a.admin.exportRequested": "审计导出作业已创建。"
+  "work.r0a.admin.exportRequested": "审计导出作业已创建。",
+  "work.r0a.action.rename": "重命名",
+  "work.r0a.action.delete": "删除任务",
+  "work.r0a.confirm.delete.title": "删除这个任务？",
+  "work.r0a.confirm.delete.body": "任务、输入和所有成果版本将无法再打开或导出，正文会在 24 小时内清除。已产生的用量和审计记录会保留。此操作不能撤销。",
+  "work.r0a.title.counter": "{count}/80",
+  "work.r0a.artifact.download": "下载 Markdown",
+  "work.r0a.error.title_invalid": "标题需为 1–80 个字，且不能包含特殊控制字符。",
+  "work.r0a.error.csrf_invalid": "会话已更新，请刷新页面后重试。",
+  "work.r0a.error.task_archived": "已归档的任务只能查看。",
+  "work.r0a.error.org_execution_unavailable": "你的组织暂停了工作执行，现有任务仍可查看和导出。",
+  "work.r0a.error.work_seat_required": "你还没有工作席位，请联系组织管理员。",
+  "work.r0a.error.delete_not_quiescent": "任务仍在运行或有未核对的动作，请先取消并等待结束后再删除。"
 }

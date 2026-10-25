@@ -1,6 +1,6 @@
 # Work R0a 数据、权限与迁移详细设计（D1）
 
-> 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 34/34 冒烟，未评审、未应用生产。
+> 状态：D1 详细设计草案；可执行 SQL 已在独立 PostgreSQL 16 通过 58/58 冒烟（2026-10-26 增加标题编辑、导出审计、outbox 顺序/死信、删除/所有权转移、生命周期事件共 24 项），未评审、未应用生产。
 >
 > 日期：2026-10-25
 >
@@ -27,7 +27,7 @@ D1 的目标是回答四个问题：
 - `work_api`/`work_worker` 只有 `SELECT` 和指定函数 `EXECUTE`，没有事实/账本表的直接 `INSERT/UPDATE/DELETE`。
 - 所有 `work` schema 函数改为 `SECURITY DEFINER`，固定 `search_path = work, pg_catalog`，由 `work_owner` 拥有。
 - 冒烟覆盖输入/提交幂等、scope 拒绝、直接 DML 拒绝、跨租户 RLS、派发、预算结算/修正、成果发布、采纳、审批、取消/重试、outbox 与 task summary。
-- 冒烟结果：**34/34 断言通过**；负例块在失败时会中止脚本。
+- 冒烟结果：**58/58 断言通过**（2026-10-26：34 + 标题 4 + 导出 2 + outbox 7 + 删除/转移 7 + 事件 4）；负例块在失败时会中止脚本。
 
 复现命令：
 
@@ -81,7 +81,7 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 | `status`、`expires_at`、`deleted_at` | active/expired/deleted；删除由后续留存任务处理 |
 | 唯一性 | `(org_id, subject_id, content_hash, purpose)` 仅在 active 时唯一 |
 
-**Task 元数据**：增加 `input_id`（同租户输入引用）与 `title`（1–200 字，服务端生成、可编辑）。标题按敏感元数据处理，不写普通日志；`goal` 不复制到 PostgreSQL。
+**Task 元数据**：增加 `input_id`（同租户输入引用）与 `title`（列约束 1–200 字，服务端生成；用户编辑经 `work.update_task_title`：owner-only、去空白后 1–80 字、无控制字符、`expected_revision` 乐观并发、`submission_dedup(operation_type='task_title')` 幂等，事件/审计只记字段名）。成果导出审计经 `work.record_artifact_export`（owner-only、仅已发布版本、审计只含版本/哈希/大小/类型）。标题按敏感元数据处理，不写普通日志；`goal` 不复制到 PostgreSQL。
 
 **`task_summary` 视图**：为“我的工作”和 TaskDetail 提供稳定投影，包含 `display_state`、latest Run、最新成果、`reserved_cents`、`settled_cents`、`blocking_operations`、`pending_acceptance`。视图使用 `security_invoker = true`，继承底层 RLS。
 
@@ -165,9 +165,23 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 - **组织执行闸门**：新增 Run/Operation/预算预留，以及 Run→active、Operation→authorized/dispatching，必须检查 `org.status/execution_enabled/operator_suspended`；终态、取消与对账更新不被停用阻断。
 - **对账状态**：`unresolved` 可在后续证据下转 `reconciled`；不允许跳过 `unknown/unresolved` 直接伪造成功。
 
+### 5.2 2026-10-26 增量命令
+
+| 命令/对象 | 授权 | 要点 |
+|---|---|---|
+| `update_task_title` | work_api | owner-only；1–80 字；revision；幂等；事件/审计只记字段名 |
+| `record_artifact_export` | work_api | owner-only；仅已发布版本；审计含版本/哈希/大小/类型 |
+| `claim_outbox`（修订） | work_worker | `outbox_seq` 单聚合有序；跳过死信 |
+| `mark_outbox_failed` | work_worker | 2^n 秒退避 ≤300s；第 8 次/不可重试死信 + 审计 |
+| `requeue_outbox_dead_letter` | work_ops | 需理由；审计；不改 payload |
+| `delete_task` / `ops_delete_task` | work_api / work_ops | 需静止；tombstone；标题清除；`content_shred` outbox 只含引用；账本/审计保留；ops 需工单号 |
+| `transfer_task_ownership` | work_ops | 新 owner 在职且有席位；需静止；工单号；事件/审计 |
+| 生命周期触发器 | — | `run.succeeded/failed/canceled`、`task.awaiting_acceptance`、`task.completed`（basis，不含理由文本） |
+| `work_ops` 角色 | NOLOGIN | 只有上述运维函数 EXECUTE；无表权限 |
+
 ## 6. 冒烟结果
 
-脚本 [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql) 在 PostgreSQL 16.15 独立容器执行，事务结束回滚。34/34 断言通过：
+脚本 [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql) 在 PostgreSQL 16.15 独立容器执行，事务结束回滚。58/58 断言通过（含 2026-10-26 新增 `title_update_*`、`title_event_no_text`、`artifact_export_*`）：
 
 | 组 | 断言 |
 |---|---|
@@ -203,6 +217,6 @@ R0a 的迁移不创建这些表；后续 migration 再引入，避免把未开�
 ## 8. 交付物与下一步
 
 - [r0a-schema-draft.sql](assets/work-r0a-design-2026-10-25/r0a-schema-draft.sql)：可执行 schema、角色、RLS、领域命令、task summary。
-- [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql)：34/34 冒烟与负例。
+- [r0a-schema-smoke.sql](assets/work-r0a-design-2026-10-25/r0a-schema-smoke.sql)：58/58 冒烟与负例。
 - [generate-schema.py](assets/work-r0a-design-2026-10-25/generate-schema.py)：从完整 DDL 裁剪 R0a 子集；后续契约/DDL 变更需同步。
 - 下一步 D2：R0a OpenAPI 子集、输入/模板/TaskSummary/SSE 契约、mock server 与合同测试。
