@@ -1,0 +1,27 @@
+{
+  "alpha": {
+    "project_id": "alpha",
+    "documents": [
+      {
+        "id": "alpha-brief",
+        "title": "Alpha project brief",
+        "body": "Alpha is the approved pilot project. This document is visible only through the alpha grant."
+      },
+      {
+        "id": "alpha-plan",
+        "title": "Alpha delivery plan",
+        "body": "Milestone one covers the connector scope and revocation slice."
+      }
+    ]
+  },
+  "beta": {
+    "project_id": "beta",
+    "documents": [
+      {
+        "id": "beta-secret",
+        "title": "Beta confidential plan",
+        "body": "This document must never be returned for the alpha grant."
+      }
+    ]
+  }
+}

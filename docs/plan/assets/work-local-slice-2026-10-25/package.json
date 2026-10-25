@@ -1,0 +1,17 @@
+{
+  "name": "work-local-slice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reference vertical slice: Work local authorization and disconnected recovery",
+  "scripts": {
+    "init": "node slice.mjs init",
+    "serve": "node slice.mjs serve",
+    "tick": "node slice.mjs tick",
+    "agent": "node device-agent.mjs",
+    "test": "node --test test/local.test.mjs"
+  },
+  "dependencies": {
+    "pg": "8.23.1"
+  }
+}

@@ -1,6 +1,6 @@
 # 方案与执行记录目录
 
-整理日期：2026-09-22；Agent 架构导航更新：2026-10-08；Work 授权 / 任务关系 / 执行模型决策索引：2026-10-24；日常办公能力删除：2026-10-25；Work 产品重做方案：2026-10-25；Work R0 UX 设计：2026-10-25；Work 扩展 UX 设计：2026-10-25；Work 目标系统架构：2026-10-25；Work API/内部契约：2026-10-25；Work 云端任务纵切：2026-10-25。
+整理日期：2026-09-22；Agent 架构导航更新：2026-10-08；Work 授权 / 任务关系 / 执行模型决策索引：2026-10-24；日常办公能力删除：2026-10-25；Work 产品重做方案：2026-10-25；Work R0 UX 设计：2026-10-25；Work 扩展 UX 设计：2026-10-25；Work 目标系统架构：2026-10-25；Work API/内部契约：2026-10-25；Work 云端任务纵切：2026-10-25；Work 本机断线纵切：2026-10-25；Work 连接器撤销纵切：2026-10-25。
 
 按主题查阅方案、实施契约、部署说明和历史执行记录。文档中的日期、代码版本、测试结果与部署状态保持原有语义；整理目录不代表重新测试或更新线上状态。
 
@@ -17,6 +17,8 @@
 | [work-api-contracts-2026-10-25.md](work-api-contracts-2026-10-25.md) | **Work API 与内部契约草案（§22.2-2）**：OpenAPI 3.1、内部 control/device/events/egress Protobuf、TaskEvent JSON Schema；覆盖幂等、revision、permission_mode、错误码、SSE/设备协议与版本规则；已通过 OpenAPI 3.1 与 Protobuf 语法校验，未做真实鉴权/协议回归 |
 | [assets/work-contracts-2026-10-25](assets/work-contracts-2026-10-25/README.md) | **Work 契约资产**：`openapi/work-openapi-v1.yaml`、`proto/work/{common,control,device,events,egress}/v1`、`schema/work-event-envelope-v1.schema.json` 及本地校验说明；不生成/提交生产 SDK |
 | [assets/work-cloud-slice-2026-10-25](assets/work-cloud-slice-2026-10-25/README.md) | **云端任务→采纳参考纵切**：Node 24 + PostgreSQL 16，应用角色 RLS；覆盖预览/提交幂等、`acquire_run`、模型/工具 Operation、审批、预算结算、成果发布、采纳、TaskEvent/outbox；10/10 测试通过；不接生产代码、真实模型、Temporal 或 SSE |
+| [assets/work-local-slice-2026-10-25](assets/work-local-slice-2026-10-25/README.md) | **本机授权→断线恢复参考纵切**：设备 hello/session、workspace grant、local Task/审批、lease/命令/签名 permit、设备 journal/receipt、回执丢失→unknown、重连对账、local-only 成果采纳；8/8 测试通过；不证明 OS 沙箱、mTLS 或真实设备 |
+| [assets/work-connector-slice-2026-10-25](assets/work-connector-slice-2026-10-25/README.md) | **连接器 scope→撤销参考纵切**：connection/grant、resource selector、adapter 边界校验、两阶段 connector Operation、预算/成果/采纳、refresh/revoke 竞争、在途 Operation 取消与预算释放；7/7 测试通过；mock adapter，不接真实供应商/OAuth |
 | [work-ux-design-r0-2026-10-25.md](work-ux-design-r0-2026-10-25.md) | **Work R0 中保真 UX 设计蓝图**：四界面、三条核心流程、组件/状态矩阵、审批与成果采纳、首次使用、历史工作、管理面、响应式、可访问性、可用性测试计划；工作首页对齐千问“新任务”（`＋` 菜单、执行器/权限 chip、R3 新建项目门控）；配套 [R0 原型](assets/work-ux-r0/prototype.html) 与 [管理面原型](assets/work-ux-admin/prototype.html) |
 | [work-ux-design-extensions-2026-10-25.md](work-ux-design-extensions-2026-10-25.md) | **Work 扩展 UX 设计（R1–R3）**：套件/技能收进 Composer `＋` 菜单、连接器独立入口、只读连接器授权、一级扩展能力首页 + 二级列表 + 三级套件/技能/连接器详情、加载/过期/错误状态、管理与创建入口；首页与千问“新任务”对齐并做能力范围门控；配套 [扩展原型](assets/work-ux-extensions/prototype.html) |
 | [work-module-product-architecture-agent-plan-2026-09-21.md](work-module-product-architecture-agent-plan-2026-09-21.md) | 工作（Work）历史产品计划：保留早期材料上传 / 沟通准备 / 周报 / 表格分析的范围与实施记录；这些日常办公能力已于 2026-10-25 删除，当前仅保留 `office_agent`、本地 / 远程协调和 Pi 复核；产品目标形态以 2026-10-25 clean-slate 方案为准 |
