@@ -1,0 +1,1128 @@
+openapi: 3.1.0
+info:
+  title: WeMeet Work R0a API
+  version: 0.1.0
+  description: |
+    R0a 云端主场景的公开 API 子集。只包含 Composer、输入、模板、任务/运行、
+    SSE、收件箱、文本成果与只读管理面；不暴露 R0b 本机、R2 连接器、R3 项目、
+    计划审批或远程设备接口。
+
+    公开用户 API 只使用 HttpOnly cookie 会话；变更请求另带 X-CSRF-Token
+    （double-submit）。内部服务身份/mTLS 不在此公开契约中描述。
+    所有正文只通过受控内容接口返回，不进入事件、错误或日志。
+servers:
+  - url: /
+security:
+  - cookieAuth: []
+tags:
+  - name: Session
+  - name: Inputs
+  - name: Templates
+  - name: Tasks
+  - name: Runs
+  - name: Events
+  - name: Inbox
+  - name: Artifacts
+  - name: Admin
+
+paths:
+  /work/v1/bootstrap:
+    get:
+      tags: [Session]
+      operationId: getBootstrap
+      summary: 当前会话、组织、阶段、执行目标与限制
+      responses:
+        "200":
+          description: 已认证会话
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Bootstrap" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /work/v1/inputs:
+    post:
+      tags: [Inputs]
+      operationId: createInput
+      summary: 创建或复用文本输入，返回不透明 input_ref
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InputCreateRequest" }
+      responses:
+        "201":
+          description: 输入已持久化；正文由 Content Store 保存
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InputObject" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /work/v1/templates:
+    get:
+      tags: [Templates]
+      operationId: listTemplates
+      summary: 内置方法模板（服务端版本化资产，不是能力注册表）
+      responses:
+        "200":
+          description: 模板列表
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TemplateList" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /work/v1/task-previews:
+    post:
+      tags: [Tasks]
+      operationId: createTaskPreview
+      summary: 解析输入/模板/权限/预算，返回执行边界与 preview_hash
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskPreviewRequest" }
+      responses:
+        "200":
+          description: 预览与费用上界；提交时必须重新解析
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskPreview" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /work/v1/tasks:
+    get:
+      tags: [Tasks]
+      operationId: listTasks
+      summary: 本人可见的任务摘要
+      parameters:
+        - name: view
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, running, awaiting_acceptance, completed, all]
+            default: all
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: 任务摘要页
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Tasks]
+      operationId: submitTask
+      summary: 幂等提交 Task 与首个 Run
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskSubmitRequest" }
+      responses:
+        "202":
+          description: 已持久受理，不代表模型已开始或已计费
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskRun" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /work/v1/tasks/{taskId}:
+    get:
+      tags: [Tasks]
+      operationId: getTask
+      summary: 任务详情（摘要、输入、模板）
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: 任务详情
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskDetail" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /work/v1/tasks/{taskId}/runs:
+    post:
+      tags: [Runs]
+      operationId: retryTask
+      summary: 创建新 Run；默认沿用 Task 初始快照
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TaskRunRequest" }
+      responses:
+        "202":
+          description: 新 Run 已持久受理
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskRun" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/runs/{runId}:
+    get:
+      tags: [Runs]
+      operationId: getRun
+      summary: 运行状态与等待/终态原因
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: 运行
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Run" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /work/v1/runs/{runId}/operations:
+    get:
+      tags: [Runs]
+      operationId: listOperations
+      summary: 运行中的 Operation（不含正文）
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Operation 页
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperationPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /work/v1/runs/{runId}/cancel:
+    post:
+      tags: [Runs]
+      operationId: cancelRun
+      summary: 幂等请求取消；不谎报进程已停止
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CancelRequest" }
+      responses:
+        "202":
+          description: 取消请求已受理
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Run" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /work/v1/tasks/{taskId}/events:
+    get:
+      tags: [Events]
+      operationId: streamTaskEvents
+      summary: Task SSE；Last-Event-ID 恢复
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: |
+            每个事件 id 为 event_id，data 为 TaskEvent JSON；
+            不支持 text/event-stream 的客户端应回退到任务快照 + 重新订阅。
+          content:
+            text/event-stream:
+              schema: { type: string }
+              example: |
+                id: 5f0f8f2e-1f1b-4c7a-9a1d-2c3b4a5d6e7f
+                event: task.updated
+                data: {"event_id":"5f0f8f2e-1f1b-4c7a-9a1d-2c3b4a5d6e7f","task_id":"...","seq":1,"schema_version":"work-event-v1","occurred_at":"2026-10-25T10:00:00Z","type":"task.submitted","payload":{}}
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: 游标超出保留窗口，必须重新取 Task 快照
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /work/v1/inbox:
+    get:
+      tags: [Inbox]
+      operationId: listInbox
+      summary: 跨 Task“需要你”只读投影；R0a 轮询
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: 收件箱页
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InboxPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /work/v1/artifacts/{artifactId}/versions:
+    post:
+      tags: [Artifacts]
+      operationId: createArtifactVersion
+      summary: 用户保存文本新版本；不覆盖旧版本
+      parameters:
+        - $ref: "#/components/parameters/ArtifactId"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ArtifactVersionCreateRequest" }
+      responses:
+        "201":
+          description: 新版本已发布
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ArtifactVersion" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/artifacts/{artifactId}/versions/{versionNo}:
+    get:
+      tags: [Artifacts]
+      operationId: getArtifactVersion
+      summary: 版本元数据与受控内容入口
+      parameters:
+        - $ref: "#/components/parameters/ArtifactId"
+        - $ref: "#/components/parameters/VersionNo"
+      responses:
+        "200":
+          description: 版本
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ArtifactVersion" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /work/v1/artifacts/{artifactId}/versions/{versionNo}/content:
+    get:
+      tags: [Artifacts]
+      operationId: getArtifactContent
+      summary: 受控正文读取；不缓存、不写日志
+      parameters:
+        - $ref: "#/components/parameters/ArtifactId"
+        - $ref: "#/components/parameters/VersionNo"
+      responses:
+        "200":
+          description: Markdown/纯文本正文
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+          content:
+            text/markdown:
+              schema: { type: string }
+            text/plain:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410":
+          description: 正文已过期
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /work/v1/tasks/{taskId}/acceptances:
+    post:
+      tags: [Artifacts]
+      operationId: acceptTask
+      summary: 采纳固定版本或记录完成理由
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AcceptanceRequest" }
+      responses:
+        "200":
+          description: 采纳结果
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AcceptanceResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/admin/overview:
+    get:
+      tags: [Admin]
+      operationId: getAdminOverview
+      summary: 当前主组织的治理元数据，不返回成员正文
+      responses:
+        "200":
+          description: 组织治理概览
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminOverview" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /work/v1/admin/seats:
+    get:
+      tags: [Admin]
+      operationId: listSeats
+      summary: 只读席位列表
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: 席位页
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SeatPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /work/v1/admin/audit-exports:
+    post:
+      tags: [Admin]
+      operationId: createAuditExport
+      summary: 创建审计导出作业；下载入口一次性、短期
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuditExportRequest" }
+      responses:
+        "202":
+          description: 导出作业已受理
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditExport" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /work/v1/admin/audit-exports/{exportId}:
+    get:
+      tags: [Admin]
+      operationId: getAuditExport
+      summary: 查询审计导出作业
+      parameters:
+        - $ref: "#/components/parameters/ExportId"
+      responses:
+        "200":
+          description: 导出作业
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuditExport" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: we_meet_session
+      description: HttpOnly、Secure、SameSite=Lax 会话 cookie；不在 URL 中携带。
+
+  parameters:
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string, minLength: 16 }
+      description: double-submit token；与 bootstrap 返回的 csrf_token 一致。
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ArtifactId:
+      name: artifactId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VersionNo:
+      name: versionNo
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    ExportId:
+      name: exportId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    BadRequest:
+      description: 请求格式或字段非法
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: 未认证或会话失效
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: 无权限或组织/席位/策略不允许
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: 资源不存在或不可见
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Conflict:
+      description: revision、幂等键或状态冲突
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    UnprocessableEntity:
+      description: 语义不可执行（scope、权限模式、预算等）
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    ServiceUnavailable:
+      description: 依赖暂时不可用；可安全重试
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message, retryable, correlation_id]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        retryable: { type: boolean }
+        correlation_id: { type: string }
+        current_revision: { type: [integer, "null"], minimum: 0 }
+        recovery_action: { type: [string, "null"] }
+
+    Org:
+      type: object
+      additionalProperties: false
+      required: [id, name, role, work_seat]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        role: { type: string, enum: [owner, admin, member, viewer] }
+        work_seat: { type: boolean }
+
+    Limits:
+      type: object
+      additionalProperties: false
+      required: [max_goal_chars, max_background_chars, max_artifact_bytes, max_active_runs]
+      properties:
+        max_goal_chars: { type: integer, minimum: 1 }
+        max_background_chars: { type: integer, minimum: 0 }
+        max_artifact_bytes: { type: integer, minimum: 1 }
+        max_active_runs: { type: integer, minimum: 1 }
+
+    Bootstrap:
+      type: object
+      additionalProperties: false
+      required: [subject_id, org, permissions, phases, execution_targets, allowed_permission_modes, limits, csrf_token]
+      properties:
+        subject_id: { type: string }
+        org: { $ref: "#/components/schemas/Org" }
+        permissions:
+          type: array
+          items: { type: string }
+        phases:
+          type: array
+          items: { type: string, enum: [R0a] }
+        execution_targets:
+          type: array
+          items: { $ref: "#/components/schemas/Target" }
+        allowed_permission_modes:
+          type: array
+          items: { $ref: "#/components/schemas/PermissionMode" }
+        limits: { $ref: "#/components/schemas/Limits" }
+        csrf_token: { type: string, minLength: 16 }
+
+    InputCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, goal]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        goal: { type: string, minLength: 1, maxLength: 2000 }
+        background: { type: string, maxLength: 4000 }
+        media_type: { type: string, enum: [text/markdown], default: text/markdown }
+
+    InputObject:
+      type: object
+      additionalProperties: false
+      required: [input_ref, content_hash, bytes, media_type, expires_at]
+      properties:
+        input_ref: { type: string, format: uuid }
+        content_hash: { type: string }
+        bytes: { type: integer, minimum: 1 }
+        media_type: { type: string }
+        expires_at: { type: string, format: date-time }
+
+    Template:
+      type: object
+      additionalProperties: false
+      required: [id, version, name, description, output_format, sections, content_hash]
+      properties:
+        id: { type: string }
+        version: { type: integer, minimum: 1 }
+        name: { type: string }
+        description: { type: string }
+        output_format: { type: string, enum: [markdown] }
+        sections:
+          type: array
+          items: { type: string }
+        content_hash: { type: string }
+
+    TemplateList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Template" }
+
+    TemplateSelection:
+      type: object
+      additionalProperties: false
+      required: [id, version]
+      properties:
+        id: { type: string }
+        version: { type: integer, minimum: 1 }
+
+    PermissionMode:
+      type: string
+      enum: [ask_each, auto_readonly]
+
+    Target:
+      type: object
+      additionalProperties: false
+      required: [kind, profile]
+      properties:
+        kind: { type: string, enum: [cloud] }
+        profile: { type: string, enum: [text-v1] }
+
+    OutputSpec:
+      type: object
+      additionalProperties: false
+      required: [format]
+      properties:
+        format: { type: string, enum: [markdown] }
+        audience: { type: [string, "null"] }
+        length: { type: [string, "null"], enum: [short, medium, long, null] }
+        required_sections:
+          type: array
+          maxItems: 10
+          items: { type: string }
+
+    SuiteSelection:
+      type: object
+      additionalProperties: false
+      required: [id, version]
+      properties:
+        id: { type: string }
+        version: { type: integer, minimum: 1 }
+
+    ConnectorSelection:
+      type: object
+      additionalProperties: false
+      required: [connection_id, grant_id]
+      properties:
+        connection_id: { type: string, format: uuid }
+        grant_id: { type: string, format: uuid }
+
+    R0aIntent:
+      type: object
+      additionalProperties: false
+      required: [input_ref, target, permission_mode, output]
+      properties:
+        input_ref: { type: string, format: uuid }
+        target: { $ref: "#/components/schemas/Target" }
+        template: { anyOf: [{ $ref: "#/components/schemas/TemplateSelection" }, { type: "null" }] }
+        permission_mode: { $ref: "#/components/schemas/PermissionMode" }
+        output: { $ref: "#/components/schemas/OutputSpec" }
+        suite:
+          anyOf: [{ $ref: "#/components/schemas/SuiteSelection" }, { type: "null" }]
+          description: R0a 收到非空 suite 必须返回 422 scope_unavailable。
+        connectors:
+          type: array
+          maxItems: 0
+          items: { $ref: "#/components/schemas/ConnectorSelection" }
+          description: R0a 收到非空 connectors 必须返回 422 scope_unavailable。
+
+    TaskPreviewRequest:
+      type: object
+      additionalProperties: false
+      required: [intent]
+      properties:
+        intent: { $ref: "#/components/schemas/R0aIntent" }
+
+    CostUpperBound:
+      type: object
+      additionalProperties: false
+      required: [amount_cents, currency, price_version]
+      properties:
+        amount_cents: { type: integer, minimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        price_version: { type: string }
+
+    TaskPreview:
+      type: object
+      additionalProperties: false
+      required: [preview_hash, effective_permission_mode, boundary_summary, cost_upper_bound, unavailable_reasons, expires_at]
+      properties:
+        preview_hash: { type: string }
+        effective_permission_mode: { $ref: "#/components/schemas/PermissionMode" }
+        allowed_permission_modes:
+          type: array
+          items: { $ref: "#/components/schemas/PermissionMode" }
+        boundary_summary:
+          type: array
+          items: { type: string }
+        cost_upper_bound: { $ref: "#/components/schemas/CostUpperBound" }
+        unavailable_reasons:
+          type: array
+          items: { type: string }
+        expires_at: { type: string, format: date-time }
+
+    TaskSubmitRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, preview_hash, intent]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        preview_hash: { type: string }
+        intent: { $ref: "#/components/schemas/R0aIntent" }
+
+    TaskState:
+      type: string
+      enum: [open, awaiting_acceptance, completed, canceled, archived]
+
+    DisplayState:
+      type: string
+      enum:
+        - open
+        - queued
+        - running
+        - awaiting_acceptance
+        - completed
+        - failed
+        - run_canceled
+        - reconciling
+        - budget_exhausted
+        - canceling
+        - canceled
+        - archived
+
+    RunState:
+      type: string
+      enum: [queued, active, waiting, cancel_requested, succeeded, failed, canceled]
+
+    WaitReason:
+      type: [string, "null"]
+      enum: [budget, provider, reconcile, null]
+
+    OperationState:
+      type: string
+      enum: [prepared, waiting_approval, authorized, dispatching, unknown, succeeded, failed, canceled, reconciled, unresolved]
+
+    Run:
+      type: object
+      additionalProperties: false
+      required: [id, task_id, attempt_no, state, control_revision, runtime_version, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        attempt_no: { type: integer, minimum: 1 }
+        state: { $ref: "#/components/schemas/RunState" }
+        wait_reason: { $ref: "#/components/schemas/WaitReason" }
+        terminal_reason: { type: [string, "null"] }
+        control_revision: { type: integer, minimum: 0 }
+        runtime_version: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    TaskSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - task_id
+        - title
+        - display_state
+        - task_state
+        - permission_mode
+        - revision
+        - pending_acceptance
+        - blocking_operations
+        - budget
+        - created_at
+        - updated_at
+      properties:
+        task_id: { type: string, format: uuid }
+        title: { type: string }
+        display_state: { $ref: "#/components/schemas/DisplayState" }
+        task_state: { $ref: "#/components/schemas/TaskState" }
+        permission_mode: { $ref: "#/components/schemas/PermissionMode" }
+        active_run_id: { type: [string, "null"], format: uuid }
+        latest_run_id: { type: [string, "null"], format: uuid }
+        latest_run: { anyOf: [{ $ref: "#/components/schemas/Run" }, { type: "null" }] }
+        latest_artifact:
+          anyOf:
+            - type: object
+              additionalProperties: false
+              required: [artifact_id, version_no, content_hash]
+              properties:
+                artifact_id: { type: string, format: uuid }
+                version_no: { type: integer, minimum: 1 }
+                content_hash: { type: string }
+            - type: "null"
+        revision: { type: integer, minimum: 0 }
+        pending_acceptance: { type: boolean }
+        blocking_operations: { type: integer, minimum: 0 }
+        budget:
+          type: object
+          additionalProperties: false
+          required: [currency, reserved_cents, settled_cents]
+          properties:
+            currency: { type: string, minLength: 3, maxLength: 3 }
+            reserved_cents: { type: integer, minimum: 0 }
+            settled_cents: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    TaskPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/TaskSummary" }
+        next_cursor: { type: [string, "null"] }
+
+    TaskDetail:
+      type: object
+      additionalProperties: false
+      required: [summary, input_ref, goal, background, template]
+      properties:
+        summary: { $ref: "#/components/schemas/TaskSummary" }
+        input_ref: { type: string, format: uuid }
+        goal: { type: string }
+        background: { type: [string, "null"] }
+        template: { anyOf: [{ $ref: "#/components/schemas/Template" }, { type: "null" }] }
+        snapshot:
+          type: object
+          additionalProperties: false
+          required: [snapshot_id, snapshot_hash, tool_allowlist, model_route, price_version]
+          properties:
+            snapshot_id: { type: string, format: uuid }
+            snapshot_hash: { type: string }
+            tool_allowlist:
+              type: array
+              items: { type: string }
+            model_route: { type: object, additionalProperties: true }
+            price_version: { type: string }
+
+    TaskRun:
+      type: object
+      additionalProperties: false
+      required: [task, run]
+      properties:
+        task: { $ref: "#/components/schemas/TaskSummary" }
+        run: { $ref: "#/components/schemas/Run" }
+
+    TaskRunRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, target]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        snapshot_id: { type: [string, "null"], format: uuid }
+        target: { $ref: "#/components/schemas/Target" }
+        reason: { type: string, maxLength: 500 }
+
+    CancelRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        reason: { type: string, maxLength: 500 }
+
+    Operation:
+      type: object
+      additionalProperties: false
+      required: [id, run_id, logical_key, kind, state, request_hash, revision, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        run_id: { type: string, format: uuid }
+        logical_key: { type: string }
+        kind: { type: string, enum: [model, tool, artifact] }
+        state: { $ref: "#/components/schemas/OperationState" }
+        request_hash: { type: string }
+        provider_request_id: { type: [string, "null"] }
+        receipt_ref: { type: [string, "null"] }
+        revision: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    OperationPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Operation" }
+        next_cursor: { type: [string, "null"] }
+
+    TaskEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, task_id, seq, schema_version, occurred_at, type, payload]
+      properties:
+        event_id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        run_id: { type: [string, "null"], format: uuid }
+        seq: { type: integer, minimum: 1 }
+        schema_version: { type: string }
+        occurred_at: { type: string, format: date-time }
+        type: { type: string }
+        payload:
+          type: object
+          additionalProperties: true
+
+    InboxItem:
+      type: object
+      additionalProperties: false
+      required: [task_id, type, title, display_state, updated_at]
+      properties:
+        task_id: { type: string, format: uuid }
+        type: { type: string, enum: [acceptance_required, failed, reconciling] }
+        title: { type: string }
+        display_state: { $ref: "#/components/schemas/DisplayState" }
+        updated_at: { type: string, format: date-time }
+
+    InboxPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/InboxItem" }
+        next_cursor: { type: [string, "null"] }
+
+    ArtifactVersion:
+      type: object
+      additionalProperties: false
+      required: [artifact_id, version_no, logical_name, media_type, bytes, content_hash, state, content_url, created_at]
+      properties:
+        artifact_id: { type: string, format: uuid }
+        version_no: { type: integer, minimum: 1 }
+        logical_name: { type: string }
+        media_type: { type: string }
+        bytes: { type: integer, minimum: 0 }
+        content_hash: { type: string }
+        state: { type: string, enum: [published] }
+        content_url: { type: string, format: uri }
+        created_at: { type: string, format: date-time }
+        published_at: { type: [string, "null"], format: date-time }
+
+    ArtifactVersionCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, content]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        base_version_no: { type: integer, minimum: 0, default: 0 }
+        logical_name: { type: string, maxLength: 200 }
+        media_type: { type: string, enum: [text/markdown, text/plain], default: text/markdown }
+        content: { type: string, maxLength: 262144 }
+
+    AcceptanceByVersion:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, expected_revision, artifact_id, version_no]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        expected_revision: { type: integer, minimum: 0 }
+        artifact_id: { type: string, format: uuid }
+        version_no: { type: integer, minimum: 1 }
+
+    AcceptanceByReason:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, expected_revision, completion_reason]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        expected_revision: { type: integer, minimum: 0 }
+        completion_reason: { type: string, minLength: 1, maxLength: 500 }
+
+    AcceptanceRequest:
+      oneOf:
+        - $ref: "#/components/schemas/AcceptanceByVersion"
+        - $ref: "#/components/schemas/AcceptanceByReason"
+
+    Acceptance:
+      type: object
+      additionalProperties: false
+      required: [id, task_id, actor_subject_id, task_revision, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        artifact_id: { type: [string, "null"], format: uuid }
+        version_no: { type: [integer, "null"], minimum: 1 }
+        completion_reason: { type: [string, "null"] }
+        actor_subject_id: { type: string }
+        task_revision: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+
+    AcceptanceResult:
+      type: object
+      additionalProperties: false
+      required: [acceptance, task]
+      properties:
+        acceptance: { $ref: "#/components/schemas/Acceptance" }
+        task: { $ref: "#/components/schemas/TaskSummary" }
+
+    AdminOverview:
+      type: object
+      additionalProperties: false
+      required: [org_id, name, status, execution_enabled, seats, budget, audit_retention_days]
+      properties:
+        org_id: { type: string }
+        name: { type: string }
+        status: { type: string, enum: [active, suspended, archived] }
+        execution_enabled: { type: boolean }
+        seats:
+          type: object
+          additionalProperties: false
+          required: [total, active]
+          properties:
+            total: { type: integer, minimum: 0 }
+            active: { type: integer, minimum: 0 }
+        budget:
+          type: object
+          additionalProperties: false
+          required: [currency, limit_cents, reserved_cents, settled_cents]
+          properties:
+            currency: { type: string, minLength: 3, maxLength: 3 }
+            limit_cents: { type: integer, minimum: 0 }
+            reserved_cents: { type: integer, minimum: 0 }
+            settled_cents: { type: integer, minimum: 0 }
+        audit_retention_days: { type: integer, minimum: 1 }
+
+    Seat:
+      type: object
+      additionalProperties: false
+      required: [subject_id, role, work_seat, status, revision]
+      properties:
+        subject_id: { type: string }
+        role: { type: string, enum: [owner, admin, member, viewer] }
+        work_seat: { type: boolean }
+        status: { type: string, enum: [invited, active, suspended, left] }
+        revision: { type: integer, minimum: 0 }
+
+    SeatPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Seat" }
+        next_cursor: { type: [string, "null"] }
+
+    AuditExportRequest:
+      type: object
+      additionalProperties: false
+      required: [client_request_id, from, to, format]
+      properties:
+        client_request_id: { type: string, minLength: 8, maxLength: 128 }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        format: { type: string, enum: [csv, json] }
+
+    AuditExport:
+      type: object
+      additionalProperties: false
+      required: [id, status, requested_at, download_url]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [queued, running, ready, expired, failed] }
+        requested_at: { type: string, format: date-time }
+        ready_at: { type: [string, "null"], format: date-time }
+        expires_at: { type: [string, "null"], format: date-time }
+        download_url: { type: [string, "null"], format: uri }

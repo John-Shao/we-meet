@@ -146,7 +146,7 @@ OpenAPI 草案覆盖 33 个路径，按组：
 6. Protobuf tag/字段演进策略、生成代码目录和合同测试的 CI 位置。
 7. `operator` 与服务方 break-glass 的审批/审计 UI 契约。
 8. OpenAPI 生成客户端与现有仓库 SDK 的边界；本批不引入依赖。
-9. R0a 详细设计发现的契约缺口：输入创建（goal/background → `input_ref`）、内置模板、TaskSummary/视图筛选、Task title、管理只读映射；见 [work-r0a-detailed-design-plan-2026-10-25.md](work-r0a-detailed-design-plan-2026-10-25.md) §3 D2。
+9. R0a 详细设计发现的契约缺口：输入创建（goal/background → `input_ref`）、内置模板、TaskSummary/视图筛选、Task title、管理只读映射；见 [work-r0a-detailed-design-plan-2026-10-25.md](work-r0a-detailed-design-plan-2026-10-25.md) §3 D2。R0a 子集已在 [work-r0a-api-design-2026-10-25.md](work-r0a-api-design-2026-10-25.md) 闭合输入/模板/TaskSummary/SSE 主要缺口；admin P1-A 映射仍待定。
 
 ## 9. 边界
 

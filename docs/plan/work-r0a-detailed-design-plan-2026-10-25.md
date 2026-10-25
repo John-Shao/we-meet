@@ -42,6 +42,12 @@
 - **不变量不拆分**：任务静止、预算账本、幂等、不可变成果、审计/outbox、受控出口在 R0a 就必须成立。
 - **单区域试点不冒充生产**：DR、容量、SLO 先给试点边界，不虚构区域级承诺。
 
+### 0.3 W1 进展（2026-10-25）
+
+- **D1 已完成可执行草案**：[数据/权限/迁移设计](work-r0a-data-design-2026-10-25.md)、[schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；PostgreSQL 16 冒烟 20/20，未应用生产。
+- **D2 已完成契约子集**：[API/事件设计](work-r0a-api-design-2026-10-25.md)、[OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型、mock server 与 6/6 合同测试；未做真实鉴权/持久化。
+- **DR1 尚未评审**：D1/D2 仍是草案；D3/D4 需在 DR1 后继续。
+
 ## 1. R0a 范围冻结
 
 ### 1.1 范围内
@@ -115,6 +121,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | 待验收 | Task awaiting_acceptance，存在已发布版本或完成理由 | 查看成果、采纳 |
 | 已完成 | Task completed | 导出、继续工作；采纳绑定版本或记录完成理由 |
 | 失败 | Task open，latest Run failed | 查看原因、重试 |
+| 运行已取消 | Task open，latest Run canceled | 查看保留成果、重试 |
 | 未知/核对中 | 存在 unknown/unresolved Operation | 等待核对，不提供“重试” |
 | 预算耗尽 | Run waiting reason=budget | 等待预算/取消 |
 | 已取消 | Task canceled | 查看保留成果 |
@@ -195,6 +202,8 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 **设计输入**：[DDL 草案](work-data-model-ddl-draft-2026-10-25.md)、[架构 §5/§13/§14/§18](work-system-architecture-2026-10-25.md)、[ADR-0009/0011/0016/0017](../adr/)。
 
+**当前进展（2026-10-25）**：已产出 [D1 设计说明](work-r0a-data-design-2026-10-25.md) 与 [可执行 schema/冒烟资产](assets/work-r0a-design-2026-10-25/README.md)；独立 PostgreSQL 16 冒烟 20/20 通过。仍是草案，未评审、未应用生产。
+
 **交付物**：
 
 1. **R0a 表清单与迁移切片**  
@@ -206,7 +215,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 3. **角色与权限矩阵**  
    `work_owner`（对象/函数所有者）、`work_api`、`work_worker`、`work_egress`（仅出口相关）、`work_migrator`、`work_ledger`（账本/审计追加）分离；业务角色无 `BYPASSRLS`；`FORCE ROW LEVEL SECURITY`；`REVOKE` 对 fact/ledger 表的直接 DML。
 4. **领域命令契约**  
-   `create_run/acquire_run/claim_dispatch/create_operation/settle_budget/adjust_budget/release_budget/publish_artifact/accept_task/cancel_request` 的输入、锁顺序、事务边界、返回码与幂等规则；明确 `SECURITY DEFINER` 函数清单、`search_path` 加固与 `EXECUTE` 授权；草案当前 `SECURITY INVOKER` 的实现需按 D-04 修订。
+   `create_input/submit_task/create_run/acquire_run/create_operation/authorize_operation/finish_operation/cancel_operation/claim_dispatch/reserve_budget/settle_budget/adjust_budget/release_budget/publish_artifact/request_cancel/finish_run/accept_task/request_approval/decide_approval/claim_outbox/mark_outbox_delivered` 的输入、锁顺序、事务边界、返回码与幂等规则；明确 `SECURITY DEFINER` 函数清单、`search_path` 加固与 `EXECUTE` 授权；草案当前 `SECURITY INVOKER` 的实现需按 D-04 修订。
 5. **输入/成果/模板元数据**  
    输入对象生命周期（创建 → 绑定 Task → 保留/过期/删除）；成果版本不可变、发布/采纳/导出；模板版本资产的内容哈希与快照引用；上传会话与内容寻址。
 6. **留存、删除与恢复**  
@@ -217,7 +226,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 **完成标准**：
 
 - 空库迁移成功；R0a 迁移重复执行幂等。
-- 8 组 DDL 冒烟（现有）加 R0a 新增负例全部通过。
+- 现有 8 组 DDL 冒烟加 R0a 20 项断言/负例全部通过（D1 草案已通过 20/20）。
 - `work_api`/`work_worker` 不能直接 `INSERT/UPDATE/DELETE` fact/ledger 表；只能执行授权函数。
 - org1/org2 交叉读取为 0；`FORCE RLS` 生效。
 - 备份恢复后 Task/Run/Operation/预算/采纳/去重事实一致。
@@ -229,6 +238,8 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 **目标**：冻结 R0a 公开接口子集，闭合当前契约缺口，并让客户端/mock/合同测试成为实现输入。
 
 **设计输入**：[OpenAPI](assets/work-contracts-2026-10-25/openapi/work-openapi-v1.yaml)、[API 契约](work-api-contracts-2026-10-25.md)、[云端纵切](assets/work-cloud-slice-2026-10-25/README.md)、[架构 §15](work-system-architecture-2026-10-25.md)。
+
+**当前进展（2026-10-25）**：已产出 [D2 设计说明](work-r0a-api-design-2026-10-25.md)、[R0a OpenAPI](assets/work-r0a-design-2026-10-25/r0a-openapi-v1.yaml)、生成的 TypeScript 类型、[mock server](assets/work-r0a-design-2026-10-25/mock-server.mjs) 与 [6 组合同测试](assets/work-r0a-design-2026-10-25/test/contract.test.mjs)；OpenAPI 校验与 `tsc --noEmit` 通过。运行时 SDK/CI 接入仍未完成。
 
 **必须先闭合的契约缺口**：
 
@@ -248,13 +259,13 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 2. 会话与 CSRF：cookie 方案、CSRF double-submit、会话撤销、SSE 建立/续接；错误码与安全响应头。
 3. 幂等与并发：`client_request_id` 作用域、请求哈希、409 冲突、revision/If-Match、`preview_stale`、`run_not_quiescent`。
 4. 事件：TaskEvent 信封、`aggregate_seq`、outbox relay、SSE 至少一次、去重、`resync_required`；Inbox 查询游标；事件不含正文。
-5. 生成物：TypeScript client、mock server、示例请求、合同测试；CI 命令。
+5. 生成物：TypeScript 类型（已生成）、mock server、示例请求、合同测试；CI 命令待仓库流水线。
 6. API 到 UI 状态映射：§1.5 的服务端投影字段与前端消费规则。
 
 **完成标准**：
 
 - OpenAPI 3.1 校验通过；R0a 子集无未解析 `$ref`。
-- 生成客户端编译通过；mock 能跑通云端 golden path 的 API 合同测试。
+- 生成的 TypeScript 类型通过 `tsc --noEmit`；mock 能跑通云端 golden path 与关键负例的合同测试（当前 6/6）。
 - 重复提交同 key 同 payload 返回原结果；不同 payload 返回 409。
 - SSE 断线用 Last-Event-ID 恢复；游标过期返回 409 `resync_required`。
 - 事件、错误、日志中无 goal/background/成果正文；URL 中无会话 token。
@@ -543,11 +554,12 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 |---|---|---|---|
 | R0a 权限文案与“无手工审批”不一致 | 用户以为会逐次审批，或 UI 出现不可达状态 | 产品/UX 回写；D5 文案与状态矩阵；不显示假审批 | 产品/设计 |
 | 产品表残留“R0a 仅本机文件夹” | 范围混淆 | 按架构 §1.3 修正为 R0a 云端、R0b 本机 | 产品 |
-| 输入创建接口缺失 | 前端无法提交真实任务 | D2 新增 `POST /inputs`，冻结大小/幂等/加密 | 后端/前端 |
-| 模板接口缺失 | 无法渲染 3 个模板 | D2 新增 `GET /templates` 或 bootstrap 字段 | 后端/前端 |
-| TaskSummary/视图筛选不足 | “我的工作”状态由前端拼 | D2 服务端投影 + `view` 参数 | 后端/前端 |
-| 任务标题缺失 | 历史列表不可读 | D1/D2 增加 title，按敏感元数据处理 | 后端/产品 |
-| 管理只读与 P1-A 字段不一致 | 重复建设/权限口径漂移 | D2/D6 映射表；缺字段用只读适配器 | 后端/平台 |
+| 输入创建接口缺失 | 前端无法提交真实任务 | D2 已补 `POST /inputs` 并 mock 验证；生产输入服务待接 | 后端/前端 |
+| 模板接口缺失 | 无法渲染 3 个模板 | D2 已补 `GET /templates`；3 个版本化资产 | 后端/前端 |
+| TaskSummary/视图筛选不足 | “我的工作”状态由前端拼 | D2 已补服务端投影 + `view` 参数 | 后端/前端 |
+| 任务标题缺失 | 历史列表不可读 | D1/D2 已加只读 title；编辑接口仍待定 | 后端/产品 |
+| 管理只读与 P1-A 字段不一致 | 重复建设/权限口径漂移 | 目标形状已冻结；P1-A 映射待 D6 | 后端/平台 |
+| SSE 鉴权/游标 | 客户端实现分裂/token 泄漏 | D2 已冻结 cookie + 409 resync；SSE 网关待实现 | 后端/前端 |
 | Content Store 方案未定 | 正文加密/删除/恢复无落点 | D1/D6 复用平台对象存储或 S3+KMS | 平台/安全 |
 | Temporal 托管方式未定 | 部署/数据驻留/升级不清 | D3 W1 定案；自托管优先独立库/角色 | 平台/后端 |
 | 模型供应商条款/价表未定 | 预算/合规/回退不可承诺 | D4 闸门；H02 真实证据；价表上界 | 产品/商务/后端 |
@@ -581,23 +593,25 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 
 | 方法 | 路径 | R0a 状态 | 说明 |
 |---|---|---|---|
-| GET | `/work/v1/bootstrap` | 现有 | 组织、权限、阶段、执行目标、限制；可加模板摘要 |
+| GET | `/work/v1/bootstrap` | 现有 | 组织、权限、阶段、执行目标、限制、csrf_token |
 | POST | `/work/v1/inputs` | **新增** | 创建 goal/background 输入，返回不透明 `input_ref` |
 | GET | `/work/v1/templates` | **新增** | 3 个内置模板及版本/哈希 |
 | POST | `/work/v1/task-previews` | 现有 | 解析输入/模板/权限/预算，返回 preview_hash |
 | POST | `/work/v1/tasks` | 现有 | 幂等提交；R0a 拒绝 suite/connectors/plan |
 | GET | `/work/v1/tasks` | 现有，需扩展 | 增加 `view` 与 TaskSummary |
-| GET | `/work/v1/tasks/{taskId}` | 现有，需扩展 | TaskDetail + latest Run/artifact/budget |
+| GET | `/work/v1/tasks/{taskId}` | 现有，需扩展 | TaskDetail + goal/background/template/snapshot |
 | POST | `/work/v1/tasks/{taskId}/runs` | 现有 | 重试新 Run，沿用快照 |
 | POST | `/work/v1/runs/{runId}/cancel` | 现有 | 幂等取消请求 |
 | GET | `/work/v1/runs/{runId}` | 现有 | 运行状态与 wait/terminal reason |
-| GET | `/work/v1/tasks/{taskId}/events` | 现有 | SSE + Last-Event-ID |
+| GET | `/work/v1/runs/{runId}/operations` | 现有 | Operation 列表；不含正文 |
+| GET | `/work/v1/tasks/{taskId}/events` | 现有 | SSE + Last-Event-ID；409 resync |
 | GET | `/work/v1/inbox` | 现有 | R0a 轮询；Inbox SSE 后置 |
-| POST | `/work/v1/artifacts/{artifactId}/versions` | 现有 | 编辑保存/上传新版本 |
+| POST | `/work/v1/artifacts/{artifactId}/versions` | 现有 | R0a 内联文本新版本；上传会话后置 |
 | GET | `/work/v1/artifacts/{artifactId}/versions/{versionNo}` | 现有 | 元数据 + 受控 `content_url` |
+| GET | `/work/v1/artifacts/{artifactId}/versions/{versionNo}/content` | **新增** | 受控正文读取；no-store |
 | POST | `/work/v1/tasks/{taskId}/acceptances` | 现有 | 采纳固定版本或完成理由 |
-| GET/POST | `/work/v1/admin/overview`、`/admin/seats`、`/admin/audit-exports` | 映射 P1-A | 只读/审计导出；字段差异用适配器；不开放席位/预算/策略写入 |
-| POST | `/work/v1/approvals/{approvalId}/decisions` | 保留但不走 golden path | 策略自动/未来工具动作；负例测试 |
+| GET/POST | `/work/v1/admin/overview`、`/admin/seats`、`/admin/audit-exports` | 目标形状 | 只读/审计导出；P1-A 字段映射待 D6 |
+| — | approval / connectors / devices / workspace-grants / capabilities / projects / operator | 不进入 R0a 公开子集 | R0a golden path 无手工审批；D1 内部审批命令保留 |
 | — | connectors/devices/workspace-grants/capabilities/projects/operator | 不进入 R0a | 服务端拒绝或路由不存在 |
 
 ### 9.2 R0a 工具清单
@@ -622,6 +636,7 @@ UI 的“进行中/待验收/失败”不是单一 `Task.state`，必须由 Task
 | 待验收 | awaiting_acceptance | succeeded | 无 | 需已发布版本或完成理由 |
 | 已完成 | completed | succeeded | 无 | 采纳绑定版本 |
 | 失败 | open | failed | 无 | 可重试 |
+| 运行已取消 | open | canceled | 无 | 可重试 |
 | 未知/核对中 | open | active/waiting | unknown/unresolved | 不提供重试 |
 | 预算耗尽 | open | waiting | 无 | wait_reason=budget |
 | 已取消 | canceled | canceled | 无 | 已产生成果只读 |

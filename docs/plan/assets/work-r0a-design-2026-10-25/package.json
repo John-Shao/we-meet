@@ -1,0 +1,8 @@
+{
+  "name": "work-r0a-contract-mock",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/contract.test.mjs"
+  }
+}
